@@ -18,7 +18,6 @@ import (
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/fairness"
 )
 
@@ -57,11 +56,11 @@ type SchedulingContext struct {
 	// Reason for why the scheduling round finished.
 	TerminationReason string
 	// Used to efficiently generate scheduling keys.
-	SchedulingKeyGenerator *schedulerobjects.SchedulingKeyGenerator
+	SchedulingKeyGenerator *internaltypes.SchedulingKeyGenerator
 	// Record of job scheduling requirements known to be unfeasible.
 	// Used to immediately reject new jobs with identical reqirements.
 	// Maps to the JobSchedulingContext of a previous job attempted to schedule with the same key.
-	UnfeasibleSchedulingKeys map[schedulerobjects.SchedulingKey]*JobSchedulingContext
+	UnfeasibleSchedulingKeys map[internaltypes.SchedulingKey]*JobSchedulingContext
 	SpotPrice                float64
 }
 
@@ -80,13 +79,13 @@ func NewSchedulingContext(
 		TotalResources:           totalResources,
 		ScheduledResources:       internaltypes.ResourceList{},
 		EvictedResources:         internaltypes.ResourceList{},
-		SchedulingKeyGenerator:   schedulerobjects.NewSchedulingKeyGenerator(),
-		UnfeasibleSchedulingKeys: make(map[schedulerobjects.SchedulingKey]*JobSchedulingContext),
+		SchedulingKeyGenerator:   internaltypes.NewSchedulingKeyGenerator(),
+		UnfeasibleSchedulingKeys: make(map[internaltypes.SchedulingKey]*JobSchedulingContext),
 	}
 }
 
 func (sctx *SchedulingContext) ClearUnfeasibleSchedulingKeys() {
-	sctx.UnfeasibleSchedulingKeys = make(map[schedulerobjects.SchedulingKey]*JobSchedulingContext)
+	sctx.UnfeasibleSchedulingKeys = make(map[internaltypes.SchedulingKey]*JobSchedulingContext)
 }
 
 func (sctx *SchedulingContext) AddQueueSchedulingContext(

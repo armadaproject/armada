@@ -184,7 +184,7 @@ func ApiJobFromLogSubmitJob(ownerId string, groups []string, queueName string, j
 
 		PodSpec:                        podSpec,
 		PodSpecs:                       podSpecs,
-		SchedulingResourceRequirements: &schedulingResourceRequirements,
+		SchedulingResourceRequirements: schedulingResourceRequirements,
 
 		Created:                  protoutil.ToTimestamp(time),
 		Owner:                    ownerId,

@@ -32,7 +32,7 @@ message WorkloadSpec {
 
 message NodeTemplate {
     int64 number = 1;
-    repeated k8s.io.api.core.v1.Taint taints = 2 [(gogoproto.nullable) = false];
+    repeated k8s.io.api.core.v1.Taint taints = 2;
     map<string, string> labels = 3;
     schedulerobjects.ResourceList total_resources = 4 [(gogoproto.nullable) = false];
 }
@@ -57,7 +57,7 @@ message JobTemplate {
     uint32 queue_priority = 6;
     string priority_class_name = 7;
     // Scheduling requirements for the pod embedded in the job.
-    schedulerobjects.PodRequirements requirements = 8 [(gogoproto.nullable) = false];
+    schedulerobjects.PodRequirements requirements = 8;
     // List of template ids that must be completed before this template is submitted.
     repeated string dependencies = 9;
     // Earliest time at which jobs from this template are submitted.

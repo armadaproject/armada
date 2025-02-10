@@ -477,13 +477,15 @@ func submitJobFromJobTemplate(jobId string, jobTemplate *JobTemplate, gangId str
 			Object: &armadaevents.KubernetesMainObject_PodSpec{
 				PodSpec: &armadaevents.PodSpecWithAvoidList{
 					PodSpec: &v1.PodSpec{
-						NodeSelector:      jobTemplate.Requirements.NodeSelector,
-						Affinity:          jobTemplate.Requirements.Affinity,
-						Tolerations:       jobTemplate.Requirements.Tolerations,
+						NodeSelector: jobTemplate.Requirements.NodeSelector,
+						Affinity:     jobTemplate.Requirements.Affinity,
+						Tolerations: armadaslices.Map(jobTemplate.Requirements.Tolerations, func(t *v1.Toleration) v1.Toleration {
+							return *t
+						}),
 						PriorityClassName: jobTemplate.PriorityClassName,
 						Containers: []v1.Container{
 							{
-								Resources: jobTemplate.Requirements.ResourceRequirements,
+								Resources: *jobTemplate.Requirements.ResourceRequirements,
 							},
 						},
 					},

@@ -323,7 +323,7 @@ func TestSimulator(t *testing.T) {
 				Name: "cluster",
 				Clusters: func() []*Cluster {
 					whaleNodeTemplate := NodeTemplateGpu(2)
-					whaleNodeTemplate.Taints = []v1.Taint{
+					whaleNodeTemplate.Taints = []*v1.Taint{
 						{Key: "gpu-whale", Value: "true", Effect: v1.TaintEffectNoSchedule},
 					}
 					return []*Cluster{
@@ -351,15 +351,15 @@ func TestSimulator(t *testing.T) {
 								Number:            2,
 								JobSet:            "job-set-0",
 								PriorityClassName: "armada-preemptible",
-								Requirements: schedulerobjects.PodRequirements{
-									ResourceRequirements: v1.ResourceRequirements{
+								Requirements: &schedulerobjects.PodRequirements{
+									ResourceRequirements: &v1.ResourceRequirements{
 										Requests: v1.ResourceList{
 											"cpu":            resource.MustParse("128"),
 											"memory":         resource.MustParse("4096Gi"),
 											"nvidia.com/gpu": resource.MustParse("8"),
 										},
 									},
-									Tolerations: []v1.Toleration{
+									Tolerations: []*v1.Toleration{
 										{Key: "gpu-whale", Value: "true", Effect: v1.TaintEffectNoSchedule},
 									},
 								},
@@ -377,8 +377,8 @@ func TestSimulator(t *testing.T) {
 								Number:            32,
 								JobSet:            "job-set-1",
 								PriorityClassName: "armada-preemptible-away",
-								Requirements: schedulerobjects.PodRequirements{
-									ResourceRequirements: v1.ResourceRequirements{
+								Requirements: &schedulerobjects.PodRequirements{
+									ResourceRequirements: &v1.ResourceRequirements{
 										Requests: v1.ResourceList{
 											"cpu":            resource.MustParse("16"),
 											"memory":         resource.MustParse("512Gi"),
