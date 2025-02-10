@@ -1,17 +1,15 @@
 #!/bin/bash
 # This script is intended to be run under the docker container
 # in the root dir of the Armada repo
-set -euxo pipefail
+set -euo pipefail
 
 export PATH=/sbt/bin:$PATH
 
 ROOT=$(pwd)
 SDIR=client/scala/scala-armada-client
 
-echo "pwd=$(pwd)"
-echo "ROOT=$ROOT"
-echo "SDIR=$SDIR"
-ls -lah
+# sbt needs a writable home directory, lets fall back to $ROOT (CWD)
+export HOME="${HOME:-$ROOT}"
 
 rm -rf $ROOT/$SDIR/proto
 mkdir -p $ROOT/$SDIR/proto

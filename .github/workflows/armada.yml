@@ -28,6 +28,6 @@ jobs:
         run: |
           cd armada
           ../mage buildScala
-          cd armada/client/scala/scala-armada-client
+          cd client/scala/scala-armada-client
           sbt -Dsbt.io.implicit.relative.glob.conversion=allow publishM2
 
