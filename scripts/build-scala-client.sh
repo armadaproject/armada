@@ -1,6 +1,7 @@
 #!/bin/bash
 # This script is intended to be run under the docker container
 # in the root dir of the Armada repo
+set -euxo pipefail
 
 export PATH=/sbt/bin:$PATH
 
