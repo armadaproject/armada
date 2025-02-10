@@ -2,7 +2,6 @@ package internaltypes
 
 import (
 	"fmt"
-	"math"
 
 	"golang.org/x/exp/maps"
 	v1 "k8s.io/api/core/v1"
@@ -320,14 +319,6 @@ func deepCopyLabels(labels map[string]string) map[string]string {
 	result := make(map[string]string, len(labels))
 	for k, v := range labels {
 		result[k] = v
-	}
-	return result
-}
-
-func minInt32(arr []int32) int32 {
-	result := int32(math.MaxInt32)
-	for _, val := range arr {
-		result = min(result, val)
 	}
 	return result
 }
