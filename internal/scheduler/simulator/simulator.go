@@ -777,7 +777,11 @@ func (s *Simulator) handleEventSequence(_ *armadacontext.Context, es *armadaeven
 }
 
 func (s *Simulator) handleSubmitJob(txn *jobdb.Txn, e *armadaevents.SubmitJob, time time.Time, eventSequence *armadaevents.EventSequence) (*jobdb.Job, bool, error) {
-	schedulingInfo, err := scheduleringester.SchedulingInfoFromSubmitJob(e, time)
+	schedulingInfoProto, err := scheduleringester.SchedulingInfoFromSubmitJob(e, time)
+	if err != nil {
+		return nil, false, err
+	}
+	schedulingInfo, err := internaltypes.FromSchedulerObjectsJobSchedulingInfo(schedulingInfoProto)
 	if err != nil {
 		return nil, false, err
 	}

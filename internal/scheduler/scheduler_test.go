@@ -123,7 +123,7 @@ var queuedJob = testfixtures.NewJob(
 	"testQueue",
 	uint32(10),
 	0.0,
-	schedulingInfo,
+	toInternalSchedulingInfo(schedulingInfo),
 	true,
 	0,
 	false,
@@ -139,7 +139,7 @@ var leasedJob = testfixtures.NewJob(
 	"testQueue",
 	0,
 	0.0,
-	schedulingInfo,
+	toInternalSchedulingInfo(schedulingInfo),
 	false,
 	1,
 	false,
@@ -155,7 +155,7 @@ var preemptibleLeasedJob = testfixtures.NewJob(
 	"testQueue",
 	0,
 	0.0,
-	preemptibleSchedulingInfo,
+	toInternalSchedulingInfo(preemptibleSchedulingInfo),
 	false,
 	1,
 	false,
@@ -171,7 +171,7 @@ var cancelledJob = testfixtures.NewJob(
 	"testQueue",
 	0,
 	0.0,
-	schedulingInfo,
+	toInternalSchedulingInfo(schedulingInfo),
 	false,
 	1,
 	true,
@@ -187,7 +187,7 @@ var returnedOnceLeasedJob = testfixtures.NewJob(
 	"testQueue",
 	uint32(10),
 	0.0,
-	schedulingInfo,
+	toInternalSchedulingInfo(schedulingInfo),
 	false,
 	3,
 	false,
@@ -246,7 +246,7 @@ var leasedFailFastJob = testfixtures.NewJob(
 	"testQueue",
 	uint32(10),
 	0.0,
-	failFastSchedulingInfo,
+	toInternalSchedulingInfo(failFastSchedulingInfo),
 	false,
 	1,
 	false,
@@ -269,7 +269,7 @@ var (
 		"testQueue",
 		uint32(10),
 		0.0,
-		schedulingInfo,
+		toInternalSchedulingInfo(schedulingInfo),
 		true,
 		2,
 		false,
@@ -925,8 +925,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 					assert.Equal(t, expectedPriority, job.Priority())
 				}
 				if len(tc.expectedNodeAntiAffinities) > 0 {
-					assert.Len(t, job.JobSchedulingInfo().ObjectRequirements, 1)
-					affinity := job.JobSchedulingInfo().ObjectRequirements[0].GetPodRequirements().Affinity
+					affinity := job.JobSchedulingInfo().PodRequirements.Affinity
 					assert.NotNil(t, affinity)
 					expectedAffinity := createAntiAffinity(t, nodeIdLabel, tc.expectedNodeAntiAffinities)
 					assert.Equal(t, expectedAffinity, affinity)
@@ -1020,7 +1019,7 @@ func TestRun(t *testing.T) {
 		wg.Add(1)
 		sched.onCycleCompleted = func() { wg.Done() }
 		jobId := util.NewULID()
-		jobRepo.updatedJobs = []database.Job{{JobID: jobId, Queue: "testQueue", Queued: true, Validated: true}}
+		jobRepo.updatedJobs = []database.Job{{JobID: jobId, Queue: "testQueue", Queued: true, Validated: true, SchedulingInfo: schedulingInfoBytes}}
 		schedulingAlgo.jobsToSchedule = []string{jobId}
 		testClock.Step(10 * time.Second)
 		wg.Wait()
@@ -1327,7 +1326,7 @@ func TestScheduler_TestSyncState(t *testing.T) {
 				},
 			},
 			expectedUpdatedJobs: []*jobdb.Job{
-				jobdb.JobWithJobSchedulingInfo(leasedJob, updatedSchedulingInfo).
+				jobdb.JobWithJobSchedulingInfo(leasedJob, toInternalSchedulingInfo(updatedSchedulingInfo)).
 					WithQueued(true).
 					WithQueuedVersion(3),
 			},
@@ -1791,7 +1790,7 @@ func jobDbJobFromDbJob(resourceListFactory *internaltypes.ResourceListFactory, j
 		job.Queue,
 		uint32(job.Priority),
 		job.BidPrice,
-		&schedulingInfo,
+		toInternalSchedulingInfo(&schedulingInfo),
 		job.Queued,
 		job.QueuedVersion,
 		job.CancelRequested,
@@ -2873,4 +2872,12 @@ func fixInsertJobsDbOp(dbOp scheduleringester.InsertJobs) scheduleringester.Inse
 		job.SubmitMessage = make([]byte, 0)
 	}
 	return dbOp
+}
+
+func toInternalSchedulingInfo(j *schedulerobjects.JobSchedulingInfo) *internaltypes.JobSchedulingInfo {
+	internalJsi, err := internaltypes.FromSchedulerObjectsJobSchedulingInfo(j)
+	if err != nil {
+		panic(err)
+	}
+	return internalJsi
 }

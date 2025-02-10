@@ -36,7 +36,7 @@ type JobSchedulingContext struct {
 	Job *jobdb.Job
 	// Scheduling requirements of this job.
 	// We currently require that each job contains exactly one pod spec.
-	PodRequirements *schedulerobjects.PodRequirements
+	PodRequirements *internaltypes.PodRequirements
 	// Resource requirements in an efficient internaltypes.ResourceList
 	KubernetesResourceRequirements internaltypes.ResourceList
 	// Node selectors to consider in addition to those included with the PodRequirements.

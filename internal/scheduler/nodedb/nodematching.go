@@ -125,7 +125,7 @@ func (err *InsufficientResources) String() string {
 // If the requirements are not met, it returns the reason for why.
 // If the requirements can't be parsed, an error is returned.
 func NodeTypeJobRequirementsMet(nodeType *internaltypes.NodeType, jctx *schedulercontext.JobSchedulingContext) (bool, PodRequirementsNotMetReason) {
-	matches, reason := TolerationRequirementsMet(nodeType, jctx.AdditionalTolerations, jctx.PodRequirements.GetTolerations())
+	matches, reason := TolerationRequirementsMet(nodeType, jctx.AdditionalTolerations, jctx.PodRequirements.Tolerations)
 	if !matches {
 		return matches, reason
 	}
@@ -135,7 +135,7 @@ func NodeTypeJobRequirementsMet(nodeType *internaltypes.NodeType, jctx *schedule
 		return matches, reason
 	}
 
-	return NodeSelectorRequirementsMet(nodeType.GetLabelValue, nodeType.GetUnsetIndexedLabelValue, jctx.PodRequirements.GetNodeSelector())
+	return NodeSelectorRequirementsMet(nodeType.GetLabelValue, nodeType.GetUnsetIndexedLabelValue, jctx.PodRequirements.NodeSelector)
 }
 
 // JobRequirementsMet determines whether a job can be scheduled onto this node.
@@ -159,7 +159,7 @@ func JobRequirementsMet(node *internaltypes.Node, priority int32, jctx *schedule
 // StaticJobRequirementsMet checks if a job can be scheduled onto this node,
 // accounting for taints, node selectors, node affinity, and total resources available on the node.
 func StaticJobRequirementsMet(node *internaltypes.Node, jctx *schedulercontext.JobSchedulingContext) (bool, PodRequirementsNotMetReason, error) {
-	matches, reason := NodeTolerationRequirementsMet(node, jctx.AdditionalTolerations, jctx.PodRequirements.GetTolerations())
+	matches, reason := NodeTolerationRequirementsMet(node, jctx.AdditionalTolerations, jctx.PodRequirements.Tolerations)
 	if !matches {
 		return matches, reason, nil
 	}
@@ -169,7 +169,7 @@ func StaticJobRequirementsMet(node *internaltypes.Node, jctx *schedulercontext.J
 		return matches, reason, nil
 	}
 
-	matches, reason = NodeSelectorRequirementsMet(node.GetLabelValue, nil, jctx.PodRequirements.GetNodeSelector())
+	matches, reason = NodeSelectorRequirementsMet(node.GetLabelValue, nil, jctx.PodRequirements.NodeSelector)
 	if !matches {
 		return matches, reason, nil
 	}

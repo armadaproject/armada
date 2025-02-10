@@ -4,11 +4,12 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 	"github.com/armadaproject/armada/internal/server/configuration"
@@ -123,15 +124,9 @@ func makeJob(t *testing.T, jobId string, isGang bool) *jobdb.Job {
 	if isGang {
 		annotations[configuration.GangIdAnnotation] = "gang"
 	}
-	schedulingInfo := &schedulerobjects.JobSchedulingInfo{
-		ObjectRequirements: []*schedulerobjects.ObjectRequirements{
-			{
-				Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
-					PodRequirements: &schedulerobjects.PodRequirements{
-						Annotations: annotations,
-					},
-				},
-			},
+	schedulingInfo := &internaltypes.JobSchedulingInfo{
+		PodRequirements: &internaltypes.PodRequirements{
+			Annotations: annotations,
 		},
 	}
 
