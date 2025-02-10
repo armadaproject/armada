@@ -3,13 +3,8 @@
 # in the root dir of the Armada repo
 set -euo pipefail
 
-export PATH=/sbt/bin:$PATH
-
 ROOT=$(pwd)
 SDIR=client/scala/scala-armada-client
-
-# sbt needs a writable home directory, lets fall back to $ROOT (CWD)
-export HOME="${HOME:-$ROOT}"
 
 rm -rf $ROOT/$SDIR/proto
 mkdir -p $ROOT/$SDIR/proto

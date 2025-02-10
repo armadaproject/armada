@@ -26,6 +26,7 @@ jobs:
           sudo apt install -y protobuf-compiler
       - name: Build Armada Scala Client
         run: |
+          echo "HOME=$HOME"
           cd armada
           ../mage buildScala
           cd client/scala/scala-armada-client
