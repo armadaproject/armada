@@ -32,5 +32,6 @@ func BuildScala() error {
 		"--rm",
 		"-v", fmt.Sprintf("%s:/build", wd),
 		"-w", "/build",
+		"--env", "HOME=/tmp",
 		"armada-scala-client-builder")
 }
