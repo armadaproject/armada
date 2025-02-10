@@ -4,15 +4,15 @@ ARG BASE_IMAGE=alpine:3.21.0
 
 FROM ${OPENAPI_BUILD_IMAGE} AS OPENAPI
 
-COPY internal/lookout/ui /project/internal/lookout/ui
+COPY internal/lookoutui /project/internal/lookoutui
 COPY pkg/api/*.swagger.json /project/pkg/api/
 COPY pkg/api/binoculars/*.swagger.json /project/pkg/api/binoculars/
 COPY pkg/api/schedulerobjects/*.swagger.json /project/pkg/api/schedulerobjects/
-RUN ./project/internal/lookout/ui/openapi.sh
+RUN ./project/internal/lookoutui/openapi.sh
 
 FROM ${NODE_BUILD_IMAGE} AS NODE
-COPY --from=OPENAPI /project/internal/lookout/ui /ui/
-WORKDIR /ui
+COPY --from=OPENAPI /project/internal/lookoutui /lookoutui/
+WORKDIR /lookoutui
 RUN yarn install --immutable
 RUN yarn build
 
@@ -22,7 +22,7 @@ LABEL org.opencontainers.image.title=lookoutv2
 LABEL org.opencontainers.image.description="Lookout V2"
 LABEL org.opencontainers.image.url=https://hub.docker.com/r/gresearch/lookoutv2
 USER armada
-COPY --from=NODE /ui/build/ /app/internal/lookout/ui/build
+COPY --from=NODE /lookoutui/build/ /app/internal/lookoutui/build
 COPY lookoutv2 /app/
 COPY config/lookoutv2/config.yaml /app/config/lookoutv2/config.yaml
 COPY lookoutingesterv2 /app/

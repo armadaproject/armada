@@ -1,5 +1,5 @@
 import { Job, JobFilter, JobKey, JobOrder } from "../../../models/lookoutV2Models"
-import { GetJobsResponse, IGetJobsService } from "../../../services/lookoutV2/GetJobsService"
+import { GetJobsResponse, IGetJobsService } from "../GetJobsService"
 import { compareValues, getActiveJobSets, mergeFilters, simulateApiWait } from "../../../utils/fakeJobsUtils"
 
 export default class FakeGetJobsService implements IGetJobsService {

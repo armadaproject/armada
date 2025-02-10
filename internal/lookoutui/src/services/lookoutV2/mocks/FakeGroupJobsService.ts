@@ -1,5 +1,5 @@
 import { Job, JobFilter, JobGroup, JobKey, JobOrder } from "../../../models/lookoutV2Models"
-import { GroupedField, GroupJobsResponse, IGroupJobsService } from "../../../services/lookoutV2/GroupJobsService"
+import { GroupedField, GroupJobsResponse, IGroupJobsService } from "../GroupJobsService"
 import { compareValues, getActiveJobSets, mergeFilters, simulateApiWait } from "../../../utils/fakeJobsUtils"
 
 export default class FakeGroupJobsService implements IGroupJobsService {
