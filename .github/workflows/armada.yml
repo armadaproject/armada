@@ -1,0 +1,34 @@
+name: Aramda
+
+on:
+  pull_request:
+
+jobs:
+  armada:
+    name: Build Armada Scala client
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: armada
+      - name: Install Scala and SBT
+        env:
+          SBT_VERSION: 1.10.7
+          SCALA_VERSION: 2.13.15
+        run: |
+          curl -s -O https://downloads.lightbend.com/scala/${SCALA_VERSION}/scala-${SCALA_VERSION}.deb
+          sudo apt install -y ./scala-${SCALA_VERSION}.deb
+          curl -s -L -O https://github.com/sbt/sbt/releases/download/v${SBT_VERSION}/sbt-${SBT_VERSION}.tgz
+          tar -xzvf ./sbt-${SBT_VERSION}.tgz
+          echo "$PWD/sbt/bin" >> "${GITHUB_PATH}"
+      - name: Build Armada Scala Client
+        run: |
+          cd armada
+          docker build -t armada-scala-client-builder -f build/scala-client/Dockerfile .
+          echo docker run --rm -u $(id -u):$(id -u) -v "$PWD:/build" -w /build armada-scala-client-builder
+          docker run --rm -u $(id -u):$(id -u) -v "$PWD:/build" -w /build armada-scala-client-builder
+          cd ..
+
+          cd armada/client/scala/scala-armada-client
+          sbt -Dsbt.io.implicit.relative.glob.conversion=allow publishM2
+

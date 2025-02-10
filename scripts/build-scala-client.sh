@@ -7,6 +7,11 @@ export PATH=/sbt/bin:$PATH
 ROOT=$(pwd)
 SDIR=client/scala/scala-armada-client
 
+echo "pwd=$(pwd)"
+echo "ROOT=$ROOT"
+echo "SDIR=$SDIR"
+ls -lah
+
 rm -rf $ROOT/$SDIR/proto
 mkdir -p $ROOT/$SDIR/proto
 
