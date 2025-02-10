@@ -1,10 +1,11 @@
 #!/bin/bash
 # This script is intended to be run under the docker container
 # in the root dir of the Armada repo
-set -euo pipefail
+set -euxo pipefail
 
 ROOT=$(pwd)
 SDIR=client/scala/scala-armada-client
+echo "HOME=$HOME"
 
 rm -rf $ROOT/$SDIR/proto
 mkdir -p $ROOT/$SDIR/proto
