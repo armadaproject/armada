@@ -19,7 +19,9 @@ RUN set -ex && \
     apt-get clean && \
     rm -rf scala-${SCALA_VERSION}.deb sbt-${SBT_VERSION}.tgz /var/lib/apt/lists/*
 
+ENV HOME="/root"
 ENV PATH="/sbt/bin:$PATH"
+
 COPY scripts/build-scala-client.sh /
 RUN chmod +x /build-scala-client.sh
 
