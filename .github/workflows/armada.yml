@@ -21,14 +21,13 @@ jobs:
           curl -s -L -O https://github.com/sbt/sbt/releases/download/v${SBT_VERSION}/sbt-${SBT_VERSION}.tgz
           tar -xzvf ./sbt-${SBT_VERSION}.tgz
           echo "$PWD/sbt/bin" >> "${GITHUB_PATH}"
+          curl -s -L -O https://github.com/magefile/mage/releases/download/v1.15.0/mage_1.15.0_Linux-64bit.tar.gz
+          tar -xzvf ./mage_1.15.0_Linux-64bit.tar.gz mage
+          sudo apt install -y protobuf-compiler
       - name: Build Armada Scala Client
         run: |
           cd armada
-          docker build -t armada-scala-client-builder -f build/scala-client/Dockerfile .
-          echo docker run --rm -u $(id -u):$(id -u) -v "$PWD:/build" -w /build armada-scala-client-builder
-          docker run --rm -u $(id -u):$(id -u) -v "$PWD:/build" -w /build armada-scala-client-builder
-          cd ..
-
+          ../mage buildScala
           cd armada/client/scala/scala-armada-client
           sbt -Dsbt.io.implicit.relative.glob.conversion=allow publishM2
 
