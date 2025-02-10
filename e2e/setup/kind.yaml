@@ -10,6 +10,8 @@ nodes:
   image: kindest/node:v1.26.15
 - role: control-plane
   image: kindest/node:v1.26.15
+  labels:
+    armadaproject.io/pool: control-plane
   kubeadmConfigPatches:
   - |
     kind: InitConfiguration
