@@ -11,6 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
@@ -363,8 +364,8 @@ func TestSimulator(t *testing.T) {
 										{Key: "gpu-whale", Value: "true", Effect: v1.TaintEffectNoSchedule},
 									},
 								},
-								EarliestSubmitTime:  1 * time.Minute,
-								RuntimeDistribution: ShiftedExponential{Minimum: 5 * time.Minute},
+								EarliestSubmitTime:  protoutil.ToDuration(1 * time.Minute),
+								RuntimeDistribution: &ShiftedExponential{Minimum: protoutil.ToDuration(5 * time.Minute)},
 							},
 						},
 					},
@@ -386,7 +387,7 @@ func TestSimulator(t *testing.T) {
 										},
 									},
 								},
-								RuntimeDistribution: ShiftedExponential{Minimum: time.Hour},
+								RuntimeDistribution: &ShiftedExponential{Minimum: protoutil.ToDuration(time.Hour)},
 							},
 						},
 					},
@@ -565,8 +566,8 @@ func TestGenerateRandomShiftedExponentialDuration(t *testing.T) {
 		time.Hour,
 		generateRandomShiftedExponentialDuration(
 			rand.New(rand.NewSource(0)),
-			ShiftedExponential{
-				Minimum: time.Hour,
+			&ShiftedExponential{
+				Minimum: protoutil.ToDuration(time.Hour),
 			},
 		),
 	)
@@ -575,9 +576,9 @@ func TestGenerateRandomShiftedExponentialDuration(t *testing.T) {
 		time.Hour,
 		generateRandomShiftedExponentialDuration(
 			rand.New(rand.NewSource(0)),
-			ShiftedExponential{
-				Minimum:  time.Hour,
-				TailMean: time.Second,
+			&ShiftedExponential{
+				Minimum:  protoutil.ToDuration(time.Hour),
+				TailMean: protoutil.ToDuration(time.Second),
 			},
 		),
 	)

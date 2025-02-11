@@ -4,7 +4,6 @@ option go_package = "github.com/armadaproject/armada/internal/scheduler/simulato
 
 import "google/protobuf/duration.proto";
 import "k8s.io/api/core/v1/generated.proto";
-import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 import "internal/scheduler/schedulerobjects/schedulerobjects.proto";
 
 
@@ -12,8 +11,8 @@ import "internal/scheduler/schedulerobjects/schedulerobjects.proto";
 message ClusterSpec {
     string name = 1;
     repeated Cluster clusters = 2;
-    ShiftedExponential workflow_manager_delay_distribution = 3 [(gogoproto.nullable) = false];
-    ShiftedExponential pending_delay_distribution = 4 [(gogoproto.nullable) = false];
+    ShiftedExponential workflow_manager_delay_distribution = 3;
+    ShiftedExponential pending_delay_distribution = 4;
 }
 
 message Cluster {
@@ -34,7 +33,7 @@ message NodeTemplate {
     int64 number = 1;
     repeated k8s.io.api.core.v1.Taint taints = 2;
     map<string, string> labels = 3;
-    schedulerobjects.ResourceList total_resources = 4 [(gogoproto.nullable) = false];
+    schedulerobjects.ResourceList total_resources = 4;
 }
 
 message Queue {
@@ -62,11 +61,11 @@ message JobTemplate {
     repeated string dependencies = 9;
     // Earliest time at which jobs from this template are submitted.
     // Measured from the start of the simulation.
-    google.protobuf.Duration earliest_submit_time = 10 [(gogoproto.nullable) = false, (gogoproto.stdduration) = true];
+    google.protobuf.Duration earliest_submit_time = 10;
     // Earliest time job can be submitted from when all its dependencies have completed.
     // This option is meant to model thinking or processing time, where some fixed amount of time
     // needs to be spent between dependencies completing and the next batch of jobs being ready to submit.
-    google.protobuf.Duration earliest_submit_time_from_dependency_completion = 11 [(gogoproto.nullable) = false, (gogoproto.stdduration) = true];
+    google.protobuf.Duration earliest_submit_time_from_dependency_completion = 11;
     // Job runtimes are assumed to follow a shifted exponential distribution
     // i.e., to be a fixed constant (runtime_minimum) plus a random amount of time
     // drawn from an exponential distribution with known mean (runtime_tail_mean).
@@ -74,7 +73,7 @@ message JobTemplate {
     // The shifted-exponential distribution strikes a good balance between simplicity and accuracy;
     // see https://bora.uib.no/bora-xmlui/bitstream/handle/11250/3014726/drthesis_2022_severinson.pdf?sequence=2
     // for a discussion on the topic.
-    ShiftedExponential runtime_distribution = 12 [(gogoproto.nullable) = false];
+    ShiftedExponential runtime_distribution = 12;
     // If set, jobs will be assigned to gangs with the given size. In this case `number` must be exactly divisible by the gang size
     uint32 gang_cardinality = 13;
     // Node Uniformity label when scheduling gangs.  Only applies if gang_cardinality is non-zero.  If unset it defaults to armadaproject.io/clusterName
@@ -87,10 +86,10 @@ message RepeatDetails {
   // The number of times that template should be repeated. Must be > 0
   uint32  num_times = 1;
   // The period between template submissions.  May not be null
-  google.protobuf.Duration period = 2 [(gogoproto.stdduration) = true];
+  google.protobuf.Duration period = 2;
 }
 
 message ShiftedExponential {
-    google.protobuf.Duration minimum = 1 [(gogoproto.nullable) = false, (gogoproto.stdduration) = true];
-    google.protobuf.Duration tail_mean = 2 [(gogoproto.nullable) = false, (gogoproto.stdduration) = true];
+    google.protobuf.Duration minimum = 1;
+    google.protobuf.Duration tail_mean = 2;
 }

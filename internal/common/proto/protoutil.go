@@ -97,3 +97,10 @@ func ToStdDuration(pd *types.Duration) time.Duration {
 	}
 	return time.Duration(pd.Seconds)*time.Second + time.Duration(pd.Nanos)*time.Nanosecond
 }
+
+func ToDuration(d time.Duration) *types.Duration {
+	return &types.Duration{
+		Seconds: d.Nanoseconds() / 1000000000,
+		Nanos:   int32(d.Nanoseconds() % 1000000000),
+	}
+}

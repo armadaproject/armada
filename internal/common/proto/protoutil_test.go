@@ -105,7 +105,7 @@ func TestToTimestamp(t *testing.T) {
 	}
 }
 
-func TestToDuration(t *testing.T) {
+func TestToStdDuration(t *testing.T) {
 	tests := map[string]struct {
 		protoDuration *types.Duration
 		stdDuration   time.Duration
@@ -135,6 +135,36 @@ func TestToDuration(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			assert.Equal(t, tc.stdDuration, ToStdDuration(tc.protoDuration))
+		})
+	}
+}
+
+func TestToDuration(t *testing.T) {
+	tests := map[string]struct {
+		stdDuration   time.Duration
+		protoDuration *types.Duration
+	}{
+		"empty": {
+			stdDuration:   0 * time.Second,
+			protoDuration: &types.Duration{Seconds: 0, Nanos: 0},
+		},
+		"seconds": {
+			stdDuration:   100 * time.Second,
+			protoDuration: &types.Duration{Seconds: 100, Nanos: 0},
+		},
+		"seconds and nanos": {
+			stdDuration:   100*time.Second + 1000*time.Nanosecond,
+			protoDuration: &types.Duration{Seconds: 100, Nanos: 1000},
+		},
+		"negative": {
+			stdDuration:   -100*time.Second - 1000*time.Nanosecond,
+			protoDuration: &types.Duration{Seconds: -100, Nanos: -1000},
+		},
+	}
+	types.TimestampNow()
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, tc.protoDuration, ToDuration(tc.stdDuration))
 		})
 	}
 }
