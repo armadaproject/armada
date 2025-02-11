@@ -107,7 +107,7 @@ var (
 	// Has to be consistent since creating one involves generating a random key.
 	// If this key isn't consistent, scheduling keys generated are not either.
 	// We use the all-zeros key here to ensure scheduling keys are cosnsitent between tests.
-	SchedulingKeyGenerator = schedulerobjects.NewSchedulingKeyGeneratorWithKey(make([]byte, 32))
+	SchedulingKeyGenerator = internaltypes.NewSchedulingKeyGeneratorWithKey(make([]byte, 32))
 	// Used for job creation.
 	JobDb = NewJobDb(TestResourceListFactory)
 )

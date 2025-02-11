@@ -8,6 +8,7 @@ import (
 	"golang.org/x/exp/maps"
 	v1 "k8s.io/api/core/v1"
 
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
@@ -73,17 +74,24 @@ func FromSchedulerObjectsJobSchedulingInfo(j *schedulerobjects.JobSchedulingInfo
 	if podRequirements == nil {
 		return nil, errors.Errorf("job must have pod requirements")
 	}
+	rr := podRequirements.GetResourceRequirements().DeepCopy()
+	if rr == nil {
+		rr = &v1.ResourceRequirements{}
+	}
 	return &JobSchedulingInfo{
 		Lifetime:          j.Lifetime,
 		PriorityClassName: j.PriorityClassName,
-		SubmitTime:        j.SubmitTime,
+		SubmitTime:        protoutil.ToStdTime(j.SubmitTime),
 		Priority:          j.Priority,
 		PodRequirements: &PodRequirements{
-			NodeSelector:         podRequirements.NodeSelector,
-			Affinity:             podRequirements.Affinity,
-			Tolerations:          podRequirements.Tolerations,
-			Annotations:          podRequirements.Annotations,
-			ResourceRequirements: podRequirements.ResourceRequirements,
+			NodeSelector: maps.Clone(podRequirements.NodeSelector),
+			Affinity:     proto.Clone(podRequirements.Affinity).(*v1.Affinity),
+			Tolerations: armadaslices.Map(podRequirements.Tolerations, func(t *v1.Toleration) v1.Toleration {
+				cloned := proto.Clone(t).(*v1.Toleration)
+				return *cloned
+			}),
+			Annotations:          maps.Clone(podRequirements.Annotations),
+			ResourceRequirements: *rr,
 		},
 		Version: j.Version,
 	}, nil
@@ -94,17 +102,19 @@ func ToSchedulerObjectsJobSchedulingInfo(j *JobSchedulingInfo) *schedulerobjects
 	return &schedulerobjects.JobSchedulingInfo{
 		Lifetime:          j.Lifetime,
 		PriorityClassName: j.PriorityClassName,
-		SubmitTime:        j.SubmitTime,
+		SubmitTime:        protoutil.ToTimestamp(j.SubmitTime),
 		Priority:          j.Priority,
 		ObjectRequirements: []*schedulerobjects.ObjectRequirements{
 			{
 				Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
 					PodRequirements: &schedulerobjects.PodRequirements{
-						NodeSelector:         podRequirements.NodeSelector,
-						Affinity:             podRequirements.Affinity,
-						Tolerations:          podRequirements.Tolerations,
-						Annotations:          podRequirements.Annotations,
-						ResourceRequirements: podRequirements.ResourceRequirements,
+						NodeSelector: maps.Clone(podRequirements.NodeSelector),
+						Affinity:     podRequirements.Affinity.DeepCopy(),
+						Tolerations: armadaslices.Map(podRequirements.Tolerations, func(t v1.Toleration) *v1.Toleration {
+							return proto.Clone(&t).(*v1.Toleration)
+						}),
+						Annotations:          maps.Clone(podRequirements.Annotations),
+						ResourceRequirements: podRequirements.ResourceRequirements.DeepCopy(),
 					},
 				},
 			},

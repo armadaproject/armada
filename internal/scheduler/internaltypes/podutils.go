@@ -1,4 +1,4 @@
-package schedulerobjects
+package internaltypes
 
 import (
 	"crypto/rand"
@@ -15,18 +15,6 @@ import (
 type SchedulingKey [highwayhash.Size]byte
 
 var EmptySchedulingKey SchedulingKey
-
-func (req *PodRequirements) GetAffinityNodeSelector() *v1.NodeSelector {
-	affinity := req.Affinity
-	if affinity == nil {
-		return nil
-	}
-	nodeAffinity := affinity.NodeAffinity
-	if nodeAffinity == nil {
-		return nil
-	}
-	return nodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution
-}
 
 // SchedulingKeyGenerator is used to generate scheduling keys efficiently.
 // A scheduling key is the canonical hash of the scheduling requirements of a job.

@@ -18,9 +18,10 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	"github.com/armadaproject/armada/internal/common/auth/permission"
 	"github.com/armadaproject/armada/internal/common/compress"
-	mocks "github.com/armadaproject/armada/internal/common/mocks"
+	"github.com/armadaproject/armada/internal/common/mocks"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/slices"
+	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/common/util"
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
@@ -29,7 +30,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 	"github.com/armadaproject/armada/internal/server/configuration"
-	mocks2 "github.com/armadaproject/armada/internal/server/mocks"
+	servermocks "github.com/armadaproject/armada/internal/server/mocks"
 	"github.com/armadaproject/armada/internal/server/permissions"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
@@ -92,11 +93,11 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 						Resources: nil,
 					},
 				},
-				LastSeen:          testClock.Now().UTC(),
+				LastSeen:          protoutil.ToTimestamp(testClock.Now().UTC()),
 				ReportingNodeType: "node-type-1",
 			},
 		},
-		LastUpdateTime:    testClock.Now().UTC(),
+		LastUpdateTime:    protoutil.ToTimestamp(testClock.Now().UTC()),
 		UnassignedJobRuns: []string{runId3},
 	}
 
@@ -181,7 +182,9 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 		SubmitMessage: compressedSubmit,
 		PodRequirementsOverlay: protoutil.MustMarshall(
 			&schedulerobjects.PodRequirements{
-				Tolerations: tolerations,
+				Tolerations: armadaslices.Map(tolerations, func(t v1.Toleration) *v1.Toleration {
+					return &t
+				}),
 				Annotations: map[string]string{configuration.PoolAnnotation: "test-pool", "runtime_gang_cardinality": "3"},
 			},
 		),
@@ -310,7 +313,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 			mockJobRepository := schedulermocks.NewMockJobRepository(ctrl)
 			mockExecutorRepository := schedulermocks.NewMockExecutorRepository(ctrl)
 			mockStream := schedulermocks.NewMockExecutorApi_LeaseJobRunsServer(ctrl)
-			mockAuthorizer := mocks2.NewMockActionAuthorizer(ctrl)
+			mockAuthorizer := servermocks.NewMockActionAuthorizer(ctrl)
 
 			runIds, err := runIdsFromLeaseRequest(tc.request)
 			require.NoError(t, err)
@@ -377,7 +380,7 @@ func TestExecutorApi_LeaseJobRuns_Unauthorised(t *testing.T) {
 	mockJobRepository := schedulermocks.NewMockJobRepository(ctrl)
 	mockExecutorRepository := schedulermocks.NewMockExecutorRepository(ctrl)
 	mockStream := schedulermocks.NewMockExecutorApi_LeaseJobRunsServer(ctrl)
-	mockAuthorizer := mocks2.NewMockActionAuthorizer(ctrl)
+	mockAuthorizer := servermocks.NewMockActionAuthorizer(ctrl)
 
 	// set up mocks
 	mockStream.EXPECT().Context().Return(ctx).AnyTimes()
@@ -504,7 +507,7 @@ func TestExecutorApi_Publish(t *testing.T) {
 			mockPulsarPublisher := mocks.NewMockPublisher[*armadaevents.EventSequence](ctrl)
 			mockJobRepository := schedulermocks.NewMockJobRepository(ctrl)
 			mockExecutorRepository := schedulermocks.NewMockExecutorRepository(ctrl)
-			mockAuthorizer := mocks2.NewMockActionAuthorizer(ctrl)
+			mockAuthorizer := servermocks.NewMockActionAuthorizer(ctrl)
 
 			// capture all sent messages
 			var capturedEvents []*armadaevents.EventSequence
@@ -549,7 +552,7 @@ func TestExecutorApi_Publish_Unauthorised(t *testing.T) {
 	mockPulsarPublisher := mocks.NewMockPublisher[*armadaevents.EventSequence](ctrl)
 	mockJobRepository := schedulermocks.NewMockJobRepository(ctrl)
 	mockExecutorRepository := schedulermocks.NewMockExecutorRepository(ctrl)
-	mockAuthorizer := mocks2.NewMockActionAuthorizer(ctrl)
+	mockAuthorizer := servermocks.NewMockActionAuthorizer(ctrl)
 
 	sequences := []*armadaevents.EventSequence{
 		{

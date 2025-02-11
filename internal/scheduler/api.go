@@ -4,6 +4,8 @@ import (
 	"context"
 	"strconv"
 
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
+
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/protobuf/types"
 	"github.com/pkg/errors"
@@ -296,7 +298,7 @@ func addNodeSelector(podSpec *armadaevents.PodSpecWithAvoidList, key string, val
 	}
 }
 
-func addTolerations(job *armadaevents.SubmitJob, tolerations []v1.Toleration) {
+func addTolerations(job *armadaevents.SubmitJob, tolerations []*v1.Toleration) {
 	if job == nil || len(tolerations) == 0 {
 		return
 	}
@@ -304,7 +306,9 @@ func addTolerations(job *armadaevents.SubmitJob, tolerations []v1.Toleration) {
 		switch typed := job.MainObject.Object.(type) {
 		case *armadaevents.KubernetesMainObject_PodSpec:
 			if typed.PodSpec != nil && typed.PodSpec.PodSpec != nil {
-				typed.PodSpec.PodSpec.Tolerations = append(typed.PodSpec.PodSpec.Tolerations, tolerations...)
+				for _, toleration := range tolerations {
+					typed.PodSpec.PodSpec.Tolerations = append(typed.PodSpec.PodSpec.Tolerations, *toleration)
+				}
 			}
 		}
 	}
@@ -381,7 +385,7 @@ func (srv *ExecutorApi) executorFromLeaseRequest(ctx *armadacontext.Context, req
 		Id:                req.ExecutorId,
 		Pool:              req.Pool,
 		Nodes:             nodes,
-		LastUpdateTime:    now,
+		LastUpdateTime:    protoutil.ToTimestamp(now),
 		UnassignedJobRuns: req.UnassignedJobRunIds,
 	}
 }

@@ -1,4 +1,4 @@
-package schedulerobjects
+package internaltypes
 
 import (
 	"testing"
@@ -134,7 +134,7 @@ func TestPodRequirementsSerialiser_AffinityDocsUnchanged(t *testing.T) {
 
 func benchmarkPodRequirementsSerialiser(b *testing.B, jobSchedulingInfo *JobSchedulingInfo) {
 	skg := NewPodRequirementsSerialiser()
-	req := (jobSchedulingInfo.ObjectRequirements[0]).GetPodRequirements()
+	req := jobSchedulingInfo.PodRequirements
 	out := make([]byte, 0, 1024)
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
@@ -160,7 +160,7 @@ func BenchmarkPodRequirementsSerialiser_Affinity(b *testing.B) {
 
 func benchmarkSchedulingKey(b *testing.B, jobSchedulingInfo *JobSchedulingInfo) {
 	skg := NewSchedulingKeyGenerator()
-	req := (jobSchedulingInfo.ObjectRequirements[0]).GetPodRequirements()
+	req := jobSchedulingInfo.PodRequirements
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
 		skg.Key(
@@ -183,46 +183,37 @@ func BenchmarkSchedulingKey_Affinity(b *testing.B) {
 
 func getBenchmarkJobSchedulingSchedulingInfo() *JobSchedulingInfo {
 	return &JobSchedulingInfo{
-		Lifetime:          1,
-		AtMostOnce:        true,
-		Preemptible:       true,
-		ConcurrencySafe:   true,
+		Lifetime: 1,
+
 		PriorityClassName: "armada-default",
 		Priority:          10,
-		ObjectRequirements: []*ObjectRequirements{
-			{
-				Requirements: &ObjectRequirements_PodRequirements{
-					PodRequirements: &PodRequirements{
-						NodeSelector: map[string]string{
-							"property1": "value1",
-							"property3": "value3",
-						},
-						Tolerations: []v1.Toleration{{
-							Key:               "a",
-							Operator:          "b",
-							Value:             "b",
-							Effect:            "d",
-							TolerationSeconds: pointer.Int64(1),
-						}},
-						Annotations: map[string]string{
-							"foo":  "bar",
-							"fish": "chips",
-							"salt": "pepper",
-						},
-						PreemptionPolicy: "abc",
-						ResourceRequirements: v1.ResourceRequirements{
-							Limits: map[v1.ResourceName]resource.Quantity{
-								"cpu":            resource.MustParse("1"),
-								"memory":         resource.MustParse("2"),
-								"nvidia.com/gpu": resource.MustParse("3"),
-							},
-							Requests: map[v1.ResourceName]resource.Quantity{
-								"cpu":            resource.MustParse("2"),
-								"memory":         resource.MustParse("2"),
-								"nvidia.com/gpu": resource.MustParse("2"),
-							},
-						},
-					},
+		PodRequirements: &PodRequirements{
+			NodeSelector: map[string]string{
+				"property1": "value1",
+				"property3": "value3",
+			},
+			Tolerations: []v1.Toleration{{
+				Key:               "a",
+				Operator:          "b",
+				Value:             "b",
+				Effect:            "d",
+				TolerationSeconds: pointer.Int64(1),
+			}},
+			Annotations: map[string]string{
+				"foo":  "bar",
+				"fish": "chips",
+				"salt": "pepper",
+			},
+			ResourceRequirements: v1.ResourceRequirements{
+				Limits: map[v1.ResourceName]resource.Quantity{
+					"cpu":            resource.MustParse("1"),
+					"memory":         resource.MustParse("2"),
+					"nvidia.com/gpu": resource.MustParse("3"),
+				},
+				Requests: map[v1.ResourceName]resource.Quantity{
+					"cpu":            resource.MustParse("2"),
+					"memory":         resource.MustParse("2"),
+					"nvidia.com/gpu": resource.MustParse("2"),
 				},
 			},
 		},
@@ -232,106 +223,96 @@ func getBenchmarkJobSchedulingSchedulingInfo() *JobSchedulingInfo {
 func getBenchmarkJobSchedulingSchedulingInfoWithAffinity() *JobSchedulingInfo {
 	return &JobSchedulingInfo{
 		Lifetime:          1,
-		AtMostOnce:        true,
-		Preemptible:       true,
-		ConcurrencySafe:   true,
 		PriorityClassName: "armada-default",
 		Priority:          10,
-		ObjectRequirements: []*ObjectRequirements{
-			{
-				Requirements: &ObjectRequirements_PodRequirements{
-					PodRequirements: &PodRequirements{
-						NodeSelector: map[string]string{
-							"property1": "value1",
-							"property3": "value3",
-						},
-						Affinity: &v1.Affinity{
-							NodeAffinity: &v1.NodeAffinity{
-								RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
-									NodeSelectorTerms: []v1.NodeSelectorTerm{
-										{
-											MatchExpressions: []v1.NodeSelectorRequirement{
-												{
-													Key:      "k1",
-													Operator: "o1",
-													Values:   []string{"v1", "v2"},
-												},
-											},
-											MatchFields: []v1.NodeSelectorRequirement{
-												{
-													Key:      "k2",
-													Operator: "o2",
-													Values:   []string{"v10", "v20"},
-												},
-											},
-										},
-									},
-								},
-							},
-							PodAffinity: &v1.PodAffinity{
-								RequiredDuringSchedulingIgnoredDuringExecution: []v1.PodAffinityTerm{
+		PodRequirements: &PodRequirements{
+			NodeSelector: map[string]string{
+				"property1": "value1",
+				"property3": "value3",
+			},
+			Affinity: &v1.Affinity{
+				NodeAffinity: &v1.NodeAffinity{
+					RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
+						NodeSelectorTerms: []v1.NodeSelectorTerm{
+							{
+								MatchExpressions: []v1.NodeSelectorRequirement{
 									{
-										LabelSelector: &metav1.LabelSelector{
-											MatchLabels: map[string]string{
-												"label1": "labelval1",
-												"label2": "labelval2",
-												"label3": "labelval3",
-											},
-											MatchExpressions: []metav1.LabelSelectorRequirement{
-												{
-													Key:      "k1",
-													Operator: "o1",
-													Values:   []string{"v1", "v2", "v3"},
-												},
-											},
-										},
-										Namespaces:  []string{"n1, n2, n3"},
-										TopologyKey: "topkey1",
-										NamespaceSelector: &metav1.LabelSelector{
-											MatchLabels: map[string]string{
-												"label10": "labelval1",
-												"label20": "labelval2",
-												"label30": "labelval3",
-											},
-											MatchExpressions: []metav1.LabelSelectorRequirement{
-												{
-													Key:      "k10",
-													Operator: "o10",
-													Values:   []string{"v10", "v20", "v30"},
-												},
-											},
-										},
+										Key:      "k1",
+										Operator: "o1",
+										Values:   []string{"v1", "v2"},
 									},
 								},
-							},
-							PodAntiAffinity: nil,
-						},
-						Tolerations: []v1.Toleration{{
-							Key:               "a",
-							Operator:          "b",
-							Value:             "b",
-							Effect:            "d",
-							TolerationSeconds: pointer.Int64(1),
-						}},
-						Annotations: map[string]string{
-							"foo":  "bar",
-							"fish": "chips",
-							"salt": "pepper",
-						},
-						PreemptionPolicy: "abc",
-						ResourceRequirements: v1.ResourceRequirements{
-							Limits: map[v1.ResourceName]resource.Quantity{
-								"cpu":            resource.MustParse("1"),
-								"memory":         resource.MustParse("2"),
-								"nvidia.com/gpu": resource.MustParse("3"),
-							},
-							Requests: map[v1.ResourceName]resource.Quantity{
-								"cpu":            resource.MustParse("2"),
-								"memory":         resource.MustParse("2"),
-								"nvidia.com/gpu": resource.MustParse("2"),
+								MatchFields: []v1.NodeSelectorRequirement{
+									{
+										Key:      "k2",
+										Operator: "o2",
+										Values:   []string{"v10", "v20"},
+									},
+								},
 							},
 						},
 					},
+				},
+				PodAffinity: &v1.PodAffinity{
+					RequiredDuringSchedulingIgnoredDuringExecution: []v1.PodAffinityTerm{
+						{
+							LabelSelector: &metav1.LabelSelector{
+								MatchLabels: map[string]string{
+									"label1": "labelval1",
+									"label2": "labelval2",
+									"label3": "labelval3",
+								},
+								MatchExpressions: []metav1.LabelSelectorRequirement{
+									{
+										Key:      "k1",
+										Operator: "o1",
+										Values:   []string{"v1", "v2", "v3"},
+									},
+								},
+							},
+							Namespaces:  []string{"n1, n2, n3"},
+							TopologyKey: "topkey1",
+							NamespaceSelector: &metav1.LabelSelector{
+								MatchLabels: map[string]string{
+									"label10": "labelval1",
+									"label20": "labelval2",
+									"label30": "labelval3",
+								},
+								MatchExpressions: []metav1.LabelSelectorRequirement{
+									{
+										Key:      "k10",
+										Operator: "o10",
+										Values:   []string{"v10", "v20", "v30"},
+									},
+								},
+							},
+						},
+					},
+				},
+				PodAntiAffinity: nil,
+			},
+			Tolerations: []v1.Toleration{{
+				Key:               "a",
+				Operator:          "b",
+				Value:             "b",
+				Effect:            "d",
+				TolerationSeconds: pointer.Int64(1),
+			}},
+			Annotations: map[string]string{
+				"foo":  "bar",
+				"fish": "chips",
+				"salt": "pepper",
+			},
+			ResourceRequirements: v1.ResourceRequirements{
+				Limits: map[v1.ResourceName]resource.Quantity{
+					"cpu":            resource.MustParse("1"),
+					"memory":         resource.MustParse("2"),
+					"nvidia.com/gpu": resource.MustParse("3"),
+				},
+				Requests: map[v1.ResourceName]resource.Quantity{
+					"cpu":            resource.MustParse("2"),
+					"memory":         resource.MustParse("2"),
+					"nvidia.com/gpu": resource.MustParse("2"),
 				},
 			},
 		},
