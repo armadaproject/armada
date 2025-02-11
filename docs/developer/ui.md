@@ -16,7 +16,7 @@ You can also re-build a production build of the UI by running `mage ui` in the r
 To quickly get started developing on the UI locally without having to build, ensure you have Docker, Node and Yarn installed for your platform, then run:
 
 ```bash
-cd ./internal/lookout/ui
+cd ./internal/lookoutui
 yarn
 yarn openapi
 yarn dev
@@ -38,4 +38,4 @@ Make sure you scroll at the bottom to see it.
 
 Note that you can have both `fakeData` and `debug` query parameters enabled at the same time: [http://localhost:3000/v2?fakeData=&debug=](http://localhost:3000/v2?fakeData=&debug=)
 
-See [the README for the Lookout UI](../../internal/lookout/ui/README.md) for more information about UI development.
+See [the README for the Lookout UI](../../internal/lookoutui/README.md) for more information about UI development.

@@ -179,7 +179,7 @@ services:
     depends_on:
       - lookoutingesterv2
     volumes:
-      - "./internal/lookout/ui/build:/app/internal/lookout/ui/build"
+      - "./internal/lookoutui/build:/app/internal/lookoutui/build"
       - "go-cache:/root/.cache/go-build:rw"
       - "gomod-cache:/go/pkg/mod:rw"
     env_file:
