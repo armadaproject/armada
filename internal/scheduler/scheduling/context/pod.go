@@ -16,6 +16,7 @@ const (
 	ScheduledWithFairSharePreemption
 	ScheduledWithUrgencyBasedPreemption
 	ScheduledAsAwayJob
+	ScheduledWithFairnessOptimiser
 )
 
 // PodSchedulingContext is returned by SelectAndBindNodeToPod and

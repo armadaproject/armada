@@ -362,7 +362,7 @@ func (sctx *SchedulingContext) PreemptJob(jctx *JobSchedulingContext) (bool, err
 		return false, errors.Errorf("failed preempting job %s to scheduling context: no context for queue %s", jctx.JobId, queue)
 	}
 
-	scheduledInThisRound, err := qctx.evictJob(jctx.Job)
+	scheduledInThisRound, err := qctx.preemptJob(jctx.Job)
 	if err != nil {
 		return false, err
 	}

@@ -233,19 +233,15 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 		maps.Copy(sch.nodeIdByJobId, rescheduleSchedulerResult.NodeIdByJobId)
 	}
 
-	preemptedJobs := maps.Values(preemptedJobsById)
-	scheduledJobs := maps.Values(scheduledJobsById)
-	ctx.Logger().WithField("stage", "scheduling-algo").Infof("Unbinding %d preempted and %d evicted jobs", len(preemptedJobs), len(maps.Values(scheduledAndEvictedJobsById)))
-	if err := sch.unbindJobs(append(
-		slices.Clone(preemptedJobs),
-		maps.Values(scheduledAndEvictedJobsById)...),
-	); err != nil {
-		return nil, err
-	}
-	ctx.Logger().WithField("stage", "scheduling-algo").Infof("Finished unbinding preempted and evicted jobs")
-
 	if sch.defragConfig != nil && sch.defragConfig.Enabled {
-		nodeScheduler := NewNodeScheduler(sch.jobRepo, sch.nodeDb, *sch.defragConfig)
+		factory := sch.schedulingContext.TotalResources.Factory()
+		var maximumJobSizeToPreempt *internaltypes.ResourceList
+		if sch.defragConfig.MaximumJobSizeToPreempt != nil {
+			maxJobSize := factory.FromJobResourceListIgnoreUnknown(*sch.defragConfig.MaximumJobSizeToPreempt)
+			maximumJobSizeToPreempt = &maxJobSize
+		}
+
+		nodeScheduler := NewNodeScheduler(sch.jobRepo, sch.nodeDb, sch.defragConfig.FairnessImprovementThreshold, maximumJobSizeToPreempt)
 		defragQueueScheduler := NewDefragQueueScheduler(sch.jobRepo, nodeScheduler, sch.maxQueueLookBack)
 		defragSchedulerResult, err := defragQueueScheduler.Schedule(ctx, sch.schedulingContext)
 		if err != nil {
@@ -253,6 +249,7 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 		}
 		for _, jctx := range defragSchedulerResult.ScheduledJobs {
 			if _, ok := preemptedJobsById[jctx.JobId]; ok {
+				// TODO Should this ever happen? We shouldn't ever be rescheduling evicted jobs here
 				delete(preemptedJobsById, jctx.JobId)
 			} else {
 				scheduledJobsById[jctx.JobId] = jctx
@@ -269,6 +266,17 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 
 		maps.Copy(sch.nodeIdByJobId, defragSchedulerResult.NodeIdByJobId)
 	}
+
+	preemptedJobs := maps.Values(preemptedJobsById)
+	scheduledJobs := maps.Values(scheduledJobsById)
+	ctx.Logger().WithField("stage", "scheduling-algo").Infof("Unbinding %d preempted and %d evicted jobs", len(preemptedJobs), len(maps.Values(scheduledAndEvictedJobsById)))
+	if err := sch.unbindJobs(append(
+		slices.Clone(preemptedJobs),
+		maps.Values(scheduledAndEvictedJobsById)...),
+	); err != nil {
+		return nil, err
+	}
+	ctx.Logger().WithField("stage", "scheduling-algo").Infof("Finished unbinding preempted and evicted jobs")
 
 	PopulatePreemptionDescriptions(preemptedJobs, scheduledJobs)
 	schedulercontext.PrintJobSummary(ctx, "Preempting running jobs;", preemptedJobs)

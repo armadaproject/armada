@@ -162,7 +162,7 @@ func (qctx *QueueSchedulingContext) addJobSchedulingContext(jctx *JobSchedulingC
 		return false, errors.Errorf("failed adding job %s to queue: job already marked successful", jctx.JobId)
 	}
 	if _, ok := qctx.UnsuccessfulJobSchedulingContexts[jctx.JobId]; ok {
-		return false, errors.Errorf("failed adding job %s to queue: job already marked unsuccessful", jctx.JobId)
+		delete(qctx.UnsuccessfulJobSchedulingContexts, jctx.JobId)
 	}
 	_, evictedInThisRound := qctx.EvictedJobsById[jctx.JobId]
 	if jctx.IsSuccessful() {
