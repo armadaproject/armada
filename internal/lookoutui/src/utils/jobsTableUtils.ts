@@ -2,6 +2,7 @@ import { ExpandedStateList, Updater } from "@tanstack/react-table"
 import _ from "lodash"
 
 import {
+  ANNOTATION_COLUMN_PREFIX,
   AnnotationColumnId,
   DEFAULT_COLUMN_MATCHES,
   fromAnnotationColId,
@@ -48,16 +49,25 @@ export const pendingDataForAllVisibleData = (
 }
 
 export const matchForColumn = (columnId: string, columnMatches: Record<string, Match>) => {
-  let match: Match = Match.StartsWith // base case if undefined (annotations)
+  let match: Match = Match.Exact // base case
   if (columnId in DEFAULT_COLUMN_MATCHES) {
     match = DEFAULT_COLUMN_MATCHES[columnId]
   }
-  if (columnId in columnMatches) {
-    match = VALID_COLUMN_MATCHES[columnId].includes(columnMatches[columnId])
-      ? columnMatches[columnId]
-      : VALID_COLUMN_MATCHES[columnId][0]
+
+  if (!(columnId in columnMatches)) {
+    return match
   }
-  return match
+
+  const validMatches = isStandardColId(columnId)
+    ? VALID_COLUMN_MATCHES[columnId]
+    : VALID_COLUMN_MATCHES[ANNOTATION_COLUMN_PREFIX]
+
+  if (!validMatches) {
+    console.error(`There are no valid column matches for column with ID '${columnId}'`)
+    return match
+  }
+
+  return validMatches.includes(columnMatches[columnId]) ? columnMatches[columnId] : validMatches[0]
 }
 
 export function getFiltersForRows(
