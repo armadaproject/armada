@@ -11,6 +11,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/context"
+	"github.com/armadaproject/armada/internal/scheduler/scheduling/optimiser/domain"
 )
 
 type NodeScheduler struct {
@@ -78,15 +79,13 @@ func (n *NodeScheduler) scheduleOnNodes(gctx *context.GangSchedulingContext, sct
 		results:        make([]*nodeSchedulingResult, 0, len(gctx.JobSchedulingContexts)),
 	}
 
-	schedulingContext := &schedulingContext{
-		sctx: sctx,
-	}
+	schedulingContext := domain.FromSchedulingContext(sctx)
 
 	for _, jctx := range gctx.JobSchedulingContexts {
 		candidateNodes := make([]*nodeSchedulingResult, 0, len(nodes))
 		cost := sctx.FairnessCostProvider.UnweightedCostFromAllocation(jctx.Job.AllResourceRequirements())
 		for _, node := range nodes {
-			result, err := n.calculateCostToScheduleOnNode(sctx, jctx, node)
+			result, err := n.calculateCostToScheduleOnNode(schedulingContext, jctx, node)
 
 			if err != nil {
 				return nil, err
@@ -107,6 +106,7 @@ func (n *NodeScheduler) scheduleOnNodes(gctx *context.GangSchedulingContext, sct
 		sort.Sort(nodeCostOrder(candidateNodes))
 		selectedCandidate := candidateNodes[0]
 		result.results = append(result.results, selectedCandidate)
+		result.schedulingCost += selectedCandidate.info.schedulingCost
 
 		// Update nodes
 		updatedNode := selectedCandidate.node.DeepCopyNilKeys()
@@ -136,12 +136,12 @@ func (n *NodeScheduler) scheduleOnNodes(gctx *context.GangSchedulingContext, sct
 			}
 		}
 
-		for queueName, costChange := range selectedCandidate.info.queueCostImpacts {
-			queue, ok := schedulingContext.queues[queueName]
+		for queueName, costChange := range selectedCandidate.info.queueCostChanges {
+			queue, ok := schedulingContext.Queues[queueName]
 			if !ok {
 				return nil, fmt.Errorf("failed to find queue context for queue %s", queueName)
 			}
-			queue.currentCost += costChange
+			queue.CurrentCost += costChange
 		}
 	}
 	return result, nil
@@ -319,17 +319,6 @@ func (gpo globalPreemptionOrder) Swap(i, j int) {
 	gpo[i], gpo[j] = gpo[j], gpo[i]
 }
 
-type schedulingContext struct {
-	sctx   *context.SchedulingContext
-	queues map[string]*queueContext
-}
-
-type queueContext struct {
-	name        string
-	currentCost float64
-	fairshare   float64
-}
-
 type schedulingResult struct {
 	scheduled      bool
 	reason         string
@@ -348,7 +337,7 @@ type nodeSchedulingInfo struct {
 	schedulingCost     float64
 	jobIdsToPreempt    []string
 	maximumQueueImpact float64
-	queueCostImpacts   map[string]float64
+	queueCostChanges   map[string]float64
 	// Used to tie-break when sorting
 	resultId string
 }
@@ -378,7 +367,7 @@ func (nco nodeCostOrder) Swap(i, j int) {
 	nco[i], nco[j] = nco[j], nco[i]
 }
 
-func (n *NodeScheduler) calculateCostToScheduleOnNode(sctx *context.SchedulingContext, jctx *context.JobSchedulingContext, node *internaltypes.Node) (*nodeSchedulingResult, error) {
+func (n *NodeScheduler) calculateCostToScheduleOnNode(schedContext *domain.SchedulingContext, jctx *context.JobSchedulingContext, node *internaltypes.Node) (*nodeSchedulingResult, error) {
 
 	queues := map[string][]*runEvictionInfo{}
 	met, _, err := nodedb.StaticJobRequirementsMet(node, jctx)
@@ -411,7 +400,7 @@ func (n *NodeScheduler) calculateCostToScheduleOnNode(sctx *context.SchedulingCo
 		age := int64(0)
 		if job.Queued() {
 			// TODO handle edge cases here
-			scheduledAtPriority = sctx.QueueSchedulingContexts[queue].SuccessfulJobSchedulingContexts[jobId].PodSchedulingContext.ScheduledAtPriority
+			scheduledAtPriority = schedContext.Sctx.QueueSchedulingContexts[queue].SuccessfulJobSchedulingContexts[jobId].PodSchedulingContext.ScheduledAtPriority
 		} else {
 			scheduledAtPriority = *job.LatestRun().ScheduledAtPriority()
 			age = time.Now().Sub(*job.LatestRun().LeaseTime()).Milliseconds()
@@ -421,7 +410,7 @@ func (n *NodeScheduler) calculateCostToScheduleOnNode(sctx *context.SchedulingCo
 			continue
 		}
 
-		cost := sctx.FairnessCostProvider.UnweightedCostFromAllocation(resource)
+		cost := schedContext.Sctx.FairnessCostProvider.UnweightedCostFromAllocation(resource)
 
 		runInfo := &runEvictionInfo{
 			cost:                cost,
@@ -443,15 +432,18 @@ func (n *NodeScheduler) calculateCostToScheduleOnNode(sctx *context.SchedulingCo
 		// TODO confirm this actually sorts in place
 		sort.Sort(internalQueueOrder(items))
 
-		queueShare := sctx.FairnessCostProvider.UnweightedCostFromQueue(sctx.QueueSchedulingContexts[queue])
-		originalFairshare := sctx.QueueSchedulingContexts[queue].AdjustedFairShare
-		updatedFairshare := originalFairshare
+		qctx, ok := schedContext.Queues[queue]
+		if !ok {
+			return nil, fmt.Errorf("queue context for queue %s not found", queue)
+		}
 
+		updatedQueueCost := qctx.CurrentCost
 		count := 0
 		for _, item := range items {
-			item.queueCostAfterPreemption = queueShare - item.cost
-			item.costAsPercentageOfQueueShare = (item.cost / originalFairshare) * 100
-			if item.queueCostAfterPreemption > updatedFairshare {
+			item.queueCostAfterPreemption = updatedQueueCost - item.cost
+			updatedQueueCost = item.queueCostAfterPreemption
+			item.costAsPercentageOfQueueShare = (item.cost / qctx.Fairshare) * 100
+			if item.queueCostAfterPreemption > qctx.Fairshare {
 				item.costToPreempt = 0
 				item.costAsPercentageOfQueueShare = 0
 			}
@@ -482,9 +474,14 @@ func (n *NodeScheduler) calculateCostToScheduleOnNode(sctx *context.SchedulingCo
 	// Should be a sum of total impact over a queue
 	maximumQueueImpact := float64(0)
 	jobsToPreempt := []string{}
+	queueCostChanges := map[string]float64{}
 	for _, jobToEvict := range allJobs {
 		availableResource = availableResource.Add(jobToEvict.resources)
 		totalCost += jobToEvict.cost
+		if _, present := queueCostChanges[jobToEvict.queue]; !present {
+			queueCostChanges[jobToEvict.queue] = 0
+		}
+		queueCostChanges[jobToEvict.queue] -= jobToEvict.cost
 		if jobToEvict.costAsPercentageOfQueueShare > maximumQueueImpact {
 			maximumQueueImpact = jobToEvict.costAsPercentageOfQueueShare
 		}
@@ -506,9 +503,10 @@ func (n *NodeScheduler) calculateCostToScheduleOnNode(sctx *context.SchedulingCo
 		scheduled: true,
 		node:      node,
 		info: &nodeSchedulingInfo{
-			schedulingCost:  totalCost,
-			jobIdsToPreempt: jobsToPreempt,
-			resultId:        util.NewULID(),
+			schedulingCost:   totalCost,
+			jobIdsToPreempt:  jobsToPreempt,
+			queueCostChanges: queueCostChanges,
+			resultId:         util.NewULID(),
 		},
 	}, nil
 }
