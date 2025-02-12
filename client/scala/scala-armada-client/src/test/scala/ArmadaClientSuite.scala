@@ -2,7 +2,7 @@ package io.armadaproject.armada
 
 import io.armadaproject.armada.ArmadaClient
 import api.submit.{SubmitGrpc, CancellationResult, Queue, BatchQueueCreateResponse,
-  StreamingQueueMessage, JobReprioritizeResponse, JobSubmitResponse,
+  StreamingQueueMessage, Job, JobReprioritizeResponse, JobSubmitResponse,
   BatchQueueUpdateResponse, JobSubmitResponseItem, JobSubmitRequestItem,
   JobState, JobSetCancelRequest, JobCancelRequest, QueueDeleteRequest,
   QueueGetRequest, StreamingQueueGetRequest, JobPreemptRequest,
@@ -15,10 +15,13 @@ import com.google.protobuf.empty.Empty
 import api.health.HealthCheckResponse
 import api.event.{EventGrpc, EventStreamMessage, JobSetRequest, WatchRequest}
 import io.grpc.stub.StreamObserver
-import io.grpc.{Server, ServerBuilder}
+import io.grpc.{Server, ServerBuilder, Status, StatusRuntimeException}
+
+import java.util.concurrent.ConcurrentHashMap
 
 import scala.concurrent.Future
 import scala.util.Random
+import javax.print.attribute.standard.JobPriority
 
 private class EventMockServer extends EventGrpc.Event {
   override def health(empty: Empty): scala.concurrent.Future[HealthCheckResponse] = {
@@ -35,7 +38,9 @@ private class EventMockServer extends EventGrpc.Event {
   }
 }
 
-private class SubmitMockServer extends SubmitGrpc.Submit {
+private class SubmitMockServer(jobMap: ConcurrentHashMap[String, Job], queueMap: ConcurrentHashMap[String, Queue])
+  extends SubmitGrpc.Submit {
+
   def cancelJobSet(request: JobSetCancelRequest): scala.concurrent.Future[com.google.protobuf.empty.Empty] = {
     Future.successful(new Empty)
   }
@@ -45,18 +50,27 @@ private class SubmitMockServer extends SubmitGrpc.Submit {
   }
 
   def createQueue(request: Queue): scala.concurrent.Future[com.google.protobuf.empty.Empty] = {
+    queueMap.put(request.name, request)
     Future.successful(new Empty)
   }
 
   def createQueues(request: QueueList): scala.concurrent.Future[BatchQueueCreateResponse] = {
+    request.queues.foreach { q => queueMap.put(q.name, q) }
     Future.successful(new BatchQueueCreateResponse)
   }
 
   def deleteQueue(request: QueueDeleteRequest): scala.concurrent.Future[com.google.protobuf.empty.Empty] = {
+    queueMap.remove(request.name)
     Future.successful(new Empty)
   }
+
   def getQueue(request: QueueGetRequest): scala.concurrent.Future[Queue] = {
-    Future.successful(new Queue)
+    val q = queueMap.get(request.name)
+    if (q == null) {
+      Future.failed(new StatusRuntimeException(Status.NOT_FOUND))
+    } else {
+      Future.successful(q)
+    }
   }
 
   def getQueues(request: StreamingQueueGetRequest, responseObserver: io.grpc.stub.StreamObserver[StreamingQueueMessage]): Unit = {
@@ -119,12 +133,16 @@ class ArmadaClientSuite extends munit.FunSuite {
   val mockEventServer = new Fixture[Server]("Event GRPC Mock Server") {
     private var server: Server = null
     def apply() = server
+
+    private val jobMap: ConcurrentHashMap[String, Job] = new ConcurrentHashMap       // key is job id
+    private val queueMap: ConcurrentHashMap[String, Queue] = new ConcurrentHashMap   // key is queue name
+
     override def beforeAll(): Unit = {
       import scala.concurrent.ExecutionContext
       server = ServerBuilder
         .forPort(testPort)
         .addService(EventGrpc.bindService(new EventMockServer, ExecutionContext.global))
-        .addService(SubmitGrpc.bindService(new SubmitMockServer, ExecutionContext.global))
+        .addService(SubmitGrpc.bindService(new SubmitMockServer(jobMap, queueMap), ExecutionContext.global))
         .addService(JobsGrpc.bindService(new JobsMockServer, ExecutionContext.global))
         .build()
         .start()
@@ -138,50 +156,48 @@ class ArmadaClientSuite extends munit.FunSuite {
 
   test("ArmadaClient.EventHealth()") {
     val ac = ArmadaClient("localhost", testPort)
-    val status = ac.EventHealth()
+    val status = ac.eventHealth()
     assertEquals(status, HealthCheckResponse.ServingStatus.SERVING)
   }
 
   test("ArmadaClient.SubmitHealth()") {
     val ac = ArmadaClient("localhost", testPort)
-    val status = ac.SubmitHealth()
+    val status = ac.submitHealth()
     assertEquals(status, HealthCheckResponse.ServingStatus.SERVING)
   }
 
   test("ArmadaClient.SubmitJobs()") {
     val ac = ArmadaClient("localhost", testPort)
-    val response = ac.SubmitJobs("testQueue", "testJobSetId", List(new JobSubmitRequestItem()))
+    val response = ac.submitJobs("testQueue", "testJobSetId", List(new JobSubmitRequestItem()))
     assertEquals(response.jobResponseItems(0), JobSubmitResponseItem("fakeJobId"))
   }
 
   test("ArmadaClient.GetJobStatus()") {
     val ac = ArmadaClient("localhost", testPort)
-    val response = ac.GetJobStatus("fakeJobId")
+    val response = ac.getJobStatus("fakeJobId")
     assert(response.jobStates("fakeJobId").isRunning)
   }
 
-  // Queue tests currently disabled - Armada mock server does not implement full queue
-  // state so these fail when running with mock; they pass with a real Armada instance
-  // test("test queue existence, creation, deletion") {
-  //   val ac = new ArmadaClient(ArmadaClient.GetChannel("localhost", testPort))
-  //   val qName = "test-queue-" + Random.alphanumeric.take(8).mkString
-  //   var q: Queue = new Queue()
+  test("test queue existence, creation, deletion") {
+    val ac = ArmadaClient("localhost", testPort)
+    val qName = "test-queue-" + Random.alphanumeric.take(8).mkString
+    var q: Queue = new Queue()
 
-  //   // queue should not exist yet
-  //   intercept[io.grpc.StatusRuntimeException] {
-  //     q = ac.getQueue(qName)
-  //   }
-  //   assertNotEquals(q.name, qName)
+    // queue should not exist yet
+    intercept[StatusRuntimeException] {
+      q = ac.getQueue(qName)
+    }
+    assertNotEquals(q.name, qName)
 
-  //   ac.createQueue(qName)
-  //   q = ac.getQueue(qName)
-  //   assertEquals(q.name, qName)
+    ac.createQueue(qName)
+    q = ac.getQueue(qName)
+    assertEquals(q.name, qName)
 
-  //   ac.deleteQueue(qName)
-  //   q = new Queue()
-  //   intercept[io.grpc.StatusRuntimeException] {
-  //     q = ac.getQueue(qName)
-  //   }
-  //   assertNotEquals(q.name, qName)
-  // }
+    ac.deleteQueue(qName)
+    q = new Queue()
+    intercept[StatusRuntimeException] {
+      q = ac.getQueue(qName)
+    }
+    assertNotEquals(q.name, qName)
+  }
 }
