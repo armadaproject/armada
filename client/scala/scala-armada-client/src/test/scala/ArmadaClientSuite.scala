@@ -16,6 +16,7 @@ import api.health.HealthCheckResponse
 import api.event.{EventGrpc, EventStreamMessage, JobSetRequest, WatchRequest}
 import io.grpc.stub.StreamObserver
 import io.grpc.{Server, ServerBuilder, Status, StatusRuntimeException}
+import jkugiya.ulid.ULID
 
 import java.util.concurrent.ConcurrentHashMap
 
@@ -40,6 +41,8 @@ private class EventMockServer extends EventGrpc.Event {
 
 private class SubmitMockServer(jobMap: ConcurrentHashMap[String, Job], queueMap: ConcurrentHashMap[String, Queue])
   extends SubmitGrpc.Submit {
+
+  val ulidGen = ULID.getGenerator()
 
   def cancelJobSet(request: JobSetCancelRequest): scala.concurrent.Future[com.google.protobuf.empty.Empty] = {
     Future.successful(new Empty)
@@ -90,7 +93,16 @@ private class SubmitMockServer(jobMap: ConcurrentHashMap[String, Job], queueMap:
   }
 
   def submitJobs(request: JobSubmitRequest): scala.concurrent.Future[JobSubmitResponse] = {
-    Future.successful((new JobSubmitResponse(List(JobSubmitResponseItem("fakeJobId")))))
+    val q = queueMap.get(request.queue)
+    if (q == null) {
+      // TODO RETURN ERROR THAT QUEUE DOES NOT EXIST
+    }
+
+    val jobId: String = ulidGen.base32().toLowerCase()
+    val newJob: Job = new Job()
+
+    jobMap.put(jobId, newJob)
+    Future.successful((new JobSubmitResponse(List(JobSubmitResponseItem(jobId)))))
   }
 
   def updateQueue(request: Queue): scala.concurrent.Future[com.google.protobuf.empty.Empty] = {
@@ -100,10 +112,9 @@ private class SubmitMockServer(jobMap: ConcurrentHashMap[String, Job], queueMap:
   def updateQueues(request: QueueList): scala.concurrent.Future[BatchQueueUpdateResponse] = {
     Future.successful(new BatchQueueUpdateResponse)
   }
-
 }
 
-private class JobsMockServer extends JobsGrpc.Jobs {
+private class JobsMockServer(jobMap: ConcurrentHashMap[String, Job]) extends JobsGrpc.Jobs {
   def getJobDetails(request: JobDetailsRequest): scala.concurrent.Future[JobDetailsResponse] = {
     Future.successful(new JobDetailsResponse)
   }
@@ -117,8 +128,12 @@ private class JobsMockServer extends JobsGrpc.Jobs {
   }
 
   def getJobStatus(request: JobStatusRequest): scala.concurrent.Future[JobStatusResponse] = {
-    val response = new JobStatusResponse(Map("fakeJobId" -> JobState.RUNNING))
-    Future.successful(response)
+    val statusMap = collection.mutable.Map[String,JobState]() // jobID -> state
+    val it = jobMap.keys.asIterator()
+
+    while (it.hasNext()) statusMap.put(it.next(), JobState.RUNNING)
+
+    Future.successful(new JobStatusResponse(statusMap.to(collection.immutable.Map)))
   }
 
   def getJobStatusUsingExternalJobUri(request: JobStatusUsingExternalJobUriRequest): scala.concurrent.Future[JobStatusResponse] = {
@@ -143,7 +158,7 @@ class ArmadaClientSuite extends munit.FunSuite {
         .forPort(testPort)
         .addService(EventGrpc.bindService(new EventMockServer, ExecutionContext.global))
         .addService(SubmitGrpc.bindService(new SubmitMockServer(jobMap, queueMap), ExecutionContext.global))
-        .addService(JobsGrpc.bindService(new JobsMockServer, ExecutionContext.global))
+        .addService(JobsGrpc.bindService(new JobsMockServer(jobMap), ExecutionContext.global))
         .build()
         .start()
     }
@@ -169,13 +184,17 @@ class ArmadaClientSuite extends munit.FunSuite {
   test("ArmadaClient.SubmitJobs()") {
     val ac = ArmadaClient("localhost", testPort)
     val response = ac.submitJobs("testQueue", "testJobSetId", List(new JobSubmitRequestItem()))
-    assertEquals(response.jobResponseItems(0), JobSubmitResponseItem("fakeJobId"))
+    assertEquals(1, response.jobResponseItems.length)
+    assertEquals(26, response.jobResponseItems(0).jobId.length)
   }
 
   test("ArmadaClient.GetJobStatus()") {
     val ac = ArmadaClient("localhost", testPort)
-    val response = ac.getJobStatus("fakeJobId")
-    assert(response.jobStates("fakeJobId").isRunning)
+    val newJob = ac.submitJobs("testQueue", "testJobSetId", List(new JobSubmitRequestItem()))
+
+    val jobId = newJob.jobResponseItems(0).jobId
+    val jobStatus = ac.getJobStatus(jobId)
+    assert(jobStatus.jobStates(jobId).isRunning)
   }
 
   test("test queue existence, creation, deletion") {
