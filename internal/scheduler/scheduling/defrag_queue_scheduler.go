@@ -4,6 +4,7 @@ import (
 	"math"
 	"time"
 
+	"github.com/armadaproject/armada/internal/scheduler/scheduling/optimiser"
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -16,7 +17,7 @@ import (
 )
 
 type DefragQueueScheduler struct {
-	nodeScheduler                     *NodeScheduler
+	nodeScheduler                     *optimiser.FairnessOptimisingScheduler
 	jobDb                             jobdb.JobRepository
 	constraints                       schedulerconstraints.SchedulingConstraints
 	floatingResourceTypes             *floatingresources.FloatingResourceTypes
@@ -26,7 +27,7 @@ type DefragQueueScheduler struct {
 	maximumResourceFractionToSchedule map[string]float64
 }
 
-func NewDefragQueueScheduler(jobDb jobdb.JobRepository, nodeScheduler *NodeScheduler, maxQueueLookBack uint) *DefragQueueScheduler {
+func NewDefragQueueScheduler(jobDb jobdb.JobRepository, nodeScheduler *optimiser.FairnessOptimisingScheduler, maxQueueLookBack uint) *DefragQueueScheduler {
 	return &DefragQueueScheduler{
 		nodeScheduler:    nodeScheduler,
 		jobDb:            jobDb,

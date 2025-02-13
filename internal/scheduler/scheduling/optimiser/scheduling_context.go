@@ -1,4 +1,4 @@
-package domain
+package optimiser
 
 import "github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 

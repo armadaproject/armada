@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
+	"github.com/armadaproject/armada/internal/scheduler/scheduling/optimiser"
 	"github.com/hashicorp/go-memdb"
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
@@ -241,7 +242,7 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 			maximumJobSizeToPreempt = &maxJobSize
 		}
 
-		nodeScheduler := NewNodeScheduler(sch.jobRepo, sch.nodeDb, sch.defragConfig.FairnessImprovementThreshold, maximumJobSizeToPreempt)
+		nodeScheduler := optimiser.NewFairnessOptimisingScheduler(sch.jobRepo, sch.nodeDb, sch.defragConfig.FairnessImprovementThreshold, maximumJobSizeToPreempt)
 		defragQueueScheduler := NewDefragQueueScheduler(sch.jobRepo, nodeScheduler, sch.maxQueueLookBack)
 		defragSchedulerResult, err := defragQueueScheduler.Schedule(ctx, sch.schedulingContext)
 		if err != nil {
