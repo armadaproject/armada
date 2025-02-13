@@ -1,5 +1,5 @@
 import { formatJobState, formatTimeSince, formatUtcDate } from "./jobsTableFormatters"
-import { JobState } from "../models/lookoutV2Models"
+import { JobState } from "../models/lookoutModels"
 
 describe("JobsTableFormatters", () => {
   beforeEach(() => {

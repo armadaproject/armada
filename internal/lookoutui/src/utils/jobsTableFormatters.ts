@@ -2,7 +2,7 @@ import { intervalToDuration } from "date-fns"
 import { parseISO } from "date-fns/fp"
 import { formatInTimeZone } from "date-fns-tz"
 
-import { JobRunState, jobRunStateDisplayInfo, JobState, jobStateDisplayNames } from "../models/lookoutV2Models"
+import { JobRunState, jobRunStateDisplayInfo, JobState, jobStateDisplayNames } from "../models/lookoutModels"
 
 export const formatJobState = (state?: JobState): string => (state ? (jobStateDisplayNames[state] ?? state) : "")
 

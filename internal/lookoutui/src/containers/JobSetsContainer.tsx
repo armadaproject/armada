@@ -3,19 +3,19 @@ import { Component } from "react"
 import CancelJobSetsDialog, { getCancellableJobSets } from "./CancelJobSetsDialog"
 import ReprioritizeJobSetsDialog, { getReprioritizeableJobSets } from "./ReprioritizeJobSetsDialog"
 import JobSets from "../components/job-sets/JobSets"
-import { JobState, Match } from "../models/lookoutV2Models"
+import { JobState, Match } from "../models/lookoutModels"
 import IntervalService from "../services/IntervalService"
 import { GetJobSetsRequest, JobSet } from "../services/JobService"
 import JobSetsLocalStorageService from "../services/JobSetsLocalStorageService"
 import JobSetsQueryParamsService from "../services/JobSetsQueryParamsService"
-import { IGroupJobsService } from "../services/lookoutV2/GroupJobsService"
+import { IGroupJobsService } from "../services/lookout/GroupJobsService"
 import {
   DEFAULT_PREFERENCES,
   JobsTablePreferences,
   stringifyQueryParams,
   toQueryStringSafe,
-} from "../services/lookoutV2/JobsTablePreferencesService"
-import { UpdateJobSetsService } from "../services/lookoutV2/UpdateJobSetsService"
+} from "../services/lookout/JobsTablePreferencesService"
+import { UpdateJobSetsService } from "../services/lookout/UpdateJobSetsService"
 import { ApiResult, debounced, PropsWithRouter, RequestStatus, selectItem, setStateAsync, withRouter } from "../utils"
 import { StandardColumnId } from "../utils/jobsTableColumns"
 

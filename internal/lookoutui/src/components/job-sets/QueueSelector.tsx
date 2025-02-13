@@ -2,7 +2,7 @@ import { useMemo, useState } from "react"
 
 import { Alert, AlertTitle, Autocomplete, Button, styled, TextField } from "@mui/material"
 
-import { useGetQueues } from "../../services/lookoutV2/useGetQueues"
+import { useGetQueues } from "../../services/lookout/useGetQueues"
 
 const StyledAutocomplete = styled(Autocomplete<string>)({
   width: 300,

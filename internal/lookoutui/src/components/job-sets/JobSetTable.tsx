@@ -17,10 +17,10 @@ import {
 import { visuallyHidden } from "@mui/utils"
 import { TableVirtuoso, TableComponents } from "react-virtuoso"
 
-import { JobState, jobStateColors, jobStateIcons } from "../../models/lookoutV2Models"
+import { JobState, jobStateColors, jobStateIcons } from "../../models/lookoutModels"
 import { JobSet } from "../../services/JobService"
 import { formatJobState } from "../../utils/jobsTableFormatters"
-import { JobStateCountChip } from "../lookoutV2/JobStateCountChip"
+import { JobStateCountChip } from "../lookout/JobStateCountChip"
 
 const JOB_STATES_TO_DISPLAY = [
   [JobState.Queued, "jobsQueued"],

@@ -6,7 +6,7 @@ import ReprioritizeJobSets from "../components/job-sets/reprioritize-job-sets/Re
 import ReprioritizeJobSetsOutcome from "../components/job-sets/reprioritize-job-sets/ReprioritizeJobSetsOutcome"
 import { useGetAccessToken } from "../oidcAuth"
 import { JobSet } from "../services/JobService"
-import { ReprioritizeJobSetsResponse, UpdateJobSetsService } from "../services/lookoutV2/UpdateJobSetsService"
+import { ReprioritizeJobSetsResponse, UpdateJobSetsService } from "../services/lookout/UpdateJobSetsService"
 import { ApiResult, priorityIsValid, RequestStatus } from "../utils"
 
 import "../components/Dialog.css"

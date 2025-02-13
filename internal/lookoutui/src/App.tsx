@@ -8,7 +8,7 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom"
 
 import NavBar from "./components/NavBar"
 import JobSetsContainer from "./containers/JobSetsContainer"
-import { JobsTableContainer } from "./containers/lookoutV2/JobsTableContainer"
+import { JobsTableContainer } from "./containers/lookout/JobsTableContainer"
 import { OidcAuthProvider } from "./oidcAuth"
 import { OIDC_REDIRECT_PATHNAME } from "./oidcAuth/OidcAuthProvider"
 import { Services, ServicesProvider } from "./services/context"

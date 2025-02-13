@@ -7,7 +7,7 @@ import CancelJobSetsOutcome from "../components/job-sets/cancel-job-sets/CancelJ
 import { useGetAccessToken } from "../oidcAuth"
 import { ApiJobState } from "../openapi/armada"
 import { JobSet } from "../services/JobService"
-import { CancelJobSetsResponse, UpdateJobSetsService } from "../services/lookoutV2/UpdateJobSetsService"
+import { CancelJobSetsResponse, UpdateJobSetsService } from "../services/lookout/UpdateJobSetsService"
 import { ApiResult, PlatformCancelReason, RequestStatus } from "../utils"
 
 export type CancelJobSetsDialogState = "CancelJobSets" | "CancelJobSetsResult"

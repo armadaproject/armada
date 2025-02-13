@@ -10,11 +10,11 @@ import {
   VALID_COLUMN_MATCHES,
 } from "./jobsTableColumns"
 import { findRowInData, RowId, RowIdParts, toRowId } from "./reactTableUtils"
-import { LookoutColumnFilter } from "../containers/lookoutV2/JobsTableContainer"
+import { LookoutColumnFilter } from "../containers/lookout/JobsTableContainer"
 import { JobGroupRow, JobRow, JobTableRow } from "../models/jobsTableModels"
-import { Job, JobFilter, JobGroup, JobOrder, Match } from "../models/lookoutV2Models"
-import { IGetJobsService } from "../services/lookoutV2/GetJobsService"
-import { GroupedField, IGroupJobsService } from "../services/lookoutV2/GroupJobsService"
+import { Job, JobFilter, JobGroup, JobOrder, Match } from "../models/lookoutModels"
+import { IGetJobsService } from "../services/lookout/GetJobsService"
+import { GroupedField, IGroupJobsService } from "../services/lookout/GroupJobsService"
 
 export interface PendingData {
   parentRowId: RowId | "ROOT"

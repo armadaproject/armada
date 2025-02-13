@@ -4,12 +4,12 @@ import { ColumnDef, createColumnHelper, VisibilityState } from "@tanstack/table-
 
 import { formatJobState, formatTimeSince, formatUtcDate } from "./jobsTableFormatters"
 import { formatBytes, formatCpu, parseBytes, parseCpu, parseInteger } from "./resourceUtils"
-import { JobGroupStateCounts } from "../components/lookoutV2/JobGroupStateCounts"
-import { JobStateChip } from "../components/lookoutV2/JobStateChip"
-import { EnumFilterOption } from "../components/lookoutV2/JobsTableFilter"
-import { LookoutColumnOrder } from "../containers/lookoutV2/JobsTableContainer"
+import { JobGroupStateCounts } from "../components/lookout/JobGroupStateCounts"
+import { JobStateChip } from "../components/lookout/JobStateChip"
+import { EnumFilterOption } from "../components/lookout/JobsTableFilter"
+import { LookoutColumnOrder } from "../containers/lookout/JobsTableContainer"
 import { isJobGroupRow, JobTableRow } from "../models/jobsTableModels"
-import { JobState, jobStateColors, jobStateIcons, Match } from "../models/lookoutV2Models"
+import { JobState, jobStateColors, jobStateIcons, Match } from "../models/lookoutModels"
 
 export type JobTableColumn = ColumnDef<JobTableRow, any>
 
