@@ -1,13 +1,13 @@
 import { createContext, ReactNode, useContext } from "react"
 
-import { ICordonService } from "./lookoutV2/CordonService"
-import { IGetJobInfoService } from "./lookoutV2/GetJobInfoService"
-import { IGetJobsService } from "./lookoutV2/GetJobsService"
-import { IGetRunInfoService } from "./lookoutV2/GetRunInfoService"
-import { IGroupJobsService } from "./lookoutV2/GroupJobsService"
-import { ILogService } from "./lookoutV2/LogService"
-import { UpdateJobSetsService } from "./lookoutV2/UpdateJobSetsService"
-import { UpdateJobsService } from "./lookoutV2/UpdateJobsService"
+import { ICordonService } from "./lookout/CordonService"
+import { IGetJobInfoService } from "./lookout/GetJobInfoService"
+import { IGetJobsService } from "./lookout/GetJobsService"
+import { IGetRunInfoService } from "./lookout/GetRunInfoService"
+import { IGroupJobsService } from "./lookout/GroupJobsService"
+import { ILogService } from "./lookout/LogService"
+import { UpdateJobSetsService } from "./lookout/UpdateJobSetsService"
+import { UpdateJobsService } from "./lookout/UpdateJobsService"
 
 export interface Services {
   v2GetJobsService: IGetJobsService
