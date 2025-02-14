@@ -105,39 +105,40 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 		NewNodeEvictor(
 			sch.jobRepo,
 			sch.nodeDb,
-			func(ctx *armadacontext.Context, job *jobdb.Job) bool {
+			func(ctx *armadacontext.Context, job *jobdb.Job) (bool, string) {
 				if job.LatestRun().Pool() != sch.schedulingContext.Pool {
-					return false
+					return false, "" // Cross-pool home-away job. These are usually preempted via urgency-based preemption, so don't fill in cantPreemptReason.
 				}
 				if !sch.schedulingContext.QueueContextExists(job) {
 					ctx.Warnf("No queue context found for job %s.  This job cannot be evicted", job.Id())
-					return false
+					return false, "invalid_queue"
 				}
-				priorityClass := job.PriorityClass()
-				if !priorityClass.Preemptible {
-					return false
+				if !job.PriorityClass().Preemptible {
+					return false, "job_not_preemptible"
 				}
 				if job.Annotations() == nil {
 					ctx.Errorf("can't evict job %s: annotations not initialised", job.Id())
-					return false
+					return false, "missing_annotations"
 				}
 				if job.NodeSelector() == nil {
 					ctx.Errorf("can't evict job %s: nodeSelector not initialised", job.Id())
-					return false
+					return false, "missing_node_selector"
 				}
+
 				// If we are in market mode then everything is evictable
 				if sch.marketDriven {
-					return true
+					return true, ""
 				}
+
 				if qctx, ok := sch.schedulingContext.QueueSchedulingContexts[job.Queue()]; ok {
 					actualShare := sch.schedulingContext.FairnessCostProvider.UnweightedCostFromQueue(qctx)
 					fairShare := math.Max(qctx.AdjustedFairShare, qctx.FairShare)
 					fractionOfFairShare := actualShare / fairShare
 					if fractionOfFairShare <= sch.protectedFractionOfFairShare {
-						return false
+						return false, "below_protected_fair_share"
 					}
 				}
-				return true
+				return true, ""
 			},
 		),
 	)
@@ -348,6 +349,7 @@ func (sch *PreemptingQueueScheduler) evictGangs(ctx *armadacontext.Context, txn 
 		sch.nodeDb,
 		gangNodeIds,
 		gangJobIds,
+		"gang_eviction_not_required",
 	)
 	if evictor == nil {
 		// No gangs to evict.

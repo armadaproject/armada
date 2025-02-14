@@ -820,22 +820,16 @@ func (nodeDb *NodeDb) bindJobToNodeInPlace(node *internaltypes.Node, job *jobdb.
 //     the jobs' priorities to evictedPriority; they are not subtracted from AllocatedByJobId and
 //     AllocatedByQueue.
 func (nodeDb *NodeDb) EvictJobsFromNode(
-	jobFilter func(*jobdb.Job) bool,
 	jobs []*jobdb.Job,
 	node *internaltypes.Node,
-) ([]*jobdb.Job, *internaltypes.Node, error) {
-	evicted := make([]*jobdb.Job, 0)
+) (*internaltypes.Node, error) {
 	node = node.DeepCopyNilKeys()
 	for _, job := range jobs {
-		if jobFilter != nil && !jobFilter(job) {
-			continue
-		}
-		evicted = append(evicted, job)
 		if err := nodeDb.evictJobFromNodeInPlace(job, node); err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 	}
-	return evicted, node, nil
+	return node, nil
 }
 
 // evictJobFromNodeInPlace is the in-place operation backing EvictJobsFromNode.
