@@ -195,7 +195,7 @@ func newPerCycleMetrics() *perCycleMetrics {
 
 	protectedFractionOfFairShare := prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: prefix + "node_preemptibility",
+			Name: prefix + "protected_fraction_of_fair_share",
 			Help: "config value protectedFractionOfFairShare - will evict preemptible jobs if actual_share / max(fair_share, adjusted_fair_share) is greater than this",
 		},
 		[]string{poolLabel},
