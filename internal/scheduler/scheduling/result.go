@@ -30,6 +30,8 @@ type PerPoolSchedulingStats struct {
 	LoopNumber int
 	// Result of any eviction in this cycle
 	EvictorResult *EvictorResult
+	// Value of ProtectedFractionOfFairShare from config
+	ProtectedFractionOfFairShare float64
 }
 
 // SchedulerResult is returned by Rescheduler.Schedule().
