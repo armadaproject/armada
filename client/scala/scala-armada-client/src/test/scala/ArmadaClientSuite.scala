@@ -95,14 +95,21 @@ private class SubmitMockServer(jobMap: ConcurrentHashMap[String, Job], queueMap:
   def submitJobs(request: JobSubmitRequest): scala.concurrent.Future[JobSubmitResponse] = {
     val q = queueMap.get(request.queue)
     if (q == null) {
-      // TODO RETURN ERROR THAT QUEUE DOES NOT EXIST
+      var resItems = Seq[JobSubmitResponseItem]()
+      request.jobRequestItems.foreach { reqItem =>
+        val jobId: String = ulidGen.base32().toLowerCase()
+        resItems = resItems :+ new JobSubmitResponseItem(jobId, "requested queue does not exist")
+      }
+
+      val msg = "could not find queue \"" + request.queue + "\""
+      return Future.failed(new StatusRuntimeException(Status.PERMISSION_DENIED.withDescription(msg)))
     }
 
     val jobId: String = ulidGen.base32().toLowerCase()
-    val newJob: Job = new Job()
-
+    val newJob = new Job()
     jobMap.put(jobId, newJob)
-    Future.successful((new JobSubmitResponse(List(JobSubmitResponseItem(jobId)))))
+
+    Future.successful(new JobSubmitResponse(List(JobSubmitResponseItem(jobId))))
   }
 
   def updateQueue(request: Queue): scala.concurrent.Future[com.google.protobuf.empty.Empty] = {
@@ -169,35 +176,52 @@ class ArmadaClientSuite extends munit.FunSuite {
 
   override def munitFixtures = List(mockEventServer)
 
-  test("ArmadaClient.EventHealth()") {
+  test("ArmadaClient.eventHealth()") {
     val ac = ArmadaClient("localhost", testPort)
     val status = ac.eventHealth()
     assertEquals(status, HealthCheckResponse.ServingStatus.SERVING)
   }
 
-  test("ArmadaClient.SubmitHealth()") {
+  test("ArmadaClient.submitHealth()") {
     val ac = ArmadaClient("localhost", testPort)
     val status = ac.submitHealth()
     assertEquals(status, HealthCheckResponse.ServingStatus.SERVING)
   }
 
-  test("ArmadaClient.SubmitJobs()") {
+  test("ArmadaClient.submitJobs()") {
     val ac = ArmadaClient("localhost", testPort)
-    val response = ac.submitJobs("testQueue", "testJobSetId", List(new JobSubmitRequestItem()))
+
+    // submission to non-existent queue
+    val qName = "nonexistent-queue-" + Random.alphanumeric.take(8).mkString
+    var response: JobSubmitResponse = new JobSubmitResponse()
+
+    intercept[StatusRuntimeException] {
+      response = ac.submitJobs(qName, "testJobSetId", List(new JobSubmitRequestItem()))
+    }
+    assertEquals(0, response.jobResponseItems.length)
+
+    // submission to existing queue
+    ac.createQueue(qName)
+    response = ac.submitJobs(qName, "testJobSetId", List(new JobSubmitRequestItem()))
     assertEquals(1, response.jobResponseItems.length)
-    assertEquals(26, response.jobResponseItems(0).jobId.length)
+    ac.deleteQueue(qName)
   }
 
-  test("ArmadaClient.GetJobStatus()") {
+  test("ArmadaClient.getJobStatus()") {
     val ac = ArmadaClient("localhost", testPort)
-    val newJob = ac.submitJobs("testQueue", "testJobSetId", List(new JobSubmitRequestItem()))
+    val qName = "getjobstatus-test-queue-" + Random.alphanumeric.take(8).mkString
+
+    ac.createQueue(qName)
+    val newJob = ac.submitJobs(qName, "testJobSetId", List(new JobSubmitRequestItem()))
 
     val jobId = newJob.jobResponseItems(0).jobId
     val jobStatus = ac.getJobStatus(jobId)
     assert(jobStatus.jobStates(jobId).isRunning)
+
+    ac.deleteQueue(qName)
   }
 
-  test("test queue existence, creation, deletion") {
+  test("ArmadaClient.{get,create,delete}Queue()") {
     val ac = ArmadaClient("localhost", testPort)
     val qName = "test-queue-" + Random.alphanumeric.take(8).mkString
     var q: Queue = new Queue()
