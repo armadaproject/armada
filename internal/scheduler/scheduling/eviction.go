@@ -174,7 +174,6 @@ func (evi *Evictor) Evict(ctx *armadacontext.Context, nodeDbTxn *memdb.Txn) (*Ev
 				if job != nil {
 					jobs = append(jobs, job)
 				}
-
 			}
 		}
 		evictedJobs, node, err := evi.nodeDb.EvictJobsFromNode(jobFilter, jobs, node)
