@@ -46,14 +46,6 @@ func TestNode(t *testing.T) {
 			"memory": resource.MustParse("16Gi"),
 		},
 	)
-	unallocatableResources := map[int32]ResourceList{
-		1: resourceListFactory.FromJobResourceListIgnoreUnknown(
-			map[string]resource.Quantity{
-				"cpu":    resource.MustParse("8"),
-				"memory": resource.MustParse("16Gi"),
-			},
-		),
-	}
 	allocatableByPriority := map[int32]ResourceList{
 		1: resourceListFactory.FromNodeProto(
 			map[string]resource.Quantity{
@@ -119,7 +111,6 @@ func TestNode(t *testing.T) {
 		false,
 		totalResources,
 		allocatableResources,
-		unallocatableResources,
 		allocatableByPriority,
 		allocatedByQueue,
 		allocatedByJobId,
@@ -136,7 +127,6 @@ func TestNode(t *testing.T) {
 	assert.Equal(t, taints, node.GetTaints())
 	assert.Equal(t, labels, node.GetLabels())
 	assert.Equal(t, totalResources, node.GetTotalResources())
-	assert.Equal(t, unallocatableResources, node.GetUnallocatableResources())
 	assert.Equal(t, allocatableByPriority, node.AllocatableByPriority)
 	assert.Equal(t, allocatedByQueue, node.AllocatedByQueue)
 	assert.Equal(t, allocatedByJobId, node.AllocatedByJobId)

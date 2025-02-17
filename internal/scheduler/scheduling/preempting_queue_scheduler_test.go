@@ -2501,7 +2501,6 @@ func testNodeWithTaints(node *internaltypes.Node, taints []v1.Taint) *internalty
 		false,
 		node.GetTotalResources(),
 		node.GetAllocatableResources(),
-		node.GetUnallocatableResources(),
 		node.AllocatableByPriority,
 		node.AllocatedByQueue,
 		node.AllocatedByJobId,
