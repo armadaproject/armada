@@ -18,25 +18,26 @@ var (
 )
 
 type perCycleMetrics struct {
-	consideredJobs         *prometheus.GaugeVec
-	fairShare              *prometheus.GaugeVec
-	adjustedFairShare      *prometheus.GaugeVec
-	actualShare            *prometheus.GaugeVec
-	fairnessError          *prometheus.GaugeVec
-	demand                 *prometheus.GaugeVec
-	cappedDemand           *prometheus.GaugeVec
-	queueWeight            *prometheus.GaugeVec
-	rawQueueWeight         *prometheus.GaugeVec
-	gangsConsidered        *prometheus.GaugeVec
-	gangsScheduled         *prometheus.GaugeVec
-	firstGangQueuePosition *prometheus.GaugeVec
-	lastGangQueuePosition  *prometheus.GaugeVec
-	perQueueCycleTime      *prometheus.GaugeVec
-	loopNumber             *prometheus.GaugeVec
-	evictedJobs            *prometheus.GaugeVec
-	evictedResources       *prometheus.GaugeVec
-	spotPrice              *prometheus.GaugeVec
-	nodePreemptibility     *prometheus.GaugeVec
+	consideredJobs               *prometheus.GaugeVec
+	fairShare                    *prometheus.GaugeVec
+	adjustedFairShare            *prometheus.GaugeVec
+	actualShare                  *prometheus.GaugeVec
+	fairnessError                *prometheus.GaugeVec
+	demand                       *prometheus.GaugeVec
+	cappedDemand                 *prometheus.GaugeVec
+	queueWeight                  *prometheus.GaugeVec
+	rawQueueWeight               *prometheus.GaugeVec
+	gangsConsidered              *prometheus.GaugeVec
+	gangsScheduled               *prometheus.GaugeVec
+	firstGangQueuePosition       *prometheus.GaugeVec
+	lastGangQueuePosition        *prometheus.GaugeVec
+	perQueueCycleTime            *prometheus.GaugeVec
+	loopNumber                   *prometheus.GaugeVec
+	evictedJobs                  *prometheus.GaugeVec
+	evictedResources             *prometheus.GaugeVec
+	spotPrice                    *prometheus.GaugeVec
+	nodePreemptibility           *prometheus.GaugeVec
+	protectedFractionOfFairShare *prometheus.GaugeVec
 }
 
 func newPerCycleMetrics() *perCycleMetrics {
@@ -192,26 +193,35 @@ func newPerCycleMetrics() *perCycleMetrics {
 		[]string{poolLabel, nodeLabel, clusterLabel, nodeTypeLabel, "isPreemptible", "notPreemptibleReason"},
 	)
 
+	protectedFractionOfFairShare := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: prefix + "protected_fraction_of_fair_share",
+			Help: "config value protectedFractionOfFairShare - will evict preemptible jobs if actual_share / max(fair_share, adjusted_fair_share) is greater than this",
+		},
+		[]string{poolLabel},
+	)
+
 	return &perCycleMetrics{
-		consideredJobs:         consideredJobs,
-		fairShare:              fairShare,
-		adjustedFairShare:      adjustedFairShare,
-		actualShare:            actualShare,
-		demand:                 demand,
-		cappedDemand:           cappedDemand,
-		queueWeight:            queueWeight,
-		rawQueueWeight:         rawQueueWeight,
-		fairnessError:          fairnessError,
-		gangsConsidered:        gangsConsidered,
-		gangsScheduled:         gangsScheduled,
-		firstGangQueuePosition: firstGangQueuePosition,
-		lastGangQueuePosition:  lastGangQueuePosition,
-		perQueueCycleTime:      perQueueCycleTime,
-		loopNumber:             loopNumber,
-		evictedJobs:            evictedJobs,
-		evictedResources:       evictedResources,
-		spotPrice:              spotPrice,
-		nodePreemptibility:     nodePreemptibility,
+		consideredJobs:               consideredJobs,
+		fairShare:                    fairShare,
+		adjustedFairShare:            adjustedFairShare,
+		actualShare:                  actualShare,
+		demand:                       demand,
+		cappedDemand:                 cappedDemand,
+		queueWeight:                  queueWeight,
+		rawQueueWeight:               rawQueueWeight,
+		fairnessError:                fairnessError,
+		gangsConsidered:              gangsConsidered,
+		gangsScheduled:               gangsScheduled,
+		firstGangQueuePosition:       firstGangQueuePosition,
+		lastGangQueuePosition:        lastGangQueuePosition,
+		perQueueCycleTime:            perQueueCycleTime,
+		loopNumber:                   loopNumber,
+		evictedJobs:                  evictedJobs,
+		evictedResources:             evictedResources,
+		spotPrice:                    spotPrice,
+		nodePreemptibility:           nodePreemptibility,
+		protectedFractionOfFairShare: protectedFractionOfFairShare,
 	}
 }
 
@@ -353,6 +363,8 @@ func (m *cycleMetrics) ReportSchedulerResult(result scheduling.SchedulerResult) 
 				fmt.Sprintf("%t", nodePreemptiblityStats.Reason == ""),
 				nodePreemptiblityStats.Reason).Set(1.0)
 		}
+
+		currentCycle.protectedFractionOfFairShare.WithLabelValues(pool).Set(schedulingStats.ProtectedFractionOfFairShare)
 	}
 	m.latestCycleMetrics.Store(currentCycle)
 }
@@ -383,6 +395,7 @@ func (m *cycleMetrics) describe(ch chan<- *prometheus.Desc) {
 		currentCycle.evictedResources.Describe(ch)
 		currentCycle.spotPrice.Describe(ch)
 		currentCycle.nodePreemptibility.Describe(ch)
+		currentCycle.protectedFractionOfFairShare.Describe(ch)
 	}
 
 	m.reconciliationCycleTime.Describe(ch)
@@ -414,6 +427,7 @@ func (m *cycleMetrics) collect(ch chan<- prometheus.Metric) {
 		currentCycle.evictedResources.Collect(ch)
 		currentCycle.spotPrice.Collect(ch)
 		currentCycle.nodePreemptibility.Collect(ch)
+		currentCycle.protectedFractionOfFairShare.Collect(ch)
 	}
 
 	m.reconciliationCycleTime.Collect(ch)
