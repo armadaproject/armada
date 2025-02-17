@@ -242,6 +242,7 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 	ctx.Logger().WithField("stage", "scheduling-algo").Infof("Finished unbinding preempted and evicted jobs")
 
 	PopulatePreemptionDescriptions(preemptedJobs, scheduledJobs)
+	schedulercontext.PrintJobSchedulingDetails(ctx, "Evicted job details", maps.Values(scheduledAndEvictedJobsById))
 	schedulercontext.PrintJobSummary(ctx, "Preempting running jobs;", preemptedJobs)
 	schedulercontext.PrintJobSummary(ctx, "Scheduling new jobs;", scheduledJobs)
 	// TODO: Show failed jobs.
@@ -289,6 +290,7 @@ func (sch *PreemptingQueueScheduler) evict(ctx *armadacontext.Context, evictor *
 	if err != nil {
 		return nil, nil, err
 	}
+	ctx.Infof("Evicting remains of partially evicted gangs for pool %s (most may get re-scheduled this cycle so they won't necessarily be preempted) %s", sch.schedulingContext.Pool, gangEvictorResult.SummaryString())
 	if err := sch.nodeDb.UpsertManyWithTxn(txn, maps.Values(gangEvictorResult.AffectedNodesById)); err != nil {
 		return nil, nil, err
 	}
@@ -335,16 +337,6 @@ func (sch *PreemptingQueueScheduler) evictGangs(ctx *armadacontext.Context, txn 
 	if err != nil {
 		return nil, err
 	}
-	gangNodeIds = armadamaps.FilterKeys(
-		gangNodeIds,
-		// Filter out any nodes already processed.
-		// (Just for efficiency; not strictly necessary.)
-		// This assumes all gang jobs on these nodes were already evicted.
-		func(nodeId string) bool {
-			_, ok := previousEvictorResult.AffectedNodesById[nodeId]
-			return !ok
-		},
-	)
 	evictor := NewFilteredEvictor(
 		sch.jobRepo,
 		sch.nodeDb,
@@ -358,10 +350,6 @@ func (sch *PreemptingQueueScheduler) evictGangs(ctx *armadacontext.Context, txn 
 	}
 
 	result, err := evictor.Evict(ctx, txn)
-	if err != nil {
-		ctx.Infof("Evicting remains of partially evicted gangs for pool %s (most may get re-scheduled this cycle so they won't necessarily be preempted) %s", sch.schedulingContext.Pool, result.SummaryString())
-	}
-
 	return result, err
 }
 
