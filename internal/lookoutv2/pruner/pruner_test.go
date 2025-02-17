@@ -194,7 +194,7 @@ func storeJob(job testJob, db *lookoutdb.LookoutDb, converter *instructions.Inst
 			Build()
 	case lookout.JobCancelled:
 		simulator.
-			Cancelled(job.ts).
+			Cancelled(job.ts, "canceluser").
 			Build()
 	case lookout.JobPreempted:
 		simulator.

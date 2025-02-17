@@ -76,6 +76,7 @@ type JobRow struct {
 	PriorityClass             string
 	LatestRunId               *string
 	CancelReason              *string
+	CancelUser                *string
 	Annotations               map[string]string
 	ExternalJobUri            string
 }
@@ -369,6 +370,7 @@ func TestUpdateJobsWithTerminal(t *testing.T) {
 				State:                     pointer.Int32(lookout.JobCancelledOrdinal),
 				Cancelled:                 &baseTime,
 				CancelReason:              pointer.String("some reason"),
+				CancelUser:                pointer.String(userId),
 				LastTransitionTime:        &baseTime,
 				LastTransitionTimeSeconds: pointer.Int64(baseTime.Unix()),
 			},
@@ -423,6 +425,7 @@ func TestUpdateJobsWithTerminal(t *testing.T) {
 		job := getJob(t, db, JobId)
 		assert.Equal(t, lookout.JobCancelledOrdinal, int(job.State))
 		assert.Equal(t, "some reason", *job.CancelReason)
+		assert.Equal(t, testfixtures.UserId, *job.CancelUser)
 
 		job2 := getJob(t, db, "job2")
 		assert.Equal(t, lookout.JobSucceededOrdinal, int(job2.State))
@@ -968,6 +971,7 @@ func getJob(t *testing.T, db *pgxpool.Pool, jobId string) JobRow {
 			priority_class,
 			latest_run_id,
 			cancel_reason,
+			cancel_user,
 			annotations,
 			external_job_uri
 		FROM job WHERE job_id = $1`,
@@ -992,6 +996,7 @@ func getJob(t *testing.T, db *pgxpool.Pool, jobId string) JobRow {
 		&job.PriorityClass,
 		&job.LatestRunId,
 		&job.CancelReason,
+		&job.CancelUser,
 		&job.Annotations,
 		&job.ExternalJobUri,
 	)

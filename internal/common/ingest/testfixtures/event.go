@@ -26,6 +26,7 @@ const (
 	ExecutorId                 = "testCluster"
 	ExecutorId2                = "testCluster2"
 	ExecutorId3                = "testCluster3"
+	CancelUser                 = "canceluser"
 	NodeName                   = "testNode"
 	Pool                       = "Pool"
 	PodName                    = "test-pod"
@@ -261,7 +262,8 @@ var JobCancelled = &armadaevents.EventSequence_Event{
 	Created: testfixtures.BasetimeProto,
 	Event: &armadaevents.EventSequence_Event_CancelledJob{
 		CancelledJob: &armadaevents.CancelledJob{
-			JobId: JobId,
+			JobId:      JobId,
+			CancelUser: CancelUser,
 		},
 	},
 }
