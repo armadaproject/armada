@@ -21,6 +21,7 @@ func TestNode(t *testing.T) {
 	assert.Nil(t, err)
 
 	const id = "id"
+	const reportingNodeType = "type"
 	const pool = "pool"
 	const index = uint64(1)
 	const executor = "executor"
@@ -114,6 +115,7 @@ func TestNode(t *testing.T) {
 		executor,
 		name,
 		pool,
+		reportingNodeType,
 		taints,
 		labels,
 		false,
@@ -128,6 +130,7 @@ func TestNode(t *testing.T) {
 	)
 
 	assert.Equal(t, id, node.GetId())
+	assert.Equal(t, reportingNodeType, node.GetReportingNodeType())
 	assert.Equal(t, nodeType.GetId(), node.GetNodeTypeId())
 	assert.Equal(t, nodeType.GetId(), node.GetNodeType().GetId())
 	assert.Equal(t, index, node.GetIndex())

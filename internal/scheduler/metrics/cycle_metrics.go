@@ -1,6 +1,7 @@
 package metrics
 
 import (
+	"fmt"
 	"sync/atomic"
 	"time"
 
@@ -35,6 +36,7 @@ type perCycleMetrics struct {
 	evictedJobs            *prometheus.GaugeVec
 	evictedResources       *prometheus.GaugeVec
 	spotPrice              *prometheus.GaugeVec
+	nodePreemptibility     *prometheus.GaugeVec
 }
 
 func newPerCycleMetrics() *perCycleMetrics {
@@ -182,6 +184,14 @@ func newPerCycleMetrics() *perCycleMetrics {
 		poolLabels,
 	)
 
+	nodePreemptibility := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: prefix + "node_preemptibility",
+			Help: "is it possible to clear this node by preempting all jobs on it, and, if not, why?",
+		},
+		[]string{poolLabel, nodeLabel, nodeTypeLabel, "isPreemptible", "notPreemptibleReason"},
+	)
+
 	return &perCycleMetrics{
 		consideredJobs:         consideredJobs,
 		fairShare:              fairShare,
@@ -201,6 +211,7 @@ func newPerCycleMetrics() *perCycleMetrics {
 		evictedJobs:            evictedJobs,
 		evictedResources:       evictedResources,
 		spotPrice:              spotPrice,
+		nodePreemptibility:     nodePreemptibility,
 	}
 }
 
@@ -332,6 +343,15 @@ func (m *cycleMetrics) ReportSchedulerResult(result scheduling.SchedulerResult) 
 				currentCycle.evictedResources.WithLabelValues(pool, queue, r.Name).Set(float64(r.RawValue))
 			}
 		}
+
+		for _, nodePreemptiblityStats := range schedulingStats.EvictorResult.NodePreemptiblityStats {
+			currentCycle.nodePreemptibility.WithLabelValues(
+				pool,
+				nodePreemptiblityStats.NodeName,
+				nodePreemptiblityStats.NodeType,
+				fmt.Sprintf("%t", nodePreemptiblityStats.Reason == ""),
+				nodePreemptiblityStats.Reason).Set(1.0)
+		}
 	}
 	m.latestCycleMetrics.Store(currentCycle)
 }
@@ -361,6 +381,7 @@ func (m *cycleMetrics) describe(ch chan<- *prometheus.Desc) {
 		currentCycle.evictedJobs.Describe(ch)
 		currentCycle.evictedResources.Describe(ch)
 		currentCycle.spotPrice.Describe(ch)
+		currentCycle.nodePreemptibility.Describe(ch)
 	}
 
 	m.reconciliationCycleTime.Describe(ch)
@@ -391,6 +412,7 @@ func (m *cycleMetrics) collect(ch chan<- prometheus.Metric) {
 		currentCycle.evictedJobs.Collect(ch)
 		currentCycle.evictedResources.Collect(ch)
 		currentCycle.spotPrice.Collect(ch)
+		currentCycle.nodePreemptibility.Collect(ch)
 	}
 
 	m.reconciliationCycleTime.Collect(ch)
