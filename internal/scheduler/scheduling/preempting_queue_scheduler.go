@@ -247,9 +247,10 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 	// TODO: Show failed jobs.
 
 	schedulingStats := PerPoolSchedulingStats{
-		StatsPerQueue: schedulerResult.PerPoolSchedulingStats[sch.schedulingContext.Pool].StatsPerQueue,
-		LoopNumber:    schedulerResult.PerPoolSchedulingStats[sch.schedulingContext.Pool].LoopNumber,
-		EvictorResult: evictorResult,
+		StatsPerQueue:                schedulerResult.PerPoolSchedulingStats[sch.schedulingContext.Pool].StatsPerQueue,
+		LoopNumber:                   schedulerResult.PerPoolSchedulingStats[sch.schedulingContext.Pool].LoopNumber,
+		EvictorResult:                evictorResult,
+		ProtectedFractionOfFairShare: sch.protectedFractionOfFairShare,
 	}
 
 	return &SchedulerResult{
