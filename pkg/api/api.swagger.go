@@ -1022,6 +1022,9 @@ func SwaggerJsonTemplate() string {
 		"          \"type\": \"string\",\n" +
 		"          \"format\": \"date-time\"\n" +
 		"        },\n" +
+		"        \"cancelUser\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
 		"        \"jobId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
