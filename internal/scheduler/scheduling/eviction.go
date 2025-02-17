@@ -38,6 +38,8 @@ type EvictorResult struct {
 type NodePreemptiblityStats struct {
 	// Node name
 	NodeName string
+	// Cluster
+	Cluster string
 	// Reporting node type
 	NodeType string
 	// If you can't preempt all jobs on this node, the reason why not. Otherwise empty.
@@ -246,6 +248,7 @@ func makeNodePreemptiblityStats(node *internaltypes.Node, reasons map[string]boo
 	slices.Sort(reasonsList)
 	return NodePreemptiblityStats{
 		NodeName: node.GetName(),
+		Cluster:  node.GetExecutor(),
 		NodeType: node.GetReportingNodeType(),
 		Reason:   strings.Join(reasonsList, ","),
 	}

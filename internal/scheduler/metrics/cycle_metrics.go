@@ -189,7 +189,7 @@ func newPerCycleMetrics() *perCycleMetrics {
 			Name: prefix + "node_preemptibility",
 			Help: "is it possible to clear this node by preempting all jobs on it, and, if not, why?",
 		},
-		[]string{poolLabel, nodeLabel, nodeTypeLabel, "isPreemptible", "notPreemptibleReason"},
+		[]string{poolLabel, nodeLabel, clusterLabel, nodeTypeLabel, "isPreemptible", "notPreemptibleReason"},
 	)
 
 	return &perCycleMetrics{
@@ -348,6 +348,7 @@ func (m *cycleMetrics) ReportSchedulerResult(result scheduling.SchedulerResult) 
 			currentCycle.nodePreemptibility.WithLabelValues(
 				pool,
 				nodePreemptiblityStats.NodeName,
+				nodePreemptiblityStats.Cluster,
 				nodePreemptiblityStats.NodeType,
 				fmt.Sprintf("%t", nodePreemptiblityStats.Reason == ""),
 				nodePreemptiblityStats.Reason).Set(1.0)
