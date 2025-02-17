@@ -16,7 +16,6 @@ import (
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/adapters"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
 type JobSortOrder int
@@ -76,7 +75,7 @@ type JobDb struct {
 	priorityClasses map[string]types.PriorityClass
 	// Priority class assigned to jobs with a priorityClassName not in jobDb.priorityClasses.
 	defaultPriorityClass   types.PriorityClass
-	schedulingKeyGenerator *schedulerobjects.SchedulingKeyGenerator
+	schedulingKeyGenerator *internaltypes.SchedulingKeyGenerator
 	// We intern strings to save memory.
 	stringInterner *stringinterner.StringInterner
 	// Mutexes protecting the jobDb.
@@ -111,7 +110,7 @@ func NewJobDb(priorityClasses map[string]types.PriorityClass,
 	return NewJobDbWithSchedulingKeyGenerator(
 		priorityClasses,
 		defaultPriorityClassName,
-		schedulerobjects.NewSchedulingKeyGenerator(),
+		internaltypes.NewSchedulingKeyGenerator(),
 		stringInterner,
 		resourceListFactory,
 	)
@@ -120,7 +119,7 @@ func NewJobDb(priorityClasses map[string]types.PriorityClass,
 func NewJobDbWithSchedulingKeyGenerator(
 	priorityClasses map[string]types.PriorityClass,
 	defaultPriorityClassName string,
-	skg *schedulerobjects.SchedulingKeyGenerator,
+	skg *internaltypes.SchedulingKeyGenerator,
 	stringInterner *stringinterner.StringInterner,
 	resourceListFactory *internaltypes.ResourceListFactory,
 ) *JobDb {

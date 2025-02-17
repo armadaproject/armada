@@ -12,7 +12,7 @@ func yarnBinary() string {
 }
 
 func yarnRun(args ...string) error {
-	if err := os.Chdir("internal/lookout/ui"); err != nil {
+	if err := os.Chdir("internal/lookoutui"); err != nil {
 		return err
 	}
 

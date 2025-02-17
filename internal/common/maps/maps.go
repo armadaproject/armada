@@ -40,15 +40,6 @@ func Map[M ~map[KA]VA, KA comparable, VA any, KB comparable, VB any](m M, keyFun
 	return rv
 }
 
-// DeepCopy returns a deep copy of M.
-func DeepCopy[M ~map[K]V, K comparable, V interfaces.DeepCopier[V]](m M) M {
-	rv := make(M, len(m))
-	for k, v := range m {
-		rv[k] = v.DeepCopy()
-	}
-	return rv
-}
-
 // DeepEqual compares two maps for equality using the Equals() method defined on the values.
 func DeepEqual[M ~map[K]V, K comparable, V interfaces.Equaler[V]](a, b M) bool {
 	if len(a) != len(b) {

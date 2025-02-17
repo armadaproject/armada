@@ -2,7 +2,7 @@ issues:
   max-issues-per-linter: 0
   max-same-issues: 0
   exclude-rules:
-    - path: internal/scheduler/schedulerobjects/podutils_test.go
+    - path: internal/scheduler/internaltypes/podutils_test.go
       linters:
         - lll
 

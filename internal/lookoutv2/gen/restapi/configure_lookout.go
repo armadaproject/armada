@@ -97,7 +97,7 @@ func setupGlobalMiddleware(apiHandler http.Handler) http.Handler {
 func uiHandler(apiHandler http.Handler) http.Handler {
 	mux := http.NewServeMux()
 
-	mux.Handle("/", setCacheControl(http.FileServer(serve.CreateDirWithIndexFallback("./internal/lookout/ui/build"))))
+	mux.Handle("/", setCacheControl(http.FileServer(serve.CreateDirWithIndexFallback("./internal/lookoutui/build"))))
 
 	mux.HandleFunc("/config", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

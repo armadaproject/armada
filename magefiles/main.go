@@ -244,7 +244,7 @@ func LocalDevStop() {
 	mg.Deps(KindTeardown)
 }
 
-// Build the lookout UI from internal/lookout/ui
+// Build the lookout UI from internal/lookoutui
 func UI() error {
 	timeTaken := time.Now()
 	mg.Deps(yarnCheck)

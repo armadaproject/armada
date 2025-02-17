@@ -221,7 +221,7 @@ dockers:
       - config/logging.yaml
       - config/lookoutv2/config.yaml
       - config/lookoutingesterv2/config.yaml
-      - internal/lookout/ui
+      - internal/lookoutui
       - pkg/api/api.swagger.json
       - pkg/api/binoculars/api.swagger.json
       - pkg/api/schedulerobjects/api.swagger.json
@@ -256,7 +256,7 @@ dockers:
       - config/scheduleringester/config.yaml
       - config/lookoutv2/config.yaml
       - config/lookoutingesterv2/config.yaml
-      - internal/lookout/ui
+      - internal/lookoutui
       - pkg/api/api.swagger.json
       - pkg/api/binoculars/api.swagger.json
       - pkg/api/schedulerobjects/api.swagger.json
@@ -358,7 +358,7 @@ dockers:
       - lookoutv2
       - lookoutingesterv2
     extra_files:
-      - internal/lookout/ui
+      - internal/lookoutui
       - pkg/api/api.swagger.json
       - pkg/api/binoculars/api.swagger.json
       - pkg/api/schedulerobjects/api.swagger.json

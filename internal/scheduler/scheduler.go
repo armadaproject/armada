@@ -13,6 +13,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
+	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
@@ -574,7 +575,9 @@ func AppendEventSequencesFromScheduledJobs(eventSequences []*armadaevents.EventS
 							HasScheduledAtPriority: hasScheduledAtPriority,
 							ScheduledAtPriority:    scheduledAtPriority,
 							PodRequirementsOverlay: &schedulerobjects.PodRequirements{
-								Tolerations: jctx.AdditionalTolerations,
+								Tolerations: armadaslices.Map(jctx.AdditionalTolerations, func(t v1.Toleration) *v1.Toleration {
+									return &t
+								}),
 							},
 							Pool: run.Pool(),
 						},

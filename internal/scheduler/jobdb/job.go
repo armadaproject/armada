@@ -14,7 +14,6 @@ import (
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/adapters"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
 // Job is the scheduler-internal representation of a job.
@@ -40,7 +39,7 @@ type Job struct {
 	// I.e., the value returned by time.UnixNano().
 	submittedTime int64
 	// Hash of the scheduling requirements of the job.
-	schedulingKey schedulerobjects.SchedulingKey
+	schedulingKey internaltypes.SchedulingKey
 	// True if the job has been validated by the scheduler.
 	// Any job that fails validation will be rejected.
 	validated bool
@@ -388,7 +387,7 @@ func (job *Job) PriorityClass() types.PriorityClass {
 }
 
 // SchedulingKey returns the scheduling key associated with a job.
-func (job *Job) SchedulingKey() schedulerobjects.SchedulingKey {
+func (job *Job) SchedulingKey() internaltypes.SchedulingKey {
 	return job.schedulingKey
 }
 
@@ -836,7 +835,7 @@ func copyJob(j Job) *Job {
 	return &j
 }
 
-func SchedulingKeyFromJob(skg *schedulerobjects.SchedulingKeyGenerator, job *Job) schedulerobjects.SchedulingKey {
+func SchedulingKeyFromJob(skg *internaltypes.SchedulingKeyGenerator, job *Job) internaltypes.SchedulingKey {
 	return skg.Key(
 		job.NodeSelector(),
 		job.Affinity(),
