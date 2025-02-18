@@ -95,12 +95,6 @@ private class SubmitMockServer(jobMap: ConcurrentHashMap[String, Job], queueMap:
   def submitJobs(request: JobSubmitRequest): scala.concurrent.Future[JobSubmitResponse] = {
     val q = queueMap.get(request.queue)
     if (q == null) {
-      var resItems = Seq[JobSubmitResponseItem]()
-      request.jobRequestItems.foreach { reqItem =>
-        val jobId: String = ulidGen.base32().toLowerCase()
-        resItems = resItems :+ new JobSubmitResponseItem(jobId, "requested queue does not exist")
-      }
-
       val msg = "could not find queue \"" + request.queue + "\""
       return Future.failed(new StatusRuntimeException(Status.PERMISSION_DENIED.withDescription(msg)))
     }
@@ -136,9 +130,7 @@ private class JobsMockServer(jobMap: ConcurrentHashMap[String, Job]) extends Job
 
   def getJobStatus(request: JobStatusRequest): scala.concurrent.Future[JobStatusResponse] = {
     val statusMap = collection.mutable.Map[String,JobState]() // jobID -> state
-    val it = jobMap.keys.asIterator()
-
-    while (it.hasNext()) statusMap.put(it.next(), JobState.RUNNING)
+    jobMap.keySet.forEach(k => statusMap.put(k, JobState.RUNNING))
 
     Future.successful(new JobStatusResponse(statusMap.to(collection.immutable.Map)))
   }
