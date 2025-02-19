@@ -120,8 +120,6 @@ func (cls *ClusterUtilisationService) GetAvailableClusterCapacity() (*ClusterAva
 			Taints: armadaslices.Map(node.Spec.Taints, func(t v1.Taint) *v1.Taint {
 				return &t
 			}),
-			AllocatableResources:        allocatable.ToProtoMap(),
-			AvailableResources:          available.ToProtoMap(),
 			TotalResources:              allocatable.ToProtoMap(),
 			RunIdsByState:               runIdsByNode[node.Name],
 			NonArmadaAllocatedResources: nodeNonArmadaAllocatedResources,

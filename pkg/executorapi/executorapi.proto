@@ -12,20 +12,16 @@ import "k8s.io/apimachinery/pkg/api/resource/generated.proto";
 
 // Used by the scheduler when allocating jobs to executors.
 message NodeInfo {
-  reserved 7, 11;
+  reserved 4, 5, 7, 11;
   string name = 1;
   repeated k8s.io.api.core.v1.Taint taints = 2;
   map<string,string> labels = 3;
-  // To be deprecated in favour of total_resources + allocated_resources.
-  map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> allocatable_resources = 4;
-  // To be deprecated in favour of total_resources + allocated_resources.
-  map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> available_resources = 5;
-  // Total node resources.
-  // Resources available for allocation is given by the difference between this and allocated_resources.
+  // Total node allocatable resources.
   map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> total_resources = 6;
   // All run ids of jobs on the node, mapped to their current state
   map<string, api.JobState>  run_ids_by_state = 8;
   // The amount of resource allocated to non-armada pods by priority
+  // This field is deprecated as we no longer break this down by priority class, use non_armada_resources in preference
   map<int32, ComputeResource> non_armada_allocated_resources = 9;
   bool unschedulable = 10;
   // This should only be used for metrics
@@ -106,9 +102,9 @@ message LeaseStreamMessage{
 service ExecutorApi {
   // Reports usage information to the scheduler.
   // In return, the scheduler provides:
-  // - Slice of job runs that the executor is currently running that should be cancelled.
-  // - Slice of job runs that the executor is currently running that should be preempted.
-  // - Slice job runs that the executor is not currently running that should be scheduled.
+  // - List of job runs that the executor is currently running that should be cancelled.
+  // - List of job runs that the executor is currently running that should be preempted.
+  // - List job runs that the executor is not currently running that should be scheduled.
   // This call also acts as a signal to the scheduler that the executor is alive and accepting jobs.
   rpc LeaseJobRuns (stream LeaseRequest) returns (stream LeaseStreamMessage);
   // Reports job run events to the scheduler.
