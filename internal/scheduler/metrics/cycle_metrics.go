@@ -210,7 +210,7 @@ func newPerCycleMetrics() *perCycleMetrics {
 	nodeAllocatableResource := prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: prefix + "node_allocatable_resource",
-			Help: "Resource that can be allocated by Armada jobs on this node",
+			Help: "Resource that can be allocated to Armada jobs on this node",
 		},
 		[]string{poolLabel, nodeLabel, clusterLabel, nodeTypeLabel, resourceLabel, "schedulable"},
 	)
@@ -218,7 +218,7 @@ func newPerCycleMetrics() *perCycleMetrics {
 	nodeAllocatedResource := prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: prefix + "node_allocated_resource",
-			Help: "Resource by allocated by Armada jobs on this node",
+			Help: "Resource allocated by Armada jobs on this node",
 		},
 		[]string{poolLabel, nodeLabel, clusterLabel, nodeTypeLabel, resourceLabel, "schedulable"},
 	)
