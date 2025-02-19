@@ -14,6 +14,7 @@ import {
   Select,
   Skeleton,
   styled,
+  Switch,
 } from "@mui/material"
 
 import { NoRunsAlert } from "./NoRunsAlert"
@@ -23,14 +24,30 @@ import { LogLine } from "../../../services/lookout/LogService"
 import { useGetJobSpec } from "../../../services/lookout/useGetJobSpec"
 import { useGetLogs } from "../../../services/lookout/useGetLogs"
 import { SPACING } from "../../../styling/spacing"
+import {
+  JobRunLogsTextSize,
+  useJobRunLogsShowTimestamps,
+  useJobRunLogsTextSize,
+  useJobRunLogsWrapLines,
+} from "../../../userSettings"
+import { JobRunLogsTextSizeToggle } from "../../JobRunLogsTextSizeToggle"
 
-const LogsHeader = styled("div")(({ theme }) => ({
-  maxWidth: "100%",
+const LogsSettingsContainer = styled("div")(({ theme }) => ({
+  display: "flex",
+  flexDirection: "row",
+  alignItems: "center",
+  justifyContent: "end",
+  gap: theme.spacing(SPACING.sm),
+  flexWrap: "wrap",
+}))
+
+const RunContainerSelectors = styled("div")(({ theme }) => ({
   display: "flex",
   flexDirection: "row",
   alignItems: "center",
   justifyContent: "start",
-  gap: theme.spacing(SPACING.lg),
+  gap: theme.spacing(SPACING.sm),
+  flexWrap: "wrap",
 }))
 
 const ContainerSelect = styled(Select)({
@@ -80,7 +97,6 @@ export const SidebarTabJobLogs = ({ job }: SidebarTabJobLogsProps) => {
   const [runIndex, setRunIndex] = useState(0)
   const [selectedContainer, setSelectedContainer] = useState("")
   const [loadFromStart, setLoadFromStart] = useState(false)
-  const [showTimestamps, setShowTimestamps] = useState(false)
 
   // Get job spec
   const getJobSpecResult = useGetJobSpec(job.jobId, Boolean(job.jobId))
@@ -126,13 +142,20 @@ export const SidebarTabJobLogs = ({ job }: SidebarTabJobLogsProps) => {
     }
   }, [getLogsResult.fetchNextPage, getLogsResult.status, getLogsEnabled])
 
+  const rawLogLines = getLogsResult.data?.pages?.flat() ?? []
+  const logLines = useMemo(() => rawLogLines, [JSON.stringify(rawLogLines)])
+
+  const [textSize] = useJobRunLogsTextSize()
+  const [showTimestamps, setShowTimestamps] = useJobRunLogsShowTimestamps()
+  const [wrapLines, setWrapLines] = useJobRunLogsWrapLines()
+
   if (job.runs.length === 0) {
     return <NoRunsAlert jobState={job.state} />
   }
 
   return (
     <>
-      <LogsHeader>
+      <RunContainerSelectors>
         <div>
           <FormControl
             variant="standard"
@@ -155,7 +178,7 @@ export const SidebarTabJobLogs = ({ job }: SidebarTabJobLogsProps) => {
             >
               {runsNewestFirst.map((run, i) => (
                 <MenuItem value={i} key={i}>
-                  {getJobRunTime(run)}
+                  Run {i + 1}: {getJobRunTime(run)}
                 </MenuItem>
               ))}
             </Select>
@@ -202,26 +225,31 @@ export const SidebarTabJobLogs = ({ job }: SidebarTabJobLogsProps) => {
             />
           </FormGroup>
         </div>
+      </RunContainerSelectors>
+      <LogsSettingsContainer>
         <div>
           <FormGroup>
             <FormControlLabel
               control={
-                <Checkbox
-                  checked={showTimestamps}
-                  onChange={(e) => {
-                    setShowTimestamps(e.target.checked)
-                  }}
-                />
+                <Switch checked={showTimestamps} onChange={({ target: { checked } }) => setShowTimestamps(checked)} />
               }
               label="Show timestamps"
-              disabled={getJobSpecResult.status === "pending" || getLogsResult.status === "pending"}
             />
           </FormGroup>
         </div>
-      </LogsHeader>
+        <div>
+          <FormGroup>
+            <FormControlLabel
+              control={<Switch checked={wrapLines} onChange={({ target: { checked } }) => setWrapLines(checked)} />}
+              label="Wrap lines"
+            />
+          </FormGroup>
+        </div>
+        <JobRunLogsTextSizeToggle compact />
+      </LogsSettingsContainer>
       {getJobSpecResult.status === "pending" ||
         (getLogsResult.status === "pending" && (
-          <LogsContainer>
+          <LogsContainer textSize={textSize}>
             <Skeleton />
             <Skeleton />
             <Skeleton />
@@ -229,9 +257,7 @@ export const SidebarTabJobLogs = ({ job }: SidebarTabJobLogsProps) => {
             <Skeleton />
           </LogsContainer>
         ))}
-      {getLogsResult.status === "success" && (
-        <LogView logLines={getLogsResult.data?.pages?.flat() ?? []} showTimestamps={showTimestamps} />
-      )}
+      {getLogsResult.status === "success" && <LogView logLines={logLines} />}
       {getLogsResult.status === "error" && (
         <div>
           <Alert
@@ -250,10 +276,17 @@ export const SidebarTabJobLogs = ({ job }: SidebarTabJobLogsProps) => {
   )
 }
 
-const LogsContainer = styled("div")(({ theme }) => ({
+const JOB_RUN_LOGS_FONT_SIZES: Record<JobRunLogsTextSize, string> = {
+  small: "0.6rem",
+  medium: "0.75rem",
+  large: "0.9rem",
+}
+
+const LogsContainer = styled("div")<{ textSize: JobRunLogsTextSize }>(({ theme, textSize }) => ({
   width: "100%",
   whiteSpace: "pre-wrap",
   fontFamily: "monospace",
+  fontSize: JOB_RUN_LOGS_FONT_SIZES[textSize],
   wordWrap: "break-word",
   marginTop: 5,
   backgroundColor: theme.palette.background.paper,
@@ -264,15 +297,29 @@ const LogsContainer = styled("div")(({ theme }) => ({
   overflowX: "auto",
 }))
 
-const Timestamp = styled("span")(({ theme }) => ({
-  marginRight: 10,
+const LogLineContainer = styled("div")({
+  display: "flex",
+  gap: 5,
+})
+
+const LogLineTimestamp = styled("div")(({ theme }) => ({
+  flexShrink: 0,
+  padding: "0 5px",
   backgroundColor: alpha(theme.palette.primary.light, 0.15),
   ...theme.applyStyles("dark", {
     backgroundColor: alpha(theme.palette.primary.main, 0.15),
   }),
 }))
 
-function LogView({ logLines, showTimestamps }: { logLines: LogLine[]; showTimestamps: boolean }) {
+const LogLineContent = styled("div")<{ wrap: boolean }>(({ wrap }) => ({
+  flexShrink: wrap ? undefined : 0,
+}))
+
+function LogView({ logLines }: { logLines: LogLine[] }) {
+  const [textSize] = useJobRunLogsTextSize()
+  const [showTimestamps] = useJobRunLogsShowTimestamps()
+  const [wrapLines] = useJobRunLogsWrapLines()
+
   const [shouldScrollDown, setShouldScrollDown] = useState<boolean>(true)
   const logsEndRef = useRef<HTMLDivElement>(null)
   const previousScrollTopRef = useRef<number | undefined>()
@@ -314,14 +361,14 @@ function LogView({ logLines, showTimestamps }: { logLines: LogLine[]; showTimest
   }
 
   return (
-    <LogsContainer onScroll={handleScroll}>
+    <LogsContainer onScroll={handleScroll} textSize={textSize}>
       {logLines.map((logLine, i) => (
-        <span key={`${i}-${logLine.timestamp}`}>
-          {showTimestamps && <Timestamp>{logLine.timestamp}</Timestamp>}
-          {logLine.line + "\n"}
-        </span>
+        <LogLineContainer key={`${i}-${logLine.timestamp}`}>
+          {showTimestamps && <LogLineTimestamp>{logLine.timestamp}</LogLineTimestamp>}
+          <LogLineContent wrap={wrapLines}>{logLine.line}</LogLineContent>
+        </LogLineContainer>
       ))}
-      <div ref={logsEndRef} key={"END"} />
+      <div ref={logsEndRef} key="END" />
     </LogsContainer>
   )
 }

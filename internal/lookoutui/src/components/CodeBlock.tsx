@@ -8,6 +8,7 @@ import "prismjs/components/prism-bash"
 import "prismjs/components/prism-yaml"
 
 import { CopyIconButton } from "./CopyIconButton"
+import { useCodeSnippetsWrapLines } from "../userSettings"
 
 // All langauges in this set must be imported from Prism in the form:
 // import "prismjs/components/prism-{language}"
@@ -36,7 +37,7 @@ const CodeBlockContainer = styled("div")({
   },
 })
 
-const StyledPre = styled("pre")(({ theme }) => ({
+const StyledPre = styled("pre")<{ wrap: boolean }>(({ theme, wrap }) => ({
   lineHeight: 1.2,
   fontSize: theme.typography.body2.fontSize,
   overflow: "auto",
@@ -46,6 +47,7 @@ const StyledPre = styled("pre")(({ theme }) => ({
   display: "flex",
   alignItems: "center",
   margin: 0,
+  textWrap: wrap ? "wrap" : undefined,
 }))
 
 const Code = styled("code")({
@@ -127,6 +129,7 @@ export const CodeBlock = ({
   additionalActions = [],
 }: CodeBlockProps) => {
   const { colorScheme } = useColorScheme()
+  const [wrapLines] = useCodeSnippetsWrapLines()
 
   const downloadFile = useCallback(() => {
     if (!downloadable || loading) {
@@ -153,7 +156,7 @@ export const CodeBlock = ({
           code={Array(loadingLines).fill("").join("\n")}
         >
           {({ style, tokens, getLineProps }) => (
-            <StyledPre style={style}>
+            <StyledPre style={style} wrap={wrapLines}>
               <Code>
                 {tokens.map((line, i) =>
                   showLineNumbers ? (
@@ -199,7 +202,7 @@ export const CodeBlock = ({
         code={code}
       >
         {({ style, tokens, getLineProps, getTokenProps }) => (
-          <StyledPre style={style}>
+          <StyledPre style={style} wrap={wrapLines}>
             <Code>
               {tokens.map((line, i) => {
                 const lineTokens = line.map((token, key) => <span key={key} {...getTokenProps({ token })} />)

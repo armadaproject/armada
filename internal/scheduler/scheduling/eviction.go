@@ -2,6 +2,10 @@ package scheduling
 
 import (
 	"fmt"
+	"strings"
+
+	"golang.org/x/exp/maps"
+	"golang.org/x/exp/slices"
 
 	"github.com/hashicorp/go-memdb"
 
@@ -17,7 +21,7 @@ type Evictor struct {
 	jobRepo    JobRepository
 	nodeDb     *nodedb.NodeDb
 	nodeFilter func(*armadacontext.Context, *internaltypes.Node) bool
-	jobFilter  func(*armadacontext.Context, *jobdb.Job) bool
+	jobFilter  func(*armadacontext.Context, *jobdb.Job) (bool, string)
 }
 
 type EvictorResult struct {
@@ -27,6 +31,19 @@ type EvictorResult struct {
 	AffectedNodesById map[string]*internaltypes.Node
 	// For each evicted job, maps the id of the job to the id of the node it was evicted from.
 	NodeIdByJobId map[string]string
+	// For each node, is it possible to preempt all jobs on the node, and, if not, why?
+	NodePreemptiblityStats []NodePreemptiblityStats
+}
+
+type NodePreemptiblityStats struct {
+	// Node name
+	NodeName string
+	// Cluster
+	Cluster string
+	// Reporting node type
+	NodeType string
+	// If you can't preempt all jobs on this node, the reason why not. Otherwise empty.
+	Reason string
 }
 
 type queueChecker interface {
@@ -62,7 +79,7 @@ func (er *EvictorResult) SummaryString() string {
 func NewNodeEvictor(
 	jobRepo JobRepository,
 	nodeDb *nodedb.NodeDb,
-	jobFilter func(*armadacontext.Context, *jobdb.Job) bool,
+	jobFilter func(*armadacontext.Context, *jobdb.Job) (bool, string),
 ) *Evictor {
 	return &Evictor{
 		jobRepo: jobRepo,
@@ -81,6 +98,7 @@ func NewFilteredEvictor(
 	nodeDb *nodedb.NodeDb,
 	nodeIdsToEvict map[string]bool,
 	jobIdsToEvict map[string]bool,
+	notEvictReason string,
 ) *Evictor {
 	if len(nodeIdsToEvict) == 0 || len(jobIdsToEvict) == 0 {
 		return nil
@@ -92,9 +110,13 @@ func NewFilteredEvictor(
 			shouldEvict := nodeIdsToEvict[node.GetId()]
 			return shouldEvict
 		},
-		jobFilter: func(_ *armadacontext.Context, job *jobdb.Job) bool {
+		jobFilter: func(_ *armadacontext.Context, job *jobdb.Job) (bool, string) {
 			shouldEvict := jobIdsToEvict[job.Id()]
-			return shouldEvict
+			r := ""
+			if !shouldEvict {
+				r = notEvictReason
+			}
+			return shouldEvict, r
 		},
 	}
 }
@@ -126,21 +148,26 @@ func NewOversubscribedEvictor(
 			}
 			return len(overSubscribedPriorities) > 0
 		},
-		jobFilter: func(ctx *armadacontext.Context, job *jobdb.Job) bool {
+		jobFilter: func(ctx *armadacontext.Context, job *jobdb.Job) (bool, string) {
 			if !queueChecker.QueueContextExists(job) {
 				ctx.Warnf("No queue context found for job %s.  This job cannot be evicted", job.Id())
-				return false
+				return false, "invalid_queue"
 			}
 			priorityClass := job.PriorityClass()
 			if !priorityClass.Preemptible {
-				return false
+				return false, "job_not_preemptible"
 			}
 			priority, ok := nodeDb.GetScheduledAtPriority(job.Id())
 			if !ok {
 				ctx.Warnf("can't evict job %s: not mapped to a priority", job.Id())
-				return false
+				return false, "invalid_priority"
 			}
-			return overSubscribedPriorities[priority]
+			overSubscribed := overSubscribedPriorities[priority]
+			r := ""
+			if overSubscribed {
+				r = "over_subscribed"
+			}
+			return overSubscribed, r
 		},
 	}
 }
@@ -150,13 +177,10 @@ func NewOversubscribedEvictor(
 // Any job for which jobFilter returns true is evicted (if the node was not skipped).
 // If a job was evicted from a node, postEvictFunc is called with the corresponding job and node.
 func (evi *Evictor) Evict(ctx *armadacontext.Context, nodeDbTxn *memdb.Txn) (*EvictorResult, error) {
-	var jobFilter func(job *jobdb.Job) bool
-	if evi.jobFilter != nil {
-		jobFilter = func(job *jobdb.Job) bool { return evi.jobFilter(ctx, job) }
-	}
 	evictedJctxsByJobId := make(map[string]*schedulercontext.JobSchedulingContext)
 	affectedNodesById := make(map[string]*internaltypes.Node)
 	nodeIdByJobId := make(map[string]string)
+	nodePreemptiblityStats := []NodePreemptiblityStats{}
 
 	it, err := nodedb.NewNodesIterator(nodeDbTxn)
 	if err != nil {
@@ -168,21 +192,28 @@ func (evi *Evictor) Evict(ctx *armadacontext.Context, nodeDbTxn *memdb.Txn) (*Ev
 			continue
 		}
 		jobs := make([]*jobdb.Job, 0, len(node.AllocatedByJobId))
+		reasons := map[string]bool{}
 		for jobId := range node.AllocatedByJobId {
 			if _, ok := node.EvictedJobRunIds[jobId]; !ok {
 				job := evi.jobRepo.GetById(jobId)
 				if job != nil {
-					jobs = append(jobs, job)
+					shouldEvict, dontEvictReason := evi.jobFilter(ctx, job)
+					if shouldEvict {
+						jobs = append(jobs, job)
+					}
+					if dontEvictReason != "" {
+						reasons[dontEvictReason] = true
+					}
 				}
-
 			}
 		}
-		evictedJobs, node, err := evi.nodeDb.EvictJobsFromNode(jobFilter, jobs, node)
+		nodePreemptiblityStats = append(nodePreemptiblityStats, makeNodePreemptiblityStats(node, reasons))
+		node, err := evi.nodeDb.EvictJobsFromNode(jobs, node)
 		if err != nil {
 			return nil, err
 		}
 
-		for _, job := range evictedJobs {
+		for _, job := range jobs {
 			// Create a scheduling context for the attempt to re-schedule the job, and:
 			// 1. Mark the job as evicted. This ensures total scheduled resources is calculated correctly.
 			// 2. Add a node selector ensuring the job can only be re-scheduled onto the node it was evicted from.
@@ -198,15 +229,27 @@ func (evi *Evictor) Evict(ctx *armadacontext.Context, nodeDbTxn *memdb.Txn) (*Ev
 
 			nodeIdByJobId[job.Id()] = node.GetId()
 		}
-		if len(evictedJobs) > 0 {
+		if len(jobs) > 0 {
 			affectedNodesById[node.GetId()] = node
 		}
 	}
 	result := &EvictorResult{
-		EvictedJctxsByJobId: evictedJctxsByJobId,
-		AffectedNodesById:   affectedNodesById,
-		NodeIdByJobId:       nodeIdByJobId,
+		EvictedJctxsByJobId:    evictedJctxsByJobId,
+		AffectedNodesById:      affectedNodesById,
+		NodeIdByJobId:          nodeIdByJobId,
+		NodePreemptiblityStats: nodePreemptiblityStats,
 	}
 
 	return result, nil
+}
+
+func makeNodePreemptiblityStats(node *internaltypes.Node, reasons map[string]bool) NodePreemptiblityStats {
+	reasonsList := maps.Keys(reasons)
+	slices.Sort(reasonsList)
+	return NodePreemptiblityStats{
+		NodeName: node.GetName(),
+		Cluster:  node.GetExecutor(),
+		NodeType: node.GetReportingNodeType(),
+		Reason:   strings.Join(reasonsList, ","),
+	}
 }

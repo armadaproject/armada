@@ -2496,6 +2496,7 @@ func testNodeWithTaints(node *internaltypes.Node, taints []v1.Taint) *internalty
 		node.GetExecutor(),
 		node.GetName(),
 		node.GetPool(),
+		node.GetReportingNodeType(),
 		taints,
 		node.GetLabels(),
 		false,
