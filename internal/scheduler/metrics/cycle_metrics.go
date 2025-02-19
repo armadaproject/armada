@@ -7,10 +7,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	log "github.com/armadaproject/armada/internal/common/logging"
-	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/prometheus/client_golang/prometheus"
 
+	log "github.com/armadaproject/armada/internal/common/logging"
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling"
 )
 
