@@ -798,6 +798,9 @@
         "certName": {
           "type": "string"
         },
+        "className": {
+          "type": "string"
+        },
         "ports": {
           "type": "array",
           "items": {
@@ -807,6 +810,12 @@
         },
         "tlsEnabled": {
           "type": "boolean"
+        },
+        "tlsHosts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         },
         "type": {
           "$ref": "#/definitions/apiIngressType"
