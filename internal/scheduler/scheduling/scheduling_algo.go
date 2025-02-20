@@ -499,7 +499,7 @@ func (l *FairSchedulingAlgo) constructSchedulingContext(
 			rawWeight = 1 / queue.PriorityFactor
 		}
 
-		var weight = rawWeight
+		weight := rawWeight
 		overridePriority, ok, err := l.queueOverrideProvider.Override(pool, queue.Name)
 		if err != nil {
 			return nil, err
@@ -539,7 +539,7 @@ func (l *FairSchedulingAlgo) constructSchedulingContext(
 		if queue.PriorityFactor > 0 {
 			rawWeight = 1 / queue.PriorityFactor
 		}
-		var weight = rawWeight
+		weight := rawWeight
 		overridePriority, ok, err := l.queueOverrideProvider.Override(pool, queue.Name)
 		if err != nil {
 			return nil, err
