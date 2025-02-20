@@ -54,7 +54,7 @@ func NewPostgresQueueRepository(db *pgxpool.Pool) *PostgresQueueRepository {
 }
 
 func (r *PostgresQueueRepository) GetAllQueues(ctx *armadacontext.Context) ([]queue.Queue, error) {
-	rows, err := r.db.Query(ctx, "SELECT definition FROM queue")
+	rows, err := r.db.Query(ctx, "SELECT definition FROM queue ORDER BY definition")
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
