@@ -7,7 +7,7 @@ Armada stores its state across several databases. Whenever Armada receives an AP
 There are three commonly used approaches to address this issue:
 
 * Store all state in a single database with support for transactions. Changes are submitted atomically and are rolled back in case of failure; there are no partial failures.
-* Distributed transaction frameworks (e.g., X/Open XA), which extend the notation of transactions to operations involving several databases.
+* Distributed transaction frameworks (e.g., X/Open XA), which extend the notation of transactions to operations involving several databases.
 * Ordered idempotent updates.
 
 The first approach results in tight coupling between components and would limit us to a single database technology. Adding a new component (e.g., a new dashboard) could break existing component since all operations part of the transaction are rolled back if one fails. The second approach allows us to use multiple databases (as long as they support the distributed transaction framework), but components are still tightly coupled since they have to be part of the same transaction. Further, there are performance concerns associated with these options, since transactions may not be easily scalable. Hence, we use the third approach, which we explain next.

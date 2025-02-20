@@ -32,22 +32,22 @@ Feel free to create a ticket if you encounter any issues, and link them to the r
 
 Please see these documents for more information about Armadas Design:
 
-* [Armada Components Diagram](./design/relationships_diagram.md)
-* [Armada Architecture](./design/architecture.md)
-* [Armada Design](./design/index.md)
-* [How Priority Functions](./design/priority.md)
-* [Armada Scheduler Design](./design/scheduler.md)
+* [Armada Components Diagram](../design/relationships_diagram.md)
+* [Armada Architecture](../design/architecture.md)
+* [Armada Design](../design/README.md)
+* [How Priority Functions](../design/priority.md)
+* [Armada Scheduler Design](../design/scheduler.md)
 
 ## Other Useful Developer Docs
 
-* [Armada API](./developer/api.md)
-* [Running Armada in an EC2 Instance](./developer/aws-ec2.md)
-* [Armada UI](./developer/ui.md)
-* [Usage Metrics](./developer/usage_metrics.md)
-* [Using OIDC with Armada](./developer/oidc.md)
-* [Building the Website](./developer/website.md)
-* [Using Localdev Manually](./developer/manual-localdev.md)
-* [Inspecting and Debugging etcd in Localdev setup](./developer/etc-localdev.md)
+* [Armada API](./api.md)
+* [Running Armada in an EC2 Instance](./aws-ec2.md)
+* [Armada UI](./ui.md)
+* [Usage Metrics](./usage_metrics.md)
+* [Using OIDC with Armada](./oidc.md)
+* [Building the Website](./website.md)
+* [Using Localdev Manually](./manual-localdev.md)
+* [Inspecting and Debugging etcd in Localdev setup](./etc-localdev.md)
 
 ## Pre-requisites
 
@@ -129,7 +129,7 @@ go run cmd/testsuite/main.go test --tests "testsuite/testcases/basic/*" --junit 
 
 In LocalDev, the UI is built seperately with `mage ui`. To access it, open http://localhost:8089 in your browser.
 
-For more information see the [UI Developer Guide](./developer/ui.md).
+For more information see the [UI Developer Guide](./ui.md).
 
 
 ### Choosing components to run
@@ -172,7 +172,7 @@ It supports the following commands:
 ### VSCode Debugging
 
 After running `mage debug vscode`, you can attach to the running processes using VSCode.
-The launch.json file can be found [Here](../developer/debug/launch.json)
+The launch.json file can be found [Here](../../developer/debug/launch.json)
 
 For using VSCode debugging, see the [VSCode Debugging Guide](https://code.visualstudio.com/docs/editor/debugging).
 
@@ -256,4 +256,4 @@ For required enviromental variables, please see [The Enviromental Variables Guid
 ## Finer-Grain Control
 
 If you would like to run the individual mage targets yourself, you can do so.
-See the [Manually Running LocalDev](./developer/manual-localdev.md) guide for more information.
+See the [Manually Running LocalDev](./manual-localdev.md) guide for more information.
