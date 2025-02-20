@@ -124,7 +124,7 @@ func (l *FairSchedulingAlgo) Schedule(
 	}
 
 	// Exit immediately if priority overrides are not ready
-	if !l.queueMultiplierProvider.Ready() {
+	if !l.queueOverrideProvider.Ready() {
 		ctx.Warn("queue overrides are not ready; exiting")
 		return overallSchedulerResult, nil
 	}
@@ -499,7 +499,7 @@ func (l *FairSchedulingAlgo) constructSchedulingContext(
 			rawWeight = 1 / queue.PriorityFactor
 		}
 
-		weight := rawWeight
+		var weight = rawWeight
 		overridePriority, ok, err := l.queueOverrideProvider.Override(pool, queue.Name)
 		if err != nil {
 			return nil, err
