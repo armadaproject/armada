@@ -31,14 +31,14 @@ func NewServiceClient(config schedulerconfig.PriorityOverrideConfig) (priorityov
 type ServiceProvider struct {
 	updateFrequency time.Duration
 	apiClient       priorityoverride.PriorityOverrideServiceClient
-	multipliers     atomic.Pointer[map[overrideKey]float64]
+	overrides       atomic.Pointer[map[overrideKey]float64]
 }
 
 func NewServiceProvider(apiClient priorityoverride.PriorityOverrideServiceClient, updateFrequency time.Duration) *ServiceProvider {
 	return &ServiceProvider{
 		updateFrequency: updateFrequency,
 		apiClient:       apiClient,
-		multipliers:     atomic.Pointer[map[overrideKey]float64]{},
+		overrides:       atomic.Pointer[map[overrideKey]float64]{},
 	}
 }
 
@@ -60,11 +60,11 @@ func (p *ServiceProvider) Run(ctx *armadacontext.Context) error {
 }
 
 func (p *ServiceProvider) Ready() bool {
-	return p.multipliers.Load() != nil
+	return p.overrides.Load() != nil
 }
 
 func (p *ServiceProvider) Override(pool, queue string) (float64, bool, error) {
-	multipliers := p.multipliers.Load()
+	multipliers := p.overrides.Load()
 	if multipliers == nil {
 		return 0, false, fmt.Errorf("no overrides available")
 	}
@@ -84,6 +84,6 @@ func (p *ServiceProvider) fetchOverrides(ctx *armadacontext.Context) error {
 			overrides[key] = override
 		}
 	}
-	p.multipliers.Store(&overrides)
+	p.overrides.Store(&overrides)
 	return nil
 }
