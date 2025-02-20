@@ -3,7 +3,8 @@ val scala2Version = "2.13.15"
 lazy val root = project
   .in(file("."))
   .settings(
-    name := "Scala Armada Client",
+    organization := "io.armadaproject.armada",
+    name := "Scala Armada Client Example",
     version := "0.1.0-SNAPSHOT",
 
     scalaVersion := scala2Version,
