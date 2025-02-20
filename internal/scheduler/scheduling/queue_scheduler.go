@@ -14,7 +14,6 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/floatingresources"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/scheduling/constraints"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/fairness"
@@ -299,7 +298,7 @@ func (it *QueuedGangIterator) Peek() (*schedulercontext.GangSchedulingContext, e
 		// Skip this job if it's known to be unschedulable.
 		if it.skipKnownUnschedulableJobs && len(it.schedulingContext.UnfeasibleSchedulingKeys) > 0 {
 			schedulingKey, ok := jctx.SchedulingKey()
-			if ok && schedulingKey != schedulerobjects.EmptySchedulingKey {
+			if ok && schedulingKey != internaltypes.EmptySchedulingKey {
 				if unsuccessfulJctx, ok := it.schedulingContext.UnfeasibleSchedulingKeys[schedulingKey]; ok {
 					// Since jctx would fail to schedule for the same reason as unsuccessfulJctx,
 					// set the unschedulable reason and pctx equal to that of unsuccessfulJctx.

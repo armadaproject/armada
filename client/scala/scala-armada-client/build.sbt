@@ -21,5 +21,6 @@ Compile / PB.protoSources ++= Seq(file("./proto"))
 
 libraryDependencies ++= Seq(
     "io.grpc" % "grpc-netty" % scalapb.compiler.Version.grpcJavaVersion,
-    "com.thesamet.scalapb" %% "scalapb-runtime-grpc" % scalapb.compiler.Version.scalapbVersion
+    "com.thesamet.scalapb" %% "scalapb-runtime-grpc" % scalapb.compiler.Version.scalapbVersion,
+    "com.github.jkugiya" %% "ulid-scala" % "1.0.5"
 )

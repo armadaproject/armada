@@ -18,7 +18,6 @@ import (
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
 func NewTestJobDb() *JobDb {
@@ -1190,7 +1189,7 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			skg := schedulerobjects.NewSchedulingKeyGenerator()
+			skg := internaltypes.NewSchedulingKeyGenerator()
 
 			jobSchedulingInfoA := jobSchedulingInfo.DeepCopy()
 			jobSchedulingInfoA.PriorityClassName = tc.priorityClassNameA

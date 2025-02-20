@@ -110,39 +110,40 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 		NewNodeEvictor(
 			sch.jobRepo,
 			sch.nodeDb,
-			func(ctx *armadacontext.Context, job *jobdb.Job) bool {
+			func(ctx *armadacontext.Context, job *jobdb.Job) (bool, string) {
 				if job.LatestRun().Pool() != sch.schedulingContext.Pool {
-					return false
+					return false, "" // Cross-pool home-away job. These are usually preempted via urgency-based preemption, so don't fill in cantPreemptReason.
 				}
 				if !sch.schedulingContext.QueueContextExists(job) {
 					ctx.Warnf("No queue context found for job %s.  This job cannot be evicted", job.Id())
-					return false
+					return false, "invalid_queue"
 				}
-				priorityClass := job.PriorityClass()
-				if !priorityClass.Preemptible {
-					return false
+				if !job.PriorityClass().Preemptible {
+					return false, "job_not_preemptible"
 				}
 				if job.Annotations() == nil {
 					ctx.Errorf("can't evict job %s: annotations not initialised", job.Id())
-					return false
+					return false, "missing_annotations"
 				}
 				if job.NodeSelector() == nil {
 					ctx.Errorf("can't evict job %s: nodeSelector not initialised", job.Id())
-					return false
+					return false, "missing_node_selector"
 				}
+
 				// If we are in market mode then everything is evictable
 				if sch.marketDriven {
-					return true
+					return true, ""
 				}
+
 				if qctx, ok := sch.schedulingContext.QueueSchedulingContexts[job.Queue()]; ok {
 					actualShare := sch.schedulingContext.FairnessCostProvider.UnweightedCostFromQueue(qctx)
 					fairShare := math.Max(qctx.AdjustedFairShare, qctx.FairShare)
 					fractionOfFairShare := actualShare / fairShare
 					if fractionOfFairShare <= sch.protectedFractionOfFairShare {
-						return false
+						return false, "below_protected_fair_share"
 					}
 				}
-				return true
+				return true, ""
 			},
 		),
 	)
@@ -280,14 +281,17 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 	ctx.Logger().WithField("stage", "scheduling-algo").Infof("Finished unbinding preempted and evicted jobs")
 
 	PopulatePreemptionDescriptions(preemptedJobs, scheduledJobs)
+	schedulercontext.PrintJobSchedulingDetails(ctx, "Evicted job details", maps.Values(scheduledAndEvictedJobsById))
 	schedulercontext.PrintJobSummary(ctx, "Preempting running jobs;", preemptedJobs)
 	schedulercontext.PrintJobSummary(ctx, "Scheduling new jobs;", scheduledJobs)
 	// TODO: Show failed jobs.
 
 	schedulingStats := PerPoolSchedulingStats{
-		StatsPerQueue: schedulerResult.PerPoolSchedulingStats[sch.schedulingContext.Pool].StatsPerQueue,
-		LoopNumber:    schedulerResult.PerPoolSchedulingStats[sch.schedulingContext.Pool].LoopNumber,
-		EvictorResult: evictorResult,
+		StatsPerQueue:                schedulerResult.PerPoolSchedulingStats[sch.schedulingContext.Pool].StatsPerQueue,
+		LoopNumber:                   schedulerResult.PerPoolSchedulingStats[sch.schedulingContext.Pool].LoopNumber,
+		EvictorResult:                evictorResult,
+		ProtectedFractionOfFairShare: sch.protectedFractionOfFairShare,
+		NodeDb:                       sch.nodeDb,
 	}
 
 	return &SchedulerResult{
@@ -326,6 +330,7 @@ func (sch *PreemptingQueueScheduler) evict(ctx *armadacontext.Context, evictor *
 	if err != nil {
 		return nil, nil, err
 	}
+	ctx.Infof("Evicting remains of partially evicted gangs for pool %s (most may get re-scheduled this cycle so they won't necessarily be preempted) %s", sch.schedulingContext.Pool, gangEvictorResult.SummaryString())
 	if err := sch.nodeDb.UpsertManyWithTxn(txn, maps.Values(gangEvictorResult.AffectedNodesById)); err != nil {
 		return nil, nil, err
 	}
@@ -372,21 +377,12 @@ func (sch *PreemptingQueueScheduler) evictGangs(ctx *armadacontext.Context, txn 
 	if err != nil {
 		return nil, err
 	}
-	gangNodeIds = armadamaps.FilterKeys(
-		gangNodeIds,
-		// Filter out any nodes already processed.
-		// (Just for efficiency; not strictly necessary.)
-		// This assumes all gang jobs on these nodes were already evicted.
-		func(nodeId string) bool {
-			_, ok := previousEvictorResult.AffectedNodesById[nodeId]
-			return !ok
-		},
-	)
 	evictor := NewFilteredEvictor(
 		sch.jobRepo,
 		sch.nodeDb,
 		gangNodeIds,
 		gangJobIds,
+		"gang_eviction_not_required",
 	)
 	if evictor == nil {
 		// No gangs to evict.
@@ -394,10 +390,6 @@ func (sch *PreemptingQueueScheduler) evictGangs(ctx *armadacontext.Context, txn 
 	}
 
 	result, err := evictor.Evict(ctx, txn)
-	if err != nil {
-		ctx.Infof("Evicting remains of partially evicted gangs for pool %s (most may get re-scheduled this cycle so they won't necessarily be preempted) %s", sch.schedulingContext.Pool, result.SummaryString())
-	}
-
 	return result, err
 }
 

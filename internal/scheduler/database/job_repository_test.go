@@ -589,7 +589,7 @@ func TestFetchJobRunLeases(t *testing.T) {
 			Pool:     "test-pool",
 			PodRequirementsOverlay: protoutil.MustMarshall(
 				&schedulerobjects.PodRequirements{
-					Tolerations: []v1.Toleration{
+					Tolerations: []*v1.Toleration{
 						{
 							Key:    "whale",
 							Value:  "true",

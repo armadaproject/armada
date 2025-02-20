@@ -4,12 +4,11 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
-	armadaslices "github.com/armadaproject/armada/internal/common/slices"
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api"
 )
@@ -56,17 +55,12 @@ func NewNodeFromNodeInfo(nodeInfo *NodeInfo, executor string, allowedPriorities 
 		jobRunsByState[jobId] = api.JobRunStateFromApiJobState(state)
 	}
 	return &schedulerobjects.Node{
-		Id:       api.NodeIdFromExecutorAndNodeName(executor, nodeInfo.Name),
-		Name:     nodeInfo.Name,
-		Executor: executor,
-		Pool:     nodeInfo.Pool,
-		LastSeen: lastSeen,
-		Taints: armadaslices.Map(nodeInfo.GetTaints(), func(v *v1.Taint) v1.Taint {
-			if v != nil {
-				return *v
-			}
-			return v1.Taint{}
-		}),
+		Id:                               api.NodeIdFromExecutorAndNodeName(executor, nodeInfo.Name),
+		Name:                             nodeInfo.Name,
+		Executor:                         executor,
+		Pool:                             nodeInfo.Pool,
+		LastSeen:                         protoutil.ToTimestamp(lastSeen),
+		Taints:                           nodeInfo.GetTaints(),
 		Labels:                           nodeInfo.GetLabels(),
 		TotalResources:                   ResourceListFromProtoResources(nodeInfo.TotalResources),
 		AllocatableByPriorityAndResource: allocatableByPriorityAndResource,

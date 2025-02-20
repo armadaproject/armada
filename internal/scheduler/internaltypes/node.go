@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"golang.org/x/exp/maps"
+	"golang.org/x/exp/slices"
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
@@ -30,10 +31,11 @@ type Node struct {
 	index uint64
 
 	// Executor this node belongs to and node name, which must be unique per executor.
-	executor string
-	name     string
-	pool     string
-	nodeType *NodeType
+	executor          string
+	name              string
+	pool              string
+	nodeType          *NodeType
+	reportingNodeType string
 
 	// We need to store taints and labels separately from the node type: the latter only includes
 	// indexed taints and labels, but we need all of them when checking pod requirements.
@@ -81,14 +83,22 @@ func FromSchedulerObjectsNode(node *schedulerobjects.Node,
 	}
 	allocatableByPriority[EvictedPriority] = allocatableResources
 
+	taints := make([]v1.Taint, 0, len(node.Taints))
+	for _, t := range node.Taints {
+		if t != nil {
+			taints = append(taints, *t)
+		}
+	}
+
 	return CreateNodeAndType(
 		node.Id,
 		nodeIndex,
 		node.Executor,
 		node.Name,
 		node.Pool,
+		node.ReportingNodeType,
 		node.Unschedulable,
-		node.Taints,
+		taints,
 		node.Labels,
 		indexedTaints,
 		indexedNodeLabels,
@@ -105,6 +115,7 @@ func CreateNodeAndType(
 	executor string,
 	name string,
 	pool string,
+	reportingNodeType string,
 	unschedulable bool,
 	taints []v1.Taint,
 	labels map[string]string,
@@ -140,6 +151,7 @@ func CreateNodeAndType(
 		executor,
 		name,
 		pool,
+		reportingNodeType,
 		taints,
 		labels,
 		unschedulable,
@@ -160,6 +172,7 @@ func CreateNode(
 	executor string,
 	name string,
 	pool string,
+	reportingNodeType string,
 	taints []v1.Taint,
 	labels map[string]string,
 	unschedulable bool,
@@ -179,6 +192,7 @@ func CreateNode(
 		executor:               executor,
 		name:                   name,
 		pool:                   pool,
+		reportingNodeType:      reportingNodeType,
 		taints:                 koTaint.DeepCopyTaints(taints),
 		labels:                 deepCopyLabels(labels),
 		unschedulable:          unschedulable,
@@ -207,6 +221,10 @@ func (node *Node) IsUnschedulable() bool {
 
 func (node *Node) GetPool() string {
 	return node.pool
+}
+
+func (node *Node) GetReportingNodeType() string {
+	return node.reportingNodeType
 }
 
 func (node *Node) GetIndex() uint64 {
@@ -274,6 +292,7 @@ func (node *Node) DeepCopyNilKeys() *Node {
 		executor:               node.executor,
 		name:                   node.name,
 		pool:                   node.pool,
+		reportingNodeType:      node.reportingNodeType,
 		nodeType:               node.nodeType,
 		taints:                 node.taints,
 		labels:                 node.labels,
@@ -303,12 +322,16 @@ func (node *Node) SummaryString() string {
 	result += fmt.Sprintf("Executor: %s\n", node.executor)
 	result += fmt.Sprintf("Name: %s\n", node.name)
 	result += fmt.Sprintf("Pool: %s\n", node.pool)
+	result += fmt.Sprintf("ReportingNodeType: %s\n", node.reportingNodeType)
 	result += fmt.Sprintf("Unschedulable: %t\n", node.unschedulable)
 	result += fmt.Sprintf("TotalResources: %s\n", node.totalResources.String())
 	result += fmt.Sprintf("AllocatableResources: %s\n", node.allocatableResources.String())
 	result += fmt.Sprintf("Labels: %v\n", node.labels)
 	result += fmt.Sprintf("Taints: %v\n", node.taints)
-	for p, u := range node.unallocatableResources {
+	priorities := maps.Keys(node.unallocatableResources)
+	slices.Sort(priorities)
+	for _, p := range priorities {
+		u := node.unallocatableResources[p]
 		result += fmt.Sprintf("Unallocatable at %d: %s\n", p, u.String())
 	}
 

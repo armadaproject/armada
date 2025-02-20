@@ -519,7 +519,7 @@ func SchedulingInfoFromSubmitJob(submitJob *armadaevents.SubmitJob, submitTime t
 		AtMostOnce:      submitJob.AtMostOnce,
 		Preemptible:     submitJob.Preemptible,
 		ConcurrencySafe: submitJob.ConcurrencySafe,
-		SubmitTime:      submitTime,
+		SubmitTime:      protoutil.ToTimestamp(submitTime),
 		Priority:        submitJob.Priority,
 		Version:         0,
 	}

@@ -2,8 +2,6 @@
 # This script is intended to be run under the docker container
 # in the root dir of the Armada repo
 
-export PATH=/sbt/bin:$PATH
-
 ROOT=$(pwd)
 SDIR=client/scala/scala-armada-client
 

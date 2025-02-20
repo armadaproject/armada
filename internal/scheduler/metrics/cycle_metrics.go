@@ -1,11 +1,17 @@
 package metrics
 
 import (
+	"fmt"
+	"math"
+	"strconv"
 	"sync/atomic"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 
+	log "github.com/armadaproject/armada/internal/common/logging"
+	armadaresource "github.com/armadaproject/armada/internal/common/resource"
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling"
 )
 
@@ -17,24 +23,28 @@ var (
 )
 
 type perCycleMetrics struct {
-	consideredJobs         *prometheus.GaugeVec
-	fairShare              *prometheus.GaugeVec
-	adjustedFairShare      *prometheus.GaugeVec
-	actualShare            *prometheus.GaugeVec
-	fairnessError          *prometheus.GaugeVec
-	demand                 *prometheus.GaugeVec
-	cappedDemand           *prometheus.GaugeVec
-	queueWeight            *prometheus.GaugeVec
-	rawQueueWeight         *prometheus.GaugeVec
-	gangsConsidered        *prometheus.GaugeVec
-	gangsScheduled         *prometheus.GaugeVec
-	firstGangQueuePosition *prometheus.GaugeVec
-	lastGangQueuePosition  *prometheus.GaugeVec
-	perQueueCycleTime      *prometheus.GaugeVec
-	loopNumber             *prometheus.GaugeVec
-	evictedJobs            *prometheus.GaugeVec
-	evictedResources       *prometheus.GaugeVec
-	spotPrice              *prometheus.GaugeVec
+	consideredJobs               *prometheus.GaugeVec
+	fairShare                    *prometheus.GaugeVec
+	adjustedFairShare            *prometheus.GaugeVec
+	actualShare                  *prometheus.GaugeVec
+	fairnessError                *prometheus.GaugeVec
+	demand                       *prometheus.GaugeVec
+	cappedDemand                 *prometheus.GaugeVec
+	queueWeight                  *prometheus.GaugeVec
+	rawQueueWeight               *prometheus.GaugeVec
+	gangsConsidered              *prometheus.GaugeVec
+	gangsScheduled               *prometheus.GaugeVec
+	firstGangQueuePosition       *prometheus.GaugeVec
+	lastGangQueuePosition        *prometheus.GaugeVec
+	perQueueCycleTime            *prometheus.GaugeVec
+	loopNumber                   *prometheus.GaugeVec
+	evictedJobs                  *prometheus.GaugeVec
+	evictedResources             *prometheus.GaugeVec
+	spotPrice                    *prometheus.GaugeVec
+	nodePreemptibility           *prometheus.GaugeVec
+	protectedFractionOfFairShare *prometheus.GaugeVec
+	nodeAllocatableResource      *prometheus.GaugeVec
+	nodeAllocatedResource        *prometheus.GaugeVec
 }
 
 func newPerCycleMetrics() *perCycleMetrics {
@@ -182,25 +192,61 @@ func newPerCycleMetrics() *perCycleMetrics {
 		poolLabels,
 	)
 
+	nodePreemptibility := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: prefix + "node_preemptibility",
+			Help: "is it possible to clear this node by preempting all jobs on it, and, if not, why?",
+		},
+		[]string{poolLabel, nodeLabel, clusterLabel, nodeTypeLabel, "isPreemptible", "notPreemptibleReason"},
+	)
+
+	protectedFractionOfFairShare := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: prefix + "protected_fraction_of_fair_share",
+			Help: "config value protectedFractionOfFairShare - will evict preemptible jobs if actual_share / max(fair_share, adjusted_fair_share) is greater than this",
+		},
+		[]string{poolLabel},
+	)
+
+	nodeAllocatableResource := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: prefix + "node_allocatable_resource",
+			Help: "Resource that can be allocated to Armada jobs on this node",
+		},
+		[]string{poolLabel, nodeLabel, clusterLabel, nodeTypeLabel, resourceLabel, "schedulable"},
+	)
+
+	nodeAllocatedResource := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: prefix + "node_allocated_resource",
+			Help: "Resource allocated by Armada jobs on this node",
+		},
+		[]string{poolLabel, nodeLabel, clusterLabel, nodeTypeLabel, resourceLabel, "schedulable"},
+	)
+
 	return &perCycleMetrics{
-		consideredJobs:         consideredJobs,
-		fairShare:              fairShare,
-		adjustedFairShare:      adjustedFairShare,
-		actualShare:            actualShare,
-		demand:                 demand,
-		cappedDemand:           cappedDemand,
-		queueWeight:            queueWeight,
-		rawQueueWeight:         rawQueueWeight,
-		fairnessError:          fairnessError,
-		gangsConsidered:        gangsConsidered,
-		gangsScheduled:         gangsScheduled,
-		firstGangQueuePosition: firstGangQueuePosition,
-		lastGangQueuePosition:  lastGangQueuePosition,
-		perQueueCycleTime:      perQueueCycleTime,
-		loopNumber:             loopNumber,
-		evictedJobs:            evictedJobs,
-		evictedResources:       evictedResources,
-		spotPrice:              spotPrice,
+		consideredJobs:               consideredJobs,
+		fairShare:                    fairShare,
+		adjustedFairShare:            adjustedFairShare,
+		actualShare:                  actualShare,
+		demand:                       demand,
+		cappedDemand:                 cappedDemand,
+		queueWeight:                  queueWeight,
+		rawQueueWeight:               rawQueueWeight,
+		fairnessError:                fairnessError,
+		gangsConsidered:              gangsConsidered,
+		gangsScheduled:               gangsScheduled,
+		firstGangQueuePosition:       firstGangQueuePosition,
+		lastGangQueuePosition:        lastGangQueuePosition,
+		perQueueCycleTime:            perQueueCycleTime,
+		loopNumber:                   loopNumber,
+		evictedJobs:                  evictedJobs,
+		evictedResources:             evictedResources,
+		spotPrice:                    spotPrice,
+		nodePreemptibility:           nodePreemptibility,
+		protectedFractionOfFairShare: protectedFractionOfFairShare,
+		nodeAllocatableResource:      nodeAllocatableResource,
+		nodeAllocatedResource:        nodeAllocatedResource,
 	}
 }
 
@@ -332,6 +378,36 @@ func (m *cycleMetrics) ReportSchedulerResult(result scheduling.SchedulerResult) 
 				currentCycle.evictedResources.WithLabelValues(pool, queue, r.Name).Set(float64(r.RawValue))
 			}
 		}
+
+		for _, nodePreemptiblityStats := range schedulingStats.EvictorResult.NodePreemptiblityStats {
+			currentCycle.nodePreemptibility.WithLabelValues(
+				pool,
+				nodePreemptiblityStats.NodeName,
+				nodePreemptiblityStats.Cluster,
+				nodePreemptiblityStats.NodeType,
+				fmt.Sprintf("%t", nodePreemptiblityStats.Reason == ""),
+				nodePreemptiblityStats.Reason).Set(1.0)
+		}
+
+		nodes, err := schedulingStats.NodeDb.GetNodes()
+		if err != nil {
+			log.Errorf("unable to generate node stats as failed to get nodes from nodeDb %s", err)
+		} else {
+			for _, node := range nodes {
+				isSchedulable := strconv.FormatBool(!node.IsUnschedulable())
+				for _, resource := range node.GetAllocatableResources().GetResources() {
+					currentCycle.nodeAllocatableResource.WithLabelValues(node.GetPool(), node.GetName(), node.GetExecutor(), node.GetReportingNodeType(), resource.Name, isSchedulable).Set(armadaresource.QuantityAsFloat64(resource.Value))
+				}
+
+				allocated := node.GetAllocatableResources().Subtract(node.AllocatableByPriority[internaltypes.EvictedPriority])
+				for _, resource := range allocated.GetResources() {
+					allocatableValue := math.Max(armadaresource.QuantityAsFloat64(resource.Value), 0)
+					currentCycle.nodeAllocatedResource.WithLabelValues(node.GetPool(), node.GetName(), node.GetExecutor(), node.GetReportingNodeType(), resource.Name, isSchedulable).Set(allocatableValue)
+				}
+			}
+		}
+
+		currentCycle.protectedFractionOfFairShare.WithLabelValues(pool).Set(schedulingStats.ProtectedFractionOfFairShare)
 	}
 	m.latestCycleMetrics.Store(currentCycle)
 }
@@ -361,6 +437,10 @@ func (m *cycleMetrics) describe(ch chan<- *prometheus.Desc) {
 		currentCycle.evictedJobs.Describe(ch)
 		currentCycle.evictedResources.Describe(ch)
 		currentCycle.spotPrice.Describe(ch)
+		currentCycle.nodePreemptibility.Describe(ch)
+		currentCycle.protectedFractionOfFairShare.Describe(ch)
+		currentCycle.nodeAllocatableResource.Describe(ch)
+		currentCycle.nodeAllocatedResource.Describe(ch)
 	}
 
 	m.reconciliationCycleTime.Describe(ch)
@@ -391,6 +471,10 @@ func (m *cycleMetrics) collect(ch chan<- prometheus.Metric) {
 		currentCycle.evictedJobs.Collect(ch)
 		currentCycle.evictedResources.Collect(ch)
 		currentCycle.spotPrice.Collect(ch)
+		currentCycle.nodePreemptibility.Collect(ch)
+		currentCycle.protectedFractionOfFairShare.Collect(ch)
+		currentCycle.nodeAllocatableResource.Collect(ch)
+		currentCycle.nodeAllocatedResource.Collect(ch)
 	}
 
 	m.reconciliationCycleTime.Collect(ch)

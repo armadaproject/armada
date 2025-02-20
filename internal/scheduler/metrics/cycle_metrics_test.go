@@ -102,6 +102,7 @@ func TestResetLeaderMetrics_ResetsLatestCycleMetrics(t *testing.T) {
 	poolLabelValues := []string{"pool1"}
 	poolQueueLabelValues := []string{"pool1", "queue1"}
 	poolQueueResourceLabelValues := []string{"pool1", "queue1", "cpu"}
+	nodeResourceLabelValues := []string{"pool1", "node1", "cluster1", "type1", "cpu", "true"}
 
 	testResetGauge := func(getVec func(metrics *cycleMetrics) *prometheus.GaugeVec, labelValues []string) {
 		vec := getVec(m)
@@ -133,6 +134,12 @@ func TestResetLeaderMetrics_ResetsLatestCycleMetrics(t *testing.T) {
 	testResetGauge(func(metrics *cycleMetrics) *prometheus.GaugeVec { return m.latestCycleMetrics.Load().loopNumber }, poolLabelValues)
 	testResetGauge(func(metrics *cycleMetrics) *prometheus.GaugeVec { return m.latestCycleMetrics.Load().evictedJobs }, poolQueueLabelValues)
 	testResetGauge(func(metrics *cycleMetrics) *prometheus.GaugeVec { return m.latestCycleMetrics.Load().evictedResources }, poolQueueResourceLabelValues)
+	testResetGauge(func(metrics *cycleMetrics) *prometheus.GaugeVec {
+		return m.latestCycleMetrics.Load().nodeAllocatableResource
+	}, nodeResourceLabelValues)
+	testResetGauge(func(metrics *cycleMetrics) *prometheus.GaugeVec {
+		return m.latestCycleMetrics.Load().nodeAllocatedResource
+	}, nodeResourceLabelValues)
 }
 
 func TestDisableLeaderMetrics(t *testing.T) {
@@ -161,6 +168,8 @@ func TestDisableLeaderMetrics(t *testing.T) {
 		m.latestCycleMetrics.Load().loopNumber.WithLabelValues("pool1").Inc()
 		m.latestCycleMetrics.Load().evictedJobs.WithLabelValues("pool1", "queue1").Inc()
 		m.latestCycleMetrics.Load().evictedResources.WithLabelValues("pool1", "queue1", "cpu").Inc()
+		m.latestCycleMetrics.Load().nodeAllocatableResource.WithLabelValues("pool1", "node1", "cluster1", "type1", "cpu", "true").Inc()
+		m.latestCycleMetrics.Load().nodeAllocatedResource.WithLabelValues("pool1", "node1", "cluster1", "type1", "cpu", "true").Inc()
 
 		ch := make(chan prometheus.Metric, 1000)
 		m.collect(ch)
