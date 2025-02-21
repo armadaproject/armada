@@ -6,9 +6,9 @@ import (
 
 	"github.com/armadaproject/armada/internal/common"
 	log "github.com/armadaproject/armada/internal/common/logging"
-	"github.com/armadaproject/armada/internal/lookoutingesterv2"
-	"github.com/armadaproject/armada/internal/lookoutingesterv2/benchmark"
-	"github.com/armadaproject/armada/internal/lookoutingesterv2/configuration"
+	"github.com/armadaproject/armada/internal/lookoutingester"
+	"github.com/armadaproject/armada/internal/lookoutingester/benchmark"
+	"github.com/armadaproject/armada/internal/lookoutingester/configuration"
 )
 
 const (
@@ -30,10 +30,10 @@ func main() {
 	log.MustConfigureApplicationLogging()
 	common.BindCommandlineArguments()
 
-	var config configuration.LookoutIngesterV2Configuration
+	var config configuration.LookoutIngesterConfiguration
 	userSpecifiedConfigs := viper.GetStringSlice(CustomConfigLocation)
 
-	common.LoadConfig(&config, "./config/lookoutingesterv2", userSpecifiedConfigs)
+	common.LoadConfig(&config, "./config/lookoutingester", userSpecifiedConfigs)
 
 	runBenchmarks := viper.GetBool(Benchmark)
 	if runBenchmarks {
@@ -42,5 +42,5 @@ func main() {
 		return
 	}
 
-	lookoutingesterv2.Run(&config)
+	lookoutingester.Run(&config)
 }

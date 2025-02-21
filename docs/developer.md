@@ -217,16 +217,15 @@ All outputs of delve can be found in the `./delve` directory.
 
 External Debug Port Mappings:
 
-| Armada service    | Debug host     |
-|-------------------|----------------|
-| server            | localhost:4000 |
-| executor          | localhost:4001 |
-| binoculars        | localhost:4002 |
-| eventingester     | localhost:4003 |
-| lookoutui         | localhost:4004 |
-| lookout           | localhost:4005 |
-| lookoutingester   | localhost:4006 |
-| lookoutingesterv2 | localhost:4007 |
+| Armada service  | Debug host     |
+|-----------------|----------------|
+| server          | localhost:4000 |
+| executor        | localhost:4001 |
+| binoculars      | localhost:4002 |
+| eventingester   | localhost:4003 |
+| lookoutui       | localhost:4004 |
+| lookout         | localhost:4005 |
+| lookoutingester | localhost:4007 |
 
 
 ## GoLand Run Configurations

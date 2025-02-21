@@ -11,8 +11,8 @@ import (
 	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/internal/common/app"
 	log "github.com/armadaproject/armada/internal/common/logging"
-	"github.com/armadaproject/armada/internal/lookoutingesterv2/configuration"
-	"github.com/armadaproject/armada/internal/lookoutingesterv2/dbloadtester"
+	"github.com/armadaproject/armada/internal/lookoutingester/configuration"
+	"github.com/armadaproject/armada/internal/lookoutingester/dbloadtester"
 )
 
 func init() {
@@ -48,16 +48,16 @@ func main() {
 	log.MustConfigureApplicationLogging()
 	common.BindCommandlineArguments()
 
-	var config configuration.LookoutIngesterV2Configuration
+	var config configuration.LookoutIngesterConfiguration
 	userSpecifiedConfigs := viper.GetStringSlice("lookoutIngesterConfig")
-	common.LoadConfig(&config, "./config/lookoutingesterv2", userSpecifiedConfigs)
+	common.LoadConfig(&config, "./config/lookoutingester", userSpecifiedConfigs)
 
 	loadtesterConfig := dbloadtester.Config{
 		TotalJobs:            500000,
 		TotalConcurrentJobs:  50000,
 		QueueSubmitBatchSize: 300,
 		QueueNames:           []string{"queue1", "queue2", "queue3"},
-		JobTemplateFile:      "internal/lookoutingesterv2/dbloadtester/test_data.yaml",
+		JobTemplateFile:      "internal/lookoutingester/dbloadtester/test_data.yaml",
 	}
 
 	loadtester := dbloadtester.Setup(

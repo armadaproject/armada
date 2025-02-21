@@ -17,7 +17,7 @@ import (
 	log "github.com/armadaproject/armada/internal/common/logging"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/util"
-	"github.com/armadaproject/armada/internal/lookoutingesterv2/model"
+	"github.com/armadaproject/armada/internal/lookoutingester/model"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )

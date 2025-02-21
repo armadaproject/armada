@@ -9,9 +9,9 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/database/lookout"
-	"github.com/armadaproject/armada/internal/lookoutingesterv2/instructions"
-	"github.com/armadaproject/armada/internal/lookoutingesterv2/lookoutdb"
-	"github.com/armadaproject/armada/internal/lookoutingesterv2/metrics"
+	"github.com/armadaproject/armada/internal/lookoutingester/instructions"
+	"github.com/armadaproject/armada/internal/lookoutingester/lookoutdb"
+	"github.com/armadaproject/armada/internal/lookoutingester/metrics"
 )
 
 func TestGetJobRunDebugMessage(t *testing.T) {

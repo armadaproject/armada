@@ -22,8 +22,8 @@ import (
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/lookout/model"
-	"github.com/armadaproject/armada/internal/lookoutingesterv2/instructions"
-	"github.com/armadaproject/armada/internal/lookoutingesterv2/lookoutdb"
+	"github.com/armadaproject/armada/internal/lookoutingester/instructions"
+	"github.com/armadaproject/armada/internal/lookoutingester/lookoutdb"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )

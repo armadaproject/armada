@@ -14,8 +14,8 @@ import (
 	"github.com/armadaproject/armada/internal/common/database/lookout"
 	commonmetrics "github.com/armadaproject/armada/internal/common/ingest/metrics"
 	log "github.com/armadaproject/armada/internal/common/logging"
-	"github.com/armadaproject/armada/internal/lookoutingesterv2/metrics"
-	"github.com/armadaproject/armada/internal/lookoutingesterv2/model"
+	"github.com/armadaproject/armada/internal/lookoutingester/metrics"
+	"github.com/armadaproject/armada/internal/lookoutingester/model"
 )
 
 type LookoutDb struct {
