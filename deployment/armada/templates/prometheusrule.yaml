@@ -51,6 +51,6 @@ spec:
         - record: armada:resource:capacity
           expr: max(armada_cluster_capacity) by (pool, cluster, resourceType, nodeType)
 
-        - record: armada:queue:instance_phase:count
+        - record: armada:queue:pod_phase:count
           expr: max(armada_queue_leased_pod_count) by (pool, cluster, queueName, phase, nodeType)
 {{- end }}
