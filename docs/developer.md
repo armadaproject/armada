@@ -217,16 +217,16 @@ All outputs of delve can be found in the `./delve` directory.
 
 External Debug Port Mappings:
 
-|Armada service     |Debug host    |
-|-------------------|--------------|
-|server             |localhost:4000|
-|executor           |localhost:4001|
-|binoculars         |localhost:4002|
-|eventingester      |localhost:4003|
-|lookout            |localhost:4004|
-|lookoutv2          |localhost:4005|
-|lookoutingester    |localhost:4006|
-|lookoutingesterv2  |localhost:4007|
+| Armada service    | Debug host     |
+|-------------------|----------------|
+| server            | localhost:4000 |
+| executor          | localhost:4001 |
+| binoculars        | localhost:4002 |
+| eventingester     | localhost:4003 |
+| lookoutui         | localhost:4004 |
+| lookout           | localhost:4005 |
+| lookoutingester   | localhost:4006 |
+| lookoutingesterv2 | localhost:4007 |
 
 
 ## GoLand Run Configurations
@@ -240,10 +240,10 @@ The following high-level configurations are provided, each composed of sub-confi
    - Runs Armada with the Legacy Scheduler
 3. `Armada (Pulsar Scheduler)`
    - Runs Armada with the Pulsar Scheduler (recommended)
-4. `LookoutV2 UI`
+4. `Lookout UI`
    - Script which configures a local UI development setup
 
-A minimal local Armada setup using these configurations would be `Armada Infrastructure Services` and one of (`Armada (Legacy Scheduler)` or `Armada (Pulsar Scheduler)`). Running the `LookoutV2 UI` script on top of this configuration would allow you to develop the Lookout UI live from GoLand, and see the changes visible in your browser. **These configurations (executor specifically) require a kubernetes config in `$PROJECT_DIR$/.kube/internal/config`**
+A minimal local Armada setup using these configurations would be `Armada Infrastructure Services` and one of (`Armada (Legacy Scheduler)` or `Armada (Pulsar Scheduler)`). Running the `Lookout UI` script on top of this configuration would allow you to develop the Lookout UI live from GoLand, and see the changes visible in your browser. **These configurations (executor specifically) require a kubernetes config in `$PROJECT_DIR$/.kube/internal/config`**
 
 GoLand does not allow us to specify an ordering for services within docker compose configurations. As a result, some database migration services may require rerunning.
 
