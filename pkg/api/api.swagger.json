@@ -2081,6 +2081,9 @@
     "apiServiceConfig": {
       "type": "object",
       "properties": {
+        "name": {
+          "type": "string"
+        },
         "ports": {
           "type": "array",
           "items": {

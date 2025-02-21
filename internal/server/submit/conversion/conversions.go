@@ -8,6 +8,7 @@ import (
 	networking "k8s.io/api/networking/v1"
 
 	"github.com/armadaproject/armada/internal/common"
+	log "github.com/armadaproject/armada/internal/common/logging"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/executor/domain"
@@ -26,7 +27,7 @@ func SubmitJobFromApiRequest(
 ) *armadaevents.SubmitJob {
 	jobId := idGen()
 	priority := PriorityAsInt32(jobReq.GetPriority())
-	ingressesAndServices := convertIngressesAndServices(jobReq, jobId, jobSetId, queue, owner)
+	ingressesAndServices := convertIngressesAndServices(config, jobReq, jobId, jobSetId, queue, owner)
 
 	msg := &armadaevents.SubmitJob{
 		JobId:           jobId,
@@ -61,6 +62,7 @@ func SubmitJobFromApiRequest(
 // Creates KubernetesObjects representing ingresses and services from the *api.JobSubmitRequestItem.
 // An ingress will have  a corresponding service created for it.
 func convertIngressesAndServices(
+	config configuration.SubmissionConfig,
 	jobReq *api.JobSubmitRequestItem,
 	jobId, jobsetId, queue, owner string,
 ) []*armadaevents.KubernetesObject {
@@ -87,7 +89,8 @@ func convertIngressesAndServices(
 	for _, ingressConfig := range jobReq.Ingress {
 		ports := filterServicePorts(availableServicePorts, ingressConfig.Ports)
 		if len(ports) > 0 {
-			serviceObject := createService(jobId, serviceIdx, ports, v1.ServiceTypeClusterIP, ingressConfig.UseClusterIP)
+			serviceName := fmt.Sprintf("%s-service-%d", common.PodName(jobId), serviceIdx)
+			serviceObject := createService(serviceName, jobId, ports, v1.ServiceTypeClusterIP, ingressConfig.UseClusterIP)
 			serviceIdx++
 			ingressObject := createIngressFromService(
 				serviceObject.GetService(),
@@ -111,8 +114,25 @@ func convertIngressesAndServices(
 				serviceType = v1.ServiceTypeNodePort
 				useClusterIp = true
 			}
-			serviceObject := createService(jobId, serviceIdx, ports, serviceType, useClusterIp)
-			serviceIdx++
+
+			serviceName := fmt.Sprintf("%s-service-%d", common.PodName(jobId), serviceIdx)
+			serviceNameCustomized := false
+
+			if len(serviceConfig.Name) > 0 {
+				if config.AllowCustomServiceNames {
+					serviceName = serviceConfig.Name
+					serviceNameCustomized = true
+				} else {
+					log.Warnf("Feature flag to allow customized service name %s is not enabled. "+
+						"Using generated service name %s", serviceConfig.Name, serviceName)
+				}
+			}
+
+			if !serviceNameCustomized {
+				serviceIdx++
+			}
+
+			serviceObject := createService(serviceName, jobId, ports, serviceType, useClusterIp)
 			objects = append(objects, serviceObject)
 		}
 	}
@@ -135,8 +155,8 @@ func convertIngressesAndServices(
 }
 
 func createService(
+	serviceName string,
 	jobId string,
-	serviceIdx int,
 	ports []v1.ServicePort,
 	serviceType v1.ServiceType,
 	useClusterIP bool,
@@ -150,7 +170,7 @@ func createService(
 
 	return &armadaevents.KubernetesObject{
 		ObjectMeta: &armadaevents.ObjectMeta{
-			Name:        fmt.Sprintf("%s-service-%d", common.PodName(jobId), serviceIdx),
+			Name:        serviceName,
 			Annotations: map[string]string{},
 			Labels:      map[string]string{},
 		},

@@ -41,6 +41,7 @@ message IngressConfig {
 message ServiceConfig {
     ServiceType type = 1;
     repeated uint32 ports = 2;
+    string name = 3; // The name of the service resource that is created. If empty a name will be generated based on the job ID.
 }
 
 // Ingress type is being kept here to maintain backwards compatibility for a while.

@@ -28,6 +28,11 @@ var (
 		ContainerPort: 8080,
 		Protocol:      "TCP",
 	}
+	MetricsContainerPort = v1.ContainerPort{
+		Name:          "metricsContainerPort",
+		ContainerPort: 9000,
+		Protocol:      "TCP",
+	}
 	DefaultResources = v1.ResourceRequirements{
 		Requests: v1.ResourceList{
 			"cpu":    resource.MustParse("1"),
@@ -41,7 +46,7 @@ var (
 	DefaultContainers = []v1.Container{
 		{
 			Name:      "testContainer",
-			Ports:     []v1.ContainerPort{DefaultContainerPort},
+			Ports:     []v1.ContainerPort{DefaultContainerPort, MetricsContainerPort},
 			Resources: DefaultResources,
 		},
 	}
@@ -71,6 +76,21 @@ func DefaultSubmissionConfig() configuration.SubmissionConfig {
 		MinTerminationGracePeriod: 30 * time.Second,
 		MaxTerminationGracePeriod: 300 * time.Second,
 		DefaultActiveDeadline:     1 * time.Hour,
+	}
+}
+
+func SubmissionConfigWithCustomServiceNamesEnabled() configuration.SubmissionConfig {
+	return configuration.SubmissionConfig{
+		AllowedPriorityClassNames: map[string]bool{DefaultPriorityClass: true},
+		DefaultPriorityClassName:  DefaultPriorityClass,
+		DefaultJobLimits:          armadaresource.ComputeResources{"cpu": resource.MustParse("1")},
+		DefaultJobTolerations:     DefaultTolerations,
+		MaxPodSpecSizeBytes:       1000,
+		MinJobResources:           map[v1.ResourceName]resource.Quantity{},
+		MinTerminationGracePeriod: 30 * time.Second,
+		MaxTerminationGracePeriod: 300 * time.Second,
+		DefaultActiveDeadline:     1 * time.Hour,
+		AllowCustomServiceNames:   true,
 	}
 }
 
