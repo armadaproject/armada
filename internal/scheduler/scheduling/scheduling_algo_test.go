@@ -23,6 +23,7 @@ import (
 	schedulermocks "github.com/armadaproject/armada/internal/scheduler/mocks"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/prioritymultiplier"
+	"github.com/armadaproject/armada/internal/scheduler/priorityoverride"
 	"github.com/armadaproject/armada/internal/scheduler/reports"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
@@ -496,6 +497,7 @@ func TestSchedule(t *testing.T) {
 				testfixtures.TestResourceListFactory,
 				testfixtures.TestEmptyFloatingResources,
 				prioritymultiplier.NewNoOpProvider(),
+				priorityoverride.NewNoOpProvider(),
 			)
 			require.NoError(t, err)
 
@@ -662,6 +664,7 @@ func BenchmarkNodeDbConstruction(b *testing.B) {
 					testfixtures.TestResourceListFactory,
 					testfixtures.TestEmptyFloatingResources,
 					prioritymultiplier.NewNoOpProvider(),
+					priorityoverride.NewNoOpProvider(),
 				)
 				require.NoError(b, err)
 				b.StartTimer()

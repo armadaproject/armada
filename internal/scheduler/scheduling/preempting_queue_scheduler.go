@@ -252,6 +252,7 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 		LoopNumber:                   schedulerResult.PerPoolSchedulingStats[sch.schedulingContext.Pool].LoopNumber,
 		EvictorResult:                evictorResult,
 		ProtectedFractionOfFairShare: sch.protectedFractionOfFairShare,
+		NodeDb:                       sch.nodeDb,
 	}
 
 	return &SchedulerResult{
