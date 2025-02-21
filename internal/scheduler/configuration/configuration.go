@@ -287,10 +287,10 @@ type PoolConfig struct {
 	AwayPools                    []string
 	ProtectedFractionOfFairShare *float64
 	MarketDriven                 bool
-	Defrag                       *DefragConfig
+	Optimiser                    *OptimiserConfig
 }
 
-type DefragConfig struct {
+type OptimiserConfig struct {
 	Enabled                           bool
 	Interval                          time.Duration
 	MaximumJobsPerRound               int

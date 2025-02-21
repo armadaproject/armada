@@ -4,20 +4,19 @@ import (
 	"math"
 	"time"
 
-	"github.com/armadaproject/armada/internal/scheduler/scheduling/optimiser"
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/scheduler/floatingresources"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/scheduling/constraints"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/scheduling/context"
+	"github.com/armadaproject/armada/internal/scheduler/scheduling/optimiser"
 )
 
-type DefragQueueScheduler struct {
-	nodeScheduler                     *optimiser.FairnessOptimisingScheduler
+type OptimisingQueueScheduler struct {
+	optimisingScheduler               *optimiser.FairnessOptimisingScheduler
 	jobDb                             jobdb.JobRepository
 	constraints                       schedulerconstraints.SchedulingConstraints
 	floatingResourceTypes             *floatingresources.FloatingResourceTypes
@@ -27,15 +26,28 @@ type DefragQueueScheduler struct {
 	maximumResourceFractionToSchedule map[string]float64
 }
 
-func NewDefragQueueScheduler(jobDb jobdb.JobRepository, nodeScheduler *optimiser.FairnessOptimisingScheduler, maxQueueLookBack uint) *DefragQueueScheduler {
-	return &DefragQueueScheduler{
-		nodeScheduler:    nodeScheduler,
-		jobDb:            jobDb,
-		maxQueueLookBack: maxQueueLookBack,
+func NewOptimisingQueueScheduler(
+	jobDb jobdb.JobRepository,
+	optimisingScheduler *optimiser.FairnessOptimisingScheduler,
+	constraints schedulerconstraints.SchedulingConstraints,
+	floatingResourceTypes *floatingresources.FloatingResourceTypes,
+	maxQueueLookBack uint,
+	minimumJobSizeToSchedule *internaltypes.ResourceList,
+	maximumJobsToSchedule int,
+	maximumResourceFractionToSchedule map[string]float64) *OptimisingQueueScheduler {
+	return &OptimisingQueueScheduler{
+		optimisingScheduler:               optimisingScheduler,
+		jobDb:                             jobDb,
+		maxQueueLookBack:                  maxQueueLookBack,
+		constraints:                       constraints,
+		floatingResourceTypes:             floatingResourceTypes,
+		minimumJobSizeToSchedule:          minimumJobSizeToSchedule,
+		maximumJobsToSchedule:             maximumJobsToSchedule,
+		maximumResourceFractionToSchedule: maximumResourceFractionToSchedule,
 	}
 }
 
-func (q *DefragQueueScheduler) Schedule(ctx *armadacontext.Context, sctx *schedulercontext.SchedulingContext) (*SchedulerResult, error) {
+func (q *OptimisingQueueScheduler) Schedule(ctx *armadacontext.Context, sctx *schedulercontext.SchedulingContext) (*SchedulerResult, error) {
 	gangIterator, err := q.createGangIterator(ctx, sctx)
 	if err != nil {
 		return nil, err
@@ -64,18 +76,19 @@ func (q *DefragQueueScheduler) Schedule(ctx *armadacontext.Context, sctx *schedu
 
 		ok, reason, err := q.checkIfWillBreachSchedulingLimits(gctx, sctx)
 		if err != nil {
+			// TODO work out how we are supposed to continue/exit out of the loop
 			sctx.TerminationReason = err.Error()
 			return nil, err
 		}
 		if !ok {
 			if schedulerconstraints.IsTerminalUnschedulableReason(reason) {
-				// Global limit hit, exit
-				break
+				gangIterator.OnlyYieldEvicted()
 			} else if schedulerconstraints.IsTerminalQueueUnschedulableReason(reason) {
 				// If unschedulableReason indicates no more new jobs can be scheduled for this queue,
 				// instruct the underlying iterator to only yield evicted jobs for this queue from now on.
 				gangIterator.OnlyYieldEvictedForQueue(gctx.Queue)
 			}
+			continue
 		}
 		// Don't schedule jobs via defrag that'd put a queue over its fairshare
 		if queueCostInclGang > 1.0 {
@@ -89,17 +102,22 @@ func (q *DefragQueueScheduler) Schedule(ctx *armadacontext.Context, sctx *schedu
 			}
 			continue
 		}
-		alreadyScheduled := false
+		shouldSkip := false
 		// This is needed as we haven't marked scheduled jobs as scheduled in the job db yet, so we must exclude them here
 		// TODO move optimiser to run after jobdb updated
 		for _, jctx := range gctx.JobSchedulingContexts {
 			if _, scheduled := sctx.QueueSchedulingContexts[gctx.Queue].SuccessfulJobSchedulingContexts[jctx.JobId]; scheduled {
-				alreadyScheduled = true
+				shouldSkip = true
+				break
+			}
+			if q.minimumJobSizeToSchedule != nil && q.minimumJobSizeToSchedule.Exceeds(jctx.Job.AllResourceRequirements()) {
+				// Don't schedule jobs smaller than the minimum size
+				shouldSkip = true
 				break
 			}
 		}
 
-		if alreadyScheduled {
+		if shouldSkip {
 			if err := gangIterator.Clear(); err != nil {
 				return nil, err
 			}
@@ -114,7 +132,7 @@ func (q *DefragQueueScheduler) Schedule(ctx *armadacontext.Context, sctx *schedu
 		default:
 		}
 		start := time.Now()
-		scheduledOk, preemptedJctxs, unschedulableReason, err := q.nodeScheduler.Schedule(ctx, gctx, sctx)
+		scheduledOk, preemptedJctxs, unschedulableReason, err := q.optimisingScheduler.Schedule(ctx, gctx, sctx)
 		if err != nil {
 			return nil, err
 		} else if scheduledOk {
@@ -145,11 +163,12 @@ func (q *DefragQueueScheduler) Schedule(ctx *armadacontext.Context, sctx *schedu
 	}
 	return &SchedulerResult{
 		ScheduledJobs: scheduledJobs,
+		PreemptedJobs: preemptedJobs,
 		NodeIdByJobId: nodeIdByJobId,
 	}, nil
 }
 
-func (q *DefragQueueScheduler) createGangIterator(
+func (q *OptimisingQueueScheduler) createGangIterator(
 	ctx *armadacontext.Context,
 	sctx *schedulercontext.SchedulingContext) (CandidateGangIterator, error) {
 
@@ -177,10 +196,11 @@ func (q *DefragQueueScheduler) createGangIterator(
 	return NewCostBasedCandidateGangIterator(sctx.Pool, sctx, sctx.FairnessCostProvider, gangIteratorsByQueue, false, true)
 }
 
-func (q *DefragQueueScheduler) checkIfWillBreachSchedulingLimits(
+func (q *OptimisingQueueScheduler) checkIfWillBreachSchedulingLimits(
 	gctx *schedulercontext.GangSchedulingContext,
 	sctx *schedulercontext.SchedulingContext) (bool, string, error) {
 
+	// TODO Return sctx back to original state somehow
 	ok, unschedulableReason, err := q.constraints.CheckRoundConstraints(sctx)
 	if err != nil || !ok {
 		return false, unschedulableReason, err
@@ -196,9 +216,11 @@ func (q *DefragQueueScheduler) checkIfWillBreachSchedulingLimits(
 		return false, unschedulableReason, err
 	}
 
-	ok, unschedulableReason = q.floatingResourceTypes.WithinLimits(sctx.Pool, sctx.Allocated)
-	if !ok {
-		return ok, unschedulableReason, nil
+	if gctx.RequestsFloatingResources {
+		ok, unschedulableReason = q.floatingResourceTypes.WithinLimits(sctx.Pool, sctx.Allocated)
+		if !ok {
+			return ok, unschedulableReason, nil
+		}
 	}
 
 	if _, err := sctx.EvictGang(gctx); err != nil {
@@ -208,7 +230,7 @@ func (q *DefragQueueScheduler) checkIfWillBreachSchedulingLimits(
 	return true, "", nil
 }
 
-func (q *DefragQueueScheduler) updateUnfeasibleSchedulingKeys(gctx *schedulercontext.GangSchedulingContext,
+func (q *OptimisingQueueScheduler) updateUnfeasibleSchedulingKeys(gctx *schedulercontext.GangSchedulingContext,
 	sctx *schedulercontext.SchedulingContext, unschedulableReason string) {
 	globallyUnschedulable := schedulerconstraints.UnschedulableReasonIsPropertyOfGang(unschedulableReason)
 
@@ -219,7 +241,7 @@ func (q *DefragQueueScheduler) updateUnfeasibleSchedulingKeys(gctx *schedulercon
 	if gctx.Cardinality() == 1 && globallyUnschedulable {
 		jctx := gctx.JobSchedulingContexts[0]
 		schedulingKey, ok := jctx.SchedulingKey()
-		if ok && schedulingKey != schedulerobjects.EmptySchedulingKey {
+		if ok && schedulingKey != internaltypes.EmptySchedulingKey {
 			if _, ok := sctx.UnfeasibleSchedulingKeys[schedulingKey]; !ok {
 				// Keep the first jctx for each unfeasible schedulingKey.
 				sctx.UnfeasibleSchedulingKeys[schedulingKey] = jctx

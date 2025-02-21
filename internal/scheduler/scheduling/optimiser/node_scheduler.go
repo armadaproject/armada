@@ -28,6 +28,14 @@ func (n *NodeScheduler) Schedule(schedContext *SchedulingContext, jctx *context.
 	queues := map[string][]*runPreemptionInfo{}
 	met, _, err := nodedb.StaticJobRequirementsMet(node, jctx)
 
+	availableResource := node.AllocatableByPriority[internaltypes.EvictedPriority]
+	if !jctx.Job.AllResourceRequirements().Exceeds(availableResource) {
+		return &nodeSchedulingResult{
+			jctx:      jctx,
+			scheduled: true,
+		}, nil
+	}
+
 	if err != nil {
 		return nil, err
 	}
@@ -46,7 +54,7 @@ func (n *NodeScheduler) Schedule(schedContext *SchedulingContext, jctx *context.
 			// Don't evict non-preemptible jobs
 			continue
 		}
-		if n.maximumJobSizeToPreempt != nil && job.AllResourceRequirements().Exceeds(*n.maximumJobSizeToPreempt) {
+		if isTooLargeToEvict(job, n.maximumJobSizeToPreempt) {
 			// Don't evict jobs larger than the maximum size
 			continue
 		}
@@ -117,13 +125,6 @@ func (n *NodeScheduler) Schedule(schedContext *SchedulingContext, jctx *context.
 	}
 	sort.Sort(globalPreemptionOrder(allJobs))
 
-	availableResource := node.AllocatableByPriority[internaltypes.EvictedPriority]
-	if !jctx.Job.AllResourceRequirements().Exceeds(availableResource) {
-		return &nodeSchedulingResult{
-			scheduled: true,
-		}, nil
-	}
-
 	scheduled := false
 	totalCost := float64(0)
 	// TODO queue impact is confused
@@ -152,15 +153,40 @@ func (n *NodeScheduler) Schedule(schedContext *SchedulingContext, jctx *context.
 	if !scheduled {
 		return &nodeSchedulingResult{
 			scheduled: false,
+			jctx:      jctx,
 		}, nil
 	}
 
 	return &nodeSchedulingResult{
 		scheduled:        true,
+		jctx:             jctx,
 		node:             node,
 		schedulingCost:   totalCost,
 		jobIdsToPreempt:  jobsToPreempt,
 		queueCostChanges: queueCostChanges,
 		resultId:         util.NewULID(),
 	}, nil
+}
+
+func isTooLargeToEvict(job *jobdb.Job, limit *internaltypes.ResourceList) bool {
+	if limit == nil {
+		return false
+	}
+	if job == nil {
+		return true
+	}
+	jobResources := job.AllResourceRequirements()
+	if jobResources.Factory() != limit.Factory() {
+		return true
+	}
+	for i, resource := range limit.GetResources() {
+		if resource.Value.IsZero() {
+			continue
+		}
+		result := resource.Value.Cmp(jobResources.GetResources()[i].Value)
+		if result < 0 {
+			return true
+		}
+	}
+	return false
 }

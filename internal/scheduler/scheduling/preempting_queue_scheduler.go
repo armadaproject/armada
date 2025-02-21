@@ -35,7 +35,8 @@ type PreemptingQueueScheduler struct {
 	preferLargeJobOrdering       bool
 	jobRepo                      jobdb.JobRepository
 	nodeDb                       *nodedb.NodeDb
-	defragConfig                 *configuration.DefragConfig
+	optimiserConfig              *configuration.OptimiserConfig
+	optimiserEnabled             bool
 	// Maps job ids to the id of the node the job is associated with.
 	// For scheduled or running jobs, that is the node the job is assigned to.
 	// For preempted jobs, that is the node the job was preempted from.
@@ -60,7 +61,8 @@ func NewPreemptingQueueScheduler(
 	initialJobIdsByGangId map[string]map[string]bool,
 	initialGangIdByJobId map[string]string,
 	marketDriven bool,
-	defragConfig *configuration.DefragConfig,
+	optimiserConfig *configuration.OptimiserConfig,
+	optimiserEnabled bool,
 ) *PreemptingQueueScheduler {
 	if initialNodeIdByJobId == nil {
 		initialNodeIdByJobId = make(map[string]string)
@@ -88,7 +90,8 @@ func NewPreemptingQueueScheduler(
 		jobIdsByGangId:               initialJobIdsByGangId,
 		gangIdByJobId:                maps.Clone(initialGangIdByJobId),
 		marketDriven:                 marketDriven,
-		defragConfig:                 defragConfig,
+		optimiserConfig:              optimiserConfig,
+		optimiserEnabled:             optimiserEnabled,
 	}
 }
 
@@ -235,21 +238,35 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 		maps.Copy(sch.nodeIdByJobId, rescheduleSchedulerResult.NodeIdByJobId)
 	}
 
-	if sch.defragConfig != nil && sch.defragConfig.Enabled {
+	if sch.optimiserConfig != nil && sch.optimiserEnabled {
 		factory := sch.schedulingContext.TotalResources.Factory()
 		var maximumJobSizeToPreempt *internaltypes.ResourceList
-		if sch.defragConfig.MaximumJobSizeToPreempt != nil {
-			maxJobSize := factory.FromJobResourceListIgnoreUnknown(*sch.defragConfig.MaximumJobSizeToPreempt)
+		if sch.optimiserConfig.MaximumJobSizeToPreempt != nil {
+			maxJobSize := factory.FromJobResourceListIgnoreUnknown(*sch.optimiserConfig.MaximumJobSizeToPreempt)
 			maximumJobSizeToPreempt = &maxJobSize
 		}
+		var minimumJobSizeToSchedule *internaltypes.ResourceList
+		if sch.optimiserConfig.MinimumJobSizeToSchedule != nil {
+			minJobSize := factory.FromJobResourceListIgnoreUnknown(*sch.optimiserConfig.MinimumJobSizeToSchedule)
+			minimumJobSizeToSchedule = &minJobSize
+		}
 
-		nodeScheduler := optimiser.NewFairnessOptimisingScheduler(sch.jobRepo, sch.nodeDb, sch.defragConfig.FairnessImprovementThreshold, maximumJobSizeToPreempt)
-		defragQueueScheduler := NewDefragQueueScheduler(sch.jobRepo, nodeScheduler, sch.maxQueueLookBack)
-		defragSchedulerResult, err := defragQueueScheduler.Schedule(ctx, sch.schedulingContext)
+		nodeScheduler := optimiser.NewNodeScheduler(sch.jobRepo, maximumJobSizeToPreempt)
+		optimisingScheduler := optimiser.NewFairnessOptimisingScheduler(nodeScheduler, sch.jobRepo, sch.nodeDb, sch.optimiserConfig.FairnessImprovementThreshold)
+		optimisingQueueScheduler := NewOptimisingQueueScheduler(
+			sch.jobRepo,
+			optimisingScheduler,
+			sch.constraints,
+			sch.floatingResourceTypes,
+			sch.maxQueueLookBack,
+			minimumJobSizeToSchedule,
+			sch.optimiserConfig.MaximumJobsPerRound,
+			sch.optimiserConfig.MaximumResourceFractionToSchedule)
+		optimisingSchedulerResult, err := optimisingQueueScheduler.Schedule(ctx, sch.schedulingContext)
 		if err != nil {
 			return nil, err
 		}
-		for _, jctx := range defragSchedulerResult.ScheduledJobs {
+		for _, jctx := range optimisingSchedulerResult.ScheduledJobs {
 			if _, ok := preemptedJobsById[jctx.JobId]; ok {
 				// TODO Should this ever happen? We shouldn't ever be rescheduling evicted jobs here
 				delete(preemptedJobsById, jctx.JobId)
@@ -257,7 +274,7 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 				scheduledJobsById[jctx.JobId] = jctx
 			}
 		}
-		for _, jctx := range defragSchedulerResult.PreemptedJobs {
+		for _, jctx := range optimisingSchedulerResult.PreemptedJobs {
 			if _, ok := scheduledJobsById[jctx.JobId]; ok {
 				// Scheduled and preempted in same round, no need to actually preempt the job
 				delete(scheduledJobsById, jctx.JobId)
@@ -266,7 +283,7 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 			}
 		}
 
-		maps.Copy(sch.nodeIdByJobId, defragSchedulerResult.NodeIdByJobId)
+		maps.Copy(sch.nodeIdByJobId, optimisingSchedulerResult.NodeIdByJobId)
 	}
 
 	preemptedJobs := maps.Values(preemptedJobsById)

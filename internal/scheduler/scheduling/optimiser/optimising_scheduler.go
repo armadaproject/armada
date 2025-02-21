@@ -13,26 +13,23 @@ import (
 )
 
 type FairnessOptimisingScheduler struct {
-	nodeScheduler                NodeScheduler
+	nodeScheduler                *NodeScheduler
 	jobDb                        jobdb.JobRepository
 	nodeDb                       *nodedb.NodeDb
 	factory                      *internaltypes.ResourceListFactory
 	fairnessImprovementThreshold float64
-	maximumJobSizeToPreempt      *internaltypes.ResourceList
 }
 
 func NewFairnessOptimisingScheduler(
-	nodeScheduler NodeScheduler,
+	nodeScheduler *NodeScheduler,
 	jobDb jobdb.JobRepository,
 	nodeDb *nodedb.NodeDb,
-	fairnessImprovementThreshold float64,
-	maximumJobSizeToPreempt *internaltypes.ResourceList) *FairnessOptimisingScheduler {
+	fairnessImprovementThreshold float64) *FairnessOptimisingScheduler {
 	return &FairnessOptimisingScheduler{
 		nodeScheduler:                nodeScheduler,
 		nodeDb:                       nodeDb,
 		jobDb:                        jobDb,
 		fairnessImprovementThreshold: fairnessImprovementThreshold,
-		maximumJobSizeToPreempt:      maximumJobSizeToPreempt,
 	}
 }
 
@@ -178,24 +175,25 @@ func (n *FairnessOptimisingScheduler) updateState(result *schedulingResult, sctx
 		}
 
 		preemptedJobs := make([]*context.JobSchedulingContext, 0, len(jobsToPreempt))
-		allPreemptedJobs = append(allPreemptedJobs, preemptedJobs...)
 		for _, jobToPreempt := range jobsToPreempt {
-			jctx := context.JobSchedulingContextFromJob(jobToPreempt)
-			jctx.PreemptingJobId = jctx.JobId
-			jctx.PreemptionDescription = fmt.Sprintf("Preempted by scheduler using fairness optimiser - preempting job %s", jctx.JobId)
-			preemptedJobs = append(preemptedJobs, jctx)
+			preemptedJctx := context.JobSchedulingContextFromJob(jobToPreempt)
+			preemptedJctx.PreemptingJobId = preemptedJctx.JobId
+			preemptedJctx.PreemptionDescription = fmt.Sprintf("Preempted by scheduler using fairness optimiser - preempting job %s", jctx.JobId)
+			preemptedJobs = append(preemptedJobs, preemptedJctx)
 
-			_, err = sctx.PreemptJob(jctx)
+			_, err = sctx.PreemptJob(preemptedJctx)
 			if err != nil {
 				return nil, err
 			}
 		}
+		allPreemptedJobs = append(allPreemptedJobs, preemptedJobs...)
 
 		pctx := &context.PodSchedulingContext{
 			Created:             time.Now(),
 			ScheduledAtPriority: jctx.Job.PriorityClass().Priority,
 			PreemptedAtPriority: internaltypes.MinPriority,
 			NumNodes:            n.nodeDb.NumNodes(),
+			NodeId:              node.GetId(),
 			SchedulingMethod:    context.ScheduledWithFairnessOptimiser,
 		}
 		jctx.PodSchedulingContext = pctx

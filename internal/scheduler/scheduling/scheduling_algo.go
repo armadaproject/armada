@@ -52,7 +52,8 @@ type FairSchedulingAlgo struct {
 	// Global job scheduling rate-limiter.
 	limiter *rate.Limiter
 	// Per-queue job scheduling rate-limiters.
-	limiterByQueue map[string]*rate.Limiter
+	limiterByQueue               map[string]*rate.Limiter
+	lastOptimiserRoundTimeByPool map[string]time.Time
 	// Max amount of time each scheduling round is allowed to take.
 	maxSchedulingDuration time.Duration
 	clock                 clock.Clock
@@ -78,18 +79,19 @@ func NewFairSchedulingAlgo(
 		)
 	}
 	return &FairSchedulingAlgo{
-		schedulingConfig:            config,
-		executorRepository:          executorRepository,
-		queueCache:                  queueCache,
-		queueMultiplierProvider:     queueMultiplierProvider,
-		queueOverrideProvider:       queueOverrideProvider,
-		schedulingContextRepository: schedulingContextRepository,
-		limiter:                     rate.NewLimiter(rate.Limit(config.MaximumSchedulingRate), config.MaximumSchedulingBurst),
-		limiterByQueue:              make(map[string]*rate.Limiter),
-		maxSchedulingDuration:       maxSchedulingDuration,
-		clock:                       clock.RealClock{},
-		resourceListFactory:         resourceListFactory,
-		floatingResourceTypes:       floatingResourceTypes,
+		schedulingConfig:             config,
+		executorRepository:           executorRepository,
+		queueCache:                   queueCache,
+		queueMultiplierProvider:      queueMultiplierProvider,
+		queueOverrideProvider:        queueOverrideProvider,
+		schedulingContextRepository:  schedulingContextRepository,
+		limiter:                      rate.NewLimiter(rate.Limit(config.MaximumSchedulingRate), config.MaximumSchedulingBurst),
+		limiterByQueue:               make(map[string]*rate.Limiter),
+		lastOptimiserRoundTimeByPool: make(map[string]time.Time, len(config.Pools)),
+		maxSchedulingDuration:        maxSchedulingDuration,
+		clock:                        clock.RealClock{},
+		resourceListFactory:          resourceListFactory,
+		floatingResourceTypes:        floatingResourceTypes,
 	}, nil
 }
 
@@ -576,10 +578,23 @@ func (l *FairSchedulingAlgo) SchedulePool(
 
 	constraints := schedulerconstraints.NewSchedulingConstraints(pool, totalResources, l.schedulingConfig, maps.Values(fsctx.queues))
 
-	var defragConfig *configuration.DefragConfig
+	var optimiserConfig *configuration.OptimiserConfig
+	shouldRunOptimiser := false
 	for _, poolConfig := range l.schedulingConfig.Pools {
 		if poolConfig.Name == pool {
-			defragConfig = poolConfig.Defrag
+			optimiserConfig = poolConfig.Optimiser
+			if optimiserConfig.Enabled {
+				timeOfLastOptimiserRun, ok := l.lastOptimiserRoundTimeByPool[pool]
+				if !ok {
+					shouldRunOptimiser = true
+				} else {
+					timeSinceLastRun := l.clock.Since(timeOfLastOptimiserRun)
+					if timeSinceLastRun > optimiserConfig.Interval {
+						shouldRunOptimiser = true
+					}
+				}
+			}
+			break
 		}
 	}
 
@@ -597,7 +612,8 @@ func (l *FairSchedulingAlgo) SchedulePool(
 		fsctx.jobIdsByGangId,
 		fsctx.gangIdByJobId,
 		marketDriven,
-		defragConfig,
+		optimiserConfig,
+		shouldRunOptimiser,
 	)
 
 	ctx.Infof("Scheduling on pool %s with capacity %s protectedFractionOfFairShare %f",
@@ -649,6 +665,9 @@ func (l *FairSchedulingAlgo) SchedulePool(
 	} else {
 		price := l.calculateFairShareDrivenSpotPrice(fsctx.schedulingContext, l.schedulingConfig.ExperimentalIndicativePricing.BasePrice, l.schedulingConfig.ExperimentalIndicativePricing.BasePriority)
 		fsctx.schedulingContext.SpotPrice = price
+	}
+	if shouldRunOptimiser {
+		l.lastOptimiserRoundTimeByPool[pool] = l.clock.Now()
 	}
 
 	return result, fsctx.schedulingContext, nil
