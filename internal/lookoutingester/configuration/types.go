@@ -8,7 +8,7 @@ import (
 	"github.com/armadaproject/armada/internal/server/configuration"
 )
 
-type LookoutIngesterV2Configuration struct {
+type LookoutIngesterConfiguration struct {
 	// Database configuration
 	Postgres configuration.PostgresConfig
 	// Metrics configuration

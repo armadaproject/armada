@@ -1,4 +1,4 @@
-package lookoutingesterv2
+package lookoutingester
 
 import (
 	"regexp"
@@ -15,17 +15,17 @@ import (
 	"github.com/armadaproject/armada/internal/common/ingest/jobsetevents"
 	log "github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/profiling"
-	"github.com/armadaproject/armada/internal/lookoutingesterv2/configuration"
-	"github.com/armadaproject/armada/internal/lookoutingesterv2/instructions"
-	"github.com/armadaproject/armada/internal/lookoutingesterv2/lookoutdb"
-	"github.com/armadaproject/armada/internal/lookoutingesterv2/metrics"
-	"github.com/armadaproject/armada/internal/lookoutingesterv2/model"
+	"github.com/armadaproject/armada/internal/lookoutingester/configuration"
+	"github.com/armadaproject/armada/internal/lookoutingester/instructions"
+	"github.com/armadaproject/armada/internal/lookoutingester/lookoutdb"
+	"github.com/armadaproject/armada/internal/lookoutingester/metrics"
+	"github.com/armadaproject/armada/internal/lookoutingester/model"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 // Run will create a pipeline that will take Armada event messages from Pulsar and update the
 // Lookout database accordingly.  This pipeline will run until a SIGTERM is received
-func Run(config *configuration.LookoutIngesterV2Configuration) {
+func Run(config *configuration.LookoutIngesterConfiguration) {
 	log.Infof("Opening connection pool to postgres")
 	m := metrics.Get()
 	db, err := database.OpenPgxPool(config.Postgres)

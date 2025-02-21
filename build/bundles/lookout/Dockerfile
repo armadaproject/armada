@@ -11,10 +11,10 @@ USER armada
 # Logging (shared between both components)
 COPY config/logging.yaml /app/config/logging.yaml
 
-COPY config/lookoutingesterv2/config.yaml /app/config/lookoutingesterv2/config.yaml
+COPY config/lookoutingester/config.yaml /app/config/lookoutingester/config.yaml
 
 COPY config/lookout/config.yaml /app/config/lookout/config.yaml
 
-COPY lookoutingesterv2 lookout /app/
+COPY lookoutingester lookout /app/
 
 WORKDIR /app

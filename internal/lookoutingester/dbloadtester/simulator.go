@@ -16,11 +16,11 @@ import (
 	"github.com/armadaproject/armada/internal/common/ingest"
 	"github.com/armadaproject/armada/internal/common/ingest/utils"
 	log "github.com/armadaproject/armada/internal/common/logging"
-	"github.com/armadaproject/armada/internal/lookoutingesterv2/configuration"
-	"github.com/armadaproject/armada/internal/lookoutingesterv2/instructions"
-	"github.com/armadaproject/armada/internal/lookoutingesterv2/lookoutdb"
-	"github.com/armadaproject/armada/internal/lookoutingesterv2/metrics"
-	"github.com/armadaproject/armada/internal/lookoutingesterv2/model"
+	"github.com/armadaproject/armada/internal/lookoutingester/configuration"
+	"github.com/armadaproject/armada/internal/lookoutingester/instructions"
+	"github.com/armadaproject/armada/internal/lookoutingester/lookoutdb"
+	"github.com/armadaproject/armada/internal/lookoutingester/metrics"
+	"github.com/armadaproject/armada/internal/lookoutingester/model"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 	clientUtil "github.com/armadaproject/armada/pkg/client/util"
 )
@@ -53,7 +53,7 @@ type Results struct {
 	TotalEventsProcessed     int
 }
 
-func Setup(lookoutIngesterConfig configuration.LookoutIngesterV2Configuration, testConfig Config) *LoadTester {
+func Setup(lookoutIngesterConfig configuration.LookoutIngesterConfiguration, testConfig Config) *LoadTester {
 	m := metrics.Get()
 
 	db, err := database.OpenPgxPool(lookoutIngesterConfig.Postgres)

@@ -2,7 +2,7 @@ package configuration
 
 import "github.com/go-playground/validator/v10"
 
-func (c LookoutIngesterV2Configuration) Validate() error {
+func (c LookoutIngesterConfiguration) Validate() error {
 	validate := validator.New()
 	return validate.Struct(c)
 }

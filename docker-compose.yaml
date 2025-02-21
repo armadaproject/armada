@@ -61,7 +61,7 @@ services:
     depends_on:
       - lookout-migration
       - eventingester
-      - lookoutingesterv2
+      - lookoutingester
     working_dir: /app
     env_file:
       - developer/env/docker/server.env
@@ -177,7 +177,7 @@ services:
       - "10000:10000"
       - "4005:4000"
     depends_on:
-      - lookoutingesterv2
+      - lookoutingester
     volumes:
       - "./internal/lookoutui/build:/app/internal/lookoutui/build"
       - "go-cache:/root/.cache/go-build:rw"
@@ -202,8 +202,8 @@ services:
     working_dir: "/app"
     entrypoint: ./lookout --migrateDatabase
 
-  lookoutingesterv2:
-    container_name: lookoutingesterv2
+  lookoutingester:
+    container_name: lookoutingester
     image: ${ARMADA_IMAGE:-gresearch/armada-lookout-bundle}:${ARMADA_IMAGE_TAG:-latest}
     ports:
       - 4007:4000
@@ -215,7 +215,7 @@ services:
     env_file:
       - developer/env/docker/lookout.env
     working_dir: /app
-    command: ./lookoutingesterv2
+    command: ./lookoutingester
 
   airflow:
     container_name: airflow

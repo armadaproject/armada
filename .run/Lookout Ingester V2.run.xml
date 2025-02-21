@@ -12,7 +12,7 @@
     <kind value="FILE" />
     <package value="$PROJECT_DIR$/cmd/lookout/main.go" />
     <directory value="$PROJECT_DIR$" />
-    <filePath value="$PROJECT_DIR$/cmd/lookoutingesterv2/main.go" />
+    <filePath value="$PROJECT_DIR$/cmd/lookoutingester/main.go" />
     <method v="2" />
   </configuration>
 </component>

@@ -8,10 +8,10 @@ LABEL org.opencontainers.image.url=https://hub.docker.com/r/gresearch/lookouting
 RUN addgroup -S -g 2000 armada && adduser -S -u 1000 armada -G armada
 USER armada
 
-COPY lookoutingesterv2 /app/
-COPY config/lookoutingesterv2/config.yaml /app/config/lookoutingesterv2/config.yaml
+COPY lookoutingester /app/
+COPY config/lookoutingester/config.yaml /app/config/lookoutingester/config.yaml
 COPY config/logging.yaml /app/config/logging.yaml
 
 WORKDIR /app
 
-ENTRYPOINT ["./lookoutingesterv2"]
+ENTRYPOINT ["./lookoutingester"]
