@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/maps"
+	"golang.org/x/exp/slices"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
@@ -111,6 +112,33 @@ func TestSelectNodeForPod_NodeIdLabel_Failure(t *testing.T) {
 		assert.Equal(t, "", pctx.NodeId)
 		assert.Equal(t, 1, len(pctx.NumExcludedNodesByReason))
 	}
+}
+
+func TestGetNodes(t *testing.T) {
+	node1 := testfixtures.Test8GpuNode(testfixtures.TestPriorities)
+	node2 := testfixtures.Test8GpuNode(testfixtures.TestPriorities)
+	nodeDb, err := newNodeDbWithNodes([]*internaltypes.Node{node1, node2})
+	require.NoError(t, err)
+	nodes, err := nodeDb.GetNodes()
+	require.NoError(t, err)
+
+	assert.Len(t, nodes, 2)
+	assert.True(t, slices.Contains(nodes, node1))
+	assert.True(t, slices.Contains(nodes, node2))
+}
+
+func TestGetNodesWithTxn(t *testing.T) {
+	node1 := testfixtures.Test8GpuNode(testfixtures.TestPriorities)
+	node2 := testfixtures.Test8GpuNode(testfixtures.TestPriorities)
+	nodeDb, err := newNodeDbWithNodes([]*internaltypes.Node{node1, node2})
+	require.NoError(t, err)
+	txn := nodeDb.Txn(true)
+	nodes, err := nodeDb.GetNodesWithTxn(txn)
+	require.NoError(t, err)
+
+	assert.Len(t, nodes, 2)
+	assert.True(t, slices.Contains(nodes, node1))
+	assert.True(t, slices.Contains(nodes, node2))
 }
 
 func TestNodeBindingEvictionUnbinding(t *testing.T) {

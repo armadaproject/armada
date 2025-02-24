@@ -41,6 +41,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/leader"
 	"github.com/armadaproject/armada/internal/scheduler/metrics"
 	"github.com/armadaproject/armada/internal/scheduler/prioritymultiplier"
+	"github.com/armadaproject/armada/internal/scheduler/priorityoverride"
 	"github.com/armadaproject/armada/internal/scheduler/queue"
 	"github.com/armadaproject/armada/internal/scheduler/reports"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling"
@@ -134,6 +135,11 @@ func Run(config schedulerconfig.Configuration) error {
 	}
 	services = append(services, func() error { return queueCache.Run(ctx) })
 
+	// We don't allow users to enable both  priority multipliers and priority overrides
+	if config.PriorityOverride.Enabled && config.PriorityMultiplier.Enabled {
+		return errors.Errorf("Illegal configuration detected. PriorityOverrides and PriorityMultipliers are mutually exclusive")
+	}
+
 	// ////////////////////////////////////////////////////////////////////////
 	// Priority Multiplier
 	// ////////////////////////////////////////////////////////////////////////
@@ -147,6 +153,21 @@ func Run(config schedulerconfig.Configuration) error {
 		provider := prioritymultiplier.NewServiceProvider(priorityMultiplierClient, config.PriorityMultiplier.UpdateFrequency)
 		services = append(services, func() error { return provider.Run(ctx) })
 		priorityMultiplierProvider = provider
+	}
+
+	// ////////////////////////////////////////////////////////////////////////
+	// Priority override
+	// ////////////////////////////////////////////////////////////////////////
+	priorityOverrideProvider := priorityoverride.NewNoOpProvider()
+	if config.PriorityOverride.Enabled {
+		ctx.Infof("Priority Override Service configured, will fetch overrides from %s", config.PriorityOverride.ServiceUrl)
+		priorityOverrideClient, err := priorityoverride.NewServiceClient(config.PriorityOverride)
+		if err != nil {
+			return errors.WithMessage(err, "Error creating priority override client")
+		}
+		provider := priorityoverride.NewServiceProvider(priorityOverrideClient, config.PriorityOverride.UpdateFrequency)
+		services = append(services, func() error { return provider.Run(ctx) })
+		priorityOverrideProvider = provider
 	}
 
 	// ////////////////////////////////////////////////////////////////////////
@@ -288,6 +309,7 @@ func Run(config schedulerconfig.Configuration) error {
 		resourceListFactory,
 		floatingResourceTypes,
 		priorityMultiplierProvider,
+		priorityOverrideProvider,
 	)
 	if err != nil {
 		return errors.WithMessage(err, "error creating scheduling algo")
