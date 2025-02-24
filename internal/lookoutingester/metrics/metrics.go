@@ -12,7 +12,7 @@ import (
 // Lookout ingester specific metrics
 var avRowChangeTimeHist = promauto.NewHistogram(
 	prometheus.HistogramOpts{
-		Name:    metrics.ArmadaLookoutIngesterV2MetricsPrefix + "average_row_change_time",
+		Name:    metrics.ArmadaLookoutIngesterMetricsPrefix + "average_row_change_time",
 		Help:    "Average time take in milliseconds to change one database row",
 		Buckets: []float64{0.1, 0.2, 0.5, 1, 2, 3, 5, 7, 10, 15, 25, 50, 100, 1000},
 	},
@@ -20,7 +20,7 @@ var avRowChangeTimeHist = promauto.NewHistogram(
 
 var avRowChangeTimeByOperationHist = promauto.NewHistogramVec(
 	prometheus.HistogramOpts{
-		Name:    metrics.ArmadaLookoutIngesterV2MetricsPrefix + "average_row_change_time_by_operation",
+		Name:    metrics.ArmadaLookoutIngesterMetricsPrefix + "average_row_change_time_by_operation",
 		Help:    "Average time take in milliseconds to change one database row",
 		Buckets: []float64{0.1, 0.2, 0.5, 1, 2, 3, 5, 7, 10, 15, 25, 50, 100, 1000},
 	},
@@ -29,7 +29,7 @@ var avRowChangeTimeByOperationHist = promauto.NewHistogramVec(
 
 var rowsChangedCounter = promauto.NewCounterVec(
 	prometheus.CounterOpts{
-		Name: metrics.ArmadaLookoutIngesterV2MetricsPrefix + "rows_changed",
+		Name: metrics.ArmadaLookoutIngesterMetricsPrefix + "rows_changed",
 		Help: "Number of rows changed in the database",
 	},
 	[]string{"table", "operation"},
@@ -40,7 +40,7 @@ type Metrics struct {
 }
 
 var m = &Metrics{
-	metrics.NewMetrics(metrics.ArmadaLookoutIngesterV2MetricsPrefix),
+	metrics.NewMetrics(metrics.ArmadaLookoutIngesterMetricsPrefix),
 }
 
 func Get() *Metrics {

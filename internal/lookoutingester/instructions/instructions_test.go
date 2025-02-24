@@ -20,8 +20,8 @@ import (
 	"github.com/armadaproject/armada/internal/common/ingest/utils"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
-	"github.com/armadaproject/armada/internal/lookoutingesterv2/metrics"
-	"github.com/armadaproject/armada/internal/lookoutingesterv2/model"
+	"github.com/armadaproject/armada/internal/lookoutingester/metrics"
+	"github.com/armadaproject/armada/internal/lookoutingester/model"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )

@@ -25,8 +25,8 @@ USER armada
 COPY --from=NODE /lookoutui/build/ /app/internal/lookoutui/build
 COPY lookout /app/
 COPY config/lookout/config.yaml /app/config/lookout/config.yaml
-COPY lookoutingesterv2 /app/
-COPY config/lookoutingesterv2/ /app/config/lookoutingesterv2
+COPY lookoutingester /app/
+COPY config/lookoutingester/ /app/config/lookoutingester
 COPY config/logging.yaml /app/config/logging.yaml
 WORKDIR /app
 ENTRYPOINT ["./lookout"]

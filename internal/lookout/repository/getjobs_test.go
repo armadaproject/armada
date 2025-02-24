@@ -18,9 +18,9 @@ import (
 	"github.com/armadaproject/armada/internal/common/database/lookout"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/lookout/model"
-	"github.com/armadaproject/armada/internal/lookoutingesterv2/instructions"
-	"github.com/armadaproject/armada/internal/lookoutingesterv2/lookoutdb"
-	"github.com/armadaproject/armada/internal/lookoutingesterv2/metrics"
+	"github.com/armadaproject/armada/internal/lookoutingester/instructions"
+	"github.com/armadaproject/armada/internal/lookoutingester/lookoutdb"
+	"github.com/armadaproject/armada/internal/lookoutingester/metrics"
 )
 
 const (
