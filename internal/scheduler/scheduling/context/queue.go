@@ -39,9 +39,9 @@ type QueueSchedulingContext struct {
 	// Total demand from this queue.  This is essentially the cumulative resources of all non-terminal jobs at the
 	// start of the scheduling cycle
 	Demand internaltypes.ResourceList
-	// Capped Demand for this queue. This differs from Demand in that it takes into account any limits that we have
+	// Constrained demand for this queue. This differs from Demand in that it takes into account any constraints that we have
 	// placed on the queue
-	CappedDemand internaltypes.ResourceList
+	ConstrainedDemand internaltypes.ResourceList
 	// Fair share is the weight of this queue over the sum of the weights of all queues
 	FairShare float64
 	// AdjustedFairShare modifies fair share such that queues that have a demand cost less than their fair share, have their fair share reallocated.
