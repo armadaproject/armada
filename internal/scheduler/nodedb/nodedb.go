@@ -323,6 +323,27 @@ func (nodeDb *NodeDb) GetNodeWithTxn(txn *memdb.Txn, id string) (*internaltypes.
 	return obj.(*internaltypes.Node), nil
 }
 
+func (nodeDb *NodeDb) GetNodes() ([]*internaltypes.Node, error) {
+	return nodeDb.GetNodesWithTxn(nodeDb.Txn(false))
+}
+
+// GetNodesWithTxn returns all nodes in the nodeDb
+func (nodeDb *NodeDb) GetNodesWithTxn(txn *memdb.Txn) ([]*internaltypes.Node, error) {
+	it, err := txn.Get("nodes", "id")
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	nodes := []*internaltypes.Node{}
+	for obj := it.Next(); obj != nil; obj = it.Next() {
+		node := obj.(*internaltypes.Node)
+		if node == nil {
+			break
+		}
+		nodes = append(nodes, node)
+	}
+	return nodes, nil
+}
+
 func (nodeDb *NodeDb) ScheduleManyWithTxn(txn *memdb.Txn, gctx *context.GangSchedulingContext) (bool, error) {
 	// Attempt to schedule pods one by one in a transaction.
 	for _, jctx := range gctx.JobSchedulingContexts {

@@ -132,7 +132,7 @@ func protoGenerate() error {
 	err = sh.Run(
 		"swagger", "generate", "spec",
 		"-m", "-o", "pkg/api/api.swagger.definitions.json",
-		"-x", "internal/lookoutv2",
+		"-x", "internal/lookout",
 	)
 	if err != nil {
 		return err

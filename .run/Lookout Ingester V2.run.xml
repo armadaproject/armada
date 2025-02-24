@@ -10,7 +10,7 @@
       <env name="ARMADA_PULSAR_URL" value="pulsar://localhost:6650" />
     </envs>
     <kind value="FILE" />
-    <package value="$PROJECT_DIR$/cmd/lookoutv2/main.go" />
+    <package value="$PROJECT_DIR$/cmd/lookout/main.go" />
     <directory value="$PROJECT_DIR$" />
     <filePath value="$PROJECT_DIR$/cmd/lookoutingesterv2/main.go" />
     <method v="2" />

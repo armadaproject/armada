@@ -68,9 +68,9 @@ builds:
     goarch:
       - amd64
   - env: [CGO_ENABLED=0]
-    id: lookoutv2
-    binary: lookoutv2
-    main: ./cmd/lookoutv2/main.go
+    id: lookout
+    binary: lookout
+    main: ./cmd/lookout/main.go
     mod_timestamp: '{{ .CommitTimestamp }}'
     goos:
       - linux
@@ -215,11 +215,11 @@ dockers:
       - "{{ .Env.DOCKER_REPO }}armada-lookout-bundle:{{ .Version }}"
     build_flag_templates: *BUILD_FLAG_TEMPLATES
     ids:
-      - lookoutv2
+      - lookout
       - lookoutingesterv2
     extra_files:
       - config/logging.yaml
-      - config/lookoutv2/config.yaml
+      - config/lookout/config.yaml
       - config/lookoutingesterv2/config.yaml
       - internal/lookoutui
       - pkg/api/api.swagger.json
@@ -243,7 +243,7 @@ dockers:
       - armadactl
       - scheduler
       - scheduleringester
-      - lookoutv2
+      - lookout
       - lookoutingesterv2
       - fakeexecutor
     extra_files:
@@ -254,7 +254,7 @@ dockers:
       - config/eventingester/config.yaml
       - config/scheduler/config.yaml
       - config/scheduleringester/config.yaml
-      - config/lookoutv2/config.yaml
+      - config/lookout/config.yaml
       - config/lookoutingesterv2/config.yaml
       - internal/lookoutui
       - pkg/api/api.swagger.json
@@ -346,7 +346,7 @@ dockers:
       - config/logging.yaml
     dockerfile: ./build/lookoutingesterv2/Dockerfile
 
-  - id: lookoutv2
+  - id: lookout
     use: buildx
     goos: linux
     goarch: amd64
@@ -355,17 +355,17 @@ dockers:
       - "{{ .Env.DOCKER_REPO }}armada-lookout-v2:{{ .Version }}"
     build_flag_templates: *BUILD_FLAG_TEMPLATES
     ids:
-      - lookoutv2
+      - lookout
       - lookoutingesterv2
     extra_files:
       - internal/lookoutui
       - pkg/api/api.swagger.json
       - pkg/api/binoculars/api.swagger.json
       - pkg/api/schedulerobjects/api.swagger.json
-      - config/lookoutv2/config.yaml
+      - config/lookout/config.yaml
       - config/lookoutingesterv2/config.yaml
       - config/logging.yaml
-    dockerfile: ./build/lookoutv2/Dockerfile
+    dockerfile: ./build/lookout/Dockerfile
 
   - id: eventingester
     use: buildx
@@ -500,7 +500,7 @@ release:
     #### Armada Executor
     - `docker pull {{ .Env.DOCKER_REPO }}armada-executor:{{ .Version }}`
     - `docker pull {{ .Env.DOCKER_REPO }}armada-executor:latest`
-    #### Armada Lookout V2
+    #### Armada Lookout
     - `docker pull {{ .Env.DOCKER_REPO }}armada-lookout-v2:{{ .Version }}`
     - `docker pull {{ .Env.DOCKER_REPO }}armada-lookout-v2:latest`
     #### Armada Lookout Ingester V2
