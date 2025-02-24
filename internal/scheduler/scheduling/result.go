@@ -5,6 +5,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
+	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 )
 
@@ -30,6 +31,10 @@ type PerPoolSchedulingStats struct {
 	LoopNumber int
 	// Result of any eviction in this cycle
 	EvictorResult *EvictorResult
+	// Value of ProtectedFractionOfFairShare from config
+	ProtectedFractionOfFairShare float64
+	// The nodeDb used in the scheduling round
+	NodeDb *nodedb.NodeDb
 }
 
 // SchedulerResult is returned by Rescheduler.Schedule().

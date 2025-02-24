@@ -323,6 +323,27 @@ func (nodeDb *NodeDb) GetNodeWithTxn(txn *memdb.Txn, id string) (*internaltypes.
 	return obj.(*internaltypes.Node), nil
 }
 
+func (nodeDb *NodeDb) GetNodes() ([]*internaltypes.Node, error) {
+	return nodeDb.GetNodesWithTxn(nodeDb.Txn(false))
+}
+
+// GetNodesWithTxn returns all nodes in the nodeDb
+func (nodeDb *NodeDb) GetNodesWithTxn(txn *memdb.Txn) ([]*internaltypes.Node, error) {
+	it, err := txn.Get("nodes", "id")
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	nodes := []*internaltypes.Node{}
+	for obj := it.Next(); obj != nil; obj = it.Next() {
+		node := obj.(*internaltypes.Node)
+		if node == nil {
+			break
+		}
+		nodes = append(nodes, node)
+	}
+	return nodes, nil
+}
+
 func (nodeDb *NodeDb) ScheduleManyWithTxn(txn *memdb.Txn, gctx *context.GangSchedulingContext) (bool, error) {
 	// Attempt to schedule pods one by one in a transaction.
 	for _, jctx := range gctx.JobSchedulingContexts {
@@ -820,22 +841,16 @@ func (nodeDb *NodeDb) bindJobToNodeInPlace(node *internaltypes.Node, job *jobdb.
 //     the jobs' priorities to evictedPriority; they are not subtracted from AllocatedByJobId and
 //     AllocatedByQueue.
 func (nodeDb *NodeDb) EvictJobsFromNode(
-	jobFilter func(*jobdb.Job) bool,
 	jobs []*jobdb.Job,
 	node *internaltypes.Node,
-) ([]*jobdb.Job, *internaltypes.Node, error) {
-	evicted := make([]*jobdb.Job, 0)
+) (*internaltypes.Node, error) {
 	node = node.DeepCopyNilKeys()
 	for _, job := range jobs {
-		if jobFilter != nil && !jobFilter(job) {
-			continue
-		}
-		evicted = append(evicted, job)
 		if err := nodeDb.evictJobFromNodeInPlace(job, node); err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 	}
-	return evicted, node, nil
+	return node, nil
 }
 
 // evictJobFromNodeInPlace is the in-place operation backing EvictJobsFromNode.

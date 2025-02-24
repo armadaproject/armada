@@ -15,6 +15,7 @@ import (
 	log "github.com/armadaproject/armada/internal/common/logging"
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
+	"github.com/armadaproject/armada/internal/common/util"
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
@@ -263,4 +264,34 @@ func PrintJobSummary(ctx *armadacontext.Context, prefix string, jctxs []*JobSche
 
 	ctx.Infof("%s %s", prefix, summary)
 	ctx.Debugf("%s %s", prefix, verbose)
+}
+
+// PrintJobSchedulingDetails prints details of where jobs were scheduled
+// It will log the first 100 at info level, and all at debug level
+func PrintJobSchedulingDetails(ctx *armadacontext.Context, prefix string, evictedJctx []*JobSchedulingContext) {
+	if len(evictedJctx) == 0 {
+		return
+	}
+
+	type summary struct {
+		jobId             string
+		node              string
+		scheduledPriority int32
+	}
+
+	infoDisplayLimit := 100
+	infoDisplayLimit = util.Min(infoDisplayLimit, len(evictedJctx))
+
+	summaries := make([]summary, 0, len(evictedJctx))
+	for _, jctx := range evictedJctx {
+		podSummary := summary{jobId: jctx.JobId}
+		if jctx.PodSchedulingContext != nil {
+			podSummary.node = jctx.PodSchedulingContext.NodeId
+			podSummary.scheduledPriority = jctx.PodSchedulingContext.ScheduledAtPriority
+		}
+		summaries = append(summaries, podSummary)
+	}
+
+	ctx.Infof("%s - total %d, showing first %d -  %+v", prefix, len(evictedJctx), infoDisplayLimit, summaries[:infoDisplayLimit])
+	ctx.Debugf("%s - %+v", prefix, summaries)
 }

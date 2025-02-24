@@ -1,0 +1,20 @@
+syntax = "proto3";
+package api;
+option go_package = "pkg/priorityoverride";
+
+message PriorityOverrideRequest {
+  // Empty for now; future versions may include filtering parameters
+}
+
+message PoolPriorityOverrides {
+  string pool = 1;
+  map<string, double> overrides = 2;
+}
+
+message PriorityOverrideResponse {
+  repeated PoolPriorityOverrides poolPriorityOverrides = 1;
+}
+
+service PriorityOverrideService {
+  rpc GetPriorityOverrides (PriorityOverrideRequest) returns (PriorityOverrideResponse);
+}
