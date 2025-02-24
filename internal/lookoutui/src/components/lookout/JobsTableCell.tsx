@@ -300,7 +300,9 @@ export const BodyCell = ({ cell, rowIsGroup, rowIsExpanded, onExpandedChange, on
             : {
                 onFilter: () => {
                   cell.column.setFilterValue(
-                    columnMetadata.filterType === FilterType.Enum ? [cell.getValue()] : cell.getValue(),
+                    cell.column.id === StandardColumnId.Queue || columnMetadata.filterType === FilterType.Enum
+                      ? [cell.getValue()]
+                      : cell.getValue(),
                   )
                 },
               }

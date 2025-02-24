@@ -14,11 +14,11 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/database"
 	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/lookout/schema"
 	"github.com/armadaproject/armada/internal/lookoutingesterv2/configuration"
 	"github.com/armadaproject/armada/internal/lookoutingesterv2/lookoutdb"
 	"github.com/armadaproject/armada/internal/lookoutingesterv2/metrics"
 	"github.com/armadaproject/armada/internal/lookoutingesterv2/model"
-	"github.com/armadaproject/armada/internal/lookoutv2/schema"
 )
 
 func withDbBenchmark(b *testing.B, config configuration.LookoutIngesterV2Configuration, action func(b *testing.B, db *pgxpool.Pool)) {

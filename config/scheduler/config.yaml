@@ -29,6 +29,8 @@ armadaApi:
   forceNoTls: true
 priorityMultiplier:
   enabled: false
+priorityOverride:
+  enabled: false
 postgres:
   connection:
     host: postgres

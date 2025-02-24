@@ -13,8 +13,8 @@ COPY config/logging.yaml /app/config/logging.yaml
 
 COPY config/lookoutingesterv2/config.yaml /app/config/lookoutingesterv2/config.yaml
 
-COPY config/lookoutv2/config.yaml /app/config/lookoutv2/config.yaml
+COPY config/lookout/config.yaml /app/config/lookout/config.yaml
 
-COPY lookoutingesterv2 lookoutv2 /app/
+COPY lookoutingesterv2 lookout /app/
 
 WORKDIR /app
