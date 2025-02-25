@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/spf13/pflag"
@@ -19,7 +18,7 @@ func init() {
 	pflag.StringSlice(
 		"lookoutIngesterConfig",
 		[]string{},
-		"Fully qualified path to application configuration file (for multiple config files repeat this arg or separate paths with commas)",
+		"path to the configuration for the lookout ingester under test",
 	)
 	pflag.Parse()
 }
@@ -74,7 +73,7 @@ func main() {
 	if err != nil {
 		log.Warn("Failed to marshal lookout ingester config for report output")
 	}
-	fmt.Printf(
+	log.Infof(
 		ReportTemplate,
 		time.Now().Format("2006-01-02"),
 		loadtesterConfig.TotalJobs,
