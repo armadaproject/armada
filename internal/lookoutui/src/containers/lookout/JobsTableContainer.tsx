@@ -43,7 +43,7 @@ import { Sidebar } from "../../components/lookout/sidebar/Sidebar"
 import { useCustomSnackbar } from "../../hooks/useCustomSnackbar"
 import { columnIsAggregatable, useFetchJobsTableData } from "../../hooks/useJobsTableData"
 import { isJobGroupRow, JobRow, JobTableRow } from "../../models/jobsTableModels"
-import { Job, JobFilter, JobId, Match, SortDirection } from "../../models/lookoutModels"
+import { Job, JobFiltersWithExcludes, JobId, Match, SortDirection } from "../../models/lookoutModels"
 import { ICordonService } from "../../services/lookout/CordonService"
 import { CustomViewsService } from "../../services/lookout/CustomViewsService"
 import { IGetJobInfoService } from "../../services/lookout/GetJobInfoService"
@@ -68,7 +68,7 @@ import {
 } from "../../utils/jobsTableColumns"
 import {
   diffOfKeys,
-  getFiltersForRows,
+  getFiltersForRowsSelection,
   PendingData,
   pendingDataForAllVisibleData,
   updaterToValue,
@@ -641,12 +641,10 @@ export const JobsTableContainer = ({
   }
   const sideBarClose = () => setSidebarJobId(undefined)
 
-  const selectedItemsFilters: JobFilter[][] = useMemo(() => {
-    return Object.keys(selectedRows).map((rowId) => {
-      const { rowIdPartsPath } = fromRowId(rowId as RowId)
-      return getFiltersForRows(lookoutFilters, columnMatches, rowIdPartsPath)
-    })
-  }, [selectedRows, columnFilterState, lookoutFilters, allColumns])
+  const selectedItemsFilters: JobFiltersWithExcludes[] = useMemo(
+    () => getFiltersForRowsSelection(data, selectedRows, lookoutFilters, columnMatches),
+    [data, selectedRows, columnFilterState, lookoutFilters, allColumns],
+  )
 
   const table = useReactTable({
     data: data ?? [],
@@ -946,6 +944,7 @@ const JobsTableBody = ({
           onClickRow,
           onControlClickRow,
           onShiftClickRow,
+          dataIsLoading,
         ),
       )}
     </TableBody>
@@ -961,6 +960,7 @@ const recursiveRowRender = (
   onClickRow: (row: Row<JobTableRow>) => void,
   onControlClickRow: (row: Row<JobTableRow>) => void,
   onShiftClickRow: (row: Row<JobTableRow>) => void,
+  dataIsLoading: boolean,
 ): JSX.Element => {
   const original = row.original
   const rowIsGroup = isJobGroupRow(original)
@@ -1002,26 +1002,35 @@ const recursiveRowRender = (
             onClickRow,
             onControlClickRow,
             onShiftClickRow,
+            dataIsLoading,
           ),
         )}
 
       {/* Render pagination tools for this expanded row */}
-      {rowIsGroup && row.getIsExpanded() && (original.subRowCount ?? 0) > original.subRows.length && (
-        <TableRow
-          className={[styles.rowDepthIndicator, styles.loadMoreRow].join(" ")}
-          sx={{ backgroundSize: (row.depth + 1) * depthGaugeLevelThicknessPixels }}
-        >
-          <TableCell colSpan={row.getVisibleCells().length} align="center" size="small">
-            <Button
-              size="small"
-              variant="text"
-              onClick={() => onLoadMoreSubRows(row.id as RowId, original.subRows.length)}
-            >
-              Load more
-            </Button>
-          </TableCell>
-        </TableRow>
-      )}
+      {rowIsGroup &&
+        row.getIsExpanded() &&
+        (original.jobCount ?? 0) > original.subRows.length &&
+        original.subRows.length > 0 && (
+          <TableRow
+            className={[styles.rowDepthIndicator, styles.loadMoreRow].join(" ")}
+            sx={{ backgroundSize: (row.depth + 1) * depthGaugeLevelThicknessPixels }}
+          >
+            <TableCell colSpan={row.getVisibleCells().length} align="center" size="small">
+              <Button
+                size="small"
+                variant="text"
+                onClick={() => onLoadMoreSubRows(row.id as RowId, original.subRows.length)}
+                disabled={dataIsLoading}
+                fullWidth
+              >
+                Load more for{" "}
+                {fromRowId(row.id as RowId)
+                  .rowIdPartsPath.map(({ type, value }) => `${type}: ${value}`)
+                  .join(" > ")}
+              </Button>
+            </TableCell>
+          </TableRow>
+        )}
     </Fragment>
   )
 }

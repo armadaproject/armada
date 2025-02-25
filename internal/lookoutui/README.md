@@ -73,6 +73,14 @@ yarn test --run
 If you are actively changing unit tests or code covered by unit tests, you may
 find it useful to omit `--run` to continuously run affected tests.
 
+### Run typechecker
+
+Ensure that the types in TypeScript source and test files are correct.
+
+```bash
+yarn typecheck
+```
+
 ### Lint
 
 Formatting and linting is done using [Prettier](https://prettier.io/) and

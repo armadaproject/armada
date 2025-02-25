@@ -1575,7 +1575,7 @@ func makeCancelled(opts *createJobsOpts, converter *instructions.InstructionConv
 		Submit(opts.queue, opts.jobSet, owner, namespace, tSubmit, &JobOptions{
 			Annotations: opts.annotations,
 		}).
-		Cancelled(lastTransitionTime).
+		Cancelled(lastTransitionTime, cancelUser).
 		Build()
 }
 

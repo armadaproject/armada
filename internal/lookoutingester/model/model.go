@@ -35,6 +35,7 @@ type UpdateJobInstruction struct {
 	State                     *int32
 	Cancelled                 *time.Time
 	CancelReason              *string
+	CancelUser                *string
 	LastTransitionTime        *time.Time
 	LastTransitionTimeSeconds *int64
 	Duplicate                 *bool

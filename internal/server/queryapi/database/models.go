@@ -31,6 +31,7 @@ type Job struct {
 	Namespace                 *string          `db:"namespace"`
 	Annotations               []byte           `db:"annotations"`
 	ExternalJobUri            *string          `db:"external_job_uri"`
+	CancelUser                *string          `db:"cancel_user"`
 }
 
 type JobDeduplication struct {
