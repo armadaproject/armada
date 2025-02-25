@@ -273,6 +273,7 @@ message CancelledJob {
     reserved 1;
     string reason = 2;
     string job_id = 3;
+    string cancel_user = 4;
 }
 
 message JobSucceeded {

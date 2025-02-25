@@ -36,6 +36,7 @@ const (
 	TestQueue2                               = "testQueue2"
 	TestPool                                 = "testPool"
 	TestPool2                                = "testPool2"
+	TestCancelUser                           = "canceluser"
 	AwayPool                                 = "awayPool"
 	TestHostnameLabel                        = "kubernetes.io/hostname"
 	ClusterNameLabel                         = "cluster"

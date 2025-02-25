@@ -11,7 +11,7 @@ import { ReprioritiseDialog } from "./ReprioritiseDialog"
 import AutoRefreshToggle from "../AutoRefreshToggle"
 import RefreshButton from "../RefreshButton"
 import GroupBySelect from "./GroupBySelect"
-import { JobFilter } from "../../models/lookoutModels"
+import { JobFiltersWithExcludes } from "../../models/lookoutModels"
 import { IGetJobsService } from "../../services/lookout/GetJobsService"
 import { UpdateJobsService } from "../../services/lookout/UpdateJobsService"
 import { ColumnId, JobTableColumn, PINNED_COLUMNS, toColId } from "../../utils/jobsTableColumns"
@@ -25,7 +25,7 @@ export interface JobsTableActionBarProps {
   visibleColumns: ColumnId[]
   columnOrder: ColumnId[]
   setColumnOrder: (columnOrder: ColumnId[]) => void
-  selectedItemFilters: JobFilter[][]
+  selectedItemFilters: JobFiltersWithExcludes[]
   customViews: string[]
   activeJobSets: boolean
   onActiveJobSetsChanged: (newVal: boolean) => void

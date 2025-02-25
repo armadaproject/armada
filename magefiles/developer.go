@@ -25,9 +25,9 @@ var defaultComponents = []string{
 	"executor",
 	"binoculars",
 	"eventingester",
-	"lookoutv2",
-	"lookoutingesterv2",
-	"lookoutv2-migration",
+	"lookout",
+	"lookoutingester",
+	"lookout-migration",
 }
 
 var allComponents = append(
@@ -53,7 +53,7 @@ func getComponentsList() []string {
 func RunMigrations() error {
 	migrations := []string{
 		"scheduler-migration",
-		"lookoutv2-migration",
+		"lookout-migration",
 	}
 	command := append([]string{"compose", "up", "-d"}, migrations...)
 	return dockerRun(command...)

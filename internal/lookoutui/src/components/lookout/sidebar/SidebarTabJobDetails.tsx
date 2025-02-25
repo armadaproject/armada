@@ -19,6 +19,7 @@ export const SidebarTabJobDetails = ({ job }: SidebarTabJobDetailsProps) => {
     { key: "Priority", value: job.priority.toString() },
     { key: "Run Count", value: job.runs.length.toString() },
     ...(job.cancelReason ? [{ key: "Cancel Reason", value: job.cancelReason, allowCopy: true }] : []),
+    ...(job.cancelUser ? [{ key: "Cancelled By", value: job.cancelUser, allowCopy: true }] : []),
   ]
   return (
     <>

@@ -29,7 +29,7 @@ type perCycleMetrics struct {
 	actualShare                  *prometheus.GaugeVec
 	fairnessError                *prometheus.GaugeVec
 	demand                       *prometheus.GaugeVec
-	cappedDemand                 *prometheus.GaugeVec
+	constrainedDemand            *prometheus.GaugeVec
 	queueWeight                  *prometheus.GaugeVec
 	rawQueueWeight               *prometheus.GaugeVec
 	gangsConsidered              *prometheus.GaugeVec
@@ -88,10 +88,10 @@ func newPerCycleMetrics() *perCycleMetrics {
 		poolAndQueueLabels,
 	)
 
-	cappedDemand := prometheus.NewGaugeVec(
+	constrainedDemand := prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: prefix + "capped_demand",
-			Help: "Capped Demand of each queue and pool.  This differs from demand in that it limits demand by scheduling constraints",
+			Name: prefix + "constrained_demand",
+			Help: "Constrained demand of each queue and pool.  This differs from demand in that it limits demand by scheduling constraints",
 		},
 		poolAndQueueLabels,
 	)
@@ -230,7 +230,7 @@ func newPerCycleMetrics() *perCycleMetrics {
 		adjustedFairShare:            adjustedFairShare,
 		actualShare:                  actualShare,
 		demand:                       demand,
-		cappedDemand:                 cappedDemand,
+		constrainedDemand:            constrainedDemand,
 		queueWeight:                  queueWeight,
 		rawQueueWeight:               rawQueueWeight,
 		fairnessError:                fairnessError,
@@ -337,14 +337,14 @@ func (m *cycleMetrics) ReportSchedulerResult(result scheduling.SchedulerResult) 
 			jobsConsidered := float64(len(queueContext.UnsuccessfulJobSchedulingContexts) + len(queueContext.SuccessfulJobSchedulingContexts))
 			actualShare := schedContext.FairnessCostProvider.UnweightedCostFromQueue(queueContext)
 			demand := schedContext.FairnessCostProvider.UnweightedCostFromAllocation(queueContext.Demand)
-			cappedDemand := schedContext.FairnessCostProvider.UnweightedCostFromAllocation(queueContext.CappedDemand)
+			constrainedDemand := schedContext.FairnessCostProvider.UnweightedCostFromAllocation(queueContext.ConstrainedDemand)
 
 			currentCycle.consideredJobs.WithLabelValues(pool, queue).Set(jobsConsidered)
 			currentCycle.fairShare.WithLabelValues(pool, queue).Set(queueContext.FairShare)
 			currentCycle.adjustedFairShare.WithLabelValues(pool, queue).Set(queueContext.AdjustedFairShare)
 			currentCycle.actualShare.WithLabelValues(pool, queue).Set(actualShare)
 			currentCycle.demand.WithLabelValues(pool, queue).Set(demand)
-			currentCycle.cappedDemand.WithLabelValues(pool, queue).Set(cappedDemand)
+			currentCycle.constrainedDemand.WithLabelValues(pool, queue).Set(constrainedDemand)
 			currentCycle.queueWeight.WithLabelValues(pool, queue).Set(queueContext.Weight)
 			currentCycle.rawQueueWeight.WithLabelValues(pool, queue).Set(queueContext.RawWeight)
 		}
@@ -425,7 +425,7 @@ func (m *cycleMetrics) describe(ch chan<- *prometheus.Desc) {
 		currentCycle.actualShare.Describe(ch)
 		currentCycle.fairnessError.Describe(ch)
 		currentCycle.demand.Describe(ch)
-		currentCycle.cappedDemand.Describe(ch)
+		currentCycle.constrainedDemand.Describe(ch)
 		currentCycle.queueWeight.Describe(ch)
 		currentCycle.rawQueueWeight.Describe(ch)
 		currentCycle.gangsConsidered.Describe(ch)
@@ -459,7 +459,7 @@ func (m *cycleMetrics) collect(ch chan<- prometheus.Metric) {
 		currentCycle.actualShare.Collect(ch)
 		currentCycle.fairnessError.Collect(ch)
 		currentCycle.demand.Collect(ch)
-		currentCycle.cappedDemand.Collect(ch)
+		currentCycle.constrainedDemand.Collect(ch)
 		currentCycle.rawQueueWeight.Collect(ch)
 		currentCycle.queueWeight.Collect(ch)
 		currentCycle.gangsConsidered.Collect(ch)
