@@ -1,5 +1,5 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="Lookout Ingester V2" type="GoApplicationRunConfiguration" factoryName="Go Application">
+  <configuration default="false" name="Lookout Ingester" type="GoApplicationRunConfiguration" factoryName="Go Application">
     <module name="armada" />
     <working_directory value="$PROJECT_DIR$" />
     <envs>
