@@ -10,6 +10,7 @@ import k8s.io.api.core.v1.generated.{Container, PodSpec, ResourceRequirements}
 import k8s.io.apimachinery.pkg.api.resource.generated.Quantity
 import com.google.protobuf.empty.Empty
 import io.grpc.{ManagedChannelBuilder, ManagedChannel}
+import scala.concurrent.Future
 
 class ArmadaClient(channel: ManagedChannel) {
   def submitJobs(queue: String, jobSetId: String, jobRequestItems: Seq[JobSubmitRequestItem]): JobSubmitResponse = {
@@ -26,9 +27,9 @@ class ArmadaClient(channel: ManagedChannel) {
     SubmitGrpc.stub(channel).cancelJobs(cancelReq)
   }
 
-  def cancelJobSet(jobSetId: String): Unit = {
-    val blockingStub = SubmitGrpc.blockingStub(channel)
-    blockingStub.cancelJobSet(JobSetCancelRequest(jobSetId))
+  def cancelJobSet(jobSetId: String): Future[Empty] = {
+    SubmitGrpc.blockingStub(channel).cancelJobSet(JobSetCancelRequest(jobSetId))
+    Future.successful(new Empty)
   }
 
   def eventHealth(): HealthCheckResponse.ServingStatus = {

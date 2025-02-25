@@ -47,9 +47,13 @@ private class SubmitMockServer(
 
   val ulidGen = ULID.getGenerator()
 
-  def cancelJobSet(request: JobSetCancelRequest): scala.concurrent.Future[com.google.protobuf.empty.Empty] = {
+  def cancelJobSet(cancelReq: JobSetCancelRequest): Future[Empty] = {
     jobMap.foreach {
-      case (jobId, job) => if (job.jobSetId == request.jobSetId) { statusMap.put(jobId, JobState.CANCELLED) }
+      case (jobId, job) => {
+        if (job.jobSetId == cancelReq.jobSetId) {
+          statusMap.put(jobId, JobState.CANCELLED)
+        }
+      }
     }
 
     Future.successful(new Empty)
@@ -112,7 +116,7 @@ private class SubmitMockServer(
     result match {
       case Some(queueFound) => {
         val jobId: String = ulidGen.base32().toLowerCase()
-        val newJob = new Job()
+        val newJob = (new Job()).withJobSetId(request.jobSetId)
         jobMap.put(jobId, newJob)
         statusMap.put(jobId, JobState.RUNNING)
 
@@ -153,6 +157,7 @@ private class JobsMockServer(
 
   def getJobStatus(request: JobStatusRequest): scala.concurrent.Future[JobStatusResponse] = {
     val statuses = collection.mutable.Map[String,JobState]()
+
     for (jobId <- request.jobIds) {
       val result: Option[JobState] = statusMap.get(jobId)
       result match {
@@ -220,12 +225,12 @@ class ArmadaClientSuite extends munit.FunSuite {
     intercept[StatusRuntimeException] {
       response = ac.submitJobs(qName, "testJobSetId", List(new JobSubmitRequestItem()))
     }
-    assertEquals(0, response.jobResponseItems.length)
+    assertEquals(response.jobResponseItems.length, 0)
 
     // submission to existing queue
     ac.createQueue(qName)
     response = ac.submitJobs(qName, "testJobSetId", List(new JobSubmitRequestItem()))
-    assertEquals(1, response.jobResponseItems.length)
+    assertEquals(response.jobResponseItems.length, 1)
     ac.deleteQueue(qName)
   }
 
@@ -253,7 +258,7 @@ class ArmadaClientSuite extends munit.FunSuite {
     // Submit 3 jobs
     for (i <- 1 to 3) {
       val response = ac.submitJobs(qName, "testJobSetId", List(new JobSubmitRequestItem()))
-      assertEquals(1, response.jobResponseItems.length)
+      assertEquals(response.jobResponseItems.length, 1)
       jobs = jobs :+ response.jobResponseItems(0).jobId
     }
 
@@ -265,16 +270,53 @@ class ArmadaClientSuite extends munit.FunSuite {
 
     cancelRes.onComplete {
       case Success(cancelResult) => {
+        // Verify both cancelled jobs
         for (i <- 0 to 1) {
           val jobStatus = ac.getJobStatus(jobs(i))
-          assertEquals(true, jobStatus.jobStates(jobs(i)).isCancelled)
+          assertEquals(jobStatus.jobStates(jobs(i)), JobState.CANCELLED)
         }
+
+        // The third job should still be running
+        assert(ac.getJobStatus(jobs(2)).jobStates(jobs(2)).isRunning)
       }
       case Failure(cancelResult) => fail("cancelJobs() test failed")
     }
 
-    // The third job should still be running
-    assert(ac.getJobStatus(jobs(2)).jobStates(jobs(2)).isRunning)
+    ac.deleteQueue(qName)
+  }
+
+  test("ArmadaClient.cancelJobSet()") {
+    val ac = ArmadaClient("localhost", testPort)
+    val qName = "nonexistent-queue-" + Random.alphanumeric.take(8).mkString
+    val cancelJobSetId = "jobset-666"
+    var cancelJobIds = Seq[String]()
+
+    ac.createQueue(qName)
+
+    // Submit 2 jobs in a job set that will be cancelled
+    for (i <- 1 to 2) {
+      val response = ac.submitJobs(qName, cancelJobSetId, List(new JobSubmitRequestItem()))
+      assertEquals(response.jobResponseItems.length, 1)
+      cancelJobIds = cancelJobIds :+ response.jobResponseItems(0).jobId
+    }
+
+    // Submit one job that will be allowed to run
+    val response = ac.submitJobs(qName, "runJobSet", List(new JobSubmitRequestItem()))
+    assertEquals(response.jobResponseItems.length, 1)
+    val runJobId = response.jobResponseItems(0).jobId
+
+    // Required for processing Futures in test
+    implicit val ec: scala.concurrent.ExecutionContext = scala.concurrent.ExecutionContext.global
+
+    ac.cancelJobSet(cancelJobSetId)
+
+    for (cancelJob <- cancelJobIds) {
+      val jobStatus = ac.getJobStatus(cancelJob)
+      assertEquals(jobStatus.jobStates(cancelJob), JobState.CANCELLED)
+    }
+
+    // The job not in that job set should still be running
+    assert(ac.getJobStatus(runJobId).jobStates(runJobId).isRunning)
 
     ac.deleteQueue(qName)
   }
