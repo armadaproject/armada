@@ -243,15 +243,15 @@ describe("JobsTableContainer", () => {
 
       // Expand the first level
       await expandRow("queue-1")
-      await assertNumDataRowsShown(1 + 2)
+      await assertNumDataRowsShown(1 + 2, 1)
 
       // Expand the second level
       await expandRow("job-set-1")
-      await assertNumDataRowsShown(1 + 2 + 2)
+      await assertNumDataRowsShown(1 + 2 + 2, 2)
 
       // Expand the third level
       await expandRow(JobState.Queued)
-      await assertNumDataRowsShown(1 + 2 + 2 + 5)
+      await assertNumDataRowsShown(1 + 2 + 2 + 5, 2)
     })
 
     it("should reset currently-expanded if grouping changes", async () => {
@@ -627,12 +627,12 @@ describe("JobsTableContainer", () => {
     await waitFor(() => expect(screen.queryAllByRole("progressbar").length).toBe(0))
   }
 
-  async function assertNumDataRowsShown(nDataRows: number) {
+  async function assertNumDataRowsShown(nDataRows: number, nExpandedGroupPaginationRows = 0) {
     await waitFor(
       async () => {
         const table = await screen.findByRole("table", { name: "Jobs table" })
         const rows = await within(table).findAllByRole("row")
-        expect(rows.length).toBe(nDataRows + 1) // One row per data row, plus the header
+        expect(rows.length).toBe(nDataRows + nExpandedGroupPaginationRows + 1) // One row per data row, plus the pagination row for each expanded group, plus the header
       },
       { timeout: 3000 },
     )

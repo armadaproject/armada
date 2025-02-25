@@ -177,6 +177,11 @@ export type JobFilter = {
   match: Match
 }
 
+export interface JobFiltersWithExcludes {
+  jobFilters: JobFilter[]
+  excludesJobFilters: JobFilter[][]
+}
+
 export type JobGroup = {
   name: string
   count: number
