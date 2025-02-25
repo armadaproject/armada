@@ -47,6 +47,7 @@ type jobRow struct {
 	priorityClass      sql.NullString
 	latestRunId        sql.NullString
 	cancelReason       sql.NullString
+	cancelUser         sql.NullString
 }
 
 func NewSqlGetJobsRepository(db *pgxpool.Pool) *SqlGetJobsRepository {
@@ -102,6 +103,7 @@ func (r *SqlGetJobsRepository) getJobs(ctx *armadacontext.Context, filters []*mo
 			&row.priorityClass,
 			&row.latestRunId,
 			&row.cancelReason,
+			&row.cancelUser,
 			&annotations,
 			&runs,
 		); err != nil {
@@ -170,5 +172,6 @@ func jobRowToModel(row *jobRow) *model.Job {
 		State:              string(lookout.JobStateMap[row.state]),
 		Submitted:          row.submitted,
 		CancelReason:       database.ParseNullString(row.cancelReason),
+		CancelUser:         database.ParseNullString(row.cancelUser),
 	}
 }

@@ -28,6 +28,9 @@ type Job struct {
 	// cancel reason
 	CancelReason *string `json:"cancelReason,omitempty"`
 
+	// cancel user
+	CancelUser *string `json:"cancelUser,omitempty"`
+
 	// cancelled
 	// Format: date-time
 	Cancelled *strfmt.DateTime `json:"cancelled,omitempty"`

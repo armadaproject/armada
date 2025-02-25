@@ -1011,6 +1011,9 @@
           "type": "string",
           "format": "date-time"
         },
+        "cancelUser": {
+          "type": "string"
+        },
         "jobId": {
           "type": "string"
         },

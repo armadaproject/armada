@@ -160,7 +160,7 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 			return errors.WithStack(err)
 		}
 	case MarkJobSetsCancelRequested:
-		for jobSetInfo, cancelDetails := range o {
+		for jobSetInfo, cancelDetails := range o.jobSets {
 			queuedStatesToCancel := make([]bool, 0, 2)
 			if cancelDetails.cancelQueued {
 				// Cancel all jobs in a queued state
@@ -176,6 +176,7 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 					Queue:        jobSetInfo.queue,
 					JobSet:       jobSetInfo.jobSet,
 					QueuedStates: queuedStatesToCancel,
+					CancelUser:   &o.cancelUser,
 				},
 			)
 			if err != nil {
@@ -183,11 +184,12 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 			}
 		}
 	case MarkJobsCancelRequested:
-		for key, value := range o {
+		for key, value := range o.jobIds {
 			params := schedulerdb.MarkJobsCancelRequestedByIdParams{
-				Queue:  key.queue,
-				JobSet: key.jobSet,
-				JobIds: value,
+				Queue:      key.queue,
+				JobSet:     key.jobSet,
+				JobIds:     value,
+				CancelUser: &o.cancelUser,
 			}
 			err := queries.MarkJobsCancelRequestedById(ctx, params)
 			if err != nil {

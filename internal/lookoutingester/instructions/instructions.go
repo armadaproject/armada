@@ -70,7 +70,7 @@ func (c *InstructionConverter) Convert(ctx *armadacontext.Context, sequences *ut
 }
 
 func (c *InstructionConverter) convertSequence(
-	ctx *armadacontext.Context,
+	_ *armadacontext.Context,
 	sequence *armadaevents.EventSequence,
 	update *model.InstructionSet,
 ) {
@@ -210,7 +210,7 @@ func extractUserAnnotations(userAnnotationPrefix string, jobAnnotations map[stri
 	return result
 }
 
-func (c *InstructionConverter) handleReprioritiseJob(ts time.Time, event *armadaevents.ReprioritisedJob, update *model.InstructionSet) error {
+func (c *InstructionConverter) handleReprioritiseJob(_ time.Time, event *armadaevents.ReprioritisedJob, update *model.InstructionSet) error {
 	jobUpdate := model.UpdateJobInstruction{
 		JobId:    event.JobId,
 		Priority: pointer.Int64(int64(event.Priority)),
@@ -224,11 +224,17 @@ func (c *InstructionConverter) handleCancelledJob(ts time.Time, event *armadaeve
 	if event.Reason != "" {
 		reason = &event.Reason
 	}
+
+	var cancelUser *string
+	if event.CancelUser != "" {
+		cancelUser = &event.CancelUser
+	}
 	jobUpdate := model.UpdateJobInstruction{
 		JobId:                     event.GetJobId(),
 		State:                     pointer.Int32(int32(lookout.JobCancelledOrdinal)),
 		Cancelled:                 &ts,
 		CancelReason:              reason,
+		CancelUser:                cancelUser,
 		LastTransitionTime:        &ts,
 		LastTransitionTimeSeconds: pointer.Int64(ts.Unix()),
 	}
