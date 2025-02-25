@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event"
 import { SnackbarProvider } from "notistack"
 
 import { ReprioritiseDialog } from "./ReprioritiseDialog"
-import { Job, JobFilter, JobState, Match } from "../../models/lookoutModels"
+import { Job, JobFiltersWithExcludes, JobState, Match } from "../../models/lookoutModels"
 import { IGetJobsService } from "../../services/lookout/GetJobsService"
 import { UpdateJobsResponse, UpdateJobsService } from "../../services/lookout/UpdateJobsService"
 import FakeGetJobsService from "../../services/lookout/mocks/FakeGetJobsService"
@@ -13,7 +13,7 @@ describe("ReprioritiseDialog", () => {
   const numJobs = 5
   const numFinishedJobs = 0
   let jobs: Job[],
-    selectedItemFilters: JobFilter[][],
+    selectedItemFilters: JobFiltersWithExcludes[],
     getJobsService: IGetJobsService,
     updateJobsService: UpdateJobsService,
     onClose: () => void
@@ -21,13 +21,16 @@ describe("ReprioritiseDialog", () => {
   beforeEach(() => {
     jobs = makeManyTestJobs(numJobs, numFinishedJobs)
     selectedItemFilters = [
-      [
-        {
-          field: "jobId",
-          value: "job-id-0",
-          match: Match.Exact,
-        },
-      ],
+      {
+        jobFilters: [
+          {
+            field: "jobId",
+            value: "job-id-0",
+            match: Match.Exact,
+          },
+        ],
+        excludesJobFilters: [],
+      },
     ]
     getJobsService = new FakeGetJobsService(jobs)
     updateJobsService = {
@@ -74,13 +77,16 @@ describe("ReprioritiseDialog", () => {
   it("paginates through many jobs correctly", async () => {
     jobs = makeManyTestJobs(6000, 6000 - 1480)
     selectedItemFilters = [
-      [
-        {
-          field: "queue",
-          value: "queue-0",
-          match: Match.Exact,
-        },
-      ],
+      {
+        jobFilters: [
+          {
+            field: "queue",
+            value: "queue-0",
+            match: Match.Exact,
+          },
+        ],
+        excludesJobFilters: [],
+      },
     ]
     getJobsService = new FakeGetJobsService(jobs)
 
@@ -163,20 +169,26 @@ describe("ReprioritiseDialog", () => {
   it("handles a partial success", async () => {
     // Select 2 jobs
     selectedItemFilters = [
-      [
-        {
-          field: "jobId",
-          value: jobs[0].jobId,
-          match: Match.Exact,
-        },
-      ],
-      [
-        {
-          field: "jobId",
-          value: jobs[1].jobId,
-          match: Match.Exact,
-        },
-      ],
+      {
+        jobFilters: [
+          {
+            field: "jobId",
+            value: jobs[0].jobId,
+            match: Match.Exact,
+          },
+        ],
+        excludesJobFilters: [],
+      },
+      {
+        jobFilters: [
+          {
+            field: "jobId",
+            value: jobs[1].jobId,
+            match: Match.Exact,
+          },
+        ],
+        excludesJobFilters: [],
+      },
     ]
 
     // jobs[1] in the dataset is terminated, so lets just fix that for the test

@@ -213,6 +213,10 @@ const TextFilter = ({
   return (
     <TextField
       onChange={(e) => setTextFieldValue(e.currentTarget.value)}
+      onPaste={(e) => {
+        e.preventDefault()
+        setTextFieldValue(e.clipboardData.getData("text/plain").trim())
+      }}
       value={textFieldValue}
       inputRef={ref}
       type={"text"}

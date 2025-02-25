@@ -1,7 +1,7 @@
 # Compile with "sqlc generate -f internal/server/queryapi/database/sql.yaml" from the project root directory.
 version: 2
 sql:
-  - schema: "../../../lookoutv2/schema/migrations"
+  - schema: "../../../lookout/schema/migrations"
     queries: "query.sql"
     engine: "postgresql"
     gen:

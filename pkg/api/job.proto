@@ -45,6 +45,7 @@ message JobDetails {
   string latest_run_id = 10;
   Job job_spec = 11; // Only filled in if expand_job_spec is true
   repeated JobRunDetails job_runs = 12; // Only filled in if expand_job_run is true;
+  string cancel_user = 13;
 }
 
 message JobDetailsRequest {

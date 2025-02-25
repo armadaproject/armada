@@ -1,6 +1,6 @@
 import _ from "lodash"
 
-import { Job, JobFilter } from "../models/lookoutModels"
+import { Job, JobFilter, JobFiltersWithExcludes } from "../models/lookoutModels"
 import { IGetJobsService } from "../services/lookout/GetJobsService"
 
 export const getAllJobsMatchingFilters = async (
@@ -29,12 +29,23 @@ export const getAllJobsMatchingFilters = async (
 }
 
 export const getUniqueJobsMatchingFilters = async (
-  filtersGroups: JobFilter[][],
+  filtersGroups: JobFiltersWithExcludes[],
   activeJobSets: boolean,
   getJobsService: IGetJobsService,
 ): Promise<Job[]> => {
   const jobsBySelectedItem = await Promise.all(
-    filtersGroups.map(async (filters) => await getAllJobsMatchingFilters(filters, activeJobSets, getJobsService)),
+    filtersGroups.map(async ({ jobFilters, excludesJobFilters }) => {
+      const allMatchingJobs = await getAllJobsMatchingFilters(jobFilters, activeJobSets, getJobsService)
+      const excludedJobs = (
+        await Promise.all(
+          excludesJobFilters.map((excludeJobFilters) =>
+            getAllJobsMatchingFilters(excludeJobFilters, activeJobSets, getJobsService),
+          ),
+        )
+      ).flat()
+      const excludedJobIds = new Set(excludedJobs.map((job) => job.jobId))
+      return allMatchingJobs.filter((job) => !excludedJobIds.has(job.jobId))
+    }),
   )
   return _.uniqBy(jobsBySelectedItem.flat(), (job) => job.jobId)
 }
