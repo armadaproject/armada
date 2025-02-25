@@ -74,6 +74,7 @@ func main() {
 		log.Warn("Failed to marshal lookout ingester config for report output")
 	}
 	log.Infof(
+
 		ReportTemplate,
 		time.Now().Format("2006-01-02"),
 		loadtesterConfig.TotalJobs,
