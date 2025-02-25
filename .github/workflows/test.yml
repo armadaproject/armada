@@ -23,9 +23,9 @@ jobs:
           cache: yarn
           cache-dependency-path: ./internal/lookoutui/yarn.lock
 
-      - name: Install Dependencies And Run Unit Tests
+      - name: Install Dependencies, Check Types And Run Unit Tests
         run: |
-          yarn install --frozen-lockfile && yarn openapi && CI=true yarn test --reporter=junit
+          yarn install --frozen-lockfile && yarn openapi && yarn typecheck && CI=true yarn test --reporter=junit
         working-directory: ./internal/lookoutui
 
       - name: Publish JUnit Report
