@@ -374,7 +374,8 @@ func (l *LookoutDb) UpdateJobsBatch(ctx *armadacontext.Context, instructions []*
 					last_transition_time_seconds bigint,
 					duplicate                    bool,
 					latest_run_id                varchar(36),
-					cancel_reason                varchar(512)
+					cancel_reason                varchar(512),
+					cancel_user                  varchar(512)
 				) ON COMMIT DROP;`, tmpTable))
 			if err != nil {
 				l.metrics.RecordDBError(commonmetrics.DBOperationCreateTempTable)
@@ -395,6 +396,7 @@ func (l *LookoutDb) UpdateJobsBatch(ctx *armadacontext.Context, instructions []*
 					"duplicate",
 					"latest_run_id",
 					"cancel_reason",
+					"cancel_user",
 				},
 				pgx.CopyFromSlice(len(instructions), func(i int) ([]interface{}, error) {
 					return []interface{}{
@@ -407,6 +409,7 @@ func (l *LookoutDb) UpdateJobsBatch(ctx *armadacontext.Context, instructions []*
 						instructions[i].Duplicate,
 						instructions[i].LatestRunId,
 						instructions[i].CancelReason,
+						instructions[i].CancelUser,
 					}, nil
 				}),
 			)
@@ -425,7 +428,8 @@ func (l *LookoutDb) UpdateJobsBatch(ctx *armadacontext.Context, instructions []*
 						last_transition_time_seconds = coalesce(tmp.last_transition_time_seconds, job.last_transition_time_seconds),
 						duplicate                    = coalesce(tmp.duplicate, job.duplicate),
 						latest_run_id                = coalesce(tmp.latest_run_id, job.latest_run_id),
-						cancel_reason                = coalesce(tmp.cancel_reason, job.cancel_reason)
+						cancel_reason                = coalesce(tmp.cancel_reason, job.cancel_reason),
+						cancel_user                  = coalesce(tmp.cancel_user, job.cancel_user)
 					FROM %s as tmp WHERE tmp.job_id = job.job_id`, tmpTable),
 			)
 			if err != nil {
@@ -448,7 +452,8 @@ func (l *LookoutDb) UpdateJobsScalar(ctx *armadacontext.Context, instructions []
 			last_transition_time_seconds = coalesce($6, job.last_transition_time_seconds),
 			duplicate                    = coalesce($7, duplicate),
 			latest_run_id                = coalesce($8, job.latest_run_id),
-			cancel_reason                = coalesce($9, job.cancel_reason)
+			cancel_reason                = coalesce($9, job.cancel_reason),
+			cancel_user                  = coalesce($10, job.cancel_user)
 		WHERE job_id = $1`
 	for _, i := range instructions {
 		err := l.withDatabaseRetryInsert(func() error {
@@ -461,7 +466,8 @@ func (l *LookoutDb) UpdateJobsScalar(ctx *armadacontext.Context, instructions []
 				i.LastTransitionTimeSeconds,
 				i.Duplicate,
 				i.LatestRunId,
-				i.CancelReason)
+				i.CancelReason,
+				i.CancelUser)
 			if err != nil {
 				l.metrics.RecordDBError(commonmetrics.DBOperationUpdate)
 			}

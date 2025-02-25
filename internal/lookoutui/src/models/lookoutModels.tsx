@@ -122,6 +122,7 @@ export type Job = {
   lastActiveRunId?: string
   lastTransitionTime: string
   cancelReason?: string
+  cancelUser?: string
   node?: string
   cluster?: string
   exitCode?: number

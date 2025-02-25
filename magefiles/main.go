@@ -152,7 +152,16 @@ func KindTeardown() {
 // Generate scheduler SQL.
 func Sql() error {
 	mg.Deps(sqlcCheck)
-	return sqlcRun("generate", "-f", "internal/scheduler/database/sql.yaml")
+
+	if err := sqlcRun("generate", "-f", "internal/scheduler/database/sql.yaml"); err != nil {
+		return err
+	}
+
+	if err := sqlcRun("generate", "-f", "internal/server/queryapi/database/sql.yaml"); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // Generate Helm documentation.
