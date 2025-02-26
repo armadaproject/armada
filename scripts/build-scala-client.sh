@@ -3,7 +3,7 @@
 # in the root dir of the Armada repo
 
 ROOT=$(pwd)
-SDIR=client/scala/scala-armada-client
+SDIR=client/scala/armada-scala-client
 
 rm -rf $ROOT/$SDIR/proto
 mkdir -p $ROOT/$SDIR/proto
@@ -45,7 +45,7 @@ sbt -Dsbt.io.implicit.relative.glob.conversion=allow compile && \
 sbt -Dsbt.io.implicit.relative.glob.conversion=allow package
 
 if [ $? -eq 0 ]; then
-  jarfile=$(find . -type f -name 'scala-armada-client*.jar')
+  jarfile=$(find . -type f -name 'armada-scala-client*.jar')
   if [[ $jarfile ]]; then
     echo "" > /dev/stderr
     jarfile=$(echo $jarfile | sed -e s%^\./%%)
