@@ -2,14 +2,18 @@ package optimiser
 
 import (
 	"fmt"
+	"math"
 	"sort"
+	"strconv"
 	"time"
 
+	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/context"
+	"github.com/armadaproject/armada/internal/server/configuration"
 )
 
 type NodeScheduler struct {
@@ -25,26 +29,104 @@ func NewNodeScheduler(jobDb jobdb.JobRepository, maximumJobSizeToPreempt *intern
 }
 
 func (n *NodeScheduler) Schedule(schedContext *SchedulingContext, jctx *context.JobSchedulingContext, node *internaltypes.Node) (*nodeSchedulingResult, error) {
-	queues := map[string][]*runPreemptionInfo{}
 	met, _, err := nodedb.StaticJobRequirementsMet(node, jctx)
-
-	availableResource := node.AllocatableByPriority[internaltypes.EvictedPriority]
-	if !jctx.Job.AllResourceRequirements().Exceeds(availableResource) {
-		return &nodeSchedulingResult{
-			jctx:      jctx,
-			scheduled: true,
-		}, nil
-	}
-
 	if err != nil {
 		return nil, err
 	}
 	if !met {
 		return &nodeSchedulingResult{
+			jctx:      jctx,
+			node:      node,
+			resultId:  util.NewULID(),
 			scheduled: false,
 		}, nil
 	}
 
+	availableResource := node.AllocatableByPriority[internaltypes.EvictedPriority]
+	if !jctx.Job.AllResourceRequirements().Exceeds(availableResource) {
+		return &nodeSchedulingResult{
+			jctx:      jctx,
+			node:      node,
+			resultId:  util.NewULID(),
+			scheduled: true,
+		}, nil
+	}
+
+	queues, err := n.getPreemptibleJobDetailsByQueue(schedContext, jctx, node)
+	if err != nil {
+		return nil, err
+	}
+	err = n.populateQueueImpactFields(schedContext, queues)
+	if err != nil {
+		return nil, err
+	}
+
+	allJobs := []*preemptibleJobDetails{}
+	for _, queueItems := range queues {
+		allJobs = append(allJobs, queueItems...)
+	}
+	sort.Sort(globalPreemptionOrder(allJobs))
+
+	scheduled := false
+	totalCost := float64(0)
+	jobsToPreempt := []string{}
+	queueCostChanges := map[string]float64{}
+	for _, jobToEvict := range allJobs {
+		availableResource = availableResource.Add(jobToEvict.resources)
+		totalCost += jobToEvict.cost
+		if _, present := queueCostChanges[jobToEvict.queue]; !present {
+			queueCostChanges[jobToEvict.queue] = 0
+		}
+		queueCostChanges[jobToEvict.queue] -= jobToEvict.cost
+		jobsToPreempt = append(jobsToPreempt, jobToEvict.jobId)
+
+		if !jctx.Job.AllResourceRequirements().Exceeds(availableResource) {
+			scheduled = true
+			break
+		}
+	}
+
+	maximumQueueImpact := float64(0)
+	for queue, costChange := range queueCostChanges {
+		qctx, ok := schedContext.Queues[queue]
+		if !ok {
+			return nil, fmt.Errorf("could not find queue context for queue %s", queue)
+		}
+
+		// TODO This should work fine, but probably should be cost / original total cost
+		// So if it a queue is way above its fairshare, this number reflects the % of current allocation lost, rather than % of fairshare
+		impact := math.Abs(costChange) / qctx.Fairshare
+		if impact > maximumQueueImpact {
+			maximumQueueImpact = impact
+		}
+	}
+
+	if !scheduled {
+		return &nodeSchedulingResult{
+			scheduled: false,
+			jctx:      jctx,
+			node:      node,
+			resultId:  util.NewULID(),
+		}, nil
+	}
+
+	return &nodeSchedulingResult{
+		scheduled:          true,
+		jctx:               jctx,
+		node:               node,
+		schedulingCost:     totalCost,
+		jobIdsToPreempt:    jobsToPreempt,
+		queueCostChanges:   queueCostChanges,
+		maximumQueueImpact: maximumQueueImpact,
+		resultId:           util.NewULID(),
+	}, nil
+}
+
+func (n *NodeScheduler) getPreemptibleJobDetailsByQueue(
+	schedContext *SchedulingContext,
+	jobToSchedule *context.JobSchedulingContext,
+	node *internaltypes.Node) (map[string][]*preemptibleJobDetails, error) {
+	queues := map[string][]*preemptibleJobDetails{}
 	for jobId, resource := range node.AllocatedByJobId {
 		job := n.jobDb.GetById(jobId)
 		if job == nil {
@@ -58,47 +140,61 @@ func (n *NodeScheduler) Schedule(schedContext *SchedulingContext, jctx *context.
 			// Don't evict jobs larger than the maximum size
 			continue
 		}
-		// TODO prevent gang jobs being evicted
+		if isGang(job) {
+			// Don't evict gang jobs
+			continue
+		}
 		queue := job.Queue()
 		var scheduledAtPriority int32
 		age := int64(0)
 		if job.Queued() {
-			// TODO handle edge cases here
-			scheduledAtPriority = schedContext.Sctx.QueueSchedulingContexts[queue].SuccessfulJobSchedulingContexts[jobId].PodSchedulingContext.ScheduledAtPriority
+			qctx, ok := schedContext.Sctx.QueueSchedulingContexts[queue]
+			if !ok {
+				return nil, fmt.Errorf("could not find queue context for queue %s", queue)
+			}
+			jctx, ok := qctx.SuccessfulJobSchedulingContexts[jobId]
+			if !ok {
+				return nil, fmt.Errorf("could not job context for job %s in successful scheduling contexts for queue %s, expected to find it scheduled on node %s", jobId, queue, node.GetName())
+			}
+			if jctx.PodSchedulingContext == nil {
+				return nil, fmt.Errorf("no pod scheduling context exists on jctx for job %s despite it being in successful scheduling contexts", jobId)
+			}
+			scheduledAtPriority = jctx.PodSchedulingContext.ScheduledAtPriority
 		} else {
 			scheduledAtPriority = *job.LatestRun().ScheduledAtPriority()
 			age = time.Now().Sub(*job.LatestRun().LeaseTime()).Milliseconds()
 		}
-		if scheduledAtPriority > jctx.Job.PriorityClass().Priority {
+		if scheduledAtPriority > jobToSchedule.Job.PriorityClass().Priority {
 			// Can't evict jobs of higher priority
 			continue
 		}
 
 		cost := schedContext.Sctx.FairnessCostProvider.UnweightedCostFromAllocation(resource)
-
-		runInfo := &runPreemptionInfo{
+		runInfo := &preemptibleJobDetails{
 			cost:                cost,
 			resources:           resource,
 			jobId:               jobId,
 			queue:               queue,
 			scheduledAtPriority: scheduledAtPriority,
-			age:                 age,
+			ageMillis:           age,
 		}
 
 		if _, present := queues[queue]; !present {
-			queues[queue] = []*runPreemptionInfo{runInfo}
+			queues[queue] = []*preemptibleJobDetails{runInfo}
 		} else {
 			queues[queue] = append(queues[queue], runInfo)
 		}
 	}
+	return queues, nil
+}
 
+func (n *NodeScheduler) populateQueueImpactFields(schedContext *SchedulingContext, queues map[string][]*preemptibleJobDetails) error {
 	for queue, items := range queues {
-		// TODO confirm this actually sorts in place
 		sort.Sort(internalQueueOrder(items))
 
 		qctx, ok := schedContext.Queues[queue]
 		if !ok {
-			return nil, fmt.Errorf("queue context for queue %s not found", queue)
+			return fmt.Errorf("queue context for queue %s not found", queue)
 		}
 
 		updatedQueueCost := qctx.CurrentCost
@@ -106,10 +202,12 @@ func (n *NodeScheduler) Schedule(schedContext *SchedulingContext, jctx *context.
 		for _, item := range items {
 			item.queueCostAfterPreemption = updatedQueueCost - item.cost
 			updatedQueueCost = item.queueCostAfterPreemption
-			item.costAsPercentageOfQueueShare = (item.cost / qctx.Fairshare) * 100
 			if item.queueCostAfterPreemption > qctx.Fairshare {
 				item.costToPreempt = 0
-				item.costAsPercentageOfQueueShare = 0
+			} else {
+				// This could be improved to handle crossing the fairshare boundary better
+				// It could just cost the amount the queue is brought below fairshare, rather than the full item cost
+				item.costToPreempt = item.cost
 			}
 			item.queuePreemptedOrdinal = count
 			count++
@@ -117,55 +215,7 @@ func (n *NodeScheduler) Schedule(schedContext *SchedulingContext, jctx *context.
 
 		queues[queue] = items
 	}
-
-	allJobs := []*runPreemptionInfo{}
-
-	for _, queueItems := range queues {
-		allJobs = append(allJobs, queueItems...)
-	}
-	sort.Sort(globalPreemptionOrder(allJobs))
-
-	scheduled := false
-	totalCost := float64(0)
-	// TODO queue impact is confused
-	// Should be a sum of total impact over a queue
-	maximumQueueImpact := float64(0)
-	jobsToPreempt := []string{}
-	queueCostChanges := map[string]float64{}
-	for _, jobToEvict := range allJobs {
-		availableResource = availableResource.Add(jobToEvict.resources)
-		totalCost += jobToEvict.cost
-		if _, present := queueCostChanges[jobToEvict.queue]; !present {
-			queueCostChanges[jobToEvict.queue] = 0
-		}
-		queueCostChanges[jobToEvict.queue] -= jobToEvict.cost
-		if jobToEvict.costAsPercentageOfQueueShare > maximumQueueImpact {
-			maximumQueueImpact = jobToEvict.costAsPercentageOfQueueShare
-		}
-		jobsToPreempt = append(jobsToPreempt, jobToEvict.jobId)
-
-		if !jctx.Job.AllResourceRequirements().Exceeds(availableResource) {
-			scheduled = true
-			break
-		}
-	}
-
-	if !scheduled {
-		return &nodeSchedulingResult{
-			scheduled: false,
-			jctx:      jctx,
-		}, nil
-	}
-
-	return &nodeSchedulingResult{
-		scheduled:        true,
-		jctx:             jctx,
-		node:             node,
-		schedulingCost:   totalCost,
-		jobIdsToPreempt:  jobsToPreempt,
-		queueCostChanges: queueCostChanges,
-		resultId:         util.NewULID(),
-	}, nil
+	return nil
 }
 
 func isTooLargeToEvict(job *jobdb.Job, limit *internaltypes.ResourceList) bool {
@@ -189,4 +239,20 @@ func isTooLargeToEvict(job *jobdb.Job, limit *internaltypes.ResourceList) bool {
 		}
 	}
 	return false
+}
+
+func isGang(job *jobdb.Job) bool {
+	if job == nil {
+		return false
+	}
+	gangCardinalityString, ok := job.Annotations()[configuration.GangCardinalityAnnotation]
+	if !ok {
+		return false
+	}
+	gangCardinality, err := strconv.Atoi(gangCardinalityString)
+	if err != nil {
+		logging.WithStacktrace(err).Errorf("unexpected value in gang cardinality annotation")
+		return false
+	}
+	return gangCardinality > 1
 }

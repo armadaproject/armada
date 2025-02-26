@@ -58,11 +58,11 @@ func (n *FairnessOptimisingScheduler) Schedule(ctx *armadacontext.Context, gctx 
 	}
 
 	if len(schedulingCandidates) == 0 {
+		// TODO use standard reason
 		return false, nil, "no optimised scheduling options found", nil
 	}
 
-	// sort candidates
-
+	sort.Sort(schedulingCostOrder(schedulingCandidates))
 	allPreemptedJobs, err := n.updateState(schedulingCandidates[0], sctx)
 	if err != nil {
 		return false, nil, "", err
@@ -71,7 +71,7 @@ func (n *FairnessOptimisingScheduler) Schedule(ctx *armadacontext.Context, gctx 
 }
 
 func (n *FairnessOptimisingScheduler) scheduleOnNodes(gctx *context.GangSchedulingContext, sctx *context.SchedulingContext, nodes []*internaltypes.Node) (*schedulingResult, error) {
-	result := &schedulingResult{
+	combinedResult := &schedulingResult{
 		scheduled:      true,
 		schedulingCost: 0,
 		results:        make([]*nodeSchedulingResult, 0, len(gctx.JobSchedulingContexts)),
@@ -103,8 +103,8 @@ func (n *FairnessOptimisingScheduler) scheduleOnNodes(gctx *context.GangScheduli
 
 		sort.Sort(nodeCostOrder(candidateNodes))
 		selectedCandidate := candidateNodes[0]
-		result.results = append(result.results, selectedCandidate)
-		result.schedulingCost += selectedCandidate.schedulingCost
+		combinedResult.results = append(combinedResult.results, selectedCandidate)
+		combinedResult.schedulingCost += selectedCandidate.schedulingCost
 
 		// Update nodes
 		updatedNode := selectedCandidate.node.DeepCopyNilKeys()
@@ -142,7 +142,7 @@ func (n *FairnessOptimisingScheduler) scheduleOnNodes(gctx *context.GangScheduli
 			queue.CurrentCost += costChange
 		}
 	}
-	return result, nil
+	return combinedResult, nil
 }
 
 func (n *FairnessOptimisingScheduler) updateState(result *schedulingResult, sctx *context.SchedulingContext) ([]*context.JobSchedulingContext, error) {

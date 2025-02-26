@@ -172,6 +172,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
 						"A": testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 32),
+						"B": testfixtures.N1Cpu4GiJobs("B", testfixtures.PriorityClass0, 32),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"A": testfixtures.IntRange(0, 31),
@@ -2065,9 +2066,19 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					gangIdByJobId,
 					false,
 					nil,
+					false,
 				)
-
+				//val := sctx.FairnessCostProvider.UnweightedCostFromAllocation(sctx.TotalResources)
+				//fmt.Println(val)
+				//
+				//qctx := sctx.QueueSchedulingContexts["A"]
+				//w1 := sctx.FairnessCostProvider.UnweightedCostFromAllocation(qctx.CappedDemand)
+				//w2 := sctx.FairnessCostProvider.WeightedCostFromAllocation(qctx.CappedDemand, qctx.Weight*2)
+				//
+				//fmt.Println(w1)
+				//fmt.Println(w2)
 				result, err := sch.Schedule(ctx)
+
 				require.NoError(t, err)
 				jobIdsByGangId = sch.jobIdsByGangId
 				gangIdByJobId = sch.gangIdByJobId
@@ -2416,6 +2427,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 				nil,
 				false,
 				nil,
+				false,
 			)
 			result, err := sch.Schedule(ctx)
 			require.NoError(b, err)
@@ -2479,6 +2491,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 					nil,
 					false,
 					nil,
+					false,
 				)
 				result, err := sch.Schedule(ctx)
 				require.NoError(b, err)

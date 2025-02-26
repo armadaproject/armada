@@ -476,6 +476,7 @@ func TestMarketDrivenPreemptingQueueScheduler(t *testing.T) {
 					gangIdByJobId,
 					true,
 					nil,
+					false,
 				)
 
 				result, err := sch.Schedule(ctx)
