@@ -4,7 +4,7 @@ lazy val root = project
   .in(file("."))
   .settings(
     organization := "io.armadaproject.armada",
-    name := "Scala Armada Client",
+    name := "Armada Scala Client",
     version := "0.1.0-SNAPSHOT",
 
     scalaVersion := scala2Version,
