@@ -120,6 +120,7 @@ func (r *PostgresJobRepository) FetchInitialJobs(ctx *armadacontext.Context) ([]
 				Queued:                  row.Queued,
 				QueuedVersion:           row.QueuedVersion,
 				CancelRequested:         row.CancelRequested,
+				CancelUser:              row.CancelUser,
 				Cancelled:               row.Cancelled,
 				CancelByJobsetRequested: row.CancelByJobsetRequested,
 				Succeeded:               row.Succeeded,
@@ -223,6 +224,7 @@ func (r *PostgresJobRepository) FetchJobUpdates(ctx *armadacontext.Context, jobS
 			return queries.SelectUpdatedJobs(ctx, SelectUpdatedJobsParams{Serial: from, Limit: r.batchSize})
 		})
 		updatedJobs = make([]Job, len(updatedJobRows))
+
 		for i, row := range updatedJobRows {
 			updatedJobs[i] = Job{
 				JobID:                   row.JobID,
@@ -237,6 +239,7 @@ func (r *PostgresJobRepository) FetchJobUpdates(ctx *armadacontext.Context, jobS
 				CancelRequested:         row.CancelRequested,
 				Cancelled:               row.Cancelled,
 				CancelByJobsetRequested: row.CancelByJobsetRequested,
+				CancelUser:              row.CancelUser,
 				Succeeded:               row.Succeeded,
 				Failed:                  row.Failed,
 				SchedulingInfo:          row.SchedulingInfo,

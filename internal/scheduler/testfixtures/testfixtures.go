@@ -9,7 +9,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/oklog/ulid"
 	"golang.org/x/exp/maps"
@@ -37,6 +36,7 @@ const (
 	TestQueue2                               = "testQueue2"
 	TestPool                                 = "testPool"
 	TestPool2                                = "testPool2"
+	TestCancelUser                           = "canceluser"
 	AwayPool                                 = "awayPool"
 	TestHostnameLabel                        = "kubernetes.io/hostname"
 	ClusterNameLabel                         = "cluster"
@@ -108,7 +108,7 @@ var (
 	// Has to be consistent since creating one involves generating a random key.
 	// If this key isn't consistent, scheduling keys generated are not either.
 	// We use the all-zeros key here to ensure scheduling keys are cosnsitent between tests.
-	SchedulingKeyGenerator = schedulerobjects.NewSchedulingKeyGeneratorWithKey(make([]byte, 32))
+	SchedulingKeyGenerator = internaltypes.NewSchedulingKeyGeneratorWithKey(make([]byte, 32))
 	// Used for job creation.
 	JobDb = NewJobDb(TestResourceListFactory)
 )
@@ -145,7 +145,7 @@ func NewJob(
 	queue string,
 	priority uint32,
 	price float64,
-	schedulingInfo *schedulerobjects.JobSchedulingInfo,
+	schedulingInfo *internaltypes.JobSchedulingInfo,
 	queued bool,
 	queuedVersion int32,
 	cancelRequested bool,
@@ -306,9 +306,12 @@ func WithNodeTypeNodes(nodeType *internaltypes.NodeType, nodes []*internaltypes.
 			node.GetExecutor(),
 			node.GetName(),
 			node.GetPool(),
+			node.GetReportingNodeType(),
 			node.GetTaints(),
 			node.GetLabels(),
+			false,
 			node.GetTotalResources(),
+			node.GetAllocatableResources(),
 			node.GetUnallocatableResources(),
 			node.AllocatableByPriority,
 			node.AllocatedByQueue,
@@ -328,9 +331,12 @@ func WithIdNodes(nodeId string, nodes []*internaltypes.Node) []*internaltypes.No
 			node.GetExecutor(),
 			node.GetName(),
 			node.GetPool(),
+			node.GetReportingNodeType(),
 			node.GetTaints(),
 			node.GetLabels(),
+			false,
 			node.GetTotalResources(),
+			node.GetAllocatableResources(),
 			node.GetUnallocatableResources(),
 			node.AllocatableByPriority,
 			node.AllocatedByQueue,
@@ -349,9 +355,12 @@ func WithIndexNode(idx uint64, node *internaltypes.Node) *internaltypes.Node {
 		node.GetExecutor(),
 		node.GetName(),
 		node.GetPool(),
+		node.GetReportingNodeType(),
 		node.GetTaints(),
 		node.GetLabels(),
+		false,
 		node.GetTotalResources(),
+		node.GetAllocatableResources(),
 		node.GetUnallocatableResources(),
 		node.AllocatableByPriority,
 		node.AllocatedByQueue,
@@ -402,13 +411,11 @@ func WithNodeAffinityJobs(nodeSelectorTerms []v1.NodeSelectorTerm, jobs []*jobdb
 func WithRequestsJobs(rl schedulerobjects.ResourceList, jobs []*jobdb.Job) []*jobdb.Job {
 	newJobs := make([]*jobdb.Job, len(jobs))
 	for i, job := range jobs {
-		newSchedInfo := proto.Clone(job.JobSchedulingInfo()).(*schedulerobjects.JobSchedulingInfo)
-		for _, newReq := range newSchedInfo.GetObjectRequirements() {
-			maps.Copy(
-				newReq.GetPodRequirements().ResourceRequirements.Requests,
-				schedulerobjects.V1ResourceListFromResourceList(rl),
-			)
-		}
+		newSchedInfo := job.JobSchedulingInfo().DeepCopy()
+		maps.Copy(
+			newSchedInfo.PodRequirements.ResourceRequirements.Requests,
+			schedulerobjects.V1ResourceListFromResourceList(rl),
+		)
 		newJob, err := job.WithJobSchedulingInfo(newSchedInfo)
 		if err != nil {
 			panic(err)
@@ -420,18 +427,14 @@ func WithRequestsJobs(rl schedulerobjects.ResourceList, jobs []*jobdb.Job) []*jo
 
 func WithNodeSelectorJobs(selector map[string]string, jobs []*jobdb.Job) []*jobdb.Job {
 	for _, job := range jobs {
-		for _, req := range job.JobSchedulingInfo().GetObjectRequirements() {
-			req.GetPodRequirements().NodeSelector = maps.Clone(selector)
-		}
+		job.JobSchedulingInfo().PodRequirements.NodeSelector = maps.Clone(selector)
 	}
 	return jobs
 }
 
 func WithNodeSelectorJob(selector map[string]string, job *jobdb.Job) *jobdb.Job {
 	job = job.DeepCopy()
-	for _, req := range job.JobSchedulingInfo().GetObjectRequirements() {
-		req.GetPodRequirements().NodeSelector = maps.Clone(selector)
-	}
+	job.JobSchedulingInfo().PodRequirements.NodeSelector = maps.Clone(selector)
 	return job
 }
 
@@ -463,12 +466,10 @@ func WithNodeUniformityGangAnnotationsJobs(jobs []*jobdb.Job, nodeUniformityLabe
 
 func WithAnnotationsJobs(annotations map[string]string, jobs []*jobdb.Job) []*jobdb.Job {
 	for _, job := range jobs {
-		for _, req := range job.JobSchedulingInfo().GetObjectRequirements() {
-			if req.GetPodRequirements().Annotations == nil {
-				req.GetPodRequirements().Annotations = make(map[string]string)
-			}
-			maps.Copy(req.GetPodRequirements().Annotations, annotations)
+		if job.PodRequirements().Annotations == nil {
+			job.PodRequirements().Annotations = make(map[string]string)
 		}
+		maps.Copy(job.PodRequirements().Annotations, annotations)
 	}
 	return jobs
 }
@@ -531,7 +532,7 @@ func extractPriority(priorityClassName string) int32 {
 	return priorityClass.Priority
 }
 
-func TestJob(queue string, jobId ulid.ULID, priorityClassName string, req *schedulerobjects.PodRequirements) *jobdb.Job {
+func TestJob(queue string, jobId ulid.ULID, priorityClassName string, req *internaltypes.PodRequirements) *jobdb.Job {
 	created := jobTimestamp.Add(1)
 	submitTime := time.Time{}.Add(time.Millisecond * time.Duration(created))
 	job, _ := JobDb.NewJob(
@@ -541,16 +542,10 @@ func TestJob(queue string, jobId ulid.ULID, priorityClassName string, req *sched
 		// This is the per-queue priority of this job, which is unrelated to `priorityClassName`.
 		1000,
 		0.0,
-		&schedulerobjects.JobSchedulingInfo{
+		&internaltypes.JobSchedulingInfo{
 			PriorityClassName: priorityClassName,
 			SubmitTime:        submitTime,
-			ObjectRequirements: []*schedulerobjects.ObjectRequirements{
-				{
-					Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
-						PodRequirements: req,
-					},
-				},
-			},
+			PodRequirements:   req,
 		},
 		false,
 		0,
@@ -589,23 +584,23 @@ func Test1GpuJob(queue string, priorityClassName string) *jobdb.Job {
 	return TestJob(queue, jobId, priorityClassName, Test1GpuPodReqs(queue, jobId, extractPriority(priorityClassName)))
 }
 
-func N1CpuPodReqs(queue string, priority int32, n int) []*schedulerobjects.PodRequirements {
-	rv := make([]*schedulerobjects.PodRequirements, n)
+func N1CpuPodReqs(queue string, priority int32, n int) []*internaltypes.PodRequirements {
+	rv := make([]*internaltypes.PodRequirements, n)
 	for i := 0; i < n; i++ {
 		rv[i] = Test1Cpu4GiPodReqs(queue, util.ULID(), priority)
 	}
 	return rv
 }
 
-func TestPodReqs(queue string, jobId ulid.ULID, priority int32, requests v1.ResourceList) *schedulerobjects.PodRequirements {
-	return &schedulerobjects.PodRequirements{
+func TestPodReqs(queue string, jobId ulid.ULID, priority int32, requests v1.ResourceList) *internaltypes.PodRequirements {
+	return &internaltypes.PodRequirements{
 		ResourceRequirements: v1.ResourceRequirements{Requests: requests},
 		Annotations:          make(map[string]string),
 		NodeSelector:         make(map[string]string),
 	}
 }
 
-func Test1Cpu4GiPodReqs(queue string, jobId ulid.ULID, priority int32) *schedulerobjects.PodRequirements {
+func Test1Cpu4GiPodReqs(queue string, jobId ulid.ULID, priority int32) *internaltypes.PodRequirements {
 	return TestPodReqs(
 		queue,
 		jobId,
@@ -617,7 +612,7 @@ func Test1Cpu4GiPodReqs(queue string, jobId ulid.ULID, priority int32) *schedule
 	)
 }
 
-func Test1Cpu16GiPodReqs(queue string, jobId ulid.ULID, priority int32) *schedulerobjects.PodRequirements {
+func Test1Cpu16GiPodReqs(queue string, jobId ulid.ULID, priority int32) *internaltypes.PodRequirements {
 	return TestPodReqs(
 		queue,
 		jobId,
@@ -629,7 +624,7 @@ func Test1Cpu16GiPodReqs(queue string, jobId ulid.ULID, priority int32) *schedul
 	)
 }
 
-func Test16Cpu128GiPodReqs(queue string, jobId ulid.ULID, priority int32) *schedulerobjects.PodRequirements {
+func Test16Cpu128GiPodReqs(queue string, jobId ulid.ULID, priority int32) *internaltypes.PodRequirements {
 	req := TestPodReqs(
 		queue,
 		jobId,
@@ -648,7 +643,7 @@ func Test16Cpu128GiPodReqs(queue string, jobId ulid.ULID, priority int32) *sched
 	return req
 }
 
-func Test32Cpu256GiPodReqs(queue string, jobId ulid.ULID, priority int32) *schedulerobjects.PodRequirements {
+func Test32Cpu256GiPodReqs(queue string, jobId ulid.ULID, priority int32) *internaltypes.PodRequirements {
 	req := TestPodReqs(
 		queue,
 		jobId,
@@ -667,7 +662,7 @@ func Test32Cpu256GiPodReqs(queue string, jobId ulid.ULID, priority int32) *sched
 	return req
 }
 
-func Test1GpuPodReqs(queue string, jobId ulid.ULID, priority int32) *schedulerobjects.PodRequirements {
+func Test1GpuPodReqs(queue string, jobId ulid.ULID, priority int32) *internaltypes.PodRequirements {
 	req := TestPodReqs(
 		queue,
 		jobId,
@@ -687,8 +682,8 @@ func Test1GpuPodReqs(queue string, jobId ulid.ULID, priority int32) *schedulerob
 	return req
 }
 
-func TestUnitReqs() *schedulerobjects.PodRequirements {
-	return &schedulerobjects.PodRequirements{
+func TestUnitReqs() *internaltypes.PodRequirements {
+	return &internaltypes.PodRequirements{
 		ResourceRequirements: v1.ResourceRequirements{
 			Requests: v1.ResourceList{
 				"cpu":    resource.MustParse("1"),
@@ -756,8 +751,11 @@ func TestSimpleNode(id string) *internaltypes.Node {
 		"",
 		"",
 		"",
+		"",
 		nil,
 		nil,
+		false,
+		internaltypes.ResourceList{},
 		internaltypes.ResourceList{},
 		nil,
 		nil,
@@ -774,12 +772,14 @@ func TestNode(priorities []int32, resources map[string]resource.Quantity) *inter
 		"executor1",
 		id,
 		TestPool,
+		"type",
 		false,
 		[]v1.Taint{},
 		map[string]string{
 			TestHostnameLabel:                  id,
 			schedulerconfiguration.NodeIdLabel: id,
 		},
+		rl,
 		rl,
 		map[int32]internaltypes.ResourceList{},
 		internaltypes.NewAllocatableByPriorityAndResourceType(priorities, rl))
@@ -859,16 +859,10 @@ func TestQueuedJobDbJob() *jobdb.Job {
 		TestQueue,
 		0,
 		0.0,
-		&schedulerobjects.JobSchedulingInfo{
+		&internaltypes.JobSchedulingInfo{
 			PriorityClassName: TestDefaultPriorityClass,
 			SubmitTime:        BaseTime,
-			ObjectRequirements: []*schedulerobjects.ObjectRequirements{
-				{
-					Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
-						PodRequirements: TestUnitReqs(),
-					},
-				},
-			},
+			PodRequirements:   TestUnitReqs(),
 		},
 		true,
 		0,

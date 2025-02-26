@@ -17,6 +17,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/floatingresources"
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/queue"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -150,7 +151,7 @@ func (c *MetricsCollector) updateQueueMetrics(ctx *armadacontext.Context) ([]pro
 
 	provider := metricProvider{queueStates: make(map[string]*queueState, len(queues))}
 	queuedJobsCount := make(map[string]int, len(queues))
-	schedulingKeysByQueue := make(map[string]map[schedulerobjects.SchedulingKey]bool, len(queues))
+	schedulingKeysByQueue := make(map[string]map[internaltypes.SchedulingKey]bool, len(queues))
 
 	for _, queue := range queues {
 		provider.queueStates[queue.Name] = &queueState{
@@ -159,7 +160,7 @@ func (c *MetricsCollector) updateQueueMetrics(ctx *armadacontext.Context) ([]pro
 			queue:              queue,
 		}
 		queuedJobsCount[queue.Name] = 0
-		schedulingKeysByQueue[queue.Name] = map[schedulerobjects.SchedulingKey]bool{}
+		schedulingKeysByQueue[queue.Name] = map[internaltypes.SchedulingKey]bool{}
 	}
 
 	currentTime := c.clock.Now()
@@ -177,7 +178,7 @@ func (c *MetricsCollector) updateQueueMetrics(ctx *armadacontext.Context) ([]pro
 		pools := job.ResolvedPools()
 
 		priorityClass := job.JobSchedulingInfo().PriorityClassName
-		resourceRequirements := job.JobSchedulingInfo().GetObjectRequirements()[0].GetPodRequirements().GetResourceRequirements().Requests
+		resourceRequirements := job.JobSchedulingInfo().PodRequirements.ResourceRequirements.Requests
 		jobResources := make(map[string]float64)
 		for key, value := range resourceRequirements {
 			jobResources[string(key)] = resource.QuantityAsFloat64(value)
@@ -225,7 +226,7 @@ func (c *MetricsCollector) updateQueueMetrics(ctx *armadacontext.Context) ([]pro
 		}
 	}
 
-	queuedDistinctSchedulingKeysCount := armadamaps.MapValues(schedulingKeysByQueue, func(schedulingKeys map[schedulerobjects.SchedulingKey]bool) int {
+	queuedDistinctSchedulingKeysCount := armadamaps.MapValues(schedulingKeysByQueue, func(schedulingKeys map[internaltypes.SchedulingKey]bool) int {
 		return len(schedulingKeys)
 	})
 

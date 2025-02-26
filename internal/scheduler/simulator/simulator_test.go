@@ -11,6 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
@@ -323,7 +324,7 @@ func TestSimulator(t *testing.T) {
 				Name: "cluster",
 				Clusters: func() []*Cluster {
 					whaleNodeTemplate := NodeTemplateGpu(2)
-					whaleNodeTemplate.Taints = []v1.Taint{
+					whaleNodeTemplate.Taints = []*v1.Taint{
 						{Key: "gpu-whale", Value: "true", Effect: v1.TaintEffectNoSchedule},
 					}
 					return []*Cluster{
@@ -351,20 +352,20 @@ func TestSimulator(t *testing.T) {
 								Number:            2,
 								JobSet:            "job-set-0",
 								PriorityClassName: "armada-preemptible",
-								Requirements: schedulerobjects.PodRequirements{
-									ResourceRequirements: v1.ResourceRequirements{
+								Requirements: &schedulerobjects.PodRequirements{
+									ResourceRequirements: &v1.ResourceRequirements{
 										Requests: v1.ResourceList{
 											"cpu":            resource.MustParse("128"),
 											"memory":         resource.MustParse("4096Gi"),
 											"nvidia.com/gpu": resource.MustParse("8"),
 										},
 									},
-									Tolerations: []v1.Toleration{
+									Tolerations: []*v1.Toleration{
 										{Key: "gpu-whale", Value: "true", Effect: v1.TaintEffectNoSchedule},
 									},
 								},
-								EarliestSubmitTime:  1 * time.Minute,
-								RuntimeDistribution: ShiftedExponential{Minimum: 5 * time.Minute},
+								EarliestSubmitTime:  protoutil.ToDuration(1 * time.Minute),
+								RuntimeDistribution: &ShiftedExponential{Minimum: protoutil.ToDuration(5 * time.Minute)},
 							},
 						},
 					},
@@ -377,8 +378,8 @@ func TestSimulator(t *testing.T) {
 								Number:            32,
 								JobSet:            "job-set-1",
 								PriorityClassName: "armada-preemptible-away",
-								Requirements: schedulerobjects.PodRequirements{
-									ResourceRequirements: v1.ResourceRequirements{
+								Requirements: &schedulerobjects.PodRequirements{
+									ResourceRequirements: &v1.ResourceRequirements{
 										Requests: v1.ResourceList{
 											"cpu":            resource.MustParse("16"),
 											"memory":         resource.MustParse("512Gi"),
@@ -386,7 +387,7 @@ func TestSimulator(t *testing.T) {
 										},
 									},
 								},
-								RuntimeDistribution: ShiftedExponential{Minimum: time.Hour},
+								RuntimeDistribution: &ShiftedExponential{Minimum: protoutil.ToDuration(time.Hour)},
 							},
 						},
 					},
@@ -565,8 +566,8 @@ func TestGenerateRandomShiftedExponentialDuration(t *testing.T) {
 		time.Hour,
 		generateRandomShiftedExponentialDuration(
 			rand.New(rand.NewSource(0)),
-			ShiftedExponential{
-				Minimum: time.Hour,
+			&ShiftedExponential{
+				Minimum: protoutil.ToDuration(time.Hour),
 			},
 		),
 	)
@@ -575,9 +576,9 @@ func TestGenerateRandomShiftedExponentialDuration(t *testing.T) {
 		time.Hour,
 		generateRandomShiftedExponentialDuration(
 			rand.New(rand.NewSource(0)),
-			ShiftedExponential{
-				Minimum:  time.Hour,
-				TailMean: time.Second,
+			&ShiftedExponential{
+				Minimum:  protoutil.ToDuration(time.Hour),
+				TailMean: protoutil.ToDuration(time.Second),
 			},
 		),
 	)

@@ -10,7 +10,6 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/floatingresources"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/scheduling/constraints"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 )
@@ -87,7 +86,7 @@ func (sch *GangScheduler) updateGangSchedulingContextOnFailure(gctx *context.Gan
 	if !sch.skipUnsuccessfulSchedulingKeyCheck && gctx.Cardinality() == 1 && globallyUnschedulable {
 		jctx := gctx.JobSchedulingContexts[0]
 		schedulingKey, ok := jctx.SchedulingKey()
-		if ok && schedulingKey != schedulerobjects.EmptySchedulingKey {
+		if ok && schedulingKey != internaltypes.EmptySchedulingKey {
 			if _, ok := sch.schedulingContext.UnfeasibleSchedulingKeys[schedulingKey]; !ok {
 				// Keep the first jctx for each unfeasible schedulingKey.
 				sch.schedulingContext.UnfeasibleSchedulingKeys[schedulingKey] = jctx

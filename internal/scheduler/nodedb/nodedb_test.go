@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/maps"
+	"golang.org/x/exp/slices"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
@@ -113,6 +114,33 @@ func TestSelectNodeForPod_NodeIdLabel_Failure(t *testing.T) {
 	}
 }
 
+func TestGetNodes(t *testing.T) {
+	node1 := testfixtures.Test8GpuNode(testfixtures.TestPriorities)
+	node2 := testfixtures.Test8GpuNode(testfixtures.TestPriorities)
+	nodeDb, err := newNodeDbWithNodes([]*internaltypes.Node{node1, node2})
+	require.NoError(t, err)
+	nodes, err := nodeDb.GetNodes()
+	require.NoError(t, err)
+
+	assert.Len(t, nodes, 2)
+	assert.True(t, slices.Contains(nodes, node1))
+	assert.True(t, slices.Contains(nodes, node2))
+}
+
+func TestGetNodesWithTxn(t *testing.T) {
+	node1 := testfixtures.Test8GpuNode(testfixtures.TestPriorities)
+	node2 := testfixtures.Test8GpuNode(testfixtures.TestPriorities)
+	nodeDb, err := newNodeDbWithNodes([]*internaltypes.Node{node1, node2})
+	require.NoError(t, err)
+	txn := nodeDb.Txn(true)
+	nodes, err := nodeDb.GetNodesWithTxn(txn)
+	require.NoError(t, err)
+
+	assert.Len(t, nodes, 2)
+	assert.True(t, slices.Contains(nodes, node1))
+	assert.True(t, slices.Contains(nodes, node2))
+}
+
 func TestNodeBindingEvictionUnbinding(t *testing.T) {
 	node := testfixtures.Test8GpuNode(testfixtures.TestPriorities)
 	nodeDb, err := newNodeDbWithNodes([]*internaltypes.Node{node})
@@ -120,7 +148,6 @@ func TestNodeBindingEvictionUnbinding(t *testing.T) {
 	entry, err := nodeDb.GetNode(node.GetId())
 	require.NoError(t, err)
 
-	jobFilter := func(job *jobdb.Job) bool { return true }
 	job := testfixtures.Test1GpuJob("A", testfixtures.PriorityClass0)
 	request := job.KubernetesResourceRequirements()
 
@@ -135,9 +162,8 @@ func TestNodeBindingEvictionUnbinding(t *testing.T) {
 	unboundMultipleNode, err := nodeDb.UnbindJobsFromNode([]*jobdb.Job{job}, boundNode)
 	require.NoError(t, err)
 
-	evictedJobs, evictedNode, err := nodeDb.EvictJobsFromNode(jobFilter, []*jobdb.Job{job}, boundNode)
+	evictedNode, err := nodeDb.EvictJobsFromNode([]*jobdb.Job{job}, boundNode)
 	require.NoError(t, err)
-	assert.Equal(t, []*jobdb.Job{job}, evictedJobs)
 
 	evictedUnboundNode, err := nodeDb.UnbindJobFromNode(job, evictedNode)
 	require.NoError(t, err)
@@ -145,7 +171,7 @@ func TestNodeBindingEvictionUnbinding(t *testing.T) {
 	evictedBoundNode, err := nodeDb.bindJobToNode(evictedNode, job, job.PriorityClass().Priority)
 	require.NoError(t, err)
 
-	_, _, err = nodeDb.EvictJobsFromNode(jobFilter, []*jobdb.Job{job}, entry)
+	_, err = nodeDb.EvictJobsFromNode([]*jobdb.Job{job}, entry)
 	require.Error(t, err)
 
 	_, err = nodeDb.UnbindJobFromNode(job, entry)
@@ -154,7 +180,7 @@ func TestNodeBindingEvictionUnbinding(t *testing.T) {
 	_, err = nodeDb.bindJobToNode(boundNode, job, job.PriorityClass().Priority)
 	require.Error(t, err)
 
-	_, _, err = nodeDb.EvictJobsFromNode(jobFilter, []*jobdb.Job{job}, evictedNode)
+	_, err = nodeDb.EvictJobsFromNode([]*jobdb.Job{job}, evictedNode)
 	require.Error(t, err)
 
 	assertNodeAccountingEqual(t, entry, unboundNode)
@@ -244,61 +270,52 @@ func assertNodeAccountingEqual(t *testing.T, node1, node2 *internaltypes.Node) {
 }
 
 func TestEviction(t *testing.T) {
-	tests := map[string]struct {
-		jobFilter         func(*jobdb.Job) bool
-		expectedEvictions []int32
-	}{
-		"jobFilter always returns false": {
-			jobFilter:         func(_ *jobdb.Job) bool { return false },
-			expectedEvictions: []int32{},
-		},
-		"jobFilter always returns true": {
-			jobFilter:         func(_ *jobdb.Job) bool { return true },
-			expectedEvictions: []int32{0, 1},
-		},
-		"jobFilter returns true for preemptible jobs": {
-			jobFilter: func(job *jobdb.Job) bool {
-				priorityClassName := job.PriorityClassName()
-				priorityClass := testfixtures.TestPriorityClasses[priorityClassName]
-				return priorityClass.Preemptible
-			},
-			expectedEvictions: []int32{0},
-		},
-		"jobFilter nil": {
-			jobFilter:         nil,
-			expectedEvictions: []int32{0, 1},
-		},
-	}
-	for name, tc := range tests {
-		t.Run(name, func(t *testing.T) {
-			nodeDb, err := newNodeDbWithNodes([]*internaltypes.Node{})
-			require.NoError(t, err)
-			txn := nodeDb.Txn(true)
-			jobs := []*jobdb.Job{
-				testfixtures.Test1Cpu4GiJob("queue-alice", testfixtures.PriorityClass0),
-				testfixtures.Test1Cpu4GiJob("queue-alice", testfixtures.PriorityClass3),
-			}
-			node := testfixtures.Test32CpuNode(testfixtures.TestPriorities)
-			require.NoError(t, err)
-			err = nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, jobs, node)
-			txn.Commit()
-			require.NoError(t, err)
-			entry, err := nodeDb.GetNode(node.GetId())
-			require.NoError(t, err)
+	nodeDb, err := newNodeDbWithNodes([]*internaltypes.Node{})
+	require.NoError(t, err)
 
-			existingJobs := make([]*jobdb.Job, len(jobs))
-			for i, job := range jobs {
-				existingJobs[i] = job
-			}
-			actualEvictions, _, err := nodeDb.EvictJobsFromNode(tc.jobFilter, existingJobs, entry)
-			require.NoError(t, err)
-			expectedEvictions := make([]*jobdb.Job, 0, len(tc.expectedEvictions))
-			for _, i := range tc.expectedEvictions {
-				expectedEvictions = append(expectedEvictions, jobs[i])
-			}
-			assert.Equal(t, expectedEvictions, actualEvictions)
-		})
+	txn := nodeDb.Txn(true)
+	jobs := []*jobdb.Job{
+		testfixtures.Test1Cpu4GiJob("queue-alice", testfixtures.PriorityClass0),
+		testfixtures.Test1Cpu4GiJob("queue-alice", testfixtures.PriorityClass3),
 	}
+
+	node := testfixtures.Test32CpuNode(testfixtures.TestPriorities)
+	require.NoError(t, err)
+	err = nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, jobs, node)
+	txn.Commit()
+	require.NoError(t, err)
+
+	node, err = nodeDb.GetNode(node.GetId())
+	require.NoError(t, err)
+	assert.Equal(t, 0, len(node.EvictedJobRunIds))
+	assert.Equal(t, map[int32]internaltypes.ResourceList{
+		-1: testfixtures.CpuMem("30", "248Gi"),
+		0:  testfixtures.CpuMem("30", "248Gi"),
+		1:  testfixtures.CpuMem("31", "252Gi"),
+		2:  testfixtures.CpuMem("31", "252Gi"),
+		3:  testfixtures.CpuMem("31", "252Gi"),
+	}, node.AllocatableByPriority)
+
+	returnedNode, err := nodeDb.EvictJobsFromNode(jobs, node)
+	assert.Nil(t, err)
+	assert.Equal(t, 0, len(node.EvictedJobRunIds))
+	assert.Equal(t, len(jobs), len(returnedNode.EvictedJobRunIds))
+
+	assert.Equal(t, map[int32]internaltypes.ResourceList{
+		-1: testfixtures.CpuMem("30", "248Gi"),
+		0:  testfixtures.CpuMem("30", "248Gi"),
+		1:  testfixtures.CpuMem("31", "252Gi"),
+		2:  testfixtures.CpuMem("31", "252Gi"),
+		3:  testfixtures.CpuMem("31", "252Gi"),
+	}, node.AllocatableByPriority)
+
+	assert.Equal(t, map[int32]internaltypes.ResourceList{
+		-1: testfixtures.CpuMem("30", "248Gi"),
+		0:  testfixtures.CpuMem("32", "256Gi"),
+		1:  testfixtures.CpuMem("32", "256Gi"),
+		2:  testfixtures.CpuMem("32", "256Gi"),
+		3:  testfixtures.CpuMem("32", "256Gi"),
+	}, returnedNode.AllocatableByPriority)
 }
 
 func TestScheduleIndividually(t *testing.T) {

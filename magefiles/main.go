@@ -152,7 +152,16 @@ func KindTeardown() {
 // Generate scheduler SQL.
 func Sql() error {
 	mg.Deps(sqlcCheck)
-	return sqlcRun("generate", "-f", "internal/scheduler/database/sql.yaml")
+
+	if err := sqlcRun("generate", "-f", "internal/scheduler/database/sql.yaml"); err != nil {
+		return err
+	}
+
+	if err := sqlcRun("generate", "-f", "internal/server/queryapi/database/sql.yaml"); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // Generate Helm documentation.
@@ -203,9 +212,9 @@ func LocalDev(arg string) error {
 
 	switch arg {
 	case "minimal":
-		mg.Deps(mg.F(goreleaserMinimalRelease, "bundle"), Kind, downloadDependencyImages)
+		mg.Deps(mg.F(goreleaserMinimalRelease, "bundle", "lookout-bundle"), Kind, downloadDependencyImages)
 	case "full":
-		mg.Deps(BuildPython, mg.F(BuildDockers, "bundle, lookout-bundle"), Kind, downloadDependencyImages)
+		mg.Deps(BuildPython, BuildScala, mg.F(BuildDockers, "bundle, lookout-bundle"), Kind, downloadDependencyImages)
 	case "no-build", "debug":
 		mg.Deps(Kind, downloadDependencyImages)
 	default:
@@ -214,12 +223,18 @@ func LocalDev(arg string) error {
 
 	mg.Deps(StartDependencies)
 	fmt.Println("Waiting for dependencies to start...")
-	mg.Deps(CheckForPulsarRunning)
+	mg.Deps(CheckPulsarRunning)
+	mg.Deps(CheckPostgresRunning)
 
 	switch arg {
 	case "minimal":
 		os.Setenv("ARMADA_COMPONENTS", "executor,server,scheduler")
 		mg.Deps(StartComponents)
+		// This is a naive check to confirm the containers are running, it doesn't check they are ready
+		// TODO Make a good check to confirm the system is ready, such as seeing armadactl get executors return a value
+		mg.Deps(CheckServerRunning)
+		mg.Deps(CheckSchedulerRunning)
+		mg.Deps(CheckExecutorRunning)
 	case "debug", "no-build":
 		fmt.Println("Dependencies started, ending localdev...")
 		return nil
@@ -238,7 +253,7 @@ func LocalDevStop() {
 	mg.Deps(KindTeardown)
 }
 
-// Build the lookout UI from internal/lookout/ui
+// Build the lookout UI from internal/lookoutui
 func UI() error {
 	timeTaken := time.Now()
 	mg.Deps(yarnCheck)
@@ -315,7 +330,7 @@ func Generate() error {
 
 // CI Image to build
 func BuildCI() error {
-	ciImage := []string{"bundle", "lookout-bundle", "server", "executor", "armadactl", "testsuite", "lookoutv2", "lookoutingesterv2", "eventingester", "scheduler", "scheduleringester", "binoculars"}
+	ciImage := []string{"bundle", "lookout-bundle", "server", "executor", "armadactl", "testsuite", "lookout", "lookoutingester", "eventingester", "scheduler", "scheduleringester", "binoculars"}
 	err := goreleaserMinimalRelease(ciImage...)
 	if err != nil {
 		return err

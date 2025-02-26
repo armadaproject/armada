@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/protobuf/types"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
@@ -14,7 +13,9 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
+	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/scheduler/database"
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/kubernetesobjects/affinity"
 	"github.com/armadaproject/armada/internal/scheduler/leader"
@@ -414,10 +415,10 @@ func (s *Scheduler) syncState(ctx *armadacontext.Context, initial bool) ([]*jobd
 	return jobDbJobs, jsts, nil
 }
 
-func (s *Scheduler) createSchedulingInfoWithNodeAntiAffinityForAttemptedRuns(job *jobdb.Job) (*schedulerobjects.JobSchedulingInfo, error) {
-	newSchedulingInfo := proto.Clone(job.JobSchedulingInfo()).(*schedulerobjects.JobSchedulingInfo)
+func (s *Scheduler) createSchedulingInfoWithNodeAntiAffinityForAttemptedRuns(job *jobdb.Job) (*internaltypes.JobSchedulingInfo, error) {
+	newSchedulingInfo := job.JobSchedulingInfo().DeepCopy()
 	newSchedulingInfo.Version = job.JobSchedulingInfo().Version + 1
-	podRequirements := newSchedulingInfo.GetPodRequirements()
+	podRequirements := newSchedulingInfo.PodRequirements
 	if podRequirements == nil {
 		return nil, errors.Errorf("no pod scheduling requirement found for job %s", job.Id())
 	}
@@ -574,7 +575,9 @@ func AppendEventSequencesFromScheduledJobs(eventSequences []*armadaevents.EventS
 							HasScheduledAtPriority: hasScheduledAtPriority,
 							ScheduledAtPriority:    scheduledAtPriority,
 							PodRequirementsOverlay: &schedulerobjects.PodRequirements{
-								Tolerations: jctx.AdditionalTolerations,
+								Tolerations: armadaslices.Map(jctx.AdditionalTolerations, func(t v1.Toleration) *v1.Toleration {
+									return &t
+								}),
 							},
 							Pool: run.Pool(),
 						},
@@ -646,15 +649,26 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 			})
 		}
 		job = job.WithQueued(false).WithoutTerminal().WithCancelled(true)
+		var cancelUser string
+		if cancelUserPtr := job.CancelUser(); cancelUserPtr != nil {
+			cancelUser = *cancelUserPtr
+		}
 		cancel := &armadaevents.EventSequence_Event{
 			Created: s.now(),
 			Event: &armadaevents.EventSequence_Event_CancelledJob{
-				CancelledJob: &armadaevents.CancelledJob{JobId: job.Id()},
+				CancelledJob: &armadaevents.CancelledJob{
+					JobId:      job.Id(),
+					CancelUser: cancelUser,
+				},
 			},
 		}
 		events = append(events, cancel)
 	} else if job.CancelByJobsetRequested() {
 		job = job.WithQueued(false).WithoutTerminal().WithCancelled(true)
+		var cancelUser string
+		if cancelUserPtr := job.CancelUser(); cancelUserPtr != nil {
+			cancelUser = *cancelUserPtr
+		}
 		cancelRequest := &armadaevents.EventSequence_Event{
 			Created: s.now(),
 			Event: &armadaevents.EventSequence_Event_CancelJob{
@@ -681,7 +695,10 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 		cancel := &armadaevents.EventSequence_Event{
 			Created: s.now(),
 			Event: &armadaevents.EventSequence_Event_CancelledJob{
-				CancelledJob: &armadaevents.CancelledJob{JobId: job.Id()},
+				CancelledJob: &armadaevents.CancelledJob{
+					JobId:      job.Id(),
+					CancelUser: cancelUser,
+				},
 			},
 		}
 		events = append(events, cancel)
@@ -726,7 +743,7 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 					Event: &armadaevents.EventSequence_Event_JobRequeued{
 						JobRequeued: &armadaevents.JobRequeued{
 							JobId:                job.Id(),
-							SchedulingInfo:       job.JobSchedulingInfo(),
+							SchedulingInfo:       internaltypes.ToSchedulerObjectsJobSchedulingInfo(job.JobSchedulingInfo()),
 							UpdateSequenceNumber: job.QueuedVersion(),
 						},
 					},

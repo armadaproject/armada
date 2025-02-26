@@ -16,7 +16,6 @@ import (
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/adapters"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
 type JobSortOrder int
@@ -76,7 +75,7 @@ type JobDb struct {
 	priorityClasses map[string]types.PriorityClass
 	// Priority class assigned to jobs with a priorityClassName not in jobDb.priorityClasses.
 	defaultPriorityClass   types.PriorityClass
-	schedulingKeyGenerator *schedulerobjects.SchedulingKeyGenerator
+	schedulingKeyGenerator *internaltypes.SchedulingKeyGenerator
 	// We intern strings to save memory.
 	stringInterner *stringinterner.StringInterner
 	// Mutexes protecting the jobDb.
@@ -111,7 +110,7 @@ func NewJobDb(priorityClasses map[string]types.PriorityClass,
 	return NewJobDbWithSchedulingKeyGenerator(
 		priorityClasses,
 		defaultPriorityClassName,
-		schedulerobjects.NewSchedulingKeyGenerator(),
+		internaltypes.NewSchedulingKeyGenerator(),
 		stringInterner,
 		resourceListFactory,
 	)
@@ -120,7 +119,7 @@ func NewJobDb(priorityClasses map[string]types.PriorityClass,
 func NewJobDbWithSchedulingKeyGenerator(
 	priorityClasses map[string]types.PriorityClass,
 	defaultPriorityClassName string,
-	skg *schedulerobjects.SchedulingKeyGenerator,
+	skg *internaltypes.SchedulingKeyGenerator,
 	stringInterner *stringinterner.StringInterner,
 	resourceListFactory *internaltypes.ResourceListFactory,
 ) *JobDb {
@@ -176,7 +175,7 @@ func (jobDb *JobDb) NewJob(
 	queue string,
 	priority uint32,
 	bidPrice float64,
-	schedulingInfo *schedulerobjects.JobSchedulingInfo,
+	schedulingInfo *internaltypes.JobSchedulingInfo,
 	queued bool,
 	queuedVersion int32,
 	cancelRequested bool,
@@ -220,12 +219,12 @@ func (jobDb *JobDb) NewJob(
 	return job, nil
 }
 
-func (jobDb *JobDb) getResourceRequirements(schedulingInfo *schedulerobjects.JobSchedulingInfo) internaltypes.ResourceList {
+func (jobDb *JobDb) getResourceRequirements(schedulingInfo *internaltypes.JobSchedulingInfo) internaltypes.ResourceList {
 	return jobDb.resourceListFactory.FromJobResourceListIgnoreUnknown(safeGetRequirements(schedulingInfo))
 }
 
-func safeGetRequirements(schedulingInfo *schedulerobjects.JobSchedulingInfo) map[string]k8sResource.Quantity {
-	pr := schedulingInfo.GetPodRequirements()
+func safeGetRequirements(schedulingInfo *internaltypes.JobSchedulingInfo) map[string]k8sResource.Quantity {
+	pr := schedulingInfo.PodRequirements
 	if pr == nil {
 		return map[string]k8sResource.Quantity{}
 	}
@@ -238,18 +237,14 @@ func safeGetRequirements(schedulingInfo *schedulerobjects.JobSchedulingInfo) map
 	return adapters.K8sResourceListToMap(req)
 }
 
-func (jobDb *JobDb) internJobSchedulingInfoStrings(info *schedulerobjects.JobSchedulingInfo) *schedulerobjects.JobSchedulingInfo {
-	for _, requirement := range info.ObjectRequirements {
-		if podRequirement := requirement.GetPodRequirements(); podRequirement != nil {
-			for k, v := range podRequirement.Annotations {
-				podRequirement.Annotations[jobDb.stringInterner.Intern(k)] = jobDb.stringInterner.Intern(v)
-			}
+func (jobDb *JobDb) internJobSchedulingInfoStrings(info *internaltypes.JobSchedulingInfo) *internaltypes.JobSchedulingInfo {
+	pr := info.PodRequirements
+	for k, v := range pr.Annotations {
+		pr.Annotations[jobDb.stringInterner.Intern(k)] = jobDb.stringInterner.Intern(v)
+	}
 
-			for k, v := range podRequirement.NodeSelector {
-				podRequirement.NodeSelector[jobDb.stringInterner.Intern(k)] = jobDb.stringInterner.Intern(v)
-			}
-			podRequirement.PreemptionPolicy = jobDb.stringInterner.Intern(podRequirement.PreemptionPolicy)
-		}
+	for k, v := range pr.NodeSelector {
+		pr.NodeSelector[jobDb.stringInterner.Intern(k)] = jobDb.stringInterner.Intern(v)
 	}
 	return info
 }

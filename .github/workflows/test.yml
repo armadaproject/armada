@@ -21,18 +21,18 @@ jobs:
         with:
           node-version: 22.12.0
           cache: yarn
-          cache-dependency-path: ./internal/lookout/ui/yarn.lock
+          cache-dependency-path: ./internal/lookoutui/yarn.lock
 
-      - name: Install Dependencies And Run Unit Tests
+      - name: Install Dependencies, Check Types And Run Unit Tests
         run: |
-          yarn install --frozen-lockfile && yarn openapi && CI=true yarn test --reporter=junit
-        working-directory: ./internal/lookout/ui
+          yarn install --frozen-lockfile && yarn openapi && yarn typecheck && CI=true yarn test --reporter=junit
+        working-directory: ./internal/lookoutui
 
       - name: Publish JUnit Report
         uses: mikepenz/action-junit-report@v4
         if: always()
         with:
-          report_paths: ./internal/lookout/ui/junit.xml
+          report_paths: ./internal/lookoutui/junit.xml
           fail_on_failure: true
           require_tests: true
           detailed_summary: true
@@ -43,7 +43,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ts-unit-test-reports
-          path: ./internal/lookout/ui/junit.xml
+          path: ./internal/lookoutui/junit.xml
           if-no-files-found: error
 
   go-unit-tests:

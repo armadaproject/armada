@@ -470,6 +470,7 @@ func FromInternalResourceUtilisation(queueName string, jobSetName string, time t
 		PodName:               e.GetResourceInfo().GetObjectMeta().GetName(),
 		PodNamespace:          e.GetResourceInfo().GetObjectMeta().GetNamespace(),
 		TotalCumulativeUsage:  e.TotalCumulativeUsage,
+		AvgResourcesForPeriod: e.AvgResourcesForPeriod,
 	}
 
 	return []*api.EventMessage{

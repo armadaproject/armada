@@ -431,6 +431,8 @@ func createTestJobs(numJobs int) ([]Job, []Job) {
 	dbJobs := make([]Job, numJobs)
 	expectedJobs := make([]Job, numJobs)
 
+	testCancelUser := "test-cancelling-user"
+
 	for i := 0; i < numJobs; i++ {
 		dbJobs[i] = Job{
 			JobID:                   util.NewULID(),
@@ -441,6 +443,7 @@ func createTestJobs(numJobs int) ([]Job, []Job) {
 			Queued:                  false,
 			QueuedVersion:           1,
 			CancelRequested:         true,
+			CancelUser:              &testCancelUser,
 			Cancelled:               true,
 			CancelByJobsetRequested: true,
 			Succeeded:               true,
@@ -458,6 +461,7 @@ func createTestJobs(numJobs int) ([]Job, []Job) {
 			Submitted:               job.Submitted,
 			Priority:                job.Priority,
 			CancelRequested:         job.CancelRequested,
+			CancelUser:              job.CancelUser,
 			Queued:                  job.Queued,
 			QueuedVersion:           job.QueuedVersion,
 			CancelByJobsetRequested: true,
@@ -589,7 +593,7 @@ func TestFetchJobRunLeases(t *testing.T) {
 			Pool:     "test-pool",
 			PodRequirementsOverlay: protoutil.MustMarshall(
 				&schedulerobjects.PodRequirements{
-					Tolerations: []v1.Toleration{
+					Tolerations: []*v1.Toleration{
 						{
 							Key:    "whale",
 							Value:  "true",

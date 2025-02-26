@@ -25,6 +25,7 @@ type JobRequester struct {
 	podDefaults        *configuration.PodDefaults
 	jobRunStateStore   job.RunStateStore
 	maxLeasedJobs      int
+	maxRequestDuration time.Duration
 }
 
 func NewJobRequester(
@@ -35,6 +36,7 @@ func NewJobRequester(
 	utilisationService utilisation.UtilisationService,
 	podDefaults *configuration.PodDefaults,
 	maxLeasedJobs int,
+	maxRequestDuration time.Duration,
 ) *JobRequester {
 	return &JobRequester{
 		leaseRequester:     leaseRequester,
@@ -44,6 +46,7 @@ func NewJobRequester(
 		clusterId:          clusterId,
 		podDefaults:        podDefaults,
 		maxLeasedJobs:      maxLeasedJobs,
+		maxRequestDuration: maxRequestDuration,
 	}
 }
 
@@ -53,7 +56,7 @@ func (r *JobRequester) RequestJobsRuns() {
 		log.Errorf("Failed to create lease request because %s", err)
 		return
 	}
-	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 30*time.Second)
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), r.maxRequestDuration)
 	defer cancel()
 	leaseResponse, err := r.leaseRequester.LeaseJobRuns(ctx, leaseRequest)
 	if err != nil {

@@ -59,9 +59,9 @@ services:
       - "go-cache:/root/.cache/go-build:rw"
       - "gomod-cache:/go/pkg/mod:rw"
     depends_on:
-      - lookoutv2-migration
+      - lookout-migration
       - eventingester
-      - lookoutingesterv2
+      - lookoutingester
     working_dir: /app
     env_file:
       - developer/env/docker/server.env
@@ -168,8 +168,8 @@ services:
     working_dir: /app
     command: ./eventingester
 
-  lookoutv2:
-    container_name: lookoutv2
+  lookout:
+    container_name: lookout
     image: ${ARMADA_IMAGE:-gresearch/armada-lookout-bundle}:${ARMADA_IMAGE_TAG:-latest}
     networks:
       - kind
@@ -177,18 +177,18 @@ services:
       - "10000:10000"
       - "4005:4000"
     depends_on:
-      - lookoutingesterv2
+      - lookoutingester
     volumes:
-      - "./internal/lookout/ui/build:/app/internal/lookout/ui/build"
+      - "./internal/lookoutui/build:/app/internal/lookoutui/build"
       - "go-cache:/root/.cache/go-build:rw"
       - "gomod-cache:/go/pkg/mod:rw"
     env_file:
-      - ./developer/env/docker/lookoutv2.env
+      - developer/env/docker/lookout.env
     working_dir: "/app"
-    entrypoint: ./lookoutv2
+    entrypoint: ./lookout
 
-  lookoutv2-migration:
-    container_name: lookoutv2-migration
+  lookout-migration:
+    container_name: lookout-migration
     image: ${ARMADA_IMAGE:-gresearch/armada-lookout-bundle}:${ARMADA_IMAGE_TAG:-latest}
     networks:
       - kind
@@ -198,12 +198,12 @@ services:
       - "go-cache:/root/.cache/go-build:rw"
       - "gomod-cache:/go/pkg/mod:rw"
     env_file:
-      - ./developer/env/docker/lookoutv2.env
+      - developer/env/docker/lookout.env
     working_dir: "/app"
-    entrypoint: ./lookoutv2 --migrateDatabase
+    entrypoint: ./lookout --migrateDatabase
 
-  lookoutingesterv2:
-    container_name: lookoutingesterv2
+  lookoutingester:
+    container_name: lookoutingester
     image: ${ARMADA_IMAGE:-gresearch/armada-lookout-bundle}:${ARMADA_IMAGE_TAG:-latest}
     ports:
       - 4007:4000
@@ -213,9 +213,9 @@ services:
     networks:
       - kind
     env_file:
-      - ./developer/env/docker/lookoutv2.env
+      - developer/env/docker/lookout.env
     working_dir: /app
-    command: ./lookoutingesterv2
+    command: ./lookoutingester
 
   airflow:
     container_name: airflow

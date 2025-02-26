@@ -34,7 +34,7 @@ func (nodeDb *NodeDb) addNodeToStats(node *internaltypes.Node) {
 	}
 	nodeType := node.GetNodeType()
 	nodeDb.numNodesByNodeType[nodeType.GetId()]++
-	nodeDb.totalResources = nodeDb.totalResources.Add(node.GetTotalResources())
+	nodeDb.totalAllocatableResources = nodeDb.totalAllocatableResources.Add(node.GetAllocatableResources())
 	nodeDb.nodeTypes[node.GetNodeTypeId()] = nodeType
 }
 
@@ -123,8 +123,8 @@ type NodeDb struct {
 	numNodes uint64
 	// Number of nodes in the db by node type.
 	numNodesByNodeType map[uint64]int
-	// Total amount of resources, e.g., "cpu", "memory", "gpu", across all nodes in the db.
-	totalResources internaltypes.ResourceList
+	// Total amount of allocatable resources, e.g., "cpu", "memory", "gpu", across all nodes in the db.
+	totalAllocatableResources internaltypes.ResourceList
 	// Set of node types. Populated automatically as nodes are inserted.
 	// Node types are not cleaned up if all nodes of that type are removed from the NodeDb.
 	nodeTypes map[uint64]*internaltypes.NodeType
@@ -204,7 +204,7 @@ func NewNodeDb(
 		nodeTypes:                 make(map[uint64]*internaltypes.NodeType),
 		wellKnownNodeTypes:        make(map[string]*configuration.WellKnownNodeType),
 		numNodesByNodeType:        make(map[uint64]int),
-		totalResources:            resourceListFactory.MakeAllZero(),
+		totalAllocatableResources: resourceListFactory.MakeAllZero(),
 		db:                        db,
 		// Set the initial capacity (somewhat arbitrarily) to 128 reasons.
 		podRequirementsNotMetReasonStringCache: make(map[uint64]string, 128),
@@ -297,7 +297,7 @@ func (nodeDb *NodeDb) NumNodes() int {
 }
 
 func (nodeDb *NodeDb) TotalKubernetesResources() internaltypes.ResourceList {
-	return nodeDb.totalResources
+	return nodeDb.totalAllocatableResources
 }
 
 func (nodeDb *NodeDb) Txn(write bool) *memdb.Txn {
@@ -321,6 +321,27 @@ func (nodeDb *NodeDb) GetNodeWithTxn(txn *memdb.Txn, id string) (*internaltypes.
 		return nil, nil
 	}
 	return obj.(*internaltypes.Node), nil
+}
+
+func (nodeDb *NodeDb) GetNodes() ([]*internaltypes.Node, error) {
+	return nodeDb.GetNodesWithTxn(nodeDb.Txn(false))
+}
+
+// GetNodesWithTxn returns all nodes in the nodeDb
+func (nodeDb *NodeDb) GetNodesWithTxn(txn *memdb.Txn) ([]*internaltypes.Node, error) {
+	it, err := txn.Get("nodes", "id")
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	nodes := []*internaltypes.Node{}
+	for obj := it.Next(); obj != nil; obj = it.Next() {
+		node := obj.(*internaltypes.Node)
+		if node == nil {
+			break
+		}
+		nodes = append(nodes, node)
+	}
+	return nodes, nil
 }
 
 func (nodeDb *NodeDb) ScheduleManyWithTxn(txn *memdb.Txn, gctx *context.GangSchedulingContext) (bool, error) {
@@ -820,22 +841,16 @@ func (nodeDb *NodeDb) bindJobToNodeInPlace(node *internaltypes.Node, job *jobdb.
 //     the jobs' priorities to evictedPriority; they are not subtracted from AllocatedByJobId and
 //     AllocatedByQueue.
 func (nodeDb *NodeDb) EvictJobsFromNode(
-	jobFilter func(*jobdb.Job) bool,
 	jobs []*jobdb.Job,
 	node *internaltypes.Node,
-) ([]*jobdb.Job, *internaltypes.Node, error) {
-	evicted := make([]*jobdb.Job, 0)
+) (*internaltypes.Node, error) {
 	node = node.DeepCopyNilKeys()
 	for _, job := range jobs {
-		if jobFilter != nil && !jobFilter(job) {
-			continue
-		}
-		evicted = append(evicted, job)
 		if err := nodeDb.evictJobFromNodeInPlace(job, node); err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 	}
-	return evicted, node, nil
+	return node, nil
 }
 
 // evictJobFromNodeInPlace is the in-place operation backing EvictJobsFromNode.
@@ -1023,7 +1038,7 @@ func (nodeDb *NodeDb) ClearAllocated() error {
 		node = node.DeepCopyNilKeys()
 		node.AllocatableByPriority = newAllocatableByPriorityAndResourceType(
 			nodeDb.nodeDbPriorities,
-			node.GetTotalResources(),
+			node.GetAllocatableResources(),
 		)
 		newNodes = append(newNodes, node)
 	}
