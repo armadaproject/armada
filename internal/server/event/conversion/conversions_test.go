@@ -738,6 +738,10 @@ func TestConvertResourceUtilisation(t *testing.T) {
 					"cpu": resourcePointer("3.0"),
 					"mem": resourcePointer("200Gi"),
 				},
+				AvgResourcesForPeriod: map[string]*resource.Quantity{
+					"cpu": resourcePointer("2.5"),
+					"mem": resourcePointer("150Gi"),
+				},
 			},
 		},
 	}
@@ -763,6 +767,10 @@ func TestConvertResourceUtilisation(t *testing.T) {
 					TotalCumulativeUsage: map[string]*resource.Quantity{
 						"cpu": resourcePointer("3.0"),
 						"mem": resourcePointer("200Gi"),
+					},
+					AvgResourcesForPeriod: map[string]*resource.Quantity{
+						"cpu": resourcePointer("2.5"),
+						"mem": resourcePointer("150Gi"),
 					},
 				},
 			},

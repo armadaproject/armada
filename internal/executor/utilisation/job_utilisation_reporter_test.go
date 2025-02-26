@@ -24,7 +24,7 @@ import (
 
 var testPodResources = domain.UtilisationData{
 	CurrentUsage: armadaresource.ComputeResources{
-		"cpu":    resource.MustParse("1"),
+		"cpu":    resource.MustParse("1000m"),
 		"memory": resource.MustParse("640Ki"),
 	},
 	CumulativeUsage: armadaresource.ComputeResources{
@@ -62,6 +62,7 @@ func TestUtilisationEventReporter_ReportUtilisationEvents(t *testing.T) {
 	assert.True(t, ok)
 
 	assert.Equal(t, testPodResources.CurrentUsage, armadaresource.FromProtoMap(event1.ResourceUtilisation.MaxResourcesForPeriod))
+	assert.Equal(t, testPodResources.CurrentUsage, armadaresource.FromProtoMap(event1.ResourceUtilisation.AvgResourcesForPeriod))
 	assert.Equal(t, testPodResources.CumulativeUsage, armadaresource.FromProtoMap(event1.ResourceUtilisation.TotalCumulativeUsage))
 
 	event1CreatedTime := fakeEventReporter.ReceivedEvents[0].Event.Events[0].Created
