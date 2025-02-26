@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/database"
-	"github.com/armadaproject/armada/internal/lookoutv2/configuration"
+	"github.com/armadaproject/armada/internal/lookout/configuration"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	log "github.com/sirupsen/logrus"
@@ -60,7 +60,7 @@ var filterTypeToQueryMap = map[string][]string{
 
 var parallelism = 2
 
-func DoQueries(config configuration.LookoutV2Config, readConfig ReadTestConfig, ctx *armadacontext.Context) (string, error) {
+func DoQueries(config configuration.LookoutConfig, readConfig ReadTestConfig, ctx *armadacontext.Context) (string, error) {
 	db, err := database.OpenPgxPool(config.Postgres)
 	if err != nil {
 		return "", err
