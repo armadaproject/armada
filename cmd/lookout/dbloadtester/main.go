@@ -5,12 +5,12 @@ import (
 	"os/signal"
 	"syscall"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 
 	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	log "github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/profiling"
 	"github.com/armadaproject/armada/internal/lookout/configuration"
 	"github.com/armadaproject/armada/internal/lookout/dbloadtester"
@@ -75,8 +75,6 @@ func main() {
 
 	ctx, cleanup := makeContext()
 	defer cleanup()
-
-	log.SetLevel(log.DebugLevel)
 
 	results, err := dbloadtester.DoQueries(config, args, ctx)
 	if err != nil {
