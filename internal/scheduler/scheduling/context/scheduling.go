@@ -94,7 +94,7 @@ func (sctx *SchedulingContext) AddQueueSchedulingContext(
 	rawWeight float64,
 	initialAllocatedByPriorityClass map[string]internaltypes.ResourceList,
 	demand internaltypes.ResourceList,
-	cappedDemand internaltypes.ResourceList,
+	constrainedDemand internaltypes.ResourceList,
 	limiter *rate.Limiter,
 ) error {
 	if _, ok := sctx.QueueSchedulingContexts[queue]; ok {
@@ -125,7 +125,7 @@ func (sctx *SchedulingContext) AddQueueSchedulingContext(
 		Limiter:                           limiter,
 		Allocated:                         allocated,
 		Demand:                            demand,
-		CappedDemand:                      cappedDemand,
+		ConstrainedDemand:                 constrainedDemand,
 		AllocatedByPriorityClass:          initialAllocatedByPriorityClass,
 		ScheduledResourcesByPriorityClass: make(map[string]internaltypes.ResourceList),
 		EvictedResourcesByPriorityClass:   make(map[string]internaltypes.ResourceList),
@@ -148,11 +148,18 @@ func (sctx *SchedulingContext) GetQueue(queue string) (fairness.Queue, bool) {
 }
 
 type queueInfo struct {
-	queueName     string
-	adjustedShare float64
-	fairShare     float64
-	weight        float64
-	cappedShare   float64
+	// Name of queue
+	queueName string
+	// Demand of this queue, capped by constraints, as a fraction of total available resource.
+	constrainedDemandShare float64
+	// Weight of this queue, or zero if this queue already has all its constrainedDemandShare.
+	weight float64
+	// Plain fair share, just weight_of_this_queue / sum(weights_of_all_active_queues)
+	fairShare float64
+	// Fair share including this queue's proportion of any share unused by other queues.
+	uncappedAdjustedFairShare float64
+	// Fair share including this queue's proportion of any share unused by other queues, capped at this queue's constrainedDemandShare.
+	demandCappedAdjustedFairShare float64
 }
 
 // UpdateFairShares updates FairShare and AdjustedFairShare for every QueueSchedulingContext associated with the
@@ -163,7 +170,7 @@ func (sctx *SchedulingContext) UpdateFairShares() {
 	for _, q := range queueInfos {
 		qtx := sctx.QueueSchedulingContexts[q.queueName]
 		qtx.FairShare = q.fairShare
-		qtx.AdjustedFairShare = q.adjustedShare
+		qtx.AdjustedFairShare = q.demandCappedAdjustedFairShare
 	}
 }
 
@@ -172,14 +179,14 @@ func (sctx *SchedulingContext) CalculateTheoreticalShare(priority float64) float
 	qctxs := maps.Clone(sctx.QueueSchedulingContexts)
 	queueName := util.NewULID()
 	qctxs[queueName] = &QueueSchedulingContext{
-		Queue:        queueName,
-		Weight:       1 / priority,
-		CappedDemand: sctx.TotalResources.Factory().MakeAllMax(), // Infinite demand
+		Queue:             queueName,
+		Weight:            1 / priority,
+		ConstrainedDemand: sctx.TotalResources.Factory().MakeAllMax(), // Infinite demand
 	}
 	queueInfos := sctx.updateFairShares(qctxs)
 	for _, q := range queueInfos {
 		if q.queueName == queueName {
-			return q.adjustedShare
+			return q.demandCappedAdjustedFairShare
 		}
 	}
 	return math.NaN()
@@ -193,16 +200,17 @@ func (sctx *SchedulingContext) updateFairShares(qctxs map[string]*QueueSchedulin
 
 	queueInfos := make([]*queueInfo, 0, len(qctxs))
 	for queueName, qctx := range qctxs {
-		cappedShare := 1.0
+		constrainedDemandShare := 1.0
 		if !sctx.TotalResources.AllZero() {
-			cappedShare = sctx.FairnessCostProvider.UnweightedCostFromAllocation(qctx.CappedDemand)
+			constrainedDemandShare = sctx.FairnessCostProvider.UnweightedCostFromAllocation(qctx.ConstrainedDemand)
 		}
 		queueInfos = append(queueInfos, &queueInfo{
-			queueName:     queueName,
-			adjustedShare: 0,
-			fairShare:     qctx.Weight / sctx.WeightSum,
-			weight:        qctx.Weight,
-			cappedShare:   cappedShare,
+			queueName:                     queueName,
+			demandCappedAdjustedFairShare: 0,
+			uncappedAdjustedFairShare:     0,
+			fairShare:                     qctx.Weight / sctx.WeightSum,
+			weight:                        qctx.Weight,
+			constrainedDemandShare:        constrainedDemandShare,
 		})
 	}
 
@@ -223,14 +231,15 @@ func (sctx *SchedulingContext) updateFairShares(qctxs map[string]*QueueSchedulin
 		for _, q := range queueInfos {
 			if q.weight > 0 {
 				share := (q.weight / totalWeight) * unallocated
-				q.adjustedShare += share
+				q.demandCappedAdjustedFairShare += share
+				q.uncappedAdjustedFairShare += share
 			}
 		}
 		unallocated = 0.0
 		for _, q := range queueInfos {
-			excessShare := q.adjustedShare - q.cappedShare
+			excessShare := q.demandCappedAdjustedFairShare - q.constrainedDemandShare
 			if excessShare > 0 {
-				q.adjustedShare = q.cappedShare
+				q.demandCappedAdjustedFairShare = q.constrainedDemandShare
 				q.weight = 0.0
 				unallocated += excessShare
 			}

@@ -58,6 +58,8 @@ type Job struct {
 	priorityClass types.PriorityClass
 	// True if the user has requested this job be cancelled
 	cancelRequested bool
+	// The (first) user who cancelled this job
+	cancelUser *string
 	// True if the user has requested this job's jobSet be cancelled
 	cancelByJobSetRequested bool
 	// True if the scheduler has cancelled the job
@@ -332,6 +334,9 @@ func (job *Job) Equal(other *Job) bool {
 	if job.cancelByJobSetRequested != other.cancelByJobSetRequested {
 		return false
 	}
+	if job.cancelUser != other.cancelUser {
+		return false
+	}
 	if job.cancelled != other.cancelled {
 		return false
 	}
@@ -564,6 +569,11 @@ func (job *Job) CancelRequested() bool {
 	return job.cancelRequested
 }
 
+// CancelUser returns the first user who cancelled this job
+func (job *Job) CancelUser() *string {
+	return job.cancelUser
+}
+
 // CancelByJobsetRequested returns true if the user has requested this job's jobSet be cancelled.
 func (job *Job) CancelByJobsetRequested() bool {
 	return job.cancelByJobSetRequested
@@ -580,6 +590,13 @@ func (job *Job) WithCancelRequested(cancelRequested bool) *Job {
 func (job *Job) WithCancelByJobsetRequested(cancelByJobsetRequested bool) *Job {
 	j := copyJob(*job)
 	j.cancelByJobSetRequested = cancelByJobsetRequested
+	return j
+}
+
+// WithCancelUser returns a copy of the job with the cancel user updated.
+func (job *Job) WithCancelUser(cancelUser *string) *Job {
+	j := copyJob(*job)
+	j.cancelUser = cancelUser
 	return j
 }
 

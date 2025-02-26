@@ -18,19 +18,20 @@ import (
 	"github.com/armadaproject/armada/internal/common/database/lookout"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/lookout/model"
-	"github.com/armadaproject/armada/internal/lookoutingesterv2/instructions"
-	"github.com/armadaproject/armada/internal/lookoutingesterv2/lookoutdb"
-	"github.com/armadaproject/armada/internal/lookoutingesterv2/metrics"
+	"github.com/armadaproject/armada/internal/lookoutingester/instructions"
+	"github.com/armadaproject/armada/internal/lookoutingester/lookoutdb"
+	"github.com/armadaproject/armada/internal/lookoutingester/metrics"
 )
 
 const (
-	jobId     = "01f3j0g1md4qx7z5qb148qnh4d"
-	queue     = "queue-1"
-	jobSet    = "job-set-1"
-	cluster   = "cluster-1"
-	owner     = "user-1"
-	namespace = "namespace-1"
-	priority  = 12
+	jobId      = "01f3j0g1md4qx7z5qb148qnh4d"
+	queue      = "queue-1"
+	jobSet     = "job-set-1"
+	cluster    = "cluster-1"
+	owner      = "user-1"
+	cancelUser = "canceluser"
+	namespace  = "namespace-1"
+	priority   = 12
 
 	userAnnotationPrefix = "armadaproject.io/"
 )
@@ -1978,13 +1979,13 @@ func TestGetJobsActiveJobSet(t *testing.T) {
 
 		inactiveJobSet1 := NewJobSimulatorWithClock(converter, store, testClock).
 			Submit("queue-1", "job-set-1", owner, namespace, baseTime, &JobOptions{}).
-			Cancelled(baseTime.Add(1 * time.Minute)).
+			Cancelled(baseTime.Add(1*time.Minute), cancelUser).
 			Build().
 			Job()
 
 		NewJobSimulatorWithClock(converter, store, testClock).
 			Submit("queue-2", "job-set-2", owner, namespace, baseTime, &JobOptions{}).
-			Cancelled(baseTime.Add(1 * time.Minute)).
+			Cancelled(baseTime.Add(1*time.Minute), cancelUser).
 			Build().
 			Job()
 

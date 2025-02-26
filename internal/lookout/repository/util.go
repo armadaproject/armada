@@ -22,8 +22,8 @@ import (
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/lookout/model"
-	"github.com/armadaproject/armada/internal/lookoutingesterv2/instructions"
-	"github.com/armadaproject/armada/internal/lookoutingesterv2/lookoutdb"
+	"github.com/armadaproject/armada/internal/lookoutingester/instructions"
+	"github.com/armadaproject/armada/internal/lookoutingester/lookoutdb"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
@@ -80,6 +80,14 @@ func NewJobSimulatorWithClock(converter *instructions.InstructionConverter, stor
 		store:     store,
 		clock:     clk,
 	}
+}
+
+func (js *JobSimulator) ForJobID(jobID string) *JobSimulator {
+	js.jobId = jobID
+	js.job = &model.Job{
+		JobId: jobID,
+	}
+	return js
 }
 
 func (js *JobSimulator) Submit(queue, jobSet, owner, namespace string, timestamp time.Time, opts *JobOptions) *JobSimulator {
@@ -364,14 +372,15 @@ func (js *JobSimulator) LeaseReturned(runId string, message string, timestamp ti
 	return js
 }
 
-func (js *JobSimulator) Cancelled(timestamp time.Time) *JobSimulator {
+func (js *JobSimulator) Cancelled(timestamp time.Time, cancelUser string) *JobSimulator {
 	ts := timestampOrNow(timestamp)
 	cancelledTime := protoutil.ToStdTime(ts)
 	cancelled := &armadaevents.EventSequence_Event{
 		Created: ts,
 		Event: &armadaevents.EventSequence_Event_CancelledJob{
 			CancelledJob: &armadaevents.CancelledJob{
-				JobId: js.jobId,
+				JobId:      js.jobId,
+				CancelUser: cancelUser,
 			},
 		},
 	}
@@ -379,6 +388,7 @@ func (js *JobSimulator) Cancelled(timestamp time.Time) *JobSimulator {
 
 	js.job.State = string(lookout.JobCancelled)
 	js.job.Cancelled = &cancelledTime
+	js.job.CancelUser = &cancelUser
 	js.job.LastTransitionTime = cancelledTime
 	return js
 }
@@ -609,16 +619,53 @@ func (js *JobSimulator) LeaseExpired(runId string, timestamp time.Time, _ clock.
 }
 
 func (js *JobSimulator) Build() *JobSimulator {
-	eventSequence := &armadaevents.EventSequence{
-		Queue:      js.queue,
-		JobSetName: js.jobSet,
-		UserId:     js.owner,
-		Events:     js.events,
+	// Cancelled job events must be part of a different event sequence, as they can be initiated by a user which is not the owner of the job
+	eventSequences := []*armadaevents.EventSequence{}
+	eventsInCurrentSequence := make([]*armadaevents.EventSequence_Event, 0, len(js.events))
+	for i, event := range js.events {
+		switch event.GetEvent().(type) {
+		case *armadaevents.EventSequence_Event_CancelledJob:
+			eventSequences = append(
+				eventSequences,
+				&armadaevents.EventSequence{
+					Queue:      js.queue,
+					JobSetName: js.jobSet,
+					UserId:     js.owner,
+					Events:     eventsInCurrentSequence,
+				},
+				&armadaevents.EventSequence{
+					Queue:      js.queue,
+					JobSetName: js.jobSet,
+					UserId:     *js.job.CancelUser,
+					Events:     []*armadaevents.EventSequence_Event{event},
+				},
+			)
+			eventsInCurrentSequence = make([]*armadaevents.EventSequence_Event, 0, len(js.events)-i)
+		default:
+			eventsInCurrentSequence = append(eventsInCurrentSequence, event)
+		}
+	}
+	if len(eventsInCurrentSequence) > 0 {
+		eventSequences = append(
+			eventSequences,
+			&armadaevents.EventSequence{
+				Queue:      js.queue,
+				JobSetName: js.jobSet,
+				UserId:     js.owner,
+				Events:     eventsInCurrentSequence,
+			},
+		)
+	}
+
+	messageIds := make([]pulsar.MessageID, len(eventSequences))
+	for i := 0; i < len(eventSequences); i++ {
+		messageIds[i] = pulsarutils.NewMessageId(i + 1)
 	}
 	eventSequenceWithIds := &utils.EventsWithIds[*armadaevents.EventSequence]{
-		Events:     []*armadaevents.EventSequence{eventSequence},
-		MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+		Events:     eventSequences,
+		MessageIds: messageIds,
 	}
+
 	instructionSet := js.converter.Convert(armadacontext.TODO(), eventSequenceWithIds)
 	err := js.store.Store(armadacontext.TODO(), instructionSet)
 	if err != nil {

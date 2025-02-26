@@ -26,7 +26,7 @@ var defaultComponents = []string{
 	"binoculars",
 	"eventingester",
 	"lookout",
-	"lookoutingesterv2",
+	"lookoutingester",
 	"lookout-migration",
 }
 

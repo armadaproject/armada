@@ -1,4 +1,4 @@
-import { ExpandedStateList, Updater } from "@tanstack/react-table"
+import { ExpandedStateList, RowSelectionState, Updater } from "@tanstack/react-table"
 import _ from "lodash"
 
 import {
@@ -9,10 +9,10 @@ import {
   isStandardColId,
   VALID_COLUMN_MATCHES,
 } from "./jobsTableColumns"
-import { findRowInData, RowId, RowIdParts, toRowId } from "./reactTableUtils"
+import { findRowInData, fromRowId, RowId, RowIdParts, toRowId } from "./reactTableUtils"
 import { LookoutColumnFilter } from "../containers/lookout/JobsTableContainer"
-import { JobGroupRow, JobRow, JobTableRow } from "../models/jobsTableModels"
-import { Job, JobFilter, JobGroup, JobOrder, Match } from "../models/lookoutModels"
+import { isJobGroupRow, JobGroupRow, JobRow, JobTableRow } from "../models/jobsTableModels"
+import { Job, JobFilter, JobFiltersWithExcludes, JobGroup, JobOrder, Match } from "../models/lookoutModels"
 import { IGetJobsService } from "../services/lookout/GetJobsService"
 import { GroupedField, IGroupJobsService } from "../services/lookout/GroupJobsService"
 
@@ -70,7 +70,48 @@ export const matchForColumn = (columnId: string, columnMatches: Record<string, M
   return validMatches.includes(columnMatches[columnId]) ? columnMatches[columnId] : validMatches[0]
 }
 
-export function getFiltersForRows(
+// Returns a list of job filters, each with another list of job filters to exclude, to get the correct list of jobs
+// which the user has selected. This recursive function is required since we allow grouping and for the user to select
+// and de-select groups.
+//
+// Each row of the table is effectively a node in a tree, where job rows are leaf nodes, and group rows are internal
+// nodes whose children are its sub-rows.
+//
+// For each node, starting at the root:
+// - if it is a leaf node (i.e. a single job), we add it to the list of filters if it is selected
+// - if it is an internal node, we add it to the list of filters if it is selected, but excluding all its children
+// - we then recurse on all its children
+export const getFiltersForRowsSelection = (
+  rows: JobTableRow[],
+  selectedRows: RowSelectionState,
+  columnFilters: LookoutColumnFilter[],
+  columnMatches: Record<string, Match>,
+): JobFiltersWithExcludes[] =>
+  rows.reduce<JobFiltersWithExcludes[]>((acc, row) => {
+    const isRowSelected = selectedRows[row.rowId]
+    const filtersForRow = getFiltersForRow(columnFilters, columnMatches, fromRowId(row.rowId).rowIdPartsPath)
+
+    if (!isJobGroupRow(row) || row.subRows.length === 0) {
+      if (isRowSelected) {
+        acc.push({ jobFilters: filtersForRow, excludesJobFilters: [] })
+      }
+      return acc
+    }
+
+    if (isRowSelected) {
+      acc.push({
+        jobFilters: filtersForRow,
+        excludesJobFilters: row.subRows.map((subRow) =>
+          getFiltersForRow(columnFilters, columnMatches, fromRowId(subRow.rowId).rowIdPartsPath),
+        ),
+      })
+    }
+
+    acc.push(...getFiltersForRowsSelection(row.subRows, selectedRows, columnFilters, columnMatches))
+    return acc
+  }, [])
+
+export function getFiltersForRow(
   filters: LookoutColumnFilter[],
   columnMatches: Record<string, Match>,
   expandedRowIdParts: RowIdParts[],

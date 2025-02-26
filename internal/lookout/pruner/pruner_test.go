@@ -16,9 +16,9 @@ import (
 	"github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/lookout/repository"
-	"github.com/armadaproject/armada/internal/lookoutingesterv2/instructions"
-	"github.com/armadaproject/armada/internal/lookoutingesterv2/lookoutdb"
-	"github.com/armadaproject/armada/internal/lookoutingesterv2/metrics"
+	"github.com/armadaproject/armada/internal/lookoutingester/instructions"
+	"github.com/armadaproject/armada/internal/lookoutingester/lookoutdb"
+	"github.com/armadaproject/armada/internal/lookoutingester/metrics"
 )
 
 var baseTime, _ = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
@@ -194,7 +194,7 @@ func storeJob(job testJob, db *lookoutdb.LookoutDb, converter *instructions.Inst
 			Build()
 	case lookout.JobCancelled:
 		simulator.
-			Cancelled(job.ts).
+			Cancelled(job.ts, "canceluser").
 			Build()
 	case lookout.JobPreempted:
 		simulator.

@@ -18,15 +18,15 @@ RUN yarn build
 
 FROM ${BASE_IMAGE}
 RUN addgroup -S -g 2000 armada && adduser -S -u 1000 armada -G armada
-LABEL org.opencontainers.image.title=lookoutv2
-LABEL org.opencontainers.image.description="Lookout V2"
-LABEL org.opencontainers.image.url=https://hub.docker.com/r/gresearch/lookoutv2
+LABEL org.opencontainers.image.title=lookout
+LABEL org.opencontainers.image.description="Lookout"
+LABEL org.opencontainers.image.url=https://hub.docker.com/r/gresearch/lookout
 USER armada
 COPY --from=NODE /lookoutui/build/ /app/internal/lookoutui/build
 COPY lookout /app/
 COPY config/lookout/config.yaml /app/config/lookout/config.yaml
-COPY lookoutingesterv2 /app/
-COPY config/lookoutingesterv2/ /app/config/lookoutingesterv2
+COPY lookoutingester /app/
+COPY config/lookoutingester/ /app/config/lookoutingester
 COPY config/logging.yaml /app/config/logging.yaml
 WORKDIR /app
 ENTRYPOINT ["./lookout"]
