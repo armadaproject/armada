@@ -4,12 +4,12 @@ lazy val root = project
   .in(file("."))
   .settings(
     organization := "io.armadaproject.armada",
-    name := "Scala Armada Client Example",
+    name := "Armada Scala Client Example",
     version := "0.1.0-SNAPSHOT",
 
     scalaVersion := scala2Version,
 
-    libraryDependencies += "io.armadaproject.armada" %% "scala-armada-client" % "0.1.0-SNAPSHOT",
+    libraryDependencies += "io.armadaproject.armada" %% "armada-scala-client" % "0.1.0-SNAPSHOT",
     libraryDependencies += "org.scalameta" %% "munit" % "1.0.0" % Test
   )
 
