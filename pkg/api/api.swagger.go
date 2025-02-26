@@ -809,6 +809,9 @@ func SwaggerJsonTemplate() string {
 		"        \"certName\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
+		"        \"className\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
 		"        \"ports\": {\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
@@ -818,6 +821,12 @@ func SwaggerJsonTemplate() string {
 		"        },\n" +
 		"        \"tlsEnabled\": {\n" +
 		"          \"type\": \"boolean\"\n" +
+		"        },\n" +
+		"        \"tlsHosts\": {\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"type\": \"string\"\n" +
+		"          }\n" +
 		"        },\n" +
 		"        \"type\": {\n" +
 		"          \"$ref\": \"#/definitions/apiIngressType\"\n" +
