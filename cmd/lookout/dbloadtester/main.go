@@ -4,8 +4,8 @@ import (
 	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/profiling"
-	"github.com/armadaproject/armada/internal/lookoutv2/configuration"
-	"github.com/armadaproject/armada/internal/lookoutv2/dbloadtester"
+	"github.com/armadaproject/armada/internal/lookout/configuration"
+	"github.com/armadaproject/armada/internal/lookout/dbloadtester"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
@@ -57,13 +57,13 @@ func makeContext() (*armadacontext.Context, func()) {
 func main() {
 	common.BindCommandlineArguments()
 
-	var config configuration.LookoutV2Config
+	var config configuration.LookoutConfig
 	userSpecifiedConfigs := viper.GetStringSlice(customConfigLocation)
-	common.LoadConfig(&config, "./config/lookoutv2", userSpecifiedConfigs)
+	common.LoadConfig(&config, "./config/lookout", userSpecifiedConfigs)
 
 	var args dbloadtester.ReadTestConfig
 	argsInput := viper.GetStringSlice(customParamsLocation)
-	common.LoadConfig(&args, "./cmd/lookoutv2/dbloadtester", argsInput)
+	common.LoadConfig(&args, "./cmd/lookout/dbloadtester", argsInput)
 
 	// Expose profiling endpoints if enabled.
 	err := profiling.SetupPprof(config.Profiling, armadacontext.Background(), nil)
