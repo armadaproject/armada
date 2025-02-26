@@ -1,7 +1,7 @@
 name: Release Scala Client to Maven
 
 on:
-  # TODO: pull_request has to be removed before mergin
+  # TODO: pull_request has to be removed before merging
   pull_request:
   workflow_dispatch:
 
@@ -19,22 +19,20 @@ jobs:
         with:
           version: '23.3'
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Install Scala and SBT
-        env:
-          SBT_VERSION: 1.10.7
-          SCALA_VERSION: 2.13.15
-        run: |
-          curl -s -O https://downloads.lightbend.com/scala/${SCALA_VERSION}/scala-${SCALA_VERSION}.deb
-          sudo apt install -y ./scala-${SCALA_VERSION}.deb
-          curl -s -L -O https://github.com/sbt/sbt/releases/download/v${SBT_VERSION}/sbt-${SBT_VERSION}.tgz
-          tar -xzvf ./sbt-${SBT_VERSION}.tgz
-          echo "$PWD/sbt/bin" >> "${GITHUB_PATH}"
+      - name: Install SBT
+        uses: sbt/setup-sbt@v1
+        with:
+          sbt-runner-version: 1.10.7
       - name: Build Armada Scala Client
         run: |
           go run github.com/magefile/mage@v1.14.0 -v buildScala
-      # TODO: credentials for Sonatype missing
       - name: Publish package to Maven
+        env:
+          SONATYPE_USERNAME: ${{ secrets.SONATYPE_USERNAME }}
+          SONATYPE_PASSWORD: ${{ secrets.SONATYPE_PASSWORD }}
+          PGP_PASSPHRASE: ${{ secrets.PGP_PASSPHRASE }}
+          PGP_SECRET: ${{ secrets.PGP_SECRET }}
+          CI_CLEAN: clean
         run: |
           cd client/scala/scala-armada-client
-          sbt -Dsbt.io.implicit.relative.glob.conversion=allow publish
-
+          sbt ci-release
