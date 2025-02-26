@@ -2,15 +2,17 @@ package dbloadtester
 
 import (
 	"fmt"
-	"github.com/armadaproject/armada/internal/common/armadacontext"
-	"github.com/armadaproject/armada/internal/common/database"
-	"github.com/armadaproject/armada/internal/lookout/configuration"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
-	log "github.com/sirupsen/logrus"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+	log "github.com/sirupsen/logrus"
+
+	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/common/database"
+	"github.com/armadaproject/armada/internal/lookout/configuration"
 )
 
 type ReadTestConfig struct {
@@ -41,19 +43,19 @@ type QueryWithParams struct {
 }
 
 var filterTypeToQueryMap = map[string][]string{
-	"queue": []string{
+	"queue": {
 		getQueueActiveJobsets,
 		getQueueAllJobs,
 		getJobsRunningInQueue,
 		getJobsRunningInQueueOrderBySubmitted,
 	},
-	"jobset": []string{
+	"jobset": {
 		getJobsetGroupedByState,
 	},
-	"id": []string{
+	"id": {
 		getJobByID,
 	},
-	"none": []string{
+	"none": {
 		getLookoutFrontPage,
 	},
 }
@@ -67,7 +69,7 @@ func DoQueries(config configuration.LookoutConfig, readConfig ReadTestConfig, ct
 	}
 
 	filterTypeToArgs := map[string][]any{
-		"none":   []any{nil},
+		"none":   {nil},
 		"queue":  readConfig.Queues,
 		"jobset": readConfig.Jobsets,
 		"id":     readConfig.Ids,
@@ -108,7 +110,6 @@ func DoQueries(config configuration.LookoutConfig, readConfig ReadTestConfig, ct
 				} else {
 					ch <- &QueryWithParams{query, []any{arg}}
 				}
-
 			}
 		}
 	}
@@ -265,7 +266,6 @@ func (q *queryer) paralleliseQueries(ch chan *QueryWithParams) {
 	}
 
 	return
-
 }
 
 func doQuery(db *pgxpool.Pool, ctx *armadacontext.Context, query string, args []any) (queryDuration time.Duration, rowsReturned int64, err error) {

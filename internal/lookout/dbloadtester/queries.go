@@ -151,6 +151,7 @@ GROUP BY j.jobset
 ORDER BY submitted DESC
 OFFSET 0;
 `
+
 var getJobsetGroupedByState = `
 SELECT j.state,
 	 	 	 	COUNT(*) as count,

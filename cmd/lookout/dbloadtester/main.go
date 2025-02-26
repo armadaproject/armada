@@ -1,17 +1,19 @@
 package main
 
 import (
+	"os"
+	"os/signal"
+	"syscall"
+
+	log "github.com/sirupsen/logrus"
+	"github.com/spf13/pflag"
+	"github.com/spf13/viper"
+
 	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/profiling"
 	"github.com/armadaproject/armada/internal/lookout/configuration"
 	"github.com/armadaproject/armada/internal/lookout/dbloadtester"
-	log "github.com/sirupsen/logrus"
-	"github.com/spf13/pflag"
-	"github.com/spf13/viper"
-	"os"
-	"os/signal"
-	"syscall"
 )
 
 const (
