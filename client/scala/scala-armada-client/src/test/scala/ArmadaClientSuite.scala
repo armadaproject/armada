@@ -114,7 +114,7 @@ private class SubmitMockServer(
   def submitJobs(request: JobSubmitRequest): scala.concurrent.Future[JobSubmitResponse] = {
     val result: Option[Queue] = queueMap.get(request.queue)
     result match {
-      case Some(queueFound) => {
+      case Some(_) => {
         val jobId: String = ulidGen.base32().toLowerCase()
         val newJob = (new Job()).withJobSetId(request.jobSetId)
         jobMap.put(jobId, newJob)
@@ -139,7 +139,6 @@ private class SubmitMockServer(
 }
 
 private class JobsMockServer(
-  jobMap: TrieMap[String, Job],
   statusMap: TrieMap[String, JobState]
 ) extends JobsGrpc.Jobs {
 
@@ -182,9 +181,9 @@ class ArmadaClientSuite extends munit.FunSuite {
     private var server: Server = null
     def apply() = server
 
-    private var jobMap: TrieMap[String, Job] = new TrieMap       // key is job id
-    private var queueMap: TrieMap[String, Queue] = new TrieMap   // key is queue name
-    private var statusMap: TrieMap[String, JobState] = new TrieMap  // key is job id
+    private val jobMap: TrieMap[String, Job] = new TrieMap       // key is job id
+    private val queueMap: TrieMap[String, Queue] = new TrieMap   // key is queue name
+    private val statusMap: TrieMap[String, JobState] = new TrieMap  // key is job id
 
     override def beforeAll(): Unit = {
       import scala.concurrent.ExecutionContext
@@ -192,7 +191,7 @@ class ArmadaClientSuite extends munit.FunSuite {
         .forPort(testPort)
         .addService(EventGrpc.bindService(new EventMockServer, ExecutionContext.global))
         .addService(SubmitGrpc.bindService(new SubmitMockServer(jobMap, queueMap, statusMap), ExecutionContext.global))
-        .addService(JobsGrpc.bindService(new JobsMockServer(jobMap, statusMap), ExecutionContext.global))
+        .addService(JobsGrpc.bindService(new JobsMockServer(statusMap), ExecutionContext.global))
         .build()
         .start()
     }
@@ -250,13 +249,13 @@ class ArmadaClientSuite extends munit.FunSuite {
 
   test("ArmadaClient.cancelJobs()") {
     val ac = ArmadaClient("localhost", testPort)
-    val qName = "nonexistent-queue-" + Random.alphanumeric.take(8).mkString
+    val qName = "queue-" + Random.alphanumeric.take(8).mkString
     var jobs = Seq[String]()
 
     ac.createQueue(qName)
 
     // Submit 3 jobs
-    for (i <- 1 to 3) {
+    for (_ <- 1 to 3) {
       val response = ac.submitJobs(qName, "testJobSetId", List(new JobSubmitRequestItem()))
       assertEquals(response.jobResponseItems.length, 1)
       jobs = jobs :+ response.jobResponseItems(0).jobId
@@ -266,10 +265,10 @@ class ArmadaClientSuite extends munit.FunSuite {
     implicit val ec: scala.concurrent.ExecutionContext = scala.concurrent.ExecutionContext.global
 
     // Cancel the first two of the jobs and validate they are cancelled
-    val cancelRes = ac.cancelJobs(new JobCancelRequest().withJobIds(Seq[String](jobs(0), jobs(1))))
+    val cancelRes = ac.cancelJobs(new JobCancelRequest().withJobIds(jobs.take(2)))
 
     cancelRes.onComplete {
-      case Success(cancelResult) => {
+      case Success(_) => {
         // Verify both cancelled jobs
         for (i <- 0 to 1) {
           val jobStatus = ac.getJobStatus(jobs(i))
@@ -279,7 +278,7 @@ class ArmadaClientSuite extends munit.FunSuite {
         // The third job should still be running
         assert(ac.getJobStatus(jobs(2)).jobStates(jobs(2)).isRunning)
       }
-      case Failure(cancelResult) => fail("cancelJobs() test failed")
+      case Failure(_) => fail("cancelJobs() test failed")
     }
 
     ac.deleteQueue(qName)
@@ -287,14 +286,14 @@ class ArmadaClientSuite extends munit.FunSuite {
 
   test("ArmadaClient.cancelJobSet()") {
     val ac = ArmadaClient("localhost", testPort)
-    val qName = "nonexistent-queue-" + Random.alphanumeric.take(8).mkString
+    val qName = "queue-" + Random.alphanumeric.take(8).mkString
     val cancelJobSetId = "jobset-666"
     var cancelJobIds = Seq[String]()
 
     ac.createQueue(qName)
 
     // Submit 2 jobs in a job set that will be cancelled
-    for (i <- 1 to 2) {
+    for (_ <- 1 to 2) {
       val response = ac.submitJobs(qName, cancelJobSetId, List(new JobSubmitRequestItem()))
       assertEquals(response.jobResponseItems.length, 1)
       cancelJobIds = cancelJobIds :+ response.jobResponseItems(0).jobId
