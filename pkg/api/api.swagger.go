@@ -1917,6 +1917,12 @@ func SwaggerJsonTemplate() string {
 		"    \"apiJobUtilisationEvent\": {\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
+		"        \"AvgResourcesForPeriod\": {\n" +
+		"          \"type\": \"object\",\n" +
+		"          \"additionalProperties\": {\n" +
+		"            \"$ref\": \"#/definitions/resourceQuantity\"\n" +
+		"          }\n" +
+		"        },\n" +
 		"        \"MaxResourcesForPeriod\": {\n" +
 		"          \"type\": \"object\",\n" +
 		"          \"additionalProperties\": {\n" +
