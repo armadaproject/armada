@@ -56,7 +56,7 @@ func (n *NodeScheduler) Schedule(schedContext *SchedulingContext, jctx *context.
 	if err != nil {
 		return nil, err
 	}
-	err = n.populateQueueImpactFields(schedContext, queues)
+	err = n.populateQueueImpactFields(schedContext, jctx, queues)
 	if err != nil {
 		return nil, err
 	}
@@ -73,7 +73,7 @@ func (n *NodeScheduler) Schedule(schedContext *SchedulingContext, jctx *context.
 	queueCostChanges := map[string]float64{}
 	for _, jobToEvict := range allJobs {
 		availableResource = availableResource.Add(jobToEvict.resources)
-		totalCost += jobToEvict.cost
+		totalCost += jobToEvict.costToPreempt
 		if _, present := queueCostChanges[jobToEvict.queue]; !present {
 			queueCostChanges[jobToEvict.queue] = 0
 		}
@@ -93,9 +93,7 @@ func (n *NodeScheduler) Schedule(schedContext *SchedulingContext, jctx *context.
 			return nil, fmt.Errorf("could not find queue context for queue %s", queue)
 		}
 
-		// TODO This should work fine, but probably should be cost / original total cost
-		// So if it a queue is way above its fairshare, this number reflects the % of current allocation lost, rather than % of fairshare
-		impact := math.Abs(costChange) / qctx.Fairshare
+		impact := math.Abs(costChange) / qctx.CurrentCost
 		if impact > maximumQueueImpact {
 			maximumQueueImpact = impact
 		}
@@ -127,6 +125,7 @@ func (n *NodeScheduler) getPreemptibleJobDetailsByQueue(
 	jobToSchedule *context.JobSchedulingContext,
 	node *internaltypes.Node) (map[string][]*preemptibleJobDetails, error) {
 	queues := map[string][]*preemptibleJobDetails{}
+	start := time.Now()
 	for jobId, resource := range node.AllocatedByJobId {
 		job := n.jobDb.GetById(jobId)
 		if job == nil {
@@ -154,15 +153,16 @@ func (n *NodeScheduler) getPreemptibleJobDetailsByQueue(
 			}
 			jctx, ok := qctx.SuccessfulJobSchedulingContexts[jobId]
 			if !ok {
-				return nil, fmt.Errorf("could not job context for job %s in successful scheduling contexts for queue %s, expected to find it scheduled on node %s", jobId, queue, node.GetName())
+				return nil, fmt.Errorf("could not find job context for job %s in successful scheduling contexts for queue %s, expected to find it scheduled on node %s", jobId, queue, node.GetName())
 			}
 			if jctx.PodSchedulingContext == nil {
 				return nil, fmt.Errorf("no pod scheduling context exists on jctx for job %s despite it being in successful scheduling contexts", jobId)
 			}
 			scheduledAtPriority = jctx.PodSchedulingContext.ScheduledAtPriority
 		} else {
+			// TODO handle latest run not existing
 			scheduledAtPriority = *job.LatestRun().ScheduledAtPriority()
-			age = time.Now().Sub(*job.LatestRun().LeaseTime()).Milliseconds()
+			age = start.Sub(*job.LatestRun().LeaseTime()).Milliseconds()
 		}
 		if scheduledAtPriority > jobToSchedule.Job.PriorityClass().Priority {
 			// Can't evict jobs of higher priority
@@ -188,7 +188,7 @@ func (n *NodeScheduler) getPreemptibleJobDetailsByQueue(
 	return queues, nil
 }
 
-func (n *NodeScheduler) populateQueueImpactFields(schedContext *SchedulingContext, queues map[string][]*preemptibleJobDetails) error {
+func (n *NodeScheduler) populateQueueImpactFields(schedContext *SchedulingContext, jobToSchedule *context.JobSchedulingContext, queues map[string][]*preemptibleJobDetails) error {
 	for queue, items := range queues {
 		sort.Sort(internalQueueOrder(items))
 
@@ -203,6 +203,8 @@ func (n *NodeScheduler) populateQueueImpactFields(schedContext *SchedulingContex
 			item.queueCostAfterPreemption = updatedQueueCost - item.cost
 			updatedQueueCost = item.queueCostAfterPreemption
 			if item.queueCostAfterPreemption > qctx.Fairshare {
+				item.costToPreempt = 0
+			} else if item.scheduledAtPriority < jobToSchedule.Job.PriorityClass().Priority {
 				item.costToPreempt = 0
 			} else {
 				// This could be improved to handle crossing the fairshare boundary better

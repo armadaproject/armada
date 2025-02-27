@@ -84,16 +84,21 @@ func (n *FairnessOptimisingScheduler) scheduleOnNodes(gctx *context.GangScheduli
 		cost := sctx.FairnessCostProvider.UnweightedCostFromAllocation(jctx.Job.AllResourceRequirements())
 		for _, node := range nodes {
 			result, err := n.nodeScheduler.Schedule(schedulingContext, jctx, node)
-
 			if err != nil {
 				return nil, err
 			}
 
-			if result.scheduled && cost/result.schedulingCost < n.fairnessImprovementThreshold {
+			if !result.scheduled {
+				continue
+			}
+
+			if result.schedulingCost == 0 {
 				candidateNodes = append(candidateNodes, result)
-				if result.schedulingCost == 0 {
-					break
-				}
+				break
+			}
+			improvement := cost / result.schedulingCost
+			if improvement < n.fairnessImprovementThreshold {
+				candidateNodes = append(candidateNodes, result)
 			}
 		}
 
