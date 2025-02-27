@@ -441,11 +441,11 @@ func (it *CostBasedCandidateGangIterator) Peek() (*schedulercontext.GangScheduli
 	return first.gctx, first.proposedQueueCost, nil
 }
 
-func (it *CostBasedCandidateGangIterator) newPQItem(queue string, queueFairShare float64, queueIt *QueuedGangIterator) *QueueCandidateGangIteratorItem {
+func (it *CostBasedCandidateGangIterator) newPQItem(queue string, allocatedQueueCost float64, queueIt *QueuedGangIterator) *QueueCandidateGangIteratorItem {
 	return &QueueCandidateGangIteratorItem{
-		queue:     queue,
-		fairShare: queueFairShare,
-		it:        queueIt,
+		queue:              queue,
+		allocatedQueueCost: allocatedQueueCost,
+		it:                 queueIt,
 	}
 }
 
@@ -544,9 +544,9 @@ type QueueCandidateGangIteratorItem struct {
 	proposedQueueCost float64
 	// Current cost associated with the queue
 	currentQueueCost float64
-	// The fairshare of the queue
+	// The cost allocated to the queue based on fairshare
 	// used to compare with proposedQueueCost to determine if scheduling the next item will put the queue over its fairshare
-	fairShare float64
+	allocatedQueueCost float64
 	// The size of top most gang
 	// Used to determine which job is larger
 	itemSize              float64
@@ -568,7 +568,7 @@ func (pq *QueueCandidateGangIteratorPQ) Less(i, j int) bool {
 	}
 
 	if pq.prioritiseLargerJobs {
-		if item1.proposedQueueCost <= item1.fairShare && item2.proposedQueueCost <= item2.fairShare {
+		if item1.proposedQueueCost <= item1.allocatedQueueCost && item2.proposedQueueCost <= item2.allocatedQueueCost {
 			// If adding the items results in neither queue exceeding its fairshare
 			// Take the largest job if the queues are equal current cost (which is the case if all jobs get evicted / on an empty farm)
 			// The reason we prefer larger jobs is:
@@ -585,15 +585,15 @@ func (pq *QueueCandidateGangIteratorPQ) Less(i, j int) bool {
 			if item1.currentQueueCost != item2.currentQueueCost {
 				return item1.currentQueueCost < item2.currentQueueCost
 			}
-		} else if item1.proposedQueueCost > item1.fairShare && item2.proposedQueueCost > item2.fairShare {
+		} else if item1.proposedQueueCost > item1.allocatedQueueCost && item2.proposedQueueCost > item2.allocatedQueueCost {
 			// If adding the items results in both queues being above their fairshare
 			//  take the item that results in the smallest amount over the fairshare
 			if item1.proposedQueueCost != item2.proposedQueueCost {
 				return item1.proposedQueueCost < item2.proposedQueueCost
 			}
-		} else if item1.proposedQueueCost <= item1.fairShare {
+		} else if item1.proposedQueueCost <= item1.allocatedQueueCost {
 			return true
-		} else if item2.proposedQueueCost <= item2.fairShare {
+		} else if item2.proposedQueueCost <= item2.allocatedQueueCost {
 			return false
 		}
 	} else {

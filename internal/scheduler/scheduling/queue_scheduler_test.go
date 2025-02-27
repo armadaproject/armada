@@ -701,25 +701,25 @@ func NewNodeDb(config configuration.SchedulingConfig, stringInterner *stringinte
 
 func TestQueueCandidateGangIteratorPQ_Ordering_BelowFairShare_EvenCurrentCost(t *testing.T) {
 	queueA := &QueueCandidateGangIteratorItem{
-		queue:             "A",
-		proposedQueueCost: 2,
-		currentQueueCost:  0,
-		fairShare:         5,
-		itemSize:          2,
+		queue:              "A",
+		proposedQueueCost:  2,
+		currentQueueCost:   0,
+		allocatedQueueCost: 5,
+		itemSize:           2,
 	}
 	queueB := &QueueCandidateGangIteratorItem{
-		queue:             "B",
-		proposedQueueCost: 3,
-		currentQueueCost:  0,
-		fairShare:         5,
-		itemSize:          3,
+		queue:              "B",
+		proposedQueueCost:  3,
+		currentQueueCost:   0,
+		allocatedQueueCost: 5,
+		itemSize:           3,
 	}
 	queueC := &QueueCandidateGangIteratorItem{
-		queue:             "C",
-		proposedQueueCost: 1,
-		currentQueueCost:  0,
-		fairShare:         5,
-		itemSize:          1,
+		queue:              "C",
+		proposedQueueCost:  1,
+		currentQueueCost:   0,
+		allocatedQueueCost: 5,
+		itemSize:           1,
 	}
 	pq := &QueueCandidateGangIteratorPQ{prioritiseLargerJobs: true, items: []*QueueCandidateGangIteratorItem{queueA, queueB, queueC}}
 
@@ -731,25 +731,25 @@ func TestQueueCandidateGangIteratorPQ_Ordering_BelowFairShare_EvenCurrentCost(t 
 
 func TestQueueCandidateGangIteratorPQ_Ordering_BelowFairShare_UnevenCurrentCost(t *testing.T) {
 	queueA := &QueueCandidateGangIteratorItem{
-		queue:             "A",
-		proposedQueueCost: 4,
-		currentQueueCost:  2,
-		fairShare:         5,
-		itemSize:          2,
+		queue:              "A",
+		proposedQueueCost:  4,
+		currentQueueCost:   2,
+		allocatedQueueCost: 5,
+		itemSize:           2,
 	}
 	queueB := &QueueCandidateGangIteratorItem{
-		queue:             "B",
-		proposedQueueCost: 3,
-		currentQueueCost:  2,
-		fairShare:         5,
-		itemSize:          1,
+		queue:              "B",
+		proposedQueueCost:  3,
+		currentQueueCost:   2,
+		allocatedQueueCost: 5,
+		itemSize:           1,
 	}
 	queueC := &QueueCandidateGangIteratorItem{
-		queue:             "C",
-		proposedQueueCost: 2,
-		currentQueueCost:  1,
-		fairShare:         5,
-		itemSize:          1,
+		queue:              "C",
+		proposedQueueCost:  2,
+		currentQueueCost:   1,
+		allocatedQueueCost: 5,
+		itemSize:           1,
 	}
 	pq := &QueueCandidateGangIteratorPQ{prioritiseLargerJobs: true, items: []*QueueCandidateGangIteratorItem{queueA, queueB, queueC}}
 
@@ -761,25 +761,25 @@ func TestQueueCandidateGangIteratorPQ_Ordering_BelowFairShare_UnevenCurrentCost(
 
 func TestQueueCandidateGangIteratorPQ_Ordering_AboveFairShare(t *testing.T) {
 	queueA := &QueueCandidateGangIteratorItem{
-		queue:             "A",
-		proposedQueueCost: 8,
-		currentQueueCost:  6,
-		fairShare:         5,
-		itemSize:          2,
+		queue:              "A",
+		proposedQueueCost:  8,
+		currentQueueCost:   6,
+		allocatedQueueCost: 5,
+		itemSize:           2,
 	}
 	queueB := &QueueCandidateGangIteratorItem{
-		queue:             "B",
-		proposedQueueCost: 7,
-		currentQueueCost:  4,
-		fairShare:         5,
-		itemSize:          3,
+		queue:              "B",
+		proposedQueueCost:  7,
+		currentQueueCost:   4,
+		allocatedQueueCost: 5,
+		itemSize:           3,
 	}
 	queueC := &QueueCandidateGangIteratorItem{
-		queue:             "C",
-		proposedQueueCost: 9,
-		currentQueueCost:  8,
-		fairShare:         5,
-		itemSize:          1,
+		queue:              "C",
+		proposedQueueCost:  9,
+		currentQueueCost:   8,
+		allocatedQueueCost: 5,
+		itemSize:           1,
 	}
 	pq := &QueueCandidateGangIteratorPQ{prioritiseLargerJobs: true, items: []*QueueCandidateGangIteratorItem{queueA, queueB, queueC}}
 
@@ -791,18 +791,18 @@ func TestQueueCandidateGangIteratorPQ_Ordering_AboveFairShare(t *testing.T) {
 
 func TestQueueCandidateGangIteratorPQ_Ordering_MixedFairShare(t *testing.T) {
 	aboveFairShare := &QueueCandidateGangIteratorItem{
-		queue:             "A",
-		proposedQueueCost: 8,
-		currentQueueCost:  6,
-		fairShare:         5,
-		itemSize:          2,
+		queue:              "A",
+		proposedQueueCost:  8,
+		currentQueueCost:   6,
+		allocatedQueueCost: 5,
+		itemSize:           2,
 	}
 	belowFairShare := &QueueCandidateGangIteratorItem{
-		queue:             "B",
-		proposedQueueCost: 3,
-		currentQueueCost:  2,
-		fairShare:         5,
-		itemSize:          1,
+		queue:              "B",
+		proposedQueueCost:  3,
+		currentQueueCost:   2,
+		allocatedQueueCost: 5,
+		itemSize:           1,
 	}
 	pq := &QueueCandidateGangIteratorPQ{prioritiseLargerJobs: true, items: []*QueueCandidateGangIteratorItem{aboveFairShare, belowFairShare}}
 
