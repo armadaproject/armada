@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/maps"
@@ -12,7 +13,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
-	"github.com/armadaproject/armada/internal/common/util"
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
@@ -561,56 +561,93 @@ func TestScheduleMany(t *testing.T) {
 	}
 }
 
-func TestAwayNodeTypes(t *testing.T) {
-	nodeDb, err := NewNodeDb(
-		testfixtures.TestPriorityClasses,
-		testfixtures.TestResources,
-		testfixtures.TestIndexedTaints,
-		testfixtures.TestIndexedNodeLabels,
-		testfixtures.TestWellKnownNodeTypes,
-		testfixtures.TestResourceListFactory,
-	)
-	require.NoError(t, err)
-
-	nodeDbTxn := nodeDb.Txn(true)
-	node := testfixtures.Test32CpuNode([]int32{29000, 30000})
-	node = testfixtures.TestNodeFactory.AddTaints(
-		[]*internaltypes.Node{node},
-		[]v1.Taint{
-			{
-				Key:    "gpu",
-				Value:  "true",
-				Effect: v1.TaintEffectNoSchedule,
-			},
+func TestAwayNodeScheduling(t *testing.T) {
+	tests := map[string]struct {
+		shouldSubmitGang bool
+		expectSuccess    bool
+	}{
+		"should schedule away jobs": {
+			shouldSubmitGang: false,
+			expectSuccess:    true,
 		},
-	)[0]
-	require.NoError(t, nodeDb.CreateAndInsertWithJobDbJobsWithTxn(nodeDbTxn, nil, node))
-
-	jobId := util.ULID()
-	job := testfixtures.TestJob(
-		testfixtures.TestQueue,
-		jobId,
-		"armada-preemptible-away",
-		testfixtures.Test1Cpu4GiPodReqs(testfixtures.TestQueue, jobId, 30000),
-	)
-	jctx := context.JobSchedulingContextFromJob(job)
-	require.Empty(t, jctx.AdditionalTolerations)
-	gctx := context.NewGangSchedulingContext([]*context.JobSchedulingContext{jctx})
-
-	ok, err := nodeDb.ScheduleManyWithTxn(nodeDbTxn, gctx)
-	require.NoError(t, err)
-	require.True(t, ok)
-	require.Equal(
-		t,
-		[]v1.Toleration{
-			{
-				Key:    "gpu",
-				Value:  "true",
-				Effect: v1.TaintEffectNoSchedule,
-			},
+		"should schedule not schedule gangs as away jobs": {
+			shouldSubmitGang: true,
+			expectSuccess:    false,
 		},
-		jctx.AdditionalTolerations,
-	)
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			nodeDb, err := NewNodeDb(
+				testfixtures.TestPriorityClasses,
+				testfixtures.TestResources,
+				testfixtures.TestIndexedTaints,
+				testfixtures.TestIndexedNodeLabels,
+				testfixtures.TestWellKnownNodeTypes,
+				testfixtures.TestResourceListFactory,
+			)
+			require.NoError(t, err)
+
+			nodeDbTxn := nodeDb.Txn(true)
+			node := testfixtures.Test32CpuNode([]int32{29000, 30000})
+			node = testfixtures.TestNodeFactory.AddTaints(
+				[]*internaltypes.Node{node},
+				[]v1.Taint{
+					{
+						Key:    "gpu",
+						Value:  "true",
+						Effect: v1.TaintEffectNoSchedule,
+					},
+				},
+			)[0]
+
+			jobId := util.ULID()
+			job := testfixtures.TestJob(
+				testfixtures.TestQueue, jobId,
+				"armada-preemptible-away",
+				testfixtures.Test1Cpu4GiPodReqs(testfixtures.TestQueue, jobId, 30000),
+			)
+			if tc.shouldSubmitGang {
+				job = testfixtures.WithGangAnnotationsJobs([]*jobdb.Job{job.DeepCopy(), job.DeepCopy()})[0]
+			}
+
+			jctx := context.JobSchedulingContextFromJob(job)
+			assert.Equal(t, tc.shouldSubmitGang, jctx.IsGang)
+
+			require.NoError(t, nodeDb.CreateAndInsertWithJobDbJobsWithTxn(nodeDbTxn, nil, node))
+
+			require.Empty(t, jctx.AdditionalTolerations)
+			gctx := context.NewGangSchedulingContext([]*context.JobSchedulingContext{jctx})
+
+			ok, err := nodeDb.ScheduleManyWithTxn(nodeDbTxn, gctx)
+			require.NoError(t, err)
+			if tc.expectSuccess {
+				require.True(t, ok)
+				assert.NotNil(t, jctx.PodSchedulingContext)
+				assert.True(t, jctx.PodSchedulingContext.IsSuccessful())
+				assert.Equal(t, node.GetId(), jctx.PodSchedulingContext.NodeId)
+				assert.Equal(t, context.ScheduledAsAwayJob, jctx.PodSchedulingContext.SchedulingMethod)
+				assert.Equal(t, int32(29000), jctx.PodSchedulingContext.ScheduledAtPriority)
+				require.Equal(
+					t,
+					[]v1.Toleration{
+						{
+							Key:    "gpu",
+							Value:  "true",
+							Effect: v1.TaintEffectNoSchedule,
+						},
+					},
+					jctx.AdditionalTolerations,
+				)
+			} else {
+				require.False(t, ok)
+				assert.NotNil(t, jctx.PodSchedulingContext)
+				assert.False(t, jctx.PodSchedulingContext.IsSuccessful())
+				assert.Empty(t, jctx.PodSchedulingContext.NodeId)
+				assert.Empty(t, jctx.AdditionalTolerations)
+			}
+		})
+	}
 }
 
 func TestMakeIndexedResourceResolution(t *testing.T) {

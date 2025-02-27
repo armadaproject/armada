@@ -449,7 +449,7 @@ func (nodeDb *NodeDb) SelectNodeForJobWithTxn(txn *memdb.Txn, jctx *context.JobS
 	// If a gang gets scheduled away and then preempted in the same round
 	//  sometimes its fellow gang members aren't getting evicted and we end up scheduling a partial gang
 	// This is a temporary workaround until that bug is solved, do not remove unless you are confident the above bug is fixed
-	if jctx.GangInfo.Id == "" {
+	if !jctx.GangInfo.IsGang {
 		for _, awayNodeType := range priorityClass.AwayNodeTypes {
 			node, err := nodeDb.selectNodeForJobWithTxnAndAwayNodeType(txn, jctx, awayNodeType)
 			if err != nil {
