@@ -383,7 +383,11 @@ func NewCostBasedCandidateGangIterator(
 	}
 	for queue, queueIt := range iteratorsByQueue {
 		queueContext := queueIt.schedulingContext.QueueSchedulingContexts[queue]
-		if _, err := it.updateAndPushPQItem(it.newPQItem(queue, queueContext.AdjustedFairShare, queueIt)); err != nil {
+		totalResources := queueIt.schedulingContext.TotalResources
+		fraction := totalResources.Factory().MakeResourceFractionList(map[string]float64{}, queueContext.AdjustedFairShare)
+		queueAllocatedShare := totalResources.Multiply(fraction)
+		queueAllocatedShareCost := fairnessCostProvider.UnweightedCostFromAllocation(queueAllocatedShare)
+		if _, err := it.updateAndPushPQItem(it.newPQItem(queue, queueAllocatedShareCost, queueIt)); err != nil {
 			return nil, err
 		}
 	}
