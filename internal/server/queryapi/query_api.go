@@ -98,6 +98,7 @@ func (q *QueryApi) GetJobDetails(ctx context.Context, req *api.JobDetailsRequest
 				SubmittedTs:      DbTimeToTimestamp(row.Submitted),
 				CancelTs:         DbTimeToTimestamp(row.Cancelled),
 				CancelReason:     NilStringToString(row.CancelReason),
+				CancelUser:       NilStringToString(row.CancelUser),
 				LastTransitionTs: DbTimeToTimestamp(row.LastTransitionTime),
 				LatestRunId:      NilStringToString(row.LatestRunID),
 				JobSpec:          jobSpec,

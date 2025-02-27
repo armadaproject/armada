@@ -122,6 +122,7 @@ export type Job = {
   lastActiveRunId?: string
   lastTransitionTime: string
   cancelReason?: string
+  cancelUser?: string
   node?: string
   cluster?: string
   exitCode?: number
@@ -174,6 +175,11 @@ export type JobFilter = {
   field: string
   value: string | number | string[] | number[]
   match: Match
+}
+
+export interface JobFiltersWithExcludes {
+  jobFilters: JobFilter[]
+  excludesJobFilters: JobFilter[][]
 }
 
 export type JobGroup = {

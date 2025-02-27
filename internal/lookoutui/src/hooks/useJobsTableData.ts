@@ -22,7 +22,7 @@ import {
   fetchJobs,
   FetchRowRequest,
   getFiltersForGroupedAnnotations,
-  getFiltersForRows,
+  getFiltersForRow,
   groupsToRows,
   jobsToRows,
   PendingData,
@@ -158,7 +158,7 @@ export const useFetchJobsTableData = ({
       const expandedLevel = parentRowInfo ? parentRowInfo.rowIdPathFromRoot.length : 0
       const isJobFetch = expandedLevel === groupingLevel
 
-      const filterValues = getFiltersForRows(lookoutFilters, columnMatches, parentRowInfo?.rowIdPartsPath ?? [])
+      const filterValues = getFiltersForRow(lookoutFilters, columnMatches, parentRowInfo?.rowIdPartsPath ?? [])
       const order = getOrder(lookoutOrder, isJobFetch)
       const rowRequest: FetchRowRequest = {
         filters: filterValues,
