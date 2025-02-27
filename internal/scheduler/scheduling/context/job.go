@@ -137,6 +137,7 @@ func (jctx *JobSchedulingContext) AddNodeSelector(key, value string) {
 
 type GangInfo struct {
 	Id                string
+	IsGang            bool
 	Cardinality       int
 	PriorityClassName string
 	NodeUniformity    string
@@ -149,6 +150,7 @@ func EmptyGangInfo(job interfaces.MinimalJob) GangInfo {
 		// Cardinality (as well as the other fields,
 		// which all make sense in this context) accordingly.
 		Id:                "",
+		IsGang:            false,
 		Cardinality:       1,
 		PriorityClassName: job.PriorityClassName(),
 		NodeUniformity:    job.Annotations()[configuration.GangNodeUniformityLabelAnnotation],
@@ -178,6 +180,9 @@ func GangInfoFromLegacySchedulerJob(job interfaces.MinimalJob) (GangInfo, error)
 	}
 	if gangCardinality <= 0 {
 		return gangInfo, errors.Errorf("gang cardinality %d is non-positive", gangCardinality)
+	}
+	if gangCardinality > 1 {
+		gangInfo.IsGang = true
 	}
 
 	gangInfo.Id = gangId
