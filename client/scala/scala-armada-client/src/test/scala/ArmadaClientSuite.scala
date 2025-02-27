@@ -18,10 +18,10 @@ import io.grpc.stub.StreamObserver
 import io.grpc.{Server, ServerBuilder, Status, StatusRuntimeException}
 import jkugiya.ulid.ULID
 
-import java.util.concurrent.ConcurrentHashMap
-
+import scala.collection.concurrent.TrieMap
+import scala.concurrent.ExecutionContext
 import scala.concurrent.Future
-import scala.util.Random
+import scala.util.{Failure, Random, Success}
 import javax.print.attribute.standard.JobPriority
 
 private class EventMockServer extends EventGrpc.Event {
@@ -39,17 +39,37 @@ private class EventMockServer extends EventGrpc.Event {
   }
 }
 
-private class SubmitMockServer(jobMap: ConcurrentHashMap[String, Job], queueMap: ConcurrentHashMap[String, Queue])
-  extends SubmitGrpc.Submit {
+private class SubmitMockServer(
+  jobMap: TrieMap[String, Job],
+  queueMap: TrieMap[String, Queue],
+  statusMap: TrieMap[String, JobState]
+) extends SubmitGrpc.Submit {
 
   val ulidGen = ULID.getGenerator()
 
-  def cancelJobSet(request: JobSetCancelRequest): scala.concurrent.Future[com.google.protobuf.empty.Empty] = {
+  def cancelJobSet(cancelReq: JobSetCancelRequest): Future[Empty] = {
+    jobMap.foreach {
+      case (jobId, job) => {
+        if (job.jobSetId == cancelReq.jobSetId) {
+          statusMap.put(jobId, JobState.CANCELLED)
+        }
+      }
+    }
+
     Future.successful(new Empty)
   }
 
-  def cancelJobs(request: JobCancelRequest): scala.concurrent.Future[CancellationResult] = {
-    Future.successful(new CancellationResult)
+  def cancelJobs(cancelReq: JobCancelRequest): scala.concurrent.Future[CancellationResult] = {
+    val res = new CancellationResult()
+
+    cancelReq.jobIds.foreach { jobId =>
+      if (jobMap.contains(jobId) && statusMap.contains(jobId)) {
+        statusMap.put(jobId, JobState.CANCELLED)
+        res.addCancelledIds(jobId)
+      }
+    }
+
+    Future.successful(res)
   }
 
   def createQueue(request: Queue): scala.concurrent.Future[com.google.protobuf.empty.Empty] = {
@@ -68,11 +88,10 @@ private class SubmitMockServer(jobMap: ConcurrentHashMap[String, Job], queueMap:
   }
 
   def getQueue(request: QueueGetRequest): scala.concurrent.Future[Queue] = {
-    val q = queueMap.get(request.name)
-    if (q == null) {
-      Future.failed(new StatusRuntimeException(Status.NOT_FOUND))
-    } else {
-      Future.successful(q)
+    val result: Option[Queue] = queueMap.get(request.name)
+    result match {
+      case Some(queueFound) => Future.successful(queueFound)
+      case None =>  Future.failed(new StatusRuntimeException(Status.NOT_FOUND))
     }
   }
 
@@ -93,17 +112,21 @@ private class SubmitMockServer(jobMap: ConcurrentHashMap[String, Job], queueMap:
   }
 
   def submitJobs(request: JobSubmitRequest): scala.concurrent.Future[JobSubmitResponse] = {
-    val q = queueMap.get(request.queue)
-    if (q == null) {
-      val msg = "could not find queue \"" + request.queue + "\""
-      return Future.failed(new StatusRuntimeException(Status.PERMISSION_DENIED.withDescription(msg)))
+    val result: Option[Queue] = queueMap.get(request.queue)
+    result match {
+      case Some(_) => {
+        val jobId: String = ulidGen.base32().toLowerCase()
+        val newJob = (new Job()).withJobSetId(request.jobSetId)
+        jobMap.put(jobId, newJob)
+        statusMap.put(jobId, JobState.RUNNING)
+
+        Future.successful(new JobSubmitResponse(List(JobSubmitResponseItem(jobId))))
+      }
+      case None => {
+        val msg = "could not find queue \"" + request.queue + "\""
+        Future.failed(new StatusRuntimeException(Status.PERMISSION_DENIED.withDescription(msg)))
+      }
     }
-
-    val jobId: String = ulidGen.base32().toLowerCase()
-    val newJob = new Job()
-    jobMap.put(jobId, newJob)
-
-    Future.successful(new JobSubmitResponse(List(JobSubmitResponseItem(jobId))))
   }
 
   def updateQueue(request: Queue): scala.concurrent.Future[com.google.protobuf.empty.Empty] = {
@@ -115,7 +138,10 @@ private class SubmitMockServer(jobMap: ConcurrentHashMap[String, Job], queueMap:
   }
 }
 
-private class JobsMockServer(jobMap: ConcurrentHashMap[String, Job]) extends JobsGrpc.Jobs {
+private class JobsMockServer(
+  statusMap: TrieMap[String, JobState]
+) extends JobsGrpc.Jobs {
+
   def getJobDetails(request: JobDetailsRequest): scala.concurrent.Future[JobDetailsResponse] = {
     Future.successful(new JobDetailsResponse)
   }
@@ -129,10 +155,17 @@ private class JobsMockServer(jobMap: ConcurrentHashMap[String, Job]) extends Job
   }
 
   def getJobStatus(request: JobStatusRequest): scala.concurrent.Future[JobStatusResponse] = {
-    val statusMap = collection.mutable.Map[String,JobState]() // jobID -> state
-    jobMap.keySet.forEach(k => statusMap.put(k, JobState.RUNNING))
+    val statuses = collection.mutable.Map[String,JobState]()
 
-    Future.successful(new JobStatusResponse(statusMap.to(collection.immutable.Map)))
+    for (jobId <- request.jobIds) {
+      val result: Option[JobState] = statusMap.get(jobId)
+      result match {
+        case Some(jobState) =>  statuses.put(jobId, jobState)
+        case None => Future.failed(new StatusRuntimeException(Status.NOT_FOUND))
+      }
+    }
+
+    Future.successful(new JobStatusResponse(statuses.to(collection.immutable.Map)))
   }
 
   def getJobStatusUsingExternalJobUri(request: JobStatusUsingExternalJobUriRequest): scala.concurrent.Future[JobStatusResponse] = {
@@ -148,16 +181,17 @@ class ArmadaClientSuite extends munit.FunSuite {
     private var server: Server = null
     def apply() = server
 
-    private val jobMap: ConcurrentHashMap[String, Job] = new ConcurrentHashMap       // key is job id
-    private val queueMap: ConcurrentHashMap[String, Queue] = new ConcurrentHashMap   // key is queue name
+    private val jobMap: TrieMap[String, Job] = new TrieMap       // key is job id
+    private val queueMap: TrieMap[String, Queue] = new TrieMap   // key is queue name
+    private val statusMap: TrieMap[String, JobState] = new TrieMap  // key is job id
 
     override def beforeAll(): Unit = {
       import scala.concurrent.ExecutionContext
       server = ServerBuilder
         .forPort(testPort)
         .addService(EventGrpc.bindService(new EventMockServer, ExecutionContext.global))
-        .addService(SubmitGrpc.bindService(new SubmitMockServer(jobMap, queueMap), ExecutionContext.global))
-        .addService(JobsGrpc.bindService(new JobsMockServer(jobMap), ExecutionContext.global))
+        .addService(SubmitGrpc.bindService(new SubmitMockServer(jobMap, queueMap, statusMap), ExecutionContext.global))
+        .addService(JobsGrpc.bindService(new JobsMockServer(statusMap), ExecutionContext.global))
         .build()
         .start()
     }
@@ -190,12 +224,12 @@ class ArmadaClientSuite extends munit.FunSuite {
     intercept[StatusRuntimeException] {
       response = ac.submitJobs(qName, "testJobSetId", List(new JobSubmitRequestItem()))
     }
-    assertEquals(0, response.jobResponseItems.length)
+    assertEquals(response.jobResponseItems.length, 0)
 
     // submission to existing queue
     ac.createQueue(qName)
     response = ac.submitJobs(qName, "testJobSetId", List(new JobSubmitRequestItem()))
-    assertEquals(1, response.jobResponseItems.length)
+    assertEquals(response.jobResponseItems.length, 1)
     ac.deleteQueue(qName)
   }
 
@@ -209,6 +243,79 @@ class ArmadaClientSuite extends munit.FunSuite {
     val jobId = newJob.jobResponseItems(0).jobId
     val jobStatus = ac.getJobStatus(jobId)
     assert(jobStatus.jobStates(jobId).isRunning)
+
+    ac.deleteQueue(qName)
+  }
+
+  test("ArmadaClient.cancelJobs()") {
+    val ac = ArmadaClient("localhost", testPort)
+    val qName = "queue-" + Random.alphanumeric.take(8).mkString
+    var jobs = Seq[String]()
+
+    ac.createQueue(qName)
+
+    // Submit 3 jobs
+    for (_ <- 1 to 3) {
+      val response = ac.submitJobs(qName, "testJobSetId", List(new JobSubmitRequestItem()))
+      assertEquals(response.jobResponseItems.length, 1)
+      jobs = jobs :+ response.jobResponseItems(0).jobId
+    }
+
+    // Required for processing Futures in test
+    implicit val ec: scala.concurrent.ExecutionContext = scala.concurrent.ExecutionContext.global
+
+    // Cancel the first two of the jobs and validate they are cancelled
+    val cancelRes = ac.cancelJobs(new JobCancelRequest().withJobIds(jobs.take(2)))
+
+    cancelRes.onComplete {
+      case Success(_) => {
+        // Verify both cancelled jobs
+        for (i <- 0 to 1) {
+          val jobStatus = ac.getJobStatus(jobs(i))
+          assertEquals(jobStatus.jobStates(jobs(i)), JobState.CANCELLED)
+        }
+
+        // The third job should still be running
+        assert(ac.getJobStatus(jobs(2)).jobStates(jobs(2)).isRunning)
+      }
+      case Failure(_) => fail("cancelJobs() test failed")
+    }
+
+    ac.deleteQueue(qName)
+  }
+
+  test("ArmadaClient.cancelJobSet()") {
+    val ac = ArmadaClient("localhost", testPort)
+    val qName = "queue-" + Random.alphanumeric.take(8).mkString
+    val cancelJobSetId = "jobset-666"
+    var cancelJobIds = Seq[String]()
+
+    ac.createQueue(qName)
+
+    // Submit 2 jobs in a job set that will be cancelled
+    for (_ <- 1 to 2) {
+      val response = ac.submitJobs(qName, cancelJobSetId, List(new JobSubmitRequestItem()))
+      assertEquals(response.jobResponseItems.length, 1)
+      cancelJobIds = cancelJobIds :+ response.jobResponseItems(0).jobId
+    }
+
+    // Submit one job that will be allowed to run
+    val response = ac.submitJobs(qName, "runJobSet", List(new JobSubmitRequestItem()))
+    assertEquals(response.jobResponseItems.length, 1)
+    val runJobId = response.jobResponseItems(0).jobId
+
+    // Required for processing Futures in test
+    implicit val ec: scala.concurrent.ExecutionContext = scala.concurrent.ExecutionContext.global
+
+    ac.cancelJobSet(cancelJobSetId)
+
+    for (cancelJob <- cancelJobIds) {
+      val jobStatus = ac.getJobStatus(cancelJob)
+      assertEquals(jobStatus.jobStates(cancelJob), JobState.CANCELLED)
+    }
+
+    // The job not in that job set should still be running
+    assert(ac.getJobStatus(runJobId).jobStates(runJobId).isRunning)
 
     ac.deleteQueue(qName)
   }
