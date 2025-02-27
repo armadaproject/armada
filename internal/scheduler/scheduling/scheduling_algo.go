@@ -488,7 +488,7 @@ func (l *FairSchedulingAlgo) constructSchedulingContext(
 			// To ensure fair share is computed only from active queues, i.e., queues with jobs queued or running.
 			continue
 		}
-		cappedDemand := constraints.CapResources(queue.Name, demand)
+		constrainedDemand := constraints.CapResources(queue.Name, demand)
 
 		var allocatedByPriorityClass map[string]internaltypes.ResourceList
 		if allocationByQueueAndPriorityClass != nil {
@@ -523,7 +523,7 @@ func (l *FairSchedulingAlgo) constructSchedulingContext(
 			l.limiterByQueue[queue.Name] = queueLimiter
 		}
 
-		if err := sctx.AddQueueSchedulingContext(queue.Name, weight, rawWeight, allocatedByPriorityClass, internaltypes.RlMapSumValues(demand), internaltypes.RlMapSumValues(cappedDemand), queueLimiter); err != nil {
+		if err := sctx.AddQueueSchedulingContext(queue.Name, weight, rawWeight, allocatedByPriorityClass, internaltypes.RlMapSumValues(demand), internaltypes.RlMapSumValues(constrainedDemand), queueLimiter); err != nil {
 			return nil, err
 		}
 	}

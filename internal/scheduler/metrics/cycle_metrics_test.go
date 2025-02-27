@@ -35,7 +35,7 @@ func TestReportStateTransitions(t *testing.T) {
 					"queue1": {
 						Allocated:         cpu(10),
 						Demand:            cpu(20),
-						CappedDemand:      cpu(15),
+						ConstrainedDemand: cpu(15),
 						AdjustedFairShare: 0.15,
 						SuccessfulJobSchedulingContexts: map[string]*context.JobSchedulingContext{
 							"job1": {
@@ -70,8 +70,8 @@ func TestReportStateTransitions(t *testing.T) {
 	demand := testutil.ToFloat64(m.latestCycleMetrics.Load().demand.WithLabelValues(poolQueue...))
 	assert.InDelta(t, 0.2, demand, epsilon, "demand")
 
-	cappedDemand := testutil.ToFloat64(m.latestCycleMetrics.Load().cappedDemand.WithLabelValues(poolQueue...))
-	assert.InDelta(t, 0.15, cappedDemand, epsilon, "cappedDemand")
+	constrainedDemand := testutil.ToFloat64(m.latestCycleMetrics.Load().constrainedDemand.WithLabelValues(poolQueue...))
+	assert.InDelta(t, 0.15, constrainedDemand, epsilon, "constrainedDemand")
 
 	adjustedFairShare := testutil.ToFloat64(m.latestCycleMetrics.Load().adjustedFairShare.WithLabelValues(poolQueue...))
 	assert.InDelta(t, 0.15, adjustedFairShare, epsilon, "adjustedFairShare")
@@ -121,7 +121,7 @@ func TestResetLeaderMetrics_ResetsLatestCycleMetrics(t *testing.T) {
 	testResetGauge(func(metrics *cycleMetrics) *prometheus.GaugeVec { return m.latestCycleMetrics.Load().actualShare }, poolQueueLabelValues)
 	testResetGauge(func(metrics *cycleMetrics) *prometheus.GaugeVec { return m.latestCycleMetrics.Load().fairnessError }, []string{"pool1"})
 	testResetGauge(func(metrics *cycleMetrics) *prometheus.GaugeVec { return m.latestCycleMetrics.Load().demand }, poolQueueLabelValues)
-	testResetGauge(func(metrics *cycleMetrics) *prometheus.GaugeVec { return m.latestCycleMetrics.Load().cappedDemand }, poolQueueLabelValues)
+	testResetGauge(func(metrics *cycleMetrics) *prometheus.GaugeVec { return m.latestCycleMetrics.Load().constrainedDemand }, poolQueueLabelValues)
 	testResetGauge(func(metrics *cycleMetrics) *prometheus.GaugeVec { return m.latestCycleMetrics.Load().gangsConsidered }, poolQueueLabelValues)
 	testResetGauge(func(metrics *cycleMetrics) *prometheus.GaugeVec { return m.latestCycleMetrics.Load().gangsScheduled }, poolQueueLabelValues)
 	testResetGauge(func(metrics *cycleMetrics) *prometheus.GaugeVec {
@@ -157,7 +157,7 @@ func TestDisableLeaderMetrics(t *testing.T) {
 		m.latestCycleMetrics.Load().actualShare.WithLabelValues(poolQueueLabelValues...).Inc()
 		m.latestCycleMetrics.Load().fairnessError.WithLabelValues("pool1").Inc()
 		m.latestCycleMetrics.Load().demand.WithLabelValues(poolQueueLabelValues...).Inc()
-		m.latestCycleMetrics.Load().cappedDemand.WithLabelValues(poolQueueLabelValues...).Inc()
+		m.latestCycleMetrics.Load().constrainedDemand.WithLabelValues(poolQueueLabelValues...).Inc()
 		m.scheduleCycleTime.Observe(float64(1000))
 		m.reconciliationCycleTime.Observe(float64(1000))
 		m.latestCycleMetrics.Load().gangsConsidered.WithLabelValues("pool1", "queue1").Inc()

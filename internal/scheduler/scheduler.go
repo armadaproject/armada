@@ -649,15 +649,26 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 			})
 		}
 		job = job.WithQueued(false).WithoutTerminal().WithCancelled(true)
+		var cancelUser string
+		if cancelUserPtr := job.CancelUser(); cancelUserPtr != nil {
+			cancelUser = *cancelUserPtr
+		}
 		cancel := &armadaevents.EventSequence_Event{
 			Created: s.now(),
 			Event: &armadaevents.EventSequence_Event_CancelledJob{
-				CancelledJob: &armadaevents.CancelledJob{JobId: job.Id()},
+				CancelledJob: &armadaevents.CancelledJob{
+					JobId:      job.Id(),
+					CancelUser: cancelUser,
+				},
 			},
 		}
 		events = append(events, cancel)
 	} else if job.CancelByJobsetRequested() {
 		job = job.WithQueued(false).WithoutTerminal().WithCancelled(true)
+		var cancelUser string
+		if cancelUserPtr := job.CancelUser(); cancelUserPtr != nil {
+			cancelUser = *cancelUserPtr
+		}
 		cancelRequest := &armadaevents.EventSequence_Event{
 			Created: s.now(),
 			Event: &armadaevents.EventSequence_Event_CancelJob{
@@ -684,7 +695,10 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 		cancel := &armadaevents.EventSequence_Event{
 			Created: s.now(),
 			Event: &armadaevents.EventSequence_Event_CancelledJob{
-				CancelledJob: &armadaevents.CancelledJob{JobId: job.Id()},
+				CancelledJob: &armadaevents.CancelledJob{
+					JobId:      job.Id(),
+					CancelUser: cancelUser,
+				},
 			},
 		}
 		events = append(events, cancel)
