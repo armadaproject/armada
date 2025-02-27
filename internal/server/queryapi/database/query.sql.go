@@ -12,7 +12,7 @@ import (
 )
 
 const getJobDetails = `-- name: GetJobDetails :many
-SELECT j.job_id, j.queue, j.jobset, j.namespace, j.state, j.submitted, j.cancelled, j.cancel_reason, j.last_transition_time, j.latest_run_id, COALESCE(js.job_spec, j.job_spec) FROM job j left join job_spec js on j.job_id = js.job_id WHERE j.job_id = ANY($1::text[])
+SELECT j.job_id, j.queue, j.jobset, j.namespace, j.state, j.submitted, j.cancelled, j.cancel_reason, j.cancel_user, j.last_transition_time, j.latest_run_id, COALESCE(js.job_spec, j.job_spec) FROM job j left join job_spec js on j.job_id = js.job_id WHERE j.job_id = ANY($1::text[])
 `
 
 type GetJobDetailsRow struct {
@@ -24,6 +24,7 @@ type GetJobDetailsRow struct {
 	Submitted          pgtype.Timestamp `db:"submitted"`
 	Cancelled          pgtype.Timestamp `db:"cancelled"`
 	CancelReason       *string          `db:"cancel_reason"`
+	CancelUser         *string          `db:"cancel_user"`
 	LastTransitionTime pgtype.Timestamp `db:"last_transition_time"`
 	LatestRunID        *string          `db:"latest_run_id"`
 	JobSpec            []byte           `db:"job_spec"`
@@ -47,6 +48,7 @@ func (q *Queries) GetJobDetails(ctx context.Context, jobIds []string) ([]GetJobD
 			&i.Submitted,
 			&i.Cancelled,
 			&i.CancelReason,
+			&i.CancelUser,
 			&i.LastTransitionTime,
 			&i.LatestRunID,
 			&i.JobSpec,

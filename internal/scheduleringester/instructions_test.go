@@ -146,31 +146,56 @@ func TestConvertEventSequence(t *testing.T) {
 		"JobCancelRequested": {
 			events: []*armadaevents.EventSequence_Event{f.JobCancelRequested},
 			expected: []DbOperation{
-				MarkJobsCancelRequested{JobSetKey{queue: f.Queue, jobSet: f.JobsetName}: {f.JobId}},
+				MarkJobsCancelRequested{
+					cancelUser: f.UserId,
+					jobIds: map[JobSetKey][]string{
+						{queue: f.Queue, jobSet: f.JobsetName}: {f.JobId},
+					},
+				},
 			},
 		},
 		"JobSetCancelRequested": {
 			events: []*armadaevents.EventSequence_Event{f.JobSetCancelRequested},
 			expected: []DbOperation{
-				MarkJobSetsCancelRequested{JobSetKey{queue: f.Queue, jobSet: f.JobsetName}: &JobSetCancelAction{cancelQueued: true, cancelLeased: true}},
+				MarkJobSetsCancelRequested{
+					cancelUser: f.UserId,
+					jobSets: map[JobSetKey]*JobSetCancelAction{
+						{queue: f.Queue, jobSet: f.JobsetName}: {cancelQueued: true, cancelLeased: true},
+					},
+				},
 			},
 		},
 		"JobSetCancelRequested - Queued only": {
 			events: []*armadaevents.EventSequence_Event{f.JobSetCancelRequestedWithStateFilter(armadaevents.JobState_QUEUED)},
 			expected: []DbOperation{
-				MarkJobSetsCancelRequested{JobSetKey{queue: f.Queue, jobSet: f.JobsetName}: &JobSetCancelAction{cancelQueued: true, cancelLeased: false}},
+				MarkJobSetsCancelRequested{
+					cancelUser: f.UserId,
+					jobSets: map[JobSetKey]*JobSetCancelAction{
+						{queue: f.Queue, jobSet: f.JobsetName}: {cancelQueued: true, cancelLeased: false},
+					},
+				},
 			},
 		},
 		"JobSetCancelRequested - Pending only": {
 			events: []*armadaevents.EventSequence_Event{f.JobSetCancelRequestedWithStateFilter(armadaevents.JobState_PENDING)},
 			expected: []DbOperation{
-				MarkJobSetsCancelRequested{JobSetKey{queue: f.Queue, jobSet: f.JobsetName}: &JobSetCancelAction{cancelQueued: false, cancelLeased: true}},
+				MarkJobSetsCancelRequested{
+					cancelUser: f.UserId,
+					jobSets: map[JobSetKey]*JobSetCancelAction{
+						{queue: f.Queue, jobSet: f.JobsetName}: {cancelQueued: false, cancelLeased: true},
+					},
+				},
 			},
 		},
 		"JobSetCancelRequested - Running only": {
 			events: []*armadaevents.EventSequence_Event{f.JobSetCancelRequestedWithStateFilter(armadaevents.JobState_RUNNING)},
 			expected: []DbOperation{
-				MarkJobSetsCancelRequested{JobSetKey{queue: f.Queue, jobSet: f.JobsetName}: &JobSetCancelAction{cancelQueued: false, cancelLeased: true}},
+				MarkJobSetsCancelRequested{
+					cancelUser: f.UserId,
+					jobSets: map[JobSetKey]*JobSetCancelAction{
+						{queue: f.Queue, jobSet: f.JobsetName}: {cancelQueued: false, cancelLeased: true},
+					},
+				},
 			},
 		},
 		"JobCancelled": {
@@ -213,7 +238,10 @@ func TestConvertEventSequence(t *testing.T) {
 		"multiple events": {
 			events: []*armadaevents.EventSequence_Event{f.JobSetCancelRequested, f.Running, f.JobSucceeded},
 			expected: []DbOperation{
-				MarkJobSetsCancelRequested{JobSetKey{queue: f.Queue, jobSet: f.JobsetName}: &JobSetCancelAction{cancelQueued: true, cancelLeased: true}},
+				MarkJobSetsCancelRequested{
+					cancelUser: f.UserId,
+					jobSets:    map[JobSetKey]*JobSetCancelAction{{queue: f.Queue, jobSet: f.JobsetName}: {cancelQueued: true, cancelLeased: true}},
+				},
 				MarkRunsRunning{f.RunId: f.BaseTime},
 				MarkJobsSucceeded{f.JobId: true},
 			},
