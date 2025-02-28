@@ -382,12 +382,12 @@ func NewCostBasedCandidateGangIterator(
 		},
 	}
 	for queue, queueIt := range iteratorsByQueue {
-		queueContext := queueIt.schedulingContext.QueueSchedulingContexts[queue]
-		totalResources := queueIt.schedulingContext.TotalResources
-		fraction := totalResources.Factory().MakeResourceFractionList(map[string]float64{}, queueContext.AdjustedFairShare)
-		queueAllocatedShare := totalResources.Multiply(fraction)
-		queueAllocatedShareCost := fairnessCostProvider.UnweightedCostFromAllocation(queueAllocatedShare)
-		if _, err := it.updateAndPushPQItem(it.newPQItem(queue, queueAllocatedShareCost, queueIt)); err != nil {
+		qctx, present := queueIt.schedulingContext.QueueSchedulingContexts[queue]
+		if !present {
+			return nil, fmt.Errorf("unable to find queue context for queue %s", queue)
+		}
+		queueBudget := qctx.AdjustedFairShare / qctx.Weight
+		if _, err := it.updateAndPushPQItem(it.newPQItem(queue, queueBudget, queueIt)); err != nil {
 			return nil, err
 		}
 	}
@@ -441,11 +441,11 @@ func (it *CostBasedCandidateGangIterator) Peek() (*schedulercontext.GangScheduli
 	return first.gctx, first.proposedQueueCost, nil
 }
 
-func (it *CostBasedCandidateGangIterator) newPQItem(queue string, allocatedQueueCost float64, queueIt *QueuedGangIterator) *QueueCandidateGangIteratorItem {
+func (it *CostBasedCandidateGangIterator) newPQItem(queue string, queueBudget float64, queueIt *QueuedGangIterator) *QueueCandidateGangIteratorItem {
 	return &QueueCandidateGangIteratorItem{
-		queue:              queue,
-		allocatedQueueCost: allocatedQueueCost,
-		it:                 queueIt,
+		queue:       queue,
+		queueBudget: queueBudget,
+		it:          queueIt,
 	}
 }
 
@@ -546,7 +546,7 @@ type QueueCandidateGangIteratorItem struct {
 	currentQueueCost float64
 	// The cost allocated to the queue based on fairshare
 	// used to compare with proposedQueueCost to determine if scheduling the next item will put the queue over its fairshare
-	allocatedQueueCost float64
+	queueBudget float64
 	// The size of top most gang
 	// Used to determine which job is larger
 	itemSize              float64
@@ -568,7 +568,7 @@ func (pq *QueueCandidateGangIteratorPQ) Less(i, j int) bool {
 	}
 
 	if pq.prioritiseLargerJobs {
-		if item1.proposedQueueCost <= item1.allocatedQueueCost && item2.proposedQueueCost <= item2.allocatedQueueCost {
+		if item1.proposedQueueCost <= item1.queueBudget && item2.proposedQueueCost <= item2.queueBudget {
 			// If adding the items results in neither queue exceeding its fairshare
 			// Take the largest job if the queues are equal current cost (which is the case if all jobs get evicted / on an empty farm)
 			// The reason we prefer larger jobs is:
@@ -585,15 +585,15 @@ func (pq *QueueCandidateGangIteratorPQ) Less(i, j int) bool {
 			if item1.currentQueueCost != item2.currentQueueCost {
 				return item1.currentQueueCost < item2.currentQueueCost
 			}
-		} else if item1.proposedQueueCost > item1.allocatedQueueCost && item2.proposedQueueCost > item2.allocatedQueueCost {
+		} else if item1.proposedQueueCost > item1.queueBudget && item2.proposedQueueCost > item2.queueBudget {
 			// If adding the items results in both queues being above their fairshare
 			//  take the item that results in the smallest amount over the fairshare
 			if item1.proposedQueueCost != item2.proposedQueueCost {
 				return item1.proposedQueueCost < item2.proposedQueueCost
 			}
-		} else if item1.proposedQueueCost <= item1.allocatedQueueCost {
+		} else if item1.proposedQueueCost <= item1.queueBudget {
 			return true
-		} else if item2.proposedQueueCost <= item2.allocatedQueueCost {
+		} else if item2.proposedQueueCost <= item2.queueBudget {
 			return false
 		}
 	} else {
