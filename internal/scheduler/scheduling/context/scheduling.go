@@ -156,21 +156,28 @@ type queueInfo struct {
 	weight float64
 	// Plain fair share, just weight_of_this_queue / sum(weights_of_all_active_queues)
 	fairShare float64
-	// Fair share including this queue's proportion of any share unused by other queues.
-	uncappedAdjustedFairShare float64
 	// Fair share including this queue's proportion of any share unused by other queues, capped at this queue's constrainedDemandShare.
 	demandCappedAdjustedFairShare float64
+	// Fair share including this queue's proportion of any share unused by other queues, uncapped It's effectively the share this
+	// queue would get if it had infinite demand. This measure is designed to not punish queues for being undemanding.
+	uncappedAdjustedFairShare float64
+	// Has this queue got all the demand it wants
+	achievedDemand bool
+	// Any share the queue isn't using because it's demanding less than it can get.
+	spareShare float64
 }
 
-// UpdateFairShares updates FairShare and AdjustedFairShare for every QueueSchedulingContext associated with the
-// SchedulingContext.  This works by calculating a far share as queue_weight/sum_of_all_queue_weights and an
-// AdjustedFairShare by resharing any unused capacity (as determined by a queue's demand)
+// UpdateFairShares updates FairShare/DemandCappedAdjustedFairShare/UncappedAdjustedFairShare for every
+// QueueSchedulingContext associated with this SchedulingContext. This works by calculating a FairShare as
+// queue_weight/sum_of_all_queue_weights then DemandCappedAdjustedFairShare/UncappedAdjustedFairShare
+// by resharing any unused capacity (as determined by a queue's demand).
 func (sctx *SchedulingContext) UpdateFairShares() {
 	queueInfos := sctx.updateFairShares(sctx.QueueSchedulingContexts)
 	for _, q := range queueInfos {
 		qtx := sctx.QueueSchedulingContexts[q.queueName]
 		qtx.FairShare = q.fairShare
-		qtx.AdjustedFairShare = q.demandCappedAdjustedFairShare
+		qtx.DemandCappedAdjustedFairShare = q.demandCappedAdjustedFairShare
+		qtx.UncappedAdjustedFairShare = q.uncappedAdjustedFairShare
 	}
 }
 
@@ -192,9 +199,10 @@ func (sctx *SchedulingContext) CalculateTheoreticalShare(priority float64) float
 	return math.NaN()
 }
 
-// UpdateFairShares updates FairShare and AdjustedFairShare for every QueueSchedulingContext associated with the
-// SchedulingContext.  This works by calculating a far share as queue_weight/sum_of_all_queue_weights and an
-// AdjustedFairShare by resharing any unused capacity (as determined by a queue's demand)
+// UpdateFairShares updates FairShare/DemandCappedAdjustedFairShare/UncappedAdjustedFairShare for every
+// QueueSchedulingContext associated with the SchedulingContext. This works by calculating a FairShare
+// as queue_weight/sum_of_all_queue_weights and a DemandCappedAdjustedFairShare/UncappedAdjustedFairShare
+// by re-sharing any unused capacity (as determined by a queue's demand).
 func (sctx *SchedulingContext) updateFairShares(qctxs map[string]*QueueSchedulingContext) []*queueInfo {
 	const maxIterations = 5
 
@@ -211,6 +219,8 @@ func (sctx *SchedulingContext) updateFairShares(qctxs map[string]*QueueSchedulin
 			fairShare:                     qctx.Weight / sctx.WeightSum,
 			weight:                        qctx.Weight,
 			constrainedDemandShare:        constrainedDemandShare,
+			achievedDemand:                false,
+			spareShare:                    0,
 		})
 	}
 
@@ -225,23 +235,50 @@ func (sctx *SchedulingContext) updateFairShares(qctxs map[string]*QueueSchedulin
 	for i := 0; i < maxIterations && unallocated > 0.01; i++ {
 		totalWeight := 0.0
 		for _, q := range queueInfos {
+			if q.achievedDemand {
+				continue
+			}
 			totalWeight += q.weight
 		}
 
 		for _, q := range queueInfos {
-			if q.weight > 0 {
-				share := (q.weight / totalWeight) * unallocated
-				q.demandCappedAdjustedFairShare += share
-				q.uncappedAdjustedFairShare += share
+
+			// Add this queue's share to uncappedAdjustedFairShare.
+			// UncappedAdjustedFairShare means "the share of the pool this queue would get it if had infinite demand"
+			// This measure is designed to not punish queues for being undemanding.
+			totalWeightInclThisQueue := totalWeight
+			if q.achievedDemand {
+				// this queue was not added when calculating totalWeight above so add now
+				totalWeightInclThisQueue += q.weight
+			}
+
+			// Subtract spareShare here as it makes no sense to give this queue's spareShare back to this queue,
+			// it would not have a spareShare if it really had infinite demand.
+			q.uncappedAdjustedFairShare += (q.weight / totalWeightInclThisQueue) * (unallocated - q.spareShare)
+		}
+
+		if totalWeight <= 0.0 {
+			break
+		}
+
+		for _, q := range queueInfos {
+			// Add this queue's share to demandCappedAdjustedFairShare.
+			// DemandCappedAdjustedFairShare means "the share of the pool this queue should get with current demand"
+			if !q.achievedDemand {
+				q.demandCappedAdjustedFairShare += (q.weight / totalWeight) * unallocated
 			}
 		}
+
 		unallocated = 0.0
 		for _, q := range queueInfos {
-			excessShare := q.demandCappedAdjustedFairShare - q.constrainedDemandShare
-			if excessShare > 0 {
+			spareShare := q.demandCappedAdjustedFairShare - q.constrainedDemandShare
+			if spareShare > 0 {
 				q.demandCappedAdjustedFairShare = q.constrainedDemandShare
-				q.weight = 0.0
-				unallocated += excessShare
+				q.achievedDemand = true
+				q.spareShare = spareShare
+				unallocated += spareShare
+			} else {
+				q.spareShare = 0
 			}
 		}
 	}
@@ -423,7 +460,7 @@ func (sctx *SchedulingContext) FairnessError() float64 {
 	fairnessError := 0.0
 	for _, qctx := range sctx.QueueSchedulingContexts {
 		actualShare := sctx.FairnessCostProvider.UnweightedCostFromQueue(qctx)
-		delta := qctx.AdjustedFairShare - actualShare
+		delta := qctx.DemandCappedAdjustedFairShare - actualShare
 		if delta > 0 {
 			fairnessError += delta
 		}

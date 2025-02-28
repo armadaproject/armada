@@ -383,7 +383,7 @@ func NewCostBasedCandidateGangIterator(
 	}
 	for queue, queueIt := range iteratorsByQueue {
 		queueContext := queueIt.schedulingContext.QueueSchedulingContexts[queue]
-		if _, err := it.updateAndPushPQItem(it.newPQItem(queue, queueContext.AdjustedFairShare, queueIt)); err != nil {
+		if _, err := it.updateAndPushPQItem(it.newPQItem(queue, queueContext.DemandCappedAdjustedFairShare, queueIt)); err != nil {
 			return nil, err
 		}
 	}

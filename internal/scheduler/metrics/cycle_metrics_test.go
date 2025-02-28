@@ -33,10 +33,11 @@ func TestReportStateTransitions(t *testing.T) {
 				FairnessCostProvider: fairnessCostProvider,
 				QueueSchedulingContexts: map[string]*context.QueueSchedulingContext{
 					"queue1": {
-						Allocated:         cpu(10),
-						Demand:            cpu(20),
-						ConstrainedDemand: cpu(15),
-						AdjustedFairShare: 0.15,
+						Allocated:                     cpu(10),
+						Demand:                        cpu(20),
+						ConstrainedDemand:             cpu(15),
+						DemandCappedAdjustedFairShare: 0.15,
+						UncappedAdjustedFairShare:     0.2,
 						SuccessfulJobSchedulingContexts: map[string]*context.JobSchedulingContext{
 							"job1": {
 								Job: testfixtures.Test1Cpu4GiJob("queue1", testfixtures.PriorityClass0),
@@ -75,6 +76,9 @@ func TestReportStateTransitions(t *testing.T) {
 
 	adjustedFairShare := testutil.ToFloat64(m.latestCycleMetrics.Load().adjustedFairShare.WithLabelValues(poolQueue...))
 	assert.InDelta(t, 0.15, adjustedFairShare, epsilon, "adjustedFairShare")
+
+	uncappedAdjustedFairShare := testutil.ToFloat64(m.latestCycleMetrics.Load().uncappedAdjustedFairShare.WithLabelValues(poolQueue...))
+	assert.InDelta(t, 0.2, uncappedAdjustedFairShare, epsilon, "uncappedAdjustedFairShare")
 
 	fairnessError := testutil.ToFloat64(m.latestCycleMetrics.Load().fairnessError.WithLabelValues("pool1"))
 	assert.InDelta(t, 0.05, fairnessError, epsilon, "fairnessError")
