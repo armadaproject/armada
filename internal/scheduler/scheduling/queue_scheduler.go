@@ -386,7 +386,7 @@ func NewCostBasedCandidateGangIterator(
 		if !present {
 			return nil, fmt.Errorf("unable to find queue context for queue %s", queue)
 		}
-		queueBudget := qctx.AdjustedFairShare / qctx.Weight
+		queueBudget := qctx.DemandCappedAdjustedFairShare / qctx.Weight
 		if _, err := it.updateAndPushPQItem(it.newPQItem(queue, queueBudget, queueIt)); err != nil {
 			return nil, err
 		}

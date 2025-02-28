@@ -632,7 +632,7 @@ func TestSchedule(t *testing.T) {
 			// Check that we calculated fair share and adjusted fair share
 			for _, schCtx := range schedulerResult.SchedulingContexts {
 				for _, qtx := range schCtx.QueueSchedulingContexts {
-					assert.NotEqual(t, 0, qtx.AdjustedFairShare)
+					assert.NotEqual(t, 0, qtx.DemandCappedAdjustedFairShare)
 					assert.NotEqual(t, 0, qtx.FairShare)
 				}
 			}
