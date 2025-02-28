@@ -44,34 +44,6 @@ func (a QuantityByTAndResourceType[T]) AddResourceList(t T, rlb ResourceList) {
 	a[t] = rla
 }
 
-func (a QuantityByTAndResourceType[T]) AggregateByResource() ResourceList {
-	rv := NewResourceListWithDefaultSize()
-	for _, rl := range a {
-		rv.Add(rl)
-	}
-	return rv
-}
-
-// MaxAggregatedByResource updates a in-place such that for each resource type t
-// a[p1][t] + ... + a[pn][t] = max(a[p1][t] + ... + a[pn][t], rl[t]),
-// where p1, ..., pn are the priorities in a, for each resource set explicitly in rl.
-//
-// If necessary to add resources to make up the difference, those resources are added at priority p.
-func (a QuantityByTAndResourceType[T]) MaxAggregatedByResource(t T, rl ResourceList) {
-	aggregate := a.AggregateByResource()
-	var difference ResourceList
-	for t, q := range rl.Resources {
-		q = q.DeepCopy()
-		q.Sub(aggregate.Get(t))
-		if q.Cmp(resource.Quantity{}) == 1 {
-			difference.AddQuantity(t, q)
-		}
-	}
-	if len(difference.Resources) > 0 {
-		a.AddResourceList(t, difference)
-	}
-}
-
 func (rl *ResourceList) Get(resourceType string) resource.Quantity {
 	return rl.Resources[resourceType]
 }

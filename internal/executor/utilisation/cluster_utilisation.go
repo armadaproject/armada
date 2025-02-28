@@ -13,7 +13,6 @@ import (
 	"github.com/armadaproject/armada/internal/executor/domain"
 	"github.com/armadaproject/armada/internal/executor/node"
 	"github.com/armadaproject/armada/internal/executor/util"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/executorapi"
 )
@@ -103,15 +102,14 @@ func (cls *ClusterUtilisationService) GetAvailableClusterCapacity() (*ClusterAva
 			return !util.IsManagedPod(pod)
 		})
 
-		allocatedByPriorityNonArmada := allocatedByPriorityAndResourceTypeFromPods(runningNodePodsNonArmada)
-		allocatedByPriorityNonArmada.MaxAggregatedByResource(
-			cls.minimumResourcesMarkedAllocatedToNonArmadaPodsPerNodePriority,
-			schedulerobjects.ResourceList{Resources: cls.minimumResourcesMarkedAllocatedToNonArmadaPodsPerNode},
-		)
+		allocatedByPriorityNonArmada, totalAllocatedNonArmada := allocatedByPriorityAndResourceTypeFromPods(runningNodePodsNonArmada)
+
+		unusedNonArmadaResources := getUnusedNonArmadaResources(totalAllocatedNonArmada, cls.minimumResourcesMarkedAllocatedToNonArmadaPodsPerNode)
+		allocatedByPriorityNonArmada[cls.minimumResourcesMarkedAllocatedToNonArmadaPodsPerNodePriority].Add(unusedNonArmadaResources)
 
 		nodeNonArmadaAllocatedResources := make(map[int32]*executorapi.ComputeResource)
 		for p, rl := range allocatedByPriorityNonArmada {
-			nodeNonArmadaAllocatedResources[p] = executorapi.ComputeResourceFromProtoResources(rl.Resources)
+			nodeNonArmadaAllocatedResources[p] = executorapi.ComputeResourceFromProtoResources(rl)
 		}
 		nodePool := cls.nodeInfoService.GetPool(node)
 		nodes = append(nodes, executorapi.NodeInfo{
@@ -190,6 +188,13 @@ func getJobRunState(pod *v1.Pod) api.JobState {
 	return api.JobState_UNKNOWN
 }
 
+func getUnusedNonArmadaResources(allocated armadaresource.ComputeResources, minimum armadaresource.ComputeResources) armadaresource.ComputeResources {
+	diff := minimum.DeepCopy()
+	diff.Sub(allocated)
+	diff.LimitToZero()
+	return diff
+}
+
 func getAllocatedResourceByNodeName(pods []*v1.Pod) map[string]armadaresource.ComputeResources {
 	allocations := map[string]armadaresource.ComputeResources{}
 	for _, pod := range pods {
@@ -215,18 +220,21 @@ func groupPodsByNodes(pods []*v1.Pod) map[string][]*v1.Pod {
 	return podsByNodes
 }
 
-func allocatedByPriorityAndResourceTypeFromPods(pods []*v1.Pod) schedulerobjects.QuantityByTAndResourceType[int32] {
-	rv := make(schedulerobjects.QuantityByTAndResourceType[int32])
+func allocatedByPriorityAndResourceTypeFromPods(pods []*v1.Pod) (map[int32]armadaresource.ComputeResources, armadaresource.ComputeResources) {
+	resourcesByPc := make(map[int32]armadaresource.ComputeResources)
+	totalResources := armadaresource.ComputeResources{}
 	for _, pod := range pods {
 		var priority int32 = 0
 		if pod.Spec.Priority != nil {
 			priority = *(pod.Spec.Priority)
 		}
 		request := armadaresource.TotalPodResourceRequest(&pod.Spec)
-		rl := schedulerobjects.ResourceList{Resources: request}
-		rv.AddResourceList(priority, rl)
+		existing := resourcesByPc[priority]
+		existing.Add(request)
+		resourcesByPc[priority] = existing
+		totalResources.Add(request)
 	}
-	return rv
+	return resourcesByPc, totalResources
 }
 
 // GetAllNodeGroupAllocationInfo returns allocation information for all nodes on the cluster.
