@@ -236,6 +236,16 @@ func WithRoundLimitsPoolConfig(limits map[string]map[string]float64, config sche
 	return config
 }
 
+func WithOptimiserConfig(pool string, optimiserConfig *schedulerconfiguration.OptimiserConfig, config schedulerconfiguration.SchedulingConfig) schedulerconfiguration.SchedulingConfig {
+	for i, p := range config.Pools {
+		if p.Name == pool {
+			p.Optimiser = optimiserConfig
+			config.Pools[i] = p
+		}
+	}
+	return config
+}
+
 func WithPerPriorityLimitsConfig(limits map[string]map[string]float64, config schedulerconfiguration.SchedulingConfig) schedulerconfiguration.SchedulingConfig {
 	for priorityClassName, limit := range limits {
 		priorityClass, ok := config.PriorityClasses[priorityClassName]
@@ -470,6 +480,13 @@ func WithAnnotationsJobs(annotations map[string]string, jobs []*jobdb.Job) []*jo
 			job.PodRequirements().Annotations = make(map[string]string)
 		}
 		maps.Copy(job.PodRequirements().Annotations, annotations)
+	}
+	return jobs
+}
+
+func WithQueued(jobs []*jobdb.Job) []*jobdb.Job {
+	for i, job := range jobs {
+		jobs[i] = job.WithQueued(true)
 	}
 	return jobs
 }

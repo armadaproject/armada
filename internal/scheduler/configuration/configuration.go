@@ -294,6 +294,7 @@ type PoolConfig struct {
 type OptimiserConfig struct {
 	Enabled                           bool
 	Interval                          time.Duration
+	Timeout                           time.Duration `validate:"required"`
 	MaximumJobsPerRound               int
 	MaximumResourceFractionToSchedule map[string]float64
 	MinimumJobSizeToSchedule          *armadaresource.ComputeResources

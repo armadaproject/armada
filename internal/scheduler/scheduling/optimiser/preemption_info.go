@@ -1,6 +1,8 @@
 package optimiser
 
-import "github.com/armadaproject/armada/internal/scheduler/internaltypes"
+import (
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
+)
 
 type preemptibleJobDetails struct {
 	// metadata
@@ -10,11 +12,12 @@ type preemptibleJobDetails struct {
 	// Used for in queue ordering
 	cost                float64
 	costToPreempt       float64
+	priorityPreemption  bool
 	scheduledAtPriority int32
 	ageMillis           int64
 	// Used for global ordering
-	queueCostAfterPreemption float64
-	queuePreemptedOrdinal    int
+	weightedCostAfterPreemption float64
+	queuePreemptedOrdinal       int
 }
 
 type internalQueueOrder []*preemptibleJobDetails
@@ -59,11 +62,18 @@ func (gpo globalPreemptionOrder) Less(i, j int) bool {
 		return gpo[i].queuePreemptedOrdinal < gpo[j].queuePreemptedOrdinal
 	}
 
-	if gpo[i].queueCostAfterPreemption > gpo[j].queueCostAfterPreemption {
-		return true
-
+	// Priority preemption is currently known to be unfair
+	if gpo[i].priorityPreemption != gpo[j].priorityPreemption {
+		return gpo[i].priorityPreemption
 	}
-	if gpo[i].queueCostAfterPreemption == gpo[j].queueCostAfterPreemption {
+
+	if gpo[i].weightedCostAfterPreemption > gpo[j].weightedCostAfterPreemption {
+		return true
+	}
+	if gpo[i].weightedCostAfterPreemption == gpo[j].weightedCostAfterPreemption {
+		if gpo[i].scheduledAtPriority != gpo[j].scheduledAtPriority {
+			return gpo[i].scheduledAtPriority < gpo[j].scheduledAtPriority
+		}
 		if gpo[i].cost != gpo[j].cost {
 			return gpo[i].cost < gpo[j].cost
 		}

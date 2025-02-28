@@ -17,7 +17,8 @@ func FromSchedulingContext(sctx *context.SchedulingContext) *SchedulingContext {
 		queueContext := &QueueContext{
 			Name:        qctx.Queue,
 			CurrentCost: sctx.FairnessCostProvider.UnweightedCostFromQueue(qctx),
-			Fairshare:   qctx.AdjustedFairShare,
+			Fairshare:   qctx.DemandCappedAdjustedFairShare,
+			Weight:      qctx.Weight,
 		}
 		schedulingContext.Queues[queueContext.Name] = queueContext
 	}
@@ -29,4 +30,5 @@ type QueueContext struct {
 	Name        string
 	CurrentCost float64
 	Fairshare   float64
+	Weight      float64
 }

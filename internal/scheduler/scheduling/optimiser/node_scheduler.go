@@ -16,19 +16,23 @@ import (
 	"github.com/armadaproject/armada/internal/server/configuration"
 )
 
-type NodeScheduler struct {
+type PreemptingNodeScheduler struct {
 	jobDb                   jobdb.JobRepository
 	maximumJobSizeToPreempt *internaltypes.ResourceList
 }
 
-func NewNodeScheduler(jobDb jobdb.JobRepository, maximumJobSizeToPreempt *internaltypes.ResourceList) *NodeScheduler {
-	return &NodeScheduler{
+type NodeScheduler interface {
+	Schedule(schedContext *SchedulingContext, jctx *context.JobSchedulingContext, node *internaltypes.Node) (*nodeSchedulingResult, error)
+}
+
+func NewPreemptingNodeScheduler(jobDb jobdb.JobRepository, maximumJobSizeToPreempt *internaltypes.ResourceList) *PreemptingNodeScheduler {
+	return &PreemptingNodeScheduler{
 		jobDb:                   jobDb,
 		maximumJobSizeToPreempt: maximumJobSizeToPreempt,
 	}
 }
 
-func (n *NodeScheduler) Schedule(schedContext *SchedulingContext, jctx *context.JobSchedulingContext, node *internaltypes.Node) (*nodeSchedulingResult, error) {
+func (n *PreemptingNodeScheduler) Schedule(schedContext *SchedulingContext, jctx *context.JobSchedulingContext, node *internaltypes.Node) (*nodeSchedulingResult, error) {
 	met, _, err := nodedb.StaticJobRequirementsMet(node, jctx)
 	if err != nil {
 		return nil, err
@@ -120,7 +124,7 @@ func (n *NodeScheduler) Schedule(schedContext *SchedulingContext, jctx *context.
 	}, nil
 }
 
-func (n *NodeScheduler) getPreemptibleJobDetailsByQueue(
+func (n *PreemptingNodeScheduler) getPreemptibleJobDetailsByQueue(
 	schedContext *SchedulingContext,
 	jobToSchedule *context.JobSchedulingContext,
 	node *internaltypes.Node) (map[string][]*preemptibleJobDetails, error) {
@@ -160,7 +164,12 @@ func (n *NodeScheduler) getPreemptibleJobDetailsByQueue(
 			}
 			scheduledAtPriority = jctx.PodSchedulingContext.ScheduledAtPriority
 		} else {
-			// TODO handle latest run not existing
+			if job.LatestRun() == nil {
+				return nil, fmt.Errorf("no job run found for scheduled job %s", jobId)
+			}
+			if job.LatestRun().ScheduledAtPriority() == nil {
+				return nil, fmt.Errorf("scheduled at priority is nil for scheduled job %s", jobId)
+			}
 			scheduledAtPriority = *job.LatestRun().ScheduledAtPriority()
 			age = start.Sub(*job.LatestRun().LeaseTime()).Milliseconds()
 		}
@@ -188,7 +197,7 @@ func (n *NodeScheduler) getPreemptibleJobDetailsByQueue(
 	return queues, nil
 }
 
-func (n *NodeScheduler) populateQueueImpactFields(schedContext *SchedulingContext, jobToSchedule *context.JobSchedulingContext, queues map[string][]*preemptibleJobDetails) error {
+func (n *PreemptingNodeScheduler) populateQueueImpactFields(schedContext *SchedulingContext, jobToSchedule *context.JobSchedulingContext, queues map[string][]*preemptibleJobDetails) error {
 	for queue, items := range queues {
 		sort.Sort(internalQueueOrder(items))
 
@@ -200,11 +209,12 @@ func (n *NodeScheduler) populateQueueImpactFields(schedContext *SchedulingContex
 		updatedQueueCost := qctx.CurrentCost
 		count := 0
 		for _, item := range items {
-			item.queueCostAfterPreemption = updatedQueueCost - item.cost
-			updatedQueueCost = item.queueCostAfterPreemption
-			if item.queueCostAfterPreemption > qctx.Fairshare {
+			updatedQueueCost = roundFloatHighPrecision(updatedQueueCost - item.cost)
+			item.weightedCostAfterPreemption = updatedQueueCost / qctx.Weight
+			if item.scheduledAtPriority < jobToSchedule.Job.PriorityClass().Priority {
 				item.costToPreempt = 0
-			} else if item.scheduledAtPriority < jobToSchedule.Job.PriorityClass().Priority {
+				item.priorityPreemption = true
+			} else if updatedQueueCost > qctx.Fairshare {
 				item.costToPreempt = 0
 			} else {
 				// This could be improved to handle crossing the fairshare boundary better
@@ -218,6 +228,10 @@ func (n *NodeScheduler) populateQueueImpactFields(schedContext *SchedulingContex
 		queues[queue] = items
 	}
 	return nil
+}
+
+func roundFloatHighPrecision(input float64) float64 {
+	return math.Round(input*100000000) / 100000000
 }
 
 func isTooLargeToEvict(job *jobdb.Job, limit *internaltypes.ResourceList) bool {

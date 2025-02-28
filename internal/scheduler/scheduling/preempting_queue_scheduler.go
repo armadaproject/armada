@@ -243,30 +243,7 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 	}
 
 	if sch.optimiserConfig != nil && sch.optimiserEnabled {
-		factory := sch.schedulingContext.TotalResources.Factory()
-		var maximumJobSizeToPreempt *internaltypes.ResourceList
-		if sch.optimiserConfig.MaximumJobSizeToPreempt != nil {
-			maxJobSize := factory.FromJobResourceListIgnoreUnknown(*sch.optimiserConfig.MaximumJobSizeToPreempt)
-			maximumJobSizeToPreempt = &maxJobSize
-		}
-		var minimumJobSizeToSchedule *internaltypes.ResourceList
-		if sch.optimiserConfig.MinimumJobSizeToSchedule != nil {
-			minJobSize := factory.FromJobResourceListIgnoreUnknown(*sch.optimiserConfig.MinimumJobSizeToSchedule)
-			minimumJobSizeToSchedule = &minJobSize
-		}
-
-		nodeScheduler := optimiser.NewNodeScheduler(sch.jobRepo, maximumJobSizeToPreempt)
-		optimisingScheduler := optimiser.NewFairnessOptimisingScheduler(nodeScheduler, sch.jobRepo, sch.nodeDb, sch.optimiserConfig.FairnessImprovementThreshold)
-		optimisingQueueScheduler := NewOptimisingQueueScheduler(
-			sch.jobRepo,
-			optimisingScheduler,
-			sch.constraints,
-			sch.floatingResourceTypes,
-			sch.maxQueueLookBack,
-			minimumJobSizeToSchedule,
-			sch.optimiserConfig.MaximumJobsPerRound,
-			sch.optimiserConfig.MaximumResourceFractionToSchedule)
-		optimisingSchedulerResult, err := optimisingQueueScheduler.Schedule(ctx, sch.schedulingContext)
+		optimisingSchedulerResult, err := sch.runOptimiser(ctx)
 		if err != nil {
 			return nil, err
 		}
@@ -593,6 +570,40 @@ func (sch *PreemptingQueueScheduler) addEvictedJobsToNodeDb(_ *armadacontext.Con
 	}
 	txn.Commit()
 	return nil
+}
+
+func (sch *PreemptingQueueScheduler) runOptimiser(ctx *armadacontext.Context) (*SchedulerResult, error) {
+	factory := sch.schedulingContext.TotalResources.Factory()
+	var maximumJobSizeToPreempt *internaltypes.ResourceList
+	if sch.optimiserConfig.MaximumJobSizeToPreempt != nil {
+		maxJobSize := factory.FromJobResourceListIgnoreUnknown(*sch.optimiserConfig.MaximumJobSizeToPreempt)
+		maximumJobSizeToPreempt = &maxJobSize
+	}
+	var minimumJobSizeToSchedule *internaltypes.ResourceList
+	if sch.optimiserConfig.MinimumJobSizeToSchedule != nil {
+		minJobSize := factory.FromJobResourceListIgnoreUnknown(*sch.optimiserConfig.MinimumJobSizeToSchedule)
+		minimumJobSizeToSchedule = &minJobSize
+	}
+
+	nodeScheduler := optimiser.NewPreemptingNodeScheduler(sch.jobRepo, maximumJobSizeToPreempt)
+	optimisingScheduler := optimiser.NewFairnessOptimisingScheduler(nodeScheduler, sch.jobRepo, sch.nodeDb, sch.optimiserConfig.FairnessImprovementThreshold)
+	optimisingQueueScheduler := NewOptimisingQueueScheduler(
+		sch.jobRepo,
+		optimisingScheduler,
+		sch.constraints,
+		sch.floatingResourceTypes,
+		sch.maxQueueLookBack,
+		sch.preferLargeJobOrdering,
+		sch.marketDriven,
+		minimumJobSizeToSchedule,
+		sch.optimiserConfig.MaximumJobsPerRound,
+		sch.optimiserConfig.MaximumResourceFractionToSchedule)
+	sch.schedulingContext.ClearUnfeasibleSchedulingKeys()
+
+	timeoutContext, cancel := armadacontext.WithTimeout(ctx, sch.optimiserConfig.Timeout)
+	defer cancel()
+
+	return optimisingQueueScheduler.Schedule(timeoutContext, sch.schedulingContext)
 }
 
 func (sch *PreemptingQueueScheduler) schedule(
