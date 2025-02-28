@@ -3,7 +3,6 @@ package configuration
 import (
 	"time"
 
-	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
@@ -11,6 +10,7 @@ import (
 	commonconfig "github.com/armadaproject/armada/internal/common/config"
 	grpcconfig "github.com/armadaproject/armada/internal/common/grpc/configuration"
 	profilingconfig "github.com/armadaproject/armada/internal/common/profiling/configuration"
+	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/armadaproject/armada/pkg/client"
@@ -283,11 +283,12 @@ type WellKnownNodeType struct {
 }
 
 type PoolConfig struct {
-	Name                         string `validate:"required"`
-	AwayPools                    []string
-	ProtectedFractionOfFairShare *float64
-	MarketDriven                 bool
-	Optimiser                    *OptimiserConfig
+	Name                                         string `validate:"required"`
+	AwayPools                                    []string
+	ProtectedFractionOfFairShare                 *float64
+	MarketDriven                                 bool
+	ExperimentalProtectUncappedAdjustedFairShare bool
+	Optimiser                                    *OptimiserConfig
 }
 
 type OptimiserConfig struct {
@@ -307,6 +308,15 @@ func (sc *SchedulingConfig) GetProtectedFractionOfFairShare(poolName string) flo
 		}
 	}
 	return sc.ProtectedFractionOfFairShare
+}
+
+func (sc *SchedulingConfig) GetProtectUncappedAdjustedFairShare(poolName string) bool {
+	for _, poolConfig := range sc.Pools {
+		if poolConfig.Name == poolName {
+			return poolConfig.ExperimentalProtectUncappedAdjustedFairShare
+		}
+	}
+	return false
 }
 
 type ExperimentalIndicativePricing struct {

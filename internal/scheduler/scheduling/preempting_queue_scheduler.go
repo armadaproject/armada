@@ -5,8 +5,6 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/armadaproject/armada/internal/scheduler/configuration"
-	"github.com/armadaproject/armada/internal/scheduler/scheduling/optimiser"
 	"github.com/hashicorp/go-memdb"
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
@@ -15,6 +13,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
+	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/floatingresources"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
@@ -22,21 +21,23 @@ import (
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/scheduling/constraints"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/fairness"
+	"github.com/armadaproject/armada/internal/scheduler/scheduling/optimiser"
 )
 
 // PreemptingQueueScheduler is a scheduler that makes a unified decisions on which jobs to preempt and schedule.
 // Uses QueueScheduler as a building block.
 type PreemptingQueueScheduler struct {
-	schedulingContext            *schedulercontext.SchedulingContext
-	constraints                  schedulerconstraints.SchedulingConstraints
-	floatingResourceTypes        *floatingresources.FloatingResourceTypes
-	protectedFractionOfFairShare float64
-	maxQueueLookBack             uint
-	preferLargeJobOrdering       bool
-	jobRepo                      jobdb.JobRepository
-	nodeDb                       *nodedb.NodeDb
-	optimiserConfig              *configuration.OptimiserConfig
-	optimiserEnabled             bool
+	schedulingContext                *schedulercontext.SchedulingContext
+	constraints                      schedulerconstraints.SchedulingConstraints
+	floatingResourceTypes            *floatingresources.FloatingResourceTypes
+	protectedFractionOfFairShare     float64
+	maxQueueLookBack                 uint
+	preferLargeJobOrdering           bool
+	protectUncappedAdjustedFairShare bool
+	jobRepo                          jobdb.JobRepository
+	nodeDb                           *nodedb.NodeDb
+	optimiserConfig                  *configuration.OptimiserConfig
+	optimiserEnabled                 bool
 	// Maps job ids to the id of the node the job is associated with.
 	// For scheduled or running jobs, that is the node the job is assigned to.
 	// For preempted jobs, that is the node the job was preempted from.
@@ -52,9 +53,7 @@ func NewPreemptingQueueScheduler(
 	sctx *schedulercontext.SchedulingContext,
 	constraints schedulerconstraints.SchedulingConstraints,
 	floatingResourceTypes *floatingresources.FloatingResourceTypes,
-	preferLargeJobOrdering bool,
-	protectedFractionOfFairShare float64,
-	maxQueueLookBack uint,
+	config configuration.SchedulingConfig,
 	jobRepo jobdb.JobRepository,
 	nodeDb *nodedb.NodeDb,
 	initialNodeIdByJobId map[string]string,
@@ -77,21 +76,23 @@ func NewPreemptingQueueScheduler(
 	for gangId, jobIds := range initialJobIdsByGangId {
 		initialJobIdsByGangId[gangId] = maps.Clone(jobIds)
 	}
+
 	return &PreemptingQueueScheduler{
-		schedulingContext:            sctx,
-		constraints:                  constraints,
-		floatingResourceTypes:        floatingResourceTypes,
-		protectedFractionOfFairShare: protectedFractionOfFairShare,
-		preferLargeJobOrdering:       preferLargeJobOrdering,
-		maxQueueLookBack:             maxQueueLookBack,
-		jobRepo:                      jobRepo,
-		nodeDb:                       nodeDb,
-		nodeIdByJobId:                maps.Clone(initialNodeIdByJobId),
-		jobIdsByGangId:               initialJobIdsByGangId,
-		gangIdByJobId:                maps.Clone(initialGangIdByJobId),
-		marketDriven:                 marketDriven,
-		optimiserConfig:              optimiserConfig,
-		optimiserEnabled:             optimiserEnabled,
+		schedulingContext:                sctx,
+		constraints:                      constraints,
+		floatingResourceTypes:            floatingResourceTypes,
+		protectedFractionOfFairShare:     config.GetProtectedFractionOfFairShare(sctx.Pool),
+		preferLargeJobOrdering:           config.EnablePreferLargeJobOrdering,
+		protectUncappedAdjustedFairShare: config.GetProtectUncappedAdjustedFairShare(sctx.Pool),
+		maxQueueLookBack:                 config.MaxQueueLookback,
+		jobRepo:                          jobRepo,
+		nodeDb:                           nodeDb,
+		nodeIdByJobId:                    maps.Clone(initialNodeIdByJobId),
+		jobIdsByGangId:                   initialJobIdsByGangId,
+		gangIdByJobId:                    maps.Clone(initialGangIdByJobId),
+		marketDriven:                     marketDriven,
+		optimiserConfig:                  optimiserConfig,
+		optimiserEnabled:                 optimiserEnabled,
 	}
 }
 
@@ -140,7 +141,10 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 
 				if qctx, ok := sch.schedulingContext.QueueSchedulingContexts[job.Queue()]; ok {
 					actualShare := sch.schedulingContext.FairnessCostProvider.UnweightedCostFromQueue(qctx)
-					fairShare := math.Max(qctx.AdjustedFairShare, qctx.FairShare)
+					fairShare := math.Max(qctx.DemandCappedAdjustedFairShare, qctx.FairShare)
+					if sch.protectUncappedAdjustedFairShare {
+						fairShare = qctx.UncappedAdjustedFairShare
+					}
 					fractionOfFairShare := actualShare / fairShare
 					if fractionOfFairShare <= sch.protectedFractionOfFairShare {
 						return false, "below_protected_fair_share"

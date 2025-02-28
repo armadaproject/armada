@@ -444,16 +444,23 @@ func (nodeDb *NodeDb) SelectNodeForJobWithTxn(txn *memdb.Txn, jctx *context.JobS
 		return node, nil
 	}
 
-	for _, awayNodeType := range priorityClass.AwayNodeTypes {
-		node, err := nodeDb.selectNodeForJobWithTxnAndAwayNodeType(txn, jctx, awayNodeType)
-		if err != nil {
-			return nil, err
-		}
-		if node != nil {
-			pctx.WellKnownNodeTypeName = awayNodeType.WellKnownNodeTypeName
-			pctx.SchedulingMethod = context.ScheduledAsAwayJob
-			pctx.ScheduledAway = true
-			return node, nil
+	// Don't perform away scheduling for gang jobs
+	// The main reason for this is there is a bug somewhere in the eviction code
+	// If a gang gets scheduled away and then preempted in the same round
+	//  sometimes its fellow gang members aren't getting evicted and we end up scheduling a partial gang
+	// This is a temporary workaround until that bug is solved, do not remove unless you are confident the above bug is fixed
+	if !jctx.GangInfo.IsGang {
+		for _, awayNodeType := range priorityClass.AwayNodeTypes {
+			node, err := nodeDb.selectNodeForJobWithTxnAndAwayNodeType(txn, jctx, awayNodeType)
+			if err != nil {
+				return nil, err
+			}
+			if node != nil {
+				pctx.WellKnownNodeTypeName = awayNodeType.WellKnownNodeTypeName
+				pctx.SchedulingMethod = context.ScheduledAsAwayJob
+				pctx.ScheduledAway = true
+				return node, nil
+			}
 		}
 	}
 

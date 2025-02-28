@@ -44,8 +44,13 @@ type QueueSchedulingContext struct {
 	ConstrainedDemand internaltypes.ResourceList
 	// Fair share is the weight of this queue over the sum of the weights of all queues
 	FairShare float64
-	// AdjustedFairShare modifies fair share such that queues that have a demand cost less than their fair share, have their fair share reallocated.
-	AdjustedFairShare float64
+	// UncappedAdjustedFairShare includes not only this queue's fairshare, but also this queue's share of any unused fairshare from other queues. It's
+	// not capped by this queue's demand, so includes any fairshare unused by this queue. It's effectively the share this queue would get if it had infinite demand.
+	// This measure is designed to not punish queues for being undemanding.
+	UncappedAdjustedFairShare float64
+	// DemandCappedAdjustedFairShare includes not only this queue's fairshare, but also this queue's share of any unused fairshare from other queues. It's
+	// capped by this queue's demand, so does not include any fairshare unused by this queue.
+	DemandCappedAdjustedFairShare float64
 	// Total resources assigned to the queue across all clusters by priority class.
 	// Includes jobs scheduled during this invocation of the scheduler.
 	AllocatedByPriorityClass map[string]internaltypes.ResourceList
