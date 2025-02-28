@@ -576,14 +576,11 @@ func (l *FairSchedulingAlgo) SchedulePool(
 
 	constraints := schedulerconstraints.NewSchedulingConstraints(pool, totalResources, l.schedulingConfig, maps.Values(fsctx.queues))
 
-	protectedFractionOfFairShare := l.schedulingConfig.GetProtectedFractionOfFairShare(pool)
 	scheduler := NewPreemptingQueueScheduler(
 		fsctx.schedulingContext,
 		constraints,
 		l.floatingResourceTypes,
-		l.schedulingConfig.EnablePreferLargeJobOrdering,
-		protectedFractionOfFairShare,
-		l.schedulingConfig.MaxQueueLookback,
+		l.schedulingConfig,
 		fsctx.Txn,
 		fsctx.nodeDb,
 		fsctx.nodeIdByJobId,
@@ -592,10 +589,11 @@ func (l *FairSchedulingAlgo) SchedulePool(
 		marketDriven,
 	)
 
-	ctx.Infof("Scheduling on pool %s with capacity %s protectedFractionOfFairShare %f",
+	ctx.Infof("Scheduling on pool %s with capacity %s protectedFractionOfFairShare %f protectUncappedAdjustedFairShare %t",
 		pool,
 		fsctx.nodeDb.TotalKubernetesResources().Add(l.floatingResourceTypes.GetTotalAvailableForPool(pool)).String(),
-		protectedFractionOfFairShare,
+		l.schedulingConfig.GetProtectedFractionOfFairShare(pool),
+		l.schedulingConfig.GetProtectUncappedAdjustedFairShare(pool),
 	)
 
 	result, err := scheduler.Schedule(ctx)
