@@ -399,11 +399,12 @@ func TestSchedule(t *testing.T) {
 			schedulingConfig: testfixtures.TestSchedulingConfig(),
 			executors:        []*schedulerobjects.Executor{test1Node32CoreExecutor("executor1")},
 			queues:           []*api.Queue{{Name: "queue1", PriorityFactor: 0.01}, {Name: "queue2", PriorityFactor: 0.01}},
-			queuedJobs:       testfixtures.N32Cpu256GiJobs("queue2", testfixtures.PriorityClass0, 1),
+			queuedJobs:       testfixtures.N16Cpu128GiJobs("queue2", testfixtures.PriorityClass0, 1),
 			scheduledJobsByExecutorIndexAndNodeIndex: map[int]map[int]scheduledJobs{
 				0: {
 					0: scheduledJobs{
-						jobs:         testfixtures.WithGangAnnotationsJobs(testfixtures.N1Cpu16GiJobs("queue1", testfixtures.PriorityClass0, 2)),
+						// Gang fills the node, putting the queue over fairshare
+						jobs:         testfixtures.WithGangAnnotationsJobs(testfixtures.N16Cpu128GiJobs("queue1", testfixtures.PriorityClass0, 2)),
 						acknowledged: true,
 					},
 				},
@@ -631,7 +632,7 @@ func TestSchedule(t *testing.T) {
 			// Check that we calculated fair share and adjusted fair share
 			for _, schCtx := range schedulerResult.SchedulingContexts {
 				for _, qtx := range schCtx.QueueSchedulingContexts {
-					assert.NotEqual(t, 0, qtx.AdjustedFairShare)
+					assert.NotEqual(t, 0, qtx.DemandCappedAdjustedFairShare)
 					assert.NotEqual(t, 0, qtx.FairShare)
 				}
 			}

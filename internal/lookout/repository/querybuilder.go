@@ -108,6 +108,7 @@ func (qb *QueryBuilder) GetJobs(
 	selected_jobs.priority_class,
 	selected_jobs.latest_run_id,
 	selected_jobs.cancel_reason,
+	selected_jobs.cancel_user,
 	selected_jobs.annotations,
 	selected_runs.runs
 FROM (

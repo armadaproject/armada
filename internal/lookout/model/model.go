@@ -40,6 +40,7 @@ type Job struct {
 	State              string
 	Submitted          time.Time
 	CancelReason       *string
+	CancelUser         *string
 	Node               *string
 	Cluster            string
 	ExitCode           *int32

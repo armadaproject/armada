@@ -37,18 +37,20 @@ const CodeBlockContainer = styled("div")({
   },
 })
 
-const StyledPre = styled("pre")<{ wrap: boolean }>(({ theme, wrap }) => ({
-  lineHeight: 1.2,
-  fontSize: theme.typography.body2.fontSize,
-  overflow: "auto",
-  padding: 5,
-  borderRadius: 5,
-  minHeight: 50,
-  display: "flex",
-  alignItems: "center",
-  margin: 0,
-  textWrap: wrap ? "wrap" : undefined,
-}))
+const StyledPre = styled("pre", { shouldForwardProp: (prop) => prop !== "wrap" })<{ wrap: boolean }>(
+  ({ theme, wrap }) => ({
+    lineHeight: 1.2,
+    fontSize: theme.typography.body2.fontSize,
+    overflow: "auto",
+    padding: 5,
+    borderRadius: 5,
+    minHeight: 50,
+    display: "flex",
+    alignItems: "center",
+    margin: 0,
+    textWrap: wrap ? "wrap" : undefined,
+  }),
+)
 
 const Code = styled("code")({
   display: "table",

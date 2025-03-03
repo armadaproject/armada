@@ -11,6 +11,7 @@ import (
 	"golang.org/x/exp/slices"
 	"golang.org/x/time/rate"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
@@ -28,6 +29,8 @@ import (
 )
 
 func TestQueueScheduler(t *testing.T) {
+	schedulingConfigWithPreferLargeJobDisabled := testfixtures.TestSchedulingConfig()
+	schedulingConfigWithPreferLargeJobDisabled.EnablePreferLargeJobOrdering = false
 	tests := map[string]struct {
 		SchedulingConfig configuration.SchedulingConfig
 		// Queues
@@ -199,6 +202,25 @@ func TestQueueScheduler(t *testing.T) {
 			Nodes:                    testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			Jobs:                     testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 32),
 			ExpectedScheduledIndices: testfixtures.IntRange(0, 15),
+		},
+		"should scheduled largest job first - prioritiseLargerJobs enabled": {
+			// Only schedule 1 to show which queue went first
+			SchedulingConfig:              testfixtures.WithGlobalSchedulingRateLimiterConfig(1, 1, testfixtures.TestSchedulingConfig()),
+			Nodes:                         testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			Jobs:                          armadaslices.Concatenate(testfixtures.N16Cpu128GiJobs("A", testfixtures.PriorityClass0, 32), testfixtures.N1Cpu4GiJobs("B", testfixtures.PriorityClass0, 32)),
+			Queues:                        []*api.Queue{{Name: "A", PriorityFactor: 1.0}, {Name: "B", PriorityFactor: 1.0}},
+			ExpectedScheduledIndices:      armadaslices.Concatenate(testfixtures.IntRange(0, 0)),
+			ExpectedNeverAttemptedIndices: armadaslices.Concatenate(testfixtures.IntRange(1, 31), testfixtures.IntRange(33, 63)),
+		},
+		"should scheduled smallest job first - prioritiseLargerJobs disabled": {
+			// Only schedule 1 to show which queue went first
+			SchedulingConfig:         testfixtures.WithGlobalSchedulingRateLimiterConfig(1, 1, schedulingConfigWithPreferLargeJobDisabled),
+			Nodes:                    testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			Jobs:                     armadaslices.Concatenate(testfixtures.N16Cpu128GiJobs("A", testfixtures.PriorityClass0, 32), testfixtures.N1Cpu4GiJobs("B", testfixtures.PriorityClass0, 32)),
+			Queues:                   []*api.Queue{{Name: "A", PriorityFactor: 1.0}, {Name: "B", PriorityFactor: 1.0}},
+			ExpectedScheduledIndices: armadaslices.Concatenate(testfixtures.IntRange(32, 32)),
+			// Note queue A is never attempted
+			ExpectedNeverAttemptedIndices: armadaslices.Concatenate(testfixtures.IntRange(0, 31), testfixtures.IntRange(34, 63)),
 		},
 		"fairness two queues": {
 			SchedulingConfig:         testfixtures.TestSchedulingConfig(),
@@ -502,12 +524,18 @@ func TestQueueScheduler(t *testing.T) {
 				totalResources,
 			)
 			for _, q := range tc.Queues {
+				demand := testfixtures.TestResourceListFactory.FromJobResourceListIgnoreUnknown(map[string]resource.Quantity{})
+				for _, job := range tc.Jobs {
+					if job.Queue() == q.Name {
+						demand = demand.Add(job.AllResourceRequirements())
+					}
+				}
 				weight := 1.0 / float64(q.PriorityFactor)
 				err := sctx.AddQueueSchedulingContext(
 					q.Name, weight, weight,
 					tc.InitialAllocatedByQueueAndPriorityClass[q.Name],
-					internaltypes.ResourceList{},
-					internaltypes.ResourceList{},
+					demand,
+					demand,
 					rate.NewLimiter(
 						rate.Limit(tc.SchedulingConfig.MaximumPerQueueSchedulingRate),
 						tc.SchedulingConfig.MaximumPerQueueSchedulingBurst,
@@ -515,13 +543,14 @@ func TestQueueScheduler(t *testing.T) {
 				)
 				require.NoError(t, err)
 			}
+			sctx.UpdateFairShares()
 			constraints := schedulerconstraints.NewSchedulingConstraints("pool", totalResources, tc.SchedulingConfig, tc.Queues)
 			jobIteratorByQueue := make(map[string]JobContextIterator)
 			for _, q := range tc.Queues {
 				it := jobRepo.GetJobIterator(q.Name)
 				jobIteratorByQueue[q.Name] = it
 			}
-			sch, err := NewQueueScheduler(sctx, constraints, testfixtures.TestEmptyFloatingResources, nodeDb, jobIteratorByQueue, false, false, true, tc.SchedulingConfig.MaxQueueLookback, false)
+			sch, err := NewQueueScheduler(sctx, constraints, testfixtures.TestEmptyFloatingResources, nodeDb, jobIteratorByQueue, false, false, tc.SchedulingConfig.EnablePreferLargeJobOrdering, tc.SchedulingConfig.MaxQueueLookback, false)
 			require.NoError(t, err)
 
 			result, err := sch.Schedule(armadacontext.Background())
@@ -675,21 +704,21 @@ func TestQueueCandidateGangIteratorPQ_Ordering_BelowFairShare_EvenCurrentCost(t 
 		queue:             "A",
 		proposedQueueCost: 2,
 		currentQueueCost:  0,
-		fairShare:         5,
+		queueBudget:       5,
 		itemSize:          2,
 	}
 	queueB := &QueueCandidateGangIteratorItem{
 		queue:             "B",
 		proposedQueueCost: 3,
 		currentQueueCost:  0,
-		fairShare:         5,
+		queueBudget:       5,
 		itemSize:          3,
 	}
 	queueC := &QueueCandidateGangIteratorItem{
 		queue:             "C",
 		proposedQueueCost: 1,
 		currentQueueCost:  0,
-		fairShare:         5,
+		queueBudget:       5,
 		itemSize:          1,
 	}
 	pq := &QueueCandidateGangIteratorPQ{prioritiseLargerJobs: true, items: []*QueueCandidateGangIteratorItem{queueA, queueB, queueC}}
@@ -705,21 +734,21 @@ func TestQueueCandidateGangIteratorPQ_Ordering_BelowFairShare_UnevenCurrentCost(
 		queue:             "A",
 		proposedQueueCost: 4,
 		currentQueueCost:  2,
-		fairShare:         5,
+		queueBudget:       5,
 		itemSize:          2,
 	}
 	queueB := &QueueCandidateGangIteratorItem{
 		queue:             "B",
 		proposedQueueCost: 3,
 		currentQueueCost:  2,
-		fairShare:         5,
+		queueBudget:       5,
 		itemSize:          1,
 	}
 	queueC := &QueueCandidateGangIteratorItem{
 		queue:             "C",
 		proposedQueueCost: 2,
 		currentQueueCost:  1,
-		fairShare:         5,
+		queueBudget:       5,
 		itemSize:          1,
 	}
 	pq := &QueueCandidateGangIteratorPQ{prioritiseLargerJobs: true, items: []*QueueCandidateGangIteratorItem{queueA, queueB, queueC}}
@@ -735,21 +764,21 @@ func TestQueueCandidateGangIteratorPQ_Ordering_AboveFairShare(t *testing.T) {
 		queue:             "A",
 		proposedQueueCost: 8,
 		currentQueueCost:  6,
-		fairShare:         5,
+		queueBudget:       5,
 		itemSize:          2,
 	}
 	queueB := &QueueCandidateGangIteratorItem{
 		queue:             "B",
 		proposedQueueCost: 7,
 		currentQueueCost:  4,
-		fairShare:         5,
+		queueBudget:       5,
 		itemSize:          3,
 	}
 	queueC := &QueueCandidateGangIteratorItem{
 		queue:             "C",
 		proposedQueueCost: 9,
 		currentQueueCost:  8,
-		fairShare:         5,
+		queueBudget:       5,
 		itemSize:          1,
 	}
 	pq := &QueueCandidateGangIteratorPQ{prioritiseLargerJobs: true, items: []*QueueCandidateGangIteratorItem{queueA, queueB, queueC}}
@@ -765,14 +794,14 @@ func TestQueueCandidateGangIteratorPQ_Ordering_MixedFairShare(t *testing.T) {
 		queue:             "A",
 		proposedQueueCost: 8,
 		currentQueueCost:  6,
-		fairShare:         5,
+		queueBudget:       5,
 		itemSize:          2,
 	}
 	belowFairShare := &QueueCandidateGangIteratorItem{
 		queue:             "B",
 		proposedQueueCost: 3,
 		currentQueueCost:  2,
-		fairShare:         5,
+		queueBudget:       5,
 		itemSize:          1,
 	}
 	pq := &QueueCandidateGangIteratorPQ{prioritiseLargerJobs: true, items: []*QueueCandidateGangIteratorItem{aboveFairShare, belowFairShare}}

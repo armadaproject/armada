@@ -115,6 +115,7 @@ message ResourceUtilisation {
     map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> total_cumulative_usage = 5;
     string job_id = 6;
     string run_id = 7;
+    map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> avg_resources_for_period = 8;
 }
 
 
@@ -273,6 +274,7 @@ message CancelledJob {
     reserved 1;
     string reason = 2;
     string job_id = 3;
+    string cancel_user = 4;
 }
 
 message JobSucceeded {
