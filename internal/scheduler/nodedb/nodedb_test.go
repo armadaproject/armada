@@ -369,7 +369,7 @@ func TestScheduleIndividually(t *testing.T) {
 					testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1),
 					testfixtures.N1GpuJobs("A", testfixtures.PriorityClass0, 1)...,
 				),
-				testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 1)...,
+				testfixtures.N32Cpu256GiJobsWithLargeJobToleration("A", testfixtures.PriorityClass0, 1)...,
 			),
 			ExpectSuccess: []bool{false, false, true},
 		},
@@ -522,7 +522,7 @@ func TestScheduleMany(t *testing.T) {
 			Nodes: testfixtures.N32CpuNodes(2, testfixtures.TestPriorities),
 			Jobs: [][]*jobdb.Job{
 				append(
-					testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 1),
+					testfixtures.N32Cpu256GiJobsWithLargeJobToleration("A", testfixtures.PriorityClass0, 1),
 					testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 32)...,
 				),
 				testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1),

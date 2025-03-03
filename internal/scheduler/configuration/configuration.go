@@ -316,6 +316,15 @@ func (sc *SchedulingConfig) GetProtectUncappedAdjustedFairShare(poolName string)
 	return false
 }
 
+func (sc *SchedulingConfig) GetOptimiserConfig(poolName string) *OptimiserConfig {
+	for _, poolConfig := range sc.Pools {
+		if poolConfig.Name == poolName {
+			return poolConfig.Optimiser
+		}
+	}
+	return nil
+}
+
 type ExperimentalIndicativePricing struct {
 	BasePrice    float64
 	BasePriority float64

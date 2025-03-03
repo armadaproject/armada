@@ -141,13 +141,8 @@ func (q *OptimisingQueueScheduler) Schedule(ctx *armadacontext.Context, sctx *sc
 			}
 			continue
 		}
-
-		select {
-		case <-ctx.Done():
-			err := ctx.Err()
-			sctx.TerminationReason = err.Error()
-			return nil, err
-		default:
+		if hasContextExpired(ctx) {
+			break
 		}
 		start := time.Now()
 		scheduledOk, preemptedJctxs, unschedulableReason, err := q.gangScheduler.Schedule(ctx, gctx, sctx)
@@ -184,6 +179,15 @@ func (q *OptimisingQueueScheduler) Schedule(ctx *armadacontext.Context, sctx *sc
 		PreemptedJobs: preemptedJobs,
 		NodeIdByJobId: nodeIdByJobId,
 	}, nil
+}
+
+func hasContextExpired(ctx *armadacontext.Context) bool {
+	select {
+	case <-ctx.Done():
+		return true
+	default:
+		return false
+	}
 }
 
 func (q *OptimisingQueueScheduler) createCandidateGangIterator(

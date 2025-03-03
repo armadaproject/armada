@@ -335,6 +335,8 @@ func createOptimiserConfig(
 	minimumJobSizeToSchedule *armadaresource.ComputeResources,
 ) *configuration.OptimiserConfig {
 	return &configuration.OptimiserConfig{
+		Enabled:                           true,
+		Timeout:                           time.Second * 5,
 		MaximumJobsPerRound:               maximumJobsPerRound,
 		MaximumResourceFractionToSchedule: maximumFractionToSchedule,
 		MinimumJobSizeToSchedule:          minimumJobSizeToSchedule,
