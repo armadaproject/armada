@@ -280,6 +280,7 @@ func (node *Node) DeepCopyNilKeys() *Node {
 		executor:             node.executor,
 		name:                 node.name,
 		pool:                 node.pool,
+		reportingNodeType:    node.reportingNodeType,
 		nodeType:             node.nodeType,
 		taints:               node.taints,
 		labels:               node.labels,
