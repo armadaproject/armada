@@ -1,7 +1,6 @@
 package optimiser
 
 import (
-	"math"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -10,6 +9,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
+	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
@@ -17,6 +17,14 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/fairness"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
+	"github.com/armadaproject/armada/pkg/api"
+)
+
+var (
+	queueA = testfixtures.SingleQueueWithPriorityFactor("A", 10)
+	queueB = testfixtures.SingleQueueWithPriorityFactor("B", 10)
+	queueC = testfixtures.SingleQueueWithPriorityFactor("C", 10)
+	queueD = testfixtures.SingleQueueWithPriorityFactor("D", 5)
 )
 
 func TestSchedule_NodeChecks(t *testing.T) {
@@ -55,36 +63,9 @@ func TestSchedule_NodeChecks(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			job := testfixtures.Test1Cpu16GiJob("A", testfixtures.PriorityClass1)
 			jctx := context.JobSchedulingContextFromJob(job)
-
 			jobDb := testfixtures.JobDb
-
-			fairnessCostProvider, err := fairness.NewDominantResourceFairness(
-				tc.node.GetAllocatableResources(),
-				testfixtures.TestSchedulingConfig(),
-			)
-			require.NoError(t, err)
-			sctx := context.NewSchedulingContext(
-				testfixtures.TestPool,
-				fairnessCostProvider,
-				nil,
-				tc.node.GetAllocatableResources(),
-			)
-
-			weight := float64(1 / 100)
-			err = sctx.AddQueueSchedulingContext(
-				"A",
-				weight,
-				weight,
-				map[string]internaltypes.ResourceList{"A": job.AllResourceRequirements()},
-				job.AllResourceRequirements(),
-				job.AllResourceRequirements(),
-				nil,
-			)
-			sctx.UpdateFairShares()
-
-			require.NoError(t, err)
+			sctx := setUpSctx(t, []*api.Queue{queueA}, []*jobdb.Job{}, tc.node.GetAllocatableResources())
 			schedContext := &SchedulingContext{Sctx: sctx, Queues: map[string]*QueueContext{}}
-
 			nodeScheduler := NewPreemptingNodeScheduler(jobDb.ReadTxn(), nil)
 
 			result, err := nodeScheduler.Schedule(schedContext, jctx, tc.node)
@@ -178,45 +159,7 @@ func TestSchedule_JobChecks(t *testing.T) {
 			require.NoError(t, err)
 			jobDb := testfixtures.NewJobDbWithJobs([]*jobdb.Job{tc.existingJob})
 
-			fairnessCostProvider, err := fairness.NewDominantResourceFairness(
-				node.GetAllocatableResources(),
-				testfixtures.TestSchedulingConfig(),
-			)
-			require.NoError(t, err)
-			sctx := context.NewSchedulingContext(
-				testfixtures.TestPool,
-				fairnessCostProvider,
-				nil,
-				node.GetAllocatableResources(),
-			)
-
-			weight := 1 / float64(2)
-			err = sctx.AddQueueSchedulingContext(
-				"A",
-				weight,
-				weight,
-				map[string]internaltypes.ResourceList{"A": jobToSchedule.AllResourceRequirements()},
-				jobToSchedule.AllResourceRequirements(),
-				jobToSchedule.AllResourceRequirements(),
-				nil,
-			)
-			require.NoError(t, err)
-
-			existingAllocation := map[string]internaltypes.ResourceList{}
-			if !tc.existingJob.Queued() {
-				existingAllocation[existingJob.PriorityClassName()] = tc.existingJob.AllResourceRequirements()
-			}
-			err = sctx.AddQueueSchedulingContext(
-				"B",
-				weight,
-				weight,
-				existingAllocation,
-				tc.existingJob.AllResourceRequirements(),
-				tc.existingJob.AllResourceRequirements(),
-				nil,
-			)
-			require.NoError(t, err)
-			sctx.UpdateFairShares()
+			sctx := setUpSctx(t, []*api.Queue{queueA, queueB}, []*jobdb.Job{existingJob}, node.GetAllocatableResources())
 			if tc.existingJob.Queued() {
 				existingJctx := context.JobSchedulingContextFromJob(tc.existingJob)
 				existingJctx.PodSchedulingContext = &context.PodSchedulingContext{
@@ -254,6 +197,49 @@ func TestSchedule_JobChecks(t *testing.T) {
 			assert.NotEmpty(t, result.resultId)
 		})
 	}
+}
+
+func setUpSctx(t *testing.T, queues []*api.Queue, existingJobs []*jobdb.Job, totalResource internaltypes.ResourceList) *context.SchedulingContext {
+	jobsByQueue := armadaslices.GroupByFunc(existingJobs, func(job *jobdb.Job) string {
+		return job.Queue()
+	})
+	fairnessCostProvider, err := fairness.NewDominantResourceFairness(
+		totalResource,
+		testfixtures.TestSchedulingConfig(),
+	)
+	require.NoError(t, err)
+
+	sctx := context.NewSchedulingContext(
+		testfixtures.TestPool,
+		fairnessCostProvider,
+		nil,
+		totalResource,
+	)
+
+	for _, q := range queues {
+		existingAllocation := map[string]internaltypes.ResourceList{}
+		for _, job := range jobsByQueue[q.Name] {
+			if !job.Queued() {
+				if _, exists := existingAllocation[job.PriorityClassName()]; !exists {
+					existingAllocation[job.PriorityClassName()] = internaltypes.ResourceList{}
+				}
+				existingAllocation[job.PriorityClassName()] = existingAllocation[job.PriorityClassName()].Add(job.AllResourceRequirements())
+			}
+		}
+
+		weight := 1.0 / float64(q.PriorityFactor)
+		unlimitedDemand := testfixtures.CpuMem("10000", "100000Gi")
+		err := sctx.AddQueueSchedulingContext(
+			q.Name, weight, weight,
+			existingAllocation,
+			unlimitedDemand,
+			unlimitedDemand,
+			nil,
+		)
+		require.NoError(t, err)
+	}
+	sctx.UpdateFairShares()
+	return sctx
 }
 
 func TestSchedule_PreemptsExpectedJobs(t *testing.T) {
@@ -331,16 +317,18 @@ func TestSchedule_PreemptsExpectedJobs(t *testing.T) {
 	}).WithNewRun(node.GetExecutor(), node.GetId(), node.GetName(), testfixtures.TestPool, testfixtures.TestPriorityClasses[testfixtures.PriorityClass2].Priority)
 	tests := map[string]struct {
 		jobToSchedule      *jobdb.Job
+		queues             []*api.Queue
 		node               *internaltypes.Node
 		extraDemand        *armadaresource.ComputeResources
 		extraTotalResource *armadaresource.ComputeResources
-		jobsOnNodeByQueue  map[string][]*jobdb.Job
+		jobsOnNode         []*jobdb.Job
 		expectedResult     *nodeSchedulingResult
 	}{
 		"preempt jobs - multiple same queue": {
-			jobToSchedule:     jobToSchedule,
-			node:              node,
-			jobsOnNodeByQueue: map[string][]*jobdb.Job{"B": {jobB1Large, jobB2Large}},
+			jobToSchedule: jobToSchedule,
+			queues:        []*api.Queue{queueA, queueB},
+			node:          node,
+			jobsOnNode:    []*jobdb.Job{jobB1Large, jobB2Large},
 			expectedResult: &nodeSchedulingResult{
 				scheduled:          true,
 				schedulingCost:     0.8,
@@ -350,9 +338,10 @@ func TestSchedule_PreemptsExpectedJobs(t *testing.T) {
 			},
 		},
 		"preempt jobs - multiple different queue": {
-			jobToSchedule:     jobToSchedule,
-			node:              node,
-			jobsOnNodeByQueue: map[string][]*jobdb.Job{"B": {jobB1, jobB2}, "C": {jobC1, jobC2}},
+			jobToSchedule: jobToSchedule,
+			queues:        []*api.Queue{queueA, queueB, queueC},
+			node:          node,
+			jobsOnNode:    []*jobdb.Job{jobB1, jobB2, jobC1, jobC2},
 			expectedResult: &nodeSchedulingResult{
 				scheduled:          true,
 				schedulingCost:     0.6,
@@ -363,10 +352,11 @@ func TestSchedule_PreemptsExpectedJobs(t *testing.T) {
 		},
 		"preempt jobs - mixed queue priorities": {
 			jobToSchedule: jobToSchedule3,
+			queues:        []*api.Queue{queueA, queueB, queueD},
 			node:          bigNode,
 			// This is so we can have all queues below fairshare, total resource is 100
 			extraTotalResource: &armadaresource.ComputeResources{"cpu": resource.MustParse("82")},
-			jobsOnNodeByQueue:  map[string][]*jobdb.Job{"B": {jobB1, jobB2, jobB3}, "D": {jobD1, jobD2, jobD3, jobD4, jobD5, jobD6}},
+			jobsOnNode:         []*jobdb.Job{jobB1, jobB2, jobB3, jobD1, jobD2, jobD3, jobD4, jobD5, jobD6},
 			expectedResult: &nodeSchedulingResult{
 				scheduled:          true,
 				schedulingCost:     0.12,
@@ -376,9 +366,10 @@ func TestSchedule_PreemptsExpectedJobs(t *testing.T) {
 			},
 		},
 		"preempt jobs - smallest first": {
-			jobToSchedule:     jobToSchedule,
-			node:              node,
-			jobsOnNodeByQueue: map[string][]*jobdb.Job{"B": {jobB1, jobB1Large}},
+			jobToSchedule: jobToSchedule,
+			queues:        []*api.Queue{queueA, queueB},
+			node:          node,
+			jobsOnNode:    []*jobdb.Job{jobB1, jobB1Large},
 			expectedResult: &nodeSchedulingResult{
 				scheduled:          true,
 				schedulingCost:     0.6,
@@ -389,10 +380,11 @@ func TestSchedule_PreemptsExpectedJobs(t *testing.T) {
 		},
 
 		"preempting jobs above fairshare - 0 cost": {
-			jobToSchedule:     jobToSchedule2,
-			node:              node,
-			extraDemand:       &armadaresource.ComputeResources{"cpu": resource.MustParse("10")},
-			jobsOnNodeByQueue: map[string][]*jobdb.Job{"B": {jobB1, jobB2, jobB1Large}},
+			jobToSchedule: jobToSchedule2,
+			queues:        []*api.Queue{queueA, queueB, queueC},
+			node:          node,
+			extraDemand:   &armadaresource.ComputeResources{"cpu": resource.MustParse("10")},
+			jobsOnNode:    []*jobdb.Job{jobB1, jobB2, jobB1Large},
 			expectedResult: &nodeSchedulingResult{
 				scheduled:          true,
 				schedulingCost:     0.0, // Only jobs above fairshare preempted
@@ -403,9 +395,10 @@ func TestSchedule_PreemptsExpectedJobs(t *testing.T) {
 		},
 
 		"preempting jobs of lower priority - 0 cost": {
-			jobToSchedule:     jobToSchedule,
-			node:              node,
-			jobsOnNodeByQueue: map[string][]*jobdb.Job{"B": {jobB1LowPrio, jobB2LowPrio}},
+			jobToSchedule: jobToSchedule,
+			queues:        []*api.Queue{queueA, queueB, queueC},
+			node:          node,
+			jobsOnNode:    []*jobdb.Job{jobB1LowPrio, jobB2LowPrio},
 			expectedResult: &nodeSchedulingResult{
 				scheduled:          true,
 				schedulingCost:     0.0, // Only jobs scheduled at a lower priority preempted
@@ -416,9 +409,10 @@ func TestSchedule_PreemptsExpectedJobs(t *testing.T) {
 		},
 
 		"preempt jobs - expected order": {
-			jobToSchedule:     jobToSchedule,
-			node:              node,
-			jobsOnNodeByQueue: map[string][]*jobdb.Job{"B": {jobB1LowPrio, jobB1Small, jobB1}, "C": {jobC1, jobC2, jobC1Small}},
+			jobToSchedule: jobToSchedule,
+			queues:        []*api.Queue{queueA, queueB, queueC},
+			node:          node,
+			jobsOnNode:    []*jobdb.Job{jobB1LowPrio, jobB1Small, jobB1, jobC1, jobC2, jobC1Small},
 			expectedResult: &nodeSchedulingResult{
 				scheduled:          true,
 				schedulingCost:     0.5,
@@ -437,72 +431,17 @@ func TestSchedule_PreemptsExpectedJobs(t *testing.T) {
 			if tc.extraTotalResource != nil {
 				extraCapacity = testfixtures.TestResourceListFactory.FromJobResourceListIgnoreUnknown(*tc.extraTotalResource)
 			}
-
-			fairnessCostProvider, err := fairness.NewDominantResourceFairness(
-				node.GetAllocatableResources().Add(extraCapacity),
-				testfixtures.TestSchedulingConfig(),
-			)
-			require.NoError(t, err)
-			sctx := context.NewSchedulingContext(
-				testfixtures.TestPool,
-				fairnessCostProvider,
-				nil,
-				node.GetAllocatableResources(),
-			)
-
-			weight := 1
-
-			highWeight := 2
-			schedulingQueueDemand := tc.jobToSchedule.AllResourceRequirements()
-			if tc.extraDemand != nil {
-				schedulingQueueDemand = schedulingQueueDemand.Add(testfixtures.TestResourceListFactory.FromJobResourceListIgnoreUnknown(*tc.extraDemand))
-			}
-			err = sctx.AddQueueSchedulingContext(
-				"A",
-				float64(weight),
-				float64(weight),
-				map[string]internaltypes.ResourceList{},
-				schedulingQueueDemand,
-				schedulingQueueDemand,
-				nil,
-			)
-			require.NoError(t, err)
-
-			allJobs := []*jobdb.Job{}
-			for queueName, jobs := range tc.jobsOnNodeByQueue {
-				allJobs = append(allJobs, jobs...)
-				totalDemand := testfixtures.TestResourceListFactory.FromJobResourceListIgnoreUnknown(map[string]resource.Quantity{})
-
-				for _, job := range jobs {
-					totalDemand = totalDemand.Add(job.AllResourceRequirements())
-				}
-				queueWeight := weight
-				if queueName == "D" {
-					queueWeight = highWeight
-				}
-				err = sctx.AddQueueSchedulingContext(
-					queueName,
-					float64(queueWeight),
-					float64(queueWeight),
-					map[string]internaltypes.ResourceList{testfixtures.PriorityClass2: totalDemand},
-					totalDemand,
-					totalDemand,
-					nil,
-				)
-				require.NoError(t, err)
-			}
-
-			sctx.UpdateFairShares()
+			sctx := setUpSctx(t, tc.queues, tc.jobsOnNode, node.GetAllocatableResources().Add(extraCapacity))
 
 			nodeDb, err := NewNodeDb(testfixtures.TestSchedulingConfig())
 			require.NoError(t, err)
 			nodeDbTxn := nodeDb.Txn(true)
-			err = nodeDb.CreateAndInsertWithJobDbJobsWithTxn(nodeDbTxn, allJobs, node.DeepCopyNilKeys())
+			err = nodeDb.CreateAndInsertWithJobDbJobsWithTxn(nodeDbTxn, tc.jobsOnNode, node.DeepCopyNilKeys())
 			require.NoError(t, err)
 			nodeDbTxn.Commit()
 			node, err = nodeDb.GetNode(node.GetId())
 			require.NoError(t, err)
-			jobDb := testfixtures.NewJobDbWithJobs(allJobs)
+			jobDb := testfixtures.NewJobDbWithJobs(tc.jobsOnNode)
 
 			nodeScheduler := NewPreemptingNodeScheduler(jobDb.ReadTxn(), nil)
 			result, err := nodeScheduler.Schedule(FromSchedulingContext(sctx), jctx, node)
@@ -512,7 +451,7 @@ func TestSchedule_PreemptsExpectedJobs(t *testing.T) {
 				result.queueCostChanges[queue] = roundFloatHighPrecision(costChange)
 			}
 			assert.Equal(t, tc.expectedResult.scheduled, result.scheduled)
-			assert.Equal(t, tc.expectedResult.schedulingCost, toFixed(result.schedulingCost, 3))
+			assert.Equal(t, tc.expectedResult.schedulingCost, roundFloatHighPrecision(result.schedulingCost))
 			assert.Equal(t, tc.expectedResult.jobIdsToPreempt, result.jobIdsToPreempt)
 			assert.Equal(t, tc.expectedResult.queueCostChanges, result.queueCostChanges)
 			assert.Equal(t, roundFloatHighPrecision(tc.expectedResult.maximumQueueImpact), roundFloatHighPrecision(result.maximumQueueImpact))
@@ -523,7 +462,6 @@ func TestSchedule_PreemptsExpectedJobs(t *testing.T) {
 	}
 }
 
-// TODO handle leased job without run/scheduled at priority
 func TestSchedule_Errors_WhenInformationMissingFromState(t *testing.T) {
 	node := testfixtures.TestNode(testfixtures.TestPriorities, map[string]resource.Quantity{
 		"cpu":    resource.MustParse("10"),
@@ -667,13 +605,4 @@ func NewNodeDb(config configuration.SchedulingConfig) (*nodedb.NodeDb, error) {
 		return nil, err
 	}
 	return nodeDb, nil
-}
-
-func toFixed(num float64, precision int) float64 {
-	output := math.Pow(10, float64(precision))
-	return float64(round(num*output)) / output
-}
-
-func round(num float64) int {
-	return int(num + math.Copysign(0.5, num))
 }

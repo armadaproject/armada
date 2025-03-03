@@ -718,7 +718,11 @@ func N8GpuNodes(n int, priorities []int32) []*internaltypes.Node {
 }
 
 func SingleQueuePriorityOne(name string) []*api.Queue {
-	return []*api.Queue{{Name: name, PriorityFactor: 1.0}}
+	return []*api.Queue{SingleQueueWithPriorityFactor(name, 1.0)}
+}
+
+func SingleQueueWithPriorityFactor(name string, priorityFactor float64) *api.Queue {
+	return &api.Queue{Name: name, PriorityFactor: priorityFactor}
 }
 
 func TestSchedulerObjectsNode(priorities []int32, resources map[string]resource.Quantity) *schedulerobjects.Node {
