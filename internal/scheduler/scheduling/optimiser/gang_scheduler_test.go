@@ -469,7 +469,8 @@ func assertExpectedNodeUpdates(
 	t *testing.T, gctx *context.GangSchedulingContext,
 	preemptedJobs []*context.JobSchedulingContext,
 	nodeDb *nodedb.NodeDb, originalNodeStates []*internaltypes.Node,
-	expectedScheduledNodes []*internaltypes.Node) {
+	expectedScheduledNodes []*internaltypes.Node,
+) {
 	preemptedJobsByNodeId := armadaslices.GroupByFunc(preemptedJobs, func(jctx *context.JobSchedulingContext) string {
 		return jctx.Job.LatestRun().NodeId()
 	})
