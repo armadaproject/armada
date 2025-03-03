@@ -40,7 +40,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/leader"
 	"github.com/armadaproject/armada/internal/scheduler/metrics"
-	"github.com/armadaproject/armada/internal/scheduler/prioritymultiplier"
+
 	"github.com/armadaproject/armada/internal/scheduler/priorityoverride"
 	"github.com/armadaproject/armada/internal/scheduler/queue"
 	"github.com/armadaproject/armada/internal/scheduler/reports"
@@ -134,26 +134,6 @@ func Run(config schedulerconfig.Configuration) error {
 		ctx.Errorf("error initialising queue cache - %v", err)
 	}
 	services = append(services, func() error { return queueCache.Run(ctx) })
-
-	// We don't allow users to enable both  priority multipliers and priority overrides
-	if config.PriorityOverride.Enabled && config.PriorityMultiplier.Enabled {
-		return errors.Errorf("Illegal configuration detected. PriorityOverrides and PriorityMultipliers are mutually exclusive")
-	}
-
-	// ////////////////////////////////////////////////////////////////////////
-	// Priority Multiplier
-	// ////////////////////////////////////////////////////////////////////////
-	priorityMultiplierProvider := prioritymultiplier.NewNoOpProvider()
-	if config.PriorityMultiplier.Enabled {
-		ctx.Infof("Priority Multiplier Service configured, will fetch overrides from %s", config.PriorityMultiplier.ServiceUrl)
-		priorityMultiplierClient, err := prioritymultiplier.NewServiceClient(config.PriorityMultiplier)
-		if err != nil {
-			return errors.WithMessage(err, "Error creating priority multiplier client")
-		}
-		provider := prioritymultiplier.NewServiceProvider(priorityMultiplierClient, config.PriorityMultiplier.UpdateFrequency)
-		services = append(services, func() error { return provider.Run(ctx) })
-		priorityMultiplierProvider = provider
-	}
 
 	// ////////////////////////////////////////////////////////////////////////
 	// Priority override
@@ -308,7 +288,6 @@ func Run(config schedulerconfig.Configuration) error {
 		schedulingContextRepository,
 		resourceListFactory,
 		floatingResourceTypes,
-		priorityMultiplierProvider,
 		priorityOverrideProvider,
 	)
 	if err != nil {
