@@ -22,7 +22,6 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
-	"github.com/armadaproject/armada/internal/scheduler/prioritymultiplier"
 	"github.com/armadaproject/armada/internal/scheduler/priorityoverride"
 	"github.com/armadaproject/armada/internal/scheduler/queue"
 	"github.com/armadaproject/armada/internal/scheduler/reports"
@@ -46,7 +45,6 @@ type FairSchedulingAlgo struct {
 	schedulingConfig            configuration.SchedulingConfig
 	executorRepository          database.ExecutorRepository
 	queueCache                  queue.QueueCache
-	queueMultiplierProvider     prioritymultiplier.Provider
 	queueOverrideProvider       priorityoverride.Provider
 	schedulingContextRepository *reports.SchedulingContextRepository
 	// Global job scheduling rate-limiter.
@@ -69,7 +67,6 @@ func NewFairSchedulingAlgo(
 	schedulingContextRepository *reports.SchedulingContextRepository,
 	resourceListFactory *internaltypes.ResourceListFactory,
 	floatingResourceTypes *floatingresources.FloatingResourceTypes,
-	queueMultiplierProvider prioritymultiplier.Provider,
 	queueOverrideProvider priorityoverride.Provider,
 ) (*FairSchedulingAlgo, error) {
 	if _, ok := config.PriorityClasses[config.DefaultPriorityClassName]; !ok {
@@ -82,7 +79,6 @@ func NewFairSchedulingAlgo(
 		schedulingConfig:             config,
 		executorRepository:           executorRepository,
 		queueCache:                   queueCache,
-		queueMultiplierProvider:      queueMultiplierProvider,
 		queueOverrideProvider:        queueOverrideProvider,
 		schedulingContextRepository:  schedulingContextRepository,
 		limiter:                      rate.NewLimiter(rate.Limit(config.MaximumSchedulingRate), config.MaximumSchedulingBurst),
@@ -119,14 +115,8 @@ func (l *FairSchedulingAlgo) Schedule(
 		return overallSchedulerResult, nil
 	}
 
-	// Exit immediately if priority multipliers are not ready
-	if !l.queueMultiplierProvider.Ready() {
-		ctx.Warn("queue multipliers are not ready; exiting")
-		return overallSchedulerResult, nil
-	}
-
 	// Exit immediately if priority overrides are not ready
-	if !l.queueMultiplierProvider.Ready() {
+	if !l.queueOverrideProvider.Ready() {
 		ctx.Warn("queue overrides are not ready; exiting")
 		return overallSchedulerResult, nil
 	}
@@ -510,12 +500,6 @@ func (l *FairSchedulingAlgo) constructSchedulingContext(
 			weight = 1 / overridePriority
 		}
 
-		multiplier, err := l.queueMultiplierProvider.Multiplier(pool, queue.Name)
-		if err != nil {
-			return nil, err
-		}
-		weight = weight * multiplier
-
 		queueLimiter, ok := l.limiterByQueue[queue.Name]
 		if !ok {
 			queueLimiter = rate.NewLimiter(
@@ -549,12 +533,6 @@ func (l *FairSchedulingAlgo) constructSchedulingContext(
 		if ok && overridePriority > 0 {
 			weight = 1 / overridePriority
 		}
-
-		multiplier, err := l.queueMultiplierProvider.Multiplier(pool, queue.Name)
-		if err != nil {
-			return nil, err
-		}
-		weight = weight * multiplier
 
 		if err := sctx.AddQueueSchedulingContext(schedulercontext.CalculateAwayQueueName(queue.Name), weight, rawWeight, allocation, internaltypes.ResourceList{}, internaltypes.ResourceList{}, nil); err != nil {
 			return nil, err
