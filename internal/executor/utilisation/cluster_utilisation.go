@@ -102,15 +102,11 @@ func (cls *ClusterUtilisationService) GetAvailableClusterCapacity() (*ClusterAva
 			return !util.IsManagedPod(pod)
 		})
 
-		allocatedByPriorityNonArmada, totalAllocatedNonArmada := allocatedByPriorityAndResourceTypeFromPods(runningNodePodsNonArmada)
+		nodeNonArmadaAllocatedResources := calculateNonArmadaResource(
+			runningNodePodsNonArmada,
+			cls.minimumResourcesMarkedAllocatedToNonArmadaPodsPerNode,
+			cls.minimumResourcesMarkedAllocatedToNonArmadaPodsPerNodePriority)
 
-		unusedNonArmadaResources := getUnusedNonArmadaResources(totalAllocatedNonArmada, cls.minimumResourcesMarkedAllocatedToNonArmadaPodsPerNode)
-		allocatedByPriorityNonArmada[cls.minimumResourcesMarkedAllocatedToNonArmadaPodsPerNodePriority].Add(unusedNonArmadaResources)
-
-		nodeNonArmadaAllocatedResources := make(map[int32]*executorapi.ComputeResource)
-		for p, rl := range allocatedByPriorityNonArmada {
-			nodeNonArmadaAllocatedResources[p] = executorapi.ComputeResourceFromProtoResources(rl)
-		}
 		nodePool := cls.nodeInfoService.GetPool(node)
 		nodes = append(nodes, executorapi.NodeInfo{
 			Name:   node.Name,
@@ -188,13 +184,6 @@ func getJobRunState(pod *v1.Pod) api.JobState {
 	return api.JobState_UNKNOWN
 }
 
-func getUnusedNonArmadaResources(allocated armadaresource.ComputeResources, minimum armadaresource.ComputeResources) armadaresource.ComputeResources {
-	diff := minimum.DeepCopy()
-	diff.Sub(allocated)
-	diff.LimitToZero()
-	return diff
-}
-
 func getAllocatedResourceByNodeName(pods []*v1.Pod) map[string]armadaresource.ComputeResources {
 	allocations := map[string]armadaresource.ComputeResources{}
 	for _, pod := range pods {
@@ -229,9 +218,12 @@ func allocatedByPriorityAndResourceTypeFromPods(pods []*v1.Pod) (map[int32]armad
 			priority = *(pod.Spec.Priority)
 		}
 		request := armadaresource.TotalPodResourceRequest(&pod.Spec)
-		existing := resourcesByPc[priority]
-		existing.Add(request)
-		resourcesByPc[priority] = existing
+		_, ok := resourcesByPc[priority]
+		if ok {
+			resourcesByPc[priority].Add(request)
+		} else {
+			resourcesByPc[priority] = request
+		}
 		totalResources.Add(request)
 	}
 	return resourcesByPc, totalResources
@@ -419,4 +411,37 @@ func GetAllocationByQueue(pods []*v1.Pod) map[string]armadaresource.ComputeResou
 	}
 
 	return utilisationByQueue
+}
+
+func calculateNonArmadaResource(nonArmadaPods []*v1.Pod, minimumToAllocate armadaresource.ComputeResources, minimumToAllocatePriority int32) map[int32]*executorapi.ComputeResource {
+	allocatedByPriorityNonArmada, totalAllocatedNonArmada := allocatedByPriorityAndResourceTypeFromPods(nonArmadaPods)
+	unusedNonArmadaResources, hasUnused := getUnusedNonArmadaResources(totalAllocatedNonArmada, minimumToAllocate)
+
+	if hasUnused {
+		_, ok := allocatedByPriorityNonArmada[minimumToAllocatePriority]
+		if !ok {
+			allocatedByPriorityNonArmada[minimumToAllocatePriority] = armadaresource.ComputeResources{}
+		}
+		allocatedByPriorityNonArmada[minimumToAllocatePriority].Add(unusedNonArmadaResources)
+	}
+
+	nodeNonArmadaAllocatedResources := make(map[int32]*executorapi.ComputeResource)
+	for p, rl := range allocatedByPriorityNonArmada {
+		nodeNonArmadaAllocatedResources[p] = executorapi.ComputeResourceFromProtoResources(rl)
+	}
+	return nodeNonArmadaAllocatedResources
+}
+
+func getUnusedNonArmadaResources(allocated armadaresource.ComputeResources, minimum armadaresource.ComputeResources) (armadaresource.ComputeResources, bool) {
+	diff := minimum.DeepCopy()
+	diff.Sub(allocated)
+	diff.LimitToZero()
+	// remove any zero quantities here
+	nonZero := armadaresource.ComputeResources{}
+	for res, qty := range diff {
+		if !qty.IsZero() {
+			nonZero[res] = qty
+		}
+	}
+	return nonZero, len(nonZero) > 0
 }

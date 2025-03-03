@@ -1,6 +1,8 @@
 package utilisation
 
 import (
+	"github.com/armadaproject/armada/pkg/executorapi"
+	"github.com/stretchr/testify/require"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -360,6 +362,131 @@ func TestGetCordonedResource(t *testing.T) {
 	assert.True(t, expected.Equal(resources))
 }
 
+func TestCalculateNonArmadaResource(t *testing.T) {
+
+	oneCpu := resource.MustParse("1")
+	twoCpu := resource.MustParse("2")
+	threeCpu := resource.MustParse("3")
+	oneGi := resource.MustParse("1Gi")
+	twoGi := resource.MustParse("2Gi")
+	threeGi := resource.MustParse("3Gi")
+
+	defaultMinToAllocatePriority := int32(3)
+	defaultMinToAllocate := armadaresource.ComputeResources{
+		"cpu":    twoCpu,
+		"memory": twoGi,
+	}
+
+	tests := map[string]struct {
+		nonArmadaPods         []*v1.Pod
+		minToAllocate         armadaresource.ComputeResources
+		minToAllocatePriority int32
+		expected              map[int32]*executorapi.ComputeResource
+	}{
+		"no pods": {
+			nonArmadaPods:         []*v1.Pod{},
+			minToAllocate:         defaultMinToAllocate,
+			minToAllocatePriority: defaultMinToAllocatePriority,
+			expected: map[int32]*executorapi.ComputeResource{
+				defaultMinToAllocatePriority: {
+					Resources: map[string]*resource.Quantity{
+						"cpu":    &twoCpu,
+						"memory": &twoGi,
+					},
+				},
+			},
+		},
+		"One pod below minimum": {
+			nonArmadaPods:         []*v1.Pod{createTestPod("", "1", "1Gi")},
+			minToAllocate:         defaultMinToAllocate,
+			minToAllocatePriority: defaultMinToAllocatePriority,
+			expected: map[int32]*executorapi.ComputeResource{
+				0: {
+					Resources: map[string]*resource.Quantity{
+						"cpu":    &oneCpu,
+						"memory": &oneGi,
+					},
+				},
+				defaultMinToAllocatePriority: {
+					Resources: map[string]*resource.Quantity{
+						"cpu":    &oneCpu,
+						"memory": &oneGi,
+					},
+				},
+			},
+		},
+		"One pod above minimum": {
+			nonArmadaPods:         []*v1.Pod{createTestPod("", "3", "3Gi")},
+			minToAllocate:         defaultMinToAllocate,
+			minToAllocatePriority: defaultMinToAllocatePriority,
+			expected: map[int32]*executorapi.ComputeResource{
+				0: {
+					Resources: map[string]*resource.Quantity{
+						"cpu":    &threeCpu,
+						"memory": &threeGi,
+					},
+				},
+			},
+		},
+		"two pods same priority": {
+			nonArmadaPods: []*v1.Pod{
+				createTestPod("", "1", "1Gi"),
+				createTestPod("", "2", "2Gi"),
+			},
+			minToAllocate:         defaultMinToAllocate,
+			minToAllocatePriority: defaultMinToAllocatePriority,
+			expected: map[int32]*executorapi.ComputeResource{
+				0: {
+					Resources: map[string]*resource.Quantity{
+						"cpu":    &threeCpu,
+						"memory": &threeGi,
+					},
+				},
+			},
+		},
+		"two pods different priority": {
+			nonArmadaPods: []*v1.Pod{
+				createTestPod("", "1", "1Gi"),
+				createTestPodAtPriority("", "1", "1Gi", defaultMinToAllocatePriority),
+			},
+			minToAllocate:         defaultMinToAllocate,
+			minToAllocatePriority: defaultMinToAllocatePriority,
+			expected: map[int32]*executorapi.ComputeResource{
+				0: {
+					Resources: map[string]*resource.Quantity{
+						"cpu":    &oneCpu,
+						"memory": &oneGi,
+					},
+				},
+				defaultMinToAllocatePriority: {
+					Resources: map[string]*resource.Quantity{
+						"cpu":    &oneCpu,
+						"memory": &oneGi,
+					},
+				},
+			},
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			result := calculateNonArmadaResource(tc.nonArmadaPods, tc.minToAllocate, tc.minToAllocatePriority)
+
+			require.Equal(t, len(tc.expected), len(result), "uneven priorities")
+			for priority, expectedCr := range tc.expected {
+				actualCr, ok := result[priority]
+				require.True(t, ok, "No resources found at priority %d", priority)
+				actualResources := actualCr.Resources
+				require.Equal(t, len(expectedCr.Resources), len(actualResources), "uneven resources at priority %d", priority)
+				for resName, expectedQty := range expectedCr.Resources {
+					actualQty, ok := actualResources[resName]
+					require.True(t, ok, "Resource %s not found at priority %d", resName, priority)
+					assert.Equal(t, expectedQty.MilliValue(), actualQty.MilliValue(), "expected %s qty [%d] differs from actual [%d] at priority %d, ", resName, expectedQty.MilliValue(), actualQty.MilliValue(), priority)
+				}
+			}
+		})
+	}
+}
+
 func createTestPod(nodeName string, cpu string, memory string) *v1.Pod {
 	return &v1.Pod{
 		Spec: v1.PodSpec{
@@ -380,4 +507,10 @@ func createTestPod(nodeName string, cpu string, memory string) *v1.Pod {
 			},
 		},
 	}
+}
+
+func createTestPodAtPriority(nodeName string, cpu string, memory string, priority int32) *v1.Pod {
+	pod := createTestPod(nodeName, cpu, memory)
+	pod.Spec.Priority = &priority
+	return pod
 }
