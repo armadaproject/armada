@@ -105,28 +105,28 @@ func TestSchedule_JobChecks(t *testing.T) {
 		expectError                    bool
 	}{
 		"preempts job - preempted job scheduled in current round": {
-			existingJob:                    existingJob.WithQueued(true),
+			existingJob:                    existingJob.DeepCopy().WithQueued(true),
 			existingJobScheduledAtPriority: testfixtures.TestPriorityClasses[testfixtures.PriorityClass2].Priority,
 			expectSuccess:                  true,
 		},
 		"preempts job - preempted job scheduled in previous round": {
-			existingJob: existingJob.WithQueued(false).WithNewRun(
+			existingJob: existingJob.DeepCopy().WithQueued(false).WithNewRun(
 				node.GetExecutor(), node.GetId(), node.GetName(), testfixtures.TestPool,
 				testfixtures.TestPriorityClasses[testfixtures.PriorityClass2].Priority),
 			expectSuccess: true,
 		},
 		"will not preempt non-preemptible jobs": {
-			existingJob:                    existingJob.WithQueued(true).WithPriorityClass(testfixtures.TestPriorityClasses[testfixtures.PriorityClass2NonPreemptible]),
+			existingJob:                    existingJob.DeepCopy().WithQueued(true).WithPriorityClass(testfixtures.TestPriorityClasses[testfixtures.PriorityClass2NonPreemptible]),
 			existingJobScheduledAtPriority: testfixtures.TestPriorityClasses[testfixtures.PriorityClass2].Priority,
 			expectSuccess:                  false,
 		},
 		"will not preempt gang jobs": {
-			existingJob:                    testfixtures.WithGangAnnotationsJobs([]*jobdb.Job{existingJob.WithQueued(true).DeepCopy(), existingJob.WithQueued(true).DeepCopy()})[0],
+			existingJob:                    testfixtures.WithGangAnnotationsJobs([]*jobdb.Job{existingJob.DeepCopy().WithQueued(true).DeepCopy(), existingJob.WithQueued(true).DeepCopy()})[0],
 			existingJobScheduledAtPriority: testfixtures.TestPriorityClasses[testfixtures.PriorityClass2].Priority,
 			expectSuccess:                  false,
 		},
 		"will not preempt jobs larger than maximumJobSizeToPreempt": {
-			existingJob:                    existingJob.WithQueued(true),
+			existingJob:                    existingJob.DeepCopy().WithQueued(true),
 			existingJobScheduledAtPriority: testfixtures.TestPriorityClasses[testfixtures.PriorityClass2].Priority,
 			maximumJobSizeToPreempt: &armadaresource.ComputeResources{
 				"cpu": resource.MustParse("1"),
@@ -134,12 +134,12 @@ func TestSchedule_JobChecks(t *testing.T) {
 			expectSuccess: false,
 		},
 		"will not preempt jobs scheduled at higher priority - preempted job scheduled in current round": {
-			existingJob:                    existingJob.WithQueued(true),
+			existingJob:                    existingJob.DeepCopy().WithQueued(true),
 			existingJobScheduledAtPriority: testfixtures.TestPriorityClasses[testfixtures.PriorityClass3].Priority,
 			expectSuccess:                  false,
 		},
 		"will not preempt jobs scheduled at higher priority - preempted job scheduled in previous round": {
-			existingJob: existingJob.WithQueued(false).WithNewRun(
+			existingJob: existingJob.DeepCopy().WithQueued(false).WithNewRun(
 				node.GetExecutor(), node.GetId(), node.GetName(), testfixtures.TestPool,
 				testfixtures.TestPriorityClasses[testfixtures.PriorityClass3].Priority),
 			expectSuccess: false,
@@ -159,7 +159,8 @@ func TestSchedule_JobChecks(t *testing.T) {
 			require.NoError(t, err)
 			jobDb := testfixtures.NewJobDbWithJobs([]*jobdb.Job{tc.existingJob})
 
-			sctx := setUpSctx(t, []*api.Queue{queueA, queueB}, []*jobdb.Job{existingJob}, node.GetAllocatableResources())
+			totalResource := testfixtures.CpuMem("100", "2000Gi")
+			sctx := setUpSctx(t, []*api.Queue{queueA, queueB}, []*jobdb.Job{tc.existingJob}, totalResource)
 			if tc.existingJob.Queued() {
 				existingJctx := context.JobSchedulingContextFromJob(tc.existingJob)
 				existingJctx.PodSchedulingContext = &context.PodSchedulingContext{
@@ -182,8 +183,8 @@ func TestSchedule_JobChecks(t *testing.T) {
 
 			assert.Equal(t, tc.expectSuccess, result.scheduled)
 			if tc.expectSuccess {
-				assert.Equal(t, float64(0.8), result.schedulingCost)
-				assert.Equal(t, map[string]float64{"B": -0.8}, result.queueCostChanges)
+				assert.Equal(t, float64(0.08), result.schedulingCost)
+				assert.Equal(t, map[string]float64{"B": -0.08}, result.queueCostChanges)
 				assert.Equal(t, []string{tc.existingJob.Id()}, result.jobIdsToPreempt)
 				assert.Equal(t, float64(1), result.maximumQueueImpact)
 			} else {
@@ -476,6 +477,7 @@ func TestSchedule_Errors_WhenInformationMissingFromState(t *testing.T) {
 		"memory": resource.MustParse("16Gi"),
 	}).WithQueued(true)
 
+	sctx := setUpSctx(t, []*api.Queue{queueA}, []*jobdb.Job{}, node.GetAllocatableResources())
 	jctx := context.JobSchedulingContextFromJob(jobToSchedule)
 	nodeDb, err := NewNodeDb(testfixtures.TestSchedulingConfig())
 	require.NoError(t, err)
@@ -486,30 +488,6 @@ func TestSchedule_Errors_WhenInformationMissingFromState(t *testing.T) {
 	node, err = nodeDb.GetNode(node.GetId())
 	require.NoError(t, err)
 	jobDb := testfixtures.NewJobDbWithJobs([]*jobdb.Job{})
-
-	fairnessCostProvider, err := fairness.NewDominantResourceFairness(
-		node.GetAllocatableResources(),
-		testfixtures.TestSchedulingConfig(),
-	)
-	require.NoError(t, err)
-	sctx := context.NewSchedulingContext(
-		testfixtures.TestPool,
-		fairnessCostProvider,
-		nil,
-		node.GetAllocatableResources(),
-	)
-
-	weight := 1 / float64(2)
-	err = sctx.AddQueueSchedulingContext(
-		"A",
-		weight,
-		weight,
-		map[string]internaltypes.ResourceList{"A": jobToSchedule.AllResourceRequirements()},
-		jobToSchedule.AllResourceRequirements(),
-		jobToSchedule.AllResourceRequirements(),
-		nil,
-	)
-	require.NoError(t, err)
 
 	schedContext := &SchedulingContext{Sctx: sctx, Queues: map[string]*QueueContext{}}
 	for queue, qctx := range sctx.QueueSchedulingContexts {
@@ -525,6 +503,7 @@ func TestSchedule_Errors_WhenInformationMissingFromState(t *testing.T) {
 	assert.Contains(t, err.Error(), "not found in jobDb")
 	assert.Nil(t, result)
 
+	// Add existing job to jobdb
 	txn := jobDb.WriteTxn()
 	err = txn.Upsert([]*jobdb.Job{existingJob})
 	assert.NoError(t, err)
@@ -536,23 +515,14 @@ func TestSchedule_Errors_WhenInformationMissingFromState(t *testing.T) {
 	assert.Contains(t, err.Error(), "could not find queue context")
 	assert.Nil(t, result)
 
-	err = sctx.AddQueueSchedulingContext(
-		"B",
-		weight,
-		weight,
-		map[string]internaltypes.ResourceList{},
-		existingJob.AllResourceRequirements(),
-		existingJob.AllResourceRequirements(),
-		nil,
-	)
-	require.NoError(t, err)
-	sctx.UpdateFairShares()
-
+	// Create sctx with QueueB now included
+	sctx = setUpSctx(t, []*api.Queue{queueA, queueB}, []*jobdb.Job{existingJob}, node.GetAllocatableResources())
 	result, err = nodeScheduler.Schedule(FromSchedulingContext(sctx), jctx, node)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "could not find job context")
 	assert.Nil(t, result)
 
+	// Add existing jctx to sctx
 	existingJctx := context.JobSchedulingContextFromJob(existingJob)
 	_, err = sctx.AddJobSchedulingContext(existingJctx)
 	assert.NoError(t, err)
@@ -562,6 +532,7 @@ func TestSchedule_Errors_WhenInformationMissingFromState(t *testing.T) {
 	assert.Contains(t, err.Error(), "no pod scheduling context exists on jctx")
 	assert.Nil(t, result)
 
+	// Add pctx to existing job jctx
 	existingJctx.PodSchedulingContext = &context.PodSchedulingContext{
 		ScheduledAtPriority: testfixtures.TestPriorityClasses[testfixtures.PriorityClass2].Priority,
 		NodeId:              node.GetId(),
