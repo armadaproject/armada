@@ -336,8 +336,6 @@ dockers:
     goos: linux
     goarch: amd64
     image_templates:
-      - "{{ .Env.DOCKER_REPO }}armada-lookout-ingester-v2:latest"
-      - "{{ .Env.DOCKER_REPO }}armada-lookout-ingester-v2:{{ .Version }}"
       - "{{ .Env.DOCKER_REPO }}armada-lookout-ingester:latest"
       - "{{ .Env.DOCKER_REPO }}armada-lookout-ingester:{{ .Version }}"
     build_flag_templates: *BUILD_FLAG_TEMPLATES
@@ -353,8 +351,6 @@ dockers:
     goos: linux
     goarch: amd64
     image_templates:
-      - "{{ .Env.DOCKER_REPO }}armada-lookout-v2:latest"
-      - "{{ .Env.DOCKER_REPO }}armada-lookout-v2:{{ .Version }}"
       - "{{ .Env.DOCKER_REPO }}armada-lookout:latest"
       - "{{ .Env.DOCKER_REPO }}armada-lookout:{{ .Version }}"
     build_flag_templates: *BUILD_FLAG_TEMPLATES
@@ -505,13 +501,9 @@ release:
     - `docker pull {{ .Env.DOCKER_REPO }}armada-executor:{{ .Version }}`
     - `docker pull {{ .Env.DOCKER_REPO }}armada-executor:latest`
     #### Armada Lookout
-    - `docker pull {{ .Env.DOCKER_REPO }}armada-lookout-v2:{{ .Version }}`
-    - `docker pull {{ .Env.DOCKER_REPO }}armada-lookout-v2:latest`
     - `docker pull {{ .Env.DOCKER_REPO }}armada-lookout:{{ .Version }}`
     - `docker pull {{ .Env.DOCKER_REPO }}armada-lookout:latest`
     #### Armada Lookout Ingester
-    - `docker pull {{ .Env.DOCKER_REPO }}armada-lookout-ingester-v2:{{ .Version }}`
-    - `docker pull {{ .Env.DOCKER_REPO }}armada-lookout-ingester-v2:latest`
     - `docker pull {{ .Env.DOCKER_REPO }}armada-lookout-ingester:{{ .Version }}`
     - `docker pull {{ .Env.DOCKER_REPO }}armada-lookout-ingester:latest`
     #### Armada Event Ingester
