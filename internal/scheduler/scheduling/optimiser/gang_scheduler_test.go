@@ -5,12 +5,15 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
+	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
+	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/fairness"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
@@ -99,24 +102,38 @@ func TestFairnessOptimisingScheduler_Schedule(t *testing.T) {
 			jobDb := testfixtures.NewJobDbWithJobs(armadaslices.Concatenate(queueBJobs, queueCJobs))
 			nodeDb, err := NewNodeDb(testfixtures.TestSchedulingConfig())
 			require.NoError(t, err)
+			jctx := context.JobSchedulingContextFromJob(tc.Job)
+			gctx := context.NewGangSchedulingContext([]*context.JobSchedulingContext{jctx})
 
 			txn := nodeDb.Txn(true)
+			allRunningJobs := []*jobdb.Job{}
 			for _, nodeInfo := range tc.Nodes {
-				err = nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nodeInfo.Jobs, nodeInfo.Node.DeepCopyNilKeys())
+				jobs := assignJobsToNode(nodeInfo.Jobs, nodeInfo.Node)
+				err = nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, jobs, nodeInfo.Node.DeepCopyNilKeys())
 				require.NoError(t, err)
-				nodeResult := createNodeSchedulingResult(tc.Job, nodeInfo.Node, nodeInfo.ScheduleCost, nodeInfo.PreemptedJobs...)
+				allRunningJobs = append(allRunningJobs, jobs...)
+
+				nodeResult := createNodeSchedulingResult(jctx, nodeInfo.Node, nodeInfo.ScheduleCost, nodeInfo.PreemptedJobs...)
 				stubNodeScheduler.resultByNodeId[nodeInfo.Node.GetId()] = nodeResult
 			}
 			txn.Commit()
+			jobDbTxn := jobDb.WriteTxn()
+			err = jobDbTxn.Upsert(allRunningJobs)
+			require.NoError(t, err)
+			jobDbTxn.Commit()
+
+			nodes, err := nodeDb.GetNodes()
+			require.NoError(t, err)
+
+			jobsByQueue := armadaslices.GroupByFunc(allRunningJobs, func(job *jobdb.Job) string {
+				return job.Queue()
+			})
 
 			improvementThreshold := float64(-100000) // Effectively no threshold
 			if tc.MinFairnessImprovementPercentage > 0 {
 				improvementThreshold = tc.MinFairnessImprovementPercentage
 			}
-			gangScheduler := NewFairnessOptimisingScheduler(stubNodeScheduler, jobDb.WriteTxn(), nodeDb, improvementThreshold)
-
-			jctx := context.JobSchedulingContextFromJob(tc.Job)
-			gctx := context.NewGangSchedulingContext([]*context.JobSchedulingContext{jctx})
+			gangScheduler := NewFairnessOptimisingScheduler(stubNodeScheduler, jobDbTxn, nodeDb, improvementThreshold)
 
 			fairnessCostProvider, err := fairness.NewDominantResourceFairness(
 				totalResource,
@@ -135,7 +152,7 @@ func TestFairnessOptimisingScheduler_Schedule(t *testing.T) {
 				unlimitedDemand := testfixtures.CpuMem("10000", "100000Gi")
 				err := sctx.AddQueueSchedulingContext(
 					q.Name, weight, weight,
-					map[string]internaltypes.ResourceList{},
+					map[string]internaltypes.ResourceList{testfixtures.PriorityClass2: sumRequestedResource(jobsByQueue[q.Name])},
 					unlimitedDemand,
 					unlimitedDemand,
 					nil,
@@ -147,6 +164,7 @@ func TestFairnessOptimisingScheduler_Schedule(t *testing.T) {
 			ctx := armadacontext.Background()
 			scheduled, preemptedJobs, reason, err := gangScheduler.Schedule(ctx, gctx, sctx)
 			assert.NoError(t, err)
+			expectedNodesToBeScheduledOn := []*internaltypes.Node{tc.Nodes[tc.ExpectedNodeIndex].Node}
 			if tc.ShouldSchedule {
 				assert.Empty(t, reason)
 				assert.True(t, scheduled)
@@ -154,48 +172,148 @@ func TestFairnessOptimisingScheduler_Schedule(t *testing.T) {
 				actualPreemptedJobIds := armadaslices.Map(preemptedJobs, func(jctx *context.JobSchedulingContext) string {
 					return jctx.JobId
 				})
-				slices.Sort(actualPreemptedJobIds)
-				slices.Sort(tc.PreemptedJobs)
-				assert.Equal(t, tc.PreemptedJobs, actualPreemptedJobIds)
-				_, exists := sctx.QueueSchedulingContexts[tc.Job.Queue()].SuccessfulJobSchedulingContexts[tc.Job.Id()]
-				assert.True(t, exists)
-				for _, preemptedJob := range preemptedJobs {
-					_, exists := sctx.QueueSchedulingContexts[preemptedJob.Job.Queue()].SuccessfulJobSchedulingContexts[tc.Job.Id()]
-					assert.False(t, exists)
-				}
-				// TODO validate sctx has less resource allocated to the queues of preempted jobs
-				// TODO validate sctx has more resource allocated to the queue of scheduled job
-				// TODO validate node is updated in node db
+				assertStringListsEqual(t, tc.PreemptedJobs, actualPreemptedJobIds)
 			} else {
 				assert.NotEmpty(t, reason)
 				assert.False(t, scheduled)
 				assert.Empty(t, preemptedJobs)
-				// TODO validate sctx unchanged
-				// TODO validate nodes unchanged
+				expectedNodesToBeScheduledOn = []*internaltypes.Node{}
 			}
+			assertExpectedJctxUpdates(t, sctx, gctx, expectedNodesToBeScheduledOn, tc.ShouldSchedule)
+			assertExpectedNodeUpdates(t, gctx, preemptedJobs, nodeDb, nodes, expectedNodesToBeScheduledOn)
+			assertExpectedSctxUpdates(t, sctx, preemptedJobs, jobsByQueue)
 		})
 	}
 }
 
-func createNodeSchedulingResult(job *jobdb.Job, node *internaltypes.Node, cost float64, preemptedJobs ...*jobdb.Job) *nodeSchedulingResult {
+// Should handle gangs
+// - Validates node uniformity label
+// - Groups nodes by uniformity label
+// - All nodes must exceed threshold
+
+func assertExpectedNodeUpdates(
+	t *testing.T, gctx *context.GangSchedulingContext,
+	preemptedJobs []*context.JobSchedulingContext,
+	nodeDb *nodedb.NodeDb, originalNodeStates []*internaltypes.Node,
+	expectedScheduledNodes []*internaltypes.Node) {
+	preemptedJobsByNodeId := armadaslices.GroupByFunc(preemptedJobs, func(jctx *context.JobSchedulingContext) string {
+		return jctx.Job.LatestRun().NodeId()
+	})
+	originalNodesById := armadaslices.GroupByFuncUnique(originalNodeStates, func(node *internaltypes.Node) string {
+		return node.GetId()
+	})
+	expectedScheduledNodesById := armadaslices.GroupByFuncUnique(expectedScheduledNodes, func(node *internaltypes.Node) string {
+		return node.GetId()
+	})
+
+	nodes, err := nodeDb.GetNodes()
+	assert.NoError(t, err)
+	for _, node := range nodes {
+		// Should have been scheduled
+		if _, shouldBeScheduled := expectedScheduledNodesById[node.GetId()]; shouldBeScheduled {
+			for _, jobId := range preemptedJobsByNodeId[node.GetId()] {
+				assert.NotContains(t, maps.Keys(node.AllocatedByJobId), jobId)
+			}
+
+			jobsOnNode := armadaslices.Filter(gctx.JobSchedulingContexts, func(jctx *context.JobSchedulingContext) bool {
+				return jctx.PodSchedulingContext != nil && jctx.PodSchedulingContext.NodeId == node.GetId()
+			})
+			assert.True(t, len(jobsOnNode) > 0)
+			for _, job := range jobsOnNode {
+				assert.Contains(t, maps.Keys(node.AllocatedByJobId), job.JobId)
+			}
+		} else {
+			assertStringListsEqual(t, maps.Keys(originalNodesById[node.GetId()].AllocatedByJobId), maps.Keys(node.AllocatedByJobId))
+		}
+	}
+}
+
+func assertExpectedSctxUpdates(t *testing.T, sctx *context.SchedulingContext, preemptedJctxs []*context.JobSchedulingContext, originalJobsPerQueue map[string][]*jobdb.Job) {
+	preemptedJobs := armadaslices.Map(preemptedJctxs, func(jctx *context.JobSchedulingContext) *jobdb.Job {
+		return jctx.Job
+	})
+	preemptedJobsByQueue := armadaslices.GroupByFunc(preemptedJobs, func(job *jobdb.Job) string {
+		return job.Queue()
+	})
+
+	// Assert preempted jobs marked as preempted
+	for _, preemptedJob := range preemptedJobs {
+		_, exists := sctx.QueueSchedulingContexts[preemptedJob.Queue()].SuccessfulJobSchedulingContexts[preemptedJob.Id()]
+		assert.False(t, exists)
+		_, exists = sctx.QueueSchedulingContexts[preemptedJob.Queue()].PreemptedJobSchedulingContexts[preemptedJob.Id()]
+		assert.True(t, exists)
+	}
+
+	// Assert preempted queues have their allocation updated
+	for queue, originalJobsPerQueue := range originalJobsPerQueue {
+		originalAllocation := sumRequestedResource(originalJobsPerQueue)
+		preemptedJobsForQueue := preemptedJobsByQueue[queue]
+		expectedAllocation := originalAllocation.Subtract(sumRequestedResource(preemptedJobsForQueue))
+
+		assert.Equal(t, expectedAllocation, sctx.QueueSchedulingContexts[queue].Allocated)
+	}
+}
+
+func assertExpectedJctxUpdates(t *testing.T, sctx *context.SchedulingContext, gctx *context.GangSchedulingContext, expectedScheduledNodes []*internaltypes.Node, expectedToBeScheduled bool) {
+	expectedScheduledNodesById := armadaslices.GroupByFuncUnique(expectedScheduledNodes, func(node *internaltypes.Node) string {
+		return node.GetId()
+	})
+
+	for _, jctx := range gctx.JobSchedulingContexts {
+		if expectedToBeScheduled {
+			_, exists := sctx.QueueSchedulingContexts[jctx.Job.Queue()].SuccessfulJobSchedulingContexts[jctx.Job.Id()]
+			assert.True(t, exists)
+			assert.Equal(t, jctx.Job.AllResourceRequirements(), sctx.QueueSchedulingContexts[jctx.Job.Queue()].Allocated)
+
+			assert.NotNil(t, jctx.PodSchedulingContext)
+			pctx := jctx.PodSchedulingContext
+			assert.Contains(t, maps.Keys(expectedScheduledNodesById), pctx.NodeId)
+			assert.Equal(t, context.ScheduledWithFairnessOptimiser, pctx.SchedulingMethod)
+			assert.Equal(t, jctx.Job.PriorityClass().Priority, pctx.ScheduledAtPriority)
+			assert.True(t, pctx.IsSuccessful())
+		} else {
+			assert.Empty(t, sctx.QueueSchedulingContexts[jctx.Job.Queue()].SuccessfulJobSchedulingContexts)
+			assert.True(t, sctx.QueueSchedulingContexts[jctx.Job.Queue()].Allocated.AllZero())
+			assert.Nil(t, jctx.PodSchedulingContext)
+		}
+	}
+}
+
+func assertStringListsEqual(t *testing.T, expected []string, actual []string) {
+	slices.Sort(expected)
+	slices.Sort(actual)
+	assert.Equal(t, expected, actual)
+}
+
+func createNodeSchedulingResult(jctx *context.JobSchedulingContext, node *internaltypes.Node, cost float64, preemptedJobs ...*jobdb.Job) *nodeSchedulingResult {
 	preemptedJobIds := armadaslices.Map(preemptedJobs, func(job *jobdb.Job) string {
 		return job.Id()
 	})
 	return &nodeSchedulingResult{
 		scheduled:       true,
-		jctx:            context.JobSchedulingContextFromJob(job),
+		jctx:            jctx,
 		node:            node,
 		schedulingCost:  cost,
 		jobIdsToPreempt: preemptedJobIds,
 	}
 }
 
-// Should schedule on updated sctx + nodeDb state
-//  - + Does not update state if no scheduling performed
-// Should handle gangs
-// - Validates node uniformity label
-// - Groups nodes by uniformity label
-// - All nodes must exceed threshold
+func sumRequestedResource(jobs []*jobdb.Job) internaltypes.ResourceList {
+	sum := testfixtures.TestResourceListFactory.FromJobResourceListIgnoreUnknown(map[string]resource.Quantity{})
+	for _, job := range jobs {
+		sum = sum.Add(job.AllResourceRequirements())
+	}
+	return sum
+}
+
+func assignJobsToNode(jobs []*jobdb.Job, node *internaltypes.Node) []*jobdb.Job {
+	updated := make([]*jobdb.Job, 0, len(jobs))
+	for _, job := range jobs {
+		j := job.WithNewRun(node.GetExecutor(), node.GetId(), node.GetName(), node.GetPool(), job.PriorityClass().Priority)
+		updated = append(updated, j)
+	}
+	return updated
+}
 
 type StubNodeScheduler struct {
 	resultByNodeId map[string]*nodeSchedulingResult

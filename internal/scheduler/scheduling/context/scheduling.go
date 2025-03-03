@@ -129,8 +129,10 @@ func (sctx *SchedulingContext) AddQueueSchedulingContext(
 		AllocatedByPriorityClass:          initialAllocatedByPriorityClass,
 		ScheduledResourcesByPriorityClass: make(map[string]internaltypes.ResourceList),
 		EvictedResourcesByPriorityClass:   make(map[string]internaltypes.ResourceList),
+		PreemptedResourceByPriorityClass:  make(map[string]internaltypes.ResourceList),
 		SuccessfulJobSchedulingContexts:   make(map[string]*JobSchedulingContext),
 		UnsuccessfulJobSchedulingContexts: make(map[string]*JobSchedulingContext),
+		PreemptedJobSchedulingContexts:    make(map[string]*JobSchedulingContext),
 		EvictedJobsById:                   make(map[string]bool),
 	}
 	sctx.QueueSchedulingContexts[queue] = qctx
@@ -407,7 +409,7 @@ func (sctx *SchedulingContext) PreemptJob(jctx *JobSchedulingContext) (bool, err
 		return false, errors.Errorf("failed preempting job %s to scheduling context: no context for queue %s", jctx.JobId, queue)
 	}
 
-	scheduledInThisRound, err := qctx.preemptJob(jctx.Job)
+	scheduledInThisRound, err := qctx.preemptJob(jctx)
 	if err != nil {
 		return false, err
 	}
