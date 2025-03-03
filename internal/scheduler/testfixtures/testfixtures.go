@@ -783,6 +783,16 @@ func TestNode(priorities []int32, resources map[string]resource.Quantity) *inter
 		internaltypes.NewAllocatableByPriorityAndResourceType(priorities, rl))
 }
 
+func Test16CpuNode(priorities []int32) *internaltypes.Node {
+	return TestNode(
+		priorities,
+		map[string]resource.Quantity{
+			"cpu":    resource.MustParse("16"),
+			"memory": resource.MustParse("128Gi"),
+		},
+	)
+}
+
 func Test32CpuNode(priorities []int32) *internaltypes.Node {
 	return TestNode(
 		priorities,

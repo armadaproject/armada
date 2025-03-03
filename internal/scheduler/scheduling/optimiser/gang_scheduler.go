@@ -240,15 +240,15 @@ func (n *FairnessOptimisingGangScheduler) logSchedulingResult(ctx *armadacontext
 
 	cost := result.schedulingCost
 	gain := sctx.FairnessCostProvider.UnweightedCostFromAllocation(gctx.TotalResourceRequests)
-	improvement := cost / gain
-
+	improvement := gain - cost
+	improvementPercentage := (gain / cost * 100) - 100
 	preemptedJobIds := []string{}
 	for _, jobResult := range result.results {
 		preemptedJobIds = append(preemptedJobIds, jobResult.jobIdsToPreempt...)
 	}
 
-	ctx.Infof("scheduled gctx with job ids %s, costing %f but gaining %f for a fairness improvement of %f, preempting %s",
-		strings.Join(gctx.JobIds(), ","), cost, gain, improvement, strings.Join(preemptedJobIds, ","))
+	ctx.Infof("scheduled gctx with job ids %s, costing %f but gaining %f for a fairness improvement of %f (%f%%), preempting %s",
+		strings.Join(gctx.JobIds(), ","), cost, gain, improvement, improvementPercentage, strings.Join(preemptedJobIds, ","))
 }
 
 func (n *FairnessOptimisingGangScheduler) groupNodesByNodeUniformityLabel(nodeUniformityLabel string, nodes []*internaltypes.Node) map[string][]*internaltypes.Node {
