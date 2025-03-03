@@ -2069,17 +2069,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					nil,
 					false,
 				)
-				//val := sctx.FairnessCostProvider.UnweightedCostFromAllocation(sctx.TotalResources)
-				//fmt.Println(val)
-				//
-				//qctx := sctx.QueueSchedulingContexts["A"]
-				//w1 := sctx.FairnessCostProvider.UnweightedCostFromAllocation(qctx.CappedDemand)
-				//w2 := sctx.FairnessCostProvider.WeightedCostFromAllocation(qctx.CappedDemand, qctx.Weight*2)
-				//
-				//fmt.Println(w1)
-				//fmt.Println(w2)
 				result, err := sch.Schedule(ctx)
-
 				require.NoError(t, err)
 				jobIdsByGangId = sch.jobIdsByGangId
 				gangIdByJobId = sch.gangIdByJobId
