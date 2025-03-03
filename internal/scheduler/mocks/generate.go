@@ -7,5 +7,4 @@ package schedulermocks
 //go:generate mockgen -destination=./executor_api.go -package=schedulermocks "github.com/armadaproject/armada/pkg/executorapi" ExecutorApi_LeaseJobRunsServer
 //go:generate mockgen -destination=./queue_cache.go -package=schedulermocks "github.com/armadaproject/armada/internal/scheduler/queue" QueueCache
 //go:generate mockgen -destination=./api.go -package=schedulermocks "github.com/armadaproject/armada/pkg/api" SubmitClient,Submit_GetQueuesClient
-//go:generate mockgen -destination=./priority_multiplier.go -package=schedulermocks "github.com/armadaproject/armada/pkg/priorityoverride" PriorityMultiplierServiceClient
 //go:generate mockgen -destination=./priority_override.go -package=schedulermocks "github.com/armadaproject/armada/pkg/priorityoverride" PriorityOverrideServiceClient
