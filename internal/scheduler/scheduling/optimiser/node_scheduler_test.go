@@ -1,6 +1,7 @@
 package optimiser
 
 import (
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -243,167 +244,107 @@ func setUpSctx(t *testing.T, queues []*api.Queue, existingJobs []*jobdb.Job, tot
 	return sctx
 }
 
+func markedScheduledOnNode(jobs []*jobdb.Job, node *internaltypes.Node) []*jobdb.Job {
+	result := make([]*jobdb.Job, 0, len(jobs))
+	for _, job := range jobs {
+		result = append(result, job.WithNewRun(node.GetExecutor(), node.GetId(), node.GetName(), testfixtures.TestPool, testfixtures.TestPriorityClasses[job.PriorityClassName()].Priority))
+	}
+	return result
+}
+
 func TestSchedule_PreemptsExpectedJobs(t *testing.T) {
-	node := testfixtures.TestNode(testfixtures.TestPriorities, map[string]resource.Quantity{
-		"cpu": resource.MustParse("10"),
-	})
-	bigNode := testfixtures.TestNode(testfixtures.TestPriorities, map[string]resource.Quantity{
-		"cpu": resource.MustParse("18"),
-	})
-	jobToSchedule := testfixtures.TestJobWithResources("A", testfixtures.PriorityClass2, v1.ResourceList{
-		"cpu": resource.MustParse("8"),
-	})
-	jobToSchedule2 := testfixtures.TestJobWithResources("A", testfixtures.PriorityClass2, v1.ResourceList{
-		"cpu": resource.MustParse("3"),
-	})
-	jobToSchedule3 := testfixtures.TestJobWithResources("A", testfixtures.PriorityClass2, v1.ResourceList{
-		"cpu": resource.MustParse("12"),
-	})
-
-	jobB1Small := testfixtures.TestJobWithResources("B", testfixtures.PriorityClass2, v1.ResourceList{
-		"cpu": resource.MustParse("1"),
-	}).WithNewRun(node.GetExecutor(), node.GetId(), node.GetName(), testfixtures.TestPool, testfixtures.TestPriorityClasses[testfixtures.PriorityClass2].Priority)
-
-	jobB1 := testfixtures.TestJobWithResources("B", testfixtures.PriorityClass2, v1.ResourceList{
-		"cpu": resource.MustParse("2"),
-	}).WithNewRun(node.GetExecutor(), node.GetId(), node.GetName(), testfixtures.TestPool, testfixtures.TestPriorityClasses[testfixtures.PriorityClass2].Priority)
-	jobB2 := testfixtures.TestJobWithResources("B", testfixtures.PriorityClass2, v1.ResourceList{
-		"cpu": resource.MustParse("2"),
-	}).WithNewRun(node.GetExecutor(), node.GetId(), node.GetName(), testfixtures.TestPool, testfixtures.TestPriorityClasses[testfixtures.PriorityClass2].Priority)
-	jobB3 := testfixtures.TestJobWithResources("B", testfixtures.PriorityClass2, v1.ResourceList{
-		"cpu": resource.MustParse("2"),
-	}).WithNewRun(node.GetExecutor(), node.GetId(), node.GetName(), testfixtures.TestPool, testfixtures.TestPriorityClasses[testfixtures.PriorityClass2].Priority)
-
-	jobB1LowPrio := testfixtures.TestJobWithResources("B", testfixtures.PriorityClass0, v1.ResourceList{
-		"cpu": resource.MustParse("2"),
-	}).WithNewRun(node.GetExecutor(), node.GetId(), node.GetName(), testfixtures.TestPool, testfixtures.TestPriorityClasses[testfixtures.PriorityClass0].Priority)
-	jobB2LowPrio := testfixtures.TestJobWithResources("B", testfixtures.PriorityClass0, v1.ResourceList{
-		"cpu": resource.MustParse("2"),
-	}).WithNewRun(node.GetExecutor(), node.GetId(), node.GetName(), testfixtures.TestPool, testfixtures.TestPriorityClasses[testfixtures.PriorityClass0].Priority)
-
-	jobB1Large := testfixtures.TestJobWithResources("B", testfixtures.PriorityClass2, v1.ResourceList{
-		"cpu": resource.MustParse("4"),
-	}).WithNewRun(node.GetExecutor(), node.GetId(), node.GetName(), testfixtures.TestPool, testfixtures.TestPriorityClasses[testfixtures.PriorityClass2].Priority)
-	jobB2Large := testfixtures.TestJobWithResources("B", testfixtures.PriorityClass2, v1.ResourceList{
-		"cpu": resource.MustParse("4"),
-	}).WithNewRun(node.GetExecutor(), node.GetId(), node.GetName(), testfixtures.TestPool, testfixtures.TestPriorityClasses[testfixtures.PriorityClass2].Priority)
-
-	jobC1 := testfixtures.TestJobWithResources("C", testfixtures.PriorityClass2, v1.ResourceList{
-		"cpu": resource.MustParse("2"),
-	}).WithNewRun(node.GetExecutor(), node.GetId(), node.GetName(), testfixtures.TestPool, testfixtures.TestPriorityClasses[testfixtures.PriorityClass2].Priority)
-	jobC2 := testfixtures.TestJobWithResources("C", testfixtures.PriorityClass2, v1.ResourceList{
-		"cpu": resource.MustParse("2"),
-	}).WithNewRun(node.GetExecutor(), node.GetId(), node.GetName(), testfixtures.TestPool, testfixtures.TestPriorityClasses[testfixtures.PriorityClass2].Priority)
-	jobC1Small := testfixtures.TestJobWithResources("C", testfixtures.PriorityClass2, v1.ResourceList{
-		"cpu": resource.MustParse("1"),
-	}).WithNewRun(node.GetExecutor(), node.GetId(), node.GetName(), testfixtures.TestPool, testfixtures.TestPriorityClasses[testfixtures.PriorityClass2].Priority)
-
-	jobD1 := testfixtures.TestJobWithResources("D", testfixtures.PriorityClass2, v1.ResourceList{
-		"cpu": resource.MustParse("2"),
-	}).WithNewRun(node.GetExecutor(), node.GetId(), node.GetName(), testfixtures.TestPool, testfixtures.TestPriorityClasses[testfixtures.PriorityClass2].Priority)
-	jobD2 := testfixtures.TestJobWithResources("D", testfixtures.PriorityClass2, v1.ResourceList{
-		"cpu": resource.MustParse("2"),
-	}).WithNewRun(node.GetExecutor(), node.GetId(), node.GetName(), testfixtures.TestPool, testfixtures.TestPriorityClasses[testfixtures.PriorityClass2].Priority)
-	jobD3 := testfixtures.TestJobWithResources("D", testfixtures.PriorityClass2, v1.ResourceList{
-		"cpu": resource.MustParse("2"),
-	}).WithNewRun(node.GetExecutor(), node.GetId(), node.GetName(), testfixtures.TestPool, testfixtures.TestPriorityClasses[testfixtures.PriorityClass2].Priority)
-	jobD4 := testfixtures.TestJobWithResources("D", testfixtures.PriorityClass2, v1.ResourceList{
-		"cpu": resource.MustParse("2"),
-	}).WithNewRun(node.GetExecutor(), node.GetId(), node.GetName(), testfixtures.TestPool, testfixtures.TestPriorityClasses[testfixtures.PriorityClass2].Priority)
-	jobD5 := testfixtures.TestJobWithResources("D", testfixtures.PriorityClass2, v1.ResourceList{
-		"cpu": resource.MustParse("2"),
-	}).WithNewRun(node.GetExecutor(), node.GetId(), node.GetName(), testfixtures.TestPool, testfixtures.TestPriorityClasses[testfixtures.PriorityClass2].Priority)
-	jobD6 := testfixtures.TestJobWithResources("D", testfixtures.PriorityClass2, v1.ResourceList{
-		"cpu": resource.MustParse("2"),
-	}).WithNewRun(node.GetExecutor(), node.GetId(), node.GetName(), testfixtures.TestPool, testfixtures.TestPriorityClasses[testfixtures.PriorityClass2].Priority)
+	node := testfixtures.TestNode(testfixtures.TestPriorities, map[string]resource.Quantity{"cpu": resource.MustParse("10")})
+	bigNode := testfixtures.TestNode(testfixtures.TestPriorities, map[string]resource.Quantity{"cpu": resource.MustParse("18")})
+	jobToSchedule := createTestCpuJob("A", 8)
+	smallJobToSchedule := createTestCpuJob("A", 3)
+	bigJobToSchedule := createTestCpuJob("A", 12)
 	tests := map[string]struct {
-		jobToSchedule      *jobdb.Job
-		queues             []*api.Queue
-		node               *internaltypes.Node
-		extraDemand        *armadaresource.ComputeResources
-		extraTotalResource *armadaresource.ComputeResources
-		jobsOnNode         []*jobdb.Job
-		expectedResult     *nodeSchedulingResult
+		jobToSchedule              *jobdb.Job
+		queues                     []*api.Queue
+		node                       *internaltypes.Node
+		extraDemand                *armadaresource.ComputeResources
+		extraTotalResource         *armadaresource.ComputeResources
+		jobsOnNode                 []*jobdb.Job
+		orderedPreemptedJobIndexes []int
+		expectedResult             *nodeSchedulingResult
 	}{
 		"preempt jobs - multiple same queue": {
-			jobToSchedule: jobToSchedule,
-			queues:        []*api.Queue{queueA, queueB},
-			node:          node,
-			jobsOnNode:    []*jobdb.Job{jobB1Large, jobB2Large},
+			jobToSchedule:              jobToSchedule,
+			queues:                     []*api.Queue{queueA, queueB},
+			node:                       node,
+			jobsOnNode:                 []*jobdb.Job{createTestCpuJob("B", 4), createTestCpuJob("B", 4)},
+			orderedPreemptedJobIndexes: []int{1, 0}, // B2, B1 - Will preempt index 1 first, as it is the youngest
 			expectedResult: &nodeSchedulingResult{
 				scheduled:          true,
 				schedulingCost:     0.8,
-				jobIdsToPreempt:    []string{jobB2Large.Id(), jobB1Large.Id()}, // Will preempt job2 first, as it is the youngest
 				maximumQueueImpact: 1,
 				queueCostChanges:   map[string]float64{"B": -0.8},
 			},
 		},
 		"preempt jobs - multiple different queue": {
-			jobToSchedule: jobToSchedule,
-			queues:        []*api.Queue{queueA, queueB, queueC},
-			node:          node,
-			jobsOnNode:    []*jobdb.Job{jobB1, jobB2, jobC1, jobC2},
+			jobToSchedule:              jobToSchedule,
+			queues:                     []*api.Queue{queueA, queueB, queueC},
+			node:                       node,
+			jobsOnNode:                 []*jobdb.Job{createTestCpuJob("B", 2), createTestCpuJob("B", 2), createTestCpuJob("C", 2), createTestCpuJob("C", 2)},
+			orderedPreemptedJobIndexes: []int{3, 1, 2}, // C2, B1, C1
 			expectedResult: &nodeSchedulingResult{
 				scheduled:          true,
 				schedulingCost:     0.6,
-				jobIdsToPreempt:    []string{jobC2.Id(), jobB2.Id(), jobC1.Id()},
 				maximumQueueImpact: 1,
 				queueCostChanges:   map[string]float64{"B": -0.2, "C": -0.4},
 			},
 		},
 		"preempt jobs - mixed queue priorities": {
-			jobToSchedule: jobToSchedule3,
+			jobToSchedule: bigJobToSchedule,
 			queues:        []*api.Queue{queueA, queueB, queueD},
 			node:          bigNode,
 			// This is so we can have all queues below fairshare, total resource is 100
-			extraTotalResource: &armadaresource.ComputeResources{"cpu": resource.MustParse("82")},
-			jobsOnNode:         []*jobdb.Job{jobB1, jobB2, jobB3, jobD1, jobD2, jobD3, jobD4, jobD5, jobD6},
+			extraTotalResource:         &armadaresource.ComputeResources{"cpu": resource.MustParse("82")},
+			jobsOnNode:                 armadaslices.Concatenate(createNTestCpuJob("B", 2, 3), createNTestCpuJob("D", 2, 6)),
+			orderedPreemptedJobIndexes: []int{8, 7, 2, 6, 5, 1}, // D6, D5, B3, D4, D3, B2
 			expectedResult: &nodeSchedulingResult{
 				scheduled:          true,
 				schedulingCost:     0.12,
-				jobIdsToPreempt:    []string{jobD6.Id(), jobD5.Id(), jobB3.Id(), jobD4.Id(), jobD3.Id(), jobB2.Id()},
 				maximumQueueImpact: float64(2) / 3,
 				queueCostChanges:   map[string]float64{"B": -0.04, "D": -0.08},
 			},
 		},
 		"preempt jobs - smallest first": {
-			jobToSchedule: jobToSchedule,
-			queues:        []*api.Queue{queueA, queueB},
-			node:          node,
-			jobsOnNode:    []*jobdb.Job{jobB1, jobB1Large},
+			jobToSchedule:              jobToSchedule,
+			queues:                     []*api.Queue{queueA, queueB},
+			node:                       node,
+			jobsOnNode:                 []*jobdb.Job{createTestCpuJob("B", 2), createTestCpuJob("B", 4)},
+			orderedPreemptedJobIndexes: []int{0, 1}, // B1, B2
 			expectedResult: &nodeSchedulingResult{
 				scheduled:          true,
 				schedulingCost:     0.6,
-				jobIdsToPreempt:    []string{jobB1.Id(), jobB1Large.Id()},
 				maximumQueueImpact: 1,
 				queueCostChanges:   map[string]float64{"B": -0.6},
 			},
 		},
-
 		"preempting jobs above fairshare - 0 cost": {
-			jobToSchedule: jobToSchedule2,
-			queues:        []*api.Queue{queueA, queueB, queueC},
-			node:          node,
-			extraDemand:   &armadaresource.ComputeResources{"cpu": resource.MustParse("10")},
-			jobsOnNode:    []*jobdb.Job{jobB1, jobB2, jobB1Large},
+			jobToSchedule:              smallJobToSchedule,
+			queues:                     []*api.Queue{queueA, queueB, queueC},
+			node:                       node,
+			extraDemand:                &armadaresource.ComputeResources{"cpu": resource.MustParse("10")},
+			jobsOnNode:                 []*jobdb.Job{createTestCpuJob("B", 2), createTestCpuJob("B", 2), createTestCpuJob("B", 4)},
+			orderedPreemptedJobIndexes: []int{1}, // B2
 			expectedResult: &nodeSchedulingResult{
 				scheduled:          true,
-				schedulingCost:     0.0, // Only jobs above fairshare preempted
-				jobIdsToPreempt:    []string{jobB2.Id()},
+				schedulingCost:     0.0,                           // Only jobs above fairshare preempted
 				maximumQueueImpact: 0.25,                          // Queue B has 8 cores scheduled, 2 cores get preempted
 				queueCostChanges:   map[string]float64{"B": -0.2}, // Preempted was 2 cores, 10 cores in total nodeDb, so 0.2 cost
 			},
 		},
-
 		"preempting jobs of lower priority - 0 cost": {
-			jobToSchedule: jobToSchedule,
-			queues:        []*api.Queue{queueA, queueB, queueC},
-			node:          node,
-			jobsOnNode:    []*jobdb.Job{jobB1LowPrio, jobB2LowPrio},
+			jobToSchedule:              jobToSchedule,
+			queues:                     []*api.Queue{queueA, queueB, queueC},
+			node:                       node,
+			jobsOnNode:                 []*jobdb.Job{createTestCpuJobWithPriorityClass("B", 2, testfixtures.PriorityClass0), createTestCpuJobWithPriorityClass("B", 2, testfixtures.PriorityClass0)},
+			orderedPreemptedJobIndexes: []int{1}, // B2
 			expectedResult: &nodeSchedulingResult{
 				scheduled:          true,
 				schedulingCost:     0.0, // Only jobs scheduled at a lower priority preempted
-				jobIdsToPreempt:    []string{jobB2LowPrio.Id()},
 				maximumQueueImpact: 0.5,
 				queueCostChanges:   map[string]float64{"B": -0.2},
 			},
@@ -413,11 +354,14 @@ func TestSchedule_PreemptsExpectedJobs(t *testing.T) {
 			jobToSchedule: jobToSchedule,
 			queues:        []*api.Queue{queueA, queueB, queueC},
 			node:          node,
-			jobsOnNode:    []*jobdb.Job{jobB1LowPrio, jobB1Small, jobB1, jobC1, jobC2, jobC1Small},
+			jobsOnNode: []*jobdb.Job{
+				createTestCpuJobWithPriorityClass("B", 2, testfixtures.PriorityClass0), createTestCpuJob("B", 1), createTestCpuJob("B", 2),
+				createTestCpuJob("C", 2), createTestCpuJob("C", 2), createTestCpuJob("C", 1),
+			},
+			orderedPreemptedJobIndexes: []int{0, 5, 1, 4, 3}, // B1 (low prio), C3 (small), B2 (small), C2, C1
 			expectedResult: &nodeSchedulingResult{
 				scheduled:          true,
 				schedulingCost:     0.5,
-				jobIdsToPreempt:    []string{jobB1LowPrio.Id(), jobC1Small.Id(), jobB1Small.Id(), jobC2.Id(), jobC1.Id()},
 				maximumQueueImpact: 1,
 				queueCostChanges:   map[string]float64{"B": -0.3, "C": -0.5},
 			},
@@ -427,30 +371,36 @@ func TestSchedule_PreemptsExpectedJobs(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			node := tc.node.DeepCopyNilKeys()
 			jctx := context.JobSchedulingContextFromJob(tc.jobToSchedule)
+			jobsOnNode := markedScheduledOnNode(tc.jobsOnNode, node)
 
 			extraCapacity := testfixtures.TestResourceListFactory.FromJobResourceListIgnoreUnknown(map[string]resource.Quantity{})
 			if tc.extraTotalResource != nil {
 				extraCapacity = testfixtures.TestResourceListFactory.FromJobResourceListIgnoreUnknown(*tc.extraTotalResource)
 			}
-			sctx := setUpSctx(t, tc.queues, tc.jobsOnNode, node.GetAllocatableResources().Add(extraCapacity))
+			sctx := setUpSctx(t, tc.queues, jobsOnNode, node.GetAllocatableResources().Add(extraCapacity))
 
 			nodeDb, err := NewNodeDb(testfixtures.TestSchedulingConfig())
 			require.NoError(t, err)
 			nodeDbTxn := nodeDb.Txn(true)
-			err = nodeDb.CreateAndInsertWithJobDbJobsWithTxn(nodeDbTxn, tc.jobsOnNode, node.DeepCopyNilKeys())
+			err = nodeDb.CreateAndInsertWithJobDbJobsWithTxn(nodeDbTxn, jobsOnNode, node.DeepCopyNilKeys())
 			require.NoError(t, err)
 			nodeDbTxn.Commit()
 			node, err = nodeDb.GetNode(node.GetId())
 			require.NoError(t, err)
-			jobDb := testfixtures.NewJobDbWithJobs(tc.jobsOnNode)
-
+			jobDb := testfixtures.NewJobDbWithJobs(jobsOnNode)
 			nodeScheduler := NewPreemptingNodeScheduler(jobDb.ReadTxn(), nil)
+
 			result, err := nodeScheduler.Schedule(FromSchedulingContext(sctx), jctx, node)
 			assert.NoError(t, err)
 
 			for queue, costChange := range result.queueCostChanges {
 				result.queueCostChanges[queue] = roundFloatHighPrecision(costChange)
 			}
+			expectedPreemptedJobIds := make([]string, 0, len(tc.orderedPreemptedJobIndexes))
+			for _, index := range tc.orderedPreemptedJobIndexes {
+				expectedPreemptedJobIds = append(expectedPreemptedJobIds, tc.jobsOnNode[index].Id())
+			}
+			tc.expectedResult.jobIdsToPreempt = expectedPreemptedJobIds
 			assert.Equal(t, tc.expectedResult.scheduled, result.scheduled)
 			assert.Equal(t, tc.expectedResult.schedulingCost, roundFloatHighPrecision(result.schedulingCost))
 			assert.Equal(t, tc.expectedResult.jobIdsToPreempt, result.jobIdsToPreempt)
@@ -576,4 +526,22 @@ func NewNodeDb(config configuration.SchedulingConfig) (*nodedb.NodeDb, error) {
 		return nil, err
 	}
 	return nodeDb, nil
+}
+
+func createTestCpuJob(queueName string, cpu int) *jobdb.Job {
+	return createTestCpuJobWithPriorityClass(queueName, cpu, testfixtures.PriorityClass2)
+}
+
+func createTestCpuJobWithPriorityClass(queueName string, cpu int, priorityClassName string) *jobdb.Job {
+	return testfixtures.TestJobWithResources(queueName, priorityClassName, v1.ResourceList{
+		"cpu": resource.MustParse(strconv.Itoa(cpu)),
+	})
+}
+
+func createNTestCpuJob(queueName string, cpu int, count int) []*jobdb.Job {
+	result := make([]*jobdb.Job, 0, count)
+	for i := 0; i < count; i++ {
+		result = append(result, createTestCpuJob(queueName, cpu))
+	}
+	return result
 }
