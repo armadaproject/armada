@@ -39,7 +39,8 @@ func NewOptimisingQueueScheduler(
 	marketDriven bool,
 	minimumJobSizeToSchedule *internaltypes.ResourceList,
 	maximumJobsToSchedule int,
-	maximumResourceFractionToSchedule map[string]float64) *OptimisingQueueScheduler {
+	maximumResourceFractionToSchedule map[string]float64,
+) *OptimisingQueueScheduler {
 	return &OptimisingQueueScheduler{
 		gangScheduler:                     optimisingScheduler,
 		jobDb:                             jobDb,
@@ -187,8 +188,8 @@ func (q *OptimisingQueueScheduler) Schedule(ctx *armadacontext.Context, sctx *sc
 
 func (q *OptimisingQueueScheduler) createCandidateGangIterator(
 	ctx *armadacontext.Context,
-	sctx *schedulercontext.SchedulingContext) (CandidateGangIterator, error) {
-
+	sctx *schedulercontext.SchedulingContext,
+) (CandidateGangIterator, error) {
 	jobIteratorByQueue := make(map[string]JobContextIterator)
 	for _, qctx := range sctx.QueueSchedulingContexts {
 		// We only want to run on queues that are failing to achieve their fairshare
@@ -221,8 +222,8 @@ func (q *OptimisingQueueScheduler) createCandidateGangIterator(
 
 func (q *OptimisingQueueScheduler) checkIfWillBreachSchedulingLimits(
 	gctx *schedulercontext.GangSchedulingContext,
-	sctx *schedulercontext.SchedulingContext) (bool, string, error) {
-
+	sctx *schedulercontext.SchedulingContext,
+) (bool, string, error) {
 	// TODO Return sctx back to original state somehow
 	ok, unschedulableReason, err := q.constraints.CheckRoundConstraints(sctx)
 	if err != nil || !ok {
@@ -254,7 +255,8 @@ func (q *OptimisingQueueScheduler) checkIfWillBreachSchedulingLimits(
 }
 
 func (q *OptimisingQueueScheduler) updateUnfeasibleSchedulingKeys(gctx *schedulercontext.GangSchedulingContext,
-	sctx *schedulercontext.SchedulingContext, unschedulableReason string) {
+	sctx *schedulercontext.SchedulingContext, unschedulableReason string,
+) {
 	globallyUnschedulable := schedulerconstraints.UnschedulableReasonIsPropertyOfGang(unschedulableReason)
 
 	// Register globally unfeasible scheduling keys.

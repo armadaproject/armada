@@ -302,7 +302,6 @@ func TestOptimisingQueueScheduler_Schedule(t *testing.T) {
 			}
 		})
 	}
-
 }
 
 type StubGangScheduler struct {
@@ -316,7 +315,8 @@ type StubGangScheduler struct {
 func (s *StubGangScheduler) Schedule(
 	ctx *armadacontext.Context,
 	gctx *context.GangSchedulingContext,
-	sctx *context.SchedulingContext) (bool, []*context.JobSchedulingContext, string, error) {
+	sctx *context.SchedulingContext,
+) (bool, []*context.JobSchedulingContext, string, error) {
 	for _, jctx := range gctx.JobSchedulingContexts {
 		jctx.PodSchedulingContext = &context.PodSchedulingContext{
 			SchedulingMethod: context.ScheduledWithFairnessOptimiser,
@@ -332,7 +332,8 @@ func (s *StubGangScheduler) Schedule(
 func createOptimiserConfig(
 	maximumJobsPerRound int,
 	maximumFractionToSchedule map[string]float64,
-	minimumJobSizeToSchedule *armadaresource.ComputeResources) *configuration.OptimiserConfig {
+	minimumJobSizeToSchedule *armadaresource.ComputeResources,
+) *configuration.OptimiserConfig {
 	return &configuration.OptimiserConfig{
 		MaximumJobsPerRound:               maximumJobsPerRound,
 		MaximumResourceFractionToSchedule: maximumFractionToSchedule,

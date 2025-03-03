@@ -98,7 +98,6 @@ func TestSchedule_NodeChecks(t *testing.T) {
 			assert.Equal(t, result.node, tc.node)
 			assert.Equal(t, result.jctx, jctx)
 			assert.NotEmpty(t, result.resultId)
-
 		})
 	}
 }

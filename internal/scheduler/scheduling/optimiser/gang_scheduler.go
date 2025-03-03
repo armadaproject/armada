@@ -29,7 +29,8 @@ func NewFairnessOptimisingScheduler(
 	nodeScheduler NodeScheduler,
 	jobDb jobdb.JobRepository,
 	nodeDb *nodedb.NodeDb,
-	minFairnessImprovementPercentage float64) *FairnessOptimisingGangScheduler {
+	minFairnessImprovementPercentage float64,
+) *FairnessOptimisingGangScheduler {
 	return &FairnessOptimisingGangScheduler{
 		nodeScheduler:                    nodeScheduler,
 		nodeDb:                           nodeDb,

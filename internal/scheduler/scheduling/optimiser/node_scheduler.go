@@ -127,7 +127,8 @@ func (n *PreemptingNodeScheduler) Schedule(schedContext *SchedulingContext, jctx
 func (n *PreemptingNodeScheduler) getPreemptibleJobDetailsByQueue(
 	schedContext *SchedulingContext,
 	jobToSchedule *context.JobSchedulingContext,
-	node *internaltypes.Node) (map[string][]*preemptibleJobDetails, error) {
+	node *internaltypes.Node,
+) (map[string][]*preemptibleJobDetails, error) {
 	queues := map[string][]*preemptibleJobDetails{}
 	start := time.Now()
 	for jobId, resource := range node.AllocatedByJobId {

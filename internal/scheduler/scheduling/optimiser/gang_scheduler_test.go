@@ -203,7 +203,8 @@ type StubNodeScheduler struct {
 }
 
 func (s *StubNodeScheduler) Schedule(schedContext *SchedulingContext,
-	jctx *context.JobSchedulingContext, node *internaltypes.Node) (*nodeSchedulingResult, error) {
+	jctx *context.JobSchedulingContext, node *internaltypes.Node,
+) (*nodeSchedulingResult, error) {
 	if s.scheduleError != nil {
 		return nil, s.scheduleError
 	}
@@ -217,5 +218,4 @@ func (s *StubNodeScheduler) Schedule(schedContext *SchedulingContext,
 		jctx:      jctx,
 		node:      node,
 	}, nil
-
 }
