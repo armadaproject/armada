@@ -151,7 +151,7 @@ func (l *FairSchedulingAlgo) Schedule(
 		}
 
 		start := time.Now()
-		schedulerResult, sctx, err := l.SchedulePool(ctx, fsctx, pool.Name, pool.MarketDriven)
+		schedulerResult, sctx, err := l.SchedulePool(ctx, fsctx, pool)
 
 		ctx.Infof("Scheduled on executor pool %s in %v with error %v", pool.Name, time.Now().Sub(start), err)
 
@@ -570,32 +570,14 @@ func (l *FairSchedulingAlgo) constructSchedulingContext(
 func (l *FairSchedulingAlgo) SchedulePool(
 	ctx *armadacontext.Context,
 	fsctx *FairSchedulingAlgoContext,
-	pool string,
-	marketDriven bool,
+	pool configuration.PoolConfig,
 ) (*SchedulerResult, *schedulercontext.SchedulingContext, error) {
 	totalResources := fsctx.nodeDb.TotalKubernetesResources()
-	totalResources = totalResources.Add(l.floatingResourceTypes.GetTotalAvailableForPool(pool))
-
-	constraints := schedulerconstraints.NewSchedulingConstraints(pool, totalResources, l.schedulingConfig, maps.Values(fsctx.queues))
-
-	var optimiserConfig *configuration.OptimiserConfig
-	shouldRunOptimiser := false
-	for _, poolConfig := range l.schedulingConfig.Pools {
-		if poolConfig.Name == pool {
-			optimiserConfig = poolConfig.Optimiser
-			if optimiserConfig.Enabled {
-				timeOfLastOptimiserRun, ok := l.lastOptimiserRoundTimeByPool[pool]
-				if !ok {
-					shouldRunOptimiser = true
-				} else {
-					timeSinceLastRun := l.clock.Since(timeOfLastOptimiserRun)
-					if timeSinceLastRun > optimiserConfig.Interval {
-						shouldRunOptimiser = true
-					}
-				}
-			}
-			break
-		}
+	totalResources = totalResources.Add(l.floatingResourceTypes.GetTotalAvailableForPool(pool.Name))
+	constraints := schedulerconstraints.NewSchedulingConstraints(pool.Name, totalResources, l.schedulingConfig, maps.Values(fsctx.queues))
+	shouldRunOptimiser := l.shouldRunOptimiser(pool)
+	if shouldRunOptimiser {
+		defer l.updateOptimiserLastRunTime(pool)
 	}
 
 	scheduler := NewPreemptingQueueScheduler(
@@ -608,16 +590,16 @@ func (l *FairSchedulingAlgo) SchedulePool(
 		fsctx.nodeIdByJobId,
 		fsctx.jobIdsByGangId,
 		fsctx.gangIdByJobId,
-		marketDriven,
-		optimiserConfig,
+		pool.MarketDriven,
+		pool.Optimiser,
 		shouldRunOptimiser,
 	)
 
 	ctx.Infof("Scheduling on pool %s with capacity %s protectedFractionOfFairShare %f protectUncappedAdjustedFairShare %t",
 		pool,
-		fsctx.nodeDb.TotalKubernetesResources().Add(l.floatingResourceTypes.GetTotalAvailableForPool(pool)).String(),
-		l.schedulingConfig.GetProtectedFractionOfFairShare(pool),
-		l.schedulingConfig.GetProtectUncappedAdjustedFairShare(pool),
+		fsctx.nodeDb.TotalKubernetesResources().Add(l.floatingResourceTypes.GetTotalAvailableForPool(pool.Name)).String(),
+		l.schedulingConfig.GetProtectedFractionOfFairShare(pool.Name),
+		l.schedulingConfig.GetProtectUncappedAdjustedFairShare(pool.Name),
 	)
 
 	result, err := scheduler.Schedule(ctx)
@@ -652,11 +634,11 @@ func (l *FairSchedulingAlgo) SchedulePool(
 		result.ScheduledJobs[i].Job = jobDbJob.
 			WithQueuedVersion(jobDbJob.QueuedVersion()+1).
 			WithQueued(false).
-			WithNewRun(node.GetExecutor(), node.GetId(), node.GetName(), pool, priority)
+			WithNewRun(node.GetExecutor(), node.GetId(), node.GetName(), pool.Name, priority)
 	}
 
 	// set spot price
-	if marketDriven {
+	if pool.MarketDriven {
 		fractionAllocated := fsctx.schedulingContext.FairnessCostProvider.UnweightedCostFromAllocation(fsctx.schedulingContext.Allocated)
 		price := l.calculateMarketDrivenSpotPrice(maps.Keys(fsctx.nodeIdByJobId), result.ScheduledJobs, result.PreemptedJobs, fractionAllocated, fsctx.Txn)
 		fsctx.schedulingContext.SpotPrice = price
@@ -664,11 +646,25 @@ func (l *FairSchedulingAlgo) SchedulePool(
 		price := l.calculateFairShareDrivenSpotPrice(fsctx.schedulingContext, l.schedulingConfig.ExperimentalIndicativePricing.BasePrice, l.schedulingConfig.ExperimentalIndicativePricing.BasePriority)
 		fsctx.schedulingContext.SpotPrice = price
 	}
-	if shouldRunOptimiser {
-		l.lastOptimiserRoundTimeByPool[pool] = l.clock.Now()
+	return result, fsctx.schedulingContext, nil
+}
+
+func (l *FairSchedulingAlgo) shouldRunOptimiser(pool configuration.PoolConfig) bool {
+	if pool.Optimiser == nil || !pool.Optimiser.Enabled {
+		return false
 	}
 
-	return result, fsctx.schedulingContext, nil
+	timeOfLastOptimiserRun, ok := l.lastOptimiserRoundTimeByPool[pool.Name]
+	if !ok {
+		return true
+	} else if l.clock.Since(timeOfLastOptimiserRun) <= pool.Optimiser.Interval {
+		return true
+	}
+	return false
+}
+
+func (l *FairSchedulingAlgo) updateOptimiserLastRunTime(pool configuration.PoolConfig) {
+	l.lastOptimiserRoundTimeByPool[pool.Name] = l.clock.Now()
 }
 
 // populateNodeDb adds all the nodes and jobs associated with a particular pool to the nodeDb.
