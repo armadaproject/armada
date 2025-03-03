@@ -1,19 +1,19 @@
 package utilisation
 
 import (
-	"github.com/armadaproject/armada/pkg/executorapi"
-	"github.com/stretchr/testify/require"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
-	util2 "github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/executor/domain"
 	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/executorapi"
 )
 
 const nodeIdLabel = "node-id"
@@ -316,14 +316,14 @@ func makePodWithResource(queue string, resource v1.ResourceList, priority *int32
 			Priority: priority,
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: util2.NewULID(),
+			Name: util.NewULID(),
 		},
 		Status: v1.PodStatus{
 			Phase: v1.PodRunning,
 		},
 	}
 	if queue != "" {
-		pod.ObjectMeta.Labels = map[string]string{domain.JobId: util2.NewULID(), domain.Queue: queue}
+		pod.ObjectMeta.Labels = map[string]string{domain.JobId: util.NewULID(), domain.Queue: queue}
 	}
 	return pod
 }
@@ -363,7 +363,6 @@ func TestGetCordonedResource(t *testing.T) {
 }
 
 func TestCalculateNonArmadaResource(t *testing.T) {
-
 	oneCpu := resource.MustParse("1")
 	twoCpu := resource.MustParse("2")
 	threeCpu := resource.MustParse("3")
