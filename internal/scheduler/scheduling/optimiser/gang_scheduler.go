@@ -19,23 +19,22 @@ type GangScheduler interface {
 }
 
 type FairnessOptimisingGangScheduler struct {
-	nodeScheduler                *PreemptingNodeScheduler
-	jobDb                        jobdb.JobRepository
-	nodeDb                       *nodedb.NodeDb
-	factory                      *internaltypes.ResourceListFactory
-	fairnessImprovementThreshold float64
+	nodeScheduler                    NodeScheduler
+	jobDb                            jobdb.JobRepository
+	nodeDb                           *nodedb.NodeDb
+	minFairnessImprovementPercentage float64
 }
 
 func NewFairnessOptimisingScheduler(
-	nodeScheduler *PreemptingNodeScheduler,
+	nodeScheduler NodeScheduler,
 	jobDb jobdb.JobRepository,
 	nodeDb *nodedb.NodeDb,
-	fairnessImprovementThreshold float64) *FairnessOptimisingGangScheduler {
+	minFairnessImprovementPercentage float64) *FairnessOptimisingGangScheduler {
 	return &FairnessOptimisingGangScheduler{
-		nodeScheduler:                nodeScheduler,
-		nodeDb:                       nodeDb,
-		jobDb:                        jobDb,
-		fairnessImprovementThreshold: fairnessImprovementThreshold,
+		nodeScheduler:                    nodeScheduler,
+		nodeDb:                           nodeDb,
+		jobDb:                            jobDb,
+		minFairnessImprovementPercentage: minFairnessImprovementPercentage,
 	}
 }
 
@@ -109,8 +108,8 @@ func (n *FairnessOptimisingGangScheduler) scheduleOnNodes(gctx *context.GangSche
 				break
 			}
 
-			improvement := cost / result.schedulingCost
-			if improvement < n.fairnessImprovementThreshold {
+			improvementPercentage := ((cost / result.schedulingCost) * 100) - 100
+			if improvementPercentage > n.minFairnessImprovementPercentage {
 				candidateNodes = append(candidateNodes, result)
 			}
 		}

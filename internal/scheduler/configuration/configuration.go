@@ -292,14 +292,14 @@ type PoolConfig struct {
 }
 
 type OptimiserConfig struct {
-	Enabled                           bool
-	Interval                          time.Duration
-	Timeout                           time.Duration `validate:"required"`
-	MaximumJobsPerRound               int
-	MaximumResourceFractionToSchedule map[string]float64
-	MinimumJobSizeToSchedule          *armadaresource.ComputeResources
-	MaximumJobSizeToPreempt           *armadaresource.ComputeResources
-	FairnessImprovementThreshold      float64
+	Enabled                              bool
+	Interval                             time.Duration
+	Timeout                              time.Duration `validate:"required"`
+	MaximumJobsPerRound                  int
+	MaximumResourceFractionToSchedule    map[string]float64
+	MinimumJobSizeToSchedule             *armadaresource.ComputeResources
+	MaximumJobSizeToPreempt              *armadaresource.ComputeResources
+	MinimumFairnessImprovementPercentage float64
 }
 
 func (sc *SchedulingConfig) GetProtectedFractionOfFairShare(poolName string) float64 {
