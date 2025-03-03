@@ -17,6 +17,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/fairness"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 func TestFairnessOptimisingScheduler_Schedule(t *testing.T) {
@@ -149,37 +150,12 @@ func TestFairnessOptimisingScheduler_Schedule(t *testing.T) {
 				improvementThreshold = tc.MinFairnessImprovementPercentage
 			}
 			gangScheduler := NewFairnessOptimisingScheduler(stubNodeScheduler, jobDbTxn, nodeDb, improvementThreshold)
-
-			fairnessCostProvider, err := fairness.NewDominantResourceFairness(
-				totalResource,
-				testfixtures.TestSchedulingConfig(),
-			)
-			require.NoError(t, err)
-
-			sctx := context.NewSchedulingContext(
-				testfixtures.TestPool,
-				fairnessCostProvider,
-				nil,
-				totalResource,
-			)
-			for _, q := range queues {
-				weight := 1.0 / float64(q.PriorityFactor)
-				unlimitedDemand := testfixtures.CpuMem("10000", "100000Gi")
-				err := sctx.AddQueueSchedulingContext(
-					q.Name, weight, weight,
-					map[string]internaltypes.ResourceList{testfixtures.PriorityClass2: sumRequestedResource(jobsByQueue[q.Name])},
-					unlimitedDemand,
-					unlimitedDemand,
-					nil,
-				)
-				require.NoError(t, err)
-			}
-			sctx.UpdateFairShares()
+			sctx := createSctx(t, totalResource, queues, jobsByQueue)
 
 			ctx := armadacontext.Background()
 			scheduled, preemptedJobs, reason, err := gangScheduler.Schedule(ctx, gctx, sctx)
 			assert.NoError(t, err)
-			expectedNodesToBeScheduledOn := []*internaltypes.Node{tc.Nodes[tc.ExpectedNodeIndex].Node}
+			expectedScheduledNodes := []*internaltypes.Node{tc.Nodes[tc.ExpectedNodeIndex].Node}
 			if tc.ShouldSchedule {
 				assert.Empty(t, reason)
 				assert.True(t, scheduled)
@@ -192,10 +168,10 @@ func TestFairnessOptimisingScheduler_Schedule(t *testing.T) {
 				assert.NotEmpty(t, reason)
 				assert.False(t, scheduled)
 				assert.Empty(t, preemptedJobs)
-				expectedNodesToBeScheduledOn = []*internaltypes.Node{}
+				expectedScheduledNodes = []*internaltypes.Node{}
 			}
-			assertExpectedJctxUpdates(t, sctx, gctx, expectedNodesToBeScheduledOn, tc.ShouldSchedule)
-			assertExpectedNodeUpdates(t, gctx, preemptedJobs, nodeDb, nodes, expectedNodesToBeScheduledOn)
+			assertExpectedJctxUpdates(t, sctx, gctx, expectedScheduledNodes, tc.ShouldSchedule)
+			assertExpectedNodeUpdates(t, gctx, preemptedJobs, nodeDb, nodes, expectedScheduledNodes)
 			assertExpectedSctxUpdates(t, sctx, preemptedJobs, jobsByQueue)
 		})
 	}
@@ -342,39 +318,14 @@ func TestFairnessOptimisingScheduler_Schedule_WhenSubmittingGangs(t *testing.T) 
 			}
 			nodeScheduler := NewPreemptingNodeScheduler(jobDbTxn, nil)
 			gangScheduler := NewFairnessOptimisingScheduler(nodeScheduler, jobDbTxn, nodeDb, improvementThreshold)
-
-			fairnessCostProvider, err := fairness.NewDominantResourceFairness(
-				totalResource,
-				testfixtures.TestSchedulingConfig(),
-			)
-			require.NoError(t, err)
-
-			sctx := context.NewSchedulingContext(
-				testfixtures.TestPool,
-				fairnessCostProvider,
-				nil,
-				totalResource,
-			)
-			for _, q := range queues {
-				weight := 1.0 / float64(q.PriorityFactor)
-				unlimitedDemand := testfixtures.CpuMem("10000", "100000Gi")
-				err := sctx.AddQueueSchedulingContext(
-					q.Name, weight, weight,
-					map[string]internaltypes.ResourceList{testfixtures.PriorityClass2: sumRequestedResource(jobsByQueue[q.Name])},
-					unlimitedDemand,
-					unlimitedDemand,
-					nil,
-				)
-				require.NoError(t, err)
-			}
-			sctx.UpdateFairShares()
+			sctx := createSctx(t, totalResource, queues, jobsByQueue)
 
 			ctx := armadacontext.Background()
 			scheduled, preemptedJobs, reason, err := gangScheduler.Schedule(ctx, gctx, sctx)
 			assert.NoError(t, err)
-			expectedNodesToBeScheduledOn := []*internaltypes.Node{}
+			expectedScheduledNodes := []*internaltypes.Node{}
 			for _, index := range tc.ExpectedNodeIndex {
-				expectedNodesToBeScheduledOn = append(expectedNodesToBeScheduledOn, tc.Nodes[index].Node)
+				expectedScheduledNodes = append(expectedScheduledNodes, tc.Nodes[index].Node)
 			}
 			if tc.ShouldSchedule {
 				assert.Empty(t, reason)
@@ -388,13 +339,130 @@ func TestFairnessOptimisingScheduler_Schedule_WhenSubmittingGangs(t *testing.T) 
 				assert.NotEmpty(t, reason)
 				assert.False(t, scheduled)
 				assert.Empty(t, preemptedJobs)
-				expectedNodesToBeScheduledOn = []*internaltypes.Node{}
+				expectedScheduledNodes = []*internaltypes.Node{}
 			}
-			assertExpectedJctxUpdates(t, sctx, gctx, expectedNodesToBeScheduledOn, tc.ShouldSchedule)
-			assertExpectedNodeUpdates(t, gctx, preemptedJobs, nodeDb, nodes, expectedNodesToBeScheduledOn)
+			assertExpectedJctxUpdates(t, sctx, gctx, expectedScheduledNodes, tc.ShouldSchedule)
+			assertExpectedNodeUpdates(t, gctx, preemptedJobs, nodeDb, nodes, expectedScheduledNodes)
 			assertExpectedSctxUpdates(t, sctx, preemptedJobs, jobsByQueue)
 		})
 	}
+}
+
+func TestFairnessOptimisingScheduler_ScheduleGangsEvenly(t *testing.T) {
+	queues := armadaslices.Concatenate(testfixtures.SingleQueuePriorityOne("A"), testfixtures.SingleQueuePriorityOne("B"), testfixtures.SingleQueuePriorityOne("C"))
+	totalResource := testfixtures.CpuMem("100", "20000Gi")
+	queueBJobs := testfixtures.N1Cpu4GiJobs("B", testfixtures.PriorityClass1, 10)
+	queueCJobs := testfixtures.N1Cpu4GiJobs("C", testfixtures.PriorityClass1, 10)
+
+	type NodeInfo struct {
+		Node *internaltypes.Node
+		Jobs []*jobdb.Job
+	}
+
+	job1 := testfixtures.Test16Cpu128GiJob("A", testfixtures.PriorityClass1)
+	job2 := testfixtures.Test16Cpu128GiJob("A", testfixtures.PriorityClass1)
+	job3 := testfixtures.Test16Cpu128GiJob("A", testfixtures.PriorityClass1)
+	job4 := testfixtures.Test16Cpu128GiJob("A", testfixtures.PriorityClass1)
+
+	tests := map[string]struct {
+		Nodes []*NodeInfo
+		// Jobs to try scheduling as a gang
+		Jobs                         []*jobdb.Job
+		ExpectedPreemptedJobsByQueue map[string]int
+	}{
+		"should schedule gang evenly over queues": {
+			Nodes: []*NodeInfo{
+				{Node: createTest16CpuNodeWithLabel(testfixtures.ClusterNameLabel, "cluster1"), Jobs: []*jobdb.Job{queueBJobs[0]}},
+				{Node: createTest16CpuNodeWithLabel(testfixtures.ClusterNameLabel, "cluster1"), Jobs: []*jobdb.Job{queueBJobs[1]}},
+				{Node: createTest16CpuNodeWithLabel(testfixtures.ClusterNameLabel, "cluster1"), Jobs: []*jobdb.Job{queueBJobs[2]}},
+				{Node: createTest16CpuNodeWithLabel(testfixtures.ClusterNameLabel, "cluster1"), Jobs: []*jobdb.Job{queueCJobs[0]}},
+				{Node: createTest16CpuNodeWithLabel(testfixtures.ClusterNameLabel, "cluster1"), Jobs: []*jobdb.Job{queueCJobs[1]}},
+				{Node: createTest16CpuNodeWithLabel(testfixtures.ClusterNameLabel, "cluster1"), Jobs: []*jobdb.Job{queueCJobs[2]}},
+			},
+			Jobs: testfixtures.WithNodeUniformityGangAnnotationsJobs([]*jobdb.Job{job1.DeepCopy(), job2.DeepCopy(), job3.DeepCopy(), job4.DeepCopy()}, testfixtures.ClusterNameLabel),
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			jobDb := testfixtures.NewJobDbWithJobs(armadaslices.Concatenate(queueBJobs, queueCJobs))
+			nodeDb, err := NewNodeDb(testfixtures.TestSchedulingConfig())
+			require.NoError(t, err)
+			jctxs := make([]*context.JobSchedulingContext, 0, len(tc.Jobs))
+			for _, job := range tc.Jobs {
+				jctx := context.JobSchedulingContextFromJob(job)
+				jctxs = append(jctxs, jctx)
+			}
+			gctx := context.NewGangSchedulingContext(jctxs)
+
+			txn := nodeDb.Txn(true)
+			allRunningJobs := []*jobdb.Job{}
+			for _, nodeInfo := range tc.Nodes {
+				jobs := assignJobsToNode(nodeInfo.Jobs, nodeInfo.Node)
+				err = nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, jobs, nodeInfo.Node.DeepCopyNilKeys())
+				require.NoError(t, err)
+				allRunningJobs = append(allRunningJobs, jobs...)
+			}
+			txn.Commit()
+			jobDbTxn := jobDb.WriteTxn()
+			allJobs := append(allRunningJobs, tc.Jobs...)
+			err = jobDbTxn.Upsert(allJobs)
+			require.NoError(t, err)
+			jobDbTxn.Commit()
+
+			jobsByQueue := armadaslices.GroupByFunc(allRunningJobs, func(job *jobdb.Job) string {
+				return job.Queue()
+			})
+
+			improvementThreshold := float64(-100000) // Effectively no threshold
+			nodeScheduler := NewPreemptingNodeScheduler(jobDbTxn, nil)
+			gangScheduler := NewFairnessOptimisingScheduler(nodeScheduler, jobDbTxn, nodeDb, improvementThreshold)
+			sctx := createSctx(t, totalResource, queues, jobsByQueue)
+
+			ctx := armadacontext.Background()
+			scheduled, preemptedJobs, reason, err := gangScheduler.Schedule(ctx, gctx, sctx)
+			assert.NoError(t, err)
+			assert.Empty(t, reason)
+			assert.True(t, scheduled)
+
+			preemptedJobsByQueue := armadaslices.GroupByFunc(preemptedJobs, func(jctx *context.JobSchedulingContext) string {
+				return jctx.Job.Queue()
+			})
+			for queue, expectedPreemptedJobs := range tc.ExpectedPreemptedJobsByQueue {
+				preemptedJobs := preemptedJobsByQueue[queue]
+				assert.Len(t, preemptedJobs, expectedPreemptedJobs)
+			}
+		})
+	}
+}
+
+func createSctx(t *testing.T, totalResource internaltypes.ResourceList, queues []*api.Queue, runningJobsByQueue map[string][]*jobdb.Job) *context.SchedulingContext {
+	fairnessCostProvider, err := fairness.NewDominantResourceFairness(
+		totalResource,
+		testfixtures.TestSchedulingConfig(),
+	)
+	require.NoError(t, err)
+
+	sctx := context.NewSchedulingContext(
+		testfixtures.TestPool,
+		fairnessCostProvider,
+		nil,
+		totalResource,
+	)
+	for _, q := range queues {
+		weight := 1.0 / float64(q.PriorityFactor)
+		unlimitedDemand := testfixtures.CpuMem("10000", "100000Gi")
+		err := sctx.AddQueueSchedulingContext(
+			q.Name, weight, weight,
+			map[string]internaltypes.ResourceList{testfixtures.PriorityClass2: sumRequestedResource(runningJobsByQueue[q.Name])},
+			unlimitedDemand,
+			unlimitedDemand,
+			nil,
+		)
+		require.NoError(t, err)
+	}
+	sctx.UpdateFairShares()
+	return sctx
 }
 
 func assertExpectedNodeUpdates(
