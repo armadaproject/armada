@@ -596,7 +596,7 @@ func (l *FairSchedulingAlgo) SchedulePool(
 	)
 
 	ctx.Infof("Scheduling on pool %s with capacity %s protectedFractionOfFairShare %f protectUncappedAdjustedFairShare %t",
-		pool,
+		pool.Name,
 		fsctx.nodeDb.TotalKubernetesResources().Add(l.floatingResourceTypes.GetTotalAvailableForPool(pool.Name)).String(),
 		l.schedulingConfig.GetProtectedFractionOfFairShare(pool.Name),
 		l.schedulingConfig.GetProtectUncappedAdjustedFairShare(pool.Name),

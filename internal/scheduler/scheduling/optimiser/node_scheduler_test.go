@@ -190,8 +190,7 @@ func TestSchedule_JobChecks(t *testing.T) {
 				node.GetAllocatableResources(),
 			)
 
-			var weight float64 = 1
-			weight = 1 / float64(2)
+			weight := 1 / float64(2)
 			err = sctx.AddQueueSchedulingContext(
 				"A",
 				weight,
@@ -562,8 +561,7 @@ func TestSchedule_Errors_WhenInformationMissingFromState(t *testing.T) {
 		node.GetAllocatableResources(),
 	)
 
-	var weight float64 = 1
-	weight = 1 / float64(2)
+	weight := 1 / float64(2)
 	err = sctx.AddQueueSchedulingContext(
 		"A",
 		weight,

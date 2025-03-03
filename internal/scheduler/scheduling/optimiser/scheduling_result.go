@@ -7,7 +7,6 @@ import (
 
 type schedulingResult struct {
 	scheduled      bool
-	reason         string
 	schedulingCost float64
 	results        []*nodeSchedulingResult
 	// Used to tie-break when sorting

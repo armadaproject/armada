@@ -172,7 +172,6 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
 						"A": testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 32),
-						"B": testfixtures.N1Cpu4GiJobs("B", testfixtures.PriorityClass0, 32),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"A": testfixtures.IntRange(0, 31),
