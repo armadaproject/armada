@@ -60,7 +60,6 @@ func NewPreemptingQueueScheduler(
 	initialJobIdsByGangId map[string]map[string]bool,
 	initialGangIdByJobId map[string]string,
 	marketDriven bool,
-	optimiserConfig *configuration.OptimiserConfig,
 	optimiserEnabled bool,
 ) *PreemptingQueueScheduler {
 	if initialNodeIdByJobId == nil {
@@ -91,7 +90,7 @@ func NewPreemptingQueueScheduler(
 		jobIdsByGangId:                   initialJobIdsByGangId,
 		gangIdByJobId:                    maps.Clone(initialGangIdByJobId),
 		marketDriven:                     marketDriven,
-		optimiserConfig:                  optimiserConfig,
+		optimiserConfig:                  config.GetOptimiserConfig(sctx.Pool),
 		optimiserEnabled:                 optimiserEnabled,
 	}
 }

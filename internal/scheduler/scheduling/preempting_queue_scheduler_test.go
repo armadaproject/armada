@@ -2111,7 +2111,6 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					jobIdsByGangId,
 					gangIdByJobId,
 					false,
-					tc.SchedulingConfig.GetOptimiserConfig(testfixtures.TestPool),
 					round.OptimiserEnabled,
 				)
 				result, err := sch.Schedule(ctx)
@@ -2463,7 +2462,6 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 				nil,
 				nil,
 				false,
-				nil,
 				false,
 			)
 			result, err := sch.Schedule(ctx)
@@ -2528,7 +2526,6 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 					nil,
 					nil,
 					false,
-					nil,
 					false,
 				)
 				result, err := sch.Schedule(ctx)

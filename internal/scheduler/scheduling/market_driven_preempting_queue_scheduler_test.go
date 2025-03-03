@@ -473,7 +473,6 @@ func TestMarketDrivenPreemptingQueueScheduler(t *testing.T) {
 					jobIdsByGangId,
 					gangIdByJobId,
 					true,
-					nil,
 					false,
 				)
 
