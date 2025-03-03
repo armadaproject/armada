@@ -9,7 +9,7 @@ import _ from "lodash"
 import dialogStyles from "./DialogStyles.module.css"
 import { JobStatusTable } from "./JobStatusTable"
 import { useCustomSnackbar } from "../../hooks/useCustomSnackbar"
-import { isTerminatedJobState, Job, JobFilter, JobId } from "../../models/lookoutModels"
+import { isTerminatedJobState, Job, JobFiltersWithExcludes, JobId } from "../../models/lookoutModels"
 import { useGetAccessToken } from "../../oidcAuth"
 import { IGetJobsService } from "../../services/lookout/GetJobsService"
 import { UpdateJobsService } from "../../services/lookout/UpdateJobsService"
@@ -19,7 +19,7 @@ import { formatJobState } from "../../utils/jobsTableFormatters"
 
 interface CancelDialogProps {
   onClose: () => void
-  selectedItemFilters: JobFilter[][]
+  selectedItemFilters: JobFiltersWithExcludes[]
   getJobsService: IGetJobsService
   updateJobsService: UpdateJobsService
 }

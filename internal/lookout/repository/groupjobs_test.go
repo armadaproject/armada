@@ -15,9 +15,9 @@ import (
 	"github.com/armadaproject/armada/internal/common/database/lookout"
 	"github.com/armadaproject/armada/internal/common/pointer"
 	"github.com/armadaproject/armada/internal/lookout/model"
-	"github.com/armadaproject/armada/internal/lookoutingesterv2/instructions"
-	"github.com/armadaproject/armada/internal/lookoutingesterv2/lookoutdb"
-	"github.com/armadaproject/armada/internal/lookoutingesterv2/metrics"
+	"github.com/armadaproject/armada/internal/lookoutingester/instructions"
+	"github.com/armadaproject/armada/internal/lookoutingester/lookoutdb"
+	"github.com/armadaproject/armada/internal/lookoutingester/metrics"
 )
 
 func withGroupJobsSetup(f func(*instructions.InstructionConverter, *lookoutdb.LookoutDb, *SqlGroupJobsRepository) error) error {
@@ -1575,7 +1575,7 @@ func makeCancelled(opts *createJobsOpts, converter *instructions.InstructionConv
 		Submit(opts.queue, opts.jobSet, owner, namespace, tSubmit, &JobOptions{
 			Annotations: opts.annotations,
 		}).
-		Cancelled(lastTransitionTime).
+		Cancelled(lastTransitionTime, cancelUser).
 		Build()
 }
 

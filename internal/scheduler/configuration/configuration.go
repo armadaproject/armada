@@ -282,10 +282,11 @@ type WellKnownNodeType struct {
 }
 
 type PoolConfig struct {
-	Name                         string `validate:"required"`
-	AwayPools                    []string
-	ProtectedFractionOfFairShare *float64
-	MarketDriven                 bool
+	Name                                         string `validate:"required"`
+	AwayPools                                    []string
+	ProtectedFractionOfFairShare                 *float64
+	MarketDriven                                 bool
+	ExperimentalProtectUncappedAdjustedFairShare bool
 }
 
 func (sc *SchedulingConfig) GetProtectedFractionOfFairShare(poolName string) float64 {
@@ -295,6 +296,15 @@ func (sc *SchedulingConfig) GetProtectedFractionOfFairShare(poolName string) flo
 		}
 	}
 	return sc.ProtectedFractionOfFairShare
+}
+
+func (sc *SchedulingConfig) GetProtectUncappedAdjustedFairShare(poolName string) bool {
+	for _, poolConfig := range sc.Pools {
+		if poolConfig.Name == poolName {
+			return poolConfig.ExperimentalProtectUncappedAdjustedFairShare
+		}
+	}
+	return false
 }
 
 type ExperimentalIndicativePricing struct {

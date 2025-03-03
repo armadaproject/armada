@@ -47,6 +47,7 @@ type Job struct {
 	Validated               bool      `db:"validated"`
 	Pools                   []string  `db:"pools"`
 	BidPrice                float64   `db:"bid_price"`
+	CancelUser              *string   `db:"cancel_user"`
 }
 
 type JobRunError struct {

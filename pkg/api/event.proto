@@ -170,6 +170,7 @@ message JobUtilisationEvent {
     string pod_name = 10;
     string pod_namespace = 11;
     map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> total_cumulative_usage = 12;
+    map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> AvgResourcesForPeriod = 13;
 }
 
 message JobReprioritizingEvent {

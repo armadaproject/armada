@@ -2,7 +2,7 @@
   <configuration default="false" name="Armada" type="CompoundRunConfigurationType">
     <toRun name="Event Ingester" type="GoApplicationRunConfiguration" />
     <toRun name="Executor" type="GoApplicationRunConfiguration" />
-    <toRun name="Lookout Ingester V2" type="GoApplicationRunConfiguration" />
+    <toRun name="Lookout Ingester" type="GoApplicationRunConfiguration" />
     <toRun name="Lookout" type="GoApplicationRunConfiguration" />
     <toRun name="Scheduler" type="GoApplicationRunConfiguration" />
     <toRun name="Scheduler Ingester" type="GoApplicationRunConfiguration" />

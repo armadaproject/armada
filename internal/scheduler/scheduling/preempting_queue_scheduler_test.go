@@ -2051,13 +2051,14 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 						func(qn string) *api.Queue { return &api.Queue{Name: qn} },
 					))
 				sctx.UpdateFairShares()
+
+				tc.SchedulingConfig.EnablePreferLargeJobOrdering = true
+
 				sch := NewPreemptingQueueScheduler(
 					sctx,
 					constraints,
 					testfixtures.TestEmptyFloatingResources,
-					true,
-					tc.SchedulingConfig.ProtectedFractionOfFairShare,
-					tc.SchedulingConfig.MaxQueueLookback,
+					tc.SchedulingConfig,
 					jobDbTxn,
 					nodeDb,
 					nodeIdByJobId,
@@ -2401,13 +2402,14 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 					func(qn string) *api.Queue { return &api.Queue{Name: qn} },
 				),
 			)
+
+			tc.SchedulingConfig.EnablePreferLargeJobOrdering = true
+
 			sch := NewPreemptingQueueScheduler(
 				sctx,
 				constraints,
 				testfixtures.TestEmptyFloatingResources,
-				true,
-				tc.SchedulingConfig.ProtectedFractionOfFairShare,
-				tc.SchedulingConfig.MaxQueueLookback,
+				tc.SchedulingConfig,
 				jobDbTxn,
 				nodeDb,
 				nil,
@@ -2463,13 +2465,14 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 						internaltypes.ResourceList{}, internaltypes.ResourceList{}, limiterByQueue[queue])
 					require.NoError(b, err)
 				}
+
+				tc.SchedulingConfig.EnablePreferLargeJobOrdering = true
+
 				sch := NewPreemptingQueueScheduler(
 					sctx,
 					constraints,
 					testfixtures.TestEmptyFloatingResources,
-					true,
-					tc.SchedulingConfig.ProtectedFractionOfFairShare,
-					tc.SchedulingConfig.MaxQueueLookback,
+					tc.SchedulingConfig,
 					jobDbTxn,
 					nodeDb,
 					nil,

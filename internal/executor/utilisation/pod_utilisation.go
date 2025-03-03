@@ -8,7 +8,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 
 	log "github.com/armadaproject/armada/internal/common/logging"
-	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	commonUtil "github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/executor/configuration"
 	clusterContext "github.com/armadaproject/armada/internal/executor/context"
@@ -115,10 +114,7 @@ func (q *PodUtilisationServiceImpl) RefreshUtilisationData() {
 
 	podNameToUtilisationData := map[string]*domain.UtilisationData{}
 	for _, podName := range podNames {
-		podNameToUtilisationData[podName] = &domain.UtilisationData{
-			CurrentUsage:    armadaresource.ComputeResources{},
-			CumulativeUsage: armadaresource.ComputeResources{},
-		}
+		podNameToUtilisationData[podName] = domain.EmptyUtilisationData()
 	}
 
 	for _, fetcher := range q.fetchers {

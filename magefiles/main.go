@@ -152,7 +152,16 @@ func KindTeardown() {
 // Generate scheduler SQL.
 func Sql() error {
 	mg.Deps(sqlcCheck)
-	return sqlcRun("generate", "-f", "internal/scheduler/database/sql.yaml")
+
+	if err := sqlcRun("generate", "-f", "internal/scheduler/database/sql.yaml"); err != nil {
+		return err
+	}
+
+	if err := sqlcRun("generate", "-f", "internal/server/queryapi/database/sql.yaml"); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // Generate Helm documentation.
@@ -321,7 +330,7 @@ func Generate() error {
 
 // CI Image to build
 func BuildCI() error {
-	ciImage := []string{"bundle", "lookout-bundle", "server", "executor", "armadactl", "testsuite", "lookout", "lookoutingesterv2", "eventingester", "scheduler", "scheduleringester", "binoculars"}
+	ciImage := []string{"bundle", "lookout-bundle", "server", "executor", "armadactl", "testsuite", "lookout", "lookoutingester", "eventingester", "scheduler", "scheduleringester", "binoculars"}
 	err := goreleaserMinimalRelease(ciImage...)
 	if err != nil {
 		return err
