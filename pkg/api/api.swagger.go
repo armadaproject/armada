@@ -788,15 +788,6 @@ func SwaggerJsonTemplate() string {
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +
-		"    \"apiExperimentalPriceInfo\": {\n" +
-		"      \"type\": \"object\",\n" +
-		"      \"properties\": {\n" +
-		"        \"bidPrice\": {\n" +
-		"          \"type\": \"number\",\n" +
-		"          \"format\": \"double\"\n" +
-		"        }\n" +
-		"      }\n" +
-		"    },\n" +
 		"    \"apiIngressConfig\": {\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
@@ -854,9 +845,6 @@ func SwaggerJsonTemplate() string {
 		"        \"created\": {\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"format\": \"date-time\"\n" +
-		"        },\n" +
-		"        \"experimentalPriceInfo\": {\n" +
-		"          \"$ref\": \"#/definitions/apiExperimentalPriceInfo\"\n" +
 		"        },\n" +
 		"        \"id\": {\n" +
 		"          \"type\": \"string\"\n" +
@@ -1743,9 +1731,6 @@ func SwaggerJsonTemplate() string {
 		"        },\n" +
 		"        \"clientId\": {\n" +
 		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"experimentalPriceInfo\": {\n" +
-		"          \"$ref\": \"#/definitions/apiExperimentalPriceInfo\"\n" +
 		"        },\n" +
 		"        \"ingress\": {\n" +
 		"          \"type\": \"array\",\n" +

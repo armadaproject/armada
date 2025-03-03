@@ -777,15 +777,6 @@
         }
       }
     },
-    "apiExperimentalPriceInfo": {
-      "type": "object",
-      "properties": {
-        "bidPrice": {
-          "type": "number",
-          "format": "double"
-        }
-      }
-    },
     "apiIngressConfig": {
       "type": "object",
       "properties": {
@@ -843,9 +834,6 @@
         "created": {
           "type": "string",
           "format": "date-time"
-        },
-        "experimentalPriceInfo": {
-          "$ref": "#/definitions/apiExperimentalPriceInfo"
         },
         "id": {
           "type": "string"
@@ -1732,9 +1720,6 @@
         },
         "clientId": {
           "type": "string"
-        },
-        "experimentalPriceInfo": {
-          "$ref": "#/definitions/apiExperimentalPriceInfo"
         },
         "ingress": {
           "type": "array",
