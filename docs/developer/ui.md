@@ -24,7 +24,7 @@ yarn dev
 
 This will start a live development server on [http://localhost:3000](http://localhost:3000).
 
-Note that this will require the Lookout V2 API and other Armada components to run as well in order to work.
+Note that this will require the Lookout API and other Armada components to run as well in order to work.
 However, you can use fake data to develop locally without requiring any other component to run.
 
 In order to use fake data, navigate to the V2 tab, then specify `fakeData=` in the query parameters.
