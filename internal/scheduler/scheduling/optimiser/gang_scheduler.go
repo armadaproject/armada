@@ -39,6 +39,9 @@ func NewFairnessOptimisingScheduler(
 	}
 }
 
+// Schedule
+// It will group nodes by the nodeUniformity of the gang
+// Attempt t schedule against each group of nodes independently and then pick the best result
 func (n *FairnessOptimisingGangScheduler) Schedule(ctx *armadacontext.Context, gctx *context.GangSchedulingContext, sctx *context.SchedulingContext) (bool, []*context.JobSchedulingContext, string, error) {
 	nodes, err := n.nodeDb.GetNodes()
 	if err != nil {
@@ -82,6 +85,15 @@ func (n *FairnessOptimisingGangScheduler) Schedule(ctx *armadacontext.Context, g
 	return true, allPreemptedJobs, "", nil
 }
 
+// scheduleOnNodes
+// The function attempts to schedule a gang onto the nodes provided
+// It uses the nodeScheduler to score each node and picks the best one that exceeds the minFairnessImprovementPercentage
+// - If no jobs exceed the minFairnessImprovementPercentage, no scheduling is performed
+// The function maintains an internal state that is used if the gang contains more than one job
+// - After each time a job is "scheduled" the internal state is updated to reflect this scheduling
+// - This is so an updated state can be passed to the nodeScheduler so it can make better decisions
+//   - Scheduling a job will likely preempt some jobs.
+//   - The queues with preempted jobs will therefore have their current share reduced, so should be less likely to be preempted for the next job scheduled
 func (n *FairnessOptimisingGangScheduler) scheduleOnNodes(gctx *context.GangSchedulingContext, sctx *context.SchedulingContext, nodes []*internaltypes.Node) (*schedulingResult, error) {
 	combinedResult := &schedulingResult{
 		scheduled:      true,

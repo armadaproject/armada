@@ -32,6 +32,16 @@ func NewPreemptingNodeScheduler(jobDb jobdb.JobRepository, maximumJobSizeToPreem
 	}
 }
 
+// Schedule
+// This function is responsible for determining if a job can be scheduled on a node, and the cost to do so
+// High level steps:
+// - Determine all the jobs that can be preempted
+// - Order these jobs in the ideal order to preempt them in
+//   - Group these jobs by queue and order them by the order that queue would want those jobs ordered
+//   - This will give you N ordered lists, one of each queue
+//   - Combine these ordered lists into a "global" order, which is the ideal order to preempt jobs in
+//
+// - Attempt to schedule the new job on the node, preempting one job at a time until the job fit
 func (n *PreemptingNodeScheduler) Schedule(schedContext *SchedulingContext, jctx *context.JobSchedulingContext, node *internaltypes.Node) (*nodeSchedulingResult, error) {
 	met, _, err := nodedb.StaticJobRequirementsMet(node, jctx)
 	if err != nil {

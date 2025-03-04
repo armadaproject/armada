@@ -284,17 +284,28 @@ type PoolConfig struct {
 	ProtectedFractionOfFairShare                 *float64
 	MarketDriven                                 bool
 	ExperimentalProtectUncappedAdjustedFairShare bool
-	Optimiser                                    *OptimiserConfig
+	ExperimentalOptimiser                        *OptimiserConfig
 }
 
 type OptimiserConfig struct {
-	Enabled                              bool
-	Interval                             time.Duration
-	Timeout                              time.Duration `validate:"required"`
-	MaximumJobsPerRound                  int
-	MaximumResourceFractionToSchedule    map[string]float64
-	MinimumJobSizeToSchedule             *armadaresource.ComputeResources
-	MaximumJobSizeToPreempt              *armadaresource.ComputeResources
+	Enabled bool
+	// How often the optimiser should run, likely desirable to not run every scheduling round
+	Interval time.Duration
+	// How long the optimiser can run for before giving up
+	// The optimiser is relatively inefficient,
+	//  on large pools this protects against the optimiser causing very long scheduling rounds
+	Timeout time.Duration `validate:"required"`
+	// Maximum jobs the optimiser will scheduler per round
+	MaximumJobsPerRound int
+	// Maximum fraction of the pool the optimiser will scheduler per round
+	MaximumResourceFractionToSchedule map[string]float64
+	// MinimumJobSizeToSchedule - The optimiser will not scheduler jobs that aren't at least as big as this field
+	MinimumJobSizeToSchedule *armadaresource.ComputeResources
+	// MaximumJobSizeToPreempt - The optimiser won't preempt jobs that are bigger than this field
+	MaximumJobSizeToPreempt *armadaresource.ComputeResources
+	// The minimum fairness improvement (as a percentage) for the optimiser to take action
+	// I.e, Optimiser tries to scheduler a 16 CPU job and has to preempt a 10 CPU jobs
+	// - 16/10 = 160%, 60% improvement
 	MinimumFairnessImprovementPercentage float64
 }
 
@@ -319,7 +330,7 @@ func (sc *SchedulingConfig) GetProtectUncappedAdjustedFairShare(poolName string)
 func (sc *SchedulingConfig) GetOptimiserConfig(poolName string) *OptimiserConfig {
 	for _, poolConfig := range sc.Pools {
 		if poolConfig.Name == poolName {
-			return poolConfig.Optimiser
+			return poolConfig.ExperimentalOptimiser
 		}
 	}
 	return nil

@@ -55,6 +55,11 @@ func NewOptimisingQueueScheduler(
 	}
 }
 
+// Schedule
+// This is the entrypoint the optimiser
+//   - It iterates through unscheduled (not evicted) jobs of queues below their fairshare
+//   - It them makes some basic checks (rate limits etc)
+//   - If the Job won't put the queue above its faishare and passes the checks, it off to the gangScheduler to schedule the job
 func (q *OptimisingQueueScheduler) Schedule(ctx *armadacontext.Context, sctx *schedulercontext.SchedulingContext) (*SchedulerResult, error) {
 	gangIterator, err := q.createCandidateGangIterator(ctx, sctx)
 	if err != nil {

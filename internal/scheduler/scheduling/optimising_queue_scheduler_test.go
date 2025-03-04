@@ -211,8 +211,8 @@ func TestOptimisingQueueScheduler_Schedule(t *testing.T) {
 			constraints := schedulerconstraints.NewSchedulingConstraints(testfixtures.PoolNameLabel, tc.TotalSchedulingCapacity, tc.SchedulingConfig, tc.Queues)
 			poolConfig := tc.SchedulingConfig.Pools[0]
 			var minimumJobSizeToSchedule *internaltypes.ResourceList
-			if poolConfig.Optimiser.MinimumJobSizeToSchedule != nil {
-				minJobSize := testfixtures.TestResourceListFactory.FromJobResourceListIgnoreUnknown(*poolConfig.Optimiser.MinimumJobSizeToSchedule)
+			if poolConfig.ExperimentalOptimiser.MinimumJobSizeToSchedule != nil {
+				minJobSize := testfixtures.TestResourceListFactory.FromJobResourceListIgnoreUnknown(*poolConfig.ExperimentalOptimiser.MinimumJobSizeToSchedule)
 				minimumJobSizeToSchedule = &minJobSize
 			}
 			queueScheduler := NewOptimisingQueueScheduler(
@@ -224,8 +224,8 @@ func TestOptimisingQueueScheduler_Schedule(t *testing.T) {
 				tc.SchedulingConfig.EnablePreferLargeJobOrdering,
 				false,
 				minimumJobSizeToSchedule,
-				poolConfig.Optimiser.MaximumJobsPerRound,
-				poolConfig.Optimiser.MaximumResourceFractionToSchedule)
+				poolConfig.ExperimentalOptimiser.MaximumJobsPerRound,
+				poolConfig.ExperimentalOptimiser.MaximumResourceFractionToSchedule)
 
 			fairnessCostProvider, err := fairness.NewDominantResourceFairness(
 				tc.TotalSchedulingCapacity,

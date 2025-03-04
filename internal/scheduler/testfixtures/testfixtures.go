@@ -239,7 +239,7 @@ func WithRoundLimitsPoolConfig(limits map[string]map[string]float64, config sche
 func WithOptimiserConfig(pool string, optimiserConfig *schedulerconfiguration.OptimiserConfig, config schedulerconfiguration.SchedulingConfig) schedulerconfiguration.SchedulingConfig {
 	for i, p := range config.Pools {
 		if p.Name == pool {
-			p.Optimiser = optimiserConfig
+			p.ExperimentalOptimiser = optimiserConfig
 			config.Pools[i] = p
 		}
 	}

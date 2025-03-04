@@ -627,14 +627,14 @@ func (l *FairSchedulingAlgo) SchedulePool(
 }
 
 func (l *FairSchedulingAlgo) shouldRunOptimiser(pool configuration.PoolConfig) bool {
-	if pool.Optimiser == nil || !pool.Optimiser.Enabled {
+	if pool.ExperimentalOptimiser == nil || !pool.ExperimentalOptimiser.Enabled {
 		return false
 	}
 
 	timeOfLastOptimiserRun, ok := l.lastOptimiserRoundTimeByPool[pool.Name]
 	if !ok {
 		return true
-	} else if l.clock.Since(timeOfLastOptimiserRun) <= pool.Optimiser.Interval {
+	} else if l.clock.Since(timeOfLastOptimiserRun) <= pool.ExperimentalOptimiser.Interval {
 		return true
 	}
 	return false
