@@ -324,6 +324,7 @@ export const JobsTableContainer = ({
   useEffect(() => {
     jobsTablePreferencesService.saveNewPrefs(prefsFromState())
   }, [
+    columnOrder,
     grouping,
     expanded,
     pageIndex,
