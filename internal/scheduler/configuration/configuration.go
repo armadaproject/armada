@@ -55,11 +55,7 @@ type Configuration struct {
 	DatabaseFetchSize int `validate:"required"`
 	// Frequency at which queues will be fetched from the API
 	QueueRefreshPeriod time.Duration `validate:"required"`
-	// Allows queue priority multipliers to be fetched from an external source. This cannot be enabled at the same time
-	// as PriorityOverrides
-	PriorityMultiplier PriorityMultiplierConfig
-	// Allows queue priority overrides to be fetched from an external source. This cannot be enabled at the same time
-	// as PriorityMultipliers
+	// Allows queue priority overrides to be fetched from an external source.
 	PriorityOverride PriorityOverrideConfig
 }
 
@@ -310,13 +306,6 @@ func (sc *SchedulingConfig) GetProtectUncappedAdjustedFairShare(poolName string)
 type ExperimentalIndicativePricing struct {
 	BasePrice    float64
 	BasePriority float64
-}
-
-type PriorityMultiplierConfig struct {
-	Enabled         bool
-	UpdateFrequency time.Duration
-	ServiceUrl      string
-	ForceNoTls      bool
 }
 
 type PriorityOverrideConfig struct {
