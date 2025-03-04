@@ -18,7 +18,7 @@ import (
 )
 
 type Evictor struct {
-	jobRepo    JobRepository
+	jobRepo    jobdb.JobRepository
 	nodeDb     *nodedb.NodeDb
 	nodeFilter func(*armadacontext.Context, *internaltypes.Node) bool
 	jobFilter  func(*armadacontext.Context, *jobdb.Job) (bool, string)
@@ -77,7 +77,7 @@ func (er *EvictorResult) SummaryString() string {
 }
 
 func NewNodeEvictor(
-	jobRepo JobRepository,
+	jobRepo jobdb.JobRepository,
 	nodeDb *nodedb.NodeDb,
 	jobFilter func(*armadacontext.Context, *jobdb.Job) (bool, string),
 ) *Evictor {
@@ -94,7 +94,7 @@ func NewNodeEvictor(
 // NewFilteredEvictor returns a new evictor that evicts all jobs for which jobIdsToEvict[jobId] is true
 // on nodes for which nodeIdsToEvict[nodeId] is true.
 func NewFilteredEvictor(
-	jobRepo JobRepository,
+	jobRepo jobdb.JobRepository,
 	nodeDb *nodedb.NodeDb,
 	nodeIdsToEvict map[string]bool,
 	jobIdsToEvict map[string]bool,
@@ -125,7 +125,7 @@ func NewFilteredEvictor(
 // for each node evicts all preemptible jobs of a priority class for which at least one job could not be scheduled
 func NewOversubscribedEvictor(
 	queueChecker queueChecker,
-	jobRepo JobRepository,
+	jobRepo jobdb.JobRepository,
 	nodeDb *nodedb.NodeDb,
 ) *Evictor {
 	// Populating overSubscribedPriorities relies on

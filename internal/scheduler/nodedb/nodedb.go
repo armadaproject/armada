@@ -359,7 +359,7 @@ func (nodeDb *NodeDb) ScheduleManyWithTxn(txn *memdb.Txn, gctx *context.GangSche
 
 		if node != nil {
 			// If we found a node for this pod, bind it and continue to the next pod.
-			if node, err := nodeDb.bindJobToNode(node, jctx.Job, jctx.PodSchedulingContext.ScheduledAtPriority); err != nil {
+			if node, err := nodeDb.BindJobToNode(node, jctx.Job, jctx.PodSchedulingContext.ScheduledAtPriority); err != nil {
 				return false, err
 			} else {
 				if err := nodeDb.UpsertWithTxn(txn, node); err != nil {
@@ -792,8 +792,8 @@ func (nodeDb *NodeDb) selectNodeForJobWithFairPreemption(txn *memdb.Txn, jctx *c
 	return selectedNode, nil
 }
 
-// bindJobToNode returns a copy of node with job bound to it.
-func (nodeDb *NodeDb) bindJobToNode(node *internaltypes.Node, job *jobdb.Job, priority int32) (*internaltypes.Node, error) {
+// BindJobToNode returns a copy of node with job bound to it.
+func (nodeDb *NodeDb) BindJobToNode(node *internaltypes.Node, job *jobdb.Job, priority int32) (*internaltypes.Node, error) {
 	node = node.DeepCopyNilKeys()
 	if err := nodeDb.bindJobToNodeInPlace(node, job, priority); err != nil {
 		return nil, err
@@ -801,7 +801,7 @@ func (nodeDb *NodeDb) bindJobToNode(node *internaltypes.Node, job *jobdb.Job, pr
 	return node, nil
 }
 
-// bindJobToNodeInPlace is like bindJobToNode, but doesn't make a copy of node.
+// bindJobToNodeInPlace is like BindJobToNode, but doesn't make a copy of node.
 func (nodeDb *NodeDb) bindJobToNodeInPlace(node *internaltypes.Node, job *jobdb.Job, priority int32) error {
 	jobId := job.Id()
 	requests := job.KubernetesResourceRequirements()

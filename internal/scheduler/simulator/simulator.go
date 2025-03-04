@@ -604,6 +604,7 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 			maps.Clone(s.accounting.jobIdsByGangId),
 			maps.Clone(s.accounting.gangIdByJobId),
 			false,
+			false,
 		)
 
 		schedulerCtx := ctx

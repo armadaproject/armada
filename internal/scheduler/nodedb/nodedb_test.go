@@ -153,7 +153,7 @@ func TestNodeBindingEvictionUnbinding(t *testing.T) {
 
 	jobId := job.Id()
 
-	boundNode, err := nodeDb.bindJobToNode(entry, job, job.PriorityClass().Priority)
+	boundNode, err := nodeDb.BindJobToNode(entry, job, job.PriorityClass().Priority)
 	require.NoError(t, err)
 
 	unboundNode, err := nodeDb.UnbindJobFromNode(job, boundNode)
@@ -168,7 +168,7 @@ func TestNodeBindingEvictionUnbinding(t *testing.T) {
 	evictedUnboundNode, err := nodeDb.UnbindJobFromNode(job, evictedNode)
 	require.NoError(t, err)
 
-	evictedBoundNode, err := nodeDb.bindJobToNode(evictedNode, job, job.PriorityClass().Priority)
+	evictedBoundNode, err := nodeDb.BindJobToNode(evictedNode, job, job.PriorityClass().Priority)
 	require.NoError(t, err)
 
 	_, err = nodeDb.EvictJobsFromNode([]*jobdb.Job{job}, entry)
@@ -177,7 +177,7 @@ func TestNodeBindingEvictionUnbinding(t *testing.T) {
 	_, err = nodeDb.UnbindJobFromNode(job, entry)
 	require.NoError(t, err)
 
-	_, err = nodeDb.bindJobToNode(boundNode, job, job.PriorityClass().Priority)
+	_, err = nodeDb.BindJobToNode(boundNode, job, job.PriorityClass().Priority)
 	require.Error(t, err)
 
 	_, err = nodeDb.EvictJobsFromNode([]*jobdb.Job{job}, evictedNode)
@@ -369,7 +369,7 @@ func TestScheduleIndividually(t *testing.T) {
 					testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1),
 					testfixtures.N1GpuJobs("A", testfixtures.PriorityClass0, 1)...,
 				),
-				testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 1)...,
+				testfixtures.N32Cpu256GiJobsWithLargeJobToleration("A", testfixtures.PriorityClass0, 1)...,
 			),
 			ExpectSuccess: []bool{false, false, true},
 		},
@@ -522,7 +522,7 @@ func TestScheduleMany(t *testing.T) {
 			Nodes: testfixtures.N32CpuNodes(2, testfixtures.TestPriorities),
 			Jobs: [][]*jobdb.Job{
 				append(
-					testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 1),
+					testfixtures.N32Cpu256GiJobsWithLargeJobToleration("A", testfixtures.PriorityClass0, 1),
 					testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 32)...,
 				),
 				testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1),
