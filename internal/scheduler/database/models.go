@@ -46,6 +46,7 @@ type Job struct {
 	LastModified            time.Time `db:"last_modified"`
 	Validated               bool      `db:"validated"`
 	Pools                   []string  `db:"pools"`
+	BidPrice                float64   `db:"bid_price"`
 	CancelUser              *string   `db:"cancel_user"`
 }
 
