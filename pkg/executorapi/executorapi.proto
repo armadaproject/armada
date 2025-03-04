@@ -12,21 +12,21 @@ import "k8s.io/apimachinery/pkg/api/resource/generated.proto";
 
 // Used by the scheduler when allocating jobs to executors.
 message NodeInfo {
-  reserved 7, 11;
+  reserved 4,5,7,11;
+  // Name of the node
   string name = 1;
+  // Taints on the node
   repeated k8s.io.api.core.v1.Taint taints = 2;
+  // Labels on the node
   map<string,string> labels = 3;
-  // To be deprecated in favour of total_resources + allocated_resources.
-  map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> allocatable_resources = 4;
-  // To be deprecated in favour of total_resources + allocated_resources.
-  map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> available_resources = 5;
   // Total node resources.
-  // Resources available for allocation is given by the difference between this and allocated_resources.
+  // Resources available for allocation is given by the difference between this and non_armada_allocated_resources.
   map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> total_resources = 6;
   // All run ids of jobs on the node, mapped to their current state
   map<string, api.JobState>  run_ids_by_state = 8;
   // The amount of resource allocated to non-armada pods by priority
-  map<int32, ComputeResource> non_armada_allocated_resources = 9;
+  // Deprecated in favour of non_armada_allocated_resources_total
+  map<int32, ComputeResource> non_armada_allocated_resources = 9[deprecated=true];
   bool unschedulable = 10;
   // This should only be used for metrics
   // This is the type the node should be reported as. It is simple a label to categorise the group the node belongs to
@@ -35,6 +35,8 @@ message NodeInfo {
   string pool = 13;
   // Replaces resource_usage_by_queue
   repeated PoolQueueResource resource_usage_by_queue_and_pool = 14;
+  // The amount of resource allocated to non-armada pods
+  map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> non_armada_allocated_resources_total = 15;
 }
 
 message ComputeResource {

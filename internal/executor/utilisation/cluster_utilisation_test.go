@@ -380,13 +380,14 @@ func TestCalculateNonArmadaResource(t *testing.T) {
 		nonArmadaPods         []*v1.Pod
 		minToAllocate         armadaresource.ComputeResources
 		minToAllocatePriority int32
-		expected              map[int32]*executorapi.ComputeResource
+		expectedResourcesByPc map[int32]*executorapi.ComputeResource
+		expectedTotalResource map[string]*resource.Quantity
 	}{
 		"no pods": {
 			nonArmadaPods:         []*v1.Pod{},
 			minToAllocate:         defaultMinToAllocate,
 			minToAllocatePriority: defaultMinToAllocatePriority,
-			expected: map[int32]*executorapi.ComputeResource{
+			expectedResourcesByPc: map[int32]*executorapi.ComputeResource{
 				defaultMinToAllocatePriority: {
 					Resources: map[string]*resource.Quantity{
 						"cpu":    &twoCpu,
@@ -394,12 +395,16 @@ func TestCalculateNonArmadaResource(t *testing.T) {
 					},
 				},
 			},
+			expectedTotalResource: map[string]*resource.Quantity{
+				"cpu":    &twoCpu,
+				"memory": &twoGi,
+			},
 		},
 		"One pod below minimum": {
 			nonArmadaPods:         []*v1.Pod{createTestPod("", "1", "1Gi")},
 			minToAllocate:         defaultMinToAllocate,
 			minToAllocatePriority: defaultMinToAllocatePriority,
-			expected: map[int32]*executorapi.ComputeResource{
+			expectedResourcesByPc: map[int32]*executorapi.ComputeResource{
 				0: {
 					Resources: map[string]*resource.Quantity{
 						"cpu":    &oneCpu,
@@ -413,18 +418,26 @@ func TestCalculateNonArmadaResource(t *testing.T) {
 					},
 				},
 			},
+			expectedTotalResource: map[string]*resource.Quantity{
+				"cpu":    &twoCpu,
+				"memory": &twoGi,
+			},
 		},
 		"One pod above minimum": {
 			nonArmadaPods:         []*v1.Pod{createTestPod("", "3", "3Gi")},
 			minToAllocate:         defaultMinToAllocate,
 			minToAllocatePriority: defaultMinToAllocatePriority,
-			expected: map[int32]*executorapi.ComputeResource{
+			expectedResourcesByPc: map[int32]*executorapi.ComputeResource{
 				0: {
 					Resources: map[string]*resource.Quantity{
 						"cpu":    &threeCpu,
 						"memory": &threeGi,
 					},
 				},
+			},
+			expectedTotalResource: map[string]*resource.Quantity{
+				"cpu":    &threeCpu,
+				"memory": &threeGi,
 			},
 		},
 		"two pods same priority": {
@@ -434,13 +447,17 @@ func TestCalculateNonArmadaResource(t *testing.T) {
 			},
 			minToAllocate:         defaultMinToAllocate,
 			minToAllocatePriority: defaultMinToAllocatePriority,
-			expected: map[int32]*executorapi.ComputeResource{
+			expectedResourcesByPc: map[int32]*executorapi.ComputeResource{
 				0: {
 					Resources: map[string]*resource.Quantity{
 						"cpu":    &threeCpu,
 						"memory": &threeGi,
 					},
 				},
+			},
+			expectedTotalResource: map[string]*resource.Quantity{
+				"cpu":    &threeCpu,
+				"memory": &threeGi,
 			},
 		},
 		"two pods different priority": {
@@ -450,7 +467,7 @@ func TestCalculateNonArmadaResource(t *testing.T) {
 			},
 			minToAllocate:         defaultMinToAllocate,
 			minToAllocatePriority: defaultMinToAllocatePriority,
-			expected: map[int32]*executorapi.ComputeResource{
+			expectedResourcesByPc: map[int32]*executorapi.ComputeResource{
 				0: {
 					Resources: map[string]*resource.Quantity{
 						"cpu":    &oneCpu,
@@ -464,15 +481,20 @@ func TestCalculateNonArmadaResource(t *testing.T) {
 					},
 				},
 			},
+			expectedTotalResource: map[string]*resource.Quantity{
+				"cpu":    &twoCpu,
+				"memory": &twoGi,
+			},
 		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			result := calculateNonArmadaResource(tc.nonArmadaPods, tc.minToAllocate, tc.minToAllocatePriority)
+			resourceByPc, totalResource := calculateNonArmadaResource(tc.nonArmadaPods, tc.minToAllocate, tc.minToAllocatePriority)
 
-			require.Equal(t, len(tc.expected), len(result), "uneven priorities")
-			for priority, expectedCr := range tc.expected {
-				actualCr, ok := result[priority]
+			// Assert resourceByPc equal
+			require.Equal(t, len(tc.expectedResourcesByPc), len(resourceByPc), "uneven priorities")
+			for priority, expectedCr := range tc.expectedResourcesByPc {
+				actualCr, ok := resourceByPc[priority]
 				require.True(t, ok, "No resources found at priority %d", priority)
 				actualResources := actualCr.Resources
 				require.Equal(t, len(expectedCr.Resources), len(actualResources), "uneven resources at priority %d", priority)
@@ -481,6 +503,14 @@ func TestCalculateNonArmadaResource(t *testing.T) {
 					require.True(t, ok, "Resource %s not found at priority %d", resName, priority)
 					assert.Equal(t, expectedQty.MilliValue(), actualQty.MilliValue(), "expected %s qty [%d] differs from actual [%d] at priority %d, ", resName, expectedQty.MilliValue(), actualQty.MilliValue(), priority)
 				}
+			}
+
+			// Assert totalResource Equal
+			require.Equal(t, len(tc.expectedTotalResource), len(totalResource))
+			for resName, expectedQty := range tc.expectedTotalResource {
+				actualQty, ok := totalResource[resName]
+				require.True(t, ok, "Resource %s not found in total Resources", resName)
+				assert.Equal(t, expectedQty.MilliValue(), actualQty.MilliValue(), "expected %s qty [%d] differs from actual [%d], ", resName, expectedQty.MilliValue(), actualQty.MilliValue())
 			}
 		})
 	}
