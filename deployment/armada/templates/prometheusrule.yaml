@@ -48,6 +48,9 @@ spec:
         - record: armada:resource:available_capacity
           expr: max(armada_cluster_available_capacity) by (pool, cluster, resourceType, nodeType)
 
+        - record: armada:resource:farm_capacity
+          expr: max(armada_cluster_farm_capacity) by (pool, cluster, resourceType, nodeType)
+
         - record: armada:resource:capacity
           expr: max(armada_cluster_capacity) by (pool, cluster, resourceType, nodeType)
 
