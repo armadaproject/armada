@@ -55,11 +55,7 @@ type Configuration struct {
 	DatabaseFetchSize int `validate:"required"`
 	// Frequency at which queues will be fetched from the API
 	QueueRefreshPeriod time.Duration `validate:"required"`
-	// Allows queue priority multipliers to be fetched from an external source. This cannot be enabled at the same time
-	// as PriorityOverrides
-	PriorityMultiplier PriorityMultiplierConfig
-	// Allows queue priority overrides to be fetched from an external source. This cannot be enabled at the same time
-	// as PriorityMultipliers
+	// Allows queue priority overrides to be fetched from an external source.
 	PriorityOverride PriorityOverrideConfig
 }
 
@@ -282,10 +278,11 @@ type WellKnownNodeType struct {
 }
 
 type PoolConfig struct {
-	Name                         string `validate:"required"`
-	AwayPools                    []string
-	ProtectedFractionOfFairShare *float64
-	MarketDriven                 bool
+	Name                                         string `validate:"required"`
+	AwayPools                                    []string
+	ProtectedFractionOfFairShare                 *float64
+	MarketDriven                                 bool
+	ExperimentalProtectUncappedAdjustedFairShare bool
 }
 
 func (sc *SchedulingConfig) GetProtectedFractionOfFairShare(poolName string) float64 {
@@ -297,16 +294,18 @@ func (sc *SchedulingConfig) GetProtectedFractionOfFairShare(poolName string) flo
 	return sc.ProtectedFractionOfFairShare
 }
 
+func (sc *SchedulingConfig) GetProtectUncappedAdjustedFairShare(poolName string) bool {
+	for _, poolConfig := range sc.Pools {
+		if poolConfig.Name == poolName {
+			return poolConfig.ExperimentalProtectUncappedAdjustedFairShare
+		}
+	}
+	return false
+}
+
 type ExperimentalIndicativePricing struct {
 	BasePrice    float64
 	BasePriority float64
-}
-
-type PriorityMultiplierConfig struct {
-	Enabled         bool
-	UpdateFrequency time.Duration
-	ServiceUrl      string
-	ForceNoTls      bool
 }
 
 type PriorityOverrideConfig struct {

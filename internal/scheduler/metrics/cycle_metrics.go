@@ -26,6 +26,7 @@ type perCycleMetrics struct {
 	consideredJobs               *prometheus.GaugeVec
 	fairShare                    *prometheus.GaugeVec
 	adjustedFairShare            *prometheus.GaugeVec
+	uncappedAdjustedFairShare    *prometheus.GaugeVec
 	actualShare                  *prometheus.GaugeVec
 	fairnessError                *prometheus.GaugeVec
 	demand                       *prometheus.GaugeVec
@@ -68,6 +69,14 @@ func newPerCycleMetrics() *perCycleMetrics {
 		prometheus.GaugeOpts{
 			Name: prefix + "adjusted_fair_share",
 			Help: "Adjusted Fair share of each queue",
+		},
+		poolAndQueueLabels,
+	)
+
+	uncappedAdjustedFairShare := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: prefix + "uncapped_adjusted_fair_share",
+			Help: "Adjusted Fair share of each queue, not capped by demand",
 		},
 		poolAndQueueLabels,
 	)
@@ -228,6 +237,7 @@ func newPerCycleMetrics() *perCycleMetrics {
 		consideredJobs:               consideredJobs,
 		fairShare:                    fairShare,
 		adjustedFairShare:            adjustedFairShare,
+		uncappedAdjustedFairShare:    uncappedAdjustedFairShare,
 		actualShare:                  actualShare,
 		demand:                       demand,
 		constrainedDemand:            constrainedDemand,
@@ -341,7 +351,8 @@ func (m *cycleMetrics) ReportSchedulerResult(result scheduling.SchedulerResult) 
 
 			currentCycle.consideredJobs.WithLabelValues(pool, queue).Set(jobsConsidered)
 			currentCycle.fairShare.WithLabelValues(pool, queue).Set(queueContext.FairShare)
-			currentCycle.adjustedFairShare.WithLabelValues(pool, queue).Set(queueContext.AdjustedFairShare)
+			currentCycle.adjustedFairShare.WithLabelValues(pool, queue).Set(queueContext.DemandCappedAdjustedFairShare)
+			currentCycle.uncappedAdjustedFairShare.WithLabelValues(pool, queue).Set(queueContext.UncappedAdjustedFairShare)
 			currentCycle.actualShare.WithLabelValues(pool, queue).Set(actualShare)
 			currentCycle.demand.WithLabelValues(pool, queue).Set(demand)
 			currentCycle.constrainedDemand.WithLabelValues(pool, queue).Set(constrainedDemand)
@@ -422,6 +433,7 @@ func (m *cycleMetrics) describe(ch chan<- *prometheus.Desc) {
 		currentCycle.consideredJobs.Describe(ch)
 		currentCycle.fairShare.Describe(ch)
 		currentCycle.adjustedFairShare.Describe(ch)
+		currentCycle.uncappedAdjustedFairShare.Describe(ch)
 		currentCycle.actualShare.Describe(ch)
 		currentCycle.fairnessError.Describe(ch)
 		currentCycle.demand.Describe(ch)
@@ -456,6 +468,7 @@ func (m *cycleMetrics) collect(ch chan<- prometheus.Metric) {
 		currentCycle.consideredJobs.Collect(ch)
 		currentCycle.fairShare.Collect(ch)
 		currentCycle.adjustedFairShare.Collect(ch)
+		currentCycle.uncappedAdjustedFairShare.Collect(ch)
 		currentCycle.actualShare.Collect(ch)
 		currentCycle.fairnessError.Collect(ch)
 		currentCycle.demand.Collect(ch)
