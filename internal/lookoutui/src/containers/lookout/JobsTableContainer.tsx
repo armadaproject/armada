@@ -599,8 +599,13 @@ export const JobsTableContainer = ({
   }
 
   const onFilterChange = (updater: Updater<ColumnFiltersState>) => {
-    setToFirstPage()
     const newFilterState = updaterToValue(updater, columnFilterState)
+
+    if (_.isEqual(newFilterState, columnFilterState)) {
+      return
+    }
+
+    setToFirstPage()
     setLookoutFilters(parseLookoutFilters(newFilterState))
     setColumnFilterState(newFilterState)
     setSelectedRows({})
