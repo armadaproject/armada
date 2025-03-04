@@ -26,7 +26,6 @@ message JobSubmitRequestItem {
     // Indicates which scheduler should manage this job.
     // If empty, the default scheduler is used.
     string scheduler = 11;
-    ExperimentalPriceInfo experimentalPriceInfo = 13;
 }
 
 message IngressConfig {
@@ -106,7 +105,7 @@ enum JobState {
 }
 
 message Job {
-  reserved 22;
+  reserved 22, 30;
   string id = 1;
   string client_id = 13;
   string job_set_id = 2;
@@ -146,12 +145,8 @@ message Job {
   // Indicates which scheduler should manage this job.
   // If empty, the default scheduler is used.
   string scheduler = 20;
-  ExperimentalPriceInfo experimentalPriceInfo = 30;
 }
 
-message ExperimentalPriceInfo {
-  double bidPrice = 1;
-}
 
 // swagger:model
 message JobReprioritizeRequest {
