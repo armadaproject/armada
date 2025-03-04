@@ -41,13 +41,12 @@ func NewFairnessOptimisingScheduler(
 
 // Schedule
 // It will group nodes by the nodeUniformity of the gang
-// Attempt t schedule against each group of nodes independently and then pick the best result
+// Attempt to schedule against each group of nodes independently and then pick the best result
 func (n *FairnessOptimisingGangScheduler) Schedule(ctx *armadacontext.Context, gctx *context.GangSchedulingContext, sctx *context.SchedulingContext) (bool, []*context.JobSchedulingContext, string, error) {
 	nodes, err := n.nodeDb.GetNodes()
 	if err != nil {
 		return false, nil, "", err
 	}
-	// Pre-filter nodes?
 
 	if isValid, reason := n.isValidNodeUniformityLabel(gctx.NodeUniformity); !isValid {
 		return false, nil, reason, nil
@@ -116,7 +115,8 @@ func (n *FairnessOptimisingGangScheduler) scheduleOnNodes(gctx *context.GangSche
 				continue
 			}
 
-			if result.schedulingCost == 0 {
+			// No preemption required - this is the ideal result - exit early
+			if result.schedulingCost == 0 && len(result.jobIdsToPreempt) == 0 {
 				candidateNodes = append(candidateNodes, result)
 				break
 			}
