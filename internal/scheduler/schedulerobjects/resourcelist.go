@@ -7,17 +7,9 @@ import (
 	resource2 "github.com/armadaproject/armada/internal/common/resource"
 )
 
-// Most jobs specify 3 or fewer resources. We add 1 extra for margin.
-const resourceListDefaultSize = 4
-
 // NewResourceList returns a new ResourceList, where the backing map has initial capacity n.
 func NewResourceList(n int) ResourceList {
 	return ResourceList{Resources: make(map[string]resource.Quantity, n)}
-}
-
-// NewResourceListWithDefaultSize returns a new ResourceList, where the backing map has default initial capacity.
-func NewResourceListWithDefaultSize() ResourceList {
-	return ResourceList{Resources: make(map[string]resource.Quantity, resourceListDefaultSize)}
 }
 
 func ResourceListFromV1ResourceList(rl v1.ResourceList) ResourceList {
