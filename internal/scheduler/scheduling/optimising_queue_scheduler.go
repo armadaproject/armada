@@ -68,15 +68,16 @@ func (q *OptimisingQueueScheduler) Schedule(ctx *armadacontext.Context, sctx *sc
 	scheduledJobs := []*schedulercontext.JobSchedulingContext{}
 	preemptedJobs := []*schedulercontext.JobSchedulingContext{}
 	nodeIdByJobId := make(map[string]string)
-	numberOfJobsScheduled := 0
 
 	factory := sctx.TotalResources.Factory()
 	maximumResourceFractionToSchedule := q.maximumResourceFractionToSchedule
 	maximumResourceToSchedule := sctx.TotalResources.Multiply(factory.MakeResourceFractionList(maximumResourceFractionToSchedule, math.Inf(1)))
 	currentResourceScheduled := factory.FromJobResourceListIgnoreUnknown(map[string]resource.Quantity{})
+	start := time.Now()
+	loopNumber := 0
 
 	firstLoop := true
-	for numberOfJobsScheduled < q.maximumJobsToSchedule {
+	for len(scheduledJobs) < q.maximumJobsToSchedule {
 		if !firstLoop {
 			if err := gangIterator.Clear(); err != nil {
 				return nil, err
@@ -161,7 +162,6 @@ func (q *OptimisingQueueScheduler) Schedule(ctx *armadacontext.Context, sctx *sc
 				}
 			}
 			preemptedJobs = append(preemptedJobs, preemptedJctxs...)
-			numberOfJobsScheduled++
 			currentResourceScheduled = currentResourceScheduled.Add(gctx.TotalResourceRequests)
 
 			// Update rate limiters
@@ -178,7 +178,10 @@ func (q *OptimisingQueueScheduler) Schedule(ctx *armadacontext.Context, sctx *sc
 		if duration.Seconds() > 1 {
 			ctx.Infof("Slow schedule: queue %s, gang cardinality %d, sample job id %s, time %fs", gctx.Queue, gctx.Cardinality(), gctx.JobIds()[0], duration.Seconds())
 		}
+		loopNumber++
 	}
+	ctx.Logger().Infof("optimiser completed %d loops in %s, scheduling %d jobs, preempting %d jobs",
+		loopNumber, time.Now().Sub(start), len(scheduledJobs), len(preemptedJobs))
 	return &SchedulerResult{
 		ScheduledJobs: scheduledJobs,
 		PreemptedJobs: preemptedJobs,

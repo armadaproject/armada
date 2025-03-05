@@ -1,6 +1,7 @@
 package scheduling
 
 import (
+	"context"
 	"math"
 	"reflect"
 	"time"
@@ -602,7 +603,18 @@ func (sch *PreemptingQueueScheduler) runOptimiser(ctx *armadacontext.Context) (*
 	timeoutContext, cancel := armadacontext.WithTimeout(ctx, sch.optimiserConfig.Timeout)
 	defer cancel()
 
-	return optimisingQueueScheduler.Schedule(timeoutContext, sch.schedulingContext)
+	result, err := optimisingQueueScheduler.Schedule(timeoutContext, sch.schedulingContext)
+	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return &SchedulerResult{
+				PreemptedJobs: []*schedulercontext.JobSchedulingContext{},
+				ScheduledJobs: []*schedulercontext.JobSchedulingContext{},
+				NodeIdByJobId: map[string]string{},
+			}, nil
+		}
+		return nil, err
+	}
+	return result, nil
 }
 
 func (sch *PreemptingQueueScheduler) schedule(

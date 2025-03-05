@@ -92,6 +92,8 @@ type Simulator struct {
 	// Global job scheduling rate-limiter. Note that this will always be set to unlimited as we do not yet support
 	// effective rate limiting based on simulated time.
 	limiter *rate.Limiter
+	// Last time the optimiser was run for this pool (simulator time)
+	lastOptimiserRoundTimeByPool map[string]time.Time
 	// Used to generate random numbers from a chosen seed.
 	rand *rand.Rand
 	// Used to ensure each job is given a unique time stamp.
@@ -156,23 +158,28 @@ func NewSimulator(
 		// Seed the RNG using the local time if no explicit random seed is provided.
 		randomSeed = time.Now().Unix()
 	}
+	lastOptimiserRoundTimeByPool := map[string]time.Time{}
+	for _, pool := range schedulingConfig.Pools {
+		lastOptimiserRoundTimeByPool[pool.Name] = epochStart
+	}
 	s := &Simulator{
-		ClusterSpec:                 clusterSpec,
-		WorkloadSpec:                workloadSpec,
-		schedulingConfig:            schedulingConfig,
-		jobTemplateByJobId:          make(map[string]*JobTemplate),
-		jobTemplatesByDependencyIds: make(map[string]map[string]*JobTemplate),
-		activeJobTemplatesById:      make(map[string]*JobTemplate),
-		jobDb:                       jobDb,
-		limiter:                     rate.NewLimiter(rate.Inf, math.MaxInt), // Unlimited
-		rand:                        rand.New(rand.NewSource(randomSeed)),
-		resourceListFactory:         resourceListFactory,
-		enableFastForward:           enableFastForward,
-		hardTerminationMinutes:      hardTerminationMinutes,
-		schedulerCyclePeriodSeconds: schedulerCyclePeriodSeconds,
-		floatingResourceTypes:       floatingResourceTypes,
-		time:                        epochStart,
-		sink:                        sink,
+		ClusterSpec:                  clusterSpec,
+		WorkloadSpec:                 workloadSpec,
+		schedulingConfig:             schedulingConfig,
+		jobTemplateByJobId:           make(map[string]*JobTemplate),
+		jobTemplatesByDependencyIds:  make(map[string]map[string]*JobTemplate),
+		activeJobTemplatesById:       make(map[string]*JobTemplate),
+		jobDb:                        jobDb,
+		limiter:                      rate.NewLimiter(rate.Inf, math.MaxInt), // Unlimited
+		lastOptimiserRoundTimeByPool: lastOptimiserRoundTimeByPool,
+		rand:                         rand.New(rand.NewSource(randomSeed)),
+		resourceListFactory:          resourceListFactory,
+		enableFastForward:            enableFastForward,
+		hardTerminationMinutes:       hardTerminationMinutes,
+		schedulerCyclePeriodSeconds:  schedulerCyclePeriodSeconds,
+		floatingResourceTypes:        floatingResourceTypes,
+		time:                         epochStart,
+		sink:                         sink,
 		accounting: accounting{
 			nodeDbByPool:                             make(map[string]*nodedb.NodeDb),
 			poolByNodeId:                             make(map[string]string),
@@ -593,6 +600,12 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 		}
 		sctx.UpdateFairShares()
 		constraints := schedulerconstraints.NewSchedulingConstraints(pool, totalResources, s.schedulingConfig, nil)
+		shouldRunOptimiser := false
+		optimiserConfig := s.schedulingConfig.GetOptimiserConfig(pool)
+		if optimiserConfig != nil && optimiserConfig.Enabled &&
+			s.time.Sub(s.lastOptimiserRoundTimeByPool[pool]) > optimiserConfig.Interval {
+			shouldRunOptimiser = true
+		}
 		sch := scheduling.NewPreemptingQueueScheduler(
 			sctx,
 			constraints,
@@ -604,7 +617,7 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 			maps.Clone(s.accounting.jobIdsByGangId),
 			maps.Clone(s.accounting.gangIdByJobId),
 			false,
-			false,
+			shouldRunOptimiser,
 		)
 
 		schedulerCtx := ctx
@@ -619,6 +632,9 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 		err = s.sink.OnCycleEnd(s.time, result)
 		if err != nil {
 			return err
+		}
+		if shouldRunOptimiser {
+			s.lastOptimiserRoundTimeByPool[pool] = s.time
 		}
 
 		// Update jobDb to reflect the decisions by the scheduler.
