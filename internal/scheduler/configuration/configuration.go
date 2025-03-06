@@ -247,6 +247,7 @@ type SchedulingConfig struct {
 	// TODO: Remove this feature gate
 	EnableExecutorCordoning       bool
 	ExperimentalIndicativePricing ExperimentalIndicativePricing
+	ExperimentalIndicativeShare   ExperimentalIndicativeShare
 }
 
 const (
@@ -305,6 +306,10 @@ func (sc *SchedulingConfig) GetProtectUncappedAdjustedFairShare(poolName string)
 		}
 	}
 	return false
+}
+
+type ExperimentalIndicativeShare struct {
+	BasePriorities []int
 }
 
 type ExperimentalIndicativePricing struct {

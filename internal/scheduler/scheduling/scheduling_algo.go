@@ -637,6 +637,9 @@ func (l *FairSchedulingAlgo) SchedulePool(
 		price := l.calculateMarketDrivenSpotPrice(maps.Keys(fsctx.nodeIdByJobId), result.ScheduledJobs, result.PreemptedJobs, fractionAllocated, fsctx.Txn)
 		fsctx.schedulingContext.SpotPrice = price
 	} else {
+		for _, priority := range l.schedulingConfig.ExperimentalIndicativeShare.BasePriorities {
+			fsctx.schedulingContext.ExperimentalIndicativeShares[priority] = fsctx.schedulingContext.CalculateTheoreticalShare(float64(priority))
+		}
 		price := l.calculateFairShareDrivenSpotPrice(fsctx.schedulingContext, l.schedulingConfig.ExperimentalIndicativePricing.BasePrice, l.schedulingConfig.ExperimentalIndicativePricing.BasePriority)
 		fsctx.schedulingContext.SpotPrice = price
 	}
