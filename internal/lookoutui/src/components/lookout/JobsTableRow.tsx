@@ -6,14 +6,23 @@ import { Row } from "@tanstack/table-core"
 import { BodyCell } from "./JobsTableCell"
 import styles from "./JobsTableRow.module.css"
 import { JobTableRow, isJobGroupRow } from "../../models/jobsTableModels"
+import { Match } from "../../models/lookoutModels"
 
 export interface JobsTableRowProps {
   row: Row<JobTableRow>
   isOpenInSidebar: boolean
   onClick?: (e: MouseEvent<HTMLTableRowElement>) => void
   onClickRowCheckbox: (row: Row<JobTableRow>) => void
+  onColumnMatchChange: (columnId: string, newMatch: Match) => void
 }
-export const JobsTableRow = ({ row, isOpenInSidebar, onClick, onClickRowCheckbox }: JobsTableRowProps) => {
+
+export const JobsTableRow = ({
+  row,
+  isOpenInSidebar,
+  onClick,
+  onClickRowCheckbox,
+  onColumnMatchChange,
+}: JobsTableRowProps) => {
   // Helpers to avoid triggering onClick if the user is selecting text
   const [{ pageX, pageY }, setPagePosition] = useState({ pageX: -1, pageY: -1 })
   const isDragging = (e: MouseEvent) => {
@@ -59,6 +68,7 @@ export const JobsTableRow = ({ row, isOpenInSidebar, onClick, onClickRowCheckbox
           rowIsExpanded={row.getIsExpanded()}
           onExpandedChange={row.toggleExpanded}
           onClickRowCheckbox={onClickRowCheckbox}
+          onColumnMatchChange={onColumnMatchChange}
           key={cell.id}
         />
       ))}

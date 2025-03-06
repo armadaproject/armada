@@ -858,6 +858,7 @@ export const JobsTableContainer = ({
                 onClickRow={(row) => selectRow(row, true)}
                 onShiftClickRow={shiftSelectRow}
                 onControlClickRow={(row) => selectRow(row, false)}
+                onColumnMatchChange={onColumnMatchChange}
               />
             </Table>
           </TableContainer>
@@ -911,6 +912,7 @@ interface JobsTableBodyProps {
   onClickRow: (row: Row<JobTableRow>) => void
   onControlClickRow: (row: Row<JobTableRow>) => void
   onShiftClickRow: (row: Row<JobTableRow>) => void
+  onColumnMatchChange: (columnId: string, newMatch: Match) => void
 }
 
 const JobsTableBody = ({
@@ -924,6 +926,7 @@ const JobsTableBody = ({
   onClickRow,
   onControlClickRow,
   onShiftClickRow,
+  onColumnMatchChange,
 }: JobsTableBodyProps) => {
   const canDisplay = !dataIsLoading && topLevelRows.length > 0
   return (
@@ -950,6 +953,7 @@ const JobsTableBody = ({
           onClickRow,
           onControlClickRow,
           onShiftClickRow,
+          onColumnMatchChange,
           dataIsLoading,
         ),
       )}
@@ -966,6 +970,7 @@ const recursiveRowRender = (
   onClickRow: (row: Row<JobTableRow>) => void,
   onControlClickRow: (row: Row<JobTableRow>) => void,
   onShiftClickRow: (row: Row<JobTableRow>) => void,
+  onColumnMatchChange: (columnId: string, newMatch: Match) => void,
   dataIsLoading: boolean,
 ): JSX.Element => {
   const original = row.original
@@ -993,6 +998,7 @@ const recursiveRowRender = (
           }
         }}
         onClickRowCheckbox={onClickRowCheckbox}
+        onColumnMatchChange={onColumnMatchChange}
       />
 
       {/* Render any sub rows if expanded */}
@@ -1008,6 +1014,7 @@ const recursiveRowRender = (
             onClickRow,
             onControlClickRow,
             onShiftClickRow,
+            onColumnMatchChange,
             dataIsLoading,
           ),
         )}
