@@ -605,7 +605,9 @@ func (sch *PreemptingQueueScheduler) runOptimiser(ctx *armadacontext.Context) (*
 
 	result, err := optimisingQueueScheduler.Schedule(timeoutContext, sch.schedulingContext)
 	if err != nil {
+		// This is deliberately defensive to guard against the experimental optimiser causing the main scheduler issues
 		if errors.Is(err, context.DeadlineExceeded) {
+			ctx.Warnf("optimiser timed out, configured timeout %s", sch.optimiserConfig.Timeout)
 			return &SchedulerResult{
 				PreemptedJobs: []*schedulercontext.JobSchedulingContext{},
 				ScheduledJobs: []*schedulercontext.JobSchedulingContext{},

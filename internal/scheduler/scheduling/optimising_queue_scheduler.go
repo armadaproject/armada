@@ -147,7 +147,7 @@ func (q *OptimisingQueueScheduler) Schedule(ctx *armadacontext.Context, sctx *sc
 			}
 			continue
 		}
-		if hasContextExpired(ctx) {
+		if hasContextExpired(ctx) || isNearDeadline(ctx) {
 			break
 		}
 		start := time.Now()
@@ -180,7 +180,7 @@ func (q *OptimisingQueueScheduler) Schedule(ctx *armadacontext.Context, sctx *sc
 		}
 		loopNumber++
 	}
-	ctx.Logger().Infof("optimiser completed %d loops in %s, scheduling %d jobs, preempting %d jobs",
+	ctx.Infof("optimiser completed %d loops in %s, scheduling %d jobs, preempting %d jobs",
 		loopNumber, time.Now().Sub(start), len(scheduledJobs), len(preemptedJobs))
 	return &SchedulerResult{
 		ScheduledJobs: scheduledJobs,
@@ -196,6 +196,14 @@ func hasContextExpired(ctx *armadacontext.Context) bool {
 	default:
 		return false
 	}
+}
+
+func isNearDeadline(ctx *armadacontext.Context) bool {
+	deadline, ok := ctx.Deadline()
+	if !ok {
+		return false
+	}
+	return time.Until(deadline) < time.Millisecond*500
 }
 
 func (q *OptimisingQueueScheduler) createCandidateGangIterator(
