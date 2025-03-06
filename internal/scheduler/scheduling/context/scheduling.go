@@ -129,11 +129,11 @@ func (sctx *SchedulingContext) AddQueueSchedulingContext(
 		AllocatedByPriorityClass:          initialAllocatedByPriorityClass,
 		ScheduledResourcesByPriorityClass: make(map[string]internaltypes.ResourceList),
 		EvictedResourcesByPriorityClass:   make(map[string]internaltypes.ResourceList),
-		PreemptedResourceByPriorityClass:  make(map[string]internaltypes.ResourceList),
-		SuccessfulJobSchedulingContexts:   make(map[string]*JobSchedulingContext),
-		UnsuccessfulJobSchedulingContexts: make(map[string]*JobSchedulingContext),
-		PreemptedJobSchedulingContexts:    make(map[string]*JobSchedulingContext),
-		EvictedJobsById:                   make(map[string]bool),
+		PreemptedByOptimiserResourceByPriorityClass: make(map[string]internaltypes.ResourceList),
+		SuccessfulJobSchedulingContexts:             make(map[string]*JobSchedulingContext),
+		UnsuccessfulJobSchedulingContexts:           make(map[string]*JobSchedulingContext),
+		PreemptedByOptimiserJobSchedulingContexts:   make(map[string]*JobSchedulingContext),
+		EvictedJobsById:                             make(map[string]bool),
 	}
 	sctx.QueueSchedulingContexts[queue] = qctx
 	return nil

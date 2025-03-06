@@ -7,7 +7,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
-	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
@@ -172,7 +171,7 @@ func TestFairnessOptimisingScheduler_Schedule(t *testing.T) {
 			}
 			assertExpectedJctxUpdates(t, sctx, gctx, expectedScheduledNodes, tc.ShouldSchedule)
 			assertExpectedNodeUpdates(t, gctx, preemptedJobs, nodeDb, nodes, expectedScheduledNodes)
-			assertExpectedSctxUpdates(t, sctx, preemptedJobs, jobsByQueue)
+			assertExpectedSctxUpdates(t, sctx, gctx, preemptedJobs, jobsByQueue)
 		})
 	}
 }
@@ -343,7 +342,7 @@ func TestFairnessOptimisingScheduler_Schedule_WhenSubmittingGangs(t *testing.T) 
 			}
 			assertExpectedJctxUpdates(t, sctx, gctx, expectedScheduledNodes, tc.ShouldSchedule)
 			assertExpectedNodeUpdates(t, gctx, preemptedJobs, nodeDb, nodes, expectedScheduledNodes)
-			assertExpectedSctxUpdates(t, sctx, preemptedJobs, jobsByQueue)
+			assertExpectedSctxUpdates(t, sctx, gctx, preemptedJobs, jobsByQueue)
 		})
 	}
 }
@@ -503,7 +502,10 @@ func assertExpectedNodeUpdates(
 	}
 }
 
-func assertExpectedSctxUpdates(t *testing.T, sctx *context.SchedulingContext, preemptedJctxs []*context.JobSchedulingContext, originalJobsPerQueue map[string][]*jobdb.Job) {
+func assertExpectedSctxUpdates(t *testing.T, sctx *context.SchedulingContext, gctx *context.GangSchedulingContext, preemptedJctxs []*context.JobSchedulingContext, originalJobsPerQueue map[string][]*jobdb.Job) {
+	scheduledJobIds := armadaslices.Map(gctx.JobSchedulingContexts, func(jctx *context.JobSchedulingContext) string {
+		return jctx.JobId
+	})
 	preemptedJobs := armadaslices.Map(preemptedJctxs, func(jctx *context.JobSchedulingContext) *jobdb.Job {
 		return jctx.Job
 	})
@@ -512,10 +514,14 @@ func assertExpectedSctxUpdates(t *testing.T, sctx *context.SchedulingContext, pr
 	})
 
 	// Assert preempted jobs marked as preempted
-	for _, preemptedJob := range preemptedJobs {
+	for _, preemptedJctx := range preemptedJctxs {
+		preemptedJob := preemptedJctx.Job
+		assert.Contains(t, scheduledJobIds, preemptedJctx.PreemptingJobId)
+		assert.NotEmpty(t, preemptedJctx.PreemptionDescription)
+
 		_, exists := sctx.QueueSchedulingContexts[preemptedJob.Queue()].SuccessfulJobSchedulingContexts[preemptedJob.Id()]
 		assert.False(t, exists)
-		_, exists = sctx.QueueSchedulingContexts[preemptedJob.Queue()].PreemptedJobSchedulingContexts[preemptedJob.Id()]
+		_, exists = sctx.QueueSchedulingContexts[preemptedJob.Queue()].PreemptedByOptimiserJobSchedulingContexts[preemptedJob.Id()]
 		assert.True(t, exists)
 	}
 
@@ -577,7 +583,7 @@ func createNodeSchedulingResult(jctx *context.JobSchedulingContext, node *intern
 }
 
 func sumRequestedResource(jobs []*jobdb.Job) internaltypes.ResourceList {
-	sum := testfixtures.TestResourceListFactory.FromJobResourceListIgnoreUnknown(map[string]resource.Quantity{})
+	sum := testfixtures.TestResourceListFactory.MakeAllZero()
 	for _, job := range jobs {
 		sum = sum.Add(job.AllResourceRequirements())
 	}

@@ -373,7 +373,7 @@ func TestSchedule_PreemptsExpectedJobs(t *testing.T) {
 			jctx := context.JobSchedulingContextFromJob(tc.jobToSchedule)
 			jobsOnNode := markedScheduledOnNode(tc.jobsOnNode, node)
 
-			extraCapacity := testfixtures.TestResourceListFactory.FromJobResourceListIgnoreUnknown(map[string]resource.Quantity{})
+			extraCapacity := testfixtures.TestResourceListFactory.MakeAllZero()
 			if tc.extraTotalResource != nil {
 				extraCapacity = testfixtures.TestResourceListFactory.FromJobResourceListIgnoreUnknown(*tc.extraTotalResource)
 			}

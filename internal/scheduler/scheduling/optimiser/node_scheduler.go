@@ -57,7 +57,7 @@ func (n *PreemptingNodeScheduler) Schedule(schedContext *SchedulingContext, jctx
 	}
 
 	availableResource := node.AllocatableByPriority[internaltypes.EvictedPriority]
-	if !jctx.Job.AllResourceRequirements().Exceeds(availableResource) {
+	if !jctx.Job.KubernetesResourceRequirements().Exceeds(availableResource) {
 		return &nodeSchedulingResult{
 			jctx:      jctx,
 			node:      node,
@@ -94,7 +94,7 @@ func (n *PreemptingNodeScheduler) Schedule(schedContext *SchedulingContext, jctx
 		queueCostChanges[jobToEvict.queue] -= jobToEvict.cost
 		jobsToPreempt = append(jobsToPreempt, jobToEvict.jobId)
 
-		if !jctx.Job.AllResourceRequirements().Exceeds(availableResource) {
+		if !jctx.Job.KubernetesResourceRequirements().Exceeds(availableResource) {
 			scheduled = true
 			break
 		}
@@ -252,9 +252,9 @@ func isTooLargeToEvict(job *jobdb.Job, limit *internaltypes.ResourceList) bool {
 	if job == nil {
 		return true
 	}
-	jobResources := job.AllResourceRequirements()
+	jobResources := job.KubernetesResourceRequirements()
 	if jobResources.Factory() != limit.Factory() {
-		return true
+		panic("mismatched ResourceListFactory in node_scheduler")
 	}
 	for i, resource := range limit.GetResources() {
 		if resource.Value.IsZero() {

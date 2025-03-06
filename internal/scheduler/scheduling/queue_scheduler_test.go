@@ -11,7 +11,6 @@ import (
 	"golang.org/x/exp/slices"
 	"golang.org/x/time/rate"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
@@ -528,7 +527,7 @@ func TestQueueScheduler(t *testing.T) {
 				totalResources,
 			)
 			for _, q := range tc.Queues {
-				demand := testfixtures.TestResourceListFactory.FromJobResourceListIgnoreUnknown(map[string]resource.Quantity{})
+				demand := testfixtures.TestResourceListFactory.MakeAllZero()
 				for _, job := range tc.Jobs {
 					if job.Queue() == q.Name {
 						demand = demand.Add(job.AllResourceRequirements())

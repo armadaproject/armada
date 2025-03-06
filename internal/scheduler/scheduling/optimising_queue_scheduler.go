@@ -5,8 +5,6 @@ import (
 	"math"
 	"time"
 
-	"k8s.io/apimachinery/pkg/api/resource"
-
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/scheduler/floatingresources"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
@@ -72,11 +70,13 @@ func (q *OptimisingQueueScheduler) Schedule(ctx *armadacontext.Context, sctx *sc
 	factory := sctx.TotalResources.Factory()
 	maximumResourceFractionToSchedule := q.maximumResourceFractionToSchedule
 	maximumResourceToSchedule := sctx.TotalResources.Multiply(factory.MakeResourceFractionList(maximumResourceFractionToSchedule, math.Inf(1)))
-	currentResourceScheduled := factory.FromJobResourceListIgnoreUnknown(map[string]resource.Quantity{})
+	currentResourceScheduled := factory.MakeAllZero()
 	start := time.Now()
 	loopNumber := 0
 
 	firstLoop := true
+
+loop:
 	for len(scheduledJobs) < q.maximumJobsToSchedule {
 		if !firstLoop {
 			if err := gangIterator.Clear(); err != nil {
@@ -110,22 +110,15 @@ func (q *OptimisingQueueScheduler) Schedule(ctx *armadacontext.Context, sctx *sc
 			continue
 		}
 
-		shouldSkip := false
 		// This is needed as we haven't marked scheduled jobs as scheduled in the job db yet, so we must exclude them here
 		for _, jctx := range gctx.JobSchedulingContexts {
 			if _, scheduled := sctx.QueueSchedulingContexts[gctx.Queue].SuccessfulJobSchedulingContexts[jctx.JobId]; scheduled {
-				shouldSkip = true
-				break
+				continue loop
 			}
 			if q.minimumJobSizeToSchedule != nil && q.minimumJobSizeToSchedule.Exceeds(jctx.Job.AllResourceRequirements()) {
 				// Don't schedule jobs smaller than the minimum size
-				shouldSkip = true
-				break
+				continue loop
 			}
-		}
-
-		if shouldSkip {
-			continue
 		}
 
 		if currentResourceScheduled.Add(gctx.TotalResourceRequests).Exceeds(maximumResourceToSchedule) {
