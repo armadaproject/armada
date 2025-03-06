@@ -99,7 +99,9 @@ func protoGenerate() error {
 		"internal/scheduler/schedulerobjects/*.proto",
 		"internal/scheduler/simulator/*.proto",
 		"pkg/api/binoculars/*.proto",
+		"pkg/api/schedulerobjects/*.proto",
 		"pkg/executorapi/*.proto",
+		"pkg/priorityoverride/*.proto",
 	}
 	for _, pattern := range patterns {
 		matches, err := filepath.Glob(pattern)
@@ -122,10 +124,15 @@ func protoGenerate() error {
 		return err
 	}
 
+	err = protoProtocRun(false, true, "./pkg/api/schedulerobjects/api", "pkg/api/schedulerobjects/scheduler_reporting.proto")
+	if err != nil {
+		return err
+	}
+
 	err = sh.Run(
 		"swagger", "generate", "spec",
 		"-m", "-o", "pkg/api/api.swagger.definitions.json",
-		"-x", "internal/lookoutv2",
+		"-x", "internal/lookout",
 	)
 	if err != nil {
 		return err
@@ -145,6 +152,13 @@ func protoGenerate() error {
 			return err
 		}
 	}
+	if s, err := goOutput("run", "./scripts/merge_swagger/merge_swagger.go", "schedulerobjects/api.swagger.json"); err != nil {
+		return err
+	} else {
+		if err := os.WriteFile("pkg/api/schedulerobjects/api.swagger.json", []byte(s), 0o755); err != nil {
+			return err
+		}
+	}
 	if err := os.Remove("pkg/api/api.swagger.definitions.json"); err != nil {
 		return err
 	}
@@ -157,8 +171,13 @@ func protoGenerate() error {
 	if err != nil {
 		return err
 	}
+	err = sh.Run("templify", "-e", "-p=schedulerobjects", "-f=SwaggerJson", "pkg/api/schedulerobjects/api.swagger.json")
+	if err != nil {
+		return err
+	}
 
-	err = sh.Run("goimports", "-w", "-local", "github.com/armadaproject/armada", "./pkg/api/", "./pkg/armadaevents/", "./pkg/controlplaneevents/", "./internal/scheduler/schedulerobjects/", "./pkg/executorapi/")
+	err = sh.Run("goimports", "-w", "-local", "github.com/armadaproject/armada", "./pkg/api/", "./pkg/armadaevents/",
+		"./pkg/controlplaneevents/", "./internal/scheduler/schedulerobjects/", "./pkg/executorapi/", "./pkg/api/schedulerobjects/", "./pkg/priorityoverride/")
 	if err != nil {
 		return err
 	}

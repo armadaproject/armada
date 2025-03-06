@@ -27,6 +27,10 @@ pulsar:
 armadaApi:
   armadaUrl: "server:50051"
   forceNoTls: true
+priorityMultiplier:
+  enabled: false
+priorityOverride:
+  enabled: false
 postgres:
   connection:
     host: postgres
@@ -118,4 +122,5 @@ scheduling:
   experimentalIndicativePricing:
     basePrice: 100.0
     basePriority: 500.0
-
+  experimentalIndicativeShare:
+    basePriorities: []

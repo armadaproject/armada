@@ -4,16 +4,15 @@ import (
 	"fmt"
 
 	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 
+	log "github.com/armadaproject/armada/internal/common/logging"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/executor/context"
 	"github.com/armadaproject/armada/internal/executor/domain"
 	"github.com/armadaproject/armada/internal/executor/node"
 	"github.com/armadaproject/armada/internal/executor/util"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/executorapi"
 )
@@ -103,16 +102,11 @@ func (cls *ClusterUtilisationService) GetAvailableClusterCapacity() (*ClusterAva
 			return !util.IsManagedPod(pod)
 		})
 
-		allocatedByPriorityNonArmada := allocatedByPriorityAndResourceTypeFromPods(runningNodePodsNonArmada)
-		allocatedByPriorityNonArmada.MaxAggregatedByResource(
-			cls.minimumResourcesMarkedAllocatedToNonArmadaPodsPerNodePriority,
-			schedulerobjects.ResourceList{Resources: cls.minimumResourcesMarkedAllocatedToNonArmadaPodsPerNode},
-		)
+		nodeNonArmadaAllocatedResources := calculateNonArmadaResource(
+			runningNodePodsNonArmada,
+			cls.minimumResourcesMarkedAllocatedToNonArmadaPodsPerNode,
+			cls.minimumResourcesMarkedAllocatedToNonArmadaPodsPerNodePriority)
 
-		nodeNonArmadaAllocatedResources := make(map[int32]*executorapi.ComputeResource)
-		for p, rl := range allocatedByPriorityNonArmada {
-			nodeNonArmadaAllocatedResources[p] = executorapi.ComputeResourceFromProtoResources(rl.Resources)
-		}
 		nodePool := cls.nodeInfoService.GetPool(node)
 		nodes = append(nodes, executorapi.NodeInfo{
 			Name:   node.Name,
@@ -215,18 +209,24 @@ func groupPodsByNodes(pods []*v1.Pod) map[string][]*v1.Pod {
 	return podsByNodes
 }
 
-func allocatedByPriorityAndResourceTypeFromPods(pods []*v1.Pod) schedulerobjects.QuantityByTAndResourceType[int32] {
-	rv := make(schedulerobjects.QuantityByTAndResourceType[int32])
+func allocatedByPriorityAndResourceTypeFromPods(pods []*v1.Pod) (map[int32]armadaresource.ComputeResources, armadaresource.ComputeResources) {
+	resourcesByPc := make(map[int32]armadaresource.ComputeResources)
+	totalResources := armadaresource.ComputeResources{}
 	for _, pod := range pods {
 		var priority int32 = 0
 		if pod.Spec.Priority != nil {
 			priority = *(pod.Spec.Priority)
 		}
 		request := armadaresource.TotalPodResourceRequest(&pod.Spec)
-		rl := schedulerobjects.ResourceList{Resources: request}
-		rv.AddResourceList(priority, rl)
+		_, ok := resourcesByPc[priority]
+		if ok {
+			resourcesByPc[priority].Add(request)
+		} else {
+			resourcesByPc[priority] = request
+		}
+		totalResources.Add(request)
 	}
-	return rv
+	return resourcesByPc, totalResources
 }
 
 // GetAllNodeGroupAllocationInfo returns allocation information for all nodes on the cluster.
@@ -411,4 +411,37 @@ func GetAllocationByQueue(pods []*v1.Pod) map[string]armadaresource.ComputeResou
 	}
 
 	return utilisationByQueue
+}
+
+func calculateNonArmadaResource(nonArmadaPods []*v1.Pod, minimumToAllocate armadaresource.ComputeResources, minimumToAllocatePriority int32) map[int32]*executorapi.ComputeResource {
+	allocatedByPriorityNonArmada, totalAllocatedNonArmada := allocatedByPriorityAndResourceTypeFromPods(nonArmadaPods)
+	unusedNonArmadaResources, hasUnused := getUnusedNonArmadaResources(totalAllocatedNonArmada, minimumToAllocate)
+
+	if hasUnused {
+		_, ok := allocatedByPriorityNonArmada[minimumToAllocatePriority]
+		if !ok {
+			allocatedByPriorityNonArmada[minimumToAllocatePriority] = armadaresource.ComputeResources{}
+		}
+		allocatedByPriorityNonArmada[minimumToAllocatePriority].Add(unusedNonArmadaResources)
+	}
+
+	nodeNonArmadaAllocatedResources := make(map[int32]*executorapi.ComputeResource)
+	for p, rl := range allocatedByPriorityNonArmada {
+		nodeNonArmadaAllocatedResources[p] = executorapi.ComputeResourceFromProtoResources(rl)
+	}
+	return nodeNonArmadaAllocatedResources
+}
+
+func getUnusedNonArmadaResources(allocated armadaresource.ComputeResources, minimum armadaresource.ComputeResources) (armadaresource.ComputeResources, bool) {
+	diff := minimum.DeepCopy()
+	diff.Sub(allocated)
+	diff.LimitToZero()
+	// remove any zero quantities here
+	nonZero := armadaresource.ComputeResources{}
+	for res, qty := range diff {
+		if !qty.IsZero() {
+			nonZero[res] = qty
+		}
+	}
+	return nonZero, len(nonZero) > 0
 }

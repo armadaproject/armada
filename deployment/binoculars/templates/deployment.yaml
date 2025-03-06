@@ -18,7 +18,7 @@ spec:
     metadata:
       name: {{ include "binoculars.name" . }}
       annotations:
-        checksum/config: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
       labels:
         {{- include "binoculars.labels.all" . | nindent 8 }}
     spec:
@@ -102,8 +102,8 @@ spec:
                 topologyKey: kubernetes.io/hostname
       volumes:
         - name: user-config
-          secret:
-            secretName: {{ include "binoculars.config.name" . }}
+          configMap:
+            name: {{ include "binoculars.config.name" . }}
         {{- if .Values.applicationConfig.grpc.tls.enabled }}
         - name: tls-certs
           secret:

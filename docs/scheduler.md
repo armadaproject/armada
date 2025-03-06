@@ -85,7 +85,6 @@ Armada supports gang scheduling of jobs, i.e., all-or-nothing scheduling of a se
 
 * `armadaproject.io/gangId`: Jobs with the same value for this annotation are considered part of the same gang. The value of this annotation should not be re-used. For example, a unique UUID generated for each gang is a good choice. For jobs that do not set this annotation, a randomly generated value is filled in, i.e., single jobs are considered gangs of cardinality one.
 * `armadaproject.io/gangCardinality`: Total number of jobs in the gang. The Armada scheduler relies on this value to know when it has collected all jobs that make up the gang. It is the responsibility of the submitter to ensure this value is set correctly for gangs.
-* `armadaproject.io/gangMinimumCardinality`: Minimum number of jobs in the gang that must be scheduled. If the number of jobs scheduled is less than the cardinality of the gang, the remaining unscheduled jobs are failed by the scheduler. The value of this annotation defaults to that of `armadaproject.io/gangCardinality`.
 * `armadaproject.io/gangNodeUniformityLabel`: Constrains the jobs that make up a gang to be scheduled across a uniform set of nodes. Specifically, if set, all gang jobs are scheduled onto nodes for which the value of the provided label is equal. This can be used to ensure, e.g., that all gang jobs are scheduled onto the same cluster or rack.
 
 ## Node selection and bin-packing

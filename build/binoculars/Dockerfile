@@ -1,4 +1,4 @@
-ARG BASE_IMAGE=alpine:3.20.3
+ARG BASE_IMAGE=alpine:3.21.0
 FROM ${BASE_IMAGE}
 LABEL org.opencontainers.image.title=binoculars
 LABEL org.opencontainers.image.description="binoculars"
@@ -9,6 +9,7 @@ USER armada
 
 COPY binoculars /app/
 COPY config/binoculars/config.yaml /app/config/binoculars/config.yaml
+COPY config/logging.yaml /app/config/logging.yaml
 
 WORKDIR /app
 

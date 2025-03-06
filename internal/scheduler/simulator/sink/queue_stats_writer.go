@@ -61,7 +61,7 @@ func (j *QueueStatsWriter) Update(time time.Time, result *scheduling.SchedulerRe
 				Queue:             qctx.Queue,
 				Pool:              sctx.Pool,
 				FairShare:         qctx.FairShare,
-				AdjustedFairShare: qctx.AdjustedFairShare,
+				AdjustedFairShare: qctx.DemandCappedAdjustedFairShare,
 				ActualShare:       sctx.FairnessCostProvider.UnweightedCostFromQueue(qctx),
 				CpuShare:          calculateResourceShare(sctx, qctx, "cpu"),
 				MemoryShare:       calculateResourceShare(sctx, qctx, "memory"),

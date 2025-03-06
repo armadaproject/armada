@@ -6,13 +6,13 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	networking "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
+	log "github.com/armadaproject/armada/internal/common/logging"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/pkg/api"
@@ -184,7 +184,7 @@ func ApiJobFromLogSubmitJob(ownerId string, groups []string, queueName string, j
 
 		PodSpec:                        podSpec,
 		PodSpecs:                       podSpecs,
-		SchedulingResourceRequirements: &schedulingResourceRequirements,
+		SchedulingResourceRequirements: schedulingResourceRequirements,
 
 		Created:                  protoutil.ToTimestamp(time),
 		Owner:                    ownerId,

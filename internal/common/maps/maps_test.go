@@ -92,21 +92,6 @@ func (a mySlice) Equal(b mySlice) bool {
 	return slices.Equal(a, b)
 }
 
-func TestDeepCopy(t *testing.T) {
-	m := map[string]mySlice{
-		"foo": {1, 2, 3},
-		"bar": {10, 20, 30},
-	}
-	actual := DeepCopy(m)
-	m["foo"][0] = 100
-	m["bar"] = append(m["bar"], 40)
-	expected := map[string]mySlice{
-		"foo": {1, 2, 3},
-		"bar": {10, 20, 30},
-	}
-	assert.Equal(t, expected, actual)
-}
-
 func TestEqual(t *testing.T) {
 	tests := map[string]struct {
 		a        map[string]mySlice

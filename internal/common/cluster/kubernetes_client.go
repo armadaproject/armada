@@ -2,13 +2,13 @@ package cluster
 
 import (
 	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/flowcontrol"
 
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
+	log "github.com/armadaproject/armada/internal/common/logging"
 )
 
 type KubernetesClientProvider interface {

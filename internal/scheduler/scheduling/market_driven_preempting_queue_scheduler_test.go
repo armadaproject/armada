@@ -19,7 +19,6 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/scheduling/constraints"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/fairness"
@@ -45,7 +44,7 @@ func TestMarketDrivenPreemptingQueueScheduler(t *testing.T) {
 	tests := map[string]struct {
 		SchedulingConfig configuration.SchedulingConfig
 		// Nodes to be considered by the scheduler.
-		Nodes []*schedulerobjects.Node
+		Nodes []*internaltypes.Node
 		// Each item corresponds to a call to Reschedule().
 		Rounds []SchedulingRound
 		// Map from queue to the priority factor associated with that queue.
@@ -352,14 +351,14 @@ func TestMarketDrivenPreemptingQueueScheduler(t *testing.T) {
 			cordonedNodes := map[int]bool{}
 			ctx := armadacontext.Background()
 			for i, round := range tc.Rounds {
-				ctx.FieldLogger = ctx.WithField("round", i)
+				ctx = armadacontext.WithLogField(ctx, "round", i)
 				ctx.Infof("starting scheduling round %d", i)
 
-				jobsByNode := map[string][]*jobdb.Job{}
+				jobsByNodeId := map[string][]*jobdb.Job{}
 				for _, job := range jobDbTxn.GetAll() {
 					if job.LatestRun() != nil && !job.LatestRun().InTerminalState() {
-						node := job.LatestRun().NodeId()
-						jobsByNode[node] = append(jobsByNode[node], job)
+						nodeId := job.LatestRun().NodeId()
+						jobsByNodeId[nodeId] = append(jobsByNodeId[nodeId], job)
 					}
 				}
 
@@ -367,9 +366,7 @@ func TestMarketDrivenPreemptingQueueScheduler(t *testing.T) {
 				require.NoError(t, err)
 				nodeDbTxn := nodeDb.Txn(true)
 				for _, node := range tc.Nodes {
-					dbNode, err := testfixtures.TestNodeFactory.FromSchedulerObjectsNode(node)
-					require.NoError(t, err)
-					err = nodeDb.CreateAndInsertWithJobDbJobsWithTxn(nodeDbTxn, jobsByNode[node.Name], dbNode)
+					err = nodeDb.CreateAndInsertWithJobDbJobsWithTxn(nodeDbTxn, jobsByNodeId[node.GetId()], node.DeepCopyNilKeys())
 					require.NoError(t, err)
 				}
 				nodeDbTxn.Commit()
@@ -416,7 +413,7 @@ func TestMarketDrivenPreemptingQueueScheduler(t *testing.T) {
 				}
 				for idx, isCordoned := range cordonedNodes {
 					if isCordoned {
-						node, err := nodeDb.GetNode(tc.Nodes[idx].Id)
+						node, err := nodeDb.GetNode(tc.Nodes[idx].GetId())
 						require.NoError(t, err)
 						ctx.Infof("Cordoned node %s", node.GetId())
 						taints := append(slices.Clone(node.GetTaints()), internaltypes.UnschedulableTaint())
@@ -448,6 +445,7 @@ func TestMarketDrivenPreemptingQueueScheduler(t *testing.T) {
 					err := sctx.AddQueueSchedulingContext(
 						queue,
 						weight,
+						weight,
 						allocatedByQueueAndPriorityClass[queue],
 						queueDemand,
 						queueDemand,
@@ -468,15 +466,14 @@ func TestMarketDrivenPreemptingQueueScheduler(t *testing.T) {
 					sctx,
 					constraints,
 					testfixtures.TestEmptyFloatingResources,
-					true,
-					tc.SchedulingConfig.ProtectedFractionOfFairShare,
-					tc.SchedulingConfig.MaxQueueLookback,
+					tc.SchedulingConfig,
 					jobDbTxn,
 					nodeDb,
 					nodeIdByJobId,
 					jobIdsByGangId,
 					gangIdByJobId,
 					true,
+					false,
 				)
 
 				result, err := sch.Schedule(ctx)

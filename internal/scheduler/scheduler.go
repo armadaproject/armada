@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/protobuf/types"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
@@ -13,9 +12,10 @@ import (
 	"k8s.io/utils/clock"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
-	"github.com/armadaproject/armada/internal/common/logging"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
+	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/scheduler/database"
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/kubernetesobjects/affinity"
 	"github.com/armadaproject/armada/internal/scheduler/leader"
@@ -153,7 +153,7 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 				syncContext, cancel := armadacontext.WithTimeout(ctx, 5*time.Minute)
 				err := s.ensureDbUpToDate(syncContext, 1*time.Second)
 				if err != nil {
-					logging.WithStacktrace(ctx, err).Error("could not become leader")
+					ctx.Logger().WithStacktrace(err).Error("could not become leader")
 					leaderToken = leader.InvalidLeaderToken()
 				} else {
 					fullUpdate = true
@@ -175,7 +175,7 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 
 			result, err := s.cycle(ctx, fullUpdate, leaderToken, shouldSchedule)
 			if err != nil {
-				logging.WithStacktrace(ctx, err).Error("scheduling cycle failure")
+				ctx.Logger().WithStacktrace(err).Error("scheduling cycle failure")
 				leaderToken = leader.InvalidLeaderToken()
 			}
 
@@ -415,10 +415,10 @@ func (s *Scheduler) syncState(ctx *armadacontext.Context, initial bool) ([]*jobd
 	return jobDbJobs, jsts, nil
 }
 
-func (s *Scheduler) createSchedulingInfoWithNodeAntiAffinityForAttemptedRuns(job *jobdb.Job) (*schedulerobjects.JobSchedulingInfo, error) {
-	newSchedulingInfo := proto.Clone(job.JobSchedulingInfo()).(*schedulerobjects.JobSchedulingInfo)
+func (s *Scheduler) createSchedulingInfoWithNodeAntiAffinityForAttemptedRuns(job *jobdb.Job) (*internaltypes.JobSchedulingInfo, error) {
+	newSchedulingInfo := job.JobSchedulingInfo().DeepCopy()
 	newSchedulingInfo.Version = job.JobSchedulingInfo().Version + 1
-	podRequirements := newSchedulingInfo.GetPodRequirements()
+	podRequirements := newSchedulingInfo.PodRequirements
 	if podRequirements == nil {
 		return nil, errors.Errorf("no pod scheduling requirement found for job %s", job.Id())
 	}
@@ -575,7 +575,9 @@ func AppendEventSequencesFromScheduledJobs(eventSequences []*armadaevents.EventS
 							HasScheduledAtPriority: hasScheduledAtPriority,
 							ScheduledAtPriority:    scheduledAtPriority,
 							PodRequirementsOverlay: &schedulerobjects.PodRequirements{
-								Tolerations: jctx.AdditionalTolerations,
+								Tolerations: armadaslices.Map(jctx.AdditionalTolerations, func(t v1.Toleration) *v1.Toleration {
+									return &t
+								}),
 							},
 							Pool: run.Pool(),
 						},
@@ -647,15 +649,26 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 			})
 		}
 		job = job.WithQueued(false).WithoutTerminal().WithCancelled(true)
+		var cancelUser string
+		if cancelUserPtr := job.CancelUser(); cancelUserPtr != nil {
+			cancelUser = *cancelUserPtr
+		}
 		cancel := &armadaevents.EventSequence_Event{
 			Created: s.now(),
 			Event: &armadaevents.EventSequence_Event_CancelledJob{
-				CancelledJob: &armadaevents.CancelledJob{JobId: job.Id()},
+				CancelledJob: &armadaevents.CancelledJob{
+					JobId:      job.Id(),
+					CancelUser: cancelUser,
+				},
 			},
 		}
 		events = append(events, cancel)
 	} else if job.CancelByJobsetRequested() {
 		job = job.WithQueued(false).WithoutTerminal().WithCancelled(true)
+		var cancelUser string
+		if cancelUserPtr := job.CancelUser(); cancelUserPtr != nil {
+			cancelUser = *cancelUserPtr
+		}
 		cancelRequest := &armadaevents.EventSequence_Event{
 			Created: s.now(),
 			Event: &armadaevents.EventSequence_Event_CancelJob{
@@ -682,7 +695,10 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 		cancel := &armadaevents.EventSequence_Event{
 			Created: s.now(),
 			Event: &armadaevents.EventSequence_Event_CancelledJob{
-				CancelledJob: &armadaevents.CancelledJob{JobId: job.Id()},
+				CancelledJob: &armadaevents.CancelledJob{
+					JobId:      job.Id(),
+					CancelUser: cancelUser,
+				},
 			},
 		}
 		events = append(events, cancel)
@@ -727,7 +743,7 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 					Event: &armadaevents.EventSequence_Event_JobRequeued{
 						JobRequeued: &armadaevents.JobRequeued{
 							JobId:                job.Id(),
-							SchedulingInfo:       job.JobSchedulingInfo(),
+							SchedulingInfo:       internaltypes.ToSchedulerObjectsJobSchedulingInfo(job.JobSchedulingInfo()),
 							UpdateSequenceNumber: job.QueuedVersion(),
 						},
 					},
@@ -981,7 +997,9 @@ func (s *Scheduler) initialise(ctx *armadacontext.Context) error {
 			return nil
 		default:
 			if _, _, err := s.syncState(ctx, true); err != nil {
-				logging.WithStacktrace(ctx, err).Error("failed to initialise; trying again in 1 second")
+				ctx.Logger().
+					WithStacktrace(err).
+					Error("failed to initialise; trying again in 1 second")
 				time.Sleep(1 * time.Second)
 			} else {
 				ctx.Info("initialisation succeeded")
@@ -1008,7 +1026,9 @@ func (s *Scheduler) ensureDbUpToDate(ctx *armadacontext.Context, pollInterval ti
 		default:
 			numSent, err = s.publisher.PublishMarkers(ctx, groupId)
 			if err != nil {
-				logging.WithStacktrace(ctx, err).Error("Error sending marker messages to pulsar")
+				ctx.Logger().
+					WithStacktrace(err).
+					Error("Error sending marker messages to pulsar")
 				s.clock.Sleep(pollInterval)
 			} else {
 				messagesSent = true
@@ -1024,8 +1044,8 @@ func (s *Scheduler) ensureDbUpToDate(ctx *armadacontext.Context, pollInterval ti
 		default:
 			numReceived, err := s.jobRepository.CountReceivedPartitions(ctx, groupId)
 			if err != nil {
-				logging.
-					WithStacktrace(ctx, err).
+				ctx.Logger().
+					WithStacktrace(err).
 					Error("Error querying the database or marker messages")
 			}
 			if numSent == numReceived {

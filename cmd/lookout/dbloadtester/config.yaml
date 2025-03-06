@@ -1,0 +1,10 @@
+#sample config
+---
+queues:
+  - "queue1"
+ids:
+  - "01JD2FF8TTJAXCNFB0F91053ZD"
+jobsets:
+  - "jobset1"
+queueCounts:
+  queue1: 1000000

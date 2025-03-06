@@ -4,13 +4,13 @@ import (
 	"context"
 	"os"
 
-	log "github.com/sirupsen/logrus"
 	"golang.org/x/oauth2"
 	authv1 "k8s.io/api/authentication/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
+	log "github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/pkg/client/auth/oidc"
 )
 

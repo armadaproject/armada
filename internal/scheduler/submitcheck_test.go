@@ -1,13 +1,14 @@
 package scheduler
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 	"golang.org/x/exp/slices"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -31,7 +32,7 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 	smallJob2 := testfixtures.Test1Cpu4GiJob("queue", testfixtures.PriorityClass1)
 	smallGpuJob := testfixtures.Test1GpuJob("queue", testfixtures.PriorityClass4PreemptibleAway)
 	smallAwayJob := testfixtures.Test1Cpu4GiJob("queue", testfixtures.PriorityClass4PreemptibleAway)
-	largeJob1 := testfixtures.Test32Cpu256GiJob("queue", testfixtures.PriorityClass1)
+	largeJob1 := testfixtures.Test32Cpu256GiJobWithLargeJobToleration("queue", testfixtures.PriorityClass1)
 
 	// This Gang job will fit
 	smallGangJob := testfixtures.
@@ -298,7 +299,8 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 				floatingResources,
 				testfixtures.TestResourceListFactory)
 			submitCheck.clock = fakeClock
-			submitCheck.updateExecutors(ctx)
+			err := submitCheck.Initialise(ctx)
+			assert.NoError(t, err)
 			results, err := submitCheck.Check(ctx, tc.jobs)
 			require.NoError(t, err)
 			require.Equal(t, len(tc.expectedResult), len(results))
@@ -311,6 +313,63 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 				slices.Sort(actualResult.pools)
 				slices.Sort(expected.pools)
 				assert.Equal(t, expected, actualResult)
+			}
+		})
+	}
+}
+
+func TestSubmitChecker_Initialise(t *testing.T) {
+	tests := map[string]struct {
+		queueCacheErr   error
+		executorRepoErr error
+		expectError     bool
+	}{
+		"Successful initialisation": {
+			expectError: false,
+		},
+		"error on queue cache error": {
+			expectError:   true,
+			queueCacheErr: fmt.Errorf("failed to get queues"),
+		},
+		"error on executor repo err": {
+			expectError:   true,
+			queueCacheErr: fmt.Errorf("failed to get executors"),
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
+			defer cancel()
+
+			queue := &api.Queue{Name: "queue"}
+			executors := []*schedulerobjects.Executor{Executor(SmallNode("cpu"))}
+
+			ctrl := gomock.NewController(t)
+			mockExecutorRepo := schedulermocks.NewMockExecutorRepository(ctrl)
+			if tc.executorRepoErr != nil {
+				mockExecutorRepo.EXPECT().GetExecutors(ctx).Return(nil, tc.executorRepoErr).AnyTimes()
+			} else {
+				mockExecutorRepo.EXPECT().GetExecutors(ctx).Return(executors, nil).AnyTimes()
+			}
+
+			mockQueueCache := schedulermocks.NewMockQueueCache(ctrl)
+			if tc.queueCacheErr != nil {
+				mockQueueCache.EXPECT().GetAll(ctx).Return(nil, tc.queueCacheErr).AnyTimes()
+			} else {
+				mockQueueCache.EXPECT().GetAll(ctx).Return([]*api.Queue{queue}, nil).AnyTimes()
+			}
+
+			submitCheck := NewSubmitChecker(testfixtures.TestSchedulingConfig(),
+				mockExecutorRepo,
+				mockQueueCache,
+				testfixtures.TestFloatingResources,
+				testfixtures.TestResourceListFactory)
+
+			err := submitCheck.Initialise(ctx)
+			if tc.expectError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
 			}
 		})
 	}
@@ -329,14 +388,14 @@ func Executor(nodes ...*schedulerobjects.Node) *schedulerobjects.Executor {
 }
 
 func GpuNode(pool string) *schedulerobjects.Node {
-	node := testfixtures.TestNode(
+	node := testfixtures.TestSchedulerObjectsNode(
 		testfixtures.TestPriorities,
 		map[string]resource.Quantity{
 			"cpu":            resource.MustParse("30"),
 			"memory":         resource.MustParse("512Gi"),
 			"nvidia.com/gpu": resource.MustParse("8"),
 		})
-	node.Taints = []v1.Taint{
+	node.Taints = []*v1.Taint{
 		{
 			Key:    "gpu",
 			Value:  "true",
@@ -348,7 +407,7 @@ func GpuNode(pool string) *schedulerobjects.Node {
 }
 
 func SmallNode(pool string) *schedulerobjects.Node {
-	node := testfixtures.TestNode(
+	node := testfixtures.TestSchedulerObjectsNode(
 		testfixtures.TestPriorities,
 		map[string]resource.Quantity{
 			"cpu":    resource.MustParse("2"),

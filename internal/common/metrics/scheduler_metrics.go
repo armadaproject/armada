@@ -206,6 +206,13 @@ var ClusterCapacityDesc = prometheus.NewDesc(
 	nil,
 )
 
+var ClusterFarmCapacityDesc = prometheus.NewDesc(
+	MetricPrefix+"cluster_farm_capacity",
+	"Cluster capacity less usage from non-Armada pods",
+	[]string{"cluster", "pool", "resourceType", "nodeType"},
+	nil,
+)
+
 var ClusterAvailableCapacityDesc = prometheus.NewDesc(
 	MetricPrefix+"cluster_available_capacity",
 	"Cluster capacity available for Armada jobs",
@@ -267,6 +274,7 @@ var AllDescs = []*prometheus.Desc{
 	QueueUsedDesc,
 	QueueLeasedPodCountDesc,
 	ClusterCapacityDesc,
+	ClusterFarmCapacityDesc,
 	ClusterAvailableCapacityDesc,
 	QueuePriorityDesc,
 	QueueLabelDesc,
@@ -426,6 +434,10 @@ func NewQueueLeasedPodCount(value float64, cluster string, pool string, queue st
 
 func NewClusterAvailableCapacity(value float64, cluster string, pool string, resource string, nodeType string) prometheus.Metric {
 	return prometheus.MustNewConstMetric(ClusterAvailableCapacityDesc, prometheus.GaugeValue, value, cluster, pool, resource, nodeType)
+}
+
+func NewClusterFarmCapacity(value float64, cluster string, pool string, resource string, nodeType string) prometheus.Metric {
+	return prometheus.MustNewConstMetric(ClusterFarmCapacityDesc, prometheus.GaugeValue, value, cluster, pool, resource, nodeType)
 }
 
 func NewClusterTotalCapacity(value float64, cluster string, pool string, resource string, nodeType string) prometheus.Metric {

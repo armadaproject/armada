@@ -21,15 +21,16 @@ import dataclasses
 import datetime
 import os
 import time
-from typing import Any, Callable, Dict, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, Optional, Sequence, Tuple, Union
 
 import jinja2
 import tenacity
+import re
+
 from airflow.configuration import conf
 from airflow.exceptions import AirflowFailException
-from airflow.models import BaseOperator, BaseOperatorLink, XCom
+from airflow.models import BaseOperator
 from airflow.models.taskinstance import TaskInstance
-from airflow.models.taskinstancekey import TaskInstanceKey
 from airflow.serialization.serde import deserialize
 from airflow.utils.context import Context
 from airflow.utils.log.logging_mixin import LoggingMixin
@@ -47,17 +48,7 @@ from ..model import RunningJobContext
 from ..policies.reattach import external_job_uri, policy
 from ..triggers import ArmadaPollJobTrigger
 from ..utils import log_exceptions, xcom_pull_for_ti, resolve_parameter_value
-
-
-class LookoutLink(BaseOperatorLink):
-    name = "Lookout"
-
-    def get_link(self, operator: BaseOperator, *, ti_key: TaskInstanceKey):
-        task_state = XCom.get_value(ti_key=ti_key)
-        if not task_state:
-            return ""
-
-        return task_state.get("armada_lookout_url", "")
+from ..links import LookoutLink, DynamicLink, persist_link_value, UrlFromLogsExtractor
 
 
 class ArmadaOperator(BaseOperator, LoggingMixin):
@@ -67,8 +58,6 @@ class ArmadaOperator(BaseOperator, LoggingMixin):
     This operator submits a job to an Armada cluster, polls for its completion,
     and handles job cancellation if the Airflow task is killed.
     """
-
-    operator_extra_links = (LookoutLink(),)
 
     template_fields: Sequence[str] = ("job_request", "job_set_prefix")
     template_fields_renderers: Dict[str, str] = {"job_request": "py"}
@@ -108,6 +97,10 @@ acknowledged by Armada.
 :param reattach_policy: Operator reattach policy to use (defaults to: never)
 :type reattach_policy: Optional[str] | Callable[[JobState, str], bool]
 :param kwargs: Additional keyword arguments to pass to the BaseOperator.
+:param extra_links: Extra links to be shown in addition to Lookout URL. \
+Regex patterns will be extracted from container logs (taking first match).
+:type extra_links: Optional[Dict[str, Union[str, re.Pattern]]]
+:param kwargs: Additional keyword arguments to pass to the BaseOperator.
 """
 
     def __init__(
@@ -136,6 +129,7 @@ acknowledged by Armada.
             "armada_operator", "default_dry_run", fallback=False
         ),
         reattach_policy: Optional[str] | Callable[[JobState, str], bool] = None,
+        extra_links: Optional[Dict[str, Union[str, re.Pattern]]] = None,
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)
@@ -175,6 +169,15 @@ acknowledged by Armada.
                 "Token refresh mechanism not configured, airflow may stop retrieving "
                 "logs from Kubernetes"
             )
+
+        self.extra_links = extra_links or {}
+        operator_links = []
+
+        if self.lookout_url_template:
+            operator_links.append(LookoutLink())
+
+        operator_links.extend([DynamicLink(name) for name in self.extra_links])
+        self.operator_extra_links = operator_links
 
     @log_exceptions
     def execute(self, context) -> None:
@@ -264,6 +267,9 @@ acknowledged by Armada.
             super().render_template_fields(context, jinja_env)
             self._xcom_push(context, key="job_request", value=self.job_request)
 
+            # We should render extra links here.
+            self.render_extra_links_urls(context, jinja_env)
+
         self.job_request = ParseDict(self.job_request, JobSubmitRequestItem())
         self._annotate_job_request(context, self.job_request)
 
@@ -276,6 +282,33 @@ acknowledged by Armada.
                     f"in job_request. Available containers: {containers}"
                 )
                 self.container_logs = None
+
+    def render_extra_links_urls(
+        self, context: Context, jinja_env: Optional[jinja2.Environment] = None
+    ) -> None:
+        """
+        Template all URLs listed in self.extra_links.
+        This pushes all URL values to xcom for values to be picked up by UI.
+
+        Args:
+            context (Context): The execution context provided by Airflow.
+        :param context: Airflow Context dict wi1th values to apply on content
+        :param jinja_env: jinja’s environment to use for rendering.
+        """
+        if jinja_env is None:
+            jinja_env = jinja2.Environment()
+
+        for name, url in self.extra_links.items():
+            if isinstance(url, re.Pattern):
+                self.log.warning(
+                    f"Skipping link {name} because the URL appears is a regex: {url}"
+                )
+                continue
+            try:
+                rendered_url = jinja_env.from_string(url).render(context)
+                persist_link_value(context["ti"].key, name, rendered_url)
+            except jinja2.TemplateError as e:
+                self.log.error(f"Error rendering template for {name} ({url}): {e}")
 
     def on_kill(self) -> None:
         if self.job_context is not None:
@@ -430,12 +463,16 @@ acknowledged by Armada.
 
         if self._should_have_a_pod_in_k8s() and self.container_logs:
             try:
+                link_extractor = UrlFromLogsExtractor.create(
+                    self.extra_links, context["ti"].key
+                )
                 last_log_time = self.pod_manager.fetch_container_logs(
                     k8s_context=self.job_context.cluster,
                     namespace=self.job_request.namespace,
                     pod=f"armada-{self.job_context.job_id}-0",
                     container=self.container_logs,
                     since_time=self.job_context.last_log_time,
+                    link_extractor=link_extractor,
                 )
                 if last_log_time:
                     self.job_context = dataclasses.replace(
@@ -471,6 +508,10 @@ acknowledged by Armada.
         request.annotations[annotation_key_prefix + "taskId"] = task_id
         request.annotations[annotation_key_prefix + "taskRunId"] = run_id
         request.annotations[annotation_key_prefix + "dagId"] = dag_id
+        request.annotations[annotation_key_prefix + "jobSet"] = (
+            f"{self.job_set_prefix}{run_id}"
+        )
+
         request.annotations[annotation_key_prefix + "externalJobUri"] = (
             external_job_uri(context)
         )

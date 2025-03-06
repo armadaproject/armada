@@ -27,6 +27,9 @@ type QueueSchedulingContext struct {
 	Queue string
 	// Determines the fair share of this queue relative to other queues.
 	Weight float64
+	// Raw Weight of the queue before any priority boosts.
+	// This is purely informational as all scheduling decisions are made using Weight
+	RawWeight float64
 	// Limits job scheduling rate for this queue.
 	// Use the "Started" time to ensure limiter state remains constant within each scheduling round.
 	Limiter *rate.Limiter
@@ -36,13 +39,18 @@ type QueueSchedulingContext struct {
 	// Total demand from this queue.  This is essentially the cumulative resources of all non-terminal jobs at the
 	// start of the scheduling cycle
 	Demand internaltypes.ResourceList
-	// Capped Demand for this queue. This differs from Demand in that it takes into account any limits that we have
+	// Constrained demand for this queue. This differs from Demand in that it takes into account any constraints that we have
 	// placed on the queue
-	CappedDemand internaltypes.ResourceList
+	ConstrainedDemand internaltypes.ResourceList
 	// Fair share is the weight of this queue over the sum of the weights of all queues
 	FairShare float64
-	// AdjustedFairShare modifies fair share such that queues that have a demand cost less than their fair share, have their fair share reallocated.
-	AdjustedFairShare float64
+	// UncappedAdjustedFairShare includes not only this queue's fairshare, but also this queue's share of any unused fairshare from other queues. It's
+	// not capped by this queue's demand, so includes any fairshare unused by this queue. It's effectively the share this queue would get if it had infinite demand.
+	// This measure is designed to not punish queues for being undemanding.
+	UncappedAdjustedFairShare float64
+	// DemandCappedAdjustedFairShare includes not only this queue's fairshare, but also this queue's share of any unused fairshare from other queues. It's
+	// capped by this queue's demand, so does not include any fairshare unused by this queue.
+	DemandCappedAdjustedFairShare float64
 	// Total resources assigned to the queue across all clusters by priority class.
 	// Includes jobs scheduled during this invocation of the scheduler.
 	AllocatedByPriorityClass map[string]internaltypes.ResourceList
@@ -50,8 +58,12 @@ type QueueSchedulingContext struct {
 	ScheduledResourcesByPriorityClass map[string]internaltypes.ResourceList
 	// Resources evicted from this queue during this scheduling cycle.
 	EvictedResourcesByPriorityClass map[string]internaltypes.ResourceList
+	// Resources preempted from this queue during this scheduling cycle.
+	PreemptedByOptimiserResourceByPriorityClass map[string]internaltypes.ResourceList
 	// Job scheduling contexts associated with successful scheduling attempts.
 	SuccessfulJobSchedulingContexts map[string]*JobSchedulingContext
+	// Job scheduling contexts associated with preempted jobs.
+	PreemptedByOptimiserJobSchedulingContexts map[string]*JobSchedulingContext
 	// Job scheduling contexts associated with unsuccessful scheduling attempts.
 	UnsuccessfulJobSchedulingContexts map[string]*JobSchedulingContext
 	// Jobs evicted in this round.
@@ -85,6 +97,8 @@ func (qctx *QueueSchedulingContext) ReportString(verbosity int32) string {
 	fmt.Fprintf(w, "Scheduled resources (by priority):\t%s\n", internaltypes.RlMapToString(qctx.ScheduledResourcesByPriorityClass))
 	fmt.Fprintf(w, "Preempted resources:\t%s\n", internaltypes.RlMapSumValues(qctx.EvictedResourcesByPriorityClass).String())
 	fmt.Fprintf(w, "Preempted resources (by priority):\t%s\n", internaltypes.RlMapToString(qctx.EvictedResourcesByPriorityClass))
+	fmt.Fprintf(w, "Preempted by optimiser resources:\t%s\n", internaltypes.RlMapSumValues(qctx.PreemptedByOptimiserResourceByPriorityClass).String())
+	fmt.Fprintf(w, "Preempted by optimiser resources (by priority):\t%s\n", internaltypes.RlMapToString(qctx.PreemptedByOptimiserResourceByPriorityClass))
 	if verbosity >= 0 {
 		fmt.Fprintf(w, "Total allocated resources after scheduling:\t%s\n", qctx.Allocated.String())
 		for pc, res := range qctx.AllocatedByPriorityClass {
@@ -92,6 +106,7 @@ func (qctx *QueueSchedulingContext) ReportString(verbosity int32) string {
 		}
 		fmt.Fprintf(w, "Number of jobs scheduled:\t%d\n", len(qctx.SuccessfulJobSchedulingContexts))
 		fmt.Fprintf(w, "Number of jobs preempted:\t%d\n", len(qctx.EvictedJobsById))
+		fmt.Fprintf(w, "Number of jobs preempted by optimiser:\t%d\n", len(qctx.PreemptedByOptimiserJobSchedulingContexts))
 		fmt.Fprintf(w, "Number of jobs that could not be scheduled:\t%d\n", len(qctx.UnsuccessfulJobSchedulingContexts))
 		if len(qctx.SuccessfulJobSchedulingContexts) > 0 {
 			jobIdsToPrint := maps.Keys(qctx.SuccessfulJobSchedulingContexts)
@@ -113,6 +128,18 @@ func (qctx *QueueSchedulingContext) ReportString(verbosity int32) string {
 			fmt.Fprintf(w, "Preempted jobs:\t%v", jobIdsToPrint)
 			if len(jobIdsToPrint) != len(qctx.EvictedJobsById) {
 				fmt.Fprintf(w, " (and %d others not shown)\n", len(qctx.EvictedJobsById)-len(jobIdsToPrint))
+			} else {
+				fmt.Fprint(w, "\n")
+			}
+		}
+		if len(qctx.PreemptedByOptimiserJobSchedulingContexts) > 0 {
+			jobIdsToPrint := maps.Keys(qctx.PreemptedByOptimiserJobSchedulingContexts)
+			if len(jobIdsToPrint) > maxJobIdsToPrint {
+				jobIdsToPrint = jobIdsToPrint[0:maxJobIdsToPrint]
+			}
+			fmt.Fprintf(w, "Preempted jobs (by optimiser):\t%v", jobIdsToPrint)
+			if len(jobIdsToPrint) != len(qctx.PreemptedByOptimiserJobSchedulingContexts) {
+				fmt.Fprintf(w, " (and %d others not shown)\n", len(qctx.PreemptedByOptimiserJobSchedulingContexts)-len(jobIdsToPrint))
 			} else {
 				fmt.Fprint(w, "\n")
 			}
@@ -159,7 +186,7 @@ func (qctx *QueueSchedulingContext) addJobSchedulingContext(jctx *JobSchedulingC
 		return false, errors.Errorf("failed adding job %s to queue: job already marked successful", jctx.JobId)
 	}
 	if _, ok := qctx.UnsuccessfulJobSchedulingContexts[jctx.JobId]; ok {
-		return false, errors.Errorf("failed adding job %s to queue: job already marked unsuccessful", jctx.JobId)
+		delete(qctx.UnsuccessfulJobSchedulingContexts, jctx.JobId)
 	}
 	_, evictedInThisRound := qctx.EvictedJobsById[jctx.JobId]
 	if jctx.IsSuccessful() {
@@ -187,6 +214,25 @@ func (qctx *QueueSchedulingContext) addJobSchedulingContext(jctx *JobSchedulingC
 		qctx.UnsuccessfulJobSchedulingContexts[jctx.JobId] = jctx
 	}
 	return evictedInThisRound, nil
+}
+
+func (qctx *QueueSchedulingContext) preemptJob(jctx *JobSchedulingContext) (bool, error) {
+	jobId := jctx.Job.Id()
+
+	pcName := jctx.Job.PriorityClassName()
+	rl := jctx.Job.AllResourceRequirements()
+	_, scheduledInThisRound := qctx.SuccessfulJobSchedulingContexts[jobId]
+	if scheduledInThisRound {
+		qctx.ScheduledResourcesByPriorityClass[pcName] = qctx.ScheduledResourcesByPriorityClass[pcName].Subtract(rl)
+		delete(qctx.SuccessfulJobSchedulingContexts, jobId)
+	}
+	qctx.PreemptedByOptimiserResourceByPriorityClass[pcName] = qctx.PreemptedByOptimiserResourceByPriorityClass[pcName].Add(rl)
+	qctx.PreemptedByOptimiserJobSchedulingContexts[jobId] = jctx
+
+	qctx.AllocatedByPriorityClass[pcName] = qctx.AllocatedByPriorityClass[pcName].Subtract(jctx.Job.AllResourceRequirements())
+	qctx.Allocated = qctx.Allocated.Subtract(jctx.Job.AllResourceRequirements())
+
+	return scheduledInThisRound, nil
 }
 
 func (qctx *QueueSchedulingContext) evictJob(job *jobdb.Job) (bool, error) {

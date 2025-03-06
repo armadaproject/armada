@@ -5,43 +5,31 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"path"
-	"runtime"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/mitchellh/mapstructure"
-	"golang.org/x/exp/slices"
-
-	"github.com/armadaproject/armada/internal/common/certs"
-
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	log "github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
-	"github.com/weaveworks/promrus"
+	"golang.org/x/exp/slices"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/common/certs"
 	commonconfig "github.com/armadaproject/armada/internal/common/config"
-	"github.com/armadaproject/armada/internal/common/logging"
+	log "github.com/armadaproject/armada/internal/common/logging"
 )
 
 const baseConfigFileName = "config"
 
-// RFC3339Millis
-const logTimestampFormat = "2006-01-02T15:04:05.999Z07:00"
-
 func BindCommandlineArguments() {
 	err := viper.BindPFlags(pflag.CommandLine)
 	if err != nil {
-		log.Error()
-		os.Exit(-1)
+		log.Fatalf(err.Error())
 	}
 }
 
-// TODO Move code relating to config out of common into a new package internal/serverconfig
 func LoadConfig(config commonconfig.Config, defaultPath string, overrideConfigs []string) *viper.Viper {
 	v := viper.NewWithOptions(viper.KeyDelimiter("::"))
 	v.SetConfigName(baseConfigFileName)
@@ -72,8 +60,7 @@ func LoadConfig(config commonconfig.Config, defaultPath string, overrideConfigs 
 	var metadata mapstructure.Metadata
 	customHooks := append(slices.Clone(commonconfig.CustomHooks), func(c *mapstructure.DecoderConfig) { c.Metadata = &metadata })
 	if err := v.Unmarshal(config, customHooks...); err != nil {
-		log.Error(err)
-		os.Exit(-1)
+		log.Fatal(err)
 	}
 
 	// Log a warning if there are config keys that don't match a config item in the struct the yaml is decoded into.
@@ -90,7 +77,7 @@ func LoadConfig(config commonconfig.Config, defaultPath string, overrideConfigs 
 	}
 
 	if err := config.Validate(); err != nil {
-		log.Error(commonconfig.FormatValidationErrors(err))
+		log.Error(commonconfig.FormatValidationErrors(err).Error())
 		os.Exit(-1)
 	}
 
@@ -101,70 +88,11 @@ func UnmarshalKey(v *viper.Viper, key string, item interface{}) error {
 	return v.UnmarshalKey(key, item, commonconfig.CustomHooks...)
 }
 
-// TODO Move logging-related code out of common into a new package internal/logging
-func ConfigureCommandLineLogging() {
-	commandLineFormatter := new(logging.CommandLineFormatter)
-	log.SetFormatter(commandLineFormatter)
-	log.SetOutput(os.Stdout)
-}
-
-func ConfigureLogging() {
-	log.SetLevel(readEnvironmentLogLevel())
-	log.SetFormatter(readEnvironmentLogFormat())
-	log.SetReportCaller(true)
-	log.SetOutput(os.Stdout)
-}
-
-func readEnvironmentLogLevel() log.Level {
-	level, ok := os.LookupEnv("LOG_LEVEL")
-	if ok {
-		logLevel, err := log.ParseLevel(level)
-		if err == nil {
-			return logLevel
-		}
-	}
-	return log.InfoLevel
-}
-
-func readEnvironmentLogFormat() log.Formatter {
-	formatStr, ok := os.LookupEnv("LOG_FORMAT")
-	if !ok {
-		formatStr = "colourful"
-	}
-
-	textFormatter := &log.TextFormatter{
-		ForceColors:     true,
-		FullTimestamp:   true,
-		TimestampFormat: logTimestampFormat,
-		CallerPrettyfier: func(frame *runtime.Frame) (function string, file string) {
-			fileName := path.Base(frame.File) + ":" + strconv.Itoa(frame.Line)
-			return "", fileName
-		},
-	}
-
-	switch strings.ToLower(formatStr) {
-	case "json":
-		return &log.JSONFormatter{TimestampFormat: logTimestampFormat}
-	case "colourful":
-		return textFormatter
-	case "text":
-		textFormatter.ForceColors = false
-		textFormatter.DisableColors = true
-		return textFormatter
-	default:
-		println(os.Stderr, fmt.Sprintf("Unknown log format %s, defaulting to colourful format", formatStr))
-		return textFormatter
-	}
-}
-
 func ServeMetrics(port uint16) (shutdown func()) {
 	return ServeMetricsFor(port, prometheus.DefaultGatherer)
 }
 
 func ServeMetricsFor(port uint16, gatherer prometheus.Gatherer) (shutdown func()) {
-	hook := promrus.MustNewPrometheusHook()
-	log.AddHook(hook)
-
 	mux := http.NewServeMux()
 	mux.Handle("/metrics", promhttp.HandlerFor(gatherer, promhttp.HandlerOpts{}))
 	return ServeHttp(port, mux)
@@ -192,7 +120,7 @@ func serveHttp(port uint16, mux http.Handler, useTls bool, certFile, keyFile str
 	}
 
 	go func() {
-		log.Printf("Starting %s server listening on %d", scheme, port)
+		log.Infof("Starting %s server listening on %d", scheme, port)
 		var err error
 		if useTls {
 			certWatcher := certs.NewCachedCertificateService(certFile, keyFile, time.Minute)
@@ -217,7 +145,7 @@ func serveHttp(port uint16, mux http.Handler, useTls bool, certFile, keyFile str
 	return func() {
 		ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
 		defer cancel()
-		log.Printf("Stopping %s server listening on %d", scheme, port)
+		log.Infof("Stopping %s server listening on %d", scheme, port)
 		e := srv.Shutdown(ctx)
 		if e != nil {
 			panic(e)

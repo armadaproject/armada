@@ -5,10 +5,10 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
-	"github.com/golang/mock/gomock"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	v1 "k8s.io/api/core/v1"
@@ -18,9 +18,10 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	"github.com/armadaproject/armada/internal/common/auth/permission"
 	"github.com/armadaproject/armada/internal/common/compress"
-	mocks "github.com/armadaproject/armada/internal/common/mocks/jobsetevents"
+	"github.com/armadaproject/armada/internal/common/mocks"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/slices"
+	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/common/util"
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
@@ -29,7 +30,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 	"github.com/armadaproject/armada/internal/server/configuration"
-	mocks2 "github.com/armadaproject/armada/internal/server/mocks"
+	servermocks "github.com/armadaproject/armada/internal/server/mocks"
 	"github.com/armadaproject/armada/internal/server/permissions"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
@@ -92,11 +93,11 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 						Resources: nil,
 					},
 				},
-				LastSeen:          testClock.Now().UTC(),
+				LastSeen:          protoutil.ToTimestamp(testClock.Now().UTC()),
 				ReportingNodeType: "node-type-1",
 			},
 		},
-		LastUpdateTime:    testClock.Now().UTC(),
+		LastUpdateTime:    protoutil.ToTimestamp(testClock.Now().UTC()),
 		UnassignedJobRuns: []string{runId3},
 	}
 
@@ -181,7 +182,9 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 		SubmitMessage: compressedSubmit,
 		PodRequirementsOverlay: protoutil.MustMarshall(
 			&schedulerobjects.PodRequirements{
-				Tolerations: tolerations,
+				Tolerations: armadaslices.Map(tolerations, func(t v1.Toleration) *v1.Toleration {
+					return &t
+				}),
 				Annotations: map[string]string{configuration.PoolAnnotation: "test-pool", "runtime_gang_cardinality": "3"},
 			},
 		),
@@ -306,11 +309,11 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
 			ctrl := gomock.NewController(t)
-			mockPulsarPublisher := mocks.NewMockPublisher(ctrl)
+			mockPulsarPublisher := mocks.NewMockPublisher[*armadaevents.EventSequence](ctrl)
 			mockJobRepository := schedulermocks.NewMockJobRepository(ctrl)
 			mockExecutorRepository := schedulermocks.NewMockExecutorRepository(ctrl)
 			mockStream := schedulermocks.NewMockExecutorApi_LeaseJobRunsServer(ctrl)
-			mockAuthorizer := mocks2.NewMockActionAuthorizer(ctrl)
+			mockAuthorizer := servermocks.NewMockActionAuthorizer(ctrl)
 
 			runIds, err := runIdsFromLeaseRequest(tc.request)
 			require.NoError(t, err)
@@ -373,11 +376,11 @@ func TestExecutorApi_LeaseJobRuns_Unauthorised(t *testing.T) {
 	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
 	defer cancel()
 	ctrl := gomock.NewController(t)
-	mockPulsarPublisher := mocks.NewMockPublisher(ctrl)
+	mockPulsarPublisher := mocks.NewMockPublisher[*armadaevents.EventSequence](ctrl)
 	mockJobRepository := schedulermocks.NewMockJobRepository(ctrl)
 	mockExecutorRepository := schedulermocks.NewMockExecutorRepository(ctrl)
 	mockStream := schedulermocks.NewMockExecutorApi_LeaseJobRunsServer(ctrl)
-	mockAuthorizer := mocks2.NewMockActionAuthorizer(ctrl)
+	mockAuthorizer := servermocks.NewMockActionAuthorizer(ctrl)
 
 	// set up mocks
 	mockStream.EXPECT().Context().Return(ctx).AnyTimes()
@@ -501,10 +504,10 @@ func TestExecutorApi_Publish(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
 			ctrl := gomock.NewController(t)
-			mockPulsarPublisher := mocks.NewMockPublisher(ctrl)
+			mockPulsarPublisher := mocks.NewMockPublisher[*armadaevents.EventSequence](ctrl)
 			mockJobRepository := schedulermocks.NewMockJobRepository(ctrl)
 			mockExecutorRepository := schedulermocks.NewMockExecutorRepository(ctrl)
-			mockAuthorizer := mocks2.NewMockActionAuthorizer(ctrl)
+			mockAuthorizer := servermocks.NewMockActionAuthorizer(ctrl)
 
 			// capture all sent messages
 			var capturedEvents []*armadaevents.EventSequence
@@ -546,10 +549,10 @@ func TestExecutorApi_Publish_Unauthorised(t *testing.T) {
 	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
 	defer cancel()
 	ctrl := gomock.NewController(t)
-	mockPulsarPublisher := mocks.NewMockPublisher(ctrl)
+	mockPulsarPublisher := mocks.NewMockPublisher[*armadaevents.EventSequence](ctrl)
 	mockJobRepository := schedulermocks.NewMockJobRepository(ctrl)
 	mockExecutorRepository := schedulermocks.NewMockExecutorRepository(ctrl)
-	mockAuthorizer := mocks2.NewMockActionAuthorizer(ctrl)
+	mockAuthorizer := servermocks.NewMockActionAuthorizer(ctrl)
 
 	sequences := []*armadaevents.EventSequence{
 		{

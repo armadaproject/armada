@@ -3,7 +3,7 @@ package health
 import (
 	"net/http"
 
-	log "github.com/sirupsen/logrus"
+	log "github.com/armadaproject/armada/internal/common/logging"
 )
 
 // TODO Doesn't need to exist. Just give a Checker directly.

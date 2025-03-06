@@ -8,18 +8,18 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	log "github.com/armadaproject/armada/internal/common/logging"
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
+	"github.com/armadaproject/armada/internal/common/util"
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/server/configuration"
 )
 
@@ -36,7 +36,7 @@ type JobSchedulingContext struct {
 	Job *jobdb.Job
 	// Scheduling requirements of this job.
 	// We currently require that each job contains exactly one pod spec.
-	PodRequirements *schedulerobjects.PodRequirements
+	PodRequirements *internaltypes.PodRequirements
 	// Resource requirements in an efficient internaltypes.ResourceList
 	KubernetesResourceRequirements internaltypes.ResourceList
 	// Node selectors to consider in addition to those included with the PodRequirements.
@@ -90,9 +90,9 @@ func (jctx *JobSchedulingContext) String() string {
 // SchedulingKey returns the scheduling key of the embedded job.
 // If the jctx contains additional node selectors or tolerations,
 // the key is invalid and the second return value is false.
-func (jctx *JobSchedulingContext) SchedulingKey() (schedulerobjects.SchedulingKey, bool) {
+func (jctx *JobSchedulingContext) SchedulingKey() (internaltypes.SchedulingKey, bool) {
 	if len(jctx.AdditionalNodeSelectors) != 0 || len(jctx.AdditionalTolerations) != 0 {
-		return schedulerobjects.EmptySchedulingKey, false
+		return internaltypes.EmptySchedulingKey, false
 	}
 	return jctx.Job.SchedulingKey(), true
 }
@@ -137,6 +137,7 @@ func (jctx *JobSchedulingContext) AddNodeSelector(key, value string) {
 
 type GangInfo struct {
 	Id                string
+	IsGang            bool
 	Cardinality       int
 	PriorityClassName string
 	NodeUniformity    string
@@ -149,6 +150,7 @@ func EmptyGangInfo(job interfaces.MinimalJob) GangInfo {
 		// Cardinality (as well as the other fields,
 		// which all make sense in this context) accordingly.
 		Id:                "",
+		IsGang:            false,
 		Cardinality:       1,
 		PriorityClassName: job.PriorityClassName(),
 		NodeUniformity:    job.Annotations()[configuration.GangNodeUniformityLabelAnnotation],
@@ -179,6 +181,9 @@ func GangInfoFromLegacySchedulerJob(job interfaces.MinimalJob) (GangInfo, error)
 	if gangCardinality <= 0 {
 		return gangInfo, errors.Errorf("gang cardinality %d is non-positive", gangCardinality)
 	}
+	if gangCardinality > 1 {
+		gangInfo.IsGang = true
+	}
 
 	gangInfo.Id = gangId
 	gangInfo.Cardinality = gangCardinality
@@ -196,7 +201,7 @@ func JobSchedulingContextsFromJobs[J *jobdb.Job](jobs []J) []*JobSchedulingConte
 func JobSchedulingContextFromJob(job *jobdb.Job) *JobSchedulingContext {
 	gangInfo, err := GangInfoFromLegacySchedulerJob(job)
 	if err != nil {
-		logrus.Errorf("failed to extract gang info from job %s: %s", job.Id(), err)
+		log.Errorf("failed to extract gang info from job %s: %s", job.Id(), err)
 	}
 	return &JobSchedulingContext{
 		Created:                        time.Now(),
@@ -264,4 +269,34 @@ func PrintJobSummary(ctx *armadacontext.Context, prefix string, jctxs []*JobSche
 
 	ctx.Infof("%s %s", prefix, summary)
 	ctx.Debugf("%s %s", prefix, verbose)
+}
+
+// PrintJobSchedulingDetails prints details of where jobs were scheduled
+// It will log the first 100 at info level, and all at debug level
+func PrintJobSchedulingDetails(ctx *armadacontext.Context, prefix string, evictedJctx []*JobSchedulingContext) {
+	if len(evictedJctx) == 0 {
+		return
+	}
+
+	type summary struct {
+		jobId             string
+		node              string
+		scheduledPriority int32
+	}
+
+	infoDisplayLimit := 100
+	infoDisplayLimit = util.Min(infoDisplayLimit, len(evictedJctx))
+
+	summaries := make([]summary, 0, len(evictedJctx))
+	for _, jctx := range evictedJctx {
+		podSummary := summary{jobId: jctx.JobId}
+		if jctx.PodSchedulingContext != nil {
+			podSummary.node = jctx.PodSchedulingContext.NodeId
+			podSummary.scheduledPriority = jctx.PodSchedulingContext.ScheduledAtPriority
+		}
+		summaries = append(summaries, podSummary)
+	}
+
+	ctx.Infof("%s - total %d, showing first %d -  %+v", prefix, len(evictedJctx), infoDisplayLimit, summaries[:infoDisplayLimit])
+	ctx.Debugf("%s - %+v", prefix, summaries)
 }

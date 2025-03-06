@@ -4,11 +4,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 	"k8s.io/apimachinery/pkg/api/resource"
 	clock "k8s.io/utils/clock/testing"
 
@@ -229,6 +229,8 @@ func TestMetricsCollector_TestCollect_ClusterMetrics(t *testing.T) {
 				commonmetrics.NewClusterTotalCapacity(64, "cluster-1", testfixtures.TestPool, "cpu", "type-1"),
 				commonmetrics.NewClusterTotalCapacity(512*1024*1024*1024, "cluster-1", testfixtures.TestPool, "memory", "type-1"),
 				commonmetrics.NewClusterTotalCapacity(2, "cluster-1", testfixtures.TestPool, "nodes", "type-1"),
+				commonmetrics.NewClusterFarmCapacity(64, "cluster-1", testfixtures.TestPool, "cpu", "type-1"),
+				commonmetrics.NewClusterFarmCapacity(512*1024*1024*1024, "cluster-1", testfixtures.TestPool, "memory", "type-1"),
 				commonmetrics.NewClusterCordonedStatus(0.0, "cluster-1", "", ""),
 			},
 			expectedExecutorSettings: []*schedulerobjects.ExecutorSettings{},
@@ -249,6 +251,10 @@ func TestMetricsCollector_TestCollect_ClusterMetrics(t *testing.T) {
 				commonmetrics.NewClusterTotalCapacity(32, "cluster-1", testfixtures.TestPool, "cpu", "type-2"),
 				commonmetrics.NewClusterTotalCapacity(256*1024*1024*1024, "cluster-1", testfixtures.TestPool, "memory", "type-2"),
 				commonmetrics.NewClusterTotalCapacity(1, "cluster-1", testfixtures.TestPool, "nodes", "type-2"),
+				commonmetrics.NewClusterFarmCapacity(32, "cluster-1", testfixtures.TestPool, "cpu", "type-1"),
+				commonmetrics.NewClusterFarmCapacity(256*1024*1024*1024, "cluster-1", testfixtures.TestPool, "memory", "type-1"),
+				commonmetrics.NewClusterFarmCapacity(32, "cluster-1", testfixtures.TestPool, "cpu", "type-2"),
+				commonmetrics.NewClusterFarmCapacity(256*1024*1024*1024, "cluster-1", testfixtures.TestPool, "memory", "type-2"),
 				commonmetrics.NewClusterCordonedStatus(0.0, "cluster-1", "", ""),
 			},
 			expectedExecutorSettings: []*schedulerobjects.ExecutorSettings{},
@@ -263,6 +269,8 @@ func TestMetricsCollector_TestCollect_ClusterMetrics(t *testing.T) {
 				commonmetrics.NewClusterTotalCapacity(64, "cluster-1", testfixtures.TestPool, "cpu", "type-1"),
 				commonmetrics.NewClusterTotalCapacity(512*1024*1024*1024, "cluster-1", testfixtures.TestPool, "memory", "type-1"),
 				commonmetrics.NewClusterTotalCapacity(2, "cluster-1", testfixtures.TestPool, "nodes", "type-1"),
+				commonmetrics.NewClusterFarmCapacity(64, "cluster-1", testfixtures.TestPool, "cpu", "type-1"),
+				commonmetrics.NewClusterFarmCapacity(512*1024*1024*1024, "cluster-1", testfixtures.TestPool, "memory", "type-1"),
 				commonmetrics.NewClusterCordonedStatus(0.0, "cluster-1", "", ""),
 			},
 			expectedExecutorSettings: []*schedulerobjects.ExecutorSettings{},
@@ -283,6 +291,8 @@ func TestMetricsCollector_TestCollect_ClusterMetrics(t *testing.T) {
 				commonmetrics.NewClusterTotalCapacity(32, "cluster-1", testfixtures.TestPool, "cpu", "type-1"),
 				commonmetrics.NewClusterTotalCapacity(256*1024*1024*1024, "cluster-1", testfixtures.TestPool, "memory", "type-1"),
 				commonmetrics.NewClusterTotalCapacity(1, "cluster-1", testfixtures.TestPool, "nodes", "type-1"),
+				commonmetrics.NewClusterFarmCapacity(32, "cluster-1", testfixtures.TestPool, "cpu", "type-1"),
+				commonmetrics.NewClusterFarmCapacity(256*1024*1024*1024, "cluster-1", testfixtures.TestPool, "memory", "type-1"),
 				commonmetrics.NewClusterCordonedStatus(0.0, "cluster-1", "", ""),
 			},
 			expectedExecutorSettings: []*schedulerobjects.ExecutorSettings{},
@@ -299,6 +309,8 @@ func TestMetricsCollector_TestCollect_ClusterMetrics(t *testing.T) {
 				commonmetrics.NewClusterTotalCapacity(32, "cluster-1", testfixtures.TestPool, "cpu", "type-1"),
 				commonmetrics.NewClusterTotalCapacity(256*1024*1024*1024, "cluster-1", testfixtures.TestPool, "memory", "type-1"),
 				commonmetrics.NewClusterTotalCapacity(1, "cluster-1", testfixtures.TestPool, "nodes", "type-1"),
+				commonmetrics.NewClusterFarmCapacity(32, "cluster-1", testfixtures.TestPool, "cpu", "type-1"),
+				commonmetrics.NewClusterFarmCapacity(256*1024*1024*1024, "cluster-1", testfixtures.TestPool, "memory", "type-1"),
 				commonmetrics.NewClusterCordonedStatus(0.0, "cluster-1", "", ""),
 			},
 			expectedExecutorSettings: []*schedulerobjects.ExecutorSettings{},
@@ -323,6 +335,8 @@ func TestMetricsCollector_TestCollect_ClusterMetrics(t *testing.T) {
 				commonmetrics.NewClusterTotalCapacity(64, "cluster-1", testfixtures.TestPool, "cpu", "type-1"),
 				commonmetrics.NewClusterTotalCapacity(512*1024*1024*1024, "cluster-1", testfixtures.TestPool, "memory", "type-1"),
 				commonmetrics.NewClusterTotalCapacity(2, "cluster-1", testfixtures.TestPool, "nodes", "type-1"),
+				commonmetrics.NewClusterFarmCapacity(64, "cluster-1", testfixtures.TestPool, "cpu", "type-1"),
+				commonmetrics.NewClusterFarmCapacity(512*1024*1024*1024, "cluster-1", testfixtures.TestPool, "memory", "type-1"),
 				commonmetrics.NewClusterCordonedStatus(1.0, "cluster-1", "bad executor", ""),
 			},
 			expectedExecutorSettings: []*schedulerobjects.ExecutorSettings{
@@ -515,7 +529,13 @@ func createExecutor(clusterName string, nodes ...*schedulerobjects.Node) *schedu
 }
 
 func createNode(nodeType string) *schedulerobjects.Node {
-	node := testfixtures.Test32CpuNode([]int32{})
+	node := testfixtures.TestSchedulerObjectsNode(
+		[]int32{},
+		map[string]resource.Quantity{
+			"cpu":    resource.MustParse("32"),
+			"memory": resource.MustParse("256Gi"),
+		},
+	)
 	node.ReportingNodeType = nodeType
 	node.StateByJobRunId = map[string]schedulerobjects.JobRunState{}
 	node.ResourceUsageByQueueAndPool = []*schedulerobjects.PoolQueueResource{}

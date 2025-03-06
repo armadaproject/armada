@@ -9,7 +9,6 @@ import (
 
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
 type MinimalQueue struct {
@@ -28,201 +27,100 @@ func (q MinimalQueue) GetWeight() float64 {
 func TestNewDominantResourceFairness(t *testing.T) {
 	rlFactory := makeTestResourceListFactory()
 	_, err := NewDominantResourceFairness(
-		rlFactory.FromNodeProto(map[string]resource.Quantity{
-			"foo": resource.MustParse("1"),
-		},
-		),
+		fooBarBaz(rlFactory, "1", "0", "0"),
 		configuration.SchedulingConfig{DominantResourceFairnessResourcesToConsider: []string{}},
 	)
 	require.Error(t, err)
 }
 
 func TestDominantResourceFairness(t *testing.T) {
+	rlFactory := makeTestResourceListFactory()
+
 	tests := map[string]struct {
-		totalResources schedulerobjects.ResourceList
+		totalResources internaltypes.ResourceList
 		config         configuration.SchedulingConfig
-		allocation     schedulerobjects.ResourceList
+		allocation     internaltypes.ResourceList
 		weight         float64
 		expectedCost   float64
 	}{
 		"single resource 1": {
-			totalResources: schedulerobjects.ResourceList{
-				Resources: map[string]resource.Quantity{
-					"foo": resource.MustParse("1"),
-					"bar": resource.MustParse("2"),
-					"baz": resource.MustParse("3"),
-				},
-			},
-			config: configuration.SchedulingConfig{DominantResourceFairnessResourcesToConsider: []string{"foo", "bar"}},
-			allocation: schedulerobjects.ResourceList{
-				Resources: map[string]resource.Quantity{
-					"foo": resource.MustParse("0.5"),
-				},
-			},
-			weight:       1.0,
-			expectedCost: 0.5,
+			totalResources: fooBarBaz(rlFactory, "1", "2", "3"),
+			config:         configuration.SchedulingConfig{DominantResourceFairnessResourcesToConsider: []string{"foo", "bar"}},
+			allocation:     fooBarBaz(rlFactory, "0.5", "0", "0"),
+			weight:         1.0,
+			expectedCost:   0.5,
 		},
 		"single resource 2": {
-			totalResources: schedulerobjects.ResourceList{
-				Resources: map[string]resource.Quantity{
-					"foo": resource.MustParse("1"),
-					"bar": resource.MustParse("2"),
-					"baz": resource.MustParse("3"),
-				},
-			},
-			config: configuration.SchedulingConfig{DominantResourceFairnessResourcesToConsider: []string{"foo", "bar"}},
-			allocation: schedulerobjects.ResourceList{
-				Resources: map[string]resource.Quantity{
-					"bar": resource.MustParse("0.5"),
-				},
-			},
-			weight:       1.0,
-			expectedCost: 0.25,
+			totalResources: fooBarBaz(rlFactory, "1", "2", "3"),
+			config:         configuration.SchedulingConfig{DominantResourceFairnessResourcesToConsider: []string{"foo", "bar"}},
+			allocation:     fooBarBaz(rlFactory, "0", "0.5", "0"),
+			weight:         1.0,
+			expectedCost:   0.25,
 		},
 		"multiple resources": {
-			totalResources: schedulerobjects.ResourceList{
-				Resources: map[string]resource.Quantity{
-					"foo": resource.MustParse("1"),
-					"bar": resource.MustParse("2"),
-					"baz": resource.MustParse("3"),
-				},
-			},
-			config: configuration.SchedulingConfig{DominantResourceFairnessResourcesToConsider: []string{"foo", "bar"}},
-			allocation: schedulerobjects.ResourceList{
-				Resources: map[string]resource.Quantity{
-					"foo": resource.MustParse("0.5"),
-					"bar": resource.MustParse("1.1"),
-				},
-			},
-			weight:       1.0,
-			expectedCost: 1.1 / 2,
+			totalResources: fooBarBaz(rlFactory, "1", "2", "3"),
+			config:         configuration.SchedulingConfig{DominantResourceFairnessResourcesToConsider: []string{"foo", "bar"}},
+			allocation:     fooBarBaz(rlFactory, "0.5", "1.1", "0"),
+			weight:         1.0,
+			expectedCost:   1.1 / 2,
 		},
 		"considered resources": {
-			totalResources: schedulerobjects.ResourceList{
-				Resources: map[string]resource.Quantity{
-					"foo": resource.MustParse("1"),
-					"bar": resource.MustParse("2"),
-					"baz": resource.MustParse("3"),
-				},
-			},
-			config: configuration.SchedulingConfig{DominantResourceFairnessResourcesToConsider: []string{"foo", "bar"}},
-			allocation: schedulerobjects.ResourceList{
-				Resources: map[string]resource.Quantity{
-					"foo": resource.MustParse("0.5"),
-					"baz": resource.MustParse("3"),
-				},
-			},
-			weight:       1.0,
-			expectedCost: 0.5,
+			totalResources: fooBarBaz(rlFactory, "1", "2", "3"),
+			config:         configuration.SchedulingConfig{DominantResourceFairnessResourcesToConsider: []string{"foo", "bar"}},
+			allocation:     fooBarBaz(rlFactory, "0.5", "0", "3"),
+			weight:         1.0,
+			expectedCost:   0.5,
 		},
 		"zero available resource": {
-			totalResources: schedulerobjects.ResourceList{
-				Resources: map[string]resource.Quantity{
-					"foo": resource.MustParse("1"),
-					"bar": resource.MustParse("0"),
-					"baz": resource.MustParse("3"),
-				},
-			},
-			config: configuration.SchedulingConfig{DominantResourceFairnessResourcesToConsider: []string{"foo", "bar"}},
-			allocation: schedulerobjects.ResourceList{
-				Resources: map[string]resource.Quantity{
-					"foo": resource.MustParse("0.5"),
-					"bar": resource.MustParse("2.0"),
-				},
-			},
-			weight:       1.0,
-			expectedCost: 0.5,
+			totalResources: fooBarBaz(rlFactory, "1", "0", "3"),
+			config:         configuration.SchedulingConfig{DominantResourceFairnessResourcesToConsider: []string{"foo", "bar"}},
+			allocation:     fooBarBaz(rlFactory, "0.5", "2.0", "0"),
+			weight:         1.0,
+			expectedCost:   0.5,
 		},
 		"weight": {
-			totalResources: schedulerobjects.ResourceList{
-				Resources: map[string]resource.Quantity{
-					"foo": resource.MustParse("1"),
-					"bar": resource.MustParse("2"),
-					"baz": resource.MustParse("3"),
-				},
-			},
-			config: configuration.SchedulingConfig{DominantResourceFairnessResourcesToConsider: []string{"foo", "bar"}},
-			allocation: schedulerobjects.ResourceList{
-				Resources: map[string]resource.Quantity{
-					"foo": resource.MustParse("0.5"),
-				},
-			},
-			weight:       2.0,
-			expectedCost: 0.25,
+			totalResources: fooBarBaz(rlFactory, "1", "2", "3"),
+			config:         configuration.SchedulingConfig{DominantResourceFairnessResourcesToConsider: []string{"foo", "bar"}},
+			allocation:     fooBarBaz(rlFactory, "0.5", "0", "0"),
+			weight:         2.0,
+			expectedCost:   0.25,
 		},
 		"experimental config": {
-			totalResources: schedulerobjects.ResourceList{
-				Resources: map[string]resource.Quantity{
-					"foo": resource.MustParse("1"),
-					"bar": resource.MustParse("2"),
-					"baz": resource.MustParse("3"),
-				},
-			},
-			config: configuration.SchedulingConfig{ExperimentalDominantResourceFairnessResourcesToConsider: []configuration.DominantResourceFairnessResource{{"foo", 1}, {"bar", 1}}},
-			allocation: schedulerobjects.ResourceList{
-				Resources: map[string]resource.Quantity{
-					"foo": resource.MustParse("0.5"),
-					"bar": resource.MustParse("1.1"),
-				},
-			},
-			weight:       1.0,
-			expectedCost: 1.1 / 2,
+			totalResources: fooBarBaz(rlFactory, "1", "2", "3"),
+			config:         configuration.SchedulingConfig{ExperimentalDominantResourceFairnessResourcesToConsider: []configuration.DominantResourceFairnessResource{{"foo", 1}, {"bar", 1}}},
+			allocation:     fooBarBaz(rlFactory, "0.5", "1.1", "0"),
+			weight:         1.0,
+			expectedCost:   1.1 / 2,
 		},
 		"experimental config defaults multipliers to one": {
-			totalResources: schedulerobjects.ResourceList{
-				Resources: map[string]resource.Quantity{
-					"foo": resource.MustParse("1"),
-					"bar": resource.MustParse("2"),
-					"baz": resource.MustParse("3"),
-				},
-			},
-			config: configuration.SchedulingConfig{ExperimentalDominantResourceFairnessResourcesToConsider: []configuration.DominantResourceFairnessResource{{"foo", 0}, {"bar", 0}}},
-			allocation: schedulerobjects.ResourceList{
-				Resources: map[string]resource.Quantity{
-					"foo": resource.MustParse("0.5"),
-					"bar": resource.MustParse("1.1"),
-				},
-			},
-			weight:       1.0,
-			expectedCost: 1.1 / 2,
+			totalResources: fooBarBaz(rlFactory, "1", "2", "3"),
+			config:         configuration.SchedulingConfig{ExperimentalDominantResourceFairnessResourcesToConsider: []configuration.DominantResourceFairnessResource{{"foo", 0}, {"bar", 0}}},
+			allocation:     fooBarBaz(rlFactory, "0.5", "1.1", "0"),
+			weight:         1.0,
+			expectedCost:   1.1 / 2,
 		},
 		"experimental config non-unit multiplier": {
-			totalResources: schedulerobjects.ResourceList{
-				Resources: map[string]resource.Quantity{
-					"foo": resource.MustParse("1"),
-					"bar": resource.MustParse("2"),
-					"baz": resource.MustParse("3"),
-				},
-			},
-			config: configuration.SchedulingConfig{ExperimentalDominantResourceFairnessResourcesToConsider: []configuration.DominantResourceFairnessResource{{"foo", 4}, {"bar", 1}}},
-			allocation: schedulerobjects.ResourceList{
-				Resources: map[string]resource.Quantity{
-					"foo": resource.MustParse("0.5"),
-					"bar": resource.MustParse("1.1"),
-				},
-			},
-			weight:       1.0,
-			expectedCost: 2,
+			totalResources: fooBarBaz(rlFactory, "1", "2", "3"),
+			config:         configuration.SchedulingConfig{ExperimentalDominantResourceFairnessResourcesToConsider: []configuration.DominantResourceFairnessResource{{"foo", 4}, {"bar", 1}}},
+			allocation:     fooBarBaz(rlFactory, "0.5", "1.1", "0"),
+			weight:         1.0,
+			expectedCost:   2,
 		},
 	}
 
-	rlFactory := makeTestResourceListFactory()
-
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			totalResources := rlFactory.FromNodeProto(tc.totalResources.Resources)
-			allocation := rlFactory.FromJobResourceListIgnoreUnknown(tc.allocation.Resources)
-			f, err := NewDominantResourceFairness(totalResources, tc.config)
+			f, err := NewDominantResourceFairness(tc.totalResources, tc.config)
 			require.NoError(t, err)
 			assert.Equal(
 				t,
 				tc.expectedCost,
-				f.WeightedCostFromAllocation(allocation, tc.weight),
+				f.WeightedCostFromAllocation(tc.allocation, tc.weight),
 			)
 			assert.Equal(
 				t,
-				f.WeightedCostFromAllocation(allocation, tc.weight),
-				f.WeightedCostFromQueue(MinimalQueue{allocation: allocation, weight: tc.weight}),
+				f.WeightedCostFromAllocation(tc.allocation, tc.weight),
+				f.WeightedCostFromQueue(MinimalQueue{allocation: tc.allocation, weight: tc.weight}),
 			)
 		})
 	}
@@ -242,4 +140,12 @@ func makeTestResourceListFactory() *internaltypes.ResourceListFactory {
 		panic(err)
 	}
 	return rlFactory
+}
+
+func fooBarBaz(factory *internaltypes.ResourceListFactory, foo, bar, baz string) internaltypes.ResourceList {
+	return factory.FromNodeProto(map[string]resource.Quantity{
+		"foo": resource.MustParse(foo),
+		"bar": resource.MustParse(bar),
+		"baz": resource.MustParse(baz),
+	})
 }

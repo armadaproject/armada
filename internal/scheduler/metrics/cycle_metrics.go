@@ -1,63 +1,56 @@
 package metrics
 
 import (
+	"fmt"
+	"math"
+	"strconv"
+	"sync/atomic"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 
+	log "github.com/armadaproject/armada/internal/common/logging"
+	armadaresource "github.com/armadaproject/armada/internal/common/resource"
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling"
 )
 
 var (
 	poolLabels                  = []string{poolLabel}
+	poolAndPriorityLabels       = []string{poolLabel, priorityLabel}
 	poolAndQueueLabels          = []string{poolLabel, queueLabel}
 	queueAndPriorityClassLabels = []string{queueLabel, priorityClassLabel}
 	poolQueueAndResourceLabels  = []string{poolLabel, queueLabel, resourceLabel}
 )
 
-type cycleMetrics struct {
-	leaderMetricsEnabled bool
-
-	scheduledJobs           *prometheus.CounterVec
-	premptedJobs            *prometheus.CounterVec
-	consideredJobs          *prometheus.GaugeVec
-	fairShare               *prometheus.GaugeVec
-	adjustedFairShare       *prometheus.GaugeVec
-	actualShare             *prometheus.GaugeVec
-	fairnessError           *prometheus.GaugeVec
-	demand                  *prometheus.GaugeVec
-	cappedDemand            *prometheus.GaugeVec
-	scheduleCycleTime       prometheus.Histogram
-	reconciliationCycleTime prometheus.Histogram
-	gangsConsidered         *prometheus.GaugeVec
-	gangsScheduled          *prometheus.GaugeVec
-	firstGangQueuePosition  *prometheus.GaugeVec
-	lastGangQueuePosition   *prometheus.GaugeVec
-	perQueueCycleTime       *prometheus.GaugeVec
-	loopNumber              *prometheus.GaugeVec
-	evictedJobs             *prometheus.GaugeVec
-	evictedResources        *prometheus.GaugeVec
-	spotPrice               *prometheus.GaugeVec
-	allResettableMetrics    []resettableMetric
+type perCycleMetrics struct {
+	consideredJobs               *prometheus.GaugeVec
+	fairShare                    *prometheus.GaugeVec
+	adjustedFairShare            *prometheus.GaugeVec
+	uncappedAdjustedFairShare    *prometheus.GaugeVec
+	actualShare                  *prometheus.GaugeVec
+	fairnessError                *prometheus.GaugeVec
+	demand                       *prometheus.GaugeVec
+	constrainedDemand            *prometheus.GaugeVec
+	queueWeight                  *prometheus.GaugeVec
+	rawQueueWeight               *prometheus.GaugeVec
+	gangsConsidered              *prometheus.GaugeVec
+	gangsScheduled               *prometheus.GaugeVec
+	firstGangQueuePosition       *prometheus.GaugeVec
+	lastGangQueuePosition        *prometheus.GaugeVec
+	perQueueCycleTime            *prometheus.GaugeVec
+	loopNumber                   *prometheus.GaugeVec
+	evictedJobs                  *prometheus.GaugeVec
+	evictedResources             *prometheus.GaugeVec
+	spotPrice                    *prometheus.GaugeVec
+	indicativeShare              *prometheus.GaugeVec
+	nodePreemptibility           *prometheus.GaugeVec
+	protectedFractionOfFairShare *prometheus.GaugeVec
+	nodeAllocatableResource      *prometheus.GaugeVec
+	nodeAllocatedResource        *prometheus.GaugeVec
 }
 
-func newCycleMetrics() *cycleMetrics {
-	scheduledJobs := prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: prefix + "scheduled_jobs",
-			Help: "Number of events scheduled",
-		},
-		queueAndPriorityClassLabels,
-	)
-
-	premptedJobs := prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: prefix + "preempted_jobs",
-			Help: "Number of jobs preempted",
-		},
-		queueAndPriorityClassLabels,
-	)
-
+func newPerCycleMetrics() *perCycleMetrics {
 	consideredJobs := prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: prefix + "considered_jobs",
@@ -82,6 +75,14 @@ func newCycleMetrics() *cycleMetrics {
 		poolAndQueueLabels,
 	)
 
+	uncappedAdjustedFairShare := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: prefix + "uncapped_adjusted_fair_share",
+			Help: "Adjusted Fair share of each queue, not capped by demand",
+		},
+		poolAndQueueLabels,
+	)
+
 	actualShare := prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: prefix + "actual_share",
@@ -98,10 +99,26 @@ func newCycleMetrics() *cycleMetrics {
 		poolAndQueueLabels,
 	)
 
-	cappedDemand := prometheus.NewGaugeVec(
+	constrainedDemand := prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: prefix + "capped_demand",
-			Help: "Capped Demand of each queue and pool.  This differs from demand in that it limits demand by scheduling constraints",
+			Name: prefix + "constrained_demand",
+			Help: "Constrained demand of each queue and pool.  This differs from demand in that it limits demand by scheduling constraints",
+		},
+		poolAndQueueLabels,
+	)
+
+	queueWeight := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: prefix + "queue_weight",
+			Help: "Weight of the queue after multipliers have been applied",
+		},
+		poolAndQueueLabels,
+	)
+
+	rawQueueWeight := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: prefix + "raw_queue_weight",
+			Help: "Weight of the queue before multipliers have been applied",
 		},
 		poolAndQueueLabels,
 	)
@@ -112,22 +129,6 @@ func newCycleMetrics() *cycleMetrics {
 			Help: "Cumulative delta between adjusted fair share and actual share for all users who are below their fair share",
 		},
 		[]string{poolLabel},
-	)
-
-	scheduleCycleTime := prometheus.NewHistogram(
-		prometheus.HistogramOpts{
-			Name:    prefix + "schedule_cycle_times",
-			Help:    "Cycle time when in a scheduling round.",
-			Buckets: prometheus.ExponentialBuckets(10.0, 1.1, 110),
-		},
-	)
-
-	reconciliationCycleTime := prometheus.NewHistogram(
-		prometheus.HistogramOpts{
-			Name:    prefix + "reconciliation_cycle_times",
-			Help:    "Cycle time when in a scheduling round.",
-			Buckets: prometheus.ExponentialBuckets(10.0, 1.1, 110),
-		},
 	)
 
 	gangsConsidered := prometheus.NewGaugeVec(
@@ -202,49 +203,127 @@ func newCycleMetrics() *cycleMetrics {
 		poolLabels,
 	)
 
-	return &cycleMetrics{
-		leaderMetricsEnabled:   true,
-		scheduledJobs:          scheduledJobs,
-		premptedJobs:           premptedJobs,
-		consideredJobs:         consideredJobs,
-		fairShare:              fairShare,
-		adjustedFairShare:      adjustedFairShare,
-		actualShare:            actualShare,
-		demand:                 demand,
-		cappedDemand:           cappedDemand,
-		fairnessError:          fairnessError,
-		scheduleCycleTime:      scheduleCycleTime,
-		gangsConsidered:        gangsConsidered,
-		gangsScheduled:         gangsScheduled,
-		firstGangQueuePosition: firstGangQueuePosition,
-		lastGangQueuePosition:  lastGangQueuePosition,
-		perQueueCycleTime:      perQueueCycleTime,
-		loopNumber:             loopNumber,
-		evictedJobs:            evictedJobs,
-		evictedResources:       evictedResources,
-		spotPrice:              spotPrice,
-		allResettableMetrics: []resettableMetric{
-			scheduledJobs,
-			premptedJobs,
-			consideredJobs,
-			fairShare,
-			adjustedFairShare,
-			actualShare,
-			demand,
-			cappedDemand,
-			fairnessError,
-			gangsConsidered,
-			gangsScheduled,
-			firstGangQueuePosition,
-			lastGangQueuePosition,
-			perQueueCycleTime,
-			loopNumber,
-			evictedJobs,
-			evictedResources,
-			spotPrice,
+	indicativeShare := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: prefix + "indicative_share",
+			Help: "indicative share for some priority in the given pool",
 		},
-		reconciliationCycleTime: reconciliationCycleTime,
+		poolAndPriorityLabels,
+	)
+
+	nodePreemptibility := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: prefix + "node_preemptibility",
+			Help: "is it possible to clear this node by preempting all jobs on it, and, if not, why?",
+		},
+		[]string{poolLabel, nodeLabel, clusterLabel, nodeTypeLabel, "isPreemptible", "notPreemptibleReason"},
+	)
+
+	protectedFractionOfFairShare := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: prefix + "protected_fraction_of_fair_share",
+			Help: "config value protectedFractionOfFairShare - will evict preemptible jobs if actual_share / max(fair_share, adjusted_fair_share) is greater than this",
+		},
+		[]string{poolLabel},
+	)
+
+	nodeAllocatableResource := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: prefix + "node_allocatable_resource",
+			Help: "Resource that can be allocated to Armada jobs on this node",
+		},
+		[]string{poolLabel, nodeLabel, clusterLabel, nodeTypeLabel, resourceLabel, "schedulable"},
+	)
+
+	nodeAllocatedResource := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: prefix + "node_allocated_resource",
+			Help: "Resource allocated by Armada jobs on this node",
+		},
+		[]string{poolLabel, nodeLabel, clusterLabel, nodeTypeLabel, resourceLabel, "schedulable"},
+	)
+
+	return &perCycleMetrics{
+		consideredJobs:               consideredJobs,
+		fairShare:                    fairShare,
+		adjustedFairShare:            adjustedFairShare,
+		uncappedAdjustedFairShare:    uncappedAdjustedFairShare,
+		actualShare:                  actualShare,
+		demand:                       demand,
+		constrainedDemand:            constrainedDemand,
+		queueWeight:                  queueWeight,
+		rawQueueWeight:               rawQueueWeight,
+		fairnessError:                fairnessError,
+		gangsConsidered:              gangsConsidered,
+		gangsScheduled:               gangsScheduled,
+		firstGangQueuePosition:       firstGangQueuePosition,
+		lastGangQueuePosition:        lastGangQueuePosition,
+		perQueueCycleTime:            perQueueCycleTime,
+		loopNumber:                   loopNumber,
+		evictedJobs:                  evictedJobs,
+		evictedResources:             evictedResources,
+		spotPrice:                    spotPrice,
+		indicativeShare:              indicativeShare,
+		nodePreemptibility:           nodePreemptibility,
+		protectedFractionOfFairShare: protectedFractionOfFairShare,
+		nodeAllocatableResource:      nodeAllocatableResource,
+		nodeAllocatedResource:        nodeAllocatedResource,
 	}
+}
+
+type cycleMetrics struct {
+	leaderMetricsEnabled bool
+
+	scheduledJobs           *prometheus.CounterVec
+	premptedJobs            *prometheus.CounterVec
+	scheduleCycleTime       prometheus.Histogram
+	reconciliationCycleTime prometheus.Histogram
+	latestCycleMetrics      atomic.Pointer[perCycleMetrics]
+}
+
+func newCycleMetrics() *cycleMetrics {
+	scheduledJobs := prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: prefix + "scheduled_jobs",
+			Help: "Number of events scheduled",
+		},
+		queueAndPriorityClassLabels,
+	)
+
+	premptedJobs := prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: prefix + "preempted_jobs",
+			Help: "Number of jobs preempted",
+		},
+		queueAndPriorityClassLabels,
+	)
+
+	scheduleCycleTime := prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Name:    prefix + "schedule_cycle_times",
+			Help:    "Cycle time when in a scheduling round.",
+			Buckets: prometheus.ExponentialBuckets(10.0, 1.1, 110),
+		},
+	)
+
+	reconciliationCycleTime := prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Name:    prefix + "reconciliation_cycle_times",
+			Help:    "Cycle time when in a scheduling round.",
+			Buckets: prometheus.ExponentialBuckets(10.0, 1.1, 110),
+		},
+	)
+
+	cycleMetrics := &cycleMetrics{
+		leaderMetricsEnabled:    true,
+		scheduledJobs:           scheduledJobs,
+		premptedJobs:            premptedJobs,
+		scheduleCycleTime:       scheduleCycleTime,
+		reconciliationCycleTime: reconciliationCycleTime,
+		latestCycleMetrics:      atomic.Pointer[perCycleMetrics]{},
+	}
+	cycleMetrics.latestCycleMetrics.Store(newPerCycleMetrics())
+	return cycleMetrics
 }
 
 func (m *cycleMetrics) enableLeaderMetrics() {
@@ -257,9 +336,9 @@ func (m *cycleMetrics) disableLeaderMetrics() {
 }
 
 func (m *cycleMetrics) resetLeaderMetrics() {
-	for _, metric := range m.allResettableMetrics {
-		metric.Reset()
-	}
+	m.premptedJobs.Reset()
+	m.scheduledJobs.Reset()
+	m.latestCycleMetrics.Store(newPerCycleMetrics())
 }
 
 func (m *cycleMetrics) ReportScheduleCycleTime(cycleTime time.Duration) {
@@ -272,23 +351,30 @@ func (m *cycleMetrics) ReportReconcileCycleTime(cycleTime time.Duration) {
 
 func (m *cycleMetrics) ReportSchedulerResult(result scheduling.SchedulerResult) {
 	// Metrics that depend on pool
+	currentCycle := newPerCycleMetrics()
 	for _, schedContext := range result.SchedulingContexts {
 		pool := schedContext.Pool
 		for queue, queueContext := range schedContext.QueueSchedulingContexts {
 			jobsConsidered := float64(len(queueContext.UnsuccessfulJobSchedulingContexts) + len(queueContext.SuccessfulJobSchedulingContexts))
 			actualShare := schedContext.FairnessCostProvider.UnweightedCostFromQueue(queueContext)
 			demand := schedContext.FairnessCostProvider.UnweightedCostFromAllocation(queueContext.Demand)
-			cappedDemand := schedContext.FairnessCostProvider.UnweightedCostFromAllocation(queueContext.CappedDemand)
+			constrainedDemand := schedContext.FairnessCostProvider.UnweightedCostFromAllocation(queueContext.ConstrainedDemand)
 
-			m.consideredJobs.WithLabelValues(pool, queue).Set(jobsConsidered)
-			m.fairShare.WithLabelValues(pool, queue).Set(queueContext.FairShare)
-			m.adjustedFairShare.WithLabelValues(pool, queue).Set(queueContext.AdjustedFairShare)
-			m.actualShare.WithLabelValues(pool, queue).Set(actualShare)
-			m.demand.WithLabelValues(pool, queue).Set(demand)
-			m.cappedDemand.WithLabelValues(pool, queue).Set(cappedDemand)
+			currentCycle.consideredJobs.WithLabelValues(pool, queue).Set(jobsConsidered)
+			currentCycle.fairShare.WithLabelValues(pool, queue).Set(queueContext.FairShare)
+			currentCycle.adjustedFairShare.WithLabelValues(pool, queue).Set(queueContext.DemandCappedAdjustedFairShare)
+			currentCycle.uncappedAdjustedFairShare.WithLabelValues(pool, queue).Set(queueContext.UncappedAdjustedFairShare)
+			currentCycle.actualShare.WithLabelValues(pool, queue).Set(actualShare)
+			currentCycle.demand.WithLabelValues(pool, queue).Set(demand)
+			currentCycle.constrainedDemand.WithLabelValues(pool, queue).Set(constrainedDemand)
+			currentCycle.queueWeight.WithLabelValues(pool, queue).Set(queueContext.Weight)
+			currentCycle.rawQueueWeight.WithLabelValues(pool, queue).Set(queueContext.RawWeight)
 		}
-		m.fairnessError.WithLabelValues(pool).Set(schedContext.FairnessError())
-		m.spotPrice.WithLabelValues(pool).Set(schedContext.SpotPrice)
+		currentCycle.fairnessError.WithLabelValues(pool).Set(schedContext.FairnessError())
+		currentCycle.spotPrice.WithLabelValues(pool).Set(schedContext.SpotPrice)
+		for priority, share := range schedContext.ExperimentalIndicativeShares {
+			currentCycle.indicativeShare.WithLabelValues(pool, strconv.Itoa(priority)).Set(share)
+		}
 	}
 
 	for _, jobCtx := range result.ScheduledJobs {
@@ -301,46 +387,87 @@ func (m *cycleMetrics) ReportSchedulerResult(result scheduling.SchedulerResult) 
 
 	for pool, schedulingStats := range result.PerPoolSchedulingStats {
 		for queue, s := range schedulingStats.StatsPerQueue {
-			m.gangsConsidered.WithLabelValues(pool, queue).Set(float64(s.GangsConsidered))
-			m.gangsScheduled.WithLabelValues(pool, queue).Set(float64(s.GangsScheduled))
-			m.firstGangQueuePosition.WithLabelValues(pool, queue).Set(float64(s.FirstGangConsideredQueuePosition))
-			m.lastGangQueuePosition.WithLabelValues(pool, queue).Set(float64(s.LastGangScheduledQueuePosition))
-			m.perQueueCycleTime.WithLabelValues(pool, queue).Set(float64(s.Time.Milliseconds()))
+			currentCycle.gangsConsidered.WithLabelValues(pool, queue).Set(float64(s.GangsConsidered))
+			currentCycle.gangsScheduled.WithLabelValues(pool, queue).Set(float64(s.GangsScheduled))
+			currentCycle.firstGangQueuePosition.WithLabelValues(pool, queue).Set(float64(s.FirstGangConsideredQueuePosition))
+			currentCycle.lastGangQueuePosition.WithLabelValues(pool, queue).Set(float64(s.LastGangScheduledQueuePosition))
+			currentCycle.perQueueCycleTime.WithLabelValues(pool, queue).Set(float64(s.Time.Milliseconds()))
 		}
 
-		m.loopNumber.WithLabelValues(pool).Set(float64(schedulingStats.LoopNumber))
+		currentCycle.loopNumber.WithLabelValues(pool).Set(float64(schedulingStats.LoopNumber))
 
 		for queue, s := range schedulingStats.EvictorResult.GetStatsPerQueue() {
-			m.evictedJobs.WithLabelValues(pool, queue).Set(float64(s.EvictedJobCount))
+			currentCycle.evictedJobs.WithLabelValues(pool, queue).Set(float64(s.EvictedJobCount))
 
 			for _, r := range s.EvictedResources.GetResources() {
-				m.evictedResources.WithLabelValues(pool, queue, r.Name).Set(float64(r.RawValue))
+				currentCycle.evictedResources.WithLabelValues(pool, queue, r.Name).Set(float64(r.RawValue))
 			}
 		}
+
+		for _, nodePreemptiblityStats := range schedulingStats.EvictorResult.NodePreemptiblityStats {
+			currentCycle.nodePreemptibility.WithLabelValues(
+				pool,
+				nodePreemptiblityStats.NodeName,
+				nodePreemptiblityStats.Cluster,
+				nodePreemptiblityStats.NodeType,
+				fmt.Sprintf("%t", nodePreemptiblityStats.Reason == ""),
+				nodePreemptiblityStats.Reason).Set(1.0)
+		}
+
+		nodes, err := schedulingStats.NodeDb.GetNodes()
+		if err != nil {
+			log.Errorf("unable to generate node stats as failed to get nodes from nodeDb %s", err)
+		} else {
+			for _, node := range nodes {
+				isSchedulable := strconv.FormatBool(!node.IsUnschedulable())
+				for _, resource := range node.GetAllocatableResources().GetResources() {
+					currentCycle.nodeAllocatableResource.WithLabelValues(node.GetPool(), node.GetName(), node.GetExecutor(), node.GetReportingNodeType(), resource.Name, isSchedulable).Set(armadaresource.QuantityAsFloat64(resource.Value))
+				}
+
+				allocated := node.GetAllocatableResources().Subtract(node.AllocatableByPriority[internaltypes.EvictedPriority])
+				for _, resource := range allocated.GetResources() {
+					allocatableValue := math.Max(armadaresource.QuantityAsFloat64(resource.Value), 0)
+					currentCycle.nodeAllocatedResource.WithLabelValues(node.GetPool(), node.GetName(), node.GetExecutor(), node.GetReportingNodeType(), resource.Name, isSchedulable).Set(allocatableValue)
+				}
+			}
+		}
+
+		currentCycle.protectedFractionOfFairShare.WithLabelValues(pool).Set(schedulingStats.ProtectedFractionOfFairShare)
 	}
+	m.latestCycleMetrics.Store(currentCycle)
 }
 
 func (m *cycleMetrics) describe(ch chan<- *prometheus.Desc) {
 	if m.leaderMetricsEnabled {
 		m.scheduledJobs.Describe(ch)
 		m.premptedJobs.Describe(ch)
-		m.consideredJobs.Describe(ch)
-		m.fairShare.Describe(ch)
-		m.adjustedFairShare.Describe(ch)
-		m.actualShare.Describe(ch)
-		m.fairnessError.Describe(ch)
-		m.demand.Describe(ch)
-		m.cappedDemand.Describe(ch)
 		m.scheduleCycleTime.Describe(ch)
-		m.gangsConsidered.Describe(ch)
-		m.gangsScheduled.Describe(ch)
-		m.firstGangQueuePosition.Describe(ch)
-		m.lastGangQueuePosition.Describe(ch)
-		m.perQueueCycleTime.Describe(ch)
-		m.loopNumber.Describe(ch)
-		m.evictedJobs.Describe(ch)
-		m.evictedResources.Describe(ch)
-		m.spotPrice.Describe(ch)
+
+		currentCycle := m.latestCycleMetrics.Load()
+		currentCycle.consideredJobs.Describe(ch)
+		currentCycle.fairShare.Describe(ch)
+		currentCycle.adjustedFairShare.Describe(ch)
+		currentCycle.uncappedAdjustedFairShare.Describe(ch)
+		currentCycle.actualShare.Describe(ch)
+		currentCycle.fairnessError.Describe(ch)
+		currentCycle.demand.Describe(ch)
+		currentCycle.constrainedDemand.Describe(ch)
+		currentCycle.queueWeight.Describe(ch)
+		currentCycle.rawQueueWeight.Describe(ch)
+		currentCycle.gangsConsidered.Describe(ch)
+		currentCycle.gangsScheduled.Describe(ch)
+		currentCycle.firstGangQueuePosition.Describe(ch)
+		currentCycle.lastGangQueuePosition.Describe(ch)
+		currentCycle.perQueueCycleTime.Describe(ch)
+		currentCycle.loopNumber.Describe(ch)
+		currentCycle.evictedJobs.Describe(ch)
+		currentCycle.evictedResources.Describe(ch)
+		currentCycle.spotPrice.Describe(ch)
+		currentCycle.indicativeShare.Describe(ch)
+		currentCycle.nodePreemptibility.Describe(ch)
+		currentCycle.protectedFractionOfFairShare.Describe(ch)
+		currentCycle.nodeAllocatableResource.Describe(ch)
+		currentCycle.nodeAllocatedResource.Describe(ch)
 	}
 
 	m.reconciliationCycleTime.Describe(ch)
@@ -350,23 +477,33 @@ func (m *cycleMetrics) collect(ch chan<- prometheus.Metric) {
 	if m.leaderMetricsEnabled {
 		m.scheduledJobs.Collect(ch)
 		m.premptedJobs.Collect(ch)
-		m.consideredJobs.Collect(ch)
-		m.fairShare.Collect(ch)
-		m.adjustedFairShare.Collect(ch)
-		m.actualShare.Collect(ch)
-		m.fairnessError.Collect(ch)
-		m.demand.Collect(ch)
-		m.cappedDemand.Collect(ch)
 		m.scheduleCycleTime.Collect(ch)
-		m.gangsConsidered.Collect(ch)
-		m.gangsScheduled.Collect(ch)
-		m.firstGangQueuePosition.Collect(ch)
-		m.lastGangQueuePosition.Collect(ch)
-		m.perQueueCycleTime.Collect(ch)
-		m.loopNumber.Collect(ch)
-		m.evictedJobs.Collect(ch)
-		m.evictedResources.Collect(ch)
-		m.spotPrice.Collect(ch)
+
+		currentCycle := m.latestCycleMetrics.Load()
+		currentCycle.consideredJobs.Collect(ch)
+		currentCycle.fairShare.Collect(ch)
+		currentCycle.adjustedFairShare.Collect(ch)
+		currentCycle.uncappedAdjustedFairShare.Collect(ch)
+		currentCycle.actualShare.Collect(ch)
+		currentCycle.fairnessError.Collect(ch)
+		currentCycle.demand.Collect(ch)
+		currentCycle.constrainedDemand.Collect(ch)
+		currentCycle.rawQueueWeight.Collect(ch)
+		currentCycle.queueWeight.Collect(ch)
+		currentCycle.gangsConsidered.Collect(ch)
+		currentCycle.gangsScheduled.Collect(ch)
+		currentCycle.firstGangQueuePosition.Collect(ch)
+		currentCycle.lastGangQueuePosition.Collect(ch)
+		currentCycle.perQueueCycleTime.Collect(ch)
+		currentCycle.loopNumber.Collect(ch)
+		currentCycle.evictedJobs.Collect(ch)
+		currentCycle.evictedResources.Collect(ch)
+		currentCycle.spotPrice.Collect(ch)
+		currentCycle.indicativeShare.Collect(ch)
+		currentCycle.nodePreemptibility.Collect(ch)
+		currentCycle.protectedFractionOfFairShare.Collect(ch)
+		currentCycle.nodeAllocatableResource.Collect(ch)
+		currentCycle.nodeAllocatedResource.Collect(ch)
 	}
 
 	m.reconciliationCycleTime.Collect(ch)

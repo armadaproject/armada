@@ -22,29 +22,29 @@ jobs:
         with:
           node-version: 22.12.0
           cache: yarn
-          cache-dependency-path: ./internal/lookout/ui/yarn.lock
+          cache-dependency-path: ./internal/lookoutui/yarn.lock
 
       - name: Install Dependencies
-        working-directory: ./internal/lookout/ui
+        working-directory: ./internal/lookoutui
         run: |
           yarn install --frozen-lockfile
 
       - name: Generating TypeScript lint results as summary
-        working-directory: ./internal/lookout/ui
+        working-directory: ./internal/lookoutui
         run: |
-           yarn run lint &> lint_results.txt || true
-           lint_results=$(cat lint_results.txt)
-           echo -e "## 🪧 Typescript Lint Results\n" >> $GITHUB_STEP_SUMMARY
-           if [[ $lint_results =~ "problem" ]]; then
-              echo -e "### List of Lint Issues \n" >> $GITHUB_STEP_SUMMARY
-              echo -e "${lint_results}" >> $GITHUB_STEP_SUMMARY
-              echo -e "${lint_results}"
-              exit 1
-           else
-              echo -e "### No Lint issues found.\n" >> $GITHUB_STEP_SUMMARY
-              echo -e "No Lint issues found."
-              exit 0
-           fi
+          yarn lint &> lint_results.txt || true
+          lint_results=$(cat lint_results.txt)
+          echo -e "## 🪧 Typescript Lint Results\n" >> $GITHUB_STEP_SUMMARY
+          if [[ $lint_results =~ "problem" ]]; then
+             echo -e "### List of Lint Issues \n" >> $GITHUB_STEP_SUMMARY
+             echo -e "${lint_results}" >> $GITHUB_STEP_SUMMARY
+             echo -e "${lint_results}"
+             exit 1
+          else
+             echo -e "### No Lint issues found.\n" >> $GITHUB_STEP_SUMMARY
+             echo -e "No Lint issues found."
+             exit 0
+          fi
 
   go-lint:
     name: Lint Go

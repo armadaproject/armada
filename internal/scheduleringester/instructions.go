@@ -6,7 +6,6 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 
@@ -14,6 +13,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/ingest/metrics"
 	"github.com/armadaproject/armada/internal/common/ingest/utils"
+	log "github.com/armadaproject/armada/internal/common/logging"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/scheduler/adapters"
 	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
@@ -337,10 +337,13 @@ func (c *JobSetEventsInstructionConverter) handleReprioritiseJobSet(reprioritise
 
 func (c *JobSetEventsInstructionConverter) handleCancelJob(cancelJob *armadaevents.CancelJob, meta eventSequenceCommon) ([]DbOperation, error) {
 	return []DbOperation{MarkJobsCancelRequested{
-		JobSetKey{
-			queue:  meta.queue,
-			jobSet: meta.jobset,
-		}: []string{cancelJob.JobId},
+		cancelUser: meta.user,
+		jobIds: map[JobSetKey][]string{
+			{
+				queue:  meta.queue,
+				jobSet: meta.jobset,
+			}: {cancelJob.JobId},
+		},
 	}}, nil
 }
 
@@ -349,12 +352,15 @@ func (c *JobSetEventsInstructionConverter) handleCancelJobSet(cancelJobSet *arma
 	cancelLeased := len(cancelJobSet.States) == 0 || slices.Contains(cancelJobSet.States, armadaevents.JobState_PENDING) || slices.Contains(cancelJobSet.States, armadaevents.JobState_RUNNING)
 
 	return []DbOperation{MarkJobSetsCancelRequested{
-		JobSetKey{
-			queue:  meta.queue,
-			jobSet: meta.jobset,
-		}: &JobSetCancelAction{
-			cancelQueued: cancelQueued,
-			cancelLeased: cancelLeased,
+		cancelUser: meta.user,
+		jobSets: map[JobSetKey]*JobSetCancelAction{
+			{
+				queue:  meta.queue,
+				jobSet: meta.jobset,
+			}: {
+				cancelQueued: cancelQueued,
+				cancelLeased: cancelLeased,
+			},
 		},
 	}}, nil
 }
@@ -519,7 +525,7 @@ func SchedulingInfoFromSubmitJob(submitJob *armadaevents.SubmitJob, submitTime t
 		AtMostOnce:      submitJob.AtMostOnce,
 		Preemptible:     submitJob.Preemptible,
 		ConcurrencySafe: submitJob.ConcurrencySafe,
-		SubmitTime:      submitTime,
+		SubmitTime:      protoutil.ToTimestamp(submitTime),
 		Priority:        submitJob.Priority,
 		Version:         0,
 	}

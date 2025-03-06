@@ -9,6 +9,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
+	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 	"github.com/armadaproject/armada/internal/server/configuration"
@@ -25,6 +26,7 @@ const (
 	ExecutorId                 = "testCluster"
 	ExecutorId2                = "testCluster2"
 	ExecutorId3                = "testCluster3"
+	CancelUser                 = "canceluser"
 	NodeName                   = "testNode"
 	Pool                       = "Pool"
 	PodName                    = "test-pod"
@@ -167,7 +169,7 @@ var Leased = &armadaevents.EventSequence_Event{
 			ScheduledAtPriority:    15,
 			UpdateSequenceNumber:   1,
 			PodRequirementsOverlay: &schedulerobjects.PodRequirements{
-				Tolerations: []v1.Toleration{
+				Tolerations: []*v1.Toleration{
 					{
 						Key:    "whale",
 						Value:  "true",
@@ -260,7 +262,8 @@ var JobCancelled = &armadaevents.EventSequence_Event{
 	Created: testfixtures.BasetimeProto,
 	Event: &armadaevents.EventSequence_Event_CancelledJob{
 		CancelledJob: &armadaevents.CancelledJob{
-			JobId: JobId,
+			JobId:      JobId,
+			CancelUser: CancelUser,
 		},
 	},
 }
@@ -290,11 +293,13 @@ var JobRequeued = &armadaevents.EventSequence_Event{
 					{
 						Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
 							PodRequirements: &schedulerobjects.PodRequirements{
-								NodeSelector:     NodeSelector,
-								Tolerations:      Tolerations,
+								NodeSelector: NodeSelector,
+								Tolerations: armadaslices.Map(Tolerations, func(t v1.Toleration) *v1.Toleration {
+									return &t
+								}),
 								PreemptionPolicy: "PreemptLowerPriority",
 								Affinity:         Affinity,
-								ResourceRequirements: v1.ResourceRequirements{
+								ResourceRequirements: &v1.ResourceRequirements{
 									Limits: map[v1.ResourceName]resource.Quantity{
 										"memory": resource.MustParse("64Mi"),
 										"cpu":    resource.MustParse("150m"),

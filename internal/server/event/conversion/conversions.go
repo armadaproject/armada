@@ -3,9 +3,8 @@ package conversion
 import (
 	"time"
 
-	log "github.com/sirupsen/logrus"
-
 	"github.com/armadaproject/armada/internal/common/eventutil"
+	log "github.com/armadaproject/armada/internal/common/logging"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
@@ -471,6 +470,7 @@ func FromInternalResourceUtilisation(queueName string, jobSetName string, time t
 		PodName:               e.GetResourceInfo().GetObjectMeta().GetName(),
 		PodNamespace:          e.GetResourceInfo().GetObjectMeta().GetNamespace(),
 		TotalCumulativeUsage:  e.TotalCumulativeUsage,
+		AvgResourcesForPeriod: e.AvgResourcesForPeriod,
 	}
 
 	return []*api.EventMessage{

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
@@ -15,7 +14,6 @@ import (
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/adapters"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
 // Job is the scheduler-internal representation of a job.
@@ -41,7 +39,7 @@ type Job struct {
 	// I.e., the value returned by time.UnixNano().
 	submittedTime int64
 	// Hash of the scheduling requirements of the job.
-	schedulingKey schedulerobjects.SchedulingKey
+	schedulingKey internaltypes.SchedulingKey
 	// True if the job has been validated by the scheduler.
 	// Any job that fails validation will be rejected.
 	validated bool
@@ -51,7 +49,7 @@ type Job struct {
 	// The current version of the queued state.
 	queuedVersion int32
 	// Scheduling requirements of this job.
-	jobSchedulingInfo *schedulerobjects.JobSchedulingInfo
+	jobSchedulingInfo *internaltypes.JobSchedulingInfo
 	// All resource requirements, including floating resources, for this job
 	allResourceRequirements internaltypes.ResourceList
 	// Kubernetes (i.e. non-floating) resource requirements of this job
@@ -60,6 +58,8 @@ type Job struct {
 	priorityClass types.PriorityClass
 	// True if the user has requested this job be cancelled
 	cancelRequested bool
+	// The (first) user who cancelled this job
+	cancelUser *string
 	// True if the user has requested this job's jobSet be cancelled
 	cancelByJobSetRequested bool
 	// True if the scheduler has cancelled the job
@@ -264,17 +264,12 @@ func (job *Job) Assert() error {
 func (job *Job) ensureJobSchedulingInfoFieldsInitialised() {
 	// Initialise the annotation and nodeSelector maps if nil.
 	// Since those need to be mutated in-place.
-	if job.jobSchedulingInfo != nil {
-		for _, req := range job.jobSchedulingInfo.ObjectRequirements {
-			if podReq := req.GetPodRequirements(); podReq != nil {
-				if podReq.Annotations == nil {
-					podReq.Annotations = make(map[string]string)
-				}
-				if podReq.NodeSelector == nil {
-					podReq.NodeSelector = make(map[string]string)
-				}
-			}
-		}
+	podReq := job.jobSchedulingInfo.PodRequirements
+	if podReq.Annotations == nil {
+		podReq.Annotations = make(map[string]string)
+	}
+	if podReq.NodeSelector == nil {
+		podReq.NodeSelector = make(map[string]string)
 	}
 }
 
@@ -339,6 +334,9 @@ func (job *Job) Equal(other *Job) bool {
 	if job.cancelByJobSetRequested != other.cancelByJobSetRequested {
 		return false
 	}
+	if job.cancelUser != other.cancelUser {
+		return false
+	}
 	if job.cancelled != other.cancelled {
 		return false
 	}
@@ -394,7 +392,7 @@ func (job *Job) PriorityClass() types.PriorityClass {
 }
 
 // SchedulingKey returns the scheduling key associated with a job.
-func (job *Job) SchedulingKey() schedulerobjects.SchedulingKey {
+func (job *Job) SchedulingKey() internaltypes.SchedulingKey {
 	return job.schedulingKey
 }
 
@@ -459,7 +457,7 @@ func (job *Job) WithRequestedPriority(priority uint32) *Job {
 }
 
 // JobSchedulingInfo returns the scheduling requirements associated with the job
-func (job *Job) JobSchedulingInfo() *schedulerobjects.JobSchedulingInfo {
+func (job *Job) JobSchedulingInfo() *internaltypes.JobSchedulingInfo {
 	return job.jobSchedulingInfo
 }
 
@@ -538,8 +536,8 @@ func (job *Job) KubernetesResourceRequirements() internaltypes.ResourceList {
 }
 
 // PodRequirements returns the pod requirements of the Job
-func (job *Job) PodRequirements() *schedulerobjects.PodRequirements {
-	return job.jobSchedulingInfo.GetPodRequirements()
+func (job *Job) PodRequirements() *internaltypes.PodRequirements {
+	return job.jobSchedulingInfo.PodRequirements
 }
 
 // Queued returns true if the job should be considered by the scheduler for assignment or false otherwise.
@@ -571,6 +569,11 @@ func (job *Job) CancelRequested() bool {
 	return job.cancelRequested
 }
 
+// CancelUser returns the first user who cancelled this job
+func (job *Job) CancelUser() *string {
+	return job.cancelUser
+}
+
 // CancelByJobsetRequested returns true if the user has requested this job's jobSet be cancelled.
 func (job *Job) CancelByJobsetRequested() bool {
 	return job.cancelByJobSetRequested
@@ -587,6 +590,13 @@ func (job *Job) WithCancelRequested(cancelRequested bool) *Job {
 func (job *Job) WithCancelByJobsetRequested(cancelByJobsetRequested bool) *Job {
 	j := copyJob(*job)
 	j.cancelByJobSetRequested = cancelByJobsetRequested
+	return j
+}
+
+// WithCancelUser returns a copy of the job with the cancel user updated.
+func (job *Job) WithCancelUser(cancelUser *string) *Job {
+	j := copyJob(*job)
+	j.cancelUser = cancelUser
 	return j
 }
 
@@ -658,11 +668,10 @@ func (job *Job) HasRuns() bool {
 }
 
 func (job *Job) ValidateResourceRequests() error {
-	pr := job.jobSchedulingInfo.GetPodRequirements()
+	pr := job.jobSchedulingInfo.PodRequirements
 	if pr == nil {
 		return nil
 	}
-
 	req := pr.ResourceRequirements.Requests
 	if req == nil {
 		return nil
@@ -801,13 +810,13 @@ func (job *Job) Validated() bool {
 	return job.validated
 }
 
-// Does this job request any floating resources?
+// RequestsFloatingResources returns true if this job requests any floating resources
 func (job *Job) RequestsFloatingResources() bool {
 	return !job.AllResourceRequirements().OfType(internaltypes.Floating).AllZero()
 }
 
 // WithJobSchedulingInfo returns a copy of the job with the job scheduling info updated.
-func (job *Job) WithJobSchedulingInfo(jobSchedulingInfo *schedulerobjects.JobSchedulingInfo) (*Job, error) {
+func (job *Job) WithJobSchedulingInfo(jobSchedulingInfo *internaltypes.JobSchedulingInfo) (*Job, error) {
 	j := copyJob(*job)
 	j.jobSchedulingInfo = jobSchedulingInfo
 	j.ensureJobSchedulingInfoFieldsInitialised()
@@ -823,7 +832,7 @@ func (job *Job) WithJobSchedulingInfo(jobSchedulingInfo *schedulerobjects.JobSch
 
 func (job *Job) DeepCopy() *Job {
 	j := copyJob(*job)
-	j.jobSchedulingInfo = proto.Clone(job.JobSchedulingInfo()).(*schedulerobjects.JobSchedulingInfo)
+	j.jobSchedulingInfo = job.jobSchedulingInfo.DeepCopy()
 	j.ensureJobSchedulingInfoFieldsInitialised()
 	j.schedulingKey = SchedulingKeyFromJob(j.jobDb.schedulingKeyGenerator, j)
 
@@ -843,7 +852,7 @@ func copyJob(j Job) *Job {
 	return &j
 }
 
-func SchedulingKeyFromJob(skg *schedulerobjects.SchedulingKeyGenerator, job *Job) schedulerobjects.SchedulingKey {
+func SchedulingKeyFromJob(skg *internaltypes.SchedulingKeyGenerator, job *Job) internaltypes.SchedulingKey {
 	return skg.Key(
 		job.NodeSelector(),
 		job.Affinity(),

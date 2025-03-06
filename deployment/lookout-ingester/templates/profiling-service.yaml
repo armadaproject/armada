@@ -1,0 +1,19 @@
+{{- if and .Values.applicationConfig.profiling .Values.applicationConfig.profiling.port }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "lookout_ingester.name" . }}-profiling
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "lookout_ingester.labels.all" . | nindent 4 }}
+    name: {{ include "lookout_ingester.name" . }}-profiling
+spec:
+  selector:
+    app: {{ include "lookout_ingester.name" . }}
+  ports:
+    - name: profiling
+      protocol: TCP
+      port: {{ .Values.applicationConfig.profiling.port }}
+---
+{{- end }}
+

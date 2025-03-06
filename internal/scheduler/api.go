@@ -4,10 +4,11 @@ import (
 	"context"
 	"strconv"
 
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
+
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/protobuf/types"
 	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	v1 "k8s.io/api/core/v1"
@@ -17,7 +18,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	"github.com/armadaproject/armada/internal/common/auth"
 	"github.com/armadaproject/armada/internal/common/compress"
-	"github.com/armadaproject/armada/internal/common/logging"
+	log "github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/maps"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	priorityTypes "github.com/armadaproject/armada/internal/common/types"
@@ -297,7 +298,7 @@ func addNodeSelector(podSpec *armadaevents.PodSpecWithAvoidList, key string, val
 	}
 }
 
-func addTolerations(job *armadaevents.SubmitJob, tolerations []v1.Toleration) {
+func addTolerations(job *armadaevents.SubmitJob, tolerations []*v1.Toleration) {
 	if job == nil || len(tolerations) == 0 {
 		return
 	}
@@ -305,7 +306,9 @@ func addTolerations(job *armadaevents.SubmitJob, tolerations []v1.Toleration) {
 		switch typed := job.MainObject.Object.(type) {
 		case *armadaevents.KubernetesMainObject_PodSpec:
 			if typed.PodSpec != nil && typed.PodSpec.PodSpec != nil {
-				typed.PodSpec.PodSpec.Tolerations = append(typed.PodSpec.PodSpec.Tolerations, tolerations...)
+				for _, toleration := range tolerations {
+					typed.PodSpec.PodSpec.Tolerations = append(typed.PodSpec.PodSpec.Tolerations, *toleration)
+				}
 			}
 		}
 	}
@@ -371,7 +374,7 @@ func (srv *ExecutorApi) executorFromLeaseRequest(ctx *armadacontext.Context, req
 	now := srv.clock.Now().UTC()
 	for _, nodeInfo := range req.Nodes {
 		if node, err := executorapi.NewNodeFromNodeInfo(nodeInfo, req.ExecutorId, srv.allowedPriorities, now); err != nil {
-			logging.WithStacktrace(ctx, err).Warnf(
+			ctx.Logger().WithStacktrace(err).Warnf(
 				"skipping node %s from executor %s", nodeInfo.GetName(), req.GetExecutorId(),
 			)
 		} else {
@@ -382,7 +385,7 @@ func (srv *ExecutorApi) executorFromLeaseRequest(ctx *armadacontext.Context, req
 		Id:                req.ExecutorId,
 		Pool:              req.Pool,
 		Nodes:             nodes,
-		LastUpdateTime:    now,
+		LastUpdateTime:    protoutil.ToTimestamp(now),
 		UnassignedJobRuns: req.UnassignedJobRunIds,
 	}
 }

@@ -318,7 +318,7 @@ func CreateReturnLeaseEvent(pod *v1.Pod, reason string, debugMessage string, clu
 	return sequence, nil
 }
 
-func CreateJobUtilisationEvent(pod *v1.Pod, utilisationData *domain.UtilisationData, clusterId string) (*armadaevents.EventSequence, error) {
+func CreateJobUtilisationEvent(pod *v1.Pod, utilisationData *domain.UtilisationDataAggregation, clusterId string) (*armadaevents.EventSequence, error) {
 	sequence := createEmptySequence(pod)
 	jobId, runId, err := extractIds(pod)
 	if err != nil {
@@ -345,8 +345,9 @@ func CreateJobUtilisationEvent(pod *v1.Pod, utilisationData *domain.UtilisationD
 						},
 					},
 				},
-				MaxResourcesForPeriod: utilisationData.CurrentUsage.ToProtoMap(),
-				TotalCumulativeUsage:  utilisationData.CumulativeUsage.ToProtoMap(),
+				MaxResourcesForPeriod: utilisationData.GetMaxUsage().ToProtoMap(),
+				AvgResourcesForPeriod: utilisationData.GetAvgUsage().ToProtoMap(),
+				TotalCumulativeUsage:  utilisationData.GetCumulativeUsage().ToProtoMap(),
 			},
 		},
 	})
