@@ -129,9 +129,11 @@ func (sctx *SchedulingContext) AddQueueSchedulingContext(
 		AllocatedByPriorityClass:          initialAllocatedByPriorityClass,
 		ScheduledResourcesByPriorityClass: make(map[string]internaltypes.ResourceList),
 		EvictedResourcesByPriorityClass:   make(map[string]internaltypes.ResourceList),
-		SuccessfulJobSchedulingContexts:   make(map[string]*JobSchedulingContext),
-		UnsuccessfulJobSchedulingContexts: make(map[string]*JobSchedulingContext),
-		EvictedJobsById:                   make(map[string]bool),
+		PreemptedByOptimiserResourceByPriorityClass: make(map[string]internaltypes.ResourceList),
+		SuccessfulJobSchedulingContexts:             make(map[string]*JobSchedulingContext),
+		UnsuccessfulJobSchedulingContexts:           make(map[string]*JobSchedulingContext),
+		PreemptedByOptimiserJobSchedulingContexts:   make(map[string]*JobSchedulingContext),
+		EvictedJobsById:                             make(map[string]bool),
 	}
 	sctx.QueueSchedulingContexts[queue] = qctx
 	return nil
@@ -398,6 +400,27 @@ func (sctx *SchedulingContext) QueueContextExists(job *jobdb.Job) bool {
 	queue := sctx.resolveQueueName(job)
 	_, ok := sctx.QueueSchedulingContexts[queue]
 	return ok
+}
+
+func (sctx *SchedulingContext) PreemptJob(jctx *JobSchedulingContext) (bool, error) {
+	queue := sctx.resolveQueueName(jctx.Job)
+	qctx, ok := sctx.QueueSchedulingContexts[queue]
+	if !ok {
+		return false, errors.Errorf("failed preempting job %s to scheduling context: no context for queue %s", jctx.JobId, queue)
+	}
+
+	scheduledInThisRound, err := qctx.preemptJob(jctx)
+	if err != nil {
+		return false, err
+	}
+
+	if scheduledInThisRound {
+		sctx.ScheduledResources = sctx.ScheduledResources.Subtract(jctx.Job.AllResourceRequirements())
+		sctx.NumScheduledJobs--
+	}
+
+	sctx.Allocated = sctx.Allocated.Subtract(jctx.Job.AllResourceRequirements())
+	return scheduledInThisRound, nil
 }
 
 func (sctx *SchedulingContext) EvictJob(jctx *JobSchedulingContext) (bool, error) {

@@ -1,6 +1,7 @@
 package scheduling
 
 import (
+	"context"
 	"math"
 	"reflect"
 	"time"
@@ -21,6 +22,7 @@ import (
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/scheduling/constraints"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/fairness"
+	"github.com/armadaproject/armada/internal/scheduler/scheduling/optimiser"
 )
 
 // PreemptingQueueScheduler is a scheduler that makes a unified decisions on which jobs to preempt and schedule.
@@ -33,8 +35,10 @@ type PreemptingQueueScheduler struct {
 	maxQueueLookBack                 uint
 	preferLargeJobOrdering           bool
 	protectUncappedAdjustedFairShare bool
-	jobRepo                          JobRepository
+	jobRepo                          jobdb.JobRepository
 	nodeDb                           *nodedb.NodeDb
+	optimiserConfig                  *configuration.OptimiserConfig
+	optimiserEnabled                 bool
 	// Maps job ids to the id of the node the job is associated with.
 	// For scheduled or running jobs, that is the node the job is assigned to.
 	// For preempted jobs, that is the node the job was preempted from.
@@ -51,12 +55,13 @@ func NewPreemptingQueueScheduler(
 	constraints schedulerconstraints.SchedulingConstraints,
 	floatingResourceTypes *floatingresources.FloatingResourceTypes,
 	config configuration.SchedulingConfig,
-	jobRepo JobRepository,
+	jobRepo jobdb.JobRepository,
 	nodeDb *nodedb.NodeDb,
 	initialNodeIdByJobId map[string]string,
 	initialJobIdsByGangId map[string]map[string]bool,
 	initialGangIdByJobId map[string]string,
 	marketDriven bool,
+	optimiserEnabled bool,
 ) *PreemptingQueueScheduler {
 	if initialNodeIdByJobId == nil {
 		initialNodeIdByJobId = make(map[string]string)
@@ -86,6 +91,8 @@ func NewPreemptingQueueScheduler(
 		jobIdsByGangId:                   initialJobIdsByGangId,
 		gangIdByJobId:                    maps.Clone(initialGangIdByJobId),
 		marketDriven:                     marketDriven,
+		optimiserConfig:                  config.GetOptimiserConfig(sctx.Pool),
+		optimiserEnabled:                 optimiserEnabled,
 	}
 }
 
@@ -233,6 +240,31 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 			delete(scheduledAndEvictedJobsById, jctx.JobId)
 		}
 		maps.Copy(sch.nodeIdByJobId, rescheduleSchedulerResult.NodeIdByJobId)
+	}
+
+	if sch.optimiserConfig != nil && sch.optimiserEnabled {
+		optimisingSchedulerResult, err := sch.runOptimiser(ctx)
+		if err != nil {
+			return nil, err
+		}
+		for _, jctx := range optimisingSchedulerResult.ScheduledJobs {
+			if _, ok := preemptedJobsById[jctx.JobId]; ok {
+				// TODO Should this ever happen? We shouldn't ever be rescheduling evicted jobs here
+				delete(preemptedJobsById, jctx.JobId)
+			} else {
+				scheduledJobsById[jctx.JobId] = jctx
+			}
+		}
+		for _, jctx := range optimisingSchedulerResult.PreemptedJobs {
+			if _, ok := scheduledJobsById[jctx.JobId]; ok {
+				// Scheduled and preempted in same round, no need to actually preempt the job
+				delete(scheduledJobsById, jctx.JobId)
+			} else {
+				preemptedJobsById[jctx.JobId] = jctx
+			}
+		}
+
+		maps.Copy(sch.nodeIdByJobId, optimisingSchedulerResult.NodeIdByJobId)
 	}
 
 	preemptedJobs := maps.Values(preemptedJobsById)
@@ -540,10 +572,57 @@ func (sch *PreemptingQueueScheduler) addEvictedJobsToNodeDb(_ *armadacontext.Con
 	return nil
 }
 
+func (sch *PreemptingQueueScheduler) runOptimiser(ctx *armadacontext.Context) (*SchedulerResult, error) {
+	factory := sch.schedulingContext.TotalResources.Factory()
+	var maximumJobSizeToPreempt *internaltypes.ResourceList
+	if sch.optimiserConfig.MaximumJobSizeToPreempt != nil {
+		maxJobSize := factory.FromJobResourceListIgnoreUnknown(*sch.optimiserConfig.MaximumJobSizeToPreempt)
+		maximumJobSizeToPreempt = &maxJobSize
+	}
+	var minimumJobSizeToSchedule *internaltypes.ResourceList
+	if sch.optimiserConfig.MinimumJobSizeToSchedule != nil {
+		minJobSize := factory.FromJobResourceListIgnoreUnknown(*sch.optimiserConfig.MinimumJobSizeToSchedule)
+		minimumJobSizeToSchedule = &minJobSize
+	}
+
+	nodeScheduler := optimiser.NewPreemptingNodeScheduler(sch.jobRepo, maximumJobSizeToPreempt)
+	optimisingScheduler := optimiser.NewFairnessOptimisingScheduler(nodeScheduler, sch.jobRepo, sch.nodeDb, sch.optimiserConfig.MinimumFairnessImprovementPercentage)
+	optimisingQueueScheduler := NewOptimisingQueueScheduler(
+		sch.jobRepo,
+		optimisingScheduler,
+		sch.constraints,
+		sch.floatingResourceTypes,
+		sch.maxQueueLookBack,
+		sch.preferLargeJobOrdering,
+		sch.marketDriven,
+		minimumJobSizeToSchedule,
+		sch.optimiserConfig.MaximumJobsPerRound,
+		sch.optimiserConfig.MaximumResourceFractionToSchedule)
+	sch.schedulingContext.ClearUnfeasibleSchedulingKeys()
+
+	timeoutContext, cancel := armadacontext.WithTimeout(ctx, sch.optimiserConfig.Timeout)
+	defer cancel()
+
+	result, err := optimisingQueueScheduler.Schedule(timeoutContext, sch.schedulingContext)
+	if err != nil {
+		// This is deliberately defensive to guard against the experimental optimiser causing the main scheduler issues
+		if errors.Is(err, context.DeadlineExceeded) {
+			ctx.Warnf("optimiser timed out, configured timeout %s", sch.optimiserConfig.Timeout)
+			return &SchedulerResult{
+				PreemptedJobs: []*schedulercontext.JobSchedulingContext{},
+				ScheduledJobs: []*schedulercontext.JobSchedulingContext{},
+				NodeIdByJobId: map[string]string{},
+			}, nil
+		}
+		return nil, err
+	}
+	return result, nil
+}
+
 func (sch *PreemptingQueueScheduler) schedule(
 	ctx *armadacontext.Context,
 	inMemoryJobRepo *InMemoryJobRepository,
-	jobRepo JobRepository,
+	jobRepo jobdb.JobRepository,
 	skipUnsuccessfulSchedulingKeyCheck bool,
 	considerPriorityCLassPriority bool,
 ) (*SchedulerResult, error) {

@@ -35,6 +35,9 @@ func PopulatePreemptionDescriptions(preemptedJobs []*context.JobSchedulingContex
 	}
 
 	for _, preemptedJctx := range preemptedJobs {
+		if preemptedJctx.PreemptionDescription != "" {
+			continue
+		}
 		if preemptedJctx.PreemptingJobId != "" {
 			preemptedJctx.PreemptionDescription = fmt.Sprintf(fairSharePreemptionTemplate, preemptedJctx.PreemptingJobId)
 		} else {
