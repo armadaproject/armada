@@ -17,6 +17,7 @@ import (
 
 var (
 	poolLabels                  = []string{poolLabel}
+	poolAndPriorityLabels       = []string{poolLabel, priorityLabel}
 	poolAndQueueLabels          = []string{poolLabel, queueLabel}
 	queueAndPriorityClassLabels = []string{queueLabel, priorityClassLabel}
 	poolQueueAndResourceLabels  = []string{poolLabel, queueLabel, resourceLabel}
@@ -42,6 +43,7 @@ type perCycleMetrics struct {
 	evictedJobs                  *prometheus.GaugeVec
 	evictedResources             *prometheus.GaugeVec
 	spotPrice                    *prometheus.GaugeVec
+	indicativeShare              *prometheus.GaugeVec
 	nodePreemptibility           *prometheus.GaugeVec
 	protectedFractionOfFairShare *prometheus.GaugeVec
 	nodeAllocatableResource      *prometheus.GaugeVec
@@ -201,6 +203,14 @@ func newPerCycleMetrics() *perCycleMetrics {
 		poolLabels,
 	)
 
+	indicativeShare := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: prefix + "indicative_share",
+			Help: "indicative share for some priority in the given pool",
+		},
+		poolAndPriorityLabels,
+	)
+
 	nodePreemptibility := prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: prefix + "node_preemptibility",
@@ -253,6 +263,7 @@ func newPerCycleMetrics() *perCycleMetrics {
 		evictedJobs:                  evictedJobs,
 		evictedResources:             evictedResources,
 		spotPrice:                    spotPrice,
+		indicativeShare:              indicativeShare,
 		nodePreemptibility:           nodePreemptibility,
 		protectedFractionOfFairShare: protectedFractionOfFairShare,
 		nodeAllocatableResource:      nodeAllocatableResource,
@@ -361,6 +372,9 @@ func (m *cycleMetrics) ReportSchedulerResult(result scheduling.SchedulerResult) 
 		}
 		currentCycle.fairnessError.WithLabelValues(pool).Set(schedContext.FairnessError())
 		currentCycle.spotPrice.WithLabelValues(pool).Set(schedContext.SpotPrice)
+		for priority, share := range schedContext.ExperimentalIndicativeShares {
+			currentCycle.indicativeShare.WithLabelValues(pool, priority).Set(share)
+		}
 	}
 
 	for _, jobCtx := range result.ScheduledJobs {

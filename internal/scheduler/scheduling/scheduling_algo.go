@@ -2,6 +2,7 @@ package scheduling
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"time"
 
@@ -620,6 +621,9 @@ func (l *FairSchedulingAlgo) SchedulePool(
 		price := l.calculateMarketDrivenSpotPrice(maps.Keys(fsctx.nodeIdByJobId), result.ScheduledJobs, result.PreemptedJobs, fractionAllocated, fsctx.Txn)
 		fsctx.schedulingContext.SpotPrice = price
 	} else {
+		for _, priority := range l.schedulingConfig.ExperimentalIndicativeShare.BasePriorities {
+			fsctx.schedulingContext.ExperimentalIndicativeShares[fmt.Sprintf("%.2f", priority)] = fsctx.schedulingContext.CalculateTheoreticalShare(priority)
+		}
 		price := l.calculateFairShareDrivenSpotPrice(fsctx.schedulingContext, l.schedulingConfig.ExperimentalIndicativePricing.BasePrice, l.schedulingConfig.ExperimentalIndicativePricing.BasePriority)
 		fsctx.schedulingContext.SpotPrice = price
 	}

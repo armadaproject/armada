@@ -244,6 +244,7 @@ type SchedulingConfig struct {
 	// TODO: Remove this feature gate
 	EnableExecutorCordoning       bool
 	ExperimentalIndicativePricing ExperimentalIndicativePricing
+	ExperimentalIndicativeShare   ExperimentalIndicativeShare
 }
 
 const (
@@ -334,6 +335,10 @@ func (sc *SchedulingConfig) GetOptimiserConfig(poolName string) *OptimiserConfig
 		}
 	}
 	return nil
+}
+
+type ExperimentalIndicativeShare struct {
+	BasePriorities []float64
 }
 
 type ExperimentalIndicativePricing struct {

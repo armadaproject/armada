@@ -60,8 +60,9 @@ type SchedulingContext struct {
 	// Record of job scheduling requirements known to be unfeasible.
 	// Used to immediately reject new jobs with identical reqirements.
 	// Maps to the JobSchedulingContext of a previous job attempted to schedule with the same key.
-	UnfeasibleSchedulingKeys map[internaltypes.SchedulingKey]*JobSchedulingContext
-	SpotPrice                float64
+	UnfeasibleSchedulingKeys     map[internaltypes.SchedulingKey]*JobSchedulingContext
+	ExperimentalIndicativeShares map[string]float64
+	SpotPrice                    float64
 }
 
 func NewSchedulingContext(
