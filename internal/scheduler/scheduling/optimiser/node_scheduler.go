@@ -252,7 +252,7 @@ func isTooLargeToEvict(job *jobdb.Job, limit *internaltypes.ResourceList) bool {
 	if job == nil {
 		return true
 	}
-	jobResources := job.KubernetesResourceRequirements()
+	jobResources := job.AllResourceRequirements()
 	if jobResources.Factory() != limit.Factory() {
 		panic("mismatched ResourceListFactory in node_scheduler")
 	}
