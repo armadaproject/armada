@@ -40,7 +40,8 @@ func newJobStateMetrics(
 	errorRegexes []*regexp.Regexp,
 	trackedResourceNames []v1.ResourceName,
 	jobCheckpointIntervals []time.Duration,
-	resetInterval time.Duration) *jobStateMetrics {
+	resetInterval time.Duration,
+) *jobStateMetrics {
 	completedRunDurations := prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name:    prefix + "job_run_completed_duration_seconds",
