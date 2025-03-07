@@ -7,6 +7,7 @@ const (
 
 	// Prometheus Labels
 	poolLabel             = "pool"
+	typeLabel             = "type"
 	priorityLabel         = "priority"
 	queueLabel            = "queue"
 	priorityClassLabel    = "priority_class"

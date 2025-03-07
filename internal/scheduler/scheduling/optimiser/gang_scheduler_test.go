@@ -518,6 +518,7 @@ func assertExpectedSctxUpdates(t *testing.T, sctx *context.SchedulingContext, gc
 		preemptedJob := preemptedJctx.Job
 		assert.Contains(t, scheduledJobIds, preemptedJctx.PreemptingJobId)
 		assert.NotEmpty(t, preemptedJctx.PreemptionDescription)
+		assert.Equal(t, context.PreemptedWithOptimiserPreemption, preemptedJctx.PreemptionType)
 
 		_, exists := sctx.QueueSchedulingContexts[preemptedJob.Queue()].SuccessfulJobSchedulingContexts[preemptedJob.Id()]
 		assert.False(t, exists)
