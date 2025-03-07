@@ -60,8 +60,9 @@ type SchedulingContext struct {
 	// Record of job scheduling requirements known to be unfeasible.
 	// Used to immediately reject new jobs with identical reqirements.
 	// Maps to the JobSchedulingContext of a previous job attempted to schedule with the same key.
-	UnfeasibleSchedulingKeys map[internaltypes.SchedulingKey]*JobSchedulingContext
-	SpotPrice                float64
+	UnfeasibleSchedulingKeys     map[internaltypes.SchedulingKey]*JobSchedulingContext
+	ExperimentalIndicativeShares map[int]float64
+	SpotPrice                    float64
 }
 
 func NewSchedulingContext(
@@ -71,16 +72,17 @@ func NewSchedulingContext(
 	totalResources internaltypes.ResourceList,
 ) *SchedulingContext {
 	return &SchedulingContext{
-		Started:                  time.Now(),
-		Pool:                     pool,
-		FairnessCostProvider:     fairnessCostProvider,
-		Limiter:                  limiter,
-		QueueSchedulingContexts:  make(map[string]*QueueSchedulingContext),
-		TotalResources:           totalResources,
-		ScheduledResources:       internaltypes.ResourceList{},
-		EvictedResources:         internaltypes.ResourceList{},
-		SchedulingKeyGenerator:   internaltypes.NewSchedulingKeyGenerator(),
-		UnfeasibleSchedulingKeys: make(map[internaltypes.SchedulingKey]*JobSchedulingContext),
+		Started:                      time.Now(),
+		Pool:                         pool,
+		FairnessCostProvider:         fairnessCostProvider,
+		Limiter:                      limiter,
+		QueueSchedulingContexts:      make(map[string]*QueueSchedulingContext),
+		TotalResources:               totalResources,
+		ScheduledResources:           internaltypes.ResourceList{},
+		EvictedResources:             internaltypes.ResourceList{},
+		SchedulingKeyGenerator:       internaltypes.NewSchedulingKeyGenerator(),
+		UnfeasibleSchedulingKeys:     make(map[internaltypes.SchedulingKey]*JobSchedulingContext),
+		ExperimentalIndicativeShares: make(map[int]float64),
 	}
 }
 
