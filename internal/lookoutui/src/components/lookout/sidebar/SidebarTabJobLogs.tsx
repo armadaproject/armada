@@ -322,7 +322,7 @@ function LogView({ logLines }: { logLines: LogLine[] }) {
 
   const [shouldScrollDown, setShouldScrollDown] = useState<boolean>(true)
   const logsEndRef = useRef<HTMLDivElement>(null)
-  const previousScrollTopRef = useRef<number | undefined>()
+  const previousScrollTopRef = useRef<number>(undefined)
 
   const scrollToBottom = () => {
     if (shouldScrollDown) {

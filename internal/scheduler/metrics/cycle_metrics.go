@@ -16,11 +16,12 @@ import (
 )
 
 var (
-	poolLabels                  = []string{poolLabel}
-	poolAndPriorityLabels       = []string{poolLabel, priorityLabel}
-	poolAndQueueLabels          = []string{poolLabel, queueLabel}
-	queueAndPriorityClassLabels = []string{queueLabel, priorityClassLabel}
-	poolQueueAndResourceLabels  = []string{poolLabel, queueLabel, resourceLabel}
+	poolLabels                             = []string{poolLabel}
+	poolAndPriorityLabels                  = []string{poolLabel, priorityLabel}
+	poolAndQueueLabels                     = []string{poolLabel, queueLabel}
+	poolAndQueueAndPriorityClassTypeLabels = []string{poolLabel, queueLabel, priorityClassLabel, typeLabel}
+	poolQueueAndResourceLabels             = []string{poolLabel, queueLabel, resourceLabel}
+	defaultType                            = "unknown"
 )
 
 type perCycleMetrics struct {
@@ -287,7 +288,7 @@ func newCycleMetrics() *cycleMetrics {
 			Name: prefix + "scheduled_jobs",
 			Help: "Number of events scheduled",
 		},
-		queueAndPriorityClassLabels,
+		poolAndQueueAndPriorityClassTypeLabels,
 	)
 
 	premptedJobs := prometheus.NewCounterVec(
@@ -295,7 +296,7 @@ func newCycleMetrics() *cycleMetrics {
 			Name: prefix + "preempted_jobs",
 			Help: "Number of jobs preempted",
 		},
-		queueAndPriorityClassLabels,
+		poolAndQueueAndPriorityClassTypeLabels,
 	)
 
 	scheduleCycleTime := prometheus.NewHistogram(
@@ -377,14 +378,6 @@ func (m *cycleMetrics) ReportSchedulerResult(result scheduling.SchedulerResult) 
 		}
 	}
 
-	for _, jobCtx := range result.ScheduledJobs {
-		m.scheduledJobs.WithLabelValues(jobCtx.Job.Queue(), jobCtx.PriorityClassName).Inc()
-	}
-
-	for _, jobCtx := range result.PreemptedJobs {
-		m.premptedJobs.WithLabelValues(jobCtx.Job.Queue(), jobCtx.PriorityClassName).Inc()
-	}
-
 	for pool, schedulingStats := range result.PerPoolSchedulingStats {
 		for queue, s := range schedulingStats.StatsPerQueue {
 			currentCycle.gangsConsidered.WithLabelValues(pool, queue).Set(float64(s.GangsConsidered))
@@ -392,6 +385,22 @@ func (m *cycleMetrics) ReportSchedulerResult(result scheduling.SchedulerResult) 
 			currentCycle.firstGangQueuePosition.WithLabelValues(pool, queue).Set(float64(s.FirstGangConsideredQueuePosition))
 			currentCycle.lastGangQueuePosition.WithLabelValues(pool, queue).Set(float64(s.LastGangScheduledQueuePosition))
 			currentCycle.perQueueCycleTime.WithLabelValues(pool, queue).Set(float64(s.Time.Milliseconds()))
+		}
+
+		for _, jobCtx := range schedulingStats.ScheduledJobs {
+			schedulingType := defaultType
+			if jobCtx.PodSchedulingContext != nil && jobCtx.PodSchedulingContext.SchedulingMethod != "" {
+				schedulingType = string(jobCtx.PodSchedulingContext.SchedulingMethod)
+			}
+			m.scheduledJobs.WithLabelValues(pool, jobCtx.Job.Queue(), jobCtx.PriorityClassName, schedulingType).Inc()
+		}
+
+		for _, jobCtx := range schedulingStats.PreemptedJobs {
+			preemptionType := defaultType
+			if jobCtx.PreemptionType != "" {
+				preemptionType = string(jobCtx.PreemptionType)
+			}
+			m.premptedJobs.WithLabelValues(pool, jobCtx.Job.Queue(), jobCtx.PriorityClassName, preemptionType).Inc()
 		}
 
 		currentCycle.loopNumber.WithLabelValues(pool).Set(float64(schedulingStats.LoopNumber))

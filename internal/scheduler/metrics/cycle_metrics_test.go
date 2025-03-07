@@ -86,7 +86,7 @@ func TestReportStateTransitions(t *testing.T) {
 
 func TestResetLeaderMetrics_Counters(t *testing.T) {
 	m := newCycleMetrics()
-	queuePriorityClassLabelValues := []string{"pool1", "priorityClass1"}
+	poolAndQueueAndPriorityClassTypeLabels := []string{"pool1", "queue1", "priorityClass1", "type1"}
 
 	testResetCounter := func(vec *prometheus.CounterVec, labelValues []string) {
 		vec.WithLabelValues(labelValues...).Inc()
@@ -97,8 +97,8 @@ func TestResetLeaderMetrics_Counters(t *testing.T) {
 		assert.Equal(t, 0.0, counterVal)
 	}
 
-	testResetCounter(m.scheduledJobs, queuePriorityClassLabelValues)
-	testResetCounter(m.premptedJobs, queuePriorityClassLabelValues)
+	testResetCounter(m.scheduledJobs, poolAndQueueAndPriorityClassTypeLabels)
+	testResetCounter(m.premptedJobs, poolAndQueueAndPriorityClassTypeLabels)
 }
 
 func TestResetLeaderMetrics_ResetsLatestCycleMetrics(t *testing.T) {
@@ -150,11 +150,11 @@ func TestDisableLeaderMetrics(t *testing.T) {
 	m := newCycleMetrics()
 
 	poolQueueLabelValues := []string{"pool1", "queue1"}
-	queuePriorityClassLabelValues := []string{"pool1", "priorityClass1"}
+	poolAndQueueAndPriorityClassTypeLabels := []string{"pool1", "queue1", "priorityClass1", "type1"}
 
 	collect := func(m *cycleMetrics) []prometheus.Metric {
-		m.scheduledJobs.WithLabelValues(queuePriorityClassLabelValues...).Inc()
-		m.premptedJobs.WithLabelValues(queuePriorityClassLabelValues...).Inc()
+		m.scheduledJobs.WithLabelValues(poolAndQueueAndPriorityClassTypeLabels...).Inc()
+		m.premptedJobs.WithLabelValues(poolAndQueueAndPriorityClassTypeLabels...).Inc()
 		m.latestCycleMetrics.Load().consideredJobs.WithLabelValues(poolQueueLabelValues...).Inc()
 		m.latestCycleMetrics.Load().fairShare.WithLabelValues(poolQueueLabelValues...).Inc()
 		m.latestCycleMetrics.Load().adjustedFairShare.WithLabelValues(poolQueueLabelValues...).Inc()

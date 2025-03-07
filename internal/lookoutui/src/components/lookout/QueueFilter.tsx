@@ -53,11 +53,11 @@ export interface QueueFilterProps {
   filterValue: string[] | undefined
   parseError: string | undefined
   onFilterChange: (vals: string[] | undefined) => void
-  onSetTextFieldRef: (ref: RefObject<HTMLInputElement>) => void
+  onSetTextFieldRef: (ref: RefObject<HTMLInputElement | undefined>) => void
 }
 
 export const QueueFilter = ({ filterValue, parseError, onFilterChange, onSetTextFieldRef }: QueueFilterProps) => {
-  const ref = useRef<HTMLInputElement>(null)
+  const ref = useRef<HTMLInputElement>(undefined)
   useEffect(() => {
     onSetTextFieldRef(ref)
   }, [ref])

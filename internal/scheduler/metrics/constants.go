@@ -8,6 +8,7 @@ const (
 	// Prometheus Labels
 	checkpointLabel       = "checkpoint_interval"
 	poolLabel             = "pool"
+	typeLabel             = "type"
 	priorityLabel         = "priority"
 	queueLabel            = "queue"
 	priorityClassLabel    = "priority_class"
