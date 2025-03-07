@@ -10,19 +10,19 @@ import (
 
 func TestResourceListDeepCopy(t *testing.T) {
 	rl := ResourceList{
-		Resources: map[string]resource.Quantity{
-			"foo": resource.MustParse("1"),
+		Resources: map[string]*resource.Quantity{
+			"foo": resourceFromString("1"),
 		},
 	}
 	rlCopy := rl.DeepCopy()
-	rlCopy.Resources["bar"] = resource.MustParse("2")
+	rlCopy.Resources["bar"] = resourceFromString("2")
 	q := rlCopy.Resources["foo"]
 	q.Add(resource.MustParse("10"))
 	assert.True(
 		t,
-		rl.Equal(ResourceList{
-			Resources: map[string]resource.Quantity{
-				"foo": resource.MustParse("1"),
+		rl.Equal(&ResourceList{
+			Resources: map[string]*resource.Quantity{
+				"foo": resourceFromString("1"),
 			},
 		}),
 	)
@@ -30,82 +30,82 @@ func TestResourceListDeepCopy(t *testing.T) {
 
 func TestResourceListEqual(t *testing.T) {
 	tests := map[string]struct {
-		a        ResourceList
-		b        ResourceList
+		a        *ResourceList
+		b        *ResourceList
 		expected bool
 	}{
 		"both empty": {
-			a:        ResourceList{},
-			b:        ResourceList{},
+			a:        &ResourceList{},
+			b:        &ResourceList{},
 			expected: true,
 		},
 		"both empty maps": {
-			a: ResourceList{
-				Resources: make(map[string]resource.Quantity),
+			a: &ResourceList{
+				Resources: make(map[string]*resource.Quantity),
 			},
-			b: ResourceList{
-				Resources: make(map[string]resource.Quantity),
+			b: &ResourceList{
+				Resources: make(map[string]*resource.Quantity),
 			},
 			expected: true,
 		},
 		"one empty map": {
-			a: ResourceList{
-				Resources: make(map[string]resource.Quantity),
+			a: &ResourceList{
+				Resources: make(map[string]*resource.Quantity),
 			},
-			b:        ResourceList{},
+			b:        &ResourceList{},
 			expected: true,
 		},
 		"zero equals empty": {
-			a: ResourceList{
-				Resources: map[string]resource.Quantity{
-					"foo": resource.MustParse("0"),
+			a: &ResourceList{
+				Resources: map[string]*resource.Quantity{
+					"foo": resourceFromString("0"),
 				},
 			},
-			b:        ResourceList{},
+			b:        &ResourceList{},
 			expected: true,
 		},
 		"simple equal": {
-			a: ResourceList{
-				Resources: map[string]resource.Quantity{
-					"cpu":    resource.MustParse("1"),
-					"memory": resource.MustParse("2"),
-					"foo":    resource.MustParse("3"),
+			a: &ResourceList{
+				Resources: map[string]*resource.Quantity{
+					"cpu":    resourceFromString("1"),
+					"memory": resourceFromString("2"),
+					"foo":    resourceFromString("3"),
 				},
 			},
-			b: ResourceList{
-				Resources: map[string]resource.Quantity{
-					"cpu":    resource.MustParse("1"),
-					"memory": resource.MustParse("2"),
-					"foo":    resource.MustParse("3"),
+			b: &ResourceList{
+				Resources: map[string]*resource.Quantity{
+					"cpu":    resourceFromString("1"),
+					"memory": resourceFromString("2"),
+					"foo":    resourceFromString("3"),
 				},
 			},
 			expected: true,
 		},
 		"simple unequal": {
-			a: ResourceList{
-				Resources: map[string]resource.Quantity{
-					"foo": resource.MustParse("1"),
-					"bar": resource.MustParse("2"),
+			a: &ResourceList{
+				Resources: map[string]*resource.Quantity{
+					"foo": resourceFromString("1"),
+					"bar": resourceFromString("2"),
 				},
 			},
-			b: ResourceList{
-				Resources: map[string]resource.Quantity{
-					"foo": resource.MustParse("1"),
-					"bar": resource.MustParse("3"),
+			b: &ResourceList{
+				Resources: map[string]*resource.Quantity{
+					"foo": resourceFromString("1"),
+					"bar": resourceFromString("3"),
 				},
 			},
 			expected: false,
 		},
 		"zero and missing is equal": {
-			a: ResourceList{
-				Resources: map[string]resource.Quantity{
-					"foo": resource.MustParse("1"),
-					"bar": resource.MustParse("0"),
+			a: &ResourceList{
+				Resources: map[string]*resource.Quantity{
+					"foo": resourceFromString("1"),
+					"bar": resourceFromString("0"),
 				},
 			},
-			b: ResourceList{
-				Resources: map[string]resource.Quantity{
-					"foo": resource.MustParse("1"),
+			b: &ResourceList{
+				Resources: map[string]*resource.Quantity{
+					"foo": resourceFromString("1"),
 				},
 			},
 			expected: true,
@@ -120,27 +120,32 @@ func TestResourceListEqual(t *testing.T) {
 }
 
 func TestV1ResourceListConversion(t *testing.T) {
-	rl := ResourceList{
-		Resources: map[string]resource.Quantity{
-			"foo": resource.MustParse("1"),
+	rl := &ResourceList{
+		Resources: map[string]*resource.Quantity{
+			"foo": resourceFromString("1"),
 		},
 	}
 	rlCopy := rl.DeepCopy()
 	v1rl := V1ResourceListFromResourceList(rlCopy)
-	rlCopy.Resources["bar"] = resource.MustParse("2")
+	rlCopy.Resources["bar"] = resourceFromString("2")
 	q := rlCopy.Resources["foo"]
 	q.Add(resource.MustParse("10"))
 
 	rl = ResourceListFromV1ResourceList(v1rl)
 	assert.True(
 		t,
-		rl.Equal(ResourceList{
-			Resources: map[string]resource.Quantity{
-				"foo": resource.MustParse("1"),
+		rl.Equal(&ResourceList{
+			Resources: map[string]*resource.Quantity{
+				"foo": resourceFromString("1"),
 			},
 		}),
 	)
 
 	v1rlCopy := V1ResourceListFromResourceList(rl)
 	assert.True(t, maps.Equal(v1rlCopy, v1rl))
+}
+
+func resourceFromString(s string) *resource.Quantity {
+	qty := resource.MustParse(s)
+	return &qty
 }

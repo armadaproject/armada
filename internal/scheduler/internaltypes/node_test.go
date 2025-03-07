@@ -36,15 +36,15 @@ func TestNode(t *testing.T) {
 		"key": "value",
 	}
 	totalResources := resourceListFactory.FromNodeProto(
-		map[string]resource.Quantity{
-			"cpu":    resource.MustParse("16"),
-			"memory": resource.MustParse("32Gi"),
+		map[string]*resource.Quantity{
+			"cpu":    resourceFromString("16"),
+			"memory": resourceFromString("32Gi"),
 		},
 	)
 	allocatableResources := resourceListFactory.FromNodeProto(
-		map[string]resource.Quantity{
-			"cpu":    resource.MustParse("8"),
-			"memory": resource.MustParse("16Gi"),
+		map[string]*resource.Quantity{
+			"cpu":    resourceFromString("8"),
+			"memory": resourceFromString("16Gi"),
 		},
 	)
 	unallocatableResources := map[int32]ResourceList{
@@ -57,21 +57,21 @@ func TestNode(t *testing.T) {
 	}
 	allocatableByPriority := map[int32]ResourceList{
 		1: resourceListFactory.FromNodeProto(
-			map[string]resource.Quantity{
-				"cpu":    resource.MustParse("0"),
-				"memory": resource.MustParse("0Gi"),
+			map[string]*resource.Quantity{
+				"cpu":    resourceFromString("0"),
+				"memory": resourceFromString("0Gi"),
 			},
 		),
 		2: resourceListFactory.FromNodeProto(
-			map[string]resource.Quantity{
-				"cpu":    resource.MustParse("8"),
-				"memory": resource.MustParse("16Gi"),
+			map[string]*resource.Quantity{
+				"cpu":    resourceFromString("8"),
+				"memory": resourceFromString("16Gi"),
 			},
 		),
 		3: resourceListFactory.FromNodeProto(
-			map[string]resource.Quantity{
-				"cpu":    resource.MustParse("16"),
-				"memory": resource.MustParse("32Gi"),
+			map[string]*resource.Quantity{
+				"cpu":    resourceFromString("16"),
+				"memory": resourceFromString("32Gi"),
 			},
 		),
 	}

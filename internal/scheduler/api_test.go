@@ -83,18 +83,10 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 				Executor:                    "test-executor",
 				TotalResources:              schedulerobjects.NewResourceList(0),
 				StateByJobRunId:             map[string]schedulerobjects.JobRunState{runId1: schedulerobjects.JobRunState_RUNNING, runId2: schedulerobjects.JobRunState_RUNNING},
-				UnallocatableResources:      map[int32]schedulerobjects.ResourceList{},
+				UnallocatableResources:      map[int32]*schedulerobjects.ResourceList{},
 				ResourceUsageByQueueAndPool: []*schedulerobjects.PoolQueueResource{},
-				AllocatableByPriorityAndResource: map[int32]schedulerobjects.ResourceList{
-					1000: {
-						Resources: nil,
-					},
-					2000: {
-						Resources: nil,
-					},
-				},
-				LastSeen:          protoutil.ToTimestamp(testClock.Now().UTC()),
-				ReportingNodeType: "node-type-1",
+				LastSeen:                    protoutil.ToTimestamp(testClock.Now().UTC()),
+				ReportingNodeType:           "node-type-1",
 			},
 		},
 		LastUpdateTime:    protoutil.ToTimestamp(testClock.Now().UTC()),

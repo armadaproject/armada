@@ -254,8 +254,8 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 			executors:      []*schedulerobjects.Executor{Executor(SmallNode("cpu"))},
 			jobs: testfixtures.WithRequestsJobs(
 				schedulerobjects.ResourceList{
-					Resources: map[string]resource.Quantity{
-						"test-floating-resource": resource.MustParse("11"),
+					Resources: map[string]*resource.Quantity{
+						"test-floating-resource": resourceFromString("11"),
 					},
 				},
 				[]*jobdb.Job{smallJob1}),
@@ -390,10 +390,10 @@ func Executor(nodes ...*schedulerobjects.Node) *schedulerobjects.Executor {
 func GpuNode(pool string) *schedulerobjects.Node {
 	node := testfixtures.TestSchedulerObjectsNode(
 		testfixtures.TestPriorities,
-		map[string]resource.Quantity{
-			"cpu":            resource.MustParse("30"),
-			"memory":         resource.MustParse("512Gi"),
-			"nvidia.com/gpu": resource.MustParse("8"),
+		map[string]*resource.Quantity{
+			"cpu":            resourceFromString("30"),
+			"memory":         resourceFromString("512Gi"),
+			"nvidia.com/gpu": resourceFromString("8"),
 		})
 	node.Taints = []*v1.Taint{
 		{
@@ -409,10 +409,15 @@ func GpuNode(pool string) *schedulerobjects.Node {
 func SmallNode(pool string) *schedulerobjects.Node {
 	node := testfixtures.TestSchedulerObjectsNode(
 		testfixtures.TestPriorities,
-		map[string]resource.Quantity{
-			"cpu":    resource.MustParse("2"),
-			"memory": resource.MustParse("64Gi"),
+		map[string]*resource.Quantity{
+			"cpu":    resourceFromString("2"),
+			"memory": resourceFromString("64Gi"),
 		})
 	node.Pool = pool
 	return node
+}
+
+func resourceFromString(s string) *resource.Quantity {
+	qty := resource.MustParse(s)
+	return &qty
 }

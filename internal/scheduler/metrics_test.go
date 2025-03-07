@@ -193,9 +193,9 @@ func TestMetricsCollector_TestCollect_ClusterMetrics(t *testing.T) {
 			Pool:  testfixtures.TestPool,
 			Queue: testfixtures.TestQueue,
 			Resources: &schedulerobjects.ResourceList{
-				Resources: map[string]resource.Quantity{
-					"cpu":    resource.MustParse("1"),
-					"memory": resource.MustParse("1Gi"),
+				Resources: map[string]*resource.Quantity{
+					"cpu":    resourceFromString("1"),
+					"memory": resourceFromString("1Gi"),
 				},
 			},
 		},
@@ -508,9 +508,9 @@ func createExecutor(clusterName string, nodes ...*schedulerobjects.Node) *schedu
 func createNode(nodeType string) *schedulerobjects.Node {
 	node := testfixtures.TestSchedulerObjectsNode(
 		[]int32{},
-		map[string]resource.Quantity{
-			"cpu":    resource.MustParse("32"),
-			"memory": resource.MustParse("256Gi"),
+		map[string]*resource.Quantity{
+			"cpu":    resourceFromString("32"),
+			"memory": resourceFromString("256Gi"),
 		},
 	)
 	node.ReportingNodeType = nodeType

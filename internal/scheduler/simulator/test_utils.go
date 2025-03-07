@@ -92,9 +92,9 @@ func NodeTemplate32Cpu(n int64) *NodeTemplate {
 	return &NodeTemplate{
 		Number: n,
 		TotalResources: &schedulerobjects.ResourceList{
-			Resources: map[string]resource.Quantity{
-				"cpu":    resource.MustParse("32"),
-				"memory": resource.MustParse("256Gi"),
+			Resources: map[string]*resource.Quantity{
+				"cpu":    resourceFromString("32"),
+				"memory": resourceFromString("256Gi"),
 			},
 		},
 	}
@@ -104,10 +104,10 @@ func NodeTemplateGpu(n int64) *NodeTemplate {
 	return &NodeTemplate{
 		Number: n,
 		TotalResources: &schedulerobjects.ResourceList{
-			Resources: map[string]resource.Quantity{
-				"cpu":            resource.MustParse("128"),
-				"memory":         resource.MustParse("4096Gi"),
-				"nvidia.com/gpu": resource.MustParse("8"),
+			Resources: map[string]*resource.Quantity{
+				"cpu":            resourceFromString("128"),
+				"memory":         resourceFromString("4096Gi"),
+				"nvidia.com/gpu": resourceFromString("8"),
 			},
 		},
 	}
@@ -265,4 +265,9 @@ func EventSequenceSummary(eventSequence *armadaevents.EventSequence) string {
 
 func EventSummary(event *armadaevents.EventSequence_Event) string {
 	return strings.ReplaceAll(fmt.Sprintf("%T", event.Event), "*armadaevents.EventSequence_Event_", "")
+}
+
+func resourceFromString(s string) *resource.Quantity {
+	qty := resource.MustParse(s)
+	return &qty
 }

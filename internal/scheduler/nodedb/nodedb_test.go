@@ -343,8 +343,8 @@ func TestScheduleIndividually(t *testing.T) {
 			Nodes: testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			Jobs: testfixtures.WithRequestsJobs(
 				schedulerobjects.ResourceList{
-					Resources: map[string]resource.Quantity{
-						"gibberish": resource.MustParse("1"),
+					Resources: map[string]*resource.Quantity{
+						"gibberish": resourceFromString("1"),
 					},
 				},
 				testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1),
@@ -973,4 +973,9 @@ func randomString(n int) string {
 		s += fmt.Sprint(i)
 	}
 	return s
+}
+
+func resourceFromString(s string) *resource.Quantity {
+	qty := resource.MustParse(s)
+	return &qty
 }

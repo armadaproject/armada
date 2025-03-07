@@ -720,8 +720,8 @@ func TestMarkResourceUnallocatable_ProtectsFromNegativeValues(t *testing.T) {
 }
 
 func makeResourceList(resourceName string, value string) internaltypes.ResourceList {
-	return testfixtures.TestResourceListFactory.FromNodeProto(map[string]k8sResource.Quantity{
-		resourceName: k8sResource.MustParse(value),
+	return testfixtures.TestResourceListFactory.FromNodeProto(map[string]*k8sResource.Quantity{
+		resourceName: resourceFromString(value),
 	},
 	)
 }
@@ -793,9 +793,14 @@ func withLargeNodeTaint(node *schedulerobjects.Node) *schedulerobjects.Node {
 func test32CpuNode(priorities []int32) *schedulerobjects.Node {
 	return testfixtures.TestSchedulerObjectsNode(
 		priorities,
-		map[string]k8sResource.Quantity{
-			"cpu":    k8sResource.MustParse("32"),
-			"memory": k8sResource.MustParse("256Gi"),
+		map[string]*k8sResource.Quantity{
+			"cpu":    resourceFromString("32"),
+			"memory": resourceFromString("256Gi"),
 		},
 	)
+}
+
+func resourceFromString(s string) *k8sResource.Quantity {
+	qty := k8sResource.MustParse(s)
+	return &qty
 }

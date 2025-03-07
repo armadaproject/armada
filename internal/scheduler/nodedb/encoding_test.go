@@ -191,7 +191,7 @@ func TestRoundedNodeIndexKeyFromResourceList(t *testing.T) {
 			0,
 			[]string{"memory", "cpu"},
 			[]int64{1, 2000},
-			testfixtures.TestResourceListFactory.FromNodeProto(map[string]resource.Quantity{"memory": resource.MustParse("1"), "cpu": resource.MustParse("2")}),
+			testfixtures.TestResourceListFactory.FromNodeProto(map[string]*resource.Quantity{"memory": resourceFromString("1"), "cpu": resourceFromString("2")}),
 			0,
 		),
 	)
@@ -203,7 +203,7 @@ func TestRoundedNodeIndexKeyFromResourceList(t *testing.T) {
 			0,
 			[]string{"memory", "cpu"},
 			[]int64{1, 1500},
-			testfixtures.TestResourceListFactory.FromNodeProto(map[string]resource.Quantity{"memory": resource.MustParse("1"), "cpu": resource.MustParse("2")}),
+			testfixtures.TestResourceListFactory.FromNodeProto(map[string]*resource.Quantity{"memory": resourceFromString("1"), "cpu": resourceFromString("2")}),
 			0,
 		),
 	)

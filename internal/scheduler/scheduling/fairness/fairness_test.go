@@ -143,9 +143,14 @@ func makeTestResourceListFactory() *internaltypes.ResourceListFactory {
 }
 
 func fooBarBaz(factory *internaltypes.ResourceListFactory, foo, bar, baz string) internaltypes.ResourceList {
-	return factory.FromNodeProto(map[string]resource.Quantity{
-		"foo": resource.MustParse(foo),
-		"bar": resource.MustParse(bar),
-		"baz": resource.MustParse(baz),
+	return factory.FromNodeProto(map[string]*resource.Quantity{
+		"foo": resourceFromString(foo),
+		"bar": resourceFromString(bar),
+		"baz": resourceFromString(baz),
 	})
+}
+
+func resourceFromString(s string) *resource.Quantity {
+	qty := resource.MustParse(s)
+	return &qty
 }

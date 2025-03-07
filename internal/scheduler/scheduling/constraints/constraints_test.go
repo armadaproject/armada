@@ -323,11 +323,11 @@ func makeMultiLevelConstraintsTest(
 func makeMultiLevelConstraints(rlFactory *internaltypes.ResourceListFactory) SchedulingConstraints {
 	return NewSchedulingConstraints("pool-1",
 		rlFactory.FromNodeProto(
-			map[string]resource.Quantity{
-				"a": resource.MustParse("1000"),
-				"b": resource.MustParse("1000"),
-				"c": resource.MustParse("1000"),
-				"d": resource.MustParse("1000"),
+			map[string]*resource.Quantity{
+				"a": resourceFromString("1000"),
+				"b": resourceFromString("1000"),
+				"c": resourceFromString("1000"),
+				"d": resourceFromString("1000"),
 			},
 		),
 		configuration.SchedulingConfig{
@@ -412,9 +412,14 @@ func makeSchedulingConfig() configuration.SchedulingConfig {
 
 func makeResourceList(rlFactory *internaltypes.ResourceListFactory, cpu string, memory string) internaltypes.ResourceList {
 	return rlFactory.FromNodeProto(
-		map[string]resource.Quantity{
-			"cpu":    resource.MustParse(cpu),
-			"memory": resource.MustParse(memory),
+		map[string]*resource.Quantity{
+			"cpu":    resourceFromString(cpu),
+			"memory": resourceFromString(memory),
 		},
 	)
+}
+
+func resourceFromString(s string) *resource.Quantity {
+	qty := resource.MustParse(s)
+	return &qty
 }

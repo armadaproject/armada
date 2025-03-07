@@ -22,7 +22,6 @@ import (
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/stringinterner"
-	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
@@ -355,10 +354,6 @@ func (s *Simulator) setupClusters() error {
 					Taints:         slices.Clone(nodeTemplate.Taints),
 					Labels:         labels,
 					TotalResources: nodeTemplate.TotalResources.DeepCopy(),
-					AllocatableByPriorityAndResource: schedulerobjects.NewAllocatableByPriorityAndResourceType(
-						types.AllowedPriorities(s.schedulingConfig.PriorityClasses),
-						*nodeTemplate.TotalResources,
-					),
 				}
 				dbNode := nodeFactory.FromSchedulerObjectsNode(node)
 
