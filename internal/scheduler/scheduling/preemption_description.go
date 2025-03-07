@@ -40,6 +40,7 @@ func PopulatePreemptionDescriptions(preemptedJobs []*context.JobSchedulingContex
 		}
 		if preemptedJctx.PreemptingJobId != "" {
 			preemptedJctx.PreemptionDescription = fmt.Sprintf(fairSharePreemptionTemplate, preemptedJctx.PreemptingJobId)
+			preemptedJctx.PreemptionType = context.PreemptedWithFairsharePreemption
 		} else {
 			potentialPreemptingJobs := jobsScheduledWithUrgencyBasedPreemptionByNode[preemptedJctx.GetAssignedNodeId()]
 
@@ -47,16 +48,20 @@ func PopulatePreemptionDescriptions(preemptedJobs []*context.JobSchedulingContex
 				_, isGang := preemptedJctx.Job.Annotations()[configuration.GangIdAnnotation]
 				if isGang {
 					preemptedJctx.PreemptionDescription = fmt.Sprintf(unknownGangPreemptionCause)
+					preemptedJctx.PreemptionType = context.UnknownGangJob
 				} else {
 					preemptedJctx.PreemptionDescription = fmt.Sprintf(unknownPreemptionCause, preemptedJctx.GetAssignedNode().SummaryString())
+					preemptedJctx.PreemptionType = context.Unknown
 				}
 			} else if len(potentialPreemptingJobs) == 1 {
 				preemptedJctx.PreemptionDescription = fmt.Sprintf(urgencyPreemptionTemplate, potentialPreemptingJobs[0].JobId)
+				preemptedJctx.PreemptionType = context.PreemptedWithUrgencyPreemption
 			} else {
 				jobIds := armadaslices.Map(potentialPreemptingJobs, func(job *context.JobSchedulingContext) string {
 					return job.JobId
 				})
 				preemptedJctx.PreemptionDescription = fmt.Sprintf(urgencyPreemptionMultiJobTemplate, strings.Join(jobIds, ","))
+				preemptedJctx.PreemptionType = context.PreemptedWithUrgencyPreemption
 			}
 		}
 	}
