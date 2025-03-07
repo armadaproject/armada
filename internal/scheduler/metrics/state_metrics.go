@@ -13,6 +13,8 @@ import (
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
+const noCheckpointLabelValue = "none"
+
 type jobStateMetrics struct {
 	errorRegexes           []*regexp.Regexp
 	resetInterval          time.Duration
@@ -176,7 +178,7 @@ func (m *jobStateMetrics) ReportJobPreempted(job *jobdb.Job) {
 	run := job.LatestRun()
 	duration, priorState := stateDuration(job, run, run.PreemptedTime())
 	m.updateStateDuration(job, preempted, priorState, duration)
-	m.jobSecondsLostToPreemptionByQueue.WithLabelValues(job.Queue(), run.Pool(), "none").Add(duration)
+	m.jobSecondsLostToPreemptionByQueue.WithLabelValues(job.Queue(), run.Pool(), noCheckpointLabelValue).Add(duration)
 	for _, checkpointDuration := range m.jobCheckpointIntervals {
 		timeSinceCheckpoint := math.Min(duration, checkpointDuration.Seconds())
 		m.jobSecondsLostToPreemptionByQueue.WithLabelValues(job.Queue(), run.Pool(), durationToShortString(checkpointDuration)).Add(timeSinceCheckpoint)

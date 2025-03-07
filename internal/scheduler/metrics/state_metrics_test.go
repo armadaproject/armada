@@ -365,10 +365,10 @@ func TestReportJobPreempted(t *testing.T) {
 	metrics.ReportJobPreempted(job)
 
 	expectedJobSecondsLostToPreemptionByQueue := map[[3]string]float64{
-		{testQueue, testPool, "none"}: 60,
-		{testQueue, testPool, "5s"}:   5,
-		{testQueue, testPool, "30s"}:  30,
-		{testQueue, testPool, "5m"}:   60,
+		{testQueue, testPool, noCheckpointLabelValue}: 60,
+		{testQueue, testPool, "5s"}:                   5,
+		{testQueue, testPool, "30s"}:                  30,
+		{testQueue, testPool, "5m"}:                   60,
 	}
 	for k, v := range expectedJobSecondsLostToPreemptionByQueue {
 		actualJobStateSeconds := testutil.ToFloat64(metrics.jobSecondsLostToPreemptionByQueue.WithLabelValues(k[:]...))
