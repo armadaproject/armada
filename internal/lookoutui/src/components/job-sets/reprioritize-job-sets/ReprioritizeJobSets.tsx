@@ -1,5 +1,4 @@
-import { LoadingButton } from "@mui/lab"
-import { List, ListItem, ListItemText, Paper, TextField } from "@mui/material"
+import { Button, List, ListItem, ListItemText, Paper, TextField } from "@mui/material"
 
 import { JobSet } from "../../../services/JobService"
 
@@ -39,9 +38,9 @@ export default function ReprioritizeJobSets(props: ReprioritizeJobSetsProps) {
           />
         </div>
         <div>
-          <LoadingButton disabled={!props.isValid} loading={props.isLoading} onClick={props.onReprioritizeJobsSets}>
+          <Button disabled={!props.isValid} loading={props.isLoading} onClick={props.onReprioritizeJobsSets}>
             Reprioritize Job Sets
-          </LoadingButton>
+          </Button>
         </div>
       </div>
     </div>
