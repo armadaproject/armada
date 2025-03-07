@@ -52,7 +52,7 @@ export interface JobsTableFilterProps {
   parseError: string | undefined
   onFilterChange: (newFilter: string | string[] | number | undefined) => void
   onColumnMatchChange: (columnId: string, newMatch: Match) => void
-  onSetTextFieldRef: (ref: RefObject<HTMLInputElement>) => void
+  onSetTextFieldRef: (ref: RefObject<HTMLInputElement | undefined>) => void
 }
 
 export const JobsTableFilter = ({
@@ -183,7 +183,7 @@ interface TextFilterProps {
   parseError: string | undefined
   onChange: (newVal: string) => void
   onColumnMatchChange: (newMatch: Match) => void
-  onSetTextFieldRef: (ref: RefObject<HTMLInputElement>) => void
+  onSetTextFieldRef: (ref: RefObject<HTMLInputElement | undefined>) => void
 }
 
 const TextFilter = ({
@@ -196,7 +196,7 @@ const TextFilter = ({
   onColumnMatchChange,
   onSetTextFieldRef,
 }: TextFilterProps) => {
-  const ref = useRef<HTMLInputElement>(null)
+  const ref = useRef<HTMLInputElement>(undefined)
   useEffect(() => {
     onSetTextFieldRef(ref)
   }, [ref])
