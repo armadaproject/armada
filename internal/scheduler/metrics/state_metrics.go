@@ -1,7 +1,9 @@
 package metrics
 
 import (
+	"math"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -12,25 +14,31 @@ import (
 )
 
 type jobStateMetrics struct {
-	errorRegexes         []*regexp.Regexp
-	resetInterval        time.Duration
-	lastResetTime        time.Time
-	enabled              bool
-	trackedResourceNames []v1.ResourceName
+	errorRegexes           []*regexp.Regexp
+	resetInterval          time.Duration
+	jobCheckpointIntervals []time.Duration
+	lastResetTime          time.Time
+	enabled                bool
+	trackedResourceNames   []v1.ResourceName
 
-	completedRunDurations          *prometheus.HistogramVec
-	jobStateCounterByQueue         *prometheus.CounterVec
-	jobStateCounterByNode          *prometheus.CounterVec
-	jobStateSecondsByQueue         *prometheus.CounterVec
-	jobStateSecondsByNode          *prometheus.CounterVec
-	jobStateResourceSecondsByQueue *prometheus.CounterVec
-	jobStateResourceSecondsByNode  *prometheus.CounterVec
-	jobErrorsByQueue               *prometheus.CounterVec
-	jobErrorsByNode                *prometheus.CounterVec
-	allMetrics                     []resettableMetric
+	completedRunDurations             *prometheus.HistogramVec
+	jobStateCounterByQueue            *prometheus.CounterVec
+	jobStateCounterByNode             *prometheus.CounterVec
+	jobStateSecondsByQueue            *prometheus.CounterVec
+	jobStateSecondsByNode             *prometheus.CounterVec
+	jobStateResourceSecondsByQueue    *prometheus.CounterVec
+	jobStateResourceSecondsByNode     *prometheus.CounterVec
+	jobErrorsByQueue                  *prometheus.CounterVec
+	jobErrorsByNode                   *prometheus.CounterVec
+	jobSecondsLostToPreemptionByQueue *prometheus.CounterVec
+	allMetrics                        []resettableMetric
 }
 
-func newJobStateMetrics(errorRegexes []*regexp.Regexp, trackedResourceNames []v1.ResourceName, resetInterval time.Duration) *jobStateMetrics {
+func newJobStateMetrics(
+	errorRegexes []*regexp.Regexp,
+	trackedResourceNames []v1.ResourceName,
+	jobCheckpointIntervals []time.Duration,
+	resetInterval time.Duration) *jobStateMetrics {
 	completedRunDurations := prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name:    prefix + "job_run_completed_duration_seconds",
@@ -95,21 +103,30 @@ func newJobStateMetrics(errorRegexes []*regexp.Regexp, trackedResourceNames []v1
 		},
 		[]string{nodeLabel, poolLabel, clusterLabel, errorCategoryLabel, errorSubcategoryLabel},
 	)
+	jobSecondsLostToPreemptionByQueue := prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: prefix + "job_seconds_lost_to_preemption",
+			Help: "Seconds lost to preemption",
+		},
+		[]string{queueLabel, poolLabel, checkpointLabel},
+	)
 	return &jobStateMetrics{
-		errorRegexes:                   errorRegexes,
-		trackedResourceNames:           trackedResourceNames,
-		resetInterval:                  resetInterval,
-		lastResetTime:                  time.Now(),
-		enabled:                        true,
-		completedRunDurations:          completedRunDurations,
-		jobStateCounterByQueue:         jobStateCounterByQueue,
-		jobStateCounterByNode:          jobStateCounterByNode,
-		jobStateSecondsByQueue:         jobStateSecondsByQueue,
-		jobStateSecondsByNode:          jobStateSecondsByNode,
-		jobStateResourceSecondsByQueue: jobStateResourceSecondsByQueue,
-		jobStateResourceSecondsByNode:  jobStateResourceSecondsByNode,
-		jobErrorsByQueue:               jobErrorsByQueue,
-		jobErrorsByNode:                jobErrorsByNode,
+		errorRegexes:                      errorRegexes,
+		trackedResourceNames:              trackedResourceNames,
+		jobCheckpointIntervals:            jobCheckpointIntervals,
+		resetInterval:                     resetInterval,
+		lastResetTime:                     time.Now(),
+		enabled:                           true,
+		completedRunDurations:             completedRunDurations,
+		jobStateCounterByQueue:            jobStateCounterByQueue,
+		jobStateCounterByNode:             jobStateCounterByNode,
+		jobStateSecondsByQueue:            jobStateSecondsByQueue,
+		jobStateSecondsByNode:             jobStateSecondsByNode,
+		jobStateResourceSecondsByQueue:    jobStateResourceSecondsByQueue,
+		jobStateResourceSecondsByNode:     jobStateResourceSecondsByNode,
+		jobErrorsByQueue:                  jobErrorsByQueue,
+		jobErrorsByNode:                   jobErrorsByNode,
+		jobSecondsLostToPreemptionByQueue: jobSecondsLostToPreemptionByQueue,
 		allMetrics: []resettableMetric{
 			completedRunDurations,
 			jobStateCounterByQueue,
@@ -120,6 +137,7 @@ func newJobStateMetrics(errorRegexes []*regexp.Regexp, trackedResourceNames []v1
 			jobStateResourceSecondsByNode,
 			jobErrorsByQueue,
 			jobErrorsByNode,
+			jobSecondsLostToPreemptionByQueue,
 		},
 	}
 }
@@ -158,6 +176,22 @@ func (m *jobStateMetrics) ReportJobPreempted(job *jobdb.Job) {
 	run := job.LatestRun()
 	duration, priorState := stateDuration(job, run, run.PreemptedTime())
 	m.updateStateDuration(job, preempted, priorState, duration)
+	m.jobSecondsLostToPreemptionByQueue.WithLabelValues(job.Queue(), run.Pool(), "none").Add(duration)
+	for _, checkpointDuration := range m.jobCheckpointIntervals {
+		timeSinceCheckpoint := math.Min(duration, checkpointDuration.Seconds())
+		m.jobSecondsLostToPreemptionByQueue.WithLabelValues(job.Queue(), run.Pool(), durationToShortString(checkpointDuration)).Add(timeSinceCheckpoint)
+	}
+}
+
+func durationToShortString(duration time.Duration) string {
+	result := duration.String()
+	if strings.HasSuffix(result, "m0s") {
+		result = result[:len(result)-2]
+	}
+	if strings.HasSuffix(result, "h0m") {
+		result = result[:len(result)-2]
+	}
+	return result
 }
 
 func (m *jobStateMetrics) ReportStateTransitions(

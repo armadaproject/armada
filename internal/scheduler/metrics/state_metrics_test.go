@@ -296,7 +296,7 @@ func TestReportJobStateTransitions(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			metrics := newJobStateMetrics(tc.errorRegexes, tc.trackedResourceNames, 12*time.Hour)
+			metrics := newJobStateMetrics(tc.errorRegexes, tc.trackedResourceNames, []time.Duration{}, 12*time.Hour)
 			metrics.ReportStateTransitions(tc.jsts, tc.jobRunErrorsByRunId)
 
 			// jobStateCounterByQueue
@@ -344,6 +344,38 @@ func TestReportJobStateTransitions(t *testing.T) {
 	}
 }
 
+func TestReportJobPreempted(t *testing.T) {
+	baseTimePlusSeconds := func(numSeconds int) *time.Time {
+		newTime := baseTime.Add(time.Duration(numSeconds) * time.Second)
+		return &newTime
+	}
+
+	// 60 second runtime
+	job := baseJob.
+		WithUpdatedRun(
+			baseRun.
+				WithLeasedTime(baseTimePlusSeconds(55)).
+				WithPendingTime(baseTimePlusSeconds(57)).
+				WithRunningTime(baseTimePlusSeconds(60)).
+				WithPreemptedTime(baseTimePlusSeconds(120)))
+
+	jobCheckpointIntervals := []time.Duration{time.Second * 5, time.Second * 30, time.Minute * 5}
+
+	metrics := newJobStateMetrics(nil, nil, jobCheckpointIntervals, 12*time.Hour)
+	metrics.ReportJobPreempted(job)
+
+	expectedJobSecondsLostToPreemptionByQueue := map[[3]string]float64{
+		{testQueue, testPool, "none"}: 60,
+		{testQueue, testPool, "5s"}:   5,
+		{testQueue, testPool, "30s"}:  30,
+		{testQueue, testPool, "5m"}:   60,
+	}
+	for k, v := range expectedJobSecondsLostToPreemptionByQueue {
+		actualJobStateSeconds := testutil.ToFloat64(metrics.jobSecondsLostToPreemptionByQueue.WithLabelValues(k[:]...))
+		assert.InDelta(t, v, actualJobStateSeconds, epsilon, "jobSecondsLostToPreemptionByQueue for %s", strings.Join(k[:], ","))
+	}
+}
+
 func TestCategoriseErrors(t *testing.T) {
 	run := baseRun.
 		WithExecutor(testCluster).
@@ -373,7 +405,7 @@ func TestCategoriseErrors(t *testing.T) {
 		},
 	}
 
-	metrics := newJobStateMetrics([]*regexp.Regexp{r}, []v1.ResourceName{"cpu"}, 12*time.Hour)
+	metrics := newJobStateMetrics([]*regexp.Regexp{r}, []v1.ResourceName{"cpu"}, []time.Duration{}, 12*time.Hour)
 	metrics.ReportStateTransitions(jsts, jobRunErrorsByRunId)
 
 	actualjobErrorsByQueue := testutil.ToFloat64(metrics.jobErrorsByQueue.WithLabelValues(testQueue, testPool, "podError", "generic pod error"))
@@ -384,11 +416,13 @@ func TestCategoriseErrors(t *testing.T) {
 }
 
 func TestReset(t *testing.T) {
-	byQueueLabels := []string{testQueue, testPool, "running", "pending"}
+	byQueueLabels := []string{testQueue, testPool}
+	byQueueAndStateLabels := append(byQueueLabels, "running", "pending")
 	byNodeLabels := []string{testNode, testPool, testCluster, "running", "pending"}
-	byQueueResourceLabels := append(byQueueLabels, "cpu")
+	byQueueResourceLabels := append(byQueueAndStateLabels, "cpu")
 	byNodeResourceLabels := append(byNodeLabels, "cpu")
-	m := newJobStateMetrics(nil, nil, 12*time.Hour)
+	secondsLostToPreemptionLabels := append(byQueueLabels, "none")
+	m := newJobStateMetrics(nil, nil, []time.Duration{}, 12*time.Hour)
 
 	testReset := func(vec *prometheus.CounterVec, labels []string) {
 		vec.WithLabelValues(labels...).Inc()
@@ -399,31 +433,35 @@ func TestReset(t *testing.T) {
 		assert.Equal(t, 0.0, counterVal)
 	}
 
-	testReset(m.jobStateCounterByQueue, byQueueLabels)
+	testReset(m.jobStateCounterByQueue, byQueueAndStateLabels)
 	testReset(m.jobStateSecondsByNode, byNodeLabels)
-	testReset(m.jobStateSecondsByQueue, byQueueLabels)
+	testReset(m.jobStateSecondsByQueue, byQueueAndStateLabels)
 	testReset(m.jobStateSecondsByNode, byNodeLabels)
 	testReset(m.jobStateResourceSecondsByQueue, byQueueResourceLabels)
 	testReset(m.jobStateResourceSecondsByNode, byNodeResourceLabels)
-	testReset(m.jobErrorsByQueue, byQueueLabels)
+	testReset(m.jobErrorsByQueue, byQueueAndStateLabels)
 	testReset(m.jobErrorsByNode, byNodeLabels)
+	testReset(m.jobSecondsLostToPreemptionByQueue, secondsLostToPreemptionLabels)
 }
 
 func TestDisable(t *testing.T) {
-	byQueueLabels := []string{testQueue, testPool, "running", "pending"}
+	byQueueLabels := []string{testQueue, testPool}
+	byQueueAndStateLabels := append(byQueueLabels, "running", "pending")
 	byNodeLabels := []string{testNode, testPool, testCluster, "running", "pending"}
-	byQueueResourceLabels := append(byQueueLabels, "cpu")
+	byQueueResourceLabels := append(byQueueAndStateLabels, "cpu")
 	byNodeResourceLabels := append(byNodeLabels, "cpu")
+	secondsLostToPreemptionLabels := append(byQueueLabels, "none")
 
 	collect := func(m *jobStateMetrics) []prometheus.Metric {
-		m.jobStateCounterByQueue.WithLabelValues(byQueueLabels...).Inc()
+		m.jobStateCounterByQueue.WithLabelValues(byQueueAndStateLabels...).Inc()
 		m.jobStateSecondsByNode.WithLabelValues(byNodeLabels...).Inc()
-		m.jobStateSecondsByQueue.WithLabelValues(byQueueLabels...).Inc()
+		m.jobStateSecondsByQueue.WithLabelValues(byQueueAndStateLabels...).Inc()
 		m.jobStateSecondsByNode.WithLabelValues(byNodeLabels...).Inc()
 		m.jobStateResourceSecondsByQueue.WithLabelValues(byQueueResourceLabels...).Inc()
 		m.jobStateResourceSecondsByNode.WithLabelValues(byNodeResourceLabels...).Inc()
-		m.jobErrorsByQueue.WithLabelValues(byQueueLabels...).Inc()
+		m.jobErrorsByQueue.WithLabelValues(byQueueAndStateLabels...).Inc()
 		m.jobErrorsByNode.WithLabelValues(byNodeLabels...).Inc()
+		m.jobSecondsLostToPreemptionByQueue.WithLabelValues(secondsLostToPreemptionLabels...).Inc()
 
 		ch := make(chan prometheus.Metric, 1000)
 		m.collect(ch)
@@ -434,7 +472,7 @@ func TestDisable(t *testing.T) {
 		return collected
 	}
 
-	m := newJobStateMetrics(nil, nil, 12*time.Hour)
+	m := newJobStateMetrics(nil, nil, []time.Duration{}, 12*time.Hour)
 
 	// Enabled
 	assert.NotZero(t, len(collect(m)))
