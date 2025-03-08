@@ -1,5 +1,5 @@
-import { LoadingButton } from "@mui/lab"
 import {
+  Button,
   List,
   ListItem,
   ListItemText,
@@ -72,9 +72,9 @@ export default function ReprioritizeJobSetsOutcome({
             </Table>
           </TableContainer>
           <div className="lookout-dialog-centered lookout-dialog-fixed">
-            <LoadingButton loading={isLoading} variant="contained" onClick={onReprioritizeJobSets}>
+            <Button loading={isLoading} variant="contained" onClick={onReprioritizeJobSets}>
               Retry - New priority: {newPriority}
-            </LoadingButton>
+            </Button>
           </div>
         </>
       )}

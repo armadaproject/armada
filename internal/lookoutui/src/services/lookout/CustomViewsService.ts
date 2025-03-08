@@ -68,7 +68,7 @@ export class CustomViewsService {
       return []
     }
     const obj = tryParseJson(json as string)
-    if (Array.isArray(obj) && obj.length > 0 && typeof obj[0] === "string") {
+    if (Array.isArray(obj) && obj.length > 0 && obj.every((e) => typeof e === "string")) {
       return obj
     }
     return []

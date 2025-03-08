@@ -10,6 +10,7 @@ import (
 	commonconfig "github.com/armadaproject/armada/internal/common/config"
 	grpcconfig "github.com/armadaproject/armada/internal/common/grpc/configuration"
 	profilingconfig "github.com/armadaproject/armada/internal/common/profiling/configuration"
+	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/armadaproject/armada/pkg/client"
@@ -55,11 +56,7 @@ type Configuration struct {
 	DatabaseFetchSize int `validate:"required"`
 	// Frequency at which queues will be fetched from the API
 	QueueRefreshPeriod time.Duration `validate:"required"`
-	// Allows queue priority multipliers to be fetched from an external source. This cannot be enabled at the same time
-	// as PriorityOverrides
-	PriorityMultiplier PriorityMultiplierConfig
-	// Allows queue priority overrides to be fetched from an external source. This cannot be enabled at the same time
-	// as PriorityMultipliers
+	// Allows queue priority overrides to be fetched from an external source.
 	PriorityOverride PriorityOverrideConfig
 }
 
@@ -247,6 +244,7 @@ type SchedulingConfig struct {
 	// TODO: Remove this feature gate
 	EnableExecutorCordoning       bool
 	ExperimentalIndicativePricing ExperimentalIndicativePricing
+	ExperimentalIndicativeShare   ExperimentalIndicativeShare
 }
 
 const (
@@ -287,6 +285,29 @@ type PoolConfig struct {
 	ProtectedFractionOfFairShare                 *float64
 	MarketDriven                                 bool
 	ExperimentalProtectUncappedAdjustedFairShare bool
+	ExperimentalOptimiser                        *OptimiserConfig
+}
+
+type OptimiserConfig struct {
+	Enabled bool
+	// How often the optimiser should run, likely desirable to not run every scheduling round
+	Interval time.Duration
+	// How long the optimiser can run for before giving up
+	// The optimiser is relatively inefficient,
+	//  on large pools this protects against the optimiser causing very long scheduling rounds
+	Timeout time.Duration `validate:"required"`
+	// Maximum jobs the optimiser will scheduler per round
+	MaximumJobsPerRound int
+	// Maximum fraction of the pool the optimiser will scheduler per round
+	MaximumResourceFractionToSchedule map[string]float64
+	// MinimumJobSizeToSchedule - The optimiser will not scheduler jobs that aren't at least as big as this field
+	MinimumJobSizeToSchedule *armadaresource.ComputeResources
+	// MaximumJobSizeToPreempt - The optimiser won't preempt jobs that are bigger than this field
+	MaximumJobSizeToPreempt *armadaresource.ComputeResources
+	// The minimum fairness improvement (as a percentage) for the optimiser to take action
+	// I.e, Optimiser tries to scheduler a 16 CPU job and has to preempt a 10 CPU jobs
+	// - 16/10 = 160%, 60% improvement
+	MinimumFairnessImprovementPercentage float64
 }
 
 func (sc *SchedulingConfig) GetProtectedFractionOfFairShare(poolName string) float64 {
@@ -307,16 +328,22 @@ func (sc *SchedulingConfig) GetProtectUncappedAdjustedFairShare(poolName string)
 	return false
 }
 
+func (sc *SchedulingConfig) GetOptimiserConfig(poolName string) *OptimiserConfig {
+	for _, poolConfig := range sc.Pools {
+		if poolConfig.Name == poolName {
+			return poolConfig.ExperimentalOptimiser
+		}
+	}
+	return nil
+}
+
+type ExperimentalIndicativeShare struct {
+	BasePriorities []int
+}
+
 type ExperimentalIndicativePricing struct {
 	BasePrice    float64
 	BasePriority float64
-}
-
-type PriorityMultiplierConfig struct {
-	Enabled         bool
-	UpdateFrequency time.Duration
-	ServiceUrl      string
-	ForceNoTls      bool
 }
 
 type PriorityOverrideConfig struct {

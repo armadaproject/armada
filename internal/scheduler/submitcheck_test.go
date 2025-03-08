@@ -32,7 +32,7 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 	smallJob2 := testfixtures.Test1Cpu4GiJob("queue", testfixtures.PriorityClass1)
 	smallGpuJob := testfixtures.Test1GpuJob("queue", testfixtures.PriorityClass4PreemptibleAway)
 	smallAwayJob := testfixtures.Test1Cpu4GiJob("queue", testfixtures.PriorityClass4PreemptibleAway)
-	largeJob1 := testfixtures.Test32Cpu256GiJob("queue", testfixtures.PriorityClass1)
+	largeJob1 := testfixtures.Test32Cpu256GiJobWithLargeJobToleration("queue", testfixtures.PriorityClass1)
 
 	// This Gang job will fit
 	smallGangJob := testfixtures.
