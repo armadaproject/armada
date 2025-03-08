@@ -1,6 +1,7 @@
 package scheduler
 
 import (
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -20,7 +21,6 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/queue"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api"
 )
 
@@ -273,11 +273,11 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 
 	cordonedStatusByCluster := map[string]*clusterCordonedStatus{}
 	phaseCountByQueue := map[queuePhaseMetricKey]int{}
-	allocatedResourceByQueue := map[queueMetricKey]schedulerobjects.ResourceList{}
-	usedResourceByQueue := map[queueMetricKey]schedulerobjects.ResourceList{}
-	availableResourceByCluster := map[clusterMetricKey]schedulerobjects.ResourceList{}
-	totalResourceByCluster := map[clusterMetricKey]schedulerobjects.ResourceList{}
-	totalFarmResourceByCluster := map[clusterMetricKey]schedulerobjects.ResourceList{}
+	allocatedResourceByQueue := map[queueMetricKey]resource.ComputeResources{}
+	usedResourceByQueue := map[queueMetricKey]resource.ComputeResources{}
+	availableResourceByCluster := map[clusterMetricKey]resource.ComputeResources{}
+	totalResourceByCluster := map[clusterMetricKey]resource.ComputeResources{}
+	totalFarmResourceByCluster := map[clusterMetricKey]resource.ComputeResources{}
 	schedulableNodeCountByCluster := map[clusterMetricKey]int{}
 	totalNodeCountByCluster := map[clusterMetricKey]int{}
 
@@ -449,7 +449,7 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 		}
 	}
 	for k, r := range totalFarmResourceByCluster {
-		for resourceKey, resourceValue := range r.Resources {
+		for resourceKey, resourceValue := range r {
 			clusterMetrics = append(clusterMetrics, commonmetrics.NewClusterFarmCapacity(resource.QuantityAsFloat64(resourceValue), k.cluster, k.pool, resourceKey, k.nodeType))
 		}
 	}
