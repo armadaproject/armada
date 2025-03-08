@@ -794,9 +794,9 @@ func TestNode(priorities []int32, resources map[string]*resource.Quantity) *inte
 func Test16CpuNode(priorities []int32) *internaltypes.Node {
 	return TestNode(
 		priorities,
-		map[string]resource.Quantity{
-			"cpu":    resource.MustParse("16"),
-			"memory": resource.MustParse("128Gi"),
+		map[string]*resource.Quantity{
+			"cpu":    resourceFromString("16"),
+			"memory": resourceFromString("128Gi"),
 		},
 	)
 }
