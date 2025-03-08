@@ -3,9 +3,10 @@ package protoutil
 import (
 	"time"
 
-	"github.com/gogo/protobuf/proto"
-	"github.com/gogo/protobuf/types"
 	"github.com/pkg/errors"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/armadaproject/armada/internal/common/compress"
 )
@@ -76,7 +77,7 @@ func MustMarshallAndCompress(msg proto.Message, compressor compress.Compressor) 
 	return b
 }
 
-func ToStdTime(ts *types.Timestamp) time.Time {
+func ToStdTime(ts *timestamppb.Timestamp) time.Time {
 	if ts == nil {
 		return time.Time{}.UTC()
 	}
@@ -84,22 +85,22 @@ func ToStdTime(ts *types.Timestamp) time.Time {
 	return time.Unix(ts.Seconds, int64(ts.Nanos)).UTC()
 }
 
-func ToTimestamp(t time.Time) *types.Timestamp {
-	return &types.Timestamp{
+func ToTimestamp(t time.Time) *timestamppb.Timestamp {
+	return &timestamppb.Timestamp{
 		Seconds: t.Unix(),
 		Nanos:   int32(t.Nanosecond()),
 	}
 }
 
-func ToStdDuration(pd *types.Duration) time.Duration {
+func ToStdDuration(pd *durationpb.Duration) time.Duration {
 	if pd == nil {
 		return 0
 	}
 	return time.Duration(pd.Seconds)*time.Second + time.Duration(pd.Nanos)*time.Nanosecond
 }
 
-func ToDuration(d time.Duration) *types.Duration {
-	return &types.Duration{
+func ToDuration(d time.Duration) *durationpb.Duration {
+	return &durationpb.Duration{
 		Seconds: d.Nanoseconds() / 1000000000,
 		Nanos:   int32(d.Nanoseconds() % 1000000000),
 	}

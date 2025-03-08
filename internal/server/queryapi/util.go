@@ -1,8 +1,8 @@
 package queryapi
 
 import (
-	"github.com/gogo/protobuf/types"
 	"github.com/jackc/pgx/v5/pgtype"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 )
@@ -14,7 +14,7 @@ func NilStringToString(s *string) string {
 	return *s
 }
 
-func DbTimeToTimestamp(t pgtype.Timestamp) *types.Timestamp {
+func DbTimeToTimestamp(t pgtype.Timestamp) *timestamppb.Timestamp {
 	if !t.Valid {
 		return nil
 	}

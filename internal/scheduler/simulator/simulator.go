@@ -3,6 +3,7 @@ package simulator
 import (
 	"container/heap"
 	"fmt"
+	"google.golang.org/protobuf/proto"
 	"math"
 	"math/rand"
 	"strconv"
@@ -10,7 +11,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"

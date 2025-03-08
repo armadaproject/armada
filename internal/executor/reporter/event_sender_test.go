@@ -5,12 +5,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
-	"github.com/gogo/protobuf/types"
+	"github.com/golang/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/types/known/emptypb"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sTypes "k8s.io/apimachinery/pkg/types"
@@ -81,7 +81,7 @@ func (fakeClient *fakeExecutorApiClient) LeaseJobRuns(_ context.Context, opts ..
 }
 
 // Reports job run events to the scheduler
-func (fakeClient *fakeExecutorApiClient) ReportEvents(_ context.Context, in *executorapi.EventList, opts ...grpc.CallOption) (*types.Empty, error) {
+func (fakeClient *fakeExecutorApiClient) ReportEvents(_ context.Context, in *executorapi.EventList, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	fakeClient.reportedEvents = append(fakeClient.reportedEvents, in)
 	return nil, nil
 }

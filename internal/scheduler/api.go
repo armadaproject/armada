@@ -4,13 +4,11 @@ import (
 	"context"
 	"strconv"
 
-	protoutil "github.com/armadaproject/armada/internal/common/proto"
-
-	"github.com/gogo/protobuf/proto"
-	"github.com/gogo/protobuf/types"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/emptypb"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/utils/clock"
 
@@ -20,6 +18,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/compress"
 	log "github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/maps"
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	priorityTypes "github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/database"
@@ -345,7 +344,7 @@ func addAnnotations(job *armadaevents.SubmitJob, annotations map[string]string) 
 }
 
 // ReportEvents publishes all eventSequences to Pulsar. The eventSequences are compacted for more efficient publishing.
-func (srv *ExecutorApi) ReportEvents(grpcCtx context.Context, list *executorapi.EventList) (*types.Empty, error) {
+func (srv *ExecutorApi) ReportEvents(grpcCtx context.Context, list *executorapi.EventList) (*emptypb.Empty, error) {
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
 	err := srv.authorize(ctx)
 	if err != nil {
@@ -353,7 +352,7 @@ func (srv *ExecutorApi) ReportEvents(grpcCtx context.Context, list *executorapi.
 	}
 
 	err = srv.publisher.PublishMessages(ctx, list.GetEvents()...)
-	return &types.Empty{}, err
+	return &emptypb.Empty{}, err
 }
 
 func (srv *ExecutorApi) authorize(ctx *armadacontext.Context) error {

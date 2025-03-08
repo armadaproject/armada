@@ -1,10 +1,10 @@
 package instructions
 
 import (
+	"google.golang.org/protobuf/proto"
 	"strings"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/utils/pointer"
 

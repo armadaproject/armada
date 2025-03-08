@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gogo/protobuf/types"
 	"github.com/stretchr/testify/assert"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
@@ -239,7 +239,7 @@ func TestWatchContext_UtilisationEvent(t *testing.T) {
 		JobId:        "job1",
 		JobSetId:     "",
 		Queue:        "",
-		Created:      types.TimestampNow(),
+		Created:      timestamppb.Now(),
 		ClusterId:    "",
 		KubernetesId: "",
 		MaxResourcesForPeriod: map[string]*resource.Quantity{

@@ -13,7 +13,7 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/gogo/protobuf/jsonpb"
+	"github.com/golang/protobuf/jsonpb"
 	"github.com/hashicorp/go-multierror"
 	"github.com/mattn/go-zglob"
 	"github.com/pkg/errors"

@@ -2,9 +2,9 @@ package reporter
 
 import (
 	"fmt"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"strconv"
 
-	"github.com/gogo/protobuf/types"
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
 	networking "k8s.io/api/networking/v1"
@@ -21,7 +21,7 @@ func CreateEventForCurrentState(pod *v1.Pod, clusterId string) (*armadaevents.Ev
 	if err != nil {
 		return nil, err
 	}
-	now := types.TimestampNow()
+	now := timestamppb.Now()
 
 	switch phase {
 	case v1.PodPending:
@@ -161,7 +161,7 @@ func CreateJobIngressInfoEvent(pod *v1.Pod, clusterId string, associatedServices
 	}
 
 	sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
-		Created: types.TimestampNow(),
+		Created: timestamppb.Now(),
 		Event: &armadaevents.EventSequence_Event_StandaloneIngressInfo{
 			StandaloneIngressInfo: &armadaevents.StandaloneIngressInfo{
 				RunId: runId,
@@ -190,7 +190,7 @@ func CreateSimpleJobPreemptedEvent(pod *v1.Pod) (*armadaevents.EventSequence, er
 	}
 
 	sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
-		Created: types.TimestampNow(),
+		Created: timestamppb.Now(),
 		Event: &armadaevents.EventSequence_Event_JobRunPreempted{
 			JobRunPreempted: &armadaevents.JobRunPreempted{
 				PreemptedJobId: preemptedJobId,
@@ -215,7 +215,7 @@ func CreateJobFailedEvent(pod *v1.Pod, reason string, cause armadaevents.Kuberne
 	}
 
 	sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
-		Created: types.TimestampNow(),
+		Created: timestamppb.Now(),
 		Event: &armadaevents.EventSequence_Event_JobRunErrors{
 			JobRunErrors: &armadaevents.JobRunErrors{
 				RunId: runId,
@@ -253,7 +253,7 @@ func CreateMinimalJobFailedEvent(jobId string, runId string, jobSet string, queu
 	sequence.JobSetName = jobSet
 
 	sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
-		Created: types.TimestampNow(),
+		Created: timestamppb.Now(),
 		Event: &armadaevents.EventSequence_Event_JobRunErrors{
 			JobRunErrors: &armadaevents.JobRunErrors{
 				RunId: runId,
@@ -288,7 +288,7 @@ func CreateReturnLeaseEvent(pod *v1.Pod, reason string, debugMessage string, clu
 	}
 
 	sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
-		Created: types.TimestampNow(),
+		Created: timestamppb.Now(),
 		Event: &armadaevents.EventSequence_Event_JobRunErrors{
 			JobRunErrors: &armadaevents.JobRunErrors{
 				RunId: runId,
@@ -326,7 +326,7 @@ func CreateJobUtilisationEvent(pod *v1.Pod, utilisationData *domain.UtilisationD
 	}
 
 	sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
-		Created: types.TimestampNow(),
+		Created: timestamppb.Now(),
 		Event: &armadaevents.EventSequence_Event_ResourceUtilisation{
 			ResourceUtilisation: &armadaevents.ResourceUtilisation{
 				RunId: runId,

@@ -6,10 +6,10 @@ import (
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
-	"github.com/gogo/protobuf/proto"
-	"github.com/gogo/protobuf/types"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
@@ -104,7 +104,7 @@ func (p *PulsarPublisher) PublishMarkers(ctx *armadacontext.Context, groupId uui
 			JobSetName: "armada-scheduler",
 			Events: []*armadaevents.EventSequence_Event{
 				{
-					Created: types.TimestampNow(),
+					Created: timestamppb.Now(),
 					Event: &armadaevents.EventSequence_Event_PartitionMarker{
 						PartitionMarker: pm,
 					},

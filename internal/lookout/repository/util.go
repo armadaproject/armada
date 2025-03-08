@@ -2,11 +2,11 @@ package repository
 
 import (
 	"fmt"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"strings"
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
-	"github.com/gogo/protobuf/types"
 	"github.com/google/uuid"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -682,9 +682,9 @@ func (js *JobSimulator) ApiJob() *api.Job {
 	return js.apiJob
 }
 
-func timestampOrNow(timestamp time.Time) *types.Timestamp {
+func timestampOrNow(timestamp time.Time) *timestamppb.Timestamp {
 	if timestamp.IsZero() {
-		return types.TimestampNow()
+		return timestamppb.Now()
 	}
 	return protoutil.ToTimestamp(timestamp)
 }

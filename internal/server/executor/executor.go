@@ -4,17 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/gogo/protobuf/types"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/emptypb"
 	"k8s.io/utils/clock"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	"github.com/armadaproject/armada/internal/common/auth"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
-	pulsarutils "github.com/armadaproject/armada/internal/common/pulsarutils"
+	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/server/permissions"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/controlplaneevents"
@@ -37,7 +37,7 @@ func New(
 	}
 }
 
-func (s *Server) UpsertExecutorSettings(grpcCtx context.Context, req *api.ExecutorSettingsUpsertRequest) (*types.Empty, error) {
+func (s *Server) UpsertExecutorSettings(grpcCtx context.Context, req *api.ExecutorSettingsUpsertRequest) (*emptypb.Empty, error) {
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
 	err := s.authorizer.AuthorizeAction(ctx, permissions.UpdateExecutorSettings)
 	var ep *armadaerrors.ErrUnauthorized
@@ -72,10 +72,10 @@ func (s *Server) UpsertExecutorSettings(grpcCtx context.Context, req *api.Execut
 		return nil, status.Error(codes.Internal, "Failed to send events to Pulsar")
 	}
 
-	return &types.Empty{}, nil
+	return &emptypb.Empty{}, nil
 }
 
-func (s *Server) DeleteExecutorSettings(grpcCtx context.Context, req *api.ExecutorSettingsDeleteRequest) (*types.Empty, error) {
+func (s *Server) DeleteExecutorSettings(grpcCtx context.Context, req *api.ExecutorSettingsDeleteRequest) (*emptypb.Empty, error) {
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
 	err := s.authorizer.AuthorizeAction(ctx, permissions.UpdateExecutorSettings)
 	var ep *armadaerrors.ErrUnauthorized
@@ -103,10 +103,10 @@ func (s *Server) DeleteExecutorSettings(grpcCtx context.Context, req *api.Execut
 		return nil, status.Error(codes.Internal, "Failed to send events to Pulsar")
 	}
 
-	return &types.Empty{}, nil
+	return &emptypb.Empty{}, nil
 }
 
-func (s *Server) PreemptOnExecutor(grpcCtx context.Context, req *api.ExecutorPreemptRequest) (*types.Empty, error) {
+func (s *Server) PreemptOnExecutor(grpcCtx context.Context, req *api.ExecutorPreemptRequest) (*emptypb.Empty, error) {
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
 	err := s.authorizer.AuthorizeAction(ctx, permissions.PreemptAnyJobs)
 	var ep *armadaerrors.ErrUnauthorized
@@ -136,10 +136,10 @@ func (s *Server) PreemptOnExecutor(grpcCtx context.Context, req *api.ExecutorPre
 		return nil, status.Error(codes.Internal, "Failed to send events to Pulsar")
 	}
 
-	return &types.Empty{}, nil
+	return &emptypb.Empty{}, nil
 }
 
-func (s *Server) CancelOnExecutor(grpcCtx context.Context, req *api.ExecutorCancelRequest) (*types.Empty, error) {
+func (s *Server) CancelOnExecutor(grpcCtx context.Context, req *api.ExecutorCancelRequest) (*emptypb.Empty, error) {
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
 	err := s.authorizer.AuthorizeAction(ctx, permissions.CancelAnyJobs)
 	var ep *armadaerrors.ErrUnauthorized
@@ -169,5 +169,5 @@ func (s *Server) CancelOnExecutor(grpcCtx context.Context, req *api.ExecutorCanc
 		return nil, status.Error(codes.Internal, "Failed to send events to Pulsar")
 	}
 
-	return &types.Empty{}, nil
+	return &emptypb.Empty{}, nil
 }

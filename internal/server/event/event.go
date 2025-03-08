@@ -4,10 +4,10 @@ import (
 	"context"
 	"time"
 
-	"github.com/gogo/protobuf/types"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
@@ -67,7 +67,7 @@ func (s *EventServer) GetJobSetEvents(request *api.JobSetRequest, stream api.Eve
 	return s.serveEventsFromRepository(request, s.eventRepository, stream)
 }
 
-func (s *EventServer) Health(_ context.Context, _ *types.Empty) (*api.HealthCheckResponse, error) {
+func (s *EventServer) Health(_ context.Context, _ *emptypb.Empty) (*api.HealthCheckResponse, error) {
 	return &api.HealthCheckResponse{Status: api.HealthCheckResponse_SERVING}, nil
 }
 

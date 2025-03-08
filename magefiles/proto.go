@@ -12,22 +12,12 @@ import (
 	"github.com/pkg/errors"
 )
 
-func protoInstallProtocArmadaPlugin() error {
-	return goRun("install", "scripts/protoc-gen-armada/protoc-gen-armada.go")
-}
-
 func protoPrepareThirdPartyProtos() error {
 	// Go modules containing .proto dependencies we need.
 	modules := []struct {
 		name  string
 		roots []string
 	}{
-		{
-			name: "github.com/gogo/protobuf",
-			roots: []string{
-				filepath.FromSlash("github.com/gogo/protobuf/protobuf"),
-			},
-		},
 		{
 			name: "github.com/grpc-ecosystem/grpc-gateway",
 			roots: []string{
@@ -186,12 +176,6 @@ func protoGenerate() error {
 }
 
 func protoProtocRun(armada, grpcGateway bool, swaggerFileName string, paths ...string) error {
-	modules := "Mgoogle/protobuf/any.proto=github.com/gogo/protobuf/types," +
-		"Mgoogle/protobuf/duration.proto=github.com/gogo/protobuf/types," +
-		"Mgoogle/protobuf/struct.proto=github.com/gogo/protobuf/types," +
-		"Mgoogle/protobuf/empty.proto=github.com/gogo/protobuf/types," +
-		"Mgoogle/protobuf/timestamp.proto=github.com/gogo/protobuf/types," +
-		"Mgoogle/protobuf/wrappers.proto=github.com/gogo/protobuf/types"
 
 	args := []string{
 		"--proto_path=.",
@@ -199,11 +183,12 @@ func protoProtocRun(armada, grpcGateway bool, swaggerFileName string, paths ...s
 	}
 
 	if armada {
-		args = append(args, fmt.Sprintf("--armada_out=paths=source_relative,plugins=grpc,%s:./", modules))
+		args = append(args, fmt.Sprintf("--go_out==source_relative:."))
+		args = append(args, fmt.Sprintf("--go-grpc_out==source_relative:."))
 	}
 
 	if grpcGateway {
-		args = append(args, fmt.Sprintf("--grpc-gateway_out=logtostderr=true,paths=source_relative,%s:.", modules))
+		args = append(args, fmt.Sprintf("--grpc-gateway_out=logtostderr=true,paths=source_relative:."))
 	}
 
 	if swaggerFileName != "" {
@@ -211,6 +196,8 @@ func protoProtocRun(armada, grpcGateway bool, swaggerFileName string, paths ...s
 	}
 
 	args = append(args, paths...)
+
+	println(strings.Join(args, " "))
 
 	return protocRun(args...)
 }

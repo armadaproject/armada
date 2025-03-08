@@ -6,10 +6,10 @@ import (
 	"math"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	pool "github.com/jolestar/go-commons-pool"
 	"github.com/pkg/errors"
 	"github.com/redis/go-redis/v9"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"

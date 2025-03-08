@@ -14,7 +14,6 @@ import (
 	reflect "reflect"
 
 	api "github.com/armadaproject/armada/pkg/api"
-	types "github.com/gogo/protobuf/types"
 	gomock "go.uber.org/mock/gomock"
 	grpc "google.golang.org/grpc"
 	metadata "google.golang.org/grpc/metadata"

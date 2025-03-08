@@ -29,7 +29,6 @@
         ../../../proto/k8s.io/apimachinery/pkg/util/intstr/generated.proto;
         ../../../proto/k8s.io/api/networking/v1/generated.proto;
         ../../../proto/k8s.io/api/core/v1/generated.proto;
-        ../../../proto/github.com/gogo/protobuf/gogoproto/gogo.proto;
         ../../../proto/google/api/*.proto
       "
       ProtoRoot="../../../proto/"

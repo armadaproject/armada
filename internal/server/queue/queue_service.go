@@ -3,9 +3,9 @@ package queue
 import (
 	"context"
 	"fmt"
+	"google.golang.org/protobuf/types/known/emptypb"
 	"math"
 
-	"github.com/gogo/protobuf/types"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -43,7 +43,7 @@ func NewServer(
 	}
 }
 
-func (s *Server) CreateQueue(grpcCtx context.Context, req *api.Queue) (*types.Empty, error) {
+func (s *Server) CreateQueue(grpcCtx context.Context, req *api.Queue) (*emptypb.Empty, error) {
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
 	err := s.authorizer.AuthorizeAction(ctx, permissions.CreateQueue)
 	var ep *armadaerrors.ErrUnauthorized
@@ -71,7 +71,7 @@ func (s *Server) CreateQueue(grpcCtx context.Context, req *api.Queue) (*types.Em
 		return nil, status.Errorf(codes.Unavailable, "error creating queue: %s", err)
 	}
 
-	return &types.Empty{}, nil
+	return &emptypb.Empty{}, nil
 }
 
 func (s *Server) CreateQueues(grpcCtx context.Context, req *api.QueueList) (*api.BatchQueueCreateResponse, error) {
@@ -93,7 +93,7 @@ func (s *Server) CreateQueues(grpcCtx context.Context, req *api.QueueList) (*api
 	}, nil
 }
 
-func (s *Server) UpdateQueue(grpcCtx context.Context, req *api.Queue) (*types.Empty, error) {
+func (s *Server) UpdateQueue(grpcCtx context.Context, req *api.Queue) (*emptypb.Empty, error) {
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
 	err := s.authorizer.AuthorizeAction(ctx, permissions.CreateQueue)
 	var ep *armadaerrors.ErrUnauthorized
@@ -116,7 +116,7 @@ func (s *Server) UpdateQueue(grpcCtx context.Context, req *api.Queue) (*types.Em
 		return nil, status.Errorf(codes.Unavailable, "error getting queue %q: %s", queue.Name, err)
 	}
 
-	return &types.Empty{}, nil
+	return &emptypb.Empty{}, nil
 }
 
 func (s *Server) UpdateQueues(grpcCtx context.Context, req *api.QueueList) (*api.BatchQueueUpdateResponse, error) {
@@ -139,7 +139,7 @@ func (s *Server) UpdateQueues(grpcCtx context.Context, req *api.QueueList) (*api
 	}, nil
 }
 
-func (s *Server) DeleteQueue(grpcCtx context.Context, req *api.QueueDeleteRequest) (*types.Empty, error) {
+func (s *Server) DeleteQueue(grpcCtx context.Context, req *api.QueueDeleteRequest) (*emptypb.Empty, error) {
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
 	err := s.authorizer.AuthorizeAction(ctx, permissions.DeleteQueue)
 	var ep *armadaerrors.ErrUnauthorized
@@ -152,7 +152,7 @@ func (s *Server) DeleteQueue(grpcCtx context.Context, req *api.QueueDeleteReques
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "error deleting queue %s: %s", req.Name, err)
 	}
-	return &types.Empty{}, nil
+	return &emptypb.Empty{}, nil
 }
 
 func (s *Server) GetQueue(grpcCtx context.Context, req *api.QueueGetRequest) (*api.Queue, error) {
@@ -201,7 +201,7 @@ func (s *Server) GetQueues(req *api.StreamingQueueGetRequest, stream api.QueueSe
 	return nil
 }
 
-func (s *Server) CordonQueue(grpcCtx context.Context, req *api.QueueCordonRequest) (*types.Empty, error) {
+func (s *Server) CordonQueue(grpcCtx context.Context, req *api.QueueCordonRequest) (*emptypb.Empty, error) {
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
 
 	err := s.authorizer.AuthorizeAction(ctx, permissions.CordonQueue)
@@ -217,10 +217,10 @@ func (s *Server) CordonQueue(grpcCtx context.Context, req *api.QueueCordonReques
 		return nil, fmt.Errorf("cannot cordon queue with empty name")
 	}
 
-	return &types.Empty{}, s.queueRepository.CordonQueue(ctx, queueName)
+	return &emptypb.Empty{}, s.queueRepository.CordonQueue(ctx, queueName)
 }
 
-func (s *Server) UncordonQueue(grpcCtx context.Context, req *api.QueueUncordonRequest) (*types.Empty, error) {
+func (s *Server) UncordonQueue(grpcCtx context.Context, req *api.QueueUncordonRequest) (*emptypb.Empty, error) {
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
 
 	err := s.authorizer.AuthorizeAction(ctx, permissions.CordonQueue)
@@ -236,7 +236,7 @@ func (s *Server) UncordonQueue(grpcCtx context.Context, req *api.QueueUncordonRe
 		return nil, fmt.Errorf("cannot uncordon queue with empty name")
 	}
 
-	return &types.Empty{}, s.queueRepository.UncordonQueue(ctx, queueName)
+	return &emptypb.Empty{}, s.queueRepository.UncordonQueue(ctx, queueName)
 }
 
 func isActiveState(state api.JobState) bool {
@@ -248,7 +248,7 @@ func isActiveState(state api.JobState) bool {
 	}
 }
 
-func (s *Server) CancelOnQueue(grpcCtx context.Context, req *api.QueueCancelRequest) (*types.Empty, error) {
+func (s *Server) CancelOnQueue(grpcCtx context.Context, req *api.QueueCancelRequest) (*emptypb.Empty, error) {
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
 
 	err := s.authorizer.AuthorizeAction(ctx, permissions.CancelAnyJobs)
@@ -286,10 +286,10 @@ func (s *Server) CancelOnQueue(grpcCtx context.Context, req *api.QueueCancelRequ
 		return nil, status.Error(codes.Internal, "Failed to send events to Pulsar")
 	}
 
-	return &types.Empty{}, nil
+	return &emptypb.Empty{}, nil
 }
 
-func (s *Server) PreemptOnQueue(grpcCtx context.Context, req *api.QueuePreemptRequest) (*types.Empty, error) {
+func (s *Server) PreemptOnQueue(grpcCtx context.Context, req *api.QueuePreemptRequest) (*emptypb.Empty, error) {
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
 
 	err := s.authorizer.AuthorizeAction(ctx, permissions.PreemptAnyJobs)
@@ -320,5 +320,5 @@ func (s *Server) PreemptOnQueue(grpcCtx context.Context, req *api.QueuePreemptRe
 		return nil, status.Error(codes.Internal, "Failed to send events to Pulsar")
 	}
 
-	return &types.Empty{}, nil
+	return &emptypb.Empty{}, nil
 }

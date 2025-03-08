@@ -2,10 +2,11 @@ package eventutil
 
 import (
 	"fmt"
+
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/pkg/errors"
+	"google.golang.org/protobuf/proto"
 	v1 "k8s.io/api/core/v1"
 	networking "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"

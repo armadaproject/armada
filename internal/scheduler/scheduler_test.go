@@ -6,13 +6,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gogo/protobuf/types"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	v1 "k8s.io/api/core/v1"
 	clock "k8s.io/utils/clock/testing"
 	"k8s.io/utils/pointer"
@@ -1890,7 +1890,7 @@ func TestCycleConsistency(t *testing.T) {
 					JobSetName: queuedJobA.JobSet,
 					Events: []*armadaevents.EventSequence_Event{
 						{
-							Created: &types.Timestamp{},
+							Created: &timestamppb.Timestamp{},
 							Event: &armadaevents.EventSequence_Event_CancelledJob{
 								CancelledJob: &armadaevents.CancelledJob{
 									JobId: queuedJobA.JobID,
@@ -1918,7 +1918,7 @@ func TestCycleConsistency(t *testing.T) {
 					JobSetName: queuedJobA.JobSet,
 					Events: []*armadaevents.EventSequence_Event{
 						{
-							Created: &types.Timestamp{},
+							Created: &timestamppb.Timestamp{},
 							Event: &armadaevents.EventSequence_Event_CancelJob{
 								CancelJob: &armadaevents.CancelJob{
 									JobId: queuedJobA.JobID,
@@ -1926,7 +1926,7 @@ func TestCycleConsistency(t *testing.T) {
 							},
 						},
 						{
-							Created: &types.Timestamp{},
+							Created: &timestamppb.Timestamp{},
 							Event: &armadaevents.EventSequence_Event_CancelledJob{
 								CancelledJob: &armadaevents.CancelledJob{
 									JobId: queuedJobA.JobID,
@@ -1960,7 +1960,7 @@ func TestCycleConsistency(t *testing.T) {
 					JobSetName: queuedJobA.JobSet,
 					Events: []*armadaevents.EventSequence_Event{
 						{
-							Created: &types.Timestamp{},
+							Created: &timestamppb.Timestamp{},
 							Event: &armadaevents.EventSequence_Event_JobRunCancelled{
 								JobRunCancelled: &armadaevents.JobRunCancelled{
 									RunId: testfixtures.UUIDFromInt(1).String(),
@@ -1969,7 +1969,7 @@ func TestCycleConsistency(t *testing.T) {
 							},
 						},
 						{
-							Created: &types.Timestamp{},
+							Created: &timestamppb.Timestamp{},
 							Event: &armadaevents.EventSequence_Event_CancelledJob{
 								CancelledJob: &armadaevents.CancelledJob{
 									JobId: queuedJobA.JobID,
@@ -2003,7 +2003,7 @@ func TestCycleConsistency(t *testing.T) {
 					JobSetName: queuedJobA.JobSet,
 					Events: []*armadaevents.EventSequence_Event{
 						{
-							Created: &types.Timestamp{},
+							Created: &timestamppb.Timestamp{},
 							Event: &armadaevents.EventSequence_Event_CancelJob{
 								CancelJob: &armadaevents.CancelJob{
 									JobId: queuedJobA.JobID,
@@ -2011,7 +2011,7 @@ func TestCycleConsistency(t *testing.T) {
 							},
 						},
 						{
-							Created: &types.Timestamp{},
+							Created: &timestamppb.Timestamp{},
 							Event: &armadaevents.EventSequence_Event_JobRunCancelled{
 								JobRunCancelled: &armadaevents.JobRunCancelled{
 									JobId: queuedJobA.JobID,
@@ -2020,7 +2020,7 @@ func TestCycleConsistency(t *testing.T) {
 							},
 						},
 						{
-							Created: &types.Timestamp{},
+							Created: &timestamppb.Timestamp{},
 							Event: &armadaevents.EventSequence_Event_CancelledJob{
 								CancelledJob: &armadaevents.CancelledJob{
 									JobId: queuedJobA.JobID,
@@ -2053,7 +2053,7 @@ func TestCycleConsistency(t *testing.T) {
 					JobSetName: queuedJobA.JobSet,
 					Events: []*armadaevents.EventSequence_Event{
 						{
-							Created: &types.Timestamp{},
+							Created: &timestamppb.Timestamp{},
 							Event: &armadaevents.EventSequence_Event_JobRunLeased{
 								JobRunLeased: &armadaevents.JobRunLeased{
 									RunId:                  testfixtures.UUIDFromInt(1).String(),
@@ -2100,7 +2100,7 @@ func TestCycleConsistency(t *testing.T) {
 					JobSetName: queuedJobA.JobSet,
 					Events: []*armadaevents.EventSequence_Event{
 						{
-							Created: &types.Timestamp{},
+							Created: &timestamppb.Timestamp{},
 							Event: &armadaevents.EventSequence_Event_JobRunLeased{
 								JobRunLeased: &armadaevents.JobRunLeased{
 									JobId:                  queuedJobA.JobID,
@@ -2122,7 +2122,7 @@ func TestCycleConsistency(t *testing.T) {
 					JobSetName: queuedJobA.JobSet,
 					Events: []*armadaevents.EventSequence_Event{
 						{
-							Created: &types.Timestamp{},
+							Created: &timestamppb.Timestamp{},
 							Event: &armadaevents.EventSequence_Event_JobSucceeded{
 								JobSucceeded: &armadaevents.JobSucceeded{
 									JobId: queuedJobA.JobID,
@@ -2164,7 +2164,7 @@ func TestCycleConsistency(t *testing.T) {
 					JobSetName: queuedJobA.JobSet,
 					Events: []*armadaevents.EventSequence_Event{
 						{
-							Created: &types.Timestamp{},
+							Created: &timestamppb.Timestamp{},
 							Event: &armadaevents.EventSequence_Event_JobRunLeased{
 								JobRunLeased: &armadaevents.JobRunLeased{
 									JobId:                  queuedJobA.JobID,
@@ -2186,7 +2186,7 @@ func TestCycleConsistency(t *testing.T) {
 					JobSetName: queuedJobA.JobSet,
 					Events: []*armadaevents.EventSequence_Event{
 						{
-							Created: &types.Timestamp{},
+							Created: &timestamppb.Timestamp{},
 							Event: &armadaevents.EventSequence_Event_JobErrors{
 								JobErrors: &armadaevents.JobErrors{
 									JobId: queuedJobA.JobID,
@@ -2296,7 +2296,7 @@ func TestCycleConsistency(t *testing.T) {
 					JobSetName: queuedJobA.JobSet,
 					Events: []*armadaevents.EventSequence_Event{
 						{
-							Created: &types.Timestamp{},
+							Created: &timestamppb.Timestamp{},
 							Event: &armadaevents.EventSequence_Event_JobRunPreempted{
 								JobRunPreempted: &armadaevents.JobRunPreempted{
 									PreemptedRunId: testfixtures.UUIDFromInt(1).String(),
@@ -2305,7 +2305,7 @@ func TestCycleConsistency(t *testing.T) {
 							},
 						},
 						{
-							Created: &types.Timestamp{},
+							Created: &timestamppb.Timestamp{},
 							Event: &armadaevents.EventSequence_Event_JobRunErrors{
 								JobRunErrors: &armadaevents.JobRunErrors{
 									JobId: queuedJobA.JobID,
@@ -2322,7 +2322,7 @@ func TestCycleConsistency(t *testing.T) {
 							},
 						},
 						{
-							Created: &types.Timestamp{},
+							Created: &timestamppb.Timestamp{},
 							Event: &armadaevents.EventSequence_Event_JobErrors{
 								JobErrors: &armadaevents.JobErrors{
 									JobId: queuedJobA.JobID,

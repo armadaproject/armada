@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gogo/protobuf/types"
+	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/renstrom/shortuuid"
@@ -983,7 +983,7 @@ func (s *Scheduler) submitCheck(ctx *armadacontext.Context, txn *jobdb.Txn) ([]*
 }
 
 // now is a convenience function for generating a proto timestamp representing the current time according to the clock
-func (s *Scheduler) now() *types.Timestamp {
+func (s *Scheduler) now() *timestamp.Timestamp {
 	return protoutil.ToTimestamp(s.clock.Now())
 }
 

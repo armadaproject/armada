@@ -17,8 +17,6 @@ require (
 	github.com/go-openapi/loads v0.21.5
 	github.com/go-openapi/runtime v0.26.0
 	github.com/go-openapi/spec v0.20.14
-	github.com/gogo/protobuf v1.3.2
-	github.com/golang/protobuf v1.5.4
 	github.com/google/go-cmp v0.6.0 // indirect
 	github.com/google/uuid v1.6.0
 	github.com/grpc-ecosystem/grpc-gateway v1.16.0
@@ -66,7 +64,8 @@ require (
 	github.com/go-openapi/swag v0.22.6
 	github.com/go-openapi/validate v0.22.6
 	github.com/go-playground/validator/v10 v10.15.4
-	github.com/gogo/status v1.1.1
+	github.com/gogo/protobuf v1.3.2
+	github.com/golang/protobuf v1.5.4
 	github.com/goreleaser/goreleaser v1.24.0
 	github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus v1.0.1
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.2.0
@@ -85,6 +84,7 @@ require (
 	golang.org/x/term v0.25.0
 	golang.org/x/time v0.5.0
 	google.golang.org/genproto/googleapis/api v0.0.0-20240814211410-ddb44dafa142
+	google.golang.org/protobuf v1.36.5
 	gopkg.in/inf.v0 v0.9.1
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0
 	gopkg.in/yaml.v3 v3.0.1
@@ -129,7 +129,6 @@ require (
 	github.com/go-playground/universal-translator v0.18.1 // indirect
 	github.com/gobwas/glob v0.2.3 // indirect
 	github.com/godbus/dbus v0.0.0-20190726142602-4481cbc300e2 // indirect
-	github.com/gogo/googleapis v0.0.0-20180223154316-0cd9801be74a // indirect
 	github.com/golang-jwt/jwt/v5 v5.2.1 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/google/btree v1.0.1 // indirect
@@ -205,7 +204,6 @@ require (
 	golang.org/x/text v0.19.0 // indirect
 	golang.org/x/xerrors v0.0.0-20231012003039-104605ab7028 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20241015192408-796eee8c2d53 // indirect
-	google.golang.org/protobuf v1.35.1 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/square/go-jose.v2 v2.6.0 // indirect
 	k8s.io/cli-runtime v0.26.15 // indirect

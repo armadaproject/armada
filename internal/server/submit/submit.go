@@ -3,9 +3,9 @@ package submit
 import (
 	"context"
 	"fmt"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/emptypb"
 
-	"github.com/gogo/protobuf/types"
-	"github.com/gogo/status"
 	"google.golang.org/grpc/codes"
 	"k8s.io/utils/clock"
 
@@ -199,7 +199,7 @@ func (s *Server) CancelJobs(grpcCtx context.Context, req *api.JobCancelRequest) 
 	}, nil
 }
 
-func (s *Server) PreemptJobs(grpcCtx context.Context, req *api.JobPreemptRequest) (*types.Empty, error) {
+func (s *Server) PreemptJobs(grpcCtx context.Context, req *api.JobPreemptRequest) (*emptypb.Empty, error) {
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
 	err := validation.ValidateQueueAndJobSet(req)
 	if err != nil {
@@ -222,7 +222,7 @@ func (s *Server) PreemptJobs(grpcCtx context.Context, req *api.JobPreemptRequest
 		return nil, status.Error(codes.Internal, "Failed to send message")
 	}
 
-	return &types.Empty{}, nil
+	return &emptypb.Empty{}, nil
 }
 
 func preemptJobEventSequenceForJobIds(clock clock.Clock, jobIds []string, q, jobSet, userId, reason string, groups []string) (*armadaevents.EventSequence, error) {
@@ -313,7 +313,7 @@ func (s *Server) ReprioritizeJobs(grpcCtx context.Context, req *api.JobRepriorit
 	}, nil
 }
 
-func (s *Server) CancelJobSet(grpcCtx context.Context, req *api.JobSetCancelRequest) (*types.Empty, error) {
+func (s *Server) CancelJobSet(grpcCtx context.Context, req *api.JobSetCancelRequest) (*emptypb.Empty, error) {
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
 	err := validation.ValidateQueueAndJobSet(req)
 	if err != nil {
@@ -365,7 +365,7 @@ func (s *Server) CancelJobSet(grpcCtx context.Context, req *api.JobSetCancelRequ
 		return nil, status.Error(codes.Internal, "failed to send cancel jobset message to pulsar")
 	}
 
-	return &types.Empty{}, err
+	return &emptypb.Empty{}, err
 }
 
 // Returns event sequence along with all valid job ids in the sequence
@@ -421,14 +421,14 @@ func (s *Server) GetUser(ctx *armadacontext.Context) string {
 	return principal.GetName()
 }
 
-func (s *Server) Health(_ context.Context, _ *types.Empty) (*api.HealthCheckResponse, error) {
+func (s *Server) Health(_ context.Context, _ *emptypb.Empty) (*api.HealthCheckResponse, error) {
 	// For now, lets make the health check really simple.
 	return &api.HealthCheckResponse{Status: api.HealthCheckResponse_SERVING}, nil
 }
 
 // Functions below are deprecated
 
-func (s *Server) CreateQueue(ctx context.Context, q *api.Queue) (*types.Empty, error) {
+func (s *Server) CreateQueue(ctx context.Context, q *api.Queue) (*emptypb.Empty, error) {
 	return s.queueService.CreateQueue(ctx, q)
 }
 
@@ -436,7 +436,7 @@ func (s *Server) CreateQueues(ctx context.Context, list *api.QueueList) (*api.Ba
 	return s.queueService.CreateQueues(ctx, list)
 }
 
-func (s *Server) UpdateQueue(ctx context.Context, q *api.Queue) (*types.Empty, error) {
+func (s *Server) UpdateQueue(ctx context.Context, q *api.Queue) (*emptypb.Empty, error) {
 	return s.queueService.UpdateQueue(ctx, q)
 }
 
@@ -444,7 +444,7 @@ func (s *Server) UpdateQueues(ctx context.Context, list *api.QueueList) (*api.Ba
 	return s.queueService.UpdateQueues(ctx, list)
 }
 
-func (s *Server) DeleteQueue(ctx context.Context, request *api.QueueDeleteRequest) (*types.Empty, error) {
+func (s *Server) DeleteQueue(ctx context.Context, request *api.QueueDeleteRequest) (*emptypb.Empty, error) {
 	return s.queueService.DeleteQueue(ctx, request)
 }
 

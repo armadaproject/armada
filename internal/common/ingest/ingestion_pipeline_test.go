@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
-	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"

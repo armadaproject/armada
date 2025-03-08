@@ -187,7 +187,7 @@ func Proto() {
 // Ensures the Protobuf dependencies are installed.
 func BootstrapProto() {
 	mg.Deps(protocCheck)
-	mg.Deps(protoInstallProtocArmadaPlugin, protoPrepareThirdPartyProtos)
+	mg.Deps(protoPrepareThirdPartyProtos)
 }
 
 // Builds the specified docker images.

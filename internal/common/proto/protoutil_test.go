@@ -5,11 +5,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
-	"github.com/gogo/protobuf/types"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/pkg/armadaevents"
@@ -69,23 +70,23 @@ func TestMustMarshallAndCompress(t *testing.T) {
 
 func TestToTimestamp(t *testing.T) {
 	tests := map[string]struct {
-		ts *types.Timestamp
+		ts *timestamppb.Timestamp
 		t  time.Time
 	}{
 		"unix epoch": {
-			ts: &types.Timestamp{Seconds: 0, Nanos: 0},
+			ts: &timestamppb.Timestamp{Seconds: 0, Nanos: 0},
 			t:  utcDate(1970, 1, 1),
 		},
 		"before unix epoch": {
-			ts: &types.Timestamp{Seconds: -281836800, Nanos: 0},
+			ts: &timestamppb.Timestamp{Seconds: -281836800, Nanos: 0},
 			t:  utcDate(1961, 1, 26),
 		},
 		"after unix epoch": {
-			ts: &types.Timestamp{Seconds: 1296000000, Nanos: 0},
+			ts: &timestamppb.Timestamp{Seconds: 1296000000, Nanos: 0},
 			t:  utcDate(2011, 1, 26),
 		},
 		"after the epoch, in the middle of the day": {
-			ts: &types.Timestamp{Seconds: 1296012345, Nanos: 940483},
+			ts: &timestamppb.Timestamp{Seconds: 1296012345, Nanos: 940483},
 			t:  time.Date(2011, 1, 26, 3, 25, 45, 940483, time.UTC),
 		},
 	}
@@ -107,23 +108,23 @@ func TestToTimestamp(t *testing.T) {
 
 func TestToStdDuration(t *testing.T) {
 	tests := map[string]struct {
-		protoDuration *types.Duration
+		protoDuration *durationpb.Duration
 		stdDuration   time.Duration
 	}{
 		"empty": {
-			protoDuration: &types.Duration{Seconds: 0, Nanos: 0},
+			protoDuration: &durationpb.Duration{Seconds: 0, Nanos: 0},
 			stdDuration:   0 * time.Second,
 		},
 		"seconds": {
-			protoDuration: &types.Duration{Seconds: 100, Nanos: 0},
+			protoDuration: &durationpb.Duration{Seconds: 100, Nanos: 0},
 			stdDuration:   100 * time.Second,
 		},
 		"seconds and nanos": {
-			protoDuration: &types.Duration{Seconds: 100, Nanos: 1000},
+			protoDuration: &durationpb.Duration{Seconds: 100, Nanos: 1000},
 			stdDuration:   100*time.Second + 1000*time.Nanosecond,
 		},
 		"negative": {
-			protoDuration: &types.Duration{Seconds: -100, Nanos: -1000},
+			protoDuration: &durationpb.Duration{Seconds: -100, Nanos: -1000},
 			stdDuration:   -100*time.Second - 1000*time.Nanosecond,
 		},
 		"nil": {
@@ -131,7 +132,7 @@ func TestToStdDuration(t *testing.T) {
 			stdDuration:   0 * time.Second,
 		},
 	}
-	types.TimestampNow()
+	timestamppb.Now()
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			assert.Equal(t, tc.stdDuration, ToStdDuration(tc.protoDuration))
@@ -142,26 +143,26 @@ func TestToStdDuration(t *testing.T) {
 func TestToDuration(t *testing.T) {
 	tests := map[string]struct {
 		stdDuration   time.Duration
-		protoDuration *types.Duration
+		protoDuration *durationpb.Duration
 	}{
 		"empty": {
 			stdDuration:   0 * time.Second,
-			protoDuration: &types.Duration{Seconds: 0, Nanos: 0},
+			protoDuration: &durationpb.Duration{Seconds: 0, Nanos: 0},
 		},
 		"seconds": {
 			stdDuration:   100 * time.Second,
-			protoDuration: &types.Duration{Seconds: 100, Nanos: 0},
+			protoDuration: &durationpb.Duration{Seconds: 100, Nanos: 0},
 		},
 		"seconds and nanos": {
 			stdDuration:   100*time.Second + 1000*time.Nanosecond,
-			protoDuration: &types.Duration{Seconds: 100, Nanos: 1000},
+			protoDuration: &durationpb.Duration{Seconds: 100, Nanos: 1000},
 		},
 		"negative": {
 			stdDuration:   -100*time.Second - 1000*time.Nanosecond,
-			protoDuration: &types.Duration{Seconds: -100, Nanos: -1000},
+			protoDuration: &durationpb.Duration{Seconds: -100, Nanos: -1000},
 		},
 	}
-	types.TimestampNow()
+	timestamppb.Now()
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			assert.Equal(t, tc.protoDuration, ToDuration(tc.stdDuration))
