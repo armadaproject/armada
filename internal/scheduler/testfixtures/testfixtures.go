@@ -234,6 +234,16 @@ func WithRoundLimitsPoolConfig(limits map[string]map[string]float64, config sche
 	return config
 }
 
+func WithOptimiserConfig(pool string, optimiserConfig *schedulerconfiguration.OptimiserConfig, config schedulerconfiguration.SchedulingConfig) schedulerconfiguration.SchedulingConfig {
+	for i, p := range config.Pools {
+		if p.Name == pool {
+			p.ExperimentalOptimiser = optimiserConfig
+			config.Pools[i] = p
+		}
+	}
+	return config
+}
+
 func WithPerPriorityLimitsConfig(limits map[string]map[string]float64, config schedulerconfiguration.SchedulingConfig) schedulerconfiguration.SchedulingConfig {
 	for priorityClassName, limit := range limits {
 		priorityClass, ok := config.PriorityClasses[priorityClassName]
@@ -472,6 +482,13 @@ func WithAnnotationsJobs(annotations map[string]string, jobs []*jobdb.Job) []*jo
 	return jobs
 }
 
+func WithQueued(jobs []*jobdb.Job) []*jobdb.Job {
+	for i, job := range jobs {
+		jobs[i] = job.WithQueued(true)
+	}
+	return jobs
+}
+
 func N1Cpu4GiJobs(queue string, priorityClassName string, n int) []*jobdb.Job {
 	rv := make([]*jobdb.Job, n)
 	for i := 0; i < n; i++ {
@@ -492,6 +509,14 @@ func N16Cpu128GiJobs(queue string, priorityClassName string, n int) []*jobdb.Job
 	rv := make([]*jobdb.Job, n)
 	for i := 0; i < n; i++ {
 		rv[i] = Test16Cpu128GiJob(queue, priorityClassName)
+	}
+	return rv
+}
+
+func N32Cpu256GiJobsWithLargeJobToleration(queue string, priorityClassName string, n int) []*jobdb.Job {
+	rv := make([]*jobdb.Job, n)
+	for i := 0; i < n; i++ {
+		rv[i] = Test32Cpu256GiJobWithLargeJobToleration(queue, priorityClassName)
 	}
 	return rv
 }
@@ -546,6 +571,12 @@ func TestJob(queue string, jobId ulid.ULID, priorityClassName string, req *inter
 	return job
 }
 
+func TestJobWithResources(queue string, priorityClassName string, resources v1.ResourceList) *jobdb.Job {
+	jobId := util.ULID()
+	job := TestJob(queue, jobId, priorityClassName, TestPodReqs(resources))
+	return job
+}
+
 func Test1Cpu4GiJob(queue string, priorityClassName string) *jobdb.Job {
 	jobId := util.ULID()
 	return TestJob(queue, jobId, priorityClassName, Test1Cpu4GiPodReqs(queue, jobId, extractPriority(priorityClassName)))
@@ -566,6 +597,11 @@ func Test32Cpu256GiJob(queue string, priorityClassName string) *jobdb.Job {
 	return TestJob(queue, jobId, priorityClassName, Test32Cpu256GiPodReqs(queue, jobId, extractPriority(priorityClassName)))
 }
 
+func Test32Cpu256GiJobWithLargeJobToleration(queue string, priorityClassName string) *jobdb.Job {
+	jobId := util.ULID()
+	return TestJob(queue, jobId, priorityClassName, Test32Cpu256GiWithLargeJobTolerationPodReqs(queue, jobId, extractPriority(priorityClassName)))
+}
+
 func Test1GpuJob(queue string, priorityClassName string) *jobdb.Job {
 	jobId := util.ULID()
 	return TestJob(queue, jobId, priorityClassName, Test1GpuPodReqs(queue, jobId, extractPriority(priorityClassName)))
@@ -579,7 +615,7 @@ func N1CpuPodReqs(queue string, priority int32, n int) []*internaltypes.PodRequi
 	return rv
 }
 
-func TestPodReqs(queue string, jobId ulid.ULID, priority int32, requests v1.ResourceList) *internaltypes.PodRequirements {
+func TestPodReqs(requests v1.ResourceList) *internaltypes.PodRequirements {
 	return &internaltypes.PodRequirements{
 		ResourceRequirements: v1.ResourceRequirements{Requests: requests},
 		Annotations:          make(map[string]string),
@@ -588,39 +624,24 @@ func TestPodReqs(queue string, jobId ulid.ULID, priority int32, requests v1.Reso
 }
 
 func Test1Cpu4GiPodReqs(queue string, jobId ulid.ULID, priority int32) *internaltypes.PodRequirements {
-	return TestPodReqs(
-		queue,
-		jobId,
-		priority,
-		v1.ResourceList{
-			"cpu":    resource.MustParse("1"),
-			"memory": resource.MustParse("4Gi"),
-		},
-	)
+	return TestPodReqs(v1.ResourceList{
+		"cpu":    resource.MustParse("1"),
+		"memory": resource.MustParse("4Gi"),
+	})
 }
 
 func Test1Cpu16GiPodReqs(queue string, jobId ulid.ULID, priority int32) *internaltypes.PodRequirements {
-	return TestPodReqs(
-		queue,
-		jobId,
-		priority,
-		v1.ResourceList{
-			"cpu":    resource.MustParse("1"),
-			"memory": resource.MustParse("16Gi"),
-		},
-	)
+	return TestPodReqs(v1.ResourceList{
+		"cpu":    resource.MustParse("1"),
+		"memory": resource.MustParse("16Gi"),
+	})
 }
 
 func Test16Cpu128GiPodReqs(queue string, jobId ulid.ULID, priority int32) *internaltypes.PodRequirements {
-	req := TestPodReqs(
-		queue,
-		jobId,
-		priority,
-		v1.ResourceList{
-			"cpu":    resource.MustParse("16"),
-			"memory": resource.MustParse("128Gi"),
-		},
-	)
+	req := TestPodReqs(v1.ResourceList{
+		"cpu":    resource.MustParse("16"),
+		"memory": resource.MustParse("128Gi"),
+	})
 	req.Tolerations = []v1.Toleration{
 		{
 			Key:   "largeJobsOnly",
@@ -631,15 +652,18 @@ func Test16Cpu128GiPodReqs(queue string, jobId ulid.ULID, priority int32) *inter
 }
 
 func Test32Cpu256GiPodReqs(queue string, jobId ulid.ULID, priority int32) *internaltypes.PodRequirements {
-	req := TestPodReqs(
-		queue,
-		jobId,
-		priority,
-		v1.ResourceList{
-			"cpu":    resource.MustParse("32"),
-			"memory": resource.MustParse("256Gi"),
-		},
-	)
+	req := TestPodReqs(v1.ResourceList{
+		"cpu":    resource.MustParse("32"),
+		"memory": resource.MustParse("256Gi"),
+	})
+	return req
+}
+
+func Test32Cpu256GiWithLargeJobTolerationPodReqs(queue string, jobId ulid.ULID, priority int32) *internaltypes.PodRequirements {
+	req := TestPodReqs(v1.ResourceList{
+		"cpu":    resource.MustParse("32"),
+		"memory": resource.MustParse("256Gi"),
+	})
 	req.Tolerations = []v1.Toleration{
 		{
 			Key:   "largeJobsOnly",
@@ -650,16 +674,11 @@ func Test32Cpu256GiPodReqs(queue string, jobId ulid.ULID, priority int32) *inter
 }
 
 func Test1GpuPodReqs(queue string, jobId ulid.ULID, priority int32) *internaltypes.PodRequirements {
-	req := TestPodReqs(
-		queue,
-		jobId,
-		priority,
-		v1.ResourceList{
-			"cpu":            resource.MustParse("8"),
-			"memory":         resource.MustParse("128Gi"),
-			"nvidia.com/gpu": resource.MustParse("1"),
-		},
-	)
+	req := TestPodReqs(v1.ResourceList{
+		"cpu":            resource.MustParse("8"),
+		"memory":         resource.MustParse("128Gi"),
+		"nvidia.com/gpu": resource.MustParse("1"),
+	})
 	req.Tolerations = []v1.Toleration{
 		{
 			Key:   "gpu",
@@ -707,7 +726,11 @@ func N8GpuNodes(n int, priorities []int32) []*internaltypes.Node {
 }
 
 func SingleQueuePriorityOne(name string) []*api.Queue {
-	return []*api.Queue{{Name: name, PriorityFactor: 1.0}}
+	return []*api.Queue{SingleQueueWithPriorityFactor(name, 1.0)}
+}
+
+func SingleQueueWithPriorityFactor(name string, priorityFactor float64) *api.Queue {
+	return &api.Queue{Name: name, PriorityFactor: priorityFactor}
 }
 
 func TestSchedulerObjectsNode(_ []int32, resources map[string]*resource.Quantity) *schedulerobjects.Node {
@@ -766,6 +789,16 @@ func TestNode(priorities []int32, resources map[string]*resource.Quantity) *inte
 		rl,
 		map[int32]internaltypes.ResourceList{},
 		internaltypes.NewAllocatableByPriorityAndResourceType(priorities, rl))
+}
+
+func Test16CpuNode(priorities []int32) *internaltypes.Node {
+	return TestNode(
+		priorities,
+		map[string]resource.Quantity{
+			"cpu":    resource.MustParse("16"),
+			"memory": resource.MustParse("128Gi"),
+		},
+	)
 }
 
 func Test32CpuNode(priorities []int32) *internaltypes.Node {

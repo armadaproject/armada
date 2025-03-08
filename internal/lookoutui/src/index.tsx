@@ -2,7 +2,6 @@ import { createRoot } from "react-dom/client"
 
 import { App } from "./App"
 import { SubmitApi, Configuration as SubmitConfiguration } from "./openapi/armada"
-import reportWebVitals from "./reportWebVitals"
 import { CordonService } from "./services/lookout/CordonService"
 import { GetJobInfoService } from "./services/lookout/GetJobInfoService"
 import { GetJobsService } from "./services/lookout/GetJobsService"
@@ -75,6 +74,4 @@ import "./index.css"
       commandSpecs={uiConfig.commandSpecs}
     />,
   )
-
-  reportWebVitals()
 })()

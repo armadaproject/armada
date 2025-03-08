@@ -50,7 +50,7 @@ export interface HeaderCellProps {
   columnMatches: Record<string, Match>
   parseError: string | undefined
   onColumnMatchChange: (columnId: string, newMatch: Match) => void
-  onSetTextFieldRef: (ref: RefObject<HTMLInputElement>) => void
+  onSetTextFieldRef: (ref: RefObject<HTMLInputElement | undefined>) => void
   groupedColumns: ColumnId[]
 }
 
@@ -232,9 +232,17 @@ export interface BodyCellProps {
   rowIsExpanded: boolean
   onExpandedChange: () => void
   onClickRowCheckbox: (row: Row<JobTableRow>) => void
+  onColumnMatchChange: (columnId: string, newMatch: Match) => void
 }
 
-export const BodyCell = ({ cell, rowIsGroup, rowIsExpanded, onExpandedChange, onClickRowCheckbox }: BodyCellProps) => {
+export const BodyCell = ({
+  cell,
+  rowIsGroup,
+  rowIsExpanded,
+  onExpandedChange,
+  onClickRowCheckbox,
+  onColumnMatchChange,
+}: BodyCellProps) => {
   const columnMetadata = getColumnMetadata(cell.column.columnDef)
   const cellHasValue = cell.renderValue()
   const isRightAligned = columnMetadata.isRightAligned ?? false
@@ -299,11 +307,12 @@ export const BodyCell = ({ cell, rowIsGroup, rowIsExpanded, onExpandedChange, on
             ? undefined
             : {
                 onFilter: () => {
-                  cell.column.setFilterValue(
-                    cell.column.id === StandardColumnId.Queue || columnMetadata.filterType === FilterType.Enum
-                      ? [cell.getValue()]
-                      : cell.getValue(),
-                  )
+                  if (cell.column.id === StandardColumnId.Queue || columnMetadata.filterType === FilterType.Enum) {
+                    cell.column.setFilterValue([cell.getValue()])
+                  } else {
+                    onColumnMatchChange(cell.column.id, Match.Exact)
+                    cell.column.setFilterValue(cell.getValue())
+                  }
                 },
               }
         }

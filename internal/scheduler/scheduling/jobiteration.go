@@ -15,11 +15,6 @@ type JobContextIterator interface {
 	Next() (*schedulercontext.JobSchedulingContext, error)
 }
 
-type JobRepository interface {
-	QueuedJobs(queueName string) jobdb.JobIterator
-	GetById(id string) *jobdb.Job
-}
-
 type InMemoryJobIterator struct {
 	i     int
 	jctxs []*schedulercontext.JobSchedulingContext
@@ -115,7 +110,7 @@ type QueuedJobsIterator struct {
 	ctx     *armadacontext.Context
 }
 
-func NewQueuedJobsIterator(ctx *armadacontext.Context, queue string, pool string, repo JobRepository) *QueuedJobsIterator {
+func NewQueuedJobsIterator(ctx *armadacontext.Context, queue string, pool string, repo jobdb.JobRepository) *QueuedJobsIterator {
 	return &QueuedJobsIterator{
 		jobIter: repo.QueuedJobs(queue),
 		pool:    pool,

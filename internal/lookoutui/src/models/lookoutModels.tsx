@@ -1,3 +1,5 @@
+import { ReactElement } from "react"
+
 import { SvgIconProps } from "@mui/material"
 
 import {
@@ -38,7 +40,7 @@ export const jobStateColors: Record<JobState, CustomPaletteColorToken> = {
   [JobState.Rejected]: "statusRed",
 }
 
-export const jobStateIcons: Record<JobState, (svgIconProps: SvgIconProps) => JSX.Element> = {
+export const jobStateIcons: Record<JobState, (svgIconProps: SvgIconProps) => ReactElement> = {
   [JobState.Queued]: FaHourglassHalf,
   [JobState.Pending]: FaSpinner,
   [JobState.Running]: FaPlayCircle,
