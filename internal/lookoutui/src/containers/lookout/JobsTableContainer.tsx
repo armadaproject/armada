@@ -192,7 +192,7 @@ export const JobsTableContainer = ({
   const [lookoutFilters, setLookoutFilters] = useState<LookoutColumnFilter[]>([]) // Parsed later
   const [columnMatches, setColumnMatches] = useState<Record<string, Match>>(initialPrefs.columnMatches)
   const [parseErrors, setParseErrors] = useState<Record<string, string | undefined>>({})
-  const [textFieldRefs, setTextFieldRefs] = useState<Record<string, RefObject<HTMLInputElement>>>({})
+  const [textFieldRefs, setTextFieldRefs] = useState<Record<string, RefObject<HTMLInputElement | undefined>>>({})
   const [activeJobSets, setActiveJobSets] = useState<boolean>(
     initialPrefs.activeJobSets === undefined ? false : initialPrefs.activeJobSets,
   )
@@ -324,6 +324,7 @@ export const JobsTableContainer = ({
   useEffect(() => {
     jobsTablePreferencesService.saveNewPrefs(prefsFromState())
   }, [
+    columnOrder,
     grouping,
     expanded,
     pageIndex,
@@ -368,7 +369,7 @@ export const JobsTableContainer = ({
     setRowsToFetch(pendingDataForAllVisibleData(expanded, data, pageSize, pageIndex * pageSize))
   }
 
-  const savedOnRefreshCallback = useRef<() => void>()
+  const savedOnRefreshCallback = useRef<() => void>(undefined)
 
   const [autoRefreshIntervalTimer, setAutoRefreshIntervalTimer] = useState<NodeJS.Timeout | undefined>(undefined)
 
@@ -589,7 +590,7 @@ export const JobsTableContainer = ({
     setLookoutFilters(parseLookoutFilters(columnFilterState))
   }, [])
 
-  const setTextFieldRef = (columnId: string, ref: RefObject<HTMLInputElement>) => {
+  const setTextFieldRef = (columnId: string, ref: RefObject<HTMLInputElement | undefined>) => {
     setTextFieldRefs((old) => {
       const newState = { ...old }
       newState[columnId] = ref
@@ -598,8 +599,13 @@ export const JobsTableContainer = ({
   }
 
   const onFilterChange = (updater: Updater<ColumnFiltersState>) => {
-    setToFirstPage()
     const newFilterState = updaterToValue(updater, columnFilterState)
+
+    if (_.isEqual(newFilterState, columnFilterState)) {
+      return
+    }
+
+    setToFirstPage()
     setLookoutFilters(parseLookoutFilters(newFilterState))
     setColumnFilterState(newFilterState)
     setSelectedRows({})
@@ -852,6 +858,7 @@ export const JobsTableContainer = ({
                 onClickRow={(row) => selectRow(row, true)}
                 onShiftClickRow={shiftSelectRow}
                 onControlClickRow={(row) => selectRow(row, false)}
+                onColumnMatchChange={onColumnMatchChange}
               />
             </Table>
           </TableContainer>
@@ -905,6 +912,7 @@ interface JobsTableBodyProps {
   onClickRow: (row: Row<JobTableRow>) => void
   onControlClickRow: (row: Row<JobTableRow>) => void
   onShiftClickRow: (row: Row<JobTableRow>) => void
+  onColumnMatchChange: (columnId: string, newMatch: Match) => void
 }
 
 const JobsTableBody = ({
@@ -918,6 +926,7 @@ const JobsTableBody = ({
   onClickRow,
   onControlClickRow,
   onShiftClickRow,
+  onColumnMatchChange,
 }: JobsTableBodyProps) => {
   const canDisplay = !dataIsLoading && topLevelRows.length > 0
   return (
@@ -944,6 +953,7 @@ const JobsTableBody = ({
           onClickRow,
           onControlClickRow,
           onShiftClickRow,
+          onColumnMatchChange,
           dataIsLoading,
         ),
       )}
@@ -960,8 +970,9 @@ const recursiveRowRender = (
   onClickRow: (row: Row<JobTableRow>) => void,
   onControlClickRow: (row: Row<JobTableRow>) => void,
   onShiftClickRow: (row: Row<JobTableRow>) => void,
+  onColumnMatchChange: (columnId: string, newMatch: Match) => void,
   dataIsLoading: boolean,
-): JSX.Element => {
+) => {
   const original = row.original
   const rowIsGroup = isJobGroupRow(original)
 
@@ -987,6 +998,7 @@ const recursiveRowRender = (
           }
         }}
         onClickRowCheckbox={onClickRowCheckbox}
+        onColumnMatchChange={onColumnMatchChange}
       />
 
       {/* Render any sub rows if expanded */}
@@ -1002,6 +1014,7 @@ const recursiveRowRender = (
             onClickRow,
             onControlClickRow,
             onShiftClickRow,
+            onColumnMatchChange,
             dataIsLoading,
           ),
         )}

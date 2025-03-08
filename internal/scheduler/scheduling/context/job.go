@@ -62,6 +62,8 @@ type JobSchedulingContext struct {
 	AssignedNode *internaltypes.Node
 	// Id of job that preempted this pod
 	PreemptingJobId string
+	// The type of preemption used to preempt this job (i.e fairshare, urgency)
+	PreemptionType PreemptionType
 	// Description of the cause of preemption
 	PreemptionDescription string
 }
