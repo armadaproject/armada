@@ -33,7 +33,11 @@ func V1ResourceListFromResourceList(rl *ResourceList) v1.ResourceList {
 type QuantityByTAndResourceType[T comparable] map[T]*ResourceList
 
 func (rl *ResourceList) Get(resourceType string) resource.Quantity {
-	return *rl.Resources[resourceType]
+	qty := rl.Resources[resourceType]
+	if qty == nil {
+		return resource.Quantity{}
+	}
+	return *qty
 }
 
 func (rl *ResourceList) Set(t string, q resource.Quantity) {

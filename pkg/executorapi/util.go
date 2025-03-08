@@ -72,8 +72,13 @@ func NewNodeFromNodeInfo(nodeInfo *NodeInfo, executor string, allowedPriorities 
 }
 
 func ResourceListFromProtoResources(r map[string]*resource.Quantity) *schedulerobjects.ResourceList {
+	resources := make(map[string]*resource.Quantity, len(r))
+	for k, v := range r {
+		r := v.DeepCopy()
+		resources[k] = &r
+	}
 	return &schedulerobjects.ResourceList{
-		Resources: r,
+		Resources: resources,
 	}
 }
 
