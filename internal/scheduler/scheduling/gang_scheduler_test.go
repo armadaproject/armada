@@ -388,7 +388,7 @@ func TestGangScheduler(t *testing.T) {
 				testfixtures.WithGangAnnotationsJobs(
 					testfixtures.WithNodeUniformityLabelAnnotationJobs(
 						"my-cool-node-uniformity",
-						testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 3),
+						testfixtures.N32Cpu256GiJobsWithLargeJobToleration("A", testfixtures.PriorityClass0, 3),
 					),
 				),
 			},
@@ -501,9 +501,9 @@ func TestGangScheduler(t *testing.T) {
 			),
 			Gangs: func() (gangs [][]*jobdb.Job) {
 				jobId := util.ULID()
-				gangs = append(gangs, []*jobdb.Job{testfixtures.TestJob("A", jobId, "armada-preemptible-away", testfixtures.Test32Cpu256GiPodReqs("A", jobId, 30000))})
+				gangs = append(gangs, []*jobdb.Job{testfixtures.TestJob("A", jobId, "armada-preemptible-away", testfixtures.Test32Cpu256GiWithLargeJobTolerationPodReqs("A", jobId, 30000))})
 				jobId = util.ULID()
-				gangs = append(gangs, []*jobdb.Job{testfixtures.TestJob("A", jobId, "armada-preemptible-away", testfixtures.Test32Cpu256GiPodReqs("A", jobId, 30000))})
+				gangs = append(gangs, []*jobdb.Job{testfixtures.TestJob("A", jobId, "armada-preemptible-away", testfixtures.Test32Cpu256GiWithLargeJobTolerationPodReqs("A", jobId, 30000))})
 				return
 			}(),
 			ExpectedScheduledIndices:               []int{0},
@@ -553,7 +553,7 @@ func TestGangScheduler(t *testing.T) {
 				}
 			}
 
-			expectedUnfeasibleJobSchedulingKeys := make([]schedulerobjects.SchedulingKey, 0)
+			expectedUnfeasibleJobSchedulingKeys := make([]internaltypes.SchedulingKey, 0)
 			// We need to populate expectedUnfeasibleJobSchedulingKeys from the jobSchedulingContexts of the relevant
 			// gangs, because it's hard to do within the testcase
 			for _, unfeasibleGangIdx := range tc.ExpectedUnfeasibleSchedulingKeyIndices {
@@ -562,7 +562,7 @@ func TestGangScheduler(t *testing.T) {
 				require.Equal(t, 1, len(jctxs), fmt.Sprintf("gangs with cardinality greater than 1 don't have a single scheduling key: %v", gang))
 				jctx := jctxs[0]
 				key, _ := jctx.SchedulingKey()
-				require.NotEqual(t, key, schedulerobjects.EmptySchedulingKey, "expected unfeasible scheduling key cannot be the empty key")
+				require.NotEqual(t, key, internaltypes.EmptySchedulingKey, "expected unfeasible scheduling key cannot be the empty key")
 
 				expectedUnfeasibleJobSchedulingKeys = append(expectedUnfeasibleJobSchedulingKeys, key)
 			}

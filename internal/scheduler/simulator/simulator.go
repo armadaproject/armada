@@ -92,6 +92,8 @@ type Simulator struct {
 	// Global job scheduling rate-limiter. Note that this will always be set to unlimited as we do not yet support
 	// effective rate limiting based on simulated time.
 	limiter *rate.Limiter
+	// Last time the optimiser was run for this pool (simulator time)
+	lastOptimiserRoundTimeByPool map[string]time.Time
 	// Used to generate random numbers from a chosen seed.
 	rand *rand.Rand
 	// Used to ensure each job is given a unique time stamp.
@@ -156,23 +158,28 @@ func NewSimulator(
 		// Seed the RNG using the local time if no explicit random seed is provided.
 		randomSeed = time.Now().Unix()
 	}
+	lastOptimiserRoundTimeByPool := map[string]time.Time{}
+	for _, pool := range schedulingConfig.Pools {
+		lastOptimiserRoundTimeByPool[pool.Name] = epochStart
+	}
 	s := &Simulator{
-		ClusterSpec:                 clusterSpec,
-		WorkloadSpec:                workloadSpec,
-		schedulingConfig:            schedulingConfig,
-		jobTemplateByJobId:          make(map[string]*JobTemplate),
-		jobTemplatesByDependencyIds: make(map[string]map[string]*JobTemplate),
-		activeJobTemplatesById:      make(map[string]*JobTemplate),
-		jobDb:                       jobDb,
-		limiter:                     rate.NewLimiter(rate.Inf, math.MaxInt), // Unlimited
-		rand:                        rand.New(rand.NewSource(randomSeed)),
-		resourceListFactory:         resourceListFactory,
-		enableFastForward:           enableFastForward,
-		hardTerminationMinutes:      hardTerminationMinutes,
-		schedulerCyclePeriodSeconds: schedulerCyclePeriodSeconds,
-		floatingResourceTypes:       floatingResourceTypes,
-		time:                        epochStart,
-		sink:                        sink,
+		ClusterSpec:                  clusterSpec,
+		WorkloadSpec:                 workloadSpec,
+		schedulingConfig:             schedulingConfig,
+		jobTemplateByJobId:           make(map[string]*JobTemplate),
+		jobTemplatesByDependencyIds:  make(map[string]map[string]*JobTemplate),
+		activeJobTemplatesById:       make(map[string]*JobTemplate),
+		jobDb:                        jobDb,
+		limiter:                      rate.NewLimiter(rate.Inf, math.MaxInt), // Unlimited
+		lastOptimiserRoundTimeByPool: lastOptimiserRoundTimeByPool,
+		rand:                         rand.New(rand.NewSource(randomSeed)),
+		resourceListFactory:          resourceListFactory,
+		enableFastForward:            enableFastForward,
+		hardTerminationMinutes:       hardTerminationMinutes,
+		schedulerCyclePeriodSeconds:  schedulerCyclePeriodSeconds,
+		floatingResourceTypes:        floatingResourceTypes,
+		time:                         epochStart,
+		sink:                         sink,
 		accounting: accounting{
 			nodeDbByPool:                             make(map[string]*nodedb.NodeDb),
 			poolByNodeId:                             make(map[string]string),
@@ -357,7 +364,7 @@ func (s *Simulator) setupClusters() error {
 					TotalResources: nodeTemplate.TotalResources.DeepCopy(),
 					AllocatableByPriorityAndResource: schedulerobjects.NewAllocatableByPriorityAndResourceType(
 						types.AllowedPriorities(s.schedulingConfig.PriorityClasses),
-						nodeTemplate.TotalResources,
+						*nodeTemplate.TotalResources,
 					),
 				}
 				dbNode := nodeFactory.FromSchedulerObjectsNode(node)
@@ -412,7 +419,7 @@ func (s *Simulator) bootstrapWorkload() error {
 				eventSequence.Events = append(
 					eventSequence.Events,
 					&armadaevents.EventSequence_Event{
-						Created: protoutil.ToTimestamp(s.time.Add(jobTemplate.EarliestSubmitTime)),
+						Created: protoutil.ToTimestamp(s.time.Add(protoutil.ToStdDuration(jobTemplate.EarliestSubmitTime))),
 						Event: &armadaevents.EventSequence_Event_SubmitJob{
 							SubmitJob: submitJobFromJobTemplate(jobId, jobTemplate, gangId),
 						},
@@ -464,7 +471,7 @@ func submitJobFromJobTemplate(jobId string, jobTemplate *JobTemplate, gangId str
 			annotations[serverconfig.GangNodeUniformityLabelAnnotation] = "armadaproject.io/clusterName"
 		}
 		// Make it so gang jobs end at the same time, this means they don't have a distribution currently
-		jobTemplate.RuntimeDistribution.TailMean = 0
+		jobTemplate.RuntimeDistribution.TailMean = protoutil.ToDuration(0)
 	}
 
 	return &armadaevents.SubmitJob{
@@ -477,13 +484,15 @@ func submitJobFromJobTemplate(jobId string, jobTemplate *JobTemplate, gangId str
 			Object: &armadaevents.KubernetesMainObject_PodSpec{
 				PodSpec: &armadaevents.PodSpecWithAvoidList{
 					PodSpec: &v1.PodSpec{
-						NodeSelector:      jobTemplate.Requirements.NodeSelector,
-						Affinity:          jobTemplate.Requirements.Affinity,
-						Tolerations:       jobTemplate.Requirements.Tolerations,
+						NodeSelector: jobTemplate.Requirements.NodeSelector,
+						Affinity:     jobTemplate.Requirements.Affinity,
+						Tolerations: armadaslices.Map(jobTemplate.Requirements.Tolerations, func(t *v1.Toleration) v1.Toleration {
+							return *t
+						}),
 						PriorityClassName: jobTemplate.PriorityClassName,
 						Containers: []v1.Container{
 							{
-								Resources: jobTemplate.Requirements.ResourceRequirements,
+								Resources: *jobTemplate.Requirements.ResourceRequirements,
 							},
 						},
 					},
@@ -591,19 +600,24 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 		}
 		sctx.UpdateFairShares()
 		constraints := schedulerconstraints.NewSchedulingConstraints(pool, totalResources, s.schedulingConfig, nil)
+		shouldRunOptimiser := false
+		optimiserConfig := s.schedulingConfig.GetOptimiserConfig(pool)
+		if optimiserConfig != nil && optimiserConfig.Enabled &&
+			s.time.Sub(s.lastOptimiserRoundTimeByPool[pool]) > optimiserConfig.Interval {
+			shouldRunOptimiser = true
+		}
 		sch := scheduling.NewPreemptingQueueScheduler(
 			sctx,
 			constraints,
 			s.floatingResourceTypes,
-			s.schedulingConfig.EnablePreferLargeJobOrdering,
-			s.schedulingConfig.GetProtectedFractionOfFairShare(pool),
-			s.schedulingConfig.MaxQueueLookback,
+			s.schedulingConfig,
 			txn,
 			nodeDb,
 			maps.Clone(s.accounting.nodeIdByJobId),
 			maps.Clone(s.accounting.jobIdsByGangId),
 			maps.Clone(s.accounting.gangIdByJobId),
 			false,
+			shouldRunOptimiser,
 		)
 
 		schedulerCtx := ctx
@@ -618,6 +632,9 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 		err = s.sink.OnCycleEnd(s.time, result)
 		if err != nil {
 			return err
+		}
+		if shouldRunOptimiser {
+			s.lastOptimiserRoundTimeByPool[pool] = s.time
 		}
 
 		// Update jobDb to reflect the decisions by the scheduler.
@@ -777,7 +794,11 @@ func (s *Simulator) handleEventSequence(_ *armadacontext.Context, es *armadaeven
 }
 
 func (s *Simulator) handleSubmitJob(txn *jobdb.Txn, e *armadaevents.SubmitJob, time time.Time, eventSequence *armadaevents.EventSequence) (*jobdb.Job, bool, error) {
-	schedulingInfo, err := scheduleringester.SchedulingInfoFromSubmitJob(e, time)
+	schedulingInfoProto, err := scheduleringester.SchedulingInfoFromSubmitJob(e, time)
+	if err != nil {
+		return nil, false, err
+	}
+	schedulingInfo, err := internaltypes.FromSchedulerObjectsJobSchedulingInfo(schedulingInfoProto)
 	if err != nil {
 		return nil, false, err
 	}
@@ -858,16 +879,26 @@ func (s *Simulator) handleJobRunLeased(txn *jobdb.Txn, e *armadaevents.JobRunLea
 	return updatedJob, true, nil
 }
 
-func (s *Simulator) generateRandomShiftedExponentialDuration(rv ShiftedExponential) time.Duration {
+func (s *Simulator) generateRandomShiftedExponentialDuration(rv *ShiftedExponential) time.Duration {
 	return generateRandomShiftedExponentialDuration(s.rand, rv)
 }
 
-func generateRandomShiftedExponentialDuration(r *rand.Rand, rv ShiftedExponential) time.Duration {
-	if rv.TailMean == 0 {
-		return rv.Minimum
-	} else {
-		return rv.Minimum + time.Duration(r.ExpFloat64()*float64(rv.TailMean))
+func generateRandomShiftedExponentialDuration(r *rand.Rand, rv *ShiftedExponential) time.Duration {
+	if rv == nil {
+		return 0
 	}
+
+	tailMean := time.Duration(0)
+	if rv.TailMean != nil {
+		tailMean = protoutil.ToStdDuration(rv.TailMean)
+	}
+
+	minimum := time.Duration(0)
+	if rv.Minimum != nil {
+		minimum = protoutil.ToStdDuration(rv.Minimum)
+	}
+
+	return minimum + time.Duration(r.ExpFloat64()*float64(tailMean))
 }
 
 func (s *Simulator) handleJobSucceeded(txn *jobdb.Txn, e *armadaevents.JobSucceeded) (*jobdb.Job, bool, error) {
@@ -917,6 +948,10 @@ func (s *Simulator) handleJobSucceeded(txn *jobdb.Txn, e *armadaevents.JobSuccee
 		for _, dependentJobTemplate := range s.jobTemplatesByDependencyIds[jobTemplate.Id] {
 			i := slices.Index(dependentJobTemplate.Dependencies, jobTemplate.Id)
 			dependentJobTemplate.Dependencies = slices.Delete(dependentJobTemplate.Dependencies, i, i+1)
+
+			templateEarliestSubmitTime := protoutil.ToStdDuration(dependentJobTemplate.EarliestSubmitTime)
+			dependentTemplateEarliestSubmitTime := protoutil.ToStdDuration(dependentJobTemplate.EarliestSubmitTimeFromDependencyCompletion)
+
 			if len(dependentJobTemplate.Dependencies) > 0 {
 				continue
 			}
@@ -935,7 +970,7 @@ func (s *Simulator) handleJobSucceeded(txn *jobdb.Txn, e *armadaevents.JobSuccee
 					eventSequence.Events,
 					&armadaevents.EventSequence_Event{
 						// EarliestSubmitTimeFromDependencyCompletion must be positive
-						Created: protoutil.ToTimestamp(maxTime(time.Time{}.Add(dependentJobTemplate.EarliestSubmitTime), s.time.Add(dependentJobTemplate.EarliestSubmitTimeFromDependencyCompletion))),
+						Created: protoutil.ToTimestamp(maxTime(s.time.Add(templateEarliestSubmitTime), s.time.Add(dependentTemplateEarliestSubmitTime))),
 						Event: &armadaevents.EventSequence_Event_SubmitJob{
 							SubmitJob: submitJobFromJobTemplate(jobId, dependentJobTemplate, gangId),
 						},
@@ -1047,12 +1082,13 @@ func expandRepeatingTemplates(w *WorkloadSpec) *WorkloadSpec {
 		var templates []*JobTemplate
 		for _, template := range q.GetJobTemplates() {
 			if template.Repeat != nil {
-				period := *template.Repeat.Period
+				period := protoutil.ToStdDuration(template.Repeat.Period)
 				for i := 0; i < int(template.Repeat.NumTimes); i++ {
 					t := proto.Clone(template).(*JobTemplate)
+					earliestSubmitTime := protoutil.ToStdDuration(t.EarliestSubmitTime) + time.Duration(i)*period
 					t.Repeat = nil
 					t.Id = fmt.Sprintf("%s-repeat-%d", t.Id, i)
-					t.EarliestSubmitTime = t.EarliestSubmitTime + time.Duration(i)*period
+					t.EarliestSubmitTime = protoutil.ToDuration(earliestSubmitTime)
 					templates = append(templates, t)
 				}
 			} else {

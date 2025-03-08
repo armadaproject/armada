@@ -5,15 +5,13 @@
         <option name="envFilePath" value="" />
         <option name="services">
           <list>
-            <option value="lookoutv2-migration" />
+            <option value="lookout-migration" />
             <option value="scheduler-migration" />
           </list>
         </option>
         <option name="sourceFilePath" value="docker-compose.yaml" />
       </settings>
     </deployment>
-    <method v="2">
-      <option name="RunConfigurationTask" enabled="true" run_configuration_name="Armada Infrastructure Services" run_configuration_type="docker-deploy" />
-    </method>
+    <method v="2" />
   </configuration>
 </component>

@@ -90,7 +90,7 @@ func (r *PostgresExecutorRepository) StoreExecutor(ctx *armadacontext.Context, e
 	err = queries.UpsertExecutor(ctx, UpsertExecutorParams{
 		ExecutorID:  executor.Id,
 		LastRequest: compressed,
-		UpdateTime:  executor.LastUpdateTime,
+		UpdateTime:  protoutil.ToStdTime(executor.LastUpdateTime),
 	})
 	if err != nil {
 		return errors.WithStack(err)

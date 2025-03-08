@@ -40,7 +40,8 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/leader"
 	"github.com/armadaproject/armada/internal/scheduler/metrics"
-	"github.com/armadaproject/armada/internal/scheduler/prioritymultiplier"
+
+	"github.com/armadaproject/armada/internal/scheduler/priorityoverride"
 	"github.com/armadaproject/armada/internal/scheduler/queue"
 	"github.com/armadaproject/armada/internal/scheduler/reports"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling"
@@ -126,21 +127,27 @@ func Run(config schedulerconfig.Configuration) error {
 	}()
 	armadaClient := api.NewSubmitClient(conn)
 	queueCache := queue.NewQueueCache(armadaClient, config.QueueRefreshPeriod)
+	queueCacheInitTimeout, cancel := armadacontext.WithTimeout(ctx, time.Second*30)
+	defer cancel()
+	err = queueCache.Initialise(queueCacheInitTimeout)
+	if err != nil {
+		ctx.Errorf("error initialising queue cache - %v", err)
+	}
 	services = append(services, func() error { return queueCache.Run(ctx) })
 
 	// ////////////////////////////////////////////////////////////////////////
-	// Priority Multiplier
+	// Priority override
 	// ////////////////////////////////////////////////////////////////////////
-	priorityMultiplierProvider := prioritymultiplier.NewNoOpProvider()
-	if config.PriorityMultiplier.Enabled {
-		ctx.Infof("Priority Multiplier Service configured, will fetch overrides from %s", config.PriorityMultiplier.ServiceUrl)
-		priorityMultiplierClient, err := prioritymultiplier.NewServiceClient(config.PriorityMultiplier)
+	priorityOverrideProvider := priorityoverride.NewNoOpProvider()
+	if config.PriorityOverride.Enabled {
+		ctx.Infof("Priority Override Service configured, will fetch overrides from %s", config.PriorityOverride.ServiceUrl)
+		priorityOverrideClient, err := priorityoverride.NewServiceClient(config.PriorityOverride)
 		if err != nil {
-			return errors.WithMessage(err, "Error creating priority multiplier client")
+			return errors.WithMessage(err, "Error creating priority override client")
 		}
-		provider := prioritymultiplier.NewServiceProvider(priorityMultiplierClient, config.PriorityMultiplier.UpdateFrequency)
+		provider := priorityoverride.NewServiceProvider(priorityOverrideClient, config.PriorityOverride.UpdateFrequency)
 		services = append(services, func() error { return provider.Run(ctx) })
-		priorityMultiplierProvider = provider
+		priorityOverrideProvider = provider
 	}
 
 	// ////////////////////////////////////////////////////////////////////////
@@ -262,6 +269,12 @@ func Run(config schedulerconfig.Configuration) error {
 		floatingResourceTypes,
 		resourceListFactory,
 	)
+	submitCheckerInitTimeout, cancel := armadacontext.WithTimeout(ctx, time.Second*30)
+	defer cancel()
+	err = submitChecker.Initialise(submitCheckerInitTimeout)
+	if err != nil {
+		ctx.Errorf("error initialising submit checker - %v", err)
+	}
 	services = append(services, func() error {
 		return submitChecker.Run(ctx)
 	})
@@ -275,7 +288,7 @@ func Run(config schedulerconfig.Configuration) error {
 		schedulingContextRepository,
 		resourceListFactory,
 		floatingResourceTypes,
-		priorityMultiplierProvider,
+		priorityOverrideProvider,
 	)
 	if err != nil {
 		return errors.WithMessage(err, "error creating scheduling algo")

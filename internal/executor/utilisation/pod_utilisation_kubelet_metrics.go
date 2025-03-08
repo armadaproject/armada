@@ -54,15 +54,15 @@ func (m *podUtilisationKubeletMetrics) fetch(nodes []*v1.Node, podNameToUtilisat
 
 func updatePodStats(podStats *v1alpha1.PodStats, utilisationData *domain.UtilisationData) {
 	if podStats.CPU != nil && podStats.CPU.UsageNanoCores != nil {
-		utilisationData.UpdateCurrentUsage("cpu", *resource.NewScaledQuantity(int64(*podStats.CPU.UsageNanoCores), -9))
+		utilisationData.CurrentUsage["cpu"] = *resource.NewScaledQuantity(int64(*podStats.CPU.UsageNanoCores), -9)
 	}
 	if podStats.CPU != nil && podStats.CPU.UsageCoreNanoSeconds != nil {
-		utilisationData.UpdateCurrentUsage("cpu", *resource.NewScaledQuantity(int64(*podStats.CPU.UsageCoreNanoSeconds), -9))
+		utilisationData.CumulativeUsage["cpu"] = *resource.NewScaledQuantity(int64(*podStats.CPU.UsageCoreNanoSeconds), -9)
 	}
 	if podStats.Memory != nil && podStats.Memory.WorkingSetBytes != nil {
-		utilisationData.UpdateCurrentUsage("memory", *resource.NewQuantity(int64(*podStats.Memory.WorkingSetBytes), resource.BinarySI))
+		utilisationData.CurrentUsage["memory"] = *resource.NewQuantity(int64(*podStats.Memory.WorkingSetBytes), resource.BinarySI)
 	}
 	if podStats.EphemeralStorage != nil && podStats.EphemeralStorage.UsedBytes != nil {
-		utilisationData.UpdateCurrentUsage("ephemeral-storage", *resource.NewQuantity(int64(*podStats.EphemeralStorage.UsedBytes), resource.BinarySI))
+		utilisationData.CurrentUsage["ephemeral-storage"] = *resource.NewQuantity(int64(*podStats.EphemeralStorage.UsedBytes), resource.BinarySI)
 	}
 }

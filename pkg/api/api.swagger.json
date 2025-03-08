@@ -1011,6 +1011,9 @@
           "type": "string",
           "format": "date-time"
         },
+        "cancelUser": {
+          "type": "string"
+        },
         "jobId": {
           "type": "string"
         },
@@ -1903,6 +1906,12 @@
     "apiJobUtilisationEvent": {
       "type": "object",
       "properties": {
+        "AvgResourcesForPeriod": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/resourceQuantity"
+          }
+        },
         "MaxResourcesForPeriod": {
           "type": "object",
           "additionalProperties": {
@@ -2081,6 +2090,9 @@
     "apiServiceConfig": {
       "type": "object",
       "properties": {
+        "name": {
+          "type": "string"
+        },
         "ports": {
           "type": "array",
           "items": {

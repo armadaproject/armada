@@ -14,6 +14,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/ingest/metrics"
 	f "github.com/armadaproject/armada/internal/common/ingest/testfixtures"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
+	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/server/configuration"
@@ -145,31 +146,56 @@ func TestConvertEventSequence(t *testing.T) {
 		"JobCancelRequested": {
 			events: []*armadaevents.EventSequence_Event{f.JobCancelRequested},
 			expected: []DbOperation{
-				MarkJobsCancelRequested{JobSetKey{queue: f.Queue, jobSet: f.JobsetName}: {f.JobId}},
+				MarkJobsCancelRequested{
+					cancelUser: f.UserId,
+					jobIds: map[JobSetKey][]string{
+						{queue: f.Queue, jobSet: f.JobsetName}: {f.JobId},
+					},
+				},
 			},
 		},
 		"JobSetCancelRequested": {
 			events: []*armadaevents.EventSequence_Event{f.JobSetCancelRequested},
 			expected: []DbOperation{
-				MarkJobSetsCancelRequested{JobSetKey{queue: f.Queue, jobSet: f.JobsetName}: &JobSetCancelAction{cancelQueued: true, cancelLeased: true}},
+				MarkJobSetsCancelRequested{
+					cancelUser: f.UserId,
+					jobSets: map[JobSetKey]*JobSetCancelAction{
+						{queue: f.Queue, jobSet: f.JobsetName}: {cancelQueued: true, cancelLeased: true},
+					},
+				},
 			},
 		},
 		"JobSetCancelRequested - Queued only": {
 			events: []*armadaevents.EventSequence_Event{f.JobSetCancelRequestedWithStateFilter(armadaevents.JobState_QUEUED)},
 			expected: []DbOperation{
-				MarkJobSetsCancelRequested{JobSetKey{queue: f.Queue, jobSet: f.JobsetName}: &JobSetCancelAction{cancelQueued: true, cancelLeased: false}},
+				MarkJobSetsCancelRequested{
+					cancelUser: f.UserId,
+					jobSets: map[JobSetKey]*JobSetCancelAction{
+						{queue: f.Queue, jobSet: f.JobsetName}: {cancelQueued: true, cancelLeased: false},
+					},
+				},
 			},
 		},
 		"JobSetCancelRequested - Pending only": {
 			events: []*armadaevents.EventSequence_Event{f.JobSetCancelRequestedWithStateFilter(armadaevents.JobState_PENDING)},
 			expected: []DbOperation{
-				MarkJobSetsCancelRequested{JobSetKey{queue: f.Queue, jobSet: f.JobsetName}: &JobSetCancelAction{cancelQueued: false, cancelLeased: true}},
+				MarkJobSetsCancelRequested{
+					cancelUser: f.UserId,
+					jobSets: map[JobSetKey]*JobSetCancelAction{
+						{queue: f.Queue, jobSet: f.JobsetName}: {cancelQueued: false, cancelLeased: true},
+					},
+				},
 			},
 		},
 		"JobSetCancelRequested - Running only": {
 			events: []*armadaevents.EventSequence_Event{f.JobSetCancelRequestedWithStateFilter(armadaevents.JobState_RUNNING)},
 			expected: []DbOperation{
-				MarkJobSetsCancelRequested{JobSetKey{queue: f.Queue, jobSet: f.JobsetName}: &JobSetCancelAction{cancelQueued: false, cancelLeased: true}},
+				MarkJobSetsCancelRequested{
+					cancelUser: f.UserId,
+					jobSets: map[JobSetKey]*JobSetCancelAction{
+						{queue: f.Queue, jobSet: f.JobsetName}: {cancelQueued: false, cancelLeased: true},
+					},
+				},
 			},
 		},
 		"JobCancelled": {
@@ -212,7 +238,10 @@ func TestConvertEventSequence(t *testing.T) {
 		"multiple events": {
 			events: []*armadaevents.EventSequence_Event{f.JobSetCancelRequested, f.Running, f.JobSucceeded},
 			expected: []DbOperation{
-				MarkJobSetsCancelRequested{JobSetKey{queue: f.Queue, jobSet: f.JobsetName}: &JobSetCancelAction{cancelQueued: true, cancelLeased: true}},
+				MarkJobSetsCancelRequested{
+					cancelUser: f.UserId,
+					jobSets:    map[JobSetKey]*JobSetCancelAction{{queue: f.Queue, jobSet: f.JobsetName}: {cancelQueued: true, cancelLeased: true}},
+				},
 				MarkRunsRunning{f.RunId: f.BaseTime},
 				MarkJobsSucceeded{f.JobId: true},
 			},
@@ -404,15 +433,17 @@ func getExpectedSubmitMessageSchedulingInfo(t *testing.T) *schedulerobjects.JobS
 		Version:           0,
 		PriorityClassName: "test-priority",
 		Priority:          3,
-		SubmitTime:        f.BaseTime,
+		SubmitTime:        protoutil.ToTimestamp(f.BaseTime),
 		ObjectRequirements: []*schedulerobjects.ObjectRequirements{
 			{
 				Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
 					PodRequirements: &schedulerobjects.PodRequirements{
-						NodeSelector:     f.NodeSelector,
-						Tolerations:      f.Tolerations,
+						NodeSelector: f.NodeSelector,
+						Tolerations: armadaslices.Map(f.Tolerations, func(t v1.Toleration) *v1.Toleration {
+							return &t
+						}),
 						PreemptionPolicy: "PreemptLowerPriority",
-						ResourceRequirements: v1.ResourceRequirements{
+						ResourceRequirements: &v1.ResourceRequirements{
 							Limits: map[v1.ResourceName]resource.Quantity{
 								"memory": resource.MustParse("64Mi"),
 								"cpu":    resource.MustParse("150m"),

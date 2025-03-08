@@ -1022,6 +1022,9 @@ func SwaggerJsonTemplate() string {
 		"          \"type\": \"string\",\n" +
 		"          \"format\": \"date-time\"\n" +
 		"        },\n" +
+		"        \"cancelUser\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
 		"        \"jobId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
@@ -1914,6 +1917,12 @@ func SwaggerJsonTemplate() string {
 		"    \"apiJobUtilisationEvent\": {\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
+		"        \"AvgResourcesForPeriod\": {\n" +
+		"          \"type\": \"object\",\n" +
+		"          \"additionalProperties\": {\n" +
+		"            \"$ref\": \"#/definitions/resourceQuantity\"\n" +
+		"          }\n" +
+		"        },\n" +
 		"        \"MaxResourcesForPeriod\": {\n" +
 		"          \"type\": \"object\",\n" +
 		"          \"additionalProperties\": {\n" +
@@ -2092,6 +2101,9 @@ func SwaggerJsonTemplate() string {
 		"    \"apiServiceConfig\": {\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
+		"        \"name\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
 		"        \"ports\": {\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +

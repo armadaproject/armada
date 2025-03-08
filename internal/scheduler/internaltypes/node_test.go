@@ -21,6 +21,7 @@ func TestNode(t *testing.T) {
 	assert.Nil(t, err)
 
 	const id = "id"
+	const reportingNodeType = "type"
 	const pool = "pool"
 	const index = uint64(1)
 	const executor = "executor"
@@ -38,6 +39,12 @@ func TestNode(t *testing.T) {
 		map[string]resource.Quantity{
 			"cpu":    resource.MustParse("16"),
 			"memory": resource.MustParse("32Gi"),
+		},
+	)
+	allocatableResources := resourceListFactory.FromNodeProto(
+		map[string]resource.Quantity{
+			"cpu":    resource.MustParse("8"),
+			"memory": resource.MustParse("16Gi"),
 		},
 	)
 	unallocatableResources := map[int32]ResourceList{
@@ -108,9 +115,12 @@ func TestNode(t *testing.T) {
 		executor,
 		name,
 		pool,
+		reportingNodeType,
 		taints,
 		labels,
+		false,
 		totalResources,
+		allocatableResources,
 		unallocatableResources,
 		allocatableByPriority,
 		allocatedByQueue,
@@ -120,6 +130,7 @@ func TestNode(t *testing.T) {
 	)
 
 	assert.Equal(t, id, node.GetId())
+	assert.Equal(t, reportingNodeType, node.GetReportingNodeType())
 	assert.Equal(t, nodeType.GetId(), node.GetNodeTypeId())
 	assert.Equal(t, nodeType.GetId(), node.GetNodeType().GetId())
 	assert.Equal(t, index, node.GetIndex())

@@ -95,6 +95,8 @@ type SubmissionConfig struct {
 	AssertInitContainersRequestFractionalCpu bool
 	// Controls whether we add the gang id annotation as a label.
 	AddGangIdLabel bool
+	// Controls whether custom service names are allowed
+	AllowCustomServiceNames bool
 }
 
 // TODO: we can probably just typedef this to map[string]string

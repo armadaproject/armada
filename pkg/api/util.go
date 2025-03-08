@@ -43,7 +43,7 @@ func JobRunStateFromApiJobState(s JobState) schedulerobjects.JobRunState {
 // )
 //
 // This is because containers run in parallel, whereas initContainers run serially.
-func SchedulingResourceRequirementsFromPodSpec(podSpec *v1.PodSpec) v1.ResourceRequirements {
+func SchedulingResourceRequirementsFromPodSpec(podSpec *v1.PodSpec) *v1.ResourceRequirements {
 	rv := v1.ResourceRequirements{
 		Requests: make(v1.ResourceList),
 		Limits:   make(v1.ResourceList),
@@ -72,7 +72,7 @@ func SchedulingResourceRequirementsFromPodSpec(podSpec *v1.PodSpec) v1.ResourceR
 			}
 		}
 	}
-	return rv
+	return &rv
 }
 
 func (job *Job) GetMainPodSpec() *v1.PodSpec {

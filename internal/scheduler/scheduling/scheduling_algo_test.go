@@ -15,13 +15,14 @@ import (
 	clock "k8s.io/utils/clock/testing"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	schedulermocks "github.com/armadaproject/armada/internal/scheduler/mocks"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
-	"github.com/armadaproject/armada/internal/scheduler/prioritymultiplier"
+	"github.com/armadaproject/armada/internal/scheduler/priorityoverride"
 	"github.com/armadaproject/armada/internal/scheduler/reports"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
@@ -397,11 +398,12 @@ func TestSchedule(t *testing.T) {
 			schedulingConfig: testfixtures.TestSchedulingConfig(),
 			executors:        []*schedulerobjects.Executor{test1Node32CoreExecutor("executor1")},
 			queues:           []*api.Queue{{Name: "queue1", PriorityFactor: 0.01}, {Name: "queue2", PriorityFactor: 0.01}},
-			queuedJobs:       testfixtures.N32Cpu256GiJobs("queue2", testfixtures.PriorityClass0, 1),
+			queuedJobs:       testfixtures.N16Cpu128GiJobs("queue2", testfixtures.PriorityClass0, 1),
 			scheduledJobsByExecutorIndexAndNodeIndex: map[int]map[int]scheduledJobs{
 				0: {
 					0: scheduledJobs{
-						jobs:         testfixtures.WithGangAnnotationsJobs(testfixtures.N1Cpu16GiJobs("queue1", testfixtures.PriorityClass0, 2)),
+						// Gang fills the node, putting the queue over fairshare
+						jobs:         testfixtures.WithGangAnnotationsJobs(testfixtures.N16Cpu128GiJobs("queue1", testfixtures.PriorityClass0, 2)),
 						acknowledged: true,
 					},
 				},
@@ -494,7 +496,7 @@ func TestSchedule(t *testing.T) {
 				schedulingContextRepo,
 				testfixtures.TestResourceListFactory,
 				testfixtures.TestEmptyFloatingResources,
-				prioritymultiplier.NewNoOpProvider(),
+				priorityoverride.NewNoOpProvider(),
 			)
 			require.NoError(t, err)
 
@@ -628,7 +630,7 @@ func TestSchedule(t *testing.T) {
 			// Check that we calculated fair share and adjusted fair share
 			for _, schCtx := range schedulerResult.SchedulingContexts {
 				for _, qtx := range schCtx.QueueSchedulingContexts {
-					assert.NotEqual(t, 0, qtx.AdjustedFairShare)
+					assert.NotEqual(t, 0, qtx.DemandCappedAdjustedFairShare)
 					assert.NotEqual(t, 0, qtx.FairShare)
 				}
 			}
@@ -660,7 +662,7 @@ func BenchmarkNodeDbConstruction(b *testing.B) {
 					nil,
 					testfixtures.TestResourceListFactory,
 					testfixtures.TestEmptyFloatingResources,
-					prioritymultiplier.NewNoOpProvider(),
+					priorityoverride.NewNoOpProvider(),
 				)
 				require.NoError(b, err)
 				b.StartTimer()
@@ -734,7 +736,7 @@ func makeTestExecutorWithNodes(executorId string, nodes ...*schedulerobjects.Nod
 		Id:             executorId,
 		Pool:           testfixtures.TestPool,
 		Nodes:          nodes,
-		LastUpdateTime: testfixtures.BaseTime,
+		LastUpdateTime: testfixtures.BasetimeProto,
 	}
 }
 
@@ -747,7 +749,7 @@ func test1Node32CoreExecutor(executorId string) *schedulerobjects.Executor {
 		Id:             executorId,
 		Pool:           testfixtures.TestPool,
 		Nodes:          []*schedulerobjects.Node{node},
-		LastUpdateTime: testfixtures.BaseTime,
+		LastUpdateTime: testfixtures.BasetimeProto,
 	}
 }
 
@@ -767,12 +769,12 @@ func makeTestExecutor(executorId string, nodePools ...string) *schedulerobjects.
 		Id:             executorId,
 		Pool:           testfixtures.TestPool,
 		Nodes:          nodes,
-		LastUpdateTime: testfixtures.BaseTime,
+		LastUpdateTime: testfixtures.BasetimeProto,
 	}
 }
 
 func withLastUpdateTimeExecutor(lastUpdateTime time.Time, executor *schedulerobjects.Executor) *schedulerobjects.Executor {
-	executor.LastUpdateTime = lastUpdateTime
+	executor.LastUpdateTime = protoutil.ToTimestamp(lastUpdateTime)
 	return executor
 }
 
@@ -784,7 +786,7 @@ func testNodeWithPool(pool string) *schedulerobjects.Node {
 }
 
 func withLargeNodeTaint(node *schedulerobjects.Node) *schedulerobjects.Node {
-	node.Taints = append(node.Taints, v1.Taint{Key: "largeJobsOnly", Value: "true", Effect: v1.TaintEffectNoSchedule})
+	node.Taints = append(node.Taints, &v1.Taint{Key: "largeJobsOnly", Value: "true", Effect: v1.TaintEffectNoSchedule})
 	return node
 }
 

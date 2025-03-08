@@ -167,11 +167,17 @@ func discardNilOps(ops []DbOperation) []DbOperation {
 }
 
 type (
-	InsertJobs                     map[string]*schedulerdb.Job
-	InsertRuns                     map[string]*JobRunDetails
-	UpdateJobSetPriorities         map[JobSetKey]int64
-	MarkJobSetsCancelRequested     map[JobSetKey]*JobSetCancelAction
-	MarkJobsCancelRequested        map[JobSetKey][]string
+	InsertJobs                 map[string]*schedulerdb.Job
+	InsertRuns                 map[string]*JobRunDetails
+	UpdateJobSetPriorities     map[JobSetKey]int64
+	MarkJobSetsCancelRequested struct {
+		cancelUser string
+		jobSets    map[JobSetKey]*JobSetCancelAction
+	}
+	MarkJobsCancelRequested struct {
+		cancelUser string
+		jobIds     map[JobSetKey][]string
+	}
 	MarkJobsCancelled              map[string]time.Time
 	MarkJobsSucceeded              map[string]bool
 	MarkJobsFailed                 map[string]bool
@@ -211,7 +217,7 @@ func (a UpdateJobSetPriorities) AffectsJobSet(queue string, jobSet string) bool 
 }
 
 func (a MarkJobSetsCancelRequested) AffectsJobSet(queue string, jobSet string) bool {
-	_, ok := a[JobSetKey{queue: queue, jobSet: jobSet}]
+	_, ok := a.jobSets[JobSetKey{queue: queue, jobSet: jobSet}]
 	return ok
 }
 
@@ -228,11 +234,33 @@ func (a UpdateJobSetPriorities) Merge(b DbOperation) bool {
 }
 
 func (a MarkJobSetsCancelRequested) Merge(b DbOperation) bool {
-	return mergeInMap(a, b)
+	switch op := b.(type) {
+	case MarkJobSetsCancelRequested:
+		if a.cancelUser != op.cancelUser {
+			return false
+		}
+		maps.Copy(a.jobSets, op.jobSets)
+		return true
+	}
+	return false
 }
 
 func (a MarkJobsCancelRequested) Merge(b DbOperation) bool {
-	return mergeListMaps(a, b)
+	switch op := b.(type) {
+	case MarkJobsCancelRequested:
+		if a.cancelUser != op.cancelUser {
+			return false
+		}
+		for k, v := range op.jobIds {
+			if _, present := a.jobIds[k]; present {
+				a.jobIds[k] = append(a.jobIds[k], v...)
+			} else {
+				a.jobIds[k] = v
+			}
+		}
+		return true
+	}
+	return false
 }
 
 func (a MarkRunsForJobPreemptRequested) Merge(b DbOperation) bool {
@@ -434,11 +462,11 @@ func (a UpdateJobSetPriorities) CanBeAppliedBefore(b DbOperation) bool {
 }
 
 func (a MarkJobSetsCancelRequested) CanBeAppliedBefore(b DbOperation) bool {
-	return !definesJobInSet(a, b) && !definesRunInSet(a, b)
+	return !definesJobInSet(a.jobSets, b) && !definesRunInSet(a.jobSets, b)
 }
 
 func (a MarkJobsCancelRequested) CanBeAppliedBefore(b DbOperation) bool {
-	return !definesJobInSet(a, b) && !definesRunInSet(a, b)
+	return !definesJobInSet(a.jobIds, b) && !definesRunInSet(a.jobIds, b)
 }
 
 func (a MarkRunsForJobPreemptRequested) CanBeAppliedBefore(b DbOperation) bool {

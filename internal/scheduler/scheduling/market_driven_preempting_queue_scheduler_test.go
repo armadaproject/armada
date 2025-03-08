@@ -466,15 +466,14 @@ func TestMarketDrivenPreemptingQueueScheduler(t *testing.T) {
 					sctx,
 					constraints,
 					testfixtures.TestEmptyFloatingResources,
-					true,
-					tc.SchedulingConfig.ProtectedFractionOfFairShare,
-					tc.SchedulingConfig.MaxQueueLookback,
+					tc.SchedulingConfig,
 					jobDbTxn,
 					nodeDb,
 					nodeIdByJobId,
 					jobIdsByGangId,
 					gangIdByJobId,
 					true,
+					false,
 				)
 
 				result, err := sch.Schedule(ctx)

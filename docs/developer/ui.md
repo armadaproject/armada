@@ -16,7 +16,7 @@ You can also re-build a production build of the UI by running `mage ui` in the r
 To quickly get started developing on the UI locally without having to build, ensure you have Docker, Node and Yarn installed for your platform, then run:
 
 ```bash
-cd ./internal/lookout/ui
+cd ./internal/lookoutui
 yarn
 yarn openapi
 yarn dev
@@ -24,7 +24,7 @@ yarn dev
 
 This will start a live development server on [http://localhost:3000](http://localhost:3000).
 
-Note that this will require the Lookout V2 API and other Armada components to run as well in order to work.
+Note that this will require the Lookout API and other Armada components to run as well in order to work.
 However, you can use fake data to develop locally without requiring any other component to run.
 
 In order to use fake data, navigate to the V2 tab, then specify `fakeData=` in the query parameters.
@@ -38,4 +38,4 @@ Make sure you scroll at the bottom to see it.
 
 Note that you can have both `fakeData` and `debug` query parameters enabled at the same time: [http://localhost:3000/v2?fakeData=&debug=](http://localhost:3000/v2?fakeData=&debug=)
 
-See [the README for the Lookout UI](../../internal/lookout/ui/README.md) for more information about UI development.
+See [the README for the Lookout UI](../../internal/lookoutui/README.md) for more information about UI development.

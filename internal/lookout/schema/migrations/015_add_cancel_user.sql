@@ -1,0 +1,1 @@
+ALTER TABLE job ADD COLUMN cancel_user varchar(512) NULL;

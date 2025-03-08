@@ -97,6 +97,8 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 		IndicesToUnbind map[string]map[int][]int
 		// Indices of nodes that should be cordoned before scheduling.
 		NodeIndicesToCordon []int
+		// If this round should run with the optimiser enabled
+		OptimiserEnabled bool
 	}
 	tests := map[string]struct {
 		SchedulingConfig configuration.SchedulingConfig
@@ -163,6 +165,50 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				"A": 1,
 				"B": 1,
 				"C": 1,
+			},
+		},
+		"optimiser": {
+			SchedulingConfig: testfixtures.WithProtectedFractionOfFairShareConfig(1,
+				testfixtures.WithOptimiserConfig(testfixtures.TestPool, createOptimiserConfig(10, map[string]float64{}, nil),
+					testfixtures.TestSchedulingConfig())),
+			Nodes: armadaslices.Concatenate(
+				testfixtures.NTainted32CpuNodes(1, testfixtures.TestPriorities), // Here to ensure B isn't above fairshare
+				testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			),
+			Rounds: []SchedulingRound{
+				{
+					JobsByQueue: map[string][]*jobdb.Job{
+						"A": testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass2, 1),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": testfixtures.IntRange(0, 0),
+					},
+				},
+				{
+					JobsByQueue: map[string][]*jobdb.Job{
+						"B": testfixtures.N32Cpu256GiJobs("B", testfixtures.PriorityClass2, 1),
+					},
+					ExpectedScheduledIndices: map[string][]int{},
+					ExpectedPreemptedIndices: map[string]map[int][]int{},
+				},
+				{
+					JobsByQueue: map[string][]*jobdb.Job{
+						"B": testfixtures.N32Cpu256GiJobs("B", testfixtures.PriorityClass2, 1),
+					},
+					OptimiserEnabled: true,
+					ExpectedScheduledIndices: map[string][]int{
+						"B": testfixtures.IntRange(0, 0),
+					},
+					ExpectedPreemptedIndices: map[string]map[int][]int{
+						"A": {
+							0: testfixtures.IntRange(0, 0),
+						},
+					},
+				},
+			},
+			PriorityFactorByQueue: map[string]float64{
+				"A": 1,
+				"B": 1,
 			},
 		},
 		"balancing two queues weighted": {
@@ -277,7 +323,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				},
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"B": testfixtures.N32Cpu256GiJobs("B", testfixtures.PriorityClass0, 1),
+						"B": testfixtures.N32Cpu256GiJobsWithLargeJobToleration("B", testfixtures.PriorityClass0, 1),
 					},
 				},
 			},
@@ -300,7 +346,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				},
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 1),
+						"A": testfixtures.N32Cpu256GiJobsWithLargeJobToleration("A", testfixtures.PriorityClass0, 1),
 					},
 				},
 			},
@@ -323,7 +369,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				},
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"B": testfixtures.N32Cpu256GiJobs("B", testfixtures.PriorityClass0, 1),
+						"B": testfixtures.N32Cpu256GiJobsWithLargeJobToleration("B", testfixtures.PriorityClass0, 1),
 					},
 					ExpectedPreemptedIndices: map[string]map[int][]int{
 						"A": {
@@ -437,7 +483,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 1),
+						"A": testfixtures.N32Cpu256GiJobsWithLargeJobToleration("A", testfixtures.PriorityClass0, 1),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"A": testfixtures.IntRange(0, 0),
@@ -446,7 +492,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				{
 					// These should all be scheduled onto the second node with no preemptions necessary.
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass1, 1),
+						"A": testfixtures.N32Cpu256GiJobsWithLargeJobToleration("A", testfixtures.PriorityClass1, 1),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"A": testfixtures.IntRange(0, 0),
@@ -463,7 +509,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass1, 1),
+						"A": testfixtures.N32Cpu256GiJobsWithLargeJobToleration("A", testfixtures.PriorityClass1, 1),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"A": testfixtures.IntRange(0, 0),
@@ -471,7 +517,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				},
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 1),
+						"A": testfixtures.N32Cpu256GiJobsWithLargeJobToleration("A", testfixtures.PriorityClass0, 1),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"A": testfixtures.IntRange(0, 0),
@@ -480,7 +526,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				{
 					// This job should preempt the priority-0 jobs.
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass2, 1),
+						"A": testfixtures.N32Cpu256GiJobsWithLargeJobToleration("A", testfixtures.PriorityClass2, 1),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"A": testfixtures.IntRange(0, 0),
@@ -502,7 +548,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass1, 1),
+						"A": testfixtures.N32Cpu256GiJobsWithLargeJobToleration("A", testfixtures.PriorityClass1, 1),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"A": testfixtures.IntRange(0, 0),
@@ -511,7 +557,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				{
 					// These should all be scheduled onto the second node with no preemptions necessary.
 					JobsByQueue: map[string][]*jobdb.Job{
-						"B": testfixtures.N32Cpu256GiJobs("B", testfixtures.PriorityClass0, 1),
+						"B": testfixtures.N32Cpu256GiJobsWithLargeJobToleration("B", testfixtures.PriorityClass0, 1),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"B": testfixtures.IntRange(0, 0),
@@ -520,7 +566,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				{
 					// These should all be scheduled onto the second node with no preemptions necessary.
 					JobsByQueue: map[string][]*jobdb.Job{
-						"C": testfixtures.N32Cpu256GiJobs("C", testfixtures.PriorityClass2, 1),
+						"C": testfixtures.N32Cpu256GiJobsWithLargeJobToleration("C", testfixtures.PriorityClass2, 1),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"C": testfixtures.IntRange(0, 0),
@@ -529,7 +575,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				{
 					// These should all be scheduled onto the second node with no preemptions necessary.
 					JobsByQueue: map[string][]*jobdb.Job{
-						"D": testfixtures.N32Cpu256GiJobs("D", testfixtures.PriorityClass3, 1),
+						"D": testfixtures.N32Cpu256GiJobsWithLargeJobToleration("D", testfixtures.PriorityClass3, 1),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"D": testfixtures.IntRange(0, 0),
@@ -624,7 +670,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					// Schedule a job that requires preempting the one job on node 3.
 					// Assert that the entire second gang is preempted and that the first gang isn't.
 					JobsByQueue: map[string][]*jobdb.Job{
-						"B": testfixtures.N32Cpu256GiJobs("B", testfixtures.PriorityClass1, 1),
+						"B": testfixtures.N32Cpu256GiJobsWithLargeJobToleration("B", testfixtures.PriorityClass1, 1),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"B": testfixtures.IntRange(0, 0),
@@ -763,7 +809,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 1),
+						"A": testfixtures.N32Cpu256GiJobsWithLargeJobToleration("A", testfixtures.PriorityClass0, 1),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"A": testfixtures.IntRange(0, 0),
@@ -771,7 +817,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				},
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass1, 1),
+						"A": testfixtures.N32Cpu256GiJobsWithLargeJobToleration("A", testfixtures.PriorityClass1, 1),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"A": testfixtures.IntRange(0, 0),
@@ -793,7 +839,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 1),
+						"A": testfixtures.N32Cpu256GiJobsWithLargeJobToleration("A", testfixtures.PriorityClass0, 1),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"A": testfixtures.IntRange(0, 0),
@@ -801,7 +847,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				},
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"B": testfixtures.N32Cpu256GiJobs("B", testfixtures.PriorityClass1, 1),
+						"B": testfixtures.N32Cpu256GiJobsWithLargeJobToleration("B", testfixtures.PriorityClass1, 1),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"B": testfixtures.IntRange(0, 0),
@@ -824,7 +870,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": append(testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 1), testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass1, 1)...),
+						"A": append(testfixtures.N32Cpu256GiJobsWithLargeJobToleration("A", testfixtures.PriorityClass0, 1), testfixtures.N32Cpu256GiJobsWithLargeJobToleration("A", testfixtures.PriorityClass1, 1)...),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"A": testfixtures.IntRange(1, 1),
@@ -1492,7 +1538,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 										},
 									},
 								},
-								testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 3),
+								testfixtures.N32Cpu256GiJobsWithLargeJobToleration("A", testfixtures.PriorityClass0, 3),
 							),
 						),
 					},
@@ -2051,21 +2097,22 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 						func(qn string) *api.Queue { return &api.Queue{Name: qn} },
 					))
 				sctx.UpdateFairShares()
+
+				tc.SchedulingConfig.EnablePreferLargeJobOrdering = true
+
 				sch := NewPreemptingQueueScheduler(
 					sctx,
 					constraints,
 					testfixtures.TestEmptyFloatingResources,
-					true,
-					tc.SchedulingConfig.ProtectedFractionOfFairShare,
-					tc.SchedulingConfig.MaxQueueLookback,
+					tc.SchedulingConfig,
 					jobDbTxn,
 					nodeDb,
 					nodeIdByJobId,
 					jobIdsByGangId,
 					gangIdByJobId,
 					false,
+					round.OptimiserEnabled,
 				)
-
 				result, err := sch.Schedule(ctx)
 				require.NoError(t, err)
 				jobIdsByGangId = sch.jobIdsByGangId
@@ -2401,18 +2448,20 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 					func(qn string) *api.Queue { return &api.Queue{Name: qn} },
 				),
 			)
+
+			tc.SchedulingConfig.EnablePreferLargeJobOrdering = true
+
 			sch := NewPreemptingQueueScheduler(
 				sctx,
 				constraints,
 				testfixtures.TestEmptyFloatingResources,
-				true,
-				tc.SchedulingConfig.ProtectedFractionOfFairShare,
-				tc.SchedulingConfig.MaxQueueLookback,
+				tc.SchedulingConfig,
 				jobDbTxn,
 				nodeDb,
 				nil,
 				nil,
 				nil,
+				false,
 				false,
 			)
 			result, err := sch.Schedule(ctx)
@@ -2463,18 +2512,20 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 						internaltypes.ResourceList{}, internaltypes.ResourceList{}, limiterByQueue[queue])
 					require.NoError(b, err)
 				}
+
+				tc.SchedulingConfig.EnablePreferLargeJobOrdering = true
+
 				sch := NewPreemptingQueueScheduler(
 					sctx,
 					constraints,
 					testfixtures.TestEmptyFloatingResources,
-					true,
-					tc.SchedulingConfig.ProtectedFractionOfFairShare,
-					tc.SchedulingConfig.MaxQueueLookback,
+					tc.SchedulingConfig,
 					jobDbTxn,
 					nodeDb,
 					nil,
 					nil,
 					nil,
+					false,
 					false,
 				)
 				result, err := sch.Schedule(ctx)
@@ -2496,10 +2547,13 @@ func testNodeWithTaints(node *internaltypes.Node, taints []v1.Taint) *internalty
 		node.GetExecutor(),
 		node.GetName(),
 		node.GetPool(),
+		node.GetReportingNodeType(),
 		taints,
 		node.GetLabels(),
+		false,
 		node.GetTotalResources(),
-		nil,
+		node.GetAllocatableResources(),
+		node.GetUnallocatableResources(),
 		node.AllocatableByPriority,
 		node.AllocatedByQueue,
 		node.AllocatedByJobId,

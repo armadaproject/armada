@@ -10,7 +10,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/types"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 )
 
 const (
@@ -30,7 +30,7 @@ var (
 		PriorityClass3:               {Priority: 3, Preemptible: false},
 	}
 	TestDefaultPriorityClass = PriorityClass3
-	SchedulingKeyGenerator   = schedulerobjects.NewSchedulingKeyGeneratorWithKey(make([]byte, 32))
+	SchedulingKeyGenerator   = internaltypes.NewSchedulingKeyGeneratorWithKey(make([]byte, 32))
 	testClock                = clock.NewFakeClock(time.Now())
 	jobDb                    = NewJobDbWithSchedulingKeyGenerator(
 		TestPriorityClasses,

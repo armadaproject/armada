@@ -25,9 +25,9 @@ type UtilisationEventReporter struct {
 }
 
 type podUtilisationInfo struct {
-	lastReported    time.Time
-	pod             *v1.Pod
-	utilisationData *domain.UtilisationData
+	lastReported          time.Time
+	pod                   *v1.Pod
+	aggregatedUtilisation *domain.UtilisationDataAggregation
 }
 
 func NewUtilisationEventReporter(
@@ -84,12 +84,12 @@ func (r *UtilisationEventReporter) ReportUtilisationEvents() {
 	reportingTime := now.Add(-r.reportingInterval)
 	for _, info := range r.podInfo {
 		currentUtilisation := r.podUtilisation.GetPodUtilisation(info.pod)
-		info.utilisationData.Process(currentUtilisation)
+		info.aggregatedUtilisation.Add(currentUtilisation)
 		if info.lastReported.Before(reportingTime) {
 			reported := r.reportUsage(info)
 			if reported {
 				info.lastReported = now
-				info.utilisationData = domain.EmptyUtilisationData()
+				info.aggregatedUtilisation = domain.EmptyUtilisationDataAggregation()
 			}
 		}
 	}
@@ -107,9 +107,9 @@ func (r *UtilisationEventReporter) updatePod(pod *v1.Pod) {
 		_, exists := r.podInfo[pod.Name]
 		if !exists {
 			r.podInfo[pod.Name] = &podUtilisationInfo{
-				lastReported:    time.Now(),
-				pod:             pod,
-				utilisationData: r.podUtilisation.GetPodUtilisation(pod),
+				lastReported:          time.Now(),
+				pod:                   pod,
+				aggregatedUtilisation: domain.NewUtilisationDataAggregation(r.podUtilisation.GetPodUtilisation(pod)),
 			}
 		}
 	}
@@ -132,10 +132,10 @@ func (r *UtilisationEventReporter) deletePod(pod *v1.Pod) {
 }
 
 func (r *UtilisationEventReporter) reportUsage(info *podUtilisationInfo) bool {
-	if info.utilisationData.IsEmpty() {
+	if info.aggregatedUtilisation.IsEmpty() {
 		return false
 	}
-	event, err := reporter.CreateJobUtilisationEvent(info.pod, info.utilisationData, r.clusterContext.GetClusterId())
+	event, err := reporter.CreateJobUtilisationEvent(info.pod, info.aggregatedUtilisation, r.clusterContext.GetClusterId())
 	if err != nil {
 		log.Errorf("failed to create utilisation event %s", err)
 		return false

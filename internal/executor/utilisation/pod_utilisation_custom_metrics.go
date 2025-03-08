@@ -65,7 +65,7 @@ func updateMetric(metricSamples model.Vector, metric configuration.CustomUsageMe
 			if metric.Multiplier > 0 {
 				val *= metric.Multiplier
 			}
-			podData.UpdateCurrentUsage(metric.Name, toQuantity(val))
+			podData.CurrentUsage[metric.Name] = toQuantity(val)
 		}
 	}
 }

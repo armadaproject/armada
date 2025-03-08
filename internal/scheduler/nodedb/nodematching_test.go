@@ -18,13 +18,13 @@ func TestNodeSchedulingRequirementsMet(t *testing.T) {
 
 	tests := map[string]struct {
 		node          *internaltypes.Node
-		req           *schedulerobjects.PodRequirements
+		req           *internaltypes.PodRequirements
 		priority      int32
 		expectSuccess bool
 	}{
 		"nil taints and labels": {
 			node: makeTestNodeTaintsLabels(nil, nil),
-			req: &schedulerobjects.PodRequirements{
+			req: &internaltypes.PodRequirements{
 				Tolerations: []v1.Toleration{{Key: "foo", Value: "foo"}},
 				Affinity: &v1.Affinity{
 					NodeAffinity: &v1.NodeAffinity{
@@ -48,7 +48,7 @@ func TestNodeSchedulingRequirementsMet(t *testing.T) {
 		},
 		"no taints or labels": {
 			node: makeTestNodeTaintsLabels(make([]v1.Taint, 0), make(map[string]string)),
-			req: &schedulerobjects.PodRequirements{
+			req: &internaltypes.PodRequirements{
 				Tolerations: []v1.Toleration{{Key: "foo", Value: "foo"}},
 				Affinity: &v1.Affinity{
 					NodeAffinity: &v1.NodeAffinity{
@@ -75,7 +75,7 @@ func TestNodeSchedulingRequirementsMet(t *testing.T) {
 				[]v1.Taint{{Key: "foo", Value: "foo", Effect: v1.TaintEffectNoSchedule}},
 				nil,
 			),
-			req: &schedulerobjects.PodRequirements{
+			req: &internaltypes.PodRequirements{
 				Tolerations: []v1.Toleration{{Key: "foo", Value: "foo"}},
 			},
 			expectSuccess: true,
@@ -85,7 +85,7 @@ func TestNodeSchedulingRequirementsMet(t *testing.T) {
 				[]v1.Taint{{Key: "foo", Value: "foo", Effect: v1.TaintEffectNoSchedule}},
 				nil,
 			),
-			req:           &schedulerobjects.PodRequirements{},
+			req:           &internaltypes.PodRequirements{},
 			expectSuccess: false,
 		},
 		"matched node affinity": {
@@ -93,7 +93,7 @@ func TestNodeSchedulingRequirementsMet(t *testing.T) {
 				nil,
 				map[string]string{"bar": "bar"},
 			),
-			req: &schedulerobjects.PodRequirements{
+			req: &internaltypes.PodRequirements{
 				Affinity: &v1.Affinity{
 					NodeAffinity: &v1.NodeAffinity{
 						RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
@@ -116,7 +116,7 @@ func TestNodeSchedulingRequirementsMet(t *testing.T) {
 		},
 		"unmatched node affinity": {
 			node: makeTestNodeTaintsLabels(nil, nil),
-			req: &schedulerobjects.PodRequirements{
+			req: &internaltypes.PodRequirements{
 				Affinity: &v1.Affinity{
 					NodeAffinity: &v1.NodeAffinity{
 						RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
@@ -142,7 +142,7 @@ func TestNodeSchedulingRequirementsMet(t *testing.T) {
 				[]v1.Taint{{Key: "foo", Value: "foo", Effect: v1.TaintEffectNoSchedule}},
 				map[string]string{"bar": "bar"},
 			),
-			req: &schedulerobjects.PodRequirements{
+			req: &internaltypes.PodRequirements{
 				Tolerations: []v1.Toleration{{Key: "foo", Value: "foo"}},
 				Affinity: &v1.Affinity{
 					NodeAffinity: &v1.NodeAffinity{
@@ -169,7 +169,7 @@ func TestNodeSchedulingRequirementsMet(t *testing.T) {
 				[]v1.Taint{{Key: "foo", Value: "foo", Effect: v1.TaintEffectNoSchedule}},
 				map[string]string{"bar": "bar"},
 			),
-			req: &schedulerobjects.PodRequirements{
+			req: &internaltypes.PodRequirements{
 				Affinity: &v1.Affinity{
 					NodeAffinity: &v1.NodeAffinity{
 						RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
@@ -195,7 +195,7 @@ func TestNodeSchedulingRequirementsMet(t *testing.T) {
 				[]v1.Taint{{Key: "foo", Value: "foo", Effect: v1.TaintEffectNoSchedule}},
 				nil,
 			),
-			req: &schedulerobjects.PodRequirements{
+			req: &internaltypes.PodRequirements{
 				Tolerations: []v1.Toleration{{Key: "foo", Value: "foo"}},
 				Affinity: &v1.Affinity{
 					NodeAffinity: &v1.NodeAffinity{
@@ -222,14 +222,14 @@ func TestNodeSchedulingRequirementsMet(t *testing.T) {
 				nil,
 				map[string]string{"bar": "bar"},
 			),
-			req: &schedulerobjects.PodRequirements{
+			req: &internaltypes.PodRequirements{
 				NodeSelector: map[string]string{"bar": "bar"},
 			},
 			expectSuccess: true,
 		},
 		"unmatched node selector": {
 			node: makeTestNodeTaintsLabels(nil, nil),
-			req: &schedulerobjects.PodRequirements{
+			req: &internaltypes.PodRequirements{
 				NodeSelector: map[string]string{"bar": "bar"},
 			},
 			expectSuccess: false,
@@ -239,7 +239,7 @@ func TestNodeSchedulingRequirementsMet(t *testing.T) {
 				[]v1.Taint{{Key: "foo", Value: "foo", Effect: v1.TaintEffectNoSchedule}},
 				map[string]string{"bar": "bar"},
 			),
-			req: &schedulerobjects.PodRequirements{
+			req: &internaltypes.PodRequirements{
 				Tolerations:  []v1.Toleration{{Key: "foo", Value: "foo"}},
 				NodeSelector: map[string]string{"bar": "bar"},
 			},
@@ -250,7 +250,7 @@ func TestNodeSchedulingRequirementsMet(t *testing.T) {
 				[]v1.Taint{{Key: "foo", Value: "foo", Effect: v1.TaintEffectNoSchedule}},
 				map[string]string{"bar": "bar"},
 			),
-			req: &schedulerobjects.PodRequirements{
+			req: &internaltypes.PodRequirements{
 				NodeSelector: map[string]string{"bar": "bar"},
 			},
 			expectSuccess: false,
@@ -260,7 +260,7 @@ func TestNodeSchedulingRequirementsMet(t *testing.T) {
 				[]v1.Taint{{Key: "foo", Value: "foo", Effect: v1.TaintEffectNoSchedule}},
 				nil,
 			),
-			req: &schedulerobjects.PodRequirements{
+			req: &internaltypes.PodRequirements{
 				Tolerations:  []v1.Toleration{{Key: "foo", Value: "foo"}},
 				NodeSelector: map[string]string{"bar": "bar"},
 			},
@@ -282,7 +282,7 @@ func TestNodeSchedulingRequirementsMet(t *testing.T) {
 					},
 				),
 			),
-			req: &schedulerobjects.PodRequirements{
+			req: &internaltypes.PodRequirements{
 				ResourceRequirements: v1.ResourceRequirements{
 					Requests: v1.ResourceList{
 						"cpu": resource.MustParse("1"),
@@ -307,7 +307,7 @@ func TestNodeSchedulingRequirementsMet(t *testing.T) {
 				},
 				),
 			),
-			req: &schedulerobjects.PodRequirements{
+			req: &internaltypes.PodRequirements{
 				ResourceRequirements: v1.ResourceRequirements{
 					Requests: v1.ResourceList{
 						"cpu": resource.MustParse("1"),
@@ -338,7 +338,7 @@ func TestNodeSchedulingRequirementsMet(t *testing.T) {
 					},
 				),
 			),
-			req: &schedulerobjects.PodRequirements{
+			req: &internaltypes.PodRequirements{
 				ResourceRequirements: v1.ResourceRequirements{
 					Requests: v1.ResourceList{
 						"cpu": resource.MustParse("1"),
@@ -369,7 +369,7 @@ func TestNodeSchedulingRequirementsMet(t *testing.T) {
 					},
 				),
 			),
-			req: &schedulerobjects.PodRequirements{
+			req: &internaltypes.PodRequirements{
 				ResourceRequirements: v1.ResourceRequirements{
 					Requests: v1.ResourceList{
 						"cpu": resource.MustParse("1"),
@@ -408,13 +408,13 @@ func TestNodeTypeSchedulingRequirementsMet(t *testing.T) {
 		Labels        map[string]string
 		IndexedTaints map[string]bool
 		IndexedLabels map[string]bool
-		Req           *schedulerobjects.PodRequirements
+		Req           *internaltypes.PodRequirements
 		ExpectSuccess bool
 	}{
 		"nil taints and labels": {
 			Taints: nil,
 			Labels: nil,
-			Req: &schedulerobjects.PodRequirements{
+			Req: &internaltypes.PodRequirements{
 				Tolerations:  []v1.Toleration{{Key: "foo", Value: "foo"}},
 				NodeSelector: map[string]string{"bar": "bar"},
 			},
@@ -423,7 +423,7 @@ func TestNodeTypeSchedulingRequirementsMet(t *testing.T) {
 		"no taints or labels": {
 			Taints: make([]v1.Taint, 0),
 			Labels: make(map[string]string),
-			Req: &schedulerobjects.PodRequirements{
+			Req: &internaltypes.PodRequirements{
 				Tolerations:  []v1.Toleration{{Key: "foo", Value: "foo"}},
 				NodeSelector: map[string]string{"bar": "bar"},
 			},
@@ -432,7 +432,7 @@ func TestNodeTypeSchedulingRequirementsMet(t *testing.T) {
 		"tolerated taints": {
 			Taints: []v1.Taint{{Key: "foo", Value: "foo", Effect: v1.TaintEffectNoSchedule}},
 			Labels: nil,
-			Req: &schedulerobjects.PodRequirements{
+			Req: &internaltypes.PodRequirements{
 				Tolerations: []v1.Toleration{{Key: "foo", Value: "foo"}},
 			},
 			ExpectSuccess: true,
@@ -440,21 +440,21 @@ func TestNodeTypeSchedulingRequirementsMet(t *testing.T) {
 		"untolerated taints": {
 			Taints:        []v1.Taint{{Key: "foo", Value: "foo", Effect: v1.TaintEffectNoSchedule}},
 			Labels:        nil,
-			Req:           &schedulerobjects.PodRequirements{},
+			Req:           &internaltypes.PodRequirements{},
 			ExpectSuccess: false,
 		},
 		"untolerated non-indexed taint": {
 			Taints:        []v1.Taint{{Key: "foo", Value: "foo", Effect: v1.TaintEffectNoSchedule}},
 			Labels:        nil,
 			IndexedTaints: make(map[string]bool),
-			Req:           &schedulerobjects.PodRequirements{},
+			Req:           &internaltypes.PodRequirements{},
 			ExpectSuccess: true,
 		},
 		"matched node selector": {
 			Taints:        nil,
 			Labels:        map[string]string{"bar": "bar"},
 			IndexedLabels: map[string]bool{"bar": true},
-			Req: &schedulerobjects.PodRequirements{
+			Req: &internaltypes.PodRequirements{
 				NodeSelector: map[string]string{"bar": "bar"},
 			},
 			ExpectSuccess: true,
@@ -463,7 +463,7 @@ func TestNodeTypeSchedulingRequirementsMet(t *testing.T) {
 			Taints:        nil,
 			Labels:        nil,
 			IndexedLabels: map[string]bool{"bar": true},
-			Req: &schedulerobjects.PodRequirements{
+			Req: &internaltypes.PodRequirements{
 				Tolerations:  []v1.Toleration{{Key: "foo", Value: "foo"}},
 				NodeSelector: map[string]string{"bar": "bar"},
 			},
@@ -473,7 +473,7 @@ func TestNodeTypeSchedulingRequirementsMet(t *testing.T) {
 			Taints:        nil,
 			Labels:        map[string]string{"bar": "baz"},
 			IndexedLabels: map[string]bool{"bar": true},
-			Req: &schedulerobjects.PodRequirements{
+			Req: &internaltypes.PodRequirements{
 				NodeSelector: map[string]string{"bar": "bar"},
 			},
 			ExpectSuccess: false,
@@ -481,7 +481,7 @@ func TestNodeTypeSchedulingRequirementsMet(t *testing.T) {
 		"missing label": {
 			Taints: nil,
 			Labels: nil,
-			Req: &schedulerobjects.PodRequirements{
+			Req: &internaltypes.PodRequirements{
 				NodeSelector: map[string]string{"bar": "bar"},
 			},
 			ExpectSuccess: true,
@@ -490,7 +490,7 @@ func TestNodeTypeSchedulingRequirementsMet(t *testing.T) {
 			Taints:        []v1.Taint{{Key: "foo", Value: "foo", Effect: v1.TaintEffectNoSchedule}},
 			Labels:        map[string]string{"bar": "bar"},
 			IndexedLabels: map[string]bool{"bar": true},
-			Req: &schedulerobjects.PodRequirements{
+			Req: &internaltypes.PodRequirements{
 				Tolerations:  []v1.Toleration{{Key: "foo", Value: "foo"}},
 				NodeSelector: map[string]string{"bar": "bar"},
 			},
@@ -500,7 +500,7 @@ func TestNodeTypeSchedulingRequirementsMet(t *testing.T) {
 			Taints:        []v1.Taint{{Key: "foo", Value: "foo", Effect: v1.TaintEffectNoSchedule}},
 			Labels:        map[string]string{"bar": "bar"},
 			IndexedLabels: map[string]bool{"bar": true},
-			Req: &schedulerobjects.PodRequirements{
+			Req: &internaltypes.PodRequirements{
 				NodeSelector: map[string]string{"bar": "bar"},
 			},
 			ExpectSuccess: false,
@@ -509,7 +509,7 @@ func TestNodeTypeSchedulingRequirementsMet(t *testing.T) {
 			Taints:        []v1.Taint{{Key: "foo", Value: "foo", Effect: v1.TaintEffectNoSchedule}},
 			Labels:        map[string]string{"bar": "baz"},
 			IndexedLabels: map[string]bool{"bar": true},
-			Req: &schedulerobjects.PodRequirements{
+			Req: &internaltypes.PodRequirements{
 				Tolerations:  []v1.Toleration{{Key: "foo", Value: "foo"}},
 				NodeSelector: map[string]string{"bar": "bar"},
 			},
@@ -519,7 +519,7 @@ func TestNodeTypeSchedulingRequirementsMet(t *testing.T) {
 			Taints:        []v1.Taint{{Key: "foo", Value: "foo", Effect: v1.TaintEffectNoSchedule}},
 			Labels:        nil,
 			IndexedLabels: map[string]bool{"bar": true},
-			Req: &schedulerobjects.PodRequirements{
+			Req: &internaltypes.PodRequirements{
 				Tolerations:  []v1.Toleration{{Key: "foo", Value: "foo"}},
 				NodeSelector: map[string]string{"bar": "bar"},
 			},
@@ -659,8 +659,11 @@ func makeTestNodeTaintsLabels(taints []v1.Taint, labels map[string]string) *inte
 		"executor",
 		"name",
 		"pool",
+		"type",
 		taints,
 		labels,
+		false,
+		internaltypes.ResourceList{},
 		internaltypes.ResourceList{},
 		nil,
 		map[int32]internaltypes.ResourceList{},
@@ -683,8 +686,11 @@ func makeTestNodeResources(t *testing.T, allocatableByPriority map[int32]interna
 		"executor",
 		"name",
 		"pool",
+		"type",
 		[]v1.Taint{},
 		map[string]string{},
+		false,
+		totalResources,
 		totalResources,
 		nil,
 		allocatableByPriority,

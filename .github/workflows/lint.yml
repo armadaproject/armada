@@ -22,15 +22,15 @@ jobs:
         with:
           node-version: 22.12.0
           cache: yarn
-          cache-dependency-path: ./internal/lookout/ui/yarn.lock
+          cache-dependency-path: ./internal/lookoutui/yarn.lock
 
       - name: Install Dependencies
-        working-directory: ./internal/lookout/ui
+        working-directory: ./internal/lookoutui
         run: |
           yarn install --frozen-lockfile
 
       - name: Generating TypeScript lint results as summary
-        working-directory: ./internal/lookout/ui
+        working-directory: ./internal/lookoutui
         run: |
           yarn lint &> lint_results.txt || true
           lint_results=$(cat lint_results.txt)
