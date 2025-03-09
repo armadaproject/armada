@@ -7,7 +7,7 @@
 package armadaevents
 
 import (
-	schedulerobjects "internal/scheduler/schedulerobjects"
+	schedulerobjects "github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"

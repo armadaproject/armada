@@ -24,6 +24,7 @@ type EventServer struct {
 	authorizer      auth.ActionAuthorizer
 	eventRepository EventRepository
 	queueRepository armadaqueue.ReadOnlyQueueRepository
+	api.UnimplementedEventServer
 }
 
 func NewEventServer(

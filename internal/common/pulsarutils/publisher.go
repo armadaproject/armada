@@ -1,12 +1,12 @@
 package pulsarutils
 
 import (
-	"google.golang.org/protobuf/proto"
 	"sync"
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/pkg/errors"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/ingest/utils"

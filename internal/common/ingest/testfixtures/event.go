@@ -3,6 +3,8 @@ package testfixtures
 import (
 	"time"
 
+	"google.golang.org/protobuf/proto"
+
 	"github.com/google/uuid"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"

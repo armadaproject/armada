@@ -3,9 +3,9 @@ package internaltypes
 import (
 	"time"
 
+	"github.com/golang/protobuf/proto"
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
-	"google.golang.org/protobuf/proto"
 	v1 "k8s.io/api/core/v1"
 
 	protoutil "github.com/armadaproject/armada/internal/common/proto"

@@ -7,8 +7,8 @@
 package executorapi
 
 import (
-	api "pkg/api"
-	armadaevents "pkg/armadaevents"
+	api "github.com/armadaproject/armada/pkg/api"
+	armadaevents "github.com/armadaproject/armada/pkg/armadaevents"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"

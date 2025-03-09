@@ -247,6 +247,7 @@ type FakeSchedulerReportingServer struct {
 	GetJobReportCalls    []GetJobReportCall
 	GetJobReportResponse *schedulerobjects.JobReport
 	Err                  error
+	schedulerobjects.UnimplementedSchedulerReportingServer
 }
 
 func NewFakeSchedulerReportingServer() *FakeSchedulerReportingServer {

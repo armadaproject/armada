@@ -45,6 +45,7 @@ type QueryApi struct {
 	db                  *pgxpool.Pool
 	decompressorFactory func() compress.Decompressor
 	maxQueryItems       int
+	api.UnimplementedJobsServer
 }
 
 func New(db *pgxpool.Pool, maxQueryItems int, decompressorFactory func() compress.Decompressor) *QueryApi {

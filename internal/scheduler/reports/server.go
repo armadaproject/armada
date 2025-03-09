@@ -16,6 +16,7 @@ import (
 
 type Server struct {
 	repository *SchedulingContextRepository
+	schedulerobjects.UnimplementedSchedulerReportingServer
 }
 
 func NewServer(repository *SchedulingContextRepository) *Server {

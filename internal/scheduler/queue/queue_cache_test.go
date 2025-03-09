@@ -44,7 +44,7 @@ func TestFetch(t *testing.T) {
 			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
 			ctrl := gomock.NewController(t)
 			mockApiClient := schedulermocks.NewMockSubmitClient(ctrl)
-			mockStream := schedulermocks.NewMockSubmit_GetQueuesClient(ctrl)
+			mockStream := schedulermocks.NewMockSubmit_GetQueuesClient[any](ctrl)
 			for _, queue := range tc.queues {
 				mockStream.
 					EXPECT().

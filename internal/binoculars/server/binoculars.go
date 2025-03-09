@@ -4,17 +4,19 @@ import (
 	"context"
 	"strconv"
 
+	"google.golang.org/protobuf/types/known/emptypb"
+
 	"github.com/armadaproject/armada/internal/binoculars/service"
 	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/auth"
 	"github.com/armadaproject/armada/pkg/api/binoculars"
-	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 type BinocularsServer struct {
 	logService    service.LogService
 	cordonService service.CordonService
+	binoculars.UnimplementedBinocularsServer
 }
 
 func NewBinocularsServer(logService service.LogService, cordonService service.CordonService) *BinocularsServer {
@@ -47,5 +49,5 @@ func (b *BinocularsServer) Cordon(ctx context.Context, request *binoculars.Cordo
 		return nil, err
 	}
 
-	return &emptypb.Empty, nil
+	return &emptypb.Empty{}, nil
 }

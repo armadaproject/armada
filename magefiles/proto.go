@@ -176,7 +176,6 @@ func protoGenerate() error {
 }
 
 func protoProtocRun(armada, grpcGateway bool, swaggerFileName string, paths ...string) error {
-
 	args := []string{
 		"--proto_path=.",
 		"--proto_path=proto",

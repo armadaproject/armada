@@ -304,7 +304,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 			mockPulsarPublisher := mocks.NewMockPublisher[*armadaevents.EventSequence](ctrl)
 			mockJobRepository := schedulermocks.NewMockJobRepository(ctrl)
 			mockExecutorRepository := schedulermocks.NewMockExecutorRepository(ctrl)
-			mockStream := schedulermocks.NewMockExecutorApi_LeaseJobRunsServer(ctrl)
+			mockStream := schedulermocks.NewMockExecutorApi_LeaseJobRunsServer[any, any](ctrl)
 			mockAuthorizer := servermocks.NewMockActionAuthorizer(ctrl)
 
 			runIds, err := runIdsFromLeaseRequest(tc.request)
@@ -371,7 +371,7 @@ func TestExecutorApi_LeaseJobRuns_Unauthorised(t *testing.T) {
 	mockPulsarPublisher := mocks.NewMockPublisher[*armadaevents.EventSequence](ctrl)
 	mockJobRepository := schedulermocks.NewMockJobRepository(ctrl)
 	mockExecutorRepository := schedulermocks.NewMockExecutorRepository(ctrl)
-	mockStream := schedulermocks.NewMockExecutorApi_LeaseJobRunsServer(ctrl)
+	mockStream := schedulermocks.NewMockExecutorApi_LeaseJobRunsServer[any, any](ctrl)
 	mockAuthorizer := servermocks.NewMockActionAuthorizer(ctrl)
 
 	// set up mocks

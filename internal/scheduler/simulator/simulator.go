@@ -3,7 +3,6 @@ package simulator
 import (
 	"container/heap"
 	"fmt"
-	"google.golang.org/protobuf/proto"
 	"math"
 	"math/rand"
 	"strconv"
@@ -15,6 +14,7 @@ import (
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	"golang.org/x/time/rate"
+	"google.golang.org/protobuf/proto"
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"

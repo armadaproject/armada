@@ -51,6 +51,7 @@ type ExecutorApi struct {
 	priorityClassNameOverride *string
 	clock                     clock.Clock
 	authorizer                auth.ActionAuthorizer
+	*executorapi.UnimplementedExecutorApiServer
 }
 
 func NewExecutorApi(publisher pulsarutils.Publisher[*armadaevents.EventSequence],

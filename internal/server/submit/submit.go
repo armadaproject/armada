@@ -3,6 +3,7 @@ package submit
 import (
 	"context"
 	"fmt"
+
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 
@@ -36,6 +37,7 @@ type Server struct {
 	submissionConfig configuration.SubmissionConfig
 	deduplicator     Deduplicator
 	authorizer       auth.ActionAuthorizer
+	api.UnimplementedSubmitServer
 	// Below are used only for testing
 	clock       clock.Clock
 	idGenerator func() string

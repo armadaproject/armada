@@ -1,8 +1,9 @@
 package eventutil
 
 import (
-	"google.golang.org/protobuf/proto"
 	"testing"
+
+	"google.golang.org/protobuf/proto"
 
 	"github.com/stretchr/testify/assert"
 

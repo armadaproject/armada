@@ -3,8 +3,9 @@ package queue
 import (
 	"context"
 	"fmt"
-	"google.golang.org/protobuf/types/known/emptypb"
 	"math"
+
+	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/pkg/errors"
 	"google.golang.org/grpc/codes"
@@ -28,6 +29,7 @@ type Server struct {
 	queueRepository QueueRepository
 	authorizer      auth.ActionAuthorizer
 	clock           clock.Clock
+	api.UnimplementedQueueServiceServer
 }
 
 func NewServer(

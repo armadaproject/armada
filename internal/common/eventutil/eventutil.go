@@ -2,7 +2,6 @@ package eventutil
 
 import (
 	"fmt"
-
 	"time"
 
 	"github.com/pkg/errors"

@@ -17,6 +17,7 @@ import (
 	gomock "go.uber.org/mock/gomock"
 	grpc "google.golang.org/grpc"
 	metadata "google.golang.org/grpc/metadata"
+	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
 // MockSubmitClient is a mock of SubmitClient interface.
@@ -44,14 +45,14 @@ func (m *MockSubmitClient) EXPECT() *MockSubmitClientMockRecorder {
 }
 
 // CancelJobSet mocks base method.
-func (m *MockSubmitClient) CancelJobSet(ctx context.Context, in *api.JobSetCancelRequest, opts ...grpc.CallOption) (*types.Empty, error) {
+func (m *MockSubmitClient) CancelJobSet(ctx context.Context, in *api.JobSetCancelRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	m.ctrl.T.Helper()
 	varargs := []any{ctx, in}
 	for _, a := range opts {
 		varargs = append(varargs, a)
 	}
 	ret := m.ctrl.Call(m, "CancelJobSet", varargs...)
-	ret0, _ := ret[0].(*types.Empty)
+	ret0, _ := ret[0].(*emptypb.Empty)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -84,14 +85,14 @@ func (mr *MockSubmitClientMockRecorder) CancelJobs(ctx, in any, opts ...any) *go
 }
 
 // CreateQueue mocks base method.
-func (m *MockSubmitClient) CreateQueue(ctx context.Context, in *api.Queue, opts ...grpc.CallOption) (*types.Empty, error) {
+func (m *MockSubmitClient) CreateQueue(ctx context.Context, in *api.Queue, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	m.ctrl.T.Helper()
 	varargs := []any{ctx, in}
 	for _, a := range opts {
 		varargs = append(varargs, a)
 	}
 	ret := m.ctrl.Call(m, "CreateQueue", varargs...)
-	ret0, _ := ret[0].(*types.Empty)
+	ret0, _ := ret[0].(*emptypb.Empty)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -124,14 +125,14 @@ func (mr *MockSubmitClientMockRecorder) CreateQueues(ctx, in any, opts ...any) *
 }
 
 // DeleteQueue mocks base method.
-func (m *MockSubmitClient) DeleteQueue(ctx context.Context, in *api.QueueDeleteRequest, opts ...grpc.CallOption) (*types.Empty, error) {
+func (m *MockSubmitClient) DeleteQueue(ctx context.Context, in *api.QueueDeleteRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	m.ctrl.T.Helper()
 	varargs := []any{ctx, in}
 	for _, a := range opts {
 		varargs = append(varargs, a)
 	}
 	ret := m.ctrl.Call(m, "DeleteQueue", varargs...)
-	ret0, _ := ret[0].(*types.Empty)
+	ret0, _ := ret[0].(*emptypb.Empty)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -164,14 +165,14 @@ func (mr *MockSubmitClientMockRecorder) GetQueue(ctx, in any, opts ...any) *gomo
 }
 
 // GetQueues mocks base method.
-func (m *MockSubmitClient) GetQueues(ctx context.Context, in *api.StreamingQueueGetRequest, opts ...grpc.CallOption) (api.Submit_GetQueuesClient, error) {
+func (m *MockSubmitClient) GetQueues(ctx context.Context, in *api.StreamingQueueGetRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[api.StreamingQueueMessage], error) {
 	m.ctrl.T.Helper()
 	varargs := []any{ctx, in}
 	for _, a := range opts {
 		varargs = append(varargs, a)
 	}
 	ret := m.ctrl.Call(m, "GetQueues", varargs...)
-	ret0, _ := ret[0].(api.Submit_GetQueuesClient)
+	ret0, _ := ret[0].(grpc.ServerStreamingClient[api.StreamingQueueMessage])
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -184,7 +185,7 @@ func (mr *MockSubmitClientMockRecorder) GetQueues(ctx, in any, opts ...any) *gom
 }
 
 // Health mocks base method.
-func (m *MockSubmitClient) Health(ctx context.Context, in *types.Empty, opts ...grpc.CallOption) (*api.HealthCheckResponse, error) {
+func (m *MockSubmitClient) Health(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*api.HealthCheckResponse, error) {
 	m.ctrl.T.Helper()
 	varargs := []any{ctx, in}
 	for _, a := range opts {
@@ -204,14 +205,14 @@ func (mr *MockSubmitClientMockRecorder) Health(ctx, in any, opts ...any) *gomock
 }
 
 // PreemptJobs mocks base method.
-func (m *MockSubmitClient) PreemptJobs(ctx context.Context, in *api.JobPreemptRequest, opts ...grpc.CallOption) (*types.Empty, error) {
+func (m *MockSubmitClient) PreemptJobs(ctx context.Context, in *api.JobPreemptRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	m.ctrl.T.Helper()
 	varargs := []any{ctx, in}
 	for _, a := range opts {
 		varargs = append(varargs, a)
 	}
 	ret := m.ctrl.Call(m, "PreemptJobs", varargs...)
-	ret0, _ := ret[0].(*types.Empty)
+	ret0, _ := ret[0].(*emptypb.Empty)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -264,14 +265,14 @@ func (mr *MockSubmitClientMockRecorder) SubmitJobs(ctx, in any, opts ...any) *go
 }
 
 // UpdateQueue mocks base method.
-func (m *MockSubmitClient) UpdateQueue(ctx context.Context, in *api.Queue, opts ...grpc.CallOption) (*types.Empty, error) {
+func (m *MockSubmitClient) UpdateQueue(ctx context.Context, in *api.Queue, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	m.ctrl.T.Helper()
 	varargs := []any{ctx, in}
 	for _, a := range opts {
 		varargs = append(varargs, a)
 	}
 	ret := m.ctrl.Call(m, "UpdateQueue", varargs...)
-	ret0, _ := ret[0].(*types.Empty)
+	ret0, _ := ret[0].(*emptypb.Empty)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -304,31 +305,31 @@ func (mr *MockSubmitClientMockRecorder) UpdateQueues(ctx, in any, opts ...any) *
 }
 
 // MockSubmit_GetQueuesClient is a mock of Submit_GetQueuesClient interface.
-type MockSubmit_GetQueuesClient struct {
+type MockSubmit_GetQueuesClient[Res any] struct {
 	ctrl     *gomock.Controller
-	recorder *MockSubmit_GetQueuesClientMockRecorder
+	recorder *MockSubmit_GetQueuesClientMockRecorder[Res]
 	isgomock struct{}
 }
 
 // MockSubmit_GetQueuesClientMockRecorder is the mock recorder for MockSubmit_GetQueuesClient.
-type MockSubmit_GetQueuesClientMockRecorder struct {
-	mock *MockSubmit_GetQueuesClient
+type MockSubmit_GetQueuesClientMockRecorder[Res any] struct {
+	mock *MockSubmit_GetQueuesClient[Res]
 }
 
 // NewMockSubmit_GetQueuesClient creates a new mock instance.
-func NewMockSubmit_GetQueuesClient(ctrl *gomock.Controller) *MockSubmit_GetQueuesClient {
-	mock := &MockSubmit_GetQueuesClient{ctrl: ctrl}
-	mock.recorder = &MockSubmit_GetQueuesClientMockRecorder{mock}
+func NewMockSubmit_GetQueuesClient[Res any](ctrl *gomock.Controller) *MockSubmit_GetQueuesClient[Res] {
+	mock := &MockSubmit_GetQueuesClient[Res]{ctrl: ctrl}
+	mock.recorder = &MockSubmit_GetQueuesClientMockRecorder[Res]{mock}
 	return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockSubmit_GetQueuesClient) EXPECT() *MockSubmit_GetQueuesClientMockRecorder {
+func (m *MockSubmit_GetQueuesClient[Res]) EXPECT() *MockSubmit_GetQueuesClientMockRecorder[Res] {
 	return m.recorder
 }
 
 // CloseSend mocks base method.
-func (m *MockSubmit_GetQueuesClient) CloseSend() error {
+func (m *MockSubmit_GetQueuesClient[Res]) CloseSend() error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CloseSend")
 	ret0, _ := ret[0].(error)
@@ -336,13 +337,13 @@ func (m *MockSubmit_GetQueuesClient) CloseSend() error {
 }
 
 // CloseSend indicates an expected call of CloseSend.
-func (mr *MockSubmit_GetQueuesClientMockRecorder) CloseSend() *gomock.Call {
+func (mr *MockSubmit_GetQueuesClientMockRecorder[Res]) CloseSend() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CloseSend", reflect.TypeOf((*MockSubmit_GetQueuesClient)(nil).CloseSend))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CloseSend", reflect.TypeOf((*MockSubmit_GetQueuesClient[Res])(nil).CloseSend))
 }
 
 // Context mocks base method.
-func (m *MockSubmit_GetQueuesClient) Context() context.Context {
+func (m *MockSubmit_GetQueuesClient[Res]) Context() context.Context {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Context")
 	ret0, _ := ret[0].(context.Context)
@@ -350,13 +351,13 @@ func (m *MockSubmit_GetQueuesClient) Context() context.Context {
 }
 
 // Context indicates an expected call of Context.
-func (mr *MockSubmit_GetQueuesClientMockRecorder) Context() *gomock.Call {
+func (mr *MockSubmit_GetQueuesClientMockRecorder[Res]) Context() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Context", reflect.TypeOf((*MockSubmit_GetQueuesClient)(nil).Context))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Context", reflect.TypeOf((*MockSubmit_GetQueuesClient[Res])(nil).Context))
 }
 
 // Header mocks base method.
-func (m *MockSubmit_GetQueuesClient) Header() (metadata.MD, error) {
+func (m *MockSubmit_GetQueuesClient[Res]) Header() (metadata.MD, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Header")
 	ret0, _ := ret[0].(metadata.MD)
@@ -365,13 +366,13 @@ func (m *MockSubmit_GetQueuesClient) Header() (metadata.MD, error) {
 }
 
 // Header indicates an expected call of Header.
-func (mr *MockSubmit_GetQueuesClientMockRecorder) Header() *gomock.Call {
+func (mr *MockSubmit_GetQueuesClientMockRecorder[Res]) Header() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Header", reflect.TypeOf((*MockSubmit_GetQueuesClient)(nil).Header))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Header", reflect.TypeOf((*MockSubmit_GetQueuesClient[Res])(nil).Header))
 }
 
 // Recv mocks base method.
-func (m *MockSubmit_GetQueuesClient) Recv() (*api.StreamingQueueMessage, error) {
+func (m *MockSubmit_GetQueuesClient[Res]) Recv() (*api.StreamingQueueMessage, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Recv")
 	ret0, _ := ret[0].(*api.StreamingQueueMessage)
@@ -380,13 +381,13 @@ func (m *MockSubmit_GetQueuesClient) Recv() (*api.StreamingQueueMessage, error) 
 }
 
 // Recv indicates an expected call of Recv.
-func (mr *MockSubmit_GetQueuesClientMockRecorder) Recv() *gomock.Call {
+func (mr *MockSubmit_GetQueuesClientMockRecorder[Res]) Recv() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Recv", reflect.TypeOf((*MockSubmit_GetQueuesClient)(nil).Recv))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Recv", reflect.TypeOf((*MockSubmit_GetQueuesClient[Res])(nil).Recv))
 }
 
 // RecvMsg mocks base method.
-func (m_2 *MockSubmit_GetQueuesClient) RecvMsg(m any) error {
+func (m_2 *MockSubmit_GetQueuesClient[Res]) RecvMsg(m any) error {
 	m_2.ctrl.T.Helper()
 	ret := m_2.ctrl.Call(m_2, "RecvMsg", m)
 	ret0, _ := ret[0].(error)
@@ -394,13 +395,13 @@ func (m_2 *MockSubmit_GetQueuesClient) RecvMsg(m any) error {
 }
 
 // RecvMsg indicates an expected call of RecvMsg.
-func (mr *MockSubmit_GetQueuesClientMockRecorder) RecvMsg(m any) *gomock.Call {
+func (mr *MockSubmit_GetQueuesClientMockRecorder[Res]) RecvMsg(m any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RecvMsg", reflect.TypeOf((*MockSubmit_GetQueuesClient)(nil).RecvMsg), m)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RecvMsg", reflect.TypeOf((*MockSubmit_GetQueuesClient[Res])(nil).RecvMsg), m)
 }
 
 // SendMsg mocks base method.
-func (m_2 *MockSubmit_GetQueuesClient) SendMsg(m any) error {
+func (m_2 *MockSubmit_GetQueuesClient[Res]) SendMsg(m any) error {
 	m_2.ctrl.T.Helper()
 	ret := m_2.ctrl.Call(m_2, "SendMsg", m)
 	ret0, _ := ret[0].(error)
@@ -408,13 +409,13 @@ func (m_2 *MockSubmit_GetQueuesClient) SendMsg(m any) error {
 }
 
 // SendMsg indicates an expected call of SendMsg.
-func (mr *MockSubmit_GetQueuesClientMockRecorder) SendMsg(m any) *gomock.Call {
+func (mr *MockSubmit_GetQueuesClientMockRecorder[Res]) SendMsg(m any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SendMsg", reflect.TypeOf((*MockSubmit_GetQueuesClient)(nil).SendMsg), m)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SendMsg", reflect.TypeOf((*MockSubmit_GetQueuesClient[Res])(nil).SendMsg), m)
 }
 
 // Trailer mocks base method.
-func (m *MockSubmit_GetQueuesClient) Trailer() metadata.MD {
+func (m *MockSubmit_GetQueuesClient[Res]) Trailer() metadata.MD {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Trailer")
 	ret0, _ := ret[0].(metadata.MD)
@@ -422,7 +423,7 @@ func (m *MockSubmit_GetQueuesClient) Trailer() metadata.MD {
 }
 
 // Trailer indicates an expected call of Trailer.
-func (mr *MockSubmit_GetQueuesClientMockRecorder) Trailer() *gomock.Call {
+func (mr *MockSubmit_GetQueuesClientMockRecorder[Res]) Trailer() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Trailer", reflect.TypeOf((*MockSubmit_GetQueuesClient)(nil).Trailer))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Trailer", reflect.TypeOf((*MockSubmit_GetQueuesClient[Res])(nil).Trailer))
 }

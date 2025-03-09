@@ -24,6 +24,7 @@ type Server struct {
 	publisher  pulsarutils.Publisher[*controlplaneevents.Event]
 	authorizer auth.ActionAuthorizer
 	clock      clock.Clock
+	api.UnimplementedExecutorServer
 }
 
 func New(

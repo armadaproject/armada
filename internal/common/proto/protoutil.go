@@ -3,8 +3,11 @@ package protoutil
 import (
 	"time"
 
-	"github.com/pkg/errors"
+	proto2 "github.com/golang/protobuf/proto"
 	"google.golang.org/protobuf/proto"
+
+	"github.com/pkg/errors"
+
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -60,6 +63,14 @@ func MarshallAndCompress(msg proto.Message, compressor compress.Compressor) ([]b
 // Think carefully if you intend to use this elsewhere
 func MustMarshall(msg proto.Message) []byte {
 	b, err := proto.Marshal(msg)
+	if err != nil {
+		panic(errors.Wrap(err, "Error marshalling object"))
+	}
+	return b
+}
+
+func MustMarshallProto2(msg proto2.Message) []byte {
+	b, err := proto2.Marshal(msg)
 	if err != nil {
 		panic(errors.Wrap(err, "Error marshalling object"))
 	}

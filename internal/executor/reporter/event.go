@@ -2,8 +2,9 @@ package reporter
 
 import (
 	"fmt"
-	"google.golang.org/protobuf/types/known/timestamppb"
 	"strconv"
+
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
