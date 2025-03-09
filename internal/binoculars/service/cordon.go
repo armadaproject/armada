@@ -47,7 +47,7 @@ func NewKubernetesCordonService(
 func (c *KubernetesCordonService) CordonNode(ctx *armadacontext.Context, request *binoculars.CordonRequest) error {
 	err := checkPermission(c.permissionChecker, ctx, permissions.CordonNodes)
 	if err != nil {
-		return status.Errorf(codes.PermissionDenied, err.Error())
+		return status.Error(codes.PermissionDenied, err.Error())
 	}
 
 	additionalLabels := templateLabels(c.config.AdditionalLabels, auth.GetPrincipal(ctx).GetName())
