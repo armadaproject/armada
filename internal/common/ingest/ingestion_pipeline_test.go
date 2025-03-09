@@ -5,8 +5,11 @@ import (
 	"testing"
 	"time"
 
+	"google.golang.org/protobuf/proto"
+
+	"google.golang.org/protobuf/proto"
+
 	"github.com/apache/pulsar-client-go/pulsar"
-	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -209,7 +212,7 @@ func (s *simpleEventSequenceConverter) Convert(_ *armadacontext.Context, msg *ut
 	for i, sequence := range msg.Events {
 		converted = append(converted, &simpleMessage{
 			id:   msg.MessageIds[i],
-			size: sequence.Size(),
+			size: proto.Size(sequence),
 		})
 	}
 	return &simpleMessages{
@@ -237,7 +240,7 @@ func (s *simpleControlPlaneEventConverter) Convert(_ *armadacontext.Context, msg
 	for i, sequence := range msg.Events {
 		converted = append(converted, &simpleMessage{
 			id:   msg.MessageIds[i],
-			size: sequence.Size(),
+			size: proto.Size(sequence),
 		})
 	}
 	return &simpleMessages{

@@ -1,7 +1,7 @@
 package jobdb
 
 import (
-	"github.com/gogo/protobuf/proto"
+	"github.com/golang/protobuf/proto"
 	"github.com/pkg/errors"
 
 	armadamath "github.com/armadaproject/armada/internal/common/math"
@@ -274,7 +274,6 @@ func (jobDb *JobDb) schedulerJobFromDatabaseJob(dbJob *database.Job) (*Job, erro
 		dbJob.JobSet,
 		dbJob.Queue,
 		uint32(dbJob.Priority),
-		dbJob.BidPrice,
 		schedulingInfo,
 		dbJob.Queued,
 		dbJob.QueuedVersion,

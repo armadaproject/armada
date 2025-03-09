@@ -3,11 +3,11 @@ package scheduleringester
 import (
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
@@ -164,11 +164,6 @@ func (c *JobSetEventsInstructionConverter) handleSubmitJob(job *armadaevents.Sub
 		return nil, err
 	}
 
-	bidPrice := 0.0
-	if job.ExperimentalPriceInfo != nil {
-		bidPrice = job.ExperimentalPriceInfo.BidPrice
-	}
-
 	return []DbOperation{InsertJobs{jobId: &schedulerdb.Job{
 		JobID:                 jobId,
 		JobSet:                meta.jobset,
@@ -179,7 +174,6 @@ func (c *JobSetEventsInstructionConverter) handleSubmitJob(job *armadaevents.Sub
 		QueuedVersion:         0,
 		Submitted:             submitTime.UnixNano(),
 		Priority:              int64(job.Priority),
-		BidPrice:              bidPrice,
 		SubmitMessage:         compressedSubmitJobBytes,
 		SchedulingInfo:        schedulingInfoBytes,
 		SchedulingInfoVersion: int32(schedulingInfo.Version),

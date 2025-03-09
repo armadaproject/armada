@@ -4,7 +4,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
+	"google.golang.org/protobuf/proto"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/utils/pointer"
 

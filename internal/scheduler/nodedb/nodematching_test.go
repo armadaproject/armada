@@ -3,12 +3,13 @@ package nodedb
 import (
 	"testing"
 
+	armadamaps "github.com/armadaproject/armada/internal/common/maps"
+
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 )
@@ -381,13 +382,16 @@ func TestNodeSchedulingRequirementsMet(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
+			resources := armadamaps.MapKeys(tc.req.ResourceRequirements.Requests, func(r v1.ResourceName) string {
+				return string(r)
+			})
 			matches, reason, err := JobRequirementsMet(
 				tc.node,
 				tc.priority,
 				// TODO(albin): Define a jctx in the test case instead.
 				&schedulercontext.JobSchedulingContext{
 					PodRequirements:                tc.req,
-					KubernetesResourceRequirements: testfixtures.TestResourceListFactory.FromJobResourceListIgnoreUnknown(schedulerobjects.ResourceListFromV1ResourceList(tc.req.ResourceRequirements.Requests).Resources),
+					KubernetesResourceRequirements: testfixtures.TestResourceListFactory.FromJobResourceListIgnoreUnknown(resources),
 				},
 			)
 			assert.NoError(t, err)
@@ -534,11 +538,14 @@ func TestNodeTypeSchedulingRequirementsMet(t *testing.T) {
 				tc.IndexedTaints,
 				tc.IndexedLabels,
 			)
+			resources := armadamaps.MapKeys(tc.Req.ResourceRequirements.Requests, func(r v1.ResourceName) string {
+				return string(r)
+			})
 			// TODO(albin): Define a jctx in the test case instead.
 			matches, reason := NodeTypeJobRequirementsMet(nodeType,
 				&schedulercontext.JobSchedulingContext{
 					PodRequirements:                tc.Req,
-					KubernetesResourceRequirements: testfixtures.TestResourceListFactory.FromJobResourceListIgnoreUnknown(schedulerobjects.ResourceListFromV1ResourceList(tc.Req.ResourceRequirements.Requests).Resources),
+					KubernetesResourceRequirements: testfixtures.TestResourceListFactory.FromJobResourceListIgnoreUnknown(resources),
 				},
 			)
 			if tc.ExpectSuccess {

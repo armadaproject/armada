@@ -35,10 +35,10 @@ func TestResolutionToScaleDefaultsCorrectly(t *testing.T) {
 
 func TestFromNodeProto(t *testing.T) {
 	factory := testFactory()
-	result := factory.FromNodeProto(map[string]k8sResource.Quantity{
-		"memory":  k8sResource.MustParse("100Mi"),
-		"cpu":     k8sResource.MustParse("9999999n"),
-		"missing": k8sResource.MustParse("200Mi"), // should ignore missing
+	result := factory.FromNodeProto(map[string]*k8sResource.Quantity{
+		"memory":  resourceFromString("100Mi"),
+		"cpu":     resourceFromString("9999999n"),
+		"missing": resourceFromString("200Mi"), // should ignore missing
 	})
 	assert.Equal(t, int64(100*1024*1024), testGet(&result, "memory"))
 	assert.Equal(t, int64(9), testGet(&result, "cpu"))
@@ -171,4 +171,9 @@ func testGetFraction(rfl *ResourceFractionList, name string) float64 {
 		return math.MinInt64
 	}
 	return val
+}
+
+func resourceFromString(s string) *k8sResource.Quantity {
+	qty := k8sResource.MustParse(s)
+	return &qty
 }

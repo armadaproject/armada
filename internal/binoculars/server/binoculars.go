@@ -4,7 +4,7 @@ import (
 	"context"
 	"strconv"
 
-	"github.com/gogo/protobuf/types"
+	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/armadaproject/armada/internal/binoculars/service"
 	"github.com/armadaproject/armada/internal/common"
@@ -16,6 +16,7 @@ import (
 type BinocularsServer struct {
 	logService    service.LogService
 	cordonService service.CordonService
+	binoculars.UnimplementedBinocularsServer
 }
 
 func NewBinocularsServer(logService service.LogService, cordonService service.CordonService) *BinocularsServer {
@@ -42,11 +43,11 @@ func (b *BinocularsServer) Logs(ctx context.Context, request *binoculars.LogRequ
 	return &binoculars.LogResponse{Log: logLines}, nil
 }
 
-func (b *BinocularsServer) Cordon(ctx context.Context, request *binoculars.CordonRequest) (*types.Empty, error) {
+func (b *BinocularsServer) Cordon(ctx context.Context, request *binoculars.CordonRequest) (*emptypb.Empty, error) {
 	err := b.cordonService.CordonNode(armadacontext.FromGrpcCtx(ctx), request)
 	if err != nil {
 		return nil, err
 	}
 
-	return &types.Empty{}, nil
+	return &emptypb.Empty{}, nil
 }
