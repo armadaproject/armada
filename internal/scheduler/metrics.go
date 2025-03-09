@@ -1,7 +1,6 @@
 package scheduler
 
 import (
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -21,6 +20,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/queue"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api"
 )
 
@@ -394,7 +394,7 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 
 					podRequirements := job.PodRequirements()
 					if podRequirements != nil {
-						jobRequirements := schedulerobjects.ResourceListFromV1ResourceList(podRequirements.ResourceRequirements.Requests)
+						jobRequirements := resource.FromResourceList(podRequirements.ResourceRequirements.Requests)
 						queueKey := queueMetricKey{
 							cluster:       executor.Id,
 							pool:          jobPool,
@@ -402,14 +402,13 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 							priorityClass: job.PriorityClassName(),
 							nodeType:      node.ReportingNodeType,
 						}
-						addToResourceListMap(allocatedResourceByQueue, queueKey, jobRequirements.ToComputeResources())
+						addToResourceListMap(allocatedResourceByQueue, queueKey, jobRequirements)
 
 						// If the job is running on its home pool, then remove the resources from all the away pools
 						if jobPool == nodePool {
-							schedulerobjects.ResourceListFromV1ResourceList(podRequirements.ResourceRequirements.Requests)
 							for _, awayClusterKey := range awayClusterKeys {
-								subtractFromResourceListMap(totalResourceByCluster, awayClusterKey, jobRequirements.ToComputeResources())
-								subtractFromResourceListMap(availableResourceByCluster, awayClusterKey, jobRequirements.ToComputeResources())
+								subtractFromResourceListMap(totalResourceByCluster, awayClusterKey, jobRequirements)
+								subtractFromResourceListMap(availableResourceByCluster, awayClusterKey, jobRequirements)
 							}
 						}
 					}
