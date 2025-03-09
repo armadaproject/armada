@@ -119,18 +119,6 @@ func TestResourceListEqual(t *testing.T) {
 	}
 }
 
-func TestResourceListZero(t *testing.T) {
-	rl := ResourceList{
-		Resources: map[string]resource.Quantity{
-			"foo": resource.MustParse("1"),
-			"bar": resource.MustParse("10Gi"),
-			"baz": resource.MustParse("0"),
-		},
-	}
-	rl.Zero()
-	assert.True(t, rl.Equal(ResourceList{}))
-}
-
 func TestV1ResourceListConversion(t *testing.T) {
 	rl := ResourceList{
 		Resources: map[string]resource.Quantity{

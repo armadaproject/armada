@@ -3,19 +3,13 @@ package schedulerobjects
 import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
-)
 
-// Most jobs specify 3 or fewer resources. We add 1 extra for margin.
-const resourceListDefaultSize = 4
+	resource2 "github.com/armadaproject/armada/internal/common/resource"
+)
 
 // NewResourceList returns a new ResourceList, where the backing map has initial capacity n.
 func NewResourceList(n int) ResourceList {
 	return ResourceList{Resources: make(map[string]resource.Quantity, n)}
-}
-
-// NewResourceListWithDefaultSize returns a new ResourceList, where the backing map has default initial capacity.
-func NewResourceListWithDefaultSize() ResourceList {
-	return ResourceList{Resources: make(map[string]resource.Quantity, resourceListDefaultSize)}
 }
 
 func ResourceListFromV1ResourceList(rl v1.ResourceList) ResourceList {
@@ -38,12 +32,6 @@ func V1ResourceListFromResourceList(rl ResourceList) v1.ResourceList {
 
 type QuantityByTAndResourceType[T comparable] map[T]ResourceList
 
-func (a QuantityByTAndResourceType[T]) AddResourceList(t T, rlb ResourceList) {
-	rla := a[t]
-	rla.Add(rlb)
-	a[t] = rla
-}
-
 func (rl *ResourceList) Get(resourceType string) resource.Quantity {
 	return rl.Resources[resourceType]
 }
@@ -60,31 +48,6 @@ func (a *ResourceList) Add(b ResourceList) {
 		qa.Add(qb)
 		a.Resources[t] = qa
 	}
-}
-
-func (a *ResourceList) AddV1ResourceList(b v1.ResourceList) {
-	a.initialise()
-	for t, qb := range b {
-		qa := a.Resources[string(t)]
-		qa.Add(qb)
-		a.Resources[string(t)] = qa
-	}
-}
-
-func (a *ResourceList) SubV1ResourceList(b v1.ResourceList) {
-	a.initialise()
-	for t, qb := range b {
-		qa := a.Resources[string(t)]
-		qa.Sub(qb)
-		a.Resources[string(t)] = qa
-	}
-}
-
-func (rl *ResourceList) AddQuantity(resourceType string, quantity resource.Quantity) {
-	rl.initialise()
-	q := rl.Resources[resourceType]
-	q.Add(quantity)
-	rl.Resources[resourceType] = q
 }
 
 func (a *ResourceList) Sub(b ResourceList) {
@@ -109,14 +72,6 @@ func (rl ResourceList) DeepCopy() ResourceList {
 	return rv
 }
 
-// Zero zeroes out rl in-place, such that all quantities have value 0.
-func (rl ResourceList) Zero() {
-	for t, q := range rl.Resources {
-		q.Set(0)
-		rl.Resources[t] = q
-	}
-}
-
 func (a ResourceList) Equal(b ResourceList) bool {
 	for t, qa := range a.Resources {
 		if qa.Cmp(b.Get(t)) != 0 {
@@ -135,6 +90,11 @@ func (rl *ResourceList) initialise() {
 	if rl.Resources == nil {
 		rl.Resources = make(map[string]resource.Quantity)
 	}
+}
+
+func (rl ResourceList) ToComputeResources() resource2.ComputeResources {
+	cpy := rl.DeepCopy()
+	return cpy.Resources
 }
 
 // AllocatableByPriorityAndResourceType accounts for resources that can be allocated to pods of a given priority.

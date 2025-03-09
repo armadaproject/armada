@@ -1,9 +1,11 @@
 package schedulerobjects
 
-func (node *Node) AvailableArmadaResource() ResourceList {
-	tr := node.TotalResources.DeepCopy()
+import "github.com/armadaproject/armada/internal/common/resource"
+
+func (node *Node) AvailableArmadaResource() resource.ComputeResources {
+	cr := node.TotalResources.ToComputeResources()
 	for _, rl := range node.UnallocatableResources {
-		tr.Sub(rl)
+		cr.Sub(rl.ToComputeResources())
 	}
-	return tr
+	return cr
 }
