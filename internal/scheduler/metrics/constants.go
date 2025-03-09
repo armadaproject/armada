@@ -30,4 +30,6 @@ const (
 	preempted = "preempted"
 	failed    = "failed"
 	succeeded = "succeeded"
+
+	noCheckpointLabelValue = "none"
 )

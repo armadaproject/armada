@@ -13,8 +13,6 @@ import (
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
-const noCheckpointLabelValue = "none"
-
 type jobStateMetrics struct {
 	errorRegexes           []*regexp.Regexp
 	resetInterval          time.Duration
@@ -23,17 +21,17 @@ type jobStateMetrics struct {
 	enabled                bool
 	trackedResourceNames   []v1.ResourceName
 
-	completedRunDurations             *prometheus.HistogramVec
-	jobStateCounterByQueue            *prometheus.CounterVec
-	jobStateCounterByNode             *prometheus.CounterVec
-	jobStateSecondsByQueue            *prometheus.CounterVec
-	jobStateSecondsByNode             *prometheus.CounterVec
-	jobStateResourceSecondsByQueue    *prometheus.CounterVec
-	jobStateResourceSecondsByNode     *prometheus.CounterVec
-	jobErrorsByQueue                  *prometheus.CounterVec
-	jobErrorsByNode                   *prometheus.CounterVec
-	jobSecondsLostToPreemptionByQueue *prometheus.CounterVec
-	allMetrics                        []resettableMetric
+	completedRunDurations                     *prometheus.HistogramVec
+	jobStateCounterByQueue                    *prometheus.CounterVec
+	jobStateCounterByNode                     *prometheus.CounterVec
+	jobStateSecondsByQueue                    *prometheus.CounterVec
+	jobStateSecondsByNode                     *prometheus.CounterVec
+	jobStateResourceSecondsByQueue            *prometheus.CounterVec
+	jobStateResourceSecondsByNode             *prometheus.CounterVec
+	jobErrorsByQueue                          *prometheus.CounterVec
+	jobErrorsByNode                           *prometheus.CounterVec
+	jobResourceSecondsLostToPreemptionByQueue *prometheus.CounterVec
+	allMetrics                                []resettableMetric
 }
 
 func newJobStateMetrics(
@@ -106,30 +104,30 @@ func newJobStateMetrics(
 		},
 		[]string{nodeLabel, poolLabel, clusterLabel, errorCategoryLabel, errorSubcategoryLabel},
 	)
-	jobSecondsLostToPreemptionByQueue := prometheus.NewCounterVec(
+	jobResourceSecondsLostToPreemptionByQueue := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: prefix + "job_seconds_lost_to_preemption",
-			Help: "Seconds lost to preemption",
+			Name: prefix + "job_resource_seconds_lost_to_preemption",
+			Help: "Resource seconds lost to preemption",
 		},
-		[]string{queueLabel, poolLabel, checkpointLabel},
+		[]string{queueLabel, poolLabel, checkpointLabel, resourceLabel},
 	)
 	return &jobStateMetrics{
-		errorRegexes:                      errorRegexes,
-		trackedResourceNames:              trackedResourceNames,
-		jobCheckpointIntervals:            jobCheckpointIntervals,
-		resetInterval:                     resetInterval,
-		lastResetTime:                     time.Now(),
-		enabled:                           true,
-		completedRunDurations:             completedRunDurations,
-		jobStateCounterByQueue:            jobStateCounterByQueue,
-		jobStateCounterByNode:             jobStateCounterByNode,
-		jobStateSecondsByQueue:            jobStateSecondsByQueue,
-		jobStateSecondsByNode:             jobStateSecondsByNode,
-		jobStateResourceSecondsByQueue:    jobStateResourceSecondsByQueue,
-		jobStateResourceSecondsByNode:     jobStateResourceSecondsByNode,
-		jobErrorsByQueue:                  jobErrorsByQueue,
-		jobErrorsByNode:                   jobErrorsByNode,
-		jobSecondsLostToPreemptionByQueue: jobSecondsLostToPreemptionByQueue,
+		errorRegexes:                              errorRegexes,
+		trackedResourceNames:                      trackedResourceNames,
+		jobCheckpointIntervals:                    jobCheckpointIntervals,
+		resetInterval:                             resetInterval,
+		lastResetTime:                             time.Now(),
+		enabled:                                   true,
+		completedRunDurations:                     completedRunDurations,
+		jobStateCounterByQueue:                    jobStateCounterByQueue,
+		jobStateCounterByNode:                     jobStateCounterByNode,
+		jobStateSecondsByQueue:                    jobStateSecondsByQueue,
+		jobStateSecondsByNode:                     jobStateSecondsByNode,
+		jobStateResourceSecondsByQueue:            jobStateResourceSecondsByQueue,
+		jobStateResourceSecondsByNode:             jobStateResourceSecondsByNode,
+		jobErrorsByQueue:                          jobErrorsByQueue,
+		jobErrorsByNode:                           jobErrorsByNode,
+		jobResourceSecondsLostToPreemptionByQueue: jobResourceSecondsLostToPreemptionByQueue,
 		allMetrics: []resettableMetric{
 			completedRunDurations,
 			jobStateCounterByQueue,
@@ -140,7 +138,7 @@ func newJobStateMetrics(
 			jobStateResourceSecondsByNode,
 			jobErrorsByQueue,
 			jobErrorsByNode,
-			jobSecondsLostToPreemptionByQueue,
+			jobResourceSecondsLostToPreemptionByQueue,
 		},
 	}
 }
@@ -179,10 +177,22 @@ func (m *jobStateMetrics) ReportJobPreempted(job *jobdb.Job) {
 	run := job.LatestRun()
 	duration, priorState := stateDuration(job, run, run.PreemptedTime())
 	m.updateStateDuration(job, preempted, priorState, duration)
-	m.jobSecondsLostToPreemptionByQueue.WithLabelValues(job.Queue(), run.Pool(), noCheckpointLabelValue).Add(duration)
+	m.recordPreemptedSecondsLost(job, duration, noCheckpointLabelValue)
 	for _, checkpointDuration := range m.jobCheckpointIntervals {
 		timeSinceCheckpoint := math.Min(duration, checkpointDuration.Seconds())
-		m.jobSecondsLostToPreemptionByQueue.WithLabelValues(job.Queue(), run.Pool(), durationToShortString(checkpointDuration)).Add(timeSinceCheckpoint)
+		m.recordPreemptedSecondsLost(job, timeSinceCheckpoint, durationToShortString(checkpointDuration))
+	}
+}
+
+func (m *jobStateMetrics) recordPreemptedSecondsLost(job *jobdb.Job, duration float64, checkpointLabel string) {
+	run := job.LatestRun()
+	requests := job.AllResourceRequirements()
+
+	for _, res := range m.trackedResourceNames {
+		resQty := requests.GetResourceByNameZeroIfMissing(string(res))
+		resSeconds := duration * float64(resQty.MilliValue()) / 1000
+		m.jobResourceSecondsLostToPreemptionByQueue.
+			WithLabelValues(job.Queue(), run.Pool(), checkpointLabel, res.String()).Add(resSeconds)
 	}
 }
 
