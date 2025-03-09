@@ -90,7 +90,6 @@ func AirflowOperator() error {
 		return err
 	}
 	err = dockerBuildImage(NewDockerBuildConfig(buildConfig.PythonBuilderBaseImage), "armada-airflow-operator-builder", "./build/airflow-operator/Dockerfile")
-
 	if err != nil {
 		return fmt.Errorf("failed to build Airflow Operator: %w", err)
 	}
