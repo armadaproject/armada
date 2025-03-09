@@ -222,7 +222,6 @@ func (c *MetricsCollector) updateQueueMetrics(ctx *armadacontext.Context) ([]pro
 		for _, pool := range pools {
 			recorder.RecordJobRuntime(pool, priorityClass, timeInState)
 			recorder.RecordResources(pool, priorityClass, jobResources)
-			recorder.RecordBidPrice(pool, priorityClass, job.BidPrice())
 		}
 	}
 

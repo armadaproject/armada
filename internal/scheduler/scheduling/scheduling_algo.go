@@ -2,7 +2,6 @@ package scheduling
 
 import (
 	"context"
-	"math"
 	"time"
 
 	"github.com/pkg/errors"
@@ -568,7 +567,6 @@ func (l *FairSchedulingAlgo) SchedulePool(
 		fsctx.nodeIdByJobId,
 		fsctx.jobIdsByGangId,
 		fsctx.gangIdByJobId,
-		pool.MarketDriven,
 		shouldRunOptimiser,
 	)
 
@@ -614,18 +612,11 @@ func (l *FairSchedulingAlgo) SchedulePool(
 			WithNewRun(node.GetExecutor(), node.GetId(), node.GetName(), pool.Name, priority)
 	}
 
-	// set spot price
-	if pool.MarketDriven {
-		fractionAllocated := fsctx.schedulingContext.FairnessCostProvider.UnweightedCostFromAllocation(fsctx.schedulingContext.Allocated)
-		price := l.calculateMarketDrivenSpotPrice(maps.Keys(fsctx.nodeIdByJobId), result.ScheduledJobs, result.PreemptedJobs, fractionAllocated, fsctx.Txn)
-		fsctx.schedulingContext.SpotPrice = price
-	} else {
-		for _, priority := range l.schedulingConfig.ExperimentalIndicativeShare.BasePriorities {
-			fsctx.schedulingContext.ExperimentalIndicativeShares[priority] = fsctx.schedulingContext.CalculateTheoreticalShare(float64(priority))
-		}
-		price := l.calculateFairShareDrivenSpotPrice(fsctx.schedulingContext, l.schedulingConfig.ExperimentalIndicativePricing.BasePrice, l.schedulingConfig.ExperimentalIndicativePricing.BasePriority)
-		fsctx.schedulingContext.SpotPrice = price
+	for _, priority := range l.schedulingConfig.ExperimentalIndicativeShare.BasePriorities {
+		fsctx.schedulingContext.ExperimentalIndicativeShares[priority] = fsctx.schedulingContext.CalculateTheoreticalShare(float64(priority))
 	}
+	price := l.calculateFairShareDrivenSpotPrice(fsctx.schedulingContext, l.schedulingConfig.ExperimentalIndicativePricing.BasePrice, l.schedulingConfig.ExperimentalIndicativePricing.BasePriority)
+	fsctx.schedulingContext.SpotPrice = price
 	return result, fsctx.schedulingContext, nil
 }
 
@@ -777,42 +768,6 @@ func (l *FairSchedulingAlgo) filterLaggingExecutors(
 		}
 	}
 	return activeExecutors
-}
-
-func (l *FairSchedulingAlgo) calculateMarketDrivenSpotPrice(initialRunningJobIds []string, scheduledJobs, preemptedJobs []*schedulercontext.JobSchedulingContext, fractionAllocated float64, txn *jobdb.Txn) float64 {
-	// If we've allocated less that 95% of available resources then we don't charge.
-	// TODO: make this configurable
-	if fractionAllocated < 0.95 {
-		return 0.0
-	}
-
-	allRunningJobIds := make(map[string]bool, len(initialRunningJobIds))
-	for _, jobId := range initialRunningJobIds {
-		allRunningJobIds[jobId] = true
-	}
-
-	for _, scheduledJob := range scheduledJobs {
-		allRunningJobIds[scheduledJob.JobId] = true
-	}
-
-	for _, preemptedJob := range preemptedJobs {
-		delete(allRunningJobIds, preemptedJob.JobId)
-	}
-
-	// Find the minimum bid price among running jobs
-	minPrice := math.MaxFloat64
-	for jobId := range allRunningJobIds {
-		job := txn.GetById(jobId)
-		if job != nil && job.BidPrice() < minPrice {
-			minPrice = job.BidPrice()
-		}
-	}
-
-	// Return the lowest bid price, or 0 if no valid price was found
-	if minPrice == math.MaxFloat64 {
-		return 0.0
-	}
-	return minPrice
 }
 
 func (l *FairSchedulingAlgo) calculateFairShareDrivenSpotPrice(sctx *schedulercontext.SchedulingContext, basePrice float64, basePriority float64) float64 {

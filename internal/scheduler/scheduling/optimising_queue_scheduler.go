@@ -24,7 +24,6 @@ type OptimisingQueueScheduler struct {
 	maximumJobsToSchedule             int
 	maximumResourceFractionToSchedule map[string]float64
 	prioritiseLargerJobs              bool
-	marketDriven                      bool
 }
 
 func NewOptimisingQueueScheduler(
@@ -34,7 +33,6 @@ func NewOptimisingQueueScheduler(
 	floatingResourceTypes *floatingresources.FloatingResourceTypes,
 	maxQueueLookBack uint,
 	prioritiseLargerJobs bool,
-	marketDriven bool,
 	minimumJobSizeToSchedule *internaltypes.ResourceList,
 	maximumJobsToSchedule int,
 	maximumResourceFractionToSchedule map[string]float64,
@@ -44,7 +42,6 @@ func NewOptimisingQueueScheduler(
 		jobDb:                             jobDb,
 		maxQueueLookBack:                  maxQueueLookBack,
 		prioritiseLargerJobs:              prioritiseLargerJobs,
-		marketDriven:                      marketDriven,
 		constraints:                       constraints,
 		floatingResourceTypes:             floatingResourceTypes,
 		minimumJobSizeToSchedule:          minimumJobSizeToSchedule,
@@ -211,7 +208,7 @@ func (q *OptimisingQueueScheduler) createCandidateGangIterator(
 		if actualShare >= qctx.DemandCappedAdjustedFairShare {
 			continue
 		}
-		queueIt := NewQueuedJobsIterator(ctx, qctx.Queue, sctx.Pool, q.jobDb, jobdb.FairShareOrder)
+		queueIt := NewQueuedJobsIterator(ctx, qctx.Queue, sctx.Pool, q.jobDb)
 		jobIteratorByQueue[qctx.Queue] = queueIt
 	}
 
@@ -220,13 +217,7 @@ func (q *OptimisingQueueScheduler) createCandidateGangIterator(
 		gangIteratorsByQueue[queue] = NewQueuedGangIterator(sctx, it, q.maxQueueLookBack, true)
 	}
 
-	var candidateGangIterator CandidateGangIterator
-	var err error
-	if q.marketDriven {
-		candidateGangIterator, err = NewMarketCandidateGangIterator(sctx.Pool, sctx, gangIteratorsByQueue)
-	} else {
-		candidateGangIterator, err = NewCostBasedCandidateGangIterator(sctx.Pool, sctx, sctx.FairnessCostProvider, gangIteratorsByQueue, false, q.prioritiseLargerJobs)
-	}
+	candidateGangIterator, err := NewCostBasedCandidateGangIterator(sctx.Pool, sctx, sctx.FairnessCostProvider, gangIteratorsByQueue, false, q.prioritiseLargerJobs)
 	if err != nil {
 		return nil, err
 	}
