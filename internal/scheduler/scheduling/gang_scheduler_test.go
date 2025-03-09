@@ -388,7 +388,7 @@ func TestGangScheduler(t *testing.T) {
 				testfixtures.WithGangAnnotationsJobs(
 					testfixtures.WithNodeUniformityLabelAnnotationJobs(
 						"my-cool-node-uniformity",
-						testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 3),
+						testfixtures.N32Cpu256GiJobsWithLargeJobToleration("A", testfixtures.PriorityClass0, 3),
 					),
 				),
 			},
@@ -501,9 +501,9 @@ func TestGangScheduler(t *testing.T) {
 			),
 			Gangs: func() (gangs [][]*jobdb.Job) {
 				jobId := util.ULID()
-				gangs = append(gangs, []*jobdb.Job{testfixtures.TestJob("A", jobId, "armada-preemptible-away", testfixtures.Test32Cpu256GiPodReqs("A", jobId, 30000))})
+				gangs = append(gangs, []*jobdb.Job{testfixtures.TestJob("A", jobId, "armada-preemptible-away", testfixtures.Test32Cpu256GiWithLargeJobTolerationPodReqs("A", jobId, 30000))})
 				jobId = util.ULID()
-				gangs = append(gangs, []*jobdb.Job{testfixtures.TestJob("A", jobId, "armada-preemptible-away", testfixtures.Test32Cpu256GiPodReqs("A", jobId, 30000))})
+				gangs = append(gangs, []*jobdb.Job{testfixtures.TestJob("A", jobId, "armada-preemptible-away", testfixtures.Test32Cpu256GiWithLargeJobTolerationPodReqs("A", jobId, 30000))})
 				return
 			}(),
 			ExpectedScheduledIndices:               []int{0},
