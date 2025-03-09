@@ -19,7 +19,7 @@ env:
   # To use a builder other than "default", set this variable.
   # Necessary for, e.g., GitHub actions cache integration.
   - DOCKER_BUILDX_BUILDER={{ if index .Env "DOCKER_BUILDX_BUILDER"  }}{{ .Env.DOCKER_BUILDX_BUILDER }}{{ else }}default{{ end }}
-  - GOVERSION={{ if index .Env "GOVERSION"  }}{{ .Env.GOVERSION }}{{ else }}go1.23{{ end }}
+  - GOVERSION={{ if index .Env "GOVERSION"  }}{{ .Env.GOVERSION }}{{ else }}go1.24{{ end }}
 
 builds:
   - env: [CGO_ENABLED=0]
@@ -186,7 +186,7 @@ dockers:
       - --label=org.opencontainers.image.version={{ .Version }}
       - --label=org.opencontainers.image.created={{ time "2006-01-02T15:04:05Z07:00" }}
       - --label=org.opencontainers.image.revision={{ .FullCommit }}
-      - --label=org.opencontainers.image.base.name=alpine:3.21.0
+      - --label=org.opencontainers.image.base.name=alpine:3.21.3
       - --label=org.opencontainers.image.licenses=Apache-2.0
       - --label=org.opencontainers.image.vendor=G-Research
     ids:

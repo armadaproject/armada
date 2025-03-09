@@ -122,7 +122,7 @@ func go_CMD() ([]string, error) {
 		"GARCH=amd64",
 		"-v",
 		fmt.Sprintf("%s:/go", DOCKER_GOPATH_DIR),
-		"golang:1.23-bookworm",
+		"golang:1.24-bookworm",
 	}, nil
 }
 
