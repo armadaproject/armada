@@ -30,8 +30,6 @@ type Job struct {
 	jobSet string
 	// Per-queue priority of this job.
 	priority uint32
-	// BidPrice the user is willing to pay to have this job scheduled
-	bidPrice float64
 	// Requested per queue priority of this job.
 	// This is used when syncing the postgres database with the scheduler-internal database.
 	requestedPriority uint32
@@ -297,9 +295,6 @@ func (job *Job) Equal(other *Job) bool {
 	if job.priority != other.priority {
 		return false
 	}
-	if job.bidPrice != other.bidPrice {
-		return false
-	}
 	if job.requestedPriority != other.requestedPriority {
 		return false
 	}
@@ -381,11 +376,6 @@ func (job *Job) Priority() uint32 {
 	return job.priority
 }
 
-// BidPrice returns the bidPrice of the job.
-func (job *Job) BidPrice() float64 {
-	return job.bidPrice
-}
-
 // PriorityClass returns the priority class of the job.
 func (job *Job) PriorityClass() types.PriorityClass {
 	return job.priorityClass
@@ -418,13 +408,6 @@ func (job *Job) Pools() []string {
 func (job *Job) WithPriority(priority uint32) *Job {
 	j := copyJob(*job)
 	j.priority = priority
-	return j
-}
-
-// WithBidPrice returns a copy of the job with the bidPrice updated.
-func (job *Job) WithBidPrice(price float64) *Job {
-	j := copyJob(*job)
-	j.bidPrice = price
 	return j
 }
 

@@ -222,7 +222,6 @@ func TestOptimisingQueueScheduler_Schedule(t *testing.T) {
 				testfixtures.TestEmptyFloatingResources,
 				tc.SchedulingConfig.MaxQueueLookback,
 				tc.SchedulingConfig.EnablePreferLargeJobOrdering,
-				false,
 				minimumJobSizeToSchedule,
 				poolConfig.ExperimentalOptimiser.MaximumJobsPerRound,
 				poolConfig.ExperimentalOptimiser.MaximumResourceFractionToSchedule)

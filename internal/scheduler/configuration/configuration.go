@@ -286,7 +286,6 @@ type PoolConfig struct {
 	Name                                         string `validate:"required"`
 	AwayPools                                    []string
 	ProtectedFractionOfFairShare                 *float64
-	MarketDriven                                 bool
 	ExperimentalProtectUncappedAdjustedFairShare bool
 	ExperimentalOptimiser                        *OptimiserConfig
 }
