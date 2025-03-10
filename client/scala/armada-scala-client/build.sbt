@@ -1,4 +1,4 @@
-val scala2Version = "2.13.15"
+val scala2Version = "2.13.16"
 
 lazy val root = project
   .in(file("."))
@@ -20,7 +20,7 @@ Compile / PB.targets := Seq(
 Compile / PB.protoSources ++= Seq(file("./proto"))
 
 libraryDependencies ++= Seq(
-    "io.grpc" % "grpc-netty" % scalapb.compiler.Version.grpcJavaVersion,
+    "io.grpc" % "grpc-netty" % "1.71.0",
     "com.thesamet.scalapb" %% "scalapb-runtime-grpc" % scalapb.compiler.Version.scalapbVersion,
     "com.github.jkugiya" %% "ulid-scala" % "1.0.5"
 )
