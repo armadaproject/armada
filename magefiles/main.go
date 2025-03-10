@@ -214,7 +214,7 @@ func LocalDev(arg string) error {
 	case "minimal":
 		mg.Deps(mg.F(goreleaserMinimalRelease, "bundle", "lookout-bundle"), Kind, downloadDependencyImages)
 	case "full":
-		mg.Deps(BuildPython, BuildScala, mg.F(BuildDockers, "bundle, lookout-bundle"), Kind, downloadDependencyImages)
+		mg.Deps(BuildPython, BuildScala, BuildJava, mg.F(BuildDockers, "bundle, lookout-bundle"), Kind, downloadDependencyImages)
 	case "no-build", "debug":
 		mg.Deps(Kind, downloadDependencyImages)
 	default:
