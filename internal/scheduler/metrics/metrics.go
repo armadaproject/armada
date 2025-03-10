@@ -21,7 +21,7 @@ type resettableMetric interface {
 	Reset()
 }
 
-func New(errorRegexes []string, trackedResourceNames []v1.ResourceName, jobStateMetricsResetInterval time.Duration) (*Metrics, error) {
+func New(errorRegexes []string, trackedResourceNames []v1.ResourceName, jobCheckpointIntervals []time.Duration, jobStateMetricsResetInterval time.Duration) (*Metrics, error) {
 	compiledErrorRegexes := make([]*regexp.Regexp, len(errorRegexes))
 	for i, errorRegex := range errorRegexes {
 		if r, err := regexp.Compile(errorRegex); err != nil {
@@ -32,7 +32,7 @@ func New(errorRegexes []string, trackedResourceNames []v1.ResourceName, jobState
 	}
 	return &Metrics{
 		cycleMetrics:    newCycleMetrics(),
-		jobStateMetrics: newJobStateMetrics(compiledErrorRegexes, trackedResourceNames, jobStateMetricsResetInterval),
+		jobStateMetrics: newJobStateMetrics(compiledErrorRegexes, trackedResourceNames, jobCheckpointIntervals, jobStateMetricsResetInterval),
 	}, nil
 }
 

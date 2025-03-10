@@ -114,7 +114,7 @@ var (
 	}
 	schedulingInfoWithUpdatedPriorityBytes = protoutil.MustMarshall(schedulingInfoWithUpdatedPriority)
 
-	schedulerMetrics, _ = metrics.New(nil, nil, 12*time.Hour)
+	schedulerMetrics, _ = metrics.New(nil, nil, []time.Duration{}, 12*time.Hour)
 )
 
 var queuedJob = testfixtures.NewJob(

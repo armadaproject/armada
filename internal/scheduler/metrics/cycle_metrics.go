@@ -16,10 +16,12 @@ import (
 )
 
 var (
-	poolLabels                  = []string{poolLabel}
-	poolAndQueueLabels          = []string{poolLabel, queueLabel}
-	queueAndPriorityClassLabels = []string{queueLabel, priorityClassLabel}
-	poolQueueAndResourceLabels  = []string{poolLabel, queueLabel, resourceLabel}
+	poolLabels                             = []string{poolLabel}
+	poolAndPriorityLabels                  = []string{poolLabel, priorityLabel}
+	poolAndQueueLabels                     = []string{poolLabel, queueLabel}
+	poolAndQueueAndPriorityClassTypeLabels = []string{poolLabel, queueLabel, priorityClassLabel, typeLabel}
+	poolQueueAndResourceLabels             = []string{poolLabel, queueLabel, resourceLabel}
+	defaultType                            = "unknown"
 )
 
 type perCycleMetrics struct {
@@ -42,6 +44,7 @@ type perCycleMetrics struct {
 	evictedJobs                  *prometheus.GaugeVec
 	evictedResources             *prometheus.GaugeVec
 	spotPrice                    *prometheus.GaugeVec
+	indicativeShare              *prometheus.GaugeVec
 	nodePreemptibility           *prometheus.GaugeVec
 	protectedFractionOfFairShare *prometheus.GaugeVec
 	nodeAllocatableResource      *prometheus.GaugeVec
@@ -201,6 +204,14 @@ func newPerCycleMetrics() *perCycleMetrics {
 		poolLabels,
 	)
 
+	indicativeShare := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: prefix + "indicative_share",
+			Help: "indicative share for some priority in the given pool",
+		},
+		poolAndPriorityLabels,
+	)
+
 	nodePreemptibility := prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: prefix + "node_preemptibility",
@@ -253,6 +264,7 @@ func newPerCycleMetrics() *perCycleMetrics {
 		evictedJobs:                  evictedJobs,
 		evictedResources:             evictedResources,
 		spotPrice:                    spotPrice,
+		indicativeShare:              indicativeShare,
 		nodePreemptibility:           nodePreemptibility,
 		protectedFractionOfFairShare: protectedFractionOfFairShare,
 		nodeAllocatableResource:      nodeAllocatableResource,
@@ -276,7 +288,7 @@ func newCycleMetrics() *cycleMetrics {
 			Name: prefix + "scheduled_jobs",
 			Help: "Number of events scheduled",
 		},
-		queueAndPriorityClassLabels,
+		poolAndQueueAndPriorityClassTypeLabels,
 	)
 
 	premptedJobs := prometheus.NewCounterVec(
@@ -284,7 +296,7 @@ func newCycleMetrics() *cycleMetrics {
 			Name: prefix + "preempted_jobs",
 			Help: "Number of jobs preempted",
 		},
-		queueAndPriorityClassLabels,
+		poolAndQueueAndPriorityClassTypeLabels,
 	)
 
 	scheduleCycleTime := prometheus.NewHistogram(
@@ -361,14 +373,9 @@ func (m *cycleMetrics) ReportSchedulerResult(result scheduling.SchedulerResult) 
 		}
 		currentCycle.fairnessError.WithLabelValues(pool).Set(schedContext.FairnessError())
 		currentCycle.spotPrice.WithLabelValues(pool).Set(schedContext.SpotPrice)
-	}
-
-	for _, jobCtx := range result.ScheduledJobs {
-		m.scheduledJobs.WithLabelValues(jobCtx.Job.Queue(), jobCtx.PriorityClassName).Inc()
-	}
-
-	for _, jobCtx := range result.PreemptedJobs {
-		m.premptedJobs.WithLabelValues(jobCtx.Job.Queue(), jobCtx.PriorityClassName).Inc()
+		for priority, share := range schedContext.ExperimentalIndicativeShares {
+			currentCycle.indicativeShare.WithLabelValues(pool, strconv.Itoa(priority)).Set(share)
+		}
 	}
 
 	for pool, schedulingStats := range result.PerPoolSchedulingStats {
@@ -378,6 +385,22 @@ func (m *cycleMetrics) ReportSchedulerResult(result scheduling.SchedulerResult) 
 			currentCycle.firstGangQueuePosition.WithLabelValues(pool, queue).Set(float64(s.FirstGangConsideredQueuePosition))
 			currentCycle.lastGangQueuePosition.WithLabelValues(pool, queue).Set(float64(s.LastGangScheduledQueuePosition))
 			currentCycle.perQueueCycleTime.WithLabelValues(pool, queue).Set(float64(s.Time.Milliseconds()))
+		}
+
+		for _, jobCtx := range schedulingStats.ScheduledJobs {
+			schedulingType := defaultType
+			if jobCtx.PodSchedulingContext != nil && jobCtx.PodSchedulingContext.SchedulingMethod != "" {
+				schedulingType = string(jobCtx.PodSchedulingContext.SchedulingMethod)
+			}
+			m.scheduledJobs.WithLabelValues(pool, jobCtx.Job.Queue(), jobCtx.PriorityClassName, schedulingType).Inc()
+		}
+
+		for _, jobCtx := range schedulingStats.PreemptedJobs {
+			preemptionType := defaultType
+			if jobCtx.PreemptionType != "" {
+				preemptionType = string(jobCtx.PreemptionType)
+			}
+			m.premptedJobs.WithLabelValues(pool, jobCtx.Job.Queue(), jobCtx.PriorityClassName, preemptionType).Inc()
 		}
 
 		currentCycle.loopNumber.WithLabelValues(pool).Set(float64(schedulingStats.LoopNumber))
@@ -449,6 +472,7 @@ func (m *cycleMetrics) describe(ch chan<- *prometheus.Desc) {
 		currentCycle.evictedJobs.Describe(ch)
 		currentCycle.evictedResources.Describe(ch)
 		currentCycle.spotPrice.Describe(ch)
+		currentCycle.indicativeShare.Describe(ch)
 		currentCycle.nodePreemptibility.Describe(ch)
 		currentCycle.protectedFractionOfFairShare.Describe(ch)
 		currentCycle.nodeAllocatableResource.Describe(ch)
@@ -484,6 +508,7 @@ func (m *cycleMetrics) collect(ch chan<- prometheus.Metric) {
 		currentCycle.evictedJobs.Collect(ch)
 		currentCycle.evictedResources.Collect(ch)
 		currentCycle.spotPrice.Collect(ch)
+		currentCycle.indicativeShare.Collect(ch)
 		currentCycle.nodePreemptibility.Collect(ch)
 		currentCycle.protectedFractionOfFairShare.Collect(ch)
 		currentCycle.nodeAllocatableResource.Collect(ch)

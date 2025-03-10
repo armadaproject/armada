@@ -217,6 +217,7 @@ func (n *FairnessOptimisingGangScheduler) markJobsScheduledAndPreempted(result *
 			preemptedJctx := context.JobSchedulingContextFromJob(jobToPreempt)
 			preemptedJctx.PreemptingJobId = result.jctx.JobId
 			preemptedJctx.PreemptionDescription = fmt.Sprintf("Preempted by scheduler using fairness optimiser - preempting job %s", jctx.JobId)
+			preemptedJctx.PreemptionType = context.PreemptedWithOptimiserPreemption
 			preemptedJobs = append(preemptedJobs, preemptedJctx)
 
 			_, err = sctx.PreemptJob(preemptedJctx)

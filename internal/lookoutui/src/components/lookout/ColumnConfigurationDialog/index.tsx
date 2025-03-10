@@ -150,8 +150,8 @@ export const ColumnConfigurationDialog = ({
   const sensors = useSensors(pointerSensor, keyboardSensor)
 
   const [isAddAnnotationColumnContainerVisible, setIsAddAnnotationColumnContainerVisible] = useState(false)
-  const addAnnotationColumnContainerObserver = useRef<IntersectionObserver>()
-  const scrollIntoViewAddAnnotationColumnContainer = useRef<() => void>()
+  const addAnnotationColumnContainerObserver = useRef<IntersectionObserver>(undefined)
+  const scrollIntoViewAddAnnotationColumnContainer = useRef<() => void>(undefined)
   const addAnnotationColumnContainerRef = useCallback((node: HTMLDivElement) => {
     if (addAnnotationColumnContainerObserver.current) {
       addAnnotationColumnContainerObserver.current.disconnect()

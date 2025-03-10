@@ -1,5 +1,4 @@
-import { LoadingButton } from "@mui/lab"
-import { Checkbox, List, ListItem, ListItemText, Paper } from "@mui/material"
+import { Button, Checkbox, List, ListItem, ListItemText, Paper } from "@mui/material"
 
 import { JobSet } from "../../../services/JobService"
 
@@ -54,9 +53,9 @@ export default function CancelJobSets(props: CancelJobSetsProps) {
         />
       </div>
       <div className="lookout-dialog-centered lookout-dialog-fixed">
-        <LoadingButton loading={props.isLoading} onClick={props.onCancelJobSets}>
+        <Button loading={props.isLoading} onClick={props.onCancelJobSets}>
           Cancel Job Sets
-        </LoadingButton>
+        </Button>
       </div>
     </div>
   )

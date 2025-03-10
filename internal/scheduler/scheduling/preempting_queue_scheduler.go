@@ -290,6 +290,8 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 		EvictorResult:                evictorResult,
 		ProtectedFractionOfFairShare: sch.protectedFractionOfFairShare,
 		NodeDb:                       sch.nodeDb,
+		ScheduledJobs:                scheduledJobs,
+		PreemptedJobs:                preemptedJobs,
 	}
 
 	return &SchedulerResult{

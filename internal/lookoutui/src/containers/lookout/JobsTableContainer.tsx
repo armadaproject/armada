@@ -192,7 +192,7 @@ export const JobsTableContainer = ({
   const [lookoutFilters, setLookoutFilters] = useState<LookoutColumnFilter[]>([]) // Parsed later
   const [columnMatches, setColumnMatches] = useState<Record<string, Match>>(initialPrefs.columnMatches)
   const [parseErrors, setParseErrors] = useState<Record<string, string | undefined>>({})
-  const [textFieldRefs, setTextFieldRefs] = useState<Record<string, RefObject<HTMLInputElement>>>({})
+  const [textFieldRefs, setTextFieldRefs] = useState<Record<string, RefObject<HTMLInputElement | undefined>>>({})
   const [activeJobSets, setActiveJobSets] = useState<boolean>(
     initialPrefs.activeJobSets === undefined ? false : initialPrefs.activeJobSets,
   )
@@ -369,7 +369,7 @@ export const JobsTableContainer = ({
     setRowsToFetch(pendingDataForAllVisibleData(expanded, data, pageSize, pageIndex * pageSize))
   }
 
-  const savedOnRefreshCallback = useRef<() => void>()
+  const savedOnRefreshCallback = useRef<() => void>(undefined)
 
   const [autoRefreshIntervalTimer, setAutoRefreshIntervalTimer] = useState<NodeJS.Timeout | undefined>(undefined)
 
@@ -590,7 +590,7 @@ export const JobsTableContainer = ({
     setLookoutFilters(parseLookoutFilters(columnFilterState))
   }, [])
 
-  const setTextFieldRef = (columnId: string, ref: RefObject<HTMLInputElement>) => {
+  const setTextFieldRef = (columnId: string, ref: RefObject<HTMLInputElement | undefined>) => {
     setTextFieldRefs((old) => {
       const newState = { ...old }
       newState[columnId] = ref
@@ -972,7 +972,7 @@ const recursiveRowRender = (
   onShiftClickRow: (row: Row<JobTableRow>) => void,
   onColumnMatchChange: (columnId: string, newMatch: Match) => void,
   dataIsLoading: boolean,
-): JSX.Element => {
+) => {
   const original = row.original
   const rowIsGroup = isJobGroupRow(original)
 

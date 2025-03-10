@@ -7,16 +7,26 @@ import (
 	"time"
 )
 
-type SchedulingType int
+type SchedulingType string
 
 const (
-	None SchedulingType = iota
-	Rescheduled
-	ScheduledWithoutPreemption
-	ScheduledWithFairSharePreemption
-	ScheduledWithUrgencyBasedPreemption
-	ScheduledAsAwayJob
-	ScheduledWithFairnessOptimiser
+	None                                SchedulingType = "none"
+	Rescheduled                         SchedulingType = "rescheduled"
+	ScheduledWithoutPreemption          SchedulingType = "no-preemption"
+	ScheduledWithFairSharePreemption    SchedulingType = "fairshare"
+	ScheduledWithUrgencyBasedPreemption SchedulingType = "urgency"
+	ScheduledAsAwayJob                  SchedulingType = "away"
+	ScheduledWithFairnessOptimiser      SchedulingType = "optimiser"
+)
+
+type PreemptionType string
+
+const (
+	Unknown                          PreemptionType = "unknown"
+	UnknownGangJob                   PreemptionType = "unknown-gang"
+	PreemptedWithFairsharePreemption PreemptionType = "fairshare"
+	PreemptedWithUrgencyPreemption   PreemptionType = "urgency"
+	PreemptedWithOptimiserPreemption PreemptionType = "optimiser"
 )
 
 // PodSchedulingContext is returned by SelectAndBindNodeToPod and

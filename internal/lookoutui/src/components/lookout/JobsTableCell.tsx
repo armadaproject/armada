@@ -50,7 +50,7 @@ export interface HeaderCellProps {
   columnMatches: Record<string, Match>
   parseError: string | undefined
   onColumnMatchChange: (columnId: string, newMatch: Match) => void
-  onSetTextFieldRef: (ref: RefObject<HTMLInputElement>) => void
+  onSetTextFieldRef: (ref: RefObject<HTMLInputElement | undefined>) => void
   groupedColumns: ColumnId[]
 }
 

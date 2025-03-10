@@ -61,7 +61,7 @@ export function createUserManager(config: OidcConfig): UserManager {
 // to redirect users to the new location while preserving the rest of the URL.
 const V2Redirect = withRouter(({ router }) => <Navigate to={{ ...router.location, pathname: "/" }} />)
 
-export function App(props: AppProps): JSX.Element {
+export function App(props: AppProps) {
   useEffect(() => {
     if (props.customTitle) {
       document.title = `${props.customTitle} - Armada Lookout`

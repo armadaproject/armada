@@ -301,7 +301,7 @@ func Run(config schedulerconfig.Configuration) error {
 	)
 
 	schedulerMetrics, err := metrics.New(
-		config.Metrics.TrackedErrorRegexes, config.Metrics.TrackedResourceNames, config.Metrics.JobStateMetricsResetInterval)
+		config.Metrics.TrackedErrorRegexes, config.Metrics.TrackedResourceNames, config.Metrics.JobCheckpointIntervals, config.Metrics.JobStateMetricsResetInterval)
 	if err != nil {
 		return err
 	}

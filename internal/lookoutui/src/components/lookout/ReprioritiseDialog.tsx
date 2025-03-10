@@ -1,7 +1,6 @@
 import { ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import { Refresh, Dangerous } from "@mui/icons-material"
-import { LoadingButton } from "@mui/lab"
 import {
   Button,
   CircularProgress,
@@ -208,7 +207,7 @@ export const ReprioritiseDialog = ({
         >
           Refetch jobs
         </Button>
-        <LoadingButton
+        <Button
           onClick={handleReprioritiseJobs}
           loading={isReprioritising}
           disabled={
@@ -218,7 +217,7 @@ export const ReprioritiseDialog = ({
           endIcon={<Dangerous />}
         >
           Reprioritise {isLoadingJobs ? "jobs" : pl(reprioritisableJobs, "job")}
-        </LoadingButton>
+        </Button>
       </DialogActions>
     </Dialog>
   )

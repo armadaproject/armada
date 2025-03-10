@@ -26,8 +26,7 @@ export function seededUuid(rand: () => number): () => string {
         floatArray[1] = rand()
         floatArray[2] = rand()
         floatArray[3] = rand()
-        const buf = new Uint8Array(floatArray.buffer)
-        return Array.from(buf)
+        return new Uint8Array(floatArray.buffer)
       },
     })
 }

@@ -122,3 +122,5 @@ scheduling:
   experimentalIndicativePricing:
     basePrice: 100.0
     basePriority: 500.0
+  experimentalIndicativeShare:
+    basePriorities: []

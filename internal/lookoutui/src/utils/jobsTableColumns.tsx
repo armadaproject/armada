@@ -116,7 +116,7 @@ export const JOB_COLUMNS: JobTableColumn[] = [
     enableColumnFilter: false,
     enableSorting: false,
     enableHiding: false,
-    header: ({ table }): JSX.Element => (
+    header: ({ table }) => (
       <Checkbox
         checked={table.getIsAllRowsSelected()}
         indeterminate={table.getIsSomeRowsSelected()}

@@ -1,5 +1,5 @@
-import { LoadingButton } from "@mui/lab"
 import {
+  Button,
   Checkbox,
   List,
   ListItem,
@@ -91,9 +91,9 @@ export default function CancelJobSetsOutcome(props: CancelJobSetsOutcomeProps) {
             />
           </div>
           <div className="lookout-dialog-centered lookout-dialog-fixed">
-            <LoadingButton loading={props.isLoading} onClick={props.onCancelJobs}>
+            <Button loading={props.isLoading} onClick={props.onCancelJobs}>
               Retry
-            </LoadingButton>
+            </Button>
           </div>
         </>
       )}
