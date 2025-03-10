@@ -242,10 +242,8 @@ type SchedulingConfig struct {
 	// The frequency at which the scheduler updates the cluster state.
 	ExecutorUpdateFrequency time.Duration
 	// Default priority for pools that are not in the above list
-	DefaultPoolSchedulePriority int
-	Pools                       []PoolConfig
-	// TODO: Remove this feature gate
-	EnableExecutorCordoning       bool
+	DefaultPoolSchedulePriority   int
+	Pools                         []PoolConfig
 	ExperimentalIndicativePricing ExperimentalIndicativePricing
 	ExperimentalIndicativeShare   ExperimentalIndicativeShare
 }
