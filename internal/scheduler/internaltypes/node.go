@@ -3,14 +3,12 @@ package internaltypes
 import (
 	"fmt"
 
-	"k8s.io/apimachinery/pkg/api/resource"
-
-	armadamaps "github.com/armadaproject/armada/internal/common/maps"
-
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 
+	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/kubernetesobjects/label"
 	koTaint "github.com/armadaproject/armada/internal/scheduler/kubernetesobjects/taint"
