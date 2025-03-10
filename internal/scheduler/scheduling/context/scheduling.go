@@ -208,7 +208,7 @@ func (sctx *SchedulingContext) CalculateTheoreticalShare(priority float64) float
 // as queue_weight/sum_of_all_queue_weights and a DemandCappedAdjustedFairShare/UncappedAdjustedFairShare
 // by re-sharing any unused capacity (as determined by a queue's demand).
 func (sctx *SchedulingContext) updateFairShares(qctxs map[string]*QueueSchedulingContext) []*queueInfo {
-	const maxIterations = 5
+	const maxIterations = 10
 
 	queueInfos := make([]*queueInfo, 0, len(qctxs))
 	for queueName, qctx := range qctxs {
