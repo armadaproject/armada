@@ -144,7 +144,6 @@ func NewJob(
 	jobSet string,
 	queue string,
 	priority uint32,
-	price float64,
 	schedulingInfo *internaltypes.JobSchedulingInfo,
 	queued bool,
 	queuedVersion int32,
@@ -158,7 +157,6 @@ func NewJob(
 		jobSet,
 		queue,
 		priority,
-		price,
 		schedulingInfo,
 		queued,
 		queuedVersion,
@@ -322,7 +320,6 @@ func WithNodeTypeNodes(nodeType *internaltypes.NodeType, nodes []*internaltypes.
 			false,
 			node.GetTotalResources(),
 			node.GetAllocatableResources(),
-			node.GetUnallocatableResources(),
 			node.AllocatableByPriority,
 			node.AllocatedByQueue,
 			node.AllocatedByJobId,
@@ -347,7 +344,6 @@ func WithIdNodes(nodeId string, nodes []*internaltypes.Node) []*internaltypes.No
 			false,
 			node.GetTotalResources(),
 			node.GetAllocatableResources(),
-			node.GetUnallocatableResources(),
 			node.AllocatableByPriority,
 			node.AllocatedByQueue,
 			node.AllocatedByJobId,
@@ -371,7 +367,6 @@ func WithIndexNode(idx uint64, node *internaltypes.Node) *internaltypes.Node {
 		false,
 		node.GetTotalResources(),
 		node.GetAllocatableResources(),
-		node.GetUnallocatableResources(),
 		node.AllocatableByPriority,
 		node.AllocatedByQueue,
 		node.AllocatedByJobId,
@@ -491,16 +486,6 @@ func WithQueued(jobs []*jobdb.Job) []*jobdb.Job {
 	return jobs
 }
 
-func N1Cpu4GiJobsWithPrice(queue string, bidPrice float64, n int) []*jobdb.Job {
-	rv := make([]*jobdb.Job, n)
-	for i := 0; i < n; i++ {
-		j := Test1Cpu4GiJob(queue, PriorityClass0)
-		j = j.WithBidPrice(bidPrice)
-		rv[i] = j
-	}
-	return rv
-}
-
 func N1Cpu4GiJobs(queue string, priorityClassName string, n int) []*jobdb.Job {
 	rv := make([]*jobdb.Job, n)
 	for i := 0; i < n; i++ {
@@ -566,7 +551,6 @@ func TestJob(queue string, jobId ulid.ULID, priorityClassName string, req *inter
 		queue,
 		// This is the per-queue priority of this job, which is unrelated to `priorityClassName`.
 		1000,
-		0.0,
 		&internaltypes.JobSchedulingInfo{
 			PriorityClassName: priorityClassName,
 			SubmitTime:        submitTime,
@@ -784,7 +768,6 @@ func TestSimpleNode(id string) *internaltypes.Node {
 		nil,
 		nil,
 		nil,
-		nil,
 		nil)
 }
 
@@ -891,7 +874,6 @@ func TestQueuedJobDbJob() *jobdb.Job {
 		TestJobset,
 		TestQueue,
 		0,
-		0.0,
 		&internaltypes.JobSchedulingInfo{
 			PriorityClassName: TestDefaultPriorityClass,
 			SubmitTime:        BaseTime,

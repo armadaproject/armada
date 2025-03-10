@@ -616,7 +616,6 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 			maps.Clone(s.accounting.nodeIdByJobId),
 			maps.Clone(s.accounting.jobIdsByGangId),
 			maps.Clone(s.accounting.gangIdByJobId),
-			false,
 			shouldRunOptimiser,
 		)
 
@@ -811,7 +810,6 @@ func (s *Simulator) handleSubmitJob(txn *jobdb.Txn, e *armadaevents.SubmitJob, t
 		eventSequence.JobSetName,
 		eventSequence.Queue,
 		e.Priority,
-		0.0,
 		schedulingInfo,
 		true,
 		0,
