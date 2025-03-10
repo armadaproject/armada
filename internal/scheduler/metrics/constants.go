@@ -6,6 +6,7 @@ const (
 	prefix = "armada_scheduler_"
 
 	// Prometheus Labels
+	checkpointLabel       = "checkpoint_interval"
 	poolLabel             = "pool"
 	typeLabel             = "type"
 	priorityLabel         = "priority"
