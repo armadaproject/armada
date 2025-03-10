@@ -3,7 +3,8 @@ package eventutil
 import (
 	"testing"
 
-	"github.com/gogo/protobuf/proto"
+	"google.golang.org/protobuf/proto"
+
 	"github.com/stretchr/testify/assert"
 
 	"github.com/armadaproject/armada/internal/common/util"

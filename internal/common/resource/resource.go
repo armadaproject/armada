@@ -170,6 +170,13 @@ func (a ComputeResources) LimitToZero() {
 	}
 }
 
+// Zero zeroes out rl such that all quantities have value 0.
+func (a ComputeResources) Zero() {
+	for key := range a {
+		a[key] = *resource.NewQuantity(0, resource.BinarySI)
+	}
+}
+
 // IsZero function checks if every value in "a" is zero. If any value is not zero it returns false, if all are zero, it returns true.
 func (a ComputeResources) IsZero() bool {
 	if len(a) == 0 {

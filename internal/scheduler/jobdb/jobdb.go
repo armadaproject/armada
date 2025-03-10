@@ -18,50 +18,9 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 )
 
-type JobSortOrder int
-
-const (
-	PriceOrder JobSortOrder = iota
-	FairShareOrder
-)
-
 type JobIterator interface {
 	Next() (*Job, bool)
 	Done() bool
-}
-
-type jobQueue struct {
-	fairShareQueue immutable.SortedSet[*Job]
-	marketQueue    immutable.SortedSet[*Job]
-}
-
-func emptyJobQueue() jobQueue {
-	return jobQueue{
-		fairShareQueue: immutable.NewSortedSet[*Job](JobPriorityComparer{}),
-		marketQueue:    immutable.NewSortedSet[*Job](MarketJobPriorityComparer{}),
-	}
-}
-
-func (jq jobQueue) add(j *Job) jobQueue {
-	return jobQueue{
-		fairShareQueue: jq.fairShareQueue.Add(j),
-		marketQueue:    jq.marketQueue.Add(j),
-	}
-}
-
-func (jq jobQueue) delete(j *Job) jobQueue {
-	return jobQueue{
-		fairShareQueue: jq.fairShareQueue.Delete(j),
-		marketQueue:    jq.marketQueue.Delete(j),
-	}
-}
-
-func (jq jobQueue) has(j *Job) bool {
-	return jq.fairShareQueue.Has(j)
-}
-
-func (jq jobQueue) len() int {
-	return jq.marketQueue.Len()
 }
 
 var emptyList = immutable.NewSortedSet[*Job](JobPriorityComparer{})
@@ -69,7 +28,7 @@ var emptyList = immutable.NewSortedSet[*Job](JobPriorityComparer{})
 type JobDb struct {
 	jobsById        *immutable.Map[string, *Job]
 	jobsByRunId     *immutable.Map[string, string]
-	jobsByQueue     map[string]jobQueue
+	jobsByQueue     map[string]immutable.SortedSet[*Job]
 	unvalidatedJobs *immutable.Set[*Job]
 	// Configured priority classes.
 	priorityClasses map[string]types.PriorityClass
@@ -132,7 +91,7 @@ func NewJobDbWithSchedulingKeyGenerator(
 	return &JobDb{
 		jobsById:               immutable.NewMap[string, *Job](nil),
 		jobsByRunId:            immutable.NewMap[string, string](nil),
-		jobsByQueue:            map[string]jobQueue{},
+		jobsByQueue:            map[string]immutable.SortedSet[*Job]{},
 		unvalidatedJobs:        &unvalidatedJobs,
 		priorityClasses:        priorityClasses,
 		defaultPriorityClass:   defaultPriorityClass,
@@ -174,7 +133,6 @@ func (jobDb *JobDb) NewJob(
 	jobSet string,
 	queue string,
 	priority uint32,
-	bidPrice float64,
 	schedulingInfo *internaltypes.JobSchedulingInfo,
 	queued bool,
 	queuedVersion int32,
@@ -198,7 +156,6 @@ func (jobDb *JobDb) NewJob(
 		queue:                          jobDb.stringInterner.Intern(queue),
 		jobSet:                         jobDb.stringInterner.Intern(jobSet),
 		priority:                       priority,
-		bidPrice:                       bidPrice,
 		queued:                         queued,
 		queuedVersion:                  queuedVersion,
 		requestedPriority:              priority,
@@ -295,7 +252,7 @@ type Txn struct {
 	// Note that a job may have multiple runs, i.e., the mapping is many-to-one.
 	jobsByRunId *immutable.Map[string, string]
 	// Queued jobs for each queue. Stored in the order in which they should be scheduled.
-	jobsByQueue map[string]jobQueue
+	jobsByQueue map[string]immutable.SortedSet[*Job]
 	// Jobs that require submit checking
 	unvalidatedJobs *immutable.Set[*Job]
 	// The jobDb from which this transaction was created.
@@ -340,7 +297,7 @@ func (txn *Txn) Assert(assertOnlyActiveJobs bool) error {
 		if job.Queued() {
 			if queue, ok := txn.jobsByQueue[job.queue]; !ok {
 				return errors.Errorf("jobDb contains queued job %s but there is no sorted set for this queue", job)
-			} else if !queue.has(job) {
+			} else if !queue.Has(job) {
 				return errors.Errorf("jobDb contains queued job %s but this job is not in the queue sorted set", job)
 			}
 		}
@@ -353,7 +310,7 @@ func (txn *Txn) Assert(assertOnlyActiveJobs bool) error {
 		}
 	}
 	for queue, queueIt := range txn.jobsByQueue {
-		it := queueIt.fairShareQueue.Iterator()
+		it := queueIt.Iterator()
 		for {
 			job, ok := it.Next()
 			if !ok {
@@ -429,7 +386,7 @@ func (txn *Txn) Upsert(jobs []*Job) error {
 			if ok {
 				existingQueue, ok := txn.jobsByQueue[existingJob.queue]
 				if ok {
-					txn.jobsByQueue[existingJob.queue] = existingQueue.delete(existingJob)
+					txn.jobsByQueue[existingJob.queue] = existingQueue.Delete(existingJob)
 				}
 				if !existingJob.Validated() {
 					newUnvalidatedJobs := txn.unvalidatedJobs.Delete(existingJob)
@@ -487,9 +444,10 @@ func (txn *Txn) Upsert(jobs []*Job) error {
 			if job.Queued() {
 				newQueue, ok := txn.jobsByQueue[job.queue]
 				if !ok {
-					newQueue = emptyJobQueue()
+					q := emptyList
+					newQueue = q
 				}
-				newQueue = newQueue.add(job)
+				newQueue = newQueue.Add(job)
 				txn.jobsByQueue[job.queue] = newQueue
 			}
 		}
@@ -530,19 +488,16 @@ func (txn *Txn) HasQueuedJobs(queue string) bool {
 	if !ok {
 		return false
 	}
-	return queuedJobs.len() > 0
+	return queuedJobs.Len() > 0
 }
 
-// QueuedJobs returns an iterator over all queued jobs ordered for fair share shceduling
-func (txn *Txn) QueuedJobs(queue string, sortOrder JobSortOrder) JobIterator {
+// QueuedJobs returns true if the queue has any jobs in the running state or false otherwise
+func (txn *Txn) QueuedJobs(queue string) JobIterator {
 	jobQueue, ok := txn.jobsByQueue[queue]
-	if !ok {
-		return emptyList.Iterator()
-	}
-	if sortOrder == FairShareOrder {
-		return jobQueue.fairShareQueue.Iterator()
+	if ok {
+		return jobQueue.Iterator()
 	} else {
-		return jobQueue.marketQueue.Iterator()
+		return emptyList.Iterator()
 	}
 }
 
@@ -585,7 +540,7 @@ func (txn *Txn) delete(jobId string) {
 		}
 		queue, ok := txn.jobsByQueue[job.queue]
 		if ok {
-			newQueue := queue.delete(job)
+			newQueue := queue.Delete(job)
 			txn.jobsByQueue[job.queue] = newQueue
 		}
 		newUnvalidatedJobs := txn.unvalidatedJobs.Delete(job)

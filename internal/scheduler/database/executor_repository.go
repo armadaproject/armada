@@ -3,9 +3,9 @@ package database
 import (
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pkg/errors"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"

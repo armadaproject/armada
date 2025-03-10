@@ -1,7 +1,7 @@
 syntax = 'proto3';
 
 package executorapi;
-option go_package = "github.com/armadaproject/armada/pkg/executorapi";
+option go_package = "pkg/executorapi";
 
 import "pkg/armadaevents/events.proto";
 import "pkg/api/submit.proto";

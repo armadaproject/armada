@@ -16,7 +16,7 @@ import (
 
 func TestSchedulingContextAccounting(t *testing.T) {
 	totalResources := testfixtures.TestResourceListFactory.FromNodeProto(
-		map[string]resource.Quantity{"cpu": resource.MustParse("1")},
+		map[string]*resource.Quantity{"cpu": resourceFromString("1")},
 	)
 	fairnessCostProvider, err := fairness.NewDominantResourceFairness(totalResources, configuration.SchedulingConfig{DominantResourceFairnessResourcesToConsider: []string{"cpu"}})
 	require.NoError(t, err)
@@ -407,4 +407,9 @@ func cpu(n int) internaltypes.ResourceList {
 	return testfixtures.TestResourceListFactory.FromJobResourceListIgnoreUnknown(
 		map[string]resource.Quantity{"cpu": resource.MustParse(fmt.Sprintf("%d", n))},
 	)
+}
+
+func resourceFromString(s string) *resource.Quantity {
+	qty := resource.MustParse(s)
+	return &qty
 }
