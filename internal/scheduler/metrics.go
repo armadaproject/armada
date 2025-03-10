@@ -273,11 +273,11 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 
 	cordonedStatusByCluster := map[string]*clusterCordonedStatus{}
 	phaseCountByQueue := map[queuePhaseMetricKey]int{}
-	allocatedResourceByQueue := map[queueMetricKey]schedulerobjects.ResourceList{}
-	usedResourceByQueue := map[queueMetricKey]schedulerobjects.ResourceList{}
-	availableResourceByCluster := map[clusterMetricKey]schedulerobjects.ResourceList{}
-	totalResourceByCluster := map[clusterMetricKey]schedulerobjects.ResourceList{}
-	totalFarmResourceByCluster := map[clusterMetricKey]schedulerobjects.ResourceList{}
+	allocatedResourceByQueue := map[queueMetricKey]resource.ComputeResources{}
+	usedResourceByQueue := map[queueMetricKey]resource.ComputeResources{}
+	availableResourceByCluster := map[clusterMetricKey]resource.ComputeResources{}
+	totalResourceByCluster := map[clusterMetricKey]resource.ComputeResources{}
+	totalFarmResourceByCluster := map[clusterMetricKey]resource.ComputeResources{}
 	schedulableNodeCountByCluster := map[clusterMetricKey]int{}
 	totalNodeCountByCluster := map[clusterMetricKey]int{}
 
@@ -360,11 +360,11 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 			totalNodeCountByCluster[clusterKey]++
 
 			// Add total resources to the home cluster pool
-			addToResourceListMap(totalResourceByCluster, clusterKey, node.TotalResources)
+			addToResourceListMap(totalResourceByCluster, clusterKey, node.TotalResources.ToComputeResources())
 
 			// Add total resources to the away cluster pool
 			for _, awayClusterKey := range awayClusterKeys {
-				addToResourceListMap(totalResourceByCluster, awayClusterKey, node.TotalResources)
+				addToResourceListMap(totalResourceByCluster, awayClusterKey, node.TotalResources.ToComputeResources())
 			}
 
 			for _, resourceUsageQp := range node.ResourceUsageByQueueAndPool {
@@ -374,7 +374,7 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 					queueName: resourceUsageQp.Queue,
 					nodeType:  node.ReportingNodeType,
 				}
-				addToResourceListMap(usedResourceByQueue, queueKey, *resourceUsageQp.Resources)
+				addToResourceListMap(usedResourceByQueue, queueKey, resourceUsageQp.Resources.ToComputeResources())
 			}
 
 			for runId, jobRunState := range node.StateByJobRunId {
@@ -394,7 +394,7 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 
 					podRequirements := job.PodRequirements()
 					if podRequirements != nil {
-						jobRequirements := schedulerobjects.ResourceListFromV1ResourceList(podRequirements.ResourceRequirements.Requests)
+						jobRequirements := resource.FromResourceList(podRequirements.ResourceRequirements.Requests)
 						queueKey := queueMetricKey{
 							cluster:       executor.Id,
 							pool:          jobPool,
@@ -406,7 +406,6 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 
 						// If the job is running on its home pool, then remove the resources from all the away pools
 						if jobPool == nodePool {
-							schedulerobjects.ResourceListFromV1ResourceList(podRequirements.ResourceRequirements.Requests)
 							for _, awayClusterKey := range awayClusterKeys {
 								subtractFromResourceListMap(totalResourceByCluster, awayClusterKey, jobRequirements)
 								subtractFromResourceListMap(availableResourceByCluster, awayClusterKey, jobRequirements)
@@ -419,7 +418,7 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 	}
 
 	for _, pool := range c.floatingResourceTypes.AllPools() {
-		totalFloatingResources := schedulerobjects.ResourceList{Resources: c.floatingResourceTypes.GetTotalAvailableForPoolAsMap(pool)}
+		totalFloatingResources := c.floatingResourceTypes.GetTotalAvailableForPoolAsMap(pool)
 		clusterKey := clusterMetricKey{
 			cluster:  "floating",
 			pool:     pool,
@@ -434,27 +433,27 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 		clusterMetrics = append(clusterMetrics, commonmetrics.NewQueueLeasedPodCount(float64(v), k.cluster, k.pool, k.queueName, k.phase, k.nodeType))
 	}
 	for k, r := range allocatedResourceByQueue {
-		for resourceKey, resourceValue := range r.Resources {
+		for resourceKey, resourceValue := range r {
 			clusterMetrics = append(clusterMetrics, commonmetrics.NewQueueAllocated(resource.QuantityAsFloat64(resourceValue), k.queueName, k.cluster, k.pool, k.priorityClass, resourceKey, k.nodeType))
 		}
 	}
 	for k, r := range usedResourceByQueue {
-		for resourceKey, resourceValue := range r.Resources {
+		for resourceKey, resourceValue := range r {
 			clusterMetrics = append(clusterMetrics, commonmetrics.NewQueueUsed(resource.QuantityAsFloat64(resourceValue), k.queueName, k.cluster, k.pool, resourceKey, k.nodeType))
 		}
 	}
 	for k, r := range availableResourceByCluster {
-		for resourceKey, resourceValue := range r.Resources {
+		for resourceKey, resourceValue := range r {
 			clusterMetrics = append(clusterMetrics, commonmetrics.NewClusterAvailableCapacity(resource.QuantityAsFloat64(resourceValue), k.cluster, k.pool, resourceKey, k.nodeType))
 		}
 	}
 	for k, r := range totalFarmResourceByCluster {
-		for resourceKey, resourceValue := range r.Resources {
+		for resourceKey, resourceValue := range r {
 			clusterMetrics = append(clusterMetrics, commonmetrics.NewClusterFarmCapacity(resource.QuantityAsFloat64(resourceValue), k.cluster, k.pool, resourceKey, k.nodeType))
 		}
 	}
 	for k, r := range totalResourceByCluster {
-		for resourceKey, resourceValue := range r.Resources {
+		for resourceKey, resourceValue := range r {
 			clusterMetrics = append(clusterMetrics, commonmetrics.NewClusterTotalCapacity(resource.QuantityAsFloat64(resourceValue), k.cluster, k.pool, resourceKey, k.nodeType))
 		}
 	}
@@ -470,18 +469,18 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 	return clusterMetrics, nil
 }
 
-func addToResourceListMap[K comparable](m map[K]schedulerobjects.ResourceList, key K, value schedulerobjects.ResourceList) {
+func addToResourceListMap[K comparable](m map[K]resource.ComputeResources, key K, value resource.ComputeResources) {
 	if _, exists := m[key]; !exists {
-		m[key] = schedulerobjects.ResourceList{}
+		m[key] = resource.ComputeResources{}
 	}
 	newValue := m[key]
 	newValue.Add(value)
 	m[key] = newValue
 }
 
-func subtractFromResourceListMap[K comparable](m map[K]schedulerobjects.ResourceList, key K, value schedulerobjects.ResourceList) {
+func subtractFromResourceListMap[K comparable](m map[K]resource.ComputeResources, key K, value resource.ComputeResources) {
 	if _, exists := m[key]; !exists {
-		m[key] = schedulerobjects.ResourceList{}
+		m[key] = resource.ComputeResources{}
 	}
 	newValue := m[key]
 	newValue.Sub(value)
