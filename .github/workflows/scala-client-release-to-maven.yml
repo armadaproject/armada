@@ -34,5 +34,5 @@ jobs:
           PGP_SECRET: ${{ secrets.PGP_SECRET }}
           CI_CLEAN: clean
         run: |
-          cd client/scala/scala-armada-client
+          cd client/scala/armada-scala-client
           sbt ci-release
