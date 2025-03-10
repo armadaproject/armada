@@ -10,7 +10,6 @@ export type JobRow = BaseJobTableRow & Partial<Job>
 export type JobGroupRow = JobRow & {
   isGroup: true // The ReactTable version of this doesn't seem to play nice with manual/serverside expanding
   jobCount?: number
-  subRowCount?: number
   subRows: JobTableRow[]
   groupedField: string
   stateCounts: Record<string, number> | undefined

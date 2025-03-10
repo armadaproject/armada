@@ -32,6 +32,7 @@ export interface UIConfig {
   oidc?: OidcConfig
   commandSpecs: CommandSpec[]
   backend: string | undefined
+  pinnedTimeZoneIdentifiers: string[]
 }
 
 export type RequestStatus = "Loading" | "Idle"
@@ -61,6 +62,7 @@ export async function getUIConfig(): Promise<UIConfig> {
     oidc: undefined,
     commandSpecs: [],
     backend: undefined,
+    pinnedTimeZoneIdentifiers: [],
   }
 
   try {
@@ -72,6 +74,7 @@ export async function getUIConfig(): Promise<UIConfig> {
     if (json.JobSetsAutoRefreshMs) config.jobSetsAutoRefreshMs = json.JobSetsAutoRefreshMs
     if (json.JobsAutoRefreshMs) config.jobsAutoRefreshMs = json.JobsAutoRefreshMs
     if (json.CustomTitle) config.customTitle = json.CustomTitle
+    if (json.PinnedTimeZoneIdentifiers) config.pinnedTimeZoneIdentifiers = json.PinnedTimeZoneIdentifiers
     if (json.OidcEnabled) config.oidcEnabled = json.OidcEnabled
     if (json.Oidc) {
       config.oidc = {
@@ -196,26 +199,6 @@ const priorityRegex = new RegExp("^([0-9]+)$")
 
 export function priorityIsValid(priority: string): boolean {
   return priorityRegex.test(priority) && priority.length > 0
-}
-
-// Pluralization helper
-export function pl(itemsOrCount: unknown[] | number, singularForm: string, pluralForm?: string) {
-  const count = Array.isArray(itemsOrCount) ? itemsOrCount.length : itemsOrCount
-  if (count === 1) {
-    return `${count} ${singularForm}`
-  }
-
-  if (pluralForm !== undefined) {
-    return `${count} ${pluralForm}`
-  }
-
-  if (/[s|ss|sh|ch|x|z]$/.test(singularForm)) {
-    pluralForm = singularForm + "es"
-  } else {
-    pluralForm = singularForm + "s"
-  }
-
-  return `${count} ${pluralForm}`
 }
 
 export async function waitMillis(millisToWait: number): Promise<void> {

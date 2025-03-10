@@ -3,8 +3,8 @@ import { memo, ReactNode } from "react"
 import { Close } from "@mui/icons-material"
 import { IconButton, styled, Typography } from "@mui/material"
 
+import { formatTimestampRelative } from "../../../common/formatTime"
 import { Job } from "../../../models/lookoutModels"
-import { formatTimeSince } from "../../../utils/jobsTableFormatters"
 import { CopyIconButton } from "../../CopyIconButton"
 import { JobStateChip } from "../JobStateChip"
 
@@ -48,7 +48,7 @@ export const SidebarHeader = memo(({ job, onClose }: SidebarHeaderProps) => (
       title="State"
       value={
         <>
-          <JobStateChip state={job.state} /> for {formatTimeSince(job.lastTransitionTime)}
+          <JobStateChip state={job.state} /> for {formatTimestampRelative(job.lastTransitionTime, false)}
         </>
       }
     />

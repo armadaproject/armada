@@ -18,8 +18,9 @@ import {
 } from "@mui/material"
 
 import { NoRunsAlert } from "./NoRunsAlert"
+import { useFormatIsoTimestampWithUserSettings } from "../../../hooks/formatTimeWithUserSettings"
 import { useCustomSnackbar } from "../../../hooks/useCustomSnackbar"
-import { Job, JobRun } from "../../../models/lookoutModels"
+import { Job } from "../../../models/lookoutModels"
 import { LogLine } from "../../../services/lookout/LogService"
 import { useGetJobSpec } from "../../../services/lookout/useGetJobSpec"
 import { useGetLogs } from "../../../services/lookout/useGetLogs"
@@ -97,6 +98,8 @@ export const SidebarTabJobLogs = ({ job }: SidebarTabJobLogsProps) => {
   const [runIndex, setRunIndex] = useState(0)
   const [selectedContainer, setSelectedContainer] = useState("")
   const [loadFromStart, setLoadFromStart] = useState(false)
+
+  const formatIsoTimestamp = useFormatIsoTimestampWithUserSettings()
 
   // Get job spec
   const getJobSpecResult = useGetJobSpec(job.jobId, Boolean(job.jobId))
@@ -176,11 +179,15 @@ export const SidebarTabJobLogs = ({ job }: SidebarTabJobLogsProps) => {
                 setRunIndex(index)
               }}
             >
-              {runsNewestFirst.map((run, i) => (
-                <MenuItem value={i} key={i}>
-                  Run {i + 1}: {getJobRunTime(run)}
-                </MenuItem>
-              ))}
+              {runsNewestFirst.map((run, i) => {
+                const runIndicativeTimestamp = run.started || run.pending || run.leased
+                return (
+                  <MenuItem value={i} key={i}>
+                    Run {i + 1}
+                    {runIndicativeTimestamp && <>: {formatIsoTimestamp(runIndicativeTimestamp, "full")}</>}
+                  </MenuItem>
+                )
+              })}
             </Select>
           </FormControl>
         </div>
@@ -371,17 +378,4 @@ function LogView({ logLines }: { logLines: LogLine[] }) {
       <div ref={logsEndRef} key="END" />
     </LogsContainer>
   )
-}
-
-function getJobRunTime(run: JobRun): string {
-  if (run.started !== undefined && run.started !== "") {
-    return run.started
-  }
-  if (run.pending !== undefined && run.pending !== "") {
-    return run.pending
-  }
-  if (run.leased !== undefined && run.leased !== "") {
-    return run.leased
-  }
-  return ""
 }

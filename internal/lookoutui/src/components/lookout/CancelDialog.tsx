@@ -8,12 +8,14 @@ import _ from "lodash"
 
 import dialogStyles from "./DialogStyles.module.css"
 import { JobStatusTable } from "./JobStatusTable"
+import { useFormatNumberWithUserSettings } from "../../hooks/formatNumberWithUserSettings"
+import { useFormatIsoTimestampWithUserSettings } from "../../hooks/formatTimeWithUserSettings"
 import { useCustomSnackbar } from "../../hooks/useCustomSnackbar"
 import { isTerminatedJobState, Job, JobFiltersWithExcludes, JobId } from "../../models/lookoutModels"
 import { useGetAccessToken } from "../../oidcAuth"
 import { IGetJobsService } from "../../services/lookout/GetJobsService"
 import { UpdateJobsService } from "../../services/lookout/UpdateJobsService"
-import { pl, waitMillis, PlatformCancelReason } from "../../utils"
+import { waitMillis, PlatformCancelReason } from "../../utils"
 import { getUniqueJobsMatchingFilters } from "../../utils/jobsDialogUtils"
 import { formatJobState } from "../../utils/jobsTableFormatters"
 
@@ -40,6 +42,8 @@ export const CancelDialog = ({
   const [hasAttemptedCancel, setHasAttemptedCancel] = useState(false)
   const [isPlatformCancel, setIsPlatformCancel] = useState(false)
   const openSnackbar = useCustomSnackbar()
+
+  const formatIsoTimestamp = useFormatIsoTimestampWithUserSettings()
 
   const getAccessToken = useGetAccessToken()
 
@@ -116,10 +120,19 @@ export const CancelDialog = ({
 
   const jobsToRender = useMemo(() => cancellableJobs.slice(0, 1000), [cancellableJobs])
   const formatState = useCallback((job: Job) => formatJobState(job.state), [])
-  const formatSubmittedTime = useCallback((job: Job) => job.submitted, [])
+  const formatSubmittedTime = useCallback((job: Job) => formatIsoTimestamp(job.submitted, "full"), [formatIsoTimestamp])
+
+  const formatNumber = useFormatNumberWithUserSettings()
+
+  const cancellableJobsCount = cancellableJobs.length
+  const selectedJobsCount = selectedJobs.length
   return (
     <Dialog open={true} onClose={onClose} fullWidth maxWidth="xl">
-      <DialogTitle>Cancel {isLoadingJobs ? "jobs" : pl(cancellableJobs, "job")}</DialogTitle>
+      <DialogTitle>
+        {isLoadingJobs
+          ? "Cancel jobs"
+          : `Cancel ${formatNumber(cancellableJobsCount)} ${cancellableJobsCount === 1 ? "job" : "jobs"}`}
+      </DialogTitle>
 
       <DialogContent>
         {isLoadingJobs && (
@@ -133,8 +146,9 @@ export const CancelDialog = ({
           <>
             {cancellableJobs.length > 0 && cancellableJobs.length < selectedJobs.length && (
               <Alert severity="info" sx={{ marginBottom: "0.5em" }}>
-                {pl(selectedJobs.length, "job is", "jobs are")} selected, but only{" "}
-                {pl(cancellableJobs.length, "job is", "jobs are")} in a cancellable (non-terminated) state.
+                {formatNumber(selectedJobsCount)} {selectedJobsCount === 1 ? "job is" : "jobs are"} selected, but only{" "}
+                {formatNumber(cancellableJobsCount)} {cancellableJobsCount === 1 ? "job is" : "jobs are"} in a
+                cancellable (non-terminated) state.
               </Alert>
             )}
 
@@ -195,7 +209,7 @@ export const CancelDialog = ({
           variant="contained"
           endIcon={<Dangerous />}
         >
-          Cancel {isLoadingJobs ? "jobs" : pl(cancellableJobs, "job")}
+          Cancel {formatNumber(cancellableJobsCount)} {cancellableJobsCount === 1 ? "job" : "jobs"}
         </LoadingButton>
       </DialogActions>
     </Dialog>

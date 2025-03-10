@@ -40,6 +40,11 @@ import { JobsTableActionBar } from "../../components/lookout/JobsTableActionBar"
 import { HeaderCell } from "../../components/lookout/JobsTableCell"
 import { JobsTableRow } from "../../components/lookout/JobsTableRow"
 import { Sidebar } from "../../components/lookout/sidebar/Sidebar"
+import { useFormatNumberWithUserSettings } from "../../hooks/formatNumberWithUserSettings"
+import {
+  useFormatIsoTimestampWithUserSettings,
+  useDisplayedTimeZoneWithUserSettings,
+} from "../../hooks/formatTimeWithUserSettings"
 import { useCustomSnackbar } from "../../hooks/useCustomSnackbar"
 import { columnIsAggregatable, useFetchJobsTableData } from "../../hooks/useJobsTableData"
 import { isJobGroupRow, JobRow, JobTableRow } from "../../models/jobsTableModels"
@@ -58,13 +63,14 @@ import {
   ColumnId,
   createAnnotationColumn,
   getAnnotationKeyCols,
-  INPUT_PROCESSORS,
-  JOB_COLUMNS,
+  INPUT_PARSERS,
+  GET_JOB_COLUMNS,
   JobTableColumn,
   PINNED_COLUMNS,
   StandardColumnId,
   toAnnotationColId,
   toColId,
+  JobColumnsOptions,
 } from "../../utils/jobsTableColumns"
 import {
   diffOfKeys,
@@ -142,10 +148,25 @@ export const JobsTableContainer = ({
   const customViewsService = useMemo(() => new CustomViewsService(), [])
   const initialPrefs = useMemo(() => jobsTablePreferencesService.getUserPrefs(), [])
 
+  const formatIsoTimestamp = useFormatIsoTimestampWithUserSettings()
+  const displayedTimeZoneName = useDisplayedTimeZoneWithUserSettings()
+  const formatNumber = useFormatNumberWithUserSettings()
+
+  const jobColumnsOptions = useMemo<JobColumnsOptions>(
+    () => ({ formatIsoTimestamp, displayedTimeZoneName, formatNumber }),
+    [formatIsoTimestamp, displayedTimeZoneName, formatNumber],
+  )
+
   // Columns
   const [allColumns, setAllColumns] = useState<JobTableColumn[]>(
-    JOB_COLUMNS.concat(...initialPrefs.annotationColumnKeys.map(createAnnotationColumn)),
+    GET_JOB_COLUMNS(jobColumnsOptions).concat(...initialPrefs.annotationColumnKeys.map(createAnnotationColumn)),
   )
+  useEffect(() => {
+    setAllColumns(
+      GET_JOB_COLUMNS(jobColumnsOptions).concat(...initialPrefs.annotationColumnKeys.map(createAnnotationColumn)),
+    )
+  }, [jobColumnsOptions])
+
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(initialPrefs.visibleColumns)
   const visibleColumnIds = useMemo(
     () =>
@@ -299,7 +320,7 @@ export const JobsTableContainer = ({
     setColumnFilterState(prefs.filters)
     setLookoutFilters(parseLookoutFilters(prefs.filters))
     setColumnMatches(prefs.columnMatches)
-    const cols = JOB_COLUMNS.concat(...prefs.annotationColumnKeys.map(createAnnotationColumn))
+    const cols = GET_JOB_COLUMNS(jobColumnsOptions).concat(...prefs.annotationColumnKeys.map(createAnnotationColumn))
     setAllColumns(cols)
     setColumnOrder(prefs.columnOrder)
     setColumnVisibility(prefs.visibleColumns)
@@ -565,10 +586,10 @@ export const JobsTableContainer = ({
         continue
       }
       const parseType = COLUMN_PARSE_TYPES[columnFilter.id]
-      const processor = INPUT_PROCESSORS[parseType]
+      const parser = INPUT_PARSERS[parseType]
       const raw = columnFilter.value as string
       try {
-        const value = processor.parser(raw.trim())
+        const value = parser(raw.trim())
         setParseError(columnFilter.id, undefined)
         lookoutFilters.push({
           id: columnFilter.id,
