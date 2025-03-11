@@ -9,22 +9,7 @@ import (
 
 // NewResourceList returns a new ResourceList, where the backing map has initial capacity n.
 func NewResourceList(n int) ResourceList {
-	return ResourceList{Resources: make(map[string]resource.Quantity, n)}
-}
-
-// NewResourceListWithDefaultSize returns a new ResourceList, where the backing map has default initial capacity.
-func NewResourceListWithDefaultSize() ResourceList {
-	return ResourceList{Resources: make(map[string]resource.Quantity, resourceListDefaultSize)}
-}
-
-func ResourceListFromV1ResourceList(rl v1.ResourceList) ResourceList {
-	rv := ResourceList{
-		Resources: make(map[string]*resource.Quantity, len(rl)),
-	}
-	for t, q := range rl {
-		rv.Resources[string(t)] = &q
-	}
-	return &rv
+	return ResourceList{Resources: make(map[string]*resource.Quantity, n)}
 }
 
 func V1ResourceListFromResourceList(rl *ResourceList) v1.ResourceList {
@@ -49,15 +34,6 @@ func (rl *ResourceList) Set(t string, q resource.Quantity) {
 	cpy := q.DeepCopy()
 	rl.initialise()
 	rl.Resources[t] = &cpy
-}
-
-func (a *ResourceList) Add(b ResourceList) {
-	a.initialise()
-	for t, qb := range b.Resources {
-		qa := a.Resources[t]
-		qa.Add(*qb)
-		a.Resources[t] = qa
-	}
 }
 
 func (a *ResourceList) Sub(b *ResourceList) {

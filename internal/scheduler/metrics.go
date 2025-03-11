@@ -402,13 +402,13 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 							priorityClass: job.PriorityClassName(),
 							nodeType:      node.ReportingNodeType,
 						}
-						addToResourceListMap(allocatedResourceByQueue, queueKey, jobRequirements.ToComputeResources())
+						addToResourceListMap(allocatedResourceByQueue, queueKey, jobRequirements)
 
 						// If the job is running on its home pool, then remove the resources from all the away pools
 						if jobPool == nodePool {
 							for _, awayClusterKey := range awayClusterKeys {
-								subtractFromResourceListMap(totalResourceByCluster, awayClusterKey, jobRequirements.ToComputeResources())
-								subtractFromResourceListMap(availableResourceByCluster, awayClusterKey, jobRequirements.ToComputeResources())
+								subtractFromResourceListMap(totalResourceByCluster, awayClusterKey, jobRequirements)
+								subtractFromResourceListMap(availableResourceByCluster, awayClusterKey, jobRequirements)
 							}
 						}
 					}

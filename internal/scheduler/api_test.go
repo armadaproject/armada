@@ -4,6 +4,8 @@ import (
 	"testing"
 	"time"
 
+	"k8s.io/apimachinery/pkg/api/resource"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -81,7 +83,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 				Id:                          "test-executor-test-node",
 				Name:                        "test-node",
 				Executor:                    "test-executor",
-				TotalResources:              schedulerobjects.NewResourceList(0),
+				TotalResources:              &schedulerobjects.ResourceList{Resources: map[string]*resource.Quantity{}},
 				StateByJobRunId:             map[string]schedulerobjects.JobRunState{runId1: schedulerobjects.JobRunState_RUNNING, runId2: schedulerobjects.JobRunState_RUNNING},
 				UnallocatableResources:      map[int32]*schedulerobjects.ResourceList{},
 				ResourceUsageByQueueAndPool: []*schedulerobjects.PoolQueueResource{},

@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"golang.org/x/exp/maps"
 	"k8s.io/apimachinery/pkg/api/resource"
 )
 
@@ -117,32 +116,6 @@ func TestResourceListEqual(t *testing.T) {
 			assert.Equal(t, tc.expected, tc.b.Equal(tc.a))
 		})
 	}
-}
-
-func TestV1ResourceListConversion(t *testing.T) {
-	rl := &ResourceList{
-		Resources: map[string]*resource.Quantity{
-			"foo": resourceFromString("1"),
-		},
-	}
-	rlCopy := rl.DeepCopy()
-	v1rl := V1ResourceListFromResourceList(rlCopy)
-	rlCopy.Resources["bar"] = resourceFromString("2")
-	q := rlCopy.Resources["foo"]
-	q.Add(resource.MustParse("10"))
-
-	rl = ResourceListFromV1ResourceList(v1rl)
-	assert.True(
-		t,
-		rl.Equal(&ResourceList{
-			Resources: map[string]*resource.Quantity{
-				"foo": resourceFromString("1"),
-			},
-		}),
-	)
-
-	v1rlCopy := V1ResourceListFromResourceList(rl)
-	assert.True(t, maps.Equal(v1rlCopy, v1rl))
 }
 
 func resourceFromString(s string) *resource.Quantity {
