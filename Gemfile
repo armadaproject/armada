@@ -1,6 +1,7 @@
 source "https://rubygems.org"
 
 # Use GitHub Pages locally to match the GitHub Pages server environment.
+# To upgrade, run `bundle update github-pages`.
 gem "github-pages", "~> 232", group: :jekyll_plugins
 # See: https://pages.github.com/versions/ for available Jekyll plugins.
 
