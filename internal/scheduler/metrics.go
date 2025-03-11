@@ -394,7 +394,7 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 
 					podRequirements := job.PodRequirements()
 					if podRequirements != nil {
-						jobRequirements := schedulerobjects.ResourceListFromV1ResourceList(podRequirements.ResourceRequirements.Requests)
+						jobRequirements := resource.FromResourceList(podRequirements.ResourceRequirements.Requests)
 						queueKey := queueMetricKey{
 							cluster:       executor.Id,
 							pool:          jobPool,
@@ -406,7 +406,6 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 
 						// If the job is running on its home pool, then remove the resources from all the away pools
 						if jobPool == nodePool {
-							schedulerobjects.ResourceListFromV1ResourceList(podRequirements.ResourceRequirements.Requests)
 							for _, awayClusterKey := range awayClusterKeys {
 								subtractFromResourceListMap(totalResourceByCluster, awayClusterKey, jobRequirements.ToComputeResources())
 								subtractFromResourceListMap(availableResourceByCluster, awayClusterKey, jobRequirements.ToComputeResources())

@@ -238,13 +238,11 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 	// Note that we do this after aggregating allocation across clusters for fair share.
 	healthyExecutors := l.filterStaleExecutors(ctx, executors)
 	healthyExecutors = l.filterLaggingExecutors(ctx, healthyExecutors, jobSchedulingInfo.jobsByExecutorId)
-	if l.schedulingConfig.EnableExecutorCordoning {
-		executorSettings, err := l.executorRepository.GetExecutorSettings(ctx)
-		if err != nil {
-			return nil, err
-		}
-		healthyExecutors = l.filterCordonedExecutors(ctx, healthyExecutors, executorSettings)
+	executorSettings, err := l.executorRepository.GetExecutorSettings(ctx)
+	if err != nil {
+		return nil, err
 	}
+	healthyExecutors = l.filterCordonedExecutors(ctx, healthyExecutors, executorSettings)
 
 	nodes := nodeFactory.FromSchedulerObjectsExecutors(healthyExecutors, func(errMes string) {
 		ctx.Error(errMes)

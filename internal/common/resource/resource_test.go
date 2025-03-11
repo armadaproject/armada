@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 )
@@ -196,6 +197,25 @@ func TestFromProtoMap(t *testing.T) {
 
 	actual := FromProtoMap(input)
 	assert.Equal(t, actual, expected)
+}
+
+func TestZero(t *testing.T) {
+	input := ComputeResources{
+		"foo": resource.MustParse("1"),
+		"bar": resource.MustParse("10Gi"),
+		"baz": resource.MustParse("0"),
+	}
+	input.Zero()
+	expected := ComputeResources{
+		"foo": resource.MustParse("0"),
+		"bar": resource.MustParse("0"),
+		"baz": resource.MustParse("0"),
+	}
+	require.Equal(t, len(input), len(expected))
+	for k, v := range expected {
+		actual := input[k]
+		assert.Equal(t, v.MilliValue(), actual.MilliValue())
+	}
 }
 
 func makeDefaultNodeResource() v1.ResourceList {

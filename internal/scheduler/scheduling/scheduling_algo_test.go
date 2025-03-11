@@ -31,6 +31,7 @@ import (
 
 func TestSchedule(t *testing.T) {
 	multiPoolSchedulingConfig := testfixtures.TestSchedulingConfig()
+	defaultExecutorSettings := []*schedulerobjects.ExecutorSettings{}
 	multiPoolSchedulingConfig.Pools = []configuration.PoolConfig{
 		{Name: testfixtures.TestPool},
 		{Name: testfixtures.TestPool2},
@@ -484,6 +485,7 @@ func TestSchedule(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockExecutorRepo := schedulermocks.NewMockExecutorRepository(ctrl)
 			mockExecutorRepo.EXPECT().GetExecutors(ctx).Return(tc.executors, nil).AnyTimes()
+			mockExecutorRepo.EXPECT().GetExecutorSettings(ctx).Return(defaultExecutorSettings, nil).AnyTimes()
 			mockQueueCache := schedulermocks.NewMockQueueCache(ctrl)
 			mockQueueCache.EXPECT().GetAll(ctx).Return(tc.queues, nil).AnyTimes()
 

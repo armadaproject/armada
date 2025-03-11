@@ -8,11 +8,16 @@ import (
 )
 
 // NewResourceList returns a new ResourceList, where the backing map has initial capacity n.
-func NewResourceList(n int) *ResourceList {
-	return &ResourceList{Resources: make(map[string]*resource.Quantity, n)}
+func NewResourceList(n int) ResourceList {
+	return ResourceList{Resources: make(map[string]resource.Quantity, n)}
 }
 
-func ResourceListFromV1ResourceList(rl v1.ResourceList) *ResourceList {
+// NewResourceListWithDefaultSize returns a new ResourceList, where the backing map has default initial capacity.
+func NewResourceListWithDefaultSize() ResourceList {
+	return ResourceList{Resources: make(map[string]resource.Quantity, resourceListDefaultSize)}
+}
+
+func ResourceListFromV1ResourceList(rl v1.ResourceList) ResourceList {
 	rv := ResourceList{
 		Resources: make(map[string]*resource.Quantity, len(rl)),
 	}
