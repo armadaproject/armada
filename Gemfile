@@ -16,4 +16,4 @@ end
 gem "wdm", "~> 0.1.1", :platforms => [:mingw, :x64_mingw, :mswin]
 
 # Requiring this version of webrick permits this to work under ruby 3.x.
-gem "webrick", "~> 1.7"
+gem "webrick", "~> 1.9"
