@@ -23,7 +23,8 @@ bin/
 *.out
 
 # Dependency directories (remove the comment below to include it)
-# vendor/
+vendor/
+.bundle/
 
 # .net core
 *.suo
