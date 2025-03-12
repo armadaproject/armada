@@ -79,7 +79,7 @@
       </div>
         <div class="col-lg-12 text-center">
           <div class="buttons">
-        <a href="/design" class="btn btn-primary">
+        <a href="{{ '/design' | relative_url }}" class="btn btn-primary">
           Learn More
         </a>
           </div>
@@ -102,7 +102,7 @@
             <div class="description pl-4">
               <h5 class="title">Queue</h5>
               <p>Represents a user or project, used to maintain fair share over time, with a priority factor</p>
-              <a href="/user#queue" class="text-info">Learn more</a>
+              <a href="{{ '/user#queue' | relative_url }}" class="text-info">Learn more</a>
             </div>
           </div>
           <div class="info info-horizontal info-hover-primary">
@@ -112,7 +112,7 @@
             <div class="description pl-4">
               <h5 class="title">Job</h5>
               <p>Unit of work to be run (described as a Kubernetes PodSpec)</p>
-              <a href="/user#job" class="text-info">Learn more</a>
+              <a href="{{ '/user#job' | relative_url }}" class="text-info">Learn more</a>
             </div>
           </div>
           <div class="info info-horizontal info-hover-primary">
@@ -122,7 +122,7 @@
             <div class="description pl-4">
               <h5 class="title">Job Set</h5>
               <p>Group of related jobs. The API allows observing progress of a job set together</p>
-              <a href="/user#job-set" class="text-info">Learn more</a>
+              <a href="{{ '/user#job-set' | relative_url }}" class="text-info">Learn more</a>
             </div>
           </div>
         </div>
@@ -144,7 +144,7 @@
         <p class="lead mt-0">Follow the quickstart guide to get Armada up and running locally.</p>
         <br>
         <div class="buttons">
-          <a href="/quickstart" class="btn btn-primary">
+          <a href="{{ '/quickstart' | relative_url }}" class="btn btn-primary">
             Get Started
           </a>
         </div>
@@ -163,7 +163,7 @@
       <p class="lead mt-0">Want to contribute to Armada? Here's all the information you need.</p>
       <br>
       <div class="buttons">
-        <a href="/contribute" class="btn btn-primary">
+        <a href="{{ '/contribute' | relative_url }}" class="btn btn-primary">
           Join Us
         </a>
       </div>
