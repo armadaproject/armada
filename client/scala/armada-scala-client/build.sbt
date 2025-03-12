@@ -3,15 +3,16 @@ val scala2Version = "2.13.15"
 lazy val root = project
   .in(file("."))
   .settings(
-    organization := "io.armadaproject.armada",
     name := "Armada Scala Client",
+    description := "The Armada Scala client.",
+
     version := "0.1.0-SNAPSHOT",
     versionScheme := Some("semver-spec"),
 
     organization := "io.armadaproject.armada",
     organizationName := "Armada Project",
     organizationHomepage := Some(url("https://armadaproject.io/")),
-    description := "The Armada Scala client.",
+
     licenses := List(
       "Apache 2" -> url("http://www.apache.org/licenses/LICENSE-2.0.txt")
     ),

@@ -1,13 +1,13 @@
 name: Release Scala Client to Maven
 
 on:
-  # TODO: pull_request has to be removed before merging
-  pull_request:
   workflow_dispatch:
 
 jobs:
   publish:
     runs-on: ubuntu-22.04
+    # secrets are provided by environment
+    environment: scala-release
     steps:
       - uses: actions/checkout@v4
       - name: Setup Go
