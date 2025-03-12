@@ -9,7 +9,7 @@ lazy val root = project
     version := "0.1.0-SNAPSHOT",
     versionScheme := Some("semver-spec"),
 
-    organization := "io.armadaproject.armada",
+    organization := "io.armadaproject",
     organizationName := "Armada Project",
     organizationHomepage := Some(url("https://armadaproject.io/")),
 
