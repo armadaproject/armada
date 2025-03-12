@@ -3,9 +3,9 @@ package repository
 import (
 	"testing"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"

@@ -52,9 +52,9 @@ func TestSchedule_NodeChecks(t *testing.T) {
 			expectSuccess: false,
 		},
 		"node too small": {
-			node: testfixtures.TestNode(testfixtures.TestPriorities, map[string]resource.Quantity{
-				"cpu":    resource.MustParse("1"),
-				"memory": resource.MustParse("5Gi"),
+			node: testfixtures.TestNode(testfixtures.TestPriorities, map[string]*resource.Quantity{
+				"cpu":    resourceFromString("1"),
+				"memory": resourceFromString("5Gi"),
 			}),
 			job:           job,
 			expectSuccess: false,
@@ -85,9 +85,9 @@ func TestSchedule_NodeChecks(t *testing.T) {
 }
 
 func TestSchedule_JobChecks(t *testing.T) {
-	node := testfixtures.TestNode(testfixtures.TestPriorities, map[string]resource.Quantity{
-		"cpu":    resource.MustParse("10"),
-		"memory": resource.MustParse("25Gi"),
+	node := testfixtures.TestNode(testfixtures.TestPriorities, map[string]*resource.Quantity{
+		"cpu":    resourceFromString("10"),
+		"memory": resourceFromString("25Gi"),
 	})
 	jobToSchedule := testfixtures.TestJobWithResources("A", testfixtures.PriorityClass2, v1.ResourceList{
 		"cpu":    resource.MustParse("8"),
@@ -253,8 +253,8 @@ func markedScheduledOnNode(jobs []*jobdb.Job, node *internaltypes.Node) []*jobdb
 }
 
 func TestSchedule_PreemptsExpectedJobs(t *testing.T) {
-	node := testfixtures.TestNode(testfixtures.TestPriorities, map[string]resource.Quantity{"cpu": resource.MustParse("10")})
-	bigNode := testfixtures.TestNode(testfixtures.TestPriorities, map[string]resource.Quantity{"cpu": resource.MustParse("18")})
+	node := testfixtures.TestNode(testfixtures.TestPriorities, map[string]*resource.Quantity{"cpu": resourceFromString("10")})
+	bigNode := testfixtures.TestNode(testfixtures.TestPriorities, map[string]*resource.Quantity{"cpu": resourceFromString("18")})
 	jobToSchedule := createTestCpuJob("A", 8)
 	smallJobToSchedule := createTestCpuJob("A", 3)
 	bigJobToSchedule := createTestCpuJob("A", 12)
@@ -414,9 +414,9 @@ func TestSchedule_PreemptsExpectedJobs(t *testing.T) {
 }
 
 func TestSchedule_Errors_WhenInformationMissingFromState(t *testing.T) {
-	node := testfixtures.TestNode(testfixtures.TestPriorities, map[string]resource.Quantity{
-		"cpu":    resource.MustParse("10"),
-		"memory": resource.MustParse("25Gi"),
+	node := testfixtures.TestNode(testfixtures.TestPriorities, map[string]*resource.Quantity{
+		"cpu":    resourceFromString("10"),
+		"memory": resourceFromString("25Gi"),
 	})
 	jobToSchedule := testfixtures.TestJobWithResources("A", testfixtures.PriorityClass2, v1.ResourceList{
 		"cpu":    resource.MustParse("8"),
@@ -544,4 +544,9 @@ func createNTestCpuJob(queueName string, cpu int, count int) []*jobdb.Job {
 		result = append(result, createTestCpuJob(queueName, cpu))
 	}
 	return result
+}
+
+func resourceFromString(s string) *resource.Quantity {
+	qty := resource.MustParse(s)
+	return &qty
 }

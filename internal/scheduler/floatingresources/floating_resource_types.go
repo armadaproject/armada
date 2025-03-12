@@ -26,7 +26,7 @@ func NewFloatingResourceTypes(config []configuration.FloatingResourceConfig, rlF
 	for _, fr := range config {
 		for _, poolConfig := range fr.Pools {
 			floatingResourceLimitsByPool[poolConfig.Name] = floatingResourceLimitsByPool[poolConfig.Name].Add(
-				rlFactory.FromNodeProto(map[string]resource.Quantity{fr.Name: poolConfig.Quantity}),
+				rlFactory.FromNodeProto(map[string]*resource.Quantity{fr.Name: &poolConfig.Quantity}),
 			)
 		}
 	}

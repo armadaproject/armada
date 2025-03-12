@@ -13,6 +13,7 @@ type LeaderProxyingSchedulingReportsServer struct {
 	localReportsServer               schedulerobjects.SchedulerReportingServer
 	leaderClientProvider             leader.LeaderClientConnectionProvider
 	schedulerReportingClientProvider reportingClientProvider
+	*schedulerobjects.UnimplementedSchedulerReportingServer
 }
 
 func NewLeaderProxyingSchedulingReportsServer(

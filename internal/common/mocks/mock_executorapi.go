@@ -14,10 +14,10 @@ import (
 	reflect "reflect"
 
 	executorapi "github.com/armadaproject/armada/pkg/executorapi"
-	types "github.com/gogo/protobuf/types"
 	gomock "go.uber.org/mock/gomock"
 	grpc "google.golang.org/grpc"
 	metadata "google.golang.org/grpc/metadata"
+	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
 // MockExecutorApiClient is a mock of ExecutorApiClient interface.
@@ -65,14 +65,14 @@ func (mr *MockExecutorApiClientMockRecorder) LeaseJobRuns(ctx any, opts ...any) 
 }
 
 // ReportEvents mocks base method.
-func (m *MockExecutorApiClient) ReportEvents(ctx context.Context, in *executorapi.EventList, opts ...grpc.CallOption) (*types.Empty, error) {
+func (m *MockExecutorApiClient) ReportEvents(ctx context.Context, in *executorapi.EventList, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	m.ctrl.T.Helper()
 	varargs := []any{ctx, in}
 	for _, a := range opts {
 		varargs = append(varargs, a)
 	}
 	ret := m.ctrl.Call(m, "ReportEvents", varargs...)
-	ret0, _ := ret[0].(*types.Empty)
+	ret0, _ := ret[0].(*emptypb.Empty)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

@@ -19,31 +19,31 @@ import (
 )
 
 // MockExecutorApi_LeaseJobRunsServer is a mock of ExecutorApi_LeaseJobRunsServer interface.
-type MockExecutorApi_LeaseJobRunsServer struct {
+type MockExecutorApi_LeaseJobRunsServer[Req any, Res any] struct {
 	ctrl     *gomock.Controller
-	recorder *MockExecutorApi_LeaseJobRunsServerMockRecorder
+	recorder *MockExecutorApi_LeaseJobRunsServerMockRecorder[Req, Res]
 	isgomock struct{}
 }
 
 // MockExecutorApi_LeaseJobRunsServerMockRecorder is the mock recorder for MockExecutorApi_LeaseJobRunsServer.
-type MockExecutorApi_LeaseJobRunsServerMockRecorder struct {
-	mock *MockExecutorApi_LeaseJobRunsServer
+type MockExecutorApi_LeaseJobRunsServerMockRecorder[Req any, Res any] struct {
+	mock *MockExecutorApi_LeaseJobRunsServer[Req, Res]
 }
 
 // NewMockExecutorApi_LeaseJobRunsServer creates a new mock instance.
-func NewMockExecutorApi_LeaseJobRunsServer(ctrl *gomock.Controller) *MockExecutorApi_LeaseJobRunsServer {
-	mock := &MockExecutorApi_LeaseJobRunsServer{ctrl: ctrl}
-	mock.recorder = &MockExecutorApi_LeaseJobRunsServerMockRecorder{mock}
+func NewMockExecutorApi_LeaseJobRunsServer[Req any, Res any](ctrl *gomock.Controller) *MockExecutorApi_LeaseJobRunsServer[Req, Res] {
+	mock := &MockExecutorApi_LeaseJobRunsServer[Req, Res]{ctrl: ctrl}
+	mock.recorder = &MockExecutorApi_LeaseJobRunsServerMockRecorder[Req, Res]{mock}
 	return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockExecutorApi_LeaseJobRunsServer) EXPECT() *MockExecutorApi_LeaseJobRunsServerMockRecorder {
+func (m *MockExecutorApi_LeaseJobRunsServer[Req, Res]) EXPECT() *MockExecutorApi_LeaseJobRunsServerMockRecorder[Req, Res] {
 	return m.recorder
 }
 
 // Context mocks base method.
-func (m *MockExecutorApi_LeaseJobRunsServer) Context() context.Context {
+func (m *MockExecutorApi_LeaseJobRunsServer[Req, Res]) Context() context.Context {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Context")
 	ret0, _ := ret[0].(context.Context)
@@ -51,13 +51,13 @@ func (m *MockExecutorApi_LeaseJobRunsServer) Context() context.Context {
 }
 
 // Context indicates an expected call of Context.
-func (mr *MockExecutorApi_LeaseJobRunsServerMockRecorder) Context() *gomock.Call {
+func (mr *MockExecutorApi_LeaseJobRunsServerMockRecorder[Req, Res]) Context() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Context", reflect.TypeOf((*MockExecutorApi_LeaseJobRunsServer)(nil).Context))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Context", reflect.TypeOf((*MockExecutorApi_LeaseJobRunsServer[Req, Res])(nil).Context))
 }
 
 // Recv mocks base method.
-func (m *MockExecutorApi_LeaseJobRunsServer) Recv() (*executorapi.LeaseRequest, error) {
+func (m *MockExecutorApi_LeaseJobRunsServer[Req, Res]) Recv() (*executorapi.LeaseRequest, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Recv")
 	ret0, _ := ret[0].(*executorapi.LeaseRequest)
@@ -66,13 +66,13 @@ func (m *MockExecutorApi_LeaseJobRunsServer) Recv() (*executorapi.LeaseRequest, 
 }
 
 // Recv indicates an expected call of Recv.
-func (mr *MockExecutorApi_LeaseJobRunsServerMockRecorder) Recv() *gomock.Call {
+func (mr *MockExecutorApi_LeaseJobRunsServerMockRecorder[Req, Res]) Recv() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Recv", reflect.TypeOf((*MockExecutorApi_LeaseJobRunsServer)(nil).Recv))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Recv", reflect.TypeOf((*MockExecutorApi_LeaseJobRunsServer[Req, Res])(nil).Recv))
 }
 
 // RecvMsg mocks base method.
-func (m_2 *MockExecutorApi_LeaseJobRunsServer) RecvMsg(m any) error {
+func (m_2 *MockExecutorApi_LeaseJobRunsServer[Req, Res]) RecvMsg(m any) error {
 	m_2.ctrl.T.Helper()
 	ret := m_2.ctrl.Call(m_2, "RecvMsg", m)
 	ret0, _ := ret[0].(error)
@@ -80,13 +80,13 @@ func (m_2 *MockExecutorApi_LeaseJobRunsServer) RecvMsg(m any) error {
 }
 
 // RecvMsg indicates an expected call of RecvMsg.
-func (mr *MockExecutorApi_LeaseJobRunsServerMockRecorder) RecvMsg(m any) *gomock.Call {
+func (mr *MockExecutorApi_LeaseJobRunsServerMockRecorder[Req, Res]) RecvMsg(m any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RecvMsg", reflect.TypeOf((*MockExecutorApi_LeaseJobRunsServer)(nil).RecvMsg), m)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RecvMsg", reflect.TypeOf((*MockExecutorApi_LeaseJobRunsServer[Req, Res])(nil).RecvMsg), m)
 }
 
 // Send mocks base method.
-func (m *MockExecutorApi_LeaseJobRunsServer) Send(arg0 *executorapi.LeaseStreamMessage) error {
+func (m *MockExecutorApi_LeaseJobRunsServer[Req, Res]) Send(arg0 *executorapi.LeaseStreamMessage) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Send", arg0)
 	ret0, _ := ret[0].(error)
@@ -94,13 +94,13 @@ func (m *MockExecutorApi_LeaseJobRunsServer) Send(arg0 *executorapi.LeaseStreamM
 }
 
 // Send indicates an expected call of Send.
-func (mr *MockExecutorApi_LeaseJobRunsServerMockRecorder) Send(arg0 any) *gomock.Call {
+func (mr *MockExecutorApi_LeaseJobRunsServerMockRecorder[Req, Res]) Send(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Send", reflect.TypeOf((*MockExecutorApi_LeaseJobRunsServer)(nil).Send), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Send", reflect.TypeOf((*MockExecutorApi_LeaseJobRunsServer[Req, Res])(nil).Send), arg0)
 }
 
 // SendHeader mocks base method.
-func (m *MockExecutorApi_LeaseJobRunsServer) SendHeader(arg0 metadata.MD) error {
+func (m *MockExecutorApi_LeaseJobRunsServer[Req, Res]) SendHeader(arg0 metadata.MD) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SendHeader", arg0)
 	ret0, _ := ret[0].(error)
@@ -108,13 +108,13 @@ func (m *MockExecutorApi_LeaseJobRunsServer) SendHeader(arg0 metadata.MD) error 
 }
 
 // SendHeader indicates an expected call of SendHeader.
-func (mr *MockExecutorApi_LeaseJobRunsServerMockRecorder) SendHeader(arg0 any) *gomock.Call {
+func (mr *MockExecutorApi_LeaseJobRunsServerMockRecorder[Req, Res]) SendHeader(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SendHeader", reflect.TypeOf((*MockExecutorApi_LeaseJobRunsServer)(nil).SendHeader), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SendHeader", reflect.TypeOf((*MockExecutorApi_LeaseJobRunsServer[Req, Res])(nil).SendHeader), arg0)
 }
 
 // SendMsg mocks base method.
-func (m_2 *MockExecutorApi_LeaseJobRunsServer) SendMsg(m any) error {
+func (m_2 *MockExecutorApi_LeaseJobRunsServer[Req, Res]) SendMsg(m any) error {
 	m_2.ctrl.T.Helper()
 	ret := m_2.ctrl.Call(m_2, "SendMsg", m)
 	ret0, _ := ret[0].(error)
@@ -122,13 +122,13 @@ func (m_2 *MockExecutorApi_LeaseJobRunsServer) SendMsg(m any) error {
 }
 
 // SendMsg indicates an expected call of SendMsg.
-func (mr *MockExecutorApi_LeaseJobRunsServerMockRecorder) SendMsg(m any) *gomock.Call {
+func (mr *MockExecutorApi_LeaseJobRunsServerMockRecorder[Req, Res]) SendMsg(m any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SendMsg", reflect.TypeOf((*MockExecutorApi_LeaseJobRunsServer)(nil).SendMsg), m)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SendMsg", reflect.TypeOf((*MockExecutorApi_LeaseJobRunsServer[Req, Res])(nil).SendMsg), m)
 }
 
 // SetHeader mocks base method.
-func (m *MockExecutorApi_LeaseJobRunsServer) SetHeader(arg0 metadata.MD) error {
+func (m *MockExecutorApi_LeaseJobRunsServer[Req, Res]) SetHeader(arg0 metadata.MD) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetHeader", arg0)
 	ret0, _ := ret[0].(error)
@@ -136,19 +136,19 @@ func (m *MockExecutorApi_LeaseJobRunsServer) SetHeader(arg0 metadata.MD) error {
 }
 
 // SetHeader indicates an expected call of SetHeader.
-func (mr *MockExecutorApi_LeaseJobRunsServerMockRecorder) SetHeader(arg0 any) *gomock.Call {
+func (mr *MockExecutorApi_LeaseJobRunsServerMockRecorder[Req, Res]) SetHeader(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetHeader", reflect.TypeOf((*MockExecutorApi_LeaseJobRunsServer)(nil).SetHeader), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetHeader", reflect.TypeOf((*MockExecutorApi_LeaseJobRunsServer[Req, Res])(nil).SetHeader), arg0)
 }
 
 // SetTrailer mocks base method.
-func (m *MockExecutorApi_LeaseJobRunsServer) SetTrailer(arg0 metadata.MD) {
+func (m *MockExecutorApi_LeaseJobRunsServer[Req, Res]) SetTrailer(arg0 metadata.MD) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "SetTrailer", arg0)
 }
 
 // SetTrailer indicates an expected call of SetTrailer.
-func (mr *MockExecutorApi_LeaseJobRunsServerMockRecorder) SetTrailer(arg0 any) *gomock.Call {
+func (mr *MockExecutorApi_LeaseJobRunsServerMockRecorder[Req, Res]) SetTrailer(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetTrailer", reflect.TypeOf((*MockExecutorApi_LeaseJobRunsServer)(nil).SetTrailer), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetTrailer", reflect.TypeOf((*MockExecutorApi_LeaseJobRunsServer[Req, Res])(nil).SetTrailer), arg0)
 }

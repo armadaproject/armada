@@ -84,12 +84,12 @@ func (factory *ResourceListFactory) MakeAllMax() ResourceList {
 }
 
 // Ignore unknown resources, round down.
-func (factory *ResourceListFactory) FromNodeProto(resources map[string]k8sResource.Quantity) ResourceList {
+func (factory *ResourceListFactory) FromNodeProto(resources map[string]*k8sResource.Quantity) ResourceList {
 	result := make([]int64, len(factory.indexToName))
 	for k, v := range resources {
 		index, ok := factory.nameToIndex[k]
 		if ok {
-			result[index] = QuantityToInt64RoundDown(v, factory.scales[index])
+			result[index] = QuantityToInt64RoundDown(*v, factory.scales[index])
 		}
 	}
 	return ResourceList{resources: result, factory: factory}

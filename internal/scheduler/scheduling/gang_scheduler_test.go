@@ -709,8 +709,8 @@ func TestGangScheduler(t *testing.T) {
 func addFloatingResourceRequest(request string, jobs []*jobdb.Job) []*jobdb.Job {
 	return testfixtures.WithRequestsJobs(
 		schedulerobjects.ResourceList{
-			Resources: map[string]resource.Quantity{
-				"test-floating-resource": resource.MustParse(request),
+			Resources: map[string]*resource.Quantity{
+				"test-floating-resource": resourceFromString(request),
 			},
 		},
 		jobs)

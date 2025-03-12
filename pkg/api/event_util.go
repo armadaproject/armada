@@ -4,15 +4,15 @@ import (
 	"encoding/json"
 	"reflect"
 
-	"github.com/gogo/protobuf/types"
 	"github.com/pkg/errors"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type Event interface {
 	GetJobId() string
 	GetJobSetId() string
 	GetQueue() string
-	GetCreated() *types.Timestamp
+	GetCreated() *timestamppb.Timestamp
 }
 
 type KubernetesEvent interface {

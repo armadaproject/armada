@@ -4,13 +4,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
+	"k8s.io/apimachinery/pkg/api/resource"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 	v1 "k8s.io/api/core/v1"
 	clock "k8s.io/utils/clock/testing"
 
@@ -81,20 +83,12 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 				Id:                          "test-executor-test-node",
 				Name:                        "test-node",
 				Executor:                    "test-executor",
-				TotalResources:              schedulerobjects.NewResourceList(0),
+				TotalResources:              &schedulerobjects.ResourceList{Resources: map[string]*resource.Quantity{}},
 				StateByJobRunId:             map[string]schedulerobjects.JobRunState{runId1: schedulerobjects.JobRunState_RUNNING, runId2: schedulerobjects.JobRunState_RUNNING},
-				UnallocatableResources:      map[int32]schedulerobjects.ResourceList{},
+				UnallocatableResources:      map[int32]*schedulerobjects.ResourceList{},
 				ResourceUsageByQueueAndPool: []*schedulerobjects.PoolQueueResource{},
-				AllocatableByPriorityAndResource: map[int32]schedulerobjects.ResourceList{
-					1000: {
-						Resources: nil,
-					},
-					2000: {
-						Resources: nil,
-					},
-				},
-				LastSeen:          protoutil.ToTimestamp(testClock.Now().UTC()),
-				ReportingNodeType: "node-type-1",
+				LastSeen:                    protoutil.ToTimestamp(testClock.Now().UTC()),
+				ReportingNodeType:           "node-type-1",
 			},
 		},
 		LastUpdateTime:    protoutil.ToTimestamp(testClock.Now().UTC()),
@@ -312,7 +306,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 			mockPulsarPublisher := mocks.NewMockPublisher[*armadaevents.EventSequence](ctrl)
 			mockJobRepository := schedulermocks.NewMockJobRepository(ctrl)
 			mockExecutorRepository := schedulermocks.NewMockExecutorRepository(ctrl)
-			mockStream := schedulermocks.NewMockExecutorApi_LeaseJobRunsServer(ctrl)
+			mockStream := schedulermocks.NewMockExecutorApi_LeaseJobRunsServer[any, any](ctrl)
 			mockAuthorizer := servermocks.NewMockActionAuthorizer(ctrl)
 
 			runIds, err := runIdsFromLeaseRequest(tc.request)
@@ -379,7 +373,7 @@ func TestExecutorApi_LeaseJobRuns_Unauthorised(t *testing.T) {
 	mockPulsarPublisher := mocks.NewMockPublisher[*armadaevents.EventSequence](ctrl)
 	mockJobRepository := schedulermocks.NewMockJobRepository(ctrl)
 	mockExecutorRepository := schedulermocks.NewMockExecutorRepository(ctrl)
-	mockStream := schedulermocks.NewMockExecutorApi_LeaseJobRunsServer(ctrl)
+	mockStream := schedulermocks.NewMockExecutorApi_LeaseJobRunsServer[any, any](ctrl)
 	mockAuthorizer := servermocks.NewMockActionAuthorizer(ctrl)
 
 	// set up mocks

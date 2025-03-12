@@ -13,7 +13,6 @@ for pfile in \
     google/api/annotations.proto \
     google/api/http.proto \
     google/protobuf/*.proto \
-    github.com/gogo/protobuf/gogoproto/gogo.proto \
     k8s.io/api/core/v1/generated.proto \
     k8s.io/apimachinery/pkg/api/resource/generated.proto \
     k8s.io/apimachinery/pkg/apis/meta/v1/generated.proto \
