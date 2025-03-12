@@ -360,7 +360,7 @@ func (srv *ExecutorApi) authorize(ctx *armadacontext.Context) error {
 	err := srv.authorizer.AuthorizeAction(ctx, permissions.ExecuteJobs)
 	var ep *armadaerrors.ErrUnauthorized
 	if errors.As(err, &ep) {
-		return status.Errorf(codes.PermissionDenied, err.Error())
+		return status.Error(codes.PermissionDenied, err.Error())
 	} else if err != nil {
 		return status.Errorf(codes.Unavailable, "error checking permissions: %s", err)
 	}

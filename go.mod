@@ -1,8 +1,8 @@
 module github.com/armadaproject/armada
 
-go 1.23
+go 1.24
 
-toolchain go1.23.1
+toolchain go1.24.1
 
 // athenz@v1.10.5 and onwards bundle encrypted signing keys with the source code.
 // Because corporate proxies may block go get commands that pull in encrypted data,
