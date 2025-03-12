@@ -1,0 +1,38 @@
+name: Release Scala Client to Maven
+
+on:
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-22.04
+    # secrets are provided by environment
+    environment: scala-release
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Go
+        uses: ./.github/actions/setup-go-cache
+        with:
+          cache-prefix: run-python-tests
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          version: '23.3'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install SBT
+        uses: sbt/setup-sbt@v1
+        with:
+          sbt-runner-version: 1.10.7
+      - name: Build Armada Scala Client
+        run: |
+          go run github.com/magefile/mage@v1.14.0 -v buildScala
+      - name: Publish package to Maven
+        env:
+          SONATYPE_USERNAME: ${{ secrets.SONATYPE_USERNAME }}
+          SONATYPE_PASSWORD: ${{ secrets.SONATYPE_PASSWORD }}
+          PGP_PASSPHRASE: ${{ secrets.PGP_PASSPHRASE }}
+          PGP_SECRET: ${{ secrets.PGP_SECRET }}
+          CI_CLEAN: clean
+        run: |
+          cd client/scala/armada-scala-client
+          sbt ci-release
