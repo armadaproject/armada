@@ -4,25 +4,10 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	resource2 "github.com/armadaproject/armada/internal/common/resource"
+	cr "github.com/armadaproject/armada/internal/common/resource"
 )
 
-// NewResourceList returns a new ResourceList, where the backing map has initial capacity n.
-func NewResourceList(n int) ResourceList {
-	return ResourceList{Resources: make(map[string]resource.Quantity, n)}
-}
-
-func ResourceListFromV1ResourceList(rl v1.ResourceList) ResourceList {
-	rv := ResourceList{
-		Resources: make(map[string]resource.Quantity, len(rl)),
-	}
-	for t, q := range rl {
-		rv.Resources[string(t)] = q
-	}
-	return rv
-}
-
-func V1ResourceListFromResourceList(rl ResourceList) v1.ResourceList {
+func V1ResourceListFromResourceList(rl *ResourceList) v1.ResourceList {
 	rv := make(v1.ResourceList, len(rl.Resources))
 	for t, q := range rl.Resources {
 		rv[v1.ResourceName(t)] = q.DeepCopy()
@@ -30,49 +15,46 @@ func V1ResourceListFromResourceList(rl ResourceList) v1.ResourceList {
 	return rv
 }
 
-type QuantityByTAndResourceType[T comparable] map[T]ResourceList
+type QuantityByTAndResourceType[T comparable] map[T]*ResourceList
 
 func (rl *ResourceList) Get(resourceType string) resource.Quantity {
-	return rl.Resources[resourceType]
+	qty := rl.Resources[resourceType]
+	if qty == nil {
+		return resource.Quantity{}
+	}
+	return *qty
 }
 
 func (rl *ResourceList) Set(t string, q resource.Quantity) {
+	cpy := q.DeepCopy()
 	rl.initialise()
-	rl.Resources[t] = q
+	rl.Resources[t] = &cpy
 }
 
-func (a *ResourceList) Add(b ResourceList) {
+func (a *ResourceList) Sub(b *ResourceList) {
 	a.initialise()
 	for t, qb := range b.Resources {
 		qa := a.Resources[t]
-		qa.Add(qb)
+		qa.Sub(*qb)
 		a.Resources[t] = qa
 	}
 }
 
-func (a *ResourceList) Sub(b ResourceList) {
-	a.initialise()
-	for t, qb := range b.Resources {
-		qa := a.Resources[t]
-		qa.Sub(qb)
-		a.Resources[t] = qa
-	}
-}
-
-func (rl ResourceList) DeepCopy() ResourceList {
+func (rl *ResourceList) DeepCopy() *ResourceList {
 	if len(rl.Resources) == 0 {
-		return ResourceList{}
+		return &ResourceList{}
 	}
 	rv := ResourceList{
-		Resources: make(map[string]resource.Quantity, len(rl.Resources)),
+		Resources: make(map[string]*resource.Quantity, len(rl.Resources)),
 	}
 	for t, q := range rl.Resources {
-		rv.Resources[t] = q.DeepCopy()
+		cpy := q.DeepCopy()
+		rv.Resources[t] = &cpy
 	}
-	return rv
+	return &rv
 }
 
-func (a ResourceList) Equal(b ResourceList) bool {
+func (a *ResourceList) Equal(b *ResourceList) bool {
 	for t, qa := range a.Resources {
 		if qa.Cmp(b.Get(t)) != 0 {
 			return false
@@ -88,13 +70,16 @@ func (a ResourceList) Equal(b ResourceList) bool {
 
 func (rl *ResourceList) initialise() {
 	if rl.Resources == nil {
-		rl.Resources = make(map[string]resource.Quantity)
+		rl.Resources = make(map[string]*resource.Quantity)
 	}
 }
 
-func (rl ResourceList) ToComputeResources() resource2.ComputeResources {
-	cpy := rl.DeepCopy()
-	return cpy.Resources
+func (rl ResourceList) ToComputeResources() cr.ComputeResources {
+	rv := make(cr.ComputeResources, len(rl.Resources))
+	for k, v := range rl.Resources {
+		rv[k] = v.DeepCopy()
+	}
+	return rv
 }
 
 // AllocatableByPriorityAndResourceType accounts for resources that can be allocated to pods of a given priority.
@@ -102,7 +87,7 @@ func (rl ResourceList) ToComputeResources() resource2.ComputeResources {
 // where alloctable resources = unused resources + resources allocated to lower-priority pods.
 type AllocatableByPriorityAndResourceType QuantityByTAndResourceType[int32]
 
-func NewAllocatableByPriorityAndResourceType(priorities []int32, rl ResourceList) AllocatableByPriorityAndResourceType {
+func NewAllocatableByPriorityAndResourceType(priorities []int32, rl *ResourceList) AllocatableByPriorityAndResourceType {
 	rv := make(AllocatableByPriorityAndResourceType)
 	for _, priority := range priorities {
 		rv[priority] = rl.DeepCopy()
@@ -112,7 +97,7 @@ func NewAllocatableByPriorityAndResourceType(priorities []int32, rl ResourceList
 
 // MarkAllocated indicates resources have been allocated to pods of priority p,
 // hence reducing the resources allocatable to pods of priority p or lower.
-func (m AllocatableByPriorityAndResourceType) MarkAllocated(p int32, rs ResourceList) {
+func (m AllocatableByPriorityAndResourceType) MarkAllocated(p int32, rs *ResourceList) {
 	for priority, allocatableResourcesAtPriority := range m {
 		if priority <= p {
 			allocatableResourcesAtPriority.Sub(rs)

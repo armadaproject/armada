@@ -37,9 +37,9 @@ func TestResourceListFromProtoResources(t *testing.T) {
 		"memory": &oneGi,
 	}
 	expected := schedulerobjects.ResourceList{
-		Resources: map[string]resource.Quantity{
-			"cpu":    resource.MustParse("1"),
-			"memory": resource.MustParse("1Gi"),
+		Resources: map[string]*resource.Quantity{
+			"cpu":    &oneCpu,
+			"memory": &oneGi,
 		},
 	}
 

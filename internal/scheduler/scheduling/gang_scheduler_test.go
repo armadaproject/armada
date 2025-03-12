@@ -13,6 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/common/pointer"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/common/util"
@@ -709,8 +710,8 @@ func TestGangScheduler(t *testing.T) {
 func addFloatingResourceRequest(request string, jobs []*jobdb.Job) []*jobdb.Job {
 	return testfixtures.WithRequestsJobs(
 		schedulerobjects.ResourceList{
-			Resources: map[string]resource.Quantity{
-				"test-floating-resource": resource.MustParse(request),
+			Resources: map[string]*resource.Quantity{
+				"test-floating-resource": pointer.MustParseResource(request),
 			},
 		},
 		jobs)

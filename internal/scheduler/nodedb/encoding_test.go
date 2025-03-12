@@ -4,10 +4,11 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
-
 	"github.com/stretchr/testify/assert"
 	"k8s.io/apimachinery/pkg/api/resource"
+
+	"github.com/armadaproject/armada/internal/common/pointer"
+	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 )
 
 func TestRoundQuantityToResolution(t *testing.T) {
@@ -191,7 +192,7 @@ func TestRoundedNodeIndexKeyFromResourceList(t *testing.T) {
 			0,
 			[]string{"memory", "cpu"},
 			[]int64{1, 2000},
-			testfixtures.TestResourceListFactory.FromNodeProto(map[string]resource.Quantity{"memory": resource.MustParse("1"), "cpu": resource.MustParse("2")}),
+			testfixtures.TestResourceListFactory.FromNodeProto(map[string]*resource.Quantity{"memory": pointer.MustParseResource("1"), "cpu": pointer.MustParseResource("2")}),
 			0,
 		),
 	)
@@ -203,7 +204,7 @@ func TestRoundedNodeIndexKeyFromResourceList(t *testing.T) {
 			0,
 			[]string{"memory", "cpu"},
 			[]int64{1, 1500},
-			testfixtures.TestResourceListFactory.FromNodeProto(map[string]resource.Quantity{"memory": resource.MustParse("1"), "cpu": resource.MustParse("2")}),
+			testfixtures.TestResourceListFactory.FromNodeProto(map[string]*resource.Quantity{"memory": pointer.MustParseResource("1"), "cpu": pointer.MustParseResource("2")}),
 			0,
 		),
 	)
