@@ -1,8 +1,8 @@
 module github.com/armadaproject/armada
 
-go 1.23
+go 1.23.0
 
-toolchain go1.23.1
+toolchain go1.23.3
 
 // athenz@v1.10.5 and onwards bundle encrypted signing keys with the source code.
 // Because corporate proxies may block go get commands that pull in encrypted data,
@@ -11,7 +11,7 @@ replace github.com/AthenZ/athenz v1.10.39 => github.com/AthenZ/athenz v1.10.4
 
 require (
 	github.com/apache/pulsar-client-go v0.14.0
-	github.com/coreos/go-oidc v2.2.1+incompatible
+	github.com/coreos/go-oidc/v3 v3.12.0
 	github.com/go-openapi/analysis v0.22.2
 	github.com/go-openapi/jsonreference v0.20.4
 	github.com/go-openapi/loads v0.21.5
@@ -22,7 +22,7 @@ require (
 	github.com/google/go-cmp v0.6.0 // indirect
 	github.com/google/uuid v1.6.0
 	github.com/grpc-ecosystem/grpc-gateway v1.16.0
-	github.com/hashicorp/go-memdb v1.3.4
+	github.com/hashicorp/go-memdb v1.3.5
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/golang-lru v1.0.2
 	github.com/jolestar/go-commons-pool v2.0.0+incompatible
@@ -40,9 +40,9 @@ require (
 	github.com/spf13/viper v1.19.0
 	github.com/stretchr/testify v1.9.0
 	golang.org/x/exp v0.0.0-20241009180824-f66d83c29e7c
-	golang.org/x/net v0.30.0
+	golang.org/x/net v0.37.0
 	golang.org/x/oauth2 v0.23.0
-	golang.org/x/sync v0.8.0
+	golang.org/x/sync v0.12.0
 	google.golang.org/genproto v0.0.0-20240213162025-012b6fc9bca9 // indirect
 	google.golang.org/grpc v1.67.1
 	gopkg.in/yaml.v2 v2.4.0
@@ -61,6 +61,7 @@ require (
 	github.com/Masterminds/semver/v3 v3.2.1
 	github.com/benbjohnson/immutable v0.4.3
 	github.com/charmbracelet/glamour v0.7.0
+	github.com/coreos/go-oidc v2.3.0+incompatible
 	github.com/go-openapi/errors v0.21.0
 	github.com/go-openapi/strfmt v0.21.10
 	github.com/go-openapi/swag v0.22.6
@@ -82,7 +83,7 @@ require (
 	github.com/segmentio/fasthash v1.0.3
 	github.com/xitongsys/parquet-go v1.6.2
 	go.uber.org/mock v0.5.0
-	golang.org/x/term v0.25.0
+	golang.org/x/term v0.30.0
 	golang.org/x/time v0.5.0
 	google.golang.org/genproto/googleapis/api v0.0.0-20240814211410-ddb44dafa142
 	gopkg.in/inf.v0 v0.9.1
@@ -123,6 +124,7 @@ require (
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.2 // indirect
 	github.com/go-errors/errors v1.0.1 // indirect
+	github.com/go-jose/go-jose/v4 v4.0.2 // indirect
 	github.com/go-logr/logr v1.4.1 // indirect
 	github.com/go-openapi/jsonpointer v0.20.2 // indirect
 	github.com/go-playground/locales v0.14.1 // indirect
@@ -199,15 +201,15 @@ require (
 	go.starlark.net v0.0.0-20200306205701-8dd3e2ee1dd5 // indirect
 	go.uber.org/atomic v1.9.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	golang.org/x/crypto v0.28.0 // indirect
+	golang.org/x/crypto v0.36.0 // indirect
 	golang.org/x/mod v0.21.0 // indirect
-	golang.org/x/sys v0.26.0 // indirect
-	golang.org/x/text v0.19.0 // indirect
+	golang.org/x/sys v0.31.0 // indirect
+	golang.org/x/text v0.23.0 // indirect
 	golang.org/x/xerrors v0.0.0-20231012003039-104605ab7028 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20241015192408-796eee8c2d53 // indirect
 	google.golang.org/protobuf v1.35.1 // indirect
+	gopkg.in/go-jose/go-jose.v2 v2.6.1 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
-	gopkg.in/square/go-jose.v2 v2.6.0 // indirect
 	k8s.io/cli-runtime v0.26.15 // indirect
 	k8s.io/klog/v2 v2.100.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20221012153701-172d655c2280 // indirect
