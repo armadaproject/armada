@@ -626,7 +626,7 @@ func (l *FairSchedulingAlgo) shouldRunOptimiser(pool configuration.PoolConfig) b
 	timeOfLastOptimiserRun, ok := l.lastOptimiserRoundTimeByPool[pool.Name]
 	if !ok {
 		return true
-	} else if l.clock.Since(timeOfLastOptimiserRun) <= pool.ExperimentalOptimiser.Interval {
+	} else if l.clock.Since(timeOfLastOptimiserRun) > pool.ExperimentalOptimiser.Interval {
 		return true
 	}
 	return false
