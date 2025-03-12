@@ -1,7 +1,6 @@
 site: Armada
-
-url: "https://armadaproject.io"
-baseurl: ""
+# title, description, url and baseurl will be set by jekyll-github-metadata
+# See: https://github.com/jekyll/github-metadata
 
 collections:
   pages:
@@ -35,6 +34,7 @@ sass:
 plugins:
   - jekyll-paginate
   - jekyll-sitemap
+  - jekyll-github-metadata
 
 paginate: 6
 paginate_path: "/blog/page:num/"
