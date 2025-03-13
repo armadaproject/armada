@@ -237,7 +237,7 @@ private class JobsMockServer(
     }
 
     Future.successful(
-      new JobStatusResponse(statuses.to(collection.immutable.Map))
+      new JobStatusResponse(statuses.toMap)
     )
   }
 
