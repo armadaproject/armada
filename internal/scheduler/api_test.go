@@ -12,6 +12,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	clock "k8s.io/utils/clock/testing"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -81,20 +82,12 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 				Id:                          "test-executor-test-node",
 				Name:                        "test-node",
 				Executor:                    "test-executor",
-				TotalResources:              schedulerobjects.NewResourceList(0),
+				TotalResources:              &schedulerobjects.ResourceList{Resources: map[string]*resource.Quantity{}},
 				StateByJobRunId:             map[string]schedulerobjects.JobRunState{runId1: schedulerobjects.JobRunState_RUNNING, runId2: schedulerobjects.JobRunState_RUNNING},
-				UnallocatableResources:      map[int32]schedulerobjects.ResourceList{},
+				UnallocatableResources:      map[int32]*schedulerobjects.ResourceList{},
 				ResourceUsageByQueueAndPool: []*schedulerobjects.PoolQueueResource{},
-				AllocatableByPriorityAndResource: map[int32]schedulerobjects.ResourceList{
-					1000: {
-						Resources: nil,
-					},
-					2000: {
-						Resources: nil,
-					},
-				},
-				LastSeen:          protoutil.ToTimestamp(testClock.Now().UTC()),
-				ReportingNodeType: "node-type-1",
+				LastSeen:                    protoutil.ToTimestamp(testClock.Now().UTC()),
+				ReportingNodeType:           "node-type-1",
 			},
 		},
 		LastUpdateTime:    protoutil.ToTimestamp(testClock.Now().UTC()),

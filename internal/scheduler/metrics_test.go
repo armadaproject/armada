@@ -14,6 +14,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	commonmetrics "github.com/armadaproject/armada/internal/common/metrics"
+	"github.com/armadaproject/armada/internal/common/pointer"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/floatingresources"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
@@ -193,9 +194,9 @@ func TestMetricsCollector_TestCollect_ClusterMetrics(t *testing.T) {
 			Pool:  testfixtures.TestPool,
 			Queue: testfixtures.TestQueue,
 			Resources: &schedulerobjects.ResourceList{
-				Resources: map[string]resource.Quantity{
-					"cpu":    resource.MustParse("1"),
-					"memory": resource.MustParse("1Gi"),
+				Resources: map[string]*resource.Quantity{
+					"cpu":    pointer.MustParseResource("1"),
+					"memory": pointer.MustParseResource("1Gi"),
 				},
 			},
 		},
@@ -522,9 +523,9 @@ func createExecutor(clusterName string, nodes ...*schedulerobjects.Node) *schedu
 func createNode(nodeType string) *schedulerobjects.Node {
 	node := testfixtures.TestSchedulerObjectsNode(
 		[]int32{},
-		map[string]resource.Quantity{
-			"cpu":    resource.MustParse("32"),
-			"memory": resource.MustParse("256Gi"),
+		map[string]*resource.Quantity{
+			"cpu":    pointer.MustParseResource("32"),
+			"memory": pointer.MustParseResource("256Gi"),
 		},
 	)
 	node.ReportingNodeType = nodeType

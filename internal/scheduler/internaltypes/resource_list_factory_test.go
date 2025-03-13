@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	k8sResource "k8s.io/apimachinery/pkg/api/resource"
 
+	"github.com/armadaproject/armada/internal/common/pointer"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
 )
 
@@ -35,10 +36,10 @@ func TestResolutionToScaleDefaultsCorrectly(t *testing.T) {
 
 func TestFromNodeProto(t *testing.T) {
 	factory := testFactory()
-	result := factory.FromNodeProto(map[string]k8sResource.Quantity{
-		"memory":  k8sResource.MustParse("100Mi"),
-		"cpu":     k8sResource.MustParse("9999999n"),
-		"missing": k8sResource.MustParse("200Mi"), // should ignore missing
+	result := factory.FromNodeProto(map[string]*k8sResource.Quantity{
+		"memory":  pointer.MustParseResource("100Mi"),
+		"cpu":     pointer.MustParseResource("9999999n"),
+		"missing": pointer.MustParseResource("200Mi"), // should ignore missing
 	})
 	assert.Equal(t, int64(100*1024*1024), testGet(&result, "memory"))
 	assert.Equal(t, int64(9), testGet(&result, "cpu"))

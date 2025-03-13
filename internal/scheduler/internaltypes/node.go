@@ -5,7 +5,9 @@ import (
 
 	"golang.org/x/exp/maps"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 
+	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/kubernetesobjects/label"
 	koTaint "github.com/armadaproject/armada/internal/scheduler/kubernetesobjects/taint"
@@ -69,7 +71,10 @@ func FromSchedulerObjectsNode(node *schedulerobjects.Node,
 	allocatableResources := totalResources
 	unallocatableResources := make(map[int32]ResourceList, len(node.UnallocatableResources))
 	for p, rl := range node.UnallocatableResources {
-		resource := resourceListFactory.FromJobResourceListIgnoreUnknown(rl.Resources)
+		resourcesAsStruct := armadamaps.MapValues(rl.Resources, func(v *resource.Quantity) resource.Quantity {
+			return *v
+		})
+		resource := resourceListFactory.FromJobResourceListIgnoreUnknown(resourcesAsStruct)
 		allocatableResources = allocatableResources.Subtract(resource)
 		unallocatableResources[p] = resource
 	}

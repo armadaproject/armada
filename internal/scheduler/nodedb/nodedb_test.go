@@ -12,6 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
+	"github.com/armadaproject/armada/internal/common/pointer"
 	"github.com/armadaproject/armada/internal/common/util"
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
@@ -343,8 +344,8 @@ func TestScheduleIndividually(t *testing.T) {
 			Nodes: testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			Jobs: testfixtures.WithRequestsJobs(
 				schedulerobjects.ResourceList{
-					Resources: map[string]resource.Quantity{
-						"gibberish": resource.MustParse("1"),
+					Resources: map[string]*resource.Quantity{
+						"gibberish": pointer.MustParseResource("1"),
 					},
 				},
 				testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1),

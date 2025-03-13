@@ -15,6 +15,7 @@ import (
 	clock "k8s.io/utils/clock/testing"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/common/pointer"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/floatingresources"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
@@ -254,8 +255,8 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 			executors:      []*schedulerobjects.Executor{Executor(SmallNode("cpu"))},
 			jobs: testfixtures.WithRequestsJobs(
 				schedulerobjects.ResourceList{
-					Resources: map[string]resource.Quantity{
-						"test-floating-resource": resource.MustParse("11"),
+					Resources: map[string]*resource.Quantity{
+						"test-floating-resource": pointer.MustParseResource("11"),
 					},
 				},
 				[]*jobdb.Job{smallJob1}),
@@ -390,10 +391,10 @@ func Executor(nodes ...*schedulerobjects.Node) *schedulerobjects.Executor {
 func GpuNode(pool string) *schedulerobjects.Node {
 	node := testfixtures.TestSchedulerObjectsNode(
 		testfixtures.TestPriorities,
-		map[string]resource.Quantity{
-			"cpu":            resource.MustParse("30"),
-			"memory":         resource.MustParse("512Gi"),
-			"nvidia.com/gpu": resource.MustParse("8"),
+		map[string]*resource.Quantity{
+			"cpu":            pointer.MustParseResource("30"),
+			"memory":         pointer.MustParseResource("512Gi"),
+			"nvidia.com/gpu": pointer.MustParseResource("8"),
 		})
 	node.Taints = []*v1.Taint{
 		{
@@ -409,9 +410,9 @@ func GpuNode(pool string) *schedulerobjects.Node {
 func SmallNode(pool string) *schedulerobjects.Node {
 	node := testfixtures.TestSchedulerObjectsNode(
 		testfixtures.TestPriorities,
-		map[string]resource.Quantity{
-			"cpu":    resource.MustParse("2"),
-			"memory": resource.MustParse("64Gi"),
+		map[string]*resource.Quantity{
+			"cpu":    pointer.MustParseResource("2"),
+			"memory": pointer.MustParseResource("64Gi"),
 		})
 	node.Pool = pool
 	return node

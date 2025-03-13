@@ -7,6 +7,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
+	"github.com/armadaproject/armada/internal/common/pointer"
 	schedulerconfiguration "github.com/armadaproject/armada/internal/scheduler/configuration"
 )
 
@@ -36,34 +37,34 @@ func TestNode(t *testing.T) {
 		"key": "value",
 	}
 	totalResources := resourceListFactory.FromNodeProto(
-		map[string]resource.Quantity{
-			"cpu":    resource.MustParse("16"),
-			"memory": resource.MustParse("32Gi"),
+		map[string]*resource.Quantity{
+			"cpu":    pointer.MustParseResource("16"),
+			"memory": pointer.MustParseResource("32Gi"),
 		},
 	)
 	allocatableResources := resourceListFactory.FromNodeProto(
-		map[string]resource.Quantity{
-			"cpu":    resource.MustParse("8"),
-			"memory": resource.MustParse("16Gi"),
+		map[string]*resource.Quantity{
+			"cpu":    pointer.MustParseResource("8"),
+			"memory": pointer.MustParseResource("16Gi"),
 		},
 	)
 	allocatableByPriority := map[int32]ResourceList{
 		1: resourceListFactory.FromNodeProto(
-			map[string]resource.Quantity{
-				"cpu":    resource.MustParse("0"),
-				"memory": resource.MustParse("0Gi"),
+			map[string]*resource.Quantity{
+				"cpu":    pointer.MustParseResource("0"),
+				"memory": pointer.MustParseResource("0Gi"),
 			},
 		),
 		2: resourceListFactory.FromNodeProto(
-			map[string]resource.Quantity{
-				"cpu":    resource.MustParse("8"),
-				"memory": resource.MustParse("16Gi"),
+			map[string]*resource.Quantity{
+				"cpu":    pointer.MustParseResource("8"),
+				"memory": pointer.MustParseResource("16Gi"),
 			},
 		),
 		3: resourceListFactory.FromNodeProto(
-			map[string]resource.Quantity{
-				"cpu":    resource.MustParse("16"),
-				"memory": resource.MustParse("32Gi"),
+			map[string]*resource.Quantity{
+				"cpu":    pointer.MustParseResource("16"),
+				"memory": pointer.MustParseResource("32Gi"),
 			},
 		),
 	}
