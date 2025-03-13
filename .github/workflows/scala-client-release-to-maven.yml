@@ -37,6 +37,9 @@ jobs:
           gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
           gpg-passphrase: MAVEN_GPG_PASSPHRASE
 
+      - name: Inspect GPG
+        run: gpg -k
+
       - name: Compile package
         run: |
           ./set-scala-version.sh ${{ matrix.scala-version }}
