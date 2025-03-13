@@ -1,3 +1,5 @@
+import xerial.sbt.Sonatype.sonatypeCentralHost
+
 val scala2Version = "2.13.15"
 
 lazy val root = project
@@ -75,3 +77,5 @@ libraryDependencies ++= Seq(
     "com.thesamet.scalapb" %% "scalapb-runtime-grpc" % scalapb.compiler.Version.scalapbVersion,
     "com.github.jkugiya" %% "ulid-scala" % "1.0.5"
 )
+
+ThisBuild / sonatypeCredentialHost := sonatypeCentralHost
