@@ -111,35 +111,12 @@
       <scope>test</scope>
     </dependency>
     <dependency>
-      <groupId>junit</groupId>
-      <artifactId>junit</artifactId>
-      <version>4.13.2</version>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
       <groupId>com.github.jkugiya</groupId>
       <artifactId>ulid-scala_${scala.compat.version}</artifactId>
       <version>1.0.5</version>
       <scope>test</scope>
     </dependency>
   </dependencies>
-
-  <repositories>
-    <!-- the Maven central repository for releases -->
-    <repository>
-      <id>central</id>
-      <name>Maven Central</name>
-      <layout>default</layout>
-      <url>https://repo1.maven.org/maven2</url>
-      <releases>
-        <enabled>true</enabled>
-        <updatePolicy>never</updatePolicy>
-      </releases>
-      <snapshots>
-        <enabled>false</enabled>
-      </snapshots>
-    </repository>
-  </repositories>
 
   <build>
     <sourceDirectory>src/main/scala</sourceDirectory>
