@@ -20,7 +20,7 @@ import (
 type Evictor struct {
 	jobRepo    jobdb.JobRepository
 	nodeDb     *nodedb.NodeDb
-	nodeFilter func(*armadacontext.Context, *internaltypes.Node) bool
+	nodeFilter func(*armadacontext.Context, *internaltypes.Node) (bool, string)
 	jobFilter  func(*armadacontext.Context, *jobdb.Job) (bool, string)
 }
 
@@ -42,7 +42,9 @@ type NodePreemptiblityStats struct {
 	Cluster string
 	// Reporting node type
 	NodeType string
-	// If you can't preempt all jobs on this node, the reason why not. Otherwise empty.
+	// True if you can preempt all jobs on this node, or if the node is empty. False otherwise.
+	Preemptible bool
+	// The reason why you can, or can't, preempt all jobs on this node.
 	Reason string
 }
 
@@ -84,8 +86,13 @@ func NewNodeEvictor(
 	return &Evictor{
 		jobRepo: jobRepo,
 		nodeDb:  nodeDb,
-		nodeFilter: func(_ *armadacontext.Context, node *internaltypes.Node) bool {
-			return len(node.AllocatedByJobId) > 0
+		nodeFilter: func(_ *armadacontext.Context, node *internaltypes.Node) (bool, string) {
+			evict := len(node.AllocatedByJobId) > 0
+			if evict {
+				return true, ""
+			} else {
+				return false, "node_empty"
+			}
 		},
 		jobFilter: jobFilter,
 	}
@@ -106,9 +113,9 @@ func NewFilteredEvictor(
 	return &Evictor{
 		jobRepo: jobRepo,
 		nodeDb:  nodeDb,
-		nodeFilter: func(_ *armadacontext.Context, node *internaltypes.Node) bool {
+		nodeFilter: func(_ *armadacontext.Context, node *internaltypes.Node) (bool, string) {
 			shouldEvict := nodeIdsToEvict[node.GetId()]
-			return shouldEvict
+			return shouldEvict, ""
 		},
 		jobFilter: func(_ *armadacontext.Context, job *jobdb.Job) (bool, string) {
 			shouldEvict := jobIdsToEvict[job.Id()]
@@ -135,7 +142,7 @@ func NewOversubscribedEvictor(
 	return &Evictor{
 		jobRepo: jobRepo,
 		nodeDb:  nodeDb,
-		nodeFilter: func(_ *armadacontext.Context, node *internaltypes.Node) bool {
+		nodeFilter: func(_ *armadacontext.Context, node *internaltypes.Node) (bool, string) {
 			overSubscribedPriorities = make(map[int32]bool)
 			for p, rl := range node.AllocatableByPriority {
 				if p < 0 {
@@ -146,7 +153,7 @@ func NewOversubscribedEvictor(
 					overSubscribedPriorities[p] = true
 				}
 			}
-			return len(overSubscribedPriorities) > 0
+			return len(overSubscribedPriorities) > 0, ""
 		},
 		jobFilter: func(ctx *armadacontext.Context, job *jobdb.Job) (bool, string) {
 			if !queueChecker.QueueContextExists(job) {
@@ -188,8 +195,18 @@ func (evi *Evictor) Evict(ctx *armadacontext.Context, nodeDbTxn *memdb.Txn) (*Ev
 	}
 
 	for node := it.NextNode(); node != nil; node = it.NextNode() {
-		if evi.nodeFilter != nil && !evi.nodeFilter(ctx, node) {
-			continue
+		if evi.nodeFilter != nil {
+			include, skipReason := evi.nodeFilter(ctx, node)
+			if !include {
+				preemptible := true
+				reasons := map[string]bool{skipReason: true}
+				if node.IsUnschedulable() {
+					preemptible = false
+					reasons["node_unschedulable"] = true
+				}
+				nodePreemptiblityStats = append(nodePreemptiblityStats, makeNodePreemptiblityStats(node, preemptible, reasons))
+				continue
+			}
 		}
 		jobs := make([]*jobdb.Job, 0, len(node.AllocatedByJobId))
 		reasons := map[string]bool{}
@@ -207,7 +224,19 @@ func (evi *Evictor) Evict(ctx *armadacontext.Context, nodeDbTxn *memdb.Txn) (*Ev
 				}
 			}
 		}
-		nodePreemptiblityStats = append(nodePreemptiblityStats, makeNodePreemptiblityStats(node, reasons))
+
+		if node.IsUnschedulable() {
+			reasons["node_unschedulable"] = true
+		}
+
+		var stats NodePreemptiblityStats
+		if len(reasons) == 0 {
+			stats = makeNodePreemptiblityStats(node, true, map[string]bool{"all_jobs_preemptible": true})
+		} else {
+			stats = makeNodePreemptiblityStats(node, false, reasons)
+		}
+		nodePreemptiblityStats = append(nodePreemptiblityStats, stats)
+
 		node, err := evi.nodeDb.EvictJobsFromNode(jobs, node)
 		if err != nil {
 			return nil, err
@@ -243,13 +272,14 @@ func (evi *Evictor) Evict(ctx *armadacontext.Context, nodeDbTxn *memdb.Txn) (*Ev
 	return result, nil
 }
 
-func makeNodePreemptiblityStats(node *internaltypes.Node, reasons map[string]bool) NodePreemptiblityStats {
+func makeNodePreemptiblityStats(node *internaltypes.Node, preemptible bool, reasons map[string]bool) NodePreemptiblityStats {
 	reasonsList := maps.Keys(reasons)
 	slices.Sort(reasonsList)
 	return NodePreemptiblityStats{
-		NodeName: node.GetName(),
-		Cluster:  node.GetExecutor(),
-		NodeType: node.GetReportingNodeType(),
-		Reason:   strings.Join(reasonsList, ","),
+		NodeName:    node.GetName(),
+		Cluster:     node.GetExecutor(),
+		NodeType:    node.GetReportingNodeType(),
+		Preemptible: preemptible,
+		Reason:      strings.Join(reasonsList, ","),
 	}
 }
