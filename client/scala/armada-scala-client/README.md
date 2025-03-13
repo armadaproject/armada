@@ -1,5 +1,17 @@
 # Armada Scala client
 
+## Preparations
+
+Before you can build this project, you have to prepare some proto files in the root of this repository.
+
+You need to have Go installed for this.
+
+    # go to the root of this repository
+    cd ../../..
+
+    # Go needs to be installed
+    go run github.com/magefile/mage@v1.14.0 -v BootstrapProto
+
 ## Build
 
 You can build the Scala Armada client simply with `mvn package`.
