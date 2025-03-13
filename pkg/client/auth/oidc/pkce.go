@@ -12,7 +12,7 @@ import (
 	"strconv"
 	"strings"
 
-	openId "github.com/coreos/go-oidc"
+	openId "github.com/coreos/go-oidc/v3/oidc"
 	"golang.org/x/oauth2"
 
 	log "github.com/armadaproject/armada/internal/common/logging"
