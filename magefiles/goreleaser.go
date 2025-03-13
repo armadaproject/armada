@@ -17,6 +17,15 @@ const (
 	GORELEASER_MINIMAL_CONFIG_PATH = "./.goreleaser-minimal.yml"
 )
 
+type Project struct {
+	ProjectName string   `yaml:"project_name,omitempty" json:"project_name,omitempty"`
+	Dist        string   `yaml:"dist,omitempty" json:"dist,omitempty"`
+	GoMod       GoMod    `yaml:"gomod,omitempty" json:"gomod,omitempty"`
+	Env         []string `yaml:"env,omitempty" json:"env,omitempty"`
+	Builds      []Build  `yaml:"builds,omitempty" json:"builds,omitempty"`
+	Dockers     []Docker `yaml:"dockers,omitempty" json:"dockers,omitempty"`
+}
+
 func goreleaserBinary() string {
 	return binaryWithExt("goreleaser")
 }
@@ -85,7 +94,7 @@ func goreleaserWriteMinimalReleaseConfig(dockerIds ...string) error {
 		builds[i].Targets = maps.Keys(targets)
 	}
 
-	minimalConfig := goreleaserConfig.Project{
+	minimalConfig := Project{
 		ProjectName: config.ProjectName,
 		Dist:        config.Dist,
 		GoMod:       config.GoMod,
