@@ -2,18 +2,30 @@ package io.armadaproject.armada
 
 import api.job.{JobStatusRequest, JobStatusResponse, JobsGrpc}
 import api.event.EventGrpc
-import api.submit.{CancellationResult, JobCancelRequest, JobSetCancelRequest, JobSubmitRequest,
-   JobSubmitRequestItem, JobSubmitResponse, Queue, QueueDeleteRequest, QueueGetRequest, SubmitGrpc}
+import api.submit.{
+  CancellationResult,
+  JobCancelRequest,
+  JobSetCancelRequest,
+  JobSubmitRequest,
+  JobSubmitRequestItem,
+  JobSubmitResponse,
+  Queue,
+  QueueDeleteRequest,
+  QueueGetRequest,
+  SubmitGrpc
+}
 import api.health.HealthCheckResponse
-import api.submit.Job
-import k8s.io.api.core.v1.generated.{Container, PodSpec, ResourceRequirements}
-import k8s.io.apimachinery.pkg.api.resource.generated.Quantity
 import com.google.protobuf.empty.Empty
-import io.grpc.{ManagedChannelBuilder, ManagedChannel}
+import io.grpc.{ManagedChannel, ManagedChannelBuilder}
+
 import scala.concurrent.Future
 
 class ArmadaClient(channel: ManagedChannel) {
-  def submitJobs(queue: String, jobSetId: String, jobRequestItems: Seq[JobSubmitRequestItem]): JobSubmitResponse = {
+  def submitJobs(
+      queue: String,
+      jobSetId: String,
+      jobRequestItems: Seq[JobSubmitRequestItem]
+  ): JobSubmitResponse = {
     val blockingStub = SubmitGrpc.blockingStub(channel)
     blockingStub.submitJobs(JobSubmitRequest(queue, jobSetId, jobRequestItems))
   }
@@ -23,7 +35,9 @@ class ArmadaClient(channel: ManagedChannel) {
     blockingStub.getJobStatus(JobStatusRequest(jobIds = Seq(jobId)))
   }
 
-  def cancelJobs(cancelReq: JobCancelRequest): scala.concurrent.Future[CancellationResult] = {
+  def cancelJobs(
+      cancelReq: JobCancelRequest
+  ): scala.concurrent.Future[CancellationResult] = {
     SubmitGrpc.stub(channel).cancelJobs(cancelReq)
   }
 
@@ -68,7 +82,8 @@ object ArmadaClient {
   }
 
   def apply(host: String, port: Int): ArmadaClient = {
-    val channel = ManagedChannelBuilder.forAddress(host, port).usePlaintext().build
+    val channel =
+      ManagedChannelBuilder.forAddress(host, port).usePlaintext().build
     ArmadaClient(channel)
   }
 }
