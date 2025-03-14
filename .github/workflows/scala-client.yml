@@ -67,12 +67,16 @@ jobs:
       - name: Bootstrap Proto files
         run: go run github.com/magefile/mage@v1.14.0 -v BootstrapProto
         shell: bash
+      - name: Fetch mvn dependencies
+        working-directory: client/scala/armada-scala-client
+        run: mvn --batch-mode dependency:go-offline
+        shell: bash
       - name: Generate Scala from proto
         working-directory: client/scala/armada-scala-client
         run: |
           # Generate Scala from proto
           echo "::group::generate sources"
-          mvn generate-sources
+          mvn --batch-mode generate-sources
           echo "::endgroup::"
 
           echo "::group::generated scala files"
@@ -81,23 +85,23 @@ jobs:
         shell: bash
       - name: Compile package
         working-directory: client/scala/armada-scala-client
-        run: mvn compile -Dspotless.check.skip
+        run: mvn --batch-mode compile -Dspotless.check.skip
         shell: bash
       - name: Test package
         working-directory: client/scala/armada-scala-client
-        run: mvn test -Dspotless.check.skip
+        run: mvn --batch-mode test -Dspotless.check.skip
         shell: bash
       - name: Check code style
         working-directory: client/scala/armada-scala-client
         run: |
           # Check code style
           echo "::group::check style"
-          if ! mvn spotless:check
+          if ! mvn --batch-mode spotless:check
           then
             echo "::endgroup::"
 
             echo "::group::apply style"
-            mvn spotless:apply
+            mvn --batch-mode spotless:apply
             echo "::endgroup::"
 
             echo "::group::style fixes"
@@ -110,5 +114,5 @@ jobs:
         shell: bash
       - name: Create papackge
         working-directory: client/scala/armada-scala-client
-        run: mvn package -DskipTests -Dspotless.check.skip
+        run: mvn --batch-mode package -DskipTests -Dspotless.check.skip
         shell: bash
