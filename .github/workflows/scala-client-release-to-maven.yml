@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-22.04
     # secrets are provided by environment
     environment:
-      name: scala-release
+      name: maven-release
       # a different URL for each point in the matrix, but the same URLs accross commits
       url: 'https://github.com/armadaproject/armada/tree/master/client/scala/armada-scala-client?scala=${{ matrix.scala-version }}'
     permissions: {}
