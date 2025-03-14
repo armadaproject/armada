@@ -9,7 +9,7 @@ cd $ROOT/$JDIR
 mvn clean install
 
 if [ $? -eq 0 ]; then
-  jarfile=$(find target -type f -name 'java-client*.jar')
+  jarfile=$(find target -type f -name 'java-client*.jar' | sort | head -n1)
   if [[ $jarfile ]]; then
     echo "" > /dev/stderr
     jarfile=$(echo $jarfile | sed -e s%^\./%%)
