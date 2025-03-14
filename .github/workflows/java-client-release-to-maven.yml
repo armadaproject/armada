@@ -1,9 +1,7 @@
-name: CI
+name: Release Java Client to Maven
 
 on:
-  push:
-    tags:
-      - "v*"
+  workflow_dispatch:
 
 jobs:
   build:
