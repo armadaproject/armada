@@ -1,0 +1,118 @@
+name: Scala Client
+
+on:
+  push:
+    branches-ignore:
+      - master
+    paths:
+      - 'client/scala/**'
+      - 'build/scala-client/**'
+      - 'pkg/api/*.proto'
+      - '.github/workflows/scala-client.yml'
+      - 'docs/armada_scala_client.md'
+      - 'scripts/build-scala-client.sh'
+      - 'makefile'
+      - './magefiles/scala.go'
+
+  pull_request:
+    branches-ignore:
+      - gh-pages
+    paths:
+      - 'client/scala/**'
+      - 'build/scala-client/**'
+      - 'pkg/api/*.proto'
+      - '.github/workflows/scala-client.yml'
+      - 'docs/armada_scala_client.md'
+      - 'scripts/build-scala-client.sh'
+      - 'makefile'
+      - './magefiles/scala.go'
+
+jobs:
+  scala-client-test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        scala-version: [ '2.12.18', '2.13.15' ]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Go
+        uses: ./.github/actions/setup-go-cache
+        with:
+          cache-prefix: scala-client-test
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          version: '23.3'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Restore Maven packages cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-mvn-build-${{ matrix.scala-version }}-${{ hashFiles('client/scala/armada-scala-client/pom.xml') }}
+          restore-keys:
+            ${{ runner.os }}-mvn-build-${{ matrix.scala-version }}-${{ hashFiles('client/scala/armada-scala-client/pom.xml') }}
+            ${{ runner.os }}-mvn-build-${{ matrix.scala-version }}-
+      - name: Setup JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '11'
+      - name: Set Scala version
+        working-directory: client/scala/armada-scala-client
+        run: |
+          ./set-scala-version.sh ${{ matrix.scala-version }}
+          git diff
+        shell: bash
+      - name: Bootstrap Proto files
+        run: go run github.com/magefile/mage@v1.14.0 -v BootstrapProto
+        shell: bash
+      - name: Fetch mvn dependencies
+        working-directory: client/scala/armada-scala-client
+        run: mvn --batch-mode dependency:go-offline
+        shell: bash
+      - name: Generate Scala from proto
+        working-directory: client/scala/armada-scala-client
+        run: |
+          # Generate Scala from proto
+          echo "::group::generate sources"
+          mvn --batch-mode generate-sources
+          echo "::endgroup::"
+
+          echo "::group::generated scala files"
+          find target/generated-sources/
+          echo "::endgroup::"
+        shell: bash
+      - name: Compile package
+        working-directory: client/scala/armada-scala-client
+        run: mvn --batch-mode compile -Dspotless.check.skip
+        shell: bash
+      - name: Test package
+        working-directory: client/scala/armada-scala-client
+        run: mvn --batch-mode test -Dspotless.check.skip
+        shell: bash
+      - name: Check code style
+        working-directory: client/scala/armada-scala-client
+        run: |
+          # Check code style
+          echo "::group::check style"
+          if ! mvn --batch-mode spotless:check
+          then
+            echo "::endgroup::"
+
+            echo "::group::apply style"
+            mvn --batch-mode spotless:apply
+            echo "::endgroup::"
+
+            echo "::group::style fixes"
+            git checkout --quiet pom.xml
+            git diff
+            echo "::endgroup::"
+            exit 1
+          fi
+          echo "::endgroup::"
+        shell: bash
+      - name: Create papackge
+        working-directory: client/scala/armada-scala-client
+        run: mvn --batch-mode package -DskipTests -Dspotless.check.skip
+        shell: bash

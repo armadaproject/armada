@@ -28,22 +28,25 @@ on:
       - 'scripts/build-python-client.sh'
       - 'makefile'
       - '.github/workflows/python-tests/*'
+      - './magefiles/tests.go'
+      - './magefiles/python.go'
 
 jobs:
   python-client-tox:
     runs-on: ubuntu-22.04
     strategy:
+      fail-fast: false
       matrix:
-        python: [ '3.9', '3.10', '3.11', '3.12' ]
+        python-version: [ '3.9', '3.10', '3.11', '3.12' ]
         include:
           - tox-env: 'py39'
-            python: '3.9'
+            python-version: '3.9'
           - tox-env: 'py310'
-            python: '3.10'
+            python-version: '3.10'
           - tox-env: 'py311'
-            python: '3.11'
+            python-version: '3.11'
           - tox-env: 'py312'
-            python: '3.12'
+            python-version: '3.12'
     steps:
       - uses: actions/checkout@v4
       - name: Setup Go
@@ -52,10 +55,10 @@ jobs:
           cache-prefix: python-client-tox
       - uses: ./.github/workflows/python-tests
         with:
-          python-version: ${{ matrix.python }}
+          python-version: ${{ matrix.python-version }}
           tox-env: ${{ matrix.tox-env }}
           path: 'client/python'
-          github-token: ${{secrets.GITHUB_TOKEN}}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
   python-client-integration-tests:
     if: github.repository_owner == 'armadaproject'
