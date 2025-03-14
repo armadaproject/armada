@@ -1,0 +1,77 @@
+name: "Scala tests and linting"
+description: "Sets up environment and runs scala tests"
+
+inputs:
+  scala-version:
+    description: "Version of Scala to setup and run tests against"
+    required: true
+  github-token:
+    description: "Token for authenticated github requests"
+    required: true
+runs:
+  using: "composite"
+  steps:
+    - uses: actions/checkout@v4
+    - name: Install Protoc
+      uses: arduino/setup-protoc@v3
+      with:
+        version: '23.3'
+        repo-token: ${{ inputs.github-token }}
+    - name: Bootstrap Proto files
+      run: go run github.com/magefile/mage@v1.14.0 -v BootstrapProto
+      shell: bash
+    - name: Setup JDK
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '11'
+    - name: Set Scala version
+      working-directory: client/scala/armada-scala-client
+      run: |
+        ./set-scala-version.sh ${{ matrix.scala-version }}
+        git diff
+      shell: bash
+    - name: Generate Scala from proto
+      working-directory: client/scala/armada-scala-client
+      run:
+        # Generate Scala from proto
+        echo "::group::generate sources"
+        mvn generate-sources
+        echo "::endgroup::"
+
+        echo "::group::generated scala files"
+        find target/generated-sources/
+        echo "::endgroup::"
+      shell: bash
+    - name: Compile package
+      working-directory: client/scala/armada-scala-client
+      run: mvn compile -Dspotless.check.skip
+      shell: bash
+    - name: Test package
+      working-directory: client/scala/armada-scala-client
+      run: mvn test -Dspotless.check.skip
+      shell: bash
+    - name: Check code style
+      working-directory: client/scala/armada-scala-client
+      run: |
+        # Check code style
+        echo "::group::check style"
+        if ! mvn spotless:check
+        then
+          echo "::endgroup::"
+
+          echo "::group::apply style"
+          mvn spotless:check
+          echo "::endgroup::"
+
+          echo "::group::style fixes"
+          git diff
+          echo "::endgroup::"
+          exit 1
+        fi
+        echo "::endgroup::"
+      shell: bash
+    - name: Create papackge
+      working-directory: client/scala/armada-scala-client
+      run: mvn package -DskipTests -Dspotless.check.skip
+      shell: bash

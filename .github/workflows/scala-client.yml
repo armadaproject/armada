@@ -1,0 +1,46 @@
+name: Scala Client
+
+on:
+  push:
+    branches-ignore:
+      - master
+    paths:
+      - 'client/scala/**'
+      - 'build/scala-client/**'
+      - 'pkg/api/*.proto'
+      - '.github/workflows/scala-client.yml'
+      - 'docs/armada_scala_client.md'
+      - 'scripts/build-scala-client.sh'
+      - 'makefile'
+      - './magefiles/scala.go'
+
+  pull_request:
+    branches-ignore:
+      - gh-pages
+    paths:
+      - 'client/scala/**'
+      - 'build/scala-client/**'
+      - 'pkg/api/*.proto'
+      - '.github/workflows/scala-client.yml'
+      - 'docs/armada_scala_client.md'
+      - 'scripts/build-scala-client.sh'
+      - 'makefile'
+      - './magefiles/scala.go'
+
+jobs:
+  scala-client-test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        scala-version: [ '2.12.18', '2.13.15' ]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Go
+        uses: ./.github/actions/setup-go-cache
+        with:
+          cache-prefix: scala-client-test
+      - uses: ./.github/workflows/scala-tests
+        with:
+          scala-version: ${{ matrix.scala-version }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
