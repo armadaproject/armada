@@ -48,6 +48,14 @@ jobs:
       - name: Bootstrap Proto files
         run: go run github.com/magefile/mage@v1.14.0 -v BootstrapProto
         shell: bash
+      - name: Restore Maven packages cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-mvn-build-${{ matrix.scala-version }}-${{ hashFiles('client/scala/armada-scala-client/pom.xml') }}
+          restore-keys:
+            ${{ runner.os }}-mvn-build-${{ matrix.scala-version }}-${{ hashFiles('client/scala/armada-scala-client/pom.xml') }}
+            ${{ runner.os }}-mvn-build-${{ matrix.scala-version }}-
       - name: Setup JDK
         uses: actions/setup-java@v4
         with:
