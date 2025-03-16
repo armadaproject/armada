@@ -3,8 +3,6 @@ package nodedb
 import (
 	"testing"
 
-	armadamaps "github.com/armadaproject/armada/internal/common/maps"
-
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
