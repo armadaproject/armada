@@ -110,7 +110,7 @@ func TestK8sLeaderController_BecomingLeader(t *testing.T) {
 			controller := NewKubernetesLeaderController(testLeaderConfig(), client)
 			testListener := NewTestLeaseListener(controller)
 			controller.RegisterListener(testListener)
-			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 1000*time.Second)
+			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 20*time.Second)
 			go func() {
 				err := controller.Run(ctx)
 				assert.ErrorIs(t, err, context.Canceled)
