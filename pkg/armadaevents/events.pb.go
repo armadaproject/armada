@@ -7,7 +7,6 @@
 package armadaevents
 
 import (
-	schedulerobjects "internal/scheduler/schedulerobjects"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
@@ -18,6 +17,8 @@ import (
 	v11 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/networking/v1"
 	resource "k8s.io/apimachinery/pkg/api/resource"
+
+	schedulerobjects "github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
 const (
