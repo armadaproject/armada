@@ -215,9 +215,9 @@ func newPerCycleMetrics() *perCycleMetrics {
 	nodePreemptibility := prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: prefix + "node_preemptibility",
-			Help: "is it possible to clear this node by preempting all jobs on it, and, if not, why?",
+			Help: "is it possible to clear this node by preempting any jobs on it?",
 		},
-		[]string{poolLabel, nodeLabel, clusterLabel, nodeTypeLabel, "isPreemptible", "notPreemptibleReason"},
+		[]string{poolLabel, nodeLabel, clusterLabel, nodeTypeLabel, "isPreemptible", "reason"},
 	)
 
 	protectedFractionOfFairShare := prometheus.NewGaugeVec(
@@ -419,7 +419,7 @@ func (m *cycleMetrics) ReportSchedulerResult(result scheduling.SchedulerResult) 
 				nodePreemptiblityStats.NodeName,
 				nodePreemptiblityStats.Cluster,
 				nodePreemptiblityStats.NodeType,
-				fmt.Sprintf("%t", nodePreemptiblityStats.Reason == ""),
+				fmt.Sprintf("%t", nodePreemptiblityStats.Preemptible),
 				nodePreemptiblityStats.Reason).Set(1.0)
 		}
 

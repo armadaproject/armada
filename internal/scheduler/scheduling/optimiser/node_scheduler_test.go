@@ -9,6 +9,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
+	"github.com/armadaproject/armada/internal/common/pointer"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
@@ -53,8 +54,8 @@ func TestSchedule_NodeChecks(t *testing.T) {
 		},
 		"node too small": {
 			node: testfixtures.TestNode(testfixtures.TestPriorities, map[string]*resource.Quantity{
-				"cpu":    resourceFromString("1"),
-				"memory": resourceFromString("5Gi"),
+				"cpu":    pointer.MustParseResource("1"),
+				"memory": pointer.MustParseResource("5Gi"),
 			}),
 			job:           job,
 			expectSuccess: false,
@@ -86,8 +87,8 @@ func TestSchedule_NodeChecks(t *testing.T) {
 
 func TestSchedule_JobChecks(t *testing.T) {
 	node := testfixtures.TestNode(testfixtures.TestPriorities, map[string]*resource.Quantity{
-		"cpu":    resourceFromString("10"),
-		"memory": resourceFromString("25Gi"),
+		"cpu":    pointer.MustParseResource("10"),
+		"memory": pointer.MustParseResource("25Gi"),
 	})
 	jobToSchedule := testfixtures.TestJobWithResources("A", testfixtures.PriorityClass2, v1.ResourceList{
 		"cpu":    resource.MustParse("8"),
@@ -253,8 +254,8 @@ func markedScheduledOnNode(jobs []*jobdb.Job, node *internaltypes.Node) []*jobdb
 }
 
 func TestSchedule_PreemptsExpectedJobs(t *testing.T) {
-	node := testfixtures.TestNode(testfixtures.TestPriorities, map[string]*resource.Quantity{"cpu": resourceFromString("10")})
-	bigNode := testfixtures.TestNode(testfixtures.TestPriorities, map[string]*resource.Quantity{"cpu": resourceFromString("18")})
+	node := testfixtures.TestNode(testfixtures.TestPriorities, map[string]*resource.Quantity{"cpu": pointer.MustParseResource("10")})
+	bigNode := testfixtures.TestNode(testfixtures.TestPriorities, map[string]*resource.Quantity{"cpu": pointer.MustParseResource("18")})
 	jobToSchedule := createTestCpuJob("A", 8)
 	smallJobToSchedule := createTestCpuJob("A", 3)
 	bigJobToSchedule := createTestCpuJob("A", 12)
@@ -415,8 +416,8 @@ func TestSchedule_PreemptsExpectedJobs(t *testing.T) {
 
 func TestSchedule_Errors_WhenInformationMissingFromState(t *testing.T) {
 	node := testfixtures.TestNode(testfixtures.TestPriorities, map[string]*resource.Quantity{
-		"cpu":    resourceFromString("10"),
-		"memory": resourceFromString("25Gi"),
+		"cpu":    pointer.MustParseResource("10"),
+		"memory": pointer.MustParseResource("25Gi"),
 	})
 	jobToSchedule := testfixtures.TestJobWithResources("A", testfixtures.PriorityClass2, v1.ResourceList{
 		"cpu":    resource.MustParse("8"),
@@ -544,9 +545,4 @@ func createNTestCpuJob(queueName string, cpu int, count int) []*jobdb.Job {
 		result = append(result, createTestCpuJob(queueName, cpu))
 	}
 	return result
-}
-
-func resourceFromString(s string) *resource.Quantity {
-	qty := resource.MustParse(s)
-	return &qty
 }

@@ -15,6 +15,7 @@ import (
 	clock "k8s.io/utils/clock/testing"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/common/pointer"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
@@ -723,7 +724,7 @@ func TestMarkResourceUnallocatable_ProtectsFromNegativeValues(t *testing.T) {
 
 func makeResourceList(resourceName string, value string) internaltypes.ResourceList {
 	return testfixtures.TestResourceListFactory.FromNodeProto(map[string]*k8sResource.Quantity{
-		resourceName: resourceFromString(value),
+		resourceName: pointer.MustParseResource(value),
 	},
 	)
 }
@@ -796,13 +797,8 @@ func test32CpuNode(priorities []int32) *schedulerobjects.Node {
 	return testfixtures.TestSchedulerObjectsNode(
 		priorities,
 		map[string]*k8sResource.Quantity{
-			"cpu":    resourceFromString("32"),
-			"memory": resourceFromString("256Gi"),
+			"cpu":    pointer.MustParseResource("32"),
+			"memory": pointer.MustParseResource("256Gi"),
 		},
 	)
-}
-
-func resourceFromString(s string) *k8sResource.Quantity {
-	qty := k8sResource.MustParse(s)
-	return &qty
 }

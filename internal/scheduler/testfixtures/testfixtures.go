@@ -15,6 +15,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
+	"github.com/armadaproject/armada/internal/common/pointer"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/stringinterner"
@@ -791,8 +792,8 @@ func Test16CpuNode(priorities []int32) *internaltypes.Node {
 	return TestNode(
 		priorities,
 		map[string]*resource.Quantity{
-			"cpu":    resourceFromString("16"),
-			"memory": resourceFromString("128Gi"),
+			"cpu":    pointer.MustParseResource("16"),
+			"memory": pointer.MustParseResource("128Gi"),
 		},
 	)
 }
@@ -801,8 +802,8 @@ func Test32CpuNode(priorities []int32) *internaltypes.Node {
 	return TestNode(
 		priorities,
 		map[string]*resource.Quantity{
-			"cpu":    resourceFromString("32"),
-			"memory": resourceFromString("256Gi"),
+			"cpu":    pointer.MustParseResource("32"),
+			"memory": pointer.MustParseResource("256Gi"),
 		},
 	)
 }
@@ -831,9 +832,9 @@ func Test8GpuNode(priorities []int32) *internaltypes.Node {
 	node := TestNode(
 		priorities,
 		map[string]*resource.Quantity{
-			"cpu":            resourceFromString("64"),
-			"memory":         resourceFromString("1024Gi"),
-			"nvidia.com/gpu": resourceFromString("8"),
+			"cpu":            pointer.MustParseResource("64"),
+			"memory":         pointer.MustParseResource("1024Gi"),
+			"nvidia.com/gpu": pointer.MustParseResource("8"),
 		},
 	)
 	return TestNodeFactory.AddLabels(
@@ -966,14 +967,9 @@ func CpuMem(cpu string, memory string) internaltypes.ResourceList {
 func CpuMemGpu(cpu string, memory string, gpu string) internaltypes.ResourceList {
 	return TestResourceListFactory.FromNodeProto(
 		map[string]*resource.Quantity{
-			"cpu":            resourceFromString(cpu),
-			"memory":         resourceFromString(memory),
-			"nvidia.com/gpu": resourceFromString(gpu),
+			"cpu":            pointer.MustParseResource(cpu),
+			"memory":         pointer.MustParseResource(memory),
+			"nvidia.com/gpu": pointer.MustParseResource(gpu),
 		},
 	)
-}
-
-func resourceFromString(s string) *resource.Quantity {
-	qty := resource.MustParse(s)
-	return &qty
 }

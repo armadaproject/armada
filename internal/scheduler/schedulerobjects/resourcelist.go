@@ -4,13 +4,8 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	resource2 "github.com/armadaproject/armada/internal/common/resource"
+	cr "github.com/armadaproject/armada/internal/common/resource"
 )
-
-// NewResourceList returns a new ResourceList, where the backing map has initial capacity n.
-func NewResourceList(n int) ResourceList {
-	return ResourceList{Resources: make(map[string]*resource.Quantity, n)}
-}
 
 func V1ResourceListFromResourceList(rl *ResourceList) v1.ResourceList {
 	rv := make(v1.ResourceList, len(rl.Resources))
@@ -79,8 +74,8 @@ func (rl *ResourceList) initialise() {
 	}
 }
 
-func (rl ResourceList) ToComputeResources() resource2.ComputeResources {
-	rv := make(resource2.ComputeResources, len(rl.Resources))
+func (rl ResourceList) ToComputeResources() cr.ComputeResources {
+	rv := make(cr.ComputeResources, len(rl.Resources))
 	for k, v := range rl.Resources {
 		rv[k] = v.DeepCopy()
 	}

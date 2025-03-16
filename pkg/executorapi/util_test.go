@@ -44,5 +44,5 @@ func TestResourceListFromProtoResources(t *testing.T) {
 	}
 
 	actual := ResourceListFromProtoResources(input)
-	assert.Equal(t, actual, expected)
+	assert.Equal(t, actual.Resources, expected.Resources)
 }

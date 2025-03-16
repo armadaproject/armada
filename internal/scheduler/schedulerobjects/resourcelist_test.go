@@ -5,23 +5,25 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"k8s.io/apimachinery/pkg/api/resource"
+
+	"github.com/armadaproject/armada/internal/common/pointer"
 )
 
 func TestResourceListDeepCopy(t *testing.T) {
 	rl := ResourceList{
 		Resources: map[string]*resource.Quantity{
-			"foo": resourceFromString("1"),
+			"foo": pointer.MustParseResource("1"),
 		},
 	}
 	rlCopy := rl.DeepCopy()
-	rlCopy.Resources["bar"] = resourceFromString("2")
+	rlCopy.Resources["bar"] = pointer.MustParseResource("2")
 	q := rlCopy.Resources["foo"]
 	q.Add(resource.MustParse("10"))
 	assert.True(
 		t,
 		rl.Equal(&ResourceList{
 			Resources: map[string]*resource.Quantity{
-				"foo": resourceFromString("1"),
+				"foo": pointer.MustParseResource("1"),
 			},
 		}),
 	)
@@ -57,7 +59,7 @@ func TestResourceListEqual(t *testing.T) {
 		"zero equals empty": {
 			a: &ResourceList{
 				Resources: map[string]*resource.Quantity{
-					"foo": resourceFromString("0"),
+					"foo": pointer.MustParseResource("0"),
 				},
 			},
 			b:        &ResourceList{},
@@ -66,16 +68,16 @@ func TestResourceListEqual(t *testing.T) {
 		"simple equal": {
 			a: &ResourceList{
 				Resources: map[string]*resource.Quantity{
-					"cpu":    resourceFromString("1"),
-					"memory": resourceFromString("2"),
-					"foo":    resourceFromString("3"),
+					"cpu":    pointer.MustParseResource("1"),
+					"memory": pointer.MustParseResource("2"),
+					"foo":    pointer.MustParseResource("3"),
 				},
 			},
 			b: &ResourceList{
 				Resources: map[string]*resource.Quantity{
-					"cpu":    resourceFromString("1"),
-					"memory": resourceFromString("2"),
-					"foo":    resourceFromString("3"),
+					"cpu":    pointer.MustParseResource("1"),
+					"memory": pointer.MustParseResource("2"),
+					"foo":    pointer.MustParseResource("3"),
 				},
 			},
 			expected: true,
@@ -83,14 +85,14 @@ func TestResourceListEqual(t *testing.T) {
 		"simple unequal": {
 			a: &ResourceList{
 				Resources: map[string]*resource.Quantity{
-					"foo": resourceFromString("1"),
-					"bar": resourceFromString("2"),
+					"foo": pointer.MustParseResource("1"),
+					"bar": pointer.MustParseResource("2"),
 				},
 			},
 			b: &ResourceList{
 				Resources: map[string]*resource.Quantity{
-					"foo": resourceFromString("1"),
-					"bar": resourceFromString("3"),
+					"foo": pointer.MustParseResource("1"),
+					"bar": pointer.MustParseResource("3"),
 				},
 			},
 			expected: false,
@@ -98,13 +100,13 @@ func TestResourceListEqual(t *testing.T) {
 		"zero and missing is equal": {
 			a: &ResourceList{
 				Resources: map[string]*resource.Quantity{
-					"foo": resourceFromString("1"),
-					"bar": resourceFromString("0"),
+					"foo": pointer.MustParseResource("1"),
+					"bar": pointer.MustParseResource("0"),
 				},
 			},
 			b: &ResourceList{
 				Resources: map[string]*resource.Quantity{
-					"foo": resourceFromString("1"),
+					"foo": pointer.MustParseResource("1"),
 				},
 			},
 			expected: true,
@@ -116,9 +118,4 @@ func TestResourceListEqual(t *testing.T) {
 			assert.Equal(t, tc.expected, tc.b.Equal(tc.a))
 		})
 	}
-}
-
-func resourceFromString(s string) *resource.Quantity {
-	qty := resource.MustParse(s)
-	return &qty
 }

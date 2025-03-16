@@ -9,6 +9,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
+	"github.com/armadaproject/armada/internal/common/pointer"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/types"
@@ -93,8 +94,8 @@ func NodeTemplate32Cpu(n int64) *NodeTemplate {
 		Number: n,
 		TotalResources: &schedulerobjects.ResourceList{
 			Resources: map[string]*resource.Quantity{
-				"cpu":    resourceFromString("32"),
-				"memory": resourceFromString("256Gi"),
+				"cpu":    pointer.MustParseResource("32"),
+				"memory": pointer.MustParseResource("256Gi"),
 			},
 		},
 	}
@@ -105,9 +106,9 @@ func NodeTemplateGpu(n int64) *NodeTemplate {
 		Number: n,
 		TotalResources: &schedulerobjects.ResourceList{
 			Resources: map[string]*resource.Quantity{
-				"cpu":            resourceFromString("128"),
-				"memory":         resourceFromString("4096Gi"),
-				"nvidia.com/gpu": resourceFromString("8"),
+				"cpu":            pointer.MustParseResource("128"),
+				"memory":         pointer.MustParseResource("4096Gi"),
+				"nvidia.com/gpu": pointer.MustParseResource("8"),
 			},
 		},
 	}
@@ -265,9 +266,4 @@ func EventSequenceSummary(eventSequence *armadaevents.EventSequence) string {
 
 func EventSummary(event *armadaevents.EventSequence_Event) string {
 	return strings.ReplaceAll(fmt.Sprintf("%T", event.Event), "*armadaevents.EventSequence_Event_", "")
-}
-
-func resourceFromString(s string) *resource.Quantity {
-	qty := resource.MustParse(s)
-	return &qty
 }

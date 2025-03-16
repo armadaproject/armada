@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/api/resource"
 
+	"github.com/armadaproject/armada/internal/common/pointer"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 )
@@ -144,13 +145,8 @@ func makeTestResourceListFactory() *internaltypes.ResourceListFactory {
 
 func fooBarBaz(factory *internaltypes.ResourceListFactory, foo, bar, baz string) internaltypes.ResourceList {
 	return factory.FromNodeProto(map[string]*resource.Quantity{
-		"foo": resourceFromString(foo),
-		"bar": resourceFromString(bar),
-		"baz": resourceFromString(baz),
+		"foo": pointer.MustParseResource(foo),
+		"bar": pointer.MustParseResource(bar),
+		"baz": pointer.MustParseResource(baz),
 	})
-}
-
-func resourceFromString(s string) *resource.Quantity {
-	qty := resource.MustParse(s)
-	return &qty
 }

@@ -1,23 +1,17 @@
 # macOS
 .DS_Store
 
-# sbt specific
-dist/*
 # During development of this client, you may want to
 # comment out the next three lines, so IDEs/LSPs can
 # find and use the protoc-generated scala code.
 target/
-lib_managed/
-src_managed/
 
-project/boot/
-project/plugins/project/
-project/local-plugins.sbt
+# copied during compilation from the root of this repository
+src/main/protobuf
+
 .history
 .ensime
 .ensime_cache/
-.sbt-scripted/
-local.sbt
 
 # Bloop
 .bsp

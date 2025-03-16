@@ -5,9 +5,9 @@ inputs:
     description: "Prefix for the cache key"
     required: true
   go-version:
-    description: "Version of Go. Default 1.23"
+    description: "Version of Go. Default 1.24"
     required: false
-    default: "1.23"
+    default: "1.24"
   cache-tools:
     description: "True/false flag to cache tools"
     required: false

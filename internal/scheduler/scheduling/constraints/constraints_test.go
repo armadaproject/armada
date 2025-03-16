@@ -9,6 +9,7 @@ import (
 	"golang.org/x/time/rate"
 	"k8s.io/apimachinery/pkg/api/resource"
 
+	"github.com/armadaproject/armada/internal/common/pointer"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
@@ -324,10 +325,10 @@ func makeMultiLevelConstraints(rlFactory *internaltypes.ResourceListFactory) Sch
 	return NewSchedulingConstraints("pool-1",
 		rlFactory.FromNodeProto(
 			map[string]*resource.Quantity{
-				"a": resourceFromString("1000"),
-				"b": resourceFromString("1000"),
-				"c": resourceFromString("1000"),
-				"d": resourceFromString("1000"),
+				"a": pointer.MustParseResource("1000"),
+				"b": pointer.MustParseResource("1000"),
+				"c": pointer.MustParseResource("1000"),
+				"d": pointer.MustParseResource("1000"),
 			},
 		),
 		configuration.SchedulingConfig{
@@ -413,13 +414,8 @@ func makeSchedulingConfig() configuration.SchedulingConfig {
 func makeResourceList(rlFactory *internaltypes.ResourceListFactory, cpu string, memory string) internaltypes.ResourceList {
 	return rlFactory.FromNodeProto(
 		map[string]*resource.Quantity{
-			"cpu":    resourceFromString(cpu),
-			"memory": resourceFromString(memory),
+			"cpu":    pointer.MustParseResource(cpu),
+			"memory": pointer.MustParseResource(memory),
 		},
 	)
-}
-
-func resourceFromString(s string) *resource.Quantity {
-	qty := resource.MustParse(s)
-	return &qty
 }

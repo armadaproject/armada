@@ -82,7 +82,7 @@ func (s *Server) SubmitJobs(grpcCtx context.Context, req *api.JobSubmitRequest) 
 
 	// Validate the request is well-formed
 	if err = validation.ValidateSubmitRequest(req, s.submissionConfig); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, err.Error())
+		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
 	// Get a mapping between req.ClientId and existing jobId.  If such a mapping exists, it means that

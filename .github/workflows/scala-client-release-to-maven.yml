@@ -1,0 +1,66 @@
+name: Release Scala Client to Maven
+
+on:
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-22.04
+    # secrets are provided by environment
+    environment:
+      name: scala-release
+      # a different URL for each point in the matrix, but the same URLs accross commits
+      url: 'https://github.com/armadaproject/armada/tree/master/client/scala/armada-scala-client?scala=${{ matrix.scala-version }}'
+    permissions: {}
+    strategy:
+      fail-fast: false
+      matrix:
+        scala-version: ["2.12.18", "2.13.15"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: ./.github/actions/setup-go-cache
+        with:
+          cache-prefix: bootstrap-proto
+
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          version: '23.3'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Bootstrap Proto files
+        run: |
+          go run github.com/magefile/mage@v1.14.0 -v BootstrapProto
+
+      - name: Setup JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '11'
+          server-id: central
+          server-username: MAVEN_USERNAME
+          server-password: MAVEN_PASSWORD
+          gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
+          gpg-passphrase: MAVEN_GPG_PASSPHRASE
+
+      - name: Inspect GPG
+        run: gpg -k
+
+      - name: Compile package
+        run: |
+          cd client/scala/armada-scala-client
+          ./set-scala-version.sh ${{ matrix.scala-version }}
+          git diff
+          mvn clean package
+
+      - name: Publish package to Maven
+        env:
+          MAVEN_USERNAME: ${{ secrets.MAVEN_USERNAME }}
+          MAVEN_PASSWORD: ${{ secrets.MAVEN_PASSWORD }}
+          MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
+        run: |
+          cd client/scala/armada-scala-client
+          mvn deploy -Dsign
