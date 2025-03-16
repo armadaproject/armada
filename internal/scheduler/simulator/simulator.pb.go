@@ -7,10 +7,10 @@
 package simulator
 
 import (
-	schedulerobjects "github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	durationpb "google.golang.org/protobuf/types/known/durationpb"
+	schedulerobjects "internal/scheduler/schedulerobjects"
 	v1 "k8s.io/api/core/v1"
 	reflect "reflect"
 	sync "sync"

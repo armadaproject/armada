@@ -182,8 +182,8 @@ func protoProtocRun(armada, grpcGateway bool, swaggerFileName string, paths ...s
 	}
 
 	if armada {
-		args = append(args, fmt.Sprintf("--go_out==source_relative:."))
-		args = append(args, fmt.Sprintf("--go-grpc_out==source_relative:."))
+		args = append(args, fmt.Sprintf("--go_out=paths=source_relative:."))
+		args = append(args, fmt.Sprintf("--go-grpc_out=paths=source_relative:."))
 	}
 
 	if grpcGateway {
