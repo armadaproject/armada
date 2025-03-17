@@ -1,5 +1,4 @@
 # Tools used to build and release Armada
-# TODO: Use latest goreleaser. After upgrading k8s.io packages.
 tools:
 - github.com/go-swagger/go-swagger/cmd/swagger@v0.31.0
 - go.uber.org/mock/mockgen@v0.5.0
