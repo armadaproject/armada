@@ -13,6 +13,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/armadaproject/armada/internal/common/compress"
+	"github.com/armadaproject/armada/internal/common/testutil"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
@@ -28,7 +29,7 @@ var (
 func TestUnmarshall_Valid(t *testing.T) {
 	unmarshalled, err := Unmarshall(marshalledMsg, &armadaevents.CancelJob{})
 	require.NoError(t, err)
-	assert.Equal(t, msg, unmarshalled)
+	testutil.AssertProtoEqual(t, msg, unmarshalled)
 }
 
 func TestUnmarshall_Invalid(t *testing.T) {
@@ -38,13 +39,13 @@ func TestUnmarshall_Invalid(t *testing.T) {
 
 func TestMustUnmarshall(t *testing.T) {
 	unmarshalled := MustUnmarshall(marshalledMsg, &armadaevents.CancelJob{})
-	assert.Equal(t, msg, unmarshalled)
+	testutil.AssertProtoEqual(t, msg, unmarshalled)
 }
 
 func TestDecompressAndUnmarshall_Valid(t *testing.T) {
 	unmarshalled, err := DecompressAndUnmarshall(compressedMsg, &armadaevents.CancelJob{}, decompressor)
 	require.NoError(t, err)
-	assert.Equal(t, msg, unmarshalled)
+	testutil.AssertProtoEqual(t, msg, unmarshalled)
 }
 
 func TestDecompressAndUnmarshall_Invalid(t *testing.T) {
@@ -54,7 +55,7 @@ func TestDecompressAndUnmarshall_Invalid(t *testing.T) {
 
 func TestMustDecompressAndUnmarshall(t *testing.T) {
 	unmarshalled := MustDecompressAndUnmarshall(compressedMsg, &armadaevents.CancelJob{}, decompressor)
-	assert.Equal(t, msg, unmarshalled)
+	testutil.AssertProtoEqual(t, msg, unmarshalled)
 }
 
 func TestMarshallAndCompress(t *testing.T) {

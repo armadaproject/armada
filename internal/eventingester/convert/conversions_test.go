@@ -14,6 +14,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/ingest/utils"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
+	"github.com/armadaproject/armada/internal/common/testutil"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
@@ -64,7 +65,7 @@ func TestSingle(t *testing.T) {
 	assert.Equal(t, jobset, event.Jobset)
 	es, err := extractEventSeq(event.Event)
 	assert.NoError(t, err)
-	assert.Equal(t, expectedSequence.Events, es.Events)
+	testutil.AssertProtoEqual(t, expectedSequence.Events, es.Events)
 }
 
 func TestMultiple(t *testing.T) {
@@ -81,7 +82,7 @@ func TestMultiple(t *testing.T) {
 	assert.Equal(t, jobset, event.Jobset)
 	es, err := extractEventSeq(event.Event)
 	assert.NoError(t, err)
-	assert.Equal(t, expectedSequence.Events, es.Events)
+	testutil.AssertProtoEqual(t, expectedSequence.Events, es.Events)
 }
 
 // Cancellation reason should not be in event storage
@@ -140,7 +141,7 @@ func TestCancelled(t *testing.T) {
 			},
 		},
 	}
-	assert.Equal(t, expectedEvents, es.Events)
+	testutil.AssertProtoEqual(t, expectedEvents, es.Events)
 }
 
 func NewMsg(event ...*armadaevents.EventSequence_Event) *utils.EventsWithIds[*armadaevents.EventSequence] {

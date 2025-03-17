@@ -23,6 +23,7 @@ import (
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/slices"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
+	"github.com/armadaproject/armada/internal/common/testutil"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/common/util"
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
@@ -345,7 +346,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 
 			err = server.LeaseJobRuns(mockStream)
 			require.NoError(t, err)
-			assert.Equal(t, tc.expectedMsgs, capturedEvents)
+			testutil.AssertProtoEqual(t, tc.expectedMsgs, capturedEvents)
 			cancel()
 		})
 	}

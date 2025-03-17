@@ -10,6 +10,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/database/lookout"
+	"github.com/armadaproject/armada/internal/common/testutil"
 	"github.com/armadaproject/armada/internal/lookoutingester/instructions"
 	"github.com/armadaproject/armada/internal/lookoutingester/lookoutdb"
 	"github.com/armadaproject/armada/internal/lookoutingester/metrics"
@@ -153,7 +154,7 @@ func assertApiJobsEquivalent(t *testing.T, expected, actual *api.Job) {
 	assert.Equal(t, expected.Priority, actual.Priority)
 	assert.Equal(t, expected.PodSpec, actual.PodSpec)
 	assertSlicesEquivalent(t, expected.PodSpecs, actual.PodSpecs)
-	assert.Equal(t, expected.Created, actual.Created)
+	testutil.AssertProtoEqual(t, expected.Created, actual.Created)
 	assertSlicesEquivalent(t, expected.Ingress, actual.Ingress)
 	assertSlicesEquivalent(t, expected.Services, actual.Services)
 	assertSlicesEquivalent(t, expected.K8SIngress, actual.K8SIngress)

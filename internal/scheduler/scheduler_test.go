@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"fmt"
+	"github.com/armadaproject/armada/internal/common/testutil"
 	"sync"
 	"testing"
 	"time"
@@ -20,6 +21,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/ingest/utils"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
+	"github.com/armadaproject/armada/internal/common/testutil"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
@@ -2629,13 +2631,13 @@ func TestCycleConsistency(t *testing.T) {
 			}
 
 			if tc.expectedEventSequencesCycleOne != nil {
-				require.Equal(t, tc.expectedEventSequencesCycleOne, eventsCycleOne, "unexpected cycle one events")
+				testutil.RequireProtoEqual(t, tc.expectedEventSequencesCycleOne, eventsCycleOne, "unexpected cycle one events")
 			}
 			if tc.expectedEventSequencesCycleTwo != nil {
-				require.Equal(t, tc.expectedEventSequencesCycleTwo, eventsCycleTwo, "unexpected cycle two events")
+				testutil.RequireProtoEqual(t, tc.expectedEventSequencesCycleTwo, eventsCycleTwo, "unexpected cycle two events")
 			}
 			if tc.expectedEventSequencesCycleThree != nil {
-				require.Equal(t, tc.expectedEventSequencesCycleThree, eventsCycleThree, "unexpected cycle three events")
+				testutil.RequireProtoEqual(t, tc.expectedEventSequencesCycleThree, eventsCycleThree, "unexpected cycle three events")
 			}
 
 			// Test that the follower stays in sync with the leader.
