@@ -3,7 +3,7 @@ package protoutil
 import (
 	"time"
 
-	proto2 "github.com/golang/protobuf/proto"
+	legacyproto "github.com/golang/protobuf/proto"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/pkg/errors"
@@ -69,8 +69,8 @@ func MustMarshall(msg proto.Message) []byte {
 	return b
 }
 
-func MustMarshallProto2(msg proto2.Message) []byte {
-	b, err := proto2.Marshal(msg)
+func MustMarshallLegacyProto(msg legacyproto.Message) []byte {
+	b, err := legacyproto.Marshal(msg)
 	if err != nil {
 		panic(errors.Wrap(err, "Error marshalling object"))
 	}

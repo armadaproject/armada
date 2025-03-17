@@ -196,7 +196,5 @@ func protoProtocRun(armada, grpcGateway bool, swaggerFileName string, paths ...s
 
 	args = append(args, paths...)
 
-	println(strings.Join(args, " "))
-
 	return protocRun(args...)
 }

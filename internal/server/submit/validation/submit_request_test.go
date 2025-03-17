@@ -592,7 +592,7 @@ func TestValidatePodSpecSize(t *testing.T) {
 		},
 	}
 
-	defaultPodSpecSize := uint(len(protoutil.MustMarshallProto2(defaultPodSpec)))
+	defaultPodSpecSize := uint(len(protoutil.MustMarshallLegacyProto(defaultPodSpec)))
 
 	tests := map[string]struct {
 		req            *api.JobSubmitRequestItem

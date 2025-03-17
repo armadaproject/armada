@@ -5,13 +5,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/armadaproject/armada/internal/common/testutil"
+
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
-	"google.golang.org/protobuf/proto"
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -375,10 +376,7 @@ func TestFetchJobRunErrors(t *testing.T) {
 					require.Error(t, err)
 				} else {
 					require.NoError(t, err)
-					require.Equal(t, len(tc.expected), len(received))
-					for k, v := range received {
-						assert.True(t, proto.Equal(tc.expected[k], v))
-					}
+					testutil.AssertProtoEqual(t, tc.expected, received)
 				}
 				cancel()
 				return nil

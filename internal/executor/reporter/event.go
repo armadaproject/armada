@@ -4,9 +4,8 @@ import (
 	"fmt"
 	"strconv"
 
-	"google.golang.org/protobuf/types/known/timestamppb"
-
 	"github.com/pkg/errors"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	v1 "k8s.io/api/core/v1"
 	networking "k8s.io/api/networking/v1"
 
