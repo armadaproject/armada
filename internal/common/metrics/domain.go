@@ -19,7 +19,6 @@ type QueueMetrics struct {
 	PriorityClass string
 	Resources     ResourceMetrics
 	Durations     *FloatMetrics
-	BidPrices     *FloatMetrics
 }
 
 type QueueMetricsRecorder struct {
@@ -27,7 +26,6 @@ type QueueMetricsRecorder struct {
 	PriorityClass    string
 	resourceRecorder *ResourceMetricsRecorder
 	durationRecorder *FloatMetricsRecorder
-	bidPriceRecorder *FloatMetricsRecorder
 }
 
 type JobMetricsRecorder struct {
@@ -48,11 +46,6 @@ func (r *JobMetricsRecorder) RecordResources(pool string, priorityClass string, 
 	recorder.resourceRecorder.Record(resources)
 }
 
-func (r *JobMetricsRecorder) RecordBidPrice(pool string, priorityClass string, price float64) {
-	recorder := r.getOrCreateRecorder(pool, priorityClass)
-	recorder.bidPriceRecorder.Record(price)
-}
-
 func (r *JobMetricsRecorder) Metrics() []*QueueMetrics {
 	result := make([]*QueueMetrics, 0, len(r.recordersByPoolAndPriorityClass))
 	for _, v := range r.recordersByPoolAndPriorityClass {
@@ -61,7 +54,6 @@ func (r *JobMetricsRecorder) Metrics() []*QueueMetrics {
 			PriorityClass: v.PriorityClass,
 			Resources:     v.resourceRecorder.GetMetrics(),
 			Durations:     v.durationRecorder.GetMetrics(),
-			BidPrices:     v.bidPriceRecorder.GetMetrics(),
 		})
 	}
 	return result
@@ -76,7 +68,6 @@ func (r *JobMetricsRecorder) getOrCreateRecorder(pool string, priorityClass stri
 			PriorityClass:    priorityClass,
 			resourceRecorder: NewResourceMetricsRecorder(),
 			durationRecorder: NewDefaultJobDurationMetricsRecorder(),
-			bidPriceRecorder: NewFloatMetricsRecorder(),
 		}
 		r.recordersByPoolAndPriorityClass[recorderKey] = qmr
 	}

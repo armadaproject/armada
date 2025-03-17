@@ -9,6 +9,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
+	"github.com/armadaproject/armada/internal/common/pointer"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/types"
@@ -92,9 +93,9 @@ func NodeTemplate32Cpu(n int64) *NodeTemplate {
 	return &NodeTemplate{
 		Number: n,
 		TotalResources: &schedulerobjects.ResourceList{
-			Resources: map[string]resource.Quantity{
-				"cpu":    resource.MustParse("32"),
-				"memory": resource.MustParse("256Gi"),
+			Resources: map[string]*resource.Quantity{
+				"cpu":    pointer.MustParseResource("32"),
+				"memory": pointer.MustParseResource("256Gi"),
 			},
 		},
 	}
@@ -104,10 +105,10 @@ func NodeTemplateGpu(n int64) *NodeTemplate {
 	return &NodeTemplate{
 		Number: n,
 		TotalResources: &schedulerobjects.ResourceList{
-			Resources: map[string]resource.Quantity{
-				"cpu":            resource.MustParse("128"),
-				"memory":         resource.MustParse("4096Gi"),
-				"nvidia.com/gpu": resource.MustParse("8"),
+			Resources: map[string]*resource.Quantity{
+				"cpu":            pointer.MustParseResource("128"),
+				"memory":         pointer.MustParseResource("4096Gi"),
+				"nvidia.com/gpu": pointer.MustParseResource("8"),
 			},
 		},
 	}

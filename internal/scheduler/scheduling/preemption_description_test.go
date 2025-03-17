@@ -48,6 +48,7 @@ func TestPopulatePreemptionDescriptions(t *testing.T) {
 				AssignedNode:          testfixtures.TestSimpleNode("node-3"),
 				Job:                   makeJob(t, "job-1", false),
 				PreemptionDescription: fmt.Sprintf(unknownPreemptionCause, testfixtures.TestSimpleNode("node-3").SummaryString()),
+				PreemptionType:        context.Unknown,
 			},
 		},
 		"unknown cause - gang job": {
@@ -61,6 +62,7 @@ func TestPopulatePreemptionDescriptions(t *testing.T) {
 				AssignedNode:          testfixtures.TestSimpleNode("node-3"),
 				Job:                   makeJob(t, "job-1", true),
 				PreemptionDescription: unknownGangPreemptionCause,
+				PreemptionType:        context.UnknownGangJob,
 			},
 		},
 		"urgency preemption - single preempting job": {
@@ -72,6 +74,7 @@ func TestPopulatePreemptionDescriptions(t *testing.T) {
 				JobId:                 "job-1",
 				AssignedNode:          testfixtures.TestSimpleNode("node-1"),
 				PreemptionDescription: fmt.Sprintf(urgencyPreemptionTemplate, "job-2"),
+				PreemptionType:        context.PreemptedWithUrgencyPreemption,
 			},
 		},
 		"urgency preemption - multiple preempting jobs": {
@@ -83,6 +86,7 @@ func TestPopulatePreemptionDescriptions(t *testing.T) {
 				JobId:                 "job-1",
 				AssignedNode:          testfixtures.TestSimpleNode("node-2"),
 				PreemptionDescription: fmt.Sprintf(urgencyPreemptionMultiJobTemplate, "job-3,job-4"),
+				PreemptionType:        context.PreemptedWithUrgencyPreemption,
 			},
 		},
 		"fairshare": {
@@ -96,6 +100,7 @@ func TestPopulatePreemptionDescriptions(t *testing.T) {
 				AssignedNode:          testfixtures.TestSimpleNode("node-4"),
 				PreemptingJobId:       "job-7",
 				PreemptionDescription: fmt.Sprintf(fairSharePreemptionTemplate, "job-7"),
+				PreemptionType:        context.PreemptedWithFairsharePreemption,
 			},
 		},
 	}
@@ -130,7 +135,7 @@ func makeJob(t *testing.T, jobId string, isGang bool) *jobdb.Job {
 		},
 	}
 
-	job, err := testfixtures.JobDb.NewJob(jobId, "jobset", "queue", 1, 0.0, schedulingInfo, false, 1, false, false, false, 0, true, []string{})
+	job, err := testfixtures.JobDb.NewJob(jobId, "jobset", "queue", 1, schedulingInfo, false, 1, false, false, false, 0, true, []string{})
 	require.NoError(t, err)
 	return job
 }

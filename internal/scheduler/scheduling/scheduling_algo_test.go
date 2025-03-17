@@ -15,6 +15,7 @@ import (
 	clock "k8s.io/utils/clock/testing"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/common/pointer"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
@@ -31,6 +32,7 @@ import (
 
 func TestSchedule(t *testing.T) {
 	multiPoolSchedulingConfig := testfixtures.TestSchedulingConfig()
+	defaultExecutorSettings := []*schedulerobjects.ExecutorSettings{}
 	multiPoolSchedulingConfig.Pools = []configuration.PoolConfig{
 		{Name: testfixtures.TestPool},
 		{Name: testfixtures.TestPool2},
@@ -484,6 +486,7 @@ func TestSchedule(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockExecutorRepo := schedulermocks.NewMockExecutorRepository(ctrl)
 			mockExecutorRepo.EXPECT().GetExecutors(ctx).Return(tc.executors, nil).AnyTimes()
+			mockExecutorRepo.EXPECT().GetExecutorSettings(ctx).Return(defaultExecutorSettings, nil).AnyTimes()
 			mockQueueCache := schedulermocks.NewMockQueueCache(ctrl)
 			mockQueueCache.EXPECT().GetAll(ctx).Return(tc.queues, nil).AnyTimes()
 
@@ -720,8 +723,8 @@ func TestMarkResourceUnallocatable_ProtectsFromNegativeValues(t *testing.T) {
 }
 
 func makeResourceList(resourceName string, value string) internaltypes.ResourceList {
-	return testfixtures.TestResourceListFactory.FromNodeProto(map[string]k8sResource.Quantity{
-		resourceName: k8sResource.MustParse(value),
+	return testfixtures.TestResourceListFactory.FromNodeProto(map[string]*k8sResource.Quantity{
+		resourceName: pointer.MustParseResource(value),
 	},
 	)
 }
@@ -793,9 +796,9 @@ func withLargeNodeTaint(node *schedulerobjects.Node) *schedulerobjects.Node {
 func test32CpuNode(priorities []int32) *schedulerobjects.Node {
 	return testfixtures.TestSchedulerObjectsNode(
 		priorities,
-		map[string]k8sResource.Quantity{
-			"cpu":    k8sResource.MustParse("32"),
-			"memory": k8sResource.MustParse("256Gi"),
+		map[string]*k8sResource.Quantity{
+			"cpu":    pointer.MustParseResource("32"),
+			"memory": pointer.MustParseResource("256Gi"),
 		},
 	)
 }

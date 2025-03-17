@@ -2,7 +2,6 @@ package scheduling
 
 import (
 	"context"
-	"math"
 	"time"
 
 	"github.com/pkg/errors"
@@ -50,7 +49,8 @@ type FairSchedulingAlgo struct {
 	// Global job scheduling rate-limiter.
 	limiter *rate.Limiter
 	// Per-queue job scheduling rate-limiters.
-	limiterByQueue map[string]*rate.Limiter
+	limiterByQueue               map[string]*rate.Limiter
+	lastOptimiserRoundTimeByPool map[string]time.Time
 	// Max amount of time each scheduling round is allowed to take.
 	maxSchedulingDuration time.Duration
 	clock                 clock.Clock
@@ -75,17 +75,18 @@ func NewFairSchedulingAlgo(
 		)
 	}
 	return &FairSchedulingAlgo{
-		schedulingConfig:            config,
-		executorRepository:          executorRepository,
-		queueCache:                  queueCache,
-		queueOverrideProvider:       queueOverrideProvider,
-		schedulingContextRepository: schedulingContextRepository,
-		limiter:                     rate.NewLimiter(rate.Limit(config.MaximumSchedulingRate), config.MaximumSchedulingBurst),
-		limiterByQueue:              make(map[string]*rate.Limiter),
-		maxSchedulingDuration:       maxSchedulingDuration,
-		clock:                       clock.RealClock{},
-		resourceListFactory:         resourceListFactory,
-		floatingResourceTypes:       floatingResourceTypes,
+		schedulingConfig:             config,
+		executorRepository:           executorRepository,
+		queueCache:                   queueCache,
+		queueOverrideProvider:        queueOverrideProvider,
+		schedulingContextRepository:  schedulingContextRepository,
+		limiter:                      rate.NewLimiter(rate.Limit(config.MaximumSchedulingRate), config.MaximumSchedulingBurst),
+		limiterByQueue:               make(map[string]*rate.Limiter),
+		lastOptimiserRoundTimeByPool: make(map[string]time.Time, len(config.Pools)),
+		maxSchedulingDuration:        maxSchedulingDuration,
+		clock:                        clock.RealClock{},
+		resourceListFactory:          resourceListFactory,
+		floatingResourceTypes:        floatingResourceTypes,
 	}, nil
 }
 
@@ -139,7 +140,7 @@ func (l *FairSchedulingAlgo) Schedule(
 		}
 
 		start := time.Now()
-		schedulerResult, sctx, err := l.SchedulePool(ctx, fsctx, pool.Name, pool.MarketDriven)
+		schedulerResult, sctx, err := l.SchedulePool(ctx, fsctx, pool)
 
 		ctx.Infof("Scheduled on executor pool %s in %v with error %v", pool.Name, time.Now().Sub(start), err)
 
@@ -237,13 +238,11 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 	// Note that we do this after aggregating allocation across clusters for fair share.
 	healthyExecutors := l.filterStaleExecutors(ctx, executors)
 	healthyExecutors = l.filterLaggingExecutors(ctx, healthyExecutors, jobSchedulingInfo.jobsByExecutorId)
-	if l.schedulingConfig.EnableExecutorCordoning {
-		executorSettings, err := l.executorRepository.GetExecutorSettings(ctx)
-		if err != nil {
-			return nil, err
-		}
-		healthyExecutors = l.filterCordonedExecutors(ctx, healthyExecutors, executorSettings)
+	executorSettings, err := l.executorRepository.GetExecutorSettings(ctx)
+	if err != nil {
+		return nil, err
 	}
+	healthyExecutors = l.filterCordonedExecutors(ctx, healthyExecutors, executorSettings)
 
 	nodes := nodeFactory.FromSchedulerObjectsExecutors(healthyExecutors, func(errMes string) {
 		ctx.Error(errMes)
@@ -546,13 +545,15 @@ func (l *FairSchedulingAlgo) constructSchedulingContext(
 func (l *FairSchedulingAlgo) SchedulePool(
 	ctx *armadacontext.Context,
 	fsctx *FairSchedulingAlgoContext,
-	pool string,
-	marketDriven bool,
+	pool configuration.PoolConfig,
 ) (*SchedulerResult, *schedulercontext.SchedulingContext, error) {
 	totalResources := fsctx.nodeDb.TotalKubernetesResources()
-	totalResources = totalResources.Add(l.floatingResourceTypes.GetTotalAvailableForPool(pool))
-
-	constraints := schedulerconstraints.NewSchedulingConstraints(pool, totalResources, l.schedulingConfig, maps.Values(fsctx.queues))
+	totalResources = totalResources.Add(l.floatingResourceTypes.GetTotalAvailableForPool(pool.Name))
+	constraints := schedulerconstraints.NewSchedulingConstraints(pool.Name, totalResources, l.schedulingConfig, maps.Values(fsctx.queues))
+	shouldRunOptimiser := l.shouldRunOptimiser(pool)
+	if shouldRunOptimiser {
+		defer l.updateOptimiserLastRunTime(pool)
+	}
 
 	scheduler := NewPreemptingQueueScheduler(
 		fsctx.schedulingContext,
@@ -564,14 +565,14 @@ func (l *FairSchedulingAlgo) SchedulePool(
 		fsctx.nodeIdByJobId,
 		fsctx.jobIdsByGangId,
 		fsctx.gangIdByJobId,
-		marketDriven,
+		shouldRunOptimiser,
 	)
 
 	ctx.Infof("Scheduling on pool %s with capacity %s protectedFractionOfFairShare %f protectUncappedAdjustedFairShare %t",
-		pool,
-		fsctx.nodeDb.TotalKubernetesResources().Add(l.floatingResourceTypes.GetTotalAvailableForPool(pool)).String(),
-		l.schedulingConfig.GetProtectedFractionOfFairShare(pool),
-		l.schedulingConfig.GetProtectUncappedAdjustedFairShare(pool),
+		pool.Name,
+		fsctx.nodeDb.TotalKubernetesResources().Add(l.floatingResourceTypes.GetTotalAvailableForPool(pool.Name)).String(),
+		l.schedulingConfig.GetProtectedFractionOfFairShare(pool.Name),
+		l.schedulingConfig.GetProtectUncappedAdjustedFairShare(pool.Name),
 	)
 
 	result, err := scheduler.Schedule(ctx)
@@ -606,20 +607,33 @@ func (l *FairSchedulingAlgo) SchedulePool(
 		result.ScheduledJobs[i].Job = jobDbJob.
 			WithQueuedVersion(jobDbJob.QueuedVersion()+1).
 			WithQueued(false).
-			WithNewRun(node.GetExecutor(), node.GetId(), node.GetName(), pool, priority)
+			WithNewRun(node.GetExecutor(), node.GetId(), node.GetName(), pool.Name, priority)
 	}
 
-	// set spot price
-	if marketDriven {
-		fractionAllocated := fsctx.schedulingContext.FairnessCostProvider.UnweightedCostFromAllocation(fsctx.schedulingContext.Allocated)
-		price := l.calculateMarketDrivenSpotPrice(maps.Keys(fsctx.nodeIdByJobId), result.ScheduledJobs, result.PreemptedJobs, fractionAllocated, fsctx.Txn)
-		fsctx.schedulingContext.SpotPrice = price
-	} else {
-		price := l.calculateFairShareDrivenSpotPrice(fsctx.schedulingContext, l.schedulingConfig.ExperimentalIndicativePricing.BasePrice, l.schedulingConfig.ExperimentalIndicativePricing.BasePriority)
-		fsctx.schedulingContext.SpotPrice = price
+	for _, priority := range l.schedulingConfig.ExperimentalIndicativeShare.BasePriorities {
+		fsctx.schedulingContext.ExperimentalIndicativeShares[priority] = fsctx.schedulingContext.CalculateTheoreticalShare(float64(priority))
 	}
-
+	price := l.calculateFairShareDrivenSpotPrice(fsctx.schedulingContext, l.schedulingConfig.ExperimentalIndicativePricing.BasePrice, l.schedulingConfig.ExperimentalIndicativePricing.BasePriority)
+	fsctx.schedulingContext.SpotPrice = price
 	return result, fsctx.schedulingContext, nil
+}
+
+func (l *FairSchedulingAlgo) shouldRunOptimiser(pool configuration.PoolConfig) bool {
+	if pool.ExperimentalOptimiser == nil || !pool.ExperimentalOptimiser.Enabled {
+		return false
+	}
+
+	timeOfLastOptimiserRun, ok := l.lastOptimiserRoundTimeByPool[pool.Name]
+	if !ok {
+		return true
+	} else if l.clock.Since(timeOfLastOptimiserRun) > pool.ExperimentalOptimiser.Interval {
+		return true
+	}
+	return false
+}
+
+func (l *FairSchedulingAlgo) updateOptimiserLastRunTime(pool configuration.PoolConfig) {
+	l.lastOptimiserRoundTimeByPool[pool.Name] = l.clock.Now()
 }
 
 // populateNodeDb adds all the nodes and jobs associated with a particular pool to the nodeDb.
@@ -752,42 +766,6 @@ func (l *FairSchedulingAlgo) filterLaggingExecutors(
 		}
 	}
 	return activeExecutors
-}
-
-func (l *FairSchedulingAlgo) calculateMarketDrivenSpotPrice(initialRunningJobIds []string, scheduledJobs, preemptedJobs []*schedulercontext.JobSchedulingContext, fractionAllocated float64, txn *jobdb.Txn) float64 {
-	// If we've allocated less that 95% of available resources then we don't charge.
-	// TODO: make this configurable
-	if fractionAllocated < 0.95 {
-		return 0.0
-	}
-
-	allRunningJobIds := make(map[string]bool, len(initialRunningJobIds))
-	for _, jobId := range initialRunningJobIds {
-		allRunningJobIds[jobId] = true
-	}
-
-	for _, scheduledJob := range scheduledJobs {
-		allRunningJobIds[scheduledJob.JobId] = true
-	}
-
-	for _, preemptedJob := range preemptedJobs {
-		delete(allRunningJobIds, preemptedJob.JobId)
-	}
-
-	// Find the minimum bid price among running jobs
-	minPrice := math.MaxFloat64
-	for jobId := range allRunningJobIds {
-		job := txn.GetById(jobId)
-		if job != nil && job.BidPrice() < minPrice {
-			minPrice = job.BidPrice()
-		}
-	}
-
-	// Return the lowest bid price, or 0 if no valid price was found
-	if minPrice == math.MaxFloat64 {
-		return 0.0
-	}
-	return minPrice
 }
 
 func (l *FairSchedulingAlgo) calculateFairShareDrivenSpotPrice(sctx *schedulercontext.SchedulingContext, basePrice float64, basePriority float64) float64 {

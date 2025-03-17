@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import { Refresh, Dangerous } from "@mui/icons-material"
-import { LoadingButton } from "@mui/lab"
 import { Checkbox } from "@mui/material"
 import { Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, Alert } from "@mui/material"
 import _ from "lodash"
@@ -202,7 +201,7 @@ export const CancelDialog = ({
         >
           Refetch jobs
         </Button>
-        <LoadingButton
+        <Button
           onClick={handleCancelJobs}
           loading={isCancelling}
           disabled={isLoadingJobs || hasAttemptedCancel || cancellableJobs.length === 0}
@@ -210,7 +209,7 @@ export const CancelDialog = ({
           endIcon={<Dangerous />}
         >
           Cancel {formatNumber(cancellableJobsCount)} {cancellableJobsCount === 1 ? "job" : "jobs"}
-        </LoadingButton>
+        </Button>
       </DialogActions>
     </Dialog>
   )

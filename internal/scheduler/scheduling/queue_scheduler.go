@@ -45,7 +45,6 @@ func NewQueueScheduler(
 	considerPriorityClassPriority bool,
 	prioritiseLargerJobs bool,
 	maxQueueLookBack uint,
-	marketDriven bool,
 ) (*QueueScheduler, error) {
 	for queue := range jobIteratorByQueue {
 		if _, ok := sctx.QueueSchedulingContexts[queue]; !ok {
@@ -60,19 +59,10 @@ func NewQueueScheduler(
 	for queue, it := range jobIteratorByQueue {
 		gangIteratorsByQueue[queue] = NewQueuedGangIterator(sctx, it, maxQueueLookBack, true)
 	}
-	var candidateGangIterator CandidateGangIterator
-	if marketDriven {
-		candidateGangIterator, err = NewMarketCandidateGangIterator(sctx.Pool, sctx, gangIteratorsByQueue)
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		candidateGangIterator, err = NewCostBasedCandidateGangIterator(sctx.Pool, sctx, sctx.FairnessCostProvider, gangIteratorsByQueue, considerPriorityClassPriority, prioritiseLargerJobs)
-		if err != nil {
-			return nil, err
-		}
+	candidateGangIterator, err := NewCostBasedCandidateGangIterator(sctx.Pool, sctx, sctx.FairnessCostProvider, gangIteratorsByQueue, considerPriorityClassPriority, prioritiseLargerJobs)
+	if err != nil {
+		return nil, err
 	}
-
 	return &QueueScheduler{
 		schedulingContext:     sctx,
 		candidateGangIterator: candidateGangIterator,

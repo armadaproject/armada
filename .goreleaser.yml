@@ -1,14 +1,14 @@
 # yaml-language-server: $schema=https://goreleaser.com/static/schema.json
 
 project_name: armada
-
+version: 2
 dist: "dist"
 
 #gomod:
 #  proxy: true
 
 snapshot:
-  name_template: "{{ .FullCommit }}"
+  version_template: "{{ .FullCommit }}"
 
 env:
   - GOPROXY={{ if index .Env "GOPROXY"  }}{{ .Env.GOPROXY }}{{ else }}https://proxy.golang.org,direct{{ end }}
@@ -19,7 +19,7 @@ env:
   # To use a builder other than "default", set this variable.
   # Necessary for, e.g., GitHub actions cache integration.
   - DOCKER_BUILDX_BUILDER={{ if index .Env "DOCKER_BUILDX_BUILDER"  }}{{ .Env.DOCKER_BUILDX_BUILDER }}{{ else }}default{{ end }}
-  - GOVERSION={{ if index .Env "GOVERSION"  }}{{ .Env.GOVERSION }}{{ else }}go1.23{{ end }}
+  - GOVERSION={{ if index .Env "GOVERSION"  }}{{ .Env.GOVERSION }}{{ else }}go1.24{{ end }}
 
 builds:
   - env: [CGO_ENABLED=0]
@@ -145,15 +145,13 @@ source:
   format: "zip"
 
 archives:
-  - id: armadactl
-    builds:
-      - armadactl
+  - ids: [armadactl]
     allow_different_binary_count: true
     name_template: 'armadactl_{{ replace .Version "-" "_" }}_{{ .Os }}_{{ .Arch }}'
-    format: tar.gz
+    formats: [tar.gz]
     format_overrides:
       - goos: windows
-        format: zip
+        formats: [zip]
     files:
       - LICENSE
       - README.md
@@ -186,7 +184,7 @@ dockers:
       - --label=org.opencontainers.image.version={{ .Version }}
       - --label=org.opencontainers.image.created={{ time "2006-01-02T15:04:05Z07:00" }}
       - --label=org.opencontainers.image.revision={{ .FullCommit }}
-      - --label=org.opencontainers.image.base.name=alpine:3.21.0
+      - --label=org.opencontainers.image.base.name=alpine:3.21.3
       - --label=org.opencontainers.image.licenses=Apache-2.0
       - --label=org.opencontainers.image.vendor=G-Research
     ids:

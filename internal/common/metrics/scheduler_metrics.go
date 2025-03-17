@@ -24,48 +24,6 @@ var QueueDistinctSchedulingKeysDesc = prometheus.NewDesc(
 	nil,
 )
 
-var MinQueuePriceQueuedDesc = prometheus.NewDesc(
-	MetricPrefix+"queue_price_queued_min",
-	"Minimum price of queued jobs",
-	[]string{"pool", "priorityClass", "queue"},
-	nil,
-)
-
-var MaxQueuePriceQueuedDesc = prometheus.NewDesc(
-	MetricPrefix+"queue_price_queued_max",
-	"Maximum price of queued jobs",
-	[]string{"pool", "priorityClass", "queue"},
-	nil,
-)
-
-var MedianQueuePriceQueuedDesc = prometheus.NewDesc(
-	MetricPrefix+"queue_price_queued_median",
-	"Median price of queued jobs",
-	[]string{"pool", "priorityClass", "queue"},
-	nil,
-)
-
-var MinQueuePriceRunningDesc = prometheus.NewDesc(
-	MetricPrefix+"queue_price_running_min",
-	"Minimum price of running jobs",
-	[]string{"pool", "priorityClass", "queue"},
-	nil,
-)
-
-var MaxQueuePriceRunningDesc = prometheus.NewDesc(
-	MetricPrefix+"queue_price_running_max",
-	"Maximum price of running jobs",
-	[]string{"pool", "priorityClass", "queue"},
-	nil,
-)
-
-var MedianQueuePriceRunningDesc = prometheus.NewDesc(
-	MetricPrefix+"queue_price_running_median",
-	"Median price of running jobs",
-	[]string{"pool", "priorityClass", "queue"},
-	nil,
-)
-
 var QueueResourcesDesc = prometheus.NewDesc(
 	MetricPrefix+"queue_resource_queued",
 	"Resource required by queued jobs",
@@ -206,6 +164,13 @@ var ClusterCapacityDesc = prometheus.NewDesc(
 	nil,
 )
 
+var ClusterFarmCapacityDesc = prometheus.NewDesc(
+	MetricPrefix+"cluster_farm_capacity",
+	"Cluster capacity less usage from non-Armada pods",
+	[]string{"cluster", "pool", "resourceType", "nodeType"},
+	nil,
+)
+
 var ClusterAvailableCapacityDesc = prometheus.NewDesc(
 	MetricPrefix+"cluster_available_capacity",
 	"Cluster capacity available for Armada jobs",
@@ -267,6 +232,7 @@ var AllDescs = []*prometheus.Desc{
 	QueueUsedDesc,
 	QueueLeasedPodCountDesc,
 	ClusterCapacityDesc,
+	ClusterFarmCapacityDesc,
 	ClusterAvailableCapacityDesc,
 	QueuePriorityDesc,
 	QueueLabelDesc,
@@ -294,10 +260,6 @@ func CollectQueueMetrics(queueCounts map[string]int, queueDistinctSchedulingKeyC
 				metrics = append(metrics, NewMedianQueueDuration(queueDurations.GetMedian(), m.Pool, m.PriorityClass, q))
 			}
 
-			metrics = append(metrics, NewMinQueuePriceQueuedMetric(m.BidPrices.GetMin(), m.Pool, m.PriorityClass, q))
-			metrics = append(metrics, NewMaxQueuePriceQueuedMetric(m.BidPrices.GetMax(), m.Pool, m.PriorityClass, q))
-			metrics = append(metrics, NewMedianQueuePriceQueuedMetric(m.BidPrices.GetMedian(), m.Pool, m.PriorityClass, q))
-
 			// Sort the keys so we get a predictable output order
 			resources := maps.Keys(m.Resources)
 			slices.Sort(resources)
@@ -322,10 +284,6 @@ func CollectQueueMetrics(queueCounts map[string]int, queueDistinctSchedulingKeyC
 				metrics = append(metrics, NewMaxJobRunDuration(runningJobDurations.GetMax(), m.Pool, m.PriorityClass, q))
 				metrics = append(metrics, NewMedianJobRunDuration(runningJobDurations.GetMedian(), m.Pool, m.PriorityClass, q))
 			}
-
-			metrics = append(metrics, NewMinQueuePriceRunningMetric(m.BidPrices.GetMin(), m.Pool, m.PriorityClass, q))
-			metrics = append(metrics, NewMaxQueuePriceRunningMetric(m.BidPrices.GetMax(), m.Pool, m.PriorityClass, q))
-			metrics = append(metrics, NewMedianQueuePriceRunningMetric(m.BidPrices.GetMedian(), m.Pool, m.PriorityClass, q))
 
 			// Sort the keys so we get a predicatable output order
 			resources := maps.Keys(m.Resources)
@@ -428,6 +386,10 @@ func NewClusterAvailableCapacity(value float64, cluster string, pool string, res
 	return prometheus.MustNewConstMetric(ClusterAvailableCapacityDesc, prometheus.GaugeValue, value, cluster, pool, resource, nodeType)
 }
 
+func NewClusterFarmCapacity(value float64, cluster string, pool string, resource string, nodeType string) prometheus.Metric {
+	return prometheus.MustNewConstMetric(ClusterFarmCapacityDesc, prometheus.GaugeValue, value, cluster, pool, resource, nodeType)
+}
+
 func NewClusterTotalCapacity(value float64, cluster string, pool string, resource string, nodeType string) prometheus.Metric {
 	return prometheus.MustNewConstMetric(ClusterCapacityDesc, prometheus.GaugeValue, value, cluster, pool, resource, nodeType)
 }
@@ -446,30 +408,6 @@ func NewQueueUsed(value float64, queue string, cluster string, pool string, reso
 
 func NewQueuePriorityMetric(value float64, queue string) prometheus.Metric {
 	return prometheus.MustNewConstMetric(QueuePriorityDesc, prometheus.GaugeValue, value, queue, queue)
-}
-
-func NewMinQueuePriceQueuedMetric(value float64, pool string, priorityClass string, queue string) prometheus.Metric {
-	return prometheus.MustNewConstMetric(MinQueuePriceQueuedDesc, prometheus.GaugeValue, value, pool, priorityClass, queue)
-}
-
-func NewMaxQueuePriceQueuedMetric(value float64, pool string, priorityClass string, queue string) prometheus.Metric {
-	return prometheus.MustNewConstMetric(MaxQueuePriceQueuedDesc, prometheus.GaugeValue, value, pool, priorityClass, queue)
-}
-
-func NewMedianQueuePriceQueuedMetric(value float64, pool string, priorityClass string, queue string) prometheus.Metric {
-	return prometheus.MustNewConstMetric(MedianQueuePriceQueuedDesc, prometheus.GaugeValue, value, pool, priorityClass, queue)
-}
-
-func NewMinQueuePriceRunningMetric(value float64, pool string, priorityClass string, queue string) prometheus.Metric {
-	return prometheus.MustNewConstMetric(MinQueuePriceRunningDesc, prometheus.GaugeValue, value, pool, priorityClass, queue)
-}
-
-func NewMaxQueuePriceRunningMetric(value float64, pool string, priorityClass string, queue string) prometheus.Metric {
-	return prometheus.MustNewConstMetric(MaxQueuePriceRunningDesc, prometheus.GaugeValue, value, pool, priorityClass, queue)
-}
-
-func NewMedianQueuePriceRunningMetric(value float64, pool string, priorityClass string, queue string) prometheus.Metric {
-	return prometheus.MustNewConstMetric(MedianQueuePriceRunningDesc, prometheus.GaugeValue, value, pool, priorityClass, queue)
 }
 
 func NewQueueLabelsMetric(queue string, labels map[string]string) prometheus.Metric {

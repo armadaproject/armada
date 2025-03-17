@@ -6,7 +6,10 @@ const (
 	prefix = "armada_scheduler_"
 
 	// Prometheus Labels
+	checkpointLabel       = "checkpoint_interval"
 	poolLabel             = "pool"
+	typeLabel             = "type"
+	priorityLabel         = "priority"
 	queueLabel            = "queue"
 	priorityClassLabel    = "priority_class"
 	nodeLabel             = "node"
@@ -27,4 +30,6 @@ const (
 	preempted = "preempted"
 	failed    = "failed"
 	succeeded = "succeeded"
+
+	noCheckpointLabelValue = "none"
 )

@@ -35,6 +35,10 @@ type PerPoolSchedulingStats struct {
 	ProtectedFractionOfFairShare float64
 	// The nodeDb used in the scheduling round
 	NodeDb *nodedb.NodeDb
+	// The jobs scheduled in this cycle
+	ScheduledJobs []*context.JobSchedulingContext
+	// The jobs preempted in this cycle
+	PreemptedJobs []*context.JobSchedulingContext
 }
 
 // SchedulerResult is returned by Rescheduler.Schedule().

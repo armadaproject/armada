@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/api/resource"
 
+	"github.com/armadaproject/armada/internal/common/pointer"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/fairness"
@@ -16,7 +17,7 @@ import (
 
 func TestSchedulingContextAccounting(t *testing.T) {
 	totalResources := testfixtures.TestResourceListFactory.FromNodeProto(
-		map[string]resource.Quantity{"cpu": resource.MustParse("1")},
+		map[string]*resource.Quantity{"cpu": pointer.MustParseResource("1")},
 	)
 	fairnessCostProvider, err := fairness.NewDominantResourceFairness(totalResources, configuration.SchedulingConfig{DominantResourceFairnessResourcesToConsider: []string{"cpu"}})
 	require.NoError(t, err)

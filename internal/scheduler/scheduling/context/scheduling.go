@@ -60,8 +60,9 @@ type SchedulingContext struct {
 	// Record of job scheduling requirements known to be unfeasible.
 	// Used to immediately reject new jobs with identical reqirements.
 	// Maps to the JobSchedulingContext of a previous job attempted to schedule with the same key.
-	UnfeasibleSchedulingKeys map[internaltypes.SchedulingKey]*JobSchedulingContext
-	SpotPrice                float64
+	UnfeasibleSchedulingKeys     map[internaltypes.SchedulingKey]*JobSchedulingContext
+	ExperimentalIndicativeShares map[int]float64
+	SpotPrice                    float64
 }
 
 func NewSchedulingContext(
@@ -71,16 +72,17 @@ func NewSchedulingContext(
 	totalResources internaltypes.ResourceList,
 ) *SchedulingContext {
 	return &SchedulingContext{
-		Started:                  time.Now(),
-		Pool:                     pool,
-		FairnessCostProvider:     fairnessCostProvider,
-		Limiter:                  limiter,
-		QueueSchedulingContexts:  make(map[string]*QueueSchedulingContext),
-		TotalResources:           totalResources,
-		ScheduledResources:       internaltypes.ResourceList{},
-		EvictedResources:         internaltypes.ResourceList{},
-		SchedulingKeyGenerator:   internaltypes.NewSchedulingKeyGenerator(),
-		UnfeasibleSchedulingKeys: make(map[internaltypes.SchedulingKey]*JobSchedulingContext),
+		Started:                      time.Now(),
+		Pool:                         pool,
+		FairnessCostProvider:         fairnessCostProvider,
+		Limiter:                      limiter,
+		QueueSchedulingContexts:      make(map[string]*QueueSchedulingContext),
+		TotalResources:               totalResources,
+		ScheduledResources:           internaltypes.ResourceList{},
+		EvictedResources:             internaltypes.ResourceList{},
+		SchedulingKeyGenerator:       internaltypes.NewSchedulingKeyGenerator(),
+		UnfeasibleSchedulingKeys:     make(map[internaltypes.SchedulingKey]*JobSchedulingContext),
+		ExperimentalIndicativeShares: make(map[int]float64),
 	}
 }
 
@@ -129,9 +131,11 @@ func (sctx *SchedulingContext) AddQueueSchedulingContext(
 		AllocatedByPriorityClass:          initialAllocatedByPriorityClass,
 		ScheduledResourcesByPriorityClass: make(map[string]internaltypes.ResourceList),
 		EvictedResourcesByPriorityClass:   make(map[string]internaltypes.ResourceList),
-		SuccessfulJobSchedulingContexts:   make(map[string]*JobSchedulingContext),
-		UnsuccessfulJobSchedulingContexts: make(map[string]*JobSchedulingContext),
-		EvictedJobsById:                   make(map[string]bool),
+		PreemptedByOptimiserResourceByPriorityClass: make(map[string]internaltypes.ResourceList),
+		SuccessfulJobSchedulingContexts:             make(map[string]*JobSchedulingContext),
+		UnsuccessfulJobSchedulingContexts:           make(map[string]*JobSchedulingContext),
+		PreemptedByOptimiserJobSchedulingContexts:   make(map[string]*JobSchedulingContext),
+		EvictedJobsById:                             make(map[string]bool),
 	}
 	sctx.QueueSchedulingContexts[queue] = qctx
 	return nil
@@ -204,7 +208,7 @@ func (sctx *SchedulingContext) CalculateTheoreticalShare(priority float64) float
 // as queue_weight/sum_of_all_queue_weights and a DemandCappedAdjustedFairShare/UncappedAdjustedFairShare
 // by re-sharing any unused capacity (as determined by a queue's demand).
 func (sctx *SchedulingContext) updateFairShares(qctxs map[string]*QueueSchedulingContext) []*queueInfo {
-	const maxIterations = 5
+	const maxIterations = 10
 
 	queueInfos := make([]*queueInfo, 0, len(qctxs))
 	for queueName, qctx := range qctxs {
@@ -398,6 +402,27 @@ func (sctx *SchedulingContext) QueueContextExists(job *jobdb.Job) bool {
 	queue := sctx.resolveQueueName(job)
 	_, ok := sctx.QueueSchedulingContexts[queue]
 	return ok
+}
+
+func (sctx *SchedulingContext) PreemptJob(jctx *JobSchedulingContext) (bool, error) {
+	queue := sctx.resolveQueueName(jctx.Job)
+	qctx, ok := sctx.QueueSchedulingContexts[queue]
+	if !ok {
+		return false, errors.Errorf("failed preempting job %s to scheduling context: no context for queue %s", jctx.JobId, queue)
+	}
+
+	scheduledInThisRound, err := qctx.preemptJob(jctx)
+	if err != nil {
+		return false, err
+	}
+
+	if scheduledInThisRound {
+		sctx.ScheduledResources = sctx.ScheduledResources.Subtract(jctx.Job.AllResourceRequirements())
+		sctx.NumScheduledJobs--
+	}
+
+	sctx.Allocated = sctx.Allocated.Subtract(jctx.Job.AllResourceRequirements())
+	return scheduledInThisRound, nil
 }
 
 func (sctx *SchedulingContext) EvictJob(jctx *JobSchedulingContext) (bool, error) {

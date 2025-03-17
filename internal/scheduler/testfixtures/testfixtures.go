@@ -15,6 +15,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
+	"github.com/armadaproject/armada/internal/common/pointer"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/stringinterner"
@@ -144,7 +145,6 @@ func NewJob(
 	jobSet string,
 	queue string,
 	priority uint32,
-	price float64,
 	schedulingInfo *internaltypes.JobSchedulingInfo,
 	queued bool,
 	queuedVersion int32,
@@ -158,7 +158,6 @@ func NewJob(
 		jobSet,
 		queue,
 		priority,
-		price,
 		schedulingInfo,
 		queued,
 		queuedVersion,
@@ -233,6 +232,16 @@ func WithRoundLimitsConfig(limits map[string]float64, config schedulerconfigurat
 
 func WithRoundLimitsPoolConfig(limits map[string]map[string]float64, config schedulerconfiguration.SchedulingConfig) schedulerconfiguration.SchedulingConfig {
 	config.MaximumResourceFractionToScheduleByPool = limits
+	return config
+}
+
+func WithOptimiserConfig(pool string, optimiserConfig *schedulerconfiguration.OptimiserConfig, config schedulerconfiguration.SchedulingConfig) schedulerconfiguration.SchedulingConfig {
+	for i, p := range config.Pools {
+		if p.Name == pool {
+			p.ExperimentalOptimiser = optimiserConfig
+			config.Pools[i] = p
+		}
+	}
 	return config
 }
 
@@ -312,7 +321,6 @@ func WithNodeTypeNodes(nodeType *internaltypes.NodeType, nodes []*internaltypes.
 			false,
 			node.GetTotalResources(),
 			node.GetAllocatableResources(),
-			node.GetUnallocatableResources(),
 			node.AllocatableByPriority,
 			node.AllocatedByQueue,
 			node.AllocatedByJobId,
@@ -337,7 +345,6 @@ func WithIdNodes(nodeId string, nodes []*internaltypes.Node) []*internaltypes.No
 			false,
 			node.GetTotalResources(),
 			node.GetAllocatableResources(),
-			node.GetUnallocatableResources(),
 			node.AllocatableByPriority,
 			node.AllocatedByQueue,
 			node.AllocatedByJobId,
@@ -361,7 +368,6 @@ func WithIndexNode(idx uint64, node *internaltypes.Node) *internaltypes.Node {
 		false,
 		node.GetTotalResources(),
 		node.GetAllocatableResources(),
-		node.GetUnallocatableResources(),
 		node.AllocatableByPriority,
 		node.AllocatedByQueue,
 		node.AllocatedByJobId,
@@ -414,7 +420,7 @@ func WithRequestsJobs(rl schedulerobjects.ResourceList, jobs []*jobdb.Job) []*jo
 		newSchedInfo := job.JobSchedulingInfo().DeepCopy()
 		maps.Copy(
 			newSchedInfo.PodRequirements.ResourceRequirements.Requests,
-			schedulerobjects.V1ResourceListFromResourceList(rl),
+			schedulerobjects.V1ResourceListFromResourceList(&rl),
 		)
 		newJob, err := job.WithJobSchedulingInfo(newSchedInfo)
 		if err != nil {
@@ -474,14 +480,11 @@ func WithAnnotationsJobs(annotations map[string]string, jobs []*jobdb.Job) []*jo
 	return jobs
 }
 
-func N1Cpu4GiJobsWithPrice(queue string, bidPrice float64, n int) []*jobdb.Job {
-	rv := make([]*jobdb.Job, n)
-	for i := 0; i < n; i++ {
-		j := Test1Cpu4GiJob(queue, PriorityClass0)
-		j = j.WithBidPrice(bidPrice)
-		rv[i] = j
+func WithQueued(jobs []*jobdb.Job) []*jobdb.Job {
+	for i, job := range jobs {
+		jobs[i] = job.WithQueued(true)
 	}
-	return rv
+	return jobs
 }
 
 func N1Cpu4GiJobs(queue string, priorityClassName string, n int) []*jobdb.Job {
@@ -504,6 +507,14 @@ func N16Cpu128GiJobs(queue string, priorityClassName string, n int) []*jobdb.Job
 	rv := make([]*jobdb.Job, n)
 	for i := 0; i < n; i++ {
 		rv[i] = Test16Cpu128GiJob(queue, priorityClassName)
+	}
+	return rv
+}
+
+func N32Cpu256GiJobsWithLargeJobToleration(queue string, priorityClassName string, n int) []*jobdb.Job {
+	rv := make([]*jobdb.Job, n)
+	for i := 0; i < n; i++ {
+		rv[i] = Test32Cpu256GiJobWithLargeJobToleration(queue, priorityClassName)
 	}
 	return rv
 }
@@ -541,7 +552,6 @@ func TestJob(queue string, jobId ulid.ULID, priorityClassName string, req *inter
 		queue,
 		// This is the per-queue priority of this job, which is unrelated to `priorityClassName`.
 		1000,
-		0.0,
 		&internaltypes.JobSchedulingInfo{
 			PriorityClassName: priorityClassName,
 			SubmitTime:        submitTime,
@@ -556,6 +566,12 @@ func TestJob(queue string, jobId ulid.ULID, priorityClassName string, req *inter
 		false,
 		[]string{TestPool},
 	)
+	return job
+}
+
+func TestJobWithResources(queue string, priorityClassName string, resources v1.ResourceList) *jobdb.Job {
+	jobId := util.ULID()
+	job := TestJob(queue, jobId, priorityClassName, TestPodReqs(resources))
 	return job
 }
 
@@ -579,6 +595,11 @@ func Test32Cpu256GiJob(queue string, priorityClassName string) *jobdb.Job {
 	return TestJob(queue, jobId, priorityClassName, Test32Cpu256GiPodReqs(queue, jobId, extractPriority(priorityClassName)))
 }
 
+func Test32Cpu256GiJobWithLargeJobToleration(queue string, priorityClassName string) *jobdb.Job {
+	jobId := util.ULID()
+	return TestJob(queue, jobId, priorityClassName, Test32Cpu256GiWithLargeJobTolerationPodReqs(queue, jobId, extractPriority(priorityClassName)))
+}
+
 func Test1GpuJob(queue string, priorityClassName string) *jobdb.Job {
 	jobId := util.ULID()
 	return TestJob(queue, jobId, priorityClassName, Test1GpuPodReqs(queue, jobId, extractPriority(priorityClassName)))
@@ -592,7 +613,7 @@ func N1CpuPodReqs(queue string, priority int32, n int) []*internaltypes.PodRequi
 	return rv
 }
 
-func TestPodReqs(queue string, jobId ulid.ULID, priority int32, requests v1.ResourceList) *internaltypes.PodRequirements {
+func TestPodReqs(requests v1.ResourceList) *internaltypes.PodRequirements {
 	return &internaltypes.PodRequirements{
 		ResourceRequirements: v1.ResourceRequirements{Requests: requests},
 		Annotations:          make(map[string]string),
@@ -601,39 +622,24 @@ func TestPodReqs(queue string, jobId ulid.ULID, priority int32, requests v1.Reso
 }
 
 func Test1Cpu4GiPodReqs(queue string, jobId ulid.ULID, priority int32) *internaltypes.PodRequirements {
-	return TestPodReqs(
-		queue,
-		jobId,
-		priority,
-		v1.ResourceList{
-			"cpu":    resource.MustParse("1"),
-			"memory": resource.MustParse("4Gi"),
-		},
-	)
+	return TestPodReqs(v1.ResourceList{
+		"cpu":    resource.MustParse("1"),
+		"memory": resource.MustParse("4Gi"),
+	})
 }
 
 func Test1Cpu16GiPodReqs(queue string, jobId ulid.ULID, priority int32) *internaltypes.PodRequirements {
-	return TestPodReqs(
-		queue,
-		jobId,
-		priority,
-		v1.ResourceList{
-			"cpu":    resource.MustParse("1"),
-			"memory": resource.MustParse("16Gi"),
-		},
-	)
+	return TestPodReqs(v1.ResourceList{
+		"cpu":    resource.MustParse("1"),
+		"memory": resource.MustParse("16Gi"),
+	})
 }
 
 func Test16Cpu128GiPodReqs(queue string, jobId ulid.ULID, priority int32) *internaltypes.PodRequirements {
-	req := TestPodReqs(
-		queue,
-		jobId,
-		priority,
-		v1.ResourceList{
-			"cpu":    resource.MustParse("16"),
-			"memory": resource.MustParse("128Gi"),
-		},
-	)
+	req := TestPodReqs(v1.ResourceList{
+		"cpu":    resource.MustParse("16"),
+		"memory": resource.MustParse("128Gi"),
+	})
 	req.Tolerations = []v1.Toleration{
 		{
 			Key:   "largeJobsOnly",
@@ -644,15 +650,18 @@ func Test16Cpu128GiPodReqs(queue string, jobId ulid.ULID, priority int32) *inter
 }
 
 func Test32Cpu256GiPodReqs(queue string, jobId ulid.ULID, priority int32) *internaltypes.PodRequirements {
-	req := TestPodReqs(
-		queue,
-		jobId,
-		priority,
-		v1.ResourceList{
-			"cpu":    resource.MustParse("32"),
-			"memory": resource.MustParse("256Gi"),
-		},
-	)
+	req := TestPodReqs(v1.ResourceList{
+		"cpu":    resource.MustParse("32"),
+		"memory": resource.MustParse("256Gi"),
+	})
+	return req
+}
+
+func Test32Cpu256GiWithLargeJobTolerationPodReqs(queue string, jobId ulid.ULID, priority int32) *internaltypes.PodRequirements {
+	req := TestPodReqs(v1.ResourceList{
+		"cpu":    resource.MustParse("32"),
+		"memory": resource.MustParse("256Gi"),
+	})
 	req.Tolerations = []v1.Toleration{
 		{
 			Key:   "largeJobsOnly",
@@ -663,16 +672,11 @@ func Test32Cpu256GiPodReqs(queue string, jobId ulid.ULID, priority int32) *inter
 }
 
 func Test1GpuPodReqs(queue string, jobId ulid.ULID, priority int32) *internaltypes.PodRequirements {
-	req := TestPodReqs(
-		queue,
-		jobId,
-		priority,
-		v1.ResourceList{
-			"cpu":            resource.MustParse("8"),
-			"memory":         resource.MustParse("128Gi"),
-			"nvidia.com/gpu": resource.MustParse("1"),
-		},
-	)
+	req := TestPodReqs(v1.ResourceList{
+		"cpu":            resource.MustParse("8"),
+		"memory":         resource.MustParse("128Gi"),
+		"nvidia.com/gpu": resource.MustParse("1"),
+	})
 	req.Tolerations = []v1.Toleration{
 		{
 			Key:   "gpu",
@@ -720,20 +724,20 @@ func N8GpuNodes(n int, priorities []int32) []*internaltypes.Node {
 }
 
 func SingleQueuePriorityOne(name string) []*api.Queue {
-	return []*api.Queue{{Name: name, PriorityFactor: 1.0}}
+	return []*api.Queue{SingleQueueWithPriorityFactor(name, 1.0)}
 }
 
-func TestSchedulerObjectsNode(priorities []int32, resources map[string]resource.Quantity) *schedulerobjects.Node {
+func SingleQueueWithPriorityFactor(name string, priorityFactor float64) *api.Queue {
+	return &api.Queue{Name: name, PriorityFactor: priorityFactor}
+}
+
+func TestSchedulerObjectsNode(_ []int32, resources map[string]*resource.Quantity) *schedulerobjects.Node {
 	id := uuid.NewString()
 	return &schedulerobjects.Node{
-		Id:             id,
-		Name:           id,
-		Pool:           TestPool,
-		TotalResources: schedulerobjects.ResourceList{Resources: resources},
-		AllocatableByPriorityAndResource: schedulerobjects.NewAllocatableByPriorityAndResourceType(
-			priorities,
-			schedulerobjects.ResourceList{Resources: resources},
-		),
+		Id:              id,
+		Name:            id,
+		Pool:            TestPool,
+		TotalResources:  &schedulerobjects.ResourceList{Resources: resources},
 		StateByJobRunId: make(map[string]schedulerobjects.JobRunState),
 		Labels: map[string]string{
 			TestHostnameLabel: id,
@@ -761,11 +765,10 @@ func TestSimpleNode(id string) *internaltypes.Node {
 		nil,
 		nil,
 		nil,
-		nil,
 		nil)
 }
 
-func TestNode(priorities []int32, resources map[string]resource.Quantity) *internaltypes.Node {
+func TestNode(priorities []int32, resources map[string]*resource.Quantity) *internaltypes.Node {
 	rl := TestNodeFactory.ResourceListFactory().FromNodeProto(resources)
 	id := uuid.NewString()
 	return TestNodeFactory.CreateNodeAndType(id,
@@ -785,12 +788,22 @@ func TestNode(priorities []int32, resources map[string]resource.Quantity) *inter
 		internaltypes.NewAllocatableByPriorityAndResourceType(priorities, rl))
 }
 
+func Test16CpuNode(priorities []int32) *internaltypes.Node {
+	return TestNode(
+		priorities,
+		map[string]*resource.Quantity{
+			"cpu":    pointer.MustParseResource("16"),
+			"memory": pointer.MustParseResource("128Gi"),
+		},
+	)
+}
+
 func Test32CpuNode(priorities []int32) *internaltypes.Node {
 	return TestNode(
 		priorities,
-		map[string]resource.Quantity{
-			"cpu":    resource.MustParse("32"),
-			"memory": resource.MustParse("256Gi"),
+		map[string]*resource.Quantity{
+			"cpu":    pointer.MustParseResource("32"),
+			"memory": pointer.MustParseResource("256Gi"),
 		},
 	)
 }
@@ -818,10 +831,10 @@ func TestTainted32CpuNode(priorities []int32) *internaltypes.Node {
 func Test8GpuNode(priorities []int32) *internaltypes.Node {
 	node := TestNode(
 		priorities,
-		map[string]resource.Quantity{
-			"cpu":            resource.MustParse("64"),
-			"memory":         resource.MustParse("1024Gi"),
-			"nvidia.com/gpu": resource.MustParse("8"),
+		map[string]*resource.Quantity{
+			"cpu":            pointer.MustParseResource("64"),
+			"memory":         pointer.MustParseResource("1024Gi"),
+			"nvidia.com/gpu": pointer.MustParseResource("8"),
 		},
 	)
 	return TestNodeFactory.AddLabels(
@@ -858,7 +871,6 @@ func TestQueuedJobDbJob() *jobdb.Job {
 		TestJobset,
 		TestQueue,
 		0,
-		0.0,
 		&internaltypes.JobSchedulingInfo{
 			PriorityClassName: TestDefaultPriorityClass,
 			SubmitTime:        BaseTime,
@@ -954,10 +966,10 @@ func CpuMem(cpu string, memory string) internaltypes.ResourceList {
 
 func CpuMemGpu(cpu string, memory string, gpu string) internaltypes.ResourceList {
 	return TestResourceListFactory.FromNodeProto(
-		map[string]resource.Quantity{
-			"cpu":            resource.MustParse(cpu),
-			"memory":         resource.MustParse(memory),
-			"nvidia.com/gpu": resource.MustParse(gpu),
+		map[string]*resource.Quantity{
+			"cpu":            pointer.MustParseResource(cpu),
+			"memory":         pointer.MustParseResource(memory),
+			"nvidia.com/gpu": pointer.MustParseResource(gpu),
 		},
 	)
 }

@@ -114,7 +114,7 @@ var (
 	}
 	schedulingInfoWithUpdatedPriorityBytes = protoutil.MustMarshall(schedulingInfoWithUpdatedPriority)
 
-	schedulerMetrics, _ = metrics.New(nil, nil, 12*time.Hour)
+	schedulerMetrics, _ = metrics.New(nil, nil, []time.Duration{}, 12*time.Hour)
 )
 
 var queuedJob = testfixtures.NewJob(
@@ -122,7 +122,6 @@ var queuedJob = testfixtures.NewJob(
 	"testJobset",
 	"testQueue",
 	uint32(10),
-	0.0,
 	toInternalSchedulingInfo(schedulingInfo),
 	true,
 	0,
@@ -138,7 +137,6 @@ var leasedJob = testfixtures.NewJob(
 	"testJobset",
 	"testQueue",
 	0,
-	0.0,
 	toInternalSchedulingInfo(schedulingInfo),
 	false,
 	1,
@@ -154,7 +152,6 @@ var preemptibleLeasedJob = testfixtures.NewJob(
 	"testJobset",
 	"testQueue",
 	0,
-	0.0,
 	toInternalSchedulingInfo(preemptibleSchedulingInfo),
 	false,
 	1,
@@ -170,7 +167,6 @@ var cancelledJob = testfixtures.NewJob(
 	"testJobset",
 	"testQueue",
 	0,
-	0.0,
 	toInternalSchedulingInfo(schedulingInfo),
 	false,
 	1,
@@ -186,7 +182,6 @@ var returnedOnceLeasedJob = testfixtures.NewJob(
 	"testJobset",
 	"testQueue",
 	uint32(10),
-	0.0,
 	toInternalSchedulingInfo(schedulingInfo),
 	false,
 	3,
@@ -245,7 +240,6 @@ var leasedFailFastJob = testfixtures.NewJob(
 	"testJobset",
 	"testQueue",
 	uint32(10),
-	0.0,
 	toInternalSchedulingInfo(failFastSchedulingInfo),
 	false,
 	1,
@@ -268,7 +262,6 @@ var (
 		"testJobset",
 		"testQueue",
 		uint32(10),
-		0.0,
 		toInternalSchedulingInfo(schedulingInfo),
 		true,
 		2,
@@ -1789,7 +1782,6 @@ func jobDbJobFromDbJob(resourceListFactory *internaltypes.ResourceListFactory, j
 		job.JobSet,
 		job.Queue,
 		uint32(job.Priority),
-		job.BidPrice,
 		toInternalSchedulingInfo(&schedulingInfo),
 		job.Queued,
 		job.QueuedVersion,
