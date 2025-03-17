@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/armadaproject/armada/internal/common/testutil"
@@ -369,6 +370,7 @@ func TestLimitSequenceByteSize(t *testing.T) {
 	}
 
 	actual, err := LimitSequenceByteSize(sequence, 1000, true)
+	require.NoError(t, err)
 	testutil.AssertProtoEqual(t, []*armadaevents.EventSequence{sequence}, actual)
 
 	_, err = LimitSequenceByteSize(sequence, 1, true)
