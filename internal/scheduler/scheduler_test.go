@@ -2,7 +2,6 @@ package scheduler
 
 import (
 	"fmt"
-	"github.com/armadaproject/armada/internal/common/testutil"
 	"sync"
 	"testing"
 	"time"
