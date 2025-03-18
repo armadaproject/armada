@@ -1,0 +1,26 @@
+name: Check broken links in markdown files
+
+on:
+  pull_request:
+    branches-ignore:
+      - gh-pages
+    paths:
+      - "**/*.md"
+
+permissions:
+  pull-requests: read
+
+jobs:
+  check-markdown-links:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check markdown links
+        uses: umbrelladocs/action-linkspector@v1
+        with:
+          config_file: .github/linters/.linkspector.yml
+          fail_on_error: false # TODO: Change to true when all links are fixed
+          filter_mode: nofilter
