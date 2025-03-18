@@ -3,9 +3,11 @@ package eventutil
 import (
 	"testing"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 
+	"github.com/armadaproject/armada/internal/common/testutil"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
@@ -368,10 +370,8 @@ func TestLimitSequenceByteSize(t *testing.T) {
 	}
 
 	actual, err := LimitSequenceByteSize(sequence, 1000, true)
-	if !assert.NoError(t, err) {
-		return
-	}
-	assert.Equal(t, []*armadaevents.EventSequence{sequence}, actual)
+	require.NoError(t, err)
+	testutil.AssertProtoEqual(t, []*armadaevents.EventSequence{sequence}, actual)
 
 	_, err = LimitSequenceByteSize(sequence, 1, true)
 	assert.Error(t, err)
@@ -401,7 +401,7 @@ func TestLimitSequenceByteSize(t *testing.T) {
 	if !assert.NoError(t, err) {
 		return
 	}
-	assert.Equal(t, expected, actual)
+	testutil.AssertProtoEqual(t, expected, actual)
 }
 
 func TestLimitSequencesByteSize(t *testing.T) {

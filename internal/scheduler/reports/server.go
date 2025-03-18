@@ -6,16 +6,17 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"github.com/gogo/status"
 	"github.com/oklog/ulid"
 	"github.com/openconfig/goyang/pkg/indent"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/armadaproject/armada/pkg/api/schedulerobjects"
 )
 
 type Server struct {
 	repository *SchedulingContextRepository
+	schedulerobjects.UnimplementedSchedulerReportingServer
 }
 
 func NewServer(repository *SchedulingContextRepository) *Server {

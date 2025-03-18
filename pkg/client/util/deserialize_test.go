@@ -8,6 +8,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
+	"github.com/armadaproject/armada/internal/common/testutil"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/client/domain"
 )
@@ -16,14 +17,14 @@ func TestBindJsonOrYaml_Yaml(t *testing.T) {
 	submitFile := &domain.JobSubmitFile{}
 	err := BindJsonOrYaml(filepath.Join("testdata", "jobs.yaml"), submitFile)
 	assert.NoError(t, err)
-	assert.Equal(t, getExpectedJobSubmitFile(t), submitFile)
+	testutil.AssertProtoEqual(t, getExpectedJobSubmitFile(t), submitFile)
 }
 
 func TestBindJsonOrYaml_Json(t *testing.T) {
 	submitFile := &domain.JobSubmitFile{}
 	err := BindJsonOrYaml(filepath.Join("testdata", "jobs.json"), submitFile)
 	assert.NoError(t, err)
-	assert.Equal(t, getExpectedJobSubmitFile(t), submitFile)
+	testutil.AssertProtoEqual(t, getExpectedJobSubmitFile(t), submitFile)
 }
 
 func TestBindJsonOrYaml_IngressType(t *testing.T) {

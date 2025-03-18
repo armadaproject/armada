@@ -9,6 +9,7 @@ import (
 
 type ProxyingSchedulingReportsServer struct {
 	client schedulerobjects.SchedulerReportingClient
+	schedulerobjects.UnimplementedSchedulerReportingServer
 }
 
 func NewProxyingSchedulingReportsServer(client schedulerobjects.SchedulerReportingClient) *ProxyingSchedulingReportsServer {

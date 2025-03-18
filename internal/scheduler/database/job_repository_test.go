@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/armadaproject/armada/internal/common/testutil"
+
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pkg/errors"
@@ -374,7 +376,7 @@ func TestFetchJobRunErrors(t *testing.T) {
 					require.Error(t, err)
 				} else {
 					require.NoError(t, err)
-					assert.Equal(t, tc.expected, received)
+					testutil.AssertProtoEqual(t, tc.expected, received)
 				}
 				cancel()
 				return nil

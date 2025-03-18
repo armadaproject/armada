@@ -5,8 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
-	"github.com/gogo/protobuf/types"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
@@ -14,6 +12,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/auth"
@@ -50,7 +50,7 @@ func TestEventServer_Health(t *testing.T) {
 		ctx,
 		t,
 		func(s *EventServer) {
-			health, err := s.Health(armadacontext.Background(), &types.Empty{})
+			health, err := s.Health(armadacontext.Background(), &emptypb.Empty{})
 			assert.Equal(t, health.Status, api.HealthCheckResponse_SERVING)
 			require.NoError(t, err)
 		},

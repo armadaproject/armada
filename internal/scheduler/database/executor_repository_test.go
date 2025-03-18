@@ -4,6 +4,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/armadaproject/armada/internal/common/testutil"
+
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -76,7 +78,7 @@ func TestExecutorRepository_LoadAndSave(t *testing.T) {
 				slices.SortFunc(tc.executors, executorSort)
 				require.Equal(t, len(tc.executors), len(retrievedExecutors))
 				for i, expected := range tc.executors {
-					assert.Equal(t, expected, retrievedExecutors[i])
+					testutil.AssertProtoEqual(t, expected, retrievedExecutors[i])
 				}
 
 				return nil

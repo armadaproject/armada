@@ -1,7 +1,7 @@
 package jobdb
 
 import (
-	"github.com/gogo/protobuf/proto"
+	"github.com/golang/protobuf/proto"
 	"github.com/pkg/errors"
 
 	armadamath "github.com/armadaproject/armada/internal/common/math"

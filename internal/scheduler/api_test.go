@@ -4,13 +4,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	clock "k8s.io/utils/clock/testing"
@@ -23,6 +23,7 @@ import (
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/slices"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
+	"github.com/armadaproject/armada/internal/common/testutil"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/common/util"
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
@@ -305,7 +306,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 			mockPulsarPublisher := mocks.NewMockPublisher[*armadaevents.EventSequence](ctrl)
 			mockJobRepository := schedulermocks.NewMockJobRepository(ctrl)
 			mockExecutorRepository := schedulermocks.NewMockExecutorRepository(ctrl)
-			mockStream := schedulermocks.NewMockExecutorApi_LeaseJobRunsServer(ctrl)
+			mockStream := schedulermocks.NewMockExecutorApi_LeaseJobRunsServer[any, any](ctrl)
 			mockAuthorizer := servermocks.NewMockActionAuthorizer(ctrl)
 
 			runIds, err := runIdsFromLeaseRequest(tc.request)
@@ -345,7 +346,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 
 			err = server.LeaseJobRuns(mockStream)
 			require.NoError(t, err)
-			assert.Equal(t, tc.expectedMsgs, capturedEvents)
+			testutil.AssertProtoEqual(t, tc.expectedMsgs, capturedEvents)
 			cancel()
 		})
 	}
@@ -372,7 +373,7 @@ func TestExecutorApi_LeaseJobRuns_Unauthorised(t *testing.T) {
 	mockPulsarPublisher := mocks.NewMockPublisher[*armadaevents.EventSequence](ctrl)
 	mockJobRepository := schedulermocks.NewMockJobRepository(ctrl)
 	mockExecutorRepository := schedulermocks.NewMockExecutorRepository(ctrl)
-	mockStream := schedulermocks.NewMockExecutorApi_LeaseJobRunsServer(ctrl)
+	mockStream := schedulermocks.NewMockExecutorApi_LeaseJobRunsServer[any, any](ctrl)
 	mockAuthorizer := servermocks.NewMockActionAuthorizer(ctrl)
 
 	// set up mocks
