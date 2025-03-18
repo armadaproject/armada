@@ -7,6 +7,10 @@ import { Job, JobFiltersWithExcludes, JobState, Match } from "../../models/looko
 import { IGetJobsService } from "../../services/lookout/GetJobsService"
 import { UpdateJobsResponse, UpdateJobsService } from "../../services/lookout/UpdateJobsService"
 import FakeGetJobsService from "../../services/lookout/mocks/FakeGetJobsService"
+import {
+  FORMAT_NUMBER_SHOULD_FORMAT_KEY,
+  FORMAT_TIMESTAMP_SHOULD_FORMAT_KEY,
+} from "../../userSettings/localStorageKeys"
 import { makeManyTestJobs } from "../../utils/fakeJobsUtils"
 import { formatJobState } from "../../utils/jobsTableFormatters"
 
@@ -20,6 +24,10 @@ describe("CancelDialog", () => {
     onClose: () => void
 
   beforeEach(() => {
+    localStorage.clear()
+    localStorage.setItem(FORMAT_NUMBER_SHOULD_FORMAT_KEY, JSON.stringify(false))
+    localStorage.setItem(FORMAT_TIMESTAMP_SHOULD_FORMAT_KEY, JSON.stringify(false))
+
     jobs = makeManyTestJobs(numJobs, numFinishedJobs)
     selectedItemFilters = [
       {
@@ -38,6 +46,10 @@ describe("CancelDialog", () => {
       cancelJobs: vi.fn(),
     } as any
     onClose = vi.fn()
+  })
+
+  afterEach(() => {
+    localStorage.clear()
   })
 
   const renderComponent = () =>

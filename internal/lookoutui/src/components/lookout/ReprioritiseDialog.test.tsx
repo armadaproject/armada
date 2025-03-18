@@ -7,6 +7,10 @@ import { Job, JobFiltersWithExcludes, JobState, Match } from "../../models/looko
 import { IGetJobsService } from "../../services/lookout/GetJobsService"
 import { UpdateJobsResponse, UpdateJobsService } from "../../services/lookout/UpdateJobsService"
 import FakeGetJobsService from "../../services/lookout/mocks/FakeGetJobsService"
+import {
+  FORMAT_NUMBER_SHOULD_FORMAT_KEY,
+  FORMAT_TIMESTAMP_SHOULD_FORMAT_KEY,
+} from "../../userSettings/localStorageKeys"
 import { makeManyTestJobs } from "../../utils/fakeJobsUtils"
 
 describe("ReprioritiseDialog", () => {
@@ -19,6 +23,10 @@ describe("ReprioritiseDialog", () => {
     onClose: () => void
 
   beforeEach(() => {
+    localStorage.clear()
+    localStorage.setItem(FORMAT_NUMBER_SHOULD_FORMAT_KEY, JSON.stringify(false))
+    localStorage.setItem(FORMAT_TIMESTAMP_SHOULD_FORMAT_KEY, JSON.stringify(false))
+
     jobs = makeManyTestJobs(numJobs, numFinishedJobs)
     selectedItemFilters = [
       {
@@ -37,6 +45,10 @@ describe("ReprioritiseDialog", () => {
       reprioritiseJobs: vi.fn(),
     } as any
     onClose = vi.fn()
+  })
+
+  afterEach(() => {
+    localStorage.clear()
   })
 
   const renderComponent = () =>
@@ -221,7 +233,9 @@ describe("ReprioritiseDialog", () => {
 
     // Check the user can re-attempt the request after a refetch
     await userEvent.click(getByRole("button", { name: /Refetch jobs/i }))
-    expect(await findByRole("button", { name: /Reprioritise 2 jobs/i })).toBeEnabled()
+    waitFor(async () => {
+      expect(await findByRole("button", { name: /Reprioritise 2 jobs/i })).toBeEnabled()
+    })
   })
 
   async function enterPriority(priority: string) {

@@ -11,7 +11,7 @@ import {
   DEFAULT_COLUMN_MATCHES,
   DEFAULT_COLUMN_ORDERING,
   DEFAULT_COLUMN_VISIBILITY,
-  JOB_COLUMNS,
+  GET_JOB_COLUMNS,
   toAnnotationColId,
   toColId,
   fromAnnotationColId,
@@ -42,7 +42,9 @@ export interface JobsTablePreferences {
 export const DEFAULT_PREFERENCES: JobsTablePreferences = {
   annotationColumnKeys: [],
   visibleColumns: DEFAULT_COLUMN_VISIBILITY,
-  columnOrder: JOB_COLUMNS.filter(({ id }) => !PINNED_COLUMNS.includes(toColId(id))).map(({ id }) => toColId(id)),
+  columnOrder: GET_JOB_COLUMNS({ formatIsoTimestamp: () => "", displayedTimeZoneName: "", formatNumber: () => "" })
+    .filter(({ id }) => !PINNED_COLUMNS.includes(toColId(id)))
+    .map(({ id }) => toColId(id)),
   filters: [],
   columnMatches: DEFAULT_COLUMN_MATCHES,
   groupedColumns: [],
@@ -238,9 +240,13 @@ export const ensurePreferencesAreConsistent = (preferences: JobsTablePreferences
   // Make sure all and only annotation columns and unpinned standard columns are contained in columnOrder
   const columnOrderSet = new Set(preferences.columnOrder)
   const annotationKeyColumnIds = preferences.annotationColumnKeys.map(toAnnotationColId)
-  const unpinnedStandardColumnIds = JOB_COLUMNS.filter(({ id }) => !PINNED_COLUMNS.includes(toColId(id))).map(
-    ({ id }) => toColId(id),
-  )
+  const unpinnedStandardColumnIds = GET_JOB_COLUMNS({
+    formatIsoTimestamp: () => "",
+    displayedTimeZoneName: "",
+    formatNumber: () => "",
+  })
+    .filter(({ id }) => !PINNED_COLUMNS.includes(toColId(id)))
+    .map(({ id }) => toColId(id))
 
   // Add missing column IDs
   annotationKeyColumnIds.filter((id) => !columnOrderSet.has(id)).forEach((id) => preferences.columnOrder.push(id))

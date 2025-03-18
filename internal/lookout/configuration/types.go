@@ -84,4 +84,8 @@ type UIConfig struct {
 	CommandSpecs         []CommandSpec
 
 	Backend string `json:",omitempty"`
+
+	// PinnedTimeZoneIdentifiers is the list of identifiers of IANA time zones to be displayed at
+	// the top of the time zone selector.
+	PinnedTimeZoneIdentifiers []string
 }

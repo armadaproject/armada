@@ -19,15 +19,17 @@ import {
 import { KeyValuePairTable } from "./KeyValuePairTable"
 import { NoRunsAlert } from "./NoRunsAlert"
 import { SidebarTabHeading, SidebarTabSubheading } from "./sidebarTabContentComponents"
+import { formatDuration } from "../../../common/formatTime"
+import { useFormatIsoTimestampWithUserSettings } from "../../../hooks/formatTimeWithUserSettings"
 import { useCustomSnackbar } from "../../../hooks/useCustomSnackbar"
-import { Job, JobRun, JobState } from "../../../models/lookoutModels"
+import { Job, JobState } from "../../../models/lookoutModels"
 import { useGetAccessToken } from "../../../oidcAuth"
 import { ICordonService } from "../../../services/lookout/CordonService"
 import { IGetJobInfoService } from "../../../services/lookout/GetJobInfoService"
 import { IGetRunInfoService } from "../../../services/lookout/GetRunInfoService"
 import { SPACING } from "../../../styling/spacing"
 import { getErrorMessage } from "../../../utils"
-import { formatJobRunState, formatTimeSince, formatUtcDate } from "../../../utils/jobsTableFormatters"
+import { formatJobRunState } from "../../../utils/jobsTableFormatters"
 import { CodeBlock } from "../../CodeBlock"
 
 const MarkNodeUnschedulableButtonContainer = styled("div")(({ theme }) => ({
@@ -61,6 +63,9 @@ export const SidebarTabJobResult = ({
 }: SidebarTabJobResultProps) => {
   const mounted = useRef(false)
   const openSnackbar = useCustomSnackbar()
+
+  const formatIsoTimestamp = useFormatIsoTimestampWithUserSettings()
+
   const runsNewestFirst = useMemo(() => [...job.runs].reverse(), [job])
   const [jobError, setJobError] = useState<string>("")
   const [runErrorMap, setRunErrorMap] = useState<Map<string, string>>(new Map<string, string>())
@@ -258,11 +263,15 @@ export const SidebarTabJobResult = ({
               const runError = runErrorMap.get(run.runId) || undefined // set to undefined if it is an empty string
               const runDebugMessageLoading = runDebugMessageLoadingMap.get(run.runId) === "Loading"
               const runDebugMessage = runDebugMessageMap.get(run.runId) || undefined // set to undefined if it is an empty string
+
+              const runIndicativeTimestamp = run.started || run.pending || run.leased || ""
               return (
                 <Accordion key={run.runId} defaultExpanded={i === 0}>
                   <AccordionSummary>
                     <SidebarTabSubheading>
-                      {formatUtcDate(getRunScheduledTime(run))} UTC ({formatJobRunState(run.jobRunState)})
+                      Run {i + 1}
+                      {runIndicativeTimestamp && <>: {formatIsoTimestamp(runIndicativeTimestamp, "full")}</>} (
+                      {formatJobRunState(run.jobRunState)})
                     </SidebarTabSubheading>
                   </AccordionSummary>
                   <AccordionDetails>
@@ -270,15 +279,29 @@ export const SidebarTabJobResult = ({
                       data={[
                         { key: "Run ID", value: run.runId, allowCopy: true },
                         { key: "State", value: formatJobRunState(run.jobRunState) },
-                        { key: "Leased (UTC)", value: formatUtcDate(run.leased) },
-                        { key: "Pending (UTC)", value: formatUtcDate(run.pending) },
-                        { key: "Started (UTC)", value: formatUtcDate(run.started) },
-                        { key: "Finished (UTC)", value: formatUtcDate(run.finished) },
+                        {
+                          key: "Leased",
+                          value: formatIsoTimestamp(run.leased, "full"),
+                        },
+                        {
+                          key: "Pending",
+                          value: formatIsoTimestamp(run.pending, "full"),
+                        },
+                        {
+                          key: "Started",
+                          value: formatIsoTimestamp(run.started, "full"),
+                        },
+                        {
+                          key: "Finished",
+                          value: formatIsoTimestamp(run.finished, "full"),
+                        },
                         {
                           key: "Runtime",
                           value:
                             run.started && run.finished
-                              ? formatTimeSince(run.started, new Date(run.finished).getTime())
+                              ? formatDuration(
+                                  (new Date(run.finished).getTime() - new Date(run.started).getTime()) / 1000,
+                                )
                               : "",
                         },
                         { key: "Cluster", value: run.cluster, allowCopy: true },
@@ -360,14 +383,4 @@ export const SidebarTabJobResult = ({
       )}
     </>
   )
-}
-
-function getRunScheduledTime(run: JobRun): string {
-  if (run.leased !== undefined && run.leased !== "") {
-    return run.leased
-  }
-  if (run.pending !== undefined && run.pending !== "") {
-    return run.pending
-  }
-  return ""
 }

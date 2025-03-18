@@ -17,6 +17,10 @@ import {
 import { visuallyHidden } from "@mui/utils"
 import { TableVirtuoso, TableComponents } from "react-virtuoso"
 
+import {
+  useDisplayedTimeZoneWithUserSettings,
+  useFormatIsoTimestampWithUserSettings,
+} from "../../hooks/formatTimeWithUserSettings"
 import { JobState, jobStateColors, jobStateIcons } from "../../models/lookoutModels"
 import { JobSet } from "../../services/JobService"
 import { formatJobState } from "../../utils/jobsTableFormatters"
@@ -106,6 +110,9 @@ export default function JobSetTable({
     }
   }, [onKeyDown, onKeyUp])
 
+  const formatIsoTimestamp = useFormatIsoTimestampWithUserSettings()
+  const displayedTimeZoneName = useDisplayedTimeZoneWithUserSettings()
+
   if (queue === "") {
     return <Alert severity="info">Enter a queue name into the "Queue" field to view job sets.</Alert>
   }
@@ -135,7 +142,7 @@ export default function JobSetTable({
           <TableHeaderRowCell>Job Set</TableHeaderRowCell>
           <TableHeaderRowCell>
             <TableSortLabel active direction={newestFirst ? "desc" : "asc"} onClick={() => onOrderChange(!newestFirst)}>
-              Submission time
+              Submission time ({displayedTimeZoneName})
               <Box component="span" sx={visuallyHidden}>
                 {newestFirst ? "sorted descending" : "sorted ascending"}
               </Box>
@@ -171,7 +178,7 @@ export default function JobSetTable({
               />
             </TableCell>
             <MaxWidthTableCell>{jobSetId}</MaxWidthTableCell>
-            <NoWrapTableCell>{latestSubmissionTime}</NoWrapTableCell>
+            <NoWrapTableCell>{formatIsoTimestamp(latestSubmissionTime, "compact")}</NoWrapTableCell>
             {JOB_STATES_TO_DISPLAY.map(([jobState, jobSetKey]) => (
               <MinWidthTableCell key={jobState} align="right">
                 <div>

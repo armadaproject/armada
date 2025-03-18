@@ -10,6 +10,10 @@ import {
   stringifyQueryParams,
 } from "./JobsTablePreferencesService"
 import { Match } from "../../models/lookoutModels"
+import {
+  FORMAT_NUMBER_SHOULD_FORMAT_KEY,
+  FORMAT_TIMESTAMP_SHOULD_FORMAT_KEY,
+} from "../../userSettings/localStorageKeys"
 import { Router } from "../../utils"
 import { ColumnId, DEFAULT_COLUMN_ORDERING, StandardColumnId } from "../../utils/jobsTableColumns"
 
@@ -287,6 +291,16 @@ describe("JobsTablePreferencesService", () => {
   })
 
   describe("Queue parameters and Local storage", () => {
+    beforeEach(() => {
+      localStorage.clear()
+      localStorage.setItem(FORMAT_NUMBER_SHOULD_FORMAT_KEY, JSON.stringify(false))
+      localStorage.setItem(FORMAT_TIMESTAMP_SHOULD_FORMAT_KEY, JSON.stringify(false))
+    })
+
+    afterEach(() => {
+      localStorage.clear()
+    })
+
     it("should override for all query params even if only one is defined", () => {
       const queryParams: Partial<QueryStringPrefs> = {
         sb: "112233",

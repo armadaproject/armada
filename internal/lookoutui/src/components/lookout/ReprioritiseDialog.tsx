@@ -15,12 +15,14 @@ import _ from "lodash"
 
 import dialogStyles from "./DialogStyles.module.css"
 import { JobStatusTable } from "./JobStatusTable"
+import { useFormatNumberWithUserSettings } from "../../hooks/formatNumberWithUserSettings"
+import { useFormatIsoTimestampWithUserSettings } from "../../hooks/formatTimeWithUserSettings"
 import { useCustomSnackbar } from "../../hooks/useCustomSnackbar"
 import { isTerminatedJobState, Job, JobFiltersWithExcludes, JobId } from "../../models/lookoutModels"
 import { useGetAccessToken } from "../../oidcAuth"
 import { IGetJobsService } from "../../services/lookout/GetJobsService"
 import { UpdateJobsService } from "../../services/lookout/UpdateJobsService"
-import { pl, waitMillis } from "../../utils"
+import { waitMillis } from "../../utils"
 import { getUniqueJobsMatchingFilters } from "../../utils/jobsDialogUtils"
 
 interface ReprioritiseDialogProps {
@@ -49,6 +51,8 @@ export const ReprioritiseDialog = ({
   const [isReprioritising, setIsReprioritising] = useState(false)
   const [hasAttemptedReprioritise, setHasAttemptedReprioritise] = useState(false)
   const openSnackbar = useCustomSnackbar()
+
+  const formatIsoTimestamp = useFormatIsoTimestampWithUserSettings()
 
   const getAccessToken = useGetAccessToken()
 
@@ -140,10 +144,19 @@ export const ReprioritiseDialog = ({
 
   const jobsToRender = useMemo(() => reprioritisableJobs.slice(0, 1000), [reprioritisableJobs])
   const formatPriority = useCallback((job: Job) => job.priority.toString(), [])
-  const formatSubmittedTime = useCallback((job: Job) => job.submitted, [])
+  const formatSubmittedTime = useCallback((job: Job) => formatIsoTimestamp(job.submitted, "full"), [formatIsoTimestamp])
+
+  const formatNumber = useFormatNumberWithUserSettings()
+
+  const reprioritisableJobsCount = reprioritisableJobs.length
+  const selectedJobsCount = selectedJobs.length
   return (
     <Dialog open={true} onClose={onClose} fullWidth maxWidth="xl">
-      <DialogTitle>Reprioritise {isLoadingJobs ? "jobs" : pl(reprioritisableJobs, "job")}</DialogTitle>
+      <DialogTitle>
+        {isLoadingJobs
+          ? "Reprioritise jobs"
+          : `Reprioritise ${formatNumber(reprioritisableJobsCount)} ${reprioritisableJobsCount === 1 ? "job" : "jobs"}`}
+      </DialogTitle>
       <DialogContent sx={{ display: "flex", flexDirection: "column" }}>
         {isLoadingJobs && (
           <div className={dialogStyles.loadingInfo}>
@@ -156,8 +169,9 @@ export const ReprioritiseDialog = ({
           <>
             {reprioritisableJobs.length > 0 && reprioritisableJobs.length < selectedJobs.length && (
               <Alert severity="info" sx={{ marginBottom: "0.5em" }}>
-                {pl(selectedJobs.length, "job is", "jobs are")} selected, but only{" "}
-                {pl(reprioritisableJobs, "job is", "jobs are")} in a non-terminated state.
+                {formatNumber(selectedJobsCount)} {selectedJobsCount === 1 ? "job is" : "jobs are"} selected, but only{" "}
+                {formatNumber(reprioritisableJobsCount)} {reprioritisableJobsCount === 1 ? "job is" : "jobs are"} in a
+                non-terminated state.
               </Alert>
             )}
 
@@ -216,7 +230,7 @@ export const ReprioritiseDialog = ({
           variant="contained"
           endIcon={<Dangerous />}
         >
-          Reprioritise {isLoadingJobs ? "jobs" : pl(reprioritisableJobs, "job")}
+          Reprioritise {formatNumber(reprioritisableJobsCount)} {reprioritisableJobsCount === 1 ? "job" : "jobs"}
         </Button>
       </DialogActions>
     </Dialog>
