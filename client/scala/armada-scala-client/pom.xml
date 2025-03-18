@@ -80,7 +80,7 @@
     <dependency>
       <groupId>com.thesamet.scalapb</groupId>
       <artifactId>scalapb-runtime-grpc_${scala.compat.version}</artifactId>
-      <version>0.9.8</version>
+      <version>0.11.13</version>
     </dependency>
     <dependency>
       <groupId>com.google.protobuf</groupId>
@@ -207,7 +207,7 @@
               <type>scalapb</type>
               <outputOptions>grpc</outputOptions> <!-- more scalapb options can be added here -->
               <outputDirectorySuffix>scala-${scala.compat.version}</outputDirectorySuffix>
-              <pluginArtifact>com.thesamet.scalapb:protoc-gen-scala:0.9.8:sh:unix</pluginArtifact>
+              <pluginArtifact>com.thesamet.scalapb:protoc-gen-scala:0.11.13:sh:unix</pluginArtifact>
             </outputTarget>
           </outputTargets>
         </configuration>
