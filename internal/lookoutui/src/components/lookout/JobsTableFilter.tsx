@@ -215,7 +215,17 @@ const TextFilter = ({
       onChange={(e) => setTextFieldValue(e.currentTarget.value)}
       onPaste={(e) => {
         e.preventDefault()
-        setTextFieldValue(e.clipboardData.getData("text/plain").trim())
+
+        const trimmedPastedText = e.clipboardData.getData("text/plain").trim()
+        if (!ref.current || ref.current.selectionStart == null || ref.current.selectionEnd === null) {
+          setTextFieldValue(trimmedPastedText)
+          return
+        }
+
+        const textBefore = textFieldValue.substring(0, ref.current.selectionStart)
+        const textAfter = textFieldValue.substring(ref.current.selectionEnd)
+
+        setTextFieldValue(textBefore + trimmedPastedText + textAfter)
       }}
       value={textFieldValue}
       inputRef={ref}
