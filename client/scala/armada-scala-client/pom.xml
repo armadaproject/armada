@@ -232,6 +232,19 @@
           </execution>
         </executions>
       </plugin>
+      <!-- finally, mvn clean should also clean up these copies -->
+      <plugin>
+        <artifactId>maven-clean-plugin</artifactId>
+        <version>3.4.0</version>
+        <configuration>
+          <filesets>
+            <fileset>
+              <directory>${project.basedir}/src/main/protobuf</directory>
+              <followSymlinks>false</followSymlinks>
+            </fileset>
+          </filesets>
+        </configuration>
+      </plugin>
 
       <!-- scalafmt -->
       <plugin>
