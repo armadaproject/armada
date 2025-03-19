@@ -60,7 +60,7 @@ kubernetes:
     deadlineForUpdates: 5m
     deadlineForNodeAssignment: 5m
     events:
-      - regexp: "Failed to pull image.*desc = failed to pull and unpack image"            # Suggests genuine problem with image name, no point in waiting around too long.
+      - regexp: "Failed to pull image.*desc"            # Suggests genuine problem with image name, no point in waiting around too long.
         type: Warning
         gracePeriod: 90s
         action: Fail
