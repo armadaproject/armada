@@ -2,8 +2,7 @@
   <configuration default="false" name="Lookout UI" type="ShConfigurationType">
     <option name="SCRIPT_TEXT" value="" />
     <option name="INDEPENDENT_SCRIPT_PATH" value="true" />
-    <option name="SCRIPT_PATH" value="$PROJECT_DIR$/internal/lookoutui/development-setup-and-start.sh" />
-    <option name="SCRIPT_OPTIONS" value="$ARMADA_NPM_REGISTRY" />
+    <option name="SCRIPT_PATH" value="$PROJECT_DIR$/developer/yarn-registry-mirror/yarn.sh --cwd $PROJECT_DIR$/internal/lookoutui && $PROJECT_DIR$/developer/yarn-registry-mirror/yarn.sh --cwd $PROJECT_DIR$/internal/lookoutui openapi && $PROJECT_DIR$/developer/yarn-registry-mirror/yarn.sh --cwd $PROJECT_DIR$/internal/lookoutui dev" />
     <option name="INDEPENDENT_SCRIPT_WORKING_DIRECTORY" value="true" />
     <option name="SCRIPT_WORKING_DIRECTORY" value="$PROJECT_DIR$/internal/lookoutui/" />
     <option name="INDEPENDENT_INTERPRETER_PATH" value="true" />

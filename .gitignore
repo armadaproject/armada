@@ -1,5 +1,4 @@
 .DS_Store
-.vscode
 .idea
 .kube
 .test
@@ -13,6 +12,11 @@ code_reports
 junit.xml
 docker-compose.dev.yaml
 delve
+
+# VS Code
+.vscode/*
+!.vscode/launch.json
+!.vscode/tasks.json
 
 # VS Code debugging
 __debug_bin
