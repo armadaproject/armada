@@ -217,7 +217,6 @@ const TextFilter = ({
         e.preventDefault()
 
         const trimmedPastedText = e.clipboardData.getData("text/plain").trim()
-        console.log({ start: ref.current?.selectionStart, end: ref.current?.selectionEnd, l: trimmedPastedText.length })
         if (!ref.current || ref.current.selectionStart == null || ref.current.selectionEnd === null) {
           setTextFieldValue(trimmedPastedText)
           return
