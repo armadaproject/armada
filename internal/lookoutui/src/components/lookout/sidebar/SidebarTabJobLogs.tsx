@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useRef, useState, UIEvent } from "react"
+import { useEffect, useMemo, useRef, useState, UIEvent, useCallback } from "react"
 
-import { Refresh } from "@mui/icons-material"
+import { Download, Refresh } from "@mui/icons-material"
 import {
   Alert,
   alpha,
+  Button,
   Checkbox,
   FormControl,
   FormControlLabel,
@@ -15,9 +16,11 @@ import {
   Skeleton,
   styled,
   Switch,
+  Tooltip,
 } from "@mui/material"
 
 import { NoRunsAlert } from "./NoRunsAlert"
+import { downloadTextFile } from "../../../common/downloadTextFile"
 import { useFormatIsoTimestampWithUserSettings } from "../../../hooks/formatTimeWithUserSettings"
 import { useCustomSnackbar } from "../../../hooks/useCustomSnackbar"
 import { Job } from "../../../models/lookoutModels"
@@ -152,6 +155,18 @@ export const SidebarTabJobLogs = ({ job }: SidebarTabJobLogsProps) => {
   const [showTimestamps, setShowTimestamps] = useJobRunLogsShowTimestamps()
   const [wrapLines, setWrapLines] = useJobRunLogsWrapLines()
 
+  const downloadLogs = useCallback(() => {
+    if (getLogsResult.status !== "success") {
+      return
+    }
+
+    downloadTextFile(
+      logLines.flatMap(({ line, timestamp }) => (showTimestamps ? `${timestamp}\t${line}` : line)).join("\n"),
+      `${job.jobId}-${runIndex}-${selectedContainer}.txt`,
+      "text/plain",
+    )
+  }, [getLogsResult.status, logLines, showTimestamps, job.jobId, runIndex, selectedContainer])
+
   if (job.runs.length === 0) {
     return <NoRunsAlert jobState={job.state} />
   }
@@ -231,6 +246,24 @@ export const SidebarTabJobLogs = ({ job }: SidebarTabJobLogsProps) => {
               disabled={getJobSpecResult.status === "pending" || getLogsResult.status === "pending"}
             />
           </FormGroup>
+        </div>
+        <div>
+          <Tooltip
+            arrow
+            title={`The file ${showTimestamps ? "will include" : "will not include"} timestamps for each log line. Toggle the 'show timestamps' switch below to change this.`}
+          >
+            <Button
+              aria-label="download logs"
+              loading={getLogsResult.status === "pending"}
+              disabled={getLogsResult.status !== "success"}
+              startIcon={<Download />}
+              variant="outlined"
+              size="small"
+              onClick={downloadLogs}
+            >
+              Download logs
+            </Button>
+          </Tooltip>
         </div>
       </RunContainerSelectors>
       <LogsSettingsContainer>
