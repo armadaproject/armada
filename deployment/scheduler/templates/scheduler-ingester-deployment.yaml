@@ -84,7 +84,14 @@ spec:
                       operator: In
                       values:
                       - {{ include "armada-scheduler.name" . }}-ingester
-                topologyKey: kubernetes.io/hostname
+                topologyKey: {{ .Values.ingester.topologyKey }}
+      {{- if .Values.ingester.nodeSelector }}
+      nodeSelector:
+        {{- toYaml .Values.ingester.nodeSelector | nindent 8 }}
+      {{- end }}
+      {{- if .Values.ingester.priorityClassName }}
+      priorityClassName: {{ .Values.ingester.priorityClassName }}
+      {{- end }}
       volumes:
         - name: user-config
           configMap:

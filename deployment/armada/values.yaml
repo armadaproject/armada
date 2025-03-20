@@ -72,6 +72,8 @@ prometheus:
 
 podDisruptionBudget: {}
 
+topologyKey: kubernetes.io/hostname
+
 # Service type.  May be NodePort, ClusterIp, LoadBalancer
 serviceType: ClusterIP
 
