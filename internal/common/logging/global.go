@@ -100,6 +100,7 @@ func WithStacktrace(err error) *Logger {
 
 // createDefaultLogger returns a new Logger configured with default settings using zerolog.
 func createDefaultLogger() *Logger {
+	zerolog.TimeFieldFormat = RFC3339Milli // needs to be higher or greater precision than the writer format.
 	consoleWriter := zerolog.ConsoleWriter{
 		Out:        os.Stdout,
 		TimeFormat: RFC3339Milli,
