@@ -10,6 +10,7 @@ type BuildConfig struct {
 	DockerRegistries       map[string]string `json:"dockerRegistries"`
 	PythonBuilderBaseImage string            `json:"pythonBuilderBaseImage"`
 	ScalaBuilderBaseImage  string            `json:"scalaBuilderBaseImage"`
+	JavaBuilderBaseImage   string            `json:"javaBuilderBaseImage"`
 }
 
 func getBuildConfig() (BuildConfig, error) {
