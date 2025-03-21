@@ -4,11 +4,6 @@ go 1.24
 
 toolchain go1.24.1
 
-// athenz@v1.10.5 and onwards bundle encrypted signing keys with the source code.
-// Because corporate proxies may block go get commands that pull in encrypted data,
-// we replace athenz@v1.10.5 or later with athenz@v1.10.4
-replace github.com/AthenZ/athenz v1.10.39 => github.com/AthenZ/athenz v1.10.4
-
 require (
 	github.com/apache/pulsar-client-go v0.14.0
 	github.com/coreos/go-oidc/v3 v3.12.0
