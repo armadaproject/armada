@@ -159,6 +159,8 @@ func (q *QueryApi) GetJobErrors(ctx context.Context, req *api.JobErrorsRequest) 
 				return nil, err
 			}
 			errorsById[row.JobID] = string(decompressed)
+		} else {
+			errorsById[row.JobID] = ""
 		}
 	}
 	return &api.JobErrorsResponse{
