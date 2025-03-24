@@ -231,7 +231,6 @@ export const groupsToRows = (
       jobCount: group.count,
 
       // Will be set later if expanded
-      subRowCount: undefined,
       subRows: [],
     }
     if (groupedField.isAnnotation) {

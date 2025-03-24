@@ -21,6 +21,7 @@ const DEFAULT_UI_CONFIG: UIConfig = {
   oidc: undefined,
   commandSpecs: [],
   backend: undefined,
+  pinnedTimeZoneIdentifiers: [],
 }
 
 export const useGetUiConfig = (enabled = true) => {
@@ -45,6 +46,7 @@ export const useGetUiConfig = (enabled = true) => {
         if (json.JobSetsAutoRefreshMs) config.jobSetsAutoRefreshMs = json.JobSetsAutoRefreshMs
         if (json.JobsAutoRefreshMs) config.jobsAutoRefreshMs = json.JobsAutoRefreshMs
         if (json.CustomTitle) config.customTitle = json.CustomTitle
+        if (json.PinnedTimeZoneIdentifiers) config.pinnedTimeZoneIdentifiers = json.PinnedTimeZoneIdentifiers
         if (json.OidcEnabled) config.oidcEnabled = json.OidcEnabled
 
         if (json.Oidc) {

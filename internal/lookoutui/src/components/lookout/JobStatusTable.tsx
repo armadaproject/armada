@@ -2,6 +2,7 @@ import { memo } from "react"
 
 import { Table, TableBody, TableCell, TableContainer, TableHead, TableRow } from "@mui/material"
 
+import { useFormatNumberWithUserSettings } from "../../hooks/formatNumberWithUserSettings"
 import { Job } from "../../models/lookoutModels"
 
 interface JobStatusTableProps {
@@ -16,6 +17,8 @@ interface JobStatusTableProps {
 }
 export const JobStatusTable = memo(
   ({ jobsToRender, totalJobCount, additionalColumnsToDisplay, showStatus, jobStatus }: JobStatusTableProps) => {
+    const formatNumber = useFormatNumberWithUserSettings()
+
     return (
       <TableContainer>
         <Table size="small" stickyHeader>
@@ -45,7 +48,7 @@ export const JobStatusTable = memo(
             ))}
             {totalJobCount > jobsToRender.length && (
               <TableRow>
-                <TableCell colSpan={5}>And {totalJobCount - jobsToRender.length} more jobs...</TableCell>
+                <TableCell colSpan={5}>And {formatNumber(totalJobCount - jobsToRender.length)} more jobs...</TableCell>
               </TableRow>
             )}
           </TableBody>

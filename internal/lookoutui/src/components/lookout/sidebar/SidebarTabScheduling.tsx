@@ -14,12 +14,12 @@ import {
 
 import { KeyValuePairTable } from "./KeyValuePairTable"
 import { SidebarTabHeading, SidebarTabProminentValueCard, SidebarTabSubheading } from "./sidebarTabContentComponents"
+import { formatTimestampRelative } from "../../../common/formatTime"
 import { Job, JobState } from "../../../models/lookoutModels"
 import { useGetJobSchedulingReport } from "../../../services/lookout/useGetJobSchedulingReport"
 import { useGetQueueSchedulingReport } from "../../../services/lookout/useGetQueueSchedulingReport"
 import { useGetSchedulingReport } from "../../../services/lookout/useGetSchedulingReport"
 import { SPACING } from "../../../styling/spacing"
-import { formatTimeSince } from "../../../utils/jobsTableFormatters"
 import { formatCpu, formatBytes } from "../../../utils/resourceUtils"
 import { CodeBlock } from "../../CodeBlock"
 import { VerbositySelector } from "../../VerbositySelector"
@@ -45,7 +45,10 @@ export const SidebarTabScheduling = ({ job }: SidebarTabSchedulingProps) => {
     <>
       <Stack spacing={SPACING.md} direction="row">
         {job.state === JobState.Queued && (
-          <SidebarTabProminentValueCard label="Time queued" value={formatTimeSince(job.lastTransitionTime)} />
+          <SidebarTabProminentValueCard
+            label="Time queued"
+            value={formatTimestampRelative(job.lastTransitionTime, false)}
+          />
         )}
       </Stack>
       <SidebarTabHeading>Scheduling report</SidebarTabHeading>
