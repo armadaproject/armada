@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/apache/pulsar-client-go/pulsar"
-	"github.com/go-viper/mapstructure/v2"
+	"github.com/mitchellh/mapstructure"
 	"github.com/stretchr/testify/assert"
 	"k8s.io/apimachinery/pkg/api/resource"
 )

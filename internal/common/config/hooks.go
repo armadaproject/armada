@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/apache/pulsar-client-go/pulsar"
-	"github.com/go-viper/mapstructure/v2"
+	"github.com/mitchellh/mapstructure"
 	"github.com/pkg/errors"
 	"github.com/spf13/viper"
 	"k8s.io/apimachinery/pkg/api/resource"
