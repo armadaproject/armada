@@ -14,7 +14,6 @@ require (
 	github.com/go-openapi/spec v0.21.0
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang/protobuf v1.5.4
-	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/google/uuid v1.6.0
 	github.com/grpc-ecosystem/grpc-gateway v1.16.0
 	github.com/hashicorp/go-memdb v1.3.5
@@ -24,7 +23,6 @@ require (
 	github.com/jstemmer/go-junit-report/v2 v2.1.0
 	github.com/mattn/go-zglob v0.0.6
 	github.com/mitchellh/go-homedir v1.1.0
-	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/oklog/ulid v1.3.1
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pkg/errors v0.9.1
@@ -38,7 +36,6 @@ require (
 	golang.org/x/net v0.37.0
 	golang.org/x/oauth2 v0.28.0
 	golang.org/x/sync v0.12.0
-	google.golang.org/genproto v0.0.0-20250311190419-81fb87f6b8bf // indirect
 	google.golang.org/grpc v1.71.0
 	gopkg.in/yaml.v2 v2.4.0
 	k8s.io/api v0.28.15
@@ -66,14 +63,14 @@ require (
 	github.com/goreleaser/goreleaser/v2 v2.8.1
 	github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus v1.0.1
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.1
-	github.com/jackc/pgx/v5 v5.7.2
+	github.com/jackc/pgx/v5 v5.7.3
 	github.com/jessevdk/go-flags v1.6.1
 	github.com/magefile/mage v1.15.0
 	github.com/minio/highwayhash v1.0.3
 	github.com/openconfig/goyang v1.6.2
 	github.com/prometheus/common v0.63.0
-	github.com/redis/go-redis/extra/redisprometheus/v9 v9.7.1
-	github.com/redis/go-redis/v9 v9.7.1
+	github.com/redis/go-redis/extra/redisprometheus/v9 v9.7.3
+	github.com/redis/go-redis/v9 v9.7.3
 	github.com/rs/zerolog v1.33.0
 	github.com/segmentio/fasthash v1.0.3
 	github.com/xitongsys/parquet-go v1.6.2
@@ -148,6 +145,7 @@ require (
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/google/btree v1.0.1 // indirect
 	github.com/google/gnostic-models v0.6.8 // indirect
+	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/google/gofuzz v1.2.0 // indirect
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
 	github.com/goreleaser/chglog v0.6.2 // indirect
@@ -182,6 +180,7 @@ require (
 	github.com/mattn/go-runewidth v0.0.16 // indirect
 	github.com/microcosm-cc/bluemonday v1.0.27 // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect
+	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
 	github.com/moby/sys/userns v0.1.0 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
@@ -228,6 +227,7 @@ require (
 	golang.org/x/sys v0.31.0 // indirect
 	golang.org/x/text v0.23.0 // indirect
 	golang.org/x/xerrors v0.0.0-20240716161551-93cc26a95ae9 // indirect
+	google.golang.org/genproto v0.0.0-20250311190419-81fb87f6b8bf // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250227231956-55c901821b1e // indirect
 	google.golang.org/protobuf v1.36.5 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
