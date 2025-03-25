@@ -11,6 +11,35 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const getActiveQueuesByPool = `-- name: GetActiveQueuesByPool :many
+SELECT DISTINCT jr.pool, j.queue FROM job j JOIN job_run jr ON j.job_id = jr.job_id WHERE j.state IN (2, 3, 8) AND jr.job_run_state IN (1, 2, 11) ORDER BY jr.pool, j.queue
+`
+
+type GetActiveQueuesByPoolRow struct {
+	Pool  *string `db:"pool"`
+	Queue string  `db:"queue"`
+}
+
+func (q *Queries) GetActiveQueuesByPool(ctx context.Context) ([]GetActiveQueuesByPoolRow, error) {
+	rows, err := q.db.Query(ctx, getActiveQueuesByPool)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetActiveQueuesByPoolRow
+	for rows.Next() {
+		var i GetActiveQueuesByPoolRow
+		if err := rows.Scan(&i.Pool, &i.Queue); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getJobDetails = `-- name: GetJobDetails :many
 SELECT j.job_id, j.queue, j.jobset, j.namespace, j.state, j.submitted, j.cancelled, j.cancel_reason, j.cancel_user, j.last_transition_time, j.latest_run_id, COALESCE(js.job_spec, j.job_spec) FROM job j left join job_spec js on j.job_id = js.job_id WHERE j.job_id = ANY($1::text[])
 `
@@ -97,7 +126,7 @@ func (q *Queries) GetJobErrorsByJobIds(ctx context.Context, jobIds []string) ([]
 }
 
 const getJobRunsByJobIds = `-- name: GetJobRunsByJobIds :many
-SELECT run_id, job_id, cluster, node, pending, started, finished, job_run_state, error, exit_code, leased, debug FROM job_run WHERE job_id = ANY($1::text[]) order by leased  desc
+SELECT run_id, job_id, cluster, node, pending, started, finished, job_run_state, error, exit_code, leased, debug, pool FROM job_run WHERE job_id = ANY($1::text[]) order by leased  desc
 `
 
 func (q *Queries) GetJobRunsByJobIds(ctx context.Context, jobIds []string) ([]JobRun, error) {
@@ -122,6 +151,7 @@ func (q *Queries) GetJobRunsByJobIds(ctx context.Context, jobIds []string) ([]Jo
 			&i.ExitCode,
 			&i.Leased,
 			&i.Debug,
+			&i.Pool,
 		); err != nil {
 			return nil, err
 		}
@@ -134,7 +164,7 @@ func (q *Queries) GetJobRunsByJobIds(ctx context.Context, jobIds []string) ([]Jo
 }
 
 const getJobRunsByRunIds = `-- name: GetJobRunsByRunIds :many
-SELECT run_id, job_id, cluster, node, pending, started, finished, job_run_state, error, exit_code, leased, debug FROM job_run WHERE run_id = ANY($1::text[])
+SELECT run_id, job_id, cluster, node, pending, started, finished, job_run_state, error, exit_code, leased, debug, pool FROM job_run WHERE run_id = ANY($1::text[])
 `
 
 func (q *Queries) GetJobRunsByRunIds(ctx context.Context, runIds []string) ([]JobRun, error) {
@@ -159,6 +189,7 @@ func (q *Queries) GetJobRunsByRunIds(ctx context.Context, runIds []string) ([]Jo
 			&i.ExitCode,
 			&i.Leased,
 			&i.Debug,
+			&i.Pool,
 		); err != nil {
 			return nil, err
 		}
