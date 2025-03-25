@@ -153,11 +153,15 @@ func (q *QueryApi) GetJobErrors(ctx context.Context, req *api.JobErrorsRequest) 
 	decompressor := q.decompressorFactory()
 	errorsById := make(map[string]string, len(queryResult))
 	for _, row := range queryResult {
-		decompressed, err := decompressor.Decompress(row.Error)
-		if err != nil {
-			return nil, err
+		if len(row.Error) > 0 {
+			decompressed, err := decompressor.Decompress(row.Error)
+			if err != nil {
+				return nil, err
+			}
+			errorsById[row.JobID] = string(decompressed)
+		} else {
+			errorsById[row.JobID] = ""
 		}
-		errorsById[row.JobID] = string(decompressed)
 	}
 	return &api.JobErrorsResponse{
 		JobErrors: errorsById,

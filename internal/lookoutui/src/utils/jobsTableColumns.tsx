@@ -2,8 +2,9 @@ import { Checkbox } from "@mui/material"
 import { CellContext, Row } from "@tanstack/react-table"
 import { ColumnDef, createColumnHelper, VisibilityState } from "@tanstack/table-core"
 
-import { formatJobState, formatTimeSince, formatUtcDate } from "./jobsTableFormatters"
+import { formatJobState } from "./jobsTableFormatters"
 import { formatBytes, formatCpu, parseBytes, parseCpu, parseInteger } from "./resourceUtils"
+import { formatDuration, formatTimestampRelative, TimestampFormat } from "../common/formatTime"
 import { JobGroupStateCounts } from "../components/lookout/JobGroupStateCounts"
 import { JobStateChip } from "../components/lookout/JobStateChip"
 import { EnumFilterOption } from "../components/lookout/JobsTableFilter"
@@ -107,8 +108,18 @@ const accessorColumn = ({
   })
 }
 
+export interface JobColumnsOptions {
+  formatIsoTimestamp: (isoTimestampString: string | undefined, format: TimestampFormat) => string
+  displayedTimeZoneName: string
+  formatNumber: (n: number) => string
+}
+
 // Columns will appear in this order by default
-export const JOB_COLUMNS: JobTableColumn[] = [
+export const GET_JOB_COLUMNS = ({
+  formatIsoTimestamp,
+  displayedTimeZoneName,
+  formatNumber,
+}: JobColumnsOptions): JobTableColumn[] => [
   columnHelper.display({
     id: StandardColumnId.SelectorCol,
     size: 50,
@@ -282,7 +293,7 @@ export const JOB_COLUMNS: JobTableColumn[] = [
     id: StandardColumnId.Count,
     accessor: (jobTableRow) => {
       if (isJobGroupRow(jobTableRow)) {
-        return `${jobTableRow.jobCount}`
+        return formatNumber(jobTableRow.jobCount ?? 0)
       }
       return ""
     },
@@ -380,15 +391,16 @@ export const JOB_COLUMNS: JobTableColumn[] = [
   }),
   accessorColumn({
     id: StandardColumnId.LastTransitionTimeUtc,
-    accessor: (jobTableRow) => formatUtcDate(jobTableRow.lastTransitionTime),
-    displayName: "Last State Change (UTC)",
+    accessor: ({ lastTransitionTime }) => formatIsoTimestamp(lastTransitionTime, "compact"),
+    displayName: `Last State Change (${displayedTimeZoneName})`,
     additionalOptions: {
       enableSorting: true,
     },
   }),
   accessorColumn({
     id: StandardColumnId.TimeInState,
-    accessor: (jobTableRow) => formatTimeSince(jobTableRow.lastTransitionTime),
+    accessor: ({ lastTransitionTime }) =>
+      lastTransitionTime ? formatTimestampRelative(lastTransitionTime, false) : "",
     displayName: "Time In State",
     additionalOptions: {
       enableSorting: true,
@@ -397,15 +409,15 @@ export const JOB_COLUMNS: JobTableColumn[] = [
   }),
   accessorColumn({
     id: StandardColumnId.TimeSubmittedUtc,
-    accessor: (jobTableRow) => formatUtcDate(jobTableRow.submitted),
-    displayName: "Time Submitted (UTC)",
+    accessor: ({ submitted }) => formatIsoTimestamp(submitted, "compact"),
+    displayName: `Time Submitted (${displayedTimeZoneName})`,
     additionalOptions: {
       enableSorting: true,
     },
   }),
   accessorColumn({
     id: StandardColumnId.TimeSubmittedAgo,
-    accessor: (jobTableRow) => formatTimeSince(jobTableRow.submitted),
+    accessor: ({ submitted }) => (submitted ? formatTimestampRelative(submitted, false) : ""),
     displayName: "Time Since Submitted",
     additionalOptions: {
       enableSorting: true,
@@ -447,18 +459,13 @@ export const JOB_COLUMNS: JobTableColumn[] = [
     displayName: "Runtime",
     additionalOptions: {
       size: 100,
-      cell: (cellInfo) => formatSeconds(cellInfo.cell.row.original.runtimeSeconds),
+      cell: (cellInfo) =>
+        cellInfo.cell.row.original.runtimeSeconds !== undefined
+          ? formatDuration(cellInfo.cell.row.original.runtimeSeconds)
+          : null,
     },
   }),
 ]
-
-export function formatSeconds(seconds: number | undefined): string {
-  if (seconds === undefined || seconds <= 0) return ""
-  const hours = Math.floor(seconds / 3600)
-  const minutes = Math.floor((seconds % 3600) / 60)
-  const remainingSeconds = seconds % 60
-  return `${hours ? `${hours}h ` : ""}${hours || minutes ? `${minutes}m ` : ""}${remainingSeconds}s`.trim()
-}
 
 export const DEFAULT_COLUMNS_TO_DISPLAY: Set<ColumnId> = new Set([
   StandardColumnId.SelectorCol,
@@ -484,16 +491,13 @@ export const PINNED_COLUMNS: ColumnId[] = [StandardColumnId.SelectorCol]
 export const DEFAULT_COLUMN_ORDERING: LookoutColumnOrder = { id: "jobId", direction: "DESC" }
 
 // The order of the columns in the table
-export const DEFAULT_COLUMN_ORDER = JOB_COLUMNS.filter(({ id }) => !PINNED_COLUMNS.includes(toColId(id))).map(
-  ({ id }) => toColId(id),
-)
-
-type Formatter = (val: number | string | string[]) => string
-
-interface InputProcessors {
-  formatter: Formatter
-  parser: (val: string) => number | string | string[]
-}
+export const DEFAULT_COLUMN_ORDER = GET_JOB_COLUMNS({
+  formatIsoTimestamp: () => "",
+  displayedTimeZoneName: "",
+  formatNumber: () => "",
+})
+  .filter(({ id }) => !PINNED_COLUMNS.includes(toColId(id)))
+  .map(({ id }) => toColId(id))
 
 type ParseType = "Cpu" | "Int" | "Bytes"
 
@@ -505,19 +509,10 @@ export const COLUMN_PARSE_TYPES: Record<string, ParseType> = {
   [StandardColumnId.Priority]: "Int",
 }
 
-export const INPUT_PROCESSORS: Record<ParseType, InputProcessors> = {
-  ["Cpu"]: {
-    formatter: formatCpu as Formatter,
-    parser: parseCpu,
-  },
-  ["Int"]: {
-    formatter: (val) => `${val}`,
-    parser: parseInteger,
-  },
-  ["Bytes"]: {
-    formatter: formatBytes as Formatter,
-    parser: parseBytes,
-  },
+export const INPUT_PARSERS: Record<ParseType, (val: string) => number | string | string[]> = {
+  Cpu: parseCpu,
+  Int: parseInteger,
+  Bytes: parseBytes,
 }
 
 export const DEFAULT_COLUMN_MATCHES: Record<string, Match> = {

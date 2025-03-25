@@ -2459,7 +2459,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"ResourceClaimName\"\n" +
 		"        },\n" +
 		"        \"resourceClaimTemplateName\": {\n" +
-		"          \"description\": \"ResourceClaimTemplateName is the name of a ResourceClaimTemplate\\nobject in the same namespace as this pod.\\n\\nThe template will be used to create a new ResourceClaim, which will\\nbe bound to this pod. When this pod is deleted, the ResourceClaim\\nwill also be deleted. The name of the ResourceClaim will be \\u003cpod\\nname\\u003e-\\u003cresource name\\u003e, where \\u003cresource name\\u003e is the\\nPodResourceClaim.Name. Pod validation will reject the pod if the\\nconcatenated name is not valid for a ResourceClaim (e.g. too long).\\n\\nAn existing ResourceClaim with that name that is not owned by the\\npod will not be used for the pod to avoid using an unrelated\\nresource by mistake. Scheduling and pod startup are then blocked\\nuntil the unrelated ResourceClaim is removed.\\n\\nThis field is immutable and no changes will be made to the\\ncorresponding ResourceClaim by the control plane after creating the\\nResourceClaim.\",\n" +
+		"          \"description\": \"ResourceClaimTemplateName is the name of a ResourceClaimTemplate\\nobject in the same namespace as this pod.\\n\\nThe template will be used to create a new ResourceClaim, which will\\nbe bound to this pod. When this pod is deleted, the ResourceClaim\\nwill also be deleted. The pod name and resource name, along with a\\ngenerated component, will be used to form a unique name for the\\nResourceClaim, which will be recorded in pod.status.resourceClaimStatuses.\\n\\nThis field is immutable and no changes will be made to the\\ncorresponding ResourceClaim by the control plane after creating the\\nResourceClaim.\",\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"x-go-name\": \"ResourceClaimTemplateName\"\n" +
 		"        }\n" +
@@ -2674,8 +2674,19 @@ func SwaggerJsonTemplate() string {
 		"        \"readinessProbe\": {\n" +
 		"          \"$ref\": \"#/definitions/v1Probe\"\n" +
 		"        },\n" +
+		"        \"resizePolicy\": {\n" +
+		"          \"description\": \"Resources resize policy for the container.\\n+featureGate=InPlacePodVerticalScaling\\n+optional\\n+listType=atomic\",\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"$ref\": \"#/definitions/v1ContainerResizePolicy\"\n" +
+		"          },\n" +
+		"          \"x-go-name\": \"ResizePolicy\"\n" +
+		"        },\n" +
 		"        \"resources\": {\n" +
 		"          \"$ref\": \"#/definitions/v1ResourceRequirements\"\n" +
+		"        },\n" +
+		"        \"restartPolicy\": {\n" +
+		"          \"$ref\": \"#/definitions/v1ContainerRestartPolicy\"\n" +
 		"        },\n" +
 		"        \"securityContext\": {\n" +
 		"          \"$ref\": \"#/definitions/v1SecurityContext\"\n" +
@@ -2760,6 +2771,25 @@ func SwaggerJsonTemplate() string {
 		"          \"$ref\": \"#/definitions/v1Protocol\"\n" +
 		"        }\n" +
 		"      },\n" +
+		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
+		"    },\n" +
+		"    \"v1ContainerResizePolicy\": {\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"title\": \"ContainerResizePolicy represents resource resize policy for the container.\",\n" +
+		"      \"properties\": {\n" +
+		"        \"resourceName\": {\n" +
+		"          \"$ref\": \"#/definitions/v1ResourceName\"\n" +
+		"        },\n" +
+		"        \"restartPolicy\": {\n" +
+		"          \"$ref\": \"#/definitions/v1ResourceResizeRestartPolicy\"\n" +
+		"        }\n" +
+		"      },\n" +
+		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
+		"    },\n" +
+		"    \"v1ContainerRestartPolicy\": {\n" +
+		"      \"description\": \"This may only be set for init containers and only allowed value is \\\"Always\\\".\",\n" +
+		"      \"type\": \"string\",\n" +
+		"      \"title\": \"ContainerRestartPolicy is the restart policy for a single container.\",\n" +
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
 		"    \"v1DNSPolicy\": {\n" +
@@ -2968,8 +2998,19 @@ func SwaggerJsonTemplate() string {
 		"        \"readinessProbe\": {\n" +
 		"          \"$ref\": \"#/definitions/v1Probe\"\n" +
 		"        },\n" +
+		"        \"resizePolicy\": {\n" +
+		"          \"description\": \"Resources resize policy for the container.\\n+featureGate=InPlacePodVerticalScaling\\n+optional\\n+listType=atomic\",\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"$ref\": \"#/definitions/v1ContainerResizePolicy\"\n" +
+		"          },\n" +
+		"          \"x-go-name\": \"ResizePolicy\"\n" +
+		"        },\n" +
 		"        \"resources\": {\n" +
 		"          \"$ref\": \"#/definitions/v1ResourceRequirements\"\n" +
+		"        },\n" +
+		"        \"restartPolicy\": {\n" +
+		"          \"$ref\": \"#/definitions/v1ContainerRestartPolicy\"\n" +
 		"        },\n" +
 		"        \"securityContext\": {\n" +
 		"          \"$ref\": \"#/definitions/v1SecurityContext\"\n" +
@@ -3296,15 +3337,15 @@ func SwaggerJsonTemplate() string {
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
 		"        \"backend\": {\n" +
-		"          \"description\": \"Backend defines the referenced service endpoint to which the traffic\\nwill be forwarded to.\",\n" +
+		"          \"description\": \"backend defines the referenced service endpoint to which the traffic\\nwill be forwarded to.\",\n" +
 		"          \"$ref\": \"#/definitions/v1IngressBackend\"\n" +
 		"        },\n" +
 		"        \"path\": {\n" +
 		"          \"type\": \"string\",\n" +
-		"          \"title\": \"Path is matched against the path of an incoming request. Currently it can\\ncontain characters disallowed from the conventional \\\"path\\\" part of a URL\\nas defined by RFC 3986. Paths must begin with a '/' and must be present\\nwhen using PathType with value \\\"Exact\\\" or \\\"Prefix\\\".\\n+optional\"\n" +
+		"          \"title\": \"path is matched against the path of an incoming request. Currently it can\\ncontain characters disallowed from the conventional \\\"path\\\" part of a URL\\nas defined by RFC 3986. Paths must begin with a '/' and must be present\\nwhen using PathType with value \\\"Exact\\\" or \\\"Prefix\\\".\\n+optional\"\n" +
 		"        },\n" +
 		"        \"pathType\": {\n" +
-		"          \"description\": \"PathType determines the interpretation of the Path matching. PathType can\\nbe one of the following values:\\n* Exact: Matches the URL path exactly.\\n* Prefix: Matches based on a URL path prefix split by '/'. Matching is\\n  done on a path element by element basis. A path element refers is the\\n  list of labels in the path split by the '/' separator. A request is a\\n  match for path p if every p is an element-wise prefix of p of the\\n  request path. Note that if the last element of the path is a substring\\n  of the last element in request path, it is not a match (e.g. /foo/bar\\n  matches /foo/bar/baz, but does not match /foo/barbaz).\\n* ImplementationSpecific: Interpretation of the Path matching is up to\\n  the IngressClass. Implementations can treat this as a separate PathType\\n  or treat it identically to Prefix or Exact path types.\\nImplementations are required to support all path types.\",\n" +
+		"          \"description\": \"pathType determines the interpretation of the path matching. PathType can\\nbe one of the following values:\\n* Exact: Matches the URL path exactly.\\n* Prefix: Matches based on a URL path prefix split by '/'. Matching is\\n  done on a path element by element basis. A path element refers is the\\n  list of labels in the path split by the '/' separator. A request is a\\n  match for path p if every p is an element-wise prefix of p of the\\n  request path. Note that if the last element of the path is a substring\\n  of the last element in request path, it is not a match (e.g. /foo/bar\\n  matches /foo/bar/baz, but does not match /foo/barbaz).\\n* ImplementationSpecific: Interpretation of the Path matching is up to\\n  the IngressClass. Implementations can treat this as a separate PathType\\n  or treat it identically to Prefix or Exact path types.\\nImplementations are required to support all path types.\",\n" +
 		"          \"type\": \"string\"\n" +
 		"        }\n" +
 		"      }\n" +
@@ -3315,7 +3356,7 @@ func SwaggerJsonTemplate() string {
 		"      \"properties\": {\n" +
 		"        \"paths\": {\n" +
 		"          \"type\": \"array\",\n" +
-		"          \"title\": \"A collection of paths that map requests to backends.\\n+listType=atomic\",\n" +
+		"          \"title\": \"paths is a collection of paths that map requests to backends.\\n+listType=atomic\",\n" +
 		"          \"items\": {\n" +
 		"            \"$ref\": \"#/definitions/v1HTTPIngressPath\"\n" +
 		"          }\n" +
@@ -3437,11 +3478,11 @@ func SwaggerJsonTemplate() string {
 		"          \"$ref\": \"#/definitions/v1ObjectMeta\"\n" +
 		"        },\n" +
 		"        \"spec\": {\n" +
-		"          \"title\": \"Spec is the desired state of the Ingress.\\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#spec-and-status\\n+optional\",\n" +
+		"          \"title\": \"spec is the desired state of the Ingress.\\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#spec-and-status\\n+optional\",\n" +
 		"          \"$ref\": \"#/definitions/v1IngressSpec\"\n" +
 		"        },\n" +
 		"        \"status\": {\n" +
-		"          \"title\": \"Status is the current state of the Ingress.\\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#spec-and-status\\n+optional\",\n" +
+		"          \"title\": \"status is the current state of the Ingress.\\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#spec-and-status\\n+optional\",\n" +
 		"          \"$ref\": \"#/definitions/v1IngressStatus\"\n" +
 		"        }\n" +
 		"      }\n" +
@@ -3451,11 +3492,11 @@ func SwaggerJsonTemplate() string {
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
 		"        \"resource\": {\n" +
-		"          \"title\": \"Resource is an ObjectRef to another Kubernetes resource in the namespace\\nof the Ingress object. If resource is specified, a service.Name and\\nservice.Port must not be specified.\\nThis is a mutually exclusive setting with \\\"Service\\\".\\n+optional\",\n" +
+		"          \"title\": \"resource is an ObjectRef to another Kubernetes resource in the namespace\\nof the Ingress object. If resource is specified, a service.Name and\\nservice.Port must not be specified.\\nThis is a mutually exclusive setting with \\\"Service\\\".\\n+optional\",\n" +
 		"          \"$ref\": \"#/definitions/v1TypedLocalObjectReference\"\n" +
 		"        },\n" +
 		"        \"service\": {\n" +
-		"          \"title\": \"Service references a Service as a Backend.\\nThis is a mutually exclusive setting with \\\"Resource\\\".\\n+optional\",\n" +
+		"          \"title\": \"service references a service as a backend.\\nThis is a mutually exclusive setting with \\\"Resource\\\".\\n+optional\",\n" +
 		"          \"$ref\": \"#/definitions/v1IngressServiceBackend\"\n" +
 		"        }\n" +
 		"      }\n" +
@@ -3466,15 +3507,15 @@ func SwaggerJsonTemplate() string {
 		"      \"properties\": {\n" +
 		"        \"hostname\": {\n" +
 		"          \"type\": \"string\",\n" +
-		"          \"title\": \"Hostname is set for load-balancer ingress points that are DNS based.\\n+optional\"\n" +
+		"          \"title\": \"hostname is set for load-balancer ingress points that are DNS based.\\n+optional\"\n" +
 		"        },\n" +
 		"        \"ip\": {\n" +
 		"          \"type\": \"string\",\n" +
-		"          \"title\": \"IP is set for load-balancer ingress points that are IP based.\\n+optional\"\n" +
+		"          \"title\": \"ip is set for load-balancer ingress points that are IP based.\\n+optional\"\n" +
 		"        },\n" +
 		"        \"ports\": {\n" +
 		"          \"type\": \"array\",\n" +
-		"          \"title\": \"Ports provides information about the ports exposed by this LoadBalancer.\\n+listType=atomic\\n+optional\",\n" +
+		"          \"title\": \"ports provides information about the ports exposed by this LoadBalancer.\\n+listType=atomic\\n+optional\",\n" +
 		"          \"items\": {\n" +
 		"            \"$ref\": \"#/definitions/v1IngressPortStatus\"\n" +
 		"          }\n" +
@@ -3487,7 +3528,7 @@ func SwaggerJsonTemplate() string {
 		"      \"properties\": {\n" +
 		"        \"ingress\": {\n" +
 		"          \"type\": \"array\",\n" +
-		"          \"title\": \"Ingress is a list containing ingress points for the load-balancer.\\n+optional\",\n" +
+		"          \"title\": \"ingress is a list containing ingress points for the load-balancer.\\n+optional\",\n" +
 		"          \"items\": {\n" +
 		"            \"$ref\": \"#/definitions/v1IngressLoadBalancerIngress\"\n" +
 		"          }\n" +
@@ -3500,16 +3541,16 @@ func SwaggerJsonTemplate() string {
 		"      \"properties\": {\n" +
 		"        \"error\": {\n" +
 		"          \"type\": \"string\",\n" +
-		"          \"title\": \"Error is to record the problem with the service port\\nThe format of the error shall comply with the following rules:\\n- built-in error values shall be specified in this file and those shall use\\n  CamelCase names\\n- cloud provider specific error values must have names that comply with the\\n  format foo.example.com/CamelCase.\\n---\\nThe regex it matches is (dns1123SubdomainFmt/)?(qualifiedNameFmt)\\n+optional\\n+kubebuilder:validation:Required\\n+kubebuilder:validation:Pattern=`^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\\\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$`\\n+kubebuilder:validation:MaxLength=316\"\n" +
+		"          \"title\": \"error is to record the problem with the service port\\nThe format of the error shall comply with the following rules:\\n- built-in error values shall be specified in this file and those shall use\\n  CamelCase names\\n- cloud provider specific error values must have names that comply with the\\n  format foo.example.com/CamelCase.\\n---\\nThe regex it matches is (dns1123SubdomainFmt/)?(qualifiedNameFmt)\\n+optional\\n+kubebuilder:validation:Required\\n+kubebuilder:validation:Pattern=`^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\\\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$`\\n+kubebuilder:validation:MaxLength=316\"\n" +
 		"        },\n" +
 		"        \"port\": {\n" +
-		"          \"description\": \"Port is the port number of the ingress port.\",\n" +
+		"          \"description\": \"port is the port number of the ingress port.\",\n" +
 		"          \"type\": \"integer\",\n" +
 		"          \"format\": \"int32\"\n" +
 		"        },\n" +
 		"        \"protocol\": {\n" +
 		"          \"type\": \"string\",\n" +
-		"          \"title\": \"Protocol is the protocol of the ingress port.\\nThe supported values are: \\\"TCP\\\", \\\"UDP\\\", \\\"SCTP\\\"\"\n" +
+		"          \"title\": \"protocol is the protocol of the ingress port.\\nThe supported values are: \\\"TCP\\\", \\\"UDP\\\", \\\"SCTP\\\"\"\n" +
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +
@@ -3518,7 +3559,7 @@ func SwaggerJsonTemplate() string {
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
 		"        \"host\": {\n" +
-		"          \"description\": \"Host is the fully qualified domain name of a network host, as defined by RFC 3986.\\nNote the following deviations from the \\\"host\\\" part of the\\nURI as defined in RFC 3986:\\n1. IPs are not allowed. Currently an IngressRuleValue can only apply to\\n   the IP in the Spec of the parent Ingress.\\n2. The `:` delimiter is not respected because ports are not allowed.\\n\\t  Currently the port of an Ingress is implicitly :80 for http and\\n\\t  :443 for https.\\nBoth these may change in the future.\\nIncoming requests are matched against the host before the\\nIngressRuleValue. If the host is unspecified, the Ingress routes all\\ntraffic based on the specified IngressRuleValue.\\n\\nHost can be \\\"precise\\\" which is a domain name without the terminating dot of\\na network host (e.g. \\\"foo.bar.com\\\") or \\\"wildcard\\\", which is a domain name\\nprefixed with a single wildcard label (e.g. \\\"*.foo.com\\\").\\nThe wildcard character '*' must appear by itself as the first DNS label and\\nmatches only a single label. You cannot have a wildcard label by itself (e.g. Host == \\\"*\\\").\\nRequests will be matched against the Host field in the following way:\\n1. If Host is precise, the request matches this rule if the http host header is equal to Host.\\n2. If Host is a wildcard, then the request matches this rule if the http host header\\nis to equal to the suffix (removing the first label) of the wildcard rule.\\n+optional\",\n" +
+		"          \"description\": \"host is the fully qualified domain name of a network host, as defined by RFC 3986.\\nNote the following deviations from the \\\"host\\\" part of the\\nURI as defined in RFC 3986:\\n1. IPs are not allowed. Currently an IngressRuleValue can only apply to\\n   the IP in the Spec of the parent Ingress.\\n2. The `:` delimiter is not respected because ports are not allowed.\\n\\t  Currently the port of an Ingress is implicitly :80 for http and\\n\\t  :443 for https.\\nBoth these may change in the future.\\nIncoming requests are matched against the host before the\\nIngressRuleValue. If the host is unspecified, the Ingress routes all\\ntraffic based on the specified IngressRuleValue.\\n\\nhost can be \\\"precise\\\" which is a domain name without the terminating dot of\\na network host (e.g. \\\"foo.bar.com\\\") or \\\"wildcard\\\", which is a domain name\\nprefixed with a single wildcard label (e.g. \\\"*.foo.com\\\").\\nThe wildcard character '*' must appear by itself as the first DNS label and\\nmatches only a single label. You cannot have a wildcard label by itself (e.g. Host == \\\"*\\\").\\nRequests will be matched against the Host field in the following way:\\n1. If host is precise, the request matches this rule if the http host header is equal to Host.\\n2. If host is a wildcard, then the request matches this rule if the http host header\\nis to equal to the suffix (removing the first label) of the wildcard rule.\\n+optional\",\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
 		"        \"ingressRuleValue\": {\n" +
@@ -3542,11 +3583,11 @@ func SwaggerJsonTemplate() string {
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
 		"        \"name\": {\n" +
-		"          \"description\": \"Name is the referenced service. The service must exist in\\nthe same namespace as the Ingress object.\",\n" +
+		"          \"description\": \"name is the referenced service. The service must exist in\\nthe same namespace as the Ingress object.\",\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
 		"        \"port\": {\n" +
-		"          \"description\": \"Port of the referenced service. A port name or port number\\nis required for a IngressServiceBackend.\",\n" +
+		"          \"description\": \"port of the referenced service. A port name or port number\\nis required for a IngressServiceBackend.\",\n" +
 		"          \"$ref\": \"#/definitions/v1ServiceBackendPort\"\n" +
 		"        }\n" +
 		"      }\n" +
@@ -3556,23 +3597,23 @@ func SwaggerJsonTemplate() string {
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
 		"        \"defaultBackend\": {\n" +
-		"          \"title\": \"DefaultBackend is the backend that should handle requests that don't\\nmatch any rule. If Rules are not specified, DefaultBackend must be specified.\\nIf DefaultBackend is not set, the handling of requests that do not match any\\nof the rules will be up to the Ingress controller.\\n+optional\",\n" +
+		"          \"title\": \"defaultBackend is the backend that should handle requests that don't\\nmatch any rule. If Rules are not specified, DefaultBackend must be specified.\\nIf DefaultBackend is not set, the handling of requests that do not match any\\nof the rules will be up to the Ingress controller.\\n+optional\",\n" +
 		"          \"$ref\": \"#/definitions/v1IngressBackend\"\n" +
 		"        },\n" +
 		"        \"ingressClassName\": {\n" +
 		"          \"type\": \"string\",\n" +
-		"          \"title\": \"IngressClassName is the name of an IngressClass cluster resource. Ingress\\ncontroller implementations use this field to know whether they should be\\nserving this Ingress resource, by a transitive connection\\n(controller -\\u003e IngressClass -\\u003e Ingress resource). Although the\\n`kubernetes.io/ingress.class` annotation (simple constant name) was never\\nformally defined, it was widely supported by Ingress controllers to create\\na direct binding between Ingress controller and Ingress resources. Newly\\ncreated Ingress resources should prefer using the field. However, even\\nthough the annotation is officially deprecated, for backwards compatibility\\nreasons, ingress controllers should still honor that annotation if present.\\n+optional\"\n" +
+		"          \"title\": \"ingressClassName is the name of an IngressClass cluster resource. Ingress\\ncontroller implementations use this field to know whether they should be\\nserving this Ingress resource, by a transitive connection\\n(controller -\\u003e IngressClass -\\u003e Ingress resource). Although the\\n`kubernetes.io/ingress.class` annotation (simple constant name) was never\\nformally defined, it was widely supported by Ingress controllers to create\\na direct binding between Ingress controller and Ingress resources. Newly\\ncreated Ingress resources should prefer using the field. However, even\\nthough the annotation is officially deprecated, for backwards compatibility\\nreasons, ingress controllers should still honor that annotation if present.\\n+optional\"\n" +
 		"        },\n" +
 		"        \"rules\": {\n" +
 		"          \"type\": \"array\",\n" +
-		"          \"title\": \"A list of host rules used to configure the Ingress. If unspecified, or\\nno rule matches, all traffic is sent to the default backend.\\n+listType=atomic\\n+optional\",\n" +
+		"          \"title\": \"rules is a list of host rules used to configure the Ingress. If unspecified,\\nor no rule matches, all traffic is sent to the default backend.\\n+listType=atomic\\n+optional\",\n" +
 		"          \"items\": {\n" +
 		"            \"$ref\": \"#/definitions/v1IngressRule\"\n" +
 		"          }\n" +
 		"        },\n" +
 		"        \"tls\": {\n" +
 		"          \"type\": \"array\",\n" +
-		"          \"title\": \"TLS configuration. Currently the Ingress only supports a single TLS\\nport, 443. If multiple members of this list specify different hosts, they\\nwill be multiplexed on the same port according to the hostname specified\\nthrough the SNI TLS extension, if the ingress controller fulfilling the\\ningress supports SNI.\\n+listType=atomic\\n+optional\",\n" +
+		"          \"title\": \"tls represents the TLS configuration. Currently the Ingress only supports a\\nsingle TLS port, 443. If multiple members of this list specify different hosts,\\nthey will be multiplexed on the same port according to the hostname specified\\nthrough the SNI TLS extension, if the ingress controller fulfilling the\\ningress supports SNI.\\n+listType=atomic\\n+optional\",\n" +
 		"          \"items\": {\n" +
 		"            \"$ref\": \"#/definitions/v1IngressTLS\"\n" +
 		"          }\n" +
@@ -3584,25 +3625,25 @@ func SwaggerJsonTemplate() string {
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
 		"        \"loadBalancer\": {\n" +
-		"          \"title\": \"LoadBalancer contains the current status of the load-balancer.\\n+optional\",\n" +
+		"          \"title\": \"loadBalancer contains the current status of the load-balancer.\\n+optional\",\n" +
 		"          \"$ref\": \"#/definitions/v1IngressLoadBalancerStatus\"\n" +
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +
 		"    \"v1IngressTLS\": {\n" +
-		"      \"description\": \"IngressTLS describes the transport layer security associated with an Ingress.\",\n" +
+		"      \"description\": \"IngressTLS describes the transport layer security associated with an ingress.\",\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
 		"        \"hosts\": {\n" +
 		"          \"type\": \"array\",\n" +
-		"          \"title\": \"Hosts are a list of hosts included in the TLS certificate. The values in\\nthis list must match the name/s used in the tlsSecret. Defaults to the\\nwildcard host setting for the loadbalancer controller fulfilling this\\nIngress, if left unspecified.\\n+listType=atomic\\n+optional\",\n" +
+		"          \"title\": \"hosts is a list of hosts included in the TLS certificate. The values in\\nthis list must match the name/s used in the tlsSecret. Defaults to the\\nwildcard host setting for the loadbalancer controller fulfilling this\\nIngress, if left unspecified.\\n+listType=atomic\\n+optional\",\n" +
 		"          \"items\": {\n" +
 		"            \"type\": \"string\"\n" +
 		"          }\n" +
 		"        },\n" +
 		"        \"secretName\": {\n" +
 		"          \"type\": \"string\",\n" +
-		"          \"title\": \"SecretName is the name of the secret used to terminate TLS traffic on\\nport 443. Field is left optional to allow TLS routing based on SNI\\nhostname alone. If the SNI host in a listener conflicts with the \\\"Host\\\"\\nheader field used by an IngressRule, the SNI host is used for termination\\nand value of the Host header is used for routing.\\n+optional\"\n" +
+		"          \"title\": \"secretName is the name of the secret used to terminate TLS traffic on\\nport 443. Field is left optional to allow TLS routing based on SNI\\nhostname alone. If the SNI host in a listener conflicts with the \\\"Host\\\"\\nheader field used by an IngressRule, the SNI host is used for termination\\nand value of the \\\"Host\\\" header is used for routing.\\n+optional\"\n" +
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +
@@ -3662,7 +3703,7 @@ func SwaggerJsonTemplate() string {
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
 		"        \"key\": {\n" +
-		"          \"description\": \"key is the label key that the selector applies to.\\n+patchMergeKey=key\\n+patchStrategy=merge\",\n" +
+		"          \"description\": \"key is the label key that the selector applies to.\",\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"x-go-name\": \"Key\"\n" +
 		"        },\n" +
@@ -3944,7 +3985,7 @@ func SwaggerJsonTemplate() string {
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
 		"        \"annotations\": {\n" +
-		"          \"description\": \"Annotations is an unstructured key value map stored with a resource that may be\\nset by external tools to store and retrieve arbitrary metadata. They are not\\nqueryable and should be preserved when modifying objects.\\nMore info: http://kubernetes.io/docs/user-guide/annotations\\n+optional\",\n" +
+		"          \"description\": \"Annotations is an unstructured key value map stored with a resource that may be\\nset by external tools to store and retrieve arbitrary metadata. They are not\\nqueryable and should be preserved when modifying objects.\\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations\\n+optional\",\n" +
 		"          \"type\": \"object\",\n" +
 		"          \"additionalProperties\": {\n" +
 		"            \"type\": \"string\"\n" +
@@ -3987,7 +4028,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"Generation\"\n" +
 		"        },\n" +
 		"        \"labels\": {\n" +
-		"          \"description\": \"Map of string keys and values that can be used to organize and categorize\\n(scope and select) objects. May match selectors of replication controllers\\nand services.\\nMore info: http://kubernetes.io/docs/user-guide/labels\\n+optional\",\n" +
+		"          \"description\": \"Map of string keys and values that can be used to organize and categorize\\n(scope and select) objects. May match selectors of replication controllers\\nand services.\\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels\\n+optional\",\n" +
 		"          \"type\": \"object\",\n" +
 		"          \"additionalProperties\": {\n" +
 		"            \"type\": \"string\"\n" +
@@ -4003,12 +4044,12 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"ManagedFields\"\n" +
 		"        },\n" +
 		"        \"name\": {\n" +
-		"          \"description\": \"Name must be unique within a namespace. Is required when creating resources, although\\nsome resources may allow a client to request the generation of an appropriate name\\nautomatically. Name is primarily intended for creation idempotence and configuration\\ndefinition.\\nCannot be updated.\\nMore info: http://kubernetes.io/docs/user-guide/identifiers#names\\n+optional\",\n" +
+		"          \"description\": \"Name must be unique within a namespace. Is required when creating resources, although\\nsome resources may allow a client to request the generation of an appropriate name\\nautomatically. Name is primarily intended for creation idempotence and configuration\\ndefinition.\\nCannot be updated.\\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names#names\\n+optional\",\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"x-go-name\": \"Name\"\n" +
 		"        },\n" +
 		"        \"namespace\": {\n" +
-		"          \"description\": \"Namespace defines the space within which each name must be unique. An empty namespace is\\nequivalent to the \\\"default\\\" namespace, but \\\"default\\\" is the canonical representation.\\nNot all objects are required to be scoped to a namespace - the value of this field for\\nthose objects will be empty.\\n\\nMust be a DNS_LABEL.\\nCannot be updated.\\nMore info: http://kubernetes.io/docs/user-guide/namespaces\\n+optional\",\n" +
+		"          \"description\": \"Namespace defines the space within which each name must be unique. An empty namespace is\\nequivalent to the \\\"default\\\" namespace, but \\\"default\\\" is the canonical representation.\\nNot all objects are required to be scoped to a namespace - the value of this field for\\nthose objects will be empty.\\n\\nMust be a DNS_LABEL.\\nCannot be updated.\\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces\\n+optional\",\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"x-go-name\": \"Namespace\"\n" +
 		"        },\n" +
@@ -4061,7 +4102,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"Kind\"\n" +
 		"        },\n" +
 		"        \"name\": {\n" +
-		"          \"description\": \"Name of the referent.\\nMore info: http://kubernetes.io/docs/user-guide/identifiers#names\",\n" +
+		"          \"description\": \"Name of the referent.\\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names#names\",\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"x-go-name\": \"Name\"\n" +
 		"        },\n" +
@@ -4121,7 +4162,7 @@ func SwaggerJsonTemplate() string {
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
 		"        \"annotations\": {\n" +
-		"          \"description\": \"Annotations is an unstructured key value map stored with a resource that may be\\nset by external tools to store and retrieve arbitrary metadata. They are not\\nqueryable and should be preserved when modifying objects.\\nMore info: http://kubernetes.io/docs/user-guide/annotations\\n+optional\",\n" +
+		"          \"description\": \"Annotations is an unstructured key value map stored with a resource that may be\\nset by external tools to store and retrieve arbitrary metadata. They are not\\nqueryable and should be preserved when modifying objects.\\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations\\n+optional\",\n" +
 		"          \"type\": \"object\",\n" +
 		"          \"additionalProperties\": {\n" +
 		"            \"type\": \"string\"\n" +
@@ -4164,7 +4205,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"Generation\"\n" +
 		"        },\n" +
 		"        \"labels\": {\n" +
-		"          \"description\": \"Map of string keys and values that can be used to organize and categorize\\n(scope and select) objects. May match selectors of replication controllers\\nand services.\\nMore info: http://kubernetes.io/docs/user-guide/labels\\n+optional\",\n" +
+		"          \"description\": \"Map of string keys and values that can be used to organize and categorize\\n(scope and select) objects. May match selectors of replication controllers\\nand services.\\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels\\n+optional\",\n" +
 		"          \"type\": \"object\",\n" +
 		"          \"additionalProperties\": {\n" +
 		"            \"type\": \"string\"\n" +
@@ -4180,12 +4221,12 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"ManagedFields\"\n" +
 		"        },\n" +
 		"        \"name\": {\n" +
-		"          \"description\": \"Name must be unique within a namespace. Is required when creating resources, although\\nsome resources may allow a client to request the generation of an appropriate name\\nautomatically. Name is primarily intended for creation idempotence and configuration\\ndefinition.\\nCannot be updated.\\nMore info: http://kubernetes.io/docs/user-guide/identifiers#names\\n+optional\",\n" +
+		"          \"description\": \"Name must be unique within a namespace. Is required when creating resources, although\\nsome resources may allow a client to request the generation of an appropriate name\\nautomatically. Name is primarily intended for creation idempotence and configuration\\ndefinition.\\nCannot be updated.\\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names#names\\n+optional\",\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"x-go-name\": \"Name\"\n" +
 		"        },\n" +
 		"        \"namespace\": {\n" +
-		"          \"description\": \"Namespace defines the space within which each name must be unique. An empty namespace is\\nequivalent to the \\\"default\\\" namespace, but \\\"default\\\" is the canonical representation.\\nNot all objects are required to be scoped to a namespace - the value of this field for\\nthose objects will be empty.\\n\\nMust be a DNS_LABEL.\\nCannot be updated.\\nMore info: http://kubernetes.io/docs/user-guide/namespaces\\n+optional\",\n" +
+		"          \"description\": \"Namespace defines the space within which each name must be unique. An empty namespace is\\nequivalent to the \\\"default\\\" namespace, but \\\"default\\\" is the canonical representation.\\nNot all objects are required to be scoped to a namespace - the value of this field for\\nthose objects will be empty.\\n\\nMust be a DNS_LABEL.\\nCannot be updated.\\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces\\n+optional\",\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"x-go-name\": \"Namespace\"\n" +
 		"        },\n" +
@@ -4652,7 +4693,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"SchedulerName\"\n" +
 		"        },\n" +
 		"        \"schedulingGates\": {\n" +
-		"          \"description\": \"SchedulingGates is an opaque list of values that if specified will block scheduling the pod.\\nMore info:  https://git.k8s.io/enhancements/keps/sig-scheduling/3521-pod-scheduling-readiness.\\n\\nThis is an alpha-level feature enabled by PodSchedulingReadiness feature gate.\\n+optional\\n+patchMergeKey=name\\n+patchStrategy=merge\\n+listType=map\\n+listMapKey=name\",\n" +
+		"          \"description\": \"SchedulingGates is an opaque list of values that if specified will block scheduling the pod.\\nIf schedulingGates is not empty, the pod will stay in the SchedulingGated state and the\\nscheduler will not attempt to schedule the pod.\\n\\nSchedulingGates can only be set at pod creation time, and be removed only afterwards.\\n\\nThis is a beta feature enabled by the PodSchedulingReadiness feature gate.\\n\\n+patchMergeKey=name\\n+patchStrategy=merge\\n+listType=map\\n+listMapKey=name\\n+featureGate=PodSchedulingReadiness\\n+optional\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"$ref\": \"#/definitions/v1PodSchedulingGate\"\n" +
@@ -5001,6 +5042,11 @@ func SwaggerJsonTemplate() string {
 		"      },\n" +
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
+		"    \"v1ResourceName\": {\n" +
+		"      \"type\": \"string\",\n" +
+		"      \"title\": \"ResourceName is the name identifying various resources in a ResourceList.\",\n" +
+		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
+		"    },\n" +
 		"    \"v1ResourceRequirements\": {\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"title\": \"ResourceRequirements describes the compute resource requirements.\",\n" +
@@ -5020,6 +5066,11 @@ func SwaggerJsonTemplate() string {
 		"          \"$ref\": \"#/definitions/v1ResourceList\"\n" +
 		"        }\n" +
 		"      },\n" +
+		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
+		"    },\n" +
+		"    \"v1ResourceResizeRestartPolicy\": {\n" +
+		"      \"type\": \"string\",\n" +
+		"      \"title\": \"ResourceResizeRestartPolicy specifies how to handle container resource resize.\",\n" +
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
 		"    \"v1RestartPolicy\": {\n" +
@@ -5116,7 +5167,7 @@ func SwaggerJsonTemplate() string {
 		"      \"title\": \"SeccompProfile defines a pod/container's seccomp profile settings.\",\n" +
 		"      \"properties\": {\n" +
 		"        \"localhostProfile\": {\n" +
-		"          \"description\": \"localhostProfile indicates a profile defined in a file on the node should be used.\\nThe profile must be preconfigured on the node to work.\\nMust be a descending path, relative to the kubelet's configured seccomp profile location.\\nMust only be set if type is \\\"Localhost\\\".\\n+optional\",\n" +
+		"          \"description\": \"localhostProfile indicates a profile defined in a file on the node should be used.\\nThe profile must be preconfigured on the node to work.\\nMust be a descending path, relative to the kubelet's configured seccomp profile location.\\nMust be set if type is \\\"Localhost\\\". Must NOT be set for any other type.\\n+optional\",\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"x-go-name\": \"LocalhostProfile\"\n" +
 		"        },\n" +
@@ -5333,12 +5384,12 @@ func SwaggerJsonTemplate() string {
 		"      \"properties\": {\n" +
 		"        \"name\": {\n" +
 		"          \"type\": \"string\",\n" +
-		"          \"title\": \"Name is the name of the port on the Service.\\nThis is a mutually exclusive setting with \\\"Number\\\".\\n+optional\"\n" +
+		"          \"title\": \"name is the name of the port on the Service.\\nThis is a mutually exclusive setting with \\\"Number\\\".\\n+optional\"\n" +
 		"        },\n" +
 		"        \"number\": {\n" +
 		"          \"type\": \"integer\",\n" +
 		"          \"format\": \"int32\",\n" +
-		"          \"title\": \"Number is the numerical port number (e.g. 80) on the Service.\\nThis is a mutually exclusive setting with \\\"Name\\\".\\n+optional\"\n" +
+		"          \"title\": \"number is the numerical port number (e.g. 80) on the Service.\\nThis is a mutually exclusive setting with \\\"Name\\\".\\n+optional\"\n" +
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +
@@ -5347,8 +5398,9 @@ func SwaggerJsonTemplate() string {
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
 		"        \"appProtocol\": {\n" +
+		"          \"description\": \"* Un-prefixed protocol names - reserved for IANA standard service names (as per\\nRFC-6335 and https://www.iana.org/assignments/service-names).\\n\\n* Kubernetes-defined prefixed names:\\n  * 'kubernetes.io/h2c' - HTTP/2 over cleartext as described in https://www.rfc-editor.org/rfc/rfc7540\\n  * 'kubernetes.io/ws'  - WebSocket over cleartext as described in https://www.rfc-editor.org/rfc/rfc6455\\n  * 'kubernetes.io/wss' - WebSocket over TLS as described in https://www.rfc-editor.org/rfc/rfc6455\\n\\n* Other protocols should use implementation-defined prefixed names such as\\nmycompany.com/my-custom-protocol.\\n+optional\",\n" +
 		"          \"type\": \"string\",\n" +
-		"          \"title\": \"The application protocol for this port.\\nThis field follows standard Kubernetes label syntax.\\nUn-prefixed names are reserved for IANA standard service names (as per\\nRFC-6335 and https://www.iana.org/assignments/service-names).\\nNon-standard protocols should use prefixed names such as\\nmycompany.com/my-custom-protocol.\\n+optional\"\n" +
+		"          \"title\": \"The application protocol for this port.\\nThis is used as a hint for implementations to offer richer behavior for protocols that they understand.\\nThis field follows standard Kubernetes label syntax.\\nValid values are either:\"\n" +
 		"        },\n" +
 		"        \"name\": {\n" +
 		"          \"type\": \"string\",\n" +
@@ -5434,7 +5486,7 @@ func SwaggerJsonTemplate() string {
 		"        },\n" +
 		"        \"loadBalancerIP\": {\n" +
 		"          \"type\": \"string\",\n" +
-		"          \"title\": \"Only applies to Service Type: LoadBalancer.\\nThis feature depends on whether the underlying cloud-provider supports specifying\\nthe loadBalancerIP when a load balancer is created.\\nThis field will be ignored if the cloud-provider does not support the feature.\\nDeprecated: This field was under-specified and its meaning varies across implementations,\\nand it cannot support dual-stack.\\nAs of Kubernetes v1.24, users are encouraged to use implementation-specific annotations when available.\\nThis field may be removed in a future API version.\\n+optional\"\n" +
+		"          \"title\": \"Only applies to Service Type: LoadBalancer.\\nThis feature depends on whether the underlying cloud-provider supports specifying\\nthe loadBalancerIP when a load balancer is created.\\nThis field will be ignored if the cloud-provider does not support the feature.\\nDeprecated: This field was under-specified and its meaning varies across implementations.\\nUsing it is non-portable and it may not support dual-stack.\\nUsers are encouraged to use implementation-specific annotations when available.\\n+optional\"\n" +
 		"        },\n" +
 		"        \"loadBalancerSourceRanges\": {\n" +
 		"          \"type\": \"array\",\n" +
@@ -5639,7 +5691,7 @@ func SwaggerJsonTemplate() string {
 		"          \"$ref\": \"#/definitions/v1LabelSelector\"\n" +
 		"        },\n" +
 		"        \"matchLabelKeys\": {\n" +
-		"          \"description\": \"MatchLabelKeys is a set of pod label keys to select the pods over which\\nspreading will be calculated. The keys are used to lookup values from the\\nincoming pod labels, those key-value labels are ANDed with labelSelector\\nto select the group of existing pods over which spreading will be calculated\\nfor the incoming pod. Keys that don't exist in the incoming pod labels will\\nbe ignored. A null or empty list means only match against labelSelector.\\n+listType=atomic\\n+optional\",\n" +
+		"          \"description\": \"MatchLabelKeys is a set of pod label keys to select the pods over which\\nspreading will be calculated. The keys are used to lookup values from the\\nincoming pod labels, those key-value labels are ANDed with labelSelector\\nto select the group of existing pods over which spreading will be calculated\\nfor the incoming pod. The same key is forbidden to exist in both MatchLabelKeys and LabelSelector.\\nMatchLabelKeys cannot be set when LabelSelector isn't set.\\nKeys that don't exist in the incoming pod labels will\\nbe ignored. A null or empty list means only match against labelSelector.\\n\\nThis is a beta field and requires the MatchLabelKeysInPodTopologySpread feature gate to be enabled (enabled by default).\\n+listType=atomic\\n+optional\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"type\": \"string\"\n" +
@@ -5961,7 +6013,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"GMSACredentialSpecName\"\n" +
 		"        },\n" +
 		"        \"hostProcess\": {\n" +
-		"          \"description\": \"HostProcess determines if a container should be run as a 'Host Process' container.\\nThis field is alpha-level and will only be honored by components that enable the\\nWindowsHostProcessContainers feature flag. Setting this field without the feature\\nflag will result in errors when validating the Pod. All of a Pod's containers must\\nhave the same effective HostProcess value (it is not allowed to have a mix of HostProcess\\ncontainers and non-HostProcess containers).  In addition, if HostProcess is true\\nthen HostNetwork must also be set to true.\\n+optional\",\n" +
+		"          \"description\": \"HostProcess determines if a container should be run as a 'Host Process' container.\\nAll of a Pod's containers must have the same effective HostProcess value\\n(it is not allowed to have a mix of HostProcess containers and non-HostProcess containers).\\nIn addition, if HostProcess is true then HostNetwork must also be set to true.\\n+optional\",\n" +
 		"          \"type\": \"boolean\",\n" +
 		"          \"x-go-name\": \"HostProcess\"\n" +
 		"        },\n" +

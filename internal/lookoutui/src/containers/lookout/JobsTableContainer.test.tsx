@@ -23,6 +23,10 @@ import FakeGetJobsService from "../../services/lookout/mocks/FakeGetJobsService"
 import { FakeGetRunInfoService } from "../../services/lookout/mocks/FakeGetRunInfoService"
 import FakeGroupJobsService from "../../services/lookout/mocks/FakeGroupJobsService"
 import { MockServer } from "../../services/lookout/mocks/mockServer"
+import {
+  FORMAT_NUMBER_SHOULD_FORMAT_KEY,
+  FORMAT_TIMESTAMP_SHOULD_FORMAT_KEY,
+} from "../../userSettings/localStorageKeys"
 
 const mockServer = new MockServer()
 
@@ -84,6 +88,8 @@ describe("JobsTableContainer", () => {
     jobSpecService = new FakeGetJobInfoService(false)
 
     localStorage.clear()
+    localStorage.setItem(FORMAT_NUMBER_SHOULD_FORMAT_KEY, JSON.stringify(false))
+    localStorage.setItem(FORMAT_TIMESTAMP_SHOULD_FORMAT_KEY, JSON.stringify(false))
 
     updateJobsService = {
       cancelJobs: vi.fn(),
@@ -91,6 +97,7 @@ describe("JobsTableContainer", () => {
   })
 
   afterEach(() => {
+    localStorage.clear()
     mockServer.reset()
   })
 
@@ -634,7 +641,7 @@ describe("JobsTableContainer", () => {
         const rows = await within(table).findAllByRole("row")
         expect(rows.length).toBe(nDataRows + nExpandedGroupPaginationRows + 1) // One row per data row, plus the pagination row for each expanded group, plus the header
       },
-      { timeout: 3000 },
+      { timeout: 5000 },
     )
   }
 

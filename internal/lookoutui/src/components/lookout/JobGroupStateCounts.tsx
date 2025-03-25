@@ -1,5 +1,6 @@
 import { Chip, styled, Tooltip } from "@mui/material"
 
+import { useFormatNumberWithUserSettings } from "../../hooks/formatNumberWithUserSettings"
 import { JobState, jobStateColors } from "../../models/lookoutModels"
 import { formatJobState } from "../../utils/jobsTableFormatters"
 
@@ -27,26 +28,29 @@ interface JobGroupStateCountsProps {
 export const JobGroupStateCounts = ({
   stateCounts,
   jobStatesToDisplay = Object.values(JobState),
-}: JobGroupStateCountsProps) => (
-  <CountsContainer>
-    {Object.values(JobState).map((_jobState) => {
-      const jobState = _jobState as JobState
-      const count = stateCounts[jobState] ?? 0
-      return (
-        jobStatesToDisplay.includes(jobState) && (
-          <Tooltip key={jobState} title={`${formatJobState(jobState)} (${count.toString()})`}>
-            <div>
-              <StateCountChip
-                size="small"
-                variant="shaded"
-                label={count.toString()}
-                color={jobStateColors[jobState]}
-                disabled={count === 0}
-              />
-            </div>
-          </Tooltip>
+}: JobGroupStateCountsProps) => {
+  const formatNumber = useFormatNumberWithUserSettings()
+  return (
+    <CountsContainer>
+      {Object.values(JobState).map((_jobState) => {
+        const jobState = _jobState as JobState
+        const count = stateCounts[jobState] ?? 0
+        return (
+          jobStatesToDisplay.includes(jobState) && (
+            <Tooltip key={jobState} title={`${formatJobState(jobState)} (${formatNumber(count)})`}>
+              <div>
+                <StateCountChip
+                  size="small"
+                  variant="shaded"
+                  label={formatNumber(count)}
+                  color={jobStateColors[jobState]}
+                  disabled={count === 0}
+                />
+              </div>
+            </Tooltip>
+          )
         )
-      )
-    })}
-  </CountsContainer>
-)
+      })}
+    </CountsContainer>
+  )
+}
