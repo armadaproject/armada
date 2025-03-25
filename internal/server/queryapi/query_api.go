@@ -242,6 +242,32 @@ func (q *QueryApi) GetJobStatusUsingExternalJobUri(ctx context.Context, req *api
 	}, nil
 }
 
+func (q *QueryApi) GetActiveQueues(ctx context.Context, _ *api.GetActiveQueuesRequest) (*api.GetActiveQueuesResponse, error) {
+	queries := database.New(q.db)
+	activeQueues, err := queries.GetActiveQueuesByPool(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("could not get active queues by pool")
+	}
+	queuesByPool := map[string]*api.ActiveQueues{}
+	for _, result := range activeQueues {
+		if result.Pool == nil {
+			continue
+		}
+
+		pool := *result.Pool
+		if _, ok := queuesByPool[pool]; !ok {
+			queuesByPool[pool] = &api.ActiveQueues{
+				Queues: []string{},
+			}
+		}
+		queuesByPool[pool].Queues = append(queuesByPool[pool].Queues, result.Queue)
+	}
+
+	return &api.GetActiveQueuesResponse{
+		ActiveQueuesByPool: queuesByPool,
+	}, nil
+}
+
 func parseDbJobStateToApi(dbStatus int16) api.JobState {
 	apiStatus, ok := JobStateMap[dbStatus]
 	if !ok {
