@@ -9,6 +9,7 @@ import (
 	authconfig "github.com/armadaproject/armada/internal/common/auth/configuration"
 	commonconfig "github.com/armadaproject/armada/internal/common/config"
 	grpcconfig "github.com/armadaproject/armada/internal/common/grpc/configuration"
+	otelconfig "github.com/armadaproject/armada/internal/common/otel/configuration"
 	profilingconfig "github.com/armadaproject/armada/internal/common/profiling/configuration"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/common/types"
@@ -33,6 +34,8 @@ type Configuration struct {
 	Leader LeaderConfig
 	// Configuration controlling metrics
 	Metrics MetricsConfig
+	// Open Telemetry configuration
+	Otel *otelconfig.OtelConfig
 	// Scheduler configuration (this is shared with the old scheduler)
 	Scheduling SchedulingConfig
 	Auth       authconfig.AuthConfig

@@ -56,6 +56,7 @@ require (
 	github.com/Masterminds/semver/v3 v3.3.1
 	github.com/benbjohnson/immutable v0.4.3
 	github.com/charmbracelet/glamour v0.8.0
+	github.com/go-logr/stdr v1.2.2
 	github.com/go-openapi/errors v0.22.0
 	github.com/go-openapi/strfmt v0.23.0
 	github.com/go-openapi/swag v0.23.1
@@ -76,6 +77,18 @@ require (
 	github.com/rs/zerolog v1.33.0
 	github.com/segmentio/fasthash v1.0.3
 	github.com/xitongsys/parquet-go v1.6.2
+	go.opentelemetry.io/otel v1.34.0
+	go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc v1.32.0
+	go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp v1.32.0
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.33.0
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.32.0
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.33.0
+	go.opentelemetry.io/otel/exporters/stdout/stdoutmetric v1.32.0
+	go.opentelemetry.io/otel/exporters/stdout/stdouttrace v1.32.0
+	go.opentelemetry.io/otel/metric v1.34.0
+	go.opentelemetry.io/otel/sdk v1.34.0
+	go.opentelemetry.io/otel/sdk/metric v1.34.0
+	go.opentelemetry.io/otel/trace v1.34.0
 	go.uber.org/mock v0.5.0
 	golang.org/x/term v0.30.0
 	golang.org/x/time v0.11.0
@@ -108,6 +121,7 @@ require (
 	github.com/bits-and-blooms/bitset v1.4.0 // indirect
 	github.com/buger/jsonparser v1.1.1 // indirect
 	github.com/caarlos0/log v0.4.8 // indirect
+	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/charmbracelet/lipgloss v1.0.0 // indirect
 	github.com/charmbracelet/x/ansi v0.8.0 // indirect
@@ -151,6 +165,7 @@ require (
 	github.com/goreleaser/nfpm/v2 v2.41.3 // indirect
 	github.com/gorilla/css v1.0.1 // indirect
 	github.com/gregjones/httpcache v0.0.0-20180305231024-9cad4c3443a7 // indirect
+	github.com/grpc-ecosystem/grpc-gateway/v2 v2.24.0 // indirect
 	github.com/gsterjov/go-libsecret v0.0.0-20161001094733-a6f4afe4910c // indirect
 	github.com/hamba/avro/v2 v2.22.2-0.20240625062549-66aad10411d9 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
@@ -198,7 +213,6 @@ require (
 	github.com/prometheus/client_model v0.6.1 // indirect
 	github.com/prometheus/procfs v0.15.1 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
-	github.com/rogpeppe/go-internal v1.13.1 // indirect
 	github.com/sagikazarmark/locafero v0.6.0 // indirect
 	github.com/sagikazarmark/slog-shim v0.1.0 // indirect
 	github.com/sergi/go-diff v1.3.2-0.20230802210424-5b0b94c5c0d3 // indirect
@@ -218,6 +232,8 @@ require (
 	github.com/yuin/goldmark-emoji v1.0.3 // indirect
 	gitlab.com/digitalxero/go-conventional-commit v1.0.7 // indirect
 	go.mongodb.org/mongo-driver v1.14.0 // indirect
+	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
+	go.opentelemetry.io/proto/otlp v1.4.0 // indirect
 	go.starlark.net v0.0.0-20230525235612-a134d8f9ddca // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect

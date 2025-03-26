@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"fmt"
+	"github.com/armadaproject/armada/internal/common/otel"
 	"net"
 	"net/http"
 	_ "net/http/pprof"
@@ -62,6 +63,29 @@ func Run(config schedulerconfig.Configuration) error {
 	err := profiling.SetupPprof(config.Profiling, armadacontext.Background(), nil)
 	if err != nil {
 		log.Fatalf("Pprof setup failed, exiting, %v", err)
+	}
+
+	// ////////////////////////////////////////////////////////////////////////
+	// OpenTelemetry
+	// ////////////////////////////////////////////////////////////////////////
+	if config.Otel != nil {
+		resource, resourceErr := otel.NewResource("armada-scheduler")
+		if resourceErr != nil {
+			log.Fatalf("Creating OTEL resource failed, exiting, %v", err)
+		}
+		otelCloser, otelErr := otel.LoadOtel(ctx, config.Otel, resource)
+		if otelErr != nil {
+			log.Fatalf("Loading OTEL failed, exiting, %v", err)
+		}
+
+		defer func() {
+			closingErr := otelCloser(ctx)
+			if closingErr != nil {
+				ctx.Logger().
+					WithStacktrace(closingErr).
+					Warnf("OTEL didn't close down cleanly")
+			}
+		}()
 	}
 
 	// ////////////////////////////////////////////////////////////////////////
