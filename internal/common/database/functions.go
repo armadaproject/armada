@@ -3,6 +3,7 @@ package database
 import (
 	"database/sql"
 	"fmt"
+	"github.com/exaring/otelpgx"
 	"strings"
 	"time"
 
@@ -35,7 +36,14 @@ func OpenPgxConn(config configuration.PostgresConfig) (*pgx.Conn, error) {
 }
 
 func OpenPgxPool(config configuration.PostgresConfig) (*pgxpool.Pool, error) {
-	db, err := pgxpool.New(armadacontext.Background(), CreateConnectionString(config.Connection))
+	connString := CreateConnectionString(config.Connection)
+	cfg, err := pgxpool.ParseConfig(connString)
+	if err != nil {
+		return nil, fmt.Errorf("creating connection pool: %w", err)
+	}
+
+	cfg.ConnConfig.Tracer = otelpgx.NewTracer()
+	db, err := pgxpool.NewWithConfig(armadacontext.Background(), cfg)
 	if err != nil {
 		return nil, err
 	}

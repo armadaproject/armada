@@ -2,6 +2,8 @@ package scheduler
 
 import (
 	"fmt"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/trace"
 	"time"
 
 	"github.com/gogo/protobuf/types"
@@ -79,6 +81,7 @@ type Scheduler struct {
 	// If true, enable scheduler assertions.
 	// In particular, assert that the jobDb is in a valid state at the end of each cycle.
 	enableAssertions bool
+	tracer           trace.Tracer
 }
 
 func NewScheduler(
@@ -114,6 +117,7 @@ func NewScheduler(
 		jobsSerial:                 -1,
 		runsSerial:                 -1,
 		metrics:                    metrics,
+		tracer:                     otel.GetTracerProvider().Tracer("scheduler"),
 	}, nil
 }
 
@@ -358,6 +362,11 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 
 // syncState updates jobs in jobDb to match state in postgres and returns all updated jobs.
 func (s *Scheduler) syncState(ctx *armadacontext.Context, initial bool) ([]*jobdb.Job, []jobdb.JobStateTransitions, error) {
+	spanCtx, span := s.tracer.Start(ctx, "syncState")
+	defer span.End()
+
+	ctx = armadacontext.New(spanCtx, ctx.Logger())
+
 	txn := s.jobDb.WriteTxn()
 	defer txn.Abort()
 

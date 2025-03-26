@@ -131,6 +131,7 @@ func Run(config schedulerconfig.Configuration) error {
 		return errors.WithMessage(err, "Error opening connection to postgres")
 	}
 	defer db.Close()
+
 	jobRepository := database.NewPostgresJobRepository(db, int32(config.DatabaseFetchSize))
 	executorRepository := database.NewPostgresExecutorRepository(db)
 
