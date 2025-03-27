@@ -2,6 +2,7 @@ package eventwatcher
 
 import (
 	"github.com/pkg/errors"
+	"regexp"
 
 	"github.com/armadaproject/armada/pkg/api"
 )
@@ -23,7 +24,13 @@ func assertEventFailed(expected *api.EventMessage_Failed, actual *api.EventMessa
 	if actual == nil {
 		return errors.Errorf("unexpected nil event 'actual'")
 	}
-	if expected.Failed.GetReason() != actual.Failed.GetReason() {
+
+	re, err := regexp.Compile(expected.Failed.GetReason())
+	if err != nil {
+		return errors.Errorf("failed to compile regex %q: %v", expected.Failed.GetReason(), err)
+	}
+
+	if re.MatchString(actual.Failed.GetReason()) {
 		return errors.Errorf(
 			"error asserting failure reason: expected %s, got %s",
 			expected.Failed.GetReason(), actual.Failed.GetReason(),
