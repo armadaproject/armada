@@ -24,6 +24,8 @@ import api.submit.{
   SubmitGrpc
 }
 import api.job.{
+  GetActiveQueuesRequest,
+  GetActiveQueuesResponse,
   JobDetailsRequest,
   JobDetailsResponse,
   JobErrorsRequest,
@@ -204,6 +206,12 @@ private class SubmitMockServer(
 private class JobsMockServer(
     statusMap: TrieMap[String, JobState]
 ) extends JobsGrpc.Jobs {
+
+  def getActiveQueues(
+      request: GetActiveQueuesRequest
+  ): scala.concurrent.Future[GetActiveQueuesResponse] = {
+    Future.successful(new GetActiveQueuesResponse)
+  }
 
   def getJobDetails(
       request: JobDetailsRequest
