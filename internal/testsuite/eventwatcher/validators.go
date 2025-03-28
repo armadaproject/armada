@@ -1,8 +1,9 @@
 package eventwatcher
 
 import (
-	"github.com/pkg/errors"
 	"regexp"
+
+	"github.com/pkg/errors"
 
 	"github.com/armadaproject/armada/pkg/api"
 )
