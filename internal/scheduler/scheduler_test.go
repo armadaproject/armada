@@ -1041,51 +1041,71 @@ func TestRun(t *testing.T) {
 }
 
 func TestScheduler_TestSyncInitialState(t *testing.T) {
+	var maxJobSerial int64 = 5
+	var maxRunSerial int64 = 3
 	tests := map[string]struct {
-		initialJobs             []database.Job /// jobs in the jobdb at the start of the cycle
-		initialJobRuns          []database.Run // jobs runs in the jobdb at the start of the cycle
-		expectedInitialJobs     []*jobdb.Job
-		expectedInitialJobDbIds []string
-		expectedJobsSerial      int64
-		expectedRunsSerial      int64
+		jobRepo                  *testJobRepository
+		expectedInitialJobs      []*jobdb.Job
+		expectedInitialJobDbIds  []string
+		expectedJobsSerial       int64
+		expectedRunsSerial       int64
+		expectedInitialJobSerial int64
+		expectedInitialRunSerial int64
 	}{
+		"empty db": {
+			jobRepo:                  &testJobRepository{},
+			expectedInitialJobs:      []*jobdb.Job{},
+			expectedInitialJobDbIds:  []string{},
+			expectedJobsSerial:       -1,
+			expectedRunsSerial:       -1,
+			expectedInitialJobSerial: -1,
+			expectedInitialRunSerial: -1,
+		},
 		"no initial jobs": {
-			initialJobs:             []database.Job{},
-			initialJobRuns:          []database.Run{},
-			expectedInitialJobs:     []*jobdb.Job{},
-			expectedInitialJobDbIds: []string{},
-			expectedJobsSerial:      -1,
-			expectedRunsSerial:      -1,
+			jobRepo: &testJobRepository{
+				maxJobSerial: &maxJobSerial,
+				maxRunSerial: &maxRunSerial,
+			},
+			expectedInitialJobs:      []*jobdb.Job{},
+			expectedInitialJobDbIds:  []string{},
+			expectedJobsSerial:       5,
+			expectedRunsSerial:       3,
+			expectedInitialJobSerial: 5,
+			expectedInitialRunSerial: 3,
 		},
 		"initial jobs are present": {
-			initialJobs: []database.Job{
-				{
-					JobID:          queuedJob.Id(),
-					JobSet:         queuedJob.Jobset(),
-					Queue:          queuedJob.Queue(),
-					Queued:         false,
-					QueuedVersion:  1,
-					Priority:       int64(queuedJob.Priority()),
-					SchedulingInfo: schedulingInfoBytes,
-					Serial:         1,
-					Validated:      true,
-					Submitted:      1,
+			jobRepo: &testJobRepository{
+				initialJobs: []database.Job{
+					{
+						JobID:          queuedJob.Id(),
+						JobSet:         queuedJob.Jobset(),
+						Queue:          queuedJob.Queue(),
+						Queued:         false,
+						QueuedVersion:  1,
+						Priority:       int64(queuedJob.Priority()),
+						SchedulingInfo: schedulingInfoBytes,
+						Serial:         1,
+						Validated:      true,
+						Submitted:      1,
+					},
 				},
-			},
-			initialJobRuns: []database.Run{
-				{
-					RunID:    leasedJob.LatestRun().Id(),
-					JobID:    queuedJob.Id(),
-					JobSet:   queuedJob.Jobset(),
-					Executor: "test-executor",
-					Node:     "test-node",
-					Created:  123,
-					ScheduledAtPriority: func() *int32 {
-						scheduledAtPriority := int32(5)
-						return &scheduledAtPriority
-					}(),
-					Serial: 1,
+				initialRuns: []database.Run{
+					{
+						RunID:    leasedJob.LatestRun().Id(),
+						JobID:    queuedJob.Id(),
+						JobSet:   queuedJob.Jobset(),
+						Executor: "test-executor",
+						Node:     "test-node",
+						Created:  123,
+						ScheduledAtPriority: func() *int32 {
+							scheduledAtPriority := int32(5)
+							return &scheduledAtPriority
+						}(),
+						Serial: 1,
+					},
 				},
+				maxJobSerial: &maxJobSerial,
+				maxRunSerial: &maxRunSerial,
 			},
 			expectedInitialJobs: []*jobdb.Job{
 				queuedJob.WithUpdatedRun(
@@ -1126,17 +1146,13 @@ func TestScheduler_TestSyncInitialState(t *testing.T) {
 			defer cancel()
 
 			// Test objects
-			jobRepo := &testJobRepository{
-				initialJobs: tc.initialJobs,
-				initialRuns: tc.initialJobRuns,
-			}
 			schedulingAlgo := &testSchedulingAlgo{}
 			publisher := &testPublisher{}
 			clusterRepo := &testExecutorRepository{}
 			leaderController := leader.NewStandaloneLeaderController()
 			sched, err := NewScheduler(
 				testfixtures.NewJobDb(testfixtures.TestResourceListFactory),
-				jobRepo,
+				tc.jobRepo,
 				clusterRepo,
 				schedulingAlgo,
 				leaderController,
@@ -1413,6 +1429,8 @@ type testJobRepository struct {
 	errors                map[string]*armadaevents.Error
 	shouldError           bool
 	numReceivedPartitions uint32
+	maxJobSerial          *int64
+	maxRunSerial          *int64
 }
 
 func (t *testJobRepository) FindInactiveRuns(ctx *armadacontext.Context, runIds []string) ([]string, error) {
@@ -1446,11 +1464,11 @@ func (t *testJobRepository) CountReceivedPartitions(ctx *armadacontext.Context, 
 	return t.numReceivedPartitions, nil
 }
 
-func (t *testJobRepository) FetchInitialJobs(ctx *armadacontext.Context) ([]database.Job, []database.Run, error) {
+func (t *testJobRepository) FetchInitialJobs(ctx *armadacontext.Context) ([]database.Job, []database.Run, *int64, *int64, error) {
 	if t.shouldError {
-		return nil, nil, errors.New("error fetching job updates")
+		return nil, nil, nil, nil, errors.New("error fetching job updates")
 	}
-	return t.initialJobs, t.initialRuns, nil
+	return t.initialJobs, t.initialRuns, t.maxJobSerial, t.maxRunSerial, nil
 }
 
 type testExecutorRepository struct {
