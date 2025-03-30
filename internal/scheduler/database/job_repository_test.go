@@ -140,11 +140,16 @@ func TestFetchInitialJobs(t *testing.T) {
 		Succeeded: true,
 	}
 
+	var onlyTerminalJobsAndRunsSerial int64 = 3
+	var onlyRunsExpectedMaxRunSerial int64 = 4
+
 	tests := map[string]struct {
-		dbJobs       []Job
-		dbRuns       []Run
-		expectedJobs []Job
-		expectedRuns []Run
+		dbJobs               []Job
+		dbRuns               []Run
+		expectedJobs         []Job
+		expectedRuns         []Run
+		expectedMaxJobSerial *int64
+		expectedMaxRunSerial *int64
 	}{
 		"all jobs and runs": {
 			dbJobs:       []Job{leasedJob, queuedJob, cancelledJob, failedJob, succeededJob},
@@ -152,15 +157,24 @@ func TestFetchInitialJobs(t *testing.T) {
 			dbRuns:       []Run{leasedJobRun, cancelledJobRun, failedJobRun, succeededJobRun},
 			expectedRuns: []Run{expectedLeasedJobRun},
 		},
+		"only terminal jobs and runs": {
+			dbJobs:               []Job{cancelledJob, failedJob, succeededJob},
+			expectedJobs:         []Job{},
+			dbRuns:               []Run{cancelledJobRun, failedJobRun, succeededJobRun},
+			expectedRuns:         []Run{},
+			expectedMaxJobSerial: &onlyTerminalJobsAndRunsSerial,
+			expectedMaxRunSerial: &onlyTerminalJobsAndRunsSerial,
+		},
 		"only jobs": {
 			dbJobs:       []Job{leasedJob, queuedJob, cancelledJob, failedJob, succeededJob},
 			expectedJobs: []Job{expectedLeasedJob, expectedQueuedJob},
 			expectedRuns: []Run{},
 		},
 		"only runs": {
-			dbRuns:       []Run{leasedJobRun, cancelledJobRun, failedJobRun, succeededJobRun},
-			expectedJobs: []Job{},
-			expectedRuns: []Run{},
+			dbRuns:               []Run{leasedJobRun, cancelledJobRun, failedJobRun, succeededJobRun},
+			expectedJobs:         []Job{},
+			expectedRuns:         []Run{},
+			expectedMaxRunSerial: &onlyRunsExpectedMaxRunSerial,
 		},
 		"empty db": {
 			expectedJobs: []Job{},
@@ -179,7 +193,7 @@ func TestFetchInitialJobs(t *testing.T) {
 				require.NoError(t, err)
 
 				// Fetch updates
-				jobs, runs, err := repo.FetchInitialJobs(ctx)
+				jobs, runs, maxJobSerial, maxRunSerial, err := repo.FetchInitialJobs(ctx)
 				require.NoError(t, err)
 
 				// Runs will have LastModified filled in- we don't want to compare this
@@ -190,6 +204,19 @@ func TestFetchInitialJobs(t *testing.T) {
 				// Assert results
 				assert.Equal(t, tc.expectedJobs, jobs)
 				assert.Equal(t, tc.expectedRuns, runs)
+				if tc.expectedMaxJobSerial == nil {
+					assert.Nil(t, maxJobSerial)
+				} else {
+					assert.NotNil(t, maxJobSerial)
+					assert.Equal(t, *tc.expectedMaxJobSerial, *maxJobSerial)
+				}
+				if tc.expectedMaxRunSerial == nil {
+					assert.Nil(t, maxRunSerial)
+				} else {
+					assert.NotNil(t, maxRunSerial)
+					assert.Equal(t, *tc.expectedMaxRunSerial, *maxRunSerial)
+				}
+
 				cancel()
 				return nil
 			})
