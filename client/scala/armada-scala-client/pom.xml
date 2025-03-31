@@ -67,8 +67,8 @@
     <scala.patch.version>15</scala.patch.version>
     <scala.compat.version>${scala.major.version}.${scala.minor.version}</scala.compat.version>
     <scala.version>${scala.compat.version}.${scala.patch.version}</scala.version>
-    <protobuf.version>3.19.6</protobuf.version>
-    <grpc.version>1.47.1</grpc.version>
+    <protobuf.version>3.25.5</protobuf.version>
+    <grpc.version>1.53.0</grpc.version>
   </properties>
 
   <dependencies>

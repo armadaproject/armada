@@ -337,6 +337,7 @@ func (c *InstructionConverter) handleJobRunLeased(ts time.Time, event *armadaeve
 		JobId:       event.JobId,
 		Cluster:     util.Truncate(event.ExecutorId, maxClusterLen),
 		Node:        pointer.String(util.Truncate(event.NodeId, maxNodeLen)),
+		Pool:        event.Pool,
 		Leased:      &ts,
 		JobRunState: lookout.JobRunLeasedOrdinal,
 	}

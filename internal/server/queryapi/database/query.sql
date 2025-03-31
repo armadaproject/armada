@@ -22,3 +22,6 @@ SELECT job_id, state FROM job
 WHERE queue=sqlc.arg(queue)::text
   AND jobset = sqlc.arg(jobset)::text
   AND external_job_uri = sqlc.arg(external_job_uri)::text;
+
+-- name: GetActiveQueuesByPool :many
+SELECT DISTINCT jr.pool, j.queue FROM job j JOIN job_run jr ON j.job_id = jr.job_id WHERE j.state IN (2, 3, 8) AND jr.job_run_state IN (1, 2, 11) ORDER BY jr.pool, j.queue;

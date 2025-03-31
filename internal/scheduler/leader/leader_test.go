@@ -34,7 +34,7 @@ const (
 // Test becoming leader.  This test is slightly awkward as the K8s leader election code
 // in client-go doesn't seem to have a mechanism for manipulating the internal clock.
 // As a result, the test works as follows:
-// * Set up a mock K8s client that updates the lease owener ever 100ms
+// * Set up a mock K8s client that updates the lease owner ever 100ms
 // * Set up the client such that it checks for updates every 10ms
 // * assert thart the state transitions are as expected
 func TestK8sLeaderController_BecomingLeader(t *testing.T) {
@@ -83,11 +83,12 @@ func TestK8sLeaderController_BecomingLeader(t *testing.T) {
 					}
 					lease = &v1.Lease{
 						Spec: v1.LeaseSpec{
-							HolderIdentity: pointer.String(holderIdentity),
+							HolderIdentity:       pointer.String(holderIdentity),
+							LeaseDurationSeconds: pointer.Int32(1),
 						},
 					}
 					idx++
-					time.Sleep(200 * time.Millisecond)
+					time.Sleep(2 * time.Second)
 				}
 			}()
 
@@ -109,7 +110,7 @@ func TestK8sLeaderController_BecomingLeader(t *testing.T) {
 			controller := NewKubernetesLeaderController(testLeaderConfig(), client)
 			testListener := NewTestLeaseListener(controller)
 			controller.RegisterListener(testListener)
-			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 10*time.Second)
+			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 20*time.Second)
 			go func() {
 				err := controller.Run(ctx)
 				assert.ErrorIs(t, err, context.Canceled)
