@@ -24,7 +24,7 @@ jobs:
 
     - name: Build
       run: |
-        cp settings.xml /home/runner/.m2
+        cp client/java/settings.xml /home/runner/.m2
         cat /home/runner/.m2/settings.xml
         mvn clean install
       env:
