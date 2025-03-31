@@ -25,7 +25,6 @@ jobs:
     - name: Build
       run: |
         cp client/java/settings.xml /home/runner/.m2
-        cat /home/runner/.m2/settings.xml
         cd client/java
         mvn clean install
       env:
@@ -33,9 +32,6 @@ jobs:
 
     - name: Release artifacts
       run: |
-        pwd
-        ls -la /home/runner/.m2
-        cat /home/runner/.m2/settings.xml
         cd client/java
         mvn --batch-mode deploy -DskipTests -Pci
       env:
