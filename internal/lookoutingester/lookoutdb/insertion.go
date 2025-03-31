@@ -569,7 +569,8 @@ func (l *LookoutDb) CreateJobRunsBatch(ctx *armadacontext.Context, instructions 
 					node          varchar(512),
 					leased        timestamp,
 					pending       timestamp,
-					job_run_state smallint
+					job_run_state smallint,
+					pool 		  text
 				) ON COMMIT DROP;`, tmpTable))
 			if err != nil {
 				l.metrics.RecordDBError(commonmetrics.DBOperationCreateTempTable)
@@ -588,6 +589,7 @@ func (l *LookoutDb) CreateJobRunsBatch(ctx *armadacontext.Context, instructions 
 					"leased",
 					"pending",
 					"job_run_state",
+					"pool",
 				},
 				pgx.CopyFromSlice(len(instructions), func(i int) ([]interface{}, error) {
 					return []interface{}{
@@ -598,6 +600,7 @@ func (l *LookoutDb) CreateJobRunsBatch(ctx *armadacontext.Context, instructions 
 						instructions[i].Leased,
 						instructions[i].Pending,
 						instructions[i].JobRunState,
+						instructions[i].Pool,
 					}, nil
 				}),
 			)
@@ -615,7 +618,8 @@ func (l *LookoutDb) CreateJobRunsBatch(ctx *armadacontext.Context, instructions 
 						node,
 						leased,
 						pending,
-						job_run_state
+						job_run_state,
+						pool
 					) SELECT * from %s
 					ON CONFLICT DO NOTHING`, tmpTable))
 			if err != nil {
@@ -635,8 +639,9 @@ func (l *LookoutDb) CreateJobRunsScalar(ctx *armadacontext.Context, instructions
 			node,
 			leased,
 			pending,
-			job_run_state)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
+			job_run_state,
+			pool)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		ON CONFLICT DO NOTHING`
 	for _, i := range instructions {
 		err := l.withDatabaseRetryInsert(func() error {
@@ -647,7 +652,8 @@ func (l *LookoutDb) CreateJobRunsScalar(ctx *armadacontext.Context, instructions
 				i.Node,
 				i.Leased,
 				i.Pending,
-				i.JobRunState)
+				i.JobRunState,
+				i.Pool)
 			if err != nil {
 				l.metrics.RecordDBError(commonmetrics.DBOperationInsert)
 			}

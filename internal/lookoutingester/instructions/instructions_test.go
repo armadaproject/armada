@@ -65,6 +65,7 @@ var expectedLeasedRun = model.CreateJobRunInstruction{
 	Cluster:     testfixtures.ExecutorId,
 	Leased:      &testfixtures.BaseTime,
 	Node:        pointer.String(testfixtures.NodeName),
+	Pool:        testfixtures.Pool,
 	JobRunState: lookout.JobRunLeasedOrdinal,
 }
 

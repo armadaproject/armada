@@ -153,11 +153,15 @@ func (q *QueryApi) GetJobErrors(ctx context.Context, req *api.JobErrorsRequest) 
 	decompressor := q.decompressorFactory()
 	errorsById := make(map[string]string, len(queryResult))
 	for _, row := range queryResult {
-		decompressed, err := decompressor.Decompress(row.Error)
-		if err != nil {
-			return nil, err
+		if len(row.Error) > 0 {
+			decompressed, err := decompressor.Decompress(row.Error)
+			if err != nil {
+				return nil, err
+			}
+			errorsById[row.JobID] = string(decompressed)
+		} else {
+			errorsById[row.JobID] = ""
 		}
-		errorsById[row.JobID] = string(decompressed)
 	}
 	return &api.JobErrorsResponse{
 		JobErrors: errorsById,
@@ -235,6 +239,32 @@ func (q *QueryApi) GetJobStatusUsingExternalJobUri(ctx context.Context, req *api
 
 	return &api.JobStatusResponse{
 		JobStates: apiStatusById,
+	}, nil
+}
+
+func (q *QueryApi) GetActiveQueues(ctx context.Context, _ *api.GetActiveQueuesRequest) (*api.GetActiveQueuesResponse, error) {
+	queries := database.New(q.db)
+	activeQueues, err := queries.GetActiveQueuesByPool(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("could not get active queues by pool")
+	}
+	queuesByPool := map[string]*api.ActiveQueues{}
+	for _, result := range activeQueues {
+		if result.Pool == nil {
+			continue
+		}
+
+		pool := *result.Pool
+		if _, ok := queuesByPool[pool]; !ok {
+			queuesByPool[pool] = &api.ActiveQueues{
+				Queues: []string{},
+			}
+		}
+		queuesByPool[pool].Queues = append(queuesByPool[pool].Queues, result.Queue)
+	}
+
+	return &api.GetActiveQueuesResponse{
+		ActiveQueuesByPool: queuesByPool,
 	}, nil
 }
 
