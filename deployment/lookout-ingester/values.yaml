@@ -15,6 +15,7 @@ additionalVolumeMounts: []
 additionalVolumes: []
 terminationGracePeriodSeconds: 30
 replicas: 1
+topologyKey: kubernetes.io/hostname
 strategy:
   rollingUpdate:
     maxUnavailable: 1
