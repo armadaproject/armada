@@ -1,7 +1,7 @@
 import { Cancel, LowPriority } from "@mui/icons-material"
 import { Button, Container, FormControlLabel, Checkbox, Tooltip, styled } from "@mui/material"
 
-import { JobSet } from "../../services/JobService"
+import { JobSet, JobSetsOrderByColumn } from "../../services/JobService"
 import { RequestStatus } from "../../utils"
 import AutoRefreshToggle from "../AutoRefreshToggle"
 import RefreshButton from "../RefreshButton"
@@ -27,7 +27,8 @@ interface JobSetsProps {
   getJobSetsRequestStatus: RequestStatus
   autoRefresh: boolean
   canReprioritize: boolean
-  newestFirst: boolean
+  orderByColumn: JobSetsOrderByColumn
+  orderByDesc: boolean
   activeOnly: boolean
   onQueueChange: (queue: string) => void
   onRefresh: () => void
@@ -38,7 +39,7 @@ interface JobSetsProps {
   onCancelJobSetsClick: () => void
   onToggleAutoRefresh: ((autoRefresh: boolean) => void) | undefined
   onReprioritizeJobSetsClick: () => void
-  onOrderChange: (newestFirst: boolean) => void
+  onOrderChange: (orderByColumn: JobSetsOrderByColumn, orderByDesc: boolean) => void
   onActiveOnlyChange: (activeOnly: boolean) => void
   onJobSetStateClick(rowIndex: number, state: string): void
 }
@@ -110,7 +111,8 @@ export default function JobSets(props: JobSetsProps) {
           queue={props.queue}
           jobSets={props.jobSets}
           selectedJobSets={props.selectedJobSets}
-          newestFirst={props.newestFirst}
+          orderByColumn={props.orderByColumn}
+          orderByDesc={props.orderByDesc}
           onSelectJobSet={props.onSelectJobSet}
           onShiftSelectJobSet={props.onShiftSelectJobSet}
           onDeselectAllClick={props.onDeselectAllClick}

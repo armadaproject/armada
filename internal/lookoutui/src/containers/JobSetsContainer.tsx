@@ -5,7 +5,7 @@ import ReprioritizeJobSetsDialog, { getReprioritizeableJobSets } from "./Reprior
 import JobSets from "../components/job-sets/JobSets"
 import { JobState, Match } from "../models/lookoutModels"
 import IntervalService from "../services/IntervalService"
-import { GetJobSetsRequest, JobSet } from "../services/JobService"
+import { GetJobSetsRequest, JobSet, JobSetsOrderByColumn } from "../services/JobService"
 import JobSetsLocalStorageService from "../services/JobSetsLocalStorageService"
 import JobSetsQueryParamsService from "../services/JobSetsQueryParamsService"
 import { IGroupJobsService } from "../services/lookout/GroupJobsService"
@@ -35,7 +35,8 @@ export type JobSetsContainerState = {
   getJobSetsRequestStatus: RequestStatus
   autoRefresh: boolean
   lastSelectedIndex: number
-  newestFirst: boolean
+  orderByColumn: JobSetsOrderByColumn
+  orderByDesc: boolean
   activeOnly: boolean
   cancelJobSetsIsOpen: boolean
   reprioritizeJobSetsIsOpen: boolean
@@ -63,7 +64,8 @@ class JobSetsContainer extends Component<JobSetsContainerProps, JobSetsContainer
       lastSelectedIndex: 0,
       cancelJobSetsIsOpen: false,
       reprioritizeJobSetsIsOpen: false,
-      newestFirst: true,
+      orderByColumn: "submitted",
+      orderByDesc: true,
       activeOnly: false,
     }
 
@@ -120,10 +122,11 @@ class JobSetsContainer extends Component<JobSetsContainerProps, JobSetsContainer
     await this.loadJobSets()
   }
 
-  async orderChange(newestFirst: boolean) {
+  async orderChange(orderByColumn: JobSetsOrderByColumn, orderByDesc: boolean) {
     await this.updateState({
       ...this.state,
-      newestFirst: newestFirst,
+      orderByColumn,
+      orderByDesc,
     })
     await this.loadJobSets()
   }
@@ -274,7 +277,8 @@ class JobSetsContainer extends Component<JobSetsContainerProps, JobSetsContainer
     })
     const jobSets = await this.fetchJobSets({
       queue: this.state.queue,
-      newestFirst: this.state.newestFirst,
+      orderByColumn: this.state.orderByColumn,
+      orderByDesc: this.state.orderByDesc,
       activeOnly: this.state.activeOnly,
     })
     this.setState({
@@ -296,8 +300,8 @@ class JobSetsContainer extends Component<JobSetsContainerProps, JobSetsContainer
       ],
       getJobSetsRequest.activeOnly,
       {
-        field: "submitted",
-        direction: getJobSetsRequest.newestFirst ? "DESC" : "ASC",
+        field: getJobSetsRequest.orderByColumn,
+        direction: getJobSetsRequest.orderByDesc ? "DESC" : "ASC",
       },
       {
         field: "jobSet",
@@ -352,7 +356,8 @@ class JobSetsContainer extends Component<JobSetsContainerProps, JobSetsContainer
           selectedJobSets={this.state.selectedJobSets}
           getJobSetsRequestStatus={this.state.getJobSetsRequestStatus}
           autoRefresh={this.state.autoRefresh}
-          newestFirst={this.state.newestFirst}
+          orderByColumn={this.state.orderByColumn}
+          orderByDesc={this.state.orderByDesc}
           activeOnly={this.state.activeOnly}
           onQueueChange={this.setQueue}
           onOrderChange={this.orderChange}
