@@ -79,6 +79,7 @@ export const OidcAuthProvider = ({ children, oidcConfig }: OidcAuthProviderProps
 
     if (isOidcRedirectPath && typeof user.state === "string" && user.state) {
       const originalURL = new URL(user.state)
+      // Preserve the current location's host, in case this has been changed by the redirect
       window.location.replace(`${originalURL.pathname}${originalURL.search}`)
     } else {
       setAuthError(undefined)
