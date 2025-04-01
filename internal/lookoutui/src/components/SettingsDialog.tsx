@@ -153,7 +153,7 @@ export const SettingsDialog = ({ open, onClose }: SettingsDialogProps) => {
                 <Stack direction="row" spacing={SPACING.sm} flexWrap="wrap">
                   <ul>
                     {TIMESTAMP_FORMATS.map((format) => (
-                      <li>
+                      <li key={format}>
                         {timestampFormatDisplayNames[format]}: {formatIsoTimestamp(new Date().toISOString(), format)}
                       </li>
                     ))}
