@@ -12,7 +12,7 @@ jobs:
     - uses: actions/checkout@v4
 
     - name: Set up Maven Central Repository
-      uses: actions/setup-java@c3ac5dd0ed8db40fedb61c32fbe677e6b355e94c
+      uses: actions/setup-java@v4
       with:
         java-version: '11'
         distribution: 'temurin'
@@ -27,7 +27,6 @@ jobs:
 
     - name: Build
       run: |
-        cp client/java/settings.xml /home/runner/.m2
         cd client/java
         mvn clean install
       env:
