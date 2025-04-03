@@ -34,8 +34,8 @@ jobs:
     uses: ./.github/workflows/build.yml
 
   # Virtual job that can be configured as a required check before a PR can be merged.
-  all-required-checks-done:
-    name: All required checks done
+  all-required-checks-succeeded:
+    name: All required checks succeeded
     if: always()
     # the if clauses below have to reflect the number of jobs listed here
     needs:
@@ -52,7 +52,7 @@ jobs:
         run: true
         shell: bash
       - name: "Failure"
-        # we expect all required jobs to have success result
+        # we expect all required jobs to have success result, fail otherwise
         if: env.RESULTS != 'success,success,success'
         run: false
         shell: bash
