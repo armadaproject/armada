@@ -714,6 +714,28 @@ func (q *Queries) SelectLeasedJobsByQueue(ctx context.Context, queue []string) (
 	return items, nil
 }
 
+const selectMaxJobSerial = `-- name: SelectMaxJobSerial :one
+SELECT serial FROM jobs ORDER BY serial DESC LIMIT 1
+`
+
+func (q *Queries) SelectMaxJobSerial(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, selectMaxJobSerial)
+	var serial int64
+	err := row.Scan(&serial)
+	return serial, err
+}
+
+const selectMaxRunSerial = `-- name: SelectMaxRunSerial :one
+SELECT serial FROM runs ORDER BY serial DESC LIMIT 1
+`
+
+func (q *Queries) SelectMaxRunSerial(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, selectMaxRunSerial)
+	var serial int64
+	err := row.Scan(&serial)
+	return serial, err
+}
+
 const selectNewJobs = `-- name: SelectNewJobs :many
 SELECT job_id, job_set, queue, user_id, submitted, groups, priority, queued, queued_version, cancel_requested, cancelled, cancel_by_jobset_requested, succeeded, failed, submit_message, scheduling_info, scheduling_info_version, serial, last_modified, validated, pools, bid_price, cancel_user FROM jobs WHERE serial > $1 ORDER BY serial LIMIT $2
 `
