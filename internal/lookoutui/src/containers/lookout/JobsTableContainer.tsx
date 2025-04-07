@@ -641,6 +641,7 @@ export const JobsTableContainer = ({
     }
     setColumnMatches(newColumnMatches)
     onFilterChange([...columnFilterState])
+    setRowsToFetch(pendingDataForAllVisibleData(expanded, data, pageSize))
   }
 
   const onSortingChange = (updater: Updater<SortingState>) => {
