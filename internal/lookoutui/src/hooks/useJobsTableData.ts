@@ -242,7 +242,16 @@ export const useFetchJobsTableData = ({
     return () => {
       abortController.abort("Request is no longer needed")
     }
-  }, [pendingData, paginationState, groupedColumns, expandedState, lookoutFilters, lookoutOrder, allColumns])
+  }, [
+    pendingData,
+    paginationState,
+    groupedColumns,
+    expandedState,
+    lookoutFilters,
+    columnMatches,
+    lookoutOrder,
+    allColumns,
+  ])
 
   return {
     data,
