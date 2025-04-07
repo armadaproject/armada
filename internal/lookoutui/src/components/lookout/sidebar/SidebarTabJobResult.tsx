@@ -15,6 +15,7 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material"
+import { ErrorBoundary } from "react-error-boundary"
 
 import { KeyValuePairTable } from "./KeyValuePairTable"
 import { NoRunsAlert } from "./NoRunsAlert"
@@ -30,9 +31,8 @@ import { IGetRunInfoService } from "../../../services/lookout/GetRunInfoService"
 import { SPACING } from "../../../styling/spacing"
 import { getErrorMessage } from "../../../utils"
 import { formatJobRunState } from "../../../utils/jobsTableFormatters"
-import { CodeBlock } from "../../CodeBlock"
-import { ErrorBoundary } from "react-error-boundary"
 import { AlertErrorFallback } from "../../AlertErrorFallback"
+import { CodeBlock } from "../../CodeBlock"
 
 const MarkNodeUnschedulableButtonContainer = styled("div")(({ theme }) => ({
   display: "flex",
