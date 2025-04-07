@@ -33,9 +33,11 @@ import {
   VisibilityState,
 } from "@tanstack/react-table"
 import _ from "lodash"
+import { ErrorBoundary } from "react-error-boundary"
 import { useLocation, useNavigate, useParams } from "react-router-dom"
 
 import styles from "./JobsTableContainer.module.css"
+import { AlertErrorFallback } from "../../components/AlertErrorFallback"
 import { JobsTableActionBar } from "../../components/lookout/JobsTableActionBar"
 import { HeaderCell } from "../../components/lookout/JobsTableCell"
 import { JobsTableRow } from "../../components/lookout/JobsTableRow"
@@ -801,120 +803,125 @@ export const JobsTableContainer = ({
     <Box sx={{ display: "flex", flexDirection: "row", height: "100%", width: "100%" }}>
       <Box sx={{ ...columnStyle, marginX: "0.5em", minWidth: 0 }}>
         <Box sx={{ ...columnStyle, marginY: "0.5em", minHeight: 0 }}>
-          <JobsTableActionBar
-            isLoading={rowsToFetch.length > 0}
-            allColumns={columnsForSelect}
-            groupedColumns={grouping}
-            filterColumns={filterColumns}
-            sortColumns={sortColumns}
-            visibleColumns={visibleColumnIds}
-            columnOrder={columnOrder}
-            setColumnOrder={setColumnOrder}
-            selectedItemFilters={selectedItemsFilters}
-            customViews={customViews}
-            activeJobSets={activeJobSets}
-            onActiveJobSetsChanged={(newVal) => {
-              setActiveJobSets(newVal)
-              setToFirstPage()
-              setSelectedRows({})
-              setRowsToFetch(pendingDataForAllVisibleData(expanded, data, pageSize))
-            }}
-            onRefresh={onRefresh}
-            autoRefresh={autoRefresh}
-            onAutoRefreshChange={autoRefreshMs === undefined ? undefined : onAutoRefreshChange}
-            onAddAnnotationColumn={addAnnotationCol}
-            onRemoveAnnotationColumn={removeAnnotationCol}
-            onEditAnnotationColumn={editAnnotationCol}
-            onGroupsChanged={onGroupingChange}
-            toggleColumnVisibility={onColumnVisibilityChange}
-            getJobsService={getJobsService}
-            updateJobsService={updateJobsService}
-            onClearFilters={clearFilters}
-            onClearGroups={clearGroups}
-            onAddCustomView={addCustomView}
-            onDeleteCustomView={deleteCustomView}
-            onLoadCustomView={loadCustomView}
-          />
-          <TableContainer component={Paper} style={{ height: "100%" }}>
-            <Table
-              stickyHeader
-              sx={{ tableLayout: "fixed" }}
-              aria-label="Jobs table"
-              style={{
-                width: table.getCenterTotalSize(),
-                borderLeft: "1px solid #cccccc",
-                maxHeight: "100%",
+          <ErrorBoundary FallbackComponent={AlertErrorFallback}>
+            <JobsTableActionBar
+              isLoading={rowsToFetch.length > 0}
+              allColumns={columnsForSelect}
+              groupedColumns={grouping}
+              filterColumns={filterColumns}
+              sortColumns={sortColumns}
+              visibleColumns={visibleColumnIds}
+              columnOrder={columnOrder}
+              setColumnOrder={setColumnOrder}
+              selectedItemFilters={selectedItemsFilters}
+              customViews={customViews}
+              activeJobSets={activeJobSets}
+              onActiveJobSetsChanged={(newVal) => {
+                setActiveJobSets(newVal)
+                setToFirstPage()
+                setSelectedRows({})
+                setRowsToFetch(pendingDataForAllVisibleData(expanded, data, pageSize))
               }}
-            >
-              <TableHead>
-                {table.getHeaderGroups().map((headerGroup) => (
-                  <TableRow key={headerGroup.id}>
-                    {headerGroup.headers.map((header) => (
-                      <HeaderCell
-                        header={header}
-                        key={header.id}
-                        parseError={header.id in parseErrors ? parseErrors[header.id] : undefined}
-                        columnResizeMode={columnResizeMode}
-                        deltaOffset={table.getState().columnSizingInfo.deltaOffset ?? 0}
-                        columnMatches={columnMatches}
-                        onColumnMatchChange={onColumnMatchChange}
-                        onSetTextFieldRef={(ref) => {
-                          setTextFieldRef(header.id, ref)
-                        }}
-                        groupedColumns={grouping}
-                      />
-                    ))}
-                  </TableRow>
-                ))}
-              </TableHead>
+              onRefresh={onRefresh}
+              autoRefresh={autoRefresh}
+              onAutoRefreshChange={autoRefreshMs === undefined ? undefined : onAutoRefreshChange}
+              onAddAnnotationColumn={addAnnotationCol}
+              onRemoveAnnotationColumn={removeAnnotationCol}
+              onEditAnnotationColumn={editAnnotationCol}
+              onGroupsChanged={onGroupingChange}
+              toggleColumnVisibility={onColumnVisibilityChange}
+              getJobsService={getJobsService}
+              updateJobsService={updateJobsService}
+              onClearFilters={clearFilters}
+              onClearGroups={clearGroups}
+              onAddCustomView={addCustomView}
+              onDeleteCustomView={deleteCustomView}
+              onLoadCustomView={loadCustomView}
+            />
+          </ErrorBoundary>
+          <ErrorBoundary FallbackComponent={AlertErrorFallback}>
+            <TableContainer component={Paper} style={{ height: "100%" }}>
+              <Table
+                stickyHeader
+                sx={{ tableLayout: "fixed" }}
+                aria-label="Jobs table"
+                style={{
+                  width: table.getCenterTotalSize(),
+                  borderLeft: "1px solid #cccccc",
+                  maxHeight: "100%",
+                }}
+              >
+                <TableHead>
+                  {table.getHeaderGroups().map((headerGroup) => (
+                    <TableRow key={headerGroup.id}>
+                      {headerGroup.headers.map((header) => (
+                        <HeaderCell
+                          header={header}
+                          key={header.id}
+                          parseError={header.id in parseErrors ? parseErrors[header.id] : undefined}
+                          columnResizeMode={columnResizeMode}
+                          deltaOffset={table.getState().columnSizingInfo.deltaOffset ?? 0}
+                          columnMatches={columnMatches}
+                          onColumnMatchChange={onColumnMatchChange}
+                          onSetTextFieldRef={(ref) => {
+                            setTextFieldRef(header.id, ref)
+                          }}
+                          groupedColumns={grouping}
+                        />
+                      ))}
+                    </TableRow>
+                  ))}
+                </TableHead>
 
-              <JobsTableBody
-                dataIsLoading={rowsToFetch.length > 0}
-                columns={table.getVisibleLeafColumns()}
-                topLevelRows={topLevelRows}
-                sidebarJobId={sidebarJobId}
-                onLoadMoreSubRows={onLoadMoreSubRows}
-                onClickRowCheckbox={(row) => selectRow(row, false)}
-                onClickJobRow={toggleSidebarForJobRow}
-                onClickRow={(row) => selectRow(row, true)}
-                onShiftClickRow={shiftSelectRow}
-                onControlClickRow={(row) => selectRow(row, false)}
-                onColumnMatchChange={onColumnMatchChange}
-              />
-            </Table>
-          </TableContainer>
-          <TablePagination
-            component="div"
-            rowsPerPageOptions={PAGE_SIZE_OPTIONS}
-            // If the total number rows in the database for the current filter
-            // is exactly equal to `pageSize`, then this is going to produce a
-            // misleading description (e.g., "1-50 of more than 50", even though
-            // there are exactly 50 rows).
-            count={data.length < pageSize ? pageIndex * pageSize + data.length : -1}
-            rowsPerPage={pageSize}
-            page={pageIndex}
-            onPageChange={(_, page) => table.setPageIndex(page)}
-            onRowsPerPageChange={(e) => table.setPageSize(Number(e.target.value))}
-            colSpan={table.getVisibleLeafColumns().length}
-            showFirstButton={true}
-            showLastButton={true}
-          />
-
-          {debug && <pre>{JSON.stringify(table.getState(), null, 2)}</pre>}
+                <JobsTableBody
+                  dataIsLoading={rowsToFetch.length > 0}
+                  columns={table.getVisibleLeafColumns()}
+                  topLevelRows={topLevelRows}
+                  sidebarJobId={sidebarJobId}
+                  onLoadMoreSubRows={onLoadMoreSubRows}
+                  onClickRowCheckbox={(row) => selectRow(row, false)}
+                  onClickJobRow={toggleSidebarForJobRow}
+                  onClickRow={(row) => selectRow(row, true)}
+                  onShiftClickRow={shiftSelectRow}
+                  onControlClickRow={(row) => selectRow(row, false)}
+                  onColumnMatchChange={onColumnMatchChange}
+                />
+              </Table>
+            </TableContainer>
+            <TablePagination
+              component="div"
+              rowsPerPageOptions={PAGE_SIZE_OPTIONS}
+              // If the total number rows in the database for the current filter
+              // is exactly equal to `pageSize`, then this is going to produce a
+              // misleading description (e.g., "1-50 of more than 50", even though
+              // there are exactly 50 rows).
+              count={data.length < pageSize ? pageIndex * pageSize + data.length : -1}
+              rowsPerPage={pageSize}
+              page={pageIndex}
+              onPageChange={(_, page) => table.setPageIndex(page)}
+              onRowsPerPageChange={(e) => table.setPageSize(Number(e.target.value))}
+              colSpan={table.getVisibleLeafColumns().length}
+              showFirstButton={true}
+              showLastButton={true}
+            />
+            {debug && <pre>{JSON.stringify(table.getState(), null, 2)}</pre>}
+          </ErrorBoundary>
         </Box>
       </Box>
 
       {sidebarJobDetails !== undefined && (
-        <Sidebar
-          job={sidebarJobDetails}
-          runInfoService={runInfoService}
-          jobSpecService={jobSpecService}
-          cordonService={cordonService}
-          sidebarWidth={sidebarWidth}
-          onClose={sideBarClose}
-          onWidthChange={setSidebarWidth}
-          commandSpecs={commandSpecs}
-        />
+        <ErrorBoundary FallbackComponent={AlertErrorFallback}>
+          <Sidebar
+            job={sidebarJobDetails}
+            runInfoService={runInfoService}
+            jobSpecService={jobSpecService}
+            cordonService={cordonService}
+            sidebarWidth={sidebarWidth}
+            onClose={sideBarClose}
+            onWidthChange={setSidebarWidth}
+            commandSpecs={commandSpecs}
+          />
+        </ErrorBoundary>
       )}
     </Box>
   )

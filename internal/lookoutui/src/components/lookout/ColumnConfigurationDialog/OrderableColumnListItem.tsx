@@ -67,6 +67,8 @@ export const OrderableColumnListItem = ({
     id: colId,
   })
 
+  throw new Error("argh")
+
   const [isEditing, setIsEditing] = useState(false)
 
   let listItemButtonNode = (
