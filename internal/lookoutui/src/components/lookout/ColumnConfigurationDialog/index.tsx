@@ -17,6 +17,7 @@ import {
   styled,
   Typography,
 } from "@mui/material"
+import { ErrorBoundary } from "react-error-boundary"
 
 import { AddAnnotationColumnInput } from "./AddAnnotationColumnInput"
 import { OrderableColumnListItem } from "./OrderableColumnListItem"
@@ -30,6 +31,7 @@ import {
   PINNED_COLUMNS,
   toColId,
 } from "../../../utils/jobsTableColumns"
+import { AlertErrorFallback } from "../../AlertErrorFallback"
 
 const ScrollToAddAnnotationColumnChip = styled(Chip)({
   zIndex: 100,
@@ -184,71 +186,73 @@ export const ColumnConfigurationDialog = ({
         <Close />
       </CloseIconButton>
       <DialogContent>
-        <Stack spacing={SPACING.sm}>
-          <DialogContentText component="p">
-            Select which columns to view, any additional annotation columns, and the order of the columns.
-          </DialogContentText>
-          {groupedColumnIds.length > 0 && (
-            <>
-              <DialogContentText variant="body2">
-                The following columns cannot be hidden or re-ordered because they are currently grouped:
-              </DialogContentText>
-              <DialogContentText component="ul" variant="body2">
-                {groupedColumnIds
-                  .map((id) => allColumnsById[id])
-                  .map((column) => {
-                    const { displayName } = getColumnMetadata(column)
-                    return (
-                      <Typography key={column.id} component="li" variant="body2">
-                        {displayName}
-                      </Typography>
-                    )
-                  })}
-              </DialogContentText>
-            </>
-          )}
-          <Alert severity="info" variant="outlined">
-            Click and drag the columns into your desired order.
-          </Alert>
-          <div>
-            <DndContext
-              onDragEnd={handleDragEnd}
-              sensors={sensors}
-              modifiers={[restrictToVerticalAxis, restrictToWindowEdges]}
-            >
-              <SortableContext items={orderedColumns.map(({ id }) => toColId(id))}>
-                <List dense>
-                  {orderedColumns.map((column) => {
-                    const colId = toColId(column.id)
-                    return (
-                      <OrderableColumnListItem
-                        key={colId}
-                        column={column}
-                        isVisible={visibleColumnsSet.has(colId)}
-                        onToggleVisibility={() => toggleColumnVisibility(colId)}
-                        filtered={filterColumnsSet.has(colId)}
-                        sorted={sortColumnsSet.has(colId)}
-                        removeAnnotationColumn={() => onRemoveAnnotationColumn(colId)}
-                        editAnnotationColumn={(annotationKey) => onEditAnnotationColumn(colId, annotationKey)}
-                        existingAnnotationColumnKeysSet={annotationColumnKeysSet}
-                      />
-                    )
-                  })}
-                </List>
-              </SortableContext>
-            </DndContext>
-          </div>
-          <div ref={addAnnotationColumnContainerRef}>
-            <DialogContentText component="h3">Add annotation column</DialogContentText>
-            <DialogContentText variant="body2">
-              Annotations are metadata (key-value pairs) that you can add to your job.
+        <ErrorBoundary FallbackComponent={AlertErrorFallback}>
+          <Stack spacing={SPACING.sm}>
+            <DialogContentText component="p">
+              Select which columns to view, any additional annotation columns, and the order of the columns.
             </DialogContentText>
-            <AddAnnotationColumnInput
-              onCreate={onAddAnnotationColumn}
-              existingAnnotationColumnKeysSet={annotationColumnKeysSet}
-            />
-          </div>
-        </Stack>
+            {groupedColumnIds.length > 0 && (
+              <>
+                <DialogContentText variant="body2">
+                  The following columns cannot be hidden or re-ordered because they are currently grouped:
+                </DialogContentText>
+                <DialogContentText component="ul" variant="body2">
+                  {groupedColumnIds
+                    .map((id) => allColumnsById[id])
+                    .map((column) => {
+                      const { displayName } = getColumnMetadata(column)
+                      return (
+                        <Typography key={column.id} component="li" variant="body2">
+                          {displayName}
+                        </Typography>
+                      )
+                    })}
+                </DialogContentText>
+              </>
+            )}
+            <Alert severity="info" variant="outlined">
+              Click and drag the columns into your desired order.
+            </Alert>
+            <div>
+              <DndContext
+                onDragEnd={handleDragEnd}
+                sensors={sensors}
+                modifiers={[restrictToVerticalAxis, restrictToWindowEdges]}
+              >
+                <SortableContext items={orderedColumns.map(({ id }) => toColId(id))}>
+                  <List dense>
+                    {orderedColumns.map((column) => {
+                      const colId = toColId(column.id)
+                      return (
+                        <OrderableColumnListItem
+                          key={colId}
+                          column={column}
+                          isVisible={visibleColumnsSet.has(colId)}
+                          onToggleVisibility={() => toggleColumnVisibility(colId)}
+                          filtered={filterColumnsSet.has(colId)}
+                          sorted={sortColumnsSet.has(colId)}
+                          removeAnnotationColumn={() => onRemoveAnnotationColumn(colId)}
+                          editAnnotationColumn={(annotationKey) => onEditAnnotationColumn(colId, annotationKey)}
+                          existingAnnotationColumnKeysSet={annotationColumnKeysSet}
+                        />
+                      )
+                    })}
+                  </List>
+                </SortableContext>
+              </DndContext>
+            </div>
+            <div ref={addAnnotationColumnContainerRef}>
+              <DialogContentText component="h3">Add annotation column</DialogContentText>
+              <DialogContentText variant="body2">
+                Annotations are metadata (key-value pairs) that you can add to your job.
+              </DialogContentText>
+              <AddAnnotationColumnInput
+                onCreate={onAddAnnotationColumn}
+                existingAnnotationColumnKeysSet={annotationColumnKeysSet}
+              />
+            </div>
+          </Stack>
+        </ErrorBoundary>
       </DialogContent>
     </Dialog>
   )

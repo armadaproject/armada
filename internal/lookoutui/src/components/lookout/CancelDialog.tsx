@@ -4,6 +4,7 @@ import { Refresh, Dangerous } from "@mui/icons-material"
 import { Checkbox } from "@mui/material"
 import { Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, Alert } from "@mui/material"
 import _ from "lodash"
+import { ErrorBoundary } from "react-error-boundary"
 
 import dialogStyles from "./DialogStyles.module.css"
 import { JobStatusTable } from "./JobStatusTable"
@@ -17,6 +18,7 @@ import { UpdateJobsService } from "../../services/lookout/UpdateJobsService"
 import { waitMillis, PlatformCancelReason } from "../../utils"
 import { getUniqueJobsMatchingFilters } from "../../utils/jobsDialogUtils"
 import { formatJobState } from "../../utils/jobsTableFormatters"
+import { AlertErrorFallback } from "../AlertErrorFallback"
 
 interface CancelDialogProps {
   onClose: () => void
@@ -134,43 +136,45 @@ export const CancelDialog = ({
       </DialogTitle>
 
       <DialogContent>
-        {isLoadingJobs && (
-          <div className={dialogStyles.loadingInfo}>
-            Fetching info on selected jobs...
-            <CircularProgress variant="indeterminate" />
-          </div>
-        )}
+        <ErrorBoundary FallbackComponent={AlertErrorFallback}>
+          {isLoadingJobs && (
+            <div className={dialogStyles.loadingInfo}>
+              Fetching info on selected jobs...
+              <CircularProgress variant="indeterminate" />
+            </div>
+          )}
 
-        {!isLoadingJobs && (
-          <>
-            {cancellableJobs.length > 0 && cancellableJobs.length < selectedJobs.length && (
-              <Alert severity="info" sx={{ marginBottom: "0.5em" }}>
-                {formatNumber(selectedJobsCount)} {selectedJobsCount === 1 ? "job is" : "jobs are"} selected, but only{" "}
-                {formatNumber(cancellableJobsCount)} {cancellableJobsCount === 1 ? "job is" : "jobs are"} in a
-                cancellable (non-terminated) state.
-              </Alert>
-            )}
+          {!isLoadingJobs && (
+            <>
+              {cancellableJobs.length > 0 && cancellableJobs.length < selectedJobs.length && (
+                <Alert severity="info" sx={{ marginBottom: "0.5em" }}>
+                  {formatNumber(selectedJobsCount)} {selectedJobsCount === 1 ? "job is" : "jobs are"} selected, but only{" "}
+                  {formatNumber(cancellableJobsCount)} {cancellableJobsCount === 1 ? "job is" : "jobs are"} in a
+                  cancellable (non-terminated) state.
+                </Alert>
+              )}
 
-            {cancellableJobs.length === 0 && (
-              <Alert severity="success">
-                All selected jobs are in a terminated state already, therefore there is nothing to cancel.
-              </Alert>
-            )}
+              {cancellableJobs.length === 0 && (
+                <Alert severity="success">
+                  All selected jobs are in a terminated state already, therefore there is nothing to cancel.
+                </Alert>
+              )}
 
-            {cancellableJobs.length > 0 && (
-              <JobStatusTable
-                jobsToRender={jobsToRender}
-                jobStatus={jobIdsToCancelResponses}
-                totalJobCount={cancellableJobs.length}
-                additionalColumnsToDisplay={[
-                  { displayName: "State", formatter: formatState },
-                  { displayName: "Submitted Time", formatter: formatSubmittedTime },
-                ]}
-                showStatus={Object.keys(jobIdsToCancelResponses).length > 0}
-              />
-            )}
-          </>
-        )}
+              {cancellableJobs.length > 0 && (
+                <JobStatusTable
+                  jobsToRender={jobsToRender}
+                  jobStatus={jobIdsToCancelResponses}
+                  totalJobCount={cancellableJobs.length}
+                  additionalColumnsToDisplay={[
+                    { displayName: "State", formatter: formatState },
+                    { displayName: "Submitted Time", formatter: formatSubmittedTime },
+                  ]}
+                  showStatus={Object.keys(jobIdsToCancelResponses).length > 0}
+                />
+              )}
+            </>
+          )}
+        </ErrorBoundary>
       </DialogContent>
 
       <DialogActions>

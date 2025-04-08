@@ -1,7 +1,10 @@
 import { Component } from "react"
 
+import { ErrorBoundary } from "react-error-boundary"
+
 import CancelJobSetsDialog, { getCancellableJobSets } from "./CancelJobSetsDialog"
 import ReprioritizeJobSetsDialog, { getReprioritizeableJobSets } from "./ReprioritizeJobSetsDialog"
+import { AlertErrorFallback } from "../components/AlertErrorFallback"
 import JobSets from "../components/job-sets/JobSets"
 import { JobState, Match } from "../models/lookoutModels"
 import IntervalService from "../services/IntervalService"
@@ -348,30 +351,32 @@ class JobSetsContainer extends Component<JobSetsContainerProps, JobSetsContainer
           onResult={this.handleApiResult}
           onClose={() => this.openReprioritizeJobSets(false)}
         />
-        <JobSets
-          canCancel={getCancellableJobSets(selectedJobSets).length > 0}
-          canReprioritize={getReprioritizeableJobSets(selectedJobSets).length > 0}
-          queue={this.state.queue}
-          jobSets={this.state.jobSets}
-          selectedJobSets={this.state.selectedJobSets}
-          getJobSetsRequestStatus={this.state.getJobSetsRequestStatus}
-          autoRefresh={this.state.autoRefresh}
-          orderByColumn={this.state.orderByColumn}
-          orderByDesc={this.state.orderByDesc}
-          activeOnly={this.state.activeOnly}
-          onQueueChange={this.setQueue}
-          onOrderChange={this.orderChange}
-          onActiveOnlyChange={this.activeOnlyChange}
-          onRefresh={this.loadJobSets}
-          onSelectJobSet={this.selectJobSet}
-          onShiftSelectJobSet={this.shiftSelectJobSet}
-          onDeselectAllClick={this.deselectAll}
-          onSelectAllClick={this.selectAll}
-          onCancelJobSetsClick={() => this.openCancelJobSets(true)}
-          onToggleAutoRefresh={this.autoRefreshService && this.toggleAutoRefresh}
-          onReprioritizeJobSetsClick={() => this.openReprioritizeJobSets(true)}
-          onJobSetStateClick={this.onJobSetStateClick}
-        />
+        <ErrorBoundary FallbackComponent={AlertErrorFallback}>
+          <JobSets
+            canCancel={getCancellableJobSets(selectedJobSets).length > 0}
+            canReprioritize={getReprioritizeableJobSets(selectedJobSets).length > 0}
+            queue={this.state.queue}
+            jobSets={this.state.jobSets}
+            selectedJobSets={this.state.selectedJobSets}
+            getJobSetsRequestStatus={this.state.getJobSetsRequestStatus}
+            autoRefresh={this.state.autoRefresh}
+            orderByColumn={this.state.orderByColumn}
+            orderByDesc={this.state.orderByDesc}
+            activeOnly={this.state.activeOnly}
+            onQueueChange={this.setQueue}
+            onOrderChange={this.orderChange}
+            onActiveOnlyChange={this.activeOnlyChange}
+            onRefresh={this.loadJobSets}
+            onSelectJobSet={this.selectJobSet}
+            onShiftSelectJobSet={this.shiftSelectJobSet}
+            onDeselectAllClick={this.deselectAll}
+            onSelectAllClick={this.selectAll}
+            onCancelJobSetsClick={() => this.openCancelJobSets(true)}
+            onToggleAutoRefresh={this.autoRefreshService && this.toggleAutoRefresh}
+            onReprioritizeJobSetsClick={() => this.openReprioritizeJobSets(true)}
+            onJobSetStateClick={this.onJobSetStateClick}
+          />
+        </ErrorBoundary>
       </>
     )
   }
