@@ -2,6 +2,7 @@ import queryString, { ParseOptions, StringifyOptions } from "query-string"
 
 import { JobSetsContainerState } from "../containers/JobSetsContainer"
 import { Router } from "../utils"
+import { JobSetsOrderByColumn } from "./JobService"
 
 const QUERY_STRING_OPTIONS: ParseOptions | StringifyOptions = {
   arrayFormat: "comma",
@@ -11,8 +12,9 @@ const QUERY_STRING_OPTIONS: ParseOptions | StringifyOptions = {
 type JobSetsQueryParams = {
   queue?: string
   view?: string
-  newest_first?: boolean
   active_only?: boolean
+  order_by_column?: JobSetsOrderByColumn
+  order_by_desc?: boolean
 }
 
 export default class JobSetsQueryParamsService {
@@ -24,8 +26,9 @@ export default class JobSetsQueryParamsService {
     if (state.queue) {
       params.queue = state.queue
     }
-    params.newest_first = state.newestFirst
     params.active_only = state.activeOnly
+    params.order_by_column = state.orderByColumn
+    params.order_by_desc = state.orderByDesc
 
     this.router.navigate({
       ...this.router.location,
@@ -37,7 +40,8 @@ export default class JobSetsQueryParamsService {
     const params = queryString.parse(this.router.location.search, QUERY_STRING_OPTIONS) as JobSetsQueryParams
 
     if (params.queue) state.queue = params.queue
-    if (params.newest_first != undefined) state.newestFirst = params.newest_first
+    if (params.order_by_column != undefined) state.orderByColumn = params.order_by_column
+    if (params.order_by_desc != undefined) state.orderByDesc = params.order_by_desc
     if (params.active_only != undefined) state.activeOnly = params.active_only
   }
 }

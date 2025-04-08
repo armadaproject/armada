@@ -67,7 +67,7 @@ export const QueueFilter = ({ filterValue, parseError, onFilterChange, onSetText
   const { refetch, status, error, data } = useGetQueues(enableGetQueues)
   const queueNames = useMemo(() => (data ?? []).flatMap(({ name }) => (name ? [name] : [])), [data])
 
-  const [autocompleteValue, setAutocompleteValue] = useState([] as string[])
+  const [autocompleteValue, setAutocompleteValue] = useState(filterValue ?? ([] as string[]))
   useEffect(() => {
     const newAutocompleteValue = filterValue ?? []
     if (!areQueueValuesEqual(newAutocompleteValue, autocompleteValue)) {

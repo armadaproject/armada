@@ -8,6 +8,7 @@ import "prismjs/components/prism-bash"
 import "prismjs/components/prism-yaml"
 
 import { CopyIconButton } from "./CopyIconButton"
+import { downloadTextFile } from "../common/downloadTextFile"
 import { useCodeSnippetsWrapLines } from "../userSettings"
 
 // All langauges in this set must be imported from Prism in the form:
@@ -138,14 +139,7 @@ export const CodeBlock = ({
       return
     }
 
-    const element = document.createElement("a")
-    const file = new Blob([code], {
-      type: downloadBlobType,
-    })
-    element.href = URL.createObjectURL(file)
-    element.download = downloadFileName
-    document.body.appendChild(element)
-    element.click()
+    downloadTextFile(code, downloadFileName, downloadBlobType)
   }, [code, downloadable, downloadBlobType, downloadFileName])
 
   if (loading) {

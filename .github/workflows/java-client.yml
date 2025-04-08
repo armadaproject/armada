@@ -2,7 +2,9 @@ name: Java Client
 
 on:
   push:
-    branches-ignore:
+    tags:
+      - v*
+    branches:
       - master
     paths:
       - 'client/java/**'

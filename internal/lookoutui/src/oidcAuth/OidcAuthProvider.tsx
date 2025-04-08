@@ -1,44 +1,17 @@
 import { ReactNode, useCallback, useEffect, useMemo, useState } from "react"
 
-import { Alert, AlertTitle, Button, Container, LinearProgress, styled, Typography } from "@mui/material"
 import { UserManager, WebStorageStateStore } from "oidc-client-ts"
 
-import { SPACING } from "../styling/spacing"
+import { ErrorPage } from "../components/ErrorPage"
 import { OidcConfig } from "../utils"
 import { OidcAuthContext, OidcAuthContextProps } from "./OidcAuthContext"
+import { LoadingPage } from "../components/LoadingPage"
 
 export const OIDC_REDIRECT_PATHNAME = "/oidc"
 
 const ELLIPSIS = "\u2026"
 
 const userManagerStore = new WebStorageStateStore({ store: window.localStorage })
-
-const Wrapper = styled("main")(({ theme }) => ({
-  minHeight: "100vh",
-  backgroundColor: theme.palette.background.default,
-  display: "flex",
-  justifyContent: "center",
-  alignItems: "center",
-}))
-
-const ContentContainer = styled(Container)(({ theme }) => ({
-  display: "flex",
-  flexDirection: "column",
-  alignItems: "center",
-  gap: theme.spacing(SPACING.xl),
-}))
-
-const ProgressContainer = styled("div")({
-  width: "100%",
-})
-
-const StyledAlert = styled(Alert)({
-  width: "100%",
-})
-
-const IconImg = styled("img")({
-  maxHeight: 200,
-})
 
 export interface OidcAuthProviderProps {
   children: ReactNode
@@ -74,11 +47,17 @@ export const OidcAuthProvider = ({ children, oidcConfig }: OidcAuthProviderProps
     }
     const user = await (isOidcRedirectPath ? userManager.signinRedirectCallback() : userManager.getUser())
     if (!user || user.expired) {
-      return await userManager.signinRedirect()
+      return await userManager.signinRedirect({ state: window.location.href })
     }
 
-    setAuthError(undefined)
-    setIsLoading(false)
+    if (isOidcRedirectPath && typeof user.state === "string" && user.state) {
+      const originalURL = new URL(user.state)
+      // Preserve the current location's host, in case this has been changed by the redirect
+      window.location.replace(`${originalURL.pathname}${originalURL.search}`)
+    } else {
+      setAuthError(undefined)
+      setIsLoading(false)
+    }
   }, [userManager, isOidcRedirectPath])
 
   const handlerAuthenticationError = useCallback((e: any) => {
@@ -99,49 +78,17 @@ export const OidcAuthProvider = ({ children, oidcConfig }: OidcAuthProviderProps
   const oidcAuthContextValue = useMemo<OidcAuthContextProps>(() => ({ userManager }), [userManager])
 
   if (isLoading) {
-    return (
-      <Wrapper>
-        <ContentContainer maxWidth="md">
-          <div>
-            <IconImg src="/logo.svg" alt="Armada Lookout" />
-          </div>
-          <ProgressContainer>
-            <LinearProgress />
-          </ProgressContainer>
-          <div>
-            <Typography component="p" variant="h4" textAlign="center">
-              Armada Lookout
-            </Typography>
-            <Typography component="p" variant="h6" color="text.secondary" textAlign="center">
-              Signing you in{ELLIPSIS}
-            </Typography>
-          </div>
-        </ContentContainer>
-      </Wrapper>
-    )
+    return <LoadingPage loadingContextMessage={`Signing you in${ELLIPSIS}`} />
   }
 
   if (authError) {
     return (
-      <Wrapper>
-        <ContentContainer maxWidth="md">
-          <div>
-            <IconImg src="/logo.svg" alt="Armada Lookout" />
-          </div>
-          <StyledAlert
-            severity="error"
-            action={
-              <Button color="inherit" size="small" onClick={() => authenticate().catch(handlerAuthenticationError)}>
-                Retry
-              </Button>
-            }
-          >
-            <AlertTitle>Sorry, there was an error signing you into Armada Lookout</AlertTitle>
-            <Typography component="p">{String(authError)}</Typography>
-            <Typography component="p">Please check the console for more details.</Typography>
-          </StyledAlert>
-        </ContentContainer>
-      </Wrapper>
+      <ErrorPage
+        error={authError}
+        errorTitle="Sorry, there was an error signing you into Armada Lookout"
+        retry={() => authenticate().catch(handlerAuthenticationError)}
+        errorContextMessage="Please check the console for more details."
+      />
     )
   }
 

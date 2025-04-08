@@ -17,6 +17,7 @@ import {
   fromAnnotationColId,
   isStandardColId,
   PINNED_COLUMNS,
+  StandardColumnId,
 } from "../../utils/jobsTableColumns"
 import { matchForColumn } from "../../utils/jobsTableUtils"
 
@@ -137,6 +138,24 @@ const columnMatchesFromQueryStringFilters = (f: QueryStringJobFilter[]): Record<
 
 const fromQueryStringSafe = (serializedPrefs: Partial<QueryStringPrefs>): Partial<JobsTablePreferences> => {
   const { g, e, page, ps, sort, f, sb, active, refresh } = serializedPrefs
+
+  if (f) {
+    // The queue filter was a single-value filter, but changed to an any-of filter. If the queue column match is exact,
+    // convert it to an equivalent any-of; otherwise remove the filter
+    const indiciesToRemove = [] as number[]
+    f.forEach(({ id, value, match }, i) => {
+      if (id === StandardColumnId.Queue) {
+        if (match === Match.Exact || match === Match.AnyOf) {
+          f[i].value = _.isArray(value) ? value : [value]
+          f[i].match = Match.AnyOf
+        } else {
+          indiciesToRemove.push(i)
+        }
+      }
+    })
+    indiciesToRemove.reverse().forEach((i) => f.splice(i, 1))
+  }
+
   return {
     ...(g && Array.isArray(g) && g.every((a) => typeof a === "string") && { groupedColumns: g as ColumnId[] }),
     ...(e && { expandedState: Object.fromEntries(e.map((rowId) => [rowId, true])) }),
@@ -348,6 +367,36 @@ export class JobsTablePreferencesService {
     }
     if (obj.sidebarWidth === undefined || obj.sidebarWidth === 0) {
       obj.sidebarWidth = this.getSidebarWidthFromLocalStorage()
+    }
+
+    if (!obj.columnMatches) {
+      obj.columnMatches = {}
+    }
+    if (!obj.filters) {
+      obj.filters = []
+    }
+
+    // The queue filter was a single-value filter, but changed to an any-of filter. If the queue column match is exact,
+    // convert it to an equivalent any-of; otherwise remove the filter
+    const existingQueueFilterMatch = obj.columnMatches[StandardColumnId.Queue]
+    if (existingQueueFilterMatch && existingQueueFilterMatch !== Match.AnyOf) {
+      delete obj.columnMatches[StandardColumnId.Queue]
+      if (existingQueueFilterMatch !== Match.Exact) {
+        const queueFilterIndex = obj.filters.findIndex(({ id }) => id === StandardColumnId.Queue)
+        if (queueFilterIndex >= 0) {
+          obj.filters.splice(queueFilterIndex, 1)
+        }
+      }
+    }
+    if (obj.filters) {
+      obj.filters.forEach(({ id, value }, i) => {
+        if (id === StandardColumnId.Queue) {
+          obj.columnMatches![StandardColumnId.Queue] = Match.AnyOf
+          if (!_.isArray(value)) {
+            obj.filters![i].value = [value]
+          }
+        }
+      })
     }
 
     return obj

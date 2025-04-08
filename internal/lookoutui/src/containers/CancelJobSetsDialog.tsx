@@ -1,7 +1,9 @@
 import { useState } from "react"
 
 import { Dialog, DialogContent, DialogTitle } from "@mui/material"
+import { ErrorBoundary } from "react-error-boundary"
 
+import { AlertErrorFallback } from "../components/AlertErrorFallback"
 import CancelJobSets from "../components/job-sets/cancel-job-sets/CancelJobSets"
 import CancelJobSetsOutcome from "../components/job-sets/cancel-job-sets/CancelJobSetsOutcome"
 import { useGetAccessToken } from "../oidcAuth"
@@ -104,33 +106,35 @@ export default function CancelJobSetsDialog(props: CancelJobSetsDialogProps) {
     >
       <DialogTitle id="cancel-job-sets-dialog-title">Cancel Job Sets</DialogTitle>
       <DialogContent className="lookout-dialog">
-        {state === "CancelJobSets" && (
-          <CancelJobSets
-            queue={props.queue}
-            jobSets={jobSetsToCancel}
-            queuedSelected={includeQueued}
-            runningSelected={includeRunning}
-            isLoading={requestStatus === "Loading"}
-            onCancelJobSets={cancelJobSets}
-            onQueuedSelectedChange={setIncludeQueued}
-            onRunningSelectedChange={setIncludeRunning}
-            isPlatformCancel={isPlatformCancel}
-            setIsPlatformCancel={setIsPlatformCancel}
-          />
-        )}
-        {state === "CancelJobSetsResult" && (
-          <CancelJobSetsOutcome
-            cancelJobSetsResponse={response}
-            isLoading={requestStatus === "Loading"}
-            queuedSelected={includeQueued}
-            runningSelected={includeRunning}
-            onCancelJobs={cancelJobSets}
-            onQueuedSelectedChange={setIncludeQueued}
-            onRunningSelectedChange={setIncludeRunning}
-            isPlatformCancel={isPlatformCancel}
-            setIsPlatformCancel={setIsPlatformCancel}
-          />
-        )}
+        <ErrorBoundary FallbackComponent={AlertErrorFallback}>
+          {state === "CancelJobSets" && (
+            <CancelJobSets
+              queue={props.queue}
+              jobSets={jobSetsToCancel}
+              queuedSelected={includeQueued}
+              runningSelected={includeRunning}
+              isLoading={requestStatus === "Loading"}
+              onCancelJobSets={cancelJobSets}
+              onQueuedSelectedChange={setIncludeQueued}
+              onRunningSelectedChange={setIncludeRunning}
+              isPlatformCancel={isPlatformCancel}
+              setIsPlatformCancel={setIsPlatformCancel}
+            />
+          )}
+          {state === "CancelJobSetsResult" && (
+            <CancelJobSetsOutcome
+              cancelJobSetsResponse={response}
+              isLoading={requestStatus === "Loading"}
+              queuedSelected={includeQueued}
+              runningSelected={includeRunning}
+              onCancelJobs={cancelJobSets}
+              onQueuedSelectedChange={setIncludeQueued}
+              onRunningSelectedChange={setIncludeRunning}
+              isPlatformCancel={isPlatformCancel}
+              setIsPlatformCancel={setIsPlatformCancel}
+            />
+          )}
+        </ErrorBoundary>
       </DialogContent>
     </Dialog>
   )

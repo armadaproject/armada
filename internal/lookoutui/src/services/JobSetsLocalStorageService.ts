@@ -1,5 +1,6 @@
 import { JobSetsContainerState } from "../containers/JobSetsContainer"
 import { tryParseJson } from "../utils"
+import { isJobSetsOrderByColumn, JobSetsOrderByColumn } from "./JobService"
 
 const LOCAL_STORAGE_KEY = "armada_lookout_job_sets_user_settings"
 
@@ -7,7 +8,8 @@ export type JobSetsLocalStorageState = {
   autoRefresh?: boolean
   queue?: string
   currentView?: string
-  newestFirst?: boolean
+  orderByColumn?: JobSetsOrderByColumn
+  orderByDesc?: boolean
   activeOnly?: boolean
 }
 
@@ -20,8 +22,11 @@ function convertToLocalStorageState(loadedData: Record<string, unknown>): JobSet
   if (loadedData.queue != undefined && typeof loadedData.queue == "string") {
     state.queue = loadedData.queue
   }
-  if (loadedData.newestFirst != undefined && typeof loadedData.newestFirst == "boolean") {
-    state.newestFirst = loadedData.newestFirst
+  if (loadedData.orderByColumn != undefined && isJobSetsOrderByColumn(loadedData.orderByColumn)) {
+    state.orderByColumn = loadedData.orderByColumn
+  }
+  if (loadedData.orderByDesc != undefined && typeof loadedData.orderByDesc == "boolean") {
+    state.orderByDesc = loadedData.orderByDesc
   }
   if (loadedData.activeOnly != undefined && typeof loadedData.activeOnly == "boolean") {
     state.activeOnly = loadedData.activeOnly
@@ -35,7 +40,8 @@ export default class JobSetsLocalStorageService {
     const localStorageState = {
       autoRefresh: state.autoRefresh,
       queue: state.queue,
-      newestFirst: state.newestFirst,
+      orderByColumn: state.orderByColumn,
+      orderByDesc: state.orderByDesc,
       activeOnly: state.activeOnly,
     }
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(localStorageState))
@@ -55,7 +61,8 @@ export default class JobSetsLocalStorageService {
     const loadedState = convertToLocalStorageState(loadedData as Record<string, unknown>)
     if (loadedState.autoRefresh != undefined) state.autoRefresh = loadedState.autoRefresh
     if (loadedState.queue) state.queue = loadedState.queue
-    if (loadedState.newestFirst != undefined) state.newestFirst = loadedState.newestFirst
+    if (loadedState.orderByColumn != undefined) state.orderByColumn = loadedState.orderByColumn
+    if (loadedState.orderByDesc != undefined) state.orderByDesc = loadedState.orderByDesc
     if (loadedState.activeOnly != undefined) state.activeOnly = loadedState.activeOnly
   }
 }

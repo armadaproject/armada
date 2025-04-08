@@ -3,6 +3,7 @@ import { HTMLProps, memo, SyntheticEvent, useCallback, useEffect, useRef, useSta
 import { TabContext, TabPanel, TabPanelProps } from "@mui/lab"
 import { Divider, Drawer, DrawerProps, Stack, styled, Tab, Tabs } from "@mui/material"
 import { grey } from "@mui/material/colors"
+import { ErrorBoundary } from "react-error-boundary"
 
 import { SidebarHeader } from "./SidebarHeader"
 import { SidebarTabJobCommands } from "./SidebarTabJobCommands"
@@ -17,6 +18,7 @@ import { IGetJobInfoService } from "../../../services/lookout/GetJobInfoService"
 import { IGetRunInfoService } from "../../../services/lookout/GetRunInfoService"
 import { SPACING } from "../../../styling/spacing"
 import { CommandSpec } from "../../../utils"
+import { AlertErrorFallback } from "../../AlertErrorFallback"
 
 enum SidebarTab {
   JobDetails = "JobDetails",
@@ -256,56 +258,58 @@ export const Sidebar = memo(
             <SidebarHeader job={job} onClose={onClose} />
             <Divider />
             <SidebarTabContextContainer>
-              <TabContext value={openTab}>
-                <TabsContainer>
-                  <SidebarTabs value={openTab} onChange={handleTabChange}>
-                    <StyledSidebarTab label="Details" value={SidebarTab.JobDetails} />
-                    <StyledSidebarTab label="Result" value={SidebarTab.JobResult} />
-                    {job.state === JobState.Queued && (
-                      <StyledSidebarTab label="Scheduling" value={SidebarTab.Scheduling} />
-                    )}
-                    <StyledSidebarTab label="Yaml" value={SidebarTab.Yaml} />
-                    <StyledSidebarTab label="Logs" value={SidebarTab.Logs} disabled={job.state === JobState.Queued} />
-                    <StyledSidebarTab
-                      label="Commands"
-                      value={SidebarTab.Commands}
-                      disabled={job.state === JobState.Queued}
-                    />
-                  </SidebarTabs>
-                </TabsContainer>
+              <ErrorBoundary FallbackComponent={AlertErrorFallback}>
+                <TabContext value={openTab}>
+                  <TabsContainer>
+                    <SidebarTabs value={openTab} onChange={handleTabChange}>
+                      <StyledSidebarTab label="Details" value={SidebarTab.JobDetails} />
+                      <StyledSidebarTab label="Result" value={SidebarTab.JobResult} />
+                      {job.state === JobState.Queued && (
+                        <StyledSidebarTab label="Scheduling" value={SidebarTab.Scheduling} />
+                      )}
+                      <StyledSidebarTab label="Yaml" value={SidebarTab.Yaml} />
+                      <StyledSidebarTab label="Logs" value={SidebarTab.Logs} disabled={job.state === JobState.Queued} />
+                      <StyledSidebarTab
+                        label="Commands"
+                        value={SidebarTab.Commands}
+                        disabled={job.state === JobState.Queued}
+                      />
+                    </SidebarTabs>
+                  </TabsContainer>
 
-                <SidebarTabPanel value={SidebarTab.JobDetails}>
-                  <SidebarTabJobDetails key={job.jobId} job={job} />
-                </SidebarTabPanel>
-
-                <SidebarTabPanel value={SidebarTab.JobResult}>
-                  <SidebarTabJobResult
-                    key={job.jobId}
-                    job={job}
-                    jobInfoService={jobSpecService}
-                    runInfoService={runInfoService}
-                    cordonService={cordonService}
-                  />
-                </SidebarTabPanel>
-
-                {job.state === JobState.Queued && (
-                  <SidebarTabPanel value={SidebarTab.Scheduling}>
-                    <SidebarTabScheduling key={job.jobId} job={job} />
+                  <SidebarTabPanel value={SidebarTab.JobDetails}>
+                    <SidebarTabJobDetails key={job.jobId} job={job} />
                   </SidebarTabPanel>
-                )}
 
-                <SidebarTabPanel value={SidebarTab.Yaml}>
-                  <SidebarTabJobYaml key={job.jobId} job={job} />
-                </SidebarTabPanel>
+                  <SidebarTabPanel value={SidebarTab.JobResult}>
+                    <SidebarTabJobResult
+                      key={job.jobId}
+                      job={job}
+                      jobInfoService={jobSpecService}
+                      runInfoService={runInfoService}
+                      cordonService={cordonService}
+                    />
+                  </SidebarTabPanel>
 
-                <SidebarTabPanel value={SidebarTab.Logs}>
-                  <SidebarTabJobLogs key={job.jobId} job={job} />
-                </SidebarTabPanel>
+                  {job.state === JobState.Queued && (
+                    <SidebarTabPanel value={SidebarTab.Scheduling}>
+                      <SidebarTabScheduling key={job.jobId} job={job} />
+                    </SidebarTabPanel>
+                  )}
 
-                <SidebarTabPanel value={SidebarTab.Commands}>
-                  <SidebarTabJobCommands key={job.jobId} job={job} commandSpecs={commandSpecs} />
-                </SidebarTabPanel>
-              </TabContext>
+                  <SidebarTabPanel value={SidebarTab.Yaml}>
+                    <SidebarTabJobYaml key={job.jobId} job={job} />
+                  </SidebarTabPanel>
+
+                  <SidebarTabPanel value={SidebarTab.Logs}>
+                    <SidebarTabJobLogs key={job.jobId} job={job} />
+                  </SidebarTabPanel>
+
+                  <SidebarTabPanel value={SidebarTab.Commands}>
+                    <SidebarTabJobCommands key={job.jobId} job={job} commandSpecs={commandSpecs} />
+                  </SidebarTabPanel>
+                </TabContext>
+              </ErrorBoundary>
             </SidebarTabContextContainer>
           </SidebarContent>
         </SidebarContainer>

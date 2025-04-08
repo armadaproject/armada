@@ -22,7 +22,7 @@ import {
   useFormatIsoTimestampWithUserSettings,
 } from "../../hooks/formatTimeWithUserSettings"
 import { JobState, jobStateColors, jobStateIcons } from "../../models/lookoutModels"
-import { JobSet } from "../../services/JobService"
+import { JobSet, JobSetsOrderByColumn } from "../../services/JobService"
 import { formatJobState } from "../../utils/jobsTableFormatters"
 import { JobStateCountChip } from "../lookout/JobStateCountChip"
 
@@ -67,12 +67,13 @@ interface JobSetTableProps {
   queue: string
   jobSets: JobSet[]
   selectedJobSets: Map<string, JobSet>
-  newestFirst: boolean
+  orderByColumn: JobSetsOrderByColumn
+  orderByDesc: boolean
   onSelectJobSet: (index: number, selected: boolean) => void
   onShiftSelectJobSet: (index: number, selected: boolean) => void
   onDeselectAllClick: () => void
   onSelectAllClick: () => void
-  onOrderChange: (newestFirst: boolean) => void
+  onOrderChange: (orderByColumn: JobSetsOrderByColumn, orderByDesc: boolean) => void
   onJobSetStateClick(rowIndex: number, state: string): void
 }
 
@@ -80,7 +81,8 @@ export default function JobSetTable({
   queue,
   jobSets,
   selectedJobSets,
-  newestFirst,
+  orderByColumn,
+  orderByDesc,
   onSelectJobSet,
   onShiftSelectJobSet,
   onDeselectAllClick,
@@ -139,12 +141,27 @@ export default function JobSetTable({
               onChange={(_, checked) => (checked ? onSelectAllClick() : onDeselectAllClick())}
             />
           </TableHeaderRowCell>
-          <TableHeaderRowCell>Job Set</TableHeaderRowCell>
           <TableHeaderRowCell>
-            <TableSortLabel active direction={newestFirst ? "desc" : "asc"} onClick={() => onOrderChange(!newestFirst)}>
+            <TableSortLabel
+              active={orderByColumn === "jobSet"}
+              direction={orderByDesc ? "desc" : "asc"}
+              onClick={() => onOrderChange("jobSet", (orderByColumn === "jobSet") !== orderByDesc)}
+            >
+              Job set
+              <Box component="span" sx={visuallyHidden}>
+                {orderByDesc ? "sorted descending" : "sorted ascending"}
+              </Box>
+            </TableSortLabel>
+          </TableHeaderRowCell>
+          <TableHeaderRowCell>
+            <TableSortLabel
+              active={orderByColumn === "submitted"}
+              direction={orderByDesc ? "desc" : "asc"}
+              onClick={() => onOrderChange("submitted", (orderByColumn === "submitted") !== orderByDesc)}
+            >
               Submission time ({displayedTimeZoneName})
               <Box component="span" sx={visuallyHidden}>
-                {newestFirst ? "sorted descending" : "sorted ascending"}
+                {orderByDesc ? "sorted descending" : "sorted ascending"}
               </Box>
             </TableSortLabel>
           </TableHeaderRowCell>
