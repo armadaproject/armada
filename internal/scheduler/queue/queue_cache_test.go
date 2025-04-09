@@ -2,6 +2,7 @@ package queue
 
 import (
 	"fmt"
+	"io"
 	"testing"
 	"time"
 
@@ -61,13 +62,22 @@ func TestFetch(t *testing.T) {
 					Recv().
 					Return(nil, fmt.Errorf("dummy error"))
 			} else {
-				mockStream.
+				appEnd := mockStream.
 					EXPECT().
 					Recv().
 					Return(
 						&api.StreamingQueueMessage{
 							Event: &api.StreamingQueueMessage_End{},
 						}, nil)
+				grpcEnd := mockStream.
+					EXPECT().
+					Recv().
+					Return(nil, io.EOF)
+
+				gomock.InOrder(
+					appEnd,
+					grpcEnd,
+				)
 			}
 
 			mockApiClient.EXPECT().GetQueues(ctx, gomock.Any()).Return(mockStream, nil).Times(1)
