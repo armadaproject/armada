@@ -51,9 +51,8 @@ class ArmadaClient(channel: ManagedChannel) {
     blockingStub.health(Empty()).status
   }
 
-  def submitHealth(): HealthCheckResponse.ServingStatus = {
-    val blockingStub = SubmitGrpc.blockingStub(channel)
-    blockingStub.health(Empty()).status
+  def submitHealth(): scala.concurrent.Future[HealthCheckResponse] = {
+    SubmitGrpc.stub(channel).health(Empty())
   }
 
   def createQueue(name: String): Unit = {

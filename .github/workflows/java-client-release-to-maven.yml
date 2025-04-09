@@ -22,19 +22,20 @@ jobs:
         gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
         gpg-passphrase: MAVEN_GPG_PASSPHRASE
 
+    - name: Inspect GPG
+      run: gpg -k
+
     - name: Build
       run: |
-        cp settings.xml /home/runner/.m2
-        cat /home/runner/.m2/settings.xml
+        cp client/java/settings.xml /home/runner/.m2
+        cd client/java
         mvn clean install
       env:
         MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
 
     - name: Release artifacts
       run: |
-        pwd
-        ls -la /home/runner/.m2
-        cat /home/runner/.m2/settings.xml
+        cd client/java
         mvn --batch-mode deploy -DskipTests -Pci
       env:
         MAVEN_USERNAME: ${{ secrets.MAVEN_USERNAME }}

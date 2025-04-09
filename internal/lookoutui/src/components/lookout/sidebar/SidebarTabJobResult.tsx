@@ -15,6 +15,7 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material"
+import { ErrorBoundary } from "react-error-boundary"
 
 import { KeyValuePairTable } from "./KeyValuePairTable"
 import { NoRunsAlert } from "./NoRunsAlert"
@@ -30,6 +31,7 @@ import { IGetRunInfoService } from "../../../services/lookout/GetRunInfoService"
 import { SPACING } from "../../../styling/spacing"
 import { getErrorMessage } from "../../../utils"
 import { formatJobRunState } from "../../../utils/jobsTableFormatters"
+import { AlertErrorFallback } from "../../AlertErrorFallback"
 import { CodeBlock } from "../../CodeBlock"
 
 const MarkNodeUnschedulableButtonContainer = styled("div")(({ theme }) => ({
@@ -319,26 +321,28 @@ export const SidebarTabJobResult = ({
                           </Tooltip>
                         </MarkNodeUnschedulableButtonContainer>
                         <Dialog open={open} onClose={handleClose} fullWidth maxWidth="md">
-                          <DialogTitle>Mark node as unschedulable</DialogTitle>
-                          <DialogContent>
-                            <Typography>
-                              Are you sure you want to take node <span>{node}</span> out of the farm?
-                            </Typography>
-                          </DialogContent>
-                          <DialogActions>
-                            <Button color="error" onClick={handleClose}>
-                              Cancel
-                            </Button>
-                            <Button
-                              onClick={async () => {
-                                await cordon(run.cluster, node)
-                                handleClose()
-                              }}
-                              autoFocus
-                            >
-                              Confirm
-                            </Button>
-                          </DialogActions>
+                          <ErrorBoundary FallbackComponent={AlertErrorFallback}>
+                            <DialogTitle>Mark node as unschedulable</DialogTitle>
+                            <DialogContent>
+                              <Typography>
+                                Are you sure you want to take node <span>{node}</span> out of the farm?
+                              </Typography>
+                            </DialogContent>
+                            <DialogActions>
+                              <Button color="error" onClick={handleClose}>
+                                Cancel
+                              </Button>
+                              <Button
+                                onClick={async () => {
+                                  await cordon(run.cluster, node)
+                                  handleClose()
+                                }}
+                                autoFocus
+                              >
+                                Confirm
+                              </Button>
+                            </DialogActions>
+                          </ErrorBoundary>
                         </Dialog>
                       </>
                     )}
