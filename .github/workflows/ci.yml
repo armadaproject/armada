@@ -33,9 +33,11 @@ jobs:
   build:
     uses: ./.github/workflows/build.yml
 
-  # Virtual job that can be configured as a required check before a PR can be merged.
-  all-required-checks-succeeded:
-    name: All required checks succeeded
+  # A single job that succeeds if all jobs listed under 'needs' succeed.
+  # This allows to configure a single job as a required check.
+  # The 'needed' jobs then can be changed through pull-requests.
+  all-jobs-succeeded:
+    name: All jobs succeeded
     if: always()
     # the if clauses below have to reflect the number of jobs listed here
     needs:
