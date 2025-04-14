@@ -6,6 +6,7 @@ databaseFetchSize: 1000
 pulsarSendTimeout: 5s
 internedStringsCacheSize: 100000
 queueRefreshPeriod: 10s
+publishMetricsToPulsar: false
 metrics:
   port: 9000
   jobStateMetricsResetInterval: 12h
@@ -18,7 +19,7 @@ metrics:
 pulsar:
   URL: "pulsar://pulsar:6650"
   jobsetEventsTopic: "events"
-  metricsEventsTopic: "metrics"
+  metricEventsTopic: "metrics"
   maxConnectionsPerBroker: 1
   compressionType: zlib
   compressionLevel: faster
