@@ -574,6 +574,38 @@
         }
       }
     },
+    "/v1/queues/active": {
+      "post": {
+        "tags": [
+          "Jobs"
+        ],
+        "operationId": "GetActiveQueues",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiGetActiveQueuesRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/apiGetActiveQueuesResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        }
+      }
+    },
     "/v1/run/details": {
       "post": {
         "tags": [
@@ -629,6 +661,17 @@
           }
         },
         "verbs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "apiActiveQueues": {
+      "type": "object",
+      "properties": {
+        "queues": {
           "type": "array",
           "items": {
             "type": "string"
@@ -774,6 +817,20 @@
         },
         "message": {
           "$ref": "#/definitions/apiEventMessage"
+        }
+      }
+    },
+    "apiGetActiveQueuesRequest": {
+      "type": "object"
+    },
+    "apiGetActiveQueuesResponse": {
+      "type": "object",
+      "properties": {
+        "activeQueuesByPool": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/apiActiveQueues"
+          }
         }
       }
     },

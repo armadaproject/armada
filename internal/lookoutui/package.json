@@ -48,6 +48,7 @@
     "query-string": "^9.1.1",
     "react": "^19",
     "react-dom": "^19",
+    "react-error-boundary": "^5.0.0",
     "react-router-dom": "7.2.0",
     "react-virtuoso": "^4.12.3",
     "timezone-support": "^3.1.0",

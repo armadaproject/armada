@@ -1,7 +1,9 @@
 import { useState } from "react"
 
 import { Dialog, DialogContent, DialogTitle } from "@mui/material"
+import { ErrorBoundary } from "react-error-boundary"
 
+import { AlertErrorFallback } from "../components/AlertErrorFallback"
 import ReprioritizeJobSets from "../components/job-sets/reprioritize-job-sets/ReprioritizeJobSets"
 import ReprioritizeJobSetsOutcome from "../components/job-sets/reprioritize-job-sets/ReprioritizeJobSetsOutcome"
 import { useGetAccessToken } from "../oidcAuth"
@@ -87,24 +89,26 @@ export default function ReprioritizeJobSetsDialog(props: ReprioritizeJobSetsDial
     >
       <DialogTitle id="-reprioritize-job-sets-dialog-title">Reprioritize Job Sets</DialogTitle>
       <DialogContent className="lookout-dialog">
-        {state === "ReprioritizeJobSets" && (
-          <ReprioritizeJobSets
-            queue={props.queue}
-            jobSets={jobSetsToReprioritize}
-            isLoading={requestStatus === "Loading"}
-            isValid={priorityIsValid(priority)}
-            onReprioritizeJobsSets={reprioritizeJobSets}
-            onPriorityChange={setPriority}
-          />
-        )}
-        {state === "ReprioritizeJobSetsResult" && (
-          <ReprioritizeJobSetsOutcome
-            reprioritizeJobSetResponse={response}
-            isLoading={requestStatus === "Loading"}
-            newPriority={priority}
-            onReprioritizeJobSets={reprioritizeJobSets}
-          />
-        )}
+        <ErrorBoundary FallbackComponent={AlertErrorFallback}>
+          {state === "ReprioritizeJobSets" && (
+            <ReprioritizeJobSets
+              queue={props.queue}
+              jobSets={jobSetsToReprioritize}
+              isLoading={requestStatus === "Loading"}
+              isValid={priorityIsValid(priority)}
+              onReprioritizeJobsSets={reprioritizeJobSets}
+              onPriorityChange={setPriority}
+            />
+          )}
+          {state === "ReprioritizeJobSetsResult" && (
+            <ReprioritizeJobSetsOutcome
+              reprioritizeJobSetResponse={response}
+              isLoading={requestStatus === "Loading"}
+              newPriority={priority}
+              onReprioritizeJobSets={reprioritizeJobSets}
+            />
+          )}
+        </ErrorBoundary>
       </DialogContent>
     </Dialog>
   )

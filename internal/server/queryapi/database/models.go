@@ -58,6 +58,7 @@ type JobRun struct {
 	ExitCode    *int32           `db:"exit_code"`
 	Leased      pgtype.Timestamp `db:"leased"`
 	Debug       []byte           `db:"debug"`
+	Pool        *string          `db:"pool"`
 }
 
 type JobSpec struct {

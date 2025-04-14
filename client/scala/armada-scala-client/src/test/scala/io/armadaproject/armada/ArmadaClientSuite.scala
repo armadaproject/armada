@@ -24,6 +24,8 @@ import api.submit.{
   SubmitGrpc
 }
 import api.job.{
+  GetActiveQueuesRequest,
+  GetActiveQueuesResponse,
   JobDetailsRequest,
   JobDetailsResponse,
   JobErrorsRequest,
@@ -205,6 +207,12 @@ private class JobsMockServer(
     statusMap: TrieMap[String, JobState]
 ) extends JobsGrpc.Jobs {
 
+  def getActiveQueues(
+      request: GetActiveQueuesRequest
+  ): scala.concurrent.Future[GetActiveQueuesResponse] = {
+    Future.successful(new GetActiveQueuesResponse)
+  }
+
   def getJobDetails(
       request: JobDetailsRequest
   ): scala.concurrent.Future[JobDetailsResponse] = {
@@ -258,6 +266,10 @@ class ArmadaClientSuite extends AnyFunSuite with BeforeAndAfterAll {
   private val statusMap: TrieMap[String, JobState] =
     new TrieMap // key is job id
 
+  // Required for processing Futures in test
+  implicit val ec: scala.concurrent.ExecutionContext =
+    scala.concurrent.ExecutionContext.global
+
   override def beforeAll(): Unit = {
     import scala.concurrent.ExecutionContext
     server = ServerBuilder
@@ -291,8 +303,13 @@ class ArmadaClientSuite extends AnyFunSuite with BeforeAndAfterAll {
 
   test("ArmadaClient.submitHealth()") {
     val ac = ArmadaClient("localhost", testPort)
-    val status = ac.submitHealth()
-    assert(status === HealthCheckResponse.ServingStatus.SERVING)
+    val healthResp = ac.submitHealth()
+    healthResp.onComplete {
+      case scala.util.Success(resp) =>
+        assert(resp.status === HealthCheckResponse.ServingStatus.SERVING)
+      case scala.util.Failure(exception) =>
+        fail("submitHealth() test failed: " + exception)
+    }
   }
 
   test("ArmadaClient.submitJobs()") {

@@ -1,0 +1,43 @@
+name: Release Java Client to Maven
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    environment: maven-release
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Maven Central Repository
+      uses: actions/setup-java@c3ac5dd0ed8db40fedb61c32fbe677e6b355e94c
+      with:
+        java-version: '11'
+        distribution: 'temurin'
+        server-id: central
+        server-username: MAVEN_USERNAME
+        server-password: MAVEN_PASSWORD
+        gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
+        gpg-passphrase: MAVEN_GPG_PASSPHRASE
+
+    - name: Inspect GPG
+      run: gpg -k
+
+    - name: Build
+      run: |
+        cp client/java/settings.xml /home/runner/.m2
+        cd client/java
+        mvn clean install
+      env:
+        MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
+
+    - name: Release artifacts
+      run: |
+        cd client/java
+        mvn --batch-mode deploy -DskipTests -Pci
+      env:
+        MAVEN_USERNAME: ${{ secrets.MAVEN_USERNAME }}
+        MAVEN_PASSWORD: ${{ secrets.MAVEN_PASSWORD }}
+        MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}

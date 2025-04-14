@@ -1,0 +1,56 @@
+name: Java Client
+
+on:
+  push:
+    tags:
+      - v*
+    branches:
+      - master
+    paths:
+      - 'client/java/**'
+      - 'build/java-client/**'
+      - 'pkg/api/*.proto'
+      - '.github/workflows/java-client.yml'
+      - 'scripts/build-java-client.sh'
+      - 'makefile'
+      - './magefiles/java.go'
+
+  pull_request:
+    branches-ignore:
+      - gh-pages
+    paths:
+      - 'client/java/**'
+      - 'build/java-client/**'
+      - 'pkg/api/*.proto'
+      - '.github/workflows/java-client.yml'
+      - 'scripts/build-java-client.sh'
+      - 'makefile'
+      - './magefiles/java.go'
+
+jobs:
+  java-client-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 11
+        uses: actions/setup-java@v4
+        with:
+          java-version: '11'
+          distribution: 'temurin'
+
+      - name: Install Maven
+        run: sudo apt-get update && sudo apt-get install -y maven
+
+      - name: Restore Maven packages cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-mvn-build-${{ hashFiles('client/java/pom.xml') }}
+          restore-keys:
+            ${{ runner.os }}-mvn-build-${{ hashFiles('client/java/pom.xml') }}
+            ${{ runner.os }}-mvn-build-
+
+      - name: Run unit tests
+        working-directory: client/java
+        run: mvn --batch-mode test
