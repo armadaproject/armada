@@ -30,6 +30,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/profiling"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/common/pulsarutils/jobsetevents"
+	"github.com/armadaproject/armada/internal/common/pulsarutils/utils"
 	"github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/types"
@@ -40,7 +41,6 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/leader"
 	"github.com/armadaproject/armada/internal/scheduler/metrics"
-
 	"github.com/armadaproject/armada/internal/scheduler/priorityoverride"
 	"github.com/armadaproject/armada/internal/scheduler/queue"
 	"github.com/armadaproject/armada/internal/scheduler/reports"
@@ -50,6 +50,7 @@ import (
 	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/client"
 	"github.com/armadaproject/armada/pkg/executorapi"
+	"github.com/armadaproject/armada/pkg/metricevents"
 )
 
 // Run sets up a Scheduler application and runs it until a SIGTERM is received
@@ -99,7 +100,7 @@ func Run(config schedulerconfig.Configuration) error {
 	var services []func() error
 
 	// ////////////////////////////////////////////////////////////////////////
-	// Database setup (postgres and redis)
+	// Postgres
 	// ////////////////////////////////////////////////////////////////////////
 	ctx.Infof("Setting up database connections")
 	db, err := dbcommon.OpenPgxPool(config.Postgres)
@@ -159,13 +160,31 @@ func Run(config schedulerconfig.Configuration) error {
 		return errors.WithMessage(err, "Error creating pulsar client")
 	}
 	defer pulsarClient.Close()
-	pulsarPublisher, err := NewPulsarPublisher(pulsarClient, pulsar.ProducerOptions{
+
+	armadaeventPublisher, err := NewPulsarPublisher(pulsarClient, pulsar.ProducerOptions{
 		Name:             fmt.Sprintf("armada-scheduler-%s", uuid.NewString()),
 		CompressionType:  config.Pulsar.CompressionType,
 		CompressionLevel: config.Pulsar.CompressionLevel,
 		BatchingMaxSize:  config.Pulsar.MaxAllowedMessageSize,
 		Topic:            config.Pulsar.JobsetEventsTopic,
 	}, config.Pulsar.MaxAllowedEventsPerMessage, config.Pulsar.MaxAllowedMessageSize, config.Pulsar.SendTimeout)
+
+	metricPublisher, err := pulsarutils.NewPulsarPublisher[*metricevents.Event](
+		pulsarClient,
+		pulsar.ProducerOptions{
+			Name:             fmt.Sprintf("armada-scheduler-metrics-%s", uuid.NewString()),
+			CompressionType:  config.Pulsar.CompressionType,
+			CompressionLevel: config.Pulsar.CompressionLevel,
+			BatchingMaxSize:  config.Pulsar.MaxAllowedMessageSize,
+			Topic:            config.Pulsar.MetricEventsTopic,
+		},
+		utils.NoOpPreProcessor,
+		func(event *metricevents.Event) string {
+			return ""
+		},
+		config.Pulsar.SendTimeout,
+	)
+
 	if err != nil {
 		return errors.WithMessage(err, "error creating pulsar publisher")
 	}
@@ -301,7 +320,12 @@ func Run(config schedulerconfig.Configuration) error {
 	)
 
 	schedulerMetrics, err := metrics.New(
-		config.Metrics.TrackedErrorRegexes, config.Metrics.TrackedResourceNames, config.Metrics.JobCheckpointIntervals, config.Metrics.JobStateMetricsResetInterval)
+		config.Metrics.TrackedErrorRegexes,
+		config.Metrics.TrackedResourceNames,
+		config.Metrics.JobCheckpointIntervals,
+		config.Metrics.JobStateMetricsResetInterval,
+		metricPublisher,
+	)
 	if err != nil {
 		return err
 	}
@@ -315,7 +339,7 @@ func Run(config schedulerconfig.Configuration) error {
 		executorRepository,
 		schedulingAlgo,
 		leaderController,
-		pulsarPublisher,
+		armadaeventPublisher,
 		submitChecker,
 		config.CyclePeriod,
 		config.SchedulePeriod,

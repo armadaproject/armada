@@ -1,0 +1,27 @@
+syntax = 'proto3';
+package controlplaneevents;
+option go_package = "github.com/armadaproject/armada/pkg/metricevents";
+
+import "google/protobuf/timestamp.proto";
+import "k8s.io/apimachinery/pkg/api/resource/generated.proto";
+
+
+message Event {
+  google.protobuf.Timestamp created = 1;
+  oneof event {
+    CycleMetrics cycle_metrics = 2;
+  }
+}
+
+message CycleMetrics {
+  // Pool that these metrics pertain to
+  string pool = 1;
+  // Fraction of the pool allocated per queue
+  map<string, double> actual_share = 2;
+  // Fraction of the pool demanded per queue. May be greater than 1
+  map<string, double> demand = 3;
+  // Fraction of the pool demanded per queue, limited by scheduling constraints. May be greater than 1
+  map<string, double> constrained_demand = 4;
+  // Allocatable resources
+  map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> allocatable_resources = 5;
+}

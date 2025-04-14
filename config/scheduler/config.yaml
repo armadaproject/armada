@@ -18,6 +18,7 @@ metrics:
 pulsar:
   URL: "pulsar://pulsar:6650"
   jobsetEventsTopic: "events"
+  metricsEventsTopic: "metrics"
   maxConnectionsPerBroker: 1
   compressionType: zlib
   compressionLevel: faster
