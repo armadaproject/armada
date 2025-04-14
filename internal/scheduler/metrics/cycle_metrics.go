@@ -11,8 +11,10 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"k8s.io/apimachinery/pkg/api/resource"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	log "github.com/armadaproject/armada/internal/common/logging"
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
+	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling"
@@ -285,7 +287,7 @@ type cycleMetrics struct {
 	scheduleCycleTime       prometheus.Histogram
 	reconciliationCycleTime prometheus.Histogram
 	latestCycleMetrics      atomic.Pointer[perCycleMetrics]
-	metricsPublisher        MetricsPublisher
+	metricsPublisher        pulsarutils.Publisher[*metricevents.Event]
 }
 
 func newCycleMetrics() *cycleMetrics {
@@ -356,7 +358,7 @@ func (m *cycleMetrics) ReportReconcileCycleTime(cycleTime time.Duration) {
 	m.reconciliationCycleTime.Observe(float64(cycleTime.Milliseconds()))
 }
 
-func (m *cycleMetrics) ReportSchedulerResult(result scheduling.SchedulerResult) {
+func (m *cycleMetrics) ReportSchedulerResult(ctx *armadacontext.Context, result scheduling.SchedulerResult) {
 	// Metrics that depend on pool
 	currentCycle := newPerCycleMetrics()
 	for _, schedContext := range result.SchedulingContexts {
@@ -451,7 +453,7 @@ func (m *cycleMetrics) ReportSchedulerResult(result scheduling.SchedulerResult) 
 	}
 	m.latestCycleMetrics.Store(currentCycle)
 
-	m.publishCycleMetrics(result)
+	m.publishCycleMetrics(ctx, result)
 }
 
 func (m *cycleMetrics) describe(ch chan<- *prometheus.Desc) {
@@ -526,7 +528,7 @@ func (m *cycleMetrics) collect(ch chan<- prometheus.Metric) {
 	m.reconciliationCycleTime.Collect(ch)
 }
 
-func (m *cycleMetrics) publishCycleMetrics(result scheduling.SchedulerResult) {
+func (m *cycleMetrics) publishCycleMetrics(ctx *armadacontext.Context, result scheduling.SchedulerResult) {
 	events := make([]*metricevents.Event, len(result.SchedulingContexts))
 	for i, sc := range result.SchedulingContexts {
 		qCtxs := sc.QueueSchedulingContexts
@@ -550,8 +552,8 @@ func (m *cycleMetrics) publishCycleMetrics(result scheduling.SchedulerResult) {
 			Event:   &metricevents.Event_CycleMetrics{CycleMetrics: &msg},
 		}
 	}
-	err := m.metricsPublisher.Publish(events)
+	err := m.metricsPublisher.PublishMessages(ctx, events...)
 	if err != nil {
-		log.WithError(err).Warn("Error publishing cycle metrics")
+		ctx.Logger().WithError(err).Warn("Error publishing cycle metrics")
 	}
 }
