@@ -2,6 +2,9 @@ package metrics
 
 import (
 	"fmt"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/common/pulsarutils"
+	"github.com/armadaproject/armada/pkg/metricevents"
 	"testing"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -21,6 +24,7 @@ import (
 const epsilon = 1e-6
 
 func TestReportStateTransitions(t *testing.T) {
+	ctx := armadacontext.Background()
 	fairnessCostProvider, err := fairness.NewDominantResourceFairness(
 		cpu(100),
 		configuration.SchedulingConfig{DominantResourceFairnessResourcesToConsider: []string{"cpu"}},
@@ -57,8 +61,8 @@ func TestReportStateTransitions(t *testing.T) {
 		},
 	}
 
-	m := newCycleMetrics()
-	m.ReportSchedulerResult(result)
+	m := newCycleMetrics(pulsarutils.NoOpPublisher[*metricevents.Event]{})
+	m.ReportSchedulerResult(ctx, result)
 
 	poolQueue := []string{"pool1", "queue1"}
 
@@ -85,7 +89,7 @@ func TestReportStateTransitions(t *testing.T) {
 }
 
 func TestResetLeaderMetrics_Counters(t *testing.T) {
-	m := newCycleMetrics()
+	m := newCycleMetrics(pulsarutils.NoOpPublisher[*metricevents.Event]{})
 	poolAndQueueAndPriorityClassTypeLabels := []string{"pool1", "queue1", "priorityClass1", "type1"}
 
 	testResetCounter := func(vec *prometheus.CounterVec, labelValues []string) {
@@ -102,7 +106,7 @@ func TestResetLeaderMetrics_Counters(t *testing.T) {
 }
 
 func TestResetLeaderMetrics_ResetsLatestCycleMetrics(t *testing.T) {
-	m := newCycleMetrics()
+	m := newCycleMetrics(pulsarutils.NoOpPublisher[*metricevents.Event]{})
 	poolLabelValues := []string{"pool1"}
 	poolQueueLabelValues := []string{"pool1", "queue1"}
 	poolQueueResourceLabelValues := []string{"pool1", "queue1", "cpu"}
@@ -147,8 +151,7 @@ func TestResetLeaderMetrics_ResetsLatestCycleMetrics(t *testing.T) {
 }
 
 func TestDisableLeaderMetrics(t *testing.T) {
-	m := newCycleMetrics()
-
+	m := newCycleMetrics(pulsarutils.NoOpPublisher[*metricevents.Event]{})
 	poolQueueLabelValues := []string{"pool1", "queue1"}
 	poolAndQueueAndPriorityClassTypeLabels := []string{"pool1", "queue1", "priorityClass1", "type1"}
 

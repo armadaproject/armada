@@ -97,3 +97,12 @@ func (p *PulsarPublisher[T]) PublishMessages(ctx *armadacontext.Context, events 
 func (p *PulsarPublisher[T]) Close() {
 	p.producer.Close()
 }
+
+// NoOpPublisher is an implementation of Publisher that doesn't do anything.
+type NoOpPublisher[T utils.ArmadaEvent] struct{}
+
+func (n NoOpPublisher[T]) PublishMessages(_ *armadacontext.Context, _ ...T) error {
+	return nil
+}
+
+func (n NoOpPublisher[T]) Close() {}
