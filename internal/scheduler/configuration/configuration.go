@@ -58,6 +58,8 @@ type Configuration struct {
 	QueueRefreshPeriod time.Duration `validate:"required"`
 	// Allows queue priority overrides to be fetched from an external source.
 	PriorityOverride PriorityOverrideConfig
+	// Whether To Metrics To Pulsar.  This is currently experimental
+	PublishMetricsToPulsar bool
 }
 
 type LeaderConfig struct {

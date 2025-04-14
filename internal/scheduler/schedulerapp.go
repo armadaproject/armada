@@ -161,34 +161,41 @@ func Run(config schedulerconfig.Configuration) error {
 	}
 	defer pulsarClient.Close()
 
-	armadaeventPublisher, err := NewPulsarPublisher(pulsarClient, pulsar.ProducerOptions{
+	jobsetEventPublisher, err := NewPulsarPublisher(pulsarClient, pulsar.ProducerOptions{
 		Name:             fmt.Sprintf("armada-scheduler-%s", uuid.NewString()),
 		CompressionType:  config.Pulsar.CompressionType,
 		CompressionLevel: config.Pulsar.CompressionLevel,
 		BatchingMaxSize:  config.Pulsar.MaxAllowedMessageSize,
 		Topic:            config.Pulsar.JobsetEventsTopic,
 	}, config.Pulsar.MaxAllowedEventsPerMessage, config.Pulsar.MaxAllowedMessageSize, config.Pulsar.SendTimeout)
-
-	metricPublisher, err := pulsarutils.NewPulsarPublisher[*metricevents.Event](
-		pulsarClient,
-		pulsar.ProducerOptions{
-			Name:             fmt.Sprintf("armada-scheduler-metrics-%s", uuid.NewString()),
-			CompressionType:  config.Pulsar.CompressionType,
-			CompressionLevel: config.Pulsar.CompressionLevel,
-			BatchingMaxSize:  config.Pulsar.MaxAllowedMessageSize,
-			Topic:            config.Pulsar.MetricEventsTopic,
-		},
-		utils.NoOpPreProcessor,
-		func(event *metricevents.Event) string {
-			return ""
-		},
-		config.Pulsar.SendTimeout,
-	)
-
 	if err != nil {
-		return errors.WithMessage(err, "error creating pulsar publisher")
+		return errors.WithMessage(err, "error creating jobset event pulsar publisher")
 	}
 
+	// Publishing metrics to pulsar is experimental.  We default to a no-op publisher and only enable a pulsar publisher
+	// if the feature flag is set in config
+	var metricPublisher pulsarutils.Publisher[*metricevents.Event] = pulsarutils.NoOpPublisher[*metricevents.Event]{}
+	if config.PublishMetricsToPulsar {
+		metricPublisher, err = pulsarutils.NewPulsarPublisher[*metricevents.Event](
+			pulsarClient,
+			pulsar.ProducerOptions{
+				Name:             fmt.Sprintf("armada-scheduler-metrics-%s", uuid.NewString()),
+				CompressionType:  config.Pulsar.CompressionType,
+				CompressionLevel: config.Pulsar.CompressionLevel,
+				BatchingMaxSize:  config.Pulsar.MaxAllowedMessageSize,
+				Topic:            config.Pulsar.MetricEventsTopic,
+			},
+			utils.NoOpPreProcessor,
+			// Metrics are sent to an unpartitioned pulsar topic so there is no key needed
+			func(event *metricevents.Event) string {
+				return ""
+			},
+			config.Pulsar.SendTimeout,
+		)
+		if err != nil {
+			return errors.WithMessage(err, "error creating metric event pulsar publisher")
+		}
+	}
 	// ////////////////////////////////////////////////////////////////////////
 	// Leader Election
 	// ////////////////////////////////////////////////////////////////////////
@@ -339,7 +346,7 @@ func Run(config schedulerconfig.Configuration) error {
 		executorRepository,
 		schedulingAlgo,
 		leaderController,
-		armadaeventPublisher,
+		jobsetEventPublisher,
 		submitChecker,
 		config.CyclePeriod,
 		config.SchedulePeriod,
