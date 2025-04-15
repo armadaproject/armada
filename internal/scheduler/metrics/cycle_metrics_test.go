@@ -3,24 +3,31 @@ package metrics
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 	"k8s.io/apimachinery/pkg/api/resource"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/common/mocks"
+	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/fairness"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
+	"github.com/armadaproject/armada/pkg/metricevents"
 )
 
 const epsilon = 1e-6
 
 func TestReportStateTransitions(t *testing.T) {
+	ctx := armadacontext.Background()
 	fairnessCostProvider, err := fairness.NewDominantResourceFairness(
 		cpu(100),
 		configuration.SchedulingConfig{DominantResourceFairnessResourcesToConsider: []string{"cpu"}},
@@ -57,8 +64,8 @@ func TestReportStateTransitions(t *testing.T) {
 		},
 	}
 
-	m := newCycleMetrics()
-	m.ReportSchedulerResult(result)
+	m := newCycleMetrics(pulsarutils.NoOpPublisher[*metricevents.Event]{})
+	m.ReportSchedulerResult(ctx, result)
 
 	poolQueue := []string{"pool1", "queue1"}
 
@@ -85,7 +92,7 @@ func TestReportStateTransitions(t *testing.T) {
 }
 
 func TestResetLeaderMetrics_Counters(t *testing.T) {
-	m := newCycleMetrics()
+	m := newCycleMetrics(pulsarutils.NoOpPublisher[*metricevents.Event]{})
 	poolAndQueueAndPriorityClassTypeLabels := []string{"pool1", "queue1", "priorityClass1", "type1"}
 
 	testResetCounter := func(vec *prometheus.CounterVec, labelValues []string) {
@@ -102,7 +109,7 @@ func TestResetLeaderMetrics_Counters(t *testing.T) {
 }
 
 func TestResetLeaderMetrics_ResetsLatestCycleMetrics(t *testing.T) {
-	m := newCycleMetrics()
+	m := newCycleMetrics(pulsarutils.NoOpPublisher[*metricevents.Event]{})
 	poolLabelValues := []string{"pool1"}
 	poolQueueLabelValues := []string{"pool1", "queue1"}
 	poolQueueResourceLabelValues := []string{"pool1", "queue1", "cpu"}
@@ -147,8 +154,7 @@ func TestResetLeaderMetrics_ResetsLatestCycleMetrics(t *testing.T) {
 }
 
 func TestDisableLeaderMetrics(t *testing.T) {
-	m := newCycleMetrics()
-
+	m := newCycleMetrics(pulsarutils.NoOpPublisher[*metricevents.Event]{})
 	poolQueueLabelValues := []string{"pool1", "queue1"}
 	poolAndQueueAndPriorityClassTypeLabels := []string{"pool1", "queue1", "priorityClass1", "type1"}
 
@@ -194,6 +200,54 @@ func TestDisableLeaderMetrics(t *testing.T) {
 	// Enabled
 	m.enableLeaderMetrics()
 	assert.NotZero(t, len(collect(m)))
+}
+
+func TestPublishCycleMetrics(t *testing.T) {
+	ts := time.Now()
+	ctx := armadacontext.Background()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	mockPublisher := mocks.NewMockPublisher[*metricevents.Event](ctrl)
+	m := newCycleMetrics(mockPublisher)
+
+	fairnessCostProvider, err := fairness.NewDominantResourceFairness(
+		cpu(100),
+		configuration.SchedulingConfig{DominantResourceFairnessResourcesToConsider: []string{"cpu"}},
+	)
+	require.NoError(t, err)
+	schedulerResult := scheduling.SchedulerResult{
+		SchedulingContexts: []*context.SchedulingContext{
+			{
+				Pool:                 "pool1",
+				Finished:             ts,
+				FairnessCostProvider: fairnessCostProvider,
+				TotalResources:       cpu(100),
+				QueueSchedulingContexts: map[string]*context.QueueSchedulingContext{
+					"queue1": {
+						Queue:             "queue1",
+						Allocated:         cpu(10),
+						Demand:            cpu(20),
+						ConstrainedDemand: cpu(15),
+					},
+				},
+			},
+		},
+	}
+
+	mockPublisher.EXPECT().PublishMessages(ctx, gomock.Any()).DoAndReturn(func(ctx *armadacontext.Context, events ...*metricevents.Event) error {
+		require.Equal(t, 1, len(events))
+		actual := events[0].GetCycleMetrics()
+		assert.Equal(t, "pool1", actual.Pool)
+		assert.Equal(t, map[string]*metricevents.QueueMetrics{
+			"queue1": {
+				ActualShare:       0.1,
+				Demand:            0.2,
+				ConstrainedDemand: 0.15,
+			},
+		}, actual.QueueMetrics)
+		return nil
+	})
+	m.publishCycleMetrics(ctx, schedulerResult)
 }
 
 func cpu(n int) internaltypes.ResourceList {
