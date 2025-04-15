@@ -84,6 +84,9 @@ type eventData struct {
 }
 
 func (repo *RedisEventStore) doStore(ctx *armadacontext.Context, update []*model.Event) error {
+	if len(update) == 0 {
+		return nil
+	}
 
 	return ingest.WithRetry(func() (bool, error) {
 		var data []eventData
@@ -96,9 +99,6 @@ func (repo *RedisEventStore) doStore(ctx *armadacontext.Context, update []*model
 		}
 
 		for i, db := range repo.dbs {
-			if len(data) == 0 {
-				continue
-			}
 			r, e := repo.writeToRedis(ctx, db, data, uniqueJobSets, repo.dbNames[i])
 			if e != nil {
 				return r, fmt.Errorf("error with redis %s: %v", repo.dbNames[i], e)
