@@ -47,13 +47,28 @@ func Run(config *configuration.EventIngesterConfiguration) {
 		fatalRegexes[i] = rgx
 	}
 
-	rc := redis.NewUniversalClient(&config.Redis)
+	db := redis.NewUniversalClient(&config.Redis)
 	defer func() {
-		if err := rc.Close(); err != nil {
+		if err := db.Close(); err != nil {
 			log.WithError(err).Error("failed to close events Redis client")
 		}
 	}()
-	eventDb := store.NewRedisEventStore(rc, config.EventRetentionPolicy, fatalRegexes, 100*time.Millisecond, 60*time.Second)
+
+	dbs := []redis.UniversalClient{db}
+	dbNames := []string{"main"}
+
+	if len(config.RedisReplica.Addrs) > 0 {
+		db2 := redis.NewUniversalClient(&config.RedisReplica)
+		defer func() {
+			if err := db2.Close(); err != nil {
+				log.WithError(err).Error("failed to close events Redis replica client")
+			}
+		}()
+		dbs = append(dbs, db2)
+		dbNames = append(dbNames, "replica")
+	}
+
+	eventDb := store.NewRedisEventStore(dbs, dbNames, config.EventRetentionPolicy, fatalRegexes, 100*time.Millisecond, 60*time.Second)
 
 	// Turn the messages into event rows
 	compressor, err := compress.NewZlibCompressor(config.MinMessageCompressionSize)
