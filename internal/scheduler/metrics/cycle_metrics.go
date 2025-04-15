@@ -2,12 +2,12 @@ package metrics
 
 import (
 	"fmt"
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"math"
 	"strconv"
 	"sync/atomic"
 	"time"
 
-	"github.com/gogo/protobuf/types"
 	"github.com/prometheus/client_golang/prometheus"
 	"k8s.io/apimachinery/pkg/api/resource"
 
@@ -549,7 +549,7 @@ func (m *cycleMetrics) publishCycleMetrics(ctx *armadacontext.Context, result sc
 			}),
 		}
 		events[i] = &metricevents.Event{
-			Created: types.TimestampNow(),
+			Created: protoutil.ToTimestamp(sc.Finished),
 			Event:   &metricevents.Event_CycleMetrics{CycleMetrics: &msg},
 		}
 	}

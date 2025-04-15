@@ -3,7 +3,9 @@ package metrics
 import (
 	"fmt"
 	"testing"
+	"time"
 
+	"github.com/armadaproject/armada/internal/common/mocks"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
@@ -19,6 +21,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/fairness"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 	"github.com/armadaproject/armada/pkg/metricevents"
+	"go.uber.org/mock/gomock"
 )
 
 const epsilon = 1e-6
@@ -199,8 +202,70 @@ func TestDisableLeaderMetrics(t *testing.T) {
 	assert.NotZero(t, len(collect(m)))
 }
 
+func TestPublishCycleMetrics(t *testing.T) {
+	ts := time.Now()
+	ctx := armadacontext.Background()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	mockPublisher := mocks.NewMockPublisher[*metricevents.Event](ctrl)
+	m := newCycleMetrics(mockPublisher)
+
+	fairnessCostProvider, err := fairness.NewDominantResourceFairness(
+		cpu(100),
+		configuration.SchedulingConfig{DominantResourceFairnessResourcesToConsider: []string{"cpu"}},
+	)
+	require.NoError(t, err)
+	schedulerResult := scheduling.SchedulerResult{
+		SchedulingContexts: []*context.SchedulingContext{
+			{
+				Pool:                 "pool1",
+				Finished:             ts,
+				FairnessCostProvider: fairnessCostProvider,
+				TotalResources:       cpu(100),
+				QueueSchedulingContexts: map[string]*context.QueueSchedulingContext{
+					"queue1": {
+						Queue:             "queue1",
+						Allocated:         cpu(10),
+						Demand:            cpu(20),
+						ConstrainedDemand: cpu(15),
+					},
+				},
+			},
+		},
+	}
+
+	expected := &metricevents.CycleMetrics{
+		Pool:              "pool1",
+		ActualShare:       map[string]float64{"queue1": 0.1},
+		Demand:            map[string]float64{"queue1": 0.2},
+		ConstrainedDemand: map[string]float64{"queue1": 0.15},
+		AllocatableResources: map[string]*resource.Quantity{
+			"cpu":                    mustParseResourcePointer("100"),
+			"memory":                 mustParseResourcePointer("0"),
+			"nvidia.com/gpu":         mustParseResourcePointer("0"),
+			"test-floating-resource": mustParseResourcePointer("0"),
+		},
+	}
+
+	mockPublisher.EXPECT().PublishMessages(ctx, gomock.Any()).DoAndReturn(func(ctx *armadacontext.Context, events ...*metricevents.Event) error {
+		require.Equal(t, 1, len(events))
+		actual := events[0].GetCycleMetrics()
+		assert.Equal(t, expected.Pool, actual.Pool)
+		assert.Equal(t, expected.ActualShare, actual.ActualShare)
+		assert.Equal(t, expected.Demand, actual.Demand)
+		assert.Equal(t, expected.ConstrainedDemand, actual.ConstrainedDemand)
+		return nil
+	})
+	m.publishCycleMetrics(ctx, schedulerResult)
+}
+
 func cpu(n int) internaltypes.ResourceList {
 	return testfixtures.TestResourceListFactory.FromJobResourceListIgnoreUnknown(
 		map[string]resource.Quantity{"cpu": resource.MustParse(fmt.Sprintf("%d", n))},
 	)
+}
+
+func mustParseResourcePointer(q string) *resource.Quantity {
+	qStruct := resource.MustParse(q)
+	return &qStruct
 }
