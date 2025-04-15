@@ -5,12 +5,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/armadaproject/armada/internal/common/mocks"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/api/resource"
+
+	"github.com/armadaproject/armada/internal/common/mocks"
+
+	"go.uber.org/mock/gomock"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
@@ -21,7 +24,6 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/fairness"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 	"github.com/armadaproject/armada/pkg/metricevents"
-	"go.uber.org/mock/gomock"
 )
 
 const epsilon = 1e-6
@@ -254,9 +256,4 @@ func cpu(n int) internaltypes.ResourceList {
 	return testfixtures.TestResourceListFactory.FromJobResourceListIgnoreUnknown(
 		map[string]resource.Quantity{"cpu": resource.MustParse(fmt.Sprintf("%d", n))},
 	)
-}
-
-func mustParseResourcePointer(q string) *resource.Quantity {
-	qStruct := resource.MustParse(q)
-	return &qStruct
 }

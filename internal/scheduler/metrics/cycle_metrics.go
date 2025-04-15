@@ -2,11 +2,12 @@ package metrics
 
 import (
 	"fmt"
-	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"math"
 	"strconv"
 	"sync/atomic"
 	"time"
+
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"k8s.io/apimachinery/pkg/api/resource"
