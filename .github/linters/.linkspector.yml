@@ -1,0 +1,13 @@
+# Config file for linkspector: a tool to check that all links in markdown files aren't broken
+
+dirs:
+  - "."
+useGitIgnore: true
+ignorePatterns:
+  - pattern: 'localhost:' # Ignore localhost links
+baseUrl: https://armadaproject.io
+aliveStatusCodes:
+  - 200
+  - 201
+  - 204
+  - 403

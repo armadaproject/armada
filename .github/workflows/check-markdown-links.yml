@@ -1,0 +1,29 @@
+name: Check broken links in markdown files
+
+on:
+  pull_request:
+    branches-ignore:
+      - gh-pages
+    paths:
+      - "**/*.md"
+  workflow_dispatch:
+    branches:
+      - master
+
+permissions:
+  pull-requests: read
+
+jobs:
+  check-markdown-links:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check markdown links
+        uses: umbrelladocs/action-linkspector@v1
+        with:
+          config_file: .github/linters/.linkspector.yml
+          fail_level: error
+          filter_mode: ${{ github.event_name == 'workflow_dispatch' && 'nofilter' || 'added' }} # Check only new lines on pull_request vs all files on workflow_dispatch
