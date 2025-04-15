@@ -107,24 +107,83 @@ func (*Event) XXX_OneofWrappers() []interface{} {
 	}
 }
 
+type QueueMetrics struct {
+	// Fraction of the pool allocated
+	ActualShare float64 `protobuf:"fixed64,1,opt,name=actual_share,json=actualShare,proto3" json:"actualShare,omitempty"`
+	// Fraction of the pool demanded. May be greater than 1
+	Demand float64 `protobuf:"fixed64,2,opt,name=demand,proto3" json:"demand,omitempty"`
+	// Fraction of the pool demanded, limited by scheduling constraints. May be greater than 1
+	ConstrainedDemand float64 `protobuf:"fixed64,3,opt,name=constrained_demand,json=constrainedDemand,proto3" json:"constrainedDemand,omitempty"`
+}
+
+func (m *QueueMetrics) Reset()         { *m = QueueMetrics{} }
+func (m *QueueMetrics) String() string { return proto.CompactTextString(m) }
+func (*QueueMetrics) ProtoMessage()    {}
+func (*QueueMetrics) Descriptor() ([]byte, []int) {
+	return fileDescriptor_932dcac363ef0bc9, []int{1}
+}
+func (m *QueueMetrics) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *QueueMetrics) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_QueueMetrics.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *QueueMetrics) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_QueueMetrics.Merge(m, src)
+}
+func (m *QueueMetrics) XXX_Size() int {
+	return m.Size()
+}
+func (m *QueueMetrics) XXX_DiscardUnknown() {
+	xxx_messageInfo_QueueMetrics.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_QueueMetrics proto.InternalMessageInfo
+
+func (m *QueueMetrics) GetActualShare() float64 {
+	if m != nil {
+		return m.ActualShare
+	}
+	return 0
+}
+
+func (m *QueueMetrics) GetDemand() float64 {
+	if m != nil {
+		return m.Demand
+	}
+	return 0
+}
+
+func (m *QueueMetrics) GetConstrainedDemand() float64 {
+	if m != nil {
+		return m.ConstrainedDemand
+	}
+	return 0
+}
+
 type CycleMetrics struct {
 	// Pool that these metrics pertain to
 	Pool string `protobuf:"bytes,1,opt,name=pool,proto3" json:"pool,omitempty"`
-	// Fraction of the pool allocated per queue
-	ActualShare map[string]float64 `protobuf:"bytes,2,rep,name=actual_share,json=actualShare,proto3" json:"actualShare,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"fixed64,2,opt,name=value,proto3"`
-	// Fraction of the pool demanded per queue. May be greater than 1
-	Demand map[string]float64 `protobuf:"bytes,3,rep,name=demand,proto3" json:"demand,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"fixed64,2,opt,name=value,proto3"`
-	// Fraction of the pool demanded per queue, limited by scheduling constraints. May be greater than 1
-	ConstrainedDemand map[string]float64 `protobuf:"bytes,4,rep,name=constrained_demand,json=constrainedDemand,proto3" json:"constrainedDemand,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"fixed64,2,opt,name=value,proto3"`
+	// Per-Queue Metrics
+	QueueMetrics map[string]*QueueMetrics `protobuf:"bytes,2,rep,name=queue_metrics,json=queueMetrics,proto3" json:"queueMetrics,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 	// Allocatable resources
-	AllocatableResources map[string]*resource.Quantity `protobuf:"bytes,5,rep,name=allocatable_resources,json=allocatableResources,proto3" json:"allocatableResources,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	AllocatableResources map[string]*resource.Quantity `protobuf:"bytes,3,rep,name=allocatable_resources,json=allocatableResources,proto3" json:"allocatableResources,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 }
 
 func (m *CycleMetrics) Reset()         { *m = CycleMetrics{} }
 func (m *CycleMetrics) String() string { return proto.CompactTextString(m) }
 func (*CycleMetrics) ProtoMessage()    {}
 func (*CycleMetrics) Descriptor() ([]byte, []int) {
-	return fileDescriptor_932dcac363ef0bc9, []int{1}
+	return fileDescriptor_932dcac363ef0bc9, []int{2}
 }
 func (m *CycleMetrics) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -160,23 +219,9 @@ func (m *CycleMetrics) GetPool() string {
 	return ""
 }
 
-func (m *CycleMetrics) GetActualShare() map[string]float64 {
+func (m *CycleMetrics) GetQueueMetrics() map[string]*QueueMetrics {
 	if m != nil {
-		return m.ActualShare
-	}
-	return nil
-}
-
-func (m *CycleMetrics) GetDemand() map[string]float64 {
-	if m != nil {
-		return m.Demand
-	}
-	return nil
-}
-
-func (m *CycleMetrics) GetConstrainedDemand() map[string]float64 {
-	if m != nil {
-		return m.ConstrainedDemand
+		return m.QueueMetrics
 	}
 	return nil
 }
@@ -190,55 +235,53 @@ func (m *CycleMetrics) GetAllocatableResources() map[string]*resource.Quantity {
 
 func init() {
 	proto.RegisterType((*Event)(nil), "metricevents.Event")
+	proto.RegisterType((*QueueMetrics)(nil), "metricevents.QueueMetrics")
 	proto.RegisterType((*CycleMetrics)(nil), "metricevents.CycleMetrics")
-	proto.RegisterMapType((map[string]float64)(nil), "metricevents.CycleMetrics.ActualShareEntry")
 	proto.RegisterMapType((map[string]*resource.Quantity)(nil), "metricevents.CycleMetrics.AllocatableResourcesEntry")
-	proto.RegisterMapType((map[string]float64)(nil), "metricevents.CycleMetrics.ConstrainedDemandEntry")
-	proto.RegisterMapType((map[string]float64)(nil), "metricevents.CycleMetrics.DemandEntry")
+	proto.RegisterMapType((map[string]*QueueMetrics)(nil), "metricevents.CycleMetrics.QueueMetricsEntry")
 }
 
 func init() { proto.RegisterFile("pkg/metricevents/events.proto", fileDescriptor_932dcac363ef0bc9) }
 
 var fileDescriptor_932dcac363ef0bc9 = []byte{
-	// 595 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xb4, 0x94, 0xcf, 0x6e, 0xd3, 0x4c,
-	0x14, 0xc5, 0xe3, 0xb6, 0x69, 0xf5, 0x4d, 0xd2, 0x8f, 0x66, 0x68, 0xaa, 0xd4, 0x08, 0xbb, 0x0a,
-	0x52, 0x55, 0x04, 0x1a, 0x43, 0xe8, 0xa2, 0x62, 0x87, 0x4b, 0x25, 0x04, 0x62, 0x41, 0xe8, 0x06,
-	0x24, 0x14, 0x4d, 0x26, 0x53, 0xc7, 0xc4, 0xf6, 0x58, 0xe3, 0x71, 0x25, 0x2f, 0x79, 0x00, 0x24,
-	0xde, 0x80, 0x17, 0xe1, 0x01, 0x58, 0x76, 0xc9, 0xca, 0x42, 0x89, 0xc4, 0xc2, 0x4f, 0x81, 0x3c,
-	0xb6, 0x95, 0x51, 0x48, 0x03, 0x9b, 0xae, 0x2c, 0xdf, 0x73, 0xee, 0xf9, 0xdd, 0xf9, 0xa3, 0x01,
-	0x77, 0xc3, 0x89, 0x63, 0xf9, 0x54, 0x70, 0x97, 0xd0, 0x4b, 0x1a, 0x88, 0xc8, 0x2a, 0x3e, 0x28,
-	0xe4, 0x4c, 0x30, 0xd8, 0x54, 0x25, 0xdd, 0x74, 0x18, 0x73, 0x3c, 0x6a, 0x49, 0x6d, 0x18, 0x5f,
-	0x58, 0xc2, 0xf5, 0x69, 0x24, 0xb0, 0x1f, 0x16, 0x76, 0xfd, 0x78, 0x72, 0x12, 0x21, 0x97, 0x59,
-	0x38, 0x74, 0x7d, 0x4c, 0xc6, 0x6e, 0x40, 0x79, 0x62, 0xe5, 0x04, 0x1c, 0xba, 0x16, 0xa7, 0x11,
-	0x8b, 0x39, 0xa1, 0x96, 0x43, 0x03, 0xca, 0xb1, 0xa0, 0xa3, 0xa2, 0xab, 0xfb, 0x4d, 0x03, 0xf5,
-	0xb3, 0x9c, 0x00, 0x5f, 0x81, 0x2d, 0xc2, 0x69, 0x2e, 0x75, 0xb4, 0x03, 0xed, 0xa8, 0xd1, 0xd3,
-	0x51, 0x81, 0x44, 0x15, 0x12, 0x9d, 0x57, 0x48, 0xbb, 0x9d, 0xa5, 0x66, 0xab, 0xb4, 0x3f, 0x64,
-	0xbe, 0x2b, 0xa8, 0x1f, 0x8a, 0xa4, 0x5f, 0x25, 0xc0, 0x0f, 0x60, 0x9b, 0x24, 0xc4, 0xa3, 0x83,
-	0x62, 0x0d, 0x51, 0x67, 0xad, 0x8c, 0x54, 0xd7, 0x84, 0x4e, 0x73, 0xcb, 0xeb, 0xc2, 0x61, 0xeb,
-	0x59, 0x6a, 0xee, 0x11, 0xa5, 0x32, 0xcf, 0x7d, 0x51, 0xeb, 0x37, 0x55, 0xc5, 0xde, 0x02, 0x75,
-	0x19, 0xd1, 0xfd, 0xb5, 0x05, 0x9a, 0x6a, 0x0a, 0x3c, 0x04, 0x1b, 0x21, 0x63, 0x9e, 0x5c, 0xc2,
-	0x7f, 0x36, 0xcc, 0x52, 0xf3, 0xff, 0xfc, 0x5f, 0x99, 0x51, 0xea, 0xd0, 0x05, 0x4d, 0x4c, 0x44,
-	0x8c, 0xbd, 0x41, 0x34, 0xc6, 0x9c, 0x76, 0xd6, 0x0e, 0xd6, 0x8f, 0x1a, 0xbd, 0x07, 0xd7, 0xcf,
-	0x87, 0x9e, 0x49, 0xfb, 0xdb, 0xdc, 0x7d, 0x16, 0x08, 0x9e, 0xd8, 0xfb, 0x59, 0x6a, 0xb6, 0xf1,
-	0xbc, 0xaa, 0x30, 0x1a, 0x4a, 0x19, 0x9e, 0x83, 0xcd, 0x11, 0xf5, 0x71, 0x30, 0xea, 0xac, 0x4b,
-	0xc8, 0xe1, 0x0a, 0xc8, 0x73, 0x69, 0x2c, 0xf2, 0x77, 0xb3, 0xd4, 0xdc, 0x29, 0x3a, 0x95, 0xe8,
-	0x32, 0x0b, 0x7e, 0xd2, 0x00, 0x24, 0x2c, 0x88, 0x04, 0xc7, 0x6e, 0x40, 0x47, 0x83, 0x12, 0xb1,
-	0x21, 0x11, 0x8f, 0x57, 0x20, 0x4e, 0xe7, 0x4d, 0x2a, 0xcd, 0xcc, 0x52, 0xf3, 0x0e, 0x59, 0xd4,
-	0x14, 0x70, 0xeb, 0x0f, 0x11, 0x7e, 0xd6, 0x40, 0x1b, 0x7b, 0x1e, 0x23, 0x58, 0xe0, 0xa1, 0x47,
-	0x07, 0xd5, 0x2d, 0x8b, 0x3a, 0x75, 0x39, 0xc6, 0xf1, 0xaa, 0xed, 0x9c, 0xf7, 0xf5, 0xab, 0xb6,
-	0x62, 0x92, 0x6e, 0x96, 0x9a, 0x06, 0x5e, 0x22, 0x2b, 0xc3, 0xec, 0x2e, 0xd3, 0xf5, 0x0b, 0xb0,
-	0xb3, 0x78, 0x4a, 0xf0, 0x1e, 0x58, 0x9f, 0xd0, 0xa4, 0xbc, 0x0f, 0xad, 0x2c, 0x35, 0xb7, 0x27,
-	0x34, 0x51, 0x92, 0x72, 0x15, 0xde, 0x07, 0xf5, 0x4b, 0xec, 0xc5, 0x54, 0x5e, 0x53, 0xcd, 0xbe,
-	0x9d, 0xa5, 0xe6, 0x2d, 0x59, 0x50, 0x8c, 0x85, 0xe3, 0xe9, 0xda, 0x89, 0xa6, 0x63, 0xd0, 0x50,
-	0xb6, 0xee, 0x46, 0x10, 0x1e, 0xd8, 0x5b, 0x7e, 0x50, 0x37, 0x42, 0xfb, 0xaa, 0x81, 0xfd, 0x6b,
-	0x0f, 0xe4, 0xdf, 0x88, 0xef, 0x54, 0x62, 0xa3, 0x87, 0x50, 0xf1, 0x1c, 0x21, 0xf5, 0x39, 0x42,
-	0xe1, 0xc4, 0xc9, 0x0b, 0xa8, 0xba, 0x28, 0xe8, 0x4d, 0x8c, 0x03, 0xe1, 0x8a, 0xe4, 0x6f, 0x13,
-	0xda, 0x2f, 0xbf, 0x4f, 0x0d, 0xed, 0x6a, 0x6a, 0x68, 0x3f, 0xa7, 0x86, 0xf6, 0x65, 0x66, 0xd4,
-	0xae, 0x66, 0x46, 0xed, 0xc7, 0xcc, 0xa8, 0xbd, 0x7f, 0xe4, 0xb8, 0x62, 0x1c, 0x0f, 0x11, 0x61,
-	0xbe, 0x85, 0xb9, 0x8f, 0x47, 0x38, 0xe4, 0xec, 0x23, 0x25, 0xa2, 0xfc, 0xb3, 0x16, 0x5f, 0xd9,
-	0xe1, 0xa6, 0x7c, 0xd0, 0x9e, 0xfc, 0x0e, 0x00, 0x00, 0xff, 0xff, 0xf1, 0x45, 0xe4, 0x2d, 0x80,
-	0x05, 0x00, 0x00,
+	// 588 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x8c, 0x54, 0x4f, 0x6b, 0xd4, 0x4e,
+	0x18, 0xde, 0xe9, 0xf6, 0x0f, 0xbf, 0x69, 0xfa, 0xd3, 0x1d, 0x5b, 0xd9, 0x46, 0x4c, 0x64, 0x05,
+	0xe9, 0x61, 0x99, 0x48, 0xed, 0xa1, 0x88, 0x17, 0xa3, 0x0b, 0xa2, 0x28, 0x74, 0xf5, 0xa2, 0x20,
+	0xcb, 0xec, 0xec, 0x98, 0x8d, 0x9b, 0x64, 0xd2, 0xc9, 0xa4, 0x90, 0xb3, 0x67, 0xc1, 0x6f, 0xe0,
+	0x17, 0xf1, 0x03, 0x88, 0xa7, 0x1e, 0xbd, 0x18, 0x64, 0xf7, 0x96, 0x4f, 0x21, 0xc9, 0x24, 0x74,
+	0x6c, 0xb7, 0xea, 0x29, 0xe4, 0x79, 0xde, 0xf7, 0x79, 0xde, 0xf7, 0x61, 0x66, 0xe0, 0xcd, 0x78,
+	0xe6, 0x39, 0x21, 0x93, 0xc2, 0xa7, 0xec, 0x84, 0x45, 0x32, 0x71, 0xd4, 0x07, 0xc7, 0x82, 0x4b,
+	0x8e, 0x0c, 0x9d, 0x32, 0x6d, 0x8f, 0x73, 0x2f, 0x60, 0x4e, 0xc5, 0x8d, 0xd3, 0x77, 0x8e, 0xf4,
+	0x43, 0x96, 0x48, 0x12, 0xc6, 0xaa, 0xdc, 0x3c, 0x98, 0x1d, 0x26, 0xd8, 0xe7, 0x0e, 0x89, 0xfd,
+	0x90, 0xd0, 0xa9, 0x1f, 0x31, 0x91, 0x39, 0xa5, 0x03, 0x89, 0x7d, 0x47, 0xb0, 0x84, 0xa7, 0x82,
+	0x32, 0xc7, 0x63, 0x11, 0x13, 0x44, 0xb2, 0x89, 0xea, 0xea, 0x7d, 0x01, 0x70, 0x6d, 0x50, 0x3a,
+	0xa0, 0x67, 0x70, 0x83, 0x0a, 0x56, 0x52, 0x5d, 0x70, 0x0b, 0xec, 0x6d, 0xee, 0x9b, 0x58, 0x59,
+	0xe2, 0xc6, 0x12, 0xbf, 0x6a, 0x2c, 0xdd, 0x9d, 0x22, 0xb7, 0x3b, 0x75, 0x79, 0x9f, 0x87, 0xbe,
+	0x64, 0x61, 0x2c, 0xb3, 0x61, 0xa3, 0x80, 0xde, 0xc2, 0x2d, 0x9a, 0xd1, 0x80, 0x8d, 0xd4, 0x0e,
+	0x49, 0x77, 0xa5, 0x96, 0xd4, 0x77, 0xc2, 0x8f, 0xca, 0x92, 0xe7, 0xaa, 0xc2, 0x35, 0x8b, 0xdc,
+	0xbe, 0x4e, 0x35, 0xe4, 0x4c, 0xf7, 0x49, 0x6b, 0x68, 0xe8, 0x8c, 0xbb, 0x01, 0xd7, 0x2a, 0x89,
+	0xde, 0x37, 0x00, 0x8d, 0xa3, 0x94, 0xa5, 0x0d, 0x83, 0x1e, 0x40, 0x83, 0x50, 0x99, 0x92, 0x60,
+	0x94, 0x4c, 0x89, 0x60, 0xd5, 0x2a, 0xc0, 0xdd, 0x2d, 0x72, 0x7b, 0x47, 0xe1, 0x2f, 0x4b, 0x58,
+	0x1b, 0x79, 0x53, 0x83, 0x51, 0x1f, 0xae, 0x4f, 0x58, 0x48, 0xa2, 0x49, 0x35, 0x2f, 0x70, 0xb7,
+	0x8b, 0xdc, 0xbe, 0xaa, 0x10, 0xad, 0xa5, 0xae, 0x41, 0x2f, 0x20, 0xa2, 0x3c, 0x4a, 0xa4, 0x20,
+	0x7e, 0xc4, 0x26, 0xa3, 0xba, 0xb3, 0x5d, 0x75, 0xda, 0x45, 0x6e, 0xdf, 0xd0, 0xd8, 0xc7, 0xe7,
+	0x45, 0x3a, 0x17, 0xc8, 0xde, 0x8f, 0x55, 0x68, 0xe8, 0x91, 0xa0, 0x3b, 0x70, 0x35, 0xe6, 0x3c,
+	0xa8, 0x96, 0xf8, 0xcf, 0x45, 0x45, 0x6e, 0xff, 0x5f, 0xfe, 0x6b, 0x2a, 0x15, 0x8f, 0x42, 0xb8,
+	0x75, 0x5c, 0x86, 0xa0, 0xa5, 0xdd, 0xde, 0xdb, 0xdc, 0xef, 0x5f, 0x9e, 0x36, 0xd6, 0x43, 0x1b,
+	0x44, 0x52, 0x64, 0x2a, 0xff, 0x63, 0x0d, 0xd6, 0x6c, 0x0c, 0x1d, 0x47, 0x1f, 0x01, 0xdc, 0x21,
+	0x41, 0xc0, 0x29, 0x91, 0x64, 0x1c, 0xb0, 0x51, 0x73, 0xb8, 0x92, 0x6e, 0xbb, 0xf2, 0x3d, 0xf8,
+	0x83, 0xef, 0xc3, 0xb3, 0xbe, 0x61, 0xd3, 0xa6, 0xfc, 0x7b, 0x45, 0x6e, 0x5b, 0x64, 0x09, 0xad,
+	0xcd, 0xb1, 0xbd, 0x8c, 0x37, 0x3f, 0x00, 0xd8, 0xb9, 0xb0, 0x0f, 0xba, 0x0d, 0xdb, 0x33, 0x96,
+	0xd5, 0xd9, 0x75, 0x8a, 0xdc, 0xde, 0x9a, 0xb1, 0x4c, 0xd3, 0x2a, 0x59, 0x34, 0x80, 0x6b, 0x27,
+	0x24, 0x48, 0xd9, 0xf2, 0xf3, 0xa9, 0x8b, 0xba, 0xd7, 0x8a, 0xdc, 0xbe, 0x52, 0x15, 0x6b, 0x22,
+	0xaa, 0xfb, 0xfe, 0xca, 0x21, 0x30, 0x3f, 0x03, 0xb8, 0x7b, 0xe9, 0x76, 0xff, 0x36, 0xcd, 0xeb,
+	0xdf, 0xa7, 0xc1, 0x58, 0x5d, 0x69, 0xac, 0x5f, 0x69, 0x1c, 0xcf, 0xbc, 0x12, 0xc0, 0x4d, 0xea,
+	0xf8, 0x28, 0x25, 0x91, 0xf4, 0x65, 0xf6, 0xb7, 0x09, 0xdd, 0xa7, 0x5f, 0xe7, 0x16, 0x38, 0x9d,
+	0x5b, 0xe0, 0xe7, 0xdc, 0x02, 0x9f, 0x16, 0x56, 0xeb, 0x74, 0x61, 0xb5, 0xbe, 0x2f, 0xac, 0xd6,
+	0x9b, 0xbb, 0x9e, 0x2f, 0xa7, 0xe9, 0x18, 0x53, 0x1e, 0x3a, 0x44, 0x84, 0x64, 0x42, 0x62, 0xc1,
+	0xdf, 0x33, 0x2a, 0xeb, 0x3f, 0xe7, 0xfc, 0x4b, 0x35, 0x5e, 0xaf, 0x1e, 0x85, 0x7b, 0xbf, 0x02,
+	0x00, 0x00, 0xff, 0xff, 0xea, 0x54, 0x11, 0x8e, 0xc4, 0x04, 0x00, 0x00,
 }
 
 func (m *Event) Marshal() (dAtA []byte, err error) {
@@ -306,6 +349,47 @@ func (m *Event_CycleMetrics) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	}
 	return len(dAtA) - i, nil
 }
+func (m *QueueMetrics) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *QueueMetrics) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *QueueMetrics) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.ConstrainedDemand != 0 {
+		i -= 8
+		encoding_binary.LittleEndian.PutUint64(dAtA[i:], uint64(math.Float64bits(float64(m.ConstrainedDemand))))
+		i--
+		dAtA[i] = 0x19
+	}
+	if m.Demand != 0 {
+		i -= 8
+		encoding_binary.LittleEndian.PutUint64(dAtA[i:], uint64(math.Float64bits(float64(m.Demand))))
+		i--
+		dAtA[i] = 0x11
+	}
+	if m.ActualShare != 0 {
+		i -= 8
+		encoding_binary.LittleEndian.PutUint64(dAtA[i:], uint64(math.Float64bits(float64(m.ActualShare))))
+		i--
+		dAtA[i] = 0x9
+	}
+	return len(dAtA) - i, nil
+}
+
 func (m *CycleMetrics) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
@@ -349,53 +433,25 @@ func (m *CycleMetrics) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 			dAtA[i] = 0xa
 			i = encodeVarintEvents(dAtA, i, uint64(baseI-i))
 			i--
-			dAtA[i] = 0x2a
-		}
-	}
-	if len(m.ConstrainedDemand) > 0 {
-		for k := range m.ConstrainedDemand {
-			v := m.ConstrainedDemand[k]
-			baseI := i
-			i -= 8
-			encoding_binary.LittleEndian.PutUint64(dAtA[i:], uint64(math.Float64bits(float64(v))))
-			i--
-			dAtA[i] = 0x11
-			i -= len(k)
-			copy(dAtA[i:], k)
-			i = encodeVarintEvents(dAtA, i, uint64(len(k)))
-			i--
-			dAtA[i] = 0xa
-			i = encodeVarintEvents(dAtA, i, uint64(baseI-i))
-			i--
-			dAtA[i] = 0x22
-		}
-	}
-	if len(m.Demand) > 0 {
-		for k := range m.Demand {
-			v := m.Demand[k]
-			baseI := i
-			i -= 8
-			encoding_binary.LittleEndian.PutUint64(dAtA[i:], uint64(math.Float64bits(float64(v))))
-			i--
-			dAtA[i] = 0x11
-			i -= len(k)
-			copy(dAtA[i:], k)
-			i = encodeVarintEvents(dAtA, i, uint64(len(k)))
-			i--
-			dAtA[i] = 0xa
-			i = encodeVarintEvents(dAtA, i, uint64(baseI-i))
-			i--
 			dAtA[i] = 0x1a
 		}
 	}
-	if len(m.ActualShare) > 0 {
-		for k := range m.ActualShare {
-			v := m.ActualShare[k]
+	if len(m.QueueMetrics) > 0 {
+		for k := range m.QueueMetrics {
+			v := m.QueueMetrics[k]
 			baseI := i
-			i -= 8
-			encoding_binary.LittleEndian.PutUint64(dAtA[i:], uint64(math.Float64bits(float64(v))))
-			i--
-			dAtA[i] = 0x11
+			if v != nil {
+				{
+					size, err := v.MarshalToSizedBuffer(dAtA[:i])
+					if err != nil {
+						return 0, err
+					}
+					i -= size
+					i = encodeVarintEvents(dAtA, i, uint64(size))
+				}
+				i--
+				dAtA[i] = 0x12
+			}
 			i -= len(k)
 			copy(dAtA[i:], k)
 			i = encodeVarintEvents(dAtA, i, uint64(len(k)))
@@ -455,6 +511,24 @@ func (m *Event_CycleMetrics) Size() (n int) {
 	}
 	return n
 }
+func (m *QueueMetrics) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.ActualShare != 0 {
+		n += 9
+	}
+	if m.Demand != 0 {
+		n += 9
+	}
+	if m.ConstrainedDemand != 0 {
+		n += 9
+	}
+	return n
+}
+
 func (m *CycleMetrics) Size() (n int) {
 	if m == nil {
 		return 0
@@ -465,27 +539,16 @@ func (m *CycleMetrics) Size() (n int) {
 	if l > 0 {
 		n += 1 + l + sovEvents(uint64(l))
 	}
-	if len(m.ActualShare) > 0 {
-		for k, v := range m.ActualShare {
+	if len(m.QueueMetrics) > 0 {
+		for k, v := range m.QueueMetrics {
 			_ = k
 			_ = v
-			mapEntrySize := 1 + len(k) + sovEvents(uint64(len(k))) + 1 + 8
-			n += mapEntrySize + 1 + sovEvents(uint64(mapEntrySize))
-		}
-	}
-	if len(m.Demand) > 0 {
-		for k, v := range m.Demand {
-			_ = k
-			_ = v
-			mapEntrySize := 1 + len(k) + sovEvents(uint64(len(k))) + 1 + 8
-			n += mapEntrySize + 1 + sovEvents(uint64(mapEntrySize))
-		}
-	}
-	if len(m.ConstrainedDemand) > 0 {
-		for k, v := range m.ConstrainedDemand {
-			_ = k
-			_ = v
-			mapEntrySize := 1 + len(k) + sovEvents(uint64(len(k))) + 1 + 8
+			l = 0
+			if v != nil {
+				l = v.Size()
+				l += 1 + sovEvents(uint64(l))
+			}
+			mapEntrySize := 1 + len(k) + sovEvents(uint64(len(k))) + l
 			n += mapEntrySize + 1 + sovEvents(uint64(mapEntrySize))
 		}
 	}
@@ -632,6 +695,89 @@ func (m *Event) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
+func (m *QueueMetrics) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowEvents
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: QueueMetrics: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: QueueMetrics: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 1 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ActualShare", wireType)
+			}
+			var v uint64
+			if (iNdEx + 8) > l {
+				return io.ErrUnexpectedEOF
+			}
+			v = uint64(encoding_binary.LittleEndian.Uint64(dAtA[iNdEx:]))
+			iNdEx += 8
+			m.ActualShare = float64(math.Float64frombits(v))
+		case 2:
+			if wireType != 1 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Demand", wireType)
+			}
+			var v uint64
+			if (iNdEx + 8) > l {
+				return io.ErrUnexpectedEOF
+			}
+			v = uint64(encoding_binary.LittleEndian.Uint64(dAtA[iNdEx:]))
+			iNdEx += 8
+			m.Demand = float64(math.Float64frombits(v))
+		case 3:
+			if wireType != 1 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ConstrainedDemand", wireType)
+			}
+			var v uint64
+			if (iNdEx + 8) > l {
+				return io.ErrUnexpectedEOF
+			}
+			v = uint64(encoding_binary.LittleEndian.Uint64(dAtA[iNdEx:]))
+			iNdEx += 8
+			m.ConstrainedDemand = float64(math.Float64frombits(v))
+		default:
+			iNdEx = preIndex
+			skippy, err := skipEvents(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
 func (m *CycleMetrics) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -695,7 +841,7 @@ func (m *CycleMetrics) Unmarshal(dAtA []byte) error {
 			iNdEx = postIndex
 		case 2:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field ActualShare", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field QueueMetrics", wireType)
 			}
 			var msglen int
 			for shift := uint(0); ; shift += 7 {
@@ -722,11 +868,11 @@ func (m *CycleMetrics) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			if m.ActualShare == nil {
-				m.ActualShare = make(map[string]float64)
+			if m.QueueMetrics == nil {
+				m.QueueMetrics = make(map[string]*QueueMetrics)
 			}
 			var mapkey string
-			var mapvalue float64
+			var mapvalue *QueueMetrics
 			for iNdEx < postIndex {
 				entryPreIndex := iNdEx
 				var wire uint64
@@ -775,13 +921,36 @@ func (m *CycleMetrics) Unmarshal(dAtA []byte) error {
 					mapkey = string(dAtA[iNdEx:postStringIndexmapkey])
 					iNdEx = postStringIndexmapkey
 				} else if fieldNum == 2 {
-					var mapvaluetemp uint64
-					if (iNdEx + 8) > l {
+					var mapmsglen int
+					for shift := uint(0); ; shift += 7 {
+						if shift >= 64 {
+							return ErrIntOverflowEvents
+						}
+						if iNdEx >= l {
+							return io.ErrUnexpectedEOF
+						}
+						b := dAtA[iNdEx]
+						iNdEx++
+						mapmsglen |= int(b&0x7F) << shift
+						if b < 0x80 {
+							break
+						}
+					}
+					if mapmsglen < 0 {
+						return ErrInvalidLengthEvents
+					}
+					postmsgIndex := iNdEx + mapmsglen
+					if postmsgIndex < 0 {
+						return ErrInvalidLengthEvents
+					}
+					if postmsgIndex > l {
 						return io.ErrUnexpectedEOF
 					}
-					mapvaluetemp = uint64(encoding_binary.LittleEndian.Uint64(dAtA[iNdEx:]))
-					iNdEx += 8
-					mapvalue = math.Float64frombits(mapvaluetemp)
+					mapvalue = &QueueMetrics{}
+					if err := mapvalue.Unmarshal(dAtA[iNdEx:postmsgIndex]); err != nil {
+						return err
+					}
+					iNdEx = postmsgIndex
 				} else {
 					iNdEx = entryPreIndex
 					skippy, err := skipEvents(dAtA[iNdEx:])
@@ -797,221 +966,9 @@ func (m *CycleMetrics) Unmarshal(dAtA []byte) error {
 					iNdEx += skippy
 				}
 			}
-			m.ActualShare[mapkey] = mapvalue
+			m.QueueMetrics[mapkey] = mapvalue
 			iNdEx = postIndex
 		case 3:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Demand", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowEvents
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthEvents
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLengthEvents
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			if m.Demand == nil {
-				m.Demand = make(map[string]float64)
-			}
-			var mapkey string
-			var mapvalue float64
-			for iNdEx < postIndex {
-				entryPreIndex := iNdEx
-				var wire uint64
-				for shift := uint(0); ; shift += 7 {
-					if shift >= 64 {
-						return ErrIntOverflowEvents
-					}
-					if iNdEx >= l {
-						return io.ErrUnexpectedEOF
-					}
-					b := dAtA[iNdEx]
-					iNdEx++
-					wire |= uint64(b&0x7F) << shift
-					if b < 0x80 {
-						break
-					}
-				}
-				fieldNum := int32(wire >> 3)
-				if fieldNum == 1 {
-					var stringLenmapkey uint64
-					for shift := uint(0); ; shift += 7 {
-						if shift >= 64 {
-							return ErrIntOverflowEvents
-						}
-						if iNdEx >= l {
-							return io.ErrUnexpectedEOF
-						}
-						b := dAtA[iNdEx]
-						iNdEx++
-						stringLenmapkey |= uint64(b&0x7F) << shift
-						if b < 0x80 {
-							break
-						}
-					}
-					intStringLenmapkey := int(stringLenmapkey)
-					if intStringLenmapkey < 0 {
-						return ErrInvalidLengthEvents
-					}
-					postStringIndexmapkey := iNdEx + intStringLenmapkey
-					if postStringIndexmapkey < 0 {
-						return ErrInvalidLengthEvents
-					}
-					if postStringIndexmapkey > l {
-						return io.ErrUnexpectedEOF
-					}
-					mapkey = string(dAtA[iNdEx:postStringIndexmapkey])
-					iNdEx = postStringIndexmapkey
-				} else if fieldNum == 2 {
-					var mapvaluetemp uint64
-					if (iNdEx + 8) > l {
-						return io.ErrUnexpectedEOF
-					}
-					mapvaluetemp = uint64(encoding_binary.LittleEndian.Uint64(dAtA[iNdEx:]))
-					iNdEx += 8
-					mapvalue = math.Float64frombits(mapvaluetemp)
-				} else {
-					iNdEx = entryPreIndex
-					skippy, err := skipEvents(dAtA[iNdEx:])
-					if err != nil {
-						return err
-					}
-					if (skippy < 0) || (iNdEx+skippy) < 0 {
-						return ErrInvalidLengthEvents
-					}
-					if (iNdEx + skippy) > postIndex {
-						return io.ErrUnexpectedEOF
-					}
-					iNdEx += skippy
-				}
-			}
-			m.Demand[mapkey] = mapvalue
-			iNdEx = postIndex
-		case 4:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field ConstrainedDemand", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowEvents
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthEvents
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLengthEvents
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			if m.ConstrainedDemand == nil {
-				m.ConstrainedDemand = make(map[string]float64)
-			}
-			var mapkey string
-			var mapvalue float64
-			for iNdEx < postIndex {
-				entryPreIndex := iNdEx
-				var wire uint64
-				for shift := uint(0); ; shift += 7 {
-					if shift >= 64 {
-						return ErrIntOverflowEvents
-					}
-					if iNdEx >= l {
-						return io.ErrUnexpectedEOF
-					}
-					b := dAtA[iNdEx]
-					iNdEx++
-					wire |= uint64(b&0x7F) << shift
-					if b < 0x80 {
-						break
-					}
-				}
-				fieldNum := int32(wire >> 3)
-				if fieldNum == 1 {
-					var stringLenmapkey uint64
-					for shift := uint(0); ; shift += 7 {
-						if shift >= 64 {
-							return ErrIntOverflowEvents
-						}
-						if iNdEx >= l {
-							return io.ErrUnexpectedEOF
-						}
-						b := dAtA[iNdEx]
-						iNdEx++
-						stringLenmapkey |= uint64(b&0x7F) << shift
-						if b < 0x80 {
-							break
-						}
-					}
-					intStringLenmapkey := int(stringLenmapkey)
-					if intStringLenmapkey < 0 {
-						return ErrInvalidLengthEvents
-					}
-					postStringIndexmapkey := iNdEx + intStringLenmapkey
-					if postStringIndexmapkey < 0 {
-						return ErrInvalidLengthEvents
-					}
-					if postStringIndexmapkey > l {
-						return io.ErrUnexpectedEOF
-					}
-					mapkey = string(dAtA[iNdEx:postStringIndexmapkey])
-					iNdEx = postStringIndexmapkey
-				} else if fieldNum == 2 {
-					var mapvaluetemp uint64
-					if (iNdEx + 8) > l {
-						return io.ErrUnexpectedEOF
-					}
-					mapvaluetemp = uint64(encoding_binary.LittleEndian.Uint64(dAtA[iNdEx:]))
-					iNdEx += 8
-					mapvalue = math.Float64frombits(mapvaluetemp)
-				} else {
-					iNdEx = entryPreIndex
-					skippy, err := skipEvents(dAtA[iNdEx:])
-					if err != nil {
-						return err
-					}
-					if (skippy < 0) || (iNdEx+skippy) < 0 {
-						return ErrInvalidLengthEvents
-					}
-					if (iNdEx + skippy) > postIndex {
-						return io.ErrUnexpectedEOF
-					}
-					iNdEx += skippy
-				}
-			}
-			m.ConstrainedDemand[mapkey] = mapvalue
-			iNdEx = postIndex
-		case 5:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field AllocatableResources", wireType)
 			}

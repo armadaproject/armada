@@ -13,15 +13,20 @@ message Event {
   }
 }
 
+message QueueMetrics{
+  // Fraction of the pool allocated
+  double actual_share = 1;
+  // Fraction of the pool demanded. May be greater than 1
+  double  demand = 2;
+  // Fraction of the pool demanded, limited by scheduling constraints. May be greater than 1
+  double constrained_demand = 3;
+}
+
 message CycleMetrics {
   // Pool that these metrics pertain to
   string pool = 1;
-  // Fraction of the pool allocated per queue
-  map<string, double> actual_share = 2;
-  // Fraction of the pool demanded per queue. May be greater than 1
-  map<string, double> demand = 3;
-  // Fraction of the pool demanded per queue, limited by scheduling constraints. May be greater than 1
-  map<string, double> constrained_demand = 4;
+  // Per-Queue Metrics
+  map<string, QueueMetrics> queue_metrics= 2;
   // Allocatable resources
-  map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> allocatable_resources = 5;
+  map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> allocatable_resources = 3;
 }

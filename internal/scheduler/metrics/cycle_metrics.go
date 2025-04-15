@@ -18,7 +18,6 @@ import (
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling"
-	schedulercontext "github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 	"github.com/armadaproject/armada/pkg/metricevents"
 )
 
@@ -532,25 +531,23 @@ func (m *cycleMetrics) collect(ch chan<- prometheus.Metric) {
 func (m *cycleMetrics) publishCycleMetrics(ctx *armadacontext.Context, result scheduling.SchedulerResult) {
 	events := make([]*metricevents.Event, len(result.SchedulingContexts))
 	for i, sc := range result.SchedulingContexts {
-		qCtxs := sc.QueueSchedulingContexts
-		msg := metricevents.CycleMetrics{
-			Pool: sc.Pool,
-			ActualShare: armadamaps.MapValues(qCtxs, func(qCtx *schedulercontext.QueueSchedulingContext) float64 {
-				return sc.FairnessCostProvider.UnweightedCostFromQueue(qCtx)
-			}),
-			Demand: armadamaps.MapValues(qCtxs, func(qCtx *schedulercontext.QueueSchedulingContext) float64 {
-				return sc.FairnessCostProvider.UnweightedCostFromAllocation(qCtx.Demand)
-			}),
-			ConstrainedDemand: armadamaps.MapValues(qCtxs, func(qCtx *schedulercontext.QueueSchedulingContext) float64 {
-				return sc.FairnessCostProvider.UnweightedCostFromAllocation(qCtx.ConstrainedDemand)
-			}),
-			AllocatableResources: armadamaps.MapValues(sc.TotalResources.ToMap(), func(q resource.Quantity) *resource.Quantity {
-				return &q
-			}),
+		queueMetrics := make(map[string]*metricevents.QueueMetrics, len(sc.QueueSchedulingContexts))
+		for qName, qCtx := range sc.QueueSchedulingContexts {
+			queueMetrics[qName] = &metricevents.QueueMetrics{
+				ActualShare:       sc.FairnessCostProvider.UnweightedCostFromQueue(qCtx),
+				Demand:            sc.FairnessCostProvider.UnweightedCostFromAllocation(qCtx.Demand),
+				ConstrainedDemand: sc.FairnessCostProvider.UnweightedCostFromAllocation(qCtx.ConstrainedDemand),
+			}
 		}
 		events[i] = &metricevents.Event{
 			Created: protoutil.ToTimestamp(sc.Finished),
-			Event:   &metricevents.Event_CycleMetrics{CycleMetrics: &msg},
+			Event: &metricevents.Event_CycleMetrics{CycleMetrics: &metricevents.CycleMetrics{
+				Pool:         sc.Pool,
+				QueueMetrics: queueMetrics,
+				AllocatableResources: armadamaps.MapValues(sc.TotalResources.ToMap(), func(q resource.Quantity) *resource.Quantity {
+					return &q
+				}),
+			}},
 		}
 	}
 	err := m.metricsPublisher.PublishMessages(ctx, events...)

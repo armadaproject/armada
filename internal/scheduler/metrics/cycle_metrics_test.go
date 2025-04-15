@@ -234,26 +234,17 @@ func TestPublishCycleMetrics(t *testing.T) {
 		},
 	}
 
-	expected := &metricevents.CycleMetrics{
-		Pool:              "pool1",
-		ActualShare:       map[string]float64{"queue1": 0.1},
-		Demand:            map[string]float64{"queue1": 0.2},
-		ConstrainedDemand: map[string]float64{"queue1": 0.15},
-		AllocatableResources: map[string]*resource.Quantity{
-			"cpu":                    mustParseResourcePointer("100"),
-			"memory":                 mustParseResourcePointer("0"),
-			"nvidia.com/gpu":         mustParseResourcePointer("0"),
-			"test-floating-resource": mustParseResourcePointer("0"),
-		},
-	}
-
 	mockPublisher.EXPECT().PublishMessages(ctx, gomock.Any()).DoAndReturn(func(ctx *armadacontext.Context, events ...*metricevents.Event) error {
 		require.Equal(t, 1, len(events))
 		actual := events[0].GetCycleMetrics()
-		assert.Equal(t, expected.Pool, actual.Pool)
-		assert.Equal(t, expected.ActualShare, actual.ActualShare)
-		assert.Equal(t, expected.Demand, actual.Demand)
-		assert.Equal(t, expected.ConstrainedDemand, actual.ConstrainedDemand)
+		assert.Equal(t, "pool1", actual.Pool)
+		assert.Equal(t, map[string]*metricevents.QueueMetrics{
+			"queue1": {
+				ActualShare:       0.1,
+				Demand:            0.2,
+				ConstrainedDemand: 0.15,
+			},
+		}, actual.QueueMetrics)
 		return nil
 	})
 	m.publishCycleMetrics(ctx, schedulerResult)
