@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/magefile/mage/sh"
-
 	"github.com/pkg/errors"
 )
 
@@ -94,6 +93,7 @@ func trimSlashPrefix(path string) string {
 func protoGenerate() error {
 	patterns := []string{
 		"pkg/controlplaneevents/*.proto",
+		"pkg/metricevents/*.proto",
 		"pkg/api/*.proto",
 		"pkg/armadaevents/*.proto",
 		"internal/scheduler/schedulerobjects/*.proto",
@@ -177,7 +177,7 @@ func protoGenerate() error {
 	}
 
 	err = sh.Run("goimports", "-w", "-local", "github.com/armadaproject/armada", "./pkg/api/", "./pkg/armadaevents/",
-		"./pkg/controlplaneevents/", "./internal/scheduler/schedulerobjects/", "./pkg/executorapi/", "./pkg/api/schedulerobjects/", "./pkg/priorityoverride/")
+		"./pkg/controlplaneevents/", "./pkg/metricevents/", "./internal/scheduler/schedulerobjects/", "./pkg/executorapi/", "./pkg/api/schedulerobjects/", "./pkg/priorityoverride/")
 	if err != nil {
 		return err
 	}

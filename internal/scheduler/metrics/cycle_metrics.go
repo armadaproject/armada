@@ -8,11 +8,17 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"k8s.io/apimachinery/pkg/api/resource"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	log "github.com/armadaproject/armada/internal/common/logging"
+	armadamaps "github.com/armadaproject/armada/internal/common/maps"
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
+	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling"
+	"github.com/armadaproject/armada/pkg/metricevents"
 )
 
 var (
@@ -280,9 +286,10 @@ type cycleMetrics struct {
 	scheduleCycleTime       prometheus.Histogram
 	reconciliationCycleTime prometheus.Histogram
 	latestCycleMetrics      atomic.Pointer[perCycleMetrics]
+	metricsPublisher        pulsarutils.Publisher[*metricevents.Event]
 }
 
-func newCycleMetrics() *cycleMetrics {
+func newCycleMetrics(publisher pulsarutils.Publisher[*metricevents.Event]) *cycleMetrics {
 	scheduledJobs := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: prefix + "scheduled_jobs",
@@ -322,6 +329,7 @@ func newCycleMetrics() *cycleMetrics {
 		scheduleCycleTime:       scheduleCycleTime,
 		reconciliationCycleTime: reconciliationCycleTime,
 		latestCycleMetrics:      atomic.Pointer[perCycleMetrics]{},
+		metricsPublisher:        publisher,
 	}
 	cycleMetrics.latestCycleMetrics.Store(newPerCycleMetrics())
 	return cycleMetrics
@@ -350,7 +358,7 @@ func (m *cycleMetrics) ReportReconcileCycleTime(cycleTime time.Duration) {
 	m.reconciliationCycleTime.Observe(float64(cycleTime.Milliseconds()))
 }
 
-func (m *cycleMetrics) ReportSchedulerResult(result scheduling.SchedulerResult) {
+func (m *cycleMetrics) ReportSchedulerResult(ctx *armadacontext.Context, result scheduling.SchedulerResult) {
 	// Metrics that depend on pool
 	currentCycle := newPerCycleMetrics()
 	for _, schedContext := range result.SchedulingContexts {
@@ -444,6 +452,8 @@ func (m *cycleMetrics) ReportSchedulerResult(result scheduling.SchedulerResult) 
 		currentCycle.protectedFractionOfFairShare.WithLabelValues(pool).Set(schedulingStats.ProtectedFractionOfFairShare)
 	}
 	m.latestCycleMetrics.Store(currentCycle)
+
+	m.publishCycleMetrics(ctx, result)
 }
 
 func (m *cycleMetrics) describe(ch chan<- *prometheus.Desc) {
@@ -516,4 +526,32 @@ func (m *cycleMetrics) collect(ch chan<- prometheus.Metric) {
 	}
 
 	m.reconciliationCycleTime.Collect(ch)
+}
+
+func (m *cycleMetrics) publishCycleMetrics(ctx *armadacontext.Context, result scheduling.SchedulerResult) {
+	events := make([]*metricevents.Event, len(result.SchedulingContexts))
+	for i, sc := range result.SchedulingContexts {
+		queueMetrics := make(map[string]*metricevents.QueueMetrics, len(sc.QueueSchedulingContexts))
+		for qName, qCtx := range sc.QueueSchedulingContexts {
+			queueMetrics[qName] = &metricevents.QueueMetrics{
+				ActualShare:       sc.FairnessCostProvider.UnweightedCostFromQueue(qCtx),
+				Demand:            sc.FairnessCostProvider.UnweightedCostFromAllocation(qCtx.Demand),
+				ConstrainedDemand: sc.FairnessCostProvider.UnweightedCostFromAllocation(qCtx.ConstrainedDemand),
+			}
+		}
+		events[i] = &metricevents.Event{
+			Created: protoutil.ToTimestamp(sc.Finished),
+			Event: &metricevents.Event_CycleMetrics{CycleMetrics: &metricevents.CycleMetrics{
+				Pool:         sc.Pool,
+				QueueMetrics: queueMetrics,
+				AllocatableResources: armadamaps.MapValues(sc.TotalResources.ToMap(), func(q resource.Quantity) *resource.Quantity {
+					return &q
+				}),
+			}},
+		}
+	}
+	err := m.metricsPublisher.PublishMessages(ctx, events...)
+	if err != nil {
+		ctx.Logger().WithError(err).Warn("Error publishing cycle metrics")
+	}
 }
