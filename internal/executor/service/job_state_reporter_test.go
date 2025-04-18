@@ -166,6 +166,27 @@ func TestJobStateReporter_HandlesFailedPod_WithRetryableError(t *testing.T) {
 	assertExpectedEvents(t, before, eventReporter.ReceivedEvents, reflect.TypeOf(&armadaevents.EventSequence_Event_JobRunErrors{}))
 }
 
+func TestJobStateReporter_IgnoresPreemptedPod(t *testing.T) {
+	_, _, eventReporter, fakeClusterContext := setUpJobStateReporterTest(t)
+
+	before := makeTestPod(v1.PodStatus{Phase: v1.PodRunning})
+	after := before.DeepCopy()
+	after.Status = v1.PodStatus{
+		Phase: v1.PodFailed,
+		Conditions: []v1.PodCondition{
+			{
+				Type:   v1.DisruptionTarget,
+				Status: v1.ConditionTrue,
+				Reason: util.PreemptedReason,
+			},
+		},
+	}
+
+	fakeClusterContext.SimulateUpdateAddEvent(before, after)
+	time.Sleep(time.Millisecond * 100) // Give time for async routine to process message
+	assert.Len(t, eventReporter.ReceivedEvents, 0)
+}
+
 func setUpJobStateReporterTest(t *testing.T) (*JobStateReporter, *stubIssueHandler, *mocks.FakeEventReporter, *fakecontext.SyncFakeClusterContext) {
 	fakeClusterContext := fakecontext.NewSyncFakeClusterContext()
 	eventReporter := mocks.NewFakeEventReporter()

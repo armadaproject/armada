@@ -370,3 +370,15 @@ func GroupByQueue(pods []*v1.Pod) map[string][]*v1.Pod {
 	}
 	return podsByQueue
 }
+
+func IsPodPreempted(pod *v1.Pod) bool {
+	for _, containerCondition := range pod.Status.Conditions {
+		if containerCondition.Type == v1.DisruptionTarget && containerCondition.Status == v1.ConditionTrue {
+			if containerCondition.Reason == PreemptedReason {
+				return true
+			}
+		}
+	}
+
+	return false
+}

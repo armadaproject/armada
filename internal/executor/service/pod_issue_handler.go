@@ -521,7 +521,7 @@ func createStuckPodMessage(retryable bool, originalMessage string) string {
 func (p *PodIssueHandler) handleDeletedPod(pod *v1.Pod) {
 	jobId := util.ExtractJobId(pod)
 	if jobId != "" {
-		isUnexpectedDeletion := !util.IsMarkedForDeletion(pod) && !util.IsPodFinishedAndReported(pod)
+		isUnexpectedDeletion := !util.IsMarkedForDeletion(pod) && !util.IsPodFinishedAndReported(pod) && !util.IsPodPreempted(pod)
 		if isUnexpectedDeletion {
 			p.attemptToRegisterIssue(&runIssue{
 				JobId: jobId,

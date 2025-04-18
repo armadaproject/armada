@@ -283,6 +283,7 @@ func (r *PostgresJobRepository) FindInactiveRuns(ctx *armadacontext.Context, run
 		WHERE runs.run_id IS NULL
 		OR runs.succeeded = true
  		OR runs.failed = true
+		OR runs.preempted = true
 		OR runs.cancelled = true;`
 
 		rows, err := tx.Query(ctx, fmt.Sprintf(query, tmpTable))
@@ -331,6 +332,7 @@ func (r *PostgresJobRepository) FetchJobRunLeases(ctx *armadacontext.Context, ex
 				AND jr.succeeded = false
 				AND jr.failed = false
 				AND jr.cancelled = false
+				AND jr.preempted = false
 				ORDER BY jr.serial
 				LIMIT %d;
 `

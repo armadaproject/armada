@@ -13,6 +13,55 @@ import (
 	"github.com/armadaproject/armada/internal/server/configuration"
 )
 
+func TestIsPodPreempted(t *testing.T) {
+
+	t.Run("preempted pod is preempted", func(t *testing.T) {
+		pod := v1.Pod{
+			Status: v1.PodStatus{
+				Phase: v1.PodFailed,
+				Conditions: []v1.PodCondition{
+					{
+						Type:   v1.DisruptionTarget,
+						Status: v1.ConditionTrue,
+						Reason: PreemptedReason,
+					},
+				},
+			},
+		}
+
+		assert.True(t, IsPodPreempted(&pod))
+	})
+
+	t.Run("failed pod is not preempted", func(t *testing.T) {
+		pod := v1.Pod{
+			Status: v1.PodStatus{
+				Phase: v1.PodFailed,
+				ContainerStatuses: []v1.ContainerStatus{
+					{
+						State: v1.ContainerState{
+							Terminated: &v1.ContainerStateTerminated{
+								ExitCode: 1,
+							},
+						},
+					},
+				},
+			},
+		}
+
+		assert.False(t, IsPodPreempted(&pod))
+	})
+
+	t.Run("successful pod is not preempted", func(t *testing.T) {
+		pod := v1.Pod{
+			Status: v1.PodStatus{
+				Phase: v1.PodSucceeded,
+			},
+		}
+
+		assert.False(t, IsPodPreempted(&pod))
+	})
+}
+
 func TestIsInTerminalState_ShouldReturnTrueWhenPodInSucceededPhase(t *testing.T) {
 	pod := v1.Pod{
 		Status: v1.PodStatus{
