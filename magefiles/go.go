@@ -60,8 +60,9 @@ func goModuleVersion(name string) (string, error) {
 		return "", err
 	}
 	fields := strings.Fields(out)
-	if len(fields) != 2 {
-		return "", errors.Errorf("unexpected go list output: %v", fields)
+	// allow for 2 tokens, or mod replacement
+	if len(fields) == 2 || strings.Contains(out, "=>") {
+		return fields[1], nil
 	}
-	return fields[1], nil
+	return "", errors.Errorf("unexpected go list output: %v", fields)
 }
