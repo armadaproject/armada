@@ -93,6 +93,11 @@ func (stateReporter *JobStateReporter) reportCurrentStatus(pod *v1.Pod) {
 	}
 
 	if pod.Status.Phase == v1.PodFailed {
+
+		if util.IsPodPreempted(pod) {
+			return
+		}
+
 		hasIssue := stateReporter.podIssueHandler.HasIssue(util.ExtractJobRunId(pod))
 		if hasIssue {
 			// Pod already being handled by issue handler

@@ -501,7 +501,7 @@ func (run *JobRun) WithoutTerminal() *JobRun {
 
 // InTerminalState returns true if the JobRun is in a terminal state
 func (run *JobRun) InTerminalState() bool {
-	return run.succeeded || run.failed || run.cancelled || run.returned
+	return run.succeeded || run.failed || run.cancelled || run.returned || run.preempted
 }
 
 func (run *JobRun) DeepCopy() *JobRun {

@@ -15,6 +15,7 @@ const (
 	oomKilledReason  = "OOMKilled"
 	evictedReason    = "Evicted"
 	deadlineExceeded = "DeadlineExceeded"
+	PreemptedReason  = "PreemptionByScheduler"
 )
 
 // TODO: Need to detect pod preemption. So that job failed events can include a string indicating a pod was preempted.

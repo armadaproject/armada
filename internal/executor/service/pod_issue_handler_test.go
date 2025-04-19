@@ -329,6 +329,27 @@ func TestPodIssueService_ReportsFailed_IfDeletedExternally(t *testing.T) {
 	assert.Equal(t, jobId, failedEvent.JobRunErrors.JobId)
 }
 
+func TestPodIssueService_IgnoresFailed_IfDeletedExternallyDueToPreemption(t *testing.T) {
+	podIssueService, _, fakeClusterContext, eventsReporter, err := setupTestComponents([]*job.RunState{})
+	require.NoError(t, err)
+	preemptedPod := makeTestPod(v1.PodStatus{
+		Phase: v1.PodFailed,
+		Conditions: []v1.PodCondition{
+			{
+				Type:   v1.DisruptionTarget,
+				Status: v1.ConditionTrue,
+				Reason: util.PreemptedReason,
+			},
+		},
+	})
+	fakeClusterContext.SimulateDeletionEvent(preemptedPod)
+
+	podIssueService.HandlePodIssues()
+
+	assert.Len(t, eventsReporter.ReceivedEvents, 0)
+	assert.Len(t, podIssueService.knownPodIssues, 0)
+}
+
 func TestPodIssueService_ReportsFailed_IfPodOfActiveRunGoesMissing(t *testing.T) {
 	baseTime := time.Now()
 	fakeClock := clock.NewFakeClock(baseTime)
