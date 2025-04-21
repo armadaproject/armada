@@ -24,7 +24,7 @@ func protoPrepareThirdPartyProtos() error {
 		{
 			name: "github.com/gogo/protobuf",
 			roots: []string{
-				filepath.FromSlash("github.com/gogo/protobuf/protobuf"),
+				filepath.FromSlash("github.com/cockroachdb/gogoproto/protobuf"),
 			},
 		},
 		{
