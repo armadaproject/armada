@@ -54,9 +54,9 @@ func protoPrepareThirdPartyProtos() error {
 	}
 
 	for _, module := range modules {
-		moduleName := module.name
+		modulePath := module.name
 		if module.replacementName != "" {
-			moduleName = module.replacementName
+			modulePath = module.replacementName
 		}
 		err = goRun("mod", "download", module.name)
 		if err != nil {
@@ -67,7 +67,7 @@ func protoPrepareThirdPartyProtos() error {
 		if err != nil {
 			return err
 		}
-		relModPath := filepath.FromSlash(moduleName)
+		relModPath := filepath.FromSlash(modulePath)
 		relModPathWithVersion := relModPath + "@" + version
 		err = filepath.WalkDir(filepath.Join(goModPath, relModPathWithVersion), func(path string, d fs.DirEntry, err error) error {
 			if (d != nil && d.IsDir()) || filepath.Ext(path) != ".proto" {
