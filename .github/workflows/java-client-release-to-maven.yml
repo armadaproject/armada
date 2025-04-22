@@ -29,8 +29,6 @@ jobs:
       run: |
         cd client/java
         mvn clean install
-      env:
-        MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
 
     - name: Release artifacts
       run: |
