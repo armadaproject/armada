@@ -27,6 +27,8 @@ type PulsarConfig struct {
 	JobsetEventsTopic string
 	// The pulsar topic that Control Plane Events will be published to
 	ControlPlaneEventsTopic string
+	// The pulsar topic that Metric Events will be published to
+	MetricEventsTopic string
 	// Compression to use.  Valid values are "None", "LZ4", "Zlib", "Zstd".  Default is "None"
 	CompressionType pulsar.CompressionType
 	// Compression Level to use.  Valid values are "Default", "Better", "Faster".  Default is "Default"

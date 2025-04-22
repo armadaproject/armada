@@ -1,5 +1,6 @@
 import { Cancel, LowPriority } from "@mui/icons-material"
 import { Button, Container, FormControlLabel, Checkbox, Tooltip, styled } from "@mui/material"
+import { ErrorBoundary } from "react-error-boundary"
 
 import { JobSet, JobSetsOrderByColumn } from "../../services/JobService"
 import { RequestStatus } from "../../utils"
@@ -8,6 +9,7 @@ import RefreshButton from "../RefreshButton"
 import JobSetTable from "./JobSetTable"
 import "./JobSets.css"
 import { QueueSelector } from "./QueueSelector"
+import { AlertErrorFallback } from "../AlertErrorFallback"
 
 const HeaderStartContainer = styled("div")({
   display: "flex",
@@ -74,52 +76,56 @@ export default function JobSets(props: JobSetsProps) {
           </div>
         </HeaderStartContainer>
         <div className="job-sets-actions">
-          <div className="reprioritize-button">
-            <Button
-              disabled={!props.canReprioritize}
-              variant="contained"
-              color="primary"
-              startIcon={<LowPriority />}
-              onClick={props.onReprioritizeJobSetsClick}
-            >
-              Reprioritize
-            </Button>
-          </div>
-          <div className="cancel-button">
-            <Button
-              disabled={!props.canCancel}
-              variant="contained"
-              color="secondary"
-              startIcon={<Cancel />}
-              onClick={props.onCancelJobSetsClick}
-            >
-              Cancel
-            </Button>
-          </div>
-          {props.onToggleAutoRefresh && (
-            <div className="auto-refresh">
-              <AutoRefreshToggle autoRefresh={props.autoRefresh} onAutoRefreshChange={props.onToggleAutoRefresh} />
+          <ErrorBoundary FallbackComponent={AlertErrorFallback}>
+            <div className="reprioritize-button">
+              <Button
+                disabled={!props.canReprioritize}
+                variant="contained"
+                color="primary"
+                startIcon={<LowPriority />}
+                onClick={props.onReprioritizeJobSetsClick}
+              >
+                Reprioritize
+              </Button>
             </div>
-          )}
-          <div className="refresh-button">
-            <RefreshButton isLoading={props.getJobSetsRequestStatus === "Loading"} onClick={props.onRefresh} />
-          </div>
+            <div className="cancel-button">
+              <Button
+                disabled={!props.canCancel}
+                variant="contained"
+                color="secondary"
+                startIcon={<Cancel />}
+                onClick={props.onCancelJobSetsClick}
+              >
+                Cancel
+              </Button>
+            </div>
+            {props.onToggleAutoRefresh && (
+              <div className="auto-refresh">
+                <AutoRefreshToggle autoRefresh={props.autoRefresh} onAutoRefreshChange={props.onToggleAutoRefresh} />
+              </div>
+            )}
+            <div className="refresh-button">
+              <RefreshButton isLoading={props.getJobSetsRequestStatus === "Loading"} onClick={props.onRefresh} />
+            </div>
+          </ErrorBoundary>
         </div>
       </div>
       <div className="job-sets-content">
-        <JobSetTable
-          queue={props.queue}
-          jobSets={props.jobSets}
-          selectedJobSets={props.selectedJobSets}
-          orderByColumn={props.orderByColumn}
-          orderByDesc={props.orderByDesc}
-          onSelectJobSet={props.onSelectJobSet}
-          onShiftSelectJobSet={props.onShiftSelectJobSet}
-          onDeselectAllClick={props.onDeselectAllClick}
-          onSelectAllClick={props.onSelectAllClick}
-          onOrderChange={props.onOrderChange}
-          onJobSetStateClick={props.onJobSetStateClick}
-        />
+        <ErrorBoundary FallbackComponent={AlertErrorFallback}>
+          <JobSetTable
+            queue={props.queue}
+            jobSets={props.jobSets}
+            selectedJobSets={props.selectedJobSets}
+            orderByColumn={props.orderByColumn}
+            orderByDesc={props.orderByDesc}
+            onSelectJobSet={props.onSelectJobSet}
+            onShiftSelectJobSet={props.onShiftSelectJobSet}
+            onDeselectAllClick={props.onDeselectAllClick}
+            onSelectAllClick={props.onSelectAllClick}
+            onOrderChange={props.onOrderChange}
+            onJobSetStateClick={props.onJobSetStateClick}
+          />
+        </ErrorBoundary>
       </div>
     </Container>
   )

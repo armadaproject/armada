@@ -2,7 +2,9 @@ name: Python Airflow Operator
 
 on:
   push:
-    branches-ignore:
+    tags:
+      - v*
+    branches:
       - master
     paths:
       - '.github/workflows/airflow-operator.yml'

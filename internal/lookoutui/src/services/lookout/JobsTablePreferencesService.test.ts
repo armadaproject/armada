@@ -9,13 +9,18 @@ import {
   QueryStringPrefs,
   stringifyQueryParams,
 } from "./JobsTablePreferencesService"
-import { Match } from "../../models/lookoutModels"
+import { JobState, Match } from "../../models/lookoutModels"
 import {
   FORMAT_NUMBER_SHOULD_FORMAT_KEY,
   FORMAT_TIMESTAMP_SHOULD_FORMAT_KEY,
 } from "../../userSettings/localStorageKeys"
 import { Router } from "../../utils"
-import { ColumnId, DEFAULT_COLUMN_ORDERING, StandardColumnId } from "../../utils/jobsTableColumns"
+import {
+  ColumnId,
+  DEFAULT_COLUMN_MATCHES,
+  DEFAULT_COLUMN_ORDERING,
+  StandardColumnId,
+} from "../../utils/jobsTableColumns"
 
 class FakeRouter implements Router {
   location: Location
@@ -132,11 +137,9 @@ describe("JobsTablePreferencesService", () => {
 
   describe("Column filters", () => {
     it("makes filter value and match types consistent (migrating to anyOf)", () => {
-      savePartialPrefs({ filters: [{ id: StandardColumnId.Queue, value: "i-am-a-string-and-not-an-array" }] })
-      expect(router.location.search).toContain(
-        "f[0][id]=queue&f[0][value]=i-am-a-string-and-not-an-array&f[0][match]=anyOf",
-      )
-      expect(service.getUserPrefs().filters).toStrictEqual([{ id: StandardColumnId.Queue, value: undefined }])
+      savePartialPrefs({ filters: [{ id: StandardColumnId.State, value: JobState.Failed }] })
+      expect(router.location.search).toContain("f[0][id]=state&f[0][value]=FAILED&f[0][match]=anyOf")
+      expect(service.getUserPrefs().filters).toStrictEqual([{ id: StandardColumnId.State, value: undefined }])
     })
 
     it("makes filter value and match types consistent (migrating from anyOf)", () => {
@@ -290,7 +293,7 @@ describe("JobsTablePreferencesService", () => {
     })
   })
 
-  describe("Queue parameters and Local storage", () => {
+  describe("Query parameters and Local storage", () => {
     beforeEach(() => {
       localStorage.clear()
       localStorage.setItem(FORMAT_NUMBER_SHOULD_FORMAT_KEY, JSON.stringify(false))
@@ -299,6 +302,176 @@ describe("JobsTablePreferencesService", () => {
 
     afterEach(() => {
       localStorage.clear()
+    })
+
+    it("migrates old queue filter type in query params (exact)", () => {
+      const queryParams: Partial<QueryStringPrefs> = {
+        f: [{ id: StandardColumnId.Queue, match: Match.Exact, value: "myq123" }],
+      }
+      router.navigate({
+        search: stringifyQueryParams(queryParams),
+      })
+      expect(service.getUserPrefs()).toMatchObject({
+        columnMatches: DEFAULT_COLUMN_MATCHES,
+        filters: [{ id: StandardColumnId.Queue, value: ["myq123"] }],
+      })
+    })
+
+    it("migrates old queue filter type in query params (starts-with)", () => {
+      const queryParams: Partial<QueryStringPrefs> = {
+        f: [{ id: StandardColumnId.Queue, match: Match.StartsWith, value: "myq123" }],
+      }
+      router.navigate({
+        search: stringifyQueryParams(queryParams),
+      })
+      expect(service.getUserPrefs()).toMatchObject({
+        columnMatches: DEFAULT_COLUMN_MATCHES,
+        filters: [],
+      })
+    })
+
+    it("migrates old queue filter type in query params (contains)", () => {
+      const queryParams: Partial<QueryStringPrefs> = {
+        f: [{ id: StandardColumnId.Queue, match: Match.Contains, value: "myq123" }],
+      }
+      router.navigate({
+        search: stringifyQueryParams(queryParams),
+      })
+      expect(service.getUserPrefs()).toMatchObject({
+        columnMatches: DEFAULT_COLUMN_MATCHES,
+        filters: [],
+      })
+    })
+
+    it("leaves unchanged new queue filter type in query params (single value)", () => {
+      const queryParams: Partial<QueryStringPrefs> = {
+        f: [{ id: StandardColumnId.Queue, match: Match.AnyOf, value: ["myq123"] }],
+      }
+      router.navigate({
+        search: stringifyQueryParams(queryParams),
+      })
+      expect(service.getUserPrefs()).toMatchObject({
+        columnMatches: DEFAULT_COLUMN_MATCHES,
+        filters: [{ id: StandardColumnId.Queue, value: ["myq123"] }],
+      })
+    })
+
+    it("leaves unchanged new queue filter type in query params (multiple values)", () => {
+      const queryParams: Partial<QueryStringPrefs> = {
+        f: [{ id: StandardColumnId.Queue, match: Match.AnyOf, value: ["myq123", "myq456"] }],
+      }
+      router.navigate({
+        search: stringifyQueryParams(queryParams),
+      })
+      expect(service.getUserPrefs()).toMatchObject({
+        columnMatches: DEFAULT_COLUMN_MATCHES,
+        filters: [{ id: StandardColumnId.Queue, value: ["myq123", "myq456"] }],
+      })
+    })
+
+    it("migrates old queue filter type in local storage (exact)", () => {
+      const localStorageParams: JobsTablePreferences = {
+        annotationColumnKeys: [],
+        expandedState: {},
+        filters: [{ id: StandardColumnId.Queue, value: "myq123" }],
+        columnMatches: { [StandardColumnId.Queue]: Match.Exact },
+        groupedColumns: [],
+        columnOrder: [],
+        order: { id: StandardColumnId.TimeInState, direction: "ASC" },
+        pageIndex: 0,
+        pageSize: 20,
+        sidebarJobId: undefined,
+        visibleColumns: {},
+      }
+      localStorage.setItem(PREFERENCES_KEY, JSON.stringify(localStorageParams))
+
+      expect(service.getUserPrefs()).toMatchObject({
+        filters: [{ id: StandardColumnId.Queue, value: ["myq123"] }],
+      })
+    })
+
+    it("migrates old queue filter type in local storage (starts-with)", () => {
+      const localStorageParams: JobsTablePreferences = {
+        annotationColumnKeys: [],
+        expandedState: {},
+        filters: [{ id: StandardColumnId.Queue, value: "myq123" }],
+        columnMatches: { [StandardColumnId.Queue]: Match.StartsWith },
+        groupedColumns: [],
+        columnOrder: [],
+        order: { id: StandardColumnId.TimeInState, direction: "ASC" },
+        pageIndex: 0,
+        pageSize: 20,
+        sidebarJobId: undefined,
+        visibleColumns: {},
+      }
+      localStorage.setItem(PREFERENCES_KEY, JSON.stringify(localStorageParams))
+
+      expect(service.getUserPrefs()).toMatchObject({
+        filters: [],
+      })
+    })
+
+    it("migrates old queue filter type in local storage (contains)", () => {
+      const localStorageParams: JobsTablePreferences = {
+        annotationColumnKeys: [],
+        expandedState: {},
+        filters: [{ id: StandardColumnId.Queue, value: "myq123" }],
+        columnMatches: { [StandardColumnId.Queue]: Match.Contains },
+        groupedColumns: [],
+        columnOrder: [],
+        order: { id: StandardColumnId.TimeInState, direction: "ASC" },
+        pageIndex: 0,
+        pageSize: 20,
+        sidebarJobId: undefined,
+        visibleColumns: {},
+      }
+      localStorage.setItem(PREFERENCES_KEY, JSON.stringify(localStorageParams))
+
+      expect(service.getUserPrefs()).toMatchObject({
+        filters: [],
+      })
+    })
+
+    it("leaves unchanged new queue filter type in local storage (single value)", () => {
+      const localStorageParams: JobsTablePreferences = {
+        annotationColumnKeys: [],
+        expandedState: {},
+        filters: [{ id: StandardColumnId.Queue, value: ["myq123"] }],
+        columnMatches: { [StandardColumnId.Queue]: Match.AnyOf },
+        groupedColumns: [],
+        columnOrder: [],
+        order: { id: StandardColumnId.TimeInState, direction: "ASC" },
+        pageIndex: 0,
+        pageSize: 20,
+        sidebarJobId: undefined,
+        visibleColumns: {},
+      }
+      localStorage.setItem(PREFERENCES_KEY, JSON.stringify(localStorageParams))
+
+      expect(service.getUserPrefs()).toMatchObject({
+        filters: [{ id: StandardColumnId.Queue, value: ["myq123"] }],
+      })
+    })
+
+    it("leaves unchanged new queue filter type in local storage (multiple values)", () => {
+      const localStorageParams: JobsTablePreferences = {
+        annotationColumnKeys: [],
+        expandedState: {},
+        filters: [{ id: StandardColumnId.Queue, value: ["myq123", "myq456"] }],
+        columnMatches: { [StandardColumnId.Queue]: Match.AnyOf },
+        groupedColumns: [],
+        columnOrder: [],
+        order: { id: StandardColumnId.TimeInState, direction: "ASC" },
+        pageIndex: 0,
+        pageSize: 20,
+        sidebarJobId: undefined,
+        visibleColumns: {},
+      }
+      localStorage.setItem(PREFERENCES_KEY, JSON.stringify(localStorageParams))
+
+      expect(service.getUserPrefs()).toMatchObject({
+        filters: [{ id: StandardColumnId.Queue, value: ["myq123", "myq456"] }],
+      })
     })
 
     it("should override for all query params even if only one is defined", () => {

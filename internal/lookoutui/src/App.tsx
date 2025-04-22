@@ -4,8 +4,11 @@ import { CssBaseline, styled, ThemeProvider } from "@mui/material"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { SnackbarProvider } from "notistack"
 import { UserManager, WebStorageStateStore, UserManagerSettings } from "oidc-client-ts"
+import { ErrorBoundary } from "react-error-boundary"
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom"
 
+import { AlertInPageContainerErrorFallback } from "./components/AlertInPageContainerErrorFallback"
+import { FullPageErrorFallback } from "./components/FullPageErrorFallback"
 import NavBar from "./components/NavBar"
 import JobSetsContainer from "./containers/JobSetsContainer"
 import { JobsTableContainer } from "./containers/lookout/JobsTableContainer"
@@ -69,61 +72,82 @@ export function App(props: AppProps) {
   }, [props.customTitle])
 
   return (
-    <ThemeProvider theme={theme} defaultMode="light">
-      <CssBaseline />
-      <SnackbarProvider anchorOrigin={{ horizontal: "right", vertical: "bottom" }} autoHideDuration={8000} maxSnack={3}>
-        <QueryClientProvider client={queryClient}>
-          <OidcAuthProvider oidcConfig={props.oidcConfig}>
-            <BrowserRouter>
-              <ServicesProvider services={props.services}>
-                <AppContainer>
-                  <NavBar customTitle={props.customTitle} />
-                  <AppContent>
-                    <Routes>
-                      <Route
-                        path="/"
-                        element={
-                          <JobsTableContainer
-                            getJobsService={props.services.v2GetJobsService}
-                            groupJobsService={props.services.v2GroupJobsService}
-                            updateJobsService={props.services.v2UpdateJobsService}
-                            runInfoService={props.services.v2RunInfoService}
-                            jobSpecService={props.services.v2JobSpecService}
-                            cordonService={props.services.v2CordonService}
-                            debug={props.debugEnabled}
-                            autoRefreshMs={props.jobsAutoRefreshMs}
-                            commandSpecs={props.commandSpecs}
+    <ErrorBoundary FallbackComponent={FullPageErrorFallback}>
+      <ThemeProvider theme={theme} defaultMode="light">
+        <CssBaseline />
+        <SnackbarProvider
+          anchorOrigin={{ horizontal: "right", vertical: "bottom" }}
+          autoHideDuration={8000}
+          maxSnack={3}
+        >
+          <QueryClientProvider client={queryClient}>
+            <ErrorBoundary FallbackComponent={FullPageErrorFallback}>
+              <OidcAuthProvider oidcConfig={props.oidcConfig}>
+                <BrowserRouter>
+                  <ServicesProvider services={props.services}>
+                    <AppContainer>
+                      <NavBar customTitle={props.customTitle} />
+                      <AppContent>
+                        <Routes>
+                          <Route
+                            path="/"
+                            element={
+                              <ErrorBoundary FallbackComponent={AlertInPageContainerErrorFallback}>
+                                <JobsTableContainer
+                                  getJobsService={props.services.v2GetJobsService}
+                                  groupJobsService={props.services.v2GroupJobsService}
+                                  updateJobsService={props.services.v2UpdateJobsService}
+                                  runInfoService={props.services.v2RunInfoService}
+                                  jobSpecService={props.services.v2JobSpecService}
+                                  cordonService={props.services.v2CordonService}
+                                  debug={props.debugEnabled}
+                                  autoRefreshMs={props.jobsAutoRefreshMs}
+                                  commandSpecs={props.commandSpecs}
+                                />
+                              </ErrorBoundary>
+                            }
                           />
-                        }
-                      />
-                      <Route
-                        path="/job-sets"
-                        element={
-                          <JobSetsContainer
-                            v2GroupJobsService={props.services.v2GroupJobsService}
-                            v2UpdateJobSetsService={props.services.v2UpdateJobSetsService}
-                            jobSetsAutoRefreshMs={props.jobSetsAutoRefreshMs}
+                          <Route
+                            path="/job-sets"
+                            element={
+                              <ErrorBoundary FallbackComponent={AlertInPageContainerErrorFallback}>
+                                <JobSetsContainer
+                                  v2GroupJobsService={props.services.v2GroupJobsService}
+                                  v2UpdateJobSetsService={props.services.v2UpdateJobSetsService}
+                                  jobSetsAutoRefreshMs={props.jobSetsAutoRefreshMs}
+                                />
+                              </ErrorBoundary>
+                            }
                           />
-                        }
-                      />
-                      <Route path="/v2" element={<V2Redirect />} />
-                      <Route
-                        path="*"
-                        element={
-                          // This wildcard route ensures that users who follow old
-                          // links to /job-sets or /jobs see something other than
-                          // a blank page.
-                          <Navigate to="/" />
-                        }
-                      />
-                    </Routes>
-                  </AppContent>
-                </AppContainer>
-              </ServicesProvider>
-            </BrowserRouter>
-          </OidcAuthProvider>
-        </QueryClientProvider>
-      </SnackbarProvider>
-    </ThemeProvider>
+                          <Route
+                            path="/v2"
+                            element={
+                              <ErrorBoundary FallbackComponent={AlertInPageContainerErrorFallback}>
+                                <V2Redirect />
+                              </ErrorBoundary>
+                            }
+                          />
+                          <Route
+                            path="*"
+                            element={
+                              // This wildcard route ensures that users who follow old
+                              // links to /job-sets or /jobs see something other than
+                              // a blank page.
+                              <ErrorBoundary FallbackComponent={AlertInPageContainerErrorFallback}>
+                                <Navigate to="/" />
+                              </ErrorBoundary>
+                            }
+                          />
+                        </Routes>
+                      </AppContent>
+                    </AppContainer>
+                  </ServicesProvider>
+                </BrowserRouter>
+              </OidcAuthProvider>
+            </ErrorBoundary>
+          </QueryClientProvider>
+        </SnackbarProvider>
+      </ThemeProvider>
+    </ErrorBoundary>
   )
 }

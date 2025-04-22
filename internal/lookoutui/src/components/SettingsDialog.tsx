@@ -20,6 +20,7 @@ import {
   Typography,
   useColorScheme,
 } from "@mui/material"
+import { ErrorBoundary } from "react-error-boundary"
 
 import { SPACING } from "../styling/spacing"
 import {
@@ -33,6 +34,7 @@ import {
   useJobRunLogsShowTimestamps,
   useJobRunLogsWrapLines,
 } from "../userSettings"
+import { AlertErrorFallback } from "./AlertErrorFallback"
 import { JobRunLogsTextSizeToggle } from "./JobRunLogsTextSizeToggle"
 import { LocaleSelector } from "./LocaleSelector"
 import { NumberNotationSelector } from "./NumberNotationSelector"
@@ -80,209 +82,211 @@ export const SettingsDialog = ({ open, onClose }: SettingsDialogProps) => {
       <DialogTitle>Settings</DialogTitle>
       <DialogContent>
         <DialogContentContainer>
-          <div>
+          <ErrorBoundary FallbackComponent={AlertErrorFallback}>
             <div>
-              <Typography variant="overline">Colour mode</Typography>
+              <div>
+                <Typography variant="overline">Colour mode</Typography>
+              </div>
+              <div>
+                <ToggleButtonGroup
+                  color="primary"
+                  disabled={mode === undefined}
+                  value={mode ?? "system"}
+                  exclusive
+                  aria-label="colour mode"
+                  onChange={(_, colorMode) => setMode(colorMode)}
+                  fullWidth
+                >
+                  <ToggleButton value="light">Light</ToggleButton>
+                  <ToggleButton value="system">System</ToggleButton>
+                  <ToggleButton value="dark">Dark</ToggleButton>
+                </ToggleButtonGroup>
+              </div>
             </div>
             <div>
-              <ToggleButtonGroup
-                color="primary"
-                disabled={mode === undefined}
-                value={mode ?? "system"}
-                exclusive
-                aria-label="colour mode"
-                onChange={(_, colorMode) => setMode(colorMode)}
-                fullWidth
-              >
-                <ToggleButton value="light">Light</ToggleButton>
-                <ToggleButton value="system">System</ToggleButton>
-                <ToggleButton value="dark">Dark</ToggleButton>
-              </ToggleButtonGroup>
+              <Divider />
             </div>
-          </div>
-          <div>
-            <Divider />
-          </div>
-          <div>
-            <SettingsGroupHeading variant="h2">Timestamp display</SettingsGroupHeading>
-          </div>
-          <div>
-            <FormGroup>
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={formatTimestampShouldFormat}
-                    onChange={({ target: { checked } }) => setFormatTimestampShouldFormat(checked)}
-                  />
-                }
-                label="Format timestamps"
-              />
-              {!formatTimestampShouldFormat && (
-                <FormHelperText>Timestamps will be displayed in the ISO 8601 format.</FormHelperText>
-              )}
-            </FormGroup>
-          </div>
-          {formatTimestampShouldFormat && (
-            <Grid2 container spacing={SPACING.sm}>
-              <Grid2 size={{ xs: 12, sm: 6 }}>
-                <LocaleSelector
-                  idPrefix="settings-dialog-timestamps"
-                  label="Locale for timestamps"
-                  value={formatTimestampLocale}
-                  onChange={setFormatTimestampLocale}
-                  fullWidth
-                  size="small"
-                />
-              </Grid2>
-              <Grid2 size={{ xs: 12, sm: 6 }}>
-                <TimeZoneSelector
-                  idPrefix="settings-dialog-timestamps"
-                  label="Time zone location for timestamps"
-                  value={formatTimestampTimeZone}
-                  onChange={setFormatTimestampTimeZone}
-                  fullWidth
-                  size="small"
-                />
-              </Grid2>
-            </Grid2>
-          )}
-          <Alert icon={false} severity="info">
-            {formatTimestampShouldFormat ? (
-              <>
-                <AlertTitle>Examples</AlertTitle>
-                <Stack direction="row" spacing={SPACING.sm} flexWrap="wrap">
-                  <ul>
-                    {TIMESTAMP_FORMATS.map((format) => (
-                      <li key={format}>
-                        {timestampFormatDisplayNames[format]}: {formatIsoTimestamp(new Date().toISOString(), format)}
-                      </li>
-                    ))}
-                  </ul>
-                </Stack>
-              </>
-            ) : (
-              <>
-                <AlertTitle>Example</AlertTitle>
-                <Stack direction="row" spacing={SPACING.sm} flexWrap="wrap">
-                  {formatIsoTimestamp(new Date().toISOString(), "full")}
-                </Stack>
-              </>
-            )}
-          </Alert>
-          <div>
-            <Divider />
-          </div>
-          <div>
-            <SettingsGroupHeading variant="h2">Number display</SettingsGroupHeading>
-          </div>
-          <div>
-            <FormGroup>
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={formatNumberShouldFormat}
-                    onChange={({ target: { checked } }) => setFormatNumberShouldFormat(checked)}
-                  />
-                }
-                label="Format numbers"
-              />
-            </FormGroup>
-          </div>
-          {formatNumberShouldFormat && (
-            <Grid2 container spacing={SPACING.sm}>
-              <Grid2 size={{ xs: 12, sm: 6 }}>
-                <LocaleSelector
-                  idPrefix="settings-dialog-numbers"
-                  label="Locale for numbers"
-                  value={formatNumberLocale}
-                  onChange={setFormatNumberLocale}
-                  fullWidth
-                  size="small"
-                />
-              </Grid2>
-              <Grid2 size={{ xs: 12, sm: 6 }}>
-                <NumberNotationSelector
-                  idPrefix="settings-dialog-numbers"
-                  label="Number notation"
-                  value={formatNumberNotation}
-                  onChange={setFormatNumberNotation}
-                  fullWidth
-                  size="small"
-                />
-              </Grid2>
-            </Grid2>
-          )}
-          <Alert icon={false} severity="info">
-            <AlertTitle>Examples</AlertTitle>
-            <Stack direction="row" spacing={SPACING.sm} flexWrap="wrap">
-              {FORMAT_NUMBER_PREVIEW_VALUES.map((v) => (
-                <div key={v}>{formatNumber(v)}</div>
-              ))}
-            </Stack>
-          </Alert>
-          <div>
-            <Divider />
-          </div>
-          <div>
-            <SettingsGroupHeading variant="h2">Job run logs</SettingsGroupHeading>
-          </div>
-          <Grid2 container spacing={SPACING.sm}>
-            <Grid2 size={{ xs: 12, sm: 6 }}>
+            <div>
+              <SettingsGroupHeading variant="h2">Timestamp display</SettingsGroupHeading>
+            </div>
+            <div>
               <FormGroup>
                 <FormControlLabel
                   control={
                     <Switch
-                      checked={jobRunLogsShowTimestamps}
-                      onChange={({ target: { checked } }) => setJobRunLogsShowTimestamps(checked)}
+                      checked={formatTimestampShouldFormat}
+                      onChange={({ target: { checked } }) => setFormatTimestampShouldFormat(checked)}
                     />
                   }
-                  label="Show timestamps"
+                  label="Format timestamps"
                 />
+                {!formatTimestampShouldFormat && (
+                  <FormHelperText>Timestamps will be displayed in the ISO 8601 format.</FormHelperText>
+                )}
               </FormGroup>
-            </Grid2>
-            <Grid2 size={{ xs: 12, sm: 6 }}>
+            </div>
+            {formatTimestampShouldFormat && (
+              <Grid2 container spacing={SPACING.sm}>
+                <Grid2 size={{ xs: 12, sm: 6 }}>
+                  <LocaleSelector
+                    idPrefix="settings-dialog-timestamps"
+                    label="Locale for timestamps"
+                    value={formatTimestampLocale}
+                    onChange={setFormatTimestampLocale}
+                    fullWidth
+                    size="small"
+                  />
+                </Grid2>
+                <Grid2 size={{ xs: 12, sm: 6 }}>
+                  <TimeZoneSelector
+                    idPrefix="settings-dialog-timestamps"
+                    label="Time zone location for timestamps"
+                    value={formatTimestampTimeZone}
+                    onChange={setFormatTimestampTimeZone}
+                    fullWidth
+                    size="small"
+                  />
+                </Grid2>
+              </Grid2>
+            )}
+            <Alert icon={false} severity="info">
+              {formatTimestampShouldFormat ? (
+                <>
+                  <AlertTitle>Examples</AlertTitle>
+                  <Stack direction="row" spacing={SPACING.sm} flexWrap="wrap">
+                    <ul>
+                      {TIMESTAMP_FORMATS.map((format) => (
+                        <li key={format}>
+                          {timestampFormatDisplayNames[format]}: {formatIsoTimestamp(new Date().toISOString(), format)}
+                        </li>
+                      ))}
+                    </ul>
+                  </Stack>
+                </>
+              ) : (
+                <>
+                  <AlertTitle>Example</AlertTitle>
+                  <Stack direction="row" spacing={SPACING.sm} flexWrap="wrap">
+                    {formatIsoTimestamp(new Date().toISOString(), "full")}
+                  </Stack>
+                </>
+              )}
+            </Alert>
+            <div>
+              <Divider />
+            </div>
+            <div>
+              <SettingsGroupHeading variant="h2">Number display</SettingsGroupHeading>
+            </div>
+            <div>
               <FormGroup>
                 <FormControlLabel
                   control={
                     <Switch
-                      checked={jobRunLogsWrapLines}
-                      onChange={({ target: { checked } }) => setJobRunLogsWrapLines(checked)}
+                      checked={formatNumberShouldFormat}
+                      onChange={({ target: { checked } }) => setFormatNumberShouldFormat(checked)}
+                    />
+                  }
+                  label="Format numbers"
+                />
+              </FormGroup>
+            </div>
+            {formatNumberShouldFormat && (
+              <Grid2 container spacing={SPACING.sm}>
+                <Grid2 size={{ xs: 12, sm: 6 }}>
+                  <LocaleSelector
+                    idPrefix="settings-dialog-numbers"
+                    label="Locale for numbers"
+                    value={formatNumberLocale}
+                    onChange={setFormatNumberLocale}
+                    fullWidth
+                    size="small"
+                  />
+                </Grid2>
+                <Grid2 size={{ xs: 12, sm: 6 }}>
+                  <NumberNotationSelector
+                    idPrefix="settings-dialog-numbers"
+                    label="Number notation"
+                    value={formatNumberNotation}
+                    onChange={setFormatNumberNotation}
+                    fullWidth
+                    size="small"
+                  />
+                </Grid2>
+              </Grid2>
+            )}
+            <Alert icon={false} severity="info">
+              <AlertTitle>Examples</AlertTitle>
+              <Stack direction="row" spacing={SPACING.sm} flexWrap="wrap">
+                {FORMAT_NUMBER_PREVIEW_VALUES.map((v) => (
+                  <div key={v}>{formatNumber(v)}</div>
+                ))}
+              </Stack>
+            </Alert>
+            <div>
+              <Divider />
+            </div>
+            <div>
+              <SettingsGroupHeading variant="h2">Job run logs</SettingsGroupHeading>
+            </div>
+            <Grid2 container spacing={SPACING.sm}>
+              <Grid2 size={{ xs: 12, sm: 6 }}>
+                <FormGroup>
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={jobRunLogsShowTimestamps}
+                        onChange={({ target: { checked } }) => setJobRunLogsShowTimestamps(checked)}
+                      />
+                    }
+                    label="Show timestamps"
+                  />
+                </FormGroup>
+              </Grid2>
+              <Grid2 size={{ xs: 12, sm: 6 }}>
+                <FormGroup>
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={jobRunLogsWrapLines}
+                        onChange={({ target: { checked } }) => setJobRunLogsWrapLines(checked)}
+                      />
+                    }
+                    label="Wrap lines"
+                  />
+                </FormGroup>
+              </Grid2>
+            </Grid2>
+            <div>
+              <div>
+                <Typography variant="overline">Text size</Typography>
+              </div>
+              <div>
+                <JobRunLogsTextSizeToggle />
+              </div>
+            </div>
+            <div></div>
+            <Divider />
+            <div>
+              <SettingsGroupHeading>Code snippets</SettingsGroupHeading>
+            </div>
+            <div>
+              <Typography component="p">These settings do not apply to job run logs.</Typography>
+            </div>
+            <div>
+              <FormGroup>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={codeSnippetsWrapLines}
+                      onChange={({ target: { checked } }) => setCodeSnippetsWrapLines(checked)}
                     />
                   }
                   label="Wrap lines"
                 />
               </FormGroup>
-            </Grid2>
-          </Grid2>
-          <div>
-            <div>
-              <Typography variant="overline">Text size</Typography>
             </div>
-            <div>
-              <JobRunLogsTextSizeToggle />
-            </div>
-          </div>
-          <div></div>
-          <Divider />
-          <div>
-            <SettingsGroupHeading>Code snippets</SettingsGroupHeading>
-          </div>
-          <div>
-            <Typography component="p">These settings do not apply to job run logs.</Typography>
-          </div>
-          <div>
-            <FormGroup>
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={codeSnippetsWrapLines}
-                    onChange={({ target: { checked } }) => setCodeSnippetsWrapLines(checked)}
-                  />
-                }
-                label="Wrap lines"
-              />
-            </FormGroup>
-          </div>
+          </ErrorBoundary>
         </DialogContentContainer>
       </DialogContent>
       <DialogActions>
