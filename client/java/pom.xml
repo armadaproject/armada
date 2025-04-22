@@ -46,19 +46,11 @@
   </developers>
 
   <scm>
-    <connection>scm:git:git://github.com/armadaproject/java-client.git</connection>
-    <developerConnection>scm:git:ssh://github.com:armadaproject/java-client.git
-    </developerConnection>
-    <url>http://github.com/armadaproject/java-client/tree/main</url>
+    <connection>scm:git:git://github.com/armadaproject/armada.git</connection>
+    <developerConnection>scm:git:ssh://github.com:armadaproject/armada.git</developerConnection>
+    <url>https://github.com/armadaproject/armada/tree/master/client/java</url>
     <tag/>
   </scm>
-
-  <distributionManagement>
-    <repository>
-      <id>central</id>
-      <url>https://oss.sonatype.org/service/local/staging/deploy/maven2/</url>
-    </repository>
-  </distributionManagement>
 
   <profiles>
     <profile>
@@ -309,7 +301,7 @@
           <plugin>
             <groupId>org.apache.maven.plugins</groupId>
             <artifactId>maven-gpg-plugin</artifactId>
-            <version>3.1.0</version>
+            <version>3.2.7</version>
             <executions>
               <execution>
                 <id>sign-artifacts</id>
