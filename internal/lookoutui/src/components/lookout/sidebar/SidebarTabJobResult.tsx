@@ -24,10 +24,11 @@ import { formatDuration } from "../../../common/formatTime"
 import { useFormatIsoTimestampWithUserSettings } from "../../../hooks/formatTimeWithUserSettings"
 import { useCustomSnackbar } from "../../../hooks/useCustomSnackbar"
 import { Job, JobState } from "../../../models/lookoutModels"
-import { useGetAccessToken } from "../../../oidcAuth"
-import { ICordonService } from "../../../services/lookout/CordonService"
+import { useAuthenticatedFetch } from "../../../oidcAuth"
 import { IGetJobInfoService } from "../../../services/lookout/GetJobInfoService"
-import { IGetRunInfoService } from "../../../services/lookout/GetRunInfoService"
+import { useCordonNode } from "../../../services/lookout/useCordonNode"
+import { useBatchGetJobRunDebugMessages } from "../../../services/lookout/useGetJobRunDebugMessage"
+import { useBatchGetJobRunErrors } from "../../../services/lookout/useGetJobRunError"
 import { SPACING } from "../../../styling/spacing"
 import { getErrorMessage } from "../../../utils"
 import { formatJobRunState } from "../../../utils/jobsTableFormatters"
@@ -50,19 +51,10 @@ const loadingAccordion = (
 
 export interface SidebarTabJobResultProps {
   job: Job
-  runInfoService: IGetRunInfoService
   jobInfoService: IGetJobInfoService
-  cordonService: ICordonService
 }
 
-type LoadState = "Idle" | "Loading"
-
-export const SidebarTabJobResult = ({
-  job,
-  jobInfoService,
-  runInfoService,
-  cordonService,
-}: SidebarTabJobResultProps) => {
+export const SidebarTabJobResult = ({ job, jobInfoService }: SidebarTabJobResultProps) => {
   const mounted = useRef(false)
   const openSnackbar = useCustomSnackbar()
 
@@ -70,20 +62,15 @@ export const SidebarTabJobResult = ({
 
   const runsNewestFirst = useMemo(() => [...job.runs].reverse(), [job])
   const [jobError, setJobError] = useState<string>("")
-  const [runErrorMap, setRunErrorMap] = useState<Map<string, string>>(new Map<string, string>())
-  const [runErrorLoadingMap, setRunErrorLoadingMap] = useState<Map<string, LoadState>>(new Map<string, LoadState>())
-  const [runDebugMessageMap, setRunDebugMessageMap] = useState<Map<string, string>>(new Map<string, string>())
-  const [runDebugMessageLoadingMap, setRunDebugMessageLoadingMap] = useState<Map<string, LoadState>>(
-    new Map<string, LoadState>(),
-  )
   const [open, setOpen] = useState(false)
+  const authenticatedFetch = useAuthenticatedFetch()
 
   const fetchJobError = useCallback(async () => {
     if (job.state != JobState.Failed && job.state != JobState.Rejected) {
       setJobError("")
       return
     }
-    const getJobErrorResultPromise = jobInfoService.getJobError(job.jobId)
+    const getJobErrorResultPromise = jobInfoService.getJobError(authenticatedFetch, job.jobId)
     getJobErrorResultPromise
       .then((errorString) => {
         if (!mounted.current) {
@@ -101,94 +88,29 @@ export const SidebarTabJobResult = ({
       })
   }, [job])
 
-  const fetchRunErrors = useCallback(async () => {
-    const newRunErrorLoadingMap = new Map<string, LoadState>()
-    for (const run of job.runs) {
-      newRunErrorLoadingMap.set(run.runId, "Loading")
-    }
-    setRunErrorLoadingMap(newRunErrorLoadingMap)
+  const batchGetJobRunErrorResults = useBatchGetJobRunErrors((job.runs ?? []).map(({ runId }) => runId))
+  useEffect(() => {
+    batchGetJobRunErrorResults.forEach(({ status, error }, i) => {
+      if (status === "error") {
+        openSnackbar(
+          `Failed to retrieve Job Run error for Run with ID: ${(job.runs ?? [])[i].runId}: ${error.message}`,
+          "error",
+        )
+      }
+    })
+  }, [batchGetJobRunErrorResults, openSnackbar])
 
-    const results: { runId: string; promise: Promise<string> }[] = []
-    for (const run of job.runs) {
-      results.push({
-        runId: run.runId,
-        promise: runInfoService.getRunError(run.runId),
-      })
-    }
-
-    const newRunErrorMap = new Map<string, string>(runErrorMap)
-    for (const result of results) {
-      result.promise
-        .then((errorString) => {
-          if (!mounted.current) {
-            return
-          }
-          newRunErrorMap.set(result.runId, errorString)
-          setRunErrorMap(new Map(newRunErrorMap))
-        })
-        .catch(async (e) => {
-          const errMsg = await getErrorMessage(e)
-          console.error(errMsg)
-          if (!mounted.current) {
-            return
-          }
-          openSnackbar("Failed to retrieve Job Run error for Run with ID: " + result.runId + ": " + errMsg, "error")
-        })
-        .finally(() => {
-          if (!mounted.current) {
-            return
-          }
-          newRunErrorLoadingMap.set(result.runId, "Idle")
-          setRunErrorLoadingMap(new Map(newRunErrorLoadingMap))
-        })
-    }
-  }, [job])
-
-  const fetchRunDebugMessages = useCallback(async () => {
-    const newRunDebugMessageLoadingMap = new Map<string, LoadState>()
-    for (const run of job.runs) {
-      newRunDebugMessageLoadingMap.set(run.runId, "Loading")
-    }
-    setRunDebugMessageLoadingMap(newRunDebugMessageLoadingMap)
-
-    const results: { runId: string; promise: Promise<string> }[] = []
-    for (const run of job.runs) {
-      results.push({
-        runId: run.runId,
-        promise: runInfoService.getRunDebugMessage(run.runId),
-      })
-    }
-
-    const newRunDebugMessageMap = new Map<string, string>(runErrorMap)
-    for (const result of results) {
-      result.promise
-        .then((debugMessage) => {
-          if (!mounted.current) {
-            return
-          }
-          newRunDebugMessageMap.set(result.runId, debugMessage)
-          setRunDebugMessageMap(new Map(newRunDebugMessageMap))
-        })
-        .catch(async (e) => {
-          const errMsg = await getErrorMessage(e)
-          console.error(errMsg)
-          if (!mounted.current) {
-            return
-          }
-          openSnackbar(
-            "Failed to retrieve Job Run debug message for Run with ID: " + result.runId + ": " + errMsg,
-            "error",
-          )
-        })
-        .finally(() => {
-          if (!mounted.current) {
-            return
-          }
-          newRunDebugMessageLoadingMap.set(result.runId, "Idle")
-          setRunErrorLoadingMap(new Map(newRunDebugMessageLoadingMap))
-        })
-    }
-  }, [job])
+  const batchGetJobRunDebugMessagesResults = useBatchGetJobRunDebugMessages((job.runs ?? []).map(({ runId }) => runId))
+  useEffect(() => {
+    batchGetJobRunDebugMessagesResults.forEach(({ status, error }, i) => {
+      if (status === "error") {
+        openSnackbar(
+          `Failed to retrieve Job Run debug message for Run with ID: ${(job.runs ?? [])[i].runId}: ${error.message}`,
+          "error",
+        )
+      }
+    })
+  }, [batchGetJobRunDebugMessagesResults, openSnackbar])
 
   let topLevelError = ""
   let topLevelErrorTitle = ""
@@ -196,20 +118,17 @@ export const SidebarTabJobResult = ({
     topLevelError = jobError
     topLevelErrorTitle = "Job Error"
   } else {
-    for (const run of job.runs) {
-      const runErr = runErrorMap.get(run.runId) ?? ""
-      if (runErr != "") {
-        topLevelError = runErr
+    job.runs.forEach((_, i) => {
+      if (batchGetJobRunErrorResults[i]?.data) {
+        topLevelError = batchGetJobRunErrorResults[i].data
         topLevelErrorTitle = "Last Job Run Error"
       }
-    }
+    })
   }
 
   useEffect(() => {
     mounted.current = true
-    fetchRunErrors()
     fetchJobError()
-    fetchRunDebugMessages()
     return () => {
       mounted.current = false
     }
@@ -223,12 +142,11 @@ export const SidebarTabJobResult = ({
     setOpen(false)
   }
 
-  const getAccessToken = useGetAccessToken()
+  const cordonNode = useCordonNode()
 
   const cordon = async (cluster: string, node: string) => {
     try {
-      const accessToken = await getAccessToken()
-      await cordonService.cordonNode(cluster, node, accessToken)
+      await cordonNode.mutateAsync({ cluster, node })
       openSnackbar("Successfully cordoned node " + node, "success")
     } catch (e) {
       const errMsg = await getErrorMessage(e)
@@ -261,10 +179,10 @@ export const SidebarTabJobResult = ({
           <div>
             {runsNewestFirst.map((run, i) => {
               const node = run.node || undefined // set to undefined if it is an empty string
-              const runErrorLoading = runErrorLoadingMap.get(run.runId) === "Loading"
-              const runError = runErrorMap.get(run.runId) || undefined // set to undefined if it is an empty string
-              const runDebugMessageLoading = runDebugMessageLoadingMap.get(run.runId) === "Loading"
-              const runDebugMessage = runDebugMessageMap.get(run.runId) || undefined // set to undefined if it is an empty string
+              const runErrorLoading = batchGetJobRunErrorResults[i]?.status === "pending"
+              const runError = batchGetJobRunErrorResults[i]?.data
+              const runDebugMessageLoading = batchGetJobRunDebugMessagesResults[i]?.status === "pending"
+              const runDebugMessage = batchGetJobRunDebugMessagesResults[i]?.data
 
               const runIndicativeTimestamp = run.started || run.pending || run.leased || ""
               return (

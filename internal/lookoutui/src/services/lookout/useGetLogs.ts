@@ -1,11 +1,16 @@
 import { InfiniteData, useInfiniteQuery } from "@tanstack/react-query"
 
-import { LogLine } from "./LogService"
-import { useGetAccessToken } from "../../oidcAuth"
 import { getErrorMessage } from "../../utils"
-import { useServices } from "../context"
+import { useApiClients } from "../apiClients"
+import { createFakeLogs } from "./mocks/fakeData"
+import { useGetUiConfig } from "./useGetUiConfig"
 
 const INITIAL_TAIL_LINES = 1000
+
+export type LogLine = {
+  timestamp: string
+  line: string
+}
 
 export const useGetLogs = (
   cluster: string,
@@ -15,8 +20,8 @@ export const useGetLogs = (
   loadFromStart: boolean,
   enabled = true,
 ) => {
-  const { v2LogService } = useServices()
-  const getAccessToken = useGetAccessToken()
+  const { data: uiConfig } = useGetUiConfig()
+  const { getBinocularsApi } = useApiClients()
 
   return useInfiniteQuery<
     LogLine[],
@@ -28,17 +33,30 @@ export const useGetLogs = (
     queryKey: ["getLogs", cluster, namespace, jobId, container, loadFromStart],
     queryFn: async ({ pageParam, signal }) => {
       try {
-        const accessToken = await getAccessToken()
-        const logLines = await v2LogService.getLogs(
-          cluster,
-          namespace,
-          jobId,
-          container,
-          pageParam,
-          loadFromStart ? undefined : INITIAL_TAIL_LINES,
-          accessToken,
-          signal,
-        )
+        const logLinesRaw = uiConfig?.fakeDataEnabled
+          ? createFakeLogs(cluster, namespace, jobId, container, pageParam)
+          : (
+              await getBinocularsApi(cluster).logs(
+                {
+                  body: {
+                    jobId,
+                    podNumber: 0,
+                    podNamespace: namespace,
+                    sinceTime: pageParam,
+                    logOptions: {
+                      container: container,
+                      tailLines: loadFromStart ? undefined : INITIAL_TAIL_LINES,
+                    },
+                  },
+                },
+                { signal },
+              )
+            ).log
+
+        const logLines = (logLinesRaw ?? []).map((l) => ({
+          timestamp: l.timestamp ?? "",
+          line: l.line ?? "",
+        }))
 
         // Remove log lines with the same timestamp as the previous since-time (pageParam)
         let sliceIndex = 0

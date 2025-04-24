@@ -24,9 +24,8 @@ import { downloadTextFile } from "../../../common/downloadTextFile"
 import { useFormatIsoTimestampWithUserSettings } from "../../../hooks/formatTimeWithUserSettings"
 import { useCustomSnackbar } from "../../../hooks/useCustomSnackbar"
 import { Job } from "../../../models/lookoutModels"
-import { LogLine } from "../../../services/lookout/LogService"
 import { useGetJobSpec } from "../../../services/lookout/useGetJobSpec"
-import { useGetLogs } from "../../../services/lookout/useGetLogs"
+import { LogLine, useGetLogs } from "../../../services/lookout/useGetLogs"
 import { SPACING } from "../../../styling/spacing"
 import {
   JobRunLogsTextSize,

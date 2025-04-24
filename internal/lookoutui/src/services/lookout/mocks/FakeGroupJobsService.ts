@@ -9,6 +9,7 @@ export default class FakeGroupJobsService implements IGroupJobsService {
   ) {}
 
   async groupJobs(
+    _: GlobalFetch["fetch"],
     filters: JobFilter[],
     activeJobSets: boolean,
     order: JobOrder,
