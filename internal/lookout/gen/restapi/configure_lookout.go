@@ -14,6 +14,7 @@ import (
 	"github.com/go-openapi/runtime/middleware"
 	"golang.org/x/exp/slices"
 
+	"github.com/armadaproject/armada/internal/common/auth"
 	"github.com/armadaproject/armada/internal/common/serve"
 	"github.com/armadaproject/armada/internal/lookout/configuration"
 	"github.com/armadaproject/armada/internal/lookout/gen/restapi/operations"
@@ -26,6 +27,12 @@ var corsAllowedOrigins []string
 
 func SetCorsAllowedOrigins(allowedOrigins []string) {
 	corsAllowedOrigins = allowedOrigins
+}
+
+var authService auth.AuthService
+
+func SetAuthService(s auth.AuthService) {
+	authService = s
 }
 
 func configureFlags(api *operations.LookoutAPI) {
@@ -91,7 +98,26 @@ var UIConfig configuration.UIConfig
 // The middleware configuration happens before anything, this middleware also applies to serving the swagger.json document.
 // So this is a good place to plug in a panic handling middleware, logging and metrics.
 func setupGlobalMiddleware(apiHandler http.Handler) http.Handler {
-	return recordRequestDuration(allowCORS(uiHandler(apiHandler), corsAllowedOrigins))
+	return allowCORS(
+		uiHandler(
+			authHandler(
+				recordRequestDuration(
+					apiHandler,
+				),
+			),
+		), corsAllowedOrigins)
+}
+
+func authHandler(handler http.Handler) http.Handler {
+	authFunction := auth.CreateHttpMiddlewareAuthFunction(authService)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctxWithPrincipal, err := authFunction(w, r)
+		if err != nil {
+			return
+		}
+
+		handler.ServeHTTP(w, r.WithContext(ctxWithPrincipal))
+	})
 }
 
 func uiHandler(apiHandler http.Handler) http.Handler {
@@ -128,13 +154,11 @@ func allowCORS(handler http.Handler, corsAllowedOrigins []string) http.Handler {
 
 func recordRequestDuration(handler http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// TODO: for autheticated users, record the username
-		const unknownUser = "unknown"
 		start := time.Now()
 		handler.ServeHTTP(w, r)
 		duration := time.Since(start)
 		if strings.HasPrefix(r.URL.Path, "/api/v1/") {
-			metrics.RecordRequestDuration(unknownUser, r.URL.Path, float64(duration.Milliseconds()))
+			metrics.RecordRequestDuration(auth.GetPrincipal(r.Context()).GetName(), r.URL.Path, float64(duration.Milliseconds()))
 		}
 	})
 }

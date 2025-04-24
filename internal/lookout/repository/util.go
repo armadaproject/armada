@@ -751,24 +751,27 @@ func prefixAnnotations(prefix string, annotations map[string]string) map[string]
 	return prefixed
 }
 
-func logQueryDebug(query *Query, description string) {
+func logQueryDebug(user string, query *Query, description string) {
 	log.
+		WithField("user", user).
 		WithField("query", removeNewlinesAndTabs(query.Sql)).
 		WithField("values", query.Args).
 		Debug(description)
 }
 
-func logQueryError(query *Query, description string, duration time.Duration) {
+func logQueryError(user string, query *Query, description string, duration time.Duration) {
 	log.
+		WithField("user", user).
 		WithField("query", removeNewlinesAndTabs(query.Sql)).
 		WithField("values", query.Args).
 		WithField("duration", duration).
 		Errorf("Error executing %s query", description)
 }
 
-func logSlowQuery(query *Query, description string, duration time.Duration) {
+func logSlowQuery(user string, query *Query, description string, duration time.Duration) {
 	if duration > 5*time.Second {
 		log.
+			WithField("user", user).
 			WithField("query", removeNewlinesAndTabs(query.Sql)).
 			WithField("values", query.Args).
 			WithField("duration", duration).
