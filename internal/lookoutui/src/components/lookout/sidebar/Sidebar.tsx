@@ -13,9 +13,7 @@ import { SidebarTabJobResult } from "./SidebarTabJobResult"
 import { SidebarTabJobYaml } from "./SidebarTabJobYaml"
 import { SidebarTabScheduling } from "./SidebarTabScheduling"
 import { Job, JobState } from "../../../models/lookoutModels"
-import { ICordonService } from "../../../services/lookout/CordonService"
 import { IGetJobInfoService } from "../../../services/lookout/GetJobInfoService"
-import { IGetRunInfoService } from "../../../services/lookout/GetRunInfoService"
 import { SPACING } from "../../../styling/spacing"
 import { CommandSpec } from "../../../utils"
 import { AlertErrorFallback } from "../../AlertErrorFallback"
@@ -132,9 +130,7 @@ type ResizeState = {
 
 export interface SidebarProps {
   job: Job
-  runInfoService: IGetRunInfoService
   jobSpecService: IGetJobInfoService
-  cordonService: ICordonService
   sidebarWidth: number
   commandSpecs: CommandSpec[]
   onClose: () => void
@@ -142,16 +138,7 @@ export interface SidebarProps {
 }
 
 export const Sidebar = memo(
-  ({
-    job,
-    runInfoService,
-    jobSpecService,
-    cordonService,
-    sidebarWidth,
-    onClose,
-    onWidthChange,
-    commandSpecs,
-  }: SidebarProps) => {
+  ({ job, jobSpecService, sidebarWidth, onClose, onWidthChange, commandSpecs }: SidebarProps) => {
     const [openTab, setOpenTab] = useState<SidebarTab>(SidebarTab.JobDetails)
     useEffect(() => {
       if (openTab === SidebarTab.Scheduling && job.state !== JobState.Queued) {
@@ -282,13 +269,7 @@ export const Sidebar = memo(
                   </SidebarTabPanel>
 
                   <SidebarTabPanel value={SidebarTab.JobResult}>
-                    <SidebarTabJobResult
-                      key={job.jobId}
-                      job={job}
-                      jobInfoService={jobSpecService}
-                      runInfoService={runInfoService}
-                      cordonService={cordonService}
-                    />
+                    <SidebarTabJobResult key={job.jobId} job={job} jobInfoService={jobSpecService} />
                   </SidebarTabPanel>
 
                   {job.state === JobState.Queued && (

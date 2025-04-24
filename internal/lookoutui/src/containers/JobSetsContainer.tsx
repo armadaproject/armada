@@ -1,4 +1,4 @@
-import { Component } from "react"
+import { Component, FC } from "react"
 
 import { ErrorBoundary } from "react-error-boundary"
 
@@ -7,6 +7,7 @@ import ReprioritizeJobSetsDialog, { getReprioritizeableJobSets } from "./Reprior
 import { AlertErrorFallback } from "../components/AlertErrorFallback"
 import JobSets from "../components/job-sets/JobSets"
 import { JobState, Match } from "../models/lookoutModels"
+import { useAuthenticatedFetch } from "../oidcAuth"
 import IntervalService from "../services/IntervalService"
 import { GetJobSetsRequest, JobSet, JobSetsOrderByColumn } from "../services/JobService"
 import JobSetsLocalStorageService from "../services/JobSetsLocalStorageService"
@@ -26,6 +27,7 @@ interface JobSetsContainerProps extends PropsWithRouter {
   v2GroupJobsService: IGroupJobsService
   v2UpdateJobSetsService: UpdateJobSetsService
   jobSetsAutoRefreshMs: number | undefined
+  fetchFunc: GlobalFetch["fetch"]
 }
 
 type JobSetsContainerParams = {
@@ -293,6 +295,7 @@ class JobSetsContainer extends Component<JobSetsContainerProps, JobSetsContainer
 
   private async fetchJobSets(getJobSetsRequest: GetJobSetsRequest): Promise<JobSet[]> {
     const response = await this.props.v2GroupJobsService.groupJobs(
+      this.props.fetchFunc,
       [
         {
           isAnnotation: false,
@@ -382,6 +385,16 @@ class JobSetsContainer extends Component<JobSetsContainerProps, JobSetsContainer
   }
 }
 
-export default withRouter((props: JobSetsContainerProps) => {
-  return <JobSetsContainer {...props} />
-})
+interface PropsWithFetchFunc {
+  fetchFunc: GlobalFetch["fetch"]
+}
+
+const withAuthenticatedFetch = <T extends PropsWithFetchFunc>(Component: FC<T>): FC<Omit<T, "fetchFunc">> => {
+  function ComponentWithFetchFuncProp(props: T) {
+    const authenticatedFetch = useAuthenticatedFetch()
+    return <Component {...props} fetchFunc={authenticatedFetch} />
+  }
+  return ComponentWithFetchFuncProp as FC<Omit<T, "fetchFunc">>
+}
+
+export default withAuthenticatedFetch(withRouter((props: JobSetsContainerProps) => <JobSetsContainer {...props} />))

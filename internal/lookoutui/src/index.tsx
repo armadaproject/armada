@@ -2,20 +2,14 @@ import { createRoot } from "react-dom/client"
 
 import { App } from "./App"
 import { SubmitApi, Configuration as SubmitConfiguration } from "./openapi/armada"
-import { CordonService } from "./services/lookout/CordonService"
 import { GetJobInfoService } from "./services/lookout/GetJobInfoService"
 import { GetJobsService } from "./services/lookout/GetJobsService"
-import { GetRunInfoService } from "./services/lookout/GetRunInfoService"
 import { GroupJobsService } from "./services/lookout/GroupJobsService"
-import { LogService as V2LogService } from "./services/lookout/LogService"
 import { UpdateJobSetsService } from "./services/lookout/UpdateJobSetsService"
 import { UpdateJobsService } from "./services/lookout/UpdateJobsService"
-import { FakeCordonService } from "./services/lookout/mocks/FakeCordonService"
 import FakeGetJobInfoService from "./services/lookout/mocks/FakeGetJobInfoService"
 import FakeGetJobsService from "./services/lookout/mocks/FakeGetJobsService"
-import { FakeGetRunInfoService } from "./services/lookout/mocks/FakeGetRunInfoService"
 import FakeGroupJobsService from "./services/lookout/mocks/FakeGroupJobsService"
-import { FakeLogService } from "./services/lookout/mocks/FakeLogService"
 import { getUIConfig } from "./utils"
 import { makeRandomJobs } from "./utils/fakeJobsUtils"
 
@@ -37,16 +31,9 @@ import "./index.css"
   const v2GroupJobsService = fakeDataEnabled
     ? new FakeGroupJobsService(v2TestJobs)
     : new GroupJobsService(uiConfig.backend)
-  const v2RunInfoService = fakeDataEnabled ? new FakeGetRunInfoService() : new GetRunInfoService()
-  const v2LogService = fakeDataEnabled
-    ? new FakeLogService()
-    : new V2LogService({ credentials: "include" }, uiConfig.binocularsBaseUrlPattern)
   const v2JobSpecService = fakeDataEnabled ? new FakeGetJobInfoService() : new GetJobInfoService()
   const v2UpdateJobsService = new UpdateJobsService(submitApi)
   const v2UpdateJobSetsService = new UpdateJobSetsService(submitApi)
-  const v2CordonService = fakeDataEnabled
-    ? new FakeCordonService()
-    : new CordonService({ credentials: "include" }, uiConfig.binocularsBaseUrlPattern)
 
   const container = document.getElementById("root")
 
@@ -63,10 +50,7 @@ import "./index.css"
         v2GroupJobsService,
         v2UpdateJobsService,
         v2UpdateJobSetsService,
-        v2RunInfoService,
         v2JobSpecService,
-        v2LogService,
-        v2CordonService,
       }}
       jobSetsAutoRefreshMs={uiConfig.jobSetsAutoRefreshMs}
       jobsAutoRefreshMs={uiConfig.jobsAutoRefreshMs}

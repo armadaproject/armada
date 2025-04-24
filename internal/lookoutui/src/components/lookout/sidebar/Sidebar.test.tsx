@@ -6,14 +6,20 @@ import { SnackbarProvider } from "notistack"
 import { Sidebar } from "./Sidebar"
 import { queryClient } from "../../../App"
 import { Job, JobRunState, JobState } from "../../../models/lookoutModels"
+import { ApiClientsProvider } from "../../../services/apiClients"
 import { FakeServicesProvider } from "../../../services/fakeContext"
-import { FakeCordonService } from "../../../services/lookout/mocks/FakeCordonService"
 import FakeGetJobInfoService from "../../../services/lookout/mocks/FakeGetJobInfoService"
-import { FakeGetRunInfoService } from "../../../services/lookout/mocks/FakeGetRunInfoService"
+import { MockServer } from "../../../services/lookout/mocks/mockServer"
 import { makeTestJob } from "../../../utils/fakeJobsUtils"
+
+const mockServer = new MockServer()
 
 describe("Sidebar", () => {
   let job: Job, onClose: () => undefined
+
+  beforeAll(() => {
+    mockServer.listen()
+  })
 
   beforeEach(() => {
     job = makeTestJob(
@@ -40,35 +46,43 @@ describe("Sidebar", () => {
     onClose = vi.fn()
   })
 
+  afterEach(() => {
+    mockServer.reset()
+  })
+
+  afterAll(() => {
+    mockServer.close()
+  })
+
   const renderComponent = () =>
     render(
       <SnackbarProvider>
         <QueryClientProvider client={queryClient}>
-          <FakeServicesProvider fakeJobs={[job]}>
-            <Sidebar
-              job={job}
-              runInfoService={new FakeGetRunInfoService()}
-              jobSpecService={new FakeGetJobInfoService()}
-              cordonService={new FakeCordonService()}
-              sidebarWidth={600}
-              onClose={onClose}
-              onWidthChange={() => undefined}
-              commandSpecs={[]}
-            />
-          </FakeServicesProvider>
+          <ApiClientsProvider>
+            <FakeServicesProvider fakeJobs={[job]}>
+              <Sidebar
+                job={job}
+                jobSpecService={new FakeGetJobInfoService()}
+                sidebarWidth={600}
+                onClose={onClose}
+                onWidthChange={() => undefined}
+                commandSpecs={[]}
+              />
+            </FakeServicesProvider>
+          </ApiClientsProvider>
         </QueryClientProvider>
       </SnackbarProvider>,
     )
 
-  it("should show job details by default", () => {
-    const { getByRole } = renderComponent()
+  it("should show job details by default", async () => {
+    const { findByRole } = renderComponent()
 
-    within(getByRole("row", { name: /Queue/ })).getByText(job.queue)
-    within(getByRole("row", { name: /Job Set/ })).getByText(job.jobSet)
-    within(getByRole("row", { name: /CPU/ })).getByText("3.9")
-    within(getByRole("row", { name: /Memory/ })).getByText("38Mi")
-    within(getByRole("row", { name: /Ephemeral storage/ })).getByText("64Gi")
-    within(getByRole("row", { name: /GPU/ })).getByText("4")
+    within(await findByRole("row", { name: /Queue/ })).getByText(job.queue)
+    within(await findByRole("row", { name: /Job Set/ })).getByText(job.jobSet)
+    within(await findByRole("row", { name: /CPU/ })).getByText("3.9")
+    within(await findByRole("row", { name: /Memory/ })).getByText("38Mi")
+    within(await findByRole("row", { name: /Ephemeral storage/ })).getByText("64Gi")
+    within(await findByRole("row", { name: /GPU/ })).getByText("4")
   })
 
   it("should allow users to view run details", async () => {

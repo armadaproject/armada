@@ -51,11 +51,9 @@ import { useCustomSnackbar } from "../../hooks/useCustomSnackbar"
 import { columnIsAggregatable, useFetchJobsTableData } from "../../hooks/useJobsTableData"
 import { isJobGroupRow, JobRow, JobTableRow } from "../../models/jobsTableModels"
 import { Job, JobFiltersWithExcludes, JobId, Match, SortDirection } from "../../models/lookoutModels"
-import { ICordonService } from "../../services/lookout/CordonService"
 import { CustomViewsService } from "../../services/lookout/CustomViewsService"
 import { IGetJobInfoService } from "../../services/lookout/GetJobInfoService"
 import { IGetJobsService } from "../../services/lookout/GetJobsService"
-import { IGetRunInfoService } from "../../services/lookout/GetRunInfoService"
 import { IGroupJobsService } from "../../services/lookout/GroupJobsService"
 import { JobsTablePreferences, JobsTablePreferencesService } from "../../services/lookout/JobsTablePreferencesService"
 import { UpdateJobsService } from "../../services/lookout/UpdateJobsService"
@@ -90,9 +88,7 @@ interface JobsTableContainerProps {
   getJobsService: IGetJobsService
   groupJobsService: IGroupJobsService
   updateJobsService: UpdateJobsService
-  runInfoService: IGetRunInfoService
   jobSpecService: IGetJobInfoService
-  cordonService: ICordonService
   debug: boolean
   autoRefreshMs: number | undefined
   commandSpecs: CommandSpec[]
@@ -134,9 +130,7 @@ export const JobsTableContainer = ({
   getJobsService,
   groupJobsService,
   updateJobsService,
-  runInfoService,
   jobSpecService,
-  cordonService,
   debug,
   autoRefreshMs,
   commandSpecs,
@@ -914,9 +908,7 @@ export const JobsTableContainer = ({
         <ErrorBoundary FallbackComponent={AlertErrorFallback}>
           <Sidebar
             job={sidebarJobDetails}
-            runInfoService={runInfoService}
             jobSpecService={jobSpecService}
-            cordonService={cordonService}
             sidebarWidth={sidebarWidth}
             onClose={sideBarClose}
             onWidthChange={setSidebarWidth}

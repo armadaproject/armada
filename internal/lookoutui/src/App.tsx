@@ -14,6 +14,7 @@ import JobSetsContainer from "./containers/JobSetsContainer"
 import { JobsTableContainer } from "./containers/lookout/JobsTableContainer"
 import { OidcAuthProvider } from "./oidcAuth"
 import { OIDC_REDIRECT_PATHNAME } from "./oidcAuth/OidcAuthProvider"
+import { ApiClientsProvider } from "./services/apiClients"
 import { Services, ServicesProvider } from "./services/context"
 import { theme } from "./theme/theme"
 import { CommandSpec, OidcConfig, withRouter } from "./utils"
@@ -83,66 +84,66 @@ export function App(props: AppProps) {
           <QueryClientProvider client={queryClient}>
             <ErrorBoundary FallbackComponent={FullPageErrorFallback}>
               <OidcAuthProvider oidcConfig={props.oidcConfig}>
-                <BrowserRouter>
-                  <ServicesProvider services={props.services}>
-                    <AppContainer>
-                      <NavBar customTitle={props.customTitle} />
-                      <AppContent>
-                        <Routes>
-                          <Route
-                            path="/"
-                            element={
-                              <ErrorBoundary FallbackComponent={AlertInPageContainerErrorFallback}>
-                                <JobsTableContainer
-                                  getJobsService={props.services.v2GetJobsService}
-                                  groupJobsService={props.services.v2GroupJobsService}
-                                  updateJobsService={props.services.v2UpdateJobsService}
-                                  runInfoService={props.services.v2RunInfoService}
-                                  jobSpecService={props.services.v2JobSpecService}
-                                  cordonService={props.services.v2CordonService}
-                                  debug={props.debugEnabled}
-                                  autoRefreshMs={props.jobsAutoRefreshMs}
-                                  commandSpecs={props.commandSpecs}
-                                />
-                              </ErrorBoundary>
-                            }
-                          />
-                          <Route
-                            path="/job-sets"
-                            element={
-                              <ErrorBoundary FallbackComponent={AlertInPageContainerErrorFallback}>
-                                <JobSetsContainer
-                                  v2GroupJobsService={props.services.v2GroupJobsService}
-                                  v2UpdateJobSetsService={props.services.v2UpdateJobSetsService}
-                                  jobSetsAutoRefreshMs={props.jobSetsAutoRefreshMs}
-                                />
-                              </ErrorBoundary>
-                            }
-                          />
-                          <Route
-                            path="/v2"
-                            element={
-                              <ErrorBoundary FallbackComponent={AlertInPageContainerErrorFallback}>
-                                <V2Redirect />
-                              </ErrorBoundary>
-                            }
-                          />
-                          <Route
-                            path="*"
-                            element={
-                              // This wildcard route ensures that users who follow old
-                              // links to /job-sets or /jobs see something other than
-                              // a blank page.
-                              <ErrorBoundary FallbackComponent={AlertInPageContainerErrorFallback}>
-                                <Navigate to="/" />
-                              </ErrorBoundary>
-                            }
-                          />
-                        </Routes>
-                      </AppContent>
-                    </AppContainer>
-                  </ServicesProvider>
-                </BrowserRouter>
+                <ApiClientsProvider>
+                  <BrowserRouter>
+                    <ServicesProvider services={props.services}>
+                      <AppContainer>
+                        <NavBar customTitle={props.customTitle} />
+                        <AppContent>
+                          <Routes>
+                            <Route
+                              path="/"
+                              element={
+                                <ErrorBoundary FallbackComponent={AlertInPageContainerErrorFallback}>
+                                  <JobsTableContainer
+                                    getJobsService={props.services.v2GetJobsService}
+                                    groupJobsService={props.services.v2GroupJobsService}
+                                    updateJobsService={props.services.v2UpdateJobsService}
+                                    jobSpecService={props.services.v2JobSpecService}
+                                    debug={props.debugEnabled}
+                                    autoRefreshMs={props.jobsAutoRefreshMs}
+                                    commandSpecs={props.commandSpecs}
+                                  />
+                                </ErrorBoundary>
+                              }
+                            />
+                            <Route
+                              path="/job-sets"
+                              element={
+                                <ErrorBoundary FallbackComponent={AlertInPageContainerErrorFallback}>
+                                  <JobSetsContainer
+                                    v2GroupJobsService={props.services.v2GroupJobsService}
+                                    v2UpdateJobSetsService={props.services.v2UpdateJobSetsService}
+                                    jobSetsAutoRefreshMs={props.jobSetsAutoRefreshMs}
+                                  />
+                                </ErrorBoundary>
+                              }
+                            />
+                            <Route
+                              path="/v2"
+                              element={
+                                <ErrorBoundary FallbackComponent={AlertInPageContainerErrorFallback}>
+                                  <V2Redirect />
+                                </ErrorBoundary>
+                              }
+                            />
+                            <Route
+                              path="*"
+                              element={
+                                // This wildcard route ensures that users who follow old
+                                // links to /job-sets or /jobs see something other than
+                                // a blank page.
+                                <ErrorBoundary FallbackComponent={AlertInPageContainerErrorFallback}>
+                                  <Navigate to="/" />
+                                </ErrorBoundary>
+                              }
+                            />
+                          </Routes>
+                        </AppContent>
+                      </AppContainer>
+                    </ServicesProvider>
+                  </BrowserRouter>
+                </ApiClientsProvider>
               </OidcAuthProvider>
             </ErrorBoundary>
           </QueryClientProvider>

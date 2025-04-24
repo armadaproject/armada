@@ -3,7 +3,6 @@ import { Component, FC } from "react"
 import { Location, NavigateFunction, Params, useLocation, useNavigate, useParams } from "react-router-dom"
 
 import { OIDC_REDIRECT_PATHNAME } from "./oidcAuth/OidcAuthProvider"
-import { BinocularsApi, Configuration, ConfigurationParameters } from "./openapi/binoculars"
 
 export interface OidcConfig {
   authority: string
@@ -234,12 +233,3 @@ export function withRouter<T extends PropsWithRouter>(Component: FC<T>): FC<Omit
 }
 
 export const PlatformCancelReason = "Platform error marked by user"
-
-export function getBinocularsApi(clusterId: string, baseUrlPattern: string, config: ConfigurationParameters) {
-  return new BinocularsApi(
-    new Configuration({
-      ...config,
-      basePath: baseUrlPattern.replace("{CLUSTER_ID}", clusterId),
-    }),
-  )
-}
