@@ -177,16 +177,18 @@ export interface FetchRowRequest {
   order: JobOrder
 }
 export const fetchJobs = async (
+  fetchFunc: GlobalFetch["fetch"],
   rowRequest: FetchRowRequest,
   getJobsService: IGetJobsService,
   abortSignal: AbortSignal,
 ) => {
   const { filters, activeJobSets, skip, take, order } = rowRequest
 
-  return await getJobsService.getJobs(filters, activeJobSets, order, skip, take, abortSignal)
+  return await getJobsService.getJobs(fetchFunc, filters, activeJobSets, order, skip, take, abortSignal)
 }
 
 export const fetchJobGroups = async (
+  fetchFunc: GlobalFetch["fetch"],
   rowRequest: FetchRowRequest,
   groupJobsService: IGroupJobsService,
   groupedColumn: GroupedField,
@@ -195,6 +197,7 @@ export const fetchJobGroups = async (
 ) => {
   const { filters, activeJobSets, skip, take, order } = rowRequest
   return await groupJobsService.groupJobs(
+    fetchFunc,
     filters,
     activeJobSets,
     order,

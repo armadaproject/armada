@@ -20,7 +20,7 @@ import { useFormatNumberWithUserSettings } from "../../hooks/formatNumberWithUse
 import { useFormatIsoTimestampWithUserSettings } from "../../hooks/formatTimeWithUserSettings"
 import { useCustomSnackbar } from "../../hooks/useCustomSnackbar"
 import { isTerminatedJobState, Job, JobFiltersWithExcludes, JobId } from "../../models/lookoutModels"
-import { useGetAccessToken } from "../../oidcAuth"
+import { useAuthenticatedFetch, useGetAccessToken } from "../../oidcAuth"
 import { IGetJobsService } from "../../services/lookout/GetJobsService"
 import { UpdateJobsService } from "../../services/lookout/UpdateJobsService"
 import { waitMillis } from "../../utils"
@@ -58,6 +58,8 @@ export const ReprioritiseDialog = ({
 
   const getAccessToken = useGetAccessToken()
 
+  const authenticatedFetch = useAuthenticatedFetch()
+
   // Actions
   const fetchSelectedJobs = useCallback(async () => {
     if (!mounted.current) {
@@ -66,7 +68,12 @@ export const ReprioritiseDialog = ({
 
     setIsLoadingJobs(true)
 
-    const uniqueJobsToReprioritise = await getUniqueJobsMatchingFilters(selectedItemFilters, false, getJobsService)
+    const uniqueJobsToReprioritise = await getUniqueJobsMatchingFilters(
+      authenticatedFetch,
+      selectedItemFilters,
+      false,
+      getJobsService,
+    )
     const sortedJobs = _.orderBy(uniqueJobsToReprioritise, (job) => job.jobId, "desc")
 
     if (!mounted.current) {
