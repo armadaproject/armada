@@ -367,13 +367,29 @@ func (s *Scheduler) syncState(ctx *armadacontext.Context, initial bool) ([]*jobd
 
 	if initial {
 		// Load initial jobs from the jobRepo.
-		updatedJobs, updatedRuns, err = s.jobRepository.FetchInitialJobs(ctx)
+		initialJobs, initialRuns, maxJobSerial, maxRunSerial, fetchErr := s.jobRepository.FetchInitialJobs(ctx)
+		if fetchErr != nil {
+			return nil, nil, fmt.Errorf("fetching initial jobs: %w", fetchErr)
+		}
+
+		if len(initialJobs) > 0 {
+			updatedJobs = initialJobs
+		} else if maxJobSerial != nil {
+			s.jobsSerial = *maxJobSerial // Allow the next sync to start from the highest serial possible.
+		}
+
+		if len(initialRuns) > 0 {
+			updatedRuns = initialRuns
+		} else if maxJobSerial != nil {
+			s.runsSerial = *maxRunSerial // Allow the next sync to start from the highest serial possible.
+		}
+
 	} else {
 		// Load new and updated jobs from the jobRepo.
 		updatedJobs, updatedRuns, err = s.jobRepository.FetchJobUpdates(ctx, s.jobsSerial, s.runsSerial)
-	}
-	if err != nil {
-		return nil, nil, err
+		if err != nil {
+			return nil, nil, fmt.Errorf("fetching job updates: %w", err)
+		}
 	}
 
 	// Reconcile any differences between the updated jobs and runs.

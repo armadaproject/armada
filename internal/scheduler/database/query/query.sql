@@ -4,6 +4,12 @@ SELECT * FROM jobs WHERE serial > $1 ORDER BY serial LIMIT $2;
 -- name: SelectAllJobIds :many
 SELECT job_id FROM jobs;
 
+-- name: SelectMaxJobSerial :one
+SELECT serial FROM jobs ORDER BY serial DESC LIMIT 1;
+
+-- name: SelectMaxRunSerial :one
+SELECT serial FROM runs ORDER BY serial DESC LIMIT 1;
+
 -- name: SelectInitialJobs :many
 SELECT job_id, job_set, queue, priority, submitted, queued, queued_version, validated, cancel_requested, cancel_user, cancel_by_jobset_requested, cancelled, succeeded, failed, scheduling_info, scheduling_info_version, pools, serial FROM jobs WHERE serial > $1 AND cancelled = 'false' AND succeeded = 'false' and failed = 'false' ORDER BY serial LIMIT $2;
 
