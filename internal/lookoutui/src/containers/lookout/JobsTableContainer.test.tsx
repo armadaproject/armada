@@ -8,6 +8,7 @@ import { v4 as uuidv4 } from "uuid"
 import { JobsTableContainer } from "./JobsTableContainer"
 import { queryClient } from "../../App"
 import { Job, JobState } from "../../models/lookoutModels"
+import { JOBS, V2_REDIRECT } from "../../pathnames"
 import { FakeServicesProvider } from "../../services/fakeContext"
 import { IGetJobInfoService } from "../../services/lookout/GetJobInfoService"
 import { GetJobsResponse, IGetJobsService } from "../../services/lookout/GetJobsService"
@@ -128,18 +129,18 @@ describe("JobsTableContainer", () => {
         </QueryClientProvider>
       </SnackbarProvider>
     )
-    let initialEntry = "/v2"
+    let initialEntry = V2_REDIRECT
     if (search !== undefined) {
       initialEntry += search
     }
     const router = createMemoryRouter(
       [
         {
-          path: "/",
+          path: JOBS,
           element: <>Navigated from Start</>,
         },
         {
-          path: "/v2",
+          path: V2_REDIRECT,
           element: element,
         },
       ],
