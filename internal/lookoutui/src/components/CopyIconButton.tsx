@@ -1,7 +1,7 @@
 import { useState } from "react"
 
 import { ContentCopy } from "@mui/icons-material"
-import { IconButton, IconButtonProps, styled, Tooltip } from "@mui/material"
+import { IconButton, IconButtonProps, styled, SvgIcon, Tooltip } from "@mui/material"
 
 const LEAVE_DELAY_MS = 1_000
 
@@ -14,14 +14,23 @@ export interface CopyIconButtonProps {
   size?: IconButtonProps["size"]
   onClick?: IconButtonProps["onClick"]
   hidden?: boolean
+  Icon?: typeof SvgIcon
+  copiedTooltipTitle?: string
 }
 
-export const CopyIconButton = ({ content, size, onClick, hidden = false }: CopyIconButtonProps) => {
+export const CopyIconButton = ({
+  content,
+  size,
+  onClick,
+  hidden = false,
+  Icon = ContentCopy,
+  copiedTooltipTitle = "Copied!",
+}: CopyIconButtonProps) => {
   const [tooltipOpen, setTooltipOpen] = useState(false)
 
   return (
     <Tooltip
-      title="Copied!"
+      title={copiedTooltipTitle}
       onClose={() => setTooltipOpen(false)}
       open={tooltipOpen}
       leaveDelay={LEAVE_DELAY_MS}
@@ -37,7 +46,7 @@ export const CopyIconButton = ({ content, size, onClick, hidden = false }: CopyI
         aria-label="copy"
         hidden={hidden && !tooltipOpen}
       >
-        <ContentCopy fontSize="inherit" />
+        <Icon fontSize="inherit" />
       </StyledIconButton>
     </Tooltip>
   )

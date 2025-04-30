@@ -8,10 +8,12 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom"
 
 import { AlertInPageContainerErrorFallback } from "./components/AlertInPageContainerErrorFallback"
 import { FullPageErrorFallback } from "./components/FullPageErrorFallback"
+import { JobIdRedirect } from "./components/JobIdRedirect"
 import NavBar from "./components/NavBar"
 import JobSetsContainer from "./containers/JobSetsContainer"
 import { JobsTableContainer } from "./containers/lookout/JobsTableContainer"
 import { OidcAuthProvider } from "./oidcAuth"
+import { JOB_REDIRECT, JOB_SETS, JOBS, V2_REDIRECT } from "./pathnames"
 import { ApiClientsProvider } from "./services/apiClients"
 import { Services, ServicesProvider } from "./services/context"
 import { theme } from "./theme/theme"
@@ -48,7 +50,7 @@ type AppProps = {
 
 // Version 2 of the Lookout UI used to be hosted under /v2, so we try our best
 // to redirect users to the new location while preserving the rest of the URL.
-const V2Redirect = withRouter(({ router }) => <Navigate to={{ ...router.location, pathname: "/" }} />)
+const V2Redirect = withRouter(({ router }) => <Navigate to={{ ...router.location, pathname: JOBS }} />)
 
 export function App(props: AppProps) {
   useEffect(() => {
@@ -77,7 +79,7 @@ export function App(props: AppProps) {
                         <AppContent>
                           <Routes>
                             <Route
-                              path="/"
+                              path={JOBS}
                               element={
                                 <ErrorBoundary FallbackComponent={AlertInPageContainerErrorFallback}>
                                   <JobsTableContainer
@@ -93,7 +95,15 @@ export function App(props: AppProps) {
                               }
                             />
                             <Route
-                              path="/job-sets"
+                              path={JOB_REDIRECT}
+                              element={
+                                <ErrorBoundary FallbackComponent={AlertInPageContainerErrorFallback}>
+                                  <JobIdRedirect />
+                                </ErrorBoundary>
+                              }
+                            />
+                            <Route
+                              path={JOB_SETS}
                               element={
                                 <ErrorBoundary FallbackComponent={AlertInPageContainerErrorFallback}>
                                   <JobSetsContainer
@@ -105,7 +115,7 @@ export function App(props: AppProps) {
                               }
                             />
                             <Route
-                              path="/v2"
+                              path={V2_REDIRECT}
                               element={
                                 <ErrorBoundary FallbackComponent={AlertInPageContainerErrorFallback}>
                                   <V2Redirect />
@@ -119,7 +129,7 @@ export function App(props: AppProps) {
                                 // links to /job-sets or /jobs see something other than
                                 // a blank page.
                                 <ErrorBoundary FallbackComponent={AlertInPageContainerErrorFallback}>
-                                  <Navigate to="/" />
+                                  <Navigate to={JOBS} />
                                 </ErrorBoundary>
                               }
                             />

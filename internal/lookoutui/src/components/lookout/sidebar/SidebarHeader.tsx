@@ -1,10 +1,12 @@
 import { memo, ReactNode } from "react"
 
-import { Close } from "@mui/icons-material"
+import { Close, Share } from "@mui/icons-material"
 import { IconButton, styled, Typography } from "@mui/material"
+import { generatePath } from "react-router-dom"
 
 import { formatTimestampRelative } from "../../../common/formatTime"
 import { Job } from "../../../models/lookoutModels"
+import { JOB_REDIRECT } from "../../../pathnames"
 import { CopyIconButton } from "../../CopyIconButton"
 import { JobStateChip } from "../JobStateChip"
 
@@ -40,6 +42,12 @@ export const SidebarHeader = memo(({ job, onClose }: SidebarHeaderProps) => (
           <JobId>{job.jobId}</JobId>
           <div>
             <CopyIconButton content={job.jobId} size="small" />
+            <CopyIconButton
+              content={window.location.origin + generatePath(JOB_REDIRECT, { jobId: job.jobId })}
+              size="small"
+              Icon={Share}
+              copiedTooltipTitle="Copied direct link to this job!"
+            />
           </div>
         </JobIdContainer>
       }

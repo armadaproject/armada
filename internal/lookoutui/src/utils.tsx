@@ -2,7 +2,7 @@ import { Component, FC } from "react"
 
 import { Location, NavigateFunction, Params, useLocation, useNavigate, useParams } from "react-router-dom"
 
-import { OIDC_REDIRECT_PATHNAME } from "./oidcAuth/OidcAuthProvider"
+import { OIDC_REDIRECT } from "./pathnames"
 
 export interface OidcConfig {
   authority: string
@@ -119,7 +119,7 @@ export async function getUIConfig(): Promise<UIConfig> {
       break
   }
 
-  if (window.location.pathname === OIDC_REDIRECT_PATHNAME) config.oidcEnabled = true
+  if (window.location.pathname === OIDC_REDIRECT) config.oidcEnabled = true
 
   const backend = searchParams.get("backend")
   if (backend) config.backend = backend

@@ -6,6 +6,7 @@ import { Link } from "react-router-dom"
 
 import { SettingsDialog } from "./SettingsDialog"
 import { useUsername } from "../oidcAuth"
+import { JOB_SETS, JOBS } from "../pathnames"
 import { Router, withRouter } from "../utils"
 
 import "./NavBar.css"
@@ -18,11 +19,11 @@ interface Page {
 const PAGES: Page[] = [
   {
     title: "Jobs",
-    location: "/",
+    location: JOBS,
   },
   {
     title: "Job Sets",
-    location: "/job-sets",
+    location: JOB_SETS,
   },
 ]
 

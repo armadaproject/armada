@@ -1,0 +1,5 @@
+export const JOBS = "/"
+export const JOB_REDIRECT = "/jobs/:jobId"
+export const JOB_SETS = "/job-sets"
+export const V2_REDIRECT = "/v2"
+export const OIDC_REDIRECT = "/oidc"

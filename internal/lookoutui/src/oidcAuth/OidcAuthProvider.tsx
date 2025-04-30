@@ -6,8 +6,7 @@ import { ErrorPage } from "../components/ErrorPage"
 import { OidcConfig } from "../utils"
 import { OidcAuthContext, OidcAuthContextProps } from "./OidcAuthContext"
 import { LoadingPage } from "../components/LoadingPage"
-
-export const OIDC_REDIRECT_PATHNAME = "/oidc"
+import { OIDC_REDIRECT } from "../pathnames"
 
 const ELLIPSIS = "\u2026"
 
@@ -27,7 +26,7 @@ export const OidcAuthProvider = ({ children, oidcConfig }: OidcAuthProviderProps
         ? new UserManager({
             authority: oidcConfig.authority,
             client_id: oidcConfig.clientId,
-            redirect_uri: `${window.location.origin}${OIDC_REDIRECT_PATHNAME}`,
+            redirect_uri: `${window.location.origin}${OIDC_REDIRECT}`,
             scope: oidcConfig.scope,
             userStore: userManagerStore,
             loadUserInfo: true,
@@ -38,7 +37,7 @@ export const OidcAuthProvider = ({ children, oidcConfig }: OidcAuthProviderProps
 
   const [authError, setAuthError] = useState<any>(undefined)
 
-  const isOidcRedirectPath = window.location.pathname === OIDC_REDIRECT_PATHNAME
+  const isOidcRedirectPath = window.location.pathname === OIDC_REDIRECT
   const authenticate = useCallback(async () => {
     setAuthError(undefined)
     setIsLoading(true)

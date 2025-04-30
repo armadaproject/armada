@@ -8,6 +8,7 @@ import { AlertErrorFallback } from "../components/AlertErrorFallback"
 import JobSets from "../components/job-sets/JobSets"
 import { JobState, Match } from "../models/lookoutModels"
 import { useAuthenticatedFetch } from "../oidcAuth"
+import { JOBS } from "../pathnames"
 import IntervalService from "../services/IntervalService"
 import { GetJobSetsRequest, JobSet, JobSetsOrderByColumn } from "../services/JobService"
 import JobSetsLocalStorageService from "../services/JobSetsLocalStorageService"
@@ -261,7 +262,7 @@ class JobSetsContainer extends Component<JobSetsContainerProps, JobSetsContainer
     }
 
     this.props.router.navigate({
-      pathname: "/",
+      pathname: JOBS,
       search: stringifyQueryParams(toQueryStringSafe(prefs)),
     })
   }

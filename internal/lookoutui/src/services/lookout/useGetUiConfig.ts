@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query"
 
+import { OIDC_REDIRECT } from "../../pathnames"
 import { getErrorMessage, OidcConfig, UIConfig } from "../../utils"
 
 const DEFAULT_OIDC_CONFIG: OidcConfig = {
@@ -85,8 +86,8 @@ export const useGetUiConfig = (enabled = true) => {
         throw await getErrorMessage(e)
       }
 
-      config.oidcEnabled =
-        searchParams.get("oidcEnabled") === JSON.stringify(true) || window.location.pathname === "/oidc"
+      if (window.location.pathname === OIDC_REDIRECT) config.oidcEnabled = true
+      if (searchParams.get("oidcEnabled")) config.oidcEnabled = true
 
       const backend = searchParams.get("backend")
       if (backend) config.backend = backend
