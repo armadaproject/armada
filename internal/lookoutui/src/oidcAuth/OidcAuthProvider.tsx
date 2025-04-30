@@ -45,19 +45,23 @@ export const OidcAuthProvider = ({ children, oidcConfig }: OidcAuthProviderProps
     if (!userManager) {
       return
     }
-    const user = await (isOidcRedirectPath ? userManager.signinRedirectCallback() : userManager.getUser())
-    if (!user || user.expired) {
-      return await userManager.signinRedirect({ state: window.location.href })
+
+    if (isOidcRedirectPath) {
+      const user = await userManager.signinCallback()
+      if (user && typeof user.state === "string" && user.state) {
+        const originalURL = new URL(user.state)
+        // Preserve the current location's host, in case this has been changed by the redirect
+        window.location.replace(`${originalURL.pathname}${originalURL.search}`)
+      }
+    } else {
+      const user = await userManager.getUser()
+      if (!user || user.expired) {
+        return await userManager.signinRedirect({ state: window.location.href, max_age: 2 })
+      }
     }
 
-    if (isOidcRedirectPath && typeof user.state === "string" && user.state) {
-      const originalURL = new URL(user.state)
-      // Preserve the current location's host, in case this has been changed by the redirect
-      window.location.replace(`${originalURL.pathname}${originalURL.search}`)
-    } else {
-      setAuthError(undefined)
-      setIsLoading(false)
-    }
+    setAuthError(undefined)
+    setIsLoading(false)
   }, [userManager, isOidcRedirectPath])
 
   const handlerAuthenticationError = useCallback((e: any) => {

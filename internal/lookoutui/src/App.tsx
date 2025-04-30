@@ -3,7 +3,6 @@ import { useEffect } from "react"
 import { CssBaseline, styled, ThemeProvider } from "@mui/material"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { SnackbarProvider } from "notistack"
-import { UserManager, WebStorageStateStore, UserManagerSettings } from "oidc-client-ts"
 import { ErrorBoundary } from "react-error-boundary"
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom"
 
@@ -13,7 +12,6 @@ import NavBar from "./components/NavBar"
 import JobSetsContainer from "./containers/JobSetsContainer"
 import { JobsTableContainer } from "./containers/lookout/JobsTableContainer"
 import { OidcAuthProvider } from "./oidcAuth"
-import { OIDC_REDIRECT_PATHNAME } from "./oidcAuth/OidcAuthProvider"
 import { ApiClientsProvider } from "./services/apiClients"
 import { Services, ServicesProvider } from "./services/context"
 import { theme } from "./theme/theme"
@@ -46,19 +44,6 @@ type AppProps = {
   jobsAutoRefreshMs: number | undefined
   debugEnabled: boolean
   commandSpecs: CommandSpec[]
-}
-
-export function createUserManager(config: OidcConfig): UserManager {
-  const userManagerSettings: UserManagerSettings = {
-    authority: config.authority,
-    client_id: config.clientId,
-    redirect_uri: `${window.location.origin}${OIDC_REDIRECT_PATHNAME}`,
-    scope: config.scope,
-    userStore: new WebStorageStateStore({ store: window.localStorage }),
-    loadUserInfo: true,
-  }
-
-  return new UserManager(userManagerSettings)
 }
 
 // Version 2 of the Lookout UI used to be hosted under /v2, so we try our best

@@ -2,7 +2,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>io.armadaproject</groupId>
   <artifactId>armada-scala-client_2.13</artifactId>
-  <version>0.1.0-SNAPSHOT</version>
+  <version>0.2.0-SNAPSHOT</version>
   <name>Armada Scala Client</name>
   <description>A Scala client for Armada.</description>
   <inceptionYear>2025</inceptionYear>
