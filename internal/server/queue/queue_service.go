@@ -3,7 +3,9 @@ package queue
 import (
 	"context"
 	"fmt"
+	log "github.com/armadaproject/armada/internal/common/logging"
 	"math"
+	"sort"
 
 	"github.com/gogo/protobuf/types"
 	"github.com/pkg/errors"
@@ -321,4 +323,54 @@ func (s *Server) PreemptOnQueue(grpcCtx context.Context, req *api.QueuePreemptRe
 	}
 
 	return &types.Empty{}, nil
+}
+
+func (s *Server) GetUserPermissions(grpcCtx context.Context, request *api.GetUserPermissionsRequest) (*api.GetUserPermissionsResponse, error) {
+	ctx := armadacontext.FromGrpcCtx(grpcCtx)
+	queues, err := s.queueRepository.GetAllQueues(ctx)
+	if err != nil {
+		log.WithError(err).Warn("error looking up queues")
+		return nil, status.Error(codes.Internal, "Failed to lookup queues")
+	}
+
+	subjectSet := map[string]bool{}
+	for _, subj := range request.Subjects {
+		key := fmt.Sprintf("%s:%s", subj.Kind, subj.Name)
+		subjectSet[key] = true
+	}
+
+	var result []*api.GetUserPermissionsResponse_QueuePermissions
+
+	for _, q := range queues {
+
+		verbSet := map[string]bool{}
+		for _, perm := range q.Permissions {
+			for _, subj := range perm.Subjects {
+				key := fmt.Sprintf("%s:%s", subj.Kind, subj.Name)
+				if _, found := subjectSet[key]; found {
+					for _, verb := range perm.Verbs {
+						verbSet[string(verb)] = true
+					}
+					break // no need to keep checking other subjects in this perm
+				}
+			}
+		}
+
+		if len(verbSet) > 0 {
+			verbs := make([]string, 0, len(verbSet))
+			for verb := range verbSet {
+				verbs = append(verbs, verb)
+			}
+			sort.Strings(verbs) //sort for stable output
+
+			result = append(result, &api.GetUserPermissionsResponse_QueuePermissions{
+				QueueName: q.Name,
+				Verbs:     verbs,
+			})
+		}
+	}
+
+	return &api.GetUserPermissionsResponse{
+		Permissions: result,
+	}, nil
 }

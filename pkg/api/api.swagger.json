@@ -484,6 +484,28 @@
         }
       }
     },
+    "/v1/queue/permissions": {
+      "get": {
+        "tags": [
+          "Submit"
+        ],
+        "operationId": "GetUserPermissions",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/apiGetUserPermissionsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        }
+      }
+    },
     "/v1/queue/{name}": {
       "get": {
         "tags": [
@@ -640,6 +662,20 @@
     }
   },
   "definitions": {
+    "GetUserPermissionsResponseQueuePermissions": {
+      "type": "object",
+      "properties": {
+        "queueName": {
+          "type": "string"
+        },
+        "verbs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
     "PermissionsSubject": {
       "type": "object",
       "properties": {
@@ -830,6 +866,17 @@
           "type": "object",
           "additionalProperties": {
             "$ref": "#/definitions/apiActiveQueues"
+          }
+        }
+      }
+    },
+    "apiGetUserPermissionsResponse": {
+      "type": "object",
+      "properties": {
+        "permissions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/GetUserPermissionsResponseQueuePermissions"
           }
         }
       }

@@ -295,6 +295,19 @@ message QueueCancelRequest {
   repeated JobState jobStates = 3;
 }
 
+message GetUserPermissionsRequest {
+  repeated Queue.Permissions.Subject subjects = 1;
+}
+
+message GetUserPermissionsResponse {
+  message QueuePermissions {
+    string queueName = 1;
+    repeated string verbs = 2;
+  }
+  repeated QueuePermissions permissions = 1;
+}
+
+
 service QueueService {
   rpc CreateQueue (Queue) returns (google.protobuf.Empty) {}
   rpc CreateQueues (QueueList) returns (BatchQueueCreateResponse) {}
@@ -307,6 +320,7 @@ service QueueService {
   rpc UncordonQueue (QueueUncordonRequest) returns (google.protobuf.Empty) {}
   rpc PreemptOnQueue (QueuePreemptRequest) returns (google.protobuf.Empty) {}
   rpc CancelOnQueue (QueueCancelRequest) returns (google.protobuf.Empty) {}
+  rpc GetUserPermissions(GetUserPermissionsRequest) returns (GetUserPermissionsResponse);
 }
 
 service Submit {
@@ -377,6 +391,11 @@ service Submit {
     rpc GetQueues (StreamingQueueGetRequest) returns (stream StreamingQueueMessage) {
       option (google.api.http) = {
         get: "/v1/batched/queues"
+      };
+    }
+    rpc GetUserPermissions(GetUserPermissionsRequest) returns (GetUserPermissionsResponse){
+      option (google.api.http) = {
+        get: "/v1/queue/permissions"
       };
     }
     rpc Health(google.protobuf.Empty) returns (HealthCheckResponse);

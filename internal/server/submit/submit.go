@@ -455,3 +455,7 @@ func (s *Server) GetQueue(ctx context.Context, request *api.QueueGetRequest) (*a
 func (s *Server) GetQueues(request *api.StreamingQueueGetRequest, server api.Submit_GetQueuesServer) error {
 	return s.queueService.GetQueues(request, server)
 }
+
+func (s *Server) GetUserPermissions(ctx context.Context, request *api.GetUserPermissionsRequest) (*api.GetUserPermissionsResponse, error) {
+	return s.queueService.GetUserPermissions(ctx, request)
+}
