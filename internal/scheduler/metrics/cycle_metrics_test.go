@@ -244,6 +244,12 @@ func TestPublishCycleMetrics(t *testing.T) {
 			"nvidia.com/gpu":         mustParseResourcePtr("0"),
 			"test-floating-resource": mustParseResourcePtr("0"),
 		},
+		ConstrainedDemandByResourceType: map[string]*resource.Quantity{
+			"cpu":                    mustParseResourcePtr("15"),
+			"memory":                 mustParseResourcePtr("0"),
+			"nvidia.com/gpu":         mustParseResourcePtr("0"),
+			"test-floating-resource": mustParseResourcePtr("0"),
+		},
 	}
 
 	mockPublisher.EXPECT().PublishMessages(ctx, gomock.Any()).DoAndReturn(func(ctx *armadacontext.Context, events ...*metricevents.Event) error {
@@ -263,6 +269,13 @@ func TestPublishCycleMetrics(t *testing.T) {
 			actualQty := *queueMetrics.DemandByResourceType[r]
 			assert.True(t, q.Equal(actualQty),
 				"DemandByResourceType for resource type %s are not equal.  Expected %s, got %s", r, q.String(), actualQty.String())
+		}
+
+		require.Equal(t, len(expectedMetrics.ConstrainedDemandByResourceType), len(queueMetrics.ConstrainedDemandByResourceType))
+		for r, q := range expectedMetrics.ConstrainedDemandByResourceType {
+			actualQty := *queueMetrics.ConstrainedDemandByResourceType[r]
+			assert.True(t, q.Equal(actualQty),
+				"ConstrainedDemandByResourceType for resource type %s are not equal.  Expected %s, got %s", r, q.String(), actualQty.String())
 		}
 
 		return nil

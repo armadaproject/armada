@@ -22,6 +22,8 @@ message QueueMetrics{
   double constrained_demand = 3;
   // Demand per resource
   map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> demand_by_resource_type = 4;
+  // Constrained Demand per resource
+  map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> constrained_demand_by_resource_type = 5;
 }
 
 message CycleMetrics {
