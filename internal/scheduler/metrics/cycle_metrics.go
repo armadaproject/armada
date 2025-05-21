@@ -530,23 +530,28 @@ func (m *cycleMetrics) collect(ch chan<- prometheus.Metric) {
 
 func (m *cycleMetrics) publishCycleMetrics(ctx *armadacontext.Context, result scheduling.SchedulerResult) {
 	events := make([]*metricevents.Event, len(result.SchedulingContexts))
+
+	// convenience function to convert k8s qty struct to pointers as demanded by proto
+	toQtyPtr := func(q resource.Quantity) *resource.Quantity {
+		return &q
+	}
+
 	for i, sc := range result.SchedulingContexts {
 		queueMetrics := make(map[string]*metricevents.QueueMetrics, len(sc.QueueSchedulingContexts))
 		for qName, qCtx := range sc.QueueSchedulingContexts {
 			queueMetrics[qName] = &metricevents.QueueMetrics{
-				ActualShare:       sc.FairnessCostProvider.UnweightedCostFromQueue(qCtx),
-				Demand:            sc.FairnessCostProvider.UnweightedCostFromAllocation(qCtx.Demand),
-				ConstrainedDemand: sc.FairnessCostProvider.UnweightedCostFromAllocation(qCtx.ConstrainedDemand),
+				ActualShare:          sc.FairnessCostProvider.UnweightedCostFromQueue(qCtx),
+				Demand:               sc.FairnessCostProvider.UnweightedCostFromAllocation(qCtx.Demand),
+				ConstrainedDemand:    sc.FairnessCostProvider.UnweightedCostFromAllocation(qCtx.ConstrainedDemand),
+				DemandByResourceType: armadamaps.MapValues(qCtx.Demand.ToMap(), toQtyPtr),
 			}
 		}
 		events[i] = &metricevents.Event{
 			Created: protoutil.ToTimestamp(sc.Finished),
 			Event: &metricevents.Event_CycleMetrics{CycleMetrics: &metricevents.CycleMetrics{
-				Pool:         sc.Pool,
-				QueueMetrics: queueMetrics,
-				AllocatableResources: armadamaps.MapValues(sc.TotalResources.ToMap(), func(q resource.Quantity) *resource.Quantity {
-					return &q
-				}),
+				Pool:                 sc.Pool,
+				QueueMetrics:         queueMetrics,
+				AllocatableResources: armadamaps.MapValues(sc.TotalResources.ToMap(), toQtyPtr),
 			}},
 		}
 	}
