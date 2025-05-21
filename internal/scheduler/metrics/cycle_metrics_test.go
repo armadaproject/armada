@@ -234,20 +234,58 @@ func TestPublishCycleMetrics(t *testing.T) {
 		},
 	}
 
+	expectedMetrics := &metricevents.QueueMetrics{
+		ActualShare:       0.1,
+		Demand:            0.2,
+		ConstrainedDemand: 0.15,
+		DemandByResourceType: map[string]*resource.Quantity{
+			"cpu":                    mustParseResourcePtr("20"),
+			"memory":                 mustParseResourcePtr("0"),
+			"nvidia.com/gpu":         mustParseResourcePtr("0"),
+			"test-floating-resource": mustParseResourcePtr("0"),
+		},
+		ConstrainedDemandByResourceType: map[string]*resource.Quantity{
+			"cpu":                    mustParseResourcePtr("15"),
+			"memory":                 mustParseResourcePtr("0"),
+			"nvidia.com/gpu":         mustParseResourcePtr("0"),
+			"test-floating-resource": mustParseResourcePtr("0"),
+		},
+	}
+
 	mockPublisher.EXPECT().PublishMessages(ctx, gomock.Any()).DoAndReturn(func(ctx *armadacontext.Context, events ...*metricevents.Event) error {
 		require.Equal(t, 1, len(events))
 		actual := events[0].GetCycleMetrics()
 		assert.Equal(t, "pool1", actual.Pool)
-		assert.Equal(t, map[string]*metricevents.QueueMetrics{
-			"queue1": {
-				ActualShare:       0.1,
-				Demand:            0.2,
-				ConstrainedDemand: 0.15,
-			},
-		}, actual.QueueMetrics)
+
+		queueMetrics := actual.GetQueueMetrics()["queue1"]
+		require.NotNil(t, queueMetrics)
+
+		assert.Equal(t, expectedMetrics.ActualShare, queueMetrics.ActualShare)
+		assert.Equal(t, expectedMetrics.Demand, queueMetrics.Demand)
+		assert.Equal(t, expectedMetrics.ConstrainedDemand, queueMetrics.ConstrainedDemand)
+
+		require.Equal(t, len(expectedMetrics.DemandByResourceType), len(queueMetrics.DemandByResourceType))
+		for r, q := range expectedMetrics.DemandByResourceType {
+			actualQty := *queueMetrics.DemandByResourceType[r]
+			assert.True(t, q.Equal(actualQty),
+				"DemandByResourceType for resource type %s are not equal.  Expected %s, got %s", r, q.String(), actualQty.String())
+		}
+
+		require.Equal(t, len(expectedMetrics.ConstrainedDemandByResourceType), len(queueMetrics.ConstrainedDemandByResourceType))
+		for r, q := range expectedMetrics.ConstrainedDemandByResourceType {
+			actualQty := *queueMetrics.ConstrainedDemandByResourceType[r]
+			assert.True(t, q.Equal(actualQty),
+				"ConstrainedDemandByResourceType for resource type %s are not equal.  Expected %s, got %s", r, q.String(), actualQty.String())
+		}
+
 		return nil
 	})
 	m.publishCycleMetrics(ctx, schedulerResult)
+}
+
+func mustParseResourcePtr(qtyStr string) *resource.Quantity {
+	q := resource.MustParse(qtyStr)
+	return &q
 }
 
 func cpu(n int) internaltypes.ResourceList {
