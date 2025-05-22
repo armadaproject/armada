@@ -33,6 +33,9 @@ const (
 	FailFastAnnotation  = "armadaproject.io/failFast"
 	PoolAnnotation      = "armadaproject.io/pool"
 	ReservationTaintKey = "armadaproject.io/reservation"
+
+	PreemptionRetryCountMaxAnnotation = "armadaproject.io/preemptionRetryCountMax"
+	PreemptionRetryEnabledAnnotation  = "armadaproject.io/preemptionRetryEnabled"
 )
 
 var schedulingAnnotations = map[string]bool{
