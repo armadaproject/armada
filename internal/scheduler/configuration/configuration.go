@@ -275,6 +275,8 @@ type SchedulingConfig struct {
 	DefaultPoolSchedulePriority int
 	Pools                       []PoolConfig
 	ExperimentalIndicativeShare ExperimentalIndicativeShare
+	// Default preemption retries settings so you don't have to annotate all jobs with retries.
+	DefaultPreemptionRetry PreemptionRetryConfig
 }
 
 const (
@@ -455,4 +457,9 @@ type PricingApiConfig struct {
 	// This is for local testing only
 	// It will stub the pricing api so it returns non-zero values but won't call and external service
 	DevModeEnabled bool
+}
+
+type PreemptionRetryConfig struct {
+	Enabled              bool
+	DefaultMaxRetryCount *uint
 }

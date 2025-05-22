@@ -2,14 +2,17 @@ package validation
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/pkg/errors"
 	"k8s.io/component-helpers/scheduling/corev1/nodeaffinity"
 
 	"github.com/armadaproject/armada/internal/common/constants"
+	"github.com/armadaproject/armada/internal/common/preemption"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
+	schedulercontext "github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 	"github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/bidstore"
@@ -42,6 +45,7 @@ var (
 		validateClientId,
 		validateTolerations,
 		validatePriceBand,
+		validatePreemptionRetryConfig,
 	}
 )
 
@@ -328,16 +332,25 @@ func (j jobAdapter) Annotations() map[string]string {
 	return j.GetAnnotations()
 }
 
+type gangDetails struct {
+	schedulingGangInfo       schedulercontext.GangInfo
+	preemptionRetriesEnabled bool
+	preemptionRetryCountMax  uint
+}
+
 // Ensures that any gang jobs defined in the request are consistent.  This checks that all jobs in the same gang have
 // the same:
 //   - Cardinality
 //   - MinimumCardinality
 //   - Priority Class
 //   - Node Uniformity
+//   - Preemption Retry Configuration
 func validateGangs(request *api.JobSubmitRequest, _ configuration.SubmissionConfig) error {
 	type GangValidationInfo struct {
 		jobdb.GangInfo
-		PriorityClassName string
+		PriorityClassName        string
+		PreemptionRetriesEnabled bool
+		PreemptionRetryCountMax  uint
 	}
 	gangDetailsByGangId := make(map[string]GangValidationInfo)
 	for _, job := range request.JobRequestItems {
@@ -359,7 +372,10 @@ func validateGangs(request *api.JobSubmitRequest, _ configuration.SubmissionConf
 			)
 		}
 
-		actual := GangValidationInfo{gangInfo, adaptedJob.PriorityClassName()}
+		preemptionRetriesEnabled, _ := preemption.AreRetriesEnabled(job.GetAnnotations())
+		preemptionRetryCountMax, _ := preemption.GetMaxRetryCount(job.GetAnnotations())
+
+		actual := GangValidationInfo{gangInfo, adaptedJob.PriorityClassName(), preemptionRetriesEnabled, preemptionRetryCountMax}
 		if expected, ok := gangDetailsByGangId[actual.Id()]; ok {
 			if expected.Cardinality() != actual.Cardinality() {
 				return errors.Errorf(
@@ -378,6 +394,16 @@ func validateGangs(request *api.JobSubmitRequest, _ configuration.SubmissionConf
 					"inconsistent nodeUniformityLabel in gang %s: expected %s but got %s",
 					actual.Id(), expected.NodeUniformity(), actual.NodeUniformity(),
 				)
+			}
+			if preemptionRetriesEnabled != expected.PreemptionRetriesEnabled {
+				return errors.Errorf(
+					"inconsistent preemptionRetriesEnabled in gang %s: expected %t but got %t",
+					actual.Id(), expected.PreemptionRetriesEnabled, preemptionRetriesEnabled)
+			}
+			if preemptionRetryCountMax != expected.PreemptionRetryCountMax {
+				return errors.Errorf(
+					"inconsistent preemptionRetryCountMax in gang %s: expected %d but got %d",
+					actual.Id(), expected.PreemptionRetryCountMax, preemptionRetryCountMax)
 			}
 		} else {
 			gangDetailsByGangId[actual.Id()] = actual
@@ -454,5 +480,31 @@ func validateTolerations(j *api.JobSubmitRequestItem, config configuration.Submi
 			return fmt.Errorf("toleration %s is not user settable", restricted)
 		}
 	}
+	return nil
+}
+
+// Ensures that if a request specified preemption retry annotations, they are valid
+func validatePreemptionRetryConfig(j *api.JobSubmitRequestItem, _ configuration.SubmissionConfig) error {
+	preemptionRetryEnabledStr, exists := j.GetAnnotations()[constants.PreemptionRetryEnabledAnnotation]
+	if exists {
+		_, err := strconv.ParseBool(preemptionRetryEnabledStr)
+		if err != nil {
+			return fmt.Errorf("invalid preemption retry enabled annotation value: %w", err)
+		}
+	}
+
+	preemptionRetryCountMaxStr, exists := j.GetAnnotations()[constants.PreemptionRetryCountMaxAnnotation]
+
+	if exists {
+		preemptionRetryCountMax, err := strconv.Atoi(preemptionRetryCountMaxStr)
+		if err != nil {
+			return fmt.Errorf("invalid preemption retry count max annotation value: %w", err)
+		}
+
+		if preemptionRetryCountMax <= 0 {
+			return fmt.Errorf("preemption retry count max must be greater than zero: %w", err)
+		}
+	}
+
 	return nil
 }

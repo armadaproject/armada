@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -471,6 +472,16 @@ func WithNodeSelectorJob(selector map[string]string, job *jobdb.Job) *jobdb.Job 
 	job = job.DeepCopy()
 	job.JobSchedulingInfo().PodRequirements.NodeSelector = maps.Clone(selector)
 	return job
+}
+
+func WithPreemptionRetryAnnotationsJobs(jobs []*jobdb.Job, retryCount int) []*jobdb.Job {
+	return WithAnnotationsJobs(
+		map[string]string{
+			constants.PreemptionRetryEnabledAnnotation:  "true",
+			constants.PreemptionRetryCountMaxAnnotation: strconv.Itoa(retryCount),
+		},
+		jobs,
+	)
 }
 
 func WithPools(jobs []*jobdb.Job, pools []string) []*jobdb.Job {
