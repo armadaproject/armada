@@ -4,6 +4,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/armadaproject/armada/internal/common/preemption"
+	"github.com/armadaproject/armada/internal/scheduler/configuration"
+
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
@@ -732,6 +735,59 @@ func (job *Job) NumAttempts() uint {
 		}
 	}
 	return attempts
+}
+
+// IsEligibleForPreemptionRetry determines whether the job is eligible for preemption retries. It checks whether the
+// scheduler or the job has opted in for preemption retries. It then checks whether the job has exhausted the number
+// of retries.
+func (job *Job) IsEligibleForPreemptionRetry(defaultPreemptionRetryConfig configuration.PreemptionRetryConfig) bool {
+	enabled := false
+
+	// Check for platform default first
+	if defaultPreemptionRetryConfig.Enabled {
+		enabled = true
+	}
+
+	// Check if job explicitly enabled/disabled retries
+	jobRetryEnabled, exists := preemption.AreRetriesEnabled(job.Annotations())
+	if exists {
+		enabled = jobRetryEnabled
+	}
+
+	if !enabled {
+		return false
+	}
+
+	maxRetryCount := job.MaxPreemptionRetryCount(defaultPreemptionRetryConfig)
+
+	return job.NumPreemptedRuns() <= maxRetryCount
+}
+
+func (job *Job) NumPreemptedRuns() uint {
+	preemptCount := uint(0)
+	for _, run := range job.runsById {
+		if run.preempted {
+			preemptCount++
+		}
+	}
+	return preemptCount
+}
+
+func (job *Job) MaxPreemptionRetryCount(defaultPreemptionRetryConfig configuration.PreemptionRetryConfig) uint {
+	var maxRetryCount uint = 0
+
+	// Check for platform default first
+	if defaultPreemptionRetryConfig.DefaultMaxRetryCount != nil {
+		platformDefaultMaxRetryCount := *defaultPreemptionRetryConfig.DefaultMaxRetryCount
+		maxRetryCount = platformDefaultMaxRetryCount
+	}
+
+	// Allow jobs to set a custom max retry count
+	jobMaxRetryCount, exists := preemption.GetMaxRetryCount(job.Annotations())
+	if exists {
+		maxRetryCount = jobMaxRetryCount
+	}
+	return maxRetryCount
 }
 
 // AllRuns returns all runs associated with job.

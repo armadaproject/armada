@@ -10,6 +10,9 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
+
+	configuration2 "github.com/armadaproject/armada/internal/scheduler/configuration"
+	"github.com/armadaproject/armada/internal/server/configuration"
 )
 
 var jobSchedulingInfo = &internaltypes.JobSchedulingInfo{
@@ -26,12 +29,73 @@ var jobSchedulingInfo = &internaltypes.JobSchedulingInfo{
 	},
 }
 
+var jobSchedulingInfoWithRetryEnabled = &internaltypes.JobSchedulingInfo{
+	PodRequirements: &internaltypes.PodRequirements{
+		ResourceRequirements: v1.ResourceRequirements{
+			Requests: v1.ResourceList{
+				"cpu":                 k8sResource.MustParse("1"),
+				"storage-connections": k8sResource.MustParse("1"),
+			},
+		},
+		Annotations: map[string]string{
+			configuration.PreemptionRetryEnabledAnnotation:  "true",
+			configuration.PreemptionRetryCountMaxAnnotation: "1",
+		},
+	},
+}
+
+var jobSchedulingInfoWithRetryDisabled = &internaltypes.JobSchedulingInfo{
+	PodRequirements: &internaltypes.PodRequirements{
+		ResourceRequirements: v1.ResourceRequirements{
+			Requests: v1.ResourceList{
+				"cpu":                 k8sResource.MustParse("1"),
+				"storage-connections": k8sResource.MustParse("1"),
+			},
+		},
+		Annotations: map[string]string{
+			configuration.PreemptionRetryEnabledAnnotation: "false",
+		},
+	},
+}
+
 var baseJob, _ = jobDb.NewJob(
 	"test-job",
 	"test-jobSet",
 	"test-queue",
 	2,
 	jobSchedulingInfo,
+	true,
+	0,
+	false,
+	false,
+	false,
+	3,
+	false,
+	[]string{},
+)
+
+var baseJobWithRetryEnabled, _ = jobDb.NewJob(
+	"test-job",
+	"test-jobSet",
+	"test-queue",
+	2,
+	jobSchedulingInfoWithRetryEnabled,
+	true,
+	0,
+	false,
+	false,
+	false,
+	3,
+	false,
+	[]string{},
+)
+
+var baseJobWithRetryDisabled, _ = jobDb.NewJob(
+	"test-job",
+	"test-jobSet",
+	"test-queue",
+	2,
+	jobSchedulingInfoWithRetryDisabled,
 	true,
 	0,
 	false,
@@ -424,4 +488,86 @@ func TestJob_TestAllResourceRequirements(t *testing.T) {
 func TestJob_TestKubernetesResourceRequirements(t *testing.T) {
 	assert.Equal(t, int64(1000), baseJob.KubernetesResourceRequirements().GetByNameZeroIfMissing("cpu"))
 	assert.Equal(t, int64(0), baseJob.KubernetesResourceRequirements().GetByNameZeroIfMissing("storage-connections"))
+}
+
+func TestIsEligibleForPreemptionRetry(t *testing.T) {
+	premptedRun1 := &JobRun{
+		id:        uuid.New().String(),
+		created:   3,
+		executor:  "test-executor",
+		preempted: true,
+	}
+
+	premptedRun2 := &JobRun{
+		id:        uuid.New().String(),
+		created:   5,
+		executor:  "test-executor",
+		preempted: true,
+	}
+
+	defaultMaxRetryCountEnabled := uint(5)
+	platformDefaultEnabled := configuration2.PreemptionRetryConfig{
+		Enabled:              true,
+		DefaultMaxRetryCount: &defaultMaxRetryCountEnabled,
+	}
+
+	defaultMaxRetryCountDisabled := uint(0)
+	platformDefaultDisabled := configuration2.PreemptionRetryConfig{
+		Enabled:              false,
+		DefaultMaxRetryCount: &defaultMaxRetryCountDisabled,
+	}
+
+	// no runs
+	t.Run("job with retry enabled and platform disabled and no runs", func(t *testing.T) {
+		assert.True(t, baseJobWithRetryEnabled.IsEligibleForPreemptionRetry(platformDefaultDisabled))
+	})
+
+	t.Run("job with retry disabled and platform enabled and no runs", func(t *testing.T) {
+		assert.False(t, baseJobWithRetryDisabled.IsEligibleForPreemptionRetry(platformDefaultEnabled))
+	})
+
+	t.Run("job with platform retry enabled and no runs", func(t *testing.T) {
+		assert.True(t, baseJob.IsEligibleForPreemptionRetry(platformDefaultEnabled))
+	})
+
+	t.Run("job with platform retry disabled and no runs", func(t *testing.T) {
+		assert.False(t, baseJob.IsEligibleForPreemptionRetry(platformDefaultDisabled))
+	})
+
+	// runs but none are preempted
+	t.Run("job with retry enabled and platform disabled runs but no preempted runs", func(t *testing.T) {
+		updatedJob := baseJobWithRetryEnabled.WithUpdatedRun(baseRun).WithUpdatedRun(baseRun)
+		assert.True(t, updatedJob.IsEligibleForPreemptionRetry(platformDefaultDisabled))
+	})
+
+	t.Run("job with platform enabled runs but no preempted runs", func(t *testing.T) {
+		updatedJob := baseJob.WithUpdatedRun(baseRun).WithUpdatedRun(baseRun)
+		assert.True(t, updatedJob.IsEligibleForPreemptionRetry(platformDefaultEnabled))
+	})
+
+	t.Run("job with retry enabled and platform disabled and one run", func(t *testing.T) {
+		updatedJob := baseJobWithRetryEnabled.WithUpdatedRun(premptedRun1)
+		assert.True(t, updatedJob.IsEligibleForPreemptionRetry(platformDefaultDisabled))
+	})
+
+	t.Run("job with platform enabled and one run", func(t *testing.T) {
+		updatedJob := baseJob.WithUpdatedRun(premptedRun1)
+		assert.True(t, updatedJob.IsEligibleForPreemptionRetry(platformDefaultEnabled))
+	})
+
+	// runs that are preempted
+	t.Run("job with retry enabled and platform disabled and out of retries", func(t *testing.T) {
+		updatedJob := baseJobWithRetryEnabled.WithUpdatedRun(premptedRun1).WithUpdatedRun(premptedRun2)
+		assert.False(t, updatedJob.IsEligibleForPreemptionRetry(platformDefaultDisabled))
+	})
+
+	t.Run("job with retry enabled with platform enabled and out of retries", func(t *testing.T) {
+		updatedJob := baseJobWithRetryEnabled.WithUpdatedRun(premptedRun1).WithUpdatedRun(premptedRun2)
+		assert.False(t, updatedJob.IsEligibleForPreemptionRetry(platformDefaultEnabled))
+	})
+
+	t.Run("job with platform enabled and retries left", func(t *testing.T) {
+		updatedJob := baseJob.WithUpdatedRun(premptedRun1).WithUpdatedRun(premptedRun2)
+		assert.True(t, updatedJob.IsEligibleForPreemptionRetry(platformDefaultEnabled))
+	})
 }

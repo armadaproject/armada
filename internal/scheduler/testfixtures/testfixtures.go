@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -449,6 +450,16 @@ func WithGangAnnotationsJobs(jobs []*jobdb.Job) []*jobdb.Job {
 	gangCardinality := fmt.Sprintf("%d", len(jobs))
 	return WithAnnotationsJobs(
 		map[string]string{configuration.GangIdAnnotation: gangId, configuration.GangCardinalityAnnotation: gangCardinality},
+		jobs,
+	)
+}
+
+func WithPreemptionRetryAnnotationsJobs(jobs []*jobdb.Job, retryCount int) []*jobdb.Job {
+	return WithAnnotationsJobs(
+		map[string]string{
+			configuration.PreemptionRetryEnabledAnnotation:  "true",
+			configuration.PreemptionRetryCountMaxAnnotation: strconv.Itoa(retryCount),
+		},
 		jobs,
 	)
 }

@@ -248,6 +248,8 @@ type SchedulingConfig struct {
 	Pools                         []PoolConfig
 	ExperimentalIndicativePricing ExperimentalIndicativePricing
 	ExperimentalIndicativeShare   ExperimentalIndicativeShare
+	// Default preemption retries settings so you don't have to annotate all jobs with retries.
+	DefaultPreemptionRetry PreemptionRetryConfig
 }
 
 const (
@@ -353,4 +355,9 @@ type PriorityOverrideConfig struct {
 	UpdateFrequency time.Duration
 	ServiceUrl      string
 	ForceNoTls      bool
+}
+
+type PreemptionRetryConfig struct {
+	Enabled              bool
+	DefaultMaxRetryCount *uint
 }

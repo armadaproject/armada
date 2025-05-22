@@ -301,6 +301,26 @@ func TestSchedule(t *testing.T) {
 			},
 			expectedScheduledIndices: []int{0, 1},
 		},
+		"urgency-based preemption within a single queue with retry enabled": {
+			schedulingConfig: testfixtures.TestSchedulingConfig(),
+			executors:        []*schedulerobjects.Executor{test1Node32CoreExecutor("executor1")},
+			queues:           []*api.Queue{{Name: "A"}},
+			queuedJobs:       testfixtures.WithPreemptionRetryAnnotationsJobs(testfixtures.N16Cpu128GiJobs("A", testfixtures.PriorityClass1, 2), 10),
+			scheduledJobsByExecutorIndexAndNodeIndex: map[int]map[int]scheduledJobs{
+				0: {
+					0: scheduledJobs{
+						jobs:         testfixtures.WithPreemptionRetryAnnotationsJobs(testfixtures.N16Cpu128GiJobs("A", testfixtures.PriorityClass0, 1), 10),
+						acknowledged: true,
+					},
+				},
+			},
+			expectedPreemptedJobIndicesByExecutorIndexAndNodeIndex: map[int]map[int][]int{
+				0: {
+					0: {0},
+				},
+			},
+			expectedScheduledIndices: []int{0, 1},
+		},
 		"urgency-based preemption between queues": {
 			schedulingConfig: testfixtures.TestSchedulingConfig(),
 			executors:        []*schedulerobjects.Executor{test1Node32CoreExecutor("executor1")},
@@ -330,6 +350,26 @@ func TestSchedule(t *testing.T) {
 				0: {
 					0: scheduledJobs{
 						jobs:         testfixtures.N16Cpu128GiJobs("B", testfixtures.PriorityClass0, 2),
+						acknowledged: true,
+					},
+				},
+			},
+			expectedPreemptedJobIndicesByExecutorIndexAndNodeIndex: map[int]map[int][]int{
+				0: {
+					0: {1},
+				},
+			},
+			expectedScheduledIndices: []int{0},
+		},
+		"preemption to fair share with retries enabled": {
+			schedulingConfig: testfixtures.TestSchedulingConfig(),
+			executors:        []*schedulerobjects.Executor{test1Node32CoreExecutor("executor1")},
+			queues:           []*api.Queue{{Name: "A", PriorityFactor: 0.01}, {Name: "B", PriorityFactor: 0.01}},
+			queuedJobs:       testfixtures.WithPreemptionRetryAnnotationsJobs(testfixtures.N16Cpu128GiJobs("A", testfixtures.PriorityClass0, 2), 10),
+			scheduledJobsByExecutorIndexAndNodeIndex: map[int]map[int]scheduledJobs{
+				0: {
+					0: scheduledJobs{
+						jobs:         testfixtures.WithPreemptionRetryAnnotationsJobs(testfixtures.N16Cpu128GiJobs("B", testfixtures.PriorityClass0, 2), 10),
 						acknowledged: true,
 					},
 				},
@@ -604,8 +644,18 @@ func TestSchedule(t *testing.T) {
 			// Check that preempted jobs are marked as such consistently.
 			for _, job := range preemptedJobs {
 				dbJob := txn.GetById(job.Id())
-				assert.True(t, dbJob.Failed())
-				assert.False(t, dbJob.Queued())
+				if dbJob.IsEligibleForPreemptionRetry(tc.schedulingConfig.DefaultPreemptionRetry) {
+					assert.False(t, dbJob.Failed())
+					assert.True(t, dbJob.Queued())
+				} else {
+					assert.True(t, dbJob.Failed())
+					assert.False(t, dbJob.Queued())
+				}
+
+				// The job run is always marked for preemption
+				lastRun := dbJob.LatestRun()
+				assert.True(t, lastRun.Preempted())
+				assert.NotNil(t, lastRun.PreemptedTime())
 			}
 
 			// Check that scheduled jobs are marked as such consistently.

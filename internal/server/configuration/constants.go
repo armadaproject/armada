@@ -16,6 +16,9 @@ const (
 	// Instead, the job the pod is part of fails immediately.
 	FailFastAnnotation = "armadaproject.io/failFast"
 	PoolAnnotation     = "armadaproject.io/pool"
+
+	PreemptionRetryCountMaxAnnotation = "armadaproject.io/preemptionRetryCountMax"
+	PreemptionRetryEnabledAnnotation  = "armadaproject.io/preemptionRetryEnabled"
 )
 
 var schedulingAnnotations = map[string]bool{
