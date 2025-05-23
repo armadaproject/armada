@@ -47,24 +47,13 @@ func TestNewDominantResourceFairness_InvalidConfig(t *testing.T) {
 				ExperimentalDominantResourceFairnessResourcesToConsider: []configuration.DominantResourceFairnessResource{{"foo", 1}, {"bar", 1}},
 			},
 		},
-		"pool overrive - invalid combination": {
+		"pool override - invalid combination": {
 			config: configuration.SchedulingConfig{
 				DominantResourceFairnessResourcesToConsider: []string{"foo", "bar"},
 				Pools: []configuration.PoolConfig{
 					{
 						Name: poolName,
-						ExperimentalDominantResourceFairnessResourcesToConsider: []configuration.DominantResourceFairnessResource{{"foo", 1}, {"bar", 0.5}},
-					},
-				},
-			},
-		},
-		"pool overrive - invalid combination 2": {
-			config: configuration.SchedulingConfig{
-				ExperimentalDominantResourceFairnessResourcesToConsider: []configuration.DominantResourceFairnessResource{{"foo", 1}, {"bar", 1}},
-				Pools: []configuration.PoolConfig{
-					{
-						Name: poolName,
-						DominantResourceFairnessResourcesToConsider: []string{"foo"},
+						DominantResourceFairnessResourcesToConsider: []configuration.DominantResourceFairnessResource{{"foo", 1}, {"bar", 0.5}},
 					},
 				},
 			},
@@ -164,21 +153,6 @@ func TestDominantResourceFairness(t *testing.T) {
 			weight:         1.0,
 			expectedCost:   2,
 		},
-		"pool override - dominant config": {
-			totalResources: fooBarBaz(rlFactory, "1", "2", "3"),
-			config: configuration.SchedulingConfig{
-				DominantResourceFairnessResourcesToConsider: []string{"foo", "bar"},
-				Pools: []configuration.PoolConfig{
-					{
-						Name: poolName,
-						DominantResourceFairnessResourcesToConsider: []string{"foo"},
-					},
-				},
-			},
-			allocation:   fooBarBaz(rlFactory, "0.5", "2", "0"),
-			weight:       1.0,
-			expectedCost: 0.5,
-		},
 		"pool override - experimental config": {
 			totalResources: fooBarBaz(rlFactory, "1", "2", "3"),
 			config: configuration.SchedulingConfig{
@@ -186,7 +160,7 @@ func TestDominantResourceFairness(t *testing.T) {
 				Pools: []configuration.PoolConfig{
 					{
 						Name: poolName,
-						ExperimentalDominantResourceFairnessResourcesToConsider: []configuration.DominantResourceFairnessResource{{"foo", 1}, {"bar", 0.5}},
+						DominantResourceFairnessResourcesToConsider: []configuration.DominantResourceFairnessResource{{"foo", 1}, {"bar", 0.5}},
 					},
 				},
 			},

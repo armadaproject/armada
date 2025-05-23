@@ -286,15 +286,11 @@ type PoolConfig struct {
 	Name                         string `validate:"required"`
 	AwayPools                    []string
 	ProtectedFractionOfFairShare *float64
-	// List of resource names, e.g., []string{"cpu", "memory"}, to consider when computing DominantResourceFairness costs.
-	// Dominant resource fairness is the algorithm used to assign a cost to jobs and queues.
-	DominantResourceFairnessResourcesToConsider []string
-	// Experimental - subject to change
 	// List of resource names, (e.g. "cpu" or "memory"), to consider when computing DominantResourceFairness costs.
 	// Dominant resource fairness is the algorithm used to assign a cost to jobs and queues.
-	ExperimentalDominantResourceFairnessResourcesToConsider []DominantResourceFairnessResource
-	ExperimentalProtectUncappedAdjustedFairShare            bool
-	ExperimentalOptimiser                                   *OptimiserConfig
+	DominantResourceFairnessResourcesToConsider  []DominantResourceFairnessResource
+	ExperimentalProtectUncappedAdjustedFairShare bool
+	ExperimentalOptimiser                        *OptimiserConfig
 }
 
 type OptimiserConfig struct {

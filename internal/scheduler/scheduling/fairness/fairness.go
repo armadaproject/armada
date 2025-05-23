@@ -50,10 +50,7 @@ func NewDominantResourceFairness(totalResources internaltypes.ResourceList, pool
 	poolConfig := config.GetPoolConfig(pool)
 	if poolConfig != nil {
 		if len(poolConfig.DominantResourceFairnessResourcesToConsider) > 0 {
-			resourcesToConsider = poolConfig.DominantResourceFairnessResourcesToConsider
-		}
-		if len(poolConfig.ExperimentalDominantResourceFairnessResourcesToConsider) > 0 {
-			experimentalResourcesToConsider = poolConfig.ExperimentalDominantResourceFairnessResourcesToConsider
+			experimentalResourcesToConsider = poolConfig.DominantResourceFairnessResourcesToConsider
 		}
 	}
 
