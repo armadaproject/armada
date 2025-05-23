@@ -93,7 +93,6 @@ scheduling:
       priority: 1000
       preemptible: true
   defaultPriorityClassName: "armada-default"
-  priorityClassNameOverride: "armada-default"
   maxQueueLookback: 100000
   maximumResourceFractionToSchedule:
     memory: 1.0
