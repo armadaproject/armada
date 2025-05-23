@@ -19,7 +19,7 @@ func TestSchedulingContextAccounting(t *testing.T) {
 	totalResources := testfixtures.TestResourceListFactory.FromNodeProto(
 		map[string]*resource.Quantity{"cpu": pointer.MustParseResource("1")},
 	)
-	fairnessCostProvider, err := fairness.NewDominantResourceFairness(totalResources, configuration.SchedulingConfig{DominantResourceFairnessResourcesToConsider: []string{"cpu"}})
+	fairnessCostProvider, err := fairness.NewDominantResourceFairness(totalResources, "pool", configuration.SchedulingConfig{DominantResourceFairnessResourcesToConsider: []string{"cpu"}})
 	require.NoError(t, err)
 	sctx := NewSchedulingContext(
 		"pool",
@@ -186,7 +186,7 @@ func TestCalculateFairShares(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			fairnessCostProvider, err := fairness.NewDominantResourceFairness(tc.availableResources, configuration.SchedulingConfig{DominantResourceFairnessResourcesToConsider: []string{"cpu"}})
+			fairnessCostProvider, err := fairness.NewDominantResourceFairness(tc.availableResources, "pool", configuration.SchedulingConfig{DominantResourceFairnessResourcesToConsider: []string{"cpu"}})
 			require.NoError(t, err)
 			sctx := NewSchedulingContext(
 				"pool",
@@ -278,7 +278,7 @@ func TestCalculateTheoreticalShare(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			fairnessCostProvider, err := fairness.NewDominantResourceFairness(tc.availableResources, configuration.SchedulingConfig{DominantResourceFairnessResourcesToConsider: []string{"cpu"}})
+			fairnessCostProvider, err := fairness.NewDominantResourceFairness(tc.availableResources, "pool", configuration.SchedulingConfig{DominantResourceFairnessResourcesToConsider: []string{"cpu"}})
 			require.NoError(t, err)
 			sctx := NewSchedulingContext(
 				"pool",
@@ -376,7 +376,7 @@ func TestCalculateFairnessError(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			fairnessCostProvider, err := fairness.NewDominantResourceFairness(tc.availableResources, configuration.SchedulingConfig{DominantResourceFairnessResourcesToConsider: []string{"cpu"}})
+			fairnessCostProvider, err := fairness.NewDominantResourceFairness(tc.availableResources, "pool", configuration.SchedulingConfig{DominantResourceFairnessResourcesToConsider: []string{"cpu"}})
 			require.NoError(t, err)
 			sctx := NewSchedulingContext("pool", fairnessCostProvider, nil, tc.availableResources)
 			sctx.QueueSchedulingContexts = tc.queueCtxs

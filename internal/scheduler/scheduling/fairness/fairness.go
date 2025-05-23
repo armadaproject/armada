@@ -39,29 +39,41 @@ type DominantResourceFairness struct {
 	multipliers internaltypes.ResourceFractionList
 }
 
-func NewDominantResourceFairness(totalResources internaltypes.ResourceList, config configuration.SchedulingConfig) (*DominantResourceFairness, error) {
+func NewDominantResourceFairness(totalResources internaltypes.ResourceList, pool string, config configuration.SchedulingConfig) (*DominantResourceFairness, error) {
 	if totalResources.IsEmpty() {
 		return &DominantResourceFairness{}, nil
 	}
 
-	if len(config.DominantResourceFairnessResourcesToConsider) != 0 && len(config.ExperimentalDominantResourceFairnessResourcesToConsider) != 0 {
-		return nil, errors.New("config error - only one of DominantResourceFairnessResourcesToConsider and ExperimentalDominantResourceFairnessResourcesToConsider should be set")
+	resourcesToConsider := config.DominantResourceFairnessResourcesToConsider
+	experimentalResourcesToConsider := config.ExperimentalDominantResourceFairnessResourcesToConsider
+
+	poolConfig := config.GetPoolConfig(pool)
+	if poolConfig != nil {
+		if len(poolConfig.DominantResourceFairnessResourcesToConsider) > 0 {
+			experimentalResourcesToConsider = poolConfig.DominantResourceFairnessResourcesToConsider
+		}
 	}
-	for _, rtc := range config.ExperimentalDominantResourceFairnessResourcesToConsider {
+
+	if len(resourcesToConsider) != 0 && len(experimentalResourcesToConsider) != 0 {
+		return nil, errors.New(
+			fmt.Sprintf("config error for pool %s - only one of DominantResourceFairnessResourcesToConsider and ExperimentalDominantResourceFairnessResourcesToConsider should be set", pool),
+		)
+	}
+	for _, rtc := range experimentalResourcesToConsider {
 		if rtc.Multiplier < 0 {
 			return nil, fmt.Errorf("config error - ExperimentalDominantResourceFairnessResourcesToConsider has negative multiplier for resource %s", rtc.Name)
 		}
 	}
 
 	var multipliers map[string]float64
-	if len(config.DominantResourceFairnessResourcesToConsider) > 0 {
-		multipliers = maps.FromSlice(config.DominantResourceFairnessResourcesToConsider, func(n string) string {
+	if len(resourcesToConsider) > 0 {
+		multipliers = maps.FromSlice(resourcesToConsider, func(n string) string {
 			return n
 		}, func(n string) float64 {
 			return 1.0
 		})
-	} else if len(config.ExperimentalDominantResourceFairnessResourcesToConsider) > 0 {
-		multipliers = maps.FromSlice(config.ExperimentalDominantResourceFairnessResourcesToConsider, func(r configuration.DominantResourceFairnessResource) string {
+	} else if len(experimentalResourcesToConsider) > 0 {
+		multipliers = maps.FromSlice(experimentalResourcesToConsider, func(r configuration.DominantResourceFairnessResource) string {
 			return r.Name
 		}, func(r configuration.DominantResourceFairnessResource) float64 {
 			return defaultMultiplier(r.Multiplier)

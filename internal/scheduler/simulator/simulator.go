@@ -561,6 +561,7 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 		totalResources := s.accounting.totalResourcesByPool[pool]
 		fairnessCostProvider, err := fairness.NewDominantResourceFairness(
 			totalResources,
+			pool,
 			s.schedulingConfig,
 		)
 		if err != nil {

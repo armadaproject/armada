@@ -464,7 +464,7 @@ func (l *FairSchedulingAlgo) constructSchedulingContext(
 	awayAllocationByQueueAndPriorityClass map[string]map[string]internaltypes.ResourceList,
 	queues map[string]*api.Queue,
 ) (*schedulercontext.SchedulingContext, error) {
-	fairnessCostProvider, err := fairness.NewDominantResourceFairness(totalCapacity, l.schedulingConfig)
+	fairnessCostProvider, err := fairness.NewDominantResourceFairness(totalCapacity, pool, l.schedulingConfig)
 	if err != nil {
 		return nil, err
 	}
