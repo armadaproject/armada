@@ -438,6 +438,7 @@ func TestFairnessOptimisingScheduler_ScheduleGangsEvenly(t *testing.T) {
 func createSctx(t *testing.T, totalResource internaltypes.ResourceList, queues []*api.Queue, runningJobsByQueue map[string][]*jobdb.Job) *context.SchedulingContext {
 	fairnessCostProvider, err := fairness.NewDominantResourceFairness(
 		totalResource,
+		testfixtures.TestPool,
 		testfixtures.TestSchedulingConfig(),
 	)
 	require.NoError(t, err)

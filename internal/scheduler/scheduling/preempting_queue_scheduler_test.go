@@ -2063,6 +2063,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 
 				fairnessCostProvider, err := fairness.NewDominantResourceFairness(
 					nodeDb.TotalKubernetesResources(),
+					testfixtures.TestPool,
 					tc.SchedulingConfig,
 				)
 				require.NoError(t, err)
@@ -2423,6 +2424,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 
 			fairnessCostProvider, err := fairness.NewDominantResourceFairness(
 				nodeDb.TotalKubernetesResources(),
+				testfixtures.TestPool,
 				tc.SchedulingConfig,
 			)
 			require.NoError(b, err)

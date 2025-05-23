@@ -30,6 +30,7 @@ func TestReportStateTransitions(t *testing.T) {
 	ctx := armadacontext.Background()
 	fairnessCostProvider, err := fairness.NewDominantResourceFairness(
 		cpu(100),
+		poolLabel,
 		configuration.SchedulingConfig{DominantResourceFairnessResourcesToConsider: []string{"cpu"}},
 	)
 	require.NoError(t, err)
@@ -212,6 +213,7 @@ func TestPublishCycleMetrics(t *testing.T) {
 
 	fairnessCostProvider, err := fairness.NewDominantResourceFairness(
 		cpu(100),
+		poolLabel,
 		configuration.SchedulingConfig{DominantResourceFairnessResourcesToConsider: []string{"cpu"}},
 	)
 	require.NoError(t, err)

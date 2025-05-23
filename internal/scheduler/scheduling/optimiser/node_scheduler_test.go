@@ -208,6 +208,7 @@ func setUpSctx(t *testing.T, queues []*api.Queue, existingJobs []*jobdb.Job, tot
 	})
 	fairnessCostProvider, err := fairness.NewDominantResourceFairness(
 		totalResource,
+		testfixtures.TestPool,
 		testfixtures.TestSchedulingConfig(),
 	)
 	require.NoError(t, err)

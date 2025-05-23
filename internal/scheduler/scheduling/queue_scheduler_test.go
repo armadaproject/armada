@@ -514,6 +514,7 @@ func TestQueueScheduler(t *testing.T) {
 
 			fairnessCostProvider, err := fairness.NewDominantResourceFairness(
 				totalResources,
+				testfixtures.TestPool,
 				tc.SchedulingConfig,
 			)
 			require.NoError(t, err)

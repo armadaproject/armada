@@ -228,6 +228,7 @@ func TestOptimisingQueueScheduler_Schedule(t *testing.T) {
 
 			fairnessCostProvider, err := fairness.NewDominantResourceFairness(
 				tc.TotalSchedulingCapacity,
+				poolConfig.Name,
 				tc.SchedulingConfig,
 			)
 			require.NoError(t, err)

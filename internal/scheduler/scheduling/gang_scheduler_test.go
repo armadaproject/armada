@@ -600,6 +600,7 @@ func TestGangScheduler(t *testing.T) {
 
 			fairnessCostProvider, err := fairness.NewDominantResourceFairness(
 				tc.TotalResources,
+				testfixtures.TestPool,
 				tc.SchedulingConfig,
 			)
 			require.NoError(t, err)

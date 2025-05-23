@@ -283,11 +283,18 @@ type WellKnownNodeType struct {
 }
 
 type PoolConfig struct {
-	Name                                         string `validate:"required"`
-	AwayPools                                    []string
-	ProtectedFractionOfFairShare                 *float64
-	ExperimentalProtectUncappedAdjustedFairShare bool
-	ExperimentalOptimiser                        *OptimiserConfig
+	Name                         string `validate:"required"`
+	AwayPools                    []string
+	ProtectedFractionOfFairShare *float64
+	// List of resource names, e.g., []string{"cpu", "memory"}, to consider when computing DominantResourceFairness costs.
+	// Dominant resource fairness is the algorithm used to assign a cost to jobs and queues.
+	DominantResourceFairnessResourcesToConsider []string
+	// Experimental - subject to change
+	// List of resource names, (e.g. "cpu" or "memory"), to consider when computing DominantResourceFairness costs.
+	// Dominant resource fairness is the algorithm used to assign a cost to jobs and queues.
+	ExperimentalDominantResourceFairnessResourcesToConsider []DominantResourceFairnessResource
+	ExperimentalProtectUncappedAdjustedFairShare            bool
+	ExperimentalOptimiser                                   *OptimiserConfig
 }
 
 type OptimiserConfig struct {
@@ -334,6 +341,15 @@ func (sc *SchedulingConfig) GetOptimiserConfig(poolName string) *OptimiserConfig
 	for _, poolConfig := range sc.Pools {
 		if poolConfig.Name == poolName {
 			return poolConfig.ExperimentalOptimiser
+		}
+	}
+	return nil
+}
+
+func (sc *SchedulingConfig) GetPoolConfig(poolName string) *PoolConfig {
+	for _, poolConfig := range sc.Pools {
+		if poolConfig.Name == poolName {
+			return &poolConfig
 		}
 	}
 	return nil
