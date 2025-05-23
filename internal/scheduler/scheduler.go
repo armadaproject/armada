@@ -506,20 +506,23 @@ func AppendEventSequencesFromPreemptedJobs(eventSequences []*armadaevents.EventS
 		eventSequences = append(eventSequences, &armadaevents.EventSequence{
 			Queue:      jctx.Job.Queue(),
 			JobSetName: jctx.Job.Jobset(),
-			Events:     createEventsForPreemptedJob(jctx.JobId, run.Id(), jctx.PreemptionDescription, time),
+			Events:     createEventsForPreemptedJob(jctx.Job, run.Id(), jctx.PreemptionDescription, time),
 		})
 	}
 	return eventSequences, nil
 }
 
-func createEventsForPreemptedJob(jobId string, runId string, reason string, time time.Time) []*armadaevents.EventSequence_Event {
-	return []*armadaevents.EventSequence_Event{
+func createEventsForPreemptedJob(job *jobdb.Job, runId string, reason string, time time.Time) []*armadaevents.EventSequence_Event {
+	// Check for job failure in case of API preemption
+	jobFailed := job.Failed()
+
+	events := []*armadaevents.EventSequence_Event{
 		{
 			Created: protoutil.ToTimestamp(time),
 			Event: &armadaevents.EventSequence_Event_JobRunPreempted{
 				JobRunPreempted: &armadaevents.JobRunPreempted{
 					PreemptedRunId: runId,
-					PreemptedJobId: jobId,
+					PreemptedJobId: job.Id(),
 					Reason:         reason,
 				},
 			},
@@ -529,28 +532,10 @@ func createEventsForPreemptedJob(jobId string, runId string, reason string, time
 			Event: &armadaevents.EventSequence_Event_JobRunErrors{
 				JobRunErrors: &armadaevents.JobRunErrors{
 					RunId: runId,
-					JobId: jobId,
+					JobId: job.Id(),
 					Errors: []*armadaevents.Error{
 						{
-							Terminal: true,
-							Reason: &armadaevents.Error_JobRunPreemptedError{
-								JobRunPreemptedError: &armadaevents.JobRunPreemptedError{
-									Reason: reason,
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-		{
-			Created: protoutil.ToTimestamp(time),
-			Event: &armadaevents.EventSequence_Event_JobErrors{
-				JobErrors: &armadaevents.JobErrors{
-					JobId: jobId,
-					Errors: []*armadaevents.Error{
-						{
-							Terminal: true,
+							Terminal: jobFailed,
 							Reason: &armadaevents.Error_JobRunPreemptedError{
 								JobRunPreemptedError: &armadaevents.JobRunPreemptedError{
 									Reason: reason,
@@ -562,6 +547,44 @@ func createEventsForPreemptedJob(jobId string, runId string, reason string, time
 			},
 		},
 	}
+
+	if jobFailed {
+		// Only send a job error event if the job is in a failed state
+		events = append(events, &armadaevents.EventSequence_Event{
+			Created: protoutil.ToTimestamp(time),
+			Event: &armadaevents.EventSequence_Event_JobErrors{
+				JobErrors: &armadaevents.JobErrors{
+					JobId: job.Id(),
+					Errors: []*armadaevents.Error{
+						{
+							Terminal: true,
+							Reason: &armadaevents.Error_JobRunPreemptedError{
+								JobRunPreemptedError: &armadaevents.JobRunPreemptedError{
+									Reason: reason,
+								},
+							},
+						},
+					},
+				},
+			},
+		})
+	}
+
+	if job.Queued() {
+		// Assume the job has already been marked as queued and the version has been bumped
+		events = append(events, &armadaevents.EventSequence_Event{
+			Created: protoutil.ToTimestamp(time),
+			Event: &armadaevents.EventSequence_Event_JobRequeued{
+				JobRequeued: &armadaevents.JobRequeued{
+					JobId:                job.Id(),
+					SchedulingInfo:       internaltypes.ToSchedulerObjectsJobSchedulingInfo(job.JobSchedulingInfo()),
+					UpdateSequenceNumber: job.QueuedVersion(),
+				},
+			},
+		})
+	}
+
+	return events
 }
 
 func AppendEventSequencesFromScheduledJobs(eventSequences []*armadaevents.EventSequence, jctxs []*schedulercontext.JobSchedulingContext) ([]*armadaevents.EventSequence, error) {
@@ -813,7 +836,7 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 			}
 		} else if lastRun.PreemptRequested() && job.PriorityClass().Preemptible {
 			job = job.WithQueued(false).WithFailed(true).WithUpdatedRun(lastRun.WithoutTerminal().WithFailed(true))
-			events = append(events, createEventsForPreemptedJob(job.Id(), lastRun.Id(), "Preempted - preemption requested via API", s.clock.Now())...)
+			events = append(events, createEventsForPreemptedJob(job, lastRun.Id(), "Preempted - preemption requested via API", s.clock.Now())...)
 		}
 	}
 

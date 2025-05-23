@@ -54,7 +54,7 @@ type JobRepository interface {
 	CountReceivedPartitions(ctx *armadacontext.Context, groupId uuid.UUID) (uint32, error)
 
 	// FindInactiveRuns returns a slice containing all dbRuns that the scheduler does not currently consider active
-	// Runs are inactive if they don't exist or if they have succeeded, failed or been cancelled
+	// Runs are inactive if they don't exist or if they have succeeded, failed, preempted or been cancelled
 	FindInactiveRuns(ctx *armadacontext.Context, runIds []string) ([]string, error)
 
 	// FetchJobRunLeases fetches new job runs for a given executor.  A maximum of maxResults rows will be returned, while run
@@ -293,7 +293,7 @@ func (r *PostgresJobRepository) FetchJobUpdates(ctx *armadacontext.Context, jobS
 }
 
 // FindInactiveRuns returns a slice containing all dbRuns that the scheduler does not currently consider active
-// Runs are inactive if they don't exist or if they have succeeded, failed or been cancelled
+// Runs are inactive if they don't exist or if they have succeeded, failed, preempted or been cancelled
 func (r *PostgresJobRepository) FindInactiveRuns(ctx *armadacontext.Context, runIds []string) ([]string, error) {
 	var inactiveRuns []string
 	err := pgx.BeginTxFunc(ctx, r.db, pgx.TxOptions{
@@ -313,6 +313,7 @@ func (r *PostgresJobRepository) FindInactiveRuns(ctx *armadacontext.Context, run
 		WHERE runs.run_id IS NULL
 		OR runs.succeeded = true
  		OR runs.failed = true
+		OR runs.preempted = true
 		OR runs.cancelled = true;`
 
 		rows, err := tx.Query(ctx, fmt.Sprintf(query, tmpTable))
@@ -361,6 +362,7 @@ func (r *PostgresJobRepository) FetchJobRunLeases(ctx *armadacontext.Context, ex
 				AND jr.succeeded = false
 				AND jr.failed = false
 				AND jr.cancelled = false
+				AND jr.preempted = false
 				ORDER BY jr.serial
 				LIMIT %d;
 `

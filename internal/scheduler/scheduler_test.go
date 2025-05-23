@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/armadaproject/armada/internal/scheduler/configuration"
+
 	"github.com/gogo/protobuf/types"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -89,8 +91,26 @@ var (
 		},
 		Version: 1,
 	}
-	schedulingInfoBytes   = protoutil.MustMarshall(schedulingInfo)
-	updatedSchedulingInfo = &schedulerobjects.JobSchedulingInfo{
+	schedulingInfoBytes            = protoutil.MustMarshall(schedulingInfo)
+	schedulingInfoWithRetryEnabled = &schedulerobjects.JobSchedulingInfo{
+		AtMostOnce:        true,
+		PriorityClassName: testfixtures.PriorityClass1,
+		ObjectRequirements: []*schedulerobjects.ObjectRequirements{
+			{
+				Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
+					PodRequirements: &schedulerobjects.PodRequirements{
+						Annotations: map[string]string{
+							apiconfig.PreemptionRetryEnabledAnnotation:  "true",
+							apiconfig.PreemptionRetryCountMaxAnnotation: "1",
+						},
+					},
+				},
+			},
+		},
+		Version: 1,
+	}
+	schedulingInfoWithRetryEnabledBytes = protoutil.MustMarshall(schedulingInfoWithRetryEnabled)
+	updatedSchedulingInfo               = &schedulerobjects.JobSchedulingInfo{
 		AtMostOnce: true,
 		ObjectRequirements: []*schedulerobjects.ObjectRequirements{
 			{
@@ -140,6 +160,21 @@ var leasedJob = testfixtures.NewJob(
 	"testQueue",
 	0,
 	toInternalSchedulingInfo(schedulingInfo),
+	false,
+	1,
+	false,
+	false,
+	false,
+	1,
+	true,
+).WithNewRun("testExecutor", "test-node", "node", "pool", 5)
+
+var leasedJobWithRetryEnabled = testfixtures.NewJob(
+	util.NewULID(),
+	"testJobset",
+	"testQueue",
+	0,
+	toInternalSchedulingInfo(schedulingInfoWithRetryEnabled),
 	false,
 	1,
 	false,
@@ -776,6 +811,17 @@ func TestScheduler_TestCycle(t *testing.T) {
 			expectedJobRunErrors:      []string{leasedJob.Id()},
 			expectedTerminal:          []string{leasedJob.Id()},
 			expectedQueuedVersion:     leasedJob.QueuedVersion(),
+		},
+		"Job preempted with retry enabled": {
+			initialJobs:               []*jobdb.Job{leasedJobWithRetryEnabled},
+			expectedJobsRunsToPreempt: []string{leasedJobWithRetryEnabled.Id()},
+			expectedJobRunPreempted:   []string{leasedJobWithRetryEnabled.Id()},
+			expectedJobErrors:         []string{},
+			expectedJobRunErrors:      []string{leasedJobWithRetryEnabled.Id()},
+			expectedTerminal:          []string{},
+			expectedQueued:            []string{leasedJobWithRetryEnabled.Id()},
+			expectedRequeued:          []string{leasedJobWithRetryEnabled.Id()},
+			expectedQueuedVersion:     leasedJob.QueuedVersion() + 1,
 		},
 		"Fetch fails": {
 			initialJobs:           []*jobdb.Job{leasedJob},
@@ -1525,11 +1571,16 @@ func (t *testSchedulingAlgo) Schedule(_ *armadacontext.Context, txn *jobdb.Txn) 
 			return nil, errors.Errorf("was asked to preempt job %s but job is still queued", job.Id())
 		}
 		if run := job.LatestRun(); run != nil {
-			job = job.WithUpdatedRun(run.WithFailed(true))
+			now := time.Now()
+			job = job.WithUpdatedRun(run.WithPreempted(true).WithPreemptedTime(&now))
 		} else {
 			return nil, errors.Errorf("attempting to preempt job %s with no associated runs", job.Id())
 		}
-		job = job.WithQueued(false).WithFailed(true)
+		if job.IsEligibleForPreemptionRetry(configuration.PreemptionRetryConfig{}) {
+			job = job.WithQueued(true).WithQueuedVersion(job.QueuedVersion() + 1)
+		} else {
+			job = job.WithQueued(false).WithFailed(true)
+		}
 		preemptedJobs = append(preemptedJobs, job)
 	}
 	for _, id := range t.jobsToSchedule {
@@ -1666,6 +1717,16 @@ var (
 		QueuedVersion:         1,
 		SchedulingInfo:        schedulingInfoBytes,
 		SchedulingInfoVersion: int32(schedulingInfo.Version),
+		Validated:             true,
+		Serial:                0,
+	}
+	runningAndRetryableJobA = &database.Job{
+		JobID:                 queuedJobA.JobID,
+		JobSet:                "testJobSet",
+		Queue:                 "testQueue",
+		QueuedVersion:         1,
+		SchedulingInfo:        schedulingInfoWithRetryEnabledBytes,
+		SchedulingInfoVersion: int32(schedulingInfoWithRetryEnabled.Version),
 		Validated:             true,
 		Serial:                0,
 	}
@@ -2354,6 +2415,83 @@ func TestCycleConsistency(t *testing.T) {
 											},
 										},
 									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		"Running job is preempted and requeued with retry enabled": {
+			firstSchedulerDbUpdate: schedulerDbUpdate{
+				jobUpdates: []*database.Job{
+					runningAndRetryableJobA,
+				},
+				runUpdates: []*database.Run{
+					newRunA,
+				},
+			},
+			idsOfJobsToPreempt:      []string{queuedJobA.JobID},
+			expectedJobDbCycleThree: make([]*jobdb.Job, 0),
+			expectedEventSequencesCycleThree: []*armadaevents.EventSequence{
+				{
+					Queue:      queuedJobA.Queue,
+					JobSetName: queuedJobA.JobSet,
+					Events: []*armadaevents.EventSequence_Event{
+						{
+							Created: &types.Timestamp{},
+							Event: &armadaevents.EventSequence_Event_JobRunPreempted{
+								JobRunPreempted: &armadaevents.JobRunPreempted{
+									PreemptedRunId: testfixtures.UUIDFromInt(1).String(),
+									PreemptedJobId: queuedJobA.JobID,
+								},
+							},
+						},
+						{
+							Created: &types.Timestamp{},
+							Event: &armadaevents.EventSequence_Event_JobRunErrors{
+								JobRunErrors: &armadaevents.JobRunErrors{
+									JobId: queuedJobA.JobID,
+									RunId: testfixtures.UUIDFromInt(1).String(),
+									Errors: []*armadaevents.Error{
+										{
+											Terminal: false,
+											Reason: &armadaevents.Error_JobRunPreemptedError{
+												JobRunPreemptedError: &armadaevents.JobRunPreemptedError{},
+											},
+										},
+									},
+								},
+							},
+						},
+						{
+							Created: &types.Timestamp{},
+							Event: &armadaevents.EventSequence_Event_JobRequeued{
+								JobRequeued: &armadaevents.JobRequeued{
+									SchedulingInfo: &schedulerobjects.JobSchedulingInfo{
+										SubmitTime: &types.Timestamp{
+											Seconds: -62135596800,
+											Nanos:   0,
+										},
+										PriorityClassName: testfixtures.PriorityClass1,
+										ObjectRequirements: []*schedulerobjects.ObjectRequirements{
+											{
+												Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
+													PodRequirements: &schedulerobjects.PodRequirements{
+														ResourceRequirements: &v1.ResourceRequirements{},
+														NodeSelector:         map[string]string{},
+														Annotations: map[string]string{
+															apiconfig.PreemptionRetryEnabledAnnotation:  "true",
+															apiconfig.PreemptionRetryCountMaxAnnotation: "1",
+														},
+													},
+												},
+											},
+										},
+										Version: 1,
+									},
+									UpdateSequenceNumber: int32(2),
+									JobId:                queuedJobA.JobID,
 								},
 							},
 						},
