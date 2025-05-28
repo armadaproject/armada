@@ -379,7 +379,7 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 
 			for runId, jobRunState := range node.StateByJobRunId {
 				job := txn.GetByRunId(runId)
-				if job != nil && job.LatestRun() != nil {
+				if job != nil && !job.InTerminalState() && job.LatestRun() != nil {
 					jobPool := job.LatestRun().Pool()
 					phase := schedulerobjects.JobRunState_name[int32(jobRunState)]
 					key := queuePhaseMetricKey{

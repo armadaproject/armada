@@ -500,6 +500,7 @@ func TestSchedule(t *testing.T) {
 				testfixtures.TestResourceListFactory,
 				testfixtures.TestEmptyFloatingResources,
 				priorityoverride.NewNoOpProvider(),
+				nil,
 			)
 			require.NoError(t, err)
 
@@ -666,6 +667,7 @@ func BenchmarkNodeDbConstruction(b *testing.B) {
 					testfixtures.TestResourceListFactory,
 					testfixtures.TestEmptyFloatingResources,
 					priorityoverride.NewNoOpProvider(),
+					nil,
 				)
 				require.NoError(b, err)
 				b.StartTimer()

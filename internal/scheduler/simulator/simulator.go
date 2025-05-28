@@ -588,6 +588,7 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 				s.accounting.allocationByPoolAndQueueAndPriorityClass[pool][queue.Name],
 				demand,
 				demand,
+				internaltypes.ResourceList{},
 				s.limiter,
 			)
 			if err != nil {

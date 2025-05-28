@@ -61,6 +61,9 @@ type Scheduler struct {
 	// If an executor fails to report in for this amount of time,
 	// all jobs assigned to that executor are cancelled.
 	executorTimeout time.Duration
+	// Used to penalize short-running jobs by pretending they
+	// ran for some minimum length when calculating costs.
+	shortJobPenalty *scheduling.ShortJobPenalty
 	// The time the previous scheduling round ended
 	previousSchedulingRoundEnd time.Time
 	// Used for timing decisions (e.g., sleep).
@@ -92,6 +95,7 @@ func NewScheduler(
 	cyclePeriod time.Duration,
 	schedulePeriod time.Duration,
 	executorTimeout time.Duration,
+	shortJobPenalty *scheduling.ShortJobPenalty,
 	maxAttemptedRuns uint,
 	nodeIdLabel string,
 	metrics *metrics.Metrics,
@@ -109,6 +113,7 @@ func NewScheduler(
 		schedulePeriod:             schedulePeriod,
 		previousSchedulingRoundEnd: time.Time{},
 		executorTimeout:            executorTimeout,
+		shortJobPenalty:            shortJobPenalty,
 		maxAttemptedRuns:           maxAttemptedRuns,
 		nodeIdLabel:                nodeIdLabel,
 		jobsSerial:                 -1,
@@ -128,6 +133,7 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 
 	// JobDb initialisation.
 	start := s.clock.Now()
+	s.shortJobPenalty.SetNow(start)
 	if err := s.initialise(ctx); err != nil {
 		return err
 	}
@@ -142,6 +148,7 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 			return ctx.Err()
 		case <-ticker.C():
 			start := s.clock.Now()
+			s.shortJobPenalty.SetNow(start)
 			ctx := armadacontext.WithLogField(ctx, "cycleId", shortuuid.New())
 			leaderToken := s.leaderController.GetToken()
 			fullUpdate := false
@@ -410,9 +417,13 @@ func (s *Scheduler) syncState(ctx *armadacontext.Context, initial bool) ([]*jobd
 	// Delete jobs in a terminal state.
 	idsOfJobsToDelete := make([]string, 0)
 	for _, jobDbJob := range jobDbJobs {
-		if jobDbJob.InTerminalState() {
-			idsOfJobsToDelete = append(idsOfJobsToDelete, jobDbJob.Id())
+		if !jobDbJob.InTerminalState() {
+			continue
 		}
+		if s.shortJobPenalty.ShouldApplyPenalty(jobDbJob) {
+			continue
+		}
+		idsOfJobsToDelete = append(idsOfJobsToDelete, jobDbJob.Id())
 	}
 	if err := txn.BatchDelete(idsOfJobsToDelete); err != nil {
 		return nil, nil, err

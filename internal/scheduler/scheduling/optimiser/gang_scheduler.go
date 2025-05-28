@@ -154,6 +154,9 @@ func (n *FairnessOptimisingGangScheduler) updateState(result *nodeSchedulingResu
 		if job == nil {
 			return fmt.Errorf("failed to find job %s in job db", jobId)
 		}
+		if job.InTerminalState() {
+			return fmt.Errorf("job %s in terminal state", jobId)
+		}
 		jobsToPreempt = append(jobsToPreempt, job)
 	}
 
@@ -194,6 +197,9 @@ func (n *FairnessOptimisingGangScheduler) markJobsScheduledAndPreempted(result *
 			job := n.jobDb.GetById(jobId)
 			if job == nil {
 				return nil, fmt.Errorf("failed to find job %s in job db", jobId)
+			}
+			if job.InTerminalState() {
+				return nil, fmt.Errorf("job %s in terminal state", jobId)
 			}
 			jobsToPreempt = append(jobsToPreempt, job)
 		}

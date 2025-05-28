@@ -238,6 +238,7 @@ func setUpSctx(t *testing.T, queues []*api.Queue, existingJobs []*jobdb.Job, tot
 			existingAllocation,
 			unlimitedDemand,
 			unlimitedDemand,
+			internaltypes.ResourceList{},
 			nil,
 		)
 		require.NoError(t, err)

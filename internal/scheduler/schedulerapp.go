@@ -305,6 +305,7 @@ func Run(config schedulerconfig.Configuration) error {
 		return submitChecker.Run(ctx)
 	})
 
+	shortJobPenalty := scheduling.NewShortJobPenalty(config.Scheduling.GetShortJobPenaltyCutoffs())
 	stringInterner := stringinterner.New(config.InternedStringsCacheSize)
 	schedulingAlgo, err := scheduling.NewFairSchedulingAlgo(
 		config.Scheduling,
@@ -315,6 +316,7 @@ func Run(config schedulerconfig.Configuration) error {
 		resourceListFactory,
 		floatingResourceTypes,
 		priorityOverrideProvider,
+		shortJobPenalty,
 	)
 	if err != nil {
 		return errors.WithMessage(err, "error creating scheduling algo")
@@ -351,6 +353,7 @@ func Run(config schedulerconfig.Configuration) error {
 		config.CyclePeriod,
 		config.SchedulePeriod,
 		config.ExecutorTimeout,
+		shortJobPenalty,
 		config.Scheduling.MaxRetries+1,
 		config.Scheduling.NodeIdLabel,
 		schedulerMetrics,

@@ -291,6 +291,10 @@ type PoolConfig struct {
 	DominantResourceFairnessResourcesToConsider  []DominantResourceFairnessResource
 	ExperimentalProtectUncappedAdjustedFairShare bool
 	ExperimentalOptimiser                        *OptimiserConfig
+	// When calculating costs assume all jobs ran for at least this long.
+	// This penalizes jobs that ran for less than this value,
+	// since they are charged the same as a job that ran for this value.
+	ShortJobPenaltyCutoff time.Duration
 }
 
 type OptimiserConfig struct {
@@ -340,6 +344,14 @@ func (sc *SchedulingConfig) GetOptimiserConfig(poolName string) *OptimiserConfig
 		}
 	}
 	return nil
+}
+
+func (sc *SchedulingConfig) GetShortJobPenaltyCutoffs() map[string]time.Duration {
+	result := make(map[string]time.Duration)
+	for _, poolConfig := range sc.Pools {
+		result[poolConfig.Name] = poolConfig.ShortJobPenaltyCutoff
+	}
+	return result
 }
 
 func (sc *SchedulingConfig) GetPoolConfig(poolName string) *PoolConfig {

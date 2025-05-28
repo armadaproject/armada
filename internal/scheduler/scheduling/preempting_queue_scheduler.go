@@ -132,7 +132,7 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 				}
 
 				if qctx, ok := sch.schedulingContext.QueueSchedulingContexts[job.Queue()]; ok {
-					actualShare := sch.schedulingContext.FairnessCostProvider.UnweightedCostFromQueue(qctx)
+					actualShare := sch.schedulingContext.FairnessCostProvider.UnweightedCostFromAllocation(qctx.GetAllocation())
 					fairShare := math.Max(qctx.DemandCappedAdjustedFairShare, qctx.FairShare)
 					if sch.protectUncappedAdjustedFairShare {
 						fairShare = qctx.UncappedAdjustedFairShare
@@ -491,18 +491,22 @@ func (qr *MinimalQueueRepository) GetQueue(name string) (fairness.Queue, bool) {
 func NewMinimalQueueRepositoryFromSchedulingContext(sctx *schedulercontext.SchedulingContext) *MinimalQueueRepository {
 	queues := make(map[string]MinimalQueue, len(sctx.QueueSchedulingContexts))
 	for name, qctx := range sctx.QueueSchedulingContexts {
-		queues[name] = MinimalQueue{allocation: qctx.Allocated, weight: qctx.Weight}
+		queues[name] = MinimalQueue{allocation: qctx.Allocated, shortJobPenalty: qctx.ShortJobPenalty, weight: qctx.Weight}
 	}
 	return &MinimalQueueRepository{queues: queues}
 }
 
 type MinimalQueue struct {
-	allocation internaltypes.ResourceList
-	weight     float64
+	allocation      internaltypes.ResourceList
+	shortJobPenalty internaltypes.ResourceList
+	weight          float64
 }
 
 func (q MinimalQueue) GetAllocation() internaltypes.ResourceList {
 	return q.allocation
+}
+func (q MinimalQueue) GetAllocationInclShortJobPenalty() internaltypes.ResourceList {
+	return q.allocation.Add(q.shortJobPenalty)
 }
 
 func (q MinimalQueue) GetWeight() float64 {
