@@ -20,11 +20,10 @@ func NewShortJobPenalty(cutoffDurationByPool map[string]time.Duration) *ShortJob
 }
 
 func (sjp *ShortJobPenalty) SetNow(now time.Time) {
+	if sjp == nil {
+		return
+	}
 	sjp.now = now
-}
-
-func (sjp *ShortJobPenalty) GetNow() time.Time {
-	return sjp.now
 }
 
 func (sjp *ShortJobPenalty) ShouldApplyPenalty(job *jobdb.Job) bool {

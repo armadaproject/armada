@@ -46,6 +46,7 @@ func TestReportStateTransitions(t *testing.T) {
 						ConstrainedDemand:             cpu(15),
 						DemandCappedAdjustedFairShare: 0.15,
 						UncappedAdjustedFairShare:     0.2,
+						ShortJobPenalty:               cpu(28),
 						SuccessfulJobSchedulingContexts: map[string]*context.JobSchedulingContext{
 							"job1": {
 								Job: testfixtures.Test1Cpu4GiJob("queue1", testfixtures.PriorityClass0),
@@ -83,7 +84,7 @@ func TestReportStateTransitions(t *testing.T) {
 	assert.InDelta(t, 0.15, constrainedDemand, epsilon, "constrainedDemand")
 
 	shortJobPenalty := testutil.ToFloat64(m.latestCycleMetrics.Load().shortJobPenalty.WithLabelValues(poolQueue...))
-	assert.InDelta(t, 0.15, shortJobPenalty, epsilon, "shortJobPenalty")
+	assert.InDelta(t, 0.28, shortJobPenalty, epsilon, "shortJobPenalty")
 
 	adjustedFairShare := testutil.ToFloat64(m.latestCycleMetrics.Load().adjustedFairShare.WithLabelValues(poolQueue...))
 	assert.InDelta(t, 0.15, adjustedFairShare, epsilon, "adjustedFairShare")
