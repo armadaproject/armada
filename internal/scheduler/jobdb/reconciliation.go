@@ -308,6 +308,7 @@ func (jobDb *JobDb) schedulerRunFromDatabaseRun(dbRun *database.Run) *JobRun {
 	nodeId := api.NodeIdFromExecutorAndNodeName(dbRun.Executor, dbRun.Node)
 	return jobDb.CreateRun(
 		dbRun.RunID,
+		uint32(dbRun.RunIndex),
 		dbRun.JobID,
 		dbRun.Created,
 		dbRun.Executor,

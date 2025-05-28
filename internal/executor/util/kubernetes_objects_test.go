@@ -2,6 +2,7 @@ package util
 
 import (
 	"fmt"
+	"strconv"
 	"testing"
 
 	"github.com/armadaproject/armada/internal/common/util"
@@ -142,12 +143,14 @@ func makePodSpec() *v1.PodSpec {
 func TestCreatePodFromExecutorApiJob(t *testing.T) {
 	runId := uuid.NewString()
 	jobId := util.NewULID()
+	runIndex := 0
 
 	validJobLease := &executorapi.JobRunLease{
-		JobRunId: runId,
-		Queue:    "queue",
-		Jobset:   "job-set",
-		User:     "user",
+		JobRunId:    runId,
+		JobRunIndex: uint32(runIndex),
+		Queue:       "queue",
+		Jobset:      "job-set",
+		User:        "user",
 		Job: &armadaevents.SubmitJob{
 			ObjectMeta: &armadaevents.ObjectMeta{
 				Labels:      map[string]string{},
@@ -167,14 +170,15 @@ func TestCreatePodFromExecutorApiJob(t *testing.T) {
 
 	expectedPod := &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      fmt.Sprintf("armada-%s-0", jobId),
+			Name:      fmt.Sprintf("armada-%s-0-%d", jobId, runIndex),
 			Namespace: "test-namespace",
 			Labels: map[string]string{
-				domain.JobId:     jobId,
-				domain.JobRunId:  runId,
-				domain.Queue:     "queue",
-				domain.PodNumber: "0",
-				domain.PodCount:  "1",
+				domain.JobId:       jobId,
+				domain.JobRunId:    runId,
+				domain.JobRunIndex: strconv.Itoa(runIndex),
+				domain.Queue:       "queue",
+				domain.PodNumber:   "0",
+				domain.PodCount:    "1",
 			},
 			Annotations: map[string]string{
 				domain.JobSetId:            "job-set",

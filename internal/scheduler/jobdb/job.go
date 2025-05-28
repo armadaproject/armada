@@ -670,8 +670,10 @@ func (job *Job) ValidateResourceRequests() error {
 // WithNewRun creates a copy of the job with a new run on the given executor.
 func (job *Job) WithNewRun(executor, nodeId, nodeName, pool string, scheduledAtPriority int32) *Job {
 	now := job.jobDb.clock.Now()
+	nextRunIndex := len(job.runsById)
 	return job.WithUpdatedRun(job.jobDb.CreateRun(
 		job.jobDb.uuidProvider.New(),
+		uint32(nextRunIndex),
 		job.Id(),
 		now.UnixNano(),
 		executor,

@@ -195,6 +195,7 @@ func (c *JobSetEventsInstructionConverter) handleJobRunLeased(jobRunLeased *arma
 			Queue: meta.queue,
 			DbRun: &schedulerdb.Run{
 				RunID:                  runId,
+				RunIndex:               int64(jobRunLeased.RunIndex),
 				JobID:                  jobRunLeased.JobId,
 				Created:                eventTime.UnixNano(),
 				JobSet:                 meta.jobset,

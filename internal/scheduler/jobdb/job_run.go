@@ -15,6 +15,8 @@ import (
 type JobRun struct {
 	// Unique identifier for the run.
 	id string
+
+	index uint32
 	// Id of the job this run is associated with.
 	jobId string
 	// Time at which the run was created.
@@ -157,6 +159,9 @@ func (run *JobRun) Equal(other *JobRun) bool {
 	if run.id != other.id {
 		return false
 	}
+	if run.index != other.index {
+		return false
+	}
 	if run.jobId != other.jobId {
 		return false
 	}
@@ -213,6 +218,7 @@ func MinimalRun(id string, creationTime int64) *JobRun {
 // CreateRun creates a new scheduler job run from a database job run
 func (jobDb *JobDb) CreateRun(
 	id string,
+	index uint32,
 	jobId string,
 	creationTime int64,
 	executor string,
@@ -238,6 +244,7 @@ func (jobDb *JobDb) CreateRun(
 ) *JobRun {
 	return &JobRun{
 		id:                  id,
+		index:               index,
 		jobId:               jobId,
 		created:             creationTime,
 		executor:            jobDb.stringInterner.Intern(executor),
@@ -266,6 +273,11 @@ func (jobDb *JobDb) CreateRun(
 // Id returns the id of the JobRun.
 func (run *JobRun) Id() string {
 	return run.id
+}
+
+// Index returns the index of the JobRun with respect to the Job.
+func (run *JobRun) Index() uint32 {
+	return run.index
 }
 
 // JobId returns the id of the job this run is associated with.

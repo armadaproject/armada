@@ -79,6 +79,7 @@ message JobRunLease{
   repeated string groups = 5;
   armadaevents.SubmitJob job  = 6;
   string job_run_id = 7;
+  uint32 job_run_index = 8;
 }
 
 // Indicates that the job runs with the given ids should be cancelled.

@@ -605,6 +605,7 @@ func AppendEventSequencesFromScheduledJobs(eventSequences []*armadaevents.EventS
 					Event: &armadaevents.EventSequence_Event_JobRunLeased{
 						JobRunLeased: &armadaevents.JobRunLeased{
 							RunId:      run.Id(),
+							RunIndex:   run.Index(),
 							JobId:      job.Id(),
 							ExecutorId: run.Executor(),
 							// NodeId here refers to the unique identifier of the node in an executor cluster,
