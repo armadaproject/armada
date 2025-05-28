@@ -505,6 +505,7 @@ type MinimalQueue struct {
 func (q MinimalQueue) GetAllocation() internaltypes.ResourceList {
 	return q.allocation
 }
+
 func (q MinimalQueue) GetAllocationInclShortJobPenalty() internaltypes.ResourceList {
 	return q.allocation.Add(q.shortJobPenalty)
 }

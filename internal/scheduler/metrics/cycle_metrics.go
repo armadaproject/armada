@@ -554,7 +554,6 @@ func (m *cycleMetrics) publishCycleMetrics(ctx *armadacontext.Context, result sc
 		queueMetrics := make(map[string]*metricevents.QueueMetrics, len(sc.QueueSchedulingContexts))
 		for qName, qCtx := range sc.QueueSchedulingContexts {
 			queueMetrics[qName] = &metricevents.QueueMetrics{
-
 				ActualShare:                     sc.FairnessCostProvider.UnweightedCostFromAllocation(qCtx.GetAllocation()),
 				Demand:                          sc.FairnessCostProvider.UnweightedCostFromAllocation(qCtx.Demand),
 				ConstrainedDemand:               sc.FairnessCostProvider.UnweightedCostFromAllocation(qCtx.ConstrainedDemand),
