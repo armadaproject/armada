@@ -48,6 +48,7 @@ const (
 )
 
 var (
+	RunIndex                   = int64(0)
 	PartitionMarkerGroupIdUuid = uuid.MustParse(PartitionMarkerGroupId)
 	PriorityClassName          = "test-priority"
 	Groups                     = []string{"group1", "group2"}
