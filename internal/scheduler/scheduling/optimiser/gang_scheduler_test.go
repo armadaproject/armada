@@ -457,6 +457,7 @@ func createSctx(t *testing.T, totalResource internaltypes.ResourceList, queues [
 			map[string]internaltypes.ResourceList{testfixtures.PriorityClass2: sumRequestedResource(runningJobsByQueue[q.Name])},
 			unlimitedDemand,
 			unlimitedDemand,
+			internaltypes.ResourceList{},
 			nil,
 		)
 		require.NoError(t, err)

@@ -19,14 +19,15 @@ type QueueRepository interface {
 type Queue interface {
 	// GetAllocation returns the current allocation of the queue.
 	GetAllocation() internaltypes.ResourceList
+	// GetAllocationInclShortJobPenalty returns the value of GetAllocation above plus any short job penalty
+	GetAllocationInclShortJobPenalty() internaltypes.ResourceList
+	// Determines the fair share of this queue relative to other queues.
 	GetWeight() float64
 }
 
 // FairnessCostProvider captures algorithms to compute the cost of an allocation.
 type FairnessCostProvider interface {
-	UnweightedCostFromQueue(queue Queue) float64
 	UnweightedCostFromAllocation(allocation internaltypes.ResourceList) float64
-	WeightedCostFromQueue(queue Queue) float64
 	WeightedCostFromAllocation(allocation internaltypes.ResourceList, weight float64) float64
 }
 
@@ -93,14 +94,6 @@ func defaultMultiplier(multiplier float64) float64 {
 		return 1
 	}
 	return multiplier
-}
-
-func (f *DominantResourceFairness) WeightedCostFromQueue(queue Queue) float64 {
-	return f.UnweightedCostFromQueue(queue) / queue.GetWeight()
-}
-
-func (f *DominantResourceFairness) UnweightedCostFromQueue(queue Queue) float64 {
-	return f.UnweightedCostFromAllocation(queue.GetAllocation())
 }
 
 func (f *DominantResourceFairness) WeightedCostFromAllocation(allocation internaltypes.ResourceList, weight float64) float64 {

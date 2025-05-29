@@ -179,11 +179,6 @@ func TestDominantResourceFairness(t *testing.T) {
 				tc.expectedCost,
 				f.WeightedCostFromAllocation(tc.allocation, tc.weight),
 			)
-			assert.Equal(
-				t,
-				f.WeightedCostFromAllocation(tc.allocation, tc.weight),
-				f.WeightedCostFromQueue(MinimalQueue{allocation: tc.allocation, weight: tc.weight}),
-			)
 		})
 	}
 }

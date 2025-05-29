@@ -16,7 +16,7 @@ func FromSchedulingContext(sctx *context.SchedulingContext) *SchedulingContext {
 	for _, qctx := range sctx.QueueSchedulingContexts {
 		queueContext := &QueueContext{
 			Name:        qctx.Queue,
-			CurrentCost: sctx.FairnessCostProvider.UnweightedCostFromQueue(qctx),
+			CurrentCost: sctx.FairnessCostProvider.UnweightedCostFromAllocation(qctx.GetAllocationInclShortJobPenalty()),
 			Fairshare:   qctx.DemandCappedAdjustedFairShare,
 			Weight:      qctx.Weight,
 		}

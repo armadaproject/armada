@@ -97,6 +97,7 @@ func (sctx *SchedulingContext) AddQueueSchedulingContext(
 	initialAllocatedByPriorityClass map[string]internaltypes.ResourceList,
 	demand internaltypes.ResourceList,
 	constrainedDemand internaltypes.ResourceList,
+	shortJobPenalty internaltypes.ResourceList,
 	limiter *rate.Limiter,
 ) error {
 	if _, ok := sctx.QueueSchedulingContexts[queue]; ok {
@@ -126,6 +127,7 @@ func (sctx *SchedulingContext) AddQueueSchedulingContext(
 		RawWeight:                         rawWeight,
 		Limiter:                           limiter,
 		Allocated:                         allocated,
+		ShortJobPenalty:                   shortJobPenalty,
 		Demand:                            demand,
 		ConstrainedDemand:                 constrainedDemand,
 		AllocatedByPriorityClass:          initialAllocatedByPriorityClass,
@@ -484,7 +486,7 @@ func (sctx *SchedulingContext) AllocatedByQueueAndPriority() map[string]map[stri
 func (sctx *SchedulingContext) FairnessError() float64 {
 	fairnessError := 0.0
 	for _, qctx := range sctx.QueueSchedulingContexts {
-		actualShare := sctx.FairnessCostProvider.UnweightedCostFromQueue(qctx)
+		actualShare := sctx.FairnessCostProvider.UnweightedCostFromAllocation(qctx.GetAllocation())
 		delta := qctx.DemandCappedAdjustedFairShare - actualShare
 		if delta > 0 {
 			fairnessError += delta

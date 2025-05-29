@@ -46,6 +46,7 @@ func TestReportStateTransitions(t *testing.T) {
 						ConstrainedDemand:             cpu(15),
 						DemandCappedAdjustedFairShare: 0.15,
 						UncappedAdjustedFairShare:     0.2,
+						ShortJobPenalty:               cpu(28),
 						SuccessfulJobSchedulingContexts: map[string]*context.JobSchedulingContext{
 							"job1": {
 								Job: testfixtures.Test1Cpu4GiJob("queue1", testfixtures.PriorityClass0),
@@ -81,6 +82,9 @@ func TestReportStateTransitions(t *testing.T) {
 
 	constrainedDemand := testutil.ToFloat64(m.latestCycleMetrics.Load().constrainedDemand.WithLabelValues(poolQueue...))
 	assert.InDelta(t, 0.15, constrainedDemand, epsilon, "constrainedDemand")
+
+	shortJobPenalty := testutil.ToFloat64(m.latestCycleMetrics.Load().shortJobPenalty.WithLabelValues(poolQueue...))
+	assert.InDelta(t, 0.28, shortJobPenalty, epsilon, "shortJobPenalty")
 
 	adjustedFairShare := testutil.ToFloat64(m.latestCycleMetrics.Load().adjustedFairShare.WithLabelValues(poolQueue...))
 	assert.InDelta(t, 0.15, adjustedFairShare, epsilon, "adjustedFairShare")
@@ -134,6 +138,7 @@ func TestResetLeaderMetrics_ResetsLatestCycleMetrics(t *testing.T) {
 	testResetGauge(func(metrics *cycleMetrics) *prometheus.GaugeVec { return m.latestCycleMetrics.Load().fairnessError }, []string{"pool1"})
 	testResetGauge(func(metrics *cycleMetrics) *prometheus.GaugeVec { return m.latestCycleMetrics.Load().demand }, poolQueueLabelValues)
 	testResetGauge(func(metrics *cycleMetrics) *prometheus.GaugeVec { return m.latestCycleMetrics.Load().constrainedDemand }, poolQueueLabelValues)
+	testResetGauge(func(metrics *cycleMetrics) *prometheus.GaugeVec { return m.latestCycleMetrics.Load().shortJobPenalty }, poolQueueLabelValues)
 	testResetGauge(func(metrics *cycleMetrics) *prometheus.GaugeVec { return m.latestCycleMetrics.Load().gangsConsidered }, poolQueueLabelValues)
 	testResetGauge(func(metrics *cycleMetrics) *prometheus.GaugeVec { return m.latestCycleMetrics.Load().gangsScheduled }, poolQueueLabelValues)
 	testResetGauge(func(metrics *cycleMetrics) *prometheus.GaugeVec {
@@ -169,6 +174,8 @@ func TestDisableLeaderMetrics(t *testing.T) {
 		m.latestCycleMetrics.Load().fairnessError.WithLabelValues("pool1").Inc()
 		m.latestCycleMetrics.Load().demand.WithLabelValues(poolQueueLabelValues...).Inc()
 		m.latestCycleMetrics.Load().constrainedDemand.WithLabelValues(poolQueueLabelValues...).Inc()
+		m.latestCycleMetrics.Load().shortJobPenalty.WithLabelValues(poolQueueLabelValues...).Inc()
+
 		m.scheduleCycleTime.Observe(float64(1000))
 		m.reconciliationCycleTime.Observe(float64(1000))
 		m.latestCycleMetrics.Load().gangsConsidered.WithLabelValues("pool1", "queue1").Inc()

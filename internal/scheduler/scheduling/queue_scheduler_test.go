@@ -540,6 +540,7 @@ func TestQueueScheduler(t *testing.T) {
 					tc.InitialAllocatedByQueueAndPriorityClass[q.Name],
 					demand,
 					demand,
+					internaltypes.ResourceList{},
 					rate.NewLimiter(
 						rate.Limit(tc.SchedulingConfig.MaximumPerQueueSchedulingRate),
 						tc.SchedulingConfig.MaximumPerQueueSchedulingBurst,

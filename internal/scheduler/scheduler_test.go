@@ -834,6 +834,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 				1*time.Second,
 				5*time.Second,
 				clusterTimeout,
+				nil,
 				maxNumberOfAttempts,
 				nodeIdLabel,
 				schedulerMetrics,
@@ -991,6 +992,7 @@ func TestRun(t *testing.T) {
 		1*time.Second,
 		15*time.Second,
 		1*time.Hour,
+		nil,
 		maxNumberOfAttempts,
 		nodeIdLabel,
 		schedulerMetrics,
@@ -1161,6 +1163,7 @@ func TestScheduler_TestSyncInitialState(t *testing.T) {
 				1*time.Second,
 				5*time.Second,
 				1*time.Hour,
+				nil,
 				maxNumberOfAttempts,
 				nodeIdLabel,
 				schedulerMetrics,
@@ -1369,6 +1372,7 @@ func TestScheduler_TestSyncState(t *testing.T) {
 				1*time.Second,
 				5*time.Second,
 				1*time.Hour,
+				nil,
 				maxNumberOfAttempts,
 				nodeIdLabel,
 				schedulerMetrics,
@@ -1520,6 +1524,9 @@ func (t *testSchedulingAlgo) Schedule(_ *armadacontext.Context, txn *jobdb.Txn) 
 		job := txn.GetById(id)
 		if job == nil {
 			return nil, errors.Errorf("was asked to preempt job %s but job does not exist", id)
+		}
+		if job.InTerminalState() {
+			return nil, errors.Errorf("was asked to preempt job %s but job is in terminal state", id)
 		}
 		if job.Queued() {
 			return nil, errors.Errorf("was asked to preempt job %s but job is still queued", job.Id())
@@ -2467,6 +2474,7 @@ func TestCycleConsistency(t *testing.T) {
 					1*time.Second,
 					5*time.Second,
 					0,
+					nil,
 					maxNumberOfAttempts,
 					nodeIdLabel,
 					schedulerMetrics,

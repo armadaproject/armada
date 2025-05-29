@@ -473,8 +473,8 @@ func (it *CostBasedCandidateGangIterator) updatePQItem(item *QueueCandidateGangI
 	if err != nil {
 		return err
 	}
-	item.proposedQueueCost = it.fairnessCostProvider.WeightedCostFromAllocation(queue.GetAllocation().Add(gctx.TotalResourceRequests), queue.GetWeight())
-	item.currentQueueCost = it.fairnessCostProvider.WeightedCostFromAllocation(queue.GetAllocation(), queue.GetWeight())
+	item.proposedQueueCost = it.fairnessCostProvider.WeightedCostFromAllocation(queue.GetAllocationInclShortJobPenalty().Add(gctx.TotalResourceRequests), queue.GetWeight())
+	item.currentQueueCost = it.fairnessCostProvider.WeightedCostFromAllocation(queue.GetAllocationInclShortJobPenalty(), queue.GetWeight())
 	// We multiply here, as queue weights are a fraction
 	// So for the same job size, highly weighted queues jobs will look larger
 	item.itemSize = it.fairnessCostProvider.UnweightedCostFromAllocation(gctx.TotalResourceRequests) * queue.GetWeight()

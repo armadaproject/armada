@@ -39,6 +39,7 @@ type perCycleMetrics struct {
 	fairnessError                *prometheus.GaugeVec
 	demand                       *prometheus.GaugeVec
 	constrainedDemand            *prometheus.GaugeVec
+	shortJobPenalty              *prometheus.GaugeVec
 	queueWeight                  *prometheus.GaugeVec
 	rawQueueWeight               *prometheus.GaugeVec
 	gangsConsidered              *prometheus.GaugeVec
@@ -110,6 +111,14 @@ func newPerCycleMetrics() *perCycleMetrics {
 		prometheus.GaugeOpts{
 			Name: prefix + "constrained_demand",
 			Help: "Constrained demand of each queue and pool.  This differs from demand in that it limits demand by scheduling constraints",
+		},
+		poolAndQueueLabels,
+	)
+
+	shortJobPenalty := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: prefix + "short_job_penalty",
+			Help: "Short job penalty for each queue. This is the resource used by jobs that started recently and exited soon after they started.",
 		},
 		poolAndQueueLabels,
 	)
@@ -258,6 +267,7 @@ func newPerCycleMetrics() *perCycleMetrics {
 		actualShare:                  actualShare,
 		demand:                       demand,
 		constrainedDemand:            constrainedDemand,
+		shortJobPenalty:              shortJobPenalty,
 		queueWeight:                  queueWeight,
 		rawQueueWeight:               rawQueueWeight,
 		fairnessError:                fairnessError,
@@ -365,9 +375,10 @@ func (m *cycleMetrics) ReportSchedulerResult(ctx *armadacontext.Context, result 
 		pool := schedContext.Pool
 		for queue, queueContext := range schedContext.QueueSchedulingContexts {
 			jobsConsidered := float64(len(queueContext.UnsuccessfulJobSchedulingContexts) + len(queueContext.SuccessfulJobSchedulingContexts))
-			actualShare := schedContext.FairnessCostProvider.UnweightedCostFromQueue(queueContext)
+			actualShare := schedContext.FairnessCostProvider.UnweightedCostFromAllocation(queueContext.GetAllocation())
 			demand := schedContext.FairnessCostProvider.UnweightedCostFromAllocation(queueContext.Demand)
 			constrainedDemand := schedContext.FairnessCostProvider.UnweightedCostFromAllocation(queueContext.ConstrainedDemand)
+			shortJobPenalty := schedContext.FairnessCostProvider.UnweightedCostFromAllocation(queueContext.ShortJobPenalty)
 
 			currentCycle.consideredJobs.WithLabelValues(pool, queue).Set(jobsConsidered)
 			currentCycle.fairShare.WithLabelValues(pool, queue).Set(queueContext.FairShare)
@@ -376,6 +387,7 @@ func (m *cycleMetrics) ReportSchedulerResult(ctx *armadacontext.Context, result 
 			currentCycle.actualShare.WithLabelValues(pool, queue).Set(actualShare)
 			currentCycle.demand.WithLabelValues(pool, queue).Set(demand)
 			currentCycle.constrainedDemand.WithLabelValues(pool, queue).Set(constrainedDemand)
+			currentCycle.shortJobPenalty.WithLabelValues(pool, queue).Set(shortJobPenalty)
 			currentCycle.queueWeight.WithLabelValues(pool, queue).Set(queueContext.Weight)
 			currentCycle.rawQueueWeight.WithLabelValues(pool, queue).Set(queueContext.RawWeight)
 		}
@@ -471,6 +483,7 @@ func (m *cycleMetrics) describe(ch chan<- *prometheus.Desc) {
 		currentCycle.fairnessError.Describe(ch)
 		currentCycle.demand.Describe(ch)
 		currentCycle.constrainedDemand.Describe(ch)
+		currentCycle.shortJobPenalty.Describe(ch)
 		currentCycle.queueWeight.Describe(ch)
 		currentCycle.rawQueueWeight.Describe(ch)
 		currentCycle.gangsConsidered.Describe(ch)
@@ -507,6 +520,7 @@ func (m *cycleMetrics) collect(ch chan<- prometheus.Metric) {
 		currentCycle.fairnessError.Collect(ch)
 		currentCycle.demand.Collect(ch)
 		currentCycle.constrainedDemand.Collect(ch)
+		currentCycle.shortJobPenalty.Collect(ch)
 		currentCycle.rawQueueWeight.Collect(ch)
 		currentCycle.queueWeight.Collect(ch)
 		currentCycle.gangsConsidered.Collect(ch)
@@ -540,11 +554,12 @@ func (m *cycleMetrics) publishCycleMetrics(ctx *armadacontext.Context, result sc
 		queueMetrics := make(map[string]*metricevents.QueueMetrics, len(sc.QueueSchedulingContexts))
 		for qName, qCtx := range sc.QueueSchedulingContexts {
 			queueMetrics[qName] = &metricevents.QueueMetrics{
-				ActualShare:                     sc.FairnessCostProvider.UnweightedCostFromQueue(qCtx),
+				ActualShare:                     sc.FairnessCostProvider.UnweightedCostFromAllocation(qCtx.GetAllocation()),
 				Demand:                          sc.FairnessCostProvider.UnweightedCostFromAllocation(qCtx.Demand),
 				ConstrainedDemand:               sc.FairnessCostProvider.UnweightedCostFromAllocation(qCtx.ConstrainedDemand),
 				DemandByResourceType:            armadamaps.MapValues(qCtx.Demand.ToMap(), toQtyPtr),
 				ConstrainedDemandByResourceType: armadamaps.MapValues(qCtx.ConstrainedDemand.ToMap(), toQtyPtr),
+				ShortJobPenalty:                 sc.FairnessCostProvider.UnweightedCostFromAllocation(qCtx.ShortJobPenalty),
 			}
 		}
 		events[i] = &metricevents.Event{

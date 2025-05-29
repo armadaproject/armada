@@ -36,6 +36,9 @@ type QueueSchedulingContext struct {
 	// Total resources assigned to the queue across all clusters by priority class priority.
 	// Includes jobs scheduled during this invocation of the scheduler.
 	Allocated internaltypes.ResourceList
+	// Used to penalize short jobs by pretending they are still running
+	// if they started recently but then exited.
+	ShortJobPenalty internaltypes.ResourceList
 	// Total demand from this queue.  This is essentially the cumulative resources of all non-terminal jobs at the
 	// start of the scheduling cycle
 	Demand internaltypes.ResourceList
@@ -77,6 +80,10 @@ func (qctx *QueueSchedulingContext) String() string {
 // GetAllocation is necessary to implement the fairness.Queue interface.
 func (qctx *QueueSchedulingContext) GetAllocation() internaltypes.ResourceList {
 	return qctx.Allocated
+}
+
+func (qctx *QueueSchedulingContext) GetAllocationInclShortJobPenalty() internaltypes.ResourceList {
+	return qctx.Allocated.Add(qctx.ShortJobPenalty)
 }
 
 // GetWeight is necessary to implement the fairness.Queue interface.
