@@ -23,17 +23,13 @@ func AreRetriesEnabled(annotations map[string]string) (enabled bool, annotationS
 
 // GetMaxRetryCount gets the max preemption retry count at a job level. Also returns whether the annotation was set.
 func GetMaxRetryCount(annotations map[string]string) (maxRetryCount uint, annotationSet bool) {
-	var preemptionRetryCountMax uint = 0
-	preemptionRetryCountMaxStr, exists := annotations[constants.PreemptionRetryCountMaxAnnotation]
-
+	maxRetryCountStr, exists := annotations[constants.PreemptionRetryCountMaxAnnotation]
 	if !exists {
-		return preemptionRetryCountMax, false
+		return 0, false
 	}
-	maybePreemptionRetryCountMax, err := strconv.Atoi(preemptionRetryCountMaxStr)
+	parsedCount, err := strconv.Atoi(maxRetryCountStr)
 	if err != nil {
-		return preemptionRetryCountMax, true
-	} else {
-		preemptionRetryCountMax = uint(maybePreemptionRetryCountMax)
-		return preemptionRetryCountMax, true
+		return 0, true
 	}
+	return uint(parsedCount), true
 }
