@@ -70,7 +70,7 @@ func SchedulingOrderCompare(job, other *Job) int {
 	// If both jobs are active, order by time since the job was scheduled.
 	// This ensures jobs that have been running for longer are rescheduled first,
 	// which reduces wasted compute time when preempting.
-	if jobIsActive && otherIsActive {
+	if jobIsActive {
 		if job.activeRunTimestamp < other.activeRunTimestamp {
 			return -1
 		} else if job.activeRunTimestamp > other.activeRunTimestamp {

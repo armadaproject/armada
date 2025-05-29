@@ -19,7 +19,7 @@ const (
 	// This helps avoid scheduling new jobs onto nodes that make it impossible to re-schedule evicted jobs.
 	EvictedPriority int32 = -1
 	// MinPriority is the smallest possible priority class priority within the NodeDb.
-	MinPriority int32 = EvictedPriority
+	MinPriority = EvictedPriority
 )
 
 // Node is a scheduler-internal representation of one Kubernetes node.
