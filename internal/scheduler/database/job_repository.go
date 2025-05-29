@@ -192,6 +192,15 @@ func (r *PostgresJobRepository) FetchJobRunErrors(ctx *armadacontext.Context, ru
 		AccessMode:     pgx.ReadWrite,
 		DeferrableMode: pgx.Deferrable,
 	}, func(tx pgx.Tx) error {
+
+		var rows pgx.Rows
+		var queryErr error
+		defer func() {
+			if rows != nil {
+				rows.Close()
+			}
+		}()
+
 		for _, chunk := range chunks {
 			tmpTable, err := insertRunIdsToTmpTable(ctx, tx, chunk)
 			if err != nil {
@@ -203,11 +212,10 @@ func (r *PostgresJobRepository) FetchJobRunErrors(ctx *armadacontext.Context, ru
 		FROM %s as tmp
 		JOIN job_run_errors ON job_run_errors.run_id = tmp.run_id`
 
-			rows, err := tx.Query(ctx, fmt.Sprintf(query, tmpTable))
-			if err != nil {
-				return err
+			rows, queryErr = tx.Query(ctx, fmt.Sprintf(query, tmpTable))
+			if queryErr != nil {
+				return queryErr
 			}
-			defer rows.Close()
 			for rows.Next() {
 				var runId string
 				var errorBytes []byte
@@ -221,6 +229,8 @@ func (r *PostgresJobRepository) FetchJobRunErrors(ctx *armadacontext.Context, ru
 				}
 				errorsByRunId[runId] = jobError
 			}
+
+			rows.Close()
 		}
 		return nil
 	})
