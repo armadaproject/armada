@@ -89,5 +89,5 @@ type Run struct {
 	PreemptRequested       bool       `db:"preempt_requested"`
 	Queue                  string     `db:"queue"`
 	Pool                   string     `db:"pool"`
-	RunIndex               int64      `db:"run_index"`
+	RunIndex               *int64     `db:"run_index"`
 }

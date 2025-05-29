@@ -186,6 +186,7 @@ func (c *JobSetEventsInstructionConverter) handleJobRunLeased(jobRunLeased *arma
 	if jobRunLeased.HasScheduledAtPriority {
 		scheduledAtPriority = &jobRunLeased.ScheduledAtPriority
 	}
+	runIndex := int64(jobRunLeased.RunIndex)
 	PodRequirementsOverlay, err := proto.Marshal(jobRunLeased.GetPodRequirementsOverlay())
 	if err != nil {
 		return nil, errors.WithStack(err)
@@ -195,7 +196,7 @@ func (c *JobSetEventsInstructionConverter) handleJobRunLeased(jobRunLeased *arma
 			Queue: meta.queue,
 			DbRun: &schedulerdb.Run{
 				RunID:                  runId,
-				RunIndex:               int64(jobRunLeased.RunIndex),
+				RunIndex:               &runIndex,
 				JobID:                  jobRunLeased.JobId,
 				Created:                eventTime.UnixNano(),
 				JobSet:                 meta.jobset,

@@ -54,6 +54,7 @@ func TestConvertEventSequence(t *testing.T) {
 			expected: []DbOperation{
 				InsertRuns{f.RunId: &JobRunDetails{Queue: f.Queue, DbRun: &schedulerdb.Run{
 					RunID:                  f.RunId,
+					RunIndex:               &f.RunIndex,
 					JobID:                  f.JobId,
 					JobSet:                 f.JobsetName,
 					Queue:                  f.Queue,

@@ -24,7 +24,7 @@ type hasSerial interface {
 
 type JobRunLease struct {
 	RunID                  string
-	RunIndex               uint32
+	RunIndex               *int64
 	Queue                  string
 	Pool                   string
 	JobSet                 string

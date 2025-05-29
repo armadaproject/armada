@@ -170,11 +170,16 @@ func (srv *ExecutorApi) LeaseJobRuns(stream executorapi.ExecutorApi_LeaseJobRuns
 			}
 		}
 
+		var runIndex uint32 = 0
+		if lease.RunIndex != nil {
+			runIndex = uint32(*lease.RunIndex)
+		}
+
 		err := stream.Send(&executorapi.LeaseStreamMessage{
 			Event: &executorapi.LeaseStreamMessage_Lease{
 				Lease: &executorapi.JobRunLease{
 					JobRunId:    lease.RunID,
-					JobRunIndex: lease.RunIndex,
+					JobRunIndex: runIndex,
 					Queue:       lease.Queue,
 					Jobset:      lease.JobSet,
 					User:        lease.UserID,
