@@ -924,9 +924,9 @@ func TestScheduler_TestCycle(t *testing.T) {
 		"Job preempted with retry enabled": {
 			initialJobs:               []*jobdb.Job{leasedJobWithRetryEnabled},
 			expectedJobsRunsToPreempt: []string{leasedJobWithRetryEnabled.Id()},
-			expectedJobRunPreempted:   []string{leasedJobWithRetryEnabled.Id()},
+			expectedJobRunPreempted:   []jobRunId{{jobId: leasedJobWithRetryEnabled.Id(), runId: leasedJobWithRetryEnabled.LatestRun().Id()}},
 			expectedJobErrors:         []string{},
-			expectedJobRunErrors:      []string{leasedJobWithRetryEnabled.Id()},
+			expectedJobRunErrors:      []jobRunId{{jobId: leasedJobWithRetryEnabled.Id(), runId: leasedJobWithRetryEnabled.LatestRun().Id()}},
 			expectedTerminal:          []string{},
 			expectedQueued:            []string{leasedJobWithRetryEnabled.Id()},
 			expectedRequeued:          []string{leasedJobWithRetryEnabled.Id()},

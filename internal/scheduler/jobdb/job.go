@@ -847,16 +847,9 @@ func (job *Job) NumAttempts() uint {
 // scheduler or the job has opted in for preemption retries. It then checks whether the job has exhausted the number
 // of retries.
 func (job *Job) IsEligibleForPreemptionRetry(defaultPreemptionRetryConfig configuration.PreemptionRetryConfig) bool {
-	enabled := false
-
-	// Check for platform default first
-	if defaultPreemptionRetryConfig.Enabled {
-		enabled = true
-	}
-
-	// Check if job explicitly enabled/disabled retries
-	jobRetryEnabled, exists := preemption.AreRetriesEnabled(job.Annotations())
-	if exists {
+	// Check if job explicitly enabled/disabled retries, falling back to platform default
+	enabled := defaultPreemptionRetryConfig.Enabled
+	if jobRetryEnabled, exists := preemption.AreRetriesEnabled(job.Annotations()); exists {
 		enabled = jobRetryEnabled
 	}
 
@@ -864,9 +857,7 @@ func (job *Job) IsEligibleForPreemptionRetry(defaultPreemptionRetryConfig config
 		return false
 	}
 
-	maxRetryCount := job.MaxPreemptionRetryCount(defaultPreemptionRetryConfig)
-
-	return job.NumPreemptedRuns() <= maxRetryCount
+	return job.NumPreemptedRuns() <= job.MaxPreemptionRetryCount(defaultPreemptionRetryConfig)
 }
 
 func (job *Job) NumPreemptedRuns() uint {
@@ -880,19 +871,17 @@ func (job *Job) NumPreemptedRuns() uint {
 }
 
 func (job *Job) MaxPreemptionRetryCount(defaultPreemptionRetryConfig configuration.PreemptionRetryConfig) uint {
-	var maxRetryCount uint = 0
-
-	// Check for platform default first
+	// Start with platform default
+	var maxRetryCount uint
 	if defaultPreemptionRetryConfig.DefaultMaxRetryCount != nil {
-		platformDefaultMaxRetryCount := *defaultPreemptionRetryConfig.DefaultMaxRetryCount
-		maxRetryCount = platformDefaultMaxRetryCount
+		maxRetryCount = *defaultPreemptionRetryConfig.DefaultMaxRetryCount
 	}
 
-	// Allow jobs to set a custom max retry count
-	jobMaxRetryCount, exists := preemption.GetMaxRetryCount(job.Annotations())
-	if exists {
+	// Allow jobs to override with a custom max retry count
+	if jobMaxRetryCount, exists := preemption.GetMaxRetryCount(job.Annotations()); exists {
 		maxRetryCount = jobMaxRetryCount
 	}
+
 	return maxRetryCount
 }
 

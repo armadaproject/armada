@@ -12,7 +12,6 @@ import (
 	"github.com/armadaproject/armada/internal/common/preemption"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
-	schedulercontext "github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 	"github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/bidstore"
@@ -332,12 +331,6 @@ func (j jobAdapter) Annotations() map[string]string {
 	return j.GetAnnotations()
 }
 
-type gangDetails struct {
-	schedulingGangInfo       schedulercontext.GangInfo
-	preemptionRetriesEnabled bool
-	preemptionRetryCountMax  uint
-}
-
 // Ensures that any gang jobs defined in the request are consistent.  This checks that all jobs in the same gang have
 // the same:
 //   - Cardinality
@@ -483,26 +476,23 @@ func validateTolerations(j *api.JobSubmitRequestItem, config configuration.Submi
 	return nil
 }
 
-// Ensures that if a request specified preemption retry annotations, they are valid
+// Ensures that if a request specified preemption retry annotations, they are valid.
 func validatePreemptionRetryConfig(j *api.JobSubmitRequestItem, _ configuration.SubmissionConfig) error {
-	preemptionRetryEnabledStr, exists := j.GetAnnotations()[constants.PreemptionRetryEnabledAnnotation]
-	if exists {
-		_, err := strconv.ParseBool(preemptionRetryEnabledStr)
-		if err != nil {
+	annotations := j.GetAnnotations()
+
+	if enabledStr, exists := annotations[constants.PreemptionRetryEnabledAnnotation]; exists {
+		if _, err := strconv.ParseBool(enabledStr); err != nil {
 			return fmt.Errorf("invalid preemption retry enabled annotation value: %w", err)
 		}
 	}
 
-	preemptionRetryCountMaxStr, exists := j.GetAnnotations()[constants.PreemptionRetryCountMaxAnnotation]
-
-	if exists {
-		preemptionRetryCountMax, err := strconv.Atoi(preemptionRetryCountMaxStr)
+	if maxCountStr, exists := annotations[constants.PreemptionRetryCountMaxAnnotation]; exists {
+		maxCount, err := strconv.Atoi(maxCountStr)
 		if err != nil {
 			return fmt.Errorf("invalid preemption retry count max annotation value: %w", err)
 		}
-
-		if preemptionRetryCountMax <= 0 {
-			return fmt.Errorf("preemption retry count max must be greater than zero: %w", err)
+		if maxCount <= 0 {
+			return fmt.Errorf("preemption retry count max must be greater than zero")
 		}
 	}
 

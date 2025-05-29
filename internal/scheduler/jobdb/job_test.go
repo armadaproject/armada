@@ -145,6 +145,7 @@ var baseJobWithRetryEnabled, _ = jobDb.NewJob(
 	3,
 	false,
 	[]string{},
+	0,
 )
 
 var baseJobWithRetryDisabled, _ = jobDb.NewJob(
@@ -161,6 +162,7 @@ var baseJobWithRetryDisabled, _ = jobDb.NewJob(
 	3,
 	false,
 	[]string{},
+	0,
 )
 
 var baseRun = &JobRun{

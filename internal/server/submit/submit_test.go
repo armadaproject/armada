@@ -4,8 +4,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/armadaproject/armada/internal/server/configuration"
-
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 	v1 "k8s.io/api/core/v1"
@@ -15,6 +13,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/auth/permission"
+	"github.com/armadaproject/armada/internal/common/constants"
 	commonMocks "github.com/armadaproject/armada/internal/common/mocks"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/server/mocks"
@@ -168,17 +167,17 @@ func TestSubmit_FailedValidation(t *testing.T) {
 		},
 		"Invalid Preemption Retry Enabled Annotation": {
 			req: withAnnotations(testfixtures.SubmitRequestWithNItems(1), map[string]string{
-				configuration.PreemptionRetryEnabledAnnotation: "not a boolean",
+				constants.PreemptionRetryEnabledAnnotation: "not a boolean",
 			}),
 		},
 		"Invalid Preemption Retry Count Max Annotation": {
 			req: withAnnotations(testfixtures.SubmitRequestWithNItems(1), map[string]string{
-				configuration.PreemptionRetryEnabledAnnotation: "not an int",
+				constants.PreemptionRetryEnabledAnnotation: "not an int",
 			}),
 		},
 		"Negative Preemption Retry Count Max Annotation": {
 			req: withAnnotations(testfixtures.SubmitRequestWithNItems(1), map[string]string{
-				configuration.PreemptionRetryEnabledAnnotation: "-1",
+				constants.PreemptionRetryEnabledAnnotation: "-1",
 			}),
 		},
 	}
