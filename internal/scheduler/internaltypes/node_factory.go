@@ -64,7 +64,6 @@ func (f *NodeFactory) CreateNodeAndType(
 	labels map[string]string,
 	totalResources ResourceList,
 	allocatableResources ResourceList,
-	unallocatableResources map[int32]ResourceList,
 	allocatableByPriority map[int32]ResourceList,
 ) *Node {
 	return CreateNodeAndType(

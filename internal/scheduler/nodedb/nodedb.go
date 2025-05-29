@@ -160,7 +160,7 @@ func NewNodeDb(
 	nodeDbPriorities = append(nodeDbPriorities, types.AllowedPriorities(priorityClasses)...)
 
 	indexedResourceNames := slices.Map(indexedResources, func(v configuration.ResourceType) string { return v.Name })
-	schema, indexNameByPriority, keyIndexByPriority := nodeDbSchema(nodeDbPriorities, indexedResourceNames)
+	schema, indexNameByPriority, keyIndexByPriority := nodeDbSchema(nodeDbPriorities)
 	db, err := memdb.NewMemDB(schema)
 	if err != nil {
 		return nil, errors.WithStack(err)
@@ -1076,7 +1076,7 @@ func (nodeDb *NodeDb) AddEvictedJobSchedulingContextWithTxn(txn *memdb.Txn, inde
 	return nil
 }
 
-func nodeDbSchema(priorities []int32, resources []string) (*memdb.DBSchema, map[int32]string, map[int32]int) {
+func nodeDbSchema(priorities []int32) (*memdb.DBSchema, map[int32]string, map[int32]int) {
 	nodesTable, indexNameByPriority, keyIndexByPriority := nodesTableSchema(priorities)
 	evictionsTable := evictionsTableSchema()
 	return &memdb.DBSchema{

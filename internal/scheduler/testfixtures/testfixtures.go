@@ -37,7 +37,6 @@ const (
 	TestQueue2                               = "testQueue2"
 	TestPool                                 = "testPool"
 	TestPool2                                = "testPool2"
-	TestCancelUser                           = "canceluser"
 	AwayPool                                 = "awayPool"
 	TestHostnameLabel                        = "kubernetes.io/hostname"
 	ClusterNameLabel                         = "cluster"
@@ -535,14 +534,6 @@ func N1GpuJobs(queue string, priorityClassName string, n int) []*jobdb.Job {
 	return rv
 }
 
-func extractPriority(priorityClassName string) int32 {
-	priorityClass, ok := TestPriorityClasses[priorityClassName]
-	if !ok {
-		panic(fmt.Sprintf("no priority class with name %s", priorityClassName))
-	}
-	return priorityClass.Priority
-}
-
 func TestJob(queue string, jobId ulid.ULID, priorityClassName string, req *internaltypes.PodRequirements) *jobdb.Job {
 	created := jobTimestamp.Add(1)
 	submitTime := time.Time{}.Add(time.Millisecond * time.Duration(created))
@@ -577,38 +568,38 @@ func TestJobWithResources(queue string, priorityClassName string, resources v1.R
 
 func Test1Cpu4GiJob(queue string, priorityClassName string) *jobdb.Job {
 	jobId := util.ULID()
-	return TestJob(queue, jobId, priorityClassName, Test1Cpu4GiPodReqs(queue, jobId, extractPriority(priorityClassName)))
+	return TestJob(queue, jobId, priorityClassName, Test1Cpu4GiPodReqs())
 }
 
 func Test1Cpu16GiJob(queue string, priorityClassName string) *jobdb.Job {
 	jobId := util.ULID()
-	return TestJob(queue, jobId, priorityClassName, Test1Cpu16GiPodReqs(queue, jobId, extractPriority(priorityClassName)))
+	return TestJob(queue, jobId, priorityClassName, Test1Cpu16GiPodReqs())
 }
 
 func Test16Cpu128GiJob(queue string, priorityClassName string) *jobdb.Job {
 	jobId := util.ULID()
-	return TestJob(queue, jobId, priorityClassName, Test16Cpu128GiPodReqs(queue, jobId, extractPriority(priorityClassName)))
+	return TestJob(queue, jobId, priorityClassName, Test16Cpu128GiPodReqs())
 }
 
 func Test32Cpu256GiJob(queue string, priorityClassName string) *jobdb.Job {
 	jobId := util.ULID()
-	return TestJob(queue, jobId, priorityClassName, Test32Cpu256GiPodReqs(queue, jobId, extractPriority(priorityClassName)))
+	return TestJob(queue, jobId, priorityClassName, Test32Cpu256GiPodReqs())
 }
 
 func Test32Cpu256GiJobWithLargeJobToleration(queue string, priorityClassName string) *jobdb.Job {
 	jobId := util.ULID()
-	return TestJob(queue, jobId, priorityClassName, Test32Cpu256GiWithLargeJobTolerationPodReqs(queue, jobId, extractPriority(priorityClassName)))
+	return TestJob(queue, jobId, priorityClassName, Test32Cpu256GiWithLargeJobTolerationPodReqs())
 }
 
 func Test1GpuJob(queue string, priorityClassName string) *jobdb.Job {
 	jobId := util.ULID()
-	return TestJob(queue, jobId, priorityClassName, Test1GpuPodReqs(queue, jobId, extractPriority(priorityClassName)))
+	return TestJob(queue, jobId, priorityClassName, Test1GpuPodReqs())
 }
 
 func N1CpuPodReqs(queue string, priority int32, n int) []*internaltypes.PodRequirements {
 	rv := make([]*internaltypes.PodRequirements, n)
 	for i := 0; i < n; i++ {
-		rv[i] = Test1Cpu4GiPodReqs(queue, util.ULID(), priority)
+		rv[i] = Test1Cpu4GiPodReqs()
 	}
 	return rv
 }
@@ -621,21 +612,21 @@ func TestPodReqs(requests v1.ResourceList) *internaltypes.PodRequirements {
 	}
 }
 
-func Test1Cpu4GiPodReqs(queue string, jobId ulid.ULID, priority int32) *internaltypes.PodRequirements {
+func Test1Cpu4GiPodReqs() *internaltypes.PodRequirements {
 	return TestPodReqs(v1.ResourceList{
 		"cpu":    resource.MustParse("1"),
 		"memory": resource.MustParse("4Gi"),
 	})
 }
 
-func Test1Cpu16GiPodReqs(queue string, jobId ulid.ULID, priority int32) *internaltypes.PodRequirements {
+func Test1Cpu16GiPodReqs() *internaltypes.PodRequirements {
 	return TestPodReqs(v1.ResourceList{
 		"cpu":    resource.MustParse("1"),
 		"memory": resource.MustParse("16Gi"),
 	})
 }
 
-func Test16Cpu128GiPodReqs(queue string, jobId ulid.ULID, priority int32) *internaltypes.PodRequirements {
+func Test16Cpu128GiPodReqs() *internaltypes.PodRequirements {
 	req := TestPodReqs(v1.ResourceList{
 		"cpu":    resource.MustParse("16"),
 		"memory": resource.MustParse("128Gi"),
@@ -649,7 +640,7 @@ func Test16Cpu128GiPodReqs(queue string, jobId ulid.ULID, priority int32) *inter
 	return req
 }
 
-func Test32Cpu256GiPodReqs(queue string, jobId ulid.ULID, priority int32) *internaltypes.PodRequirements {
+func Test32Cpu256GiPodReqs() *internaltypes.PodRequirements {
 	req := TestPodReqs(v1.ResourceList{
 		"cpu":    resource.MustParse("32"),
 		"memory": resource.MustParse("256Gi"),
@@ -657,7 +648,7 @@ func Test32Cpu256GiPodReqs(queue string, jobId ulid.ULID, priority int32) *inter
 	return req
 }
 
-func Test32Cpu256GiWithLargeJobTolerationPodReqs(queue string, jobId ulid.ULID, priority int32) *internaltypes.PodRequirements {
+func Test32Cpu256GiWithLargeJobTolerationPodReqs() *internaltypes.PodRequirements {
 	req := TestPodReqs(v1.ResourceList{
 		"cpu":    resource.MustParse("32"),
 		"memory": resource.MustParse("256Gi"),
@@ -671,7 +662,7 @@ func Test32Cpu256GiWithLargeJobTolerationPodReqs(queue string, jobId ulid.ULID, 
 	return req
 }
 
-func Test1GpuPodReqs(queue string, jobId ulid.ULID, priority int32) *internaltypes.PodRequirements {
+func Test1GpuPodReqs() *internaltypes.PodRequirements {
 	req := TestPodReqs(v1.ResourceList{
 		"cpu":            resource.MustParse("8"),
 		"memory":         resource.MustParse("128Gi"),
@@ -771,21 +762,10 @@ func TestSimpleNode(id string) *internaltypes.Node {
 func TestNode(priorities []int32, resources map[string]*resource.Quantity) *internaltypes.Node {
 	rl := TestNodeFactory.ResourceListFactory().FromNodeProto(resources)
 	id := uuid.NewString()
-	return TestNodeFactory.CreateNodeAndType(id,
-		"executor1",
-		id,
-		TestPool,
-		"type",
-		false,
-		[]v1.Taint{},
-		map[string]string{
-			TestHostnameLabel:                  id,
-			schedulerconfiguration.NodeIdLabel: id,
-		},
-		rl,
-		rl,
-		map[int32]internaltypes.ResourceList{},
-		internaltypes.NewAllocatableByPriorityAndResourceType(priorities, rl))
+	return TestNodeFactory.CreateNodeAndType(id, "executor1", id, TestPool, "type", false, []v1.Taint{}, map[string]string{
+		TestHostnameLabel:                  id,
+		schedulerconfiguration.NodeIdLabel: id,
+	}, rl, rl, internaltypes.NewAllocatableByPriorityAndResourceType(priorities, rl))
 }
 
 func Test16CpuNode(priorities []int32) *internaltypes.Node {

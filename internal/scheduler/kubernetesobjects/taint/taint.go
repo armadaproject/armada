@@ -45,7 +45,7 @@ func FindMatchingUntoleratedTaint(taints []v1.Taint, tolerations ...[]v1.Tolerat
 	for _, taint := range taints {
 		taintTolerated := false
 		for _, ts := range tolerations {
-			taintTolerated = taintTolerated || corev1.TolerationsTolerateTaint(ts, &taint)
+			taintTolerated = corev1.TolerationsTolerateTaint(ts, &taint)
 			if taintTolerated {
 				break
 			}

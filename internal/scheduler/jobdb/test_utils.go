@@ -32,20 +32,6 @@ func getTestFloatingResourceTypes() []schedulerconfiguration.FloatingResourceCon
 	}
 }
 
-//func WithJobDbJobPodRequirements(job *Job, reqs *schedulerobjects.PodRequirements) *Job {
-//	return JobWithJobSchedulingInfo(job, &schedulerobjects.JobSchedulingInfo{
-//		PriorityClassName: job.JobSchedulingInfo().PriorityClassName,
-//		SubmitTime:        job.JobSchedulingInfo().SubmitTime,
-//		ObjectRequirements: []*schedulerobjects.ObjectRequirements{
-//			{
-//				Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
-//					PodRequirements: reqs,
-//				},
-//			},
-//		},
-//	})
-//}
-
 func JobWithJobSchedulingInfo(job *Job, jobSchedulingInfo *internaltypes.JobSchedulingInfo) *Job {
 	j, err := job.WithJobSchedulingInfo(jobSchedulingInfo)
 	if err != nil {
