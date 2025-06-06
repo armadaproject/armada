@@ -588,7 +588,6 @@ func (l *FairSchedulingAlgo) SchedulePool(
 		fsctx.nodeIdByJobId,
 		fsctx.jobIdsByGangId,
 		fsctx.gangIdByJobId,
-		pool.MarketDriven,
 		shouldRunOptimiser,
 	)
 

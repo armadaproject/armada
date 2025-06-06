@@ -10,7 +10,9 @@ import (
 )
 
 type MarketIteratorPQ struct {
-	items []*MarketIteratorPQItem
+	items               []*MarketIteratorPQItem
+	previousResultCost  float64
+	previousResultQueue string
 }
 
 type MarketBasedCandidateGangIterator struct {
@@ -72,6 +74,8 @@ func (it *MarketBasedCandidateGangIterator) Clear() error {
 	if err := item.it.Clear(); err != nil {
 		return err
 	}
+	it.pq.previousResultQueue = item.queue
+	it.pq.previousResultCost = item.price
 	if _, err := it.updateAndPushPQItem(item); err != nil {
 		return err
 	}
@@ -174,6 +178,21 @@ func (pq *MarketIteratorPQ) Less(i, j int) bool {
 	// First by price
 	if pq.items[i].price != pq.items[j].price {
 		return pq.items[i].price > pq.items[j].price
+	}
+
+	// This section causes the iterator to round robin between queues bidding the same price
+	// We want this as many queues may bid the same price and ideally the queues would get an even distribution of jobs
+	// Without this the first queue alphabetically would get all their jobs considered first (assuming all queues bid the same price)
+	if pq.items[i].price == pq.items[j].price && pq.items[i].price == pq.previousResultCost {
+		if pq.items[i].queue > pq.previousResultQueue && pq.items[j].queue > pq.previousResultQueue {
+			return pq.items[i].queue < pq.items[j].queue
+		}
+		if pq.items[i].queue > pq.previousResultQueue {
+			return true
+		}
+		if pq.items[j].queue > pq.previousResultQueue {
+			return false
+		}
 	}
 
 	// Then by runtime (highest first)
