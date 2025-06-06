@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
+	"github.com/armadaproject/armada/internal/scheduler/pricing"
 	"github.com/google/uuid"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus"
 	grpc_logging "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
@@ -342,6 +343,9 @@ func Run(config schedulerconfig.Configuration) error {
 		return errors.WithStack(err)
 	}
 
+	bidPriceProvider := pricing.StubBidPriceProvider{}
+	// TODO configure enabling the provider for real
+
 	scheduler, err := NewScheduler(
 		jobDb,
 		jobRepository,
@@ -357,6 +361,7 @@ func Run(config schedulerconfig.Configuration) error {
 		config.Scheduling.MaxRetries+1,
 		config.Scheduling.NodeIdLabel,
 		schedulerMetrics,
+		bidPriceProvider,
 	)
 	if err != nil {
 		return errors.WithMessage(err, "error creating scheduler")

@@ -9,6 +9,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
+	"golang.org/x/exp/slices"
 	k8sResource "k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/utils/clock"
 
@@ -18,18 +19,48 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 )
 
+type JobSortOrder int
+
+const (
+	PriceOrder JobSortOrder = iota
+	FairShareOrder
+)
+
 type JobIterator interface {
 	Next() (*Job, bool)
 	Done() bool
 }
 
+type PoolIterator struct {
+	it   JobIterator
+	pool string
+}
+
+func (p PoolIterator) Next() (*Job, bool) {
+	for !p.it.Done() {
+		job, exists := p.it.Next()
+		if !exists {
+			return nil, false
+		}
+		if slices.Contains(job.Pools(), p.pool) {
+			return job, true
+		}
+	}
+	return nil, false
+}
+
+func (p PoolIterator) Done() bool {
+	return p.it.Done()
+}
+
 var emptyList = immutable.NewSortedSet[*Job](JobPriorityComparer{})
 
 type JobDb struct {
-	jobsById        *immutable.Map[string, *Job]
-	jobsByRunId     *immutable.Map[string, string]
-	jobsByQueue     map[string]immutable.SortedSet[*Job]
-	unvalidatedJobs *immutable.Set[*Job]
+	jobsById           *immutable.Map[string, *Job]
+	jobsByRunId        *immutable.Map[string, string]
+	jobsByQueue        map[string]immutable.SortedSet[*Job]
+	jobsByPoolAndQueue map[string]map[string]immutable.SortedSet[*Job]
+	unvalidatedJobs    *immutable.Set[*Job]
 	// Configured priority classes.
 	priorityClasses map[string]types.PriorityClass
 	// Priority class assigned to jobs with a priorityClassName not in jobDb.priorityClasses.
@@ -92,6 +123,7 @@ func NewJobDbWithSchedulingKeyGenerator(
 		jobsById:               immutable.NewMap[string, *Job](nil),
 		jobsByRunId:            immutable.NewMap[string, string](nil),
 		jobsByQueue:            map[string]immutable.SortedSet[*Job]{},
+		jobsByPoolAndQueue:     map[string]map[string]immutable.SortedSet[*Job]{},
 		unvalidatedJobs:        &unvalidatedJobs,
 		priorityClasses:        priorityClasses,
 		defaultPriorityClass:   defaultPriorityClass,
@@ -117,6 +149,7 @@ func (jobDb *JobDb) Clone() *JobDb {
 		jobsById:               jobDb.jobsById,
 		jobsByRunId:            jobDb.jobsByRunId,
 		jobsByQueue:            maps.Clone(jobDb.jobsByQueue),
+		jobsByPoolAndQueue:     maps.Clone(jobDb.jobsByPoolAndQueue),
 		unvalidatedJobs:        jobDb.unvalidatedJobs,
 		priorityClasses:        jobDb.priorityClasses,
 		defaultPriorityClass:   jobDb.defaultPriorityClass,
@@ -212,13 +245,14 @@ func (jobDb *JobDb) ReadTxn() *Txn {
 	jobDb.copyMutex.Lock()
 	defer jobDb.copyMutex.Unlock()
 	return &Txn{
-		readOnly:        true,
-		jobsById:        jobDb.jobsById,
-		jobsByRunId:     jobDb.jobsByRunId,
-		jobsByQueue:     jobDb.jobsByQueue,
-		unvalidatedJobs: jobDb.unvalidatedJobs,
-		active:          true,
-		jobDb:           jobDb,
+		readOnly:           true,
+		jobsById:           jobDb.jobsById,
+		jobsByRunId:        jobDb.jobsByRunId,
+		jobsByQueue:        jobDb.jobsByQueue,
+		jobsByPoolAndQueue: jobDb.jobsByPoolAndQueue,
+		unvalidatedJobs:    jobDb.unvalidatedJobs,
+		active:             true,
+		jobDb:              jobDb,
 	}
 }
 
@@ -230,13 +264,14 @@ func (jobDb *JobDb) WriteTxn() *Txn {
 	jobDb.copyMutex.Lock()
 	defer jobDb.copyMutex.Unlock()
 	return &Txn{
-		readOnly:        false,
-		jobsById:        jobDb.jobsById,
-		jobsByRunId:     jobDb.jobsByRunId,
-		jobsByQueue:     maps.Clone(jobDb.jobsByQueue),
-		unvalidatedJobs: jobDb.unvalidatedJobs,
-		active:          true,
-		jobDb:           jobDb,
+		readOnly:           false,
+		jobsById:           jobDb.jobsById,
+		jobsByRunId:        jobDb.jobsByRunId,
+		jobsByQueue:        maps.Clone(jobDb.jobsByQueue),
+		jobsByPoolAndQueue: maps.Clone(jobDb.jobsByPoolAndQueue),
+		unvalidatedJobs:    jobDb.unvalidatedJobs,
+		active:             true,
+		jobDb:              jobDb,
 	}
 }
 
@@ -253,6 +288,9 @@ type Txn struct {
 	jobsByRunId *immutable.Map[string, string]
 	// Queued jobs for each queue. Stored in the order in which they should be scheduled.
 	jobsByQueue map[string]immutable.SortedSet[*Job]
+	// Queued jobs for each queue and pool.
+	// Stored as a set and needs sorting to determine the order they should be scheduled in.
+	jobsByPoolAndQueue map[string]map[string]immutable.SortedSet[*Job]
 	// Jobs that require submit checking
 	unvalidatedJobs *immutable.Set[*Job]
 	// The jobDb from which this transaction was created.
@@ -271,6 +309,7 @@ func (txn *Txn) Commit() {
 	txn.jobDb.jobsById = txn.jobsById
 	txn.jobDb.jobsByRunId = txn.jobsByRunId
 	txn.jobDb.jobsByQueue = txn.jobsByQueue
+	txn.jobDb.jobsByPoolAndQueue = txn.jobsByPoolAndQueue
 	txn.jobDb.unvalidatedJobs = txn.unvalidatedJobs
 
 	txn.active = false
@@ -388,6 +427,19 @@ func (txn *Txn) Upsert(jobs []*Job) error {
 				if ok {
 					txn.jobsByQueue[existingJob.queue] = existingQueue.Delete(existingJob)
 				}
+
+				for _, pool := range job.Pools() {
+					_, present := txn.jobsByPoolAndQueue[pool]
+					if !present {
+						continue
+					}
+					existingJobs, present := txn.jobsByPoolAndQueue[pool][job.queue]
+					if !present {
+						continue
+					}
+					txn.jobsByPoolAndQueue[pool][job.queue] = existingJobs.Delete(existingJob)
+				}
+
 				if !existingJob.Validated() {
 					newUnvalidatedJobs := txn.unvalidatedJobs.Delete(existingJob)
 					txn.unvalidatedJobs = &newUnvalidatedJobs
@@ -449,6 +501,20 @@ func (txn *Txn) Upsert(jobs []*Job) error {
 				}
 				newQueue = newQueue.Add(job)
 				txn.jobsByQueue[job.queue] = newQueue
+
+				for _, pool := range job.Pools() {
+					_, present := txn.jobsByPoolAndQueue[pool]
+					if !present {
+						queues := map[string]immutable.SortedSet[*Job]{}
+						txn.jobsByPoolAndQueue[pool] = queues
+					}
+					_, present = txn.jobsByPoolAndQueue[pool][job.queue]
+					if !present {
+						jobs := immutable.NewSortedSet[*Job](MarketJobPriorityComparer{})
+						txn.jobsByPoolAndQueue[pool][job.queue] = jobs
+					}
+					txn.jobsByPoolAndQueue[pool][job.queue] = txn.jobsByPoolAndQueue[pool][job.queue].Add(job)
+				}
 			}
 		}
 	}()
@@ -491,13 +557,23 @@ func (txn *Txn) HasQueuedJobs(queue string) bool {
 	return queuedJobs.Len() > 0
 }
 
-// QueuedJobs returns true if the queue has any jobs in the running state or false otherwise
-func (txn *Txn) QueuedJobs(queue string) JobIterator {
-	jobQueue, ok := txn.jobsByQueue[queue]
-	if ok {
-		return jobQueue.Iterator()
+// QueuedJobs returns an iterator for the jobs queued for that provided queue + pool
+func (txn *Txn) QueuedJobs(queue string, pool string, sortOrder JobSortOrder) JobIterator {
+	if sortOrder == PriceOrder {
+		if _, ok := txn.jobsByPoolAndQueue[pool]; !ok {
+			return emptyList.Iterator()
+		}
+		_, ok := txn.jobsByPoolAndQueue[pool][queue]
+		if !ok {
+			return emptyList.Iterator()
+		}
+		return txn.jobsByPoolAndQueue[pool][queue].Iterator()
 	} else {
-		return emptyList.Iterator()
+		jobQueue, ok := txn.jobsByQueue[queue]
+		if !ok {
+			return emptyList.Iterator()
+		}
+		return PoolIterator{it: jobQueue.Iterator(), pool: pool}
 	}
 }
 
@@ -515,6 +591,18 @@ func (txn *Txn) GetAll() []*Job {
 		allJobs = append(allJobs, job)
 	}
 	return allJobs
+}
+
+// ReplaceAll replaces all jobs in the jobDb with the supplied jobs
+func (txn *Txn) ReplaceAll(jobs []*Job) error {
+	unvalidatedJobs := immutable.NewSet[*Job](JobIdHasher{})
+	txn.jobsById = immutable.NewMap[string, *Job](nil)
+	txn.jobsByRunId = immutable.NewMap[string, string](nil)
+	txn.jobsByQueue = map[string]immutable.SortedSet[*Job]{}
+	txn.jobsByPoolAndQueue = map[string]map[string]immutable.SortedSet[*Job]{}
+	txn.unvalidatedJobs = &unvalidatedJobs
+
+	return txn.Upsert(jobs)
 }
 
 // BatchDelete deletes the jobs with the given ids from the database.
@@ -542,6 +630,17 @@ func (txn *Txn) delete(jobId string) {
 		if ok {
 			newQueue := queue.Delete(job)
 			txn.jobsByQueue[job.queue] = newQueue
+		}
+		for _, pool := range job.Pools() {
+			_, present := txn.jobsByPoolAndQueue[pool]
+			if !present {
+				continue
+			}
+			existingJobs, present := txn.jobsByPoolAndQueue[pool][job.queue]
+			if !present {
+				continue
+			}
+			txn.jobsByPoolAndQueue[pool][job.queue] = existingJobs.Delete(job)
 		}
 		newUnvalidatedJobs := txn.unvalidatedJobs.Delete(job)
 		txn.unvalidatedJobs = &newUnvalidatedJobs

@@ -63,6 +63,7 @@ type SchedulingContext struct {
 	UnfeasibleSchedulingKeys     map[internaltypes.SchedulingKey]*JobSchedulingContext
 	ExperimentalIndicativeShares map[int]float64
 	SpotPrice                    float64
+	MarketPrice                  *float64
 }
 
 func NewSchedulingContext(

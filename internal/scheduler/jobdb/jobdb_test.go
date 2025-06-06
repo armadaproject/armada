@@ -144,7 +144,7 @@ func TestJobDb_TestQueuedJobs(t *testing.T) {
 	require.NoError(t, err)
 	collect := func() []*Job {
 		retrieved := make([]*Job, 0)
-		iter := txn.QueuedJobs(jobs[0].Queue())
+		iter := txn.QueuedJobs(jobs[0].Queue(), "pool", FairShareOrder)
 		for !iter.Done() {
 			j, _ := iter.Next()
 			retrieved = append(retrieved, j)
@@ -1200,5 +1200,6 @@ func newJob() *Job {
 		queued:            false,
 		runsById:          map[string]*JobRun{},
 		jobSchedulingInfo: jobSchedulingInfo,
+		pools:             []string{"pool"},
 	}
 }

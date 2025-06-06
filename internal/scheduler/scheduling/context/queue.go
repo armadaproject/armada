@@ -36,6 +36,8 @@ type QueueSchedulingContext struct {
 	// Total resources assigned to the queue across all clusters by priority class priority.
 	// Includes jobs scheduled during this invocation of the scheduler.
 	Allocated internaltypes.ResourceList
+	// Resource being charged for when using market driven scheduling
+	ChargedAllocation internaltypes.ResourceList
 	// Used to penalize short jobs by pretending they are still running
 	// if they started recently but then exited.
 	ShortJobPenalty internaltypes.ResourceList

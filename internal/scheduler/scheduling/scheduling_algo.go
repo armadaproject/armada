@@ -588,6 +588,7 @@ func (l *FairSchedulingAlgo) SchedulePool(
 		fsctx.nodeIdByJobId,
 		fsctx.jobIdsByGangId,
 		fsctx.gangIdByJobId,
+		pool.MarketDriven,
 		shouldRunOptimiser,
 	)
 
@@ -632,6 +633,8 @@ func (l *FairSchedulingAlgo) SchedulePool(
 			WithQueued(false).
 			WithNewRun(node.GetExecutor(), node.GetId(), node.GetName(), pool.Name, priority)
 	}
+
+	log.Infof("Current price %g", *fsctx.schedulingContext.MarketPrice)
 
 	for _, priority := range l.schedulingConfig.ExperimentalIndicativeShare.BasePriorities {
 		fsctx.schedulingContext.ExperimentalIndicativeShares[priority] = fsctx.schedulingContext.CalculateTheoreticalShare(float64(priority))

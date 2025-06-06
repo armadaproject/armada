@@ -1,0 +1,33 @@
+syntax = 'proto3';
+package market;
+
+option go_package = "github.com/armadaproject/armada/pkg/market";
+
+message QueueJobSet {
+  string queue = 1;
+  string job_set = 2;
+}
+
+message BidQueryRequest {
+  repeated QueueJobSet queue_job_set = 1;
+}
+
+message JobSetBid {
+  int64 bid_price = 1;
+}
+
+message JobSetBids {
+  map<string, JobSetBid> bids_by_job_set= 1;
+}
+
+message QueueBids {
+  map<string, JobSetBids> bids_by_queue = 1;
+}
+
+message BidQueryResponse {
+  map<string, QueueBids> bids_by_pool = 1;
+}
+
+service BidPriceService {
+  rpc GetJobSetBids (BidQueryRequest) returns (BidQueryResponse);
+}

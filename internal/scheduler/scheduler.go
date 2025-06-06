@@ -4,10 +4,13 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/armadaproject/armada/internal/scheduler/pricing"
+	"github.com/armadaproject/armada/pkg/market"
 	"github.com/gogo/protobuf/types"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/renstrom/shortuuid"
+	"golang.org/x/exp/maps"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/utils/clock"
 
@@ -45,6 +48,7 @@ type Scheduler struct {
 	schedulingAlgo scheduling.SchedulingAlgo
 	// Tells us if we are leader. Only the leader may schedule jobs.
 	leaderController leader.LeaderController
+	bidPriceProvider pricing.BidPriceProvider
 	// This is used to check if jobs are still schedulable.
 	// Useful when we are adding node anti-affinities.
 	submitChecker SubmitScheduleChecker
@@ -99,6 +103,7 @@ func NewScheduler(
 	maxAttemptedRuns uint,
 	nodeIdLabel string,
 	metrics *metrics.Metrics,
+	bidPriceProvider pricing.BidPriceProvider,
 ) (*Scheduler, error) {
 	return &Scheduler{
 		jobRepository:              jobRepository,
@@ -113,6 +118,7 @@ func NewScheduler(
 		schedulePeriod:             schedulePeriod,
 		previousSchedulingRoundEnd: time.Time{},
 		executorTimeout:            executorTimeout,
+		bidPriceProvider:           bidPriceProvider,
 		shortJobPenalty:            shortJobPenalty,
 		maxAttemptedRuns:           maxAttemptedRuns,
 		nodeIdLabel:                nodeIdLabel,
@@ -312,6 +318,12 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 
 	// Schedule jobs.
 	if shouldSchedule {
+
+		err := s.updateJobPrices(txn)
+		if err != nil {
+			return overallSchedulerResult, err
+		}
+
 		var result *scheduling.SchedulerResult
 		result, err = s.schedulingAlgo.Schedule(ctx, txn)
 		if err != nil {
@@ -440,6 +452,42 @@ func (s *Scheduler) syncState(ctx *armadacontext.Context, initial bool) ([]*jobd
 	}
 
 	return jobDbJobs, jsts, nil
+}
+
+func (s *Scheduler) updateJobPrices(txn *jobdb.Txn) error {
+	jobs := txn.GetAll()
+
+	activeJobSets := map[*market.QueueJobSet][]*jobdb.Job{}
+
+	for _, job := range jobs {
+		jobSet := &market.QueueJobSet{Queue: job.Queue(), JobSet: job.Jobset()}
+
+		if _, present := activeJobSets[jobSet]; !present {
+			activeJobSets[jobSet] = []*jobdb.Job{}
+		}
+		activeJobSets[jobSet] = append(activeJobSets[jobSet], job)
+	}
+
+	updatedPrices, err := s.bidPriceProvider.GetJobSetsBidPrices(maps.Keys(activeJobSets))
+	if err != nil {
+		return err
+	}
+
+	updatedJobs := make([]*jobdb.Job, 0, len(jobs))
+
+	for jobSet, jobs := range activeJobSets {
+		updatedPrices, exists := updatedPrices[jobSet]
+		if !exists {
+			updatedJobs = append(updatedJobs, jobs...)
+		} else {
+			for _, job := range jobs {
+				job = job.WithPoolBidPrices(updatedPrices)
+				updatedJobs = append(updatedJobs, job)
+			}
+		}
+	}
+
+	return txn.ReplaceAll(updatedJobs)
 }
 
 func (s *Scheduler) createSchedulingInfoWithNodeAntiAffinityForAttemptedRuns(job *jobdb.Job) (*internaltypes.JobSchedulingInfo, error) {

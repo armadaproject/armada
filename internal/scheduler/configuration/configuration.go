@@ -294,7 +294,14 @@ type PoolConfig struct {
 	// When calculating costs assume all jobs ran for at least this long.
 	// This penalizes jobs that ran for less than this value,
 	// since they are charged the same as a job that ran for this value.
-	ShortJobPenaltyCutoff time.Duration
+	ShortJobPenaltyCutoff        time.Duration
+	ExperimentalMarketScheduling *MarketSchedulingConfig
+}
+
+type MarketSchedulingConfig struct {
+	Enabled bool
+	// The percentage of the pool that needs to be allocated to determine the spot price
+	SpotPriceCutoff float64
 }
 
 type OptimiserConfig struct {
@@ -341,6 +348,15 @@ func (sc *SchedulingConfig) GetOptimiserConfig(poolName string) *OptimiserConfig
 	for _, poolConfig := range sc.Pools {
 		if poolConfig.Name == poolName {
 			return poolConfig.ExperimentalOptimiser
+		}
+	}
+	return nil
+}
+
+func (sc *SchedulingConfig) GetMarketConfig(poolName string) *MarketSchedulingConfig {
+	for _, poolConfig := range sc.Pools {
+		if poolConfig.Name == poolName {
+			return poolConfig.ExperimentalMarketScheduling
 		}
 	}
 	return nil

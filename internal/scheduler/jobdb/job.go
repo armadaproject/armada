@@ -74,6 +74,9 @@ type Job struct {
 	activeRunTimestamp int64
 	// Pools for which the job is eligible. This is used for metrics reporting and to calculate demand for fair share
 	pools []string
+	// The bid price for this job for pools
+	// A job doesn't have to have a bid for every pool, it'll default to 0 bid if not set in this map
+	bidPricesPerPool map[string]float64
 }
 
 func (job *Job) String() string {
@@ -350,6 +353,9 @@ func (job *Job) Equal(other *Job) bool {
 	if !slices.Equal(job.pools, other.pools) {
 		return false
 	}
+	if !maps.Equal(job.bidPricesPerPool, other.bidPricesPerPool) {
+		return false
+	}
 	if !armadamaps.DeepEqual(job.runsById, other.runsById) {
 		return false
 	}
@@ -402,6 +408,20 @@ func (job *Job) RequestedPriority() uint32 {
 // Pools returns the pools associated with the job
 func (job *Job) Pools() []string {
 	return slices.Clone(job.pools)
+}
+
+func (job *Job) WithPoolBidPrices(bids map[string]float64) *Job {
+	j := shallowCopyJob(*job)
+	j.bidPricesPerPool = maps.Clone(bids)
+	return j
+}
+
+func (job *Job) GetBidPrice(pool string) float64 {
+	bidPrice, present := job.bidPricesPerPool[pool]
+	if present {
+		return bidPrice
+	}
+	return 0
 }
 
 // WithPriority returns a copy of the job with the priority updated.
