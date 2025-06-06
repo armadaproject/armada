@@ -1,6 +1,6 @@
 syntax = "proto3";
 package api;
-option go_package = "pkg/internalapi";
+option go_package = "pkg/bidstore";
 
 import "google/protobuf/timestamp.proto";
 
