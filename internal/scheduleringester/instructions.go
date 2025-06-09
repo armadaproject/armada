@@ -4,7 +4,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/armadaproject/armada/pkg/bidstore"
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
@@ -22,6 +21,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/armadaproject/armada/pkg/armadaevents"
+	"github.com/armadaproject/armada/pkg/bidstore"
 	"github.com/armadaproject/armada/pkg/controlplaneevents"
 )
 
