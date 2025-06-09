@@ -108,15 +108,6 @@ func MarketSchedulingOrderCompare(currentPool string, job, other *Job) int {
 		return 0
 	}
 
-	jobBidPrice := job.GetBidPrice(currentPool)
-	otherBidPrice := other.GetBidPrice(currentPool)
-	// Next we sort on bidPrice
-	if jobBidPrice > otherBidPrice {
-		return -1
-	} else if jobBidPrice < otherBidPrice {
-		return 1
-	}
-
 	// PriorityClassPriority indicates urgency.
 	// Hence, jobs of higher priorityClassPriority come first.
 	if job.priorityClass.Priority > other.priorityClass.Priority {
@@ -125,15 +116,14 @@ func MarketSchedulingOrderCompare(currentPool string, job, other *Job) int {
 		return 1
 	}
 
-	// Jobs higher in queue-priority come first.
-	if job.priority < other.priority {
+	jobBidPrice := job.GetBidPrice(currentPool)
+	otherBidPrice := other.GetBidPrice(currentPool)
+	// Next we sort on bidPrice
+	if jobBidPrice > otherBidPrice {
 		return -1
-	} else if job.priority > other.priority {
+	} else if jobBidPrice < otherBidPrice {
 		return 1
 	}
-
-	// TODO Decide when comparing queuing vs active jobs, which should be ordered first
-	// Currently they'll get ordered by priority, which would mean we'd potentially preempt jobs if you change the priority of a job
 
 	// If both jobs are active, order by time since the job was scheduled.
 	// This ensures jobs that have been running for longer are rescheduled first,
