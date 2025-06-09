@@ -1,0 +1,104 @@
+syntax = "proto3";
+package api;
+option go_package = "pkg/internalapi";
+
+import "google/protobuf/timestamp.proto";
+
+// PricingPhase represents different phases of the job's lifecycle which have
+// different bids.
+enum PricingPhase {
+  // Default value when phase is not specified
+  PRICING_PHASE_UNSPECIFIED = 0;
+
+  // Resource is waiting to be scheduled
+  PRICING_PHASE_QUEUEING = 1;
+  // Resource has been scheduled and so is running
+  PRICING_PHASE_RUNNING = 2;
+}
+
+// PriceBand represents different pricing tiers to which users label their jobs
+// and set bid prices.
+enum PriceBand {
+  // Default value when price band is not specified
+  PRICE_BAND_UNSPECIFIED = 0;
+
+  // Standard price bands (not necessarily ordered)
+  PRICE_BAND_A = 1;
+  PRICE_BAND_B = 2;
+  PRICE_BAND_C = 3;
+  PRICE_BAND_D = 4;
+  PRICE_BAND_E = 5;
+  PRICE_BAND_F = 6;
+  PRICE_BAND_G = 7;
+  PRICE_BAND_H = 8;
+}
+
+// Bid represents the bid price for a resouce unit-hour with a timestamp.
+message Bid {
+  // The bid price in beans
+  double amount = 1;
+  // Timestamp when this bid was last updated
+  google.protobuf.Timestamp last_updated = 2;
+}
+
+// PricingPhaseBid associates a bid with a specific pricing phase.
+message PricingPhaseBid {
+  // The pricing phase this bid applies to
+  PricingPhase pricing_phase = 1;
+  // The bid
+  Bid bid = 2;
+}
+
+// PriceBandBids contains all a queue's bids for a pool, for different pricing
+// phases within a price band.
+message PriceBandBids {
+  // List of bids for different pricing phases - a list instead of a map because
+  // we cannot use an enum value as a map key
+  repeated PricingPhaseBid pricing_phase_bids = 1;
+}
+
+// PriceBandBid associates bids with a specific price band.
+message PriceBandBid {
+  // The price band these bids apply to
+  PriceBand price_band = 1;
+  // The bids for this price band
+  PriceBandBids price_band_bids = 2;
+}
+
+// PoolBids contains all a queue's bids for different price bands within a
+// resource pool.
+message PoolBids {
+  // List of bids for different price bands - a list instead of a map because we
+  // cannot use an enum value as a map key
+  repeated PriceBandBid price_band_bids = 1;
+
+  // Fallback bid for the pool for the queue when a job is not labelled with a
+  // valid price band
+  PricingPhaseBid fallback_bid = 2;
+}
+
+// QueueBids contains all bids for different resource pools within a queue.
+message QueueBids {
+  // Mapping of bids for each resource pool
+  map<string, PoolBids> pool_bids = 1;
+}
+
+// RetrieveBidsResponse contains the retrieved bids for all requested queues.
+message RetrieveBidsResponse {
+  // Map of queue names to their respective bids
+  map<string, QueueBids> queue_bids = 1;
+}
+
+// RetrieveBidsRequest specifies which queues to retrieve bids for.
+message RetrieveBidsRequest {
+  // List of queue names to retrieve bids for
+  repeated string queues = 1;
+}
+
+// BidRetrieverService provides methods to retrieve bids for resource
+// allocation.
+service BidRetrieverService {
+  // RetrieveBids retrieves the current bids for the specified queues across all
+  // relevant resource pools, price bands, and pricing phases.
+  rpc RetrieveBids (RetrieveBidsRequest) returns (RetrieveBidsResponse);
+}
