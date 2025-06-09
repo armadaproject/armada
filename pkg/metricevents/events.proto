@@ -27,7 +27,7 @@ message QueueMetrics{
   // Short job penalty as a fraction of the pool
   double short_job_penalty = 6;
   // Resource that should be billed for this cycle
-  map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> billable_resource = 7;
+  map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> billable_allocation_by_resource_type = 7;
 }
 
 message CycleMetrics {
