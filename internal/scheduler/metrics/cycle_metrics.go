@@ -36,6 +36,7 @@ type perCycleMetrics struct {
 	adjustedFairShare            *prometheus.GaugeVec
 	uncappedAdjustedFairShare    *prometheus.GaugeVec
 	actualShare                  *prometheus.GaugeVec
+	chargedResources             *prometheus.GaugeVec
 	fairnessError                *prometheus.GaugeVec
 	demand                       *prometheus.GaugeVec
 	constrainedDemand            *prometheus.GaugeVec
@@ -51,6 +52,7 @@ type perCycleMetrics struct {
 	evictedJobs                  *prometheus.GaugeVec
 	evictedResources             *prometheus.GaugeVec
 	spotPrice                    *prometheus.GaugeVec
+	marketPrice                  *prometheus.GaugeVec
 	indicativeShare              *prometheus.GaugeVec
 	nodePreemptibility           *prometheus.GaugeVec
 	protectedFractionOfFairShare *prometheus.GaugeVec
@@ -211,10 +213,26 @@ func newPerCycleMetrics() *perCycleMetrics {
 		poolQueueAndResourceLabels,
 	)
 
+	chargedResources := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: prefix + "charged_resources",
+			Help: "Resources charged for in this cycle",
+		},
+		poolQueueAndResourceLabels,
+	)
+
 	spotPrice := prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: prefix + "spot_price",
 			Help: "spot price for given pool",
+		},
+		poolLabels,
+	)
+
+	marketPrice := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: prefix + "market_price",
+			Help: "market price for given pool",
 		},
 		poolLabels,
 	)
@@ -279,7 +297,9 @@ func newPerCycleMetrics() *perCycleMetrics {
 		loopNumber:                   loopNumber,
 		evictedJobs:                  evictedJobs,
 		evictedResources:             evictedResources,
+		chargedResources:             chargedResources,
 		spotPrice:                    spotPrice,
+		marketPrice:                  marketPrice,
 		indicativeShare:              indicativeShare,
 		nodePreemptibility:           nodePreemptibility,
 		protectedFractionOfFairShare: protectedFractionOfFairShare,
@@ -390,9 +410,13 @@ func (m *cycleMetrics) ReportSchedulerResult(ctx *armadacontext.Context, result 
 			currentCycle.shortJobPenalty.WithLabelValues(pool, queue).Set(shortJobPenalty)
 			currentCycle.queueWeight.WithLabelValues(pool, queue).Set(queueContext.Weight)
 			currentCycle.rawQueueWeight.WithLabelValues(pool, queue).Set(queueContext.RawWeight)
+			for _, r := range queueContext.ChargedAllocation.GetResources() {
+				currentCycle.chargedResources.WithLabelValues(pool, queue, r.Name).Set(float64(r.RawValue))
+			}
 		}
 		currentCycle.fairnessError.WithLabelValues(pool).Set(schedContext.FairnessError())
 		currentCycle.spotPrice.WithLabelValues(pool).Set(schedContext.SpotPrice)
+		currentCycle.marketPrice.WithLabelValues(pool).Set(*schedContext.MarketPrice)
 		for priority, share := range schedContext.ExperimentalIndicativeShares {
 			currentCycle.indicativeShare.WithLabelValues(pool, strconv.Itoa(priority)).Set(share)
 		}
@@ -494,7 +518,9 @@ func (m *cycleMetrics) describe(ch chan<- *prometheus.Desc) {
 		currentCycle.loopNumber.Describe(ch)
 		currentCycle.evictedJobs.Describe(ch)
 		currentCycle.evictedResources.Describe(ch)
+		currentCycle.chargedResources.Describe(ch)
 		currentCycle.spotPrice.Describe(ch)
+		currentCycle.marketPrice.Describe(ch)
 		currentCycle.indicativeShare.Describe(ch)
 		currentCycle.nodePreemptibility.Describe(ch)
 		currentCycle.protectedFractionOfFairShare.Describe(ch)
@@ -531,7 +557,9 @@ func (m *cycleMetrics) collect(ch chan<- prometheus.Metric) {
 		currentCycle.loopNumber.Collect(ch)
 		currentCycle.evictedJobs.Collect(ch)
 		currentCycle.evictedResources.Collect(ch)
+		currentCycle.chargedResources.Collect(ch)
 		currentCycle.spotPrice.Collect(ch)
+		currentCycle.marketPrice.Collect(ch)
 		currentCycle.indicativeShare.Collect(ch)
 		currentCycle.nodePreemptibility.Collect(ch)
 		currentCycle.protectedFractionOfFairShare.Collect(ch)

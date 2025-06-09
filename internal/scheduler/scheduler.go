@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/armadaproject/armada/internal/scheduler/pricing"
-	"github.com/armadaproject/armada/pkg/market"
 	"github.com/gogo/protobuf/types"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
@@ -456,32 +455,31 @@ func (s *Scheduler) syncState(ctx *armadacontext.Context, initial bool) ([]*jobd
 
 func (s *Scheduler) updateJobPrices(txn *jobdb.Txn) error {
 	jobs := txn.GetAll()
-
-	activeJobSets := map[*market.QueueJobSet][]*jobdb.Job{}
+	jobsByQueue := map[string][]*jobdb.Job{}
 
 	for _, job := range jobs {
-		jobSet := &market.QueueJobSet{Queue: job.Queue(), JobSet: job.Jobset()}
-
-		if _, present := activeJobSets[jobSet]; !present {
-			activeJobSets[jobSet] = []*jobdb.Job{}
+		if _, present := jobsByQueue[job.Queue()]; !present {
+			jobsByQueue[job.Queue()] = []*jobdb.Job{}
 		}
-		activeJobSets[jobSet] = append(activeJobSets[jobSet], job)
+		jobsByQueue[job.Queue()] = append(jobsByQueue[job.Queue()], job)
 	}
 
-	updatedPrices, err := s.bidPriceProvider.GetJobSetsBidPrices(maps.Keys(activeJobSets))
+	prices, err := s.bidPriceProvider.GetQueueBidPrices(maps.Keys(jobsByQueue))
 	if err != nil {
 		return err
 	}
 
 	updatedJobs := make([]*jobdb.Job, 0, len(jobs))
 
-	for jobSet, jobs := range activeJobSets {
-		updatedPrices, exists := updatedPrices[jobSet]
+	for queue, jobs := range jobsByQueue {
+		newPrices, exists := prices[queue]
 		if !exists {
+			// TODO What should we do if no prices are provided
 			updatedJobs = append(updatedJobs, jobs...)
 		} else {
 			for _, job := range jobs {
-				job = job.WithPoolBidPrices(updatedPrices)
+				// TODO handle no prices provided for jobs price band
+				job = job.WithPoolBidPrices(newPrices[job.GetPriceBand()])
 				updatedJobs = append(updatedJobs, job)
 			}
 		}

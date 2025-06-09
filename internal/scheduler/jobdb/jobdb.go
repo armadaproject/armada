@@ -17,6 +17,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/adapters"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
+	"github.com/armadaproject/armada/pkg/bidstore"
 )
 
 type JobSortOrder int
@@ -175,6 +176,7 @@ func (jobDb *JobDb) NewJob(
 	created int64,
 	validated bool,
 	pools []string,
+	priceBand int32,
 ) (*Job, error) {
 	priorityClass, ok := jobDb.priorityClasses[schedulingInfo.PriorityClassName]
 	if !ok {
@@ -182,6 +184,12 @@ func (jobDb *JobDb) NewJob(
 	}
 
 	rr := jobDb.getResourceRequirements(schedulingInfo)
+
+	_, ok = bidstore.PriceBand_name[priceBand]
+	pb := bidstore.PriceBand_PRICE_BAND_UNSPECIFIED
+	if ok {
+		pb = bidstore.PriceBand(priceBand)
+	}
 
 	job := &Job{
 		jobDb:                          jobDb,
@@ -203,6 +211,7 @@ func (jobDb *JobDb) NewJob(
 		validated:                      validated,
 		runsById:                       map[string]*JobRun{},
 		pools:                          pools,
+		priceBand:                      pb,
 	}
 	job.ensureJobSchedulingInfoFieldsInitialised()
 	job.schedulingKey = SchedulingKeyFromJob(jobDb.schedulingKeyGenerator, job)

@@ -1,8 +1,10 @@
 package scheduleringester
 
 import (
+	"strconv"
 	"time"
 
+	"github.com/armadaproject/armada/pkg/bidstore"
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
@@ -164,6 +166,20 @@ func (c *JobSetEventsInstructionConverter) handleSubmitJob(job *armadaevents.Sub
 		return nil, err
 	}
 
+	pricingBandValue, ok := job.MainObject.ObjectMeta.Annotations[configuration.JobPricingBand]
+	pricingBand := 0
+	if ok {
+		pricingBandInt, err := strconv.Atoi(pricingBandValue)
+		if err != nil {
+			return nil, err
+		}
+
+		_, valid := bidstore.PriceBand_name[int32(pricingBandInt)]
+		if valid {
+			pricingBand = pricingBandInt
+		}
+	}
+
 	return []DbOperation{InsertJobs{jobId: &schedulerdb.Job{
 		JobID:                 jobId,
 		JobSet:                meta.jobset,
@@ -177,6 +193,7 @@ func (c *JobSetEventsInstructionConverter) handleSubmitJob(job *armadaevents.Sub
 		SubmitMessage:         compressedSubmitJobBytes,
 		SchedulingInfo:        schedulingInfoBytes,
 		SchedulingInfoVersion: int32(schedulingInfo.Version),
+		PriceBand:             int32(pricingBand),
 	}}}, nil
 }
 

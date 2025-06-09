@@ -1,65 +1,102 @@
 package pricing
 
 import (
+	"fmt"
+
 	"github.com/armadaproject/armada/internal/common/armadacontext"
-	"github.com/armadaproject/armada/internal/common/maps"
-	"github.com/armadaproject/armada/pkg/market"
+	"github.com/armadaproject/armada/pkg/bidstore"
 )
 
 type BidPriceProvider interface {
-	GetJobSetsBidPrices(jobSets []*market.QueueJobSet) (map[*market.QueueJobSet]map[string]float64, error)
+	GetQueueBidPrices(queues []string) (map[string]map[bidstore.PriceBand]map[string]float64, error)
 }
 
-type StubBidPriceProvider struct{}
+type StubBidPriceProvider struct {
+	pools []string
+}
 
-func (s StubBidPriceProvider) GetJobSetsBidPrices(jobSets []*market.QueueJobSet) (map[*market.QueueJobSet]map[string]float64, error) {
-	result := map[*market.QueueJobSet]map[string]float64{}
-	pools := []string{"default"}
-	for _, jobSet := range jobSets {
-		jobSetResult := map[string]float64{}
-		for _, pool := range pools {
-			jobSetResult[pool] = 1
+func (s StubBidPriceProvider) GetQueueBidPrices(queues []string) (map[string]map[bidstore.PriceBand]map[string]float64, error) {
+	result := map[string]map[bidstore.PriceBand]map[string]float64{}
+
+	for _, queue := range queues {
+		queueResult := map[bidstore.PriceBand]map[string]float64{}
+
+		for _, pool := range s.pools {
+			for priceBand := range bidstore.PriceBand_name {
+				if _, exists := queueResult[bidstore.PriceBand(priceBand)]; !exists {
+					queueResult[bidstore.PriceBand(priceBand)] = map[string]float64{}
+				}
+				queueResult[bidstore.PriceBand(priceBand)][pool] = 1
+			}
 		}
-		result[jobSet] = jobSetResult
+
+		result[queue] = queueResult
 	}
 
 	return result, nil
 }
 
 type ExternalBidPriceInfo struct {
-	client market.BidPriceServiceClient
+	client bidstore.BidRetrieverServiceClient
+	pools  []string
 }
 
-func NewBidPriceService(client market.BidPriceServiceClient) *ExternalBidPriceInfo {
+func NewBidPriceService(client bidstore.BidRetrieverServiceClient, pools []string) *ExternalBidPriceInfo {
 	return &ExternalBidPriceInfo{
 		client: client,
+		pools:  pools,
 	}
 }
 
-func (b *ExternalBidPriceInfo) GetJobSetsBidPrices(jobSets []*market.QueueJobSet) (map[*market.QueueJobSet]map[string]float64, error) {
-	response, err := b.client.GetJobSetBids(armadacontext.Background(), &market.BidQueryRequest{QueueJobSet: jobSets})
+func (b *ExternalBidPriceInfo) GetQueueBidPrices(queues []string) (map[string]map[bidstore.PriceBand]map[string]float64, error) {
+	response, err := b.client.RetrieveBids(armadacontext.Background(), &bidstore.RetrieveBidsRequest{Queues: queues})
 	if err != nil {
 		return nil, err
 	}
 
-	pools := maps.Keys(response.BidsByPool)
-	result := map[*market.QueueJobSet]map[string]float64{}
+	result := map[string]map[bidstore.PriceBand]map[string]float64{}
 
-	for _, jobSet := range jobSets {
-		jobSetResult := map[string]float64{}
-		for _, pool := range pools {
-			queueBids, present := response.GetBidsByPool()[pool].GetBidsByQueue()[jobSet.Queue]
-			if !present {
-				continue
-			}
-			jobSetBid, present := queueBids.BidsByJobSet[jobSet.JobSet]
-			if !present {
-				continue
-			}
-
-			jobSetResult[pool] = float64(jobSetBid.BidPrice)
+	for _, queue := range queues {
+		bids, present := response.QueueBids[queue]
+		if !present {
+			return nil, fmt.Errorf("no bid price information found for queue %s", queue)
 		}
-		result[jobSet] = jobSetResult
+		queueResult := map[bidstore.PriceBand]map[string]float64{}
+
+		for _, pool := range b.pools {
+			poolBids, present := bids.GetPoolBids()[pool]
+			if !present {
+				return nil, fmt.Errorf("no bid price information found for pool %s in queue %s", pool, queue)
+			}
+
+			defaultBid, present := poolBids.GetBidsForBand(bidstore.PriceBand_PRICE_BAND_QUEUE_FALLBACK)
+			if !present {
+				return nil, fmt.Errorf("no fallback bid price information found for pool %s in queue %s", pool, queue)
+			}
+
+			defaultRunningBid, present := defaultBid.GetPriceBandBids().GetBidForPhase(bidstore.PricingPhase_PRICING_PHASE_RUNNING)
+			if !present {
+				return nil, fmt.Errorf("no fallback running bid price information found for pool %s in queue %s", pool, queue)
+			}
+
+			for priceBand := range bidstore.PriceBand_name {
+				bidPrice := defaultRunningBid.GetAmount()
+				bandBids, present := poolBids.GetBidsForBand(bidstore.PriceBand(priceBand))
+				if present {
+					runningBid, ok := bandBids.PriceBandBids.GetBidForPhase(bidstore.PricingPhase_PRICING_PHASE_RUNNING)
+					if ok {
+						bidPrice = runningBid.Amount
+					}
+				}
+
+				if _, exists := queueResult[bidstore.PriceBand(priceBand)]; !exists {
+					queueResult[bidstore.PriceBand(priceBand)] = map[string]float64{}
+				}
+				queueResult[bidstore.PriceBand(priceBand)][pool] = bidPrice
+			}
+		}
+
+		result[queue] = queueResult
 	}
 
 	return result, nil

@@ -14,6 +14,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/adapters"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
+	"github.com/armadaproject/armada/pkg/bidstore"
 )
 
 // Job is the scheduler-internal representation of a job.
@@ -74,6 +75,8 @@ type Job struct {
 	activeRunTimestamp int64
 	// Pools for which the job is eligible. This is used for metrics reporting and to calculate demand for fair share
 	pools []string
+	// TODO consider replacing with internal enum or int32
+	priceBand bidstore.PriceBand
 	// The bid price for this job for pools
 	// A job doesn't have to have a bid for every pool, it'll default to 0 bid if not set in this map
 	bidPricesPerPool map[string]float64
@@ -422,6 +425,16 @@ func (job *Job) GetBidPrice(pool string) float64 {
 		return bidPrice
 	}
 	return 0
+}
+
+func (job *Job) WithPriceBand(priceBand bidstore.PriceBand) *Job {
+	j := shallowCopyJob(*job)
+	j.priceBand = priceBand
+	return j
+}
+
+func (job *Job) GetPriceBand() bidstore.PriceBand {
+	return job.priceBand
 }
 
 // WithPriority returns a copy of the job with the priority updated.
