@@ -9,6 +9,7 @@ import "google/protobuf/timestamp.proto";
 enum PricingPhase {
   // Default value when phase is not specified
   PRICING_PHASE_UNSPECIFIED = 0;
+
   // Resource is waiting to be scheduled
   PRICING_PHASE_QUEUEING = 1;
   // Resource has been scheduled and so is running
@@ -30,10 +31,6 @@ enum PriceBand {
   PRICE_BAND_F = 6;
   PRICE_BAND_G = 7;
   PRICE_BAND_H = 8;
-
-  // Special price band used as fallback for the queue when a job is not
-  // labelled with a valid price band
-  PRICE_BAND_QUEUE_FALLBACK = 100;
 }
 
 // Bid represents the bid price for a resouce unit-hour with a timestamp.
@@ -52,8 +49,8 @@ message PricingPhaseBid {
   Bid bid = 2;
 }
 
-// PriceBandBids contains all bids for different pricing phases within
-// a price band.
+// PriceBandBids contains all a queue's bids for a pool, for different pricing
+// phases within a price band.
 message PriceBandBids {
   // List of bids for different pricing phases - a list instead of a map because
   // we cannot use an enum value as a map key
@@ -68,11 +65,16 @@ message PriceBandBid {
   PriceBandBids price_band_bids = 2;
 }
 
-// PoolBids contains all bids for different price bands within a resource pool.
+// PoolBids contains all a queue's bids for different price bands within a
+// resource pool.
 message PoolBids {
   // List of bids for different price bands - a list instead of a map because we
   // cannot use an enum value as a map key
   repeated PriceBandBid price_band_bids = 1;
+
+  // Fallback bid for the pool for the queue when a job is not labelled with a
+  // valid price band
+  PriceBandBids fallback_bid = 2;
 }
 
 // QueueBids contains all bids for different resource pools within a queue.

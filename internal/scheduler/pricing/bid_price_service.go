@@ -56,6 +56,10 @@ func (b *ExternalBidPriceInfo) GetQueueBidPrices(queues []string) (map[string]ma
 
 	result := map[string]map[bidstore.PriceBand]map[string]float64{}
 
+	// TODO Make the returned value into a struct
+	// - Can be simpler to consume
+	// - Lots of this logic can be abstracted away
+	// - Easier to implement a diff func
 	for _, queue := range queues {
 		bids, present := response.QueueBids[queue]
 		if !present {
@@ -69,12 +73,12 @@ func (b *ExternalBidPriceInfo) GetQueueBidPrices(queues []string) (map[string]ma
 				return nil, fmt.Errorf("no bid price information found for pool %s in queue %s", pool, queue)
 			}
 
-			defaultBid, present := poolBids.GetBidsForBand(bidstore.PriceBand_PRICE_BAND_QUEUE_FALLBACK)
-			if !present {
+			defaultBids := poolBids.GetFallbackBid()
+			if defaultBids == nil {
 				return nil, fmt.Errorf("no fallback bid price information found for pool %s in queue %s", pool, queue)
 			}
 
-			defaultRunningBid, present := defaultBid.GetPriceBandBids().GetBidForPhase(bidstore.PricingPhase_PRICING_PHASE_RUNNING)
+			defaultRunningBid, present := defaultBids.GetBidForPhase(bidstore.PricingPhase_PRICING_PHASE_RUNNING)
 			if !present {
 				return nil, fmt.Errorf("no fallback running bid price information found for pool %s in queue %s", pool, queue)
 			}
