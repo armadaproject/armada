@@ -416,7 +416,11 @@ func (m *cycleMetrics) ReportSchedulerResult(ctx *armadacontext.Context, result 
 		}
 		currentCycle.fairnessError.WithLabelValues(pool).Set(schedContext.FairnessError())
 		currentCycle.spotPrice.WithLabelValues(pool).Set(schedContext.SpotPrice)
-		currentCycle.marketPrice.WithLabelValues(pool).Set(*schedContext.MarketPrice)
+		marketPrice := float64(0)
+		if schedContext.MarketPrice != nil {
+			marketPrice = *schedContext.MarketPrice
+		}
+		currentCycle.marketPrice.WithLabelValues(pool).Set(marketPrice)
 		for priority, share := range schedContext.ExperimentalIndicativeShares {
 			currentCycle.indicativeShare.WithLabelValues(pool, strconv.Itoa(priority)).Set(share)
 		}

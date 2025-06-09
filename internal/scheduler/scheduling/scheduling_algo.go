@@ -633,8 +633,6 @@ func (l *FairSchedulingAlgo) SchedulePool(
 			WithNewRun(node.GetExecutor(), node.GetId(), node.GetName(), pool.Name, priority)
 	}
 
-	log.Infof("Current price %g", *fsctx.schedulingContext.MarketPrice)
-
 	for _, priority := range l.schedulingConfig.ExperimentalIndicativeShare.BasePriorities {
 		fsctx.schedulingContext.ExperimentalIndicativeShares[priority] = fsctx.schedulingContext.CalculateTheoreticalShare(float64(priority))
 	}

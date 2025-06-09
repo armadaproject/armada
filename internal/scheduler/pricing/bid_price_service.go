@@ -11,8 +11,14 @@ type BidPriceProvider interface {
 	GetQueueBidPrices(queues []string) (map[string]map[bidstore.PriceBand]map[string]float64, error)
 }
 
+type NoopBidPriceProvider struct{}
+
+func (n NoopBidPriceProvider) GetQueueBidPrices(queues []string) (map[string]map[bidstore.PriceBand]map[string]float64, error) {
+	return map[string]map[bidstore.PriceBand]map[string]float64{}, nil
+}
+
 type StubBidPriceProvider struct {
-	pools []string
+	Pools []string
 }
 
 func (s StubBidPriceProvider) GetQueueBidPrices(queues []string) (map[string]map[bidstore.PriceBand]map[string]float64, error) {
@@ -21,7 +27,7 @@ func (s StubBidPriceProvider) GetQueueBidPrices(queues []string) (map[string]map
 	for _, queue := range queues {
 		queueResult := map[bidstore.PriceBand]map[string]float64{}
 
-		for _, pool := range s.pools {
+		for _, pool := range s.Pools {
 			for priceBand := range bidstore.PriceBand_name {
 				if _, exists := queueResult[bidstore.PriceBand(priceBand)]; !exists {
 					queueResult[bidstore.PriceBand(priceBand)] = map[string]float64{}

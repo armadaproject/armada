@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/armadaproject/armada/internal/scheduler/pricing"
 	"github.com/gogo/protobuf/types"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -838,6 +839,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 				maxNumberOfAttempts,
 				nodeIdLabel,
 				schedulerMetrics,
+				pricing.NoopBidPriceProvider{},
 			)
 			require.NoError(t, err)
 			sched.EnableAssertions()
@@ -996,6 +998,7 @@ func TestRun(t *testing.T) {
 		maxNumberOfAttempts,
 		nodeIdLabel,
 		schedulerMetrics,
+		pricing.NoopBidPriceProvider{},
 	)
 	require.NoError(t, err)
 	sched.EnableAssertions()
@@ -1167,6 +1170,7 @@ func TestScheduler_TestSyncInitialState(t *testing.T) {
 				maxNumberOfAttempts,
 				nodeIdLabel,
 				schedulerMetrics,
+				pricing.NoopBidPriceProvider{},
 			)
 			require.NoError(t, err)
 			sched.EnableAssertions()
@@ -1376,6 +1380,7 @@ func TestScheduler_TestSyncState(t *testing.T) {
 				maxNumberOfAttempts,
 				nodeIdLabel,
 				schedulerMetrics,
+				pricing.NoopBidPriceProvider{},
 			)
 			require.NoError(t, err)
 			sched.EnableAssertions()
@@ -1818,6 +1823,7 @@ func jobDbJobFromDbJob(resourceListFactory *internaltypes.ResourceListFactory, j
 		0,
 		job.Validated,
 		job.Pools,
+		0,
 	)
 	if err != nil {
 		panic(err)
@@ -2478,6 +2484,7 @@ func TestCycleConsistency(t *testing.T) {
 					maxNumberOfAttempts,
 					nodeIdLabel,
 					schedulerMetrics,
+					pricing.NoopBidPriceProvider{},
 				)
 				require.NoError(t, err)
 				scheduler.clock = testClock
