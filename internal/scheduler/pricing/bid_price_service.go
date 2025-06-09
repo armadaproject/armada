@@ -3,12 +3,15 @@ package pricing
 import (
 	"fmt"
 
+	"golang.org/x/exp/slices"
+
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/pkg/bidstore"
 )
 
 type BidPriceProvider interface {
 	GetQueueBidPrices(queues []string) (map[string]map[bidstore.PriceBand]map[string]float64, error)
+	GetPricedPools() []string
 }
 
 type NoopBidPriceProvider struct{}
@@ -17,8 +20,12 @@ func (n NoopBidPriceProvider) GetQueueBidPrices(queues []string) (map[string]map
 	return map[string]map[bidstore.PriceBand]map[string]float64{}, nil
 }
 
+func (n NoopBidPriceProvider) GetPricedPools() []string {
+	return []string{}
+}
+
 type StubBidPriceProvider struct {
-	Pools []string
+	pools []string
 }
 
 func (s StubBidPriceProvider) GetQueueBidPrices(queues []string) (map[string]map[bidstore.PriceBand]map[string]float64, error) {
@@ -27,7 +34,7 @@ func (s StubBidPriceProvider) GetQueueBidPrices(queues []string) (map[string]map
 	for _, queue := range queues {
 		queueResult := map[bidstore.PriceBand]map[string]float64{}
 
-		for _, pool := range s.Pools {
+		for _, pool := range s.pools {
 			for priceBand := range bidstore.PriceBand_name {
 				if _, exists := queueResult[bidstore.PriceBand(priceBand)]; !exists {
 					queueResult[bidstore.PriceBand(priceBand)] = map[string]float64{}
@@ -40,6 +47,10 @@ func (s StubBidPriceProvider) GetQueueBidPrices(queues []string) (map[string]map
 	}
 
 	return result, nil
+}
+
+func (n StubBidPriceProvider) GetPricedPools() []string {
+	return n.pools
 }
 
 type ExternalBidPriceInfo struct {
@@ -110,4 +121,8 @@ func (b *ExternalBidPriceInfo) GetQueueBidPrices(queues []string) (map[string]ma
 	}
 
 	return result, nil
+}
+
+func (b *ExternalBidPriceInfo) GetPricedPools() []string {
+	return slices.Clone(b.pools)
 }

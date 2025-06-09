@@ -143,7 +143,7 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 
 					sctx.MarketPrice = &price
 					for _, qctx := range sctx.QueueSchedulingContexts {
-						qctx.ChargedAllocation = qctx.Allocated
+						qctx.BillableAllocation = qctx.Allocated
 					}
 				}
 			}

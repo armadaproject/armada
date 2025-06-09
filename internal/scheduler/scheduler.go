@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/armadaproject/armada/internal/scheduler/pricing"
 	"github.com/gogo/protobuf/types"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/renstrom/shortuuid"
 	"golang.org/x/exp/maps"
+	"golang.org/x/exp/slices"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/utils/clock"
 
@@ -22,6 +22,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/kubernetesobjects/affinity"
 	"github.com/armadaproject/armada/internal/scheduler/leader"
 	"github.com/armadaproject/armada/internal/scheduler/metrics"
+	"github.com/armadaproject/armada/internal/scheduler/pricing"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/scheduling/context"
@@ -317,7 +318,6 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 
 	// Schedule jobs.
 	if shouldSchedule {
-
 		err := s.updateJobPrices(txn)
 		if err != nil {
 			return overallSchedulerResult, err
@@ -453,15 +453,29 @@ func (s *Scheduler) syncState(ctx *armadacontext.Context, initial bool) ([]*jobd
 	return jobDbJobs, jsts, nil
 }
 
+// TODO - This is highly inefficient and will only work if market driven pools are small
+// We should rewrite how bids are stored in an efficient manner
 func (s *Scheduler) updateJobPrices(txn *jobdb.Txn) error {
 	jobs := txn.GetAll()
 	jobsByQueue := map[string][]*jobdb.Job{}
+	marketDrivenPools := s.bidPriceProvider.GetPricedPools()
+
+	hasMarketDrivenPool := func(j *jobdb.Job) bool {
+		for _, pool := range j.Pools() {
+			if slices.Contains(marketDrivenPools, pool) {
+				return true
+			}
+		}
+		return false
+	}
 
 	for _, job := range jobs {
 		if _, present := jobsByQueue[job.Queue()]; !present {
 			jobsByQueue[job.Queue()] = []*jobdb.Job{}
 		}
-		jobsByQueue[job.Queue()] = append(jobsByQueue[job.Queue()], job)
+		if job.Validated() && hasMarketDrivenPool(job) {
+			jobsByQueue[job.Queue()] = append(jobsByQueue[job.Queue()], job)
+		}
 	}
 
 	prices, err := s.bidPriceProvider.GetQueueBidPrices(maps.Keys(jobsByQueue))
@@ -472,20 +486,23 @@ func (s *Scheduler) updateJobPrices(txn *jobdb.Txn) error {
 	updatedJobs := make([]*jobdb.Job, 0, len(jobs))
 
 	for queue, jobs := range jobsByQueue {
-		newPrices, exists := prices[queue]
+		queueBidPrices, exists := prices[queue]
 		if !exists {
-			// TODO What should we do if no prices are provided
-			updatedJobs = append(updatedJobs, jobs...)
-		} else {
-			for _, job := range jobs {
-				// TODO handle no prices provided for jobs price band
-				job = job.WithPoolBidPrices(newPrices[job.GetPriceBand()])
+			return fmt.Errorf("could not update prices as no prices exist for queue %s ", queue)
+		}
+		for _, job := range jobs {
+			priceBandBidPrices, ok := queueBidPrices[job.GetPriceBand()]
+			if !ok {
+				return fmt.Errorf("could not update prices as no prices exist for price band %s for queue %s", job.GetPriceBand(), queue)
+			}
+			if !maps.Equal(priceBandBidPrices, job.GetAllBidPrices()) {
+				job = job.WithPoolBidPrices(priceBandBidPrices)
 				updatedJobs = append(updatedJobs, job)
 			}
 		}
 	}
 
-	return txn.ReplaceAll(updatedJobs)
+	return txn.Upsert(updatedJobs)
 }
 
 func (s *Scheduler) createSchedulingInfoWithNodeAntiAffinityForAttemptedRuns(job *jobdb.Job) (*internaltypes.JobSchedulingInfo, error) {
