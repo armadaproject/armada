@@ -26,6 +26,8 @@ message QueueMetrics{
   map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> constrained_demand_by_resource_type = 5;
   // Short job penalty as a fraction of the pool
   double short_job_penalty = 6;
+  // Resource that should be billed for this cycle
+  map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> billable_allocation_by_resource_type = 7;
 }
 
 message CycleMetrics {
@@ -35,4 +37,6 @@ message CycleMetrics {
   map<string, QueueMetrics> queue_metrics= 2;
   // Allocatable resources
   map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> allocatable_resources = 3;
+  // Current spot price of the pool
+  double  spot_price = 4;
 }
