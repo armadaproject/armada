@@ -519,7 +519,7 @@ func (txn *Txn) Upsert(jobs []*Job) error {
 					}
 					_, present = txn.jobsByPoolAndQueue[pool][job.queue]
 					if !present {
-						jobs := immutable.NewSortedSet[*Job](MarketJobPriorityComparer{})
+						jobs := immutable.NewSortedSet[*Job](MarketJobPriorityComparer{Pool: pool})
 						txn.jobsByPoolAndQueue[pool][job.queue] = jobs
 					}
 					txn.jobsByPoolAndQueue[pool][job.queue] = txn.jobsByPoolAndQueue[pool][job.queue].Add(job)
