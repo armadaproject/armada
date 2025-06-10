@@ -399,7 +399,7 @@ func (q *Queries) SelectExecutorUpdateTimes(ctx context.Context) ([]SelectExecut
 }
 
 const selectInitialJobs = `-- name: SelectInitialJobs :many
-SELECT job_id, job_set, queue, priority, submitted, queued, queued_version, validated, cancel_requested, cancel_user, cancel_by_jobset_requested, cancelled, succeeded, failed, scheduling_info, scheduling_info_version, pools, serial FROM jobs WHERE serial > $1 AND cancelled = 'false' AND succeeded = 'false' and failed = 'false' ORDER BY serial LIMIT $2
+SELECT job_id, job_set, queue, priority, submitted, queued, queued_version, validated, cancel_requested, cancel_user, cancel_by_jobset_requested, cancelled, succeeded, failed, scheduling_info, scheduling_info_version, pools, price_band, serial FROM jobs WHERE serial > $1 AND cancelled = 'false' AND succeeded = 'false' and failed = 'false' ORDER BY serial LIMIT $2
 `
 
 type SelectInitialJobsParams struct {
@@ -425,6 +425,7 @@ type SelectInitialJobsRow struct {
 	SchedulingInfo          []byte   `db:"scheduling_info"`
 	SchedulingInfoVersion   int32    `db:"scheduling_info_version"`
 	Pools                   []string `db:"pools"`
+	PriceBand               int32    `db:"price_band"`
 	Serial                  int64    `db:"serial"`
 }
 
@@ -455,6 +456,7 @@ func (q *Queries) SelectInitialJobs(ctx context.Context, arg SelectInitialJobsPa
 			&i.SchedulingInfo,
 			&i.SchedulingInfoVersion,
 			&i.Pools,
+			&i.PriceBand,
 			&i.Serial,
 		); err != nil {
 			return nil, err
@@ -1100,7 +1102,7 @@ func (q *Queries) SelectRunningJobsByQueue(ctx context.Context, queue []string) 
 }
 
 const selectUpdatedJobs = `-- name: SelectUpdatedJobs :many
-SELECT job_id, job_set, queue, priority, submitted, queued, queued_version, validated, cancel_requested, cancel_user, cancel_by_jobset_requested, cancelled, succeeded, failed, scheduling_info, scheduling_info_version, pools, serial FROM jobs WHERE serial > $1 ORDER BY serial LIMIT $2
+SELECT job_id, job_set, queue, priority, submitted, queued, queued_version, validated, cancel_requested, cancel_user, cancel_by_jobset_requested, cancelled, succeeded, failed, scheduling_info, scheduling_info_version, pools, price_band, serial FROM jobs WHERE serial > $1 ORDER BY serial LIMIT $2
 `
 
 type SelectUpdatedJobsParams struct {
@@ -1126,6 +1128,7 @@ type SelectUpdatedJobsRow struct {
 	SchedulingInfo          []byte   `db:"scheduling_info"`
 	SchedulingInfoVersion   int32    `db:"scheduling_info_version"`
 	Pools                   []string `db:"pools"`
+	PriceBand               int32    `db:"price_band"`
 	Serial                  int64    `db:"serial"`
 }
 
@@ -1156,6 +1159,7 @@ func (q *Queries) SelectUpdatedJobs(ctx context.Context, arg SelectUpdatedJobsPa
 			&i.SchedulingInfo,
 			&i.SchedulingInfoVersion,
 			&i.Pools,
+			&i.PriceBand,
 			&i.Serial,
 		); err != nil {
 			return nil, err

@@ -166,17 +166,22 @@ func (c *JobSetEventsInstructionConverter) handleSubmitJob(job *armadaevents.Sub
 		return nil, err
 	}
 
-	pricingBandValue, ok := job.MainObject.ObjectMeta.Annotations[configuration.JobPricingBand]
 	pricingBand := 0
-	if ok {
-		pricingBandInt, err := strconv.Atoi(pricingBandValue)
-		if err != nil {
-			return nil, err
-		}
+	if job.ObjectMeta != nil {
+		pricingBandValue, ok := job.ObjectMeta.Annotations[configuration.JobPriceBand]
+		if ok {
+			pricingBandInt, err := strconv.Atoi(pricingBandValue)
+			if err != nil {
+				log.Errorf("failed to parse pricing band value for job %s, pricing band value %s because %s", job.JobId, pricingBandValue, err)
+				return nil, err
+			}
 
-		_, valid := bidstore.PriceBand_name[int32(pricingBandInt)]
-		if valid {
-			pricingBand = pricingBandInt
+			_, valid := bidstore.PriceBand_name[int32(pricingBandInt)]
+			if valid {
+				pricingBand = pricingBandInt
+			} else {
+				log.Errorf("not setting pricing band for %s, as an invalid pricing band was specified (pricing band %d", pricingBandInt)
+			}
 		}
 	}
 

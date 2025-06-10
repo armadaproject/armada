@@ -30,7 +30,7 @@ func (n NoopBidPriceProvider) GetPricedPools() []string {
 }
 
 type StubBidPriceProvider struct {
-	pools []string
+	Pools []string
 }
 
 func (s StubBidPriceProvider) GetQueueBidPrices(queues []string) (map[string]map[bidstore.PriceBand]*PriceBandInfo, error) {
@@ -39,7 +39,7 @@ func (s StubBidPriceProvider) GetQueueBidPrices(queues []string) (map[string]map
 	for _, queue := range queues {
 		queueResult := map[bidstore.PriceBand]*PriceBandInfo{}
 
-		for _, pool := range s.pools {
+		for _, pool := range s.Pools {
 			for priceBand := range bidstore.PriceBand_name {
 				if _, exists := queueResult[bidstore.PriceBand(priceBand)]; !exists {
 					queueResult[bidstore.PriceBand(priceBand)] = &PriceBandInfo{
@@ -48,8 +48,8 @@ func (s StubBidPriceProvider) GetQueueBidPrices(queues []string) (map[string]map
 					}
 				}
 
-				queueResult[bidstore.PriceBand(priceBand)].QueuedBidsPerPool[pool] = 1
-				queueResult[bidstore.PriceBand(priceBand)].RunningBidsPerPool[pool] = 1
+				queueResult[bidstore.PriceBand(priceBand)].QueuedBidsPerPool[pool] = float64(priceBand)
+				queueResult[bidstore.PriceBand(priceBand)].RunningBidsPerPool[pool] = float64(priceBand)
 			}
 		}
 
@@ -60,7 +60,7 @@ func (s StubBidPriceProvider) GetQueueBidPrices(queues []string) (map[string]map
 }
 
 func (n StubBidPriceProvider) GetPricedPools() []string {
-	return n.pools
+	return n.Pools
 }
 
 type ExternalBidPriceInfo struct {
