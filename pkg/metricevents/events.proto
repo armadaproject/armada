@@ -39,4 +39,6 @@ message CycleMetrics {
   map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> allocatable_resources = 3;
   // Current spot price of the pool
   double  spot_price = 4;
+  // The time that the information in this message is true from
+  google.protobuf.Timestamp cycle_time = 5;
 }
