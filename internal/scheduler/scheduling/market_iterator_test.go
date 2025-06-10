@@ -76,7 +76,8 @@ func createJobIterator(sctx *context.SchedulingContext, queue string, prices ...
 	jctxs := []*context.JobSchedulingContext{}
 	for _, price := range prices {
 		job := testfixtures.Test1Cpu4GiJob(queue, testfixtures.PriorityClass1)
-		job = job.WithPoolBidPrices(map[string]float64{"pool": price})
+		job = job.WithQueuedBidPrices(map[string]float64{"pool": price})
+		job = job.WithRunningBidPrices(map[string]float64{"pool": price})
 		jctx := context.JobSchedulingContextFromJob(job)
 		jctxs = append(jctxs, jctx)
 	}

@@ -77,9 +77,12 @@ type Job struct {
 	pools []string
 	// TODO consider replacing with internal enum or int32
 	priceBand bidstore.PriceBand
-	// The bid price for this job for pools
+	// The bid price for each pool - if this job is queued
 	// A job doesn't have to have a bid for every pool, it'll default to 0 bid if not set in this map
-	bidPricesPerPool map[string]float64
+	queuedBidPricesPerPool map[string]float64
+	// The bid price for each pool - if this job is running
+	// A job doesn't have to have a bid for every pool, it'll default to 0 bid if not set in this map
+	runningBidPricesPerPool map[string]float64
 }
 
 func (job *Job) String() string {
@@ -356,7 +359,7 @@ func (job *Job) Equal(other *Job) bool {
 	if !slices.Equal(job.pools, other.pools) {
 		return false
 	}
-	if !maps.Equal(job.bidPricesPerPool, other.bidPricesPerPool) {
+	if !maps.Equal(job.queuedBidPricesPerPool, other.queuedBidPricesPerPool) {
 		return false
 	}
 	if !armadamaps.DeepEqual(job.runsById, other.runsById) {
@@ -413,22 +416,35 @@ func (job *Job) Pools() []string {
 	return slices.Clone(job.pools)
 }
 
-func (job *Job) WithPoolBidPrices(bids map[string]float64) *Job {
+func (job *Job) WithRunningBidPrices(bids map[string]float64) *Job {
 	j := shallowCopyJob(*job)
-	j.bidPricesPerPool = maps.Clone(bids)
+	j.runningBidPricesPerPool = maps.Clone(bids)
+	return j
+}
+
+func (job *Job) WithQueuedBidPrices(bids map[string]float64) *Job {
+	j := shallowCopyJob(*job)
+	j.queuedBidPricesPerPool = maps.Clone(bids)
 	return j
 }
 
 func (job *Job) GetBidPrice(pool string) float64 {
-	bidPrice, present := job.bidPricesPerPool[pool]
+	bidPrice, present := job.queuedBidPricesPerPool[pool]
+	if !job.queued {
+		bidPrice, present = job.runningBidPricesPerPool[pool]
+	}
 	if present {
 		return bidPrice
 	}
 	return 0
 }
 
-func (job *Job) GetAllBidPrices() map[string]float64 {
-	return maps.Clone(job.bidPricesPerPool)
+func (job *Job) GetQueuedBidPrices() map[string]float64 {
+	return maps.Clone(job.queuedBidPricesPerPool)
+}
+
+func (job *Job) GetRunningBidPrices() map[string]float64 {
+	return maps.Clone(job.runningBidPricesPerPool)
 }
 
 func (job *Job) WithPriceBand(priceBand bidstore.PriceBand) *Job {

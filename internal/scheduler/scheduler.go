@@ -28,6 +28,7 @@ import (
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 	"github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/armadaproject/armada/pkg/armadaevents"
+	"github.com/armadaproject/armada/pkg/bidstore"
 )
 
 // Scheduler is the main Armada scheduler.
@@ -457,7 +458,7 @@ func (s *Scheduler) syncState(ctx *armadacontext.Context, initial bool) ([]*jobd
 // We should rewrite how bids are stored in an efficient manner
 func (s *Scheduler) updateJobPrices(ctx *armadacontext.Context, txn *jobdb.Txn) error {
 	jobs := txn.GetAll()
-	jobsByQueue := map[string][]*jobdb.Job{}
+	jobsByQueue := map[string]map[bidstore.PriceBand][]*jobdb.Job{}
 	marketDrivenPools := s.bidPriceProvider.GetPricedPools()
 	if len(marketDrivenPools) == 0 {
 		return nil
@@ -474,10 +475,13 @@ func (s *Scheduler) updateJobPrices(ctx *armadacontext.Context, txn *jobdb.Txn) 
 
 	for _, job := range jobs {
 		if _, present := jobsByQueue[job.Queue()]; !present {
-			jobsByQueue[job.Queue()] = []*jobdb.Job{}
+			jobsByQueue[job.Queue()] = map[bidstore.PriceBand][]*jobdb.Job{}
+		}
+		if _, present := jobsByQueue[job.Queue()][job.GetPriceBand()]; !present {
+			jobsByQueue[job.Queue()][job.GetPriceBand()] = []*jobdb.Job{}
 		}
 		if job.Validated() && hasMarketDrivenPool(job) {
-			jobsByQueue[job.Queue()] = append(jobsByQueue[job.Queue()], job)
+			jobsByQueue[job.Queue()][job.GetPriceBand()] = append(jobsByQueue[job.Queue()][job.GetPriceBand()], job)
 		}
 	}
 
@@ -488,23 +492,35 @@ func (s *Scheduler) updateJobPrices(ctx *armadacontext.Context, txn *jobdb.Txn) 
 
 	updatedJobs := make([]*jobdb.Job, 0, len(jobs))
 
-	for queue, jobs := range jobsByQueue {
+	for queue, _ := range jobsByQueue {
 		queueBidPrices, exists := prices[queue]
 		if !exists {
 			ctx.Logger().Errorf("could not update prices for queue %s as no prices exist", queue)
 			continue
 		}
-		for _, job := range jobs {
-			priceBandBidPrices, ok := queueBidPrices[job.GetPriceBand()]
+		for priceBand, jobs := range jobsByQueue[queue] {
+			priceBandBidPrices, ok := queueBidPrices[priceBand]
 			if !ok {
-				ctx.Logger().Errorf("could not update prices for job %s in queue %s as no prices exist for price band %s", job.Id(), job.Queue(), job.GetPriceBand())
+				ctx.Logger().Errorf("could not update prices for job with priceband %s in queue %s as no prices exist for price band", queue, priceBand)
 				continue
 			}
-			if !maps.Equal(priceBandBidPrices, job.GetAllBidPrices()) {
-				job = job.WithPoolBidPrices(priceBandBidPrices)
-				updatedJobs = append(updatedJobs, job)
+			for _, job := range jobs {
+				updated := false
+				if !maps.Equal(priceBandBidPrices.QueuedBidsPerPool, job.GetQueuedBidPrices()) {
+					job = job.WithQueuedBidPrices(priceBandBidPrices.QueuedBidsPerPool)
+					updated = true
+				}
+				if !maps.Equal(priceBandBidPrices.RunningBidsPerPool, job.GetRunningBidPrices()) {
+					job = job.WithRunningBidPrices(priceBandBidPrices.RunningBidsPerPool)
+					updated = true
+
+				}
+				if updated {
+					updatedJobs = append(updatedJobs, job)
+				}
 			}
 		}
+
 	}
 
 	return txn.Upsert(updatedJobs)

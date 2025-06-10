@@ -10,14 +10,19 @@ import (
 )
 
 type BidPriceProvider interface {
-	GetQueueBidPrices(queues []string) (map[string]map[bidstore.PriceBand]map[string]float64, error)
+	GetQueueBidPrices(queues []string) (map[string]map[bidstore.PriceBand]*PriceBandInfo, error)
 	GetPricedPools() []string
+}
+
+type PriceBandInfo struct {
+	QueuedBidsPerPool  map[string]float64
+	RunningBidsPerPool map[string]float64
 }
 
 type NoopBidPriceProvider struct{}
 
-func (n NoopBidPriceProvider) GetQueueBidPrices(queues []string) (map[string]map[bidstore.PriceBand]map[string]float64, error) {
-	return map[string]map[bidstore.PriceBand]map[string]float64{}, nil
+func (n NoopBidPriceProvider) GetQueueBidPrices(queues []string) (map[string]map[bidstore.PriceBand]*PriceBandInfo, error) {
+	return map[string]map[bidstore.PriceBand]*PriceBandInfo{}, nil
 }
 
 func (n NoopBidPriceProvider) GetPricedPools() []string {
@@ -28,18 +33,23 @@ type StubBidPriceProvider struct {
 	pools []string
 }
 
-func (s StubBidPriceProvider) GetQueueBidPrices(queues []string) (map[string]map[bidstore.PriceBand]map[string]float64, error) {
-	result := map[string]map[bidstore.PriceBand]map[string]float64{}
+func (s StubBidPriceProvider) GetQueueBidPrices(queues []string) (map[string]map[bidstore.PriceBand]*PriceBandInfo, error) {
+	result := map[string]map[bidstore.PriceBand]*PriceBandInfo{}
 
 	for _, queue := range queues {
-		queueResult := map[bidstore.PriceBand]map[string]float64{}
+		queueResult := map[bidstore.PriceBand]*PriceBandInfo{}
 
 		for _, pool := range s.pools {
 			for priceBand := range bidstore.PriceBand_name {
 				if _, exists := queueResult[bidstore.PriceBand(priceBand)]; !exists {
-					queueResult[bidstore.PriceBand(priceBand)] = map[string]float64{}
+					queueResult[bidstore.PriceBand(priceBand)] = &PriceBandInfo{
+						QueuedBidsPerPool:  map[string]float64{},
+						RunningBidsPerPool: map[string]float64{},
+					}
 				}
-				queueResult[bidstore.PriceBand(priceBand)][pool] = 1
+
+				queueResult[bidstore.PriceBand(priceBand)].QueuedBidsPerPool[pool] = 1
+				queueResult[bidstore.PriceBand(priceBand)].RunningBidsPerPool[pool] = 1
 			}
 		}
 
@@ -65,13 +75,13 @@ func NewBidPriceService(client bidstore.BidRetrieverServiceClient, pools []strin
 	}
 }
 
-func (b *ExternalBidPriceInfo) GetQueueBidPrices(queues []string) (map[string]map[bidstore.PriceBand]map[string]float64, error) {
+func (b *ExternalBidPriceInfo) GetQueueBidPrices(queues []string) (map[string]map[bidstore.PriceBand]*PriceBandInfo, error) {
 	response, err := b.client.RetrieveBids(armadacontext.Background(), &bidstore.RetrieveBidsRequest{Queues: queues})
 	if err != nil {
 		return nil, err
 	}
 
-	result := map[string]map[bidstore.PriceBand]map[string]float64{}
+	result := map[string]map[bidstore.PriceBand]*PriceBandInfo{}
 
 	// TODO Make the returned value into a struct
 	// - Can be simpler to consume
@@ -82,7 +92,7 @@ func (b *ExternalBidPriceInfo) GetQueueBidPrices(queues []string) (map[string]ma
 		if !present {
 			return nil, fmt.Errorf("no bid price information found for queue %s", queue)
 		}
-		queueResult := map[bidstore.PriceBand]map[string]float64{}
+		queueResult := map[bidstore.PriceBand]*PriceBandInfo{}
 
 		for _, pool := range b.pools {
 			poolBids, present := bids.GetPoolBids()[pool]
@@ -95,25 +105,39 @@ func (b *ExternalBidPriceInfo) GetQueueBidPrices(queues []string) (map[string]ma
 				return nil, fmt.Errorf("no fallback bid price information found for pool %s in queue %s", pool, queue)
 			}
 
-			defaultRunningBid, present := defaultBids.GetBidForPhase(bidstore.PricingPhase_PRICING_PHASE_QUEUEING)
+			defaultQueuedBid, present := defaultBids.GetBidForPhase(bidstore.PricingPhase_PRICING_PHASE_QUEUEING)
+			if !present {
+				return nil, fmt.Errorf("no fallback queued bid price information found for pool %s in queue %s", pool, queue)
+			}
+
+			defaultRunningBid, present := defaultBids.GetBidForPhase(bidstore.PricingPhase_PRICING_PHASE_RUNNING)
 			if !present {
 				return nil, fmt.Errorf("no fallback running bid price information found for pool %s in queue %s", pool, queue)
 			}
 
 			for priceBand := range bidstore.PriceBand_name {
-				bidPrice := defaultRunningBid.GetAmount()
+				queuedBidPrice := defaultQueuedBid.GetAmount()
+				runningBidPrice := defaultRunningBid.GetAmount()
 				bandBids, present := poolBids.GetBidsForBand(bidstore.PriceBand(priceBand))
 				if present {
-					runningBid, ok := bandBids.PriceBandBids.GetBidForPhase(bidstore.PricingPhase_PRICING_PHASE_QUEUEING)
+					queuedPrice, ok := bandBids.PriceBandBids.GetBidForPhase(bidstore.PricingPhase_PRICING_PHASE_QUEUEING)
 					if ok {
-						bidPrice = runningBid.Amount
+						queuedBidPrice = queuedPrice.Amount
+					}
+					runningPrice, ok := bandBids.PriceBandBids.GetBidForPhase(bidstore.PricingPhase_PRICING_PHASE_RUNNING)
+					if ok {
+						queuedBidPrice = runningPrice.Amount
 					}
 				}
 
 				if _, exists := queueResult[bidstore.PriceBand(priceBand)]; !exists {
-					queueResult[bidstore.PriceBand(priceBand)] = map[string]float64{}
+					queueResult[bidstore.PriceBand(priceBand)] = &PriceBandInfo{
+						QueuedBidsPerPool:  map[string]float64{},
+						RunningBidsPerPool: map[string]float64{},
+					}
 				}
-				queueResult[bidstore.PriceBand(priceBand)][pool] = bidPrice
+				queueResult[bidstore.PriceBand(priceBand)].QueuedBidsPerPool[pool] = queuedBidPrice
+				queueResult[bidstore.PriceBand(priceBand)].RunningBidsPerPool[pool] = runningBidPrice
 			}
 		}
 
