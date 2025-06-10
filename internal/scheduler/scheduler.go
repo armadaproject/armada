@@ -492,7 +492,7 @@ func (s *Scheduler) updateJobPrices(ctx *armadacontext.Context, txn *jobdb.Txn) 
 
 	updatedJobs := make([]*jobdb.Job, 0, len(jobs))
 
-	for queue, _ := range jobsByQueue {
+	for queue := range jobsByQueue {
 		queueBidPrices, exists := prices[queue]
 		if !exists {
 			ctx.Logger().Errorf("could not update prices for queue %s as no prices exist", queue)

@@ -1,11 +1,12 @@
 package pricing
 
 import (
-	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
-	"github.com/armadaproject/armada/pkg/bidstore"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
+
+	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
+	"github.com/armadaproject/armada/pkg/bidstore"
 )
 
 func NewBidRetrieverServiceClient(config schedulerconfig.PricingApiConfig) (bidstore.BidRetrieverServiceClient, error) {
