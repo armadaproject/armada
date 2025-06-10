@@ -52,7 +52,6 @@ type perCycleMetrics struct {
 	evictedJobs                  *prometheus.GaugeVec
 	evictedResources             *prometheus.GaugeVec
 	spotPrice                    *prometheus.GaugeVec
-	marketPrice                  *prometheus.GaugeVec
 	indicativeShare              *prometheus.GaugeVec
 	nodePreemptibility           *prometheus.GaugeVec
 	protectedFractionOfFairShare *prometheus.GaugeVec
@@ -229,14 +228,6 @@ func newPerCycleMetrics() *perCycleMetrics {
 		poolLabels,
 	)
 
-	marketPrice := prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: prefix + "market_price",
-			Help: "market price for given pool",
-		},
-		poolLabels,
-	)
-
 	indicativeShare := prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: prefix + "indicative_share",
@@ -299,7 +290,6 @@ func newPerCycleMetrics() *perCycleMetrics {
 		evictedResources:             evictedResources,
 		chargedResources:             chargedResources,
 		spotPrice:                    spotPrice,
-		marketPrice:                  marketPrice,
 		indicativeShare:              indicativeShare,
 		nodePreemptibility:           nodePreemptibility,
 		protectedFractionOfFairShare: protectedFractionOfFairShare,
@@ -415,12 +405,7 @@ func (m *cycleMetrics) ReportSchedulerResult(ctx *armadacontext.Context, result 
 			}
 		}
 		currentCycle.fairnessError.WithLabelValues(pool).Set(schedContext.FairnessError())
-		currentCycle.spotPrice.WithLabelValues(pool).Set(schedContext.SpotPrice)
-		marketPrice := float64(0)
-		if schedContext.MarketPrice != nil {
-			marketPrice = *schedContext.MarketPrice
-		}
-		currentCycle.marketPrice.WithLabelValues(pool).Set(marketPrice)
+		currentCycle.spotPrice.WithLabelValues(pool).Set(schedContext.GetSpotPrice())
 		for priority, share := range schedContext.ExperimentalIndicativeShares {
 			currentCycle.indicativeShare.WithLabelValues(pool, strconv.Itoa(priority)).Set(share)
 		}
@@ -524,7 +509,6 @@ func (m *cycleMetrics) describe(ch chan<- *prometheus.Desc) {
 		currentCycle.evictedResources.Describe(ch)
 		currentCycle.chargedResources.Describe(ch)
 		currentCycle.spotPrice.Describe(ch)
-		currentCycle.marketPrice.Describe(ch)
 		currentCycle.indicativeShare.Describe(ch)
 		currentCycle.nodePreemptibility.Describe(ch)
 		currentCycle.protectedFractionOfFairShare.Describe(ch)
@@ -563,7 +547,6 @@ func (m *cycleMetrics) collect(ch chan<- prometheus.Metric) {
 		currentCycle.evictedResources.Collect(ch)
 		currentCycle.chargedResources.Collect(ch)
 		currentCycle.spotPrice.Collect(ch)
-		currentCycle.marketPrice.Collect(ch)
 		currentCycle.indicativeShare.Collect(ch)
 		currentCycle.nodePreemptibility.Collect(ch)
 		currentCycle.protectedFractionOfFairShare.Collect(ch)
@@ -601,7 +584,7 @@ func (m *cycleMetrics) publishCycleMetrics(ctx *armadacontext.Context, result sc
 				Pool:                 sc.Pool,
 				QueueMetrics:         queueMetrics,
 				AllocatableResources: armadamaps.MapValues(sc.TotalResources.ToMap(), toQtyPtr),
-				SpotPrice:            *sc.MarketPrice,
+				SpotPrice:            sc.GetSpotPrice(),
 			}},
 		}
 	}

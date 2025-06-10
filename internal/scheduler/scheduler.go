@@ -318,7 +318,7 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 
 	// Schedule jobs.
 	if shouldSchedule {
-		err := s.updateJobPrices(txn)
+		err := s.updateJobPrices(ctx, txn)
 		if err != nil {
 			return overallSchedulerResult, err
 		}
@@ -455,10 +455,13 @@ func (s *Scheduler) syncState(ctx *armadacontext.Context, initial bool) ([]*jobd
 
 // TODO - This is highly inefficient and will only work if market driven pools are small
 // We should rewrite how bids are stored in an efficient manner
-func (s *Scheduler) updateJobPrices(txn *jobdb.Txn) error {
+func (s *Scheduler) updateJobPrices(ctx *armadacontext.Context, txn *jobdb.Txn) error {
 	jobs := txn.GetAll()
 	jobsByQueue := map[string][]*jobdb.Job{}
 	marketDrivenPools := s.bidPriceProvider.GetPricedPools()
+	if len(marketDrivenPools) == 0 {
+		return nil
+	}
 
 	hasMarketDrivenPool := func(j *jobdb.Job) bool {
 		for _, pool := range j.Pools() {
@@ -488,12 +491,14 @@ func (s *Scheduler) updateJobPrices(txn *jobdb.Txn) error {
 	for queue, jobs := range jobsByQueue {
 		queueBidPrices, exists := prices[queue]
 		if !exists {
-			return fmt.Errorf("could not update prices as no prices exist for queue %s ", queue)
+			ctx.Logger().Errorf("could not update prices for queue %s as no prices exist", queue)
+			continue
 		}
 		for _, job := range jobs {
 			priceBandBidPrices, ok := queueBidPrices[job.GetPriceBand()]
 			if !ok {
-				return fmt.Errorf("could not update prices as no prices exist for price band %s for queue %s", job.GetPriceBand(), queue)
+				ctx.Logger().Errorf("could not update prices for job %s in queue %s as no prices exist for price band %s", job.Id(), job.Queue(), job.GetPriceBand())
+				continue
 			}
 			if !maps.Equal(priceBandBidPrices, job.GetAllBidPrices()) {
 				job = job.WithPoolBidPrices(priceBandBidPrices)

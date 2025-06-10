@@ -95,7 +95,7 @@ func (b *ExternalBidPriceInfo) GetQueueBidPrices(queues []string) (map[string]ma
 				return nil, fmt.Errorf("no fallback bid price information found for pool %s in queue %s", pool, queue)
 			}
 
-			defaultRunningBid, present := defaultBids.GetBidForPhase(bidstore.PricingPhase_PRICING_PHASE_RUNNING)
+			defaultRunningBid, present := defaultBids.GetBidForPhase(bidstore.PricingPhase_PRICING_PHASE_QUEUEING)
 			if !present {
 				return nil, fmt.Errorf("no fallback running bid price information found for pool %s in queue %s", pool, queue)
 			}
@@ -104,7 +104,7 @@ func (b *ExternalBidPriceInfo) GetQueueBidPrices(queues []string) (map[string]ma
 				bidPrice := defaultRunningBid.GetAmount()
 				bandBids, present := poolBids.GetBidsForBand(bidstore.PriceBand(priceBand))
 				if present {
-					runningBid, ok := bandBids.PriceBandBids.GetBidForPhase(bidstore.PricingPhase_PRICING_PHASE_RUNNING)
+					runningBid, ok := bandBids.PriceBandBids.GetBidForPhase(bidstore.PricingPhase_PRICING_PHASE_QUEUEING)
 					if ok {
 						bidPrice = runningBid.Amount
 					}
