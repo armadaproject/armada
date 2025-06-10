@@ -585,6 +585,7 @@ func (m *cycleMetrics) publishCycleMetrics(ctx *armadacontext.Context, result sc
 				QueueMetrics:         queueMetrics,
 				AllocatableResources: armadamaps.MapValues(sc.TotalResources.ToMap(), toQtyPtr),
 				SpotPrice:            sc.GetSpotPrice(),
+				CycleTime:            protoutil.ToTimestamp(sc.Finished),
 			}},
 		}
 	}

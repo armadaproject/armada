@@ -58,6 +58,9 @@ type Configuration struct {
 	QueueRefreshPeriod time.Duration `validate:"required"`
 	// Allows queue priority overrides to be fetched from an external source.
 	PriorityOverride PriorityOverrideConfig
+	// Configuration for the pricing API
+	// This is used to retrieve queue pricing information
+	PricingApi PricingApiConfig
 	// Whether to publish metrics To Pulsar.  This is currently experimental
 	PublishMetricsToPulsar bool
 }
@@ -389,6 +392,13 @@ type ExperimentalIndicativePricing struct {
 }
 
 type PriorityOverrideConfig struct {
+	Enabled         bool
+	UpdateFrequency time.Duration
+	ServiceUrl      string
+	ForceNoTls      bool
+}
+
+type PricingApiConfig struct {
 	Enabled         bool
 	UpdateFrequency time.Duration
 	ServiceUrl      string

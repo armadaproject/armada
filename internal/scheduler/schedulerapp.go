@@ -153,6 +153,25 @@ func Run(config schedulerconfig.Configuration) error {
 	}
 
 	// ////////////////////////////////////////////////////////////////////////
+	// Pricing API
+	// ////////////////////////////////////////////////////////////////////////
+	var bidPriceProvider pricing.BidPriceProvider = pricing.StubBidPriceProvider{}
+	if config.PricingApi.Enabled {
+		ctx.Infof("Pricing API Service configured, will queue pricing information overrides from %s", config.PricingApi.ServiceUrl)
+		bidRetrieverClient, err := pricing.NewBidRetrieverServiceClient(config.PricingApi)
+		if err != nil {
+			return errors.WithMessage(err, "Error creating bid retriever client")
+		}
+		marketDrivenPoolConfigs := slices.Filter(config.Scheduling.Pools, func(e schedulerconfig.PoolConfig) bool {
+			return e.ExperimentalMarketScheduling != nil && e.ExperimentalMarketScheduling.Enabled
+		})
+		marketDrivenPools := slices.Map(marketDrivenPoolConfigs, func(e schedulerconfig.PoolConfig) string {
+			return e.Name
+		})
+		bidPriceProvider = pricing.NewBidPriceService(bidRetrieverClient, marketDrivenPools)
+	}
+
+	// ////////////////////////////////////////////////////////////////////////
 	// Pulsar
 	// ////////////////////////////////////////////////////////////////////////
 	ctx.Infof("Setting up Pulsar connectivity")
@@ -342,9 +361,6 @@ func Run(config schedulerconfig.Configuration) error {
 	if err := prometheus.Register(schedulerMetrics); err != nil {
 		return errors.WithStack(err)
 	}
-
-	bidPriceProvider := pricing.StubBidPriceProvider{}
-	// TODO configure enabling the provider for real
 
 	scheduler, err := NewScheduler(
 		jobDb,
