@@ -6,6 +6,7 @@ import (
 
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/bidstore"
 )
 
 type QueueMetricProvider interface {
@@ -48,9 +49,9 @@ func (r *JobMetricsRecorder) RecordJobRuntime(pool string, priorityClass string,
 	recorder.durationRecorder.Record(jobRuntime.Seconds())
 }
 
-func (r *JobMetricsRecorder) RecordResources(pool string, priorityClass string, resources armadaresource.ComputeResourcesFloat) {
+func (r *JobMetricsRecorder) RecordResources(pool string, priorityClass string, priceBand bidstore.PriceBand, resources armadaresource.ComputeResourcesFloat) {
 	recorder := r.getOrCreateRecorder(pool, priorityClass)
-	recorder.resourceRecorder.Record(resources)
+	recorder.resourceRecorder.Record(priceBand, resources)
 }
 
 func (r *JobMetricsRecorder) Metrics() []*QueueMetrics {

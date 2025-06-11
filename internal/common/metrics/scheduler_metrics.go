@@ -7,7 +7,6 @@ import (
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 
-	log "github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/scheduler/pricing"
 	"github.com/armadaproject/armada/pkg/bidstore"
 )
@@ -31,35 +30,35 @@ var QueueDistinctSchedulingKeysDesc = prometheus.NewDesc(
 var QueueResourcesDesc = prometheus.NewDesc(
 	MetricPrefix+"queue_resource_queued",
 	"Resource required by queued jobs",
-	[]string{"pool", "priorityClass", "queueName", "queue", "resourceType"},
+	[]string{"pool", "priorityClass", "queueName", "queue", "priceBand", "resourceType"},
 	nil,
 )
 
 var MinQueueResourcesDesc = prometheus.NewDesc(
 	MetricPrefix+"queue_resource_queued_min",
 	"Min resource required by queued job",
-	[]string{"pool", "priorityClass", "queueName", "queue", "resourceType"},
+	[]string{"pool", "priorityClass", "queueName", "queue", "priceBand", "resourceType"},
 	nil,
 )
 
 var MaxQueueResourcesDesc = prometheus.NewDesc(
 	MetricPrefix+"queue_resource_queued_max",
 	"Max resource required by queued job",
-	[]string{"pool", "priorityClass", "queueName", "queue", "resourceType"},
+	[]string{"pool", "priorityClass", "queueName", "queue", "priceBand", "resourceType"},
 	nil,
 )
 
 var MedianQueueResourcesDesc = prometheus.NewDesc(
 	MetricPrefix+"queue_resource_queued_median",
 	"Median resource required by queued jobs",
-	[]string{"pool", "priorityClass", "queueName", "queue", "resourceType"},
+	[]string{"pool", "priorityClass", "queueName", "queue", "priceBand", "resourceType"},
 	nil,
 )
 
 var CountQueueResourcesDesc = prometheus.NewDesc(
 	MetricPrefix+"queue_resource_queued_count",
 	"Count of queued jobs requiring resource",
-	[]string{"pool", "priorityClass", "queueName", "queue", "resourceType"},
+	[]string{"pool", "priorityClass", "queueName", "queue", "priceBand", "resourceType"},
 	nil,
 )
 
@@ -122,28 +121,28 @@ var JobRunDurationDesc = prometheus.NewDesc(
 var QueueAllocatedDesc = prometheus.NewDesc(
 	MetricPrefix+"queue_resource_allocated",
 	"Resource allocated to running jobs of a queue",
-	[]string{"cluster", "pool", "priorityClass", "queueName", "queue", "resourceType", "nodeType"},
+	[]string{"cluster", "pool", "priorityClass", "queueName", "queue", "priceBand", "resourceType", "nodeType"},
 	nil,
 )
 
 var MinQueueAllocatedDesc = prometheus.NewDesc(
 	MetricPrefix+"queue_resource_allocated_min",
 	"Min resource allocated by a running job",
-	[]string{"pool", "priorityClass", "queueName", "queue", "resourceType"},
+	[]string{"pool", "priorityClass", "queueName", "queue", "priceBand", "resourceType"},
 	nil,
 )
 
 var MaxQueueAllocatedDesc = prometheus.NewDesc(
 	MetricPrefix+"queue_resource_allocated_max",
 	"Max resource allocated by a running job",
-	[]string{"pool", "priorityClass", "queueName", "queue", "resourceType"},
+	[]string{"pool", "priorityClass", "queueName", "queue", "priceBand", "resourceType"},
 	nil,
 )
 
 var MedianQueueAllocatedDesc = prometheus.NewDesc(
 	MetricPrefix+"queue_resource_allocated_median",
 	"Median resource allocated by a running job",
-	[]string{"pool", "priorityClass", "queueName", "queue", "resourceType"},
+	[]string{"pool", "priorityClass", "queueName", "queue", "priceBand", "resourceType"},
 	nil,
 )
 
@@ -306,11 +305,7 @@ func CollectQueueMetrics(queueCounts map[string]int, queueBidPrices map[string]m
 		queuedJobMetrics := metricsProvider.GetQueuedJobMetrics(q)
 		runningJobMetrics := metricsProvider.GetRunningJobMetrics(q)
 		for priceBand, bids := range queueBidPrices[q] {
-			priceBandShortName, valid := bidstore.PriceBandToShortName[priceBand]
-			if !valid {
-				log.Warnf("not producing metrics for queue %s, price band %d, as the price band is invalid", q, priceBand)
-				continue
-			}
+			priceBandShortName := GetPriceBandShortName(priceBand)
 			for pool, value := range bids.QueuedBidsPerPool {
 				metrics = append(metrics, NewQueuePriceBandBidMetric(value, pool, q, "queued", priceBandShortName))
 			}
@@ -332,19 +327,26 @@ func CollectQueueMetrics(queueCounts map[string]int, queueBidPrices map[string]m
 			metrics = append(metrics, NewMedianQueuePriceQueuedMetric(m.BidPrices.GetMedian(), m.Pool, m.PriorityClass, q))
 
 			// Sort the keys so we get a predictable output order
-			resources := maps.Keys(m.Resources)
-			slices.Sort(resources)
+			resourcePriceBands := maps.Keys(m.Resources)
+			slices.Sort(resourcePriceBands)
 
-			for _, resourceType := range resources {
-				amount := m.Resources[resourceType]
-				if amount.GetCount() > 0 {
-					metrics = append(metrics, NewQueueResources(amount.GetSum(), m.Pool, m.PriorityClass, q, resourceType))
-					metrics = append(metrics, NewMinQueueResources(amount.GetMin(), m.Pool, m.PriorityClass, q, resourceType))
-					metrics = append(metrics, NewMaxQueueResources(amount.GetMax(), m.Pool, m.PriorityClass, q, resourceType))
-					metrics = append(metrics, NewMedianQueueResources(amount.GetMedian(), m.Pool, m.PriorityClass, q, resourceType))
-					metrics = append(metrics, NewCountQueueResources(amount.GetCount(), m.Pool, m.PriorityClass, q, resourceType))
+			for _, priceBand := range resourcePriceBands {
+				priceBandShortName := GetPriceBandShortName(priceBand)
+				resourceKeys := maps.Keys(m.Resources[priceBand])
+				// Sort the keys so we get a predictable output order
+				slices.Sort(resourceKeys)
+				for _, resourceType := range resourceKeys {
+					amount := m.Resources[priceBand][resourceType]
+					if amount.GetCount() > 0 {
+						metrics = append(metrics, NewQueueResources(amount.GetSum(), m.Pool, m.PriorityClass, q, priceBandShortName, resourceType))
+						metrics = append(metrics, NewMinQueueResources(amount.GetMin(), m.Pool, m.PriorityClass, q, priceBandShortName, resourceType))
+						metrics = append(metrics, NewMaxQueueResources(amount.GetMax(), m.Pool, m.PriorityClass, q, priceBandShortName, resourceType))
+						metrics = append(metrics, NewMedianQueueResources(amount.GetMedian(), m.Pool, m.PriorityClass, q, priceBandShortName, resourceType))
+						metrics = append(metrics, NewCountQueueResources(amount.GetCount(), m.Pool, m.PriorityClass, q, priceBandShortName, resourceType))
+					}
 				}
 			}
+
 		}
 
 		for _, m := range runningJobMetrics {
@@ -360,16 +362,22 @@ func CollectQueueMetrics(queueCounts map[string]int, queueBidPrices map[string]m
 			metrics = append(metrics, NewMaxQueuePriceRunningMetric(m.BidPrices.GetMax(), m.Pool, m.PriorityClass, q))
 			metrics = append(metrics, NewMedianQueuePriceRunningMetric(m.BidPrices.GetMedian(), m.Pool, m.PriorityClass, q))
 
-			// Sort the keys so we get a predicatable output order
-			resources := maps.Keys(m.Resources)
-			slices.Sort(resources)
+			// Sort the keys so we get a predictable output order
+			resourcePriceBands := maps.Keys(m.Resources)
+			slices.Sort(resourcePriceBands)
 
-			for _, resourceType := range resources {
-				amount := m.Resources[resourceType]
-				if amount.GetCount() > 0 {
-					metrics = append(metrics, NewMinQueueAllocated(amount.GetMin(), m.Pool, m.PriorityClass, q, resourceType))
-					metrics = append(metrics, NewMaxQueueAllocated(amount.GetMax(), m.Pool, m.PriorityClass, q, resourceType))
-					metrics = append(metrics, NewMedianQueueAllocated(amount.GetMedian(), m.Pool, m.PriorityClass, q, resourceType))
+			for _, priceBand := range resourcePriceBands {
+				priceBandShortName := GetPriceBandShortName(priceBand)
+				resourceKeys := maps.Keys(m.Resources[priceBand])
+				// Sort the keys so we get a predictable output order
+				slices.Sort(resourceKeys)
+				for _, resourceType := range resourceKeys {
+					amount := m.Resources[priceBand][resourceType]
+					if amount.GetCount() > 0 {
+						metrics = append(metrics, NewMinQueueAllocated(amount.GetMin(), m.Pool, m.PriorityClass, q, priceBandShortName, resourceType))
+						metrics = append(metrics, NewMaxQueueAllocated(amount.GetMax(), m.Pool, m.PriorityClass, q, priceBandShortName, resourceType))
+						metrics = append(metrics, NewMedianQueueAllocated(amount.GetMedian(), m.Pool, m.PriorityClass, priceBandShortName, q, resourceType))
+					}
 				}
 			}
 		}
@@ -393,24 +401,24 @@ func NewQueueDuration(count uint64, sum float64, buckets map[float64]uint64, poo
 	return prometheus.MustNewConstHistogram(QueueDurationDesc, count, sum, buckets, pool, priorityClass, queue, queue)
 }
 
-func NewQueueResources(value float64, pool string, priorityClass string, queue string, resource string) prometheus.Metric {
-	return prometheus.MustNewConstMetric(QueueResourcesDesc, prometheus.GaugeValue, value, pool, priorityClass, queue, queue, resource)
+func NewQueueResources(value float64, pool string, priorityClass string, queue string, priceBand string, resource string) prometheus.Metric {
+	return prometheus.MustNewConstMetric(QueueResourcesDesc, prometheus.GaugeValue, value, pool, priorityClass, queue, priceBand, queue, resource)
 }
 
-func NewMaxQueueResources(value float64, pool string, priorityClass string, queue string, resource string) prometheus.Metric {
-	return prometheus.MustNewConstMetric(MaxQueueResourcesDesc, prometheus.GaugeValue, value, pool, priorityClass, queue, queue, resource)
+func NewMaxQueueResources(value float64, pool string, priorityClass string, queue string, priceBand string, resource string) prometheus.Metric {
+	return prometheus.MustNewConstMetric(MaxQueueResourcesDesc, prometheus.GaugeValue, value, pool, priorityClass, queue, queue, priceBand, resource)
 }
 
-func NewMinQueueResources(value float64, pool string, priorityClass string, queue string, resource string) prometheus.Metric {
-	return prometheus.MustNewConstMetric(MinQueueResourcesDesc, prometheus.GaugeValue, value, pool, priorityClass, queue, queue, resource)
+func NewMinQueueResources(value float64, pool string, priorityClass string, queue string, priceBand string, resource string) prometheus.Metric {
+	return prometheus.MustNewConstMetric(MinQueueResourcesDesc, prometheus.GaugeValue, value, pool, priorityClass, queue, queue, priceBand, resource)
 }
 
-func NewMedianQueueResources(value float64, pool string, priorityClass string, queue string, resource string) prometheus.Metric {
-	return prometheus.MustNewConstMetric(MedianQueueResourcesDesc, prometheus.GaugeValue, value, pool, priorityClass, queue, queue, resource)
+func NewMedianQueueResources(value float64, pool string, priorityClass string, queue string, priceBand string, resource string) prometheus.Metric {
+	return prometheus.MustNewConstMetric(MedianQueueResourcesDesc, prometheus.GaugeValue, value, pool, priorityClass, queue, queue, priceBand, resource)
 }
 
-func NewCountQueueResources(value uint64, pool string, priorityClass string, queue string, resource string) prometheus.Metric {
-	return prometheus.MustNewConstMetric(CountQueueResourcesDesc, prometheus.GaugeValue, float64(value), pool, priorityClass, queue, queue, resource)
+func NewCountQueueResources(value uint64, pool string, priorityClass string, queue string, priceBand string, resource string) prometheus.Metric {
+	return prometheus.MustNewConstMetric(CountQueueResourcesDesc, prometheus.GaugeValue, float64(value), pool, priorityClass, queue, queue, priceBand, resource)
 }
 
 func NewMinQueueDuration(value float64, pool string, priorityClass string, queue string) prometheus.Metric {
@@ -441,16 +449,20 @@ func NewJobRunRunDuration(count uint64, sum float64, buckets map[float64]uint64,
 	return prometheus.MustNewConstHistogram(JobRunDurationDesc, count, sum, buckets, pool, priorityClass, queue, queue)
 }
 
-func NewMinQueueAllocated(value float64, pool string, priorityClass string, queue string, resource string) prometheus.Metric {
-	return prometheus.MustNewConstMetric(MinQueueAllocatedDesc, prometheus.GaugeValue, value, pool, priorityClass, queue, queue, resource)
+func NewMinQueueAllocated(value float64, pool string, priorityClass string, queue string, priceBand string, resource string) prometheus.Metric {
+	return prometheus.MustNewConstMetric(MinQueueAllocatedDesc, prometheus.GaugeValue, value, pool, priorityClass, queue, queue, priceBand, resource)
 }
 
-func NewMaxQueueAllocated(value float64, pool string, priorityClass string, queue string, resource string) prometheus.Metric {
-	return prometheus.MustNewConstMetric(MaxQueueAllocatedDesc, prometheus.GaugeValue, value, pool, priorityClass, queue, queue, resource)
+func NewMaxQueueAllocated(value float64, pool string, priorityClass string, queue string, priceBand string, resource string) prometheus.Metric {
+	return prometheus.MustNewConstMetric(MaxQueueAllocatedDesc, prometheus.GaugeValue, value, pool, priorityClass, queue, queue, priceBand, resource)
 }
 
-func NewMedianQueueAllocated(value float64, pool string, priorityClass string, queue string, resource string) prometheus.Metric {
-	return prometheus.MustNewConstMetric(MedianQueueAllocatedDesc, prometheus.GaugeValue, value, pool, priorityClass, queue, queue, resource)
+func NewMedianQueueAllocated(value float64, pool string, priorityClass string, queue string, priceBand string, resource string) prometheus.Metric {
+	return prometheus.MustNewConstMetric(MedianQueueAllocatedDesc, prometheus.GaugeValue, value, pool, priorityClass, queue, queue, priceBand, resource)
+}
+
+func NewQueueAllocated(value float64, queue string, cluster string, pool string, priorityClass string, priceBand string, resource string, nodeType string) prometheus.Metric {
+	return prometheus.MustNewConstMetric(QueueAllocatedDesc, prometheus.GaugeValue, value, cluster, pool, priorityClass, queue, queue, priceBand, resource, nodeType)
 }
 
 func NewQueueLeasedPodCount(value float64, cluster string, pool string, queue string, phase string, nodeType string) prometheus.Metric {
@@ -471,10 +483,6 @@ func NewClusterTotalCapacity(value float64, cluster string, pool string, resourc
 
 func NewClusterCordonedStatus(value float64, cluster string, reason string, setByUser string) prometheus.Metric {
 	return prometheus.MustNewConstMetric(ClusterCordonedStatusDesc, prometheus.GaugeValue, value, cluster, reason, setByUser)
-}
-
-func NewQueueAllocated(value float64, queue string, cluster string, pool string, priorityClass string, resource string, nodeType string) prometheus.Metric {
-	return prometheus.MustNewConstMetric(QueueAllocatedDesc, prometheus.GaugeValue, value, cluster, pool, priorityClass, queue, queue, resource, nodeType)
 }
 
 func NewQueueUsed(value float64, queue string, cluster string, pool string, resource string, nodeType string) prometheus.Metric {

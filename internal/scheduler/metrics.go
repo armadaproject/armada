@@ -231,7 +231,7 @@ func (c *MetricsCollector) updateQueueMetrics(ctx *armadacontext.Context) ([]pro
 		}
 		for _, pool := range pools {
 			recorder.RecordJobRuntime(pool, priorityClass, timeInState)
-			recorder.RecordResources(pool, priorityClass, jobResources)
+			recorder.RecordResources(pool, priorityClass, job.GetPriceBand(), jobResources)
 			recorder.RecordBidPrice(pool, priorityClass, job.GetBidPrice(pool))
 		}
 	}
@@ -250,6 +250,15 @@ type queueMetricKey struct {
 	queueName     string
 	nodeType      string
 	priorityClass string
+}
+
+type queuePriceBandMetricKey struct {
+	cluster       string
+	pool          string
+	queueName     string
+	nodeType      string
+	priorityClass string
+	priceBand     string
 }
 
 type queuePhaseMetricKey struct {
@@ -284,7 +293,7 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 
 	cordonedStatusByCluster := map[string]*clusterCordonedStatus{}
 	phaseCountByQueue := map[queuePhaseMetricKey]int{}
-	allocatedResourceByQueue := map[queueMetricKey]resource.ComputeResources{}
+	allocatedResourceByQueue := map[queuePriceBandMetricKey]resource.ComputeResources{}
 	usedResourceByQueue := map[queueMetricKey]resource.ComputeResources{}
 	availableResourceByCluster := map[clusterMetricKey]resource.ComputeResources{}
 	totalResourceByCluster := map[clusterMetricKey]resource.ComputeResources{}
@@ -406,12 +415,13 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 					podRequirements := job.PodRequirements()
 					if podRequirements != nil {
 						jobRequirements := resource.FromResourceList(podRequirements.ResourceRequirements.Requests)
-						queueKey := queueMetricKey{
+						queueKey := queuePriceBandMetricKey{
 							cluster:       executor.Id,
 							pool:          jobPool,
 							queueName:     job.Queue(),
 							priorityClass: job.PriorityClassName(),
 							nodeType:      node.ReportingNodeType,
+							priceBand:     commonmetrics.GetPriceBandShortName(job.GetPriceBand()),
 						}
 						addToResourceListMap(allocatedResourceByQueue, queueKey, jobRequirements)
 
@@ -445,7 +455,7 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 	}
 	for k, r := range allocatedResourceByQueue {
 		for resourceKey, resourceValue := range r {
-			clusterMetrics = append(clusterMetrics, commonmetrics.NewQueueAllocated(resource.QuantityAsFloat64(resourceValue), k.queueName, k.cluster, k.pool, k.priorityClass, resourceKey, k.nodeType))
+			clusterMetrics = append(clusterMetrics, commonmetrics.NewQueueAllocated(resource.QuantityAsFloat64(resourceValue), k.queueName, k.cluster, k.pool, k.priorityClass, k.priceBand, resourceKey, k.nodeType))
 		}
 	}
 	for k, r := range usedResourceByQueue {
