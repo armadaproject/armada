@@ -376,7 +376,7 @@ func CollectQueueMetrics(queueCounts map[string]int, queueBidPrices map[string]m
 					if amount.GetCount() > 0 {
 						metrics = append(metrics, NewMinQueueAllocated(amount.GetMin(), m.Pool, m.PriorityClass, q, priceBandShortName, resourceType))
 						metrics = append(metrics, NewMaxQueueAllocated(amount.GetMax(), m.Pool, m.PriorityClass, q, priceBandShortName, resourceType))
-						metrics = append(metrics, NewMedianQueueAllocated(amount.GetMedian(), m.Pool, m.PriorityClass, priceBandShortName, q, resourceType))
+						metrics = append(metrics, NewMedianQueueAllocated(amount.GetMedian(), m.Pool, m.PriorityClass, q, priceBandShortName, resourceType))
 					}
 				}
 			}
