@@ -82,30 +82,36 @@ object ArmadaClient {
   }
 
   def apply(host: String, port: Int): ArmadaClient = {
-    apply(host, port, None)
+    apply(host, port, false, None)
   }
 
   def apply(
       host: String,
       port: Int,
+      useSsl: Boolean,
       bearerToken: Option[String]
   ): ArmadaClient = {
-    if (bearerToken.isEmpty) {
-      val channel =
-        NettyChannelBuilder.forAddress(host, port).usePlaintext().build()
-      ArmadaClient(channel)
-    } else {
-      val metadata = new Metadata()
-      metadata.put(
-        Metadata.Key.of("Authorization", Metadata.ASCII_STRING_MARSHALLER),
-        "Bearer " + bearerToken.get
-      )
-      val channel =
-        NettyChannelBuilder
-          .forAddress(host, port)
-          .useTransportSecurity()
-          .intercept(MetadataUtils.newAttachHeadersInterceptor(metadata))
-          .build
+    (useSsl, bearerToken) match {
+      case (false, None) =>
+        val channel =
+          NettyChannelBuilder.forAddress(host, port).usePlaintext().build()
+        ArmadaClient(channel)
+      case (true, None) =>
+        val channel =
+          NettyChannelBuilder.forAddress(host, port).useTransportSecurity().build()
+        ArmadaClient(channel)
+      case (_, Some(token)) =>
+        val metadata = new Metadata()
+        metadata.put(
+          Metadata.Key.of("Authorization", Metadata.ASCII_STRING_MARSHALLER),
+          "Bearer " + bearerToken.get
+        )
+        val channel =
+          NettyChannelBuilder
+            .forAddress(host, port)
+            .useTransportSecurity()
+            .intercept(MetadataUtils.newAttachHeadersInterceptor(metadata))
+            .build
       ArmadaClient(channel)
     }
   }
