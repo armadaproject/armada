@@ -1,128 +1,99 @@
 package pricing
 
 import (
-	"fmt"
-
-	"golang.org/x/exp/slices"
+	"time"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/pkg/bidstore"
 )
 
-type BidPriceProvider interface {
-	GetQueueBidPrices(queues []string) (map[string]map[bidstore.PriceBand]map[string]float64, error)
-	GetPricedPools() []string
-}
+var (
+	allBands  = initAllBands()
+	allPhases = initAllPhases()
+)
 
-type NoopBidPriceProvider struct{}
-
-func (n NoopBidPriceProvider) GetQueueBidPrices(queues []string) (map[string]map[bidstore.PriceBand]map[string]float64, error) {
-	return map[string]map[bidstore.PriceBand]map[string]float64{}, nil
-}
-
-func (n NoopBidPriceProvider) GetPricedPools() []string {
-	return []string{}
-}
-
-type StubBidPriceProvider struct {
-	pools []string
-}
-
-func (s StubBidPriceProvider) GetQueueBidPrices(queues []string) (map[string]map[bidstore.PriceBand]map[string]float64, error) {
-	result := map[string]map[bidstore.PriceBand]map[string]float64{}
-
-	for _, queue := range queues {
-		queueResult := map[bidstore.PriceBand]map[string]float64{}
-
-		for _, pool := range s.pools {
-			for priceBand := range bidstore.PriceBand_name {
-				if _, exists := queueResult[bidstore.PriceBand(priceBand)]; !exists {
-					queueResult[bidstore.PriceBand(priceBand)] = map[string]float64{}
-				}
-				queueResult[bidstore.PriceBand(priceBand)][pool] = 1
-			}
-		}
-
-		result[queue] = queueResult
-	}
-
-	return result, nil
-}
-
-func (n StubBidPriceProvider) GetPricedPools() []string {
-	return n.pools
-}
-
-type ExternalBidPriceInfo struct {
+type ExternalBidPriceService struct {
 	client bidstore.BidRetrieverServiceClient
-	pools  []string
 }
 
-func NewBidPriceService(client bidstore.BidRetrieverServiceClient, pools []string) *ExternalBidPriceInfo {
-	return &ExternalBidPriceInfo{
+func NewExternalBidPriceService(client bidstore.BidRetrieverServiceClient) *ExternalBidPriceService {
+	return &ExternalBidPriceService{
 		client: client,
-		pools:  pools,
 	}
 }
 
-func (b *ExternalBidPriceInfo) GetQueueBidPrices(queues []string) (map[string]map[bidstore.PriceBand]map[string]float64, error) {
-	response, err := b.client.RetrieveBids(armadacontext.Background(), &bidstore.RetrieveBidsRequest{Queues: queues})
+func (b *ExternalBidPriceService) GetBidPrices(
+	ctx *armadacontext.Context,
+) (BidPriceSnapshot, error) {
+	resp, err := b.client.RetrieveBids(ctx, &bidstore.RetrieveBidsRequest{})
 	if err != nil {
-		return nil, err
+		return BidPriceSnapshot{}, err
 	}
 
-	result := map[string]map[bidstore.PriceBand]map[string]float64{}
+	snapshot := BidPriceSnapshot{
+		Timestamp: time.Now(),
+		Prices:    make(map[PriceKey]float64),
+	}
 
-	// TODO Make the returned value into a struct
-	// - Can be simpler to consume
-	// - Lots of this logic can be abstracted away
-	// - Easier to implement a diff func
-	for _, queue := range queues {
-		bids, present := response.QueueBids[queue]
-		if !present {
-			return nil, fmt.Errorf("no bid price information found for queue %s", queue)
-		}
-		queueResult := map[bidstore.PriceBand]map[string]float64{}
+	for queue, qb := range resp.QueueBids {
+		for pool, poolBids := range qb.PoolBids {
+			// get fallback if present, but don’t error if nil
+			fallback := poolBids.GetFallbackBid()
 
-		for _, pool := range b.pools {
-			poolBids, present := bids.GetPoolBids()[pool]
-			if !present {
-				return nil, fmt.Errorf("no bid price information found for pool %s in queue %s", pool, queue)
-			}
+			for _, band := range allBands {
+				for _, phase := range allPhases {
+					var price float64
+					var hasBid bool
 
-			defaultBids := poolBids.GetFallbackBid()
-			if defaultBids == nil {
-				return nil, fmt.Errorf("no fallback bid price information found for pool %s in queue %s", pool, queue)
-			}
-
-			defaultRunningBid, present := defaultBids.GetBidForPhase(bidstore.PricingPhase_PRICING_PHASE_RUNNING)
-			if !present {
-				return nil, fmt.Errorf("no fallback running bid price information found for pool %s in queue %s", pool, queue)
-			}
-
-			for priceBand := range bidstore.PriceBand_name {
-				bidPrice := defaultRunningBid.GetAmount()
-				bandBids, present := poolBids.GetBidsForBand(bidstore.PriceBand(priceBand))
-				if present {
-					runningBid, ok := bandBids.PriceBandBids.GetBidForPhase(bidstore.PricingPhase_PRICING_PHASE_RUNNING)
-					if ok {
-						bidPrice = runningBid.Amount
+					// 1) check for band-specific override
+					if bb, found := poolBids.GetBidsForBand(band); found {
+						if ov, ok := bb.PriceBandBids.GetBidForPhase(phase); ok {
+							price = ov.Amount
+							hasBid = true
+						}
 					}
-				}
 
-				if _, exists := queueResult[bidstore.PriceBand(priceBand)]; !exists {
-					queueResult[bidstore.PriceBand(priceBand)] = map[string]float64{}
+					// 2) if no override and fallback exists, use fallback
+					if !hasBid && fallback != nil {
+						if def, ok := fallback.GetBidForPhase(phase); ok {
+							price = def.Amount
+							hasBid = true
+						}
+					}
+
+					// 3) if neither override nor fallback had this phase, skip
+					if !hasBid {
+						continue
+					}
+
+					// 4) record it
+					key := PriceKey{
+						Queue: queue,
+						Pool:  pool,
+						Band:  band,
+						Phase: phase,
+					}
+					snapshot.Prices[key] = price
 				}
-				queueResult[bidstore.PriceBand(priceBand)][pool] = bidPrice
 			}
 		}
-
-		result[queue] = queueResult
 	}
 
-	return result, nil
+	return snapshot, nil
 }
 
-func (b *ExternalBidPriceInfo) GetPricedPools() []string {
-	return slices.Clone(b.pools)
+func initAllBands() []bidstore.PriceBand {
+	bands := make([]bidstore.PriceBand, 0, len(bidstore.PriceBand_name))
+	for v := range bidstore.PriceBand_name {
+		bands = append(bands, bidstore.PriceBand(v))
+	}
+	return bands
+}
+
+func initAllPhases() []bidstore.PricingPhase {
+	phases := make([]bidstore.PricingPhase, 0, len(bidstore.PricingPhase_name))
+	for v := range bidstore.PricingPhase_name {
+		phases = append(phases, bidstore.PricingPhase(v))
+	}
+	return phases
 }
