@@ -13,6 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	clock "k8s.io/utils/clock/testing"
 
+	"github.com/armadaproject/armada/internal/scheduler/pricing"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	commonmetrics "github.com/armadaproject/armada/internal/common/metrics"
 	"github.com/armadaproject/armada/internal/common/pointer"
@@ -160,6 +161,7 @@ func TestMetricsCollector_TestCollect_QueueMetrics(t *testing.T) {
 			collector := NewMetricsCollector(
 				jobDb,
 				queueCache,
+				pricing.NoopBidPriceProvider{},
 				executorRepository,
 				testfixtures.TestSchedulingConfig().Pools,
 				2*time.Second,
@@ -381,6 +383,7 @@ func TestMetricsCollector_TestCollect_ClusterMetrics(t *testing.T) {
 			collector := NewMetricsCollector(
 				jobDb,
 				queueCache,
+				pricing.NoopBidPriceProvider{},
 				executorRepository,
 				testfixtures.TestSchedulingConfig().Pools,
 				2*time.Second,
@@ -500,6 +503,7 @@ func TestMetricsCollector_TestCollect_ClusterMetricsAvailableCapacity(t *testing
 			collector := NewMetricsCollector(
 				jobDb,
 				queueCache,
+				pricing.NoopBidPriceProvider{},
 				executorRepository,
 				tc.poolConfig,
 				2*time.Second,
