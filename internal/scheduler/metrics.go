@@ -19,6 +19,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/floatingresources"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
+	"github.com/armadaproject/armada/internal/scheduler/pricing"
 	"github.com/armadaproject/armada/internal/scheduler/queue"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api"
@@ -63,6 +64,7 @@ func (m metricProvider) GetRunningJobMetrics(queueName string) []*commonmetrics.
 type MetricsCollector struct {
 	jobDb                 *jobdb.JobDb
 	queueCache            queue.QueueCache
+	bidPriceProvider      pricing.BidPriceProvider
 	executorRepository    database.ExecutorRepository
 	pools                 []configuration.PoolConfig
 	refreshPeriod         time.Duration
@@ -74,6 +76,7 @@ type MetricsCollector struct {
 func NewMetricsCollector(
 	jobDb *jobdb.JobDb,
 	queueCache queue.QueueCache,
+	bidPriceProvider pricing.BidPriceProvider,
 	executorRepository database.ExecutorRepository,
 	pools []configuration.PoolConfig,
 	refreshPeriod time.Duration,
@@ -82,6 +85,7 @@ func NewMetricsCollector(
 	return &MetricsCollector{
 		jobDb:                 jobDb,
 		queueCache:            queueCache,
+		bidPriceProvider:      bidPriceProvider,
 		executorRepository:    executorRepository,
 		pools:                 pools,
 		refreshPeriod:         refreshPeriod,
@@ -145,6 +149,12 @@ func (c *MetricsCollector) refresh(ctx *armadacontext.Context) error {
 
 func (c *MetricsCollector) updateQueueMetrics(ctx *armadacontext.Context) ([]prometheus.Metric, error) {
 	queues, err := c.queueCache.GetAll(ctx)
+	if err != nil {
+		return nil, err
+	}
+	bidPrices, err := c.bidPriceProvider.GetQueueBidPrices(slices.Map(queues, func(q *api.Queue) string {
+		return q.Name
+	}))
 	if err != nil {
 		return nil, err
 	}
@@ -230,7 +240,7 @@ func (c *MetricsCollector) updateQueueMetrics(ctx *armadacontext.Context) ([]pro
 		return len(schedulingKeys)
 	})
 
-	queueMetrics := commonmetrics.CollectQueueMetrics(queuedJobsCount, queuedDistinctSchedulingKeysCount, provider)
+	queueMetrics := commonmetrics.CollectQueueMetrics(queuedJobsCount, bidPrices, queuedDistinctSchedulingKeysCount, provider)
 	return queueMetrics, nil
 }
 

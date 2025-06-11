@@ -170,7 +170,7 @@ func (c *JobSetEventsInstructionConverter) handleSubmitJob(job *armadaevents.Sub
 	if job.ObjectMeta != nil {
 		pricingBandValue, ok := job.ObjectMeta.Annotations[configuration.JobPriceBand]
 		if ok {
-			priceBandValue, exists := bidstore.PriceBandShortNames[strings.ToUpper(pricingBandValue)]
+			priceBandValue, exists := bidstore.PriceBandFromShortName[strings.ToUpper(pricingBandValue)]
 			if !exists {
 				log.Errorf("not setting pricing band for job %s, as an invalid pricing band was specified (pricing band %s)", jobId, priceBandValue)
 			}

@@ -18,7 +18,7 @@ func (p *PriceBandBids) GetBidForPhase(phase PricingPhase) (*Bid, bool) {
 	return nil, false
 }
 
-var PriceBandShortNames = map[string]PriceBand{
+var PriceBandFromShortName = map[string]PriceBand{
 	"A": PriceBand_PRICE_BAND_A,
 	"B": PriceBand_PRICE_BAND_B,
 	"C": PriceBand_PRICE_BAND_C,
@@ -27,4 +27,16 @@ var PriceBandShortNames = map[string]PriceBand{
 	"F": PriceBand_PRICE_BAND_F,
 	"G": PriceBand_PRICE_BAND_G,
 	"H": PriceBand_PRICE_BAND_H,
+}
+
+var PriceBandToShortName = map[PriceBand]string{
+	PriceBand_PRICE_BAND_UNSPECIFIED: "None",
+	PriceBand_PRICE_BAND_A:           "A",
+	PriceBand_PRICE_BAND_B:           "B",
+	PriceBand_PRICE_BAND_C:           "C",
+	PriceBand_PRICE_BAND_D:           "D",
+	PriceBand_PRICE_BAND_E:           "E",
+	PriceBand_PRICE_BAND_F:           "F",
+	PriceBand_PRICE_BAND_G:           "G",
+	PriceBand_PRICE_BAND_H:           "H",
 }

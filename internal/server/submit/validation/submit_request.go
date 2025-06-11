@@ -2,7 +2,9 @@ package validation
 
 import (
 	"fmt"
+	"strings"
 
+	"github.com/armadaproject/armada/pkg/bidstore"
 	"github.com/pkg/errors"
 	"k8s.io/component-helpers/scheduling/corev1/nodeaffinity"
 
@@ -37,6 +39,7 @@ var (
 		validatePorts,
 		validateClientId,
 		validateTolerations,
+		validatePriceBand,
 	}
 )
 
@@ -205,6 +208,18 @@ func validateClientId(j *api.JobSubmitRequestItem, _ configuration.SubmissionCon
 	if len(j.GetClientId()) > maxClientIdChars {
 		return fmt.Errorf("client id of length %d is greater than max allowed length of  %d", len(j.ClientId), maxClientIdChars)
 	}
+	return nil
+}
+
+func validatePriceBand(j *api.JobSubmitRequestItem, _ configuration.SubmissionConfig) error {
+	priceBand, present := j.Annotations[configuration.JobPriceBand]
+	if present {
+		_, valid := bidstore.PriceBandFromShortName[strings.ToUpper(priceBand)]
+		if !valid {
+			return fmt.Errorf("price band %s is not supported", priceBand)
+		}
+	}
+
 	return nil
 }
 

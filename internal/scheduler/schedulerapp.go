@@ -393,6 +393,7 @@ func Run(config schedulerconfig.Configuration) error {
 	metricsCollector := NewMetricsCollector(
 		scheduler.jobDb,
 		queueCache,
+		bidPriceProvider,
 		executorRepository,
 		config.Scheduling.Pools,
 		config.Metrics.RefreshInterval,

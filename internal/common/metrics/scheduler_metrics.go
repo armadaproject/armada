@@ -6,6 +6,10 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
+
+	log "github.com/armadaproject/armada/internal/common/logging"
+	"github.com/armadaproject/armada/internal/scheduler/pricing"
+	"github.com/armadaproject/armada/pkg/bidstore"
 )
 
 const MetricPrefix = "armada_"
@@ -234,6 +238,13 @@ var MedianQueuePriceRunningDesc = prometheus.NewDesc(
 	nil,
 )
 
+var QueuePriceBandPhaseBidDesc = prometheus.NewDesc(
+	MetricPrefix+"queue_price_band_phase_bid",
+	"Bid price for a queues price band",
+	[]string{"pool", "queueName", "queue", "phase", "priceBand"},
+	nil,
+)
+
 var (
 	queueLabelMetricName        = MetricPrefix + "queue_labels"
 	queueLabelMetricDescription = "Queue labels"
@@ -278,6 +289,7 @@ var AllDescs = []*prometheus.Desc{
 	ClusterAvailableCapacityDesc,
 	QueuePriorityDesc,
 	QueueLabelDesc,
+	QueuePriceBandPhaseBidDesc,
 }
 
 func Describe(out chan<- *prometheus.Desc) {
@@ -286,13 +298,26 @@ func Describe(out chan<- *prometheus.Desc) {
 	}
 }
 
-func CollectQueueMetrics(queueCounts map[string]int, queueDistinctSchedulingKeyCounts map[string]int, metricsProvider QueueMetricProvider) []prometheus.Metric {
+func CollectQueueMetrics(queueCounts map[string]int, queueBidPrices map[string]map[bidstore.PriceBand]*pricing.PriceBandInfo, queueDistinctSchedulingKeyCounts map[string]int, metricsProvider QueueMetricProvider) []prometheus.Metric {
 	metrics := make([]prometheus.Metric, 0, len(AllDescs))
 	for q, count := range queueCounts {
 		metrics = append(metrics, NewQueueSizeMetric(count, q))
 		metrics = append(metrics, NewQueueDistinctSchedulingKeyMetric(queueDistinctSchedulingKeyCounts[q], q))
 		queuedJobMetrics := metricsProvider.GetQueuedJobMetrics(q)
 		runningJobMetrics := metricsProvider.GetRunningJobMetrics(q)
+		for priceBand, bids := range queueBidPrices[q] {
+			priceBandShortName, valid := bidstore.PriceBandToShortName[priceBand]
+			if !valid {
+				log.Warnf("not producing metrics for queue %s, price band %d, as the price band is invalid", q, priceBand)
+				continue
+			}
+			for pool, value := range bids.QueuedBidsPerPool {
+				metrics = append(metrics, NewQueuePriceBandBidMetric(value, pool, q, "queued", priceBandShortName))
+			}
+			for pool, value := range bids.RunningBidsPerPool {
+				metrics = append(metrics, NewQueuePriceBandBidMetric(value, pool, q, "running", priceBandShortName))
+			}
+		}
 		for _, m := range queuedJobMetrics {
 			queueDurations := m.Durations
 			if queueDurations.GetCount() > 0 {
@@ -482,6 +507,10 @@ func NewMaxQueuePriceRunningMetric(value float64, pool string, priorityClass str
 
 func NewMedianQueuePriceRunningMetric(value float64, pool string, priorityClass string, queue string) prometheus.Metric {
 	return prometheus.MustNewConstMetric(MedianQueuePriceRunningDesc, prometheus.GaugeValue, value, pool, priorityClass, queue)
+}
+
+func NewQueuePriceBandBidMetric(value float64, pool string, queue string, phase, priceBand string) prometheus.Metric {
+	return prometheus.MustNewConstMetric(QueuePriceBandPhaseBidDesc, prometheus.GaugeValue, value, pool, queue, queue, phase, priceBand)
 }
 
 func NewQueueLabelsMetric(queue string, labels map[string]string) prometheus.Metric {
