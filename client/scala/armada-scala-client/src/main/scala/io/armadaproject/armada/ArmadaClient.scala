@@ -98,7 +98,10 @@ object ArmadaClient {
         ArmadaClient(channel)
       case (true, None) =>
         val channel =
-          NettyChannelBuilder.forAddress(host, port).useTransportSecurity().build()
+          NettyChannelBuilder
+            .forAddress(host, port)
+            .useTransportSecurity()
+            .build()
         ArmadaClient(channel)
       case (_, Some(token)) =>
         val metadata = new Metadata()
@@ -112,7 +115,7 @@ object ArmadaClient {
             .useTransportSecurity()
             .intercept(MetadataUtils.newAttachHeadersInterceptor(metadata))
             .build
-      ArmadaClient(channel)
+        ArmadaClient(channel)
     }
   }
 }
