@@ -3,8 +3,6 @@ package jobdb
 import (
 	"testing"
 
-	"github.com/armadaproject/armada/internal/scheduler/pricing"
-	"github.com/armadaproject/armada/pkg/bidstore"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
@@ -12,6 +10,8 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
+	"github.com/armadaproject/armada/internal/scheduler/pricing"
+	"github.com/armadaproject/armada/pkg/bidstore"
 )
 
 var jobSchedulingInfo = &internaltypes.JobSchedulingInfo{
