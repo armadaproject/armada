@@ -8,8 +8,7 @@ import (
 )
 
 var (
-	allBands  = initAllBands()
-	allPhases = initAllPhases()
+	allBands = initAllBands()
 )
 
 type ExternalBidPriceService struct {
@@ -22,78 +21,75 @@ func NewExternalBidPriceService(client bidstore.BidRetrieverServiceClient) *Exte
 	}
 }
 
-func (b *ExternalBidPriceService) GetBidPrices(
-	ctx *armadacontext.Context,
-) (BidPriceSnapshot, error) {
+func (b *ExternalBidPriceService) GetBidPrices(ctx *armadacontext.Context) (BidPriceSnapshot, error) {
 	resp, err := b.client.RetrieveBids(ctx, &bidstore.RetrieveBidsRequest{})
 	if err != nil {
 		return BidPriceSnapshot{}, err
 	}
+	return convert(resp), nil
+}
 
+func convert(resp *bidstore.RetrieveBidsResponse) BidPriceSnapshot {
 	snapshot := BidPriceSnapshot{
 		Timestamp: time.Now(),
-		Prices:    make(map[PriceKey]float64),
+		Bids:      make(map[PriceKey]map[string]Bid),
 	}
 
 	for queue, qb := range resp.QueueBids {
-		for pool, poolBids := range qb.PoolBids {
-			// get fallback if present, but don’t error if nil
-			fallback := poolBids.GetFallbackBid()
+		for _, band := range allBands {
+			key := PriceKey{Queue: queue, Band: band}
+			bids := make(map[string]Bid)
 
-			for _, band := range allBands {
-				for _, phase := range allPhases {
-					var price float64
-					var hasBid bool
+			for pool, poolBids := range qb.PoolBids {
+				bb, _ := poolBids.GetBidsForBand(band)
+				fallback := poolBids.GetFallbackBid()
 
-					// 1) check for band-specific override
-					if bb, found := poolBids.GetBidsForBand(band); found {
-						if ov, ok := bb.PriceBandBids.GetBidForPhase(phase); ok {
-							price = ov.Amount
-							hasBid = true
-						}
+				queued, hasQueued := getPrice(bb, fallback, bidstore.PricingPhase_PRICING_PHASE_QUEUEING)
+				running, hasRunning := getPrice(bb, fallback, bidstore.PricingPhase_PRICING_PHASE_RUNNING)
+
+				if hasQueued || hasRunning {
+					bids[pool] = Bid{
+						QueuedBid:  queued,
+						RunningBid: running,
 					}
-
-					// 2) if no override and fallback exists, use fallback
-					if !hasBid && fallback != nil {
-						if def, ok := fallback.GetBidForPhase(phase); ok {
-							price = def.Amount
-							hasBid = true
-						}
-					}
-
-					// 3) if neither override nor fallback had this phase, skip
-					if !hasBid {
-						continue
-					}
-
-					// 4) record it
-					key := PriceKey{
-						Queue: queue,
-						Pool:  pool,
-						Band:  band,
-						Phase: phase,
-					}
-					snapshot.Prices[key] = price
 				}
+			}
+
+			if len(bids) > 0 {
+				snapshot.Bids[key] = bids
 			}
 		}
 	}
+	return snapshot
+}
 
-	return snapshot, nil
+// getPrice tries to find a price for the given phase from bb or fallback.
+func getPrice(
+	bb *bidstore.PriceBandBid,
+	fallback *bidstore.PriceBandBids,
+	phase bidstore.PricingPhase,
+) (float64, bool) {
+	if bb != nil {
+		if bid, ok := bb.PriceBandBids.GetBidForPhase(phase); ok {
+			return bid.Amount, true
+		}
+	}
+	if fallback != nil {
+		if bid, ok := fallback.GetBidForPhase(phase); ok {
+			return bid.Amount, true
+		}
+	}
+	return 0, false
 }
 
 func initAllBands() []bidstore.PriceBand {
 	bands := make([]bidstore.PriceBand, 0, len(bidstore.PriceBand_name))
 	for v := range bidstore.PriceBand_name {
-		bands = append(bands, bidstore.PriceBand(v))
+		band := bidstore.PriceBand(v)
+		if band == bidstore.PriceBand_PRICE_BAND_UNSPECIFIED {
+			continue
+		}
+		bands = append(bands, band)
 	}
 	return bands
-}
-
-func initAllPhases() []bidstore.PricingPhase {
-	phases := make([]bidstore.PricingPhase, 0, len(bidstore.PricingPhase_name))
-	for v := range bidstore.PricingPhase_name {
-		phases = append(phases, bidstore.PricingPhase(v))
-	}
-	return phases
 }
