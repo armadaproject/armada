@@ -4,6 +4,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/armadaproject/armada/internal/server/configuration"
+
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 	v1 "k8s.io/api/core/v1"
@@ -162,6 +164,21 @@ func TestSubmit_FailedValidation(t *testing.T) {
 			req: withResources(testfixtures.SubmitRequestWithNItems(1), v1.ResourceRequirements{
 				Limits:   v1.ResourceList{"cpu": resource.MustParse("1")},
 				Requests: v1.ResourceList{"cpu": resource.MustParse("2")},
+			}),
+		},
+		"Invalid Preemption Retry Enabled Annotation": {
+			req: withAnnotations(testfixtures.SubmitRequestWithNItems(1), map[string]string{
+				configuration.PreemptionRetryEnabledAnnotation: "not a boolean",
+			}),
+		},
+		"Invalid Preemption Retry Count Max Annotation": {
+			req: withAnnotations(testfixtures.SubmitRequestWithNItems(1), map[string]string{
+				configuration.PreemptionRetryEnabledAnnotation: "not an int",
+			}),
+		},
+		"Negative Preemption Retry Count Max Annotation": {
+			req: withAnnotations(testfixtures.SubmitRequestWithNItems(1), map[string]string{
+				configuration.PreemptionRetryEnabledAnnotation: "-1",
 			}),
 		},
 	}
@@ -506,6 +523,13 @@ func withPriorityClass(req *api.JobSubmitRequest, pc string) *api.JobSubmitReque
 func withTerminationGracePeriod(req *api.JobSubmitRequest, v *int64) *api.JobSubmitRequest {
 	for _, item := range req.JobRequestItems {
 		item.PodSpec.TerminationGracePeriodSeconds = v
+	}
+	return req
+}
+
+func withAnnotations(req *api.JobSubmitRequest, annotations map[string]string) *api.JobSubmitRequest {
+	for _, item := range req.JobRequestItems {
+		item.Annotations = annotations
 	}
 	return req
 }
