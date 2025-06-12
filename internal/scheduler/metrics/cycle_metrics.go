@@ -36,7 +36,7 @@ type perCycleMetrics struct {
 	adjustedFairShare            *prometheus.GaugeVec
 	uncappedAdjustedFairShare    *prometheus.GaugeVec
 	actualShare                  *prometheus.GaugeVec
-	chargedResources             *prometheus.GaugeVec
+	billableResource             *prometheus.GaugeVec
 	fairnessError                *prometheus.GaugeVec
 	demand                       *prometheus.GaugeVec
 	constrainedDemand            *prometheus.GaugeVec
@@ -212,10 +212,10 @@ func newPerCycleMetrics() *perCycleMetrics {
 		poolQueueAndResourceLabels,
 	)
 
-	chargedResources := prometheus.NewGaugeVec(
+	billableResources := prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: prefix + "charged_resources",
-			Help: "Resources charged for in this cycle",
+			Name: prefix + "billable_resources",
+			Help: "Resources billable for in this cycle",
 		},
 		poolQueueAndResourceLabels,
 	)
@@ -288,7 +288,7 @@ func newPerCycleMetrics() *perCycleMetrics {
 		loopNumber:                   loopNumber,
 		evictedJobs:                  evictedJobs,
 		evictedResources:             evictedResources,
-		chargedResources:             chargedResources,
+		billableResource:             billableResources,
 		spotPrice:                    spotPrice,
 		indicativeShare:              indicativeShare,
 		nodePreemptibility:           nodePreemptibility,
@@ -401,7 +401,7 @@ func (m *cycleMetrics) ReportSchedulerResult(ctx *armadacontext.Context, result 
 			currentCycle.queueWeight.WithLabelValues(pool, queue).Set(queueContext.Weight)
 			currentCycle.rawQueueWeight.WithLabelValues(pool, queue).Set(queueContext.RawWeight)
 			for _, r := range queueContext.BillableAllocation.GetResources() {
-				currentCycle.chargedResources.WithLabelValues(pool, queue, r.Name).Set(float64(r.RawValue))
+				currentCycle.billableResource.WithLabelValues(pool, queue, r.Name).Set(float64(r.RawValue))
 			}
 		}
 		currentCycle.fairnessError.WithLabelValues(pool).Set(schedContext.FairnessError())
@@ -507,7 +507,7 @@ func (m *cycleMetrics) describe(ch chan<- *prometheus.Desc) {
 		currentCycle.loopNumber.Describe(ch)
 		currentCycle.evictedJobs.Describe(ch)
 		currentCycle.evictedResources.Describe(ch)
-		currentCycle.chargedResources.Describe(ch)
+		currentCycle.billableResource.Describe(ch)
 		currentCycle.spotPrice.Describe(ch)
 		currentCycle.indicativeShare.Describe(ch)
 		currentCycle.nodePreemptibility.Describe(ch)
@@ -545,7 +545,7 @@ func (m *cycleMetrics) collect(ch chan<- prometheus.Metric) {
 		currentCycle.loopNumber.Collect(ch)
 		currentCycle.evictedJobs.Collect(ch)
 		currentCycle.evictedResources.Collect(ch)
-		currentCycle.chargedResources.Collect(ch)
+		currentCycle.billableResource.Collect(ch)
 		currentCycle.spotPrice.Collect(ch)
 		currentCycle.indicativeShare.Collect(ch)
 		currentCycle.nodePreemptibility.Collect(ch)

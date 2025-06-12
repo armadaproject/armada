@@ -431,10 +431,6 @@ func (job *Job) GetBidPrice(pool string) float64 {
 	return bidPrice.RunningBid
 }
 
-func (job *Job) GetBidPrices() map[string]pricing.Bid {
-	return maps.Clone(job.bidPricesPool)
-}
-
 func (job *Job) WithPriceBand(priceBand bidstore.PriceBand) *Job {
 	j := shallowCopyJob(*job)
 	j.priceBand = priceBand

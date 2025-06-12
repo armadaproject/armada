@@ -3,6 +3,8 @@ package jobdb
 import (
 	"testing"
 
+	"github.com/armadaproject/armada/internal/scheduler/pricing"
+	"github.com/armadaproject/armada/pkg/bidstore"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
@@ -40,7 +42,7 @@ var baseJob, _ = jobDb.NewJob(
 	3,
 	false,
 	[]string{},
-	0,
+	int32(1),
 )
 
 var baseRun = &JobRun{
@@ -63,6 +65,7 @@ func TestJob_TestGetter(t *testing.T) {
 	assert.Equal(t, baseJob.Annotations(), map[string]string{
 		"foo": "bar",
 	})
+	assert.Equal(t, bidstore.PriceBand_PRICE_BAND_A, baseJob.GetPriceBand())
 }
 
 func TestJob_TestPriority(t *testing.T) {
@@ -124,6 +127,29 @@ func TestJob_TestInTerminalState(t *testing.T) {
 	assert.Equal(t, true, baseJob.WithSucceeded(true).InTerminalState())
 	assert.Equal(t, true, baseJob.WithFailed(true).InTerminalState())
 	assert.Equal(t, true, baseJob.WithCancelled(true).InTerminalState())
+}
+
+func TestJob_BidPrices(t *testing.T) {
+	pool1Bid := pricing.Bid{QueuedBid: 1, RunningBid: 2}
+	pool2Bid := pricing.Bid{QueuedBid: 3, RunningBid: 4}
+
+	// Job queued
+	newJob := baseJob.WithBidPrices(map[string]pricing.Bid{"pool1": pool1Bid, "pool2": pool2Bid})
+	assert.Equal(t, float64(1), newJob.GetBidPrice("pool1"))
+	assert.Equal(t, float64(3), newJob.GetBidPrice("pool2"))
+	assert.Equal(t, float64(0), newJob.GetBidPrice("pool3")) // default to 0
+
+	// Job running
+	newJob = newJob.WithQueued(false)
+	assert.Equal(t, float64(2), newJob.GetBidPrice("pool1"))
+	assert.Equal(t, float64(4), newJob.GetBidPrice("pool2"))
+	assert.Equal(t, float64(0), newJob.GetBidPrice("pool3")) // default to 0
+
+	// Assert mutating external bid obj doesn't effect what the job returns
+	pool1Bid.RunningBid = 5
+	pool2Bid.RunningBid = 5
+	assert.Equal(t, float64(2), newJob.GetBidPrice("pool1"))
+	assert.Equal(t, float64(4), newJob.GetBidPrice("pool2"))
 }
 
 func TestJob_TestHasRuns(t *testing.T) {

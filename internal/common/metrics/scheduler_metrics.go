@@ -15,8 +15,8 @@ import (
 
 const (
 	MetricPrefix = "armada_"
-	queuedPhase  = "queued"
-	runningPhase = "running"
+	QueuedPhase  = "queued"
+	RunningPhase = "running"
 )
 
 var QueueSizeDesc = prometheus.NewDesc(
@@ -314,22 +314,26 @@ func CollectQueueMetrics(pools []configuration.PoolConfig, queueCounts map[strin
 		metrics = append(metrics, NewQueueDistinctSchedulingKeyMetric(queueDistinctSchedulingKeyCounts[q], q))
 		queuedJobMetrics := metricsProvider.GetQueuedJobMetrics(q)
 		runningJobMetrics := metricsProvider.GetRunningJobMetrics(q)
-		for priceBandShortName, priceBand := range bidstore.PriceBandFromShortName {
+		priceBandNames := maps.Keys(bidstore.PriceBandFromShortName)
+		// Sort the keys so we get a predictable output order
+		slices.Sort(priceBandNames)
+		for _, priceBandShortName := range priceBandNames {
+			priceBand := bidstore.PriceBandFromShortName[priceBandShortName]
 			bidsByPool, exists := bidPriceSnapshot.GetPrice(q, priceBand)
 			for _, pool := range poolNames {
 				if bid, poolBidExists := bidsByPool[pool]; !exists || !poolBidExists {
-					metrics = append(metrics, NewQueuePriceBandBidMetric(0, pool, q, queuedPhase, priceBandShortName))
-					metrics = append(metrics, NewQueuePriceBandBidMetric(0, pool, q, runningPhase, priceBandShortName))
+					metrics = append(metrics, NewQueuePriceBandBidMetric(0, pool, q, QueuedPhase, priceBandShortName))
+					metrics = append(metrics, NewQueuePriceBandBidMetric(0, pool, q, RunningPhase, priceBandShortName))
 				} else {
-					metrics = append(metrics, NewQueuePriceBandBidMetric(bid.QueuedBid, pool, q, queuedPhase, priceBandShortName))
-					metrics = append(metrics, NewQueuePriceBandBidMetric(bid.RunningBid, pool, q, runningPhase, priceBandShortName))
+					metrics = append(metrics, NewQueuePriceBandBidMetric(bid.QueuedBid, pool, q, QueuedPhase, priceBandShortName))
+					metrics = append(metrics, NewQueuePriceBandBidMetric(bid.RunningBid, pool, q, RunningPhase, priceBandShortName))
 				}
 			}
 
 			if exists {
 				for pool, bid := range bidsByPool {
-					metrics = append(metrics, NewQueuePriceBandBidMetric(bid.QueuedBid, pool, q, queuedPhase, priceBandShortName))
-					metrics = append(metrics, NewQueuePriceBandBidMetric(bid.RunningBid, pool, q, runningPhase, priceBandShortName))
+					metrics = append(metrics, NewQueuePriceBandBidMetric(bid.QueuedBid, pool, q, QueuedPhase, priceBandShortName))
+					metrics = append(metrics, NewQueuePriceBandBidMetric(bid.RunningBid, pool, q, RunningPhase, priceBandShortName))
 				}
 			}
 		}

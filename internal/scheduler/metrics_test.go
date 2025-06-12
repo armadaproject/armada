@@ -64,6 +64,22 @@ func TestMetricsCollector_TestCollect_QueueMetrics(t *testing.T) {
 			expected: []prometheus.Metric{
 				commonmetrics.NewQueueSizeMetric(3.0, testfixtures.TestQueue),
 				commonmetrics.NewQueueDistinctSchedulingKeyMetric(1.0, testfixtures.TestQueue),
+				commonmetrics.NewQueuePriceBandBidMetric(0, testfixtures.TestPool, testfixtures.TestQueue, commonmetrics.QueuedPhase, "A"),
+				commonmetrics.NewQueuePriceBandBidMetric(0, testfixtures.TestPool, testfixtures.TestQueue, commonmetrics.RunningPhase, "A"),
+				commonmetrics.NewQueuePriceBandBidMetric(0, testfixtures.TestPool, testfixtures.TestQueue, commonmetrics.QueuedPhase, "B"),
+				commonmetrics.NewQueuePriceBandBidMetric(0, testfixtures.TestPool, testfixtures.TestQueue, commonmetrics.RunningPhase, "B"),
+				commonmetrics.NewQueuePriceBandBidMetric(0, testfixtures.TestPool, testfixtures.TestQueue, commonmetrics.QueuedPhase, "C"),
+				commonmetrics.NewQueuePriceBandBidMetric(0, testfixtures.TestPool, testfixtures.TestQueue, commonmetrics.RunningPhase, "C"),
+				commonmetrics.NewQueuePriceBandBidMetric(0, testfixtures.TestPool, testfixtures.TestQueue, commonmetrics.QueuedPhase, "D"),
+				commonmetrics.NewQueuePriceBandBidMetric(0, testfixtures.TestPool, testfixtures.TestQueue, commonmetrics.RunningPhase, "D"),
+				commonmetrics.NewQueuePriceBandBidMetric(0, testfixtures.TestPool, testfixtures.TestQueue, commonmetrics.QueuedPhase, "E"),
+				commonmetrics.NewQueuePriceBandBidMetric(0, testfixtures.TestPool, testfixtures.TestQueue, commonmetrics.RunningPhase, "E"),
+				commonmetrics.NewQueuePriceBandBidMetric(0, testfixtures.TestPool, testfixtures.TestQueue, commonmetrics.QueuedPhase, "F"),
+				commonmetrics.NewQueuePriceBandBidMetric(0, testfixtures.TestPool, testfixtures.TestQueue, commonmetrics.RunningPhase, "F"),
+				commonmetrics.NewQueuePriceBandBidMetric(0, testfixtures.TestPool, testfixtures.TestQueue, commonmetrics.QueuedPhase, "G"),
+				commonmetrics.NewQueuePriceBandBidMetric(0, testfixtures.TestPool, testfixtures.TestQueue, commonmetrics.RunningPhase, "G"),
+				commonmetrics.NewQueuePriceBandBidMetric(0, testfixtures.TestPool, testfixtures.TestQueue, commonmetrics.QueuedPhase, "H"),
+				commonmetrics.NewQueuePriceBandBidMetric(0, testfixtures.TestPool, testfixtures.TestQueue, commonmetrics.RunningPhase, "H"),
 				commonmetrics.NewQueueDuration(3, 300,
 					map[float64]uint64{60: 1, 600: 3, 1800: 3, 3600: 3, 10800: 3, 43200: 3, 86400: 3, 172800: 3, 604800: 3},
 					testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue),
@@ -95,6 +111,22 @@ func TestMetricsCollector_TestCollect_QueueMetrics(t *testing.T) {
 			expected: []prometheus.Metric{
 				commonmetrics.NewQueueSizeMetric(1.0, testfixtures.TestQueue),
 				commonmetrics.NewQueueDistinctSchedulingKeyMetric(1.0, testfixtures.TestQueue),
+				commonmetrics.NewQueuePriceBandBidMetric(0, testfixtures.TestPool, testfixtures.TestQueue, commonmetrics.QueuedPhase, "A"),
+				commonmetrics.NewQueuePriceBandBidMetric(0, testfixtures.TestPool, testfixtures.TestQueue, commonmetrics.RunningPhase, "A"),
+				commonmetrics.NewQueuePriceBandBidMetric(0, testfixtures.TestPool, testfixtures.TestQueue, commonmetrics.QueuedPhase, "B"),
+				commonmetrics.NewQueuePriceBandBidMetric(0, testfixtures.TestPool, testfixtures.TestQueue, commonmetrics.RunningPhase, "B"),
+				commonmetrics.NewQueuePriceBandBidMetric(0, testfixtures.TestPool, testfixtures.TestQueue, commonmetrics.QueuedPhase, "C"),
+				commonmetrics.NewQueuePriceBandBidMetric(0, testfixtures.TestPool, testfixtures.TestQueue, commonmetrics.RunningPhase, "C"),
+				commonmetrics.NewQueuePriceBandBidMetric(0, testfixtures.TestPool, testfixtures.TestQueue, commonmetrics.QueuedPhase, "D"),
+				commonmetrics.NewQueuePriceBandBidMetric(0, testfixtures.TestPool, testfixtures.TestQueue, commonmetrics.RunningPhase, "D"),
+				commonmetrics.NewQueuePriceBandBidMetric(0, testfixtures.TestPool, testfixtures.TestQueue, commonmetrics.QueuedPhase, "E"),
+				commonmetrics.NewQueuePriceBandBidMetric(0, testfixtures.TestPool, testfixtures.TestQueue, commonmetrics.RunningPhase, "E"),
+				commonmetrics.NewQueuePriceBandBidMetric(0, testfixtures.TestPool, testfixtures.TestQueue, commonmetrics.QueuedPhase, "F"),
+				commonmetrics.NewQueuePriceBandBidMetric(0, testfixtures.TestPool, testfixtures.TestQueue, commonmetrics.RunningPhase, "F"),
+				commonmetrics.NewQueuePriceBandBidMetric(0, testfixtures.TestPool, testfixtures.TestQueue, commonmetrics.QueuedPhase, "G"),
+				commonmetrics.NewQueuePriceBandBidMetric(0, testfixtures.TestPool, testfixtures.TestQueue, commonmetrics.RunningPhase, "G"),
+				commonmetrics.NewQueuePriceBandBidMetric(0, testfixtures.TestPool, testfixtures.TestQueue, commonmetrics.QueuedPhase, "H"),
+				commonmetrics.NewQueuePriceBandBidMetric(0, testfixtures.TestPool, testfixtures.TestQueue, commonmetrics.RunningPhase, "H"),
 				commonmetrics.NewQueueDuration(1, 200,
 					map[float64]uint64{60: 0, 600: 1, 1800: 1, 3600: 1, 10800: 1, 43200: 1, 86400: 1, 172800: 1, 604800: 1},
 					testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue),
@@ -122,6 +154,22 @@ func TestMetricsCollector_TestCollect_QueueMetrics(t *testing.T) {
 			expected: []prometheus.Metric{
 				commonmetrics.NewQueueSizeMetric(0.0, testfixtures.TestQueue),
 				commonmetrics.NewQueueDistinctSchedulingKeyMetric(0.0, testfixtures.TestQueue),
+				commonmetrics.NewQueuePriceBandBidMetric(0, testfixtures.TestPool, testfixtures.TestQueue, commonmetrics.QueuedPhase, "A"),
+				commonmetrics.NewQueuePriceBandBidMetric(0, testfixtures.TestPool, testfixtures.TestQueue, commonmetrics.RunningPhase, "A"),
+				commonmetrics.NewQueuePriceBandBidMetric(0, testfixtures.TestPool, testfixtures.TestQueue, commonmetrics.QueuedPhase, "B"),
+				commonmetrics.NewQueuePriceBandBidMetric(0, testfixtures.TestPool, testfixtures.TestQueue, commonmetrics.RunningPhase, "B"),
+				commonmetrics.NewQueuePriceBandBidMetric(0, testfixtures.TestPool, testfixtures.TestQueue, commonmetrics.QueuedPhase, "C"),
+				commonmetrics.NewQueuePriceBandBidMetric(0, testfixtures.TestPool, testfixtures.TestQueue, commonmetrics.RunningPhase, "C"),
+				commonmetrics.NewQueuePriceBandBidMetric(0, testfixtures.TestPool, testfixtures.TestQueue, commonmetrics.QueuedPhase, "D"),
+				commonmetrics.NewQueuePriceBandBidMetric(0, testfixtures.TestPool, testfixtures.TestQueue, commonmetrics.RunningPhase, "D"),
+				commonmetrics.NewQueuePriceBandBidMetric(0, testfixtures.TestPool, testfixtures.TestQueue, commonmetrics.QueuedPhase, "E"),
+				commonmetrics.NewQueuePriceBandBidMetric(0, testfixtures.TestPool, testfixtures.TestQueue, commonmetrics.RunningPhase, "E"),
+				commonmetrics.NewQueuePriceBandBidMetric(0, testfixtures.TestPool, testfixtures.TestQueue, commonmetrics.QueuedPhase, "F"),
+				commonmetrics.NewQueuePriceBandBidMetric(0, testfixtures.TestPool, testfixtures.TestQueue, commonmetrics.RunningPhase, "F"),
+				commonmetrics.NewQueuePriceBandBidMetric(0, testfixtures.TestPool, testfixtures.TestQueue, commonmetrics.QueuedPhase, "G"),
+				commonmetrics.NewQueuePriceBandBidMetric(0, testfixtures.TestPool, testfixtures.TestQueue, commonmetrics.RunningPhase, "G"),
+				commonmetrics.NewQueuePriceBandBidMetric(0, testfixtures.TestPool, testfixtures.TestQueue, commonmetrics.QueuedPhase, "H"),
+				commonmetrics.NewQueuePriceBandBidMetric(0, testfixtures.TestPool, testfixtures.TestQueue, commonmetrics.RunningPhase, "H"),
 				commonmetrics.NewJobRunRunDuration(3, 300,
 					map[float64]uint64{60: 1, 600: 3, 1800: 3, 3600: 3, 10800: 3, 43200: 3, 86400: 3, 172800: 3, 604800: 3},
 					testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue),
@@ -291,8 +339,8 @@ func TestMetricsCollector_TestCollect_ClusterMetrics(t *testing.T) {
 			expected: []prometheus.Metric{
 				commonmetrics.NewQueueLeasedPodCount(1, "cluster-1", testfixtures.TestPool, testfixtures.TestQueue, "Pending", "type-1"),
 				commonmetrics.NewQueueLeasedPodCount(1, "cluster-1", testfixtures.TestPool, testfixtures.TestQueue, "Running", "type-1"),
-				commonmetrics.NewQueueAllocated(2, testfixtures.TestQueue, "cluster-1", testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, "cpu", "None", "type-1"),
-				commonmetrics.NewQueueAllocated(2*1024*1024*1024, testfixtures.TestQueue, "cluster-1", testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, "memory", "None", "type-1"),
+				commonmetrics.NewQueueAllocated(2, testfixtures.TestQueue, "cluster-1", testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, "None", "cpu", "type-1"),
+				commonmetrics.NewQueueAllocated(2*1024*1024*1024, testfixtures.TestQueue, "cluster-1", testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, "None", "memory", "type-1"),
 				commonmetrics.NewQueueUsed(1, testfixtures.TestQueue, "cluster-1", testfixtures.TestPool, "cpu", "type-1"),
 				commonmetrics.NewQueueUsed(1*1024*1024*1024, testfixtures.TestQueue, "cluster-1", testfixtures.TestPool, "memory", "type-1"),
 				commonmetrics.NewClusterAvailableCapacity(32, "cluster-1", testfixtures.TestPool, "cpu", "type-1"),
@@ -409,6 +457,9 @@ func TestMetricsCollector_TestCollect_ClusterMetrics(t *testing.T) {
 				a1 := actual[i]
 				// As resources are a map, the ordering isn't deterministic, so we have to use compare
 				// Alternatively if we can work out how to sort prometheus.Metric we could do that instead
+				if !assert.Contains(t, tc.expected, a1) {
+					fmt.Println("here")
+				}
 				assert.Contains(t, tc.expected, a1)
 			}
 		})
