@@ -3,19 +3,21 @@ package metrics
 import (
 	"regexp"
 
-	armadaslices "github.com/armadaproject/armada/internal/common/slices"
-	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 
+	armadaslices "github.com/armadaproject/armada/internal/common/slices"
+	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/pricing"
 	"github.com/armadaproject/armada/pkg/bidstore"
 )
 
-const MetricPrefix = "armada_"
-const queuedPhase = "queued"
-const runningPhase = "running"
+const (
+	MetricPrefix = "armada_"
+	queuedPhase  = "queued"
+	runningPhase = "running"
+)
 
 var QueueSizeDesc = prometheus.NewDesc(
 	MetricPrefix+"queue_size",

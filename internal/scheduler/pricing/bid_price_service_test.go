@@ -4,9 +4,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/armadaproject/armada/pkg/bidstore"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/armadaproject/armada/pkg/bidstore"
 )
 
 func TestConvert(t *testing.T) {

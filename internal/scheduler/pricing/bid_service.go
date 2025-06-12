@@ -141,9 +141,7 @@ import (
 //	return slices.Clone(b.pools)
 //}
 
-var (
-	allBands = initAllBands()
-)
+var allBands = initAllBands()
 
 type NoopBidPriceProvider struct{}
 
