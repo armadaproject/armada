@@ -3,6 +3,8 @@ package metrics
 import (
 	"regexp"
 
+	armadaslices "github.com/armadaproject/armada/internal/common/slices"
+	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
@@ -12,6 +14,8 @@ import (
 )
 
 const MetricPrefix = "armada_"
+const queuedPhase = "queued"
+const runningPhase = "running"
 
 var QueueSizeDesc = prometheus.NewDesc(
 	MetricPrefix+"queue_size",
@@ -297,20 +301,34 @@ func Describe(out chan<- *prometheus.Desc) {
 	}
 }
 
-func CollectQueueMetrics(queueCounts map[string]int, queueBidPrices map[string]map[bidstore.PriceBand]*pricing.PriceBandInfo, queueDistinctSchedulingKeyCounts map[string]int, metricsProvider QueueMetricProvider) []prometheus.Metric {
+func CollectQueueMetrics(pools []configuration.PoolConfig, queueCounts map[string]int, bidPriceSnapshot pricing.BidPriceSnapshot, queueDistinctSchedulingKeyCounts map[string]int, metricsProvider QueueMetricProvider) []prometheus.Metric {
 	metrics := make([]prometheus.Metric, 0, len(AllDescs))
+	poolNames := armadaslices.Map(pools, func(pool configuration.PoolConfig) string {
+		return pool.Name
+	})
+
 	for q, count := range queueCounts {
 		metrics = append(metrics, NewQueueSizeMetric(count, q))
 		metrics = append(metrics, NewQueueDistinctSchedulingKeyMetric(queueDistinctSchedulingKeyCounts[q], q))
 		queuedJobMetrics := metricsProvider.GetQueuedJobMetrics(q)
 		runningJobMetrics := metricsProvider.GetRunningJobMetrics(q)
-		for priceBand, bids := range queueBidPrices[q] {
-			priceBandShortName := GetPriceBandShortName(priceBand)
-			for pool, value := range bids.QueuedBidsPerPool {
-				metrics = append(metrics, NewQueuePriceBandBidMetric(value, pool, q, "queued", priceBandShortName))
+		for priceBandShortName, priceBand := range bidstore.PriceBandFromShortName {
+			bidsByPool, exists := bidPriceSnapshot.GetPrice(q, priceBand)
+			for _, pool := range poolNames {
+				if bid, poolBidExists := bidsByPool[pool]; !exists || !poolBidExists {
+					metrics = append(metrics, NewQueuePriceBandBidMetric(0, pool, q, queuedPhase, priceBandShortName))
+					metrics = append(metrics, NewQueuePriceBandBidMetric(0, pool, q, runningPhase, priceBandShortName))
+				} else {
+					metrics = append(metrics, NewQueuePriceBandBidMetric(bid.QueuedBid, pool, q, queuedPhase, priceBandShortName))
+					metrics = append(metrics, NewQueuePriceBandBidMetric(bid.RunningBid, pool, q, runningPhase, priceBandShortName))
+				}
 			}
-			for pool, value := range bids.RunningBidsPerPool {
-				metrics = append(metrics, NewQueuePriceBandBidMetric(value, pool, q, "running", priceBandShortName))
+
+			if exists {
+				for pool, bid := range bidsByPool {
+					metrics = append(metrics, NewQueuePriceBandBidMetric(bid.QueuedBid, pool, q, queuedPhase, priceBandShortName))
+					metrics = append(metrics, NewQueuePriceBandBidMetric(bid.RunningBid, pool, q, runningPhase, priceBandShortName))
+				}
 			}
 		}
 		for _, m := range queuedJobMetrics {

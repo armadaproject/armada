@@ -152,9 +152,7 @@ func (c *MetricsCollector) updateQueueMetrics(ctx *armadacontext.Context) ([]pro
 	if err != nil {
 		return nil, err
 	}
-	bidPrices, err := c.bidPriceProvider.GetQueueBidPrices(slices.Map(queues, func(q *api.Queue) string {
-		return q.Name
-	}))
+	bidPrices, err := c.bidPriceProvider.GetBidPrices(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -240,7 +238,7 @@ func (c *MetricsCollector) updateQueueMetrics(ctx *armadacontext.Context) ([]pro
 		return len(schedulingKeys)
 	})
 
-	queueMetrics := commonmetrics.CollectQueueMetrics(queuedJobsCount, bidPrices, queuedDistinctSchedulingKeysCount, provider)
+	queueMetrics := commonmetrics.CollectQueueMetrics(c.pools, queuedJobsCount, bidPrices, queuedDistinctSchedulingKeysCount, provider)
 	return queueMetrics, nil
 }
 

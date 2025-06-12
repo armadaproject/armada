@@ -32,8 +32,11 @@ func TestMetricsCollector_TestCollect_QueueMetrics(t *testing.T) {
 	runningJobs := make([]*jobdb.Job, 3)
 	for i := 0; i < len(queuedJobs); i++ {
 		startTime := testfixtures.BaseTime.Add(-time.Duration(100*i) * time.Second).UnixNano()
-		queuedJobs[i] = testfixtures.TestQueuedJobDbJob().WithCreated(startTime).WithBidPrices(map[string]float64{testfixtures.TestPool: float64(i)})
-		runningJobs[i] = testfixtures.TestRunningJobDbJob(startTime).WithRunningBidPrices(map[string]float64{testfixtures.TestPool: float64(i) + 100})
+		bids := map[string]pricing.Bid{
+			testfixtures.TestPool: {QueuedBid: float64(i), RunningBid: float64(i) + 100},
+		}
+		queuedJobs[i] = testfixtures.TestQueuedJobDbJob().WithCreated(startTime).WithBidPrices(bids)
+		runningJobs[i] = testfixtures.TestRunningJobDbJob(startTime).WithBidPrices(bids)
 	}
 
 	// Run that has been returned
