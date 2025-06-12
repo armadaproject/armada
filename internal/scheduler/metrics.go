@@ -245,11 +245,10 @@ func (c *MetricsCollector) updateQueueMetrics(ctx *armadacontext.Context) ([]pro
 }
 
 type queueMetricKey struct {
-	cluster       string
-	pool          string
-	queueName     string
-	nodeType      string
-	priorityClass string
+	cluster   string
+	pool      string
+	queueName string
+	nodeType  string
 }
 
 type queuePriceBandMetricKey struct {
