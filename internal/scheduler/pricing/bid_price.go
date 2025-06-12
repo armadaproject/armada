@@ -19,6 +19,14 @@ func NewBidPriceCache(client bidstore.BidRetrieverServiceClient, updateFrequency
 	}
 }
 
+func (p *BidPriceCache) Initialise(ctx *armadacontext.Context) error {
+	return p.cache.Initialise(ctx)
+}
+
+func (p *BidPriceCache) Run(ctx *armadacontext.Context) error {
+	return p.cache.Run(ctx)
+}
+
 func (p *BidPriceCache) GetBidPrices(ctx *armadacontext.Context) (BidPriceSnapshot, error) {
 	return p.cache.Get(ctx)
 }
