@@ -91,7 +91,6 @@ object ArmadaClient {
       useSsl: Boolean,
       bearerToken: Option[String]
   ): ArmadaClient = {
-    println("gbjasc 2")
     val secureMode =
       host.startsWith("https://") || host.startsWith("grpcs://") || useSsl
     val channel = (secureMode, bearerToken) match {
