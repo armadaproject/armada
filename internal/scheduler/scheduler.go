@@ -8,7 +8,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/renstrom/shortuuid"
-	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/utils/clock"
@@ -49,7 +48,6 @@ type Scheduler struct {
 	schedulingAlgo scheduling.SchedulingAlgo
 	// Tells us if we are leader. Only the leader may schedule jobs.
 	leaderController leader.LeaderController
-	bidPriceProvider pricing.BidPriceProvider
 	// This is used to check if jobs are still schedulable.
 	// Useful when we are adding node anti-affinities.
 	submitChecker SubmitScheduleChecker
@@ -86,7 +84,9 @@ type Scheduler struct {
 	metrics *metrics.Metrics
 	// If true, enable scheduler assertions.
 	// In particular, assert that the jobDb is in a valid state at the end of each cycle.
-	enableAssertions bool
+	enableAssertions  bool
+	bidPriceProvider  pricing.BidPriceProvider
+	marketDrivenPools []string
 }
 
 func NewScheduler(
@@ -105,6 +105,7 @@ func NewScheduler(
 	nodeIdLabel string,
 	metrics *metrics.Metrics,
 	bidPriceProvider pricing.BidPriceProvider,
+	marketDrivenPools []string,
 ) (*Scheduler, error) {
 	return &Scheduler{
 		jobRepository:              jobRepository,
@@ -126,6 +127,7 @@ func NewScheduler(
 		jobsSerial:                 -1,
 		runsSerial:                 -1,
 		metrics:                    metrics,
+		marketDrivenPools:          marketDrivenPools,
 	}, nil
 }
 
@@ -457,16 +459,20 @@ func (s *Scheduler) syncState(ctx *armadacontext.Context, initial bool) ([]*jobd
 // TODO - This is highly inefficient and will only work if market driven pools are small
 // We should rewrite how bids are stored in an efficient manner
 func (s *Scheduler) updateJobPrices(ctx *armadacontext.Context, txn *jobdb.Txn) error {
+	if len(s.marketDrivenPools) == 0 {
+		return nil
+	}
+
 	jobs := txn.GetAll()
 	jobsByQueue := map[string]map[bidstore.PriceBand][]*jobdb.Job{}
-	marketDrivenPools := s.bidPriceProvider.GetPricedPools()
-	if len(marketDrivenPools) == 0 {
-		return nil
+	updatedBids, err := s.bidPriceProvider.GetBidPrices(ctx)
+	if err != nil {
+		return err
 	}
 
 	hasMarketDrivenPool := func(j *jobdb.Job) bool {
 		for _, pool := range j.Pools() {
-			if slices.Contains(marketDrivenPools, pool) {
+			if slices.Contains(s.marketDrivenPools, pool) {
 				return true
 			}
 		}
@@ -480,49 +486,26 @@ func (s *Scheduler) updateJobPrices(ctx *armadacontext.Context, txn *jobdb.Txn) 
 		if _, present := jobsByQueue[job.Queue()][job.GetPriceBand()]; !present {
 			jobsByQueue[job.Queue()][job.GetPriceBand()] = []*jobdb.Job{}
 		}
-		if job.Validated() && hasMarketDrivenPool(job) {
+		if hasMarketDrivenPool(job) {
 			jobsByQueue[job.Queue()][job.GetPriceBand()] = append(jobsByQueue[job.Queue()][job.GetPriceBand()], job)
 		}
 	}
 
-	prices, err := s.bidPriceProvider.GetQueueBidPrices(maps.Keys(jobsByQueue))
-	if err != nil {
-		return err
-	}
-
 	updatedJobs := make([]*jobdb.Job, 0, len(jobs))
-
 	for queue := range jobsByQueue {
-		queueBidPrices, exists := prices[queue]
-		if !exists {
-			ctx.Logger().Errorf("could not update prices for queue %s as no prices exist", queue)
-			continue
-		}
 		for priceBand, jobs := range jobsByQueue[queue] {
-			priceBandBidPrices, ok := queueBidPrices[priceBand]
-			if !ok {
-				ctx.Logger().Errorf("could not update prices for job with priceband %s in queue %s as no prices exist for price band", queue, priceBand)
+			updatedPrice, present := updatedBids.GetPrice(queue, priceBand)
+			if !present {
 				continue
 			}
-			for _, job := range jobs {
-				updated := false
-				if !maps.Equal(priceBandBidPrices.QueuedBidsPerPool, job.GetQueuedBidPrices()) {
-					job = job.WithQueuedBidPrices(priceBandBidPrices.QueuedBidsPerPool)
-					updated = true
-				}
-				if !maps.Equal(priceBandBidPrices.RunningBidsPerPool, job.GetRunningBidPrices()) {
-					job = job.WithRunningBidPrices(priceBandBidPrices.RunningBidsPerPool)
-					updated = true
 
-				}
-				if updated {
-					updatedJobs = append(updatedJobs, job)
-				}
+			// For now always update all jobs, as the jobDb isn't setting them as they come in
+			for _, job := range jobs {
+				job = job.WithBidPrices(updatedPrice)
+				updatedJobs = append(updatedJobs, job)
 			}
 		}
-
 	}
-
 	return txn.Upsert(updatedJobs)
 }
 

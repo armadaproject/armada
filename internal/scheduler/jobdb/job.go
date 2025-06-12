@@ -14,6 +14,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/adapters"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
+	"github.com/armadaproject/armada/internal/scheduler/pricing"
 	"github.com/armadaproject/armada/pkg/bidstore"
 )
 
@@ -77,12 +78,9 @@ type Job struct {
 	pools []string
 	// TODO consider replacing with internal enum or int32
 	priceBand bidstore.PriceBand
-	// The bid price for each pool - if this job is queued
+	// The bid price for each pool
 	// A job doesn't have to have a bid for every pool, it'll default to 0 bid if not set in this map
-	queuedBidPricesPerPool map[string]float64
-	// The bid price for each pool - if this job is running
-	// A job doesn't have to have a bid for every pool, it'll default to 0 bid if not set in this map
-	runningBidPricesPerPool map[string]float64
+	bidPricesPool map[string]pricing.Bid
 }
 
 func (job *Job) String() string {
@@ -359,7 +357,7 @@ func (job *Job) Equal(other *Job) bool {
 	if !slices.Equal(job.pools, other.pools) {
 		return false
 	}
-	if !maps.Equal(job.queuedBidPricesPerPool, other.queuedBidPricesPerPool) {
+	if !maps.Equal(job.bidPricesPool, other.bidPricesPool) {
 		return false
 	}
 	if !armadamaps.DeepEqual(job.runsById, other.runsById) {
@@ -416,35 +414,25 @@ func (job *Job) Pools() []string {
 	return slices.Clone(job.pools)
 }
 
-func (job *Job) WithRunningBidPrices(bids map[string]float64) *Job {
+func (job *Job) WithBidPrices(bids map[string]pricing.Bid) *Job {
 	j := shallowCopyJob(*job)
-	j.runningBidPricesPerPool = maps.Clone(bids)
-	return j
-}
-
-func (job *Job) WithQueuedBidPrices(bids map[string]float64) *Job {
-	j := shallowCopyJob(*job)
-	j.queuedBidPricesPerPool = maps.Clone(bids)
+	j.bidPricesPool = maps.Clone(bids)
 	return j
 }
 
 func (job *Job) GetBidPrice(pool string) float64 {
-	bidPrice, present := job.queuedBidPricesPerPool[pool]
-	if !job.queued {
-		bidPrice, present = job.runningBidPricesPerPool[pool]
+	bidPrice, present := job.bidPricesPool[pool]
+	if !present {
+		return 0
 	}
-	if present {
-		return bidPrice
+	if job.queued {
+		return bidPrice.QueuedBid
 	}
-	return 0
+	return bidPrice.RunningBid
 }
 
-func (job *Job) GetQueuedBidPrices() map[string]float64 {
-	return maps.Clone(job.queuedBidPricesPerPool)
-}
-
-func (job *Job) GetRunningBidPrices() map[string]float64 {
-	return maps.Clone(job.runningBidPricesPerPool)
+func (job *Job) GetBidPrices() map[string]pricing.Bid {
+	return maps.Clone(job.bidPricesPool)
 }
 
 func (job *Job) WithPriceBand(priceBand bidstore.PriceBand) *Job {

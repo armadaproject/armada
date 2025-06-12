@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/time/rate"
 
+	"github.com/armadaproject/armada/internal/scheduler/pricing"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/fairness"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
@@ -76,8 +77,7 @@ func createJobIterator(sctx *context.SchedulingContext, queue string, prices ...
 	jctxs := []*context.JobSchedulingContext{}
 	for _, price := range prices {
 		job := testfixtures.Test1Cpu4GiJob(queue, testfixtures.PriorityClass1)
-		job = job.WithQueuedBidPrices(map[string]float64{"pool": price})
-		job = job.WithRunningBidPrices(map[string]float64{"pool": price})
+		job = job.WithBidPrices(map[string]pricing.Bid{"pool": {RunningBid: price, QueuedBid: price}})
 		jctx := context.JobSchedulingContextFromJob(job)
 		jctxs = append(jctxs, jctx)
 	}

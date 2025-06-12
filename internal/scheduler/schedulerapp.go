@@ -155,20 +155,22 @@ func Run(config schedulerconfig.Configuration) error {
 	// ////////////////////////////////////////////////////////////////////////
 	// Pricing API
 	// ////////////////////////////////////////////////////////////////////////
-	var bidPriceProvider pricing.BidPriceProvider = pricing.StubBidPriceProvider{}
+	var bidPriceProvider pricing.BidPriceProvider = pricing.NoopBidPriceProvider{}
 	if config.PricingApi.Enabled {
 		ctx.Infof("Pricing API Service configured, will queue pricing information overrides from %s", config.PricingApi.ServiceUrl)
 		bidRetrieverClient, err := pricing.NewBidRetrieverServiceClient(config.PricingApi)
 		if err != nil {
 			return errors.WithMessage(err, "Error creating bid retriever client")
 		}
-		marketDrivenPoolConfigs := slices.Filter(config.Scheduling.Pools, func(e schedulerconfig.PoolConfig) bool {
-			return e.ExperimentalMarketScheduling != nil && e.ExperimentalMarketScheduling.Enabled
-		})
-		marketDrivenPools := slices.Map(marketDrivenPoolConfigs, func(e schedulerconfig.PoolConfig) string {
-			return e.Name
-		})
-		bidPriceProvider = pricing.NewBidPriceService(bidRetrieverClient, marketDrivenPools)
+		bidPriceCache := pricing.NewBidPriceCache(bidRetrieverClient, config.PricingApi.UpdateFrequency)
+		bidPriceProviderInitTimeout, cancel := armadacontext.WithTimeout(ctx, time.Second*30)
+		defer cancel()
+		err = bidPriceCache.Initialise(bidPriceProviderInitTimeout)
+		if err != nil {
+			ctx.Errorf("error initialising queue cache - %v", err)
+		}
+		services = append(services, func() error { return bidPriceCache.Run(ctx) })
+		bidPriceProvider = bidPriceCache
 	}
 
 	// ////////////////////////////////////////////////////////////////////////
@@ -362,6 +364,13 @@ func Run(config schedulerconfig.Configuration) error {
 		return errors.WithStack(err)
 	}
 
+	marketDrivenPoolConfigs := slices.Filter(config.Scheduling.Pools, func(e schedulerconfig.PoolConfig) bool {
+		return e.ExperimentalMarketScheduling != nil && e.ExperimentalMarketScheduling.Enabled
+	})
+	marketDrivenPools := slices.Map(marketDrivenPoolConfigs, func(e schedulerconfig.PoolConfig) string {
+		return e.Name
+	})
+
 	scheduler, err := NewScheduler(
 		jobDb,
 		jobRepository,
@@ -378,6 +387,7 @@ func Run(config schedulerconfig.Configuration) error {
 		config.Scheduling.NodeIdLabel,
 		schedulerMetrics,
 		bidPriceProvider,
+		marketDrivenPools,
 	)
 	if err != nil {
 		return errors.WithMessage(err, "error creating scheduler")

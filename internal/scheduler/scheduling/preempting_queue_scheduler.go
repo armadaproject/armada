@@ -127,9 +127,6 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 					ctx.Warnf("No queue context found for job %s.  This job cannot be evicted", job.Id())
 					return false, "invalid_queue"
 				}
-				if !job.PriorityClass().Preemptible {
-					return false, "job_not_preemptible"
-				}
 				if job.Annotations() == nil {
 					ctx.Errorf("can't evict job %s: annotations not initialised", job.Id())
 					return false, "missing_annotations"
@@ -140,6 +137,9 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 				}
 				if sch.marketDriven {
 					return true, ""
+				}
+				if !job.PriorityClass().Preemptible {
+					return false, "job_not_preemptible"
 				}
 
 				if qctx, ok := sch.schedulingContext.QueueSchedulingContexts[job.Queue()]; ok {
