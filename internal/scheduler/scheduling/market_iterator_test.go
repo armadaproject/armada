@@ -29,30 +29,75 @@ func TestMarketIteratorPQ_Ordering(t *testing.T) {
 }
 
 func TestMarketBasedCandidateGangIterator_RoundRobin(t *testing.T) {
-	sctx := createSchedulingContext(t)
-
-	queueAIt := createJobIterator(sctx, "A", 600, 600, 400)
-	queueBIt := createJobIterator(sctx, "B", 600, 600, 600)
-	queueCIt := createJobIterator(sctx, "C", 600, 600, 300)
-	iteratorsByQueue := map[string]*QueuedGangIterator{"A": queueAIt, "B": queueBIt, "C": queueCIt}
-
-	iter, err := NewMarketCandidateGangIterator("pool", nil, iteratorsByQueue)
-	assert.NoError(t, err)
-	expectedItemOrder := []string{"A", "B", "C", "A", "B", "C", "B", "A", "C"}
-
-	actualItemOrder := []string{}
-	for {
-		result, _, err := iter.Peek()
-		assert.NoError(t, err)
-		if result == nil {
-			break
-		}
-		actualItemOrder = append(actualItemOrder, result.Queue)
-		err = iter.Clear()
-		assert.NoError(t, err)
+	type queuePricingInfo struct {
+		Queue     string
+		JobPrices []float64
 	}
 
-	assert.Equal(t, expectedItemOrder, actualItemOrder)
+	// Instantiation order matters here, first declared has the older jobs - meaning it'll get ordered first
+	tests := map[string]struct {
+		input         []queuePricingInfo
+		expectedOrder []string
+	}{
+		"two queues": {
+			input: []queuePricingInfo{
+				{Queue: "A", JobPrices: []float64{600, 600, 600}},
+				{Queue: "B", JobPrices: []float64{600, 600, 400}},
+			},
+			expectedOrder: []string{"A", "B", "A", "B", "A", "B"},
+		},
+		"two queues - reverse": {
+			input: []queuePricingInfo{
+				{Queue: "B", JobPrices: []float64{600, 600, 400}},
+				{Queue: "A", JobPrices: []float64{600, 600, 600}},
+			},
+			expectedOrder: []string{"B", "A", "B", "A", "A", "B"},
+		},
+		"three queues": {
+			input: []queuePricingInfo{
+				{Queue: "A", JobPrices: []float64{600, 600, 400}},
+				{Queue: "B", JobPrices: []float64{600, 600, 600}},
+				{Queue: "C", JobPrices: []float64{600, 600, 300}},
+			},
+			expectedOrder: []string{"A", "B", "C", "A", "B", "C", "B", "A", "C"},
+		},
+		"three queues - mixed": {
+			input: []queuePricingInfo{
+				{Queue: "C", JobPrices: []float64{600, 600, 300}},
+				{Queue: "A", JobPrices: []float64{600, 600, 400}},
+				{Queue: "B", JobPrices: []float64{600, 600, 600}},
+			},
+			expectedOrder: []string{"C", "A", "B", "C", "A", "B", "B", "A", "C"},
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			sctx := createSchedulingContext(t)
+
+			iteratorsByQueue := map[string]*QueuedGangIterator{}
+			for _, queueInfo := range tc.input {
+				iteratorsByQueue[queueInfo.Queue] = createJobIterator(sctx, queueInfo.Queue, queueInfo.JobPrices...)
+			}
+
+			iter, err := NewMarketCandidateGangIterator("pool", nil, iteratorsByQueue)
+			assert.NoError(t, err)
+
+			actualItemOrder := []string{}
+			for {
+				result, _, err := iter.Peek()
+				assert.NoError(t, err)
+				if result == nil {
+					break
+				}
+				actualItemOrder = append(actualItemOrder, result.Queue)
+				err = iter.Clear()
+				assert.NoError(t, err)
+			}
+
+			assert.Equal(t, tc.expectedOrder, actualItemOrder)
+		})
+	}
 }
 
 func createSchedulingContext(t *testing.T) *context.SchedulingContext {

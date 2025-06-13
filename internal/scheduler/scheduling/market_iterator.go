@@ -187,10 +187,10 @@ func (pq *MarketIteratorPQ) Less(i, j int) bool {
 		if pq.items[i].queue > pq.previousResultQueue && pq.items[j].queue > pq.previousResultQueue {
 			return pq.items[i].queue < pq.items[j].queue
 		}
-		if pq.items[i].queue > pq.previousResultQueue {
+		if pq.items[i].queue > pq.previousResultQueue || pq.items[j].queue == pq.previousResultQueue {
 			return true
 		}
-		if pq.items[j].queue > pq.previousResultQueue {
+		if pq.items[j].queue > pq.previousResultQueue || pq.items[i].queue == pq.previousResultQueue {
 			return false
 		}
 	}
