@@ -1,0 +1,1 @@
+ALTER TABLE jobs ADD COLUMN price_band integer NOT NULL DEFAULT 0;

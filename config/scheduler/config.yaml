@@ -33,6 +33,8 @@ priorityMultiplier:
   enabled: false
 priorityOverride:
   enabled: false
+pricingApi:
+  enabled: false
 postgres:
   connection:
     host: postgres

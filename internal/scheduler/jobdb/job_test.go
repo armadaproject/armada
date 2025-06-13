@@ -10,6 +10,8 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
+	"github.com/armadaproject/armada/internal/scheduler/pricing"
+	"github.com/armadaproject/armada/pkg/bidstore"
 )
 
 var jobSchedulingInfo = &internaltypes.JobSchedulingInfo{
@@ -40,6 +42,7 @@ var baseJob, _ = jobDb.NewJob(
 	3,
 	false,
 	[]string{},
+	int32(1),
 )
 
 var baseRun = &JobRun{
@@ -62,6 +65,7 @@ func TestJob_TestGetter(t *testing.T) {
 	assert.Equal(t, baseJob.Annotations(), map[string]string{
 		"foo": "bar",
 	})
+	assert.Equal(t, bidstore.PriceBand_PRICE_BAND_A, baseJob.GetPriceBand())
 }
 
 func TestJob_TestPriority(t *testing.T) {
@@ -123,6 +127,29 @@ func TestJob_TestInTerminalState(t *testing.T) {
 	assert.Equal(t, true, baseJob.WithSucceeded(true).InTerminalState())
 	assert.Equal(t, true, baseJob.WithFailed(true).InTerminalState())
 	assert.Equal(t, true, baseJob.WithCancelled(true).InTerminalState())
+}
+
+func TestJob_BidPrices(t *testing.T) {
+	pool1Bid := pricing.Bid{QueuedBid: 1, RunningBid: 2}
+	pool2Bid := pricing.Bid{QueuedBid: 3, RunningBid: 4}
+
+	// Job queued
+	newJob := baseJob.WithBidPrices(map[string]pricing.Bid{"pool1": pool1Bid, "pool2": pool2Bid})
+	assert.Equal(t, float64(1), newJob.GetBidPrice("pool1"))
+	assert.Equal(t, float64(3), newJob.GetBidPrice("pool2"))
+	assert.Equal(t, float64(0), newJob.GetBidPrice("pool3")) // default to 0
+
+	// Job running
+	newJob = newJob.WithQueued(false)
+	assert.Equal(t, float64(2), newJob.GetBidPrice("pool1"))
+	assert.Equal(t, float64(4), newJob.GetBidPrice("pool2"))
+	assert.Equal(t, float64(0), newJob.GetBidPrice("pool3")) // default to 0
+
+	// Assert mutating external bid obj doesn't effect what the job returns
+	pool1Bid.RunningBid = 5
+	pool2Bid.RunningBid = 5
+	assert.Equal(t, float64(2), newJob.GetBidPrice("pool1"))
+	assert.Equal(t, float64(4), newJob.GetBidPrice("pool2"))
 }
 
 func TestJob_TestHasRuns(t *testing.T) {
@@ -313,10 +340,10 @@ func TestJob_TestWithCreated(t *testing.T) {
 }
 
 func TestJob_DeepCopy(t *testing.T) {
-	original, err := jobDb.NewJob("test-job", "test-jobSet", "test-queue", 2, jobSchedulingInfo, true, 0, false, false, false, 3, false, []string{})
+	original, err := jobDb.NewJob("test-job", "test-jobSet", "test-queue", 2, jobSchedulingInfo, true, 0, false, false, false, 3, false, []string{}, 0)
 	assert.Nil(t, err)
 	original = original.WithUpdatedRun(baseJobRun.DeepCopy())
-	expected, err := jobDb.NewJob("test-job", "test-jobSet", "test-queue", 2, jobSchedulingInfo, true, 0, false, false, false, 3, false, []string{})
+	expected, err := jobDb.NewJob("test-job", "test-jobSet", "test-queue", 2, jobSchedulingInfo, true, 0, false, false, false, 3, false, []string{}, 0)
 	assert.Nil(t, err)
 	expected = expected.WithUpdatedRun(baseJobRun.DeepCopy())
 
@@ -387,7 +414,7 @@ func TestJobSchedulingInfoFieldsInitialised(t *testing.T) {
 	assert.Nil(t, infoWithNilFields.PodRequirements.NodeSelector)
 	assert.Nil(t, infoWithNilFields.PodRequirements.Annotations)
 
-	job, err := jobDb.NewJob("test-job", "test-jobSet", "test-queue", 2, infoWithNilFieldsCopy, true, 0, false, false, false, 3, false, []string{})
+	job, err := jobDb.NewJob("test-job", "test-jobSet", "test-queue", 2, infoWithNilFieldsCopy, true, 0, false, false, false, 3, false, []string{}, 0)
 	assert.Nil(t, err)
 	assert.NotNil(t, job.NodeSelector())
 	assert.NotNil(t, job.Annotations())

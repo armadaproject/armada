@@ -29,6 +29,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/kubernetesobjects/affinity"
 	"github.com/armadaproject/armada/internal/scheduler/leader"
 	"github.com/armadaproject/armada/internal/scheduler/metrics"
+	"github.com/armadaproject/armada/internal/scheduler/pricing"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/scheduling/context"
@@ -838,6 +839,8 @@ func TestScheduler_TestCycle(t *testing.T) {
 				maxNumberOfAttempts,
 				nodeIdLabel,
 				schedulerMetrics,
+				pricing.NoopBidPriceProvider{},
+				[]string{},
 			)
 			require.NoError(t, err)
 			sched.EnableAssertions()
@@ -996,6 +999,8 @@ func TestRun(t *testing.T) {
 		maxNumberOfAttempts,
 		nodeIdLabel,
 		schedulerMetrics,
+		pricing.NoopBidPriceProvider{},
+		[]string{},
 	)
 	require.NoError(t, err)
 	sched.EnableAssertions()
@@ -1167,6 +1172,8 @@ func TestScheduler_TestSyncInitialState(t *testing.T) {
 				maxNumberOfAttempts,
 				nodeIdLabel,
 				schedulerMetrics,
+				pricing.NoopBidPriceProvider{},
+				[]string{},
 			)
 			require.NoError(t, err)
 			sched.EnableAssertions()
@@ -1376,6 +1383,8 @@ func TestScheduler_TestSyncState(t *testing.T) {
 				maxNumberOfAttempts,
 				nodeIdLabel,
 				schedulerMetrics,
+				pricing.NoopBidPriceProvider{},
+				[]string{},
 			)
 			require.NoError(t, err)
 			sched.EnableAssertions()
@@ -1818,6 +1827,7 @@ func jobDbJobFromDbJob(resourceListFactory *internaltypes.ResourceListFactory, j
 		0,
 		job.Validated,
 		job.Pools,
+		0,
 	)
 	if err != nil {
 		panic(err)
@@ -2478,6 +2488,8 @@ func TestCycleConsistency(t *testing.T) {
 					maxNumberOfAttempts,
 					nodeIdLabel,
 					schedulerMetrics,
+					pricing.NoopBidPriceProvider{},
+					[]string{},
 				)
 				require.NoError(t, err)
 				scheduler.clock = testClock

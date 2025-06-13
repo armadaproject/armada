@@ -583,6 +583,46 @@ func TestValidateJobSetIdLength(t *testing.T) {
 	}
 }
 
+func TestValidatePriceBand(t *testing.T) {
+	tests := map[string]struct {
+		req           *api.JobSubmitRequestItem
+		expectSuccess bool
+	}{
+		"no price band": {
+			req:           &api.JobSubmitRequestItem{},
+			expectSuccess: true,
+		},
+		"valid price band - lowercase": {
+			req: &api.JobSubmitRequestItem{
+				Annotations: map[string]string{configuration.JobPriceBand: "a"},
+			},
+			expectSuccess: true,
+		},
+		"valid price band - uppercase": {
+			req: &api.JobSubmitRequestItem{
+				Annotations: map[string]string{configuration.JobPriceBand: "A"},
+			},
+			expectSuccess: true,
+		},
+		"invalid price band": {
+			req: &api.JobSubmitRequestItem{
+				Annotations: map[string]string{configuration.JobPriceBand: "z"},
+			},
+			expectSuccess: false,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			err := validatePriceBand(tc.req, configuration.SubmissionConfig{})
+			if tc.expectSuccess {
+				assert.NoError(t, err)
+			} else {
+				assert.Error(t, err)
+			}
+		})
+	}
+}
+
 func TestValidatePodSpecSize(t *testing.T) {
 	defaultPodSpec := &v1.PodSpec{
 		Volumes: []v1.Volume{
