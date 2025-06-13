@@ -125,16 +125,23 @@ func MarketSchedulingOrderCompare(currentPool string, job, other *Job) int {
 		return 1
 	}
 
+	// If one job is active, order that first
 	// If both jobs are active, order by time since the job was scheduled.
 	// This ensures jobs that have been running for longer are rescheduled first,
 	// which reduces wasted compute time when preempting.
 	jobIsActive := job.activeRun != nil && !job.activeRun.InTerminalState()
 	otherIsActive := other.activeRun != nil && !other.activeRun.InTerminalState()
-	if jobIsActive && otherIsActive {
-		if job.activeRunTimestamp < other.activeRunTimestamp {
+	if jobIsActive || otherIsActive {
+		if !otherIsActive {
 			return -1
-		} else if job.activeRunTimestamp > other.activeRunTimestamp {
+		} else if !jobIsActive {
 			return 1
+		} else {
+			if job.activeRunTimestamp < other.activeRunTimestamp {
+				return -1
+			} else if job.activeRunTimestamp > other.activeRunTimestamp {
+				return 1
+			}
 		}
 	}
 

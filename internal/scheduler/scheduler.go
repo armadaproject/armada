@@ -326,10 +326,12 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 
 	// Schedule jobs.
 	if shouldSchedule {
+		start := time.Now()
 		err := s.updateJobPrices(ctx, txn)
 		if err != nil {
 			return overallSchedulerResult, err
 		}
+		ctx.Logger().Infof("updating job prices in %s", time.Now().Sub(start))
 
 		var result *scheduling.SchedulerResult
 		result, err = s.schedulingAlgo.Schedule(ctx, txn)
@@ -521,6 +523,7 @@ func (s *Scheduler) updateJobPrices(ctx *armadacontext.Context, txn *jobdb.Txn) 
 			}
 		}
 	}
+	ctx.Logger().Infof("updating the prices of %d jobs", len(updatedJobs))
 	return txn.Upsert(updatedJobs)
 }
 

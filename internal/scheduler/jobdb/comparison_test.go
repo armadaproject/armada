@@ -3,10 +3,10 @@ package jobdb
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/types"
+	"github.com/armadaproject/armada/internal/scheduler/pricing"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestJobPriorityComparer(t *testing.T) {
@@ -68,6 +68,93 @@ func TestJobPriorityComparer(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			assert.Equal(t, tc.expected, JobPriorityComparer{}.Compare(tc.a, tc.b))
+		})
+	}
+}
+
+func TestMarketJobPriorityComparer(t *testing.T) {
+	bidPricesA := map[string]pricing.Bid{"a": {QueuedBid: 1, RunningBid: 1}, "b": {QueuedBid: 2, RunningBid: 2}}
+	bidPricesB := map[string]pricing.Bid{"a": {QueuedBid: 2, RunningBid: 2}, "b": {QueuedBid: 1, RunningBid: 1}}
+	tests := map[string]struct {
+		a           *Job
+		b           *Job
+		currentPool string
+		expected    int
+	}{
+		"Jobs with equal id are considered equal": {
+			a:           &Job{id: "a"},
+			b:           &Job{id: "a"},
+			currentPool: "a",
+			expected:    0,
+		},
+		"Queued jobs are ordered first by increasing priority class priority": {
+			a:           &Job{id: "a", priorityClass: types.PriorityClass{Priority: 1}},
+			b:           &Job{id: "b", priorityClass: types.PriorityClass{Priority: 2}},
+			currentPool: "a",
+			expected:    1,
+		},
+		"Queued jobs are ordered second by decreasing bid price for current pool": {
+			a:           &Job{id: "a", priorityClass: types.PriorityClass{Priority: 1}, bidPricesPool: bidPricesA},
+			b:           &Job{id: "b", priorityClass: types.PriorityClass{Priority: 1}, bidPricesPool: bidPricesB},
+			currentPool: "a",
+			expected:    1,
+		},
+		"Queued jobs are ordered second by decreasing bid price for current pool - pools reversed": {
+			a:           &Job{id: "a", priorityClass: types.PriorityClass{Priority: 1}, bidPricesPool: bidPricesA},
+			b:           &Job{id: "b", priorityClass: types.PriorityClass{Priority: 1}, bidPricesPool: bidPricesB},
+			currentPool: "b",
+			expected:    -1,
+		},
+		"Queued jobs are ordered fourth by decreasing submit time": {
+			a:           &Job{id: "a", priorityClass: types.PriorityClass{Priority: 1}, bidPricesPool: bidPricesA, submittedTime: 2},
+			b:           &Job{id: "b", priorityClass: types.PriorityClass{Priority: 1}, bidPricesPool: bidPricesA, submittedTime: 1},
+			currentPool: "a",
+			expected:    1,
+		},
+		"Queued jobs are not ordered by runtime": {
+			a:           &Job{id: "a", priorityClass: types.PriorityClass{Priority: 1}, bidPricesPool: bidPricesA, activeRunTimestamp: 1, submittedTime: 2},
+			b:           &Job{id: "b", priorityClass: types.PriorityClass{Priority: 1}, bidPricesPool: bidPricesA, activeRunTimestamp: 2, submittedTime: 1},
+			currentPool: "a",
+			expected:    1,
+		},
+		"Queued jobs are ordered fifth by increasing id": {
+			a:           &Job{id: "a", priorityClass: types.PriorityClass{Priority: 1}, bidPricesPool: bidPricesA, submittedTime: 1},
+			b:           &Job{id: "b", priorityClass: types.PriorityClass{Priority: 1}, bidPricesPool: bidPricesA, submittedTime: 1},
+			currentPool: "a",
+			expected:    -1,
+		},
+		"Queued and running jobs are first ordered on priority class": {
+			a:           &Job{id: "a", priorityClass: types.PriorityClass{Priority: 2}},
+			b:           (&Job{id: "b", priorityClass: types.PriorityClass{Priority: 1}, bidPricesPool: bidPricesB, jobDb: NewJobDb(map[string]types.PriorityClass{"foo": {}}, "foo", stringinterner.New(1), testResourceListFactory)}).WithNewRun("", "", "", "", 0),
+			currentPool: "a",
+			expected:    -1,
+		},
+		"Queued and running jobs are second ordered on bid price": {
+			a:           &Job{id: "a", priorityClass: types.PriorityClass{Priority: 1}, bidPricesPool: bidPricesA},
+			b:           (&Job{id: "b", priorityClass: types.PriorityClass{Priority: 1}, bidPricesPool: bidPricesB, jobDb: NewJobDb(map[string]types.PriorityClass{"foo": {}}, "foo", stringinterner.New(1), testResourceListFactory)}).WithNewRun("", "", "", "", 0),
+			currentPool: "b",
+			expected:    -1,
+		},
+		"Running jobs are ordered over queued jobs if priority class and bid price are equal": {
+			a:           &Job{id: "a", priorityClass: types.PriorityClass{Priority: 1}, bidPricesPool: bidPricesA},
+			b:           (&Job{id: "b", priorityClass: types.PriorityClass{Priority: 1}, bidPricesPool: bidPricesA, jobDb: NewJobDb(map[string]types.PriorityClass{"foo": {}}, "foo", stringinterner.New(1), testResourceListFactory)}).WithNewRun("", "", "", "", 0),
+			currentPool: "a",
+			expected:    1,
+		},
+		"Running jobs are ordered third by runtime": {
+			a: (&Job{id: "a", priorityClass: types.PriorityClass{Priority: 1}, bidPricesPool: bidPricesA, submittedTime: 1}).WithUpdatedRun(
+				&JobRun{created: 1},
+			),
+			b: (&Job{id: "b", priorityClass: types.PriorityClass{Priority: 1}, bidPricesPool: bidPricesA, submittedTime: 2}).WithUpdatedRun(
+				&JobRun{created: 0},
+			),
+			currentPool: "a",
+			expected:    1,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, MarketJobPriorityComparer{Pool: tc.currentPool}.Compare(tc.a, tc.b))
 		})
 	}
 }
