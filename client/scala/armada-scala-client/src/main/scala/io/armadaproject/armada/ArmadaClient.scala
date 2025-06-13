@@ -18,7 +18,7 @@ import api.health.HealthCheckResponse
 import com.google.protobuf.empty.Empty
 import io.grpc.netty.NettyChannelBuilder
 import io.grpc.stub.MetadataUtils
-import io.grpc.{ManagedChannel, ManagedChannelBuilder, Metadata}
+import io.grpc.{ManagedChannel, Metadata}
 
 import scala.concurrent.Future
 
@@ -91,31 +91,28 @@ object ArmadaClient {
       useSsl: Boolean,
       bearerToken: Option[String]
   ): ArmadaClient = {
-    (useSsl, bearerToken) match {
+    val secureMode =
+      host.startsWith("https://") || host.startsWith("grpcs://") || useSsl
+    val channel = (secureMode, bearerToken) match {
       case (false, None) =>
-        val channel =
-          NettyChannelBuilder.forAddress(host, port).usePlaintext().build()
-        ArmadaClient(channel)
+        NettyChannelBuilder.forAddress(host, port).usePlaintext().build()
       case (true, None) =>
-        val channel =
-          NettyChannelBuilder
-            .forAddress(host, port)
-            .useTransportSecurity()
-            .build()
-        ArmadaClient(channel)
+        NettyChannelBuilder
+          .forAddress(host, port)
+          .useTransportSecurity()
+          .build()
       case (_, Some(token)) =>
         val metadata = new Metadata()
         metadata.put(
           Metadata.Key.of("Authorization", Metadata.ASCII_STRING_MARSHALLER),
-          "Bearer " + bearerToken.get
+          "Bearer " + token
         )
-        val channel =
-          NettyChannelBuilder
-            .forAddress(host, port)
-            .useTransportSecurity()
-            .intercept(MetadataUtils.newAttachHeadersInterceptor(metadata))
-            .build
-        ArmadaClient(channel)
+        NettyChannelBuilder
+          .forAddress(host, port)
+          .useTransportSecurity()
+          .intercept(MetadataUtils.newAttachHeadersInterceptor(metadata))
+          .build
     }
+    ArmadaClient(channel)
   }
 }
