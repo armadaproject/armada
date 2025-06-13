@@ -4,7 +4,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/armadaproject/armada/pkg/bidstore"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/maps"
@@ -25,6 +24,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/fairness"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/bidstore"
 )
 
 func TestMarketDrivenPreemptingQueueScheduler(t *testing.T) {
