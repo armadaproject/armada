@@ -602,18 +602,6 @@ func (txn *Txn) GetAll() []*Job {
 	return allJobs
 }
 
-// ReplaceAll replaces all jobs in the jobDb with the supplied jobs
-func (txn *Txn) ReplaceAll(jobs []*Job) error {
-	unvalidatedJobs := immutable.NewSet[*Job](JobIdHasher{})
-	txn.jobsById = immutable.NewMap[string, *Job](nil)
-	txn.jobsByRunId = immutable.NewMap[string, string](nil)
-	txn.jobsByQueue = map[string]immutable.SortedSet[*Job]{}
-	txn.jobsByPoolAndQueue = map[string]map[string]immutable.SortedSet[*Job]{}
-	txn.unvalidatedJobs = &unvalidatedJobs
-
-	return txn.Upsert(jobs)
-}
-
 // BatchDelete deletes the jobs with the given ids from the database.
 // Any ids not in the database are ignored.
 func (txn *Txn) BatchDelete(jobIds []string) error {

@@ -152,6 +152,22 @@ func TestJob_BidPrices(t *testing.T) {
 	assert.Equal(t, float64(4), newJob.GetBidPrice("pool2"))
 }
 
+func TestJob_GetAllBidPrices(t *testing.T) {
+	pool1Bid := pricing.Bid{QueuedBid: 1, RunningBid: 2}
+	pool2Bid := pricing.Bid{QueuedBid: 3, RunningBid: 4}
+	inputPrices := map[string]pricing.Bid{"pool1": pool1Bid, "pool2": pool2Bid}
+	expectedBidPrices := map[string]pricing.Bid{"pool1": pool1Bid, "pool2": pool2Bid}
+
+	job := baseJob.WithBidPrices(inputPrices)
+	assert.Equal(t, expectedBidPrices, job.GetAllBidPrices())
+
+	// Assert mutating external bid obj doesn't effect what the job returns
+	pool1Bid.RunningBid = 5
+	pool2Bid.RunningBid = 5
+	inputPrices["pool3"] = pricing.Bid{QueuedBid: 3, RunningBid: 7}
+	assert.Equal(t, expectedBidPrices, job.GetAllBidPrices())
+}
+
 func TestJob_TestHasRuns(t *testing.T) {
 	assert.Equal(t, false, baseJob.HasRuns())
 	assert.Equal(t, true, baseJob.WithNewRun("test-executor", "test-nodeId", "nodeId", "pool", 5).HasRuns())
