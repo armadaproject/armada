@@ -165,9 +165,10 @@ func Run(config schedulerconfig.Configuration) error {
 	var bidPriceProvider pricing.BidPriceProvider = pricing.NoopBidPriceProvider{}
 	if config.PricingApi.Enabled {
 		if config.PricingApi.DevModeEnabled {
+			ctx.Infof("Pricing API Service configured with dev mode on, will get queue pricing information overrides from local stub")
 			bidPriceProvider = pricing.NewLocalBidPriceService(marketDrivenPools, queueCache)
 		} else {
-			ctx.Infof("Pricing API Service configured, will queue pricing information overrides from %s", config.PricingApi.ServiceUrl)
+			ctx.Infof("Pricing API Service configured, will get queue pricing information overrides from %s", config.PricingApi.ServiceUrl)
 			bidRetrieverClient, err := pricing.NewBidRetrieverServiceClient(config.PricingApi)
 			if err != nil {
 				return errors.WithMessage(err, "Error creating bid retriever client")
