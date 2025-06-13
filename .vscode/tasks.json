@@ -1,0 +1,54 @@
+{
+  "version": "2.0.0",
+  "cwd": "${workspaceFolder}",
+  "options": {
+    "env": {
+      "ARMADA_POSTGRES_CONNECTION_HOST": "localhost",
+      "ARMADA_POSTGRES_CONNECTION_PORT": "5432"
+    }
+  },
+  "tasks": [
+    {
+      "type": "shell",
+      "command": "go",
+      "args": ["mod", "download"],
+      "label": "Download Go modules"
+    },
+    {
+      "type": "shell",
+      "command": "mage kind && mage startDependencies",
+      "label": "Start dependencies"
+    },
+    {
+      "type": "shell",
+      "command": "go",
+      "label": "Migrate Lookout database",
+      "args": ["run", "${workspaceFolder}/cmd/lookout", "--migrateDatabase"]
+    },
+    {
+      "type": "shell",
+      "command": "go",
+      "label": "Migrate Scheduler database",
+      "args": ["run", "${workspaceFolder}/cmd/scheduler", "migrateDatabase"]
+    },
+    {
+      "label": "Set up dependencies",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "Download Go modules",
+        "Start dependencies",
+        "Migrate Lookout database",
+        "Migrate Scheduler database"
+      ]
+    },
+    {
+      "type": "shell",
+      "command": [
+        "scripts/yarn-registry-mirror.sh --cwd ${workspaceFolder}/internal/lookoutui &&",
+        "scripts/yarn-registry-mirror.sh --cwd ${workspaceFolder}/internal/lookoutui openapi &&",
+        "scripts/yarn-registry-mirror.sh --cwd ${workspaceFolder}/internal/lookoutui build"
+      ],
+      "label": "Build Lookout UI"
+    }
+  ]
+}
