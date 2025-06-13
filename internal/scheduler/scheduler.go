@@ -86,8 +86,11 @@ type Scheduler struct {
 	metrics *metrics.Metrics
 	// If true, enable scheduler assertions.
 	// In particular, assert that the jobDb is in a valid state at the end of each cycle.
-	enableAssertions  bool
-	bidPriceProvider  pricing.BidPriceProvider
+	enableAssertions bool
+	// The service which provides upto date prices for price bands / jobs
+	bidPriceProvider pricing.BidPriceProvider
+	// A list of the pools that are market driven
+	// Used to know which jobs need update when updating job prices
 	marketDrivenPools []string
 }
 

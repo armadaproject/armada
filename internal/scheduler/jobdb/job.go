@@ -76,7 +76,7 @@ type Job struct {
 	activeRunTimestamp int64
 	// Pools for which the job is eligible. This is used for metrics reporting and to calculate demand for fair share
 	pools []string
-	// TODO consider replacing with internal enum or int32
+	// Price band of the job is associated with, it is used to determine the price set on the job
 	priceBand bidstore.PriceBand
 	// The bid price for each pool
 	// A job doesn't have to have a bid for every pool, it'll default to 0 bid if not set in this map

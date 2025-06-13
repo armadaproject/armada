@@ -132,7 +132,6 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 
 			if sch.marketDriven && sctx.SpotPrice == nil {
 				totalAllocation := sctx.FairnessCostProvider.UnweightedCostFromAllocation(sctx.Allocated)
-				// TODO make the cut off configurable
 				if totalAllocation > sch.spotPriceCutoff {
 					price := gctx.JobSchedulingContexts[0].Job.GetBidPrice(sctx.Pool)
 					for _, jctx := range gctx.JobSchedulingContexts {
