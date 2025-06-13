@@ -25,9 +25,11 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/floatingresources"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
+	pricing "github.com/armadaproject/armada/internal/scheduler/pricing"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/bidstore"
 )
 
 const (
@@ -214,6 +216,17 @@ func TestSchedulingConfigWithPools(pools []schedulerconfiguration.PoolConfig) sc
 		SupportedResourceTypes:                      GetTestSupportedResourceTypes(),
 		Pools:                                       pools,
 	}
+}
+
+func WithMarketBasedSchedulingEnabled(config schedulerconfiguration.SchedulingConfig) schedulerconfiguration.SchedulingConfig {
+	for i, pool := range config.Pools {
+		pool.ExperimentalMarketScheduling = &schedulerconfiguration.MarketSchedulingConfig{
+			Enabled:         true,
+			SpotPriceCutoff: 0.9,
+		}
+		config.Pools[i] = pool
+	}
+	return config
 }
 
 func WithMaxUnacknowledgedJobsPerExecutorConfig(v uint, config schedulerconfiguration.SchedulingConfig) schedulerconfiguration.SchedulingConfig {
@@ -488,6 +501,31 @@ func WithQueued(jobs []*jobdb.Job) []*jobdb.Job {
 	return jobs
 }
 
+func setPricing(job *jobdb.Job) *jobdb.Job {
+	runningBid := float64(job.GetPriceBand())
+	if !job.PriorityClass().Preemptible {
+		runningBid = pricing.NonPreemptibleRunningPrice
+	}
+	pricing := map[string]pricing.Bid{
+		TestPool: {
+			QueuedBid:  float64(job.GetPriceBand()),
+			RunningBid: runningBid,
+		},
+	}
+	return job.WithBidPrices(pricing)
+}
+
+func N1Cpu4GiJobsWithPriceBand(queue string, priceBand bidstore.PriceBand, n int) []*jobdb.Job {
+	rv := make([]*jobdb.Job, n)
+	for i := 0; i < n; i++ {
+		j := Test1Cpu4GiJob(queue, PriorityClass0)
+		j = j.WithPriceBand(priceBand)
+		j = setPricing(j)
+		rv[i] = j
+	}
+	return rv
+}
+
 func N1Cpu4GiJobs(queue string, priorityClassName string, n int) []*jobdb.Job {
 	rv := make([]*jobdb.Job, n)
 	for i := 0; i < n; i++ {
@@ -568,7 +606,7 @@ func TestJob(queue string, jobId ulid.ULID, priorityClassName string, req *inter
 		[]string{TestPool},
 		0,
 	)
-	return job
+	return setPricing(job)
 }
 
 func TestJobWithResources(queue string, priorityClassName string, resources v1.ResourceList) *jobdb.Job {

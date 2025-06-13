@@ -30,8 +30,6 @@ import (
 	"github.com/armadaproject/armada/pkg/bidstore"
 )
 
-const nonPreemptibleRunningPrice = 1_000_000
-
 // Scheduler is the main Armada scheduler.
 // It periodically performs the following cycle:
 // 1. Update state from postgres (via the jobRepository).
@@ -509,7 +507,7 @@ func (s *Scheduler) updateJobPrices(ctx *armadacontext.Context, txn *jobdb.Txn) 
 			for pool, bid := range updatedPrice {
 				nonPreemptibleUpdatedPrice[pool] = pricing.Bid{
 					QueuedBid:  bid.QueuedBid,
-					RunningBid: nonPreemptibleRunningPrice,
+					RunningBid: pricing.NonPreemptibleRunningPrice,
 				}
 			}
 
