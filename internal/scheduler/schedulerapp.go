@@ -155,22 +155,33 @@ func Run(config schedulerconfig.Configuration) error {
 	// ////////////////////////////////////////////////////////////////////////
 	// Pricing API
 	// ////////////////////////////////////////////////////////////////////////
+	marketDrivenPoolConfigs := slices.Filter(config.Scheduling.Pools, func(e schedulerconfig.PoolConfig) bool {
+		return e.ExperimentalMarketScheduling != nil && e.ExperimentalMarketScheduling.Enabled
+	})
+	marketDrivenPools := slices.Map(marketDrivenPoolConfigs, func(e schedulerconfig.PoolConfig) string {
+		return e.Name
+	})
+
 	var bidPriceProvider pricing.BidPriceProvider = pricing.NoopBidPriceProvider{}
 	if config.PricingApi.Enabled {
-		ctx.Infof("Pricing API Service configured, will queue pricing information overrides from %s", config.PricingApi.ServiceUrl)
-		bidRetrieverClient, err := pricing.NewBidRetrieverServiceClient(config.PricingApi)
-		if err != nil {
-			return errors.WithMessage(err, "Error creating bid retriever client")
+		if config.PricingApi.DevModeEnabled {
+			bidPriceProvider = pricing.NewLocalBidPriceService(marketDrivenPools, queueCache)
+		} else {
+			ctx.Infof("Pricing API Service configured, will queue pricing information overrides from %s", config.PricingApi.ServiceUrl)
+			bidRetrieverClient, err := pricing.NewBidRetrieverServiceClient(config.PricingApi)
+			if err != nil {
+				return errors.WithMessage(err, "Error creating bid retriever client")
+			}
+			bidPriceCache := pricing.NewBidPriceCache(bidRetrieverClient, config.PricingApi.UpdateFrequency)
+			bidPriceProviderInitTimeout, cancel := armadacontext.WithTimeout(ctx, time.Second*30)
+			defer cancel()
+			err = bidPriceCache.Initialise(bidPriceProviderInitTimeout)
+			if err != nil {
+				ctx.Errorf("error initialising queue cache - %v", err)
+			}
+			services = append(services, func() error { return bidPriceCache.Run(ctx) })
+			bidPriceProvider = bidPriceCache
 		}
-		bidPriceCache := pricing.NewBidPriceCache(bidRetrieverClient, config.PricingApi.UpdateFrequency)
-		bidPriceProviderInitTimeout, cancel := armadacontext.WithTimeout(ctx, time.Second*30)
-		defer cancel()
-		err = bidPriceCache.Initialise(bidPriceProviderInitTimeout)
-		if err != nil {
-			ctx.Errorf("error initialising queue cache - %v", err)
-		}
-		services = append(services, func() error { return bidPriceCache.Run(ctx) })
-		bidPriceProvider = bidPriceCache
 	}
 
 	// ////////////////////////////////////////////////////////////////////////
@@ -363,13 +374,6 @@ func Run(config schedulerconfig.Configuration) error {
 	if err := prometheus.Register(schedulerMetrics); err != nil {
 		return errors.WithStack(err)
 	}
-
-	marketDrivenPoolConfigs := slices.Filter(config.Scheduling.Pools, func(e schedulerconfig.PoolConfig) bool {
-		return e.ExperimentalMarketScheduling != nil && e.ExperimentalMarketScheduling.Enabled
-	})
-	marketDrivenPools := slices.Map(marketDrivenPoolConfigs, func(e schedulerconfig.PoolConfig) string {
-		return e.Name
-	})
 
 	scheduler, err := NewScheduler(
 		jobDb,

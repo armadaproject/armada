@@ -403,4 +403,7 @@ type PricingApiConfig struct {
 	UpdateFrequency time.Duration
 	ServiceUrl      string
 	ForceNoTls      bool
+	// This is for local testing only
+	// It will stub the pricing api so it returns non-zero values but won't call and external service
+	DevModeEnabled bool
 }

@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/scheduler/queue"
 	"github.com/armadaproject/armada/pkg/bidstore"
 )
 
@@ -13,6 +14,47 @@ type NoopBidPriceProvider struct{}
 
 func (n NoopBidPriceProvider) GetBidPrices(ctx *armadacontext.Context) (BidPriceSnapshot, error) {
 	return BidPriceSnapshot{}, nil
+}
+
+type LocalBidPriceService struct {
+	pools      []string
+	queueCache queue.QueueCache
+}
+
+func NewLocalBidPriceService(pools []string, queueCache queue.QueueCache) *LocalBidPriceService {
+	return &LocalBidPriceService{
+		pools:      pools,
+		queueCache: queueCache,
+	}
+}
+
+func (b *LocalBidPriceService) GetBidPrices(ctx *armadacontext.Context) (BidPriceSnapshot, error) {
+	snapshot := BidPriceSnapshot{
+		Timestamp: time.Now(),
+		Bids:      make(map[PriceKey]map[string]Bid),
+	}
+
+	queues, err := b.queueCache.GetAll(ctx)
+	if err != nil {
+		return snapshot, err
+	}
+
+	for _, q := range queues {
+		for _, band := range allBands {
+			key := PriceKey{Queue: q.Name, Band: band}
+			bids := make(map[string]Bid)
+
+			for _, pool := range b.pools {
+				bids[pool] = Bid{
+					QueuedBid:  float64(band),
+					RunningBid: float64(band),
+				}
+			}
+
+			snapshot.Bids[key] = bids
+		}
+	}
+	return snapshot, nil
 }
 
 type ExternalBidPriceService struct {
