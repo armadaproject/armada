@@ -26,9 +26,6 @@ const (
 	// Indicates that the limit on resources scheduled per round has been exceeded.
 	MaximumResourcesScheduledUnschedulableReason = "maximum resources scheduled"
 
-	// Indicates that a queue has been assigned more than its allowed amount of resources.
-	MaximumResourcesPerQueueExceededUnschedulableReason = "maximum total resources for this queue exceeded"
-
 	// Indicates that the scheduling rate limit has been exceeded.
 	GlobalRateLimitExceededUnschedulableReason = "global scheduling rate limit exceeded"
 	QueueRateLimitExceededUnschedulableReason  = "queue scheduling rate limit exceeded"

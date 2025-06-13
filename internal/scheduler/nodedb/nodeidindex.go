@@ -18,7 +18,7 @@ func (nii *nodeIdIndex) FromObject(obj interface{}) (bool, []byte, error) {
 	node, ok := obj.(*internaltypes.Node)
 	if !ok {
 		return false, nil,
-			fmt.Errorf("Expected type *Node but got %v", reflect.TypeOf(obj))
+			fmt.Errorf("expected type *Node but got %v", reflect.TypeOf(obj))
 	}
 	val := node.GetId()
 	if val == "" {
