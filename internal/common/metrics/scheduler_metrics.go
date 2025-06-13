@@ -329,13 +329,6 @@ func CollectQueueMetrics(pools []configuration.PoolConfig, queueCounts map[strin
 					metrics = append(metrics, NewQueuePriceBandBidMetric(bid.RunningBid, pool, q, RunningPhase, priceBandShortName))
 				}
 			}
-
-			if exists {
-				for pool, bid := range bidsByPool {
-					metrics = append(metrics, NewQueuePriceBandBidMetric(bid.QueuedBid, pool, q, QueuedPhase, priceBandShortName))
-					metrics = append(metrics, NewQueuePriceBandBidMetric(bid.RunningBid, pool, q, RunningPhase, priceBandShortName))
-				}
-			}
 		}
 		for _, m := range queuedJobMetrics {
 			queueDurations := m.Durations
@@ -426,7 +419,7 @@ func NewQueueDuration(count uint64, sum float64, buckets map[float64]uint64, poo
 }
 
 func NewQueueResources(value float64, pool string, priorityClass string, queue string, priceBand string, resource string) prometheus.Metric {
-	return prometheus.MustNewConstMetric(QueueResourcesDesc, prometheus.GaugeValue, value, pool, priorityClass, queue, priceBand, queue, resource)
+	return prometheus.MustNewConstMetric(QueueResourcesDesc, prometheus.GaugeValue, value, pool, priorityClass, queue, queue, priceBand, resource)
 }
 
 func NewMaxQueueResources(value float64, pool string, priorityClass string, queue string, priceBand string, resource string) prometheus.Metric {
