@@ -38,6 +38,7 @@ import (
 	apiconfig "github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
+	"github.com/armadaproject/armada/pkg/bidstore"
 	"github.com/armadaproject/armada/pkg/metricevents"
 )
 
@@ -78,7 +79,8 @@ var (
 		},
 		Version: 1,
 	}
-	schedulingInfo = &schedulerobjects.JobSchedulingInfo{
+	preemptibleSchedulingInfoBytes = protoutil.MustMarshall(preemptibleSchedulingInfo)
+	schedulingInfo                 = &schedulerobjects.JobSchedulingInfo{
 		AtMostOnce:        true,
 		PriorityClassName: testfixtures.PriorityClass2NonPreemptible,
 		ObjectRequirements: []*schedulerobjects.ObjectRequirements{
@@ -1047,6 +1049,149 @@ func TestRun(t *testing.T) {
 	cancel()
 }
 
+// Test job pricing data is updated through subsequent scheduling rounds
+func TestJobPriceUpdates(t *testing.T) {
+	jobId := util.NewULID()
+	job := database.Job{JobID: jobId, Queue: "testQueue", Queued: true, Validated: true, Pools: []string{testfixtures.TestPool}, SchedulingInfo: schedulingInfoBytes, PriceBand: 2}
+	preemptibleJobId := util.NewULID()
+	preemptibleJob := database.Job{JobID: preemptibleJobId, Queue: "testQueue", Queued: true, Validated: true, Pools: []string{testfixtures.TestPool}, SchedulingInfo: preemptibleSchedulingInfoBytes, PriceBand: 2}
+	jobWithoutMarketDrivenPoolsId := util.NewULID()
+	jobWithoutMarketDrivenPools := database.Job{JobID: jobWithoutMarketDrivenPoolsId, Queue: "testQueue", Queued: true, Validated: true, Pools: []string{"other"}, SchedulingInfo: schedulingInfoBytes}
+
+	expectedInitialBid := map[string]pricing.Bid{testfixtures.TestPool: {QueuedBid: 2, RunningBid: nonPreemptibleRunningPrice}}
+	expectedUpdatedBid := map[string]pricing.Bid{testfixtures.TestPool: {QueuedBid: 3, RunningBid: nonPreemptibleRunningPrice}}
+	expectedPreemptibleInitialBid := map[string]pricing.Bid{testfixtures.TestPool: {QueuedBid: 2, RunningBid: 2}}
+	expectedPreemptibleUpdatedBid := map[string]pricing.Bid{testfixtures.TestPool: {QueuedBid: 3, RunningBid: 3}}
+
+	// Test runs for 3 rounds
+	// - 1. Run as leader
+	// - 2. Run as follower, prices updated
+	// - 3. Run as leader
+	tests := map[string]struct {
+		marketDrivenPools             []string
+		initialJob                    database.Job
+		expectedNumberOfProviderCalls []int
+		expectedJobBid                []map[string]pricing.Bid
+	}{
+		"no market driven pools": {
+			// No market driven pools, so prices shouldn't be getting updated
+			marketDrivenPools:             []string{},
+			initialJob:                    job,
+			expectedNumberOfProviderCalls: []int{0, 0, 0},
+			expectedJobBid:                []map[string]pricing.Bid{nil, nil, nil},
+		},
+		"job with no market driven pools": {
+			// No need to set price on job that doesn't belong to market driven pools
+			marketDrivenPools:             []string{testfixtures.TestPool},
+			initialJob:                    jobWithoutMarketDrivenPools,
+			expectedNumberOfProviderCalls: []int{1, 1, 2},
+			expectedJobBid:                []map[string]pricing.Bid{nil, nil, nil},
+		},
+		"non-preemptible job": {
+			// No market driven pools, so prices shouldn't be getting updated
+			marketDrivenPools:             []string{testfixtures.TestPool},
+			initialJob:                    job,
+			expectedNumberOfProviderCalls: []int{1, 1, 2},
+			expectedJobBid:                []map[string]pricing.Bid{expectedInitialBid, expectedInitialBid, expectedUpdatedBid},
+		},
+		"preemptible job": {
+			// No market driven pools, so prices shouldn't be getting updated
+			marketDrivenPools:             []string{testfixtures.TestPool},
+			initialJob:                    preemptibleJob,
+			expectedNumberOfProviderCalls: []int{1, 1, 2},
+			expectedJobBid:                []map[string]pricing.Bid{expectedPreemptibleInitialBid, expectedPreemptibleInitialBid, expectedPreemptibleUpdatedBid},
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Test objects
+			jobDb := testfixtures.NewJobDb(testfixtures.TestResourceListFactory)
+			jobRepo := testJobRepository{numReceivedPartitions: 100}
+			testClock := clock.NewFakeClock(time.Now())
+			schedulingAlgo := &testSchedulingAlgo{}
+			publisher := &testPublisher{}
+			priceProvider := &testBidPriceProvider{
+				pools:  tc.marketDrivenPools,
+				queues: []string{"testQueue"},
+				priceFunc: func(band bidstore.PriceBand) float64 {
+					return float64(band)
+				},
+			}
+			clusterRepo := &testExecutorRepository{}
+			leaderController := leader.NewStandaloneLeaderController()
+			submitChecker := &testSubmitChecker{checkSuccess: true}
+			sched, err := NewScheduler(
+				jobDb,
+				&jobRepo,
+				clusterRepo,
+				schedulingAlgo,
+				leaderController,
+				publisher,
+				submitChecker,
+				1*time.Second,
+				15*time.Second,
+				1*time.Hour,
+				nil,
+				maxNumberOfAttempts,
+				nodeIdLabel,
+				schedulerMetrics,
+				priceProvider,
+				tc.marketDrivenPools,
+			)
+			require.NoError(t, err)
+
+			sched.clock = testClock
+
+			ctx, cancel := armadacontext.WithCancel(armadacontext.Background())
+			jobRepo.initialJobs = []database.Job{tc.initialJob}
+
+			//nolint:errcheck
+			go sched.Run(ctx)
+
+			time.Sleep(1 * time.Second)
+
+			// Function that runs a cycle and waits until it sees published messages
+			fireCycle := func() {
+				publisher.Reset()
+				wg := sync.WaitGroup{}
+				wg.Add(1)
+				sched.onCycleCompleted = func() { wg.Done() }
+				testClock.Step(10 * time.Second)
+				wg.Wait()
+			}
+
+			// fire a cycle and assert that we became leader and published
+			fireCycle()
+			currentJob := jobDb.ReadTxn().GetById(tc.initialJob.JobID)
+			assert.NotNil(t, currentJob)
+			assert.Equal(t, tc.expectedJobBid[0], currentJob.GetAllBidPrices())
+			assert.Equal(t, priceProvider.numberOfCalls, tc.expectedNumberOfProviderCalls[0])
+
+			// invalidate our leadership: we shouldn't update prices
+			leaderController.SetToken(leader.InvalidLeaderToken())
+			priceProvider.priceFunc = func(band bidstore.PriceBand) float64 {
+				return float64(band) + 1
+			}
+			fireCycle()
+			currentJob = jobDb.ReadTxn().GetById(tc.initialJob.JobID)
+			assert.NotNil(t, currentJob)
+			assert.Equal(t, tc.expectedJobBid[1], currentJob.GetAllBidPrices())
+			assert.Equal(t, priceProvider.numberOfCalls, tc.expectedNumberOfProviderCalls[1])
+
+			// become master again: we shouldn't update prices
+			leaderController.SetToken(leader.NewLeaderToken())
+			fireCycle()
+			currentJob = jobDb.ReadTxn().GetById(tc.initialJob.JobID)
+			assert.NotNil(t, currentJob)
+			assert.Equal(t, tc.expectedJobBid[2], currentJob.GetAllBidPrices())
+			assert.Equal(t, priceProvider.numberOfCalls, tc.expectedNumberOfProviderCalls[2])
+
+			cancel()
+		})
+	}
+}
+
 func TestScheduler_TestSyncInitialState(t *testing.T) {
 	var maxJobSerial int64 = 5
 	var maxRunSerial int64 = 3
@@ -1094,6 +1239,7 @@ func TestScheduler_TestSyncInitialState(t *testing.T) {
 						Serial:         1,
 						Validated:      true,
 						Submitted:      1,
+						PriceBand:      3,
 					},
 				},
 				initialRuns: []database.Run{
@@ -1140,7 +1286,7 @@ func TestScheduler_TestSyncInitialState(t *testing.T) {
 						nil,
 						false,
 						false,
-					)).WithQueued(false).WithQueuedVersion(1),
+					)).WithQueued(false).WithQueuedVersion(1).WithPriceBand(bidstore.PriceBand_PRICE_BAND_C),
 			},
 			expectedInitialJobDbIds: []string{queuedJob.Id()},
 			expectedJobsSerial:      1,
@@ -1593,6 +1739,38 @@ func NewSchedulerResultForTest[S ~[]T, T *jobdb.Job](
 		ScheduledJobs: schedulercontext.JobSchedulingContextsFromJobs(scheduledJobs),
 		NodeIdByJobId: nodeIdByJobId,
 	}
+}
+
+type testBidPriceProvider struct {
+	numberOfCalls int
+	pools         []string
+	queues        []string
+	priceFunc     func(band bidstore.PriceBand) float64
+}
+
+func (t *testBidPriceProvider) GetBidPrices(ctx *armadacontext.Context) (pricing.BidPriceSnapshot, error) {
+	t.numberOfCalls++
+	snapshot := pricing.BidPriceSnapshot{
+		Timestamp: time.Now(),
+		Bids:      make(map[pricing.PriceKey]map[string]pricing.Bid),
+	}
+
+	for _, q := range t.queues {
+		for _, band := range bidstore.PriceBandFromShortName {
+			key := pricing.PriceKey{Queue: q, Band: band}
+			bids := make(map[string]pricing.Bid)
+
+			for _, pool := range t.pools {
+				bids[pool] = pricing.Bid{
+					QueuedBid:  t.priceFunc(band),
+					RunningBid: t.priceFunc(band),
+				}
+			}
+
+			snapshot.Bids[key] = bids
+		}
+	}
+	return snapshot, nil
 }
 
 type testPublisher struct {

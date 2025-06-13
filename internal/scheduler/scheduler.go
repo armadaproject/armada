@@ -505,10 +505,12 @@ func (s *Scheduler) updateJobPrices(ctx *armadacontext.Context, txn *jobdb.Txn) 
 			if !present {
 				continue
 			}
-			nonPreemptibleUpdatedPrice := updatedPrice
-			for pool, bid := range nonPreemptibleUpdatedPrice {
-				bid.RunningBid = nonPreemptibleRunningPrice
-				nonPreemptibleUpdatedPrice[pool] = bid
+			nonPreemptibleUpdatedPrice := map[string]pricing.Bid{}
+			for pool, bid := range updatedPrice {
+				nonPreemptibleUpdatedPrice[pool] = pricing.Bid{
+					QueuedBid:  bid.QueuedBid,
+					RunningBid: nonPreemptibleRunningPrice,
+				}
 			}
 
 			// For now always update all jobs, as the jobDb isn't setting them as they come in
