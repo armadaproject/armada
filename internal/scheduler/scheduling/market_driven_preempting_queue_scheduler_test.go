@@ -1,6 +1,7 @@
 package scheduling
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -28,6 +29,12 @@ import (
 )
 
 func TestMarketDrivenPreemptingQueueScheduler(t *testing.T) {
+	type MarketData struct {
+		// For each queue, expected billable resource that should be set on the queue context
+		ExpectedBillableResource map[string]internaltypes.ResourceList
+		// The expected spot price that should be set on the scheduling context
+		ExpectedSpotPrice float64
+	}
 	type SchedulingRound struct {
 		// Map from queue name to pod requirements for that queue.
 		JobsByQueue map[string][]*jobdb.Job
@@ -36,11 +43,9 @@ func TestMarketDrivenPreemptingQueueScheduler(t *testing.T) {
 		// For each queue, indices of jobs expected to be preempted.
 		// E.g., ExpectedPreemptedIndices["A"][0] is the indices of jobs declared for queue A in round 0.
 		ExpectedPreemptedIndices map[string]map[int][]int
-		// For each queue, indices of jobs to unbind before scheduling, to, simulate jobs terminating.
-		// E.g., IndicesToUnbind["A"][0] is the indices of jobs declared for queue A in round 0.
-		IndicesToUnbind map[string]map[int][]int
-		// Indices of nodes that should be cordoned before scheduling.
-		NodeIndicesToCordon []int
+		// Expected market data
+		// Will not be validated if no expectation is set (nil)
+		ExpectedMarketData *MarketData
 	}
 	tests := map[string]struct {
 		SchedulingConfig configuration.SchedulingConfig
@@ -335,6 +340,74 @@ func TestMarketDrivenPreemptingQueueScheduler(t *testing.T) {
 			},
 			PriorityFactorByQueue: map[string]float64{"A": 1, "B": 1, "C": 1},
 		},
+		"spot price - single queue": {
+			SchedulingConfig: testfixtures.WithMarketBasedSchedulingEnabled(testfixtures.TestSchedulingConfig()),
+			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			Rounds: []SchedulingRound{
+				{
+					JobsByQueue: map[string][]*jobdb.Job{
+						"A": testfixtures.N1Cpu4GiJobsWithPriceBand("A", bidstore.PriceBand_PRICE_BAND_B, 10),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": testfixtures.IntRange(0, 9),
+					},
+					ExpectedMarketData: &MarketData{
+						ExpectedSpotPrice: 0,
+						ExpectedBillableResource: map[string]internaltypes.ResourceList{
+							// No spot price as price only set once 90% is scheduled
+							"A": {},
+						},
+					},
+				},
+				{
+					JobsByQueue: map[string][]*jobdb.Job{
+						"A": testfixtures.N1Cpu4GiJobsWithPriceBand("A", bidstore.PriceBand_PRICE_BAND_B, 30),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": testfixtures.IntRange(0, 21),
+					},
+					ExpectedMarketData: &MarketData{
+						ExpectedSpotPrice: 2,
+						ExpectedBillableResource: map[string]internaltypes.ResourceList{
+							// Price set once 90% is scheduled
+							// 29 jobs scheduled to reach 90%
+							"A": testfixtures.CpuMem("29", "116Gi"),
+						},
+					},
+				},
+			},
+			PriorityFactorByQueue: map[string]float64{"A": 1},
+		},
+		"spot price - multiple queues": {
+			SchedulingConfig: testfixtures.WithMarketBasedSchedulingEnabled(testfixtures.TestSchedulingConfig()),
+			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			Rounds: []SchedulingRound{
+				{
+					JobsByQueue: map[string][]*jobdb.Job{
+						"A": testfixtures.N1Cpu4GiJobsWithPriceBand("A", bidstore.PriceBand_PRICE_BAND_A, 10),
+						"B": testfixtures.N1Cpu4GiJobsWithPriceBand("B", bidstore.PriceBand_PRICE_BAND_B, 10),
+						"C": testfixtures.N1Cpu4GiJobsWithPriceBand("C", bidstore.PriceBand_PRICE_BAND_C, 20),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": testfixtures.IntRange(0, 1),
+						"B": testfixtures.IntRange(0, 9),
+						"C": testfixtures.IntRange(0, 19),
+					},
+					ExpectedMarketData: &MarketData{
+						// Market price calculated at job that makes the pool 90% full
+						// In this case it'll be the 29th job, which is queue B (price band B)
+						ExpectedSpotPrice: 2,
+						ExpectedBillableResource: map[string]internaltypes.ResourceList{
+							// Queue A is not charged as it only has jobs scheduled after the spot price cutoff
+							"A": {},
+							"B": testfixtures.CpuMem("9", "36Gi"),
+							"C": testfixtures.CpuMem("20", "80Gi"),
+						},
+					},
+				},
+			},
+			PriorityFactorByQueue: map[string]float64{"A": 1, "B": 1, "C": 1},
+		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -382,7 +455,6 @@ func TestMarketDrivenPreemptingQueueScheduler(t *testing.T) {
 			demandByQueue := map[string]internaltypes.ResourceList{}
 
 			// Run the scheduler.
-			cordonedNodes := map[int]bool{}
 			ctx := armadacontext.Background()
 			for i, round := range tc.Rounds {
 				ctx = armadacontext.WithLogField(ctx, "round", i)
@@ -419,43 +491,6 @@ func TestMarketDrivenPreemptingQueueScheduler(t *testing.T) {
 				}
 				err = jobDbTxn.Upsert(queuedJobs)
 				require.NoError(t, err)
-
-				// Unbind jobs from nodes, to simulate those jobs terminating between rounds.
-				for queue, reqIndicesByRoundIndex := range round.IndicesToUnbind {
-					for roundIndex, reqIndices := range reqIndicesByRoundIndex {
-						for _, reqIndex := range reqIndices {
-							job := tc.Rounds[roundIndex].JobsByQueue[queue][reqIndex]
-							nodeId := nodeIdByJobId[job.Id()]
-							node, err := nodeDb.GetNode(nodeId)
-							require.NoError(t, err)
-							node, err = nodeDb.UnbindJobFromNode(job, node)
-							require.NoError(t, err)
-							err = nodeDb.Upsert(node)
-							require.NoError(t, err)
-							if gangId, ok := gangIdByJobId[job.Id()]; ok {
-								delete(gangIdByJobId, job.Id())
-								delete(jobIdsByGangId[gangId], job.Id())
-							}
-							demandByQueue[job.Queue()] = demandByQueue[job.Queue()].Subtract(job.AllResourceRequirements())
-						}
-					}
-				}
-
-				// Cordon nodes.
-				for _, idx := range round.NodeIndicesToCordon {
-					cordonedNodes[idx] = true
-				}
-				for idx, isCordoned := range cordonedNodes {
-					if isCordoned {
-						node, err := nodeDb.GetNode(tc.Nodes[idx].GetId())
-						require.NoError(t, err)
-						ctx.Infof("Cordoned node %s", node.GetId())
-						taints := append(slices.Clone(node.GetTaints()), internaltypes.UnschedulableTaint())
-						node = testNodeWithTaints(node, taints)
-						err = nodeDb.Upsert(node)
-						require.NoError(t, err)
-					}
-				}
 
 				// If not provided, set total resources equal to the aggregate over tc.Nodes.
 				totalResources := nodeDb.TotalKubernetesResources()
@@ -617,6 +652,16 @@ func TestMarketDrivenPreemptingQueueScheduler(t *testing.T) {
 						slices.Sort(s)
 					}
 					assert.Equal(t, expected, actual, "preempting from queue %s", queue)
+				}
+
+				// Expected market data
+				if round.ExpectedMarketData != nil {
+					assert.Equal(t, round.ExpectedMarketData.ExpectedSpotPrice, sctx.GetSpotPrice())
+					for queue, expectedBillableResource := range round.ExpectedMarketData.ExpectedBillableResource {
+						qctx, exists := sctx.QueueSchedulingContexts[queue]
+						assert.True(t, exists, fmt.Sprintf("queue context for %s expected to exist as it has an expected billable resource set", queue))
+						assert.Equal(t, expectedBillableResource, qctx.BillableAllocation)
+					}
 				}
 
 				// We expect there to be no oversubscribed nodes.
