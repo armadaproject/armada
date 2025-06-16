@@ -167,6 +167,7 @@ func NewJob(
 		created,
 		validated,
 		[]string{},
+		0,
 	)
 	if err != nil {
 		panic(err)
@@ -565,6 +566,7 @@ func TestJob(queue string, jobId ulid.ULID, priorityClassName string, req *inter
 		created,
 		false,
 		[]string{TestPool},
+		0,
 	)
 	return job
 }
@@ -884,6 +886,7 @@ func TestQueuedJobDbJob() *jobdb.Job {
 		BaseTime.UnixNano(),
 		false,
 		[]string{TestPool},
+		0,
 	)
 	return job
 }

@@ -62,7 +62,7 @@ type SchedulingContext struct {
 	// Maps to the JobSchedulingContext of a previous job attempted to schedule with the same key.
 	UnfeasibleSchedulingKeys     map[internaltypes.SchedulingKey]*JobSchedulingContext
 	ExperimentalIndicativeShares map[int]float64
-	SpotPrice                    float64
+	SpotPrice                    *float64
 }
 
 func NewSchedulingContext(
@@ -88,6 +88,13 @@ func NewSchedulingContext(
 
 func (sctx *SchedulingContext) ClearUnfeasibleSchedulingKeys() {
 	sctx.UnfeasibleSchedulingKeys = make(map[internaltypes.SchedulingKey]*JobSchedulingContext)
+}
+
+func (sctx *SchedulingContext) GetSpotPrice() float64 {
+	if sctx.SpotPrice == nil {
+		return 0
+	}
+	return *sctx.SpotPrice
 }
 
 func (sctx *SchedulingContext) AddQueueSchedulingContext(

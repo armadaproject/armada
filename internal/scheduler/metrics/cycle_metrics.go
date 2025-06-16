@@ -36,6 +36,7 @@ type perCycleMetrics struct {
 	adjustedFairShare            *prometheus.GaugeVec
 	uncappedAdjustedFairShare    *prometheus.GaugeVec
 	actualShare                  *prometheus.GaugeVec
+	billableResource             *prometheus.GaugeVec
 	fairnessError                *prometheus.GaugeVec
 	demand                       *prometheus.GaugeVec
 	constrainedDemand            *prometheus.GaugeVec
@@ -211,6 +212,14 @@ func newPerCycleMetrics() *perCycleMetrics {
 		poolQueueAndResourceLabels,
 	)
 
+	billableResources := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: prefix + "billable_resources",
+			Help: "Resources billable for in this cycle",
+		},
+		poolQueueAndResourceLabels,
+	)
+
 	spotPrice := prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: prefix + "spot_price",
@@ -279,6 +288,7 @@ func newPerCycleMetrics() *perCycleMetrics {
 		loopNumber:                   loopNumber,
 		evictedJobs:                  evictedJobs,
 		evictedResources:             evictedResources,
+		billableResource:             billableResources,
 		spotPrice:                    spotPrice,
 		indicativeShare:              indicativeShare,
 		nodePreemptibility:           nodePreemptibility,
@@ -390,9 +400,12 @@ func (m *cycleMetrics) ReportSchedulerResult(ctx *armadacontext.Context, result 
 			currentCycle.shortJobPenalty.WithLabelValues(pool, queue).Set(shortJobPenalty)
 			currentCycle.queueWeight.WithLabelValues(pool, queue).Set(queueContext.Weight)
 			currentCycle.rawQueueWeight.WithLabelValues(pool, queue).Set(queueContext.RawWeight)
+			for _, r := range queueContext.BillableAllocation.GetResources() {
+				currentCycle.billableResource.WithLabelValues(pool, queue, r.Name).Set(float64(r.RawValue))
+			}
 		}
 		currentCycle.fairnessError.WithLabelValues(pool).Set(schedContext.FairnessError())
-		currentCycle.spotPrice.WithLabelValues(pool).Set(schedContext.SpotPrice)
+		currentCycle.spotPrice.WithLabelValues(pool).Set(schedContext.GetSpotPrice())
 		for priority, share := range schedContext.ExperimentalIndicativeShares {
 			currentCycle.indicativeShare.WithLabelValues(pool, strconv.Itoa(priority)).Set(share)
 		}
@@ -494,6 +507,7 @@ func (m *cycleMetrics) describe(ch chan<- *prometheus.Desc) {
 		currentCycle.loopNumber.Describe(ch)
 		currentCycle.evictedJobs.Describe(ch)
 		currentCycle.evictedResources.Describe(ch)
+		currentCycle.billableResource.Describe(ch)
 		currentCycle.spotPrice.Describe(ch)
 		currentCycle.indicativeShare.Describe(ch)
 		currentCycle.nodePreemptibility.Describe(ch)
@@ -531,6 +545,7 @@ func (m *cycleMetrics) collect(ch chan<- prometheus.Metric) {
 		currentCycle.loopNumber.Collect(ch)
 		currentCycle.evictedJobs.Collect(ch)
 		currentCycle.evictedResources.Collect(ch)
+		currentCycle.billableResource.Collect(ch)
 		currentCycle.spotPrice.Collect(ch)
 		currentCycle.indicativeShare.Collect(ch)
 		currentCycle.nodePreemptibility.Collect(ch)
@@ -554,12 +569,13 @@ func (m *cycleMetrics) publishCycleMetrics(ctx *armadacontext.Context, result sc
 		queueMetrics := make(map[string]*metricevents.QueueMetrics, len(sc.QueueSchedulingContexts))
 		for qName, qCtx := range sc.QueueSchedulingContexts {
 			queueMetrics[qName] = &metricevents.QueueMetrics{
-				ActualShare:                     sc.FairnessCostProvider.UnweightedCostFromAllocation(qCtx.GetAllocation()),
-				Demand:                          sc.FairnessCostProvider.UnweightedCostFromAllocation(qCtx.Demand),
-				ConstrainedDemand:               sc.FairnessCostProvider.UnweightedCostFromAllocation(qCtx.ConstrainedDemand),
-				DemandByResourceType:            armadamaps.MapValues(qCtx.Demand.ToMap(), toQtyPtr),
-				ConstrainedDemandByResourceType: armadamaps.MapValues(qCtx.ConstrainedDemand.ToMap(), toQtyPtr),
-				ShortJobPenalty:                 sc.FairnessCostProvider.UnweightedCostFromAllocation(qCtx.ShortJobPenalty),
+				ActualShare:                      sc.FairnessCostProvider.UnweightedCostFromAllocation(qCtx.GetAllocation()),
+				Demand:                           sc.FairnessCostProvider.UnweightedCostFromAllocation(qCtx.Demand),
+				ConstrainedDemand:                sc.FairnessCostProvider.UnweightedCostFromAllocation(qCtx.ConstrainedDemand),
+				DemandByResourceType:             armadamaps.MapValues(qCtx.Demand.ToMap(), toQtyPtr),
+				ConstrainedDemandByResourceType:  armadamaps.MapValues(qCtx.ConstrainedDemand.ToMap(), toQtyPtr),
+				ShortJobPenalty:                  sc.FairnessCostProvider.UnweightedCostFromAllocation(qCtx.ShortJobPenalty),
+				BillableAllocationByResourceType: armadamaps.MapValues(qCtx.BillableAllocation.ToMap(), toQtyPtr),
 			}
 		}
 		events[i] = &metricevents.Event{
@@ -568,6 +584,8 @@ func (m *cycleMetrics) publishCycleMetrics(ctx *armadacontext.Context, result sc
 				Pool:                 sc.Pool,
 				QueueMetrics:         queueMetrics,
 				AllocatableResources: armadamaps.MapValues(sc.TotalResources.ToMap(), toQtyPtr),
+				SpotPrice:            sc.GetSpotPrice(),
+				CycleTime:            protoutil.ToTimestamp(sc.Finished),
 			}},
 		}
 	}
