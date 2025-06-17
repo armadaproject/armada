@@ -1,0 +1,40 @@
+# JetBrains IDE
+.idea
+
+# Node.js
+**/node_modules
+
+# Yarn
+yarn.lock
+
+# Next.js
+.next
+out
+.cache
+public
+
+# misc
+.DS_Store
+
+# typescript
+next-env.d.ts
+
+# husky
+.husky
+
+# prettier
+.prettierignore
+
+# git
+.gitignore
+
+# env files
+.env*
+
+# Patch Files
+*.patch
+
+# txt files
+*.txt
+*.example
+*.env
