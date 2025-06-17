@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import type { Metadata } from 'next';
 import { Geist } from 'next/font/google';
 import { RootProvider } from 'fumadocs-ui/provider';
 import 'katex/dist/katex.min.css';
@@ -9,7 +10,7 @@ const geistSans = Geist({
   subsets: ['latin'],
 });
 
-export default function Layout({ children }: { children: ReactNode }) {
+export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang='en' suppressHydrationWarning>
       <body
@@ -31,3 +32,11 @@ export default function Layout({ children }: { children: ReactNode }) {
     </html>
   );
 }
+
+export const metadata: Metadata = {
+  title: {
+    template: `%s | Armada Project`,
+    default: `Armada Project`,
+  },
+  description: `multi-kubernetes-cluster batch job meta-scheduler. It helps organizations distribute millions of batch jobs per day across many nodes across many clusters.`,
+};
