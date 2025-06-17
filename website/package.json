@@ -1,0 +1,56 @@
+{
+  "name": "armada-website",
+  "description": "Armada documentation website",
+  "version": "0.1.0",
+  "private": false,
+  "license": "Apache-2.0",
+  "scripts": {
+    "postinstall": "fumadocs-mdx",
+    "dev": "next dev --turbopack",
+    "build": "next build",
+    "serve": "serve out",
+    "clean": "rm -rf .next out .source",
+    "start": "next start",
+    "lint:check": "next lint",
+    "lint:fix": "next lint --fix",
+    "format:check": "prettier --check .",
+    "format:fix": "prettier --write ."
+  },
+  "dependencies": {
+    "fumadocs-core": "15.5.2",
+    "fumadocs-mdx": "11.6.8",
+    "fumadocs-ui": "15.5.2",
+    "lucide-react": "^0.515.0",
+    "mermaid": "^11.6.0",
+    "next": "15.3.3",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "title": "^4.0.1"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3.3.1",
+    "@tailwindcss/postcss": "^4.1.10",
+    "@theguild/remark-mermaid": "^0.3.0",
+    "@trivago/prettier-plugin-sort-imports": "^5.2.2",
+    "@types/mdx": "^2.0.13",
+    "@types/node": "24.0.1",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "eslint": "^9",
+    "eslint-config-next": "15.3.3",
+    "eslint-config-prettier": "^10.1.5",
+    "katex": "^0.16.22",
+    "postcss": "^8.5.5",
+    "prettier": "^3.5.3",
+    "prettier-plugin-tailwindcss": "^0.6.12",
+    "rehype-katex": "^7.0.1",
+    "remark-emoji": "^5.0.1",
+    "remark-math": "^6.0.0",
+    "serve": "^14.2.4",
+    "tailwindcss": "^4.1.10",
+    "typescript": "^5.8.3"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
