@@ -1,4 +1,5 @@
 import { FlatCompat } from '@eslint/eslintrc';
+import gitignore from 'eslint-config-flat-gitignore';
 
 const compat = new FlatCompat({
   baseDirectory: import.meta.dirname,
@@ -9,6 +10,7 @@ const compat = new FlatCompat({
  * @type {import('eslint').Linter.Config[]}
  */
 const eslintConfig = [
+  gitignore(),
   ...compat.config({
     extends: ['next/core-web-vitals', 'next/typescript', 'prettier'],
     rules: {
