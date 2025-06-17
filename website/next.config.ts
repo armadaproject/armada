@@ -1,5 +1,6 @@
 import type { NextConfig } from 'next';
 import { createMDX } from 'fumadocs-mdx/next';
+import env from '@/utils/env';
 
 const nextConfig: NextConfig = {
   images: {
@@ -12,8 +13,10 @@ const nextConfig: NextConfig = {
       hostname: hostname,
     })),
   },
+  basePath: env.basePath, // base path for GitHub Pages
   output: 'export', // Create a static export of the site in `out/`
-  trailingSlash: true, // Change links `/me` -> `/me/`
+  trailingSlash: true, // Optional: Change links `/me` -> `/me/` and emit `/me.html` -> `/me/index.html`
+  skipTrailingSlashRedirect: false, // Optional: Prevent automatic `/me` -> `/me/`, instead preserve `href`
 };
 
 const withMDX = createMDX();
