@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { Geist } from 'next/font/google';
 import { RootProvider } from 'fumadocs-ui/provider';
-import 'katex/dist/katex.css';
+import 'katex/dist/katex.min.css';
 import { cn } from '@/utils/cn';
 import './globals.css';
 
