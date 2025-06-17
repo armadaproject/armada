@@ -5,8 +5,10 @@ import {
   DocsBody,
   DocsDescription,
   DocsTitle,
+  type DocsPageProps,
 } from 'fumadocs-ui/page';
 import { source } from '@/loaders/source';
+import env from '@/utils/env';
 import { getMDXComponents } from '@/utils/mdx/mdx-components';
 
 export default async function Page(props: {
@@ -18,8 +20,22 @@ export default async function Page(props: {
 
   const MDXContent = page.data.body;
 
+  const editOnGithub: DocsPageProps['editOnGithub'] | undefined =
+    env.repositoryOwner && env.repositoryName
+      ? {
+          owner: env.repositoryOwner,
+          repo: env.repositoryName,
+          sha: 'master',
+          path: `website/content/${page.path}`,
+        }
+      : undefined;
+
   return (
-    <DocsPage toc={page.data.toc} full={page.data.full}>
+    <DocsPage
+      toc={page.data.toc}
+      full={page.data.full}
+      editOnGithub={editOnGithub}
+    >
       <DocsTitle>{page.data.title}</DocsTitle>
       <DocsDescription>{page.data.description}</DocsDescription>
       <DocsBody>
