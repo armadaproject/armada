@@ -7,6 +7,8 @@ import (
 	"github.com/armadaproject/armada/pkg/bidstore"
 )
 
+const NonPreemptibleRunningPrice = 1_000_000
+
 type BidPriceProvider interface {
 	GetBidPrices(ctx *armadacontext.Context) (BidPriceSnapshot, error)
 }

@@ -1058,8 +1058,8 @@ func TestJobPriceUpdates(t *testing.T) {
 	jobWithoutMarketDrivenPoolsId := util.NewULID()
 	jobWithoutMarketDrivenPools := database.Job{JobID: jobWithoutMarketDrivenPoolsId, Queue: "testQueue", Queued: true, Validated: true, Pools: []string{"other"}, SchedulingInfo: schedulingInfoBytes}
 
-	expectedInitialBid := map[string]pricing.Bid{testfixtures.TestPool: {QueuedBid: 2, RunningBid: nonPreemptibleRunningPrice}}
-	expectedUpdatedBid := map[string]pricing.Bid{testfixtures.TestPool: {QueuedBid: 3, RunningBid: nonPreemptibleRunningPrice}}
+	expectedInitialBid := map[string]pricing.Bid{testfixtures.TestPool: {QueuedBid: 2, RunningBid: pricing.NonPreemptibleRunningPrice}}
+	expectedUpdatedBid := map[string]pricing.Bid{testfixtures.TestPool: {QueuedBid: 3, RunningBid: pricing.NonPreemptibleRunningPrice}}
 	expectedPreemptibleInitialBid := map[string]pricing.Bid{testfixtures.TestPool: {QueuedBid: 2, RunningBid: 2}}
 	expectedPreemptibleUpdatedBid := map[string]pricing.Bid{testfixtures.TestPool: {QueuedBid: 3, RunningBid: 3}}
 
