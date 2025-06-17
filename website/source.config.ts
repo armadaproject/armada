@@ -23,6 +23,7 @@ export const docs = defineDocs({
 });
 
 export default defineConfig({
+  lastModifiedTime: 'git',
   mdxOptions: {
     remarkPlugins: [
       remarkMermaid, // add Mermaid support

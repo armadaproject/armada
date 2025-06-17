@@ -19,6 +19,10 @@ export default async function Page(props: {
   if (!page) notFound();
 
   const MDXContent = page.data.body;
+  let lastModified = page.data.lastModified as Date | number | undefined;
+  if (typeof lastModified === 'number' && isNaN(lastModified)) {
+    lastModified = undefined;
+  }
 
   const editOnGithub: DocsPageProps['editOnGithub'] | undefined =
     env.repositoryOwner && env.repositoryName
@@ -35,6 +39,7 @@ export default async function Page(props: {
       toc={page.data.toc}
       full={page.data.full}
       editOnGithub={editOnGithub}
+      lastUpdate={lastModified}
     >
       <DocsTitle>{page.data.title}</DocsTitle>
       <DocsDescription>{page.data.description}</DocsDescription>
