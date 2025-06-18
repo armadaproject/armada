@@ -25,6 +25,19 @@ yarn dev
 
 Open http://localhost:3000 on your browser to see the result.
 
+## Build and Preview
+
+To build the project for production and preview it, run:
+
+```bash
+yarn build
+# then
+yarn preview
+```
+
+The preview server will start on http://localhost:3000 by default. It also supports base path configuration to mimic
+the GitHub Pages environment. Check the `.env.example` file to see how to set it up.
+
 ## Format and Lint
 
 Please make sure to format and lint your code before committing:

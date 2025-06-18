@@ -16,6 +16,7 @@ const nextConfig: NextConfig = {
     })),
   },
   basePath: env.basePath, // base path for GitHub Pages
+  trailingSlash: !!env.basePath, // fix for issue related to GitHub Pages forcing redirect to `/` on index.html when basePath is set
   output: 'export', // Create a static export of the site in `out/`
 };
 

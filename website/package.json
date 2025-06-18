@@ -8,7 +8,7 @@
     "postinstall": "fumadocs-mdx",
     "dev": "next dev --turbopack",
     "build": "next build",
-    "serve": "serve out",
+    "preview": "node --watch src/scripts/serve.mjs",
     "clean": "rm -rf .next out .source",
     "start": "next start",
     "lint:check": "next lint",
@@ -29,6 +29,7 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.1",
+    "@next/env": "^15.3.3",
     "@tailwindcss/postcss": "^4.1.10",
     "@theguild/remark-mermaid": "^0.3.0",
     "@trivago/prettier-plugin-sort-imports": "^5.2.2",
@@ -47,7 +48,7 @@
     "rehype-katex": "^7.0.1",
     "remark-emoji": "^5.0.1",
     "remark-math": "^6.0.0",
-    "serve": "^14.2.4",
+    "serve-handler": "^6.1.6",
     "tailwindcss": "^4.1.10",
     "typescript": "^5.8.3"
   },
