@@ -11,9 +11,9 @@ import { ArmadaIcon, ArmadaText } from '@/components/logo';
 export const baseOptions: BaseLayoutProps = {
   nav: {
     title: (
-      <div className='flex gap-3 justify-center items-center ms-3'>
-        <ArmadaIcon className='w-10 sm:w-15' />
-        <ArmadaText className='text-[#00aae1] w-25 sm:w-30' />
+      <div className='flex gap-3 justify-center items-center ms-3 md:my-3'>
+        <ArmadaIcon className='w-10 md:w-15' />
+        <ArmadaText className='text-[#00aae1] w-25 md:w-30' />
       </div>
     ),
     transparentMode: 'top',
