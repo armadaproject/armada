@@ -4,11 +4,13 @@ import env from '@/utils/env';
 
 const nextConfig: NextConfig = {
   images: {
+    unoptimized: true, // because static export does not support image optimization
     // allow images from certain remote hosts
     remotePatterns: [
       'img.youtube.com',
+      'github.com',
       'github.githubassets.com',
-      'user-images.githubusercontent.com',
+      '*.githubusercontent.com',
     ].map((hostname) => ({
       hostname: hostname,
     })),
