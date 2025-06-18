@@ -17,8 +17,6 @@ const nextConfig: NextConfig = {
   },
   basePath: env.basePath, // base path for GitHub Pages
   output: 'export', // Create a static export of the site in `out/`
-  trailingSlash: true, // Optional: Change links `/me` -> `/me/` and emit `/me.html` -> `/me/index.html`
-  skipTrailingSlashRedirect: false, // Optional: Prevent automatic `/me` -> `/me/`, instead preserve `href`
 };
 
 const withMDX = createMDX();
