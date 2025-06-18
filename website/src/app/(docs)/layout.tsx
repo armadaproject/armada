@@ -42,6 +42,9 @@ if (env.repositoryOwner && env.repositoryName && serverEnv.GITHUB_TOKEN) {
 
 const docsOptions: DocsLayoutProps = {
   ...baseOptions,
+  sidebar: {
+    collapsible: false,
+  },
   tree: source.pageTree,
   links: docsLayoutLinks,
 };
