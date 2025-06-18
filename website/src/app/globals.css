@@ -1,3 +1,15 @@
+/* See: https://fumadocs.dev/docs/ui/theme */
 @import 'tailwindcss';
-@import 'fumadocs-ui/css/neutral.css';
+@import 'fumadocs-ui/css/black.css';
 @import 'fumadocs-ui/css/preset.css';
+
+body {
+  --color-fd-primary: var(--ui-color);
+}
+
+:root {
+  --ui-color: hsl(199, 100%, 43%);
+}
+.dark {
+  --ui-color: hsl(183, 81%, 52%);
+}
