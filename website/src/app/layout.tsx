@@ -4,6 +4,7 @@ import { Geist } from 'next/font/google';
 import { RootProvider } from 'fumadocs-ui/provider';
 import 'katex/dist/katex.min.css';
 import { cn } from '@/utils/cn';
+import env from '@/utils/env';
 import './globals.css';
 
 const geistSans = Geist({
@@ -23,6 +24,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           search={{
             options: {
               type: 'static',
+              api: `${env.basePath}/api/search.json`,
             },
           }}
         >
