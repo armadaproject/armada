@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import env from '@/utils/env';
 
 export default function HomePage() {
   return (
@@ -6,12 +7,14 @@ export default function HomePage() {
       <h1 className='mb-4 text-2xl font-bold'>Welcome to Armada!</h1>
       <p className='text-fd-muted-foreground'>
         This is a landing page for the Armada documentation. You can open{' '}
-        <Link
-          href='https://github.com/armadaproject/armada'
-          className='text-fd-foreground font-semibold underline'
-        >
-          GitHub repository
-        </Link>{' '}
+        {env.repositoryUrl ? (
+          <Link
+            href={env.repositoryUrl}
+            className='text-fd-foreground font-semibold underline'
+          >
+            GitHub repository
+          </Link>
+        ) : null}{' '}
         and see the documentation.
       </p>
     </main>

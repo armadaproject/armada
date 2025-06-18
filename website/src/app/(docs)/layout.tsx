@@ -11,10 +11,12 @@ import env from '@/utils/env';
 import serverEnv from '@/utils/server-env';
 
 // see https://fumadocs.dev/docs/ui/navigation/links
-const docsLayoutLinks: LinkItemType[] = [
-  {
+const docsLayoutLinks: LinkItemType[] = [];
+
+if (env.repositoryUrl) {
+  docsLayoutLinks.push({
     type: 'icon',
-    url: 'https://github.com/armadaproject/armada',
+    url: env.repositoryUrl,
     text: 'GitHub',
     icon: (
       <svg role='img' viewBox='0 0 24 24' fill='currentColor'>
@@ -22,8 +24,8 @@ const docsLayoutLinks: LinkItemType[] = [
       </svg>
     ),
     external: true,
-  },
-];
+  });
+}
 
 if (env.repositoryOwner && env.repositoryName && serverEnv.GITHUB_TOKEN) {
   docsLayoutLinks.push({
