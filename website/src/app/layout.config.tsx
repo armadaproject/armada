@@ -1,5 +1,5 @@
 import type { BaseLayoutProps } from 'fumadocs-ui/layouts/shared';
-import { ArmadaIcon } from '@/components/logo';
+import { ArmadaIcon, ArmadaText } from '@/components/logo';
 
 /**
  * Shared layout configurations
@@ -11,12 +11,11 @@ import { ArmadaIcon } from '@/components/logo';
 export const baseOptions: BaseLayoutProps = {
   nav: {
     title: (
-      <>
-        <ArmadaIcon width='52' />
-        <span className='text-[#00aae1] dark:text-white text-xl tracking-widest'>
-          ARMADA
-        </span>
-      </>
+      <div className='flex gap-3 justify-center items-center ms-3'>
+        <ArmadaIcon className='w-10 sm:w-15' />
+        <ArmadaText className='text-[#00aae1] w-25 sm:w-30' />
+      </div>
     ),
+    transparentMode: 'top',
   },
 };
