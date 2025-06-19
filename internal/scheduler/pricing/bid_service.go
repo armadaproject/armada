@@ -46,8 +46,8 @@ func (b *LocalBidPriceService) GetBidPrices(ctx *armadacontext.Context) (BidPric
 
 			for _, pool := range b.pools {
 				bids[pool] = Bid{
-					QueuedBid:  float64(band),
-					RunningBid: float64(band),
+					QueuedBid:  float64(band) + 1,
+					RunningBid: float64(band) + 1,
 				}
 			}
 
@@ -131,11 +131,7 @@ func getPrice(
 func initAllBands() []bidstore.PriceBand {
 	bands := make([]bidstore.PriceBand, 0, len(bidstore.PriceBand_name))
 	for v := range bidstore.PriceBand_name {
-		band := bidstore.PriceBand(v)
-		if band == bidstore.PriceBand_PRICE_BAND_UNSPECIFIED {
-			continue
-		}
-		bands = append(bands, band)
+		bands = append(bands, bidstore.PriceBand(v))
 	}
 	return bands
 }

@@ -148,6 +148,15 @@ func TestConvert(t *testing.T) {
 							RunningBid: 10.0,
 						},
 					},
+					{
+						Queue: "queue1",
+						Band:  bidstore.PriceBand_PRICE_BAND_UNSPECIFIED,
+					}: {
+						"pool1": {
+							QueuedBid:  5.0,
+							RunningBid: 10.0,
+						},
+					},
 				},
 			},
 		},
