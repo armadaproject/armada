@@ -42,14 +42,14 @@ Please see these documents for more information about Armadas Design:
 
 ## Other Useful Developer Docs
 
-- [Armada API](./developer/api.mdx)
-- [Running Armada in an EC2 Instance](./developer/aws-ec2.mdx)
-- [Armada UI](./developer/ui.mdx)
-- [Usage Metrics](./developer/usage-metrics.mdx)
-- [Using OIDC with Armada](./developer/oidc.mdx)
-- [Building the Website](./developer/website.mdx)
-- [Using Localdev Manually](./developer/manual-localdev.mdx)
-- [Inspecting and Debugging etcd in Localdev setup](./developer/etc-localdev.mdx)
+- [Armada API](./api.mdx)
+- [Running Armada in an EC2 Instance](./aws-ec2.mdx)
+- [Armada UI](./ui.mdx)
+- [Usage Metrics](./usage-metrics.mdx)
+- [Using OIDC with Armada](./oidc.mdx)
+- [Building the Website](./website.mdx)
+- [Using Localdev Manually](./manual-localdev.mdx)
+- [Inspecting and Debugging etcd in Localdev setup](./etc-localdev.mdx)
 
 ## Pre-requisites
 
@@ -137,7 +137,7 @@ go run cmd/testsuite/main.go test --tests "testsuite/testcases/basic/*" --junit 
 
 In LocalDev, the UI is built seperately with `mage ui`. To access it, open http://localhost:8089 in your browser.
 
-For more information see the [UI Developer Guide](./developer/ui.mdx).
+For more information see the [UI Developer Guide](./ui.mdx).
 
 ### Choosing components to run
 
@@ -182,7 +182,7 @@ It supports the following commands:
 ### VSCode Debugging
 
 After running `mage debug vscode`, you can attach to the running processes using VSCode.
-The launch.json file can be found [Here](../../developer/debug/launch.json)
+The launch.json file can be found [Here](https://github.com/armadaproject/armada/tree/master/developer/debug/launch.json)
 
 For using VSCode debugging, see the [VSCode Debugging Guide](https://code.visualstudio.com/docs/editor/debugging).
 
@@ -273,4 +273,4 @@ see [The Enviromental Variables Guide](https://github.com/armadaproject/armada/t
 ## Finer-Grain Control
 
 If you would like to run the individual mage targets yourself, you can do so.
-See the [Manually Running LocalDev](./developer/manual-localdev.mdx) guide for more information.
+See the [Manually Running LocalDev](./manual-localdev.mdx) guide for more information.
