@@ -1,0 +1,14 @@
+{
+  "pages": [
+    "api",
+    "architecture",
+    "relationships-diagram",
+    "manual-localdev",
+    "ubuntu-setup",
+    "aws-ec2",
+    "oidc",
+    "ui",
+    "website",
+    "..."
+  ]
+}

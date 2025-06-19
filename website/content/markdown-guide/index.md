@@ -1,9 +1,8 @@
 ---
-title: 'Markdown Guide'
+title: 'Introduction'
 ---
 
-Includes a comprehensive guide to writing Markdown, covering basic syntax, advanced features, and best practices.
+Welcome to our documentation!
 
-> [!IMPORTANT]
-> We recommend using MDX files instead of Markdown files for new content. MDX files support all Markdown features and
-> allow you to use React components, which enhances the flexibility and interactivity of your content.
+> [!NOTE]
+> This is just a sample documentation page to demonstrate the structure and formatting of our content.

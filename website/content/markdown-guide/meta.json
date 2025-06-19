@@ -1,0 +1,11 @@
+{
+  "title": "Markdown Guide",
+  "icon": "Home",
+  "pages": [
+    "introduction",
+    "github-markdown-cheatsheet",
+    "fumadocs-markdown-cheatsheet",
+    "fumadocs-mdx-cheatsheet"
+  ],
+  "defaultOpen": false
+}

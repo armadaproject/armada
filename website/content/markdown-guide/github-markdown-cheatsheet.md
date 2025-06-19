@@ -76,7 +76,7 @@ Link to the previous section: [Links](#links-).
 
 ## Relative links ✅
 
-Link to a file in the same repository: [index.md](./index.md).
+Link to a file in the same repository: [introduction.md](introduction.md).
 
 ## Custom anchors ✅
 
