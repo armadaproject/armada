@@ -29,6 +29,7 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.1",
+    "@eslint/markdown": "^6.5.0",
     "@next/env": "^15.3.3",
     "@tailwindcss/postcss": "^4.1.10",
     "@theguild/remark-mermaid": "^0.3.0",
@@ -41,6 +42,7 @@
     "eslint-config-flat-gitignore": "^2.1.0",
     "eslint-config-next": "15.3.3",
     "eslint-config-prettier": "^10.1.5",
+    "eslint-plugin-mdx": "^3.5.0",
     "katex": "^0.16.22",
     "postcss": "^8.5.5",
     "prettier": "^3.5.3",

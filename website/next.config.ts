@@ -3,6 +3,9 @@ import { createMDX } from 'fumadocs-mdx/next';
 import env from '@/utils/env';
 
 const nextConfig: NextConfig = {
+  eslint: {
+    dirs: [`src`, `content`],
+  },
   images: {
     unoptimized: true, // because static export does not support image optimization
     // allow images from certain remote hosts
