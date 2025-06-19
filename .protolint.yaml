@@ -1,0 +1,8 @@
+lint:
+  directories:
+    exclude:
+      # This list should match protobufFilesToLintExcludeDirectories in magefiles/linting.go
+      - proto
+  rules:
+    remove:
+      - MAX_LINE_LENGTH # the Clang formatter enforces the line length where possible
