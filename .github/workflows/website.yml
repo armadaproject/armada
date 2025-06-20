@@ -71,6 +71,9 @@ jobs:
       - run: yarn install
         working-directory: website
 
+      - run: yarn content:check
+        working-directory: website
+
       - run: yarn format:check
         working-directory: website
 
