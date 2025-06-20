@@ -38,11 +38,12 @@ yarn preview
 The preview server will start on http://localhost:3000 by default. It also supports base path configuration to mimic
 the GitHub Pages environment. Check the `.env.example` file to see how to set it up.
 
-## Format and Lint
+## Format, Lint Content and Lint Code
 
 Please make sure to format and lint your code before committing:
 
 ```bash
+yarn content:check
 yarn format:fix
 yarn lint:fix
 ```
