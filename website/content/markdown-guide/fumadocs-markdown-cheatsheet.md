@@ -54,7 +54,7 @@ color model within backticks will display a visualization of the color.
 
 The background color is `#ffffff` for light mode and `#000000` for dark mode, also `rgb(9, 105, 218)`.
 
-## Links ⚠️
+## Links
 
 This site was built using [GitHub Pages](https://pages.github.com/).
 
@@ -63,11 +63,11 @@ This site was built using [GitHub Pages](https://pages.github.com/).
 You can link to a section of a page by using the section's heading text, with spaces replaced by hyphens and all
 lowercase.
 
-Link to the previous section: [Links](#links-).
+Link to the previous section: [Links](#links).
 
 ## Relative links ✅
 
-Link to a file in the same repository: [README.md](./README.md).
+Link to a file in the same repository: [README.md](./index.md).
 
 ## Custom anchors ❌
 
@@ -79,7 +79,7 @@ Some text I want to provide a direct link to, but which doesn't have its own hea
 
 (… more content…)
 
-[A link to that custom anchor](#my-custom-anchor-point)
+<!-- [A link to that custom anchor](#my-custom-anchor-point) -->
 
 ## Line breaks ⚠️
 
