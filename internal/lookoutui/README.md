@@ -40,7 +40,7 @@ real-time. This serves the web app on
 [http://localhost:3000](http://localhost:3000). It proxies API requests to the
 target defined by your `PROXY_TARGET` environment variable, or otherwise your
 locally-running instance of the Lookout server at `http://localhost:10000`
-(please see [the main developer docs](../../../docs/developer/ui.md) for details
+(please see [the main developer docs](../../docs/developer/ui.md) for details
 of how to set this up).
 
 ```bash
