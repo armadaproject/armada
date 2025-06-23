@@ -86,7 +86,6 @@ export function App(props: AppProps) {
                                     getJobsService={props.services.v2GetJobsService}
                                     groupJobsService={props.services.v2GroupJobsService}
                                     updateJobsService={props.services.v2UpdateJobsService}
-                                    jobSpecService={props.services.v2JobSpecService}
                                     debug={props.debugEnabled}
                                     autoRefreshMs={props.jobsAutoRefreshMs}
                                     commandSpecs={props.commandSpecs}

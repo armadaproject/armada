@@ -111,3 +111,7 @@ export const fakeRunError =
   "    at com.mchange.v2.c3p0.impl.NewProxyPreparedStatement.executeUpdate(NewProxyPreparedStatement.java:105)\n" +
   "    at org.hibernate.id.insert.AbstractSelectingDelegate.performInsert(AbstractSelectingDelegate.java:57)\n" +
   "    ... 54 more"
+
+export const fakeRunDebugMessage = "Failed to pull image from registry: RateLimitExceeded"
+
+export const fakeJobError = "something has gone wrong with this job"

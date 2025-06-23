@@ -92,17 +92,24 @@ function createJobRuns(n: number, jobId: string, rand: () => number, uuid: () =>
     if (runState !== JobRunState.RunPending && runState !== JobRunState.RunLeased) {
       node = uuid()
     }
+
+    const startedDateSeconds = 14 + 117 * i
+    const started = new Date(2022, 11, 13, 12, 15, startedDateSeconds, 123).toISOString()
+    const leased = new Date(2022, 11, 13, 12, 15, startedDateSeconds + 40, 123).toISOString()
+    const pending = new Date(2022, 11, 13, 12, 15, startedDateSeconds + 45, 123).toISOString()
+    const finished = new Date(2022, 11, 13, 12, 15, startedDateSeconds + 90, 123).toISOString()
+
     runs.push({
+      runId: uuid(),
       cluster: uuid(),
       exitCode: randomInt(0, 64, rand),
-      finished: "2022-12-13T12:19:14.956Z",
       jobId: jobId,
       jobRunState: runState,
       node: node,
-      leased: "2022-12-13T12:16:14.956Z",
-      pending: "2022-12-13T12:16:14.956Z",
-      runId: uuid(),
-      started: "2022-12-13T12:15:14.956Z",
+      started,
+      leased,
+      pending,
+      finished,
     })
   }
   return runs
