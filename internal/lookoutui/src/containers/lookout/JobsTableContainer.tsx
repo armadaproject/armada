@@ -52,7 +52,6 @@ import { columnIsAggregatable, useFetchJobsTableData } from "../../hooks/useJobs
 import { isJobGroupRow, JobRow, JobTableRow } from "../../models/jobsTableModels"
 import { Job, JobFiltersWithExcludes, JobId, Match, SortDirection } from "../../models/lookoutModels"
 import { CustomViewsService } from "../../services/lookout/CustomViewsService"
-import { IGetJobInfoService } from "../../services/lookout/GetJobInfoService"
 import { IGetJobsService } from "../../services/lookout/GetJobsService"
 import { IGroupJobsService } from "../../services/lookout/GroupJobsService"
 import { JobsTablePreferences, JobsTablePreferencesService } from "../../services/lookout/JobsTablePreferencesService"
@@ -88,7 +87,6 @@ interface JobsTableContainerProps {
   getJobsService: IGetJobsService
   groupJobsService: IGroupJobsService
   updateJobsService: UpdateJobsService
-  jobSpecService: IGetJobInfoService
   debug: boolean
   autoRefreshMs: number | undefined
   commandSpecs: CommandSpec[]
@@ -130,7 +128,6 @@ export const JobsTableContainer = ({
   getJobsService,
   groupJobsService,
   updateJobsService,
-  jobSpecService,
   debug,
   autoRefreshMs,
   commandSpecs,
@@ -908,7 +905,6 @@ export const JobsTableContainer = ({
         <ErrorBoundary FallbackComponent={AlertErrorFallback}>
           <Sidebar
             job={sidebarJobDetails}
-            jobSpecService={jobSpecService}
             sidebarWidth={sidebarWidth}
             onClose={sideBarClose}
             onWidthChange={setSidebarWidth}
