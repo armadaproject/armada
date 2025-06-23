@@ -1,3 +1,5 @@
+import { useEffect, useMemo, useState } from "react"
+
 import {
   Accordion,
   AccordionDetails,
@@ -12,9 +14,10 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material"
-import { useEffect, useMemo, useState } from "react"
 import { ErrorBoundary } from "react-error-boundary"
 
+import { KeyValuePairTable } from "./KeyValuePairTable"
+import { SidebarTabSubheading } from "./sidebarTabContentComponents"
 import { formatDuration, TimestampFormat } from "../../../common/formatTime"
 import { useFormatIsoTimestampWithUserSettings } from "../../../hooks/formatTimeWithUserSettings"
 import { useCustomSnackbar } from "../../../hooks/useCustomSnackbar"
@@ -26,8 +29,6 @@ import { SPACING } from "../../../styling/spacing"
 import { formatJobRunState } from "../../../utils/jobsTableFormatters"
 import { AlertErrorFallback } from "../../AlertErrorFallback"
 import { CodeBlock } from "../../CodeBlock"
-import { KeyValuePairTable } from "./KeyValuePairTable"
-import { SidebarTabSubheading } from "./sidebarTabContentComponents"
 
 const MarkNodeUnschedulableButtonContainer = styled("div")(({ theme }) => ({
   display: "flex",
