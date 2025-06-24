@@ -246,6 +246,12 @@ A minimal local Armada setup using these configurations would be `Armada Infrast
 
 GoLand does not allow us to specify an ordering for services within docker compose configurations. As a result, some database migration services may require rerunning.
 
+## Visual Studio Code debug configurations
+
+We similarly provide run and debug configurations for Visual Studio Code users to run each Armada service and use the debugger provided with VS Code.
+
+The `Armada` configuration performs all required setup - setting up the Kind cluster, spinning up infrastructure services and performing database migrations - and then runs all services.
+
 ### Other Debugging Methods
 
 Run `mage debug local` to only spin up the dependencies of Armada, and then run the individual components yourself.
