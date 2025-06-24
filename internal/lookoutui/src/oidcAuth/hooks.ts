@@ -38,7 +38,7 @@ export const useGetAccessToken = () => {
 
     const user = await userManager.getUser()
     if (!user || user.expired) {
-      await userManager.signinRedirect()
+      await userManager.signinRedirect({ state: window.location.href })
       return undefined
     }
 
