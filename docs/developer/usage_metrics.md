@@ -1,18 +1,17 @@
-## Usage metrics
+# Getting usage metrics
 
-Some functionality the executor has is to report how much cpu/memory jobs are using.
+You can use the executor to report how much CPU or memory your jobs are using.
 
-This is turned on by changing the executor config file to include:
+To turn on reporting, add the following to your executor config file:
+
 ``` yaml
 metric:
    exposeQueueUsageMetrics: true
 ```
 
-The metrics are calculated by getting values from metrics-server.
+Metrics are calculated by getting values from `metrics-server`.
 
-When developing locally with Kind, you will also need to deploy metrics-server to allow this to work.
-
-The simplest way to do this it to apply this to your kind cluster:
+To develop locally with Kind, you need to deploy `metrics-server`. You can do this by applying the following to your Kind cluster:
 
 ```
 kubectl apply -f https://gist.githubusercontent.com/hjacobs/69b6844ba8442fcbc2007da316499eb4/raw/5b8678ac5e11d6be45aa98ca40d17da70dcb974f/kind-metrics-server.yaml
