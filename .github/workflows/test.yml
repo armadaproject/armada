@@ -28,16 +28,6 @@ jobs:
           yarn install --frozen-lockfile && yarn openapi && yarn typecheck && CI=true yarn test --reporter=junit
         working-directory: ./internal/lookoutui
 
-      - name: Publish JUnit Report
-        uses: mikepenz/action-junit-report@v4
-        if: always()
-        with:
-          report_paths: ./internal/lookoutui/junit.xml
-          fail_on_failure: true
-          require_tests: true
-          detailed_summary: true
-          token: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Upload Test Reports Artifacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -63,16 +53,6 @@ jobs:
       - name: Unit Tests
         id: unit_test
         run: go run github.com/magefile/mage@v1.14.0 -v tests
-
-      - name: Publish JUnit Report
-        uses: mikepenz/action-junit-report@v4
-        if: always()
-        with:
-          report_paths: test-reports/unit-tests.xml
-          fail_on_failure: true
-          require_tests: true
-          detailed_summary: true
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload Test Reports Artifacts
         if: always()
@@ -140,16 +120,6 @@ jobs:
           path: |
             ./logs/
           if-no-files-found: error
-
-      - name: Publish JUnit Report
-        uses: mikepenz/action-junit-report@v4
-        if: always()
-        with:
-          report_paths: junit.xml
-          fail_on_failure: true
-          require_tests: true
-          detailed_summary: true
-          token: ${{ secrets.GITHUB_TOKEN }}
 
   go-mod-up-to-date:
     name: Golang Mod Up To Date
