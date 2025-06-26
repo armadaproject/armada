@@ -28,8 +28,8 @@ var jobSchedulingInfo = &internaltypes.JobSchedulingInfo{
 	},
 }
 
-var nonPreemptibleJobSchedulingInfo = &internaltypes.JobSchedulingInfo{
-	PriorityClassName: PriorityClass2NonPreemptible,
+var preemptibleJobSchedulingInfo = &internaltypes.JobSchedulingInfo{
+	PriorityClassName: PriorityClass0,
 	PodRequirements: &internaltypes.PodRequirements{
 		ResourceRequirements: v1.ResourceRequirements{
 			Requests: v1.ResourceList{
@@ -60,12 +60,12 @@ var baseJob, _ = jobDb.NewJob(
 	int32(1),
 )
 
-var nonPreemptibleJob, _ = jobDb.NewJob(
+var preemptibleJob, _ = jobDb.NewJob(
 	"test-job",
 	"test-jobSet",
 	"test-queue",
 	2,
-	nonPreemptibleJobSchedulingInfo,
+	preemptibleJobSchedulingInfo,
 	true,
 	0,
 	false,
@@ -161,12 +161,12 @@ func TestJob_TestInTerminalState(t *testing.T) {
 	assert.Equal(t, true, baseJob.WithCancelled(true).InTerminalState())
 }
 
-func TestJob_BidPrices(t *testing.T) {
+func TestJob_BidPrices_PreemptibleJob(t *testing.T) {
 	pool1Bid := pricing.Bid{QueuedBid: 1, RunningBid: 2}
 	pool2Bid := pricing.Bid{QueuedBid: 3, RunningBid: 4}
 
 	// Job queued
-	newJob := baseJob.WithBidPrices(map[string]pricing.Bid{"pool1": pool1Bid, "pool2": pool2Bid})
+	newJob := preemptibleJob.WithBidPrices(map[string]pricing.Bid{"pool1": pool1Bid, "pool2": pool2Bid})
 	assert.Equal(t, float64(1), newJob.GetBidPrice("pool1"))
 	assert.Equal(t, float64(3), newJob.GetBidPrice("pool2"))
 	assert.Equal(t, float64(0), newJob.GetBidPrice("pool3")) // default to 0
@@ -184,12 +184,12 @@ func TestJob_BidPrices(t *testing.T) {
 	assert.Equal(t, float64(4), newJob.GetBidPrice("pool2"))
 }
 
-func TestJob_BidPrices_NonPreemptible(t *testing.T) {
+func TestJob_BidPrices_NonPreemptibleJob(t *testing.T) {
 	pool1Bid := pricing.Bid{QueuedBid: 1, RunningBid: 2}
 	pool2Bid := pricing.Bid{QueuedBid: 3, RunningBid: 4}
 
 	// Job queued
-	newJob := nonPreemptibleJob.WithBidPrices(map[string]pricing.Bid{"pool1": pool1Bid, "pool2": pool2Bid})
+	newJob := baseJob.WithBidPrices(map[string]pricing.Bid{"pool1": pool1Bid, "pool2": pool2Bid})
 	assert.Equal(t, float64(1), newJob.GetBidPrice("pool1"))
 	assert.Equal(t, float64(3), newJob.GetBidPrice("pool2"))
 	assert.Equal(t, float64(0), newJob.GetBidPrice("pool3")) // default to 0
