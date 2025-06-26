@@ -1,5 +1,5 @@
-# Developer Guide
-- [Developer Guide](#developer-guide)
+# Developer guide
+- [Developer guide](#developer-guide)
   - [Quickstart](#quickstart)
   - [Dealing with Arm and Windows problems](#dealing-with-arm-and-windows-problems)
   - [Armada design docs](#armada-design-docs)
