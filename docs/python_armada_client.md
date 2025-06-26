@@ -1,17 +1,48 @@
----
-docname: python_armada_client
-images: {}
-path: /python-armada-client
-title: armada_client package
----
-
 # armada_client package
+- [armada\_client package](#armada_client-package)
+  - [armada\_client.client module](#armada_clientclient-module)
+    - [_class_ armada\_client.client.ArmadaClient(channel, event\_timeout=datetime.timedelta(seconds=900))](#class-armada_clientclientarmadaclientchannel-event_timeoutdatetimetimedeltaseconds900)
+      - [cancel\_jobs(queue, job\_set\_id, job\_id=None)](#cancel_jobsqueue-job_set_id-job_idnone)
+      - [cancel\_jobset(queue, job\_set\_id, filter\_states)](#cancel_jobsetqueue-job_set_id-filter_states)
+      - [create\_job\_request\_item(priority=1.0, pod\_spec=None, pod\_specs=None, namespace=None, client\_id=None, labels=None, annotations=None, required\_node\_labels=None, ingress=None, services=None)](#create_job_request_itempriority10-pod_specnone-pod_specsnone-namespacenone-client_idnone-labelsnone-annotationsnone-required_node_labelsnone-ingressnone-servicesnone)
+      - [create\_queue(queue)](#create_queuequeue)
+      - [create\_queue\_request(name, priority\_factor, user\_owners=None, group\_owners=None, resource\_limits=None, permissions=None)](#create_queue_requestname-priority_factor-user_ownersnone-group_ownersnone-resource_limitsnone-permissionsnone)
+      - [create\_queues(queues)](#create_queuesqueues)
+      - [delete\_queue(name)](#delete_queuename)
+      - [event\_health()](#event_health)
+      - [get\_job\_details(job\_ids)](#get_job_detailsjob_ids)
+      - [get\_job\_errors(job\_ids)](#get_job_errorsjob_ids)
+      - [get\_job\_events\_stream(queue, job\_set\_id, from\_message\_id=None)](#get_job_events_streamqueue-job_set_id-from_message_idnone)
+      - [get\_job\_run\_details(run\_ids)](#get_job_run_detailsrun_ids)
+      - [get\_job\_status(job\_ids)](#get_job_statusjob_ids)
+      - [get\_job\_status\_by\_external\_job\_uri(queue, job\_set\_id, external\_job\_uri)](#get_job_status_by_external_job_uriqueue-job_set_id-external_job_uri)
+      - [get\_queue(name)](#get_queuename)
+      - [get\_queues()](#get_queues)
+      - [preempt\_jobs(queue, job\_set\_id, job\_id)](#preempt_jobsqueue-job_set_id-job_id)
+      - [reprioritize\_jobs(new\_priority, job\_ids, job\_set\_id, queue)](#reprioritize_jobsnew_priority-job_ids-job_set_id-queue)
+      - [submit\_health()](#submit_health)
+      - [submit\_jobs(queue, job\_set\_id, job\_request\_items)](#submit_jobsqueue-job_set_id-job_request_items)
+      - [_static_ unmarshal\_event\_response(event)](#static-unmarshal_event_responseevent)
+      - [_static_ unwatch\_events(event\_stream)](#static-unwatch_eventsevent_stream)
+      - [update\_queue(queue)](#update_queuequeue)
+      - [update\_queues(queues)](#update_queuesqueues)
+  - [armada\_client.event module](#armada_clientevent-module)
+    - [_class_ armada\_client.event.Event(event)](#class-armada_clienteventeventevent)
+  - [armada\_client.permissions module](#armada_clientpermissions-module)
+    - [_class_ armada\_client.permissions.Permissions(subjects, verbs)](#class-armada_clientpermissionspermissionssubjects-verbs)
+      - [to\_grpc()](#to_grpc)
+    - [_namedtuple_ armada\_client.permissions.Subject(kind, name)](#namedtuple-armada_clientpermissionssubjectkind-name)
+      - [to\_grpc()](#to_grpc-1)
+  - [armada\_client.log\_client module](#armada_clientlog_client-module)
+    - [_class_ armada\_client.log\_client.JobLogClient(url, job\_id, disable\_ssl=False)](#class-armada_clientlog_clientjoblogclienturl-job_id-disable_sslfalse)
+      - [logs(since\_time='')](#logssince_time)
+    - [_class_ armada\_client.log\_client.LogLine(line, timestamp)](#class-armada_clientlog_clientloglineline-timestamp)
 
 ## armada_client.client module
 
 Armada Python GRPC Client
 
-For the api definitions:
+For the API definitions:
 [https://armadaproject.io/api](https://armadaproject.io/api)
 
 
@@ -22,9 +53,7 @@ Client for accessing Armada over gRPC.
 * **Parameters**
 
     
-    * **channel** – gRPC channel used for authentication. See
-    [https://grpc.github.io/grpc/python/grpc.html](https://grpc.github.io/grpc/python/grpc.html)
-    for more information.
+    * **channel** – gRPC channel used for authentication. [See the gRPC documentation](https://grpc.github.io/grpc/python/grpc.html).
 
 
     * **event_timeout** (*datetime.timedelta*) – 
