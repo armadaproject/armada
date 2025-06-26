@@ -28,12 +28,44 @@ var jobSchedulingInfo = &internaltypes.JobSchedulingInfo{
 	},
 }
 
+var nonPreemptibleJobSchedulingInfo = &internaltypes.JobSchedulingInfo{
+	PriorityClassName: PriorityClass2NonPreemptible,
+	PodRequirements: &internaltypes.PodRequirements{
+		ResourceRequirements: v1.ResourceRequirements{
+			Requests: v1.ResourceList{
+				"cpu":                 k8sResource.MustParse("1"),
+				"storage-connections": k8sResource.MustParse("1"),
+			},
+		},
+		Annotations: map[string]string{
+			"foo": "bar",
+		},
+	},
+}
+
 var baseJob, _ = jobDb.NewJob(
 	"test-job",
 	"test-jobSet",
 	"test-queue",
 	2,
 	jobSchedulingInfo,
+	true,
+	0,
+	false,
+	false,
+	false,
+	3,
+	false,
+	[]string{},
+	int32(1),
+)
+
+var nonPreemptibleJob, _ = jobDb.NewJob(
+	"test-job",
+	"test-jobSet",
+	"test-queue",
+	2,
+	nonPreemptibleJobSchedulingInfo,
 	true,
 	0,
 	false,
@@ -150,6 +182,23 @@ func TestJob_BidPrices(t *testing.T) {
 	pool2Bid.RunningBid = 5
 	assert.Equal(t, float64(2), newJob.GetBidPrice("pool1"))
 	assert.Equal(t, float64(4), newJob.GetBidPrice("pool2"))
+}
+
+func TestJob_BidPrices_NonPreemptible(t *testing.T) {
+	pool1Bid := pricing.Bid{QueuedBid: 1, RunningBid: 2}
+	pool2Bid := pricing.Bid{QueuedBid: 3, RunningBid: 4}
+
+	// Job queued
+	newJob := nonPreemptibleJob.WithBidPrices(map[string]pricing.Bid{"pool1": pool1Bid, "pool2": pool2Bid})
+	assert.Equal(t, float64(1), newJob.GetBidPrice("pool1"))
+	assert.Equal(t, float64(3), newJob.GetBidPrice("pool2"))
+	assert.Equal(t, float64(0), newJob.GetBidPrice("pool3")) // default to 0
+
+	// Job running
+	newJob = newJob.WithQueued(false)
+	assert.Equal(t, float64(pricing.NonPreemptibleRunningPrice), newJob.GetBidPrice("pool1"))
+	assert.Equal(t, float64(pricing.NonPreemptibleRunningPrice), newJob.GetBidPrice("pool2"))
+	assert.Equal(t, float64(pricing.NonPreemptibleRunningPrice), newJob.GetBidPrice("pool3")) // default to NonPreemptibleRunningPrice
 }
 
 func TestJob_GetAllBidPrices(t *testing.T) {
