@@ -125,20 +125,29 @@ func TestMarketJobPriorityComparer(t *testing.T) {
 			expected:    -1,
 		},
 		"Queued and running jobs are first ordered on priority class": {
-			a:           &Job{id: "a", priorityClass: types.PriorityClass{Priority: 2, Preemptible: true}},
-			b:           (&Job{id: "b", priorityClass: types.PriorityClass{Priority: 1, Preemptible: true}, bidPricesPool: bidPricesB, jobDb: NewJobDb(map[string]types.PriorityClass{"foo": {}}, "foo", stringinterner.New(1), testResourceListFactory)}).WithNewRun("", "", "", "", 0),
+			a: &Job{id: "a", priorityClass: types.PriorityClass{Priority: 2, Preemptible: true}},
+			b: (&Job{
+				id: "b", priorityClass: types.PriorityClass{Priority: 1, Preemptible: true}, bidPricesPool: bidPricesB,
+				jobDb: NewJobDb(map[string]types.PriorityClass{"foo": {}}, "foo", stringinterner.New(1), testResourceListFactory),
+			}).WithNewRun("", "", "", "", 0),
 			currentPool: "a",
 			expected:    -1,
 		},
 		"Queued and running jobs are second ordered on bid price": {
-			a:           &Job{id: "a", priorityClass: types.PriorityClass{Priority: 1, Preemptible: true}, bidPricesPool: bidPricesA},
-			b:           (&Job{id: "b", priorityClass: types.PriorityClass{Priority: 1, Preemptible: true}, bidPricesPool: bidPricesB, jobDb: NewJobDb(map[string]types.PriorityClass{"foo": {}}, "foo", stringinterner.New(1), testResourceListFactory)}).WithNewRun("", "", "", "", 0),
+			a: &Job{id: "a", priorityClass: types.PriorityClass{Priority: 1, Preemptible: true}, bidPricesPool: bidPricesA},
+			b: (&Job{
+				id: "b", priorityClass: types.PriorityClass{Priority: 1, Preemptible: true}, bidPricesPool: bidPricesB,
+				jobDb: NewJobDb(map[string]types.PriorityClass{"foo": {}}, "foo", stringinterner.New(1), testResourceListFactory),
+			}).WithNewRun("", "", "", "", 0),
 			currentPool: "b",
 			expected:    -1,
 		},
 		"Running jobs are ordered over queued jobs if priority class and bid price are equal": {
-			a:           &Job{id: "a", priorityClass: types.PriorityClass{Priority: 1, Preemptible: true}, bidPricesPool: bidPricesA},
-			b:           (&Job{id: "b", priorityClass: types.PriorityClass{Priority: 1, Preemptible: true}, bidPricesPool: bidPricesA, jobDb: NewJobDb(map[string]types.PriorityClass{"foo": {}}, "foo", stringinterner.New(1), testResourceListFactory)}).WithNewRun("", "", "", "", 0),
+			a: &Job{id: "a", priorityClass: types.PriorityClass{Priority: 1, Preemptible: true}, bidPricesPool: bidPricesA},
+			b: (&Job{
+				id: "b", priorityClass: types.PriorityClass{Priority: 1, Preemptible: true}, bidPricesPool: bidPricesA,
+				jobDb: NewJobDb(map[string]types.PriorityClass{"foo": {}}, "foo", stringinterner.New(1), testResourceListFactory),
+			}).WithNewRun("", "", "", "", 0),
 			currentPool: "a",
 			expected:    1,
 		},
