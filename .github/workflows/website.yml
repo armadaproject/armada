@@ -83,7 +83,7 @@ jobs:
       - run: yarn build
         working-directory: website
         env:
-          # GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NEXT_PUBLIC_REPOSITORY_URL: ${{ env.NEXT_PUBLIC_REPOSITORY_URL }}
           NEXT_PUBLIC_BASE_PATH: ${{ env.NEXT_PUBLIC_BASE_PATH }}
 
