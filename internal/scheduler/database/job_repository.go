@@ -101,7 +101,8 @@ func (r *PostgresJobRepository) FetchInitialJobs(ctx *armadacontext.Context) ([]
 		queries := New(tx)
 
 		// Fetch jobs
-		initialJobRows, err := fetch(0, r.batchSize, func(from int64) ([]SelectInitialJobsRow, error) {
+		loggerCtx := armadacontext.New(ctx, ctx.Logger().WithField("query", "initial-jobs"))
+		initialJobRows, err := fetch(loggerCtx, 0, r.batchSize, func(from int64) ([]SelectInitialJobsRow, error) {
 			return queries.SelectInitialJobs(ctx, SelectInitialJobsParams{Serial: from, Limit: r.batchSize})
 		})
 		if err != nil {
@@ -136,7 +137,8 @@ func (r *PostgresJobRepository) FetchInitialJobs(ctx *armadacontext.Context) ([]
 		}
 
 		// Fetch dbRuns
-		initialRuns, err = fetch(0, r.batchSize, func(from int64) ([]Run, error) {
+		loggerCtx = armadacontext.New(ctx, ctx.Logger().WithField("query", "initial-runs"))
+		initialRuns, err = fetch(loggerCtx, 0, r.batchSize, func(from int64) ([]Run, error) {
 			return queries.SelectInitialRuns(ctx, SelectInitialRunsParams{Serial: from, Limit: r.batchSize, JobIds: updatedJobIds})
 		})
 		if err != nil {
@@ -250,7 +252,8 @@ func (r *PostgresJobRepository) FetchJobUpdates(ctx *armadacontext.Context, jobS
 		queries := New(tx)
 
 		// Fetch jobs
-		updatedJobRows, err := fetch(jobSerial, r.batchSize, func(from int64) ([]SelectUpdatedJobsRow, error) {
+		loggerCtx := armadacontext.New(ctx, ctx.Logger().WithField("query", "updated-jobs"))
+		updatedJobRows, err := fetch(loggerCtx, jobSerial, r.batchSize, func(from int64) ([]SelectUpdatedJobsRow, error) {
 			return queries.SelectUpdatedJobs(ctx, SelectUpdatedJobsParams{Serial: from, Limit: r.batchSize})
 		})
 		updatedJobs = make([]Job, len(updatedJobRows))
@@ -284,7 +287,8 @@ func (r *PostgresJobRepository) FetchJobUpdates(ctx *armadacontext.Context, jobS
 		}
 
 		// Fetch dbRuns
-		updatedRuns, err = fetch(jobRunSerial, r.batchSize, func(from int64) ([]Run, error) {
+		loggerCtx = armadacontext.New(ctx, ctx.Logger().WithField("query", "updated-runs"))
+		updatedRuns, err = fetch(loggerCtx, jobRunSerial, r.batchSize, func(from int64) ([]Run, error) {
 			return queries.SelectNewRuns(ctx, SelectNewRunsParams{Serial: from, Limit: r.batchSize})
 		})
 
@@ -399,8 +403,10 @@ func (r *PostgresJobRepository) CountReceivedPartitions(ctx *armadacontext.Conte
 
 // fetch gets all rows from the database with a serial greater than from.
 // Rows are fetched in batches using the supplied fetchBatch function
-func fetch[T hasSerial](from int64, batchSize int32, fetchBatch func(int64) ([]T, error)) ([]T, error) {
+func fetch[T hasSerial](ctx *armadacontext.Context, from int64, batchSize int32, fetchBatch func(int64) ([]T, error)) ([]T, error) {
+	timeOfLastLogging := time.Now()
 	values := make([]T, 0)
+	ctx.Infof("fetching in batches of size %d", batchSize)
 	for {
 		batch, err := fetchBatch(from)
 		if err != nil {
@@ -411,7 +417,12 @@ func fetch[T hasSerial](from int64, batchSize int32, fetchBatch func(int64) ([]T
 			break
 		}
 		from = batch[len(batch)-1].GetSerial()
+		if time.Now().Sub(timeOfLastLogging) > time.Second*5 {
+			ctx.Infof("fetched %d rows so far", len(values))
+			timeOfLastLogging = time.Now()
+		}
 	}
+	ctx.Infof("finished fetching - %d rows fetched", len(values))
 	return values, nil
 }
 
