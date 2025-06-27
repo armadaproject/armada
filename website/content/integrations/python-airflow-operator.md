@@ -16,7 +16,6 @@ This operator submits a job to an Armada cluster, polls for its completion,
 and handles job cancellation if the Airflow task is killed.
 
 - **Parameters**
-
   - **name** (_str_) –
 
   - **channel_args** (_GrpcChannelArgs_) –
@@ -84,7 +83,6 @@ Args:
     context (Context): The execution context provided by Airflow.
 
 - **Parameters**
-
   - **context** (_Context_) – Airflow Context dict wi1th values to apply on content
 
   - **jinja_env** (_Environment** | **None_) – jinja’s environment to use for rendering.
@@ -103,7 +101,6 @@ Args:
     context (Context): The execution context provided by Airflow.
 
 - **Parameters**
-
   - **context** (_Context_) – Airflow Context dict wi1th values to apply on content
 
   - **jinja_env** (_Environment** | **None_) – jinja’s environment to use for rendering.
@@ -119,7 +116,6 @@ Args:
 Initializes a new ArmadaOperator.
 
 - **Parameters**
-
   - **name** (_str_) – The name of the job to be submitted.
 
   - **channel_args** (_GrpcChannelArgs_) – The gRPC channel arguments for connecting to the Armada server.
@@ -177,7 +173,6 @@ Bases: `Protocol`
 Bases: `object`
 
 - **Parameters**
-
   - **target** (_str_) –
 
   - **options** (_Optional**[**Sequence**[**Tuple**[**str**, **Any**]**]\*\*]_) –
@@ -189,7 +184,6 @@ Bases: `object`
 #### _static_ deserialize(data, version)
 
 - **Parameters**
-
   - **data** (_dict**[**str**, **Any\*\*]_) –
 
   - **version** (_int_) –
@@ -209,7 +203,6 @@ Bases: `object`
 Bases: `object`
 
 - **Parameters**
-
   - **armada_queue** (_str_) –
 
   - **job_id** (_str_) –

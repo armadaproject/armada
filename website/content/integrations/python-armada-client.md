@@ -16,7 +16,6 @@ For the api definitions:
 Client for accessing Armada over gRPC.
 
 - **Parameters**
-
   - **channel** – gRPC channel used for authentication. See
     [https://grpc.github.io/grpc/python/grpc.html](https://grpc.github.io/grpc/python/grpc.html)
     for more information.
@@ -34,7 +33,6 @@ Cancel jobs in a given queue.
 Uses the CancelJobs RPC to cancel jobs.
 
 - **Parameters**
-
   - **queue** (_str_) – The name of the queue
 
   - **job_set_id** (_str_) – The name of the job set id
@@ -57,7 +55,6 @@ Uses the CancelJobSet RPC to cancel jobs.
 A filter is used to only cancel jobs in certain states.
 
 - **Parameters**
-
   - **queue** (_str_) – The name of the queue
 
   - **job_set_id** (_str_) – An array of JobSubmitRequestItems.
@@ -77,7 +74,6 @@ A filter is used to only cancel jobs in certain states.
 Create a job request.
 
 - **Parameters**
-
   - **priority** (_float_) – The priority of the job
 
   - **pod_spec** (_Optional**[**armada_client.k8s.io.api.core.v1.generated_pb2.PodSpec\*\*]_) – The k8s pod spec of the job
@@ -123,7 +119,6 @@ Uses the CreateQueue RPC to create a queue.
 Create a queue request object.
 
 - **Parameters**
-
   - **name** (_str_) – The name of the queue
 
   - **priority_factor** (_float** | **None_) – The priority factor for the queue
@@ -204,7 +199,6 @@ Retrieves the details of a job from Armada.
 Retrieves termination reason from query api.
 
 - **Parameters**
-
   - **queue** – The name of the queue
 
   - **job_set_id** – The name of the job set (a grouping of jobs)
@@ -238,7 +232,6 @@ for event in events:
 ```
 
 - **Parameters**
-
   - **queue** (_str_) – The name of the queue
 
   - **job_set_id** (_str_) – The name of the job set (a grouping of jobs)
@@ -290,7 +283,6 @@ Retrieves the status of a list of jobs from Armada.
 Retrieves the status of a job based on externalJobUri annotation.
 
 - **Parameters**
-
   - **queue** (_str_) – The name of the queue
 
   - **job_set_id** (_str_) – The name of the job set (a grouping of jobs)
@@ -330,7 +322,6 @@ Preempt jobs in a given queue.
 Uses the PreemptJobs RPC to preempt jobs.
 
 - **Parameters**
-
   - **queue** (_str_) – The name of the queue
 
   - **job_set_id** (_str_) – The name of the job set id
@@ -353,7 +344,6 @@ Uses ReprioritizeJobs RPC to set a new priority on a list of jobs
 or job set (if job_ids are set to None or empty).
 
 - **Parameters**
-
   - **new_priority** (_float_) – The new priority value for the jobs
 
   - **job_ids** (_List**[**str**] **| \*\*None_) – A list of job ids to change priority of
@@ -386,7 +376,6 @@ Submit an armada job.
 Uses SubmitJobs RPC to submit a job.
 
 - **Parameters**
-
   - **queue** (_str_) – The name of the queue
 
   - **job_set_id** (_str_) – The name of the job set (a grouping of jobs)
@@ -489,7 +478,6 @@ queue = client.create_queue(
 ```
 
 - **Parameters**
-
   - **subjects** (_List**[**armada_client.permissions.Subject\*\*]_) –
 
   - **verbs** (_List**[**str\*\*]_) –
@@ -507,13 +495,11 @@ Convert to grpc object
 Subject is a NamedTuple that represents a subject in the permission system.
 
 - **Fields**
-
   1.   **kind** (`str`) – Alias for field number 0
 
   2.   **name** (`str`) – Alias for field number 1
 
 - **Parameters**
-
   - **kind** (_str_) –
 
   - **name** (_str_) –
@@ -533,7 +519,6 @@ Convert this Subject to a grpc Subject.
 Client for retrieving logs for a given job.
 
 - **Parameters**
-
   - **url** (_str_) – The url to use for retreiving logs.
 
   - **job_id** (_str_) – The ID of the job.
@@ -562,7 +547,6 @@ Retrieve logs for the job associated with this client.
 Represents a single line from a log.
 
 - **Parameters**
-
   - **line** (_str_) –
 
   - **timestamp** (_str_) –
