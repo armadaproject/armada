@@ -143,19 +143,7 @@ func makeJobSchedulingContext(jobId string, nodeId string, schedulingMethod cont
 }
 
 func makeJob(t *testing.T, jobId string, isGang bool) *jobdb.Job {
-	annotations := map[string]string{}
-	if isGang {
-		annotations[configuration.GangIdAnnotation] = "gang"
-	}
-	schedulingInfo := &internaltypes.JobSchedulingInfo{
-		PodRequirements: &internaltypes.PodRequirements{
-			Annotations: annotations,
-		},
-	}
-
-	job, err := testfixtures.JobDb.NewJob(jobId, "jobset", "queue", 1, schedulingInfo, false, 1, false, false, false, 0, true, []string{}, 0)
-	require.NoError(t, err)
-	return job
+	return makeJobWithPrice(t, jobId, isGang, 0)
 }
 
 func makeJobWithPrice(t *testing.T, jobId string, isGang bool, price float64) *jobdb.Job {
