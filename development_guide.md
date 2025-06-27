@@ -1,10 +1,25 @@
 # Development guide
+- [Development guide](#development-guide)
+  - [Prerequisites](#prerequisites)
+  - [Running the Armada server and executor in VS Code](#running-the-armada-server-and-executor-in-vs-code)
 
 Here, we give an overview of a development setup for Armada that is closely aligned with how Armada is built and tested in CI.
 
-Before starting, please ensure you have installed [Go](https://go.dev/doc/install) (version 1.20 or later), gcc (for Windows, see, e.g., [tdm-gcc](https://jmeubank.github.io/tdm-gcc/)), [mage](https://magefile.org/), [docker](https://docs.docker.com/get-docker/), [kubectl](https://kubernetes.io/docs/tasks/tools/#kubectl), and, if you need to compile `.proto` files, [protoc](https://github.com/protocolbuffers/protobuf/releases).
+## Prerequisites
 
-Then, use the following commands to setup a local Armada system.
+Follow these steps before you start developing with Armada:
+
+1. Make sure you have installed the following tools:
+
+* [Go](https://go.dev/doc/install) (version 1.20 or later)
+* gcc (for Windows, see [tdm-gcc](https://jmeubank.github.io/tdm-gcc/))
+* [mage](https://magefile.org/)
+* [docker](https://docs.docker.com/get-docker/)
+* [kubectl](https://kubernetes.io/docs/tasks/tools/#kubectl)
+* (if you need to compile `.proto` files) [protoc](https://github.com/protocolbuffers/protobuf/releases)
+
+2. Use the following commands to set up a local Armada system:
+
 ```bash
 # Download Go dependencies.
 go mod tidy
@@ -35,9 +50,10 @@ mage StartDependencies && mage checkForPulsarRunning
 docker-compose up -d server executor
 ```
 
-**Note: the components take ~15 seconds to start up.**
+**Note:** The components take ~15 seconds to start up.
 
-Run the Armada test suite against the local environment to verify that it is working correctly.
+3. Run the Armada test suite against the local environment to verify that it is working correctly.
+
 ```bash
 # Create an Armada queue to submit jobs to.
 go run cmd/armadactl/main.go create queue e2e-test-queue
@@ -50,7 +66,8 @@ export ARMADA_EXECUTOR_INGRESS_PORT=5001
 go run cmd/testsuite/main.go test --tests "testsuite/testcases/basic/*" --junit junit.xml
 ```
 
-Tear down the local environment using the following:
+4. Tear down the local environment using the following commands:
+
 ```bash
 # Stop Armada components and dependencies.
 docker-compose down
@@ -59,10 +76,12 @@ docker-compose down
 mage KindTeardown
 ```
 
+## Running the Armada server and executor in VS Code
 
-## Running the Armada server and executor in Visual Studio Code
+To run the Armada server and executor from VS Code for debugging purposes:
 
-To run the Armada server and executor from Visual Studio Code for debugging purposes, add, e.g., the following config to `.vscode/launch.json` and start both from the "Run and Debug" menu (see the Visual Studio Code [documentation](https://code.visualstudio.com/docs/editor/debugging) for more information).
+1. Add something like  the following config to `.vscode/launch.json`.
+2. Start both the server and executor from the **Run and Debug** menu. For more information, [see the VS Code documentation](https://code.visualstudio.com/docs/editor/debugging).
 
 ```json
 {
