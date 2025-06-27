@@ -1,5 +1,5 @@
-# armada_client package
-- [armada\_client package](#armada_client-package)
+# Armada client package
+- [Armada client package](#armada-client-package)
   - [armada\_client.client module](#armada_clientclient-module)
     - [_class_ armada\_client.client.ArmadaClient(channel, event\_timeout=datetime.timedelta(seconds=900))](#class-armada_clientclientarmadaclientchannel-event_timeoutdatetimetimedeltaseconds900)
       - [cancel\_jobs(queue, job\_set\_id, job\_id=None)](#cancel_jobsqueue-job_set_id-job_idnone)
