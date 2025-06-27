@@ -91,6 +91,7 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 	nodeIdByJobId := make(map[string]string)
 	ctx.Infof("Looping through candidate gangs for pool %s...", sctx.Pool)
 
+	scheduledResource := sch.schedulingContext.TotalResources.Factory().MakeAllZero()
 	statsPerQueue := map[string]QueueStats{}
 	loopNumber := 0
 	for {
@@ -130,19 +131,24 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 				}
 			}
 
+			scheduledResource = scheduledResource.Add(gctx.TotalResourceRequests)
 			if sch.marketDriven && sctx.SpotPrice == nil {
-				totalAllocation := sctx.FairnessCostProvider.UnweightedCostFromAllocation(sctx.Allocated)
+				totalAllocation := sctx.FairnessCostProvider.UnweightedCostFromAllocation(scheduledResource)
 				if totalAllocation > sch.spotPriceCutoff {
 					price := gctx.JobSchedulingContexts[0].Job.GetBidPrice(sctx.Pool)
+					priceSettingJctx := gctx.JobSchedulingContexts[0]
 					for _, jctx := range gctx.JobSchedulingContexts {
 						if jctx.Job.GetBidPrice(sctx.Pool) < price {
 							price = jctx.Job.GetBidPrice(sctx.Pool)
+							priceSettingJctx = jctx
 						}
 					}
+					ctx.Infof("setting spot price to %f based on job %s, current scheduled resource is %s, total resource is %s",
+						price, priceSettingJctx.JobId, scheduledResource, sctx.TotalResources)
 
 					sctx.SpotPrice = &price
 					for _, qctx := range sctx.QueueSchedulingContexts {
-						qctx.SetCurrentAllocationAsBillable()
+						qctx.SetBillableResource()
 					}
 				}
 			}
