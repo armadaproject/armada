@@ -1,5 +1,5 @@
-# Scheduler
-- [Scheduler](#scheduler)
+# Scheduling and preempting jobs
+- [Scheduling and preempting jobs](#scheduling-and-preempting-jobs)
 	- [Jobs and queues](#jobs-and-queues)
 	- [Resource usage and fairness](#resource-usage-and-fairness)
 	- [Priority classes and preemption](#priority-classes-and-preemption)

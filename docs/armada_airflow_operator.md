@@ -1,5 +1,5 @@
-# Armada Airflow Operator
-- [Armada Airflow Operator](#armada-airflow-operator)
+# Armada Airflow operator
+- [Armada Airflow operator](#armada-airflow-operator)
   - [armada.operators.armada module](#armadaoperatorsarmada-module)
     - [_class_ armada.operators.armada.ArmadaOperator(name, channel\_args, armada\_queue, job\_request, job\_set\_prefix='', lookout\_url\_template=None, poll\_interval=30, container\_logs=None, k8s\_token\_retriever=None, deferrable=False, job\_acknowledgement\_timeout=300, dry\_run=False, reattach\_policy=None, extra\_links=None, \*\*kwargs)](#class-armadaoperatorsarmadaarmadaoperatorname-channel_args-armada_queue-job_request-job_set_prefix-lookout_url_templatenone-poll_interval30-container_logsnone-k8s_token_retrievernone-deferrablefalse-job_acknowledgement_timeout300-dry_runfalse-reattach_policynone-extra_linksnone-kwargs)
       - [execute(context)](#executecontext)
