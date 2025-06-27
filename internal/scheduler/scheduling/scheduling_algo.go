@@ -666,6 +666,7 @@ func (l *FairSchedulingAlgo) populateNodeDb(nodeDb *nodedb.NodeDb, currentPoolJo
 		func(node *internaltypes.Node) string { return node.GetId() },
 	)
 	jobsByNodeId := make(map[string][]*jobdb.Job, len(nodes))
+	allocatedByNodeId := make(map[string]internaltypes.ResourceList, len(nodes))
 	for _, job := range currentPoolJobs {
 		if job.InTerminalState() || !job.HasRuns() {
 			continue
@@ -679,6 +680,11 @@ func (l *FairSchedulingAlgo) populateNodeDb(nodeDb *nodedb.NodeDb, currentPoolJo
 			continue
 		}
 		jobsByNodeId[nodeId] = append(jobsByNodeId[nodeId], job)
+		if _, present := allocatedByNodeId[nodeId]; !present {
+			allocatedByNodeId[nodeId] = job.KubernetesResourceRequirements()
+		} else {
+			allocatedByNodeId[nodeId] = allocatedByNodeId[nodeId].Add(job.KubernetesResourceRequirements())
+		}
 	}
 	for _, job := range otherPoolsJobs {
 		if job.InTerminalState() || !job.HasRuns() {
@@ -692,6 +698,11 @@ func (l *FairSchedulingAlgo) populateNodeDb(nodeDb *nodedb.NodeDb, currentPoolJo
 		}
 		// Mark resource used by jobs of other pools as unallocatable so we don't double schedule this resource
 		markResourceUnallocatable(node.AllocatableByPriority, job.KubernetesResourceRequirements())
+		if _, present := allocatedByNodeId[nodeId]; !present {
+			allocatedByNodeId[nodeId] = job.KubernetesResourceRequirements()
+		} else {
+			allocatedByNodeId[nodeId] = allocatedByNodeId[nodeId].Add(job.KubernetesResourceRequirements())
+		}
 	}
 
 	for _, node := range nodes {
@@ -702,6 +713,13 @@ func (l *FairSchedulingAlgo) populateNodeDb(nodeDb *nodedb.NodeDb, currentPoolJo
 			// NOTE - Unschedulable nodes with jobs already scheduled on to them still need to be added to the nodeDb,
 			//         so the jobs can be rescheduled onto them if evicted
 			continue
+		}
+		allocatedToNode, exists := allocatedByNodeId[node.GetId()]
+		if exists {
+			if allocatedToNode.Exceeds(node.GetAllocatableResources()) {
+				node = node.WithOverAllocated(true)
+				node = node.WithSchedulable(false)
+			}
 		}
 		if err := nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, jobsByNodeId[node.GetId()], node); err != nil {
 			return err
