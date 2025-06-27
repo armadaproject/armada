@@ -66,6 +66,8 @@ type JobSchedulingContext struct {
 	PreemptionType PreemptionType
 	// Description of the cause of preemption
 	PreemptionDescription string
+	// If this job context should contribute to the billable resource of the queue
+	Billable bool
 }
 
 func (jctx *JobSchedulingContext) IsHomeJob(currentPool string) bool {
