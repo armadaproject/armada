@@ -36,6 +36,8 @@ jobs:
       HAS_PAGES: ${{ steps.has-pages.outputs.HAS_PAGES }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Fetch full git history (not shallow), required for lastModified on content pages
 
       - name: Set HAS_PAGES to output
         id: has-pages
