@@ -670,7 +670,11 @@ func (nodeDb *NodeDb) selectNodeForPodWithItAtPriority(
 		var reason PodRequirementsNotMetReason
 		var err error
 		if onlyCheckDynamicRequirements {
-			matches, reason = DynamicJobRequirementsMet(node.AllocatableByPriority[priority], jctx)
+			if node.IsOverAllocated() {
+				matches = true
+			} else {
+				matches, reason = DynamicJobRequirementsMet(node.AllocatableByPriority[priority], jctx)
+			}
 		} else {
 			matches, reason, err = JobRequirementsMet(node, priority, jctx)
 		}
