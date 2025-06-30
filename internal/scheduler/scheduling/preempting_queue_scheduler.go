@@ -282,7 +282,7 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 	}
 	ctx.Logger().WithField("stage", "scheduling-algo").Infof("Finished unbinding preempted and evicted jobs")
 
-	PopulatePreemptionDescriptions(preemptedJobs, scheduledJobs)
+	PopulatePreemptionDescriptions(sch.marketDriven, sch.schedulingContext.Pool, preemptedJobs, scheduledJobs)
 	schedulercontext.PrintJobSchedulingDetails(ctx, "Evicted job details", maps.Values(scheduledAndEvictedJobsById))
 	schedulercontext.PrintJobSummary(ctx, "Preempting running jobs;", preemptedJobs)
 	schedulercontext.PrintJobSummary(ctx, "Scheduling new jobs;", scheduledJobs)
