@@ -14,6 +14,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/mocks"
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
@@ -224,6 +225,7 @@ func TestPublishCycleMetrics(t *testing.T) {
 		configuration.SchedulingConfig{DominantResourceFairnessResourcesToConsider: []string{"cpu"}},
 	)
 	require.NoError(t, err)
+	spotPrice := float64(5)
 	schedulerResult := scheduling.SchedulerResult{
 		SchedulingContexts: []*context.SchedulingContext{
 			{
@@ -233,12 +235,14 @@ func TestPublishCycleMetrics(t *testing.T) {
 				TotalResources:       cpu(100),
 				QueueSchedulingContexts: map[string]*context.QueueSchedulingContext{
 					"queue1": {
-						Queue:             "queue1",
-						Allocated:         cpu(10),
-						Demand:            cpu(20),
-						ConstrainedDemand: cpu(15),
+						Queue:              "queue1",
+						Allocated:          cpu(10),
+						Demand:             cpu(20),
+						ConstrainedDemand:  cpu(15),
+						BillableAllocation: cpu(9),
 					},
 				},
+				SpotPrice: &spotPrice,
 			},
 		},
 	}
@@ -259,6 +263,12 @@ func TestPublishCycleMetrics(t *testing.T) {
 			"nvidia.com/gpu":         mustParseResourcePtr("0"),
 			"test-floating-resource": mustParseResourcePtr("0"),
 		},
+		BillableAllocationByResourceType: map[string]*resource.Quantity{
+			"cpu":                    mustParseResourcePtr("9"),
+			"memory":                 mustParseResourcePtr("0"),
+			"nvidia.com/gpu":         mustParseResourcePtr("0"),
+			"test-floating-resource": mustParseResourcePtr("0"),
+		},
 	}
 
 	mockPublisher.EXPECT().PublishMessages(ctx, gomock.Any()).DoAndReturn(func(ctx *armadacontext.Context, events ...*metricevents.Event) error {
@@ -266,12 +276,15 @@ func TestPublishCycleMetrics(t *testing.T) {
 		actual := events[0].GetCycleMetrics()
 		assert.Equal(t, "pool1", actual.Pool)
 
+		require.Equal(t, spotPrice, actual.SpotPrice)
+		require.Equal(t, protoutil.ToTimestamp(ts), actual.CycleTime)
 		queueMetrics := actual.GetQueueMetrics()["queue1"]
 		require.NotNil(t, queueMetrics)
 
 		assert.Equal(t, expectedMetrics.ActualShare, queueMetrics.ActualShare)
 		assert.Equal(t, expectedMetrics.Demand, queueMetrics.Demand)
 		assert.Equal(t, expectedMetrics.ConstrainedDemand, queueMetrics.ConstrainedDemand)
+		require.Equal(t, protoutil.ToTimestamp(ts), actual.CycleTime)
 
 		require.Equal(t, len(expectedMetrics.DemandByResourceType), len(queueMetrics.DemandByResourceType))
 		for r, q := range expectedMetrics.DemandByResourceType {
@@ -285,6 +298,12 @@ func TestPublishCycleMetrics(t *testing.T) {
 			actualQty := *queueMetrics.ConstrainedDemandByResourceType[r]
 			assert.True(t, q.Equal(actualQty),
 				"ConstrainedDemandByResourceType for resource type %s are not equal.  Expected %s, got %s", r, q.String(), actualQty.String())
+		}
+		require.Equal(t, len(expectedMetrics.BillableAllocationByResourceType), len(queueMetrics.BillableAllocationByResourceType))
+		for r, q := range expectedMetrics.BillableAllocationByResourceType {
+			actualQty := *queueMetrics.BillableAllocationByResourceType[r]
+			assert.True(t, q.Equal(actualQty),
+				"BillableAllocationByResourceType for resource type %s are not equal.  Expected %s, got %s", r, q.String(), actualQty.String())
 		}
 
 		return nil

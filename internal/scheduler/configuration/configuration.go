@@ -58,6 +58,9 @@ type Configuration struct {
 	QueueRefreshPeriod time.Duration `validate:"required"`
 	// Allows queue priority overrides to be fetched from an external source.
 	PriorityOverride PriorityOverrideConfig
+	// Configuration for the pricing API
+	// This is used to retrieve queue pricing information
+	PricingApi PricingApiConfig
 	// Whether to publish metrics To Pulsar.  This is currently experimental
 	PublishMetricsToPulsar bool
 }
@@ -294,7 +297,14 @@ type PoolConfig struct {
 	// When calculating costs assume all jobs ran for at least this long.
 	// This penalizes jobs that ran for less than this value,
 	// since they are charged the same as a job that ran for this value.
-	ShortJobPenaltyCutoff time.Duration
+	ShortJobPenaltyCutoff        time.Duration
+	ExperimentalMarketScheduling *MarketSchedulingConfig
+}
+
+type MarketSchedulingConfig struct {
+	Enabled bool
+	// The percentage of the pool that needs to be allocated to determine the spot price
+	SpotPriceCutoff float64
 }
 
 type OptimiserConfig struct {
@@ -346,6 +356,15 @@ func (sc *SchedulingConfig) GetOptimiserConfig(poolName string) *OptimiserConfig
 	return nil
 }
 
+func (sc *SchedulingConfig) GetMarketConfig(poolName string) *MarketSchedulingConfig {
+	for _, poolConfig := range sc.Pools {
+		if poolConfig.Name == poolName {
+			return poolConfig.ExperimentalMarketScheduling
+		}
+	}
+	return nil
+}
+
 func (sc *SchedulingConfig) GetShortJobPenaltyCutoffs() map[string]time.Duration {
 	result := make(map[string]time.Duration)
 	for _, poolConfig := range sc.Pools {
@@ -377,4 +396,14 @@ type PriorityOverrideConfig struct {
 	UpdateFrequency time.Duration
 	ServiceUrl      string
 	ForceNoTls      bool
+}
+
+type PricingApiConfig struct {
+	Enabled         bool
+	UpdateFrequency time.Duration
+	ServiceUrl      string
+	ForceNoTls      bool
+	// This is for local testing only
+	// It will stub the pricing api so it returns non-zero values but won't call and external service
+	DevModeEnabled bool
 }

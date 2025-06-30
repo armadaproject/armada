@@ -16,7 +16,9 @@ import api.submit.{
 }
 import api.health.HealthCheckResponse
 import com.google.protobuf.empty.Empty
-import io.grpc.{ManagedChannel, ManagedChannelBuilder}
+import io.grpc.netty.NettyChannelBuilder
+import io.grpc.stub.MetadataUtils
+import io.grpc.{ManagedChannel, Metadata}
 
 import scala.concurrent.Future
 
@@ -75,14 +77,42 @@ class ArmadaClient(channel: ManagedChannel) {
 }
 
 object ArmadaClient {
-  // TODO: SSL
   def apply(channel: ManagedChannel): ArmadaClient = {
     new ArmadaClient(channel)
   }
 
   def apply(host: String, port: Int): ArmadaClient = {
-    val channel =
-      ManagedChannelBuilder.forAddress(host, port).usePlaintext().build
+    apply(host, port, false, None)
+  }
+
+  def apply(
+      host: String,
+      port: Int,
+      useSsl: Boolean,
+      bearerToken: Option[String]
+  ): ArmadaClient = {
+    val secureMode =
+      host.startsWith("https://") || host.startsWith("grpcs://") || useSsl
+    val channel = (secureMode, bearerToken) match {
+      case (false, None) =>
+        NettyChannelBuilder.forAddress(host, port).usePlaintext().build()
+      case (true, None) =>
+        NettyChannelBuilder
+          .forAddress(host, port)
+          .useTransportSecurity()
+          .build()
+      case (_, Some(token)) =>
+        val metadata = new Metadata()
+        metadata.put(
+          Metadata.Key.of("Authorization", Metadata.ASCII_STRING_MARSHALLER),
+          "Bearer " + token
+        )
+        NettyChannelBuilder
+          .forAddress(host, port)
+          .useTransportSecurity()
+          .intercept(MetadataUtils.newAttachHeadersInterceptor(metadata))
+          .build
+    }
     ArmadaClient(channel)
   }
 }

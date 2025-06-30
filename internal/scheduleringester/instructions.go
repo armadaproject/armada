@@ -1,6 +1,7 @@
 package scheduleringester
 
 import (
+	"strings"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
@@ -20,6 +21,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/armadaproject/armada/pkg/armadaevents"
+	"github.com/armadaproject/armada/pkg/bidstore"
 	"github.com/armadaproject/armada/pkg/controlplaneevents"
 )
 
@@ -164,6 +166,18 @@ func (c *JobSetEventsInstructionConverter) handleSubmitJob(job *armadaevents.Sub
 		return nil, err
 	}
 
+	pricingBand := int32(0)
+	if job.ObjectMeta != nil {
+		pricingBandValue, ok := job.ObjectMeta.Annotations[configuration.JobPriceBand]
+		if ok {
+			priceBandValue, exists := bidstore.PriceBandFromShortName[strings.ToUpper(pricingBandValue)]
+			if !exists {
+				log.Errorf("not setting pricing band for job %s, as an invalid pricing band was specified (pricing band %s)", jobId, priceBandValue)
+			}
+			pricingBand = int32(priceBandValue)
+		}
+	}
+
 	return []DbOperation{InsertJobs{jobId: &schedulerdb.Job{
 		JobID:                 jobId,
 		JobSet:                meta.jobset,
@@ -177,6 +191,7 @@ func (c *JobSetEventsInstructionConverter) handleSubmitJob(job *armadaevents.Sub
 		SubmitMessage:         compressedSubmitJobBytes,
 		SchedulingInfo:        schedulingInfoBytes,
 		SchedulingInfoVersion: int32(schedulingInfo.Version),
+		PriceBand:             pricingBand,
 	}}}, nil
 }
 
