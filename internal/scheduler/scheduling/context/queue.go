@@ -88,6 +88,17 @@ func (qctx *QueueSchedulingContext) GetAllocationInclShortJobPenalty() internalt
 	return qctx.Allocated.Add(qctx.ShortJobPenalty)
 }
 
+func (qctx *QueueSchedulingContext) SetCurrentAllocationAsBillable() {
+	qctx.BillableAllocation = qctx.Allocated
+	for _, jctx := range qctx.SuccessfulJobSchedulingContexts {
+		jctx.Billable = true
+	}
+}
+
+func (qctx *QueueSchedulingContext) GetBillableResource() internaltypes.ResourceList {
+	return qctx.BillableAllocation.FloorAtZero()
+}
+
 // GetWeight is necessary to implement the fairness.Queue interface.
 func (qctx *QueueSchedulingContext) GetWeight() float64 {
 	return qctx.Weight
@@ -230,10 +241,13 @@ func (qctx *QueueSchedulingContext) preemptJob(jctx *JobSchedulingContext) (bool
 
 	pcName := jctx.Job.PriorityClassName()
 	rl := jctx.Job.AllResourceRequirements()
-	_, scheduledInThisRound := qctx.SuccessfulJobSchedulingContexts[jobId]
+	existingJctx, scheduledInThisRound := qctx.SuccessfulJobSchedulingContexts[jobId]
 	if scheduledInThisRound {
 		qctx.ScheduledResourcesByPriorityClass[pcName] = qctx.ScheduledResourcesByPriorityClass[pcName].Subtract(rl)
 		delete(qctx.SuccessfulJobSchedulingContexts, jobId)
+		if existingJctx.Billable {
+			qctx.BillableAllocation = qctx.BillableAllocation.Subtract(existingJctx.Job.AllResourceRequirements())
+		}
 	}
 	qctx.PreemptedByOptimiserResourceByPriorityClass[pcName] = qctx.PreemptedByOptimiserResourceByPriorityClass[pcName].Add(rl)
 	qctx.PreemptedByOptimiserJobSchedulingContexts[jobId] = jctx
@@ -254,10 +268,13 @@ func (qctx *QueueSchedulingContext) evictJob(job *jobdb.Job) (bool, error) {
 	}
 	pcName := job.PriorityClassName()
 	rl := job.AllResourceRequirements()
-	_, scheduledInThisRound := qctx.SuccessfulJobSchedulingContexts[jobId]
+	existingJctx, scheduledInThisRound := qctx.SuccessfulJobSchedulingContexts[jobId]
 	if scheduledInThisRound {
 		qctx.ScheduledResourcesByPriorityClass[pcName] = qctx.ScheduledResourcesByPriorityClass[pcName].Subtract(rl)
 		delete(qctx.SuccessfulJobSchedulingContexts, jobId)
+		if existingJctx.Billable {
+			qctx.BillableAllocation = qctx.BillableAllocation.Subtract(existingJctx.Job.AllResourceRequirements())
+		}
 	} else {
 		qctx.EvictedResourcesByPriorityClass[pcName] = qctx.EvictedResourcesByPriorityClass[pcName].Add(rl)
 		qctx.EvictedJobsById[jobId] = true
