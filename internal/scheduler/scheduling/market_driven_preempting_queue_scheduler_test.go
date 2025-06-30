@@ -10,6 +10,7 @@ import (
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	"golang.org/x/time/rate"
+	v1 "k8s.io/api/core/v1"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
@@ -408,6 +409,38 @@ func TestMarketDrivenPreemptingQueueScheduler(t *testing.T) {
 			},
 			PriorityFactorByQueue: map[string]float64{"A": 1, "B": 1, "C": 1},
 		},
+		"preempted away jobs do not contribute to billable resource": {
+			SchedulingConfig: testfixtures.WithMarketBasedSchedulingEnabled(testfixtures.TestSchedulingConfig()),
+			Nodes: testfixtures.TestNodeFactory.AddTaints(testfixtures.N8GpuNodes(1, testfixtures.TestPriorities), []v1.Taint{
+				{
+					Key:    "gpu",
+					Value:  "true",
+					Effect: v1.TaintEffectNoSchedule,
+				},
+			}),
+			Rounds: []SchedulingRound{
+				{
+					// A schedules away jobs first as it has the higher price band
+					// B will preempt these with urgency based preemption
+					// A should not get charged for having had resource scheduled at the time the spot price was calculcated
+					JobsByQueue: map[string][]*jobdb.Job{
+						"A": testfixtures.N1Cpu4GiJobsWithPriceBandAndPriorityClass("A", bidstore.PriceBand_PRICE_BAND_D, testfixtures.PriorityClass4PreemptibleAway, 1),
+						"B": testfixtures.N1GpuJobsWithPriceBandAndPriorityClass("B", bidstore.PriceBand_PRICE_BAND_A, testfixtures.PriorityClass6Preemptible, 8),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"B": testfixtures.IntRange(0, 7),
+					},
+					ExpectedMarketData: &MarketData{
+						ExpectedSpotPrice: 1,
+						ExpectedBillableResource: map[string]internaltypes.ResourceList{
+							"A": testfixtures.TestResourceListFactory.MakeAllZero(),
+							"B": testfixtures.CpuMemGpu("64", "1024Gi", "8"),
+						},
+					},
+				},
+			},
+			PriorityFactorByQueue: map[string]float64{"A": 1, "B": 1},
+		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -660,7 +693,7 @@ func TestMarketDrivenPreemptingQueueScheduler(t *testing.T) {
 					for queue, expectedBillableResource := range round.ExpectedMarketData.ExpectedBillableResource {
 						qctx, exists := sctx.QueueSchedulingContexts[queue]
 						assert.True(t, exists, fmt.Sprintf("queue context for %s expected to exist as it has an expected billable resource set", queue))
-						assert.Equal(t, expectedBillableResource, qctx.BillableAllocation)
+						assert.Equal(t, expectedBillableResource, qctx.GetBillableResource())
 					}
 				}
 
