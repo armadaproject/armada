@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
+	"github.com/armadaproject/armada/internal/scheduler/pricing"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 	"github.com/armadaproject/armada/internal/server/configuration"
@@ -34,6 +34,7 @@ func TestPopulatePreemptionDescriptions(t *testing.T) {
 	}
 
 	tests := map[string]struct {
+		marketBased                 bool
 		preemptedJobContext         *context.JobSchedulingContext
 		expectedPreemptedJobContext *context.JobSchedulingContext
 	}{
@@ -91,15 +92,32 @@ func TestPopulatePreemptionDescriptions(t *testing.T) {
 		},
 		"fairshare": {
 			preemptedJobContext: &context.JobSchedulingContext{
-				JobId:           "job-1",
-				AssignedNode:    testfixtures.TestSimpleNode("node-4"),
-				PreemptingJobId: "job-7",
+				JobId:         "job-1",
+				AssignedNode:  testfixtures.TestSimpleNode("node-4"),
+				PreemptingJob: makeJob(t, "job-7", false),
 			},
 			expectedPreemptedJobContext: &context.JobSchedulingContext{
 				JobId:                 "job-1",
 				AssignedNode:          testfixtures.TestSimpleNode("node-4"),
-				PreemptingJobId:       "job-7",
+				PreemptingJob:         makeJob(t, "job-7", false),
 				PreemptionDescription: fmt.Sprintf(fairSharePreemptionTemplate, "job-7"),
+				PreemptionType:        context.PreemptedWithFairsharePreemption,
+			},
+		},
+		"fairshare - market based": {
+			marketBased: true,
+			preemptedJobContext: &context.JobSchedulingContext{
+				JobId:         "job-1",
+				Job:           makeJobWithPrice(t, "job-1", false, 0),
+				AssignedNode:  testfixtures.TestSimpleNode("node-4"),
+				PreemptingJob: makeJobWithPrice(t, "job-7", false, 5),
+			},
+			expectedPreemptedJobContext: &context.JobSchedulingContext{
+				JobId:                 "job-1",
+				Job:                   makeJobWithPrice(t, "job-1", false, 0),
+				AssignedNode:          testfixtures.TestSimpleNode("node-4"),
+				PreemptingJob:         makeJobWithPrice(t, "job-7", false, 5),
+				PreemptionDescription: fmt.Sprintf(marketBasedPreemptionTemplate, float64(0), "job-7", float64(5)),
 				PreemptionType:        context.PreemptedWithFairsharePreemption,
 			},
 		},
@@ -107,7 +125,7 @@ func TestPopulatePreemptionDescriptions(t *testing.T) {
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			PopulatePreemptionDescriptions([]*context.JobSchedulingContext{tc.preemptedJobContext}, scheduledJobContexts)
+			PopulatePreemptionDescriptions(tc.marketBased, testfixtures.TestPool, []*context.JobSchedulingContext{tc.preemptedJobContext}, scheduledJobContexts)
 			assert.Equal(t, expectedScheduleJobContexts, scheduledJobContexts)
 			assert.Equal(t, []*context.JobSchedulingContext{tc.expectedPreemptedJobContext}, []*context.JobSchedulingContext{tc.preemptedJobContext})
 		})
@@ -125,6 +143,10 @@ func makeJobSchedulingContext(jobId string, nodeId string, schedulingMethod cont
 }
 
 func makeJob(t *testing.T, jobId string, isGang bool) *jobdb.Job {
+	return makeJobWithPrice(t, jobId, isGang, 0)
+}
+
+func makeJobWithPrice(t *testing.T, jobId string, isGang bool, price float64) *jobdb.Job {
 	annotations := map[string]string{}
 	if isGang {
 		annotations[configuration.GangIdAnnotation] = "gang"
@@ -137,5 +159,6 @@ func makeJob(t *testing.T, jobId string, isGang bool) *jobdb.Job {
 
 	job, err := testfixtures.JobDb.NewJob(jobId, "jobset", "queue", 1, schedulingInfo, false, 1, false, false, false, 0, true, []string{}, 0)
 	require.NoError(t, err)
+	job = job.WithBidPrices(map[string]pricing.Bid{testfixtures.TestPool: {QueuedBid: price, RunningBid: price}})
 	return job
 }
