@@ -41,6 +41,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/leader"
 	"github.com/armadaproject/armada/internal/scheduler/metrics"
+	"github.com/armadaproject/armada/internal/scheduler/pricing"
 	"github.com/armadaproject/armada/internal/scheduler/priorityoverride"
 	"github.com/armadaproject/armada/internal/scheduler/queue"
 	"github.com/armadaproject/armada/internal/scheduler/reports"
@@ -149,6 +150,39 @@ func Run(config schedulerconfig.Configuration) error {
 		provider := priorityoverride.NewServiceProvider(priorityOverrideClient, config.PriorityOverride.UpdateFrequency)
 		services = append(services, func() error { return provider.Run(ctx) })
 		priorityOverrideProvider = provider
+	}
+
+	// ////////////////////////////////////////////////////////////////////////
+	// Pricing API
+	// ////////////////////////////////////////////////////////////////////////
+	marketDrivenPoolConfigs := slices.Filter(config.Scheduling.Pools, func(e schedulerconfig.PoolConfig) bool {
+		return e.ExperimentalMarketScheduling != nil && e.ExperimentalMarketScheduling.Enabled
+	})
+	marketDrivenPools := slices.Map(marketDrivenPoolConfigs, func(e schedulerconfig.PoolConfig) string {
+		return e.Name
+	})
+
+	var bidPriceProvider pricing.BidPriceProvider = pricing.NoopBidPriceProvider{}
+	if config.PricingApi.Enabled {
+		if config.PricingApi.DevModeEnabled {
+			ctx.Infof("Pricing API Service configured with dev mode on, will get queue pricing information overrides from local stub")
+			bidPriceProvider = pricing.NewLocalBidPriceService(marketDrivenPools, queueCache)
+		} else {
+			ctx.Infof("Pricing API Service configured, will get queue pricing information overrides from %s", config.PricingApi.ServiceUrl)
+			bidRetrieverClient, err := pricing.NewBidRetrieverServiceClient(config.PricingApi)
+			if err != nil {
+				return errors.WithMessage(err, "Error creating bid retriever client")
+			}
+			bidPriceCache := pricing.NewBidPriceCache(bidRetrieverClient, config.PricingApi.UpdateFrequency)
+			bidPriceProviderInitTimeout, cancel := armadacontext.WithTimeout(ctx, time.Second*30)
+			defer cancel()
+			err = bidPriceCache.Initialise(bidPriceProviderInitTimeout)
+			if err != nil {
+				ctx.Errorf("error initialising queue cache - %v", err)
+			}
+			services = append(services, func() error { return bidPriceCache.Run(ctx) })
+			bidPriceProvider = bidPriceCache
+		}
 	}
 
 	// ////////////////////////////////////////////////////////////////////////
@@ -357,6 +391,8 @@ func Run(config schedulerconfig.Configuration) error {
 		config.Scheduling.MaxRetries+1,
 		config.Scheduling.NodeIdLabel,
 		schedulerMetrics,
+		bidPriceProvider,
+		marketDrivenPools,
 	)
 	if err != nil {
 		return errors.WithMessage(err, "error creating scheduler")
@@ -372,6 +408,7 @@ func Run(config schedulerconfig.Configuration) error {
 	metricsCollector := NewMetricsCollector(
 		scheduler.jobDb,
 		queueCache,
+		bidPriceProvider,
 		executorRepository,
 		config.Scheduling.Pools,
 		config.Metrics.RefreshInterval,

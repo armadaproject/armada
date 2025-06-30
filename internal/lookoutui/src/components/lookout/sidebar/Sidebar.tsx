@@ -13,7 +13,6 @@ import { SidebarTabJobResult } from "./SidebarTabJobResult"
 import { SidebarTabJobYaml } from "./SidebarTabJobYaml"
 import { SidebarTabScheduling } from "./SidebarTabScheduling"
 import { Job, JobState } from "../../../models/lookoutModels"
-import { IGetJobInfoService } from "../../../services/lookout/GetJobInfoService"
 import { SPACING } from "../../../styling/spacing"
 import { CommandSpec } from "../../../utils"
 import { AlertErrorFallback } from "../../AlertErrorFallback"
@@ -130,171 +129,168 @@ type ResizeState = {
 
 export interface SidebarProps {
   job: Job
-  jobSpecService: IGetJobInfoService
   sidebarWidth: number
   commandSpecs: CommandSpec[]
   onClose: () => void
   onWidthChange: (width: number) => void
 }
 
-export const Sidebar = memo(
-  ({ job, jobSpecService, sidebarWidth, onClose, onWidthChange, commandSpecs }: SidebarProps) => {
-    const [openTab, setOpenTab] = useState<SidebarTab>(SidebarTab.JobDetails)
-    useEffect(() => {
-      if (openTab === SidebarTab.Scheduling && job.state !== JobState.Queued) {
-        setOpenTab(SidebarTab.JobDetails)
+export const Sidebar = memo(({ job, sidebarWidth, onClose, onWidthChange, commandSpecs }: SidebarProps) => {
+  const [openTab, setOpenTab] = useState<SidebarTab>(SidebarTab.JobDetails)
+  useEffect(() => {
+    if (openTab === SidebarTab.Scheduling && job.state !== JobState.Queued) {
+      setOpenTab(SidebarTab.JobDetails)
+    }
+  }, [openTab, job.state])
+
+  const handleTabChange = useCallback((_: SyntheticEvent, newValue: SidebarTab) => {
+    setOpenTab(newValue)
+  }, [])
+
+  // Logic to keep the sidebar the correct height while accounting for possible page headers
+  const ref = useRef<HTMLDivElement>(null)
+  const [visibleHeightAboveElement, setVisibleHeightAboveElement] = useState(0)
+  useEffect(() => {
+    const onScroll = () => {
+      if (ref.current !== null) {
+        setVisibleHeightAboveElement(ref.current.offsetTop - window.scrollY)
       }
-    }, [openTab, job.state])
+    }
 
-    const handleTabChange = useCallback((_: SyntheticEvent, newValue: SidebarTab) => {
-      setOpenTab(newValue)
-    }, [])
+    // Calculate on first load
+    onScroll()
 
-    // Logic to keep the sidebar the correct height while accounting for possible page headers
-    const ref = useRef<HTMLDivElement>(null)
-    const [visibleHeightAboveElement, setVisibleHeightAboveElement] = useState(0)
-    useEffect(() => {
-      const onScroll = () => {
-        if (ref.current !== null) {
-          setVisibleHeightAboveElement(ref.current.offsetTop - window.scrollY)
-        }
-      }
+    // Recalculate on every scroll
+    window.addEventListener("scroll", onScroll)
+    return () => {
+      window.removeEventListener("scroll", onScroll)
+    }
+  }, [ref])
 
-      // Calculate on first load
-      onScroll()
-
-      // Recalculate on every scroll
-      window.addEventListener("scroll", onScroll)
-      return () => {
-        window.removeEventListener("scroll", onScroll)
-      }
-    }, [ref])
-
-    // Hack: setting `isResizing` state field does not seem to work well with mousedown/mousemove listeners,
-    // so we use a ref here instead. Note that the state is still needed to trigger re-renders
-    const resizeRef = useRef(false)
-    const [resizeState, setResizeState] = useState<ResizeState>({
-      isResizing: false,
-      startX: 0,
-      currentX: 0,
+  // Hack: setting `isResizing` state field does not seem to work well with mousedown/mousemove listeners,
+  // so we use a ref here instead. Note that the state is still needed to trigger re-renders
+  const resizeRef = useRef(false)
+  const [resizeState, setResizeState] = useState<ResizeState>({
+    isResizing: false,
+    startX: 0,
+    currentX: 0,
+  })
+  const handleMouseDown = useCallback((x: number) => {
+    resizeRef.current = true
+    setResizeState({
+      isResizing: true,
+      startX: x,
+      currentX: x,
     })
-    const handleMouseDown = useCallback((x: number) => {
-      resizeRef.current = true
-      setResizeState({
-        isResizing: true,
-        startX: x,
-        currentX: x,
-      })
-    }, [])
-    const handleMouseMove = useCallback((x: number) => {
-      if (!resizeRef.current) {
-        return
-      }
-      setResizeState({
-        ...resizeState,
-        currentX: x,
-      })
-      const offsetRight = document.body.offsetWidth - (x - document.body.offsetLeft)
-      const minWidth = 350
-      const maxWidth = 1920
-      if (offsetRight > minWidth && offsetRight < maxWidth) {
-        onWidthChange(offsetRight)
-      }
-    }, [])
-    const handleMouseUp = useCallback(() => {
-      resizeRef.current = false
-      setResizeState({
-        ...resizeState,
-        isResizing: false,
-      })
-    }, [])
+  }, [])
+  const handleMouseMove = useCallback((x: number) => {
+    if (!resizeRef.current) {
+      return
+    }
+    setResizeState({
+      ...resizeState,
+      currentX: x,
+    })
+    const offsetRight = document.body.offsetWidth - (x - document.body.offsetLeft)
+    const minWidth = 350
+    const maxWidth = 1920
+    if (offsetRight > minWidth && offsetRight < maxWidth) {
+      onWidthChange(offsetRight)
+    }
+  }, [])
+  const handleMouseUp = useCallback(() => {
+    resizeRef.current = false
+    setResizeState({
+      ...resizeState,
+      isResizing: false,
+    })
+  }, [])
 
-    useEffect(() => {
-      const mousemove = (e: MouseEvent) => {
-        handleMouseMove(e.clientX)
-      }
-      document.addEventListener("mousemove", mousemove)
-      document.addEventListener("mouseup", handleMouseUp)
-      return () => {
-        document.removeEventListener("mousemove", mousemove)
-        document.removeEventListener("mouseup", handleMouseUp)
-      }
-    }, [])
+  useEffect(() => {
+    const mousemove = (e: MouseEvent) => {
+      handleMouseMove(e.clientX)
+    }
+    document.addEventListener("mousemove", mousemove)
+    document.addEventListener("mouseup", handleMouseUp)
+    return () => {
+      document.removeEventListener("mousemove", mousemove)
+      document.removeEventListener("mouseup", handleMouseUp)
+    }
+  }, [])
 
-    return (
-      <StyledDrawer
-        id="resizable"
-        ref={ref}
-        anchor="right"
-        variant="permanent"
-        role="complementary"
-        visibleHeightAboveElement={visibleHeightAboveElement}
-        sidebarWidth={sidebarWidth}
-        // Child element
-        PaperProps={{
-          sx: {
-            width: "100%",
-            position: "initial",
-          },
-        }}
-        open={true}
-      >
-        <SidebarContainer>
-          <Resizer onMouseDown={(e) => handleMouseDown(e.clientX)} id="dragger" isResizing={resizeRef.current} />
-          <SidebarContent>
-            <SidebarHeader job={job} onClose={onClose} />
-            <Divider />
-            <SidebarTabContextContainer>
-              <ErrorBoundary FallbackComponent={AlertErrorFallback}>
-                <TabContext value={openTab}>
-                  <TabsContainer>
-                    <SidebarTabs value={openTab} onChange={handleTabChange}>
-                      <StyledSidebarTab label="Details" value={SidebarTab.JobDetails} />
-                      <StyledSidebarTab label="Result" value={SidebarTab.JobResult} />
-                      {job.state === JobState.Queued && (
-                        <StyledSidebarTab label="Scheduling" value={SidebarTab.Scheduling} />
-                      )}
-                      <StyledSidebarTab label="Yaml" value={SidebarTab.Yaml} />
-                      <StyledSidebarTab label="Logs" value={SidebarTab.Logs} disabled={job.state === JobState.Queued} />
-                      <StyledSidebarTab
-                        label="Commands"
-                        value={SidebarTab.Commands}
-                        disabled={job.state === JobState.Queued}
-                      />
-                    </SidebarTabs>
-                  </TabsContainer>
+  return (
+    <StyledDrawer
+      id="resizable"
+      ref={ref}
+      anchor="right"
+      variant="permanent"
+      role="complementary"
+      visibleHeightAboveElement={visibleHeightAboveElement}
+      sidebarWidth={sidebarWidth}
+      // Child element
+      PaperProps={{
+        sx: {
+          width: "100%",
+          position: "initial",
+        },
+      }}
+      open={true}
+    >
+      <SidebarContainer>
+        <Resizer onMouseDown={(e) => handleMouseDown(e.clientX)} id="dragger" isResizing={resizeRef.current} />
+        <SidebarContent>
+          <SidebarHeader job={job} onClose={onClose} />
+          <Divider />
+          <SidebarTabContextContainer>
+            <ErrorBoundary FallbackComponent={AlertErrorFallback}>
+              <TabContext value={openTab}>
+                <TabsContainer>
+                  <SidebarTabs value={openTab} onChange={handleTabChange}>
+                    <StyledSidebarTab label="Details" value={SidebarTab.JobDetails} />
+                    <StyledSidebarTab label="Result" value={SidebarTab.JobResult} />
+                    {job.state === JobState.Queued && (
+                      <StyledSidebarTab label="Scheduling" value={SidebarTab.Scheduling} />
+                    )}
+                    <StyledSidebarTab label="Yaml" value={SidebarTab.Yaml} />
+                    <StyledSidebarTab label="Logs" value={SidebarTab.Logs} disabled={job.state === JobState.Queued} />
+                    <StyledSidebarTab
+                      label="Commands"
+                      value={SidebarTab.Commands}
+                      disabled={job.state === JobState.Queued}
+                    />
+                  </SidebarTabs>
+                </TabsContainer>
 
-                  <SidebarTabPanel value={SidebarTab.JobDetails}>
-                    <SidebarTabJobDetails key={job.jobId} job={job} />
+                <SidebarTabPanel value={SidebarTab.JobDetails}>
+                  <SidebarTabJobDetails key={job.jobId} job={job} />
+                </SidebarTabPanel>
+
+                <SidebarTabPanel value={SidebarTab.JobResult}>
+                  <SidebarTabJobResult key={job.jobId} job={job} />
+                </SidebarTabPanel>
+
+                {job.state === JobState.Queued && (
+                  <SidebarTabPanel value={SidebarTab.Scheduling}>
+                    <SidebarTabScheduling key={job.jobId} job={job} />
                   </SidebarTabPanel>
+                )}
 
-                  <SidebarTabPanel value={SidebarTab.JobResult}>
-                    <SidebarTabJobResult key={job.jobId} job={job} jobInfoService={jobSpecService} />
-                  </SidebarTabPanel>
+                <SidebarTabPanel value={SidebarTab.Yaml}>
+                  <SidebarTabJobYaml key={job.jobId} job={job} />
+                </SidebarTabPanel>
 
-                  {job.state === JobState.Queued && (
-                    <SidebarTabPanel value={SidebarTab.Scheduling}>
-                      <SidebarTabScheduling key={job.jobId} job={job} />
-                    </SidebarTabPanel>
-                  )}
+                <SidebarTabPanel value={SidebarTab.Logs}>
+                  <SidebarTabJobLogs key={job.jobId} job={job} />
+                </SidebarTabPanel>
 
-                  <SidebarTabPanel value={SidebarTab.Yaml}>
-                    <SidebarTabJobYaml key={job.jobId} job={job} />
-                  </SidebarTabPanel>
-
-                  <SidebarTabPanel value={SidebarTab.Logs}>
-                    <SidebarTabJobLogs key={job.jobId} job={job} />
-                  </SidebarTabPanel>
-
-                  <SidebarTabPanel value={SidebarTab.Commands}>
-                    <SidebarTabJobCommands key={job.jobId} job={job} commandSpecs={commandSpecs} />
-                  </SidebarTabPanel>
-                </TabContext>
-              </ErrorBoundary>
-            </SidebarTabContextContainer>
-          </SidebarContent>
-        </SidebarContainer>
-      </StyledDrawer>
-    )
-  },
-)
+                <SidebarTabPanel value={SidebarTab.Commands}>
+                  <SidebarTabJobCommands key={job.jobId} job={job} commandSpecs={commandSpecs} />
+                </SidebarTabPanel>
+              </TabContext>
+            </ErrorBoundary>
+          </SidebarTabContextContainer>
+        </SidebarContent>
+      </SidebarContainer>
+    </StyledDrawer>
+  )
+})

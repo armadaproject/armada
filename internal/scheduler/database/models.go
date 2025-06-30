@@ -48,6 +48,7 @@ type Job struct {
 	Pools                   []string  `db:"pools"`
 	BidPrice                float64   `db:"bid_price"`
 	CancelUser              *string   `db:"cancel_user"`
+	PriceBand               int32     `db:"price_band"`
 }
 
 type JobRunError struct {

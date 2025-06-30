@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/benbjohnson/immutable"
 	"github.com/hashicorp/go-memdb"
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
@@ -47,6 +48,8 @@ type PreemptingQueueScheduler struct {
 	jobIdsByGangId map[string]map[string]bool
 	// Maps job ids of gang jobs to the id of that gang.
 	gangIdByJobId map[string]string
+	marketConfig  *configuration.MarketSchedulingConfig
+	marketDriven  bool
 }
 
 func NewPreemptingQueueScheduler(
@@ -75,6 +78,9 @@ func NewPreemptingQueueScheduler(
 		initialJobIdsByGangId[gangId] = maps.Clone(jobIds)
 	}
 
+	marketConfig := config.GetMarketConfig(sctx.Pool)
+	marketDriven := marketConfig != nil && marketConfig.Enabled
+
 	return &PreemptingQueueScheduler{
 		schedulingContext:                sctx,
 		constraints:                      constraints,
@@ -90,6 +96,8 @@ func NewPreemptingQueueScheduler(
 		gangIdByJobId:                    maps.Clone(initialGangIdByJobId),
 		optimiserConfig:                  config.GetOptimiserConfig(sctx.Pool),
 		optimiserEnabled:                 optimiserEnabled,
+		marketConfig:                     marketConfig,
+		marketDriven:                     marketDriven,
 	}
 }
 
@@ -119,9 +127,6 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 					ctx.Warnf("No queue context found for job %s.  This job cannot be evicted", job.Id())
 					return false, "invalid_queue"
 				}
-				if !job.PriorityClass().Preemptible {
-					return false, "job_not_preemptible"
-				}
 				if job.Annotations() == nil {
 					ctx.Errorf("can't evict job %s: annotations not initialised", job.Id())
 					return false, "missing_annotations"
@@ -129,6 +134,12 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 				if job.NodeSelector() == nil {
 					ctx.Errorf("can't evict job %s: nodeSelector not initialised", job.Id())
 					return false, "missing_node_selector"
+				}
+				if sch.marketDriven {
+					return true, ""
+				}
+				if !job.PriorityClass().Preemptible {
+					return false, "job_not_preemptible"
 				}
 
 				if qctx, ok := sch.schedulingContext.QueueSchedulingContexts[job.Queue()]; ok {
@@ -234,7 +245,8 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 		maps.Copy(sch.nodeIdByJobId, rescheduleSchedulerResult.NodeIdByJobId)
 	}
 
-	if sch.optimiserConfig != nil && sch.optimiserEnabled {
+	// TODO Decide if we want the optimiser in a market driven world, for now disabled
+	if sch.optimiserConfig != nil && sch.optimiserEnabled && !sch.marketDriven {
 		optimisingSchedulerResult, err := sch.runOptimiser(ctx)
 		if err != nil {
 			return nil, err
@@ -298,8 +310,12 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 }
 
 func (sch *PreemptingQueueScheduler) evict(ctx *armadacontext.Context, evictor *Evictor) (*EvictorResult, *InMemoryJobRepository, error) {
+	var jobComparator immutable.Comparer[*jobdb.Job] = jobdb.JobPriorityComparer{}
+	if sch.marketDriven {
+		jobComparator = jobdb.MarketJobPriorityComparer{Pool: sch.schedulingContext.Pool}
+	}
 	if evictor == nil {
-		return &EvictorResult{}, NewInMemoryJobRepository(sch.schedulingContext.Pool), nil
+		return &EvictorResult{}, NewInMemoryJobRepository(sch.schedulingContext.Pool, jobComparator), nil
 	}
 	txn := sch.nodeDb.Txn(true)
 	defer txn.Abort()
@@ -345,7 +361,7 @@ func (sch *PreemptingQueueScheduler) evict(ctx *armadacontext.Context, evictor *
 		return nil, nil, err
 	}
 
-	inMemoryJobRepo := NewInMemoryJobRepository(sch.schedulingContext.Pool)
+	inMemoryJobRepo := NewInMemoryJobRepository(sch.schedulingContext.Pool, jobComparator)
 	inMemoryJobRepo.EnqueueMany(evictedJctxs)
 	txn.Commit()
 
@@ -528,9 +544,18 @@ func (sch *PreemptingQueueScheduler) addEvictedJobsToNodeDb(_ *armadacontext.Con
 		)
 	}
 	qr := NewMinimalQueueRepositoryFromSchedulingContext(sch.schedulingContext)
-	candidateGangIterator, err := NewCostBasedCandidateGangIterator(sctx.Pool, sctx, sctx.FairnessCostProvider, gangItByQueue, false, sch.preferLargeJobOrdering)
-	if err != nil {
-		return err
+	var candidateGangIterator CandidateGangIterator
+	var err error
+	if sch.marketDriven {
+		candidateGangIterator, err = NewMarketCandidateGangIterator(sctx.Pool, sctx, gangItByQueue)
+		if err != nil {
+			return err
+		}
+	} else {
+		candidateGangIterator, err = NewCostBasedCandidateGangIterator(sctx.Pool, sctx, sctx.FairnessCostProvider, gangItByQueue, false, sch.preferLargeJobOrdering)
+		if err != nil {
+			return err
+		}
 	}
 	txn := sch.nodeDb.Txn(true)
 	defer txn.Abort()
@@ -611,19 +636,32 @@ func (sch *PreemptingQueueScheduler) schedule(
 	skipUnsuccessfulSchedulingKeyCheck bool,
 	considerPriorityCLassPriority bool,
 ) (*SchedulerResult, error) {
+	sortOrder := jobdb.FairShareOrder
+	if sch.marketDriven {
+		sortOrder = jobdb.PriceOrder
+	}
 	jobIteratorByQueue := make(map[string]JobContextIterator)
 	for _, qctx := range sch.schedulingContext.QueueSchedulingContexts {
 		evictedIt := inMemoryJobRepo.GetJobIterator(qctx.Queue)
 		if jobRepo == nil || reflect.ValueOf(jobRepo).IsNil() {
 			jobIteratorByQueue[qctx.Queue] = evictedIt
 		} else {
-			queueIt := NewQueuedJobsIterator(ctx, qctx.Queue, sch.schedulingContext.Pool, jobRepo)
-			jobIteratorByQueue[qctx.Queue] = NewMultiJobsIterator(evictedIt, queueIt)
+			queueIt := NewQueuedJobsIterator(ctx, qctx.Queue, sch.schedulingContext.Pool, sortOrder, jobRepo)
+			if sch.marketDriven {
+				jobIteratorByQueue[qctx.Queue] = NewMarketDrivenMultiJobsIterator(sch.schedulingContext.Pool, evictedIt, queueIt)
+			} else {
+				jobIteratorByQueue[qctx.Queue] = NewMultiJobsIterator(evictedIt, queueIt)
+			}
 		}
 	}
 
 	// Reset the scheduling keys cache after evicting jobs.
 	sch.schedulingContext.ClearUnfeasibleSchedulingKeys()
+
+	spotPriceCutoff := float64(0)
+	if sch.marketConfig != nil {
+		spotPriceCutoff = sch.marketConfig.SpotPriceCutoff
+	}
 
 	sched, err := NewQueueScheduler(
 		sch.schedulingContext,
@@ -635,6 +673,8 @@ func (sch *PreemptingQueueScheduler) schedule(
 		considerPriorityCLassPriority,
 		sch.preferLargeJobOrdering,
 		sch.maxQueueLookBack,
+		sch.marketDriven,
+		spotPriceCutoff,
 	)
 	if err != nil {
 		return nil, err

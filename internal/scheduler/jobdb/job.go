@@ -14,6 +14,8 @@ import (
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/adapters"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
+	"github.com/armadaproject/armada/internal/scheduler/pricing"
+	"github.com/armadaproject/armada/pkg/bidstore"
 )
 
 // Job is the scheduler-internal representation of a job.
@@ -74,6 +76,11 @@ type Job struct {
 	activeRunTimestamp int64
 	// Pools for which the job is eligible. This is used for metrics reporting and to calculate demand for fair share
 	pools []string
+	// Price band of the job is associated with, it is used to determine the price set on the job
+	priceBand bidstore.PriceBand
+	// The bid price for each pool
+	// A job doesn't have to have a bid for every pool, it'll default to 0 bid if not set in this map
+	bidPricesPool map[string]pricing.Bid
 }
 
 func (job *Job) String() string {
@@ -350,6 +357,9 @@ func (job *Job) Equal(other *Job) bool {
 	if !slices.Equal(job.pools, other.pools) {
 		return false
 	}
+	if !maps.Equal(job.bidPricesPool, other.bidPricesPool) {
+		return false
+	}
 	if !armadamaps.DeepEqual(job.runsById, other.runsById) {
 		return false
 	}
@@ -402,6 +412,37 @@ func (job *Job) RequestedPriority() uint32 {
 // Pools returns the pools associated with the job
 func (job *Job) Pools() []string {
 	return slices.Clone(job.pools)
+}
+
+func (job *Job) WithBidPrices(bids map[string]pricing.Bid) *Job {
+	j := shallowCopyJob(*job)
+	j.bidPricesPool = maps.Clone(bids)
+	return j
+}
+
+func (job *Job) GetBidPrice(pool string) float64 {
+	bidPrice, present := job.bidPricesPool[pool]
+	if !present {
+		return 0
+	}
+	if job.queued {
+		return bidPrice.QueuedBid
+	}
+	return bidPrice.RunningBid
+}
+
+func (job *Job) GetAllBidPrices() map[string]pricing.Bid {
+	return maps.Clone(job.bidPricesPool)
+}
+
+func (job *Job) WithPriceBand(priceBand bidstore.PriceBand) *Job {
+	j := shallowCopyJob(*job)
+	j.priceBand = priceBand
+	return j
+}
+
+func (job *Job) GetPriceBand() bidstore.PriceBand {
+	return job.priceBand
 }
 
 // WithPriority returns a copy of the job with the priority updated.

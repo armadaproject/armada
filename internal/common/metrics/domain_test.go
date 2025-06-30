@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
+	"github.com/armadaproject/armada/pkg/bidstore"
 )
 
 var (
@@ -65,9 +66,9 @@ func TestRecordJobRuntime_ShouldReportRuntimeDurations(t *testing.T) {
 
 func TestRecordResources_ShouldReportRuntimeResourcesForSinglePool(t *testing.T) {
 	jobMetricsRecorder := NewJobMetricsRecorder()
-	jobMetricsRecorder.RecordResources("pool-1", "", crf1)
-	jobMetricsRecorder.RecordResources("pool-1", "", crf2)
-	jobMetricsRecorder.RecordResources("pool-1", "", crf3)
+	jobMetricsRecorder.RecordResources("pool-1", "", bidstore.PriceBand_PRICE_BAND_A, crf1)
+	jobMetricsRecorder.RecordResources("pool-1", "", bidstore.PriceBand_PRICE_BAND_A, crf2)
+	jobMetricsRecorder.RecordResources("pool-1", "", bidstore.PriceBand_PRICE_BAND_A, crf3)
 	expected := map[string][]float64{
 		"cpu":    {8, 2, 5, 15},
 		"gpu":    {5, 2, 3, 10},
@@ -77,8 +78,8 @@ func TestRecordResources_ShouldReportRuntimeResourcesForSinglePool(t *testing.T)
 	for _, queueMetric := range jobMetricsRecorder.Metrics() {
 		for resource, expectedValues := range expected {
 			assert.Equal(t, expectedValues, []float64{
-				queueMetric.Resources[resource].GetMax(), queueMetric.Resources[resource].GetMin(),
-				queueMetric.Resources[resource].GetMedian(), queueMetric.Resources[resource].GetSum(),
+				queueMetric.Resources[bidstore.PriceBand_PRICE_BAND_A][resource].GetMax(), queueMetric.Resources[bidstore.PriceBand_PRICE_BAND_A][resource].GetMin(),
+				queueMetric.Resources[bidstore.PriceBand_PRICE_BAND_A][resource].GetMedian(), queueMetric.Resources[bidstore.PriceBand_PRICE_BAND_A][resource].GetSum(),
 			})
 		}
 	}
@@ -86,10 +87,10 @@ func TestRecordResources_ShouldReportRuntimeResourcesForSinglePool(t *testing.T)
 
 func TestRecordResources_ShouldReportRuntimeResourcesForMultiplePools(t *testing.T) {
 	jobMetricsRecorder := NewJobMetricsRecorder()
-	jobMetricsRecorder.RecordResources("pool-1", "", crf1)
-	jobMetricsRecorder.RecordResources("pool-1", "", crf2)
-	jobMetricsRecorder.RecordResources("pool-2", "", crf3)
-	jobMetricsRecorder.RecordResources("pool-2", "", crf4)
+	jobMetricsRecorder.RecordResources("pool-1", "", bidstore.PriceBand_PRICE_BAND_A, crf1)
+	jobMetricsRecorder.RecordResources("pool-1", "", bidstore.PriceBand_PRICE_BAND_A, crf2)
+	jobMetricsRecorder.RecordResources("pool-2", "", bidstore.PriceBand_PRICE_BAND_A, crf3)
+	jobMetricsRecorder.RecordResources("pool-2", "", bidstore.PriceBand_PRICE_BAND_A, crf4)
 
 	expected := map[string]map[string][]float64{
 		"pool-1": {
@@ -109,8 +110,8 @@ func TestRecordResources_ShouldReportRuntimeResourcesForMultiplePools(t *testing
 	for _, queueMetric := range jobMetricsRecorder.Metrics() {
 		for resource, expectedValues := range expected[queueMetric.Pool] {
 			assert.Equal(t, expectedValues, []float64{
-				queueMetric.Resources[resource].GetMax(), queueMetric.Resources[resource].GetMin(),
-				queueMetric.Resources[resource].GetMedian(), queueMetric.Resources[resource].GetSum(),
+				queueMetric.Resources[bidstore.PriceBand_PRICE_BAND_A][resource].GetMax(), queueMetric.Resources[bidstore.PriceBand_PRICE_BAND_A][resource].GetMin(),
+				queueMetric.Resources[bidstore.PriceBand_PRICE_BAND_A][resource].GetMedian(), queueMetric.Resources[bidstore.PriceBand_PRICE_BAND_A][resource].GetSum(),
 			})
 		}
 	}

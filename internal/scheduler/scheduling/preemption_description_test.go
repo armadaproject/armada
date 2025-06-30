@@ -135,7 +135,7 @@ func makeJob(t *testing.T, jobId string, isGang bool) *jobdb.Job {
 		},
 	}
 
-	job, err := testfixtures.JobDb.NewJob(jobId, "jobset", "queue", 1, schedulingInfo, false, 1, false, false, false, 0, true, []string{})
+	job, err := testfixtures.JobDb.NewJob(jobId, "jobset", "queue", 1, schedulingInfo, false, 1, false, false, false, 0, true, []string{}, 0)
 	require.NoError(t, err)
 	return job
 }

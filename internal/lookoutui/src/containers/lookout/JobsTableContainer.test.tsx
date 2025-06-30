@@ -15,7 +15,6 @@ import { GetJobsResponse, IGetJobsService } from "../../services/lookout/GetJobs
 import { IGroupJobsService } from "../../services/lookout/GroupJobsService"
 import { UpdateJobSetsService } from "../../services/lookout/UpdateJobSetsService"
 import { UpdateJobsService } from "../../services/lookout/UpdateJobsService"
-import FakeGetJobInfoService from "../../services/lookout/mocks/FakeGetJobInfoService"
 import FakeGetJobsService from "../../services/lookout/mocks/FakeGetJobsService"
 import FakeGroupJobsService from "../../services/lookout/mocks/FakeGroupJobsService"
 import { MockServer } from "../../services/lookout/mocks/mockServer"
@@ -69,18 +68,13 @@ function makeTestJobs(
 }
 
 describe("JobsTableContainer", () => {
-  let getJobsService: IGetJobsService,
-    groupJobsService: IGroupJobsService,
-    jobSpecService: IGetJobInfoService,
-    updateJobsService: UpdateJobsService
+  let getJobsService: IGetJobsService, groupJobsService: IGroupJobsService, updateJobsService: UpdateJobsService
 
   beforeAll(() => {
     mockServer.listen()
   })
 
   beforeEach(() => {
-    jobSpecService = new FakeGetJobInfoService(false)
-
     localStorage.clear()
     localStorage.setItem(FORMAT_NUMBER_SHOULD_FORMAT_KEY, JSON.stringify(false))
     localStorage.setItem(FORMAT_TIMESTAMP_SHOULD_FORMAT_KEY, JSON.stringify(false))
@@ -120,7 +114,6 @@ describe("JobsTableContainer", () => {
               getJobsService={fakeServices.v2GetJobsService ?? getJobsService}
               groupJobsService={fakeServices.v2GroupJobsService ?? groupJobsService}
               updateJobsService={fakeServices.v2UpdateJobsService ?? updateJobsService}
-              jobSpecService={fakeServices.v2JobSpecService ?? jobSpecService}
               debug={false}
               autoRefreshMs={30000}
               commandSpecs={[]}

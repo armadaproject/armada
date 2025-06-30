@@ -131,6 +131,7 @@ func (r *PostgresJobRepository) FetchInitialJobs(ctx *armadacontext.Context) ([]
 				SchedulingInfoVersion:   row.SchedulingInfoVersion,
 				Serial:                  row.Serial,
 				Pools:                   row.Pools,
+				PriceBand:               row.PriceBand,
 			}
 		}
 
@@ -284,6 +285,7 @@ func (r *PostgresJobRepository) FetchJobUpdates(ctx *armadacontext.Context, jobS
 				SchedulingInfoVersion:   row.SchedulingInfoVersion,
 				Serial:                  row.Serial,
 				Pools:                   row.Pools,
+				PriceBand:               row.PriceBand,
 			}
 		}
 

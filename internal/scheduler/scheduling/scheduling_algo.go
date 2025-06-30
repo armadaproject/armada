@@ -636,8 +636,6 @@ func (l *FairSchedulingAlgo) SchedulePool(
 	for _, priority := range l.schedulingConfig.ExperimentalIndicativeShare.BasePriorities {
 		fsctx.schedulingContext.ExperimentalIndicativeShares[priority] = fsctx.schedulingContext.CalculateTheoreticalShare(float64(priority))
 	}
-	price := l.calculateFairShareDrivenSpotPrice(fsctx.schedulingContext, l.schedulingConfig.ExperimentalIndicativePricing.BasePrice, l.schedulingConfig.ExperimentalIndicativePricing.BasePriority)
-	fsctx.schedulingContext.SpotPrice = price
 	return result, fsctx.schedulingContext, nil
 }
 
@@ -789,21 +787,4 @@ func (l *FairSchedulingAlgo) filterLaggingExecutors(
 		}
 	}
 	return activeExecutors
-}
-
-func (l *FairSchedulingAlgo) calculateFairShareDrivenSpotPrice(sctx *schedulercontext.SchedulingContext, basePrice float64, basePriority float64) float64 {
-	theoreticalShare := sctx.CalculateTheoreticalShare(basePriority)
-
-	// If you can get 50% or greater than we don't charge
-	if theoreticalShare >= 0.5 {
-		return 0
-	}
-
-	// Linear interpolation between 50% and 10%
-	if theoreticalShare >= 0.1 {
-		return basePrice * 2.5 * (0.5 - theoreticalShare)
-	}
-
-	// Reciprocal growth below 10%
-	return basePrice * (0.1 / theoreticalShare)
 }
