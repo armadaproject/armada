@@ -16,7 +16,7 @@
     - [Queue-specific permissions](#queue-specific-permissions)
     - [User permissions](#user-permissions)
 
-Armada exposes its API via [Google Remote Procedure Call(gRPC)](https://en.wikipedia.org/wiki/GRPC) or REST.
+Armada exposes an API via [Google Remote Procedure Call(gRPC)](https://en.wikipedia.org/wiki/GRPC) or REST.
 
 ## gRPC methods
 
