@@ -18,13 +18,15 @@ func protoInstallProtocArmadaPlugin() error {
 func protoPrepareThirdPartyProtos() error {
 	// Go modules containing .proto dependencies we need.
 	modules := []struct {
-		name  string
-		roots []string
+		name            string
+		replacementName string
+		roots           []string
 	}{
 		{
-			name: "github.com/gogo/protobuf",
+			name:            "github.com/gogo/protobuf",
+			replacementName: "github.com/cockroachdb/gogoproto",
 			roots: []string{
-				filepath.FromSlash("github.com/gogo/protobuf/protobuf"),
+				filepath.FromSlash("github.com/cockroachdb/gogoproto/protobuf"),
 			},
 		},
 		{
@@ -52,6 +54,10 @@ func protoPrepareThirdPartyProtos() error {
 	}
 
 	for _, module := range modules {
+		modulePath := module.name
+		if module.replacementName != "" {
+			modulePath = module.replacementName
+		}
 		err = goRun("mod", "download", module.name)
 		if err != nil {
 			return err
@@ -61,7 +67,7 @@ func protoPrepareThirdPartyProtos() error {
 		if err != nil {
 			return err
 		}
-		relModPath := filepath.FromSlash(module.name)
+		relModPath := filepath.FromSlash(modulePath)
 		relModPathWithVersion := relModPath + "@" + version
 		err = filepath.WalkDir(filepath.Join(goModPath, relModPathWithVersion), func(path string, d fs.DirEntry, err error) error {
 			if (d != nil && d.IsDir()) || filepath.Ext(path) != ".proto" {
