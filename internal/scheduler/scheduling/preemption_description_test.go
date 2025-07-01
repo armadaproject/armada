@@ -155,6 +155,7 @@ func makeJobWithPrice(t *testing.T, jobId string, isGang bool, price float64) *j
 		PodRequirements: &internaltypes.PodRequirements{
 			Annotations: annotations,
 		},
+		PriorityClassName: testfixtures.PriorityClass6Preemptible,
 	}
 
 	job, err := testfixtures.JobDb.NewJob(jobId, "jobset", "queue", 1, schedulingInfo, false, 1, false, false, false, 0, true, []string{}, 0)
