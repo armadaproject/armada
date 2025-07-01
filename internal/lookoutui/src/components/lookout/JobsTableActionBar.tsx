@@ -40,6 +40,8 @@ export interface JobsTableActionBarProps {
   getJobsService: IGetJobsService
   updateJobsService: UpdateJobsService
   onClearFilters: () => void
+  onClearSorting: () => void
+  customSortingApplied: boolean
   onClearGroups: () => void
   onAddCustomView: (name: string) => void
   onDeleteCustomView: (name: string) => void
@@ -71,6 +73,8 @@ export const JobsTableActionBar = memo(
     getJobsService,
     updateJobsService,
     onClearFilters,
+    onClearSorting,
+    customSortingApplied,
     onClearGroups,
     onAddCustomView,
     onDeleteCustomView,
@@ -157,12 +161,15 @@ export const JobsTableActionBar = memo(
           <div>
             <Button
               variant="outlined"
-              onClick={onClearFilters}
+              onClick={() => {
+                onClearFilters()
+                onClearSorting()
+              }}
               color="primary"
               endIcon={<FilterAltOff />}
-              disabled={filterColumns.length === 0}
+              disabled={filterColumns.length === 0 && !customSortingApplied}
             >
-              Clear Filters
+              Clear Filters and Sorting
             </Button>
           </div>
           <div>
