@@ -18,6 +18,13 @@
 
 Armada exposes an API via [Google Remote Procedure Call(gRPC)](https://en.wikipedia.org/wiki/GRPC) or REST.
 
+The Armada API enables remote clients (any system that has network connectivity to the Armada cluster) to run the usual Armada workflows. For example, creating or querying queues, submitting new Armada jobs, querying job status and cancelling jobs.
+
+The two most used clients are:
+
+* the Lookout web UI for Armada (for monitoring job progress and results)
+* the armadactl ("armada control") command-line tool for creating queues, job submission, prioritisation, watching, cancellation and so on
+
 ## gRPC methods
 
 The Armada API is defined in the `/pkg/api` folder, with `*.proto` files as the source for all generated code. 

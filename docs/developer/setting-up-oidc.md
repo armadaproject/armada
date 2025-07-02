@@ -2,8 +2,9 @@
 
 You can use the [Okta Developer Program](https://developer.okta.com/signup/) to test OAuth flow.
 
-1) Create a Okta Developer Account
-    - I used my GitHub account.
+1) Create a Okta Developer Account by either:
+* manually creating your new account using any email address and password values, or
+* selecting the appropriate 'Continue with Google/GitHub/Microsoft' option and specifying your existing account on that system for Okta to validate your login
 2) Create a new App in the Okta UI.
     - Select **OIDC - OpenID Connect**.
     - Select **Web Application**.

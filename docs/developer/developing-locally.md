@@ -5,7 +5,7 @@
     - [Enabling the debug view](#enabling-the-debug-view)
     - [Enabling query parameters](#enabling-query-parameters)
 
-Armada bundles a web UI referred to as Lookout. To understand its components [see the Relationships Diagram](../design/relationships_diagram.md).
+Armada comes with a web UI referred to as Lookout. To understand its components [see the Relationships Diagram](../design/relationships_diagram.md).
 
 Lookout consists of two components:
 
@@ -32,7 +32,7 @@ yarn dev
 
 This starts a live development server on [http://localhost:3000](http://localhost:3000).
 
-For this to work, the Lookout API and other Armada components need to run as well. However, you can use fake data to develop locally without requiring any other component to run.
+For this to work, the Lookout API and other Armada components (for example, the Scheduler, Executor and underlying infrastructure services) need to run as well. However, you can use fake data to develop locally without requiring any other component to run.
 
 ### Using fake data
 
