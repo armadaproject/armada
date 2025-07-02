@@ -1,6 +1,6 @@
 import { useEffect } from "react"
 
-import yaml from "js-yaml"
+import { dump } from "js-yaml"
 
 import { useCustomSnackbar } from "../../../hooks/useCustomSnackbar"
 import { Job } from "../../../models/lookoutModels"
@@ -32,7 +32,7 @@ function toJobSubmissionYaml(jobSpec: Record<string, any>): string {
   job.scheduler = jobSpec.scheduler
 
   submission.jobs = [job]
-  return yaml.dump(submission, {
+  return dump(submission, {
     lineWidth: 100000,
   })
 }

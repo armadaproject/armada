@@ -1,6 +1,6 @@
 import { forwardRef } from "react"
 
-import { IconDefinition } from "@fortawesome/fontawesome-common-types"
+import type { IconDefinition } from "@fortawesome/fontawesome-common-types"
 import {
   faBan,
   faCheckCircle,
@@ -38,7 +38,7 @@ export const FontAwesomeSvgIcon = forwardRef<SVGSVGElement, FontAwesomeSvgIconPr
            *
            * @see https://fontawesome.com/how-to-use/on-the-web/styling/duotone-icons#changing-opacity
            */
-          svgPathData.map((d: string, i: number) => <path style={{ opacity: i === 0 ? 0.4 : 1 }} d={d} />)
+          svgPathData.map((d: string, i: number) => <path key={i} style={{ opacity: i === 0 ? 0.4 : 1 }} d={d} />)
         )}
       </SvgIcon>
     )

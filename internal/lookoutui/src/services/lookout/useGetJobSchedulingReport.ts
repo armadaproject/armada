@@ -11,7 +11,7 @@ export const useGetJobSchedulingReport = (jobId: string, enabled = true) => {
   const { schedulerReportingApi } = useApiClients()
 
   return useQuery<SchedulerobjectsJobReport, string>({
-    queryKey: ["getJobSchedulingReport", jobId],
+    queryKey: ["getJobSchedulingReport", jobId, uiConfig?.fakeDataEnabled],
     queryFn: async ({ signal }) => {
       if (uiConfig?.fakeDataEnabled) {
         return { report: fakeSchedulingReport }

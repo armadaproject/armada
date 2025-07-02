@@ -116,7 +116,7 @@ export default function JobSetTable({
   const displayedTimeZoneName = useDisplayedTimeZoneWithUserSettings()
 
   if (queue === "") {
-    return <Alert severity="info">Enter a queue name into the "Queue" field to view job sets.</Alert>
+    return <Alert severity="info">Enter a queue name into the &lsquo;Queue&rsquo; field to view job sets.</Alert>
   }
 
   if (jobSets.length === 0) {
