@@ -78,16 +78,18 @@ function groupBy(jobs: Job[], groupedField: GroupedField, aggregates: string[]):
       }
       const aggregateField = aggregateFieldMap.get(aggregate) as AggregateField
       switch (aggregateField.aggregateType) {
-        case "Max":
+        case "Max": {
           const max = Math.max(...jobs.map((job) => new Date(job[aggregateField.field] as string).getTime()))
           computedAggregates[aggregateField.field] = new Date(max).toISOString()
           break
-        case "Average":
+        }
+        case "Average": {
           const values = jobs.map((job) => new Date(job[aggregateField.field] as string).getTime())
           const avg = values.reduce((a, b) => a + b, 0) / values.length
           computedAggregates[aggregateField.field] = new Date(avg).toISOString()
           break
-        case "State Counts":
+        }
+        case "State Counts": {
           const stateCounts: Record<string, number> = {}
           for (const job of jobs) {
             if (!(job.state in stateCounts)) {
@@ -97,9 +99,11 @@ function groupBy(jobs: Job[], groupedField: GroupedField, aggregates: string[]):
           }
           computedAggregates[aggregateField.field] = stateCounts
           break
-        default:
+        }
+        default: {
           console.error(`aggregate type not found: ${aggregateField.aggregateType}`)
           break
+        }
       }
     }
     return {
