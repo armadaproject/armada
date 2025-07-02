@@ -89,64 +89,73 @@ func TestMarketJobPriorityComparer(t *testing.T) {
 			expected:    0,
 		},
 		"Queued jobs are ordered first by increasing priority class priority": {
-			a:           &Job{id: "a", priorityClass: types.PriorityClass{Priority: 1}},
-			b:           &Job{id: "b", priorityClass: types.PriorityClass{Priority: 2}},
+			a:           &Job{id: "a", queued: true, priorityClass: types.PriorityClass{Priority: 1, Preemptible: true}},
+			b:           &Job{id: "b", queued: true, priorityClass: types.PriorityClass{Priority: 2, Preemptible: true}},
 			currentPool: "a",
 			expected:    1,
 		},
 		"Queued jobs are ordered second by decreasing bid price for current pool": {
-			a:           &Job{id: "a", priorityClass: types.PriorityClass{Priority: 1}, bidPricesPool: bidPricesA},
-			b:           &Job{id: "b", priorityClass: types.PriorityClass{Priority: 1}, bidPricesPool: bidPricesB},
+			a:           &Job{id: "a", queued: true, priorityClass: types.PriorityClass{Priority: 1, Preemptible: true}, bidPricesPool: bidPricesA},
+			b:           &Job{id: "b", queued: true, priorityClass: types.PriorityClass{Priority: 1, Preemptible: true}, bidPricesPool: bidPricesB},
 			currentPool: "a",
 			expected:    1,
 		},
 		"Queued jobs are ordered second by decreasing bid price for current pool - pools reversed": {
-			a:           &Job{id: "a", priorityClass: types.PriorityClass{Priority: 1}, bidPricesPool: bidPricesA},
-			b:           &Job{id: "b", priorityClass: types.PriorityClass{Priority: 1}, bidPricesPool: bidPricesB},
+			a:           &Job{id: "a", queued: true, priorityClass: types.PriorityClass{Priority: 1, Preemptible: true}, bidPricesPool: bidPricesA},
+			b:           &Job{id: "b", queued: true, priorityClass: types.PriorityClass{Priority: 1, Preemptible: true}, bidPricesPool: bidPricesB},
 			currentPool: "b",
 			expected:    -1,
 		},
 		"Queued jobs are ordered fourth by decreasing submit time": {
-			a:           &Job{id: "a", priorityClass: types.PriorityClass{Priority: 1}, bidPricesPool: bidPricesA, submittedTime: 2},
-			b:           &Job{id: "b", priorityClass: types.PriorityClass{Priority: 1}, bidPricesPool: bidPricesA, submittedTime: 1},
+			a:           &Job{id: "a", queued: true, priorityClass: types.PriorityClass{Priority: 1, Preemptible: true}, bidPricesPool: bidPricesA, submittedTime: 2},
+			b:           &Job{id: "b", queued: true, priorityClass: types.PriorityClass{Priority: 1, Preemptible: true}, bidPricesPool: bidPricesA, submittedTime: 1},
 			currentPool: "a",
 			expected:    1,
 		},
 		"Queued jobs are not ordered by runtime": {
-			a:           &Job{id: "a", priorityClass: types.PriorityClass{Priority: 1}, bidPricesPool: bidPricesA, activeRunTimestamp: 1, submittedTime: 2},
-			b:           &Job{id: "b", priorityClass: types.PriorityClass{Priority: 1}, bidPricesPool: bidPricesA, activeRunTimestamp: 2, submittedTime: 1},
+			a:           &Job{id: "a", queued: true, priorityClass: types.PriorityClass{Priority: 1, Preemptible: true}, bidPricesPool: bidPricesA, activeRunTimestamp: 1, submittedTime: 2},
+			b:           &Job{id: "b", queued: true, priorityClass: types.PriorityClass{Priority: 1, Preemptible: true}, bidPricesPool: bidPricesA, activeRunTimestamp: 2, submittedTime: 1},
 			currentPool: "a",
 			expected:    1,
 		},
 		"Queued jobs are ordered fifth by increasing id": {
-			a:           &Job{id: "a", priorityClass: types.PriorityClass{Priority: 1}, bidPricesPool: bidPricesA, submittedTime: 1},
-			b:           &Job{id: "b", priorityClass: types.PriorityClass{Priority: 1}, bidPricesPool: bidPricesA, submittedTime: 1},
+			a:           &Job{id: "a", queued: true, priorityClass: types.PriorityClass{Priority: 1, Preemptible: true}, bidPricesPool: bidPricesA, submittedTime: 1},
+			b:           &Job{id: "b", queued: true, priorityClass: types.PriorityClass{Priority: 1, Preemptible: true}, bidPricesPool: bidPricesA, submittedTime: 1},
 			currentPool: "a",
 			expected:    -1,
 		},
 		"Queued and running jobs are first ordered on priority class": {
-			a:           &Job{id: "a", priorityClass: types.PriorityClass{Priority: 2}},
-			b:           (&Job{id: "b", priorityClass: types.PriorityClass{Priority: 1}, bidPricesPool: bidPricesB, jobDb: NewJobDb(map[string]types.PriorityClass{"foo": {}}, "foo", stringinterner.New(1), testResourceListFactory)}).WithNewRun("", "", "", "", 0),
+			a: &Job{id: "a", priorityClass: types.PriorityClass{Priority: 2, Preemptible: true}},
+			b: (&Job{
+				id: "b", priorityClass: types.PriorityClass{Priority: 1, Preemptible: true}, bidPricesPool: bidPricesB,
+				jobDb: NewJobDb(map[string]types.PriorityClass{"foo": {}}, "foo", stringinterner.New(1), testResourceListFactory),
+			}).WithNewRun("", "", "", "", 0),
 			currentPool: "a",
 			expected:    -1,
 		},
 		"Queued and running jobs are second ordered on bid price": {
-			a:           &Job{id: "a", priorityClass: types.PriorityClass{Priority: 1}, bidPricesPool: bidPricesA},
-			b:           (&Job{id: "b", priorityClass: types.PriorityClass{Priority: 1}, bidPricesPool: bidPricesB, jobDb: NewJobDb(map[string]types.PriorityClass{"foo": {}}, "foo", stringinterner.New(1), testResourceListFactory)}).WithNewRun("", "", "", "", 0),
+			a: &Job{id: "a", priorityClass: types.PriorityClass{Priority: 1, Preemptible: true}, bidPricesPool: bidPricesA},
+			b: (&Job{
+				id: "b", priorityClass: types.PriorityClass{Priority: 1, Preemptible: true}, bidPricesPool: bidPricesB,
+				jobDb: NewJobDb(map[string]types.PriorityClass{"foo": {}}, "foo", stringinterner.New(1), testResourceListFactory),
+			}).WithNewRun("", "", "", "", 0),
 			currentPool: "b",
 			expected:    -1,
 		},
 		"Running jobs are ordered over queued jobs if priority class and bid price are equal": {
-			a:           &Job{id: "a", priorityClass: types.PriorityClass{Priority: 1}, bidPricesPool: bidPricesA},
-			b:           (&Job{id: "b", priorityClass: types.PriorityClass{Priority: 1}, bidPricesPool: bidPricesA, jobDb: NewJobDb(map[string]types.PriorityClass{"foo": {}}, "foo", stringinterner.New(1), testResourceListFactory)}).WithNewRun("", "", "", "", 0),
+			a: &Job{id: "a", priorityClass: types.PriorityClass{Priority: 1, Preemptible: true}, bidPricesPool: bidPricesA},
+			b: (&Job{
+				id: "b", priorityClass: types.PriorityClass{Priority: 1, Preemptible: true}, bidPricesPool: bidPricesA,
+				jobDb: NewJobDb(map[string]types.PriorityClass{"foo": {}}, "foo", stringinterner.New(1), testResourceListFactory),
+			}).WithNewRun("", "", "", "", 0),
 			currentPool: "a",
 			expected:    1,
 		},
 		"Running jobs are ordered third by runtime": {
-			a: (&Job{id: "a", priorityClass: types.PriorityClass{Priority: 1}, bidPricesPool: bidPricesA, submittedTime: 1}).WithUpdatedRun(
+			a: (&Job{id: "a", priorityClass: types.PriorityClass{Priority: 1, Preemptible: true}, bidPricesPool: bidPricesA, submittedTime: 1}).WithUpdatedRun(
 				&JobRun{created: 1},
 			),
-			b: (&Job{id: "b", priorityClass: types.PriorityClass{Priority: 1}, bidPricesPool: bidPricesA, submittedTime: 2}).WithUpdatedRun(
+			b: (&Job{id: "b", priorityClass: types.PriorityClass{Priority: 1, Preemptible: true}, bidPricesPool: bidPricesA, submittedTime: 2}).WithUpdatedRun(
 				&JobRun{created: 0},
 			),
 			currentPool: "a",

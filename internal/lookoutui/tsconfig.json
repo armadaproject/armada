@@ -1,5 +1,6 @@
 {
   "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.tsbuildinfo",
     "target": "es5",
     "lib": ["dom", "dom.iterable", "es2022"],
     "allowJs": true,
@@ -19,8 +20,5 @@
     "baseUrl": "src",
     "types": ["vitest/globals"]
   },
-  "include": [
-    "types/workarounds.d.ts",
-    "src"
-  ]
+  "include": ["types/workarounds.d.ts", "src"]
 }
