@@ -188,7 +188,7 @@ It supports the following commands:
 
 ### VS Code debugging
 
-After running `mage debug vscode`, you can attach to the running processes using VS Code. [See the launch.json file](../developer/debug/launch.json).
+After running `mage debug vscode`, you can attach to the running processes using VS Code.
 
 To use VS Code debugging, [see the VSCode Debugging Guide](https://code.visualstudio.com/docs/editor/debugging).
 
