@@ -9,14 +9,13 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "tsc -b && vite build",
     "serve": "vite preview",
     "test": "vitest",
-    "typecheck": "tsc --noEmit",
     "openapi": "docker run --rm -u $(id -u ${USER}):$(id -g ${USER}) -v \"${PWD}/../../:/project\" openapitools/openapi-generator-cli:v5.4.0 /project/internal/lookoutui/openapi.sh",
     "openapi:win": "powershell -Command \"$uid = (New-Object System.Security.Principal.WindowsPrincipal([System.Security.Principal.WindowsIdentity]::GetCurrent())).Identity.User.Value; $gid = (Get-WmiObject Win32_UserAccount | Where-Object { $_.SID -eq $uid }).SID.Value; docker run --rm -e USERID=$uid -e GROUPID=$gid -v \"%cd%/../../:/project\" openapitools/openapi-generator-cli:v5.4.0 /project/internal/lookoutui/openapi.sh\"",
-    "lint": "eslint 'src/**/*.{js,ts,tsx}' --max-warnings 0",
-    "fmt": "eslint 'src/**/*.{js,ts,tsx}' --max-warnings 0 --fix"
+    "lint": "eslint . --max-warnings 0",
+    "fmt": "eslint . --max-warnings 0 --fix"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -26,10 +25,7 @@
     "@emotion/styled": "^11.13.5",
     "@fortawesome/fontawesome-common-types": "^6.7.1",
     "@fortawesome/fontawesome-svg-core": "^6.7.1",
-    "@fortawesome/free-brands-svg-icons": "^6.7.1",
-    "@fortawesome/free-regular-svg-icons": "^6.7.1",
     "@fortawesome/free-solid-svg-icons": "^6.7.1",
-    "@fortawesome/react-fontawesome": "^0.2.2",
     "@mui/icons-material": "^6.1.10",
     "@mui/lab": "^6.0.0-beta.18",
     "@mui/material": "^6.4.7",
@@ -54,8 +50,7 @@
     "timezone-support": "^3.1.0",
     "use-debounce": "^10.0.4",
     "uuid": "^11.1.0",
-    "validator": "^13.7.0",
-    "webpack": "5.98.0"
+    "validator": "^13.7.0"
   },
   "browserslist": {
     "production": [
@@ -71,7 +66,6 @@
   },
   "devDependencies": {
     "@emotion/babel-plugin": "^11.13.5",
-    "@eslint/compat": "^1.2.4",
     "@tanstack/eslint-plugin-query": "^5.62.1",
     "@testing-library/dom": "^10.4.0",
     "@testing-library/jest-dom": "^6.6.3",
@@ -79,16 +73,15 @@
     "@testing-library/user-event": "^14.5.2",
     "@types/js-yaml": "^4.0.0",
     "@types/lodash": "^4.17.13",
-    "@types/node": "^22.10.2",
+    "@types/node": "^22.12.0",
     "@types/qs": "^6.9.17",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/validator": "^13.7.3",
-    "@typescript-eslint/eslint-plugin": "^8.18.0",
     "@typescript-eslint/parser": "^8.18.0",
-    "@vitejs/plugin-react": "^4.3.4",
+    "@vitejs/plugin-react": "^4.6.0",
     "eslint": "^9.17.0",
-    "eslint-config-prettier": "^10.0.2",
+    "eslint-config-prettier": "^10.1.5",
     "eslint-plugin-import": "^2.31.0",
     "eslint-plugin-prettier": "^5.2.1",
     "eslint-plugin-react": "^7.37.2",
@@ -96,8 +89,9 @@
     "msw": "^2.7.0",
     "prettier": "^3.4.2",
     "typescript": "^5.8.2",
-    "vite": "^6.0.3",
-    "vitest": "^3.0.7"
+    "typescript-eslint": "^8.35.1",
+    "vite": "^7.0.0",
+    "vitest": "^3.2.4"
   },
   "resolutions": {
     "@types/react": "^19",

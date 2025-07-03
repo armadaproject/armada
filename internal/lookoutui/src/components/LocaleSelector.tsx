@@ -31,7 +31,7 @@ export const LocaleSelector = ({ idPrefix, label, value, onChange, fullWidth, si
         }
       }}
     >
-      <MenuItem value={BROWSER_LOCALE}>Use your browser's language</MenuItem>
+      <MenuItem value={BROWSER_LOCALE}>Use your browser&apos;s language</MenuItem>
       {SUPPORTED_LOCALES.map((locale) => (
         <MenuItem key={locale} value={locale}>
           {supportedLocaleDisplayNames[locale]}
