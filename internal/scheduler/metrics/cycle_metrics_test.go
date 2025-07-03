@@ -235,11 +235,11 @@ func TestPublishCycleMetrics(t *testing.T) {
 				TotalResources:       cpu(100),
 				QueueSchedulingContexts: map[string]*context.QueueSchedulingContext{
 					"queue1": {
-						Queue:              "queue1",
-						Allocated:          cpu(10),
-						Demand:             cpu(20),
-						ConstrainedDemand:  cpu(15),
-						BillableAllocation: cpu(9),
+						Queue:             "queue1",
+						Allocated:         cpu(10),
+						Demand:            cpu(20),
+						ConstrainedDemand: cpu(15),
+						BillableResource:  cpu(9),
 					},
 				},
 				SpotPrice: &spotPrice,

@@ -182,9 +182,9 @@ func TestMetricsCollector_TestCollect_QueueMetrics(t *testing.T) {
 				commonmetrics.NewMinJobRunDuration(0, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue),
 				commonmetrics.NewMaxJobRunDuration(200, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue),
 				commonmetrics.NewMedianJobRunDuration(100, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue),
-				commonmetrics.NewMinQueuePriceRunningMetric(100, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue),
-				commonmetrics.NewMaxQueuePriceRunningMetric(102, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue),
-				commonmetrics.NewMedianQueuePriceRunningMetric(101, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue),
+				commonmetrics.NewMinQueuePriceRunningMetric(pricing.NonPreemptibleRunningPrice, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue),
+				commonmetrics.NewMaxQueuePriceRunningMetric(pricing.NonPreemptibleRunningPrice, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue),
+				commonmetrics.NewMedianQueuePriceRunningMetric(pricing.NonPreemptibleRunningPrice, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue),
 				commonmetrics.NewMinQueueAllocated(1, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "None", "cpu"),
 				commonmetrics.NewMaxQueueAllocated(1, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "None", "cpu"),
 				commonmetrics.NewMedianQueueAllocated(1, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "None", "cpu"),
@@ -238,9 +238,6 @@ func TestMetricsCollector_TestCollect_QueueMetrics(t *testing.T) {
 			for i := 0; i < len(tc.expected); i++ {
 				a1 := actual[i]
 				e1 := tc.expected[i]
-				if !assert.Equal(t, e1, a1) {
-					fmt.Println("here")
-				}
 				require.Equal(t, e1, a1)
 			}
 		})

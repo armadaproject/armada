@@ -1,79 +1,97 @@
-import prettier from "eslint-plugin-prettier";
-import _import from "eslint-plugin-import";
-import { fixupPluginRules } from "@eslint/compat";
-import tsParser from "@typescript-eslint/parser";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-import js from "@eslint/js";
-import { FlatCompat } from "@eslint/eslintrc";
+import eslint from "@eslint/js"
+import queryPlugin from "@tanstack/eslint-plugin-query"
+import tsParser from "@typescript-eslint/parser"
+import eslintConfigPrettier from "eslint-config-prettier/flat"
+import importPlugin from "eslint-plugin-import"
+import prettierRecommended from "eslint-plugin-prettier/recommended"
+import reactPlugin from "eslint-plugin-react"
+import tseslint from "typescript-eslint"
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const compat = new FlatCompat({
-    baseDirectory: __dirname,
-    recommendedConfig: js.configs.recommended,
-    allConfig: js.configs.all
-});
+export default tseslint.config(
+  {
+    ignores: ["build", "src/openapi/"],
+  },
 
-export default [{
-    ignores: ["src/openapi/"],
-}, ...compat.extends("plugin:@typescript-eslint/recommended", "prettier"), {
+  {
+    files: ["src/**/*.{js,ts,tsx}", "*.config.mjs"],
+
+    extends: [
+      eslint.configs.recommended,
+      tseslint.configs.recommended,
+      reactPlugin.configs.flat.recommended,
+      queryPlugin.configs["flat/recommended"],
+      eslintConfigPrettier,
+      prettierRecommended,
+    ],
+
     plugins: {
-        prettier,
-        import: fixupPluginRules(_import),
+      import: importPlugin,
     },
 
     languageOptions: {
-        parser: tsParser,
-        ecmaVersion: 2020,
-        sourceType: "module",
+      parser: tsParser,
+      ecmaVersion: 2020,
+      sourceType: "module",
 
-        parserOptions: {
-            ecmaFeatures: {
-                jsx: true,
-            },
+      parserOptions: {
+        ecmaFeatures: {
+          jsx: true,
         },
+      },
     },
 
     settings: {
-        react: {
-            version: "detect",
-        },
+      react: {
+        version: "detect",
+      },
     },
 
     rules: {
-        "prettier/prettier": ["warn", {
-            endOfLine: "auto",
-        }],
+      "prettier/prettier": [
+        "error",
+        {
+          endOfLine: "auto",
+        },
+      ],
 
-        "import/order": ["warn", {
-            groups: ["builtin", "external", "internal"],
+      "import/order": [
+        "error",
+        {
+          groups: ["builtin", "external", "internal"],
 
-            pathGroups: [{
-                pattern: "react",
-                group: "external",
-                position: "before",
-            }],
-
-            pathGroupsExcludedImportTypes: ["react"],
-            "newlines-between": "always",
-
-            alphabetize: {
-                order: "asc",
-                caseInsensitive: false,
+          pathGroups: [
+            {
+              pattern: "react",
+              group: "external",
+              position: "before",
             },
-        }],
+          ],
 
-        "@typescript-eslint/no-unused-vars": ["warn", {
-            argsIgnorePattern: "^_",
-            varsIgnorePattern: "^_",
-            caughtErrorsIgnorePattern: "^_",
-        }],
+          pathGroupsExcludedImportTypes: ["react"],
+          "newlines-between": "always",
 
-        "@typescript-eslint/no-empty-function": "warn",
-        "@typescript-eslint/no-explicit-any": "off",
-        "@typescript-eslint/explicit-module-boundary-types": "off",
-        "react/display-name": "off",
-        "react/react-in-jsx-scope": "off",
+          alphabetize: {
+            order: "asc",
+            caseInsensitive: false,
+          },
+        },
+      ],
+
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_",
+        },
+      ],
+
+      "@typescript-eslint/no-empty-function": "error",
+      "@typescript-eslint/no-explicit-any": "off",
+      "@typescript-eslint/explicit-module-boundary-types": "off",
+      "react/display-name": "off",
+      "react/react-in-jsx-scope": "off",
+      "react/prop-types": "off",
     },
-}];
+  },
+)
