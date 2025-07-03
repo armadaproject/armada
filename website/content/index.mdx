@@ -1,85 +1,136 @@
 ---
-title: Overview
-description: System overview of Armada, a multi-Kubernetes cluster batch job scheduler.
+title: Armada Documentation - Table of Contents
+description: Table of Content for Armada documentation
 ---
 
-At a high level, Armada is a multi-Kubernetes cluster batch job scheduler. Each Armada job represents a computational task to be carried out over a finite amount of time and consists of
+# 1. Overview
 
-- a Kubernetes pod,
-- zero or more auxiliary Kubernetes objects (e.g., services and ingresses), and
-- metadata specific to Armada (e.g., the name of the queue to which the job belongs).
+**Introduction to Armada, its purpose, high-level architecture, and key components.**
 
-Jobs are submitted to Armada, and Armada is responsible for determining when and where each job should be run.
+- What is Armada?
+- Why Use Armada?
+- Main Features and Use Cases
 
-An Armada deployments consists of:
+---
 
-- One or more Kubernetes clusters containing nodes to be used for running jobs. Such clusters are referred to as worker clusters.
-- The Armada control-plane components are responsible for job submission and scheduling. Jobs are submitted to the control plane and are automatically transferred to worker clusters once scheduled.
-- The Armada executors are responsible for communication between the Armada control plane and the [Kubernetes control plane](https://kubernetes.io/docs/concepts/overview/kubernetes-api/). There is one executor per worker cluster.
+# 2. Getting Started
 
-The Armada control plane components may run anywhere from which they can be reached by the executors, e.g., in the same cluster as an executor, on a different Kubernetes cluster, or on a node not managed by Kubernetes. Each executor normally runs within the worker cluster it is responsible for.
+**Start here if you're new to Armada. Learn how to install it and run your first job.**
 
-We show an overview of an Armada deployment with three worker clusters below. Clients here refer to systems submitting jobs to Armada.
+## 2.1 Run Your First Job
 
-```mermaid
-graph LR
-    A[Clients] --> B[Armada control plane]
-    B --> C[Worker clusters]
+- Quickstart with Kind & Helm
+- Submitting your first job
+- Common pitfalls and errors
 
-    subgraph C [Worker clusters]
-        D[Executor]
-        E[Executor]
-        F[Executor]
+## 2.2 Installation
 
-        D --> G[kube-api]
-        E --> H[kube-api]
-        F --> I[kube-api]
-    end
-```
+- Local installation (Kind, Minikube)
+- Helm-based deployment
+- Cloud setup (e.g., AWS EC2, GCP)
+- Production-grade deployment
 
-The arrows in the above diagram show the path jobs take through the system. Specifically, each job passes through the following stages:
+## 2.3 Tutorials
 
-1. The job is submitted to Armada, where it is stored in one of several queues, e.g., corresponding to different users. At this point, the job is stored on the Armada control plane and does not exist in any Kubernetes cluster. The job is in the _queued_ state.
-2. The Armada scheduler eventually determines that the job should be run and marks the job with the Kubernetes cluster and node it should be run on. The job is in the _leased_ state.
-3. The Kubernetes resources that make up the job are created in the cluster it was assigned to via kube-api calls. The pod contained in the job is bound to the node it was assigned to. The job is in the "pending" state.
-4. Container images are pulled, volumes and secrets mounted, and init containers run, after which the main containers of the pod start running. The job is in the _running_ state.
-5. The job terminates once all containers in the pod have stopped running. Depending on the exit codes of the containers, the job transitions to either the _succeeded_ or _failed_ state.
+- End-to-end ML job example
+- Batch data processing pipeline
+- CI/CD integration walkthrough
 
-All Kubernetes resources associated with the job are deleted once the job terminates. For more information on jobs, see the scheduler documentation.
+---
 
-## The Armada control plane
+# 3. Architecture
 
-The Armada control plane is the set of components responsible for job submission and scheduling. It consists of the following subsystems:
+**Dive into how Armada works under the hood.**
 
-- Job submission and control. Exposes an API through which clients can submit, re-prioritize, and cancel jobs.
-- Job state querying. Allows clients to query the current state of a job.
-- Job state querying (streaming). Allows clients to subscribe to a stream of updates to a set of jobs.
-- Scheduler. Responsible for assigning jobs to clusters and nodes.
-- Lookout. Web UI showing the current state of jobs.
+- Armada system components
+- Scheduling pipeline and job lifecycle
+- Executors, queues, and priorities
+- Fault tolerance and scaling
 
-The services that make up these subsystems communicate according to event-sourcing principles, i.e., message routing is handled by a log-based message broker shared by all services. In particular, Armada relies on Apache Pulsar for message routing. Each subsystem then operates in cycles consisting of:
+---
 
-1. Receive messages from Pulsar.
-2. Do either or both of:
+# 4. Core Concepts
 
-- Update the internal state of the subsystem.
-- Publish messages to Pulsar.
+**Deep dives into key ideas and mechanisms.**
 
-Those published messages may then be received by other subsystems, causing them to publish other messages, and so on. Note that the log is the source of truth; each subsystem can recover its internal state by replaying messages from the log. We include a diagram showing this process below with two subsystems.
+- Jobs & Queues
+- Prioritization and Fair-Use Scheduling
+- Scheduling Algorithms
 
-```mermaid
-graph LR
-    subgraph P [Pulsar]
-        T[Multiple topics/topic partitions]
-    end
+---
 
-    S1[Subsystem 1]
-    S2[Subsystem 2]
+# 5. Ecosystem
 
-    P --> S1
-    P --> S2
-S1 --> P
-S2 --> P
-```
+**Explore integrations and supported tools.**
 
-{/* See [a note on consistency](./consistency.md) for some more detail on how Armada ensures consistency between components. */}
+- Airflow Operator
+- Python Armada Client
+- Java and Scala Clients
+- MetaFlow Integration
+- Jenkins Integration
+- Spark Integration
+
+---
+
+# 6. Guides
+
+**Hands-on resources tailored for different personas.**
+
+## 6.1 Operator Guide
+
+- Cluster setup and configuration
+- Monitoring and observability
+- Scaling Armada
+
+## 6.2 User Guide
+
+- Submitting and cancelling jobs
+- Working with job specs
+- Using Integrations
+- Examples
+
+## 6.3 Developer Guide
+
+- Running Armada from source locally
+- Code structure and modules
+- Profiling and debugging
+- Dev environment setup
+
+## 6.4 CLI Reference
+
+- Installing `armadactl`
+- CLI commands and flags
+- Example usage patterns
+
+## 6.5 API Reference
+
+- REST and gRPC APIs
+- OpenAPI Spec (auto-generated)
+
+---
+
+# 7. Contributing
+
+**Guidelines for contributing to the Armada project.**
+
+---
+
+# 8. Community & Support
+
+**Ways to get involved and get help.**
+
+- Slack and discussion forums
+- Reporting bugs and feature requests
+- Maintainers
+- Adopters
+
+---
+
+# 9. FAQ & Troubleshooting
+
+**Answers to common questions and known issues.**
+
+- Common deployment issues
+- Job submission errors
+- Version compatibility
+- Debugging tips
