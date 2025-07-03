@@ -421,6 +421,9 @@ func (job *Job) WithBidPrices(bids map[string]pricing.Bid) *Job {
 }
 
 func (job *Job) GetBidPrice(pool string) float64 {
+	if !job.queued && !job.priorityClass.Preemptible {
+		return pricing.NonPreemptibleRunningPrice
+	}
 	bidPrice, present := job.bidPricesPool[pool]
 	if !present {
 		return 0
@@ -431,6 +434,9 @@ func (job *Job) GetBidPrice(pool string) float64 {
 	return bidPrice.RunningBid
 }
 
+// GetAllBidPrices
+// This should not be used to determine the bid price, use GetBidPrice for an accurate price
+// Expected this will only be used for testing purposes
 func (job *Job) GetAllBidPrices() map[string]pricing.Bid {
 	return maps.Clone(job.bidPricesPool)
 }

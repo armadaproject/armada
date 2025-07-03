@@ -83,7 +83,7 @@ var (
 		PriorityClass6Preemptible:                {Priority: 30000, Preemptible: true},
 	}
 	TestDefaultPriorityClass = PriorityClass3
-	TestPriorities           = []int32{0, 1, 2, 3}
+	TestPriorities           = []int32{0, 1, 2, 3, 28000, 29000, 30000}
 	TestResources            = []schedulerconfiguration.ResourceType{
 		{Name: "cpu", Resolution: resource.MustParse("1")},
 		{Name: "memory", Resolution: resource.MustParse("128Mi")},
@@ -516,9 +516,24 @@ func setPricing(job *jobdb.Job) *jobdb.Job {
 }
 
 func N1Cpu4GiJobsWithPriceBand(queue string, priceBand bidstore.PriceBand, n int) []*jobdb.Job {
+	return N1Cpu4GiJobsWithPriceBandAndPriorityClass(queue, priceBand, PriorityClass0, n)
+}
+
+func N1Cpu4GiJobsWithPriceBandAndPriorityClass(queue string, priceBand bidstore.PriceBand, priorityClass string, n int) []*jobdb.Job {
 	rv := make([]*jobdb.Job, n)
 	for i := 0; i < n; i++ {
-		j := Test1Cpu4GiJob(queue, PriorityClass0)
+		j := Test1Cpu4GiJob(queue, priorityClass)
+		j = j.WithPriceBand(priceBand)
+		j = setPricing(j)
+		rv[i] = j
+	}
+	return rv
+}
+
+func N1GpuJobsWithPriceBandAndPriorityClass(queue string, priceBand bidstore.PriceBand, priorityClass string, n int) []*jobdb.Job {
+	rv := make([]*jobdb.Job, n)
+	for i := 0; i < n; i++ {
+		j := Test1GpuJob(queue, priorityClass)
 		j = j.WithPriceBand(priceBand)
 		j = setPricing(j)
 		rv[i] = j

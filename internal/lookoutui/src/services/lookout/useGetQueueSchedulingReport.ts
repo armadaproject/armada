@@ -11,7 +11,7 @@ export const useGetQueueSchedulingReport = (queueName: string, verbosity: number
   const { schedulerReportingApi } = useApiClients()
 
   return useQuery<SchedulerobjectsQueueReport, string>({
-    queryKey: ["getQueueSchedulingReport", queueName, verbosity],
+    queryKey: ["getQueueSchedulingReport", queueName, verbosity, uiConfig?.fakeDataEnabled],
     queryFn: async ({ signal }) => {
       if (uiConfig?.fakeDataEnabled) {
         return { report: fakeSchedulingReport }
