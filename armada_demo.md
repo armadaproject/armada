@@ -1,27 +1,37 @@
-# Armada Demo
-
-<div class="responsive-video">
-<iframe width="560" height="315" src="https://www.youtube.com/embed/l76yh1VjhaY" title="Armada demo video" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
-</div>
-
-> <small><i>This video demonstrates the use of Armadactl, Armada Lookout UI, and Apache Airflow.</i></small>
+# Armada demo
+- [Armada demo](#armada-demo)
+  - [EKS](#eks)
+  - [Local prerequisites](#local-prerequisites)
+  - [Obtaining the Armada source](#obtaining-the-armada-source)
+  - [Setting up an alias](#setting-up-an-alias)
+  - [Creating queues and jobs](#creating-queues-and-jobs)
+    - [Creating a queue](#creating-a-queue)
+    - [Submitting a job](#submitting-a-job)
+    - [Monitoring job progress](#monitoring-job-progress)
+      - [Submitting on Windows using Git Bash](#submitting-on-windows-using-git-bash)
+      - [Submitting on Linux](#submitting-on-linux)
+      - [Submitting on macOS](#submitting-on-macos)
+  - [Observing job progress](#observing-job-progress)
+    - [CLI](#cli)
+    - [Web UI](#web-ui)
 
 This guide will show you how to take a quick test drive of an Armada
 instance already deployed to AWS EKS.
 
+To learn more, [see our video on how to use Armadactl, the Armada Lookout UI and Apache Airflow](https://www.youtube.com/embed/l76yh1VjhaY).
+
 ## EKS
 
-The Armada UI (lookout) can be found at this URL:
-
-- [https://ui.demo.armadaproject.io](https://ui.demo.armadaproject.io)
+[Go to the Armada UI (Lookout)](https://ui.demo.armadaproject.io).
 
 ## Local prerequisites
 
-- Git
-- Go 1.20
+* Git
+* Go 1.20
 
-## Obtain the armada source
-Clone [this](https://github.com/armadaproject/armada) repository:
+## Obtaining the Armada source
+
+Clone the `armadaproject` repository as follows:
 
 ```bash
 git clone https://github.com/armadaproject/armada.git
@@ -30,27 +40,32 @@ cd armada
 
 All commands are intended to be run from the root of the repository.
 
-## Setup an easy-to-use alias
-If you are on a Windows System, use a linux-supported terminal to run this command, for example [Git Bash](https://git-scm.com/downloads) or [Hyper](https://hyper.is/)
+## Setting up an alias
+
+If you are on a Windows System, use a Linux-supported terminal to run this command, for example, [Git Bash](https://git-scm.com/downloads) or [Hyper](https://hyper.is/).
 ```bash
 alias armadactl='go run cmd/armadactl/main.go --armadaUrl armada.demo.armadaproject.io:443'
 ```
 
-## Create queues and jobs
+## Creating queues and jobs
+
 Create queues, submit some jobs, and monitor progress:
 
-### Queue Creation
+### Creating a queue
+
 Use a unique name for the queue. Make sure you remember it for the next steps.
+
 ```bash
 armadactl create queue $QUEUE_NAME --priorityFactor 1
 armadactl create queue $QUEUE_NAME --priorityFactor 2
 ```
 
 For queues created in this way, user and group owners of the queue have permissions to:
-- submit jobs
-- cancel jobs
-- reprioritize jobs
-- watch queue
+
+* submit jobs
+* cancel jobs
+* reprioritise jobs
+* watch queue
 
 For more control, queues can be created via `armadactl create`, which allows for setting specific permission; see the following example.
 
@@ -59,24 +74,24 @@ armadactl create -f ./docs/quickstart/queue-a.yaml
 armadactl create -f ./docs/quickstart/queue-b.yaml
 ```
 
-Make sure to manually edit both of these `yaml` files using a code or text editor before running the commands above.
+Make sure to manually edit both of these `yaml` files using a code or text editor before running the commands.
 
 ```
 name: $QUEUE_NAME
 ```
 
-### Job Submission
+### Submitting a job
 ```
 armadactl submit ./docs/quickstart/job-queue-a.yaml
 armadactl submit ./docs/quickstart/job-queue-b.yaml
 ```
 
-Make sure to manually edit both of these `yaml` files using a code or text editor before running the commands above.
+Make sure to manually edit both of these `yaml` files using a code or text editor before running the commands.
 ```
 queue: $QUEUE_NAME
 ```
 
-### Monitor Job Progress
+### Monitoring job progress
 
 ```bash
 armadactl watch $QUEUE_NAME job-set-1
@@ -85,9 +100,9 @@ armadactl watch $QUEUE_NAME job-set-1
 armadactl watch $QUEUE_NAME job-set-1
 ```
 
-Try submitting lots of jobs and see queues get built and processed:
+Try submitting lots of jobs and see how queues get built and processed.
 
-#### Windows (using Git Bash):
+#### Submitting on Windows using Git Bash
 
 Use a text editor of your choice.
 Copy and paste the following lines into the text editor:
@@ -100,25 +115,25 @@ do
   armadactl submit ./docs/quickstart/job-queue-b.yaml
 done
 ```
-Save the file with a ".sh" extension (e.g., myscript.sh) in the root directory of the project.
-Open Git Bash, navigate to the project's directory using the 'cd' command, and then run the script by typing ./myscript.sh and pressing Enter.
+Save the file with a `.sh` extension (for example, `myscript.sh`) in the root directory of the project.
+Open Git Bash, navigate to the project's directory using the `cd` command, and then run the script by typing `./myscript.sh` and pressing Enter.
 
-#### Linux:
+#### Submitting on Linux
 
-Open a text editor (e.g., Nano or Vim) in the terminal and create a new file by running: nano myscript.sh (replace "nano" with your preferred text editor if needed).
-Copy and paste the script content from above into the text editor.
+Open a text editor (for example, Nano or Vim) in the terminal and create a new file by running: `nano myscript.sh` (replace `nano` with your preferred text editor if needed).
+Copy and paste the script content into the text editor.
 Save the file and exit the text editor.
-Make the script file executable by running: chmod +x myscript.sh.
-Run the script by typing ./myscript.sh in the terminal and pressing Enter.
+Make the script file executable by running `chmod +x myscript.sh`.
+Run the script by typing `./myscript.sh` in the terminal and pressing Enter.
 
-#### macOS:
+#### Submitting on macOS
 
 Follow the same steps as for Linux, as macOS uses the Bash shell by default.
 With this approach, you create a shell script file that contains your multi-line script, and you can run it as a whole by executing the script file in the terminal.
 
 ## Observing job progress
 
-CLI:
+### CLI
 
 ```bash
 $ armadactl watch queue-a job-set-1
@@ -137,8 +152,6 @@ Nov  4 11:44:17 | Queued:   0, Leased:   0, Pending:   0, Running:   1, Succeede
 Nov  4 11:44:26 | Queued:   0, Leased:   0, Pending:   0, Running:   0, Succeeded:   2, Failed:   0, Cancelled:   0 | event: *api.JobSucceededEvent, job id: 01drv3mey2mzmayf50631tzp9m
 ```
 
-Web UI:
+### Web UI
 
-Open [https://ui.demo.armadaproject.io](https://ui.demo.armadaproject.io) in your browser.
-
-![Lookout UI](./quickstart/img/lookout.png "Lookout UI")
+In your browser, open the [Armada Project demo site](https://ui.demo.armadaproject.io).

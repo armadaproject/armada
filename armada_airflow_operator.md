@@ -1,11 +1,4 @@
----
-docname: python_airflow_operator
-images: {}
-path: /python-airflow-operator
-title: Armada Airflow Operator
----
-
-# Armada Airflow Operator
+# Armada Airflow operator
 
 This class provides integration with Airflow and Armada
 
