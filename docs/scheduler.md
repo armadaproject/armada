@@ -1,31 +1,20 @@
-# Scheduling and preempting jobs
-- [Scheduling and preempting jobs](#scheduling-and-preempting-jobs)
-	- [Jobs and queues](#jobs-and-queues)
-	- [Resource usage and fairness](#resource-usage-and-fairness)
-	- [Priority classes and preemption](#priority-classes-and-preemption)
-	- [Gang scheduling](#gang-scheduling)
-	- [Node selection and bin-packing](#node-selection-and-bin-packing)
-	- [Graceful termination](#graceful-termination)
-	- [Job deadlines](#job-deadlines)
-	- [Scheduler: implementation](#scheduler-implementation)
-		- [Eviction](#eviction)
-		- [Job scheduling order](#job-scheduling-order)
+# Scheduler
 
-Here, we give an overview of the algorithm used by Armada to determine which jobs to schedule and preempt. This algorithm runs within the scheduling subsystem of the Armada control plane. Note that Armada does not rely on `kube-scheduler` (or other in-cluster schedulers) for scheduling and preemption.
+Here, we give an overview of the algorithm used by Armada to determine which jobs to schedule and preempt. This algorithm runs within the scheduling subsystem of the Armada control plane. Note that Armada does not rely on kube-scheduler (or other in-cluster schedulers) for scheduling and preemption.
 
-Scheduling requires balancing throughput, timeliness and fairness. The Armada scheduler operates according to the following principles:
+Scheduling requires balancing throughput, timeliness, and fairness. The Armada scheduler operates according to the following principles:
 
-* throughput: Maximise resource utilisation by scheduling jobs onto available nodes whenever possible.
-* timeliness: Schedule more urgent jobs before less urgent jobs. Always preempt less urgent jobs to make room for more urgent jobs, but never the opposite.
-* fairness: Schedule jobs from queues allocated a smaller fraction of their fair share of resources before those allocated a larger fraction. Always preempt jobs from queues with a larger fraction of their fair share if doing so helps schedule jobs from queues with a smaller fraction.
+- Throughput: Maximise resource utilisation by scheduling jobs onto available nodes whenever possible.
+- Timeliness: Schedule more urgent jobs before less urgent jobs. Always preempt less urgent jobs to make room for more urgent jobs, but never the opposite.
+- Fairness: Schedule jobs from queues allocated a smaller fraction of their fair share of resources before those allocated a larger fraction. Always preempt jobs from queues with a larger fraction of their fair share if doing so helps schedule jobs from queues with a smaller fraction.
 
 The Armada scheduler also satisfies (with some exceptions as noted throughout the documentation) the following properties:
 
-* sharing incentive: Each user should be better off sharing the cluster than exclusively using their own partition of the cluster.
-* strategy-proofness: Users should not benefit from lying about their resource requirements.
-* envy-freeness: A user should not prefer the allocation of another. This property embodies the notion of fairness.
-* pareto efficiency: It should not be possible to increase the allocation of a user without decreasing the allocation of another.
-* preemption stability: Whenever a job is preempted and subsequently re-submitted before any other jobs have completed, the re-submitted job should not trigger further preemptions.
+- Sharing incentive: Each user should be better off sharing the cluster than exclusively using their own partition of the cluster.
+- Strategy-proofness: Users should not benefit from lying about their resource requirements.
+- Envy-freeness: A user should not prefer the allocation of another. This property embodies the notion of fairness.
+- Pareto efficiency: It should not be possible to increase the allocation of a user without decreasing the allocation of another.
+- Preemption stability: Whenever a job is preempted and subsequently re-submitted before any other jobs have completed, the re-submitted job should not trigger further preemptions.
 
 Next, we cover some specific features of the scheduler.
 
@@ -33,23 +22,23 @@ Next, we cover some specific features of the scheduler.
 
 Each Armada job represents a computational task to be carried out and consists of:
 
-* a Kubernetes podspec representing the workload to be run.
-* auxiliary Kubernetes objects, e.g., services and ingresses.
+- A Kubernetes podspec representing the workload to be run.
+- Auxiliary Kubernetes objects, e.g., services and ingresses.
 
 All objects that make up the job are created at job startup and are deleted when the job terminates.
 
 Jobs are annotated with the following Armada-specific metadata:
 
-* queue: Each job belongs to a queue, which is the basis for fair share in Armada.
-* job set: A per-queue logical grouping of jobs meant to make it easier to manage large number of jobs. Jobs within the same job set can be managed as a unit.
-* priority: Controls the order in which jobs appear in the queue.
-* Armada priority class, which itself contains a priority that controls preemption.
+- Queue: Each job belongs to a queue, which is the basis for fair share in Armada.
+- Job set: A per-queue logical grouping of jobs meant to make it easier to manage large number of jobs. Jobs within the same job set can be managed as a unit.
+- Priority: Controls the order in which jobs appear in the queue.
+- Armada priority class, which itself contains a priority that controls preemption.
 
 Jobs are totally ordered within each queue by:
 
-* priority class priority
-* job priority
-* time submitted
+1. Priority class priority.
+2. Job priority.
+3. Time submitted.
 
 Armada attempts to schedule one job at a time. When scheduling from a particular queue, Armada chooses the next job to schedule according to this order.
 
@@ -79,14 +68,14 @@ The weight of each queue is the reciprocal of its priority factor, which is conf
 
 Armada supports two forms of preemption:
 
-* urgency-based preemption, i.e., making room for a job by preempting less urgent jobs. This form of preemption works in the same way as the normal Kubernetes preemption.
-* preemption to fair share, i.e., preempting jobs belonging to users with more than their fair share of resources, such that those resources can be re-allocated to improve fairness.
+1. Urgency-based preemption, i.e., making room for a job by preempting less urgent jobs. This form of preemption works in the same way as the normal Kubernetes preemption.
+2. Preemption to fair share, i.e., preempting jobs belonging to users with more than their fair share of resources, such that those resources can be re-allocated to improve fairness.
 
 Both forms of preemption are based on Armada priority classes (PCs). These are similar to but distinct from Kubernetes PCs. All Armada jobs have an Armada PC associated with them. Each Armada PC is represented by the following fields:
 
-* name: A unique name associated with each Armada PC.
-* priority: An integer encoding the urgency of jobs with this PC. Jobs with a PC with higher priority can always preempt jobs with a PC with lower priority.
-* isFairSharePreemptible: A boolean indicating whether jobs with this PC can be preempted via preemption to fair share. Note that all jobs can be preempted via urgency-based preemption, unless there is no other job with a higher PC priority.
+- name: A unique name associated with each Armada PC.
+- priority: An integer encoding the urgency of jobs with this PC. Jobs with a PC with higher priority can always preempt jobs with a PC with lower priority.
+- isFairSharePreemptible: A boolean indicating whether jobs with this PC can be preempted via preemption to fair share. Note that all jobs can be preempted via urgency-based preemption, unless there is no other job with a higher PC priority.
 
 Job priority classes are set by setting the `priorityClassName` field of the podspec embedded in the job. Jobs with no PC are automatically assigned one. We describe both forms of preemption in more detail below.
 
@@ -105,12 +94,12 @@ Armada schedules one job at a time. This process consists of:
 1. Selecting a job to schedule.
 2. Assigning the selected job to a node.
 
-Here, we explain the second stage. Armada adheres to the following principles in the order listed:
+Here, we explain the second step. Armada adheres to the following principles in the order listed:
 
 1. Avoid preempting running jobs if possible.
 2. If necessary, preempt according to the following principles:
-   * Preempt jobs of as low PC priority as possible.
-   * For jobs of equal PC priority, preempt jobs from queues allocated the largest fraction of fair share possible.
+    1. Preempt jobs of as low PC priority as possible.
+    2. For jobs of equal PC priority, preempt jobs from queues allocated the largest fraction of fair share possible.
 3. Assign to a node with the smallest amount of resources possible.
 
 These principles result in Armada doing the best it can to avoid preemptions, or at least preempt fairly, and then greedily bin-packing jobs.
@@ -257,24 +246,25 @@ Eviction is part of the preemption strategy used by Armada. It consists of, at t
 
 Whether a job is evicted or not and whether it is assigned to a node in the job scheduling stage or not determines which jobs are scheduled, preempted, or neither. Specifically:
 
-* not evicted and assigned a node: queued jobs that should be scheduled
-* not evicted and not assigned a node: queued jobs that remain queued
-* evicted and assigned a node: running jobs that should remain running
-* evicted and not assigned a node: running jobs that should be preempted
+- Not evicted and assigned a node: Queued jobs that should be scheduled.
+- Not evicted and not assigned a node: Queued jobs that remain queued.
+- Evicted and assigned a node: Running jobs that should remain running.
+- Evicted and not assigned a node: Running jobs that should be preempted.
 
 Eviction and (re-)scheduling thus provides a unified mechanism for scheduling and preemption. This approach comes with several benefits:
 
-* no need to maintain separate scheduling and preemption algorithms (improvements to scheduling also improves preemption)
-* we are guaranteed there are no preemptions that do not help scheduling new jobs without needing to check specifically that is the case
-* preemption and scheduling is consistent in the sense that a job that was preempted will if re-submitted not be scheduled
-* many-to-many preemption, i.e., one preemption may facilitate scheduling several other jobs
+- No need to maintain separate scheduling and preemption algorithms. Improvements to scheduling also improves preemption.
+- We are guaranteed there are no preemptions that do not help scheduling new jobs without needing to check specifically that is the case.
+- Preemption and scheduling is consistent in the sense that a job that was preempted will if re-submitted not be scheduled.
+- Many-to-many preemption, i.e., one preemption may facilitate scheduling several other jobs.
 
 There are two caveats for which some care needs to be taken:
 
-* evicted jobs may only be rescheduled onto the node from which they were evicted
-* we should avoid preventing rescheduling evicted jobs when scheduling new jobs
+1. Evicted jobs may only be re-scheduled onto the node from which they were evicted.
+2. We should avoid preventing re-scheduling evicted jobs when scheduling new jobs.
 
 To address these issues, Armada maintains a record of which node each job was evicted from that is used when assigning jobs to nodes.
+
 
 ### Job scheduling order
 
