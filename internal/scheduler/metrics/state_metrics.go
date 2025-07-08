@@ -364,8 +364,6 @@ func errorTypeAndMessageFromError(err *armadaevents.Error) (string, string) {
 	// The following errors relate to job run failures.
 	// We do not process JobRunPreemptedError as there is separate metric for preemption.
 	switch reason := err.Reason.(type) {
-	case *armadaevents.Error_PodUnschedulable:
-		return "podUnschedulable", reason.PodUnschedulable.Message
 	case *armadaevents.Error_LeaseExpired:
 		return "leaseExpired", ""
 	case *armadaevents.Error_PodError:
