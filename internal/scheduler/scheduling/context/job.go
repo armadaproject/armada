@@ -60,12 +60,14 @@ type JobSchedulingContext struct {
 	// This is the node the pod is assigned to.
 	// This is only set for evicted jobs and is set alongside adding an additionalNodeSelector for the node
 	AssignedNode *internaltypes.Node
-	// Id of job that preempted this pod
-	PreemptingJobId string
+	// job that preempted this pod
+	PreemptingJob *jobdb.Job
 	// The type of preemption used to preempt this job (i.e fairshare, urgency)
 	PreemptionType PreemptionType
 	// Description of the cause of preemption
 	PreemptionDescription string
+	// If this job context should contribute to the billable resource of the queue
+	Billable bool
 }
 
 func (jctx *JobSchedulingContext) IsHomeJob(currentPool string) bool {

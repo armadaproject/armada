@@ -109,7 +109,7 @@ export const SidebarTabScheduling = ({ job }: SidebarTabSchedulingProps) => {
           </AccordionSummary>
           <AccordionDetails>
             <Stack spacing={SPACING.md}>
-              <SidebarTabSubheading>Report for this job's queue ({job.queue})</SidebarTabSubheading>
+              <SidebarTabSubheading>Report for this job&apos;s queue ({job.queue})</SidebarTabSubheading>
               <Stack spacing={SPACING.sm}>
                 <VerbositySelector
                   name="queue-scheduling-report-verbosity"
@@ -241,7 +241,7 @@ export const SidebarTabScheduling = ({ job }: SidebarTabSchedulingProps) => {
       </div>
       <SidebarTabHeading>Scheduling parameters</SidebarTabHeading>
       <Alert severity="info" variant="outlined">
-        These job details are used by Armada's scheduler when determining which jobs to execute on the cluster.
+        These job details are used by Armada&apos;s scheduler when determining which jobs to execute on the cluster.
       </Alert>
       <Stack spacing={SPACING.md} direction="row">
         <SidebarTabProminentValueCard label="Job priority" value={job.priority.toString()} />

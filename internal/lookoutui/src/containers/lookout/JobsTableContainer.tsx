@@ -731,6 +731,12 @@ export const JobsTableContainer = ({
     setParseErrors({})
   }
 
+  const clearSorting = () => {
+    onSortingChange([])
+  }
+
+  const customSortingApplied = sorting.length > 0
+
   const clearGroups = () => {
     // Set grouping to an empty array to clear all groups
     onGroupingChange([])
@@ -825,6 +831,8 @@ export const JobsTableContainer = ({
               getJobsService={getJobsService}
               updateJobsService={updateJobsService}
               onClearFilters={clearFilters}
+              onClearSorting={clearSorting}
+              customSortingApplied={customSortingApplied}
               onClearGroups={clearGroups}
               onAddCustomView={addCustomView}
               onDeleteCustomView={deleteCustomView}

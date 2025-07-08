@@ -290,11 +290,14 @@ func TestEviction(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 0, len(node.EvictedJobRunIds))
 	assert.Equal(t, map[int32]internaltypes.ResourceList{
-		-1: testfixtures.CpuMem("30", "248Gi"),
-		0:  testfixtures.CpuMem("30", "248Gi"),
-		1:  testfixtures.CpuMem("31", "252Gi"),
-		2:  testfixtures.CpuMem("31", "252Gi"),
-		3:  testfixtures.CpuMem("31", "252Gi"),
+		-1:    testfixtures.CpuMem("30", "248Gi"),
+		0:     testfixtures.CpuMem("30", "248Gi"),
+		1:     testfixtures.CpuMem("31", "252Gi"),
+		2:     testfixtures.CpuMem("31", "252Gi"),
+		3:     testfixtures.CpuMem("31", "252Gi"),
+		28000: testfixtures.CpuMem("32", "256Gi"),
+		29000: testfixtures.CpuMem("32", "256Gi"),
+		30000: testfixtures.CpuMem("32", "256Gi"),
 	}, node.AllocatableByPriority)
 
 	returnedNode, err := nodeDb.EvictJobsFromNode(jobs, node)
@@ -303,19 +306,25 @@ func TestEviction(t *testing.T) {
 	assert.Equal(t, len(jobs), len(returnedNode.EvictedJobRunIds))
 
 	assert.Equal(t, map[int32]internaltypes.ResourceList{
-		-1: testfixtures.CpuMem("30", "248Gi"),
-		0:  testfixtures.CpuMem("30", "248Gi"),
-		1:  testfixtures.CpuMem("31", "252Gi"),
-		2:  testfixtures.CpuMem("31", "252Gi"),
-		3:  testfixtures.CpuMem("31", "252Gi"),
+		-1:    testfixtures.CpuMem("30", "248Gi"),
+		0:     testfixtures.CpuMem("30", "248Gi"),
+		1:     testfixtures.CpuMem("31", "252Gi"),
+		2:     testfixtures.CpuMem("31", "252Gi"),
+		3:     testfixtures.CpuMem("31", "252Gi"),
+		28000: testfixtures.CpuMem("32", "256Gi"),
+		29000: testfixtures.CpuMem("32", "256Gi"),
+		30000: testfixtures.CpuMem("32", "256Gi"),
 	}, node.AllocatableByPriority)
 
 	assert.Equal(t, map[int32]internaltypes.ResourceList{
-		-1: testfixtures.CpuMem("30", "248Gi"),
-		0:  testfixtures.CpuMem("32", "256Gi"),
-		1:  testfixtures.CpuMem("32", "256Gi"),
-		2:  testfixtures.CpuMem("32", "256Gi"),
-		3:  testfixtures.CpuMem("32", "256Gi"),
+		-1:    testfixtures.CpuMem("30", "248Gi"),
+		0:     testfixtures.CpuMem("32", "256Gi"),
+		1:     testfixtures.CpuMem("32", "256Gi"),
+		2:     testfixtures.CpuMem("32", "256Gi"),
+		3:     testfixtures.CpuMem("32", "256Gi"),
+		28000: testfixtures.CpuMem("32", "256Gi"),
+		29000: testfixtures.CpuMem("32", "256Gi"),
+		30000: testfixtures.CpuMem("32", "256Gi"),
 	}, returnedNode.AllocatableByPriority)
 }
 

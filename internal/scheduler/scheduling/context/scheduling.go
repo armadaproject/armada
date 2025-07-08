@@ -143,6 +143,7 @@ func (sctx *SchedulingContext) AddQueueSchedulingContext(
 		PreemptedByOptimiserResourceByPriorityClass: make(map[string]internaltypes.ResourceList),
 		SuccessfulJobSchedulingContexts:             make(map[string]*JobSchedulingContext),
 		UnsuccessfulJobSchedulingContexts:           make(map[string]*JobSchedulingContext),
+		RescheduledJobSchedulingContexts:            make(map[string]*JobSchedulingContext),
 		PreemptedByOptimiserJobSchedulingContexts:   make(map[string]*JobSchedulingContext),
 		EvictedJobsById:                             make(map[string]bool),
 	}

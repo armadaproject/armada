@@ -400,7 +400,7 @@ func (m *cycleMetrics) ReportSchedulerResult(ctx *armadacontext.Context, result 
 			currentCycle.shortJobPenalty.WithLabelValues(pool, queue).Set(shortJobPenalty)
 			currentCycle.queueWeight.WithLabelValues(pool, queue).Set(queueContext.Weight)
 			currentCycle.rawQueueWeight.WithLabelValues(pool, queue).Set(queueContext.RawWeight)
-			for _, r := range queueContext.BillableAllocation.GetResources() {
+			for _, r := range queueContext.GetBillableResource().GetResources() {
 				currentCycle.billableResource.WithLabelValues(pool, queue, r.Name).Set(float64(r.RawValue))
 			}
 		}
@@ -575,7 +575,7 @@ func (m *cycleMetrics) publishCycleMetrics(ctx *armadacontext.Context, result sc
 				DemandByResourceType:             armadamaps.MapValues(qCtx.Demand.ToMap(), toQtyPtr),
 				ConstrainedDemandByResourceType:  armadamaps.MapValues(qCtx.ConstrainedDemand.ToMap(), toQtyPtr),
 				ShortJobPenalty:                  sc.FairnessCostProvider.UnweightedCostFromAllocation(qCtx.ShortJobPenalty),
-				BillableAllocationByResourceType: armadamaps.MapValues(qCtx.BillableAllocation.ToMap(), toQtyPtr),
+				BillableAllocationByResourceType: armadamaps.MapValues(qCtx.GetBillableResource().ToMap(), toQtyPtr),
 			}
 		}
 		events[i] = &metricevents.Event{

@@ -1051,17 +1051,18 @@ func TestRun(t *testing.T) {
 
 // Test job pricing data is updated through subsequent scheduling rounds
 func TestJobPriceUpdates(t *testing.T) {
-	jobId := util.NewULID()
-	job := database.Job{JobID: jobId, Queue: "testQueue", Queued: true, Validated: true, Pools: []string{testfixtures.TestPool}, SchedulingInfo: schedulingInfoBytes, PriceBand: 2}
-	preemptibleJobId := util.NewULID()
-	preemptibleJob := database.Job{JobID: preemptibleJobId, Queue: "testQueue", Queued: true, Validated: true, Pools: []string{testfixtures.TestPool}, SchedulingInfo: preemptibleSchedulingInfoBytes, PriceBand: 2}
-	jobWithoutMarketDrivenPoolsId := util.NewULID()
-	jobWithoutMarketDrivenPools := database.Job{JobID: jobWithoutMarketDrivenPoolsId, Queue: "testQueue", Queued: true, Validated: true, Pools: []string{"other"}, SchedulingInfo: schedulingInfoBytes}
+	queuedJob := database.Job{JobID: util.NewULID(), Queue: "testQueue", Queued: true, Validated: true, Pools: []string{testfixtures.TestPool}, SchedulingInfo: schedulingInfoBytes, PriceBand: 2}
+	runningJob := database.Job{JobID: util.NewULID(), Queue: "testQueue", Queued: false, Validated: true, Pools: []string{testfixtures.TestPool}, SchedulingInfo: schedulingInfoBytes, PriceBand: 2}
+	queuedJobNoPricingInfo := database.Job{JobID: util.NewULID(), Queue: "testQueue2", Queued: true, Validated: true, Pools: []string{testfixtures.TestPool}, SchedulingInfo: schedulingInfoBytes, PriceBand: 2}
+	runningJobNoPricingInfo := database.Job{JobID: util.NewULID(), Queue: "testQueue2", Queued: false, Validated: true, Pools: []string{testfixtures.TestPool}, SchedulingInfo: schedulingInfoBytes, PriceBand: 2}
+	queuedPreemptibleJob := database.Job{JobID: util.NewULID(), Queue: "testQueue", Queued: true, Validated: true, Pools: []string{testfixtures.TestPool}, SchedulingInfo: preemptibleSchedulingInfoBytes, PriceBand: 2}
+	runningPreemptibleJob := database.Job{JobID: util.NewULID(), Queue: "testQueue", Queued: false, Validated: true, Pools: []string{testfixtures.TestPool}, SchedulingInfo: preemptibleSchedulingInfoBytes, PriceBand: 2}
+	queuedPreemptibleJobNoPricingInfo := database.Job{JobID: util.NewULID(), Queue: "testQueue2", Queued: true, Validated: true, Pools: []string{testfixtures.TestPool}, SchedulingInfo: preemptibleSchedulingInfoBytes, PriceBand: 2}
+	runningPreemptibleJobNoPricingInfo := database.Job{JobID: util.NewULID(), Queue: "testQueue2", Queued: false, Validated: true, Pools: []string{testfixtures.TestPool}, SchedulingInfo: preemptibleSchedulingInfoBytes, PriceBand: 2}
+	jobWithoutMarketDrivenPools := database.Job{JobID: util.NewULID(), Queue: "testQueue", Queued: true, Validated: true, Pools: []string{"other"}, SchedulingInfo: schedulingInfoBytes}
 
-	expectedInitialBid := map[string]pricing.Bid{testfixtures.TestPool: {QueuedBid: 2, RunningBid: pricing.NonPreemptibleRunningPrice}}
-	expectedUpdatedBid := map[string]pricing.Bid{testfixtures.TestPool: {QueuedBid: 3, RunningBid: pricing.NonPreemptibleRunningPrice}}
-	expectedPreemptibleInitialBid := map[string]pricing.Bid{testfixtures.TestPool: {QueuedBid: 2, RunningBid: 2}}
-	expectedPreemptibleUpdatedBid := map[string]pricing.Bid{testfixtures.TestPool: {QueuedBid: 3, RunningBid: 3}}
+	expectedInitialBid := map[string]pricing.Bid{testfixtures.TestPool: {QueuedBid: 2, RunningBid: 2}}
+	expectedUpdatedBid := map[string]pricing.Bid{testfixtures.TestPool: {QueuedBid: 3, RunningBid: 3}}
 
 	// Test runs for 3 rounds
 	// - 1. Run as leader
@@ -1072,13 +1073,15 @@ func TestJobPriceUpdates(t *testing.T) {
 		initialJob                    database.Job
 		expectedNumberOfProviderCalls []int
 		expectedJobBid                []map[string]pricing.Bid
+		expectedJobBidPrice           []float64
 	}{
 		"no market driven pools": {
 			// No market driven pools, so prices shouldn't be getting updated
 			marketDrivenPools:             []string{},
-			initialJob:                    job,
+			initialJob:                    queuedJob,
 			expectedNumberOfProviderCalls: []int{0, 0, 0},
 			expectedJobBid:                []map[string]pricing.Bid{nil, nil, nil},
+			expectedJobBidPrice:           []float64{0, 0, 0},
 		},
 		"job with no market driven pools": {
 			// No need to set price on job that doesn't belong to market driven pools
@@ -1086,20 +1089,71 @@ func TestJobPriceUpdates(t *testing.T) {
 			initialJob:                    jobWithoutMarketDrivenPools,
 			expectedNumberOfProviderCalls: []int{1, 1, 2},
 			expectedJobBid:                []map[string]pricing.Bid{nil, nil, nil},
+			expectedJobBidPrice:           []float64{0, 0, 0},
 		},
-		"non-preemptible job": {
+		"non-preemptible queued job": {
 			// No market driven pools, so prices shouldn't be getting updated
 			marketDrivenPools:             []string{testfixtures.TestPool},
-			initialJob:                    job,
+			initialJob:                    queuedJob,
 			expectedNumberOfProviderCalls: []int{1, 1, 2},
 			expectedJobBid:                []map[string]pricing.Bid{expectedInitialBid, expectedInitialBid, expectedUpdatedBid},
+			expectedJobBidPrice:           []float64{2, 2, 3},
 		},
-		"preemptible job": {
+		"non-preemptible running job": {
 			// No market driven pools, so prices shouldn't be getting updated
 			marketDrivenPools:             []string{testfixtures.TestPool},
-			initialJob:                    preemptibleJob,
+			initialJob:                    runningJob,
 			expectedNumberOfProviderCalls: []int{1, 1, 2},
-			expectedJobBid:                []map[string]pricing.Bid{expectedPreemptibleInitialBid, expectedPreemptibleInitialBid, expectedPreemptibleUpdatedBid},
+			expectedJobBid:                []map[string]pricing.Bid{expectedInitialBid, expectedInitialBid, expectedUpdatedBid},
+			expectedJobBidPrice:           []float64{pricing.NonPreemptibleRunningPrice, pricing.NonPreemptibleRunningPrice, pricing.NonPreemptibleRunningPrice},
+		},
+		"non-preemptible queued job with no pricing info": {
+			// No market driven pools, so prices shouldn't be getting updated
+			marketDrivenPools:             []string{testfixtures.TestPool},
+			initialJob:                    queuedJobNoPricingInfo,
+			expectedNumberOfProviderCalls: []int{1, 1, 2},
+			expectedJobBid:                []map[string]pricing.Bid{nil, nil, nil},
+			expectedJobBidPrice:           []float64{0, 0, 0},
+		},
+		"non-preemptible running job with no pricing info": {
+			// No market driven pools, so prices shouldn't be getting updated
+			marketDrivenPools:             []string{testfixtures.TestPool},
+			initialJob:                    runningJobNoPricingInfo,
+			expectedNumberOfProviderCalls: []int{1, 1, 2},
+			expectedJobBid:                []map[string]pricing.Bid{nil, nil, nil},
+			expectedJobBidPrice:           []float64{pricing.NonPreemptibleRunningPrice, pricing.NonPreemptibleRunningPrice, pricing.NonPreemptibleRunningPrice},
+		},
+		"preemptible queued job": {
+			// No market driven pools, so prices shouldn't be getting updated
+			marketDrivenPools:             []string{testfixtures.TestPool},
+			initialJob:                    queuedPreemptibleJob,
+			expectedNumberOfProviderCalls: []int{1, 1, 2},
+			expectedJobBid:                []map[string]pricing.Bid{expectedInitialBid, expectedInitialBid, expectedUpdatedBid},
+			expectedJobBidPrice:           []float64{2, 2, 3},
+		},
+		"preemptible running job": {
+			// No market driven pools, so prices shouldn't be getting updated
+			marketDrivenPools:             []string{testfixtures.TestPool},
+			initialJob:                    runningPreemptibleJob,
+			expectedNumberOfProviderCalls: []int{1, 1, 2},
+			expectedJobBid:                []map[string]pricing.Bid{expectedInitialBid, expectedInitialBid, expectedUpdatedBid},
+			expectedJobBidPrice:           []float64{2, 2, 3},
+		},
+		"preemptible queued job - no pricing info": {
+			// No market driven pools, so prices shouldn't be getting updated
+			marketDrivenPools:             []string{testfixtures.TestPool},
+			initialJob:                    queuedPreemptibleJobNoPricingInfo,
+			expectedNumberOfProviderCalls: []int{1, 1, 2},
+			expectedJobBid:                []map[string]pricing.Bid{nil, nil, nil},
+			expectedJobBidPrice:           []float64{0, 0, 0},
+		},
+		"preemptible running job - no pricing info": {
+			// No market driven pools, so prices shouldn't be getting updated
+			marketDrivenPools:             []string{testfixtures.TestPool},
+			initialJob:                    runningPreemptibleJobNoPricingInfo,
+			expectedNumberOfProviderCalls: []int{1, 1, 2},
+			expectedJobBid:                []map[string]pricing.Bid{nil, nil, nil},
+			expectedJobBidPrice:           []float64{0, 0, 0},
 		},
 	}
 
@@ -1166,6 +1220,7 @@ func TestJobPriceUpdates(t *testing.T) {
 			currentJob := jobDb.ReadTxn().GetById(tc.initialJob.JobID)
 			assert.NotNil(t, currentJob)
 			assert.Equal(t, tc.expectedJobBid[0], currentJob.GetAllBidPrices())
+			assert.Equal(t, tc.expectedJobBidPrice[0], currentJob.GetBidPrice(testfixtures.TestPool))
 			assert.Equal(t, priceProvider.numberOfCalls, tc.expectedNumberOfProviderCalls[0])
 
 			// invalidate our leadership: we shouldn't update prices
@@ -1177,6 +1232,7 @@ func TestJobPriceUpdates(t *testing.T) {
 			currentJob = jobDb.ReadTxn().GetById(tc.initialJob.JobID)
 			assert.NotNil(t, currentJob)
 			assert.Equal(t, tc.expectedJobBid[1], currentJob.GetAllBidPrices())
+			assert.Equal(t, tc.expectedJobBidPrice[1], currentJob.GetBidPrice(testfixtures.TestPool))
 			assert.Equal(t, priceProvider.numberOfCalls, tc.expectedNumberOfProviderCalls[1])
 
 			// become master again: we shouldn't update prices
@@ -1185,6 +1241,7 @@ func TestJobPriceUpdates(t *testing.T) {
 			currentJob = jobDb.ReadTxn().GetById(tc.initialJob.JobID)
 			assert.NotNil(t, currentJob)
 			assert.Equal(t, tc.expectedJobBid[2], currentJob.GetAllBidPrices())
+			assert.Equal(t, tc.expectedJobBidPrice[2], currentJob.GetBidPrice(testfixtures.TestPool))
 			assert.Equal(t, priceProvider.numberOfCalls, tc.expectedNumberOfProviderCalls[2])
 
 			cancel()

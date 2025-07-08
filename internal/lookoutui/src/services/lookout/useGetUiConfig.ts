@@ -35,7 +35,7 @@ export const useGetUiConfig = (enabled = true) => {
   }
 
   return useQuery<UIConfig, string>({
-    queryKey: ["useGetUiConfig"],
+    queryKey: ["useGetUiConfig", config],
     queryFn: async ({ signal }) => {
       try {
         const response = await fetch("/config", { signal })

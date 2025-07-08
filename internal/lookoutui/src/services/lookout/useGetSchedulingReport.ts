@@ -11,7 +11,7 @@ export const useGetSchedulingReport = (verbosity: number, enabled = true) => {
   const { schedulerReportingApi } = useApiClients()
 
   return useQuery<SchedulerobjectsSchedulingReport, string>({
-    queryKey: ["getSchedulingReport", verbosity],
+    queryKey: ["getSchedulingReport", verbosity, uiConfig?.fakeDataEnabled],
     queryFn: async ({ signal }) => {
       if (uiConfig?.fakeDataEnabled) {
         return { report: fakeSchedulingReport }
