@@ -45,7 +45,7 @@ def submit_sleep_container(image: str):
 with DAG(
     dag_id="error_armada",
     start_date=pendulum.datetime(2016, 1, 1, tz="UTC"),
-    schedule="@daily",
+    schedule_interval="@daily",
     catchup=False,
     default_args={"retries": 2},
 ) as dag:
