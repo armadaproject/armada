@@ -414,8 +414,6 @@ func (c *InstructionConverter) handleJobRunErrors(ts time.Time, event *armadaeve
 			// This case is already handled by the JobRunPreempted event
 			// When we formalise that as a terminal event, we'll remove this JobRunError getting produced
 			continue
-		case *armadaevents.Error_PodUnschedulable:
-			jobRunUpdate.Node = extractNodeName(reason.PodUnschedulable)
 		case *armadaevents.Error_PodLeaseReturned:
 			jobRunUpdate.JobRunState = pointer.Int32(lookout.JobRunLeaseReturnedOrdinal)
 			jobRunUpdate.Error = tryCompressError(event.JobId, reason.PodLeaseReturned.GetMessage(), c.compressor)

@@ -302,60 +302,6 @@ func TestConvertLeaseExpired(t *testing.T) {
 	assert.Equal(t, expected, apiEvents)
 }
 
-func TestConvertPodUnschedulable(t *testing.T) {
-	unschedulable := &armadaevents.EventSequence_Event{
-		Created: baseTimeProto,
-		Event: &armadaevents.EventSequence_Event_JobRunErrors{
-			JobRunErrors: &armadaevents.JobRunErrors{
-				JobId: jobId,
-				RunId: runId,
-				Errors: []*armadaevents.Error{
-					{
-						Terminal: false,
-						Reason: &armadaevents.Error_PodUnschedulable{
-							PodUnschedulable: &armadaevents.PodUnschedulable{
-								ObjectMeta: &armadaevents.ObjectMeta{
-									ExecutorId:   executorId,
-									Namespace:    namespace,
-									Name:         podName,
-									KubernetesId: runId,
-								},
-								Message:   "couldn't schedule pod",
-								NodeName:  nodeName,
-								PodNumber: podNumber,
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-
-	expected := []*api.EventMessage{
-		{
-			Events: &api.EventMessage_UnableToSchedule{
-				UnableToSchedule: &api.JobUnableToScheduleEvent{
-					JobId:        jobId,
-					ClusterId:    executorId,
-					PodNamespace: namespace,
-					PodName:      podName,
-					KubernetesId: runId,
-					Reason:       "couldn't schedule pod",
-					NodeName:     nodeName,
-					PodNumber:    podNumber,
-					JobSetId:     jobSetName,
-					Queue:        queue,
-					Created:      protoutil.ToTimestamp(baseTime),
-				},
-			},
-		},
-	}
-
-	apiEvents, err := FromEventSequence(toEventSeq(unschedulable))
-	assert.NoError(t, err)
-	assert.Equal(t, expected, apiEvents)
-}
-
 func TestConvertPodLeaseReturned(t *testing.T) {
 	leaseReturned := &armadaevents.EventSequence_Event{
 		Created: baseTimeProto,
