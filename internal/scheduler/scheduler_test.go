@@ -650,6 +650,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 			expectedJobRunPreempted: []string{preemptibleGangJob1.Id(), preemptibleGangJob2.Id()},
 			expectedJobErrors:       []string{preemptibleGangJob1.Id(), preemptibleGangJob2.Id()},
 			expectedJobRunErrors:    []string{preemptibleGangJob1.Id(), preemptibleGangJob2.Id()},
+			expectedTerminal:        []string{preemptibleGangJob1.Id(), preemptibleGangJob2.Id()},
 			expectedQueuedVersion:   preemptibleGangJob1.QueuedVersion(),
 		},
 		"Job Run preemption requested - job not pre-emptible - no action expected": {

@@ -5,8 +5,6 @@ import (
 	"sort"
 	"testing"
 
-	armadaslices "github.com/armadaproject/armada/internal/common/slices"
-	armadaconfiguration "github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -20,6 +18,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
+	armadaconfiguration "github.com/armadaproject/armada/internal/server/configuration"
 )
 
 func NewTestJobDb() *JobDb {
@@ -105,35 +104,30 @@ func TestJobDb_TestGetJobsByGangId(t *testing.T) {
 	// Add job1
 	err := txn.Upsert([]*Job{job1})
 	require.NoError(t, err)
-	result, err := txn.GetGangJobsByGangId(job1.Queue(), job1.GetGangInfo().Id())
-	require.NoError(t, err)
+	result := txn.GetGangJobsIdsByGangId(job1.Queue(), job1.GetGangInfo().Id())
 	assert.Len(t, result, 1)
-	assert.Equal(t, job1.Id(), result[0].Id())
+	assert.Equal(t, job1.Id(), result[0])
 
 	// Add job2
 	err = txn.Upsert([]*Job{job2})
 	require.NoError(t, err)
-	result, err = txn.GetGangJobsByGangId(job1.Queue(), job1.GetGangInfo().Id())
-	require.NoError(t, err)
+	result = txn.GetGangJobsIdsByGangId(job1.Queue(), job1.GetGangInfo().Id())
 	assert.Len(t, result, 2)
-	jobIds := armadaslices.Map(result, func(job *Job) string {
-		return job.Id()
-	})
-	assert.Contains(t, jobIds, job1.Id())
-	assert.Contains(t, jobIds, job2.Id())
+	assert.Contains(t, result, job1.Id())
+	assert.Contains(t, result, job2.Id())
 
 	// Delete job1
 	err = txn.BatchDelete([]string{job1.Id()})
 	require.NoError(t, err)
-	result, err = txn.GetGangJobsByGangId(job1.Queue(), job1.GetGangInfo().Id())
+	result = txn.GetGangJobsIdsByGangId(job1.Queue(), job1.GetGangInfo().Id())
 	require.NoError(t, err)
 	assert.Len(t, result, 1)
-	assert.Equal(t, job2.Id(), result[0].Id())
+	assert.Equal(t, job2.Id(), result[0])
 
 	// Delete job2
 	err = txn.BatchDelete([]string{job2.Id()})
 	require.NoError(t, err)
-	result, err = txn.GetGangJobsByGangId(job1.Queue(), job1.GetGangInfo().Id())
+	result = txn.GetGangJobsIdsByGangId(job1.Queue(), job1.GetGangInfo().Id())
 	require.NoError(t, err)
 	assert.Empty(t, result)
 }
