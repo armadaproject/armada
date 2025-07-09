@@ -367,7 +367,6 @@ func TestJobDb_GangInfoIsPopulated(t *testing.T) {
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-
 			podRequirements := &internaltypes.PodRequirements{
 				NodeSelector: map[string]string{"foo": "bar"},
 				Annotations:  tc.annotations,

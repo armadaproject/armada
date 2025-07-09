@@ -99,8 +99,7 @@ var (
 		},
 		Version: 1,
 	}
-	preemptibleGangSchedulingInfoBytes = protoutil.MustMarshall(preemptibleSchedulingInfo)
-	schedulingInfo                     = &schedulerobjects.JobSchedulingInfo{
+	schedulingInfo = &schedulerobjects.JobSchedulingInfo{
 		AtMostOnce:        true,
 		PriorityClassName: testfixtures.PriorityClass2NonPreemptible,
 		ObjectRequirements: []*schedulerobjects.ObjectRequirements{
@@ -275,8 +274,10 @@ var leasedFailFastJob = testfixtures.NewJob(
 	true,
 ).WithNewRun("testExecutor", "test-node", "node", "pool", 5)
 
-var preemptibleGangJob1 = createPreemptibleGangJob()
-var preemptibleGangJob2 = createPreemptibleGangJob()
+var (
+	preemptibleGangJob1 = createPreemptibleGangJob()
+	preemptibleGangJob2 = createPreemptibleGangJob()
+)
 
 var (
 	testExecutor        = "test-executor"

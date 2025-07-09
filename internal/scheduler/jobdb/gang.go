@@ -7,14 +7,12 @@ type GangInfo struct {
 	nodeUniformity string
 }
 
-var (
-	basicJobGangInfo = GangInfo{
-		id:             "",
-		isGang:         false,
-		cardinality:    1,
-		nodeUniformity: "",
-	}
-)
+var basicJobGangInfo = GangInfo{
+	id:             "",
+	isGang:         false,
+	cardinality:    1,
+	nodeUniformity: "",
+}
 
 // BasicJobGangInfo The info used for non-gang jobs
 func BasicJobGangInfo() GangInfo {
