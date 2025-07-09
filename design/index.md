@@ -4,7 +4,7 @@ This document is meant to be an overview of Armada for new users. We cover the a
 
 If you just want to learn how to submit jobs to Armada, see:
 
-- [User guide](../user.md)
+- [User guide](../creating_and_submitting_jobs.md)
 
 If you want to see a quick overview of Armadas components, see:
 
@@ -67,7 +67,7 @@ In the above yaml snippet, `podSpec` is a Kubernetes podspec, which consists of 
 
 Queues and scheduling is explained in more detail below.
 
-For more examples, see the [user guide](../user.md).
+For more examples, see the [user guide](../creating_and_submitting_jobs.md).
 
 ### Job events
 
