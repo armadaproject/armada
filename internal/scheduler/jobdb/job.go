@@ -81,6 +81,8 @@ type Job struct {
 	// The bid price for each pool
 	// A job doesn't have to have a bid for every pool, it'll default to 0 bid if not set in this map
 	bidPricesPool map[string]pricing.Bid
+	// Gang information for this job
+	gangInfo GangInfo
 }
 
 func (job *Job) String() string {
@@ -449,6 +451,10 @@ func (job *Job) WithPriceBand(priceBand bidstore.PriceBand) *Job {
 
 func (job *Job) GetPriceBand() bidstore.PriceBand {
 	return job.priceBand
+}
+
+func (job *Job) GetGangInfo() GangInfo {
+	return job.gangInfo
 }
 
 // WithPriority returns a copy of the job with the priority updated.

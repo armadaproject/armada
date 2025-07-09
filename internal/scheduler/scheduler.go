@@ -716,7 +716,14 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 		return nil, nil
 	}
 
+	updatedJob := txn.GetById(job.Id())
+	if updatedJob == nil {
+		return nil, fmt.Errorf("could not find job with id %s in the jobdb", job.Id())
+	}
+	job = updatedJob
+
 	origJob := job
+	jobsToUpdate := []*jobdb.Job{}
 
 	if job.RequestedPriority() != job.Priority() {
 		job = job.WithPriority(job.RequestedPriority())
@@ -896,13 +903,35 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 				events = append(events, jobErrors)
 			}
 		} else if lastRun.PreemptRequested() && job.PriorityClass().Preemptible {
-			job = job.WithQueued(false).WithFailed(true).WithUpdatedRun(lastRun.WithoutTerminal().WithFailed(true))
-			events = append(events, createEventsForPreemptedJob(job.Id(), lastRun.Id(), "Preempted - preemption requested via API", s.clock.Now())...)
+			jobsToPreempt := []*jobdb.Job{job}
+			if job.GetGangInfo().IsGang() {
+				gangJobs, err := txn.GetGangJobsByGangId(job.Queue(), job.GetGangInfo().Id())
+				if err != nil {
+					return nil, err
+				}
+				jobsToPreempt = gangJobs
+			}
+
+			for _, j := range jobsToPreempt {
+				if j.LatestRun() != nil {
+					j = j.WithQueued(false).WithFailed(true).WithUpdatedRun(j.LatestRun().WithoutTerminal().WithFailed(true))
+					events = append(events, createEventsForPreemptedJob(j.Id(), j.LatestRun().Id(), "Preempted - preemption requested via API", s.clock.Now())...)
+
+					if j.Id() == job.Id() {
+						job = j
+					} else {
+						jobsToUpdate = append(jobsToUpdate, j)
+					}
+				}
+			}
 		}
 	}
 
 	if !origJob.Equal(job) {
-		if err := txn.Upsert([]*jobdb.Job{job}); err != nil {
+		jobsToUpdate = append(jobsToUpdate, job)
+	}
+	if len(jobsToUpdate) > 0 {
+		if err := txn.Upsert(jobsToUpdate); err != nil {
 			return nil, err
 		}
 	}

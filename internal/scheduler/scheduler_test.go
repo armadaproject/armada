@@ -80,7 +80,27 @@ var (
 		Version: 1,
 	}
 	preemptibleSchedulingInfoBytes = protoutil.MustMarshall(preemptibleSchedulingInfo)
-	schedulingInfo                 = &schedulerobjects.JobSchedulingInfo{
+	preemptibleGangSchedulingInfo  = &schedulerobjects.JobSchedulingInfo{
+		AtMostOnce:        true,
+		Preemptible:       true,
+		PriorityClassName: testfixtures.PriorityClass1,
+		ObjectRequirements: []*schedulerobjects.ObjectRequirements{
+			{
+				Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
+					PodRequirements: &schedulerobjects.PodRequirements{
+						Annotations: map[string]string{
+							apiconfig.GangCardinalityAnnotation:         "4",
+							apiconfig.GangIdAnnotation:                  "id",
+							apiconfig.GangNodeUniformityLabelAnnotation: "uniformity",
+						},
+					},
+				},
+			},
+		},
+		Version: 1,
+	}
+	preemptibleGangSchedulingInfoBytes = protoutil.MustMarshall(preemptibleSchedulingInfo)
+	schedulingInfo                     = &schedulerobjects.JobSchedulingInfo{
 		AtMostOnce:        true,
 		PriorityClassName: testfixtures.PriorityClass2NonPreemptible,
 		ObjectRequirements: []*schedulerobjects.ObjectRequirements{
@@ -254,6 +274,9 @@ var leasedFailFastJob = testfixtures.NewJob(
 	1,
 	true,
 ).WithNewRun("testExecutor", "test-node", "node", "pool", 5)
+
+var preemptibleGangJob1 = createPreemptibleGangJob()
+var preemptibleGangJob2 = createPreemptibleGangJob()
 
 var (
 	testExecutor        = "test-executor"
@@ -611,6 +634,23 @@ func TestScheduler_TestCycle(t *testing.T) {
 			expectedJobRunErrors:    []string{preemptibleLeasedJob.Id()},
 			expectedTerminal:        []string{preemptibleLeasedJob.Id()},
 			expectedQueuedVersion:   preemptibleLeasedJob.QueuedVersion(),
+		},
+		"Gang Job Run preemption requested - preempts all members of the same gang": {
+			initialJobs: []*jobdb.Job{preemptibleGangJob1, preemptibleGangJob2},
+			runUpdates: []database.Run{
+				{
+					RunID:            preemptibleGangJob1.LatestRun().Id(),
+					JobID:            preemptibleGangJob1.Id(),
+					JobSet:           "testJobSet",
+					Executor:         "testExecutor",
+					PreemptRequested: true,
+					Serial:           1,
+				},
+			},
+			expectedJobRunPreempted: []string{preemptibleGangJob1.Id(), preemptibleGangJob2.Id()},
+			expectedJobErrors:       []string{preemptibleGangJob1.Id(), preemptibleGangJob2.Id()},
+			expectedJobRunErrors:    []string{preemptibleGangJob1.Id(), preemptibleGangJob2.Id()},
+			expectedQueuedVersion:   preemptibleGangJob1.QueuedVersion(),
 		},
 		"Job Run preemption requested - job not pre-emptible - no action expected": {
 			initialJobs: []*jobdb.Job{leasedJob},
@@ -3147,4 +3187,21 @@ func toInternalSchedulingInfo(j *schedulerobjects.JobSchedulingInfo) *internalty
 		panic(err)
 	}
 	return internalJsi
+}
+
+func createPreemptibleGangJob() *jobdb.Job {
+	return testfixtures.NewJob(
+		util.NewULID(),
+		"testJobset",
+		"testQueue",
+		0,
+		toInternalSchedulingInfo(preemptibleGangSchedulingInfo),
+		false,
+		1,
+		false,
+		false,
+		false,
+		1,
+		true,
+	).WithNewRun("testExecutor", "test-node", "node", "pool", 5)
 }

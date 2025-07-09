@@ -5,6 +5,8 @@ import (
 	"sort"
 	"testing"
 
+	armadaslices "github.com/armadaproject/armada/internal/common/slices"
+	armadaconfiguration "github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -92,6 +94,61 @@ func TestJobDb_TestGetUnvalidated(t *testing.T) {
 	sort.SliceStable(actual, func(i, j int) bool { return actual[i].id < actual[j].id })
 	sort.SliceStable(expected, func(i, j int) bool { return expected[i].id < expected[j].id })
 	assert.Equal(t, expected, actual)
+}
+
+func TestJobDb_TestGetJobsByGangId(t *testing.T) {
+	jobDb := NewTestJobDb()
+	job1 := newGangJob()
+	job2 := newGangJob()
+	txn := jobDb.WriteTxn()
+
+	// Add job1
+	err := txn.Upsert([]*Job{job1})
+	require.NoError(t, err)
+	result, err := txn.GetGangJobsByGangId(job1.Queue(), job1.GetGangInfo().Id())
+	require.NoError(t, err)
+	assert.Len(t, result, 1)
+	assert.Equal(t, job1.Id(), result[0].Id())
+
+	// Add job2
+	err = txn.Upsert([]*Job{job2})
+	require.NoError(t, err)
+	result, err = txn.GetGangJobsByGangId(job1.Queue(), job1.GetGangInfo().Id())
+	require.NoError(t, err)
+	assert.Len(t, result, 2)
+	jobIds := armadaslices.Map(result, func(job *Job) string {
+		return job.Id()
+	})
+	assert.Contains(t, jobIds, job1.Id())
+	assert.Contains(t, jobIds, job2.Id())
+
+	// Delete job1
+	err = txn.BatchDelete([]string{job1.Id()})
+	require.NoError(t, err)
+	result, err = txn.GetGangJobsByGangId(job1.Queue(), job1.GetGangInfo().Id())
+	require.NoError(t, err)
+	assert.Len(t, result, 1)
+	assert.Equal(t, job2.Id(), result[0].Id())
+
+	// Delete job2
+	err = txn.BatchDelete([]string{job2.Id()})
+	require.NoError(t, err)
+	result, err = txn.GetGangJobsByGangId(job1.Queue(), job1.GetGangInfo().Id())
+	require.NoError(t, err)
+	assert.Empty(t, result)
+}
+
+func TestJobDb_TestGetJobsByGangId_NonGangJob(t *testing.T) {
+	jobDb := NewTestJobDb()
+	job1 := newJob()
+	txn := jobDb.WriteTxn()
+
+	err := txn.Upsert([]*Job{job1})
+	require.NoError(t, err)
+
+	result, err := txn.GetGangJobsByGangId(job1.Queue(), job1.GetGangInfo().Id())
+	require.NoError(t, err)
+	assert.Empty(t, result)
 }
 
 func TestJobDb_TestGetByRunId(t *testing.T) {
@@ -250,6 +307,92 @@ func TestJobDb_TestBatchDelete(t *testing.T) {
 	// Can't delete with read only transaction
 	err = (jobDb.ReadTxn()).BatchDelete([]string{job1.Id()})
 	require.Error(t, err)
+}
+
+func TestJobDb_GangInfoIsPopulated(t *testing.T) {
+	tests := map[string]struct {
+		annotations      map[string]string
+		expectedGangInfo GangInfo
+		expectError      bool
+	}{
+		"non-gang job": {
+			expectedGangInfo: BasicJobGangInfo(),
+			expectError:      false,
+		},
+		"non-gang job - with cardinality 1 gang annotations": {
+			annotations: map[string]string{
+				armadaconfiguration.GangCardinalityAnnotation:         "1",
+				armadaconfiguration.GangIdAnnotation:                  "id",
+				armadaconfiguration.GangNodeUniformityLabelAnnotation: "node-uniformity",
+			},
+			expectedGangInfo: BasicJobGangInfo(),
+			expectError:      false,
+		},
+		"non-gang job - without gang id annotation": {
+			annotations: map[string]string{
+				armadaconfiguration.GangCardinalityAnnotation:         "2",
+				armadaconfiguration.GangNodeUniformityLabelAnnotation: "node-uniformity",
+			},
+			expectedGangInfo: BasicJobGangInfo(),
+			expectError:      false,
+		},
+		"gang job": {
+			annotations: map[string]string{
+				armadaconfiguration.GangCardinalityAnnotation:         "4",
+				armadaconfiguration.GangIdAnnotation:                  "id",
+				armadaconfiguration.GangNodeUniformityLabelAnnotation: "node-uniformity",
+			},
+			expectedGangInfo: CreateGangInfo("id", 4, "node-uniformity"),
+			expectError:      false,
+		},
+		"invalid gang job - id empty": {
+			annotations: map[string]string{
+				armadaconfiguration.GangCardinalityAnnotation:         "4",
+				armadaconfiguration.GangIdAnnotation:                  "",
+				armadaconfiguration.GangNodeUniformityLabelAnnotation: "node-uniformity",
+			},
+			expectError: true,
+		},
+		"invalid gang job - cardinality is not an int": {
+			annotations: map[string]string{
+				armadaconfiguration.GangCardinalityAnnotation:         "error",
+				armadaconfiguration.GangIdAnnotation:                  "",
+				armadaconfiguration.GangNodeUniformityLabelAnnotation: "node-uniformity",
+			},
+			expectError: true,
+		},
+		"invalid gang job - cardinality is not a positive int": {
+			annotations: map[string]string{
+				armadaconfiguration.GangCardinalityAnnotation:         "0",
+				armadaconfiguration.GangIdAnnotation:                  "",
+				armadaconfiguration.GangNodeUniformityLabelAnnotation: "node-uniformity",
+			},
+			expectError: true,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+
+			podRequirements := &internaltypes.PodRequirements{
+				NodeSelector: map[string]string{"foo": "bar"},
+				Annotations:  tc.annotations,
+			}
+			jobSchedulingInfo := &internaltypes.JobSchedulingInfo{
+				PriorityClassName: "foo",
+				PodRequirements:   podRequirements,
+			}
+			jobDb := NewTestJobDb()
+
+			job, err := jobDb.NewJob("jobId", "jobSet", "queue", 1, jobSchedulingInfo, false, 0, false, false, false, 2, false, []string{}, 0)
+			if tc.expectError {
+				assert.Error(t, err)
+			} else {
+				assert.Nil(t, err)
+				assert.Equal(t, tc.expectedGangInfo, job.GetGangInfo())
+			}
+		})
+	}
 }
 
 func TestJobDb_SchedulingKeyIsPopulated(t *testing.T) {
@@ -1201,5 +1344,24 @@ func newJob() *Job {
 		runsById:          map[string]*JobRun{},
 		jobSchedulingInfo: jobSchedulingInfo,
 		pools:             []string{"pool"},
+	}
+}
+
+func newGangJob() *Job {
+	gangInfo, err := createGangInfo(gangJobSchedulingInfo)
+	if err != nil {
+		panic(err)
+	}
+	return &Job{
+		jobDb:             NewTestJobDb(),
+		id:                util.NewULID(),
+		queue:             "test-queue",
+		priority:          0,
+		submittedTime:     0,
+		queued:            false,
+		runsById:          map[string]*JobRun{},
+		jobSchedulingInfo: gangJobSchedulingInfo,
+		pools:             []string{"pool"},
+		gangInfo:          *gangInfo,
 	}
 }
