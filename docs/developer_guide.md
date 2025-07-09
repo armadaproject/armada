@@ -55,7 +55,7 @@ For more information about Armada's design, see the following pages:
 * [Armada Architecture](./design/architecture.md)
 * [Armada Design](./design/index.md)
 * [How Priority Functions](./design/priority.md)
-* [Armada Scheduler Design](./design/scheduler.md)
+* [Armada Scheduler Design](./design/scheduling_and_preempting_jobs.md)
 
 ## Other developer docs
 

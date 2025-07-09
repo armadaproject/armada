@@ -120,7 +120,7 @@ For documentation by example, see [hello_armada.py](./examples/hello_armada.py) 
 
 ## Operator Documentation
 
-[Armada Operator](../../docs/python_airflow_operator.md)
+[Armada Operator](../../docs/armada_airflow_operator.md)
 
 ## Usage
 

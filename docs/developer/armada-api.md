@@ -68,7 +68,7 @@ The REST API only exposes the public part of the gRPC API and it is implemented 
 
 Both gRPC and REST API support the same set of authentication methods. In the case of gRPC, all authentication methods use an `authorization` key in gRPC metadata. The REST API uses a standard HTTP authorisation header (which is translated by `grpc-gateway` to `authorization` metadata).
 
-To set up different server authentication schemes, [see the Helm chart documentation](https://armadaproject.io/helm#Authentication).
+To set up different server authentication schemes, [see the Helm chart documentation](https://armadaproject.io/armada_helm_charts#Authentication).
 
 ### No authentication
 
