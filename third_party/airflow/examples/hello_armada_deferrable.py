@@ -53,7 +53,7 @@ an ArmadaDeferrableOperator
 with DAG(
     dag_id="hello_armada_deferrable",
     start_date=pendulum.datetime(2016, 1, 1, tz="UTC"),
-    schedule_interval="@daily",
+    schedule="@daily",
     catchup=False,
     default_args={"retries": 2},
 ) as dag:
