@@ -380,14 +380,12 @@ func (m *cycleMetrics) ReportReconcileCycleTime(cycleTime time.Duration) {
 	m.reconciliationCycleTime.Observe(float64(cycleTime.Milliseconds()))
 }
 
-func (m *cycleMetrics) ReportJobsPreemptedViaApi(jobs []*jobdb.Job) {
-	for _, job := range jobs {
-		preemptionType := context.PreemptedViaApi
-		if job.LatestRun() == nil {
-			continue
-		}
-		m.premptedJobs.WithLabelValues(job.LatestRun().Pool(), job.Queue(), job.PriorityClassName(), string(preemptionType)).Inc()
+func (m *cycleMetrics) ReportJobPreemptedViaApi(job *jobdb.Job) {
+	preemptionType := context.PreemptedViaApi
+	if job.LatestRun() == nil {
+		return
 	}
+	m.premptedJobs.WithLabelValues(job.LatestRun().Pool(), job.Queue(), job.PriorityClassName(), string(preemptionType)).Inc()
 }
 
 func (m *cycleMetrics) ReportSchedulerResult(ctx *armadacontext.Context, result scheduling.SchedulerResult) {
