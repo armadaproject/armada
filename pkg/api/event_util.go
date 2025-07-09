@@ -49,8 +49,6 @@ func UnwrapEvent(message *EventMessage) (Event, error) {
 		return event.Pending, nil
 	case *EventMessage_Running:
 		return event.Running, nil
-	case *EventMessage_UnableToSchedule:
-		return event.UnableToSchedule, nil
 	case *EventMessage_Failed:
 		return event.Failed, nil
 	case *EventMessage_Succeeded:

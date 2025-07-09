@@ -134,11 +134,6 @@ var expectedFailedRun = model.UpdateJobRunInstruction{
 	ExitCode:    pointer.Int32(testfixtures.ExitCode),
 }
 
-var expectedUnschedulable = model.UpdateJobRunInstruction{
-	RunId: testfixtures.RunId,
-	Node:  pointer.String(testfixtures.NodeName),
-}
-
 var expectedRejected = model.UpdateJobInstruction{
 	JobId:                     testfixtures.JobId,
 	State:                     pointer.Int32(lookout.JobRejectedOrdinal),
@@ -367,16 +362,6 @@ func TestConvert(t *testing.T) {
 			expected: &model.InstructionSet{
 				JobsToUpdate: []*model.UpdateJobInstruction{&expectedFailed},
 				MessageIds:   []pulsar.MessageID{pulsarutils.NewMessageId(1)},
-			},
-		},
-		"unschedulable": {
-			events: &utils.EventsWithIds[*armadaevents.EventSequence]{
-				Events:     []*armadaevents.EventSequence{testfixtures.NewEventSequence(testfixtures.JobRunUnschedulable)},
-				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
-			},
-			expected: &model.InstructionSet{
-				JobRunsToUpdate: []*model.UpdateJobRunInstruction{&expectedUnschedulable},
-				MessageIds:      []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 		},
 		"job rejected": {

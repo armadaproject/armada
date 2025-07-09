@@ -800,9 +800,6 @@
         "succeeded": {
           "$ref": "#/definitions/apiJobSucceededEvent"
         },
-        "unableToSchedule": {
-          "$ref": "#/definitions/apiJobUnableToScheduleEvent"
-        },
         "utilisation": {
           "$ref": "#/definitions/apiJobUtilisationEvent"
         }
@@ -1901,46 +1898,6 @@
           "format": "int32"
         },
         "queue": {
-          "type": "string"
-        }
-      }
-    },
-    "apiJobUnableToScheduleEvent": {
-      "type": "object",
-      "properties": {
-        "clusterId": {
-          "type": "string"
-        },
-        "created": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "jobId": {
-          "type": "string"
-        },
-        "jobSetId": {
-          "type": "string"
-        },
-        "kubernetesId": {
-          "type": "string"
-        },
-        "nodeName": {
-          "type": "string"
-        },
-        "podName": {
-          "type": "string"
-        },
-        "podNamespace": {
-          "type": "string"
-        },
-        "podNumber": {
-          "type": "integer",
-          "format": "int32"
-        },
-        "queue": {
-          "type": "string"
-        },
-        "reason": {
           "type": "string"
         }
       }

@@ -252,26 +252,6 @@ func FromInternalJobRunErrors(queueName string, jobSetName string, time time.Tim
 				},
 			}
 			events = append(events, event)
-		case *armadaevents.Error_PodUnschedulable:
-			objectMeta := reason.PodUnschedulable.GetObjectMeta()
-			event := &api.EventMessage{
-				Events: &api.EventMessage_UnableToSchedule{
-					UnableToSchedule: &api.JobUnableToScheduleEvent{
-						JobId:        e.JobId,
-						ClusterId:    objectMeta.GetExecutorId(),
-						PodNamespace: objectMeta.GetNamespace(),
-						PodName:      objectMeta.GetName(),
-						KubernetesId: objectMeta.GetKubernetesId(),
-						Reason:       reason.PodUnschedulable.GetMessage(),
-						NodeName:     reason.PodUnschedulable.GetNodeName(),
-						PodNumber:    reason.PodUnschedulable.GetPodNumber(),
-						JobSetId:     jobSetName,
-						Queue:        queueName,
-						Created:      protoutil.ToTimestamp(time),
-					},
-				},
-			}
-			events = append(events, event)
 		case *armadaevents.Error_PodLeaseReturned:
 			objectMeta := reason.PodLeaseReturned.GetObjectMeta()
 			event := &api.EventMessage{

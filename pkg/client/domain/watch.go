@@ -210,9 +210,6 @@ func updateJobInfo(info *JobInfo, event api.Event) {
 		updatePodStatus(info, typed, Failed)
 	case *api.JobSucceededEvent:
 		updatePodStatus(info, typed, Succeeded)
-
-	case *api.JobUnableToScheduleEvent:
-		// NOOP
 	case *api.JobReprioritizingEvent:
 		// TODO
 	case *api.JobReprioritizedEvent:
@@ -304,8 +301,6 @@ func isLifeCycleEvent(event api.Event) bool {
 
 	case *api.JobCancelledEvent:
 		return true
-	case *api.JobUnableToScheduleEvent:
-		return false
 	case *api.JobReprioritizedEvent:
 		return false
 	case *api.JobTerminatedEvent:

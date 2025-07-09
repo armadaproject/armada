@@ -403,30 +403,6 @@ var JobRunFailed = &armadaevents.EventSequence_Event{
 	},
 }
 
-var JobRunUnschedulable = &armadaevents.EventSequence_Event{
-	Created: testfixtures.BasetimeProto,
-	Event: &armadaevents.EventSequence_Event_JobRunErrors{
-		JobRunErrors: &armadaevents.JobRunErrors{
-			JobId: JobId,
-			RunId: RunId,
-			Errors: []*armadaevents.Error{
-				{
-					Terminal: false,
-					Reason: &armadaevents.Error_PodUnschedulable{
-						PodUnschedulable: &armadaevents.PodUnschedulable{
-							NodeName: NodeName,
-							ObjectMeta: &armadaevents.ObjectMeta{
-								ExecutorId: ExecutorId,
-							},
-							Message: UnschedulableMsg,
-						},
-					},
-				},
-			},
-		},
-	},
-}
-
 var JobPreempted = &armadaevents.EventSequence_Event{
 	Created: testfixtures.BasetimeProto,
 	Event: &armadaevents.EventSequence_Event_JobErrors{

@@ -550,44 +550,6 @@ func (js *JobSimulator) Preempted(timestamp time.Time) *JobSimulator {
 	return js
 }
 
-func (js *JobSimulator) RunUnschedulable(runId string, cluster string, node string, message string, timestamp time.Time) *JobSimulator {
-	ts := timestampOrNow(timestamp)
-	unschedulableTime := protoutil.ToStdTime(ts)
-	runUnschedulable := &armadaevents.EventSequence_Event{
-		Created: ts,
-		Event: &armadaevents.EventSequence_Event_JobRunErrors{
-			JobRunErrors: &armadaevents.JobRunErrors{
-				JobId: js.jobId,
-				RunId: runId,
-				Errors: []*armadaevents.Error{
-					{
-						Terminal: false,
-						Reason: &armadaevents.Error_PodUnschedulable{
-							PodUnschedulable: &armadaevents.PodUnschedulable{
-								NodeName: node,
-								ObjectMeta: &armadaevents.ObjectMeta{
-									ExecutorId: cluster,
-								},
-								Message: message,
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-	js.events = append(js.events, runUnschedulable)
-
-	js.updateRun(js.job, &runPatch{
-		runId:       runId,
-		cluster:     &cluster,
-		finished:    &unschedulableTime,
-		jobRunState: lookout.JobRunUnableToSchedule,
-		node:        &node,
-	})
-	return js
-}
-
 func (js *JobSimulator) LeaseExpired(runId string, timestamp time.Time, _ clock.Clock) *JobSimulator {
 	ts := timestampOrNow(timestamp)
 	leaseExpiredTime := protoutil.ToStdTime(ts)
