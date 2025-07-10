@@ -185,8 +185,8 @@ func getBenchmarkJobSchedulingSchedulingInfo() *JobSchedulingInfo {
 	return &JobSchedulingInfo{
 		Lifetime: 1,
 
-		PriorityClassName: "armada-default",
-		Priority:          10,
+		PriorityClass: "armada-default",
+		Priority:      10,
 		PodRequirements: &PodRequirements{
 			NodeSelector: map[string]string{
 				"property1": "value1",
@@ -222,9 +222,9 @@ func getBenchmarkJobSchedulingSchedulingInfo() *JobSchedulingInfo {
 
 func getBenchmarkJobSchedulingSchedulingInfoWithAffinity() *JobSchedulingInfo {
 	return &JobSchedulingInfo{
-		Lifetime:          1,
-		PriorityClassName: "armada-default",
-		Priority:          10,
+		Lifetime:      1,
+		PriorityClass: "armada-default",
+		Priority:      10,
 		PodRequirements: &PodRequirements{
 			NodeSelector: map[string]string{
 				"property1": "value1",

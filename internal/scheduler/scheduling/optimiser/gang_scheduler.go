@@ -48,11 +48,11 @@ func (n *FairnessOptimisingGangScheduler) Schedule(ctx *armadacontext.Context, g
 		return false, nil, "", err
 	}
 
-	if isValid, reason := n.isValidNodeUniformityLabel(gctx.NodeUniformity); !isValid {
+	if isValid, reason := n.isValidNodeUniformityLabel(gctx.NodeUniformityLabel()); !isValid {
 		return false, nil, reason, nil
 	}
 
-	nodesByNodeUniformityLabel := n.groupNodesByNodeUniformityLabel(gctx.NodeUniformity, nodes)
+	nodesByNodeUniformityLabel := n.groupNodesByNodeUniformityLabel(gctx.NodeUniformityLabel(), nodes)
 	schedulingCandidates := make([]*schedulingResult, 0, len(nodesByNodeUniformityLabel))
 
 	for _, groupedNodes := range nodesByNodeUniformityLabel {

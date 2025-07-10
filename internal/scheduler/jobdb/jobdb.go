@@ -189,7 +189,7 @@ func (jobDb *JobDb) NewJob(
 	pools []string,
 	priceBand int32,
 ) (*Job, error) {
-	priorityClass, ok := jobDb.priorityClasses[schedulingInfo.PriorityClassName]
+	priorityClass, ok := jobDb.priorityClasses[schedulingInfo.PriorityClass]
 	if !ok {
 		priorityClass = jobDb.defaultPriorityClass
 	}
@@ -202,7 +202,7 @@ func (jobDb *JobDb) NewJob(
 		pb = bidstore.PriceBand(priceBand)
 	}
 
-	gangInfo, err := createGangInfo(schedulingInfo)
+	gangInfo, err := GangInfoFromMinimalJob(schedulingInfo)
 	if err != nil {
 		log.Errorf("failed creating gang info for job %s", jobId)
 		// TODO should we error here or continue on interpreting the job as not a gang job?

@@ -416,7 +416,6 @@ func testSmallCpuJobSchedulingContext(queue, priorityClassName string) *JobSched
 		Job:                            job,
 		PodRequirements:                job.PodRequirements(),
 		KubernetesResourceRequirements: job.KubernetesResourceRequirements(),
-		GangInfo:                       EmptyGangInfo(job),
 	}
 }
 

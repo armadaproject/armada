@@ -607,9 +607,9 @@ func TestJob(queue string, jobId ulid.ULID, priorityClassName string, req *inter
 		// This is the per-queue priority of this job, which is unrelated to `priorityClassName`.
 		1000,
 		&internaltypes.JobSchedulingInfo{
-			PriorityClassName: priorityClassName,
-			SubmitTime:        submitTime,
-			PodRequirements:   req,
+			PriorityClass:   priorityClassName,
+			SubmitTime:      submitTime,
+			PodRequirements: req,
 		},
 		false,
 		0,
@@ -927,9 +927,9 @@ func TestQueuedJobDbJob() *jobdb.Job {
 		TestQueue,
 		0,
 		&internaltypes.JobSchedulingInfo{
-			PriorityClassName: TestDefaultPriorityClass,
-			SubmitTime:        BaseTime,
-			PodRequirements:   TestUnitReqs(),
+			PriorityClass:   TestDefaultPriorityClass,
+			SubmitTime:      BaseTime,
+			PodRequirements: TestUnitReqs(),
 		},
 		true,
 		0,
