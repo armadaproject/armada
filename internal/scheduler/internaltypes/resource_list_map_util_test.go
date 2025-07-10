@@ -16,7 +16,7 @@ func TestRlMapSumValues(t *testing.T) {
 	factory := testFactory()
 
 	assert.Equal(t, testResourceList(factory, "3", "3Ki"), RlMapSumValues(testMapAllPositive(factory)))
-	assert.True(t, RlMapSumValues(testMapEmpty(factory)).IsEmpty())
+	assert.True(t, RlMapSumValues(testMapEmpty()).IsEmpty())
 }
 
 func TestRlMapAllZero(t *testing.T) {
@@ -26,7 +26,7 @@ func TestRlMapAllZero(t *testing.T) {
 	assert.True(t, RlMapAllZero(testMapAllZero(factory)))
 	assert.False(t, RlMapAllZero(testMapOneZero(factory)))
 	assert.False(t, RlMapAllZero(testMapOneNegative(factory)))
-	assert.True(t, RlMapAllZero(testMapEmpty(factory)))
+	assert.True(t, RlMapAllZero(testMapEmpty()))
 }
 
 func TestRlMapHasNegativeValues(t *testing.T) {
@@ -36,7 +36,7 @@ func TestRlMapHasNegativeValues(t *testing.T) {
 	assert.False(t, RlMapHasNegativeValues(testMapAllZero(factory)))
 	assert.False(t, RlMapHasNegativeValues(testMapOneZero(factory)))
 	assert.True(t, RlMapHasNegativeValues(testMapOneNegative(factory)))
-	assert.False(t, RlMapHasNegativeValues(testMapEmpty(factory)))
+	assert.False(t, RlMapHasNegativeValues(testMapEmpty()))
 }
 
 func TestRlMapRemoveZeros(t *testing.T) {
@@ -131,6 +131,6 @@ func testMapOneZero(factory *ResourceListFactory) map[string]ResourceList {
 	}
 }
 
-func testMapEmpty(factory *ResourceListFactory) map[string]ResourceList {
+func testMapEmpty() map[string]ResourceList {
 	return map[string]ResourceList{}
 }
