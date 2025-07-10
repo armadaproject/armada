@@ -46,10 +46,8 @@ type PreemptingQueueScheduler struct {
 	nodeIdByJobId map[string]string
 	// Maps gang ids to the ids of jobs in that gang.
 	jobIdsByGangId map[string]map[string]bool
-	// Maps job ids of gang jobs to the id of that gang.
-	gangIdByJobId map[string]string
-	marketConfig  *configuration.MarketSchedulingConfig
-	marketDriven  bool
+	marketConfig   *configuration.MarketSchedulingConfig
+	marketDriven   bool
 }
 
 func NewPreemptingQueueScheduler(
@@ -61,7 +59,6 @@ func NewPreemptingQueueScheduler(
 	nodeDb *nodedb.NodeDb,
 	initialNodeIdByJobId map[string]string,
 	initialJobIdsByGangId map[string]map[string]bool,
-	initialGangIdByJobId map[string]string,
 	optimiserEnabled bool,
 ) *PreemptingQueueScheduler {
 	if initialNodeIdByJobId == nil {
@@ -69,9 +66,6 @@ func NewPreemptingQueueScheduler(
 	}
 	if initialJobIdsByGangId == nil {
 		initialJobIdsByGangId = make(map[string]map[string]bool)
-	}
-	if initialGangIdByJobId == nil {
-		initialGangIdByJobId = make(map[string]string)
 	}
 	initialJobIdsByGangId = maps.Clone(initialJobIdsByGangId)
 	for gangId, jobIds := range initialJobIdsByGangId {
@@ -93,7 +87,6 @@ func NewPreemptingQueueScheduler(
 		nodeDb:                           nodeDb,
 		nodeIdByJobId:                    maps.Clone(initialNodeIdByJobId),
 		jobIdsByGangId:                   initialJobIdsByGangId,
-		gangIdByJobId:                    maps.Clone(initialGangIdByJobId),
 		optimiserConfig:                  config.GetOptimiserConfig(sctx.Pool),
 		optimiserEnabled:                 optimiserEnabled,
 		marketConfig:                     marketConfig,
@@ -402,15 +395,12 @@ func (sch *PreemptingQueueScheduler) collectIdsForGangEviction(evictorResult *Ev
 	allGangJobIds := make(map[string]bool)
 	gangNodeIds := make(map[string]bool)
 	seenGangs := make(map[string]bool)
-	for jobId := range evictorResult.EvictedJctxsByJobId {
-		gangId, ok := sch.gangIdByJobId[jobId]
-		if !ok {
+	for _, jctx := range evictorResult.EvictedJctxsByJobId {
+		if !jctx.Job.GetGangInfo().IsGang() {
 			// Not a gang job.
 			continue
 		}
-		if gangId == "" {
-			return nil, nil, errors.Errorf("no gang id found for job %s", jobId)
-		}
+		gangId := jctx.Job.GetGangInfo().Id()
 		if seenGangs[gangId] {
 			// Gang already processed.
 			continue
@@ -443,14 +433,13 @@ func (sch *PreemptingQueueScheduler) collectIdsForGangEviction(evictorResult *Ev
 // Otherwise, the evicted gang jobs will not be schedulable, since some gang jobs will be considered missing.
 func (sch *PreemptingQueueScheduler) setEvictedGangCardinality(evictorResult *EvictorResult) {
 	for _, jctx := range evictorResult.EvictedJctxsByJobId {
-		gangId, ok := sch.gangIdByJobId[jctx.Job.Id()]
-		if !ok {
+		if !jctx.Job.GetGangInfo().IsGang() {
 			// Not a gang job.
 			continue
 		}
 
 		// Override cardinality with the number of evicted jobs in this gang.
-		jctx.GangInfo.Cardinality = len(sch.jobIdsByGangId[gangId])
+		jctx.CurrentGangCardinality = len(sch.jobIdsByGangId[jctx.Job.GetGangInfo().Id()])
 	}
 	return
 }
@@ -466,11 +455,11 @@ func (sch *PreemptingQueueScheduler) evictionAssertions(evictorResult *EvictorRe
 	}
 	evictedJobIdsByGangId := make(map[string]map[string]bool)
 	for jobId, jctx := range evictorResult.EvictedJctxsByJobId {
-		if gangId, ok := sch.gangIdByJobId[jobId]; ok {
-			if m := evictedJobIdsByGangId[gangId]; m != nil {
+		if jctx.Job.GetGangInfo().IsGang() {
+			if m := evictedJobIdsByGangId[jctx.Job.GetGangInfo().Id()]; m != nil {
 				m[jobId] = true
 			} else {
-				evictedJobIdsByGangId[gangId] = map[string]bool{jobId: true}
+				evictedJobIdsByGangId[jctx.Job.GetGangInfo().Id()] = map[string]bool{jobId: true}
 			}
 		}
 		if !jctx.IsEvicted {
@@ -721,18 +710,16 @@ func (sch *PreemptingQueueScheduler) unbindJobs(jctxs []*schedulercontext.JobSch
 // Update sch.gangIdByJobId and sch.jobIdsByGangId based on preempted/scheduled jobs.
 func (sch *PreemptingQueueScheduler) updateGangAccounting(preempted []*schedulercontext.JobSchedulingContext, scheduled []*schedulercontext.JobSchedulingContext) error {
 	for _, jctx := range preempted {
-		if gangId, ok := sch.gangIdByJobId[jctx.Job.Id()]; ok {
-			delete(sch.gangIdByJobId, jctx.Job.Id())
-			delete(sch.jobIdsByGangId, gangId)
+		if jctx.Job.GetGangInfo().IsGang() {
+			delete(sch.jobIdsByGangId, jctx.Job.GetGangInfo().Id())
 		}
 	}
 	for _, jctx := range scheduled {
-		if gangId := jctx.GangInfo.Id; gangId != "" {
-			sch.gangIdByJobId[jctx.JobId] = gangId
-			if m := sch.jobIdsByGangId[gangId]; m != nil {
+		if jctx.Job.GetGangInfo().IsGang() {
+			if m := sch.jobIdsByGangId[jctx.Job.GetGangInfo().Id()]; m != nil {
 				m[jctx.JobId] = true
 			} else {
-				sch.jobIdsByGangId[gangId] = map[string]bool{jctx.JobId: true}
+				sch.jobIdsByGangId[jctx.Job.GetGangInfo().Id()] = map[string]bool{jctx.JobId: true}
 			}
 		}
 	}
