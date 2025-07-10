@@ -16,6 +16,7 @@ func TestPermissionVerbUnmarshal(t *testing.T) {
 				PermissionVerbReprioritize,
 				PermissionVerbPreempt,
 				PermissionVerbSubmit,
+				PermissionVerbSubmitBid,
 				PermissionVerbWatch,
 			},
 			Fail: false,
