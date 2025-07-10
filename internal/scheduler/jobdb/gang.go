@@ -43,3 +43,8 @@ func (g GangInfo) Cardinality() int {
 func (g GangInfo) NodeUniformity() string {
 	return g.nodeUniformity
 }
+
+func (g GangInfo) Equal(other GangInfo) bool {
+	// Currently we only have comparable fields, so we can rely on simple equality check
+	return g == other
+}

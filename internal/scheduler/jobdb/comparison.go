@@ -22,11 +22,7 @@ func (JobIdHasher) Equal(a, b string) bool {
 }
 
 func (JobHasher) Hash(j *Job) uint32 {
-	var hash uint32
-	for _, c := range j.id {
-		hash = 31*hash + uint32(c)
-	}
-	return hash
+	return JobIdHasher{}.Hash(j.id)
 }
 
 func (JobHasher) Equal(a, b *Job) bool {

@@ -362,6 +362,9 @@ func (job *Job) Equal(other *Job) bool {
 	if !maps.Equal(job.bidPricesPool, other.bidPricesPool) {
 		return false
 	}
+	if !job.gangInfo.Equal(other.gangInfo) {
+		return false
+	}
 	if !armadamaps.DeepEqual(job.runsById, other.runsById) {
 		return false
 	}

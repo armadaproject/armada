@@ -82,7 +82,7 @@ func (jobDb *JobDb) ReconcileDifferences(txn *Txn, jobRepoJobs []database.Job, j
 	)
 
 	jsts := make(map[string]JobStateTransitions, len(jobRepoJobsById))
-	jobIdsRequiringPreemptionRequested := []string{}
+	jobIdsToMarkAsPreemptionRequested := []string{}
 
 	for jobId, jobRepoJob := range jobRepoJobsById {
 		job := txn.GetById(jobId)
@@ -96,7 +96,7 @@ func (jobDb *JobDb) ReconcileDifferences(txn *Txn, jobRepoJobs []database.Job, j
 		}
 		if jst.PreemptionRequested && job.GetGangInfo().IsGang() {
 			jobsInGang := txn.GetGangJobsIdsByGangId(job.Queue(), job.GetGangInfo().Id())
-			jobIdsRequiringPreemptionRequested = append(jobIdsRequiringPreemptionRequested, jobsInGang...)
+			jobIdsToMarkAsPreemptionRequested = append(jobIdsToMarkAsPreemptionRequested, jobsInGang...)
 		}
 
 		// We receive nil jobs from jobDb.ReconcileDifferences if a run is updated after the associated job is deleted.
@@ -106,8 +106,12 @@ func (jobDb *JobDb) ReconcileDifferences(txn *Txn, jobRepoJobs []database.Job, j
 			jsts[jobId] = jst
 		}
 	}
+	markJobsAsPreemptionRequested(txn, jobIdsToMarkAsPreemptionRequested, jsts)
+	return maps.Values(jsts), nil
+}
 
-	for _, jobId := range jobIdsRequiringPreemptionRequested {
+func markJobsAsPreemptionRequested(txn *Txn, jobIds []string, jsts map[string]JobStateTransitions) {
+	for _, jobId := range jobIds {
 		jst, exists := jsts[jobId]
 		if !exists {
 			job := txn.GetById(jobId)
@@ -130,8 +134,6 @@ func (jobDb *JobDb) ReconcileDifferences(txn *Txn, jobRepoJobs []database.Job, j
 		}
 		jsts[jobId] = jst
 	}
-
-	return maps.Values(jsts), nil
 }
 
 // reconcileJobDifferences takes as its arguments for some job id
