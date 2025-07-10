@@ -22,8 +22,6 @@ type MultiHealthMonitor struct {
 	// Prometheus metrics are prefixed with this.
 	metricsPrefix string
 
-	// Result of the most recent health check.
-	resultOfMostRecentHealthCheck bool
 	// Mutex protecting the above values.
 	mu sync.Mutex
 
@@ -70,11 +68,6 @@ func (srv *MultiHealthMonitor) initialiseMetrics() {
 // 1. any child is unhealthy for a reason other than timeout or
 // 2. at least len(healthMonitorsByName) - minReplicasAvailable + 1 children have timed out.
 func (srv *MultiHealthMonitor) IsHealthy() (ok bool, reason string, err error) {
-	defer func() {
-		srv.mu.Lock()
-		defer srv.mu.Unlock()
-		srv.resultOfMostRecentHealthCheck = ok
-	}()
 	replicasAvailable := 0
 	for name, healthMonitor := range srv.healthMonitorsByName {
 		ok, reason, err = healthMonitor.IsHealthy()
@@ -117,12 +110,10 @@ func (srv *MultiHealthMonitor) Describe(c chan<- *prometheus.Desc) {
 }
 
 func (srv *MultiHealthMonitor) Collect(c chan<- prometheus.Metric) {
-	srv.mu.Lock()
 	resultOfMostRecentHealthCheck := 0.0
-	if srv.resultOfMostRecentHealthCheck {
+	if ok, _, _ := srv.IsHealthy(); ok {
 		resultOfMostRecentHealthCheck = 1.0
 	}
-	srv.mu.Unlock()
 	c <- prometheus.MustNewConstMetric(
 		srv.healthPrometheusDesc,
 		prometheus.GaugeValue,
