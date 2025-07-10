@@ -606,11 +606,7 @@ func (l *FairSchedulingAlgo) SchedulePool(
 	for i, jctx := range result.ScheduledJobs {
 		jobDbJob := jctx.Job
 		jobId := jobDbJob.Id()
-		nodeId := result.NodeIdByJobId[jobId]
-		if nodeId == "" {
-			return nil, nil, errors.Errorf("job %s not mapped to a node", jobId)
-		}
-		node, err := fsctx.nodeDb.GetNode(nodeId)
+		node, err := fsctx.nodeDb.GetNode(jctx.PodSchedulingContext.NodeId)
 		if err != nil {
 			return nil, nil, err
 		}

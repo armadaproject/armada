@@ -673,7 +673,7 @@ func TestQueueScheduler(t *testing.T) {
 						continue
 					}
 					assert.Equal(t, nodeDb.NumNodes(), pctx.NumNodes)
-					if gangId := jctx.GangInfo.Id; gangId == "" {
+					if !jctx.Job.GetGangInfo().IsGang() {
 						numExcludedNodes := 0
 						for _, count := range pctx.NumExcludedNodesByReason {
 							numExcludedNodes += count

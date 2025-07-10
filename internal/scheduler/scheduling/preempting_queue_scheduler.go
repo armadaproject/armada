@@ -686,7 +686,7 @@ func (sch *PreemptingQueueScheduler) unbindJobs(jctxs []*schedulercontext.JobSch
 	for nodeId, jobsOnNode := range armadaslices.MapAndGroupByFuncs(
 		jctxs,
 		func(jctx *schedulercontext.JobSchedulingContext) string {
-			return sch.nodeIdByJobId[jctx.JobId]
+			return jctx.Job.LatestRun().NodeId()
 		},
 		func(jcxt *schedulercontext.JobSchedulingContext) *jobdb.Job {
 			return jcxt.Job

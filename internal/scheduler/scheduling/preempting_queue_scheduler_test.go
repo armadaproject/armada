@@ -1962,7 +1962,6 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 			allocatedByQueueAndPriorityClass := make(map[string]map[string]internaltypes.ResourceList)
 			nodeIdByJobId := make(map[string]string)
 			var jobIdsByGangId map[string]map[string]bool
-			var gangIdByJobId map[string]string
 
 			// Scheduling rate-limiters persist between rounds.
 			// We control the rate at which time passes between scheduling rounds.
@@ -2033,9 +2032,8 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 							require.NoError(t, err)
 							err = nodeDb.Upsert(node)
 							require.NoError(t, err)
-							if gangId, ok := gangIdByJobId[job.Id()]; ok {
-								delete(gangIdByJobId, job.Id())
-								delete(jobIdsByGangId[gangId], job.Id())
+							if _, ok := jobIdsByGangId[job.Id()]; ok {
+								delete(jobIdsByGangId[job.GetGangInfo().Id()], job.Id())
 							}
 							demandByQueue[job.Queue()] = demandByQueue[job.Queue()].Subtract(job.AllResourceRequirements())
 						}
@@ -2111,13 +2109,11 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					nodeDb,
 					nodeIdByJobId,
 					jobIdsByGangId,
-					gangIdByJobId,
 					round.OptimiserEnabled,
 				)
 				result, err := sch.Schedule(ctx)
 				require.NoError(t, err)
 				jobIdsByGangId = sch.jobIdsByGangId
-				gangIdByJobId = sch.gangIdByJobId
 
 				// Test resource accounting.
 				for _, jctx := range result.PreemptedJobs {
@@ -2462,7 +2458,6 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 				nodeDb,
 				nil,
 				nil,
-				nil,
 				false,
 			)
 			result, err := sch.Schedule(ctx)
@@ -2523,7 +2518,6 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 					tc.SchedulingConfig,
 					jobDbTxn,
 					nodeDb,
-					nil,
 					nil,
 					nil,
 					false,
