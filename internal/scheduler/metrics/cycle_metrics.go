@@ -17,7 +17,9 @@ import (
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
+	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling"
+	"github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 	"github.com/armadaproject/armada/pkg/metricevents"
 )
 
@@ -376,6 +378,14 @@ func (m *cycleMetrics) ReportScheduleCycleTime(cycleTime time.Duration) {
 
 func (m *cycleMetrics) ReportReconcileCycleTime(cycleTime time.Duration) {
 	m.reconciliationCycleTime.Observe(float64(cycleTime.Milliseconds()))
+}
+
+func (m *cycleMetrics) ReportJobPreemptedViaApi(job *jobdb.Job) {
+	preemptionType := context.PreemptedViaApi
+	if job.LatestRun() == nil {
+		return
+	}
+	m.premptedJobs.WithLabelValues(job.LatestRun().Pool(), job.Queue(), job.PriorityClassName(), string(preemptionType)).Inc()
 }
 
 func (m *cycleMetrics) ReportSchedulerResult(ctx *armadacontext.Context, result scheduling.SchedulerResult) {
