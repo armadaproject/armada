@@ -146,8 +146,8 @@ func makeBaseJob(jobDb *jobdb.JobDb, queue, jobset string, priority int, validat
 }
 
 func main() {
-	numJobs := 10000000
-	numParts := 8
+	numJobs := 10_000_000
+	numParts := 4
 	jobsPerPart := numJobs / numParts
 
 	fmt.Println("creating jobs")

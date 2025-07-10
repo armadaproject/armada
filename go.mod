@@ -67,7 +67,9 @@ require (
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.1
 	github.com/jackc/pgx/v5 v5.7.2
 	github.com/jessevdk/go-flags v1.6.1
+	github.com/klauspost/compress v1.18.0
 	github.com/magefile/mage v1.15.0
+	github.com/marcboeker/go-duckdb v1.8.5
 	github.com/minio/highwayhash v1.0.3
 	github.com/openconfig/goyang v1.6.2
 	github.com/prometheus/common v0.62.0
@@ -173,7 +175,6 @@ require (
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/kevinburke/ssh_config v1.2.0 // indirect
-	github.com/klauspost/compress v1.18.0 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.9 // indirect
 	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
@@ -181,7 +182,6 @@ require (
 	github.com/lucasb-eyer/go-colorful v1.2.0 // indirect
 	github.com/magiconair/properties v1.8.7 // indirect
 	github.com/mailru/easyjson v0.9.0 // indirect
-	github.com/marcboeker/go-duckdb v1.8.5 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-runewidth v0.0.16 // indirect
