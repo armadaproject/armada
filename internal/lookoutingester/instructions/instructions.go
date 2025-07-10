@@ -112,13 +112,14 @@ func (c *InstructionConverter) convertSequence(
 			err = c.handleJobRequeued(ts, event.GetJobRequeued(), update)
 		case *armadaevents.EventSequence_Event_JobRunLeased:
 			err = c.handleJobRunLeased(ts, event.GetJobRunLeased(), update)
-		case *armadaevents.EventSequence_Event_ReprioritiseJobSet:
-		case *armadaevents.EventSequence_Event_CancelJob:
-		case *armadaevents.EventSequence_Event_CancelJobSet:
-		case *armadaevents.EventSequence_Event_ResourceUtilisation:
-		case *armadaevents.EventSequence_Event_StandaloneIngressInfo:
-		case *armadaevents.EventSequence_Event_PartitionMarker:
-		case *armadaevents.EventSequence_Event_JobValidated:
+		case *armadaevents.EventSequence_Event_ReprioritiseJobSet,
+			*armadaevents.EventSequence_Event_CancelJob,
+			*armadaevents.EventSequence_Event_CancelJobSet,
+			*armadaevents.EventSequence_Event_ResourceUtilisation,
+			*armadaevents.EventSequence_Event_StandaloneIngressInfo,
+			*armadaevents.EventSequence_Event_PartitionMarker,
+			*armadaevents.EventSequence_Event_JobValidated,
+			*armadaevents.EventSequence_Event_JobRunPreemptionRequested:
 			log.Debugf("Ignoring event type %T", event.GetEvent())
 		default:
 			log.Warnf("Ignoring unknown event type %T", event.GetEvent())
@@ -413,8 +414,6 @@ func (c *InstructionConverter) handleJobRunErrors(ts time.Time, event *armadaeve
 			// This case is already handled by the JobRunPreempted event
 			// When we formalise that as a terminal event, we'll remove this JobRunError getting produced
 			continue
-		case *armadaevents.Error_PodUnschedulable:
-			jobRunUpdate.Node = extractNodeName(reason.PodUnschedulable)
 		case *armadaevents.Error_PodLeaseReturned:
 			jobRunUpdate.JobRunState = pointer.Int32(lookout.JobRunLeaseReturnedOrdinal)
 			jobRunUpdate.Error = tryCompressError(event.JobId, reason.PodLeaseReturned.GetMessage(), c.compressor)

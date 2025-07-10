@@ -139,6 +139,7 @@ func (it *MarketBasedCandidateGangIterator) updatePQItem(item *MarketIteratorPQI
 	job := gctx.JobSchedulingContexts[0].Job
 	item.gctx = gctx
 	item.price = job.GetBidPrice(it.pool)
+	item.queued = job.Queued()
 	if !job.Queued() && job.LatestRun() != nil {
 		item.runtime = time.Now().UnixNano() - job.LatestRun().Created()
 	} else {
@@ -161,6 +162,7 @@ type MarketIteratorPQItem struct {
 	queue         string
 	price         float64
 	runtime       int64
+	queued        bool
 	submittedTime int64
 	// Most recent value produced by the iterator.
 	// Cached here to avoid repeating scheduling checks unnecessarily.
@@ -180,10 +182,20 @@ func (pq *MarketIteratorPQ) Less(i, j int) bool {
 		return pq.items[i].price > pq.items[j].price
 	}
 
+	// If price is the same, order running jobs over queued jobs
+	// This prevents preempting running jobs to run jobs of the same price
+	if pq.items[i].queued != pq.items[j].queued {
+		if !pq.items[i].queued {
+			return true
+		} else {
+			return false
+		}
+	}
+
 	// This section causes the iterator to round robin between queues bidding the same price
 	// We want this as many queues may bid the same price and ideally the queues would get an even distribution of jobs
 	// Without this the first queue alphabetically would get all their jobs considered first (assuming all queues bid the same price)
-	if pq.items[i].price == pq.items[j].price && pq.items[i].price == pq.previousResultCost {
+	if pq.items[i].price == pq.previousResultCost {
 		if pq.items[i].queue > pq.previousResultQueue && pq.items[j].queue > pq.previousResultQueue {
 			return pq.items[i].queue < pq.items[j].queue
 		}
