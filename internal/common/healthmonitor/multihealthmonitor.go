@@ -2,7 +2,6 @@ package healthmonitor
 
 import (
 	"fmt"
-	"sync"
 
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
@@ -21,9 +20,6 @@ type MultiHealthMonitor struct {
 	minimumReplicasAvailable int
 	// Prometheus metrics are prefixed with this.
 	metricsPrefix string
-
-	// Mutex protecting the above values.
-	mu sync.Mutex
 
 	healthPrometheusDesc *prometheus.Desc
 }
