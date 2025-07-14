@@ -150,6 +150,8 @@ func makeJobWithPrice(t *testing.T, jobId string, isGang bool, price float64) *j
 	annotations := map[string]string{}
 	if isGang {
 		annotations[configuration.GangIdAnnotation] = "gang"
+		annotations[configuration.GangCardinalityAnnotation] = "2"
+		annotations[configuration.GangNodeUniformityLabelAnnotation] = "uniformity"
 	}
 	schedulingInfo := &internaltypes.JobSchedulingInfo{
 		PodRequirements: &internaltypes.PodRequirements{

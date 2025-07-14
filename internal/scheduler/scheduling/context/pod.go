@@ -27,6 +27,7 @@ const (
 	PreemptedWithFairsharePreemption PreemptionType = "fairshare"
 	PreemptedWithUrgencyPreemption   PreemptionType = "urgency"
 	PreemptedWithOptimiserPreemption PreemptionType = "optimiser"
+	PreemptedViaApi                  PreemptionType = "api"
 )
 
 // PodSchedulingContext is returned by SelectAndBindNodeToPod and

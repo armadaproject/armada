@@ -11,6 +11,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/pricing"
+	armadaconfiguration "github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/armadaproject/armada/pkg/bidstore"
 )
 
@@ -24,6 +25,23 @@ var jobSchedulingInfo = &internaltypes.JobSchedulingInfo{
 		},
 		Annotations: map[string]string{
 			"foo": "bar",
+		},
+	},
+}
+
+var gangJobSchedulingInfo = &internaltypes.JobSchedulingInfo{
+	PodRequirements: &internaltypes.PodRequirements{
+		ResourceRequirements: v1.ResourceRequirements{
+			Requests: v1.ResourceList{
+				"cpu":                 k8sResource.MustParse("1"),
+				"storage-connections": k8sResource.MustParse("1"),
+			},
+		},
+		Annotations: map[string]string{
+			"foo": "bar",
+			armadaconfiguration.GangCardinalityAnnotation:         "2",
+			armadaconfiguration.GangNodeUniformityLabelAnnotation: "uniformity",
+			armadaconfiguration.GangIdAnnotation:                  "id",
 		},
 	},
 }

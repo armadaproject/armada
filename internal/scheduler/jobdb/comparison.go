@@ -5,18 +5,27 @@ type (
 	MarketJobPriorityComparer struct {
 		Pool string
 	}
+	JobHasher   struct{}
 	JobIdHasher struct{}
 )
 
-func (JobIdHasher) Hash(j *Job) uint32 {
+func (JobIdHasher) Hash(jobId string) uint32 {
 	var hash uint32
-	for _, c := range j.id {
+	for _, c := range jobId {
 		hash = 31*hash + uint32(c)
 	}
 	return hash
 }
 
-func (JobIdHasher) Equal(a, b *Job) bool {
+func (JobIdHasher) Equal(a, b string) bool {
+	return a == b
+}
+
+func (JobHasher) Hash(j *Job) uint32 {
+	return JobIdHasher{}.Hash(j.id)
+}
+
+func (JobHasher) Equal(a, b *Job) bool {
 	return a == b
 }
 
