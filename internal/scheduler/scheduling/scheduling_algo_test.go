@@ -629,13 +629,14 @@ func TestSchedule(t *testing.T) {
 			}
 
 			// Check that scheduled jobs are marked as such consistently.
-			for _, job := range scheduledJobs {
+			for _, jctx := range schedulerResult.ScheduledJobs {
+				job := jctx.Job
 				dbJob := txn.GetById(job.Id())
 				assert.False(t, dbJob.Failed())
 				assert.False(t, dbJob.Queued())
 				dbRun := dbJob.LatestRun()
 				assert.False(t, dbRun.Failed())
-				assert.Equal(t, schedulerResult.NodeIdByJobId[dbJob.Id()], dbRun.NodeId())
+				assert.Equal(t, jctx.PodSchedulingContext.NodeId, dbRun.NodeId())
 				assert.NotEmpty(t, dbRun.NodeName())
 			}
 

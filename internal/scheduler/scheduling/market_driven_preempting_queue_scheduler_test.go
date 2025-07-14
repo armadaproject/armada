@@ -513,8 +513,6 @@ func TestMarketDrivenPreemptingQueueScheduler(t *testing.T) {
 			indexByJobId := make(map[string]int)
 			allocatedByQueueAndPriorityClass := make(map[string]map[string]internaltypes.ResourceList)
 			nodeIdByJobId := make(map[string]string)
-			var jobIdsByGangId map[string]map[string]bool
-			var gangIdByJobId map[string]string
 
 			// Scheduling rate-limiters persist between rounds.
 			// We control the rate at which time passes between scheduling rounds.
@@ -623,16 +621,11 @@ func TestMarketDrivenPreemptingQueueScheduler(t *testing.T) {
 					tc.SchedulingConfig,
 					jobDbTxn,
 					nodeDb,
-					nodeIdByJobId,
-					jobIdsByGangId,
-					gangIdByJobId,
 					false,
 				)
 
 				result, err := sch.Schedule(ctx)
 				require.NoError(t, err)
-				jobIdsByGangId = sch.jobIdsByGangId
-				gangIdByJobId = sch.gangIdByJobId
 
 				// Test resource accounting.
 				for _, jctx := range result.PreemptedJobs {
@@ -661,8 +654,7 @@ func TestMarketDrivenPreemptingQueueScheduler(t *testing.T) {
 				// Test that jobs are mapped to nodes correctly.
 				for _, jctx := range result.PreemptedJobs {
 					job := jctx.Job
-					nodeId, ok := result.NodeIdByJobId[job.Id()]
-					assert.True(t, ok)
+					nodeId := jctx.AssignedNode.GetId()
 					assert.NotEmpty(t, nodeId)
 
 					// Check that preempted jobs are preempted from the node they were previously scheduled onto.
@@ -671,8 +663,7 @@ func TestMarketDrivenPreemptingQueueScheduler(t *testing.T) {
 				}
 				for _, jctx := range result.ScheduledJobs {
 					job := jctx.Job
-					nodeId, ok := result.NodeIdByJobId[job.Id()]
-					assert.True(t, ok)
+					nodeId := jctx.PodSchedulingContext.NodeId
 					assert.NotEmpty(t, nodeId)
 
 					node, err := nodeDb.GetNode(nodeId)
@@ -691,11 +682,6 @@ func TestMarketDrivenPreemptingQueueScheduler(t *testing.T) {
 						assert.Equal(t, expectedNodeId, nodeId, "job %s scheduled onto unexpected node", job.Id())
 					} else {
 						nodeIdByJobId[job.Id()] = nodeId
-					}
-				}
-				for jobId, nodeId := range result.NodeIdByJobId {
-					if expectedNodeId, ok := nodeIdByJobId[jobId]; ok {
-						assert.Equal(t, expectedNodeId, nodeId, "job %s preempted from/scheduled onto unexpected node", jobId)
 					}
 				}
 
@@ -794,7 +780,7 @@ func TestMarketDrivenPreemptingQueueScheduler(t *testing.T) {
 				for _, jctx := range result.ScheduledJobs {
 					job := jctx.Job
 					jobId := job.Id()
-					node, err := nodeDb.GetNode(result.NodeIdByJobId[jobId])
+					node, err := nodeDb.GetNode(jctx.PodSchedulingContext.NodeId)
 					require.NotNil(t, node)
 					require.NoError(t, err)
 					priority, ok := nodeDb.GetScheduledAtPriority(jobId)

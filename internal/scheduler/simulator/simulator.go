@@ -57,10 +57,6 @@ type accounting struct {
 	demandByQueue map[string]internaltypes.ResourceList
 	// Total resources across all executorGroups for each pool.
 	totalResourcesByPool map[string]internaltypes.ResourceList
-	// Mapping of job Id -> nodeId.  Needed by preemptingqueuescheduler for gang preemption.
-	nodeIdByJobId map[string]string
-	// Mapping of gangId -> jobsINGang.  Needed by preemptingqueuescheduler for gang preemption.
-	jobIdsByGangId map[string]map[string]bool
 }
 
 // Simulator captures the parameters and state of the Armada simulator.
@@ -183,8 +179,6 @@ func NewSimulator(
 			allocationByPoolAndQueueAndPriorityClass: make(map[string]map[string]map[string]internaltypes.ResourceList),
 			demandByQueue:                            make(map[string]internaltypes.ResourceList),
 			totalResourcesByPool:                     make(map[string]internaltypes.ResourceList),
-			nodeIdByJobId:                            make(map[string]string),
-			jobIdsByGangId:                           make(map[string]map[string]bool),
 		},
 	}
 	jobDb.SetClock(s)
@@ -607,8 +601,6 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 			s.schedulingConfig,
 			txn,
 			nodeDb,
-			maps.Clone(s.accounting.nodeIdByJobId),
-			maps.Clone(s.accounting.jobIdsByGangId),
 			shouldRunOptimiser,
 		)
 
@@ -655,7 +647,6 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 		})
 		for i, jctx := range preemptedJobs {
 			job := jctx.Job
-			delete(s.accounting.nodeIdByJobId, job.Id())
 			if run := job.LatestRun(); run != nil {
 				job = job.WithUpdatedRun(run.WithFailed(true))
 			} else {
@@ -665,14 +656,9 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 		}
 		for i, jctx := range scheduledJobs {
 			job := jctx.Job
-			nodeId := result.NodeIdByJobId[job.Id()]
-			if nodeId == "" {
-				return errors.Errorf("job %s not mapped to a node", job.Id())
-			}
-			if node, err := nodeDb.GetNode(nodeId); err != nil {
+			if node, err := nodeDb.GetNode(jctx.PodSchedulingContext.NodeId); err != nil {
 				return err
 			} else {
-				s.accounting.nodeIdByJobId[job.Id()] = nodeId
 				priority, ok := nodeDb.GetScheduledAtPriority(job.Id())
 				if !ok {
 					return errors.Errorf("job %s not mapped to a priority", job.Id())
@@ -818,14 +804,6 @@ func (s *Simulator) handleSubmitJob(txn *jobdb.Txn, e *armadaevents.SubmitJob, t
 		return nil, false, err
 	}
 	s.addJobToDemand(job)
-	if job.GetGangInfo().Cardinality() > 1 {
-		gangIds := s.accounting.jobIdsByGangId[job.GetGangInfo().Id()]
-		if gangIds == nil {
-			gangIds = make(map[string]bool, job.GetGangInfo().Cardinality())
-			s.accounting.jobIdsByGangId[job.GetGangInfo().Id()] = gangIds
-		}
-		gangIds[job.Id()] = true
-	}
 	if err := txn.Upsert([]*jobdb.Job{job}); err != nil {
 		return nil, false, err
 	}
@@ -896,13 +874,6 @@ func (s *Simulator) handleJobSucceeded(txn *jobdb.Txn, e *armadaevents.JobSuccee
 		return nil, false, nil
 	}
 
-	delete(s.accounting.nodeIdByJobId, job.Id())
-	if job.GetGangInfo().Cardinality() > 1 {
-		gangIds := s.accounting.jobIdsByGangId[job.GetGangInfo().Id()]
-		if gangIds != nil {
-			delete(s.accounting.jobIdsByGangId[job.GetGangInfo().Id()], jobId)
-		}
-	}
 	if err := txn.BatchDelete([]string{jobId}); err != nil {
 		return nil, false, err
 	}

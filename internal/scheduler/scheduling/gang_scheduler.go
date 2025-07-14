@@ -110,7 +110,7 @@ func (sch *GangScheduler) Schedule(ctx *armadacontext.Context, gctx *context.Gan
 	defer func() {
 		// If an error occurred, augment the error message and return.
 		if err != nil {
-			err = errors.WithMessagef(err, "failed scheduling gang %s composed of jobs %v", gctx.Id, gctx.JobIds())
+			err = errors.WithMessagef(err, "failed scheduling gang %s composed of jobs %v", gctx.Id(), gctx.JobIds())
 			return
 		}
 

@@ -145,7 +145,7 @@ func benchmarkPodRequirementsSerialiser(b *testing.B, jobSchedulingInfo *JobSche
 			req.Affinity,
 			req.Tolerations,
 			req.ResourceRequirements.Requests,
-			jobSchedulingInfo.PriorityClassName,
+			jobSchedulingInfo.PriorityClassName(),
 		)
 	}
 }
@@ -168,7 +168,7 @@ func benchmarkSchedulingKey(b *testing.B, jobSchedulingInfo *JobSchedulingInfo) 
 			req.Affinity,
 			req.Tolerations,
 			req.ResourceRequirements.Requests,
-			jobSchedulingInfo.PriorityClassName,
+			jobSchedulingInfo.PriorityClassName(),
 		)
 	}
 }

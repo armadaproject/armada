@@ -397,17 +397,6 @@ func WithPriorityJobs(priority uint32, jobs []*jobdb.Job) []*jobdb.Job {
 	return jobs
 }
 
-func WithNodeUniformityLabelAnnotationJobs(label string, jobs []*jobdb.Job) []*jobdb.Job {
-	for _, job := range jobs {
-		req := job.PodRequirements()
-		if req.Annotations == nil {
-			req.Annotations = make(map[string]string)
-		}
-		req.Annotations[configuration.GangNodeUniformityLabelAnnotation] = label
-	}
-	return jobs
-}
-
 func WithNodeAffinityJobs(nodeSelectorTerms []v1.NodeSelectorTerm, jobs []*jobdb.Job) []*jobdb.Job {
 	for _, job := range jobs {
 		req := job.PodRequirements()
@@ -458,15 +447,6 @@ func WithNodeSelectorJob(selector map[string]string, job *jobdb.Job) *jobdb.Job 
 	return job
 }
 
-func WithGangAnnotationsJobs(jobs []*jobdb.Job) []*jobdb.Job {
-	gangId := uuid.NewString()
-	gangCardinality := fmt.Sprintf("%d", len(jobs))
-	return WithAnnotationsJobs(
-		map[string]string{configuration.GangIdAnnotation: gangId, configuration.GangCardinalityAnnotation: gangCardinality},
-		jobs,
-	)
-}
-
 func WithPools(jobs []*jobdb.Job, pools []string) []*jobdb.Job {
 	result := make([]*jobdb.Job, 0, len(jobs))
 	for _, job := range jobs {
@@ -475,13 +455,26 @@ func WithPools(jobs []*jobdb.Job, pools []string) []*jobdb.Job {
 	return result
 }
 
+func WithGangAnnotationsJobs(jobs []*jobdb.Job) []*jobdb.Job {
+	return WithNodeUniformityGangAnnotationsJobs(jobs, "")
+}
+
 func WithNodeUniformityGangAnnotationsJobs(jobs []*jobdb.Job, nodeUniformityLabel string) []*jobdb.Job {
-	gangId := uuid.NewString()
-	gangCardinality := fmt.Sprintf("%d", len(jobs))
-	return WithAnnotationsJobs(
-		map[string]string{configuration.GangIdAnnotation: gangId, configuration.GangCardinalityAnnotation: gangCardinality, configuration.GangNodeUniformityLabelAnnotation: nodeUniformityLabel},
+	return WithGangJobDetails(jobs, uuid.NewString(), len(jobs), nodeUniformityLabel)
+}
+
+func WithGangJobDetails(jobs []*jobdb.Job, gangId string, gangCardinality int, nodeUniformityLabel string) []*jobdb.Job {
+	gangCardinalityStr := fmt.Sprintf("%d", gangCardinality)
+	updatedJobs := WithAnnotationsJobs(
+		map[string]string{configuration.GangIdAnnotation: gangId, configuration.GangCardinalityAnnotation: gangCardinalityStr, configuration.GangNodeUniformityLabelAnnotation: nodeUniformityLabel},
 		jobs,
 	)
+
+	for i, _ := range updatedJobs {
+		updatedJobs[i] = updatedJobs[i].WithGangInfo(jobdb.CreateGangInfo(gangId, gangCardinality, nodeUniformityLabel))
+	}
+
+	return updatedJobs
 }
 
 func WithAnnotationsJobs(annotations map[string]string, jobs []*jobdb.Job) []*jobdb.Job {

@@ -88,7 +88,6 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 	var scheduledJobs []*schedulercontext.JobSchedulingContext
 	sctx := sch.schedulingContext
 
-	nodeIdByJobId := make(map[string]string)
 	ctx.Infof("Looping through candidate gangs for pool %s...", sctx.Pool)
 
 	scheduledResource := sch.schedulingContext.TotalResources.Factory().MakeAllZero()
@@ -127,7 +126,6 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 			for _, jctx := range gctx.JobSchedulingContexts {
 				if pctx := jctx.PodSchedulingContext; pctx.IsSuccessful() {
 					scheduledJobs = append(scheduledJobs, jctx)
-					nodeIdByJobId[jctx.JobId] = pctx.NodeId
 				}
 			}
 
@@ -233,9 +231,6 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 	if sctx.TerminationReason == "" {
 		sctx.TerminationReason = "no remaining candidate jobs"
 	}
-	if len(scheduledJobs) != len(nodeIdByJobId) {
-		return nil, errors.Errorf("only %d out of %d jobs mapped to a node", len(nodeIdByJobId), len(scheduledJobs))
-	}
 
 	schedulingStats := PerPoolSchedulingStats{
 		StatsPerQueue: statsPerQueue,
@@ -245,7 +240,6 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 	return &SchedulerResult{
 		PreemptedJobs:      nil,
 		ScheduledJobs:      scheduledJobs,
-		NodeIdByJobId:      nodeIdByJobId,
 		SchedulingContexts: []*schedulercontext.SchedulingContext{sctx},
 		PerPoolSchedulingStats: map[string]PerPoolSchedulingStats{
 			sctx.Pool: schedulingStats,

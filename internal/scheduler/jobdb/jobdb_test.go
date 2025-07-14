@@ -1299,12 +1299,12 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 			skg := internaltypes.NewSchedulingKeyGenerator()
 
 			jobSchedulingInfoA := jobSchedulingInfo.DeepCopy()
-			jobSchedulingInfoA.PriorityClassName = tc.priorityClassNameA
+			jobSchedulingInfoA.PriorityClass = tc.priorityClassNameA
 			jobSchedulingInfoA.PodRequirements = tc.podRequirementsA
 			jobA := JobWithJobSchedulingInfo(baseJob, jobSchedulingInfoA)
 
 			jobSchedulingInfoB := jobSchedulingInfo.DeepCopy()
-			jobSchedulingInfoB.PriorityClassName = tc.priorityClassNameB
+			jobSchedulingInfoB.PriorityClass = tc.priorityClassNameB
 			jobSchedulingInfoB.PodRequirements = tc.podRequirementsB
 			jobB := JobWithJobSchedulingInfo(baseJob, jobSchedulingInfoB)
 

@@ -8,8 +8,9 @@ import (
 
 type GangSchedulingContext struct {
 	Created                   time.Time
-	gangId                    string
-	nodeUniformity            string
+	GangId                    string
+	NodeUniformity            string
+	PriorityClass             string
 	Queue                     string
 	JobSchedulingContexts     []*JobSchedulingContext
 	TotalResourceRequests     internaltypes.ResourceList
@@ -34,8 +35,9 @@ func NewGangSchedulingContext(jctxs []*JobSchedulingContext) *GangSchedulingCont
 	return &GangSchedulingContext{
 		Created:                   time.Now(),
 		Queue:                     representative.Job.Queue(),
-		gangId:                    representative.Job.GetGangInfo().Id(),
-		nodeUniformity:            representative.Job.GetGangInfo().NodeUniformity(),
+		GangId:                    representative.Job.GetGangInfo().Id(),
+		NodeUniformity:            representative.Job.GetGangInfo().NodeUniformity(),
+		PriorityClass:             representative.Job.PriorityClassName(),
 		JobSchedulingContexts:     jctxs,
 		TotalResourceRequests:     totalResourceRequests,
 		AllJobsEvicted:            allJobsEvicted,
@@ -54,12 +56,12 @@ func (gctx *GangSchedulingContext) JobIds() []string {
 
 // Id returns the id of the gang
 func (gctx *GangSchedulingContext) Id() string {
-	return gctx.gangId
+	return gctx.GangId
 }
 
 // NodeUniformityLabel returns the label used to ensure scheduling unfiormity for the gang
 func (gctx *GangSchedulingContext) NodeUniformityLabel() string {
-	return gctx.nodeUniformity
+	return gctx.NodeUniformity
 }
 
 // Cardinality returns the number of jobs in the gang.
@@ -68,10 +70,7 @@ func (gctx *GangSchedulingContext) Cardinality() int {
 }
 
 func (gctx *GangSchedulingContext) PriorityClassName() string {
-	if len(gctx.JobSchedulingContexts) > 0 {
-		return gctx.JobSchedulingContexts[0].Job.PriorityClassName()
-	}
-	return ""
+	return gctx.PriorityClass
 }
 
 type GangSchedulingFit struct {

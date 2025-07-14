@@ -42,7 +42,7 @@ func (j *JobSchedulingInfo) Annotations() map[string]string {
 }
 
 func (j *JobSchedulingInfo) PriorityClassName() string {
-	return j.PriorityClassName()
+	return j.PriorityClass
 }
 
 // PodRequirements captures the scheduling requirements specific to a pod.
