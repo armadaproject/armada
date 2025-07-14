@@ -372,8 +372,8 @@ func TestJobDb_GangInfoIsPopulated(t *testing.T) {
 				Annotations:  tc.annotations,
 			}
 			jobSchedulingInfo := &internaltypes.JobSchedulingInfo{
-				PriorityClassName: "foo",
-				PodRequirements:   podRequirements,
+				PriorityClass:   "foo",
+				PodRequirements: podRequirements,
 			}
 			jobDb := NewTestJobDb()
 
@@ -393,8 +393,8 @@ func TestJobDb_SchedulingKeyIsPopulated(t *testing.T) {
 		NodeSelector: map[string]string{"foo": "bar"},
 	}
 	jobSchedulingInfo := &internaltypes.JobSchedulingInfo{
-		PriorityClassName: "foo",
-		PodRequirements:   podRequirements,
+		PriorityClass:   "foo",
+		PodRequirements: podRequirements,
 	}
 	jobDb := NewTestJobDb()
 	job, err := jobDb.NewJob("jobId", "jobSet", "queue", 1, jobSchedulingInfo, false, 0, false, false, false, 2, false, []string{}, 0)

@@ -47,7 +47,7 @@ var gangJobSchedulingInfo = &internaltypes.JobSchedulingInfo{
 }
 
 var preemptibleJobSchedulingInfo = &internaltypes.JobSchedulingInfo{
-	PriorityClassName: PriorityClass0,
+	PriorityClass: PriorityClass0,
 	PodRequirements: &internaltypes.PodRequirements{
 		ResourceRequirements: v1.ResourceRequirements{
 			Requests: v1.ResourceList{

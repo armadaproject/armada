@@ -150,7 +150,7 @@ func (sch *GangScheduler) Schedule(ctx *armadacontext.Context, gctx *context.Gan
 }
 
 func (sch *GangScheduler) trySchedule(ctx *armadacontext.Context, gctx *context.GangSchedulingContext) (ok bool, unschedulableReason string, err error) {
-	nodeUniformity := gctx.GangInfo.NodeUniformity
+	nodeUniformity := gctx.NodeUniformityLabel()
 
 	// If no node uniformity constraint, try scheduling across all nodes.
 	if nodeUniformity == "" {
@@ -212,7 +212,7 @@ func (sch *GangScheduler) trySchedule(ctx *armadacontext.Context, gctx *context.
 		unschedulableReason = "at least one job in the gang does not fit on any node"
 		return
 	}
-	addNodeSelectorToGctx(gctx, gctx.GangInfo.NodeUniformity, bestValue)
+	addNodeSelectorToGctx(gctx, gctx.NodeUniformityLabel(), bestValue)
 	return sch.tryScheduleGang(ctx, gctx)
 }
 

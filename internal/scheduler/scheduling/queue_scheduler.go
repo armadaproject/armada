@@ -339,11 +339,12 @@ func (it *QueuedGangIterator) Peek() (*schedulercontext.GangSchedulingContext, e
 				}
 			}
 		}
-		if gangId := jctx.GangInfo.Id; gangId != "" {
+		if jctx.Job.GetGangInfo().IsGang() {
+			gangId := jctx.Job.GetGangInfo().Id()
 			gang := it.jctxsByGangId[gangId]
 			gang = append(gang, jctx)
 			it.jctxsByGangId[gangId] = gang
-			if len(gang) == jctx.GangInfo.Cardinality {
+			if len(gang) == jctx.CurrentGangCardinality {
 				delete(it.jctxsByGangId, gangId)
 				it.next = schedulercontext.NewGangSchedulingContext(gang)
 				return it.next, nil
