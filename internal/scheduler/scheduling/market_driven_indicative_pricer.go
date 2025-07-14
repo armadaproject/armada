@@ -127,7 +127,12 @@ func (ip *MarketDrivenIndicativePricer) Price(ctx *armadacontext.Context, sctx *
 	return indicativePricesByJobShape, nil
 }
 
-func (ip *MarketDrivenIndicativePricer) gangContextsFromGangDefinitions(pool string, gangsToPrice map[string]configuration.GangDefinition, jobRepo jobdb.JobRepository, factory *internaltypes.ResourceListFactory) (map[string]*schedulercontext.GangSchedulingContext, error) {
+func (ip *MarketDrivenIndicativePricer) gangContextsFromGangDefinitions(
+	pool string,
+	gangsToPrice map[string]configuration.GangDefinition,
+	jobRepo jobdb.JobRepository,
+	factory *internaltypes.ResourceListFactory,
+) (map[string]*schedulercontext.GangSchedulingContext, error) {
 	contexts := map[string]*schedulercontext.GangSchedulingContext{}
 
 	for shapeName, definition := range gangsToPrice {

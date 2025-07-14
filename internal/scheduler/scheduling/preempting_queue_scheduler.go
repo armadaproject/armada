@@ -6,7 +6,6 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/armadaproject/armada/internal/scheduler/scheduling/pricer"
 	"github.com/benbjohnson/immutable"
 	"github.com/hashicorp/go-memdb"
 	"github.com/pkg/errors"
@@ -25,6 +24,7 @@ import (
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/fairness"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/optimiser"
+	"github.com/armadaproject/armada/internal/scheduler/scheduling/pricer"
 )
 
 // PreemptingQueueScheduler is a scheduler that makes a unified decisions on which jobs to preempt and schedule.

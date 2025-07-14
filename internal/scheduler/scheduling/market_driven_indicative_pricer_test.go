@@ -57,6 +57,7 @@ func TestMarketDrivenIndicativePricer_Price(t *testing.T) {
 			},
 			expectedIndicativePrices: IndicativeGangPricesByJobShape{
 				"single-job-gang": {
+					Evaluated:           true,
 					Schedulable:         true,
 					Price:               0.0,
 					UnschedulableReason: "",
@@ -79,6 +80,7 @@ func TestMarketDrivenIndicativePricer_Price(t *testing.T) {
 			},
 			expectedIndicativePrices: IndicativeGangPricesByJobShape{
 				"multi-job-gang": {
+					Evaluated:           true,
 					Schedulable:         true,
 					Price:               0.0,
 					UnschedulableReason: "",
@@ -101,6 +103,7 @@ func TestMarketDrivenIndicativePricer_Price(t *testing.T) {
 			},
 			expectedIndicativePrices: IndicativeGangPricesByJobShape{
 				"multi-job-gang": {
+					Evaluated:           true,
 					Schedulable:         true,
 					Price:               3.0,
 					UnschedulableReason: "",
@@ -147,21 +150,25 @@ func TestMarketDrivenIndicativePricer_Price(t *testing.T) {
 			},
 			expectedIndicativePrices: IndicativeGangPricesByJobShape{
 				"single-job-gang": {
+					Evaluated:           true,
 					Schedulable:         true,
 					Price:               3.0,
 					UnschedulableReason: "",
 				},
 				"single-large-job-gang": {
+					Evaluated:           true,
 					Schedulable:         false,
 					Price:               0.0,
 					UnschedulableReason: schedulerconstraints.JobDoesNotFitUnschedulableReason,
 				},
 				"two-job-gang": {
+					Evaluated:           true,
 					Schedulable:         true,
 					Price:               3.0,
 					UnschedulableReason: "",
 				},
 				"three-job-gang": {
+					Evaluated:           true,
 					Schedulable:         false,
 					Price:               0.0,
 					UnschedulableReason: schedulerconstraints.GangDoesNotFitUnschedulableReason,
@@ -185,6 +192,7 @@ func TestMarketDrivenIndicativePricer_Price(t *testing.T) {
 			},
 			expectedIndicativePrices: IndicativeGangPricesByJobShape{
 				"multi-job-gang": {
+					Evaluated:           true,
 					Schedulable:         true,
 					Price:               0.5,
 					UnschedulableReason: "",
@@ -209,6 +217,7 @@ func TestMarketDrivenIndicativePricer_Price(t *testing.T) {
 			},
 			expectedIndicativePrices: IndicativeGangPricesByJobShape{
 				"multi-job-gang": {
+					Evaluated:           true,
 					Schedulable:         true,
 					Price:               2.0,
 					UnschedulableReason: "",
@@ -236,6 +245,7 @@ func TestMarketDrivenIndicativePricer_Price(t *testing.T) {
 			},
 			expectedIndicativePrices: IndicativeGangPricesByJobShape{
 				"multi-job-gang": {
+					Evaluated:           true,
 					Schedulable:         true,
 					Price:               0.5,
 					UnschedulableReason: "",
@@ -260,6 +270,7 @@ func TestMarketDrivenIndicativePricer_Price(t *testing.T) {
 			},
 			expectedIndicativePrices: IndicativeGangPricesByJobShape{
 				"multi-job-gang": {
+					Evaluated:           true,
 					Schedulable:         false,
 					Price:               0.0,
 					UnschedulableReason: pricer.GangUniformityLabelIsNotIndexedUnschedulableReason,
@@ -284,6 +295,7 @@ func TestMarketDrivenIndicativePricer_Price(t *testing.T) {
 			},
 			expectedIndicativePrices: IndicativeGangPricesByJobShape{
 				"multi-job-gang": {
+					Evaluated:           true,
 					Schedulable:         false,
 					Price:               0.0,
 					UnschedulableReason: schedulerconstraints.GangDoesNotFitUnschedulableReason,
