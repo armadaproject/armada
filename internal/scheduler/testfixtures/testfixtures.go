@@ -470,7 +470,7 @@ func WithGangJobDetails(jobs []*jobdb.Job, gangId string, gangCardinality int, n
 		jobs,
 	)
 
-	for i, _ := range updatedJobs {
+	for i := range updatedJobs {
 		updatedJobs[i] = updatedJobs[i].WithGangInfo(jobdb.CreateGangInfo(gangId, gangCardinality, nodeUniformityLabel))
 	}
 

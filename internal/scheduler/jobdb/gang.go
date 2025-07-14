@@ -4,9 +4,10 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/pkg/errors"
+
 	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/server/configuration"
-	"github.com/pkg/errors"
 )
 
 type GangInfo struct {
