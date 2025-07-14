@@ -312,6 +312,9 @@ func (sch *PreemptingQueueScheduler) evict(ctx *armadacontext.Context, evictor *
 	maps.Copy(result.NodeIdByJobId, gangEvictorResult.NodeIdByJobId)
 
 	err = sch.setEvictedGangCardinality(result)
+	if err != nil {
+		return nil, nil, err
+	}
 	evictedJctxs := maps.Values(result.EvictedJctxsByJobId)
 	for _, jctx := range evictedJctxs {
 		if _, err := sch.schedulingContext.EvictJob(jctx); err != nil {
