@@ -616,6 +616,41 @@ func (txn *Txn) Upsert(jobs []*Job) error {
 	return nil
 }
 
+// NewJob creates a new scheduler job.
+// The new job is not automatically inserted into the jobDb; call jobDb.Upsert to upsert it.
+func (txn *Txn) NewJob(
+	jobId string,
+	jobSet string,
+	queue string,
+	priority uint32,
+	schedulingInfo *internaltypes.JobSchedulingInfo,
+	queued bool,
+	queuedVersion int32,
+	cancelRequested bool,
+	cancelByJobSetRequested bool,
+	cancelled bool,
+	created int64,
+	validated bool,
+	pools []string,
+	priceBand int32,
+) (*Job, error) {
+	return txn.jobDb.NewJob(jobId,
+		jobSet,
+		queue,
+		priority,
+		schedulingInfo,
+		queued,
+		queuedVersion,
+		cancelRequested,
+		cancelByJobSetRequested,
+		cancelled,
+		created,
+		validated,
+		pools,
+		priceBand,
+	)
+}
+
 // GetById returns the job with the given Id or nil if no such job exists
 // The Job returned by this function *must not* be subsequently modified
 func (txn *Txn) GetById(id string) *Job {
