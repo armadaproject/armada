@@ -46,9 +46,9 @@ import { ArmadaIcon, ArmadaText } from '@/components/logo';
   </div>
 </div>
 
-Armada is a multi-Kubernetes cluster batch job meta-scheduler designed to handle massive-scale workloads. Built on top of Kubernetes, Armada enables organizations to distribute millions of batch jobs per day across tens of thousands of nodes spanning multiple clusters, making it an ideal solution for high-throughput computational workloads.
-
 ## What is Armada?
+
+Armada is a multi-Kubernetes cluster batch job meta-scheduler designed to handle massive-scale workloads. Built on top of Kubernetes, Armada enables organizations to distribute millions of batch jobs per day across tens of thousands of nodes spanning multiple clusters, making it an ideal solution for high-throughput computational workloads.
 
 Armada serves as middleware that transforms Kubernetes into a powerful batch processing platform while maintaining compatibility with service workloads. It addresses the fundamental limitations of running batch workloads at scale on Kubernetes by providing:
 
@@ -135,35 +135,6 @@ Armada overcomes these limitations by:
 - Automatic node failure handling
 - Cluster health monitoring
 
-## Core Components
-
-### Queue
-
-Represents a user, team, or project within the system. Queues are used to:
-
-- Maintain fair share allocation over time
-- Apply priority factors for different workloads
-- Enforce resource limits and quotas
-- Provide isolation between different users or teams
-
-### Job
-
-The fundamental unit of work in Armada, described as a Kubernetes PodSpec. Jobs include:
-
-- Resource requirements (CPU, memory, GPU)
-- Container specifications and dependencies
-- Scheduling constraints and preferences
-- Execution parameters and environment variables
-
-### Job Set
-
-A logical grouping of related jobs that enables:
-
-- Observing progress of related jobs together
-- Applying policies to groups of jobs
-- Coordinating complex workflows
-- Tracking dependencies between jobs
-
 ## Use Cases and Success Stories
 
 ### High-Performance Computing (HPC)
@@ -216,9 +187,9 @@ G-Research, a leading quantitative research company, uses Armada in production t
 
 Ready to explore Armada? Here are your next steps:
 
-1. **Quick Start**: Try the [local installation guide](../getting-started/quickstart.md) to get Armada running with Kind
-2. **Core Concepts**: Learn about [jobs, queues, and scheduling](../core-concepts/jobs-and-lifecycle.md)
-3. **Production Setup**: Review the [operations guide](../operations-guide/installation-and-deployment.md) for production deployment
+1. **Quick Start**: Try the local installation guide to get Armada running with Kind
+2. **Core Concepts**: Learn about jobs, queues, and scheduling
+3. **Production Setup**: Review the operations guide for production deployment
 
 ## Community and Support
 
