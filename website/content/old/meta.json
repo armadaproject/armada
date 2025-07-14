@@ -1,6 +1,7 @@
 {
+  "title": "[TMP] Old",
   "pages": [
-    "index",
+    "overview",
     "quickstart",
     "installation",
     "concepts",
