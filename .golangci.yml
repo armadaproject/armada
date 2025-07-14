@@ -1,29 +1,44 @@
+version: "2"
+linters:
+  default: none
+  enable:
+    - errcheck
+    - ineffassign
+    - lll
+    - misspell
+    - unused
+  settings:
+    lll:
+      line-length: 261
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      - linters:
+          - lll
+        path: internal/scheduler/internaltypes/podutils_test.go
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
 issues:
   max-issues-per-linter: 0
   max-same-issues: 0
-  exclude-rules:
-    - path: internal/scheduler/internaltypes/podutils_test.go
-      linters:
-        - lll
-
-output:
-  print-issued-lines: true
-  format: github-actions
-  sort-results: true
-
-linters:
-  disable-all: true
+formatters:
   enable:
-    - lll
     - gofumpt
-    - unused
     - goimports
-    - ineffassign
-    - misspell
-    - errcheck
-
-linters-settings:
-  lll:
-    line-length: 261
-  goimports:
-    local-prefixes: github.com/armadaproject/armada
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/armadaproject/armada
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
