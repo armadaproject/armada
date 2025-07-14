@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/armadaproject/armada/internal/scheduler/scheduling/pricer"
 	"github.com/benbjohnson/immutable"
 	"github.com/hashicorp/go-memdb"
 	"github.com/pkg/errors"
@@ -271,6 +272,14 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 		maps.Copy(sch.nodeIdByJobId, optimisingSchedulerResult.NodeIdByJobId)
 	}
 
+	indicativePrices := IndicativeGangPricesByJobShape{}
+	if sch.marketDriven && sch.marketConfig.GangsToPrice != nil {
+		indicativePrices, err = sch.runPricer(ctx)
+		if err != nil {
+			ctx.Logger().WithField("stage", "scheduling-algo").Error("Could not determine indicative prices for pool")
+		}
+	}
+
 	preemptedJobs := maps.Values(preemptedJobsById)
 	scheduledJobs := maps.Values(scheduledJobsById)
 	ctx.Logger().WithField("stage", "scheduling-algo").Infof("Unbinding %d preempted and %d evicted jobs", len(preemptedJobs), len(maps.Values(scheduledAndEvictedJobsById)))
@@ -296,6 +305,7 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 		NodeDb:                       sch.nodeDb,
 		ScheduledJobs:                scheduledJobs,
 		PreemptedJobs:                preemptedJobs,
+		MarketDrivenIndicativePrices: indicativePrices,
 	}
 
 	return &SchedulerResult{
@@ -581,6 +591,30 @@ func (sch *PreemptingQueueScheduler) addEvictedJobsToNodeDb(_ *armadacontext.Con
 	}
 	txn.Commit()
 	return nil
+}
+
+func (sch *PreemptingQueueScheduler) runPricer(ctx *armadacontext.Context) (IndicativeGangPricesByJobShape, error) {
+	nodeScheduler := pricer.NewMinPriceNodeScheduler(sch.jobRepo)
+	gangScheduler := pricer.NewGangPricer(nodeScheduler, sch.jobRepo, sch.nodeDb)
+	marketDrivenPricer := NewMarketDrivenIndicativePricer(
+		sch.jobRepo,
+		gangScheduler,
+		sch.constraints,
+		sch.floatingResourceTypes)
+	sch.schedulingContext.ClearUnfeasibleSchedulingKeys()
+
+	timeoutContext, cancel := armadacontext.WithTimeout(ctx, sch.marketConfig.GangIndicativePricingTimeout)
+	defer cancel()
+
+	before := time.Now()
+	result, err := marketDrivenPricer.Price(timeoutContext, sch.schedulingContext, sch.jobRepo, sch.marketConfig.GangsToPrice)
+	ctx.Logger().WithField("stage", "scheduling-algo").Infof(
+		"Gang Pricer tooks %.2f seconds to price %d gangs in %s pool",
+		time.Now().Sub(before).Seconds(),
+		len(sch.marketConfig.GangsToPrice),
+		sch.schedulingContext.Pool,
+	)
+	return result, err
 }
 
 func (sch *PreemptingQueueScheduler) runOptimiser(ctx *armadacontext.Context) (*SchedulerResult, error) {
