@@ -340,19 +340,19 @@ func validateGangs(request *api.JobSubmitRequest, _ configuration.SubmissionConf
 			if expected.Cardinality() != actual.Cardinality() {
 				return errors.Errorf(
 					"inconsistent gang cardinality in gang %s: expected %d but got %d",
-					actual.Id, expected.Cardinality, actual.Cardinality,
+					actual.Id(), expected.Cardinality(), actual.Cardinality(),
 				)
 			}
 			if expected.PriorityClassName != actual.PriorityClassName {
 				return errors.Errorf(
 					"inconsistent PriorityClassName in gang %s: expected %s but got %s",
-					actual.Id, expected.PriorityClassName, actual.PriorityClassName,
+					actual.Id(), expected.PriorityClassName, actual.PriorityClassName,
 				)
 			}
 			if actual.NodeUniformity() != expected.NodeUniformity() {
 				return errors.Errorf(
 					"inconsistent nodeUniformityLabel in gang %s: expected %s but got %s",
-					actual.Id, expected.NodeUniformity(), actual.NodeUniformity(),
+					actual.Id(), expected.NodeUniformity(), actual.NodeUniformity(),
 				)
 			}
 		} else {
