@@ -271,6 +271,16 @@ func (a ComputeResources) AsFloat() ComputeResourcesFloat {
 	return targetComputeResource
 }
 
+func (a ComputeResources) AsKubernetesResourceList() v1.ResourceList {
+	kubernetesResourceList := map[v1.ResourceName]resource.Quantity{}
+
+	for name, quantity := range a {
+		kubernetesResourceList[v1.ResourceName(name)] = quantity
+	}
+
+	return kubernetesResourceList
+}
+
 // ComputeResourcesFloat is float version of compute resource, prefer calculations with quantity where possible
 type ComputeResourcesFloat map[string]float64
 
