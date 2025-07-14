@@ -1341,7 +1341,7 @@ func newJob() *Job {
 }
 
 func newGangJob() *Job {
-	gangInfo, err := createGangInfo(gangJobSchedulingInfo)
+	gangInfo, err := GangInfoFromMinimalJob(gangJobSchedulingInfo)
 	if err != nil {
 		panic(err)
 	}
