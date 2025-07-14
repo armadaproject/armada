@@ -14,6 +14,8 @@ import (
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/adapters"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
+	"github.com/armadaproject/armada/internal/scheduler/pricing"
+	"github.com/armadaproject/armada/pkg/bidstore"
 )
 
 // Job is the scheduler-internal representation of a job.
@@ -74,6 +76,13 @@ type Job struct {
 	activeRunTimestamp int64
 	// Pools for which the job is eligible. This is used for metrics reporting and to calculate demand for fair share
 	pools []string
+	// Price band of the job is associated with, it is used to determine the price set on the job
+	priceBand bidstore.PriceBand
+	// The bid price for each pool
+	// A job doesn't have to have a bid for every pool, it'll default to 0 bid if not set in this map
+	bidPricesPool map[string]pricing.Bid
+	// Gang information for this job
+	gangInfo GangInfo
 }
 
 func (job *Job) String() string {
@@ -350,6 +359,12 @@ func (job *Job) Equal(other *Job) bool {
 	if !slices.Equal(job.pools, other.pools) {
 		return false
 	}
+	if !maps.Equal(job.bidPricesPool, other.bidPricesPool) {
+		return false
+	}
+	if !job.gangInfo.Equal(other.gangInfo) {
+		return false
+	}
 	if !armadamaps.DeepEqual(job.runsById, other.runsById) {
 		return false
 	}
@@ -404,37 +419,78 @@ func (job *Job) Pools() []string {
 	return slices.Clone(job.pools)
 }
 
+func (job *Job) WithBidPrices(bids map[string]pricing.Bid) *Job {
+	j := shallowCopyJob(*job)
+	j.bidPricesPool = maps.Clone(bids)
+	return j
+}
+
+func (job *Job) GetBidPrice(pool string) float64 {
+	if !job.queued && !job.priorityClass.Preemptible {
+		return pricing.NonPreemptibleRunningPrice
+	}
+	bidPrice, present := job.bidPricesPool[pool]
+	if !present {
+		return 0
+	}
+	if job.queued {
+		return bidPrice.QueuedBid
+	}
+	return bidPrice.RunningBid
+}
+
+// GetAllBidPrices
+// This should not be used to determine the bid price, use GetBidPrice for an accurate price
+// Expected this will only be used for testing purposes
+func (job *Job) GetAllBidPrices() map[string]pricing.Bid {
+	return maps.Clone(job.bidPricesPool)
+}
+
+func (job *Job) WithPriceBand(priceBand bidstore.PriceBand) *Job {
+	j := shallowCopyJob(*job)
+	j.priceBand = priceBand
+	return j
+}
+
+func (job *Job) GetPriceBand() bidstore.PriceBand {
+	return job.priceBand
+}
+
+func (job *Job) GetGangInfo() GangInfo {
+	return job.gangInfo
+}
+
 // WithPriority returns a copy of the job with the priority updated.
 func (job *Job) WithPriority(priority uint32) *Job {
-	j := copyJob(*job)
+	j := shallowCopyJob(*job)
 	j.priority = priority
 	return j
 }
 
 // WithPools returns a copy of the job with the pools updated.
 func (job *Job) WithPools(pools []string) *Job {
-	j := copyJob(*job)
+	j := shallowCopyJob(*job)
 	j.pools = slices.Clone(pools)
 	return j
 }
 
 // WithPriorityClass returns a copy of the job with the priority class updated.
 func (job *Job) WithPriorityClass(priorityClass types.PriorityClass) *Job {
-	j := copyJob(*job)
+	j := shallowCopyJob(*job)
 	j.priorityClass = priorityClass
 	return j
 }
 
 // WithSubmittedTime returns a copy of the job with submittedTime updated.
 func (job *Job) WithSubmittedTime(submittedTime int64) *Job {
-	j := copyJob(*job)
+	j := shallowCopyJob(*job)
 	j.submittedTime = submittedTime
 	return j
 }
 
 // WithRequestedPriority returns a copy of the job with the priority updated.
 func (job *Job) WithRequestedPriority(priority uint32) *Job {
-	j := copyJob(*job)
+	j := shallowCopyJob(*job)
 	j.requestedPriority = priority
 	return j
 }
@@ -530,7 +586,7 @@ func (job *Job) Queued() bool {
 
 // WithQueued returns a copy of the job with the queued status updated.
 func (job *Job) WithQueued(queued bool) *Job {
-	j := copyJob(*job)
+	j := shallowCopyJob(*job)
 	j.queued = queued
 	return j
 }
@@ -542,7 +598,7 @@ func (job *Job) QueuedVersion() int32 {
 
 // WithQueuedVersion returns a copy of the job with the queued version updated.
 func (job *Job) WithQueuedVersion(version int32) *Job {
-	j := copyJob(*job)
+	j := shallowCopyJob(*job)
 	j.queuedVersion = version
 	return j
 }
@@ -564,21 +620,21 @@ func (job *Job) CancelByJobsetRequested() bool {
 
 // WithCancelRequested returns a copy of the job with the cancelRequested status updated.
 func (job *Job) WithCancelRequested(cancelRequested bool) *Job {
-	j := copyJob(*job)
+	j := shallowCopyJob(*job)
 	j.cancelRequested = cancelRequested
 	return j
 }
 
 // WithCancelByJobsetRequested returns a copy of the job with the cancelByJobSetRequested status updated.
 func (job *Job) WithCancelByJobsetRequested(cancelByJobsetRequested bool) *Job {
-	j := copyJob(*job)
+	j := shallowCopyJob(*job)
 	j.cancelByJobSetRequested = cancelByJobsetRequested
 	return j
 }
 
 // WithCancelUser returns a copy of the job with the cancel user updated.
 func (job *Job) WithCancelUser(cancelUser *string) *Job {
-	j := copyJob(*job)
+	j := shallowCopyJob(*job)
 	j.cancelUser = cancelUser
 	return j
 }
@@ -590,7 +646,7 @@ func (job *Job) Cancelled() bool {
 
 // WithCancelled returns a copy of the job with the cancelled status updated
 func (job *Job) WithCancelled(cancelled bool) *Job {
-	j := copyJob(*job)
+	j := shallowCopyJob(*job)
 	j.cancelled = cancelled
 	return j
 }
@@ -602,7 +658,7 @@ func (job *Job) Succeeded() bool {
 
 // WithSucceeded returns a copy of the job with the succeeded status updated.
 func (job *Job) WithSucceeded(succeeded bool) *Job {
-	j := copyJob(*job)
+	j := shallowCopyJob(*job)
 	j.succeeded = succeeded
 	return j
 }
@@ -614,13 +670,13 @@ func (job *Job) Failed() bool {
 
 // WithFailed returns a copy of the job with the failed status updated.
 func (job *Job) WithFailed(failed bool) *Job {
-	j := copyJob(*job)
+	j := shallowCopyJob(*job)
 	j.failed = failed
 	return j
 }
 
 func (job *Job) WithoutTerminal() *Job {
-	j := copyJob(*job)
+	j := shallowCopyJob(*job)
 	j.cancelled = false
 	j.failed = false
 	j.succeeded = false
@@ -696,7 +752,7 @@ func (job *Job) WithNewRun(executor, nodeId, nodeName, pool string, scheduledAtP
 
 // WithUpdatedRun returns a copy of the job with the provided run upserted.
 func (job *Job) WithUpdatedRun(run *JobRun) *Job {
-	j := copyJob(*job)
+	j := shallowCopyJob(*job)
 	if j.activeRun == nil || run.created >= j.activeRunTimestamp {
 		j.activeRunTimestamp = run.created
 		j.activeRun = run
@@ -762,28 +818,28 @@ func (job *Job) RunById(id string) *JobRun {
 
 // WithJobset returns a copy of the job with the jobSet updated.
 func (job *Job) WithJobset(jobset string) *Job {
-	j := copyJob(*job)
+	j := shallowCopyJob(*job)
 	j.jobSet = jobset
 	return j
 }
 
 // WithQueue returns a copy of the job with the queue updated.
 func (job *Job) WithQueue(queue string) *Job {
-	j := copyJob(*job)
+	j := shallowCopyJob(*job)
 	j.queue = queue
 	return j
 }
 
 // WithCreated returns a copy of the job with the creation time updated.
 func (job *Job) WithCreated(created int64) *Job {
-	j := copyJob(*job)
+	j := shallowCopyJob(*job)
 	j.submittedTime = created
 	return j
 }
 
 // WithValidated returns a copy of the job with the validated updated.
 func (job *Job) WithValidated(validated bool) *Job {
-	j := copyJob(*job)
+	j := shallowCopyJob(*job)
 	j.validated = validated
 	return j
 }
@@ -800,7 +856,7 @@ func (job *Job) RequestsFloatingResources() bool {
 
 // WithJobSchedulingInfo returns a copy of the job with the job scheduling info updated.
 func (job *Job) WithJobSchedulingInfo(jobSchedulingInfo *internaltypes.JobSchedulingInfo) (*Job, error) {
-	j := copyJob(*job)
+	j := shallowCopyJob(*job)
 	j.jobSchedulingInfo = jobSchedulingInfo
 	j.ensureJobSchedulingInfoFieldsInitialised()
 
@@ -814,7 +870,7 @@ func (job *Job) WithJobSchedulingInfo(jobSchedulingInfo *internaltypes.JobSchedu
 }
 
 func (job *Job) DeepCopy() *Job {
-	j := copyJob(*job)
+	j := shallowCopyJob(*job)
 	j.jobSchedulingInfo = job.jobSchedulingInfo.DeepCopy()
 	j.ensureJobSchedulingInfoFieldsInitialised()
 	j.schedulingKey = SchedulingKeyFromJob(j.jobDb.schedulingKeyGenerator, j)
@@ -830,8 +886,7 @@ func (job *Job) DeepCopy() *Job {
 	return j
 }
 
-// copyJob makes a shallow copy of the job
-func copyJob(j Job) *Job {
+func shallowCopyJob(j Job) *Job {
 	return &j
 }
 

@@ -204,11 +204,11 @@ func (q *OptimisingQueueScheduler) createCandidateGangIterator(
 	for _, qctx := range sctx.QueueSchedulingContexts {
 		// We only want to run on queues that are failing to achieve their fairshare
 		// So skip any queue at or above its fairshare
-		actualShare := sctx.FairnessCostProvider.UnweightedCostFromQueue(qctx)
+		actualShare := sctx.FairnessCostProvider.UnweightedCostFromAllocation(qctx.GetAllocationInclShortJobPenalty())
 		if actualShare >= qctx.DemandCappedAdjustedFairShare {
 			continue
 		}
-		queueIt := NewQueuedJobsIterator(ctx, qctx.Queue, sctx.Pool, q.jobDb)
+		queueIt := NewQueuedJobsIterator(ctx, qctx.Queue, sctx.Pool, jobdb.FairShareOrder, q.jobDb)
 		jobIteratorByQueue[qctx.Queue] = queueIt
 	}
 

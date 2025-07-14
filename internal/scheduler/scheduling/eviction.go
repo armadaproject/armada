@@ -213,7 +213,7 @@ func (evi *Evictor) Evict(ctx *armadacontext.Context, nodeDbTxn *memdb.Txn) (*Ev
 		for jobId := range node.AllocatedByJobId {
 			if _, ok := node.EvictedJobRunIds[jobId]; !ok {
 				job := evi.jobRepo.GetById(jobId)
-				if job != nil {
+				if job != nil && !job.InTerminalState() {
 					shouldEvict, dontEvictReason := evi.jobFilter(ctx, job)
 					if shouldEvict {
 						jobs = append(jobs, job)

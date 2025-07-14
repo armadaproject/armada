@@ -154,6 +154,9 @@ func (n *FairnessOptimisingGangScheduler) updateState(result *nodeSchedulingResu
 		if job == nil {
 			return fmt.Errorf("failed to find job %s in job db", jobId)
 		}
+		if job.InTerminalState() {
+			return fmt.Errorf("job %s in terminal state", jobId)
+		}
 		jobsToPreempt = append(jobsToPreempt, job)
 	}
 
@@ -195,6 +198,9 @@ func (n *FairnessOptimisingGangScheduler) markJobsScheduledAndPreempted(result *
 			if job == nil {
 				return nil, fmt.Errorf("failed to find job %s in job db", jobId)
 			}
+			if job.InTerminalState() {
+				return nil, fmt.Errorf("job %s in terminal state", jobId)
+			}
 			jobsToPreempt = append(jobsToPreempt, job)
 		}
 
@@ -215,7 +221,7 @@ func (n *FairnessOptimisingGangScheduler) markJobsScheduledAndPreempted(result *
 		preemptedJobs := make([]*context.JobSchedulingContext, 0, len(jobsToPreempt))
 		for _, jobToPreempt := range jobsToPreempt {
 			preemptedJctx := context.JobSchedulingContextFromJob(jobToPreempt)
-			preemptedJctx.PreemptingJobId = result.jctx.JobId
+			preemptedJctx.PreemptingJob = result.jctx.Job
 			preemptedJctx.PreemptionDescription = fmt.Sprintf("Preempted by scheduler using fairness optimiser - preempting job %s", jctx.JobId)
 			preemptedJctx.PreemptionType = context.PreemptedWithOptimiserPreemption
 			preemptedJobs = append(preemptedJobs, preemptedJctx)

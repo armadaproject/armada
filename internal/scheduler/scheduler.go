@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/renstrom/shortuuid"
+	"golang.org/x/exp/slices"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/utils/clock"
 
@@ -20,11 +21,13 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/kubernetesobjects/affinity"
 	"github.com/armadaproject/armada/internal/scheduler/leader"
 	"github.com/armadaproject/armada/internal/scheduler/metrics"
+	"github.com/armadaproject/armada/internal/scheduler/pricing"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 	"github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/armadaproject/armada/pkg/armadaevents"
+	"github.com/armadaproject/armada/pkg/bidstore"
 )
 
 // Scheduler is the main Armada scheduler.
@@ -61,6 +64,9 @@ type Scheduler struct {
 	// If an executor fails to report in for this amount of time,
 	// all jobs assigned to that executor are cancelled.
 	executorTimeout time.Duration
+	// Used to penalize short-running jobs by pretending they
+	// ran for some minimum length when calculating costs.
+	shortJobPenalty *scheduling.ShortJobPenalty
 	// The time the previous scheduling round ended
 	previousSchedulingRoundEnd time.Time
 	// Used for timing decisions (e.g., sleep).
@@ -79,6 +85,11 @@ type Scheduler struct {
 	// If true, enable scheduler assertions.
 	// In particular, assert that the jobDb is in a valid state at the end of each cycle.
 	enableAssertions bool
+	// The service which provides upto date prices for price bands / jobs
+	bidPriceProvider pricing.BidPriceProvider
+	// A list of the pools that are market driven
+	// Used to know which jobs need update when updating job prices
+	marketDrivenPools []string
 }
 
 func NewScheduler(
@@ -92,9 +103,12 @@ func NewScheduler(
 	cyclePeriod time.Duration,
 	schedulePeriod time.Duration,
 	executorTimeout time.Duration,
+	shortJobPenalty *scheduling.ShortJobPenalty,
 	maxAttemptedRuns uint,
 	nodeIdLabel string,
 	metrics *metrics.Metrics,
+	bidPriceProvider pricing.BidPriceProvider,
+	marketDrivenPools []string,
 ) (*Scheduler, error) {
 	return &Scheduler{
 		jobRepository:              jobRepository,
@@ -109,11 +123,14 @@ func NewScheduler(
 		schedulePeriod:             schedulePeriod,
 		previousSchedulingRoundEnd: time.Time{},
 		executorTimeout:            executorTimeout,
+		bidPriceProvider:           bidPriceProvider,
+		shortJobPenalty:            shortJobPenalty,
 		maxAttemptedRuns:           maxAttemptedRuns,
 		nodeIdLabel:                nodeIdLabel,
 		jobsSerial:                 -1,
 		runsSerial:                 -1,
 		metrics:                    metrics,
+		marketDrivenPools:          marketDrivenPools,
 	}, nil
 }
 
@@ -128,6 +145,7 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 
 	// JobDb initialisation.
 	start := s.clock.Now()
+	s.shortJobPenalty.SetNow(start)
 	if err := s.initialise(ctx); err != nil {
 		return err
 	}
@@ -142,6 +160,7 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 			return ctx.Err()
 		case <-ticker.C():
 			start := s.clock.Now()
+			s.shortJobPenalty.SetNow(start)
 			ctx := armadacontext.WithLogField(ctx, "cycleId", shortuuid.New())
 			leaderToken := s.leaderController.GetToken()
 			fullUpdate := false
@@ -305,6 +324,13 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 
 	// Schedule jobs.
 	if shouldSchedule {
+		start := time.Now()
+		err := s.updateJobPrices(ctx, txn)
+		if err != nil {
+			return overallSchedulerResult, err
+		}
+		ctx.Logger().Infof("updating job prices in %s", time.Now().Sub(start))
+
 		var result *scheduling.SchedulerResult
 		result, err = s.schedulingAlgo.Schedule(ctx, txn)
 		if err != nil {
@@ -367,13 +393,29 @@ func (s *Scheduler) syncState(ctx *armadacontext.Context, initial bool) ([]*jobd
 
 	if initial {
 		// Load initial jobs from the jobRepo.
-		updatedJobs, updatedRuns, err = s.jobRepository.FetchInitialJobs(ctx)
+		initialJobs, initialRuns, maxJobSerial, maxRunSerial, fetchErr := s.jobRepository.FetchInitialJobs(ctx)
+		if fetchErr != nil {
+			return nil, nil, fmt.Errorf("fetching initial jobs: %w", fetchErr)
+		}
+
+		if len(initialJobs) > 0 {
+			updatedJobs = initialJobs
+		} else if maxJobSerial != nil {
+			s.jobsSerial = *maxJobSerial // Allow the next sync to start from the highest serial possible.
+		}
+
+		if len(initialRuns) > 0 {
+			updatedRuns = initialRuns
+		} else if maxJobSerial != nil {
+			s.runsSerial = *maxRunSerial // Allow the next sync to start from the highest serial possible.
+		}
+
 	} else {
 		// Load new and updated jobs from the jobRepo.
 		updatedJobs, updatedRuns, err = s.jobRepository.FetchJobUpdates(ctx, s.jobsSerial, s.runsSerial)
-	}
-	if err != nil {
-		return nil, nil, err
+		if err != nil {
+			return nil, nil, fmt.Errorf("fetching job updates: %w", err)
+		}
 	}
 
 	// Reconcile any differences between the updated jobs and runs.
@@ -394,9 +436,13 @@ func (s *Scheduler) syncState(ctx *armadacontext.Context, initial bool) ([]*jobd
 	// Delete jobs in a terminal state.
 	idsOfJobsToDelete := make([]string, 0)
 	for _, jobDbJob := range jobDbJobs {
-		if jobDbJob.InTerminalState() {
-			idsOfJobsToDelete = append(idsOfJobsToDelete, jobDbJob.Id())
+		if !jobDbJob.InTerminalState() {
+			continue
 		}
+		if s.shortJobPenalty.ShouldApplyPenalty(jobDbJob) {
+			continue
+		}
+		idsOfJobsToDelete = append(idsOfJobsToDelete, jobDbJob.Id())
 	}
 	if err := txn.BatchDelete(idsOfJobsToDelete); err != nil {
 		return nil, nil, err
@@ -413,6 +459,60 @@ func (s *Scheduler) syncState(ctx *armadacontext.Context, initial bool) ([]*jobd
 	}
 
 	return jobDbJobs, jsts, nil
+}
+
+// TODO - This is highly inefficient and will only work if market driven pools are small
+// We should rewrite how bids are stored in an efficient manner
+func (s *Scheduler) updateJobPrices(ctx *armadacontext.Context, txn *jobdb.Txn) error {
+	if len(s.marketDrivenPools) == 0 {
+		return nil
+	}
+
+	jobs := txn.GetAll()
+	jobsByQueue := map[string]map[bidstore.PriceBand][]*jobdb.Job{}
+	updatedBids, err := s.bidPriceProvider.GetBidPrices(ctx)
+	if err != nil {
+		return err
+	}
+
+	hasMarketDrivenPool := func(j *jobdb.Job) bool {
+		for _, pool := range j.Pools() {
+			if slices.Contains(s.marketDrivenPools, pool) {
+				return true
+			}
+		}
+		return false
+	}
+
+	for _, job := range jobs {
+		if _, present := jobsByQueue[job.Queue()]; !present {
+			jobsByQueue[job.Queue()] = map[bidstore.PriceBand][]*jobdb.Job{}
+		}
+		if _, present := jobsByQueue[job.Queue()][job.GetPriceBand()]; !present {
+			jobsByQueue[job.Queue()][job.GetPriceBand()] = []*jobdb.Job{}
+		}
+		if hasMarketDrivenPool(job) {
+			jobsByQueue[job.Queue()][job.GetPriceBand()] = append(jobsByQueue[job.Queue()][job.GetPriceBand()], job)
+		}
+	}
+
+	updatedJobs := make([]*jobdb.Job, 0, len(jobs))
+	for queue := range jobsByQueue {
+		for priceBand, jobs := range jobsByQueue[queue] {
+			updatedPrice, present := updatedBids.GetPrice(queue, priceBand)
+			if !present {
+				continue
+			}
+
+			// For now always update all jobs, as the jobDb isn't setting them as they come in
+			for _, job := range jobs {
+				job = job.WithBidPrices(updatedPrice)
+				updatedJobs = append(updatedJobs, job)
+			}
+		}
+	}
+	ctx.Logger().Infof("updating the prices of %d jobs", len(updatedJobs))
+	return txn.Upsert(updatedJobs)
 }
 
 func (s *Scheduler) createSchedulingInfoWithNodeAntiAffinityForAttemptedRuns(job *jobdb.Job) (*internaltypes.JobSchedulingInfo, error) {
@@ -798,6 +898,7 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 		} else if lastRun.PreemptRequested() && job.PriorityClass().Preemptible {
 			job = job.WithQueued(false).WithFailed(true).WithUpdatedRun(lastRun.WithoutTerminal().WithFailed(true))
 			events = append(events, createEventsForPreemptedJob(job.Id(), lastRun.Id(), "Preempted - preemption requested via API", s.clock.Now())...)
+			s.metrics.ReportJobPreemptedViaApi(job)
 		}
 	}
 

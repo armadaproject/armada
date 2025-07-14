@@ -2,30 +2,23 @@ import { useQuery } from "@tanstack/react-query"
 import { isNil } from "lodash"
 
 import { useGetUiConfig } from "./useGetUiConfig"
-import { appendAuthorizationHeaders, useGetAccessToken } from "../../oidcAuth"
+import { useAuthenticatedFetch } from "../../oidcAuth"
 import { ApiQueue, ApiQueueFromJSON } from "../../openapi/armada"
 import { getErrorMessage } from "../../utils"
 
 export const useGetQueues = (enabled = true) => {
-  const getAccessToken = useGetAccessToken()
-
   const { data: uiConfig } = useGetUiConfig(enabled)
 
   const armadaApiBaseUrl = uiConfig?.armadaApiBaseUrl
+
+  const authenticatedFetch = useAuthenticatedFetch()
 
   return useQuery<ApiQueue[], string>({
     queryKey: ["getQueues"],
     queryFn: async ({ signal }) => {
       try {
-        const accessToken = await getAccessToken()
-        const headers = new Headers()
-        if (accessToken) {
-          appendAuthorizationHeaders(headers, accessToken)
-        }
-
-        const response = await fetch(`${armadaApiBaseUrl}/v1/batched/queues`, {
+        const response = await authenticatedFetch(`${armadaApiBaseUrl}/v1/batched/queues`, {
           method: "GET",
-          headers,
           signal,
         })
         if (response.status < 200 || response.status >= 300) {

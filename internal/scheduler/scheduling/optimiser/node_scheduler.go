@@ -141,10 +141,13 @@ func (n *PreemptingNodeScheduler) getPreemptibleJobDetailsByQueue(
 ) (map[string][]*preemptibleJobDetails, error) {
 	queues := map[string][]*preemptibleJobDetails{}
 	start := time.Now()
-	for jobId, resource := range node.AllocatedByJobId {
+	for jobId, jobResource := range node.AllocatedByJobId {
 		job := n.jobDb.GetById(jobId)
 		if job == nil {
 			return nil, fmt.Errorf("job %s not found in jobDb", jobId)
+		}
+		if job.InTerminalState() {
+			continue
 		}
 		if !job.PriorityClass().Preemptible {
 			// Don't evict non-preemptible jobs
@@ -189,10 +192,10 @@ func (n *PreemptingNodeScheduler) getPreemptibleJobDetailsByQueue(
 			continue
 		}
 
-		cost := schedContext.Sctx.FairnessCostProvider.UnweightedCostFromAllocation(resource)
+		cost := schedContext.Sctx.FairnessCostProvider.UnweightedCostFromAllocation(jobResource)
 		runInfo := &preemptibleJobDetails{
 			cost:                cost,
-			resources:           resource,
+			resources:           jobResource,
 			jobId:               jobId,
 			queue:               queue,
 			scheduledAtPriority: scheduledAtPriority,

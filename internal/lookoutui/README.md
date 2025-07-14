@@ -16,6 +16,20 @@ machine:
    just involve running `corepack enable`
 1. [Docker](https://www.docker.com/)
 
+#### Yarn and registry mirrors
+
+If you need to use a mirror of the Yarn registry instead of
+_registry.yarnpkg.com_, you can set the `ARMADA_NPM_REGISTRY` environment
+variable and use `scripts/yarn-registry-mirror.sh` in place of the `yarn`
+command. You may find it helpful to create an alias in your shell config, for
+example:
+
+```bash
+alias yarn='~/armada/scripts/yarn-registry-mirror.sh'
+```
+
+There are more details about this in the bash file.
+
 ### Installing dependencies and generating OpenAPI client code
 
 First, install all packages depended on by this web app using Yarn. In this
@@ -72,14 +86,6 @@ yarn test --run
 
 If you are actively changing unit tests or code covered by unit tests, you may
 find it useful to omit `--run` to continuously run affected tests.
-
-### Run typechecker
-
-Ensure that the types in TypeScript source and test files are correct.
-
-```bash
-yarn typecheck
-```
 
 ### Lint
 

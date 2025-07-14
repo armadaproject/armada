@@ -561,6 +561,7 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 		totalResources := s.accounting.totalResourcesByPool[pool]
 		fairnessCostProvider, err := fairness.NewDominantResourceFairness(
 			totalResources,
+			pool,
 			s.schedulingConfig,
 		)
 		if err != nil {
@@ -587,6 +588,7 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 				s.accounting.allocationByPoolAndQueueAndPriorityClass[pool][queue.Name],
 				demand,
 				demand,
+				internaltypes.ResourceList{},
 				s.limiter,
 			)
 			if err != nil {
@@ -814,6 +816,7 @@ func (s *Simulator) handleSubmitJob(txn *jobdb.Txn, e *armadaevents.SubmitJob, t
 		s.logicalJobCreatedTimestamp.Add(1),
 		false,
 		poolNames,
+		0,
 	)
 	if err != nil {
 		return nil, false, err

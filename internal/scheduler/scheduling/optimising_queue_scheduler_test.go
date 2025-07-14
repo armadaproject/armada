@@ -228,6 +228,7 @@ func TestOptimisingQueueScheduler_Schedule(t *testing.T) {
 
 			fairnessCostProvider, err := fairness.NewDominantResourceFairness(
 				tc.TotalSchedulingCapacity,
+				poolConfig.Name,
 				tc.SchedulingConfig,
 			)
 			require.NoError(t, err)
@@ -249,6 +250,7 @@ func TestOptimisingQueueScheduler_Schedule(t *testing.T) {
 					map[string]internaltypes.ResourceList{testfixtures.PriorityClass2: tc.InitialAllocatedByQueue[q.Name]},
 					unlimitedDemand,
 					unlimitedDemand,
+					internaltypes.ResourceList{},
 					rate.NewLimiter(
 						rate.Limit(tc.SchedulingConfig.MaximumPerQueueSchedulingRate),
 						tc.SchedulingConfig.MaximumPerQueueSchedulingBurst,

@@ -2063,6 +2063,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 
 				fairnessCostProvider, err := fairness.NewDominantResourceFairness(
 					nodeDb.TotalKubernetesResources(),
+					testfixtures.TestPool,
 					tc.SchedulingConfig,
 				)
 				require.NoError(t, err)
@@ -2084,6 +2085,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 						allocatedByQueueAndPriorityClass[queue],
 						queueDemand,
 						queueDemand,
+						internaltypes.ResourceList{},
 						limiterByQueue[queue],
 					)
 					require.NoError(t, err)
@@ -2423,6 +2425,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 
 			fairnessCostProvider, err := fairness.NewDominantResourceFairness(
 				nodeDb.TotalKubernetesResources(),
+				testfixtures.TestPool,
 				tc.SchedulingConfig,
 			)
 			require.NoError(b, err)
@@ -2435,7 +2438,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 			for queue, priorityFactor := range priorityFactorByQueue {
 				weight := 1 / priorityFactor
 				err := sctx.AddQueueSchedulingContext(queue, weight, weight, make(map[string]internaltypes.ResourceList),
-					internaltypes.ResourceList{}, internaltypes.ResourceList{}, limiterByQueue[queue])
+					internaltypes.ResourceList{}, internaltypes.ResourceList{}, internaltypes.ResourceList{}, limiterByQueue[queue])
 				require.NoError(b, err)
 			}
 			constraints := schedulerconstraints.NewSchedulingConstraints(
@@ -2507,7 +2510,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 				for queue, priorityFactor := range priorityFactorByQueue {
 					weight := 1 / priorityFactor
 					err := sctx.AddQueueSchedulingContext(queue, weight, weight, allocatedByQueueAndPriorityClass[queue],
-						internaltypes.ResourceList{}, internaltypes.ResourceList{}, limiterByQueue[queue])
+						internaltypes.ResourceList{}, internaltypes.ResourceList{}, internaltypes.ResourceList{}, limiterByQueue[queue])
 					require.NoError(b, err)
 				}
 

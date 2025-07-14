@@ -438,6 +438,7 @@ func TestFairnessOptimisingScheduler_ScheduleGangsEvenly(t *testing.T) {
 func createSctx(t *testing.T, totalResource internaltypes.ResourceList, queues []*api.Queue, runningJobsByQueue map[string][]*jobdb.Job) *context.SchedulingContext {
 	fairnessCostProvider, err := fairness.NewDominantResourceFairness(
 		totalResource,
+		testfixtures.TestPool,
 		testfixtures.TestSchedulingConfig(),
 	)
 	require.NoError(t, err)
@@ -456,6 +457,7 @@ func createSctx(t *testing.T, totalResource internaltypes.ResourceList, queues [
 			map[string]internaltypes.ResourceList{testfixtures.PriorityClass2: sumRequestedResource(runningJobsByQueue[q.Name])},
 			unlimitedDemand,
 			unlimitedDemand,
+			internaltypes.ResourceList{},
 			nil,
 		)
 		require.NoError(t, err)
@@ -516,7 +518,7 @@ func assertExpectedSctxUpdates(t *testing.T, sctx *context.SchedulingContext, gc
 	// Assert preempted jobs marked as preempted
 	for _, preemptedJctx := range preemptedJctxs {
 		preemptedJob := preemptedJctx.Job
-		assert.Contains(t, scheduledJobIds, preemptedJctx.PreemptingJobId)
+		assert.Contains(t, scheduledJobIds, preemptedJctx.PreemptingJob.Id())
 		assert.NotEmpty(t, preemptedJctx.PreemptionDescription)
 		assert.Equal(t, context.PreemptedWithOptimiserPreemption, preemptedJctx.PreemptionType)
 

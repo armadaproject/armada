@@ -507,13 +507,14 @@ func TestQueueScheduler(t *testing.T) {
 				}
 				indexByJobId[job.Id()] = i
 			}
-			jobRepo := NewInMemoryJobRepository(testfixtures.TestPool)
+			jobRepo := NewInMemoryJobRepository(testfixtures.TestPool, jobdb.JobPriorityComparer{})
 			jobRepo.EnqueueMany(
 				context.JobSchedulingContextsFromJobs(tc.Jobs),
 			)
 
 			fairnessCostProvider, err := fairness.NewDominantResourceFairness(
 				totalResources,
+				testfixtures.TestPool,
 				tc.SchedulingConfig,
 			)
 			require.NoError(t, err)
@@ -539,6 +540,7 @@ func TestQueueScheduler(t *testing.T) {
 					tc.InitialAllocatedByQueueAndPriorityClass[q.Name],
 					demand,
 					demand,
+					internaltypes.ResourceList{},
 					rate.NewLimiter(
 						rate.Limit(tc.SchedulingConfig.MaximumPerQueueSchedulingRate),
 						tc.SchedulingConfig.MaximumPerQueueSchedulingBurst,
@@ -553,7 +555,7 @@ func TestQueueScheduler(t *testing.T) {
 				it := jobRepo.GetJobIterator(q.Name)
 				jobIteratorByQueue[q.Name] = it
 			}
-			sch, err := NewQueueScheduler(sctx, constraints, testfixtures.TestEmptyFloatingResources, nodeDb, jobIteratorByQueue, false, false, tc.SchedulingConfig.EnablePreferLargeJobOrdering, tc.SchedulingConfig.MaxQueueLookback)
+			sch, err := NewQueueScheduler(sctx, constraints, testfixtures.TestEmptyFloatingResources, nodeDb, jobIteratorByQueue, false, false, tc.SchedulingConfig.EnablePreferLargeJobOrdering, tc.SchedulingConfig.MaxQueueLookback, false, 0)
 			require.NoError(t, err)
 
 			result, err := sch.Schedule(armadacontext.Background())

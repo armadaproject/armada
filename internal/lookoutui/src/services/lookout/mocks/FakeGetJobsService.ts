@@ -9,6 +9,7 @@ export default class FakeGetJobsService implements IGetJobsService {
   ) {}
 
   async getJobs(
+    _: GlobalFetch["fetch"],
     filters: JobFilter[],
     activeJobSets: boolean,
     order: JobOrder,

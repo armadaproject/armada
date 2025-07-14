@@ -10,6 +10,7 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/common/auth"
 	"github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/lookout/model"
 )
@@ -54,11 +55,13 @@ func (r *SqlGroupJobsRepository) GroupBy(
 	skip int,
 	take int,
 ) (*GroupByResult, error) {
+	user := auth.GetPrincipal(ctx).GetName()
+
 	query, err := NewQueryBuilder(r.lookoutTables).GroupBy(filters, activeJobSets, order, groupedField, aggregates, skip, take)
 	if err != nil {
 		return nil, err
 	}
-	logQueryDebug(query, "GroupBy")
+	logQueryDebug(user, query, "GroupBy")
 
 	var groups []*model.JobGroup
 
@@ -66,10 +69,10 @@ func (r *SqlGroupJobsRepository) GroupBy(
 	groupRows, err := r.db.Query(ctx, query.Sql, query.Args...)
 	queryDuration := time.Since(queryStart)
 	if err != nil {
-		logQueryError(query, "GroupBy", queryDuration)
+		logQueryError(user, query, "GroupBy", queryDuration)
 		return nil, err
 	}
-	logSlowQuery(query, "GroupBy", queryDuration)
+	logSlowQuery(user, query, "GroupBy", queryDuration)
 
 	groups, err = rowsToGroups(groupRows, groupedField, aggregates, filters)
 	if err != nil {

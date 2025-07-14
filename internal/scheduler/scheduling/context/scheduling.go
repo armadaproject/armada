@@ -62,7 +62,7 @@ type SchedulingContext struct {
 	// Maps to the JobSchedulingContext of a previous job attempted to schedule with the same key.
 	UnfeasibleSchedulingKeys     map[internaltypes.SchedulingKey]*JobSchedulingContext
 	ExperimentalIndicativeShares map[int]float64
-	SpotPrice                    float64
+	SpotPrice                    *float64
 }
 
 func NewSchedulingContext(
@@ -90,6 +90,13 @@ func (sctx *SchedulingContext) ClearUnfeasibleSchedulingKeys() {
 	sctx.UnfeasibleSchedulingKeys = make(map[internaltypes.SchedulingKey]*JobSchedulingContext)
 }
 
+func (sctx *SchedulingContext) GetSpotPrice() float64 {
+	if sctx.SpotPrice == nil {
+		return 0
+	}
+	return *sctx.SpotPrice
+}
+
 func (sctx *SchedulingContext) AddQueueSchedulingContext(
 	queue string,
 	weight float64,
@@ -97,6 +104,7 @@ func (sctx *SchedulingContext) AddQueueSchedulingContext(
 	initialAllocatedByPriorityClass map[string]internaltypes.ResourceList,
 	demand internaltypes.ResourceList,
 	constrainedDemand internaltypes.ResourceList,
+	shortJobPenalty internaltypes.ResourceList,
 	limiter *rate.Limiter,
 ) error {
 	if _, ok := sctx.QueueSchedulingContexts[queue]; ok {
@@ -126,6 +134,7 @@ func (sctx *SchedulingContext) AddQueueSchedulingContext(
 		RawWeight:                         rawWeight,
 		Limiter:                           limiter,
 		Allocated:                         allocated,
+		ShortJobPenalty:                   shortJobPenalty,
 		Demand:                            demand,
 		ConstrainedDemand:                 constrainedDemand,
 		AllocatedByPriorityClass:          initialAllocatedByPriorityClass,
@@ -134,6 +143,7 @@ func (sctx *SchedulingContext) AddQueueSchedulingContext(
 		PreemptedByOptimiserResourceByPriorityClass: make(map[string]internaltypes.ResourceList),
 		SuccessfulJobSchedulingContexts:             make(map[string]*JobSchedulingContext),
 		UnsuccessfulJobSchedulingContexts:           make(map[string]*JobSchedulingContext),
+		RescheduledJobSchedulingContexts:            make(map[string]*JobSchedulingContext),
 		PreemptedByOptimiserJobSchedulingContexts:   make(map[string]*JobSchedulingContext),
 		EvictedJobsById:                             make(map[string]bool),
 	}
@@ -484,7 +494,7 @@ func (sctx *SchedulingContext) AllocatedByQueueAndPriority() map[string]map[stri
 func (sctx *SchedulingContext) FairnessError() float64 {
 	fairnessError := 0.0
 	for _, qctx := range sctx.QueueSchedulingContexts {
-		actualShare := sctx.FairnessCostProvider.UnweightedCostFromQueue(qctx)
+		actualShare := sctx.FairnessCostProvider.UnweightedCostFromAllocation(qctx.GetAllocation())
 		delta := qctx.DemandCappedAdjustedFairShare - actualShare
 		if delta > 0 {
 			fairnessError += delta

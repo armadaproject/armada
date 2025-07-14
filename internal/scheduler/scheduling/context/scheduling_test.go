@@ -19,7 +19,7 @@ func TestSchedulingContextAccounting(t *testing.T) {
 	totalResources := testfixtures.TestResourceListFactory.FromNodeProto(
 		map[string]*resource.Quantity{"cpu": pointer.MustParseResource("1")},
 	)
-	fairnessCostProvider, err := fairness.NewDominantResourceFairness(totalResources, configuration.SchedulingConfig{DominantResourceFairnessResourcesToConsider: []string{"cpu"}})
+	fairnessCostProvider, err := fairness.NewDominantResourceFairness(totalResources, "pool", configuration.SchedulingConfig{DominantResourceFairnessResourcesToConsider: []string{"cpu"}})
 	require.NoError(t, err)
 	sctx := NewSchedulingContext(
 		"pool",
@@ -37,7 +37,15 @@ func TestSchedulingContextAccounting(t *testing.T) {
 	}
 	for _, queue := range []string{"A", "B"} {
 		priorityFactor := priorityFactorByQueue[queue]
-		err := sctx.AddQueueSchedulingContext(queue, priorityFactor, priorityFactor, allocatedByQueueAndPriorityClass[queue], internaltypes.ResourceList{}, internaltypes.ResourceList{}, nil)
+		err := sctx.AddQueueSchedulingContext(
+			queue, priorityFactor,
+			priorityFactor,
+			allocatedByQueueAndPriorityClass[queue],
+			internaltypes.ResourceList{},
+			internaltypes.ResourceList{},
+			internaltypes.ResourceList{},
+			nil,
+		)
 		require.NoError(t, err)
 	}
 
@@ -186,7 +194,7 @@ func TestCalculateFairShares(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			fairnessCostProvider, err := fairness.NewDominantResourceFairness(tc.availableResources, configuration.SchedulingConfig{DominantResourceFairnessResourcesToConsider: []string{"cpu"}})
+			fairnessCostProvider, err := fairness.NewDominantResourceFairness(tc.availableResources, "pool", configuration.SchedulingConfig{DominantResourceFairnessResourcesToConsider: []string{"cpu"}})
 			require.NoError(t, err)
 			sctx := NewSchedulingContext(
 				"pool",
@@ -196,7 +204,7 @@ func TestCalculateFairShares(t *testing.T) {
 			)
 			for qName, q := range tc.queueCtxs {
 				err = sctx.AddQueueSchedulingContext(
-					qName, q.Weight, q.Weight, map[string]internaltypes.ResourceList{}, q.Demand, q.Demand, nil)
+					qName, q.Weight, q.Weight, map[string]internaltypes.ResourceList{}, q.Demand, q.Demand, internaltypes.ResourceList{}, nil)
 				require.NoError(t, err)
 			}
 			sctx.UpdateFairShares()
@@ -278,7 +286,7 @@ func TestCalculateTheoreticalShare(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			fairnessCostProvider, err := fairness.NewDominantResourceFairness(tc.availableResources, configuration.SchedulingConfig{DominantResourceFairnessResourcesToConsider: []string{"cpu"}})
+			fairnessCostProvider, err := fairness.NewDominantResourceFairness(tc.availableResources, "pool", configuration.SchedulingConfig{DominantResourceFairnessResourcesToConsider: []string{"cpu"}})
 			require.NoError(t, err)
 			sctx := NewSchedulingContext(
 				"pool",
@@ -288,7 +296,15 @@ func TestCalculateTheoreticalShare(t *testing.T) {
 			)
 			for qName, q := range tc.queueCtxs {
 				err = sctx.AddQueueSchedulingContext(
-					qName, q.Weight, q.Weight, map[string]internaltypes.ResourceList{}, q.Demand, q.Demand, nil)
+					qName,
+					q.Weight,
+					q.Weight,
+					map[string]internaltypes.ResourceList{},
+					q.Demand,
+					q.Demand,
+					q.ShortJobPenalty,
+					nil,
+				)
 				require.NoError(t, err)
 			}
 			theoreticalShare := sctx.CalculateTheoreticalShare(tc.basePriority)
@@ -376,7 +392,7 @@ func TestCalculateFairnessError(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			fairnessCostProvider, err := fairness.NewDominantResourceFairness(tc.availableResources, configuration.SchedulingConfig{DominantResourceFairnessResourcesToConsider: []string{"cpu"}})
+			fairnessCostProvider, err := fairness.NewDominantResourceFairness(tc.availableResources, "pool", configuration.SchedulingConfig{DominantResourceFairnessResourcesToConsider: []string{"cpu"}})
 			require.NoError(t, err)
 			sctx := NewSchedulingContext("pool", fairnessCostProvider, nil, tc.availableResources)
 			sctx.QueueSchedulingContexts = tc.queueCtxs

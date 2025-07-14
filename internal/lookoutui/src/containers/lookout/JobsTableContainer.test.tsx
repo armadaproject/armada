@@ -8,19 +8,14 @@ import { v4 as uuidv4 } from "uuid"
 import { JobsTableContainer } from "./JobsTableContainer"
 import { queryClient } from "../../App"
 import { Job, JobState } from "../../models/lookoutModels"
+import { JOBS, V2_REDIRECT } from "../../pathnames"
 import { FakeServicesProvider } from "../../services/fakeContext"
-import { ICordonService } from "../../services/lookout/CordonService"
 import { IGetJobInfoService } from "../../services/lookout/GetJobInfoService"
 import { GetJobsResponse, IGetJobsService } from "../../services/lookout/GetJobsService"
-import { IGetRunInfoService } from "../../services/lookout/GetRunInfoService"
 import { IGroupJobsService } from "../../services/lookout/GroupJobsService"
-import { ILogService } from "../../services/lookout/LogService"
 import { UpdateJobSetsService } from "../../services/lookout/UpdateJobSetsService"
 import { UpdateJobsService } from "../../services/lookout/UpdateJobsService"
-import { FakeCordonService } from "../../services/lookout/mocks/FakeCordonService"
-import FakeGetJobInfoService from "../../services/lookout/mocks/FakeGetJobInfoService"
 import FakeGetJobsService from "../../services/lookout/mocks/FakeGetJobsService"
-import { FakeGetRunInfoService } from "../../services/lookout/mocks/FakeGetRunInfoService"
 import FakeGroupJobsService from "../../services/lookout/mocks/FakeGroupJobsService"
 import { MockServer } from "../../services/lookout/mocks/mockServer"
 import {
@@ -73,20 +68,13 @@ function makeTestJobs(
 }
 
 describe("JobsTableContainer", () => {
-  let getJobsService: IGetJobsService,
-    groupJobsService: IGroupJobsService,
-    runErrorService: IGetRunInfoService,
-    jobSpecService: IGetJobInfoService,
-    updateJobsService: UpdateJobsService
+  let getJobsService: IGetJobsService, groupJobsService: IGroupJobsService, updateJobsService: UpdateJobsService
 
   beforeAll(() => {
     mockServer.listen()
   })
 
   beforeEach(() => {
-    runErrorService = new FakeGetRunInfoService(false)
-    jobSpecService = new FakeGetJobInfoService(false)
-
     localStorage.clear()
     localStorage.setItem(FORMAT_NUMBER_SHOULD_FORMAT_KEY, JSON.stringify(false))
     localStorage.setItem(FORMAT_TIMESTAMP_SHOULD_FORMAT_KEY, JSON.stringify(false))
@@ -111,12 +99,9 @@ describe("JobsTableContainer", () => {
     fakeServices: {
       v2GetJobsService?: IGetJobsService
       v2GroupJobsService?: IGroupJobsService
-      v2RunInfoService?: IGetRunInfoService
       v2JobSpecService?: IGetJobInfoService
-      v2LogService?: ILogService
       v2UpdateJobsService?: UpdateJobsService
       v2UpdateJobSetsService?: UpdateJobSetsService
-      v2CordonService?: ICordonService
     } = {},
   ) => {
     getJobsService = new FakeGetJobsService(fakeJobs, false)
@@ -129,9 +114,6 @@ describe("JobsTableContainer", () => {
               getJobsService={fakeServices.v2GetJobsService ?? getJobsService}
               groupJobsService={fakeServices.v2GroupJobsService ?? groupJobsService}
               updateJobsService={fakeServices.v2UpdateJobsService ?? updateJobsService}
-              runInfoService={fakeServices.v2RunInfoService ?? runErrorService}
-              jobSpecService={fakeServices.v2JobSpecService ?? jobSpecService}
-              cordonService={fakeServices.v2CordonService ?? new FakeCordonService()}
               debug={false}
               autoRefreshMs={30000}
               commandSpecs={[]}
@@ -140,18 +122,18 @@ describe("JobsTableContainer", () => {
         </QueryClientProvider>
       </SnackbarProvider>
     )
-    let initialEntry = "/v2"
+    let initialEntry = V2_REDIRECT
     if (search !== undefined) {
       initialEntry += search
     }
     const router = createMemoryRouter(
       [
         {
-          path: "/",
+          path: JOBS,
           element: <>Navigated from Start</>,
         },
         {
-          path: "/v2",
+          path: V2_REDIRECT,
           element: element,
         },
       ],

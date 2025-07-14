@@ -29,6 +29,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/kubernetesobjects/affinity"
 	"github.com/armadaproject/armada/internal/scheduler/leader"
 	"github.com/armadaproject/armada/internal/scheduler/metrics"
+	"github.com/armadaproject/armada/internal/scheduler/pricing"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/scheduling/context"
@@ -37,6 +38,7 @@ import (
 	apiconfig "github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
+	"github.com/armadaproject/armada/pkg/bidstore"
 	"github.com/armadaproject/armada/pkg/metricevents"
 )
 
@@ -72,6 +74,26 @@ var (
 			{
 				Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
 					PodRequirements: &schedulerobjects.PodRequirements{},
+				},
+			},
+		},
+		Version: 1,
+	}
+	preemptibleSchedulingInfoBytes = protoutil.MustMarshall(preemptibleSchedulingInfo)
+	preemptibleGangSchedulingInfo  = &schedulerobjects.JobSchedulingInfo{
+		AtMostOnce:        true,
+		Preemptible:       true,
+		PriorityClassName: testfixtures.PriorityClass1,
+		ObjectRequirements: []*schedulerobjects.ObjectRequirements{
+			{
+				Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
+					PodRequirements: &schedulerobjects.PodRequirements{
+						Annotations: map[string]string{
+							apiconfig.GangCardinalityAnnotation:         "4",
+							apiconfig.GangIdAnnotation:                  "id",
+							apiconfig.GangNodeUniformityLabelAnnotation: "uniformity",
+						},
+					},
 				},
 			},
 		},
@@ -251,6 +273,11 @@ var leasedFailFastJob = testfixtures.NewJob(
 	1,
 	true,
 ).WithNewRun("testExecutor", "test-node", "node", "pool", 5)
+
+var (
+	preemptibleGangJob1 = createPreemptibleGangJob()
+	preemptibleGangJob2 = createPreemptibleGangJob()
+)
 
 var (
 	testExecutor        = "test-executor"
@@ -609,6 +636,24 @@ func TestScheduler_TestCycle(t *testing.T) {
 			expectedTerminal:        []string{preemptibleLeasedJob.Id()},
 			expectedQueuedVersion:   preemptibleLeasedJob.QueuedVersion(),
 		},
+		"Gang Job Run preemption requested - preempts all members of the same gang": {
+			initialJobs: []*jobdb.Job{preemptibleGangJob1, preemptibleGangJob2},
+			runUpdates: []database.Run{
+				{
+					RunID:            preemptibleGangJob1.LatestRun().Id(),
+					JobID:            preemptibleGangJob1.Id(),
+					JobSet:           "testJobSet",
+					Executor:         "testExecutor",
+					PreemptRequested: true,
+					Serial:           1,
+				},
+			},
+			expectedJobRunPreempted: []string{preemptibleGangJob1.Id(), preemptibleGangJob2.Id()},
+			expectedJobErrors:       []string{preemptibleGangJob1.Id(), preemptibleGangJob2.Id()},
+			expectedJobRunErrors:    []string{preemptibleGangJob1.Id(), preemptibleGangJob2.Id()},
+			expectedTerminal:        []string{preemptibleGangJob1.Id(), preemptibleGangJob2.Id()},
+			expectedQueuedVersion:   preemptibleGangJob1.QueuedVersion(),
+		},
 		"Job Run preemption requested - job not pre-emptible - no action expected": {
 			initialJobs: []*jobdb.Job{leasedJob},
 			runUpdates: []database.Run{
@@ -834,9 +879,12 @@ func TestScheduler_TestCycle(t *testing.T) {
 				1*time.Second,
 				5*time.Second,
 				clusterTimeout,
+				nil,
 				maxNumberOfAttempts,
 				nodeIdLabel,
 				schedulerMetrics,
+				pricing.NoopBidPriceProvider{},
+				[]string{},
 			)
 			require.NoError(t, err)
 			sched.EnableAssertions()
@@ -991,9 +1039,12 @@ func TestRun(t *testing.T) {
 		1*time.Second,
 		15*time.Second,
 		1*time.Hour,
+		nil,
 		maxNumberOfAttempts,
 		nodeIdLabel,
 		schedulerMetrics,
+		pricing.NoopBidPriceProvider{},
+		[]string{},
 	)
 	require.NoError(t, err)
 	sched.EnableAssertions()
@@ -1040,52 +1091,273 @@ func TestRun(t *testing.T) {
 	cancel()
 }
 
-func TestScheduler_TestSyncInitialState(t *testing.T) {
+// Test job pricing data is updated through subsequent scheduling rounds
+func TestJobPriceUpdates(t *testing.T) {
+	queuedJob := database.Job{JobID: util.NewULID(), Queue: "testQueue", Queued: true, Validated: true, Pools: []string{testfixtures.TestPool}, SchedulingInfo: schedulingInfoBytes, PriceBand: 2}
+	runningJob := database.Job{JobID: util.NewULID(), Queue: "testQueue", Queued: false, Validated: true, Pools: []string{testfixtures.TestPool}, SchedulingInfo: schedulingInfoBytes, PriceBand: 2}
+	queuedJobNoPricingInfo := database.Job{JobID: util.NewULID(), Queue: "testQueue2", Queued: true, Validated: true, Pools: []string{testfixtures.TestPool}, SchedulingInfo: schedulingInfoBytes, PriceBand: 2}
+	runningJobNoPricingInfo := database.Job{JobID: util.NewULID(), Queue: "testQueue2", Queued: false, Validated: true, Pools: []string{testfixtures.TestPool}, SchedulingInfo: schedulingInfoBytes, PriceBand: 2}
+	queuedPreemptibleJob := database.Job{JobID: util.NewULID(), Queue: "testQueue", Queued: true, Validated: true, Pools: []string{testfixtures.TestPool}, SchedulingInfo: preemptibleSchedulingInfoBytes, PriceBand: 2}
+	runningPreemptibleJob := database.Job{JobID: util.NewULID(), Queue: "testQueue", Queued: false, Validated: true, Pools: []string{testfixtures.TestPool}, SchedulingInfo: preemptibleSchedulingInfoBytes, PriceBand: 2}
+	queuedPreemptibleJobNoPricingInfo := database.Job{JobID: util.NewULID(), Queue: "testQueue2", Queued: true, Validated: true, Pools: []string{testfixtures.TestPool}, SchedulingInfo: preemptibleSchedulingInfoBytes, PriceBand: 2}
+	runningPreemptibleJobNoPricingInfo := database.Job{JobID: util.NewULID(), Queue: "testQueue2", Queued: false, Validated: true, Pools: []string{testfixtures.TestPool}, SchedulingInfo: preemptibleSchedulingInfoBytes, PriceBand: 2}
+	jobWithoutMarketDrivenPools := database.Job{JobID: util.NewULID(), Queue: "testQueue", Queued: true, Validated: true, Pools: []string{"other"}, SchedulingInfo: schedulingInfoBytes}
+
+	expectedInitialBid := map[string]pricing.Bid{testfixtures.TestPool: {QueuedBid: 2, RunningBid: 2}}
+	expectedUpdatedBid := map[string]pricing.Bid{testfixtures.TestPool: {QueuedBid: 3, RunningBid: 3}}
+
+	// Test runs for 3 rounds
+	// - 1. Run as leader
+	// - 2. Run as follower, prices updated
+	// - 3. Run as leader
 	tests := map[string]struct {
-		initialJobs             []database.Job /// jobs in the jobdb at the start of the cycle
-		initialJobRuns          []database.Run // jobs runs in the jobdb at the start of the cycle
-		expectedInitialJobs     []*jobdb.Job
-		expectedInitialJobDbIds []string
-		expectedJobsSerial      int64
-		expectedRunsSerial      int64
+		marketDrivenPools             []string
+		initialJob                    database.Job
+		expectedNumberOfProviderCalls []int
+		expectedJobBid                []map[string]pricing.Bid
+		expectedJobBidPrice           []float64
 	}{
+		"no market driven pools": {
+			// No market driven pools, so prices shouldn't be getting updated
+			marketDrivenPools:             []string{},
+			initialJob:                    queuedJob,
+			expectedNumberOfProviderCalls: []int{0, 0, 0},
+			expectedJobBid:                []map[string]pricing.Bid{nil, nil, nil},
+			expectedJobBidPrice:           []float64{0, 0, 0},
+		},
+		"job with no market driven pools": {
+			// No need to set price on job that doesn't belong to market driven pools
+			marketDrivenPools:             []string{testfixtures.TestPool},
+			initialJob:                    jobWithoutMarketDrivenPools,
+			expectedNumberOfProviderCalls: []int{1, 1, 2},
+			expectedJobBid:                []map[string]pricing.Bid{nil, nil, nil},
+			expectedJobBidPrice:           []float64{0, 0, 0},
+		},
+		"non-preemptible queued job": {
+			// No market driven pools, so prices shouldn't be getting updated
+			marketDrivenPools:             []string{testfixtures.TestPool},
+			initialJob:                    queuedJob,
+			expectedNumberOfProviderCalls: []int{1, 1, 2},
+			expectedJobBid:                []map[string]pricing.Bid{expectedInitialBid, expectedInitialBid, expectedUpdatedBid},
+			expectedJobBidPrice:           []float64{2, 2, 3},
+		},
+		"non-preemptible running job": {
+			// No market driven pools, so prices shouldn't be getting updated
+			marketDrivenPools:             []string{testfixtures.TestPool},
+			initialJob:                    runningJob,
+			expectedNumberOfProviderCalls: []int{1, 1, 2},
+			expectedJobBid:                []map[string]pricing.Bid{expectedInitialBid, expectedInitialBid, expectedUpdatedBid},
+			expectedJobBidPrice:           []float64{pricing.NonPreemptibleRunningPrice, pricing.NonPreemptibleRunningPrice, pricing.NonPreemptibleRunningPrice},
+		},
+		"non-preemptible queued job with no pricing info": {
+			// No market driven pools, so prices shouldn't be getting updated
+			marketDrivenPools:             []string{testfixtures.TestPool},
+			initialJob:                    queuedJobNoPricingInfo,
+			expectedNumberOfProviderCalls: []int{1, 1, 2},
+			expectedJobBid:                []map[string]pricing.Bid{nil, nil, nil},
+			expectedJobBidPrice:           []float64{0, 0, 0},
+		},
+		"non-preemptible running job with no pricing info": {
+			// No market driven pools, so prices shouldn't be getting updated
+			marketDrivenPools:             []string{testfixtures.TestPool},
+			initialJob:                    runningJobNoPricingInfo,
+			expectedNumberOfProviderCalls: []int{1, 1, 2},
+			expectedJobBid:                []map[string]pricing.Bid{nil, nil, nil},
+			expectedJobBidPrice:           []float64{pricing.NonPreemptibleRunningPrice, pricing.NonPreemptibleRunningPrice, pricing.NonPreemptibleRunningPrice},
+		},
+		"preemptible queued job": {
+			// No market driven pools, so prices shouldn't be getting updated
+			marketDrivenPools:             []string{testfixtures.TestPool},
+			initialJob:                    queuedPreemptibleJob,
+			expectedNumberOfProviderCalls: []int{1, 1, 2},
+			expectedJobBid:                []map[string]pricing.Bid{expectedInitialBid, expectedInitialBid, expectedUpdatedBid},
+			expectedJobBidPrice:           []float64{2, 2, 3},
+		},
+		"preemptible running job": {
+			// No market driven pools, so prices shouldn't be getting updated
+			marketDrivenPools:             []string{testfixtures.TestPool},
+			initialJob:                    runningPreemptibleJob,
+			expectedNumberOfProviderCalls: []int{1, 1, 2},
+			expectedJobBid:                []map[string]pricing.Bid{expectedInitialBid, expectedInitialBid, expectedUpdatedBid},
+			expectedJobBidPrice:           []float64{2, 2, 3},
+		},
+		"preemptible queued job - no pricing info": {
+			// No market driven pools, so prices shouldn't be getting updated
+			marketDrivenPools:             []string{testfixtures.TestPool},
+			initialJob:                    queuedPreemptibleJobNoPricingInfo,
+			expectedNumberOfProviderCalls: []int{1, 1, 2},
+			expectedJobBid:                []map[string]pricing.Bid{nil, nil, nil},
+			expectedJobBidPrice:           []float64{0, 0, 0},
+		},
+		"preemptible running job - no pricing info": {
+			// No market driven pools, so prices shouldn't be getting updated
+			marketDrivenPools:             []string{testfixtures.TestPool},
+			initialJob:                    runningPreemptibleJobNoPricingInfo,
+			expectedNumberOfProviderCalls: []int{1, 1, 2},
+			expectedJobBid:                []map[string]pricing.Bid{nil, nil, nil},
+			expectedJobBidPrice:           []float64{0, 0, 0},
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Test objects
+			jobDb := testfixtures.NewJobDb(testfixtures.TestResourceListFactory)
+			jobRepo := testJobRepository{numReceivedPartitions: 100}
+			testClock := clock.NewFakeClock(time.Now())
+			schedulingAlgo := &testSchedulingAlgo{}
+			publisher := &testPublisher{}
+			priceProvider := &testBidPriceProvider{
+				pools:  tc.marketDrivenPools,
+				queues: []string{"testQueue"},
+				priceFunc: func(band bidstore.PriceBand) float64 {
+					return float64(band)
+				},
+			}
+			clusterRepo := &testExecutorRepository{}
+			leaderController := leader.NewStandaloneLeaderController()
+			submitChecker := &testSubmitChecker{checkSuccess: true}
+			sched, err := NewScheduler(
+				jobDb,
+				&jobRepo,
+				clusterRepo,
+				schedulingAlgo,
+				leaderController,
+				publisher,
+				submitChecker,
+				1*time.Second,
+				15*time.Second,
+				1*time.Hour,
+				nil,
+				maxNumberOfAttempts,
+				nodeIdLabel,
+				schedulerMetrics,
+				priceProvider,
+				tc.marketDrivenPools,
+			)
+			require.NoError(t, err)
+
+			sched.clock = testClock
+
+			ctx, cancel := armadacontext.WithCancel(armadacontext.Background())
+			jobRepo.initialJobs = []database.Job{tc.initialJob}
+
+			//nolint:errcheck
+			go sched.Run(ctx)
+
+			time.Sleep(1 * time.Second)
+
+			// Function that runs a cycle and waits until it sees published messages
+			fireCycle := func() {
+				publisher.Reset()
+				wg := sync.WaitGroup{}
+				wg.Add(1)
+				sched.onCycleCompleted = func() { wg.Done() }
+				testClock.Step(10 * time.Second)
+				wg.Wait()
+			}
+
+			// fire a cycle and assert that we became leader and published
+			fireCycle()
+			currentJob := jobDb.ReadTxn().GetById(tc.initialJob.JobID)
+			assert.NotNil(t, currentJob)
+			assert.Equal(t, tc.expectedJobBid[0], currentJob.GetAllBidPrices())
+			assert.Equal(t, tc.expectedJobBidPrice[0], currentJob.GetBidPrice(testfixtures.TestPool))
+			assert.Equal(t, priceProvider.numberOfCalls, tc.expectedNumberOfProviderCalls[0])
+
+			// invalidate our leadership: we shouldn't update prices
+			leaderController.SetToken(leader.InvalidLeaderToken())
+			priceProvider.priceFunc = func(band bidstore.PriceBand) float64 {
+				return float64(band) + 1
+			}
+			fireCycle()
+			currentJob = jobDb.ReadTxn().GetById(tc.initialJob.JobID)
+			assert.NotNil(t, currentJob)
+			assert.Equal(t, tc.expectedJobBid[1], currentJob.GetAllBidPrices())
+			assert.Equal(t, tc.expectedJobBidPrice[1], currentJob.GetBidPrice(testfixtures.TestPool))
+			assert.Equal(t, priceProvider.numberOfCalls, tc.expectedNumberOfProviderCalls[1])
+
+			// become master again: we shouldn't update prices
+			leaderController.SetToken(leader.NewLeaderToken())
+			fireCycle()
+			currentJob = jobDb.ReadTxn().GetById(tc.initialJob.JobID)
+			assert.NotNil(t, currentJob)
+			assert.Equal(t, tc.expectedJobBid[2], currentJob.GetAllBidPrices())
+			assert.Equal(t, tc.expectedJobBidPrice[2], currentJob.GetBidPrice(testfixtures.TestPool))
+			assert.Equal(t, priceProvider.numberOfCalls, tc.expectedNumberOfProviderCalls[2])
+
+			cancel()
+		})
+	}
+}
+
+func TestScheduler_TestSyncInitialState(t *testing.T) {
+	var maxJobSerial int64 = 5
+	var maxRunSerial int64 = 3
+	tests := map[string]struct {
+		jobRepo                  *testJobRepository
+		expectedInitialJobs      []*jobdb.Job
+		expectedInitialJobDbIds  []string
+		expectedJobsSerial       int64
+		expectedRunsSerial       int64
+		expectedInitialJobSerial int64
+		expectedInitialRunSerial int64
+	}{
+		"empty db": {
+			jobRepo:                  &testJobRepository{},
+			expectedInitialJobs:      []*jobdb.Job{},
+			expectedInitialJobDbIds:  []string{},
+			expectedJobsSerial:       -1,
+			expectedRunsSerial:       -1,
+			expectedInitialJobSerial: -1,
+			expectedInitialRunSerial: -1,
+		},
 		"no initial jobs": {
-			initialJobs:             []database.Job{},
-			initialJobRuns:          []database.Run{},
-			expectedInitialJobs:     []*jobdb.Job{},
-			expectedInitialJobDbIds: []string{},
-			expectedJobsSerial:      -1,
-			expectedRunsSerial:      -1,
+			jobRepo: &testJobRepository{
+				maxJobSerial: &maxJobSerial,
+				maxRunSerial: &maxRunSerial,
+			},
+			expectedInitialJobs:      []*jobdb.Job{},
+			expectedInitialJobDbIds:  []string{},
+			expectedJobsSerial:       5,
+			expectedRunsSerial:       3,
+			expectedInitialJobSerial: 5,
+			expectedInitialRunSerial: 3,
 		},
 		"initial jobs are present": {
-			initialJobs: []database.Job{
-				{
-					JobID:          queuedJob.Id(),
-					JobSet:         queuedJob.Jobset(),
-					Queue:          queuedJob.Queue(),
-					Queued:         false,
-					QueuedVersion:  1,
-					Priority:       int64(queuedJob.Priority()),
-					SchedulingInfo: schedulingInfoBytes,
-					Serial:         1,
-					Validated:      true,
-					Submitted:      1,
+			jobRepo: &testJobRepository{
+				initialJobs: []database.Job{
+					{
+						JobID:          queuedJob.Id(),
+						JobSet:         queuedJob.Jobset(),
+						Queue:          queuedJob.Queue(),
+						Queued:         false,
+						QueuedVersion:  1,
+						Priority:       int64(queuedJob.Priority()),
+						SchedulingInfo: schedulingInfoBytes,
+						Serial:         1,
+						Validated:      true,
+						Submitted:      1,
+						PriceBand:      3,
+					},
 				},
-			},
-			initialJobRuns: []database.Run{
-				{
-					RunID:    leasedJob.LatestRun().Id(),
-					JobID:    queuedJob.Id(),
-					JobSet:   queuedJob.Jobset(),
-					Executor: "test-executor",
-					Node:     "test-node",
-					Created:  123,
-					ScheduledAtPriority: func() *int32 {
-						scheduledAtPriority := int32(5)
-						return &scheduledAtPriority
-					}(),
-					Serial: 1,
+				initialRuns: []database.Run{
+					{
+						RunID:    leasedJob.LatestRun().Id(),
+						JobID:    queuedJob.Id(),
+						JobSet:   queuedJob.Jobset(),
+						Executor: "test-executor",
+						Node:     "test-node",
+						Created:  123,
+						ScheduledAtPriority: func() *int32 {
+							scheduledAtPriority := int32(5)
+							return &scheduledAtPriority
+						}(),
+						Serial: 1,
+					},
 				},
+				maxJobSerial: &maxJobSerial,
+				maxRunSerial: &maxRunSerial,
 			},
 			expectedInitialJobs: []*jobdb.Job{
 				queuedJob.WithUpdatedRun(
@@ -1113,7 +1385,7 @@ func TestScheduler_TestSyncInitialState(t *testing.T) {
 						nil,
 						false,
 						false,
-					)).WithQueued(false).WithQueuedVersion(1),
+					)).WithQueued(false).WithQueuedVersion(1).WithPriceBand(bidstore.PriceBand_PRICE_BAND_C),
 			},
 			expectedInitialJobDbIds: []string{queuedJob.Id()},
 			expectedJobsSerial:      1,
@@ -1126,17 +1398,13 @@ func TestScheduler_TestSyncInitialState(t *testing.T) {
 			defer cancel()
 
 			// Test objects
-			jobRepo := &testJobRepository{
-				initialJobs: tc.initialJobs,
-				initialRuns: tc.initialJobRuns,
-			}
 			schedulingAlgo := &testSchedulingAlgo{}
 			publisher := &testPublisher{}
 			clusterRepo := &testExecutorRepository{}
 			leaderController := leader.NewStandaloneLeaderController()
 			sched, err := NewScheduler(
 				testfixtures.NewJobDb(testfixtures.TestResourceListFactory),
-				jobRepo,
+				tc.jobRepo,
 				clusterRepo,
 				schedulingAlgo,
 				leaderController,
@@ -1145,9 +1413,12 @@ func TestScheduler_TestSyncInitialState(t *testing.T) {
 				1*time.Second,
 				5*time.Second,
 				1*time.Hour,
+				nil,
 				maxNumberOfAttempts,
 				nodeIdLabel,
 				schedulerMetrics,
+				pricing.NoopBidPriceProvider{},
+				[]string{},
 			)
 			require.NoError(t, err)
 			sched.EnableAssertions()
@@ -1353,9 +1624,12 @@ func TestScheduler_TestSyncState(t *testing.T) {
 				1*time.Second,
 				5*time.Second,
 				1*time.Hour,
+				nil,
 				maxNumberOfAttempts,
 				nodeIdLabel,
 				schedulerMetrics,
+				pricing.NoopBidPriceProvider{},
+				[]string{},
 			)
 			require.NoError(t, err)
 			sched.EnableAssertions()
@@ -1413,6 +1687,8 @@ type testJobRepository struct {
 	errors                map[string]*armadaevents.Error
 	shouldError           bool
 	numReceivedPartitions uint32
+	maxJobSerial          *int64
+	maxRunSerial          *int64
 }
 
 func (t *testJobRepository) FindInactiveRuns(ctx *armadacontext.Context, runIds []string) ([]string, error) {
@@ -1446,11 +1722,11 @@ func (t *testJobRepository) CountReceivedPartitions(ctx *armadacontext.Context, 
 	return t.numReceivedPartitions, nil
 }
 
-func (t *testJobRepository) FetchInitialJobs(ctx *armadacontext.Context) ([]database.Job, []database.Run, error) {
+func (t *testJobRepository) FetchInitialJobs(ctx *armadacontext.Context) ([]database.Job, []database.Run, *int64, *int64, error) {
 	if t.shouldError {
-		return nil, nil, errors.New("error fetching job updates")
+		return nil, nil, nil, nil, errors.New("error fetching job updates")
 	}
-	return t.initialJobs, t.initialRuns, nil
+	return t.initialJobs, t.initialRuns, t.maxJobSerial, t.maxRunSerial, nil
 }
 
 type testExecutorRepository struct {
@@ -1502,6 +1778,9 @@ func (t *testSchedulingAlgo) Schedule(_ *armadacontext.Context, txn *jobdb.Txn) 
 		job := txn.GetById(id)
 		if job == nil {
 			return nil, errors.Errorf("was asked to preempt job %s but job does not exist", id)
+		}
+		if job.InTerminalState() {
+			return nil, errors.Errorf("was asked to preempt job %s but job is in terminal state", id)
 		}
 		if job.Queued() {
 			return nil, errors.Errorf("was asked to preempt job %s but job is still queued", job.Id())
@@ -1559,6 +1838,38 @@ func NewSchedulerResultForTest[S ~[]T, T *jobdb.Job](
 		ScheduledJobs: schedulercontext.JobSchedulingContextsFromJobs(scheduledJobs),
 		NodeIdByJobId: nodeIdByJobId,
 	}
+}
+
+type testBidPriceProvider struct {
+	numberOfCalls int
+	pools         []string
+	queues        []string
+	priceFunc     func(band bidstore.PriceBand) float64
+}
+
+func (t *testBidPriceProvider) GetBidPrices(ctx *armadacontext.Context) (pricing.BidPriceSnapshot, error) {
+	t.numberOfCalls++
+	snapshot := pricing.BidPriceSnapshot{
+		Timestamp: time.Now(),
+		Bids:      make(map[pricing.PriceKey]map[string]pricing.Bid),
+	}
+
+	for _, q := range t.queues {
+		for _, band := range bidstore.PriceBandFromShortName {
+			key := pricing.PriceKey{Queue: q, Band: band}
+			bids := make(map[string]pricing.Bid)
+
+			for _, pool := range t.pools {
+				bids[pool] = pricing.Bid{
+					QueuedBid:  t.priceFunc(band),
+					RunningBid: t.priceFunc(band),
+				}
+			}
+
+			snapshot.Bids[key] = bids
+		}
+	}
+	return snapshot, nil
 }
 
 type testPublisher struct {
@@ -1793,6 +2104,7 @@ func jobDbJobFromDbJob(resourceListFactory *internaltypes.ResourceListFactory, j
 		0,
 		job.Validated,
 		job.Pools,
+		0,
 	)
 	if err != nil {
 		panic(err)
@@ -2449,9 +2761,12 @@ func TestCycleConsistency(t *testing.T) {
 					1*time.Second,
 					5*time.Second,
 					0,
+					nil,
 					maxNumberOfAttempts,
 					nodeIdLabel,
 					schedulerMetrics,
+					pricing.NoopBidPriceProvider{},
+					[]string{},
 				)
 				require.NoError(t, err)
 				scheduler.clock = testClock
@@ -2874,4 +3189,21 @@ func toInternalSchedulingInfo(j *schedulerobjects.JobSchedulingInfo) *internalty
 		panic(err)
 	}
 	return internalJsi
+}
+
+func createPreemptibleGangJob() *jobdb.Job {
+	return testfixtures.NewJob(
+		util.NewULID(),
+		"testJobset",
+		"testQueue",
+		0,
+		toInternalSchedulingInfo(preemptibleGangSchedulingInfo),
+		false,
+		1,
+		false,
+		false,
+		false,
+		1,
+		true,
+	).WithNewRun("testExecutor", "test-node", "node", "pool", 5)
 }

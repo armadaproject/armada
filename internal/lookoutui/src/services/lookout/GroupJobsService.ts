@@ -1,7 +1,9 @@
+// TODO(mauriceyap): remove this in favour of custom hooks using @tanstack/react-query
 import { JobFilter, JobGroup, JobOrder } from "../../models/lookoutModels"
 
 export interface IGroupJobsService {
   groupJobs(
+    fetchFunc: GlobalFetch["fetch"],
     filters: JobFilter[],
     activeJobSets: boolean,
     order: JobOrder,
@@ -30,6 +32,7 @@ export class GroupJobsService implements IGroupJobsService {
   }
 
   async groupJobs(
+    fetchFunc: GlobalFetch["fetch"],
     filters: JobFilter[],
     activeJobSets: boolean,
     order: JobOrder,
@@ -43,7 +46,7 @@ export class GroupJobsService implements IGroupJobsService {
     if (this.backend) {
       path += "?" + new URLSearchParams({ backend: this.backend })
     }
-    const response = await fetch(path, {
+    const response = await fetchFunc(path, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

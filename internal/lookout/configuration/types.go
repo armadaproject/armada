@@ -3,11 +3,14 @@ package configuration
 import (
 	"time"
 
+	authconfig "github.com/armadaproject/armada/internal/common/auth/configuration"
 	profilingconfig "github.com/armadaproject/armada/internal/common/profiling/configuration"
 	"github.com/armadaproject/armada/internal/server/configuration"
 )
 
 type LookoutConfig struct {
+	Auth authconfig.AuthConfig
+
 	ApiPort     int
 	Profiling   *profilingconfig.ProfilingConfig
 	MetricsPort int

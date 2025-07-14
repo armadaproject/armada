@@ -3,6 +3,7 @@ package jobdb
 import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/pkg/errors"
+	"golang.org/x/exp/maps"
 
 	armadamath "github.com/armadaproject/armada/internal/common/math"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
@@ -19,14 +20,15 @@ import (
 type JobStateTransitions struct {
 	Job *Job
 
-	Queued    bool
-	Leased    bool
-	Pending   bool
-	Running   bool
-	Cancelled bool
-	Preempted bool
-	Failed    bool
-	Succeeded bool
+	Queued              bool
+	Leased              bool
+	Pending             bool
+	Running             bool
+	Cancelled           bool
+	PreemptionRequested bool
+	Preempted           bool
+	Failed              bool
+	Succeeded           bool
 }
 
 // applyRunStateTransitions applies the state transitions of a run to that of the associated job.
@@ -36,6 +38,7 @@ func (jst JobStateTransitions) applyRunStateTransitions(rst RunStateTransitions)
 	jst.Pending = jst.Pending || rst.Pending
 	jst.Running = jst.Running || rst.Running
 	jst.Cancelled = jst.Cancelled || rst.Cancelled
+	jst.PreemptionRequested = jst.PreemptionRequested || rst.PreemptionRequested
 	jst.Preempted = jst.Preempted || rst.Preempted
 	jst.Failed = jst.Failed || rst.Failed
 	jst.Succeeded = jst.Succeeded || rst.Succeeded
@@ -47,14 +50,15 @@ func (jst JobStateTransitions) applyRunStateTransitions(rst RunStateTransitions)
 type RunStateTransitions struct {
 	JobRun *JobRun
 
-	Leased    bool
-	Returned  bool
-	Pending   bool
-	Running   bool
-	Cancelled bool
-	Preempted bool
-	Failed    bool
-	Succeeded bool
+	Leased              bool
+	Returned            bool
+	Pending             bool
+	Running             bool
+	Cancelled           bool
+	PreemptionRequested bool
+	Preempted           bool
+	Failed              bool
+	Succeeded           bool
 }
 
 // ReconcileDifferences reconciles any differences between jobs stored in the jobDb with those provided to this function
@@ -77,25 +81,59 @@ func (jobDb *JobDb) ReconcileDifferences(txn *Txn, jobRepoJobs []database.Job, j
 		func(jobRepoRun database.Run) *database.Run { return &jobRepoRun },
 	)
 
-	jsts := make([]JobStateTransitions, 0, len(jobRepoJobsById))
+	jsts := make(map[string]JobStateTransitions, len(jobRepoJobsById))
+	jobIdsToMarkAsPreemptionRequested := []string{}
+
 	for jobId, jobRepoJob := range jobRepoJobsById {
+		job := txn.GetById(jobId)
 		jst, err := jobDb.reconcileJobDifferences(
-			txn.GetById(jobId),     // Existing job in the jobDb.
+			job,                    // Existing job in the jobDb.
 			jobRepoJob,             // New or updated job from the jobRepo.
 			jobRepoRunsById[jobId], // New or updated runs associated with this job from the jobRepo.
 		)
 		if err != nil {
 			return nil, err
 		}
+		if jst.PreemptionRequested && job.GetGangInfo().IsGang() {
+			jobsInGang := txn.GetGangJobsIdsByGangId(job.Queue(), job.GetGangInfo().Id())
+			jobIdsToMarkAsPreemptionRequested = append(jobIdsToMarkAsPreemptionRequested, jobsInGang...)
+		}
 
 		// We receive nil jobs from jobDb.ReconcileDifferences if a run is updated after the associated job is deleted.
 		// In this case it is safe to ignore the jst.
 		// TODO: don't generate a jst in the first place if this is the case!
 		if jst.Job != nil {
-			jsts = append(jsts, jst)
+			jsts[jobId] = jst
 		}
 	}
-	return jsts, nil
+	markJobsAsPreemptionRequested(txn, jobIdsToMarkAsPreemptionRequested, jsts)
+	return maps.Values(jsts), nil
+}
+
+func markJobsAsPreemptionRequested(txn *Txn, jobIds []string, jsts map[string]JobStateTransitions) {
+	for _, jobId := range jobIds {
+		jst, exists := jsts[jobId]
+		if !exists {
+			job := txn.GetById(jobId)
+			if job == nil {
+				continue
+			}
+			jst = JobStateTransitions{
+				Job: job,
+			}
+		}
+		if jst.PreemptionRequested {
+			continue
+		} else {
+			jobRun := jst.Job.LatestRun()
+			if jobRun != nil {
+				jobRun = jobRun.WithPreemptRequested(true)
+			}
+			jst.Job = jst.Job.WithUpdatedRun(jobRun)
+			jst.PreemptionRequested = true
+		}
+		jsts[jobId] = jst
+	}
 }
 
 // reconcileJobDifferences takes as its arguments for some job id
@@ -206,6 +244,7 @@ func (jobDb *JobDb) reconcileRunDifferences(jobRun *JobRun, jobRepoRun *database
 		}
 		if jobRepoRun.PreemptRequested && !jobRun.PreemptRequested() {
 			jobRun = jobRun.WithPreemptRequested(true)
+			rst.PreemptionRequested = true
 		}
 		if jobRepoRun.Preempted && !jobRun.Preempted() {
 			jobRun = jobRun.WithPreempted(true).WithRunning(false).WithPreemptedTime(jobRepoRun.PreemptedTimestamp)
@@ -283,6 +322,7 @@ func (jobDb *JobDb) schedulerJobFromDatabaseJob(dbJob *database.Job) (*Job, erro
 		dbJob.Submitted,
 		dbJob.Validated,
 		dbJob.Pools,
+		dbJob.PriceBand,
 	)
 	if err != nil {
 		return nil, err

@@ -670,7 +670,15 @@ func (nodeDb *NodeDb) selectNodeForPodWithItAtPriority(
 		var reason PodRequirementsNotMetReason
 		var err error
 		if onlyCheckDynamicRequirements {
-			matches, reason = DynamicJobRequirementsMet(node.AllocatableByPriority[priority], jctx)
+			// Always reschedule jobs onto overallocated nodes
+			// Otherwise we may preempt jobs because the resources have unexpectedly reduced momentarily
+			//  which can happen for a variety of reasons with external resources (i.e gpu-operator restart blips the gpu count to 0)
+			// It should be safe as the nodes are also unschedulable, so no new resource should get scheduled there
+			if node.IsUnschedulable() && node.IsOverAllocated() {
+				matches = true
+			} else {
+				matches, reason = DynamicJobRequirementsMet(node.AllocatableByPriority[priority], jctx)
+			}
 		} else {
 			matches, reason, err = JobRequirementsMet(node, priority, jctx)
 		}
@@ -782,7 +790,7 @@ func (nodeDb *NodeDb) selectNodeForJobWithFairPreemption(txn *memdb.Txn, jctx *c
 			if priority > maxPriority {
 				maxPriority = priority
 			}
-			job.JobSchedulingContext.PreemptingJobId = jctx.JobId
+			job.JobSchedulingContext.PreemptingJob = jctx.Job
 		}
 
 		selectedNode = nodeCopy

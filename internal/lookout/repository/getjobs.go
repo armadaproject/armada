@@ -9,6 +9,7 @@ import (
 	"k8s.io/utils/clock"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/common/auth"
 	"github.com/armadaproject/armada/internal/common/database"
 	"github.com/armadaproject/armada/internal/common/database/lookout"
 	"github.com/armadaproject/armada/internal/lookout/model"
@@ -63,21 +64,22 @@ func (r *SqlGetJobsRepository) GetJobs(ctx *armadacontext.Context, filters []*mo
 }
 
 func (r *SqlGetJobsRepository) getJobs(ctx *armadacontext.Context, filters []*model.Filter, activeJobSets bool, order *model.Order, skip int, take int) (*GetJobsResult, error) {
+	user := auth.GetPrincipal(ctx).GetName()
 	query, err := NewQueryBuilder(r.lookoutTables).GetJobs(filters, activeJobSets, order, skip, take)
 	if err != nil {
 		return nil, err
 	}
-	logQueryDebug(query, "GetJobs")
+	logQueryDebug(user, query, "GetJobs")
 	var jobs []*model.Job
 
 	queryStart := time.Now()
 	rows, err := r.db.Query(ctx, query.Sql, query.Args...)
 	queryDuration := time.Since(queryStart)
 	if err != nil {
-		logQueryError(query, "GetJobs", queryDuration)
+		logQueryError(user, query, "GetJobs", queryDuration)
 		return nil, err
 	}
-	logSlowQuery(query, "GetJobs", queryDuration)
+	logSlowQuery(user, query, "GetJobs", queryDuration)
 
 	defer rows.Close()
 	for rows.Next() {

@@ -6,6 +6,7 @@ import { VariantType } from "notistack"
 import { LookoutColumnFilter, LookoutColumnOrder } from "../containers/lookout/JobsTableContainer"
 import { JobGroupRow, JobRow, JobTableRow } from "../models/jobsTableModels"
 import { Job, JobFilter, JobId, JobOrder, Match } from "../models/lookoutModels"
+import { useAuthenticatedFetch } from "../oidcAuth"
 import { IGetJobsService } from "../services/lookout/GetJobsService"
 import { GroupedField, IGroupJobsService } from "../services/lookout/GroupJobsService"
 import { getErrorMessage } from "../utils"
@@ -142,6 +143,8 @@ export const useFetchJobsTableData = ({
   const [jobInfoMap, setJobInfoMap] = useState<Map<JobId, Job>>(new Map())
   const [pendingData, setPendingData] = useState<PendingData[]>([])
 
+  const authenticatedFetch = useAuthenticatedFetch()
+
   useEffect(() => {
     const abortController = new AbortController()
 
@@ -171,7 +174,7 @@ export const useFetchJobsTableData = ({
       let newData
       try {
         if (isJobFetch) {
-          const { jobs } = await fetchJobs(rowRequest, getJobsService, abortController.signal)
+          const { jobs } = await fetchJobs(authenticatedFetch, rowRequest, getJobsService, abortController.signal)
           newData = jobsToRows(jobs)
 
           setJobInfoMap(new Map([...jobInfoMap.entries(), ...jobs.map((j): [JobId, Job] => [j.jobId, j])]))
@@ -192,6 +195,7 @@ export const useFetchJobsTableData = ({
 
           const colsToAggregate = getColsToAggregate(visibleColumns, rowRequest.filters)
           const { groups } = await fetchJobGroups(
+            authenticatedFetch,
             rowRequest,
             groupJobsService,
             groupedField,

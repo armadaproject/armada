@@ -4,6 +4,7 @@ import { Job, JobFilter, JobFiltersWithExcludes } from "../models/lookoutModels"
 import { IGetJobsService } from "../services/lookout/GetJobsService"
 
 export const getAllJobsMatchingFilters = async (
+  fetchFunc: GlobalFetch["fetch"],
   filters: JobFilter[],
   activeJobSets: boolean,
   getJobsService: IGetJobsService,
@@ -13,6 +14,7 @@ export const getAllJobsMatchingFilters = async (
   let continuePaginating = true
   while (continuePaginating) {
     const { jobs } = await getJobsService.getJobs(
+      fetchFunc,
       filters,
       activeJobSets,
       { direction: "DESC", field: "jobId" },
@@ -29,17 +31,18 @@ export const getAllJobsMatchingFilters = async (
 }
 
 export const getUniqueJobsMatchingFilters = async (
+  fetchFunc: GlobalFetch["fetch"],
   filtersGroups: JobFiltersWithExcludes[],
   activeJobSets: boolean,
   getJobsService: IGetJobsService,
 ): Promise<Job[]> => {
   const jobsBySelectedItem = await Promise.all(
     filtersGroups.map(async ({ jobFilters, excludesJobFilters }) => {
-      const allMatchingJobs = await getAllJobsMatchingFilters(jobFilters, activeJobSets, getJobsService)
+      const allMatchingJobs = await getAllJobsMatchingFilters(fetchFunc, jobFilters, activeJobSets, getJobsService)
       const excludedJobs = (
         await Promise.all(
           excludesJobFilters.map((excludeJobFilters) =>
-            getAllJobsMatchingFilters(excludeJobFilters, activeJobSets, getJobsService),
+            getAllJobsMatchingFilters(fetchFunc, excludeJobFilters, activeJobSets, getJobsService),
           ),
         )
       ).flat()
