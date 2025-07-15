@@ -210,15 +210,6 @@ func (q *Queries) MarkJobsSucceededById(ctx context.Context, jobIds []string) er
 	return err
 }
 
-const markRunsCancelledByJobId = `-- name: MarkRunsCancelledByJobId :exec
-UPDATE runs SET cancelled = true WHERE job_id = ANY($1::text[])
-`
-
-func (q *Queries) MarkRunsCancelledByJobId(ctx context.Context, jobIds []string) error {
-	_, err := q.db.Exec(ctx, markRunsCancelledByJobId, jobIds)
-	return err
-}
-
 const selectAllExecutorSettings = `-- name: SelectAllExecutorSettings :many
 SELECT executor_id, cordoned, cordon_reason, set_by_user, set_at_time FROM executor_settings
 `
