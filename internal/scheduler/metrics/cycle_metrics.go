@@ -28,6 +28,8 @@ var (
 	poolAndPriorityLabels                  = []string{poolLabel, priorityLabel}
 	poolAndQueueLabels                     = []string{poolLabel, queueLabel}
 	poolAndQueueAndPriorityClassTypeLabels = []string{poolLabel, queueLabel, priorityClassLabel, typeLabel}
+	poolAndShapeLabels                     = []string{poolLabel, jobShapeLabel}
+	poolAndShapeAndReasonLabels            = []string{poolLabel, jobShapeLabel, unschedulableReasonLabel}
 	poolQueueAndResourceLabels             = []string{poolLabel, queueLabel, resourceLabel}
 	defaultType                            = "unknown"
 )
@@ -59,6 +61,8 @@ type perCycleMetrics struct {
 	protectedFractionOfFairShare *prometheus.GaugeVec
 	nodeAllocatableResource      *prometheus.GaugeVec
 	nodeAllocatedResource        *prometheus.GaugeVec
+	indicativePrice              *prometheus.GaugeVec
+	indicativePriceSchedulable   *prometheus.GaugeVec
 }
 
 func newPerCycleMetrics() *perCycleMetrics {
@@ -270,6 +274,22 @@ func newPerCycleMetrics() *perCycleMetrics {
 		[]string{poolLabel, nodeLabel, clusterLabel, nodeTypeLabel, resourceLabel, "schedulable", "overAllocated"},
 	)
 
+	indicativePrice := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: prefix + "indicative_price",
+			Help: "indicative price for configured job in pool",
+		},
+		poolAndShapeLabels,
+	)
+
+	indicativePriceSchedulable := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: prefix + "indicative_price_is_schedulable",
+			Help: "determines whether defined job is at all schedulable",
+		},
+		poolAndShapeAndReasonLabels,
+	)
+
 	return &perCycleMetrics{
 		consideredJobs:               consideredJobs,
 		fairShare:                    fairShare,
@@ -297,6 +317,8 @@ func newPerCycleMetrics() *perCycleMetrics {
 		protectedFractionOfFairShare: protectedFractionOfFairShare,
 		nodeAllocatableResource:      nodeAllocatableResource,
 		nodeAllocatedResource:        nodeAllocatedResource,
+		indicativePrice:              indicativePrice,
+		indicativePriceSchedulable:   indicativePriceSchedulable,
 	}
 }
 
@@ -486,6 +508,20 @@ func (m *cycleMetrics) ReportSchedulerResult(ctx *armadacontext.Context, result 
 		}
 
 		currentCycle.protectedFractionOfFairShare.WithLabelValues(pool).Set(schedulingStats.ProtectedFractionOfFairShare)
+
+		for name, pricingInfo := range schedulingStats.MarketDrivenIndicativePrices {
+			if pricingInfo.Evaluated {
+				currentCycle.indicativePrice.WithLabelValues(pool, name).Set(pricingInfo.Price)
+				if pricingInfo.Schedulable {
+					currentCycle.indicativePriceSchedulable.WithLabelValues(pool, name, pricingInfo.UnschedulableReason).Set(1.0)
+				} else {
+					currentCycle.indicativePriceSchedulable.WithLabelValues(pool, name, pricingInfo.UnschedulableReason).Set(0.0)
+				}
+			} else {
+				currentCycle.indicativePrice.WithLabelValues(pool, name).Set(math.NaN())
+				currentCycle.indicativePriceSchedulable.WithLabelValues(pool, name, pricingInfo.UnschedulableReason).Set(math.NaN())
+			}
+		}
 	}
 	m.latestCycleMetrics.Store(currentCycle)
 
@@ -525,6 +561,8 @@ func (m *cycleMetrics) describe(ch chan<- *prometheus.Desc) {
 		currentCycle.protectedFractionOfFairShare.Describe(ch)
 		currentCycle.nodeAllocatableResource.Describe(ch)
 		currentCycle.nodeAllocatedResource.Describe(ch)
+		currentCycle.indicativePrice.Describe(ch)
+		currentCycle.indicativePriceSchedulable.Describe(ch)
 	}
 
 	m.reconciliationCycleTime.Describe(ch)
@@ -563,6 +601,8 @@ func (m *cycleMetrics) collect(ch chan<- prometheus.Metric) {
 		currentCycle.protectedFractionOfFairShare.Collect(ch)
 		currentCycle.nodeAllocatableResource.Collect(ch)
 		currentCycle.nodeAllocatedResource.Collect(ch)
+		currentCycle.indicativePrice.Collect(ch)
+		currentCycle.indicativePriceSchedulable.Collect(ch)
 	}
 
 	m.reconciliationCycleTime.Collect(ch)

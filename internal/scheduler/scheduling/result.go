@@ -39,6 +39,8 @@ type PerPoolSchedulingStats struct {
 	ScheduledJobs []*context.JobSchedulingContext
 	// The jobs preempted in this cycle
 	PreemptedJobs []*context.JobSchedulingContext
+	// Scheduling summary for gang shapes we're interested in. Prices are determined if the job is deemed schedulable.
+	MarketDrivenIndicativePrices IndicativeGangPricesByJobShape
 }
 
 // SchedulerResult is returned by Rescheduler.Schedule().
