@@ -62,7 +62,6 @@ func (q *OptimisingQueueScheduler) Schedule(ctx *armadacontext.Context, sctx *sc
 	}
 	scheduledJobs := []*schedulercontext.JobSchedulingContext{}
 	preemptedJobs := []*schedulercontext.JobSchedulingContext{}
-	nodeIdByJobId := make(map[string]string)
 
 	factory := sctx.TotalResources.Factory()
 	maximumResourceFractionToSchedule := q.maximumResourceFractionToSchedule
@@ -148,7 +147,6 @@ loop:
 			for _, jctx := range gctx.JobSchedulingContexts {
 				if pctx := jctx.PodSchedulingContext; pctx.IsSuccessful() {
 					scheduledJobs = append(scheduledJobs, jctx)
-					nodeIdByJobId[jctx.JobId] = pctx.NodeId
 				}
 			}
 			preemptedJobs = append(preemptedJobs, preemptedJctxs...)
@@ -175,7 +173,6 @@ loop:
 	return &SchedulerResult{
 		ScheduledJobs: scheduledJobs,
 		PreemptedJobs: preemptedJobs,
-		NodeIdByJobId: nodeIdByJobId,
 	}, nil
 }
 

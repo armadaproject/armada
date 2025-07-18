@@ -234,13 +234,23 @@ func (iter *mockJobIterator) Next() (*jobdb.Job, bool) {
 }
 
 type mockJobRepository struct {
-	jobsByQueue map[string][]*jobdb.Job
-	jobsById    map[string]*jobdb.Job
+	jobsByQueue  map[string][]*jobdb.Job
+	jobsByGangId map[gangKey][]*jobdb.Job
+	jobsById     map[string]*jobdb.Job
+}
+
+type gangKey struct {
+	queue  string
+	gangId string
 }
 
 func (repo *mockJobRepository) QueuedJobs(queue string, _ string, _ jobdb.JobSortOrder) jobdb.JobIterator {
 	q := repo.jobsByQueue[queue]
 	return &mockJobIterator{jobs: q}
+}
+
+func (repo *mockJobRepository) GetGangJobsByGangId(queue string, gangId string) ([]*jobdb.Job, error) {
+	return repo.jobsByGangId[gangKey{queue: queue, gangId: gangId}], nil
 }
 
 func (repo *mockJobRepository) GetById(id string) *jobdb.Job {
@@ -269,8 +279,9 @@ func (repo *mockJobRepository) NewJob(
 
 func newMockJobRepository() *mockJobRepository {
 	return &mockJobRepository{
-		jobsByQueue: make(map[string][]*jobdb.Job),
-		jobsById:    make(map[string]*jobdb.Job),
+		jobsByQueue:  make(map[string][]*jobdb.Job),
+		jobsByGangId: make(map[gangKey][]*jobdb.Job),
+		jobsById:     make(map[string]*jobdb.Job),
 	}
 }
 
@@ -282,6 +293,10 @@ func (repo *mockJobRepository) EnqueueMany(jobs []*jobdb.Job) {
 
 func (repo *mockJobRepository) Enqueue(job *jobdb.Job) {
 	repo.jobsByQueue[job.Queue()] = append(repo.jobsByQueue[job.Queue()], job)
+	if job.GetGangInfo().IsGang() {
+		key := gangKey{queue: job.Queue(), gangId: job.GetGangInfo().Id()}
+		repo.jobsByGangId[key] = append(repo.jobsByGangId[key], job)
+	}
 	repo.jobsById[job.Id()] = job
 }
 

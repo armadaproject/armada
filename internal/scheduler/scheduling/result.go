@@ -49,9 +49,6 @@ type SchedulerResult struct {
 	PreemptedJobs []*context.JobSchedulingContext
 	// Queued jobs that should be scheduled.
 	ScheduledJobs []*context.JobSchedulingContext
-	// For each preempted job, maps the job id to the id of the node on which the job was running.
-	// For each scheduled job, maps the job id to the id of the node on which the job should be scheduled.
-	NodeIdByJobId map[string]string
 	// Each result may bundle the result of several scheduling decisions.
 	// These are the corresponding scheduling contexts.
 	// TODO: This doesn't seem like the right approach.

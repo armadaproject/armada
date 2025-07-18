@@ -140,8 +140,8 @@ func (constraints *schedulingConstraints) CheckJobConstraints(
 		return false, QueueRateLimitExceededByGangUnschedulableReason, nil
 	}
 
-	queueLimit := constraints.GetQueueResourceLimit(qctx.Queue, gctx.PriorityClassName)
-	allocatedResources := qctx.AllocatedByPriorityClass[gctx.PriorityClassName]
+	queueLimit := constraints.GetQueueResourceLimit(qctx.Queue, gctx.PriorityClassName())
+	allocatedResources := qctx.AllocatedByPriorityClass[gctx.PriorityClassName()]
 	if !queueLimit.IsEmpty() && allocatedResources.Exceeds(queueLimit) {
 		return false, UnschedulableReasonMaximumResourcesExceeded, nil
 	}

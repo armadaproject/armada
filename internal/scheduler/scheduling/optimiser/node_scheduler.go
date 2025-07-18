@@ -4,16 +4,13 @@ import (
 	"fmt"
 	"math"
 	"sort"
-	"strconv"
 	"time"
 
-	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/context"
-	"github.com/armadaproject/armada/internal/server/configuration"
 )
 
 type PreemptingNodeScheduler struct {
@@ -157,7 +154,7 @@ func (n *PreemptingNodeScheduler) getPreemptibleJobDetailsByQueue(
 			// Don't evict jobs larger than the maximum size
 			continue
 		}
-		if isGang(job) {
+		if job.GetGangInfo().IsGang() {
 			// Don't evict gang jobs
 			continue
 		}
@@ -269,20 +266,4 @@ func isTooLargeToEvict(job *jobdb.Job, limit *internaltypes.ResourceList) bool {
 		}
 	}
 	return false
-}
-
-func isGang(job *jobdb.Job) bool {
-	if job == nil {
-		return false
-	}
-	gangCardinalityString, ok := job.Annotations()[configuration.GangCardinalityAnnotation]
-	if !ok {
-		return false
-	}
-	gangCardinality, err := strconv.Atoi(gangCardinalityString)
-	if err != nil {
-		logging.WithStacktrace(err).Errorf("unexpected value in gang cardinality annotation")
-		return false
-	}
-	return gangCardinality > 1
 }
