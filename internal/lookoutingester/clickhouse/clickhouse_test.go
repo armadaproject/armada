@@ -149,6 +149,65 @@ func TestUpdateJob(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestCoalescingMergeTree(t *testing.T) {
+	ctx := context.Background()
+
+	err := withTestDb(ctx, func(conn clickhouse.Conn) {
+
+		require.NoError(t, conn.Exec(ctx, `
+			CREATE TABLE vehicle_state (
+				vin String,
+				battery_level Nullable(UInt8),
+				odometer Nullable(UInt32),
+				firmware Nullable(String),
+				last_update Int64
+			)
+			ENGINE = CoalescingMergeTree()
+			ORDER BY vin
+		`))
+
+		// Step 2: Insert sparse updates with NULLs
+		require.NoError(t, conn.Exec(ctx, `
+			INSERT INTO vehicle_state
+			VALUES ('abc123', 95, NULL, 'fish', 1)
+		`))
+		require.NoError(t, conn.Exec(ctx, `
+			INSERT INTO vehicle_state
+			VALUES ('abc123', NULL, 12000, NULL, 2)
+		`))
+
+		require.NoError(t, conn.Exec(ctx, `
+			INSERT INTO vehicle_state
+			VALUES ('abc123', NULL, 13000,  'chips', 3)
+		`))
+
+		// Step 3: Query the final state using FINAL
+		var (
+			vin          string
+			batteryLevel uint8
+			odometer     uint32
+			firmware     string
+		)
+
+		require.NoError(t, conn.QueryRow(ctx, `
+			SELECT
+    vin,
+    argMax(battery_level, last_update) AS battery_level,
+    argMax(odometer, last_update) AS odometer,
+    argMax(firmware, last_update) AS firmware
+FROM vehicle_state
+GROUP BY vin
+		`).Scan(&vin, &batteryLevel, &odometer, &firmware))
+
+		require.Equal(t, "abc123", vin, "vin should be 'abc123'")
+		require.Equal(t, uint8(95), batteryLevel, "battery_level should be 95")
+		require.Equal(t, uint32(13000), odometer, "odometer should be 13000")
+		require.Equal(t, "chips", firmware, "firmware should be chips")
+	})
+
+	require.NoError(t, err)
+}
+
 func GetJobRows(ctx context.Context, db clickhouse.Conn, jobId string) ([]JobRow, error) {
 	query := `
 		SELECT
