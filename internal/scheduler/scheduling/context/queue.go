@@ -56,6 +56,12 @@ type QueueSchedulingContext struct {
 	// DemandCappedAdjustedFairShare includes not only this queue's fairshare, but also this queue's share of any unused fairshare from other queues. It's
 	// capped by this queue's demand, so does not include any fairshare unused by this queue.
 	DemandCappedAdjustedFairShare float64
+	// IdealisedValue is the total value of jobs that would be scheduled from this queue if there was no fragmentation.
+	// This only applies if the pool was market priced
+	IdealisedValue float64
+	// RealisedValue is the total value of jobs that were actually scheduled.  Note that this us only populated
+	// on market driven pools
+	RealisedValue float64
 	// Total resources assigned to the queue across all clusters by priority class.
 	// Includes jobs scheduled during this invocation of the scheduler.
 	AllocatedByPriorityClass map[string]internaltypes.ResourceList

@@ -173,7 +173,7 @@ func Run(config schedulerconfig.Configuration) error {
 			if err != nil {
 				return errors.WithMessage(err, "Error creating bid retriever client")
 			}
-			bidPriceCache := pricing.NewBidPriceCache(bidRetrieverClient, config.PricingApi.UpdateFrequency)
+			bidPriceCache := pricing.NewBidPriceCache(bidRetrieverClient, resourceListFactory, config.PricingApi.UpdateFrequency)
 			bidPriceProviderInitTimeout, cancel := armadacontext.WithTimeout(ctx, time.Second*30)
 			defer cancel()
 			err = bidPriceCache.Initialise(bidPriceProviderInitTimeout)
