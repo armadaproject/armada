@@ -38,9 +38,9 @@ menu_settings:
       - title: 'Quickstart'
         url: '/quickstart'
       - title: 'User Guide'
-        url: '/user'
+        url: '/creating_and_submitting_jobs'
       - title: 'Libraries'
-        url: '/libraries'
+        url: '/client_libraries'
     - title: 'Contribute'
       url: '/contribute'
 
