@@ -63,6 +63,8 @@ type perCycleMetrics struct {
 	nodeAllocatedResource        *prometheus.GaugeVec
 	indicativePrice              *prometheus.GaugeVec
 	indicativePriceSchedulable   *prometheus.GaugeVec
+	idealisedScheduledValue      *prometheus.GaugeVec
+	realisedScheduledValue       *prometheus.GaugeVec
 }
 
 func newPerCycleMetrics() *perCycleMetrics {
@@ -290,6 +292,22 @@ func newPerCycleMetrics() *perCycleMetrics {
 		poolAndShapeAndReasonLabels,
 	)
 
+	idealisedScheduledValue := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: prefix + "idealised_scheduled_value",
+			Help: "Idealised value scheduled per queue",
+		},
+		poolAndQueueLabels,
+	)
+
+	realisedScheduledValue := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: prefix + "realised_scheduled_value",
+			Help: "Realised value scheduled per queue",
+		},
+		poolAndQueueLabels,
+	)
+
 	return &perCycleMetrics{
 		consideredJobs:               consideredJobs,
 		fairShare:                    fairShare,
@@ -319,6 +337,8 @@ func newPerCycleMetrics() *perCycleMetrics {
 		nodeAllocatedResource:        nodeAllocatedResource,
 		indicativePrice:              indicativePrice,
 		indicativePriceSchedulable:   indicativePriceSchedulable,
+		idealisedScheduledValue:      idealisedScheduledValue,
+		realisedScheduledValue:       realisedScheduledValue,
 	}
 }
 
@@ -432,6 +452,8 @@ func (m *cycleMetrics) ReportSchedulerResult(ctx *armadacontext.Context, result 
 			currentCycle.shortJobPenalty.WithLabelValues(pool, queue).Set(shortJobPenalty)
 			currentCycle.queueWeight.WithLabelValues(pool, queue).Set(queueContext.Weight)
 			currentCycle.rawQueueWeight.WithLabelValues(pool, queue).Set(queueContext.RawWeight)
+			currentCycle.idealisedScheduledValue.WithLabelValues(pool, queue).Set(queueContext.IdealisedValue)
+			currentCycle.realisedScheduledValue.WithLabelValues(pool, queue).Set(queueContext.RealisedValue)
 			for _, r := range queueContext.GetBillableResource().GetResources() {
 				currentCycle.billableResource.WithLabelValues(pool, queue, r.Name).Set(float64(r.RawValue))
 			}
@@ -563,6 +585,8 @@ func (m *cycleMetrics) describe(ch chan<- *prometheus.Desc) {
 		currentCycle.nodeAllocatedResource.Describe(ch)
 		currentCycle.indicativePrice.Describe(ch)
 		currentCycle.indicativePriceSchedulable.Describe(ch)
+		currentCycle.idealisedScheduledValue.Describe(ch)
+		currentCycle.realisedScheduledValue.Describe(ch)
 	}
 
 	m.reconciliationCycleTime.Describe(ch)
@@ -603,6 +627,8 @@ func (m *cycleMetrics) collect(ch chan<- prometheus.Metric) {
 		currentCycle.nodeAllocatedResource.Collect(ch)
 		currentCycle.indicativePrice.Collect(ch)
 		currentCycle.indicativePriceSchedulable.Collect(ch)
+		currentCycle.idealisedScheduledValue.Collect(ch)
+		currentCycle.realisedScheduledValue.Collect(ch)
 	}
 
 	m.reconciliationCycleTime.Collect(ch)

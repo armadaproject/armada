@@ -36,7 +36,7 @@ import (
 type SchedulingAlgo interface {
 	// Schedule should assign jobs to nodes.
 	// Any jobs that are scheduled should be marked as such in the JobDb using the transaction provided.
-	Schedule(*armadacontext.Context, *jobdb.Txn) (*SchedulerResult, error)
+	Schedule(*armadacontext.Context, map[string]internaltypes.ResourceList, *jobdb.Txn) (*SchedulerResult, error)
 }
 
 // FairSchedulingAlgo is a SchedulingAlgo based on PreemptingQueueScheduler.
@@ -99,6 +99,7 @@ func NewFairSchedulingAlgo(
 // Newly leased jobs are updated as such in the jobDb using the transaction provided and are also returned to the caller.
 func (l *FairSchedulingAlgo) Schedule(
 	ctx *armadacontext.Context,
+	resourceUnits map[string]internaltypes.ResourceList,
 	txn *jobdb.Txn,
 ) (*SchedulerResult, error) {
 	var cancel context.CancelFunc
@@ -143,7 +144,12 @@ func (l *FairSchedulingAlgo) Schedule(
 		}
 
 		start := time.Now()
-		schedulerResult, sctx, err := l.SchedulePool(ctx, fsctx, pool)
+		resourceUnit, ok := resourceUnits[pool.Name]
+		if !ok {
+			ctx.Warnf("Pool %s has no resource unit defined", pool.Name)
+			resourceUnit = l.resourceListFactory.MakeAllZero()
+		}
+		schedulerResult, sctx, err := l.SchedulePool(ctx, fsctx, pool, resourceUnit)
 
 		ctx.Infof("Scheduled on executor pool %s in %v with error %v", pool.Name, time.Now().Sub(start), err)
 
@@ -569,13 +575,36 @@ func (l *FairSchedulingAlgo) SchedulePool(
 	ctx *armadacontext.Context,
 	fsctx *FairSchedulingAlgoContext,
 	pool configuration.PoolConfig,
+	resourceUnit internaltypes.ResourceList,
 ) (*SchedulerResult, *schedulercontext.SchedulingContext, error) {
 	totalResources := fsctx.nodeDb.TotalKubernetesResources()
 	totalResources = totalResources.Add(l.floatingResourceTypes.GetTotalAvailableForPool(pool.Name))
 	constraints := schedulerconstraints.NewSchedulingConstraints(pool.Name, totalResources, l.schedulingConfig, maps.Values(fsctx.queues))
 	shouldRunOptimiser := l.shouldRunOptimiser(pool)
+
 	if shouldRunOptimiser {
 		defer l.updateOptimiserLastRunTime(pool)
+	}
+
+	// Calculate "Idealised value" on every queue.  This is a metric that is useful on market-driven pools in order
+	// to determine the value of the jobs we schedule vs the value we theoretically could have scheduled.
+	nodes, err := fsctx.nodeDb.GetNodes()
+	if err != nil {
+		return nil, nil, err
+	}
+	err = CalculateIdealisedValue(
+		ctx,
+		fsctx.schedulingContext,
+		nodes,
+		fsctx.Txn,
+		constraints,
+		l.floatingResourceTypes,
+		l.schedulingConfig,
+		l.resourceListFactory,
+		resourceUnit,
+	)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	scheduler := NewPreemptingQueueScheduler(
@@ -636,6 +665,17 @@ func (l *FairSchedulingAlgo) SchedulePool(
 	for _, priority := range l.schedulingConfig.ExperimentalIndicativeShare.BasePriorities {
 		fsctx.schedulingContext.ExperimentalIndicativeShares[priority] = fsctx.schedulingContext.CalculateTheoreticalShare(float64(priority))
 	}
+
+	// We only calculate value for market driven pools
+	marketConfig := l.schedulingConfig.GetMarketConfig(pool.Name)
+	if marketConfig != nil && marketConfig.Enabled {
+		realisedValueByQueue := valueFromSchedulingResult(fsctx.schedulingContext, resourceUnit)
+		for qName, qCtx := range fsctx.schedulingContext.QueueSchedulingContexts {
+			qCtx.RealisedValue = realisedValueByQueue[qName]
+		}
+
+	}
+
 	return result, fsctx.schedulingContext, nil
 }
 
