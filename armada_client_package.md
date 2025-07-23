@@ -1,18 +1,11 @@
----
-docname: python_armada_client
-images: {}
-path: /python-armada-client
-title: armada_client package
----
-
-# armada_client package
+# Armada client package
 
 ## armada_client.client module
 
 Armada Python GRPC Client
 
 For the api definitions:
-[https://armadaproject.io/api](https://armadaproject.io/api)
+[https://armadaproject.io/api](https://armadaproject.io/armada-api)
 
 
 ### _class_ armada_client.client.ArmadaClient(channel, event_timeout=datetime.timedelta(seconds=900))
