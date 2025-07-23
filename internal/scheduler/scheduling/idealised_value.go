@@ -93,10 +93,15 @@ func CalculateIdealisedValue(
 		return err
 	}
 	idealisedValues := valueFromSchedulingResult(dummySchedulingContext, resourceUnit)
+	idealisedAllocations := allocationFromSchedulingResult(dummySchedulingContext)
 	for _, qctx := range sctx.QueueSchedulingContexts {
 		qctx.IdealisedValue = idealisedValues[qctx.Queue]
+		idealisedAlloc, ok := idealisedAllocations[qctx.Queue]
+		if !ok {
+			idealisedAlloc = rlf.MakeAllZero()
+		}
+		qctx.IdealisedAllocated = idealisedAlloc
 	}
-
 	return nil
 }
 
@@ -117,6 +122,14 @@ func valueFromSchedulingResult(sctx *schedulercontext.SchedulingContext, resourc
 		}
 	}
 	return valueByQueue
+}
+
+func allocationFromSchedulingResult(sctx *schedulercontext.SchedulingContext) map[string]internaltypes.ResourceList {
+	allocationByQueue := make(map[string]internaltypes.ResourceList, len(sctx.QueueSchedulingContexts))
+	for _, qtx := range sctx.QueueSchedulingContexts {
+		allocationByQueue[qtx.Queue] = qtx.Allocated
+	}
+	return allocationByQueue
 }
 
 type schedulingConstraints struct {
