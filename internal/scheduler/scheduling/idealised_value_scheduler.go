@@ -1,9 +1,9 @@
 package scheduling
 
 import (
-	"slices"
 	"github.com/google/uuid"
 	v1 "k8s.io/api/core/v1"
+	"slices"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
