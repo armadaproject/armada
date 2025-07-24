@@ -133,11 +133,7 @@ func createMegaNode(pool string, nodes []*internaltypes.Node, schedulingConfig c
 	for _, node := range nodes {
 		if !node.IsUnschedulable() {
 			totalResources = totalResources.Add(node.GetTotalResources())
-			availableOnNode := node.GetAllocatableResources()
-			for _, allocatedToJob := range node.AllocatedByJobId {
-				availableOnNode = availableOnNode.Add(allocatedToJob)
-			}
-			allocatableResources = allocatableResources.Add(availableOnNode)
+			allocatableResources = allocatableResources.Add(node.GetAllocatableResources())
 			for priority := range node.AllocatableByPriority {
 				priorityClasses[priority] = true
 			}

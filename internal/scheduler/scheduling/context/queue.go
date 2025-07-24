@@ -59,6 +59,9 @@ type QueueSchedulingContext struct {
 	// IdealisedValue is the total value of jobs that would be scheduled from this queue if there was no fragmentation.
 	// This only applies if the pool was market priced
 	IdealisedValue float64
+	// IdealisedAllocated are the resources that would be allocated from this queue if there was no fragmentation.
+	// This only applies if the pool was market priced
+	IdealisedAllocated internaltypes.ResourceList
 	// RealisedValue is the total value of jobs that were actually scheduled.  Note that this us only populated
 	// on market driven pools
 	RealisedValue float64
