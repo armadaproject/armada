@@ -343,6 +343,50 @@ func TestMarketDrivenPreemptingQueueScheduler(t *testing.T) {
 			},
 			PriorityFactorByQueue: map[string]float64{"A": 1, "B": 1, "C": 1},
 		},
+		"gang preempting high priced away jobs": {
+			SchedulingConfig: testfixtures.WithMarketBasedSchedulingEnabled(testfixtures.TestSchedulingConfig()),
+			Nodes: testfixtures.TestNodeFactory.AddTaints(testfixtures.N8GpuNodes(2, testfixtures.TestPriorities), []v1.Taint{
+				{
+					Key:    "gpu",
+					Value:  "true",
+					Effect: v1.TaintEffectNoSchedule,
+				},
+			}),
+			Rounds: []SchedulingRound{
+				{
+					JobsByQueue: map[string][]*jobdb.Job{
+						"A": testfixtures.N1Cpu4GiJobsWithPriceBandAndPriorityClass("A", bidstore.PriceBand_PRICE_BAND_D, testfixtures.PriorityClass4PreemptibleAway, 128),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": testfixtures.IntRange(0, 127),
+					},
+				},
+				{
+					// Schedule a gang filling the remaining space on both node
+					// Queue A is preeempted despite having a higher price, because the jobs are scheduled as away jobs
+					JobsByQueue: map[string][]*jobdb.Job{
+						"B": testfixtures.N1GpuJobsWithPriceBandAndPriorityClass("B", bidstore.PriceBand_PRICE_BAND_A, testfixtures.PriorityClass6Preemptible, 16),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"B": testfixtures.IntRange(0, 15),
+					},
+					ExpectedPreemptedIndices: map[string]map[int][]int{
+						"A": {
+							0: testfixtures.IntRange(0, 127),
+						},
+					},
+				},
+				{
+					// Queue A jobs don't schedule despite having a higher price, due to being away jobs
+					JobsByQueue: map[string][]*jobdb.Job{
+						"A": testfixtures.N1Cpu4GiJobsWithPriceBandAndPriorityClass("A", bidstore.PriceBand_PRICE_BAND_D, testfixtures.PriorityClass4PreemptibleAway, 128),
+					},
+					ExpectedScheduledIndices: map[string][]int{},
+					ExpectedPreemptedIndices: map[string]map[int][]int{},
+				},
+			},
+			PriorityFactorByQueue: map[string]float64{"A": 1, "B": 1, "C": 1},
+		},
 		"spot price - single queue": {
 			SchedulingConfig: testfixtures.WithMarketBasedSchedulingEnabled(testfixtures.TestSchedulingConfig()),
 			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
