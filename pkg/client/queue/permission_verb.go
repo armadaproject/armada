@@ -11,7 +11,6 @@ type PermissionVerb string
 
 const (
 	PermissionVerbSubmit       PermissionVerb = "submit"
-	PermissionVerbSubmitBid    PermissionVerb = "submitbid"
 	PermissionVerbCancel       PermissionVerb = "cancel"
 	PermissionVerbPreempt      PermissionVerb = "preempt"
 	PermissionVerbReprioritize PermissionVerb = "reprioritize"
@@ -19,10 +18,10 @@ const (
 )
 
 // NewPermissionVerb returns PermissionVerb from input string. If input string doesn't match
-// one of allowed verb values ["submit", "submitbid", "cancel", "preempt", "reprioritize", "watch"], and error is returned.
+// one of allowed verb values ["submit", "cancel", "preempt", "reprioritize", "watch"], and error is returned.
 func NewPermissionVerb(in string) (PermissionVerb, error) {
 	switch verb := PermissionVerb(in); verb {
-	case PermissionVerbSubmit, PermissionVerbSubmitBid, PermissionVerbCancel, PermissionVerbPreempt, PermissionVerbReprioritize, PermissionVerbWatch:
+	case PermissionVerbSubmit, PermissionVerbCancel, PermissionVerbPreempt, PermissionVerbReprioritize, PermissionVerbWatch:
 		return verb, nil
 	default:
 		return "", fmt.Errorf("invalid queue permission verb: %s", in)
@@ -76,7 +75,6 @@ func NewPermissionVerbs(verbs []string) (PermissionVerbs, error) {
 func AllPermissionVerbs() PermissionVerbs {
 	return []PermissionVerb{
 		PermissionVerbSubmit,
-		PermissionVerbSubmitBid,
 		PermissionVerbCancel,
 		PermissionVerbPreempt,
 		PermissionVerbReprioritize,

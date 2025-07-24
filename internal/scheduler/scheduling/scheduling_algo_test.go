@@ -564,7 +564,7 @@ func TestSchedule(t *testing.T) {
 			require.NoError(t, err)
 
 			// Run a scheduling round.
-			schedulerResult, err := sch.Schedule(ctx, txn)
+			schedulerResult, err := sch.Schedule(ctx, nil, txn)
 			require.NoError(t, err)
 
 			// Check that the expected preemptions took place.

@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/pkg/bidstore"
 )
 
@@ -19,8 +20,9 @@ type PriceKey struct {
 }
 
 type BidPriceSnapshot struct {
-	Timestamp time.Time
-	Bids      map[PriceKey]map[string]Bid
+	Timestamp     time.Time
+	Bids          map[PriceKey]map[string]Bid
+	ResourceUnits map[string]internaltypes.ResourceList
 }
 
 type Bid struct {

@@ -249,6 +249,10 @@ func (node *Node) GetLabels() map[string]string {
 	return deepCopyLabels(node.labels)
 }
 
+func (node *Node) GetRunningJobIds() []string {
+	return maps.Keys(node.AllocatedByJobId)
+}
+
 func (node *Node) GetLabelValue(key string) (string, bool) {
 	val, ok := node.labels[key]
 	return val, ok

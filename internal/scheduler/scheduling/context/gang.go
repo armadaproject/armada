@@ -8,6 +8,7 @@ import (
 
 type GangSchedulingContext struct {
 	Created                   time.Time
+	IsGangJob                 bool
 	GangId                    string
 	NodeUniformity            string
 	PriorityClass             string
@@ -35,6 +36,7 @@ func NewGangSchedulingContext(jctxs []*JobSchedulingContext) *GangSchedulingCont
 	return &GangSchedulingContext{
 		Created:                   time.Now(),
 		Queue:                     representative.Job.Queue(),
+		IsGangJob:                 representative.Job.GetGangInfo().IsGang(),
 		GangId:                    representative.Job.GetGangInfo().Id(),
 		NodeUniformity:            representative.Job.GetGangInfo().NodeUniformity(),
 		PriorityClass:             representative.Job.PriorityClassName(),
@@ -62,6 +64,10 @@ func (gctx *GangSchedulingContext) Id() string {
 // NodeUniformityLabel returns the label used to ensure scheduling unfiormity for the gang
 func (gctx *GangSchedulingContext) NodeUniformityLabel() string {
 	return gctx.NodeUniformity
+}
+
+func (gctx *GangSchedulingContext) IsGang() bool {
+	return gctx.IsGangJob
 }
 
 // Cardinality returns the number of jobs in the gang.

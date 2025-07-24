@@ -3,6 +3,7 @@ package api;
 option go_package = "pkg/bidstore";
 
 import "google/protobuf/timestamp.proto";
+import "k8s.io/apimachinery/pkg/api/resource/generated.proto";
 
 // PricingPhase represents different phases of the job's lifecycle which have
 // different bids.
@@ -74,7 +75,7 @@ message PoolBids {
 
   // Fallback bid for the pool for the queue when a job is not labelled with a
   // valid price band
-  PriceBandBids fallback_bid = 2;
+  PriceBandBids fallback_bids = 2;
 }
 
 // QueueBids contains all bids for different resource pools within a queue.
@@ -83,10 +84,20 @@ message QueueBids {
   map<string, PoolBids> pool_bids = 1;
 }
 
-// RetrieveBidsResponse contains the retrieved bids for all requested queues.
+// ResourceShape is a map of Kubernetes resource type to quantity
+message ResourceShape {
+  // Map of resource type (k8s.io.core.v1.ResourceName and "nvidia.com/gpu") to
+  // quantity
+  map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> resources = 1;
+}
+
+// RetrieveBidsResponse contains the retrieved bids for all requested queues,
+// as well as resource unit shapes for each pool.
 message RetrieveBidsResponse {
   // Map of queue names to their respective bids
   map<string, QueueBids> queue_bids = 1;
+  // Map of pool name to resource unit shape for that pool
+  map<string, ResourceShape> pool_resource_units = 2;
 }
 
 // RetrieveBidsRequest specifies which queues to retrieve bids for.

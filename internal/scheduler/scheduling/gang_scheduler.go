@@ -152,8 +152,8 @@ func (sch *GangScheduler) Schedule(ctx *armadacontext.Context, gctx *context.Gan
 func (sch *GangScheduler) trySchedule(ctx *armadacontext.Context, gctx *context.GangSchedulingContext) (ok bool, unschedulableReason string, err error) {
 	nodeUniformity := gctx.NodeUniformityLabel()
 
-	// If no node uniformity constraint, try scheduling across all nodes.
-	if nodeUniformity == "" {
+	// If no node uniformity or isn't a gang, try scheduling across all nodes.
+	if !gctx.IsGang() || nodeUniformity == "" {
 		return sch.tryScheduleGang(ctx, gctx)
 	}
 
