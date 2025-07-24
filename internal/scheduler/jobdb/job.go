@@ -425,10 +425,22 @@ func (job *Job) WithBidPrices(bids map[string]pricing.Bid) *Job {
 	return j
 }
 
+// GetBidPrice resolves the current bid price.
+// It considers running, non-preemptible jobs to have an effectively infinite price.
 func (job *Job) GetBidPrice(pool string) float64 {
 	if !job.queued && !job.priorityClass.Preemptible {
 		return pricing.NonPreemptibleRunningPrice
 	}
+	return job.getBidPrice(pool)
+}
+
+// GetRawBidPrice resolves the current bid price.
+// It considers running, non-preemptible jobs to have the simple job running price (i.e. ignores premtibility pricing).
+func (job *Job) GetRawBidPrice(pool string) float64 {
+	return job.getBidPrice(pool)
+}
+
+func (job *Job) getBidPrice(pool string) float64 {
 	bidPrice, present := job.bidPricesPool[pool]
 	if !present {
 		return 0

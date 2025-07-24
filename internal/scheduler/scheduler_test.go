@@ -1763,7 +1763,7 @@ type testSchedulingAlgo struct {
 	persisted bool
 }
 
-func (t *testSchedulingAlgo) Schedule(_ *armadacontext.Context, txn *jobdb.Txn) (*scheduling.SchedulerResult, error) {
+func (t *testSchedulingAlgo) Schedule(_ *armadacontext.Context, _ map[string]internaltypes.ResourceList, txn *jobdb.Txn) (*scheduling.SchedulerResult, error) {
 	t.numberOfScheduleCalls++
 	if t.shouldError {
 		return nil, errors.New("error scheduling jobs")

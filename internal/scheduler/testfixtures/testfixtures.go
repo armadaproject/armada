@@ -25,7 +25,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/floatingresources"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
-	pricing "github.com/armadaproject/armada/internal/scheduler/pricing"
+	"github.com/armadaproject/armada/internal/scheduler/pricing"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/armadaproject/armada/pkg/api"
@@ -607,6 +607,14 @@ func N32Cpu256GiJobs(queue string, priorityClassName string, n int) []*jobdb.Job
 	return rv
 }
 
+func N64Cpu512GiJobs(queue string, priorityClassName string, n int) []*jobdb.Job {
+	rv := make([]*jobdb.Job, n)
+	for i := 0; i < n; i++ {
+		rv[i] = Test64Cpu512GiJob(queue, priorityClassName)
+	}
+	return rv
+}
+
 func N1GpuJobs(queue string, priorityClassName string, n int) []*jobdb.Job {
 	rv := make([]*jobdb.Job, n)
 	for i := 0; i < n; i++ {
@@ -718,6 +726,11 @@ func Test32Cpu256GiJob(queue string, priorityClassName string) *jobdb.Job {
 	return TestJob(queue, jobId, priorityClassName, Test32Cpu256GiPodReqs(queue, jobId, extractPriority(priorityClassName)))
 }
 
+func Test64Cpu512GiJob(queue string, priorityClassName string) *jobdb.Job {
+	jobId := util.ULID()
+	return TestJob(queue, jobId, priorityClassName, Test64Cpu512GiPodReqs(queue, jobId, extractPriority(priorityClassName)))
+}
+
 func Test32Cpu256GiJobWithLargeJobToleration(queue string, priorityClassName string) *jobdb.Job {
 	jobId := util.ULID()
 	return TestJob(queue, jobId, priorityClassName, Test32Cpu256GiWithLargeJobTolerationPodReqs(queue, jobId, extractPriority(priorityClassName)))
@@ -783,6 +796,14 @@ func Test32Cpu256GiPodReqs(queue string, jobId ulid.ULID, priority int32) *inter
 	req := TestPodReqs(v1.ResourceList{
 		"cpu":    resource.MustParse("32"),
 		"memory": resource.MustParse("256Gi"),
+	})
+	return req
+}
+
+func Test64Cpu512GiPodReqs(queue string, jobId ulid.ULID, priority int32) *internaltypes.PodRequirements {
+	req := TestPodReqs(v1.ResourceList{
+		"cpu":    resource.MustParse("64"),
+		"memory": resource.MustParse("512Gi"),
 	})
 	return req
 }
@@ -914,7 +935,6 @@ func TestNode(priorities []int32, resources map[string]*resource.Quantity) *inte
 		},
 		rl,
 		rl,
-		map[int32]internaltypes.ResourceList{},
 		internaltypes.NewAllocatableByPriorityAndResourceType(priorities, rl))
 }
 

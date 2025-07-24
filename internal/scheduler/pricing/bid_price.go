@@ -3,6 +3,8 @@ package pricing
 import (
 	"time"
 
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
+
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/cache"
 	"github.com/armadaproject/armada/pkg/bidstore"
@@ -12,8 +14,8 @@ type BidPriceCache struct {
 	cache *cache.GenericCache[BidPriceSnapshot]
 }
 
-func NewBidPriceCache(client bidstore.BidRetrieverServiceClient, updateFrequency time.Duration) *BidPriceCache {
-	svc := NewExternalBidPriceService(client)
+func NewBidPriceCache(client bidstore.BidRetrieverServiceClient, rlf *internaltypes.ResourceListFactory, updateFrequency time.Duration) *BidPriceCache {
+	svc := NewExternalBidPriceService(client, rlf)
 	return &BidPriceCache{
 		cache: cache.NewGenericCache(svc.GetBidPrices, updateFrequency),
 	}

@@ -280,7 +280,7 @@ func TestGangScheduler(t *testing.T) {
 				testfixtures.WithGangAnnotationsJobs(
 					testfixtures.WithNodeUniformityLabelAnnotationJobs(
 						"foo",
-						testfixtures.N16Cpu128GiJobs("A", testfixtures.PriorityClass0, 1),
+						testfixtures.N16Cpu128GiJobs("A", testfixtures.PriorityClass0, 2),
 					)),
 			},
 			ExpectedScheduledIndices:               nil,
@@ -298,7 +298,7 @@ func TestGangScheduler(t *testing.T) {
 				testfixtures.WithGangAnnotationsJobs(
 					testfixtures.WithNodeUniformityLabelAnnotationJobs(
 						"foo",
-						testfixtures.N16Cpu128GiJobs("A", testfixtures.PriorityClass0, 1),
+						testfixtures.N16Cpu128GiJobs("A", testfixtures.PriorityClass0, 2),
 					)),
 			},
 			ExpectedScheduledIndices:               nil,

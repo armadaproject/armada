@@ -6,8 +6,20 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"k8s.io/apimachinery/pkg/api/resource"
 
+	schedulerconfiguration "github.com/armadaproject/armada/internal/scheduler/configuration"
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/pkg/bidstore"
+)
+
+var testResourceListFactory, _ = internaltypes.NewResourceListFactory(
+	[]schedulerconfiguration.ResourceType{
+		{Name: "memory", Resolution: resource.MustParse("1")},
+		{Name: "cpu", Resolution: resource.MustParse("1m")},
+		{Name: "nvidia.com/gpu", Resolution: resource.MustParse("1m")},
+	},
+	[]schedulerconfiguration.FloatingResourceConfig{},
 )
 
 func TestConvert(t *testing.T) {
@@ -18,7 +30,45 @@ func TestConvert(t *testing.T) {
 		"empty input": {
 			input: &bidstore.RetrieveBidsResponse{},
 			expected: BidPriceSnapshot{
+				Bids:          make(map[PriceKey]map[string]Bid),
+				ResourceUnits: map[string]internaltypes.ResourceList{},
+			},
+		},
+		"resourceUnit": {
+			input: &bidstore.RetrieveBidsResponse{
+				PoolResourceUnits: map[string]*bidstore.ResourceShape{
+					"pool1": {
+						Resources: map[string]*resource.Quantity{
+							"cpu":    mustParsePtr("1"),
+							"memory": mustParsePtr("1Gi"),
+						},
+					},
+					"pool2": {
+						Resources: map[string]*resource.Quantity{
+							"cpu":            mustParsePtr("2"),
+							"memory":         mustParsePtr("2Gi"),
+							"nvidia.com/gpu": mustParsePtr("1"),
+						},
+					},
+				},
+			},
+			expected: BidPriceSnapshot{
 				Bids: make(map[PriceKey]map[string]Bid),
+				ResourceUnits: map[string]internaltypes.ResourceList{
+					"pool1": testResourceListFactory.FromNodeProto(
+						map[string]*resource.Quantity{
+							"cpu":    mustParsePtr("1"),
+							"memory": mustParsePtr("1Gi"),
+						},
+					),
+					"pool2": testResourceListFactory.FromNodeProto(
+						map[string]*resource.Quantity{
+							"cpu":            mustParsePtr("2"),
+							"memory":         mustParsePtr("2Gi"),
+							"nvidia.com/gpu": mustParsePtr("1"),
+						},
+					),
+				},
 			},
 		},
 		"single bid with both phases": {
@@ -55,6 +105,7 @@ func TestConvert(t *testing.T) {
 						},
 					},
 				},
+				ResourceUnits: map[string]internaltypes.ResourceList{},
 			},
 		},
 		"uses fallback if direct bid is missing": {
@@ -63,7 +114,7 @@ func TestConvert(t *testing.T) {
 					"queue1": {
 						PoolBids: map[string]*bidstore.PoolBids{
 							"pool1": {
-								FallbackBid: &bidstore.PriceBandBids{
+								FallbackBids: &bidstore.PriceBandBids{
 									PricingPhaseBids: []*bidstore.PricingPhaseBid{
 										CreateQueuedBid(5.0),
 										CreateRunningBid(10.0),
@@ -158,13 +209,14 @@ func TestConvert(t *testing.T) {
 						},
 					},
 				},
+				ResourceUnits: map[string]internaltypes.ResourceList{},
 			},
 		},
 	}
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			actual := convert(tc.input)
+			actual := convert(tc.input, testResourceListFactory)
 
 			// Remove non-deterministic time field before comparison
 			require.False(t, actual.Timestamp.IsZero(), "timestamp should be set")
@@ -191,4 +243,9 @@ func CreateRunningBid(p float64) *bidstore.PricingPhaseBid {
 			Amount: p,
 		},
 	}
+}
+
+func mustParsePtr(qty string) *resource.Quantity {
+	q := resource.MustParse(qty)
+	return &q
 }
