@@ -28,6 +28,8 @@ var (
 	poolAndPriorityLabels                  = []string{poolLabel, priorityLabel}
 	poolAndQueueLabels                     = []string{poolLabel, queueLabel}
 	poolAndQueueAndPriorityClassTypeLabels = []string{poolLabel, queueLabel, priorityClassLabel, typeLabel}
+	poolAndShapeLabels                     = []string{poolLabel, jobShapeLabel}
+	poolAndShapeAndReasonLabels            = []string{poolLabel, jobShapeLabel, unschedulableReasonLabel}
 	poolQueueAndResourceLabels             = []string{poolLabel, queueLabel, resourceLabel}
 	defaultType                            = "unknown"
 )
@@ -59,6 +61,11 @@ type perCycleMetrics struct {
 	protectedFractionOfFairShare *prometheus.GaugeVec
 	nodeAllocatableResource      *prometheus.GaugeVec
 	nodeAllocatedResource        *prometheus.GaugeVec
+	indicativePrice              *prometheus.GaugeVec
+	indicativePriceSchedulable   *prometheus.GaugeVec
+	idealisedScheduledValue      *prometheus.GaugeVec
+	idealisedAllocatedResource   *prometheus.GaugeVec
+	realisedScheduledValue       *prometheus.GaugeVec
 }
 
 func newPerCycleMetrics() *perCycleMetrics {
@@ -270,6 +277,46 @@ func newPerCycleMetrics() *perCycleMetrics {
 		[]string{poolLabel, nodeLabel, clusterLabel, nodeTypeLabel, resourceLabel, "schedulable", "overAllocated"},
 	)
 
+	indicativePrice := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: prefix + "indicative_price",
+			Help: "indicative price for configured job in pool",
+		},
+		poolAndShapeLabels,
+	)
+
+	indicativePriceSchedulable := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: prefix + "indicative_price_is_schedulable",
+			Help: "determines whether defined job is at all schedulable",
+		},
+		poolAndShapeAndReasonLabels,
+	)
+
+	idealisedScheduledValue := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: prefix + "idealised_scheduled_value",
+			Help: "Idealised value scheduled per queue",
+		},
+		poolAndQueueLabels,
+	)
+
+	idealisedAllocatedResource := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: prefix + "idealised_allocated_resource",
+			Help: "Idealised value scheduled per queue",
+		},
+		[]string{poolLabel, queueLabel, resourceLabel},
+	)
+
+	realisedScheduledValue := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: prefix + "realised_scheduled_value",
+			Help: "Realised value scheduled per queue",
+		},
+		poolAndQueueLabels,
+	)
+
 	return &perCycleMetrics{
 		consideredJobs:               consideredJobs,
 		fairShare:                    fairShare,
@@ -297,6 +344,11 @@ func newPerCycleMetrics() *perCycleMetrics {
 		protectedFractionOfFairShare: protectedFractionOfFairShare,
 		nodeAllocatableResource:      nodeAllocatableResource,
 		nodeAllocatedResource:        nodeAllocatedResource,
+		indicativePrice:              indicativePrice,
+		indicativePriceSchedulable:   indicativePriceSchedulable,
+		idealisedScheduledValue:      idealisedScheduledValue,
+		idealisedAllocatedResource:   idealisedAllocatedResource,
+		realisedScheduledValue:       realisedScheduledValue,
 	}
 }
 
@@ -410,8 +462,13 @@ func (m *cycleMetrics) ReportSchedulerResult(ctx *armadacontext.Context, result 
 			currentCycle.shortJobPenalty.WithLabelValues(pool, queue).Set(shortJobPenalty)
 			currentCycle.queueWeight.WithLabelValues(pool, queue).Set(queueContext.Weight)
 			currentCycle.rawQueueWeight.WithLabelValues(pool, queue).Set(queueContext.RawWeight)
+			currentCycle.idealisedScheduledValue.WithLabelValues(pool, queue).Set(queueContext.IdealisedValue)
+			currentCycle.realisedScheduledValue.WithLabelValues(pool, queue).Set(queueContext.RealisedValue)
 			for _, r := range queueContext.GetBillableResource().GetResources() {
 				currentCycle.billableResource.WithLabelValues(pool, queue, r.Name).Set(float64(r.RawValue))
+			}
+			for _, r := range queueContext.IdealisedAllocated.GetResources() {
+				currentCycle.idealisedAllocatedResource.WithLabelValues(pool, queue, r.Name).Set(float64(r.RawValue))
 			}
 		}
 		currentCycle.fairnessError.WithLabelValues(pool).Set(schedContext.FairnessError())
@@ -486,6 +543,20 @@ func (m *cycleMetrics) ReportSchedulerResult(ctx *armadacontext.Context, result 
 		}
 
 		currentCycle.protectedFractionOfFairShare.WithLabelValues(pool).Set(schedulingStats.ProtectedFractionOfFairShare)
+
+		for name, pricingInfo := range schedulingStats.MarketDrivenIndicativePrices {
+			if pricingInfo.Evaluated {
+				currentCycle.indicativePrice.WithLabelValues(pool, name).Set(pricingInfo.Price)
+				if pricingInfo.Schedulable {
+					currentCycle.indicativePriceSchedulable.WithLabelValues(pool, name, pricingInfo.UnschedulableReason).Set(1.0)
+				} else {
+					currentCycle.indicativePriceSchedulable.WithLabelValues(pool, name, pricingInfo.UnschedulableReason).Set(0.0)
+				}
+			} else {
+				currentCycle.indicativePrice.WithLabelValues(pool, name).Set(math.NaN())
+				currentCycle.indicativePriceSchedulable.WithLabelValues(pool, name, pricingInfo.UnschedulableReason).Set(math.NaN())
+			}
+		}
 	}
 	m.latestCycleMetrics.Store(currentCycle)
 
@@ -525,6 +596,11 @@ func (m *cycleMetrics) describe(ch chan<- *prometheus.Desc) {
 		currentCycle.protectedFractionOfFairShare.Describe(ch)
 		currentCycle.nodeAllocatableResource.Describe(ch)
 		currentCycle.nodeAllocatedResource.Describe(ch)
+		currentCycle.indicativePrice.Describe(ch)
+		currentCycle.indicativePriceSchedulable.Describe(ch)
+		currentCycle.idealisedScheduledValue.Describe(ch)
+		currentCycle.idealisedAllocatedResource.Describe(ch)
+		currentCycle.realisedScheduledValue.Describe(ch)
 	}
 
 	m.reconciliationCycleTime.Describe(ch)
@@ -563,6 +639,11 @@ func (m *cycleMetrics) collect(ch chan<- prometheus.Metric) {
 		currentCycle.protectedFractionOfFairShare.Collect(ch)
 		currentCycle.nodeAllocatableResource.Collect(ch)
 		currentCycle.nodeAllocatedResource.Collect(ch)
+		currentCycle.indicativePrice.Collect(ch)
+		currentCycle.indicativePriceSchedulable.Collect(ch)
+		currentCycle.idealisedScheduledValue.Collect(ch)
+		currentCycle.idealisedAllocatedResource.Collect(ch)
+		currentCycle.realisedScheduledValue.Collect(ch)
 	}
 
 	m.reconciliationCycleTime.Collect(ch)

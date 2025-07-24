@@ -248,6 +248,25 @@ func (repo *mockJobRepository) GetById(id string) *jobdb.Job {
 	return j
 }
 
+func (repo *mockJobRepository) NewJob(
+	jobId string,
+	jobSet string,
+	queue string,
+	priority uint32,
+	schedulingInfo *internaltypes.JobSchedulingInfo,
+	queued bool,
+	queuedVersion int32,
+	cancelRequested bool,
+	cancelByJobSetRequested bool,
+	cancelled bool,
+	created int64,
+	validated bool,
+	pools []string,
+	priceBand int32,
+) (*jobdb.Job, error) {
+	return &jobdb.Job{}, nil
+}
+
 func newMockJobRepository() *mockJobRepository {
 	return &mockJobRepository{
 		jobsByQueue: make(map[string][]*jobdb.Job),

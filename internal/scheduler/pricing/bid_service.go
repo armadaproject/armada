@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/queue"
 	"github.com/armadaproject/armada/pkg/bidstore"
 )
@@ -59,11 +60,13 @@ func (b *LocalBidPriceService) GetBidPrices(ctx *armadacontext.Context) (BidPric
 
 type ExternalBidPriceService struct {
 	client bidstore.BidRetrieverServiceClient
+	rlf    *internaltypes.ResourceListFactory
 }
 
-func NewExternalBidPriceService(client bidstore.BidRetrieverServiceClient) *ExternalBidPriceService {
+func NewExternalBidPriceService(client bidstore.BidRetrieverServiceClient, rlf *internaltypes.ResourceListFactory) *ExternalBidPriceService {
 	return &ExternalBidPriceService{
 		client: client,
+		rlf:    rlf,
 	}
 }
 
@@ -72,13 +75,18 @@ func (b *ExternalBidPriceService) GetBidPrices(ctx *armadacontext.Context) (BidP
 	if err != nil {
 		return BidPriceSnapshot{}, err
 	}
-	return convert(resp), nil
+	return convert(resp, b.rlf), nil
 }
 
-func convert(resp *bidstore.RetrieveBidsResponse) BidPriceSnapshot {
+func convert(resp *bidstore.RetrieveBidsResponse, rlf *internaltypes.ResourceListFactory) BidPriceSnapshot {
 	snapshot := BidPriceSnapshot{
-		Timestamp: time.Now(),
-		Bids:      make(map[PriceKey]map[string]Bid),
+		Timestamp:     time.Now(),
+		Bids:          make(map[PriceKey]map[string]Bid),
+		ResourceUnits: make(map[string]internaltypes.ResourceList),
+	}
+
+	for pool, resourceShape := range resp.PoolResourceUnits {
+		snapshot.ResourceUnits[pool] = rlf.FromNodeProto(resourceShape.Resources)
 	}
 
 	for queue, qb := range resp.QueueBids {
@@ -88,7 +96,7 @@ func convert(resp *bidstore.RetrieveBidsResponse) BidPriceSnapshot {
 
 			for pool, poolBids := range qb.PoolBids {
 				bb, _ := poolBids.GetBidsForBand(band)
-				fallback := poolBids.GetFallbackBid()
+				fallback := poolBids.GetFallbackBids()
 
 				queued, hasQueued := getPrice(bb, fallback, bidstore.PricingPhase_PRICING_PHASE_QUEUEING)
 				running, hasRunning := getPrice(bb, fallback, bidstore.PricingPhase_PRICING_PHASE_RUNNING)
