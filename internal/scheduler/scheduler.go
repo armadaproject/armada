@@ -85,7 +85,7 @@ type Scheduler struct {
 	// If true, enable scheduler assertions.
 	// In particular, assert that the jobDb is in a valid state at the end of each cycle.
 	enableAssertions bool
-	// The service which provides upto date prices for price bands / jobs
+	// The service which provides up-to-date prices for price bands / jobs
 	bidPriceProvider pricing.BidPriceProvider
 	// A list of the pools that are market driven
 	// Used to know which jobs need update when updating job prices
@@ -941,7 +941,7 @@ func (s *Scheduler) expireJobsIfNecessary(ctx *armadacontext.Context, txn *jobdb
 	// has been completely removed
 	for executor, heartbeat := range heartbeatTimes {
 		if heartbeat.Before(cutOff) {
-			ctx.Warnf("Executor %s has not reported a hearbeart since %v. Will expire all jobs running on this executor", executor, heartbeat)
+			ctx.Warnf("Executor %s has not reported a heartbeat since %v. Will expire all jobs running on this executor", executor, heartbeat)
 			staleExecutors[executor] = true
 		}
 	}

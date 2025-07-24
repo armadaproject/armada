@@ -219,8 +219,8 @@ func setPriorityClassName(podSpec *armadaevents.PodSpecWithAvoidList, priorityCl
 }
 
 func (srv *ExecutorApi) addPreemptibleLabel(job *armadaevents.SubmitJob) {
-	isPremptible := srv.isPreemptible(job)
-	labels := map[string]string{armadaJobPreemptibleLabel: strconv.FormatBool(isPremptible)}
+	isPreemptible := srv.isPreemptible(job)
+	labels := map[string]string{armadaJobPreemptibleLabel: strconv.FormatBool(isPreemptible)}
 	addLabels(job, labels)
 }
 
