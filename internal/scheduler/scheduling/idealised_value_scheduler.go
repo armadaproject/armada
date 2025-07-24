@@ -1,9 +1,10 @@
 package scheduling
 
 import (
+	"slices"
+
 	"github.com/google/uuid"
 	v1 "k8s.io/api/core/v1"
-	"slices"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
@@ -15,8 +16,10 @@ import (
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 )
 
-const gangUniformityLabel = "mega-node-gang-uniformity-label"
-const gangUniformityValue = "mega-node"
+const (
+	gangUniformityLabel = "mega-node-gang-uniformity-label"
+	gangUniformityValue = "mega-node"
+)
 
 type IdealisedValueScheduler struct {
 	schedulingContext     *schedulercontext.SchedulingContext
