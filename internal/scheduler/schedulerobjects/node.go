@@ -7,5 +7,6 @@ func (node *Node) AvailableArmadaResource() resource.ComputeResources {
 	for _, rl := range node.UnallocatableResources {
 		cr.Sub(rl.ToComputeResources())
 	}
+	cr.LimitToZero()
 	return cr
 }
