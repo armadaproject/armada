@@ -293,7 +293,7 @@ func (repo *mockJobRepository) EnqueueMany(jobs []*jobdb.Job) {
 
 func (repo *mockJobRepository) Enqueue(job *jobdb.Job) {
 	repo.jobsByQueue[job.Queue()] = append(repo.jobsByQueue[job.Queue()], job)
-	if job.GetGangInfo().IsGang() {
+	if job.IsInGang() {
 		key := gangKey{queue: job.Queue(), gangId: job.GetGangInfo().Id()}
 		repo.jobsByGangId[key] = append(repo.jobsByGangId[key], job)
 	}

@@ -478,6 +478,10 @@ func (job *Job) GetGangInfo() GangInfo {
 	return job.gangInfo
 }
 
+func (job *Job) IsInGang() bool {
+	return job.gangInfo.IsGang()
+}
+
 // WithPriority returns a copy of the job with the priority updated.
 func (job *Job) WithPriority(priority uint32) *Job {
 	j := shallowCopyJob(*job)

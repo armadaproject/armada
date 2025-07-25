@@ -333,7 +333,7 @@ func (it *QueuedGangIterator) Peek() (*schedulercontext.GangSchedulingContext, e
 				}
 			}
 		}
-		if jctx.Job.GetGangInfo().IsGang() {
+		if jctx.Job.IsInGang() {
 			gangId := jctx.Job.GetGangInfo().Id()
 			gang := it.jctxsByGangId[gangId]
 			gang = append(gang, jctx)

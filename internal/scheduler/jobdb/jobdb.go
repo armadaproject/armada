@@ -524,7 +524,7 @@ func (txn *Txn) Upsert(jobs []*Job) error {
 	go func() {
 		defer wg.Done()
 		for _, job := range jobs {
-			if job.GetGangInfo().IsGang() {
+			if job.IsInGang() {
 				key := gangKey{queue: job.Queue(), gangId: job.GetGangInfo().Id()}
 
 				if _, present := txn.jobsByGangKey[key]; !present {
@@ -737,7 +737,7 @@ func (txn *Txn) delete(jobId string) {
 			}
 			txn.jobsByPoolAndQueue[pool][job.queue] = existingJobs.Delete(job)
 		}
-		if job.GetGangInfo().IsGang() {
+		if job.IsInGang() {
 			key := gangKey{queue: job.queue, gangId: job.GetGangInfo().Id()}
 			gangJobIds, ok := txn.jobsByGangKey[key]
 			if ok {

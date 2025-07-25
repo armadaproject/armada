@@ -185,7 +185,7 @@ func (s staticRequirementsIgnoringIterator) Next() (*schedulercontext.JobSchedul
 		return nil, nil
 	}
 	job := next.Job
-	if job.GetGangInfo().IsGang() {
+	if job.IsInGang() {
 		gangInfo := job.GetGangInfo()
 		job = job.WithGangInfo(jobdb.CreateGangInfo(gangInfo.Id(), gangInfo.Cardinality(), gangUniformityLabel))
 	}

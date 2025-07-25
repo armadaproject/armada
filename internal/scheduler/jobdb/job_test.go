@@ -179,6 +179,16 @@ func TestJob_TestInTerminalState(t *testing.T) {
 	assert.Equal(t, true, baseJob.WithCancelled(true).InTerminalState())
 }
 
+func TestJob_IsInGang(t *testing.T) {
+	// Non-gang job
+	job := baseJob.WithGangInfo(BasicJobGangInfo())
+	assert.False(t, job.IsInGang())
+
+	// Gang job
+	job = job.WithGangInfo(CreateGangInfo("id", 2, "uniformity"))
+	assert.True(t, job.IsInGang())
+}
+
 func TestJob_BidPrices_PreemptibleJob(t *testing.T) {
 	pool1Bid := pricing.Bid{QueuedBid: 1, RunningBid: 2}
 	pool2Bid := pricing.Bid{QueuedBid: 3, RunningBid: 4}

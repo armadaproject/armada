@@ -11,7 +11,6 @@ import (
 )
 
 type GangInfo struct {
-	isGang         bool
 	id             string
 	cardinality    int
 	nodeUniformity string
@@ -19,7 +18,6 @@ type GangInfo struct {
 
 var basicJobGangInfo = GangInfo{
 	id:             "",
-	isGang:         false,
 	cardinality:    1,
 	nodeUniformity: "",
 }
@@ -32,14 +30,13 @@ func BasicJobGangInfo() GangInfo {
 func CreateGangInfo(id string, cardinality int, nodeUniformity string) GangInfo {
 	return GangInfo{
 		id:             id,
-		isGang:         true,
 		cardinality:    cardinality,
 		nodeUniformity: nodeUniformity,
 	}
 }
 
 func (g GangInfo) IsGang() bool {
-	return g.isGang
+	return g.cardinality > 1
 }
 
 func (g GangInfo) Id() string {
