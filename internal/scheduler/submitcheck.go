@@ -241,18 +241,18 @@ func (srv *SubmitChecker) getIndividualSchedulingResult(jctx *context.JobSchedul
 //   - Node Uniformity Label (although it will work if this is per cluster)
 //   - Gang jobs that will use more than the allowed capacity limit
 func (srv *SubmitChecker) getSchedulingResult(originalGangCtx *context.GangSchedulingContext, state *schedulerState) schedulingResult {
-	sucessfulPools := map[string]bool{}
+	successfulPools := map[string]bool{}
 	var sb strings.Builder
 
 poolStart:
 	for _, pool := range srv.schedulingConfig.Pools {
 
-		if sucessfulPools[pool.Name] {
+		if successfulPools[pool.Name] {
 			continue
 		}
 
 		for _, awayPool := range pool.AwayPools {
-			if sucessfulPools[awayPool] {
+			if successfulPools[awayPool] {
 				continue poolStart
 			}
 		}
@@ -301,7 +301,7 @@ poolStart:
 
 			if ok {
 				if !gctx.JobSchedulingContexts[0].PodSchedulingContext.ScheduledAway || len(pool.AwayPools) > 0 {
-					sucessfulPools[pool.Name] = true
+					successfulPools[pool.Name] = true
 				}
 				continue
 			}
@@ -333,8 +333,8 @@ poolStart:
 			}
 		}
 	}
-	if len(sucessfulPools) > 0 {
-		return schedulingResult{isSchedulable: true, pools: maps.Keys(sucessfulPools)}
+	if len(successfulPools) > 0 {
+		return schedulingResult{isSchedulable: true, pools: maps.Keys(successfulPools)}
 	}
 	return schedulingResult{isSchedulable: false, reason: sb.String()}
 }
