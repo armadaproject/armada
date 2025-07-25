@@ -348,7 +348,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 		expectedJobRequestCancel         []string                       // ids of jobs we expect to have produced request cancel
 		expectedJobReprioritised         []string                       // ids of jobs we expect to have  produced reprioritised messages
 		expectedQueued                   []string                       // ids of jobs we expect to have  produced requeued messages
-		expectedJobSucceeded             []string                       // ids of jobs we expect to have  produced succeeeded messages
+		expectedJobSucceeded             []string                       // ids of jobs we expect to have  produced succeeded messages
 		expectedLeased                   []string                       // ids of jobs we expected to be leased in jobdb at the end of the cycle
 		expectedRequeued                 []string                       // ids of jobs we expected to be requeued in jobdb at the end of the cycle
 		expectedValidated                []string                       // ids of jobs we expected to have produced submit checked messages
@@ -1703,7 +1703,7 @@ func (t *testJobRepository) FetchJobRunLeases(ctx *armadacontext.Context, execut
 
 func (t *testJobRepository) FetchJobUpdates(ctx *armadacontext.Context, jobSerial int64, jobRunSerial int64) ([]database.Job, []database.Run, error) {
 	if t.shouldError {
-		return nil, nil, errors.New("error fetchiung job updates")
+		return nil, nil, errors.New("error fetching job updates")
 	}
 	return t.updatedJobs, t.updatedRuns, nil
 }
