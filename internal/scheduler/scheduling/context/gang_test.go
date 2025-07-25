@@ -14,7 +14,7 @@ func TestNewGangSchedulingContext(t *testing.T) {
 	gctx := NewGangSchedulingContext(jctxs)
 	assert.Equal(t, jctxs, gctx.JobSchedulingContexts)
 	assert.Equal(t, "A", gctx.Queue)
-	assert.Equal(t, testfixtures.TestDefaultPriorityClass, gctx.GangInfo.PriorityClassName)
+	assert.Equal(t, testfixtures.TestDefaultPriorityClass, gctx.PriorityClassName())
 	assert.True(
 		t,
 		testfixtures.TestResourceListFactory.FromJobResourceListIgnoreUnknown(

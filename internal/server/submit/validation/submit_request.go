@@ -7,7 +7,7 @@ import (
 	"github.com/pkg/errors"
 	"k8s.io/component-helpers/scheduling/corev1/nodeaffinity"
 
-	schedulercontext "github.com/armadaproject/armada/internal/scheduler/scheduling/context"
+	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/bidstore"
@@ -319,36 +319,44 @@ func (j jobAdapter) Annotations() map[string]string {
 //   - Priority Class
 //   - Node Uniformity
 func validateGangs(request *api.JobSubmitRequest, _ configuration.SubmissionConfig) error {
-	gangDetailsByGangId := make(map[string]schedulercontext.GangInfo)
+	type GangValidationInfo struct {
+		jobdb.GangInfo
+		PriorityClassName string
+	}
+	gangDetailsByGangId := make(map[string]GangValidationInfo)
 	for _, job := range request.JobRequestItems {
-		actual, err := schedulercontext.GangInfoFromLegacySchedulerJob(jobAdapter{job})
+		adaptedJob := jobAdapter{job}
+		rawGangInfo, err := jobdb.GangInfoFromMinimalJob(adaptedJob)
 		if err != nil {
-			return fmt.Errorf("invalid gang annotations: %s", err.Error())
+			return fmt.Errorf("invalid gang information: %s", err.Error())
 		}
-		if actual.Id == "" {
+		gangInfo := *rawGangInfo
+		if !gangInfo.IsGang() {
 			continue
 		}
-		if expected, ok := gangDetailsByGangId[actual.Id]; ok {
-			if expected.Cardinality != actual.Cardinality {
+
+		actual := GangValidationInfo{gangInfo, adaptedJob.PriorityClassName()}
+		if expected, ok := gangDetailsByGangId[actual.Id()]; ok {
+			if expected.Cardinality() != actual.Cardinality() {
 				return errors.Errorf(
 					"inconsistent gang cardinality in gang %s: expected %d but got %d",
-					actual.Id, expected.Cardinality, actual.Cardinality,
+					actual.Id(), expected.Cardinality(), actual.Cardinality(),
 				)
 			}
 			if expected.PriorityClassName != actual.PriorityClassName {
 				return errors.Errorf(
 					"inconsistent PriorityClassName in gang %s: expected %s but got %s",
-					actual.Id, expected.PriorityClassName, actual.PriorityClassName,
+					actual.Id(), expected.PriorityClassName, actual.PriorityClassName,
 				)
 			}
-			if actual.NodeUniformity != expected.NodeUniformity {
+			if actual.NodeUniformity() != expected.NodeUniformity() {
 				return errors.Errorf(
 					"inconsistent nodeUniformityLabel in gang %s: expected %s but got %s",
-					actual.Id, expected.NodeUniformity, actual.NodeUniformity,
+					actual.Id(), expected.NodeUniformity(), actual.NodeUniformity(),
 				)
 			}
 		} else {
-			gangDetailsByGangId[actual.Id] = actual
+			gangDetailsByGangId[actual.Id()] = actual
 		}
 	}
 	return nil

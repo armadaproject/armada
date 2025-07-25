@@ -2,7 +2,6 @@ package jobdb
 
 import (
 	"fmt"
-	"strconv"
 	"sync"
 
 	"github.com/benbjohnson/immutable"
@@ -19,7 +18,6 @@ import (
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/adapters"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
-	"github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/armadaproject/armada/pkg/bidstore"
 )
 
@@ -189,7 +187,7 @@ func (jobDb *JobDb) NewJob(
 	pools []string,
 	priceBand int32,
 ) (*Job, error) {
-	priorityClass, ok := jobDb.priorityClasses[schedulingInfo.PriorityClassName]
+	priorityClass, ok := jobDb.priorityClasses[schedulingInfo.PriorityClass]
 	if !ok {
 		priorityClass = jobDb.defaultPriorityClass
 	}
@@ -202,7 +200,7 @@ func (jobDb *JobDb) NewJob(
 		pb = bidstore.PriceBand(priceBand)
 	}
 
-	gangInfo, err := createGangInfo(schedulingInfo)
+	gangInfo, err := GangInfoFromMinimalJob(schedulingInfo)
 	if err != nil {
 		log.Errorf("failed creating gang info for job %s", jobId)
 		// TODO should we error here or continue on interpreting the job as not a gang job?
@@ -235,39 +233,6 @@ func (jobDb *JobDb) NewJob(
 	job.ensureJobSchedulingInfoFieldsInitialised()
 	job.schedulingKey = SchedulingKeyFromJob(jobDb.schedulingKeyGenerator, job)
 	return job, nil
-}
-
-func createGangInfo(schedulingInfo *internaltypes.JobSchedulingInfo) (*GangInfo, error) {
-	basicGangInfo := BasicJobGangInfo()
-	annotations := schedulingInfo.PodRequirements.Annotations
-	gangId, ok := annotations[configuration.GangIdAnnotation]
-	if !ok {
-		// Not a gang, default to basic gang info
-		return &basicGangInfo, nil
-	}
-	if gangId == "" {
-		return nil, errors.Errorf("gang id is empty")
-	}
-
-	gangCardinalityString, ok := annotations[configuration.GangCardinalityAnnotation]
-	if !ok {
-		return nil, errors.Errorf("gang cardinality annotation %s is missing", configuration.GangCardinalityAnnotation)
-	}
-	gangCardinality, err := strconv.Atoi(gangCardinalityString)
-	if err != nil {
-		return nil, fmt.Errorf("gang cardinality is not parseable - %s", errors.WithStack(err))
-	}
-	if gangCardinality <= 0 {
-		return nil, errors.Errorf("gang cardinality %d is non-positive", gangCardinality)
-	}
-	if gangCardinality < 2 {
-		// Not a gang, default to basic gang info
-		return &basicGangInfo, nil
-	}
-
-	nodeUniformityLabel := schedulingInfo.PodRequirements.Annotations[configuration.GangNodeUniformityLabelAnnotation]
-	gangInfo := CreateGangInfo(gangId, gangCardinality, nodeUniformityLabel)
-	return &gangInfo, nil
 }
 
 func (jobDb *JobDb) getResourceRequirements(schedulingInfo *internaltypes.JobSchedulingInfo) internaltypes.ResourceList {
