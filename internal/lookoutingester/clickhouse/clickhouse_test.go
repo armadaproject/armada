@@ -160,7 +160,6 @@ func TestCoalescingMergeTree(t *testing.T) {
 				battery_level Nullable(UInt8),
 				odometer Nullable(UInt32),
 				firmware Nullable(String),
-				last_update Int64
 			)
 			ENGINE = CoalescingMergeTree()
 			ORDER BY vin
@@ -169,16 +168,16 @@ func TestCoalescingMergeTree(t *testing.T) {
 		// Step 2: Insert sparse updates with NULLs
 		require.NoError(t, conn.Exec(ctx, `
 			INSERT INTO vehicle_state
-			VALUES ('abc123', 95, NULL, 'fish', 1)
+			VALUES ('abc123', 95, NULL, NULL)
 		`))
 		require.NoError(t, conn.Exec(ctx, `
 			INSERT INTO vehicle_state
-			VALUES ('abc123', NULL, 12000, NULL, 2)
+			VALUES ('abc123', NULL, 12000, NULL)
 		`))
 
 		require.NoError(t, conn.Exec(ctx, `
 			INSERT INTO vehicle_state
-			VALUES ('abc123', NULL, 13000,  'chips', 3)
+			VALUES ('abc123', NULL, 13000,  'chips')
 		`))
 
 		// Step 3: Query the final state using FINAL
@@ -190,13 +189,9 @@ func TestCoalescingMergeTree(t *testing.T) {
 		)
 
 		require.NoError(t, conn.QueryRow(ctx, `
-			SELECT
-    vin,
-    argMax(battery_level, last_update) AS battery_level,
-    argMax(odometer, last_update) AS odometer,
-    argMax(firmware, last_update) AS firmware
-FROM vehicle_state
-GROUP BY vin
+			SELECT vin, battery_level, odometer, firmware
+			FROM vehicle_state FINAL
+			WHERE vin = 'abc123'
 		`).Scan(&vin, &batteryLevel, &odometer, &firmware))
 
 		require.Equal(t, "abc123", vin, "vin should be 'abc123'")
