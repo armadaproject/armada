@@ -14,19 +14,6 @@ import (
 
 const poolName = "pool"
 
-type MinimalQueue struct {
-	allocation internaltypes.ResourceList
-	weight     float64
-}
-
-func (q MinimalQueue) GetAllocation() internaltypes.ResourceList {
-	return q.allocation
-}
-
-func (q MinimalQueue) GetWeight() float64 {
-	return q.weight
-}
-
 func TestNewDominantResourceFairness(t *testing.T) {
 	rlFactory := makeTestResourceListFactory()
 	_, err := NewDominantResourceFairness(

@@ -110,7 +110,7 @@ func (sch *GangScheduler) Schedule(ctx *armadacontext.Context, gctx *context.Gan
 	defer func() {
 		// If an error occurred, augment the error message and return.
 		if err != nil {
-			err = errors.WithMessagef(err, "failed scheduling gang %s composed of jobs %v", gctx.Id, gctx.JobIds())
+			err = errors.WithMessagef(err, "failed scheduling gang %s composed of jobs %v", gctx.Id(), gctx.JobIds())
 			return
 		}
 
@@ -150,10 +150,10 @@ func (sch *GangScheduler) Schedule(ctx *armadacontext.Context, gctx *context.Gan
 }
 
 func (sch *GangScheduler) trySchedule(ctx *armadacontext.Context, gctx *context.GangSchedulingContext) (ok bool, unschedulableReason string, err error) {
-	nodeUniformity := gctx.GangInfo.NodeUniformity
+	nodeUniformity := gctx.NodeUniformityLabel()
 
 	// If no node uniformity or isn't a gang, try scheduling across all nodes.
-	if !gctx.IsGang || nodeUniformity == "" {
+	if !gctx.IsGang() || nodeUniformity == "" {
 		return sch.tryScheduleGang(ctx, gctx)
 	}
 
@@ -212,7 +212,7 @@ func (sch *GangScheduler) trySchedule(ctx *armadacontext.Context, gctx *context.
 		unschedulableReason = "at least one job in the gang does not fit on any node"
 		return
 	}
-	addNodeSelectorToGctx(gctx, gctx.GangInfo.NodeUniformity, bestValue)
+	addNodeSelectorToGctx(gctx, gctx.NodeUniformityLabel(), bestValue)
 	return sch.tryScheduleGang(ctx, gctx)
 }
 

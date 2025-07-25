@@ -1816,7 +1816,7 @@ func (t *testSchedulingAlgo) Schedule(_ *armadacontext.Context, _ map[string]int
 	if err := txn.Upsert(scheduledJobs); err != nil {
 		return nil, err
 	}
-	return NewSchedulerResultForTest(preemptedJobs, scheduledJobs, nil), nil
+	return NewSchedulerResultForTest(preemptedJobs, scheduledJobs), nil
 }
 
 func (t *testSchedulingAlgo) Persist() {
@@ -1831,12 +1831,10 @@ func (t *testSchedulingAlgo) Persist() {
 func NewSchedulerResultForTest[S ~[]T, T *jobdb.Job](
 	preemptedJobs S,
 	scheduledJobs S,
-	nodeIdByJobId map[string]string,
 ) *scheduling.SchedulerResult {
 	return &scheduling.SchedulerResult{
 		PreemptedJobs: schedulercontext.JobSchedulingContextsFromJobs(preemptedJobs),
 		ScheduledJobs: schedulercontext.JobSchedulingContextsFromJobs(scheduledJobs),
-		NodeIdByJobId: nodeIdByJobId,
 	}
 }
 

@@ -372,8 +372,8 @@ func TestJobDb_GangInfoIsPopulated(t *testing.T) {
 				Annotations:  tc.annotations,
 			}
 			jobSchedulingInfo := &internaltypes.JobSchedulingInfo{
-				PriorityClassName: "foo",
-				PodRequirements:   podRequirements,
+				PriorityClass:   "foo",
+				PodRequirements: podRequirements,
 			}
 			jobDb := NewTestJobDb()
 
@@ -393,8 +393,8 @@ func TestJobDb_SchedulingKeyIsPopulated(t *testing.T) {
 		NodeSelector: map[string]string{"foo": "bar"},
 	}
 	jobSchedulingInfo := &internaltypes.JobSchedulingInfo{
-		PriorityClassName: "foo",
-		PodRequirements:   podRequirements,
+		PriorityClass:   "foo",
+		PodRequirements: podRequirements,
 	}
 	jobDb := NewTestJobDb()
 	job, err := jobDb.NewJob("jobId", "jobSet", "queue", 1, jobSchedulingInfo, false, 0, false, false, false, 2, false, []string{}, 0)
@@ -1299,12 +1299,12 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 			skg := internaltypes.NewSchedulingKeyGenerator()
 
 			jobSchedulingInfoA := jobSchedulingInfo.DeepCopy()
-			jobSchedulingInfoA.PriorityClassName = tc.priorityClassNameA
+			jobSchedulingInfoA.PriorityClass = tc.priorityClassNameA
 			jobSchedulingInfoA.PodRequirements = tc.podRequirementsA
 			jobA := JobWithJobSchedulingInfo(baseJob, jobSchedulingInfoA)
 
 			jobSchedulingInfoB := jobSchedulingInfo.DeepCopy()
-			jobSchedulingInfoB.PriorityClassName = tc.priorityClassNameB
+			jobSchedulingInfoB.PriorityClass = tc.priorityClassNameB
 			jobSchedulingInfoB.PodRequirements = tc.podRequirementsB
 			jobB := JobWithJobSchedulingInfo(baseJob, jobSchedulingInfoB)
 
@@ -1341,7 +1341,7 @@ func newJob() *Job {
 }
 
 func newGangJob() *Job {
-	gangInfo, err := createGangInfo(gangJobSchedulingInfo)
+	gangInfo, err := GangInfoFromMinimalJob(gangJobSchedulingInfo)
 	if err != nil {
 		panic(err)
 	}
