@@ -15,23 +15,34 @@ import (
 
 // JobSchedulingInfo is a minimal representation of job requirements that the scheduler uses for scheduling
 type JobSchedulingInfo struct {
-	Lifetime          uint32
-	PriorityClassName string
-	SubmitTime        time.Time
-	Priority          uint32
-	PodRequirements   *PodRequirements
-	Version           uint32
+	Lifetime        uint32
+	PriorityClass   string
+	SubmitTime      time.Time
+	Priority        uint32
+	PodRequirements *PodRequirements
+	Version         uint32
 }
 
 func (j *JobSchedulingInfo) DeepCopy() *JobSchedulingInfo {
 	return &JobSchedulingInfo{
-		Lifetime:          j.Lifetime,
-		PriorityClassName: j.PriorityClassName,
-		SubmitTime:        j.SubmitTime,
-		Priority:          j.Priority,
-		PodRequirements:   j.PodRequirements.DeepCopy(),
-		Version:           j.Version,
+		Lifetime:        j.Lifetime,
+		PriorityClass:   j.PriorityClass,
+		SubmitTime:      j.SubmitTime,
+		Priority:        j.Priority,
+		PodRequirements: j.PodRequirements.DeepCopy(),
+		Version:         j.Version,
 	}
+}
+
+func (j *JobSchedulingInfo) Annotations() map[string]string {
+	if j.PodRequirements != nil {
+		return j.PodRequirements.Annotations
+	}
+	return map[string]string{}
+}
+
+func (j *JobSchedulingInfo) PriorityClassName() string {
+	return j.PriorityClass
 }
 
 // PodRequirements captures the scheduling requirements specific to a pod.
@@ -79,10 +90,10 @@ func FromSchedulerObjectsJobSchedulingInfo(j *schedulerobjects.JobSchedulingInfo
 		rr = &v1.ResourceRequirements{}
 	}
 	return &JobSchedulingInfo{
-		Lifetime:          j.Lifetime,
-		PriorityClassName: j.PriorityClassName,
-		SubmitTime:        protoutil.ToStdTime(j.SubmitTime),
-		Priority:          j.Priority,
+		Lifetime:      j.Lifetime,
+		PriorityClass: j.PriorityClassName,
+		SubmitTime:    protoutil.ToStdTime(j.SubmitTime),
+		Priority:      j.Priority,
 		PodRequirements: &PodRequirements{
 			NodeSelector: maps.Clone(podRequirements.NodeSelector),
 			Affinity:     proto.Clone(podRequirements.Affinity).(*v1.Affinity),
@@ -101,7 +112,7 @@ func ToSchedulerObjectsJobSchedulingInfo(j *JobSchedulingInfo) *schedulerobjects
 	podRequirements := j.PodRequirements
 	return &schedulerobjects.JobSchedulingInfo{
 		Lifetime:          j.Lifetime,
-		PriorityClassName: j.PriorityClassName,
+		PriorityClassName: j.PriorityClassName(),
 		SubmitTime:        protoutil.ToTimestamp(j.SubmitTime),
 		Priority:          j.Priority,
 		ObjectRequirements: []*schedulerobjects.ObjectRequirements{

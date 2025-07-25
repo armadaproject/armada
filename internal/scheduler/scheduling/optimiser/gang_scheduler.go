@@ -48,11 +48,11 @@ func (n *FairnessOptimisingGangScheduler) Schedule(ctx *armadacontext.Context, g
 		return false, nil, "", err
 	}
 
-	if isValid, reason := n.isValidNodeUniformityLabel(gctx.NodeUniformity); !isValid {
+	if isValid, reason := n.isValidNodeUniformityLabel(gctx.NodeUniformityLabel()); !isValid {
 		return false, nil, reason, nil
 	}
 
-	nodesByNodeUniformityLabel := n.groupNodesByNodeUniformityLabel(gctx.NodeUniformity, nodes)
+	nodesByNodeUniformityLabel := n.groupNodesByNodeUniformityLabel(gctx.NodeUniformityLabel(), nodes)
 	schedulingCandidates := make([]*schedulingResult, 0, len(nodesByNodeUniformityLabel))
 
 	for _, groupedNodes := range nodesByNodeUniformityLabel {
@@ -222,6 +222,7 @@ func (n *FairnessOptimisingGangScheduler) markJobsScheduledAndPreempted(result *
 		for _, jobToPreempt := range jobsToPreempt {
 			preemptedJctx := context.JobSchedulingContextFromJob(jobToPreempt)
 			preemptedJctx.PreemptingJob = result.jctx.Job
+			preemptedJctx.AssignedNode = node
 			preemptedJctx.PreemptionDescription = fmt.Sprintf("Preempted by scheduler using fairness optimiser - preempting job %s", jctx.JobId)
 			preemptedJctx.PreemptionType = context.PreemptedWithOptimiserPreemption
 			preemptedJobs = append(preemptedJobs, preemptedJctx)

@@ -6,7 +6,6 @@ import (
 
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/context"
-	"github.com/armadaproject/armada/internal/server/configuration"
 )
 
 const (
@@ -52,8 +51,7 @@ func PopulatePreemptionDescriptions(marketBasedScheduling bool, pool string, pre
 			potentialPreemptingJobs := jobsScheduledWithUrgencyBasedPreemptionByNode[preemptedJctx.GetAssignedNodeId()]
 
 			if len(potentialPreemptingJobs) == 0 {
-				_, isGang := preemptedJctx.Job.Annotations()[configuration.GangIdAnnotation]
-				if isGang {
+				if preemptedJctx.Job.GetGangInfo().IsGang() {
 					preemptedJctx.PreemptionDescription = fmt.Sprintf(unknownGangPreemptionCause)
 					preemptedJctx.PreemptionType = context.UnknownGangJob
 				} else {
