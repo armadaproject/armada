@@ -36,7 +36,7 @@ func NewGangSchedulingContext(jctxs []*JobSchedulingContext) *GangSchedulingCont
 	return &GangSchedulingContext{
 		Created:                   time.Now(),
 		Queue:                     representative.Job.Queue(),
-		IsGangJob:                 representative.Job.GetGangInfo().IsGang(),
+		IsGangJob:                 representative.Job.IsInGang(),
 		GangId:                    representative.Job.GetGangInfo().Id(),
 		NodeUniformity:            representative.Job.GetGangInfo().NodeUniformity(),
 		PriorityClass:             representative.Job.PriorityClassName(),

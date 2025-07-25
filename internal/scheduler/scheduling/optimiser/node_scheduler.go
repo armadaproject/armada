@@ -154,7 +154,7 @@ func (n *PreemptingNodeScheduler) getPreemptibleJobDetailsByQueue(
 			// Don't evict jobs larger than the maximum size
 			continue
 		}
-		if job.GetGangInfo().IsGang() {
+		if job.IsInGang() {
 			// Don't evict gang jobs
 			continue
 		}

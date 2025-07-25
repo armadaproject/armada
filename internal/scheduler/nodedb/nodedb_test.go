@@ -622,7 +622,7 @@ func TestAwayNodeScheduling(t *testing.T) {
 			}
 
 			jctx := context.JobSchedulingContextFromJob(job)
-			assert.Equal(t, tc.shouldSubmitGang, jctx.Job.GetGangInfo().IsGang())
+			assert.Equal(t, tc.shouldSubmitGang, jctx.Job.IsInGang())
 
 			require.NoError(t, nodeDb.CreateAndInsertWithJobDbJobsWithTxn(nodeDbTxn, nil, node))
 

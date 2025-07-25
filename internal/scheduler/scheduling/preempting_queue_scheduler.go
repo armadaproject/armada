@@ -377,7 +377,7 @@ func (sch *PreemptingQueueScheduler) collectIdsForGangEviction(evictorResult *Ev
 	gangNodeIds := make(map[string]bool)
 	seenGangs := make(map[string]bool)
 	for _, jctx := range evictorResult.EvictedJctxsByJobId {
-		if !jctx.Job.GetGangInfo().IsGang() {
+		if !jctx.Job.IsInGang() {
 			// Not a gang job.
 			continue
 		}
@@ -422,7 +422,7 @@ func (sch *PreemptingQueueScheduler) getActiveGangJobs(queue string, gangId stri
 func (sch *PreemptingQueueScheduler) setEvictedGangCardinality(evictorResult *EvictorResult) error {
 	seenGangs := map[string]int{}
 	for _, jctx := range evictorResult.EvictedJctxsByJobId {
-		if !jctx.Job.GetGangInfo().IsGang() {
+		if !jctx.Job.IsInGang() {
 			// Not a gang job.
 			continue
 		}
@@ -453,7 +453,7 @@ func (sch *PreemptingQueueScheduler) evictionAssertions(evictorResult *EvictorRe
 	}
 	evictedJctxsByGangId := make(map[string][]*schedulercontext.JobSchedulingContext)
 	for jobId, jctx := range evictorResult.EvictedJctxsByJobId {
-		if jctx.Job.GetGangInfo().IsGang() {
+		if jctx.Job.IsInGang() {
 			if _, present := evictedJctxsByGangId[jctx.Job.GetGangInfo().Id()]; !present {
 				evictedJctxsByGangId[jctx.Job.GetGangInfo().Id()] = []*schedulercontext.JobSchedulingContext{}
 			}

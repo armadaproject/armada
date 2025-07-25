@@ -51,7 +51,7 @@ func PopulatePreemptionDescriptions(marketBasedScheduling bool, pool string, pre
 			potentialPreemptingJobs := jobsScheduledWithUrgencyBasedPreemptionByNode[preemptedJctx.GetAssignedNodeId()]
 
 			if len(potentialPreemptingJobs) == 0 {
-				if preemptedJctx.Job.GetGangInfo().IsGang() {
+				if preemptedJctx.Job.IsInGang() {
 					preemptedJctx.PreemptionDescription = fmt.Sprintf(unknownGangPreemptionCause)
 					preemptedJctx.PreemptionType = context.UnknownGangJob
 				} else {

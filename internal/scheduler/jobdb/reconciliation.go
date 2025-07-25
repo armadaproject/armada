@@ -94,7 +94,7 @@ func (jobDb *JobDb) ReconcileDifferences(txn *Txn, jobRepoJobs []database.Job, j
 		if err != nil {
 			return nil, err
 		}
-		if jst.PreemptionRequested && job.GetGangInfo().IsGang() {
+		if jst.PreemptionRequested && job.IsInGang() {
 			jobsInGang := txn.GetGangJobsIdsByGangId(job.Queue(), job.GetGangInfo().Id())
 			jobIdsToMarkAsPreemptionRequested = append(jobIdsToMarkAsPreemptionRequested, jobsInGang...)
 		}
