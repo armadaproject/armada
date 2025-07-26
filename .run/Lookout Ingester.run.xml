@@ -2,6 +2,7 @@
   <configuration default="false" name="Lookout Ingester" type="GoApplicationRunConfiguration" factoryName="Go Application">
     <module name="armada" />
     <working_directory value="$PROJECT_DIR$" />
+    <parameters value="bench" />
     <envs>
       <env name="ARMADA_LOG_CONFIG" value="config/logging-dev.yaml" />
       <env name="ARMADA_METRICS_PORT" value="9006" />

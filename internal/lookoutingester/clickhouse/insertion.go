@@ -4,11 +4,39 @@ import (
 	"context"
 	"fmt"
 	"github.com/ClickHouse/clickhouse-go/v2"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/database/lookout"
+	log "github.com/armadaproject/armada/internal/common/logging"
+	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/lookoutingester/model"
 	"k8s.io/utils/pointer"
 	"time"
 )
+
+type LookoutClickhouseDb struct {
+	Db clickhouse.Conn
+}
+
+func NewLookoutClickhouseDb(db clickhouse.Conn) *LookoutClickhouseDb {
+	return &LookoutClickhouseDb{
+		Db: db,
+	}
+}
+
+func (l *LookoutClickhouseDb) Store(ctx *armadacontext.Context, instructions *model.InstructionSet) error {
+	start := time.Now()
+	rows := make([]JobRow, 0, len(instructions.JobsToUpdate)+len(instructions.JobsToCreate)+len(instructions.JobRunsToCreate)+len(instructions.JobRunsToUpdate))
+	rows = append(rows, armadaslices.Map(instructions.JobsToCreate, FromCreateJob)...)
+	rows = append(rows, armadaslices.Map(instructions.JobsToUpdate, FromUpdateJob)...)
+	rows = append(rows, armadaslices.Map(instructions.JobRunsToCreate, FromCreateJobRun)...)
+	rows = append(rows, armadaslices.Map(instructions.JobRunsToUpdate, FromUpdateJobRun)...)
+	err := InsertJobsBatch(ctx, l.Db, rows)
+	if err != nil {
+		return err
+	}
+	log.Infof("Stored %d jobs updates in %s", len(rows), time.Since(start))
+	return nil
+}
 
 type JobRow struct {
 	JobId              string            `ch:"job_id"`
@@ -40,7 +68,7 @@ type JobRow struct {
 	RunStarted  *time.Time `ch:"run_started"`
 }
 
-func FromCreateJob(inst model.CreateJobInstruction) JobRow {
+func FromCreateJob(inst *model.CreateJobInstruction) JobRow {
 	return JobRow{
 		JobId:              inst.JobId,
 		Queue:              &inst.Queue,
@@ -59,7 +87,7 @@ func FromCreateJob(inst model.CreateJobInstruction) JobRow {
 	}
 }
 
-func FromUpdateJob(inst model.UpdateJobInstruction) JobRow {
+func FromUpdateJob(inst *model.UpdateJobInstruction) JobRow {
 	return JobRow{
 		JobId:              inst.JobId,
 		LastTransitionTime: inst.LastTransitionTime,
@@ -71,7 +99,7 @@ func FromUpdateJob(inst model.UpdateJobInstruction) JobRow {
 	}
 }
 
-func FromCreateJobRun(inst model.CreateJobRunInstruction) JobRow {
+func FromCreateJobRun(inst *model.CreateJobRunInstruction) JobRow {
 	return JobRow{
 		JobId:              inst.JobId,
 		LastTransitionTime: inst.Leased,
@@ -85,7 +113,7 @@ func FromCreateJobRun(inst model.CreateJobRunInstruction) JobRow {
 	}
 }
 
-func FromUpdateJobRun(inst model.UpdateJobRunInstruction) JobRow {
+func FromUpdateJobRun(inst *model.UpdateJobRunInstruction) JobRow {
 	return JobRow{
 		JobId:              inst.JobId,
 		LastTransitionTime: inst.LastTransitionTime,

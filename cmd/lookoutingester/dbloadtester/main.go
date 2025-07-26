@@ -52,10 +52,10 @@ func main() {
 	common.LoadConfig(&config, "./config/lookoutingester", userSpecifiedConfigs)
 
 	loadtesterConfig := dbloadtester.Config{
-		TotalJobs:            500000,
-		TotalConcurrentJobs:  50000,
+		TotalJobs:            5000000,
+		TotalConcurrentJobs:  250000,
 		QueueSubmitBatchSize: 300,
-		QueueNames:           []string{"queue1", "queue2", "queue3"},
+		QueueNames:           []string{"queue1", "queue2", "queue3", "queue4", "queue5"},
 		JobTemplateFile:      "internal/lookoutingester/dbloadtester/test_data.yaml",
 	}
 

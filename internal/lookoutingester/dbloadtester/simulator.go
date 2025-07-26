@@ -2,8 +2,8 @@ package dbloadtester
 
 import (
 	"context"
+
 	"math"
-	"regexp"
 	"sync"
 	"time"
 
@@ -12,13 +12,12 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
-	"github.com/armadaproject/armada/internal/common/database"
 	"github.com/armadaproject/armada/internal/common/ingest"
 	"github.com/armadaproject/armada/internal/common/ingest/utils"
 	log "github.com/armadaproject/armada/internal/common/logging"
+	"github.com/armadaproject/armada/internal/lookoutingester/clickhouse"
 	"github.com/armadaproject/armada/internal/lookoutingester/configuration"
 	"github.com/armadaproject/armada/internal/lookoutingester/instructions"
-	"github.com/armadaproject/armada/internal/lookoutingester/lookoutdb"
 	"github.com/armadaproject/armada/internal/lookoutingester/metrics"
 	"github.com/armadaproject/armada/internal/lookoutingester/model"
 	"github.com/armadaproject/armada/pkg/armadaevents"
@@ -34,9 +33,8 @@ type LoadTester struct {
 	batchSize            int
 	batchDuration        time.Duration
 	queueSubmitBatchSize int
-
-	db        *lookoutdb.LookoutDb
-	converter *instructions.InstructionConverter
+	db                   *clickhouse.LookoutClickhouseDb
+	converter            *instructions.InstructionConverter
 }
 
 type Config struct {
@@ -56,22 +54,16 @@ type Results struct {
 func Setup(lookoutIngesterConfig configuration.LookoutIngesterConfiguration, testConfig Config) *LoadTester {
 	m := metrics.Get()
 
-	db, err := database.OpenPgxPool(lookoutIngesterConfig.Postgres)
+	ch, err := clickhouse.OpenClickHouse(context.Background(), "localhost:9000", "default", "bench", "benchpw")
 	if err != nil {
-		panic(errors.WithMessage(err, "Error opening connection to postgres"))
+		panic(errors.WithMessage(err, "Error opening clickhouse"))
+	}
+	err = clickhouse.CreateTables(context.Background(), ch)
+	if err != nil {
+		panic(errors.WithMessage(err, "Error creating tables"))
 	}
 
-	fatalRegexes := make([]*regexp.Regexp, len(lookoutIngesterConfig.FatalInsertionErrors))
-	for i, str := range lookoutIngesterConfig.FatalInsertionErrors {
-		rgx, err := regexp.Compile(str)
-		if err != nil {
-			log.Errorf("Error compiling regex %s", str)
-			panic(err)
-		}
-		fatalRegexes[i] = rgx
-	}
-
-	lookoutDb := lookoutdb.NewLookoutDb(db, fatalRegexes, m, lookoutIngesterConfig.MaxBackoff)
+	lookoutDb := clickhouse.NewLookoutClickhouseDb(ch)
 
 	// To avoid load testing the compression algorithm, the compressor is configured not to compress.
 	compressor, err := compress.NewZlibCompressor(math.MaxInt)
@@ -97,7 +89,7 @@ func Setup(lookoutIngesterConfig configuration.LookoutIngesterConfiguration, tes
 		testConfig.TotalConcurrentJobs,
 		false,
 		submitJobTemplate,
-		lookoutIngesterConfig.BatchSize,
+		50000,
 		lookoutIngesterConfig.BatchDuration,
 		testConfig.QueueSubmitBatchSize,
 		lookoutDb,
@@ -108,6 +100,9 @@ func Setup(lookoutIngesterConfig configuration.LookoutIngesterConfiguration, tes
 // Run performs the load test with the configuration and database provided by the loadtester
 func (l *LoadTester) Run(ctx *armadacontext.Context) (*Results, error) {
 	loadTestStart := time.Now()
+
+	stopMonitor, _ := clickhouse.StartMergeDelayMonitor(ctx, l.db.Db)
+	defer stopMonitor()
 
 	// generates events, simulated to have a realistic pattern
 	simulatedEvents := make(chan *utils.EventsWithIds[*armadaevents.EventSequence])
@@ -154,7 +149,7 @@ func (l *LoadTester) Run(ctx *armadacontext.Context) (*Results, error) {
 			start := time.Now()
 			converted := l.converter.Convert(ctx, msg)
 			taken := time.Now().Sub(start)
-			log.Infof("Processed %d pulsar messages in %dms", len(msg.MessageIds), taken.Milliseconds())
+			log.Debugf("Processed %d pulsar messages in %dms", len(msg.MessageIds), taken.Milliseconds())
 			instructionSets <- converted
 		}
 		close(instructionSets)
