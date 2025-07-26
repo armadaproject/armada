@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"k8s.io/utils/pointer"
 	"math/rand"
+	"sync"
 	"testing"
 	"time"
 )
@@ -309,11 +310,15 @@ func TestUpdateJobRun(t *testing.T) {
 
 func TestBulkInsertUpdateAndQueryPerformance(t *testing.T) {
 	ctx := context.Background()
-	const totalJobs = 1_000_000
+	const totalJobs = 10_000_000
 	const batchSize = 10_000
 	const lookups = 100
 
 	err := withTestDb(ctx, func(db clickhouse.Conn) {
+
+		stopMonitor, getMaxDelay := StartMergeDelayMonitor(ctx, db, t)
+		defer stopMonitor()
+
 		jobIds := make([]string, totalJobs)
 		now := time.Now()
 		for i := 0; i < totalJobs; i++ {
@@ -442,9 +447,81 @@ func TestBulkInsertUpdateAndQueryPerformance(t *testing.T) {
 			require.NoError(t, err)
 		}
 		t.Logf("Top 100 jobs in queue-a with queued state: %v", time.Since(startTop))
+
+		time.Sleep(20 * time.Second)
+
+		t.Logf("Final max merge delay observed: %v", getMaxDelay())
 	})
 
 	require.NoError(t, err)
+}
+
+func StartMergeDelayMonitor(ctx context.Context, db clickhouse.Conn, t *testing.T) (stop func(), getMaxDelay func() time.Duration) {
+	var maxDelay time.Duration
+	var mu sync.Mutex
+	ticker := time.NewTicker(100 * time.Millisecond)
+	logTicker := time.NewTicker(1 * time.Second)
+	done := make(chan struct{})
+
+	go func() {
+		defer ticker.Stop()
+		defer logTicker.Stop()
+
+		for {
+			select {
+			case <-done:
+				return
+			case <-ticker.C:
+				delay := getCurrentMergeDelay(ctx, db)
+				mu.Lock()
+				if delay > maxDelay {
+					maxDelay = delay
+				}
+				mu.Unlock()
+			case <-logTicker.C:
+				mu.Lock()
+				current := getCurrentMergeDelay(ctx, db)
+				t.Logf("Current merge delay: %v, max observed delay: %v", current, maxDelay)
+				mu.Unlock()
+			}
+		}
+	}()
+
+	stop = func() { close(done) }
+	getMaxDelay = func() time.Duration {
+		mu.Lock()
+		defer mu.Unlock()
+		return maxDelay
+	}
+	return stop, getMaxDelay
+}
+
+func getCurrentMergeDelay(ctx context.Context, db clickhouse.Conn) time.Duration {
+	rows, err := db.Query(ctx, `
+		SELECT elapsed
+		FROM system.merges
+		WHERE database = currentDatabase()
+		  AND table = 'jobs'
+	`)
+	if err != nil {
+		fmt.Printf("error querying system.merges: %v\n", err)
+		return 0
+	}
+	defer rows.Close()
+
+	var maxElapsed float64
+	for rows.Next() {
+		var elapsed float64
+		if err := rows.Scan(&elapsed); err != nil {
+			fmt.Printf("scan error: %v\n", err)
+			continue
+		}
+		if elapsed > maxElapsed {
+			maxElapsed = elapsed
+		}
+	}
+
+	return time.Duration(maxElapsed * float64(time.Second))
 }
 
 func GetJobRow(ctx context.Context, db clickhouse.Conn, jobId string) (JobRow, bool, error) {
