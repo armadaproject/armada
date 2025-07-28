@@ -102,12 +102,20 @@ func CreateTables(ctx context.Context, db clickhouse.Conn) error {
 		run_leased Nullable(DateTime),
 		run_pending Nullable(DateTime),
 		run_started Nullable(DateTime)
-	) ENGINE = CoalescingMergeTree()
-		ORDER BY (job_id);
+	)
+		ENGINE = CoalescingMergeTree()
+		ORDER BY (job_id)
+        SETTINGS deduplicate_merge_projection_mode = 'drop';
 	`
 
 	stmts := []string{
 		jobsDdl,
+		`ALTER TABLE jobs MODIFY SETTING min_age_to_force_merge_seconds = 5`,
+		`ALTER TABLE jobs
+ADD PROJECTION queue_lookup (
+    SELECT *
+    ORDER BY (queue, last_transition_time)
+)`,
 	}
 
 	for _, ddl := range stmts {
