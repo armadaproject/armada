@@ -492,7 +492,7 @@ func (m *cycleMetrics) ReportSchedulerResult(ctx *armadacontext.Context, result 
 			if jobCtx.PodSchedulingContext != nil && jobCtx.PodSchedulingContext.SchedulingMethod != "" {
 				schedulingType = string(jobCtx.PodSchedulingContext.SchedulingMethod)
 			}
-			m.scheduledJobs.WithLabelValues(pool, jobCtx.Job.Queue(), jobCtx.PriorityClassName, schedulingType).Inc()
+			m.scheduledJobs.WithLabelValues(pool, jobCtx.Job.Queue(), jobCtx.Job.PriorityClassName(), schedulingType).Inc()
 		}
 
 		for _, jobCtx := range schedulingStats.PreemptedJobs {
@@ -500,7 +500,7 @@ func (m *cycleMetrics) ReportSchedulerResult(ctx *armadacontext.Context, result 
 			if jobCtx.PreemptionType != "" {
 				preemptionType = string(jobCtx.PreemptionType)
 			}
-			m.premptedJobs.WithLabelValues(pool, jobCtx.Job.Queue(), jobCtx.PriorityClassName, preemptionType).Inc()
+			m.premptedJobs.WithLabelValues(pool, jobCtx.Job.Queue(), jobCtx.Job.PriorityClassName(), preemptionType).Inc()
 		}
 
 		currentCycle.loopNumber.WithLabelValues(pool).Set(float64(schedulingStats.LoopNumber))

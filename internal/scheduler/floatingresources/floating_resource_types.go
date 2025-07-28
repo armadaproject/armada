@@ -60,7 +60,7 @@ func validate(config []configuration.FloatingResourceConfig) error {
 func (frt *FloatingResourceTypes) WithinLimits(poolName string, allocated internaltypes.ResourceList) (bool, string) {
 	available := frt.GetTotalAvailableForPool(poolName)
 	if available.AllZero() {
-		return false, fmt.Sprintf("floating resources not connfigured for pool %s", poolName)
+		return false, fmt.Sprintf("floating resources not configured for pool %s", poolName)
 	}
 
 	resourceName, _, _, exceeds := allocated.OfType(internaltypes.Floating).ExceedsAvailable(available)

@@ -468,8 +468,18 @@ func (job *Job) GetPriceBand() bidstore.PriceBand {
 	return job.priceBand
 }
 
+func (job *Job) WithGangInfo(gangInfo GangInfo) *Job {
+	j := shallowCopyJob(*job)
+	j.gangInfo = gangInfo
+	return j
+}
+
 func (job *Job) GetGangInfo() GangInfo {
 	return job.gangInfo
+}
+
+func (job *Job) IsInGang() bool {
+	return job.gangInfo.IsGang()
 }
 
 // WithPriority returns a copy of the job with the priority updated.
@@ -524,7 +534,7 @@ func (job *Job) Annotations() map[string]string {
 // TODO: this can be inconsistent with job.PriorityClass()
 func (job *Job) PriorityClassName() string {
 	if schedulingInfo := job.JobSchedulingInfo(); schedulingInfo != nil {
-		return schedulingInfo.PriorityClassName
+		return schedulingInfo.PriorityClassName()
 	}
 	return ""
 }

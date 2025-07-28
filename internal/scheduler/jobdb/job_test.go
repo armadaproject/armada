@@ -47,7 +47,7 @@ var gangJobSchedulingInfo = &internaltypes.JobSchedulingInfo{
 }
 
 var preemptibleJobSchedulingInfo = &internaltypes.JobSchedulingInfo{
-	PriorityClassName: PriorityClass0,
+	PriorityClass: PriorityClass0,
 	PodRequirements: &internaltypes.PodRequirements{
 		ResourceRequirements: v1.ResourceRequirements{
 			Requests: v1.ResourceList{
@@ -177,6 +177,16 @@ func TestJob_TestInTerminalState(t *testing.T) {
 	assert.Equal(t, true, baseJob.WithSucceeded(true).InTerminalState())
 	assert.Equal(t, true, baseJob.WithFailed(true).InTerminalState())
 	assert.Equal(t, true, baseJob.WithCancelled(true).InTerminalState())
+}
+
+func TestJob_IsInGang(t *testing.T) {
+	// Non-gang job
+	job := baseJob.WithGangInfo(BasicJobGangInfo())
+	assert.False(t, job.IsInGang())
+
+	// Gang job
+	job = job.WithGangInfo(CreateGangInfo("id", 2, "uniformity"))
+	assert.True(t, job.IsInGang())
 }
 
 func TestJob_BidPrices_PreemptibleJob(t *testing.T) {

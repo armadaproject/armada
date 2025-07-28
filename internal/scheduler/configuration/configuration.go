@@ -238,7 +238,7 @@ type SchedulingConfig struct {
 	FloatingResources []FloatingResourceConfig
 	// WellKnownNodeTypes defines a set of well-known node types used to define "home" and "away" nodes for a given priority class.
 	WellKnownNodeTypes []WellKnownNodeType `validate:"dive"`
-	// Executor that haven't heartbeated in this time period are considered stale.
+	// Executors that haven't heartbeated in this time period are considered stale.
 	// No new jobs are scheduled onto stale executors.
 	ExecutorTimeout time.Duration
 	// Maximum number of jobs that can be assigned to a executor but not yet acknowledged, before

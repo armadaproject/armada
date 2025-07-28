@@ -108,7 +108,6 @@ func (l *FairSchedulingAlgo) Schedule(
 		defer cancel()
 	}
 	overallSchedulerResult := &SchedulerResult{
-		NodeIdByJobId:          make(map[string]string),
 		PerPoolSchedulingStats: make(map[string]PerPoolSchedulingStats),
 	}
 
@@ -178,7 +177,6 @@ func (l *FairSchedulingAlgo) Schedule(
 		overallSchedulerResult.PreemptedJobs = append(overallSchedulerResult.PreemptedJobs, schedulerResult.PreemptedJobs...)
 		overallSchedulerResult.ScheduledJobs = append(overallSchedulerResult.ScheduledJobs, schedulerResult.ScheduledJobs...)
 		overallSchedulerResult.SchedulingContexts = append(overallSchedulerResult.SchedulingContexts, schedulerResult.SchedulingContexts...)
-		maps.Copy(overallSchedulerResult.NodeIdByJobId, schedulerResult.NodeIdByJobId)
 
 		for p, s := range schedulerResult.PerPoolSchedulingStats {
 			overallSchedulerResult.PerPoolSchedulingStats[p] = s
@@ -192,9 +190,6 @@ type FairSchedulingAlgoContext struct {
 	pool              string
 	nodeDb            *nodedb.NodeDb
 	schedulingContext *schedulercontext.SchedulingContext
-	nodeIdByJobId     map[string]string
-	jobIdsByGangId    map[string]map[string]bool
-	gangIdByJobId     map[string]string
 	Txn               *jobdb.Txn
 }
 
@@ -308,9 +303,6 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 		pool:              currentPool.Name,
 		nodeDb:            nodeDb,
 		schedulingContext: schedulingContext,
-		nodeIdByJobId:     jobSchedulingInfo.nodeIdByJobId,
-		jobIdsByGangId:    jobSchedulingInfo.jobIdsByGangId,
-		gangIdByJobId:     jobSchedulingInfo.gangIdByJobId,
 		Txn:               txn,
 	}, nil
 }
@@ -318,9 +310,6 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 type jobSchedulingInfo struct {
 	jobsByExecutorId                     map[string][]*jobdb.Job
 	jobsByPool                           map[string][]*jobdb.Job
-	nodeIdByJobId                        map[string]string
-	jobIdsByGangId                       map[string]map[string]bool
-	gangIdByJobId                        map[string]string
 	demandByQueueAndPriorityClass        map[string]map[string]internaltypes.ResourceList
 	allocatedByQueueAndPriorityClass     map[string]map[string]internaltypes.ResourceList
 	awayAllocatedByQueueAndPriorityClass map[string]map[string]internaltypes.ResourceList
@@ -333,9 +322,6 @@ func (l *FairSchedulingAlgo) calculateJobSchedulingInfo(ctx *armadacontext.Conte
 ) (*jobSchedulingInfo, error) {
 	jobsByExecutorId := make(map[string][]*jobdb.Job)
 	jobsByPool := make(map[string][]*jobdb.Job)
-	nodeIdByJobId := make(map[string]string)
-	jobIdsByGangId := make(map[string]map[string]bool)
-	gangIdByJobId := make(map[string]string)
 	demandByQueueAndPriorityClass := make(map[string]map[string]internaltypes.ResourceList)
 	allocatedByQueueAndPriorityClass := make(map[string]map[string]internaltypes.ResourceList)
 	awayAllocatedByQueueAndPriorityClass := make(map[string]map[string]internaltypes.ResourceList)
@@ -434,28 +420,11 @@ func (l *FairSchedulingAlgo) calculateJobSchedulingInfo(ctx *armadacontext.Conte
 		}
 
 		jobsByExecutorId[executorId] = append(jobsByExecutorId[executorId], job)
-		nodeIdByJobId[job.Id()] = nodeId
-		gangInfo, err := schedulercontext.GangInfoFromLegacySchedulerJob(job)
-		if err != nil {
-			return nil, err
-		}
-		if gangId := gangInfo.Id; gangId != "" {
-			jobIds := jobIdsByGangId[gangId]
-			if jobIds == nil {
-				jobIds = make(map[string]bool)
-				jobIdsByGangId[gangId] = jobIds
-			}
-			jobIds[job.Id()] = true
-			gangIdByJobId[job.Id()] = gangId
-		}
 	}
 
 	return &jobSchedulingInfo{
 		jobsByExecutorId:                     jobsByExecutorId,
 		jobsByPool:                           jobsByPool,
-		nodeIdByJobId:                        nodeIdByJobId,
-		jobIdsByGangId:                       jobIdsByGangId,
-		gangIdByJobId:                        gangIdByJobId,
 		demandByQueueAndPriorityClass:        demandByQueueAndPriorityClass,
 		allocatedByQueueAndPriorityClass:     allocatedByQueueAndPriorityClass,
 		awayAllocatedByQueueAndPriorityClass: awayAllocatedByQueueAndPriorityClass,
@@ -614,9 +583,6 @@ func (l *FairSchedulingAlgo) SchedulePool(
 		l.schedulingConfig,
 		fsctx.Txn,
 		fsctx.nodeDb,
-		fsctx.nodeIdByJobId,
-		fsctx.jobIdsByGangId,
-		fsctx.gangIdByJobId,
 		shouldRunOptimiser,
 	)
 
@@ -644,11 +610,7 @@ func (l *FairSchedulingAlgo) SchedulePool(
 	for i, jctx := range result.ScheduledJobs {
 		jobDbJob := jctx.Job
 		jobId := jobDbJob.Id()
-		nodeId := result.NodeIdByJobId[jobId]
-		if nodeId == "" {
-			return nil, nil, errors.Errorf("job %s not mapped to a node", jobId)
-		}
-		node, err := fsctx.nodeDb.GetNode(nodeId)
+		node, err := fsctx.nodeDb.GetNode(jctx.PodSchedulingContext.NodeId)
 		if err != nil {
 			return nil, nil, err
 		}

@@ -96,8 +96,8 @@ func TestSchedule_JobChecks(t *testing.T) {
 		"cpu":    resource.MustParse("8"),
 		"memory": resource.MustParse("16Gi"),
 	}).WithJobSchedulingInfo(&internaltypes.JobSchedulingInfo{
-		PriorityClassName: testfixtures.PriorityClass0,
-		SubmitTime:        time.Time{},
+		PriorityClass: testfixtures.PriorityClass0,
+		SubmitTime:    time.Time{},
 		PodRequirements: &internaltypes.PodRequirements{
 			NodeSelector: map[string]string{
 				"armadaproject.io/nodeType": "special",

@@ -3,10 +3,9 @@ package pricing
 import (
 	"time"
 
-	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
-
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/cache"
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/pkg/bidstore"
 )
 

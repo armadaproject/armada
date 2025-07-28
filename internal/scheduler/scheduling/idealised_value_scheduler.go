@@ -1,6 +1,8 @@
 package scheduling
 
 import (
+	"slices"
+
 	"github.com/google/uuid"
 	v1 "k8s.io/api/core/v1"
 
@@ -12,6 +14,11 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/scheduling/constraints"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/scheduling/context"
+)
+
+const (
+	gangUniformityLabel = "mega-node-gang-uniformity-label"
+	gangUniformityValue = "mega-node"
 )
 
 type IdealisedValueScheduler struct {
@@ -100,7 +107,7 @@ func createNodeDb(schedulingConfig configuration.SchedulingConfig, rlf *internal
 		schedulingConfig.PriorityClasses,
 		schedulingConfig.IndexedResources,
 		schedulingConfig.IndexedTaints,
-		schedulingConfig.IndexedNodeLabels,
+		slices.Concat([]string{gangUniformityLabel}, schedulingConfig.IndexedNodeLabels),
 		schedulingConfig.WellKnownNodeTypes,
 		rlf,
 	)
@@ -152,7 +159,7 @@ func createMegaNode(pool string, nodes []*internaltypes.Node, schedulingConfig c
 		"mega-node",
 		false,
 		[]v1.Taint{},
-		map[string]string{},
+		map[string]string{gangUniformityLabel: gangUniformityValue},
 		totalResources,
 		allocatableResources,
 		allocatableByPriority)
@@ -177,19 +184,24 @@ func (s staticRequirementsIgnoringIterator) Next() (*schedulercontext.JobSchedul
 	if next == nil {
 		return nil, nil
 	}
+	job := next.Job
+	if job.IsInGang() {
+		gangInfo := job.GetGangInfo()
+		job = job.WithGangInfo(jobdb.CreateGangInfo(gangInfo.Id(), gangInfo.Cardinality(), gangUniformityLabel))
+	}
 	return &schedulercontext.JobSchedulingContext{
 		Created:   next.Created,
 		JobId:     next.JobId,
 		IsEvicted: next.IsEvicted,
-		Job:       next.Job,
+		Job:       job,
 		PodRequirements: &internaltypes.PodRequirements{
 			ResourceRequirements: next.PodRequirements.ResourceRequirements,
 		},
+		CurrentGangCardinality:         next.CurrentGangCardinality,
 		KubernetesResourceRequirements: next.KubernetesResourceRequirements,
 		AdditionalNodeSelectors:        next.AdditionalNodeSelectors,
 		AdditionalTolerations:          next.AdditionalTolerations,
 		UnschedulableReason:            next.UnschedulableReason,
 		PodSchedulingContext:           next.PodSchedulingContext,
-		GangInfo:                       schedulercontext.EmptyGangInfo(next.Job),
 	}, nil
 }

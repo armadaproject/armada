@@ -38,10 +38,7 @@ func NewPermissions(perm *api.Queue_Permissions) (Permissions, error) {
 		return Permissions{}, fmt.Errorf("failed to map subjects. %s", err)
 	}
 
-	verbs, err := NewPermissionVerbs(perm.Verbs)
-	if err != nil {
-		return Permissions{}, fmt.Errorf("failed to map verbs. %s", err)
-	}
+	verbs := NewPermissionVerbs(perm.Verbs)
 
 	return Permissions{
 		Subjects: subjects,

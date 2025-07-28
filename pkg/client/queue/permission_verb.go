@@ -2,7 +2,6 @@ package queue
 
 import (
 	"encoding/json"
-	"fmt"
 	"math/rand"
 	"reflect"
 )
@@ -17,15 +16,9 @@ const (
 	PermissionVerbWatch        PermissionVerb = "watch"
 )
 
-// NewPermissionVerb returns PermissionVerb from input string. If input string doesn't match
-// one of allowed verb values ["submit", "cancel", "preempt", "reprioritize", "watch"], and error is returned.
-func NewPermissionVerb(in string) (PermissionVerb, error) {
-	switch verb := PermissionVerb(in); verb {
-	case PermissionVerbSubmit, PermissionVerbCancel, PermissionVerbPreempt, PermissionVerbReprioritize, PermissionVerbWatch:
-		return verb, nil
-	default:
-		return "", fmt.Errorf("invalid queue permission verb: %s", in)
-	}
+// NewPermissionVerb returns PermissionVerb from input string.
+func NewPermissionVerb(in string) PermissionVerb {
+	return PermissionVerb(in)
 }
 
 // UnmarshalJSON is implementation of https://pkg.go.dev/encoding/json#Unmarshaler interface.
@@ -35,11 +28,7 @@ func (verb *PermissionVerb) UnmarshalJSON(data []byte) error {
 		return err
 	}
 
-	out, err := NewPermissionVerb(permissionVerb)
-	if err != nil {
-		return fmt.Errorf("failed to unmarshal queue permission verb: %s", err)
-	}
-
+	out := NewPermissionVerb(permissionVerb)
 	*verb = out
 	return nil
 }
@@ -54,21 +43,15 @@ func (verb PermissionVerb) Generate(rand *rand.Rand, size int) reflect.Value {
 type PermissionVerbs []PermissionVerb
 
 // NewPermissionVerbs returns PermissionVerbs from string slice. Every string from
-// slice is transformed into PermissionVerb. Error is returned if a string cannot
-// be transformed to PermissionVerb.
-func NewPermissionVerbs(verbs []string) (PermissionVerbs, error) {
+// slice is transformed into PermissionVerb.
+func NewPermissionVerbs(verbs []string) PermissionVerbs {
 	result := make([]PermissionVerb, len(verbs))
 
 	for index, verb := range verbs {
-		validVerb, err := NewPermissionVerb(verb)
-		if err != nil {
-			return nil, fmt.Errorf("failed to map verb string with index: %d. %s", index, err)
-		}
-
-		result[index] = validVerb
+		result[index] = NewPermissionVerb(verb)
 	}
 
-	return result, nil
+	return result
 }
 
 // AllPermissionVerbs returns PermissionsVerbs containing all PermissionVerb values

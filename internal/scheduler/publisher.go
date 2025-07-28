@@ -150,7 +150,7 @@ func createMessageRouter(options pulsar.ProducerOptions) func(*pulsar.ProducerMe
 				panic(errors.Errorf("cannot parse %s as int", explicitPartition))
 			}
 			if partition < 0 || uint32(partition) >= md.NumPartitions() {
-				panic(errors.Errorf("requested partiton %d is not in the range 0-%d", partition, md.NumPartitions()-1))
+				panic(errors.Errorf("requested partition %d is not in the range 0-%d", partition, md.NumPartitions()-1))
 			}
 			return int(partition)
 		}

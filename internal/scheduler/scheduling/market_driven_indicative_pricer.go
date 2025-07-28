@@ -1,6 +1,7 @@
 package scheduling
 
 import (
+	"fmt"
 	"time"
 
 	v1 "k8s.io/api/core/v1"
@@ -14,6 +15,7 @@ import (
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/scheduling/constraints"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/pricer"
+	armadaconfiguration "github.com/armadaproject/armada/internal/server/configuration"
 )
 
 type IndicativeGangPricesByJobShape map[string]pricer.GangPricingResult
@@ -140,18 +142,19 @@ func (ip *MarketDrivenIndicativePricer) gangContextsFromGangDefinitions(
 		queue := "armada-market-driven-indicative-pricer"
 		jobSet := "job-set-a"
 		jctxs := make([]*schedulercontext.JobSchedulingContext, definition.Size)
-		gangID := util.NewULID()
-		gangInfo := schedulercontext.GangInfo{
-			Id:                gangID,
-			IsGang:            definition.Size > 1,
-			Cardinality:       int(definition.Size),
-			PriorityClassName: definition.PriorityClassName,
-			NodeUniformity:    definition.NodeUniformity,
+		gangAnnotations := map[string]string{}
+		gangId := util.NewULID()
+		if definition.Size > 1 {
+			gangAnnotations[armadaconfiguration.GangIdAnnotation] = gangId
+			gangAnnotations[armadaconfiguration.GangCardinalityAnnotation] = fmt.Sprintf("%d", definition.Size)
+			gangAnnotations[armadaconfiguration.GangNodeUniformityLabelAnnotation] = definition.NodeUniformity
 		}
+
 		for i := int32(0); i < definition.Size; i++ {
 			jobID := util.NewULID()
 			jobResources := definition.Resources.DeepCopy()
 			podRequirements := &internaltypes.PodRequirements{
+				Annotations:  gangAnnotations,
 				NodeSelector: definition.NodeSelector,
 				Tolerations:  definition.Tolerations,
 				ResourceRequirements: v1.ResourceRequirements{
@@ -169,12 +172,12 @@ func (ip *MarketDrivenIndicativePricer) gangContextsFromGangDefinitions(
 				queue,
 				0,
 				&internaltypes.JobSchedulingInfo{
-					Lifetime:          1,
-					PriorityClassName: definition.PriorityClassName,
-					SubmitTime:        time.Now(),
-					Priority:          0,
-					PodRequirements:   podRequirements,
-					Version:           0,
+					Lifetime:        1,
+					PriorityClass:   definition.PriorityClassName,
+					SubmitTime:      time.Now(),
+					Priority:        0,
+					PodRequirements: podRequirements,
+					Version:         0,
 				},
 				true,
 				0,
@@ -200,7 +203,6 @@ func (ip *MarketDrivenIndicativePricer) gangContextsFromGangDefinitions(
 				AdditionalTolerations:          nil,
 				UnschedulableReason:            "",
 				PodSchedulingContext:           nil,
-				GangInfo:                       gangInfo,
 				AssignedNode:                   nil,
 				PreemptingJob:                  nil,
 				PreemptionType:                 "",
