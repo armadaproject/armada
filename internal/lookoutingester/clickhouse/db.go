@@ -77,45 +77,45 @@ func CreateTables(ctx context.Context, db clickhouse.Conn) error {
 	jobsDdl := `
 	CREATE TABLE  IF NOT EXISTS jobs(
 		job_id FixedString(26),
-		last_transition_time Nullable(DateTime),
-		queue Nullable(String),
-		namespace Nullable(String),
-		job_set Nullable(String),
-		cpu Nullable(Int64),
-		memory Nullable(Int64),
-		ephemeral_storage Nullable(Int64),
-		gpu Nullable(Int64),
-		priority Nullable(Int64),
-		submitted Nullable(DateTime),
-		priority_class Nullable(String),
-		annotations Map(String, String),
-		job_state Nullable(Int32),
-		cancelled Nullable(DateTime),
-		cancel_reason Nullable(String),
-		cancel_user Nullable(String),
-		latest_run_id Nullable(String),
-		run_cluster Nullable(String),
-		run_exit_code Nullable(Int32),
-		run_finished Nullable(DateTime),
-		run_state Nullable(Int32),
-		run_node Nullable(String),
-		run_leased Nullable(DateTime),
-		run_pending Nullable(DateTime),
-		run_started Nullable(DateTime)
+		last_transition_time SimpleAggregateFunction(anyLast, DateTime),
+		queue SimpleAggregateFunction(any, String),
+		namespace SimpleAggregateFunction(any, String),
+		job_set SimpleAggregateFunction(any, String),
+		cpu SimpleAggregateFunction(any, Int64),
+		memory SimpleAggregateFunction(any, Int64),
+		ephemeral_storage SimpleAggregateFunction(any, Int64),
+		gpu SimpleAggregateFunction(any, Int64),
+		priority  SimpleAggregateFunction(anyLast, Int64),
+		submitted SimpleAggregateFunction(any, DateTime),
+		priority_class SimpleAggregateFunction(any, String),
+		annotations SimpleAggregateFunction(any, Map(String, String)),
+		job_state SimpleAggregateFunction(anyLast,Int32),
+		cancelled SimpleAggregateFunction(anyLast, Nullable(DateTime)),
+		cancel_reason SimpleAggregateFunction(anyLast, Nullable(String)),
+		cancel_user SimpleAggregateFunction(anyLast, Nullable(String)),
+		latest_run_id SimpleAggregateFunction(anyLast, Nullable(String)),
+		run_cluster SimpleAggregateFunction(anyLast, Nullable(String)),
+		run_exit_code SimpleAggregateFunction(anyLast, Nullable(Int32)),
+		run_finished SimpleAggregateFunction(anyLast, Nullable(DateTime)),
+		run_state SimpleAggregateFunction(anyLast, Nullable(Int32)),
+		run_node SimpleAggregateFunction(anyLast, Nullable(String)),
+		run_leased SimpleAggregateFunction(anyLast, Nullable(DateTime)),
+		run_pending SimpleAggregateFunction(anyLast, Nullable(DateTime)),
+		run_started SimpleAggregateFunction(anyLast, Nullable(DateTime))
 	)
-		ENGINE = CoalescingMergeTree()
+		ENGINE = AggregatingMergeTree()
 		ORDER BY (job_id)
         SETTINGS deduplicate_merge_projection_mode = 'drop';
 	`
 
 	stmts := []string{
 		jobsDdl,
-		`ALTER TABLE jobs MODIFY SETTING min_age_to_force_merge_seconds = 5`,
+		//		`ALTER TABLE jobs MODIFY SETTING min_age_to_force_merge_seconds = 20`,
 		`ALTER TABLE jobs
-ADD PROJECTION queue_lookup (
-    SELECT *
-    ORDER BY (queue, last_transition_time)
-)`,
+		ADD PROJECTION queue_lookup (
+		   SELECT *
+		   ORDER BY (queue, last_transition_time)
+		)`,
 	}
 
 	for _, ddl := range stmts {

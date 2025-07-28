@@ -11,7 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"k8s.io/utils/pointer"
 	"math/rand"
-	"sync"
 	"testing"
 	"time"
 )
@@ -20,7 +19,7 @@ func TestInsertJob(t *testing.T) {
 	ctx := context.Background()
 
 	err := withTestDb(ctx, func(db clickhouse.Conn) {
-		instructions := []model.CreateJobInstruction{
+		instructions := []*model.CreateJobInstruction{
 			{
 				JobId:              testfixtures.JobId,
 				Queue:              testfixtures.Queue,
@@ -68,7 +67,7 @@ func TestUpdateJobPriority(t *testing.T) {
 	ctx := context.Background()
 
 	err := withTestDb(ctx, func(db clickhouse.Conn) {
-		instructions := []model.CreateJobInstruction{
+		instructions := []*model.CreateJobInstruction{
 			{
 				JobId:              testfixtures.JobId,
 				Queue:              testfixtures.Queue,
@@ -91,7 +90,7 @@ func TestUpdateJobPriority(t *testing.T) {
 		err := InsertJobsBatch(ctx, db, armadaslices.Map(instructions, FromCreateJob))
 		require.NoError(t, err)
 
-		update := []model.UpdateJobInstruction{
+		update := []*model.UpdateJobInstruction{
 			{
 				JobId:    testfixtures.JobId,
 				Priority: pointer.Int64(10),
@@ -116,57 +115,7 @@ func TestUpdateJobPriority(t *testing.T) {
 		require.Equal(t, int64(10), *result.Priority)
 		require.Equal(t, testfixtures.BaseTime, *result.Submitted)
 		require.Equal(t, "armada-default", *result.PriorityClass)
-		// TODO: Doesn't work!
-		//require.Equal(t, map[string]string{"foo": "bar"}, result.Annotations)
-	})
-	require.NoError(t, err)
-}
-
-func TestJobsMinimal(t *testing.T) {
-
-	ctx := context.Background()
-
-	err := withTestDb(ctx, func(db clickhouse.Conn) {
-		// 1. Create the table with job_state as String
-		dll := `
-		CREATE TABLE IF NOT EXISTS jobs_minimal (
-		    job_id      String,
-		    queue       Nullable(String),
-		    job_state   Nullable(String)
-		)
-		ENGINE = CoalescingMergeTree()
-		ORDER BY (job_id);
-		`
-		require.NoError(t, db.Exec(ctx, dll))
-
-		// 2. Insert first row with all fields and job_state = "1"
-		require.NoError(t, db.Exec(
-			ctx,
-			"INSERT INTO jobs_minimal (job_id, queue, annotations, job_state) VALUES (?, ?, ?, ?)",
-			"jobA",
-			"default",
-			map[string]string{"env": "prod", "owner": "alice"},
-			"1",
-		))
-
-		// 3. Insert second row with only job_state = "2" (same job_id)
-		require.NoError(t, db.Exec(
-			ctx,
-			"INSERT INTO jobs_minimal (job_id, job_state) VALUES (?, ?)",
-			"jobA",
-			"2",
-		))
-
-		// 4. Select FINAL merged row and verify a single record
-		r := db.QueryRow(
-			ctx,
-			"SELECT annotations FROM jobs_minimal FINAL ORDER BY job_id",
-		)
-		var annotations map[string]string
-		r.Scan(&annotations)
-
-		// Fails- This is empty map
-		require.Equal(t, map[string]string{"env": "prod", "owner": "alice"}, annotations)
+		require.Equal(t, map[string]string{"foo": "bar"}, result.Annotations)
 	})
 	require.NoError(t, err)
 }
@@ -175,7 +124,7 @@ func TestAddJobRun(t *testing.T) {
 	ctx := context.Background()
 
 	err := withTestDb(ctx, func(db clickhouse.Conn) {
-		instructions := []model.CreateJobInstruction{
+		instructions := []*model.CreateJobInstruction{
 			{
 				JobId:              testfixtures.JobId,
 				Queue:              testfixtures.Queue,
@@ -199,7 +148,7 @@ func TestAddJobRun(t *testing.T) {
 		require.NoError(t, err)
 
 		updateTime := testfixtures.BaseTime.Add(time.Minute)
-		update := []model.CreateJobRunInstruction{
+		update := []*model.CreateJobRunInstruction{
 			{
 				RunId:       testfixtures.RunId,
 				JobId:       testfixtures.JobId,
@@ -235,7 +184,7 @@ func TestUpdateJobRun(t *testing.T) {
 	ctx := context.Background()
 
 	err := withTestDb(ctx, func(db clickhouse.Conn) {
-		instructions := []model.CreateJobInstruction{
+		instructions := []*model.CreateJobInstruction{
 			{
 				JobId:              testfixtures.JobId,
 				Queue:              testfixtures.Queue,
@@ -259,7 +208,7 @@ func TestUpdateJobRun(t *testing.T) {
 		require.NoError(t, err)
 
 		updateTime := testfixtures.BaseTime.Add(time.Minute)
-		update := []model.CreateJobRunInstruction{
+		update := []*model.CreateJobRunInstruction{
 			{
 				RunId:       testfixtures.RunId,
 				JobId:       testfixtures.JobId,
@@ -275,7 +224,7 @@ func TestUpdateJobRun(t *testing.T) {
 		require.NoError(t, err)
 
 		runUpdateTime := testfixtures.BaseTime.Add(2 * time.Minute)
-		runUpdate := []model.UpdateJobRunInstruction{
+		runUpdate := []*model.UpdateJobRunInstruction{
 			{
 				JobId:              testfixtures.JobId,
 				RunId:              testfixtures.RunId,
@@ -316,7 +265,7 @@ func TestBulkInsertUpdateAndQueryPerformance(t *testing.T) {
 
 	err := withTestDb(ctx, func(db clickhouse.Conn) {
 
-		stopMonitor, getMaxDelay := StartMergeDelayMonitor(ctx, db, t)
+		stopMonitor, getMaxDelay := StartMergeDelayMonitor(ctx, db)
 		defer stopMonitor()
 
 		jobIds := make([]string, totalJobs)
@@ -332,12 +281,12 @@ func TestBulkInsertUpdateAndQueryPerformance(t *testing.T) {
 			if end > totalJobs {
 				end = totalJobs
 			}
-			createBatch := make([]model.CreateJobInstruction, 0, end-i)
-			updateBatch := make([]model.UpdateJobInstruction, 0, end-i)
+			createBatch := make([]*model.CreateJobInstruction, 0, end-i)
+			updateBatch := make([]*model.UpdateJobInstruction, 0, end-i)
 
 			for j := i; j < end; j++ {
 				jobId := jobIds[j]
-				createBatch = append(createBatch, model.CreateJobInstruction{
+				createBatch = append(createBatch, &model.CreateJobInstruction{
 					JobId:              jobId,
 					Queue:              "queue-a",
 					Owner:              "user",
@@ -352,7 +301,7 @@ func TestBulkInsertUpdateAndQueryPerformance(t *testing.T) {
 					State:              lookout.JobQueuedOrdinal,
 					LastTransitionTime: now,
 				})
-				updateBatch = append(updateBatch, model.UpdateJobInstruction{
+				updateBatch = append(updateBatch, &model.UpdateJobInstruction{
 					JobId:              jobId,
 					Priority:           pointer.Int64(10),
 					LastTransitionTime: timePtr(now.Add(time.Second)),
@@ -464,7 +413,7 @@ func GetJobRow(ctx context.Context, db clickhouse.Conn, jobId string) (JobRow, b
 		submitted, priority_class, annotations, job_state, cancelled, cancel_reason, cancel_user,
 		last_transition_time, latest_run_id, run_cluster, run_exit_code, run_finished, run_state,
 		run_node, run_leased, run_pending, run_started
-	FROM jobs final
+	FROM jobs_flat final
 	WHERE job_id = ?`
 
 	rows, err := db.Query(ctx, query, jobId)
