@@ -8,7 +8,6 @@ import { queryClient } from "../../../App"
 import { Job, JobRunState, JobState } from "../../../models/lookoutModels"
 import { ApiClientsProvider } from "../../../services/apiClients"
 import { FakeServicesProvider } from "../../../services/fakeContext"
-import FakeGetJobInfoService from "../../../services/lookout/mocks/FakeGetJobInfoService"
 import { MockServer } from "../../../services/lookout/mocks/mockServer"
 import { makeTestJob } from "../../../utils/fakeJobsUtils"
 
@@ -62,7 +61,6 @@ describe("Sidebar", () => {
             <FakeServicesProvider fakeJobs={[job]}>
               <Sidebar
                 job={job}
-                jobSpecService={new FakeGetJobInfoService()}
                 sidebarWidth={600}
                 onClose={onClose}
                 onWidthChange={() => undefined}

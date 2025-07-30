@@ -1961,8 +1961,6 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 			indexByJobId := make(map[string]int)
 			allocatedByQueueAndPriorityClass := make(map[string]map[string]internaltypes.ResourceList)
 			nodeIdByJobId := make(map[string]string)
-			var jobIdsByGangId map[string]map[string]bool
-			var gangIdByJobId map[string]string
 
 			// Scheduling rate-limiters persist between rounds.
 			// We control the rate at which time passes between scheduling rounds.
@@ -2033,10 +2031,6 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 							require.NoError(t, err)
 							err = nodeDb.Upsert(node)
 							require.NoError(t, err)
-							if gangId, ok := gangIdByJobId[job.Id()]; ok {
-								delete(gangIdByJobId, job.Id())
-								delete(jobIdsByGangId[gangId], job.Id())
-							}
 							demandByQueue[job.Queue()] = demandByQueue[job.Queue()].Subtract(job.AllResourceRequirements())
 						}
 					}
@@ -2109,15 +2103,10 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					tc.SchedulingConfig,
 					jobDbTxn,
 					nodeDb,
-					nodeIdByJobId,
-					jobIdsByGangId,
-					gangIdByJobId,
 					round.OptimiserEnabled,
 				)
 				result, err := sch.Schedule(ctx)
 				require.NoError(t, err)
-				jobIdsByGangId = sch.jobIdsByGangId
-				gangIdByJobId = sch.gangIdByJobId
 
 				// Test resource accounting.
 				for _, jctx := range result.PreemptedJobs {
@@ -2146,8 +2135,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				// Test that jobs are mapped to nodes correctly.
 				for _, jctx := range result.PreemptedJobs {
 					job := jctx.Job
-					nodeId, ok := result.NodeIdByJobId[job.Id()]
-					assert.True(t, ok)
+					nodeId := jctx.AssignedNode.GetId()
 					assert.NotEmpty(t, nodeId)
 
 					// Check that preempted jobs are preempted from the node they were previously scheduled onto.
@@ -2156,8 +2144,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				}
 				for _, jctx := range result.ScheduledJobs {
 					job := jctx.Job
-					nodeId, ok := result.NodeIdByJobId[job.Id()]
-					assert.True(t, ok)
+					nodeId := jctx.PodSchedulingContext.NodeId
 					assert.NotEmpty(t, nodeId)
 
 					node, err := nodeDb.GetNode(nodeId)
@@ -2176,11 +2163,6 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 						assert.Equal(t, expectedNodeId, nodeId, "job %s scheduled onto unexpected node", job.Id())
 					} else {
 						nodeIdByJobId[job.Id()] = nodeId
-					}
-				}
-				for jobId, nodeId := range result.NodeIdByJobId {
-					if expectedNodeId, ok := nodeIdByJobId[jobId]; ok {
-						assert.Equal(t, expectedNodeId, nodeId, "job %s preempted from/scheduled onto unexpected node", jobId)
 					}
 				}
 
@@ -2269,7 +2251,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				for _, jctx := range result.ScheduledJobs {
 					job := jctx.Job
 					jobId := job.Id()
-					node, err := nodeDb.GetNode(result.NodeIdByJobId[jobId])
+					node, err := nodeDb.GetNode(jctx.PodSchedulingContext.NodeId)
 					require.NotNil(t, node)
 					require.NoError(t, err)
 					priority, ok := nodeDb.GetScheduledAtPriority(jobId)
@@ -2460,9 +2442,6 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 				tc.SchedulingConfig,
 				jobDbTxn,
 				nodeDb,
-				nil,
-				nil,
-				nil,
 				false,
 			)
 			result, err := sch.Schedule(ctx)
@@ -2484,9 +2463,9 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 			require.NoError(b, err)
 
 			jobsByNodeId := make(map[string][]*jobdb.Job)
-			for _, job := range ScheduledJobsFromSchedulerResult(result) {
-				nodeId := result.NodeIdByJobId[job.Id()]
-				jobsByNodeId[nodeId] = append(jobsByNodeId[nodeId], job)
+			for _, jctx := range result.ScheduledJobs {
+				nodeId := jctx.PodSchedulingContext.NodeId
+				jobsByNodeId[nodeId] = append(jobsByNodeId[nodeId], jctx.Job)
 			}
 			nodeDb, err = NewNodeDb(tc.SchedulingConfig, stringinterner.New(1024))
 			require.NoError(b, err)
@@ -2523,9 +2502,6 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 					tc.SchedulingConfig,
 					jobDbTxn,
 					nodeDb,
-					nil,
-					nil,
-					nil,
 					false,
 				)
 				result, err := sch.Schedule(ctx)

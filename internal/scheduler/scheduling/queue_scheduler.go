@@ -88,9 +88,9 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 	var scheduledJobs []*schedulercontext.JobSchedulingContext
 	sctx := sch.schedulingContext
 
-	nodeIdByJobId := make(map[string]string)
 	ctx.Infof("Looping through candidate gangs for pool %s...", sctx.Pool)
 
+	scheduledResource := sch.schedulingContext.TotalResources.Factory().MakeAllZero()
 	statsPerQueue := map[string]QueueStats{}
 	loopNumber := 0
 	for {
@@ -126,23 +126,27 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 			for _, jctx := range gctx.JobSchedulingContexts {
 				if pctx := jctx.PodSchedulingContext; pctx.IsSuccessful() {
 					scheduledJobs = append(scheduledJobs, jctx)
-					nodeIdByJobId[jctx.JobId] = pctx.NodeId
 				}
 			}
 
+			scheduledResource = scheduledResource.Add(gctx.TotalResourceRequests)
 			if sch.marketDriven && sctx.SpotPrice == nil {
-				totalAllocation := sctx.FairnessCostProvider.UnweightedCostFromAllocation(sctx.Allocated)
+				totalAllocation := sctx.FairnessCostProvider.UnweightedCostFromAllocation(scheduledResource)
 				if totalAllocation > sch.spotPriceCutoff {
 					price := gctx.JobSchedulingContexts[0].Job.GetBidPrice(sctx.Pool)
+					priceSettingJctx := gctx.JobSchedulingContexts[0]
 					for _, jctx := range gctx.JobSchedulingContexts {
 						if jctx.Job.GetBidPrice(sctx.Pool) < price {
 							price = jctx.Job.GetBidPrice(sctx.Pool)
+							priceSettingJctx = jctx
 						}
 					}
+					ctx.Infof("setting spot price to %f based on job %s, current scheduled resource is %s, total resource is %s",
+						price, priceSettingJctx.JobId, scheduledResource, sctx.TotalResources)
 
 					sctx.SpotPrice = &price
 					for _, qctx := range sctx.QueueSchedulingContexts {
-						qctx.BillableAllocation = qctx.Allocated
+						qctx.SetBillableResource()
 					}
 				}
 			}
@@ -227,9 +231,6 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 	if sctx.TerminationReason == "" {
 		sctx.TerminationReason = "no remaining candidate jobs"
 	}
-	if len(scheduledJobs) != len(nodeIdByJobId) {
-		return nil, errors.Errorf("only %d out of %d jobs mapped to a node", len(nodeIdByJobId), len(scheduledJobs))
-	}
 
 	schedulingStats := PerPoolSchedulingStats{
 		StatsPerQueue: statsPerQueue,
@@ -239,7 +240,6 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 	return &SchedulerResult{
 		PreemptedJobs:      nil,
 		ScheduledJobs:      scheduledJobs,
-		NodeIdByJobId:      nodeIdByJobId,
 		SchedulingContexts: []*schedulercontext.SchedulingContext{sctx},
 		PerPoolSchedulingStats: map[string]PerPoolSchedulingStats{
 			sctx.Pool: schedulingStats,
@@ -333,11 +333,12 @@ func (it *QueuedGangIterator) Peek() (*schedulercontext.GangSchedulingContext, e
 				}
 			}
 		}
-		if gangId := jctx.GangInfo.Id; gangId != "" {
+		if jctx.Job.IsInGang() {
+			gangId := jctx.Job.GetGangInfo().Id()
 			gang := it.jctxsByGangId[gangId]
 			gang = append(gang, jctx)
 			it.jctxsByGangId[gangId] = gang
-			if len(gang) == jctx.GangInfo.Cardinality {
+			if len(gang) == jctx.CurrentGangCardinality {
 				delete(it.jctxsByGangId, gangId)
 				it.next = schedulercontext.NewGangSchedulingContext(gang)
 				return it.next, nil

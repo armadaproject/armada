@@ -79,7 +79,7 @@ func Setup(lookoutIngesterConfig configuration.LookoutIngesterConfiguration, tes
 		panic(errors.WithMessage(err, "Error creating compressor"))
 	}
 
-	converter := instructions.NewInstructionConverter(m.Metrics, lookoutIngesterConfig.UserAnnotationPrefix, compressor)
+	converter := instructions.NewInstructionConverter(m.Metrics, lookoutIngesterConfig.UserAnnotationPrefix, []string{}, compressor)
 
 	submitJobTemplate := &v1.PodSpec{}
 	err = clientUtil.BindJsonOrYaml(testConfig.JobTemplateFile, submitJobTemplate)

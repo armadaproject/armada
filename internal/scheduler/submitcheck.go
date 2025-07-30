@@ -189,15 +189,15 @@ func (srv *SubmitChecker) Check(ctx *armadacontext.Context, jobs []*jobdb.Job) (
 	results := make(map[string]schedulingResult, len(jobs))
 
 	// First, check if all jobs can be scheduled individually.
-	for _, jctx := range jobContexts {
-		results[jctx.JobId] = srv.getIndividualSchedulingResult(jctx, state)
+	for _, job := range jobs {
+		results[job.Id()] = srv.getIndividualSchedulingResult(job, state)
 	}
 
 	// Then, check if all gangs can be scheduled.
 	for gangId, jctxs := range armadaslices.GroupByFunc(
 		jobContexts,
 		func(jctx *context.JobSchedulingContext) string {
-			return jctx.GangInfo.Id
+			return jctx.Job.GetGangInfo().Id()
 		},
 	) {
 		if gangId == "" {
@@ -214,19 +214,15 @@ func (srv *SubmitChecker) Check(ctx *armadacontext.Context, jobs []*jobdb.Job) (
 	return results, nil
 }
 
-func (srv *SubmitChecker) getIndividualSchedulingResult(jctx *context.JobSchedulingContext, state *schedulerState) schedulingResult {
+func (srv *SubmitChecker) getIndividualSchedulingResult(job *jobdb.Job, state *schedulerState) schedulingResult {
+	// Mark this job context as "not in a gang" for the individual scheduling check.
+	job = job.WithGangInfo(jobdb.BasicJobGangInfo())
+	jctx := context.JobSchedulingContextFromJob(job)
 	schedulingKey := jctx.Job.SchedulingKey()
 
 	if obj, ok := state.jobSchedulingResultsCache.Get(schedulingKey); ok {
 		return obj.(schedulingResult)
 	}
-
-	gangInfo := jctx.GangInfo
-	// Mark this job context as "not in a gang" for the individual scheduling check.
-	jctx.GangInfo = context.EmptyGangInfo(jctx.Job)
-	defer func() {
-		jctx.GangInfo = gangInfo
-	}()
 
 	gctx := context.NewGangSchedulingContext([]*context.JobSchedulingContext{jctx})
 	result := srv.getSchedulingResult(gctx, state)
@@ -241,18 +237,18 @@ func (srv *SubmitChecker) getIndividualSchedulingResult(jctx *context.JobSchedul
 //   - Node Uniformity Label (although it will work if this is per cluster)
 //   - Gang jobs that will use more than the allowed capacity limit
 func (srv *SubmitChecker) getSchedulingResult(originalGangCtx *context.GangSchedulingContext, state *schedulerState) schedulingResult {
-	sucessfulPools := map[string]bool{}
+	successfulPools := map[string]bool{}
 	var sb strings.Builder
 
 poolStart:
 	for _, pool := range srv.schedulingConfig.Pools {
 
-		if sucessfulPools[pool.Name] {
+		if successfulPools[pool.Name] {
 			continue
 		}
 
 		for _, awayPool := range pool.AwayPools {
-			if sucessfulPools[awayPool] {
+			if successfulPools[awayPool] {
 				continue poolStart
 			}
 		}
@@ -269,7 +265,7 @@ poolStart:
 
 		c := state.constraintsByPool[pool.Name]
 		if c != nil {
-			queueLimit := c.GetQueueResourceLimit(originalGangCtx.Queue, originalGangCtx.PriorityClassName)
+			queueLimit := c.GetQueueResourceLimit(originalGangCtx.Queue, originalGangCtx.PriorityClassName())
 			if !queueLimit.IsEmpty() && originalGangCtx.TotalResourceRequests.Exceeds(queueLimit) {
 				sb.WriteString(fmt.Sprintf("pool %s:\n", pool.Name))
 				sb.WriteString(fmt.Sprintf("job/gang requests resources %s which exceeds the total limit of %s for its queue/priority class\n", originalGangCtx.TotalResourceRequests, queueLimit))
@@ -301,7 +297,7 @@ poolStart:
 
 			if ok {
 				if !gctx.JobSchedulingContexts[0].PodSchedulingContext.ScheduledAway || len(pool.AwayPools) > 0 {
-					sucessfulPools[pool.Name] = true
+					successfulPools[pool.Name] = true
 				}
 				continue
 			}
@@ -326,15 +322,15 @@ poolStart:
 			} else {
 				sb.WriteString(
 					fmt.Sprintf(
-						": %d out of %d pods schedulable (minCardinality %d)\n",
-						numSuccessfullyScheduled, len(gctx.JobSchedulingContexts), gctx.GangInfo.Cardinality,
+						": %d out of %d pods schedulable\n",
+						numSuccessfullyScheduled, len(gctx.JobSchedulingContexts),
 					),
 				)
 			}
 		}
 	}
-	if len(sucessfulPools) > 0 {
-		return schedulingResult{isSchedulable: true, pools: maps.Keys(sucessfulPools)}
+	if len(successfulPools) > 0 {
+		return schedulingResult{isSchedulable: true, pools: maps.Keys(successfulPools)}
 	}
 	return schedulingResult{isSchedulable: false, reason: sb.String()}
 }

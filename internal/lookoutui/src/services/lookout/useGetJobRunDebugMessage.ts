@@ -2,10 +2,10 @@ import { useMemo } from "react"
 
 import { QueryFunction, QueryKey, useQueries, useQuery } from "@tanstack/react-query"
 
-import { getErrorMessage } from "../../utils"
-import { fakeRunError } from "./mocks/fakeData"
-import { useGetUiConfig } from "./useGetUiConfig"
 import { useAuthenticatedFetch } from "../../oidcAuth"
+import { getErrorMessage } from "../../utils"
+import { fakeRunDebugMessage } from "./mocks/fakeData"
+import { useGetUiConfig } from "./useGetUiConfig"
 
 const getQueryFn =
   (runId: string, fetchFunc: GlobalFetch["fetch"], fakeDataEnabled: boolean): QueryFunction<string, QueryKey, never> =>
@@ -15,7 +15,7 @@ const getQueryFn =
         if (runId === "doesnotexist") {
           throw new Error("Failed to retrieve job run because of reasons")
         }
-        return fakeRunError
+        return fakeRunDebugMessage
       }
 
       const response = await fetchFunc("/api/v1/jobRunDebugMessage", {

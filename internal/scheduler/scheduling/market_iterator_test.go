@@ -15,16 +15,17 @@ import (
 )
 
 func TestMarketIteratorPQ_Ordering(t *testing.T) {
-	queueA := &MarketIteratorPQItem{queue: "A", price: 3, runtime: 10, submittedTime: 10}
-	queueB := &MarketIteratorPQItem{queue: "B", price: 2, runtime: 10, submittedTime: 10}
-	queueC := &MarketIteratorPQItem{queue: "C", price: 2, runtime: 8, submittedTime: 10}
-	queueD := &MarketIteratorPQItem{queue: "D", price: 2, runtime: 8, submittedTime: 5}
-	queueE := &MarketIteratorPQItem{queue: "E", price: 1, runtime: 8, submittedTime: 10}
-	queueF := &MarketIteratorPQItem{queue: "F", price: 1, runtime: 8, submittedTime: 10}
-	pq := &MarketIteratorPQ{items: []*MarketIteratorPQItem{queueF, queueE, queueD, queueC, queueB, queueA}}
+	queueA := &MarketIteratorPQItem{queue: "A", price: 3, queued: true, runtime: 10, submittedTime: 10}
+	queueB := &MarketIteratorPQItem{queue: "B", price: 3, queued: false, runtime: 10, submittedTime: 10}
+	queueC := &MarketIteratorPQItem{queue: "C", price: 2, queued: true, runtime: 10, submittedTime: 10}
+	queueD := &MarketIteratorPQItem{queue: "D", price: 2, queued: true, runtime: 8, submittedTime: 10}
+	queueE := &MarketIteratorPQItem{queue: "E", price: 2, queued: true, runtime: 8, submittedTime: 5}
+	queueF := &MarketIteratorPQItem{queue: "F", price: 1, queued: true, runtime: 8, submittedTime: 10}
+	queueG := &MarketIteratorPQItem{queue: "G", price: 1, queued: true, runtime: 8, submittedTime: 10}
+	pq := &MarketIteratorPQ{items: []*MarketIteratorPQItem{queueG, queueF, queueE, queueD, queueC, queueB, queueA}}
 
 	sort.Sort(pq)
-	expectedOrder := []*MarketIteratorPQItem{queueA, queueB, queueD, queueC, queueE, queueF}
+	expectedOrder := []*MarketIteratorPQItem{queueB, queueA, queueC, queueE, queueD, queueF, queueG}
 	assert.Equal(t, expectedOrder, pq.items)
 }
 

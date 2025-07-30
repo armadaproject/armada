@@ -17,7 +17,9 @@ import (
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
+	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling"
+	"github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 	"github.com/armadaproject/armada/pkg/metricevents"
 )
 
@@ -26,6 +28,8 @@ var (
 	poolAndPriorityLabels                  = []string{poolLabel, priorityLabel}
 	poolAndQueueLabels                     = []string{poolLabel, queueLabel}
 	poolAndQueueAndPriorityClassTypeLabels = []string{poolLabel, queueLabel, priorityClassLabel, typeLabel}
+	poolAndShapeLabels                     = []string{poolLabel, jobShapeLabel}
+	poolAndShapeAndReasonLabels            = []string{poolLabel, jobShapeLabel, unschedulableReasonLabel}
 	poolQueueAndResourceLabels             = []string{poolLabel, queueLabel, resourceLabel}
 	defaultType                            = "unknown"
 )
@@ -57,6 +61,11 @@ type perCycleMetrics struct {
 	protectedFractionOfFairShare *prometheus.GaugeVec
 	nodeAllocatableResource      *prometheus.GaugeVec
 	nodeAllocatedResource        *prometheus.GaugeVec
+	indicativePrice              *prometheus.GaugeVec
+	indicativePriceSchedulable   *prometheus.GaugeVec
+	idealisedScheduledValue      *prometheus.GaugeVec
+	idealisedAllocatedResource   *prometheus.GaugeVec
+	realisedScheduledValue       *prometheus.GaugeVec
 }
 
 func newPerCycleMetrics() *perCycleMetrics {
@@ -257,7 +266,7 @@ func newPerCycleMetrics() *perCycleMetrics {
 			Name: prefix + "node_allocatable_resource",
 			Help: "Resource that can be allocated to Armada jobs on this node",
 		},
-		[]string{poolLabel, nodeLabel, clusterLabel, nodeTypeLabel, resourceLabel, "schedulable"},
+		[]string{poolLabel, nodeLabel, clusterLabel, nodeTypeLabel, resourceLabel, "schedulable", "overAllocated"},
 	)
 
 	nodeAllocatedResource := prometheus.NewGaugeVec(
@@ -265,7 +274,47 @@ func newPerCycleMetrics() *perCycleMetrics {
 			Name: prefix + "node_allocated_resource",
 			Help: "Resource allocated by Armada jobs on this node",
 		},
-		[]string{poolLabel, nodeLabel, clusterLabel, nodeTypeLabel, resourceLabel, "schedulable"},
+		[]string{poolLabel, nodeLabel, clusterLabel, nodeTypeLabel, resourceLabel, "schedulable", "overAllocated"},
+	)
+
+	indicativePrice := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: prefix + "indicative_price",
+			Help: "indicative price for configured job in pool",
+		},
+		poolAndShapeLabels,
+	)
+
+	indicativePriceSchedulable := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: prefix + "indicative_price_is_schedulable",
+			Help: "determines whether defined job is at all schedulable",
+		},
+		poolAndShapeAndReasonLabels,
+	)
+
+	idealisedScheduledValue := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: prefix + "idealised_scheduled_value",
+			Help: "Idealised value scheduled per queue",
+		},
+		poolAndQueueLabels,
+	)
+
+	idealisedAllocatedResource := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: prefix + "idealised_allocated_resource",
+			Help: "Idealised value scheduled per queue",
+		},
+		[]string{poolLabel, queueLabel, resourceLabel},
+	)
+
+	realisedScheduledValue := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: prefix + "realised_scheduled_value",
+			Help: "Realised value scheduled per queue",
+		},
+		poolAndQueueLabels,
 	)
 
 	return &perCycleMetrics{
@@ -295,6 +344,11 @@ func newPerCycleMetrics() *perCycleMetrics {
 		protectedFractionOfFairShare: protectedFractionOfFairShare,
 		nodeAllocatableResource:      nodeAllocatableResource,
 		nodeAllocatedResource:        nodeAllocatedResource,
+		indicativePrice:              indicativePrice,
+		indicativePriceSchedulable:   indicativePriceSchedulable,
+		idealisedScheduledValue:      idealisedScheduledValue,
+		idealisedAllocatedResource:   idealisedAllocatedResource,
+		realisedScheduledValue:       realisedScheduledValue,
 	}
 }
 
@@ -378,6 +432,14 @@ func (m *cycleMetrics) ReportReconcileCycleTime(cycleTime time.Duration) {
 	m.reconciliationCycleTime.Observe(float64(cycleTime.Milliseconds()))
 }
 
+func (m *cycleMetrics) ReportJobPreemptedViaApi(job *jobdb.Job) {
+	preemptionType := context.PreemptedViaApi
+	if job.LatestRun() == nil {
+		return
+	}
+	m.premptedJobs.WithLabelValues(job.LatestRun().Pool(), job.Queue(), job.PriorityClassName(), string(preemptionType)).Inc()
+}
+
 func (m *cycleMetrics) ReportSchedulerResult(ctx *armadacontext.Context, result scheduling.SchedulerResult) {
 	// Metrics that depend on pool
 	currentCycle := newPerCycleMetrics()
@@ -400,8 +462,13 @@ func (m *cycleMetrics) ReportSchedulerResult(ctx *armadacontext.Context, result 
 			currentCycle.shortJobPenalty.WithLabelValues(pool, queue).Set(shortJobPenalty)
 			currentCycle.queueWeight.WithLabelValues(pool, queue).Set(queueContext.Weight)
 			currentCycle.rawQueueWeight.WithLabelValues(pool, queue).Set(queueContext.RawWeight)
-			for _, r := range queueContext.BillableAllocation.GetResources() {
+			currentCycle.idealisedScheduledValue.WithLabelValues(pool, queue).Set(queueContext.IdealisedValue)
+			currentCycle.realisedScheduledValue.WithLabelValues(pool, queue).Set(queueContext.RealisedValue)
+			for _, r := range queueContext.GetBillableResource().GetResources() {
 				currentCycle.billableResource.WithLabelValues(pool, queue, r.Name).Set(float64(r.RawValue))
+			}
+			for _, r := range queueContext.IdealisedAllocated.GetResources() {
+				currentCycle.idealisedAllocatedResource.WithLabelValues(pool, queue, r.Name).Set(float64(r.RawValue))
 			}
 		}
 		currentCycle.fairnessError.WithLabelValues(pool).Set(schedContext.FairnessError())
@@ -425,7 +492,7 @@ func (m *cycleMetrics) ReportSchedulerResult(ctx *armadacontext.Context, result 
 			if jobCtx.PodSchedulingContext != nil && jobCtx.PodSchedulingContext.SchedulingMethod != "" {
 				schedulingType = string(jobCtx.PodSchedulingContext.SchedulingMethod)
 			}
-			m.scheduledJobs.WithLabelValues(pool, jobCtx.Job.Queue(), jobCtx.PriorityClassName, schedulingType).Inc()
+			m.scheduledJobs.WithLabelValues(pool, jobCtx.Job.Queue(), jobCtx.Job.PriorityClassName(), schedulingType).Inc()
 		}
 
 		for _, jobCtx := range schedulingStats.PreemptedJobs {
@@ -433,7 +500,7 @@ func (m *cycleMetrics) ReportSchedulerResult(ctx *armadacontext.Context, result 
 			if jobCtx.PreemptionType != "" {
 				preemptionType = string(jobCtx.PreemptionType)
 			}
-			m.premptedJobs.WithLabelValues(pool, jobCtx.Job.Queue(), jobCtx.PriorityClassName, preemptionType).Inc()
+			m.premptedJobs.WithLabelValues(pool, jobCtx.Job.Queue(), jobCtx.Job.PriorityClassName(), preemptionType).Inc()
 		}
 
 		currentCycle.loopNumber.WithLabelValues(pool).Set(float64(schedulingStats.LoopNumber))
@@ -462,19 +529,34 @@ func (m *cycleMetrics) ReportSchedulerResult(ctx *armadacontext.Context, result 
 		} else {
 			for _, node := range nodes {
 				isSchedulable := strconv.FormatBool(!node.IsUnschedulable())
+				isOverallocated := strconv.FormatBool(node.IsOverAllocated())
 				for _, resource := range node.GetAllocatableResources().GetResources() {
-					currentCycle.nodeAllocatableResource.WithLabelValues(node.GetPool(), node.GetName(), node.GetExecutor(), node.GetReportingNodeType(), resource.Name, isSchedulable).Set(armadaresource.QuantityAsFloat64(resource.Value))
+					currentCycle.nodeAllocatableResource.WithLabelValues(node.GetPool(), node.GetName(), node.GetExecutor(), node.GetReportingNodeType(), resource.Name, isSchedulable, isOverallocated).Set(armadaresource.QuantityAsFloat64(resource.Value))
 				}
 
 				allocated := node.GetAllocatableResources().Subtract(node.AllocatableByPriority[internaltypes.EvictedPriority])
 				for _, resource := range allocated.GetResources() {
 					allocatableValue := math.Max(armadaresource.QuantityAsFloat64(resource.Value), 0)
-					currentCycle.nodeAllocatedResource.WithLabelValues(node.GetPool(), node.GetName(), node.GetExecutor(), node.GetReportingNodeType(), resource.Name, isSchedulable).Set(allocatableValue)
+					currentCycle.nodeAllocatedResource.WithLabelValues(node.GetPool(), node.GetName(), node.GetExecutor(), node.GetReportingNodeType(), resource.Name, isSchedulable, isOverallocated).Set(allocatableValue)
 				}
 			}
 		}
 
 		currentCycle.protectedFractionOfFairShare.WithLabelValues(pool).Set(schedulingStats.ProtectedFractionOfFairShare)
+
+		for name, pricingInfo := range schedulingStats.MarketDrivenIndicativePrices {
+			if pricingInfo.Evaluated {
+				currentCycle.indicativePrice.WithLabelValues(pool, name).Set(pricingInfo.Price)
+				if pricingInfo.Schedulable {
+					currentCycle.indicativePriceSchedulable.WithLabelValues(pool, name, pricingInfo.UnschedulableReason).Set(1.0)
+				} else {
+					currentCycle.indicativePriceSchedulable.WithLabelValues(pool, name, pricingInfo.UnschedulableReason).Set(0.0)
+				}
+			} else {
+				currentCycle.indicativePrice.WithLabelValues(pool, name).Set(math.NaN())
+				currentCycle.indicativePriceSchedulable.WithLabelValues(pool, name, pricingInfo.UnschedulableReason).Set(math.NaN())
+			}
+		}
 	}
 	m.latestCycleMetrics.Store(currentCycle)
 
@@ -514,6 +596,11 @@ func (m *cycleMetrics) describe(ch chan<- *prometheus.Desc) {
 		currentCycle.protectedFractionOfFairShare.Describe(ch)
 		currentCycle.nodeAllocatableResource.Describe(ch)
 		currentCycle.nodeAllocatedResource.Describe(ch)
+		currentCycle.indicativePrice.Describe(ch)
+		currentCycle.indicativePriceSchedulable.Describe(ch)
+		currentCycle.idealisedScheduledValue.Describe(ch)
+		currentCycle.idealisedAllocatedResource.Describe(ch)
+		currentCycle.realisedScheduledValue.Describe(ch)
 	}
 
 	m.reconciliationCycleTime.Describe(ch)
@@ -552,6 +639,11 @@ func (m *cycleMetrics) collect(ch chan<- prometheus.Metric) {
 		currentCycle.protectedFractionOfFairShare.Collect(ch)
 		currentCycle.nodeAllocatableResource.Collect(ch)
 		currentCycle.nodeAllocatedResource.Collect(ch)
+		currentCycle.indicativePrice.Collect(ch)
+		currentCycle.indicativePriceSchedulable.Collect(ch)
+		currentCycle.idealisedScheduledValue.Collect(ch)
+		currentCycle.idealisedAllocatedResource.Collect(ch)
+		currentCycle.realisedScheduledValue.Collect(ch)
 	}
 
 	m.reconciliationCycleTime.Collect(ch)
@@ -575,7 +667,7 @@ func (m *cycleMetrics) publishCycleMetrics(ctx *armadacontext.Context, result sc
 				DemandByResourceType:             armadamaps.MapValues(qCtx.Demand.ToMap(), toQtyPtr),
 				ConstrainedDemandByResourceType:  armadamaps.MapValues(qCtx.ConstrainedDemand.ToMap(), toQtyPtr),
 				ShortJobPenalty:                  sc.FairnessCostProvider.UnweightedCostFromAllocation(qCtx.ShortJobPenalty),
-				BillableAllocationByResourceType: armadamaps.MapValues(qCtx.BillableAllocation.ToMap(), toQtyPtr),
+				BillableAllocationByResourceType: armadamaps.MapValues(qCtx.GetBillableResource().ToMap(), toQtyPtr),
 			}
 		}
 		events[i] = &metricevents.Event{

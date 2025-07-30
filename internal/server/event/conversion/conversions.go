@@ -53,6 +53,8 @@ func FromEventSequence(es *armadaevents.EventSequence) ([]*api.EventMessage, err
 		case *armadaevents.EventSequence_Event_JobRunPreempted:
 			convertedEvents, err = FromInternalJobRunPreempted(es.Queue, es.JobSetName, eventTs, esEvent.JobRunPreempted)
 		case *armadaevents.EventSequence_Event_ReprioritiseJobSet,
+			*armadaevents.EventSequence_Event_JobRunPreemptionRequested,
+			*armadaevents.EventSequence_Event_JobRunCancelled,
 			*armadaevents.EventSequence_Event_CancelJobSet,
 			*armadaevents.EventSequence_Event_JobRunSucceeded,
 			*armadaevents.EventSequence_Event_JobRequeued,
@@ -246,26 +248,6 @@ func FromInternalJobRunErrors(queueName string, jobSetName string, time time.Tim
 						JobSetId: jobSetName,
 						Queue:    queueName,
 						Created:  protoutil.ToTimestamp(time),
-					},
-				},
-			}
-			events = append(events, event)
-		case *armadaevents.Error_PodUnschedulable:
-			objectMeta := reason.PodUnschedulable.GetObjectMeta()
-			event := &api.EventMessage{
-				Events: &api.EventMessage_UnableToSchedule{
-					UnableToSchedule: &api.JobUnableToScheduleEvent{
-						JobId:        e.JobId,
-						ClusterId:    objectMeta.GetExecutorId(),
-						PodNamespace: objectMeta.GetNamespace(),
-						PodName:      objectMeta.GetName(),
-						KubernetesId: objectMeta.GetKubernetesId(),
-						Reason:       reason.PodUnschedulable.GetMessage(),
-						NodeName:     reason.PodUnschedulable.GetNodeName(),
-						PodNumber:    reason.PodUnschedulable.GetPodNumber(),
-						JobSetId:     jobSetName,
-						Queue:        queueName,
-						Created:      protoutil.ToTimestamp(time),
 					},
 				},
 			}

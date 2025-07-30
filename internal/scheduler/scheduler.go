@@ -85,7 +85,7 @@ type Scheduler struct {
 	// If true, enable scheduler assertions.
 	// In particular, assert that the jobDb is in a valid state at the end of each cycle.
 	enableAssertions bool
-	// The service which provides upto date prices for price bands / jobs
+	// The service which provides up-to-date prices for price bands / jobs
 	bidPriceProvider pricing.BidPriceProvider
 	// A list of the pools that are market driven
 	// Used to know which jobs need update when updating job prices
@@ -325,14 +325,14 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	// Schedule jobs.
 	if shouldSchedule {
 		start := time.Now()
-		err := s.updateJobPrices(ctx, txn)
+		resourceUnits, err := s.updateJobPrices(ctx, txn)
 		if err != nil {
 			return overallSchedulerResult, err
 		}
 		ctx.Logger().Infof("updating job prices in %s", time.Now().Sub(start))
 
 		var result *scheduling.SchedulerResult
-		result, err = s.schedulingAlgo.Schedule(ctx, txn)
+		result, err = s.schedulingAlgo.Schedule(ctx, resourceUnits, txn)
 		if err != nil {
 			return overallSchedulerResult, err
 		}
@@ -463,16 +463,16 @@ func (s *Scheduler) syncState(ctx *armadacontext.Context, initial bool) ([]*jobd
 
 // TODO - This is highly inefficient and will only work if market driven pools are small
 // We should rewrite how bids are stored in an efficient manner
-func (s *Scheduler) updateJobPrices(ctx *armadacontext.Context, txn *jobdb.Txn) error {
+func (s *Scheduler) updateJobPrices(ctx *armadacontext.Context, txn *jobdb.Txn) (map[string]internaltypes.ResourceList, error) {
 	if len(s.marketDrivenPools) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	jobs := txn.GetAll()
 	jobsByQueue := map[string]map[bidstore.PriceBand][]*jobdb.Job{}
 	updatedBids, err := s.bidPriceProvider.GetBidPrices(ctx)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	hasMarketDrivenPool := func(j *jobdb.Job) bool {
@@ -503,28 +503,20 @@ func (s *Scheduler) updateJobPrices(ctx *armadacontext.Context, txn *jobdb.Txn) 
 			if !present {
 				continue
 			}
-			nonPreemptibleUpdatedPrice := map[string]pricing.Bid{}
-			for pool, bid := range updatedPrice {
-				nonPreemptibleUpdatedPrice[pool] = pricing.Bid{
-					QueuedBid:  bid.QueuedBid,
-					RunningBid: pricing.NonPreemptibleRunningPrice,
-				}
-			}
 
 			// For now always update all jobs, as the jobDb isn't setting them as they come in
 			for _, job := range jobs {
-				if job.PriorityClass().Preemptible {
-					job = job.WithBidPrices(updatedPrice)
-					updatedJobs = append(updatedJobs, job)
-				} else {
-					job = job.WithBidPrices(nonPreemptibleUpdatedPrice)
-					updatedJobs = append(updatedJobs, job)
-				}
+				job = job.WithBidPrices(updatedPrice)
+				updatedJobs = append(updatedJobs, job)
 			}
 		}
 	}
 	ctx.Logger().Infof("updating the prices of %d jobs", len(updatedJobs))
-	return txn.Upsert(updatedJobs)
+	err = txn.Upsert(updatedJobs)
+	if err != nil {
+		return nil, err
+	}
+	return updatedBids.ResourceUnits, nil
 }
 
 func (s *Scheduler) createSchedulingInfoWithNodeAntiAffinityForAttemptedRuns(job *jobdb.Job) (*internaltypes.JobSchedulingInfo, error) {
@@ -910,6 +902,7 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 		} else if lastRun.PreemptRequested() && job.PriorityClass().Preemptible {
 			job = job.WithQueued(false).WithFailed(true).WithUpdatedRun(lastRun.WithoutTerminal().WithFailed(true))
 			events = append(events, createEventsForPreemptedJob(job.Id(), lastRun.Id(), "Preempted - preemption requested via API", s.clock.Now())...)
+			s.metrics.ReportJobPreemptedViaApi(job)
 		}
 	}
 
@@ -948,7 +941,7 @@ func (s *Scheduler) expireJobsIfNecessary(ctx *armadacontext.Context, txn *jobdb
 	// has been completely removed
 	for executor, heartbeat := range heartbeatTimes {
 		if heartbeat.Before(cutOff) {
-			ctx.Warnf("Executor %s has not reported a hearbeart since %v. Will expire all jobs running on this executor", executor, heartbeat)
+			ctx.Warnf("Executor %s has not reported a heartbeat since %v. Will expire all jobs running on this executor", executor, heartbeat)
 			staleExecutors[executor] = true
 		}
 	}

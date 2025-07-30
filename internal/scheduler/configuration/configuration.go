@@ -238,7 +238,7 @@ type SchedulingConfig struct {
 	FloatingResources []FloatingResourceConfig
 	// WellKnownNodeTypes defines a set of well-known node types used to define "home" and "away" nodes for a given priority class.
 	WellKnownNodeTypes []WellKnownNodeType `validate:"dive"`
-	// Executor that haven't heartbeated in this time period are considered stale.
+	// Executors that haven't heartbeated in this time period are considered stale.
 	// No new jobs are scheduled onto stale executors.
 	ExecutorTimeout time.Duration
 	// Maximum number of jobs that can be assigned to a executor but not yet acknowledged, before
@@ -247,10 +247,9 @@ type SchedulingConfig struct {
 	// The frequency at which the scheduler updates the cluster state.
 	ExecutorUpdateFrequency time.Duration
 	// Default priority for pools that are not in the above list
-	DefaultPoolSchedulePriority   int
-	Pools                         []PoolConfig
-	ExperimentalIndicativePricing ExperimentalIndicativePricing
-	ExperimentalIndicativeShare   ExperimentalIndicativeShare
+	DefaultPoolSchedulePriority int
+	Pools                       []PoolConfig
+	ExperimentalIndicativeShare ExperimentalIndicativeShare
 }
 
 const (
@@ -304,7 +303,19 @@ type PoolConfig struct {
 type MarketSchedulingConfig struct {
 	Enabled bool
 	// The percentage of the pool that needs to be allocated to determine the spot price
-	SpotPriceCutoff float64
+	SpotPriceCutoff              float64
+	GangIndicativePricingTimeout time.Duration `validate:"required"`
+	// Set of gang definitions that need to be priced. Price will be exposed via metrics.
+	GangsToPrice map[string]GangDefinition
+}
+
+type GangDefinition struct {
+	Size              int32
+	PriorityClassName string
+	NodeUniformity    string // metadata.gresearch.co.uk/armada-gang-boundary
+	NodeSelector      map[string]string
+	Tolerations       []v1.Toleration
+	Resources         *armadaresource.ComputeResources
 }
 
 type OptimiserConfig struct {
@@ -384,11 +395,6 @@ func (sc *SchedulingConfig) GetPoolConfig(poolName string) *PoolConfig {
 
 type ExperimentalIndicativeShare struct {
 	BasePriorities []int
-}
-
-type ExperimentalIndicativePricing struct {
-	BasePrice    float64
-	BasePriority float64
 }
 
 type PriorityOverrideConfig struct {

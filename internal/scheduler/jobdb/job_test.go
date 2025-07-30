@@ -11,10 +11,43 @@ import (
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/pricing"
+	armadaconfiguration "github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/armadaproject/armada/pkg/bidstore"
 )
 
 var jobSchedulingInfo = &internaltypes.JobSchedulingInfo{
+	PodRequirements: &internaltypes.PodRequirements{
+		ResourceRequirements: v1.ResourceRequirements{
+			Requests: v1.ResourceList{
+				"cpu":                 k8sResource.MustParse("1"),
+				"storage-connections": k8sResource.MustParse("1"),
+			},
+		},
+		Annotations: map[string]string{
+			"foo": "bar",
+		},
+	},
+}
+
+var gangJobSchedulingInfo = &internaltypes.JobSchedulingInfo{
+	PodRequirements: &internaltypes.PodRequirements{
+		ResourceRequirements: v1.ResourceRequirements{
+			Requests: v1.ResourceList{
+				"cpu":                 k8sResource.MustParse("1"),
+				"storage-connections": k8sResource.MustParse("1"),
+			},
+		},
+		Annotations: map[string]string{
+			"foo": "bar",
+			armadaconfiguration.GangCardinalityAnnotation:         "2",
+			armadaconfiguration.GangNodeUniformityLabelAnnotation: "uniformity",
+			armadaconfiguration.GangIdAnnotation:                  "id",
+		},
+	},
+}
+
+var preemptibleJobSchedulingInfo = &internaltypes.JobSchedulingInfo{
+	PriorityClass: PriorityClass0,
 	PodRequirements: &internaltypes.PodRequirements{
 		ResourceRequirements: v1.ResourceRequirements{
 			Requests: v1.ResourceList{
@@ -34,6 +67,23 @@ var baseJob, _ = jobDb.NewJob(
 	"test-queue",
 	2,
 	jobSchedulingInfo,
+	true,
+	0,
+	false,
+	false,
+	false,
+	3,
+	false,
+	[]string{},
+	int32(1),
+)
+
+var preemptibleJob, _ = jobDb.NewJob(
+	"test-job",
+	"test-jobSet",
+	"test-queue",
+	2,
+	preemptibleJobSchedulingInfo,
 	true,
 	0,
 	false,
@@ -129,12 +179,22 @@ func TestJob_TestInTerminalState(t *testing.T) {
 	assert.Equal(t, true, baseJob.WithCancelled(true).InTerminalState())
 }
 
-func TestJob_BidPrices(t *testing.T) {
+func TestJob_IsInGang(t *testing.T) {
+	// Non-gang job
+	job := baseJob.WithGangInfo(BasicJobGangInfo())
+	assert.False(t, job.IsInGang())
+
+	// Gang job
+	job = job.WithGangInfo(CreateGangInfo("id", 2, "uniformity"))
+	assert.True(t, job.IsInGang())
+}
+
+func TestJob_BidPrices_PreemptibleJob(t *testing.T) {
 	pool1Bid := pricing.Bid{QueuedBid: 1, RunningBid: 2}
 	pool2Bid := pricing.Bid{QueuedBid: 3, RunningBid: 4}
 
 	// Job queued
-	newJob := baseJob.WithBidPrices(map[string]pricing.Bid{"pool1": pool1Bid, "pool2": pool2Bid})
+	newJob := preemptibleJob.WithBidPrices(map[string]pricing.Bid{"pool1": pool1Bid, "pool2": pool2Bid})
 	assert.Equal(t, float64(1), newJob.GetBidPrice("pool1"))
 	assert.Equal(t, float64(3), newJob.GetBidPrice("pool2"))
 	assert.Equal(t, float64(0), newJob.GetBidPrice("pool3")) // default to 0
@@ -150,6 +210,23 @@ func TestJob_BidPrices(t *testing.T) {
 	pool2Bid.RunningBid = 5
 	assert.Equal(t, float64(2), newJob.GetBidPrice("pool1"))
 	assert.Equal(t, float64(4), newJob.GetBidPrice("pool2"))
+}
+
+func TestJob_BidPrices_NonPreemptibleJob(t *testing.T) {
+	pool1Bid := pricing.Bid{QueuedBid: 1, RunningBid: 2}
+	pool2Bid := pricing.Bid{QueuedBid: 3, RunningBid: 4}
+
+	// Job queued
+	newJob := baseJob.WithBidPrices(map[string]pricing.Bid{"pool1": pool1Bid, "pool2": pool2Bid})
+	assert.Equal(t, float64(1), newJob.GetBidPrice("pool1"))
+	assert.Equal(t, float64(3), newJob.GetBidPrice("pool2"))
+	assert.Equal(t, float64(0), newJob.GetBidPrice("pool3")) // default to 0
+
+	// Job running
+	newJob = newJob.WithQueued(false)
+	assert.Equal(t, float64(pricing.NonPreemptibleRunningPrice), newJob.GetBidPrice("pool1"))
+	assert.Equal(t, float64(pricing.NonPreemptibleRunningPrice), newJob.GetBidPrice("pool2"))
+	assert.Equal(t, float64(pricing.NonPreemptibleRunningPrice), newJob.GetBidPrice("pool3")) // default to NonPreemptibleRunningPrice
 }
 
 func TestJob_GetAllBidPrices(t *testing.T) {

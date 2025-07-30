@@ -147,8 +147,6 @@ func JobIdFromApiEvent(msg *EventMessage) string {
 		return e.Pending.JobId
 	case *EventMessage_Running:
 		return e.Running.JobId
-	case *EventMessage_UnableToSchedule:
-		return e.UnableToSchedule.JobId
 	case *EventMessage_Failed:
 		return e.Failed.JobId
 	case *EventMessage_Succeeded:
@@ -187,8 +185,6 @@ func JobSetIdFromApiEvent(msg *EventMessage) string {
 		return e.Pending.JobSetId
 	case *EventMessage_Running:
 		return e.Running.JobSetId
-	case *EventMessage_UnableToSchedule:
-		return e.UnableToSchedule.JobSetId
 	case *EventMessage_Failed:
 		return e.Failed.JobSetId
 	case *EventMessage_Succeeded:

@@ -81,6 +81,8 @@ type Job struct {
 	// The bid price for each pool
 	// A job doesn't have to have a bid for every pool, it'll default to 0 bid if not set in this map
 	bidPricesPool map[string]pricing.Bid
+	// Gang information for this job
+	gangInfo GangInfo
 }
 
 func (job *Job) String() string {
@@ -360,6 +362,9 @@ func (job *Job) Equal(other *Job) bool {
 	if !maps.Equal(job.bidPricesPool, other.bidPricesPool) {
 		return false
 	}
+	if !job.gangInfo.Equal(other.gangInfo) {
+		return false
+	}
 	if !armadamaps.DeepEqual(job.runsById, other.runsById) {
 		return false
 	}
@@ -420,7 +425,22 @@ func (job *Job) WithBidPrices(bids map[string]pricing.Bid) *Job {
 	return j
 }
 
+// GetBidPrice resolves the current bid price.
+// It considers running, non-preemptible jobs to have an effectively infinite price.
 func (job *Job) GetBidPrice(pool string) float64 {
+	if !job.queued && !job.priorityClass.Preemptible {
+		return pricing.NonPreemptibleRunningPrice
+	}
+	return job.getBidPrice(pool)
+}
+
+// GetRawBidPrice resolves the current bid price.
+// It considers running, non-preemptible jobs to have the simple job running price (i.e. ignores premtibility pricing).
+func (job *Job) GetRawBidPrice(pool string) float64 {
+	return job.getBidPrice(pool)
+}
+
+func (job *Job) getBidPrice(pool string) float64 {
 	bidPrice, present := job.bidPricesPool[pool]
 	if !present {
 		return 0
@@ -431,6 +451,9 @@ func (job *Job) GetBidPrice(pool string) float64 {
 	return bidPrice.RunningBid
 }
 
+// GetAllBidPrices
+// This should not be used to determine the bid price, use GetBidPrice for an accurate price
+// Expected this will only be used for testing purposes
 func (job *Job) GetAllBidPrices() map[string]pricing.Bid {
 	return maps.Clone(job.bidPricesPool)
 }
@@ -443,6 +466,20 @@ func (job *Job) WithPriceBand(priceBand bidstore.PriceBand) *Job {
 
 func (job *Job) GetPriceBand() bidstore.PriceBand {
 	return job.priceBand
+}
+
+func (job *Job) WithGangInfo(gangInfo GangInfo) *Job {
+	j := shallowCopyJob(*job)
+	j.gangInfo = gangInfo
+	return j
+}
+
+func (job *Job) GetGangInfo() GangInfo {
+	return job.gangInfo
+}
+
+func (job *Job) IsInGang() bool {
+	return job.gangInfo.IsGang()
 }
 
 // WithPriority returns a copy of the job with the priority updated.
@@ -497,7 +534,7 @@ func (job *Job) Annotations() map[string]string {
 // TODO: this can be inconsistent with job.PriorityClass()
 func (job *Job) PriorityClassName() string {
 	if schedulingInfo := job.JobSchedulingInfo(); schedulingInfo != nil {
-		return schedulingInfo.PriorityClassName
+		return schedulingInfo.PriorityClassName()
 	}
 	return ""
 }
