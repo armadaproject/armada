@@ -40,6 +40,7 @@ type HasNodeName interface {
 type InstructionConverter struct {
 	metrics              *metrics.Metrics
 	userAnnotationPrefix string
+	blocklistAnnotations map[string]struct{}
 	compressor           compress.Compressor
 }
 
@@ -50,10 +51,15 @@ type jobResources struct {
 	Gpu              int64
 }
 
-func NewInstructionConverter(m *metrics.Metrics, userAnnotationPrefix string, compressor compress.Compressor) *InstructionConverter {
+func NewInstructionConverter(m *metrics.Metrics, userAnnotationPrefix string, blocklistAnnotations []string, compressor compress.Compressor) *InstructionConverter {
+	blocked := make(map[string]struct{}, len(blocklistAnnotations))
+	for _, b := range blocklistAnnotations {
+		blocked[strings.ToLower(b)] = struct{}{}
+	}
 	return &InstructionConverter{
 		metrics:              m,
 		userAnnotationPrefix: userAnnotationPrefix,
+		blocklistAnnotations: blocked,
 		compressor:           compressor,
 	}
 }
@@ -167,7 +173,7 @@ func (c *InstructionConverter) handleSubmitJob(
 	}
 
 	annotations := event.GetObjectMeta().GetAnnotations()
-	userAnnotations := extractUserAnnotations(c.userAnnotationPrefix, annotations)
+	userAnnotations := extractUserAnnotations(c.userAnnotationPrefix, c.blocklistAnnotations, annotations)
 	externalJobUri := util.Truncate(annotations["armadaproject.io/externalJobUri"], maxAnnotationValLen)
 
 	job := model.CreateJobInstruction{
@@ -195,18 +201,25 @@ func (c *InstructionConverter) handleSubmitJob(
 	return err
 }
 
-// extractUserAnnotations strips userAnnotationPrefix from all keys and truncates keys and values to their maximal
-// lengths (as specified by maxAnnotationKeyLen and maxAnnotationValLen).
-func extractUserAnnotations(userAnnotationPrefix string, jobAnnotations map[string]string) map[string]string {
+/*
+extractUserAnnotations strips userAnnotationPrefix from all keys,
+filters out any keys in blocklistAnnotations (case-insensitive),
+and truncates keys and values to their maximal lengths as specified by
+maxAnnotationKeyLen and maxAnnotationValLen.
+*/
+func extractUserAnnotations(userAnnotationPrefix string, blocklistAnnotations map[string]struct{}, jobAnnotations map[string]string) map[string]string {
 	result := make(map[string]string, len(jobAnnotations))
 	n := len(userAnnotationPrefix)
 	for k, v := range jobAnnotations {
+		if _, exists := blocklistAnnotations[strings.ToLower(k)]; exists {
+			continue
+		}
 		if strings.HasPrefix(k, userAnnotationPrefix) {
 			k = k[n:]
 		}
-		k = util.Truncate(k, maxAnnotationKeyLen)
-		v = util.Truncate(v, maxAnnotationValLen)
-		result[k] = v
+		key := util.Truncate(k, maxAnnotationKeyLen)
+		val := util.Truncate(v, maxAnnotationValLen)
+		result[key] = val
 	}
 	return result
 }
