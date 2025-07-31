@@ -1,20 +1,14 @@
 import { http, HttpResponse } from "msw"
 import { setupServer, SetupServerApi } from "msw/node"
 
-const FAKE_ARMADA_API_BASE_URL = "https://test-armada-api.aramada.com"
+import { FAKE_ARMADA_API_BASE_URL } from "../../../setupTests"
+
 const GET_QUEUES_ENDPOINT = `${FAKE_ARMADA_API_BASE_URL}/v1/batched/queues`
-
-const configHandler = http.get("/config", () =>
-  HttpResponse.json({
-    ArmadaApiBaseUrl: FAKE_ARMADA_API_BASE_URL,
-  }),
-)
-
 export class MockServer {
   private server: SetupServerApi
 
   constructor() {
-    this.server = setupServer(configHandler)
+    this.server = setupServer()
   }
 
   listen() {

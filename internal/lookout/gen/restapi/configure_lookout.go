@@ -5,6 +5,7 @@ package restapi
 import (
 	"crypto/tls"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -132,11 +133,16 @@ func uiHandler(apiHandler http.Handler) http.Handler {
 
 	mux.Handle("/", serve.SinglePageApplicationHandler(http.Dir("./internal/lookoutui/build")))
 
-	mux.HandleFunc("/config", func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(UIConfig); err != nil {
-			w.WriteHeader(500)
+	mux.HandleFunc("/lookout-ui-config.js", func(w http.ResponseWriter, _ *http.Request) {
+		lookoutUiConfigJsonB, err := json.Marshal(UIConfig)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte("Unable to encode UI Config to JSON"))
+			return
 		}
+
+		w.Header().Set("Content-Type", "application/javascript")
+		w.Write([]byte(fmt.Sprintf("window.__LOOKOUT_UI_CONFIG__ = %s", lookoutUiConfigJsonB)))
 	})
 
 	mux.Handle("/api/", apiHandler)
