@@ -1,5 +1,0 @@
-{
-  "title": "Core Concepts & Features",
-  "pages": ["priority-queues", "scheduler", "jobs"],
-  "defaultOpen": true
-}
