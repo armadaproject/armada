@@ -44,7 +44,7 @@ export class MockServer {
 
   setPostJobRunErrorResponseForRunId(runId: string, errorMessage: string) {
     this.server.use(
-      http.post<{}, { runId: string }, { errorMessage: string }>(POST_JOB_RUN_ERROR_ENDPOINT, async (req) => {
+      http.post<object, { runId: string }, { errorMessage: string }>(POST_JOB_RUN_ERROR_ENDPOINT, async (req) => {
         const reqJson = await req.request.json()
         if (reqJson.runId === runId) {
           return HttpResponse.json({ errorMessage })
@@ -55,7 +55,7 @@ export class MockServer {
 
   setPostJobRunDebugMessageResponseForRunId(runId: string, errorMessage: string) {
     this.server.use(
-      http.post<{}, { runId: string }, { errorMessage: string }>(POST_JOB_RUN_DEBUG_MESSAGE_ENDPOINT, async (req) => {
+      http.post<object, { runId: string }, { errorMessage: string }>(POST_JOB_RUN_DEBUG_MESSAGE_ENDPOINT, async (req) => {
         const reqJson = await req.request.json()
         if (reqJson.runId === runId) {
           return HttpResponse.json({ errorMessage })
