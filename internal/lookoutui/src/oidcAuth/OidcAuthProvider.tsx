@@ -2,10 +2,10 @@ import { ReactNode, useCallback, useEffect, useMemo, useState } from "react"
 
 import { UserManager, WebStorageStateStore } from "oidc-client-ts"
 
-import { ErrorPage } from "../components/ErrorPage"
-import { OidcConfig } from "../utils"
 import { OidcAuthContext, OidcAuthContextProps } from "./OidcAuthContext"
+import { ErrorPage } from "../components/ErrorPage"
 import { LoadingPage } from "../components/LoadingPage"
+import { OidcConfig } from "../config"
 import { OIDC_REDIRECT } from "../pathnames"
 
 const ELLIPSIS = "\u2026"

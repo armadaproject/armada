@@ -3,7 +3,7 @@ import { InfiniteData, useInfiniteQuery } from "@tanstack/react-query"
 import { getErrorMessage } from "../../utils"
 import { useApiClients } from "../apiClients"
 import { createFakeLogs } from "./mocks/fakeData"
-import { useGetUiConfig } from "./useGetUiConfig"
+import { getConfig } from "../../config"
 
 const INITIAL_TAIL_LINES = 1000
 
@@ -20,7 +20,7 @@ export const useGetLogs = (
   loadFromStart: boolean,
   enabled = true,
 ) => {
-  const { data: uiConfig } = useGetUiConfig()
+  const config = getConfig()
   const { getBinocularsApi } = useApiClients()
 
   return useInfiniteQuery<
@@ -33,7 +33,7 @@ export const useGetLogs = (
     queryKey: ["getLogs", cluster, namespace, jobId, container, loadFromStart],
     queryFn: async ({ pageParam, signal }) => {
       try {
-        const logLinesRaw = uiConfig?.fakeDataEnabled
+        const logLinesRaw = config.fakeDataEnabled
           ? createFakeLogs(cluster, namespace, jobId, container, pageParam)
           : (
               await getBinocularsApi(cluster).logs(

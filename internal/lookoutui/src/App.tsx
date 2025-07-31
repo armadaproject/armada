@@ -10,6 +10,7 @@ import { AlertInPageContainerErrorFallback } from "./components/AlertInPageConta
 import { FullPageErrorFallback } from "./components/FullPageErrorFallback"
 import { JobIdRedirect } from "./components/JobIdRedirect"
 import NavBar from "./components/NavBar"
+import { CommandSpec, OidcConfig } from "./config"
 import JobSetsContainer from "./containers/JobSetsContainer"
 import { JobsTableContainer } from "./containers/lookout/JobsTableContainer"
 import { OidcAuthProvider } from "./oidcAuth"
@@ -17,7 +18,7 @@ import { JOB_REDIRECT, JOB_SETS, JOBS, V2_REDIRECT } from "./pathnames"
 import { ApiClientsProvider } from "./services/apiClients"
 import { Services, ServicesProvider } from "./services/context"
 import { theme } from "./theme/theme"
-import { CommandSpec, OidcConfig, withRouter } from "./utils"
+import { withRouter } from "./utils"
 
 const AppContainer = styled("div")({
   display: "flex",

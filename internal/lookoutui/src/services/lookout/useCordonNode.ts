@@ -1,8 +1,8 @@
 import { useMutation } from "@tanstack/react-query"
 
+import { getConfig } from "../../config"
 import { getErrorMessage } from "../../utils"
 import { useApiClients } from "../apiClients"
-import { useGetUiConfig } from "./useGetUiConfig"
 
 export interface CordonNodeVariables {
   cluster: string
@@ -10,12 +10,12 @@ export interface CordonNodeVariables {
 }
 
 export const useCordonNode = () => {
-  const { data: uiConfig } = useGetUiConfig()
+  const config = getConfig()
   const { getBinocularsApi } = useApiClients()
 
   return useMutation<object, string, CordonNodeVariables>({
     mutationFn: async ({ node, cluster }: CordonNodeVariables) => {
-      if (uiConfig?.fakeDataEnabled) {
+      if (config.fakeDataEnabled) {
         await new Promise((r) => setTimeout(r, 1_000))
         console.log(`Cordoned node ${node} in cluster ${cluster}`)
         return {}

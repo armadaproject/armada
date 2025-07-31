@@ -42,6 +42,7 @@ import { JobsTableActionBar } from "../../components/lookout/JobsTableActionBar"
 import { HeaderCell } from "../../components/lookout/JobsTableCell"
 import { JobsTableRow } from "../../components/lookout/JobsTableRow"
 import { Sidebar } from "../../components/lookout/sidebar/Sidebar"
+import { CommandSpec } from "../../config"
 import { useFormatNumberWithUserSettings } from "../../hooks/formatNumberWithUserSettings"
 import {
   useFormatIsoTimestampWithUserSettings,
@@ -56,7 +57,7 @@ import { IGetJobsService } from "../../services/lookout/GetJobsService"
 import { IGroupJobsService } from "../../services/lookout/GroupJobsService"
 import { JobsTablePreferences, JobsTablePreferencesService } from "../../services/lookout/JobsTablePreferencesService"
 import { UpdateJobsService } from "../../services/lookout/UpdateJobsService"
-import { getErrorMessage, waitMillis, CommandSpec } from "../../utils"
+import { getErrorMessage, waitMillis } from "../../utils"
 import {
   COLUMN_PARSE_TYPES,
   ColumnId,

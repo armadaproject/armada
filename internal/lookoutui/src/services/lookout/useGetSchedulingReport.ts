@@ -4,16 +4,16 @@ import { SchedulerobjectsSchedulingReport } from "../../openapi/schedulerobjects
 import { getErrorMessage } from "../../utils"
 import { useApiClients } from "../apiClients"
 import { fakeSchedulingReport } from "./mocks/fakeData"
-import { useGetUiConfig } from "./useGetUiConfig"
+import { getConfig } from "../../config"
 
 export const useGetSchedulingReport = (verbosity: number, enabled = true) => {
-  const { data: uiConfig } = useGetUiConfig()
+  const config = getConfig()
   const { schedulerReportingApi } = useApiClients()
 
   return useQuery<SchedulerobjectsSchedulingReport, string>({
-    queryKey: ["getSchedulingReport", verbosity, uiConfig?.fakeDataEnabled],
+    queryKey: ["getSchedulingReport", verbosity, config.fakeDataEnabled],
     queryFn: async ({ signal }) => {
-      if (uiConfig?.fakeDataEnabled) {
+      if (config.fakeDataEnabled) {
         return { report: fakeSchedulingReport }
       }
 
