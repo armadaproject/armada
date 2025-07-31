@@ -41,4 +41,8 @@ trap reset EXIT
 npm config set registry "$REGISTRY_TO_USE"
 yarn config set registry "$REGISTRY_TO_USE"
 
+for YARN_LOCK_FILE in "${YARN_LOCK_FILES[@]}"; do
+    perl -pi -e s,"$DESIRED_PUBLIC_REGISTRY","$REGISTRY_TO_USE",g "$YARN_LOCK_FILE"
+done
+
 yarn "$@"
