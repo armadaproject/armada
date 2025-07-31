@@ -55,12 +55,15 @@ export class MockServer {
 
   setPostJobRunDebugMessageResponseForRunId(runId: string, errorMessage: string) {
     this.server.use(
-      http.post<object, { runId: string }, { errorMessage: string }>(POST_JOB_RUN_DEBUG_MESSAGE_ENDPOINT, async (req) => {
-        const reqJson = await req.request.json()
-        if (reqJson.runId === runId) {
-          return HttpResponse.json({ errorMessage })
-        }
-      }),
+      http.post<object, { runId: string }, { errorMessage: string }>(
+        POST_JOB_RUN_DEBUG_MESSAGE_ENDPOINT,
+        async (req) => {
+          const reqJson = await req.request.json()
+          if (reqJson.runId === runId) {
+            return HttpResponse.json({ errorMessage })
+          }
+        },
+      ),
     )
   }
 }
