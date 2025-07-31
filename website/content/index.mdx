@@ -1,157 +1,202 @@
 ---
-title: '[TMP] Armada Documentation - Table of Contents'
+title: Overview
 ---
 
-> [!NOTE]
-> This page outlines a proposed structure for Armada's documentation website, designed to support three primary user journeys from initial discovery through advanced usage and contribution.
->
-> **Purpose**: Establish a coherent structure and content framework to guide documentation development and ensure comprehensive coverage of user needs across different experience levels.
->
-> **Target Audiences:**
->
-> - **Users**: Data scientists, engineers, and analysts who submit and manage computational jobs
-> - **Operators**: Infrastructure teams responsible for deploying, scaling, and maintaining Armada clusters
-> - **Developers**: Developers building integrations, extending core functionality, or contributing to the open-source project
->
-> **Next Steps**: This structure will evolve based on community feedback and real-world usage patterns. Maintainers and contributors are encouraged to share insights on content gaps, user pain points, and structural improvements.
+import { ArmadaIcon, ArmadaText } from '@/components/logo';
 
-# 1. Overview
+<div className='ms-3 flex flex-col items-center justify-center gap-3 md:my-3'>
+  <ArmadaIcon className='w-30 md:w-35' />
+  <ArmadaText className='w-30 text-[#00aae1] md:w-35' />
+  <div className='flex gap-3'>
+    <a href='https://circleci.com/gh/armadaproject/armada' target='_blank'>
+      <img
+        src='https://circleci.com/gh/helm/helm.svg?style=shield'
+        alt='CircleCI'
+      />
+    </a>
+    <a
+      href='https://goreportcard.com/report/github.com/armadaproject/armada'
+      target='_blank'
+    >
+      <img
+        src='https://goreportcard.com/badge/github.com/armadaproject/armada'
+        alt='Go Report Card'
+      />
+    </a>
+    <a
+      href='https://artifacthub.io/packages/helm/gresearch/armada'
+      title='Go to Artifact Hub'
+      target='_blank'
+    >
+      <img
+        src='https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/armada'
+        alt='Artifact Hub'
+      />
+    </a>
+    <a
+      href='https://insights.lfx.linuxfoundation.org/foundation/cncf/overview?project=armada'
+      target='_blank'
+      title='Click to view project insights and health checks'
+    >
+      <img
+        src='https://img.shields.io/badge/LFX%20Insights-0094FF'
+        alt='LFX Insights Dashboard'
+      />
+    </a>
+  </div>
+</div>
 
-**Introduction to Armada, its purpose, high-level architecture, and key components.**
+## What is Armada?
 
-- What is Armada?
-- Why Use Armada?
-- Key Features and Benefits
-- Use Cases and Success Stories
-- Comparison with Other Schedulers
+Armada is a multi-Kubernetes cluster batch job meta-scheduler designed to handle massive-scale workloads. Built on top of Kubernetes, Armada enables organizations to distribute millions of batch jobs per day across tens of thousands of nodes spanning multiple clusters, making it an ideal solution for high-throughput computational workloads.
 
----
+Armada serves as middleware that transforms Kubernetes into a powerful batch processing platform while maintaining compatibility with service workloads. It addresses the fundamental limitations of running batch workloads at scale on Kubernetes by providing:
 
-# 2. Getting Started
+- **Multi-cluster orchestration**: Schedule jobs across many Kubernetes clusters seamlessly
+- **High-throughput queueing**: Handle millions of queued jobs using specialized storage layers
+- **Advanced batch scheduling**: Fair queuing, gang scheduling, preemption, and resource limits
+- **Enterprise-grade reliability**: Secure, highly available components designed for production use
 
-**Start here if you're new to Armada. Learn how to install it and run your first job.**
+As a [CNCF Sandbox project](https://www.cncf.io/), Armada is actively maintained and used in production environments, including at [G-Research](https://www.gresearch.com/) where it processes millions of jobs daily.
 
-## 2.1 Quickstart
+## Why Use Armada?
 
-- Prerequisites and Requirements
-- Quickstart with Kind & Helm
-- Submitting Your First Job
-- Viewing Job Status and Logs
+### Kubernetes Limitations for Batch Workloads
 
-## 2.2 Tutorials
+Traditional Kubernetes faces several challenges when running batch workloads at scale:
 
-- End-to-end ML Job Example
-- Batch Data Processing Pipeline
-- CI/CD Integration Walkthrough
+1. **Single Cluster Scaling Limits**: Scaling a single Kubernetes cluster beyond a certain size is [challenging](https://openai.com/blog/scaling-kubernetes-to-7500-nodes/), typically maxing out around 5,000-15,000 nodes depending on configuration.
 
----
+2. **Storage Backend Constraints**: Achieving very high throughput using etcd, Kubernetes' in-cluster storage backend, is [challenging](https://etcd.io/docs/v3.5/op-guide/performance/) and can become a bottleneck for job queuing.
 
-# 3. Understanding Armada
+3. **Inadequate Batch Scheduling**: The default [kube-scheduler](https://kubernetes.io/docs/reference/command-line-tools-reference/kube-scheduler/) lacks essential batch scheduling features like fair queuing, gang scheduling, and intelligent preemption.
 
-## 3.1 Architecture
+### Armada's Solution
 
-**Understand how Armada works under the hood.**
+Armada overcomes these limitations by:
 
-- Armada system components
-- Scheduling pipeline and job lifecycle
-- Executors, queues, and priorities
-- Fault tolerance and scaling
+- **Distributing across multiple clusters**: Manage thousands of nodes across many Kubernetes clusters
+- **Out-of-cluster scheduling**: Perform queueing and scheduling using specialized storage layers
+- **Purpose-built batch scheduler**: Include advanced scheduling features designed specifically for batch workloads
 
-## 3.2 Core Concepts
+## Key Features and Benefits
 
-**Deep dives into key ideas and mechanisms that power Armada.**
+### Core Scheduling Features
 
-- Jobs & Queues
-- Prioritization and Fair-Use Scheduling
-- Scheduling Algorithms
+**Fair-Use Scheduling**
 
----
+- Maintains fair resource share over time across users and teams
+- Based on dominant resource fairness principles
+- Includes priority factors for different queues
+- Inspired by HTCondor priority systems
 
-# 4. Operator Guide
+**High Throughput Processing**
 
-**Complete guide for platform engineers and operators - from installation to production maintenance.**
+- Handle millions of queued jobs simultaneously
+- Specialized storage layer optimized for batch workloads
+- Efficient job submission and status tracking
 
-- Local installation (Kind, Minikube)
-- Installation and Deployment
-- Cluster setup and configuration
-- Monitoring and observability
-- Scaling
-- Troubleshooting
+**Gang Scheduling**
 
----
+- Atomically schedule sets of related jobs
+- Ensures all jobs in a group start together or not at all
+- Critical for distributed computing frameworks like MPI
 
-# 5. User Guide
+**Intelligent Preemption**
 
-**Practical guidance for job submission and management.**
+- Run urgent jobs in a timely fashion
+- Balance resource allocation between users
+- Configurable preemption policies
 
-- Submitting and cancelling jobs
-- Working with job specs
-- Using Integrations
-- Examples
+### Enterprise-Grade Operations
 
-## 5.1 CLI Reference
+**Massive Scale Support**
 
-- Installing `armadactl`
-- CLI commands and flags
-- Example usage patterns
+- Utilize multiple Kubernetes clusters simultaneously
+- Scale beyond single cluster limitations
+- Add and remove clusters without service disruption
 
-## 5.2 API Reference
+**Advanced Resource Management**
 
-- REST and gRPC APIs
-- OpenAPI Spec (auto-generated)
+- Resource and job scheduling rate limits
+- Detailed resource allocation controls
+- Node affinity and anti-affinity rules
 
-## 5.3 Clients
+**Comprehensive Monitoring**
 
-**Client libraries and SDKs for different languages.**
+- Detailed analytics via [Prometheus](https://prometheus.io/) integration
+- Resource allocation and system behavior insights
+- Automatic failure detection and node removal
 
-- Python
-- Java/Scala
+**Production-Ready Features**
 
-## 5.4 Integrations
+- Secure authentication and authorization
+- High availability architecture
+- Automatic node failure handling
+- Cluster health monitoring
 
-**Explore integrations.**
+## Use Cases and Success Stories
 
-- Airflow Operator
-- MetaFlow Integration
-- Jenkins Integration
-- Spark Integration
+### High-Performance Computing (HPC)
 
----
+- **Machine Learning Training**: Distribute large-scale ML training jobs across multiple clusters
+- **Scientific Computing**: Run complex simulations and data analysis workloads
+- **Financial Modeling**: Execute risk calculations and quantitative analysis at scale
 
-# 6. Developer Guide
+### Data Processing Pipelines
 
-**Resources for extending and contributing to Armada.**
+- **ETL Workloads**: Process large datasets with parallel batch jobs
+- **Data Analytics**: Run distributed analytics jobs across multiple clusters
+- **Backup and Archival**: Coordinate large-scale data movement operations
 
-- Running Armada from source locally
-- Code structure and modules
-- Profiling and debugging
-- Dev environment setup
-- Extending Armada
+### CI/CD and Development
 
----
+- **Build Systems**: Distribute compilation and testing jobs
+- **Integration Testing**: Run comprehensive test suites across multiple environments
+- **Deployment Automation**: Coordinate complex deployment workflows
 
-# 7. Contributing
+### Production Deployment at G-Research
 
-**Guidelines for contributing to the Armada project.**
+G-Research, a leading quantitative research company, uses Armada in production to:
 
----
+- Process millions of jobs per day
+- Manage tens of thousands of nodes
+- Support diverse computational workloads
+- Maintain high availability and performance
 
-# 8. Community & Support
+## Comparison with Other Schedulers
 
-**Ways to get involved and get help.**
+### vs. Native Kubernetes Scheduler
 
-- Slack and discussion forums
-- Reporting bugs and feature requests
-- Maintainers
-- Adopters
+- **Scale**: Armada spans multiple clusters vs. single cluster limitation
+- **Throughput**: Millions of jobs vs. thousands with native scheduler
+- **Batch Features**: Purpose-built for batch vs. service-oriented design
+- **Fair Scheduling**: Advanced fair-use policies vs. basic priority classes
 
----
+### vs. Traditional HPC Schedulers (SLURM, PBS)
 
-# 9. FAQ & Troubleshooting
+- **Container Native**: Built for containerized workloads vs. traditional HPC
+- **Kubernetes Integration**: Leverages Kubernetes ecosystem vs. isolated systems
+- **Cloud Ready**: Designed for cloud and hybrid environments
+- **Modern APIs**: REST/gRPC APIs vs. command-line interfaces
 
-**Answers to common questions and known issues.**
+## Getting Started
 
-- Common deployment issues
-- Job submission errors
-- Version compatibility
-- Debugging tips
+> [!WARNING]
+> TODO: add links
+
+Ready to explore Armada? Here are your next steps:
+
+1. **Quick Start**: Try the local installation guide to get Armada running with Kind
+2. **Core Concepts**: Learn about jobs, queues, and scheduling
+3. **Production Setup**: Review the operations guide for production deployment
+
+## Community and Support
+
+> [!WARNING]
+> TODO: add links
+
+- **Documentation**: Comprehensive guides and API references
+- **Community Slack**: Join discussions on [CNCF Slack](https://cloud-native.slack.com/?redir=%2Farchives%2FC03T9CBCEMC)
+- **GitHub**: Report issues and contribute at [github.com/armadaproject/armada](https://github.com/armadaproject/armada)
+- **Videos**: Watch [overview presentations](https://www.youtube.com/watch?v=FT8pXYciD9A) and [technical deep-dives](https://www.youtube.com/watch?v=B3WPxw3OUl4)
