@@ -1,6 +1,7 @@
 {
   "root": true,
   "pages": [
+    "toc",
     "index",
     "getting-started",
     "understanding-armada",
