@@ -54,41 +54,53 @@ const (
 // tab in the Lookout UI
 type CommandSpec struct {
 	// Name is the title of the command
-	Name string
-	// Tempate is the template string for the command
-	Template string
+	Name string `json:"name"`
+	// Template is the template string for the command
+	Template string `json:"template"`
 	// DescriptionMd is an optional description for the command in Markdown
-	DescriptionMd string
+	DescriptionMd *string `json:"descriptionMd,omitempty"`
 	// AlertMessageMd is an optional message for the command, to be displayed as
 	// an alert, written in Markdown
-	AlertMessageMd string
+	AlertMessageMd *string `json:"alertMessageMd,omitempty"`
 	// AlertLevel is the severity level of the alert
-	AlertLevel AlertLevel
+	AlertLevel AlertLevel `json:"alertLevel"`
 }
 
+type SentryConfig struct {
+	Dsn         string `json:"dsn"`
+	Environment string `json:"environment"`
+}
+
+type ErrorMonitoringConfig struct {
+	Sentry *SentryConfig `json:"sentry,omitempty"`
+}
+
+// UIConfig must match the LookoutUiConfig TypeScript interface defined in internal/lookoutui/src/lookoutUiConfig.d.ts
 type UIConfig struct {
-	CustomTitle string
+	CustomTitle string `json:"customTitle"`
 
 	// We have a separate flag here (instead of making the Oidc field optional)
 	// so that clients can override the server's preference.
-	OidcEnabled bool
-	Oidc        struct {
-		Authority string
-		ClientId  string
-		Scope     string
-	}
+	OidcEnabled bool `json:"oidcEnabled"`
+	Oidc        *struct {
+		Authority string `json:"authority"`
+		ClientId  string `json:"clientId"`
+		Scope     string `json:"scope"`
+	} `json:"oidc,omitempty"`
 
-	ArmadaApiBaseUrl         string
-	UserAnnotationPrefix     string
-	BinocularsBaseUrlPattern string
+	ArmadaApiBaseUrl         string `json:"armadaApiBaseUrl"`
+	UserAnnotationPrefix     string `json:"userAnnotationPrefix"`
+	BinocularsBaseUrlPattern string `json:"binocularsBaseUrlPattern"`
 
-	JobSetsAutoRefreshMs int `json:",omitempty"`
-	JobsAutoRefreshMs    int `json:",omitempty"`
-	CommandSpecs         []CommandSpec
+	JobSetsAutoRefreshMs int           `json:"jobSetsAutoRefreshMs,omitempty"`
+	JobsAutoRefreshMs    int           `json:"jobsAutoRefreshMs,omitempty"`
+	CommandSpecs         []CommandSpec `json:"commandSpecs"`
 
-	Backend string `json:",omitempty"`
+	Backend string `json:"backend,omitempty"`
 
 	// PinnedTimeZoneIdentifiers is the list of identifiers of IANA time zones to be displayed at
 	// the top of the time zone selector.
-	PinnedTimeZoneIdentifiers []string
+	PinnedTimeZoneIdentifiers []string `json:"pinnedTimeZoneIdentifiers"`
+
+	ErrorMonitoring ErrorMonitoringConfig `json:"errorMonitoring"`
 }
