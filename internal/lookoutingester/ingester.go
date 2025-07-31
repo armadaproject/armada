@@ -60,7 +60,12 @@ func Run(config *configuration.LookoutIngesterConfiguration) {
 	shutdownMetricServer := common.ServeMetrics(config.MetricsPort)
 	defer shutdownMetricServer()
 
-	converter := instructions.NewInstructionConverter(m.Metrics, config.UserAnnotationPrefix, compressor)
+	converter := instructions.NewInstructionConverter(
+		m.Metrics,
+		config.GetUserAnnotationPrefix(),
+		config.Annotations.BlocklistAnnotations,
+		compressor,
+	)
 
 	ingester := ingest.NewIngestionPipeline[*model.InstructionSet, *armadaevents.EventSequence](
 		config.Pulsar,
