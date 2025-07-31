@@ -16,6 +16,7 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/armadaproject/armada/internal/common/auth"
+	log "github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/serve"
 	"github.com/armadaproject/armada/internal/lookout/configuration"
 	"github.com/armadaproject/armada/internal/lookout/gen/restapi/operations"
@@ -137,12 +138,16 @@ func uiHandler(apiHandler http.Handler) http.Handler {
 		lookoutUiConfigJsonB, err := json.Marshal(UIConfig)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte("Unable to encode UI Config to JSON"))
+			if _, err := w.Write([]byte("Unable to encode UI Config to JSON")); err != nil {
+				log.WithError(err).Error("error writing JSON encoding error for /lookout-ui-config.js")
+			}
 			return
 		}
 
 		w.Header().Set("Content-Type", "application/javascript")
-		w.Write([]byte(fmt.Sprintf("window.__LOOKOUT_UI_CONFIG__ = %s", lookoutUiConfigJsonB)))
+		if _, err := w.Write([]byte(fmt.Sprintf("window.__LOOKOUT_UI_CONFIG__ = %s", lookoutUiConfigJsonB))); err != nil {
+			log.WithError(err).Error("error writing response for /lookout-ui-config.js")
+		}
 	})
 
 	mux.Handle("/api/", apiHandler)
