@@ -1,0 +1,344 @@
+---
+title: 'Getting Started'
+---
+
+# Getting Started
+
+**Start here if you're new to Armada. Learn how to install it and run your first job.**
+
+## 2.1 Quickstart
+
+### Prerequisites and Requirements
+
+Before installing Armada, ensure your environment meets the following requirements:
+
+- **Kubernetes**: A working Kubernetes cluster or the ability to install [Kind](https://kind.sigs.k8s.io/) locally
+- **Helm**: [Helm 3](https://helm.sh/docs/intro/install/) installed on your machine
+- **kubectl**: [kubectl](https://kubernetes.io/docs/tasks/tools/install-kubectl/) command-line tool
+- **Docker**: [Docker](https://docs.docker.com/get-docker/) for local development
+- **Hardware**: For local testing, at least 8GB RAM and 4 CPU cores recommended
+
+For production deployments, additional requirements apply:
+
+- Multiple Kubernetes clusters for full multi-cluster capabilities
+- Sufficient resources to handle your expected workload
+- Network connectivity between clusters
+
+### Quickstart with Kind & Helm
+
+This guide will help you set up a local Armada environment using Kind (Kubernetes in Docker) and Helm.
+
+#### 1. Install Kind
+
+If you don't have Kind installed, follow the [official installation guide](https://kind.sigs.k8s.io/docs/user/quick-start/#installation).
+
+#### 2. Create a Kind cluster
+
+```bash
+kind create cluster --name armada
+```
+
+#### 3. Add the Armada Helm repository
+
+```bash
+helm repo add armada https://armadaproject.github.io/armada-helm-charts
+helm repo update
+```
+
+#### 4. Install Armada using Helm
+
+```bash
+helm install armada armada/armada \
+  --set installCRDs=true \
+  --set executor.enabled=true \
+  --set executor.applicationConfig.kubernetes.minimumPodAge=0s
+```
+
+This command installs both the Armada server and executor components in your Kind cluster.
+
+#### 5. Verify the installation
+
+Check that all Armada pods are running:
+
+```bash
+kubectl get pods
+```
+
+You should see pods for the Armada server, executor, and related components.
+
+### Submitting Your First Job
+
+Now that Armada is running, let's submit a simple job.
+
+#### 1. Create a queue
+
+First, create a queue to submit jobs to:
+
+```bash
+kubectl apply -f - <<EOF
+apiVersion: armada.armadaproject.io/v1alpha1
+kind: Queue
+metadata:
+  name: test-queue
+spec:
+  priorityFactor: 1
+  resourceLimits:
+    cpu: 10
+    memory: 10Gi
+  accountingEnabled: false
+EOF
+```
+
+#### 2. Create a job submission file
+
+Create a file named `job.yaml` with the following content:
+
+```yaml
+queue: test-queue
+jobSetId: hello-world
+jobs:
+  - priority: 0
+    podSpec:
+      terminationGracePeriodSeconds: 0
+      restartPolicy: Never
+      containers:
+        - name: hello-world
+          image: busybox:latest
+          command:
+            - echo
+            - 'Hello from Armada!'
+          resources:
+            limits:
+              memory: 100Mi
+              cpu: 100m
+            requests:
+              memory: 100Mi
+              cpu: 100m
+```
+
+#### 3. Submit the job using armadactl
+
+Install the Armada CLI tool:
+
+```bash
+# For Linux
+curl -Lo armadactl https://github.com/armadaproject/armada/releases/latest/download/armadactl-linux-amd64
+chmod +x armadactl
+sudo mv armadactl /usr/local/bin/
+
+# For macOS
+curl -Lo armadactl https://github.com/armadaproject/armada/releases/latest/download/armadactl-darwin-amd64
+chmod +x armadactl
+sudo mv armadactl /usr/local/bin/
+```
+
+Submit the job:
+
+```bash
+armadactl submit job.yaml
+```
+
+### Viewing Job Status and Logs
+
+#### 1. Check job status
+
+To view the status of your job:
+
+```bash
+armadactl watch test-queue hello-world
+```
+
+This command will show you the current state of all jobs in the specified job set.
+
+#### 2. View job logs
+
+Once your job is running or has completed, you can view its logs:
+
+```bash
+armadactl logs test-queue hello-world
+```
+
+#### 3. Monitor jobs through the Armada UI (optional)
+
+If you've installed the Armada UI component, you can access it through your browser to monitor jobs:
+
+```bash
+kubectl port-forward svc/armada-lookout 8080:8080
+```
+
+Then open `http://localhost:8080` in your browser.
+
+## 2.2 Tutorials
+
+### End-to-end ML Job Example
+
+This tutorial demonstrates how to run a machine learning training job using Armada.
+
+#### Setting up a TensorFlow training job
+
+Create a file named `ml-job.yaml`:
+
+```yaml
+queue: ml-queue
+jobSetId: tensorflow-training
+jobs:
+  - priority: 0
+    podSpec:
+      terminationGracePeriodSeconds: 0
+      restartPolicy: Never
+      containers:
+        - name: tensorflow
+          image: tensorflow/tensorflow:latest
+          command:
+            - python
+            - -c
+            - |
+              import tensorflow as tf
+              import numpy as np
+
+              # Create some simple data
+              x = np.random.rand(1000, 10)
+              y = np.random.rand(1000, 1)
+
+              # Define a simple model
+              model = tf.keras.Sequential([
+                tf.keras.layers.Dense(64, activation='relu', input_shape=(10,)),
+                tf.keras.layers.Dense(32, activation='relu'),
+                tf.keras.layers.Dense(1)
+              ])
+
+              model.compile(optimizer='adam', loss='mse')
+
+              # Train the model
+              print("Starting training...")
+              model.fit(x, y, epochs=10, batch_size=32)
+              print("Training complete!")
+          resources:
+            limits:
+              memory: 2Gi
+              cpu: 1
+            requests:
+              memory: 1Gi
+              cpu: 0.5
+```
+
+Submit and monitor the job:
+
+```bash
+armadactl submit ml-job.yaml
+armadactl watch ml-queue tensorflow-training
+```
+
+### Batch Data Processing Pipeline
+
+This tutorial shows how to create a simple data processing pipeline using Armada.
+
+#### Creating a data processing job
+
+Create a file named `data-processing.yaml`:
+
+```yaml
+queue: data-queue
+jobSetId: data-processing
+jobs:
+  - priority: 0
+    podSpec:
+      terminationGracePeriodSeconds: 0
+      restartPolicy: Never
+      containers:
+        - name: data-processor
+          image: python:3.9
+          command:
+            - python
+            - -c
+            - |
+              import time
+              import random
+
+              print("Starting data processing...")
+
+              # Simulate data processing
+              for i in range(10):
+                  print(f"Processing batch {i+1}/10")
+                  # Simulate work
+                  time.sleep(2)
+                  print(f"Processed {random.randint(100, 500)} records")
+
+              print("Data processing complete!")
+          resources:
+            limits:
+              memory: 500Mi
+              cpu: 500m
+            requests:
+              memory: 500Mi
+              cpu: 500m
+```
+
+Submit and monitor the job:
+
+```bash
+armadactl submit data-processing.yaml
+armadactl watch data-queue data-processing
+```
+
+### CI/CD Integration Walkthrough
+
+This tutorial demonstrates how to integrate Armada with a CI/CD pipeline.
+
+#### Setting up a CI job
+
+Create a file named `ci-job.yaml`:
+
+```yaml
+queue: ci-queue
+jobSetId: build-and-test
+jobs:
+  - priority: 0
+    podSpec:
+      terminationGracePeriodSeconds: 0
+      restartPolicy: Never
+      containers:
+        - name: build
+          image: golang:1.18
+          command:
+            - /bin/bash
+            - -c
+            - |
+              echo "Cloning repository..."
+              git clone https://github.com/example/demo-app.git
+              cd demo-app
+
+              echo "Building application..."
+              go build -o app
+
+              echo "Running tests..."
+              go test ./...
+
+              echo "CI pipeline complete!"
+          resources:
+            limits:
+              memory: 1Gi
+              cpu: 1
+            requests:
+              memory: 1Gi
+              cpu: 1
+```
+
+Submit and monitor the job:
+
+```bash
+armadactl submit ci-job.yaml
+armadactl watch ci-queue build-and-test
+```
+
+## Next Steps
+
+> [!WARNING]
+> TODO: add links
+
+Now that you've learned the basics of Armada, you can:
+
+- Explore the Architecture to understand how Armada works under the hood
+- Learn about Core Concepts like jobs, queues, and scheduling
+- Check out the Operator Guide for production deployment information
+- Review the User Guide for more advanced job submission techniques
