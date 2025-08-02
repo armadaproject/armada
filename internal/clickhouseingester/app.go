@@ -2,6 +2,7 @@ package clickhouseingester
 
 import (
 	"github.com/apache/pulsar-client-go/pulsar"
+	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/pkg/errors"
 
 	"github.com/armadaproject/armada/internal/common"
@@ -27,6 +28,7 @@ func Run(config Configuration) error {
 	if err != nil {
 		return err
 	}
+	defer util.CloseResource("clickhouse", db)
 	schedulerDb := NewClickhouseDb(db)
 
 	// ////////////////////////////////////////////////////////////////////////
