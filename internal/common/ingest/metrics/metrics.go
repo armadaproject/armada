@@ -20,8 +20,9 @@ const (
 )
 
 const (
-	ArmadaLookoutIngesterMetricsPrefix = "armada_lookout_ingester_v2_"
-	ArmadaEventIngesterMetricsPrefix   = "armada_event_ingester_"
+	ArmadaLookoutIngesterMetricsPrefix    = "armada_lookout_ingester_v2_"
+	ArmadaEventIngesterMetricsPrefix      = "armada_event_ingester_"
+	ArmadaClickhouseIngesterMetricsPrefix = "armada_clickhouse_ingester_"
 )
 
 const (
