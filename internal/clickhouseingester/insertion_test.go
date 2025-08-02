@@ -18,7 +18,7 @@ var jobId = util.NewULID()
 var submittedTime = time.Now().UTC().Truncate(time.Second)
 var leasedTime = submittedTime.Add(1 * time.Second)
 
-var submitEvent = JobEvent{
+var submitEvent = JobRow{
 	JobID:              jobId,
 	Queue:              pointer.String("queue-1"),
 	Namespace:          pointer.String("namespace-1"),
@@ -37,7 +37,7 @@ var submitEvent = JobEvent{
 	Merged:             pointer.Bool(true),
 }
 
-var leasedEvent = JobEvent{
+var leasedEvent = JobRow{
 	JobID:              jobId,
 	JobState:           pointer.String("LEASED"),
 	LatestRunID:        pointer.String(util.NewULID()),
@@ -53,7 +53,7 @@ func TestInsertJobEvents_Submit(t *testing.T) {
 	ctx := armadacontext.Background()
 
 	err := withTestDb(ctx, func(db clickhouse.Conn) {
-		err := InsertJobEvents(ctx, db, []JobEvent{submitEvent})
+		err := InsertJobEvents(ctx, db, []JobRow{submitEvent})
 		require.NoError(t, err)
 		actual, err := GetJobEventByID(ctx, db, jobId)
 		require.NoError(t, err)
@@ -67,11 +67,11 @@ func TestInsertJobEvents_AddRun(t *testing.T) {
 	ctx := armadacontext.Background()
 
 	err := withTestDb(ctx, func(db clickhouse.Conn) {
-		err := InsertJobEvents(ctx, db, []JobEvent{submitEvent, leasedEvent})
+		err := InsertJobEvents(ctx, db, []JobRow{submitEvent, leasedEvent})
 		require.NoError(t, err)
 		actual, err := GetJobEventByID(ctx, db, jobId)
 		require.NoError(t, err)
-		assertJobEventEqual(t, JobEvent{
+		assertJobEventEqual(t, JobRow{
 			JobID:              jobId,
 			Queue:              submitEvent.Queue,
 			Namespace:          submitEvent.Namespace,
@@ -99,8 +99,8 @@ func TestInsertJobEvents_AddRun(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func GetJobEventByID(ctx *armadacontext.Context, conn clickhouse.Conn, jobID string) (JobEvent, error) {
-	var row JobEvent
+func GetJobEventByID(ctx *armadacontext.Context, conn clickhouse.Conn, jobID string) (JobRow, error) {
+	var row JobRow
 
 	query := `
         SELECT
@@ -131,7 +131,7 @@ func GetJobEventByID(ctx *armadacontext.Context, conn clickhouse.Conn, jobID str
 	return row, nil
 }
 
-func assertJobEventEqual(t *testing.T, expected, actual JobEvent) {
+func assertJobEventEqual(t *testing.T, expected, actual JobRow) {
 	assert.Equal(t, expected.JobID, actual.JobID, "JobID mismatch")
 	assert.Equal(t, ptrVal(expected.Queue), ptrVal(actual.Queue), "Queue mismatch")
 	assert.Equal(t, ptrVal(expected.Namespace), ptrVal(actual.Namespace), "Namespace mismatch")

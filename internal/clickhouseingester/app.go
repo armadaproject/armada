@@ -2,7 +2,6 @@ package clickhouseingester
 
 import (
 	"github.com/apache/pulsar-client-go/pulsar"
-	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/pkg/errors"
 
 	"github.com/armadaproject/armada/internal/common"
@@ -11,6 +10,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/ingest/jobsetevents"
 	"github.com/armadaproject/armada/internal/common/ingest/metrics"
 	"github.com/armadaproject/armada/internal/common/profiling"
+	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 

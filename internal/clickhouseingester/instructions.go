@@ -4,7 +4,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/apache/pulsar-client-go/pulsar"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/utils/pointer"
 
@@ -16,22 +15,6 @@ import (
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
-
-type jobResources struct {
-	Cpu              int64
-	Memory           int64
-	EphemeralStorage int64
-	Gpu              int64
-}
-
-type Instructions struct {
-	Rows       []JobEvent
-	MessageIds []pulsar.MessageID
-}
-
-func (i *Instructions) GetMessageIDs() []pulsar.MessageID {
-	return i.MessageIds
-}
 
 type InstructionConverter struct {
 	userAnnotationPrefix string
@@ -46,7 +29,7 @@ func NewInstructionConverter(userAnnotationPrefix string) *InstructionConverter 
 func (c *InstructionConverter) Convert(ctx *armadacontext.Context, sequences *utils.EventsWithIds[*armadaevents.EventSequence]) *Instructions {
 	instructions := &Instructions{
 		MessageIds: sequences.MessageIds,
-		Rows:       []JobEvent{},
+		Rows:       []JobRow{},
 	}
 	for _, es := range sequences.Events {
 		for _, event := range es.Events {
@@ -73,7 +56,7 @@ func (c *InstructionConverter) convertEvent(
 	jobset,
 	owner string,
 	event *armadaevents.EventSequence_Event,
-) (*JobEvent, error) {
+) (*JobRow, error) {
 	ts := protoutil.ToStdTime(event.Created)
 	switch event.GetEvent().(type) {
 	case *armadaevents.EventSequence_Event_SubmitJob:
@@ -114,7 +97,7 @@ func (c *InstructionConverter) handleSubmitJob(
 	jobSet string,
 	ts time.Time,
 	event *armadaevents.SubmitJob,
-) (*JobEvent, error) {
+) (*JobRow, error) {
 	apiJob, err := eventutil.ApiJobFromLogSubmitJob(owner, []string{}, queue, jobSet, ts, event)
 	if err != nil {
 		return nil, err
@@ -125,7 +108,7 @@ func (c *InstructionConverter) handleSubmitJob(
 	annotations := event.GetObjectMeta().GetAnnotations()
 	userAnnotations := extractUserAnnotations(c.userAnnotationPrefix, annotations)
 
-	return &JobEvent{
+	return &JobRow{
 		JobID:              event.JobId,
 		Queue:              &queue,
 		Namespace:          &apiJob.Namespace,
@@ -145,16 +128,16 @@ func (c *InstructionConverter) handleSubmitJob(
 	}, nil
 }
 
-func (c *InstructionConverter) handleReprioritiseJob(ts time.Time, event *armadaevents.ReprioritisedJob) (*JobEvent, error) {
-	return &JobEvent{
+func (c *InstructionConverter) handleReprioritiseJob(ts time.Time, event *armadaevents.ReprioritisedJob) (*JobRow, error) {
+	return &JobRow{
 		JobID:        event.JobId,
 		Priority:     pointer.Int64(int64(event.Priority)),
 		LastUpdateTS: ts,
 	}, nil
 }
 
-func (c *InstructionConverter) handleCancelledJob(ts time.Time, event *armadaevents.CancelledJob) (*JobEvent, error) {
-	return &JobEvent{
+func (c *InstructionConverter) handleCancelledJob(ts time.Time, event *armadaevents.CancelledJob) (*JobRow, error) {
+	return &JobRow{
 		JobID:              event.JobId,
 		JobState:           pointer.String(string(lookout.JobCancelled)),
 		CancelTS:           &ts,
@@ -165,8 +148,8 @@ func (c *InstructionConverter) handleCancelledJob(ts time.Time, event *armadaeve
 	}, nil
 }
 
-func (c *InstructionConverter) handleJobSucceeded(ts time.Time, event *armadaevents.JobSucceeded) (*JobEvent, error) {
-	return &JobEvent{
+func (c *InstructionConverter) handleJobSucceeded(ts time.Time, event *armadaevents.JobSucceeded) (*JobRow, error) {
+	return &JobRow{
 		JobID:              event.JobId,
 		JobState:           pointer.String(string(lookout.JobSucceeded)),
 		RunFinishedTS:      &ts,
@@ -175,7 +158,7 @@ func (c *InstructionConverter) handleJobSucceeded(ts time.Time, event *armadaeve
 	}, nil
 }
 
-func (c *InstructionConverter) handleJobErrors(ts time.Time, event *armadaevents.JobErrors) (*JobEvent, error) {
+func (c *InstructionConverter) handleJobErrors(ts time.Time, event *armadaevents.JobErrors) (*JobRow, error) {
 	for _, e := range event.GetErrors() {
 		// We don't care about non-terminal errors
 		if !e.Terminal {
@@ -191,7 +174,7 @@ func (c *InstructionConverter) handleJobErrors(ts time.Time, event *armadaevents
 			state = lookout.JobRejected
 		}
 
-		return &JobEvent{
+		return &JobRow{
 			JobID:              event.JobId,
 			JobState:           pointer.String(string(state)),
 			LastTransitionTime: &ts,
@@ -201,8 +184,8 @@ func (c *InstructionConverter) handleJobErrors(ts time.Time, event *armadaevents
 	return nil, nil
 }
 
-func (c *InstructionConverter) handleJobRunRunning(ts time.Time, event *armadaevents.JobRunRunning) (*JobEvent, error) {
-	return &JobEvent{
+func (c *InstructionConverter) handleJobRunRunning(ts time.Time, event *armadaevents.JobRunRunning) (*JobRow, error) {
+	return &JobRow{
 		JobID:              event.JobId,
 		JobState:           pointer.String(string(lookout.JobRunning)),
 		RunState:           pointer.String(string(lookout.JobRunRunning)),
@@ -212,8 +195,8 @@ func (c *InstructionConverter) handleJobRunRunning(ts time.Time, event *armadaev
 	}, nil
 }
 
-func (c *InstructionConverter) handleJobRequeued(ts time.Time, event *armadaevents.JobRequeued) (*JobEvent, error) {
-	return &JobEvent{
+func (c *InstructionConverter) handleJobRequeued(ts time.Time, event *armadaevents.JobRequeued) (*JobRow, error) {
+	return &JobRow{
 		JobID:              event.JobId,
 		JobState:           pointer.String(string(lookout.JobQueued)),
 		LastTransitionTime: &ts,
@@ -221,8 +204,8 @@ func (c *InstructionConverter) handleJobRequeued(ts time.Time, event *armadaeven
 	}, nil
 }
 
-func (c *InstructionConverter) handleJobRunLeased(ts time.Time, event *armadaevents.JobRunLeased) (*JobEvent, error) {
-	return &JobEvent{
+func (c *InstructionConverter) handleJobRunLeased(ts time.Time, event *armadaevents.JobRunLeased) (*JobRow, error) {
+	return &JobRow{
 		JobID:              event.JobId,
 		JobState:           pointer.String(string(lookout.JobLeased)),
 		LatestRunID:        &event.RunId,
@@ -235,8 +218,8 @@ func (c *InstructionConverter) handleJobRunLeased(ts time.Time, event *armadaeve
 	}, nil
 }
 
-func (c *InstructionConverter) handleJobRunAssigned(ts time.Time, event *armadaevents.JobRunAssigned) (*JobEvent, error) {
-	return &JobEvent{
+func (c *InstructionConverter) handleJobRunAssigned(ts time.Time, event *armadaevents.JobRunAssigned) (*JobRow, error) {
+	return &JobRow{
 		JobID:              event.JobId,
 		JobState:           pointer.String(string(lookout.JobPending)),
 		RunState:           pointer.String(string(lookout.JobRunPending)),
@@ -246,8 +229,8 @@ func (c *InstructionConverter) handleJobRunAssigned(ts time.Time, event *armadae
 	}, nil
 }
 
-func (c *InstructionConverter) handleJobRunCancelled(ts time.Time, event *armadaevents.JobRunCancelled) (*JobEvent, error) {
-	return &JobEvent{
+func (c *InstructionConverter) handleJobRunCancelled(ts time.Time, event *armadaevents.JobRunCancelled) (*JobRow, error) {
+	return &JobRow{
 		JobID:         event.JobId,
 		RunState:      pointer.String(string(lookout.JobRunCancelled)),
 		RunFinishedTS: &ts,
@@ -255,8 +238,8 @@ func (c *InstructionConverter) handleJobRunCancelled(ts time.Time, event *armada
 	}, nil
 }
 
-func (c *InstructionConverter) handleJobRunSucceeded(ts time.Time, event *armadaevents.JobRunSucceeded) (*JobEvent, error) {
-	return &JobEvent{
+func (c *InstructionConverter) handleJobRunSucceeded(ts time.Time, event *armadaevents.JobRunSucceeded) (*JobRow, error) {
+	return &JobRow{
 		JobID:         event.JobId,
 		RunState:      pointer.String(string(lookout.JobRunSucceeded)),
 		RunFinishedTS: &ts,
@@ -264,7 +247,7 @@ func (c *InstructionConverter) handleJobRunSucceeded(ts time.Time, event *armada
 	}, nil
 }
 
-func (c *InstructionConverter) handleJobRunErrors(ts time.Time, event *armadaevents.JobRunErrors) (*JobEvent, error) {
+func (c *InstructionConverter) handleJobRunErrors(ts time.Time, event *armadaevents.JobRunErrors) (*JobRow, error) {
 	for _, e := range event.GetErrors() {
 
 		if !e.Terminal {
@@ -294,7 +277,7 @@ func (c *InstructionConverter) handleJobRunErrors(ts time.Time, event *armadaeve
 		default:
 			runState = string(lookout.JobRunFailed)
 		}
-		return &JobEvent{
+		return &JobRow{
 			JobID:         event.JobId,
 			RunState:      &runState,
 			RunExitCode:   &exitCode,
@@ -305,8 +288,8 @@ func (c *InstructionConverter) handleJobRunErrors(ts time.Time, event *armadaeve
 	return nil, nil
 }
 
-func (c *InstructionConverter) handleJobRunPreempted(ts time.Time, event *armadaevents.JobRunPreempted) (*JobEvent, error) {
-	return &JobEvent{
+func (c *InstructionConverter) handleJobRunPreempted(ts time.Time, event *armadaevents.JobRunPreempted) (*JobRow, error) {
+	return &JobRow{
 		JobID:         event.PreemptedRunId,
 		RunState:      pointer.String(string(lookout.JobRunPreempted)),
 		RunFinishedTS: &ts,

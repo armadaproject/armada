@@ -23,7 +23,7 @@ func (l *ClickhouseDb) Store(ctx *armadacontext.Context, instructions *Instructi
 	return InsertJobEvents(ctx, l.db, instructions.Rows)
 }
 
-func InsertJobEvents(ctx *armadacontext.Context, conn clickhouse.Conn, events []JobEvent) error {
+func InsertJobEvents(ctx *armadacontext.Context, conn clickhouse.Conn, events []JobRow) error {
 	for _, e := range events {
 		cols := []string{"job_id"}
 		vals := []interface{}{e.JobID}

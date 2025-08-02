@@ -1,8 +1,12 @@
 package clickhouseingester
 
-import "time"
+import (
+	"time"
 
-type JobEvent struct {
+	"github.com/apache/pulsar-client-go/pulsar"
+)
+
+type JobRow struct {
 	JobID              string            `ch:"job_id"`
 	Queue              *string           `ch:"queue"`
 	Namespace          *string           `ch:"namespace"`
@@ -31,4 +35,20 @@ type JobEvent struct {
 	LastTransitionTime *time.Time        `ch:"last_transition_time"`
 	LastUpdateTS       time.Time         `ch:"last_update_ts"`
 	Merged             *bool             `ch:"merged"`
+}
+
+type Instructions struct {
+	Rows       []JobRow
+	MessageIds []pulsar.MessageID
+}
+
+func (i *Instructions) GetMessageIDs() []pulsar.MessageID {
+	return i.MessageIds
+}
+
+type jobResources struct {
+	Cpu              int64
+	Memory           int64
+	EphemeralStorage int64
+	Gpu              int64
 }

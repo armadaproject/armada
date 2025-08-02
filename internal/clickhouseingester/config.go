@@ -1,10 +1,10 @@
 package clickhouseingester
 
 import (
-	profilingconfig "github.com/armadaproject/armada/internal/common/profiling/configuration"
 	"time"
 
 	commonconfig "github.com/armadaproject/armada/internal/common/config"
+	profilingconfig "github.com/armadaproject/armada/internal/common/profiling/configuration"
 )
 
 type ClickHouseConfig map[string]string
