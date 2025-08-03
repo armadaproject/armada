@@ -11,6 +11,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/database/lookout"
 	"github.com/armadaproject/armada/internal/common/eventutil"
 	"github.com/armadaproject/armada/internal/common/ingest/utils"
+	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
@@ -86,7 +87,7 @@ func (c *InstructionConverter) convertEvent(
 	case *armadaevents.EventSequence_Event_JobRunLeased:
 		return c.handleJobRunLeased(ts, event.GetJobRunLeased())
 	default:
-		ctx.Debugf("Ignoring unknown event type %T", event.GetEvent())
+		ctx.Debugf("Ignoring event %T", event.GetEvent())
 		return nil, nil
 	}
 }
@@ -103,10 +104,12 @@ func (c *InstructionConverter) handleSubmitJob(
 		return nil, err
 	}
 	resources := getJobResources(apiJob)
-	priorityClass := getJobPriorityClass(apiJob)
+	priorityClass := apiJob.GetMainPodSpec().PriorityClassName
 
 	annotations := event.GetObjectMeta().GetAnnotations()
-	userAnnotations := extractUserAnnotations(c.userAnnotationPrefix, annotations)
+	userAnnotations := armadamaps.MapKeys(annotations, func(k string) string {
+		return strings.TrimPrefix(k, c.userAnnotationPrefix)
+	})
 
 	return &JobRow{
 		JobID:              event.JobId,
@@ -119,7 +122,7 @@ func (c *InstructionConverter) handleSubmitJob(
 		GPU:                &resources.Gpu,
 		Priority:           pointer.Int64(int64(event.Priority)),
 		SubmitTS:           &ts,
-		PriorityClass:      priorityClass,
+		PriorityClass:      &priorityClass,
 		Annotations:        userAnnotations,
 		JobState:           pointer.String(string(lookout.JobQueued)),
 		LastTransitionTime: &ts,
@@ -312,19 +315,6 @@ func getJobResources(job *api.Job) jobResources {
 	return resources
 }
 
-// extractUserAnnotations strips userAnnotationPrefix from all keys
-func extractUserAnnotations(userAnnotationPrefix string, jobAnnotations map[string]string) map[string]string {
-	result := make(map[string]string, len(jobAnnotations))
-	n := len(userAnnotationPrefix)
-	for k, v := range jobAnnotations {
-		if strings.HasPrefix(k, userAnnotationPrefix) {
-			k = k[n:]
-		}
-		result[k] = v
-	}
-	return result
-}
-
 func getResource(container v1.Container, resourceName v1.ResourceName, useMillis bool) int64 {
 	resource, ok := container.Resources.Requests[resourceName]
 	if !ok {
@@ -334,12 +324,4 @@ func getResource(container v1.Container, resourceName v1.ResourceName, useMillis
 		return resource.MilliValue()
 	}
 	return resource.Value()
-}
-
-func getJobPriorityClass(job *api.Job) *string {
-	podSpec := job.GetMainPodSpec()
-	if podSpec.PriorityClassName != "" {
-		return pointer.String(podSpec.PriorityClassName)
-	}
-	return nil
 }
