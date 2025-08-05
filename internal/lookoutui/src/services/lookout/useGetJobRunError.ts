@@ -4,7 +4,7 @@ import { QueryFunction, QueryKey, useQueries, useQuery } from "@tanstack/react-q
 
 import { getErrorMessage } from "../../utils"
 import { fakeRunError } from "./mocks/fakeData"
-import { useGetUiConfig } from "./useGetUiConfig"
+import { getConfig } from "../../config"
 import { useAuthenticatedFetch } from "../../oidcAuth"
 
 const getQueryFn =
@@ -33,12 +33,12 @@ const getQueryFn =
   }
 
 export const useGetJobRunError = (runId: string, enabled = true) => {
-  const { data: uiConfig } = useGetUiConfig()
+  const config = getConfig()
   const authenticatedFetch = useAuthenticatedFetch()
 
   const queryFn = useMemo(
-    () => getQueryFn(runId, authenticatedFetch, Boolean(uiConfig?.fakeDataEnabled)),
-    [runId, authenticatedFetch, uiConfig?.fakeDataEnabled],
+    () => getQueryFn(runId, authenticatedFetch, config.fakeDataEnabled),
+    [runId, authenticatedFetch, config.fakeDataEnabled],
   )
 
   return useQuery<string, string>({
@@ -51,13 +51,13 @@ export const useGetJobRunError = (runId: string, enabled = true) => {
 }
 
 export const useBatchGetJobRunErrors = (runIds: string[], enabled = true) => {
-  const { data: uiConfig } = useGetUiConfig()
+  const config = getConfig()
   const authenticatedFetch = useAuthenticatedFetch()
 
   return useQueries({
     queries: runIds.map((runId) => ({
       queryKey: ["getJobRunError", runId],
-      queryFn: getQueryFn(runId, authenticatedFetch, Boolean(uiConfig?.fakeDataEnabled)),
+      queryFn: getQueryFn(runId, authenticatedFetch, config.fakeDataEnabled),
       enabled,
       refetchOnMount: false,
       staleTime: 30_000,

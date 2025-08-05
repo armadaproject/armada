@@ -8,7 +8,7 @@ import {
   TIME_ZONE_NAMES,
   UTC_TIME_ZONE_NAME,
 } from "../common/timeZones"
-import { useGetUiConfig } from "../services/lookout/useGetUiConfig"
+import { getConfig } from "../config"
 import { SPACING } from "../styling/spacing"
 
 // Place the local time zone and UTC first
@@ -33,23 +33,19 @@ export interface TimeZoneSelectorProps {
 }
 
 export const TimeZoneSelector = ({ idPrefix, label, value, onChange, fullWidth, size }: TimeZoneSelectorProps) => {
-  const { data, status, error } = useGetUiConfig()
+  const config = getConfig()
   const { topOptions, otherOptions } = useMemo(
     () => ({
       topOptions: [
         ...FIRST_TIME_ZONES_TO_DISPLAY,
-        ...(data?.pinnedTimeZoneIdentifiers ?? []).filter((tz) => !FIRST_TIME_ZONES_TO_DISPLAY.includes(tz)),
+        ...config.pinnedTimeZoneIdentifiers.filter((tz) => !FIRST_TIME_ZONES_TO_DISPLAY.includes(tz)),
       ],
       otherOptions: TIME_ZONE_NAMES.filter(
-        (tz) => !FIRST_TIME_ZONES_TO_DISPLAY.includes(tz) && !(data?.pinnedTimeZoneIdentifiers ?? []).includes(tz),
+        (tz) => !FIRST_TIME_ZONES_TO_DISPLAY.includes(tz) && !config.pinnedTimeZoneIdentifiers.includes(tz),
       ),
     }),
-    [data?.pinnedTimeZoneIdentifiers],
+    [config.pinnedTimeZoneIdentifiers],
   )
-
-  if (status === "error") {
-    console.error("Error getting UI config", error)
-  }
 
   return (
     <Autocomplete
