@@ -4,6 +4,8 @@ go 1.24
 
 toolchain go1.24.1
 
+replace github.com/gogo/protobuf => github.com/cockroachdb/gogoproto v1.3.2
+
 require (
 	github.com/apache/pulsar-client-go v0.14.0
 	github.com/coreos/go-oidc/v3 v3.12.0
