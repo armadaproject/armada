@@ -2,6 +2,7 @@ import { useMemo, useState } from "react"
 
 import { Alert, AlertTitle, Autocomplete, Button, styled, TextField } from "@mui/material"
 
+import { useUsername } from "../../oidcAuth"
 import { useGetQueues } from "../../services/lookout/useGetQueues"
 
 const StyledAutocomplete = styled(Autocomplete<string>)({
@@ -14,10 +15,25 @@ export interface QueueSelectorProps {
 }
 
 export const QueueSelector = ({ value, onChange }: QueueSelectorProps) => {
+  const username = useUsername()
+
   const [open, setOpen] = useState(false)
   const [enableGetQueues, setEnableGetQueues] = useState(false)
   const { refetch, status, error, data } = useGetQueues(enableGetQueues)
-  const queueNames = useMemo(() => (data ?? []).flatMap(({ name }) => (name ? [name] : [])), [data])
+  const queueNames = useMemo(() => {
+    // Display queues which contain the username first, since this likely indicates ownership of the queue.
+    const allQueueNames = (data ?? []).flatMap(({ name }) => (name ? [name] : []))
+    const queueNamesContainingUsername: string[] = []
+    const queueNamesNotContainingUsername: string[] = []
+    allQueueNames.forEach((name) => {
+      if (username && name.includes(username)) {
+        queueNamesContainingUsername.push(name)
+      } else {
+        queueNamesNotContainingUsername.push(name)
+      }
+    })
+    return [...queueNamesContainingUsername, ...queueNamesNotContainingUsername]
+  }, [data])
 
   if (status === "error") {
     return (
