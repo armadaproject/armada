@@ -121,12 +121,13 @@ export const toQueryStringSafe = (prefs: JobsTablePreferences): QueryStringPrefs
   }
 }
 
-const columnFiltersFromQueryStringFilters = (f: QueryStringJobFilter[]): ColumnFiltersState => {
-  return f.map((queryFilter) => ({
-    id: queryFilter.id,
-    value: queryFilter.value,
-  }))
-}
+const columnFiltersFromQueryStringFilters = (f: QueryStringJobFilter[]): ColumnFiltersState =>
+  f
+    .filter((queryFilter) => queryFilter.id && queryFilter.value)
+    .map((queryFilter) => ({
+      id: queryFilter.id,
+      value: queryFilter.value,
+    }))
 
 const columnMatchesFromQueryStringFilters = (f: QueryStringJobFilter[]): Record<string, Match> => {
   const columnMatches: Record<string, Match> = {}
