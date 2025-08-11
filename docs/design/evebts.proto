@@ -1,0 +1,229 @@
+syntax = "proto3";
+
+package api;
+option go_package = "github.com/armadaproject/armada/pkg/api";
+option csharp_namespace = "ArmadaProject.Io.Api";
+
+import "google/protobuf/timestamp.proto";
+import "k8s.io/apimachinery/pkg/api/resource/generated.proto";
+
+enum Cause {
+  ERROR = 0;
+  EVICTED = 1;
+  OOM = 2;
+  DEADLINE_EXCEEDED = 3;
+}
+
+// Container-level status for failed jobs
+message ContainerStatus {
+  string name = 1;
+  int32 exit_code = 2;
+  string message = 3;
+  string reason = 4;
+  Cause cause = 5;
+}
+
+//
+// ─── JOB STATE EVENTS ───────────────────────────────────────────────
+//
+
+// Sent when the job is accepted by Armada after validation
+message JobSubmittedEvent {
+  string job_id = 1;
+  string jobset = 2;
+  string queue = 3;
+  google.protobuf.Timestamp created = 4;
+}
+
+// Sent if Armada rejects the job before it reaches the queue
+message JobRejectedEvent {
+  string job_id = 1;
+  string jobset = 2;
+  string queue = 3;
+  google.protobuf.Timestamp created = 4;
+  string reason = 5;
+}
+
+// Sent when job is placed in the scheduling queue
+message JobQueuedEvent {
+  string job_id = 1;
+  string jobset = 2;
+  string queue = 3;
+  google.protobuf.Timestamp created = 4;
+}
+
+// Sent when job is leased by a cluster
+message JobLeasedEvent {
+  string job_id = 1;
+  string jobset = 2;
+  string queue = 3;
+  string cluster_id = 4;
+  google.protobuf.Timestamp created = 5;
+}
+
+// Sent when the pod is created but not yet running
+message JobPendingEvent {
+  string job_id = 1;
+  string jobset = 2;
+  string queue = 3;
+  google.protobuf.Timestamp created = 4;
+}
+
+// Sent when the job starts running on a node
+message JobRunningEvent {
+  string job_id = 1;
+  string jobset = 2;
+  string queue = 3;
+  google.protobuf.Timestamp created = 4;
+}
+
+// Sent when a job run fails (may be retried)
+message JobRunFailedEvent {
+  string job_id = 1;
+  string jobset = 2;
+  string queue = 3;
+  string reason = 4;
+  Cause cause = 5;
+  repeated ContainerStatus container_statuses = 6;
+  google.protobuf.Timestamp created = 7;
+}
+
+// Sent when a failed job is retried and put back into the queue
+message JobRequeuedEvent {
+  string job_id = 1;
+  string jobset = 2;
+  string queue = 3;
+  string reason = 4;
+  Cause cause = 5;
+  google.protobuf.Timestamp created = 6;
+}
+
+// Sent when the job fails terminally and will not be retried
+message JobFailedEvent {
+  string job_id = 1;
+  string jobset = 2;
+  string queue = 3;
+  string reason = 4;
+  Cause cause = 5;
+  repeated ContainerStatus container_statuses = 6;
+  google.protobuf.Timestamp created = 7;
+}
+
+// Sent when the job completes successfully
+message JobSucceededEvent {
+  string job_id = 1;
+  string jobset = 2;
+  string queue = 3;
+  google.protobuf.Timestamp created = 4;
+}
+
+// Sent when the job is cancelled successfully
+message JobCancelledEvent {
+  string job_id = 1;
+  string jobset = 2;
+  string queue = 3;
+  string reason = 4;
+  string requestor = 5;
+  google.protobuf.Timestamp created = 6;
+}
+
+// Sent when the job is preempted and treated as a failed job
+message JobPreemptedEvent {
+  string job_id = 1;
+  string jobset = 2;
+  string queue = 3;
+  string preempted_by_job_id = 4;
+  string reason = 5;
+  google.protobuf.Timestamp created = 6;
+}
+
+// Sent when the job priority has changed
+message JobReprioritizedEvent {
+  string job_id = 1;
+  string jobset = 2;
+  string queue = 3;
+  double new_priority = 4;
+  string requestor = 5;
+  google.protobuf.Timestamp created = 6;
+}
+
+// Sent periodically to track resource usage
+message JobUtilisationEvent {
+  string job_id = 1;
+  string jobset = 2;
+  string queue = 3;
+  google.protobuf.Timestamp created = 4;
+  map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> max_resources = 5;
+  map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> total_usage = 6;
+  map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> avg_resources = 7;
+}
+
+//
+// ─── USER INTENT EVENTS ─────────────────────────────────────────────
+//
+
+// Sent when a user requests a job to be cancelled
+message JobCancelRequestedEvent {
+  string job_id = 1;
+  string jobset = 2;
+  string queue = 3;
+  string requestor = 4;
+  string reason = 5;
+  google.protobuf.Timestamp created = 6;
+}
+
+// Sent when a user requests a job reprioritisation
+message JobReprioritiseRequestedEvent {
+  string job_id = 1;
+  string jobset = 2;
+  string queue = 3;
+  string requestor = 4;
+  double new_priority = 5;
+  google.protobuf.Timestamp created = 6;
+}
+
+// Sent when a user requests cancellation of all jobs in a jobset
+message JobSetCancelRequestedEvent {
+  string jobset = 1;
+  string queue = 2;
+  string requestor = 3;
+  string reason = 4;
+  google.protobuf.Timestamp created = 5;
+}
+
+// Sent when a user requests reprioritisation of all jobs in a jobset
+message JobSetReprioritiseRequestedEvent {
+  string jobset = 1;
+  string queue = 2;
+  string requestor = 3;
+  double new_priority = 4;
+  google.protobuf.Timestamp created = 5;
+}
+
+//
+// ─── WRAPPER EVENT ──────────────────────────────────────────────────
+//
+
+message EventMessage {
+  oneof event {
+    JobSubmittedEvent submitted = 1;
+    JobRejectedEvent rejected = 2;
+    JobQueuedEvent queued = 3;
+    JobLeasedEvent leased = 4;
+    JobPendingEvent pending = 5;
+    JobRunningEvent running = 6;
+    JobRunFailedEvent run_failed = 7;
+    JobRequeuedEvent requeued = 8;
+    JobFailedEvent failed = 9;
+    JobSucceededEvent succeeded = 10;
+    JobCancelledEvent cancelled = 11;
+    JobPreemptedEvent preempted = 12;
+    JobReprioritizedEvent reprioritized = 13;
+    JobUtilisationEvent utilisation = 14;
+
+    JobCancelRequestedEvent cancel_requested = 15;
+    JobReprioritiseRequestedEvent reprioritise_requested = 16;
+    JobSetCancelRequestedEvent jobset_cancel_requested = 17;
+    JobSetReprioritiseRequestedEvent jobset_reprioritise_requested = 18;
+  }
+}
