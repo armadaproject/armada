@@ -7,7 +7,6 @@ import (
 	"github.com/gogo/protobuf/types"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
-	"github.com/renstrom/shortuuid"
 	"golang.org/x/exp/slices"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/utils/clock"
@@ -153,6 +152,7 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 
 	ticker := s.clock.NewTicker(s.cyclePeriod)
 	prevLeaderToken := leader.InvalidLeaderToken()
+	cycleNumber := 0
 	for {
 		select {
 		case <-ctx.Done():
@@ -161,7 +161,8 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 		case <-ticker.C():
 			start := s.clock.Now()
 			s.shortJobPenalty.SetNow(start)
-			ctx := armadacontext.WithLogField(ctx, "cycleId", shortuuid.New())
+			cycleNumber++
+			ctx := armadacontext.WithLogField(ctx, "cycleNumber", cycleNumber)
 			leaderToken := s.leaderController.GetToken()
 			fullUpdate := false
 			ctx.Infof("received leaderToken; leader status is %t", leaderToken.Leader())
@@ -192,7 +193,7 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 				ctx.Info("Won't schedule this cycle as still within schedulePeriod")
 			}
 
-			result, err := s.cycle(ctx, fullUpdate, leaderToken, shouldSchedule)
+			result, err := s.cycle(ctx, fullUpdate, leaderToken, shouldSchedule, cycleNumber)
 			if err != nil {
 				ctx.Logger().WithStacktrace(err).Error("scheduling cycle failure")
 				leaderToken = leader.InvalidLeaderToken()
@@ -243,13 +244,13 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 //     This means we can start the next cycle immediately after one cycle finishes.
 //     As state transitions are persisted and read back from the schedulerDb over later cycles,
 //     there is no change to the jobDb, since the correct changes have already been made.
-func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToken leader.LeaderToken, shouldSchedule bool) (scheduling.SchedulerResult, error) {
+func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToken leader.LeaderToken, shouldSchedule bool, cycleNumber int) (scheduling.SchedulerResult, error) {
 	// TODO: Consider returning a slice of these instead.
 	overallSchedulerResult := scheduling.SchedulerResult{}
 
 	// Update job state.
 	ctx.Info("Syncing internal state with database")
-	updatedJobs, jsts, err := s.syncState(ctx, false)
+	updatedJobs, jsts, err := s.syncState(ctx, false, cycleNumber%10 == 0)
 	if err != nil {
 		return overallSchedulerResult, err
 	}
@@ -383,7 +384,7 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 }
 
 // syncState updates jobs in jobDb to match state in postgres and returns all updated jobs.
-func (s *Scheduler) syncState(ctx *armadacontext.Context, initial bool) ([]*jobdb.Job, []jobdb.JobStateTransitions, error) {
+func (s *Scheduler) syncState(ctx *armadacontext.Context, initial, fullJobGc bool) ([]*jobdb.Job, []jobdb.JobStateTransitions, error) {
 	txn := s.jobDb.WriteTxn()
 	defer txn.Abort()
 
@@ -435,14 +436,22 @@ func (s *Scheduler) syncState(ctx *armadacontext.Context, initial bool) ([]*jobd
 
 	// Delete jobs in a terminal state.
 	idsOfJobsToDelete := make([]string, 0)
-	for _, jobDbJob := range jobDbJobs {
-		if !jobDbJob.InTerminalState() {
+	deletionCandidates := jobDbJobs
+	if fullJobGc {
+		// Occasional full gc so jobs that were not deleted
+		// earlier as ShortJobPenalty was being applied
+		// eventually get deleted.
+		ctx.Logger().Infof("Performing full job gc over %d jobs", len(deletionCandidates))
+		deletionCandidates = txn.GetAll()
+	}
+	for _, j := range deletionCandidates {
+		if !j.InTerminalState() {
 			continue
 		}
-		if s.shortJobPenalty.ShouldApplyPenalty(jobDbJob) {
+		if s.shortJobPenalty.ShouldApplyPenalty(j) {
 			continue
 		}
-		idsOfJobsToDelete = append(idsOfJobsToDelete, jobDbJob.Id())
+		idsOfJobsToDelete = append(idsOfJobsToDelete, j.Id())
 	}
 	if err := txn.BatchDelete(idsOfJobsToDelete); err != nil {
 		return nil, nil, err
@@ -1101,7 +1110,7 @@ func (s *Scheduler) initialise(ctx *armadacontext.Context) error {
 		case <-ctx.Done():
 			return nil
 		default:
-			if _, _, err := s.syncState(ctx, true); err != nil {
+			if _, _, err := s.syncState(ctx, true, false); err != nil {
 				ctx.Logger().
 					WithStacktrace(err).
 					Error("failed to initialise; trying again in 1 second")
