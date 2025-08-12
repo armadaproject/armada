@@ -1,4 +1,4 @@
-import { Close } from "@mui/icons-material"
+import { Close, Logout, Refresh } from "@mui/icons-material"
 import {
   Alert,
   AlertTitle,
@@ -42,6 +42,7 @@ import { TimeZoneSelector } from "./TimeZoneSelector"
 import { TIMESTAMP_FORMATS, timestampFormatDisplayNames } from "../common/formatTime"
 import { useFormatNumberWithUserSettings } from "../hooks/formatNumberWithUserSettings"
 import { useFormatIsoTimestampWithUserSettings } from "../hooks/formatTimeWithUserSettings"
+import { useUserManager, useUsername } from "../oidcAuth"
 
 const FORMAT_NUMBER_PREVIEW_VALUES = [0, 0.034, 7, 888, 65536, 11197253, 6412378912]
 
@@ -63,6 +64,9 @@ export interface SettingsDialogProps {
 
 export const SettingsDialog = ({ open, onClose }: SettingsDialogProps) => {
   const { mode, setMode } = useColorScheme()
+
+  const username = useUsername()
+  const userManager = useUserManager()
 
   const [jobRunLogsShowTimestamps, setJobRunLogsShowTimestamps] = useJobRunLogsShowTimestamps()
   const [jobRunLogsWrapLines, setJobRunLogsWrapLines] = useJobRunLogsWrapLines()
@@ -286,6 +290,31 @@ export const SettingsDialog = ({ open, onClose }: SettingsDialogProps) => {
                 />
               </FormGroup>
             </div>
+            <Divider />
+            {userManager && (
+              <Stack spacing={SPACING.sm} direction="row">
+                <div>
+                  <Button
+                    startIcon={<Refresh />}
+                    variant="outlined"
+                    color="success"
+                    onClick={() => userManager.signinRedirect()}
+                  >
+                    Refresh credentials
+                  </Button>
+                </div>
+                <div>
+                  <Button
+                    startIcon={<Logout />}
+                    variant="outlined"
+                    color="error"
+                    onClick={() => userManager.signoutRedirect()}
+                  >
+                    Sign out {username}
+                  </Button>
+                </div>
+              </Stack>
+            )}
           </ErrorBoundary>
         </DialogContentContainer>
       </DialogContent>

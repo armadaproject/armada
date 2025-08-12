@@ -7,9 +7,9 @@ import validator from "validator"
 
 import { NoRunsAlert } from "./NoRunsAlert"
 import { SidebarTabHeading } from "./sidebarTabContentComponents"
+import { CommandSpec } from "../../../config"
 import { Job } from "../../../models/lookoutModels"
 import { SPACING } from "../../../styling/spacing"
-import { CommandSpec } from "../../../utils"
 import { CodeBlock } from "../../CodeBlock"
 
 const KNOWN_ALERT_COLORS: AlertColor[] = ["success", "info", "warning", "error"]

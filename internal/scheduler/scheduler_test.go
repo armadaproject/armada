@@ -899,7 +899,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 
 			// run a scheduler cycle
 			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
-			_, err = sched.cycle(ctx, false, sched.leaderController.GetToken(), true)
+			_, err = sched.cycle(ctx, false, sched.leaderController.GetToken(), true, 1)
 			if tc.fetchError || tc.publishError || tc.scheduleError {
 				assert.Error(t, err)
 			} else {
@@ -1427,7 +1427,7 @@ func TestScheduler_TestSyncInitialState(t *testing.T) {
 			// which must be consistent within tests.
 			sched.jobDb = testfixtures.NewJobDb(testfixtures.TestResourceListFactory)
 
-			initialJobs, _, err := sched.syncState(ctx, true)
+			initialJobs, _, err := sched.syncState(ctx, true, false)
 			require.NoError(t, err)
 
 			expectedJobDb := testfixtures.NewJobDbWithJobs(tc.expectedInitialJobs)
@@ -1644,7 +1644,7 @@ func TestScheduler_TestSyncState(t *testing.T) {
 			require.NoError(t, err)
 			txn.Commit()
 
-			updatedJobs, _, err := sched.syncState(ctx, false)
+			updatedJobs, _, err := sched.syncState(ctx, false, false)
 			require.NoError(t, err)
 
 			expectedJobDb := testfixtures.NewJobDbWithJobs(tc.expectedUpdatedJobs)
@@ -2844,7 +2844,7 @@ func TestCycleConsistency(t *testing.T) {
 			// cycle runs one cycle.
 			cycle := func(s *Scheduler, updateAll, shouldSchedule bool) error {
 				t.Logf("cycle scheduler %p", s)
-				_, err := s.cycle(ctx, updateAll, s.leaderController.GetToken(), shouldSchedule)
+				_, err := s.cycle(ctx, updateAll, s.leaderController.GetToken(), shouldSchedule, 1)
 				return err
 			}
 

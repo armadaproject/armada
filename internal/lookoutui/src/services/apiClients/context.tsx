@@ -1,14 +1,10 @@
 import { createContext, ReactNode, useCallback, useContext, useMemo, useRef } from "react"
 
-import { FullPageError } from "../../containers/FullPageError"
-import { FullPageLoading } from "../../containers/FullPageLoading"
+import { getConfig } from "../../config"
 import { useAuthenticatedFetch } from "../../oidcAuth"
 import { Configuration as ArmadaConfiguration, SubmitApi } from "../../openapi/armada"
 import { BinocularsApi, Configuration as BinocularsConfiguration } from "../../openapi/binoculars"
 import { SchedulerReportingApi, Configuration as SchedulerObjectsConfiguration } from "../../openapi/schedulerobjects"
-import { useGetUiConfig } from "../lookout/useGetUiConfig"
-
-const ELLIPSIS = "\u2026"
 
 export interface ApiClients {
   submitApi: SubmitApi
@@ -27,44 +23,44 @@ export interface ApiClientsProviderProps {
 }
 
 export const ApiClientsProvider = ({ children }: ApiClientsProviderProps) => {
-  const { data: uiConfig, status, error, refetch } = useGetUiConfig()
+  const config = getConfig()
 
   const authenticatedFetch = useAuthenticatedFetch()
 
   const schedulerReportingApi = useMemo(() => {
     const schedulerReportingApiConfiguration = new SchedulerObjectsConfiguration({
-      basePath: uiConfig?.armadaApiBaseUrl,
+      basePath: config.armadaApiBaseUrl,
       credentials: "include",
       fetchApi: authenticatedFetch,
     })
     return new SchedulerReportingApi(schedulerReportingApiConfiguration)
-  }, [uiConfig?.armadaApiBaseUrl])
+  }, [config.armadaApiBaseUrl])
 
   const submitApi = useMemo(() => {
     const submitApiConfiguration = new ArmadaConfiguration({
-      basePath: uiConfig?.armadaApiBaseUrl,
+      basePath: config.armadaApiBaseUrl,
       credentials: "include",
       fetchApi: authenticatedFetch,
     })
     return new SubmitApi(submitApiConfiguration)
-  }, [uiConfig?.armadaApiBaseUrl])
+  }, [config.armadaApiBaseUrl])
 
   const binocularsApiCacheRef = useRef<{
     binocularsBaseUrlPattern: string
     binocularsApis: Record<string, BinocularsApi>
-  }>({ binocularsBaseUrlPattern: uiConfig?.binocularsBaseUrlPattern ?? "", binocularsApis: {} })
+  }>({ binocularsBaseUrlPattern: config.binocularsBaseUrlPattern ?? "", binocularsApis: {} })
   const getBinocularsApi = useCallback(
     (clusterId: string) => {
       const cache = binocularsApiCacheRef.current
-      if (cache.binocularsBaseUrlPattern !== (uiConfig?.binocularsBaseUrlPattern ?? "")) {
-        cache.binocularsBaseUrlPattern = uiConfig?.binocularsBaseUrlPattern ?? ""
+      if (cache.binocularsBaseUrlPattern !== (config.binocularsBaseUrlPattern ?? "")) {
+        cache.binocularsBaseUrlPattern = config.binocularsBaseUrlPattern ?? ""
         cache.binocularsApis = {}
       }
 
       if (!cache.binocularsApis[clusterId]) {
         cache.binocularsApis[clusterId] = new BinocularsApi(
           new BinocularsConfiguration({
-            basePath: uiConfig?.binocularsBaseUrlPattern.replace("{CLUSTER_ID}", clusterId),
+            basePath: config.binocularsBaseUrlPattern.replace("{CLUSTER_ID}", clusterId),
             credentials: "include",
             fetchApi: authenticatedFetch,
           }),
@@ -72,27 +68,13 @@ export const ApiClientsProvider = ({ children }: ApiClientsProviderProps) => {
       }
       return cache.binocularsApis[clusterId]
     },
-    [binocularsApiCacheRef, uiConfig?.binocularsBaseUrlPattern],
+    [binocularsApiCacheRef, config.binocularsBaseUrlPattern],
   )
 
   const apiClients = useMemo(
     () => ({ getBinocularsApi, schedulerReportingApi, submitApi }),
     [getBinocularsApi, schedulerReportingApi, submitApi],
   )
-
-  if (status === "error") {
-    return (
-      <FullPageError
-        errorTitle="There was a problem retrieving the configuration for Lookout"
-        errorMessage={error}
-        retry={refetch}
-      />
-    )
-  }
-
-  if (status === "pending") {
-    return <FullPageLoading loadingMessage={`Fetching Lookout configuration${ELLIPSIS}`} />
-  }
 
   return <ApiClientsContext.Provider value={{ apiClients }}>{children}</ApiClientsContext.Provider>
 }

@@ -42,6 +42,8 @@ describe("Sidebar", () => {
         },
       ],
     )
+    mockServer.setPostJobRunErrorResponseForRunId("1234-5678", "job run error")
+    mockServer.setPostJobRunDebugMessageResponseForRunId("1234-5678", "job run debug message")
     onClose = vi.fn()
   })
 

@@ -434,7 +434,7 @@ func TestConvert(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			converter := NewInstructionConverter(metrics.Get().Metrics, userAnnotationPrefix, &compress.NoOpCompressor{})
+			converter := NewInstructionConverter(metrics.Get().Metrics, userAnnotationPrefix, []string{}, &compress.NoOpCompressor{})
 			decompressor := &compress.NoOpDecompressor{}
 			instructionSet := converter.Convert(armadacontext.TODO(), tc.events)
 			require.Equal(t, len(tc.expected.JobsToCreate), len(instructionSet.JobsToCreate))
@@ -505,7 +505,7 @@ func TestTruncatesStringsThatAreTooLong(t *testing.T) {
 		MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 	}
 
-	converter := NewInstructionConverter(metrics.Get().Metrics, userAnnotationPrefix, &compress.NoOpCompressor{})
+	converter := NewInstructionConverter(metrics.Get().Metrics, userAnnotationPrefix, []string{}, &compress.NoOpCompressor{})
 	actual := converter.Convert(armadacontext.TODO(), events)
 
 	// String lengths obtained from database schema
@@ -524,4 +524,30 @@ func TestExtractNodeName(t *testing.T) {
 	assert.Nil(t, extractNodeName(&podError))
 	podError.NodeName = testfixtures.NodeName
 	assert.Equal(t, pointer.String(testfixtures.NodeName), extractNodeName(&podError))
+}
+
+func TestExtractUserAnnotations_NoPrefixNoBlocklist_SomeAnnotations(t *testing.T) {
+	annotations := map[string]string{"a": "1", "b": "2"}
+	result := extractUserAnnotations("", map[string]struct{}{}, annotations)
+	assert.Equal(t, annotations, result)
+}
+
+func TestExtractUserAnnotations_NoPrefixNoBlocklist_EmptyAnnotations(t *testing.T) {
+	result := extractUserAnnotations("", map[string]struct{}{}, map[string]string{})
+	assert.Empty(t, result)
+}
+
+func TestExtractUserAnnotations_PrefixTrimming(t *testing.T) {
+	annotations := map[string]string{"prefix/key": "value", "other": "v2"}
+	expected := map[string]string{"key": "value", "other": "v2"}
+	result := extractUserAnnotations("prefix/", map[string]struct{}{}, annotations)
+	assert.Equal(t, expected, result)
+}
+
+func TestExtractUserAnnotations_Blocklist(t *testing.T) {
+	annotations := map[string]string{"Block": "v1", "block": "v2", "keep": "v3"}
+	blocklist := map[string]struct{}{"block": {}}
+	result := extractUserAnnotations("", blocklist, annotations)
+	expected := map[string]string{"keep": "v3"}
+	assert.Equal(t, expected, result)
 }

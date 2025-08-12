@@ -12,9 +12,9 @@ import { SidebarTabJobLogs } from "./SidebarTabJobLogs"
 import { SidebarTabJobResult } from "./SidebarTabJobResult"
 import { SidebarTabJobYaml } from "./SidebarTabJobYaml"
 import { SidebarTabScheduling } from "./SidebarTabScheduling"
+import { CommandSpec } from "../../../config"
 import { Job, JobState } from "../../../models/lookoutModels"
 import { SPACING } from "../../../styling/spacing"
-import { CommandSpec } from "../../../utils"
 import { AlertErrorFallback } from "../../AlertErrorFallback"
 
 enum SidebarTab {
