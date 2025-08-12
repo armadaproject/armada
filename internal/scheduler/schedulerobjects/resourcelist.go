@@ -83,7 +83,7 @@ func (rl ResourceList) ToComputeResources() cr.ComputeResources {
 }
 
 // AllocatableByPriorityAndResourceType accounts for resources that can be allocated to pods of a given priority.
-// E.g., AllocatableByPriorityAndResourceType[5]["cpu"] is the amount of CPU available to pods with priority 5,
+// E.g., AllocatableByPriorityAndResourceType[5]["cpu"] is the amount of Cpu available to pods with priority 5,
 // where alloctable resources = unused resources + resources allocated to lower-priority pods.
 type AllocatableByPriorityAndResourceType QuantityByTAndResourceType[int32]
 

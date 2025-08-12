@@ -103,7 +103,7 @@ func validateParsed(t *testing.T, result model.Vector) {
 	assert.Equal(t, model.LabelValue("DCGM_FI_DEV_MEM_COPY_UTIL"), result[0].Metric[model.MetricNameLabel])
 	assert.Equal(t, model.LabelValue("0"), result[0].Metric["gpu"])
 	assert.Equal(t, model.LabelValue("test1"), result[0].Metric["pod"])
-	assert.Equal(t, model.LabelValue("GPU-0fad1988-2940-49d6-e05a-713ae4a9ea37"), result[0].Metric["UUID"])
+	assert.Equal(t, model.LabelValue("Gpu-0fad1988-2940-49d6-e05a-713ae4a9ea37"), result[0].Metric["UUID"])
 	assert.Equal(t, 21.0, float64(result[0].Value))
 
 	assert.Equal(t, model.LabelValue("DCGM_FI_DEV_MEM_COPY_UTIL"), result[1].Metric[model.MetricNameLabel])
@@ -137,12 +137,12 @@ func makeGoodEndpointSlice(ipAddress string, nodeName string) *discovery.Endpoin
 func testResponseText() string {
 	return `# HELP DCGM_FI_DEV_MEM_COPY_UTIL Memory utilization (in %).
 	# TYPE DCGM_FI_DEV_MEM_COPY_UTIL gauge
-	DCGM_FI_DEV_MEM_COPY_UTIL{gpu="0",UUID="GPU-0fad1988-2940-49d6-e05a-713ae4a9ea37",device="nvidia0",modelName="Tesla V100-SXM2-32GB",Hostname="nvidia-dcgm-exporter-sv6g2",container="gputest",namespace="gpu-operator",pod="test1"} 21
-	DCGM_FI_DEV_MEM_COPY_UTIL{gpu="1",UUID="GPU-4020fc4b-b520-24af-5a2d-b77b33a194a5",device="nvidia1",modelName="Tesla V100-SXM2-32GB",Hostname="nvidia-dcgm-exporter-sv6g2",container="gputest",namespace="gpu-operator",pod="test2"} 2
+	DCGM_FI_DEV_MEM_COPY_UTIL{gpu="0",UUID="Gpu-0fad1988-2940-49d6-e05a-713ae4a9ea37",device="nvidia0",modelName="Tesla V100-SXM2-32GB",Hostname="nvidia-dcgm-exporter-sv6g2",container="gputest",namespace="gpu-operator",pod="test1"} 21
+	DCGM_FI_DEV_MEM_COPY_UTIL{gpu="1",UUID="Gpu-4020fc4b-b520-24af-5a2d-b77b33a194a5",device="nvidia1",modelName="Tesla V100-SXM2-32GB",Hostname="nvidia-dcgm-exporter-sv6g2",container="gputest",namespace="gpu-operator",pod="test2"} 2
 	# HELP DCGM_FI_DEV_ENC_UTIL Encoder utilization (in %).
 	# TYPE DCGM_FI_DEV_ENC_UTIL gauge
-	DCGM_FI_DEV_ENC_UTIL{gpu="0",UUID="GPU-0fad1988-2940-49d6-e05a-713ae4a9ea37",device="nvidia0",modelName="Tesla V100-SXM2-32GB",Hostname="nvidia-dcgm-exporter-sv6g2",container="gputest",namespace="gpu-operator",pod="test1"} 0
-	DCGM_FI_DEV_ENC_UTIL{gpu="1",UUID="GPU-4020fc4b-b520-24af-5a2d-b77b33a194a5",device="nvidia1",modelName="Tesla V100-SXM2-32GB",Hostname="nvidia-dcgm-exporter-sv6g2",container="gputest",namespace="gpu-operator",pod="test2"} 0
+	DCGM_FI_DEV_ENC_UTIL{gpu="0",UUID="Gpu-0fad1988-2940-49d6-e05a-713ae4a9ea37",device="nvidia0",modelName="Tesla V100-SXM2-32GB",Hostname="nvidia-dcgm-exporter-sv6g2",container="gputest",namespace="gpu-operator",pod="test1"} 0
+	DCGM_FI_DEV_ENC_UTIL{gpu="1",UUID="Gpu-4020fc4b-b520-24af-5a2d-b77b33a194a5",device="nvidia1",modelName="Tesla V100-SXM2-32GB",Hostname="nvidia-dcgm-exporter-sv6g2",container="gputest",namespace="gpu-operator",pod="test2"} 0
 	`
 }
 

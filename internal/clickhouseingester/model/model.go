@@ -1,4 +1,4 @@
-package clickhouseingester
+package model
 
 import (
 	"time"
@@ -11,10 +11,10 @@ type JobRow struct {
 	Queue              *string           `ch:"queue"`
 	Namespace          *string           `ch:"namespace"`
 	JobSet             *string           `ch:"job_set"`
-	CPU                *int64            `ch:"cpu"`
+	Cpu                *int64            `ch:"cpu"`
 	Memory             *int64            `ch:"memory"`
 	EphemeralStorage   *int64            `ch:"ephemeral_storage"`
-	GPU                *int64            `ch:"gpu"`
+	Gpu                *int64            `ch:"gpu"`
 	Priority           *int64            `ch:"priority"`
 	SubmitTs           *time.Time        `ch:"submit_ts"`
 	PriorityClass      *string           `ch:"priority_class"`
@@ -110,7 +110,7 @@ type Update struct {
 	JobSpec  *JobSpecRow
 }
 
-type jobResources struct {
+type JobResources struct {
 	Cpu              int64
 	Memory           int64
 	EphemeralStorage int64

@@ -695,7 +695,7 @@ func TestNodeTypesIterator(t *testing.T) {
 }
 
 func BenchmarkNodeTypeIterator(b *testing.B) {
-	// Create nodes with varying amounts of CPU available.
+	// Create nodes with varying amounts of Cpu available.
 	numNodes := 1000
 	allocatedMilliCpus := []int64{
 		1, 1100, 1200, 1300, 1400, 1500, 1600, 1700, 1800, 1900,
@@ -715,7 +715,7 @@ func BenchmarkNodeTypeIterator(b *testing.B) {
 	nodeDb, err := newNodeDbWithNodes(nodes)
 	require.NoError(b, err)
 
-	// Create iterator for 0 CPU required and an unfeasible memory request,
+	// Create iterator for 0 Cpu required and an unfeasible memory request,
 	// such that the iterator has to consider all nodes.
 	indexedResourceRequests := make([]int64, len(nodeDb.indexedResources))
 	oneTiB := resource.MustParse("1Ti")

@@ -335,7 +335,7 @@ type OptimiserConfig struct {
 	// MaximumJobSizeToPreempt - The optimiser won't preempt jobs that are bigger than this field
 	MaximumJobSizeToPreempt *armadaresource.ComputeResources
 	// The minimum fairness improvement (as a percentage) for the optimiser to take action
-	// I.e, Optimiser tries to scheduler a 16 CPU job and has to preempt a 10 CPU jobs
+	// I.e, Optimiser tries to scheduler a 16 Cpu job and has to preempt a 10 Cpu jobs
 	// - 16/10 = 160%, 60% improvement
 	MinimumFairnessImprovementPercentage float64
 }

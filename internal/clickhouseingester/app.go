@@ -4,6 +4,9 @@ import (
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/pkg/errors"
 
+	"github.com/armadaproject/armada/internal/clickhouseingester/clickhousedb"
+	"github.com/armadaproject/armada/internal/clickhouseingester/instructions"
+	"github.com/armadaproject/armada/internal/clickhouseingester/model"
 	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/ingest"
@@ -24,17 +27,17 @@ func Run(config Configuration) error {
 	// Database
 	// ////////////////////////////////////////////////////////////////////////
 	ctx.Infof("opening connection to clickhouse")
-	db, err := OpenClickHouse(ctx, "", "", "", "")
+	db, err := clickhousedb.OpenClickHouse(ctx, "", "", "", "")
 	if err != nil {
 		return err
 	}
 	defer util.CloseResource("clickhouse", db)
-	schedulerDb := NewClickhouseDb(db)
+	schedulerDb := clickhousedb.New(db)
 
 	// ////////////////////////////////////////////////////////////////////////
 	// Event Conversions
 	// ////////////////////////////////////////////////////////////////////////
-	jobSetEventsConverter := NewInstructionConverter(config.UserAnnotationPrefix)
+	instructionsConverter := instructions.NewConverter(config.UserAnnotationPrefix)
 
 	// ////////////////////////////////////////////////////////////////////////
 	// Profiling
@@ -55,7 +58,7 @@ func Run(config Configuration) error {
 	// ////////////////////////////////////////////////////////////////////////
 	// Pipeline
 	// ////////////////////////////////////////////////////////////////////////
-	jobSetEventsIngester := ingest.NewIngestionPipeline[*Instructions, *armadaevents.EventSequence](
+	jobSetEventsIngester := ingest.NewIngestionPipeline[*model.Instructions, *armadaevents.EventSequence](
 		config.Pulsar,
 		config.Pulsar.JobsetEventsTopic,
 		"lookout-clickhouse-ingester",
@@ -66,7 +69,7 @@ func Run(config Configuration) error {
 		jobsetevents.MessageUnmarshaller,
 		jobsetevents.BatchMerger,
 		jobsetevents.BatchMetricPublisher,
-		jobSetEventsConverter,
+		instructionsConverter,
 		schedulerDb,
 		svcMetrics,
 	)

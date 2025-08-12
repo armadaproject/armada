@@ -1,9 +1,10 @@
-package clickhouseingester
+package clickhousedb
 
 import (
 	"database/sql"
 	"embed"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
@@ -100,4 +101,34 @@ func withTestDb(ctx *armadacontext.Context, f func(db clickhouse.Conn)) error {
 	}
 
 	return nil
+}
+
+func placeholders(n int) string {
+	ph := make([]string, n)
+	for i := 0; i < n; i++ {
+		ph[i] = "?"
+	}
+	return strings.Join(ph, ", ")
+}
+
+func ptrVal[T comparable](p *T) T {
+	if p != nil {
+		return *p
+	}
+	var zero T
+	return zero
+}
+
+func ptrBool(p *bool) bool {
+	if p != nil {
+		return *p
+	}
+	return false
+}
+
+func ptrTime(p *time.Time) time.Time {
+	if p != nil {
+		return *p
+	}
+	return time.Time{}
 }
