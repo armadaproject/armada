@@ -5,14 +5,13 @@ import (
 
 	"k8s.io/utils/pointer"
 
-	"github.com/armadaproject/armada/internal/clickhouseingester/model"
 	"github.com/armadaproject/armada/internal/common/database/lookout"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
-func handleJobRunRunning(ts time.Time, event *armadaevents.JobRunRunning) (model.Update, error) {
-	return model.Update{
-		Job: &model.JobRow{
+func handleJobRunRunning(ts time.Time, event *armadaevents.JobRunRunning) (Update, error) {
+	return Update{
+		Job: &JobRow{
 			JobId:              event.JobId,
 			JobState:           pointer.String(string(lookout.JobRunning)),
 			RunState:           pointer.String(string(lookout.JobRunRunning)),
@@ -23,9 +22,9 @@ func handleJobRunRunning(ts time.Time, event *armadaevents.JobRunRunning) (model
 	}, nil
 }
 
-func handleJobRunLeased(ts time.Time, event *armadaevents.JobRunLeased) (model.Update, error) {
-	return model.Update{
-		Job: &model.JobRow{
+func handleJobRunLeased(ts time.Time, event *armadaevents.JobRunLeased) (Update, error) {
+	return Update{
+		Job: &JobRow{
 			JobId:              event.JobId,
 			JobState:           pointer.String(string(lookout.JobLeased)),
 			LatestRunId:        &event.RunId,
@@ -36,7 +35,7 @@ func handleJobRunLeased(ts time.Time, event *armadaevents.JobRunLeased) (model.U
 			LastTransitionTime: &ts,
 			LastUpdateTs:       ts,
 		},
-		JobRun: &model.JobRunRow{
+		JobRun: &JobRunRow{
 			JobId:    event.JobId,
 			RunId:    event.RunId,
 			Cluster:  &event.ExecutorId,
@@ -48,9 +47,9 @@ func handleJobRunLeased(ts time.Time, event *armadaevents.JobRunLeased) (model.U
 	}, nil
 }
 
-func handleJobRunAssigned(ts time.Time, event *armadaevents.JobRunAssigned) (model.Update, error) {
-	return model.Update{
-		Job: &model.JobRow{
+func handleJobRunAssigned(ts time.Time, event *armadaevents.JobRunAssigned) (Update, error) {
+	return Update{
+		Job: &JobRow{
 			JobId:              event.JobId,
 			JobState:           pointer.String(string(lookout.JobPending)),
 			RunState:           pointer.String(string(lookout.JobRunPending)),
@@ -58,7 +57,7 @@ func handleJobRunAssigned(ts time.Time, event *armadaevents.JobRunAssigned) (mod
 			LastTransitionTime: &ts,
 			LastUpdateTs:       ts,
 		},
-		JobRun: &model.JobRunRow{
+		JobRun: &JobRunRow{
 			JobId:     event.JobId,
 			RunId:     event.RunId,
 			PendingTs: &ts,
@@ -67,15 +66,15 @@ func handleJobRunAssigned(ts time.Time, event *armadaevents.JobRunAssigned) (mod
 	}, nil
 }
 
-func handleJobRunCancelled(ts time.Time, event *armadaevents.JobRunCancelled) (model.Update, error) {
-	return model.Update{
-		Job: &model.JobRow{
+func handleJobRunCancelled(ts time.Time, event *armadaevents.JobRunCancelled) (Update, error) {
+	return Update{
+		Job: &JobRow{
 			JobId:         event.JobId,
 			RunState:      pointer.String(string(lookout.JobRunCancelled)),
 			RunFinishedTs: &ts,
 			LastUpdateTs:  ts,
 		},
-		JobRun: &model.JobRunRow{
+		JobRun: &JobRunRow{
 			JobId:      event.JobId,
 			RunId:      event.RunId,
 			FinishedTS: &ts,
@@ -84,15 +83,15 @@ func handleJobRunCancelled(ts time.Time, event *armadaevents.JobRunCancelled) (m
 	}, nil
 }
 
-func handleJobRunSucceeded(ts time.Time, event *armadaevents.JobRunSucceeded) (model.Update, error) {
-	return model.Update{
-		Job: &model.JobRow{
+func handleJobRunSucceeded(ts time.Time, event *armadaevents.JobRunSucceeded) (Update, error) {
+	return Update{
+		Job: &JobRow{
 			JobId:         event.JobId,
 			RunState:      pointer.String(string(lookout.JobRunSucceeded)),
 			RunFinishedTs: &ts,
 			LastUpdateTs:  ts,
 		},
-		JobRun: &model.JobRunRow{
+		JobRun: &JobRunRow{
 			JobId:      event.JobId,
 			RunId:      event.RunId,
 			FinishedTS: &ts,
@@ -101,7 +100,7 @@ func handleJobRunSucceeded(ts time.Time, event *armadaevents.JobRunSucceeded) (m
 	}, nil
 }
 
-func handleJobRunErrors(ts time.Time, event *armadaevents.JobRunErrors) (model.Update, error) {
+func handleJobRunErrors(ts time.Time, event *armadaevents.JobRunErrors) (Update, error) {
 	for _, e := range event.GetErrors() {
 
 		if !e.Terminal {
@@ -139,37 +138,37 @@ func handleJobRunErrors(ts time.Time, event *armadaevents.JobRunErrors) (model.U
 			runState = string(lookout.JobRunFailed)
 			errorMsg = "Unknown error"
 		}
-		return model.Update{
-			Job: &model.JobRow{
+		return Update{
+			Job: &JobRow{
 				JobId:         event.JobId,
 				RunState:      &runState,
 				RunExitCode:   &exitCode,
 				RunFinishedTs: &ts,
 				LastUpdateTs:  ts,
 			},
-			JobRun: &model.JobRunRow{
+			JobRun: &JobRunRow{
 				JobId:      event.JobId,
 				RunId:      event.RunId,
 				ExitCode:   &exitCode,
 				State:      &runState,
 				FinishedTS: &ts,
 			},
-			JobDebug: &model.JobDebugRow{
+			JobDebug: &JobDebugRow{
 				RunId:        event.RunId,
 				DebugMessage: debugMessage,
 			},
-			JobError: &model.JobErrorRow{
+			JobError: &JobErrorRow{
 				RunId:        event.RunId,
 				ErrorMessage: errorMsg,
 			},
 		}, nil
 	}
-	return model.Update{}, nil
+	return Update{}, nil
 }
 
-func handleJobRunPreempted(ts time.Time, event *armadaevents.JobRunPreempted) (model.Update, error) {
-	return model.Update{
-		Job: &model.JobRow{
+func handleJobRunPreempted(ts time.Time, event *armadaevents.JobRunPreempted) (Update, error) {
+	return Update{
+		Job: &JobRow{
 			JobId:         event.PreemptedRunId,
 			RunState:      pointer.String(string(lookout.JobRunPreempted)),
 			RunFinishedTs: &ts,

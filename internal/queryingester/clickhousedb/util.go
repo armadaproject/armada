@@ -19,8 +19,21 @@ import (
 //go:embed migrations/*.sql
 var embeddedMigrations embed.FS
 
-func OpenClickHouse(ctx *armadacontext.Context, addr, database, username, password string) (clickhouse.Conn, error) {
-	conn, err := clickhouse.Open(&clickhouse.Options{
+func OpenClickhouse(ctx *armadacontext.Context, options *clickhouse.Options) (clickhouse.Conn, error) {
+	conn, err := clickhouse.Open(options)
+
+	if err != nil {
+		return nil, errors.WithMessagef(err, "could not connect to clickhouse on %s", strings.Join(options.Addr, ","))
+	}
+
+	if err = conn.Ping(ctx); err != nil {
+		return nil, errors.WithMessagef(err, "failed to ping clickhouse at %s", strings.Join(options.Addr, ","))
+	}
+	return conn, nil
+}
+
+func OpenClickHouseSimple(ctx *armadacontext.Context, addr, database, username, password string) (clickhouse.Conn, error) {
+	return OpenClickhouse(ctx, &clickhouse.Options{
 		Addr: []string{addr},
 		Auth: clickhouse.Auth{
 			Database: database,
@@ -30,15 +43,6 @@ func OpenClickHouse(ctx *armadacontext.Context, addr, database, username, passwo
 		DialTimeout: 5 * time.Second,
 		Compression: &clickhouse.Compression{Method: clickhouse.CompressionLZ4},
 	})
-
-	if err != nil {
-		return nil, errors.WithMessagef(err, "could not connect to clickhouse on %s", addr)
-	}
-
-	if err = conn.Ping(ctx); err != nil {
-		return nil, errors.WithMessagef(err, "failed to ping clickhouse at %s", addr)
-	}
-	return conn, nil
 }
 
 func MigrateDB(ctx *armadacontext.Context, clickhouseDSN string) error {
@@ -66,7 +70,7 @@ func withTestDb(ctx *armadacontext.Context, f func(db clickhouse.Conn)) error {
 	dbName := fmt.Sprintf("test_%s", util.NewULID())
 
 	// Admin connection for DB create/drop
-	adminDb, err := OpenClickHouse(ctx, "localhost:9000", "default", "clickhouse", "psw")
+	adminDb, err := OpenClickHouseSimple(ctx, "localhost:9000", "default", "clickhouse", "psw")
 	if err != nil {
 		return err
 	}
@@ -86,7 +90,7 @@ func withTestDb(ctx *armadacontext.Context, f func(db clickhouse.Conn)) error {
 	}
 
 	// Connect to test DB
-	testDb, err := OpenClickHouse(ctx, "localhost:9000", dbName, "clickhouse", "psw")
+	testDb, err := OpenClickHouseSimple(ctx, "localhost:9000", dbName, "clickhouse", "psw")
 	if err != nil {
 		return fmt.Errorf("failed to connect to test database: %w", err)
 	}

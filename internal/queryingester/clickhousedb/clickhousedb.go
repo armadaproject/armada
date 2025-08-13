@@ -2,8 +2,8 @@ package clickhousedb
 
 import (
 	"github.com/ClickHouse/clickhouse-go/v2"
+	"github.com/armadaproject/armada/internal/queryingester/instructions"
 
-	"github.com/armadaproject/armada/internal/clickhouseingester/model"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 )
 
@@ -18,7 +18,7 @@ func New(db clickhouse.Conn) *ClickhouseDb {
 }
 
 // Store updates clickhouse with the supplied rows
-func (l *ClickhouseDb) Store(ctx *armadacontext.Context, ins *model.Instructions) error {
+func (l *ClickhouseDb) Store(ctx *armadacontext.Context, ins *instructions.Instructions) error {
 	g, ctx := armadacontext.ErrGroup(ctx)
 
 	g.SetLimit(4)

@@ -7,7 +7,6 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"k8s.io/utils/pointer"
 
-	"github.com/armadaproject/armada/internal/clickhouseingester/model"
 	"github.com/armadaproject/armada/internal/common/database/lookout"
 	"github.com/armadaproject/armada/internal/common/eventutil"
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
@@ -21,14 +20,14 @@ func handleSubmitJob(
 	userAnnotationPrefix string,
 	ts time.Time,
 	event *armadaevents.SubmitJob,
-) (model.Update, error) {
+) (Update, error) {
 	apiJob, err := eventutil.ApiJobFromLogSubmitJob(owner, []string{}, queue, jobSet, ts, event)
 	if err != nil {
-		return model.Update{}, err
+		return Update{}, err
 	}
 	jobProto, err := proto.Marshal(apiJob)
 	if err != nil {
-		return model.Update{}, err
+		return Update{}, err
 	}
 	resources := getJobResources(apiJob)
 	priorityClass := apiJob.GetMainPodSpec().PriorityClassName
@@ -38,12 +37,12 @@ func handleSubmitJob(
 		return strings.TrimPrefix(k, userAnnotationPrefix)
 	})
 
-	return model.Update{
-		JobSpec: &model.JobSpecRow{
+	return Update{
+		JobSpec: &JobSpecRow{
 			JobId:   event.JobId,
 			JobSpec: string(jobProto),
 		},
-		Job: &model.JobRow{
+		Job: &JobRow{
 			JobId:              event.JobId,
 			Queue:              &queue,
 			Namespace:          &apiJob.Namespace,
@@ -64,9 +63,9 @@ func handleSubmitJob(
 	}, nil
 }
 
-func handleJobRequeued(ts time.Time, event *armadaevents.JobRequeued) (model.Update, error) {
-	return model.Update{
-		Job: &model.JobRow{
+func handleJobRequeued(ts time.Time, event *armadaevents.JobRequeued) (Update, error) {
+	return Update{
+		Job: &JobRow{
 			JobId:              event.JobId,
 			JobState:           pointer.String(string(lookout.JobQueued)),
 			LastTransitionTime: &ts,
@@ -75,9 +74,9 @@ func handleJobRequeued(ts time.Time, event *armadaevents.JobRequeued) (model.Upd
 	}, nil
 }
 
-func handleReprioritiseJob(ts time.Time, event *armadaevents.ReprioritisedJob) (model.Update, error) {
-	return model.Update{
-		Job: &model.JobRow{
+func handleReprioritiseJob(ts time.Time, event *armadaevents.ReprioritisedJob) (Update, error) {
+	return Update{
+		Job: &JobRow{
 			JobId:        event.JobId,
 			Priority:     pointer.Int64(int64(event.Priority)),
 			LastUpdateTs: ts,
@@ -85,9 +84,9 @@ func handleReprioritiseJob(ts time.Time, event *armadaevents.ReprioritisedJob) (
 	}, nil
 }
 
-func handleJobSucceeded(ts time.Time, event *armadaevents.JobSucceeded) (model.Update, error) {
-	return model.Update{
-		Job: &model.JobRow{
+func handleJobSucceeded(ts time.Time, event *armadaevents.JobSucceeded) (Update, error) {
+	return Update{
+		Job: &JobRow{
 			JobId:              event.JobId,
 			JobState:           pointer.String(string(lookout.JobSucceeded)),
 			RunFinishedTs:      &ts,
@@ -97,9 +96,9 @@ func handleJobSucceeded(ts time.Time, event *armadaevents.JobSucceeded) (model.U
 	}, nil
 }
 
-func handleCancelledJob(ts time.Time, event *armadaevents.CancelledJob) (model.Update, error) {
-	return model.Update{
-		Job: &model.JobRow{
+func handleCancelledJob(ts time.Time, event *armadaevents.CancelledJob) (Update, error) {
+	return Update{
+		Job: &JobRow{
 			JobId:              event.JobId,
 			JobState:           pointer.String(string(lookout.JobCancelled)),
 			CancelTs:           &ts,
@@ -111,7 +110,7 @@ func handleCancelledJob(ts time.Time, event *armadaevents.CancelledJob) (model.U
 	}, nil
 }
 
-func handleJobErrors(ts time.Time, event *armadaevents.JobErrors) (model.Update, error) {
+func handleJobErrors(ts time.Time, event *armadaevents.JobErrors) (Update, error) {
 	for _, e := range event.GetErrors() {
 		// We don't care about non-terminal errors
 		if !e.Terminal {
@@ -129,8 +128,8 @@ func handleJobErrors(ts time.Time, event *armadaevents.JobErrors) (model.Update,
 			errMsg = reason.JobRejected.String()
 		}
 
-		return model.Update{
-			Job: &model.JobRow{
+		return Update{
+			Job: &JobRow{
 				JobId:              event.JobId,
 				JobState:           pointer.String(string(state)),
 				LastTransitionTime: &ts,
@@ -139,5 +138,5 @@ func handleJobErrors(ts time.Time, event *armadaevents.JobErrors) (model.Update,
 			},
 		}, nil
 	}
-	return model.Update{}, nil
+	return Update{}, nil
 }

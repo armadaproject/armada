@@ -9,9 +9,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"k8s.io/utils/pointer"
 
-	"github.com/armadaproject/armada/internal/clickhouseingester/model"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/queryingester/instructions"
 )
 
 var (
@@ -21,7 +21,7 @@ var (
 	priorityUpdateTime = leasedTime.Add(1 * time.Second)
 )
 
-var submitEvent = model.JobRow{
+var submitEvent = instructions.JobRow{
 	JobId:              jobId,
 	Queue:              pointer.String("queue-1"),
 	Namespace:          pointer.String("namespace-1"),
@@ -40,13 +40,13 @@ var submitEvent = model.JobRow{
 	Merged:             pointer.Bool(true),
 }
 
-var priorityUpdateEvent = model.JobRow{
+var priorityUpdateEvent = instructions.JobRow{
 	JobId:        jobId,
 	Priority:     pointer.Int64(100),
 	LastUpdateTs: priorityUpdateTime,
 }
 
-var leasedEvent = model.JobRow{
+var leasedEvent = instructions.JobRow{
 	JobId:              jobId,
 	JobState:           pointer.String("LEASED"),
 	LatestRunId:        pointer.String(util.NewULID()),
@@ -62,7 +62,7 @@ func TestInsertJobs_Submit(t *testing.T) {
 	ctx := armadacontext.Background()
 
 	err := withTestDb(ctx, func(db clickhouse.Conn) {
-		err := insertJobs(ctx, db, []model.JobRow{submitEvent})
+		err := insertJobs(ctx, db, []instructions.JobRow{submitEvent})
 		require.NoError(t, err)
 		actual, err := getJobById(ctx, db, jobId)
 		require.NoError(t, err)
@@ -76,13 +76,13 @@ func TestInsertJobs_UpdatePriority(t *testing.T) {
 	ctx := armadacontext.Background()
 
 	err := withTestDb(ctx, func(db clickhouse.Conn) {
-		err := insertJobs(ctx, db, []model.JobRow{submitEvent})
+		err := insertJobs(ctx, db, []instructions.JobRow{submitEvent})
 		require.NoError(t, err)
-		err = insertJobs(ctx, db, []model.JobRow{priorityUpdateEvent})
+		err = insertJobs(ctx, db, []instructions.JobRow{priorityUpdateEvent})
 		require.NoError(t, err)
 		actual, err := getJobById(ctx, db, jobId)
 		require.NoError(t, err)
-		assertJobsEqual(t, model.JobRow{
+		assertJobsEqual(t, instructions.JobRow{
 			JobId:              jobId,
 			Queue:              submitEvent.Queue,
 			Namespace:          submitEvent.Namespace,
@@ -109,11 +109,11 @@ func TestInsertJobs_AddRun(t *testing.T) {
 	ctx := armadacontext.Background()
 
 	err := withTestDb(ctx, func(db clickhouse.Conn) {
-		err := insertJobs(ctx, db, []model.JobRow{submitEvent, leasedEvent})
+		err := insertJobs(ctx, db, []instructions.JobRow{submitEvent, leasedEvent})
 		require.NoError(t, err)
 		actual, err := getJobById(ctx, db, jobId)
 		require.NoError(t, err)
-		assertJobsEqual(t, model.JobRow{
+		assertJobsEqual(t, instructions.JobRow{
 			JobId:              jobId,
 			Queue:              submitEvent.Queue,
 			Namespace:          submitEvent.Namespace,
@@ -141,8 +141,8 @@ func TestInsertJobs_AddRun(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func getJobById(ctx *armadacontext.Context, conn clickhouse.Conn, jobID string) (model.JobRow, error) {
-	var row model.JobRow
+func getJobById(ctx *armadacontext.Context, conn clickhouse.Conn, jobID string) (instructions.JobRow, error) {
+	var row instructions.JobRow
 
 	query := `
         SELECT
@@ -159,7 +159,7 @@ func getJobById(ctx *armadacontext.Context, conn clickhouse.Conn, jobID string) 
             run_exit_code, run_finished_ts,
             CAST(run_state AS Nullable(String)) AS run_state,
             CAST(run_node AS Nullable(String)) AS run_node,
-            run_leased, run_pending_ts, run_started_ts,
+            run_leased_ts, run_pending_ts, run_started_ts,
             last_transition_time, last_update_ts, error, merged
         FROM jobs FINAL
         WHERE job_id = ?
@@ -173,7 +173,7 @@ func getJobById(ctx *armadacontext.Context, conn clickhouse.Conn, jobID string) 
 	return row, nil
 }
 
-func assertJobsEqual(t *testing.T, expected, actual model.JobRow) {
+func assertJobsEqual(t *testing.T, expected, actual instructions.JobRow) {
 	assert.Equal(t, expected.JobId, actual.JobId, "JobID mismatch")
 	assert.Equal(t, ptrVal(expected.Queue), ptrVal(actual.Queue), "Queue mismatch")
 	assert.Equal(t, ptrVal(expected.Namespace), ptrVal(actual.Namespace), "Namespace mismatch")

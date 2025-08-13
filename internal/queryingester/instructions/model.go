@@ -1,4 +1,4 @@
-package model
+package instructions
 
 import (
 	"time"
@@ -29,7 +29,7 @@ type JobRow struct {
 	RunFinishedTs      *time.Time        `ch:"run_finished_ts"`
 	RunState           *string           `ch:"run_state"`
 	RunNode            *string           `ch:"run_node"`
-	RunLeasedTs        *time.Time        `ch:"run_leased"`
+	RunLeasedTs        *time.Time        `ch:"run_leased_ts"`
 	RunPendingTs       *time.Time        `ch:"run_pending_ts"`
 	RunStartedTs       *time.Time        `ch:"run_started_ts"`
 	LastTransitionTime *time.Time        `ch:"last_transition_time"`

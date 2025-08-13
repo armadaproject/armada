@@ -2,14 +2,14 @@ package clickhousedb
 
 import (
 	"github.com/ClickHouse/clickhouse-go/v2"
+	"github.com/armadaproject/armada/internal/queryingester/instructions"
 	"github.com/pkg/errors"
 
-	"github.com/armadaproject/armada/internal/clickhouseingester/model"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 )
 
 // insertJobRunErrors inserts one or more JobErrorRow records into job_run_errors.
-func insertJobSpecs(ctx *armadacontext.Context, conn clickhouse.Conn, rows []model.JobSpecRow) error {
+func insertJobSpecs(ctx *armadacontext.Context, conn clickhouse.Conn, rows []instructions.JobSpecRow) error {
 	if len(rows) == 0 {
 		return nil
 	}

@@ -1,6 +1,7 @@
 package clickhousedb
 
 import (
+	"github.com/armadaproject/armada/internal/queryingester/instructions"
 	"testing"
 	"time"
 
@@ -9,7 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"k8s.io/utils/pointer"
 
-	"github.com/armadaproject/armada/internal/clickhouseingester/model"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/util"
 )
@@ -22,7 +22,7 @@ var (
 	runFinishedTime = runStartedTime.Add(1 * time.Second)
 )
 
-var runLeasedEvent = model.JobRunRow{
+var runLeasedEvent = instructions.JobRunRow{
 	JobId:    jobId,
 	RunId:    runId,
 	Cluster:  pointer.String("cluster-1"),
@@ -32,21 +32,21 @@ var runLeasedEvent = model.JobRunRow{
 	Merged:   pointer.Bool(true),
 }
 
-var runPendingEvent = model.JobRunRow{
+var runPendingEvent = instructions.JobRunRow{
 	JobId:     jobId,
 	RunId:     runId,
 	State:     pointer.String("PENDING"),
 	PendingTs: &runPendingTime,
 }
 
-var runStartedEvent = model.JobRunRow{
+var runStartedEvent = instructions.JobRunRow{
 	JobId:     jobId,
 	RunId:     runId,
 	State:     pointer.String("RUNNING"),
 	StartedTS: &runStartedTime,
 }
 
-var runFinishedEvent = model.JobRunRow{
+var runFinishedEvent = instructions.JobRunRow{
 	JobId:      jobId,
 	RunId:      runId,
 	State:      pointer.String("SUCCEEDED"),
@@ -58,7 +58,7 @@ func TestInsertJobRuns_Lease(t *testing.T) {
 	ctx := armadacontext.Background()
 
 	err := withTestDb(ctx, func(db clickhouse.Conn) {
-		err := insertJobRuns(ctx, db, []model.JobRunRow{runLeasedEvent})
+		err := insertJobRuns(ctx, db, []instructions.JobRunRow{runLeasedEvent})
 		require.NoError(t, err)
 		actual, err := getJobRunById(ctx, db, runId)
 		require.NoError(t, err)
@@ -72,13 +72,13 @@ func TestInsertJobRuns_UpdateStarted(t *testing.T) {
 
 	err := withTestDb(ctx, func(db clickhouse.Conn) {
 		// leased -> running
-		require.NoError(t, insertJobRuns(ctx, db, []model.JobRunRow{runLeasedEvent}))
-		require.NoError(t, insertJobRuns(ctx, db, []model.JobRunRow{runStartedEvent}))
+		require.NoError(t, insertJobRuns(ctx, db, []instructions.JobRunRow{runLeasedEvent}))
+		require.NoError(t, insertJobRuns(ctx, db, []instructions.JobRunRow{runStartedEvent}))
 
 		actual, err := getJobRunById(ctx, db, runId)
 		require.NoError(t, err)
 
-		assertJobRunsEqual(t, model.JobRunRow{
+		assertJobRunsEqual(t, instructions.JobRunRow{
 			JobId:     jobId,
 			RunId:     runId,
 			Cluster:   runLeasedEvent.Cluster,
@@ -97,15 +97,15 @@ func TestInsertJobRuns_Finish(t *testing.T) {
 
 	err := withTestDb(ctx, func(db clickhouse.Conn) {
 		// leased -> pending -> running -> succeeded
-		require.NoError(t, insertJobRuns(ctx, db, []model.JobRunRow{runLeasedEvent}))
-		require.NoError(t, insertJobRuns(ctx, db, []model.JobRunRow{runPendingEvent}))
-		require.NoError(t, insertJobRuns(ctx, db, []model.JobRunRow{runStartedEvent}))
-		require.NoError(t, insertJobRuns(ctx, db, []model.JobRunRow{runFinishedEvent}))
+		require.NoError(t, insertJobRuns(ctx, db, []instructions.JobRunRow{runLeasedEvent}))
+		require.NoError(t, insertJobRuns(ctx, db, []instructions.JobRunRow{runPendingEvent}))
+		require.NoError(t, insertJobRuns(ctx, db, []instructions.JobRunRow{runStartedEvent}))
+		require.NoError(t, insertJobRuns(ctx, db, []instructions.JobRunRow{runFinishedEvent}))
 
 		actual, err := getJobRunById(ctx, db, runId)
 		require.NoError(t, err)
 
-		assertJobRunsEqual(t, model.JobRunRow{
+		assertJobRunsEqual(t, instructions.JobRunRow{
 			JobId:      jobId,
 			RunId:      runId,
 			Cluster:    runLeasedEvent.Cluster,
@@ -123,7 +123,7 @@ func TestInsertJobRuns_Finish(t *testing.T) {
 }
 
 // Assert equality for JobRunRow (mirrors the JobRow comparator)
-func assertJobRunsEqual(t *testing.T, expected, actual model.JobRunRow) {
+func assertJobRunsEqual(t *testing.T, expected, actual instructions.JobRunRow) {
 	assert.Equal(t, expected.JobId, actual.JobId, "JobId mismatch")
 	assert.Equal(t, expected.RunId, actual.RunId, "RunId mismatch")
 	assert.Equal(t, ptrVal(expected.Cluster), ptrVal(actual.Cluster), "Cluster mismatch")
@@ -138,8 +138,8 @@ func assertJobRunsEqual(t *testing.T, expected, actual model.JobRunRow) {
 }
 
 // Helper to fetch a job run row
-func getJobRunById(ctx *armadacontext.Context, conn clickhouse.Conn, runId string) (model.JobRunRow, error) {
-	var row model.JobRunRow
+func getJobRunById(ctx *armadacontext.Context, conn clickhouse.Conn, runId string) (instructions.JobRunRow, error) {
+	var row instructions.JobRunRow
 
 	query := `
 		SELECT

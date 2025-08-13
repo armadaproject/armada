@@ -1,7 +1,6 @@
 package instructions
 
 import (
-	"github.com/armadaproject/armada/internal/clickhouseingester/model"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/ingest/utils"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
@@ -18,8 +17,8 @@ func NewConverter(userAnnotationPrefix string) *Converter {
 	}
 }
 
-func (c *Converter) Convert(ctx *armadacontext.Context, sequences *utils.EventsWithIds[*armadaevents.EventSequence]) *model.Instructions {
-	instructions := &model.Instructions{
+func (c *Converter) Convert(ctx *armadacontext.Context, sequences *utils.EventsWithIds[*armadaevents.EventSequence]) *Instructions {
+	instructions := &Instructions{
 		MessageIds: sequences.MessageIds,
 	}
 	for _, es := range sequences.Events {
@@ -46,7 +45,7 @@ func (c *Converter) toInstruction(
 	jobset,
 	owner string,
 	event *armadaevents.EventSequence_Event,
-) (model.Update, error) {
+) (Update, error) {
 	ts := protoutil.ToStdTime(event.Created)
 	switch event.GetEvent().(type) {
 	case *armadaevents.EventSequence_Event_SubmitJob:
@@ -77,6 +76,6 @@ func (c *Converter) toInstruction(
 		return handleJobRunLeased(ts, event.GetJobRunLeased())
 	default:
 		ctx.Debugf("Ignoring event %T", event.GetEvent())
-		return model.Update{}, nil
+		return Update{}, nil
 	}
 }

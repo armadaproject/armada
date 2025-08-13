@@ -1,12 +1,9 @@
-package clickhouseingester
+package queryingester
 
 import (
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/pkg/errors"
 
-	"github.com/armadaproject/armada/internal/clickhouseingester/clickhousedb"
-	"github.com/armadaproject/armada/internal/clickhouseingester/instructions"
-	"github.com/armadaproject/armada/internal/clickhouseingester/model"
 	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/ingest"
@@ -14,20 +11,27 @@ import (
 	"github.com/armadaproject/armada/internal/common/ingest/metrics"
 	"github.com/armadaproject/armada/internal/common/profiling"
 	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/queryingester/clickhousedb"
+	"github.com/armadaproject/armada/internal/queryingester/configuration"
+	"github.com/armadaproject/armada/internal/queryingester/instructions"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 // Run will create a pipeline that will take Armada event messages from Pulsar and update clickhouse.
 // This pipeline will run until a SIGTERM is received.
-func Run(config Configuration) error {
+func Run(config configuration.QueryIngesterConfig) error {
 
 	ctx := armadacontext.Background()
 
 	// ////////////////////////////////////////////////////////////////////////
 	// Database
 	// ////////////////////////////////////////////////////////////////////////
-	ctx.Infof("opening connection to clickhouse")
-	db, err := clickhousedb.OpenClickHouse(ctx, "", "", "", "")
+	ctx.Info("opening connection to clickhouse")
+	options, err := config.ClickHouse.BuildOptions()
+	if err != nil {
+		return errors.WithMessage(err, "failed to build clickhouse options")
+	}
+	db, err := clickhousedb.OpenClickhouse(ctx, options)
 	if err != nil {
 		return err
 	}
@@ -58,7 +62,7 @@ func Run(config Configuration) error {
 	// ////////////////////////////////////////////////////////////////////////
 	// Pipeline
 	// ////////////////////////////////////////////////////////////////////////
-	jobSetEventsIngester := ingest.NewIngestionPipeline[*model.Instructions, *armadaevents.EventSequence](
+	jobSetEventsIngester := ingest.NewIngestionPipeline[*instructions.Instructions, *armadaevents.EventSequence](
 		config.Pulsar,
 		config.Pulsar.JobsetEventsTopic,
 		"lookout-clickhouse-ingester",

@@ -1,0 +1,18 @@
+clickhouse:
+  addr: [localhost]
+  database: default
+  username: clickhouse
+  password: psw
+  dialTimeout: 5s
+  Compression: lz4
+metricsPort: 9002
+pulsar:
+  URL: "pulsar://pulsar:6650"
+  jobsetEventsTopic: "events"
+  backoffTime: 1s
+  receiverQueueSize: 100
+subscriptionName: "query-ingester"
+batchSize: 10000
+batchDuration: 500ms
+userAnnotationPrefix: "armadaproject.io/"
+maxBackoff: 60
