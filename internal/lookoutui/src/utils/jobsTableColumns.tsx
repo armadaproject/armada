@@ -428,9 +428,12 @@ export const GET_JOB_COLUMNS = ({
     accessor: "node",
     displayName: "Node",
     additionalOptions: {
+      enableColumnFilter: true,
+      enableGrouping: true,
       size: 200,
     },
     additionalMetadata: {
+      filterType: FilterType.Text,
       allowCopy: true,
     },
   }),
@@ -439,9 +442,12 @@ export const GET_JOB_COLUMNS = ({
     accessor: "cluster",
     displayName: "Cluster",
     additionalOptions: {
+      enableColumnFilter: true,
+      enableGrouping: true,
       size: 200,
     },
     additionalMetadata: {
+      filterType: FilterType.Text,
       allowCopy: true,
     },
   }),
@@ -528,6 +534,8 @@ export const DEFAULT_COLUMN_MATCHES: Record<string, Match> = {
   [StandardColumnId.GPU]: Match.Exact,
   [StandardColumnId.Priority]: Match.Exact,
   [StandardColumnId.PriorityClass]: Match.Exact,
+  [StandardColumnId.Cluster]: Match.Exact,
+  [StandardColumnId.Node]: Match.Exact,
 }
 
 export const VALID_COLUMN_MATCHES: Record<string, Match[]> = {
@@ -573,6 +581,8 @@ export const VALID_COLUMN_MATCHES: Record<string, Match[]> = {
     Match.LessThanOrEqual,
   ],
   [StandardColumnId.PriorityClass]: [Match.Exact, Match.StartsWith, Match.Contains],
+  [StandardColumnId.Cluster]: [Match.Exact],
+  [StandardColumnId.Node]: [Match.Exact],
   [ANNOTATION_COLUMN_PREFIX]: [Match.Exact, Match.StartsWith, Match.Contains],
 }
 
