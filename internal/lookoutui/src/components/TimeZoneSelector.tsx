@@ -2,6 +2,7 @@ import { useMemo } from "react"
 
 import { Autocomplete, AutocompleteProps, MenuItem, styled, TextField, Typography } from "@mui/material"
 
+import { SPACING } from "../common/spacing"
 import {
   getBrowserTimeZone,
   getTimeZoneOffsetAtTimestamp,
@@ -9,7 +10,6 @@ import {
   UTC_TIME_ZONE_NAME,
 } from "../common/timeZones"
 import { getConfig } from "../config"
-import { SPACING } from "../styling/spacing"
 
 // Place the local time zone and UTC first
 const FIRST_TIME_ZONES_TO_DISPLAY = [getBrowserTimeZone(), UTC_TIME_ZONE_NAME]

@@ -1,4 +1,5 @@
 import { OIDC_REDIRECT } from "../pathnames"
+
 import { Config, LookoutUiConfig } from "./types"
 
 export const DEFAULT_LOOKOUT_UI_CONFIG: LookoutUiConfig = {

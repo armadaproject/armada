@@ -1,8 +1,8 @@
 // TODO(mauriceyap): remove this in favour of custom hooks using @tanstack/react-query
+import { getErrorMessage } from "../../common/utils"
 import { JobSet } from "../../models/lookoutModels"
 import { appendAuthorizationHeaders } from "../../oidcAuth"
 import { ApiJobState, SubmitApi } from "../../openapi/armada"
-import { getErrorMessage } from "../../utils"
 
 export interface CancelJobSetsResponse {
   cancelledJobSets: JobSet[]

@@ -7,9 +7,10 @@ import Prism from "prismjs"
 import "prismjs/components/prism-bash"
 import "prismjs/components/prism-yaml"
 
-import { CopyIconButton } from "./CopyIconButton"
 import { downloadTextFile } from "../common/downloadTextFile"
 import { useCodeSnippetsWrapLines } from "../userSettings"
+
+import { CopyIconButton } from "./CopyIconButton"
 
 // All langauges in this set must be imported from Prism in the form:
 // import "prismjs/components/prism-{language}"

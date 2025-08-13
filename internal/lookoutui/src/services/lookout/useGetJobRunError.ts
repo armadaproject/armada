@@ -2,10 +2,11 @@ import { useMemo } from "react"
 
 import { QueryFunction, QueryKey, useQueries, useQuery } from "@tanstack/react-query"
 
-import { getErrorMessage } from "../../utils"
-import { fakeRunError } from "./mocks/fakeData"
+import { getErrorMessage } from "../../common/utils"
 import { getConfig } from "../../config"
 import { useAuthenticatedFetch } from "../../oidcAuth"
+
+import { fakeRunError } from "./mocks/fakeData"
 
 const getQueryFn =
   (runId: string, fetchFunc: GlobalFetch["fetch"], fakeDataEnabled: boolean): QueryFunction<string, QueryKey, never> =>

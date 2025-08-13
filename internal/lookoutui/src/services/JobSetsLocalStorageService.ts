@@ -1,5 +1,6 @@
-import { JobSetsContainerState } from "../containers/JobSetsContainer"
-import { tryParseJson } from "../utils"
+import { tryParseJson } from "../common/utils"
+import { JobSetsContainerState } from "../pages/jobSets/components/JobSetsContainer"
+
 import { isJobSetsOrderByColumn, JobSetsOrderByColumn } from "./JobService"
 
 const LOCAL_STORAGE_KEY = "armada_lookout_job_sets_user_settings"

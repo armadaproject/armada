@@ -1,5 +1,6 @@
+import { RowId } from "../common/reactTableUtils"
+
 import { Job } from "./lookoutModels"
-import { RowId } from "../utils/reactTableUtils"
 
 export interface BaseJobTableRow {
   rowId: RowId

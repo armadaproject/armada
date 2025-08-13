@@ -2,9 +2,7 @@ import { ColumnFiltersState, ExpandedStateList, VisibilityState } from "@tanstac
 import _ from "lodash"
 import qs from "qs"
 
-import { LookoutColumnOrder } from "../../containers/lookout/JobsTableContainer"
-import { isValidMatch, JobId, Match } from "../../models/lookoutModels"
-import { removeUndefined, Router } from "../../utils"
+import { LookoutColumnOrder } from "../../common/jobsTableColumns"
 import {
   AnnotationColumnId,
   ColumnId,
@@ -18,8 +16,10 @@ import {
   isStandardColId,
   PINNED_COLUMNS,
   StandardColumnId,
-} from "../../utils/jobsTableColumns"
-import { matchForColumn } from "../../utils/jobsTableUtils"
+} from "../../common/jobsTableColumns"
+import { matchForColumn } from "../../common/jobsTableUtils"
+import { removeUndefined, Router } from "../../common/utils"
+import { isValidMatch, JobId, Match } from "../../models/lookoutModels"
 
 export interface JobsTablePreferences {
   annotationColumnKeys: string[]

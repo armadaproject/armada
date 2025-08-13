@@ -1,7 +1,8 @@
 import { useQuery } from "@tanstack/react-query"
 
+import { getErrorMessage } from "../../common/utils"
 import { useAuthenticatedFetch } from "../../oidcAuth"
-import { getErrorMessage } from "../../utils"
+
 import { useServices } from "../context"
 
 export const useGetJobSpec = (jobId: string, enabled = true) => {

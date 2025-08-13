@@ -1,10 +1,12 @@
 import { useQuery } from "@tanstack/react-query"
 
-import { SchedulerobjectsSchedulingReport } from "../../openapi/schedulerobjects"
-import { getErrorMessage } from "../../utils"
-import { useApiClients } from "../apiClients"
-import { fakeSchedulingReport } from "./mocks/fakeData"
+import { getErrorMessage } from "../../common/utils"
 import { getConfig } from "../../config"
+import { SchedulerobjectsSchedulingReport } from "../../openapi/schedulerobjects"
+
+import { useApiClients } from "../apiClients"
+
+import { fakeSchedulingReport } from "./mocks/fakeData"
 
 export const useGetSchedulingReport = (verbosity: number, enabled = true) => {
   const config = getConfig()

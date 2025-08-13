@@ -1,5 +1,6 @@
+import { compareValues, getActiveJobSets, mergeFilters, simulateApiWait } from "../../../common/fakeJobsUtils"
 import { Job, JobFilter, JobKey, JobOrder } from "../../../models/lookoutModels"
-import { compareValues, getActiveJobSets, mergeFilters, simulateApiWait } from "../../../utils/fakeJobsUtils"
+
 import { GetJobsResponse, IGetJobsService } from "../GetJobsService"
 
 export default class FakeGetJobsService implements IGetJobsService {

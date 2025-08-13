@@ -1,10 +1,10 @@
 import { useQuery } from "@tanstack/react-query"
 import { isNil } from "lodash"
 
+import { getErrorMessage } from "../../common/utils"
 import { getConfig } from "../../config"
 import { useAuthenticatedFetch } from "../../oidcAuth"
 import { ApiQueue, ApiQueueFromJSON } from "../../openapi/armada"
-import { getErrorMessage } from "../../utils"
 
 export const useGetQueues = (enabled = true) => {
   const config = getConfig()
