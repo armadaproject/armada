@@ -4,8 +4,9 @@ import { ExpandLess, ExpandMore } from "@mui/icons-material"
 import { Alert, AlertTitle, Button, Collapse, Stack, Typography } from "@mui/material"
 import { FallbackProps } from "react-error-boundary"
 
+import { SPACING } from "../common/spacing"
+
 import { CodeBlock } from "./CodeBlock"
-import { SPACING } from "../styling/spacing"
 
 export const AlertErrorFallback = ({ error }: FallbackProps) => {
   const [detailsExpanded, setDetailsExpanded] = useState(false)

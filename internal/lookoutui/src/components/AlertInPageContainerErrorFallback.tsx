@@ -1,8 +1,9 @@
 import { Container, styled } from "@mui/material"
 import { FallbackProps } from "react-error-boundary"
 
+import { SPACING } from "../common/spacing"
+
 import { AlertErrorFallback } from "./AlertErrorFallback"
-import { SPACING } from "../styling/spacing"
 
 const StyledContainer = styled(Container)(({ theme }) => ({
   marginTop: theme.spacing(SPACING.lg),

@@ -57,13 +57,48 @@ export default tseslint.config(
       "import/order": [
         "error",
         {
-          groups: ["builtin", "external", "internal"],
+          groups: ["builtin", "external", "internal", "sibling"],
 
           pathGroups: [
             {
               pattern: "react",
               group: "external",
               position: "before",
+            },
+            {
+              pattern: "../../../../../../**",
+              group: "internal",
+              position: "after",
+            },
+            {
+              pattern: "../../../../../**",
+              group: "internal",
+              position: "after",
+            },
+            {
+              pattern: "../../../../**",
+              group: "internal",
+              position: "after",
+            },
+            {
+              pattern: "../../../**",
+              group: "internal",
+              position: "after",
+            },
+            {
+              pattern: "../../**",
+              group: "internal",
+              position: "after",
+            },
+            {
+              pattern: "../**",
+              group: "internal",
+              position: "after",
+            },
+            {
+              pattern: "./**",
+              group: "sibling",
+              position: "after",
             },
           ],
 

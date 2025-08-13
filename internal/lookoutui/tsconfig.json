@@ -20,5 +20,5 @@
     "baseUrl": "src",
     "types": ["vitest/globals"]
   },
-  "include": ["types/workarounds.d.ts", "src"]
+  "include": ["src"]
 }

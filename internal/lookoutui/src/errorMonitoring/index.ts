@@ -1,4 +1,5 @@
 import { getConfig } from "../config"
+
 import { sentryReactErrorHandlers } from "./sentry"
 import type { ReactErrorHandlers } from "./types"
 import "./instrument"
