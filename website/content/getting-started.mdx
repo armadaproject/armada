@@ -281,56 +281,6 @@ armadactl submit data-processing.yaml
 armadactl watch data-queue data-processing
 ```
 
-### CI/CD Integration Walkthrough
-
-This tutorial demonstrates how to integrate Armada with a CI/CD pipeline.
-
-#### Setting up a CI job
-
-Create a file named `ci-job.yaml`:
-
-```yaml
-queue: ci-queue
-jobSetId: build-and-test
-jobs:
-  - priority: 0
-    podSpec:
-      terminationGracePeriodSeconds: 0
-      restartPolicy: Never
-      containers:
-        - name: build
-          image: golang:1.18
-          command:
-            - /bin/bash
-            - -c
-            - |
-              echo "Cloning repository..."
-              git clone https://github.com/example/demo-app.git
-              cd demo-app
-
-              echo "Building application..."
-              go build -o app
-
-              echo "Running tests..."
-              go test ./...
-
-              echo "CI pipeline complete!"
-          resources:
-            limits:
-              memory: 1Gi
-              cpu: 1
-            requests:
-              memory: 1Gi
-              cpu: 1
-```
-
-Submit and monitor the job:
-
-```bash
-armadactl submit ci-job.yaml
-armadactl watch ci-queue build-and-test
-```
-
 ## Next Steps
 
 > [!WARNING]
