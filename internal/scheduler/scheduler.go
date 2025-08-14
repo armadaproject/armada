@@ -441,18 +441,20 @@ func (s *Scheduler) syncState(ctx *armadacontext.Context, initial, fullJobGc boo
 		// Occasional full gc so jobs that were not deleted
 		// earlier as ShortJobPenalty was being applied
 		// eventually get deleted.
-		ctx.Logger().Infof("Performing full job gc over %d jobs", len(deletionCandidates))
 		deletionCandidates = txn.GetAll()
 	}
+	shortJobCount := 0
 	for _, j := range deletionCandidates {
 		if !j.InTerminalState() {
 			continue
 		}
 		if s.shortJobPenalty.ShouldApplyPenalty(j) {
+			shortJobCount++
 			continue
 		}
 		idsOfJobsToDelete = append(idsOfJobsToDelete, j.Id())
 	}
+	ctx.Logger().Infof("Deleting %d jobs out of %d considered for deletion (%d short jobs, full job gc=%t)", len(idsOfJobsToDelete), len(deletionCandidates), shortJobCount, fullJobGc)
 	if err := txn.BatchDelete(idsOfJobsToDelete); err != nil {
 		return nil, nil, err
 	}
