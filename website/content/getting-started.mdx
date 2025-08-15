@@ -1,0 +1,120 @@
+---
+title: 'Getting Started'
+---
+
+# Getting Started
+
+**Start here if you're new to Armada. Learn how to install it and run your first job.**
+
+## 2.1 Quickstart
+
+### Prerequisites
+
+You need these tools installed:
+
+- [kubectl](https://kubernetes.io/docs/tasks/tools/install-kubectl/)
+- [Helm](https://helm.sh/docs/intro/install/)
+- [Kind](https://kind.sigs.k8s.io/docs/user/quick-start/#installation)
+- [Make](https://www.gnu.org/software/make/)
+- [Go v1.21+](https://golang.org/doc/install) - required for the Quickstart `make kind-all` target
+
+### Setup Armada using the Armada Operator
+
+Clone the Armada Operator repository and run the quickstart:
+
+```bash
+git clone https://github.com/armadaproject/armada-operator.git
+cd armada-operator
+make kind-all
+```
+
+This single command will:
+
+- Create a Kind cluster
+- Install all dependencies
+- Setup Armada
+- Install armadactl
+
+Wait for the command to complete.
+
+### Submit Your First Job
+
+#### 1. Create a queue
+
+```bash
+armadactl create queue example
+```
+
+#### 2. Submit a job
+
+```bash
+armadactl submit dev/quickstart/example-job.yaml
+```
+
+#### 3. Watch your job
+
+```bash
+armadactl watch example hello-armada
+```
+
+### View Job Status
+
+Open the web UI:
+
+```bash
+# Open http://localhost:30000 in your browser
+```
+
+## 2.2 Run More Jobs
+
+### Python Job Example
+
+Create a simple Python job file `python-job.yaml`:
+
+```yaml
+queue: example
+jobSetId: python-example
+jobs:
+  - podSpec:
+      restartPolicy: Never
+      containers:
+        - name: python
+          image: python:3.9
+          command:
+            [
+              'python',
+              '-c',
+              "print('Hello from Python!'); import time; time.sleep(10)",
+            ]
+          resources:
+            requests:
+              memory: 100Mi
+              cpu: 100m
+```
+
+Submit it:
+
+```bash
+armadactl submit python-job.yaml
+armadactl watch example python-example
+```
+
+### Useful Commands
+
+```bash
+# List queues
+armadactl get queues
+
+# Cancel a job set
+armadactl cancel job-set <queue-name> <job-set-id>
+
+# Clean up when done
+kind delete cluster --name armada
+```
+
+## Next Steps
+
+### Learn More
+
+- Check out the [Armada documentation](https://armadaproject.io/)
+- Visit the [GitHub repository](https://github.com/armadaproject/armada)

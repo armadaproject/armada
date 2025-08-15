@@ -1,0 +1,16 @@
+{
+  "root": true,
+  "pages": [
+    "toc",
+    "index",
+    "getting-started",
+    "understanding-armada",
+    "operator-guide",
+    "user-guide",
+    "developer-guide",
+    "contributing",
+    "community-and-support",
+    "faq-and-troubleshooting",
+    "..."
+  ]
+}
