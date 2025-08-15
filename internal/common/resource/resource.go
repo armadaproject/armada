@@ -2,7 +2,6 @@ package resource
 
 import (
 	"math"
-	"math/big"
 	"sort"
 
 	v1 "k8s.io/api/core/v1"
@@ -39,18 +38,6 @@ func (a ComputeResources) ToProtoMap() map[string]*resource.Quantity {
 		resources[k] = &r
 	}
 	return resources
-}
-
-// QuantityAsFloat64 returns a float64 representation of a quantity.
-// We need our own function because q.AsApproximateFloat64 sometimes returns surprising results.
-// For example, resource.MustParse("5188205838208Ki").AsApproximateFloat64() returns 0.004291583283300088,
-// whereas this function returns 5.312722778324993e+15.
-func QuantityAsFloat64(q resource.Quantity) float64 {
-	dec := q.AsDec()
-	unscaled := dec.UnscaledBig()
-	scale := dec.Scale()
-	unscaledFloat, _ := new(big.Float).SetInt(unscaled).Float64()
-	return unscaledFloat * math.Pow10(-int(scale))
 }
 
 type ComputeResources map[string]resource.Quantity
@@ -231,43 +218,6 @@ func (a ComputeResources) DeepCopy() ComputeResources {
 		targetComputeResource[key] = value.DeepCopy()
 	}
 
-	return targetComputeResource
-}
-
-// The Mul function takes a ComputeResources object called "a" and multiplies each value in it with a given "factor".
-// It then stores the result of each computation in a new ComputeResourcesFloat object,
-// where each key in "a" maps to its corresponding value converted to a float64 type and multiplied by "factor"
-func (a ComputeResources) Mul(factor float64) ComputeResourcesFloat {
-	targetComputeResource := make(ComputeResourcesFloat)
-	for key, value := range a {
-		targetComputeResource[key] = QuantityAsFloat64(value) * factor
-	}
-	return targetComputeResource
-}
-
-// MulByResource function takes a ComputeResources object called "a" and a map of factors,
-// where each key in the factors map corresponds to a key in "a".
-// It multiplies each value in "a" by its corresponding factor from the map, or by 1 if the factor does not exist in the map.
-// The computed values are stored in a new ComputeResourcesFloat object, which is returned by the function.
-// The purpose of this function is to scale the values in a ComputeResources object by the factors specified in the input map.
-func (a ComputeResources) MulByResource(factors map[string]float64) ComputeResourcesFloat {
-	targetComputeResource := make(ComputeResourcesFloat)
-	for key, value := range a {
-		factor, exists := factors[key]
-		if !exists {
-			factor = 1
-		}
-		targetComputeResource[key] = QuantityAsFloat64(value) * factor
-	}
-	return targetComputeResource
-}
-
-// AsFloat function, converts ComputeResources to ComputeResourcesFloat.
-func (a ComputeResources) AsFloat() ComputeResourcesFloat {
-	targetComputeResource := make(ComputeResourcesFloat)
-	for key, value := range a {
-		targetComputeResource[key] = QuantityAsFloat64(value)
-	}
 	return targetComputeResource
 }
 
