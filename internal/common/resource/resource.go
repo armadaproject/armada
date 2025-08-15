@@ -1,7 +1,6 @@
 package resource
 
 import (
-	"math"
 	"sort"
 
 	v1 "k8s.io/api/core/v1"
@@ -233,121 +232,6 @@ func (a ComputeResources) AsKubernetesResourceList() v1.ResourceList {
 
 // ComputeResourcesFloat is float version of compute resource, prefer calculations with quantity where possible
 type ComputeResourcesFloat map[string]float64
-
-// IsValid function checks if all the values in "a" is  greater than or equal to zero.
-// It returns true if all values are valid i.e. all values are greater than or equal to zero,
-// and false if any of the values are negative
-func (a ComputeResourcesFloat) IsValid() bool {
-	valid := true
-	for _, value := range a {
-		valid = valid && value >= 0
-	}
-	return valid
-}
-
-// The Sub function subtracts the values in "a" from the values
-// in "b". In the case a value exists in "b" but not in "a", the negative
-// of the value is mapped to its key in "a". The Sub function can be visually
-// represented as (a - b).
-func (a ComputeResourcesFloat) Sub(b ComputeResourcesFloat) {
-	if b == nil {
-		return
-	}
-	for k, v := range b {
-		existing, ok := a[k]
-		if ok {
-			a[k] = existing - v
-		} else {
-			a[k] = -v
-		}
-	}
-}
-
-func (a ComputeResourcesFloat) Add(b ComputeResourcesFloat) {
-	if b == nil {
-		return
-	}
-	for k, v := range b {
-		existing, ok := a[k]
-		if ok {
-			a[k] = existing + v
-		} else {
-			a[k] = v
-		}
-	}
-}
-
-// The Max function maps every key in "a" with its maximum when compared with its value and its corresponding  value in "b".
-func (a ComputeResourcesFloat) Max(b ComputeResourcesFloat) {
-	for k, v := range b {
-		existing, ok := a[k]
-		if ok {
-			a[k] = math.Max(v, existing)
-		} else {
-			a[k] = v
-		}
-	}
-}
-
-func (a ComputeResourcesFloat) DeepCopy() ComputeResourcesFloat {
-	targetComputeResource := make(ComputeResourcesFloat)
-	for key, value := range a {
-		targetComputeResource[key] = value
-	}
-	return targetComputeResource
-}
-
-// IsLessThan function checks if any value a contains any negative value after carrying out a
-// subtraction operation of a - b using the "Sub" method. If there are any negative value in "a" after this
-// operation, then "a" is less than "b", a boolean value, "true" is returned, otherwise
-// the boolean value, "false" is returned.
-func (a ComputeResourcesFloat) IsLessThan(b ComputeResourcesFloat) bool {
-	reduced := a.DeepCopy()
-	reduced.Sub(b)
-	return !reduced.IsValid()
-}
-
-// LimitWith function limits the values of "a" to the corresponding values in the limit object.
-// It creates a new ComputeResourcesFloat object with the same keys as the original "a" object,
-// but with values limited by the corresponding values in the limit object using the math.Min() function.
-// If any value in the "a" map is greater than its corresponding value in the limit map,
-// then that value in "a" is replaced with the corresponding value from the limit map.
-// This means that the limit map acts as a maximum limit on the values in the "a" map.
-func (a ComputeResourcesFloat) LimitWith(limit ComputeResourcesFloat) ComputeResourcesFloat {
-	targetComputeResource := make(ComputeResourcesFloat)
-	for key, value := range a {
-		targetComputeResource[key] = math.Min(value, limit[key])
-	}
-	return targetComputeResource
-}
-
-// MergeWith represents the merged in values take precedence and override existing values for the same key
-func (a ComputeResourcesFloat) MergeWith(merged ComputeResourcesFloat) ComputeResourcesFloat {
-	targetComputeResource := a.DeepCopy()
-	for key, value := range merged {
-		targetComputeResource[key] = value
-	}
-	return targetComputeResource
-}
-
-// LimitToZero function limits each value in "a" to a minimum value of zero.
-// In the case any value in "a" has a value less than zero, it is replaced with a value of zero.
-func (a ComputeResourcesFloat) LimitToZero() {
-	for key, value := range a {
-		a[key] = math.Max(value, 0)
-	}
-}
-
-// The Mul function takes a ComputeResources object called "a" and multiplies each value in it with a given "factor".
-// It then stores the result of each computation in a new ComputeResourcesFloat object,
-// where each key in "a" maps to its corresponding value multiplied by "factor"
-func (a ComputeResourcesFloat) Mul(factor float64) ComputeResourcesFloat {
-	targetComputeResource := make(ComputeResourcesFloat)
-	for key, value := range a {
-		targetComputeResource[key] = value * factor
-	}
-	return targetComputeResource
-}
 
 // TotalPodResourceRequest represents the resource request for a given pod is the maximum of:
 //   - sum of all containers
