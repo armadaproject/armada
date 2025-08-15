@@ -208,11 +208,11 @@ func (m *ClusterContextMetrics) Collect(metrics chan<- prometheus.Metric) {
 			for phase, phaseMetric := range phaseMetrics {
 				for resourceType, request := range phaseMetric.resourceRequest {
 					metrics <- prometheus.MustNewConstMetric(podResourceRequestDesc, prometheus.GaugeValue,
-						armadaresource.QuantityAsFloat64(request), queue, phase, resourceType, nodeType)
+						request.AsApproximateFloat64(), queue, phase, resourceType, nodeType)
 				}
 				for resourceType, usage := range phaseMetric.resourceUsage {
 					metrics <- prometheus.MustNewConstMetric(podResourceUsageDesc, prometheus.GaugeValue,
-						armadaresource.QuantityAsFloat64(usage), queue, phase, resourceType, nodeType)
+						usage.AsApproximateFloat64(), queue, phase, resourceType, nodeType)
 				}
 				metrics <- prometheus.MustNewConstMetric(podCountDesc, prometheus.GaugeValue, phaseMetric.count, queue, phase, nodeType)
 			}
@@ -223,12 +223,12 @@ func (m *ClusterContextMetrics) Collect(metrics chan<- prometheus.Metric) {
 		metrics <- prometheus.MustNewConstMetric(nodeCountDesc, prometheus.GaugeValue, float64(len(nodeGroup.Nodes)), nodeGroup.NodeType)
 		for resourceType, allocatable := range nodeGroup.NodeGroupAllocatableCapacity {
 			metrics <- prometheus.MustNewConstMetric(nodeAvailableResourceDesc,
-				prometheus.GaugeValue, armadaresource.QuantityAsFloat64(allocatable), resourceType,
+				prometheus.GaugeValue, allocatable.AsApproximateFloat64(), resourceType,
 				nodeGroup.NodeType)
 		}
 
 		for resourceType, total := range nodeGroup.NodeGroupCapacity {
-			metrics <- prometheus.MustNewConstMetric(nodeTotalResourceDesc, prometheus.GaugeValue, armadaresource.QuantityAsFloat64(total), resourceType, nodeGroup.NodeType)
+			metrics <- prometheus.MustNewConstMetric(nodeTotalResourceDesc, prometheus.GaugeValue, total.AsApproximateFloat64(), resourceType, nodeGroup.NodeType)
 		}
 	}
 }

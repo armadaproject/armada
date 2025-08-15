@@ -15,7 +15,6 @@ import (
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
-	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling"
@@ -531,12 +530,12 @@ func (m *cycleMetrics) ReportSchedulerResult(ctx *armadacontext.Context, result 
 				isSchedulable := strconv.FormatBool(!node.IsUnschedulable())
 				isOverallocated := strconv.FormatBool(node.IsOverAllocated())
 				for _, resource := range node.GetAllocatableResources().GetResources() {
-					currentCycle.nodeAllocatableResource.WithLabelValues(node.GetPool(), node.GetName(), node.GetExecutor(), node.GetReportingNodeType(), resource.Name, isSchedulable, isOverallocated).Set(armadaresource.QuantityAsFloat64(resource.Value))
+					currentCycle.nodeAllocatableResource.WithLabelValues(node.GetPool(), node.GetName(), node.GetExecutor(), node.GetReportingNodeType(), resource.Name, isSchedulable, isOverallocated).Set(resource.Value.AsApproximateFloat64())
 				}
 
 				allocated := node.GetAllocatableResources().Subtract(node.AllocatableByPriority[internaltypes.EvictedPriority])
 				for _, resource := range allocated.GetResources() {
-					allocatableValue := math.Max(armadaresource.QuantityAsFloat64(resource.Value), 0)
+					allocatableValue := math.Max(resource.Value.AsApproximateFloat64(), 0)
 					currentCycle.nodeAllocatedResource.WithLabelValues(node.GetPool(), node.GetName(), node.GetExecutor(), node.GetReportingNodeType(), resource.Name, isSchedulable, isOverallocated).Set(allocatableValue)
 				}
 			}
