@@ -154,12 +154,13 @@ func (l *LoadTester) Run(ctx *armadacontext.Context) (*Results, error) {
 	for msg := range instructionSets {
 		start := time.Now()
 		err := l.db.Store(ctx, msg)
-		totalDBTime += time.Now().Sub(start)
+		dbTime := time.Since(start)
+		totalDBTime += dbTime
 		if err != nil {
 			log.WithError(err).Warn("Error inserting messages")
 			log.Panic("db err")
 		} else {
-			log.Infof("Inserted %d pulsar messages in %dms", len(msg.GetMessageIDs()), totalDBTime.Milliseconds())
+			log.Infof("Inserted %d pulsar messages in %dms", len(msg.GetMessageIDs()), dbTime.Milliseconds())
 			totalMessages += len(msg.GetMessageIDs())
 		}
 		if errors.Is(err, context.DeadlineExceeded) {

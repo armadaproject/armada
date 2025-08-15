@@ -148,7 +148,7 @@ func getJobRunById(ctx *armadacontext.Context, conn clickhouse.Conn, runId strin
 			CAST(cluster AS Nullable(String)) AS cluster,
 			exit_code,
 			CAST(state AS Nullable(String)) AS state,
-			CAST(run_node AS Nullable(String)) AS run_node,
+			CAST(node AS Nullable(String)) AS node,
 			leased_ts,
 			pending_ts,
 			started_ts,

@@ -44,7 +44,7 @@ type JobRunRow struct {
 	Cluster    *string    `ch:"cluster"`
 	ExitCode   *int32     `ch:"exit_code"`
 	State      *string    `ch:"state"`
-	Node       *string    `ch:"run_node"`
+	Node       *string    `ch:"node"`
 	LeasedTs   *time.Time `ch:"leased_ts"`
 	PendingTs  *time.Time `ch:"pending_ts"`
 	StartedTS  *time.Time `ch:"started_ts"`

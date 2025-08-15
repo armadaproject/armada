@@ -63,10 +63,11 @@ func handleSubmitJob(
 	}, nil
 }
 
-func handleJobRequeued(ts time.Time, event *armadaevents.JobRequeued) (Update, error) {
+func handleJobRequeued(ts time.Time, queue string, event *armadaevents.JobRequeued) (Update, error) {
 	return Update{
 		Job: &JobRow{
 			JobId:              event.JobId,
+			Queue:              &queue,
 			JobState:           pointer.String(string(lookout.JobQueued)),
 			LastTransitionTime: &ts,
 			LastUpdateTs:       ts,
@@ -74,20 +75,22 @@ func handleJobRequeued(ts time.Time, event *armadaevents.JobRequeued) (Update, e
 	}, nil
 }
 
-func handleReprioritiseJob(ts time.Time, event *armadaevents.ReprioritisedJob) (Update, error) {
+func handleReprioritiseJob(ts time.Time, queue string, event *armadaevents.ReprioritisedJob) (Update, error) {
 	return Update{
 		Job: &JobRow{
 			JobId:        event.JobId,
+			Queue:        &queue,
 			Priority:     pointer.Int64(int64(event.Priority)),
 			LastUpdateTs: ts,
 		},
 	}, nil
 }
 
-func handleJobSucceeded(ts time.Time, event *armadaevents.JobSucceeded) (Update, error) {
+func handleJobSucceeded(ts time.Time, queue string, event *armadaevents.JobSucceeded) (Update, error) {
 	return Update{
 		Job: &JobRow{
 			JobId:              event.JobId,
+			Queue:              &queue,
 			JobState:           pointer.String(string(lookout.JobSucceeded)),
 			RunFinishedTs:      &ts,
 			LastTransitionTime: &ts,
@@ -96,10 +99,11 @@ func handleJobSucceeded(ts time.Time, event *armadaevents.JobSucceeded) (Update,
 	}, nil
 }
 
-func handleCancelledJob(ts time.Time, event *armadaevents.CancelledJob) (Update, error) {
+func handleCancelledJob(ts time.Time, queue string, event *armadaevents.CancelledJob) (Update, error) {
 	return Update{
 		Job: &JobRow{
 			JobId:              event.JobId,
+			Queue:              &queue,
 			JobState:           pointer.String(string(lookout.JobCancelled)),
 			CancelTs:           &ts,
 			CancelReason:       &event.Reason,
@@ -110,7 +114,7 @@ func handleCancelledJob(ts time.Time, event *armadaevents.CancelledJob) (Update,
 	}, nil
 }
 
-func handleJobErrors(ts time.Time, event *armadaevents.JobErrors) (Update, error) {
+func handleJobErrors(ts time.Time, queue string, event *armadaevents.JobErrors) (Update, error) {
 	for _, e := range event.GetErrors() {
 		// We don't care about non-terminal errors
 		if !e.Terminal {
@@ -131,6 +135,7 @@ func handleJobErrors(ts time.Time, event *armadaevents.JobErrors) (Update, error
 		return Update{
 			Job: &JobRow{
 				JobId:              event.JobId,
+				Queue:              &queue,
 				JobState:           pointer.String(string(state)),
 				LastTransitionTime: &ts,
 				LastUpdateTs:       ts,

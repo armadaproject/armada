@@ -51,29 +51,29 @@ func (c *Converter) toInstruction(
 	case *armadaevents.EventSequence_Event_SubmitJob:
 		return handleSubmitJob(queue, owner, jobset, c.userAnnotationPrefix, ts, event.GetSubmitJob())
 	case *armadaevents.EventSequence_Event_ReprioritisedJob:
-		return handleReprioritiseJob(ts, event.GetReprioritisedJob())
+		return handleReprioritiseJob(ts, queue, event.GetReprioritisedJob())
 	case *armadaevents.EventSequence_Event_CancelledJob:
-		return handleCancelledJob(ts, event.GetCancelledJob())
+		return handleCancelledJob(ts, queue, event.GetCancelledJob())
 	case *armadaevents.EventSequence_Event_JobSucceeded:
-		return handleJobSucceeded(ts, event.GetJobSucceeded())
+		return handleJobSucceeded(ts, queue, event.GetJobSucceeded())
 	case *armadaevents.EventSequence_Event_JobErrors:
-		return handleJobErrors(ts, event.GetJobErrors())
+		return handleJobErrors(ts, queue, event.GetJobErrors())
 	case *armadaevents.EventSequence_Event_JobRunAssigned:
-		return handleJobRunAssigned(ts, event.GetJobRunAssigned())
+		return handleJobRunAssigned(ts, queue, event.GetJobRunAssigned())
 	case *armadaevents.EventSequence_Event_JobRunRunning:
-		return handleJobRunRunning(ts, event.GetJobRunRunning())
+		return handleJobRunRunning(ts, queue, event.GetJobRunRunning())
 	case *armadaevents.EventSequence_Event_JobRunCancelled:
-		return handleJobRunCancelled(ts, event.GetJobRunCancelled())
+		return handleJobRunCancelled(ts, queue, event.GetJobRunCancelled())
 	case *armadaevents.EventSequence_Event_JobRunSucceeded:
-		return handleJobRunSucceeded(ts, event.GetJobRunSucceeded())
+		return handleJobRunSucceeded(ts, queue, event.GetJobRunSucceeded())
 	case *armadaevents.EventSequence_Event_JobRunErrors:
-		return handleJobRunErrors(ts, event.GetJobRunErrors())
+		return handleJobRunErrors(ts, queue, event.GetJobRunErrors())
 	case *armadaevents.EventSequence_Event_JobRunPreempted:
-		return handleJobRunPreempted(ts, event.GetJobRunPreempted())
+		return handleJobRunPreempted(ts, queue, event.GetJobRunPreempted())
 	case *armadaevents.EventSequence_Event_JobRequeued:
-		return handleJobRequeued(ts, event.GetJobRequeued())
+		return handleJobRequeued(ts, queue, event.GetJobRequeued())
 	case *armadaevents.EventSequence_Event_JobRunLeased:
-		return handleJobRunLeased(ts, event.GetJobRunLeased())
+		return handleJobRunLeased(ts, queue, event.GetJobRunLeased())
 	default:
 		ctx.Debugf("Ignoring event %T", event.GetEvent())
 		return Update{}, nil

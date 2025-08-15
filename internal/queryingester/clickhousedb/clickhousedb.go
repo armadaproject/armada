@@ -47,5 +47,11 @@ func (l *ClickhouseDb) Store(ctx *armadacontext.Context, ins *instructions.Instr
 		}
 		return insertJobRunDebugs(ctx, l.db, ins.JobDebugs)
 	})
+	g.Go(func() error {
+		if len(ins.JobErrors) == 0 {
+			return nil
+		}
+		return insertJobRunErrors(ctx, l.db, ins.JobErrors)
+	})
 	return g.Wait()
 }

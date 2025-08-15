@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/spf13/pflag"
@@ -51,11 +52,16 @@ func main() {
 	userSpecifiedConfigs := viper.GetStringSlice("queryIngesterConfig")
 	common.LoadConfig(&config, "./config/queryingester", userSpecifiedConfigs)
 
+	defaultQueues := make([]string, 90)
+	for i := range defaultQueues {
+		defaultQueues[i] = fmt.Sprintf("queue-%d", i)
+	}
+
 	loadtesterConfig := dbloadtester.Config{
-		TotalJobs:            500000,
-		TotalConcurrentJobs:  50000,
+		TotalJobs:            50000000,
+		TotalConcurrentJobs:  250000,
 		QueueSubmitBatchSize: 300,
-		QueueNames:           []string{"queue1", "queue2", "queue3"},
+		QueueNames:           defaultQueues,
 		JobTemplateFile:      "internal/queryingester/dbloadtester/test_data.yaml",
 	}
 

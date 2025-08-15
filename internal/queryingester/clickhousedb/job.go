@@ -6,6 +6,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/queryingester/instructions"
 	"strings"
+	"time"
 )
 
 func insertJobs(ctx *armadacontext.Context, conn clickhouse.Conn, events []instructions.JobRow) error {
@@ -49,6 +50,8 @@ func insertJobs(ctx *armadacontext.Context, conn clickhouse.Conn, events []instr
 		return err
 	}
 
+	now := time.Now()
+
 	for _, e := range events {
 		if err := batch.Append(
 			e.JobId,
@@ -77,7 +80,7 @@ func insertJobs(ctx *armadacontext.Context, conn clickhouse.Conn, events []instr
 			orNil(e.RunPendingTs),
 			orNil(e.RunStartedTs),
 			orNil(e.LastTransitionTime),
-			e.LastUpdateTs,
+			now,
 			orNil(e.Error),
 			orNil(e.Merged),
 		); err != nil {

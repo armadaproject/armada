@@ -2,12 +2,12 @@ package clickhousedb
 
 import (
 	"fmt"
-	"github.com/armadaproject/armada/internal/queryingester/instructions"
 	"strings"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/queryingester/instructions"
 )
 
 // insertJobRuns inserts job run rows into the job_runs table efficiently.
@@ -18,7 +18,7 @@ func insertJobRuns(ctx *armadacontext.Context, conn clickhouse.Conn, runs []inst
 		"cluster",
 		"exit_code",
 		"state",
-		"run_node",
+		"node",
 		"leased_ts",
 		"pending_ts",
 		"started_ts",

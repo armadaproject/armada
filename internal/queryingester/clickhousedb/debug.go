@@ -2,10 +2,10 @@ package clickhousedb
 
 import (
 	"github.com/ClickHouse/clickhouse-go/v2"
-	"github.com/armadaproject/armada/internal/queryingester/instructions"
 	"github.com/pkg/errors"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/queryingester/instructions"
 )
 
 // insertJobRunErrors inserts one or more JobDebugRow records into job_run_debugs.
