@@ -2,7 +2,6 @@ package resource
 
 import (
 	"math"
-	"math/big"
 	"sort"
 
 	v1 "k8s.io/api/core/v1"
@@ -39,18 +38,6 @@ func (a ComputeResources) ToProtoMap() map[string]*resource.Quantity {
 		resources[k] = &r
 	}
 	return resources
-}
-
-// QuantityAsFloat64 returns a float64 representation of a quantity.
-// We need our own function because q.AsApproximateFloat64 sometimes returns surprising results.
-// For example, resource.MustParse("5188205838208Ki").AsApproximateFloat64() returns 0.004291583283300088,
-// whereas this function returns 5.312722778324993e+15.
-func QuantityAsFloat64(q resource.Quantity) float64 {
-	dec := q.AsDec()
-	unscaled := dec.UnscaledBig()
-	scale := dec.Scale()
-	unscaledFloat, _ := new(big.Float).SetInt(unscaled).Float64()
-	return unscaledFloat * math.Pow10(-int(scale))
 }
 
 type ComputeResources map[string]resource.Quantity
