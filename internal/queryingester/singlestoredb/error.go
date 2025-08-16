@@ -1,4 +1,4 @@
-package clickhousedb
+package singlestoredb
 
 import (
 	"github.com/ClickHouse/clickhouse-go/v2"

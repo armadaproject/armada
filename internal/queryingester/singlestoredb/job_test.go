@@ -1,10 +1,11 @@
-package clickhousedb
+package singlestoredb
 
 import (
+	"database/sql"
 	"testing"
 	"time"
 
-	"github.com/ClickHouse/clickhouse-go/v2"
+	_ "github.com/go-sql-driver/mysql"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"k8s.io/utils/pointer"
@@ -21,6 +22,7 @@ var (
 	priorityUpdateTime = leasedTime.Add(1 * time.Second)
 )
 
+// NOTE: Annotations is already serialized JSON (*string)
 var submitEvent = instructions.JobRow{
 	JobId:              jobId,
 	Queue:              "queue-1",
@@ -33,7 +35,7 @@ var submitEvent = instructions.JobRow{
 	Priority:           pointer.Int64(5),
 	SubmitTs:           &submittedTime,
 	PriorityClass:      pointer.String("armada-default"),
-	Annotations:        map[string]string{"foo": "bar"},
+	Annotations:        pointer.String(`{"foo":"bar"}`),
 	JobState:           pointer.String("QUEUED"),
 	LastUpdateTs:       submittedTime,
 	LastTransitionTime: &submittedTime,
@@ -59,12 +61,13 @@ var leasedEvent = instructions.JobRow{
 	LastUpdateTs:       leasedTime,
 }
 
-func TestInsertJobs_Submit(t *testing.T) {
+func TestUpsertJobs_Submit(t *testing.T) {
 	ctx := armadacontext.Background()
 
-	err := withTestDb(ctx, func(db clickhouse.Conn) {
-		err := insertJobs(ctx, db, []instructions.JobRow{submitEvent})
+	err := withTestDb(ctx, func(db *sql.DB) {
+		err := upsertJobs(ctx, db, []instructions.JobRow{submitEvent})
 		require.NoError(t, err)
+
 		actual, err := getJobById(ctx, db, jobId)
 		require.NoError(t, err)
 		assertJobsEqual(t, submitEvent, actual)
@@ -73,16 +76,16 @@ func TestInsertJobs_Submit(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestInsertJobs_UpdatePriority(t *testing.T) {
+func TestUpsertJobs_UpdatePriority(t *testing.T) {
 	ctx := armadacontext.Background()
 
-	err := withTestDb(ctx, func(db clickhouse.Conn) {
-		err := insertJobs(ctx, db, []instructions.JobRow{submitEvent})
-		require.NoError(t, err)
-		err = insertJobs(ctx, db, []instructions.JobRow{priorityUpdateEvent})
-		require.NoError(t, err)
+	err := withTestDb(ctx, func(db *sql.DB) {
+		require.NoError(t, upsertJobs(ctx, db, []instructions.JobRow{submitEvent}))
+		require.NoError(t, upsertJobs(ctx, db, []instructions.JobRow{priorityUpdateEvent}))
+
 		actual, err := getJobById(ctx, db, jobId)
 		require.NoError(t, err)
+
 		assertJobsEqual(t, instructions.JobRow{
 			JobId:              jobId,
 			Queue:              submitEvent.Queue,
@@ -105,14 +108,15 @@ func TestInsertJobs_UpdatePriority(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestInsertJobs_AddRun(t *testing.T) {
+func TestUpsertJobs_AddRun(t *testing.T) {
 	ctx := armadacontext.Background()
 
-	err := withTestDb(ctx, func(db clickhouse.Conn) {
-		err := insertJobs(ctx, db, []instructions.JobRow{submitEvent, leasedEvent})
-		require.NoError(t, err)
+	err := withTestDb(ctx, func(db *sql.DB) {
+		require.NoError(t, upsertJobs(ctx, db, []instructions.JobRow{submitEvent, leasedEvent}))
+
 		actual, err := getJobById(ctx, db, jobId)
 		require.NoError(t, err)
+
 		assertJobsEqual(t, instructions.JobRow{
 			JobId:              jobId,
 			Queue:              submitEvent.Queue,
@@ -140,35 +144,122 @@ func TestInsertJobs_AddRun(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func getJobById(ctx *armadacontext.Context, conn clickhouse.Conn, jobID string) (instructions.JobRow, error) {
+func getJobById(ctx *armadacontext.Context, db *sql.DB, jobID string) (instructions.JobRow, error) {
 	var row instructions.JobRow
 
-	query := `
-        SELECT
-            job_id,
-            CAST(queue AS Nullable(String)) AS queue,
-            CAST(namespace AS Nullable(String)) AS namespace,
-            job_set, cpu, memory, ephemeral_storage, gpu,
-            priority, submit_ts,
-            CAST(priority_class AS Nullable(String)) AS priority_class,
-            annotations,
-            CAST(job_state AS Nullable(String)) AS job_state,
-            cancel_ts, cancel_reason, cancel_user, latest_run_id,
-            CAST(run_cluster AS Nullable(String)) AS run_cluster,
-            run_exit_code, run_finished_ts,
-            CAST(run_state AS Nullable(String)) AS run_state,
-            CAST(run_node AS Nullable(String)) AS run_node,
-            run_leased_ts, run_pending_ts, run_started_ts,
-            last_transition_time, last_update_ts, error
-        FROM jobs FINAL
-        WHERE job_id = ?
-        LIMIT 1
-    `
+	const q = `
+SELECT
+  job_id,
+  queue,
+  namespace,
+  job_set,
+  cpu,
+  memory,
+  ephemeral_storage,
+  gpu,
+  priority,
+  submit_ts,
+  priority_class,
+  annotations,
+  job_state,
+  cancel_ts,
+  cancel_reason,
+  cancel_user,
+  latest_run_id,
+  run_cluster,
+  run_exit_code,
+  run_finished_ts,
+  run_state,
+  run_node,
+  run_leased_ts,
+  run_pending_ts,
+  run_started_ts,
+  last_transition_time,
+  last_update_ts,
+  error
+FROM jobs_active
+WHERE job_id = ?
+LIMIT 1;
+`
 
-	if err := conn.QueryRow(ctx, query, jobID).ScanStruct(&row); err != nil {
+	var (
+		jobIDOut, queue                                        string
+		namespace, jobSet, priorityClass                       *string
+		cpu, memory, eph, gpu, priority                        *int64
+		submitTs, cancelTs, runFinishedTs                      *time.Time
+		jobState, cancelReason, cancelUser                     *string
+		annotations                                            *string
+		latestRunID, runCluster, runState, runNode             *string
+		runExitCode                                            *int32
+		runLeasedTs, runPendingTs, runStartedTs, lastTransTime *time.Time
+		lastUpdateTs                                           time.Time
+		errStr                                                 *string
+	)
+
+	err := db.QueryRowContext(ctx, q, jobID).Scan(
+		&jobIDOut,
+		&queue,
+		&namespace,
+		&jobSet,
+		&cpu,
+		&memory,
+		&eph,
+		&gpu,
+		&priority,
+		&submitTs,
+		&priorityClass,
+		&annotations,
+		&jobState,
+		&cancelTs,
+		&cancelReason,
+		&cancelUser,
+		&latestRunID,
+		&runCluster,
+		&runExitCode,
+		&runFinishedTs,
+		&runState,
+		&runNode,
+		&runLeasedTs,
+		&runPendingTs,
+		&runStartedTs,
+		&lastTransTime,
+		&lastUpdateTs,
+		&errStr,
+	)
+	if err != nil {
 		return row, err
 	}
 
+	row = instructions.JobRow{
+		JobId:              jobIDOut,
+		Queue:              queue,
+		Namespace:          namespace,
+		JobSet:             jobSet,
+		Cpu:                cpu,
+		Memory:             memory,
+		EphemeralStorage:   eph,
+		Gpu:                gpu,
+		Priority:           priority,
+		SubmitTs:           submitTs,
+		PriorityClass:      priorityClass,
+		Annotations:        annotations, // serialized JSON (*string)
+		JobState:           jobState,
+		CancelTs:           cancelTs,
+		CancelReason:       cancelReason,
+		CancelUser:         cancelUser,
+		LatestRunId:        latestRunID,
+		RunCluster:         runCluster,
+		RunExitCode:        runExitCode,
+		RunFinishedTs:      runFinishedTs,
+		RunState:           runState,
+		RunNode:            runNode,
+		RunLeasedTs:        runLeasedTs,
+		RunPendingTs:       runPendingTs,
+		RunStartedTs:       runStartedTs,
+		LastTransitionTime: lastTransTime,
+		LastUpdateTs:       lastUpdateTs,
+		Error:              errStr,
+	}
 	return row, nil
 }
 
@@ -185,8 +276,8 @@ func assertJobsEqual(t *testing.T, expected, actual instructions.JobRow) {
 	assert.Equal(t, ptrTime(expected.SubmitTs), ptrTime(actual.SubmitTs), "SubmitTs mismatch")
 	assert.Equal(t, ptrVal(expected.PriorityClass), ptrVal(actual.PriorityClass), "PriorityClass mismatch")
 
-	//Disable for now
-	//assert.Equal(t, expected.Annotations, actual.Annotations, "Annotations mismatch")
+	// still disabled (serialized JSON equality can be order-sensitive)
+	// assert.Equal(t, expected.Annotations, actual.Annotations, "Annotations mismatch")
 
 	assert.Equal(t, ptrVal(expected.JobState), ptrVal(actual.JobState), "JobState mismatch")
 	assert.Equal(t, ptrTime(expected.CancelTs), ptrTime(actual.CancelTs), "CancelTS mismatch")

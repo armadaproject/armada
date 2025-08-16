@@ -11,9 +11,9 @@ import (
 	"github.com/armadaproject/armada/internal/common/ingest/metrics"
 	"github.com/armadaproject/armada/internal/common/profiling"
 	"github.com/armadaproject/armada/internal/common/util"
-	"github.com/armadaproject/armada/internal/queryingester/clickhousedb"
 	"github.com/armadaproject/armada/internal/queryingester/configuration"
 	"github.com/armadaproject/armada/internal/queryingester/instructions"
+	"github.com/armadaproject/armada/internal/queryingester/singlestoredb"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
@@ -31,12 +31,12 @@ func Run(config configuration.QueryIngesterConfig) error {
 	if err != nil {
 		return errors.WithMessage(err, "failed to build clickhouse options")
 	}
-	db, err := clickhousedb.OpenClickhouse(ctx, options)
+	db, err := singlestoredb.OpenClickhouse(ctx, options)
 	if err != nil {
 		return err
 	}
 	defer util.CloseResource("clickhouse", db)
-	schedulerDb := clickhousedb.New(db)
+	schedulerDb := singlestoredb.New(db)
 
 	// ////////////////////////////////////////////////////////////////////////
 	// Event Conversions

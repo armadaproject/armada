@@ -58,8 +58,8 @@ func main() {
 	}
 
 	loadtesterConfig := dbloadtester.Config{
-		TotalJobs:            50000000,
-		TotalConcurrentJobs:  200000,
+		TotalJobs:            500000,
+		TotalConcurrentJobs:  50000,
 		QueueSubmitBatchSize: 300,
 		QueueNames:           defaultQueues,
 		JobTemplateFile:      "internal/queryingester/dbloadtester/test_data.yaml",

@@ -1,6 +1,7 @@
 package instructions
 
 import (
+	"encoding/json"
 	"strings"
 	"time"
 
@@ -37,6 +38,11 @@ func handleSubmitJob(
 		return strings.TrimPrefix(k, userAnnotationPrefix)
 	})
 
+	annotationsJson, err := json.Marshal(userAnnotations)
+	if err != nil {
+		return Update{}, err
+	}
+
 	return Update{
 		JobSpec: &JobSpecRow{
 			JobId:   event.JobId,
@@ -54,7 +60,7 @@ func handleSubmitJob(
 			Priority:           pointer.Int64(int64(event.Priority)),
 			SubmitTs:           &ts,
 			PriorityClass:      &priorityClass,
-			Annotations:        userAnnotations,
+			Annotations:        pointer.String(string(annotationsJson)),
 			JobState:           pointer.String(string(lookout.JobQueued)),
 			LastTransitionTime: &ts,
 			LastUpdateTs:       ts,

@@ -13,9 +13,9 @@ import (
 	"github.com/armadaproject/armada/internal/common/ingest"
 	"github.com/armadaproject/armada/internal/common/ingest/utils"
 	log "github.com/armadaproject/armada/internal/common/logging"
-	"github.com/armadaproject/armada/internal/queryingester/clickhousedb"
 	"github.com/armadaproject/armada/internal/queryingester/configuration"
 	"github.com/armadaproject/armada/internal/queryingester/instructions"
+	"github.com/armadaproject/armada/internal/queryingester/singlestoredb"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 	clientUtil "github.com/armadaproject/armada/pkg/client/util"
 )
@@ -30,7 +30,7 @@ type LoadTester struct {
 	batchDuration        time.Duration
 	queueSubmitBatchSize int
 
-	db        *clickhousedb.ClickhouseDb
+	db        *singlestoredb.SinglestoreDb
 	converter *instructions.Converter
 }
 
@@ -50,22 +50,21 @@ type Results struct {
 
 func Setup(config configuration.QueryIngesterConfig, testConfig Config) *LoadTester {
 	ctx := armadacontext.Background()
-	ctx.Info("opening connection to clickhouse")
-	options, err := config.ClickHouse.BuildOptions()
+	ctx.Info("opening connection to singlestore")
+	db, err := singlestoredb.OpenSingleStore(ctx, "localhost:3306", "armada", "root", "psw")
 	if err != nil {
-		panic(err)
-	}
-	db, err := clickhousedb.OpenClickhouse(ctx, options)
-	if err != nil {
-		panic(errors.WithMessage(err, "Error opening connection to clickhouse"))
+		panic(errors.WithMessage(err, "Error opening connection to singlestore"))
 	}
 
-	err = clickhousedb.MigrateDB(ctx, fmt.Sprintf("clickhouse://clickhouse:psw@localhost:9000/%s", "default"))
+	dsn := fmt.Sprintf("%s:%s@tcp(%s)/%s?parseTime=true&multiStatements=true",
+		"root", "psw", "localhost:3306", "armada")
+
+	err = singlestoredb.MigrateDB(ctx, dsn)
 	if err != nil {
 		panic(errors.WithMessage(err, "error migrating database"))
 	}
 
-	ch := clickhousedb.New(db)
+	ch := singlestoredb.New(db)
 
 	converter := instructions.NewConverter(config.UserAnnotationPrefix)
 

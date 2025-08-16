@@ -7,34 +7,35 @@ import (
 )
 
 type JobRow struct {
-	JobId              string            `ch:"job_id"`
-	Queue              string            `ch:"queue"`
-	Namespace          *string           `ch:"namespace"`
-	JobSet             *string           `ch:"job_set"`
-	Cpu                *int64            `ch:"cpu"`
-	Memory             *int64            `ch:"memory"`
-	EphemeralStorage   *int64            `ch:"ephemeral_storage"`
-	Gpu                *int64            `ch:"gpu"`
-	Priority           *int64            `ch:"priority"`
-	SubmitTs           *time.Time        `ch:"submit_ts"`
-	PriorityClass      *string           `ch:"priority_class"`
-	Annotations        map[string]string `ch:"annotations"`
-	JobState           *string           `ch:"job_state"`
-	CancelTs           *time.Time        `ch:"cancel_ts"`
-	CancelReason       *string           `ch:"cancel_reason"`
-	CancelUser         *string           `ch:"cancel_user"`
-	LatestRunId        *string           `ch:"latest_run_id"`
-	RunCluster         *string           `ch:"run_cluster"`
-	RunExitCode        *int32            `ch:"run_exit_code"`
-	RunFinishedTs      *time.Time        `ch:"run_finished_ts"`
-	RunState           *string           `ch:"run_state"`
-	RunNode            *string           `ch:"run_node"`
-	RunLeasedTs        *time.Time        `ch:"run_leased_ts"`
-	RunPendingTs       *time.Time        `ch:"run_pending_ts"`
-	RunStartedTs       *time.Time        `ch:"run_started_ts"`
-	LastTransitionTime *time.Time        `ch:"last_transition_time"`
-	LastUpdateTs       time.Time         `ch:"last_update_ts"`
-	Error              *string           `ch:"error"`
+	JobId            string     `db:"job_id"`
+	Queue            string     `db:"queue"`
+	Namespace        *string    `db:"namespace"`
+	JobSet           *string    `db:"job_set"`
+	Cpu              *int64     `db:"cpu"`
+	Memory           *int64     `db:"memory"`
+	EphemeralStorage *int64     `db:"ephemeral_storage"`
+	Gpu              *int64     `db:"gpu"`
+	Priority         *int64     `db:"priority"`
+	SubmitTs         *time.Time `db:"submit_ts"`
+	PriorityClass    *string    `db:"priority_class"`
+	Annotations      *string    `db:"annotations"`
+
+	JobState           *string    `db:"job_state"`
+	CancelTs           *time.Time `db:"cancel_ts"`
+	CancelReason       *string    `db:"cancel_reason"`
+	CancelUser         *string    `db:"cancel_user"`
+	LatestRunId        *string    `db:"latest_run_id"`
+	RunCluster         *string    `db:"run_cluster"`
+	RunExitCode        *int32     `db:"run_exit_code"`
+	RunFinishedTs      *time.Time `db:"run_finished_ts"`
+	RunState           *string    `db:"run_state"`
+	RunNode            *string    `db:"run_node"`
+	RunLeasedTs        *time.Time `db:"run_leased_ts"`
+	RunPendingTs       *time.Time `db:"run_pending_ts"`
+	RunStartedTs       *time.Time `db:"run_started_ts"`
+	LastTransitionTime *time.Time `db:"last_transition_time"`
+	LastUpdateTs       time.Time  `db:"last_update_ts"`
+	Error              *string    `db:"error"`
 }
 
 type JobRunRow struct {
