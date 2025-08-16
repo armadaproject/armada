@@ -2,9 +2,9 @@ package clickhousedb
 
 import (
 	"github.com/ClickHouse/clickhouse-go/v2"
-	"github.com/armadaproject/armada/internal/queryingester/instructions"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/queryingester/instructions"
 )
 
 type ClickhouseDb struct {

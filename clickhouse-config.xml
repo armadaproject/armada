@@ -2,8 +2,8 @@
   <users>
     <default>
       <settings>
-        <background_pool_size>16</background_pool_size>
-        <background_pool_max_threads_for_merges>16</background_pool_max_threads_for_merges>
+<!--        <background_pool_size>16</background_pool_size>-->
+<!--        <background_pool_max_threads_for_merges>16</background_pool_max_threads_for_merges>-->
       </settings>
     </default>
   </users>

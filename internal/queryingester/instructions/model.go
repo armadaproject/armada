@@ -8,7 +8,7 @@ import (
 
 type JobRow struct {
 	JobId              string            `ch:"job_id"`
-	Queue              *string           `ch:"queue"`
+	Queue              string            `ch:"queue"`
 	Namespace          *string           `ch:"namespace"`
 	JobSet             *string           `ch:"job_set"`
 	Cpu                *int64            `ch:"cpu"`
@@ -35,7 +35,6 @@ type JobRow struct {
 	LastTransitionTime *time.Time        `ch:"last_transition_time"`
 	LastUpdateTs       time.Time         `ch:"last_update_ts"`
 	Error              *string           `ch:"error"`
-	Merged             *bool             `ch:"merged"`
 }
 
 type JobRunRow struct {

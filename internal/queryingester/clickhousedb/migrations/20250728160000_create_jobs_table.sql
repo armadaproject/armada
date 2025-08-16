@@ -2,69 +2,123 @@
 /* ======================= *
  * jobs (summary per job)  *
  * ======================= */
-CREATE TABLE IF NOT EXISTS jobs (
+CREATE TABLE jobs_raw
+(
   job_id FixedString(26),
-  queue                SimpleAggregateFunction(any, String),
-  namespace            SimpleAggregateFunction(any, String),
-  job_set              SimpleAggregateFunction(any, String),
-  cpu                  SimpleAggregateFunction(any, Int64),
-  memory               SimpleAggregateFunction(any, Int64),
-  ephemeral_storage    SimpleAggregateFunction(any, Int64),
-  gpu                  SimpleAggregateFunction(any, Int64),
-  priority             SimpleAggregateFunction(anyLast, Nullable(Int64)),
-  submit_ts            SimpleAggregateFunction(any, DateTime64(3)),
-  priority_class       SimpleAggregateFunction(any, Nullable(String)),
-  annotations          SimpleAggregateFunction(any, Map(String, String)),
-  job_state            SimpleAggregateFunction(anyLast, Nullable(Enum8(
-                                               'QUEUED'   = 1,
-                                               'LEASED' = 2,
-                                               'PENDING' = 3,
-                                               'RUNNING' = 4,
-                                               'SUCCEEDED' = 5,
-                                               'FAILED'   = 6,
-                                               'CANCELLED'= 7,
-                                               'REJECTED' = 8,
-                                               'PREEMPTED'= 9))),
-  cancel_ts            SimpleAggregateFunction(anyLast, Nullable(DateTime64(3))),
-  cancel_reason        SimpleAggregateFunction(anyLast, Nullable(String)),
-  cancel_user          SimpleAggregateFunction(anyLast, Nullable(String)),
-  latest_run_id        SimpleAggregateFunction(anyLast, Nullable(String)),
-  run_cluster          SimpleAggregateFunction(anyLast, Nullable(String)),
-  run_exit_code        SimpleAggregateFunction(anyLast, Nullable(Int32)),
-  run_finished_ts      SimpleAggregateFunction(anyLast, Nullable(DateTime64(3))),
-  run_state            SimpleAggregateFunction(anyLast, Nullable(String)),
-  run_node             SimpleAggregateFunction(anyLast, Nullable(String)),
-  run_leased_ts        SimpleAggregateFunction(anyLast, Nullable(DateTime64(3))),
-  run_pending_ts       SimpleAggregateFunction(anyLast, Nullable(DateTime64(3))),
-  run_started_ts       SimpleAggregateFunction(anyLast, Nullable(DateTime64(3))),
-  last_transition_time SimpleAggregateFunction(anyLast, Nullable(DateTime64(3))),
-  last_update_ts       SimpleAggregateFunction(anyLast, DateTime64(3)),
-  error                SimpleAggregateFunction(anyLast, Nullable(String)),
-  merged               SimpleAggregateFunction(any, Nullable(Bool))
+  queue             LowCardinality(String),
+  namespace         LowCardinality(Nullable(String)),
+  job_set           Nullable(String),
+  priority_class    LowCardinality(Nullable(String)),
+  annotations       Map(String, String),
+  cpu               Nullable(Int64),
+  memory            Nullable(Int64),
+  ephemeral_storage Nullable(Int64),
+  gpu               Nullable(Int64),
+  priority          Nullable(Int64),
+  run_exit_code     Nullable(Int32),
+  job_state         LowCardinality(Nullable(String)),
+  submit_ts            Nullable(DateTime64(3)),
+  cancel_ts            Nullable(DateTime64(3)),
+  run_finished_ts      Nullable(DateTime64(3)),
+  run_leased_ts        Nullable(DateTime64(3)),
+  run_pending_ts       Nullable(DateTime64(3)),
+  run_started_ts       Nullable(DateTime64(3)),
+  last_transition_time Nullable(DateTime64(3)),
+  cancel_reason   Nullable(String),
+  cancel_user     LowCardinality(Nullable(String)),
+  latest_run_id   Nullable(String),
+  run_cluster     LowCardinality(Nullable(String)),
+  run_state       LowCardinality(Nullable(String)),
+  run_node        LowCardinality(Nullable(String)),
+  error           Nullable(String),
+  last_update_ts  DateTime64(3)
 )
-ENGINE = AggregatingMergeTree()
-ORDER BY (job_id)
-SETTINGS deduplicate_merge_projection_mode = 'drop';
+ENGINE = MergeTree
+ORDER BY (job_id, last_update_ts);
 
--- Fast lookup by jobid filtering to merged jobs only
-ALTER TABLE jobs
-  ADD PROJECTION merge_jobid_lookup (SELECT * ORDER BY (merged, job_id));
+-- Jobs indexed by jobId
+CREATE TABLE jobs
+(
+  job_id FixedString(26),
+  queue             LowCardinality(String),
+  namespace         LowCardinality(Nullable(String)),
+  job_set           Nullable(String),
+  priority_class    LowCardinality(Nullable(String)),
+  annotations       Map(String, String),
+  cpu               Nullable(Int64),
+  memory            Nullable(Int64),
+  ephemeral_storage Nullable(Int64),
+  gpu               Nullable(Int64),
+  priority          Nullable(Int64),
+  run_exit_code     Nullable(Int32),
+  job_state         LowCardinality(Nullable(String)),
+  submit_ts            Nullable(DateTime64(3)),
+  cancel_ts            Nullable(DateTime64(3)),
+  run_finished_ts      Nullable(DateTime64(3)),
+  run_leased_ts        Nullable(DateTime64(3)),
+  run_pending_ts       Nullable(DateTime64(3)),
+  run_started_ts       Nullable(DateTime64(3)),
+  last_transition_time Nullable(DateTime64(3)),
+  cancel_reason   LowCardinality(Nullable(String)),
+  cancel_user     LowCardinality(Nullable(String)),
+  latest_run_id   Nullable(String),
+  run_cluster     LowCardinality(Nullable(String)),
+  run_state       LowCardinality(Nullable(String)),
+  run_node        LowCardinality(Nullable(String)),
+  error           Nullable(String),
+  last_update_ts  DateTime64(3)
+)
+ENGINE = CoalescingMergeTree
+ORDER BY job_id;
 
--- Fast ordering by last_transition_time filtering to merged jobs only
-ALTER TABLE jobs
-  ADD PROJECTION merge_last_transition_time_lookup (SELECT * ORDER BY (merged, last_transition_time, job_id));
 
--- Fast lookup by queue filtering to merged jobs only
-ALTER TABLE jobs
-  ADD PROJECTION merge_queue_lookup (SELECT * ORDER BY (merged, queue, last_transition_time, job_id));
+CREATE MATERIALIZED VIEW mv_raw_to_jobs
+TO jobs AS
+SELECT * FROM jobs_raw;
 
-ALTER TABLE jobs
-  MODIFY SETTING
-  min_age_to_force_merge_seconds = 2;
 
-ALTER TABLE jobs
-  MODIFY SETTING
-  max_parts_to_merge_at_once = 0;
+CREATE TABLE jobs_by_queue
+(
+  job_id FixedString(26),
+  queue  String,
+  namespace         LowCardinality(Nullable(String)),
+  job_set           Nullable(String),
+  priority_class    LowCardinality(Nullable(String)),
+  annotations       Map(String, String),
+  cpu               Nullable(Int64),
+  memory            Nullable(Int64),
+  ephemeral_storage Nullable(Int64),
+  gpu               Nullable(Int64),
+  priority          Nullable(Int64),
+  run_exit_code     Nullable(Int32),
+  job_state         LowCardinality(Nullable(String)),
+  submit_ts            Nullable(DateTime64(3)),
+  cancel_ts            Nullable(DateTime64(3)),
+  run_finished_ts      Nullable(DateTime64(3)),
+  run_leased_ts        Nullable(DateTime64(3)),
+  run_pending_ts       Nullable(DateTime64(3)),
+  run_started_ts       Nullable(DateTime64(3)),
+  last_transition_time Nullable(DateTime64(3)),
+  cancel_reason   Nullable(String),
+  cancel_user     LowCardinality(Nullable(String)),
+  latest_run_id   Nullable(String),
+  run_cluster     LowCardinality(Nullable(String)),
+  run_state       LowCardinality(Nullable(String)),
+  run_node        LowCardinality(Nullable(String)),
+  error           Nullable(String),
+  last_update_ts  DateTime64(3)
+)
+  ENGINE = CoalescingMergeTree
+ORDER BY (queue, job_id);
+
+ALTER TABLE jobs_by_queue
+  ADD INDEX idx_state_set (job_state) TYPE set(256) GRANULARITY 4;
+
+CREATE MATERIALIZED VIEW mv_raw_to_jobs_by_queue
+TO jobs_by_queue AS
+SELECT * FROM jobs_raw;
+
+
 
 /* ======================= *
  * job_runs                *

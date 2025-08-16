@@ -6,7 +6,6 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/queryingester/instructions"
 	"strings"
-	"time"
 )
 
 func insertJobs(ctx *armadacontext.Context, conn clickhouse.Conn, events []instructions.JobRow) error {
@@ -40,22 +39,19 @@ func insertJobs(ctx *armadacontext.Context, conn clickhouse.Conn, events []instr
 		"last_transition_time",
 		"last_update_ts",
 		"error",
-		"merged",
 	}
 
-	query := fmt.Sprintf("INSERT INTO jobs (%s) VALUES", strings.Join(cols, ", "))
+	query := fmt.Sprintf("INSERT INTO jobs_raw (%s) VALUES", strings.Join(cols, ", "))
 
 	batch, err := conn.PrepareBatch(ctx, query)
 	if err != nil {
 		return err
 	}
 
-	now := time.Now()
-
 	for _, e := range events {
 		if err := batch.Append(
 			e.JobId,
-			orNil(e.Queue),
+			e.Queue,
 			orNil(e.Namespace),
 			orNil(e.JobSet),
 			orNil(e.Cpu),
@@ -80,9 +76,8 @@ func insertJobs(ctx *armadacontext.Context, conn clickhouse.Conn, events []instr
 			orNil(e.RunPendingTs),
 			orNil(e.RunStartedTs),
 			orNil(e.LastTransitionTime),
-			now,
+			e.LastUpdateTs,
 			orNil(e.Error),
-			orNil(e.Merged),
 		); err != nil {
 			_ = batch.Abort()
 			return fmt.Errorf("append job_id=%s: %w", e.JobId, err)

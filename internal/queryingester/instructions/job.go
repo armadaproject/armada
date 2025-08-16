@@ -44,7 +44,7 @@ func handleSubmitJob(
 		},
 		Job: &JobRow{
 			JobId:              event.JobId,
-			Queue:              &queue,
+			Queue:              queue,
 			Namespace:          &apiJob.Namespace,
 			JobSet:             &jobSet,
 			Cpu:                &resources.Cpu,
@@ -58,7 +58,6 @@ func handleSubmitJob(
 			JobState:           pointer.String(string(lookout.JobQueued)),
 			LastTransitionTime: &ts,
 			LastUpdateTs:       ts,
-			Merged:             pointer.Bool(true),
 		},
 	}, nil
 }
@@ -67,7 +66,7 @@ func handleJobRequeued(ts time.Time, queue string, event *armadaevents.JobRequeu
 	return Update{
 		Job: &JobRow{
 			JobId:              event.JobId,
-			Queue:              &queue,
+			Queue:              queue,
 			JobState:           pointer.String(string(lookout.JobQueued)),
 			LastTransitionTime: &ts,
 			LastUpdateTs:       ts,
@@ -79,7 +78,7 @@ func handleReprioritiseJob(ts time.Time, queue string, event *armadaevents.Repri
 	return Update{
 		Job: &JobRow{
 			JobId:        event.JobId,
-			Queue:        &queue,
+			Queue:        queue,
 			Priority:     pointer.Int64(int64(event.Priority)),
 			LastUpdateTs: ts,
 		},
@@ -90,7 +89,7 @@ func handleJobSucceeded(ts time.Time, queue string, event *armadaevents.JobSucce
 	return Update{
 		Job: &JobRow{
 			JobId:              event.JobId,
-			Queue:              &queue,
+			Queue:              queue,
 			JobState:           pointer.String(string(lookout.JobSucceeded)),
 			RunFinishedTs:      &ts,
 			LastTransitionTime: &ts,
@@ -103,7 +102,7 @@ func handleCancelledJob(ts time.Time, queue string, event *armadaevents.Cancelle
 	return Update{
 		Job: &JobRow{
 			JobId:              event.JobId,
-			Queue:              &queue,
+			Queue:              queue,
 			JobState:           pointer.String(string(lookout.JobCancelled)),
 			CancelTs:           &ts,
 			CancelReason:       &event.Reason,
@@ -135,7 +134,7 @@ func handleJobErrors(ts time.Time, queue string, event *armadaevents.JobErrors) 
 		return Update{
 			Job: &JobRow{
 				JobId:              event.JobId,
-				Queue:              &queue,
+				Queue:              queue,
 				JobState:           pointer.String(string(state)),
 				LastTransitionTime: &ts,
 				LastUpdateTs:       ts,

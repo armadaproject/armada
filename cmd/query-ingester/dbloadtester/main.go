@@ -52,14 +52,14 @@ func main() {
 	userSpecifiedConfigs := viper.GetStringSlice("queryIngesterConfig")
 	common.LoadConfig(&config, "./config/queryingester", userSpecifiedConfigs)
 
-	defaultQueues := make([]string, 90)
+	defaultQueues := make([]string, 10)
 	for i := range defaultQueues {
 		defaultQueues[i] = fmt.Sprintf("queue-%d", i)
 	}
 
 	loadtesterConfig := dbloadtester.Config{
 		TotalJobs:            50000000,
-		TotalConcurrentJobs:  250000,
+		TotalConcurrentJobs:  200000,
 		QueueSubmitBatchSize: 300,
 		QueueNames:           defaultQueues,
 		JobTemplateFile:      "internal/queryingester/dbloadtester/test_data.yaml",

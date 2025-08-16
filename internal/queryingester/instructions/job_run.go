@@ -13,7 +13,7 @@ func handleJobRunRunning(ts time.Time, queue string, event *armadaevents.JobRunR
 	return Update{
 		Job: &JobRow{
 			JobId:              event.JobId,
-			Queue:              &queue,
+			Queue:              queue,
 			JobState:           pointer.String(string(lookout.JobRunning)),
 			RunState:           pointer.String(string(lookout.JobRunRunning)),
 			RunStartedTs:       &ts,
@@ -27,7 +27,7 @@ func handleJobRunLeased(ts time.Time, queue string, event *armadaevents.JobRunLe
 	return Update{
 		Job: &JobRow{
 			JobId:              event.JobId,
-			Queue:              &queue,
+			Queue:              queue,
 			JobState:           pointer.String(string(lookout.JobLeased)),
 			LatestRunId:        &event.RunId,
 			RunCluster:         &event.ExecutorId,
@@ -53,7 +53,7 @@ func handleJobRunAssigned(ts time.Time, queue string, event *armadaevents.JobRun
 	return Update{
 		Job: &JobRow{
 			JobId:              event.JobId,
-			Queue:              &queue,
+			Queue:              queue,
 			JobState:           pointer.String(string(lookout.JobPending)),
 			RunState:           pointer.String(string(lookout.JobRunPending)),
 			RunPendingTs:       &ts,
@@ -73,7 +73,7 @@ func handleJobRunCancelled(ts time.Time, queue string, event *armadaevents.JobRu
 	return Update{
 		Job: &JobRow{
 			JobId:         event.JobId,
-			Queue:         &queue,
+			Queue:         queue,
 			RunState:      pointer.String(string(lookout.JobRunCancelled)),
 			RunFinishedTs: &ts,
 			LastUpdateTs:  ts,
@@ -91,7 +91,7 @@ func handleJobRunSucceeded(ts time.Time, queue string, event *armadaevents.JobRu
 	return Update{
 		Job: &JobRow{
 			JobId:         event.JobId,
-			Queue:         &queue,
+			Queue:         queue,
 			RunState:      pointer.String(string(lookout.JobRunSucceeded)),
 			RunFinishedTs: &ts,
 			LastUpdateTs:  ts,
@@ -146,7 +146,7 @@ func handleJobRunErrors(ts time.Time, queue string, event *armadaevents.JobRunEr
 		return Update{
 			Job: &JobRow{
 				JobId:         event.JobId,
-				Queue:         &queue,
+				Queue:         queue,
 				RunState:      &runState,
 				RunExitCode:   &exitCode,
 				RunFinishedTs: &ts,
@@ -175,7 +175,7 @@ func handleJobRunErrors(ts time.Time, queue string, event *armadaevents.JobRunEr
 func handleJobRunPreempted(ts time.Time, queue string, event *armadaevents.JobRunPreempted) (Update, error) {
 	return Update{
 		Job: &JobRow{
-			Queue:         &queue,
+			Queue:         queue,
 			JobId:         event.PreemptedRunId,
 			RunState:      pointer.String(string(lookout.JobRunPreempted)),
 			RunFinishedTs: &ts,
