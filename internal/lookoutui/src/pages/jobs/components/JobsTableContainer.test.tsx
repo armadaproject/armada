@@ -557,21 +557,22 @@ describe("JobsTableContainer", () => {
         ...makeTestJobs(10, "queue-2", "job-set-1", JobState.Pending),
         ...makeTestJobs(15, "queue-3", "job-set-1", JobState.Running),
       ]
-      const { router } = renderComponent(jobs)
+      const { router, baseElement } = renderComponent(jobs)
       await waitForFinishedLoading()
 
       await groupByColumn("Job Set")
 
+      await filterAutocompleteTextColumnTo("Queue", "queue-3", baseElement)
       await filterTextColumnTo("Job Set", "job-set-1")
 
       await expandRow("job-set-1")
 
       await waitFor(
         async () => {
-          await clickOnJobRow(jobs[0].jobId)
+          await clickOnJobRow(jobs[15].jobId)
           expect(router.state.location.search).toContain("g[0]=jobSet")
           expect(router.state.location.search).not.toContain("g[1]")
-          expect(router.state.location.search).toContain(`sb=${jobs[0].jobId}`)
+          expect(router.state.location.search).toContain(`sb=${jobs[15].jobId}`)
           expect(router.state.location.search).toContain("e[0]=jobSet%3Ajob-set-1")
         },
         { timeout: 3000 },

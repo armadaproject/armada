@@ -1,10 +1,19 @@
 import { ReactNode, RefObject, useCallback } from "react"
 
 import { KeyboardArrowRight, KeyboardArrowDown } from "@mui/icons-material"
-import { TableCell, IconButton, TableSortLabel, Box, styled } from "@mui/material"
+import { TableCell, IconButton, TableSortLabel, Box, styled, Typography } from "@mui/material"
 import { Cell, ColumnResizeMode, flexRender, Header, Row } from "@tanstack/react-table"
 
-import { ColumnId, FilterType, getColumnMetadata, StandardColumnId, toColId } from "../../../common/jobsTableColumns"
+import {
+  ColumnId,
+  FilterType,
+  getColumnMetadata,
+  StandardColumnId,
+  toColId,
+  isStandardColId,
+  PREREQUISITE_FILTER_COLUMNS,
+  STANDARD_COLUMN_DISPLAY_NAMES,
+} from "../../../common/jobsTableColumns"
 import { matchForColumn } from "../../../common/jobsTableUtils"
 import { ActionableValueOnHover } from "../../../components/ActionableValueOnHover"
 import { JobsTableFilter } from "../../../components/JobsTableFilter"
@@ -103,6 +112,14 @@ export function HeaderCell({
     )
   }
 
+  const prerequisiteFilterColumns = isStandardColId(id) ? PREREQUISITE_FILTER_COLUMNS[id as StandardColumnId] : []
+  const prerequisiteFilterColumnsSatisfied = prerequisiteFilterColumns.every((pid) =>
+    header
+      .getContext()
+      .table.getState()
+      .columnFilters.some((f) => f.id === pid),
+  )
+
   return (
     <HeaderTableCell
       key={id}
@@ -181,19 +198,29 @@ export function HeaderCell({
             </div>
           )}
 
-          {header.column.getCanFilter() && metadata.filterType && (
-            <JobsTableFilter
-              id={header.id}
-              currentFilter={header.column.getFilterValue() as string | string[] | number}
-              filterType={metadata.filterType}
-              matchType={match}
-              enumFilterValues={metadata.enumFilterValues}
-              parseError={parseError}
-              onFilterChange={onFilterChange}
-              onColumnMatchChange={onColumnMatchChange}
-              onSetTextFieldRef={onSetTextFieldRef}
-            />
-          )}
+          {header.column.getCanFilter() &&
+            metadata.filterType &&
+            (prerequisiteFilterColumnsSatisfied ? (
+              <JobsTableFilter
+                id={header.id}
+                currentFilter={header.column.getFilterValue() as string | string[] | number}
+                filterType={metadata.filterType}
+                matchType={match}
+                enumFilterValues={metadata.enumFilterValues}
+                parseError={parseError}
+                onFilterChange={onFilterChange}
+                onColumnMatchChange={onColumnMatchChange}
+                onSetTextFieldRef={onSetTextFieldRef}
+              />
+            ) : (
+              <Typography component="div" variant="body2" color="textSecondary">
+                To filter by {metadata.displayName}, add a filter for{" "}
+                {prerequisiteFilterColumns
+                  .map((pid) => STANDARD_COLUMN_DISPLAY_NAMES[pid])
+                  .join(", ")
+                  .replace(/, ([^,]*)$/, " and $1")}
+              </Typography>
+            ))}
 
           {header.column.id === StandardColumnId.State &&
             groupedColumns.filter((id) => id !== StandardColumnId.State)?.length > 0 && (
