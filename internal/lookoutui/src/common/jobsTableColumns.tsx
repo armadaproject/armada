@@ -81,6 +81,58 @@ export const isStandardColId = (columnId: string) => (Object.values(StandardColu
 
 export const getColumnMetadata = (column: JobTableColumn) => (column.meta ?? {}) as JobTableColumnMetadata
 
+// Some standard columns may only be filtered on if there are active filters on other columns.
+// PREREQUISITE_FILTER_COLUMNS defines these relationships.
+export const PREREQUISITE_FILTER_COLUMNS: Record<StandardColumnId, StandardColumnId[]> = {
+  [StandardColumnId.JobSet]: [StandardColumnId.Queue],
+  [StandardColumnId.JobID]: [],
+  [StandardColumnId.Queue]: [],
+  [StandardColumnId.State]: [],
+  [StandardColumnId.Priority]: [],
+  [StandardColumnId.Owner]: [],
+  [StandardColumnId.Namespace]: [],
+  [StandardColumnId.CPU]: [],
+  [StandardColumnId.Memory]: [],
+  [StandardColumnId.EphemeralStorage]: [],
+  [StandardColumnId.GPU]: [],
+  [StandardColumnId.PriorityClass]: [],
+  [StandardColumnId.TimeSubmittedUtc]: [],
+  [StandardColumnId.TimeSubmittedAgo]: [],
+  [StandardColumnId.LastTransitionTimeUtc]: [],
+  [StandardColumnId.TimeInState]: [],
+  [StandardColumnId.SelectorCol]: [],
+  [StandardColumnId.Count]: [],
+  [StandardColumnId.Node]: [],
+  [StandardColumnId.Cluster]: [],
+  [StandardColumnId.ExitCode]: [],
+  [StandardColumnId.RuntimeSeconds]: [],
+}
+
+export const STANDARD_COLUMN_DISPLAY_NAMES: Record<StandardColumnId, string> = {
+  [StandardColumnId.JobID]: "Job ID",
+  [StandardColumnId.Queue]: "Queue",
+  [StandardColumnId.JobSet]: "Job Set",
+  [StandardColumnId.State]: "State",
+  [StandardColumnId.Priority]: "Priority",
+  [StandardColumnId.Owner]: "Owner",
+  [StandardColumnId.Namespace]: "Namespace",
+  [StandardColumnId.CPU]: "CPUs",
+  [StandardColumnId.Memory]: "Memory",
+  [StandardColumnId.EphemeralStorage]: "Ephemeral Storage",
+  [StandardColumnId.GPU]: "GPUs",
+  [StandardColumnId.PriorityClass]: "Priority Class",
+  [StandardColumnId.TimeSubmittedUtc]: "Time Submitted",
+  [StandardColumnId.TimeSubmittedAgo]: "Time Since Submitted",
+  [StandardColumnId.LastTransitionTimeUtc]: "Last State Change",
+  [StandardColumnId.TimeInState]: "Time In State",
+  [StandardColumnId.SelectorCol]: "",
+  [StandardColumnId.Count]: "Count",
+  [StandardColumnId.Node]: "Node",
+  [StandardColumnId.Cluster]: "Cluster",
+  [StandardColumnId.ExitCode]: "Exit Code",
+  [StandardColumnId.RuntimeSeconds]: "Runtime",
+}
+
 const columnHelper = createColumnHelper<JobTableRow>()
 
 interface AccessorColumnHelperArgs {
@@ -180,7 +232,7 @@ export const GET_JOB_COLUMNS = ({
   accessorColumn({
     id: StandardColumnId.Queue,
     accessor: "queue",
-    displayName: "Queue",
+    displayName: STANDARD_COLUMN_DISPLAY_NAMES[StandardColumnId.Queue],
     additionalOptions: {
       enableGrouping: true,
       enableColumnFilter: true,
@@ -195,7 +247,7 @@ export const GET_JOB_COLUMNS = ({
   accessorColumn({
     id: StandardColumnId.Namespace,
     accessor: "namespace",
-    displayName: "Namespace",
+    displayName: STANDARD_COLUMN_DISPLAY_NAMES[StandardColumnId.Namespace],
     additionalOptions: {
       enableGrouping: false,
       enableColumnFilter: true,
@@ -210,7 +262,7 @@ export const GET_JOB_COLUMNS = ({
   accessorColumn({
     id: StandardColumnId.JobSet,
     accessor: "jobSet",
-    displayName: "Job Set",
+    displayName: STANDARD_COLUMN_DISPLAY_NAMES[StandardColumnId.JobSet],
     additionalOptions: {
       enableSorting: true,
       enableGrouping: true,
@@ -226,7 +278,7 @@ export const GET_JOB_COLUMNS = ({
   accessorColumn({
     id: StandardColumnId.JobID,
     accessor: "jobId",
-    displayName: "Job ID",
+    displayName: STANDARD_COLUMN_DISPLAY_NAMES[StandardColumnId.JobID],
     additionalOptions: {
       enableColumnFilter: true,
       enableSorting: true,
@@ -241,7 +293,7 @@ export const GET_JOB_COLUMNS = ({
   accessorColumn({
     id: StandardColumnId.State,
     accessor: "state",
-    displayName: "State",
+    displayName: STANDARD_COLUMN_DISPLAY_NAMES[StandardColumnId.State],
     additionalOptions: {
       enableGrouping: true,
       enableColumnFilter: true,
@@ -302,7 +354,7 @@ export const GET_JOB_COLUMNS = ({
       }
       return ""
     },
-    displayName: "Count",
+    displayName: STANDARD_COLUMN_DISPLAY_NAMES[StandardColumnId.Count],
     additionalOptions: {
       size: 200,
       enableSorting: true,
@@ -314,7 +366,7 @@ export const GET_JOB_COLUMNS = ({
   accessorColumn({
     id: StandardColumnId.Priority,
     accessor: (jobTableRow) => (jobTableRow.priority !== undefined ? `${jobTableRow.priority}` : ""),
-    displayName: "Priority",
+    displayName: STANDARD_COLUMN_DISPLAY_NAMES[StandardColumnId.Priority],
     additionalOptions: {
       enableColumnFilter: true,
     },
@@ -325,7 +377,7 @@ export const GET_JOB_COLUMNS = ({
   accessorColumn({
     id: StandardColumnId.Owner,
     accessor: "owner",
-    displayName: "Owner",
+    displayName: STANDARD_COLUMN_DISPLAY_NAMES[StandardColumnId.Owner],
     additionalOptions: {
       enableColumnFilter: true,
     },
@@ -338,7 +390,7 @@ export const GET_JOB_COLUMNS = ({
   accessorColumn({
     id: StandardColumnId.CPU,
     accessor: (jobTableRow) => (jobTableRow.cpu !== undefined ? formatCpu(jobTableRow.cpu) : ""),
-    displayName: "CPUs",
+    displayName: STANDARD_COLUMN_DISPLAY_NAMES[StandardColumnId.CPU],
     additionalOptions: {
       enableColumnFilter: true,
     },
@@ -349,7 +401,7 @@ export const GET_JOB_COLUMNS = ({
   accessorColumn({
     id: StandardColumnId.Memory,
     accessor: (jobTableRow) => (jobTableRow.memory !== undefined ? formatBytes(jobTableRow.memory) : ""),
-    displayName: "Memory",
+    displayName: STANDARD_COLUMN_DISPLAY_NAMES[StandardColumnId.Memory],
     additionalOptions: {
       size: 200,
       enableColumnFilter: true,
@@ -362,7 +414,7 @@ export const GET_JOB_COLUMNS = ({
     id: StandardColumnId.EphemeralStorage,
     accessor: (jobTableRow) =>
       jobTableRow.ephemeralStorage !== undefined ? formatBytes(jobTableRow.ephemeralStorage) : "",
-    displayName: "Ephemeral Storage",
+    displayName: STANDARD_COLUMN_DISPLAY_NAMES[StandardColumnId.EphemeralStorage],
     additionalOptions: {
       size: 200,
       enableColumnFilter: true,
@@ -374,7 +426,7 @@ export const GET_JOB_COLUMNS = ({
   accessorColumn({
     id: StandardColumnId.GPU,
     accessor: (jobTableRow) => (jobTableRow.gpu !== undefined ? `${jobTableRow.gpu}` : ""),
-    displayName: "GPUs",
+    displayName: STANDARD_COLUMN_DISPLAY_NAMES[StandardColumnId.GPU],
     additionalOptions: {
       enableColumnFilter: true,
     },
@@ -385,7 +437,7 @@ export const GET_JOB_COLUMNS = ({
   accessorColumn({
     id: StandardColumnId.PriorityClass,
     accessor: "priorityClass",
-    displayName: "Priority Class",
+    displayName: STANDARD_COLUMN_DISPLAY_NAMES[StandardColumnId.PriorityClass],
     additionalOptions: {
       enableColumnFilter: true,
     },
@@ -397,7 +449,7 @@ export const GET_JOB_COLUMNS = ({
   accessorColumn({
     id: StandardColumnId.LastTransitionTimeUtc,
     accessor: ({ lastTransitionTime }) => formatIsoTimestamp(lastTransitionTime, "compact"),
-    displayName: `Last State Change (${displayedTimeZoneName})`,
+    displayName: `${STANDARD_COLUMN_DISPLAY_NAMES[StandardColumnId.LastTransitionTimeUtc]} (${displayedTimeZoneName})`,
     additionalOptions: {
       enableSorting: true,
     },
@@ -406,7 +458,7 @@ export const GET_JOB_COLUMNS = ({
     id: StandardColumnId.TimeInState,
     accessor: ({ lastTransitionTime }) =>
       lastTransitionTime ? formatTimestampRelative(lastTransitionTime, false) : "",
-    displayName: "Time In State",
+    displayName: STANDARD_COLUMN_DISPLAY_NAMES[StandardColumnId.TimeInState],
     additionalOptions: {
       enableSorting: true,
       size: 200,
@@ -415,7 +467,7 @@ export const GET_JOB_COLUMNS = ({
   accessorColumn({
     id: StandardColumnId.TimeSubmittedUtc,
     accessor: ({ submitted }) => formatIsoTimestamp(submitted, "compact"),
-    displayName: `Time Submitted (${displayedTimeZoneName})`,
+    displayName: `${STANDARD_COLUMN_DISPLAY_NAMES[StandardColumnId.TimeSubmittedUtc]} (${displayedTimeZoneName})`,
     additionalOptions: {
       enableSorting: true,
     },
@@ -423,7 +475,7 @@ export const GET_JOB_COLUMNS = ({
   accessorColumn({
     id: StandardColumnId.TimeSubmittedAgo,
     accessor: ({ submitted }) => (submitted ? formatTimestampRelative(submitted, false) : ""),
-    displayName: "Time Since Submitted",
+    displayName: STANDARD_COLUMN_DISPLAY_NAMES[StandardColumnId.TimeSubmittedAgo],
     additionalOptions: {
       enableSorting: true,
     },
@@ -431,7 +483,7 @@ export const GET_JOB_COLUMNS = ({
   accessorColumn({
     id: StandardColumnId.Node,
     accessor: "node",
-    displayName: "Node",
+    displayName: STANDARD_COLUMN_DISPLAY_NAMES[StandardColumnId.Node],
     additionalOptions: {
       enableColumnFilter: true,
       enableGrouping: true,
@@ -445,7 +497,7 @@ export const GET_JOB_COLUMNS = ({
   accessorColumn({
     id: StandardColumnId.Cluster,
     accessor: "cluster",
-    displayName: "Cluster",
+    displayName: STANDARD_COLUMN_DISPLAY_NAMES[StandardColumnId.Cluster],
     additionalOptions: {
       enableColumnFilter: true,
       enableGrouping: true,
@@ -459,7 +511,7 @@ export const GET_JOB_COLUMNS = ({
   accessorColumn({
     id: StandardColumnId.ExitCode,
     accessor: "exitCode",
-    displayName: "Exit Code",
+    displayName: STANDARD_COLUMN_DISPLAY_NAMES[StandardColumnId.ExitCode],
     additionalOptions: {
       size: 100,
     },
@@ -467,7 +519,7 @@ export const GET_JOB_COLUMNS = ({
   accessorColumn({
     id: StandardColumnId.RuntimeSeconds,
     accessor: "runtimeSeconds",
-    displayName: "Runtime",
+    displayName: STANDARD_COLUMN_DISPLAY_NAMES[StandardColumnId.RuntimeSeconds],
     additionalOptions: {
       size: 100,
       cell: (cellInfo) =>
