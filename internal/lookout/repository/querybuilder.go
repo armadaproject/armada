@@ -326,7 +326,6 @@ func (qb *QueryBuilder) getGroupByColumn(groupedField *model.GroupedField) (quer
 		table:  table,
 		abbrev: tableAbbrev,
 	}, nil
-
 }
 
 func (qb *QueryBuilder) groupByJobsJoinWithLatestActiveJobRun(
