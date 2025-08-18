@@ -1,6 +1,8 @@
 package repository
 
 import (
+	"fmt"
+
 	"github.com/pkg/errors"
 
 	"github.com/armadaproject/armada/internal/common/util"
@@ -11,6 +13,8 @@ const (
 	stateField              = "state"
 	submittedField          = "submitted"
 	lastTransitionTimeField = "lastTransitionTime"
+	clusterField            = "cluster"
+	nodeField               = "node"
 
 	jobTable    = "job"
 	jobRunTable = "job_run"
@@ -18,6 +22,7 @@ const (
 	jobTableAbbrev    = "j"
 	jobRunTableAbbrev = "jr"
 
+	// Job table columns
 	jobIdCol              = "job_id"
 	queueCol              = "queue"
 	namespaceCol          = "namespace"
@@ -32,6 +37,10 @@ const (
 	submittedCol          = "submitted"
 	lastTransitionTimeCol = "last_transition_time_seconds"
 	priorityClassCol      = "priority_class"
+
+	// Job Run table columns
+	clusterCol = "cluster"
+	nodeCol    = "node"
 )
 
 type AggregateType int
@@ -47,6 +56,8 @@ const (
 type LookoutTables struct {
 	// field name -> column name
 	fieldColumnMap map[string]string
+	// column name -> table name
+	columnTableMap map[string]string
 	// set of column names that can be ordered
 	orderableColumns map[string]bool
 	// column name -> set of supported matches for column
@@ -76,6 +87,28 @@ func NewTables() *LookoutTables {
 			"submitted":          submittedCol,
 			"lastTransitionTime": lastTransitionTimeCol,
 			"priorityClass":      priorityClassCol,
+
+			"cluster": clusterCol,
+			"node":    nodeCol,
+		},
+		columnTableMap: map[string]string{
+			jobIdCol:              jobTable,
+			queueCol:              jobTable,
+			jobSetCol:             jobTable,
+			ownerCol:              jobTable,
+			namespaceCol:          jobTable,
+			stateCol:              jobTable,
+			cpuCol:                jobTable,
+			memoryCol:             jobTable,
+			ephemeralStorageCol:   jobTable,
+			gpuCol:                jobTable,
+			priorityCol:           jobTable,
+			submittedCol:          jobTable,
+			lastTransitionTimeCol: jobTable,
+			priorityClassCol:      jobTable,
+
+			clusterCol: jobRunTable,
+			nodeCol:    jobRunTable,
 		},
 		orderableColumns: util.StringListToSet([]string{
 			jobIdCol,
@@ -96,6 +129,9 @@ func NewTables() *LookoutTables {
 			gpuCol:              util.StringListToSet([]string{model.MatchExact, model.MatchGreaterThan, model.MatchLessThan, model.MatchGreaterThanOrEqualTo, model.MatchLessThanOrEqualTo}),
 			priorityCol:         util.StringListToSet([]string{model.MatchExact, model.MatchGreaterThan, model.MatchLessThan, model.MatchGreaterThanOrEqualTo, model.MatchLessThanOrEqualTo}),
 			priorityClassCol:    util.StringListToSet([]string{model.MatchExact, model.MatchStartsWith, model.MatchContains}),
+
+			clusterCol: util.StringListToSet([]string{model.MatchExact}),
+			nodeCol:    util.StringListToSet([]string{model.MatchExact}),
 		},
 		tableAbbrevs: map[string]string{
 			jobTable:    jobTableAbbrev,
@@ -106,6 +142,9 @@ func NewTables() *LookoutTables {
 			namespaceCol,
 			jobSetCol,
 			stateCol,
+
+			clusterCol,
+			nodeCol,
 		}),
 		groupAggregates: map[string]AggregateType{
 			submittedCol:          Min,
@@ -121,6 +160,14 @@ func (c *LookoutTables) ColumnFromField(field string) (string, error) {
 		return "", errors.Errorf("column for field %s not found", field)
 	}
 	return col, nil
+}
+
+func (c *LookoutTables) TableForCol(col string) (string, error) {
+	table, ok := c.columnTableMap[col]
+	if !ok {
+		return "", fmt.Errorf("unknown table for column %s: it is not present in columnTableMap", col)
+	}
+	return table, nil
 }
 
 func (c *LookoutTables) IsOrderable(col string) bool {

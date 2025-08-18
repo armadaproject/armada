@@ -78,7 +78,17 @@ func (qb *QueryBuilder) GetJobs(
 		activeJobSetsFilter = joinWithActiveJobSetsTable
 	}
 
-	where, err := qb.makeWhere(filters)
+	filtersByTable, err := qb.groupFiltersByTable(filters)
+	if err != nil {
+		return nil, err
+	}
+
+	jobWhere, err := qb.makeWhere(filtersByTable.jobTableFilters, jobTableAbbrev)
+	if err != nil {
+		return nil, err
+	}
+
+	innerJoinLatestJobRunsFilters, err := qb.getJobsInnerJoinWithLatestActiveJobRunFilters(filtersByTable.jobRunTableFilters)
 	if err != nil {
 		return nil, err
 	}
@@ -118,6 +128,7 @@ FROM (
 	%s
 	%s
 	%s
+	%s
 ) AS selected_jobs
 CROSS JOIN LATERAL (
 	SELECT
@@ -145,13 +156,43 @@ CROSS JOIN LATERAL (
 ) AS selected_runs`,
 		jobTable, jobTableAbbrev,
 		activeJobSetsFilter,
-		where,
+		innerJoinLatestJobRunsFilters,
+		jobWhere,
 		orderBy,
 		limitOffsetSql(skip, take),
 		jobRunTable,
 	)
 
 	return &Query{Sql: query, Args: qb.args}, nil
+}
+
+func (qb *QueryBuilder) getJobsInnerJoinWithLatestActiveJobRunFilters(jobRunTableFilters []*model.Filter) (string, error) {
+	if len(jobRunTableFilters) == 0 {
+		return "", nil
+	}
+
+	jobRunWhere, err := qb.makeWhere(jobRunTableFilters, jobRunTableAbbrev)
+	if err != nil {
+		return "", err
+	}
+
+	columnsToSelect := []string{"run_id"}
+	for _, filter := range jobRunTableFilters {
+		column, err := qb.lookoutTables.ColumnFromField(filter.Field)
+		if err != nil {
+			return "", err
+		}
+		columnsToSelect = append(columnsToSelect, column)
+	}
+
+	return fmt.Sprintf(
+		"INNER JOIN (SELECT %s FROM %s AS %s %s) AS latest_runs ON latest_runs.run_id = %s.latest_run_id",
+		strings.Join(columnsToSelect, ", "),
+		jobRunTable,
+		jobRunTableAbbrev,
+		jobRunWhere,
+		jobTableAbbrev,
+	), nil
 }
 
 func (qb *QueryBuilder) GroupBy(
@@ -185,13 +226,6 @@ func (qb *QueryBuilder) GroupBy(
 		activeJobSetsFilter = joinWithActiveJobSetsTable
 	}
 
-	groupByColumn := queryColumn{table: jobTable, abbrev: jobTableAbbrev}
-	if groupedField.IsAnnotation {
-		groupByColumn.name = qb.annotationColumn(groupedField.Field)
-	} else {
-		groupByColumn.name = groupedField.Field
-	}
-
 	queryAggregators, err := qb.getQueryAggregators(aggregates, filters)
 	if err != nil {
 		return nil, err
@@ -212,7 +246,23 @@ func (qb *QueryBuilder) GroupBy(
 		// the key in question, so we need to filter out such rows.
 		filters = append(filters, &model.Filter{Field: groupedField.Field, Match: model.MatchExists, IsAnnotation: true})
 	}
-	where, err := qb.makeWhere(filters)
+
+	filtersByTable, err := qb.groupFiltersByTable(filters)
+	if err != nil {
+		return nil, err
+	}
+
+	jobWhere, err := qb.makeWhere(filtersByTable.jobTableFilters, jobTableAbbrev)
+	if err != nil {
+		return nil, err
+	}
+
+	groupByColumn, err := qb.getGroupByColumn(groupedField)
+	if err != nil {
+		return nil, err
+	}
+
+	joinLatestJobRuns, err := qb.groupByJobsJoinWithLatestActiveJobRun(filtersByTable.jobRunTableFilters, groupByColumn)
 	if err != nil {
 		return nil, err
 	}
@@ -234,17 +284,114 @@ FROM %s as %s
 %s
 %s
 %s
+%s
 %s`,
 		groupByColumn.abbrev, groupByColumn.name, selectList,
 		jobTable, jobTableAbbrev,
 		activeJobSetsFilter,
-		where,
+		joinLatestJobRuns,
+		jobWhere,
 		groupBy,
 		orderBy,
 		limitOffsetSql(skip, take),
 	)
 
 	return &Query{Sql: sql, Args: qb.args}, nil
+}
+
+func (qb *QueryBuilder) getGroupByColumn(groupedField *model.GroupedField) (queryColumn, error) {
+	if groupedField.IsAnnotation {
+		return queryColumn{
+			name:   qb.annotationColumn(groupedField.Field),
+			table:  jobTable,
+			abbrev: jobTableAbbrev,
+		}, nil
+	}
+
+	column, err := qb.lookoutTables.ColumnFromField(groupedField.Field)
+	if err != nil {
+		return queryColumn{}, err
+	}
+	table, err := qb.lookoutTables.TableForCol(column)
+	if err != nil {
+		return queryColumn{}, err
+	}
+	tableAbbrev, err := qb.lookoutTables.TableAbbrev(table)
+	if err != nil {
+		return queryColumn{}, err
+	}
+
+	return queryColumn{
+		name:   groupedField.Field,
+		table:  table,
+		abbrev: tableAbbrev,
+	}, nil
+
+}
+
+func (qb *QueryBuilder) groupByJobsJoinWithLatestActiveJobRun(
+	jobRunTableFilters []*model.Filter,
+	groupByQueryColumn queryColumn,
+) (string, error) {
+	if len(jobRunTableFilters) == 0 {
+		if groupByQueryColumn.table != jobRunTable {
+			return "", nil
+		}
+
+		groupByColumn, err := qb.lookoutTables.ColumnFromField(groupByQueryColumn.name)
+		if err != nil {
+			return "", err
+		}
+
+		return fmt.Sprintf(
+			"LEFT JOIN (SELECT run_id, %s FROM %s) AS %s ON %s.run_id = %s.latest_run_id",
+			groupByColumn,
+			jobRunTable,
+			jobRunTableAbbrev,
+			jobRunTableAbbrev,
+			jobTableAbbrev,
+		), nil
+	}
+
+	jobRunWhere, err := qb.makeWhere(jobRunTableFilters, jobRunTableAbbrev)
+	if err != nil {
+		return "", err
+	}
+
+	columnsToSelect := []string{"run_id"}
+	for _, filter := range jobRunTableFilters {
+		column, err := qb.lookoutTables.ColumnFromField(filter.Field)
+		if err != nil {
+			return "", err
+		}
+		columnsToSelect = append(columnsToSelect, column)
+	}
+
+	var joinType string
+	if groupByQueryColumn.table == jobRunTable {
+		groupByColumn, err := qb.lookoutTables.ColumnFromField(groupByQueryColumn.name)
+		if err != nil {
+			return "", err
+		}
+		if !slices.Contains(columnsToSelect, groupByColumn) {
+			columnsToSelect = append(columnsToSelect, groupByColumn)
+		}
+		joinType = "LEFT JOIN"
+	} else {
+		joinType = "INNER JOIN"
+	}
+
+	return fmt.Sprintf(
+		"%s (SELECT %s FROM %s AS %s %s) AS %s ON %s.run_id = %s.latest_run_id",
+		joinType,
+		strings.Join(columnsToSelect, ", "),
+		jobRunTable,
+		jobRunTableAbbrev,
+		jobRunWhere,
+		jobRunTableAbbrev,
+		jobRunTableAbbrev,
+		jobTableAbbrev,
+	), nil
 }
 
 func (qb *QueryBuilder) createGroupBySQL(order *model.Order, groupCol *queryColumn, aggregates []string) (string, error) {
@@ -306,13 +453,13 @@ func parseValueForState(value interface{}) (interface{}, error) {
 	}
 }
 
-func (qb *QueryBuilder) makeWhere(filters []*model.Filter) (string, error) {
+func (qb *QueryBuilder) makeWhere(filters []*model.Filter, tableAbbrev string) (string, error) {
 	if len(filters) == 0 {
 		return "", nil
 	}
 	var clauses []string
 	for _, filter := range filters {
-		clause, err := qb.makeWhereClause(filter)
+		clause, err := qb.makeWhereClause(filter, tableAbbrev)
 		if err != nil {
 			return "", err
 		}
@@ -321,7 +468,44 @@ func (qb *QueryBuilder) makeWhere(filters []*model.Filter) (string, error) {
 	return fmt.Sprintf("WHERE %s", strings.Join(clauses, " AND ")), nil
 }
 
-func (qb *QueryBuilder) makeWhereClause(filter *model.Filter) (string, error) {
+type groupFiltersByTableResult struct {
+	jobTableFilters    []*model.Filter
+	jobRunTableFilters []*model.Filter
+}
+
+func (qb *QueryBuilder) groupFiltersByTable(filters []*model.Filter) (groupFiltersByTableResult, error) {
+	filtersByTable := groupFiltersByTableResult{
+		jobTableFilters:    make([]*model.Filter, 0, len(filters)),
+		jobRunTableFilters: make([]*model.Filter, 0, len(filters)),
+	}
+
+	for _, filter := range filters {
+		if filter.IsAnnotation {
+			filtersByTable.jobTableFilters = append(filtersByTable.jobTableFilters, filter)
+			continue
+		}
+		column, err := qb.lookoutTables.ColumnFromField(filter.Field)
+		if err != nil {
+			return groupFiltersByTableResult{}, err
+		}
+		table, err := qb.lookoutTables.TableForCol(column)
+		if err != nil {
+			return groupFiltersByTableResult{}, err
+		}
+
+		if table == jobTable {
+			filtersByTable.jobTableFilters = append(filtersByTable.jobTableFilters, filter)
+			continue
+		}
+
+		if table == jobRunTable {
+			filtersByTable.jobRunTableFilters = append(filtersByTable.jobRunTableFilters, filter)
+		}
+	}
+	return filtersByTable, nil
+}
+
+func (qb *QueryBuilder) makeWhereClause(filter *model.Filter, tableAbbrev string) (string, error) {
 	var column string
 	if filter.IsAnnotation {
 		switch filter.Match {
@@ -340,10 +524,10 @@ func (qb *QueryBuilder) makeWhereClause(filter *model.Filter) (string, error) {
 			// GIN indexes only support the operators @>, @?, and @@:
 			//
 			//     https://www.postgresql.org/docs/current/datatype-json.html#JSON-INDEXING
-			return fmt.Sprintf("%s.annotations @> %s", jobTableAbbrev, placeholder), nil
+			return fmt.Sprintf("%s.annotations @> %s", tableAbbrev, placeholder), nil
 		case model.MatchExists:
 			placeholder := qb.recordValue(filter.Field)
-			return fmt.Sprintf("%s.annotations ? %s", jobTableAbbrev, placeholder), nil
+			return fmt.Sprintf("%s.annotations ? %s", tableAbbrev, placeholder), nil
 		default:
 			column = qb.annotationColumn(filter.Field)
 		}
@@ -373,7 +557,7 @@ func (qb *QueryBuilder) makeWhereClause(filter *model.Filter) (string, error) {
 		return "", err
 	}
 
-	return fmt.Sprintf("%s.%s %s %s", jobTableAbbrev, column, operator, placeholder), nil
+	return fmt.Sprintf("%s.%s %s %s", tableAbbrev, column, operator, placeholder), nil
 }
 
 func (qb *QueryBuilder) annotationColumn(key string) string {
@@ -389,7 +573,17 @@ func (qb *QueryBuilder) makeOrderBy(order *model.Order) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("ORDER BY %s.%s %s", jobTableAbbrev, column, order.Direction), nil
+
+	table, err := qb.lookoutTables.TableForCol(column)
+	if err != nil {
+		return "", err
+	}
+	tableAbbrev, err := qb.lookoutTables.TableAbbrev(table)
+	if err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("ORDER BY %s.%s %s", tableAbbrev, column, order.Direction), nil
 }
 
 func operatorForMatch(match string) (string, error) {
