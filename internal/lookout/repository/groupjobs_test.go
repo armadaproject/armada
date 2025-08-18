@@ -1009,7 +1009,6 @@ func TestGroupByAnnotation(t *testing.T) {
 
 func TestGroupByNode(t *testing.T) {
 	err := withGroupJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGroupJobsRepository) error {
-		
 		node1 := "node-1"
 		node2 := "node-2"
 		node3 := "node-3"
@@ -1046,7 +1045,6 @@ func TestGroupByNode(t *testing.T) {
 			js.Running(runId, node3, baseTime)
 			js.Build()
 		}
-		
 
 		result, err := repo.GroupBy(
 			armadacontext.TODO(),
