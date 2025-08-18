@@ -2167,3 +2167,217 @@ func TestJobRuntimeWhenRunFinishedWithClock(t *testing.T) {
 	})
 	require.NoError(t, err)
 }
+
+func TestGetJobsByNodeOfLatestRun(t *testing.T) {
+	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository, testClock *clock.FakeClock) error {
+		// Create job that had multiple runs on different nodes, with latest on node-3
+		firstRunId := uuid.NewString()
+		secondRunId := uuid.NewString()
+		latestRunId := uuid.NewString()
+
+		jobWithMultipleRuns := NewJobSimulatorWithClock(converter, store, testClock).
+			Submit(queue, jobSet, owner, namespace, baseTime, basicJobOpts).
+			Lease(firstRunId, "cluster-1", "node-1", baseTime).
+			Pending(firstRunId, "cluster-1", baseTime).
+			Running(firstRunId, "node-1", baseTime.Add(time.Minute)).
+			RunFailed(firstRunId, "node-1", 1, "failed", "", baseTime.Add(2*time.Minute)).
+			Lease(secondRunId, "cluster-2", "node-2", baseTime.Add(3*time.Minute)).
+			Pending(secondRunId, "cluster-2", baseTime.Add(3*time.Minute)).
+			Running(secondRunId, "node-2", baseTime.Add(4*time.Minute)).
+			RunFailed(secondRunId, "node-2", 1, "failed", "", baseTime.Add(5*time.Minute)).
+			Lease(latestRunId, "cluster-3", "node-3", baseTime.Add(6*time.Minute)).
+			Pending(latestRunId, "cluster-3", baseTime.Add(6*time.Minute)).
+			Running(latestRunId, "node-3", baseTime.Add(7*time.Minute)).
+			RunSucceeded(latestRunId, baseTime.Add(8*time.Minute)).
+			Succeeded(baseTime.Add(8 * time.Minute)).
+			Build().
+			Job()
+
+		// Create job with a single run on a different node
+		differentNodeRunId := uuid.NewString()
+		differentNodeJob := NewJobSimulatorWithClock(converter, store, testClock).
+			Submit(queue, "job-set-2", owner, namespace, baseTime, basicJobOpts).
+			Lease(differentNodeRunId, "cluster-4", "node-4", baseTime).
+			Pending(differentNodeRunId, "cluster-4", baseTime).
+			Running(differentNodeRunId, "node-4", baseTime.Add(time.Minute)).
+			RunSucceeded(differentNodeRunId, baseTime.Add(2*time.Minute)).
+			Succeeded(baseTime.Add(2 * time.Minute)).
+			Build().
+			Job()
+
+		// Create job with no runs
+		NewJobSimulatorWithClock(converter, store, testClock).
+			Submit(queue, "job-set-3", owner, namespace, baseTime, basicJobOpts).
+			Build().
+			Job()
+
+		// Test filtering by latest run's node
+		result, err := repo.GetJobs(
+			armadacontext.TODO(),
+			[]*model.Filter{
+				{
+					Field: "node",
+					Match: model.MatchExact,
+					Value: "node-3",
+				},
+			},
+			false,
+			&model.Order{},
+			0,
+			10,
+		)
+
+		require.NoError(t, err)
+		require.Len(t, result.Jobs, 1)
+		assert.Equal(t, jobWithMultipleRuns, result.Jobs[0])
+
+		// Test filtering by a different node
+		result, err = repo.GetJobs(
+			armadacontext.TODO(),
+			[]*model.Filter{
+				{
+					Field: "node",
+					Match: model.MatchExact,
+					Value: "node-4",
+				},
+			},
+			false,
+			&model.Order{},
+			0,
+			10,
+		)
+
+		require.NoError(t, err)
+		require.Len(t, result.Jobs, 1)
+		assert.Equal(t, differentNodeJob, result.Jobs[0])
+
+		// Test filtering by a non-existent node
+		result, err = repo.GetJobs(
+			armadacontext.TODO(),
+			[]*model.Filter{
+				{
+					Field: "node",
+					Match: model.MatchExact,
+					Value: "node-does-not-exist",
+				},
+			},
+			false,
+			&model.Order{},
+			0,
+			10,
+		)
+
+		require.NoError(t, err)
+		require.Len(t, result.Jobs, 0)
+
+		return nil
+	})
+	require.NoError(t, err)
+}
+
+func TestGetJobsByClusterOfLatestRun(t *testing.T) {
+	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository, testClock *clock.FakeClock) error {
+		// Create job that had multiple runs on different clusters, with latest on cluster-3
+		firstRunId := uuid.NewString()
+		secondRunId := uuid.NewString()
+		latestRunId := uuid.NewString()
+
+		jobWithMultipleRuns := NewJobSimulatorWithClock(converter, store, testClock).
+			Submit(queue, jobSet, owner, namespace, baseTime, basicJobOpts).
+			Lease(firstRunId, "cluster-1", "node-1", baseTime).
+			Pending(firstRunId, "cluster-1", baseTime).
+			Running(firstRunId, "node-1", baseTime.Add(time.Minute)).
+			RunFailed(firstRunId, "node-1", 1, "failed", "", baseTime.Add(2*time.Minute)).
+			Lease(secondRunId, "cluster-2", "node-2", baseTime.Add(3*time.Minute)).
+			Pending(secondRunId, "cluster-2", baseTime.Add(3*time.Minute)).
+			Running(secondRunId, "node-2", baseTime.Add(4*time.Minute)).
+			RunFailed(secondRunId, "node-2", 1, "failed", "", baseTime.Add(5*time.Minute)).
+			Lease(latestRunId, "cluster-3", "node-3", baseTime.Add(6*time.Minute)).
+			Pending(latestRunId, "cluster-3", baseTime.Add(6*time.Minute)).
+			Running(latestRunId, "node-3", baseTime.Add(7*time.Minute)).
+			RunSucceeded(latestRunId, baseTime.Add(8*time.Minute)).
+			Succeeded(baseTime.Add(8 * time.Minute)).
+			Build().
+			Job()
+
+		// Create job with a single run on a different cluster
+		differentClusterRunId := uuid.NewString()
+		differentClusterJob := NewJobSimulatorWithClock(converter, store, testClock).
+			Submit(queue, "job-set-2", owner, namespace, baseTime, basicJobOpts).
+			Lease(differentClusterRunId, "cluster-4", "node-4", baseTime).
+			Pending(differentClusterRunId, "cluster-4", baseTime).
+			Running(differentClusterRunId, "node-4", baseTime.Add(time.Minute)).
+			RunSucceeded(differentClusterRunId, baseTime.Add(2*time.Minute)).
+			Succeeded(baseTime.Add(2 * time.Minute)).
+			Build().
+			Job()
+
+		// Create job with no runs
+		NewJobSimulatorWithClock(converter, store, testClock).
+			Submit(queue, "job-set-3", owner, namespace, baseTime, basicJobOpts).
+			Build().
+			Job()
+
+		// Test filtering by latest run's cluster
+		result, err := repo.GetJobs(
+			armadacontext.TODO(),
+			[]*model.Filter{
+				{
+					Field: "cluster",
+					Match: model.MatchExact,
+					Value: "cluster-3",
+				},
+			},
+			false,
+			&model.Order{},
+			0,
+			10,
+		)
+
+		require.NoError(t, err)
+		require.Len(t, result.Jobs, 1)
+		assert.Equal(t, jobWithMultipleRuns, result.Jobs[0])
+
+		// Test filtering by a different cluster
+		result, err = repo.GetJobs(
+			armadacontext.TODO(),
+			[]*model.Filter{
+				{
+					Field: "cluster",
+					Match: model.MatchExact,
+					Value: "cluster-4",
+				},
+			},
+			false,
+			&model.Order{},
+			0,
+			10,
+		)
+
+		require.NoError(t, err)
+		require.Len(t, result.Jobs, 1)
+		assert.Equal(t, differentClusterJob, result.Jobs[0])
+
+		// Test filtering by a non-existent cluster
+		result, err = repo.GetJobs(
+			armadacontext.TODO(),
+			[]*model.Filter{
+				{
+					Field: "cluster",
+					Match: model.MatchExact,
+					Value: "cluster-does-not-exist",
+				},
+			},
+			false,
+			&model.Order{},
+			0,
+			10,
+		)
+
+		require.NoError(t, err)
+		require.Len(t, result.Jobs, 0)
+
+		return nil
+	})
+	require.NoError(t, err)
+}
