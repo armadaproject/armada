@@ -1,16 +1,18 @@
-import { useState } from "react"
+import { forwardRef } from "react"
 
 import { Settings } from "@mui/icons-material"
-import { AppBar, IconButton, Tab, Tabs, Toolbar, Typography } from "@mui/material"
-import { Link } from "react-router-dom"
+import { AppBar, Button, IconButton, Stack, Toolbar, Typography } from "@mui/material"
+import { Link, NavLink, NavLinkProps } from "react-router-dom"
 
-import { Router, withRouter } from "../common/utils"
+import { SPACING } from "../common/spacing"
 import { useUsername } from "../oidcAuth"
-import { JOB_SETS, JOBS } from "../pathnames"
-
-import { SettingsDialog } from "./SettingsDialog"
+import { JOB_SETS, JOBS, SETTINGS } from "../pathnames"
 
 import "./NavBar.css"
+
+const NavLinkButton = forwardRef<HTMLAnchorElement, NavLinkProps>((props, ref) => (
+  <NavLink {...props} style={({ isActive }) => (isActive ? undefined : { borderStyle: "none" })} ref={ref} />
+))
 
 interface Page {
   title: string
@@ -28,33 +30,11 @@ const PAGES: Page[] = [
   },
 ]
 
-// Creates mapping from location to index of element in ordered navbar
-function getLocationMap(pages: Page[]): Map<string, number> {
-  const locationMap = new Map<string, number>()
-  pages.forEach((page, index) => {
-    locationMap.set(page.location, index)
-  })
-  return locationMap
-}
-
-const locationMap = getLocationMap(PAGES)
-
-function locationFromIndex(pages: Page[], index: number): string {
-  if (pages[index]) {
-    return pages[index].location
-  }
-  return "/"
-}
-
 interface NavBarProps {
   customTitle: string
-  router: Router
 }
 
-function NavBar({ customTitle, router }: NavBarProps) {
-  const currentLocation = router.location.pathname
-  const currentValue = locationMap.has(currentLocation) ? locationMap.get(currentLocation) : 0
-  const [settingsOpen, setSettingsOpen] = useState(false)
+export const NavBar = ({ customTitle }: NavBarProps) => {
   const username = useUsername()
 
   return (
@@ -74,21 +54,20 @@ function NavBar({ customTitle, router }: NavBarProps) {
               )}
             </a>
           </div>
-          <div className="nav-items">
-            <Tabs
-              value={currentValue}
-              onChange={(event, newIndex) => {
-                const newLocation = locationFromIndex(PAGES, newIndex)
-                router.navigate(newLocation)
-              }}
-              textColor="inherit"
-              indicatorColor="secondary"
-            >
-              {PAGES.map((page, idx) => (
-                <Tab key={idx} label={page.title} component={Link} to={page.location} />
-              ))}
-            </Tabs>
-          </div>
+          <Stack direction="row" alignItems="center" spacing={SPACING.sm}>
+            {PAGES.map(({ location, title }) => (
+              <Button
+                key={location}
+                variant="outlined"
+                color="inherit"
+                size="large"
+                component={NavLinkButton}
+                to={location}
+              >
+                {title}
+              </Button>
+            ))}
+          </Stack>
           <div className="nav-end">
             <div>
               <Typography variant="h6" className="username" style={{ marginLeft: "auto" }}>
@@ -96,16 +75,13 @@ function NavBar({ customTitle, router }: NavBarProps) {
               </Typography>
             </div>
             <div>
-              <IconButton aria-label="settings" size="large" color="inherit" onClick={() => setSettingsOpen(true)}>
+              <IconButton aria-label="settings" size="large" color="inherit" component={Link} to={SETTINGS}>
                 <Settings fontSize="inherit" />
               </IconButton>
             </div>
           </div>
         </Toolbar>
       </AppBar>
-      <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </>
   )
 }
-
-export default withRouter(NavBar)

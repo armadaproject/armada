@@ -13,13 +13,28 @@ import { CommandSpec, OidcConfig } from "../config"
 import { OidcAuthProvider } from "../oidcAuth"
 import { JobSetsPage } from "../pages/jobSets/JobSetsPage"
 import { JobsPage } from "../pages/jobs/JobsPage"
-import { JOB_REDIRECT, JOB_SETS, JOBS, V2_REDIRECT } from "../pathnames"
+import { SettingsPage } from "../pages/settings/SettingsPage"
+import { AccountPage } from "../pages/settings/account/AccountPage"
+import { AppearancePage } from "../pages/settings/appearance/AppearancePage"
+import { ValueDisplayPage } from "../pages/settings/valueDisplay/ValueDisplayPage"
+import { VisualThemePage } from "../pages/settings/visualTheme/VisualThemePage"
+import {
+  JOB_REDIRECT,
+  JOB_SETS,
+  JOBS,
+  SETTINGS,
+  SETTINGS_ACCOUNT,
+  SETTINGS_APPEARANCE,
+  SETTINGS_VALUE_DISPLAY,
+  SETTINGS_VISUAL_THEME,
+  V2_REDIRECT,
+} from "../pathnames"
 import { ApiClientsProvider } from "../services/apiClients"
 import { Services, ServicesProvider } from "../services/context"
 import { theme } from "../theme/theme"
 
 import { JobIdRedirect } from "./JobIdRedirect"
-import NavBar from "./NavBar"
+import { NavBar } from "./NavBar"
 
 const AppContainer = styled("div")({
   display: "flex",
@@ -115,6 +130,55 @@ export function App(props: AppProps) {
                                 </ErrorBoundary>
                               }
                             />
+                            <Route
+                              path={SETTINGS}
+                              element={
+                                <ErrorBoundary FallbackComponent={AlertInPageContainerErrorFallback}>
+                                  <SettingsPage />
+                                </ErrorBoundary>
+                              }
+                            >
+                              <Route
+                                path={SETTINGS_VISUAL_THEME}
+                                element={
+                                  <ErrorBoundary FallbackComponent={AlertInPageContainerErrorFallback}>
+                                    <VisualThemePage />
+                                  </ErrorBoundary>
+                                }
+                              />
+                              <Route
+                                path={SETTINGS_VALUE_DISPLAY}
+                                element={
+                                  <ErrorBoundary FallbackComponent={AlertInPageContainerErrorFallback}>
+                                    <ValueDisplayPage />
+                                  </ErrorBoundary>
+                                }
+                              />
+                              <Route
+                                path={SETTINGS_APPEARANCE}
+                                element={
+                                  <ErrorBoundary FallbackComponent={AlertInPageContainerErrorFallback}>
+                                    <AppearancePage />
+                                  </ErrorBoundary>
+                                }
+                              />
+                              <Route
+                                path={SETTINGS_ACCOUNT}
+                                element={
+                                  <ErrorBoundary FallbackComponent={AlertInPageContainerErrorFallback}>
+                                    <AccountPage />
+                                  </ErrorBoundary>
+                                }
+                              />
+                              <Route
+                                index
+                                element={
+                                  <ErrorBoundary FallbackComponent={AlertInPageContainerErrorFallback}>
+                                    <Navigate to={SETTINGS_VISUAL_THEME} replace />
+                                  </ErrorBoundary>
+                                }
+                              />
+                            </Route>
                             <Route
                               path={V2_REDIRECT}
                               element={

@@ -16,6 +16,8 @@ const FIRST_TIME_ZONES_TO_DISPLAY = [getBrowserTimeZone(), UTC_TIME_ZONE_NAME]
 
 const now = new Date()
 
+const maxTimeZoneNameSize = TIME_ZONE_NAMES.reduce((acc, tz) => Math.max(acc, tz.length), 0)
+
 const MenuItemContentContainer = styled("div")(({ theme }) => ({
   display: "flex",
   gap: theme.spacing(SPACING.sm),
@@ -95,6 +97,7 @@ export const TimeZoneSelector = ({ idPrefix, label, value, onChange, fullWidth, 
       size={size}
       disableClearable
       value={value}
+      sx={{ minWidth: `${maxTimeZoneNameSize + 18}ch` }}
       onChange={(_, newValue) => onChange(newValue)}
     />
   )

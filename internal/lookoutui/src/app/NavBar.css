@@ -21,13 +21,6 @@
   margin-bottom: 0;
 }
 
-.toolbar .nav-items {
-  height: 100%;
-  display: flex;
-  flex-direction: row;
-  align-items: flex-end;
-}
-
 .toolbar .nav-end {
   display: flex;
   flex-direction: row;
