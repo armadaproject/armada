@@ -19,7 +19,7 @@ export const NumberNotationSelector = ({
   fullWidth,
   size,
 }: NumberNotationSelectorProps) => (
-  <FormControl fullWidth={fullWidth} size={size}>
+  <FormControl fullWidth={fullWidth} size={size} sx={{ minWidth: "130px" }}>
     <InputLabel id={`${idPrefix}-number-notation-selector-label`}>{label}</InputLabel>
     <Select
       labelId={`${idPrefix}-number-notation-selector-label`}
