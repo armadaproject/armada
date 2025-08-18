@@ -1,7 +1,8 @@
 import { useMutation } from "@tanstack/react-query"
 
+import { getErrorMessage } from "../../common/utils"
 import { getConfig } from "../../config"
-import { getErrorMessage } from "../../utils"
+
 import { useApiClients } from "../apiClients"
 
 export interface CordonNodeVariables {

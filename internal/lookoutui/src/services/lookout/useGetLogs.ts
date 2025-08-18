@@ -1,9 +1,11 @@
 import { InfiniteData, useInfiniteQuery } from "@tanstack/react-query"
 
-import { getErrorMessage } from "../../utils"
-import { useApiClients } from "../apiClients"
-import { createFakeLogs } from "./mocks/fakeData"
+import { getErrorMessage } from "../../common/utils"
 import { getConfig } from "../../config"
+
+import { useApiClients } from "../apiClients"
+
+import { createFakeLogs } from "./mocks/fakeData"
 
 const INITIAL_TAIL_LINES = 1000
 

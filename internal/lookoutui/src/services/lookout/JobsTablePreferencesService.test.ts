@@ -1,6 +1,19 @@
 import { Location, NavigateFunction, Params } from "react-router-dom"
 
 import {
+  ColumnId,
+  DEFAULT_COLUMN_MATCHES,
+  DEFAULT_COLUMN_ORDERING,
+  StandardColumnId,
+} from "../../common/jobsTableColumns"
+import { Router } from "../../common/utils"
+import { JobState, Match } from "../../models/lookoutModels"
+import {
+  FORMAT_NUMBER_SHOULD_FORMAT_KEY,
+  FORMAT_TIMESTAMP_SHOULD_FORMAT_KEY,
+} from "../../userSettings/localStorageKeys"
+
+import {
   DEFAULT_PREFERENCES,
   ensurePreferencesAreConsistent,
   JobsTablePreferences,
@@ -9,18 +22,6 @@ import {
   QueryStringPrefs,
   stringifyQueryParams,
 } from "./JobsTablePreferencesService"
-import { JobState, Match } from "../../models/lookoutModels"
-import {
-  FORMAT_NUMBER_SHOULD_FORMAT_KEY,
-  FORMAT_TIMESTAMP_SHOULD_FORMAT_KEY,
-} from "../../userSettings/localStorageKeys"
-import { Router } from "../../utils"
-import {
-  ColumnId,
-  DEFAULT_COLUMN_MATCHES,
-  DEFAULT_COLUMN_ORDERING,
-  StandardColumnId,
-} from "../../utils/jobsTableColumns"
 
 class FakeRouter implements Router {
   location: Location

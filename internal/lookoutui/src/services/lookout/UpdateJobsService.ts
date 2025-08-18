@@ -1,10 +1,10 @@
 // TODO(mauriceyap): remove this in favour of custom hooks using @tanstack/react-query
 import _ from "lodash"
 
+import { getErrorMessage } from "../../common/utils"
 import { Job, JobId } from "../../models/lookoutModels"
 import { appendAuthorizationHeaders } from "../../oidcAuth"
 import { SubmitApi } from "../../openapi/armada"
-import { getErrorMessage } from "../../utils"
 
 export type UpdateJobsResponse = {
   successfulJobIds: JobId[]

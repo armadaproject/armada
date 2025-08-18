@@ -1,4 +1,5 @@
-import { simulateApiWait } from "../../../utils/fakeJobsUtils"
+import { simulateApiWait } from "../../../common/fakeJobsUtils"
+
 import { IGetJobInfoService } from "../GetJobInfoService"
 
 export default class FakeGetJobInfoService implements IGetJobInfoService {

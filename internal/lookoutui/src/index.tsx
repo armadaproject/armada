@@ -1,7 +1,8 @@
 import { createRoot } from "react-dom/client"
 import { ErrorBoundary } from "react-error-boundary"
 
-import { App } from "./App"
+import { App } from "./app/App"
+import { makeRandomJobs } from "./common/fakeJobsUtils"
 import { FullPageErrorFallback } from "./components/FullPageErrorFallback"
 import { getConfig } from "./config"
 import { reactErrorHandlers } from "./errorMonitoring"
@@ -14,7 +15,6 @@ import { UpdateJobsService } from "./services/lookout/UpdateJobsService"
 import FakeGetJobInfoService from "./services/lookout/mocks/FakeGetJobInfoService"
 import FakeGetJobsService from "./services/lookout/mocks/FakeGetJobsService"
 import FakeGroupJobsService from "./services/lookout/mocks/FakeGroupJobsService"
-import { makeRandomJobs } from "./utils/fakeJobsUtils"
 
 import "./index.css"
 

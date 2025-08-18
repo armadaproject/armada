@@ -1,5 +1,9 @@
 import { identity } from "lodash"
 
+import { DEFAULT_NUMBER_NOTATION, NumberNotation } from "../common/formatNumber"
+import { BROWSER_LOCALE, SupportedLocale } from "../common/locales"
+import { TIME_ZONE_NAMES_SET, UTC_TIME_ZONE_NAME } from "../common/timeZones"
+
 import {
   CODE_SNIPPETS_WRAP_LINES_KEY,
   FORMAT_NUMBER_LOCALE_KEY,
@@ -19,9 +23,6 @@ import {
   textEnumToStorageValue,
   useLocalStorageValue,
 } from "./storage"
-import { DEFAULT_NUMBER_NOTATION, NumberNotation } from "../common/formatNumber"
-import { BROWSER_LOCALE, SupportedLocale } from "../common/locales"
-import { TIME_ZONE_NAMES_SET, UTC_TIME_ZONE_NAME } from "../common/timeZones"
 
 export const JOB_RUN_LOGS_TEXT_SIZES = ["small", "medium", "large"] as const
 
