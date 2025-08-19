@@ -9,7 +9,7 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom"
 import { withRouter } from "../common/utils"
 import { AlertInPageContainerErrorFallback } from "../components/AlertInPageContainerErrorFallback"
 import { FullPageErrorFallback } from "../components/FullPageErrorFallback"
-import { CommandSpec, OidcConfig } from "../config"
+import { getConfig } from "../config"
 import { OidcAuthProvider } from "../oidcAuth"
 import { JobSetsPage } from "../pages/jobSets/JobSetsPage"
 import { JobsPage } from "../pages/jobs/JobsPage"
@@ -56,25 +56,21 @@ export const queryClient = new QueryClient({
 })
 
 type AppProps = {
-  customTitle: string
-  oidcConfig?: OidcConfig
   services: Services
-  jobSetsAutoRefreshMs: number | undefined
-  jobsAutoRefreshMs: number | undefined
-  debugEnabled: boolean
-  commandSpecs: CommandSpec[]
 }
 
 // Version 2 of the Lookout UI used to be hosted under /v2, so we try our best
 // to redirect users to the new location while preserving the rest of the URL.
 const V2Redirect = withRouter(({ router }) => <Navigate to={{ ...router.location, pathname: JOBS }} />)
 
+const config = getConfig()
+
 export function App(props: AppProps) {
   useEffect(() => {
-    if (props.customTitle) {
-      document.title = `${props.customTitle} - Armada Lookout`
+    if (config.customTitle) {
+      document.title = `${config.customTitle} - Armada Lookout`
     }
-  }, [props.customTitle])
+  }, [])
 
   return (
     <ErrorBoundary FallbackComponent={FullPageErrorFallback}>
@@ -87,12 +83,12 @@ export function App(props: AppProps) {
         >
           <QueryClientProvider client={queryClient}>
             <ErrorBoundary FallbackComponent={FullPageErrorFallback}>
-              <OidcAuthProvider oidcConfig={props.oidcConfig}>
+              <OidcAuthProvider oidcConfig={config.oidcEnabled ? config.oidc : undefined}>
                 <ApiClientsProvider>
                   <BrowserRouter>
                     <ServicesProvider services={props.services}>
                       <AppContainer>
-                        <NavBar customTitle={props.customTitle} />
+                        <NavBar customTitle={config.customTitle} />
                         <AppContent>
                           <Routes>
                             <Route
@@ -103,9 +99,9 @@ export function App(props: AppProps) {
                                     getJobsService={props.services.v2GetJobsService}
                                     groupJobsService={props.services.v2GroupJobsService}
                                     updateJobsService={props.services.v2UpdateJobsService}
-                                    debug={props.debugEnabled}
-                                    autoRefreshMs={props.jobsAutoRefreshMs}
-                                    commandSpecs={props.commandSpecs}
+                                    debug={config.debugEnabled}
+                                    autoRefreshMs={config.jobsAutoRefreshMs}
+                                    commandSpecs={config.commandSpecs}
                                   />
                                 </ErrorBoundary>
                               }
@@ -125,7 +121,7 @@ export function App(props: AppProps) {
                                   <JobSetsPage
                                     groupJobsService={props.services.v2GroupJobsService}
                                     updateJobSetsService={props.services.v2UpdateJobSetsService}
-                                    autoRefreshMs={props.jobSetsAutoRefreshMs}
+                                    autoRefreshMs={config.jobSetsAutoRefreshMs}
                                   />
                                 </ErrorBoundary>
                               }

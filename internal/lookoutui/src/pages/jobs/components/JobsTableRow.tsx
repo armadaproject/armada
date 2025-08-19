@@ -1,13 +1,12 @@
 import { useState, MouseEvent } from "react"
 
-import { TableRow } from "@mui/material"
+import { alpha, TableRow } from "@mui/material"
 import { Row } from "@tanstack/table-core"
 
 import { JobTableRow, isJobGroupRow } from "../../../models/jobsTableModels"
 import { Match } from "../../../models/lookoutModels"
 
 import { BodyCell } from "./JobsTableCell"
-import styles from "./JobsTableRow.module.css"
 
 export interface JobsTableRowProps {
   row: Row<JobTableRow>
@@ -39,20 +38,21 @@ export const JobsTableRow = ({
   return (
     <TableRow
       aria-label={row.id}
-      className={styles.rowDepthIndicator}
       sx={{
         backgroundSize: row.depth * 6,
+        backgroundImage: (theme) => `linear-gradient(${theme.palette.primary.main}, ${theme.palette.primary.main})`,
+        backgroundRepeat: "no-repeat",
 
         ...(onClick && {
           cursor: "pointer",
         }),
 
         ...(isOpenInSidebar && {
-          backgroundColor: "rgb(51, 187, 231, 0.5)",
+          backgroundColor: (theme) => alpha(theme.palette.primary.main, 0.35),
         }),
 
         "&:hover": {
-          backgroundColor: "rgb(51, 187, 231, 0.2)",
+          backgroundColor: (theme) => alpha(theme.palette.primary.main, 0.2),
         },
       }}
       onMouseDown={(e) => setPagePosition(e)}

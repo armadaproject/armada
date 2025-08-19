@@ -5,13 +5,20 @@ import { JobState, jobStateColors, jobStateIcons } from "../models/lookoutModels
 
 export interface JobStateChipProps {
   state: JobState
+  hideLabel?: boolean
 }
-export const JobStateChip = ({ state }: JobStateChipProps) => {
+export const JobStateChip = ({ state, hideLabel = false }: JobStateChipProps) => {
   if (!state) {
     return null
   }
   const Icon = jobStateIcons[state]
   return (
-    <Chip label={formatJobState(state)} size="small" color={jobStateColors[state]} icon={<Icon />} variant="shaded" />
+    <Chip
+      label={hideLabel ? undefined : formatJobState(state)}
+      size="small"
+      color={jobStateColors[state]}
+      icon={<Icon />}
+      variant="shaded"
+    />
   )
 }

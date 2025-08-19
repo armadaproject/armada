@@ -41,8 +41,6 @@ const NodeToRender = () => {
 
   return (
     <App
-      customTitle={config.customTitle}
-      oidcConfig={config.oidcEnabled ? config.oidc : undefined}
       services={{
         v2GetJobsService,
         v2GroupJobsService,
@@ -50,10 +48,6 @@ const NodeToRender = () => {
         v2UpdateJobSetsService,
         v2JobSpecService,
       }}
-      jobSetsAutoRefreshMs={config.jobSetsAutoRefreshMs}
-      jobsAutoRefreshMs={config.jobsAutoRefreshMs}
-      debugEnabled={config.debugEnabled}
-      commandSpecs={config.commandSpecs}
     />
   )
 }

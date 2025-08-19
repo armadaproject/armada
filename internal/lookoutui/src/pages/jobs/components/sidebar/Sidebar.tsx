@@ -22,7 +22,7 @@ enum SidebarTab {
   JobDetails = "JobDetails",
   JobResult = "JobResult",
   Scheduling = "Scheduling",
-  Yaml = "Yaml",
+  Yaml = "YAML",
   Logs = "Logs",
   Commands = "Commands",
 }
@@ -252,7 +252,7 @@ export const Sidebar = memo(({ job, sidebarWidth, onClose, onWidthChange, comman
                     {job.state === JobState.Queued && (
                       <StyledSidebarTab label="Scheduling" value={SidebarTab.Scheduling} />
                     )}
-                    <StyledSidebarTab label="Yaml" value={SidebarTab.Yaml} />
+                    <StyledSidebarTab label="YAML" value={SidebarTab.Yaml} />
                     <StyledSidebarTab label="Logs" value={SidebarTab.Logs} disabled={job.state === JobState.Queued} />
                     <StyledSidebarTab
                       label="Commands"
