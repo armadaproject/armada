@@ -77,7 +77,8 @@ export const fromAnnotationColId = (colId: AnnotationColumnId): string => colId.
 
 export const toColId = (columnId: string | undefined) => columnId as ColumnId
 
-export const isStandardColId = (columnId: string) => (Object.values(StandardColumnId) as string[]).includes(columnId)
+export const isStandardColId = (columnId: string): columnId is StandardColumnId =>
+  (Object.values(StandardColumnId) as string[]).includes(columnId)
 
 export const getColumnMetadata = (column: JobTableColumn) => (column.meta ?? {}) as JobTableColumnMetadata
 
@@ -90,7 +91,7 @@ export const PREREQUISITE_FILTER_COLUMNS: Record<StandardColumnId, StandardColum
   [StandardColumnId.State]: [],
   [StandardColumnId.Priority]: [],
   [StandardColumnId.Owner]: [],
-  [StandardColumnId.Namespace]: [],
+  [StandardColumnId.Namespace]: [StandardColumnId.Queue],
   [StandardColumnId.CPU]: [],
   [StandardColumnId.Memory]: [],
   [StandardColumnId.EphemeralStorage]: [],
@@ -249,7 +250,7 @@ export const GET_JOB_COLUMNS = ({
     accessor: "namespace",
     displayName: STANDARD_COLUMN_DISPLAY_NAMES[StandardColumnId.Namespace],
     additionalOptions: {
-      enableGrouping: false,
+      enableGrouping: true,
       enableColumnFilter: true,
       size: 300,
     },

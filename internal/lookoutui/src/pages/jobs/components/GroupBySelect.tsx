@@ -11,7 +11,15 @@ import {
   SvgIcon,
 } from "@mui/material"
 
-import { ColumnId, getColumnMetadata, JobTableColumn, toColId } from "../../../common/jobsTableColumns"
+import {
+  ColumnId,
+  getColumnMetadata,
+  isStandardColId,
+  JobTableColumn,
+  PREREQUISITE_FILTER_COLUMNS,
+  STANDARD_COLUMN_DISPLAY_NAMES,
+  toColId,
+} from "../../../common/jobsTableColumns"
 
 const DIVIDER_WIDTH = 10
 
@@ -42,7 +50,7 @@ interface GroupColumnSelectProps {
   onSelect: (columnKey: ColumnId) => void
   onDelete: () => void
 }
-function GroupColumnSelect({ columns, currentlySelected, onSelect, onDelete }: GroupColumnSelectProps) {
+function GroupColumnSelect({ columns, groups, currentlySelected, onSelect, onDelete }: GroupColumnSelectProps) {
   const isGrouped = currentlySelected !== ""
   const actionText = isGrouped ? "Grouped by" : "Group by"
   const labelId = `select-column-group-${currentlySelected}`
@@ -71,16 +79,31 @@ function GroupColumnSelect({ columns, currentlySelected, onSelect, onDelete }: G
           )
         }
       >
-        {columns.map((col) => (
-          <MenuItem
-            key={col.id}
-            value={col.id}
-            disabled={currentlySelected === col.id}
-            onClick={() => onSelect(toColId(col.id))}
-          >
-            {getColumnMetadata(col).displayName}
-          </MenuItem>
-        ))}
+        {columns.map((col) => {
+          const colId = toColId(col.id)
+          const ungroupedPreRequisiteColumns = (
+            isStandardColId(colId) ? PREREQUISITE_FILTER_COLUMNS[colId] : []
+          ).filter((preReqCol) => !groups.includes(preReqCol))
+
+          return (
+            <MenuItem
+              key={col.id}
+              value={col.id}
+              disabled={currentlySelected === col.id || ungroupedPreRequisiteColumns.length > 0}
+              onClick={() => onSelect(toColId(col.id))}
+            >
+              {getColumnMetadata(col).displayName}
+              {ungroupedPreRequisiteColumns.length > 0 && (
+                <>
+                  {" "}
+                  (requires grouping by{" "}
+                  {ungroupedPreRequisiteColumns.map((preReqCol) => STANDARD_COLUMN_DISPLAY_NAMES[preReqCol]).join(", ")}
+                  )
+                </>
+              )}
+            </MenuItem>
+          )
+        })}
       </Select>
     </FormControl>
   )
@@ -127,7 +150,15 @@ export default function GroupBySelect({ groups, columns, onGroupsChanged }: Grou
                   onGroupsChanged(alreadyListed.concat([newKey]))
                 }}
                 onDelete={() => {
-                  onGroupsChanged(groups.filter((_, idx) => idx !== i))
+                  onGroupsChanged(
+                    groups
+                      .filter((_, idx) => idx !== i)
+                      .filter(
+                        (colId) =>
+                          !isStandardColId(colId) ||
+                          PREREQUISITE_FILTER_COLUMNS[colId].every((preReqCol) => alreadyListed.includes(preReqCol)),
+                      ),
+                  )
                 }}
               />
               {remainingOptions.length > 1 && <Divider style={{ width: DIVIDER_WIDTH }} />}
