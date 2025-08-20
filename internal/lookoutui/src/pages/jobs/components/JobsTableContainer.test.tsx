@@ -185,7 +185,6 @@ describe("JobsTableContainer", () => {
 
   describe("Grouping", () => {
     it.each([
-      ["Job Set", "jobSet"],
       ["Queue", "queue"],
       ["State", "state"],
     ] as [string, keyof Job][])("should allow grouping by %s", async (displayString, groupKey) => {
@@ -560,20 +559,25 @@ describe("JobsTableContainer", () => {
       const { router, baseElement } = renderComponent(jobs)
       await waitForFinishedLoading()
 
+      await groupByColumn("Queue")
       await groupByColumn("Job Set")
 
+      mockServer.setGetQueuesResponse(["queue-1", "queue-2", "queue-3"])
       await filterAutocompleteTextColumnTo("Queue", "queue-3", baseElement)
       await filterTextColumnTo("Job Set", "job-set-1")
 
+      await expandRow("queue-3")
       await expandRow("job-set-1")
 
       await waitFor(
         async () => {
           await clickOnJobRow(jobs[15].jobId)
-          expect(router.state.location.search).toContain("g[0]=jobSet")
-          expect(router.state.location.search).not.toContain("g[1]")
+          expect(router.state.location.search).toContain("g[0]=queue")
+          expect(router.state.location.search).toContain("g[1]=jobSet")
+          expect(router.state.location.search).not.toContain("g[2]")
           expect(router.state.location.search).toContain(`sb=${jobs[15].jobId}`)
-          expect(router.state.location.search).toContain("e[0]=jobSet%3Ajob-set-1")
+          expect(router.state.location.search).toContain("e[0]=queue%3Aqueue-3")
+          expect(router.state.location.search).toContain("e[1]=queue%3Aqueue-3%3EjobSet%3Ajob-set-1")
         },
         { timeout: 3000 },
       )
