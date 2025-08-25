@@ -149,7 +149,7 @@ func formatResources(availableResource armadaresource.ComputeResources) string {
 	}
 	amdGpu := availableResource["amd.com/gpu"]
 	if amdGpu.Value() > 0 {
-		resources += fmt.Sprintf(", amd.com/gpu: %d", nvidiaGpu.Value())
+		resources += fmt.Sprintf(", amd.com/gpu: %d", amdGpu.Value())
 	}
 	return resources
 }
