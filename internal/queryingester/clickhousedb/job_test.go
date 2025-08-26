@@ -33,7 +33,7 @@ var submitEvent = instructions.JobRow{
 	Priority:           pointer.Int64(5),
 	SubmitTs:           &submittedTime,
 	PriorityClass:      pointer.String("armada-default"),
-	Annotations:        map[string]string{"foo": "bar"},
+	Annotations:        map[string]any{"foo": "bar"},
 	JobState:           pointer.String("QUEUED"),
 	LastUpdateTs:       submittedTime,
 	LastTransitionTime: &submittedTime,
@@ -186,7 +186,7 @@ func assertJobsEqual(t *testing.T, expected, actual instructions.JobRow) {
 	assert.Equal(t, ptrVal(expected.PriorityClass), ptrVal(actual.PriorityClass), "PriorityClass mismatch")
 
 	//Disable for now
-	//assert.Equal(t, expected.Annotations, actual.Annotations, "Annotations mismatch")
+	assert.Equal(t, expected.Annotations, actual.Annotations, "Annotations mismatch")
 
 	assert.Equal(t, ptrVal(expected.JobState), ptrVal(actual.JobState), "JobState mismatch")
 	assert.Equal(t, ptrTime(expected.CancelTs), ptrTime(actual.CancelTs), "CancelTS mismatch")

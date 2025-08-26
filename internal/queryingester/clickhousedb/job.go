@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	log "github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/queryingester/instructions"
 	"strings"
 )
@@ -41,7 +42,7 @@ func insertJobs(ctx *armadacontext.Context, conn clickhouse.Conn, events []instr
 		"error",
 	}
 
-	query := fmt.Sprintf("INSERT INTO jobs_raw (%s) VALUES", strings.Join(cols, ", "))
+	query := fmt.Sprintf("INSERT INTO jobs (%s) VALUES", strings.Join(cols, ", "))
 
 	batch, err := conn.PrepareBatch(ctx, query)
 	if err != nil {
@@ -99,9 +100,14 @@ func orNil[T any](p *T) any {
 	return *p
 }
 
-func nilIfEmptyMap(m map[string]string) any {
-	if len(m) == 0 {
-		return map[string]string{}
+func nilIfEmptyMap(m map[string]any) *clickhouse.JSON {
+	if m == nil {
+		return nil
 	}
-	return m
+	v := clickhouse.NewJSON()
+	err := v.Scan(m)
+	if err != nil {
+		log.WithError(err).Fatal("Error scanning JSON")
+	}
+	return v
 }

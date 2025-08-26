@@ -2,41 +2,6 @@
 /* ======================= *
  * jobs (summary per job)  *
  * ======================= */
-CREATE TABLE jobs_raw
-(
-  job_id FixedString(26),
-  queue             LowCardinality(String),
-  namespace         LowCardinality(Nullable(String)),
-  job_set           Nullable(String),
-  priority_class    LowCardinality(Nullable(String)),
-  annotations       Map(String, String),
-  cpu               Nullable(Int64),
-  memory            Nullable(Int64),
-  ephemeral_storage Nullable(Int64),
-  gpu               Nullable(Int64),
-  priority          Nullable(Int64),
-  run_exit_code     Nullable(Int32),
-  job_state         LowCardinality(Nullable(String)),
-  submit_ts            Nullable(DateTime64(3)),
-  cancel_ts            Nullable(DateTime64(3)),
-  run_finished_ts      Nullable(DateTime64(3)),
-  run_leased_ts        Nullable(DateTime64(3)),
-  run_pending_ts       Nullable(DateTime64(3)),
-  run_started_ts       Nullable(DateTime64(3)),
-  last_transition_time Nullable(DateTime64(3)),
-  cancel_reason   Nullable(String),
-  cancel_user     LowCardinality(Nullable(String)),
-  latest_run_id   Nullable(String),
-  run_cluster     LowCardinality(Nullable(String)),
-  run_state       LowCardinality(Nullable(String)),
-  run_node        LowCardinality(Nullable(String)),
-  error           Nullable(String),
-  last_update_ts  DateTime64(3)
-)
-ENGINE = MergeTree
-ORDER BY (job_id, last_update_ts);
-
--- Jobs indexed by jobId
 CREATE TABLE jobs
 (
   job_id FixedString(26),
@@ -44,7 +9,7 @@ CREATE TABLE jobs
   namespace         LowCardinality(Nullable(String)),
   job_set           Nullable(String),
   priority_class    LowCardinality(Nullable(String)),
-  annotations       Map(String, String),
+  annotations       Nullable(JSON),
   cpu               Nullable(Int64),
   memory            Nullable(Int64),
   ephemeral_storage Nullable(Int64),
@@ -72,53 +37,71 @@ ENGINE = CoalescingMergeTree
 ORDER BY job_id;
 
 
-CREATE MATERIALIZED VIEW mv_raw_to_jobs
-TO jobs AS
-SELECT * FROM jobs_raw;
-
-
-CREATE TABLE jobs_by_queue
+CREATE TABLE jobs_history
 (
-  job_id FixedString(26),
-  queue  String,
-  namespace         LowCardinality(Nullable(String)),
-  job_set           Nullable(String),
-  priority_class    LowCardinality(Nullable(String)),
-  annotations       Map(String, String),
-  cpu               Nullable(Int64),
-  memory            Nullable(Int64),
-  ephemeral_storage Nullable(Int64),
-  gpu               Nullable(Int64),
-  priority          Nullable(Int64),
-  run_exit_code     Nullable(Int32),
-  job_state         LowCardinality(Nullable(String)),
-  submit_ts            Nullable(DateTime64(3)),
-  cancel_ts            Nullable(DateTime64(3)),
-  run_finished_ts      Nullable(DateTime64(3)),
-  run_leased_ts        Nullable(DateTime64(3)),
-  run_pending_ts       Nullable(DateTime64(3)),
-  run_started_ts       Nullable(DateTime64(3)),
-  last_transition_time Nullable(DateTime64(3)),
-  cancel_reason   Nullable(String),
-  cancel_user     LowCardinality(Nullable(String)),
-  latest_run_id   Nullable(String),
-  run_cluster     LowCardinality(Nullable(String)),
-  run_state       LowCardinality(Nullable(String)),
-  run_node        LowCardinality(Nullable(String)),
-  error           Nullable(String),
-  last_update_ts  DateTime64(3)
+    job_id FixedString(26),
+    queue             LowCardinality(String),
+    namespace         LowCardinality(Nullable(String)),
+    job_set           Nullable(String),
+    priority_class    LowCardinality(Nullable(String)),
+    annotations       Nullable(JSON),
+    cpu               Nullable(Int64),
+    memory            Nullable(Int64),
+    ephemeral_storage Nullable(Int64),
+    gpu               Nullable(Int64),
+    priority          Nullable(Int64),
+    run_exit_code     Nullable(Int32),
+    job_state         LowCardinality(Nullable(String)),
+    submit_ts            Nullable(DateTime64(3)),
+    cancel_ts            Nullable(DateTime64(3)),
+    run_finished_ts      Nullable(DateTime64(3)),
+    run_leased_ts        Nullable(DateTime64(3)),
+    run_pending_ts       Nullable(DateTime64(3)),
+    run_started_ts       Nullable(DateTime64(3)),
+    last_transition_time Nullable(DateTime64(3)),
+    cancel_reason   LowCardinality(Nullable(String)),
+    cancel_user     LowCardinality(Nullable(String)),
+    latest_run_id   Nullable(String),
+    run_cluster     LowCardinality(Nullable(String)),
+    run_state       LowCardinality(Nullable(String)),
+    run_node        LowCardinality(Nullable(String)),
+    error           Nullable(String),
+    last_update_ts  DateTime64(3)
 )
-  ENGINE = CoalescingMergeTree
-ORDER BY (queue, job_id);
+ENGINE = ReplacingMergeTree()
+ORDER BY job_id
+SETTINGS deduplicate_merge_projection_mode = 'drop';
 
-ALTER TABLE jobs_by_queue
-  ADD INDEX idx_state_set (job_state) TYPE set(256) GRANULARITY 4;
+-- CREATE OR REPLACE VIEW jobs_all AS
+-- SELECT *
+-- FROM jobs FINAL
+-- UNION ALL
+-- SELECT *
+-- FROM jobs_history;
 
-CREATE MATERIALIZED VIEW mv_raw_to_jobs_by_queue
-TO jobs_by_queue AS
-SELECT * FROM jobs_raw;
+ALTER TABLE jobs_history
+    ADD PROJECTION p_queue_transition
+    (
+SELECT *
+ORDER BY (queue, last_transition_time, job_id)
+    );
 
+ALTER TABLE jobs_history
+    ADD PROJECTION p_queue_jobset_transition
+    (
+SELECT *
+ORDER BY (queue, job_set, last_transition_time, job_id)
+    );
 
+ALTER TABLE jobs_history
+    ADD PROJECTION p_transition_time
+    (
+SELECT *
+ORDER BY (last_transition_time, job_id)
+    );
+
+ALTER TABLE jobs_history ADD INDEX ix_queue queue TYPE set(1000) GRANULARITY 1;
+ALTER TABLE jobs_history ADD INDEX ix_queue_jobset (queue, job_set) TYPE set(1000) GRANULARITY 1;
 
 /* ======================= *
  * job_runs                *

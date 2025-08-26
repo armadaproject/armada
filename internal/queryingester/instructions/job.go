@@ -9,7 +9,6 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/database/lookout"
 	"github.com/armadaproject/armada/internal/common/eventutil"
-	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
@@ -33,10 +32,10 @@ func handleSubmitJob(
 	priorityClass := apiJob.GetMainPodSpec().PriorityClassName
 
 	annotations := event.GetObjectMeta().GetAnnotations()
-	userAnnotations := armadamaps.MapKeys(annotations, func(k string) string {
-		return strings.TrimPrefix(k, userAnnotationPrefix)
-	})
-
+	userAnnotations := map[string]any{}
+	for k, v := range annotations {
+		userAnnotations[strings.TrimPrefix(k, userAnnotationPrefix)] = v
+	}
 	return Update{
 		JobSpec: &JobSpecRow{
 			JobId:   event.JobId,
