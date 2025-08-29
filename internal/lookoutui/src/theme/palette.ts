@@ -1,25 +1,21 @@
 import { darken, getContrastRatio, lighten, Palette, PaletteColorOptions, PaletteOptions } from "@mui/material"
 
+import { LookoutThemeConfigOptions } from "./lookoutThemeConfig"
+
 const TONAL_OFFSET = 0.3
 const CONTRAST_THRESHOLD = 3
 
-// Brand colours
-export const LIGHT_BLUE = "#25AEFF" as const
-export const ORANGE = "#FF7625" as const // the complementary colour to LIGHT_BLUE
-
-// Status colours
-export const STATUS_GREY = "#6C757D" as const
-export const STATUS_BLUE = "#007BFF" as const
-export const STATUS_GREEN = "#28A745" as const
-export const STATUS_AMBER = "#FFC107" as const
-export const STATUS_RED = "#88022B" as const
-
 export const CUSTOM_PALETTE_COLOR_TOKENS = [
-  "statusGrey",
-  "statusBlue",
-  "statusGreen",
-  "statusAmber",
-  "statusRed",
+  "appBar",
+  "statusQueued",
+  "statusPending",
+  "statusRunning",
+  "statusSucceeded",
+  "statusFailed",
+  "statusCancelled",
+  "statusPreempted",
+  "statusLeased",
+  "statusRejected",
 ] as const
 
 export type CustomPaletteColorToken = (typeof CUSTOM_PALETTE_COLOR_TOKENS)[number]
@@ -37,29 +33,55 @@ const augmentColor = (main: string): PaletteColorOptions => ({
   contrastText: getContrastRatio(main, "#fff") > CONTRAST_THRESHOLD ? "#fff" : "#000",
 })
 
-export const lightModePalette: PaletteOptions = {
-  primary: { main: LIGHT_BLUE, contrastText: "#FFF" },
-  secondary: { main: ORANGE },
-  statusGrey: augmentColor(STATUS_GREY),
-  statusBlue: augmentColor(STATUS_BLUE),
-  statusGreen: augmentColor(STATUS_GREEN),
-  statusAmber: augmentColor(STATUS_AMBER),
-  statusRed: augmentColor(STATUS_RED),
+export const createLightModePaletteOptions = (config: Required<LookoutThemeConfigOptions>): PaletteOptions => ({
+  primary: augmentColor(config.primaryColour),
+  secondary: augmentColor(config.secondaryColour),
+  appBar: augmentColor(config.appBarColour),
+  error: augmentColor(config.errorColour),
+  warning: augmentColor(config.warningColour),
+  info: augmentColor(config.infoColour),
+  success: augmentColor(config.successColour),
+  statusQueued: augmentColor(config.statusQueuedColour),
+  statusPending: augmentColor(config.statusPendingColour),
+  statusRunning: augmentColor(config.statusRunningColour),
+  statusSucceeded: augmentColor(config.statusSucceededColour),
+  statusFailed: augmentColor(config.statusFailedColour),
+  statusCancelled: augmentColor(config.statusCancelledColour),
+  statusPreempted: augmentColor(config.statusPreemptedColour),
+  statusLeased: augmentColor(config.statusLeasedColour),
+  statusRejected: augmentColor(config.statusRejectedColour),
+  background: {
+    default: config.defaultBackgroundColour,
+    paper: config.paperSurfaceBackgroundColour,
+  },
   tonalOffset: TONAL_OFFSET,
   contrastThreshold: CONTRAST_THRESHOLD,
-}
+})
 
-export const darkModePalette: PaletteOptions = {
-  primary: { main: LIGHT_BLUE, contrastText: "#FFF" },
-  secondary: { main: ORANGE },
-  statusGrey: augmentColor(STATUS_GREY),
-  statusBlue: augmentColor(STATUS_BLUE),
-  statusGreen: augmentColor(STATUS_GREEN),
-  statusAmber: augmentColor(STATUS_AMBER),
-  statusRed: augmentColor(STATUS_RED),
+export const createDarkModePaletteOptions = (config: Required<LookoutThemeConfigOptions>): PaletteOptions => ({
+  primary: augmentColor(config.primaryColourDark),
+  secondary: augmentColor(config.secondaryColourDark),
+  appBar: augmentColor(config.appBarColourDark),
+  error: augmentColor(config.errorColourDark),
+  warning: augmentColor(config.warningColourDark),
+  info: augmentColor(config.infoColourDark),
+  success: augmentColor(config.successColourDark),
+  statusQueued: augmentColor(config.statusQueuedColourDark),
+  statusPending: augmentColor(config.statusPendingColourDark),
+  statusRunning: augmentColor(config.statusRunningColourDark),
+  statusSucceeded: augmentColor(config.statusSucceededColourDark),
+  statusFailed: augmentColor(config.statusFailedColourDark),
+  statusCancelled: augmentColor(config.statusCancelledColourDark),
+  statusPreempted: augmentColor(config.statusPreemptedColourDark),
+  statusLeased: augmentColor(config.statusLeasedColourDark),
+  statusRejected: augmentColor(config.statusRejectedColourDark),
+  background: {
+    default: config.defaultBackgroundColourDark,
+    paper: config.paperSurfaceBackgroundColourDark,
+  },
   tonalOffset: TONAL_OFFSET,
   contrastThreshold: CONTRAST_THRESHOLD,
-}
+})
 
 declare module "@mui/material/styles" {
   // eslint-disable-next-line @typescript-eslint/no-empty-object-type

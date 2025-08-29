@@ -119,3 +119,74 @@ func TestResourceListEqual(t *testing.T) {
 		})
 	}
 }
+
+func TestResourceListSub(t *testing.T) {
+	tests := map[string]struct {
+		a        *ResourceList
+		b        *ResourceList
+		expected *ResourceList
+	}{
+		"basic subtraction": {
+			a: &ResourceList{
+				Resources: map[string]*resource.Quantity{
+					"cpu":    pointer.MustParseResource("10"),
+					"memory": pointer.MustParseResource("100Gi"),
+				},
+			},
+			b: &ResourceList{
+				Resources: map[string]*resource.Quantity{
+					"cpu":    pointer.MustParseResource("3"),
+					"memory": pointer.MustParseResource("20Gi"),
+				},
+			},
+			expected: &ResourceList{
+				Resources: map[string]*resource.Quantity{
+					"cpu":    pointer.MustParseResource("7"),
+					"memory": pointer.MustParseResource("80Gi"),
+				},
+			},
+		},
+		"subtract with missing resource type": {
+			a: &ResourceList{
+				Resources: map[string]*resource.Quantity{
+					"cpu":             pointer.MustParseResource("10"),
+					"nvidia.com/a100": pointer.MustParseResource("8"),
+				},
+			},
+			b: &ResourceList{
+				Resources: map[string]*resource.Quantity{
+					"cpu":            pointer.MustParseResource("2"),
+					"nvidia.com/gpu": pointer.MustParseResource("1"),
+				},
+			},
+			expected: &ResourceList{
+				Resources: map[string]*resource.Quantity{
+					"cpu":             pointer.MustParseResource("8"),
+					"nvidia.com/a100": pointer.MustParseResource("8"),
+				},
+			},
+		},
+		"subtract empty from non-empty": {
+			a: &ResourceList{
+				Resources: map[string]*resource.Quantity{
+					"cpu": pointer.MustParseResource("10"),
+				},
+			},
+			b: &ResourceList{
+				Resources: map[string]*resource.Quantity{},
+			},
+			expected: &ResourceList{
+				Resources: map[string]*resource.Quantity{
+					"cpu": pointer.MustParseResource("10"),
+				},
+			},
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			tc.a.Sub(tc.b)
+			assert.True(t, tc.a.Equal(tc.expected))
+		})
+	}
+}

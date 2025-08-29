@@ -11,7 +11,7 @@
   justify-content: flex-start;
   align-items: center;
   text-decoration: none;
-  color: white;
+  color: inherit;
 }
 
 .toolbar .title .logo {

@@ -1,19 +1,12 @@
 import { TypographyOptions } from "@mui/material/styles/createTypography"
 
-export const typography: TypographyOptions = {
-  fontFamily: [
-    "-apple-system",
-    "BlinkMacSystemFont",
-    "'Segoe UI'",
-    "'Roboto'",
-    "'Oxygen'",
-    "'Ubuntu'",
-    "'Cantarell'",
-    "'Fira Sans'",
-    "'Droid Sans'",
-    "'Helvetica Neue'",
-    "sans-serif",
-  ].join(","),
+import { LookoutThemeConfigOptions } from "./lookoutThemeConfig"
+
+const DEFAULT_FALLBACK_FONT_FAMILY = ["Arial", "sans-serif"].map((f) => `'${f}'`).join(",")
+const DEFAULT_FALLBACK_MONOSPACE_FONT_FAMILY = ["Courier New", "monospace"].map((f) => `'${f}'`).join(",")
+
+export const createTypographyOptions = (config: Required<LookoutThemeConfigOptions>): TypographyOptions => ({
+  fontFamily: [config.fontFamily, DEFAULT_FALLBACK_FONT_FAMILY].join(","),
   h1: {
     fontSize: "3rem",
     lineHeight: 1.2,
@@ -44,4 +37,9 @@ export const typography: TypographyOptions = {
     lineHeight: 1.4,
     fontWeight: 500,
   },
-}
+  button: { textTransform: config.uppercaseButtonText ? "uppercase" : "none" },
+  overline: { textTransform: config.uppercaseOverlineText ? "uppercase" : "none" },
+})
+
+export const createMonospaceFontFamily = (config: Required<LookoutThemeConfigOptions>) =>
+  [config.monospaceFontFamily, DEFAULT_FALLBACK_MONOSPACE_FONT_FAMILY].join(", ")
