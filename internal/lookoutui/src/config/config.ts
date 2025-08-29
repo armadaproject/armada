@@ -17,6 +17,7 @@ export const DEFAULT_LOOKOUT_UI_CONFIG: LookoutUiConfig = {
   errorMonitoring: {
     sentry: undefined,
   },
+  customThemeConfigs: undefined,
 }
 
 export const getConfig = (): Config => {
