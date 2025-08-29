@@ -3,6 +3,7 @@ import { identity } from "lodash"
 import { DEFAULT_NUMBER_NOTATION, NumberNotation } from "../common/formatNumber"
 import { BROWSER_LOCALE, SupportedLocale } from "../common/locales"
 import { TIME_ZONE_NAMES_SET, UTC_TIME_ZONE_NAME } from "../common/timeZones"
+import { LookoutThemeConfigOptions, lookoutThemeConfigOptionsFromJSON, lookoutThemeConfigOptionsToJSON } from "../theme"
 
 import {
   CODE_SNIPPETS_WRAP_LINES_KEY,
@@ -15,6 +16,8 @@ import {
   JOB_RUN_LOGS_SHOW_TIMESTAMPS_KEY,
   JOB_RUN_LOGS_TEXT_SIZE_KEY,
   JOB_RUN_LOGS_WRAP_LINES_KEY,
+  VISUAL_THEME_CUSTOM_CONFIG_JSON_KEY,
+  VISUAL_THEME_NAME_KEY,
 } from "./localStorageKeys"
 import {
   booleanFromStorageValue,
@@ -103,7 +106,7 @@ export const useFormatNumberLocale = () =>
     textEnumToStorageValue,
   )
 
-const numbeNotationEnumMap: Record<NumberNotation, true> = {
+const numberNotationEnumMap: Record<NumberNotation, true> = {
   standard: true,
   scientific: true,
   engineering: true,
@@ -111,7 +114,7 @@ const numbeNotationEnumMap: Record<NumberNotation, true> = {
 }
 
 const numberNotationFromStorageValue = (storageValue: string | null) =>
-  textEnumFromStorageValue(storageValue, numbeNotationEnumMap)
+  textEnumFromStorageValue(storageValue, numberNotationEnumMap)
 
 export const useFormatNumberNotation = () =>
   useLocalStorageValue<NumberNotation>(
@@ -119,4 +122,15 @@ export const useFormatNumberNotation = () =>
     DEFAULT_NUMBER_NOTATION,
     numberNotationFromStorageValue,
     textEnumToStorageValue,
+  )
+
+const defaultLookoutThemeConfigOptions: LookoutThemeConfigOptions = {}
+
+export const useVisualThemeName = () => useLocalStorageValue<string>(VISUAL_THEME_NAME_KEY, "", identity, identity)
+export const useVisualThemeCustomConfig = () =>
+  useLocalStorageValue<LookoutThemeConfigOptions>(
+    VISUAL_THEME_CUSTOM_CONFIG_JSON_KEY,
+    defaultLookoutThemeConfigOptions,
+    lookoutThemeConfigOptionsFromJSON,
+    lookoutThemeConfigOptionsToJSON,
   )

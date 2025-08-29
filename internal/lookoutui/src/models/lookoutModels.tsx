@@ -13,7 +13,7 @@ import {
   FaFileContract,
   FaHand,
 } from "../components/fontAwesomeIcons"
-import { CustomPaletteColorToken } from "../theme/palette"
+import { CustomPaletteColorToken } from "../theme"
 
 // Values must match the server-side states
 export enum JobState {
@@ -29,15 +29,15 @@ export enum JobState {
 }
 
 export const jobStateColors: Record<JobState, CustomPaletteColorToken> = {
-  [JobState.Queued]: "statusGrey",
-  [JobState.Pending]: "statusGrey",
-  [JobState.Running]: "statusBlue",
-  [JobState.Succeeded]: "statusGreen",
-  [JobState.Failed]: "statusRed",
-  [JobState.Cancelled]: "statusAmber",
-  [JobState.Preempted]: "statusAmber",
-  [JobState.Leased]: "statusGrey",
-  [JobState.Rejected]: "statusRed",
+  [JobState.Queued]: "statusQueued",
+  [JobState.Pending]: "statusPending",
+  [JobState.Running]: "statusRunning",
+  [JobState.Succeeded]: "statusSucceeded",
+  [JobState.Failed]: "statusFailed",
+  [JobState.Cancelled]: "statusCancelled",
+  [JobState.Preempted]: "statusPreempted",
+  [JobState.Leased]: "statusLeased",
+  [JobState.Rejected]: "statusRejected",
 }
 
 export const jobStateIcons: Record<JobState, (svgIconProps: SvgIconProps) => ReactElement> = {

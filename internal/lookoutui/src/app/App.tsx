@@ -1,6 +1,6 @@
 import { useEffect } from "react"
 
-import { CssBaseline, styled, ThemeProvider } from "@mui/material"
+import { CssBaseline, styled } from "@mui/material"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { SnackbarProvider } from "notistack"
 import { ErrorBoundary } from "react-error-boundary"
@@ -10,6 +10,7 @@ import { withRouter } from "../common/utils"
 import { AlertInPageContainerErrorFallback } from "../components/AlertInPageContainerErrorFallback"
 import { FullPageErrorFallback } from "../components/FullPageErrorFallback"
 import { getConfig } from "../config"
+import { LookoutThemeProvider } from "../lookoutThemeState"
 import { OidcAuthProvider } from "../oidcAuth"
 import { JobSetsPage } from "../pages/jobSets/JobSetsPage"
 import { JobsPage } from "../pages/jobs/JobsPage"
@@ -31,7 +32,6 @@ import {
 } from "../pathnames"
 import { ApiClientsProvider } from "../services/apiClients"
 import { Services, ServicesProvider } from "../services/context"
-import { theme } from "../theme/theme"
 
 import { JobIdRedirect } from "./JobIdRedirect"
 import { NavBar } from "./NavBar"
@@ -74,7 +74,7 @@ export function App(props: AppProps) {
 
   return (
     <ErrorBoundary FallbackComponent={FullPageErrorFallback}>
-      <ThemeProvider theme={theme} defaultMode="light">
+      <LookoutThemeProvider>
         <CssBaseline />
         <SnackbarProvider
           anchorOrigin={{ horizontal: "right", vertical: "bottom" }}
@@ -204,7 +204,7 @@ export function App(props: AppProps) {
             </ErrorBoundary>
           </QueryClientProvider>
         </SnackbarProvider>
-      </ThemeProvider>
+      </LookoutThemeProvider>
     </ErrorBoundary>
   )
 }

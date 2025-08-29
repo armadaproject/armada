@@ -1,7 +1,7 @@
 import { forwardRef } from "react"
 
 import { Settings } from "@mui/icons-material"
-import { AppBar, Button, IconButton, Stack, Toolbar, Typography } from "@mui/material"
+import { AppBar, Button, IconButton, Stack, styled, Toolbar, Typography } from "@mui/material"
 import { Link, NavLink, NavLinkProps } from "react-router-dom"
 
 import { SPACING } from "../common/spacing"
@@ -13,6 +13,12 @@ import "./NavBar.css"
 const NavLinkButton = forwardRef<HTMLAnchorElement, NavLinkProps>((props, ref) => (
   <NavLink {...props} style={({ isActive }) => (isActive ? undefined : { borderStyle: "none" })} ref={ref} />
 ))
+
+const StyledAppBar = styled(AppBar)(({ theme }) => ({
+  backgroundColor: theme.palette.appBar.main,
+  backgroundImage: "unset",
+  color: theme.palette.appBar.contrastText,
+}))
 
 interface Page {
   title: string
@@ -39,16 +45,14 @@ export const NavBar = ({ customTitle }: NavBarProps) => {
 
   return (
     <>
-      <AppBar position="static">
+      <StyledAppBar position="static">
         <Toolbar className="toolbar">
           <div>
             <a href="/" className="title">
               <img className="logo" src={import.meta.env.BASE_URL + "./Armada-white-rectangle.png"} alt={""} />
-              <Typography variant="h6" className="app-name">
-                Lookout
-              </Typography>
+              <Typography variant="h6">Lookout</Typography>
               {customTitle && (
-                <Typography variant="h5" className="app-name" style={{ paddingLeft: "3em" }}>
+                <Typography variant="h5" style={{ paddingLeft: "3em" }}>
                   {customTitle}
                 </Typography>
               )}
@@ -81,7 +85,7 @@ export const NavBar = ({ customTitle }: NavBarProps) => {
             </div>
           </div>
         </Toolbar>
-      </AppBar>
+      </StyledAppBar>
     </>
   )
 }

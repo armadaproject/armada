@@ -1,3 +1,5 @@
+import { LookoutThemeConfigOptions } from "../theme"
+
 export interface SentryConfig {
   dsn: string
   environment: string
@@ -21,6 +23,16 @@ export interface CommandSpec {
   alertLevel: string
 }
 
+export interface CustomTheme {
+  name: string
+  themeConfig: LookoutThemeConfigOptions
+}
+
+export interface CustomThemeConfigs {
+  themes: CustomTheme[]
+  defaultThemeName: string
+}
+
 // This must match the UIConfig Go struct defined in internal/lookout/configuration/types.go
 export interface LookoutUiConfig {
   armadaApiBaseUrl: string
@@ -35,6 +47,7 @@ export interface LookoutUiConfig {
   backend: string | undefined
   pinnedTimeZoneIdentifiers: string[]
   errorMonitoring: ErrorMonitoringConfig
+  customThemeConfigs: CustomThemeConfigs | undefined
 }
 
 export interface Config extends LookoutUiConfig {

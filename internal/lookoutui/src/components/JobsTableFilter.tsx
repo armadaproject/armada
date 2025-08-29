@@ -26,7 +26,7 @@ import {
   VALID_COLUMN_MATCHES,
 } from "../common/jobsTableColumns"
 import { Match, MATCH_DISPLAY_STRINGS } from "../models/lookoutModels"
-import { CustomPaletteColorToken } from "../theme/palette"
+import { CustomPaletteColorToken } from "../theme"
 
 import { QueueFilter } from "./QueueFilter"
 
