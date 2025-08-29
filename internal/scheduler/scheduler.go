@@ -407,7 +407,7 @@ func (s *Scheduler) syncState(ctx *armadacontext.Context, initial, fullJobGc boo
 
 		if len(initialRuns) > 0 {
 			updatedRuns = initialRuns
-		} else if maxJobSerial != nil {
+		} else if maxRunSerial != nil {
 			s.runsSerial = *maxRunSerial // Allow the next sync to start from the highest serial possible.
 		}
 
