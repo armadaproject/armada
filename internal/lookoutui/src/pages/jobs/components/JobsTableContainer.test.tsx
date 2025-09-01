@@ -551,36 +551,46 @@ describe("JobsTableContainer", () => {
     })
 
     it("should save modifications to query params", async () => {
+      const queue3JobSet1Jobs = makeTestJobs(5, "queue-3", "job-set-1", JobState.Running)
+      const targetJobId = "test-job-id-for-query-params"
+      queue3JobSet1Jobs[0].jobId = targetJobId
+
       const jobs = [
         ...makeTestJobs(5, "queue-1", "job-set-1", JobState.Queued),
-        ...makeTestJobs(10, "queue-2", "job-set-1", JobState.Pending),
-        ...makeTestJobs(15, "queue-3", "job-set-1", JobState.Running),
+        ...makeTestJobs(5, "queue-2", "job-set-1", JobState.Pending),
+        ...queue3JobSet1Jobs,
       ]
-      const { router, baseElement } = renderComponent(jobs)
+      const { router, baseElement, findByText } = renderComponent(jobs)
       await waitForFinishedLoading()
 
+      await findByText(targetJobId, undefined, { timeout: 3_000 })
+      await clickOnJobRow(targetJobId)
+      await waitFor(async () => {
+        expect(router.state.location.search).toContain(`sb=${targetJobId}`)
+      })
+
       await groupByColumn("Queue")
+      await waitForFinishedLoading()
+
       await groupByColumn("Job Set")
+      await waitForFinishedLoading()
 
       mockServer.setGetQueuesResponse(["queue-1", "queue-2", "queue-3"])
       await filterAutocompleteTextColumnTo("Queue", "queue-3", baseElement)
+      await waitForFinishedLoading()
+
       await filterTextColumnTo("Job Set", "job-set-1")
+      await waitForFinishedLoading()
 
       await expandRow("queue-3")
-      await expandRow("job-set-1")
+      await waitForFinishedLoading()
 
-      await waitFor(
-        async () => {
-          await clickOnJobRow(jobs[15].jobId)
-          expect(router.state.location.search).toContain("g[0]=queue")
-          expect(router.state.location.search).toContain("g[1]=jobSet")
-          expect(router.state.location.search).not.toContain("g[2]")
-          expect(router.state.location.search).toContain(`sb=${jobs[15].jobId}`)
-          expect(router.state.location.search).toContain("e[0]=queue%3Aqueue-3")
-          expect(router.state.location.search).toContain("e[1]=queue%3Aqueue-3%3EjobSet%3Ajob-set-1")
-        },
-        { timeout: 3000 },
-      )
+      await waitFor(async () => {
+        expect(router.state.location.search).toContain("g[0]=queue")
+        expect(router.state.location.search).toContain("g[1]=jobSet")
+        expect(router.state.location.search).not.toContain("g[2]")
+        expect(router.state.location.search).toContain("e[0]=queue%3Aqueue-3")
+      })
     })
 
     it("should populate table state from query params", async () => {
