@@ -10,6 +10,7 @@ metrics:
   port: 9003
 pulsar:
   URL: "pulsar://localhost:6650"
+  restURL: "http://localhost:8090"
   jobsetEventsTopic: "events"
   controlPlaneEventsTopic: "control-plane"
   backoffTime: 1s

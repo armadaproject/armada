@@ -9,6 +9,9 @@ import (
 type PulsarConfig struct {
 	// Pulsar URL
 	URL string `validate:"required"`
+	// Pulsar REST API URL (Pulsar admin API)
+	// If not set, event latency metrics will not be published
+	RestURL string
 	// Path to the trusted TLS certificate file (must exist)
 	TLSTrustCertsFilePath string
 	// Whether Pulsar client accept untrusted TLS certificate from broker
@@ -23,6 +26,9 @@ type PulsarConfig struct {
 	AuthenticationType string
 	// Path to the JWT token (must exist). This must be set if AuthenticationType is "JWT"
 	JwtTokenPath string
+	// If the topic processing delay component should be enabled
+	// When enabled we'll expose metrics that show the processing delay for each partition
+	ProcessingDelayMonitoringEnabled bool
 	// The pulsar topic that Jobset Events will be published to
 	JobsetEventsTopic string
 	// The pulsar topic that Control Plane Events will be published to

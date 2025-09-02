@@ -9,6 +9,7 @@ postgres:
 metricsPort: 9002
 pulsar:
   URL: "pulsar://pulsar:6650"
+  restURL: "http://localhost:8090"
   jobsetEventsTopic: "events"
   backoffTime: 1s
   receiverQueueSize: 100

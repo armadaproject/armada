@@ -2,11 +2,13 @@ package ingest
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"sync"
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
-	"github.com/pkg/errors"
+	pkgerrors "github.com/pkg/errors"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	commonconfig "github.com/armadaproject/armada/internal/common/config"
@@ -116,8 +118,21 @@ func (i *IngestionPipeline[T, U]) Run(ctx *armadacontext.Context) error {
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
 
+	pulsarClient, err := pulsarutils.NewPulsarClient(&i.pulsarConfig)
+	if err != nil {
+		return pkgerrors.WithMessage(err, "Error creating pulsar client")
+	}
+	defer pulsarClient.Close()
+
+	if i.pulsarConfig.ProcessingDelayMonitoringEnabled {
+		err := i.startProcessingDelayMonitor(ctx, pulsarClient)
+		if err != nil {
+			return pkgerrors.WithMessage(err, "Error starting topic delay monitoring")
+		}
+	}
+
 	if i.consumer == nil {
-		consumer, closePulsar, err := i.subscribe()
+		consumer, closePulsar, err := i.subscribe(pulsarClient)
 		if err != nil {
 			return err
 		}
@@ -141,6 +156,7 @@ func (i *IngestionPipeline[T, U]) Run(ctx *armadacontext.Context) error {
 					// Channel closed
 					break loop
 				}
+				i.metrics.RecordPulsarMessagePublishTime(i.pulsarSubscriptionName, int(msg.ID().PartitionIdx()), msg.PublishTime())
 				pulsarMessages <- msg
 				lastReceivedTime = time.Now()
 			case <-ticker.C:
@@ -243,14 +259,25 @@ func (i *IngestionPipeline[T, U]) Run(ctx *armadacontext.Context) error {
 	return nil
 }
 
-func (i *IngestionPipeline[T, U]) subscribe() (pulsar.Consumer, func(), error) {
-	// Subscribe to Pulsar and receive messages
-	pulsarClient, err := pulsarutils.NewPulsarClient(&i.pulsarConfig)
+func (i *IngestionPipeline[T, U]) startProcessingDelayMonitor(ctx *armadacontext.Context, pulsarClient pulsar.Client) error {
+	if i.pulsarConfig.RestURL == "" {
+		return fmt.Errorf("cannot enable topic delay monitoring as pulsar RestURL not configured")
+	}
+	pulsarAdminClient, err := pulsarutils.NewPulsarAdminClient(&i.pulsarConfig)
 	if err != nil {
-		return nil, nil, errors.WithMessage(err, "Error creating pulsar client")
+		return pkgerrors.WithMessage(err, "Error creating pulsar admin client")
 	}
 
-	consumer, err := pulsarClient.Subscribe(pulsar.ConsumerOptions{
+	topicDelayMonitor := NewTopicProcessingDelayMonitor(pulsarClient, pulsarAdminClient, i.pulsarTopic, i.pulsarSubscriptionName, i.metrics)
+	err = topicDelayMonitor.Run(ctx)
+	if err != nil {
+		return pkgerrors.WithMessage(err, "Failed to initialise topic delay monitor")
+	}
+	return nil
+}
+
+func (i *IngestionPipeline[T, U]) subscribe(client pulsar.Client) (pulsar.Consumer, func(), error) {
+	consumer, err := client.Subscribe(pulsar.ConsumerOptions{
 		Topic:                       i.pulsarTopic,
 		SubscriptionName:            i.pulsarSubscriptionName,
 		Type:                        i.pulsarSubscriptionType,
@@ -258,11 +285,10 @@ func (i *IngestionPipeline[T, U]) subscribe() (pulsar.Consumer, func(), error) {
 		SubscriptionInitialPosition: pulsar.SubscriptionPositionEarliest,
 	})
 	if err != nil {
-		return nil, nil, errors.WithMessage(err, "Error creating pulsar consumer")
+		return nil, nil, pkgerrors.WithMessage(err, "Error creating pulsar consumer")
 	}
 
 	return consumer, func() {
 		consumer.Close()
-		pulsarClient.Close()
 	}, nil
 }
