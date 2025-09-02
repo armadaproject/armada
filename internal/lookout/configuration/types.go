@@ -75,6 +75,66 @@ type ErrorMonitoringConfig struct {
 	Sentry *SentryConfig `json:"sentry,omitempty"`
 }
 
+type LookoutThemeConfigOptions struct {
+	// Typography
+	FontFamily            *string `json:"fontFamily,omitempty"`
+	MonospaceFontFamily   *string `json:"monospaceFontFamily,omitempty"`
+	UppercaseButtonText   *bool   `json:"uppercaseButtonText,omitempty"`
+	UppercaseOverlineText *bool   `json:"uppercaseOverlineText,omitempty"`
+
+	// Shape
+	BorderRadiusPx *int `json:"borderRadiusPx,omitempty"`
+
+	// Palette (light, default)
+	PrimaryColour                *string `json:"primaryColour,omitempty"`
+	SecondaryColour              *string `json:"secondaryColour,omitempty"`
+	AppBarColour                 *string `json:"appBarColour,omitempty"`
+	ErrorColour                  *string `json:"errorColour,omitempty"`
+	WarningColour                *string `json:"warningColour,omitempty"`
+	InfoColour                   *string `json:"infoColour,omitempty"`
+	SuccessColour                *string `json:"successColour,omitempty"`
+	StatusQueuedColour           *string `json:"statusQueuedColour,omitempty"`
+	StatusPendingColour          *string `json:"statusPendingColour,omitempty"`
+	StatusRunningColour          *string `json:"statusRunningColour,omitempty"`
+	StatusSucceededColour        *string `json:"statusSucceededColour,omitempty"`
+	StatusFailedColour           *string `json:"statusFailedColour,omitempty"`
+	StatusCancelledColour        *string `json:"statusCancelledColour,omitempty"`
+	StatusPreemptedColour        *string `json:"statusPreemptedColour,omitempty"`
+	StatusLeasedColour           *string `json:"statusLeasedColour,omitempty"`
+	StatusRejectedColour         *string `json:"statusRejectedColour,omitempty"`
+	DefaultBackgroundColour      *string `json:"defaultBackgroundColour,omitempty"`
+	PaperSurfaceBackgroundColour *string `json:"paperSurfaceBackgroundColour,omitempty"`
+
+	// Palette (dark)
+	PrimaryColourDark                *string `json:"primaryColourDark,omitempty"`
+	SecondaryColourDark              *string `json:"secondaryColourDark,omitempty"`
+	AppBarColourDark                 *string `json:"appBarColourDark,omitempty"`
+	ErrorColourDark                  *string `json:"errorColourDark,omitempty"`
+	WarningColourDark                *string `json:"warningColourDark,omitempty"`
+	InfoColourDark                   *string `json:"infoColourDark,omitempty"`
+	SuccessColourDark                *string `json:"successColourDark,omitempty"`
+	StatusQueuedColourDark           *string `json:"statusQueuedColourDark,omitempty"`
+	StatusPendingColourDark          *string `json:"statusPendingColourDark,omitempty"`
+	StatusRunningColourDark          *string `json:"statusRunningColourDark,omitempty"`
+	StatusSucceededColourDark        *string `json:"statusSucceededColourDark,omitempty"`
+	StatusFailedColourDark           *string `json:"statusFailedColourDark,omitempty"`
+	StatusCancelledColourDark        *string `json:"statusCancelledColourDark,omitempty"`
+	StatusPreemptedColourDark        *string `json:"statusPreemptedColourDark,omitempty"`
+	StatusLeasedColourDark           *string `json:"statusLeasedColourDark,omitempty"`
+	StatusRejectedColourDark         *string `json:"statusRejectedColourDark,omitempty"`
+	DefaultBackgroundColourDark      *string `json:"defaultBackgroundColourDark,omitempty"`
+	PaperSurfaceBackgroundColourDark *string `json:"paperSurfaceBackgroundColourDark,omitempty"`
+}
+type CustomTheme struct {
+	Name        string                    `json:"name"`
+	ThemeConfig LookoutThemeConfigOptions `json:"themeConfig"`
+}
+
+type CustomThemeConfigs struct {
+	Themes           []CustomTheme `json:"themes"`
+	DefaultThemeName string        `json:"defaultThemeName"`
+}
+
 // UIConfig must match the LookoutUiConfig TypeScript interface defined in internal/lookoutui/src/lookoutUiConfig.d.ts
 type UIConfig struct {
 	CustomTitle string `json:"customTitle"`
@@ -103,4 +163,6 @@ type UIConfig struct {
 	PinnedTimeZoneIdentifiers []string `json:"pinnedTimeZoneIdentifiers"`
 
 	ErrorMonitoring ErrorMonitoringConfig `json:"errorMonitoring"`
+
+	CustomThemeConfigs *CustomThemeConfigs `json:"customThemeConfigs,omitempty"`
 }
