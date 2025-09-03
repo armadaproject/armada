@@ -23,7 +23,6 @@ import (
 
 // Subscriptions is admin interface for subscriptions management
 type Subscriptions interface {
-
 	// PeekMessages peeks messages from a topic subscription
 	PeekMessages(utils.TopicName, string, int) ([]*utils.Message, error)
 }
@@ -94,7 +93,6 @@ const (
 )
 
 func handleResp(topic utils.TopicName, resp *http.Response) ([]*utils.Message, error) {
-
 	msgID := resp.Header.Get("X-Pulsar-Message-ID")
 	ID, err := utils.ParseMessageIDWithPartitionIndex(msgID, topic.GetPartitionIndex())
 	if err != nil {
@@ -143,8 +141,8 @@ func handleResp(topic utils.TopicName, resp *http.Response) ([]*utils.Message, e
 }
 
 func getIndividualMsgsFromBatch(topic utils.TopicName, msgID *utils.MessageID, data []byte,
-	properties map[string]string) ([]*utils.Message, error) {
-
+	properties map[string]string,
+) ([]*utils.Message, error) {
 	batchSize, err := strconv.Atoi(properties[BatchHeader])
 	if err != nil {
 		return nil, nil
