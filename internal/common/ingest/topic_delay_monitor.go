@@ -9,11 +9,11 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/apache/pulsar-client-go/pulsar"
-	"github.com/apache/pulsar-client-go/pulsaradmin"
 	"github.com/apache/pulsar-client-go/pulsaradmin/pkg/rest"
 	pulsarutils "github.com/apache/pulsar-client-go/pulsaradmin/pkg/utils"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	commonmetrics "github.com/armadaproject/armada/internal/common/ingest/metrics"
+	"github.com/armadaproject/armada/internal/common/ingest/pulsarclient"
 	log "github.com/armadaproject/armada/internal/common/logging"
 )
 
@@ -21,7 +21,7 @@ const messageNotFound = "Message not found"
 const publishTimeProperty = "publish-time"
 
 type TopicProcessingDelayMonitor struct {
-	pulsarAdminClient pulsaradmin.Client
+	pulsarAdminClient pulsarclient.Client
 	pulsarClient      pulsar.Client
 	topic             string
 	subscriptionName  string
@@ -29,7 +29,7 @@ type TopicProcessingDelayMonitor struct {
 }
 
 func NewTopicProcessingDelayMonitor(
-	client pulsar.Client, adminClient pulsaradmin.Client,
+	client pulsar.Client, adminClient pulsarclient.Client,
 	topic string, subscriptionName string, metrics *commonmetrics.Metrics) *TopicProcessingDelayMonitor {
 	return &TopicProcessingDelayMonitor{
 		pulsarClient:      client,

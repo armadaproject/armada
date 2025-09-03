@@ -9,10 +9,15 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	commonconfig "github.com/armadaproject/armada/internal/common/config"
+	"github.com/armadaproject/armada/internal/common/ingest/pulsarclient"
 	"github.com/armadaproject/armada/internal/common/logging"
 )
 
-func NewPulsarAdminClient(config *commonconfig.PulsarConfig) (pulsaradmin.Client, error) {
+// NewPulsarAdminClient
+// TODO this returns our own copy of the pulsaradmin.Client, which contains a bug fix
+// Once pulsar-client-go fixes the bug, we should use the upstream pulsaradmin.client
+// Issue tracked - https://github.com/apache/pulsar-client-go/pull/1419
+func NewPulsarAdminClient(config *commonconfig.PulsarConfig) (pulsarclient.Client, error) {
 	tokenPath := ""
 
 	if config.AuthenticationEnabled {
@@ -23,7 +28,7 @@ func NewPulsarAdminClient(config *commonconfig.PulsarConfig) (pulsaradmin.Client
 		tokenPath = jwtPath
 	}
 
-	return pulsaradmin.NewClient(&pulsaradmin.Config{
+	return pulsarclient.New(&pulsaradmin.Config{
 		WebServiceURL:                 config.RestURL,
 		TLSTrustCertsFilePath:         config.TLSTrustCertsFilePath,
 		TLSEnableHostnameVerification: config.TLSValidateHostname,
