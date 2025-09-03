@@ -15,6 +15,9 @@ pulsar:
   controlPlaneEventsTopic: "control-plane"
   backoffTime: 1s
   receiverQueueSize: 100
+  delayMonitor:
+    enabled: false
+    interval: 30s
 subscriptionName: "scheduler-ingester"
 batchSize: 10000
 batchDuration: 500ms
