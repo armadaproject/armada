@@ -107,18 +107,15 @@ func (t *TopicProcessingDelayMonitor) monitorPartitionDelay(ctx *armadacontext.C
 }
 
 func getPublishTimeFromMessage(message pulsarutils.Message) (time.Time, error) {
-	publishTime := time.Time{}
 	if ptStr, ok := message.Properties[publishTimeProperty]; ok {
 		if t, err := time.Parse(time.RFC3339, ptStr); err == nil {
-			publishTime = t
+			return t, nil
 		} else {
 			return time.Time{}, fmt.Errorf("failed to parse publish-time: %s", err)
 		}
 	} else {
 		return time.Time{}, fmt.Errorf("no publish-time property present")
 	}
-
-	return publishTime, nil
 }
 
 func (t *TopicProcessingDelayMonitor) getLatestUnackedMessage(partition *pulsarutils.TopicName) (*pulsarutils.Message, error) {
