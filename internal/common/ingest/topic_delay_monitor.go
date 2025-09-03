@@ -99,27 +99,33 @@ func (t *TopicProcessingDelayMonitor) monitorPartitionDelay(ctx *armadacontext.C
 	ticker := time.NewTicker(t.interval)
 	defer ticker.Stop()
 
+	var lastKnownResultTime time.Time
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
+			// If no message, default to 0 delay
+			// This is common and occurs when the topic is empty (the ingester is keeping up)
+			delayMs := float64(0)
 			lastestUnackedMessage, err := t.getLatestUnackedMessage(partition)
 			if err != nil {
 				log.Errorf("failed to get latest unacked message for partition %d - %s", partition.GetPartitionIndex(), err)
-				continue
-			}
-
-			delayMs := float64(0)
-			if lastestUnackedMessage != nil {
+				delay := time.Now().UTC().Sub(lastKnownResultTime.UTC())
+				delayMs = math.Max(0, float64(delay.Milliseconds()))
+			} else if lastestUnackedMessage != nil {
 				publishTime, err := getPublishTimeFromMessage(*lastestUnackedMessage)
 				if err != nil {
 					log.Errorf("failed to get publish time for message %s - %s", lastestUnackedMessage.GetMessageID().String(), err)
-					continue
+					delay := time.Now().UTC().Sub(lastKnownResultTime.UTC())
+					delayMs = math.Max(0, float64(delay.Milliseconds()))
+				} else {
+					delay := time.Now().UTC().Sub(publishTime.UTC())
+					delayMs = math.Max(0, float64(delay.Milliseconds()))
+					lastKnownResultTime = publishTime.UTC()
 				}
-
-				delay := time.Now().UTC().Sub(publishTime.UTC())
-				delayMs = math.Max(0, float64(delay.Milliseconds()))
+			} else {
+				lastKnownResultTime = time.Now().UTC()
 			}
 
 			t.metrics.RecordPulsarProcessingDelay(t.subscriptionName, partition.GetPartitionIndex(), delayMs)
