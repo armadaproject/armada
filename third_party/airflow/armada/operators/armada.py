@@ -393,9 +393,9 @@ Regex patterns will be extracted from container logs (taking first match).
         if new_run:
             self.log.info(
                 f"New run / or manual re-run - not reattaching to existing job "
-                f"(max_tries: {context["ti"].max_tries}, "
-                f"try_number: {context["ti"].try_number}, "
-                f"retries: {context["ti"].task.retries})"
+                f"(max_tries: {context['ti'].max_tries}, "
+                f"try_number: {context['ti'].try_number}, "
+                f"retries: {context['ti'].task.retries})"
             )
             return None
 
