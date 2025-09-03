@@ -99,38 +99,64 @@ func (t *TopicProcessingDelayMonitor) monitorPartitionDelay(ctx *armadacontext.C
 	ticker := time.NewTicker(t.interval)
 	defer ticker.Stop()
 
-	var lastKnownResultTime time.Time
+	lastKnownResultTime := time.Time{}
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			// If no message, default to 0 delay
-			// This is common and occurs when the topic is empty (the ingester is keeping up)
+
 			delayMs := float64(0)
-			lastestUnackedMessage, err := t.getLatestUnackedMessage(partition)
+
+			publishTimeOfLatestMessage, err := t.getPublishTimeOfLatestMessageOnPartition(partition)
 			if err != nil {
-				log.Errorf("failed to get latest unacked message for partition %d - %s", partition.GetPartitionIndex(), err)
-				delay := time.Now().UTC().Sub(lastKnownResultTime.UTC())
-				delayMs = math.Max(0, float64(delay.Milliseconds()))
-			} else if lastestUnackedMessage != nil {
-				publishTime, err := getPublishTimeFromMessage(*lastestUnackedMessage)
-				if err != nil {
-					log.Errorf("failed to get publish time for message %s - %s", lastestUnackedMessage.GetMessageID().String(), err)
-					delay := time.Now().UTC().Sub(lastKnownResultTime.UTC())
-					delayMs = math.Max(0, float64(delay.Milliseconds()))
-				} else {
-					delay := time.Now().UTC().Sub(publishTime.UTC())
-					delayMs = math.Max(0, float64(delay.Milliseconds()))
-					lastKnownResultTime = publishTime.UTC()
+				if lastKnownResultTime.IsZero() {
+					log.WithError(err).Errorf("failed to get delay info for partition (%s/%d), no fallback to use", t.subscriptionName, partition.GetPartitionIndex())
+					continue
 				}
+				log.WithError(err).Errorf("failed to get delay info for partition (%s/%d), using fall back value", t.subscriptionName, partition.GetPartitionIndex())
+				// On error, fall back to the last know delay of the partition
+				// This is a conservative estimate of how far the ingester is behind,
+				//  it acts as an upper bound as we know there are no messages with a publish time older than the fallback time
+				publishTimeOfLatestMessage = &lastKnownResultTime
+			}
+
+			if publishTimeOfLatestMessage != nil {
+				delay := time.Now().UTC().Sub(publishTimeOfLatestMessage.UTC())
+				delayMs = math.Max(0, float64(delay.Milliseconds()))
+				// On successful calculation, update lastKnownResultTime, so we can fallback to the last time we knew the delay of the partition
+				lastKnownResultTime = publishTimeOfLatestMessage.UTC()
 			} else {
+				// This happens when there are no messages, this is common and occurs when the topic is empty (the ingester is keeping up)
+				//
+				// Update lastKnownResultTime, so we can fallback to the last time we knew the delay of the partition
 				lastKnownResultTime = time.Now().UTC()
 			}
 
 			t.metrics.RecordPulsarProcessingDelay(t.subscriptionName, partition.GetPartitionIndex(), delayMs)
 		}
 	}
+}
+
+// This function will return the publish time of the latest unacked message on the provided partition
+// If there are no messages on the partition, it will return a nil value (and no errors)
+func (t *TopicProcessingDelayMonitor) getPublishTimeOfLatestMessageOnPartition(partition *pulsarutils.TopicName) (*time.Time, error) {
+	lastestUnackedMessage, err := t.getLatestUnackedMessage(partition)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get latest unacked message for partition - %s", err)
+	}
+
+	if lastestUnackedMessage == nil {
+		// No unprocessed messages
+		return nil, nil
+	}
+
+	publishTime, err := getPublishTimeFromMessage(*lastestUnackedMessage)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get publish time for message %s - %s", lastestUnackedMessage.GetMessageID().String(), err)
+	}
+
+	return &publishTime, nil
 }
 
 func getPublishTimeFromMessage(message pulsarutils.Message) (time.Time, error) {
