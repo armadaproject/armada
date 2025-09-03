@@ -3,6 +3,7 @@ package ingest
 import (
 	"fmt"
 	"math"
+	"math/rand"
 	"sync"
 	"time"
 
@@ -28,11 +29,13 @@ type TopicProcessingDelayMonitor struct {
 	topic             string
 	subscriptionName  string
 	metrics           *commonmetrics.Metrics
+	interval          time.Duration
+	partitions        []*pulsarutils.TopicName
 }
 
 func NewTopicProcessingDelayMonitor(
 	client pulsar.Client, adminClient pulsarclient.Client,
-	topic string, subscriptionName string, metrics *commonmetrics.Metrics,
+	topic string, subscriptionName string, interval time.Duration, metrics *commonmetrics.Metrics,
 ) *TopicProcessingDelayMonitor {
 	return &TopicProcessingDelayMonitor{
 		pulsarClient:      client,
@@ -40,10 +43,12 @@ func NewTopicProcessingDelayMonitor(
 		topic:             topic,
 		subscriptionName:  subscriptionName,
 		metrics:           metrics,
+		interval:          interval,
+		partitions:        make([]*pulsarutils.TopicName, 0),
 	}
 }
 
-func (t *TopicProcessingDelayMonitor) Run(ctx *armadacontext.Context) error {
+func (t *TopicProcessingDelayMonitor) Initialise(ctx *armadacontext.Context) error {
 	partitions, err := t.pulsarClient.TopicPartitions(t.topic)
 	if err != nil {
 		return fmt.Errorf("failed to get number of partitions for topic %s - %s", t.topic, err)
@@ -58,10 +63,22 @@ func (t *TopicProcessingDelayMonitor) Run(ctx *armadacontext.Context) error {
 		topicNames = append(topicNames, topicName)
 	}
 
+	t.partitions = topicNames
+	return nil
+}
+
+func (t *TopicProcessingDelayMonitor) Run(ctx *armadacontext.Context) error {
+	if len(t.partitions) == 0 {
+		err := t.Initialise(ctx)
+		if err != nil {
+			return err
+		}
+	}
+
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
 
-	for _, topic := range topicNames {
+	for _, topic := range t.partitions {
 		go func(topic *pulsarutils.TopicName) {
 			wg.Add(1)
 			t.monitorPartitionDelay(ctx, topic)
@@ -75,7 +92,11 @@ func (t *TopicProcessingDelayMonitor) Run(ctx *armadacontext.Context) error {
 }
 
 func (t *TopicProcessingDelayMonitor) monitorPartitionDelay(ctx *armadacontext.Context, partition *pulsarutils.TopicName) {
-	ticker := time.NewTicker(15 * time.Second)
+	// Sleep for 0 -> 10s, so all the routines don't start and hit the pulsar api at once
+	jitter := time.Duration(rand.Int63n(int64(time.Second * 10)))
+	time.Sleep(jitter)
+
+	ticker := time.NewTicker(t.interval)
 	defer ticker.Stop()
 
 	for {

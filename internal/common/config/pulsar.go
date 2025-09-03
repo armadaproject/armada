@@ -26,9 +26,8 @@ type PulsarConfig struct {
 	AuthenticationType string
 	// Path to the JWT token (must exist). This must be set if AuthenticationType is "JWT"
 	JwtTokenPath string
-	// If the topic processing delay component should be enabled
-	// When enabled we'll expose metrics that show the processing delay for each partition
-	ProcessingDelayMonitoringEnabled bool
+	// The config for topic processing delay monitor
+	DelayMonitor *TopicDelayMonitor
 	// The pulsar topic that Jobset Events will be published to
 	JobsetEventsTopic string
 	// The pulsar topic that Control Plane Events will be published to
@@ -49,4 +48,12 @@ type PulsarConfig struct {
 	BackoffTime time.Duration
 	// Number of pulsar messages that will be queued by the pulsar consumer.
 	ReceiverQueueSize int
+}
+
+type TopicDelayMonitor struct {
+	// If the topic processing delay component should be enabled
+	// When enabled we'll expose metrics that show the processing delay for each partition
+	Enabled bool
+	// How often the monitor will check the delay for a partition
+	Interval time.Duration
 }

@@ -126,7 +126,7 @@ func (i *IngestionPipeline[T, U]) Run(ctx *armadacontext.Context) error {
 		i.consumer = consumer
 		defer closePulsar()
 
-		if i.pulsarConfig.ProcessingDelayMonitoringEnabled {
+		if i.pulsarConfig.DelayMonitor != nil && i.pulsarConfig.DelayMonitor.Enabled {
 			err := i.startProcessingDelayMonitor(ctx, client)
 			if err != nil {
 				return pkgerrors.WithMessage(err, "Error starting topic delay monitoring")
@@ -262,11 +262,21 @@ func (i *IngestionPipeline[T, U]) startProcessingDelayMonitor(ctx *armadacontext
 		return pkgerrors.WithMessage(err, "Error creating pulsar admin client")
 	}
 
-	topicDelayMonitor := NewTopicProcessingDelayMonitor(pulsarClient, pulsarAdminClient, i.pulsarTopic, i.pulsarSubscriptionName, i.metrics)
-	err = topicDelayMonitor.Run(ctx)
+	topicDelayMonitor := NewTopicProcessingDelayMonitor(pulsarClient, pulsarAdminClient, i.pulsarTopic, i.pulsarSubscriptionName, i.pulsarConfig.DelayMonitor.Interval, i.metrics)
+	err = topicDelayMonitor.Initialise(ctx)
 	if err != nil {
 		return pkgerrors.WithMessage(err, "Failed to initialise topic delay monitor")
 	}
+	go func() {
+		log.Infof("starting topic delay monitor")
+		err = topicDelayMonitor.Run(ctx)
+		if err != nil {
+			log.Errorf("topic delay monitor stopped with error %s", err)
+		} else {
+			log.Infof("topic delay monitor stopped")
+		}
+	}()
+
 	return nil
 }
 
