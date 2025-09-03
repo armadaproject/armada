@@ -442,7 +442,8 @@ Regex patterns will be extracted from container logs (taking first match).
                 raise AirflowFailException()
             elif context.state == JobState.REJECTED:
                 self.log.error(
-                    f"Armada job ({context.job_id}) was REJECTED: {str(error)} will not retry"
+                    f"Armada job ({context.job_id}) was REJECTED: "
+                    f"{str(error)} will not retry"
                 )
                 raise AirflowFailException()
             else:
