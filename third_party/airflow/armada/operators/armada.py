@@ -154,10 +154,12 @@ Regex patterns will be extracted from container logs (taking first match).
                 f" max retries: {self.retries}"
             )
             self.reattach_policy = reattach_policy
+            self.configured_reattach_policy = "callable"
         else:
             configured_reattach_policy: str = resolve_parameter_value(
                 "reattach_policy", reattach_policy, kwargs, "never"
             )
+            self.configured_reattach_policy = configured_reattach_policy
             self.log.info(
                 f"Configured reattach policy to: '{configured_reattach_policy}',"
                 f" max retries: {self.retries}"
@@ -193,7 +195,9 @@ Regex patterns will be extracted from container logs (taking first match).
             f"deferrable: {self.deferrable}, "
             f"dry_run: {self.dry_run}, "
             f"poll_interval: {self.poll_interval}s, "
-            f"job_acknowledgement_timeout: {self.job_acknowledgement_timeout}s)"
+            f"job_acknowledgement_timeout: {self.job_acknowledgement_timeout}s, "
+            f"reattach_policy: {self.configured_reattach_policy}, "
+            f"retries: {self.retries})"
         )
 
         # We take the job_set_id from Airflow's run_id.
@@ -387,6 +391,12 @@ Regex patterns will be extracted from container logs (taking first match).
             == context["ti"].task.retries
         )
         if new_run:
+            self.log.info(
+                f"New run / or manual re-run - not reattaching to existing job "
+                f"(max_tries: {context["ti"].max_tries}, "
+                f"try_number: {context["ti"].try_number}, "
+                f"retries: {context["ti"].task.retries})"
+            )
             return None
 
         expected_job_uri = external_job_uri(context)
@@ -403,6 +413,8 @@ Regex patterns will be extracted from container logs (taking first match).
                     f"Found: job-id {ctx.job_id} in {ctx.state}. "
                     "Didn't reattach due to reattach policy."
                 )
+        else:
+            self.log.info(f"No job with external job uri: '{expected_job_uri}'")
 
         return None
 
@@ -427,6 +439,11 @@ Regex patterns will be extracted from container logs (taking first match).
             )
             if self.reattach_policy(error.state, error.reason):
                 self.log.error(str(error))
+                raise AirflowFailException()
+            elif context.state == JobState.REJECTED:
+                self.log.error(
+                    f"Armada job ({context.job_id}) was REJECTED: {str(error)} will not retry"
+                )
                 raise AirflowFailException()
             else:
                 raise error
