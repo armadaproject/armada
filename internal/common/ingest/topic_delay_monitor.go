@@ -7,16 +7,23 @@ import (
 	"sync"
 	"time"
 
-	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/apache/pulsar-client-go/pulsaradmin/pkg/rest"
 	pulsarutils "github.com/apache/pulsar-client-go/pulsaradmin/pkg/utils"
 	"github.com/pkg/errors"
+	"k8s.io/utils/clock"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
-	commonmetrics "github.com/armadaproject/armada/internal/common/ingest/metrics"
 	"github.com/armadaproject/armada/internal/common/ingest/pulsarclient"
 	log "github.com/armadaproject/armada/internal/common/logging"
 )
+
+type PartitionInfoFetcher interface {
+	TopicPartitions(topic string) ([]string, error)
+}
+
+type PulsarDelayRecorder interface {
+	RecordPulsarProcessingDelay(subscriptionName string, partition int, delayInMs float64)
+}
 
 const (
 	messageNotFound     = "Message not found"
@@ -24,32 +31,38 @@ const (
 )
 
 type TopicProcessingDelayMonitor struct {
-	pulsarAdminClient pulsarclient.Client
-	pulsarClient      pulsar.Client
-	topic             string
-	subscriptionName  string
-	metrics           *commonmetrics.Metrics
-	interval          time.Duration
-	partitions        []*pulsarutils.TopicName
+	pulsarAdminClient    pulsarclient.Client
+	partitionInfoFetcher PartitionInfoFetcher
+	topic                string
+	subscriptionName     string
+	metrics              PulsarDelayRecorder
+	interval             time.Duration
+	partitions           []*pulsarutils.TopicName
+	clock                clock.WithTicker
+	jitterFunc           func() time.Duration
 }
 
 func NewTopicProcessingDelayMonitor(
-	client pulsar.Client, adminClient pulsarclient.Client,
-	topic string, subscriptionName string, interval time.Duration, metrics *commonmetrics.Metrics,
+	partitionInfoFetcher PartitionInfoFetcher, adminClient pulsarclient.Client,
+	topic string, subscriptionName string, interval time.Duration, metrics PulsarDelayRecorder,
 ) *TopicProcessingDelayMonitor {
 	return &TopicProcessingDelayMonitor{
-		pulsarClient:      client,
-		pulsarAdminClient: adminClient,
-		topic:             topic,
-		subscriptionName:  subscriptionName,
-		metrics:           metrics,
-		interval:          interval,
-		partitions:        make([]*pulsarutils.TopicName, 0),
+		partitionInfoFetcher: partitionInfoFetcher,
+		pulsarAdminClient:    adminClient,
+		topic:                topic,
+		subscriptionName:     subscriptionName,
+		metrics:              metrics,
+		interval:             interval,
+		partitions:           make([]*pulsarutils.TopicName, 0),
+		clock:                clock.RealClock{},
+		jitterFunc: func() time.Duration {
+			return time.Duration(rand.Int63n(int64(time.Second * 10)))
+		},
 	}
 }
 
 func (t *TopicProcessingDelayMonitor) Initialise(ctx *armadacontext.Context) error {
-	partitions, err := t.pulsarClient.TopicPartitions(t.topic)
+	partitions, err := t.partitionInfoFetcher.TopicPartitions(t.topic)
 	if err != nil {
 		return fmt.Errorf("failed to get number of partitions for topic %s - %s", t.topic, err)
 	}
@@ -79,8 +92,8 @@ func (t *TopicProcessingDelayMonitor) Run(ctx *armadacontext.Context) error {
 	wg.Add(1)
 
 	for _, topic := range t.partitions {
+		wg.Add(1)
 		go func(topic *pulsarutils.TopicName) {
-			wg.Add(1)
 			t.monitorPartitionDelay(ctx, topic)
 			wg.Done()
 		}(topic)
@@ -92,11 +105,10 @@ func (t *TopicProcessingDelayMonitor) Run(ctx *armadacontext.Context) error {
 }
 
 func (t *TopicProcessingDelayMonitor) monitorPartitionDelay(ctx *armadacontext.Context, partition *pulsarutils.TopicName) {
-	// Sleep for 0 -> 10s, so all the routines don't start and hit the pulsar api at once
-	jitter := time.Duration(rand.Int63n(int64(time.Second * 10)))
-	time.Sleep(jitter)
+	// Sleep for some jitter, so all the routines don't start and hit the pulsar api at once
+	time.Sleep(t.jitterFunc())
 
-	ticker := time.NewTicker(t.interval)
+	ticker := t.clock.NewTicker(t.interval)
 	defer ticker.Stop()
 
 	lastKnownResultTime := time.Time{}
@@ -104,8 +116,7 @@ func (t *TopicProcessingDelayMonitor) monitorPartitionDelay(ctx *armadacontext.C
 		select {
 		case <-ctx.Done():
 			return
-		case <-ticker.C:
-
+		case <-ticker.C():
 			delayMs := float64(0)
 
 			publishTimeOfLatestMessage, err := t.getPublishTimeOfLatestMessageOnPartition(partition)
@@ -122,7 +133,7 @@ func (t *TopicProcessingDelayMonitor) monitorPartitionDelay(ctx *armadacontext.C
 			}
 
 			if publishTimeOfLatestMessage != nil {
-				delay := time.Now().UTC().Sub(publishTimeOfLatestMessage.UTC())
+				delay := t.clock.Now().UTC().Sub(publishTimeOfLatestMessage.UTC())
 				delayMs = math.Max(0, float64(delay.Milliseconds()))
 				// On successful calculation, update lastKnownResultTime, so we can fallback to the last time we knew the delay of the partition
 				lastKnownResultTime = publishTimeOfLatestMessage.UTC()
@@ -130,7 +141,7 @@ func (t *TopicProcessingDelayMonitor) monitorPartitionDelay(ctx *armadacontext.C
 				// This happens when there are no messages, this is common and occurs when the topic is empty (the ingester is keeping up)
 				//
 				// Update lastKnownResultTime, so we can fallback to the last time we knew the delay of the partition
-				lastKnownResultTime = time.Now().UTC()
+				lastKnownResultTime = t.clock.Now().UTC()
 			}
 
 			t.metrics.RecordPulsarProcessingDelay(t.subscriptionName, partition.GetPartitionIndex(), delayMs)
@@ -161,7 +172,7 @@ func (t *TopicProcessingDelayMonitor) getPublishTimeOfLatestMessageOnPartition(p
 
 func getPublishTimeFromMessage(message pulsarutils.Message) (time.Time, error) {
 	if ptStr, ok := message.Properties[publishTimeProperty]; ok {
-		if t, err := time.Parse(time.RFC3339, ptStr); err == nil {
+		if t, err := time.Parse(time.RFC3339Nano, ptStr); err == nil {
 			return t, nil
 		} else {
 			return time.Time{}, fmt.Errorf("failed to parse publish-time: %s", err)
