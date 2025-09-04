@@ -7,11 +7,12 @@ import (
 
 	"github.com/apache/pulsar-client-go/pulsaradmin/pkg/rest"
 	"github.com/apache/pulsar-client-go/pulsaradmin/pkg/utils"
-	"github.com/armadaproject/armada/internal/common/armadacontext"
-	"github.com/armadaproject/armada/internal/common/ingest/pulsarclient"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	clock "k8s.io/utils/clock/testing"
+
+	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/common/ingest/pulsarclient"
 )
 
 const (
@@ -19,10 +20,8 @@ const (
 	interval   = time.Second * 5
 )
 
-var (
-	// This is what pulsar returns when there are no message to peek, it doesn't just return an empty list
-	pulsarNotFoundError = rest.Error{messageNotFound, 404}
-)
+// This is what pulsar returns when there are no message to peek, it doesn't just return an empty list
+var pulsarNotFoundError = rest.Error{messageNotFound, 404}
 
 func TestInitialise(t *testing.T) {
 	delayMonitor, _, _, _, _ := setupTopicDelayMonitorTest()
