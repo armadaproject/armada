@@ -27,7 +27,7 @@ type PulsarConfig struct {
 	// Path to the JWT token (must exist). This must be set if AuthenticationType is "JWT"
 	JwtTokenPath string
 	// The config for topic processing delay monitor
-	DelayMonitor *TopicDelayMonitor
+	DelayMonitor TopicDelayMonitor
 	// The pulsar topic that Jobset Events will be published to
 	JobsetEventsTopic string
 	// The pulsar topic that Control Plane Events will be published to

@@ -89,8 +89,6 @@ func (t *TopicProcessingDelayMonitor) Run(ctx *armadacontext.Context) error {
 	}
 
 	wg := &sync.WaitGroup{}
-	wg.Add(1)
-
 	for _, topic := range t.partitions {
 		wg.Add(1)
 		go func(topic *pulsarutils.TopicName) {
@@ -98,8 +96,6 @@ func (t *TopicProcessingDelayMonitor) Run(ctx *armadacontext.Context) error {
 			wg.Done()
 		}(topic)
 	}
-
-	wg.Done()
 	wg.Wait()
 	return nil
 }
