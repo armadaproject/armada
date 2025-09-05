@@ -1,4 +1,4 @@
-import { ElementType, MouseEvent, RefObject, useEffect, useRef, useState } from "react"
+import { ElementType, MouseEvent, RefObject, useCallback, useEffect, useRef, useState } from "react"
 
 import { Check, MoreVert } from "@mui/icons-material"
 import {
@@ -18,6 +18,7 @@ import {
 import Menu from "@mui/material/Menu"
 import { useDebouncedCallback } from "use-debounce"
 
+import { validDateFromNullableIsoString } from "../common/dates"
 import {
   ANNOTATION_COLUMN_PREFIX,
   FilterType,
@@ -29,6 +30,7 @@ import { Match, MATCH_DISPLAY_STRINGS } from "../models/lookoutModels"
 import { CustomPaletteColorToken } from "../theme"
 
 import { QueueFilter } from "./QueueFilter"
+import { TimeRangeSelector, type TimeRange } from "./TimeRangeSelector"
 
 const ELLIPSIS = "\u2026"
 
@@ -67,6 +69,17 @@ export const JobsTableFilter = ({
   onColumnMatchChange,
   onSetTextFieldRef,
 }: JobsTableFilterProps) => {
+  const onTimeRangeFilterChange = useCallback(
+    ({ startIsoString, endIsoString }: TimeRange) => {
+      if (!startIsoString && !endIsoString) {
+        onFilterChange(undefined)
+      } else {
+        onFilterChange([startIsoString ?? "", endIsoString ?? ""])
+      }
+    },
+    [onFilterChange],
+  )
+
   if (id === StandardColumnId.Queue) {
     return (
       <QueueFilter
@@ -93,6 +106,22 @@ export const JobsTableFilter = ({
         onFilterChange={onFilterChange}
       />
     )
+  } else if (filterType === FilterType.DateTimeRange) {
+    const timeRange: TimeRange = { startIsoString: null, endIsoString: null }
+
+    if (Array.isArray(currentFilter) && currentFilter.length === 2) {
+      const startDate = validDateFromNullableIsoString(currentFilter[0])
+      if (startDate) {
+        timeRange.startIsoString = startDate.toISOString()
+      }
+
+      const endDate = validDateFromNullableIsoString(currentFilter[1])
+      if (endDate) {
+        timeRange.endIsoString = endDate.toISOString()
+      }
+    }
+
+    filter = <TimeRangeSelector value={timeRange} onChange={onTimeRangeFilterChange} />
   } else {
     filter = (
       <TextFilter
