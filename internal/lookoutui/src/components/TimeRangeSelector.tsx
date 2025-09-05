@@ -1,6 +1,6 @@
 import { useState } from "react"
 
-import { alpha, Box, Button, Grid2, MenuItem, MenuList, Popover, Stack, styled, Typography } from "@mui/material"
+import { alpha, Box, Button, Grid, MenuItem, MenuList, Popover, Stack, styled, Typography } from "@mui/material"
 import { DateTimePicker } from "@mui/x-date-pickers"
 import dayjs, { Dayjs } from "dayjs"
 
@@ -34,7 +34,7 @@ const StyledButton = styled(Button, { shouldForwardProp: (propName) => propName 
   },
 }))
 
-const PopoverGridContainer = styled(Grid2)({
+const PopoverGridContainer = styled(Grid)({
   width: "60ch",
 })
 
@@ -173,7 +173,7 @@ export const TimeRangeSelector = ({ value: { startIsoString, endIsoString }, onC
       >
         <div>
           <PopoverGridContainer container>
-            <Grid2 size={7} p={SPACING.sm}>
+            <Grid size={7} p={SPACING.sm}>
               <div>
                 <DateTimePicker
                   key={dateTimeSelectorKey}
@@ -209,8 +209,8 @@ export const TimeRangeSelector = ({ value: { startIsoString, endIsoString }, onC
                   maxDateTime={now}
                 />
               </div>
-            </Grid2>
-            <Grid2 size={5} borderLeft={(theme) => `1px solid ${theme.palette.divider}`}>
+            </Grid>
+            <Grid size={5} borderLeft={(theme) => `1px solid ${theme.palette.divider}`}>
               <MenuList dense>
                 {presetTimeRangeOptions.map(({ displayName, getStartIsoString, getEndIsoString }) => (
                   <MenuItem
@@ -224,8 +224,8 @@ export const TimeRangeSelector = ({ value: { startIsoString, endIsoString }, onC
                   </MenuItem>
                 ))}
               </MenuList>
-            </Grid2>
-            <Grid2 size={12} p={SPACING.sm} borderTop={(theme) => `1px solid ${theme.palette.divider}`}>
+            </Grid>
+            <Grid size={12} p={SPACING.sm} borderTop={(theme) => `1px solid ${theme.palette.divider}`}>
               <Stack direction="row" spacing={SPACING.xs} alignContent="center">
                 <div>
                   <Typography component="p" variant="body2">
@@ -254,7 +254,7 @@ export const TimeRangeSelector = ({ value: { startIsoString, endIsoString }, onC
                   </Button>
                 </Box>
               </Stack>
-            </Grid2>
+            </Grid>
           </PopoverGridContainer>
         </div>
       </Popover>

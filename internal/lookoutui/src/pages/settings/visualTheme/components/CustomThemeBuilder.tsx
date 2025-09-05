@@ -8,7 +8,7 @@ import {
   Divider,
   FormControlLabel,
   FormLabel,
-  Grid2,
+  Grid,
   IconButton,
   Paper,
   Slider,
@@ -82,7 +82,7 @@ interface TextFieldProps {
 }
 
 const ThemedTextField = ({ id, label, value, onChange }: TextFieldProps) => (
-  <Grid2 size={{ xs: 6 }}>
+  <Grid size={{ xs: 6 }}>
     <TextField
       id={id}
       margin="normal"
@@ -93,7 +93,7 @@ const ThemedTextField = ({ id, label, value, onChange }: TextFieldProps) => (
       value={value}
       onChange={({ target: { value } }) => onChange(value)}
     />
-  </Grid2>
+  </Grid>
 )
 
 interface CheckboxFieldProps {
@@ -103,13 +103,13 @@ interface CheckboxFieldProps {
 }
 
 const ThemedCheckboxField = ({ label, checked, onChange }: CheckboxFieldProps) => (
-  <Grid2 size={{ xs: 6 }}>
+  <Grid size={{ xs: 6 }}>
     <FormControlLabel
       control={<Checkbox checked={checked} />}
       onChange={(_, checked) => onChange(checked)}
       label={label}
     />
-  </Grid2>
+  </Grid>
 )
 
 interface ColourRowProps {
@@ -215,10 +215,10 @@ export const CustomThemeBuilder = () => {
 
   return (
     <Stack spacing={SPACING.sm}>
-      <Grid2 container spacing={SPACING.sm}>
-        <Grid2 size={12}>
+      <Grid container spacing={SPACING.sm}>
+        <Grid size={12}>
           <Typography variant="h6">Typography</Typography>
-        </Grid2>
+        </Grid>
         {TYPOGRAPHY_FIELDS.map(({ displayName, key }) => (
           <ThemedTextField
             key={key}
@@ -236,10 +236,10 @@ export const CustomThemeBuilder = () => {
             onChange={(checked) => handleFieldChange(key, checked)}
           />
         ))}
-        <Grid2 size={12}>
+        <Grid size={12}>
           <Typography variant="h6">Shape</Typography>
-        </Grid2>
-        <Grid2 size={{ xs: 6 }}>
+        </Grid>
+        <Grid size={{ xs: 6 }}>
           <FormLabel>Border radius</FormLabel>
           <SliderContainer>
             <Slider
@@ -259,11 +259,11 @@ export const CustomThemeBuilder = () => {
               max={12}
             />
           </SliderContainer>
-        </Grid2>
-        <Grid2 size={12}>
+        </Grid>
+        <Grid size={12}>
           <Typography variant="h6">Colour palette</Typography>
-        </Grid2>
-        <Grid2 size={12}>
+        </Grid>
+        <Grid size={12}>
           <ColoursTableContainer component={Paper}>
             <Table size="small">
               <TableHead>
@@ -292,8 +292,8 @@ export const CustomThemeBuilder = () => {
               </TableBody>
             </Table>
           </ColoursTableContainer>
-        </Grid2>
-      </Grid2>
+        </Grid>
+      </Grid>
       <div>
         <Divider variant="fullWidth" />
       </div>
