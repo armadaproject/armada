@@ -6,12 +6,15 @@ import { Job, JobFilter, JobFiltersWithExcludes, JobGroup, JobOrder, Match } fro
 import { IGetJobsService } from "../services/lookout/GetJobsService"
 import { GroupedField, IGroupJobsService } from "../services/lookout/GroupJobsService"
 
+import { validDateFromNullableIsoString } from "./dates"
 import {
   ANNOTATION_COLUMN_PREFIX,
   AnnotationColumnId,
   DEFAULT_COLUMN_MATCHES,
   fromAnnotationColId,
   isStandardColId,
+  StandardColumnId,
+  TIME_RANGE_FILTER_COLUMNS,
   VALID_COLUMN_MATCHES,
 } from "./jobsTableColumns"
 import { findRowInData, fromRowId, RowId, RowIdParts, toRowId } from "./reactTableUtils"
@@ -60,6 +63,10 @@ export const matchForColumn = (columnId: string, columnMatches: Record<string, M
   }
 
   if (!(columnId in columnMatches)) {
+    return match
+  }
+
+  if (isStandardColId(columnId) && TIME_RANGE_FILTER_COLUMNS.has(columnId)) {
     return match
   }
 
@@ -122,7 +129,7 @@ export function getFiltersForRow(
   expandedRowIdParts: RowIdParts[],
 ): JobFilter[] {
   const filterColumnsIndexes = new Map<string, number>()
-  const jobFilters = filters.map(({ id, value }, i) => {
+  const jobFilters = filters.flatMap(({ id, value }, i) => {
     const isArray = _.isArray(value)
     const isAnnotation = !isStandardColId(id)
     let field = id
@@ -130,13 +137,50 @@ export function getFiltersForRow(
       field = fromAnnotationColId(id as AnnotationColumnId)
     }
     filterColumnsIndexes.set(field, i)
-    const match = matchForColumn(id, columnMatches)
-    return {
-      isAnnotation: isAnnotation,
-      field: field,
-      value: isArray ? (value as string[]) : (value as string),
-      match: match,
+
+    if (isStandardColId(id) && TIME_RANGE_FILTER_COLUMNS.has(id)) {
+      if (!isArray || value.length !== 2) {
+        return []
+      }
+
+      if (id === StandardColumnId.TimeSubmittedUtc) {
+        field = "submitted"
+      }
+
+      const timeRangeFilters: JobFilter[] = []
+
+      const startDate = validDateFromNullableIsoString(value[0] as string)
+      if (startDate) {
+        timeRangeFilters.push({
+          isAnnotation: false,
+          field,
+          value: startDate.toISOString(),
+          match: Match.GreaterThanOrEqual,
+        })
+      }
+
+      const endDate = validDateFromNullableIsoString(value[1] as string)
+      if (endDate) {
+        timeRangeFilters.push({
+          isAnnotation: false,
+          field,
+          value: endDate.toISOString(),
+          match: Match.LessThanOrEqual,
+        })
+      }
+
+      return timeRangeFilters
     }
+
+    const match = matchForColumn(id, columnMatches)
+    return [
+      {
+        isAnnotation: isAnnotation,
+        field: field,
+        value: isArray ? (value as string[]) : (value as string),
+        match: match,
+      },
+    ]
   })
 
   // Overwrite for expanded groups

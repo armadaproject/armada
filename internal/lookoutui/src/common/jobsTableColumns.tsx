@@ -17,6 +17,7 @@ export type JobTableColumn = ColumnDef<JobTableRow, any>
 export enum FilterType {
   Text = "Text",
   Enum = "Enum",
+  DateTimeRange = "DateTimeRange",
 }
 
 export interface JobTableColumnMetadata {
@@ -470,7 +471,12 @@ export const GET_JOB_COLUMNS = ({
     accessor: ({ submitted }) => formatIsoTimestamp(submitted, "compact"),
     displayName: `${STANDARD_COLUMN_DISPLAY_NAMES[StandardColumnId.TimeSubmittedUtc]} (${displayedTimeZoneName})`,
     additionalOptions: {
+      enableColumnFilter: true,
       enableSorting: true,
+    },
+    additionalMetadata: {
+      filterType: FilterType.DateTimeRange,
+      allowCopy: true,
     },
   }),
   accessorColumn({
@@ -578,6 +584,8 @@ export const INPUT_PARSERS: Record<ParseType, (val: string) => number | string |
   Int: parseInteger,
   Bytes: parseBytes,
 }
+
+export const TIME_RANGE_FILTER_COLUMNS: Set<StandardColumnId> = new Set([StandardColumnId.TimeSubmittedUtc])
 
 export const DEFAULT_COLUMN_MATCHES: Record<string, Match> = {
   [StandardColumnId.Queue]: Match.AnyOf,

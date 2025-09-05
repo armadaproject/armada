@@ -331,7 +331,9 @@ export const BodyCell = ({
             : undefined
         }
         filterAction={
-          rowIsGroup || !cell.getValue() || columnMetadata.filterType === undefined
+          rowIsGroup ||
+          !cell.getValue() ||
+          (columnMetadata.filterType !== FilterType.Enum && columnMetadata.filterType !== FilterType.Text)
             ? undefined
             : {
                 onFilter: () => {

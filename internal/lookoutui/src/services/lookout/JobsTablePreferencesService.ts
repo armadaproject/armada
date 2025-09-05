@@ -2,7 +2,7 @@ import { ColumnFiltersState, ExpandedStateList, VisibilityState } from "@tanstac
 import _ from "lodash"
 import qs from "qs"
 
-import { LookoutColumnOrder } from "../../common/jobsTableColumns"
+import { LookoutColumnOrder, TIME_RANGE_FILTER_COLUMNS } from "../../common/jobsTableColumns"
 import {
   AnnotationColumnId,
   ColumnId,
@@ -224,12 +224,13 @@ const mergeQueryParamsAndLocalStorage = (
 const ensureFiltersAreConsistent = (filters: ColumnFiltersState, columnMatches: Record<string, Match>) => {
   filters.forEach(({ id, value }, i) => {
     const match = columnMatches[id]
-    if (match === Match.AnyOf && !_.isArray(value)) {
+    const isTimeRangeFilterColumn = isStandardColId(id) && TIME_RANGE_FILTER_COLUMNS.has(id)
+    if ((match === Match.AnyOf || isTimeRangeFilterColumn) && !_.isArray(value)) {
       // To prevent confusion, we clear the filter completely if the stored value is unexpectedly not an array
       filters[i].value = undefined
     }
 
-    if (match !== Match.AnyOf && _.isArray(value)) {
+    if (!(match === Match.AnyOf || isTimeRangeFilterColumn) && _.isArray(value)) {
       // We use the first element of the value array if the stored value is unexpectedly an array
       filters[i].value = value[0]
     }

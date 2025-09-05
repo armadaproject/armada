@@ -1,11 +1,11 @@
-import { TypographyOptions } from "@mui/material/styles/createTypography"
+import { type TypographyVariantsOptions } from "@mui/material/styles"
 
 import { LookoutThemeConfigOptions } from "./lookoutThemeConfig"
 
 const DEFAULT_FALLBACK_FONT_FAMILY = ["Arial", "sans-serif"].map((f) => `'${f}'`).join(",")
 const DEFAULT_FALLBACK_MONOSPACE_FONT_FAMILY = ["Courier New", "monospace"].map((f) => `'${f}'`).join(",")
 
-export const createTypographyOptions = (config: Required<LookoutThemeConfigOptions>): TypographyOptions => ({
+export const createTypographyOptions = (config: Required<LookoutThemeConfigOptions>): TypographyVariantsOptions => ({
   fontFamily: [config.fontFamily, DEFAULT_FALLBACK_FONT_FAMILY].join(","),
   h1: {
     fontSize: "3rem",

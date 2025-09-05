@@ -1,4 +1,4 @@
-import { Card, CardActionArea, CardContent, Chip, Divider, Grid2, Stack, styled, Typography } from "@mui/material"
+import { Card, CardActionArea, CardContent, Chip, Divider, Grid, Stack, styled, Typography } from "@mui/material"
 
 import { SPACING } from "../../../../common/spacing"
 import { LookoutThemeConfigOptions } from "../../../../theme"
@@ -52,14 +52,14 @@ export const ThemePreviewCard = ({
         </>
       )}
       <CardContent>
-        <Grid2 container spacing={SPACING.sm}>
-          <Grid2 size={{ xs: 12, lg: 6 }}>
+        <Grid container spacing={SPACING.sm}>
+          <Grid size={{ xs: 12, lg: 6 }}>
             <ThemePreview themeConfig={themeConfig} colourMode="light" />
-          </Grid2>
-          <Grid2 size={{ xs: 12, lg: 6 }}>
+          </Grid>
+          <Grid size={{ xs: 12, lg: 6 }}>
             <ThemePreview themeConfig={themeConfig} colourMode="dark" />
-          </Grid2>
-        </Grid2>
+          </Grid>
+        </Grid>
       </CardContent>
     </CardActionArea>
   </StyledCard>

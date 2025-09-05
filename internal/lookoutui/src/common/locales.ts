@@ -1,6 +1,21 @@
 // Identifiers for the set of common locales from which Lookout users can select for formatting options.
 // See https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl#locales_argument.
 
+import dayJsLocaleAr from "dayjs/locale/ar"
+import dayJsLocaleDe from "dayjs/locale/de"
+import dayJsLocaleEn from "dayjs/locale/en"
+import dayJsLocaleEnAu from "dayjs/locale/en-au"
+import dayJsLocaleEnGb from "dayjs/locale/en-gb"
+import dayJsLocaleEnIn from "dayjs/locale/en-in"
+import dayJsLocaleEs from "dayjs/locale/es"
+import dayJsLocaleEsMx from "dayjs/locale/es-mx"
+import dayJsLocaleFr from "dayjs/locale/fr"
+import dayJsLocaleIt from "dayjs/locale/it"
+import dayJsLocaleJa from "dayjs/locale/ja"
+import dayJsLocalePtBr from "dayjs/locale/pt-br"
+import dayJsLocaleRu from "dayjs/locale/ru"
+import dayJsLocaleZhCr from "dayjs/locale/zh-cn"
+
 export const BROWSER_LOCALE = "browser" as const
 
 export const SUPPORTED_LOCALES = [
@@ -21,6 +36,24 @@ export const SUPPORTED_LOCALES = [
 ] as const
 
 export type SupportedLocale = (typeof SUPPORTED_LOCALES)[number]
+
+// Ensures a dayjs locale is imported for each supported locale
+export const dayJsLocales: Record<SupportedLocale, [string, ILocale]> = {
+  "en-US": ["en", dayJsLocaleEn],
+  "en-GB": ["en-gb", dayJsLocaleEnGb],
+  "en-IN": ["en-in", dayJsLocaleEnIn],
+  "en-AU": ["en-au", dayJsLocaleEnAu],
+  fr: ["fr", dayJsLocaleFr],
+  de: ["de", dayJsLocaleDe],
+  es: ["es", dayJsLocaleEs],
+  "es-MX": ["es-mx", dayJsLocaleEsMx],
+  "pt-BR": ["pt-br", dayJsLocalePtBr],
+  it: ["it", dayJsLocaleIt],
+  "zh-CN": ["zh-cn", dayJsLocaleZhCr],
+  ru: ["ru", dayJsLocaleRu],
+  ja: ["ja", dayJsLocaleJa],
+  ar: ["ar", dayJsLocaleAr],
+}
 
 const FALLBACK_LOCALE: SupportedLocale = "en-US"
 
