@@ -92,8 +92,8 @@ func (t *TopicProcessingDelayMonitor) Run(ctx *armadacontext.Context) error {
 	for _, topic := range t.partitions {
 		wg.Add(1)
 		go func(topic *pulsarutils.TopicName) {
+			defer wg.Done()
 			t.monitorPartitionDelay(ctx, topic)
-			wg.Done()
 		}(topic)
 	}
 	wg.Wait()
