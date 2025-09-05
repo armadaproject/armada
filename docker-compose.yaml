@@ -41,6 +41,7 @@ services:
     entrypoint: sh -c "bin/apply-config-from-env.py conf/standalone.conf && bin/pulsar standalone"
     ports:
       - 0.0.0.0:6650:6650
+      - 0.0.0.0:8090:8080
     networks:
       - kind
 

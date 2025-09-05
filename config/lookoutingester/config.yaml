@@ -9,9 +9,13 @@ postgres:
 metricsPort: 9002
 pulsar:
   URL: "pulsar://pulsar:6650"
+  restURL: "http://localhost:8090"
   jobsetEventsTopic: "events"
   backoffTime: 1s
   receiverQueueSize: 100
+  delayMonitor:
+    enabled: false
+    interval: 30s
 subscriptionName: "lookout-ingester-v2"
 batchSize: 10000
 batchDuration: 500ms

@@ -20,7 +20,7 @@ type MockPulsarMessage struct {
 }
 
 func NewMessageId(id int) pulsar.MessageID {
-	return MockMessageId{id: id}
+	return MockMessageId{MessageID: pulsar.NewMessageID(0, int64(id), 0, 0), id: id}
 }
 
 func NewPulsarMessage(id int, publishTime time.Time, payload []byte) MockPulsarMessage {
