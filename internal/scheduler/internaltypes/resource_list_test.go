@@ -82,17 +82,16 @@ func TestGetResources(t *testing.T) {
 	factory := testFactory()
 	a := testResourceList(factory, "1", "1Gi")
 
+	zero := *k8sResource.NewScaledQuantity(0, k8sResource.Scale(0))
+	zeroMillis := *k8sResource.NewScaledQuantity(0, k8sResource.Milli)
 	expected := []Resource{
-		{Name: "memory", RawValue: 1024 * 1024 * 1024, Scale: k8sResource.Scale(0), Type: Kubernetes},
-		{Name: "ephemeral-storage", RawValue: 0, Scale: k8sResource.Scale(0), Type: Kubernetes},
-		{Name: "cpu", RawValue: 1000, Scale: k8sResource.Milli, Type: Kubernetes},
-		{Name: "nvidia.com/gpu", RawValue: 0, Scale: k8sResource.Milli, Type: Kubernetes},
-		{Name: "external-storage-connections", RawValue: 0, Scale: 0, Type: Floating},
-		{Name: "external-storage-bytes", RawValue: 0, Scale: 0, Type: Floating},
-	}
 
-	for i, r := range expected {
-		expected[i].Value = *k8sResource.NewScaledQuantity(r.RawValue, r.Scale)
+		{Name: "memory", Value: *k8sResource.NewScaledQuantity(1024*1024*1024, k8sResource.Scale(0)), Scale: k8sResource.Scale(0), Type: Kubernetes},
+		{Name: "ephemeral-storage", Value: zero, Scale: k8sResource.Scale(0), Type: Kubernetes},
+		{Name: "cpu", Value: *k8sResource.NewScaledQuantity(1000, k8sResource.Milli), Scale: k8sResource.Milli, Type: Kubernetes},
+		{Name: "nvidia.com/gpu", Value: zeroMillis, Scale: k8sResource.Milli, Type: Kubernetes},
+		{Name: "external-storage-connections", Value: zero, Scale: k8sResource.Scale(0), Type: Floating},
+		{Name: "external-storage-bytes", Value: zero, Scale: k8sResource.Scale(0), Type: Floating},
 	}
 
 	assert.Equal(t, expected, a.GetResources())
