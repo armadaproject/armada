@@ -80,7 +80,7 @@ func TestResourceIsNegative(t *testing.T) {
 			expected: false,
 		},
 		{
-			name: "negative raw value",
+			name: "negative value",
 			resource: Resource{
 				Name:  "memory",
 				Value: *k8sResource.NewScaledQuantity(-1024*1024*1024, k8sResource.Scale(0)),
