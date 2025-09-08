@@ -40,7 +40,7 @@ func (rl ResourceList) String() string {
 	return "(" + strings.Join(parts, ",") + ")"
 }
 
-func (rl ResourceList) GetByName(name string) (int64, error) {
+func (rl ResourceList) GetRawByName(name string) (int64, error) {
 	if rl.IsEmpty() {
 		return 0, fmt.Errorf("resource type %s not found as resource list is empty", name)
 	}
@@ -51,7 +51,7 @@ func (rl ResourceList) GetByName(name string) (int64, error) {
 	return rl.resources[index], nil
 }
 
-func (rl ResourceList) GetByNameZeroIfMissing(name string) int64 {
+func (rl ResourceList) GetRawByNameZeroIfMissing(name string) int64 {
 	if rl.IsEmpty() {
 		return 0
 	}
@@ -62,7 +62,7 @@ func (rl ResourceList) GetByNameZeroIfMissing(name string) int64 {
 	return rl.resources[index]
 }
 
-func (rl ResourceList) GetResourceByNameZeroIfMissing(name string) k8sResource.Quantity {
+func (rl ResourceList) GetByNameZeroIfMissing(name string) k8sResource.Quantity {
 	if rl.IsEmpty() {
 		return k8sResource.Quantity{}
 	}
@@ -75,7 +75,7 @@ func (rl ResourceList) GetResourceByNameZeroIfMissing(name string) k8sResource.Q
 	return *rl.asQuantity(index)
 }
 
-func (rl ResourceList) GetResources() []Resource {
+func (rl ResourceList) GetAll() []Resource {
 	if rl.IsEmpty() {
 		return []Resource{}
 	}

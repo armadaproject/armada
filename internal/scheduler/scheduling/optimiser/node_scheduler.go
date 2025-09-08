@@ -256,11 +256,11 @@ func isTooLargeToEvict(job *jobdb.Job, limit *internaltypes.ResourceList) bool {
 	if jobResources.Factory() != limit.Factory() {
 		panic("mismatched ResourceListFactory in node_scheduler")
 	}
-	for i, resource := range limit.GetResources() {
+	for i, resource := range limit.GetAll() {
 		if resource.Value.IsZero() {
 			continue
 		}
-		result := resource.Value.Cmp(jobResources.GetResources()[i].Value)
+		result := resource.Value.Cmp(jobResources.GetAll()[i].Value)
 		if result < 0 {
 			return true
 		}

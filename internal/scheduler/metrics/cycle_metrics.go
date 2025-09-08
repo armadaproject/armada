@@ -463,10 +463,10 @@ func (m *cycleMetrics) ReportSchedulerResult(ctx *armadacontext.Context, result 
 			currentCycle.rawQueueWeight.WithLabelValues(pool, queue).Set(queueContext.RawWeight)
 			currentCycle.idealisedScheduledValue.WithLabelValues(pool, queue).Set(queueContext.IdealisedValue)
 			currentCycle.realisedScheduledValue.WithLabelValues(pool, queue).Set(queueContext.RealisedValue)
-			for _, r := range queueContext.GetBillableResource().GetResources() {
+			for _, r := range queueContext.GetBillableResource().GetAll() {
 				currentCycle.billableResource.WithLabelValues(pool, queue, r.Name).Set(r.Value.AsApproximateFloat64())
 			}
-			for _, r := range queueContext.IdealisedAllocated.GetResources() {
+			for _, r := range queueContext.IdealisedAllocated.GetAll() {
 				currentCycle.idealisedAllocatedResource.WithLabelValues(pool, queue, r.Name).Set(r.Value.AsApproximateFloat64())
 			}
 		}
@@ -507,7 +507,7 @@ func (m *cycleMetrics) ReportSchedulerResult(ctx *armadacontext.Context, result 
 		for queue, s := range schedulingStats.EvictorResult.GetStatsPerQueue() {
 			currentCycle.evictedJobs.WithLabelValues(pool, queue).Set(float64(s.EvictedJobCount))
 
-			for _, r := range s.EvictedResources.GetResources() {
+			for _, r := range s.EvictedResources.GetAll() {
 				currentCycle.evictedResources.WithLabelValues(pool, queue, r.Name).Set(r.Value.AsApproximateFloat64())
 			}
 		}
@@ -529,12 +529,12 @@ func (m *cycleMetrics) ReportSchedulerResult(ctx *armadacontext.Context, result 
 			for _, node := range nodes {
 				isSchedulable := strconv.FormatBool(!node.IsUnschedulable())
 				isOverallocated := strconv.FormatBool(node.IsOverAllocated())
-				for _, resource := range node.GetAllocatableResources().GetResources() {
+				for _, resource := range node.GetAllocatableResources().GetAll() {
 					currentCycle.nodeAllocatableResource.WithLabelValues(node.GetPool(), node.GetName(), node.GetExecutor(), node.GetReportingNodeType(), resource.Name, isSchedulable, isOverallocated).Set(resource.Value.AsApproximateFloat64())
 				}
 
 				allocated := node.GetAllocatableResources().Subtract(node.AllocatableByPriority[internaltypes.EvictedPriority])
-				for _, resource := range allocated.GetResources() {
+				for _, resource := range allocated.GetAll() {
 					allocatableValue := math.Max(resource.Value.AsApproximateFloat64(), 0)
 					currentCycle.nodeAllocatedResource.WithLabelValues(node.GetPool(), node.GetName(), node.GetExecutor(), node.GetReportingNodeType(), resource.Name, isSchedulable, isOverallocated).Set(allocatableValue)
 				}

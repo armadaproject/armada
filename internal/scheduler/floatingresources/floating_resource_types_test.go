@@ -67,12 +67,12 @@ func TestGetTotalAvailableForPool(t *testing.T) {
 	sut := makeSut(t, makeRlFactory())
 
 	cpuPool := sut.GetTotalAvailableForPool("cpu")
-	assert.Equal(t, "200", qToStr(cpuPool.GetResourceByNameZeroIfMissing("floating-resource-1")))
-	assert.Equal(t, "300", qToStr(cpuPool.GetResourceByNameZeroIfMissing("floating-resource-2")))
+	assert.Equal(t, "200", qToStr(cpuPool.GetByNameZeroIfMissing("floating-resource-1")))
+	assert.Equal(t, "300", qToStr(cpuPool.GetByNameZeroIfMissing("floating-resource-2")))
 
 	gpuPool := sut.GetTotalAvailableForPool("gpu")
-	assert.Equal(t, "100", qToStr(gpuPool.GetResourceByNameZeroIfMissing("floating-resource-1")))
-	assert.Equal(t, "0", qToStr(gpuPool.GetResourceByNameZeroIfMissing("floating-resource-2")))
+	assert.Equal(t, "100", qToStr(gpuPool.GetByNameZeroIfMissing("floating-resource-1")))
+	assert.Equal(t, "0", qToStr(gpuPool.GetByNameZeroIfMissing("floating-resource-2")))
 
 	notFound := sut.GetTotalAvailableForPool("some-invalid-value")
 	assert.True(t, notFound.IsEmpty())
