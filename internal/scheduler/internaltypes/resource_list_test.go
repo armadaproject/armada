@@ -34,51 +34,51 @@ func TestEqual_HandlesEmptyCorrectly(t *testing.T) {
 	assert.False(t, e1.Equal(a))
 }
 
-func TestGetByName(t *testing.T) {
+func TestGetRawByName(t *testing.T) {
 	factory := testFactory()
 	a := testResourceList(factory, "1", "1Gi")
 
-	cpu, err := a.GetByName("cpu")
+	cpu, err := a.GetRawByName("cpu")
 	assert.Nil(t, err)
 	assert.Equal(t, int64(1000), cpu)
 
-	_, err = a.GetByName("missing")
+	_, err = a.GetRawByName("missing")
 	assert.NotNil(t, err)
 }
 
-func TestGetByName_HandlesEmptyCorrectly(t *testing.T) {
+func TestGetRawByName_HandlesEmptyCorrectly(t *testing.T) {
 	empty := ResourceList{}
-	_, err := empty.GetByName("cpu")
+	_, err := empty.GetRawByName("cpu")
 	assert.NotNil(t, err)
+}
+
+func TestGetRawByNameZeroIfMissing(t *testing.T) {
+	factory := testFactory()
+	a := testResourceList(factory, "1", "1Gi")
+
+	assert.Equal(t, int64(1000), a.GetRawByNameZeroIfMissing("cpu"))
+	assert.Equal(t, int64(0), a.GetRawByNameZeroIfMissing("missing"))
+}
+
+func TestGetRawByNameZeroIfMissing_HandlesEmptyCorrectly(t *testing.T) {
+	empty := ResourceList{}
+	assert.Equal(t, int64(0), empty.GetRawByNameZeroIfMissing("missing"))
 }
 
 func TestGetByNameZeroIfMissing(t *testing.T) {
 	factory := testFactory()
 	a := testResourceList(factory, "1", "1Gi")
 
-	assert.Equal(t, int64(1000), a.GetByNameZeroIfMissing("cpu"))
-	assert.Equal(t, int64(0), a.GetByNameZeroIfMissing("missing"))
+	assert.Equal(t, *k8sResource.NewScaledQuantity(1000, k8sResource.Milli), a.GetByNameZeroIfMissing("cpu"))
+	assert.Equal(t, k8sResource.Quantity{}, a.GetByNameZeroIfMissing("missing"))
 }
 
 func TestGetByNameZeroIfMissing_HandlesEmptyCorrectly(t *testing.T) {
 	empty := ResourceList{}
-	assert.Equal(t, int64(0), empty.GetByNameZeroIfMissing("missing"))
+	assert.Equal(t, k8sResource.Quantity{}, empty.GetByNameZeroIfMissing("missing"))
 }
 
-func TestGetResourceByNameZeroIfMissing(t *testing.T) {
-	factory := testFactory()
-	a := testResourceList(factory, "1", "1Gi")
-
-	assert.Equal(t, *k8sResource.NewScaledQuantity(1000, k8sResource.Milli), a.GetResourceByNameZeroIfMissing("cpu"))
-	assert.Equal(t, k8sResource.Quantity{}, a.GetResourceByNameZeroIfMissing("missing"))
-}
-
-func TestGetResourceByNameZeroIfMissing_HandlesEmptyCorrectly(t *testing.T) {
-	empty := ResourceList{}
-	assert.Equal(t, k8sResource.Quantity{}, empty.GetResourceByNameZeroIfMissing("missing"))
-}
-
-func TestGetResources(t *testing.T) {
+func TestGetAll(t *testing.T) {
 	factory := testFactory()
 	a := testResourceList(factory, "1", "1Gi")
 
@@ -94,12 +94,12 @@ func TestGetResources(t *testing.T) {
 		{Name: "external-storage-bytes", Value: zero, Scale: k8sResource.Scale(0), Type: Floating},
 	}
 
-	assert.Equal(t, expected, a.GetResources())
+	assert.Equal(t, expected, a.GetAll())
 }
 
-func TestGetResources_HandlesEmptyCorrectly(t *testing.T) {
+func TestGetAll_HandlesEmptyCorrectly(t *testing.T) {
 	empty := ResourceList{}
-	assert.Equal(t, 0, len(empty.GetResources()))
+	assert.Equal(t, 0, len(empty.GetAll()))
 }
 
 func TestToMap(t *testing.T) {
@@ -327,28 +327,28 @@ func TestMultiply_HandlesInfinityCorrectly(t *testing.T) {
 	factory := testFactory()
 
 	result1 := testResourceList(factory, "100", "100Ki").Multiply(testResourceFractionList(factory, 0.75, math.Inf(1), 1))
-	assert.Equal(t, int64(75000), result1.GetByNameZeroIfMissing("cpu"))
-	assert.Equal(t, int64(math.MaxInt64), result1.GetByNameZeroIfMissing("memory"))
+	assert.Equal(t, int64(75000), result1.GetRawByNameZeroIfMissing("cpu"))
+	assert.Equal(t, int64(math.MaxInt64), result1.GetRawByNameZeroIfMissing("memory"))
 
 	result2 := testResourceList(factory, "100", "0").Multiply(testResourceFractionList(factory, 0.75, math.Inf(1), 1))
-	assert.Equal(t, int64(math.MaxInt64), result2.GetByNameZeroIfMissing("memory"))
+	assert.Equal(t, int64(math.MaxInt64), result2.GetRawByNameZeroIfMissing("memory"))
 
 	result3 := testResourceList(factory, "100", "-100Ki").Multiply(testResourceFractionList(factory, 0.75, math.Inf(1), 1))
-	assert.Equal(t, int64(math.MinInt64), result3.GetByNameZeroIfMissing("memory"))
+	assert.Equal(t, int64(math.MinInt64), result3.GetRawByNameZeroIfMissing("memory"))
 }
 
 func TestMultiply_HandlesMinusInfinityCorrectly(t *testing.T) {
 	factory := testFactory()
 
 	result1 := testResourceList(factory, "100", "100Ki").Multiply(testResourceFractionList(factory, 0.75, math.Inf(-1), 1))
-	assert.Equal(t, int64(75000), result1.GetByNameZeroIfMissing("cpu"))
-	assert.Equal(t, int64(math.MinInt64), result1.GetByNameZeroIfMissing("memory"))
+	assert.Equal(t, int64(75000), result1.GetRawByNameZeroIfMissing("cpu"))
+	assert.Equal(t, int64(math.MinInt64), result1.GetRawByNameZeroIfMissing("memory"))
 
 	result2 := testResourceList(factory, "100", "0").Multiply(testResourceFractionList(factory, 0.75, math.Inf(-1), 1))
-	assert.Equal(t, int64(math.MinInt64), result2.GetByNameZeroIfMissing("memory"))
+	assert.Equal(t, int64(math.MinInt64), result2.GetRawByNameZeroIfMissing("memory"))
 
 	result3 := testResourceList(factory, "100", "-100Ki").Multiply(testResourceFractionList(factory, 0.75, math.Inf(-1), 1))
-	assert.Equal(t, int64(math.MaxInt64), result3.GetByNameZeroIfMissing("memory"))
+	assert.Equal(t, int64(math.MaxInt64), result3.GetRawByNameZeroIfMissing("memory"))
 }
 
 func TestMultiply_HandlesEmptyCorrectly(t *testing.T) {

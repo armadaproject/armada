@@ -76,10 +76,10 @@ func (j *JobWriter) createJobRunRow(st *model.StateTransition) ([]*JobRunRow, er
 		associatedJob := jobsList[i]
 		if event.GetCancelledJob() != nil || event.GetJobSucceeded() != nil || event.GetJobRunPreempted() != nil {
 			// Resource requirements
-			cpuLimit := associatedJob.AllResourceRequirements().GetResourceByNameZeroIfMissing("cpu")
-			memoryLimit := associatedJob.AllResourceRequirements().GetResourceByNameZeroIfMissing("memory")
-			ephemeralStorageLimit := associatedJob.AllResourceRequirements().GetResourceByNameZeroIfMissing("ephemeral-storage")
-			gpuLimit := associatedJob.AllResourceRequirements().GetResourceByNameZeroIfMissing("nvidia.com/gpu")
+			cpuLimit := associatedJob.AllResourceRequirements().GetByNameZeroIfMissing("cpu")
+			memoryLimit := associatedJob.AllResourceRequirements().GetByNameZeroIfMissing("memory")
+			ephemeralStorageLimit := associatedJob.AllResourceRequirements().GetByNameZeroIfMissing("ephemeral-storage")
+			gpuLimit := associatedJob.AllResourceRequirements().GetByNameZeroIfMissing("nvidia.com/gpu")
 			eventTime := protoutil.ToStdTime(event.Created)
 
 			rows = append(rows, &JobRunRow{

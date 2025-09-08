@@ -472,15 +472,15 @@ func TestJob_TestWithJobSchedulingInfo(t *testing.T) {
 	assert.Equal(t, jobSchedulingInfo, baseJob.JobSchedulingInfo())
 	assert.Equal(t, newSchedInfo, newJob.JobSchedulingInfo())
 
-	assert.Equal(t, milliQuantity(1000), baseJob.AllResourceRequirements().GetResourceByNameZeroIfMissing("cpu"))
-	assert.Equal(t, quantity(1), baseJob.AllResourceRequirements().GetResourceByNameZeroIfMissing("storage-connections"))
-	assert.Equal(t, milliQuantity(1000), baseJob.KubernetesResourceRequirements().GetResourceByNameZeroIfMissing("cpu"))
-	assert.Equal(t, quantity(0), baseJob.KubernetesResourceRequirements().GetResourceByNameZeroIfMissing("storage-connections"))
+	assert.Equal(t, milliQuantity(1000), baseJob.AllResourceRequirements().GetByNameZeroIfMissing("cpu"))
+	assert.Equal(t, quantity(1), baseJob.AllResourceRequirements().GetByNameZeroIfMissing("storage-connections"))
+	assert.Equal(t, milliQuantity(1000), baseJob.KubernetesResourceRequirements().GetByNameZeroIfMissing("cpu"))
+	assert.Equal(t, quantity(0), baseJob.KubernetesResourceRequirements().GetByNameZeroIfMissing("storage-connections"))
 
-	assert.Equal(t, milliQuantity(2000), newJob.AllResourceRequirements().GetResourceByNameZeroIfMissing("cpu"))
-	assert.Equal(t, quantity(2), newJob.AllResourceRequirements().GetResourceByNameZeroIfMissing("storage-connections"))
-	assert.Equal(t, milliQuantity(2000), newJob.KubernetesResourceRequirements().GetResourceByNameZeroIfMissing("cpu"))
-	assert.Equal(t, quantity(0), newJob.KubernetesResourceRequirements().GetResourceByNameZeroIfMissing("storage-connections"))
+	assert.Equal(t, milliQuantity(2000), newJob.AllResourceRequirements().GetByNameZeroIfMissing("cpu"))
+	assert.Equal(t, quantity(2), newJob.AllResourceRequirements().GetByNameZeroIfMissing("storage-connections"))
+	assert.Equal(t, milliQuantity(2000), newJob.KubernetesResourceRequirements().GetByNameZeroIfMissing("cpu"))
+	assert.Equal(t, quantity(0), newJob.KubernetesResourceRequirements().GetByNameZeroIfMissing("storage-connections"))
 }
 
 func TestRequestsFloatingResources(t *testing.T) {
@@ -537,13 +537,13 @@ func TestJob_TestResolvedPools(t *testing.T) {
 }
 
 func TestJob_TestAllResourceRequirements(t *testing.T) {
-	assert.Equal(t, milliQuantity(1000), baseJob.AllResourceRequirements().GetResourceByNameZeroIfMissing("cpu"))
-	assert.Equal(t, quantity(1), baseJob.AllResourceRequirements().GetResourceByNameZeroIfMissing("storage-connections"))
+	assert.Equal(t, milliQuantity(1000), baseJob.AllResourceRequirements().GetByNameZeroIfMissing("cpu"))
+	assert.Equal(t, quantity(1), baseJob.AllResourceRequirements().GetByNameZeroIfMissing("storage-connections"))
 }
 
 func TestJob_TestKubernetesResourceRequirements(t *testing.T) {
-	assert.Equal(t, milliQuantity(1000), baseJob.KubernetesResourceRequirements().GetResourceByNameZeroIfMissing("cpu"))
-	assert.Equal(t, quantity(0), baseJob.KubernetesResourceRequirements().GetResourceByNameZeroIfMissing("storage-connections"))
+	assert.Equal(t, milliQuantity(1000), baseJob.KubernetesResourceRequirements().GetByNameZeroIfMissing("cpu"))
+	assert.Equal(t, quantity(0), baseJob.KubernetesResourceRequirements().GetByNameZeroIfMissing("storage-connections"))
 }
 
 func quantity(val int) k8sResource.Quantity {

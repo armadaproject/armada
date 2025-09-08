@@ -61,9 +61,9 @@ func TestNewAllocatableByPriorityAndResourceType(t *testing.T) {
 	assert.Equal(t, 3, len(result))
 
 	twoThousandMillis := *k8sResource.NewMilliQuantity(2000, k8sResource.DecimalSI)
-	assert.Equal(t, twoThousandMillis, result[1].GetResourceByNameZeroIfMissing("cpu"))
-	assert.Equal(t, twoThousandMillis, result[2].GetResourceByNameZeroIfMissing("cpu"))
-	assert.Equal(t, twoThousandMillis, result[EvictedPriority].GetResourceByNameZeroIfMissing("cpu"))
+	assert.Equal(t, twoThousandMillis, result[1].GetByNameZeroIfMissing("cpu"))
+	assert.Equal(t, twoThousandMillis, result[2].GetByNameZeroIfMissing("cpu"))
+	assert.Equal(t, twoThousandMillis, result[EvictedPriority].GetByNameZeroIfMissing("cpu"))
 }
 
 func TestMarkAllocated(t *testing.T) {
