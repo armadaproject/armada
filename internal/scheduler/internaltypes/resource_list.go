@@ -9,27 +9,9 @@ import (
 	k8sResource "k8s.io/apimachinery/pkg/api/resource"
 )
 
-type ResourceType int
-
-const (
-	// A normal k8s resource, such as "memory" or "nvidia.com/gpu"
-	Kubernetes ResourceType = iota
-	// A floating resource that is not tied to a Kubernetes cluster or node,
-	// e.g. "external-storage-connections".
-	Floating = iota
-)
-
 type ResourceList struct {
 	resources []int64              // immutable, do not change this, return a new struct instead!
 	factory   *ResourceListFactory // immutable, do not change this!
-}
-
-type Resource struct {
-	Name     string
-	RawValue int64
-	Value    k8sResource.Quantity
-	Scale    k8sResource.Scale
-	Type     ResourceType
 }
 
 func (rl ResourceList) Equal(other ResourceList) bool {
@@ -99,13 +81,12 @@ func (rl ResourceList) GetResources() []Resource {
 	}
 
 	result := make([]Resource, len(rl.resources))
-	for i, q := range rl.resources {
+	for i := range rl.resources {
 		result[i] = Resource{
-			Name:     rl.factory.indexToName[i],
-			RawValue: q,
-			Value:    *rl.asQuantity(i),
-			Scale:    rl.factory.scales[i],
-			Type:     rl.factory.types[i],
+			Name:  rl.factory.indexToName[i],
+			Value: *rl.asQuantity(i),
+			Scale: rl.factory.scales[i],
+			Type:  rl.factory.types[i],
 		}
 	}
 	return result
