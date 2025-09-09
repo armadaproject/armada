@@ -137,8 +137,9 @@ func TestMakeAllMax(t *testing.T) {
 	factory := testFactory()
 	allMax := factory.MakeAllMax()
 	assert.False(t, allMax.IsEmpty())
-	for _, res := range allMax.GetResources() {
-		assert.Equal(t, int64(math.MaxInt64), res.RawValue)
+	for _, res := range allMax.GetAll() {
+		expected := *k8sResource.NewScaledQuantity(int64(math.MaxInt64), res.Scale)
+		assert.Equal(t, expected, res.Value)
 	}
 }
 
@@ -159,7 +160,7 @@ func testFactory() *ResourceListFactory {
 }
 
 func testGet(rl *ResourceList, name string) int64 {
-	val, err := rl.GetByName(name)
+	val, err := rl.GetRawByName(name)
 	if err != nil {
 		return math.MinInt64
 	}

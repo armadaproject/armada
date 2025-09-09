@@ -45,7 +45,7 @@ func RoundedNodeIndexKeyFromResourceList(
 	out = EncodeUint64(out, nodeTypeId)
 	for i, name := range resourceNames {
 		resolution := resourceResolution[i]
-		q := rl.GetByNameZeroIfMissing(name)
+		q := rl.GetRawByNameZeroIfMissing(name)
 		q = roundQuantityToResolution(q, resolution)
 		out = EncodeInt64(out, q)
 	}
