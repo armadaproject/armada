@@ -620,7 +620,7 @@ func (nodeDb *NodeDb) selectNodeForPodAtPriority(
 ) (*internaltypes.Node, error) {
 	indexResourceRequests := make([]int64, len(nodeDb.indexedResources))
 	for i, t := range nodeDb.indexedResources {
-		indexResourceRequests[i] = jctx.KubernetesResourceRequirements.GetByNameZeroIfMissing(t)
+		indexResourceRequests[i] = jctx.KubernetesResourceRequirements.GetRawByNameZeroIfMissing(t)
 	}
 	indexName, ok := nodeDb.indexNameByPriority[priority]
 	if !ok {
