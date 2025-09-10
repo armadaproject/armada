@@ -85,7 +85,6 @@ func TestGetAll(t *testing.T) {
 	zero := *k8sResource.NewScaledQuantity(0, k8sResource.Scale(0))
 	zeroMillis := *k8sResource.NewScaledQuantity(0, k8sResource.Milli)
 	expected := []Resource{
-
 		{Name: "memory", Value: *k8sResource.NewScaledQuantity(1024*1024*1024, k8sResource.Scale(0)), Scale: k8sResource.Scale(0), Type: Kubernetes},
 		{Name: "ephemeral-storage", Value: zero, Scale: k8sResource.Scale(0), Type: Kubernetes},
 		{Name: "cpu", Value: *k8sResource.NewScaledQuantity(1000, k8sResource.Milli), Scale: k8sResource.Milli, Type: Kubernetes},
