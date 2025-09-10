@@ -178,7 +178,7 @@ export const TimeRangeSelector = ({ value: { startIsoString, endIsoString }, onC
                 <DateTimePicker
                   key={dateTimeSelectorKey}
                   label="From"
-                  timezone={timezone}
+                  timezone={timezone === "Etc/UTC" ? "UTC" : timezone}
                   views={["year", "month", "day", "hours", "minutes", "seconds"]}
                   slotProps={{
                     actionBar: { actions: ["cancel", "clear", "accept"] },
@@ -195,7 +195,7 @@ export const TimeRangeSelector = ({ value: { startIsoString, endIsoString }, onC
                 <DateTimePicker
                   key={dateTimeSelectorKey}
                   label="To"
-                  timezone={timezone}
+                  timezone={timezone === "Etc/UTC" ? "UTC" : timezone}
                   views={["year", "month", "day", "hours", "minutes", "seconds"]}
                   slotProps={{
                     actionBar: { actions: ["cancel", "today", "clear", "accept"] },
