@@ -151,7 +151,9 @@ export const TimeRangeSelector = ({ value: { startIsoString, endIsoString }, onC
     return `Set time range${ELLIPSIS}`
   })()
 
-  const now = dayjs()
+  const nowDayjs = dayjs.tz(new Date(), timezone)
+  const startDateDayJs = dayjs.tz(startDate, timezone)
+  const endDateDayJs = dayjs.tz(endDate, timezone)
 
   return (
     <>
@@ -184,11 +186,11 @@ export const TimeRangeSelector = ({ value: { startIsoString, endIsoString }, onC
                     actionBar: { actions: ["cancel", "clear", "accept"] },
                     textField: { size: "small", margin: "dense", fullWidth: true },
                   }}
-                  defaultValue={startDate ? dayjs(startDate) : undefined}
+                  defaultValue={startDate ? startDateDayJs : undefined}
                   onAccept={(value: Dayjs | null) =>
                     onChange({ startIsoString: value?.toISOString() ?? null, endIsoString })
                   }
-                  maxDateTime={endDate ? dayjs(endDate) : now}
+                  maxDateTime={endDate ? endDateDayJs : nowDayjs}
                 />
               </div>
               <div>
@@ -201,12 +203,12 @@ export const TimeRangeSelector = ({ value: { startIsoString, endIsoString }, onC
                     actionBar: { actions: ["cancel", "today", "clear", "accept"] },
                     textField: { size: "small", margin: "dense", fullWidth: true },
                   }}
-                  defaultValue={endDate ? dayjs(endDate) : undefined}
+                  defaultValue={endDate ? endDateDayJs : undefined}
                   onAccept={(value: Dayjs | null) =>
                     onChange({ startIsoString, endIsoString: value?.toISOString() ?? null })
                   }
-                  minDateTime={startDate ? dayjs(startDate) : undefined}
-                  maxDateTime={now}
+                  minDateTime={startDate ? startDateDayJs : undefined}
+                  maxDateTime={nowDayjs}
                 />
               </div>
             </Grid>
