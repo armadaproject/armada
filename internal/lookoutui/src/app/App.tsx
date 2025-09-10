@@ -1,11 +1,14 @@
 import { useEffect } from "react"
 
 import { CssBaseline, styled } from "@mui/material"
+import { LocalizationProvider } from "@mui/x-date-pickers"
+import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { SnackbarProvider } from "notistack"
 import { ErrorBoundary } from "react-error-boundary"
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom"
 
+import { dayJsLocales, getBrowserSupportedLocale } from "../common/locales"
 import { withRouter } from "../common/utils"
 import { AlertInPageContainerErrorFallback } from "../components/AlertInPageContainerErrorFallback"
 import { FullPageErrorFallback } from "../components/FullPageErrorFallback"
@@ -32,6 +35,7 @@ import {
 } from "../pathnames"
 import { ApiClientsProvider } from "../services/apiClients"
 import { Services, ServicesProvider } from "../services/context"
+import { useFormatTimestampLocale } from "../userSettings"
 
 import { JobIdRedirect } from "./JobIdRedirect"
 import { NavBar } from "./NavBar"
@@ -72,6 +76,10 @@ export function App(props: AppProps) {
     }
   }, [])
 
+  const [formatTimestampLocale] = useFormatTimestampLocale()
+  const supportedLocale = formatTimestampLocale === "browser" ? getBrowserSupportedLocale() : formatTimestampLocale
+  const [dayJsLocale] = dayJsLocales[supportedLocale]
+
   return (
     <ErrorBoundary FallbackComponent={FullPageErrorFallback}>
       <LookoutThemeProvider>
@@ -81,128 +89,130 @@ export function App(props: AppProps) {
           autoHideDuration={8000}
           maxSnack={3}
         >
-          <QueryClientProvider client={queryClient}>
-            <ErrorBoundary FallbackComponent={FullPageErrorFallback}>
-              <OidcAuthProvider oidcConfig={config.oidcEnabled ? config.oidc : undefined}>
-                <ApiClientsProvider>
-                  <BrowserRouter>
-                    <ServicesProvider services={props.services}>
-                      <AppContainer>
-                        <NavBar customTitle={config.customTitle} />
-                        <AppContent>
-                          <Routes>
-                            <Route
-                              path={JOBS}
-                              element={
-                                <ErrorBoundary FallbackComponent={AlertInPageContainerErrorFallback}>
-                                  <JobsPage
-                                    getJobsService={props.services.v2GetJobsService}
-                                    groupJobsService={props.services.v2GroupJobsService}
-                                    updateJobsService={props.services.v2UpdateJobsService}
-                                    debug={config.debugEnabled}
-                                    autoRefreshMs={config.jobsAutoRefreshMs}
-                                    commandSpecs={config.commandSpecs}
-                                  />
-                                </ErrorBoundary>
-                              }
-                            />
-                            <Route
-                              path={JOB_REDIRECT}
-                              element={
-                                <ErrorBoundary FallbackComponent={AlertInPageContainerErrorFallback}>
-                                  <JobIdRedirect />
-                                </ErrorBoundary>
-                              }
-                            />
-                            <Route
-                              path={JOB_SETS}
-                              element={
-                                <ErrorBoundary FallbackComponent={AlertInPageContainerErrorFallback}>
-                                  <JobSetsPage
-                                    groupJobsService={props.services.v2GroupJobsService}
-                                    updateJobSetsService={props.services.v2UpdateJobSetsService}
-                                    autoRefreshMs={config.jobSetsAutoRefreshMs}
-                                  />
-                                </ErrorBoundary>
-                              }
-                            />
-                            <Route
-                              path={SETTINGS}
-                              element={
-                                <ErrorBoundary FallbackComponent={AlertInPageContainerErrorFallback}>
-                                  <SettingsPage />
-                                </ErrorBoundary>
-                              }
-                            >
+          <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale={dayJsLocale}>
+            <QueryClientProvider client={queryClient}>
+              <ErrorBoundary FallbackComponent={FullPageErrorFallback}>
+                <OidcAuthProvider oidcConfig={config.oidcEnabled ? config.oidc : undefined}>
+                  <ApiClientsProvider>
+                    <BrowserRouter>
+                      <ServicesProvider services={props.services}>
+                        <AppContainer>
+                          <NavBar customTitle={config.customTitle} />
+                          <AppContent>
+                            <Routes>
                               <Route
-                                path={SETTINGS_VISUAL_THEME}
+                                path={JOBS}
                                 element={
                                   <ErrorBoundary FallbackComponent={AlertInPageContainerErrorFallback}>
-                                    <VisualThemePage />
+                                    <JobsPage
+                                      getJobsService={props.services.v2GetJobsService}
+                                      groupJobsService={props.services.v2GroupJobsService}
+                                      updateJobsService={props.services.v2UpdateJobsService}
+                                      debug={config.debugEnabled}
+                                      autoRefreshMs={config.jobsAutoRefreshMs}
+                                      commandSpecs={config.commandSpecs}
+                                    />
                                   </ErrorBoundary>
                                 }
                               />
                               <Route
-                                path={SETTINGS_VALUE_DISPLAY}
+                                path={JOB_REDIRECT}
                                 element={
                                   <ErrorBoundary FallbackComponent={AlertInPageContainerErrorFallback}>
-                                    <ValueDisplayPage />
+                                    <JobIdRedirect />
                                   </ErrorBoundary>
                                 }
                               />
                               <Route
-                                path={SETTINGS_APPEARANCE}
+                                path={JOB_SETS}
                                 element={
                                   <ErrorBoundary FallbackComponent={AlertInPageContainerErrorFallback}>
-                                    <AppearancePage />
+                                    <JobSetsPage
+                                      groupJobsService={props.services.v2GroupJobsService}
+                                      updateJobSetsService={props.services.v2UpdateJobSetsService}
+                                      autoRefreshMs={config.jobSetsAutoRefreshMs}
+                                    />
                                   </ErrorBoundary>
                                 }
                               />
                               <Route
-                                path={SETTINGS_ACCOUNT}
+                                path={SETTINGS}
                                 element={
                                   <ErrorBoundary FallbackComponent={AlertInPageContainerErrorFallback}>
-                                    <AccountPage />
+                                    <SettingsPage />
+                                  </ErrorBoundary>
+                                }
+                              >
+                                <Route
+                                  path={SETTINGS_VISUAL_THEME}
+                                  element={
+                                    <ErrorBoundary FallbackComponent={AlertInPageContainerErrorFallback}>
+                                      <VisualThemePage />
+                                    </ErrorBoundary>
+                                  }
+                                />
+                                <Route
+                                  path={SETTINGS_VALUE_DISPLAY}
+                                  element={
+                                    <ErrorBoundary FallbackComponent={AlertInPageContainerErrorFallback}>
+                                      <ValueDisplayPage />
+                                    </ErrorBoundary>
+                                  }
+                                />
+                                <Route
+                                  path={SETTINGS_APPEARANCE}
+                                  element={
+                                    <ErrorBoundary FallbackComponent={AlertInPageContainerErrorFallback}>
+                                      <AppearancePage />
+                                    </ErrorBoundary>
+                                  }
+                                />
+                                <Route
+                                  path={SETTINGS_ACCOUNT}
+                                  element={
+                                    <ErrorBoundary FallbackComponent={AlertInPageContainerErrorFallback}>
+                                      <AccountPage />
+                                    </ErrorBoundary>
+                                  }
+                                />
+                                <Route
+                                  index
+                                  element={
+                                    <ErrorBoundary FallbackComponent={AlertInPageContainerErrorFallback}>
+                                      <Navigate to={SETTINGS_VISUAL_THEME} replace />
+                                    </ErrorBoundary>
+                                  }
+                                />
+                              </Route>
+                              <Route
+                                path={V2_REDIRECT}
+                                element={
+                                  <ErrorBoundary FallbackComponent={AlertInPageContainerErrorFallback}>
+                                    <V2Redirect />
                                   </ErrorBoundary>
                                 }
                               />
                               <Route
-                                index
+                                path="*"
                                 element={
+                                  // This wildcard route ensures that users who follow old
+                                  // links to /job-sets or /jobs see something other than
+                                  // a blank page.
                                   <ErrorBoundary FallbackComponent={AlertInPageContainerErrorFallback}>
-                                    <Navigate to={SETTINGS_VISUAL_THEME} replace />
+                                    <Navigate to={JOBS} />
                                   </ErrorBoundary>
                                 }
                               />
-                            </Route>
-                            <Route
-                              path={V2_REDIRECT}
-                              element={
-                                <ErrorBoundary FallbackComponent={AlertInPageContainerErrorFallback}>
-                                  <V2Redirect />
-                                </ErrorBoundary>
-                              }
-                            />
-                            <Route
-                              path="*"
-                              element={
-                                // This wildcard route ensures that users who follow old
-                                // links to /job-sets or /jobs see something other than
-                                // a blank page.
-                                <ErrorBoundary FallbackComponent={AlertInPageContainerErrorFallback}>
-                                  <Navigate to={JOBS} />
-                                </ErrorBoundary>
-                              }
-                            />
-                          </Routes>
-                        </AppContent>
-                      </AppContainer>
-                    </ServicesProvider>
-                  </BrowserRouter>
-                </ApiClientsProvider>
-              </OidcAuthProvider>
-            </ErrorBoundary>
-          </QueryClientProvider>
+                            </Routes>
+                          </AppContent>
+                        </AppContainer>
+                      </ServicesProvider>
+                    </BrowserRouter>
+                  </ApiClientsProvider>
+                </OidcAuthProvider>
+              </ErrorBoundary>
+            </QueryClientProvider>
+          </LocalizationProvider>
         </SnackbarProvider>
       </LookoutThemeProvider>
     </ErrorBoundary>

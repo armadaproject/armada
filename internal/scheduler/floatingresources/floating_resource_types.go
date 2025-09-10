@@ -88,7 +88,7 @@ func (frt *FloatingResourceTypes) GetTotalAvailableForPool(poolName string) inte
 func (frt *FloatingResourceTypes) GetTotalAvailableForPoolAsMap(poolName string) map[string]resource.Quantity {
 	limits := frt.GetTotalAvailableForPool(poolName)
 	result := map[string]resource.Quantity{}
-	for _, res := range limits.GetResources() {
+	for _, res := range limits.GetAll() {
 		if res.Type != internaltypes.Floating {
 			continue
 		}

@@ -1825,6 +1825,154 @@ func TestGetJobsByPriorityClass(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestGetJobsBySubmittedTime(t *testing.T) {
+	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository, testClock *clock.FakeClock) error {
+		timeBase := time.Date(2022, 3, 1, 15, 4, 5, 0, time.UTC)
+
+		job1 := NewJobSimulatorWithClock(converter, store, testClock).
+			Submit(queue, jobSet, owner, namespace, timeBase, basicJobOpts).
+			Build().
+			Job()
+
+		job2 := NewJobSimulatorWithClock(converter, store, testClock).
+			Submit(queue, jobSet, owner, namespace, timeBase.Add(24*time.Hour), basicJobOpts).
+			Build().
+			Job()
+
+		job3 := NewJobSimulatorWithClock(converter, store, testClock).
+			Submit(queue, jobSet, owner, namespace, timeBase.Add(48*time.Hour), basicJobOpts).
+			Build().
+			Job()
+
+		job4 := NewJobSimulatorWithClock(converter, store, testClock).
+			Submit(queue, jobSet, owner, namespace, timeBase.Add(72*time.Hour), basicJobOpts).
+			Build().
+			Job()
+
+		t.Run("greaterThan", func(t *testing.T) {
+			result, err := repo.GetJobs(
+				armadacontext.TODO(),
+				[]*model.Filter{{
+					Field: "submitted",
+					Match: model.MatchGreaterThan,
+					Value: timeBase.Add(24 * time.Hour),
+				}},
+				false,
+				&model.Order{
+					Field:     "submitted",
+					Direction: model.DirectionAsc,
+				},
+				0,
+				10,
+			)
+			require.NoError(t, err)
+			require.Len(t, result.Jobs, 2)
+			assert.Equal(t, job3, result.Jobs[0])
+			assert.Equal(t, job4, result.Jobs[1])
+		})
+
+		t.Run("lessThan", func(t *testing.T) {
+			result, err := repo.GetJobs(
+				armadacontext.TODO(),
+				[]*model.Filter{{
+					Field: "submitted",
+					Match: model.MatchLessThan,
+					Value: timeBase.Add(48 * time.Hour),
+				}},
+				false,
+				&model.Order{
+					Field:     "submitted",
+					Direction: model.DirectionAsc,
+				},
+				0,
+				10,
+			)
+			require.NoError(t, err)
+			require.Len(t, result.Jobs, 2)
+			assert.Equal(t, job1, result.Jobs[0])
+			assert.Equal(t, job2, result.Jobs[1])
+		})
+
+		t.Run("greaterThanOrEqualTo", func(t *testing.T) {
+			result, err := repo.GetJobs(
+				armadacontext.TODO(),
+				[]*model.Filter{{
+					Field: "submitted",
+					Match: model.MatchGreaterThanOrEqualTo,
+					Value: timeBase.Add(24 * time.Hour),
+				}},
+				false,
+				&model.Order{
+					Field:     "submitted",
+					Direction: model.DirectionAsc,
+				},
+				0,
+				10,
+			)
+			require.NoError(t, err)
+			require.Len(t, result.Jobs, 3)
+			assert.Equal(t, job2, result.Jobs[0])
+			assert.Equal(t, job3, result.Jobs[1])
+			assert.Equal(t, job4, result.Jobs[2])
+		})
+
+		t.Run("lessThanOrEqualTo", func(t *testing.T) {
+			result, err := repo.GetJobs(
+				armadacontext.TODO(),
+				[]*model.Filter{{
+					Field: "submitted",
+					Match: model.MatchLessThanOrEqualTo,
+					Value: timeBase.Add(48 * time.Hour),
+				}},
+				false,
+				&model.Order{
+					Field:     "submitted",
+					Direction: model.DirectionAsc,
+				},
+				0,
+				10,
+			)
+			require.NoError(t, err)
+			require.Len(t, result.Jobs, 3)
+			assert.Equal(t, job1, result.Jobs[0])
+			assert.Equal(t, job2, result.Jobs[1])
+			assert.Equal(t, job3, result.Jobs[2])
+		})
+
+		t.Run("between two dates", func(t *testing.T) {
+			result, err := repo.GetJobs(
+				armadacontext.TODO(),
+				[]*model.Filter{
+					{
+						Field: "submitted",
+						Match: model.MatchGreaterThanOrEqualTo,
+						Value: timeBase.Add(24 * time.Hour),
+					},
+					{
+						Field: "submitted",
+						Match: model.MatchLessThanOrEqualTo,
+						Value: timeBase.Add(48 * time.Hour),
+					},
+				},
+				false,
+				&model.Order{
+					Field:     "submitted",
+					Direction: model.DirectionAsc,
+				},
+				0,
+				10,
+			)
+			require.NoError(t, err)
+			require.Len(t, result.Jobs, 2)
+			assert.Equal(t, job2, result.Jobs[0])
+			assert.Equal(t, job3, result.Jobs[1])
+		})
+
+		return nil
+	})
+	require.NoError(t, err)
+}
+
 func TestGetJobsSkip(t *testing.T) {
 	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository, testClock *clock.FakeClock) error {
 		nJobs := 15

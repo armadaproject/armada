@@ -6,9 +6,13 @@ redis:
   poolSize: 1000
 pulsar:
   URL: pulsar://pulsar:6650
+  restURL: "http://localhost:8090"
   jobsetEventsTopic: events
   backoffTime: 1s
   receiverQueueSize: 100
+  delayMonitor:
+    enabled: false
+    interval: 30s
 subscriptionName: "events-ingester"
 minMessageCompressionSize: 1024
 maxOutputMessageSizeBytes: 1048576  #1MB
