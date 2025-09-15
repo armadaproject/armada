@@ -10,7 +10,8 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
-	k8sResource "k8s.io/apimachinery/pkg/api/resource"
+	v1 "k8s.io/api/core/v1"
+	resource "k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/utils/clock"
 
 	log "github.com/armadaproject/armada/internal/common/logging"
@@ -187,6 +188,7 @@ func (jobDb *JobDb) NewJob(
 	pools []string,
 	priceBand int32,
 ) (*Job, error) {
+	schedulingInfo = jobDb.internJobSchedulingInfoStrings(schedulingInfo)
 	priorityClass, ok := jobDb.priorityClasses[schedulingInfo.PriorityClass]
 	if !ok {
 		priorityClass = jobDb.defaultPriorityClass
@@ -217,7 +219,7 @@ func (jobDb *JobDb) NewJob(
 		queuedVersion:                  queuedVersion,
 		requestedPriority:              priority,
 		submittedTime:                  created,
-		jobSchedulingInfo:              jobDb.internJobSchedulingInfoStrings(schedulingInfo),
+		jobSchedulingInfo:              schedulingInfo,
 		allResourceRequirements:        rr,
 		kubernetesResourceRequirements: rr.OfType(internaltypes.Kubernetes),
 		priorityClass:                  priorityClass,
@@ -226,7 +228,7 @@ func (jobDb *JobDb) NewJob(
 		cancelled:                      cancelled,
 		validated:                      validated,
 		runsById:                       map[string]*JobRun{},
-		pools:                          pools,
+		pools:                          jobDb.internPools(pools),
 		priceBand:                      pb,
 		gangInfo:                       *gangInfo,
 	}
@@ -239,21 +241,22 @@ func (jobDb *JobDb) getResourceRequirements(schedulingInfo *internaltypes.JobSch
 	return jobDb.resourceListFactory.FromJobResourceListIgnoreUnknown(safeGetRequirements(schedulingInfo))
 }
 
-func safeGetRequirements(schedulingInfo *internaltypes.JobSchedulingInfo) map[string]k8sResource.Quantity {
+func safeGetRequirements(schedulingInfo *internaltypes.JobSchedulingInfo) map[string]resource.Quantity {
 	pr := schedulingInfo.PodRequirements
 	if pr == nil {
-		return map[string]k8sResource.Quantity{}
+		return map[string]resource.Quantity{}
 	}
 
 	req := pr.ResourceRequirements.Requests
 	if req == nil {
-		return map[string]k8sResource.Quantity{}
+		return map[string]resource.Quantity{}
 	}
 
 	return adapters.K8sResourceListToMap(req)
 }
 
 func (jobDb *JobDb) internJobSchedulingInfoStrings(info *internaltypes.JobSchedulingInfo) *internaltypes.JobSchedulingInfo {
+	info.PriorityClass = jobDb.stringInterner.Intern(info.PriorityClass)
 	pr := info.PodRequirements
 	for k, v := range pr.Annotations {
 		pr.Annotations[jobDb.stringInterner.Intern(k)] = jobDb.stringInterner.Intern(v)
@@ -262,7 +265,40 @@ func (jobDb *JobDb) internJobSchedulingInfoStrings(info *internaltypes.JobSchedu
 	for k, v := range pr.NodeSelector {
 		pr.NodeSelector[jobDb.stringInterner.Intern(k)] = jobDb.stringInterner.Intern(v)
 	}
+
+	for idx, toleration := range pr.Tolerations {
+		pr.Tolerations[idx] = v1.Toleration{
+			Key:               jobDb.stringInterner.Intern(toleration.Key),
+			Operator:          v1.TolerationOperator(jobDb.stringInterner.Intern(string(toleration.Operator))),
+			Value:             jobDb.stringInterner.Intern(toleration.Value),
+			Effect:            v1.TaintEffect(jobDb.stringInterner.Intern(string(toleration.Effect))),
+			TolerationSeconds: toleration.TolerationSeconds,
+		}
+	}
+
+	for idx, claim := range pr.ResourceRequirements.Claims {
+		pr.ResourceRequirements.Claims[idx].Name = jobDb.stringInterner.Intern(claim.Name)
+	}
+
+	for key, limit := range pr.ResourceRequirements.Limits {
+		limit.Format = resource.Format(jobDb.stringInterner.Intern(string(limit.Format)))
+		pr.ResourceRequirements.Limits[v1.ResourceName(jobDb.stringInterner.Intern(string(key)))] = limit
+	}
+
+	for key, request := range pr.ResourceRequirements.Requests {
+		request.Format = resource.Format(jobDb.stringInterner.Intern(string(request.Format)))
+		pr.ResourceRequirements.Requests[v1.ResourceName(jobDb.stringInterner.Intern(string(key)))] = request
+	}
+
 	return info
+}
+
+func (jobDb *JobDb) internPools(pools []string) []string {
+	newPools := make([]string, len(pools))
+	for idx, pool := range pools {
+		newPools[idx] = jobDb.stringInterner.Intern(pool)
+	}
+	return newPools
 }
 
 // ReadTxn returns a read-only transaction.
