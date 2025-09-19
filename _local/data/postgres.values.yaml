@@ -1,0 +1,13 @@
+settings:
+  superuserPassword:
+    value: "psw"
+
+storage:
+  persistentVolume:
+    enabled: false
+
+customScripts:
+  init-databases.sql: |
+    -- Create databases for Armada components
+    CREATE DATABASE scheduler;
+    CREATE DATABASE lookout;

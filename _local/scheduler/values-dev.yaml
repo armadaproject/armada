@@ -1,0 +1,57 @@
+replicaCount: 1
+image:
+  pullPolicy: IfNotPresent
+
+scheduler:
+  ingress:
+    enabled: false
+  applicationConfig:
+    postgres:
+      connection:
+        host: postgresql.data.svc.cluster.local
+        port: 5432
+        dbname: scheduler
+        user: postgres
+        password: psw
+        sslmode: disable
+    redis:
+      addrs:
+        - redis-ha.data.svc.cluster.local:6379
+    pulsar:
+      URL: pulsar://pulsar-broker.data.svc.cluster.local:6650
+    armadaApi:
+      armadaUrl: armada.armada.svc.cluster.local:50051
+      forceNoTls: true
+    auth:
+      anonymousAuth: true
+      permissionGroupMapping:
+        execute_jobs: ["everyone"]
+
+ingester:
+  applicationConfig:
+    postgres:
+      connection:
+        host: postgresql.data.svc.cluster.local
+        port: 5432
+        database: scheduler
+        user: postgres
+        password: psw
+        sslmode: disable
+    pulsar:
+      URL: pulsar://pulsar-broker.data.svc.cluster.local:6650
+    redis:
+      addrs:
+        - redis-ha.data.svc.cluster.local:6379
+
+pruner:
+  enabled: true
+  schedule: "@hourly"
+  applicationConfig:
+    postgres:
+      connection:
+        host: postgresql.data.svc.cluster.local
+        port: 5432
+        dbname: scheduler
+        user: postgres
+        password: psw
+        sslmode: disable

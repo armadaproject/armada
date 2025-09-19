@@ -1,0 +1,9 @@
+httpPort: 8084
+grpcPort: 50053
+metricsPort: 9007
+
+application:
+  clusterId: Cluster1
+
+kubernetes:
+  impersonateUsers: true
