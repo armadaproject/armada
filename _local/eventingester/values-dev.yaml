@@ -1,0 +1,10 @@
+replicaCount: 1
+image:
+  pullPolicy: IfNotPresent
+
+applicationConfig:
+  pulsar:
+    URL: pulsar://pulsar-broker.data.svc.cluster.local:6650
+  redis:
+    addrs:
+      - redis-ha.data.svc.cluster.local:6379

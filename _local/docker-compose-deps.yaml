@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  redis:
+    container_name: redis
+    image: ${REDIS_IMAGE:-redis:7.4-alpine}
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+
+  postgres:
+    container_name: postgres
+    image: ${POSTGRES_IMAGE:-postgres:17-alpine}
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=psw
+      - POSTGRES_DB=postgres
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  pulsar:
+    container_name: pulsar
+    image: ${PULSAR_IMAGE:-apachepulsar/pulsar:4.1.0}
+    environment:
+      - PULSAR_PREFIX_allowAutoTopicCreation=true
+      - PULSAR_PREFIX_allowAutoTopicCreationType=non-partitioned
+      - PULSAR_PREFIX_autoSkipNonRecoverableData=true
+    entrypoint: sh -c "bin/apply-config-from-env.py conf/standalone.conf && bin/pulsar standalone"
+    ports:
+      - "6650:6650"
+      - "8090:8080"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/admin/v2/brokers/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s

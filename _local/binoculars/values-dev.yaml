@@ -1,0 +1,12 @@
+replicaCount: 1
+image:
+  pullPolicy: IfNotPresent
+
+ingress:
+  enabled: false
+
+applicationConfig:
+  armadaUrl: armada.armada.svc.cluster.local:50051
+  corsAllowedOrigins:
+    - http://localhost:3000
+    - http://localhost:8089

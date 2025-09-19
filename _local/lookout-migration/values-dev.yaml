@@ -1,0 +1,9 @@
+applicationConfig:
+  postgres:
+    connection:
+      host: postgresql.data.svc.cluster.local
+      port: 5432
+      database: lookout
+      user: postgres
+      password: psw
+      sslmode: disable

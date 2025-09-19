@@ -1,0 +1,76 @@
+volumes:
+  persistence: false
+
+affinity:
+  anti_affinity: false
+
+monitoring:
+  prometheus: false
+
+components:
+  zookeeper: true
+  bookkeeper: true
+  broker: true
+  proxy: true
+  autorecovery: false
+  functions: false
+  toolset: true
+  pulsar_manager: true
+
+zookeeper:
+  replicaCount: 1
+  podMonitor:
+    enabled: false
+
+bookkeeper:
+  replicaCount: 1
+  podMonitor:
+    enabled: false
+  configData:
+    # minimal memory use for bookkeeper
+    # https://bookkeeper.apache.org/docs/reference/config#db-ledger-storage-settings
+    dbStorage_writeCacheMaxSizeMb: "32"
+    dbStorage_readAheadCacheMaxSizeMb: "32"
+    dbStorage_rocksDB_writeBufferSizeMB: "8"
+    dbStorage_rocksDB_blockCacheSize: "8388608"
+    # make bookie work with large disks having little percentage disk space left
+    diskUsageThreshold: "0.999"
+
+broker:
+  replicaCount: 1
+  podMonitor:
+    enabled: false
+  configData:
+    ## Enable `autoSkipNonRecoverableData` since bookkeeper is running
+    ## without persistence
+    autoSkipNonRecoverableData: "true"
+    # storage settings
+    managedLedgerDefaultEnsembleSize: "1"
+    managedLedgerDefaultWriteQuorum: "1"
+    managedLedgerDefaultAckQuorum: "1"
+
+proxy:
+  replicaCount: 1
+  podMonitor:
+    enabled: false
+
+autorecovery:
+  podMonitor:
+    enabled: false
+
+victoria-metrics-k8s-stack:
+  enabled: false
+  victoria-metrics-operator:
+    enabled: false
+    crds:
+      plain: false
+  vmsingle:
+    enabled: false
+  vmagent:
+    enabled: false
+  vmalert:
+    enabled: false
+  alertmanager:
+    enabled: false
+  grafana:
+    enabled: false

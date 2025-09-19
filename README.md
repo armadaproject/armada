@@ -59,6 +59,92 @@ scripts/get-armadactl.sh
 
 Or download it from the [GitHub Release](https://github.com/armadaproject/armada/releases/latest) page for your platform.
 
+## Local Development
+
+### Goreman (Procfile-based)
+
+[Goreman](https://github.com/mattn/goreman) is a Go-based clone of [Foreman](https://github.com/ddollar/foreman) that manages Procfile-based applications, 
+allowing you to run multiple processes with a single command.
+
+Goreman will build the components from source and run them locally, making it easy to test changes quickly.
+
+1. Install `goreman`:
+    ```shell
+    go install github.com/mattn/goreman@latest
+    ```
+2. Start dependencies:
+    ```shell
+    docker-compose -f _local/docker-compose-deps.yaml up -d
+    ```
+   - **Note**: Images can be overridden using environment variables:
+     `REDIS_IMAGE`, `POSTGRES_IMAGE`, `PULSAR_IMAGE`
+3. Initialize databases and Kubernetes resources:
+    ```shell
+    scripts/localdev-init.sh
+    ```
+4. Start Armada components:
+    ```shell
+    goreman start
+    ```
+
+Run `goreman run status` to check the status of the processes (running processes are prefixed with `*`):
+```shell
+$ goreman run status
+*server
+*scheduler
+*scheduleringester
+*eventingester
+*executor
+*lookout
+*lookoutingester
+*binoculars
+*lookoutui
+```
+
+Restart individual processes with `goreman restart <component>` (e.g., `goreman restart server`).
+
+### Skaffold (Kubernetes)
+
+[Skaffold](https://skaffold.dev) handles the workflow for building, pushing, and deploying applications to Kubernetes.
+It provides automatic hot-reload, debugging support, and port-forwarding for local development.
+
+Skaffold requires a running Kubernetes cluster (ideally `kind` or `minikube`).
+
+Skaffold will build the components from source, package them as Docker images, inject them into the Kubernetes cluster, and deploy them using the Armada Helm charts.
+
+1. Install [Skaffold](https://skaffold.dev/docs/install/)
+2. Run `skaffold dev` for faster dev mode or `skaffold debug` to inject [delve](https://github.com/go-delve/delve) for step-by-step debugging.
+3. Press `CTRL-C` to cleanup installed resources.
+
+**Note**: When using `skaffold`, the Lookout UI is served by the Lookout backend on port 8089.
+When using `goreman`, the Lookout UI runs on port 3000 with hot-reload.
+
+### Service Ports
+
+Both Goreman and Skaffold expose services on the same ports for consistency:
+
+| Service                    | Port  | Description         |
+|----------------------------|-------|---------------------|
+| Server gRPC                | 50051 | Armada gRPC API     |
+| Server HTTP                | 8081  | REST API & Health   |
+| Server Metrics             | 9000  | Prometheus metrics  |
+| Scheduler gRPC             | 50052 | Scheduler API       |
+| Scheduler Metrics          | 9001  | Prometheus metrics  |
+| Scheduler Ingester Metrics | 9006  | Prometheus metrics  |
+| Lookout API/UI (skaffold)  | 8089  | Backend & Web UI    |
+| Lookout UI (goreman)       | 3000  | Frontend dev server |
+| Lookout Metrics            | 9003  | Prometheus metrics  |
+| Lookout Ingester Metrics   | 9005  | Prometheus metrics  |
+| Executor Metrics           | 9002  | Prometheus metrics  |
+| Event Ingester Metrics     | 9004  | Prometheus metrics  |
+| Executor HTTP              | 8082  | Executor HTTP       |
+| Binoculars HTTP            | 8084  | Binoculars HTTP     |
+| Binoculars gRPC            | 50053 | Binoculars gRPC     |
+| Binoculars Metrics         | 9007  | Prometheus metrics  |
+| Redis                      | 6379  | Cache & events      |
+| PostgreSQL                 | 5432  | Database            |
+| Pulsar                     | 6650  | Message broker      |
+
 ## Documentation
 
 For documentation, see the following:

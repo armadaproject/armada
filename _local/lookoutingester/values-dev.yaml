@@ -1,0 +1,17 @@
+replicaCount: 1
+image:
+  pullPolicy: IfNotPresent
+
+applicationConfig:
+  postgres:
+    connection:
+      host: postgresql.data.svc.cluster.local
+      port: 5432
+      database: lookout
+      user: postgres
+      password: psw
+  pulsar:
+    URL: pulsar://pulsar-broker.data.svc.cluster.local:6650
+  redis:
+    addrs:
+      - redis-ha.data.svc.cluster.local:6379

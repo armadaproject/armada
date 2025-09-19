@@ -1,0 +1,243 @@
+apiVersion: skaffold/v4beta11
+kind: Config
+metadata:
+  name: armada-localdev
+build:
+  local:
+    push: false
+    useBuildkit: true
+    useDockerCLI: true
+    concurrency: 2
+  artifacts:
+    - image: armada-server
+      context: .
+      runtimeType: go
+      docker:
+        dockerfile: _local/server/debug.Dockerfile
+    - image: armada-scheduler
+      context: .
+      runtimeType: go
+      docker:
+        dockerfile: _local/scheduler/debug.Dockerfile
+    - image: armada-scheduleringester
+      context: .
+      runtimeType: go
+      docker:
+        dockerfile: _local/scheduleringester/debug.Dockerfile
+    - image: armada-eventingester
+      context: .
+      runtimeType: go
+      docker:
+        dockerfile: _local/eventingester/debug.Dockerfile
+    - image: armada-lookout
+      context: .
+      runtimeType: go
+      docker:
+        dockerfile: _local/lookout/debug.Dockerfile
+    - image: armada-lookoutingester
+      context: .
+      runtimeType: go
+      docker:
+        dockerfile: _local/lookoutingester/debug.Dockerfile
+    - image: armada-executor
+      context: .
+      runtimeType: go
+      docker:
+        dockerfile: _local/executor/debug.Dockerfile
+    - image: armada-binoculars
+      context: .
+      runtimeType: go
+      docker:
+        dockerfile: _local/binoculars/debug.Dockerfile
+  tagPolicy:
+    gitCommit: {}
+deploy:
+  helm:
+    releases:
+      # Dependencies
+      - name: postgresql
+        remoteChart: groundhog2k/postgres
+        version: 1.5.8
+        namespace: data
+        createNamespace: true
+        valuesFiles:
+          - _local/data/postgres.values.yaml
+        wait: true
+      - name: redis-ha
+        remoteChart: dandydev/redis-ha
+        version: 4.34.13
+        namespace: data
+        valuesFiles:
+          - _local/data/redis.values.yaml
+      - name: pulsar
+        remoteChart: apache/pulsar
+        version: 4.1.0
+        namespace: data
+        valuesFiles:
+          - _local/data/pulsar.values.yaml
+        wait: true
+      # Database migrations
+      - name: scheduler-migration
+        chartPath: deployment/scheduler-migration
+        namespace: armada
+        createNamespace: true
+        valuesFiles:
+          - _local/scheduler-migration/values-dev.yaml
+        setValueTemplates:
+          image.repository: "{{.IMAGE_REPO_armada_scheduler}}"
+          image.tag: "{{.IMAGE_TAG_armada_scheduler}}"
+        wait: true
+      - name: lookout-migration
+        chartPath: deployment/lookout-migration
+        namespace: armada
+        createNamespace: true
+        valuesFiles:
+          - _local/lookout-migration/values-dev.yaml
+        setValueTemplates:
+          image.repository: "{{.IMAGE_REPO_armada_lookout}}"
+          image.tag: "{{.IMAGE_TAG_armada_lookout}}"
+        wait: true
+      # Armada components
+      - name: armada-server
+        chartPath: deployment/armada
+        valuesFiles:
+          - _local/server/values-dev.yaml
+        setValueTemplates:
+          image.repository: "{{.IMAGE_REPO_armada_server}}"
+          image.tag: "{{.IMAGE_TAG_armada_server}}"
+        namespace: armada
+        createNamespace: true
+      - name: armada-scheduler
+        chartPath: deployment/scheduler
+        valuesFiles:
+          - _local/scheduler/values-dev.yaml
+        setValueTemplates:
+          scheduler.image.repository: "{{.IMAGE_REPO_armada_scheduler}}"
+          scheduler.image.tag: "{{.IMAGE_TAG_armada_scheduler}}"
+          ingester.image.repository: "{{.IMAGE_REPO_armada_scheduleringester}}"
+          ingester.image.tag: "{{.IMAGE_TAG_armada_scheduleringester}}"
+        namespace: armada
+      - name: armada-lookout
+        chartPath: deployment/lookout
+        valuesFiles:
+          - _local/lookout/values-dev.yaml
+        setValueTemplates:
+          image.repository: "{{.IMAGE_REPO_armada_lookout}}"
+          image.tag: "{{.IMAGE_TAG_armada_lookout}}"
+        namespace: armada
+      - name: armada-lookout-ingester
+        chartPath: deployment/lookout-ingester
+        valuesFiles:
+          - _local/lookoutingester/values-dev.yaml
+        setValueTemplates:
+          image.repository: "{{.IMAGE_REPO_armada_lookoutingester}}"
+          image.tag: "{{.IMAGE_TAG_armada_lookoutingester}}"
+        namespace: armada
+      - name: armada-event-ingester
+        chartPath: deployment/event-ingester
+        valuesFiles:
+          - _local/eventingester/values-dev.yaml
+        setValueTemplates:
+          image.repository: "{{.IMAGE_REPO_armada_eventingester}}"
+          image.tag: "{{.IMAGE_TAG_armada_eventingester}}"
+        namespace: armada
+      - name: armada-executor
+        chartPath: deployment/executor
+        valuesFiles:
+          - _local/executor/values-dev.yaml
+        setValueTemplates:
+          image.repository: "{{.IMAGE_REPO_armada_executor}}"
+          image.tag: "{{.IMAGE_TAG_armada_executor}}"
+        namespace: armada
+      - name: armada-binoculars
+        chartPath: deployment/binoculars
+        valuesFiles:
+          - _local/binoculars/values-dev.yaml
+        setValueTemplates:
+          image.repository: "{{.IMAGE_REPO_armada_binoculars}}"
+          image.tag: "{{.IMAGE_TAG_armada_binoculars}}"
+        namespace: armada
+portForward:
+  # Server
+  - resourceType: service
+    resourceName: armada
+    namespace: armada
+    port: 50051
+    localPort: 50051
+  - resourceType: service
+    resourceName: armada
+    namespace: armada
+    port: 8080
+    localPort: 8081
+  - resourceType: service
+    resourceName: armada
+    namespace: armada
+    port: 9000
+    localPort: 9000
+  # Scheduler
+  - resourceType: service
+    resourceName: armada-scheduler
+    namespace: armada
+    port: 50051
+    localPort: 50052
+  - resourceType: service
+    resourceName: armada-scheduler
+    namespace: armada
+    port: 9001
+    localPort: 9001
+  # Scheduler Ingester
+  - resourceType: service
+    resourceName: armada-scheduler-ingester
+    namespace: armada
+    port: 9003
+    localPort: 9006
+  # Lookout API
+  - resourceType: service
+    resourceName: armada-lookout
+    namespace: armada
+    port: 8089
+    localPort: 8089
+  - resourceType: service
+    resourceName: armada-lookout
+    namespace: armada
+    port: 9000
+    localPort: 9003
+  # Lookout Ingester
+  - resourceType: service
+    resourceName: armada-lookout-ingester
+    namespace: armada
+    port: 9000
+    localPort: 9005
+  # Event Ingester
+  - resourceType: service
+    resourceName: armada-event-ingester
+    namespace: armada
+    port: 9000
+    localPort: 9004
+  # Executor
+  - resourceType: service
+    resourceName: armada-executor
+    namespace: armada
+    port: 8082
+    localPort: 8082
+  - resourceType: service
+    resourceName: armada-executor
+    namespace: armada
+    port: 9001
+    localPort: 9002
+  # Binoculars (service uses default port 8080, forwarded to 8084 locally)
+  - resourceType: service
+    resourceName: armada-binoculars
+    namespace: armada
+    port: 8080
+    localPort: 8084
+  - resourceType: service
+    resourceName: armada-binoculars
+    namespace: armada
+    port: 50051
+    localPort: 50053
+  - resourceType: service
+    resourceName: armada-binoculars
+    namespace: armada
+    port: 9000
+    localPort: 9007
