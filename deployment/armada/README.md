@@ -58,7 +58,7 @@ helm uninstall armada-server
 | env | object | `{}` | Additional environment variables for Armada Server Deployment resource |
 | fullnameOverride | string | `""` |  |
 | hostnames | list | `[]` | Hostnames for which to create gRPC and REST Ingress rules |
-| image.repository | string | `"gresearchdev/armada-server"` |  |
+| image.repository | string | `"gresearch/armada-server"` |  |
 | image.tag | string | `"0.0.0-latest"` |  |
 | ingress.annotations | object | `{}` | Additional annotations for Ingress resource |
 | ingress.enabled | bool | `true` | Toggle whether to create gRPC and HTTP Ingress for Armada Server |

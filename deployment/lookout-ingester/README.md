@@ -14,7 +14,7 @@ A helm chart for Armada Lookout Ingester component
 | applicationConfig.metricsPort | int | `9000` |  |
 | applicationConfig.pulsar.authenticationEnabled | bool | `false` |  |
 | customServiceAccount | string | `nil` |  |
-| image.repository | string | `"gresearchdev/armada-lookout-ingester"` |  |
+| image.repository | string | `"gresearch/armada-lookout-ingester"` |  |
 | image.tag | string | `"0.0.0-latest"` |  |
 | prometheus.enabled | bool | `false` |  |
 | prometheus.labels | object | `{}` |  |
