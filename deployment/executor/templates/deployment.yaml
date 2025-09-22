@@ -52,6 +52,11 @@ spec:
             - containerPort: 9001
               protocol: TCP
               name: metrics
+            {{- if .Values.healthcheck.enabled }}
+            - containerPort: {{ .Values.applicationConfig.httpPort }}
+              protocol: TCP
+              name: rest
+            {{- end }}
             {{- if and .Values.applicationConfig.profiling .Values.applicationConfig.profiling.port }}
             - containerPort: {{ .Values.applicationConfig.profiling.port }}
               protocol: TCP
