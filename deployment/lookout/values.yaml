@@ -22,6 +22,7 @@ strategy:
     maxUnavailable: 1
   type: RollingUpdate
 ingress:
+  enabled: true
   annotations: {}
   labels: {}
 prometheus:

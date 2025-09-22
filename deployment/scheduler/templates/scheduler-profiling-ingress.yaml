@@ -1,3 +1,4 @@
+{{- if .Values.ingress.enabled }}
 {{- if and .Values.scheduler.applicationConfig.profiling .Values.scheduler.applicationConfig.profiling.hostnames }}
 {{- $root := . -}}
 {{- range $i := until (int .Values.scheduler.replicas) }}
@@ -37,5 +38,6 @@ spec:
       secretName: armada-scheduler-{{ $i }}-profiling-service-tls
 
 ---
+{{- end }}
 {{- end }}
 {{- end }}

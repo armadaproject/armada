@@ -2,6 +2,9 @@
 tolerations: []
 additionalLabels: {}
 
+ingress:
+  enabled: true
+
 scheduler:
   replicas: 1
   image:
