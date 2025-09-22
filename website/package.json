@@ -2,7 +2,7 @@
   "name": "armada-website",
   "description": "Armada documentation website",
   "version": "0.1.0",
-  "private": false,
+  "private": true,
   "license": "Apache-2.0",
   "scripts": {
     "postinstall": "fumadocs-mdx",
