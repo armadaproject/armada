@@ -8,8 +8,8 @@ ingress:
 scheduler:
   replicas: 1
   image:
-    repository: gresearchdev/armada-scheduler
-    tag: 0.0.0-latest
+    repository: gresearch/armada-scheduler
+    tag: latest
   resources:
     limits:
       memory: 1Gi
@@ -52,8 +52,8 @@ scheduler:
 ingester:
   replicas: 1
   image:
-    repository: gresearchdev/armada-scheduler-ingester
-    tag: 0.0.0-latest
+    repository: gresearch/armada-scheduler-ingester
+    tag: latest
   resources:
     limits:
       memory: 1Gi

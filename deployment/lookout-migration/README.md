@@ -13,7 +13,7 @@ A Helm chart for the Armada Lookout  database migration
 | additionalVolumes | list | `[]` |  |
 | applicationConfig | object | `{}` |  |
 | customServiceAccount | string | `nil` |  |
-| image.repository | string | `"gresearchdev/armada-lookout"` |  |
+| image.repository | string | `"gresearch/armada-lookout"` |  |
 | image.tag | string | `"0.0.0-latest"` |  |
 | resources.limits.cpu | string | `"200m"` |  |
 | resources.limits.memory | string | `"256Mi"` |  |
