@@ -115,6 +115,8 @@ func NewTables() *LookoutTables {
 			jobSetCol,
 			submittedCol,
 			lastTransitionTimeCol,
+			queueCol,
+			stateCol,
 		}),
 		filterableColumns: map[string]map[string]bool{
 			jobIdCol:            util.StringListToSet([]string{model.MatchExact}),

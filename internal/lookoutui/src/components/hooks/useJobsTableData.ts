@@ -81,6 +81,8 @@ const columnToJobSortFieldMap = new Map<ColumnId, string>([
   [StandardColumnId.TimeSubmittedAgo, "submitted"],
   [StandardColumnId.LastTransitionTimeUtc, "lastTransitionTime"],
   [StandardColumnId.TimeInState, "lastTransitionTime"],
+  [StandardColumnId.Queue, "queue"],
+  [StandardColumnId.State, "state"],
 ])
 
 const columnToGroupSortFieldMap = new Map<ColumnId, string>([
