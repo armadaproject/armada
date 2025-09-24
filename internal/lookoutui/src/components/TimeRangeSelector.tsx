@@ -6,6 +6,7 @@ import dayjs, { Dayjs } from "dayjs"
 
 import { validDateFromNullableIsoString } from "../common/dates"
 import { SPACING } from "../common/spacing"
+import { UTC_TIME_ZONE_NAME } from "../common/timeZones"
 import { useFormatTimestampTimeZone } from "../userSettings"
 
 import {
@@ -180,7 +181,7 @@ export const TimeRangeSelector = ({ value: { startIsoString, endIsoString }, onC
                 <DateTimePicker
                   key={dateTimeSelectorKey}
                   label="From"
-                  timezone={timezone === "Etc/UTC" ? "UTC" : timezone}
+                  timezone={timezone === UTC_TIME_ZONE_NAME ? "UTC" : timezone}
                   views={["year", "month", "day", "hours", "minutes", "seconds"]}
                   slotProps={{
                     actionBar: { actions: ["cancel", "clear", "accept"] },
@@ -197,7 +198,7 @@ export const TimeRangeSelector = ({ value: { startIsoString, endIsoString }, onC
                 <DateTimePicker
                   key={dateTimeSelectorKey}
                   label="To"
-                  timezone={timezone === "Etc/UTC" ? "UTC" : timezone}
+                  timezone={timezone === UTC_TIME_ZONE_NAME ? "UTC" : timezone}
                   views={["year", "month", "day", "hours", "minutes", "seconds"]}
                   slotProps={{
                     actionBar: { actions: ["cancel", "today", "clear", "accept"] },
