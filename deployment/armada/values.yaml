@@ -2,8 +2,8 @@ nameOverride: ""
 fullnameOverride: ""
 
 image:
-  repository: gresearchdev/armada-server
-  tag: 0.0.0-latest
+  repository: gresearch/armada-server
+  tag: latest
 
 resources:
   limits:
