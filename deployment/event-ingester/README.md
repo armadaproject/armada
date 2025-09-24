@@ -16,7 +16,7 @@ A helm chart for Armada Event Ingester component
 | applicationConfig.metricsPort | int | `9000` |  |
 | applicationConfig.pulsar.authenticationEnabled | bool | `false` |  |
 | customServiceAccount | string | `nil` |  |
-| image.repository | string | `"gresearchdev/event-ingester-ingester"` |  |
+| image.repository | string | `"gresearch/event-ingester-ingester"` |  |
 | image.tag | string | `"0.0.0-latest"` |  |
 | prometheus.enabled | bool | `false` |  |
 | prometheus.labels | object | `{}` |  |

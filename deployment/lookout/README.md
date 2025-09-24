@@ -16,7 +16,7 @@ A helm chart for Armada Lookout component
 | applicationConfig.tls.enabled | bool | `false` |  |
 | customServiceAccount | string | `nil` |  |
 | dbPruningEnabled | bool | `true` |  |
-| image.repository | string | `"gresearchdev/armada-lookout-dev"` |  |
+| image.repository | string | `"gresearch/armada-lookout-dev"` |  |
 | image.tag | string | `"0.0.0-latest"` |  |
 | ingress.annotations | object | `{}` |  |
 | ingress.labels | object | `{}` |  |
