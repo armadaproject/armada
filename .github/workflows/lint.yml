@@ -59,13 +59,12 @@ jobs:
           cache-prefix: go-lint
 
       - name: Lint using golangci-lint
-        uses: golangci/golangci-lint-action@v4
+        uses: golangci/golangci-lint-action@v8
         with:
-          skip-pkg-cache: true
-          skip-build-cache: true
-          version: v1.64.6
+          version: v2.5.0
           only-new-issues: true
-          args: --timeout=10m --issues-exit-code=1 --sort-results ./...
+          skip-cache: true
+          args: --timeout=10m --issues-exit-code=1 ./...
 
       - name: Generating Golang lint results as summary
         if: ${{ always() }}
