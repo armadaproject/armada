@@ -236,6 +236,7 @@ export const GET_JOB_COLUMNS = ({
     accessor: "queue",
     displayName: STANDARD_COLUMN_DISPLAY_NAMES[StandardColumnId.Queue],
     additionalOptions: {
+      enableSorting: true,
       enableGrouping: true,
       enableColumnFilter: true,
       size: 300,
@@ -297,6 +298,7 @@ export const GET_JOB_COLUMNS = ({
     accessor: "state",
     displayName: STANDARD_COLUMN_DISPLAY_NAMES[StandardColumnId.State],
     additionalOptions: {
+      enableSorting: true,
       enableGrouping: true,
       enableColumnFilter: true,
       size: 300,
