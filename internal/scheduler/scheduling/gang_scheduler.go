@@ -149,7 +149,10 @@ func (sch *GangScheduler) Schedule(ctx *armadacontext.Context, gctx *context.Gan
 	return sch.trySchedule(ctx, gctx)
 }
 
-func (sch *GangScheduler) trySchedule(ctx *armadacontext.Context, gctx *context.GangSchedulingContext) (ok bool, unschedulableReason string, err error) {
+func (sch *GangScheduler) trySchedule(ctx *armadacontext.Context, gctx *context.GangSchedulingContext) (bool, string, error) {
+	var ok bool
+	var unschedulableReason string
+	var err error
 	nodeUniformity := gctx.NodeUniformityLabel()
 
 	// If no node uniformity or isn't a gang, try scheduling across all nodes.
@@ -216,7 +219,10 @@ func (sch *GangScheduler) trySchedule(ctx *armadacontext.Context, gctx *context.
 	return sch.tryScheduleGang(ctx, gctx)
 }
 
-func (sch *GangScheduler) tryScheduleGang(ctx *armadacontext.Context, gctx *context.GangSchedulingContext) (ok bool, unschedulableReason string, err error) {
+func (sch *GangScheduler) tryScheduleGang(ctx *armadacontext.Context, gctx *context.GangSchedulingContext) (bool, string, error) {
+	var ok bool
+	var unschedulableReason string
+	var err error
 	txn := sch.nodeDb.Txn(true)
 	defer txn.Abort()
 	ok, unschedulableReason, err = sch.tryScheduleGangWithTxn(ctx, txn, gctx)
@@ -226,7 +232,10 @@ func (sch *GangScheduler) tryScheduleGang(ctx *armadacontext.Context, gctx *cont
 	return ok, unschedulableReason, err
 }
 
-func (sch *GangScheduler) tryScheduleGangWithTxn(_ *armadacontext.Context, txn *memdb.Txn, gctx *context.GangSchedulingContext) (ok bool, unschedulableReason string, err error) {
+func (sch *GangScheduler) tryScheduleGangWithTxn(_ *armadacontext.Context, txn *memdb.Txn, gctx *context.GangSchedulingContext) (bool, string, error) {
+	var ok bool
+	var unschedulableReason string
+	var err error
 	if ok, err = sch.nodeDb.ScheduleManyWithTxn(txn, gctx); err == nil {
 		if !ok {
 			if gctx.Cardinality() > 1 {

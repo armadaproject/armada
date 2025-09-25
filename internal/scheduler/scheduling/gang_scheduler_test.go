@@ -444,7 +444,8 @@ func TestGangScheduler(t *testing.T) {
 					{Key: "taint-a", Value: "true", Effect: v1.TaintEffectNoSchedule},
 					{Key: "taint-b", Value: "true", Effect: v1.TaintEffectNoSchedule},
 				}),
-			Gangs: func() (gangs [][]*jobdb.Job) {
+			Gangs: func() [][]*jobdb.Job {
+				var gangs [][]*jobdb.Job
 				var jobId ulid.ULID
 				jobId = util.ULID()
 				gangs = append(gangs, []*jobdb.Job{
@@ -493,7 +494,8 @@ func TestGangScheduler(t *testing.T) {
 					{Key: "taint-a", Value: "true", Effect: v1.TaintEffectNoSchedule},
 				},
 			),
-			Gangs: func() (gangs [][]*jobdb.Job) {
+			Gangs: func() [][]*jobdb.Job {
+				var gangs [][]*jobdb.Job
 				jobId := util.ULID()
 				gangs = append(gangs, []*jobdb.Job{testfixtures.TestJob("A", jobId, "armada-preemptible-away", testfixtures.Test32Cpu256GiWithLargeJobTolerationPodReqs("A", jobId, 30000))})
 				jobId = util.ULID()

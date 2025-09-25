@@ -41,7 +41,8 @@ type ErrUnauthorized struct {
 	Message string
 }
 
-func (err *ErrUnauthorized) Error() (s string) {
+func (err *ErrUnauthorized) Error() string {
+	var s string
 	if err.Action != "" {
 		s = fmt.Sprintf("%s lacks permission %s required for action %s", err.Principal, err.Permission, err.Action)
 	} else {
@@ -496,8 +497,8 @@ func (err *ErrUnauthenticated) GRPCStatus() *status.Status {
 	return status.New(codes.Unauthenticated, err.Error())
 }
 
-func (err *ErrUnauthenticated) Error() (s string) {
-	s = "Request could not be authenticated"
+func (err *ErrUnauthenticated) Error() string {
+	s := "Request could not be authenticated"
 	if err.Action != "" {
 		s += fmt.Sprintf(" for action %q", err.Action)
 	}
@@ -590,8 +591,8 @@ func craftFullErrorMessageForAuthRelatedErrors(mainMessage string,
 	authServiceName string,
 	action string,
 	auxMessage string,
-) (s string) {
-	s = mainMessage
+) string {
+	s := mainMessage
 	if username != "" {
 		s += fmt.Sprintf(" for user %q", username)
 	}

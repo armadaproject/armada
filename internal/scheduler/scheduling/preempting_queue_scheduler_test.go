@@ -1629,7 +1629,8 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": func() (jobs []*jobdb.Job) {
+						"A": func() []*jobdb.Job {
+							var jobs []*jobdb.Job
 							for i := 0; i < 96; i++ {
 								jobId := util.ULID()
 								jobs = append(jobs, testfixtures.TestJob("A", jobId, "armada-preemptible-away", testfixtures.Test1Cpu4GiPodReqs("A", jobId, 30000)))
@@ -1642,7 +1643,8 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				},
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"B": func() (jobs []*jobdb.Job) {
+						"B": func() []*jobdb.Job {
+							var jobs []*jobdb.Job
 							for i := 0; i < 12; i++ {
 								jobId := util.ULID()
 								req := testfixtures.Test1GpuPodReqs("B", jobId, 30000)
@@ -1686,7 +1688,8 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"B": func() (jobs []*jobdb.Job) {
+						"B": func() []*jobdb.Job {
+							var jobs []*jobdb.Job
 							for i := 0; i < 12; i++ {
 								jobId := util.ULID()
 								req := testfixtures.Test1GpuPodReqs("B", jobId, 30000)
@@ -1701,7 +1704,8 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				},
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": func() (jobs []*jobdb.Job) {
+						"A": func() []*jobdb.Job {
+							var jobs []*jobdb.Job
 							for i := 0; i < 96; i++ {
 								jobId := util.ULID()
 								jobs = append(jobs, testfixtures.TestJob("A", jobId, "armada-preemptible-away", testfixtures.Test1Cpu4GiPodReqs("A", jobId, 30000)))
@@ -1753,7 +1757,8 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": func() (jobs []*jobdb.Job) {
+						"A": func() []*jobdb.Job {
+							var jobs []*jobdb.Job
 							for i := 0; i < 96; i++ {
 								jobId := util.ULID()
 								jobs = append(jobs, testfixtures.TestJob("A", jobId, "armada-preemptible-away", testfixtures.Test1Cpu4GiPodReqs("A", jobId, 30000)))
@@ -1766,7 +1771,8 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				},
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"B": func() (jobs []*jobdb.Job) {
+						"B": func() []*jobdb.Job {
+							var jobs []*jobdb.Job
 							for i := 0; i < 12; i++ {
 								jobId := util.ULID()
 								req := testfixtures.Test1GpuPodReqs("B", jobId, 30000)
@@ -1814,7 +1820,8 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"B": func() (jobs []*jobdb.Job) {
+						"B": func() []*jobdb.Job {
+							var jobs []*jobdb.Job
 							for i := 0; i < 12; i++ {
 								jobId := util.ULID()
 								req := testfixtures.Test1GpuPodReqs("B", jobId, 30000)
@@ -1829,7 +1836,8 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				},
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": func() (jobs []*jobdb.Job) {
+						"A": func() []*jobdb.Job {
+							var jobs []*jobdb.Job
 							for i := 0; i < 96; i++ {
 								jobId := util.ULID()
 								jobs = append(jobs, testfixtures.TestJob("A", jobId, "armada-preemptible-away", testfixtures.Test1Cpu4GiPodReqs("A", jobId, 30000)))
@@ -1884,7 +1892,8 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": func() (jobs []*jobdb.Job) {
+						"A": func() []*jobdb.Job {
+							var jobs []*jobdb.Job
 							for i := 0; i < 16; i++ {
 								jobId := util.ULID()
 								req := testfixtures.Test1Cpu4GiPodReqs("A", jobId, 30000)
@@ -1892,7 +1901,8 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 							}
 							return jobs
 						}(),
-						"B": func() (jobs []*jobdb.Job) {
+						"B": func() []*jobdb.Job {
+							var jobs []*jobdb.Job
 							for i := 0; i < 16; i++ {
 								jobId := util.ULID()
 								req := testfixtures.Test1Cpu4GiPodReqs("B", jobId, 30000)
@@ -1908,7 +1918,8 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				},
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"C": func() (jobs []*jobdb.Job) {
+						"C": func() []*jobdb.Job {
+							var jobs []*jobdb.Job
 							for i := 0; i < 17; i++ {
 								jobId := util.ULID()
 								req := testfixtures.Test1Cpu4GiPodReqs("C", jobId, 30000)
