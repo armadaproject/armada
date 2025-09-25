@@ -191,12 +191,16 @@ func (sch *GangScheduler) trySchedule(ctx *armadacontext.Context, gctx *context.
 			currentFit := gctx.Fit()
 			if currentFit.NumScheduled == gctx.Cardinality() && currentFit.MeanPreemptedAtPriority == float64(internaltypes.MinPriority) {
 				// Best possible; no need to keep looking.
+				// Store the selected label value in all job contexts
+				gctx.SetGangNodeUniformityValues(nodeUniformity, value)
 				txn.Commit()
 				return true, "", nil
 			}
 			if bestValue == "" || bestFit.Less(currentFit) {
 				if i == len(nodeUniformityLabelValues) {
 					// Minimal meanScheduledAtPriority and no more options; commit and return.
+					// Store the selected label value in all job contexts
+					gctx.SetGangNodeUniformityValues(nodeUniformity, value)
 					txn.Commit()
 					return true, "", nil
 				}
@@ -212,6 +216,8 @@ func (sch *GangScheduler) trySchedule(ctx *armadacontext.Context, gctx *context.
 		unschedulableReason = "at least one job in the gang does not fit on any node"
 		return
 	}
+	// Store the selected label value in all job contexts
+	gctx.SetGangNodeUniformityValues(nodeUniformity, bestValue)
 	addNodeSelectorToGctx(gctx, gctx.NodeUniformityLabel(), bestValue)
 	return sch.tryScheduleGang(ctx, gctx)
 }
