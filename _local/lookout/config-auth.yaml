@@ -1,0 +1,41 @@
+apiPort: 8089
+metricsPort: 9003
+corsAllowedOrigins:
+  - "http://localhost:3000"
+  - "http://localhost:8089"
+  - "http://localhost:10000"
+  - "http://localhost:8081"
+auth:
+  anonymousAuth: false
+  openIdAuth:
+    providerUrl: "http://localhost:8180/realms/armada"
+    clientId: "armada-server"
+    groupsClaim: "groups"
+    skipClientIDCheck: true
+  basicAuth:
+    users:
+      admin:
+        password: "admin"
+        groups: ["admins"]
+  permissionGroupMapping:
+    view_jobs: ["admins", "users"]
+    cancel_jobs: ["admins"]
+postgres:
+  connection:
+    host: localhost
+    port: 5432
+    user: postgres
+    password: psw
+    dbname: lookout
+    sslmode: disable
+uiConfig:
+  backend: "jsonb"
+  armadaApiBaseUrl: "http://localhost:8081"
+  binocularsBaseUrlPattern: "http://localhost:8084"
+  customTitle: "Armada Local Dev (Auth Enabled)"
+  userAnnotationPrefix: "armadaproject.io/"
+  oidcEnabled: true
+  oidc:
+    authority: "http://localhost:8180/realms/armada"
+    clientId: "armada-server"
+    scope: "openid profile email"

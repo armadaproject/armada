@@ -1,0 +1,14 @@
+httpPort: 8082
+executorApiConnection:
+  armadaUrl: "localhost:50052"
+  forceNoTls: true
+  openIdClientCredentialsAuth:
+    providerUrl: "http://localhost:8180/realms/armada"
+    clientId: "armada-executor"
+    clientSecret: "executor-secret"
+    scopes: ["profile", "email"]
+metric:
+  port: 9002
+application:
+  clusterId: "local-cluster"
+  pool: "default"

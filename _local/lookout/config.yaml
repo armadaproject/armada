@@ -1,0 +1,23 @@
+apiPort: 8089
+metricsPort: 9003
+corsAllowedOrigins:
+  - "http://localhost:3000"
+  - "http://localhost:8089"
+  - "http://localhost:10000"
+  - "http://localhost:8081"
+auth:
+  anonymousAuth: true
+postgres:
+  connection:
+    host: localhost
+    port: 5432
+    user: postgres
+    password: psw
+    dbname: lookout
+    sslmode: disable
+uiConfig:
+  backend: "jsonb"
+  armadaApiBaseUrl: "http://localhost:8081"
+  binocularsBaseUrlPattern: "http://localhost:8084"
+  customTitle: "Armada Local Dev"
+  userAnnotationPrefix: "armadaproject.io/"

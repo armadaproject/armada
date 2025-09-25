@@ -1,0 +1,13 @@
+metrics:
+  port: 9006
+postgres:
+  connection:
+    host: localhost
+    port: 5432
+    user: postgres
+    password: psw
+    dbname: scheduler
+    sslmode: disable
+pulsar:
+  URL: "pulsar://localhost:6650"
+  restURL: "http://localhost:8090"
