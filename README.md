@@ -61,9 +61,9 @@ Or download it from the [GitHub Release](https://github.com/armadaproject/armada
 
 ## Local Development
 
-### Goreman (Procfile-based)
+### Local Development with Goreman
 
-[Goreman](https://github.com/mattn/goreman) is a Go-based clone of [Foreman](https://github.com/ddollar/foreman) that manages Procfile-based applications, 
+[Goreman](https://github.com/mattn/goreman) is a Go-based clone of [Foreman](https://github.com/ddollar/foreman) that manages Procfile-based applications,
 allowing you to run multiple processes with a single command.
 
 Goreman will build the components from source and run them locally, making it easy to test changes quickly.
@@ -77,7 +77,7 @@ Goreman will build the components from source and run them locally, making it ea
     docker-compose -f _local/docker-compose-deps.yaml up -d
     ```
    - **Note**: Images can be overridden using environment variables:
-     `REDIS_IMAGE`, `POSTGRES_IMAGE`, `PULSAR_IMAGE`
+     `REDIS_IMAGE`, `POSTGRES_IMAGE`, `PULSAR_IMAGE`, `KEYCLOAK_IMAGE`
 3. Initialize databases and Kubernetes resources:
     ```shell
     scripts/localdev-init.sh
@@ -86,6 +86,47 @@ Goreman will build the components from source and run them locally, making it ea
     ```shell
     goreman start
     ```
+
+### Local Development with Authentication
+
+To run Armada with OIDC authentication enabled using Keycloak:
+
+1. Start dependencies with the auth profile:
+    ```shell
+    docker-compose -f _local/docker-compose-deps.yaml --profile auth up -d
+    ```
+   This starts Redis, PostgreSQL, Pulsar, and Keycloak with a pre-configured realm.
+
+2. Initialize databases and Kubernetes resources:
+    ```shell
+    scripts/localdev-init.sh
+    ```
+
+3. Start Armada components with auth configuration:
+    ```shell
+    goreman -f auth.Procfile start
+    ```
+
+4. Use armadactl with OIDC authentication:
+    ```shell
+    armadactl --config _local/.armadactl.yaml --context auth-oidc get queues
+    ```
+
+#### Authentication Configuration
+
+The auth profile configures:
+- **Keycloak**: OIDC provider running on http://localhost:8180 with pre-configured realm, users, and clients
+- **Users**: `admin/admin` (admin group), `user/password` (users group) for both OIDC and basic auth
+- **Service accounts**: Executor and Scheduler use OIDC Client Credentials flow for service-to-service authentication
+- **APIs**: Server, Lookout, and Binoculars APIs are secured with OIDC and basic auth
+- **Web UIs**: Lookout UI uses OIDC for user authentication
+- **armadactl**: Supports multiple authentication flows - OIDC PKCE flow (`auth-oidc`), OIDC Device flow (`auth-oidc-device`), OIDC Password flow (`auth-oidc-password`), and basic auth (`auth-basic`)
+
+All components support both OIDC and basic auth for convenience.
+
+Restart individual processes with `goreman restart <component>` (e.g., `goreman restart server`).
+
+### Service Ports
 
 Run `goreman run status` to check the status of the processes (running processes are prefixed with `*`):
 ```shell
@@ -101,27 +142,7 @@ $ goreman run status
 *lookoutui
 ```
 
-Restart individual processes with `goreman restart <component>` (e.g., `goreman restart server`).
-
-### Skaffold (Kubernetes)
-
-[Skaffold](https://skaffold.dev) handles the workflow for building, pushing, and deploying applications to Kubernetes.
-It provides automatic hot-reload, debugging support, and port-forwarding for local development.
-
-Skaffold requires a running Kubernetes cluster (ideally `kind` or `minikube`).
-
-Skaffold will build the components from source, package them as Docker images, inject them into the Kubernetes cluster, and deploy them using the Armada Helm charts.
-
-1. Install [Skaffold](https://skaffold.dev/docs/install/)
-2. Run `skaffold dev` for faster dev mode or `skaffold debug` to inject [delve](https://github.com/go-delve/delve) for step-by-step debugging.
-3. Press `CTRL-C` to cleanup installed resources.
-
-**Note**: When using `skaffold`, the Lookout UI is served by the Lookout backend on port 8089.
-When using `goreman`, the Lookout UI runs on port 3000 with hot-reload.
-
-### Service Ports
-
-Both Goreman and Skaffold expose services on the same ports for consistency:
+Goreman exposes services on the following ports:
 
 | Service                    | Port  | Description         |
 |----------------------------|-------|---------------------|
@@ -131,8 +152,7 @@ Both Goreman and Skaffold expose services on the same ports for consistency:
 | Scheduler gRPC             | 50052 | Scheduler API       |
 | Scheduler Metrics          | 9001  | Prometheus metrics  |
 | Scheduler Ingester Metrics | 9006  | Prometheus metrics  |
-| Lookout API/UI (skaffold)  | 8089  | Backend & Web UI    |
-| Lookout UI (goreman)       | 3000  | Frontend dev server |
+| Lookout UI                 | 3000  | Frontend dev server |
 | Lookout Metrics            | 9003  | Prometheus metrics  |
 | Lookout Ingester Metrics   | 9005  | Prometheus metrics  |
 | Executor Metrics           | 9002  | Prometheus metrics  |

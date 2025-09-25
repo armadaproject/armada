@@ -1,0 +1,57 @@
+httpPort: 8081
+grpcPort: 50051
+metricsPort: 9000
+corsAllowedOrigins:
+  - "http://localhost:3000"
+  - "http://localhost:8089"
+  - "http://localhost:10000"
+  - "http://localhost:8081"
+auth:
+  anonymousAuth: false
+  basicAuth:
+    users:
+      admin:
+        password: "admin"
+        groups: ["admins"]
+  openIdAuth:
+    providerUrl: "http://localhost:8180/realms/armada"
+    clientId: "armada-server"
+    groupsClaim: "groups"
+    skipClientIDCheck: true
+  permissionGroupMapping:
+    submit_any_jobs: ["admins"]
+    create_queue: ["admins"]
+    delete_queue: ["admins"]
+    cancel_any_jobs: ["admins"]
+    reprioritize_any_jobs: ["admins"]
+    watch_all_events: ["admins"]
+    execute_jobs: ["admins", "executors"]
+eventsApiRedis:
+  addrs:
+    - localhost:6379
+  db: 1
+postgres:
+  connection:
+    host: localhost
+    port: 5432
+    user: postgres
+    password: psw
+    dbname: lookout
+    sslmode: disable
+queryapi:
+  postgres:
+    connection:
+      host: localhost
+      port: 5432
+      user: postgres
+      password: psw
+      dbname: lookout
+      sslmode: disable
+pulsar:
+  URL: "pulsar://localhost:6650"
+redis:
+  addrs:
+    - localhost:6379
+schedulerApiConnection:
+  armadaUrl: "localhost:50052"
+  forceNoTls: true
