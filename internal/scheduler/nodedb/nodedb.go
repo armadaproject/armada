@@ -497,7 +497,7 @@ func (nodeDb *NodeDb) selectNodeForJobWithTxnAndAwayNodeType(
 
 	jctx.PodSchedulingContext.ScheduledAtPriority = awayNodeType.Priority
 	node, err = nodeDb.selectNodeForJobWithTxnAtPriority(txn, jctx)
-	return
+	return node, err
 }
 
 func (nodeDb *NodeDb) selectNodeForJobWithTxnAtPriority(

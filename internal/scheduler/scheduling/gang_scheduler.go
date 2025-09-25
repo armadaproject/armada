@@ -101,7 +101,7 @@ func (sch *GangScheduler) Schedule(ctx *armadacontext.Context, gctx *context.Gan
 	// Exit immediately if this is a new gang and we've hit any round limits.
 	if !gctx.AllJobsEvicted {
 		if ok, unschedulableReason, err = sch.constraints.CheckRoundConstraints(sch.schedulingContext); err != nil || !ok {
-			return
+			return ok, unschedulableReason, err
 		}
 	}
 
@@ -130,19 +130,19 @@ func (sch *GangScheduler) Schedule(ctx *armadacontext.Context, gctx *context.Gan
 	}()
 
 	if _, err = sch.schedulingContext.AddGangSchedulingContext(gctx); err != nil {
-		return
+		return ok, unschedulableReason, err
 	}
 	gangAddedToSchedulingContext = true
 	if !gctx.AllJobsEvicted {
 		// Only perform these checks for new jobs to avoid preempting jobs if, e.g., MinimumJobSize changes.
 		if ok, unschedulableReason, err = sch.constraints.CheckJobConstraints(sch.schedulingContext, gctx); err != nil || !ok {
-			return
+			return ok, unschedulableReason, err
 		}
 	}
 
 	if gctx.RequestsFloatingResources {
 		if ok, unschedulableReason = sch.floatingResourceTypes.WithinLimits(sch.schedulingContext.Pool, sch.schedulingContext.Allocated); !ok {
-			return
+			return ok, unschedulableReason, err
 		}
 	}
 
@@ -163,12 +163,12 @@ func (sch *GangScheduler) trySchedule(ctx *armadacontext.Context, gctx *context.
 	if !ok {
 		ok = false
 		unschedulableReason = fmt.Sprintf("uniformity label %s is not indexed", nodeUniformity)
-		return
+		return ok, unschedulableReason, err
 	}
 	if len(nodeUniformityLabelValues) == 0 {
 		ok = false
 		unschedulableReason = fmt.Sprintf("no nodes with uniformity label %s", nodeUniformity)
-		return
+		return ok, unschedulableReason, err
 	}
 
 	// Try all possible values of nodeUniformityLabel one at a time to find the best fit.
@@ -185,7 +185,7 @@ func (sch *GangScheduler) trySchedule(ctx *armadacontext.Context, gctx *context.
 		ok, unschedulableReason, err = sch.tryScheduleGangWithTxn(ctx, txn, gctx)
 		if err != nil {
 			txn.Abort()
-			return
+			return ok, unschedulableReason, err
 		}
 		if ok {
 			currentFit := gctx.Fit()
@@ -210,7 +210,7 @@ func (sch *GangScheduler) trySchedule(ctx *armadacontext.Context, gctx *context.
 	if bestValue == "" {
 		ok = false
 		unschedulableReason = "at least one job in the gang does not fit on any node"
-		return
+		return ok, unschedulableReason, err
 	}
 	addNodeSelectorToGctx(gctx, gctx.NodeUniformityLabel(), bestValue)
 	return sch.tryScheduleGang(ctx, gctx)
@@ -223,7 +223,7 @@ func (sch *GangScheduler) tryScheduleGang(ctx *armadacontext.Context, gctx *cont
 	if ok && err == nil {
 		txn.Commit()
 	}
-	return
+	return ok, unschedulableReason, err
 }
 
 func (sch *GangScheduler) tryScheduleGangWithTxn(_ *armadacontext.Context, txn *memdb.Txn, gctx *context.GangSchedulingContext) (ok bool, unschedulableReason string, err error) {
@@ -235,9 +235,9 @@ func (sch *GangScheduler) tryScheduleGangWithTxn(_ *armadacontext.Context, txn *
 				unschedulableReason = schedulerconstraints.JobDoesNotFitUnschedulableReason
 			}
 		}
-		return
+		return ok, unschedulableReason, err
 	}
-	return
+	return ok, unschedulableReason, err
 }
 
 func addNodeSelectorToGctx(gctx *context.GangSchedulingContext, nodeSelectorKey, nodeSelectorValue string) {

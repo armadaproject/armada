@@ -1634,7 +1634,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 								jobId := util.ULID()
 								jobs = append(jobs, testfixtures.TestJob("A", jobId, "armada-preemptible-away", testfixtures.Test1Cpu4GiPodReqs("A", jobId, 30000)))
 							}
-							return
+							return jobs
 						}(),
 					},
 					ExpectedScheduledIndices: map[string][]int{"A": testfixtures.IntRange(0, 95)},
@@ -1649,7 +1649,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 								req.Tolerations = append(req.Tolerations, v1.Toleration{Key: "gpu", Value: "true", Effect: v1.TaintEffectNoSchedule})
 								jobs = append(jobs, testfixtures.TestJob("B", jobId, "armada-preemptible", req))
 							}
-							return
+							return jobs
 						}(),
 					},
 					ExpectedScheduledIndices: map[string][]int{"B": testfixtures.IntRange(0, 11)},
@@ -1693,7 +1693,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 								req.Tolerations = append(req.Tolerations, v1.Toleration{Key: "gpu", Value: "true", Effect: v1.TaintEffectNoSchedule})
 								jobs = append(jobs, testfixtures.TestJob("B", jobId, "armada-preemptible", req))
 							}
-							return
+							return jobs
 						}(),
 					},
 					ExpectedScheduledIndices: map[string][]int{"B": testfixtures.IntRange(0, 11)},
@@ -1706,7 +1706,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 								jobId := util.ULID()
 								jobs = append(jobs, testfixtures.TestJob("A", jobId, "armada-preemptible-away", testfixtures.Test1Cpu4GiPodReqs("A", jobId, 30000)))
 							}
-							return
+							return jobs
 						}(),
 					},
 					ExpectedScheduledIndices: map[string][]int{"A": testfixtures.IntRange(0, 31)},
@@ -1758,7 +1758,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 								jobId := util.ULID()
 								jobs = append(jobs, testfixtures.TestJob("A", jobId, "armada-preemptible-away", testfixtures.Test1Cpu4GiPodReqs("A", jobId, 30000)))
 							}
-							return
+							return jobs
 						}(),
 					},
 					ExpectedScheduledIndices: map[string][]int{"A": testfixtures.IntRange(0, 95)},
@@ -1773,7 +1773,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 								req.Tolerations = append(req.Tolerations, v1.Toleration{Key: "gpu", Value: "true", Effect: v1.TaintEffectNoSchedule})
 								jobs = append(jobs, testfixtures.TestJob("B", jobId, "armada-preemptible", req))
 							}
-							return
+							return jobs
 						}(),
 					},
 					ExpectedScheduledIndices: map[string][]int{"B": testfixtures.IntRange(0, 7)},
@@ -1821,7 +1821,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 								req.Tolerations = append(req.Tolerations, v1.Toleration{Key: "gpu", Value: "true", Effect: v1.TaintEffectNoSchedule})
 								jobs = append(jobs, testfixtures.TestJob("B", jobId, "armada-preemptible", req))
 							}
-							return
+							return jobs
 						}(),
 					},
 					ExpectedScheduledIndices: map[string][]int{"B": testfixtures.IntRange(0, 7)},
@@ -1834,7 +1834,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 								jobId := util.ULID()
 								jobs = append(jobs, testfixtures.TestJob("A", jobId, "armada-preemptible-away", testfixtures.Test1Cpu4GiPodReqs("A", jobId, 30000)))
 							}
-							return
+							return jobs
 						}(),
 					},
 					ExpectedScheduledIndices: map[string][]int{"A": testfixtures.IntRange(0, 31)},
@@ -1890,7 +1890,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 								req := testfixtures.Test1Cpu4GiPodReqs("A", jobId, 30000)
 								jobs = append(jobs, testfixtures.TestJob("A", jobId, "armada-preemptible-away-lower", req))
 							}
-							return
+							return jobs
 						}(),
 						"B": func() (jobs []*jobdb.Job) {
 							for i := 0; i < 16; i++ {
@@ -1898,7 +1898,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 								req := testfixtures.Test1Cpu4GiPodReqs("B", jobId, 30000)
 								jobs = append(jobs, testfixtures.TestJob("B", jobId, "armada-preemptible-away", req))
 							}
-							return
+							return jobs
 						}(),
 					},
 					ExpectedScheduledIndices: map[string][]int{
@@ -1915,7 +1915,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 								req.Tolerations = append(req.Tolerations, v1.Toleration{Key: "gpu", Value: "true", Effect: v1.TaintEffectNoSchedule})
 								jobs = append(jobs, testfixtures.TestJob("C", jobId, "armada-preemptible", req))
 							}
-							return
+							return jobs
 						}(),
 					},
 					ExpectedScheduledIndices: map[string][]int{

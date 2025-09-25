@@ -50,7 +50,7 @@ func (err *ErrUnauthorized) Error() (s string) {
 	if err.Message != "" {
 		s += fmt.Sprintf("; %s", err.Message)
 	}
-	return
+	return s
 }
 
 // ErrAlreadyExists is a generic error to be returned whenever some resource already exists.
@@ -504,7 +504,7 @@ func (err *ErrUnauthenticated) Error() (s string) {
 	if err.Message != "" {
 		s += fmt.Sprintf(": %s", err.Message)
 	}
-	return
+	return s
 }
 
 // ErrInvalidCredentials is returned when a given set of credentials cannot
@@ -604,5 +604,5 @@ func craftFullErrorMessageForAuthRelatedErrors(mainMessage string,
 	if auxMessage != "" {
 		s += fmt.Sprintf(": %s", auxMessage)
 	}
-	return
+	return s
 }

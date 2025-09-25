@@ -453,7 +453,7 @@ func TestGangScheduler(t *testing.T) {
 				})
 				jobId = util.ULID()
 				gangs = append(gangs, []*jobdb.Job{testfixtures.TestJob("A", jobId, "armada-preemptible-away-both", testfixtures.Test1Cpu4GiPodReqs("A", jobId, 30000))})
-				return
+				return gangs
 			}(),
 			ExpectedScheduledIndices:               []int{1},
 			ExpectedCumulativeScheduledJobs:        []int{0, 1},
@@ -498,7 +498,7 @@ func TestGangScheduler(t *testing.T) {
 				gangs = append(gangs, []*jobdb.Job{testfixtures.TestJob("A", jobId, "armada-preemptible-away", testfixtures.Test32Cpu256GiWithLargeJobTolerationPodReqs("A", jobId, 30000))})
 				jobId = util.ULID()
 				gangs = append(gangs, []*jobdb.Job{testfixtures.TestJob("A", jobId, "armada-preemptible-away", testfixtures.Test32Cpu256GiWithLargeJobTolerationPodReqs("A", jobId, 30000))})
-				return
+				return gangs
 			}(),
 			ExpectedScheduledIndices:               []int{0},
 			ExpectedCumulativeScheduledJobs:        []int{1, 1},
