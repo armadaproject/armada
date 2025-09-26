@@ -91,12 +91,80 @@ var Submit = &armadaevents.EventSequence_Event{
 			ObjectMeta: &armadaevents.ObjectMeta{
 				Namespace: Namespace,
 				Name:      "test-job",
+				Annotations: map[string]string{
+					"foo":                            "bar",
+					configuration.FailFastAnnotation: "true",
+					configuration.JobPriceBand:       "A",
+				},
 			},
 			MainObject: &armadaevents.KubernetesMainObject{
 				ObjectMeta: &armadaevents.ObjectMeta{
 					Annotations: map[string]string{
 						"foo":                            "bar",
 						configuration.FailFastAnnotation: "true",
+						configuration.JobPriceBand:       "A",
+					},
+				},
+				Object: &armadaevents.KubernetesMainObject_PodSpec{
+					PodSpec: &armadaevents.PodSpecWithAvoidList{
+						PodSpec: &v1.PodSpec{
+							NodeSelector:      NodeSelector,
+							Tolerations:       Tolerations,
+							PriorityClassName: PriorityClassName,
+							Containers: []v1.Container{
+								{
+									Name:    "container1",
+									Image:   "alpine:latest",
+									Command: []string{"myprogram.sh"},
+									Args:    []string{"foo", "bar"},
+									Resources: v1.ResourceRequirements{
+										Limits: map[v1.ResourceName]resource.Quantity{
+											"memory": resource.MustParse("64Mi"),
+											"cpu":    resource.MustParse("150m"),
+										},
+										Requests: map[v1.ResourceName]resource.Quantity{
+											"memory": resource.MustParse("64Mi"),
+											"cpu":    resource.MustParse("150m"),
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	},
+}
+
+var SubmitWithIrrelevantAnnotations = &armadaevents.EventSequence_Event{
+	Created: testfixtures.BasetimeProto,
+	Event: &armadaevents.EventSequence_Event_SubmitJob{
+		SubmitJob: &armadaevents.SubmitJob{
+			JobId:           JobId,
+			Priority:        Priority,
+			AtMostOnce:      true,
+			Preemptible:     true,
+			ConcurrencySafe: true,
+			ObjectMeta: &armadaevents.ObjectMeta{
+				Namespace: Namespace,
+				Name:      "test-job",
+				Annotations: map[string]string{
+					"foo":                            "bar",
+					"fizz":                           "buzz",
+					"buzz":                           "fizz",
+					configuration.FailFastAnnotation: "true",
+					configuration.JobPriceBand:       "A",
+				},
+			},
+			MainObject: &armadaevents.KubernetesMainObject{
+				ObjectMeta: &armadaevents.ObjectMeta{
+					Annotations: map[string]string{
+						"foo":                            "bar",
+						"fizz":                           "buzz",
+						"buzz":                           "fizz",
+						configuration.FailFastAnnotation: "true",
+						configuration.JobPriceBand:       "A",
 					},
 				},
 				Object: &armadaevents.KubernetesMainObject_PodSpec{
