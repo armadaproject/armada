@@ -147,10 +147,10 @@ func markJobsAsPreemptionRequested(txn *Txn, jobIds []string, jsts map[string]Jo
 func (jobDb *JobDb) reconcileJobDifferences(job *Job, jobRepoJob *database.Job, jobRepoRuns []*database.Run) (jst JobStateTransitions, err error) {
 	defer func() { jst.Job = job }()
 	if job == nil && jobRepoJob == nil {
-		return
+		return jst, err
 	} else if job == nil && jobRepoJob != nil {
 		if job, err = jobDb.schedulerJobFromDatabaseJob(jobRepoJob); err != nil {
-			return
+			return jst, err
 		}
 		jst.Queued = true
 	} else if job != nil && jobRepoJob == nil {
@@ -210,13 +210,13 @@ func (jobDb *JobDb) reconcileJobDifferences(job *Job, jobRepoJob *database.Job, 
 		job = job.WithUpdatedRun(rst.JobRun)
 	}
 
-	return
+	return jst, err
 }
 
 func (jobDb *JobDb) reconcileRunDifferences(jobRun *JobRun, jobRepoRun *database.Run) (rst RunStateTransitions) {
 	defer func() { rst.JobRun = jobRun }()
 	if jobRun == nil && jobRepoRun == nil {
-		return
+		return rst
 	} else if jobRun == nil && jobRepoRun != nil {
 		jobRun = jobDb.schedulerRunFromDatabaseRun(jobRepoRun)
 		rst.Returned = jobRepoRun.Returned
@@ -228,7 +228,7 @@ func (jobDb *JobDb) reconcileRunDifferences(jobRun *JobRun, jobRepoRun *database
 		rst.Failed = jobRepoRun.Failed
 		rst.Succeeded = jobRepoRun.Succeeded
 	} else if jobRun != nil && jobRepoRun == nil {
-		return
+		return rst
 	} else if jobRun != nil && jobRepoRun != nil {
 		if jobRepoRun.LeasedTimestamp != nil && !jobRun.Leased() {
 			jobRun = jobRun.WithLeased(true).WithLeasedTime(jobRepoRun.LeasedTimestamp)
@@ -271,7 +271,7 @@ func (jobDb *JobDb) reconcileRunDifferences(jobRun *JobRun, jobRepoRun *database
 		}
 	}
 	jobRun = jobDb.enforceTerminalStateExclusivity(jobRun, &rst)
-	return
+	return rst
 }
 
 // enforceTerminalStateExclusivity ensures that a job run has a single terminal state regardless of what the database reports.
