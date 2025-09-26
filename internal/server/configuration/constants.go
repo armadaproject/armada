@@ -24,9 +24,14 @@ var schedulingAnnotations = map[string]bool{
 	GangCardinalityAnnotation:         true,
 	GangNodeUniformityLabelAnnotation: true,
 	FailFastAnnotation:                true,
+	JobPriceBand:                      true,
 }
 
 func IsSchedulingAnnotation(annotation string) bool {
 	_, ok := schedulingAnnotations[annotation]
 	return ok
+}
+
+func SchedulingAnnotationCount() int {
+	return len(schedulingAnnotations)
 }
