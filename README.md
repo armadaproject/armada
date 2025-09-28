@@ -84,7 +84,7 @@ Goreman will build the components from source and run them locally, making it ea
     ```
 4. Start Armada components:
     ```shell
-    goreman start
+    goreman -f _local/procfiles/no-auth.Procfile start
     ```
 
 ### Local Development with Authentication
@@ -104,7 +104,7 @@ To run Armada with OIDC authentication enabled using Keycloak:
 
 3. Start Armada components with auth configuration:
     ```shell
-    goreman -f auth.Procfile start
+    goreman -f _local/procfiles/auth.Procfile start
     ```
 
 4. Use armadactl with OIDC authentication:
@@ -123,6 +123,34 @@ The auth profile configures:
 - **armadactl**: Supports multiple authentication flows - OIDC PKCE flow (`auth-oidc`), OIDC Device flow (`auth-oidc-device`), OIDC Password flow (`auth-oidc-password`), and basic auth (`auth-basic`)
 
 All components support both OIDC and basic auth for convenience.
+
+### Local Development with Fake Executor
+
+For testing Armada without a real Kubernetes cluster, you can use the fake executor that simulates a Kubernetes environment:
+
+```shell
+goreman -f _local/procfiles/fake-executor.Procfile start
+```
+
+The fake executor simulates:
+- 2 virtual nodes with 8 CPUs and 32Gi memory each
+- Pod lifecycle management without actual container execution
+- Resource allocation and job state transitions
+
+This is useful for:
+- Testing Armada's scheduling logic
+- Development when Kubernetes is not available
+- Integration testing of job flows
+
+### Available Procfiles
+
+All Procfiles are located in `_local/procfiles/`:
+
+| Procfile                 | Description                                       |
+|--------------------------|---------------------------------------------------|
+| `no-auth.Procfile`       | Standard setup without authentication             |
+| `auth.Procfile`          | Standard setup with OIDC authentication           |
+| `fake-executor.Procfile` | Uses fake executor for testing without Kubernetes |
 
 Restart individual processes with `goreman restart <component>` (e.g., `goreman restart server`).
 
