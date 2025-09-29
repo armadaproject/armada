@@ -471,7 +471,9 @@ func (nodeDb *NodeDb) selectNodeForJobWithTxnAndAwayNodeType(
 	txn *memdb.Txn,
 	jctx *context.JobSchedulingContext,
 	awayNodeType types.AwayNodeType,
-) (node *internaltypes.Node, err error) {
+) (*internaltypes.Node, error) {
+	var node *internaltypes.Node
+	var err error
 	// Save the number of additional tolerations that the job originally had; we
 	// use this value to restore the slice of additional toleration at the end
 	// of each loop iteration.
@@ -497,7 +499,7 @@ func (nodeDb *NodeDb) selectNodeForJobWithTxnAndAwayNodeType(
 
 	jctx.PodSchedulingContext.ScheduledAtPriority = awayNodeType.Priority
 	node, err = nodeDb.selectNodeForJobWithTxnAtPriority(txn, jctx)
-	return
+	return node, err
 }
 
 func (nodeDb *NodeDb) selectNodeForJobWithTxnAtPriority(
