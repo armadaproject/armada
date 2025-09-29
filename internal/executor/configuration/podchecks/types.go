@@ -49,8 +49,9 @@ type ContainerStatusCheck struct {
 }
 
 type FailedChecks struct {
-	Events      []PodEventCheck
-	PodStatuses []PodStatusCheck
+	Events            []PodEventCheck
+	PodStatuses       []PodStatusCheck
+	ContainerStatuses []FailedContainerStatusCheck
 }
 
 type PodEventCheck struct {
@@ -62,4 +63,9 @@ type PodEventCheck struct {
 type PodStatusCheck struct {
 	Regexp string
 	Reason string
+}
+
+type FailedContainerStatusCheck struct {
+	ContainerNameRegexp string
+	MessageRegexp       string
 }
