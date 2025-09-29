@@ -17,6 +17,11 @@ const (
 
 	DirectionAsc  = "ASC"
 	DirectionDesc = "DESC"
+
+	// Aggregate types for lastTransitionTime
+	AggregateLatest   = "latest"
+	AggregateEarliest = "earliest"
+	AggregateAverage  = "average"
 )
 
 type Job struct {
@@ -114,6 +119,7 @@ type Order struct {
 }
 
 type GroupedField struct {
-	Field        string
-	IsAnnotation bool
+	Field                       string
+	IsAnnotation                bool
+	LastTransitionTimeAggregate string
 }

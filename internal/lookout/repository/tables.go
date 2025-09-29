@@ -68,6 +68,8 @@ type LookoutTables struct {
 	groupableColumns map[string]bool
 	// map from column to aggregate that can be performed on it
 	groupAggregates map[string]AggregateType
+	// map from string name to aggregate type for lastTransitionTime
+	lastTransitionTimeAggregateMap map[string]AggregateType
 }
 
 func NewTables() *LookoutTables {
@@ -154,6 +156,11 @@ func NewTables() *LookoutTables {
 			lastTransitionTimeCol: Average,
 			stateCol:              StateCounts,
 		},
+		lastTransitionTimeAggregateMap: map[string]AggregateType{
+			model.AggregateLatest:   Max,
+			model.AggregateEarliest: Min,
+			model.AggregateAverage:  Average,
+		},
 	}
 }
 
@@ -211,4 +218,20 @@ func (c *LookoutTables) GroupAggregateForCol(col string) (AggregateType, error) 
 		return Unknown, errors.Errorf("no aggregate found for column %s", col)
 	}
 	return aggregate, nil
+}
+
+// GetLastTransitionTimeAggregate returns the aggregate type to use for lastTransitionTime
+// based on the provided string. If the string is empty or not recognised, it returns the default,
+// Average.
+func (c *LookoutTables) GetLastTransitionTimeAggregate(aggregateType string) AggregateType {
+	if aggregateType == "" {
+		return Average
+	}
+
+	aggregateTypeEnum, ok := c.lastTransitionTimeAggregateMap[aggregateType]
+	if !ok {
+		return Average
+	}
+
+	return aggregateTypeEnum
 }

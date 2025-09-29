@@ -539,6 +539,14 @@ paths:
                   isAnnotation:
                     type: boolean
                     x-nullable: false
+                  lastTransitionTimeAggregate:
+                    type: string
+                    description: Type of aggregate to use for lastTransitionTime (latest, earliest, average)
+                    enum:
+                      - latest
+                      - earliest
+                      - average
+                    x-nullable: true
               aggregates:
                 type: array
                 description: "Additional fields to compute aggregates on"
