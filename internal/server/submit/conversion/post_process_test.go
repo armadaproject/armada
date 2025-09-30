@@ -479,9 +479,18 @@ func TestDefaultResource(t *testing.T) {
 		"All Containers need defaults": {
 			config: defaultConfig,
 			podSpec: &v1.PodSpec{
-				Containers: []v1.Container{{}, {}},
+				InitContainers: []v1.Container{{}},
+				Containers:     []v1.Container{{}, {}},
 			},
 			expected: &v1.PodSpec{
+				InitContainers: []v1.Container{
+					{
+						Resources: v1.ResourceRequirements{
+							Requests: defaultExpected,
+							Limits:   defaultExpected,
+						},
+					},
+				},
 				Containers: []v1.Container{
 					{
 						Resources: v1.ResourceRequirements{
@@ -498,9 +507,24 @@ func TestDefaultResource(t *testing.T) {
 				},
 			},
 		},
-		"One container needs defaults": {
+		"Main and init containers needs defaults": {
 			config: defaultConfig,
 			podSpec: &v1.PodSpec{
+				InitContainers: []v1.Container{
+					{},
+					{
+						Resources: v1.ResourceRequirements{
+							Requests: map[v1.ResourceName]resource.Quantity{
+								"cpu":    resource.MustParse("20"),
+								"memory": resource.MustParse("2Gi"),
+							},
+							Limits: map[v1.ResourceName]resource.Quantity{
+								"cpu":    resource.MustParse("20"),
+								"memory": resource.MustParse("2Gi"),
+							},
+						},
+					},
+				},
 				Containers: []v1.Container{
 					{},
 					{
@@ -518,6 +542,26 @@ func TestDefaultResource(t *testing.T) {
 				},
 			},
 			expected: &v1.PodSpec{
+				InitContainers: []v1.Container{
+					{
+						Resources: v1.ResourceRequirements{
+							Requests: defaultExpected,
+							Limits:   defaultExpected,
+						},
+					},
+					{
+						Resources: v1.ResourceRequirements{
+							Requests: map[v1.ResourceName]resource.Quantity{
+								"cpu":    resource.MustParse("20"),
+								"memory": resource.MustParse("2Gi"),
+							},
+							Limits: map[v1.ResourceName]resource.Quantity{
+								"cpu":    resource.MustParse("20"),
+								"memory": resource.MustParse("2Gi"),
+							},
+						},
+					},
+				},
 				Containers: []v1.Container{
 					{
 						Resources: v1.ResourceRequirements{

@@ -87,26 +87,31 @@ func defaultPriorityClass(spec *v1.PodSpec, config configuration.SubmissionConfi
 }
 
 // Adds resources defined in config.DefaultJobLimits to all containers in the podspec if that container is missing
-// requests/limits for that particular resource. This can be used to e.g. ensure that lal jobs define at least some
+// requests/limits for that particular resource. This can be used to e.g. ensure that all jobs define at least some
 // ephemeral storage.
 func defaultResource(spec *v1.PodSpec, config configuration.SubmissionConfig) {
-	for i := range spec.Containers {
-		c := &spec.Containers[i]
-		if c.Resources.Limits == nil {
-			c.Resources.Limits = map[v1.ResourceName]resource.Quantity{}
-		}
-		if c.Resources.Requests == nil {
-			c.Resources.Requests = map[v1.ResourceName]resource.Quantity{}
-		}
-		for res, val := range config.DefaultJobLimits {
-			_, hasLimit := c.Resources.Limits[v1.ResourceName(res)]
-			_, hasRequest := c.Resources.Limits[v1.ResourceName(res)]
-			if !hasLimit && !hasRequest {
-				c.Resources.Requests[v1.ResourceName(res)] = val
-				c.Resources.Limits[v1.ResourceName(res)] = val
+	applyDefaults := func(containers []v1.Container) {
+		for i := range containers {
+			c := &containers[i]
+			if c.Resources.Limits == nil {
+				c.Resources.Limits = map[v1.ResourceName]resource.Quantity{}
+			}
+			if c.Resources.Requests == nil {
+				c.Resources.Requests = map[v1.ResourceName]resource.Quantity{}
+			}
+			for res, val := range config.DefaultJobLimits {
+				_, hasLimit := c.Resources.Limits[v1.ResourceName(res)]
+				_, hasRequest := c.Resources.Requests[v1.ResourceName(res)]
+				if !hasLimit && !hasRequest {
+					c.Resources.Requests[v1.ResourceName(res)] = val
+					c.Resources.Limits[v1.ResourceName(res)] = val
+				}
 			}
 		}
 	}
+
+	applyDefaults(spec.Containers)
+	applyDefaults(spec.InitContainers)
 }
 
 // Adds tolerations to the podspec.  The tolerations added depend on three properties:
