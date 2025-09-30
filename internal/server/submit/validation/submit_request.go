@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/pkg/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/component-helpers/scheduling/corev1/nodeaffinity"
 
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
@@ -257,6 +258,20 @@ func validateResources(j *api.JobSubmitRequestItem, config configuration.Submiss
 
 		if len(container.Resources.Requests) != len(container.Resources.Limits) {
 			return fmt.Errorf("container %v defines different resources for requests and limits", container.Name)
+		}
+
+		for resourceName, request := range container.Resources.Requests {
+			if request.Cmp(resource.Quantity{}) < 0 {
+				return fmt.Errorf("container %v defines negative resource request (%s) for resource %s",
+					container.Name, request.String(), resourceName)
+			}
+		}
+
+		for resourceName, limit := range container.Resources.Limits {
+			if limit.Cmp(resource.Quantity{}) < 0 {
+				return fmt.Errorf("container %v defines negative resource limit (%s) for resource %s",
+					container.Name, limit.String(), resourceName)
+			}
 		}
 
 		for resource, request := range container.Resources.Requests {
