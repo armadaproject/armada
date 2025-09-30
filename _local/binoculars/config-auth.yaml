@@ -1,0 +1,27 @@
+httpPort: 8084
+grpcPort: 50053
+metricsPort: 9007
+application:
+  clusterId: local-cluster
+kubernetes:
+  impersonateUsers: true
+auth:
+  anonymousAuth: false
+  openIdAuth:
+    providerUrl: "http://localhost:8180/realms/armada"
+    clientId: "armada-server"
+    groupsClaim: "groups"
+    skipClientIDCheck: true
+  basicAuth:
+    users:
+      admin:
+        password: "admin"
+        groups: ["admins"]
+  permissionGroupMapping:
+    submit_any_jobs: ["admins"]
+    create_queue: ["admins"]
+    delete_queue: ["admins"]
+    cancel_any_jobs: ["admins"]
+    reprioritize_any_jobs: ["admins"]
+    watch_all_events: ["admins"]
+    execute_jobs: ["admins", "executors"]

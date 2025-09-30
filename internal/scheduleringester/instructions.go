@@ -7,7 +7,6 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
-	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -545,13 +544,18 @@ func SchedulingInfoFromSubmitJob(submitJob *armadaevents.SubmitJob, submitTime t
 		podSpec := object.PodSpec.PodSpec
 		schedulingInfo.PriorityClassName = podSpec.PriorityClassName
 		podRequirements := adapters.PodRequirementsFromPodSpec(podSpec)
+		if podRequirements.Annotations == nil {
+			podRequirements.Annotations = make(map[string]string, configuration.SchedulingAnnotationCount())
+		}
+
 		if submitJob.ObjectMeta != nil {
-			podRequirements.Annotations = maps.Clone(submitJob.ObjectMeta.Annotations)
+			for k, v := range submitJob.ObjectMeta.Annotations {
+				if configuration.IsSchedulingAnnotation(k) {
+					podRequirements.Annotations[k] = v
+				}
+			}
 		}
 		if submitJob.MainObject.ObjectMeta != nil {
-			if podRequirements.Annotations == nil {
-				podRequirements.Annotations = make(map[string]string, len(submitJob.MainObject.ObjectMeta.Annotations))
-			}
 			for k, v := range submitJob.MainObject.ObjectMeta.Annotations {
 				if configuration.IsSchedulingAnnotation(k) {
 					podRequirements.Annotations[k] = v
