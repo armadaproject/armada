@@ -62,7 +62,8 @@ type ErrAlreadyExists struct {
 	Message string // An optional message to include in the error message
 }
 
-func (err *ErrAlreadyExists) Error() (s string) {
+func (err *ErrAlreadyExists) Error() string {
+	var s string
 	if err.Type != "" {
 		s = fmt.Sprintf("resource %q of type %q already exists", err.Value, err.Type)
 	} else {
@@ -84,7 +85,8 @@ type ErrNotFound struct {
 	Message string
 }
 
-func (err *ErrNotFound) Error() (s string) {
+func (err *ErrNotFound) Error() string {
+	var s string
 	if err.Type != "" {
 		s = fmt.Sprintf("resource %q of type %q does not exist", err.Value, err.Type)
 	} else {

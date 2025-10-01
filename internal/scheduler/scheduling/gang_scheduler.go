@@ -97,7 +97,10 @@ func (sch *GangScheduler) updateGangSchedulingContextOnFailure(gctx *context.Gan
 	return nil
 }
 
-func (sch *GangScheduler) Schedule(ctx *armadacontext.Context, gctx *context.GangSchedulingContext) (ok bool, unschedulableReason string, err error) {
+func (sch *GangScheduler) Schedule(ctx *armadacontext.Context, gctx *context.GangSchedulingContext) (bool, string, error) {
+	var ok bool
+	var unschedulableReason string
+	var err error
 	// Exit immediately if this is a new gang and we've hit any round limits.
 	if !gctx.AllJobsEvicted {
 		if ok, unschedulableReason, err = sch.constraints.CheckRoundConstraints(sch.schedulingContext); err != nil || !ok {

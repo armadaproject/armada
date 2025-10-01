@@ -144,7 +144,9 @@ func markJobsAsPreemptionRequested(txn *Txn, jobIds []string, jsts map[string]Jo
 // along with a summary of the state transitions applied to the job.
 //
 // TODO(albin): Pending, running, and preempted are not supported yet.
-func (jobDb *JobDb) reconcileJobDifferences(job *Job, jobRepoJob *database.Job, jobRepoRuns []*database.Run) (jst JobStateTransitions, err error) {
+func (jobDb *JobDb) reconcileJobDifferences(job *Job, jobRepoJob *database.Job, jobRepoRuns []*database.Run) (JobStateTransitions, error) {
+	var jst JobStateTransitions
+	var err error
 	defer func() { jst.Job = job }()
 	if job == nil && jobRepoJob == nil {
 		return jst, err
@@ -213,7 +215,8 @@ func (jobDb *JobDb) reconcileJobDifferences(job *Job, jobRepoJob *database.Job, 
 	return jst, err
 }
 
-func (jobDb *JobDb) reconcileRunDifferences(jobRun *JobRun, jobRepoRun *database.Run) (rst RunStateTransitions) {
+func (jobDb *JobDb) reconcileRunDifferences(jobRun *JobRun, jobRepoRun *database.Run) RunStateTransitions {
+	var rst RunStateTransitions
 	defer func() { rst.JobRun = jobRun }()
 	if jobRun == nil && jobRepoRun == nil {
 		return rst
