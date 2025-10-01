@@ -7,6 +7,7 @@ import (
 	"github.com/pkg/errors"
 	"k8s.io/component-helpers/scheduling/corev1/nodeaffinity"
 
+	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/armadaproject/armada/pkg/api"
@@ -156,7 +157,7 @@ func validateHasQueue(r *api.JobSubmitRequest, _ configuration.SubmissionConfig)
 	return nil
 }
 
-// Ensures that each container exposes a given port at most once.
+// Ensures that each pod exposes a given port at most once.
 func validatePorts(j *api.JobSubmitRequestItem, _ configuration.SubmissionConfig) error {
 	spec := j.GetMainPodSpec()
 	existingPortSet := make(map[int32]int)
@@ -249,8 +250,7 @@ func validateResources(j *api.JobSubmitRequestItem, config configuration.Submiss
 	if maxOversubscriptionByResource == nil {
 		maxOversubscriptionByResource = map[string]float64{}
 	}
-	for _, container := range spec.Containers {
-
+	for _, container := range armadaslices.Concatenate(spec.Containers, spec.InitContainers) {
 		if len(container.Resources.Requests) == 0 && len(container.Resources.Requests) == 0 {
 			return fmt.Errorf("container %v has no resources specified", container.Name)
 		}
