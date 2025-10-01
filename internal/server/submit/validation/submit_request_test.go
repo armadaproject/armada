@@ -1001,6 +1001,33 @@ func TestValidateResources(t *testing.T) {
 			}},
 			expectSuccess: false,
 		},
+		"Negative resources request": {
+			req: reqFromContainer(v1.Container{
+				Resources: v1.ResourceRequirements{
+					Requests: negativeOneCpu,
+					Limits:   oneCpu,
+				},
+			}),
+			expectSuccess: false,
+		},
+		"Negative resource limit": {
+			req: reqFromContainer(v1.Container{
+				Resources: v1.ResourceRequirements{
+					Requests: oneCpu,
+					Limits:   negativeOneCpu,
+				},
+			}),
+			expectSuccess: false,
+		},
+		"Negative resources": {
+			req: reqFromContainer(v1.Container{
+				Resources: v1.ResourceRequirements{
+					Requests: negativeOneCpu,
+					Limits:   negativeOneCpu,
+				},
+			}),
+			expectSuccess: false,
+		},
 		"Request and limits the same": {
 			containers: []v1.Container{{
 				Resources: v1.ResourceRequirements{
