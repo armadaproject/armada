@@ -885,6 +885,10 @@ func TestValidateResources(t *testing.T) {
 		v1.ResourceCPU: resource.MustParse("2"),
 	}
 
+	negativeOneCpu := v1.ResourceList{
+		v1.ResourceCPU: resource.MustParse("-1"),
+	}
+
 	tests := map[string]struct {
 		req                                  *api.JobSubmitRequestItem
 		minJobResources                      v1.ResourceList
@@ -968,6 +972,33 @@ func TestValidateResources(t *testing.T) {
 			maxOversubscriptionByResourceRequest: map[string]float64{
 				"cpu": 1.9,
 			},
+			expectSuccess: false,
+		},
+		"Negative resources request": {
+			req: reqFromContainer(v1.Container{
+				Resources: v1.ResourceRequirements{
+					Requests: negativeOneCpu,
+					Limits:   oneCpu,
+				},
+			}),
+			expectSuccess: false,
+		},
+		"Negative resource limit": {
+			req: reqFromContainer(v1.Container{
+				Resources: v1.ResourceRequirements{
+					Requests: oneCpu,
+					Limits:   negativeOneCpu,
+				},
+			}),
+			expectSuccess: false,
+		},
+		"Negative resources": {
+			req: reqFromContainer(v1.Container{
+				Resources: v1.ResourceRequirements{
+					Requests: negativeOneCpu,
+					Limits:   negativeOneCpu,
+				},
+			}),
 			expectSuccess: false,
 		},
 		"Request and limits the same": {

@@ -259,6 +259,20 @@ func validateResources(j *api.JobSubmitRequestItem, config configuration.Submiss
 			return fmt.Errorf("container %v defines different resources for requests and limits", container.Name)
 		}
 
+		for resourceName, request := range container.Resources.Requests {
+			if request.Sign() < 0 {
+				return fmt.Errorf("container %v defines negative resource request (%s) for resource %s",
+					container.Name, request.String(), resourceName)
+			}
+		}
+
+		for resourceName, limit := range container.Resources.Limits {
+			if limit.Sign() < 0 {
+				return fmt.Errorf("container %v defines negative resource limit (%s) for resource %s",
+					container.Name, limit.String(), resourceName)
+			}
+		}
+
 		for resource, request := range container.Resources.Requests {
 			limit, ok := container.Resources.Limits[resource]
 			if !ok {
