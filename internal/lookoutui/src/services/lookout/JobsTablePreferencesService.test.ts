@@ -294,6 +294,37 @@ describe("JobsTablePreferencesService", () => {
     })
   })
 
+  describe("Last transition time aggregate", () => {
+    it("round-trips average aggregate type", () => {
+      savePartialPrefs({ lastTransitionTimeAggregate: "average" })
+      expect(router.location.search).toContain("ltta=average")
+      expect(service.getUserPrefs().lastTransitionTimeAggregate).toStrictEqual("average")
+    })
+
+    it("round-trips latest aggregate type", () => {
+      savePartialPrefs({ lastTransitionTimeAggregate: "latest" })
+      expect(router.location.search).toContain("ltta=latest")
+      expect(service.getUserPrefs().lastTransitionTimeAggregate).toStrictEqual("latest")
+    })
+
+    it("round-trips earliest aggregate type", () => {
+      savePartialPrefs({ lastTransitionTimeAggregate: "earliest" })
+      expect(router.location.search).toContain("ltta=earliest")
+      expect(service.getUserPrefs().lastTransitionTimeAggregate).toStrictEqual("earliest")
+    })
+
+    it("defaults to average when no specified", () => {
+      savePartialPrefs({ lastTransitionTimeAggregate: undefined })
+      expect(router.location.search).not.toContain("ltta=")
+      expect(service.getUserPrefs().lastTransitionTimeAggregate).toStrictEqual("average")
+    })
+
+    it("ignores invalid aggregate type", () => {
+      router.navigate({ search: "?ltta=iNvAlId" })
+      expect(service.getUserPrefs().lastTransitionTimeAggregate).toStrictEqual("average")
+    })
+  })
+
   describe("Query parameters and Local storage", () => {
     beforeEach(() => {
       localStorage.clear()
@@ -491,6 +522,7 @@ describe("JobsTablePreferencesService", () => {
         pageSize: 20,
         sidebarJobId: "223344",
         visibleColumns: { foo: true, bar: true },
+        lastTransitionTimeAggregate: "latest",
       }
       localStorage.setItem(PREFERENCES_KEY, JSON.stringify(localStorageParams))
       router.navigate({
@@ -530,6 +562,7 @@ describe("JobsTablePreferencesService", () => {
         pageSize: 50,
         sidebarJobId: "112233",
         visibleColumns: { foo: true, bar: true },
+        lastTransitionTimeAggregate: "average",
       })
     })
 
@@ -544,6 +577,7 @@ describe("JobsTablePreferencesService", () => {
         ],
         sort: { id: StandardColumnId.TimeInState, desc: "false" },
         g: [StandardColumnId.JobSet],
+        ltta: "latest",
       }
       const localStorageParams: JobsTablePreferences = {
         annotationColumnKeys: ["key"],
@@ -557,6 +591,7 @@ describe("JobsTablePreferencesService", () => {
         pageSize: 20,
         sidebarJobId: "223344",
         visibleColumns: { foo: true, bar: true },
+        lastTransitionTimeAggregate: "earliest",
       }
       localStorage.setItem(PREFERENCES_KEY, JSON.stringify(localStorageParams))
       router.navigate({
@@ -602,6 +637,7 @@ describe("JobsTablePreferencesService", () => {
         pageSize: 50,
         sidebarJobId: undefined,
         visibleColumns: { foo: true, bar: true },
+        lastTransitionTimeAggregate: "latest",
       })
     })
   })

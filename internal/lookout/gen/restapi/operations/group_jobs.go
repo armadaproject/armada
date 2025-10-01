@@ -7,6 +7,7 @@ package operations
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"strconv"
 
@@ -414,6 +415,10 @@ type GroupJobsParamsBodyGroupedField struct {
 
 	// is annotation
 	IsAnnotation bool `json:"isAnnotation,omitempty"`
+
+	// Type of aggregate to use for lastTransitionTime (latest, earliest, average)
+	// Enum: ["latest","earliest","average"]
+	LastTransitionTimeAggregate *string `json:"lastTransitionTimeAggregate,omitempty"`
 }
 
 // Validate validates this group jobs params body grouped field
@@ -421,6 +426,10 @@ func (o *GroupJobsParamsBodyGroupedField) Validate(formats strfmt.Registry) erro
 	var res []error
 
 	if err := o.validateField(formats); err != nil {
+		res = append(res, err)
+	}
+
+	if err := o.validateLastTransitionTimeAggregate(formats); err != nil {
 		res = append(res, err)
 	}
 
@@ -433,6 +442,51 @@ func (o *GroupJobsParamsBodyGroupedField) Validate(formats strfmt.Registry) erro
 func (o *GroupJobsParamsBodyGroupedField) validateField(formats strfmt.Registry) error {
 
 	if err := validate.RequiredString("groupJobsRequest"+"."+"groupedField"+"."+"field", "body", o.Field); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+var groupJobsParamsBodyGroupedFieldTypeLastTransitionTimeAggregatePropEnum []interface{}
+
+func init() {
+	var res []string
+	if err := json.Unmarshal([]byte(`["latest","earliest","average"]`), &res); err != nil {
+		panic(err)
+	}
+	for _, v := range res {
+		groupJobsParamsBodyGroupedFieldTypeLastTransitionTimeAggregatePropEnum = append(groupJobsParamsBodyGroupedFieldTypeLastTransitionTimeAggregatePropEnum, v)
+	}
+}
+
+const (
+
+	// GroupJobsParamsBodyGroupedFieldLastTransitionTimeAggregateLatest captures enum value "latest"
+	GroupJobsParamsBodyGroupedFieldLastTransitionTimeAggregateLatest string = "latest"
+
+	// GroupJobsParamsBodyGroupedFieldLastTransitionTimeAggregateEarliest captures enum value "earliest"
+	GroupJobsParamsBodyGroupedFieldLastTransitionTimeAggregateEarliest string = "earliest"
+
+	// GroupJobsParamsBodyGroupedFieldLastTransitionTimeAggregateAverage captures enum value "average"
+	GroupJobsParamsBodyGroupedFieldLastTransitionTimeAggregateAverage string = "average"
+)
+
+// prop value enum
+func (o *GroupJobsParamsBodyGroupedField) validateLastTransitionTimeAggregateEnum(path, location string, value string) error {
+	if err := validate.EnumCase(path, location, value, groupJobsParamsBodyGroupedFieldTypeLastTransitionTimeAggregatePropEnum, true); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (o *GroupJobsParamsBodyGroupedField) validateLastTransitionTimeAggregate(formats strfmt.Registry) error {
+	if swag.IsZero(o.LastTransitionTimeAggregate) { // not required
+		return nil
+	}
+
+	// value enum
+	if err := o.validateLastTransitionTimeAggregateEnum("groupJobsRequest"+"."+"groupedField"+"."+"lastTransitionTimeAggregate", "body", *o.LastTransitionTimeAggregate); err != nil {
 		return err
 	}
 

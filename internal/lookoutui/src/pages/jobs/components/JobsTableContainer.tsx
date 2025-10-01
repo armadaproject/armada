@@ -72,7 +72,7 @@ import { useCustomSnackbar } from "../../../components/hooks/useCustomSnackbar"
 import { columnIsAggregatable, useFetchJobsTableData } from "../../../components/hooks/useJobsTableData"
 import { CommandSpec } from "../../../config"
 import { isJobGroupRow, JobRow, JobTableRow } from "../../../models/jobsTableModels"
-import { Job, JobFiltersWithExcludes, JobId, Match } from "../../../models/lookoutModels"
+import { AggregateType, Job, JobFiltersWithExcludes, JobId, Match } from "../../../models/lookoutModels"
 import { CustomViewsService } from "../../../services/lookout/CustomViewsService"
 import { IGetJobsService } from "../../../services/lookout/GetJobsService"
 import { IGroupJobsService } from "../../../services/lookout/GroupJobsService"
@@ -207,6 +207,9 @@ export const JobsTableContainer = ({
   const [activeJobSets, setActiveJobSets] = useState<boolean>(
     initialPrefs.activeJobSets === undefined ? false : initialPrefs.activeJobSets,
   )
+  const [lastTransitionTimeAggregate, setLastTransitionTimeAggregate] = useState<AggregateType>(
+    initialPrefs.lastTransitionTimeAggregate || "average",
+  )
 
   // Sorting
   const [lookoutOrder, setLookoutOrder] = useState<LookoutColumnOrder>(initialPrefs.order)
@@ -228,6 +231,7 @@ export const JobsTableContainer = ({
     getJobsService,
     groupJobsService,
     openSnackbar,
+    lastTransitionTimeAggregate,
   })
 
   // Custom views (cache)
@@ -274,6 +278,7 @@ export const JobsTableContainer = ({
     sidebarWidth: sidebarWidth,
     activeJobSets: activeJobSets,
     autoRefresh: autoRefresh,
+    lastTransitionTimeAggregate,
   })
 
   const setTextFields = (filters: ColumnFiltersState) => {
@@ -323,6 +328,9 @@ export const JobsTableContainer = ({
     if (prefs.autoRefresh !== undefined) {
       onAutoRefreshChange(prefs.autoRefresh)
     }
+    if (prefs.lastTransitionTimeAggregate !== undefined) {
+      setLastTransitionTimeAggregate(prefs.lastTransitionTimeAggregate)
+    }
 
     // Have to manually set text fields to the filter values since they are uncontrolled
     setTextFields(prefs.filters)
@@ -351,6 +359,7 @@ export const JobsTableContainer = ({
     sidebarWidth,
     activeJobSets,
     autoRefresh,
+    lastTransitionTimeAggregate,
   ])
 
   const addCustomView = (name: string) => {
@@ -651,6 +660,14 @@ export const JobsTableContainer = ({
     [columnSizing],
   )
 
+  const onLastTransitionTimeAggregateChange = useCallback(
+    (lastTransitionTimeAggregate: AggregateType) => {
+      setLastTransitionTimeAggregate(lastTransitionTimeAggregate)
+      setRowsToFetch(pendingDataForAllVisibleData(expanded, data, pageSize))
+    },
+    [setRowsToFetch],
+  )
+
   const toggleSidebarForJobRow = (jobRow: JobRow) => {
     const clickedJob = jobRow as Job
     const jobId = clickedJob.jobId
@@ -864,6 +881,8 @@ export const JobsTableContainer = ({
                             setTextFieldRef(header.id, ref)
                           }}
                           groupedColumns={grouping}
+                          lastTransitionTimeAggregate={lastTransitionTimeAggregate}
+                          onLastTransitionTimeAggregateChange={onLastTransitionTimeAggregateChange}
                         />
                       ))}
                     </TableRow>

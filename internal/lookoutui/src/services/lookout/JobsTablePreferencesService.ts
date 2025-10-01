@@ -19,7 +19,7 @@ import {
 } from "../../common/jobsTableColumns"
 import { matchForColumn } from "../../common/jobsTableUtils"
 import { removeUndefined, Router } from "../../common/utils"
-import { isValidMatch, JobId, Match } from "../../models/lookoutModels"
+import { AggregateType, aggregateTypes, isValidMatch, JobId, Match } from "../../models/lookoutModels"
 
 export interface JobsTablePreferences {
   annotationColumnKeys: string[]
@@ -37,6 +37,7 @@ export interface JobsTablePreferences {
   sidebarWidth?: number
   activeJobSets?: boolean
   autoRefresh?: boolean
+  lastTransitionTimeAggregate?: AggregateType
 }
 
 // Need two 'defaults'
@@ -56,6 +57,7 @@ export const DEFAULT_PREFERENCES: JobsTablePreferences = {
   sidebarJobId: undefined,
   sidebarWidth: 600,
   columnSizing: {},
+  lastTransitionTimeAggregate: "average",
 }
 
 export const KEY_PREFIX = "lookoutV2"
@@ -93,6 +95,8 @@ export interface QueryStringPrefs {
   active: string | undefined
   // This is a boolean field, but the qs library turns it into a string.
   refresh: string | undefined
+  // Last transition time aggregate type
+  ltta: string | undefined
 }
 
 export const toQueryStringSafe = (prefs: JobsTablePreferences): QueryStringPrefs => {
@@ -118,6 +122,7 @@ export const toQueryStringSafe = (prefs: JobsTablePreferences): QueryStringPrefs
     sb: prefs.sidebarJobId,
     active: prefs.activeJobSets === undefined ? undefined : `${prefs.activeJobSets}`,
     refresh: prefs.autoRefresh === undefined ? undefined : `${prefs.autoRefresh}`,
+    ltta: prefs.lastTransitionTimeAggregate,
   }
 }
 
@@ -138,7 +143,7 @@ const columnMatchesFromQueryStringFilters = (f: QueryStringJobFilter[]): Record<
 }
 
 const fromQueryStringSafe = (serializedPrefs: Partial<QueryStringPrefs>): Partial<JobsTablePreferences> => {
-  const { g, e, page, ps, sort, f, sb, active, refresh } = serializedPrefs
+  const { g, e, page, ps, sort, f, sb, active, refresh, ltta } = serializedPrefs
 
   if (f) {
     // The queue filter was a single-value filter, but changed to an any-of filter. If the queue column match is exact,
@@ -170,6 +175,8 @@ const fromQueryStringSafe = (serializedPrefs: Partial<QueryStringPrefs>): Partia
     ...(sb && { sidebarJobId: sb }),
     ...(active && { activeJobSets: active.toLowerCase() === "true" }),
     ...(refresh && { autoRefresh: refresh.toLowerCase() === "true" }),
+    ...(ltta &&
+      ([...aggregateTypes] as string[]).includes(ltta) && { lastTransitionTimeAggregate: ltta as AggregateType }),
   }
 }
 
@@ -216,6 +223,7 @@ const mergeQueryParamsAndLocalStorage = (
     mergeColumnMatches(mergedPrefs.columnMatches, queryParamPrefs.columnMatches)
     mergedPrefs.activeJobSets = queryParamPrefs.activeJobSets
     mergedPrefs.autoRefresh = queryParamPrefs.autoRefresh
+    mergedPrefs.lastTransitionTimeAggregate = queryParamPrefs.lastTransitionTimeAggregate
   }
   return mergedPrefs
 }

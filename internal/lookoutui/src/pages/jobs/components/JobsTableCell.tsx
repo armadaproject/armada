@@ -17,8 +17,9 @@ import {
 import { matchForColumn } from "../../../common/jobsTableUtils"
 import { ActionableValueOnHover } from "../../../components/ActionableValueOnHover"
 import { JobsTableFilter } from "../../../components/JobsTableFilter"
+import { LastTransitionTimeAggregateSelector } from "../../../components/LastTransitionTimeAggregateSelector"
 import { JobRow, JobTableRow } from "../../../models/jobsTableModels"
-import { JobState, Match } from "../../../models/lookoutModels"
+import { AggregateType, JobState, Match } from "../../../models/lookoutModels"
 
 import { JobGroupStateCountsColumnHeader } from "./JobGroupStateCountsColumnHeader"
 import styles from "./JobsTableCell.module.css"
@@ -62,6 +63,8 @@ export interface HeaderCellProps {
   onColumnMatchChange: (columnId: string, newMatch: Match) => void
   onSetTextFieldRef: (ref: RefObject<HTMLInputElement | undefined>) => void
   groupedColumns: ColumnId[]
+  lastTransitionTimeAggregate: AggregateType
+  onLastTransitionTimeAggregateChange: (value: AggregateType) => void
 }
 
 export function HeaderCell({
@@ -73,6 +76,8 @@ export function HeaderCell({
   onColumnMatchChange,
   onSetTextFieldRef,
   groupedColumns,
+  lastTransitionTimeAggregate,
+  onLastTransitionTimeAggregateChange,
 }: HeaderCellProps) {
   const id = toColId(header.id)
   const columnDef = header.column.columnDef
@@ -229,6 +234,14 @@ export function HeaderCell({
                   jobStatesToDisplay={header.column.getFilterValue() as JobState[] | undefined}
                 />
               </JobGroupStateCountsColumnHeaderContainer>
+            )}
+
+          {header.column.id === StandardColumnId.TimeInState &&
+            Boolean(groupedColumns.find((id) => id !== StandardColumnId.TimeInState)) && (
+              <LastTransitionTimeAggregateSelector
+                value={lastTransitionTimeAggregate}
+                onChange={onLastTransitionTimeAggregateChange}
+              />
             )}
         </div>
         <div

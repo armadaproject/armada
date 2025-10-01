@@ -1,5 +1,5 @@
 // TODO(mauriceyap): remove this in favour of custom hooks using @tanstack/react-query
-import { JobFilter, JobGroup, JobOrder } from "../../models/lookoutModels"
+import { AggregateType, JobFilter, JobGroup, JobOrder } from "../../models/lookoutModels"
 
 export interface IGroupJobsService {
   groupJobs(
@@ -18,6 +18,7 @@ export interface IGroupJobsService {
 export type GroupedField = {
   field: string
   isAnnotation: boolean
+  lastTransitionTimeAggregate?: AggregateType
 }
 
 export type GroupJobsResponse = {
