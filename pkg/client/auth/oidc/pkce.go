@@ -25,25 +25,32 @@ type PKCEDetails struct {
 	Scopes      []string
 }
 
-func AuthenticatePkce(config PKCEDetails) (*TokenCredentials, error) {
+func AuthenticatePkce(config PKCEDetails, cacheToken bool) (*TokenCredentials, error) {
 	ctx := context.Background()
-
-	result := make(chan *oauth2.Token)
-	errorResult := make(chan error)
 
 	provider, err := openId.NewProvider(ctx, config.ProviderUrl)
 	if err != nil {
 		return nil, err
 	}
 
-	localUrl := "localhost:" + strconv.Itoa(int(config.LocalPort))
-
 	oauth := oauth2.Config{
 		ClientID:    config.ClientId,
 		Endpoint:    provider.Endpoint(),
-		RedirectURL: "http://" + localUrl + "/auth/callback",
+		RedirectURL: "http://localhost:" + strconv.Itoa(int(config.LocalPort)) + "/auth/callback",
 		Scopes:      append(config.Scopes, openId.ScopeOpenID),
 	}
+
+	// Try to use cached refresh token if enabled
+	token, cache, err := TryGetCachedToken(ctx, &oauth, config.ProviderUrl, config.ClientId, cacheToken)
+	if err == nil && token != nil {
+		return &TokenCredentials{oauth.TokenSource(ctx, token)}, nil
+	}
+
+	// Perform interactive authentication if no valid cached token
+	result := make(chan *oauth2.Token)
+	errorResult := make(chan error)
+
+	localUrl := "localhost:" + strconv.Itoa(int(config.LocalPort))
 
 	state := randomStringBase64() // xss protection
 	challenge := randomStringBase64()
@@ -111,6 +118,7 @@ func AuthenticatePkce(config PKCEDetails) (*TokenCredentials, error) {
 
 	select {
 	case t := <-result:
+		SaveTokenToCache(t, cache)
 		return &TokenCredentials{oauth.TokenSource(ctx, t)}, nil
 	case e := <-errorResult:
 		return nil, e

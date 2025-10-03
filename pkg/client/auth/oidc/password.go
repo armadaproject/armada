@@ -15,7 +15,7 @@ type ClientPasswordDetails struct {
 	Password    string
 }
 
-func AuthenticateWithPassword(config ClientPasswordDetails) (*TokenCredentials, error) {
+func AuthenticateWithPassword(config ClientPasswordDetails, cacheToken bool) (*TokenCredentials, error) {
 	ctx := context.Background()
 
 	provider, err := openId.NewProvider(ctx, config.ProviderUrl)
@@ -29,6 +29,16 @@ func AuthenticateWithPassword(config ClientPasswordDetails) (*TokenCredentials, 
 		Endpoint: provider.Endpoint(),
 	}
 
+	// Try to use cached refresh token if enabled
+	token, cache, err := TryGetCachedToken(ctx, authConfig, config.ProviderUrl, config.ClientId, cacheToken)
+	if err == nil && token != nil {
+		return &TokenCredentials{oauth2.ReuseTokenSource(token, &FunctionTokenSource{
+			func() (*oauth2.Token, error) {
+				return authConfig.PasswordCredentialsToken(ctx, config.Username, config.Password)
+			},
+		})}, nil
+	}
+
 	source := &FunctionTokenSource{
 		func() (*oauth2.Token, error) {
 			return authConfig.PasswordCredentialsToken(ctx, config.Username, config.Password)
@@ -38,6 +48,8 @@ func AuthenticateWithPassword(config ClientPasswordDetails) (*TokenCredentials, 
 	if err != nil {
 		return nil, err
 	}
+
+	SaveTokenToCache(t, cache)
 	cachedSource := oauth2.ReuseTokenSource(t, source)
 	return &TokenCredentials{cachedSource}, nil
 }
