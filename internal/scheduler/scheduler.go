@@ -420,6 +420,17 @@ func (s *Scheduler) syncState(ctx *armadacontext.Context, initial, fullJobGc boo
 		}
 	}
 
+	latestJobSerial := s.jobsSerial
+	latestRunsSerial := s.runsSerial
+
+	// Update serial to include these updates.
+	if len(updatedJobs) > 0 {
+		latestJobSerial = updatedJobs[len(updatedJobs)-1].Serial
+	}
+	if len(updatedRuns) > 0 {
+		latestRunsSerial = updatedRuns[len(updatedRuns)-1].Serial
+	}
+
 	// Reconcile any differences between the updated jobs and runs.
 	jsts, err := s.jobDb.ReconcileDifferences(txn, updatedJobs, updatedRuns)
 	if err != nil {
@@ -462,13 +473,8 @@ func (s *Scheduler) syncState(ctx *armadacontext.Context, initial, fullJobGc boo
 
 	txn.Commit()
 
-	// Update serial to include these updates.
-	if len(updatedJobs) > 0 {
-		s.jobsSerial = updatedJobs[len(updatedJobs)-1].Serial
-	}
-	if len(updatedRuns) > 0 {
-		s.runsSerial = updatedRuns[len(updatedRuns)-1].Serial
-	}
+	s.jobsSerial = latestJobSerial
+	s.runsSerial = latestRunsSerial
 
 	return jobDbJobs, jsts, nil
 }

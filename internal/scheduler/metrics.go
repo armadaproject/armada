@@ -141,7 +141,8 @@ func (c *MetricsCollector) refresh(ctx *armadacontext.Context) error {
 	if err != nil {
 		return err
 	}
-	allMetrics := append(queueMetrics, clusterMetrics...)
+	jobDbMetrics := c.updateJobDBMetrics()
+	allMetrics := append(append(queueMetrics, clusterMetrics...), jobDbMetrics...)
 	c.state.Store(allMetrics)
 	ctx.Debugf("Refreshed prometheus metrics in %s", time.Since(start))
 	return nil
@@ -485,6 +486,10 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 		clusterMetrics = append(clusterMetrics, commonmetrics.NewClusterCordonedStatus(v.status, cluster, v.reason, v.setByUser))
 	}
 	return clusterMetrics, nil
+}
+
+func (c *MetricsCollector) updateJobDBMetrics() []prometheus.Metric {
+	return []prometheus.Metric{commonmetrics.NewJobDBCumulativeInternedStrings(float64(c.jobDb.CumulativeInternedStringsCount()))}
 }
 
 func addToResourceListMap[K comparable](m map[K]resource.ComputeResources, key K, value resource.ComputeResources) {

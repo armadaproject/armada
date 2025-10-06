@@ -1,6 +1,8 @@
 package stringinterner
 
 import (
+	"sync/atomic"
+
 	lru "github.com/hashicorp/golang-lru"
 	"github.com/pkg/errors"
 )
@@ -11,6 +13,8 @@ import (
 // StringInterner is backed by an LRU so that only the most recently interned strings are kept.
 type StringInterner struct {
 	lru *lru.Cache
+	// Exposed as a metric to aid in diagnosing cause of high memory usage
+	cumulativeInserts atomic.Uint64
 }
 
 // New return a new *StringInterner backed by a LRU of the given size.
@@ -19,7 +23,10 @@ func New(cacheSize uint32) *StringInterner {
 	if err != nil {
 		panic(errors.WithStack(err).Error())
 	}
-	return &StringInterner{lru: lru}
+	return &StringInterner{
+		lru:               lru,
+		cumulativeInserts: atomic.Uint64{},
+	}
 }
 
 // Intern ensures the string is cached and returns the cached string
@@ -27,6 +34,12 @@ func (interner *StringInterner) Intern(s string) string {
 	if existing, ok, _ := interner.lru.PeekOrAdd(s, s); ok {
 		return existing.(string)
 	} else {
+		interner.cumulativeInserts.Add(1)
 		return s
 	}
+}
+
+// CumulativeInsertCount - tracking this value can help us to diagnose the cause of high memory usage in the scheduler.
+func (interner *StringInterner) CumulativeInsertCount() uint64 {
+	return interner.cumulativeInserts.Load()
 }
