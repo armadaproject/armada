@@ -106,7 +106,7 @@ func TestMetricsCollector_TestCollect_QueueMetrics(t *testing.T) {
 			},
 		},
 		"queued metrics for requeued job": {
-			// This job was been requeued and has a terminated run
+			// This job was requeued and has a terminated run
 			// The queue duration stats should count from the time the last run finished instead of job creation time
 			initialJobs: []*jobdb.Job{jobWithTerminatedRun},
 			queues:      []*api.Queue{queue},
@@ -293,6 +293,7 @@ func TestMetricsCollector_TestCollect_ClusterMetrics(t *testing.T) {
 				commonmetrics.NewClusterFarmCapacity(64, "cluster-1", testfixtures.TestPool, "cpu", "type-1"),
 				commonmetrics.NewClusterFarmCapacity(512*1024*1024*1024, "cluster-1", testfixtures.TestPool, "memory", "type-1"),
 				commonmetrics.NewClusterCordonedStatus(0.0, "cluster-1", "", ""),
+				commonmetrics.NewJobDBCumulativeInternedStrings(0.0),
 			},
 			expectedExecutorSettings: []*schedulerobjects.ExecutorSettings{},
 		},
@@ -317,6 +318,7 @@ func TestMetricsCollector_TestCollect_ClusterMetrics(t *testing.T) {
 				commonmetrics.NewClusterFarmCapacity(32, "cluster-1", testfixtures.TestPool, "cpu", "type-2"),
 				commonmetrics.NewClusterFarmCapacity(256*1024*1024*1024, "cluster-1", testfixtures.TestPool, "memory", "type-2"),
 				commonmetrics.NewClusterCordonedStatus(0.0, "cluster-1", "", ""),
+				commonmetrics.NewJobDBCumulativeInternedStrings(0.0),
 			},
 			expectedExecutorSettings: []*schedulerobjects.ExecutorSettings{},
 		},
@@ -333,6 +335,7 @@ func TestMetricsCollector_TestCollect_ClusterMetrics(t *testing.T) {
 				commonmetrics.NewClusterFarmCapacity(64, "cluster-1", testfixtures.TestPool, "cpu", "type-1"),
 				commonmetrics.NewClusterFarmCapacity(512*1024*1024*1024, "cluster-1", testfixtures.TestPool, "memory", "type-1"),
 				commonmetrics.NewClusterCordonedStatus(0.0, "cluster-1", "", ""),
+				commonmetrics.NewJobDBCumulativeInternedStrings(0.0),
 			},
 			expectedExecutorSettings: []*schedulerobjects.ExecutorSettings{},
 		},
@@ -355,6 +358,7 @@ func TestMetricsCollector_TestCollect_ClusterMetrics(t *testing.T) {
 				commonmetrics.NewClusterFarmCapacity(32, "cluster-1", testfixtures.TestPool, "cpu", "type-1"),
 				commonmetrics.NewClusterFarmCapacity(256*1024*1024*1024, "cluster-1", testfixtures.TestPool, "memory", "type-1"),
 				commonmetrics.NewClusterCordonedStatus(0.0, "cluster-1", "", ""),
+				commonmetrics.NewJobDBCumulativeInternedStrings(0.0),
 			},
 			expectedExecutorSettings: []*schedulerobjects.ExecutorSettings{},
 		},
@@ -373,6 +377,7 @@ func TestMetricsCollector_TestCollect_ClusterMetrics(t *testing.T) {
 				commonmetrics.NewClusterFarmCapacity(32, "cluster-1", testfixtures.TestPool, "cpu", "type-1"),
 				commonmetrics.NewClusterFarmCapacity(256*1024*1024*1024, "cluster-1", testfixtures.TestPool, "memory", "type-1"),
 				commonmetrics.NewClusterCordonedStatus(0.0, "cluster-1", "", ""),
+				commonmetrics.NewJobDBCumulativeInternedStrings(0.0),
 			},
 			expectedExecutorSettings: []*schedulerobjects.ExecutorSettings{},
 		},
@@ -383,6 +388,7 @@ func TestMetricsCollector_TestCollect_ClusterMetrics(t *testing.T) {
 			expected: []prometheus.Metric{
 				commonmetrics.NewClusterAvailableCapacity(10, "floating", "pool", "test-floating-resource", ""),
 				commonmetrics.NewClusterTotalCapacity(10, "floating", "pool", "test-floating-resource", ""),
+				commonmetrics.NewJobDBCumulativeInternedStrings(0.0),
 			},
 			expectedExecutorSettings: []*schedulerobjects.ExecutorSettings{},
 		},
@@ -399,6 +405,7 @@ func TestMetricsCollector_TestCollect_ClusterMetrics(t *testing.T) {
 				commonmetrics.NewClusterFarmCapacity(64, "cluster-1", testfixtures.TestPool, "cpu", "type-1"),
 				commonmetrics.NewClusterFarmCapacity(512*1024*1024*1024, "cluster-1", testfixtures.TestPool, "memory", "type-1"),
 				commonmetrics.NewClusterCordonedStatus(1.0, "cluster-1", "bad executor", ""),
+				commonmetrics.NewJobDBCumulativeInternedStrings(0.0),
 			},
 			expectedExecutorSettings: []*schedulerobjects.ExecutorSettings{
 				{
