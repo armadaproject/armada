@@ -885,42 +885,46 @@ func TestValidateResources(t *testing.T) {
 		v1.ResourceCPU: resource.MustParse("2"),
 	}
 
+	negativeOneCpu := v1.ResourceList{
+		v1.ResourceCPU: resource.MustParse("-1"),
+	}
+
 	tests := map[string]struct {
-		req                                  *api.JobSubmitRequestItem
+		containers                           []v1.Container
 		minJobResources                      v1.ResourceList
 		maxOversubscriptionByResourceRequest map[string]float64
 		expectSuccess                        bool
 	}{
 		"Requests Missing": {
-			req: reqFromContainer(v1.Container{
+			containers: []v1.Container{{
 				Resources: v1.ResourceRequirements{
 					Limits: oneCpu,
 				},
-			}),
+			}},
 			expectSuccess: false,
 		},
 		"Limits Missing": {
-			req: reqFromContainer(v1.Container{
+			containers: []v1.Container{{
 				Resources: v1.ResourceRequirements{
 					Requests: oneCpu,
 				},
-			}),
+			}},
 			expectSuccess: false,
 		},
 		"Limits Less Than Request": {
-			req: reqFromContainer(v1.Container{
+			containers: []v1.Container{{
 				Resources: v1.ResourceRequirements{
 					Requests: twoCpu,
 					Limits:   oneCpu,
 				},
-			}),
+			}},
 			expectSuccess: false,
 			maxOversubscriptionByResourceRequest: map[string]float64{
 				"cpu": 2.0,
 			},
 		},
 		"Limits And Requests specify different resources": {
-			req: reqFromContainer(v1.Container{
+			containers: []v1.Container{{
 				Resources: v1.ResourceRequirements{
 					Requests: v1.ResourceList{
 						v1.ResourceCPU: resource.MustParse("1"),
@@ -930,7 +934,7 @@ func TestValidateResources(t *testing.T) {
 						v1.ResourceMemory: resource.MustParse("2Gi"),
 					},
 				},
-			}),
+			}},
 			expectSuccess: false,
 			maxOversubscriptionByResourceRequest: map[string]float64{
 				"cpu":    2.0,
@@ -938,49 +942,76 @@ func TestValidateResources(t *testing.T) {
 			},
 		},
 		"Requests and limits different with MaxResourceOversubscriptionByResourceRequest undefined": {
-			req: reqFromContainer(v1.Container{
+			containers: []v1.Container{{
 				Resources: v1.ResourceRequirements{
 					Requests: oneCpu,
 					Limits:   twoCpu,
 				},
-			}),
+			}},
 			expectSuccess: false,
 		},
 		"Requests and limits different, passes MaxResourceOversubscriptionByResourceRequest": {
-			req: reqFromContainer(v1.Container{
+			containers: []v1.Container{{
 				Resources: v1.ResourceRequirements{
 					Requests: oneCpu,
 					Limits:   twoCpu,
 				},
-			}),
+			}},
 			maxOversubscriptionByResourceRequest: map[string]float64{
 				"cpu": 2.0,
 			},
 			expectSuccess: true,
 		},
 		"Requests and limits different, fails MaxResourceOversubscriptionByResourceRequest": {
-			req: reqFromContainer(v1.Container{
+			containers: []v1.Container{{
 				Resources: v1.ResourceRequirements{
 					Requests: oneCpu,
 					Limits:   twoCpu,
 				},
-			}),
+			}},
+			expectSuccess: false,
 			maxOversubscriptionByResourceRequest: map[string]float64{
 				"cpu": 1.9,
 			},
+		},
+		"Negative resources request": {
+			containers: []v1.Container{{
+				Resources: v1.ResourceRequirements{
+					Requests: negativeOneCpu,
+					Limits:   oneCpu,
+				},
+			}},
+			expectSuccess: false,
+		},
+		"Negative resource limit": {
+			containers: []v1.Container{{
+				Resources: v1.ResourceRequirements{
+					Requests: oneCpu,
+					Limits:   negativeOneCpu,
+				},
+			}},
+			expectSuccess: false,
+		},
+		"Negative resources": {
+			containers: []v1.Container{{
+				Resources: v1.ResourceRequirements{
+					Requests: negativeOneCpu,
+					Limits:   negativeOneCpu,
+				},
+			}},
 			expectSuccess: false,
 		},
 		"Request and limits the same": {
-			req: reqFromContainer(v1.Container{
+			containers: []v1.Container{{
 				Resources: v1.ResourceRequirements{
 					Requests: oneCpu,
 					Limits:   oneCpu,
 				},
-			}),
+			}},
 			expectSuccess: true,
 		},
 		"Request and limits the same with two containers": {
-			req: reqFromContainers([]v1.Container{
+			containers: []v1.Container{
 				{
 					Resources: v1.ResourceRequirements{
 						Requests: oneCpu,
@@ -993,23 +1024,30 @@ func TestValidateResources(t *testing.T) {
 						Limits:   twoCpu,
 					},
 				},
-			}),
+			},
 			expectSuccess: true,
 		},
 	}
 	for name, tc := range tests {
-		t.Run(name, func(t *testing.T) {
-			submitConfg := configuration.SubmissionConfig{}
-			if tc.maxOversubscriptionByResourceRequest != nil {
-				submitConfg.MaxOversubscriptionByResourceRequest = tc.maxOversubscriptionByResourceRequest
-			}
-			err := validateResources(tc.req, submitConfg)
-			if tc.expectSuccess {
-				assert.NoError(t, err)
-			} else {
-				assert.Error(t, err)
-			}
-		})
+		runTest := func(name string, req *api.JobSubmitRequestItem) {
+			t.Run(name, func(t *testing.T) {
+				submitConfg := configuration.SubmissionConfig{}
+				if tc.maxOversubscriptionByResourceRequest != nil {
+					submitConfg.MaxOversubscriptionByResourceRequest = tc.maxOversubscriptionByResourceRequest
+				}
+				err := validateResources(req, submitConfg)
+				if tc.expectSuccess {
+					assert.NoError(t, err)
+				} else {
+					assert.Error(t, err)
+				}
+			})
+		}
+
+		// Run the tests for a request with main containers, a request with init containers and a request containing both
+		runTest(name+" - main containers", reqWithContainers(nil, tc.containers))
+		runTest(name+" - init containers", reqWithContainers(tc.containers, nil))
+		runTest(name+" - combined containers", reqWithContainers(tc.containers, tc.containers))
 	}
 }
 
@@ -1254,13 +1292,12 @@ func TestValidateRestrictedTolerations(t *testing.T) {
 	}
 }
 
-func reqFromContainer(container v1.Container) *api.JobSubmitRequestItem {
-	return reqFromContainers([]v1.Container{container})
-}
-
-func reqFromContainers(containers []v1.Container) *api.JobSubmitRequestItem {
+func reqWithContainers(initContainers []v1.Container, containers []v1.Container) *api.JobSubmitRequestItem {
 	return &api.JobSubmitRequestItem{
-		PodSpec: &v1.PodSpec{Containers: containers},
+		PodSpec: &v1.PodSpec{
+			InitContainers: initContainers,
+			Containers:     containers,
+		},
 	}
 }
 
