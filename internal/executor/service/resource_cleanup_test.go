@@ -50,6 +50,7 @@ func TestCleanUpResources_RemovesPodsMarkedForDeletion(t *testing.T) {
 
 	s.CleanupResources()
 	remainingPods, err := s.clusterContext.GetBatchPods()
+	assert.NoError(t, err)
 	assert.Len(t, remainingPods, 2)
 
 	jobIds := []string{util.ExtractJobId(succeededPod), util.ExtractJobId(failedPod)}
