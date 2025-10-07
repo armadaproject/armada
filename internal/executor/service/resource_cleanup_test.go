@@ -34,6 +34,29 @@ func TestCleanUpResources_RemovesExpiredResources(t *testing.T) {
 	assert.Empty(t, remainingPods)
 }
 
+func TestCleanUpResources_RemovesPodsMarkedForDeletion(t *testing.T) {
+	s, err := createResourceCleanupService(time.Minute*5, time.Minute*5, 10)
+	require.NoError(t, err)
+	now := time.Now()
+
+	// Younger than expiry age
+	succeededPod := makeFinishedPodWithTimestamp(v1.PodSucceeded, now.Add(-1*time.Minute))
+	succeededPodWithDeletionTimestamp := makeFinishedPodWithTimestamp(v1.PodSucceeded, now.Add(-1*time.Minute))
+	succeededPodWithDeletionTimestamp.DeletionTimestamp = &metav1.Time{now}
+	failedPod := makeFinishedPodWithTimestamp(v1.PodFailed, now.Add(-1*time.Minute))
+	failedPodWithDeletionTimestamp := makeFinishedPodWithTimestamp(v1.PodFailed, now.Add(-1*time.Minute))
+	failedPodWithDeletionTimestamp.DeletionTimestamp = &metav1.Time{now}
+	addPods(t, s.clusterContext, succeededPod, succeededPodWithDeletionTimestamp, failedPod, failedPodWithDeletionTimestamp)
+
+	s.CleanupResources()
+	remainingPods, err := s.clusterContext.GetBatchPods()
+	assert.Len(t, remainingPods, 2)
+
+	jobIds := []string{util.ExtractJobId(succeededPod), util.ExtractJobId(failedPod)}
+	assert.Contains(t, jobIds, util.ExtractJobId(remainingPods[0]))
+	assert.Contains(t, jobIds, util.ExtractJobId(remainingPods[1]))
+}
+
 func TestCleanUpResources_LeavesNonExpiredPods(t *testing.T) {
 	s, err := createResourceCleanupService(time.Minute*5, time.Minute*5, 10)
 	require.NoError(t, err)
@@ -98,6 +121,8 @@ func TestCanBeRemovedMinimumPodTime(t *testing.T) {
 		makeFinishedPodWithTimestamp(v1.PodSucceeded, now.Add(-1*time.Minute)): false,
 		makeFinishedPodWithTimestamp(v1.PodFailed, now.Add(-1*time.Minute)):    false,
 		makeFinishedPodWithTimestamp(v1.PodFailed, now.Add(-7*time.Minute)):    false,
+		makeFinishedPodWithTimestamp(v1.PodPending, now.Add(-7*time.Minute)):   false,
+		makeFinishedPodWithTimestamp(v1.PodRunning, now.Add(-7*time.Minute)):   false,
 
 		// should be cleaned
 		makeFinishedPodWithTimestamp(v1.PodSucceeded, now.Add(-7*time.Minute)): true,

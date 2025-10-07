@@ -88,8 +88,11 @@ func (i *ResourceCleanupService) removeAnyAssociatedIngress(pod *v1.Pod) {
 // CleanupResources
 /*
  * This function finds and delete old resources. It does this in two ways:
- *  - By deleting all expired terminated pods
- *  - Deleting non-expired terminated pods when then MaxTerminatedPods limit is exceeded
+ *  - By deleting all terminated pods that are either:
+ *    - Already marked for deletion (this is to catch pods that need force killing)
+ *    - Expired (delete old pods past the pod expiry times)
+ *  - Then if that doesn't bring the number of terminated pods below MaxTerminatedPods limit
+ *    - Deleting non-expired terminated pods
  */
 func (r *ResourceCleanupService) CleanupResources() {
 	pods, err := r.clusterContext.GetActiveBatchPods()
@@ -99,11 +102,15 @@ func (r *ResourceCleanupService) CleanupResources() {
 	}
 
 	allTerminatedPods := util.FilterPods(pods, util.IsPodFinishedAndReported)
-	// Expired pods are ones who are older than configured retention period
-	expiredTerminatedPods := util.FilterPods(allTerminatedPods, r.canPodBeRemoved)
-	nonExpiredTerminatedPods := util.RemovePodsFromList(allTerminatedPods, expiredTerminatedPods)
 
-	r.clusterContext.DeletePods(expiredTerminatedPods)
+	readyToRemovePods := util.FilterPods(allTerminatedPods, func(pod *v1.Pod) bool {
+		// This will catch expired pods or pods already marked for deletion
+		// Expired pods are ones who are older than configured retention period
+		return r.canPodBeRemoved(pod) || r.hasDeletionTimestamp(pod)
+	})
+	nonExpiredTerminatedPods := util.RemovePodsFromList(allTerminatedPods, readyToRemovePods)
+
+	r.clusterContext.DeletePods(readyToRemovePods)
 
 	if len(nonExpiredTerminatedPods) > r.kubernetesConfiguration.MaxTerminatedPods {
 		numberOfPodsToDelete := len(nonExpiredTerminatedPods) - r.kubernetesConfiguration.MaxTerminatedPods
@@ -186,4 +193,8 @@ func (r *ResourceCleanupService) canPodBeRemoved(pod *v1.Pod) bool {
 		}
 	}
 	return true
+}
+
+func (r *ResourceCleanupService) hasDeletionTimestamp(pod *v1.Pod) bool {
+	return pod.DeletionTimestamp != nil
 }
