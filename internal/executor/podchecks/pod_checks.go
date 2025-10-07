@@ -81,9 +81,9 @@ func (pc *PodChecks) GetAction(pod *v1.Pod, podEvents []*v1.Event, timeInState t
 
 // This func is trying to determine if the node is bad based on the kubelet not updating the pod at all
 func (pc *PodChecks) isBadNode(pod *v1.Pod, podEvents []*v1.Event) bool {
-	// Ignore the Scheduled event as this comes from the kube-scheduler
+	// Ignore the scheduling events as this comes from the kube-scheduler
 	podEvents = slices.Filter(podEvents, func(e *v1.Event) bool {
-		return e.Reason != EventReasonScheduled
+		return e.Reason != EventReasonScheduled && e.Reason != EvenReasonFailedScheduling
 	})
 
 	containerStatus := util.GetPodContainerStatuses(pod)
