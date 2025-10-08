@@ -258,13 +258,17 @@ func safeGetRequirements(schedulingInfo *internaltypes.JobSchedulingInfo) map[st
 func (jobDb *JobDb) internJobSchedulingInfoStrings(info *internaltypes.JobSchedulingInfo) *internaltypes.JobSchedulingInfo {
 	info.PriorityClass = jobDb.stringInterner.Intern(info.PriorityClass)
 	pr := info.PodRequirements
+	newAnnotations := make(map[string]string, len(pr.Annotations))
 	for k, v := range pr.Annotations {
-		pr.Annotations[jobDb.stringInterner.Intern(k)] = jobDb.stringInterner.Intern(v)
+		newAnnotations[jobDb.stringInterner.Intern(k)] = jobDb.stringInterner.Intern(v)
 	}
+	pr.Annotations = newAnnotations
 
+	newNodeSelector := make(map[string]string, len(pr.NodeSelector))
 	for k, v := range pr.NodeSelector {
-		pr.NodeSelector[jobDb.stringInterner.Intern(k)] = jobDb.stringInterner.Intern(v)
+		newNodeSelector[jobDb.stringInterner.Intern(k)] = jobDb.stringInterner.Intern(v)
 	}
+	pr.NodeSelector = newNodeSelector
 
 	for idx, toleration := range pr.Tolerations {
 		pr.Tolerations[idx] = v1.Toleration{
@@ -337,6 +341,10 @@ func (jobDb *JobDb) WriteTxn() *Txn {
 		active:             true,
 		jobDb:              jobDb,
 	}
+}
+
+func (jobDb *JobDb) CumulativeInternedStringsCount() uint64 {
+	return jobDb.stringInterner.CumulativeInsertCount()
 }
 
 // Txn is a JobDb Transaction. Transactions provide a consistent view of the database, allowing readers to
@@ -559,14 +567,32 @@ func (txn *Txn) Upsert(jobs []*Job) error {
 	// gangs
 	go func() {
 		defer wg.Done()
-		for _, job := range jobs {
-			if job.IsInGang() {
-				key := gangKey{queue: job.Queue(), gangId: job.GetGangInfo().Id()}
+		if hasJobs {
+			for _, job := range jobs {
+				if job.IsInGang() {
+					key := gangKey{queue: job.Queue(), gangId: job.GetGangInfo().Id()}
 
-				if _, present := txn.jobsByGangKey[key]; !present {
-					txn.jobsByGangKey[key] = immutable.NewSet[string](JobIdHasher{})
+					if _, present := txn.jobsByGangKey[key]; !present {
+						txn.jobsByGangKey[key] = immutable.NewSet[string](JobIdHasher{})
+					}
+					txn.jobsByGangKey[key] = txn.jobsByGangKey[key].Add(job.Id())
 				}
-				txn.jobsByGangKey[key] = txn.jobsByGangKey[key].Add(job.Id())
+			}
+		} else {
+			jobsByGangKey := map[gangKey]map[string]bool{}
+			for _, job := range jobs {
+				if job.IsInGang() {
+					key := gangKey{queue: job.Queue(), gangId: job.GetGangInfo().Id()}
+
+					if _, present := jobsByGangKey[key]; !present {
+						jobsByGangKey[key] = map[string]bool{}
+					}
+					jobsByGangKey[key][job.Id()] = true
+				}
+			}
+
+			for key, jobsInGang := range jobsByGangKey {
+				txn.jobsByGangKey[key] = immutable.NewSet[string](JobIdHasher{}, maps.Keys(jobsInGang)...)
 			}
 		}
 	}()
@@ -575,28 +601,65 @@ func (txn *Txn) Upsert(jobs []*Job) error {
 	// To enable iterating over them in the order they should be scheduled.
 	go func() {
 		defer wg.Done()
-		for _, job := range jobs {
-			if job.Queued() {
-				newQueue, ok := txn.jobsByQueue[job.queue]
-				if !ok {
-					q := emptyList
-					newQueue = q
-				}
-				newQueue = newQueue.Add(job)
-				txn.jobsByQueue[job.queue] = newQueue
+		if hasJobs {
+			for _, job := range jobs {
+				if job.Queued() {
+					newQueue, ok := txn.jobsByQueue[job.queue]
+					if !ok {
+						newQueue = emptyList
+					}
+					txn.jobsByQueue[job.queue] = newQueue.Add(job)
 
-				for _, pool := range job.Pools() {
-					_, present := txn.jobsByPoolAndQueue[pool]
-					if !present {
-						queues := map[string]immutable.SortedSet[*Job]{}
-						txn.jobsByPoolAndQueue[pool] = queues
+					for _, pool := range job.Pools() {
+						_, present := txn.jobsByPoolAndQueue[pool]
+						if !present {
+							queues := map[string]immutable.SortedSet[*Job]{}
+							txn.jobsByPoolAndQueue[pool] = queues
+						}
+						_, present = txn.jobsByPoolAndQueue[pool][job.queue]
+						if !present {
+							jobs := immutable.NewSortedSet[*Job](MarketJobPriorityComparer{Pool: pool})
+							txn.jobsByPoolAndQueue[pool][job.queue] = jobs
+						}
+						txn.jobsByPoolAndQueue[pool][job.queue] = txn.jobsByPoolAndQueue[pool][job.queue].Add(job)
 					}
-					_, present = txn.jobsByPoolAndQueue[pool][job.queue]
-					if !present {
-						jobs := immutable.NewSortedSet[*Job](MarketJobPriorityComparer{Pool: pool})
-						txn.jobsByPoolAndQueue[pool][job.queue] = jobs
+				}
+			}
+		} else {
+			jobsByQueue := map[string]map[*Job]bool{}
+			jobsByPoolAndQueue := map[string]map[string]map[*Job]bool{}
+
+			for _, job := range jobs {
+				if job.Queued() {
+					if _, ok := jobsByQueue[job.queue]; !ok {
+						jobsByQueue[job.queue] = map[*Job]bool{}
 					}
-					txn.jobsByPoolAndQueue[pool][job.queue] = txn.jobsByPoolAndQueue[pool][job.queue].Add(job)
+					jobsByQueue[job.queue][job] = true
+
+					for _, pool := range job.Pools() {
+						if _, present := jobsByPoolAndQueue[pool]; !present {
+							jobsByPoolAndQueue[pool] = map[string]map[*Job]bool{}
+						}
+						if _, present := jobsByPoolAndQueue[pool][job.queue]; !present {
+							jobsByPoolAndQueue[pool][job.queue] = map[*Job]bool{}
+						}
+						jobsByPoolAndQueue[pool][job.queue][job] = true
+					}
+				}
+			}
+
+			for queue, jobsForQueue := range jobsByQueue {
+				txn.jobsByQueue[queue] = immutable.NewSortedSet[*Job](JobPriorityComparer{}, maps.Keys(jobsForQueue)...)
+			}
+
+			for pool, jobsForPool := range jobsByPoolAndQueue {
+				if _, ok := txn.jobsByPoolAndQueue[pool]; !ok {
+					txn.jobsByPoolAndQueue[pool] = map[string]immutable.SortedSet[*Job]{}
+				}
+				for queue, jobsForQueueInPool := range jobsForPool {
+					if _, ok := txn.jobsByPoolAndQueue[pool][queue]; !ok {
+						txn.jobsByPoolAndQueue[pool][queue] = immutable.NewSortedSet[*Job](MarketJobPriorityComparer{Pool: pool}, maps.Keys(jobsForQueueInPool)...)
+					}
 				}
 			}
 		}
@@ -605,11 +668,24 @@ func (txn *Txn) Upsert(jobs []*Job) error {
 	// Unvalidated jobs
 	go func() {
 		defer wg.Done()
-		for _, job := range jobs {
-			if !job.Validated() {
-				unvalidatedJobs := txn.unvalidatedJobs.Add(job)
-				txn.unvalidatedJobs = &unvalidatedJobs
+		if hasJobs {
+			for _, job := range jobs {
+				if !job.Validated() {
+					unvalidatedJobs := txn.unvalidatedJobs.Add(job)
+					txn.unvalidatedJobs = &unvalidatedJobs
+				}
 			}
+		} else {
+			unvalidatedJobs := map[*Job]bool{}
+
+			for _, job := range jobs {
+				if !job.Validated() {
+					unvalidatedJobs[job] = true
+				}
+			}
+
+			unvalidatedJobsImmutable := immutable.NewSet[*Job](JobHasher{}, maps.Keys(unvalidatedJobs)...)
+			txn.unvalidatedJobs = &unvalidatedJobsImmutable
 		}
 	}()
 
