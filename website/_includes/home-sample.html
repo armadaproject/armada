@@ -1,0 +1,175 @@
+<header class="header-1 fullWidth">
+  <div class="page-header">
+    <div class="page-header-image"></div>
+    <div class="container">
+      <div class="row">
+        <div class="col-lg-5 col-md-7 mr-auto text-left d-flex justify-content-center flex-column">
+          <h3 class="display-3 desktop">Armada</h3>
+          <div class="col-lg-7 mobile" style="text-align: center;">
+            <img class="ml-lg-5 mobile-armada" src="{{ '/assets/img/brand/armada-under-shadow.svg' | relative_url }}" />
+          </div>
+          <p class="lead mt-0">Armada is a multi-kubernetes-cluster batch job meta-scheduler.<br /><br />
+            It helps organizations distribute millions of batch jobs per day across many nodes across many clusters.
+            <br /><br />
+            Armada is part of the <a href="https://www.cncf.io/sandbox-projects/" target="_new">CNCF Sandbox</a>.
+          </p>
+          <br>
+          
+            <a href="https://goreportcard.com/report/github.com/armadaproject/armada" rel="nofollow">
+              <img src="https://goreportcard.com/badge/github.com/armadaproject/armada" alt="Go Report Card" data-canonical-src="https://goreportcard.com/badge/github.com/G-Research/armada" style="max-width:100%;">
+            </a></p>
+          <br><br>
+          <div class="buttons">
+            <a href="#scroll-down" class="btn btn-primary">
+              Key Features
+            </a>
+          </div>
+        </div>
+        <div class="col-lg-7 desktop" style="text-align: center;">
+          <img class="ml-lg-5" src="{{ '/assets/img/brand/armada-under-shadow.svg' | relative_url }}" />
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+<div class="section-lg features-1">
+  <div class="container" id="scroll-down">
+    <div class="row">
+      <div class="col-md-8 mx-auto text-center">
+        <h3 class="display-3">Key features</h3>
+        <p class="lead">Learn more about how Armada can help you scale</p>
+      </div>
+    </div>
+    <div class="row">
+      <div class="col-lg-3">
+        <div class="info">
+          <div class="icon icon-lg icon-shape icon-shape-primary shadow rounded-circle">
+            <i class="ni ni-laptop"></i>
+          </div>
+          <h6 class="info-title text-uppercase text-primary">Fair-Use Scheduling</h6>
+          <p class="description opacity-8">Armada maintains fair resource share over time (inspired by HTCondor priority)</p>
+        </div>
+      </div>
+      <div class="col-lg-3">
+        <div class="info">
+          <div class="icon icon-lg icon-shape icon-shape-success shadow rounded-circle">
+            <i class="ni ni-button-play"></i>
+          </div>
+          <h6 class="info-title text-uppercase text-success">High Throughput</h6>
+          <p class="description opacity-8">Armada can handle millions of queued jobs</p>
+        </div>
+      </div>
+      <div class="col-lg-3">
+        <div class="info">
+          <div class="icon icon-lg icon-shape icon-shape-danger shadow rounded-circle">
+            <i class="ni ni-app"></i>
+          </div>
+          <h6 class="info-title text-uppercase text-danger">Uninterrupted</h6>
+          <p class="description opacity-8">Armada allows adding and removing clusters from the system without disruption</p>
+        </div>
+      </div>
+      <div class="col-lg-3">
+        <div class="info">
+          <div class="icon icon-lg icon-shape icon-shape-info shadow rounded-circle">
+            <i class="ni ni-world"></i>
+          </div>
+          <h6 class="info-title text-uppercase text-info">Massive Scale</h6>
+          <p class="description opacity-8">By utilizing multiple Kubernetes clusters, the system can scale beyond the limits of a single Kubernetes cluster</p>
+        </div>
+      </div>
+        <div class="col-lg-12 text-center">
+          <div class="buttons">
+        <a href="/design" class="btn btn-primary">
+          Learn More
+        </a>
+          </div>
+        </div>
+  </div>
+</div>
+</div>
+  <div class="section-md features-6">
+    <div class="container">
+      <div class="row align-items-center">
+        <div class="col-md-8 mx-auto text-center">
+          <h3 class="display-3">Key Concepts</h3>
+          <p class="lead">Learn more about how Armada works</p>
+        </div>
+        <div class="col-lg-6">
+          <div class="info info-horizontal info-hover-primary">
+            <div class="icon icon-shape icon-shape-info rounded-circle text-white">
+              <i class="fa fa-angle-double-right text-info"></i>
+            </div>
+            <div class="description pl-4">
+              <h5 class="title">Queue</h5>
+              <p>Represents a user or project, used to maintain fair share over time, with a priority factor</p>
+              <a href="/user#queue" class="text-info">Learn more</a>
+            </div>
+          </div>
+          <div class="info info-horizontal info-hover-primary">
+            <div class="icon icon-shape icon-shape-info rounded-circle text-white">
+              <i class="fa fa-cube text-info"></i>
+            </div>
+            <div class="description pl-4">
+              <h5 class="title">Job</h5>
+              <p>Unit of work to be run (described as a Kubernetes PodSpec)</p>
+              <a href="/user#job" class="text-info">Learn more</a>
+            </div>
+          </div>
+          <div class="info info-horizontal info-hover-primary">
+            <div class="icon icon-shape icon-shape-info rounded-circle text-white">
+              <i class="fa fa-cubes text-info"></i>
+            </div>
+            <div class="description pl-4">
+              <h5 class="title">Job Set</h5>
+              <p>Group of related jobs. The API allows observing progress of a job set together</p>
+              <a href="/user#job-set" class="text-info">Learn more</a>
+            </div>
+          </div>
+        </div>
+        <div class="col-lg-6 col-10 mx-md-auto desktop">
+          <img class="ml-lg-5" src="{{ '/assets/img/ill/presentation_bg.png' | relative_url }}" width="100%">
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <br><br>
+  <div class="section-sm">
+    <div class="row">
+      <div class="col-lg-7 mr-auto">
+        <img class="ml-lg-5" src="{{ '/assets/img/ill/bg5-1.svg' | relative_url }}" />
+      </div>
+      <div class="col-lg-4 col-md-7 text-left d-flex justify-content-center flex-column">
+        <h3 class="display-3">Try it out locally</h3>
+        <p class="lead mt-0">Follow the quickstart guide to get Armada up and running locally.</p>
+        <br>
+        <div class="buttons">
+          <a href="/quickstart" class="btn btn-primary">
+            Get Started
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<br><br>
+<div class="section-md">
+  <div class="row">
+    <div class="col-lg-7 mr-auto mobile">
+      <img class="ml-lg-5" src="{{ '/assets/img/ill/bg6-2.svg' | relative_url }}" />
+    </div>
+    <div class="col-lg-4 col-md-7 text-left d-flex justify-content-center flex-column">
+      <h3 class="display-3">Contribute</h3>
+      <p class="lead mt-0">Want to contribute to Armada? Here's all the information you need.</p>
+      <br>
+      <div class="buttons">
+        <a href="/contribute" class="btn btn-primary">
+          Join Us
+        </a>
+      </div>
+    </div>
+    <div class="col-lg-7 mr-auto desktop">
+      <img class="ml-lg-5" src="{{ '/assets/img/ill/bg6-2.svg' | relative_url }}" />
+    </div>
+  </div>
+</div>
