@@ -179,7 +179,7 @@ func setupExecutorApiComponents(
 	}
 
 	executorApiClient := executorapi.NewExecutorApiClient(conn)
-	eventSender := reporter.NewExecutorApiEventSender(executorApiClient, 4*1024*1024)
+	eventSender := reporter.NewExecutorApiEventSender(executorApiClient, config.Client.MaxMessageSizeBytes)
 	jobRunState := job.NewJobRunStateStore(clusterContext)
 
 	clusterUtilisationService := utilisation.NewClusterUtilisationService(
