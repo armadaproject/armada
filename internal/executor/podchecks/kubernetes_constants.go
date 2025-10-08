@@ -1,4 +1,6 @@
 package podchecks
 
-const EventReasonScheduled = "Scheduled"
-const EvenReasonFailedScheduling = "FailedScheduling"
+const (
+	EventReasonScheduled       = "Scheduled"
+	EvenReasonFailedScheduling = "FailedScheduling"
+)
