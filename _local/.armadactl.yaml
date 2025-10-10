@@ -1,0 +1,69 @@
+# Example armadactl configuration for local development
+# This file demonstrates various authentication methods supported by armadactl
+# Copy this file to ~/.armadactl.yaml or use --config flag to specify path
+
+currentContext: no-auth
+
+contexts:
+  # Default context - no authentication (for local development)
+  no-auth:
+    armadaUrl: localhost:50051
+
+  # Context with OIDC Authorization Code + PKCE Flow - Keycloak
+  # Opens browser for login, starts local callback server
+  auth-oidc:
+    armadaUrl: localhost:50051
+    openIdAuth:
+      providerUrl: "http://localhost:8180/realms/armada"
+      clientId: "armada-server"
+      localPort: 8085
+      scopes: ["openid", "profile", "email"]
+
+  # Context with OIDC Device Flow authentication
+  # Alternative browser-based flow without local callback server
+  auth-device:
+    armadaUrl: localhost:50051
+    openIdDeviceAuth:
+      providerUrl: "http://localhost:8180/realms/armada"
+      clientId: "armada-server"
+      scopes: ["openid", "profile", "email"]
+
+  # Context with OIDC Client Credentials authentication
+  # For service accounts (requires confidential client with secret)
+  auth-client-creds:
+    armadaUrl: localhost:50051
+    openIdClientCredentialsAuth:
+      providerUrl: "http://localhost:8180/realms/armada"
+      clientId: "armada-executor"
+      clientSecret: "executor-secret"
+      scopes: ["openid", "profile", "email"]
+
+  # Context with OIDC Password Flow authentication
+  auth-password:
+    armadaUrl: localhost:50051
+    openIdPasswordAuth:
+      providerUrl: "http://localhost:8180/realms/armada"
+      clientId: "armada-server"
+      username: "admin"
+      password: "admin"
+      scopes: ["openid", "profile", "email"]
+
+  # Context with Basic authentication
+  # This would require server configuration with basic auth credentials
+  auth-basic:
+    armadaUrl: localhost:50051
+    basicAuth:
+      username: "admin"
+      password: "admin"
+
+  # Context using external command for authentication
+  # Command should output a valid JWT token to stdout
+  auth-exec:
+    armadaUrl: localhost:50051
+    execAuth:
+      cmd: "/path/to/token-helper"  # Note: field is 'cmd' not 'command'
+      args: ["--get-token"]
+      # Optional: environment variables to pass to the command
+      env:
+        - name: "TOKEN_ENDPOINT"
+          value: "http://localhost:5556/dex/token"

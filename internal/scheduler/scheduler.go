@@ -66,8 +66,6 @@ type Scheduler struct {
 	// Used to penalize short-running jobs by pretending they
 	// ran for some minimum length when calculating costs.
 	shortJobPenalty *scheduling.ShortJobPenalty
-	// The time the previous scheduling round ended
-	previousSchedulingRoundEnd time.Time
 	// Used for timing decisions (e.g., sleep).
 	// Injected here so that we can mock it out for testing.
 	clock clock.WithTicker
@@ -110,26 +108,25 @@ func NewScheduler(
 	marketDrivenPools []string,
 ) (*Scheduler, error) {
 	return &Scheduler{
-		jobRepository:              jobRepository,
-		executorRepository:         executorRepository,
-		schedulingAlgo:             schedulingAlgo,
-		leaderController:           leaderController,
-		publisher:                  publisher,
-		submitChecker:              submitChecker,
-		jobDb:                      jobDb,
-		clock:                      clock.RealClock{},
-		cyclePeriod:                cyclePeriod,
-		schedulePeriod:             schedulePeriod,
-		previousSchedulingRoundEnd: time.Time{},
-		executorTimeout:            executorTimeout,
-		bidPriceProvider:           bidPriceProvider,
-		shortJobPenalty:            shortJobPenalty,
-		maxAttemptedRuns:           maxAttemptedRuns,
-		nodeIdLabel:                nodeIdLabel,
-		jobsSerial:                 -1,
-		runsSerial:                 -1,
-		metrics:                    metrics,
-		marketDrivenPools:          marketDrivenPools,
+		jobRepository:      jobRepository,
+		executorRepository: executorRepository,
+		schedulingAlgo:     schedulingAlgo,
+		leaderController:   leaderController,
+		publisher:          publisher,
+		submitChecker:      submitChecker,
+		jobDb:              jobDb,
+		clock:              clock.RealClock{},
+		cyclePeriod:        cyclePeriod,
+		schedulePeriod:     schedulePeriod,
+		executorTimeout:    executorTimeout,
+		bidPriceProvider:   bidPriceProvider,
+		shortJobPenalty:    shortJobPenalty,
+		maxAttemptedRuns:   maxAttemptedRuns,
+		nodeIdLabel:        nodeIdLabel,
+		jobsSerial:         -1,
+		runsSerial:         -1,
+		metrics:            metrics,
+		marketDrivenPools:  marketDrivenPools,
 	}, nil
 }
 
@@ -152,6 +149,8 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 
 	ticker := s.clock.NewTicker(s.cyclePeriod)
 	prevLeaderToken := leader.InvalidLeaderToken()
+
+	previousSchedulingRoundEnd := time.Time{}
 	cycleNumber := 0
 	for {
 		select {
@@ -188,12 +187,15 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 			// and we must invalidate the held leader token to trigger flushing Pulsar at the next cycle.
 			//
 			// TODO: Once the Pulsar client supports transactions, we can guarantee consistency even in case of errors.
-			shouldSchedule := s.clock.Now().Sub(s.previousSchedulingRoundEnd) > s.schedulePeriod
+			shouldSchedule := s.clock.Now().Sub(previousSchedulingRoundEnd) > s.schedulePeriod
 			if !shouldSchedule {
 				ctx.Info("Won't schedule this cycle as still within schedulePeriod")
 			}
 
 			result, err := s.cycle(ctx, fullUpdate, leaderToken, shouldSchedule, cycleNumber)
+			if shouldSchedule {
+				previousSchedulingRoundEnd = s.clock.Now()
+			}
 			if err != nil {
 				ctx.Logger().WithStacktrace(err).Error("scheduling cycle failure")
 				leaderToken = leader.InvalidLeaderToken()
@@ -344,7 +346,6 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 			return overallSchedulerResult, err
 		}
 		events = append(events, resultEvents...)
-		s.previousSchedulingRoundEnd = s.clock.Now()
 
 		overallSchedulerResult = *result
 	}
@@ -419,6 +420,17 @@ func (s *Scheduler) syncState(ctx *armadacontext.Context, initial, fullJobGc boo
 		}
 	}
 
+	latestJobSerial := s.jobsSerial
+	latestRunsSerial := s.runsSerial
+
+	// Update serial to include these updates.
+	if len(updatedJobs) > 0 {
+		latestJobSerial = updatedJobs[len(updatedJobs)-1].Serial
+	}
+	if len(updatedRuns) > 0 {
+		latestRunsSerial = updatedRuns[len(updatedRuns)-1].Serial
+	}
+
 	// Reconcile any differences between the updated jobs and runs.
 	jsts, err := s.jobDb.ReconcileDifferences(txn, updatedJobs, updatedRuns)
 	if err != nil {
@@ -461,13 +473,8 @@ func (s *Scheduler) syncState(ctx *armadacontext.Context, initial, fullJobGc boo
 
 	txn.Commit()
 
-	// Update serial to include these updates.
-	if len(updatedJobs) > 0 {
-		s.jobsSerial = updatedJobs[len(updatedJobs)-1].Serial
-	}
-	if len(updatedRuns) > 0 {
-		s.runsSerial = updatedRuns[len(updatedRuns)-1].Serial
-	}
+	s.jobsSerial = latestJobSerial
+	s.runsSerial = latestRunsSerial
 
 	return jobDbJobs, jsts, nil
 }

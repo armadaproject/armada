@@ -250,6 +250,13 @@ var QueuePriceBandPhaseBidDesc = prometheus.NewDesc(
 	nil,
 )
 
+var JobDBCumulativeInternedStrings = prometheus.NewDesc(
+	MetricPrefix+"scheduler_interned_strings",
+	"A cumulative count of interned strings",
+	[]string{},
+	nil,
+)
+
 var (
 	queueLabelMetricName        = MetricPrefix + "queue_labels"
 	queueLabelMetricDescription = "Queue labels"
@@ -295,6 +302,7 @@ var AllDescs = []*prometheus.Desc{
 	QueuePriorityDesc,
 	QueueLabelDesc,
 	QueuePriceBandPhaseBidDesc,
+	JobDBCumulativeInternedStrings,
 }
 
 func Describe(out chan<- *prometheus.Desc) {
@@ -536,6 +544,10 @@ func NewMedianQueuePriceRunningMetric(value float64, pool string, priorityClass 
 
 func NewQueuePriceBandBidMetric(value float64, pool string, queue string, phase, priceBand string) prometheus.Metric {
 	return prometheus.MustNewConstMetric(QueuePriceBandPhaseBidDesc, prometheus.GaugeValue, value, pool, queue, queue, phase, priceBand)
+}
+
+func NewJobDBCumulativeInternedStrings(value float64) prometheus.Metric {
+	return prometheus.MustNewConstMetric(JobDBCumulativeInternedStrings, prometheus.CounterValue, value)
 }
 
 func NewQueueLabelsMetric(queue string, labels map[string]string) prometheus.Metric {

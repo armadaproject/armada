@@ -1,0 +1,27 @@
+queue: queue-a
+jobSetId: job-set-1
+jobs:
+  - namespace: default
+    priority: 0
+    podSpec:
+      terminationGracePeriodSeconds: 0
+      restartPolicy: Never
+      containers:
+        - name: web-server
+          image: nginx:latest
+          ports:
+            - containerPort: 80
+              name: http
+              protocol: TCP
+          resources:
+            limits:
+              memory: 256Mi
+              cpu: 0.5
+            requests:
+              memory: 256Mi
+              cpu: 0.5
+    services:
+      - type: NodePort
+        name: http
+        ports:
+          - 80
