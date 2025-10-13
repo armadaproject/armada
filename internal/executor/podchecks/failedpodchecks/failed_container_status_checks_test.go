@@ -18,42 +18,42 @@ func TestFailedContainerStatusChecker_IsRetryable(t *testing.T) {
 		expectMessage  bool
 	}{
 		"empty checks": {
-			input:          makePodInitContainerWithNameAndMessage("orange", "message"),
+			input:          makePodInitContainerWithNameMessageCode("orange", "message", 1),
 			expectedResult: false,
 			expectMessage:  false,
 		},
 		"matches on name regex": {
-			input:          makePodContainerWithNameAndMessage("apple", ""),
+			input:          makePodContainerWithNameMessageCode("apple", "", 1),
 			checks:         []podchecks.FailedContainerStatusCheck{{ContainerNameRegexp: "app.*"}},
 			expectedResult: true,
 			expectMessage:  false,
 		},
 		"matches on message regex": {
-			input:          makePodInitContainerWithNameAndMessage("apple", "message"),
+			input:          makePodInitContainerWithNameMessageCode("apple", "message", 137),
 			checks:         []podchecks.FailedContainerStatusCheck{{ContainerNameRegexp: ".*", MessageRegexp: "mess.*"}},
 			expectedResult: true,
 			expectMessage:  true,
 		},
 		"matches on name and message if supplied": {
-			input:          makePodContainerWithNameAndMessage("banana", "message"),
+			input:          makePodContainerWithNameMessageCode("banana", "message", 1),
 			checks:         []podchecks.FailedContainerStatusCheck{{ContainerNameRegexp: "ban.*", MessageRegexp: "mess.*"}},
 			expectedResult: true,
 			expectMessage:  true,
 		},
 		"matches on name - no match": {
-			input:          makePodInitContainerWithNameAndMessage("plum", "message"),
+			input:          makePodInitContainerWithNameMessageCode("plum", "message", 1),
 			checks:         []podchecks.FailedContainerStatusCheck{{ContainerNameRegexp: "app.*", MessageRegexp: ""}},
 			expectedResult: false,
 			expectMessage:  false,
 		},
 		"matches on message- no match": {
-			input:          makePodContainerWithNameAndMessage("plum", "message"),
+			input:          makePodContainerWithNameMessageCode("plum", "message", 1),
 			checks:         []podchecks.FailedContainerStatusCheck{{ContainerNameRegexp: "plum", MessageRegexp: "memo.*"}},
 			expectedResult: false,
 			expectMessage:  false,
 		},
 		"multiple checks - no match": {
-			input: makePodInitContainerWithNameAndMessage("name", "message"),
+			input: makePodInitContainerWithNameMessageCode("name", "message", 1),
 			checks: []podchecks.FailedContainerStatusCheck{
 				{ContainerNameRegexp: "nomenclature.*", MessageRegexp: ""},
 				{ContainerNameRegexp: "name", MessageRegexp: "memo.*"},
@@ -63,7 +63,7 @@ func TestFailedContainerStatusChecker_IsRetryable(t *testing.T) {
 			expectMessage:  false,
 		},
 		"multiple checks - match": {
-			input: makePodContainerWithNameAndMessage("name", "message"),
+			input: makePodContainerWithNameMessageCode("name", "message", 1),
 			checks: []podchecks.FailedContainerStatusCheck{
 				{ContainerNameRegexp: ".*", MessageRegexp: ""},
 				{ContainerNameRegexp: "na.*", MessageRegexp: "message"},
@@ -71,6 +71,12 @@ func TestFailedContainerStatusChecker_IsRetryable(t *testing.T) {
 			},
 			expectedResult: true,
 			expectMessage:  true,
+		},
+		"terminated status zero - no match": {
+			input:          makePodInitContainerWithNameMessageCode("apple", "message", 0),
+			checks:         []podchecks.FailedContainerStatusCheck{{ContainerNameRegexp: ".*", MessageRegexp: "mess.*"}},
+			expectedResult: false,
+			expectMessage:  false,
 		},
 	}
 
@@ -103,7 +109,7 @@ func TestFailedContainerStatusChecker_Initialisation(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func makePodInitContainerWithNameAndMessage(name string, message string) *v1.Pod {
+func makePodInitContainerWithNameMessageCode(name string, message string, code int32) *v1.Pod {
 	return &v1.Pod{
 		Status: v1.PodStatus{
 			InitContainerStatuses: []v1.ContainerStatus{
@@ -111,7 +117,8 @@ func makePodInitContainerWithNameAndMessage(name string, message string) *v1.Pod
 					Name: name,
 					State: v1.ContainerState{
 						Terminated: &v1.ContainerStateTerminated{
-							Message: message,
+							Message:  message,
+							ExitCode: code,
 						},
 					},
 				},
@@ -120,7 +127,7 @@ func makePodInitContainerWithNameAndMessage(name string, message string) *v1.Pod
 	}
 }
 
-func makePodContainerWithNameAndMessage(name string, message string) *v1.Pod {
+func makePodContainerWithNameMessageCode(name string, message string, code int32) *v1.Pod {
 	return &v1.Pod{
 		Status: v1.PodStatus{
 			ContainerStatuses: []v1.ContainerStatus{
@@ -128,7 +135,8 @@ func makePodContainerWithNameAndMessage(name string, message string) *v1.Pod {
 					Name: name,
 					State: v1.ContainerState{
 						Terminated: &v1.ContainerStateTerminated{
-							Message: message,
+							Message:  message,
+							ExitCode: code,
 						},
 					},
 				},
