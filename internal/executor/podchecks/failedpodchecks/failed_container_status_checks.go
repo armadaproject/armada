@@ -52,7 +52,7 @@ func (f *FailedContainerStatusChecker) IsRetryable(pod *v1.Pod) (bool, string) {
 	for _, check := range f.checks {
 		for _, container := range containers {
 			terminatedContainer := container.State.Terminated
-			if terminatedContainer != nil {
+			if terminatedContainer != nil && terminatedContainer.ExitCode != 0 {
 				if check.containerNameRegexp.MatchString(container.Name) {
 					if check.messageRegexp.MatchString(terminatedContainer.Message) {
 						return true, terminatedContainer.Message
