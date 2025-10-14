@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	networking "k8s.io/api/networking/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/armadaproject/armada/internal/server/submit/testfixtures"
@@ -351,6 +352,146 @@ func TestSubmitJobFromApiRequest(t *testing.T) {
 			}),
 			submissionConfig: testfixtures.SubmissionConfigWithCustomServiceNamesEnabled(),
 		},
+		"Service With Native Sidecar Init Container Ports Extracted But Classic Init Container Ports Ignored": {
+			jobReq: jobSubmitRequestItemWithNativeSidecarAndClassicInitContainer(),
+			expectedSubmitJob: SubmitJobMsgWithK8sObjects([]*armadaevents.KubernetesObject{
+				{
+					ObjectMeta: &armadaevents.ObjectMeta{
+						Namespace: testfixtures.DefaultNamespace,
+						Name:      "armada-00000000000000000000000001-0-service-0",
+						Annotations: map[string]string{
+							"armada_jobset_id": testfixtures.DefaultJobset,
+							"armada_owner":     testfixtures.DefaultOwner,
+						},
+						Labels: map[string]string{
+							"armada_job_id":   "00000000000000000000000001",
+							"armada_queue_id": testfixtures.DefaultQueue.Name,
+						},
+					},
+					Object: &armadaevents.KubernetesObject_Service{
+						Service: &v1.ServiceSpec{
+							Ports: []v1.ServicePort{
+								{
+									Name:     "testContainer-8080",
+									Protocol: "TCP",
+									Port:     8080,
+								},
+								{
+									Name:     "testContainer-9000",
+									Protocol: "TCP",
+									Port:     9000,
+								},
+								{
+									Name:     "sidecar-4180",
+									Protocol: "TCP",
+									Port:     4180,
+								},
+							},
+							Selector: map[string]string{
+								"armada_job_id": "00000000000000000000000001",
+							},
+							ClusterIP: "None",
+							Type:      v1.ServiceTypeClusterIP,
+						},
+					},
+				},
+			},
+				newNativeSidecarContainer(t, "sidecar", "sidecar-port", 4180),
+				newClassicInitContainer(t, "init", "init-port", 5432),
+			),
+			submissionConfig: testfixtures.DefaultSubmissionConfig(),
+		},
+		"Service With Native Sidecar Init Container Ports": {
+			jobReq: jobSubmitRequestItemWithNativeSidecarInitContainer(),
+			expectedSubmitJob: SubmitJobMsgWithK8sObjects([]*armadaevents.KubernetesObject{
+				{
+					ObjectMeta: &armadaevents.ObjectMeta{
+						Namespace: testfixtures.DefaultNamespace,
+						Name:      "armada-00000000000000000000000001-0-service-0",
+						Annotations: map[string]string{
+							"armada_jobset_id": testfixtures.DefaultJobset,
+							"armada_owner":     testfixtures.DefaultOwner,
+						},
+						Labels: map[string]string{
+							"armada_job_id":   "00000000000000000000000001",
+							"armada_queue_id": testfixtures.DefaultQueue.Name,
+						},
+					},
+					Object: &armadaevents.KubernetesObject_Service{
+						Service: &v1.ServiceSpec{
+							Ports: []v1.ServicePort{
+								{
+									Name:     "testContainer-8080",
+									Protocol: "TCP",
+									Port:     8080,
+								},
+								{
+									Name:     "testContainer-9000",
+									Protocol: "TCP",
+									Port:     9000,
+								},
+								{
+									Name:     "sidecar-4180",
+									Protocol: "TCP",
+									Port:     4180,
+								},
+							},
+							Selector: map[string]string{
+								"armada_job_id": "00000000000000000000000001",
+							},
+							ClusterIP: "None",
+							Type:      v1.ServiceTypeClusterIP,
+						},
+					},
+				},
+			},
+				newNativeSidecarContainer(t, "sidecar", "sidecar-port", 4180),
+			),
+			submissionConfig: testfixtures.DefaultSubmissionConfig(),
+		},
+		"Service Does Not Expose Classic Init Container Ports": {
+			jobReq: jobSubmitRequestItemWithClassicInitContainer(),
+			expectedSubmitJob: SubmitJobMsgWithK8sObjects([]*armadaevents.KubernetesObject{
+				{
+					ObjectMeta: &armadaevents.ObjectMeta{
+						Namespace: testfixtures.DefaultNamespace,
+						Name:      "armada-00000000000000000000000001-0-service-0",
+						Annotations: map[string]string{
+							"armada_jobset_id": testfixtures.DefaultJobset,
+							"armada_owner":     testfixtures.DefaultOwner,
+						},
+						Labels: map[string]string{
+							"armada_job_id":   "00000000000000000000000001",
+							"armada_queue_id": testfixtures.DefaultQueue.Name,
+						},
+					},
+					Object: &armadaevents.KubernetesObject_Service{
+						Service: &v1.ServiceSpec{
+							Ports: []v1.ServicePort{
+								{
+									Name:     "testContainer-8080",
+									Protocol: "TCP",
+									Port:     8080,
+								},
+								{
+									Name:     "testContainer-9000",
+									Protocol: "TCP",
+									Port:     9000,
+								},
+							},
+							Selector: map[string]string{
+								"armada_job_id": "00000000000000000000000001",
+							},
+							ClusterIP: "None",
+							Type:      v1.ServiceTypeClusterIP,
+						},
+					},
+				},
+			},
+				newClassicInitContainer(t, "init", "init-port", 5432),
+			),
+			submissionConfig: testfixtures.DefaultSubmissionConfig(),
+		},
 	}
 
 	for name, tc := range tests {
@@ -571,8 +712,141 @@ func jobSubmitRequestItemWithIngresses(i []*api.IngressConfig) *api.JobSubmitReq
 	return req
 }
 
-func SubmitJobMsgWithK8sObjects(s []*armadaevents.KubernetesObject) *armadaevents.SubmitJob {
+func jobSubmitRequestItemWithNativeSidecarAndClassicInitContainer() *api.JobSubmitRequestItem {
+	req := testfixtures.JobSubmitRequestItem(1)
+
+	restartPolicyAlways := v1.ContainerRestartPolicyAlways
+	nativeSidecar := v1.Container{
+		Name: "sidecar",
+		Ports: []v1.ContainerPort{
+			{
+				Name:          "sidecar-port",
+				ContainerPort: 4180,
+				Protocol:      "TCP",
+			},
+		},
+		RestartPolicy: &restartPolicyAlways,
+	}
+
+	classicInitContainer := v1.Container{
+		Name: "init",
+		Ports: []v1.ContainerPort{
+			{
+				Name:          "init-port",
+				ContainerPort: 5432,
+				Protocol:      "TCP",
+			},
+		},
+	}
+
+	req.PodSpec.InitContainers = []v1.Container{nativeSidecar, classicInitContainer}
+
+	req.Services = []*api.ServiceConfig{
+		{
+			Type:  api.ServiceType_Headless,
+			Ports: []uint32{4180, 8080, 9000, 5432},
+		},
+	}
+
+	return req
+}
+
+func jobSubmitRequestItemWithNativeSidecarInitContainer() *api.JobSubmitRequestItem {
+	req := testfixtures.JobSubmitRequestItem(1)
+
+	restartPolicyAlways := v1.ContainerRestartPolicyAlways
+	nativeSidecar := v1.Container{
+		Name: "sidecar",
+		Ports: []v1.ContainerPort{
+			{
+				Name:          "sidecar-port",
+				ContainerPort: 4180,
+				Protocol:      "TCP",
+			},
+		},
+		RestartPolicy: &restartPolicyAlways,
+	}
+
+	req.PodSpec.InitContainers = []v1.Container{nativeSidecar}
+	req.Services = []*api.ServiceConfig{
+		{
+			Type:  api.ServiceType_Headless,
+			Ports: []uint32{4180, 8080, 9000},
+		},
+	}
+
+	return req
+}
+
+func jobSubmitRequestItemWithClassicInitContainer() *api.JobSubmitRequestItem {
+	req := testfixtures.JobSubmitRequestItem(1)
+
+	classicInitContainer := v1.Container{
+		Name: "init",
+		Ports: []v1.ContainerPort{
+			{
+				Name:          "init-port",
+				ContainerPort: 5432,
+				Protocol:      "TCP",
+			},
+		},
+	}
+
+	req.PodSpec.InitContainers = []v1.Container{classicInitContainer}
+
+	req.Services = []*api.ServiceConfig{
+		{
+			Type:  api.ServiceType_Headless,
+			Ports: []uint32{8080, 9000, 5432},
+		},
+	}
+
+	return req
+}
+
+func SubmitJobMsgWithK8sObjects(objects []*armadaevents.KubernetesObject, initContainers ...v1.Container) *armadaevents.SubmitJob {
 	submitMsg := testfixtures.SubmitJob(1)
-	submitMsg.Objects = s
+	submitMsg.Objects = objects
+	if len(initContainers) > 0 {
+		submitMsg.MainObject.GetPodSpec().PodSpec.InitContainers = initContainers
+	}
 	return submitMsg
+}
+
+func newNativeSidecarContainer(t *testing.T, name string, portName string, port int32) v1.Container {
+	t.Helper()
+	restartPolicy := v1.ContainerRestartPolicyAlways
+	return v1.Container{
+		Name: name,
+		Ports: []v1.ContainerPort{
+			{
+				Name:          portName,
+				ContainerPort: port,
+				Protocol:      "TCP",
+			},
+		},
+		RestartPolicy: &restartPolicy,
+		Resources: v1.ResourceRequirements{
+			Limits:   v1.ResourceList{"cpu": resource.MustParse("1")},
+			Requests: v1.ResourceList{"cpu": resource.MustParse("1")},
+		},
+	}
+}
+
+func newClassicInitContainer(t *testing.T, name string, portName string, port int32) v1.Container {
+	t.Helper()
+	return v1.Container{
+		Name: name,
+		Ports: []v1.ContainerPort{
+			{
+				Name:          portName,
+				ContainerPort: port,
+				Protocol:      "TCP",
+			},
+		},
+		Resources: v1.ResourceRequirements{
+			Limits:   v1.ResourceList{"cpu": resource.MustParse("1")},
+			Requests: v1.ResourceList{"cpu": resource.MustParse("1")},
+		},
+	}
 }

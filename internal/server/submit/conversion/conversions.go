@@ -54,7 +54,7 @@ func SubmitJobFromApiRequest(
 }
 
 // Creates KubernetesObjects representing ingresses and services from the *api.JobSubmitRequestItem.
-// An ingress will have  a corresponding service created for it.
+// An ingress will have a corresponding service created for it.
 func convertIngressesAndServices(
 	config configuration.SubmissionConfig,
 	jobReq *api.JobSubmitRequestItem,
@@ -63,9 +63,33 @@ func convertIngressesAndServices(
 	objects := make([]*armadaevents.KubernetesObject, 0, 2*len(jobReq.Ingress)+len(jobReq.Services))
 	serviceIdx := 0
 
-	// Extract Ports from containers
+	// Extract Ports from main containers and native sidecar containers
 	availableServicePorts := make([]v1.ServicePort, 0)
+
+	// Extract from main containers
 	for _, container := range jobReq.GetMainPodSpec().Containers {
+		for _, port := range container.Ports {
+			// Don't expose host via service, this will already be handled by kubernetes
+			if port.HostPort > 0 {
+				continue
+			}
+			availableServicePorts = append(availableServicePorts, v1.ServicePort{
+				Name:     fmt.Sprintf("%s-%d", container.Name, port.ContainerPort),
+				Port:     port.ContainerPort,
+				Protocol: port.Protocol,
+			})
+		}
+	}
+
+	// Extract from native sidecar init containers (restartPolicy: Always)
+	// Classic init containers (without restartPolicy) run to completion before
+	// main containers start, so their ports shouldn't be exposed.
+	for _, container := range jobReq.GetMainPodSpec().InitContainers {
+		// Skip classic init containers
+		if container.RestartPolicy == nil || *container.RestartPolicy != v1.ContainerRestartPolicyAlways {
+			continue
+		}
+
 		for _, port := range container.Ports {
 			// Don't expose host via service, this will already be handled by kubernetes
 			if port.HostPort > 0 {
