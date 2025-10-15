@@ -326,29 +326,18 @@ func LimitSequenceByteSize(sequence *armadaevents.EventSequence, sizeInBytes uin
 	lastSequenceEventSize := uint(0)
 	for _, event := range sequence.Events {
 		eventSize := uint(proto.Size(event))
-		// If event is too large and we're in strict mode, try to truncate it
 		if eventSize+headerSize > sizeInBytes && strict {
-			truncatedEvent := truncateEvent(event, sizeInBytes-headerSize)
-			if truncatedEvent != nil {
-				originalSize := eventSize
-				eventSize = uint(proto.Size(truncatedEvent))
-				event = truncatedEvent
-				log.Warnf("Truncated event from %d bytes to %d bytes to fit within %d byte limit",
-					originalSize, eventSize, sizeInBytes)
-			} else {
-				// If we couldn't truncate the event, return an error
-				return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
-					Name:  "sequence",
-					Value: sequence,
-					Message: fmt.Sprintf(
-						"event of %d bytes is too large and could not be truncated to fit within the sequence size limit of %d",
-						eventSize,
-						sizeInBytes,
-					),
-				})
-			}
+			return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
+				Name:  "sequence",
+				Value: sequence,
+				Message: fmt.Sprintf(
+					"event of %d bytes is too large, when combined with a header of size %d is larger than the sequence size limit of %d",
+					eventSize,
+					headerSize,
+					sizeInBytes,
+				),
+			})
 		}
-
 		if len(sequences) == 0 || lastSequenceEventSize+eventSize+headerSize > sizeInBytes {
 			sequences = append(sequences, &armadaevents.EventSequence{
 				Queue:      sequence.Queue,
@@ -363,166 +352,5 @@ func LimitSequenceByteSize(sequence *armadaevents.EventSequence, sizeInBytes uin
 		lastSequence.Events = append(lastSequence.Events, event)
 		lastSequenceEventSize += eventSize
 	}
-
 	return sequences, nil
-}
-
-// truncateEvent attempts to truncate an event to fit within the given size limit.
-// It progressively reduces debug message sizes (which contain K8s event history and are the main cause of oversized events)
-// using factors of 0.9, 0.75, 0.6, 0.45, 0.3, 0.15, keeping the most recent portion of the message.
-// If progressive truncation isn't sufficient, it removes debug messages entirely as a last resort.
-// Returns a truncated event if successful, or nil if the event cannot be truncated.
-func truncateEvent(event *armadaevents.EventSequence_Event, maxBytes uint) *armadaevents.EventSequence_Event {
-	if event == nil {
-		return nil
-	}
-
-	// Only error events can be truncated (they contain debug messages with K8s event history)
-	switch e := event.Event.(type) {
-	case *armadaevents.EventSequence_Event_JobRunErrors:
-		if e.JobRunErrors != nil && e.JobRunErrors.Errors != nil {
-			return truncateJobRunErrors(event, maxBytes)
-		}
-	case *armadaevents.EventSequence_Event_JobErrors:
-		if e.JobErrors != nil && e.JobErrors.Errors != nil {
-			return truncateJobErrors(event, maxBytes)
-		}
-	}
-
-	return nil
-}
-
-// minDebugMessageLength is the minimum number of characters to keep during progressive truncation.
-// This prevents truncation from making messages too short to be useful during the reduction phase.
-// Note: Messages may still be removed entirely as a last resort if truncation isn't sufficient.
-const minDebugMessageLength = 100
-
-func truncateJobRunErrors(event *armadaevents.EventSequence_Event, maxBytes uint) *armadaevents.EventSequence_Event {
-	truncated := proto.Clone(event).(*armadaevents.EventSequence_Event)
-	jobRunErrors := truncated.GetJobRunErrors()
-	if jobRunErrors == nil || len(jobRunErrors.Errors) == 0 {
-		return nil
-	}
-
-	currentSize := uint(proto.Size(truncated))
-	if currentSize <= maxBytes {
-		return truncated
-	}
-
-	truncationNotice := "\n...[truncated]"
-
-	// Progressive reduction - start at 0.9 and reduce by 0.15 until we fit or reach 0
-	for factor := 0.9; factor > 0 && currentSize > maxBytes; factor -= 0.15 {
-		for _, err := range jobRunErrors.Errors {
-			if podErr := err.GetPodError(); podErr != nil && podErr.DebugMessage != "" {
-				originalLen := len(podErr.DebugMessage)
-				newLen := int(float64(originalLen) * factor)
-				if newLen < minDebugMessageLength {
-					newLen = minDebugMessageLength
-				}
-				if newLen < originalLen {
-					podErr.DebugMessage = podErr.DebugMessage[originalLen-newLen:] + truncationNotice // Keep end (most recent)
-				}
-			}
-
-			if podLeaseReturned := err.GetPodLeaseReturned(); podLeaseReturned != nil &&
-				podLeaseReturned.DebugMessage != "" {
-				originalLen := len(podLeaseReturned.DebugMessage)
-				newLen := int(float64(originalLen) * factor)
-				if newLen < minDebugMessageLength {
-					newLen = minDebugMessageLength
-				}
-				if newLen < originalLen {
-					podLeaseReturned.DebugMessage = podLeaseReturned.DebugMessage[originalLen-newLen:] + truncationNotice
-				}
-			}
-		}
-
-		currentSize = uint(proto.Size(truncated))
-	}
-
-	if currentSize > maxBytes { // Last resort: remove debug messages entirely
-		for _, err := range jobRunErrors.Errors {
-			if podErr := err.GetPodError(); podErr != nil {
-				podErr.DebugMessage = "[removed due to size limit]"
-			}
-			if podLeaseReturned := err.GetPodLeaseReturned(); podLeaseReturned != nil {
-				podLeaseReturned.DebugMessage = "[removed due to size limit]"
-			}
-		}
-		currentSize = uint(proto.Size(truncated))
-	}
-
-	if currentSize > maxBytes {
-		return nil // Can't truncate further
-	}
-
-	return truncated
-}
-
-func truncateJobErrors(event *armadaevents.EventSequence_Event, maxBytes uint) *armadaevents.EventSequence_Event {
-	// Create a deep copy
-	truncated := proto.Clone(event).(*armadaevents.EventSequence_Event)
-	jobErrors := truncated.GetJobErrors()
-	if jobErrors == nil || len(jobErrors.Errors) == 0 {
-		return nil
-	}
-
-	originalSize := uint(proto.Size(truncated))
-
-	if originalSize <= maxBytes {
-		return truncated
-	}
-
-	const truncationNotice = "\n...[truncated]"
-	currentSize := originalSize
-
-	// Progressive reduction - start at 0.9 and reduce by 0.15 until we fit or reach 0
-	for factor := 0.9; factor > 0 && currentSize > maxBytes; factor -= 0.15 {
-		for _, err := range jobErrors.Errors {
-			if podErr := err.GetPodError(); podErr != nil && podErr.DebugMessage != "" {
-				originalLen := len(podErr.DebugMessage)
-				newLen := int(float64(originalLen) * factor)
-				if newLen < minDebugMessageLength {
-					newLen = minDebugMessageLength
-				}
-				if newLen < originalLen {
-					podErr.DebugMessage = podErr.DebugMessage[originalLen-newLen:] + truncationNotice
-				}
-			}
-
-			if podLeaseReturned := err.GetPodLeaseReturned(); podLeaseReturned != nil &&
-				podLeaseReturned.DebugMessage != "" {
-				originalLen := len(podLeaseReturned.DebugMessage)
-				newLen := int(float64(originalLen) * factor)
-				if newLen < minDebugMessageLength {
-					newLen = minDebugMessageLength
-				}
-				if newLen < originalLen {
-					podLeaseReturned.DebugMessage = podLeaseReturned.DebugMessage[originalLen-newLen:] + truncationNotice
-				}
-			}
-		}
-
-		currentSize = uint(proto.Size(truncated))
-	}
-
-	// Last resort - remove debug messages entirely
-	if currentSize > maxBytes {
-		for _, err := range jobErrors.Errors {
-			if podErr := err.GetPodError(); podErr != nil {
-				podErr.DebugMessage = "[removed due to size limit]"
-			}
-			if podLeaseReturned := err.GetPodLeaseReturned(); podLeaseReturned != nil {
-				podLeaseReturned.DebugMessage = "[removed due to size limit]"
-			}
-		}
-		currentSize = uint(proto.Size(truncated))
-	}
-
-	if currentSize > maxBytes {
-		return nil
-	}
-
-	return truncated
 }
