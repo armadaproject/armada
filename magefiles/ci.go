@@ -84,23 +84,49 @@ func runArmadaCtl(args ...string) (string, error) {
 		"--config", "e2e/config/armadactl_config.yaml",
 	}
 	armadaCtlArgs = append(armadaCtlArgs, args...)
-	outBytes, err := exec.Command(findOrDownloadArmadaCtl(), armadaCtlArgs...).CombinedOutput()
+	outBytes, err := exec.Command(findOrBuildArmadaCtl(), armadaCtlArgs...).CombinedOutput()
 	out := string(outBytes)
 	return out, err
 }
 
-// Finds armadactl to submit with
-// We look for local armadactl first, then in path, then try to download one from github releases.
-func findOrDownloadArmadaCtl() string {
-	if _, err := os.Stat("./armadactl"); os.IsNotExist(err) {
-		if path, err := exec.LookPath("armadactl"); err == nil {
+// Builds armadactl binary using goreleaser and returns the path.
+func buildArmadactl() (string, error) {
+	err := goreleaserRun("build", "--id", "armadactl", "--single-target", "--snapshot", "--clean")
+	if err != nil {
+		return "", err
+	}
+
+	output, err := sh.Output("sh", "-c", "find dist -name armadactl -type f -print -quit")
+	if err != nil {
+		return "", err
+	}
+
+	return strings.TrimSpace(output), nil
+}
+
+// Finds armadactl to submit with, building from source if necessary.
+func findOrBuildArmadaCtl() string {
+	// Check dist/ for already-built binary
+	if output, err := sh.Output("sh", "-c", "find dist -name armadactl -type f -print -quit 2>/dev/null"); err == nil {
+		if path := strings.TrimSpace(output); path != "" {
 			return path
 		}
-
-		err = sh.Run("sh", "./scripts/get-armadactl.sh")
-		if err != nil {
-			return ""
-		}
 	}
-	return "./armadactl"
+
+	// Check local directory
+	if _, err := os.Stat("./armadactl"); err == nil {
+		return "./armadactl"
+	}
+
+	// Check PATH
+	if path, err := exec.LookPath("armadactl"); err == nil {
+		return path
+	}
+
+	// Build from source
+	path, err := buildArmadactl()
+	if err != nil {
+		return ""
+	}
+	return path
 }
