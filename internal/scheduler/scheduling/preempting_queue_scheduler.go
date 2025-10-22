@@ -431,7 +431,7 @@ func getNodeIdFromSchedulingContext(sctx *schedulercontext.SchedulingContext, jo
 	}
 
 	if jctx.PodSchedulingContext.NodeId == "" {
-		return "", errors.Errorf("node id not set on sucessfully scheduled pod scheduling context %s - %s ", job.Id(), job.Queue())
+		return "", errors.Errorf("node id not set on successfully scheduled pod scheduling context %s - %s ", job.Id(), job.Queue())
 	}
 
 	return jctx.PodSchedulingContext.NodeId, nil
