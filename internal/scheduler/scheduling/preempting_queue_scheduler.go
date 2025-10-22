@@ -398,11 +398,43 @@ func (sch *PreemptingQueueScheduler) collectIdsForGangEviction(evictorResult *Ev
 		// Collect all job ids part of that gang.
 		for _, gangJob := range activeGangJobs {
 			allGangJobIds[gangJob.Id()] = true
-			gangNodeIds[gangJob.LatestRun().NodeId()] = true
+			// If the latest run is nil, it means the job was scheduled in the current scheduling round
+			// So we need to find which node it was scheduled on in the scheduling context as it won't have been persisted in the jobdb yet
+			if gangJob.LatestRun() == nil {
+				nodeId, err := getNodeIdFromSchedulingContext(sch.schedulingContext, gangJob)
+				if err != nil {
+					return nil, nil, err
+				}
+				gangNodeIds[nodeId] = true
+			} else {
+				gangNodeIds[gangJob.LatestRun().NodeId()] = true
+			}
 		}
 		seenGangs[gangId] = true
 	}
 	return allGangJobIds, gangNodeIds, nil
+}
+
+func getNodeIdFromSchedulingContext(sctx *schedulercontext.SchedulingContext, job *jobdb.Job) (string, error) {
+	qctx, present := sctx.QueueSchedulingContexts[job.Queue()]
+	if !present {
+		return "", errors.Errorf("unable to find queue scheduling context for job %s - %s ", job.Id(), job.Queue())
+	}
+
+	jctx, present := qctx.SuccessfulJobSchedulingContexts[job.Id()]
+	if !present {
+		return "", errors.Errorf("unable to find successful job scheduling context for job %s - %s ", job.Id(), job.Queue())
+	}
+
+	if jctx.PodSchedulingContext == nil {
+		return "", errors.Errorf("pod scheduling context missing for successfully scheduled jctx %s - %s ", job.Id(), job.Queue())
+	}
+
+	if jctx.PodSchedulingContext.NodeId == "" {
+		return "", errors.Errorf("node id not set on sucessfully scheduled pod scheduling context %s - %s ", job.Id(), job.Queue())
+	}
+
+	return jctx.PodSchedulingContext.NodeId, nil
 }
 
 func (sch *PreemptingQueueScheduler) getActiveGangJobs(queue string, gangId string) ([]*jobdb.Job, error) {
