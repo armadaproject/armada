@@ -114,3 +114,26 @@ applicationConfig:
     tlsEnabled: false
     # -- Name of the secret which contains the Pulsar CA certificate
     cacert: armada-pulsar-ca-tls
+
+logging:
+  console:
+    level: info
+    format: text
+  file:
+    enabled: false
+    level: info
+    format: json
+    rotation:
+      maxSizeMb: 5
+      maxBackups: 3
+      maxAgeDays: 7
+      compress: false
+
+filebeat:
+  enabled: false
+  image:
+    repository: docker.elastic.co/beats/filebeat
+    tag: 7.17.0
+  logstash:
+    host: "localhost"
+    port: 5044
