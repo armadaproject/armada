@@ -427,7 +427,7 @@ func getNodeIdFromSchedulingContext(sctx *schedulercontext.SchedulingContext, jo
 	}
 
 	if jctx.PodSchedulingContext == nil {
-		return "", errors.Errorf("pod scheduling context missing for successfully scheduled jctx %s - %s ", job.Id(), job.Queue())
+		return "", errors.Errorf("pod scheduling context missing for successfully scheduled job %s - %s ", job.Id(), job.Queue())
 	}
 
 	if jctx.PodSchedulingContext.NodeId == "" {
