@@ -1051,6 +1051,14 @@ func (s *Scheduler) submitCheck(ctx *armadacontext.Context, txn *jobdb.Txn) ([]*
 		}
 	}
 
+	invalidGangJobs, err := validateGangs(txn, jobsToCheck)
+	if err != nil {
+		return nil, err
+	}
+	for _, invalidJob := range invalidGangJobs {
+		results[invalidJob.jobId] = schedulingResult{isSchedulable: false, reason: invalidJob.reason}
+	}
+
 	events := make([]*armadaevents.EventSequence, 0)
 	jobsToUpdate := make([]*jobdb.Job, 0)
 	for _, job := range jobsToCheck {
@@ -1103,6 +1111,89 @@ func (s *Scheduler) submitCheck(ctx *armadacontext.Context, txn *jobdb.Txn) ([]*
 		return nil, err
 	}
 	return events, nil
+}
+
+type invalidGangResult struct {
+	jobId  string
+	reason string
+}
+
+type gangKey struct {
+	queue  string
+	gangId string
+}
+
+func validateGangs(txn *jobdb.Txn, jobs []*jobdb.Job) ([]*invalidGangResult, error) {
+	result := []*invalidGangResult{}
+
+	for key, gangJobs := range armadaslices.GroupByFunc(
+		jobs,
+		func(job *jobdb.Job) gangKey {
+			return gangKey{queue: job.Queue(), gangId: job.GetGangInfo().Id()}
+		},
+	) {
+		if key.gangId == "" {
+			continue
+		}
+
+		valid, reason, err := validateGang(txn, &key, gangJobs)
+		if err != nil {
+			return nil, err
+		}
+
+		if !valid {
+			for _, gangJob := range gangJobs {
+				result = append(result, &invalidGangResult{jobId: gangJob.Id(), reason: reason})
+			}
+		}
+	}
+
+	return result, nil
+}
+
+func validateGang(txn *jobdb.Txn, key *gangKey, gangJobs []*jobdb.Job) (bool, string, error) {
+	jobsByGangUniqueGangInfo := armadaslices.GroupByFunc(
+		gangJobs,
+		func(job *jobdb.Job) jobdb.GangInfo {
+			return job.GetGangInfo()
+		},
+	)
+
+	if len(jobsByGangUniqueGangInfo) > 1 {
+		return false, "", nil
+	}
+
+	if len(gangJobs) > gangJobs[0].GetGangInfo().Cardinality() {
+		return false, "", nil
+	}
+
+	allGangMembersInDb, err := txn.GetGangJobsByGangId(key.queue, key.gangId)
+	if err != nil {
+		return false, "", err
+	}
+
+	jobsByGangUniqueGangInfo = armadaslices.GroupByFunc(
+		allGangMembersInDb,
+		func(job *jobdb.Job) jobdb.GangInfo {
+			return job.GetGangInfo()
+		},
+	)
+
+	if len(jobsByGangUniqueGangInfo) > 1 {
+		return false, "", nil
+	}
+
+	for _, gangJob := range allGangMembersInDb {
+		if !gangJob.Queued() {
+			return false, "", nil
+		}
+	}
+
+	if len(gangJobs) > allGangMembersInDb[0].GetGangInfo().Cardinality() {
+		return false, "", nil
+	}
+
+	return true, "", nil
 }
 
 // now is a convenience function for generating a proto timestamp representing the current time according to the clock
