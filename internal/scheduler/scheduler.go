@@ -1152,19 +1152,8 @@ func validateGangs(txn *jobdb.Txn, jobs []*jobdb.Job) ([]*invalidGangResult, err
 }
 
 func validateGang(txn *jobdb.Txn, key *gangKey, gangJobs []*jobdb.Job) (bool, string, error) {
-	jobsByGangUniqueGangInfo := armadaslices.GroupByFunc(
-		gangJobs,
-		func(job *jobdb.Job) jobdb.GangInfo {
-			return job.GetGangInfo()
-		},
-	)
-
-	if len(jobsByGangUniqueGangInfo) > 1 {
-		return false, "", nil
-	}
-
-	if len(gangJobs) > gangJobs[0].GetGangInfo().Cardinality() {
-		return false, "", nil
+	if len(gangJobs) == 0 {
+		return false, "", fmt.Errorf("no gang jobs supplied for gang %s - %s", key.queue, key.gangId)
 	}
 
 	allGangMembersInDb, err := txn.GetGangJobsByGangId(key.queue, key.gangId)
@@ -1172,25 +1161,43 @@ func validateGang(txn *jobdb.Txn, key *gangKey, gangJobs []*jobdb.Job) (bool, st
 		return false, "", err
 	}
 
-	jobsByGangUniqueGangInfo = armadaslices.GroupByFunc(
+	jobsByGangUniqueGangInfo := armadaslices.GroupByFunc(
 		allGangMembersInDb,
 		func(job *jobdb.Job) jobdb.GangInfo {
 			return job.GetGangInfo()
 		},
 	)
 
-	if len(jobsByGangUniqueGangInfo) > 1 {
-		return false, "", nil
-	}
-
 	for _, gangJob := range allGangMembersInDb {
 		if !gangJob.Queued() {
-			return false, "", nil
+			reason := fmt.Sprintf("cannot submit to gang that has running jobs - example running job %s", gangJob.Id())
+			return false, reason, nil
 		}
 	}
 
-	if len(gangJobs) > allGangMembersInDb[0].GetGangInfo().Cardinality() {
-		return false, "", nil
+	if len(jobsByGangUniqueGangInfo) > 1 {
+		reason := fmt.Sprintf("cannot submit jobs with different gang info with the same gan id, found %d unique sets of gang info for gang id %s\n",
+			len(jobsByGangUniqueGangInfo), key.gangId)
+		reason = reason + "details:\n"
+		count := 0
+		for info, jobs := range jobsByGangUniqueGangInfo {
+			reason = reason + fmt.Sprintf("gang (%s) - number of jobs %d - example id %s\n", info.String(), len(jobs), jobs[0].Id())
+			count++
+			// Limit the error message to a sensible length
+			if count >= 10 {
+				reason = reason + "<truncated>"
+				break
+			}
+		}
+		
+		return false, reason, nil
+	}
+
+	representativeJob := allGangMembersInDb[0]
+	if len(gangJobs) > representativeJob.GetGangInfo().Cardinality() {
+		reason := fmt.Sprintf("cannot submit more jobs to gang than specified in gang cardinality - cardinality set to %d (based on job %s) but found %d jobs",
+			gangJobs[0].GetGangInfo().Cardinality(), representativeJob.Id(), len(gangJobs))
+		return false, reason, nil
 	}
 
 	return true, "", nil
