@@ -19,7 +19,7 @@ A helm chart for Armada Binoculars component
 | applicationConfig.httpPort | int | `8080` |  |
 | applicationConfig.metricsPort | int | `9000` |  |
 | customServiceAccount | string | `nil` |  |
-| image.repository | string | `"gresearchdev/armada-binoculars"` |  |
+| image.repository | string | `"gresearch/armada-binoculars"` |  |
 | image.tag | string | `"0.0.0-latest"` |  |
 | ingress.annotations | object | `{}` |  |
 | ingress.labels | object | `{}` |  |

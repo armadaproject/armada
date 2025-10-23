@@ -14,7 +14,7 @@ A helm chart for Armada Scheduler component
 | ingester.applicationConfig.metricsPort | int | `9003` |  |
 | ingester.applicationConfig.pulsar | object | `{}` |  |
 | ingester.customServiceAccount | string | `nil` |  |
-| ingester.image.repository | string | `"gresearchdev/armada-scheduler-ingester"` |  |
+| ingester.image.repository | string | `"gresearch/armada-scheduler-ingester"` |  |
 | ingester.image.tag | string | `"0.0.0-latest"` |  |
 | ingester.prometheus.enabled | bool | `false` |  |
 | ingester.prometheus.labels | object | `{}` |  |
@@ -49,7 +49,7 @@ A helm chart for Armada Scheduler component
 | scheduler.applicationConfig.metrics.port | int | `9001` |  |
 | scheduler.applicationConfig.pulsar | object | `{}` |  |
 | scheduler.customServiceAccount | string | `nil` |  |
-| scheduler.image.repository | string | `"gresearchdev/armada-scheduler"` |  |
+| scheduler.image.repository | string | `"gresearch/armada-scheduler"` |  |
 | scheduler.image.tag | string | `"0.0.0-latest"` |  |
 | scheduler.ingress.annotations | object | `{}` |  |
 | scheduler.ingress.labels | object | `{}` |  |

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/rand"
 	"net/http"
 	"net/url"
 	"strings"
@@ -24,51 +25,105 @@ type DeviceDetails struct {
 func AuthenticateDevice(config DeviceDetails) (*TokenCredentials, error) {
 	ctx := context.Background()
 
+	httpClient := http.DefaultClient
+
 	provider, err := openId.NewProvider(ctx, config.ProviderUrl)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("oidc discovery failed: %w", err)
+	}
+
+	// Get device authorization endpoint from discovery
+	var claims struct {
+		DeviceAuthorizationEndpoint string `json:"device_authorization_endpoint"`
+	}
+	if err := provider.Claims(&claims); err != nil {
+		return nil, fmt.Errorf("decode discovery: %w", err)
+	}
+	if claims.DeviceAuthorizationEndpoint == "" {
+		return nil, errors.New("provider does not advertise device_authorization_endpoint")
+	}
+
+	// Ensure "openid" scope is present
+	scopes := make([]string, 0, len(config.Scopes)+1)
+	seenOpenID := false
+	for _, s := range config.Scopes {
+		if s == openId.ScopeOpenID {
+			seenOpenID = true
+			break
+		}
+	}
+	scopes = append(scopes, config.Scopes...)
+	if !seenOpenID {
+		scopes = append(scopes, openId.ScopeOpenID)
 	}
 
 	oauth := oauth2.Config{
 		ClientID: config.ClientId,
 		Endpoint: provider.Endpoint(),
-		Scopes:   append(config.Scopes, openId.ScopeOpenID),
+		Scopes:   scopes,
 	}
 
-	c := &http.Client{}
-	deviceFlowResponse, err := requestDeviceAuthorization(c, config)
+	deviceFlowResponse, err := requestDeviceAuthorization(ctx, httpClient, claims.DeviceAuthorizationEndpoint, config.ClientId, scopes)
 	if err != nil {
 		return nil, err
 	}
-	fmt.Printf("Complete your login via OIDC. Launching browser to:\n\n    %s\n\n\n", deviceFlowResponse.VerificationUriComplete)
 
-	if cmd, err := openBrowser(deviceFlowResponse.VerificationUriComplete); err != nil {
-		fmt.Printf("Error attempting to automatically open browser: '%s'.\nPlease visit the above URL manually.\n", err)
-		if err != nil {
-			return nil, err
+	if deviceFlowResponse.VerificationURIComplete != "" {
+		fmt.Printf("Complete your login in the browser:\n\n    %s\n", deviceFlowResponse.VerificationURIComplete)
+		if cmd, err := openBrowser(deviceFlowResponse.VerificationURIComplete); err == nil && cmd != nil {
+			defer func() { _ = cmd.Process.Kill() }()
 		}
-		defer func() {
-			if err := cmd.Process.Kill(); err != nil {
-				fmt.Printf("Error killing your process: %s", err)
-			}
-		}()
+	} else {
+		fmt.Printf("Go to:\n\n    %s\n\nand enter code: %s\n", deviceFlowResponse.VerificationURI, deviceFlowResponse.UserCode)
+		if cmd, err := openBrowser(deviceFlowResponse.VerificationURI); err == nil && cmd != nil {
+			defer func() { _ = cmd.Process.Kill() }()
+		}
 	}
 
-	for {
-		time.Sleep(time.Duration(deviceFlowResponse.Interval) * time.Second)
+	// Poll for token
+	interval := deviceFlowResponse.Interval
+	if interval <= 0 {
+		interval = 5
+	}
+	expireAt := time.Now().Add(time.Duration(deviceFlowResponse.ExpiresIn) * time.Second)
+	ticker := time.NewTicker(time.Duration(interval) * time.Second)
+	defer ticker.Stop()
 
-		token, err := requestToken(c, config, deviceFlowResponse.DeviceCode)
-		if err == nil {
-			return &TokenCredentials{oauth.TokenSource(ctx, token)}, nil
-		} else if err.Error() == authorizationPending {
-			continue
-		} else if err.Error() == slowDown {
-			time.Sleep(time.Duration(deviceFlowResponse.Interval) * time.Second)
-			continue
-		} else if err.Error() == expiredToken {
-			return nil, errors.New("token expired, please login again")
-		} else {
-			return nil, err
+	for {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-ticker.C:
+			token, err := requestToken(ctx, httpClient, oauth.Endpoint.TokenURL, config.ClientId, deviceFlowResponse.DeviceCode)
+			if err == nil {
+				fmt.Printf("\nAuthentication successful!\n\n")
+				return &TokenCredentials{oauth.TokenSource(ctx, token)}, nil
+			}
+
+			var oe *oauthErr
+			if errors.As(err, &oe) {
+				switch oe.Code {
+				case authorizationPending:
+					// keep polling
+				case slowDown:
+					// cap at 15 seconds to avoid excessive delays
+					maxPollingInterval := 15
+					delay := 2
+					jitter := rand.Intn(3) // 0-2 second jitter
+					interval = min(interval+delay+jitter, maxPollingInterval)
+					ticker.Reset(time.Duration(interval) * time.Second)
+				case expiredToken, accessDenied:
+					return nil, fmt.Errorf("%s: %s", oe.Code, oe.Description)
+				default:
+					return nil, fmt.Errorf("%s: %s", oe.Code, oe.Description)
+				}
+			} else {
+				return nil, err
+			}
+
+			if time.Now().After(expireAt) {
+				return nil, errors.New("device flow expired; please start again")
+			}
 		}
 	}
 }
@@ -78,33 +133,51 @@ type deviceFlowResponse struct {
 	ExpiresIn               int    `json:"expires_in"`
 	Interval                int    `json:"interval"`
 	UserCode                string `json:"user_code"`
-	VerificationUri         string `json:"verification_uri"`
-	VerificationUriComplete string `json:"verification_uri_complete"`
+	VerificationURI         string `json:"verification_uri"`
+	VerificationURIComplete string `json:"verification_uri_complete"`
 }
 
 type oauthErrorResponse struct {
-	Error string `json:"error"`
+	Error            string `json:"error"`
+	ErrorDescription string `json:"error_description"`
+	ErrorURI         string `json:"error_uri"`
 }
 
-var (
+const (
 	authorizationPending = "authorization_pending"
-	expiredToken         = "expiredtoken"
+	expiredToken         = "expired_token"
 	slowDown             = "slow_down"
+	accessDenied         = "access_denied"
 )
 
-func requestDeviceAuthorization(c *http.Client, config DeviceDetails) (*deviceFlowResponse, error) {
-	resp, err := c.PostForm(config.ProviderUrl+"/connect/deviceauthorization",
-		url.Values{
-			"client_id": {config.ClientId},
-			"scope":     {strings.Join(config.Scopes, " ")},
-		},
-	)
+type oauthErr struct {
+	Code        string
+	Description string
+	URI         string
+}
+
+func (e *oauthErr) Error() string {
+	return fmt.Sprintf("%s: %s", e.Code, e.Description)
+}
+
+func requestDeviceAuthorization(ctx context.Context, c *http.Client, endpoint, clientID string, scopes []string) (*deviceFlowResponse, error) {
+	form := url.Values{
+		"client_id": {clientID},
+		"scope":     {strings.Join(scopes, " ")},
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, strings.NewReader(form.Encode()))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	resp, err := c.Do(req)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != 200 {
+	if resp.StatusCode != http.StatusOK {
 		return nil, makeErrorForHTTPResponse(resp)
 	}
 
@@ -115,43 +188,49 @@ func requestDeviceAuthorization(c *http.Client, config DeviceDetails) (*deviceFl
 	return &deviceFlowResponse, nil
 }
 
-func requestToken(c *http.Client, config DeviceDetails, deviceCode string) (*oauth2.Token, error) {
-	resp, err := c.PostForm(config.ProviderUrl+"/connect/token",
-		url.Values{
-			"client_id":   {config.ClientId},
-			"device_code": {deviceCode},
-			"grant_type":  {"urn:ietf:params:oauth:grant-type:device_code"},
-		},
-	)
+func requestToken(ctx context.Context, c *http.Client, tokenEndpoint, clientID, deviceCode string) (*oauth2.Token, error) {
+	form := url.Values{
+		"grant_type":  {"urn:ietf:params:oauth:grant-type:device_code"},
+		"device_code": {deviceCode},
+		"client_id":   {clientID},
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, tokenEndpoint, strings.NewReader(form.Encode()))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	resp, err := c.Do(req)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode == 200 {
+	switch resp.StatusCode {
+	case http.StatusOK:
 		var token oauth2.Token
-		err = json.NewDecoder(resp.Body).Decode(&token)
-		if err != nil {
+		if err := json.NewDecoder(resp.Body).Decode(&token); err != nil {
 			return nil, err
 		}
 		return &token, nil
-	} else if resp.StatusCode == 400 {
-		var errResp oauthErrorResponse
-		if err := json.NewDecoder(resp.Body).Decode(&errResp); err != nil {
-			return nil, err
+	case http.StatusBadRequest, http.StatusUnauthorized, http.StatusForbidden, http.StatusTooManyRequests:
+		// try to parse error response as oauthErrorResponse, otherwise return raw body
+		b, _ := io.ReadAll(resp.Body)
+		var oe oauthErrorResponse
+		_ = json.Unmarshal(b, &oe)
+		if oe.Error != "" {
+			return nil, &oauthErr{Code: oe.Error, Description: oe.ErrorDescription, URI: oe.ErrorURI}
 		}
-		return nil, errors.New(errResp.Error)
+		return nil, fmt.Errorf("oauth error: %s", strings.TrimSpace(string(b)))
+	default:
+		return nil, makeErrorForHTTPResponse(resp)
 	}
-	return nil, makeErrorForHTTPResponse(resp)
 }
 
 func makeErrorForHTTPResponse(resp *http.Response) error {
-	bodyBytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
-	safeURL := sanitize(resp.Request.URL.String())
-	return fmt.Errorf("%s %s returned HTTP %s; \n\n %#q", resp.Request.Method, safeURL, resp.Status, bodyBytes)
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	safeURL := sanitize(resp.Request.URL.Redacted())
+	return fmt.Errorf("%s %s returned %s\n\n%q", resp.Request.Method, safeURL, resp.Status, bodyBytes)
 }
 
 func sanitize(str string) string {

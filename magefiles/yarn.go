@@ -20,7 +20,7 @@ func yarnRun(args ...string) error {
 		return err
 	}
 
-	if err := os.Chdir("../../.."); err != nil {
+	if err := os.Chdir("../.."); err != nil {
 		return err
 	}
 

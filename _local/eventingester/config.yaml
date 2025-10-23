@@ -1,0 +1,11 @@
+redis:
+  addrs:
+    - localhost:6379
+  db: 1
+  poolSize: 1000
+pulsar:
+  URL: "pulsar://localhost:6650"
+  restURL: "http://localhost:8090"
+  jobsetEventsTopic: "events"
+subscriptionName: "events-ingester"
+metricsPort: 9004
