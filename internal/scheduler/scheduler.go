@@ -50,6 +50,8 @@ type Scheduler struct {
 	// This is used to check if jobs are still schedulable.
 	// Useful when we are adding node anti-affinities.
 	submitChecker SubmitScheduleChecker
+	// This is used to check if gangs jobs are valid before considering their jobs validated
+	gangValidator SubmitGangValidator
 	// Responsible for publishing messages to Pulsar. Only the leader publishes.
 	publisher Publisher
 	// Minimum duration between scheduler cycles.
@@ -97,6 +99,7 @@ func NewScheduler(
 	leaderController leader.LeaderController,
 	publisher Publisher,
 	submitChecker SubmitScheduleChecker,
+	gangValidator SubmitGangValidator,
 	cyclePeriod time.Duration,
 	schedulePeriod time.Duration,
 	executorTimeout time.Duration,
@@ -114,6 +117,7 @@ func NewScheduler(
 		leaderController:   leaderController,
 		publisher:          publisher,
 		submitChecker:      submitChecker,
+		gangValidator:      gangValidator,
 		jobDb:              jobDb,
 		clock:              clock.RealClock{},
 		cyclePeriod:        cyclePeriod,
@@ -1051,7 +1055,7 @@ func (s *Scheduler) submitCheck(ctx *armadacontext.Context, txn *jobdb.Txn) ([]*
 		}
 	}
 
-	invalidGangJobs, err := validateGangs(txn, jobsToCheck)
+	invalidGangJobs, err := s.gangValidator.Validate(txn, jobsToCheck)
 	if err != nil {
 		return nil, err
 	}
@@ -1111,96 +1115,6 @@ func (s *Scheduler) submitCheck(ctx *armadacontext.Context, txn *jobdb.Txn) ([]*
 		return nil, err
 	}
 	return events, nil
-}
-
-type invalidGangResult struct {
-	jobId  string
-	reason string
-}
-
-type gangKey struct {
-	queue  string
-	gangId string
-}
-
-func validateGangs(txn *jobdb.Txn, jobs []*jobdb.Job) ([]*invalidGangResult, error) {
-	result := []*invalidGangResult{}
-
-	for key, gangJobs := range armadaslices.GroupByFunc(
-		jobs,
-		func(job *jobdb.Job) gangKey {
-			return gangKey{queue: job.Queue(), gangId: job.GetGangInfo().Id()}
-		},
-	) {
-		if key.gangId == "" {
-			continue
-		}
-
-		valid, reason, err := validateGang(txn, &key, gangJobs)
-		if err != nil {
-			return nil, err
-		}
-
-		if !valid {
-			for _, gangJob := range gangJobs {
-				result = append(result, &invalidGangResult{jobId: gangJob.Id(), reason: reason})
-			}
-		}
-	}
-
-	return result, nil
-}
-
-func validateGang(txn *jobdb.Txn, key *gangKey, gangJobs []*jobdb.Job) (bool, string, error) {
-	if len(gangJobs) == 0 {
-		return false, "", fmt.Errorf("no gang jobs supplied for gang %s - %s", key.queue, key.gangId)
-	}
-
-	allGangMembersInDb, err := txn.GetGangJobsByGangId(key.queue, key.gangId)
-	if err != nil {
-		return false, "", err
-	}
-
-	jobsByGangUniqueGangInfo := armadaslices.GroupByFunc(
-		allGangMembersInDb,
-		func(job *jobdb.Job) jobdb.GangInfo {
-			return job.GetGangInfo()
-		},
-	)
-
-	for _, gangJob := range allGangMembersInDb {
-		if !gangJob.Queued() {
-			reason := fmt.Sprintf("cannot submit to gang that has running jobs - example running job %s", gangJob.Id())
-			return false, reason, nil
-		}
-	}
-
-	if len(jobsByGangUniqueGangInfo) > 1 {
-		reason := fmt.Sprintf("cannot submit jobs with different gang info with the same gan id, found %d unique sets of gang info for gang id %s\n",
-			len(jobsByGangUniqueGangInfo), key.gangId)
-		reason = reason + "details:\n"
-		count := 0
-		for info, jobs := range jobsByGangUniqueGangInfo {
-			reason = reason + fmt.Sprintf("gang (%s) - number of jobs %d - example id %s\n", info.String(), len(jobs), jobs[0].Id())
-			count++
-			// Limit the error message to a sensible length
-			if count >= 10 {
-				reason = reason + "<truncated>"
-				break
-			}
-		}
-		
-		return false, reason, nil
-	}
-
-	representativeJob := allGangMembersInDb[0]
-	if len(gangJobs) > representativeJob.GetGangInfo().Cardinality() {
-		reason := fmt.Sprintf("cannot submit more jobs to gang than specified in gang cardinality - cardinality set to %d (based on job %s) but found %d jobs",
-			gangJobs[0].GetGangInfo().Cardinality(), representativeJob.Id(), len(gangJobs))
-		return false, reason, nil
-	}
-
-	return true, "", nil
 }
 
 // now is a convenience function for generating a proto timestamp representing the current time according to the clock
