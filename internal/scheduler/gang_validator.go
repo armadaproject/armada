@@ -66,7 +66,7 @@ func validateGang(txn *jobdb.Txn, key *gangKey, gangJobs []*jobdb.Job) (bool, st
 		return false, "", err
 	}
 	if len(allGangMembersInDb) == 0 || len(allGangMembersInDb) < len(gangJobs) {
-		return false, "", fmt.Errorf("jobs being validated missed from job db")
+		return false, "", fmt.Errorf("jobs being validated missing from job db")
 	}
 
 	jobsByGangUniqueGangInfo := armadaslices.GroupByFunc(
