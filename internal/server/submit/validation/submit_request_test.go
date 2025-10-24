@@ -152,6 +152,30 @@ func TestValidateGangs(t *testing.T) {
 			},
 			expectSuccess: false,
 		},
+		"set fail fast flag - true": {
+			jobRequests: []*api.JobSubmitRequestItem{
+				{
+					Annotations: map[string]string{
+						configuration.GangIdAnnotation:          "foo",
+						configuration.GangCardinalityAnnotation: strconv.Itoa(2),
+						configuration.FailFastAnnotation:        "true",
+					},
+				},
+			},
+			expectSuccess: true,
+		},
+		"set fail fast flag - false": {
+			jobRequests: []*api.JobSubmitRequestItem{
+				{
+					Annotations: map[string]string{
+						configuration.GangIdAnnotation:          "foo",
+						configuration.GangCardinalityAnnotation: strconv.Itoa(2),
+						configuration.FailFastAnnotation:        "false",
+					},
+				},
+			},
+			expectSuccess: false,
+		},
 		"complete gang job of cardinality 3": {
 			jobRequests: []*api.JobSubmitRequestItem{
 				{

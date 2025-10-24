@@ -349,6 +349,14 @@ func validateGangs(request *api.JobSubmitRequest, _ configuration.SubmissionConf
 			continue
 		}
 
+		failFastFlag, present := job.Annotations[configuration.FailFastAnnotation]
+		if present && failFastFlag != "true" {
+			return errors.Errorf(
+				"gang jobs may not set fail fast flag (annotation - %s) to anything but true",
+				configuration.FailFastAnnotation,
+			)
+		}
+
 		actual := GangValidationInfo{gangInfo, adaptedJob.PriorityClassName()}
 		if expected, ok := gangDetailsByGangId[actual.Id()]; ok {
 			if expected.Cardinality() != actual.Cardinality() {
