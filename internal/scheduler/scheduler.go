@@ -50,6 +50,8 @@ type Scheduler struct {
 	// This is used to check if jobs are still schedulable.
 	// Useful when we are adding node anti-affinities.
 	submitChecker SubmitScheduleChecker
+	// This is used to check if gangs jobs are valid before considering their jobs validated
+	gangValidator SubmitGangValidator
 	// Responsible for publishing messages to Pulsar. Only the leader publishes.
 	publisher Publisher
 	// Minimum duration between scheduler cycles.
@@ -97,6 +99,7 @@ func NewScheduler(
 	leaderController leader.LeaderController,
 	publisher Publisher,
 	submitChecker SubmitScheduleChecker,
+	gangValidator SubmitGangValidator,
 	cyclePeriod time.Duration,
 	schedulePeriod time.Duration,
 	executorTimeout time.Duration,
@@ -114,6 +117,7 @@ func NewScheduler(
 		leaderController:   leaderController,
 		publisher:          publisher,
 		submitChecker:      submitChecker,
+		gangValidator:      gangValidator,
 		jobDb:              jobDb,
 		clock:              clock.RealClock{},
 		cyclePeriod:        cyclePeriod,
@@ -1049,6 +1053,14 @@ func (s *Scheduler) submitCheck(ctx *armadacontext.Context, txn *jobdb.Txn) ([]*
 		if err != nil {
 			results[job.Id()] = schedulingResult{isSchedulable: false, reason: "invalid resource request: " + err.Error()}
 		}
+	}
+
+	invalidGangJobs, err := s.gangValidator.Validate(txn, jobsToCheck)
+	if err != nil {
+		return nil, err
+	}
+	for _, invalidJob := range invalidGangJobs {
+		results[invalidJob.jobId] = schedulingResult{isSchedulable: false, reason: invalidJob.reason}
 	}
 
 	events := make([]*armadaevents.EventSequence, 0)

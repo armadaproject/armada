@@ -384,6 +384,7 @@ func Run(config schedulerconfig.Configuration) error {
 		leaderController,
 		jobsetEventPublisher,
 		submitChecker,
+		NewGangValidator(),
 		config.CyclePeriod,
 		config.SchedulePeriod,
 		config.ExecutorTimeout,

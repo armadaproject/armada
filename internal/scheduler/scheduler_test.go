@@ -156,6 +156,21 @@ var queuedJob = testfixtures.NewJob(
 	true,
 )
 
+var queuedGangJob = testfixtures.NewJob(
+	util.NewULID(),
+	"testJobset",
+	"testQueue",
+	uint32(10),
+	toInternalSchedulingInfo(preemptibleGangSchedulingInfo),
+	true,
+	0,
+	false,
+	false,
+	false,
+	1,
+	true,
+)
+
 var leasedJob = testfixtures.NewJob(
 	util.NewULID(),
 	"testJobset",
@@ -338,6 +353,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 		scheduleError                    bool                           // if true then the scheduling algo will throw an error
 		publishError                     bool                           // if true the publisher will throw an error
 		submitCheckerFailure             bool                           // if true the submit checker will say the job is unschedulable
+		submitGangValidateFailure        bool                           // if true the gang validator will say the gang job is invalid
 		expectedJobRunLeased             []string                       // ids of jobs we expect to have produced leased messages
 		expectedJobRunErrors             []string                       // ids of jobs we expect to have produced jobRunErrors messages
 		expectedJobErrors                []string                       // ids of jobs we expect to have produced jobErrors messages
@@ -778,6 +794,12 @@ func TestScheduler_TestCycle(t *testing.T) {
 			expectedJobErrors:    []string{queuedJob.Id()},
 			expectedTerminal:     []string{queuedJob.Id()},
 		},
+		"Gang validation check failure": {
+			initialJobs:               []*jobdb.Job{queuedGangJob.WithValidated(false)},
+			submitGangValidateFailure: true,
+			expectedJobErrors:         []string{queuedGangJob.Id()},
+			expectedTerminal:          []string{queuedGangJob.Id()},
+		},
 		"Job failed": {
 			initialJobs: []*jobdb.Job{leasedJob},
 			runUpdates: []database.Run{
@@ -860,6 +882,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 			}
 			publisher := &testPublisher{shouldError: tc.publishError}
 			submitChecker := &testSubmitChecker{checkSuccess: !tc.submitCheckerFailure}
+			gangValidator := &testGangValidator{validateSuccess: !tc.submitGangValidateFailure}
 
 			heartbeatTime := testClock.Now()
 			if tc.staleExecutor {
@@ -876,6 +899,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 				leader.NewStandaloneLeaderController(),
 				publisher,
 				submitChecker,
+				gangValidator,
 				1*time.Second,
 				5*time.Second,
 				clusterTimeout,
@@ -1028,6 +1052,7 @@ func TestRun(t *testing.T) {
 	clusterRepo := &testExecutorRepository{}
 	leaderController := leader.NewStandaloneLeaderController()
 	submitChecker := &testSubmitChecker{checkSuccess: true}
+	gangValidator := &testGangValidator{validateSuccess: true}
 	sched, err := NewScheduler(
 		testfixtures.NewJobDb(testfixtures.TestResourceListFactory),
 		&jobRepo,
@@ -1036,6 +1061,7 @@ func TestRun(t *testing.T) {
 		leaderController,
 		publisher,
 		submitChecker,
+		gangValidator,
 		1*time.Second,
 		15*time.Second,
 		1*time.Hour,
@@ -1217,6 +1243,7 @@ func TestJobPriceUpdates(t *testing.T) {
 			clusterRepo := &testExecutorRepository{}
 			leaderController := leader.NewStandaloneLeaderController()
 			submitChecker := &testSubmitChecker{checkSuccess: true}
+			gangValidator := &testGangValidator{validateSuccess: true}
 			sched, err := NewScheduler(
 				jobDb,
 				&jobRepo,
@@ -1225,6 +1252,7 @@ func TestJobPriceUpdates(t *testing.T) {
 				leaderController,
 				publisher,
 				submitChecker,
+				gangValidator,
 				1*time.Second,
 				15*time.Second,
 				1*time.Hour,
@@ -1409,6 +1437,7 @@ func TestScheduler_TestSyncInitialState(t *testing.T) {
 				schedulingAlgo,
 				leaderController,
 				publisher,
+				nil,
 				nil,
 				1*time.Second,
 				5*time.Second,
@@ -1621,6 +1650,7 @@ func TestScheduler_TestSyncState(t *testing.T) {
 				leaderController,
 				publisher,
 				nil,
+				nil,
 				1*time.Second,
 				5*time.Second,
 				1*time.Hour,
@@ -1660,6 +1690,21 @@ func TestScheduler_TestSyncState(t *testing.T) {
 			}
 		})
 	}
+}
+
+type testGangValidator struct {
+	validateSuccess bool
+}
+
+func (t *testGangValidator) Validate(txn *jobdb.Txn, jobs []*jobdb.Job) ([]*invalidGangJobDetails, error) {
+	if t.validateSuccess {
+		return nil, nil
+	}
+	result := make([]*invalidGangJobDetails, 0, len(jobs))
+	for _, job := range jobs {
+		result = append(result, &invalidGangJobDetails{jobId: job.Id(), reason: "invalid"})
+	}
+	return result, nil
 }
 
 type testSubmitChecker struct {
@@ -2755,6 +2800,9 @@ func TestCycleConsistency(t *testing.T) {
 					newTestPublisher(),
 					&testSubmitChecker{
 						checkSuccess: !tc.failSubmitCheck,
+					},
+					&testGangValidator{
+						validateSuccess: true,
 					},
 					1*time.Second,
 					5*time.Second,
