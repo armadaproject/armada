@@ -103,7 +103,7 @@ func TestTemplateProcessor(t *testing.T) {
 	}
 }
 
-func TestDefaultGang(t *testing.T) {
+func TestDefaultGangNodeUniformity(t *testing.T) {
 	tests := map[string]struct {
 		config      configuration.SubmissionConfig
 		annotations map[string]string
@@ -120,12 +120,27 @@ func TestDefaultGang(t *testing.T) {
 			annotations: make(map[string]string),
 			expected:    make(map[string]string),
 		},
+		"No change for non-gang jobs with some gang annotations": {
+			config: configuration.SubmissionConfig{
+				DefaultGangNodeUniformityLabel: "foo",
+			},
+			annotations: map[string]string{
+				configuration.GangIdAnnotation:          "bar",
+				configuration.GangCardinalityAnnotation: "1",
+			},
+			expected: map[string]string{
+				configuration.GangIdAnnotation:          "bar",
+				configuration.GangCardinalityAnnotation: "1",
+			},
+		},
 		"Empty default": {
 			annotations: map[string]string{
-				configuration.GangIdAnnotation: "bar",
+				configuration.GangIdAnnotation:          "bar",
+				configuration.GangCardinalityAnnotation: "2",
 			},
 			expected: map[string]string{
 				configuration.GangIdAnnotation:                  "bar",
+				configuration.GangCardinalityAnnotation:         "2",
 				configuration.GangNodeUniformityLabelAnnotation: "",
 			},
 		},
@@ -134,10 +149,12 @@ func TestDefaultGang(t *testing.T) {
 				DefaultGangNodeUniformityLabel: "foo",
 			},
 			annotations: map[string]string{
-				configuration.GangIdAnnotation: "bar",
+				configuration.GangIdAnnotation:          "bar",
+				configuration.GangCardinalityAnnotation: "2",
 			},
 			expected: map[string]string{
 				configuration.GangIdAnnotation:                  "bar",
+				configuration.GangCardinalityAnnotation:         "2",
 				configuration.GangNodeUniformityLabelAnnotation: "foo",
 			},
 		},
@@ -146,6 +163,59 @@ func TestDefaultGang(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			submitMsg := submitMsgFromAnnotations(tc.annotations)
 			defaultGangNodeUniformityLabel(submitMsg, tc.config)
+			assert.Equal(t, submitMsgFromAnnotations(tc.expected), submitMsg)
+		})
+	}
+}
+
+func TestDefaultGangFailFastFlag(t *testing.T) {
+	tests := map[string]struct {
+		config      configuration.SubmissionConfig
+		annotations map[string]string
+		expected    map[string]string
+	}{
+		"No change for non-gang jobs": {
+			annotations: make(map[string]string),
+			expected:    make(map[string]string),
+		},
+		"No change for non-gang jobs with some gang annotations": {
+			annotations: map[string]string{
+				configuration.GangIdAnnotation:          "bar",
+				configuration.GangCardinalityAnnotation: "1",
+			},
+			expected: map[string]string{
+				configuration.GangIdAnnotation:          "bar",
+				configuration.GangCardinalityAnnotation: "1",
+			},
+		},
+		"Don't mutate existing": {
+			annotations: map[string]string{
+				configuration.GangIdAnnotation:          "bar",
+				configuration.GangCardinalityAnnotation: "2",
+				configuration.FailFastAnnotation:        "false",
+			},
+			expected: map[string]string{
+				configuration.GangIdAnnotation:          "bar",
+				configuration.GangCardinalityAnnotation: "2",
+				configuration.FailFastAnnotation:        "false",
+			},
+		},
+		"Add when missing": {
+			annotations: map[string]string{
+				configuration.GangIdAnnotation:          "bar",
+				configuration.GangCardinalityAnnotation: "2",
+			},
+			expected: map[string]string{
+				configuration.GangIdAnnotation:          "bar",
+				configuration.GangCardinalityAnnotation: "2",
+				configuration.FailFastAnnotation:        "true",
+			},
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			submitMsg := submitMsgFromAnnotations(tc.annotations)
+			defaultGangFailFastFlag(submitMsg, tc.config)
 			assert.Equal(t, submitMsgFromAnnotations(tc.expected), submitMsg)
 		})
 	}
