@@ -12,8 +12,8 @@ type AlertType = (typeof ALERT_TYPES)[number];
 
 interface RemarkGitHubAlertOptions {
   /**
-   * If true, blockquotes without alert syntax will be converted to default alerts.
-   * If false, only blockquotes with valid alert syntax will be transformed.
+   * If true, blockquote without alert syntax will be converted to default alerts.
+   * If false, only blockquote with valid alert syntax will be transformed.
    * Default is false.
    */
   overrideDefaultStyle?: boolean;
@@ -25,9 +25,9 @@ interface AlertMatch {
 }
 
 /**
- * A remark plugin that transforms GitHub-style alert blockquotes into custom Alert components.
+ * A remark plugin that transforms GitHub-style alert blockquote into custom Alert components.
  *
- * Transforms blockquotes like:
+ * Transforms blockquote like:
  * > [!NOTE]
  * > This is a note
  *

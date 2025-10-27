@@ -20,7 +20,8 @@
     "lint:check": "next lint",
     "lint:fix": "next lint --fix",
     "format:check": "prettier --check .",
-    "format:fix": "prettier --write ."
+    "format:fix": "prettier --write .",
+    "spell:check": "cspell lint"
   },
   "dependencies": {
     "fumadocs-core": "15.5.5",
@@ -44,6 +45,7 @@
     "@types/node": "24.0.1",
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
+    "cspell": "^9.2.2",
     "eslint": "^9",
     "eslint-config-flat-gitignore": "^2.1.0",
     "eslint-config-next": "15.3.3",

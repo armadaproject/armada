@@ -76,6 +76,9 @@ jobs:
       - run: yarn content:check
         working-directory: website
 
+      - run: yarn spell:check
+        working-directory: website
+
       - run: yarn format:check
         working-directory: website
 
