@@ -42,7 +42,7 @@ Wait for the command to complete.
 #### 1. Create a queue
 
 ```bash
-armadactl create queue example
+armadactl create queue example-queue
 ```
 
 #### 2. Submit a job
@@ -54,7 +54,7 @@ armadactl submit dev/quickstart/example-job.yaml
 #### 3. Watch your job
 
 ```bash
-armadactl watch example hello-armada
+armadactl watch example-queue hello-armada
 ```
 
 ### View Job Status
@@ -72,7 +72,7 @@ Open the web UI:
 Create a simple Python job file `python-job.yaml`:
 
 ```yaml
-queue: example
+queue: example-queue
 jobSetId: python-example
 jobs:
   - podSpec:
@@ -96,7 +96,7 @@ Submit it:
 
 ```bash
 armadactl submit python-job.yaml
-armadactl watch example python-example
+armadactl watch example-queue python-example
 ```
 
 ### Useful Commands
