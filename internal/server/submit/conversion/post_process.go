@@ -7,7 +7,9 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
+	log "github.com/armadaproject/armada/internal/common/logging"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
+	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
@@ -23,6 +25,7 @@ var (
 	msgLevelProcessors = []msgProcessor{
 		templateMeta,
 		defaultGangNodeUniformityLabel,
+		defaultGangFailFastFlag,
 		addGangIdLabel,
 	}
 	podLevelProcessors = []podProcessor{
@@ -33,6 +36,26 @@ var (
 		defaultTerminationGracePeriod,
 	}
 )
+
+// submitJobAdapter turns SubmitJob into a MinimalJob
+// This is needed for gang information to be extracted
+type submitJobAdapter struct {
+	*armadaevents.SubmitJob
+}
+
+// PriorityClassName is needed to fulfil the MinimalJob interface
+func (j submitJobAdapter) PriorityClassName() string {
+	podSpec := j.GetMainObject().GetPodSpec().GetPodSpec()
+	if podSpec != nil {
+		return podSpec.PriorityClassName
+	}
+	return ""
+}
+
+// Annotations is needed to fulfil the MinimalJob interface
+func (j submitJobAdapter) Annotations() map[string]string {
+	return j.GetObjectMeta().GetAnnotations()
+}
 
 // postProcess modifies an armadaevents.SubmitJob in-place by applying various rules to it.  This allows us
 // to e.g. apply default values or template out the jobid.  The rules to be applied are defined above and may act at
@@ -165,11 +188,34 @@ func defaultGangNodeUniformityLabel(msg *armadaevents.SubmitJob, config configur
 	if annotations == nil {
 		return
 	}
-	if _, ok := annotations[configuration.GangIdAnnotation]; ok {
+	if isGang(msg) {
 		if _, ok := annotations[configuration.GangNodeUniformityLabelAnnotation]; !ok {
 			annotations[configuration.GangNodeUniformityLabelAnnotation] = config.DefaultGangNodeUniformityLabel
 		}
 	}
+}
+
+// Default's gang jobs to have fail fast flag set to true if not set.
+func defaultGangFailFastFlag(msg *armadaevents.SubmitJob, config configuration.SubmissionConfig) {
+	annotations := msg.GetObjectMeta().GetAnnotations()
+	if annotations == nil {
+		return
+	}
+	if isGang(msg) {
+		if _, ok := annotations[configuration.FailFastAnnotation]; !ok {
+			annotations[configuration.FailFastAnnotation] = "true"
+		}
+	}
+}
+
+func isGang(msg *armadaevents.SubmitJob) bool {
+	adaptedJob := submitJobAdapter{msg}
+	gangInfo, err := jobdb.GangInfoFromMinimalJob(adaptedJob)
+	if err != nil {
+		log.Errorf("job %s unexpectedly contained invalid gang info - %s", msg.JobId, err)
+		return false
+	}
+	return gangInfo.IsGang()
 }
 
 // Add a gangId label if the gangId annotation is set.  We do this because labels are much faster to search on than
