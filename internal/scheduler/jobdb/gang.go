@@ -56,6 +56,10 @@ func (g GangInfo) Equal(other GangInfo) bool {
 	return g == other
 }
 
+func (g GangInfo) String() string {
+	return fmt.Sprintf("id: %s cardinality: %d uniformity label: %s gang: %t", g.Id(), g.Cardinality(), g.NodeUniformity(), g.IsGang())
+}
+
 func GangInfoFromMinimalJob(job interfaces.MinimalJob) (*GangInfo, error) {
 	basicGangInfo := BasicJobGangInfo()
 	annotations := job.Annotations()
