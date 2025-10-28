@@ -22,6 +22,9 @@ UPDATE jobs SET priority = $1 WHERE job_set = $2 and queue = $3 and cancelled = 
 -- name: MarkJobsCancelRequestedBySetAndQueuedState :exec
 UPDATE jobs SET cancel_by_jobset_requested = true, cancel_user = $1 WHERE job_set = sqlc.arg(job_set) and queue = sqlc.arg(queue) and queued = ANY(sqlc.arg(queued_states)::bool[]) and cancelled = false and succeeded = false and failed = false;
 
+-- name: MarkJobsCancelRequestedBySet :exec
+UPDATE jobs SET cancel_by_jobset_requested = true, cancel_user = $1 WHERE job_set = sqlc.arg(job_set) and queue = sqlc.arg(queue) and cancelled = false and succeeded = false and failed = false;
+
 -- name: MarkJobsSucceededById :exec
 UPDATE jobs SET succeeded = true WHERE job_id = ANY(sqlc.arg(job_ids)::text[]);
 
