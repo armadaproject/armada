@@ -162,6 +162,21 @@ func (q *Queries) MarkJobsCancelRequestedById(ctx context.Context, arg MarkJobsC
 	return err
 }
 
+const markJobsCancelRequestedBySet = `-- name: MarkJobsCancelRequestedBySet :exec
+UPDATE jobs SET cancel_by_jobset_requested = true, cancel_user = $1 WHERE job_set = $2 and queue = $3 and cancelled = false and succeeded = false and failed = false
+`
+
+type MarkJobsCancelRequestedBySetParams struct {
+	CancelUser *string `db:"cancel_user"`
+	JobSet     string  `db:"job_set"`
+	Queue      string  `db:"queue"`
+}
+
+func (q *Queries) MarkJobsCancelRequestedBySet(ctx context.Context, arg MarkJobsCancelRequestedBySetParams) error {
+	_, err := q.db.Exec(ctx, markJobsCancelRequestedBySet, arg.CancelUser, arg.JobSet, arg.Queue)
+	return err
+}
+
 const markJobsCancelRequestedBySetAndQueuedState = `-- name: MarkJobsCancelRequestedBySetAndQueuedState :exec
 UPDATE jobs SET cancel_by_jobset_requested = true, cancel_user = $1 WHERE job_set = $2 and queue = $3 and queued = ANY($4::bool[]) and cancelled = false and succeeded = false and failed = false
 `
