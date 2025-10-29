@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/exaring/otelpgx"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -26,7 +27,17 @@ func CreateConnectionString(values map[string]string) string {
 }
 
 func OpenPgxConn(config configuration.PostgresConfig) (*pgx.Conn, error) {
-	db, err := pgx.Connect(armadacontext.Background(), CreateConnectionString(config.Connection))
+	// Create pgx config with OpenTelemetry instrumentation
+	connectionString := CreateConnectionString(config.Connection)
+	connConfig, err := pgx.ParseConfig(connectionString)
+	if err != nil {
+		return nil, err
+	}
+
+	// Add OpenTelemetry tracer to the connection configuration
+	connConfig.Tracer = otelpgx.NewTracer()
+
+	db, err := pgx.ConnectConfig(armadacontext.Background(), connConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -35,7 +46,17 @@ func OpenPgxConn(config configuration.PostgresConfig) (*pgx.Conn, error) {
 }
 
 func OpenPgxPool(config configuration.PostgresConfig) (*pgxpool.Pool, error) {
-	db, err := pgxpool.New(armadacontext.Background(), CreateConnectionString(config.Connection))
+	// Create pgxpool config with OpenTelemetry instrumentation
+	connectionString := CreateConnectionString(config.Connection)
+	poolConfig, err := pgxpool.ParseConfig(connectionString)
+	if err != nil {
+		return nil, err
+	}
+
+	// Add OpenTelemetry tracer to the pool configuration
+	poolConfig.ConnConfig.Tracer = otelpgx.NewTracer()
+
+	db, err := pgxpool.NewWithConfig(armadacontext.Background(), poolConfig)
 	if err != nil {
 		return nil, err
 	}
