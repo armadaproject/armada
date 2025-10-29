@@ -3,9 +3,11 @@ package submit
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/gogo/protobuf/types"
 	"github.com/gogo/status"
+	"go.opentelemetry.io/otel/attribute"
 	"google.golang.org/grpc/codes"
 	"k8s.io/utils/clock"
 
@@ -16,6 +18,7 @@ import (
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/common/slices"
+	"github.com/armadaproject/armada/internal/common/tracing"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/armadaproject/armada/internal/server/permissions"
@@ -70,27 +73,77 @@ func NewServer(
 //     check then an error is returned.
 //   - The SubmitMessages are published to Pulsar.
 func (s *Server) SubmitJobs(grpcCtx context.Context, req *api.JobSubmitRequest) (*api.JobSubmitResponse, error) {
-	ctx := armadacontext.FromGrpcCtx(grpcCtx)
+	ctx, span := tracing.StartSpan(grpcCtx, "server", "submit-jobs-request")
+	span.SetAttributes(
+		attribute.String("armada.queue", req.Queue),
+		attribute.String("armada.jobset", req.JobSetId),
+		attribute.String("armada.operation", "submission"),
+		attribute.Int("armada.jobs.count", len(req.JobRequestItems)),
+	)
+	defer span.End()
 
-	// Check that the user is actually allowed to submit jobs
-	userId, groups, err := s.authorize(ctx, req.Queue, permissions.SubmitAnyJobs, queue.PermissionVerbSubmit)
+	// Add business correlation for cross-service linking
+	businessCorr := tracing.BusinessCorrelation{
+		Queue:     req.Queue,
+		JobSet:    req.JobSetId,
+		Operation: "submission",
+	}
+	tracing.AddBusinessCorrelation(span, businessCorr)
+
+	// Add API-specific attributes
+	span.SetAttributes(
+		attribute.String("armada.api.method", "SubmitJobs"),
+	)
+
+	start := time.Now()
+	armadaCtx := armadacontext.FromGrpcCtx(ctx)
+
+	// Authorization span
+	_, authSpan := tracing.StartSpan(ctx, "server", "submit-jobs-authorization")
+	userId, groups, err := s.authorize(armadaCtx, req.Queue, permissions.SubmitAnyJobs, queue.PermissionVerbSubmit)
 	if err != nil {
+		tracing.AddErrorToSpan(authSpan, err)
+		authSpan.End()
+		tracing.AddErrorToSpan(span, err)
 		return nil, status.Error(codes.PermissionDenied, err.Error())
 	}
+	authSpan.SetAttributes(
+		attribute.String("armada.user_id", userId),
+		attribute.StringSlice("armada.groups", groups),
+	)
+	tracing.AddSuccessToSpan(authSpan)
+	authSpan.End()
 
-	// Validate the request is well-formed
+	// Update main span with user ID for business correlation
+	span.SetAttributes(attribute.String("armada.user_id", userId))
+
+	// Validation span
+	_, validationSpan := tracing.StartSpan(ctx, "server", "submit-jobs-validation")
 	if err = validation.ValidateSubmitRequest(req, s.submissionConfig); err != nil {
+		tracing.AddErrorToSpan(validationSpan, err)
+		validationSpan.End()
+		tracing.AddErrorToSpan(span, err)
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
+	tracing.AddSuccessToSpan(validationSpan)
+	validationSpan.End()
 
-	// Get a mapping between req.ClientId and existing jobId.  If such a mapping exists, it means that
-	// this job has already been submitted.
-	originalIds, err := s.deduplicator.GetOriginalJobIds(ctx, req.Queue, req.JobRequestItems)
+	_, dedupSpan := tracing.StartSpan(ctx, "server", "submit-jobs-deduplication")
+	originalIds, err := s.deduplicator.GetOriginalJobIds(armadaCtx, req.Queue, req.JobRequestItems)
 	if err != nil {
 		// Deduplication is best-effort, therefore this is not fatal
+		tracing.AddErrorToSpan(dedupSpan, err)
 		log.WithError(err).Warn("Error fetching original job ids, deduplication will not occur.")
+	} else {
+		tracing.AddSuccessToSpan(dedupSpan)
 	}
+	dedupSpan.SetAttributes(
+		attribute.Int("armada.dedup.total_jobs", len(req.JobRequestItems)),
+		attribute.Int("armada.dedup.duplicate_count", len(originalIds)),
+	)
+	dedupSpan.End()
 
+	_, processingSpan := tracing.StartSpan(ctx, "server", "submit-jobs-processing")
 	submitMsgs := make([]*armadaevents.EventSequence_Event, 0, len(req.JobRequestItems))
 	jobResponses := make([]*api.JobSubmitResponseItem, 0, len(req.JobRequestItems))
 	idMappings := make(map[string]string, len(req.JobRequestItems))
@@ -100,7 +153,7 @@ func (s *Server) SubmitJobs(grpcCtx context.Context, req *api.JobSubmitRequest) 
 		// Check if this job has already been submitted. If so we can simply return the previously submitted id
 		originalId, isDuplicate := originalIds[jobRequest.ClientId]
 		if isDuplicate {
-			ctx.Infof("Job with client id %s is a duplicate of %s", jobRequest.ClientId, originalId)
+			armadaCtx.Infof("Job with client id %s is a duplicate of %s", jobRequest.ClientId, originalId)
 			jobResponses = append(jobResponses, &api.JobSubmitResponseItem{JobId: originalId})
 			continue
 		}
@@ -124,10 +177,35 @@ func (s *Server) SubmitJobs(grpcCtx context.Context, req *api.JobSubmitRequest) 
 		}
 	}
 
+	jobIds := make([]string, len(submitMsgs))
+	for i, msg := range submitMsgs {
+		if submitJob := msg.GetSubmitJob(); submitJob != nil {
+			jobIds[i] = submitJob.JobId
+		}
+	}
+
+	processingSpan.SetAttributes(
+		attribute.Int("armada.jobs.processed", len(req.JobRequestItems)),
+		attribute.Int("armada.jobs.new", len(submitMsgs)),
+		attribute.Int("armada.jobs.duplicates", len(req.JobRequestItems)-len(submitMsgs)),
+		attribute.StringSlice("armada.job_ids", jobIds),
+	)
+	tracing.AddSuccessToSpan(processingSpan)
+	processingSpan.End()
+
 	// If we have no submit msgs then we can return early
 	if len(submitMsgs) == 0 {
 		return &api.JobSubmitResponse{JobResponseItems: jobResponses}, nil
 	}
+
+	_, pulsarSpan := tracing.StartSpan(ctx, "server", "submit-jobs-pulsar-publish")
+	pulsarSpan.SetAttributes(
+		attribute.String("armada.pulsar.operation", "publish_submit_jobs"),
+		attribute.String("armada.pulsar.queue", req.Queue),
+		attribute.String("armada.pulsar.jobset", req.JobSetId),
+		attribute.Int("armada.pulsar.message_count", len(submitMsgs)),
+		attribute.StringSlice("armada.job_ids", jobIds),
+	)
 
 	// Check if all jobs can be scheduled.
 	es := &armadaevents.EventSequence{
@@ -138,17 +216,37 @@ func (s *Server) SubmitJobs(grpcCtx context.Context, req *api.JobSubmitRequest) 
 		Events:     submitMsgs,
 	}
 
-	err = s.publisher.PublishMessages(ctx, es)
+	err = s.publisher.PublishMessages(armadaCtx, es)
 	if err != nil {
+		tracing.AddErrorToSpan(pulsarSpan, err)
+		pulsarSpan.End()
+		tracing.AddErrorToSpan(span, err)
 		log.WithError(err).Error("failed send events to Pulsar")
 		return nil, status.Error(codes.Internal, "Failed to send events to Pulsar")
 	}
+	tracing.AddSuccessToSpan(pulsarSpan)
+	pulsarSpan.End()
 
-	// Store the deduplication ids. Note that this will not be called if pulsar submission has failed, hence
-	// a partial pulsar submission can result in duplicate jobs.
-	if err = s.deduplicator.StoreOriginalJobIds(ctx, req.Queue, idMappings); err != nil {
+	_, dedupStoreSpan := tracing.StartSpan(ctx, "server", "submit-jobs-dedup-store")
+	if err = s.deduplicator.StoreOriginalJobIds(armadaCtx, req.Queue, idMappings); err != nil {
+		tracing.AddErrorToSpan(dedupStoreSpan, err)
 		log.WithError(err).Warn("failed to store deduplication ids")
+	} else {
+		tracing.AddSuccessToSpan(dedupStoreSpan)
 	}
+	dedupStoreSpan.SetAttributes(
+		attribute.Int("armada.dedup.stored_count", len(idMappings)),
+	)
+	dedupStoreSpan.End()
+
+	duration := time.Since(start)
+	span.SetAttributes(
+		attribute.Float64("armada.api.duration_ms", float64(duration.Nanoseconds())/1e6),
+		attribute.Int("armada.api.jobs_submitted", len(submitMsgs)),
+		attribute.StringSlice("armada.job_ids", jobIds),
+	)
+	tracing.AddSuccessToSpan(span)
+
 	return &api.JobSubmitResponse{JobResponseItems: jobResponses}, nil
 }
 
@@ -194,6 +292,7 @@ func (s *Server) CancelJobs(grpcCtx context.Context, req *api.JobCancelRequest) 
 		log.WithError(err).Error("failed send to Pulsar")
 		return nil, status.Error(codes.Internal, "Failed to send message")
 	}
+
 	return &api.CancellationResult{
 		CancelledIds: cancelledIds,
 	}, nil
@@ -314,22 +413,75 @@ func (s *Server) ReprioritizeJobs(grpcCtx context.Context, req *api.JobRepriorit
 }
 
 func (s *Server) CancelJobSet(grpcCtx context.Context, req *api.JobSetCancelRequest) (*types.Empty, error) {
-	ctx := armadacontext.FromGrpcCtx(grpcCtx)
+	// Start the root cancellation trace
+	ctx, span := tracing.StartSpan(grpcCtx, "server", "cancel-jobset-request")
+	span.SetAttributes(
+		attribute.String("armada.queue", req.Queue),
+		attribute.String("armada.jobset", req.JobSetId),
+		attribute.String("armada.operation", "cancellation"),
+		attribute.String("armada.reason", req.Reason),
+		attribute.Int("armada.filter.states.count", len(req.GetFilter().GetStates())),
+	)
+	defer span.End()
+
+	businessCorr := tracing.BusinessCorrelation{
+		Queue:     req.Queue,
+		JobSet:    req.JobSetId,
+		Operation: "cancel_jobset",
+	}
+	tracing.AddBusinessCorrelation(span, businessCorr)
+
+	// Add API-specific attributes
+	span.SetAttributes(
+		attribute.String("armada.api.method", "CancelJobSet"),
+		attribute.String("armada.cancel.reason", req.Reason),
+	)
+
+	start := time.Now()
+	armadaCtx := armadacontext.FromGrpcCtx(ctx)
+
+	// Validation span
+	_, validationSpan := tracing.StartSpan(ctx, "server", "cancel-jobset-validation")
 	err := validation.ValidateQueueAndJobSet(req)
 	if err != nil {
+		tracing.AddErrorToSpan(validationSpan, err)
+		validationSpan.End()
+		tracing.AddErrorToSpan(span, err)
 		return nil, err
 	}
 
 	err = validation.ValidateJobSetFilter(req.Filter)
 	if err != nil {
+		tracing.AddErrorToSpan(validationSpan, err)
+		validationSpan.End()
+		tracing.AddErrorToSpan(span, err)
 		return nil, err
 	}
+	tracing.AddSuccessToSpan(validationSpan)
+	validationSpan.End()
 
-	userId, groups, err := s.authorize(ctx, req.Queue, permissions.CancelAnyJobs, queue.PermissionVerbCancel)
+	// Authorization span
+	_, authSpan := tracing.StartSpan(ctx, "server", "cancel-jobset-authorization")
+	userId, groups, err := s.authorize(armadaCtx, req.Queue, permissions.CancelAnyJobs, queue.PermissionVerbCancel)
 	if err != nil {
+		tracing.AddErrorToSpan(authSpan, err)
+		authSpan.End()
+		tracing.AddErrorToSpan(span, err)
 		return nil, err
 	}
+	authSpan.SetAttributes(
+		attribute.String("armada.user_id", userId),
+		attribute.StringSlice("armada.groups", groups),
+	)
 
+	// Update main span with user ID for business correlation
+	span.SetAttributes(attribute.String("armada.user_id", userId))
+
+	tracing.AddSuccessToSpan(authSpan)
+	authSpan.End()
+
+	// Event preparation span
+	_, eventPrepSpan := tracing.StartSpan(ctx, "server", "cancel-jobset-event-preparation")
 	states := make([]armadaevents.JobState, len(req.GetFilter().GetStates()))
 	for i := 0; i < len(states); i++ {
 		switch req.GetFilter().GetStates()[i] {
@@ -359,13 +511,43 @@ func (s *Server) CancelJobSet(grpcCtx context.Context, req *api.JobSetCancelRequ
 			},
 		},
 	}
-	err = s.publisher.PublishMessages(ctx, pulsarSchedulerSequence)
+	eventPrepSpan.SetAttributes(
+		attribute.Int("armada.events.count", len(pulsarSchedulerSequence.Events)),
+		attribute.String("armada.event.type", "CancelJobSet"),
+	)
+	tracing.AddSuccessToSpan(eventPrepSpan)
+	eventPrepSpan.End()
+
+	// Pulsar publishing span
+	_, pulsarSpan := tracing.StartSpan(ctx, "server", "cancel-jobset-pulsar-publish")
+	pulsarSpan.SetAttributes(
+		attribute.String("armada.pulsar.operation", "publish_cancel_jobset"),
+		attribute.String("armada.pulsar.queue", req.Queue),
+		attribute.String("armada.pulsar.jobset", req.JobSetId),
+	)
+
+	err = s.publisher.PublishMessages(armadaCtx, pulsarSchedulerSequence)
 	if err != nil {
+		tracing.AddErrorToSpan(pulsarSpan, err)
+		pulsarSpan.End()
+		tracing.AddErrorToSpan(span, err)
 		log.WithError(err).Error("failed to send cancel jobset message to pulsar")
 		return nil, status.Error(codes.Internal, "failed to send cancel jobset message to pulsar")
 	}
+	tracing.AddSuccessToSpan(pulsarSpan)
+	pulsarSpan.End()
 
-	return &types.Empty{}, err
+	duration := time.Since(start)
+
+	// Add final span attributes and mark as successful
+	span.SetAttributes(
+		attribute.Float64("armada.duration_ms", float64(duration.Nanoseconds())/1e6),
+		attribute.String("armada.status", "success"),
+	)
+	tracing.AddSuccessToSpan(span)
+
+
+	return &types.Empty{}, nil
 }
 
 // Returns event sequence along with all valid job ids in the sequence
@@ -428,8 +610,24 @@ func (s *Server) Health(_ context.Context, _ *types.Empty) (*api.HealthCheckResp
 
 // Functions below are deprecated
 
-func (s *Server) CreateQueue(ctx context.Context, q *api.Queue) (*types.Empty, error) {
-	return s.queueService.CreateQueue(ctx, q)
+func (s *Server) CreateQueue(grpcCtx context.Context, q *api.Queue) (*types.Empty, error) {
+	// Start queue creation trace
+	ctx, span := tracing.StartSpan(grpcCtx, "server", "create-queue-request")
+	span.SetAttributes(
+		attribute.String("armada.queue", q.Name),
+		attribute.String("armada.operation", "queue_creation"),
+		attribute.String("armada.api.method", "CreateQueue"),
+	)
+	defer span.End()
+
+	result, err := s.queueService.CreateQueue(ctx, q)
+	if err != nil {
+		tracing.AddErrorToSpan(span, err)
+		return nil, err
+	}
+
+	tracing.AddSuccessToSpan(span)
+	return result, nil
 }
 
 func (s *Server) CreateQueues(ctx context.Context, list *api.QueueList) (*api.BatchQueueCreateResponse, error) {
