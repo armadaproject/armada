@@ -7,4 +7,4 @@ ALTER TABLE jobs ADD COLUMN IF NOT EXISTS terminated BOOLEAN GENERATED ALWAYS AS
 -- Create new index with job_id and terminated (DESC ordered) for better performance
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_queue_job_set_job_id_terminated
 ON jobs (queue, job_set, job_id, terminated DESC)
-WITH (fillfactor = 80);
+WITH (fillfactor = 60);
