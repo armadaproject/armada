@@ -18,6 +18,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/logging"
 	log "github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/profiling"
+	"github.com/armadaproject/armada/internal/common/tracing"
 	"github.com/armadaproject/armada/internal/server"
 	"github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/armadaproject/armada/pkg/api"
@@ -46,6 +47,15 @@ func main() {
 
 	log.Info("Starting...")
 
+	// Initialize OpenTelemetry tracing
+	cleanup, err := tracing.InitTracing("server")
+	if err != nil {
+		log.WithError(err).Warn("Failed to initialize tracing")
+	} else {
+		log.Info("OpenTelemetry tracing initialized")
+		defer cleanup()
+	}
+
 	// Run services within an errgroup to propagate errors between services.
 	g, ctx := armadacontext.ErrGroup(armadacontext.Background())
 
@@ -64,7 +74,7 @@ func main() {
 	})
 
 	// Expose profiling endpoints if enabled.
-	err := profiling.SetupPprof(config.Profiling, ctx, g)
+	err = profiling.SetupPprof(config.Profiling, ctx, g)
 	if err != nil {
 		log.Fatalf("Pprof setup failed, exiting, %v", err)
 	}

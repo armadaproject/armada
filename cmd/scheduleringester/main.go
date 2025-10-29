@@ -9,6 +9,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/internal/common/logging"
+	"github.com/armadaproject/armada/internal/common/tracing"
 	"github.com/armadaproject/armada/internal/scheduleringester"
 )
 
@@ -26,6 +27,14 @@ func init() {
 func main() {
 	logging.MustConfigureApplicationLogging()
 	common.BindCommandlineArguments()
+
+	// Initialize tracing
+	cleanup, err := tracing.InitTracing("scheduler-ingester")
+	if err != nil {
+		fmt.Printf("Failed to initialize tracing: %v\n", err)
+		os.Exit(-1)
+	}
+	defer cleanup()
 
 	var config scheduleringester.Configuration
 	userSpecifiedConfigs := viper.GetStringSlice(CustomConfigLocation)
