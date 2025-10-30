@@ -63,6 +63,10 @@ type JobSchedulingContext struct {
 	PreemptionDescription string
 	// If this job context should contribute to the billable resource of the queue
 	Billable bool
+	// Gang node uniformity label name (e.g., "rack") - only set for gang jobs with uniformity requirements
+	GangNodeUniformityLabelName string
+	// Gang node uniformity label value (e.g., "rack-1") - the actual value selected during scheduling
+	GangNodeUniformityLabelValue string
 }
 
 func (jctx *JobSchedulingContext) IsHomeJob(currentPool string) bool {
