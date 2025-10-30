@@ -8,6 +8,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pkg/errors"
+	"go.opentelemetry.io/otel/attribute"
 	"golang.org/x/exp/maps"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -15,6 +16,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/ingest"
 	"github.com/armadaproject/armada/internal/common/ingest/metrics"
 	"github.com/armadaproject/armada/internal/common/slices"
+	"github.com/armadaproject/armada/internal/common/tracing"
 	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/controlplaneevents"
@@ -55,7 +57,16 @@ func NewSchedulerDb(
 // This function retires until it either succeeds or encounters a terminal error.
 // This function locks the postgres table to avoid write conflicts; see acquireLock() for details.
 func (s *SchedulerDb) Store(ctx *armadacontext.Context, instructions *DbOperationsWithMessageIds) error {
-	return ingest.WithRetry(func() (bool, error) {
+	_, span := tracing.StartSpan(ctx, "scheduler-ingester", "store-operations")
+	defer span.End()
+
+	span.SetAttributes(
+		attribute.Int("db.operations.count", len(instructions.Ops)),
+		attribute.Int("db.messages.count", len(instructions.MessageIds)),
+	)
+	span.SetAttributes(tracing.DatabaseAttributes("batch-store")...)
+
+	err := ingest.WithRetry(func() (bool, error) {
 		err := pgx.BeginTxFunc(ctx, s.db, pgx.TxOptions{
 			IsoLevel:       pgx.ReadCommitted,
 			AccessMode:     pgx.ReadWrite,
@@ -78,6 +89,13 @@ func (s *SchedulerDb) Store(ctx *armadacontext.Context, instructions *DbOperatio
 		})
 		return true, err
 	}, s.initialBackOff, s.maxBackOff)
+
+	if err != nil {
+		tracing.AddErrorToSpan(span, err)
+	} else {
+		tracing.AddSuccessToSpan(span)
+	}
+	return err
 }
 
 // acquireLock acquires a postgres advisory lock, thus preventing concurrent writes.
@@ -96,35 +114,158 @@ func (s *SchedulerDb) acquireLock(ctx *armadacontext.Context, tx pgx.Tx, scope i
 	return nil
 }
 
+// extractBusinessContextFromOperation extracts business context from database operations
+func extractBusinessContextFromOperation(op DbOperation) (queues []string, jobsets []string, jobIds []string, operationType string) {
+	switch o := op.(type) {
+	case InsertJobs:
+		for jobId := range o {
+			jobIds = append(jobIds, jobId)
+		}
+		operationType = "insert_jobs"
+	case InsertRuns:
+		for jobId := range o {
+			jobIds = append(jobIds, jobId)
+		}
+		operationType = "insert_runs"
+	case UpdateJobSetPriorities:
+		for jobSetKey := range o {
+			queues = append(queues, jobSetKey.queue)
+			jobsets = append(jobsets, jobSetKey.jobSet)
+		}
+		operationType = "update_jobset_priorities"
+	case MarkJobSetsCancelRequested:
+		for jobSetKey := range o.jobSets {
+			queues = append(queues, jobSetKey.queue)
+			jobsets = append(jobsets, jobSetKey.jobSet)
+		}
+		operationType = "mark_jobsets_cancel_requested"
+	case MarkJobsCancelRequested:
+		for jobSetKey, jobIdList := range o.jobIds {
+			queues = append(queues, jobSetKey.queue)
+			jobsets = append(jobsets, jobSetKey.jobSet)
+			jobIds = append(jobIds, jobIdList...)
+		}
+		operationType = "mark_jobs_cancel_requested"
+	case MarkRunsForJobPreemptRequested:
+		for jobSetKey, jobIdList := range o {
+			queues = append(queues, jobSetKey.queue)
+			jobsets = append(jobsets, jobSetKey.jobSet)
+			jobIds = append(jobIds, jobIdList...)
+		}
+		operationType = "mark_runs_preempt_requested"
+	default:
+		operationType = fmt.Sprintf("operation_%T", op)
+	}
+	return queues, jobsets, jobIds, operationType
+}
+
 func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOperation) error {
+	_, span := tracing.StartSpan(ctx, "scheduler-ingester", "write-db-operation")
+	defer span.End()
+
+	// Extract business context from the operation
+	queues, jobsets, jobIds, operationType := extractBusinessContextFromOperation(op)
+
+	span.SetAttributes(
+		attribute.String("db.operation.type", operationType),
+		attribute.StringSlice("armada.queues", queues),
+		attribute.StringSlice("armada.jobsets", jobsets),
+		attribute.StringSlice("armada.job_ids", jobIds),
+		attribute.Int("armada.queues.count", len(queues)),
+		attribute.Int("armada.jobsets.count", len(jobsets)),
+		attribute.Int("armada.job_ids.count", len(jobIds)),
+	)
+
+	// Add job metadata if we have queue and jobset information
+	if len(queues) > 0 && len(jobsets) > 0 {
+		metadata := tracing.JobMetadata{
+			Queue:     queues[0],  // Use first queue for correlation
+			JobSet:    jobsets[0], // Use first jobset for correlation
+			Operation: operationType,
+		}
+		tracing.AddJobMetadata(span, metadata)
+	}
+
 	queries := schedulerdb.New(tx)
 	switch o := op.(type) {
 	case InsertJobs:
+		span.SetAttributes(
+			attribute.String("db.table", "jobs"),
+			attribute.Int("db.records.count", len(o)),
+		)
+		span.SetAttributes(tracing.DatabaseAttributes("INSERT")...)
+
 		records := make([]any, len(o))
 		i := 0
 		for _, v := range o {
 			records[i] = *v
 			i++
 		}
-		err := database.Upsert(ctx, tx, "jobs", records)
+		dbCtx, dbSpan := tracing.StartSpan(ctx.Context, "scheduler-ingester", "db-insert-jobs")
+		dbSpan.SetAttributes(
+			attribute.String("db.operation", "INSERT"),
+			attribute.String("db.table", "jobs"),
+			attribute.Int("db.records.count", len(records)),
+		)
+		dbArmadaCtx := &armadacontext.Context{Context: dbCtx}
+		err := database.Upsert(dbArmadaCtx, tx, "jobs", records)
 		if err != nil {
+			tracing.AddErrorToSpan(span, err)
+			tracing.AddErrorToSpan(dbSpan, err)
+			dbSpan.End()
 			return err
 		}
+		tracing.AddSuccessToSpan(dbSpan)
+		dbSpan.End()
+		tracing.AddSuccessToSpan(span)
 	case InsertRuns:
+		span.SetAttributes(
+			attribute.String("db.table", "runs"),
+			attribute.Int("db.records.count", len(o)),
+		)
+		span.SetAttributes(tracing.DatabaseAttributes("INSERT")...)
+
 		records := make([]any, len(o))
 		i := 0
 		for _, v := range o {
 			records[i] = *v.DbRun
 			i++
 		}
-		err := database.Upsert(ctx, tx, "runs", records)
+		dbCtx, dbSpan := tracing.StartSpan(ctx.Context, "scheduler-ingester", "db-insert-runs")
+		dbSpan.SetAttributes(
+			attribute.String("db.operation", "INSERT"),
+			attribute.String("db.table", "runs"),
+			attribute.Int("db.records.count", len(records)),
+		)
+		dbArmadaCtx := &armadacontext.Context{Context: dbCtx}
+		err := database.Upsert(dbArmadaCtx, tx, "runs", records)
 		if err != nil {
+			tracing.AddErrorToSpan(span, err)
+			tracing.AddErrorToSpan(dbSpan, err)
+			dbSpan.End()
 			return err
 		}
+		tracing.AddSuccessToSpan(dbSpan)
+		dbSpan.End()
+		tracing.AddSuccessToSpan(span)
 	case UpdateJobSetPriorities:
+		span.SetAttributes(
+			attribute.String("db.table", "jobs"),
+			attribute.Int("db.updates.count", len(o)),
+		)
+		span.SetAttributes(tracing.DatabaseAttributes("UPDATE")...)
+
 		for jobSetInfo, priority := range o {
+			dbCtx, dbSpan := tracing.StartSpan(ctx.Context, "scheduler-ingester", "db-update-jobset-priority")
+			dbSpan.SetAttributes(
+				attribute.String("db.operation", "UPDATE"),
+				attribute.String("db.table", "jobs"),
+				attribute.String("armada.queue", jobSetInfo.queue),
+				attribute.String("armada.jobset", jobSetInfo.jobSet),
+				attribute.Int64("armada.priority.new", priority),
+			)
 			err := queries.UpdateJobPriorityByJobSet(
-				ctx,
+				dbCtx,
 				schedulerdb.UpdateJobPriorityByJobSetParams{
 					JobSet:   jobSetInfo.jobSet,
 					Queue:    jobSetInfo.queue,
@@ -132,10 +273,22 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 				},
 			)
 			if err != nil {
+				tracing.AddErrorToSpan(span, err)
+				tracing.AddErrorToSpan(dbSpan, err)
+				dbSpan.End()
 				return errors.WithStack(err)
 			}
+			tracing.AddSuccessToSpan(dbSpan)
+			dbSpan.End()
 		}
+		tracing.AddSuccessToSpan(span)
 	case UpdateJobSchedulingInfo:
+		span.SetAttributes(
+			attribute.String("db.table", "jobs"),
+			attribute.Int("db.updates.count", len(o)),
+		)
+		span.SetAttributes(tracing.DatabaseAttributes("UPDATE")...)
+
 		updateJobInfoSqlStatement := "update jobs set scheduling_info = $1::bytea, scheduling_info_version = $2::int where job_id = $3 and $2::int > scheduling_info_version"
 
 		batch := &pgx.Batch{}
@@ -145,9 +298,17 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 
 		err := execBatch(ctx, tx, batch)
 		if err != nil {
+			tracing.AddErrorToSpan(span, err)
 			return errors.WithStack(err)
 		}
+		tracing.AddSuccessToSpan(span)
 	case UpdateJobQueuedState:
+		span.SetAttributes(
+			attribute.String("db.table", "jobs"),
+			attribute.Int("db.updates.count", len(o)),
+		)
+		span.SetAttributes(tracing.DatabaseAttributes("UPDATE")...)
+
 		updateQueuedStateSqlStatement := "update jobs set queued = $1::bool, queued_version = $2::int where job_id = $3 and $2::int > queued_version"
 
 		batch := &pgx.Batch{}
@@ -157,15 +318,30 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 
 		err := execBatch(ctx, tx, batch)
 		if err != nil {
+			tracing.AddErrorToSpan(span, err)
 			return errors.WithStack(err)
 		}
+		tracing.AddSuccessToSpan(span)
 	case MarkJobSetsCancelRequested:
+		span.SetAttributes(
+			attribute.String("db.table", "jobs"),
+			attribute.String("db.operation", "mark_jobsets_cancel_requested"),
+			attribute.Int("db.jobsets.count", len(o.jobSets)),
+		)
+		span.SetAttributes(tracing.DatabaseAttributes("UPDATE")...)
+
 		for jobSetInfo, cancelDetails := range o.jobSets {
 			// If cancelling both queued and leased jobs, avoid ANY([true,false]) redundancy
 			if cancelDetails.cancelQueued && cancelDetails.cancelLeased {
-				// Cancel all jobs regardless of queued state - more efficient
+				dbCtx, dbSpan := tracing.StartSpan(ctx.Context, "scheduler-ingester", "db-cancel-jobset-all")
+				dbSpan.SetAttributes(
+					attribute.String("db.operation", "UPDATE"),
+					attribute.String("db.table", "jobs"),
+					attribute.String("armada.queue", jobSetInfo.queue),
+					attribute.String("armada.jobset", jobSetInfo.jobSet),
+				)
 				err := queries.MarkJobsCancelRequestedBySet(
-					ctx,
+					dbCtx,
 					schedulerdb.MarkJobsCancelRequestedBySetParams{
 						Queue:      jobSetInfo.queue,
 						JobSet:     jobSetInfo.jobSet,
@@ -173,10 +349,14 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 					},
 				)
 				if err != nil {
+					tracing.AddErrorToSpan(span, err)
+					tracing.AddErrorToSpan(dbSpan, err)
+					dbSpan.End()
 					return errors.WithStack(err)
 				}
+				tracing.AddSuccessToSpan(dbSpan)
+				dbSpan.End()
 			} else {
-				// Cancel specific queued states
 				queuedStatesToCancel := make([]bool, 0, 2)
 				if cancelDetails.cancelQueued {
 					queuedStatesToCancel = append(queuedStatesToCancel, true)
@@ -194,26 +374,58 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 					},
 				)
 				if err != nil {
+					tracing.AddErrorToSpan(span, err)
 					return errors.WithStack(err)
 				}
 			}
 		}
+		tracing.AddSuccessToSpan(span)
 	case MarkJobsCancelRequested:
+		span.SetAttributes(
+			attribute.String("db.table", "jobs"),
+			attribute.String("db.operation", "mark_jobs_cancel_requested"),
+			attribute.Int("db.jobsets.count", len(o.jobIds)),
+		)
+		span.SetAttributes(tracing.DatabaseAttributes("UPDATE")...)
+
 		for key, value := range o.jobIds {
+			dbCtx, dbSpan := tracing.StartSpan(ctx.Context, "scheduler-ingester", "db-cancel-jobs-by-id")
+			dbSpan.SetAttributes(
+				attribute.String("db.operation", "UPDATE"),
+				attribute.String("db.table", "jobs"),
+				attribute.String("armada.queue", key.queue),
+				attribute.String("armada.jobset", key.jobSet),
+				attribute.StringSlice("armada.job_ids", value),
+				attribute.Int("armada.jobs.count", len(value)),
+			)
 			params := schedulerdb.MarkJobsCancelRequestedByIdParams{
 				Queue:      key.queue,
 				JobSet:     key.jobSet,
 				JobIds:     value,
 				CancelUser: &o.cancelUser,
 			}
-			err := queries.MarkJobsCancelRequestedById(ctx, params)
+			err := queries.MarkJobsCancelRequestedById(dbCtx, params)
 			if err != nil {
+				tracing.AddErrorToSpan(span, err)
+				tracing.AddErrorToSpan(dbSpan, err)
+				dbSpan.End()
 				return errors.WithStack(err)
 			}
+			tracing.AddSuccessToSpan(dbSpan)
+			dbSpan.End()
 		}
+		tracing.AddSuccessToSpan(span)
 	case MarkJobsCancelled:
+		span.SetAttributes(
+			attribute.String("db.table", "jobs,runs"),
+			attribute.String("db.operation", "mark_jobs_cancelled"),
+			attribute.Int("db.jobs.count", len(o)),
+		)
+		span.SetAttributes(tracing.DatabaseAttributes("UPDATE")...)
+
 		jobIds := maps.Keys(o)
 		if err := queries.MarkJobsCancelledById(ctx, jobIds); err != nil {
+			tracing.AddErrorToSpan(span, err)
 			return errors.WithStack(err)
 		}
 		cancelTimes := make([]interface{}, 0, len(jobIds))
@@ -225,9 +437,18 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 		sqlStmt := multiColumnRunsUpdateStmt("job_id", "cancelled", "terminated_timestamp")
 		// order of arguments is important. See multiColumnRunsUpdateStmt function for details
 		if _, err := tx.Exec(ctx, sqlStmt, jobIds, canceled, cancelTimes); err != nil {
+			tracing.AddErrorToSpan(span, err)
 			return errors.WithStack(err)
 		}
+		tracing.AddSuccessToSpan(span)
 	case MarkRunsForJobPreemptRequested:
+		span.SetAttributes(
+			attribute.String("db.table", "runs"),
+			attribute.String("db.operation", "mark_runs_preempt_requested"),
+			attribute.Int("db.jobsets.count", len(o)),
+		)
+		span.SetAttributes(tracing.DatabaseAttributes("UPDATE")...)
+
 		for key, value := range o {
 			params := schedulerdb.MarkJobRunsPreemptRequestedByJobIdParams{
 				Queue:  key.queue,
@@ -236,32 +457,75 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 			}
 			err := queries.MarkJobRunsPreemptRequestedByJobId(ctx, params)
 			if err != nil {
+				tracing.AddErrorToSpan(span, err)
 				return errors.WithStack(err)
 			}
 		}
+		tracing.AddSuccessToSpan(span)
 	case MarkJobsSucceeded:
+		span.SetAttributes(
+			attribute.String("db.table", "jobs"),
+			attribute.String("db.operation", "mark_jobs_succeeded"),
+			attribute.Int("db.jobs.count", len(o)),
+		)
+		span.SetAttributes(tracing.DatabaseAttributes("UPDATE")...)
+
 		jobIds := maps.Keys(o)
 		err := queries.MarkJobsSucceededById(ctx, jobIds)
 		if err != nil {
+			tracing.AddErrorToSpan(span, err)
 			return errors.WithStack(err)
 		}
+		tracing.AddSuccessToSpan(span)
 	case MarkJobsFailed:
+		span.SetAttributes(
+			attribute.String("db.table", "jobs"),
+			attribute.String("db.operation", "mark_jobs_failed"),
+			attribute.Int("db.jobs.count", len(o)),
+		)
+		span.SetAttributes(tracing.DatabaseAttributes("UPDATE")...)
+
 		jobIds := maps.Keys(o)
 		err := queries.MarkJobsFailedById(ctx, jobIds)
 		if err != nil {
+			tracing.AddErrorToSpan(span, err)
 			return errors.WithStack(err)
 		}
+		tracing.AddSuccessToSpan(span)
 	case *UpdateJobPriorities:
-		err := queries.UpdateJobPriorityById(ctx, schedulerdb.UpdateJobPriorityByIdParams{
+		uniqueJobIds := slices.Unique(o.jobIds)
+		dbCtx, dbSpan := tracing.StartSpan(ctx, "db", "db-operation-update-job-priority")
+		dbSpan.SetAttributes(
+			attribute.String("db.operation", "update_job_priority"),
+			attribute.String("armada.queue", o.key.queue),
+			attribute.String("armada.jobset", o.key.jobSet),
+			attribute.Int64("armada.priority.new", o.key.Priority),
+			attribute.StringSlice("armada.job_ids", uniqueJobIds),
+			attribute.Int("armada.jobs.count", len(uniqueJobIds)),
+		)
+		dbSpan.SetAttributes(tracing.DatabaseAttributes("UPDATE")...)
+
+		err := queries.UpdateJobPriorityById(dbCtx, schedulerdb.UpdateJobPriorityByIdParams{
 			Queue:    o.key.queue,
 			JobSet:   o.key.jobSet,
 			Priority: o.key.Priority,
-			JobIds:   slices.Unique(o.jobIds),
+			JobIds:   uniqueJobIds,
 		})
 		if err != nil {
+			tracing.AddErrorToSpan(dbSpan, err)
+			dbSpan.End()
 			return errors.WithStack(err)
 		}
+		tracing.AddSuccessToSpan(dbSpan)
+		dbSpan.End()
 	case MarkRunsSucceeded:
+		span.SetAttributes(
+			attribute.String("db.table", "runs"),
+			attribute.String("db.operation", "mark_runs_succeeded"),
+			attribute.Int("db.runs.count", len(o)),
+		)
+		span.SetAttributes(tracing.DatabaseAttributes("UPDATE")...)
+
 		successTimes := make([]interface{}, 0, len(o))
 		succeeded := make([]bool, 0, len(o))
 		runIds := make([]string, 0, len(o))
@@ -273,9 +537,18 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 		sqlStmt := multiColumnRunsUpdateStmt("run_id", "succeeded", "terminated_timestamp")
 		// order of arguments is important. See multiColumnRunsUpdateStmt function for details
 		if _, err := tx.Exec(ctx, sqlStmt, runIds, succeeded, successTimes); err != nil {
+			tracing.AddErrorToSpan(span, err)
 			return errors.WithStack(err)
 		}
+		tracing.AddSuccessToSpan(span)
 	case MarkRunsFailed:
+		span.SetAttributes(
+			attribute.String("db.table", "runs"),
+			attribute.String("db.operation", "mark_runs_failed"),
+			attribute.Int("db.runs.count", len(o)),
+		)
+		span.SetAttributes(tracing.DatabaseAttributes("UPDATE")...)
+
 		runIds := make([]string, 0, len(o))
 		failTimes := make([]interface{}, 0, len(o))
 		failed := make([]bool, 0, len(o))
@@ -295,16 +568,27 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 		sqlStmt := multiColumnRunsUpdateStmt("run_id", "failed", "terminated_timestamp")
 		// order of arguments is important. See multiColumnRunsUpdateStmt function for details
 		if _, err := tx.Exec(ctx, sqlStmt, runIds, failed, failTimes); err != nil {
+			tracing.AddErrorToSpan(span, err)
 			return errors.WithStack(err)
 		}
 
 		if err := queries.MarkJobRunsReturnedById(ctx, returned); err != nil {
+			tracing.AddErrorToSpan(span, err)
 			return errors.WithStack(err)
 		}
 		if err := queries.MarkJobRunsAttemptedById(ctx, runAttempted); err != nil {
+			tracing.AddErrorToSpan(span, err)
 			return errors.WithStack(err)
 		}
+		tracing.AddSuccessToSpan(span)
 	case MarkRunsRunning:
+		span.SetAttributes(
+			attribute.String("db.table", "runs"),
+			attribute.String("db.operation", "mark_runs_running"),
+			attribute.Int("db.runs.count", len(o)),
+		)
+		span.SetAttributes(tracing.DatabaseAttributes("UPDATE")...)
+
 		runIds := make([]string, 0, len(o))
 		runningTimes := make([]interface{}, 0, len(runIds))
 		running := make([]bool, 0, len(runIds))
@@ -316,9 +600,18 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 		sqlStmt := multiColumnRunsUpdateStmt("run_id", "running", "running_timestamp")
 		// order of arguments is important. See multiColumnRunsUpdateStmt function for details
 		if _, err := tx.Exec(ctx, sqlStmt, runIds, running, runningTimes); err != nil {
+			tracing.AddErrorToSpan(span, err)
 			return errors.WithStack(err)
 		}
+		tracing.AddSuccessToSpan(span)
 	case MarkRunsPending:
+		span.SetAttributes(
+			attribute.String("db.table", "runs"),
+			attribute.String("db.operation", "mark_runs_pending"),
+			attribute.Int("db.runs.count", len(o)),
+		)
+		span.SetAttributes(tracing.DatabaseAttributes("UPDATE")...)
+
 		runIds := make([]string, 0, len(o))
 		pendingTimes := make([]interface{}, 0, len(o))
 		pending := make([]bool, 0, len(o))
@@ -329,9 +622,18 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 		}
 		sqlStmt := multiColumnRunsUpdateStmt("run_id", "pending", "pending_timestamp")
 		if _, err := tx.Exec(ctx, sqlStmt, runIds, pending, pendingTimes); err != nil {
+			tracing.AddErrorToSpan(span, err)
 			return errors.WithStack(err)
 		}
+		tracing.AddSuccessToSpan(span)
 	case MarkRunsPreempted:
+		span.SetAttributes(
+			attribute.String("db.table", "runs"),
+			attribute.String("db.operation", "mark_runs_preempted"),
+			attribute.Int("db.runs.count", len(o)),
+		)
+		span.SetAttributes(tracing.DatabaseAttributes("UPDATE")...)
+
 		runIds := make([]string, 0, len(o))
 		preemptedTimes := make([]interface{}, 0, len(o))
 		preempted := make([]bool, 0, len(o))
@@ -342,16 +644,31 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 		}
 		sqlStmt := multiColumnRunsUpdateStmt("run_id", "preempted", "preempted_timestamp")
 		if _, err := tx.Exec(ctx, sqlStmt, runIds, preempted, preemptedTimes); err != nil {
+			tracing.AddErrorToSpan(span, err)
 			return errors.WithStack(err)
 		}
+		tracing.AddSuccessToSpan(span)
 	case InsertJobRunErrors:
+		span.SetAttributes(
+			attribute.String("db.table", "job_run_errors"),
+			attribute.String("db.operation", "insert_job_run_errors"),
+			attribute.Int("db.errors.count", len(o)),
+		)
+		span.SetAttributes(tracing.DatabaseAttributes("INSERT")...)
+
 		records := make([]any, len(o))
 		i := 0
 		for _, v := range o {
 			records[i] = *v
 			i++
 		}
-		return database.Upsert(ctx, tx, "job_run_errors", records)
+		err := database.Upsert(ctx, tx, "job_run_errors", records)
+		if err != nil {
+			tracing.AddErrorToSpan(span, err)
+			return err
+		}
+		tracing.AddSuccessToSpan(span)
+		return nil
 	case *InsertPartitionMarker:
 		for _, marker := range o.markers {
 			err := queries.InsertMarker(ctx, schedulerdb.InsertMarkerParams{
@@ -365,6 +682,13 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 		}
 		return nil
 	case MarkJobsValidated:
+		span.SetAttributes(
+			attribute.String("db.table", "jobs"),
+			attribute.String("db.operation", "mark_jobs_validated"),
+			attribute.Int("db.jobs.count", len(o)),
+		)
+		span.SetAttributes(tracing.DatabaseAttributes("UPDATE")...)
+
 		markValidatedSqlStatement := `UPDATE jobs SET validated = true, pools = $1 WHERE job_id = $2`
 		batch := &pgx.Batch{}
 		for key, value := range o {
@@ -372,8 +696,10 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 		}
 		err := execBatch(ctx, tx, batch)
 		if err != nil {
+			tracing.AddErrorToSpan(span, err)
 			return errors.WithStack(err)
 		}
+		tracing.AddSuccessToSpan(span)
 	case UpsertExecutorSettings:
 		for _, settingsUpsert := range o {
 			err := queries.UpsertExecutorSettings(ctx, schedulerdb.UpsertExecutorSettingsParams{
@@ -501,6 +827,11 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 			}
 		}
 	default:
+		span.SetAttributes(
+			attribute.String("db.operation", fmt.Sprintf("unknown_operation_%T", op)),
+		)
+		span.SetAttributes(tracing.DatabaseAttributes("UNKNOWN")...)
+		tracing.AddErrorToSpan(span, errors.Errorf("received unexpected op %+v", op))
 		return errors.Errorf("received unexpected op %+v", op)
 	}
 	return nil

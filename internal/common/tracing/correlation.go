@@ -8,64 +8,64 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-// BusinessCorrelation holds business identifiers for cross-service correlation
-type BusinessCorrelation struct {
-	Queue       string   `json:"queue"`
-	JobSet      string   `json:"jobset"`
-	JobIDs      []string `json:"job_ids,omitempty"`
-	Operation   string   `json:"operation"` // "submit", "cancel", "preempt"
+// JobMetadata holds job identifiers for cross-service correlation
+type JobMetadata struct {
+	Queue     string   `json:"queue"`
+	JobSet    string   `json:"jobset"`
+	JobIDs    []string `json:"job_ids,omitempty"`
+	Operation string   `json:"operation"` // "submit", "cancel", "preempt"
 }
 
-// AddBusinessCorrelation adds business correlation attributes to a span
-func AddBusinessCorrelation(span trace.Span, corr BusinessCorrelation) {
+// AddJobMetadata adds job metadata attributes to a span
+func AddJobMetadata(span trace.Span, metadata JobMetadata) {
 	span.SetAttributes(
-		attribute.String("armada.queue", corr.Queue),
-		attribute.String("armada.jobset", corr.JobSet),
-		attribute.String("armada.operation", corr.Operation),
+		attribute.String("armada.queue", metadata.Queue),
+		attribute.String("armada.jobset", metadata.JobSet),
+		attribute.String("armada.operation", metadata.Operation),
 	)
 
-	if len(corr.JobIDs) > 0 {
+	if len(metadata.JobIDs) > 0 {
 		span.SetAttributes(
-			attribute.StringSlice("armada.job_ids", corr.JobIDs),
-			attribute.Int("armada.job_count", len(corr.JobIDs)),
+			attribute.StringSlice("armada.job_ids", metadata.JobIDs),
+			attribute.Int("armada.job_count", len(metadata.JobIDs)),
 		)
 	}
 }
 
-// BatchCorrelation holds business identifiers extracted from a batch of operations
-type BatchCorrelation struct {
-	Queues    []string
-	JobSets   []string
-	JobIDs    []string
+// BatchMetadata holds job identifiers extracted from a batch of operations
+type BatchMetadata struct {
+	Queues     []string
+	JobSets    []string
+	JobIDs     []string
 	Operations []string
 }
 
-// AddBatchCorrelation adds batch-level business correlation attributes to a span
-func AddBatchCorrelation(span trace.Span, corr BatchCorrelation) {
-	if len(corr.Queues) > 0 {
+// AddBatchMetadata adds batch-level job metadata attributes to a span
+func AddBatchMetadata(span trace.Span, metadata BatchMetadata) {
+	if len(metadata.Queues) > 0 {
 		span.SetAttributes(
-			attribute.StringSlice("armada.batch.queues", corr.Queues),
-			attribute.Int("armada.batch.unique_queues", len(corr.Queues)),
+			attribute.StringSlice("armada.batch.queues", metadata.Queues),
+			attribute.Int("armada.batch.unique_queues", len(metadata.Queues)),
 		)
 	}
 
-	if len(corr.JobSets) > 0 {
+	if len(metadata.JobSets) > 0 {
 		span.SetAttributes(
-			attribute.StringSlice("armada.batch.jobsets", corr.JobSets),
-			attribute.Int("armada.batch.unique_jobsets", len(corr.JobSets)),
+			attribute.StringSlice("armada.batch.jobsets", metadata.JobSets),
+			attribute.Int("armada.batch.unique_jobsets", len(metadata.JobSets)),
 		)
 	}
 
-	if len(corr.JobIDs) > 0 {
+	if len(metadata.JobIDs) > 0 {
 		span.SetAttributes(
-			attribute.StringSlice("armada.batch.job_ids", corr.JobIDs),
-			attribute.Int("armada.batch.total_jobs", len(corr.JobIDs)),
+			attribute.StringSlice("armada.batch.job_ids", metadata.JobIDs),
+			attribute.Int("armada.batch.total_jobs", len(metadata.JobIDs)),
 		)
 	}
 
-	if len(corr.Operations) > 0 {
+	if len(metadata.Operations) > 0 {
 		span.SetAttributes(
-			attribute.StringSlice("armada.batch.operations", corr.Operations),
+			attribute.StringSlice("armada.batch.operations", metadata.Operations),
 		)
 	}
 }
