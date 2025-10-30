@@ -33,6 +33,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/pulsarutils/utils"
 	"github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/stringinterner"
+	"github.com/armadaproject/armada/internal/common/tracing"
 	"github.com/armadaproject/armada/internal/common/types"
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/database"
@@ -56,12 +57,21 @@ import (
 
 // Run sets up a Scheduler application and runs it until a SIGTERM is received
 func Run(config schedulerconfig.Configuration) error {
+	// Initialize OpenTelemetry tracing
+	cleanup, err := tracing.InitTracing("scheduler")
+	if err != nil {
+		log.WithError(err).Warn("Failed to initialize tracing")
+	} else {
+		log.Info("OpenTelemetry tracing initialized")
+		defer cleanup()
+	}
+
 	g, ctx := armadacontext.ErrGroup(app.CreateContextWithShutdown())
 
 	// ////////////////////////////////////////////////////////////////////////
 	// Expose profiling endpoints if enabled.
 	// ////////////////////////////////////////////////////////////////////////
-	err := profiling.SetupPprof(config.Profiling, armadacontext.Background(), nil)
+	err = profiling.SetupPprof(config.Profiling, armadacontext.Background(), nil)
 	if err != nil {
 		log.Fatalf("Pprof setup failed, exiting, %v", err)
 	}

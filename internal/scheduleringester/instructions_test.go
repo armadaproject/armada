@@ -1,6 +1,7 @@
 package scheduleringester
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -10,6 +11,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/ingest/metrics"
 	f "github.com/armadaproject/armada/internal/common/ingest/testfixtures"
@@ -280,7 +282,8 @@ func TestConvertEventSequence(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			converter := JobSetEventsInstructionConverter{m, compressor}
 			es := f.NewEventSequence(tc.events...)
-			results := converter.dbOperationsFromEventSequence(es)
+			ctx := &armadacontext.Context{Context: context.Background()}
+			results := converter.dbOperationsFromEventSequence(ctx, es)
 			assertOperationsEqual(t, tc.expected, results)
 		})
 	}

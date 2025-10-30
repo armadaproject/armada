@@ -1,11 +1,15 @@
 package main
 
 import (
+	"fmt"
+	"os"
+
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 
 	"github.com/armadaproject/armada/internal/common"
 	log "github.com/armadaproject/armada/internal/common/logging"
+	"github.com/armadaproject/armada/internal/common/tracing"
 	"github.com/armadaproject/armada/internal/lookoutingester"
 	"github.com/armadaproject/armada/internal/lookoutingester/benchmark"
 	"github.com/armadaproject/armada/internal/lookoutingester/configuration"
@@ -29,6 +33,14 @@ func init() {
 func main() {
 	log.MustConfigureApplicationLogging()
 	common.BindCommandlineArguments()
+
+	// Initialize tracing
+	cleanup, err := tracing.InitTracing("lookout-ingester")
+	if err != nil {
+		fmt.Printf("Failed to initialize tracing: %v\n", err)
+		os.Exit(-1)
+	}
+	defer cleanup()
 
 	var config configuration.LookoutIngesterConfiguration
 	userSpecifiedConfigs := viper.GetStringSlice(CustomConfigLocation)

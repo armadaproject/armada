@@ -21,7 +21,7 @@ import (
 func InitTracing(serviceName string) (func(), error) {
 	endpoint := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
 	if endpoint == "" {
-		endpoint = "http://localhost:4317" // Default SigNoz endpoint
+		endpoint = "localhost:4317" // Default SigNoz gRPC endpoint
 	}
 
 	// Create OTLP gRPC exporter

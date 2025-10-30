@@ -7,6 +7,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
+	"go.opentelemetry.io/otel/attribute"
 	"golang.org/x/exp/slices"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -15,6 +16,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/ingest/utils"
 	log "github.com/armadaproject/armada/internal/common/logging"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
+	"github.com/armadaproject/armada/internal/common/tracing"
 	"github.com/armadaproject/armada/internal/scheduler/adapters"
 	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -54,12 +56,47 @@ func NewJobSetEventsInstructionConverter(
 }
 
 func (c *JobSetEventsInstructionConverter) Convert(ctx *armadacontext.Context, eventsWithIds *utils.EventsWithIds[*armadaevents.EventSequence]) *DbOperationsWithMessageIds {
+	spanCtx, span := tracing.StartSpan(ctx, "scheduler-ingester", "convert-event-sequences")
+	defer span.End()
+
+	// Use the context with the span for child operations
+	ctx = armadacontext.FromGrpcCtx(spanCtx)
+
+	span.SetAttributes(
+		attribute.Int("events.sequences.count", len(eventsWithIds.Events)),
+		attribute.Int("events.messages.count", len(eventsWithIds.MessageIds)),
+	)
+
+	// Collect job metadata for the batch
+	queues := make(map[string]bool)
+	jobsets := make(map[string]bool)
+	users := make(map[string]bool)
+	totalEvents := 0
+
+	for _, es := range eventsWithIds.Events {
+		queues[es.Queue] = true
+		jobsets[es.JobSetName] = true
+		users[es.UserId] = true
+		totalEvents += len(es.Events)
+	}
+
+	span.SetAttributes(
+		attribute.Int("events.total.count", totalEvents),
+		attribute.Int("events.unique_queues.count", len(queues)),
+		attribute.Int("events.unique_jobsets.count", len(jobsets)),
+		attribute.Int("events.unique_users.count", len(users)),
+	)
+
 	operations := make([]DbOperation, 0)
 	for _, es := range eventsWithIds.Events {
-		for _, op := range c.dbOperationsFromEventSequence(es) {
+		for _, op := range c.dbOperationsFromEventSequence(ctx, es) {
 			operations = AppendDbOperation(operations, op)
 		}
 	}
+
+	span.SetAttributes(attribute.Int("db.operations.count", len(operations)))
+	tracing.AddSuccessToSpan(span)
+
 	log.Infof("Converted sequences into %d db operations", len(operations))
 	return &DbOperationsWithMessageIds{
 		Ops:        operations,
@@ -67,13 +104,33 @@ func (c *JobSetEventsInstructionConverter) Convert(ctx *armadacontext.Context, e
 	}
 }
 
-func (c *JobSetEventsInstructionConverter) dbOperationsFromEventSequence(es *armadaevents.EventSequence) []DbOperation {
+func (c *JobSetEventsInstructionConverter) dbOperationsFromEventSequence(ctx *armadacontext.Context, es *armadaevents.EventSequence) []DbOperation {
+	_, span := tracing.StartSpan(ctx, "scheduler-ingester", "process-event-sequence")
+	defer span.End()
+
 	meta := eventSequenceCommon{
 		queue:  es.Queue,
 		jobset: es.JobSetName,
 		user:   es.UserId,
 		groups: es.Groups,
 	}
+
+	// Add job metadata to the span
+	metadata := tracing.JobMetadata{
+		Queue:     meta.queue,
+		JobSet:    meta.jobset,
+		Operation: "process-event-sequence",
+	}
+	tracing.AddJobMetadata(span, metadata)
+
+	span.SetAttributes(
+		attribute.String("armada.queue", meta.queue),
+		attribute.String("armada.jobset", meta.jobset),
+		attribute.String("armada.user", meta.user),
+		attribute.StringSlice("armada.groups", meta.groups),
+		attribute.Int("events.count", len(es.Events)),
+	)
+
 	operations := make([]DbOperation, 0, len(es.Events))
 	for idx, event := range es.Events {
 		eventTime := protoutil.ToStdTime(event.Created)
@@ -133,6 +190,9 @@ func (c *JobSetEventsInstructionConverter) dbOperationsFromEventSequence(es *arm
 			operations = append(operations, operationsFromEvent...)
 		}
 	}
+
+	span.SetAttributes(attribute.Int("db.operations.generated", len(operations)))
+	tracing.AddSuccessToSpan(span)
 	return operations
 }
 

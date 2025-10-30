@@ -15,9 +15,12 @@ import (
 )
 
 var CustomHooks = []viper.DecoderConfigOption{
-	addDecodeHook(PulsarCompressionTypeHookFunc()),
-	addDecodeHook(PulsarCompressionLevelHookFunc()),
-	addDecodeHook(QuantityDecodeHook()),
+	viper.DecodeHook(mapstructure.ComposeDecodeHookFunc(
+		mapstructure.StringToTimeDurationHookFunc(),
+		PulsarCompressionTypeHookFunc(),
+		PulsarCompressionLevelHookFunc(),
+		QuantityDecodeHook(),
+	)),
 }
 
 func PulsarCompressionTypeHookFunc() mapstructure.DecodeHookFuncType {
@@ -86,13 +89,5 @@ func QuantityDecodeHook() mapstructure.DecodeHookFuncType {
 			return data, nil
 		}
 		return resource.ParseQuantity(fmt.Sprintf("%v", data))
-	}
-}
-
-func addDecodeHook(hook mapstructure.DecodeHookFuncType) viper.DecoderConfigOption {
-	return func(c *mapstructure.DecoderConfig) {
-		c.DecodeHook = mapstructure.ComposeDecodeHookFunc(
-			c.DecodeHook,
-			hook)
 	}
 }

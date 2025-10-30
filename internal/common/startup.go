@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mitchellh/mapstructure"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/pflag"
@@ -57,23 +56,9 @@ func LoadConfig(config commonconfig.Config, defaultPath string, overrideConfigs 
 	v.SetEnvPrefix("ARMADA")
 	v.AutomaticEnv()
 
-	var metadata mapstructure.Metadata
-	customHooks := append(slices.Clone(commonconfig.CustomHooks), func(c *mapstructure.DecoderConfig) { c.Metadata = &metadata })
+	customHooks := slices.Clone(commonconfig.CustomHooks)
 	if err := v.Unmarshal(config, customHooks...); err != nil {
 		log.Fatal(err)
-	}
-
-	// Log a warning if there are config keys that don't match a config item in the struct the yaml is decoded into.
-	// Since such unused keys indicate there's a typo in the config.
-	// Also log set and unset keys at a debug level.
-	if len(metadata.Keys) > 0 {
-		log.Debugf("Decoded keys: %v", metadata.Keys)
-	}
-	if len(metadata.Unused) > 0 {
-		log.Warnf("Unused keys: %v", metadata.Unused)
-	}
-	if len(metadata.Unset) > 0 {
-		log.Debugf("Unset keys: %v", metadata.Unset)
 	}
 
 	if err := config.Validate(); err != nil {

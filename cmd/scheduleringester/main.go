@@ -9,6 +9,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/internal/common/logging"
+	log "github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/tracing"
 	"github.com/armadaproject/armada/internal/scheduleringester"
 )
@@ -31,10 +32,11 @@ func main() {
 	// Initialize tracing
 	cleanup, err := tracing.InitTracing("scheduler-ingester")
 	if err != nil {
-		fmt.Printf("Failed to initialize tracing: %v\n", err)
-		os.Exit(-1)
+		log.WithError(err).Warn("Failed to initialize tracing")
+	} else {
+		log.Info("OpenTelemetry tracing initialized")
+		defer cleanup()
 	}
-	defer cleanup()
 
 	var config scheduleringester.Configuration
 	userSpecifiedConfigs := viper.GetStringSlice(CustomConfigLocation)

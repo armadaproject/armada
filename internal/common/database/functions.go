@@ -34,7 +34,6 @@ func OpenPgxConn(config configuration.PostgresConfig) (*pgx.Conn, error) {
 		return nil, err
 	}
 
-	// Add OpenTelemetry tracer to the connection configuration
 	connConfig.Tracer = otelpgx.NewTracer()
 
 	db, err := pgx.ConnectConfig(armadacontext.Background(), connConfig)
@@ -53,7 +52,6 @@ func OpenPgxPool(config configuration.PostgresConfig) (*pgxpool.Pool, error) {
 		return nil, err
 	}
 
-	// Add OpenTelemetry tracer to the pool configuration
 	poolConfig.ConnConfig.Tracer = otelpgx.NewTracer()
 
 	db, err := pgxpool.NewWithConfig(armadacontext.Background(), poolConfig)

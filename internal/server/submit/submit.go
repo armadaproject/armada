@@ -82,13 +82,13 @@ func (s *Server) SubmitJobs(grpcCtx context.Context, req *api.JobSubmitRequest) 
 	)
 	defer span.End()
 
-	// Add business correlation for cross-service linking
-	businessCorr := tracing.BusinessCorrelation{
+	// Add job metadata for cross-service linking
+	metadata := tracing.JobMetadata{
 		Queue:     req.Queue,
 		JobSet:    req.JobSetId,
 		Operation: "submission",
 	}
-	tracing.AddBusinessCorrelation(span, businessCorr)
+	tracing.AddJobMetadata(span, metadata)
 
 	// Add API-specific attributes
 	span.SetAttributes(
@@ -114,7 +114,7 @@ func (s *Server) SubmitJobs(grpcCtx context.Context, req *api.JobSubmitRequest) 
 	tracing.AddSuccessToSpan(authSpan)
 	authSpan.End()
 
-	// Update main span with user ID for business correlation
+	// Update main span with user ID for job metadata
 	span.SetAttributes(attribute.String("armada.user_id", userId))
 
 	// Validation span
@@ -348,17 +348,60 @@ func preemptJobEventSequenceForJobIds(clock clock.Clock, jobIds []string, q, job
 }
 
 func (s *Server) ReprioritizeJobs(grpcCtx context.Context, req *api.JobReprioritizeRequest) (*api.JobReprioritizeResponse, error) {
-	ctx := armadacontext.FromGrpcCtx(grpcCtx)
+	ctx, span := tracing.StartSpan(grpcCtx, "server", "reprioritize-jobs-request")
+	span.SetAttributes(
+		attribute.String("armada.queue", req.Queue),
+		attribute.String("armada.jobset", req.JobSetId),
+		attribute.String("armada.operation", "reprioritization"),
+		attribute.Float64("armada.new_priority", req.NewPriority),
+		attribute.Int("armada.jobs.count", len(req.JobIds)),
+	)
+	defer span.End()
+
+	metadata := tracing.JobMetadata{
+		Queue:     req.Queue,
+		JobSet:    req.JobSetId,
+		Operation: "reprioritization",
+		JobIDs:    req.JobIds,
+	}
+	tracing.AddJobMetadata(span, metadata)
+
+	span.SetAttributes(
+		attribute.String("armada.api.method", "ReprioritizeJobs"),
+	)
+
+	start := time.Now()
+	armadaCtx := armadacontext.FromGrpcCtx(ctx)
+
+	_, validationSpan := tracing.StartSpan(ctx, "server", "reprioritize-jobs-validation")
 	err := validation.ValidateQueueAndJobSet(req)
 	if err != nil {
+		tracing.AddErrorToSpan(validationSpan, err)
+		validationSpan.End()
+		tracing.AddErrorToSpan(span, err)
 		return nil, err
 	}
+	tracing.AddSuccessToSpan(validationSpan)
+	validationSpan.End()
 
-	userId, groups, err := s.authorize(ctx, req.Queue, permissions.ReprioritizeAnyJobs, queue.PermissionVerbReprioritize)
+	_, authSpan := tracing.StartSpan(ctx, "server", "reprioritize-jobs-authorization")
+	userId, groups, err := s.authorize(armadaCtx, req.Queue, permissions.ReprioritizeAnyJobs, queue.PermissionVerbReprioritize)
 	if err != nil {
+		tracing.AddErrorToSpan(authSpan, err)
+		authSpan.End()
+		tracing.AddErrorToSpan(span, err)
 		return nil, err
 	}
+	authSpan.SetAttributes(
+		attribute.String("armada.user_id", userId),
+		attribute.StringSlice("armada.groups", groups),
+	)
+	tracing.AddSuccessToSpan(authSpan)
+	authSpan.End()
 
+	span.SetAttributes(attribute.String("armada.user_id", userId))
+
+	_, processingSpan := tracing.StartSpan(ctx, "server", "reprioritize-jobs-processing")
 	// results maps job ids to strings containing error messages.
 	results := make(map[string]string)
 	priority := conversion.PriorityAsInt32(req.NewPriority)
@@ -384,28 +427,62 @@ func (s *Server) ReprioritizeJobs(grpcCtx context.Context, req *api.JobRepriorit
 		})
 
 		results[fmt.Sprintf("all jobs in job set %s", req.JobSetId)] = ""
-	}
-
-	// Otherwise, only the specified jobs should be re-prioritised.
-	for i, jobId := range req.JobIds {
-		sequence.Events[i] = &armadaevents.EventSequence_Event{
-			Created: eventTime,
-			Event: &armadaevents.EventSequence_Event_ReprioritiseJob{
-				ReprioritiseJob: &armadaevents.ReprioritiseJob{
-					JobId:    jobId,
-					Priority: priority,
+		processingSpan.SetAttributes(
+			attribute.String("armada.reprioritization.type", "jobset"),
+		)
+	} else {
+		// Otherwise, only the specified jobs should be re-prioritised.
+		for i, jobId := range req.JobIds {
+			sequence.Events[i] = &armadaevents.EventSequence_Event{
+				Created: eventTime,
+				Event: &armadaevents.EventSequence_Event_ReprioritiseJob{
+					ReprioritiseJob: &armadaevents.ReprioritiseJob{
+						JobId:    jobId,
+						Priority: priority,
+					},
 				},
-			},
-		}
+			}
 
-		results[jobId] = "" // empty string indicates no error
+			results[jobId] = "" // empty string indicates no error
+		}
+		processingSpan.SetAttributes(
+			attribute.String("armada.reprioritization.type", "individual_jobs"),
+			attribute.StringSlice("armada.job_ids", req.JobIds),
+		)
 	}
 
-	err = s.publisher.PublishMessages(ctx, sequence)
+	processingSpan.SetAttributes(
+		attribute.Int("armada.events.count", len(sequence.Events)),
+		attribute.Int64("armada.priority.new", int64(priority)),
+	)
+	tracing.AddSuccessToSpan(processingSpan)
+	processingSpan.End()
+
+	_, pulsarSpan := tracing.StartSpan(ctx, "server", "reprioritize-jobs-pulsar-publish")
+	pulsarSpan.SetAttributes(
+		attribute.String("armada.pulsar.operation", "publish_reprioritize_jobs"),
+		attribute.String("armada.pulsar.queue", req.Queue),
+		attribute.String("armada.pulsar.jobset", req.JobSetId),
+		attribute.Int("armada.pulsar.message_count", len(sequence.Events)),
+	)
+
+	err = s.publisher.PublishMessages(armadaCtx, sequence)
 	if err != nil {
+		tracing.AddErrorToSpan(pulsarSpan, err)
+		pulsarSpan.End()
+		tracing.AddErrorToSpan(span, err)
 		log.WithError(err).Error("failed send to Pulsar")
 		return nil, status.Error(codes.Internal, "Failed to send message")
 	}
+	tracing.AddSuccessToSpan(pulsarSpan)
+	pulsarSpan.End()
+
+	duration := time.Since(start)
+	span.SetAttributes(
+		attribute.Float64("armada.api.duration_ms", float64(duration.Nanoseconds())/1e6),
+		attribute.Int("armada.api.jobs_processed", len(req.JobIds)),
+	)
+	tracing.AddSuccessToSpan(span)
 
 	return &api.JobReprioritizeResponse{
 		ReprioritizationResults: results,
@@ -424,12 +501,12 @@ func (s *Server) CancelJobSet(grpcCtx context.Context, req *api.JobSetCancelRequ
 	)
 	defer span.End()
 
-	businessCorr := tracing.BusinessCorrelation{
+	metadata := tracing.JobMetadata{
 		Queue:     req.Queue,
 		JobSet:    req.JobSetId,
 		Operation: "cancel_jobset",
 	}
-	tracing.AddBusinessCorrelation(span, businessCorr)
+	tracing.AddJobMetadata(span, metadata)
 
 	// Add API-specific attributes
 	span.SetAttributes(
@@ -474,7 +551,7 @@ func (s *Server) CancelJobSet(grpcCtx context.Context, req *api.JobSetCancelRequ
 		attribute.StringSlice("armada.groups", groups),
 	)
 
-	// Update main span with user ID for business correlation
+	// Update main span with user ID for job metadata
 	span.SetAttributes(attribute.String("armada.user_id", userId))
 
 	tracing.AddSuccessToSpan(authSpan)
@@ -545,7 +622,6 @@ func (s *Server) CancelJobSet(grpcCtx context.Context, req *api.JobSetCancelRequ
 		attribute.String("armada.status", "success"),
 	)
 	tracing.AddSuccessToSpan(span)
-
 
 	return &types.Empty{}, nil
 }

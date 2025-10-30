@@ -14,6 +14,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
+	"github.com/armadaproject/armada/internal/common/tracing"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
@@ -251,6 +252,21 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 //     As state transitions are persisted and read back from the schedulerDb over later cycles,
 //     there is no change to the jobDb, since the correct changes have already been made.
 func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToken leader.LeaderToken, shouldSchedule bool, cycleNumber int) (scheduling.SchedulerResult, error) {
+	// Start tracing span for scheduler cycle
+	_, span := tracing.StartSpan(ctx, "scheduler", "scheduling-cycle")
+	defer span.End()
+
+	// Add cycle information to span
+	span.SetAttributes(
+		tracing.DatabaseAttributes("schedule-jobs")...,
+	)
+	metadata := tracing.JobMetadata{
+		Queue:     "",
+		JobSet:    "",
+		Operation: "scheduling-cycle",
+	}
+	tracing.AddJobMetadata(span, metadata)
+
 	// TODO: Consider returning a slice of these instead.
 	overallSchedulerResult := scheduling.SchedulerResult{}
 
@@ -385,6 +401,7 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 		}
 	}
 
+	tracing.AddSuccessToSpan(span)
 	return overallSchedulerResult, nil
 }
 
@@ -399,7 +416,18 @@ func (s *Scheduler) syncState(ctx *armadacontext.Context, initial, fullJobGc boo
 
 	if initial {
 		// Load initial jobs from the jobRepo.
+		_, span := tracing.StartSpan(ctx, "scheduler", "fetch-initial-jobs")
+		span.SetAttributes(tracing.DatabaseAttributes("SELECT")...)
+		tracing.AddJobMetadata(span, tracing.JobMetadata{
+			Operation: "fetch-initial-jobs",
+		})
 		initialJobs, initialRuns, maxJobSerial, maxRunSerial, fetchErr := s.jobRepository.FetchInitialJobs(ctx)
+		if fetchErr != nil {
+			tracing.AddErrorToSpan(span, fetchErr)
+		} else {
+			tracing.AddSuccessToSpan(span)
+		}
+		span.End()
 		if fetchErr != nil {
 			return nil, nil, fmt.Errorf("fetching initial jobs: %w", fetchErr)
 		}
@@ -418,7 +446,18 @@ func (s *Scheduler) syncState(ctx *armadacontext.Context, initial, fullJobGc boo
 
 	} else {
 		// Load new and updated jobs from the jobRepo.
+		_, span := tracing.StartSpan(ctx, "scheduler", "fetch-job-updates")
+		span.SetAttributes(tracing.DatabaseAttributes("SELECT")...)
+		tracing.AddJobMetadata(span, tracing.JobMetadata{
+			Operation: "fetch-job-updates",
+		})
 		updatedJobs, updatedRuns, err = s.jobRepository.FetchJobUpdates(ctx, s.jobsSerial, s.runsSerial)
+		if err != nil {
+			tracing.AddErrorToSpan(span, err)
+		} else {
+			tracing.AddSuccessToSpan(span)
+		}
+		span.End()
 		if err != nil {
 			return nil, nil, fmt.Errorf("fetching job updates: %w", err)
 		}
