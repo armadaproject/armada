@@ -1,0 +1,11 @@
+node_modules/
+
+# Temporary files
+tmp/
+*.tmp
+tmp.*
+*.tmp.*
+
+# Auto-generated files
+python-airflow-operator.md
+python-armada-client.md
