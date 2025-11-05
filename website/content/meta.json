@@ -1,0 +1,14 @@
+{
+  "root": true,
+  "pages": [
+    "index",
+    "getting-started",
+    "understanding-armada",
+    "operator-guide",
+    "user-guide",
+    "developer-guide",
+    "contribute",
+    "community",
+    "..."
+  ]
+}
