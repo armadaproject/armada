@@ -1,3 +1,4 @@
+import cspellPlugin from "@cspell/eslint-plugin"
 import eslint from "@eslint/js"
 import queryPlugin from "@tanstack/eslint-plugin-query"
 import tsParser from "@typescript-eslint/parser"
@@ -26,6 +27,7 @@ export default tseslint.config(
 
     plugins: {
       import: importPlugin,
+      "@cspell": cspellPlugin,
     },
 
     languageOptions: {
@@ -51,6 +53,52 @@ export default tseslint.config(
         "error",
         {
           endOfLine: "auto",
+        },
+      ],
+
+      "no-console": "error",
+
+      "@cspell/spellchecker": [
+        "error",
+        {
+          autoFix: true,
+          cspell: {
+            language: "en-GB",
+
+            ignoreWords: [
+              "preempted",
+              "preempted",
+              "preemptible",
+              "groupable",
+              "aggregatable",
+
+              // Use the American spelling of these words for consistency with the Armada API
+              "reprioritize",
+              "reprioritized",
+              "reprioritizing",
+              "reprioritization",
+              "reprioritizations",
+              "reprioritizable",
+
+              // Maintainers whose names may appear in comments
+              "mauriceyap",
+
+              // URL parameter keys
+              "ltta", // last transition time aggregate
+            ],
+
+            /* eslint-disable @cspell/spellchecker */
+            flagWords: [
+              // Use the American spelling of these words for consistency with the Armada API
+              "reprioritise",
+              "reprioritised",
+              "reprioritising",
+              "reprioritisation",
+              "reprioritisations",
+              "reprioritisable",
+            ],
+            /* eslint-disable @cspell/spellchecker */
+          },
         },
       ],
 

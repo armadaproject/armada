@@ -68,6 +68,7 @@
     ]
   },
   "devDependencies": {
+    "@cspell/eslint-plugin": "^9.2.2",
     "@emotion/babel-plugin": "^11.13.5",
     "@tanstack/eslint-plugin-query": "^5.62.1",
     "@testing-library/dom": "^10.4.0",
