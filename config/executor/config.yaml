@@ -90,3 +90,5 @@ kubernetes:
         reasonRegexp: ".*"
         gracePeriod: 5m
         action: Retry
+  resourcesToSanitize:
+    - "pods"

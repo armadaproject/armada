@@ -204,6 +204,7 @@ func setupExecutorApiComponents(
 		config.Kubernetes.PodDefaults,
 		config.Application.SubmitConcurrencyLimit,
 		config.Kubernetes.FatalPodSubmissionErrors,
+		config.Kubernetes.ResourcesToSanitize,
 	)
 
 	leaseRequester := service.NewJobLeaseRequester(executorApiClient, clusterContext)

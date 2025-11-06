@@ -79,6 +79,7 @@ type KubernetesConfiguration struct {
 	FailedPodChecks           podchecks.FailedChecks
 	PendingPodChecks          *podchecks.Checks
 	FatalPodSubmissionErrors  []string
+	ResourcesToSanitize       []string
 	// Minimum amount of resources marked as allocated to non-Armada pods on each node.
 	// I.e., if the total resources allocated to non-Armada pods on some node drops below this value,
 	// the executor adds a fictional allocation to make up the difference, such that the total is at least this.

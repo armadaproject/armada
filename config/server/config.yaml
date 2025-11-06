@@ -35,6 +35,7 @@ submission:
     cpu: "1"
     memory: "1Gi"
     ephemeral-storage: "8Gi"
+    pods: "1"
   defaultJobTolerations:
     - key: "armadaproject.io/armada"
       operator: "Equal"
