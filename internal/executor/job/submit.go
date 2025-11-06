@@ -162,7 +162,7 @@ func (submitService *SubmitService) sanitizePodResources(pod *v1.Pod) {
 
 	for _, c := range pod.Spec.Containers {
 		submitService.sanitizeResourceList(c.Resources.Requests)
-		submitService.sanitizeResourceList(c.Resources.Requests)
+		submitService.sanitizeResourceList(c.Resources.Limits)
 	}
 }
 

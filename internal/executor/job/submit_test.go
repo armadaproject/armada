@@ -87,7 +87,22 @@ func TestSanitizePodResources(t *testing.T) {
 	clusterContext := context.NewFakeClusterContext(testAppConfig, "kubernetes.io/hostname", []*context.NodeSpec{})
 	submitter := NewSubmitter(clusterContext, &configuration.PodDefaults{}, 1, []string{}, []string{podsResource})
 
-	resources := v1.ResourceRequirements{
+	initContainerResources := v1.ResourceRequirements{
+		Requests: v1.ResourceList{
+			v1.ResourceCPU:              resource.MustParse("100m"),
+			v1.ResourceMemory:           resource.MustParse("100Mi"),
+			v1.ResourceEphemeralStorage: resource.MustParse("100Mi"),
+			podsResource:                resource.MustParse("1"),
+		},
+		Limits: v1.ResourceList{
+			v1.ResourceCPU:              resource.MustParse("100m"),
+			v1.ResourceMemory:           resource.MustParse("100Mi"),
+			v1.ResourceEphemeralStorage: resource.MustParse("100Mi"),
+			podsResource:                resource.MustParse("1"),
+		},
+	}
+
+	containerResources := v1.ResourceRequirements{
 		Requests: v1.ResourceList{
 			v1.ResourceCPU:              resource.MustParse("100m"),
 			v1.ResourceMemory:           resource.MustParse("100Mi"),
@@ -106,12 +121,12 @@ func TestSanitizePodResources(t *testing.T) {
 		Spec: v1.PodSpec{
 			InitContainers: []v1.Container{
 				{
-					Resources: resources,
+					Resources: initContainerResources,
 				},
 			},
 			Containers: []v1.Container{
 				{
-					Resources: resources,
+					Resources: containerResources,
 				},
 			},
 		},
