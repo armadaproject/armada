@@ -20,6 +20,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/health"
 	log "github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/profiling"
+	"github.com/armadaproject/armada/internal/common/tracing"
 	api "github.com/armadaproject/armada/pkg/api/binoculars"
 )
 
@@ -38,6 +39,15 @@ func main() {
 	log.MustConfigureApplicationLogging()
 	common.BindCommandlineArguments()
 
+	// Initialize tracing
+	tracingCleanup, err := tracing.InitTracing("binoculars")
+	if err != nil {
+		log.WithError(err).Warn("Failed to initialize tracing")
+	} else {
+		log.Info("OpenTelemetry tracing initialized")
+		defer tracingCleanup()
+	}
+
 	var config configuration.BinocularsConfig
 	userSpecifiedConfigs := viper.GetStringSlice(CustomConfigLocation)
 	common.LoadConfig(&config, "./config/binoculars", userSpecifiedConfigs)
@@ -45,7 +55,7 @@ func main() {
 	log.Info("Starting...")
 
 	// Expose profiling endpoints if enabled.
-	err := profiling.SetupPprof(config.Profiling, armadacontext.Background(), nil)
+	err = profiling.SetupPprof(config.Profiling, armadacontext.Background(), nil)
 	if err != nil {
 		log.Fatalf("Pprof setup failed, exiting, %v", err)
 	}

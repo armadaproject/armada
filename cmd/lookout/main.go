@@ -14,6 +14,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/database"
 	log "github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/profiling"
+	"github.com/armadaproject/armada/internal/common/tracing"
 	"github.com/armadaproject/armada/internal/lookout"
 	"github.com/armadaproject/armada/internal/lookout/configuration"
 	"github.com/armadaproject/armada/internal/lookout/gen/restapi"
@@ -120,12 +121,21 @@ func main() {
 	log.MustConfigureApplicationLogging()
 	common.BindCommandlineArguments()
 
+	// Initialize tracing
+	tracingCleanup, err := tracing.InitTracing("lookout")
+	if err != nil {
+		log.WithError(err).Warn("Failed to initialize tracing")
+	} else {
+		log.Info("OpenTelemetry tracing initialized")
+		defer tracingCleanup()
+	}
+
 	var config configuration.LookoutConfig
 	userSpecifiedConfigs := viper.GetStringSlice(CustomConfigLocation)
 	common.LoadConfig(&config, "./config/lookout", userSpecifiedConfigs)
 
 	// Expose profiling endpoints if enabled.
-	err := profiling.SetupPprof(config.Profiling, armadacontext.Background(), nil)
+	err = profiling.SetupPprof(config.Profiling, armadacontext.Background(), nil)
 	if err != nil {
 		log.Fatalf("Pprof setup failed, exiting, %v", err)
 	}
