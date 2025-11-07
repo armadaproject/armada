@@ -33,6 +33,12 @@ export interface CustomThemeConfigs {
   defaultThemeName: string
 }
 
+export interface JobLinkConfig {
+  label: string
+  colour: string
+  linkTemplate: string
+}
+
 // This must match the UIConfig Go struct defined in internal/lookout/configuration/types.go
 export interface LookoutUiConfig {
   armadaApiBaseUrl: string
@@ -44,6 +50,7 @@ export interface LookoutUiConfig {
   oidcEnabled: boolean
   oidc: OidcConfig | undefined
   commandSpecs: CommandSpec[]
+  jobLinks: JobLinkConfig[]
   backend: string | undefined
   pinnedTimeZoneIdentifiers: string[]
   errorMonitoring: ErrorMonitoringConfig
