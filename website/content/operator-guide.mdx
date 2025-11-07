@@ -1,0 +1,460 @@
+---
+title: 'Operator Guide'
+description: 'Complete guide for platform engineers and operators - from installation to production maintenance'
+---
+
+**Complete guide for platform engineers and operators - from installation to production maintenance.**
+
+This guide covers everything you need to deploy, scale, and maintain Armada clusters in production environments. For information on using Armada to submit and manage jobs, see the [User Guide](./user-guide).
+
+## Overview
+
+As an operator, you're responsible for:
+
+- Installing and configuring Armada components
+- Setting up and managing multiple Kubernetes clusters
+- Configuring authentication and authorization
+- Monitoring system health and performance
+- Scaling components to handle workload
+- Troubleshooting issues and maintaining availability
+
+Armada consists of several components that work together:
+
+- **Armada Server**: The API server that accepts job submissions and manages queues
+- **Armada Scheduler**: Determines when and where jobs should run
+- **Armada Executor**: Runs in each Kubernetes cluster and executes jobs
+- **Lookout**: Provides job monitoring and web UI
+- **Supporting services**: Pulsar (message broker), PostgreSQL, and Redis
+
+For a detailed explanation of how these components interact, see the [Architecture documentation](./understanding-armada/architecture.mdx).
+
+## Local Installation
+
+For local development and testing, you can use [Kind](https://kind.sigs.k8s.io/) (Kubernetes in Docker) or [Minikube](https://minikube.sigs.k8s.io/).
+
+The easiest way to get started locally is using the [Armada Operator](https://github.com/armadaproject/armada-operator), which automates the entire setup process. See the [Getting Started guide](./getting-started.mdx) for step-by-step instructions.
+
+**Note:** Local installations are for development and testing only. Do not use them in production.
+
+## Production Installation
+
+### Prerequisites
+
+Before installing Armada in production, ensure you have:
+
+1. **Kubernetes cluster(s)**: At least one Kubernetes cluster for the control plane. Additional clusters can be added as worker clusters.
+
+2. **Required dependencies**:
+   - **[Apache Pulsar](https://pulsar.apache.org/)**: Message broker used by Armada components for event streaming
+   - **[PostgreSQL](https://www.postgresql.org/)**: Relational database for storing job state and metadata
+   - **[Redis](https://redis.io/)**: In-memory data store for caching and job queues
+   - **[cert-manager](https://cert-manager.io/)**: For managing TLS certificates (required for HTTPS ingress)
+   - **[gRPC-compatible ingress controller](https://github.com/kubernetes/ingress-nginx)**: For exposing Armada's gRPC API
+
+3. **Optional but recommended**:
+   - **[Prometheus](https://prometheus.io/)**: For metrics collection and monitoring
+   - **[NGINX Ingress Controller](https://kubernetes.github.io/ingress-nginx/)**: For exposing web services (Lookout UI)
+
+### Installation Methods
+
+Armada can be installed using either Helm charts or the Armada Operator. Choose the method that best fits your infrastructure:
+
+#### Using Helm Charts
+
+Helm charts provide fine-grained control over Armada deployment and are suitable for advanced configurations.
+
+1. **Set the Armada version**:
+
+   ```bash
+   export ARMADA_VERSION=v1.2.3
+   git clone https://github.com/armadaproject/armada.git --branch $ARMADA_VERSION
+   cd armada
+   ```
+
+2. **Install the Armada Server**:
+
+   ```bash
+   # Create a values file (server-values.yaml)
+   helm install armada-server ./deployment/armada \
+     --set image.tag=$ARMADA_VERSION \
+     -f server-values.yaml
+   ```
+
+3. **Install the Armada Executor** (repeat for each worker cluster):
+   ```bash
+   # Create a values file (executor-values.yaml)
+   helm install armada-executor ./deployment/armada-executor \
+     --set image.tag=$ARMADA_VERSION \
+     -f executor-values.yaml
+   ```
+
+For detailed Helm chart configuration options, see the [Helm Charts documentation](https://github.com/armadaproject/armada/tree/master/deployment).
+
+#### Using Armada Operator
+
+The Armada Operator provides a Kubernetes-native way to manage Armada deployments using Custom Resource Definitions (CRDs). This is the recommended approach for most users.
+
+1. **Install the Armada Operator**:
+
+   ```bash
+   helm repo add gresearch https://g-research.github.io/charts
+   helm install armada-operator gresearch/armada-operator \
+     --namespace armada-system \
+     --create-namespace
+   ```
+
+2. **Install dependencies**:
+
+   ```bash
+   # Install Pulsar, PostgreSQL, Redis, and Prometheus
+   make install-armada-deps  # If using the operator repository
+   ```
+
+3. **Deploy Armada components**:
+   ```bash
+   kubectl create namespace armada
+   kubectl apply -n armada -f armada-crs.yaml
+   ```
+
+For detailed Operator setup instructions, see the [Armada Operator README](https://github.com/armadaproject/armada-operator/blob/master/README.md).
+
+### Configuration
+
+#### Server Configuration
+
+The Armada Server requires configuration for:
+
+- **Redis connection**: Used for job queues and caching
+- **Pulsar connection**: Used for event streaming
+- **PostgreSQL connection**: Used for storing job metadata
+- **Authentication**: Configure authentication methods (Basic Auth, OpenID Connect, Kerberos)
+- **Ingress**: Configure hostnames and TLS certificates
+
+Example server values file:
+
+```yaml
+ingressClass: 'nginx'
+clusterIssuer: 'letsencrypt-prod'
+hostnames:
+  - 'armada.example.com'
+replicas: 3
+
+applicationConfig:
+  redis:
+    masterName: 'mymaster'
+    addrs:
+      - 'redis-ha-announce-0.default.svc.cluster.local:26379'
+      - 'redis-ha-announce-1.default.svc.cluster.local:26379'
+      - 'redis-ha-announce-2.default.svc.cluster.local:26379'
+    poolSize: 1000
+  pulsar:
+    URL: 'pulsar://pulsar-broker.default.svc.cluster.local:6650'
+  postgres:
+    connection:
+      host: 'postgresql.default.svc.cluster.local'
+      port: 5432
+      user: 'postgres'
+      dbname: 'armada'
+  auth:
+    anonymousAuth: false
+    basicAuth:
+      users:
+        'admin':
+          password: 'secure-password'
+          groups: ['administrators']
+```
+
+#### Executor Configuration
+
+Each executor must be configured with:
+
+- **Cluster ID**: Unique identifier for the cluster
+- **Server URL**: URL of the Armada Server
+- **Authentication**: Credentials for authenticating with the server
+- **Kubernetes configuration**: Settings for managing pods and nodes
+
+Example executor values file:
+
+```yaml
+applicationConfig:
+  application:
+    clusterId: 'production-cluster-1'
+  apiConnection:
+    armadaUrl: 'armada.example.com:443'
+    basicAuth:
+      username: 'executor-user'
+      password: 'executor-password'
+  kubernetes:
+    minimumPodAge: 3m
+    failedPodExpiry: 10m
+    stuckPodExpiry: 3m
+```
+
+**Note:** By default, executors run on control plane nodes. For managed Kubernetes services where you cannot access the control plane, configure the executor to run on worker nodes:
+
+```yaml
+nodeSelector: null
+tolerations: []
+```
+
+For complete configuration options, see the [Helm Charts documentation](https://github.com/armadaproject/armada/tree/master/deployment).
+
+### Authentication and Security
+
+Armada supports multiple authentication methods:
+
+#### Basic Authentication
+
+Basic authentication is simple but not recommended for production. Configure it in the server values:
+
+```yaml
+applicationConfig:
+  auth:
+    basicAuth:
+      users:
+        'user1':
+          password: 'password1'
+          groups: ['teamA']
+```
+
+#### OpenID Connect
+
+For production environments, use OpenID Connect authentication:
+
+```yaml
+applicationConfig:
+  auth:
+    openIdAuth:
+      providerUrl: 'https://cognito-idp.region.amazonaws.com/user-pool-id'
+      groupsClaim: 'cognito:groups'
+```
+
+#### Kubernetes Native Authentication
+
+For enhanced security, use Kubernetes-native authentication where executors authenticate using their service account tokens. See the [Kubernetes Native Auth implementation](https://github.com/armadaproject/armada/tree/master/pkg/client/auth/kubernetes) for setup instructions.
+
+#### Permissions
+
+Configure permissions using group mappings:
+
+```yaml
+applicationConfig:
+  auth:
+    permissionGroupMapping:
+      submit_any_jobs: ['administrators']
+      create_queue: ['administrators', 'team-leads']
+      cancel_any_jobs: ['administrators']
+      watch_all_events: ['administrators']
+      execute_jobs: ['armada-executor']
+```
+
+### Scheduling Configuration
+
+Configure scheduling behavior to optimize resource allocation:
+
+```yaml
+applicationConfig:
+  scheduling:
+    queueLeaseBatchSize: 200
+    minimumResourceToSchedule:
+      memory: 100000000 # 100MB
+      cpu: 0.25
+    maximalClusterFractionToSchedule:
+      memory: 0.25
+      cpu: 0.25
+    maximalResourceFractionPerQueue:
+      memory: 0.25
+      cpu: 0.25
+```
+
+For more details on scheduling configuration, see the [Helm Charts documentation](https://github.com/armadaproject/armada/tree/master/deployment).
+
+## Monitoring and Observability
+
+All Armada components expose metrics on `/metrics` endpoints that can be scraped by Prometheus.
+
+### Metrics Endpoints
+
+- **Server**: `:9000/metrics`
+- **Executor**: `:9001/metrics`
+- **Scheduler**: `:9000/metrics`
+- **Lookout**: `:9000/metrics`
+
+### Prometheus Integration
+
+Enable Prometheus monitoring when installing with Helm:
+
+```yaml
+prometheus:
+  enabled: true
+  labels:
+    app: armada
+  scrapeInterval: 10s
+```
+
+This creates ServiceMonitor resources that Prometheus can automatically discover and scrape.
+
+### Key Metrics to Monitor
+
+Monitor these metrics to ensure healthy operation:
+
+- **Queue metrics**: Queue size, priority, resource usage
+- **Job metrics**: Job submission rate, completion rate, failure rate
+- **Resource metrics**: Available capacity, allocated resources
+- **API metrics**: Request rates, latency (p95, p99)
+- **Executor metrics**: Active jobs, pod states, reconciliation loops
+
+### Logging
+
+All components log to stdout and stderr. Use your Kubernetes logging solution (e.g., Fluentd, Loki) to collect and analyze logs.
+
+Check component health using:
+
+```bash
+# Check pod status
+kubectl get pods -n armada
+
+# View logs
+kubectl logs -n armada deployment/armada-server
+kubectl logs -n armada deployment/armada-executor
+
+# Check events
+kubectl get events -n armada --sort-by='.lastTimestamp'
+```
+
+## Scaling and High Availability
+
+### Scaling Components
+
+#### Server Scaling
+
+Scale the server horizontally by increasing replicas:
+
+```yaml
+replicas: 3
+```
+
+The server is stateless and can be scaled horizontally. Use a load balancer in front of multiple server instances.
+
+#### Executor Scaling
+
+Each executor manages one Kubernetes cluster. To add more clusters:
+
+1. Install a new executor in the target cluster
+2. Configure it with a unique `clusterId`
+3. Ensure it can reach the Armada Server
+
+#### Database Scaling
+
+For high-availability deployments:
+
+- **PostgreSQL**: Use a managed PostgreSQL service with automatic failover or set up PostgreSQL replication
+- **Redis**: Use Redis HA (High Availability) with sentinel or a managed Redis service
+- **Pulsar**: Use Pulsar with multiple brokers for high availability
+
+### Resource Limits
+
+Configure resource limits to prevent any single queue from consuming all resources:
+
+```yaml
+applicationConfig:
+  scheduling:
+    maximalResourceFractionPerQueue:
+      memory: 0.25
+      cpu: 0.25
+    maximalResourceFractionToSchedulePerQueue:
+      memory: 0.05
+      cpu: 0.05
+```
+
+This ensures fair resource distribution across queues.
+
+### High Availability Best Practices
+
+1. **Multiple server replicas**: Run at least 3 server replicas for redundancy
+2. **Database backups**: Regularly backup PostgreSQL and ensure point-in-time recovery
+3. **Pulsar persistence**: Configure Pulsar with persistent storage and replication
+4. **Health checks**: Configure Kubernetes liveness and readiness probes
+5. **Graceful shutdown**: Ensure proper termination grace periods for components
+
+## Troubleshooting
+
+### Common Issues
+
+#### Jobs Not Scheduling
+
+1. **Check executor connectivity**: Verify executors can reach the server
+
+   ```bash
+   kubectl logs -n armada deployment/armada-executor | grep -i error
+   ```
+
+2. **Check queue configuration**: Ensure queues exist and have valid priority factors
+
+   ```bash
+   armadactl get queues
+   ```
+
+3. **Check resource availability**: Verify clusters have available resources
+
+   ```bash
+   kubectl top nodes
+   ```
+
+4. **Check scheduler logs**: Look for scheduling errors
+   ```bash
+   kubectl logs -n armada deployment/armada-scheduler
+   ```
+
+#### Executor Not Receiving Jobs
+
+1. **Verify authentication**: Check executor credentials are correct
+2. **Check cluster ID**: Ensure cluster ID is unique and matches server configuration
+3. **Check network connectivity**: Verify executor can reach the server endpoint
+4. **Review executor logs**: Look for authentication or connection errors
+
+#### Database Connection Issues
+
+1. **Check connection strings**: Verify PostgreSQL connection settings
+2. **Check network policies**: Ensure pods can reach the database
+3. **Check database status**: Verify PostgreSQL is running and accessible
+4. **Review connection pool settings**: Adjust pool size if needed
+
+#### Performance Issues
+
+1. **Monitor metrics**: Check Prometheus metrics for bottlenecks
+2. **Review scheduling configuration**: Adjust `queueLeaseBatchSize` and other parameters
+3. **Check database performance**: Monitor PostgreSQL query performance
+4. **Review Pulsar throughput**: Ensure message broker can handle load
+
+### Debugging Tips
+
+1. **Enable verbose logging**: Increase log levels in component configuration
+2. **Use kubectl describe**: Inspect pod events and conditions
+   ```bash
+   kubectl describe pod -n armada <pod-name>
+   ```
+3. **Check resource usage**: Monitor CPU and memory usage
+   ```bash
+   kubectl top pods -n armada
+   ```
+4. **Review configuration**: Validate YAML configurations
+   ```bash
+   kubectl get configmap -n armada -o yaml
+   ```
+
+### Getting Help
+
+If you encounter issues not covered here:
+
+- **GitHub Issues**: Report bugs and request features at [github.com/armadaproject/armada/issues](https://github.com/armadaproject/armada/issues)
+- **Community Slack**: Join discussions on [CNCF Slack](https://cloud-native.slack.com/?redir=%2Farchives%2FC03T9CBCEMC)
+- **Documentation**: Check the [Architecture documentation](./understanding-armada/architecture.mdx) for system design details
+
+## Additional Resources
+
+- [Architecture Overview](./understanding-armada/architecture.mdx) - Understand how Armada components work
+- [User Guide](./user-guide) - Learn how to submit and manage jobs
+- [Armada Operator](https://github.com/armadaproject/armada-operator) - Kubernetes-native deployment option
+- [Helm Charts Documentation](https://github.com/armadaproject/armada/tree/master/deployment) - Detailed Helm configuration reference
+- [GitHub Repository](https://github.com/armadaproject/armada) - Source code and issue tracker
