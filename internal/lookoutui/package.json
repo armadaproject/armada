@@ -71,10 +71,10 @@
     "@cspell/eslint-plugin": "^9.2.2",
     "@emotion/babel-plugin": "^11.13.5",
     "@tanstack/eslint-plugin-query": "^5.62.1",
-    "@testing-library/dom": "^10.4.0",
-    "@testing-library/jest-dom": "^6.6.3",
-    "@testing-library/react": "^16.1.0",
-    "@testing-library/user-event": "^14.5.2",
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.0",
+    "@testing-library/user-event": "^14.6.1",
     "@types/js-yaml": "^4.0.0",
     "@types/lodash": "^4.17.13",
     "@types/node": "^22.12.0",
@@ -83,7 +83,7 @@
     "@types/react-dom": "^19",
     "@types/validator": "^13.7.3",
     "@typescript-eslint/parser": "^8.18.0",
-    "@vitejs/plugin-react": "^4.6.0",
+    "@vitejs/plugin-react": "^5.1.0",
     "eslint": "^9.17.0",
     "eslint-config-prettier": "^10.1.5",
     "eslint-plugin-import": "^2.31.0",
@@ -95,7 +95,7 @@
     "typescript": "^5.8.2",
     "typescript-eslint": "^8.35.1",
     "vite": "^7.0.0",
-    "vitest": "^3.2.4"
+    "vitest": "^4.0.7"
   },
   "resolutions": {
     "@types/react": "^19",

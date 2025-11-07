@@ -1,8 +1,9 @@
 import { ReactNode, RefObject, useCallback } from "react"
 
-import { KeyboardArrowRight, KeyboardArrowDown } from "@mui/icons-material"
-import { TableCell, IconButton, TableSortLabel, Box, styled, Typography } from "@mui/material"
+import { KeyboardArrowRight, KeyboardArrowDown, OpenInNew } from "@mui/icons-material"
+import { TableCell, IconButton, TableSortLabel, Box, styled, Typography, Link } from "@mui/material"
 import { Cell, ColumnResizeMode, flexRender, Header, Row } from "@tanstack/react-table"
+import validator from "validator"
 
 import {
   ColumnId,
@@ -335,35 +336,51 @@ export const BodyCell = ({
       })
     }
 
+    const value = cell.getValue()
+
+    const isAnnotation = !isStandardColId(cell.getContext().column.id)
+    const renderedValue =
+      isAnnotation && typeof value === "string" && validator.isURL(value) ? (
+        <Link href={value} target="_blank">
+          {flexRender(cell.column.columnDef.cell, {
+            ...cell.getContext(),
+            onClickRowCheckbox,
+          })}
+          <OpenInNew fontSize="inherit" />
+        </Link>
+      ) : (
+        <span>
+          {flexRender(cell.column.columnDef.cell, {
+            ...cell.getContext(),
+            onClickRowCheckbox,
+          })}
+        </span>
+      )
+
     return (
       <ActionableValueOnHover
         stopPropagationOnActionClick
         copyAction={
-          !rowIsGroup && Boolean(cell.getValue()) && columnMetadata.allowCopy
-            ? { copyContent: String(cell.getValue()) }
-            : undefined
+          !rowIsGroup && Boolean(value) && columnMetadata.allowCopy ? { copyContent: String(value) } : undefined
         }
         filterAction={
           rowIsGroup ||
-          !cell.getValue() ||
+          !value ||
           (columnMetadata.filterType !== FilterType.Enum && columnMetadata.filterType !== FilterType.Text)
             ? undefined
             : {
                 onFilter: () => {
                   if (cell.column.id === StandardColumnId.Queue || columnMetadata.filterType === FilterType.Enum) {
-                    cell.column.setFilterValue([cell.getValue()])
+                    cell.column.setFilterValue([value])
                   } else {
                     onColumnMatchChange(cell.column.id, Match.Exact)
-                    cell.column.setFilterValue(cell.getValue())
+                    cell.column.setFilterValue(value)
                   }
                 },
               }
         }
       >
-        {flexRender(cell.column.columnDef.cell, {
-          ...cell.getContext(),
-          onClickRowCheckbox,
-        })}
+        {renderedValue}
       </ActionableValueOnHover>
     )
   })()
