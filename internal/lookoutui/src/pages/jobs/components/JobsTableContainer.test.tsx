@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event"
 import { SnackbarProvider } from "notistack"
 import { createMemoryRouter, RouterProvider } from "react-router-dom"
 import { v4 as uuidv4 } from "uuid"
+import { vi } from "vitest"
 
 import { queryClient } from "../../../app/App"
 import { Job, JobState } from "../../../models/lookoutModels"
@@ -26,11 +27,22 @@ import { JobsTableContainer } from "./JobsTableContainer"
 
 const mockServer = new MockServer()
 
-const intersectionObserverMock = () => ({
-  observe: () => null,
-  disconnect: () => null,
+const IntersectionObserverMock = vi.fn(function () {
+  return {
+    disconnect: vi.fn().mockImplementation(function () {
+      return null
+    }),
+    observe: vi.fn().mockImplementation(function () {
+      return null
+    }),
+    takeRecords: vi.fn().mockImplementation(function () {
+      return null
+    }),
+    unobserve: vi.fn().mockImplementation(function () {
+      return null
+    }),
+  }
 })
-window.IntersectionObserver = vi.fn().mockImplementation(intersectionObserverMock)
 
 vi.setConfig({
   // This is quite a heavy component, and tests can timeout on a slower machine
@@ -73,6 +85,7 @@ describe("JobsTableContainer", () => {
 
   beforeAll(() => {
     mockServer.listen()
+    vi.stubGlobal("IntersectionObserver", IntersectionObserverMock)
   })
 
   beforeEach(() => {
@@ -92,6 +105,7 @@ describe("JobsTableContainer", () => {
 
   afterAll(() => {
     mockServer.close()
+    vi.unstubAllGlobals()
   })
 
   const renderComponent = (
