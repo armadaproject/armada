@@ -52,6 +52,13 @@ const envSchema = z.object({
     .string()
     .transform((value) => extractOwnerAndRepo(value).repositoryName)
     .optional(),
+  googleAnalyticsId: z
+    .string()
+    .refine(
+      (value) => !value || /^G-[A-Z0-9]{4,}$/.test(value),
+      `Invalid Google Analytics ID, it should be in the format 'G-XXXX'`
+    )
+    .optional(),
 });
 
 export default envSchema.parse({
@@ -59,4 +66,5 @@ export default envSchema.parse({
   repositoryUrl: process.env.NEXT_PUBLIC_REPOSITORY_URL,
   repositoryOwner: process.env.NEXT_PUBLIC_REPOSITORY_URL,
   repositoryName: process.env.NEXT_PUBLIC_REPOSITORY_URL,
+  googleAnalyticsId: process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID,
 });

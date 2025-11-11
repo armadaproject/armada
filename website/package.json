@@ -24,6 +24,7 @@
     "spell:check": "cspell lint"
   },
   "dependencies": {
+    "@next/third-parties": "^16.0.1",
     "fumadocs-core": "15.5.5",
     "fumadocs-mdx": "11.6.9",
     "fumadocs-ui": "15.5.5",
