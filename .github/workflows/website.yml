@@ -91,6 +91,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NEXT_PUBLIC_REPOSITORY_URL: ${{ env.NEXT_PUBLIC_REPOSITORY_URL }}
           NEXT_PUBLIC_BASE_PATH: ${{ env.NEXT_PUBLIC_BASE_PATH }}
+          NEXT_PUBLIC_GOOGLE_ANALYTICS_ID: ${{ vars.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID }}
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
