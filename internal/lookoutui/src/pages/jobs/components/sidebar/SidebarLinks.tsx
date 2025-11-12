@@ -1,3 +1,5 @@
+import { useMemo } from "react"
+
 import { Link } from "@mui/icons-material"
 import { Stack, Chip, alpha, styled } from "@mui/material"
 import { blend } from "@mui/system"
@@ -6,6 +8,7 @@ import { template } from "lodash"
 import { SPACING } from "../../../../common/spacing"
 import { getConfig } from "../../../../config"
 import { Job } from "../../../../models/lookoutModels"
+import { useGetJobSpec } from "../../../../services/lookout/useGetJobSpec"
 
 const LinkChip = styled(Chip<"a">)<{ linkChipColour: string }>(({ theme, linkChipColour }) => ({
   backgroundColor: linkChipColour,
@@ -59,7 +62,16 @@ export interface SidebarLinksProps {
 }
 
 export const SidebarLinks = ({ job }: SidebarLinksProps) => {
-  const linksForJob = getJobLinks(job)
+  // The Lookout ingester may be configured to filter out annotation. We therefore
+  // merge in the annotations present in the job spec on a best-effort basis.
+  const { status, data } = useGetJobSpec(job.jobId, Boolean(job.jobId))
+  const linksForJob = useMemo(() => {
+    if (status === "success") {
+      const mergedJob: Job = { ...job, annotations: { ...job.annotations, ...(data.annotations ?? {}) } }
+      return getJobLinks(mergedJob)
+    }
+    return getJobLinks(job)
+  }, [job, data])
 
   if (linksForJob.length === 0) {
     return null
