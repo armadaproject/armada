@@ -71,6 +71,7 @@ export default tseslint.config(
               "preemptible",
               "groupable",
               "aggregatable",
+              "ingester",
 
               // Use the American spelling of these words for consistency with the Armada API
               "reprioritize",
