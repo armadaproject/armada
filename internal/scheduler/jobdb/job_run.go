@@ -28,8 +28,11 @@ type JobRun struct {
 	// Identifies the node within the target executor cluster.
 	nodeName string
 	// The pool this run was scheduled to
-	// This will retrieved from the node at the time of scheduling
+	// This will be retrieved from the node at the time of scheduling
 	pool string
+	// The reservation this run was scheduled using
+	// This will be retrieved from the node at the time of scheduling
+	reservation string
 	// Priority class priority that this job was scheduled at.
 	scheduledAtPriority *int32
 	// True if the run has been reported as pending by the executor.
@@ -293,6 +296,11 @@ func (run *JobRun) NodeId() string {
 // Pool returns the pool this JobRun was scheduled on.
 func (run *JobRun) Pool() string {
 	return run.pool
+}
+
+// Reservation returns the reservation this JobRun was scheduled on.
+func (run *JobRun) Reservation() string {
+	return run.reservation
 }
 
 // WithPool returns a copy of the job run with the pool updated

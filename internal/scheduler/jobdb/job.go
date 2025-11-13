@@ -83,6 +83,8 @@ type Job struct {
 	bidPricesPool map[string]pricing.Bid
 	// Gang information for this job
 	gangInfo GangInfo
+	// The reservations this job matches
+	reservations map[string]bool
 }
 
 func (job *Job) String() string {
@@ -449,6 +451,10 @@ func (job *Job) getBidPrice(pool string) float64 {
 		return bidPrice.QueuedBid
 	}
 	return bidPrice.RunningBid
+}
+
+func (job *Job) MatchesReservation(reservation string) bool {
+	return job.reservations[reservation]
 }
 
 // GetAllBidPrices

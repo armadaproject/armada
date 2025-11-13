@@ -14,6 +14,7 @@ import (
 	resource "k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/utils/clock"
 
+	"github.com/armadaproject/armada/internal/common/constants"
 	log "github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/types"
@@ -209,6 +210,15 @@ func (jobDb *JobDb) NewJob(
 		return nil, err
 	}
 
+	reservations := map[string]bool{}
+	if schedulingInfo.PodRequirements != nil {
+		for _, toleration := range schedulingInfo.PodRequirements.Tolerations {
+			if toleration.Key == constants.ReservationTaintKey {
+				reservations[toleration.Value] = true
+			}
+		}
+	}
+
 	job := &Job{
 		jobDb:                          jobDb,
 		id:                             jobId,
@@ -231,6 +241,7 @@ func (jobDb *JobDb) NewJob(
 		pools:                          jobDb.internPools(pools),
 		priceBand:                      pb,
 		gangInfo:                       *gangInfo,
+		reservations:                   reservations,
 	}
 	job.ensureJobSchedulingInfoFieldsInitialised()
 	job.schedulingKey = SchedulingKeyFromJob(jobDb.schedulingKeyGenerator, job)

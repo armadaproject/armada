@@ -8,11 +8,11 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
+	"github.com/armadaproject/armada/internal/common/constants"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
-	"github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/controlplaneevents"
 )
@@ -92,17 +92,17 @@ var Submit = &armadaevents.EventSequence_Event{
 				Namespace: Namespace,
 				Name:      "test-job",
 				Annotations: map[string]string{
-					"foo":                            "bar",
-					configuration.FailFastAnnotation: "true",
-					configuration.JobPriceBand:       "A",
+					"foo":                        "bar",
+					constants.FailFastAnnotation: "true",
+					constants.JobPriceBand:       "A",
 				},
 			},
 			MainObject: &armadaevents.KubernetesMainObject{
 				ObjectMeta: &armadaevents.ObjectMeta{
 					Annotations: map[string]string{
-						"foo":                            "bar",
-						configuration.FailFastAnnotation: "true",
-						configuration.JobPriceBand:       "A",
+						"foo":                        "bar",
+						constants.FailFastAnnotation: "true",
+						constants.JobPriceBand:       "A",
 					},
 				},
 				Object: &armadaevents.KubernetesMainObject_PodSpec{
@@ -150,21 +150,21 @@ var SubmitWithIrrelevantAnnotations = &armadaevents.EventSequence_Event{
 				Namespace: Namespace,
 				Name:      "test-job",
 				Annotations: map[string]string{
-					"foo":                            "bar",
-					"fizz":                           "buzz",
-					"buzz":                           "fizz",
-					configuration.FailFastAnnotation: "true",
-					configuration.JobPriceBand:       "A",
+					"foo":                        "bar",
+					"fizz":                       "buzz",
+					"buzz":                       "fizz",
+					constants.FailFastAnnotation: "true",
+					constants.JobPriceBand:       "A",
 				},
 			},
 			MainObject: &armadaevents.KubernetesMainObject{
 				ObjectMeta: &armadaevents.ObjectMeta{
 					Annotations: map[string]string{
-						"foo":                            "bar",
-						"fizz":                           "buzz",
-						"buzz":                           "fizz",
-						configuration.FailFastAnnotation: "true",
-						configuration.JobPriceBand:       "A",
+						"foo":                        "bar",
+						"fizz":                       "buzz",
+						"buzz":                       "fizz",
+						constants.FailFastAnnotation: "true",
+						constants.JobPriceBand:       "A",
 					},
 				},
 				Object: &armadaevents.KubernetesMainObject_PodSpec{

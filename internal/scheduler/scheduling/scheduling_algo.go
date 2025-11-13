@@ -142,6 +142,10 @@ func (l *FairSchedulingAlgo) Schedule(
 			continue
 		}
 
+		if pool.DisableAwayScheduling {
+			fsctx.nodeDb.DisableHomeAwayScheduling()
+		}
+
 		start := time.Now()
 		resourceUnit, ok := resourceUnits[pool.Name]
 		if !ok {

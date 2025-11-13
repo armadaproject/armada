@@ -376,6 +376,8 @@ func Run(config schedulerconfig.Configuration) error {
 		return errors.WithStack(err)
 	}
 
+	runReconciler := NewRunNodeReconciler(config.Scheduling.Pools, executorRepository)
+
 	scheduler, err := NewScheduler(
 		jobDb,
 		jobRepository,
@@ -394,6 +396,7 @@ func Run(config schedulerconfig.Configuration) error {
 		schedulerMetrics,
 		bidPriceProvider,
 		marketDrivenPools,
+		runReconciler,
 	)
 	if err != nil {
 		return errors.WithMessage(err, "error creating scheduler")

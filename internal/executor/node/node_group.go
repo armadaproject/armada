@@ -35,6 +35,8 @@ func NewKubernetesNodeInfoService(
 	nodePoolLabel string,
 	toleratedTaints []string,
 ) *KubernetesNodeInfoService {
+
+	//TODO always tolerate reserved node taint/labels
 	return &KubernetesNodeInfoService{
 		clusterContext:  clusterContext,
 		nodePoolLabel:   nodePoolLabel,
@@ -78,6 +80,11 @@ func (kubernetesNodeInfoService *KubernetesNodeInfoService) GetPool(node *v1.Nod
 
 	if labelValue, ok := node.Labels[kubernetesNodeInfoService.nodePoolLabel]; ok {
 		nodePool = labelValue
+	}
+
+	// TODO make this functionality optional/configurable
+	if util.GetReservationKey(node.Spec.Taints) != "" {
+		nodePool += "-reserved"
 	}
 
 	return nodePool
