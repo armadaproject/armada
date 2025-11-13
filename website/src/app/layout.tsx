@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import type { Metadata } from 'next';
 import { Geist } from 'next/font/google';
+import { GoogleAnalytics } from '@next/third-parties/google';
 import { RootProvider } from 'fumadocs-ui/provider';
 import 'katex/dist/katex.min.css';
 import { cn } from '@/utils/cn';
@@ -31,6 +32,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           {children}
         </RootProvider>
       </body>
+      {env.googleAnalyticsId && (
+        <GoogleAnalytics gaId={env.googleAnalyticsId} />
+      )}
     </html>
   );
 }
