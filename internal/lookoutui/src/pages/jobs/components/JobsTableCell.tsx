@@ -359,7 +359,7 @@ export const BodyCell = ({
 
     return (
       <ActionableValueOnHover
-        stopPropogationOnActionClick
+        stopPropagationOnActionClick
         copyAction={
           !rowIsGroup && Boolean(value) && columnMetadata.allowCopy ? { copyContent: String(value) } : undefined
         }

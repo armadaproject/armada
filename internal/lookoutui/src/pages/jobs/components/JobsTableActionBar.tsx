@@ -15,7 +15,7 @@ import { ColumnConfigurationDialog } from "./ColumnConfigurationDialog"
 import { CustomViewPicker } from "./CustomViewPicker"
 import GroupBySelect from "./GroupBySelect"
 import styles from "./JobsTableActionBar.module.css"
-import { ReprioritiseDialog } from "./ReprioritiseDialog"
+import { ReprioritizeDialog } from "./ReprioritizeDialog"
 
 export interface JobsTableActionBarProps {
   isLoading: boolean
@@ -83,7 +83,7 @@ export const JobsTableActionBar = memo(
   }: JobsTableActionBarProps) => {
     const [columnConfigurationDialogOpen, setColumnConfigurationDialogOpen] = useState(false)
     const [cancelDialogOpen, setCancelDialogOpen] = useState(false)
-    const [reprioritiseDialogOpen, setReprioritiseDialogOpen] = useState(false)
+    const [reprioritizeDialogOpen, setReprioritizeDialogOpen] = useState(false)
 
     const numberSelectedColumns = useMemo(() => {
       const visibleColumnsSet = new Set(visibleColumns)
@@ -97,7 +97,7 @@ export const JobsTableActionBar = memo(
 
     const columnConfigurationDialogOpenOnClose = useCallback(() => setColumnConfigurationDialogOpen(false), [])
     const cancelDialogOnClose = useCallback(() => setCancelDialogOpen(false), [])
-    const reprioritiseDialogOnClose = useCallback(() => setReprioritiseDialogOpen(false), [])
+    const reprioritizeDialogOnClose = useCallback(() => setReprioritizeDialogOpen(false), [])
     return (
       <div className={styles.actionBar}>
         <ColumnConfigurationDialog
@@ -123,9 +123,9 @@ export const JobsTableActionBar = memo(
             updateJobsService={updateJobsService}
           />
         )}
-        {reprioritiseDialogOpen && (
-          <ReprioritiseDialog
-            onClose={reprioritiseDialogOnClose}
+        {reprioritizeDialogOpen && (
+          <ReprioritizeDialog
+            onClose={reprioritizeDialogOnClose}
             selectedItemFilters={selectedItemFilters}
             getJobsService={getJobsService}
             updateJobsService={updateJobsService}
@@ -212,7 +212,7 @@ export const JobsTableActionBar = memo(
             <Button
               variant="contained"
               disabled={numSelectedItems === 0}
-              onClick={() => setReprioritiseDialogOpen(true)}
+              onClick={() => setReprioritizeDialogOpen(true)}
             >
               Reprioritize selected
             </Button>

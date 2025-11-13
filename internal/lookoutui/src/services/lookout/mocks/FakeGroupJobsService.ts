@@ -102,6 +102,7 @@ function groupBy(jobs: Job[], groupedField: GroupedField, aggregates: string[]):
           break
         }
         default: {
+          // eslint-disable-next-line no-console
           console.error(`aggregate type not found: ${aggregateField.aggregateType}`)
           break
         }
@@ -129,6 +130,7 @@ function comparator(order: JobOrder): (a: JobGroup, b: JobGroup) => number {
     const valueA = accessor(a)
     const valueB = accessor(b)
     if (valueA === undefined || valueB === undefined) {
+      // eslint-disable-next-line no-console
       console.error(`group accessor for field ${order.field} is undefined`, { a, b })
       return 0
     }

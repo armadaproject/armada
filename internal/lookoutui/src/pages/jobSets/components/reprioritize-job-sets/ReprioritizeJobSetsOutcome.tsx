@@ -71,7 +71,7 @@ export default function ReprioritizeJobSetsOutcome({
               </TableBody>
             </Table>
           </TableContainer>
-          <div className="lookout-dialog-centered lookout-dialog-fixed">
+          <div className="lookout-dialog-centred lookout-dialog-fixed">
             <Button loading={isLoading} variant="contained" onClick={onReprioritizeJobSets}>
               Retry - New priority: {newPriority}
             </Button>
