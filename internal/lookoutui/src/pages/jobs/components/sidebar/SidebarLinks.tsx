@@ -29,9 +29,9 @@ interface JobLink {
   href: string
 }
 
-const getJobLinks = (job: Job): JobLink[] => {
+const getJobLinks = (mergedJob: Record<string, any>): JobLink[] => {
   // Template links using all job annotation keys, plus all job annotation keys prepended with userAnnotationPrefix
-  const templateContext = { ...job, annotations: { ...job.annotations } }
+  const templateContext = { ...mergedJob, annotations: { ...mergedJob.annotations } }
   Object.entries(templateContext.annotations).forEach(([k, v]) => {
     templateContext.annotations[userAnnotationPrefix + k] = v
   })
@@ -62,13 +62,11 @@ export interface SidebarLinksProps {
 }
 
 export const SidebarLinks = ({ job }: SidebarLinksProps) => {
-  // The Lookout ingester may be configured to filter out annotation. We therefore
-  // merge in the annotations present in the job spec on a best-effort basis.
+  // Merge the job and the job spec objects to create the template context for job links
   const { status, data } = useGetJobSpec(job.jobId, Boolean(job.jobId))
   const linksForJob = useMemo(() => {
     if (status === "success") {
-      const mergedJob: Job = { ...job, annotations: { ...job.annotations, ...(data.annotations ?? {}) } }
-      return getJobLinks(mergedJob)
+      return getJobLinks({ ...job, ...data, annotations: { ...job.annotations, ...(data.annotations ?? {}) } })
     }
     return getJobLinks(job)
   }, [job, data])
