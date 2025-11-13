@@ -171,7 +171,8 @@ type Node struct {
 	// The pool that this node belongs to, this is used for scheduling purposes
 	Pool                        string               `protobuf:"bytes,18,opt,name=pool,proto3" json:"pool,omitempty"`
 	ResourceUsageByQueueAndPool []*PoolQueueResource `protobuf:"bytes,20,rep,name=resource_usage_by_queue_and_pool,json=resourceUsageByQueueAndPool,proto3" json:"resourceUsageByQueueAndPool,omitempty"`
-	Reservation                 string               `protobuf:"bytes,21,opt,name=reservation,proto3" json:"reservation,omitempty"`
+	// The name of the reservation for this node, will be empty if this node is not reserved
+	Reservation string `protobuf:"bytes,21,opt,name=reservation,proto3" json:"reservation,omitempty"`
 }
 
 func (m *Node) Reset()         { *m = Node{} }
