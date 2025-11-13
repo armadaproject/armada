@@ -1,5 +1,5 @@
 import { isString } from "lodash"
-import { v4 as uuidv4 } from "uuid"
+import { v4 as uuidV4 } from "uuid"
 
 import { Job, JobFilter, JobKey, JobRun, JobRunState, JobState, Match, SortDirection } from "../models/lookoutModels"
 
@@ -19,7 +19,7 @@ export function mulberry32(a: number): () => number {
 
 export function seededUuid(rand: () => number): () => string {
   return () =>
-    uuidv4({
+    uuidV4({
       rng: () => {
         const floatArray = new Float32Array(4)
         floatArray[0] = rand()
@@ -145,6 +145,7 @@ export function filterFn(filter: JobFilter): (job: Job) => boolean {
 
     if (!Object.prototype.hasOwnProperty.call(objectToFilter, filter.field)) {
       if (filter.isAnnotation === undefined || !filter.isAnnotation) {
+        // eslint-disable-next-line no-console
         console.error(`Unknown filter field provided: ${JSON.stringify(filter)}`)
       }
       return false
@@ -173,6 +174,7 @@ export function getMatch(match: Match): (a: any, b: any) => boolean {
     case "anyOf":
       return (a, b) => b.includes(a)
     default:
+      // eslint-disable-next-line no-console
       console.error(`Unknown match: ${match}`)
       return () => false
   }

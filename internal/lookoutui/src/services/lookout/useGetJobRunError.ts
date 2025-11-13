@@ -13,9 +13,6 @@ const getQueryFn =
   async ({ signal }) => {
     try {
       if (fakeDataEnabled) {
-        if (runId === "doesnotexist") {
-          throw new Error("Failed to retrieve job run because of reasons")
-        }
         return fakeRunError
       }
 

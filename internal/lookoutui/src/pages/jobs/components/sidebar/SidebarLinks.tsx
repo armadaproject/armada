@@ -30,7 +30,7 @@ interface JobLink {
 }
 
 const getJobLinks = (job: Job): JobLink[] => {
-  // Template links using all job annoation keys, plus all job annotation keys prepended with userAnnotationPrefix
+  // Template links using all job annotation keys, plus all job annotation keys prepended with userAnnotationPrefix
   const templateContext = { ...job, annotations: { ...job.annotations } }
   Object.entries(templateContext.annotations).forEach(([k, v]) => {
     templateContext.annotations[userAnnotationPrefix + k] = v

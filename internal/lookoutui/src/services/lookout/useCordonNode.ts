@@ -18,7 +18,6 @@ export const useCordonNode = () => {
     mutationFn: async ({ node, cluster }: CordonNodeVariables) => {
       if (config.fakeDataEnabled) {
         await new Promise((r) => setTimeout(r, 1_000))
-        console.log(`Cordoned node ${node} in cluster ${cluster}`)
         return {}
       }
 

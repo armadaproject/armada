@@ -15,7 +15,7 @@ import _ from "lodash"
 import { ErrorBoundary } from "react-error-boundary"
 
 import { getUniqueJobsMatchingFilters } from "../../../common/jobsDialogUtils"
-import { waitMillis } from "../../../common/utils"
+import { waitMs } from "../../../common/utils"
 import { AlertErrorFallback } from "../../../components/AlertErrorFallback"
 import { useFormatNumberWithUserSettings } from "../../../components/hooks/formatNumberWithUserSettings"
 import { useFormatIsoTimestampWithUserSettings } from "../../../components/hooks/formatTimeWithUserSettings"
@@ -28,31 +28,31 @@ import { UpdateJobsService } from "../../../services/lookout/UpdateJobsService"
 import dialogStyles from "./DialogStyles.module.css"
 import { JobStatusTable } from "./JobStatusTable"
 
-interface ReprioritiseDialogProps {
+interface ReprioritizeDialogProps {
   onClose: () => void
   selectedItemFilters: JobFiltersWithExcludes[]
   getJobsService: IGetJobsService
   updateJobsService: UpdateJobsService
 }
 
-export const ReprioritiseDialog = ({
+export const ReprioritizeDialog = ({
   onClose,
   selectedItemFilters,
   getJobsService,
   updateJobsService,
-}: ReprioritiseDialogProps) => {
+}: ReprioritizeDialogProps) => {
   const mounted = useRef(false)
   // State
   const [isLoadingJobs, setIsLoadingJobs] = useState(true)
   const [selectedJobs, setSelectedJobs] = useState<Job[]>([])
-  const [jobIdsToReprioritiseResponses, setJobIdsToReprioritiseResponses] = useState<Record<JobId, string>>({})
-  const reprioritisableJobs = useMemo(
+  const [jobIdsToReprioritizeResponses, setJobIdsToReprioritizeResponses] = useState<Record<JobId, string>>({})
+  const reprioritizableJobs = useMemo(
     () => selectedJobs.filter((job) => !isTerminatedJobState(job.state)),
     [selectedJobs],
   )
   const [newPriority, setNewPriority] = useState<number | undefined>(undefined)
-  const [isReprioritising, setIsReprioritising] = useState(false)
-  const [hasAttemptedReprioritise, setHasAttemptedReprioritise] = useState(false)
+  const [isReprioritizing, setIsReprioritizing] = useState(false)
+  const [hasAttemptedReprioritize, setHasAttemptedReprioritize] = useState(false)
   const openSnackbar = useCustomSnackbar()
 
   const formatIsoTimestamp = useFormatIsoTimestampWithUserSettings()
@@ -69,13 +69,13 @@ export const ReprioritiseDialog = ({
 
     setIsLoadingJobs(true)
 
-    const uniqueJobsToReprioritise = await getUniqueJobsMatchingFilters(
+    const uniqueJobsToReprioritize = await getUniqueJobsMatchingFilters(
       authenticatedFetch,
       selectedItemFilters,
       false,
       getJobsService,
     )
-    const sortedJobs = _.orderBy(uniqueJobsToReprioritise, (job) => job.jobId, "desc")
+    const sortedJobs = _.orderBy(uniqueJobsToReprioritize, (job) => job.jobId, "desc")
 
     if (!mounted.current) {
       return
@@ -85,39 +85,40 @@ export const ReprioritiseDialog = ({
     setIsLoadingJobs(false)
   }, [selectedItemFilters, getJobsService])
 
-  const reprioritiseJobs = useCallback(async () => {
+  const reprioritizeJobs = useCallback(async () => {
     if (newPriority === undefined) {
       return
     }
 
-    setIsReprioritising(true)
+    setIsReprioritizing(true)
 
     const accessToken = await getAccessToken()
-    const response = await updateJobsService.reprioritiseJobs(reprioritisableJobs, newPriority, accessToken)
+    const response = await updateJobsService.reprioritizeJobs(reprioritizableJobs, newPriority, accessToken)
 
     if (response.failedJobIds.length === 0) {
       openSnackbar(
-        "Successfully changed priority. Jobs may take some time to reprioritise, but you may navigate away.",
+        "Successfully changed priority. Jobs may take some time to reprioritize, but you may navigate away.",
         "success",
       )
     } else if (response.successfulJobIds.length === 0) {
-      openSnackbar("All jobs failed to reprioritise. See table for error responses.", "error")
+      openSnackbar("All jobs failed to reprioritize. See table for error responses.", "error")
     } else {
-      openSnackbar("Some jobs failed to reprioritise. See table for error responses.", "warning")
+      openSnackbar("Some jobs failed to reprioritize. See table for error responses.", "warning")
     }
 
-    const newResponseStatus = { ...jobIdsToReprioritiseResponses }
+    const newResponseStatus = { ...jobIdsToReprioritizeResponses }
     response.successfulJobIds.map((jobId) => (newResponseStatus[jobId] = "Success"))
     response.failedJobIds.map(({ jobId, errorReason }) => (newResponseStatus[jobId] = errorReason))
 
-    setJobIdsToReprioritiseResponses(newResponseStatus)
-    setHasAttemptedReprioritise(true)
-    setIsReprioritising(false)
-  }, [newPriority, reprioritisableJobs, jobIdsToReprioritiseResponses])
+    setJobIdsToReprioritizeResponses(newResponseStatus)
+    setHasAttemptedReprioritize(true)
+    setIsReprioritizing(false)
+  }, [newPriority, reprioritizableJobs, jobIdsToReprioritizeResponses])
 
   // On opening the dialog
   useEffect(() => {
     mounted.current = true
+    // eslint-disable-next-line no-console
     fetchSelectedJobs().catch(console.error)
     return () => {
       mounted.current = false
@@ -133,39 +134,39 @@ export const ReprioritiseDialog = ({
     } else {
       setNewPriority(undefined)
     }
-    setHasAttemptedReprioritise(false)
+    setHasAttemptedReprioritize(false)
   }, [])
 
-  const handleReprioritiseJobs = useCallback(async () => {
-    await reprioritiseJobs()
+  const handleReprioritizeJobs = useCallback(async () => {
+    await reprioritizeJobs()
 
     // Wait a short time period, then check the latest state
     setIsLoadingJobs(true)
-    await waitMillis(500)
+    await waitMs(500)
     await fetchSelectedJobs()
-  }, [reprioritiseJobs])
+  }, [reprioritizeJobs])
 
   const handleRefetch = useCallback(async () => {
     setIsLoadingJobs(true)
-    setJobIdsToReprioritiseResponses({})
-    setHasAttemptedReprioritise(false)
+    setJobIdsToReprioritizeResponses({})
+    setHasAttemptedReprioritize(false)
     await fetchSelectedJobs()
   }, [fetchSelectedJobs])
 
-  const jobsToRender = useMemo(() => reprioritisableJobs.slice(0, 1000), [reprioritisableJobs])
+  const jobsToRender = useMemo(() => reprioritizableJobs.slice(0, 1000), [reprioritizableJobs])
   const formatPriority = useCallback((job: Job) => job.priority.toString(), [])
   const formatSubmittedTime = useCallback((job: Job) => formatIsoTimestamp(job.submitted, "full"), [formatIsoTimestamp])
 
   const formatNumber = useFormatNumberWithUserSettings()
 
-  const reprioritisableJobsCount = reprioritisableJobs.length
+  const reprioritizableJobsCount = reprioritizableJobs.length
   const selectedJobsCount = selectedJobs.length
   return (
     <Dialog open={true} onClose={onClose} fullWidth maxWidth="xl">
       <DialogTitle>
         {isLoadingJobs
-          ? "Reprioritise jobs"
-          : `Reprioritise ${formatNumber(reprioritisableJobsCount)} ${reprioritisableJobsCount === 1 ? "job" : "jobs"}`}
+          ? "Reprioritize jobs"
+          : `Reprioritize ${formatNumber(reprioritizableJobsCount)} ${reprioritizableJobsCount === 1 ? "job" : "jobs"}`}
       </DialogTitle>
       <DialogContent sx={{ display: "flex", flexDirection: "column" }}>
         <ErrorBoundary FallbackComponent={AlertErrorFallback}>
@@ -178,30 +179,30 @@ export const ReprioritiseDialog = ({
 
           {!isLoadingJobs && (
             <>
-              {reprioritisableJobs.length > 0 && reprioritisableJobs.length < selectedJobs.length && (
+              {reprioritizableJobs.length > 0 && reprioritizableJobs.length < selectedJobs.length && (
                 <Alert severity="info" sx={{ marginBottom: "0.5em" }}>
                   {formatNumber(selectedJobsCount)} {selectedJobsCount === 1 ? "job is" : "jobs are"} selected, but only{" "}
-                  {formatNumber(reprioritisableJobsCount)} {reprioritisableJobsCount === 1 ? "job is" : "jobs are"} in a
+                  {formatNumber(reprioritizableJobsCount)} {reprioritizableJobsCount === 1 ? "job is" : "jobs are"} in a
                   non-terminated state.
                 </Alert>
               )}
 
-              {reprioritisableJobs.length === 0 && (
+              {reprioritizableJobs.length === 0 && (
                 <Alert severity="success">
-                  All selected jobs are in a terminated state already, therefore there is nothing to reprioritise.
+                  All selected jobs are in a terminated state already, therefore there is nothing to reprioritize.
                 </Alert>
               )}
 
-              {reprioritisableJobs.length > 0 && (
+              {reprioritizableJobs.length > 0 && (
                 <JobStatusTable
                   jobsToRender={jobsToRender}
-                  jobStatus={jobIdsToReprioritiseResponses}
-                  totalJobCount={reprioritisableJobs.length}
+                  jobStatus={jobIdsToReprioritizeResponses}
+                  totalJobCount={reprioritizableJobs.length}
                   additionalColumnsToDisplay={[
                     { displayName: "Priority", formatter: formatPriority },
                     { displayName: "Submitted Time", formatter: formatSubmittedTime },
                   ]}
-                  showStatus={Object.keys(jobIdsToReprioritiseResponses).length > 0}
+                  showStatus={Object.keys(jobIdsToReprioritizeResponses).length > 0}
                 />
               )}
 
@@ -227,22 +228,22 @@ export const ReprioritiseDialog = ({
         <Button onClick={onClose}>Close</Button>
         <Button
           onClick={handleRefetch}
-          disabled={isLoadingJobs || isReprioritising}
+          disabled={isLoadingJobs || isReprioritizing}
           variant="outlined"
           endIcon={<Refresh />}
         >
           Refetch jobs
         </Button>
         <Button
-          onClick={handleReprioritiseJobs}
-          loading={isReprioritising}
+          onClick={handleReprioritizeJobs}
+          loading={isReprioritizing}
           disabled={
-            isLoadingJobs || hasAttemptedReprioritise || reprioritisableJobs.length === 0 || newPriority === undefined
+            isLoadingJobs || hasAttemptedReprioritize || reprioritizableJobs.length === 0 || newPriority === undefined
           }
           variant="contained"
           endIcon={<Dangerous />}
         >
-          Reprioritise {formatNumber(reprioritisableJobsCount)} {reprioritisableJobsCount === 1 ? "job" : "jobs"}
+          Reprioritize {formatNumber(reprioritizableJobsCount)} {reprioritizableJobsCount === 1 ? "job" : "jobs"}
         </Button>
       </DialogActions>
     </Dialog>
