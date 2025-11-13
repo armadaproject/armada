@@ -35,8 +35,7 @@ func NewKubernetesNodeInfoService(
 	nodePoolLabel string,
 	toleratedTaints []string,
 ) *KubernetesNodeInfoService {
-
-	//TODO always tolerate reserved node taint/labels
+	// TODO always tolerate reserved node taint/labels
 	return &KubernetesNodeInfoService{
 		clusterContext:  clusterContext,
 		nodePoolLabel:   nodePoolLabel,
