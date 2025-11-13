@@ -23,24 +23,27 @@ type NodeInfoService interface {
 }
 
 type KubernetesNodeInfoService struct {
-	clusterContext  context.ClusterContext
-	nodeTypeLabel   string
-	nodePoolLabel   string
-	toleratedTaints map[string]bool
+	clusterContext         context.ClusterContext
+	nodeTypeLabel          string
+	nodePoolLabel          string
+	reservedNodePoolSuffix string
+	toleratedTaints        map[string]bool
 }
 
 func NewKubernetesNodeInfoService(
 	clusterContext context.ClusterContext,
 	nodeTypeLabel string,
 	nodePoolLabel string,
+	reservedNodePoolSuffix string,
 	toleratedTaints []string,
 ) *KubernetesNodeInfoService {
 	// TODO always tolerate reserved node taint/labels
 	return &KubernetesNodeInfoService{
-		clusterContext:  clusterContext,
-		nodePoolLabel:   nodePoolLabel,
-		nodeTypeLabel:   nodeTypeLabel,
-		toleratedTaints: util.StringListToSet(toleratedTaints),
+		clusterContext:         clusterContext,
+		nodePoolLabel:          nodePoolLabel,
+		nodeTypeLabel:          nodeTypeLabel,
+		reservedNodePoolSuffix: reservedNodePoolSuffix,
+		toleratedTaints:        util.StringListToSet(toleratedTaints),
 	}
 }
 
@@ -81,8 +84,7 @@ func (kubernetesNodeInfoService *KubernetesNodeInfoService) GetPool(node *v1.Nod
 		nodePool = labelValue
 	}
 
-	// TODO make this functionality optional/configurable
-	if util.GetReservationKey(node.Spec.Taints) != "" {
+	if kubernetesNodeInfoService.reservedNodePoolSuffix != "" && util.GetReservationKey(node.Spec.Taints) != "" {
 		nodePool += "-reserved"
 	}
 
