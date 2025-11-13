@@ -147,7 +147,7 @@ type NodeDb struct {
 
 	resourceListFactory *internaltypes.ResourceListFactory
 
-	disableHomeAwayScheduling bool
+	disableAwayScheduling bool
 }
 
 func NewNodeDb(
@@ -325,12 +325,12 @@ func (nodeDb *NodeDb) GetNodeWithTxn(txn *memdb.Txn, id string) (*internaltypes.
 	return obj.(*internaltypes.Node), nil
 }
 
-func (nodeDb *NodeDb) DisableHomeAwayScheduling() {
-	nodeDb.disableHomeAwayScheduling = true
+func (nodeDb *NodeDb) DisableAwayScheduling() {
+	nodeDb.disableAwayScheduling = true
 }
 
-func (nodeDb *NodeDb) EnableHomeAwayScheduling() {
-	nodeDb.disableHomeAwayScheduling = false
+func (nodeDb *NodeDb) EnableAwayScheduling() {
+	nodeDb.disableAwayScheduling = false
 }
 
 func (nodeDb *NodeDb) GetNodes() ([]*internaltypes.Node, error) {
@@ -459,7 +459,7 @@ func (nodeDb *NodeDb) SelectNodeForJobWithTxn(txn *memdb.Txn, jctx *context.JobS
 	// If a gang gets scheduled away and then preempted in the same round
 	//  sometimes its fellow gang members aren't getting evicted and we end up scheduling a partial gang
 	// This is a temporary workaround until that bug is solved, do not remove unless you are confident the above bug is fixed
-	if !nodeDb.disableHomeAwayScheduling && !jctx.Job.IsInGang() {
+	if !nodeDb.disableAwayScheduling && !jctx.Job.IsInGang() {
 		for _, awayNodeType := range priorityClass.AwayNodeTypes {
 			node, err := nodeDb.selectNodeForJobWithTxnAndAwayNodeType(txn, jctx, awayNodeType)
 			if err != nil {
@@ -505,7 +505,7 @@ func (nodeDb *NodeDb) selectNodeForJobWithTxnAndAwayNodeType(
 
 	for _, taint := range wellKnownNodeType.Taints {
 		toleration := v1.Toleration{Key: taint.Key, Effect: taint.Effect}
-		if taint.Value == "*" {
+		if taint.Value == configuration.WildCardWellKnownNodeTypeValue {
 			toleration.Operator = v1.TolerationOpExists
 		} else {
 			toleration.Value = taint.Value

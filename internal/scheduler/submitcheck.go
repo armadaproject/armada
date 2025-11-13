@@ -299,9 +299,9 @@ poolStart:
 
 			// TODO construct nodedb per synthetic pool
 			if pool.DisableAwayScheduling {
-				ex.nodeDb.DisableHomeAwayScheduling()
+				ex.nodeDb.DisableAwayScheduling()
 			} else {
-				ex.nodeDb.EnableHomeAwayScheduling()
+				ex.nodeDb.EnableAwayScheduling()
 			}
 
 			txn := ex.nodeDb.Txn(true)

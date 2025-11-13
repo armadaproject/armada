@@ -340,7 +340,7 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 		}
 		for _, node := range executor.Nodes {
 			nodePool := node.GetPool()
-			reservation := node.ReservationName()
+			reservation := node.GetReservation()
 			awayPools := poolToAwayPools[nodePool]
 
 			clusterKey := clusterMetricKey{

@@ -957,7 +957,7 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 }
 
 func (s *Scheduler) preemptRunsWithMismatchingNodes(ctx *armadacontext.Context, txn *jobdb.Txn) ([]*armadaevents.EventSequence, error) {
-	invalidJobs, err := s.runNodeReconciler.ReconcileJobRunPools(ctx, txn)
+	invalidJobs, err := s.runNodeReconciler.ReconcileJobRuns(ctx, txn)
 	if err != nil {
 		return nil, fmt.Errorf("failed to reconcile runs with nodes because - %s", err)
 	}
@@ -965,7 +965,7 @@ func (s *Scheduler) preemptRunsWithMismatchingNodes(ctx *armadacontext.Context, 
 	events := make([]*armadaevents.EventSequence, 0, len(invalidJobs)*2)
 	for _, invalidJobInfo := range invalidJobs {
 		job := invalidJobInfo.Job
-		if job.InTerminalState() && !job.Queued() && job.LatestRun() != nil {
+		if job.InTerminalState() || job.Queued() || job.LatestRun() == nil {
 			continue
 		}
 

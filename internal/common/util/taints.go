@@ -6,9 +6,14 @@ import (
 	"github.com/armadaproject/armada/internal/common/constants"
 )
 
+const EmptyReservationName = "unspecified"
+
 func GetReservationKey(taints []v1.Taint) string {
 	for _, taint := range taints {
-		if taint.Key == constants.ReservationTaintKey && taint.Value != "" {
+		if taint.Key == constants.ReservationTaintKey {
+			if taint.Value == "" {
+				return EmptyReservationName
+			}
 			return taint.Value
 		}
 	}

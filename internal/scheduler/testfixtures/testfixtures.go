@@ -218,6 +218,14 @@ func TestSchedulingConfigWithPools(pools []schedulerconfiguration.PoolConfig) sc
 	}
 }
 
+func WithAwaySchedulingDisabled(config schedulerconfiguration.SchedulingConfig) schedulerconfiguration.SchedulingConfig {
+	for i, pool := range config.Pools {
+		pool.DisableAwayScheduling = true
+		config.Pools[i] = pool
+	}
+	return config
+}
+
 func WithMarketBasedSchedulingEnabled(config schedulerconfiguration.SchedulingConfig) schedulerconfiguration.SchedulingConfig {
 	for i, pool := range config.Pools {
 		pool.ExperimentalMarketScheduling = &schedulerconfiguration.MarketSchedulingConfig{
@@ -576,6 +584,14 @@ func N16Cpu128GiJobs(queue string, priorityClassName string, n int) []*jobdb.Job
 	return rv
 }
 
+func N16Cpu128GiJobsWithLargeJobToleration(queue string, priorityClassName string, n int) []*jobdb.Job {
+	rv := make([]*jobdb.Job, n)
+	for i := 0; i < n; i++ {
+		rv[i] = Test16Cpu128GiJobWithLargeJobToleration(queue, priorityClassName)
+	}
+	return rv
+}
+
 func N16Cpu128GiJobsWithPrice(queue string, priorityClassName string, price float64, n int) []*jobdb.Job {
 	rv := make([]*jobdb.Job, n)
 	for i := 0; i < n; i++ {
@@ -704,6 +720,11 @@ func Test8Cpu64GiJobQueuedWithPrice(queue string, priorityClassName string, pric
 	return TestJobQueuedWithPrice(queue, jobId, priorityClassName, price, Test8Cpu64GiPodReqs(queue, jobId, extractPriority(priorityClassName)))
 }
 
+func Test16Cpu128GiJobWithLargeJobToleration(queue string, priorityClassName string) *jobdb.Job {
+	jobId := util.ULID()
+	return TestJob(queue, jobId, priorityClassName, Test16Cpu128GiPodReqsWithLargeJobToleration(queue, jobId, extractPriority(priorityClassName)))
+}
+
 func Test16Cpu128GiJob(queue string, priorityClassName string) *jobdb.Job {
 	jobId := util.ULID()
 	return TestJob(queue, jobId, priorityClassName, Test16Cpu128GiPodReqs(queue, jobId, extractPriority(priorityClassName)))
@@ -711,7 +732,7 @@ func Test16Cpu128GiJob(queue string, priorityClassName string) *jobdb.Job {
 
 func Test16Cpu128GiJobQueuedWithPrice(queue string, priorityClassName string, price float64) *jobdb.Job {
 	jobId := util.ULID()
-	return TestJobQueuedWithPrice(queue, jobId, priorityClassName, price, Test16Cpu128GiPodReqs(queue, jobId, extractPriority(priorityClassName)))
+	return TestJobQueuedWithPrice(queue, jobId, priorityClassName, price, Test16Cpu128GiPodReqsWithLargeJobToleration(queue, jobId, extractPriority(priorityClassName)))
 }
 
 func Test32Cpu256GiJob(queue string, priorityClassName string) *jobdb.Job {
@@ -776,6 +797,11 @@ func Test16Cpu128GiPodReqs(queue string, jobId ulid.ULID, priority int32) *inter
 		"cpu":    resource.MustParse("16"),
 		"memory": resource.MustParse("128Gi"),
 	})
+	return req
+}
+
+func Test16Cpu128GiPodReqsWithLargeJobToleration(queue string, jobId ulid.ULID, priority int32) *internaltypes.PodRequirements {
+	req := Test16Cpu128GiPodReqs(queue, jobId, priority)
 	req.Tolerations = []v1.Toleration{
 		{
 			Key:   "largeJobsOnly",

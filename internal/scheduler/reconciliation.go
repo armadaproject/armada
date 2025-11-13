@@ -20,7 +20,7 @@ type FailedReconciliationResult struct {
 }
 
 type JobRunNodeReconciler interface {
-	ReconcileJobRunPools(ctx *armadacontext.Context, txn *jobdb.Txn) ([]*FailedReconciliationResult, error)
+	ReconcileJobRuns(ctx *armadacontext.Context, txn *jobdb.Txn) ([]*FailedReconciliationResult, error)
 }
 
 type RunNodeReconciler struct {
@@ -50,7 +50,7 @@ func NewRunNodeReconciler(poolConfigs []configuration.PoolConfig, executorReposi
 	}
 }
 
-func (r *RunNodeReconciler) ReconcileJobRunPools(ctx *armadacontext.Context, txn *jobdb.Txn) ([]*FailedReconciliationResult, error) {
+func (r *RunNodeReconciler) ReconcileJobRuns(ctx *armadacontext.Context, txn *jobdb.Txn) ([]*FailedReconciliationResult, error) {
 	latestNodeInfos, err := r.getLatestNodeInfo(ctx)
 	if err != nil {
 		return nil, err
@@ -166,7 +166,7 @@ func (r *RunNodeReconciler) getLatestNodeInfo(ctx *armadacontext.Context) ([]*no
 		for _, node := range executor.Nodes {
 			nodes = append(nodes, &nodeInfo{
 				node:        node,
-				reservation: node.ReservationName(),
+				reservation: node.GetReservation(),
 			})
 		}
 	}

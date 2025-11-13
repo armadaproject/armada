@@ -143,7 +143,7 @@ func (l *FairSchedulingAlgo) Schedule(
 		}
 
 		if pool.DisableAwayScheduling {
-			fsctx.nodeDb.DisableHomeAwayScheduling()
+			fsctx.nodeDb.DisableAwayScheduling()
 		}
 
 		start := time.Now()
