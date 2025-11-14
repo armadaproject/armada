@@ -10,6 +10,7 @@ import (
 	"golang.org/x/exp/slices"
 	v1 "k8s.io/api/core/v1"
 
+	"github.com/armadaproject/armada/internal/common/constants"
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/adapters"
@@ -282,6 +283,18 @@ func (job *Job) ensureJobSchedulingInfoFieldsInitialised() {
 	}
 }
 
+func (job *Job) updateReservations() {
+	reservations := map[string]bool{}
+	if job.jobSchedulingInfo.PodRequirements != nil {
+		for _, toleration := range job.jobSchedulingInfo.PodRequirements.Tolerations {
+			if toleration.Key == constants.ReservationTaintKey {
+				reservations[toleration.Value] = true
+			}
+		}
+	}
+	job.reservations = reservations
+}
+
 // Equal returns true if job is equal to other and false otherwise.
 // Scheduling requirements are assumed to be equal if both jobs have equal schedulingKey.
 func (job *Job) Equal(other *Job) bool {
@@ -451,6 +464,10 @@ func (job *Job) getBidPrice(pool string) float64 {
 		return bidPrice.QueuedBid
 	}
 	return bidPrice.RunningBid
+}
+
+func (job *Job) GetReservations() []string {
+	return maps.Keys(job.reservations)
 }
 
 func (job *Job) MatchesReservation(reservation string) bool {
@@ -887,6 +904,7 @@ func (job *Job) WithJobSchedulingInfo(jobSchedulingInfo *internaltypes.JobSchedu
 	j := shallowCopyJob(*job)
 	j.jobSchedulingInfo = jobSchedulingInfo
 	j.ensureJobSchedulingInfoFieldsInitialised()
+	j.updateReservations()
 
 	// Changing the scheduling info invalidates the scheduling key stored with the job.
 	j.schedulingKey = SchedulingKeyFromJob(j.jobDb.schedulingKeyGenerator, j)

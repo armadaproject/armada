@@ -297,7 +297,7 @@ poolStart:
 			// copy the gctx here, as we are going to mutate it
 			gctx := copyGangContext(originalGangCtx)
 
-			// TODO construct nodedb per synthetic pool
+			// TODO construct nodedb per synthetic pool to avoid needing to set this dynamically
 			if pool.DisableAwayScheduling {
 				ex.nodeDb.DisableAwayScheduling()
 			} else {

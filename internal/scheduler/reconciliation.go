@@ -30,12 +30,7 @@ type RunNodeReconciler struct {
 }
 
 type nodeState struct {
-	nodeInfos []*nodeInfo
-}
-
-type nodeInfo struct {
-	node        *schedulerobjects.Node
-	reservation string
+	nodes []*schedulerobjects.Node
 }
 
 func NewRunNodeReconciler(poolConfigs []configuration.PoolConfig, executorRepository database.ExecutorRepository) *RunNodeReconciler {
@@ -51,7 +46,11 @@ func NewRunNodeReconciler(poolConfigs []configuration.PoolConfig, executorReposi
 }
 
 func (r *RunNodeReconciler) ReconcileJobRuns(ctx *armadacontext.Context, txn *jobdb.Txn) ([]*FailedReconciliationResult, error) {
-	latestNodeInfos, err := r.getLatestNodeInfo(ctx)
+	if len(r.poolsToReconcile) == 0 {
+		return nil, nil
+	}
+
+	latestNodeInfos, err := r.getLatestNodes(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -59,7 +58,7 @@ func (r *RunNodeReconciler) ReconcileJobRuns(ctx *armadacontext.Context, txn *jo
 	// If no nodes have been updated, we can assume no jobs need reconciling
 	updatedNodes := r.getUpdatedNodes(latestNodeInfos)
 	if len(updatedNodes) == 0 {
-		r.previousNodeState.Store(&nodeState{nodeInfos: latestNodeInfos})
+		r.previousNodeState.Store(&nodeState{nodes: latestNodeInfos})
 		return nil, nil
 	}
 
@@ -68,7 +67,7 @@ func (r *RunNodeReconciler) ReconcileJobRuns(ctx *armadacontext.Context, txn *jo
 
 	var result []*FailedReconciliationResult
 	for _, node := range updatedNodes {
-		jobsOnNode := jobsToReconcile[node.node.Id]
+		jobsOnNode := jobsToReconcile[node.GetId()]
 
 		for _, job := range jobsOnNode {
 			run := job.LatestRun()
@@ -81,27 +80,27 @@ func (r *RunNodeReconciler) ReconcileJobRuns(ctx *armadacontext.Context, txn *jo
 				runPools = append(runPools, config.AwayPools...)
 			}
 
-			if !slices.Contains(runPools, node.node.Pool) {
+			if !slices.Contains(runPools, node.GetPool()) {
 				failedReconciliationResult := &FailedReconciliationResult{
 					Job: job,
 					Reason: fmt.Sprintf("The pool of node %s has been changed from %s to %s - this jobs placement is now invalid",
-						node.node.Name, run.Pool(), node.node.Pool),
+						node.GetName(), run.Pool(), node.GetPool()),
 				}
 
 				result = append(result, failedReconciliationResult)
-			} else if config.ExperimentalRunReconciliation.EnsureReservationMatch && !job.MatchesReservation(node.reservation) {
+			} else if config.ExperimentalRunReconciliation.EnsureReservationMatch && !job.MatchesReservation(node.GetReservation()) {
 				failedReconciliationResult := &FailedReconciliationResult{
 					Job: job,
 					Reason: fmt.Sprintf("The reservation of node %s has been changed and is now %s - this job no longer matches the node reservation",
-						node.node.Name, node.reservation),
+						node.GetName(), node.GetReservation()),
 				}
 
 				result = append(result, failedReconciliationResult)
-			} else if config.ExperimentalRunReconciliation.EnsureReservationDoesNotMatch && job.MatchesReservation(node.reservation) {
+			} else if config.ExperimentalRunReconciliation.EnsureReservationDoesNotMatch && job.MatchesReservation(node.GetReservation()) {
 				failedReconciliationResult := &FailedReconciliationResult{
 					Job: job,
 					Reason: fmt.Sprintf("The reservation of node %s has been changed and is now %s - this job is now incorrectly running away on a node with a matching resevation",
-						node.node.Name, node.reservation),
+						node.GetName(), node.GetReservation()),
 				}
 
 				result = append(result, failedReconciliationResult)
@@ -109,7 +108,7 @@ func (r *RunNodeReconciler) ReconcileJobRuns(ctx *armadacontext.Context, txn *jo
 		}
 	}
 
-	r.previousNodeState.Store(&nodeState{nodeInfos: latestNodeInfos})
+	r.previousNodeState.Store(&nodeState{nodes: latestNodeInfos})
 	return result, nil
 }
 
@@ -123,31 +122,25 @@ func poolConfigSliceToMap(config []configuration.PoolConfig) map[string]configur
 	)
 }
 
-func (r *RunNodeReconciler) getUpdatedNodes(latestNodeInfos []*nodeInfo) []*nodeInfo {
-	updated := []*nodeInfo{}
+func (r *RunNodeReconciler) getUpdatedNodes(latestNodeInfos []*schedulerobjects.Node) []*schedulerobjects.Node {
+	updated := []*schedulerobjects.Node{}
 
-	previousNodeInfos := []*nodeInfo{}
+	previousNodeInfos := []*schedulerobjects.Node{}
 	previousNodeState := r.previousNodeState.Load()
 	if previousNodeState != nil {
-		previousNodeInfos = previousNodeState.nodeInfos
+		previousNodeInfos = previousNodeState.nodes
 	}
 
-	existingNodesById := make(map[string]*nodeInfo, len(previousNodeInfos))
+	existingNodesById := make(map[string]*schedulerobjects.Node, len(previousNodeInfos))
 	for _, node := range previousNodeInfos {
-		if node.node == nil {
-			continue
-		}
-		existingNodesById[node.node.Id] = node
+		existingNodesById[node.GetId()] = node
 	}
 
 	for _, node := range latestNodeInfos {
-		if node.node == nil {
-			continue
-		}
-		previous, present := existingNodesById[node.node.Id]
+		previous, present := existingNodesById[node.GetId()]
 		if !present {
 			updated = append(updated, node)
-		} else if node.node.Pool != previous.node.Pool || node.reservation != previous.reservation {
+		} else if node.GetPool() != previous.GetPool() || node.GetReservation() != previous.GetReservation() {
 			updated = append(updated, node)
 		}
 	}
@@ -155,19 +148,16 @@ func (r *RunNodeReconciler) getUpdatedNodes(latestNodeInfos []*nodeInfo) []*node
 	return updated
 }
 
-func (r *RunNodeReconciler) getLatestNodeInfo(ctx *armadacontext.Context) ([]*nodeInfo, error) {
+func (r *RunNodeReconciler) getLatestNodes(ctx *armadacontext.Context) ([]*schedulerobjects.Node, error) {
 	executors, err := r.executorRepository.GetExecutors(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	nodes := []*nodeInfo{}
+	nodes := []*schedulerobjects.Node{}
 	for _, executor := range executors {
 		for _, node := range executor.Nodes {
-			nodes = append(nodes, &nodeInfo{
-				node:        node,
-				reservation: node.GetReservation(),
-			})
+			nodes = append(nodes, node)
 		}
 	}
 
@@ -183,7 +173,7 @@ func (r *RunNodeReconciler) getJobsToReconcileByNodeId(txn *jobdb.Txn) map[strin
 	// TODO make more efficient by having an index of running jobs (or running jobs by pool / all jobs by pool)
 	jobs := txn.GetAll()
 	for _, job := range jobs {
-		if job.InTerminalState() || job.LatestRun() == nil || job.LatestRun().InTerminalState() {
+		if job.InTerminalState() || job.Queued() || job.LatestRun() == nil {
 			continue
 		}
 

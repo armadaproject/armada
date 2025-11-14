@@ -1,11 +1,13 @@
 package node
 
 import (
+	"slices"
 	"sort"
 	"strings"
 
 	v1 "k8s.io/api/core/v1"
 
+	"github.com/armadaproject/armada/internal/common/constants"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/executor/context"
 	util2 "github.com/armadaproject/armada/internal/executor/util"
@@ -37,7 +39,9 @@ func NewKubernetesNodeInfoService(
 	reservedNodePoolSuffix string,
 	toleratedTaints []string,
 ) *KubernetesNodeInfoService {
-	// TODO always tolerate reserved node taint/labels
+	if !slices.Contains(toleratedTaints, constants.ReservationTaintKey) {
+		toleratedTaints = append(toleratedTaints, constants.ReservationTaintKey)
+	}
 	return &KubernetesNodeInfoService{
 		clusterContext:         clusterContext,
 		nodePoolLabel:          nodePoolLabel,
