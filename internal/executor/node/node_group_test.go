@@ -3,11 +3,11 @@ package node
 import (
 	"testing"
 
-	"github.com/armadaproject/armada/internal/common/constants"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/armadaproject/armada/internal/common/constants"
 	"github.com/armadaproject/armada/internal/executor/configuration"
 	fakeContext "github.com/armadaproject/armada/internal/executor/fake/context"
 )
