@@ -374,6 +374,9 @@ func (job *Job) Equal(other *Job) bool {
 	if !slices.Equal(job.pools, other.pools) {
 		return false
 	}
+	if !maps.Equal(job.reservations, other.reservations) {
+		return false
+	}
 	if !maps.Equal(job.bidPricesPool, other.bidPricesPool) {
 		return false
 	}
