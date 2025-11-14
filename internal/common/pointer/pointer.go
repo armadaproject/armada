@@ -20,3 +20,11 @@ func MustParseResource(s string) *resource.Quantity {
 	qty := resource.MustParse(s)
 	return &qty
 }
+
+func SliceToValues[T any](ptrs []*T) []T {
+	var result []T
+	for _, p := range ptrs {
+		result = append(result, *p)
+	}
+	return result
+}

@@ -7,6 +7,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
+	"github.com/armadaproject/armada/internal/common/constants"
 	log "github.com/armadaproject/armada/internal/common/logging"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
@@ -189,8 +190,8 @@ func defaultGangNodeUniformityLabel(msg *armadaevents.SubmitJob, config configur
 		return
 	}
 	if isGang(msg) {
-		if _, ok := annotations[configuration.GangNodeUniformityLabelAnnotation]; !ok {
-			annotations[configuration.GangNodeUniformityLabelAnnotation] = config.DefaultGangNodeUniformityLabel
+		if _, ok := annotations[constants.GangNodeUniformityLabelAnnotation]; !ok {
+			annotations[constants.GangNodeUniformityLabelAnnotation] = config.DefaultGangNodeUniformityLabel
 		}
 	}
 }
@@ -202,8 +203,8 @@ func defaultGangFailFastFlag(msg *armadaevents.SubmitJob, config configuration.S
 		return
 	}
 	if isGang(msg) {
-		if _, ok := annotations[configuration.FailFastAnnotation]; !ok {
-			annotations[configuration.FailFastAnnotation] = "true"
+		if _, ok := annotations[constants.FailFastAnnotation]; !ok {
+			annotations[constants.FailFastAnnotation] = "true"
 		}
 	}
 }
@@ -225,13 +226,13 @@ func addGangIdLabel(msg *armadaevents.SubmitJob, config configuration.Submission
 		return
 	}
 
-	gangId := msg.GetObjectMeta().GetAnnotations()[configuration.GangIdAnnotation]
+	gangId := msg.GetObjectMeta().GetAnnotations()[constants.GangIdAnnotation]
 	if gangId != "" {
 		labels := msg.GetObjectMeta().GetLabels()
 		if labels == nil {
 			labels = map[string]string{}
 		}
-		labels[configuration.GangIdAnnotation] = gangId
+		labels[constants.GangIdAnnotation] = gangId
 		msg.GetObjectMeta().Labels = labels
 	}
 }

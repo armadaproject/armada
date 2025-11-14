@@ -233,6 +233,7 @@ func (jobDb *JobDb) NewJob(
 		gangInfo:                       *gangInfo,
 	}
 	job.ensureJobSchedulingInfoFieldsInitialised()
+	job.updateReservations()
 	job.schedulingKey = SchedulingKeyFromJob(jobDb.schedulingKeyGenerator, job)
 	return job, nil
 }

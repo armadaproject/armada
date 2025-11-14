@@ -89,6 +89,17 @@ func TestSchedule(t *testing.T) {
 			expectedScheduledIndices: []int{0, 1},
 			expectedScheduledByPool:  map[string]int{testfixtures.TestPool: 2},
 		},
+		"scheduling - home away - away scheduling disabled": {
+			schedulingConfig: testfixtures.WithAwaySchedulingDisabled(testfixtures.TestSchedulingConfig()),
+			executors: []*schedulerobjects.Executor{
+				makeTestExecutorWithNodes("executor-1",
+					withLargeNodeTaint(testNodeWithPool(testfixtures.TestPool))),
+			},
+			queues:                   []*api.Queue{testfixtures.MakeTestQueue()},
+			queuedJobs:               testfixtures.WithPools(testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass4PreemptibleAway, 10), []string{testfixtures.TestPool}),
+			expectedScheduledIndices: []int{},
+			expectedScheduledByPool:  map[string]int{},
+		},
 		"scheduling - cross pool - home away": {
 			schedulingConfig: multiPoolSchedulingConfig,
 			executors: []*schedulerobjects.Executor{
