@@ -2,6 +2,7 @@ package util
 
 import (
 	"fmt"
+	"maps"
 	"strconv"
 
 	v1 "k8s.io/api/core/v1"
@@ -29,6 +30,13 @@ func CreateOwnerReference(pod *v1.Pod) metav1.OwnerReference {
 func ExtractIngresses(job *executorapi.JobRunLease, pod *v1.Pod, executorIngressConfig *configuration.IngressConfiguration) []*networking.Ingress {
 	result := make([]*networking.Ingress, 0, 10)
 
+	var executorIngressConfigAnnotations map[string]string
+	if executorIngressConfig != nil && len(executorIngressConfig.Annotations) > 0 {
+		executorIngressConfigAnnotations = executorIngressConfig.Annotations
+	} else {
+		executorIngressConfigAnnotations = make(map[string]string)
+	}
+
 	for _, additionalObject := range job.Job.Objects {
 		switch typed := additionalObject.Object.(type) {
 		case *armadaevents.KubernetesObject_Ingress:
@@ -38,7 +46,7 @@ func ExtractIngresses(job *executorapi.JobRunLease, pod *v1.Pod, executorIngress
 				domain.Queue:     pod.Labels[domain.Queue],
 				domain.PodNumber: pod.Labels[domain.PodNumber],
 			})
-			annotations := executorIngressConfig.Annotations
+			annotations := maps.Clone(executorIngressConfigAnnotations)
 			annotations = util.MergeMaps(annotations, additionalObject.ObjectMeta.Annotations)
 			annotations = util.MergeMaps(annotations, map[string]string{
 				domain.JobSetId: job.Jobset,
