@@ -573,16 +573,43 @@ func TestScheduleMany(t *testing.T) {
 
 func TestAwayNodeScheduling(t *testing.T) {
 	tests := map[string]struct {
-		shouldSubmitGang bool
-		expectSuccess    bool
+		shouldSubmitGang       bool
+		disableAwayScheduling  bool
+		nodeTaint              v1.Taint
+		wellKnownNodeTypeTaint v1.Taint
+		expectSuccess          bool
 	}{
 		"should schedule away jobs": {
-			shouldSubmitGang: false,
-			expectSuccess:    true,
+			shouldSubmitGang:       false,
+			expectSuccess:          true,
+			nodeTaint:              v1.Taint{Key: "gpu", Value: "true", Effect: v1.TaintEffectNoSchedule},
+			wellKnownNodeTypeTaint: v1.Taint{Key: "gpu", Value: "true", Effect: v1.TaintEffectNoSchedule},
+		},
+
+		"should schedule away jobs - wild card well known node type": {
+			shouldSubmitGang:       false,
+			expectSuccess:          true,
+			nodeTaint:              v1.Taint{Key: "gpu", Value: "true", Effect: v1.TaintEffectNoSchedule},
+			wellKnownNodeTypeTaint: v1.Taint{Key: "gpu", Value: "*", Effect: v1.TaintEffectNoSchedule},
 		},
 		"should schedule not schedule gangs as away jobs": {
-			shouldSubmitGang: true,
-			expectSuccess:    false,
+			shouldSubmitGang:       true,
+			expectSuccess:          false,
+			nodeTaint:              v1.Taint{Key: "gpu", Value: "true", Effect: v1.TaintEffectNoSchedule},
+			wellKnownNodeTypeTaint: v1.Taint{Key: "gpu", Value: "true", Effect: v1.TaintEffectNoSchedule},
+		},
+		"should not schedule away jobs - when node doesn't match configured away types": {
+			shouldSubmitGang:       false,
+			expectSuccess:          false,
+			nodeTaint:              v1.Taint{Key: "cpu", Value: "true", Effect: v1.TaintEffectNoSchedule},
+			wellKnownNodeTypeTaint: v1.Taint{Key: "gpu", Value: "true", Effect: v1.TaintEffectNoSchedule},
+		},
+		"should not schedule away jobs - when away scheduling disabled": {
+			shouldSubmitGang:       false,
+			disableAwayScheduling:  true,
+			expectSuccess:          false,
+			nodeTaint:              v1.Taint{Key: "gpu", Value: "true", Effect: v1.TaintEffectNoSchedule},
+			wellKnownNodeTypeTaint: v1.Taint{Key: "gpu", Value: "true", Effect: v1.TaintEffectNoSchedule},
 		},
 	}
 
@@ -593,22 +620,22 @@ func TestAwayNodeScheduling(t *testing.T) {
 				testfixtures.TestResources,
 				testfixtures.TestIndexedTaints,
 				testfixtures.TestIndexedNodeLabels,
-				testfixtures.TestWellKnownNodeTypes,
+				[]schedulerconfig.WellKnownNodeType{
+					{Name: "gpu", Taints: []v1.Taint{tc.wellKnownNodeTypeTaint}},
+					{Name: "large", Taints: []v1.Taint{{Key: "large", Value: "true", Effect: v1.TaintEffectNoSchedule}}},
+				},
 				testfixtures.TestResourceListFactory,
 			)
 			require.NoError(t, err)
+			if tc.disableAwayScheduling {
+				nodeDb.DisableAwayScheduling()
+			}
 
 			nodeDbTxn := nodeDb.Txn(true)
 			node := testfixtures.Test32CpuNode([]int32{29000, 30000})
 			node = testfixtures.TestNodeFactory.AddTaints(
 				[]*internaltypes.Node{node},
-				[]v1.Taint{
-					{
-						Key:    "gpu",
-						Value:  "true",
-						Effect: v1.TaintEffectNoSchedule,
-					},
-				},
+				[]v1.Taint{tc.nodeTaint},
 			)[0]
 
 			jobId := util.ULID()
@@ -638,17 +665,19 @@ func TestAwayNodeScheduling(t *testing.T) {
 				assert.Equal(t, node.GetId(), jctx.PodSchedulingContext.NodeId)
 				assert.Equal(t, context.ScheduledAsAwayJob, jctx.PodSchedulingContext.SchedulingMethod)
 				assert.Equal(t, int32(29000), jctx.PodSchedulingContext.ScheduledAtPriority)
-				require.Equal(
-					t,
-					[]v1.Toleration{
-						{
-							Key:    "gpu",
-							Value:  "true",
-							Effect: v1.TaintEffectNoSchedule,
-						},
-					},
-					jctx.AdditionalTolerations,
-				)
+				if tc.wellKnownNodeTypeTaint.Value == schedulerconfig.WildCardWellKnownNodeTypeValue {
+					require.Equal(
+						t,
+						[]v1.Toleration{{Key: "gpu", Operator: v1.TolerationOpExists, Effect: v1.TaintEffectNoSchedule}},
+						jctx.AdditionalTolerations,
+					)
+				} else {
+					require.Equal(
+						t,
+						[]v1.Toleration{{Key: "gpu", Value: "true", Effect: v1.TaintEffectNoSchedule}},
+						jctx.AdditionalTolerations,
+					)
+				}
 			} else {
 				require.False(t, ok)
 				assert.NotNil(t, jctx.PodSchedulingContext)

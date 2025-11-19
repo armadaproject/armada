@@ -4,8 +4,6 @@ import (
 	"context"
 	"strconv"
 
-	protoutil "github.com/armadaproject/armada/internal/common/proto"
-
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/protobuf/types"
 	"github.com/pkg/errors"
@@ -18,13 +16,14 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	"github.com/armadaproject/armada/internal/common/auth"
 	"github.com/armadaproject/armada/internal/common/compress"
+	"github.com/armadaproject/armada/internal/common/constants"
 	log "github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/maps"
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	priorityTypes "github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
-	"github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/armadaproject/armada/internal/server/permissions"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/executorapi"
@@ -142,7 +141,7 @@ func (srv *ExecutorApi) LeaseJobRuns(stream executorapi.ExecutorApi_LeaseJobRuns
 		}
 
 		srv.addNodeIdSelector(submitMsg, lease.Node)
-		addAnnotations(submitMsg, map[string]string{configuration.PoolAnnotation: lease.Pool})
+		addAnnotations(submitMsg, map[string]string{constants.PoolAnnotation: lease.Pool})
 
 		if len(lease.PodRequirementsOverlay) > 0 {
 			PodRequirementsOverlay := schedulerobjects.PodRequirements{}
