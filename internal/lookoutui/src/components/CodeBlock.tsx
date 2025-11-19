@@ -98,13 +98,13 @@ interface CodeBlockLoadedProps {
   language: SupportedLanguage | "text"
 }
 
-interface CodeBlockDownloadbaleProps {
+interface CodeBlockDownloadableProps {
   downloadable: true
   downloadBlobType: string
   downloadFileName: string
 }
 
-interface CodeBlockNonDownloadbaleProps {
+interface CodeBlockNonDownloadableProps {
   downloadable: false
   downloadBlobType?: undefined | string
   downloadFileName?: undefined | string
@@ -119,7 +119,7 @@ interface CodeBlockBaseProps {
 
 export type CodeBlockProps = CodeBlockBaseProps &
   (CodeBlockLoadedProps | CodeBlockLoadingProps) &
-  (CodeBlockDownloadbaleProps | CodeBlockNonDownloadbaleProps)
+  (CodeBlockDownloadableProps | CodeBlockNonDownloadableProps)
 
 export const CodeBlock = ({
   language,

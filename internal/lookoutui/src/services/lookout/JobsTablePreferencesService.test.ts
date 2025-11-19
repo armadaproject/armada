@@ -653,17 +653,17 @@ describe("JobsTablePreferencesService", () => {
 describe("ensurePreferencesAreConsistent", () => {
   it("does not change valid preferences", () => {
     const validPreferences: JobsTablePreferences = {
-      annotationColumnKeys: ["preferenc.es/foo-alpha", "preferenc.es/foo-bravo", "preferenc.es/foo-charlie"],
+      annotationColumnKeys: ["preferences.com/foo-alpha", "preferences.com/foo-bravo", "preferences.com/foo-charlie"],
       expandedState: {},
       filters: [{ id: StandardColumnId.JobID, value: "112233" }],
       columnMatches: { jobId: Match.Exact },
       groupedColumns: [StandardColumnId.Queue, StandardColumnId.JobSet],
       columnOrder: [
         StandardColumnId.Owner,
-        "annotation_preferenc.es/foo-bravo",
+        "annotation_preferences.com/foo-bravo",
         StandardColumnId.JobID,
         StandardColumnId.State,
-        "annotation_preferenc.es/foo-charlie",
+        "annotation_preferences.com/foo-charlie",
         StandardColumnId.RuntimeSeconds,
         StandardColumnId.Queue,
         StandardColumnId.Namespace,
@@ -681,7 +681,7 @@ describe("ensurePreferencesAreConsistent", () => {
         StandardColumnId.GPU,
         StandardColumnId.TimeSubmittedAgo,
         StandardColumnId.Cluster,
-        "annotation_preferenc.es/foo-alpha",
+        "annotation_preferences.com/foo-alpha",
         StandardColumnId.Node,
       ],
       order: { id: StandardColumnId.TimeInState, direction: "ASC" },
@@ -689,8 +689,8 @@ describe("ensurePreferencesAreConsistent", () => {
       pageSize: 20,
       sidebarJobId: "223344",
       visibleColumns: {
-        "annotation_preferenc.es/foo-charlie": true,
-        "annotation_preferenc.es/foo-bravo": true,
+        "annotation_preferences.com/foo-charlie": true,
+        "annotation_preferences.com/foo-bravo": true,
         queue: true,
         jobId: true,
         jobSet: true,
@@ -701,17 +701,17 @@ describe("ensurePreferencesAreConsistent", () => {
     ensurePreferencesAreConsistent(validPreferences)
 
     const expected: JobsTablePreferences = {
-      annotationColumnKeys: ["preferenc.es/foo-alpha", "preferenc.es/foo-bravo", "preferenc.es/foo-charlie"],
+      annotationColumnKeys: ["preferences.com/foo-alpha", "preferences.com/foo-bravo", "preferences.com/foo-charlie"],
       expandedState: {},
       filters: [{ id: StandardColumnId.JobID, value: "112233" }],
       columnMatches: { jobId: Match.Exact },
       groupedColumns: [StandardColumnId.Queue, StandardColumnId.JobSet],
       columnOrder: [
         StandardColumnId.Owner,
-        "annotation_preferenc.es/foo-bravo",
+        "annotation_preferences.com/foo-bravo",
         StandardColumnId.JobID,
         StandardColumnId.State,
-        "annotation_preferenc.es/foo-charlie",
+        "annotation_preferences.com/foo-charlie",
         StandardColumnId.RuntimeSeconds,
         StandardColumnId.Queue,
         StandardColumnId.Namespace,
@@ -729,7 +729,7 @@ describe("ensurePreferencesAreConsistent", () => {
         StandardColumnId.GPU,
         StandardColumnId.TimeSubmittedAgo,
         StandardColumnId.Cluster,
-        "annotation_preferenc.es/foo-alpha",
+        "annotation_preferences.com/foo-alpha",
         StandardColumnId.Node,
       ],
       order: { id: StandardColumnId.TimeInState, direction: "ASC" },
@@ -737,8 +737,8 @@ describe("ensurePreferencesAreConsistent", () => {
       pageSize: 20,
       sidebarJobId: "223344",
       visibleColumns: {
-        "annotation_preferenc.es/foo-charlie": true,
-        "annotation_preferenc.es/foo-bravo": true,
+        "annotation_preferences.com/foo-charlie": true,
+        "annotation_preferences.com/foo-bravo": true,
         queue: true,
         jobId: true,
         jobSet: true,
@@ -751,10 +751,10 @@ describe("ensurePreferencesAreConsistent", () => {
 
   it("adds annotation key columns for annotations referenced in filters", () => {
     const validPreferences: JobsTablePreferences = {
-      annotationColumnKeys: ["preferenc.es/foo-alpha"],
+      annotationColumnKeys: ["preferences.com/foo-alpha"],
       expandedState: {},
-      filters: [{ id: "annotation_preferenc.es/foo-delta", value: "ddd" }],
-      columnMatches: { "annotation_preferenc.es/foo-delta": Match.StartsWith },
+      filters: [{ id: "annotation_preferences.com/foo-delta", value: "ddd" }],
+      columnMatches: { "annotation_preferences.com/foo-delta": Match.StartsWith },
       groupedColumns: [],
       columnOrder: [
         StandardColumnId.JobID,
@@ -778,14 +778,14 @@ describe("ensurePreferencesAreConsistent", () => {
         StandardColumnId.Cluster,
         StandardColumnId.ExitCode,
         StandardColumnId.RuntimeSeconds,
-        "annotation_preferenc.es/foo-alpha",
+        "annotation_preferences.com/foo-alpha",
       ],
       order: { id: StandardColumnId.TimeInState, direction: "ASC" },
       pageIndex: 5,
       pageSize: 20,
       sidebarJobId: "223344",
       visibleColumns: {
-        "annotation_preferenc.es/foo-alpha": true,
+        "annotation_preferences.com/foo-alpha": true,
         queue: true,
         jobId: true,
         jobSet: true,
@@ -797,12 +797,12 @@ describe("ensurePreferencesAreConsistent", () => {
 
     const expected: JobsTablePreferences = {
       annotationColumnKeys: [
-        "preferenc.es/foo-alpha",
-        "preferenc.es/foo-delta", // added
+        "preferences.com/foo-alpha",
+        "preferences.com/foo-delta", // added
       ],
       expandedState: {},
-      filters: [{ id: "annotation_preferenc.es/foo-delta", value: "ddd" }],
-      columnMatches: { "annotation_preferenc.es/foo-delta": Match.StartsWith },
+      filters: [{ id: "annotation_preferences.com/foo-delta", value: "ddd" }],
+      columnMatches: { "annotation_preferences.com/foo-delta": Match.StartsWith },
       groupedColumns: [],
       columnOrder: [
         StandardColumnId.JobID,
@@ -826,16 +826,16 @@ describe("ensurePreferencesAreConsistent", () => {
         StandardColumnId.Cluster,
         StandardColumnId.ExitCode,
         StandardColumnId.RuntimeSeconds,
-        "annotation_preferenc.es/foo-alpha",
-        "annotation_preferenc.es/foo-delta", // added
+        "annotation_preferences.com/foo-alpha",
+        "annotation_preferences.com/foo-delta", // added
       ],
       order: { id: StandardColumnId.TimeInState, direction: "ASC" },
       pageIndex: 5,
       pageSize: 20,
       sidebarJobId: "223344",
       visibleColumns: {
-        "annotation_preferenc.es/foo-alpha": true,
-        "annotation_preferenc.es/foo-delta": true, // added
+        "annotation_preferences.com/foo-alpha": true,
+        "annotation_preferences.com/foo-delta": true, // added
         queue: true,
         jobId: true,
         jobSet: true,
@@ -848,20 +848,23 @@ describe("ensurePreferencesAreConsistent", () => {
 
   it("makes grouped, ordered and filtered columns are visible", () => {
     const validPreferences: JobsTablePreferences = {
-      annotationColumnKeys: ["preferenc.es/foo-alpha"],
+      annotationColumnKeys: ["preferences.com/foo-alpha"],
       expandedState: {},
       filters: [
-        { id: "annotation_preferenc.es/foo-alpha", value: "aaa" },
+        { id: "annotation_preferences.com/foo-alpha", value: "aaa" },
         {
           id: StandardColumnId.State,
           value: ["QUEUED", "PENDING", "RUNNING"],
         },
       ],
-      columnMatches: { "annotation_preferenc.es/foo-alpha": Match.StartsWith, [StandardColumnId.State]: Match.AnyOf },
-      groupedColumns: [StandardColumnId.Queue, "annotation_preferenc.es/foo-alpha", StandardColumnId.JobSet],
+      columnMatches: {
+        "annotation_preferences.com/foo-alpha": Match.StartsWith,
+        [StandardColumnId.State]: Match.AnyOf,
+      },
+      groupedColumns: [StandardColumnId.Queue, "annotation_preferences.com/foo-alpha", StandardColumnId.JobSet],
       columnOrder: [
         StandardColumnId.JobID,
-        "annotation_preferenc.es/foo-alpha",
+        "annotation_preferences.com/foo-alpha",
         StandardColumnId.Queue,
         StandardColumnId.Namespace,
         StandardColumnId.JobSet,
@@ -893,20 +896,23 @@ describe("ensurePreferencesAreConsistent", () => {
     ensurePreferencesAreConsistent(validPreferences)
 
     const expected: JobsTablePreferences = {
-      annotationColumnKeys: ["preferenc.es/foo-alpha"],
+      annotationColumnKeys: ["preferences.com/foo-alpha"],
       expandedState: {},
       filters: [
-        { id: "annotation_preferenc.es/foo-alpha", value: "aaa" },
+        { id: "annotation_preferences.com/foo-alpha", value: "aaa" },
         {
           id: StandardColumnId.State,
           value: ["QUEUED", "PENDING", "RUNNING"],
         },
       ],
-      columnMatches: { "annotation_preferenc.es/foo-alpha": Match.StartsWith, [StandardColumnId.State]: Match.AnyOf },
-      groupedColumns: [StandardColumnId.Queue, "annotation_preferenc.es/foo-alpha", StandardColumnId.JobSet],
+      columnMatches: {
+        "annotation_preferences.com/foo-alpha": Match.StartsWith,
+        [StandardColumnId.State]: Match.AnyOf,
+      },
+      groupedColumns: [StandardColumnId.Queue, "annotation_preferences.com/foo-alpha", StandardColumnId.JobSet],
       columnOrder: [
         StandardColumnId.JobID,
-        "annotation_preferenc.es/foo-alpha",
+        "annotation_preferences.com/foo-alpha",
         StandardColumnId.Queue,
         StandardColumnId.Namespace,
         StandardColumnId.JobSet,
@@ -934,7 +940,7 @@ describe("ensurePreferencesAreConsistent", () => {
       sidebarJobId: "223344",
       // All added
       visibleColumns: {
-        "annotation_preferenc.es/foo-alpha": true,
+        "annotation_preferences.com/foo-alpha": true,
         jobSet: true,
         queue: true,
         state: true,
@@ -947,7 +953,7 @@ describe("ensurePreferencesAreConsistent", () => {
 
   it("adds to the column order includes all unpinned standard columns and annotations and removes any columns which are neither", () => {
     const validPreferences: JobsTablePreferences = {
-      annotationColumnKeys: ["preferenc.es/foo-alpha", "preferenc.es/foo-bravo", "preferenc.es/foo-charlie"],
+      annotationColumnKeys: ["preferences.com/foo-alpha", "preferences.com/foo-bravo", "preferences.com/foo-charlie"],
       expandedState: {},
       filters: [],
       columnMatches: {},
@@ -955,7 +961,7 @@ describe("ensurePreferencesAreConsistent", () => {
       columnOrder: [
         StandardColumnId.TimeInState,
         "annotation_rubbish-annotation",
-        "annotation_preferenc.es/foo-bravo",
+        "annotation_preferences.com/foo-bravo",
         "rubbish" as ColumnId,
         StandardColumnId.JobID,
       ],
@@ -966,26 +972,26 @@ describe("ensurePreferencesAreConsistent", () => {
       visibleColumns: {
         [StandardColumnId.JobID]: true,
         [StandardColumnId.TimeInState]: true,
-        'annotation_"preferenc.es/foo-bravo': true,
+        'annotation_"preferences.com/foo-bravo': true,
       },
     }
 
     ensurePreferencesAreConsistent(validPreferences)
 
     const expected: JobsTablePreferences = {
-      annotationColumnKeys: ["preferenc.es/foo-alpha", "preferenc.es/foo-bravo", "preferenc.es/foo-charlie"],
+      annotationColumnKeys: ["preferences.com/foo-alpha", "preferences.com/foo-bravo", "preferences.com/foo-charlie"],
       expandedState: {},
       filters: [],
       columnMatches: {},
       groupedColumns: [],
       columnOrder: [
         StandardColumnId.TimeInState,
-        "annotation_preferenc.es/foo-bravo",
+        "annotation_preferences.com/foo-bravo",
         StandardColumnId.JobID,
 
         // All the following elements are added
-        "annotation_preferenc.es/foo-alpha",
-        "annotation_preferenc.es/foo-charlie",
+        "annotation_preferences.com/foo-alpha",
+        "annotation_preferences.com/foo-charlie",
         StandardColumnId.Queue,
         StandardColumnId.Namespace,
         StandardColumnId.JobSet,
@@ -1013,7 +1019,7 @@ describe("ensurePreferencesAreConsistent", () => {
       visibleColumns: {
         [StandardColumnId.JobID]: true,
         [StandardColumnId.TimeInState]: true,
-        'annotation_"preferenc.es/foo-bravo': true,
+        'annotation_"preferences.com/foo-bravo': true,
       },
     }
 

@@ -38,6 +38,7 @@ describe("ReactTableUtils", () => {
           type: "jobSet",
           value: "E:\\tmp\\file-share",
         })
+        // eslint-disable-next-line @cspell/spellchecker
         expect(result).toBe("jobSet:E%3A%5Ctmp%5Cfile-share")
       })
     })
@@ -82,8 +83,10 @@ describe("ReactTableUtils", () => {
       })
 
       it("handles special characters correctly", () => {
+        // eslint-disable-next-line @cspell/spellchecker
         const result = fromRowId("jobSet:E%3A%5Ctmp%5Cfile-share")
         expect(result).toStrictEqual({
+          // eslint-disable-next-line @cspell/spellchecker
           rowId: "jobSet:E%3A%5Ctmp%5Cfile-share",
           rowIdPartsPath: [
             {
@@ -91,6 +94,7 @@ describe("ReactTableUtils", () => {
               value: "E:\\tmp\\file-share",
             },
           ],
+          // eslint-disable-next-line @cspell/spellchecker
           rowIdPathFromRoot: ["jobSet:E%3A%5Ctmp%5Cfile-share"],
         })
       })
@@ -145,7 +149,7 @@ describe("ReactTableUtils", () => {
       expect(parentRow).toBeUndefined()
     })
 
-    it("overrides existing subrows if not appending", () => {
+    it("overrides existing sub-rows if not appending", () => {
       existingData = [{ rowId: "fruit:apple", subRows: [{ rowId: "color:green" }] }]
       newRows = [{ rowId: "taste:delicious" }]
       parentRowId = "fruit:apple"
@@ -157,7 +161,7 @@ describe("ReactTableUtils", () => {
       expect(parentRow).toStrictEqual({ rowId: "fruit:apple", subRows: [{ rowId: "taste:delicious" }] })
     })
 
-    it("appends existing subrows if appending", () => {
+    it("appends existing sub-rows if appending", () => {
       existingData = [{ rowId: "fruit:apple", subRows: [{ rowId: "color:green" }] }]
       newRows = [{ rowId: "taste:delicious" }]
       parentRowId = "fruit:apple"

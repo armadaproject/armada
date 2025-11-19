@@ -244,6 +244,7 @@ export const useFetchJobsTableData = ({
       setPendingData(restOfRequests)
     }
 
+    // eslint-disable-next-line no-console
     fetchData().catch(console.error)
 
     // This will run when the current invocation is no longer needed (either because the

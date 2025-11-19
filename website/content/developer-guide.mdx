@@ -1,0 +1,388 @@
+---
+title: 'Developer Guide'
+description: 'Set up your development environment and start contributing to Armada'
+---
+
+This guide helps you set up a development environment for contributing to Armada or customizing it with new features. For contribution guidelines, see the [Contributor Guide](./contribute/contributor-guide.mdx).
+
+## Prerequisites
+
+Install the following tools before you begin. These are verified requirements from the Armada source code:
+
+- **[Go](https://go.dev/doc/install)** (version 1.25 or later) - Required for building Armada
+- **gcc** (for Windows, see [tdm-gcc](https://jmeubank.github.io/tdm-gcc/)) - Required for CGO compilation
+- **[mage](https://magefile.org/)** - Build tool used throughout the Armada project (similar to Make, written in Go)
+- **[Docker](https://docs.docker.com/get-docker/)** - Container runtime for running dependencies
+- **[kubectl](https://kubernetes.io/docs/tasks/tools/#kubectl)** - Kubernetes command-line tool
+- **[protobuf](https://github.com/protocolbuffers/protobuf/releases)** (version 3.17.3 or later) - Protocol buffer compiler (required if you modify `.proto` files)
+- **[kind](https://kind.sigs.k8s.io/)** - Kubernetes in Docker (bootstrapped via `mage BootstrapTools`)
+
+**Note:** Additional tools are automatically installed via `mage BootstrapTools` from [`tools.yaml`](https://github.com/armadaproject/armada/blob/master/tools.yaml), including golangci-lint, sqlc, go-swagger, and others.
+
+## Development Environment Setup
+
+Armada provides two main ways to run components locally for development. Choose the method that best fits your workflow.
+
+### Using `mage` LocalDev (Recommended)
+
+`LocalDev` automates the setup process and is the recommended way to get started:
+
+- Bootstraps required tools from [`tools.yaml`](https://github.com/armadaproject/armada/blob/master/tools.yaml)
+- Creates a local Kubernetes cluster using [kind](https://kind.sigs.k8s.io/)
+- Starts dependencies (Pulsar, Redis, PostgreSQL)
+- Builds and starts Armada components
+
+**Note:** If you edit a proto file, run `mage proto` to regenerate the Go code.
+
+LocalDev has several modes:
+
+```bash
+# Minimal setup - runs only core components (server, executor, scheduler)
+# This is what CI uses for testing
+mage localdev minimal
+
+# Full setup - runs all components including Lookout UI
+mage localdev full
+
+# Skip build step - use existing Docker images
+# Set ARMADA_IMAGE and ARMADA_TAG to choose the image
+mage localdev no-build
+```
+
+We use `mage localdev minimal` to test the CI pipeline. Use it to test changes to core components.
+
+To stop the local development environment:
+
+```bash
+mage LocalDevStop
+```
+
+### Using Goreman
+
+[Goreman](https://github.com/mattn/goreman) is a Go-based clone of [Foreman](https://github.com/ddollar/foreman) that manages Procfile-based applications, allowing you to run multiple processes with a single command. Goreman will build the components from source and run them locally, making it easy to test changes quickly.
+
+1. Install `goreman`:
+
+   ```bash
+   go install github.com/mattn/goreman@latest
+   ```
+
+2. Start dependencies:
+
+   ```bash
+   docker-compose -f _local/docker-compose-deps.yaml up -d
+   ```
+
+   **Note:** Images can be overridden using environment variables: `REDIS_IMAGE`, `POSTGRES_IMAGE`, `PULSAR_IMAGE`, `KEYCLOAK_IMAGE`
+
+3. Initialize databases and Kubernetes resources:
+
+   ```bash
+   scripts/localdev-init.sh
+   ```
+
+4. Start Armada components:
+   ```bash
+   goreman -f _local/procfiles/no-auth.Procfile start
+   ```
+
+#### Local Development with Authentication
+
+To run Armada with OIDC authentication enabled using Keycloak:
+
+1. Start dependencies with the auth profile:
+
+   ```bash
+   docker-compose -f _local/docker-compose-deps.yaml --profile auth up -d
+   ```
+
+   This starts Redis, PostgreSQL, Pulsar, and Keycloak with a pre-configured realm.
+
+2. Initialize databases and Kubernetes resources:
+
+   ```bash
+   scripts/localdev-init.sh
+   ```
+
+3. Start Armada components with auth configuration:
+
+   ```bash
+   goreman -f _local/procfiles/auth.Procfile start
+   ```
+
+4. Use armadactl with OIDC authentication:
+   ```bash
+   armadactl --config _local/.armadactl.yaml --context auth-oidc get queues
+   ```
+
+#### Local Development with Fake Executor
+
+For testing Armada without a real Kubernetes cluster, you can use the fake executor that simulates a Kubernetes environment:
+
+```bash
+goreman -f _local/procfiles/fake-executor.Procfile start
+```
+
+The fake executor simulates:
+
+- 2 virtual nodes with 8 CPUs and 32Gi memory each
+- Pod lifecycle management without actual container execution
+- Resource allocation and job state transitions
+
+This is useful for:
+
+- Testing Armada's scheduling logic
+- Development when Kubernetes is not available
+- Integration testing of job flows
+
+### Configuration Options
+
+You can set the `ARMADA_COMPONENTS` environment variable to choose which components to run:
+
+```bash
+export ARMADA_COMPONENTS="server,executor"
+```
+
+### Testing Your Setup
+
+Verify that your development environment is working:
+
+```bash
+# Run the test suite
+mage testsuite
+```
+
+Or manually:
+
+```bash
+go run cmd/armadactl/main.go create queue e2e-test-queue
+export ARMADA_EXECUTOR_INGRESS_URL="http://localhost"
+export ARMADA_EXECUTOR_INGRESS_PORT=5001
+go run cmd/testsuite/main.go test --tests "testsuite/testcases/basic/*" --junit junit.xml
+```
+
+## Code Structure
+
+Understanding Armada's codebase structure will help you navigate and contribute effectively.
+
+### Directory Layout
+
+```
+armada/
+├── cmd/              # Main entry points for all components
+│   ├── server/       # Armada server (API server)
+│   ├── executor/     # Executor (runs in each K8s cluster)
+│   ├── scheduler/    # Scheduler (job scheduling logic)
+│   ├── lookout/      # Lookout (job monitoring/UI backend)
+│   └── armadactl/    # Command-line interface
+├── internal/         # Internal packages (not for external use)
+│   ├── server/       # Server implementation
+│   ├── executor/     # Executor implementation
+│   ├── scheduler/    # Scheduler implementation
+│   ├── lookout/      # Lookout implementation
+│   └── common/       # Shared utilities
+├── pkg/              # Public packages (for external use)
+│   ├── api/          # gRPC API definitions
+│   └── client/       # Client libraries
+├── config/           # Configuration files for components
+├── deployment/       # Helm charts and deployment configs
+├── magefiles/        # Build automation (mage targets)
+└── testsuite/        # Integration test cases
+```
+
+### Key Components
+
+- **Server** (`cmd/server/`, `internal/server/`): The main API server that accepts job submissions and manages queues
+- **Executor** (`cmd/executor/`, `internal/executor/`): Runs in each Kubernetes cluster and executes jobs
+- **Scheduler** (`cmd/scheduler/`, `internal/scheduler/`): Determines when and where jobs should run
+- **Lookout** (`cmd/lookout/`, `internal/lookout/`): Provides job monitoring and UI backend
+- **armadactl** (`cmd/armadactl/`): Command-line interface for interacting with Armada
+
+### Using `mage`
+
+`mage` is the build tool used throughout the Armada project. To see all available commands:
+
+```bash
+mage -l
+```
+
+Common mage targets:
+
+- `mage localdev minimal` - Start minimal local development environment
+- `mage localdev full` - Start full local development environment
+- `mage buildDockers` - Build Docker images
+- `mage proto` - Generate Go code from proto files
+- `mage testsuite` - Run the test suite
+- `mage ui` - Build and run the Lookout UI
+
+## Debugging and Profiling
+
+### Profiling with pprof
+
+Go provides a profiling tool called [pprof](https://pkg.go.dev/net/http/pprof). To use pprof with Armada, enable the profiling socket in your config.
+
+```yaml
+profiling:
+  port: 6060
+  hostnames:
+    - 'armada-scheduler-profiling.armada.my-k8s-cluster.com'
+  clusterIssuer: 'k8s-cluster-issuer'
+  auth:
+    anonymousAuth: true
+    permissionGroupMapping:
+      pprof: ['everyone']
+```
+
+### Debugging with VS Code
+
+Run server and executor in debug mode and get a launch.json for VS Code:
+
+```bash
+mage debug vscode
+```
+
+After running this, attach to the running processes using VS Code. See the [VS Code Debugging Guide](https://code.visualstudio.com/docs/editor/debugging) for details.
+
+### Debugging with Delve
+
+Run components in debug mode with Delve:
+
+```bash
+mage debug delve
+```
+
+This creates a `docker-compose.dev.yaml` file. You can also manually create it:
+
+```bash
+mage createDelveCompose
+docker compose -f docker-compose.dev.yaml up -d server executor
+```
+
+Then attach to the running processes:
+
+```bash
+docker compose exec -it server bash
+dlv connect :4000
+```
+
+### Debug Port Mappings
+
+| Armada service    | Debug host       |
+| ----------------- | ---------------- |
+| `server`          | `localhost:4000` |
+| `executor`        | `localhost:4001` |
+| `binoculars`      | `localhost:4002` |
+| `eventingester`   | `localhost:4003` |
+| `lookoutui`       | `localhost:4004` |
+| `lookout`         | `localhost:4005` |
+| `lookoutingester` | `localhost:4007` |
+
+### GoLand Run Configurations
+
+Run configurations are available in the `.run` directory. When opening the project in GoLand, you can run Armada in both standard and debug mode.
+
+**Note:** The executor requires a Kubernetes config in `$PROJECT_DIR$/.kube/internal/config`.
+
+### Other Debugging Methods
+
+Run `mage debug local` to only spin up the dependencies, then run individual components yourself.
+
+For required environmental variables, see the [Environmental Variables guide](https://github.com/armadaproject/armada/tree/master/developer/env/README.md).
+
+## Extending Armada
+
+Armada can be extended and customized in several ways:
+
+### Custom Schedulers
+
+The scheduler is designed to be extensible. You can implement custom scheduling algorithms by modifying the scheduler logic in `internal/scheduler/`. The scheduler handles:
+
+- Job queuing and prioritization
+- Resource allocation
+- Gang scheduling
+- Preemption logic
+
+The scheduler code is located in `internal/scheduler/` and can be customized to implement different scheduling strategies.
+
+### Custom Executors
+
+While the standard executor works with Kubernetes, you could create custom executors for other platforms. The executor interface is defined in `pkg/executorapi/` and communicates with the scheduler via gRPC.
+
+### Client Libraries
+
+Armada provides client libraries for multiple languages that you can extend or use as reference:
+
+- **Python**: [`client/python/`](https://github.com/armadaproject/armada/tree/master/client/python)
+- **Java**: [`client/java/`](https://github.com/armadaproject/armada/tree/master/client/java)
+- **Scala**: [`client/scala/`](https://github.com/armadaproject/armada/tree/master/client/scala)
+- **.NET**: [`client/DotNet/`](https://github.com/armadaproject/armada/tree/master/client/DotNet)
+
+These libraries provide programmatic access to Armada's APIs and can be used as reference for building custom clients.
+
+### Integration Examples
+
+Armada has been integrated with various systems. These can serve as examples for creating your own integrations:
+
+- **Airflow**: [`third_party/airflow/`](https://github.com/armadaproject/armada/tree/master/third_party/airflow) - Airflow operator for Armada
+- **Metaflow**: [armada-metaflow repository](https://github.com/armadaproject/armada-metaflow) - Metaflow decorator for Armada
+- **Jenkins**: [jenkins-plugin repository](https://github.com/armadaproject/jenkins-plugin) - Jenkins plugin for Armada
+- **Spark**: [armada-spark repository](https://github.com/armadaproject/armada-spark) - Spark cluster manager for Armada
+
+### UI Development
+
+To develop the Lookout UI locally, the UI code is located in `internal/lookoutui/`. The UI is built with React and TypeScript.
+
+When using Goreman, the UI runs automatically on http://localhost:3000 (frontend dev server).
+
+To run the UI separately for development:
+
+```bash
+cd internal/lookoutui
+yarn
+yarn openapi
+PROXY_TARGET=http://localhost:8089 yarn dev
+```
+
+This starts a development server on http://localhost:3000 that proxies API requests to the backend.
+
+Alternatively, build a production version with:
+
+```bash
+mage ui
+```
+
+This builds the UI and makes it available at http://localhost:8089.
+
+## Troubleshooting
+
+### Port 6443 Already in Use
+
+If port 6443 is already in use, modify `e2e/setup/kind.yaml` to use a different port:
+
+```yaml
+- containerPort: 6443
+  hostPort: 6444 # Change to an available port
+  protocol: TCP
+```
+
+### Arm/M1 Mac Issues
+
+On Arm/M1 Macs, you may need to set:
+
+```bash
+export PULSAR_IMAGE=richgross/pulsar:2.11.0
+```
+
+For more information on known issues:
+
+- [Arm issue](https://github.com/armadaproject/armada/issues/2493)
+- [Windows issue](https://github.com/armadaproject/armada/issues/2492)
+
+## Additional Resources
+
+### Website Resources
+
+- [API Reference](./user-guide/api.mdx) - API reference for REST and gRPC
+- [Contributor Guide](./contribute/contributor-guide.mdx) - Contribution guidelines and PR process
+- [Understanding Armada](./understanding-armada) - Core concepts and architecture
+- [Community](./community.mdx) - Get help, connect with the community, and find support resources

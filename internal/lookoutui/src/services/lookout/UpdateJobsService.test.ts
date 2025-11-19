@@ -12,46 +12,46 @@ describe("UpdateJobsService", () => {
     })
   })
 
-  it("splits jobs by queue and jobset", () => {
-    const jobArrs = [
+  it("splits jobs by queue and job set", () => {
+    const jobArrays = [
       createManyJobs("queue-1", "job-set-1-1", 10),
       createManyJobs("queue-1", "job-set-1-2", 10),
       createManyJobs("queue-2", "job-set-2-1", 10),
       createManyJobs("queue-3", "job-set-3-1", 10),
       createManyJobs("queue-3", "job-set-3-2", 10),
     ]
-    const jobs = ([] as Job[]).concat(...jobArrs)
+    const jobs = ([] as Job[]).concat(...jobArrays)
     const result = createJobBatches(jobs, 100)
     expect(result).toEqual(
       new Map<string, Map<string, JobId[][]>>([
         [
           "queue-1",
           new Map<string, JobId[][]>([
-            ["job-set-1-1", [extractIds(jobArrs[0])]],
-            ["job-set-1-2", [extractIds(jobArrs[1])]],
+            ["job-set-1-1", [extractIds(jobArrays[0])]],
+            ["job-set-1-2", [extractIds(jobArrays[1])]],
           ]),
         ],
-        ["queue-2", new Map<string, JobId[][]>([["job-set-2-1", [extractIds(jobArrs[2])]]])],
+        ["queue-2", new Map<string, JobId[][]>([["job-set-2-1", [extractIds(jobArrays[2])]]])],
         [
           "queue-3",
           new Map<string, JobId[][]>([
-            ["job-set-3-1", [extractIds(jobArrs[3])]],
-            ["job-set-3-2", [extractIds(jobArrs[4])]],
+            ["job-set-3-1", [extractIds(jobArrays[3])]],
+            ["job-set-3-2", [extractIds(jobArrays[4])]],
           ]),
         ],
       ]),
     )
   })
 
-  it("splits jobs by queue and jobset and batches", () => {
-    const jobArrs = [
+  it("splits jobs by queue and job set and batches", () => {
+    const jobArrays = [
       createManyJobs("queue-1", "job-set-1-1", 99),
       createManyJobs("queue-1", "job-set-1-2", 101),
       createManyJobs("queue-2", "job-set-2-1", 100),
       createManyJobs("queue-3", "job-set-3-1", 100),
       createManyJobs("queue-3", "job-set-3-2", 100),
     ]
-    const jobs = ([] as Job[]).concat(...jobArrs)
+    const jobs = ([] as Job[]).concat(...jobArrays)
     const batchSize = 10
     const result = createJobBatches(jobs, 10)
     const getBatches = (jobs: Job[]) => _.chunk(jobs, batchSize).map(extractIds)
@@ -60,16 +60,16 @@ describe("UpdateJobsService", () => {
         [
           "queue-1",
           new Map<string, JobId[][]>([
-            ["job-set-1-1", getBatches(jobArrs[0])],
-            ["job-set-1-2", getBatches(jobArrs[1])],
+            ["job-set-1-1", getBatches(jobArrays[0])],
+            ["job-set-1-2", getBatches(jobArrays[1])],
           ]),
         ],
-        ["queue-2", new Map<string, JobId[][]>([["job-set-2-1", getBatches(jobArrs[2])]])],
+        ["queue-2", new Map<string, JobId[][]>([["job-set-2-1", getBatches(jobArrays[2])]])],
         [
           "queue-3",
           new Map<string, JobId[][]>([
-            ["job-set-3-1", getBatches(jobArrs[3])],
-            ["job-set-3-2", getBatches(jobArrs[4])],
+            ["job-set-3-1", getBatches(jobArrays[3])],
+            ["job-set-3-2", getBatches(jobArrays[4])],
           ]),
         ],
       ]),
