@@ -1,14 +1,16 @@
 package scheduleringester
 
 import (
+	"os"
+	"os/signal"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/pkg/errors"
 
 	"github.com/armadaproject/armada/internal/common"
-	"github.com/armadaproject/armada/internal/common/app"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/database"
 	"github.com/armadaproject/armada/internal/common/ingest"
@@ -21,10 +23,29 @@ import (
 	"github.com/armadaproject/armada/pkg/controlplaneevents"
 )
 
+// createContextWithShutdownFromParent creates a context that inherits tracing from parent
+// but also cancels on SIGTERM/SIGINT
+func createContextWithShutdownFromParent(parent *armadacontext.Context) *armadacontext.Context {
+	ctx, cancel := armadacontext.WithCancel(parent)
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		select {
+		case <-c:
+			cancel()
+		case <-ctx.Done():
+		}
+	}()
+	return ctx
+}
+
 // Run will create a pipeline that will take Armada event messages from Pulsar and update the schedulerDb.
 // This pipeline will run until a SIGTERM is received.
 func Run(config Configuration) error {
 	svcMetrics := metrics.NewMetrics(metrics.ArmadaEventIngesterMetricsPrefix + "armada_scheduler_ingester_")
+
+	// Use clean context - each async operation will create independent root spans
+	armadaCtx := armadacontext.Background()
 
 	log.Infof("opening connection pool to postgres")
 	db, err := database.OpenPgxPool(config.Postgres)
@@ -91,7 +112,7 @@ func Run(config Configuration) error {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		if err := jobSetEventsIngester.Run(app.CreateContextWithShutdown()); err != nil {
+		if err := jobSetEventsIngester.Run(createContextWithShutdownFromParent(armadaCtx)); err != nil {
 			log.Errorf("error running jobSet event ingestion pipeline: %s", err)
 		}
 	}()
@@ -100,7 +121,7 @@ func Run(config Configuration) error {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		if err := controlPlaneEventsIngester.Run(app.CreateContextWithShutdown()); err != nil {
+		if err := controlPlaneEventsIngester.Run(createContextWithShutdownFromParent(armadaCtx)); err != nil {
 			log.Errorf("error running control plane event ingestion pipeline: %s", err)
 		}
 	}()

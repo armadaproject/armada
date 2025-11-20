@@ -21,6 +21,7 @@ import (
 	log "github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/maps"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
+	"github.com/armadaproject/armada/internal/common/tracing"
 	priorityTypes "github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -93,6 +94,17 @@ func (srv *ExecutorApi) LeaseJobRuns(stream executorapi.ExecutorApi_LeaseJobRuns
 	}
 
 	ctx := armadacontext.WithLogField(armadacontext.FromGrpcCtx(stream.Context()), "executor", req.ExecutorId)
+
+	// Start tracing span for job leasing
+	_, span := tracing.StartSpan(ctx, "scheduler", "lease-job-runs")
+	defer span.End()
+
+	// Add executor information to span
+	span.SetAttributes(
+		tracing.DatabaseAttributes("job-lease")...,
+	)
+	span.SetAttributes(tracing.JobAttributes("", "")...)
+
 	err = srv.authorize(ctx)
 	if err != nil {
 		return err
@@ -347,12 +359,45 @@ func addAnnotations(job *armadaevents.SubmitJob, annotations map[string]string) 
 // ReportEvents publishes all eventSequences to Pulsar. The eventSequences are compacted for more efficient publishing.
 func (srv *ExecutorApi) ReportEvents(grpcCtx context.Context, list *executorapi.EventList) (*types.Empty, error) {
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
+
+	// Start tracing span for event reporting
+	_, span := tracing.StartSpan(ctx, "scheduler", "report-events")
+	defer span.End()
+
+	// Add event information to span
+	events := list.GetEvents()
+	span.SetAttributes(
+		tracing.DatabaseAttributes("event-publish")...,
+	)
+
+	// Extract job metadata from events if available
+	if len(events) > 0 {
+		// Try to get queue and jobset from first event sequence
+		if seq := events[0]; seq != nil && len(seq.Events) > 0 {
+			if submitEvent := seq.Events[0].GetSubmitJob(); submitEvent != nil {
+				span.SetAttributes(tracing.JobAttributes(seq.Queue, seq.JobSetName)...)
+				metadata := tracing.JobMetadata{
+					Queue:     seq.Queue,
+					JobSet:    seq.JobSetName,
+					Operation: "report-events",
+				}
+				tracing.AddJobMetadata(span, metadata)
+			}
+		}
+	}
+
 	err := srv.authorize(ctx)
 	if err != nil {
+		tracing.AddErrorToSpan(span, err)
 		return nil, err
 	}
 
 	err = srv.publisher.PublishMessages(ctx, list.GetEvents()...)
+	if err != nil {
+		tracing.AddErrorToSpan(span, err)
+	} else {
+		tracing.AddSuccessToSpan(span)
+	}
 	return &types.Empty{}, err
 }
 
