@@ -62,6 +62,7 @@ func convertIngressesAndServices(
 ) []*armadaevents.KubernetesObject {
 	objects := make([]*armadaevents.KubernetesObject, 0, 2*len(jobReq.Ingress)+len(jobReq.Services))
 	serviceIdx := 0
+	ingressIdx := 0
 
 	// Extract Ports from main containers and native sidecar containers
 	availableServicePorts := make([]v1.ServicePort, 0)
@@ -103,26 +104,8 @@ func convertIngressesAndServices(
 		}
 	}
 
-	// Create ingress and associated services
-	for _, ingressConfig := range jobReq.Ingress {
-		ports := filterServicePorts(availableServicePorts, ingressConfig.Ports)
-		if len(ports) > 0 {
-			serviceName := fmt.Sprintf("%s-service-%d", common.PodName(jobId), serviceIdx)
-			serviceObject := createService(serviceName, jobId, ports, v1.ServiceTypeClusterIP, ingressConfig.UseClusterIP)
-			serviceIdx++
-			ingressObject := createIngressFromService(
-				serviceObject.GetService(),
-				serviceIdx,
-				ingressConfig,
-				serviceObject.ObjectMeta.Name,
-				jobReq.Namespace,
-				jobId)
-			objects = append(objects, serviceObject)
-			objects = append(objects, ingressObject)
-		}
-	}
-
-	// Create standalone services
+	// Create standalone services first
+	createdServices := make([]*armadaevents.KubernetesObject, 0)
 	for _, serviceConfig := range jobReq.Services {
 		ports := filterServicePorts(availableServicePorts, serviceConfig.Ports)
 		if len(ports) > 0 {
@@ -151,7 +134,54 @@ func convertIngressesAndServices(
 			}
 
 			serviceObject := createService(serviceName, jobId, ports, serviceType, useClusterIp)
+			createdServices = append(createdServices, serviceObject)
 			objects = append(objects, serviceObject)
+		}
+	}
+
+	// Create ingresses, reusing existing services when possible
+	for _, ingressConfig := range jobReq.Ingress {
+		ingressPorts := filterServicePorts(availableServicePorts, ingressConfig.Ports)
+		if len(ingressPorts) == 0 {
+			continue
+		}
+
+		// Check if any existing service covers the ingress port(s)
+		var targetService *armadaevents.KubernetesObject
+		for _, service := range createdServices {
+			servicePorts := service.GetService().Ports
+			if containsAllPorts(servicePorts, ingressPorts) {
+				targetService = service
+				break
+			}
+		}
+
+		if targetService != nil {
+			// Reuse existing service - create only the ingress
+			ingressObject := createIngressFromService(
+				targetService.GetService(),
+				ingressIdx,
+				ingressConfig,
+				targetService.ObjectMeta.Name,
+				jobReq.Namespace,
+				jobId)
+			objects = append(objects, ingressObject)
+			ingressIdx++
+		} else {
+			// No suitable service exists - create both service and ingress
+			serviceName := fmt.Sprintf("%s-service-%d", common.PodName(jobId), serviceIdx)
+			serviceObject := createService(serviceName, jobId, ingressPorts, v1.ServiceTypeClusterIP, ingressConfig.UseClusterIP)
+			serviceIdx++
+			ingressObject := createIngressFromService(
+				serviceObject.GetService(),
+				ingressIdx,
+				ingressConfig,
+				serviceObject.ObjectMeta.Name,
+				jobReq.Namespace,
+				jobId)
+			objects = append(objects, serviceObject)
+			objects = append(objects, ingressObject)
+			ingressIdx++
 		}
 	}
 
@@ -211,11 +241,17 @@ func createIngressFromService(
 	ingressConfig *api.IngressConfig,
 	serviceName, namespace, jobId string,
 ) *armadaevents.KubernetesObject {
-	rules := make([]networking.IngressRule, 0, len(service.Ports))
-	tlsHosts := make([]string, 0, len(service.Ports))
+	// Use specified ingress ports, or all service ports if none specified (legacy behavior)
+	ingressPorts := service.Ports
+	if len(ingressConfig.Ports) > 0 {
+		ingressPorts = filterServicePorts(service.Ports, ingressConfig.Ports)
+	}
 
-	// Rest of the hosts are generated off port information
-	for _, servicePort := range service.Ports {
+	rules := make([]networking.IngressRule, 0, len(ingressPorts))
+	tlsHosts := make([]string, 0, len(ingressPorts))
+
+	// Create ingress rules only for the specified ingress ports
+	for _, servicePort := range ingressPorts {
 		host := fmt.Sprintf("%s-%s.%s.", servicePort.Name, common.PodName(jobId), namespace)
 		tlsHosts = append(tlsHosts, host)
 
@@ -293,4 +329,21 @@ func filterServicePorts(availablePorts []v1.ServicePort, desiredPorts []uint32) 
 		}
 		return false
 	})
+}
+
+// containsAllPorts checks if servicePorts contains all ports from requiredPorts
+func containsAllPorts(servicePorts []v1.ServicePort, requiredPorts []v1.ServicePort) bool {
+	for _, requiredPort := range requiredPorts {
+		found := false
+		for _, servicePort := range servicePorts {
+			if servicePort.Port == requiredPort.Port {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+	return true
 }
