@@ -192,7 +192,6 @@ func (r *PostgresJobRepository) FetchJobRunErrors(ctx *armadacontext.Context, ru
 		AccessMode:     pgx.ReadWrite,
 		DeferrableMode: pgx.Deferrable,
 	}, func(tx pgx.Tx) error {
-
 		var rows pgx.Rows
 		var queryErr error
 		defer func() {
