@@ -30,11 +30,9 @@ func CreateOwnerReference(pod *v1.Pod) metav1.OwnerReference {
 func ExtractIngresses(job *executorapi.JobRunLease, pod *v1.Pod, executorIngressConfig *configuration.IngressConfiguration) []*networking.Ingress {
 	result := make([]*networking.Ingress, 0, 10)
 
-	var executorIngressConfigAnnotations map[string]string
+	annotations := make(map[string]string)
 	if executorIngressConfig != nil && len(executorIngressConfig.Annotations) > 0 {
-		executorIngressConfigAnnotations = executorIngressConfig.Annotations
-	} else {
-		executorIngressConfigAnnotations = make(map[string]string)
+		annotations = maps.Clone(executorIngressConfig.Annotations)
 	}
 
 	for _, additionalObject := range job.Job.Objects {
@@ -46,8 +44,7 @@ func ExtractIngresses(job *executorapi.JobRunLease, pod *v1.Pod, executorIngress
 				domain.Queue:     pod.Labels[domain.Queue],
 				domain.PodNumber: pod.Labels[domain.PodNumber],
 			})
-			annotations := maps.Clone(executorIngressConfigAnnotations)
-			annotations = util.MergeMaps(annotations, additionalObject.ObjectMeta.Annotations)
+			annotations := util.MergeMaps(annotations, additionalObject.ObjectMeta.Annotations)
 			annotations = util.MergeMaps(annotations, map[string]string{
 				domain.JobSetId: job.Jobset,
 				domain.Owner:    job.User,
