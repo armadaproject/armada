@@ -168,9 +168,9 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 				cycleNumber++
 				ctx := armadacontext.WithLogField(ctx, "cycleNumber", cycleNumber)
 
-				ctx.Logger().Infof("starting scheduler cycle: %s", start.Format(time.RFC3339Nano))
+				ctx.Logger().Infof("starting scheduler cycle")
 				defer func(ctx *armadacontext.Context) {
-					ctx.Logger().Infof("finished scheduler cycle: %s", s.clock.Now().Format(time.RFC3339Nano))
+					ctx.Logger().Infof("finished scheduler cycle")
 				}(ctx)
 
 				leaderToken := s.leaderController.GetToken()
@@ -259,9 +259,9 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 //     As state transitions are persisted and read back from the schedulerDb over later cycles,
 //     there is no change to the jobDb, since the correct changes have already been made.
 func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToken leader.LeaderToken, shouldSchedule bool, cycleNumber int) (scheduling.SchedulerResult, error) {
-	ctx.Logger().Infof("starting cycle at: %s", s.clock.Now().Format(time.RFC3339Nano))
+	ctx.Logger().Infof("starting cycle")
 	defer func(ctx *armadacontext.Context) {
-		ctx.Logger().Infof("finished cycle at: %s", s.clock.Now().Format(time.RFC3339Nano))
+		ctx.Logger().Infof("finished cycle")
 	}(ctx)
 	// TODO: Consider returning a slice of these instead.
 	overallSchedulerResult := scheduling.SchedulerResult{}
