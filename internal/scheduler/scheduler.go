@@ -89,6 +89,7 @@ type Scheduler struct {
 	// A list of the pools that are market driven
 	// Used to know which jobs need update when updating job prices
 	marketDrivenPools []string
+	runNodeReconciler JobRunNodeReconciler
 }
 
 func NewScheduler(
@@ -109,6 +110,7 @@ func NewScheduler(
 	metrics *metrics.Metrics,
 	bidPriceProvider pricing.BidPriceProvider,
 	marketDrivenPools []string,
+	runNodeReconciler JobRunNodeReconciler,
 ) (*Scheduler, error) {
 	return &Scheduler{
 		jobRepository:      jobRepository,
@@ -131,6 +133,7 @@ func NewScheduler(
 		runsSerial:         -1,
 		metrics:            metrics,
 		marketDrivenPools:  marketDrivenPools,
+		runNodeReconciler:  runNodeReconciler,
 	}, nil
 }
 
@@ -332,6 +335,14 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	// Schedule jobs.
 	if shouldSchedule {
 		start := time.Now()
+
+		preemptionEvents, err := s.preemptRunsWithMismatchingNodes(ctx, txn)
+		if err != nil {
+			return overallSchedulerResult, err
+		}
+		ctx.Infof("Finished reconciling runs with nodes, generating %d preemption events", len(preemptionEvents))
+		events = append(events, preemptionEvents...)
+
 		resourceUnits, err := s.updateJobPrices(ctx, txn)
 		if err != nil {
 			return overallSchedulerResult, err
@@ -925,7 +936,7 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 		} else if lastRun.PreemptRequested() && job.PriorityClass().Preemptible {
 			job = job.WithQueued(false).WithFailed(true).WithUpdatedRun(lastRun.WithoutTerminal().WithFailed(true))
 			events = append(events, createEventsForPreemptedJob(job.Id(), lastRun.Id(), "Preempted - preemption requested via API", s.clock.Now())...)
-			s.metrics.ReportJobPreemptedViaApi(job)
+			s.metrics.ReportJobPreemptedWithType(job, schedulercontext.PreemptedViaApi)
 		}
 	}
 
@@ -944,6 +955,40 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 	}
 
 	return nil, nil
+}
+
+func (s *Scheduler) preemptRunsWithMismatchingNodes(ctx *armadacontext.Context, txn *jobdb.Txn) ([]*armadaevents.EventSequence, error) {
+	invalidJobs, err := s.runNodeReconciler.ReconcileJobRuns(ctx, txn)
+	if err != nil {
+		return nil, fmt.Errorf("failed to reconcile runs with nodes because - %s", err)
+	}
+	jobsToUpdate := make([]*jobdb.Job, 0, len(invalidJobs))
+	events := make([]*armadaevents.EventSequence, 0, len(invalidJobs)*2)
+	for _, invalidJobInfo := range invalidJobs {
+		job := invalidJobInfo.Job
+		if job.InTerminalState() || job.Queued() || job.LatestRun() == nil {
+			continue
+		}
+
+		now := s.clock.Now()
+		job = job.WithQueued(false).WithFailed(true)
+		run := job.LatestRun()
+		job = job.WithUpdatedRun(run.WithFailed(true).WithPreemptedTime(&now))
+		jobsToUpdate = append(jobsToUpdate, job)
+		s.metrics.ReportJobPreemptedWithType(job, schedulercontext.PreemptedViaNodeReconciler)
+
+		es := &armadaevents.EventSequence{
+			Queue:      job.Queue(),
+			JobSetName: job.Jobset(),
+			Events:     createEventsForPreemptedJob(job.Id(), run.Id(), invalidJobInfo.Reason, now),
+		}
+		events = append(events, es)
+	}
+
+	if err := txn.Upsert(jobsToUpdate); err != nil {
+		return nil, err
+	}
+	return events, nil
 }
 
 // expireJobsIfNecessary removes any jobs from the JobDb which are running on stale executors.
