@@ -1,4 +1,4 @@
-package configuration
+package constants
 
 const (
 	// GangIdAnnotation maps to a unique id of the gang the job is part of; jobs with equal value make up a gang.
