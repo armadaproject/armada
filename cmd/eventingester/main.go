@@ -1,13 +1,16 @@
 package main
 
 import (
-	"github.com/armadaproject/armada/internal/common/logging"
-	"github.com/armadaproject/armada/internal/eventingester"
+	"fmt"
+	"os"
 
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 
 	"github.com/armadaproject/armada/internal/common"
+	"github.com/armadaproject/armada/internal/common/logging"
+	"github.com/armadaproject/armada/internal/common/tracing"
+	"github.com/armadaproject/armada/internal/eventingester"
 	"github.com/armadaproject/armada/internal/eventingester/configuration"
 )
 
@@ -27,6 +30,14 @@ func init() {
 func main() {
 	logging.MustConfigureApplicationLogging()
 	common.BindCommandlineArguments()
+
+	// Initialize tracing
+	cleanup, err := tracing.InitTracing("event-ingester")
+	if err != nil {
+		fmt.Printf("Failed to initialize tracing: %v\n", err)
+		os.Exit(-1)
+	}
+	defer cleanup()
 
 	var config configuration.EventIngesterConfiguration
 	userSpecifiedConfigs := viper.GetStringSlice(CustomConfigLocation)
