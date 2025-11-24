@@ -8,7 +8,7 @@ import (
 
 const EmptyReservationName = "unspecified"
 
-func GetReservationKey(taints []v1.Taint) string {
+func GetReservationName(taints []v1.Taint) string {
 	for _, taint := range taints {
 		if taint.Key == constants.ReservationTaintKey {
 			if taint.Value == "" {

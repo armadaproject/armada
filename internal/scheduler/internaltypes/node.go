@@ -174,7 +174,7 @@ func CreateNode(
 	evictedJobRunIds map[string]bool,
 	keys [][]byte,
 ) *Node {
-	reservation := util.GetReservationKey(taints)
+	reservation := util.GetReservationName(taints)
 	return &Node{
 		id:                    id,
 		nodeType:              nodeType,

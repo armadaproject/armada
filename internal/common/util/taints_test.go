@@ -45,7 +45,7 @@ func TestGetReservationName(t *testing.T) {
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			result := GetReservationKey(tc.input)
+			result := GetReservationName(tc.input)
 			assert.Equal(t, tc.expectedResult, result)
 		})
 	}

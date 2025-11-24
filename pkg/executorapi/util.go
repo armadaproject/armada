@@ -70,7 +70,7 @@ func NewNodeFromNodeInfo(nodeInfo *NodeInfo, executor string, allowedPriorities 
 		Unschedulable:               nodeInfo.Unschedulable,
 		ResourceUsageByQueueAndPool: resourceUsageByQueueAndPool,
 		ReportingNodeType:           nodeInfo.NodeType,
-		Reservation:                 util.GetReservationKey(pointer.SliceToValues(nodeInfo.Taints)),
+		Reservation:                 util.GetReservationName(pointer.SliceToValues(nodeInfo.Taints)),
 	}, nil
 }
 
