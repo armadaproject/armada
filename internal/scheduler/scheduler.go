@@ -715,6 +715,7 @@ func AppendEventSequencesFromScheduledJobs(eventSequences []*armadaevents.EventS
 								Tolerations: armadaslices.Map(jctx.AdditionalTolerations, func(t v1.Toleration) *v1.Toleration {
 									return &t
 								}),
+								Annotations: getGangNodeUniformityAnnotations(jctx),
 							},
 							Pool: run.Pool(),
 						},
@@ -1235,5 +1236,17 @@ func (s *Scheduler) ensureDbUpToDate(ctx *armadacontext.Context, pollInterval ti
 			ctx.Infof("Received %d partitions, still waiting on %d", numReceived, numSent-numReceived)
 			s.clock.Sleep(pollInterval)
 		}
+	}
+}
+
+// getGangNodeUniformityAnnotations returns annotations for gang node uniformity environment variables
+func getGangNodeUniformityAnnotations(jctx *schedulercontext.JobSchedulingContext) map[string]string {
+	if jctx.GangNodeUniformityLabelName == "" || jctx.GangNodeUniformityLabelValue == "" {
+		return nil
+	}
+
+	return map[string]string{
+		constants.GangNodeUniformityLabelNameEnvVar:  jctx.GangNodeUniformityLabelName,
+		constants.GangNodeUniformityLabelValueEnvVar: jctx.GangNodeUniformityLabelValue,
 	}
 }
