@@ -12,6 +12,7 @@ import (
 	"k8s.io/utils/clock"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/common/constants"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/scheduler/database"
@@ -24,7 +25,6 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/scheduling/context"
-	"github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/bidstore"
 )
@@ -844,7 +844,7 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 			}
 			events = append(events, jobSucceeded)
 		} else if lastRun.Failed() && !job.Queued() {
-			failFast := job.Annotations()[configuration.FailFastAnnotation] == "true"
+			failFast := job.Annotations()[constants.FailFastAnnotation] == "true"
 			requeueJob := !failFast && lastRun.Returned() && job.NumAttempts() < s.maxAttemptedRuns
 
 			if requeueJob && lastRun.RunAttempted() {
@@ -1201,7 +1201,7 @@ func getGangNodeUniformityAnnotations(jctx *schedulercontext.JobSchedulingContex
 	}
 
 	return map[string]string{
-		configuration.GangNodeUniformityLabelNameEnvVar:  jctx.GangNodeUniformityLabelName,
-		configuration.GangNodeUniformityLabelValueEnvVar: jctx.GangNodeUniformityLabelValue,
+		constants.GangNodeUniformityLabelNameEnvVar:  jctx.GangNodeUniformityLabelName,
+		constants.GangNodeUniformityLabelValueEnvVar: jctx.GangNodeUniformityLabelValue,
 	}
 }

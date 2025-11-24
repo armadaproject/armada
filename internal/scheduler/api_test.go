@@ -19,6 +19,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	"github.com/armadaproject/armada/internal/common/auth/permission"
 	"github.com/armadaproject/armada/internal/common/compress"
+	"github.com/armadaproject/armada/internal/common/constants"
 	"github.com/armadaproject/armada/internal/common/mocks"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/slices"
@@ -30,7 +31,6 @@ import (
 	schedulermocks "github.com/armadaproject/armada/internal/scheduler/mocks"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
-	"github.com/armadaproject/armada/internal/server/configuration"
 	servermocks "github.com/armadaproject/armada/internal/server/mocks"
 	"github.com/armadaproject/armada/internal/server/permissions"
 	"github.com/armadaproject/armada/pkg/api"
@@ -98,7 +98,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 		t,
 		&armadaevents.ObjectMeta{
 			Labels:      map[string]string{armadaJobPreemptibleLabel: "false"},
-			Annotations: map[string]string{configuration.PoolAnnotation: "test-pool"},
+			Annotations: map[string]string{constants.PoolAnnotation: "test-pool"},
 		},
 		&v1.PodSpec{
 			NodeSelector: map[string]string{nodeIdName: "node-id"},
@@ -118,7 +118,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 	submitWithoutNodeSelector, compressedSubmitNoNodeSelector := submitMsg(t,
 		&armadaevents.ObjectMeta{
 			Labels:      map[string]string{armadaJobPreemptibleLabel: "false"},
-			Annotations: map[string]string{configuration.PoolAnnotation: "test-pool"},
+			Annotations: map[string]string{constants.PoolAnnotation: "test-pool"},
 		},
 		nil,
 	)
@@ -136,7 +136,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 		t,
 		&armadaevents.ObjectMeta{
 			Labels:      map[string]string{armadaJobPreemptibleLabel: "true"},
-			Annotations: map[string]string{configuration.PoolAnnotation: "test-pool"},
+			Annotations: map[string]string{constants.PoolAnnotation: "test-pool"},
 		},
 
 		&v1.PodSpec{
@@ -178,14 +178,14 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 				Tolerations: armadaslices.Map(tolerations, func(t v1.Toleration) *v1.Toleration {
 					return &t
 				}),
-				Annotations: map[string]string{configuration.PoolAnnotation: "test-pool", "runtime_gang_cardinality": "3"},
+				Annotations: map[string]string{constants.PoolAnnotation: "test-pool", "runtime_gang_cardinality": "3"},
 			},
 		),
 	}
 	submitWithOverlay, _ := submitMsg(
 		t,
 		&armadaevents.ObjectMeta{
-			Annotations: map[string]string{configuration.PoolAnnotation: "test-pool", "runtime_gang_cardinality": "3"},
+			Annotations: map[string]string{constants.PoolAnnotation: "test-pool", "runtime_gang_cardinality": "3"},
 			Labels:      map[string]string{armadaJobPreemptibleLabel: "false"},
 		},
 		&v1.PodSpec{
