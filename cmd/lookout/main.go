@@ -121,6 +121,13 @@ func main() {
 	common.BindCommandlineArguments()
 
 	var config configuration.LookoutConfig
+
+	// Initialise slices to prevent JSON marshalling to 'null' for non-existent slices
+	config.CorsAllowedOrigins = make([]string, 0)
+	config.UIConfig.CommandSpecs = make([]configuration.CommandSpec, 0)
+	config.JobLinks = make([]configuration.JobLinkConfig, 0)
+	config.PinnedTimeZoneIdentifiers = make([]string, 0)
+
 	userSpecifiedConfigs := viper.GetStringSlice(CustomConfigLocation)
 	common.LoadConfig(&config, "./config/lookout", userSpecifiedConfigs)
 

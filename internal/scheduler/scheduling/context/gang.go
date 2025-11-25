@@ -108,3 +108,11 @@ func (gctx *GangSchedulingContext) Fit() GangSchedulingFit {
 	}
 	return f
 }
+
+// SetGangNodeUniformityValues sets the gang node uniformity label name and value for all jobs in the gang.
+func (gctx *GangSchedulingContext) SetGangNodeUniformityValues(labelName, labelValue string) {
+	for _, jctx := range gctx.JobSchedulingContexts {
+		jctx.GangNodeUniformityLabelName = labelName
+		jctx.GangNodeUniformityLabelValue = labelValue
+	}
+}

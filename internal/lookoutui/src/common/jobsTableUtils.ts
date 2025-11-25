@@ -43,7 +43,7 @@ export const pendingDataForAllVisibleData = (
     return {
       parentRowId: rowId as RowId,
       // Retain the same number of rows that are currently shown (unless it's smaller than the page size)
-      // Since these are currently all retreived in one request, they could be slower
+      // Since these are currently all retrieved in one request, they could be slower
       // if there is a lot of expanded rows
       take: numSubRows > defaultPageSize ? numSubRows : defaultPageSize,
       skip: 0,
@@ -75,6 +75,7 @@ export const matchForColumn = (columnId: string, columnMatches: Record<string, M
     : VALID_COLUMN_MATCHES[ANNOTATION_COLUMN_PREFIX]
 
   if (!validMatches) {
+    // eslint-disable-next-line no-console
     console.error(`There are no valid column matches for column with ID '${columnId}'`)
     return match
   }

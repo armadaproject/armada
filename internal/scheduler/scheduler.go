@@ -12,6 +12,7 @@ import (
 	"k8s.io/utils/clock"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/common/constants"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/scheduler/database"
@@ -24,7 +25,6 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/scheduling/context"
-	"github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/bidstore"
 )
@@ -50,6 +50,8 @@ type Scheduler struct {
 	// This is used to check if jobs are still schedulable.
 	// Useful when we are adding node anti-affinities.
 	submitChecker SubmitScheduleChecker
+	// This is used to check if gangs jobs are valid before considering their jobs validated
+	gangValidator SubmitGangValidator
 	// Responsible for publishing messages to Pulsar. Only the leader publishes.
 	publisher Publisher
 	// Minimum duration between scheduler cycles.
@@ -87,6 +89,7 @@ type Scheduler struct {
 	// A list of the pools that are market driven
 	// Used to know which jobs need update when updating job prices
 	marketDrivenPools []string
+	runNodeReconciler JobRunNodeReconciler
 }
 
 func NewScheduler(
@@ -97,6 +100,7 @@ func NewScheduler(
 	leaderController leader.LeaderController,
 	publisher Publisher,
 	submitChecker SubmitScheduleChecker,
+	gangValidator SubmitGangValidator,
 	cyclePeriod time.Duration,
 	schedulePeriod time.Duration,
 	executorTimeout time.Duration,
@@ -106,6 +110,7 @@ func NewScheduler(
 	metrics *metrics.Metrics,
 	bidPriceProvider pricing.BidPriceProvider,
 	marketDrivenPools []string,
+	runNodeReconciler JobRunNodeReconciler,
 ) (*Scheduler, error) {
 	return &Scheduler{
 		jobRepository:      jobRepository,
@@ -114,6 +119,7 @@ func NewScheduler(
 		leaderController:   leaderController,
 		publisher:          publisher,
 		submitChecker:      submitChecker,
+		gangValidator:      gangValidator,
 		jobDb:              jobDb,
 		clock:              clock.RealClock{},
 		cyclePeriod:        cyclePeriod,
@@ -127,6 +133,7 @@ func NewScheduler(
 		runsSerial:         -1,
 		metrics:            metrics,
 		marketDrivenPools:  marketDrivenPools,
+		runNodeReconciler:  runNodeReconciler,
 	}, nil
 }
 
@@ -328,6 +335,14 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	// Schedule jobs.
 	if shouldSchedule {
 		start := time.Now()
+
+		preemptionEvents, err := s.preemptRunsWithMismatchingNodes(ctx, txn)
+		if err != nil {
+			return overallSchedulerResult, err
+		}
+		ctx.Infof("Finished reconciling runs with nodes, generating %d preemption events", len(preemptionEvents))
+		events = append(events, preemptionEvents...)
+
 		resourceUnits, err := s.updateJobPrices(ctx, txn)
 		if err != nil {
 			return overallSchedulerResult, err
@@ -700,6 +715,7 @@ func AppendEventSequencesFromScheduledJobs(eventSequences []*armadaevents.EventS
 								Tolerations: armadaslices.Map(jctx.AdditionalTolerations, func(t v1.Toleration) *v1.Toleration {
 									return &t
 								}),
+								Annotations: getGangNodeUniformityAnnotations(jctx),
 							},
 							Pool: run.Pool(),
 						},
@@ -839,7 +855,7 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 			}
 			events = append(events, jobSucceeded)
 		} else if lastRun.Failed() && !job.Queued() {
-			failFast := job.Annotations()[configuration.FailFastAnnotation] == "true"
+			failFast := job.Annotations()[constants.FailFastAnnotation] == "true"
 			requeueJob := !failFast && lastRun.Returned() && job.NumAttempts() < s.maxAttemptedRuns
 
 			if requeueJob && lastRun.RunAttempted() {
@@ -920,7 +936,7 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 		} else if lastRun.PreemptRequested() && job.PriorityClass().Preemptible {
 			job = job.WithQueued(false).WithFailed(true).WithUpdatedRun(lastRun.WithoutTerminal().WithFailed(true))
 			events = append(events, createEventsForPreemptedJob(job.Id(), lastRun.Id(), "Preempted - preemption requested via API", s.clock.Now())...)
-			s.metrics.ReportJobPreemptedViaApi(job)
+			s.metrics.ReportJobPreemptedWithType(job, schedulercontext.PreemptedViaApi)
 		}
 	}
 
@@ -939,6 +955,40 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 	}
 
 	return nil, nil
+}
+
+func (s *Scheduler) preemptRunsWithMismatchingNodes(ctx *armadacontext.Context, txn *jobdb.Txn) ([]*armadaevents.EventSequence, error) {
+	invalidJobs, err := s.runNodeReconciler.ReconcileJobRuns(ctx, txn)
+	if err != nil {
+		return nil, fmt.Errorf("failed to reconcile runs with nodes because - %s", err)
+	}
+	jobsToUpdate := make([]*jobdb.Job, 0, len(invalidJobs))
+	events := make([]*armadaevents.EventSequence, 0, len(invalidJobs)*2)
+	for _, invalidJobInfo := range invalidJobs {
+		job := invalidJobInfo.Job
+		if job.InTerminalState() || job.Queued() || job.LatestRun() == nil {
+			continue
+		}
+
+		now := s.clock.Now()
+		job = job.WithQueued(false).WithFailed(true)
+		run := job.LatestRun()
+		job = job.WithUpdatedRun(run.WithFailed(true).WithPreemptedTime(&now))
+		jobsToUpdate = append(jobsToUpdate, job)
+		s.metrics.ReportJobPreemptedWithType(job, schedulercontext.PreemptedViaNodeReconciler)
+
+		es := &armadaevents.EventSequence{
+			Queue:      job.Queue(),
+			JobSetName: job.Jobset(),
+			Events:     createEventsForPreemptedJob(job.Id(), run.Id(), invalidJobInfo.Reason, now),
+		}
+		events = append(events, es)
+	}
+
+	if err := txn.Upsert(jobsToUpdate); err != nil {
+		return nil, err
+	}
+	return events, nil
 }
 
 // expireJobsIfNecessary removes any jobs from the JobDb which are running on stale executors.
@@ -1049,6 +1099,14 @@ func (s *Scheduler) submitCheck(ctx *armadacontext.Context, txn *jobdb.Txn) ([]*
 		if err != nil {
 			results[job.Id()] = schedulingResult{isSchedulable: false, reason: "invalid resource request: " + err.Error()}
 		}
+	}
+
+	invalidGangJobs, err := s.gangValidator.Validate(txn, jobsToCheck)
+	if err != nil {
+		return nil, err
+	}
+	for _, invalidJob := range invalidGangJobs {
+		results[invalidJob.jobId] = schedulingResult{isSchedulable: false, reason: invalidJob.reason}
 	}
 
 	events := make([]*armadaevents.EventSequence, 0)
@@ -1178,5 +1236,17 @@ func (s *Scheduler) ensureDbUpToDate(ctx *armadacontext.Context, pollInterval ti
 			ctx.Infof("Received %d partitions, still waiting on %d", numReceived, numSent-numReceived)
 			s.clock.Sleep(pollInterval)
 		}
+	}
+}
+
+// getGangNodeUniformityAnnotations returns annotations for gang node uniformity environment variables
+func getGangNodeUniformityAnnotations(jctx *schedulercontext.JobSchedulingContext) map[string]string {
+	if jctx.GangNodeUniformityLabelName == "" || jctx.GangNodeUniformityLabelValue == "" {
+		return nil
+	}
+
+	return map[string]string{
+		constants.GangNodeUniformityLabelNameEnvVar:  jctx.GangNodeUniformityLabelName,
+		constants.GangNodeUniformityLabelValueEnvVar: jctx.GangNodeUniformityLabelValue,
 	}
 }

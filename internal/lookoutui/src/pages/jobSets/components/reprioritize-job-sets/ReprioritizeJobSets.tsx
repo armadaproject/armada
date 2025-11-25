@@ -26,7 +26,7 @@ export default function ReprioritizeJobSets(props: ReprioritizeJobSetsProps) {
           </ListItem>
         ))}
       </List>
-      <div className="lookout-dialog-centered lookout-dialog-fixed reprioritize-job-sets-options">
+      <div className="lookout-dialog-centred lookout-dialog-fixed reprioritize-job-sets-options">
         <div>
           <TextField
             autoFocus={true}

@@ -124,7 +124,12 @@ func StartUpWithContext(
 	taskManager *task.BackgroundTaskManager,
 	wg *sync.WaitGroup,
 ) (func(), *sync.WaitGroup) {
-	nodeInfoService := node.NewKubernetesNodeInfoService(clusterContext, config.Kubernetes.NodeTypeLabel, config.Kubernetes.NodePoolLabel, config.Kubernetes.ToleratedTaints)
+	nodeInfoService := node.NewKubernetesNodeInfoService(
+		clusterContext,
+		config.Kubernetes.NodeTypeLabel,
+		config.Kubernetes.NodePoolLabel,
+		config.Application.ReservedNodePoolSuffix,
+		config.Kubernetes.ToleratedTaints)
 	podUtilisationService := utilisation.NewPodUtilisationService(
 		clusterContext,
 		nodeInfoService,
@@ -179,7 +184,7 @@ func setupExecutorApiComponents(
 	}
 
 	executorApiClient := executorapi.NewExecutorApiClient(conn)
-	eventSender := reporter.NewExecutorApiEventSender(executorApiClient, 4*1024*1024)
+	eventSender := reporter.NewExecutorApiEventSender(executorApiClient, config.Client.MaxMessageSizeBytes)
 	jobRunState := job.NewJobRunStateStore(clusterContext)
 
 	clusterUtilisationService := utilisation.NewClusterUtilisationService(

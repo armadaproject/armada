@@ -8,6 +8,7 @@ package operations
 import (
 	"context"
 	"encoding/json"
+	stderrors "errors"
 	"net/http"
 	"strconv"
 
@@ -60,6 +61,7 @@ func (o *GroupJobs) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	res := o.Handler.Handle(Params) // actually handle the request
+
 	o.Context.Respond(rw, r, route.Produces, route, res)
 
 }
@@ -143,11 +145,15 @@ func (o *GroupJobsBody) validateFilters(formats strfmt.Registry) error {
 
 		if o.Filters[i] != nil {
 			if err := o.Filters[i].Validate(formats); err != nil {
-				if ve, ok := err.(*errors.Validation); ok {
+				ve := new(errors.Validation)
+				if stderrors.As(err, &ve) {
 					return ve.ValidateName("groupJobsRequest" + "." + "filters" + "." + strconv.Itoa(i))
-				} else if ce, ok := err.(*errors.CompositeError); ok {
+				}
+				ce := new(errors.CompositeError)
+				if stderrors.As(err, &ce) {
 					return ce.ValidateName("groupJobsRequest" + "." + "filters" + "." + strconv.Itoa(i))
 				}
+
 				return err
 			}
 		}
@@ -165,11 +171,15 @@ func (o *GroupJobsBody) validateGroupedField(formats strfmt.Registry) error {
 
 	if o.GroupedField != nil {
 		if err := o.GroupedField.Validate(formats); err != nil {
-			if ve, ok := err.(*errors.Validation); ok {
+			ve := new(errors.Validation)
+			if stderrors.As(err, &ve) {
 				return ve.ValidateName("groupJobsRequest" + "." + "groupedField")
-			} else if ce, ok := err.(*errors.CompositeError); ok {
+			}
+			ce := new(errors.CompositeError)
+			if stderrors.As(err, &ce) {
 				return ce.ValidateName("groupJobsRequest" + "." + "groupedField")
 			}
+
 			return err
 		}
 	}
@@ -185,11 +195,15 @@ func (o *GroupJobsBody) validateOrder(formats strfmt.Registry) error {
 
 	if o.Order != nil {
 		if err := o.Order.Validate(formats); err != nil {
-			if ve, ok := err.(*errors.Validation); ok {
+			ve := new(errors.Validation)
+			if stderrors.As(err, &ve) {
 				return ve.ValidateName("groupJobsRequest" + "." + "order")
-			} else if ce, ok := err.(*errors.CompositeError); ok {
+			}
+			ce := new(errors.CompositeError)
+			if stderrors.As(err, &ce) {
 				return ce.ValidateName("groupJobsRequest" + "." + "order")
 			}
+
 			return err
 		}
 	}
@@ -230,11 +244,15 @@ func (o *GroupJobsBody) contextValidateFilters(ctx context.Context, formats strf
 			}
 
 			if err := o.Filters[i].ContextValidate(ctx, formats); err != nil {
-				if ve, ok := err.(*errors.Validation); ok {
+				ve := new(errors.Validation)
+				if stderrors.As(err, &ve) {
 					return ve.ValidateName("groupJobsRequest" + "." + "filters" + "." + strconv.Itoa(i))
-				} else if ce, ok := err.(*errors.CompositeError); ok {
+				}
+				ce := new(errors.CompositeError)
+				if stderrors.As(err, &ce) {
 					return ce.ValidateName("groupJobsRequest" + "." + "filters" + "." + strconv.Itoa(i))
 				}
+
 				return err
 			}
 		}
@@ -249,11 +267,15 @@ func (o *GroupJobsBody) contextValidateGroupedField(ctx context.Context, formats
 	if o.GroupedField != nil {
 
 		if err := o.GroupedField.ContextValidate(ctx, formats); err != nil {
-			if ve, ok := err.(*errors.Validation); ok {
+			ve := new(errors.Validation)
+			if stderrors.As(err, &ve) {
 				return ve.ValidateName("groupJobsRequest" + "." + "groupedField")
-			} else if ce, ok := err.(*errors.CompositeError); ok {
+			}
+			ce := new(errors.CompositeError)
+			if stderrors.As(err, &ce) {
 				return ce.ValidateName("groupJobsRequest" + "." + "groupedField")
 			}
+
 			return err
 		}
 	}
@@ -266,11 +288,15 @@ func (o *GroupJobsBody) contextValidateOrder(ctx context.Context, formats strfmt
 	if o.Order != nil {
 
 		if err := o.Order.ContextValidate(ctx, formats); err != nil {
-			if ve, ok := err.(*errors.Validation); ok {
+			ve := new(errors.Validation)
+			if stderrors.As(err, &ve) {
 				return ve.ValidateName("groupJobsRequest" + "." + "order")
-			} else if ce, ok := err.(*errors.CompositeError); ok {
+			}
+			ce := new(errors.CompositeError)
+			if stderrors.As(err, &ce) {
 				return ce.ValidateName("groupJobsRequest" + "." + "order")
 			}
+
 			return err
 		}
 	}
@@ -333,11 +359,15 @@ func (o *GroupJobsOKBody) validateGroups(formats strfmt.Registry) error {
 
 		if o.Groups[i] != nil {
 			if err := o.Groups[i].Validate(formats); err != nil {
-				if ve, ok := err.(*errors.Validation); ok {
+				ve := new(errors.Validation)
+				if stderrors.As(err, &ve) {
 					return ve.ValidateName("groupJobsOK" + "." + "groups" + "." + strconv.Itoa(i))
-				} else if ce, ok := err.(*errors.CompositeError); ok {
+				}
+				ce := new(errors.CompositeError)
+				if stderrors.As(err, &ce) {
 					return ce.ValidateName("groupJobsOK" + "." + "groups" + "." + strconv.Itoa(i))
 				}
+
 				return err
 			}
 		}
@@ -372,11 +402,15 @@ func (o *GroupJobsOKBody) contextValidateGroups(ctx context.Context, formats str
 			}
 
 			if err := o.Groups[i].ContextValidate(ctx, formats); err != nil {
-				if ve, ok := err.(*errors.Validation); ok {
+				ve := new(errors.Validation)
+				if stderrors.As(err, &ve) {
 					return ve.ValidateName("groupJobsOK" + "." + "groups" + "." + strconv.Itoa(i))
-				} else if ce, ok := err.(*errors.CompositeError); ok {
+				}
+				ce := new(errors.CompositeError)
+				if stderrors.As(err, &ce) {
 					return ce.ValidateName("groupJobsOK" + "." + "groups" + "." + strconv.Itoa(i))
 				}
+
 				return err
 			}
 		}
@@ -448,7 +482,7 @@ func (o *GroupJobsParamsBodyGroupedField) validateField(formats strfmt.Registry)
 	return nil
 }
 
-var groupJobsParamsBodyGroupedFieldTypeLastTransitionTimeAggregatePropEnum []interface{}
+var groupJobsParamsBodyGroupedFieldTypeLastTransitionTimeAggregatePropEnum []any
 
 func init() {
 	var res []string

@@ -148,18 +148,18 @@ const fromQueryStringSafe = (serializedPrefs: Partial<QueryStringPrefs>): Partia
   if (f) {
     // The queue filter was a single-value filter, but changed to an any-of filter. If the queue column match is exact,
     // convert it to an equivalent any-of; otherwise remove the filter
-    const indiciesToRemove = [] as number[]
+    const indicesToRemove = [] as number[]
     f.forEach(({ id, value, match }, i) => {
       if (id === StandardColumnId.Queue) {
         if (match === Match.Exact || match === Match.AnyOf) {
           f[i].value = _.isArray(value) ? value : [value]
           f[i].match = Match.AnyOf
         } else {
-          indiciesToRemove.push(i)
+          indicesToRemove.push(i)
         }
       }
     })
-    indiciesToRemove.reverse().forEach((i) => f.splice(i, 1))
+    indicesToRemove.reverse().forEach((i) => f.splice(i, 1))
   }
 
   return {
@@ -339,6 +339,7 @@ export class JobsTablePreferencesService {
         search: stringifyQueryParams(mergedQueryParams),
       })
     } catch (e) {
+      // eslint-disable-next-line no-console
       console.warn("Unable to update URL query params with table state:", e)
     }
   }
@@ -355,6 +356,7 @@ export class JobsTablePreferencesService {
       })
       return fromQueryStringSafe(queryParamPrefs)
     } catch (e) {
+      // eslint-disable-next-line no-console
       console.warn("Unable to parse URL query params:", e)
       return {}
     }
@@ -460,6 +462,7 @@ function tryParseJson(json: string): any | undefined {
     return JSON.parse(json) as Record<string, unknown>
   } catch (e: unknown) {
     if (e instanceof Error) {
+      // eslint-disable-next-line no-console
       console.warn(e.message)
     }
     return undefined
