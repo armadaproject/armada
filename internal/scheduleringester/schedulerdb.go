@@ -106,7 +106,7 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 			records[i] = *v
 			i++
 		}
-		err := database.Upsert(ctx, tx, "jobs", records)
+		err := database.Upsert(ctx, tx, "jobs", records, database.WithExcludeColumns("terminated"))
 		if err != nil {
 			return err
 		}
