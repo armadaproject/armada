@@ -8,6 +8,7 @@ import "k8s.io/api/networking/v1/generated.proto";
 import "google/protobuf/timestamp.proto";
 import "k8s.io/apimachinery/pkg/api/resource/generated.proto";
 import "internal/scheduler/schedulerobjects/schedulerobjects.proto";
+import "pkg/api/submit.proto";
 
 // Armada state transition model
 //
@@ -157,6 +158,9 @@ message SubmitJob {
     bool isDuplicate = 12;
     // The job id
     string job_id = 14;
+    // Gang scheduling configuration.
+    // If not set, for gang-scheduled jobs, will be populated from annotations for backward compatibility.
+    api.Gang gang = 16;
 }
 
 // Kubernetes objects that can serve as main objects for an Armada job.
@@ -309,6 +313,16 @@ message JobRunLeased {
     // pool is the pool this run was scheduled on to
     // This would be determined by the pool of the node this run was scheduled on to, at the time of scheduling
     string pool = 12;
+    // Scheduling decisions for the executor (e.g., gang placement, node uniformity).
+    // Replaces the previous annotations-based approach. Both are sent during migration.
+    SchedulingMetadata scheduling_metadata = 13;
+}
+
+// Scheduling decisions that affect pod creation (gang scheduling, node placement).
+// Executors use this to build pods with scheduler-determined constraints.
+message SchedulingMetadata {
+    // Gang scheduling placement, if this job is part of a gang.
+    schedulerobjects.GangPlacement gang_info = 1;
 }
 
 // Indicates that a job has been assigned to nodes by Kubernetes.

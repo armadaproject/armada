@@ -62,10 +62,34 @@ func (g GangInfo) String() string {
 
 func GangInfoFromMinimalJob(job interfaces.MinimalJob) (*GangInfo, error) {
 	basicGangInfo := BasicJobGangInfo()
+
+	// Prefer structured Gang field if available (new style or normalized from annotations)
+	gangProto := job.Gang()
+	if gangProto != nil {
+		gangId := gangProto.GangId
+		if gangId == "" {
+			return nil, errors.Errorf("gang id is empty")
+		}
+
+		gangCardinality := int(gangProto.Cardinality)
+		if gangCardinality <= 0 {
+			return nil, errors.Errorf("gang cardinality %d is non-positive", gangCardinality)
+		}
+		if gangCardinality < 2 {
+			return &basicGangInfo, nil
+		}
+
+		gangInfo := CreateGangInfo(gangId, gangCardinality, gangProto.NodeUniformityLabelName)
+		return &gangInfo, nil
+	}
+
+	// Parse gang metadata from PodRequirements annotations for backward compatibility.
+	// Jobs already stored in the database have gang metadata embedded in annotations within
+	// the scheduling_info protobuf blob, not in a structured Gang protobuf field.
+	// This fallback is required to support existing jobs until a database migration is performed.
 	annotations := job.Annotations()
 	gangId, ok := annotations[constants.GangIdAnnotation]
 	if !ok {
-		// Not a gang, default to basic gang info
 		return &basicGangInfo, nil
 	}
 	if gangId == "" {
@@ -84,7 +108,6 @@ func GangInfoFromMinimalJob(job interfaces.MinimalJob) (*GangInfo, error) {
 		return nil, errors.Errorf("gang cardinality %d is non-positive", gangCardinality)
 	}
 	if gangCardinality < 2 {
-		// Not a gang, default to basic gang info
 		return &basicGangInfo, nil
 	}
 

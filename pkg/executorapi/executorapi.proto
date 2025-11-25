@@ -79,6 +79,8 @@ message JobRunLease{
   repeated string groups = 5;
   armadaevents.SubmitJob job  = 6;
   string job_run_id = 7;
+  // Scheduling metadata from the scheduler (gang info, node placement).
+  armadaevents.SchedulingMetadata scheduling_metadata = 8;
 }
 
 // Indicates that the job runs with the given ids should be cancelled.

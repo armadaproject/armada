@@ -204,21 +204,32 @@ func (c *JobSetEventsInstructionConverter) handleJobRunLeased(jobRunLeased *arma
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
+
+	// Extract gang node uniformity label value from scheduling metadata
+	var gangLabelValue *string
+	if jobRunLeased.SchedulingMetadata != nil && jobRunLeased.SchedulingMetadata.GangInfo != nil {
+		value := jobRunLeased.SchedulingMetadata.GangInfo.NodeUniformityLabelValue
+		if value != "" {
+			gangLabelValue = &value
+		}
+	}
+
 	return []DbOperation{
 		InsertRuns{runId: &JobRunDetails{
 			Queue: meta.queue,
 			DbRun: &schedulerdb.Run{
-				RunID:                  runId,
-				JobID:                  jobRunLeased.JobId,
-				Created:                eventTime.UnixNano(),
-				JobSet:                 meta.jobset,
-				Queue:                  meta.queue,
-				Executor:               jobRunLeased.GetExecutorId(),
-				Node:                   jobRunLeased.GetNodeId(),
-				Pool:                   jobRunLeased.GetPool(),
-				ScheduledAtPriority:    scheduledAtPriority,
-				LeasedTimestamp:        &eventTime,
-				PodRequirementsOverlay: PodRequirementsOverlay,
+				RunID:                        runId,
+				JobID:                        jobRunLeased.JobId,
+				Created:                      eventTime.UnixNano(),
+				JobSet:                       meta.jobset,
+				Queue:                        meta.queue,
+				Executor:                     jobRunLeased.GetExecutorId(),
+				Node:                         jobRunLeased.GetNodeId(),
+				Pool:                         jobRunLeased.GetPool(),
+				ScheduledAtPriority:          scheduledAtPriority,
+				LeasedTimestamp:              &eventTime,
+				PodRequirementsOverlay:       PodRequirementsOverlay,
+				GangNodeUniformityLabelValue: gangLabelValue,
 			},
 		}},
 		UpdateJobQueuedState{jobRunLeased.JobId: &JobQueuedStateUpdate{
@@ -527,6 +538,16 @@ func (c *JobSetEventsInstructionConverter) schedulingInfoFromSubmitJob(submitJob
 
 // SchedulingInfoFromSubmitJob returns a minimal representation of a job containing only the info needed by the scheduler.
 func SchedulingInfoFromSubmitJob(submitJob *armadaevents.SubmitJob, submitTime time.Time) (*schedulerobjects.JobSchedulingInfo, error) {
+	// Convert Gang from api.Gang to schedulerobjects.Gang
+	var gang *schedulerobjects.Gang
+	if submitJob.Gang != nil {
+		gang = &schedulerobjects.Gang{
+			GangId:                  submitJob.Gang.GangId,
+			Cardinality:             submitJob.Gang.Cardinality,
+			NodeUniformityLabelName: submitJob.Gang.NodeUniformityLabelName,
+		}
+	}
+
 	// Component common to all jobs.
 	schedulingInfo := &schedulerobjects.JobSchedulingInfo{
 		Lifetime:        submitJob.Lifetime,
@@ -536,6 +557,7 @@ func SchedulingInfoFromSubmitJob(submitJob *armadaevents.SubmitJob, submitTime t
 		SubmitTime:      protoutil.ToTimestamp(submitTime),
 		Priority:        submitJob.Priority,
 		Version:         0,
+		Gang:            gang,
 	}
 
 	// Scheduling requirements specific to the objects that make up this job.
@@ -562,6 +584,7 @@ func SchedulingInfoFromSubmitJob(submitJob *armadaevents.SubmitJob, submitTime t
 				}
 			}
 		}
+
 		schedulingInfo.ObjectRequirements = append(
 			schedulingInfo.ObjectRequirements,
 			&schedulerobjects.ObjectRequirements{

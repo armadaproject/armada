@@ -828,6 +828,24 @@ func SwaggerJsonTemplate() string {
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +
+		"    \"apiGang\": {\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"cardinality\": {\n" +
+		"          \"description\": \"Total number of jobs in the gang that must be scheduled together.\",\n" +
+		"          \"type\": \"integer\",\n" +
+		"          \"format\": \"int64\"\n" +
+		"        },\n" +
+		"        \"gangId\": {\n" +
+		"          \"description\": \"Unique identifier for the gang. All jobs with the same gangId are scheduled together.\",\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"nodeUniformityLabelName\": {\n" +
+		"          \"description\": \"Label name to enforce node uniformity (e.g., \\\"kubernetes.io/hostname\\\", \\\"rack\\\").\\nAll jobs in the gang must be scheduled on nodes with the same value for this label.\",\n" +
+		"          \"type\": \"string\"\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
 		"    \"apiGetActiveQueuesRequest\": {\n" +
 		"      \"type\": \"object\"\n" +
 		"    },\n" +
@@ -1785,6 +1803,10 @@ func SwaggerJsonTemplate() string {
 		"        },\n" +
 		"        \"clientId\": {\n" +
 		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"gang\": {\n" +
+		"          \"description\": \"Gang scheduling configuration for this job.\\nIf set, this job will be gang-scheduled with other jobs sharing the same gangId.\",\n" +
+		"          \"$ref\": \"#/definitions/apiGang\"\n" +
 		"        },\n" +
 		"        \"ingress\": {\n" +
 		"          \"type\": \"array\",\n" +

@@ -3296,3 +3296,62 @@ func createPreemptibleGangJob() *jobdb.Job {
 		true,
 	).WithNewRun("testExecutor", "test-node", "node", "pool", 5)
 }
+
+func TestGetGangInfo(t *testing.T) {
+	tests := []struct {
+		name        string
+		jctx        *schedulercontext.JobSchedulingContext
+		wantNil     bool
+		wantCard    uint32
+		wantUniform bool
+	}{
+		{
+			name:    "nil job returns nil",
+			jctx:    &schedulercontext.JobSchedulingContext{Job: nil},
+			wantNil: true,
+		},
+		{
+			name:    "no gang id returns nil",
+			jctx:    &schedulercontext.JobSchedulingContext{Job: queuedJob},
+			wantNil: true,
+		},
+		{
+			name:     "gang job with cardinality",
+			jctx:     &schedulercontext.JobSchedulingContext{Job: queuedGangJob},
+			wantCard: 4,
+		},
+		{
+			name: "gang job with node uniformity labels",
+			jctx: &schedulercontext.JobSchedulingContext{
+				Job:                          queuedGangJob,
+				GangNodeUniformityLabelValue: "rack-1",
+			},
+			wantCard:    4,
+			wantUniform: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create a mock run for the test
+			var run *jobdb.JobRun
+			if tt.jctx.Job != nil {
+				run = tt.jctx.Job.LatestRun()
+			}
+
+			result := createGangPlacement(tt.jctx, run)
+
+			if tt.wantNil {
+				assert.Nil(t, result)
+				return
+			}
+
+			require.NotNil(t, result)
+			assert.Equal(t, tt.wantCard, result.Cardinality)
+			if tt.wantUniform {
+				assert.Equal(t, "uniformity", result.NodeUniformityLabelName)
+				assert.Equal(t, "rack-1", result.NodeUniformityLabelValue)
+			}
+		})
+	}
+}

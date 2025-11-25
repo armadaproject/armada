@@ -198,6 +198,67 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 	)
 	submitWithOverlay.JobId = submit.JobId
 
+	submitWithGang := &armadaevents.SubmitJob{
+		JobId:      submit.JobId,
+		MainObject: submit.MainObject,
+		ObjectMeta: &armadaevents.ObjectMeta{
+			Labels:      map[string]string{armadaJobPreemptibleLabel: "false"},
+			Annotations: map[string]string{constants.PoolAnnotation: "test-pool"},
+		},
+		Gang: &api.Gang{
+			GangId:      "gang-456",
+			Cardinality: 3,
+		},
+	}
+	submitWithGangBytes, err := proto.Marshal(submitWithGang)
+	require.NoError(t, err)
+	submitWithGangCompressor, err := compress.NewZlibCompressor(1024)
+	require.NoError(t, err)
+	compressedSubmitWithGang, err := submitWithGangCompressor.Compress(submitWithGangBytes)
+	require.NoError(t, err)
+
+	leaseWithGangMetadata := &database.JobRunLease{
+		RunID:         uuid.NewString(),
+		Queue:         "test-queue",
+		Pool:          "test-pool",
+		JobSet:        "test-jobset",
+		UserID:        "test-user",
+		Node:          "node-id",
+		Groups:        compressedGroups,
+		SubmitMessage: compressedSubmitWithGang,
+	}
+
+	submitWithGangAnnotations := &armadaevents.SubmitJob{
+		JobId:      submit.JobId,
+		MainObject: submit.MainObject,
+		ObjectMeta: &armadaevents.ObjectMeta{
+			Labels: map[string]string{armadaJobPreemptibleLabel: "false"},
+			Annotations: map[string]string{
+				constants.PoolAnnotation:                    "test-pool",
+				constants.GangIdAnnotation:                  "gang-annotations-789",
+				constants.GangCardinalityAnnotation:         "5",
+				constants.GangNodeUniformityLabelAnnotation: "zone",
+			},
+		},
+	}
+	submitWithGangAnnotationsBytes, err := proto.Marshal(submitWithGangAnnotations)
+	require.NoError(t, err)
+	submitWithGangAnnotationsCompressor, err := compress.NewZlibCompressor(1024)
+	require.NoError(t, err)
+	compressedSubmitWithGangAnnotations, err := submitWithGangAnnotationsCompressor.Compress(submitWithGangAnnotationsBytes)
+	require.NoError(t, err)
+
+	leaseWithGangAnnotations := &database.JobRunLease{
+		RunID:         uuid.NewString(),
+		Queue:         "test-queue",
+		Pool:          "test-pool",
+		JobSet:        "test-jobset",
+		UserID:        "test-user",
+		Node:          "node-id",
+		Groups:        compressedGroups,
+		SubmitMessage: compressedSubmitWithGangAnnotations,
+	}
+
 	tests := map[string]struct {
 		request          *executorapi.LeaseRequest
 		runsToCancel     []string
@@ -284,6 +345,59 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 						User:     preemptibleLease.UserID,
 						Groups:   groups,
 						Job:      preemptibleSubmit,
+					}},
+				},
+				{
+					Event: &executorapi.LeaseStreamMessage_End{End: &executorapi.EndMarker{}},
+				},
+			},
+		},
+		"lease with gang scheduling metadata": {
+			request:          defaultRequest,
+			leases:           []*database.JobRunLease{leaseWithGangMetadata},
+			expectedExecutor: defaultExpectedExecutor,
+			expectedMsgs: []*executorapi.LeaseStreamMessage{
+				{
+					Event: &executorapi.LeaseStreamMessage_Lease{Lease: &executorapi.JobRunLease{
+						JobRunId: leaseWithGangMetadata.RunID,
+						Queue:    leaseWithGangMetadata.Queue,
+						Jobset:   leaseWithGangMetadata.JobSet,
+						User:     leaseWithGangMetadata.UserID,
+						Groups:   groups,
+						Job:      submitWithGang,
+						SchedulingMetadata: &armadaevents.SchedulingMetadata{
+							GangInfo: &schedulerobjects.GangPlacement{
+								GangId:      "gang-456",
+								Cardinality: 3,
+							},
+						},
+					}},
+				},
+				{
+					Event: &executorapi.LeaseStreamMessage_End{End: &executorapi.EndMarker{}},
+				},
+			},
+		},
+		"lease with gang annotations (backward compatibility)": {
+			request:          defaultRequest,
+			leases:           []*database.JobRunLease{leaseWithGangAnnotations},
+			expectedExecutor: defaultExpectedExecutor,
+			expectedMsgs: []*executorapi.LeaseStreamMessage{
+				{
+					Event: &executorapi.LeaseStreamMessage_Lease{Lease: &executorapi.JobRunLease{
+						JobRunId: leaseWithGangAnnotations.RunID,
+						Queue:    leaseWithGangAnnotations.Queue,
+						Jobset:   leaseWithGangAnnotations.JobSet,
+						User:     leaseWithGangAnnotations.UserID,
+						Groups:   groups,
+						Job:      submitWithGangAnnotations,
+						SchedulingMetadata: &armadaevents.SchedulingMetadata{
+							GangInfo: &schedulerobjects.GangPlacement{
+								GangId:                  "gang-annotations-789",
+								Cardinality:             5,
+								NodeUniformityLabelName: "zone",
+							},
+						},
 					}},
 				},
 				{

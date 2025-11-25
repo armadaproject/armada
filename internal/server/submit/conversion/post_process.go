@@ -2,6 +2,7 @@ package conversion
 
 import (
 	"math"
+	"strconv"
 	"strings"
 
 	v1 "k8s.io/api/core/v1"
@@ -12,6 +13,7 @@ import (
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/server/configuration"
+	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
@@ -24,6 +26,7 @@ type (
 
 var (
 	msgLevelProcessors = []msgProcessor{
+		normalizeGangInfo,
 		templateMeta,
 		defaultGangNodeUniformityLabel,
 		defaultGangFailFastFlag,
@@ -58,6 +61,11 @@ func (j submitJobAdapter) Annotations() map[string]string {
 	return j.GetObjectMeta().GetAnnotations()
 }
 
+// Gang is needed to fulfil the MinimalJob interface
+func (j submitJobAdapter) Gang() *api.Gang {
+	return j.SubmitJob.Gang
+}
+
 // postProcess modifies an armadaevents.SubmitJob in-place by applying various rules to it.  This allows us
 // to e.g. apply default values or template out the jobid.  The rules to be applied are defined above and may act at
 // either the msg level or the podspec level
@@ -72,6 +80,43 @@ func postProcess(msg *armadaevents.SubmitJob, config configuration.SubmissionCon
 			p(podSpec, config)
 		}
 	}
+}
+
+// normalizeGangInfo populates the Gang field from annotations for backward compatibility.
+// If Gang is already set (new API style), it takes precedence. Otherwise, gang config
+// is extracted from annotations (legacy style) and normalized into the Gang struct.
+// Note: this only handles submitted values (gang ID, cardinality, node uniformity label name).
+// The node uniformity label VALUE is computed by the scheduler later.
+func normalizeGangInfo(msg *armadaevents.SubmitJob, _ configuration.SubmissionConfig) {
+	if msg.Gang != nil {
+		return
+	}
+
+	annotations := msg.GetObjectMeta().GetAnnotations()
+	if annotations == nil {
+		return
+	}
+
+	gangId := annotations[constants.GangIdAnnotation]
+	if gangId == "" {
+		return
+	}
+
+	gangInfo := &api.Gang{
+		GangId: gangId,
+	}
+
+	if cardinalityStr := annotations[constants.GangCardinalityAnnotation]; cardinalityStr != "" {
+		if val, err := strconv.ParseUint(cardinalityStr, 10, 32); err == nil {
+			gangInfo.Cardinality = uint32(val)
+		}
+	}
+
+	if labelName := annotations[constants.GangNodeUniformityLabelAnnotation]; labelName != "" {
+		gangInfo.NodeUniformityLabelName = labelName
+	}
+
+	msg.Gang = gangInfo
 }
 
 // defaultActiveDeadlineSeconds will modify  the ActiveDeadlineSeconds field on the podspec according to the following

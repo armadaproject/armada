@@ -14,6 +14,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/executor/configuration"
 	"github.com/armadaproject/armada/internal/executor/domain"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/executorapi"
@@ -255,7 +256,7 @@ func TestInjectArmadaEnvVars(t *testing.T) {
 		jobId                     string
 		queue                     string
 		jobsetId                  string
-		annotations               map[string]string
+		schedulingMetadata        *armadaevents.SchedulingMetadata
 		existingEnvs              []v1.EnvVar
 		wantEnvs                  map[string]string
 		dontWantEnvs              []string
@@ -310,11 +311,13 @@ func TestInjectArmadaEnvVars(t *testing.T) {
 			jobId:    "job-123",
 			queue:    "queue",
 			jobsetId: "jobset",
-			annotations: map[string]string{
-				serverconfiguration.GangIdAnnotation:                   "gang-789",
-				serverconfiguration.GangCardinalityAnnotation:          "3",
-				serverconfiguration.GangNodeUniformityLabelNameEnvVar:  "rack",
-				serverconfiguration.GangNodeUniformityLabelValueEnvVar: "rack-1",
+			schedulingMetadata: &armadaevents.SchedulingMetadata{
+				GangInfo: &schedulerobjects.GangPlacement{
+					GangId:                   "gang-789",
+					Cardinality:              3,
+					NodeUniformityLabelName:  "rack",
+					NodeUniformityLabelValue: "rack-1",
+				},
 			},
 			wantEnvs: map[string]string{
 				serverconfiguration.JobIdEnvVar:                        "job-123",
@@ -333,33 +336,6 @@ func TestInjectArmadaEnvVars(t *testing.T) {
 				serverconfiguration.GangCardinalityEnvVar:              "3",
 				serverconfiguration.GangNodeUniformityLabelNameEnvVar:  "rack",
 				serverconfiguration.GangNodeUniformityLabelValueEnvVar: "rack-1",
-			},
-		},
-		{
-			name:     "skips node uniformity env vars when only label name annotation exists",
-			jobId:    "job-123",
-			queue:    "queue",
-			jobsetId: "jobset",
-			annotations: map[string]string{
-				serverconfiguration.GangNodeUniformityLabelNameEnvVar: "rack",
-			},
-			wantEnvs: map[string]string{
-				serverconfiguration.JobIdEnvVar:    "job-123",
-				serverconfiguration.QueueEnvVar:    "queue",
-				serverconfiguration.JobSetIdEnvVar: "jobset",
-			},
-			dontWantEnvs: []string{
-				serverconfiguration.GangNodeUniformityLabelNameEnvVar,
-				serverconfiguration.GangNodeUniformityLabelValueEnvVar,
-			},
-			wantInitContainerEnvs: map[string]string{
-				serverconfiguration.JobIdEnvVar:    "job-123",
-				serverconfiguration.QueueEnvVar:    "queue",
-				serverconfiguration.JobSetIdEnvVar: "jobset",
-			},
-			dontWantInitContainerEnvs: []string{
-				serverconfiguration.GangNodeUniformityLabelNameEnvVar,
-				serverconfiguration.GangNodeUniformityLabelValueEnvVar,
 			},
 		},
 	}
@@ -371,7 +347,7 @@ func TestInjectArmadaEnvVars(t *testing.T) {
 				InitContainers: []v1.Container{{Name: "init"}},
 			}
 
-			injectArmadaEnvVars(podSpec, tc.jobId, tc.queue, tc.jobsetId, tc.annotations)
+			injectArmadaEnvVars(podSpec, tc.jobId, tc.queue, tc.jobsetId, tc.schedulingMetadata, nil)
 
 			for _, container := range podSpec.InitContainers {
 				envMap := make(map[string]string, len(container.Env))
@@ -397,6 +373,58 @@ func TestInjectArmadaEnvVars(t *testing.T) {
 				for _, name := range tc.dontWantEnvs {
 					assert.NotContains(t, envMap, name)
 				}
+			}
+		})
+	}
+}
+
+func TestInjectArmadaEnvVars_GangScheduling(t *testing.T) {
+	tests := []struct {
+		name               string
+		schedulingMetadata *armadaevents.SchedulingMetadata
+		wantGangId         string
+		wantCardinality    string
+	}{
+		{
+			name: "injects gang env vars from GangInfo",
+			schedulingMetadata: &armadaevents.SchedulingMetadata{
+				GangInfo: &schedulerobjects.GangPlacement{GangId: "gang-123", Cardinality: 5},
+			},
+			wantGangId:      "gang-123",
+			wantCardinality: "5",
+		},
+		{
+			name:               "no gang env vars when GangInfo is nil",
+			schedulingMetadata: nil,
+			wantGangId:         "",
+			wantCardinality:    "",
+		},
+		{
+			name:               "no gang env vars when SchedulingMetadata.GangInfo is nil",
+			schedulingMetadata: &armadaevents.SchedulingMetadata{GangInfo: nil},
+			wantGangId:         "",
+			wantCardinality:    "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			podSpec := &v1.PodSpec{Containers: []v1.Container{{Name: "main"}}}
+			injectArmadaEnvVars(podSpec, "job", "queue", "jobset", tt.schedulingMetadata, nil)
+
+			envMap := make(map[string]string)
+			for _, env := range podSpec.Containers[0].Env {
+				envMap[env.Name] = env.Value
+			}
+
+			if tt.wantGangId != "" {
+				assert.Equal(t, tt.wantGangId, envMap[serverconfiguration.GangIdEnvVar])
+				assert.Equal(t, tt.wantCardinality, envMap[serverconfiguration.GangCardinalityEnvVar])
+			} else {
+				_, hasGangId := envMap[serverconfiguration.GangIdEnvVar]
+				assert.False(t, hasGangId)
+				_, hasCardinality := envMap[serverconfiguration.GangCardinalityEnvVar]
+				assert.False(t, hasCardinality)
 			}
 		})
 	}

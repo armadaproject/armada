@@ -701,24 +701,29 @@ func AppendEventSequencesFromScheduledJobs(eventSequences []*armadaevents.EventS
 				{
 					Created: protoutil.ToTimestamp(runCreationTime),
 					Event: &armadaevents.EventSequence_Event_JobRunLeased{
-						JobRunLeased: &armadaevents.JobRunLeased{
-							RunId:      run.Id(),
-							JobId:      job.Id(),
-							ExecutorId: run.Executor(),
-							// NodeId here refers to the unique identifier of the node in an executor cluster,
-							// which is referred to as the NodeName within the scheduler.
-							NodeId:                 run.NodeName(),
-							UpdateSequenceNumber:   job.QueuedVersion(),
-							HasScheduledAtPriority: hasScheduledAtPriority,
-							ScheduledAtPriority:    scheduledAtPriority,
-							PodRequirementsOverlay: &schedulerobjects.PodRequirements{
-								Tolerations: armadaslices.Map(jctx.AdditionalTolerations, func(t v1.Toleration) *v1.Toleration {
-									return &t
-								}),
-								Annotations: getGangNodeUniformityAnnotations(jctx),
-							},
-							Pool: run.Pool(),
-						},
+						JobRunLeased: func() *armadaevents.JobRunLeased {
+							schedulingMetadata := getSchedulingMetadata(jctx, run)
+							leased := &armadaevents.JobRunLeased{
+								RunId:      run.Id(),
+								JobId:      job.Id(),
+								ExecutorId: run.Executor(),
+								// NodeId here refers to the unique identifier of the node in an executor cluster,
+								// which is referred to as the NodeName within the scheduler.
+								NodeId:                 run.NodeName(),
+								UpdateSequenceNumber:   job.QueuedVersion(),
+								HasScheduledAtPriority: hasScheduledAtPriority,
+								ScheduledAtPriority:    scheduledAtPriority,
+								PodRequirementsOverlay: &schedulerobjects.PodRequirements{
+									Tolerations: armadaslices.Map(jctx.AdditionalTolerations, func(t v1.Toleration) *v1.Toleration {
+										return &t
+									}),
+								},
+								// Structured scheduling metadata (gang info, node placement).
+								SchedulingMetadata: schedulingMetadata,
+								Pool:               run.Pool(),
+							}
+							return leased
+						}(),
 					},
 				},
 			},
@@ -1239,14 +1244,43 @@ func (s *Scheduler) ensureDbUpToDate(ctx *armadacontext.Context, pollInterval ti
 	}
 }
 
-// getGangNodeUniformityAnnotations returns annotations for gang node uniformity environment variables
-func getGangNodeUniformityAnnotations(jctx *schedulercontext.JobSchedulingContext) map[string]string {
-	if jctx.GangNodeUniformityLabelName == "" || jctx.GangNodeUniformityLabelValue == "" {
+func getSchedulingMetadata(jctx *schedulercontext.JobSchedulingContext, run *jobdb.JobRun) *armadaevents.SchedulingMetadata {
+	gangPlacement := createGangPlacement(jctx, run)
+	if gangPlacement == nil {
+		return nil
+	}
+	metadata := &armadaevents.SchedulingMetadata{
+		GangInfo: gangPlacement,
+	}
+	return metadata
+}
+
+// createGangPlacement builds GangPlacement protobuf for the executor from the job scheduling context and run.
+// Returns nil if the job is not part of a gang.
+func createGangPlacement(jctx *schedulercontext.JobSchedulingContext, run *jobdb.JobRun) *schedulerobjects.GangPlacement {
+	job := jctx.Job
+	if job == nil {
 		return nil
 	}
 
-	return map[string]string{
-		constants.GangNodeUniformityLabelNameEnvVar:  jctx.GangNodeUniformityLabelName,
-		constants.GangNodeUniformityLabelValueEnvVar: jctx.GangNodeUniformityLabelValue,
+	gangInfo := job.GetGangInfo()
+	if !gangInfo.IsGang() {
+		return nil
 	}
+
+	gangPlacement := &schedulerobjects.GangPlacement{
+		GangId:      gangInfo.Id(),
+		Cardinality: uint32(gangInfo.Cardinality()),
+	}
+
+	// Node uniformity label name comes from job metadata (known at submission time)
+	labelName := gangInfo.NodeUniformity()
+
+	// Set uniformity label name and value if present
+	if labelName != "" {
+		gangPlacement.NodeUniformityLabelName = labelName
+		gangPlacement.NodeUniformityLabelValue = jctx.GangNodeUniformityLabelValue
+	}
+
+	return gangPlacement
 }
