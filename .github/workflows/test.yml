@@ -48,7 +48,9 @@ jobs:
 
   go-unit-tests:
     name: Golang Unit Tests
-    needs: go-mod-up-to-date
+    needs:
+      - go-mod-up-to-date
+      - sqlc-up-to-date
     runs-on: ubuntu-22.04
 
     steps:
@@ -84,7 +86,9 @@ jobs:
 
   go-integration-tests:
     name: Golang Integration Tests
-    needs: go-mod-up-to-date
+    needs:
+      - go-mod-up-to-date
+      - sqlc-up-to-date
     runs-on: ubuntu-22.04
 
     env:
@@ -231,6 +235,43 @@ jobs:
             git --no-pager diff >> $GITHUB_STEP_SUMMARY
           else
             echo -e "Generated proto files are up to date." >> $GITHUB_STEP_SUMMARY
+            echo -e >> $GITHUB_STEP_SUMMARY
+          fi
+
+          exit $changed
+
+  sqlc-up-to-date:
+    name: SQLC Generated Files Up To Date
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: ./.github/actions/setup-go-cache
+        with:
+          cache-prefix: sqlc-up-to-date
+          cache-tools: true
+
+      - name: Validate no changes in generated SQL files
+        run: |
+          go run github.com/magefile/mage@v1.14.0 -v sql
+
+          changed=$(git status -s -uno | wc -l)
+
+          echo -e "### Git status" >> $GITHUB_STEP_SUMMARY
+          if [[ "$changed" -gt 0 ]]; then
+            echo -e "Generated SQL files are out of date. Please run 'mage sql' and commit the changes." >> $GITHUB_STEP_SUMMARY
+
+            git status -s -uno >> $GITHUB_STEP_SUMMARY
+
+            echo -e >> $GITHUB_STEP_SUMMARY
+            echo -e "### Git diff" >> $GITHUB_STEP_SUMMARY
+
+            git --no-pager diff >> $GITHUB_STEP_SUMMARY
+          else
+            echo -e "Generated SQL files are up to date." >> $GITHUB_STEP_SUMMARY
             echo -e >> $GITHUB_STEP_SUMMARY
           fi
 
