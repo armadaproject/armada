@@ -180,13 +180,16 @@ jobs:
           echo -e "### Git status" >> $GITHUB_STEP_SUMMARY
           if [[ "$changed" -gt 0 ]]; then
             echo -e "Go modules are not synchronized. Please run 'go mod tidy' and commit the changes." >> $GITHUB_STEP_SUMMARY
-
+            echo -e >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
             git status -s -uno >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
 
             echo -e >> $GITHUB_STEP_SUMMARY
             echo -e "### Git diff" >> $GITHUB_STEP_SUMMARY
-
+            echo '```diff' >> $GITHUB_STEP_SUMMARY
             git --no-pager diff >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
           else
             echo -e "Go modules are synchronized." >> $GITHUB_STEP_SUMMARY
             echo -e >> $GITHUB_STEP_SUMMARY
@@ -226,13 +229,16 @@ jobs:
           echo -e "### Git status" >> $GITHUB_STEP_SUMMARY
           if [[ "$changed" -gt 0 ]]; then
             echo -e "Generated proto files are out of date. Please run 'mage proto' and commit the changes." >> $GITHUB_STEP_SUMMARY
-
+            echo -e >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
             git status -s -uno >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
 
             echo -e >> $GITHUB_STEP_SUMMARY
             echo -e "### Git diff" >> $GITHUB_STEP_SUMMARY
-
+            echo '```diff' >> $GITHUB_STEP_SUMMARY
             git --no-pager diff >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
           else
             echo -e "Generated proto files are up to date." >> $GITHUB_STEP_SUMMARY
             echo -e >> $GITHUB_STEP_SUMMARY
@@ -263,13 +269,16 @@ jobs:
           echo -e "### Git status" >> $GITHUB_STEP_SUMMARY
           if [[ "$changed" -gt 0 ]]; then
             echo -e "Generated SQL files are out of date. Please run 'mage sql' and commit the changes." >> $GITHUB_STEP_SUMMARY
-
+            echo -e >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
             git status -s -uno >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
 
             echo -e >> $GITHUB_STEP_SUMMARY
             echo -e "### Git diff" >> $GITHUB_STEP_SUMMARY
-
+            echo '```diff' >> $GITHUB_STEP_SUMMARY
             git --no-pager diff >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
           else
             echo -e "Generated SQL files are up to date." >> $GITHUB_STEP_SUMMARY
             echo -e >> $GITHUB_STEP_SUMMARY
