@@ -14,10 +14,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 22.12.0
           cache: yarn
@@ -29,7 +29,7 @@ jobs:
         working-directory: ./internal/lookoutui
 
       - name: Publish JUnit Report
-        uses: mikepenz/action-junit-report@v4
+        uses: mikepenz/action-junit-report@v6
         if: always()
         with:
           report_paths: ./internal/lookoutui/junit.xml
@@ -40,7 +40,7 @@ jobs:
 
       - name: Upload Test Reports Artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: ts-unit-test-reports
           path: ./internal/lookoutui/junit.xml
@@ -55,7 +55,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Go
         uses: ./.github/actions/setup-go-cache
@@ -67,7 +67,7 @@ jobs:
         run: go run github.com/magefile/mage@v1.14.0 -v tests
 
       - name: Publish JUnit Report
-        uses: mikepenz/action-junit-report@v4
+        uses: mikepenz/action-junit-report@v6
         if: always()
         with:
           report_paths: test-reports/unit-tests.xml
@@ -78,7 +78,7 @@ jobs:
 
       - name: Upload Test Reports Artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: go-unit-test-reports
           path: test-reports/
@@ -99,7 +99,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Create Docker Buildx Builder
         run: docker buildx create --name ${DOCKER_BUILDX_BUILDER} --driver docker-container --use
@@ -123,7 +123,7 @@ jobs:
         run: go run github.com/magefile/mage@v1.14.0 -v testsuite
 
       - name: Upload JUnit Report Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: go-integration-test-reports
           path: junit.xml
@@ -137,7 +137,7 @@ jobs:
           docker logs pulsar > ./logs/pulsar.log 2>&1
 
       - name: Upload Docker Compose Logs
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         if: always()
         with:
           name: docker-compose-logs
@@ -146,7 +146,7 @@ jobs:
           if-no-files-found: error
 
       - name: Publish JUnit Report
-        uses: mikepenz/action-junit-report@v4
+        uses: mikepenz/action-junit-report@v6
         if: always()
         with:
           report_paths: junit.xml
@@ -161,7 +161,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Go
         uses: ./.github/actions/setup-go-cache
@@ -203,7 +203,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Install Protoc
         uses: arduino/setup-protoc@v3
@@ -252,7 +252,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Go
         uses: ./.github/actions/setup-go-cache
