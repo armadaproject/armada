@@ -142,6 +142,16 @@ func init() {
                     "isAnnotation": {
                       "type": "boolean",
                       "x-nullable": false
+                    },
+                    "lastTransitionTimeAggregate": {
+                      "description": "Type of aggregate to use for lastTransitionTime (latest, earliest, average)",
+                      "type": "string",
+                      "enum": [
+                        "latest",
+                        "earliest",
+                        "average"
+                      ],
+                      "x-nullable": true
                     }
                   }
                 },
@@ -939,6 +949,16 @@ func init() {
                     "isAnnotation": {
                       "type": "boolean",
                       "x-nullable": false
+                    },
+                    "lastTransitionTimeAggregate": {
+                      "description": "Type of aggregate to use for lastTransitionTime (latest, earliest, average)",
+                      "type": "string",
+                      "enum": [
+                        "latest",
+                        "earliest",
+                        "average"
+                      ],
+                      "x-nullable": true
                     }
                   }
                 },
@@ -1300,6 +1320,16 @@ func init() {
         "isAnnotation": {
           "type": "boolean",
           "x-nullable": false
+        },
+        "lastTransitionTimeAggregate": {
+          "description": "Type of aggregate to use for lastTransitionTime (latest, earliest, average)",
+          "type": "string",
+          "enum": [
+            "latest",
+            "earliest",
+            "average"
+          ],
+          "x-nullable": true
         }
       }
     },

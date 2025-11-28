@@ -1,0 +1,12 @@
+metricsPort: 9005
+postgres:
+  connection:
+    host: localhost
+    port: 5432
+    user: postgres
+    password: psw
+    dbname: lookout
+    sslmode: disable
+pulsar:
+  URL: "pulsar://localhost:6650"
+  restURL: "http://localhost:8090"

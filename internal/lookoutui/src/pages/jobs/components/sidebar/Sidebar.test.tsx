@@ -24,7 +24,7 @@ describe("Sidebar", () => {
   beforeEach(() => {
     job = makeTestJob(
       "test-queue",
-      "test-jobset",
+      "test-job-set",
       "abcde",
       JobState.Succeeded,
       {

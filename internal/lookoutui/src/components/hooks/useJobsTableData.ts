@@ -26,7 +26,7 @@ import {
 import { fromRowId, mergeSubRows } from "../../common/reactTableUtils"
 import { getErrorMessage } from "../../common/utils"
 import { JobGroupRow, JobRow, JobTableRow } from "../../models/jobsTableModels"
-import { Job, JobFilter, JobId, JobOrder, Match } from "../../models/lookoutModels"
+import { AggregateType, Job, JobFilter, JobId, JobOrder, Match } from "../../models/lookoutModels"
 import { useAuthenticatedFetch } from "../../oidcAuth"
 import { IGetJobsService } from "../../services/lookout/GetJobsService"
 import { GroupedField, IGroupJobsService } from "../../services/lookout/GroupJobsService"
@@ -46,6 +46,7 @@ export interface UseFetchJobsTableDataArgs {
   getJobsService: IGetJobsService
   groupJobsService: IGroupJobsService
   openSnackbar: (message: string, variant: VariantType) => void
+  lastTransitionTimeAggregate?: AggregateType
 }
 
 export interface UseFetchJobsTableDataResult {
@@ -141,6 +142,7 @@ export const useFetchJobsTableData = ({
   getJobsService,
   groupJobsService,
   openSnackbar,
+  lastTransitionTimeAggregate,
 }: UseFetchJobsTableDataArgs): UseFetchJobsTableDataResult => {
   const [data, setData] = useState<JobTableRow[]>([])
   const [jobInfoMap, setJobInfoMap] = useState<Map<JobId, Job>>(new Map())
@@ -183,7 +185,7 @@ export const useFetchJobsTableData = ({
           setJobInfoMap(new Map([...jobInfoMap.entries(), ...jobs.map((j): [JobId, Job] => [j.jobId, j])]))
         } else {
           const groupedCol = groupedColumns[expandedLevel]
-          const groupedField = columnToGroupedField(groupedCol)
+          const groupedField = columnToGroupedField(groupedCol, lastTransitionTimeAggregate)
 
           // Override the group order if needed
           if (
@@ -242,6 +244,7 @@ export const useFetchJobsTableData = ({
       setPendingData(restOfRequests)
     }
 
+    // eslint-disable-next-line no-console
     fetchData().catch(console.error)
 
     // This will run when the current invocation is no longer needed (either because the
@@ -258,6 +261,7 @@ export const useFetchJobsTableData = ({
     columnMatches,
     lookoutOrder,
     allColumns,
+    lastTransitionTimeAggregate,
   ])
 
   return {
@@ -268,16 +272,18 @@ export const useFetchJobsTableData = ({
   }
 }
 
-const columnToGroupedField = (colId: ColumnId): GroupedField => {
+const columnToGroupedField = (colId: ColumnId, lastTransitionTimeAggregate?: AggregateType): GroupedField => {
   if (isStandardColId(colId)) {
     return {
       field: colId,
       isAnnotation: false,
+      lastTransitionTimeAggregate,
     }
   }
   return {
     field: fromAnnotationColId(colId as AnnotationColumnId),
     isAnnotation: true,
+    lastTransitionTimeAggregate,
   }
 }
 

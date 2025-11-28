@@ -4,7 +4,7 @@
   <a href="https://circleci.com/gh/armadaproject/armada"><img src="https://circleci.com/gh/helm/helm.svg?style=shield" alt="CircleCI"></a>
   <a href="https://goreportcard.com/report/github.com/armadaproject/armada"><img src="https://goreportcard.com/badge/github.com/armadaproject/armada" alt="Go Report Card"></a>
   <a href="https://artifacthub.io/packages/helm/gresearch/armada" title="Go to Artifact Hub"><img src="https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/armada" alt="Artifact Hub"></a>        
-  <a href="https://insights.lfx.linuxfoundation.org/foundation/cncf/overview?project=armada" title="Click to view project insights and health checks"><img src="https://img.shields.io/badge/LFX%20Insights-0094FF" alt="LFX Insights Dashboard"></a>
+  <a href="https://insights.linuxfoundation.org/project/armada" title="Click to view project insights and health checks"><img src="https://insights.linuxfoundation.org/api/badge/health-score?project=armada" alt="LFX Health Score"></a>
  </p>
 </div>
 
@@ -58,6 +58,140 @@ scripts/get-armadactl.sh
 ```
 
 Or download it from the [GitHub Release](https://github.com/armadaproject/armada/releases/latest) page for your platform.
+
+## Local Development
+
+### Local Development with Goreman
+
+[Goreman](https://github.com/mattn/goreman) is a Go-based clone of [Foreman](https://github.com/ddollar/foreman) that manages Procfile-based applications,
+allowing you to run multiple processes with a single command.
+
+Goreman will build the components from source and run them locally, making it easy to test changes quickly.
+
+1. Install `goreman`:
+    ```shell
+    go install github.com/mattn/goreman@latest
+    ```
+2. Start dependencies:
+    ```shell
+    docker-compose -f _local/docker-compose-deps.yaml up -d
+    ```
+   - **Note**: Images can be overridden using environment variables:
+     `REDIS_IMAGE`, `POSTGRES_IMAGE`, `PULSAR_IMAGE`, `KEYCLOAK_IMAGE`
+3. Initialize databases and Kubernetes resources:
+    ```shell
+    scripts/localdev-init.sh
+    ```
+4. Start Armada components:
+    ```shell
+    goreman -f _local/procfiles/no-auth.Procfile start
+    ```
+
+### Local Development with Authentication
+
+To run Armada with OIDC authentication enabled using Keycloak:
+
+1. Start dependencies with the auth profile:
+    ```shell
+    docker-compose -f _local/docker-compose-deps.yaml --profile auth up -d
+    ```
+   This starts Redis, PostgreSQL, Pulsar, and Keycloak with a pre-configured realm.
+
+2. Initialize databases and Kubernetes resources:
+    ```shell
+    scripts/localdev-init.sh
+    ```
+
+3. Start Armada components with auth configuration:
+    ```shell
+    goreman -f _local/procfiles/auth.Procfile start
+    ```
+
+4. Use armadactl with OIDC authentication:
+    ```shell
+    armadactl --config _local/.armadactl.yaml --context auth-oidc get queues
+    ```
+
+#### Authentication Configuration
+
+The auth profile configures:
+- **Keycloak**: OIDC provider running on http://localhost:8180 with pre-configured realm, users, and clients
+- **Users**: `admin/admin` (admin group), `user/password` (users group) for both OIDC and basic auth
+- **Service accounts**: Executor and Scheduler use OIDC Client Credentials flow for service-to-service authentication
+- **APIs**: Server, Lookout, and Binoculars APIs are secured with OIDC and basic auth
+- **Web UIs**: Lookout UI uses OIDC for user authentication
+- **armadactl**: Supports multiple authentication flows - OIDC PKCE flow (`auth-oidc`), OIDC Device flow (`auth-oidc-device`), OIDC Password flow (`auth-oidc-password`), and basic auth (`auth-basic`)
+
+All components support both OIDC and basic auth for convenience.
+
+### Local Development with Fake Executor
+
+For testing Armada without a real Kubernetes cluster, you can use the fake executor that simulates a Kubernetes environment:
+
+```shell
+goreman -f _local/procfiles/fake-executor.Procfile start
+```
+
+The fake executor simulates:
+- 2 virtual nodes with 8 CPUs and 32Gi memory each
+- Pod lifecycle management without actual container execution
+- Resource allocation and job state transitions
+
+This is useful for:
+- Testing Armada's scheduling logic
+- Development when Kubernetes is not available
+- Integration testing of job flows
+
+### Available Procfiles
+
+All Procfiles are located in `_local/procfiles/`:
+
+| Procfile                 | Description                                       |
+|--------------------------|---------------------------------------------------|
+| `no-auth.Procfile`       | Standard setup without authentication             |
+| `auth.Procfile`          | Standard setup with OIDC authentication           |
+| `fake-executor.Procfile` | Uses fake executor for testing without Kubernetes |
+
+Restart individual processes with `goreman restart <component>` (e.g., `goreman restart server`).
+
+### Service Ports
+
+Run `goreman run status` to check the status of the processes (running processes are prefixed with `*`):
+```shell
+$ goreman run status
+*server
+*scheduler
+*scheduleringester
+*eventingester
+*executor
+*lookout
+*lookoutingester
+*binoculars
+*lookoutui
+```
+
+Goreman exposes services on the following ports:
+
+| Service                    | Port  | Description         |
+|----------------------------|-------|---------------------|
+| Server gRPC                | 50051 | Armada gRPC API     |
+| Server HTTP                | 8081  | REST API & Health   |
+| Server Metrics             | 9000  | Prometheus metrics  |
+| Scheduler gRPC             | 50052 | Scheduler API       |
+| Scheduler Metrics          | 9001  | Prometheus metrics  |
+| Scheduler Ingester Metrics | 9006  | Prometheus metrics  |
+| Lookout UI                 | 3000  | Frontend dev server |
+| Lookout Metrics            | 9003  | Prometheus metrics  |
+| Lookout Ingester Metrics   | 9005  | Prometheus metrics  |
+| Executor Metrics           | 9002  | Prometheus metrics  |
+| Event Ingester Metrics     | 9004  | Prometheus metrics  |
+| Executor HTTP              | 8082  | Executor HTTP       |
+| Binoculars HTTP            | 8084  | Binoculars HTTP     |
+| Binoculars gRPC            | 50053 | Binoculars gRPC     |
+| Binoculars Metrics         | 9007  | Prometheus metrics  |
+| Redis                      | 6379  | Cache & events      |
+| PostgreSQL                 | 5432  | Database            |
+| Pulsar                     | 6650  | Message broker      |
 
 ## Documentation
 

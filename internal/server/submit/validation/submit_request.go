@@ -7,6 +7,8 @@ import (
 	"github.com/pkg/errors"
 	"k8s.io/component-helpers/scheduling/corev1/nodeaffinity"
 
+	"github.com/armadaproject/armada/internal/common/constants"
+	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/armadaproject/armada/pkg/api"
@@ -156,7 +158,7 @@ func validateHasQueue(r *api.JobSubmitRequest, _ configuration.SubmissionConfig)
 	return nil
 }
 
-// Ensures that each container exposes a given port at most once.
+// Ensures that each pod exposes a given port at most once.
 func validatePorts(j *api.JobSubmitRequestItem, _ configuration.SubmissionConfig) error {
 	spec := j.GetMainPodSpec()
 	existingPortSet := make(map[int32]int)
@@ -212,7 +214,7 @@ func validateClientId(j *api.JobSubmitRequestItem, _ configuration.SubmissionCon
 }
 
 func validatePriceBand(j *api.JobSubmitRequestItem, _ configuration.SubmissionConfig) error {
-	priceBand, present := j.Annotations[configuration.JobPriceBand]
+	priceBand, present := j.Annotations[constants.JobPriceBand]
 	if present {
 		_, valid := bidstore.PriceBandFromShortName[strings.ToUpper(priceBand)]
 		if !valid {
@@ -249,14 +251,27 @@ func validateResources(j *api.JobSubmitRequestItem, config configuration.Submiss
 	if maxOversubscriptionByResource == nil {
 		maxOversubscriptionByResource = map[string]float64{}
 	}
-	for _, container := range spec.Containers {
-
+	for _, container := range armadaslices.Concatenate(spec.Containers, spec.InitContainers) {
 		if len(container.Resources.Requests) == 0 && len(container.Resources.Requests) == 0 {
 			return fmt.Errorf("container %v has no resources specified", container.Name)
 		}
 
 		if len(container.Resources.Requests) != len(container.Resources.Limits) {
 			return fmt.Errorf("container %v defines different resources for requests and limits", container.Name)
+		}
+
+		for resourceName, request := range container.Resources.Requests {
+			if request.Sign() < 0 {
+				return fmt.Errorf("container %v defines negative resource request (%s) for resource %s",
+					container.Name, request.String(), resourceName)
+			}
+		}
+
+		for resourceName, limit := range container.Resources.Limits {
+			if limit.Sign() < 0 {
+				return fmt.Errorf("container %v defines negative resource limit (%s) for resource %s",
+					container.Name, limit.String(), resourceName)
+			}
 		}
 
 		for resource, request := range container.Resources.Requests {
@@ -333,6 +348,14 @@ func validateGangs(request *api.JobSubmitRequest, _ configuration.SubmissionConf
 		gangInfo := *rawGangInfo
 		if !gangInfo.IsGang() {
 			continue
+		}
+
+		failFastFlag, present := job.Annotations[constants.FailFastAnnotation]
+		if present && failFastFlag != "true" {
+			return errors.Errorf(
+				"gang jobs may not set fail fast flag (annotation - %s) to anything but true",
+				constants.FailFastAnnotation,
+			)
 		}
 
 		actual := GangValidationInfo{gangInfo, adaptedJob.PriorityClassName()}

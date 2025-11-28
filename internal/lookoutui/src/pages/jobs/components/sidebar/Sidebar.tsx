@@ -11,6 +11,7 @@ import { CommandSpec } from "../../../../config"
 import { Job, JobState } from "../../../../models/lookoutModels"
 
 import { SidebarHeader } from "./SidebarHeader"
+import { SidebarLinks } from "./SidebarLinks"
 import { SidebarTabJobCommands } from "./SidebarTabJobCommands"
 import { SidebarTabJobDetails } from "./SidebarTabJobDetails"
 import { SidebarTabJobLogs } from "./SidebarTabJobLogs"
@@ -241,6 +242,7 @@ export const Sidebar = memo(({ job, sidebarWidth, onClose, onWidthChange, comman
         <Resizer onMouseDown={(e) => handleMouseDown(e.clientX)} id="dragger" isResizing={resizeRef.current} />
         <SidebarContent>
           <SidebarHeader job={job} onClose={onClose} />
+          <SidebarLinks job={job} />
           <Divider />
           <SidebarTabContextContainer>
             <ErrorBoundary FallbackComponent={AlertErrorFallback}>
