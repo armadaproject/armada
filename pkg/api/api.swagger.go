@@ -2272,6 +2272,27 @@ func SwaggerJsonTemplate() string {
 		"      },\n" +
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
+		"    \"v1AppArmorProfile\": {\n" +
+		"      \"description\": \"+union\",\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"title\": \"AppArmorProfile defines a pod or container's AppArmor settings.\",\n" +
+		"      \"properties\": {\n" +
+		"        \"localhostProfile\": {\n" +
+		"          \"description\": \"localhostProfile indicates a profile loaded on the node that should be used.\\nThe profile must be preconfigured on the node to work.\\nMust match the loaded name of the profile.\\nMust be set if and only if type is \\\"Localhost\\\".\\n+optional\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"LocalhostProfile\"\n" +
+		"        },\n" +
+		"        \"type\": {\n" +
+		"          \"$ref\": \"#/definitions/v1AppArmorProfileType\"\n" +
+		"        }\n" +
+		"      },\n" +
+		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
+		"    },\n" +
+		"    \"v1AppArmorProfileType\": {\n" +
+		"      \"description\": \"+enum\",\n" +
+		"      \"type\": \"string\",\n" +
+		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
+		"    },\n" +
 		"    \"v1AzureDataDiskCachingMode\": {\n" +
 		"      \"description\": \"+enum\",\n" +
 		"      \"type\": \"string\",\n" +
@@ -2300,7 +2321,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"DataDiskURI\"\n" +
 		"        },\n" +
 		"        \"fsType\": {\n" +
-		"          \"description\": \"fsType is Filesystem type to mount.\\nMust be a filesystem type supported by the host operating system.\\nEx. \\\"ext4\\\", \\\"xfs\\\", \\\"ntfs\\\". Implicitly inferred to be \\\"ext4\\\" if unspecified.\\n+optional\",\n" +
+		"          \"description\": \"fsType is Filesystem type to mount.\\nMust be a filesystem type supported by the host operating system.\\nEx. \\\"ext4\\\", \\\"xfs\\\", \\\"ntfs\\\". Implicitly inferred to be \\\"ext4\\\" if unspecified.\\n+optional\\n+default=\\\"ext4\\\"\",\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"x-go-name\": \"FSType\"\n" +
 		"        },\n" +
@@ -2308,7 +2329,7 @@ func SwaggerJsonTemplate() string {
 		"          \"$ref\": \"#/definitions/v1AzureDataDiskKind\"\n" +
 		"        },\n" +
 		"        \"readOnly\": {\n" +
-		"          \"description\": \"readOnly Defaults to false (read/write). ReadOnly here will force\\nthe ReadOnly setting in VolumeMounts.\\n+optional\",\n" +
+		"          \"description\": \"readOnly Defaults to false (read/write). ReadOnly here will force\\nthe ReadOnly setting in VolumeMounts.\\n+optional\\n+default=false\",\n" +
 		"          \"type\": \"boolean\",\n" +
 		"          \"x-go-name\": \"ReadOnly\"\n" +
 		"        }\n" +
@@ -2375,7 +2396,7 @@ func SwaggerJsonTemplate() string {
 		"      \"title\": \"Adds and removes POSIX capabilities from running containers.\",\n" +
 		"      \"properties\": {\n" +
 		"        \"add\": {\n" +
-		"          \"description\": \"Added capabilities\\n+optional\",\n" +
+		"          \"description\": \"Added capabilities\\n+optional\\n+listType=atomic\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"$ref\": \"#/definitions/v1Capability\"\n" +
@@ -2383,7 +2404,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"Add\"\n" +
 		"        },\n" +
 		"        \"drop\": {\n" +
-		"          \"description\": \"Removed capabilities\\n+optional\",\n" +
+		"          \"description\": \"Removed capabilities\\n+optional\\n+listType=atomic\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"$ref\": \"#/definitions/v1Capability\"\n" +
@@ -2403,7 +2424,7 @@ func SwaggerJsonTemplate() string {
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
 		"        \"monitors\": {\n" +
-		"          \"description\": \"monitors is Required: Monitors is a collection of Ceph monitors\\nMore info: https://examples.k8s.io/volumes/cephfs/README.md#how-to-use-it\",\n" +
+		"          \"description\": \"monitors is Required: Monitors is a collection of Ceph monitors\\nMore info: https://examples.k8s.io/volumes/cephfs/README.md#how-to-use-it\\n+listType=atomic\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"type\": \"string\"\n" +
@@ -2462,24 +2483,6 @@ func SwaggerJsonTemplate() string {
 		"      },\n" +
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
-		"    \"v1ClaimSource\": {\n" +
-		"      \"description\": \"Exactly one of these fields should be set.  Consumers of this type must\\ntreat an empty object as if it has an unknown value.\",\n" +
-		"      \"type\": \"object\",\n" +
-		"      \"title\": \"ClaimSource describes a reference to a ResourceClaim.\",\n" +
-		"      \"properties\": {\n" +
-		"        \"resourceClaimName\": {\n" +
-		"          \"description\": \"ResourceClaimName is the name of a ResourceClaim object in the same\\nnamespace as this pod.\",\n" +
-		"          \"type\": \"string\",\n" +
-		"          \"x-go-name\": \"ResourceClaimName\"\n" +
-		"        },\n" +
-		"        \"resourceClaimTemplateName\": {\n" +
-		"          \"description\": \"ResourceClaimTemplateName is the name of a ResourceClaimTemplate\\nobject in the same namespace as this pod.\\n\\nThe template will be used to create a new ResourceClaim, which will\\nbe bound to this pod. When this pod is deleted, the ResourceClaim\\nwill also be deleted. The pod name and resource name, along with a\\ngenerated component, will be used to form a unique name for the\\nResourceClaim, which will be recorded in pod.status.resourceClaimStatuses.\\n\\nThis field is immutable and no changes will be made to the\\ncorresponding ResourceClaim by the control plane after creating the\\nResourceClaim.\",\n" +
-		"          \"type\": \"string\",\n" +
-		"          \"x-go-name\": \"ResourceClaimTemplateName\"\n" +
-		"        }\n" +
-		"      },\n" +
-		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
-		"    },\n" +
 		"    \"v1ClientIPConfig\": {\n" +
 		"      \"description\": \"ClientIPConfig represents the configurations of Client IP based session affinity.\",\n" +
 		"      \"type\": \"object\",\n" +
@@ -2490,6 +2493,36 @@ func SwaggerJsonTemplate() string {
 		"          \"title\": \"timeoutSeconds specifies the seconds of ClientIP type session sticky time.\\nThe value must be \\u003e0 \\u0026\\u0026 \\u003c=86400(for 1 day) if ServiceAffinity == \\\"ClientIP\\\".\\nDefault value is 10800(for 3 hours).\\n+optional\"\n" +
 		"        }\n" +
 		"      }\n" +
+		"    },\n" +
+		"    \"v1ClusterTrustBundleProjection\": {\n" +
+		"      \"description\": \"ClusterTrustBundleProjection describes how to select a set of\\nClusterTrustBundle objects and project their contents into the pod\\nfilesystem.\",\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"labelSelector\": {\n" +
+		"          \"$ref\": \"#/definitions/v1LabelSelector\"\n" +
+		"        },\n" +
+		"        \"name\": {\n" +
+		"          \"description\": \"Select a single ClusterTrustBundle by object name.  Mutually-exclusive\\nwith signerName and labelSelector.\\n+optional\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"Name\"\n" +
+		"        },\n" +
+		"        \"optional\": {\n" +
+		"          \"description\": \"If true, don't block pod startup if the referenced ClusterTrustBundle(s)\\naren't available.  If using name, then the named ClusterTrustBundle is\\nallowed not to exist.  If using signerName, then the combination of\\nsignerName and labelSelector is allowed to match zero\\nClusterTrustBundles.\\n+optional\",\n" +
+		"          \"type\": \"boolean\",\n" +
+		"          \"x-go-name\": \"Optional\"\n" +
+		"        },\n" +
+		"        \"path\": {\n" +
+		"          \"description\": \"Relative path from the volume root to write the bundle.\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"Path\"\n" +
+		"        },\n" +
+		"        \"signerName\": {\n" +
+		"          \"description\": \"Select all ClusterTrustBundles that match this signer name.\\nMutually-exclusive with name.  The contents of all selected\\nClusterTrustBundles will be unified and deduplicated.\\n+optional\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"SignerName\"\n" +
+		"        }\n" +
+		"      },\n" +
+		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
 		"    \"v1Condition\": {\n" +
 		"      \"description\": \"type FooStatus struct{\\n\\t    // Represents the observations of a foo's current state.\\n\\t    // Known .status.conditions.type are: \\\"Available\\\", \\\"Progressing\\\", and \\\"Degraded\\\"\\n\\t    // +patchMergeKey=type\\n\\t    // +patchStrategy=merge\\n\\t    // +listType=map\\n\\t    // +listMapKey=type\\n\\t    Conditions []metav1.Condition `json:\\\"conditions,omitempty\\\" patchStrategy:\\\"merge\\\" patchMergeKey:\\\"type\\\" protobuf:\\\"bytes,1,rep,name=conditions\\\"`\\n\\n\\t    // other fields\\n\\t}\",\n" +
@@ -2529,7 +2562,7 @@ func SwaggerJsonTemplate() string {
 		"      \"title\": \"ConfigMapEnvSource selects a ConfigMap to populate the environment\\nvariables with.\",\n" +
 		"      \"properties\": {\n" +
 		"        \"name\": {\n" +
-		"          \"description\": \"Name of the referent.\\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names\\nTODO: Add other useful fields. apiVersion, kind, uid?\\n+optional\",\n" +
+		"          \"description\": \"Name of the referent.\\nThis field is effectively required, but due to backwards compatibility is\\nallowed to be empty. Instances of this type with an empty value here are\\nalmost certainly wrong.\\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names\\n+optional\\n+default=\\\"\\\"\\n+kubebuilder:default=\\\"\\\"\\nTODO: Drop `kubebuilder:default` when controller-gen doesn't need it https://github.com/kubernetes-sigs/kubebuilder/issues/3896.\",\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"x-go-name\": \"Name\"\n" +
 		"        },\n" +
@@ -2552,7 +2585,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"Key\"\n" +
 		"        },\n" +
 		"        \"name\": {\n" +
-		"          \"description\": \"Name of the referent.\\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names\\nTODO: Add other useful fields. apiVersion, kind, uid?\\n+optional\",\n" +
+		"          \"description\": \"Name of the referent.\\nThis field is effectively required, but due to backwards compatibility is\\nallowed to be empty. Instances of this type with an empty value here are\\nalmost certainly wrong.\\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names\\n+optional\\n+default=\\\"\\\"\\n+kubebuilder:default=\\\"\\\"\\nTODO: Drop `kubebuilder:default` when controller-gen doesn't need it https://github.com/kubernetes-sigs/kubebuilder/issues/3896.\",\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"x-go-name\": \"Name\"\n" +
 		"        },\n" +
@@ -2570,7 +2603,7 @@ func SwaggerJsonTemplate() string {
 		"      \"title\": \"Adapts a ConfigMap into a projected volume.\",\n" +
 		"      \"properties\": {\n" +
 		"        \"items\": {\n" +
-		"          \"description\": \"items if unspecified, each key-value pair in the Data field of the referenced\\nConfigMap will be projected into the volume as a file whose name is the\\nkey and content is the value. If specified, the listed keys will be\\nprojected into the specified paths, and unlisted keys will not be\\npresent. If a key is specified which is not present in the ConfigMap,\\nthe volume setup will error unless it is marked optional. Paths must be\\nrelative and may not contain the '..' path or start with '..'.\\n+optional\",\n" +
+		"          \"description\": \"items if unspecified, each key-value pair in the Data field of the referenced\\nConfigMap will be projected into the volume as a file whose name is the\\nkey and content is the value. If specified, the listed keys will be\\nprojected into the specified paths, and unlisted keys will not be\\npresent. If a key is specified which is not present in the ConfigMap,\\nthe volume setup will error unless it is marked optional. Paths must be\\nrelative and may not contain the '..' path or start with '..'.\\n+optional\\n+listType=atomic\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"$ref\": \"#/definitions/v1KeyToPath\"\n" +
@@ -2578,7 +2611,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"Items\"\n" +
 		"        },\n" +
 		"        \"name\": {\n" +
-		"          \"description\": \"Name of the referent.\\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names\\nTODO: Add other useful fields. apiVersion, kind, uid?\\n+optional\",\n" +
+		"          \"description\": \"Name of the referent.\\nThis field is effectively required, but due to backwards compatibility is\\nallowed to be empty. Instances of this type with an empty value here are\\nalmost certainly wrong.\\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names\\n+optional\\n+default=\\\"\\\"\\n+kubebuilder:default=\\\"\\\"\\nTODO: Drop `kubebuilder:default` when controller-gen doesn't need it https://github.com/kubernetes-sigs/kubebuilder/issues/3896.\",\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"x-go-name\": \"Name\"\n" +
 		"        },\n" +
@@ -2602,7 +2635,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"DefaultMode\"\n" +
 		"        },\n" +
 		"        \"items\": {\n" +
-		"          \"description\": \"items if unspecified, each key-value pair in the Data field of the referenced\\nConfigMap will be projected into the volume as a file whose name is the\\nkey and content is the value. If specified, the listed keys will be\\nprojected into the specified paths, and unlisted keys will not be\\npresent. If a key is specified which is not present in the ConfigMap,\\nthe volume setup will error unless it is marked optional. Paths must be\\nrelative and may not contain the '..' path or start with '..'.\\n+optional\",\n" +
+		"          \"description\": \"items if unspecified, each key-value pair in the Data field of the referenced\\nConfigMap will be projected into the volume as a file whose name is the\\nkey and content is the value. If specified, the listed keys will be\\nprojected into the specified paths, and unlisted keys will not be\\npresent. If a key is specified which is not present in the ConfigMap,\\nthe volume setup will error unless it is marked optional. Paths must be\\nrelative and may not contain the '..' path or start with '..'.\\n+optional\\n+listType=atomic\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"$ref\": \"#/definitions/v1KeyToPath\"\n" +
@@ -2610,7 +2643,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"Items\"\n" +
 		"        },\n" +
 		"        \"name\": {\n" +
-		"          \"description\": \"Name of the referent.\\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names\\nTODO: Add other useful fields. apiVersion, kind, uid?\\n+optional\",\n" +
+		"          \"description\": \"Name of the referent.\\nThis field is effectively required, but due to backwards compatibility is\\nallowed to be empty. Instances of this type with an empty value here are\\nalmost certainly wrong.\\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names\\n+optional\\n+default=\\\"\\\"\\n+kubebuilder:default=\\\"\\\"\\nTODO: Drop `kubebuilder:default` when controller-gen doesn't need it https://github.com/kubernetes-sigs/kubebuilder/issues/3896.\",\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"x-go-name\": \"Name\"\n" +
 		"        },\n" +
@@ -2627,7 +2660,7 @@ func SwaggerJsonTemplate() string {
 		"      \"title\": \"A single application container that you want to run within a pod.\",\n" +
 		"      \"properties\": {\n" +
 		"        \"args\": {\n" +
-		"          \"description\": \"Arguments to the entrypoint.\\nThe container image's CMD is used if this is not provided.\\nVariable references $(VAR_NAME) are expanded using the container's environment. If a variable\\ncannot be resolved, the reference in the input string will be unchanged. Double $$ are reduced\\nto a single $, which allows for escaping the $(VAR_NAME) syntax: i.e. \\\"$$(VAR_NAME)\\\" will\\nproduce the string literal \\\"$(VAR_NAME)\\\". Escaped references will never be expanded, regardless\\nof whether the variable exists or not. Cannot be updated.\\nMore info: https://kubernetes.io/docs/tasks/inject-data-application/define-command-argument-container/#running-a-command-in-a-shell\\n+optional\",\n" +
+		"          \"description\": \"Arguments to the entrypoint.\\nThe container image's CMD is used if this is not provided.\\nVariable references $(VAR_NAME) are expanded using the container's environment. If a variable\\ncannot be resolved, the reference in the input string will be unchanged. Double $$ are reduced\\nto a single $, which allows for escaping the $(VAR_NAME) syntax: i.e. \\\"$$(VAR_NAME)\\\" will\\nproduce the string literal \\\"$(VAR_NAME)\\\". Escaped references will never be expanded, regardless\\nof whether the variable exists or not. Cannot be updated.\\nMore info: https://kubernetes.io/docs/tasks/inject-data-application/define-command-argument-container/#running-a-command-in-a-shell\\n+optional\\n+listType=atomic\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"type\": \"string\"\n" +
@@ -2635,7 +2668,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"Args\"\n" +
 		"        },\n" +
 		"        \"command\": {\n" +
-		"          \"description\": \"Entrypoint array. Not executed within a shell.\\nThe container image's ENTRYPOINT is used if this is not provided.\\nVariable references $(VAR_NAME) are expanded using the container's environment. If a variable\\ncannot be resolved, the reference in the input string will be unchanged. Double $$ are reduced\\nto a single $, which allows for escaping the $(VAR_NAME) syntax: i.e. \\\"$$(VAR_NAME)\\\" will\\nproduce the string literal \\\"$(VAR_NAME)\\\". Escaped references will never be expanded, regardless\\nof whether the variable exists or not. Cannot be updated.\\nMore info: https://kubernetes.io/docs/tasks/inject-data-application/define-command-argument-container/#running-a-command-in-a-shell\\n+optional\",\n" +
+		"          \"description\": \"Entrypoint array. Not executed within a shell.\\nThe container image's ENTRYPOINT is used if this is not provided.\\nVariable references $(VAR_NAME) are expanded using the container's environment. If a variable\\ncannot be resolved, the reference in the input string will be unchanged. Double $$ are reduced\\nto a single $, which allows for escaping the $(VAR_NAME) syntax: i.e. \\\"$$(VAR_NAME)\\\" will\\nproduce the string literal \\\"$(VAR_NAME)\\\". Escaped references will never be expanded, regardless\\nof whether the variable exists or not. Cannot be updated.\\nMore info: https://kubernetes.io/docs/tasks/inject-data-application/define-command-argument-container/#running-a-command-in-a-shell\\n+optional\\n+listType=atomic\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"type\": \"string\"\n" +
@@ -2643,7 +2676,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"Command\"\n" +
 		"        },\n" +
 		"        \"env\": {\n" +
-		"          \"description\": \"List of environment variables to set in the container.\\nCannot be updated.\\n+optional\\n+patchMergeKey=name\\n+patchStrategy=merge\",\n" +
+		"          \"description\": \"List of environment variables to set in the container.\\nCannot be updated.\\n+optional\\n+patchMergeKey=name\\n+patchStrategy=merge\\n+listType=map\\n+listMapKey=name\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"$ref\": \"#/definitions/v1EnvVar\"\n" +
@@ -2651,7 +2684,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"Env\"\n" +
 		"        },\n" +
 		"        \"envFrom\": {\n" +
-		"          \"description\": \"List of sources to populate environment variables in the container.\\nThe keys defined within a source must be a C_IDENTIFIER. All invalid keys\\nwill be reported as an event when the container is starting. When a key exists in multiple\\nsources, the value associated with the last source will take precedence.\\nValues defined by an Env with a duplicate key will take precedence.\\nCannot be updated.\\n+optional\",\n" +
+		"          \"description\": \"List of sources to populate environment variables in the container.\\nThe keys defined within a source may consist of any printable ASCII characters except '='.\\nWhen a key exists in multiple\\nsources, the value associated with the last source will take precedence.\\nValues defined by an Env with a duplicate key will take precedence.\\nCannot be updated.\\n+optional\\n+listType=atomic\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"$ref\": \"#/definitions/v1EnvFromSource\"\n" +
@@ -2702,6 +2735,14 @@ func SwaggerJsonTemplate() string {
 		"        \"restartPolicy\": {\n" +
 		"          \"$ref\": \"#/definitions/v1ContainerRestartPolicy\"\n" +
 		"        },\n" +
+		"        \"restartPolicyRules\": {\n" +
+		"          \"description\": \"Represents a list of rules to be checked to determine if the\\ncontainer should be restarted on exit. The rules are evaluated in\\norder. Once a rule matches a container exit condition, the remaining\\nrules are ignored. If no rule matches the container exit condition,\\nthe Container-level restart policy determines the whether the container\\nis restarted or not. Constraints on the rules:\\nAt most 20 rules are allowed.\\nRules can have the same action.\\nIdentical rules are not forbidden in validations.\\nWhen rules are specified, container MUST set RestartPolicy explicitly\\neven it if matches the Pod's RestartPolicy.\\n+featureGate=ContainerRestartRules\\n+optional\\n+listType=atomic\",\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"$ref\": \"#/definitions/v1ContainerRestartRule\"\n" +
+		"          },\n" +
+		"          \"x-go-name\": \"RestartPolicyRules\"\n" +
+		"        },\n" +
 		"        \"securityContext\": {\n" +
 		"          \"$ref\": \"#/definitions/v1SecurityContext\"\n" +
 		"        },\n" +
@@ -2732,7 +2773,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"TTY\"\n" +
 		"        },\n" +
 		"        \"volumeDevices\": {\n" +
-		"          \"description\": \"volumeDevices is the list of block devices to be used by the container.\\n+patchMergeKey=devicePath\\n+patchStrategy=merge\\n+optional\",\n" +
+		"          \"description\": \"volumeDevices is the list of block devices to be used by the container.\\n+patchMergeKey=devicePath\\n+patchStrategy=merge\\n+listType=map\\n+listMapKey=devicePath\\n+optional\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"$ref\": \"#/definitions/v1VolumeDevice\"\n" +
@@ -2740,7 +2781,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"VolumeDevices\"\n" +
 		"        },\n" +
 		"        \"volumeMounts\": {\n" +
-		"          \"description\": \"Pod volumes to mount into the container's filesystem.\\nCannot be updated.\\n+optional\\n+patchMergeKey=mountPath\\n+patchStrategy=merge\",\n" +
+		"          \"description\": \"Pod volumes to mount into the container's filesystem.\\nCannot be updated.\\n+optional\\n+patchMergeKey=mountPath\\n+patchStrategy=merge\\n+listType=map\\n+listMapKey=mountPath\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"$ref\": \"#/definitions/v1VolumeMount\"\n" +
@@ -2801,9 +2842,51 @@ func SwaggerJsonTemplate() string {
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
 		"    \"v1ContainerRestartPolicy\": {\n" +
-		"      \"description\": \"This may only be set for init containers and only allowed value is \\\"Always\\\".\",\n" +
+		"      \"description\": \"The only allowed values are \\\"Always\\\", \\\"Never\\\", and \\\"OnFailure\\\".\",\n" +
 		"      \"type\": \"string\",\n" +
 		"      \"title\": \"ContainerRestartPolicy is the restart policy for a single container.\",\n" +
+		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
+		"    },\n" +
+		"    \"v1ContainerRestartRule\": {\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"title\": \"ContainerRestartRule describes how a container exit is handled.\",\n" +
+		"      \"properties\": {\n" +
+		"        \"action\": {\n" +
+		"          \"$ref\": \"#/definitions/v1ContainerRestartRuleAction\"\n" +
+		"        },\n" +
+		"        \"exitCodes\": {\n" +
+		"          \"$ref\": \"#/definitions/v1ContainerRestartRuleOnExitCodes\"\n" +
+		"        }\n" +
+		"      },\n" +
+		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
+		"    },\n" +
+		"    \"v1ContainerRestartRuleAction\": {\n" +
+		"      \"description\": \"ContainerRestartRuleAction describes the action to take when the\\ncontainer exits.\",\n" +
+		"      \"type\": \"string\",\n" +
+		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
+		"    },\n" +
+		"    \"v1ContainerRestartRuleOnExitCodes\": {\n" +
+		"      \"description\": \"ContainerRestartRuleOnExitCodes describes the condition\\nfor handling an exited container based on its exit codes.\",\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"operator\": {\n" +
+		"          \"$ref\": \"#/definitions/v1ContainerRestartRuleOnExitCodesOperator\"\n" +
+		"        },\n" +
+		"        \"values\": {\n" +
+		"          \"description\": \"Specifies the set of values to check for container exit codes.\\nAt most 255 elements are allowed.\\n+optional\\n+listType=set\",\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"type\": \"integer\",\n" +
+		"            \"format\": \"int32\"\n" +
+		"          },\n" +
+		"          \"x-go-name\": \"Values\"\n" +
+		"        }\n" +
+		"      },\n" +
+		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
+		"    },\n" +
+		"    \"v1ContainerRestartRuleOnExitCodesOperator\": {\n" +
+		"      \"description\": \"ContainerRestartRuleOnExitCodesOperator describes the operator\\nto take for the exit codes.\",\n" +
+		"      \"type\": \"string\",\n" +
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
 		"    \"v1DNSPolicy\": {\n" +
@@ -2818,7 +2901,7 @@ func SwaggerJsonTemplate() string {
 		"      \"title\": \"Represents downward API info for projecting into a projected volume.\",\n" +
 		"      \"properties\": {\n" +
 		"        \"items\": {\n" +
-		"          \"description\": \"Items is a list of DownwardAPIVolume file\\n+optional\",\n" +
+		"          \"description\": \"Items is a list of DownwardAPIVolume file\\n+optional\\n+listType=atomic\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"$ref\": \"#/definitions/v1DownwardAPIVolumeFile\"\n" +
@@ -2864,7 +2947,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"DefaultMode\"\n" +
 		"        },\n" +
 		"        \"items\": {\n" +
-		"          \"description\": \"Items is a list of downward API volume file\\n+optional\",\n" +
+		"          \"description\": \"Items is a list of downward API volume file\\n+optional\\n+listType=atomic\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"$ref\": \"#/definitions/v1DownwardAPIVolumeFile\"\n" +
@@ -2889,14 +2972,14 @@ func SwaggerJsonTemplate() string {
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
 		"    \"v1EnvFromSource\": {\n" +
-		"      \"description\": \"EnvFromSource represents the source of a set of ConfigMaps\",\n" +
+		"      \"description\": \"EnvFromSource represents the source of a set of ConfigMaps or Secrets\",\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
 		"        \"configMapRef\": {\n" +
 		"          \"$ref\": \"#/definitions/v1ConfigMapEnvSource\"\n" +
 		"        },\n" +
 		"        \"prefix\": {\n" +
-		"          \"description\": \"An optional identifier to prepend to each key in the ConfigMap. Must be a C_IDENTIFIER.\\n+optional\",\n" +
+		"          \"description\": \"Optional text to prepend to the name of each environment variable.\\nMay consist of any printable ASCII characters except '='.\\n+optional\",\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"x-go-name\": \"Prefix\"\n" +
 		"        },\n" +
@@ -2911,7 +2994,7 @@ func SwaggerJsonTemplate() string {
 		"      \"title\": \"EnvVar represents an environment variable present in a Container.\",\n" +
 		"      \"properties\": {\n" +
 		"        \"name\": {\n" +
-		"          \"description\": \"Name of the environment variable. Must be a C_IDENTIFIER.\",\n" +
+		"          \"description\": \"Name of the environment variable.\\nMay consist of any printable ASCII characters except '='.\",\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"x-go-name\": \"Name\"\n" +
 		"        },\n" +
@@ -2936,6 +3019,9 @@ func SwaggerJsonTemplate() string {
 		"        \"fieldRef\": {\n" +
 		"          \"$ref\": \"#/definitions/v1ObjectFieldSelector\"\n" +
 		"        },\n" +
+		"        \"fileKeyRef\": {\n" +
+		"          \"$ref\": \"#/definitions/v1FileKeySelector\"\n" +
+		"        },\n" +
 		"        \"resourceFieldRef\": {\n" +
 		"          \"$ref\": \"#/definitions/v1ResourceFieldSelector\"\n" +
 		"        },\n" +
@@ -2951,7 +3037,7 @@ func SwaggerJsonTemplate() string {
 		"      \"title\": \"An EphemeralContainer is a temporary container that you may add to an existing Pod for\\nuser-initiated activities such as debugging. Ephemeral containers have no resource or\\nscheduling guarantees, and they will not be restarted when they exit or when a Pod is\\nremoved or restarted. The kubelet may evict a Pod if an ephemeral container causes the\\nPod to exceed its resource allocation.\",\n" +
 		"      \"properties\": {\n" +
 		"        \"args\": {\n" +
-		"          \"description\": \"Arguments to the entrypoint.\\nThe image's CMD is used if this is not provided.\\nVariable references $(VAR_NAME) are expanded using the container's environment. If a variable\\ncannot be resolved, the reference in the input string will be unchanged. Double $$ are reduced\\nto a single $, which allows for escaping the $(VAR_NAME) syntax: i.e. \\\"$$(VAR_NAME)\\\" will\\nproduce the string literal \\\"$(VAR_NAME)\\\". Escaped references will never be expanded, regardless\\nof whether the variable exists or not. Cannot be updated.\\nMore info: https://kubernetes.io/docs/tasks/inject-data-application/define-command-argument-container/#running-a-command-in-a-shell\\n+optional\",\n" +
+		"          \"description\": \"Arguments to the entrypoint.\\nThe image's CMD is used if this is not provided.\\nVariable references $(VAR_NAME) are expanded using the container's environment. If a variable\\ncannot be resolved, the reference in the input string will be unchanged. Double $$ are reduced\\nto a single $, which allows for escaping the $(VAR_NAME) syntax: i.e. \\\"$$(VAR_NAME)\\\" will\\nproduce the string literal \\\"$(VAR_NAME)\\\". Escaped references will never be expanded, regardless\\nof whether the variable exists or not. Cannot be updated.\\nMore info: https://kubernetes.io/docs/tasks/inject-data-application/define-command-argument-container/#running-a-command-in-a-shell\\n+optional\\n+listType=atomic\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"type\": \"string\"\n" +
@@ -2959,7 +3045,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"Args\"\n" +
 		"        },\n" +
 		"        \"command\": {\n" +
-		"          \"description\": \"Entrypoint array. Not executed within a shell.\\nThe image's ENTRYPOINT is used if this is not provided.\\nVariable references $(VAR_NAME) are expanded using the container's environment. If a variable\\ncannot be resolved, the reference in the input string will be unchanged. Double $$ are reduced\\nto a single $, which allows for escaping the $(VAR_NAME) syntax: i.e. \\\"$$(VAR_NAME)\\\" will\\nproduce the string literal \\\"$(VAR_NAME)\\\". Escaped references will never be expanded, regardless\\nof whether the variable exists or not. Cannot be updated.\\nMore info: https://kubernetes.io/docs/tasks/inject-data-application/define-command-argument-container/#running-a-command-in-a-shell\\n+optional\",\n" +
+		"          \"description\": \"Entrypoint array. Not executed within a shell.\\nThe image's ENTRYPOINT is used if this is not provided.\\nVariable references $(VAR_NAME) are expanded using the container's environment. If a variable\\ncannot be resolved, the reference in the input string will be unchanged. Double $$ are reduced\\nto a single $, which allows for escaping the $(VAR_NAME) syntax: i.e. \\\"$$(VAR_NAME)\\\" will\\nproduce the string literal \\\"$(VAR_NAME)\\\". Escaped references will never be expanded, regardless\\nof whether the variable exists or not. Cannot be updated.\\nMore info: https://kubernetes.io/docs/tasks/inject-data-application/define-command-argument-container/#running-a-command-in-a-shell\\n+optional\\n+listType=atomic\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"type\": \"string\"\n" +
@@ -2967,7 +3053,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"Command\"\n" +
 		"        },\n" +
 		"        \"env\": {\n" +
-		"          \"description\": \"List of environment variables to set in the container.\\nCannot be updated.\\n+optional\\n+patchMergeKey=name\\n+patchStrategy=merge\",\n" +
+		"          \"description\": \"List of environment variables to set in the container.\\nCannot be updated.\\n+optional\\n+patchMergeKey=name\\n+patchStrategy=merge\\n+listType=map\\n+listMapKey=name\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"$ref\": \"#/definitions/v1EnvVar\"\n" +
@@ -2975,7 +3061,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"Env\"\n" +
 		"        },\n" +
 		"        \"envFrom\": {\n" +
-		"          \"description\": \"List of sources to populate environment variables in the container.\\nThe keys defined within a source must be a C_IDENTIFIER. All invalid keys\\nwill be reported as an event when the container is starting. When a key exists in multiple\\nsources, the value associated with the last source will take precedence.\\nValues defined by an Env with a duplicate key will take precedence.\\nCannot be updated.\\n+optional\",\n" +
+		"          \"description\": \"List of sources to populate environment variables in the container.\\nThe keys defined within a source may consist of any printable ASCII characters except '='.\\nWhen a key exists in multiple\\nsources, the value associated with the last source will take precedence.\\nValues defined by an Env with a duplicate key will take precedence.\\nCannot be updated.\\n+optional\\n+listType=atomic\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"$ref\": \"#/definitions/v1EnvFromSource\"\n" +
@@ -3026,6 +3112,14 @@ func SwaggerJsonTemplate() string {
 		"        \"restartPolicy\": {\n" +
 		"          \"$ref\": \"#/definitions/v1ContainerRestartPolicy\"\n" +
 		"        },\n" +
+		"        \"restartPolicyRules\": {\n" +
+		"          \"description\": \"Represents a list of rules to be checked to determine if the\\ncontainer should be restarted on exit. You cannot set this field on\\nephemeral containers.\\n+featureGate=ContainerRestartRules\\n+optional\\n+listType=atomic\",\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"$ref\": \"#/definitions/v1ContainerRestartRule\"\n" +
+		"          },\n" +
+		"          \"x-go-name\": \"RestartPolicyRules\"\n" +
+		"        },\n" +
 		"        \"securityContext\": {\n" +
 		"          \"$ref\": \"#/definitions/v1SecurityContext\"\n" +
 		"        },\n" +
@@ -3061,7 +3155,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"TTY\"\n" +
 		"        },\n" +
 		"        \"volumeDevices\": {\n" +
-		"          \"description\": \"volumeDevices is the list of block devices to be used by the container.\\n+patchMergeKey=devicePath\\n+patchStrategy=merge\\n+optional\",\n" +
+		"          \"description\": \"volumeDevices is the list of block devices to be used by the container.\\n+patchMergeKey=devicePath\\n+patchStrategy=merge\\n+listType=map\\n+listMapKey=devicePath\\n+optional\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"$ref\": \"#/definitions/v1VolumeDevice\"\n" +
@@ -3069,7 +3163,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"VolumeDevices\"\n" +
 		"        },\n" +
 		"        \"volumeMounts\": {\n" +
-		"          \"description\": \"Pod volumes to mount into the container's filesystem. Subpath mounts are not allowed for ephemeral containers.\\nCannot be updated.\\n+optional\\n+patchMergeKey=mountPath\\n+patchStrategy=merge\",\n" +
+		"          \"description\": \"Pod volumes to mount into the container's filesystem. Subpath mounts are not allowed for ephemeral containers.\\nCannot be updated.\\n+optional\\n+patchMergeKey=mountPath\\n+patchStrategy=merge\\n+listType=map\\n+listMapKey=mountPath\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"$ref\": \"#/definitions/v1VolumeMount\"\n" +
@@ -3099,7 +3193,7 @@ func SwaggerJsonTemplate() string {
 		"      \"title\": \"ExecAction describes a \\\"run in container\\\" action.\",\n" +
 		"      \"properties\": {\n" +
 		"        \"command\": {\n" +
-		"          \"description\": \"Command is the command line to execute inside the container, the working directory for the\\ncommand  is root ('/') in the container's filesystem. The command is simply exec'd, it is\\nnot run inside a shell, so traditional shell instructions ('|', etc) won't work. To use\\na shell, you need to explicitly call out to that shell.\\nExit status of 0 is treated as live/healthy and non-zero is unhealthy.\\n+optional\",\n" +
+		"          \"description\": \"Command is the command line to execute inside the container, the working directory for the\\ncommand  is root ('/') in the container's filesystem. The command is simply exec'd, it is\\nnot run inside a shell, so traditional shell instructions ('|', etc) won't work. To use\\na shell, you need to explicitly call out to that shell.\\nExit status of 0 is treated as live/healthy and non-zero is unhealthy.\\n+optional\\n+listType=atomic\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"type\": \"string\"\n" +
@@ -3131,7 +3225,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"ReadOnly\"\n" +
 		"        },\n" +
 		"        \"targetWWNs\": {\n" +
-		"          \"description\": \"targetWWNs is Optional: FC target worldwide names (WWNs)\\n+optional\",\n" +
+		"          \"description\": \"targetWWNs is Optional: FC target worldwide names (WWNs)\\n+optional\\n+listType=atomic\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"type\": \"string\"\n" +
@@ -3139,7 +3233,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"TargetWWNs\"\n" +
 		"        },\n" +
 		"        \"wwids\": {\n" +
-		"          \"description\": \"wwids Optional: FC volume world wide identifiers (wwids)\\nEither wwids or combination of targetWWNs and lun must be set, but not both simultaneously.\\n+optional\",\n" +
+		"          \"description\": \"wwids Optional: FC volume world wide identifiers (wwids)\\nEither wwids or combination of targetWWNs and lun must be set, but not both simultaneously.\\n+optional\\n+listType=atomic\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"type\": \"string\"\n" +
@@ -3154,6 +3248,34 @@ func SwaggerJsonTemplate() string {
 		"      \"type\": \"object\",\n" +
 		"      \"title\": \"FieldsV1 stores a set of fields in a data structure like a Trie, in JSON format.\",\n" +
 		"      \"x-go-package\": \"k8s.io/apimachinery/pkg/apis/meta/v1\"\n" +
+		"    },\n" +
+		"    \"v1FileKeySelector\": {\n" +
+		"      \"description\": \"+structType=atomic\",\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"title\": \"FileKeySelector selects a key of the env file.\",\n" +
+		"      \"properties\": {\n" +
+		"        \"key\": {\n" +
+		"          \"description\": \"The key within the env file. An invalid key will prevent the pod from starting.\\nThe keys defined within a source may consist of any printable ASCII characters except '='.\\nDuring Alpha stage of the EnvFiles feature gate, the key size is limited to 128 characters.\\n+required\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"Key\"\n" +
+		"        },\n" +
+		"        \"optional\": {\n" +
+		"          \"description\": \"Specify whether the file or its key must be defined. If the file or key\\ndoes not exist, then the env var is not published.\\nIf optional is set to true and the specified key does not exist,\\nthe environment variable will not be set in the Pod's containers.\\n\\nIf optional is set to false and the specified key does not exist,\\nan error will be returned during Pod creation.\\n+optional\\n+default=false\",\n" +
+		"          \"type\": \"boolean\",\n" +
+		"          \"x-go-name\": \"Optional\"\n" +
+		"        },\n" +
+		"        \"path\": {\n" +
+		"          \"description\": \"The path within the volume from which to select the file.\\nMust be relative and may not contain the '..' path or start with '..'.\\n+required\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"Path\"\n" +
+		"        },\n" +
+		"        \"volumeName\": {\n" +
+		"          \"description\": \"The name of the volume mount containing the env file.\\n+required\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"VolumeName\"\n" +
+		"        }\n" +
+		"      },\n" +
+		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
 		"    \"v1FlexVolumeSource\": {\n" +
 		"      \"description\": \"FlexVolume represents a generic volume resource that is\\nprovisioned/attached using an exec based plugin.\",\n" +
@@ -3237,6 +3359,7 @@ func SwaggerJsonTemplate() string {
 		"    },\n" +
 		"    \"v1GRPCAction\": {\n" +
 		"      \"type\": \"object\",\n" +
+		"      \"title\": \"GRPCAction specifies an action involving a GRPC service.\",\n" +
 		"      \"properties\": {\n" +
 		"        \"port\": {\n" +
 		"          \"description\": \"Port number of the gRPC service. Number must be in the range 1 to 65535.\",\n" +
@@ -3281,7 +3404,7 @@ func SwaggerJsonTemplate() string {
 		"      \"title\": \"Represents a Glusterfs mount that lasts the lifetime of a pod.\",\n" +
 		"      \"properties\": {\n" +
 		"        \"endpoints\": {\n" +
-		"          \"description\": \"endpoints is the endpoint name that details Glusterfs topology.\\nMore info: https://examples.k8s.io/volumes/glusterfs/README.md#create-a-pod\",\n" +
+		"          \"description\": \"endpoints is the endpoint name that details Glusterfs topology.\",\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"x-go-name\": \"EndpointsName\"\n" +
 		"        },\n" +
@@ -3308,7 +3431,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"Host\"\n" +
 		"        },\n" +
 		"        \"httpHeaders\": {\n" +
-		"          \"description\": \"Custom headers to set in the request. HTTP allows repeated headers.\\n+optional\",\n" +
+		"          \"description\": \"Custom headers to set in the request. HTTP allows repeated headers.\\n+optional\\n+listType=atomic\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"$ref\": \"#/definitions/v1HTTPHeader\"\n" +
@@ -3382,7 +3505,7 @@ func SwaggerJsonTemplate() string {
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
 		"        \"hostnames\": {\n" +
-		"          \"description\": \"Hostnames for the above IP address.\",\n" +
+		"          \"description\": \"Hostnames for the above IP address.\\n+listType=atomic\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"type\": \"string\"\n" +
@@ -3390,7 +3513,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"Hostnames\"\n" +
 		"        },\n" +
 		"        \"ip\": {\n" +
-		"          \"description\": \"IP address of the host file entry.\",\n" +
+		"          \"description\": \"IP address of the host file entry.\\n+required\",\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"x-go-name\": \"IP\"\n" +
 		"        }\n" +
@@ -3449,7 +3572,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"IQN\"\n" +
 		"        },\n" +
 		"        \"iscsiInterface\": {\n" +
-		"          \"description\": \"iscsiInterface is the interface Name that uses an iSCSI transport.\\nDefaults to 'default' (tcp).\\n+optional\",\n" +
+		"          \"description\": \"iscsiInterface is the interface Name that uses an iSCSI transport.\\nDefaults to 'default' (tcp).\\n+optional\\n+default=\\\"default\\\"\",\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"x-go-name\": \"ISCSIInterface\"\n" +
 		"        },\n" +
@@ -3460,7 +3583,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"Lun\"\n" +
 		"        },\n" +
 		"        \"portals\": {\n" +
-		"          \"description\": \"portals is the iSCSI Target Portal List. The portal is either an IP or ip_addr:port if the port\\nis other than default (typically TCP ports 860 and 3260).\\n+optional\",\n" +
+		"          \"description\": \"portals is the iSCSI Target Portal List. The portal is either an IP or ip_addr:port if the port\\nis other than default (typically TCP ports 860 and 3260).\\n+optional\\n+listType=atomic\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"type\": \"string\"\n" +
@@ -3479,6 +3602,21 @@ func SwaggerJsonTemplate() string {
 		"          \"description\": \"targetPortal is iSCSI Target Portal. The Portal is either an IP or ip_addr:port if the port\\nis other than default (typically TCP ports 860 and 3260).\",\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"x-go-name\": \"TargetPortal\"\n" +
+		"        }\n" +
+		"      },\n" +
+		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
+		"    },\n" +
+		"    \"v1ImageVolumeSource\": {\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"title\": \"ImageVolumeSource represents a image volume resource.\",\n" +
+		"      \"properties\": {\n" +
+		"        \"pullPolicy\": {\n" +
+		"          \"$ref\": \"#/definitions/v1PullPolicy\"\n" +
+		"        },\n" +
+		"        \"reference\": {\n" +
+		"          \"description\": \"Required: Image or artifact reference to be used.\\nBehaves in the same way as pod.spec.containers[*].image.\\nPull secrets will be assembled in the same way as for the container image by looking up node credentials, SA image pull secrets, and pod spec image pull secrets.\\nMore info: https://kubernetes.io/docs/concepts/containers/images\\nThis field is optional to allow higher level config management to default or override\\ncontainer images in workload controllers like Deployments and StatefulSets.\\n+optional\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"Reference\"\n" +
 		"        }\n" +
 		"      },\n" +
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
@@ -3542,7 +3680,7 @@ func SwaggerJsonTemplate() string {
 		"      \"properties\": {\n" +
 		"        \"ingress\": {\n" +
 		"          \"type\": \"array\",\n" +
-		"          \"title\": \"ingress is a list containing ingress points for the load-balancer.\\n+optional\",\n" +
+		"          \"title\": \"ingress is a list containing ingress points for the load-balancer.\\n+optional\\n+listType=atomic\",\n" +
 		"          \"items\": {\n" +
 		"            \"$ref\": \"#/definitions/v1IngressLoadBalancerIngress\"\n" +
 		"          }\n" +
@@ -3689,7 +3827,7 @@ func SwaggerJsonTemplate() string {
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
 		"        \"matchExpressions\": {\n" +
-		"          \"description\": \"matchExpressions is a list of label selector requirements. The requirements are ANDed.\\n+optional\",\n" +
+		"          \"description\": \"matchExpressions is a list of label selector requirements. The requirements are ANDed.\\n+optional\\n+listType=atomic\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"$ref\": \"#/definitions/v1LabelSelectorRequirement\"\n" +
@@ -3725,7 +3863,7 @@ func SwaggerJsonTemplate() string {
 		"          \"$ref\": \"#/definitions/v1LabelSelectorOperator\"\n" +
 		"        },\n" +
 		"        \"values\": {\n" +
-		"          \"description\": \"values is an array of string values. If the operator is In or NotIn,\\nthe values array must be non-empty. If the operator is Exists or DoesNotExist,\\nthe values array must be empty. This array is replaced during a strategic\\nmerge patch.\\n+optional\",\n" +
+		"          \"description\": \"values is an array of string values. If the operator is In or NotIn,\\nthe values array must be non-empty. If the operator is Exists or DoesNotExist,\\nthe values array must be empty. This array is replaced during a strategic\\nmerge patch.\\n+optional\\n+listType=atomic\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"type\": \"string\"\n" +
@@ -3744,6 +3882,9 @@ func SwaggerJsonTemplate() string {
 		"        },\n" +
 		"        \"preStop\": {\n" +
 		"          \"$ref\": \"#/definitions/v1LifecycleHandler\"\n" +
+		"        },\n" +
+		"        \"stopSignal\": {\n" +
+		"          \"$ref\": \"#/definitions/v1Signal\"\n" +
 		"        }\n" +
 		"      },\n" +
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
@@ -3757,6 +3898,9 @@ func SwaggerJsonTemplate() string {
 		"        },\n" +
 		"        \"httpGet\": {\n" +
 		"          \"$ref\": \"#/definitions/v1HTTPGetAction\"\n" +
+		"        },\n" +
+		"        \"sleep\": {\n" +
+		"          \"$ref\": \"#/definitions/v1SleepAction\"\n" +
 		"        },\n" +
 		"        \"tcpSocket\": {\n" +
 		"          \"$ref\": \"#/definitions/v1TCPSocketAction\"\n" +
@@ -3776,6 +3920,10 @@ func SwaggerJsonTemplate() string {
 		"          \"type\": \"string\",\n" +
 		"          \"title\": \"IP is set for load-balancer ingress points that are IP based\\n(typically GCE or OpenStack load-balancers)\\n+optional\"\n" +
 		"        },\n" +
+		"        \"ipMode\": {\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"title\": \"IPMode specifies how the load-balancer IP behaves, and may only be specified when the ip field is specified.\\nSetting this to \\\"VIP\\\" indicates that traffic is delivered to the node with\\nthe destination set to the load-balancer's IP and port.\\nSetting this to \\\"Proxy\\\" indicates that traffic is delivered to the node or pod with\\nthe destination set to the node's IP and node port or the pod's IP and port.\\nService implementations may use this information to adjust traffic routing.\\n+optional\"\n" +
+		"        },\n" +
 		"        \"ports\": {\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"title\": \"Ports is a list of records of service ports\\nIf used, every port defined in the service should have an entry in it\\n+listType=atomic\\n+optional\",\n" +
@@ -3791,7 +3939,7 @@ func SwaggerJsonTemplate() string {
 		"      \"properties\": {\n" +
 		"        \"ingress\": {\n" +
 		"          \"type\": \"array\",\n" +
-		"          \"title\": \"Ingress is a list containing ingress points for the load-balancer.\\nTraffic intended for the service should be sent to these ingress points.\\n+optional\",\n" +
+		"          \"title\": \"Ingress is a list containing ingress points for the load-balancer.\\nTraffic intended for the service should be sent to these ingress points.\\n+optional\\n+listType=atomic\",\n" +
 		"          \"items\": {\n" +
 		"            \"$ref\": \"#/definitions/v1LoadBalancerIngress\"\n" +
 		"          }\n" +
@@ -3799,11 +3947,12 @@ func SwaggerJsonTemplate() string {
 		"      }\n" +
 		"    },\n" +
 		"    \"v1LocalObjectReference\": {\n" +
-		"      \"description\": \"LocalObjectReference contains enough information to let you locate the\\nreferenced object inside the same namespace.\\n+structType=atomic\",\n" +
+		"      \"description\": \"New uses of this type are discouraged because of difficulty describing its usage when embedded in APIs.\\n1. Invalid usage help.  It is impossible to add specific help for individual usage.  In most embedded usages, there are particular\\nrestrictions like, \\\"must refer only to types A and B\\\" or \\\"UID not honored\\\" or \\\"name must be restricted\\\".\\nThose cannot be well described when embedded.\\n2. Inconsistent validation.  Because the usages are different, the validation rules are different by usage, which makes it hard for users to predict what will happen.\\n3. We cannot easily change it.  Because this type is embedded in many locations, updates to this type\\nwill affect numerous schemas.  Don't make new APIs embed an underspecified API type they do not control.\\n\\nInstead of using this type, create a locally provided and used type that is well-focused on your reference.\\nFor example, ServiceReferences for admission registration: https://github.com/kubernetes/api/blob/release-1.17/admissionregistration/v1/types.go#L533 .\\n+structType=atomic\",\n" +
 		"      \"type\": \"object\",\n" +
+		"      \"title\": \"LocalObjectReference contains enough information to let you locate the\\nreferenced object inside the same namespace.\",\n" +
 		"      \"properties\": {\n" +
 		"        \"name\": {\n" +
-		"          \"description\": \"Name of the referent.\\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names\\nTODO: Add other useful fields. apiVersion, kind, uid?\\n+optional\",\n" +
+		"          \"description\": \"Name of the referent.\\nThis field is effectively required, but due to backwards compatibility is\\nallowed to be empty. Instances of this type with an empty value here are\\nalmost certainly wrong.\\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names\\n+optional\\n+default=\\\"\\\"\\n+kubebuilder:default=\\\"\\\"\\nTODO: Drop `kubebuilder:default` when controller-gen doesn't need it https://github.com/kubernetes-sigs/kubebuilder/issues/3896.\",\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"x-go-name\": \"Name\"\n" +
 		"        }\n" +
@@ -3888,7 +4037,7 @@ func SwaggerJsonTemplate() string {
 		"      \"title\": \"Node affinity is a group of node affinity scheduling rules.\",\n" +
 		"      \"properties\": {\n" +
 		"        \"preferredDuringSchedulingIgnoredDuringExecution\": {\n" +
-		"          \"description\": \"The scheduler will prefer to schedule pods to nodes that satisfy\\nthe affinity expressions specified by this field, but it may choose\\na node that violates one or more of the expressions. The node that is\\nmost preferred is the one with the greatest sum of weights, i.e.\\nfor each node that meets all of the scheduling requirements (resource\\nrequest, requiredDuringScheduling affinity expressions, etc.),\\ncompute a sum by iterating through the elements of this field and adding\\n\\\"weight\\\" to the sum if the node matches the corresponding matchExpressions; the\\nnode(s) with the highest sum are the most preferred.\\n+optional\",\n" +
+		"          \"description\": \"The scheduler will prefer to schedule pods to nodes that satisfy\\nthe affinity expressions specified by this field, but it may choose\\na node that violates one or more of the expressions. The node that is\\nmost preferred is the one with the greatest sum of weights, i.e.\\nfor each node that meets all of the scheduling requirements (resource\\nrequest, requiredDuringScheduling affinity expressions, etc.),\\ncompute a sum by iterating through the elements of this field and adding\\n\\\"weight\\\" to the sum if the node matches the corresponding matchExpressions; the\\nnode(s) with the highest sum are the most preferred.\\n+optional\\n+listType=atomic\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"$ref\": \"#/definitions/v1PreferredSchedulingTerm\"\n" +
@@ -3911,7 +4060,7 @@ func SwaggerJsonTemplate() string {
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
 		"        \"nodeSelectorTerms\": {\n" +
-		"          \"description\": \"Required. A list of node selector terms. The terms are ORed.\",\n" +
+		"          \"description\": \"Required. A list of node selector terms. The terms are ORed.\\n+listType=atomic\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"$ref\": \"#/definitions/v1NodeSelectorTerm\"\n" +
@@ -3939,7 +4088,7 @@ func SwaggerJsonTemplate() string {
 		"          \"$ref\": \"#/definitions/v1NodeSelectorOperator\"\n" +
 		"        },\n" +
 		"        \"values\": {\n" +
-		"          \"description\": \"An array of string values. If the operator is In or NotIn,\\nthe values array must be non-empty. If the operator is Exists or DoesNotExist,\\nthe values array must be empty. If the operator is Gt or Lt, the values\\narray must have a single element, which will be interpreted as an integer.\\nThis array is replaced during a strategic merge patch.\\n+optional\",\n" +
+		"          \"description\": \"An array of string values. If the operator is In or NotIn,\\nthe values array must be non-empty. If the operator is Exists or DoesNotExist,\\nthe values array must be empty. If the operator is Gt or Lt, the values\\narray must have a single element, which will be interpreted as an integer.\\nThis array is replaced during a strategic merge patch.\\n+optional\\n+listType=atomic\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"type\": \"string\"\n" +
@@ -3954,7 +4103,7 @@ func SwaggerJsonTemplate() string {
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
 		"        \"matchExpressions\": {\n" +
-		"          \"description\": \"A list of node selector requirements by node's labels.\\n+optional\",\n" +
+		"          \"description\": \"A list of node selector requirements by node's labels.\\n+optional\\n+listType=atomic\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"$ref\": \"#/definitions/v1NodeSelectorRequirement\"\n" +
@@ -3962,7 +4111,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"MatchExpressions\"\n" +
 		"        },\n" +
 		"        \"matchFields\": {\n" +
-		"          \"description\": \"A list of node selector requirements by node's fields.\\n+optional\",\n" +
+		"          \"description\": \"A list of node selector requirements by node's fields.\\n+optional\\n+listType=atomic\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"$ref\": \"#/definitions/v1NodeSelectorRequirement\"\n" +
@@ -4026,7 +4175,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-type\": \"k8s.io/apimachinery/pkg/apis/meta/v1.Time\"\n" +
 		"        },\n" +
 		"        \"finalizers\": {\n" +
-		"          \"description\": \"Must be empty before the object is deleted from the registry. Each entry\\nis an identifier for the responsible component that will remove the entry\\nfrom the list. If the deletionTimestamp of the object is non-nil, entries\\nin this list can only be removed.\\nFinalizers may be processed and removed in any order.  Order is NOT enforced\\nbecause it introduces significant risk of stuck finalizers.\\nfinalizers is a shared field, any actor with permission can reorder it.\\nIf the finalizer list is processed in order, then this can lead to a situation\\nin which the component responsible for the first finalizer in the list is\\nwaiting for a signal (field value, external system, or other) produced by a\\ncomponent responsible for a finalizer later in the list, resulting in a deadlock.\\nWithout enforced ordering finalizers are free to order amongst themselves and\\nare not vulnerable to ordering changes in the list.\\n+optional\\n+patchStrategy=merge\",\n" +
+		"          \"description\": \"Must be empty before the object is deleted from the registry. Each entry\\nis an identifier for the responsible component that will remove the entry\\nfrom the list. If the deletionTimestamp of the object is non-nil, entries\\nin this list can only be removed.\\nFinalizers may be processed and removed in any order.  Order is NOT enforced\\nbecause it introduces significant risk of stuck finalizers.\\nfinalizers is a shared field, any actor with permission can reorder it.\\nIf the finalizer list is processed in order, then this can lead to a situation\\nin which the component responsible for the first finalizer in the list is\\nwaiting for a signal (field value, external system, or other) produced by a\\ncomponent responsible for a finalizer later in the list, resulting in a deadlock.\\nWithout enforced ordering finalizers are free to order amongst themselves and\\nare not vulnerable to ordering changes in the list.\\n+optional\\n+patchStrategy=merge\\n+listType=set\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"type\": \"string\"\n" +
@@ -4053,7 +4202,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"Labels\"\n" +
 		"        },\n" +
 		"        \"managedFields\": {\n" +
-		"          \"description\": \"ManagedFields maps workflow-id and version to the set of fields\\nthat are managed by that workflow. This is mostly for internal\\nhousekeeping, and users typically shouldn't need to set or\\nunderstand this field. A workflow can be the user's name, a\\ncontroller's name, or the name of a specific apply path like\\n\\\"ci-cd\\\". The set of fields is always in the version that the\\nworkflow used when modifying the object.\\n\\n+optional\",\n" +
+		"          \"description\": \"ManagedFields maps workflow-id and version to the set of fields\\nthat are managed by that workflow. This is mostly for internal\\nhousekeeping, and users typically shouldn't need to set or\\nunderstand this field. A workflow can be the user's name, a\\ncontroller's name, or the name of a specific apply path like\\n\\\"ci-cd\\\". The set of fields is always in the version that the\\nworkflow used when modifying the object.\\n\\n+optional\\n+listType=atomic\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"$ref\": \"#/definitions/v1ManagedFieldsEntry\"\n" +
@@ -4071,7 +4220,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"Namespace\"\n" +
 		"        },\n" +
 		"        \"ownerReferences\": {\n" +
-		"          \"description\": \"List of objects depended by this object. If ALL objects in the list have\\nbeen deleted, this object will be garbage collected. If this object is managed by a controller,\\nthen an entry in this list will point to this controller, with the controller field set to true.\\nThere cannot be more than one managing controller.\\n+optional\\n+patchMergeKey=uid\\n+patchStrategy=merge\",\n" +
+		"          \"description\": \"List of objects depended by this object. If ALL objects in the list have\\nbeen deleted, this object will be garbage collected. If this object is managed by a controller,\\nthen an entry in this list will point to this controller, with the controller field set to true.\\nThere cannot be more than one managing controller.\\n+optional\\n+patchMergeKey=uid\\n+patchStrategy=merge\\n+listType=map\\n+listMapKey=uid\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"$ref\": \"#/definitions/v1OwnerReference\"\n" +
@@ -4139,7 +4288,7 @@ func SwaggerJsonTemplate() string {
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
 		"        \"accessModes\": {\n" +
-		"          \"description\": \"accessModes contains the desired access modes the volume should have.\\nMore info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#access-modes-1\\n+optional\",\n" +
+		"          \"description\": \"accessModes contains the desired access modes the volume should have.\\nMore info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#access-modes-1\\n+optional\\n+listType=atomic\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"$ref\": \"#/definitions/v1PersistentVolumeAccessMode\"\n" +
@@ -4153,7 +4302,7 @@ func SwaggerJsonTemplate() string {
 		"          \"$ref\": \"#/definitions/v1TypedObjectReference\"\n" +
 		"        },\n" +
 		"        \"resources\": {\n" +
-		"          \"$ref\": \"#/definitions/v1ResourceRequirements\"\n" +
+		"          \"$ref\": \"#/definitions/v1VolumeResourceRequirements\"\n" +
 		"        },\n" +
 		"        \"selector\": {\n" +
 		"          \"$ref\": \"#/definitions/v1LabelSelector\"\n" +
@@ -4162,6 +4311,11 @@ func SwaggerJsonTemplate() string {
 		"          \"description\": \"storageClassName is the name of the StorageClass required by the claim.\\nMore info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#class-1\\n+optional\",\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"x-go-name\": \"StorageClassName\"\n" +
+		"        },\n" +
+		"        \"volumeAttributesClassName\": {\n" +
+		"          \"description\": \"volumeAttributesClassName may be used to set the VolumeAttributesClass used by this claim.\\nIf specified, the CSI driver will create or update the volume with the attributes defined\\nin the corresponding VolumeAttributesClass. This has a different purpose than storageClassName,\\nit can be changed after the claim is created. An empty string or nil value indicates that no\\nVolumeAttributesClass will be applied to the claim. If the claim enters an Infeasible error state,\\nthis field can be reset to its previous value (including nil) to cancel the modification.\\nIf the resource referred to by volumeAttributesClass does not exist, this PersistentVolumeClaim will be\\nset to a Pending state, as reflected by the modifyVolumeStatus field, until such as a resource\\nexists.\\nMore info: https://kubernetes.io/docs/concepts/storage/volume-attributes-classes/\\n+featureGate=VolumeAttributesClass\\n+optional\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"VolumeAttributesClassName\"\n" +
 		"        },\n" +
 		"        \"volumeMode\": {\n" +
 		"          \"$ref\": \"#/definitions/v1PersistentVolumeMode\"\n" +
@@ -4205,7 +4359,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-type\": \"k8s.io/apimachinery/pkg/apis/meta/v1.Time\"\n" +
 		"        },\n" +
 		"        \"finalizers\": {\n" +
-		"          \"description\": \"Must be empty before the object is deleted from the registry. Each entry\\nis an identifier for the responsible component that will remove the entry\\nfrom the list. If the deletionTimestamp of the object is non-nil, entries\\nin this list can only be removed.\\nFinalizers may be processed and removed in any order.  Order is NOT enforced\\nbecause it introduces significant risk of stuck finalizers.\\nfinalizers is a shared field, any actor with permission can reorder it.\\nIf the finalizer list is processed in order, then this can lead to a situation\\nin which the component responsible for the first finalizer in the list is\\nwaiting for a signal (field value, external system, or other) produced by a\\ncomponent responsible for a finalizer later in the list, resulting in a deadlock.\\nWithout enforced ordering finalizers are free to order amongst themselves and\\nare not vulnerable to ordering changes in the list.\\n+optional\\n+patchStrategy=merge\",\n" +
+		"          \"description\": \"Must be empty before the object is deleted from the registry. Each entry\\nis an identifier for the responsible component that will remove the entry\\nfrom the list. If the deletionTimestamp of the object is non-nil, entries\\nin this list can only be removed.\\nFinalizers may be processed and removed in any order.  Order is NOT enforced\\nbecause it introduces significant risk of stuck finalizers.\\nfinalizers is a shared field, any actor with permission can reorder it.\\nIf the finalizer list is processed in order, then this can lead to a situation\\nin which the component responsible for the first finalizer in the list is\\nwaiting for a signal (field value, external system, or other) produced by a\\ncomponent responsible for a finalizer later in the list, resulting in a deadlock.\\nWithout enforced ordering finalizers are free to order amongst themselves and\\nare not vulnerable to ordering changes in the list.\\n+optional\\n+patchStrategy=merge\\n+listType=set\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"type\": \"string\"\n" +
@@ -4232,7 +4386,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"Labels\"\n" +
 		"        },\n" +
 		"        \"managedFields\": {\n" +
-		"          \"description\": \"ManagedFields maps workflow-id and version to the set of fields\\nthat are managed by that workflow. This is mostly for internal\\nhousekeeping, and users typically shouldn't need to set or\\nunderstand this field. A workflow can be the user's name, a\\ncontroller's name, or the name of a specific apply path like\\n\\\"ci-cd\\\". The set of fields is always in the version that the\\nworkflow used when modifying the object.\\n\\n+optional\",\n" +
+		"          \"description\": \"ManagedFields maps workflow-id and version to the set of fields\\nthat are managed by that workflow. This is mostly for internal\\nhousekeeping, and users typically shouldn't need to set or\\nunderstand this field. A workflow can be the user's name, a\\ncontroller's name, or the name of a specific apply path like\\n\\\"ci-cd\\\". The set of fields is always in the version that the\\nworkflow used when modifying the object.\\n\\n+optional\\n+listType=atomic\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"$ref\": \"#/definitions/v1ManagedFieldsEntry\"\n" +
@@ -4250,7 +4404,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"Namespace\"\n" +
 		"        },\n" +
 		"        \"ownerReferences\": {\n" +
-		"          \"description\": \"List of objects depended by this object. If ALL objects in the list have\\nbeen deleted, this object will be garbage collected. If this object is managed by a controller,\\nthen an entry in this list will point to this controller, with the controller field set to true.\\nThere cannot be more than one managing controller.\\n+optional\\n+patchMergeKey=uid\\n+patchStrategy=merge\",\n" +
+		"          \"description\": \"List of objects depended by this object. If ALL objects in the list have\\nbeen deleted, this object will be garbage collected. If this object is managed by a controller,\\nthen an entry in this list will point to this controller, with the controller field set to true.\\nThere cannot be more than one managing controller.\\n+optional\\n+patchMergeKey=uid\\n+patchStrategy=merge\\n+listType=map\\n+listMapKey=uid\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"$ref\": \"#/definitions/v1OwnerReference\"\n" +
@@ -4322,7 +4476,7 @@ func SwaggerJsonTemplate() string {
 		"      \"title\": \"Pod affinity is a group of inter pod affinity scheduling rules.\",\n" +
 		"      \"properties\": {\n" +
 		"        \"preferredDuringSchedulingIgnoredDuringExecution\": {\n" +
-		"          \"description\": \"The scheduler will prefer to schedule pods to nodes that satisfy\\nthe affinity expressions specified by this field, but it may choose\\na node that violates one or more of the expressions. The node that is\\nmost preferred is the one with the greatest sum of weights, i.e.\\nfor each node that meets all of the scheduling requirements (resource\\nrequest, requiredDuringScheduling affinity expressions, etc.),\\ncompute a sum by iterating through the elements of this field and adding\\n\\\"weight\\\" to the sum if the node has pods which matches the corresponding podAffinityTerm; the\\nnode(s) with the highest sum are the most preferred.\\n+optional\",\n" +
+		"          \"description\": \"The scheduler will prefer to schedule pods to nodes that satisfy\\nthe affinity expressions specified by this field, but it may choose\\na node that violates one or more of the expressions. The node that is\\nmost preferred is the one with the greatest sum of weights, i.e.\\nfor each node that meets all of the scheduling requirements (resource\\nrequest, requiredDuringScheduling affinity expressions, etc.),\\ncompute a sum by iterating through the elements of this field and adding\\n\\\"weight\\\" to the sum if the node has pods which matches the corresponding podAffinityTerm; the\\nnode(s) with the highest sum are the most preferred.\\n+optional\\n+listType=atomic\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"$ref\": \"#/definitions/v1WeightedPodAffinityTerm\"\n" +
@@ -4330,7 +4484,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"PreferredDuringSchedulingIgnoredDuringExecution\"\n" +
 		"        },\n" +
 		"        \"requiredDuringSchedulingIgnoredDuringExecution\": {\n" +
-		"          \"description\": \"If the affinity requirements specified by this field are not met at\\nscheduling time, the pod will not be scheduled onto the node.\\nIf the affinity requirements specified by this field cease to be met\\nat some point during pod execution (e.g. due to a pod label update), the\\nsystem may or may not try to eventually evict the pod from its node.\\nWhen there are multiple elements, the lists of nodes corresponding to each\\npodAffinityTerm are intersected, i.e. all terms must be satisfied.\\n+optional\",\n" +
+		"          \"description\": \"If the affinity requirements specified by this field are not met at\\nscheduling time, the pod will not be scheduled onto the node.\\nIf the affinity requirements specified by this field cease to be met\\nat some point during pod execution (e.g. due to a pod label update), the\\nsystem may or may not try to eventually evict the pod from its node.\\nWhen there are multiple elements, the lists of nodes corresponding to each\\npodAffinityTerm are intersected, i.e. all terms must be satisfied.\\n+optional\\n+listType=atomic\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"$ref\": \"#/definitions/v1PodAffinityTerm\"\n" +
@@ -4347,11 +4501,27 @@ func SwaggerJsonTemplate() string {
 		"        \"labelSelector\": {\n" +
 		"          \"$ref\": \"#/definitions/v1LabelSelector\"\n" +
 		"        },\n" +
+		"        \"matchLabelKeys\": {\n" +
+		"          \"description\": \"MatchLabelKeys is a set of pod label keys to select which pods will\\nbe taken into consideration. The keys are used to lookup values from the\\nincoming pod labels, those key-value labels are merged with `labelSelector` as `key in (value)`\\nto select the group of existing pods which pods will be taken into consideration\\nfor the incoming pod's pod (anti) affinity. Keys that don't exist in the incoming\\npod labels will be ignored. The default value is empty.\\nThe same key is forbidden to exist in both matchLabelKeys and labelSelector.\\nAlso, matchLabelKeys cannot be set when labelSelector isn't set.\\n\\n+listType=atomic\\n+optional\",\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"type\": \"string\"\n" +
+		"          },\n" +
+		"          \"x-go-name\": \"MatchLabelKeys\"\n" +
+		"        },\n" +
+		"        \"mismatchLabelKeys\": {\n" +
+		"          \"description\": \"MismatchLabelKeys is a set of pod label keys to select which pods will\\nbe taken into consideration. The keys are used to lookup values from the\\nincoming pod labels, those key-value labels are merged with `labelSelector` as `key notin (value)`\\nto select the group of existing pods which pods will be taken into consideration\\nfor the incoming pod's pod (anti) affinity. Keys that don't exist in the incoming\\npod labels will be ignored. The default value is empty.\\nThe same key is forbidden to exist in both mismatchLabelKeys and labelSelector.\\nAlso, mismatchLabelKeys cannot be set when labelSelector isn't set.\\n\\n+listType=atomic\\n+optional\",\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"type\": \"string\"\n" +
+		"          },\n" +
+		"          \"x-go-name\": \"MismatchLabelKeys\"\n" +
+		"        },\n" +
 		"        \"namespaceSelector\": {\n" +
 		"          \"$ref\": \"#/definitions/v1LabelSelector\"\n" +
 		"        },\n" +
 		"        \"namespaces\": {\n" +
-		"          \"description\": \"namespaces specifies a static list of namespace names that the term applies to.\\nThe term is applied to the union of the namespaces listed in this field\\nand the ones selected by namespaceSelector.\\nnull or empty namespaces list and null namespaceSelector means \\\"this pod's namespace\\\".\\n+optional\",\n" +
+		"          \"description\": \"namespaces specifies a static list of namespace names that the term applies to.\\nThe term is applied to the union of the namespaces listed in this field\\nand the ones selected by namespaceSelector.\\nnull or empty namespaces list and null namespaceSelector means \\\"this pod's namespace\\\".\\n+optional\\n+listType=atomic\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"type\": \"string\"\n" +
@@ -4371,7 +4541,7 @@ func SwaggerJsonTemplate() string {
 		"      \"title\": \"Pod anti affinity is a group of inter pod anti affinity scheduling rules.\",\n" +
 		"      \"properties\": {\n" +
 		"        \"preferredDuringSchedulingIgnoredDuringExecution\": {\n" +
-		"          \"description\": \"The scheduler will prefer to schedule pods to nodes that satisfy\\nthe anti-affinity expressions specified by this field, but it may choose\\na node that violates one or more of the expressions. The node that is\\nmost preferred is the one with the greatest sum of weights, i.e.\\nfor each node that meets all of the scheduling requirements (resource\\nrequest, requiredDuringScheduling anti-affinity expressions, etc.),\\ncompute a sum by iterating through the elements of this field and adding\\n\\\"weight\\\" to the sum if the node has pods which matches the corresponding podAffinityTerm; the\\nnode(s) with the highest sum are the most preferred.\\n+optional\",\n" +
+		"          \"description\": \"The scheduler will prefer to schedule pods to nodes that satisfy\\nthe anti-affinity expressions specified by this field, but it may choose\\na node that violates one or more of the expressions. The node that is\\nmost preferred is the one with the greatest sum of weights, i.e.\\nfor each node that meets all of the scheduling requirements (resource\\nrequest, requiredDuringScheduling anti-affinity expressions, etc.),\\ncompute a sum by iterating through the elements of this field and subtracting\\n\\\"weight\\\" from the sum if the node has pods which matches the corresponding podAffinityTerm; the\\nnode(s) with the highest sum are the most preferred.\\n+optional\\n+listType=atomic\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"$ref\": \"#/definitions/v1WeightedPodAffinityTerm\"\n" +
@@ -4379,12 +4549,50 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"PreferredDuringSchedulingIgnoredDuringExecution\"\n" +
 		"        },\n" +
 		"        \"requiredDuringSchedulingIgnoredDuringExecution\": {\n" +
-		"          \"description\": \"If the anti-affinity requirements specified by this field are not met at\\nscheduling time, the pod will not be scheduled onto the node.\\nIf the anti-affinity requirements specified by this field cease to be met\\nat some point during pod execution (e.g. due to a pod label update), the\\nsystem may or may not try to eventually evict the pod from its node.\\nWhen there are multiple elements, the lists of nodes corresponding to each\\npodAffinityTerm are intersected, i.e. all terms must be satisfied.\\n+optional\",\n" +
+		"          \"description\": \"If the anti-affinity requirements specified by this field are not met at\\nscheduling time, the pod will not be scheduled onto the node.\\nIf the anti-affinity requirements specified by this field cease to be met\\nat some point during pod execution (e.g. due to a pod label update), the\\nsystem may or may not try to eventually evict the pod from its node.\\nWhen there are multiple elements, the lists of nodes corresponding to each\\npodAffinityTerm are intersected, i.e. all terms must be satisfied.\\n+optional\\n+listType=atomic\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"$ref\": \"#/definitions/v1PodAffinityTerm\"\n" +
 		"          },\n" +
 		"          \"x-go-name\": \"RequiredDuringSchedulingIgnoredDuringExecution\"\n" +
+		"        }\n" +
+		"      },\n" +
+		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
+		"    },\n" +
+		"    \"v1PodCertificateProjection\": {\n" +
+		"      \"description\": \"PodCertificateProjection provides a private key and X.509 certificate in the\\npod filesystem.\",\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"certificateChainPath\": {\n" +
+		"          \"description\": \"Write the certificate chain at this path in the projected volume.\\n\\nMost applications should use credentialBundlePath.  When using keyPath\\nand certificateChainPath, your application needs to check that the key\\nand leaf certificate are consistent, because it is possible to read the\\nfiles mid-rotation.\\n\\n+optional\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"CertificateChainPath\"\n" +
+		"        },\n" +
+		"        \"credentialBundlePath\": {\n" +
+		"          \"description\": \"Write the credential bundle at this path in the projected volume.\\n\\nThe credential bundle is a single file that contains multiple PEM blocks.\\nThe first PEM block is a PRIVATE KEY block, containing a PKCS#8 private\\nkey.\\n\\nThe remaining blocks are CERTIFICATE blocks, containing the issued\\ncertificate chain from the signer (leaf and any intermediates).\\n\\nUsing credentialBundlePath lets your Pod's application code make a single\\natomic read that retrieves a consistent key and certificate chain.  If you\\nproject them to separate files, your application code will need to\\nadditionally check that the leaf certificate was issued to the key.\\n\\n+optional\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"CredentialBundlePath\"\n" +
+		"        },\n" +
+		"        \"keyPath\": {\n" +
+		"          \"description\": \"Write the key at this path in the projected volume.\\n\\nMost applications should use credentialBundlePath.  When using keyPath\\nand certificateChainPath, your application needs to check that the key\\nand leaf certificate are consistent, because it is possible to read the\\nfiles mid-rotation.\\n\\n+optional\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"KeyPath\"\n" +
+		"        },\n" +
+		"        \"keyType\": {\n" +
+		"          \"description\": \"The type of keypair Kubelet will generate for the pod.\\n\\nValid values are \\\"RSA3072\\\", \\\"RSA4096\\\", \\\"ECDSAP256\\\", \\\"ECDSAP384\\\",\\n\\\"ECDSAP521\\\", and \\\"ED25519\\\".\\n\\n+required\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"KeyType\"\n" +
+		"        },\n" +
+		"        \"maxExpirationSeconds\": {\n" +
+		"          \"description\": \"maxExpirationSeconds is the maximum lifetime permitted for the\\ncertificate.\\n\\nKubelet copies this value verbatim into the PodCertificateRequests it\\ngenerates for this projection.\\n\\nIf omitted, kube-apiserver will set it to 86400(24 hours). kube-apiserver\\nwill reject values shorter than 3600 (1 hour).  The maximum allowable\\nvalue is 7862400 (91 days).\\n\\nThe signer implementation is then free to issue a certificate with any\\nlifetime *shorter* than MaxExpirationSeconds, but no shorter than 3600\\nseconds (1 hour).  This constraint is enforced by kube-apiserver.\\n`kubernetes.io` signers will never issue certificates with a lifetime\\nlonger than 24 hours.\\n\\n+optional\",\n" +
+		"          \"type\": \"integer\",\n" +
+		"          \"format\": \"int32\",\n" +
+		"          \"x-go-name\": \"MaxExpirationSeconds\"\n" +
+		"        },\n" +
+		"        \"signerName\": {\n" +
+		"          \"description\": \"Kubelet's generated CSRs will be addressed to this signer.\\n\\n+required\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"SignerName\"\n" +
 		"        }\n" +
 		"      },\n" +
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
@@ -4399,7 +4607,7 @@ func SwaggerJsonTemplate() string {
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
 		"        \"nameservers\": {\n" +
-		"          \"description\": \"A list of DNS name server IP addresses.\\nThis will be appended to the base nameservers generated from DNSPolicy.\\nDuplicated nameservers will be removed.\\n+optional\",\n" +
+		"          \"description\": \"A list of DNS name server IP addresses.\\nThis will be appended to the base nameservers generated from DNSPolicy.\\nDuplicated nameservers will be removed.\\n+optional\\n+listType=atomic\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"type\": \"string\"\n" +
@@ -4407,7 +4615,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"Nameservers\"\n" +
 		"        },\n" +
 		"        \"options\": {\n" +
-		"          \"description\": \"A list of DNS resolver options.\\nThis will be merged with the base options generated from DNSPolicy.\\nDuplicated entries will be removed. Resolution options given in Options\\nwill override those that appear in the base DNSPolicy.\\n+optional\",\n" +
+		"          \"description\": \"A list of DNS resolver options.\\nThis will be merged with the base options generated from DNSPolicy.\\nDuplicated entries will be removed. Resolution options given in Options\\nwill override those that appear in the base DNSPolicy.\\n+optional\\n+listType=atomic\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"$ref\": \"#/definitions/v1PodDNSConfigOption\"\n" +
@@ -4415,7 +4623,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"Options\"\n" +
 		"        },\n" +
 		"        \"searches\": {\n" +
-		"          \"description\": \"A list of DNS search domains for host-name lookup.\\nThis will be appended to the base search paths generated from DNSPolicy.\\nDuplicated search paths will be removed.\\n+optional\",\n" +
+		"          \"description\": \"A list of DNS search domains for host-name lookup.\\nThis will be appended to the base search paths generated from DNSPolicy.\\nDuplicated search paths will be removed.\\n+optional\\n+listType=atomic\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"type\": \"string\"\n" +
@@ -4430,12 +4638,12 @@ func SwaggerJsonTemplate() string {
 		"      \"title\": \"PodDNSConfigOption defines DNS resolver options of a pod.\",\n" +
 		"      \"properties\": {\n" +
 		"        \"name\": {\n" +
-		"          \"description\": \"Required.\",\n" +
+		"          \"description\": \"Name is this DNS resolver option's name.\\nRequired.\",\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"x-go-name\": \"Name\"\n" +
 		"        },\n" +
 		"        \"value\": {\n" +
-		"          \"description\": \"+optional\",\n" +
+		"          \"description\": \"Value is this DNS resolver option's value.\\n+optional\",\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"x-go-name\": \"Value\"\n" +
 		"        }\n" +
@@ -4470,17 +4678,29 @@ func SwaggerJsonTemplate() string {
 		"    \"v1PodResourceClaim\": {\n" +
 		"      \"description\": \"It adds a name to it that uniquely identifies the ResourceClaim inside the Pod.\\nContainers that need access to the ResourceClaim reference it with this name.\",\n" +
 		"      \"type\": \"object\",\n" +
-		"      \"title\": \"PodResourceClaim references exactly one ResourceClaim through a ClaimSource.\",\n" +
+		"      \"title\": \"PodResourceClaim references exactly one ResourceClaim, either directly\\nor by naming a ResourceClaimTemplate which is then turned into a ResourceClaim\\nfor the pod.\",\n" +
 		"      \"properties\": {\n" +
 		"        \"name\": {\n" +
 		"          \"description\": \"Name uniquely identifies this resource claim inside the pod.\\nThis must be a DNS_LABEL.\",\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"x-go-name\": \"Name\"\n" +
 		"        },\n" +
-		"        \"source\": {\n" +
-		"          \"$ref\": \"#/definitions/v1ClaimSource\"\n" +
+		"        \"resourceClaimName\": {\n" +
+		"          \"description\": \"ResourceClaimName is the name of a ResourceClaim object in the same\\nnamespace as this pod.\\n\\nExactly one of ResourceClaimName and ResourceClaimTemplateName must\\nbe set.\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"ResourceClaimName\"\n" +
+		"        },\n" +
+		"        \"resourceClaimTemplateName\": {\n" +
+		"          \"description\": \"ResourceClaimTemplateName is the name of a ResourceClaimTemplate\\nobject in the same namespace as this pod.\\n\\nThe template will be used to create a new ResourceClaim, which will\\nbe bound to this pod. When this pod is deleted, the ResourceClaim\\nwill also be deleted. The pod name and resource name, along with a\\ngenerated component, will be used to form a unique name for the\\nResourceClaim, which will be recorded in pod.status.resourceClaimStatuses.\\n\\nThis field is immutable and no changes will be made to the\\ncorresponding ResourceClaim by the control plane after creating the\\nResourceClaim.\\n\\nExactly one of ResourceClaimName and ResourceClaimTemplateName must\\nbe set.\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"ResourceClaimTemplateName\"\n" +
 		"        }\n" +
 		"      },\n" +
+		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
+		"    },\n" +
+		"    \"v1PodSELinuxChangePolicy\": {\n" +
+		"      \"type\": \"string\",\n" +
+		"      \"title\": \"PodSELinuxChangePolicy defines how the container's SELinux label is applied to all volumes used by the Pod.\",\n" +
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
 		"    \"v1PodSchedulingGate\": {\n" +
@@ -4500,6 +4720,9 @@ func SwaggerJsonTemplate() string {
 		"      \"type\": \"object\",\n" +
 		"      \"title\": \"PodSecurityContext holds pod-level security attributes and common container settings.\",\n" +
 		"      \"properties\": {\n" +
+		"        \"appArmorProfile\": {\n" +
+		"          \"$ref\": \"#/definitions/v1AppArmorProfile\"\n" +
+		"        },\n" +
 		"        \"fsGroup\": {\n" +
 		"          \"description\": \"A special supplemental group that applies to all containers in a pod.\\nSome volume types allow the Kubelet to change the ownership of that volume\\nto be owned by the pod:\\n\\n1. The owning GID will be the FSGroup\\n2. The setgid bit is set (new files created in the volume will be owned by FSGroup)\\n3. The permission bits are OR'd with rw-rw----\\n\\nIf unset, the Kubelet will not modify the ownership and permissions of any volume.\\nNote that this field cannot be set when spec.os.name is windows.\\n+optional\",\n" +
 		"          \"type\": \"integer\",\n" +
@@ -4526,6 +4749,9 @@ func SwaggerJsonTemplate() string {
 		"          \"format\": \"int64\",\n" +
 		"          \"x-go-name\": \"RunAsUser\"\n" +
 		"        },\n" +
+		"        \"seLinuxChangePolicy\": {\n" +
+		"          \"$ref\": \"#/definitions/v1PodSELinuxChangePolicy\"\n" +
+		"        },\n" +
 		"        \"seLinuxOptions\": {\n" +
 		"          \"$ref\": \"#/definitions/v1SELinuxOptions\"\n" +
 		"        },\n" +
@@ -4533,7 +4759,7 @@ func SwaggerJsonTemplate() string {
 		"          \"$ref\": \"#/definitions/v1SeccompProfile\"\n" +
 		"        },\n" +
 		"        \"supplementalGroups\": {\n" +
-		"          \"description\": \"A list of groups applied to the first process run in each container, in addition\\nto the container's primary GID, the fsGroup (if specified), and group memberships\\ndefined in the container image for the uid of the container process. If unspecified,\\nno additional groups are added to any container. Note that group memberships\\ndefined in the container image for the uid of the container process are still effective,\\neven if they are not included in this list.\\nNote that this field cannot be set when spec.os.name is windows.\\n+optional\",\n" +
+		"          \"description\": \"A list of groups applied to the first process run in each container, in\\naddition to the container's primary GID and fsGroup (if specified).  If\\nthe SupplementalGroupsPolicy feature is enabled, the\\nsupplementalGroupsPolicy field determines whether these are in addition\\nto or instead of any group memberships defined in the container image.\\nIf unspecified, no additional groups are added, though group memberships\\ndefined in the container image may still be used, depending on the\\nsupplementalGroupsPolicy field.\\nNote that this field cannot be set when spec.os.name is windows.\\n+optional\\n+listType=atomic\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"type\": \"integer\",\n" +
@@ -4541,8 +4767,11 @@ func SwaggerJsonTemplate() string {
 		"          },\n" +
 		"          \"x-go-name\": \"SupplementalGroups\"\n" +
 		"        },\n" +
+		"        \"supplementalGroupsPolicy\": {\n" +
+		"          \"$ref\": \"#/definitions/v1SupplementalGroupsPolicy\"\n" +
+		"        },\n" +
 		"        \"sysctls\": {\n" +
-		"          \"description\": \"Sysctls hold a list of namespaced sysctls used for the pod. Pods with unsupported\\nsysctls (by the container runtime) might fail to launch.\\nNote that this field cannot be set when spec.os.name is windows.\\n+optional\",\n" +
+		"          \"description\": \"Sysctls hold a list of namespaced sysctls used for the pod. Pods with unsupported\\nsysctls (by the container runtime) might fail to launch.\\nNote that this field cannot be set when spec.os.name is windows.\\n+optional\\n+listType=atomic\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"$ref\": \"#/definitions/v1Sysctl\"\n" +
@@ -4574,7 +4803,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"AutomountServiceAccountToken\"\n" +
 		"        },\n" +
 		"        \"containers\": {\n" +
-		"          \"description\": \"List of containers belonging to the pod.\\nContainers cannot currently be added or removed.\\nThere must be at least one container in a Pod.\\nCannot be updated.\\n+patchMergeKey=name\\n+patchStrategy=merge\",\n" +
+		"          \"description\": \"List of containers belonging to the pod.\\nContainers cannot currently be added or removed.\\nThere must be at least one container in a Pod.\\nCannot be updated.\\n+patchMergeKey=name\\n+patchStrategy=merge\\n+listType=map\\n+listMapKey=name\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"$ref\": \"#/definitions/v1Container\"\n" +
@@ -4593,7 +4822,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"EnableServiceLinks\"\n" +
 		"        },\n" +
 		"        \"ephemeralContainers\": {\n" +
-		"          \"description\": \"List of ephemeral containers run in this pod. Ephemeral containers may be run in an existing\\npod to perform user-initiated actions such as debugging. This list cannot be specified when\\ncreating a pod, and it cannot be modified by updating the pod spec. In order to add an\\nephemeral container to an existing pod, use the pod's ephemeralcontainers subresource.\\n+optional\\n+patchMergeKey=name\\n+patchStrategy=merge\",\n" +
+		"          \"description\": \"List of ephemeral containers run in this pod. Ephemeral containers may be run in an existing\\npod to perform user-initiated actions such as debugging. This list cannot be specified when\\ncreating a pod, and it cannot be modified by updating the pod spec. In order to add an\\nephemeral container to an existing pod, use the pod's ephemeralcontainers subresource.\\n+optional\\n+patchMergeKey=name\\n+patchStrategy=merge\\n+listType=map\\n+listMapKey=name\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"$ref\": \"#/definitions/v1EphemeralContainer\"\n" +
@@ -4601,7 +4830,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"EphemeralContainers\"\n" +
 		"        },\n" +
 		"        \"hostAliases\": {\n" +
-		"          \"description\": \"HostAliases is an optional list of hosts and IPs that will be injected into the pod's hosts\\nfile if specified. This is only valid for non-hostNetwork pods.\\n+optional\\n+patchMergeKey=ip\\n+patchStrategy=merge\",\n" +
+		"          \"description\": \"HostAliases is an optional list of hosts and IPs that will be injected into the pod's hosts\\nfile if specified.\\n+optional\\n+patchMergeKey=ip\\n+patchStrategy=merge\\n+listType=map\\n+listMapKey=ip\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"$ref\": \"#/definitions/v1HostAlias\"\n" +
@@ -4614,7 +4843,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"HostIPC\"\n" +
 		"        },\n" +
 		"        \"hostNetwork\": {\n" +
-		"          \"description\": \"Host networking requested for this pod. Use the host's network namespace.\\nIf this option is set, the ports that will be used must be specified.\\nDefault to false.\\n+k8s:conversion-gen=false\\n+optional\",\n" +
+		"          \"description\": \"Host networking requested for this pod. Use the host's network namespace.\\nWhen using HostNetwork you should specify ports so the scheduler is aware.\\nWhen `hostNetwork` is true, specified `hostPort` fields in port definitions must match `containerPort`,\\nand unspecified `hostPort` fields in port definitions are defaulted to match `containerPort`.\\nDefault to false.\\n+k8s:conversion-gen=false\\n+optional\",\n" +
 		"          \"type\": \"boolean\",\n" +
 		"          \"x-go-name\": \"HostNetwork\"\n" +
 		"        },\n" +
@@ -4633,8 +4862,13 @@ func SwaggerJsonTemplate() string {
 		"          \"type\": \"string\",\n" +
 		"          \"x-go-name\": \"Hostname\"\n" +
 		"        },\n" +
+		"        \"hostnameOverride\": {\n" +
+		"          \"description\": \"HostnameOverride specifies an explicit override for the pod's hostname as perceived by the pod.\\nThis field only specifies the pod's hostname and does not affect its DNS records.\\nWhen this field is set to a non-empty string:\\nIt takes precedence over the values set in `hostname` and `subdomain`.\\nThe Pod's hostname will be set to this value.\\n`setHostnameAsFQDN` must be nil or set to false.\\n`hostNetwork` must be set to false.\\n\\nThis field must be a valid DNS subdomain as defined in RFC 1123 and contain at most 64 characters.\\nRequires the HostnameOverride feature gate to be enabled.\\n\\n+featureGate=HostnameOverride\\n+optional\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"HostnameOverride\"\n" +
+		"        },\n" +
 		"        \"imagePullSecrets\": {\n" +
-		"          \"description\": \"ImagePullSecrets is an optional list of references to secrets in the same namespace to use for pulling any of the images used by this PodSpec.\\nIf specified, these secrets will be passed to individual puller implementations for them to use.\\nMore info: https://kubernetes.io/docs/concepts/containers/images#specifying-imagepullsecrets-on-a-pod\\n+optional\\n+patchMergeKey=name\\n+patchStrategy=merge\",\n" +
+		"          \"description\": \"ImagePullSecrets is an optional list of references to secrets in the same namespace to use for pulling any of the images used by this PodSpec.\\nIf specified, these secrets will be passed to individual puller implementations for them to use.\\nMore info: https://kubernetes.io/docs/concepts/containers/images#specifying-imagepullsecrets-on-a-pod\\n+optional\\n+patchMergeKey=name\\n+patchStrategy=merge\\n+listType=map\\n+listMapKey=name\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"$ref\": \"#/definitions/v1LocalObjectReference\"\n" +
@@ -4642,7 +4876,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"ImagePullSecrets\"\n" +
 		"        },\n" +
 		"        \"initContainers\": {\n" +
-		"          \"description\": \"List of initialization containers belonging to the pod.\\nInit containers are executed in order prior to containers being started. If any\\ninit container fails, the pod is considered to have failed and is handled according\\nto its restartPolicy. The name for an init container or normal container must be\\nunique among all containers.\\nInit containers may not have Lifecycle actions, Readiness probes, Liveness probes, or Startup probes.\\nThe resourceRequirements of an init container are taken into account during scheduling\\nby finding the highest request/limit for each resource type, and then using the max of\\nof that value or the sum of the normal containers. Limits are applied to init containers\\nin a similar fashion.\\nInit containers cannot currently be added or removed.\\nCannot be updated.\\nMore info: https://kubernetes.io/docs/concepts/workloads/pods/init-containers/\\n+patchMergeKey=name\\n+patchStrategy=merge\",\n" +
+		"          \"description\": \"List of initialization containers belonging to the pod.\\nInit containers are executed in order prior to containers being started. If any\\ninit container fails, the pod is considered to have failed and is handled according\\nto its restartPolicy. The name for an init container or normal container must be\\nunique among all containers.\\nInit containers may not have Lifecycle actions, Readiness probes, Liveness probes, or Startup probes.\\nThe resourceRequirements of an init container are taken into account during scheduling\\nby finding the highest request/limit for each resource type, and then using the max of\\nthat value or the sum of the normal containers. Limits are applied to init containers\\nin a similar fashion.\\nInit containers cannot currently be added or removed.\\nCannot be updated.\\nMore info: https://kubernetes.io/docs/concepts/workloads/pods/init-containers/\\n+patchMergeKey=name\\n+patchStrategy=merge\\n+listType=map\\n+listMapKey=name\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"$ref\": \"#/definitions/v1Container\"\n" +
@@ -4650,7 +4884,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"InitContainers\"\n" +
 		"        },\n" +
 		"        \"nodeName\": {\n" +
-		"          \"description\": \"NodeName is a request to schedule this pod onto a specific node. If it is non-empty,\\nthe scheduler simply schedules this pod onto that node, assuming that it fits resource\\nrequirements.\\n+optional\",\n" +
+		"          \"description\": \"NodeName indicates in which node this pod is scheduled.\\nIf empty, this pod is a candidate for scheduling by the scheduler defined in schedulerName.\\nOnce this field is set, the kubelet for this node becomes responsible for the lifecycle of this pod.\\nThis field should not be used to express a desire for the pod to be scheduled on a specific node.\\nhttps://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#nodename\\n+optional\",\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"x-go-name\": \"NodeName\"\n" +
 		"        },\n" +
@@ -4683,7 +4917,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"PriorityClassName\"\n" +
 		"        },\n" +
 		"        \"readinessGates\": {\n" +
-		"          \"description\": \"If specified, all readiness gates will be evaluated for pod readiness.\\nA pod is ready when all its containers are ready AND\\nall conditions specified in the readiness gates have status equal to \\\"True\\\"\\nMore info: https://git.k8s.io/enhancements/keps/sig-network/580-pod-readiness-gates\\n+optional\",\n" +
+		"          \"description\": \"If specified, all readiness gates will be evaluated for pod readiness.\\nA pod is ready when all its containers are ready AND\\nall conditions specified in the readiness gates have status equal to \\\"True\\\"\\nMore info: https://git.k8s.io/enhancements/keps/sig-network/580-pod-readiness-gates\\n+optional\\n+listType=atomic\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"$ref\": \"#/definitions/v1PodReadinessGate\"\n" +
@@ -4697,6 +4931,9 @@ func SwaggerJsonTemplate() string {
 		"            \"$ref\": \"#/definitions/v1PodResourceClaim\"\n" +
 		"          },\n" +
 		"          \"x-go-name\": \"ResourceClaims\"\n" +
+		"        },\n" +
+		"        \"resources\": {\n" +
+		"          \"$ref\": \"#/definitions/v1ResourceRequirements\"\n" +
 		"        },\n" +
 		"        \"restartPolicy\": {\n" +
 		"          \"$ref\": \"#/definitions/v1RestartPolicy\"\n" +
@@ -4712,7 +4949,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"SchedulerName\"\n" +
 		"        },\n" +
 		"        \"schedulingGates\": {\n" +
-		"          \"description\": \"SchedulingGates is an opaque list of values that if specified will block scheduling the pod.\\nIf schedulingGates is not empty, the pod will stay in the SchedulingGated state and the\\nscheduler will not attempt to schedule the pod.\\n\\nSchedulingGates can only be set at pod creation time, and be removed only afterwards.\\n\\nThis is a beta feature enabled by the PodSchedulingReadiness feature gate.\\n\\n+patchMergeKey=name\\n+patchStrategy=merge\\n+listType=map\\n+listMapKey=name\\n+featureGate=PodSchedulingReadiness\\n+optional\",\n" +
+		"          \"description\": \"SchedulingGates is an opaque list of values that if specified will block scheduling the pod.\\nIf schedulingGates is not empty, the pod will stay in the SchedulingGated state and the\\nscheduler will not attempt to schedule the pod.\\n\\nSchedulingGates can only be set at pod creation time, and be removed only afterwards.\\n\\n+patchMergeKey=name\\n+patchStrategy=merge\\n+listType=map\\n+listMapKey=name\\n+optional\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"$ref\": \"#/definitions/v1PodSchedulingGate\"\n" +
@@ -4723,7 +4960,7 @@ func SwaggerJsonTemplate() string {
 		"          \"$ref\": \"#/definitions/v1PodSecurityContext\"\n" +
 		"        },\n" +
 		"        \"serviceAccount\": {\n" +
-		"          \"description\": \"DeprecatedServiceAccount is a depreciated alias for ServiceAccountName.\\nDeprecated: Use serviceAccountName instead.\\n+k8s:conversion-gen=false\\n+optional\",\n" +
+		"          \"description\": \"DeprecatedServiceAccount is a deprecated alias for ServiceAccountName.\\nDeprecated: Use serviceAccountName instead.\\n+k8s:conversion-gen=false\\n+optional\",\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"x-go-name\": \"DeprecatedServiceAccount\"\n" +
 		"        },\n" +
@@ -4754,7 +4991,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"TerminationGracePeriodSeconds\"\n" +
 		"        },\n" +
 		"        \"tolerations\": {\n" +
-		"          \"description\": \"If specified, the pod's tolerations.\\n+optional\",\n" +
+		"          \"description\": \"If specified, the pod's tolerations.\\n+optional\\n+listType=atomic\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"$ref\": \"#/definitions/v1Toleration\"\n" +
@@ -4770,7 +5007,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"TopologySpreadConstraints\"\n" +
 		"        },\n" +
 		"        \"volumes\": {\n" +
-		"          \"description\": \"List of volumes that can be mounted by containers belonging to the pod.\\nMore info: https://kubernetes.io/docs/concepts/storage/volumes\\n+optional\\n+patchMergeKey=name\\n+patchStrategy=merge,retainKeys\",\n" +
+		"          \"description\": \"List of volumes that can be mounted by containers belonging to the pod.\\nMore info: https://kubernetes.io/docs/concepts/storage/volumes\\n+optional\\n+patchMergeKey=name\\n+patchStrategy=merge,retainKeys\\n+listType=map\\n+listMapKey=name\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"$ref\": \"#/definitions/v1Volume\"\n" +
@@ -4782,6 +5019,7 @@ func SwaggerJsonTemplate() string {
 		"    },\n" +
 		"    \"v1PortStatus\": {\n" +
 		"      \"type\": \"object\",\n" +
+		"      \"title\": \"PortStatus represents the error condition of a service port\",\n" +
 		"      \"properties\": {\n" +
 		"        \"error\": {\n" +
 		"          \"type\": \"string\",\n" +
@@ -4913,7 +5151,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"DefaultMode\"\n" +
 		"        },\n" +
 		"        \"sources\": {\n" +
-		"          \"description\": \"sources is the list of volume projections\\n+optional\",\n" +
+		"          \"description\": \"sources is the list of volume projections. Each entry in this list\\nhandles one source.\\n+optional\\n+listType=atomic\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"$ref\": \"#/definitions/v1VolumeProjection\"\n" +
@@ -4988,12 +5226,12 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"RBDImage\"\n" +
 		"        },\n" +
 		"        \"keyring\": {\n" +
-		"          \"description\": \"keyring is the path to key ring for RBDUser.\\nDefault is /etc/ceph/keyring.\\nMore info: https://examples.k8s.io/volumes/rbd/README.md#how-to-use-it\\n+optional\",\n" +
+		"          \"description\": \"keyring is the path to key ring for RBDUser.\\nDefault is /etc/ceph/keyring.\\nMore info: https://examples.k8s.io/volumes/rbd/README.md#how-to-use-it\\n+optional\\n+default=\\\"/etc/ceph/keyring\\\"\",\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"x-go-name\": \"Keyring\"\n" +
 		"        },\n" +
 		"        \"monitors\": {\n" +
-		"          \"description\": \"monitors is a collection of Ceph monitors.\\nMore info: https://examples.k8s.io/volumes/rbd/README.md#how-to-use-it\",\n" +
+		"          \"description\": \"monitors is a collection of Ceph monitors.\\nMore info: https://examples.k8s.io/volumes/rbd/README.md#how-to-use-it\\n+listType=atomic\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"type\": \"string\"\n" +
@@ -5001,7 +5239,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"CephMonitors\"\n" +
 		"        },\n" +
 		"        \"pool\": {\n" +
-		"          \"description\": \"pool is the rados pool name.\\nDefault is rbd.\\nMore info: https://examples.k8s.io/volumes/rbd/README.md#how-to-use-it\\n+optional\",\n" +
+		"          \"description\": \"pool is the rados pool name.\\nDefault is rbd.\\nMore info: https://examples.k8s.io/volumes/rbd/README.md#how-to-use-it\\n+optional\\n+default=\\\"rbd\\\"\",\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"x-go-name\": \"RBDPool\"\n" +
 		"        },\n" +
@@ -5014,11 +5252,16 @@ func SwaggerJsonTemplate() string {
 		"          \"$ref\": \"#/definitions/v1LocalObjectReference\"\n" +
 		"        },\n" +
 		"        \"user\": {\n" +
-		"          \"description\": \"user is the rados user name.\\nDefault is admin.\\nMore info: https://examples.k8s.io/volumes/rbd/README.md#how-to-use-it\\n+optional\",\n" +
+		"          \"description\": \"user is the rados user name.\\nDefault is admin.\\nMore info: https://examples.k8s.io/volumes/rbd/README.md#how-to-use-it\\n+optional\\n+default=\\\"admin\\\"\",\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"x-go-name\": \"RadosUser\"\n" +
 		"        }\n" +
 		"      },\n" +
+		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
+		"    },\n" +
+		"    \"v1RecursiveReadOnlyMode\": {\n" +
+		"      \"type\": \"string\",\n" +
+		"      \"title\": \"RecursiveReadOnlyMode describes recursive-readonly mode.\",\n" +
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
 		"    \"v1ResourceClaim\": {\n" +
@@ -5029,6 +5272,11 @@ func SwaggerJsonTemplate() string {
 		"          \"description\": \"Name must match the name of one entry in pod.spec.resourceClaims of\\nthe Pod where this field is used. It makes that resource available\\ninside a container.\",\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"x-go-name\": \"Name\"\n" +
+		"        },\n" +
+		"        \"request\": {\n" +
+		"          \"description\": \"Request is the name chosen for a request in the referenced claim.\\nIf empty, everything from the claim is made available, otherwise\\nonly the result of this request.\\n\\n+optional\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"Request\"\n" +
 		"        }\n" +
 		"      },\n" +
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
@@ -5071,7 +5319,7 @@ func SwaggerJsonTemplate() string {
 		"      \"title\": \"ResourceRequirements describes the compute resource requirements.\",\n" +
 		"      \"properties\": {\n" +
 		"        \"claims\": {\n" +
-		"          \"description\": \"Claims lists the names of resources, defined in spec.resourceClaims,\\nthat are used by this container.\\n\\nThis is an alpha field and requires enabling the\\nDynamicResourceAllocation feature gate.\\n\\nThis field is immutable. It can only be set for containers.\\n\\n+listType=map\\n+listMapKey=name\\n+featureGate=DynamicResourceAllocation\\n+optional\",\n" +
+		"          \"description\": \"Claims lists the names of resources, defined in spec.resourceClaims,\\nthat are used by this container.\\n\\nThis field depends on the\\nDynamicResourceAllocation feature gate.\\n\\nThis field is immutable. It can only be set for containers.\\n\\n+listType=map\\n+listMapKey=name\\n+featureGate=DynamicResourceAllocation\\n+optional\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"$ref\": \"#/definitions/v1ResourceClaim\"\n" +
@@ -5130,7 +5378,7 @@ func SwaggerJsonTemplate() string {
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
 		"        \"fsType\": {\n" +
-		"          \"description\": \"fsType is the filesystem type to mount.\\nMust be a filesystem type supported by the host operating system.\\nEx. \\\"ext4\\\", \\\"xfs\\\", \\\"ntfs\\\".\\nDefault is \\\"xfs\\\".\\n+optional\",\n" +
+		"          \"description\": \"fsType is the filesystem type to mount.\\nMust be a filesystem type supported by the host operating system.\\nEx. \\\"ext4\\\", \\\"xfs\\\", \\\"ntfs\\\".\\nDefault is \\\"xfs\\\".\\n+optional\\n+default=\\\"xfs\\\"\",\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"x-go-name\": \"FSType\"\n" +
 		"        },\n" +
@@ -5158,7 +5406,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"SSLEnabled\"\n" +
 		"        },\n" +
 		"        \"storageMode\": {\n" +
-		"          \"description\": \"storageMode indicates whether the storage for a volume should be ThickProvisioned or ThinProvisioned.\\nDefault is ThinProvisioned.\\n+optional\",\n" +
+		"          \"description\": \"storageMode indicates whether the storage for a volume should be ThickProvisioned or ThinProvisioned.\\nDefault is ThinProvisioned.\\n+optional\\n+default=\\\"ThinProvisioned\\\"\",\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"x-go-name\": \"StorageMode\"\n" +
 		"        },\n" +
@@ -5208,7 +5456,7 @@ func SwaggerJsonTemplate() string {
 		"      \"title\": \"SecretEnvSource selects a Secret to populate the environment\\nvariables with.\",\n" +
 		"      \"properties\": {\n" +
 		"        \"name\": {\n" +
-		"          \"description\": \"Name of the referent.\\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names\\nTODO: Add other useful fields. apiVersion, kind, uid?\\n+optional\",\n" +
+		"          \"description\": \"Name of the referent.\\nThis field is effectively required, but due to backwards compatibility is\\nallowed to be empty. Instances of this type with an empty value here are\\nalmost certainly wrong.\\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names\\n+optional\\n+default=\\\"\\\"\\n+kubebuilder:default=\\\"\\\"\\nTODO: Drop `kubebuilder:default` when controller-gen doesn't need it https://github.com/kubernetes-sigs/kubebuilder/issues/3896.\",\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"x-go-name\": \"Name\"\n" +
 		"        },\n" +
@@ -5231,7 +5479,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"Key\"\n" +
 		"        },\n" +
 		"        \"name\": {\n" +
-		"          \"description\": \"Name of the referent.\\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names\\nTODO: Add other useful fields. apiVersion, kind, uid?\\n+optional\",\n" +
+		"          \"description\": \"Name of the referent.\\nThis field is effectively required, but due to backwards compatibility is\\nallowed to be empty. Instances of this type with an empty value here are\\nalmost certainly wrong.\\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names\\n+optional\\n+default=\\\"\\\"\\n+kubebuilder:default=\\\"\\\"\\nTODO: Drop `kubebuilder:default` when controller-gen doesn't need it https://github.com/kubernetes-sigs/kubebuilder/issues/3896.\",\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"x-go-name\": \"Name\"\n" +
 		"        },\n" +
@@ -5249,7 +5497,7 @@ func SwaggerJsonTemplate() string {
 		"      \"title\": \"Adapts a secret into a projected volume.\",\n" +
 		"      \"properties\": {\n" +
 		"        \"items\": {\n" +
-		"          \"description\": \"items if unspecified, each key-value pair in the Data field of the referenced\\nSecret will be projected into the volume as a file whose name is the\\nkey and content is the value. If specified, the listed keys will be\\nprojected into the specified paths, and unlisted keys will not be\\npresent. If a key is specified which is not present in the Secret,\\nthe volume setup will error unless it is marked optional. Paths must be\\nrelative and may not contain the '..' path or start with '..'.\\n+optional\",\n" +
+		"          \"description\": \"items if unspecified, each key-value pair in the Data field of the referenced\\nSecret will be projected into the volume as a file whose name is the\\nkey and content is the value. If specified, the listed keys will be\\nprojected into the specified paths, and unlisted keys will not be\\npresent. If a key is specified which is not present in the Secret,\\nthe volume setup will error unless it is marked optional. Paths must be\\nrelative and may not contain the '..' path or start with '..'.\\n+optional\\n+listType=atomic\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"$ref\": \"#/definitions/v1KeyToPath\"\n" +
@@ -5257,7 +5505,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"Items\"\n" +
 		"        },\n" +
 		"        \"name\": {\n" +
-		"          \"description\": \"Name of the referent.\\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names\\nTODO: Add other useful fields. apiVersion, kind, uid?\\n+optional\",\n" +
+		"          \"description\": \"Name of the referent.\\nThis field is effectively required, but due to backwards compatibility is\\nallowed to be empty. Instances of this type with an empty value here are\\nalmost certainly wrong.\\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names\\n+optional\\n+default=\\\"\\\"\\n+kubebuilder:default=\\\"\\\"\\nTODO: Drop `kubebuilder:default` when controller-gen doesn't need it https://github.com/kubernetes-sigs/kubebuilder/issues/3896.\",\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"x-go-name\": \"Name\"\n" +
 		"        },\n" +
@@ -5281,7 +5529,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"DefaultMode\"\n" +
 		"        },\n" +
 		"        \"items\": {\n" +
-		"          \"description\": \"items If unspecified, each key-value pair in the Data field of the referenced\\nSecret will be projected into the volume as a file whose name is the\\nkey and content is the value. If specified, the listed keys will be\\nprojected into the specified paths, and unlisted keys will not be\\npresent. If a key is specified which is not present in the Secret,\\nthe volume setup will error unless it is marked optional. Paths must be\\nrelative and may not contain the '..' path or start with '..'.\\n+optional\",\n" +
+		"          \"description\": \"items If unspecified, each key-value pair in the Data field of the referenced\\nSecret will be projected into the volume as a file whose name is the\\nkey and content is the value. If specified, the listed keys will be\\nprojected into the specified paths, and unlisted keys will not be\\npresent. If a key is specified which is not present in the Secret,\\nthe volume setup will error unless it is marked optional. Paths must be\\nrelative and may not contain the '..' path or start with '..'.\\n+optional\\n+listType=atomic\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"$ref\": \"#/definitions/v1KeyToPath\"\n" +
@@ -5310,6 +5558,9 @@ func SwaggerJsonTemplate() string {
 		"          \"description\": \"AllowPrivilegeEscalation controls whether a process can gain more\\nprivileges than its parent process. This bool directly controls if\\nthe no_new_privs flag will be set on the container process.\\nAllowPrivilegeEscalation is true always when the container is:\\n1) run as Privileged\\n2) has CAP_SYS_ADMIN\\nNote that this field cannot be set when spec.os.name is windows.\\n+optional\",\n" +
 		"          \"type\": \"boolean\",\n" +
 		"          \"x-go-name\": \"AllowPrivilegeEscalation\"\n" +
+		"        },\n" +
+		"        \"appArmorProfile\": {\n" +
+		"          \"$ref\": \"#/definitions/v1AppArmorProfile\"\n" +
 		"        },\n" +
 		"        \"capabilities\": {\n" +
 		"          \"$ref\": \"#/definitions/v1Capabilities\"\n" +
@@ -5398,8 +5649,8 @@ func SwaggerJsonTemplate() string {
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
 		"    \"v1ServiceBackendPort\": {\n" +
-		"      \"description\": \"ServiceBackendPort is the service port being referenced.\",\n" +
 		"      \"type\": \"object\",\n" +
+		"      \"title\": \"ServiceBackendPort is the service port being referenced.\\n+structType=atomic\",\n" +
 		"      \"properties\": {\n" +
 		"        \"name\": {\n" +
 		"          \"type\": \"string\",\n" +
@@ -5417,7 +5668,7 @@ func SwaggerJsonTemplate() string {
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
 		"        \"appProtocol\": {\n" +
-		"          \"description\": \"* Un-prefixed protocol names - reserved for IANA standard service names (as per\\nRFC-6335 and https://www.iana.org/assignments/service-names).\\n\\n* Kubernetes-defined prefixed names:\\n  * 'kubernetes.io/h2c' - HTTP/2 over cleartext as described in https://www.rfc-editor.org/rfc/rfc7540\\n  * 'kubernetes.io/ws'  - WebSocket over cleartext as described in https://www.rfc-editor.org/rfc/rfc6455\\n  * 'kubernetes.io/wss' - WebSocket over TLS as described in https://www.rfc-editor.org/rfc/rfc6455\\n\\n* Other protocols should use implementation-defined prefixed names such as\\nmycompany.com/my-custom-protocol.\\n+optional\",\n" +
+		"          \"description\": \"* Un-prefixed protocol names - reserved for IANA standard service names (as per\\nRFC-6335 and https://www.iana.org/assignments/service-names).\\n\\n* Kubernetes-defined prefixed names:\\n  * 'kubernetes.io/h2c' - HTTP/2 prior knowledge over cleartext as described in https://www.rfc-editor.org/rfc/rfc9113.html#name-starting-http-2-with-prior-\\n  * 'kubernetes.io/ws'  - WebSocket over cleartext as described in https://www.rfc-editor.org/rfc/rfc6455\\n  * 'kubernetes.io/wss' - WebSocket over TLS as described in https://www.rfc-editor.org/rfc/rfc6455\\n\\n* Other protocols should use implementation-defined prefixed names such as\\nmycompany.com/my-custom-protocol.\\n+optional\",\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"title\": \"The application protocol for this port.\\nThis is used as a hint for implementations to offer richer behavior for protocols that they understand.\\nThis field follows standard Kubernetes label syntax.\\nValid values are either:\"\n" +
 		"        },\n" +
@@ -5466,7 +5717,7 @@ func SwaggerJsonTemplate() string {
 		"        },\n" +
 		"        \"externalIPs\": {\n" +
 		"          \"type\": \"array\",\n" +
-		"          \"title\": \"externalIPs is a list of IP addresses for which nodes in the cluster\\nwill also accept traffic for this service.  These IPs are not managed by\\nKubernetes.  The user is responsible for ensuring that traffic arrives\\nat a node with this IP.  A common example is external load-balancers\\nthat are not part of the Kubernetes system.\\n+optional\",\n" +
+		"          \"title\": \"externalIPs is a list of IP addresses for which nodes in the cluster\\nwill also accept traffic for this service.  These IPs are not managed by\\nKubernetes.  The user is responsible for ensuring that traffic arrives\\nat a node with this IP.  A common example is external load-balancers\\nthat are not part of the Kubernetes system.\\n+optional\\n+listType=atomic\",\n" +
 		"          \"items\": {\n" +
 		"            \"type\": \"string\"\n" +
 		"          }\n" +
@@ -5509,7 +5760,7 @@ func SwaggerJsonTemplate() string {
 		"        },\n" +
 		"        \"loadBalancerSourceRanges\": {\n" +
 		"          \"type\": \"array\",\n" +
-		"          \"title\": \"If specified and supported by the platform, this will restrict traffic through the cloud-provider\\nload-balancer will be restricted to the specified client IPs. This field will be ignored if the\\ncloud-provider does not support the feature.\\\"\\nMore info: https://kubernetes.io/docs/tasks/access-application-cluster/create-external-load-balancer/\\n+optional\",\n" +
+		"          \"title\": \"If specified and supported by the platform, this will restrict traffic through the cloud-provider\\nload-balancer will be restricted to the specified client IPs. This field will be ignored if the\\ncloud-provider does not support the feature.\\\"\\nMore info: https://kubernetes.io/docs/tasks/access-application-cluster/create-external-load-balancer/\\n+optional\\n+listType=atomic\",\n" +
 		"          \"items\": {\n" +
 		"            \"type\": \"string\"\n" +
 		"          }\n" +
@@ -5539,6 +5790,10 @@ func SwaggerJsonTemplate() string {
 		"        \"sessionAffinityConfig\": {\n" +
 		"          \"title\": \"sessionAffinityConfig contains the configurations of session affinity.\\n+optional\",\n" +
 		"          \"$ref\": \"#/definitions/v1SessionAffinityConfig\"\n" +
+		"        },\n" +
+		"        \"trafficDistribution\": {\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"title\": \"TrafficDistribution offers a way to express preferences for how traffic\\nis distributed to Service endpoints. Implementations can use this field\\nas a hint, but are not required to guarantee strict adherence. If the\\nfield is not set, the implementation will apply its default routing\\nstrategy. If set to \\\"PreferClose\\\", implementations should prioritize\\nendpoints that are in the same zone.\\n+featureGate=ServiceTrafficDistribution\\n+optional\"\n" +
 		"        },\n" +
 		"        \"type\": {\n" +
 		"          \"type\": \"string\",\n" +
@@ -5573,6 +5828,24 @@ func SwaggerJsonTemplate() string {
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +
+		"    \"v1Signal\": {\n" +
+		"      \"description\": \"Signal defines the stop signal of containers\\n+enum\",\n" +
+		"      \"type\": \"string\",\n" +
+		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
+		"    },\n" +
+		"    \"v1SleepAction\": {\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"title\": \"SleepAction describes a \\\"sleep\\\" action.\",\n" +
+		"      \"properties\": {\n" +
+		"        \"seconds\": {\n" +
+		"          \"description\": \"Seconds is the number of seconds to sleep.\",\n" +
+		"          \"type\": \"integer\",\n" +
+		"          \"format\": \"int64\",\n" +
+		"          \"x-go-name\": \"Seconds\"\n" +
+		"        }\n" +
+		"      },\n" +
+		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
+		"    },\n" +
 		"    \"v1StorageMedium\": {\n" +
 		"      \"type\": \"string\",\n" +
 		"      \"title\": \"StorageMedium defines ways that storage can be allocated to a volume.\",\n" +
@@ -5606,6 +5879,11 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"VolumeNamespace\"\n" +
 		"        }\n" +
 		"      },\n" +
+		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
+		"    },\n" +
+		"    \"v1SupplementalGroupsPolicy\": {\n" +
+		"      \"description\": \"SupplementalGroupsPolicy defines how supplemental groups\\nof the first container processes are calculated.\\n+enum\",\n" +
+		"      \"type\": \"string\",\n" +
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
 		"    \"v1Sysctl\": {\n" +
@@ -5724,7 +6002,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"MaxSkew\"\n" +
 		"        },\n" +
 		"        \"minDomains\": {\n" +
-		"          \"description\": \"MinDomains indicates a minimum number of eligible domains.\\nWhen the number of eligible domains with matching topology keys is less than minDomains,\\nPod Topology Spread treats \\\"global minimum\\\" as 0, and then the calculation of Skew is performed.\\nAnd when the number of eligible domains with matching topology keys equals or greater than minDomains,\\nthis value has no effect on scheduling.\\nAs a result, when the number of eligible domains is less than minDomains,\\nscheduler won't schedule more than maxSkew Pods to those domains.\\nIf value is nil, the constraint behaves as if MinDomains is equal to 1.\\nValid values are integers greater than 0.\\nWhen value is not nil, WhenUnsatisfiable must be DoNotSchedule.\\n\\nFor example, in a 3-zone cluster, MaxSkew is set to 2, MinDomains is set to 5 and pods with the same\\nlabelSelector spread as 2/2/2:\\n+-------+-------+-------+\\n zone1 | zone2 | zone3 |\\n+-------+-------+-------+\\n  P P  |  P P  |  P P  |\\n+-------+-------+-------+\\nThe number of domains is less than 5(MinDomains), so \\\"global minimum\\\" is treated as 0.\\nIn this situation, new pod with the same labelSelector cannot be scheduled,\\nbecause computed skew will be 3(3 - 0) if new Pod is scheduled to any of the three zones,\\nit will violate MaxSkew.\\n\\nThis is a beta field and requires the MinDomainsInPodTopologySpread feature gate to be enabled (enabled by default).\\n+optional\",\n" +
+		"          \"description\": \"MinDomains indicates a minimum number of eligible domains.\\nWhen the number of eligible domains with matching topology keys is less than minDomains,\\nPod Topology Spread treats \\\"global minimum\\\" as 0, and then the calculation of Skew is performed.\\nAnd when the number of eligible domains with matching topology keys equals or greater than minDomains,\\nthis value has no effect on scheduling.\\nAs a result, when the number of eligible domains is less than minDomains,\\nscheduler won't schedule more than maxSkew Pods to those domains.\\nIf value is nil, the constraint behaves as if MinDomains is equal to 1.\\nValid values are integers greater than 0.\\nWhen value is not nil, WhenUnsatisfiable must be DoNotSchedule.\\n\\nFor example, in a 3-zone cluster, MaxSkew is set to 2, MinDomains is set to 5 and pods with the same\\nlabelSelector spread as 2/2/2:\\n+-------+-------+-------+\\n zone1 | zone2 | zone3 |\\n+-------+-------+-------+\\n  P P  |  P P  |  P P  |\\n+-------+-------+-------+\\nThe number of domains is less than 5(MinDomains), so \\\"global minimum\\\" is treated as 0.\\nIn this situation, new pod with the same labelSelector cannot be scheduled,\\nbecause computed skew will be 3(3 - 0) if new Pod is scheduled to any of the three zones,\\nit will violate MaxSkew.\\n+optional\",\n" +
 		"          \"type\": \"integer\",\n" +
 		"          \"format\": \"int32\",\n" +
 		"          \"x-go-name\": \"MinDomains\"\n" +
@@ -5747,8 +6025,9 @@ func SwaggerJsonTemplate() string {
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
 		"    \"v1TypedLocalObjectReference\": {\n" +
-		"      \"description\": \"TypedLocalObjectReference contains enough information to let you locate the\\ntyped referenced object inside the same namespace.\\n+structType=atomic\",\n" +
+		"      \"description\": \"New uses of this type are discouraged because of difficulty describing its usage when embedded in APIs.\\n1. Invalid usage help.  It is impossible to add specific help for individual usage.  In most embedded usages, there are particular\\nrestrictions like, \\\"must refer only to types A and B\\\" or \\\"UID not honored\\\" or \\\"name must be restricted\\\".\\nThose cannot be well described when embedded.\\n2. Inconsistent validation.  Because the usages are different, the validation rules are different by usage, which makes it hard for users to predict what will happen.\\n3. The fields are both imprecise and overly precise.  Kind is not a precise mapping to a URL. This can produce ambiguity\\nduring interpretation and require a REST mapping.  In most cases, the dependency is on the group,resource tuple\\nand the version of the actual struct is irrelevant.\\n4. We cannot easily change it.  Because this type is embedded in many locations, updates to this type\\nwill affect numerous schemas.  Don't make new APIs embed an underspecified API type they do not control.\\n\\nInstead of using this type, create a locally provided and used type that is well-focused on your reference.\\nFor example, ServiceReferences for admission registration: https://github.com/kubernetes/api/blob/release-1.17/admissionregistration/v1/types.go#L533 .\\n+structType=atomic\",\n" +
 		"      \"type\": \"object\",\n" +
+		"      \"title\": \"TypedLocalObjectReference contains enough information to let you locate the\\ntyped referenced object inside the same namespace.\",\n" +
 		"      \"properties\": {\n" +
 		"        \"apiGroup\": {\n" +
 		"          \"description\": \"APIGroup is the group for the resource being referenced.\\nIf APIGroup is not specified, the specified Kind must be in the core API group.\\nFor any other third-party types, APIGroup is required.\\n+optional\",\n" +
@@ -5769,6 +6048,7 @@ func SwaggerJsonTemplate() string {
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
 		"    \"v1TypedObjectReference\": {\n" +
+		"      \"description\": \"TypedObjectReference contains enough information to let you locate the typed referenced object\",\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
 		"        \"apiGroup\": {\n" +
@@ -5859,6 +6139,9 @@ func SwaggerJsonTemplate() string {
 		"        \"hostPath\": {\n" +
 		"          \"$ref\": \"#/definitions/v1HostPathVolumeSource\"\n" +
 		"        },\n" +
+		"        \"image\": {\n" +
+		"          \"$ref\": \"#/definitions/v1ImageVolumeSource\"\n" +
+		"        },\n" +
 		"        \"iscsi\": {\n" +
 		"          \"$ref\": \"#/definitions/v1ISCSIVolumeSource\"\n" +
 		"        },\n" +
@@ -5942,6 +6225,9 @@ func SwaggerJsonTemplate() string {
 		"          \"type\": \"boolean\",\n" +
 		"          \"x-go-name\": \"ReadOnly\"\n" +
 		"        },\n" +
+		"        \"recursiveReadOnly\": {\n" +
+		"          \"$ref\": \"#/definitions/v1RecursiveReadOnlyMode\"\n" +
+		"        },\n" +
 		"        \"subPath\": {\n" +
 		"          \"description\": \"Path within the volume from which the container's volume should be mounted.\\nDefaults to \\\"\\\" (volume's root).\\n+optional\",\n" +
 		"          \"type\": \"string\",\n" +
@@ -5956,20 +6242,40 @@ func SwaggerJsonTemplate() string {
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
 		"    \"v1VolumeProjection\": {\n" +
-		"      \"description\": \"Projection that may be projected along with other supported volume types\",\n" +
+		"      \"description\": \"Exactly one of these fields must be set.\",\n" +
 		"      \"type\": \"object\",\n" +
+		"      \"title\": \"Projection that may be projected along with other supported volume types.\",\n" +
 		"      \"properties\": {\n" +
+		"        \"clusterTrustBundle\": {\n" +
+		"          \"$ref\": \"#/definitions/v1ClusterTrustBundleProjection\"\n" +
+		"        },\n" +
 		"        \"configMap\": {\n" +
 		"          \"$ref\": \"#/definitions/v1ConfigMapProjection\"\n" +
 		"        },\n" +
 		"        \"downwardAPI\": {\n" +
 		"          \"$ref\": \"#/definitions/v1DownwardAPIProjection\"\n" +
 		"        },\n" +
+		"        \"podCertificate\": {\n" +
+		"          \"$ref\": \"#/definitions/v1PodCertificateProjection\"\n" +
+		"        },\n" +
 		"        \"secret\": {\n" +
 		"          \"$ref\": \"#/definitions/v1SecretProjection\"\n" +
 		"        },\n" +
 		"        \"serviceAccountToken\": {\n" +
 		"          \"$ref\": \"#/definitions/v1ServiceAccountTokenProjection\"\n" +
+		"        }\n" +
+		"      },\n" +
+		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
+		"    },\n" +
+		"    \"v1VolumeResourceRequirements\": {\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"title\": \"VolumeResourceRequirements describes the storage resource requirements for a volume.\",\n" +
+		"      \"properties\": {\n" +
+		"        \"limits\": {\n" +
+		"          \"$ref\": \"#/definitions/v1ResourceList\"\n" +
+		"        },\n" +
+		"        \"requests\": {\n" +
+		"          \"$ref\": \"#/definitions/v1ResourceList\"\n" +
 		"        }\n" +
 		"      },\n" +
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
