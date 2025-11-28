@@ -16,6 +16,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/adapters"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/pricing"
+	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/bidstore"
 )
 
@@ -553,7 +554,7 @@ func (job *Job) Annotations() map[string]string {
 	if req := job.PodRequirements(); req != nil {
 		return req.Annotations
 	}
-	return nil
+	return map[string]string{}
 }
 
 // PriorityClassName returns the name of the job's Priority Class
@@ -563,6 +564,13 @@ func (job *Job) PriorityClassName() string {
 		return schedulingInfo.PriorityClassName()
 	}
 	return ""
+}
+
+// Gang returns the gang configuration for this job.
+// Jobs from the database don't have the Gang protobuf field, so this returns nil
+// and GangInfoFromMinimalJob will fall back to parsing annotations.
+func (job *Job) Gang() *api.Gang {
+	return nil
 }
 
 // ScheduledAtPriority returns the numeric priority at which the job was scheduled

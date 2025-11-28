@@ -47,6 +47,7 @@ func SubmitJobFromApiRequest(
 		},
 		Objects:   ingressesAndServices,
 		Scheduler: jobReq.Scheduler,
+		Gang:      jobReq.Gang,
 	}
 
 	postProcess(msg, config)

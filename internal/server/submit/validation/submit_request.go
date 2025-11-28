@@ -327,6 +327,13 @@ func (j jobAdapter) Annotations() map[string]string {
 	return j.GetAnnotations()
 }
 
+// Gang is needed to fulfil the MinimalJob interface
+// Jobs from the REST API don't have the Gang protobuf field, so this returns nil
+// and GangInfoFromMinimalJob will fall back to parsing annotations.
+func (j jobAdapter) Gang() *api.Gang {
+	return nil
+}
+
 // Ensures that any gang jobs defined in the request are consistent.  This checks that all jobs in the same gang have
 // the same:
 //   - Cardinality

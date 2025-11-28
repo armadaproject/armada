@@ -13,6 +13,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/executor/configuration"
 	"github.com/armadaproject/armada/internal/executor/domain"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/executorapi"
@@ -128,10 +129,25 @@ func CreatePodFromExecutorApiJob(job *executorapi.JobRunLease, defaults *configu
 		domain.Owner:    job.User,
 	})
 
+	// Add gang scheduling annotations from SchedulingMetadata if not already present
+	// (for backward compatibility with old jobs that have annotations in the job spec)
+	if job.SchedulingMetadata != nil && job.SchedulingMetadata.GangInfo != nil {
+		gangInfo := job.SchedulingMetadata.GangInfo
+		if _, exists := annotation[serverconfiguration.GangIdAnnotation]; !exists && gangInfo.GangId != "" {
+			annotation[serverconfiguration.GangIdAnnotation] = gangInfo.GangId
+		}
+		if _, exists := annotation[serverconfiguration.GangCardinalityAnnotation]; !exists && gangInfo.Cardinality > 0 {
+			annotation[serverconfiguration.GangCardinalityAnnotation] = strconv.FormatUint(uint64(gangInfo.Cardinality), 10)
+		}
+		if _, exists := annotation[serverconfiguration.GangNodeUniformityLabelAnnotation]; !exists && gangInfo.NodeUniformityLabelName != "" {
+			annotation[serverconfiguration.GangNodeUniformityLabelAnnotation] = gangInfo.NodeUniformityLabelName
+		}
+	}
+
 	applyDefaults(podSpec, defaults)
 	setRestartPolicyNever(podSpec)
 
-	injectArmadaEnvVars(podSpec, jobId, job.Queue, job.Jobset, annotation)
+	injectArmadaEnvVars(podSpec, jobId, job.Queue, job.Jobset, job.SchedulingMetadata, annotation)
 
 	pod := &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -173,7 +189,7 @@ func CreatePod(job *api.Job, defaults *configuration.PodDefaults) *v1.Pod {
 
 	setRestartPolicyNever(podSpec)
 
-	injectArmadaEnvVars(podSpec, job.Id, job.Queue, job.JobSetId, annotation)
+	injectArmadaEnvVars(podSpec, job.Id, job.Queue, job.JobSetId, nil, annotation)
 
 	pod := &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -203,46 +219,33 @@ func setRestartPolicyNever(podSpec *v1.PodSpec) {
 
 // injectArmadaEnvVars injects Armada system environment variables into all containers.
 // It injects base variables for all jobs and additional variables for gang-scheduled jobs.
-func injectArmadaEnvVars(podSpec *v1.PodSpec, jobId string, queue string, jobsetId string, annotations map[string]string) {
-	// Base environment variables for all jobs
+func injectArmadaEnvVars(podSpec *v1.PodSpec, jobId string, queue string, jobsetId string, schedulingMetadata *armadaevents.SchedulingMetadata, annotations map[string]string) {
 	baseEnvVars := []v1.EnvVar{
 		{Name: serverconfiguration.JobIdEnvVar, Value: jobId},
 		{Name: serverconfiguration.QueueEnvVar, Value: queue},
 		{Name: serverconfiguration.JobSetIdEnvVar, Value: jobsetId},
 	}
 
-	// Gang-specific environment variables
-	var gangEnvVars []v1.EnvVar
-
-	if gangId, ok := annotations[serverconfiguration.GangIdAnnotation]; ok && gangId != "" {
-		gangEnvVars = append(gangEnvVars, v1.EnvVar{
-			Name:  serverconfiguration.GangIdEnvVar,
-			Value: gangId,
-		})
+	allEnvVars := baseEnvVars
+	if schedulingMetadata != nil && schedulingMetadata.GangInfo != nil {
+		allEnvVars = append(allEnvVars, buildGangEnvVars(schedulingMetadata.GangInfo)...)
 	}
-	if gangCardinality, ok := annotations[serverconfiguration.GangCardinalityAnnotation]; ok && gangCardinality != "" {
-		gangEnvVars = append(gangEnvVars, v1.EnvVar{
-			Name:  serverconfiguration.GangCardinalityEnvVar,
-			Value: gangCardinality,
-		})
-	}
-
-	labelName, hasLabelName := annotations[serverconfiguration.GangNodeUniformityLabelNameEnvVar]
-	labelValue, hasLabelValue := annotations[serverconfiguration.GangNodeUniformityLabelValueEnvVar]
-	if hasLabelName && hasLabelValue {
-		gangEnvVars = append(gangEnvVars,
-			v1.EnvVar{Name: serverconfiguration.GangNodeUniformityLabelNameEnvVar, Value: labelName},
-			v1.EnvVar{Name: serverconfiguration.GangNodeUniformityLabelValueEnvVar, Value: labelValue},
-		)
-	}
-
-	allEnvVars := append(baseEnvVars, gangEnvVars...)
 
 	for i := range podSpec.InitContainers {
 		addEnvVarsIfNotExist(&podSpec.InitContainers[i], allEnvVars)
 	}
 	for i := range podSpec.Containers {
 		addEnvVarsIfNotExist(&podSpec.Containers[i], allEnvVars)
+	}
+}
+
+// buildGangEnvVars builds gang environment variables from GangPlacement.
+func buildGangEnvVars(gangInfo *schedulerobjects.GangPlacement) []v1.EnvVar {
+	return []v1.EnvVar{
+		{Name: serverconfiguration.GangIdEnvVar, Value: gangInfo.GangId},
+		{Name: serverconfiguration.GangCardinalityEnvVar, Value: strconv.FormatUint(uint64(gangInfo.Cardinality), 10)},
+		{Name: serverconfiguration.GangNodeUniformityLabelNameEnvVar, Value: gangInfo.NodeUniformityLabelName},
+		{Name: serverconfiguration.GangNodeUniformityLabelValueEnvVar, Value: gangInfo.NodeUniformityLabelValue},
 	}
 }
 

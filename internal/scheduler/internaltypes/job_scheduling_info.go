@@ -1,6 +1,7 @@
 package internaltypes
 
 import (
+	"strconv"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
@@ -11,6 +12,7 @@ import (
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 // JobSchedulingInfo is a minimal representation of job requirements that the scheduler uses for scheduling
@@ -21,9 +23,18 @@ type JobSchedulingInfo struct {
 	Priority        uint32
 	PodRequirements *PodRequirements
 	Version         uint32
+	GangInfo        *api.Gang
 }
 
 func (j *JobSchedulingInfo) DeepCopy() *JobSchedulingInfo {
+	var gangCopy *api.Gang
+	if j.GangInfo != nil {
+		gangCopy = &api.Gang{
+			GangId:                  j.GangInfo.GangId,
+			Cardinality:             j.GangInfo.Cardinality,
+			NodeUniformityLabelName: j.GangInfo.NodeUniformityLabelName,
+		}
+	}
 	return &JobSchedulingInfo{
 		Lifetime:        j.Lifetime,
 		PriorityClass:   j.PriorityClass,
@@ -31,6 +42,7 @@ func (j *JobSchedulingInfo) DeepCopy() *JobSchedulingInfo {
 		Priority:        j.Priority,
 		PodRequirements: j.PodRequirements.DeepCopy(),
 		Version:         j.Version,
+		GangInfo:        gangCopy,
 	}
 }
 
@@ -43,6 +55,11 @@ func (j *JobSchedulingInfo) Annotations() map[string]string {
 
 func (j *JobSchedulingInfo) PriorityClassName() string {
 	return j.PriorityClass
+}
+
+// Gang returns the gang configuration
+func (j *JobSchedulingInfo) Gang() *api.Gang {
+	return j.GangInfo
 }
 
 // PodRequirements captures the scheduling requirements specific to a pod.
@@ -89,6 +106,37 @@ func FromSchedulerObjectsJobSchedulingInfo(j *schedulerobjects.JobSchedulingInfo
 	if rr == nil {
 		rr = &v1.ResourceRequirements{}
 	}
+
+	// Extract Gang info - prefer structured Gang field from protobuf (new jobs)
+	// Fall back to annotations only for backward compatibility (old jobs in database)
+	var gangInfo *api.Gang
+	if j.Gang != nil {
+		// New style: Gang is stored in protobuf field, convert to api.Gang
+		gangInfo = &api.Gang{
+			GangId:                  j.Gang.GangId,
+			Cardinality:             j.Gang.Cardinality,
+			NodeUniformityLabelName: j.Gang.NodeUniformityLabelName,
+		}
+	} else if podRequirements.Annotations != nil {
+		// Old style: Gang is stored in annotations (backward compatibility)
+		gangId, hasGangId := podRequirements.Annotations["armadaproject.io/gangId"]
+		gangCardStr, hasCardinality := podRequirements.Annotations["armadaproject.io/gangCardinality"]
+		if hasGangId && hasCardinality {
+			var cardinality uint32
+			if parsed, err := strconv.ParseUint(gangCardStr, 10, 32); err == nil {
+				cardinality = uint32(parsed)
+				gangInfo = &api.Gang{
+					GangId:      gangId,
+					Cardinality: cardinality,
+				}
+				if nodeUniformity, ok := podRequirements.Annotations["armadaproject.io/gangNodeUniformityLabel"]; ok {
+					gangInfo.NodeUniformityLabelName = nodeUniformity
+				}
+			}
+		}
+	} else {
+	}
+
 	return &JobSchedulingInfo{
 		Lifetime:      j.Lifetime,
 		PriorityClass: j.PriorityClassName,
@@ -104,12 +152,25 @@ func FromSchedulerObjectsJobSchedulingInfo(j *schedulerobjects.JobSchedulingInfo
 			Annotations:          maps.Clone(podRequirements.Annotations),
 			ResourceRequirements: *rr,
 		},
-		Version: j.Version,
+		Version:  j.Version,
+		GangInfo: gangInfo,
 	}, nil
 }
 
 func ToSchedulerObjectsJobSchedulingInfo(j *JobSchedulingInfo) *schedulerobjects.JobSchedulingInfo {
 	podRequirements := j.PodRequirements
+
+	// Convert Gang info back to schedulerobjects.Gang if present
+	var gang *schedulerobjects.Gang
+	if j.GangInfo != nil {
+		gang = &schedulerobjects.Gang{
+			GangId:                  j.GangInfo.GangId,
+			Cardinality:             j.GangInfo.Cardinality,
+			NodeUniformityLabelName: j.GangInfo.NodeUniformityLabelName,
+			// NodeUniformityLabelValue is not stored in JobSchedulingInfo - it's ephemeral
+		}
+	}
+
 	return &schedulerobjects.JobSchedulingInfo{
 		Lifetime:          j.Lifetime,
 		PriorityClassName: j.PriorityClassName(),
@@ -131,5 +192,6 @@ func ToSchedulerObjectsJobSchedulingInfo(j *JobSchedulingInfo) *schedulerobjects
 			},
 		},
 		Version: j.Version,
+		Gang:    gang,
 	}
 }

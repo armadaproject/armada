@@ -152,6 +152,9 @@ func (srv *ExecutorApi) LeaseJobRuns(stream executorapi.ExecutorApi_LeaseJobRuns
 			addAnnotations(submitMsg, PodRequirementsOverlay.Annotations)
 		}
 
+		// Build SchedulingMetadata from annotations and run data
+		schedulingMetadata := buildSchedulingMetadataFromLease(submitMsg, lease.GangNodeUniformityLabelValue)
+
 		srv.addPreemptibleLabel(submitMsg)
 
 		srv.dropDisallowedResources(submitMsg.MainObject.GetPodSpec().PodSpec)
@@ -172,12 +175,13 @@ func (srv *ExecutorApi) LeaseJobRuns(stream executorapi.ExecutorApi_LeaseJobRuns
 		err := stream.Send(&executorapi.LeaseStreamMessage{
 			Event: &executorapi.LeaseStreamMessage_Lease{
 				Lease: &executorapi.JobRunLease{
-					JobRunId: lease.RunID,
-					Queue:    lease.Queue,
-					Jobset:   lease.JobSet,
-					User:     lease.UserID,
-					Groups:   groups,
-					Job:      submitMsg,
+					JobRunId:           lease.RunID,
+					Queue:              lease.Queue,
+					Jobset:             lease.JobSet,
+					User:               lease.UserID,
+					Groups:             groups,
+					Job:                submitMsg,
+					SchedulingMetadata: schedulingMetadata,
 				},
 			},
 		})
@@ -409,4 +413,58 @@ func unmarshalFromCompressedBytes(bytes []byte, decompressor compress.Decompress
 		return err
 	}
 	return proto.Unmarshal(decompressedBytes, msg)
+}
+
+// buildSchedulingMetadata extracts gang scheduling information from the SubmitJob message
+// and builds a SchedulingMetadata protobuf message for the executor.
+
+// buildSchedulingMetadataFromLease extracts gang scheduling information from the SubmitJob message
+// and builds a SchedulingMetadata protobuf message for the executor.
+// labelValue is the actual value determined during scheduling for the gang's uniformity label.
+func buildSchedulingMetadataFromLease(submitMsg *armadaevents.SubmitJob, labelValue *string) *armadaevents.SchedulingMetadata {
+	if submitMsg == nil {
+		return nil
+	}
+
+	var gangId string
+	var cardinality uint32
+	var labelName string
+
+	if submitMsg.Gang != nil {
+		gangId = submitMsg.Gang.GangId
+		cardinality = submitMsg.Gang.Cardinality
+		labelName = submitMsg.Gang.NodeUniformityLabelName
+	} else if submitMsg.ObjectMeta != nil && submitMsg.ObjectMeta.Annotations != nil {
+		annotations := submitMsg.ObjectMeta.Annotations
+		gangId = annotations[constants.GangIdAnnotation]
+		if gangId == "" {
+			return nil
+		}
+
+		if cardinalityStr := annotations[constants.GangCardinalityAnnotation]; cardinalityStr != "" {
+			if val, err := strconv.ParseUint(cardinalityStr, 10, 32); err == nil {
+				cardinality = uint32(val)
+			}
+		}
+
+		labelName = annotations[constants.GangNodeUniformityLabelAnnotation]
+	} else {
+		return nil
+	}
+
+	var labelValueStr string
+	if labelValue != nil {
+		labelValueStr = *labelValue
+	}
+
+	gangPlacement := &schedulerobjects.GangPlacement{
+		GangId:                   gangId,
+		Cardinality:              cardinality,
+		NodeUniformityLabelName:  labelName,
+		NodeUniformityLabelValue: labelValueStr,
+	}
+
+	return &armadaevents.SchedulingMetadata{
+		GangInfo: gangPlacement,
+	}
 }

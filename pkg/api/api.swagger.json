@@ -817,6 +817,24 @@
         }
       }
     },
+    "apiGang": {
+      "type": "object",
+      "properties": {
+        "cardinality": {
+          "description": "Total number of jobs in the gang that must be scheduled together.",
+          "type": "integer",
+          "format": "int64"
+        },
+        "gangId": {
+          "description": "Unique identifier for the gang. All jobs with the same gangId are scheduled together.",
+          "type": "string"
+        },
+        "nodeUniformityLabelName": {
+          "description": "Label name to enforce node uniformity (e.g., \"kubernetes.io/hostname\", \"rack\").\nAll jobs in the gang must be scheduled on nodes with the same value for this label.",
+          "type": "string"
+        }
+      }
+    },
     "apiGetActiveQueuesRequest": {
       "type": "object"
     },
@@ -1774,6 +1792,10 @@
         },
         "clientId": {
           "type": "string"
+        },
+        "gang": {
+          "description": "Gang scheduling configuration for this job.\nIf set, this job will be gang-scheduled with other jobs sharing the same gangId.",
+          "$ref": "#/definitions/apiGang"
         },
         "ingress": {
           "type": "array",

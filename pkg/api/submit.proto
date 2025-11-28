@@ -26,6 +26,19 @@ message JobSubmitRequestItem {
     // Indicates which scheduler should manage this job.
     // If empty, the default scheduler is used.
     string scheduler = 11;
+    // Gang scheduling configuration for this job.
+    // If set, this job will be gang-scheduled with other jobs sharing the same gangId.
+    Gang gang = 13;
+}
+
+message Gang {
+    // Unique identifier for the gang. All jobs with the same gangId are scheduled together.
+    string gang_id = 1;
+    // Total number of jobs in the gang that must be scheduled together.
+    uint32 cardinality = 2;
+    // Label name to enforce node uniformity (e.g., "kubernetes.io/hostname", "rack").
+    // All jobs in the gang must be scheduled on nodes with the same value for this label.
+    string node_uniformity_label_name = 3;
 }
 
 message IngressConfig {
