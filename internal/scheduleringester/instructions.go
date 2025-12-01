@@ -11,6 +11,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
+	"github.com/armadaproject/armada/internal/common/constants"
 	"github.com/armadaproject/armada/internal/common/ingest/metrics"
 	"github.com/armadaproject/armada/internal/common/ingest/utils"
 	log "github.com/armadaproject/armada/internal/common/logging"
@@ -18,7 +19,6 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/adapters"
 	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
-	"github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/bidstore"
 	"github.com/armadaproject/armada/pkg/controlplaneevents"
@@ -167,7 +167,7 @@ func (c *JobSetEventsInstructionConverter) handleSubmitJob(job *armadaevents.Sub
 
 	pricingBand := int32(0)
 	if job.ObjectMeta != nil {
-		pricingBandValue, ok := job.ObjectMeta.Annotations[configuration.JobPriceBand]
+		pricingBandValue, ok := job.ObjectMeta.Annotations[constants.JobPriceBand]
 		if ok {
 			priceBandValue, exists := bidstore.PriceBandFromShortName[strings.ToUpper(pricingBandValue)]
 			if !exists {
@@ -545,19 +545,19 @@ func SchedulingInfoFromSubmitJob(submitJob *armadaevents.SubmitJob, submitTime t
 		schedulingInfo.PriorityClassName = podSpec.PriorityClassName
 		podRequirements := adapters.PodRequirementsFromPodSpec(podSpec)
 		if podRequirements.Annotations == nil {
-			podRequirements.Annotations = make(map[string]string, configuration.SchedulingAnnotationCount())
+			podRequirements.Annotations = make(map[string]string, constants.SchedulingAnnotationCount())
 		}
 
 		if submitJob.ObjectMeta != nil {
 			for k, v := range submitJob.ObjectMeta.Annotations {
-				if configuration.IsSchedulingAnnotation(k) {
+				if constants.IsSchedulingAnnotation(k) {
 					podRequirements.Annotations[k] = v
 				}
 			}
 		}
 		if submitJob.MainObject.ObjectMeta != nil {
 			for k, v := range submitJob.MainObject.ObjectMeta.Annotations {
-				if configuration.IsSchedulingAnnotation(k) {
+				if constants.IsSchedulingAnnotation(k) {
 					podRequirements.Annotations[k] = v
 				}
 			}

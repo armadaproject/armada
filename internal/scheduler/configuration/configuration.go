@@ -256,6 +256,7 @@ const (
 	DuplicateWellKnownNodeTypeErrorMessage     = "duplicate well-known node type name"
 	AwayNodeTypesWithoutPreemptionErrorMessage = "priority class has away node types but is not preemptible"
 	UnknownWellKnownNodeTypeErrorMessage       = "priority class refers to unknown well-known node type"
+	WildCardWellKnownNodeTypeValue             = "*"
 )
 
 // ResourceType represents a resource the scheduler indexes for efficient lookup.
@@ -296,8 +297,18 @@ type PoolConfig struct {
 	// When calculating costs assume all jobs ran for at least this long.
 	// This penalizes jobs that ran for less than this value,
 	// since they are charged the same as a job that ran for this value.
-	ShortJobPenaltyCutoff        time.Duration
-	ExperimentalMarketScheduling *MarketSchedulingConfig
+	ShortJobPenaltyCutoff         time.Duration
+	ExperimentalSubmissionGroup   string
+	ExperimentalMarketScheduling  *MarketSchedulingConfig
+	ExperimentalRunReconciliation *RunReconciliationConfig
+	DisableAwayScheduling         bool
+}
+
+func (p PoolConfig) GetSubmissionGroup() string {
+	if p.ExperimentalSubmissionGroup == "" {
+		return p.Name
+	}
+	return p.ExperimentalSubmissionGroup
 }
 
 type MarketSchedulingConfig struct {
@@ -316,6 +327,12 @@ type GangDefinition struct {
 	NodeSelector      map[string]string
 	Tolerations       []v1.Toleration
 	Resources         *armadaresource.ComputeResources
+}
+
+type RunReconciliationConfig struct {
+	Enabled                       bool
+	EnsureReservationMatch        bool
+	EnsureReservationDoesNotMatch bool
 }
 
 type OptimiserConfig struct {

@@ -18,6 +18,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	serverconfig "github.com/armadaproject/armada/internal/common/constants"
 	"github.com/armadaproject/armada/internal/common/logging"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
@@ -37,7 +38,6 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/simulator/model"
 	"github.com/armadaproject/armada/internal/scheduler/simulator/sink"
 	"github.com/armadaproject/armada/internal/scheduleringester"
-	serverconfig "github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 

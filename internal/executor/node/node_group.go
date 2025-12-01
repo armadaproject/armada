@@ -1,11 +1,13 @@
 package node
 
 import (
+	"slices"
 	"sort"
 	"strings"
 
 	v1 "k8s.io/api/core/v1"
 
+	"github.com/armadaproject/armada/internal/common/constants"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/executor/context"
 	util2 "github.com/armadaproject/armada/internal/executor/util"
@@ -23,23 +25,29 @@ type NodeInfoService interface {
 }
 
 type KubernetesNodeInfoService struct {
-	clusterContext  context.ClusterContext
-	nodeTypeLabel   string
-	nodePoolLabel   string
-	toleratedTaints map[string]bool
+	clusterContext         context.ClusterContext
+	nodeTypeLabel          string
+	nodePoolLabel          string
+	reservedNodePoolSuffix string
+	toleratedTaints        map[string]bool
 }
 
 func NewKubernetesNodeInfoService(
 	clusterContext context.ClusterContext,
 	nodeTypeLabel string,
 	nodePoolLabel string,
+	reservedNodePoolSuffix string,
 	toleratedTaints []string,
 ) *KubernetesNodeInfoService {
+	if !slices.Contains(toleratedTaints, constants.ReservationTaintKey) {
+		toleratedTaints = append(toleratedTaints, constants.ReservationTaintKey)
+	}
 	return &KubernetesNodeInfoService{
-		clusterContext:  clusterContext,
-		nodePoolLabel:   nodePoolLabel,
-		nodeTypeLabel:   nodeTypeLabel,
-		toleratedTaints: util.StringListToSet(toleratedTaints),
+		clusterContext:         clusterContext,
+		nodePoolLabel:          nodePoolLabel,
+		nodeTypeLabel:          nodeTypeLabel,
+		reservedNodePoolSuffix: reservedNodePoolSuffix,
+		toleratedTaints:        util.StringListToSet(toleratedTaints),
 	}
 }
 
@@ -78,6 +86,10 @@ func (kubernetesNodeInfoService *KubernetesNodeInfoService) GetPool(node *v1.Nod
 
 	if labelValue, ok := node.Labels[kubernetesNodeInfoService.nodePoolLabel]; ok {
 		nodePool = labelValue
+	}
+
+	if kubernetesNodeInfoService.reservedNodePoolSuffix != "" && util.GetReservationName(node.Spec.Taints) != "" {
+		nodePool += "-reserved"
 	}
 
 	return nodePool

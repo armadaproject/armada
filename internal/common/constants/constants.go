@@ -1,4 +1,4 @@
-package configuration
+package constants
 
 const (
 	// GangIdAnnotation maps to a unique id of the gang the job is part of; jobs with equal value make up a gang.
@@ -11,12 +11,28 @@ const (
 	// Specifically, if provided, all gang jobs are scheduled onto nodes for which the value of the provided label is equal.
 	// Used to ensure, e.g., that all gang jobs are scheduled onto the same cluster or rack.
 	GangNodeUniformityLabelAnnotation = "armadaproject.io/gangNodeUniformityLabel"
+
+	// internalEnvVarPrefix is the prefix for all Armada-injected environment variables
+	internalEnvVarPrefix = "ARMADA_"
+
+	// Environment variables injected into all jobs
+	JobIdEnvVar    = internalEnvVarPrefix + "JOB_ID"
+	QueueEnvVar    = internalEnvVarPrefix + "QUEUE"
+	JobSetIdEnvVar = internalEnvVarPrefix + "JOB_SET_ID"
+
+	// Additional environment variables for gang-scheduled jobs
+	GangIdEnvVar                       = internalEnvVarPrefix + "GANG_ID"
+	GangCardinalityEnvVar              = internalEnvVarPrefix + "GANG_CARDINALITY"
+	GangNodeUniformityLabelNameEnvVar  = internalEnvVarPrefix + "GANG_NODE_UNIFORMITY_LABEL_NAME"
+	GangNodeUniformityLabelValueEnvVar = internalEnvVarPrefix + "GANG_NODE_UNIFORMITY_LABEL_VALUE"
+
 	// GangNumJobsScheduledAnnotation is set by the scheduler and indicates how many gang jobs were scheduled.
 	// FailFastAnnotation, if set to true, ensures Armada does not re-schedule jobs that fail to start.
 	// Instead, the job the pod is part of fails immediately.
-	JobPriceBand       = "armadaproject.io/priceBand"
-	FailFastAnnotation = "armadaproject.io/failFast"
-	PoolAnnotation     = "armadaproject.io/pool"
+	JobPriceBand        = "armadaproject.io/priceBand"
+	FailFastAnnotation  = "armadaproject.io/failFast"
+	PoolAnnotation      = "armadaproject.io/pool"
+	ReservationTaintKey = "armadaproject.io/reservation"
 )
 
 var schedulingAnnotations = map[string]bool{
