@@ -807,10 +807,18 @@ func TestScheduler_TestCycle(t *testing.T) {
 			expectedQueued:           []string{queuedJob.Id()},
 			expectedQueuedVersion:    queuedJob.QueuedVersion(),
 		},
-		"Reconciliation failure - leased job - preempted": {
+		"Reconciliation failure - leased preemptible job - preempted": {
+			initialJobs:              []*jobdb.Job{preemptibleLeasedJob},
+			runReconciliationFailure: true,
+			expectedJobRunPreempted:  []string{preemptibleLeasedJob.Id()},
+			expectedJobErrors:        []string{preemptibleLeasedJob.Id()},
+			expectedJobRunErrors:     []string{preemptibleLeasedJob.Id()},
+			expectedTerminal:         []string{preemptibleLeasedJob.Id()},
+			expectedQueuedVersion:    preemptibleLeasedJob.QueuedVersion(),
+		},
+		"Reconciliation failure - leased non-preemptible job - failed": {
 			initialJobs:              []*jobdb.Job{leasedJob},
 			runReconciliationFailure: true,
-			expectedJobRunPreempted:  []string{leasedJob.Id()},
 			expectedJobErrors:        []string{leasedJob.Id()},
 			expectedJobRunErrors:     []string{leasedJob.Id()},
 			expectedTerminal:         []string{leasedJob.Id()},

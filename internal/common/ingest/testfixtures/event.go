@@ -39,6 +39,7 @@ const (
 	ExitCode                   = 322
 	ErrMsg                     = "sample error message"
 	DebugMsg                   = "sample debug message"
+	ReconciliationErrMsg       = "reconciliation error message"
 	LeaseReturnedMsg           = "lease returned error message"
 	UnschedulableMsg           = "test pod is unschedulable"
 	PreemptionReason           = "job preempted"
@@ -431,6 +432,26 @@ var JobPreemptionRequested = &armadaevents.EventSequence_Event{
 	Event: &armadaevents.EventSequence_Event_JobPreemptionRequested{
 		JobPreemptionRequested: &armadaevents.JobPreemptionRequested{
 			JobId: JobId,
+		},
+	},
+}
+
+var JobRunReconciliationError = &armadaevents.EventSequence_Event{
+	Created: testfixtures.BasetimeProto,
+	Event: &armadaevents.EventSequence_Event_JobRunErrors{
+		JobRunErrors: &armadaevents.JobRunErrors{
+			JobId: JobId,
+			RunId: RunId,
+			Errors: []*armadaevents.Error{
+				{
+					Terminal: true,
+					Reason: &armadaevents.Error_ReconciliationError{
+						ReconciliationError: &armadaevents.ReconciliationError{
+							Message: ReconciliationErrMsg,
+						},
+					},
+				},
+			},
 		},
 	},
 }
