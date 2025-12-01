@@ -35,7 +35,7 @@ jobs:
     outputs:
       HAS_PAGES: ${{ steps.has-pages.outputs.HAS_PAGES }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0 # Fetch full git history (not shallow), required for lastModified on content pages
 
@@ -49,7 +49,7 @@ jobs:
         if: github.repository_owner != 'armadaproject' || github.event.repository.fork == 'true'
         run: echo "NEXT_PUBLIC_BASE_PATH=/$(basename ${{ github.repository }})" >> $GITHUB_ENV
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: "lts/*"
           cache: yarn
@@ -94,7 +94,7 @@ jobs:
           NEXT_PUBLIC_GOOGLE_ANALYTICS_ID: ${{ vars.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID }}
 
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v4
         if: github.ref == 'refs/heads/master' && steps.has-pages.outputs.HAS_PAGES == 'true'
         with:
           path: website/out
