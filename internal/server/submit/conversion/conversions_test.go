@@ -150,7 +150,7 @@ func TestSubmitJobFromApiRequest(t *testing.T) {
 				{
 					ObjectMeta: &armadaevents.ObjectMeta{
 						Namespace: testfixtures.DefaultNamespace,
-						Name:      "armada-00000000000000000000000001-0-ingress-1",
+						Name:      "armada-00000000000000000000000001-0-ingress-0",
 						Annotations: map[string]string{
 							"armada_jobset_id": testfixtures.DefaultJobset,
 							"armada_owner":     testfixtures.DefaultOwner,
@@ -490,6 +490,109 @@ func TestSubmitJobFromApiRequest(t *testing.T) {
 			},
 				newClassicInitContainer(t, "init", "init-port", 5432),
 			),
+			submissionConfig: testfixtures.DefaultSubmissionConfig(),
+		},
+		"Service and Ingress port handling": {
+			jobReq: func() *api.JobSubmitRequestItem {
+				req := testfixtures.JobSubmitRequestItem(1)
+				req.Services = []*api.ServiceConfig{
+					{Type: api.ServiceType_Headless, Ports: []uint32{8080, 9000}},
+				}
+				req.Ingress = []*api.IngressConfig{
+					{Ports: []uint32{8080}},
+					{Ports: []uint32{9000}},
+				}
+				return req
+			}(),
+			expectedSubmitJob: SubmitJobMsgWithK8sObjects([]*armadaevents.KubernetesObject{
+				{
+					ObjectMeta: &armadaevents.ObjectMeta{
+						Namespace:   testfixtures.DefaultNamespace,
+						Name:        "armada-00000000000000000000000001-0-service-0",
+						Annotations: map[string]string{"armada_jobset_id": testfixtures.DefaultJobset, "armada_owner": testfixtures.DefaultOwner},
+						Labels:      map[string]string{"armada_job_id": "00000000000000000000000001", "armada_queue_id": testfixtures.DefaultQueue.Name},
+					},
+					Object: &armadaevents.KubernetesObject_Service{
+						Service: &v1.ServiceSpec{
+							Ports: []v1.ServicePort{
+								{Name: "testContainer-8080", Protocol: "TCP", Port: 8080},
+								{Name: "testContainer-9000", Protocol: "TCP", Port: 9000},
+							},
+							Selector:  map[string]string{"armada_job_id": "00000000000000000000000001"},
+							ClusterIP: "None",
+							Type:      v1.ServiceTypeClusterIP,
+						},
+					},
+				},
+				{
+					ObjectMeta: &armadaevents.ObjectMeta{
+						Namespace:   testfixtures.DefaultNamespace,
+						Name:        "armada-00000000000000000000000001-0-ingress-0",
+						Annotations: map[string]string{"armada_jobset_id": testfixtures.DefaultJobset, "armada_owner": testfixtures.DefaultOwner},
+						Labels:      map[string]string{"armada_job_id": "00000000000000000000000001", "armada_queue_id": testfixtures.DefaultQueue.Name},
+					},
+					Object: &armadaevents.KubernetesObject_Ingress{
+						Ingress: &networking.IngressSpec{
+							TLS: []networking.IngressTLS{},
+							Rules: []networking.IngressRule{
+								{
+									Host: "testContainer-8080-armada-00000000000000000000000001-0.testNamespace.",
+									IngressRuleValue: networking.IngressRuleValue{
+										HTTP: &networking.HTTPIngressRuleValue{
+											Paths: []networking.HTTPIngressPath{
+												{
+													Path:     "/",
+													PathType: &defaultIngressPathType,
+													Backend: networking.IngressBackend{
+														Service: &networking.IngressServiceBackend{
+															Name: "armada-00000000000000000000000001-0-service-0",
+															Port: networking.ServiceBackendPort{Number: 8080},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				{
+					ObjectMeta: &armadaevents.ObjectMeta{
+						Namespace:   testfixtures.DefaultNamespace,
+						Name:        "armada-00000000000000000000000001-0-ingress-1",
+						Annotations: map[string]string{"armada_jobset_id": testfixtures.DefaultJobset, "armada_owner": testfixtures.DefaultOwner},
+						Labels:      map[string]string{"armada_job_id": "00000000000000000000000001", "armada_queue_id": testfixtures.DefaultQueue.Name},
+					},
+					Object: &armadaevents.KubernetesObject_Ingress{
+						Ingress: &networking.IngressSpec{
+							TLS: []networking.IngressTLS{},
+							Rules: []networking.IngressRule{
+								{
+									Host: "testContainer-9000-armada-00000000000000000000000001-0.testNamespace.",
+									IngressRuleValue: networking.IngressRuleValue{
+										HTTP: &networking.HTTPIngressRuleValue{
+											Paths: []networking.HTTPIngressPath{
+												{
+													Path:     "/",
+													PathType: &defaultIngressPathType,
+													Backend: networking.IngressBackend{
+														Service: &networking.IngressServiceBackend{
+															Name: "armada-00000000000000000000000001-0-service-0",
+															Port: networking.ServiceBackendPort{Number: 9000},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			}),
 			submissionConfig: testfixtures.DefaultSubmissionConfig(),
 		},
 	}
