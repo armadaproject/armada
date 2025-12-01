@@ -117,7 +117,7 @@ func TestPruneDb_RemoveJobs(t *testing.T) {
 				jobsToInsert := armadaslices.Map(tc.jobs, populateRequiredJobFields)
 				err := removeTriggers(ctx, db)
 				require.NoError(t, err)
-				err = database.UpsertWithTransaction(ctx, db, "jobs", jobsToInsert)
+				err = database.UpsertWithTransaction(ctx, db, "jobs", jobsToInsert, database.WithExcludeColumns("terminated"))
 				require.NoError(t, err)
 				err = database.UpsertWithTransaction(ctx, db, "runs", tc.runs)
 				require.NoError(t, err)

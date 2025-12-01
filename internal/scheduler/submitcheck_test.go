@@ -49,6 +49,8 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 		{Name: "cpu2"},
 		{Name: "gpu"},
 		{Name: "cpu-away", AwayPools: []string{"gpu"}},
+		{Name: "cpu-grouped-1", ExperimentalSubmissionGroup: "group-1"},
+		{Name: "cpu-grouped-2", ExperimentalSubmissionGroup: "group-1"},
 	}
 
 	tests := map[string]struct {
@@ -120,6 +122,14 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 			jobs: []*jobdb.Job{smallAwayJob},
 			expectedResult: map[string]schedulingResult{
 				smallAwayJob.Id(): {isSchedulable: true, pools: []string{"cpu", "cpu-away"}},
+			},
+		},
+		"One job schedulable - scheduling group": {
+			executorTimeout: defaultTimeout,
+			executors:       []*schedulerobjects.Executor{Executor(SmallNode("cpu-grouped-1"))},
+			jobs:            []*jobdb.Job{smallJob1},
+			expectedResult: map[string]schedulingResult{
+				smallJob1.Id(): {isSchedulable: true, pools: []string{"cpu-grouped-1", "cpu-grouped-2"}},
 			},
 		},
 		"One job schedulable, multiple pools": {
