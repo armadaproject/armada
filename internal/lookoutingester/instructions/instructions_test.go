@@ -153,6 +153,13 @@ var expectedPreempted = model.UpdateJobInstruction{
 	LastTransitionTimeSeconds: pointer.Int64(testfixtures.BaseTime.Unix()),
 }
 
+var expectedReconciliationErrRun = model.UpdateJobRunInstruction{
+	RunId:       testfixtures.RunId,
+	Finished:    &testfixtures.BaseTime,
+	JobRunState: pointer.Int32(lookout.JobRunFailedOrdinal),
+	Error:       []byte(testfixtures.ReconciliationErrMsg),
+}
+
 var expectedPreemptedRun = model.UpdateJobRunInstruction{
 	RunId:       testfixtures.RunId,
 	Finished:    &testfixtures.BaseTime,
@@ -351,6 +358,16 @@ func TestConvert(t *testing.T) {
 			},
 			expected: &model.InstructionSet{
 				JobRunsToUpdate: []*model.UpdateJobRunInstruction{&expectedFailedRun},
+				MessageIds:      []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+		},
+		"job run failed - reconciliation error": {
+			events: &utils.EventsWithIds[*armadaevents.EventSequence]{
+				Events:     []*armadaevents.EventSequence{testfixtures.NewEventSequence(testfixtures.JobRunReconciliationError)},
+				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+			expected: &model.InstructionSet{
+				JobRunsToUpdate: []*model.UpdateJobRunInstruction{&expectedReconciliationErrRun},
 				MessageIds:      []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 		},
