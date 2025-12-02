@@ -93,7 +93,17 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 	scheduledResource := sch.schedulingContext.TotalResources.Factory().MakeAllZero()
 	statsPerQueue := map[string]QueueStats{}
 	loopNumber := 0
+	onlySchedulingEvictedJobs := false
 	for {
+		// Check for timeout once per iteration. When timeout occurs, switch to only
+		// yielding evicted jobs so they get a chance to be rescheduled.
+		if !onlySchedulingEvictedJobs && ctx.Err() != nil {
+			ctx.Infof("Timeout reached for pool %s, switching to evicted-only mode", sctx.Pool)
+			sctx.TerminationReason = ctx.Err().Error()
+			sch.candidateGangIterator.OnlyYieldEvicted()
+			onlySchedulingEvictedJobs = true
+		}
+
 		// Peek() returns the next gang to try to schedule. Call Clear() before calling Peek() again.
 		// Calling Clear() after (failing to) schedule ensures we get the next gang in order of smallest fair share.
 		gctx, queueCostInclGang, err := sch.candidateGangIterator.Peek()
@@ -109,14 +119,6 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 				return nil, err
 			}
 			continue
-		}
-		select {
-		case <-ctx.Done():
-			// TODO: Better to push ctx into next and have that control it.
-			err := ctx.Err()
-			sctx.TerminationReason = err.Error()
-			return nil, err
-		default:
 		}
 		start := time.Now()
 		scheduledOk, unschedulableReason, err := sch.gangScheduler.Schedule(ctx, gctx)
@@ -230,6 +232,9 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 
 	if sctx.TerminationReason == "" {
 		sctx.TerminationReason = "no remaining candidate jobs"
+	} else if ctx.Err() != nil {
+		ctx.Infof("Scheduling cycle interrupted by %s: scheduled %d jobs for pool %s",
+			sctx.TerminationReason, len(scheduledJobs), sctx.Pool)
 	}
 
 	schedulingStats := PerPoolSchedulingStats{

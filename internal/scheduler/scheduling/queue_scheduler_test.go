@@ -823,3 +823,125 @@ func TestQueueCandidateGangIteratorPQ_Fallback(t *testing.T) {
 	expectedOrder := []*QueueCandidateGangIteratorItem{queueA, queueB, queueC}
 	assert.Equal(t, expectedOrder, pq.items)
 }
+
+func TestQueueSchedulerOnTimeoutSchedulesOnlyEvictedJobs(t *testing.T) {
+	schedulingConfig := testfixtures.TestSchedulingConfig()
+	queue := &api.Queue{Name: "A", PriorityFactor: 1.0}
+
+	nodeDb, err := NewNodeDb(schedulingConfig, stringinterner.New(1024))
+	require.NoError(t, err)
+	txn := nodeDb.Txn(true)
+	for _, node := range testfixtures.N32CpuNodes(10, testfixtures.TestPriorities) {
+		err = nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, node.DeepCopyNilKeys())
+		require.NoError(t, err)
+	}
+	txn.Commit()
+
+	totalResources := nodeDb.TotalKubernetesResources()
+
+	const numEvicted = 50
+	const numNew = 100
+	evictedJobs := testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, numEvicted)
+	newJobs := testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, numNew)
+
+	evictedJctxs := context.JobSchedulingContextsFromJobs(evictedJobs)
+	evictedJobIds := make(map[string]struct{}, numEvicted)
+	for i, jctx := range evictedJctxs {
+		jctx.IsEvicted = true
+		evictedJobIds[evictedJobs[i].Id()] = struct{}{}
+	}
+	newJctxs := context.JobSchedulingContextsFromJobs(newJobs)
+
+	jobRepo := NewInMemoryJobRepository(testfixtures.TestPool, jobdb.JobPriorityComparer{})
+	jobRepo.EnqueueMany(evictedJctxs)
+	jobRepo.EnqueueMany(newJctxs)
+
+	allJobs := append(evictedJobs, newJobs...)
+
+	fairnessCostProvider, err := fairness.NewDominantResourceFairness(
+		totalResources,
+		testfixtures.TestPool,
+		schedulingConfig,
+	)
+	require.NoError(t, err)
+
+	sctx := context.NewSchedulingContext(
+		testfixtures.TestPool,
+		fairnessCostProvider,
+		rate.NewLimiter(
+			rate.Limit(schedulingConfig.MaximumSchedulingRate),
+			schedulingConfig.MaximumSchedulingBurst,
+		),
+		totalResources,
+	)
+
+	demand := testfixtures.TestResourceListFactory.MakeAllZero()
+	for _, job := range allJobs {
+		demand = demand.Add(job.AllResourceRequirements())
+	}
+	allocated := testfixtures.TestResourceListFactory.MakeAllZero()
+	allocatedByPriorityClass := map[string]internaltypes.ResourceList{}
+	queueLimiter := rate.NewLimiter(
+		rate.Limit(schedulingConfig.MaximumPerQueueSchedulingRate),
+		schedulingConfig.MaximumPerQueueSchedulingBurst,
+	)
+
+	err = sctx.AddQueueSchedulingContext(
+		queue.Name,
+		queue.PriorityFactor,
+		queue.PriorityFactor,
+		allocatedByPriorityClass,
+		demand,
+		demand,
+		allocated,
+		queueLimiter,
+	)
+	require.NoError(t, err)
+
+	jobIteratorsByQueue := make(map[string]JobContextIterator)
+	for queueName := range sctx.QueueSchedulingContexts {
+		it := jobRepo.GetJobIterator(queueName)
+		jobIteratorsByQueue[queueName] = it
+	}
+
+	constraints := schedulerconstraints.NewSchedulingConstraints(
+		testfixtures.TestPool,
+		totalResources,
+		schedulingConfig,
+		[]*api.Queue{queue},
+	)
+	sch, err := NewQueueScheduler(
+		sctx,
+		constraints,
+		nil,
+		nodeDb,
+		jobIteratorsByQueue,
+		false,
+		false,
+		true,
+		schedulingConfig.MaxQueueLookback,
+		false,
+		0,
+	)
+	require.NoError(t, err)
+
+	// Pre-cancel context to deterministically trigger evicted-only mode immediately.
+	// This guarantees no jobs are scheduled before timeout, so we can verify
+	// that ONLY evicted jobs are scheduled after OnlyYieldEvicted() is called.
+	ctx, cancel := armadacontext.WithCancel(armadacontext.Background())
+	cancel()
+
+	result, err := sch.Schedule(ctx)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	// Exactly numEvicted jobs should be scheduled (all evicted, no new)
+	assert.Len(t, result.ScheduledJobs, numEvicted)
+
+	for _, jctx := range result.ScheduledJobs {
+		_, isEvicted := evictedJobIds[jctx.JobId]
+		assert.True(t, isEvicted, "only evicted jobs should be scheduled, but got job %s", jctx.JobId)
+	}
+
+	assert.Contains(t, sctx.TerminationReason, "context canceled")
+}
