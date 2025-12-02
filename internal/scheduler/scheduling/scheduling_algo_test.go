@@ -679,7 +679,8 @@ func TestSchedule(t *testing.T) {
 			runReconciler := &testRunReconciler{}
 			sch, err := NewFairSchedulingAlgo(
 				tc.schedulingConfig,
-				0,
+				0, // maxSchedulingDuration (disabled)
+				0, // newJobsSchedulingTimeout (disabled)
 				mockExecutorRepo,
 				mockQueueCache,
 				schedulingContextRepo,
