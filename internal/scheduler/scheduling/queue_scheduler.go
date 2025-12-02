@@ -112,15 +112,19 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 		}
 		select {
 		case <-ctx.Done():
-			// TODO: Better to push ctx into next and have that control it.
-			err := ctx.Err()
-			sctx.TerminationReason = err.Error()
-			return nil, err
+			sctx.TerminationReason = ctx.Err().Error()
 		default:
+		}
+		if ctx.Err() != nil {
+			break
 		}
 		start := time.Now()
 		scheduledOk, unschedulableReason, err := sch.gangScheduler.Schedule(ctx, gctx)
 		if err != nil {
+			// If error is due to context timeout, preserve partial results
+			if ctx.Err() != nil {
+				break
+			}
 			return nil, err
 		} else if scheduledOk {
 			for _, jctx := range gctx.JobSchedulingContexts {
@@ -230,6 +234,9 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 
 	if sctx.TerminationReason == "" {
 		sctx.TerminationReason = "no remaining candidate jobs"
+	} else if ctx.Err() != nil {
+		ctx.Infof("Scheduling cycle interrupted by %s: scheduled %d jobs for pool %s",
+			sctx.TerminationReason, len(scheduledJobs), sctx.Pool)
 	}
 
 	schedulingStats := PerPoolSchedulingStats{

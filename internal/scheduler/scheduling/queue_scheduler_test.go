@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -822,4 +823,112 @@ func TestQueueCandidateGangIteratorPQ_Fallback(t *testing.T) {
 	// Will fallback to ordering by queue name in the case all queues are the same sizes etc
 	expectedOrder := []*QueueCandidateGangIteratorItem{queueA, queueB, queueC}
 	assert.Equal(t, expectedOrder, pq.items)
+}
+
+func TestQueueSchedulerPartialSchedulingOnTimeout(t *testing.T) {
+	schedulingConfig := testfixtures.TestSchedulingConfig()
+	queue := &api.Queue{Name: "A", PriorityFactor: 1.0}
+
+	nodeDb, err := NewNodeDb(schedulingConfig, stringinterner.New(1024))
+	require.NoError(t, err)
+	txn := nodeDb.Txn(true)
+	for _, node := range testfixtures.N32CpuNodes(1000, testfixtures.TestPriorities) {
+		err = nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, node.DeepCopyNilKeys())
+		require.NoError(t, err)
+	}
+	txn.Commit()
+
+	totalResources := nodeDb.TotalKubernetesResources()
+
+	// Create 50,000 jobs to ensure we can't schedule them all in 10ms.
+	jobs := testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 50000)
+
+	jobRepo := NewInMemoryJobRepository(testfixtures.TestPool, jobdb.JobPriorityComparer{})
+	jobRepo.EnqueueMany(context.JobSchedulingContextsFromJobs(jobs))
+
+	fairnessCostProvider, err := fairness.NewDominantResourceFairness(
+		totalResources,
+		testfixtures.TestPool,
+		schedulingConfig,
+	)
+	require.NoError(t, err)
+
+	sctx := context.NewSchedulingContext(
+		testfixtures.TestPool,
+		fairnessCostProvider,
+		rate.NewLimiter(
+			rate.Limit(schedulingConfig.MaximumSchedulingRate),
+			schedulingConfig.MaximumSchedulingBurst,
+		),
+		totalResources,
+	)
+
+	demand := testfixtures.TestResourceListFactory.MakeAllZero()
+	for _, job := range jobs {
+		demand = demand.Add(job.AllResourceRequirements())
+	}
+	allocated := testfixtures.TestResourceListFactory.MakeAllZero()
+	allocatedByPriorityClass := map[string]internaltypes.ResourceList{}
+	queueLimiter := rate.NewLimiter(
+		rate.Limit(schedulingConfig.MaximumPerQueueSchedulingRate),
+		schedulingConfig.MaximumPerQueueSchedulingBurst,
+	)
+
+	err = sctx.AddQueueSchedulingContext(
+		queue.Name,
+		queue.PriorityFactor,
+		queue.PriorityFactor,
+		allocatedByPriorityClass,
+		demand,
+		demand,
+		allocated,
+		queueLimiter,
+	)
+	require.NoError(t, err)
+
+	jobIteratorsByQueue := make(map[string]JobContextIterator)
+	for queueName := range sctx.QueueSchedulingContexts {
+		it := jobRepo.GetJobIterator(queueName)
+		jobIteratorsByQueue[queueName] = it
+	}
+
+	constraints := schedulerconstraints.NewSchedulingConstraints(
+		testfixtures.TestPool,
+		totalResources,
+		schedulingConfig,
+		[]*api.Queue{queue},
+	)
+	sch, err := NewQueueScheduler(
+		sctx,
+		constraints,
+		nil,
+		nodeDb,
+		jobIteratorsByQueue,
+		false,
+		false,
+		true,
+		schedulingConfig.MaxQueueLookback,
+		false,
+		0,
+	)
+	require.NoError(t, err)
+
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	result, err := sch.Schedule(ctx)
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+
+	numScheduled := len(result.ScheduledJobs)
+	assert.Greater(t, numScheduled, 0, "Should schedule at least some jobs")
+	assert.Less(t, numScheduled, 50000, "Should not schedule all jobs (should timeout)")
+
+	for _, jctx := range result.ScheduledJobs {
+		assert.NotNil(t, jctx)
+		assert.NotNil(t, jctx.PodSchedulingContext)
+		assert.True(t, jctx.PodSchedulingContext.IsSuccessful())
+	}
+
+	assert.Contains(t, sctx.TerminationReason, "deadline exceeded")
 }
