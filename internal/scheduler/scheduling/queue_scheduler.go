@@ -2,6 +2,7 @@ package scheduling
 
 import (
 	"container/heap"
+	"context"
 	"fmt"
 	"math"
 	"reflect"
@@ -18,6 +19,16 @@ import (
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/fairness"
 )
+
+// isContextFinishedErr returns true if the error is due to context cancellation or deadline exceeded.
+func isContextFinishedErr(err error) bool {
+	return errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled)
+}
+
+// schedulingTimeoutReason formats a context error as a scheduling timeout termination reason.
+func schedulingTimeoutReason(err error) string {
+	return fmt.Sprintf("scheduling timeout: %s", err.Error())
+}
 
 type CandidateGangIterator interface {
 	Peek() (*schedulercontext.GangSchedulingContext, float64, error)
@@ -93,11 +104,30 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 	scheduledResource := sch.schedulingContext.TotalResources.Factory().MakeAllZero()
 	statsPerQueue := map[string]QueueStats{}
 	loopNumber := 0
+	onlySchedulingEvictedJobs := false
 	for {
+		// Check for timeout once per iteration. When timeout occurs, switch to only
+		// yielding evicted jobs so they get a chance to be rescheduled.
+		if !onlySchedulingEvictedJobs && ctx.Err() != nil {
+			ctx.Infof("Timeout reached for pool %s, switching to evicted-only mode", sctx.Pool)
+			sctx.TerminationReason = schedulingTimeoutReason(ctx.Err())
+			sch.candidateGangIterator.OnlyYieldEvicted()
+			onlySchedulingEvictedJobs = true
+		}
+
 		// Peek() returns the next gang to try to schedule. Call Clear() before calling Peek() again.
 		// Calling Clear() after (failing to) schedule ensures we get the next gang in order of smallest fair share.
 		gctx, queueCostInclGang, err := sch.candidateGangIterator.Peek()
 		if err != nil {
+			// If the error is from context timeout/cancellation, switch to evicted-only mode
+			// instead of returning an error, so evicted jobs can still be rescheduled.
+			if !onlySchedulingEvictedJobs && isContextFinishedErr(err) {
+				ctx.Infof("Timeout reached for pool %s, switching to evicted-only mode", sctx.Pool)
+				sctx.TerminationReason = schedulingTimeoutReason(err)
+				sch.candidateGangIterator.OnlyYieldEvicted()
+				onlySchedulingEvictedJobs = true
+				continue
+			}
 			sctx.TerminationReason = err.Error()
 			return nil, err
 		}
@@ -109,14 +139,6 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 				return nil, err
 			}
 			continue
-		}
-		select {
-		case <-ctx.Done():
-			// TODO: Better to push ctx into next and have that control it.
-			err := ctx.Err()
-			sctx.TerminationReason = err.Error()
-			return nil, err
-		default:
 		}
 		start := time.Now()
 		scheduledOk, unschedulableReason, err := sch.gangScheduler.Schedule(ctx, gctx)
@@ -200,9 +222,23 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 			ctx.Infof("Slow schedule: queue %s, gang cardinality %d, sample job id %s, time %fs", gctx.Queue, gctx.Cardinality(), gctx.JobIds()[0], duration.Seconds())
 		}
 
+		// Check for timeout after scheduling (may have occurred during gangScheduler.Schedule).
+		// Must switch to evicted-only mode before Clear() to avoid context errors from iterators.
+		if !onlySchedulingEvictedJobs && ctx.Err() != nil {
+			ctx.Infof("Timeout reached for pool %s, switching to evicted-only mode", sctx.Pool)
+			sctx.TerminationReason = schedulingTimeoutReason(ctx.Err())
+			sch.candidateGangIterator.OnlyYieldEvicted()
+			onlySchedulingEvictedJobs = true
+		}
+
 		// Clear() to get the next gang in order of smallest fair share.
 		// Calling clear here ensures the gang scheduled in this iteration is accounted for.
 		if err := sch.candidateGangIterator.Clear(); err != nil {
+			// Handle rare race: timeout occurred between ctx.Err() check above and Clear().
+			if !onlySchedulingEvictedJobs && isContextFinishedErr(err) {
+				sctx.TerminationReason = schedulingTimeoutReason(err)
+				break
+			}
 			return nil, err
 		}
 
@@ -230,6 +266,9 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 
 	if sctx.TerminationReason == "" {
 		sctx.TerminationReason = "no remaining candidate jobs"
+	} else if ctx.Err() != nil {
+		ctx.Infof("Scheduling cycle interrupted by %s: scheduled %d jobs for pool %s",
+			sctx.TerminationReason, len(scheduledJobs), sctx.Pool)
 	}
 
 	schedulingStats := PerPoolSchedulingStats{
@@ -496,6 +535,11 @@ func (it *CostBasedCandidateGangIterator) updatePQItem(item *QueueCandidateGangI
 	item.itemSize = 0
 	gctx, err := item.it.Peek()
 	if err != nil {
+		// If we're in evicted-only mode and hit a context error, all evicted jobs have already been
+		// yielded, so we can safely skip this queue.
+		if it.onlyYieldEvicted && isContextFinishedErr(err) {
+			return nil
+		}
 		return err
 	}
 	if gctx == nil {
