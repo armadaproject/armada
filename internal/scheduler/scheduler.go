@@ -165,65 +165,73 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 			ctx.Infof("context cancelled; returning.")
 			return ctx.Err()
 		case <-ticker.C():
-			start := s.clock.Now()
-			s.shortJobPenalty.SetNow(start)
-			cycleNumber++
-			ctx := armadacontext.WithLogField(ctx, "cycleNumber", cycleNumber)
-			leaderToken := s.leaderController.GetToken()
-			fullUpdate := false
-			ctx.Infof("received leaderToken; leader status is %t", leaderToken.Leader())
+			func() {
+				start := s.clock.Now()
+				s.shortJobPenalty.SetNow(start)
+				cycleNumber++
+				ctx := armadacontext.WithLogField(ctx, "cycleNumber", cycleNumber)
 
-			// If we are becoming leader then we must ensure we have caught up to all Pulsar messages
-			if leaderToken.Leader() && leaderToken != prevLeaderToken {
-				ctx.Infof("becoming leader")
-				syncContext, cancel := armadacontext.WithTimeout(ctx, 5*time.Minute)
-				err := s.ensureDbUpToDate(syncContext, 1*time.Second)
-				if err != nil {
-					ctx.Logger().WithStacktrace(err).Error("could not become leader")
-					leaderToken = leader.InvalidLeaderToken()
-				} else {
-					fullUpdate = true
+				ctx.Logger().Infof("starting scheduler cycle")
+				defer func(ctx *armadacontext.Context) {
+					ctx.Logger().Infof("finished scheduler cycle")
+				}(ctx)
+
+				leaderToken := s.leaderController.GetToken()
+				fullUpdate := false
+				ctx.Infof("received leaderToken; leader status is %t", leaderToken.Leader())
+
+				// If we are becoming leader then we must ensure we have caught up to all Pulsar messages
+				if leaderToken.Leader() && leaderToken != prevLeaderToken {
+					ctx.Infof("becoming leader")
+					syncContext, cancel := armadacontext.WithTimeout(ctx, 5*time.Minute)
+					err := s.ensureDbUpToDate(syncContext, 1*time.Second)
+					if err != nil {
+						ctx.Logger().WithStacktrace(err).Error("could not become leader")
+						leaderToken = leader.InvalidLeaderToken()
+					} else {
+						fullUpdate = true
+					}
+					cancel()
 				}
-				cancel()
-			}
 
-			// Run a scheduler cycle.
-			//
-			// If there is an error, we can't guarantee that the scheduler-internal state is consistent with what was published
-			// (scheduling decisions may have been partially published)
-			// and we must invalidate the held leader token to trigger flushing Pulsar at the next cycle.
-			//
-			// TODO: Once the Pulsar client supports transactions, we can guarantee consistency even in case of errors.
-			shouldSchedule := s.clock.Now().Sub(previousSchedulingRoundEnd) > s.schedulePeriod
-			if !shouldSchedule {
-				ctx.Info("Won't schedule this cycle as still within schedulePeriod")
-			}
+				// Run a scheduler cycle.
+				//
+				// If there is an error, we can't guarantee that the scheduler-internal state is consistent with what was published
+				// (scheduling decisions may have been partially published)
+				// and we must invalidate the held leader token to trigger flushing Pulsar at the next cycle.
+				//
+				// TODO: Once the Pulsar client supports transactions, we can guarantee consistency even in case of errors.
+				shouldSchedule := s.clock.Now().Sub(previousSchedulingRoundEnd) > s.schedulePeriod
+				if !shouldSchedule {
+					ctx.Info("Won't schedule this cycle as still within schedulePeriod")
+				}
 
-			result, err := s.cycle(ctx, fullUpdate, leaderToken, shouldSchedule, cycleNumber)
-			if shouldSchedule {
-				previousSchedulingRoundEnd = s.clock.Now()
-			}
-			if err != nil {
-				ctx.Logger().WithStacktrace(err).Error("scheduling cycle failure")
-				leaderToken = leader.InvalidLeaderToken()
-			}
+				result, err := s.cycle(ctx, fullUpdate, leaderToken, shouldSchedule, cycleNumber)
+				if shouldSchedule {
+					previousSchedulingRoundEnd = s.clock.Now()
+				}
+				if err != nil {
+					ctx.Logger().WithStacktrace(err).Error("scheduling cycle failure")
+					leaderToken = leader.InvalidLeaderToken()
+				}
 
-			cycleTime := s.clock.Since(start)
+				cycleTime := s.clock.Since(start)
 
-			if shouldSchedule && leaderToken.Leader() {
-				// Only the leader does real scheduling rounds.
-				s.metrics.ReportScheduleCycleTime(cycleTime)
-				s.metrics.ReportSchedulerResult(ctx, result)
-				ctx.Infof("scheduling cycle completed in %s", cycleTime)
-			} else {
-				s.metrics.ReportReconcileCycleTime(cycleTime)
-				ctx.Infof("reconciliation cycle completed in %s", cycleTime)
-			}
+				if shouldSchedule && leaderToken.Leader() {
+					// Only the leader does real scheduling rounds.
+					s.metrics.ReportScheduleCycleTime(cycleTime)
+					s.metrics.ReportSchedulerResult(ctx, result)
+					ctx.Infof("scheduling cycle completed in %s", cycleTime)
+				} else {
+					s.metrics.ReportReconcileCycleTime(cycleTime)
+					ctx.Infof("reconciliation cycle completed in %s", cycleTime)
+				}
 
-			prevLeaderToken = leaderToken
-			if s.onCycleCompleted != nil {
-				s.onCycleCompleted()
-			}
+				prevLeaderToken = leaderToken
+				if s.onCycleCompleted != nil {
+					s.onCycleCompleted()
+				}
+			}()
 		}
 	}
 }
@@ -254,6 +262,10 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 //     As state transitions are persisted and read back from the schedulerDb over later cycles,
 //     there is no change to the jobDb, since the correct changes have already been made.
 func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToken leader.LeaderToken, shouldSchedule bool, cycleNumber int) (scheduling.SchedulerResult, error) {
+	ctx.Logger().Infof("starting cycle")
+	defer func(ctx *armadacontext.Context) {
+		ctx.Logger().Infof("finished cycle")
+	}(ctx)
 	// TODO: Consider returning a slice of these instead.
 	overallSchedulerResult := scheduling.SchedulerResult{}
 
@@ -336,7 +348,7 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	if shouldSchedule {
 		start := time.Now()
 
-		preemptionEvents, err := s.preemptRunsWithMismatchingNodes(ctx, txn)
+		preemptionEvents, err := s.removeRunsThatNoLongerReconcile(ctx, txn)
 		if err != nil {
 			return overallSchedulerResult, err
 		}
@@ -631,6 +643,30 @@ func AppendEventSequencesFromPreemptedJobs(eventSequences []*armadaevents.EventS
 		})
 	}
 	return eventSequences, nil
+}
+
+func createEventsForFailedJob(jobId string, runId string, error *armadaevents.Error, time time.Time) []*armadaevents.EventSequence_Event {
+	return []*armadaevents.EventSequence_Event{
+		{
+			Created: protoutil.ToTimestamp(time),
+			Event: &armadaevents.EventSequence_Event_JobRunErrors{
+				JobRunErrors: &armadaevents.JobRunErrors{
+					RunId:  runId,
+					JobId:  jobId,
+					Errors: []*armadaevents.Error{error},
+				},
+			},
+		},
+		{
+			Created: protoutil.ToTimestamp(time),
+			Event: &armadaevents.EventSequence_Event_JobErrors{
+				JobErrors: &armadaevents.JobErrors{
+					JobId:  jobId,
+					Errors: []*armadaevents.Error{error},
+				},
+			},
+		},
+	}
 }
 
 func createEventsForPreemptedJob(jobId string, runId string, reason string, time time.Time) []*armadaevents.EventSequence_Event {
@@ -957,7 +993,7 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 	return nil, nil
 }
 
-func (s *Scheduler) preemptRunsWithMismatchingNodes(ctx *armadacontext.Context, txn *jobdb.Txn) ([]*armadaevents.EventSequence, error) {
+func (s *Scheduler) removeRunsThatNoLongerReconcile(ctx *armadacontext.Context, txn *jobdb.Txn) ([]*armadaevents.EventSequence, error) {
 	invalidJobs, err := s.runNodeReconciler.ReconcileJobRuns(ctx, txn)
 	if err != nil {
 		return nil, fmt.Errorf("failed to reconcile runs with nodes because - %s", err)
@@ -971,18 +1007,41 @@ func (s *Scheduler) preemptRunsWithMismatchingNodes(ctx *armadacontext.Context, 
 		}
 
 		now := s.clock.Now()
+
 		job = job.WithQueued(false).WithFailed(true)
 		run := job.LatestRun()
-		job = job.WithUpdatedRun(run.WithFailed(true).WithPreemptedTime(&now))
-		jobsToUpdate = append(jobsToUpdate, job)
-		s.metrics.ReportJobPreemptedWithType(job, schedulercontext.PreemptedViaNodeReconciler)
+		job = job.WithUpdatedRun(run.WithFailed(true))
 
-		es := &armadaevents.EventSequence{
-			Queue:      job.Queue(),
-			JobSetName: job.Jobset(),
-			Events:     createEventsForPreemptedJob(job.Id(), run.Id(), invalidJobInfo.Reason, now),
+		if job.PriorityClass().Preemptible {
+			run = run.WithPreemptedTime(&now)
 		}
-		events = append(events, es)
+
+		jobsToUpdate = append(jobsToUpdate, job)
+
+		if job.PriorityClass().Preemptible {
+			s.metrics.ReportJobPreemptedWithType(job, schedulercontext.PreemptedViaNodeReconciler)
+			es := &armadaevents.EventSequence{
+				Queue:      job.Queue(),
+				JobSetName: job.Jobset(),
+				Events:     createEventsForPreemptedJob(job.Id(), run.Id(), invalidJobInfo.Reason, now),
+			}
+			events = append(events, es)
+		} else {
+			reconciliationError := &armadaevents.Error{
+				Terminal: true,
+				Reason: &armadaevents.Error_ReconciliationError{
+					ReconciliationError: &armadaevents.ReconciliationError{
+						Message: invalidJobInfo.Reason,
+					},
+				},
+			}
+			es := &armadaevents.EventSequence{
+				Queue:      job.Queue(),
+				JobSetName: job.Jobset(),
+				Events:     createEventsForFailedJob(job.Id(), run.Id(), reconciliationError, now),
+			}
+			events = append(events, es)
+		}
 	}
 
 	if err := txn.Upsert(jobsToUpdate); err != nil {
@@ -1045,27 +1104,7 @@ func (s *Scheduler) expireJobsIfNecessary(ctx *armadacontext.Context, txn *jobdb
 			es := &armadaevents.EventSequence{
 				Queue:      job.Queue(),
 				JobSetName: job.Jobset(),
-				Events: []*armadaevents.EventSequence_Event{
-					{
-						Created: s.now(),
-						Event: &armadaevents.EventSequence_Event_JobRunErrors{
-							JobRunErrors: &armadaevents.JobRunErrors{
-								RunId:  run.Id(),
-								JobId:  job.Id(),
-								Errors: []*armadaevents.Error{leaseExpiredError},
-							},
-						},
-					},
-					{
-						Created: s.now(),
-						Event: &armadaevents.EventSequence_Event_JobErrors{
-							JobErrors: &armadaevents.JobErrors{
-								JobId:  job.Id(),
-								Errors: []*armadaevents.Error{leaseExpiredError},
-							},
-						},
-					},
-				},
+				Events:     createEventsForFailedJob(job.Id(), run.Id(), leaseExpiredError, s.clock.Now()),
 			}
 			events = append(events, es)
 		}
