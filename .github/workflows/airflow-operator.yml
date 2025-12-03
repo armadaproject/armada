@@ -7,49 +7,49 @@ on:
     branches:
       - master
     paths:
-      - '.github/workflows/airflow-operator.yml'
-      - '.github/workflows/python-client.yml'
-      - '.github/workflows/python-tests/*'
-      - 'build/airflow-operator/**'
-      - 'build/python-client/**'
-      - 'client/python/**'
-      - 'docs/python_airflow_operator.md'
-      - 'docs/python_armada_client.md'
-      - 'pkg/api/*.proto'
-      - 'scripts/build-python-client.sh'
-      - 'third_party/airflow/**'
-      - './magefiles/tests.go'
-      - './magefiles/python.go'
+      - ".github/workflows/airflow-operator.yml"
+      - ".github/workflows/python-client.yml"
+      - ".github/workflows/python-tests/*"
+      - "build/airflow-operator/**"
+      - "build/python-client/**"
+      - "client/python/**"
+      - "docs/python_airflow_operator.md"
+      - "docs/python_armada_client.md"
+      - "pkg/api/*.proto"
+      - "scripts/build-python-client.sh"
+      - "third_party/airflow/**"
+      - "./magefiles/tests.go"
+      - "./magefiles/python.go"
 
   pull_request:
     branches-ignore:
       - gh-pages
     paths:
-      - '.github/workflows/airflow-operator.yml'
-      - '.github/workflows/python-client.yml'
-      - '.github/workflows/python-tests/*'
-      - 'build/airflow-operator/**'
-      - 'build/python-client/**'
-      - 'client/python/**'
-      - 'docs/python_airflow_operator.md'
-      - 'docs/python_armada_client.md'
-      - 'pkg/api/*.proto'
-      - 'scripts/build-python-client.sh'
-      - 'third_party/airflow/**'
+      - ".github/workflows/airflow-operator.yml"
+      - ".github/workflows/python-client.yml"
+      - ".github/workflows/python-tests/*"
+      - "build/airflow-operator/**"
+      - "build/python-client/**"
+      - "client/python/**"
+      - "docs/python_airflow_operator.md"
+      - "docs/python_armada_client.md"
+      - "pkg/api/*.proto"
+      - "scripts/build-python-client.sh"
+      - "third_party/airflow/**"
 
 jobs:
   airflow-tox:
     runs-on: ubuntu-22.04
     strategy:
       matrix:
-        python: [ '3.10', '3.11', '3.12' ]
+        python: ["3.10", "3.11", "3.12"]
         include:
-          - tox-env: 'py310'
-            python: '3.10'
-          - tox-env: 'py311'
-            python: '3.11'
-          - tox-env: 'py312'
-            python: '3.12'
+          - tox-env: "py310"
+            python: "3.10"
+          - tox-env: "py311"
+            python: "3.11"
+          - tox-env: "py312"
+            python: "3.12"
     steps:
       - uses: actions/checkout@v4
       - name: Setup Go
@@ -59,7 +59,7 @@ jobs:
       - name: Install Protoc
         uses: arduino/setup-protoc@v3
         with:
-          version: '23.3'
+          version: "23.3"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - run: go run github.com/magefile/mage@v1.14.0 -v airflowOperator
       - uses: ./.github/workflows/python-tests
@@ -72,7 +72,7 @@ jobs:
     if: github.repository_owner == 'armadaproject'
     # As of December 2022, using 8vcpu runners is slower overall,
     # due to longer queue times.
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     env:
       # This variable is picked up by the goreleaser config.
       DOCKER_BUILDX_BUILDER: "builder"
@@ -85,7 +85,7 @@ jobs:
         uses: ./.github/actions/setup-go-cache
         with:
           cache-prefix: airflow-integration-tests
-          cache-tools: true
+          cache-tools: false
 
       - name: Setup and run integration tests
         run: |
@@ -96,6 +96,6 @@ jobs:
       - name: Install Protoc
         uses: arduino/setup-protoc@v3
         with:
-          version: '23.3'
+          version: "23.3"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - run: go run github.com/magefile/mage@v1.14.0 -v teste2eAirflow
