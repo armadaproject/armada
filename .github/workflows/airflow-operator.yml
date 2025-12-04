@@ -77,15 +77,19 @@ jobs:
       # This variable is picked up by the goreleaser config.
       DOCKER_BUILDX_BUILDER: "builder"
     steps:
+      - name: Prune Docker System
+        run: docker system prune -af
+      - name: Remove old caches
+        run: sudo rm -rf /home/runner/.cache/*
       - uses: actions/checkout@v4
       - run: docker buildx create --name ${DOCKER_BUILDX_BUILDER} --driver docker-container --use
       - run: docker buildx install
-
-      - name: Setup Go
-        uses: ./.github/actions/setup-go-cache
+      - id: setup-go
+        uses: actions/setup-go@v5
         with:
-          cache-prefix: airflow-integration-tests
-          cache-tools: false
+          go-version: "1.25"
+          check-latest: true
+          cache: false
 
       - name: Setup and run integration tests
         run: |
