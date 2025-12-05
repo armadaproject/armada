@@ -215,8 +215,13 @@
           "x-go-name": "SinceTime",
           "x-go-type": "k8s.io/apimachinery/pkg/apis/meta/v1.Time"
         },
+        "stream": {
+          "description": "Specify which container log stream to return to the client.\nAcceptable values are \"All\", \"Stdout\" and \"Stderr\". If not specified, \"All\" is used, and both stdout and stderr\nare returned interleaved.\nNote that when \"TailLines\" is specified, \"Stream\" can only be set to nil or \"All\".\n+featureGate=PodLogsQuerySplitStreams\n+optional",
+          "type": "string",
+          "x-go-name": "Stream"
+        },
         "tailLines": {
-          "description": "If set, the number of lines from the end of the logs to show. If not specified,\nlogs are shown from the creation of the container or sinceSeconds or sinceTime\n+optional",
+          "description": "If set, the number of lines from the end of the logs to show. If not specified,\nlogs are shown from the creation of the container or sinceSeconds or sinceTime.\nNote that when \"TailLines\" is specified, \"Stream\" can only be set to nil or \"All\".\n+optional",
           "type": "integer",
           "format": "int64",
           "x-go-name": "TailLines"
