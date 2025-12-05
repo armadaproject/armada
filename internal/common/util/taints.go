@@ -7,6 +7,7 @@ import (
 )
 
 const EmptyReservationName = "unspecified"
+const NoReservationName = "none"
 
 func GetReservationName(taints []v1.Taint) string {
 	for _, taint := range taints {
@@ -17,5 +18,5 @@ func GetReservationName(taints []v1.Taint) string {
 			return taint.Value
 		}
 	}
-	return ""
+	return NoReservationName
 }
