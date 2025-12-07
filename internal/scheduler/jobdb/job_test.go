@@ -8,10 +8,10 @@ import (
 	v1 "k8s.io/api/core/v1"
 	k8sResource "k8s.io/apimachinery/pkg/api/resource"
 
+	armadaconfiguration "github.com/armadaproject/armada/internal/common/constants"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/pricing"
-	armadaconfiguration "github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/armadaproject/armada/pkg/bidstore"
 )
 
@@ -25,6 +25,12 @@ var jobSchedulingInfo = &internaltypes.JobSchedulingInfo{
 		},
 		Annotations: map[string]string{
 			"foo": "bar",
+		},
+		Tolerations: []v1.Toleration{
+			{
+				Key:   armadaconfiguration.ReservationTaintKey,
+				Value: "reservation-1",
+			},
 		},
 	},
 }
@@ -122,6 +128,14 @@ func TestJob_TestPriority(t *testing.T) {
 	newJob := baseJob.WithPriority(3)
 	assert.Equal(t, uint32(2), baseJob.Priority())
 	assert.Equal(t, uint32(3), newJob.Priority())
+}
+
+func TestJob_Reservation(t *testing.T) {
+	newJob := baseJob.WithPriority(3)
+	assert.Equal(t, []string{"reservation-1"}, newJob.GetReservations())
+
+	assert.True(t, newJob.MatchesReservation("reservation-1"))
+	assert.False(t, newJob.MatchesReservation("reservation-2"))
 }
 
 func TestJob_TestRequestedPriority(t *testing.T) {

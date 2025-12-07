@@ -25,7 +25,7 @@ type ReprioritizeJobSetsDialogProps = {
   onClose: () => void
 }
 
-export function getReprioritizeableJobSets(jobSets: JobSet[]): JobSet[] {
+export function getReprioritizableJobSets(jobSets: JobSet[]): JobSet[] {
   return jobSets.filter((jobSet) => jobSet.jobsQueued > 0)
 }
 
@@ -38,7 +38,7 @@ export default function ReprioritizeJobSetsDialog(props: ReprioritizeJobSetsDial
   const [requestStatus, setRequestStatus] = useState<RequestStatus>("Idle")
   const [priority, setPriority] = useState<string>("")
 
-  const jobSetsToReprioritize = getReprioritizeableJobSets(props.selectedJobSets)
+  const jobSetsToReprioritize = getReprioritizableJobSets(props.selectedJobSets)
 
   const getAccessToken = useGetAccessToken()
 

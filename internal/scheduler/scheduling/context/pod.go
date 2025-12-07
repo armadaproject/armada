@@ -28,6 +28,7 @@ const (
 	PreemptedWithUrgencyPreemption   PreemptionType = "urgency"
 	PreemptedWithOptimiserPreemption PreemptionType = "optimiser"
 	PreemptedViaApi                  PreemptionType = "api"
+	PreemptedViaNodeReconciler       PreemptionType = "reconciler"
 )
 
 // PodSchedulingContext is returned by SelectAndBindNodeToPod and
