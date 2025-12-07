@@ -607,9 +607,6 @@ func TestMetricsCollector_TestCollect_ClusterMetricsAvailableCapacity(t *testing
 			for i := 0; i < len(tc.expected); i++ {
 				// As resources are a map, the ordering isn't deterministic, so we have to use compare
 				// Alternatively if we can work out how to sort prometheus.Metric we could do that instead
-				if !assert.Contains(t, actual, tc.expected[i]) {
-					fmt.Println("here")
-				}
 				assert.Contains(t, actual, tc.expected[i])
 			}
 		})
