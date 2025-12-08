@@ -88,7 +88,7 @@ func (kubernetesNodeInfoService *KubernetesNodeInfoService) GetPool(node *v1.Nod
 		nodePool = labelValue
 	}
 
-	if kubernetesNodeInfoService.reservedNodePoolSuffix != "" && util.GetReservationName(node.Spec.Taints) != "" {
+	if kubernetesNodeInfoService.reservedNodePoolSuffix != "" && util.GetReservationName(node.Spec.Taints) != util.NoReservationName {
 		nodePool += "-reserved"
 	}
 
