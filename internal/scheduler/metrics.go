@@ -367,7 +367,8 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 			uncordonedNodeResources := node.AvailableArmadaResource()
 			nodeResources := node.AvailableArmadaResource()
 
-			if !node.Unschedulable && cordonedStatusByCluster[executor.Id].status != 1.0 {
+			isNodeSchedulable := !node.Unschedulable && cordonedStatusByCluster[executor.Id].status != 1.0
+			if isNodeSchedulable {
 				schedulableNodeCountByCluster[clusterKey]++
 			} else {
 				// We still want to publish these metrics, just with zeroed values
@@ -437,7 +438,10 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 						if jobPool == nodePool {
 							for _, awayClusterKey := range awayClusterKeys {
 								subtractFromResourceListMap(totalResourceByCluster, awayClusterKey, jobRequirements)
-								subtractFromResourceListMap(availableResourceByCluster, awayClusterKey, jobRequirements)
+								if isNodeSchedulable {
+									// Don't subtract for non-schedule nodes, as their available resource is already 0
+									subtractFromResourceListMap(availableResourceByCluster, awayClusterKey, jobRequirements)
+								}
 							}
 						}
 					}
@@ -517,5 +521,6 @@ func subtractFromResourceListMap[K comparable](m map[K]resource.ComputeResources
 	}
 	newValue := m[key]
 	newValue.Sub(value)
+	newValue.LimitToZero()
 	m[key] = newValue
 }
