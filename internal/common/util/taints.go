@@ -6,8 +6,10 @@ import (
 	"github.com/armadaproject/armada/internal/common/constants"
 )
 
-const EmptyReservationName = "unspecified"
-const NoReservationName = "none"
+const (
+	EmptyReservationName = "unspecified"
+	NoReservationName    = "none"
+)
 
 func GetReservationName(taints []v1.Taint) string {
 	for _, taint := range taints {
