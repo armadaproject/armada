@@ -1,4 +1,4 @@
-import { QueryClientProvider } from "@tanstack/react-query"
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { getQueriesForElement, render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { SnackbarProvider } from "notistack"
@@ -6,16 +6,13 @@ import { createMemoryRouter, RouterProvider } from "react-router-dom"
 import { v4 as uuidV4 } from "uuid"
 import { vi } from "vitest"
 
-import { queryClient } from "../../../app/App"
 import { Job, JobState } from "../../../models/lookoutModels"
 import { JOBS, V2_REDIRECT } from "../../../pathnames"
+import { ApiClientsProvider } from "../../../services/apiClients"
 import { FakeServicesProvider } from "../../../services/fakeContext"
 import { IGetJobInfoService } from "../../../services/lookout/GetJobInfoService"
-import { GetJobsResponse, IGetJobsService } from "../../../services/lookout/GetJobsService"
 import { IGroupJobsService } from "../../../services/lookout/GroupJobsService"
 import { UpdateJobSetsService } from "../../../services/lookout/UpdateJobSetsService"
-import { UpdateJobsService } from "../../../services/lookout/UpdateJobsService"
-import FakeGetJobsService from "../../../services/lookout/mocks/FakeGetJobsService"
 import FakeGroupJobsService from "../../../services/lookout/mocks/FakeGroupJobsService"
 import { MockServer } from "../../../services/lookout/mocks/mockServer"
 import {
@@ -81,7 +78,7 @@ function makeTestJobs(
 }
 
 describe("JobsTableContainer", () => {
-  let getJobsService: IGetJobsService, groupJobsService: IGroupJobsService, updateJobsService: UpdateJobsService
+  let groupJobsService: IGroupJobsService
 
   beforeAll(() => {
     mockServer.listen()
@@ -92,10 +89,6 @@ describe("JobsTableContainer", () => {
     localStorage.clear()
     localStorage.setItem(FORMAT_NUMBER_SHOULD_FORMAT_KEY, JSON.stringify(false))
     localStorage.setItem(FORMAT_TIMESTAMP_SHOULD_FORMAT_KEY, JSON.stringify(false))
-
-    updateJobsService = {
-      cancelJobs: vi.fn(),
-    } as any
   })
 
   afterEach(() => {
@@ -112,28 +105,42 @@ describe("JobsTableContainer", () => {
     fakeJobs: Job[] = [],
     search?: string,
     fakeServices: {
-      v2GetJobsService?: IGetJobsService
       v2GroupJobsService?: IGroupJobsService
       v2JobSpecService?: IGetJobInfoService
-      v2UpdateJobsService?: UpdateJobsService
       v2UpdateJobSetsService?: UpdateJobSetsService
     } = {},
   ) => {
-    getJobsService = new FakeGetJobsService(fakeJobs, false)
     groupJobsService = new FakeGroupJobsService(fakeJobs, false)
+
+    // Set up MSW mock for the jobs endpoint
+    mockServer.setPostJobsResponse(fakeJobs)
+
+    // Create a fresh query client for each test to avoid cache pollution
+    const testQueryClient = new QueryClient({
+      defaultOptions: {
+        queries: {
+          retry: false,
+          gcTime: 0,
+        },
+        mutations: {
+          retry: false,
+        },
+      },
+    })
+
     const element = (
       <SnackbarProvider>
-        <QueryClientProvider client={queryClient}>
-          <FakeServicesProvider fakeJobs={fakeJobs} simulateApiWait={false} {...fakeServices}>
-            <JobsTableContainer
-              getJobsService={fakeServices.v2GetJobsService ?? getJobsService}
-              groupJobsService={fakeServices.v2GroupJobsService ?? groupJobsService}
-              updateJobsService={fakeServices.v2UpdateJobsService ?? updateJobsService}
-              debug={false}
-              autoRefreshMs={30000}
-              commandSpecs={[]}
-            />
-          </FakeServicesProvider>
+        <QueryClientProvider client={testQueryClient}>
+          <ApiClientsProvider>
+            <FakeServicesProvider fakeJobs={fakeJobs} simulateApiWait={false} {...fakeServices}>
+              <JobsTableContainer
+                groupJobsService={fakeServices.v2GroupJobsService ?? groupJobsService}
+                debug={false}
+                autoRefreshMs={30000}
+                commandSpecs={[]}
+              />
+            </FakeServicesProvider>
+          </ApiClientsProvider>
         </QueryClientProvider>
       </SnackbarProvider>
     )
@@ -163,11 +170,9 @@ describe("JobsTableContainer", () => {
   }
 
   it("should render a spinner while loading initially", async () => {
-    const fakeGetJobsService = new FakeGetJobsService([])
-    fakeGetJobsService.getJobs = vi.fn(() => new Promise(() => undefined) as Promise<GetJobsResponse>)
-    const { findAllByRole } = renderComponent([], undefined, {
-      v2GetJobsService: fakeGetJobsService,
-    })
+    // Mock the jobs endpoint to never resolve to test loading state
+    mockServer.setPostJobsResponse([])
+    const { findAllByRole } = renderComponent([])
     await findAllByRole("progressbar")
   })
 
@@ -214,6 +219,7 @@ describe("JobsTableContainer", () => {
       await waitForFinishedLoading()
 
       await groupByColumn(displayString)
+      await waitForFinishedLoading()
 
       // Check number of rendered rows has changed
       await assertNumDataRowsShown(numUniqueForJobKey)

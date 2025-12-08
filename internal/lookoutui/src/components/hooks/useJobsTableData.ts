@@ -28,7 +28,6 @@ import { getErrorMessage } from "../../common/utils"
 import { JobGroupRow, JobRow, JobTableRow } from "../../models/jobsTableModels"
 import { AggregateType, Job, JobFilter, JobId, JobOrder, Match } from "../../models/lookoutModels"
 import { useAuthenticatedFetch } from "../../oidcAuth"
-import { IGetJobsService } from "../../services/lookout/GetJobsService"
 import { GroupedField, IGroupJobsService } from "../../services/lookout/GroupJobsService"
 
 export interface UseFetchJobsTableDataArgs {
@@ -43,7 +42,6 @@ export interface UseFetchJobsTableDataArgs {
   allColumns: JobTableColumn[]
   selectedRows: RowSelectionState
   updateSelectedRows: (newState: RowSelectionState) => void
-  getJobsService: IGetJobsService
   groupJobsService: IGroupJobsService
   openSnackbar: (message: string, variant: VariantType) => void
   lastTransitionTimeAggregate?: AggregateType
@@ -139,7 +137,6 @@ export const useFetchJobsTableData = ({
   allColumns,
   selectedRows,
   updateSelectedRows,
-  getJobsService,
   groupJobsService,
   openSnackbar,
   lastTransitionTimeAggregate,
@@ -179,7 +176,7 @@ export const useFetchJobsTableData = ({
       let newData
       try {
         if (isJobFetch) {
-          const { jobs } = await fetchJobs(authenticatedFetch, rowRequest, getJobsService, abortController.signal)
+          const { jobs } = await fetchJobs(authenticatedFetch, rowRequest, abortController.signal)
           newData = jobsToRows(jobs)
 
           setJobInfoMap(new Map([...jobInfoMap.entries(), ...jobs.map((j): [JobId, Job] => [j.jobId, j])]))

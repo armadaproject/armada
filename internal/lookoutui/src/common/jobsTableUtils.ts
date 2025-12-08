@@ -1,10 +1,11 @@
 import { ExpandedStateList, RowSelectionState, Updater } from "@tanstack/react-table"
 import _ from "lodash"
 
+import { getConfig } from "../config"
 import { isJobGroupRow, JobGroupRow, JobRow, JobTableRow } from "../models/jobsTableModels"
 import { Job, JobFilter, JobFiltersWithExcludes, JobGroup, JobOrder, Match } from "../models/lookoutModels"
-import { IGetJobsService } from "../services/lookout/GetJobsService"
 import { GroupedField, IGroupJobsService } from "../services/lookout/GroupJobsService"
+import { GetJobsResponse } from "../services/lookout/useGetJobs"
 
 import { validDateFromNullableIsoString } from "./dates"
 import {
@@ -18,6 +19,8 @@ import {
   VALID_COLUMN_MATCHES,
 } from "./jobsTableColumns"
 import { findRowInData, fromRowId, RowId, RowIdParts, toRowId } from "./reactTableUtils"
+
+const config = getConfig()
 
 export interface LookoutColumnFilter {
   id: string
@@ -229,12 +232,32 @@ export interface FetchRowRequest {
 export const fetchJobs = async (
   fetchFunc: GlobalFetch["fetch"],
   rowRequest: FetchRowRequest,
-  getJobsService: IGetJobsService,
   abortSignal: AbortSignal,
-) => {
+): Promise<GetJobsResponse> => {
   const { filters, activeJobSets, skip, take, order } = rowRequest
 
-  return await getJobsService.getJobs(fetchFunc, filters, activeJobSets, order, skip, take, abortSignal)
+  let path = "/api/v1/jobs"
+  if (config.backend) {
+    path += "?" + new URLSearchParams({ backend: config.backend })
+  }
+
+  const response = await fetchFunc(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      filters,
+      activeJobSets,
+      order,
+      skip,
+      take,
+    }),
+    signal: abortSignal,
+  })
+
+  const json = await response.json()
+  return {
+    jobs: json.jobs ?? [],
+  }
 }
 
 export const fetchJobGroups = async (

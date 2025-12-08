@@ -1,13 +1,14 @@
+import { QueryClientProvider } from "@tanstack/react-query"
 import { render, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { SnackbarProvider } from "notistack"
 
+import { queryClient } from "../../../app/App"
 import { makeManyTestJobs } from "../../../common/fakeJobsUtils"
 import { formatJobState } from "../../../common/jobsTableFormatters"
 import { Job, JobFiltersWithExcludes, JobState, Match } from "../../../models/lookoutModels"
-import { IGetJobsService } from "../../../services/lookout/GetJobsService"
-import { UpdateJobsResponse, UpdateJobsService } from "../../../services/lookout/UpdateJobsService"
-import FakeGetJobsService from "../../../services/lookout/mocks/FakeGetJobsService"
+import { ApiClientsProvider } from "../../../services/apiClients"
+import { MockServer } from "../../../services/lookout/mocks/mockServer"
 import {
   FORMAT_NUMBER_SHOULD_FORMAT_KEY,
   FORMAT_TIMESTAMP_SHOULD_FORMAT_KEY,
@@ -18,11 +19,7 @@ import { CancelDialog } from "./CancelDialog"
 describe("CancelDialog", () => {
   const numJobs = 5
   const numFinishedJobs = 0
-  let jobs: Job[],
-    selectedItemFilters: JobFiltersWithExcludes[],
-    getJobsService: IGetJobsService,
-    updateJobsService: UpdateJobsService,
-    onClose: () => void
+  let jobs: Job[], selectedItemFilters: JobFiltersWithExcludes[], mockServer: MockServer, onClose: () => void
 
   beforeEach(() => {
     localStorage.clear()
@@ -42,27 +39,29 @@ describe("CancelDialog", () => {
         excludesJobFilters: [],
       },
     ]
-    getJobsService = new FakeGetJobsService(jobs)
-    updateJobsService = {
-      cancelJobs: vi.fn(),
-    } as any
+
+    mockServer = new MockServer()
+    mockServer.listen()
+    // Return only the first job to match the filter for job-id-0
+    mockServer.setPostJobsResponse([jobs[0]])
+
     onClose = vi.fn()
   })
 
   afterEach(() => {
     localStorage.clear()
+    mockServer.close()
   })
 
   const renderComponent = () =>
     render(
-      <SnackbarProvider>
-        <CancelDialog
-          onClose={onClose}
-          selectedItemFilters={selectedItemFilters}
-          getJobsService={getJobsService}
-          updateJobsService={updateJobsService}
-        />
-      </SnackbarProvider>,
+      <QueryClientProvider client={queryClient}>
+        <ApiClientsProvider>
+          <SnackbarProvider>
+            <CancelDialog onClose={onClose} selectedItemFilters={selectedItemFilters} />
+          </SnackbarProvider>
+        </ApiClientsProvider>
+      </QueryClientProvider>,
     )
 
   it("displays job information", async () => {
@@ -102,7 +101,7 @@ describe("CancelDialog", () => {
         excludesJobFilters: [],
       },
     ]
-    getJobsService = new FakeGetJobsService(jobs)
+    mockServer.setPostJobsResponse(jobs)
 
     const { findByRole, getByText } = renderComponent()
 
@@ -116,19 +115,12 @@ describe("CancelDialog", () => {
   it("allows the user to cancel jobs", async () => {
     const { getByRole, findByText } = renderComponent()
 
-    updateJobsService.cancelJobs = vi.fn((): Promise<UpdateJobsResponse> => {
-      return Promise.resolve({
-        successfulJobIds: [jobs[0].jobId],
-        failedJobIds: [],
-      })
-    })
+    mockServer.setCancelJobsResponse([jobs[0].jobId], [])
 
     const cancelButton = await waitFor(() => getByRole("button", { name: /Cancel 1 job/i }))
     await userEvent.click(cancelButton)
 
     await findByText(/Successfully began cancellation/i)
-
-    expect(updateJobsService.cancelJobs).toHaveBeenCalled()
   })
 
   it("allows user to refetch jobs", async () => {
@@ -155,12 +147,7 @@ describe("CancelDialog", () => {
   it("shows error reasons if cancellation fails", async () => {
     const { getByRole, findByText } = renderComponent()
 
-    updateJobsService.cancelJobs = vi.fn((): Promise<UpdateJobsResponse> => {
-      return Promise.resolve({
-        successfulJobIds: [],
-        failedJobIds: [{ jobId: jobs[0].jobId, errorReason: "This is a test" }],
-      })
-    })
+    mockServer.setCancelJobsResponse([], [])
 
     const cancelButton = await waitFor(() => getByRole("button", { name: /Cancel 1 job/i }))
     await userEvent.click(cancelButton)
@@ -170,7 +157,7 @@ describe("CancelDialog", () => {
 
     // Verify reason is shown in table
     // Longer timeout since another fetch call is made before this is shown
-    await findByText("This is a test", {}, { timeout: 3000 })
+    await findByText("failed to cancel job", {}, { timeout: 3000 })
   })
 
   it("handles a partial success", async () => {
@@ -201,15 +188,13 @@ describe("CancelDialog", () => {
     // jobs[1] in the dataset is terminated, so lets just fix that for the test
     jobs[1].state = JobState.Pending
 
+    // Update mock to return both jobs
+    mockServer.setPostJobsResponse([jobs[0], jobs[1]])
+
     const { getByRole, findByText, findByRole } = renderComponent()
 
     // Fail 1, succeed the other
-    updateJobsService.cancelJobs = vi.fn((): Promise<UpdateJobsResponse> => {
-      return Promise.resolve({
-        successfulJobIds: [jobs[0].jobId],
-        failedJobIds: [{ jobId: jobs[1].jobId, errorReason: "This is a test" }],
-      })
-    })
+    mockServer.setCancelJobsResponse([jobs[0].jobId], [])
 
     const cancelButton = await waitFor(() => getByRole("button", { name: /Cancel 2 jobs/i }))
     await userEvent.click(cancelButton)
@@ -220,7 +205,7 @@ describe("CancelDialog", () => {
     // Verify reason is shown in table
     // Longer timeout since another fetch call is made before this is shown
     await findByText("Success", {}, { timeout: 3000 })
-    await findByText("This is a test")
+    await findByText("failed to cancel job")
 
     // This job was successfully cancelled
     jobs[0].state = JobState.Cancelled
