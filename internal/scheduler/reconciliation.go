@@ -3,7 +3,6 @@ package scheduler
 import (
 	"fmt"
 	"slices"
-	"sync/atomic"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/maps"
@@ -26,11 +25,6 @@ type JobRunNodeReconciler interface {
 type RunNodeReconciler struct {
 	poolsToReconcile   []configuration.PoolConfig
 	executorRepository database.ExecutorRepository
-	previousNodeState  atomic.Pointer[nodeState]
-}
-
-type nodeState struct {
-	nodes []*schedulerobjects.Node
 }
 
 func NewRunNodeReconciler(poolConfigs []configuration.PoolConfig, executorRepository database.ExecutorRepository) *RunNodeReconciler {
@@ -41,7 +35,6 @@ func NewRunNodeReconciler(poolConfigs []configuration.PoolConfig, executorReposi
 	return &RunNodeReconciler{
 		poolsToReconcile:   poolsToReconcile,
 		executorRepository: executorRepository,
-		previousNodeState:  atomic.Pointer[nodeState]{},
 	}
 }
 
@@ -54,19 +47,12 @@ func (r *RunNodeReconciler) ReconcileJobRuns(ctx *armadacontext.Context, txn *jo
 	if err != nil {
 		return nil, err
 	}
-	// This is purely an optimisation so we don't need to get/reconcile every job each time
-	// If no nodes have been updated, we can assume no jobs need reconciling
-	updatedNodes := r.getUpdatedNodes(latestNodeInfos)
-	if len(updatedNodes) == 0 {
-		r.previousNodeState.Store(&nodeState{nodes: latestNodeInfos})
-		return nil, nil
-	}
 
 	jobsToReconcile := r.getJobsToReconcileByNodeId(txn)
 	configByPool := poolConfigSliceToMap(r.poolsToReconcile)
 
 	var result []*FailedReconciliationResult
-	for _, node := range updatedNodes {
+	for _, node := range latestNodeInfos {
 		jobsOnNode := jobsToReconcile[node.GetId()]
 
 		for _, job := range jobsOnNode {
@@ -108,7 +94,6 @@ func (r *RunNodeReconciler) ReconcileJobRuns(ctx *armadacontext.Context, txn *jo
 		}
 	}
 
-	r.previousNodeState.Store(&nodeState{nodes: latestNodeInfos})
 	return result, nil
 }
 
@@ -120,32 +105,6 @@ func poolConfigSliceToMap(config []configuration.PoolConfig) map[string]configur
 			return p
 		},
 	)
-}
-
-func (r *RunNodeReconciler) getUpdatedNodes(latestNodeInfos []*schedulerobjects.Node) []*schedulerobjects.Node {
-	updated := []*schedulerobjects.Node{}
-
-	previousNodeInfos := []*schedulerobjects.Node{}
-	previousNodeState := r.previousNodeState.Load()
-	if previousNodeState != nil {
-		previousNodeInfos = previousNodeState.nodes
-	}
-
-	existingNodesById := make(map[string]*schedulerobjects.Node, len(previousNodeInfos))
-	for _, node := range previousNodeInfos {
-		existingNodesById[node.GetId()] = node
-	}
-
-	for _, node := range latestNodeInfos {
-		previous, present := existingNodesById[node.GetId()]
-		if !present {
-			updated = append(updated, node)
-		} else if node.GetPool() != previous.GetPool() || node.GetReservation() != previous.GetReservation() {
-			updated = append(updated, node)
-		}
-	}
-
-	return updated
 }
 
 func (r *RunNodeReconciler) getLatestNodes(ctx *armadacontext.Context) ([]*schedulerobjects.Node, error) {
