@@ -93,10 +93,37 @@ func (l *Logger) WithError(err error) *Logger {
 // WithStacktrace returns a new Logger with the error and (if available) the stacktrace added as fields
 func (l *Logger) WithStacktrace(err error) *Logger {
 	logger := l.WithError(err)
-	if stackErr, ok := err.(stackTracer); ok {
-		return logger.WithField("stacktrace", fmt.Sprintf("%v", stackErr.StackTrace()))
+
+	stackTrace := getStackTrace(err)
+	if stackTrace != nil && len(stackTrace) > 0 {
+		return logger.WithField("stacktrace", fmt.Sprintf("%v", stackTrace))
 	}
 	return logger
+}
+
+// Will look through the Cause chain until it finds a stacktrace
+// Will not nest deeper than 10 layers, will return nil if the stacktrace isn't reached after that many iterations
+func getStackTrace(err error) errors.StackTrace {
+	var stackErr error
+	count := 0
+	for {
+		count++
+		if count > 10 {
+			break
+		}
+		if _, ok := err.(stackTracer); ok {
+			stackErr = err
+		}
+		if causerErr, ok := err.(causer); ok {
+			err = causerErr.Cause()
+		} else {
+			break
+		}
+	}
+	if stackErr != nil {
+		return stackErr.(stackTracer).StackTrace()
+	}
+	return nil
 }
 
 // WithField returns a new Logger with the key-value pair added as a new field
@@ -133,4 +160,8 @@ func (l *Logger) WithCallerSkip(skip int) *Logger {
 // Unexported but considered part of the stable interface of pkg/errors.
 type stackTracer interface {
 	StackTrace() errors.StackTrace
+}
+
+type causer interface {
+	Cause() error
 }
