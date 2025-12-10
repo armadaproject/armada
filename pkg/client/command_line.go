@@ -202,7 +202,7 @@ func ExtractCommandlineArmadaApiConnectionDetails() (*ApiConnectionDetails, erro
 
 	} else {
 		fmt.Print("No context defined. This method of providing connection details will soon be deprecated, " +
-			"the new configuration format is explained here: github.com/armadaproject/armada/blob/master/docs/demo.md#armadactl-configuration\n")
+			"the new configuration format is explained here: https://armadaproject.io/user-guide/cli#configuration\n")
 		err = viper.Unmarshal(apiConnectionDetails)
 	}
 
