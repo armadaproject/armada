@@ -121,7 +121,7 @@ func CheckPostgresRunning() error {
 }
 
 func CheckServerRunning() error {
-	return CheckDockerContainerRunning("server", "Starting http server listening on")
+	return CheckDockerContainerRunning("server", "finished call grpc.code=OK")
 }
 
 func CheckSchedulerRunning() error {
