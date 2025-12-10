@@ -61,7 +61,7 @@ import {
 } from "../../../common/jobsTableUtils"
 import { fromRowId, RowId } from "../../../common/reactTableUtils"
 import { EmptyInputError, ParseError } from "../../../common/resourceUtils"
-import { getErrorMessage, waitMillis } from "../../../common/utils"
+import { getErrorMessage, waitMs } from "../../../common/utils"
 import { AlertErrorFallback } from "../../../components/AlertErrorFallback"
 import { useFormatNumberWithUserSettings } from "../../../components/hooks/formatNumberWithUserSettings"
 import {
@@ -72,7 +72,7 @@ import { useCustomSnackbar } from "../../../components/hooks/useCustomSnackbar"
 import { columnIsAggregatable, useFetchJobsTableData } from "../../../components/hooks/useJobsTableData"
 import { CommandSpec } from "../../../config"
 import { isJobGroupRow, JobRow, JobTableRow } from "../../../models/jobsTableModels"
-import { Job, JobFiltersWithExcludes, JobId, Match } from "../../../models/lookoutModels"
+import { AggregateType, Job, JobFiltersWithExcludes, JobId, Match } from "../../../models/lookoutModels"
 import { CustomViewsService } from "../../../services/lookout/CustomViewsService"
 import { IGetJobsService } from "../../../services/lookout/GetJobsService"
 import { IGroupJobsService } from "../../../services/lookout/GroupJobsService"
@@ -207,6 +207,9 @@ export const JobsTableContainer = ({
   const [activeJobSets, setActiveJobSets] = useState<boolean>(
     initialPrefs.activeJobSets === undefined ? false : initialPrefs.activeJobSets,
   )
+  const [lastTransitionTimeAggregate, setLastTransitionTimeAggregate] = useState<AggregateType>(
+    initialPrefs.lastTransitionTimeAggregate || "average",
+  )
 
   // Sorting
   const [lookoutOrder, setLookoutOrder] = useState<LookoutColumnOrder>(initialPrefs.order)
@@ -228,6 +231,7 @@ export const JobsTableContainer = ({
     getJobsService,
     groupJobsService,
     openSnackbar,
+    lastTransitionTimeAggregate,
   })
 
   // Custom views (cache)
@@ -243,7 +247,7 @@ export const JobsTableContainer = ({
     }
   }, [])
 
-  // Retrieve data for any expanded rows from intial query param state
+  // Retrieve data for any expanded rows from initial query param state
   useEffect(() => {
     const rowsToFetch: PendingData[] = [
       { parentRowId: "ROOT", skip: pagination.pageIndex * pagination.pageSize },
@@ -274,6 +278,7 @@ export const JobsTableContainer = ({
     sidebarWidth: sidebarWidth,
     activeJobSets: activeJobSets,
     autoRefresh: autoRefresh,
+    lastTransitionTimeAggregate,
   })
 
   const setTextFields = (filters: ColumnFiltersState) => {
@@ -323,6 +328,9 @@ export const JobsTableContainer = ({
     if (prefs.autoRefresh !== undefined) {
       onAutoRefreshChange(prefs.autoRefresh)
     }
+    if (prefs.lastTransitionTimeAggregate !== undefined) {
+      setLastTransitionTimeAggregate(prefs.lastTransitionTimeAggregate)
+    }
 
     // Have to manually set text fields to the filter values since they are uncontrolled
     setTextFields(prefs.filters)
@@ -351,6 +359,7 @@ export const JobsTableContainer = ({
     sidebarWidth,
     activeJobSets,
     autoRefresh,
+    lastTransitionTimeAggregate,
   ])
 
   const addCustomView = (name: string) => {
@@ -370,6 +379,7 @@ export const JobsTableContainer = ({
       setToFirstPage()
       loadPrefs(prefs)
     } catch (e) {
+      // eslint-disable-next-line no-console
       console.error(getErrorMessage(e))
       openSnackbar("Failed to load custom view", "error")
     }
@@ -547,7 +557,7 @@ export const JobsTableContainer = ({
       const [newlyExpanded] = diffOfKeys<RowId>(newExpandedState, expanded)
       setExpanded(newExpandedState)
 
-      // Fetch subrows for expanded rows
+      // Fetch sub-rows for expanded rows
       setRowsToFetch(newlyExpanded.map((rowId) => ({ parentRowId: rowId, skip: 0 })))
     },
     [expanded],
@@ -649,6 +659,14 @@ export const JobsTableContainer = ({
       setColumnSizing(newColumnSizing)
     },
     [columnSizing],
+  )
+
+  const onLastTransitionTimeAggregateChange = useCallback(
+    (lastTransitionTimeAggregate: AggregateType) => {
+      setLastTransitionTimeAggregate(lastTransitionTimeAggregate)
+      setRowsToFetch(pendingDataForAllVisibleData(expanded, data, pageSize))
+    },
+    [setRowsToFetch],
   )
 
   const toggleSidebarForJobRow = (jobRow: JobRow) => {
@@ -773,7 +791,7 @@ export const JobsTableContainer = ({
     const isSelected = row.getIsSelected()
     if (singleSelect) {
       table.toggleAllRowsSelected(false)
-      await waitMillis(1)
+      await waitMs(1)
     }
     row.toggleSelected(!isSelected)
   }
@@ -864,6 +882,8 @@ export const JobsTableContainer = ({
                             setTextFieldRef(header.id, ref)
                           }}
                           groupedColumns={grouping}
+                          lastTransitionTimeAggregate={lastTransitionTimeAggregate}
+                          onLastTransitionTimeAggregateChange={onLastTransitionTimeAggregateChange}
                         />
                       ))}
                     </TableRow>

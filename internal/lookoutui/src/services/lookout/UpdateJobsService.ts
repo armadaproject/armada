@@ -64,6 +64,7 @@ export class UpdateJobsService {
         response.successfulJobIds.push(...cancelledIds)
         response.failedJobIds.push(...failedIds)
       } catch (e) {
+        // eslint-disable-next-line no-console
         console.error(e)
         const text = await getErrorMessage(e)
         const failedIds = apiResponsePromise.jobIds.map((jobId) => ({
@@ -77,7 +78,7 @@ export class UpdateJobsService {
     return response
   }
 
-  reprioritiseJobs = async (jobs: Job[], newPriority: number, accessToken?: string): Promise<UpdateJobsResponse> => {
+  reprioritizeJobs = async (jobs: Job[], newPriority: number, accessToken?: string): Promise<UpdateJobsResponse> => {
     const response: UpdateJobsResponse = { successfulJobIds: [], failedJobIds: [] }
 
     const maxJobsPerRequest = 10000
@@ -117,6 +118,7 @@ export class UpdateJobsService {
 
         if (_.isNil(apiResponse)) {
           const errorMessage = "No reprioritization results found in response body"
+          // eslint-disable-next-line no-console
           console.error(errorMessage)
           for (const jobId of apiResponsePromise.jobIds) {
             response.failedJobIds.push({ jobId: jobId, errorReason: errorMessage })
@@ -136,6 +138,7 @@ export class UpdateJobsService {
           }
         }
       } catch (e) {
+        // eslint-disable-next-line no-console
         console.error(e)
         const text = await getErrorMessage(e)
         apiResponsePromise.jobIds.forEach((jobId) => response.failedJobIds.push({ jobId, errorReason: text }))

@@ -1,0 +1,52 @@
+---
+title: 'User Guide'
+---
+
+**Practical guidance for job submission and management.**
+
+Armada provides multiple ways to interact with the system, allowing you to choose the method that best fits your workflow. Whether you're submitting jobs interactively, integrating with existing pipelines, or building custom applications, Armada has the right interface for you.
+
+## Ways to Interact with Armada
+
+**Command-Line Interface (CLI) - Recommended for Most Users**
+
+`armadactl` is the official command-line tool and the **best way to interact with Armada** for most users. It provides a simple, intuitive interface for submitting jobs, managing queues, monitoring job status, and performing common operations. Built on the [Cobra](https://github.com/spf13/cobra) framework, `armadactl` offers a familiar command-line experience with comprehensive functionality.
+
+**Client Libraries - For Programmatic Access**
+
+For applications and scripts that need to programmatically interact with Armada, client libraries are available in multiple programming languages including Go, Java, Scala, Python, and .NET. These libraries wrap the Armada gRPC APIs and provide type-safe interfaces for job submission and management.
+
+**REST and gRPC APIs - For Custom Integrations**
+
+For custom integrations or when client libraries aren't available in your preferred language, Armada exposes REST and gRPC APIs. These APIs provide full access to all Armada functionality and are ideal for building custom tooling or integrating with existing systems.
+
+**Integrations - For Workflow Orchestration**
+
+Armada integrates seamlessly with popular workflow orchestration tools including Apache Airflow, Metaflow, Jenkins, and Apache Spark. These integrations allow you to leverage Armada's powerful scheduling capabilities within your existing workflows.
+
+## Getting Started
+
+import { Cards, Card } from 'fumadocs-ui/components/card';
+
+<Cards>
+  <Card
+    href='/user-guide/cli'
+    title='CLI Reference'
+    description='Install armadactl and learn how to use it for job submission and management'
+  />
+  <Card
+    href='/user-guide/api'
+    title='API Reference'
+    description='Explore the REST and gRPC APIs for programmatic access to Armada'
+  />
+  <Card
+    href='/user-guide/clients'
+    title='Client Libraries'
+    description='Use client libraries for Go, Java, Scala, Python, and .NET in your applications'
+  />
+  <Card
+    href='/user-guide/integrations'
+    title='Integrations'
+    description='Integrate Armada with Airflow, Metaflow, Jenkins, and Spark'
+  />
+</Cards>

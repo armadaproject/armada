@@ -7,6 +7,7 @@ import (
 	"github.com/pkg/errors"
 	"k8s.io/component-helpers/scheduling/corev1/nodeaffinity"
 
+	"github.com/armadaproject/armada/internal/common/constants"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/server/configuration"
@@ -213,7 +214,7 @@ func validateClientId(j *api.JobSubmitRequestItem, _ configuration.SubmissionCon
 }
 
 func validatePriceBand(j *api.JobSubmitRequestItem, _ configuration.SubmissionConfig) error {
-	priceBand, present := j.Annotations[configuration.JobPriceBand]
+	priceBand, present := j.Annotations[constants.JobPriceBand]
 	if present {
 		_, valid := bidstore.PriceBandFromShortName[strings.ToUpper(priceBand)]
 		if !valid {
@@ -347,6 +348,14 @@ func validateGangs(request *api.JobSubmitRequest, _ configuration.SubmissionConf
 		gangInfo := *rawGangInfo
 		if !gangInfo.IsGang() {
 			continue
+		}
+
+		failFastFlag, present := job.Annotations[constants.FailFastAnnotation]
+		if present && failFastFlag != "true" {
+			return errors.Errorf(
+				"gang jobs may not set fail fast flag (annotation - %s) to anything but true",
+				constants.FailFastAnnotation,
+			)
 		}
 
 		actual := GangValidationInfo{gangInfo, adaptedJob.PriorityClassName()}

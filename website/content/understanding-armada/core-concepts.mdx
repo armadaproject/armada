@@ -1,0 +1,137 @@
+---
+title: 'Core Concepts'
+---
+
+This page explains the fundamental concepts you need to understand to effectively use Armada: jobs, queues, job sets, priorities, and scheduling algorithms.
+
+## Jobs
+
+An Armada **job** represents a computational task to be executed and consists of:
+
+- A Kubernetes pod specification (podspec) representing the workload
+- Zero or more auxiliary Kubernetes objects (e.g., services, ingresses)
+- Armada-specific metadata (queue, job set, priority, etc.)
+
+All objects that make up a job are created together at job startup and deleted when the job terminates. Jobs are submitted to Armada via the gRPC API, client libraries, or the `armadactl` command-line utility.
+
+### Job Lifecycle
+
+Jobs progress through the following states:
+
+1. **Queued**: Job is submitted and stored in a queue, waiting to be scheduled
+2. **Leased**: Scheduler has determined which cluster and node the job should run on
+3. **Pending**: Kubernetes resources are being created; pod is being bound to a node
+4. **Running**: Containers are executing
+5. **Succeeded/Failed**: Job has completed (all containers stopped)
+
+## Queues
+
+A **queue** is a logical container for jobs and is the basis for fair resource allocation in Armada. Each job must belong to exactly one queue.
+
+Key characteristics of queues:
+
+- **Fair share basis**: Resources are divided fairly between queues over time
+- **Priority factor**: Each queue has a configurable priority factor that influences its fair share
+- **Active queues**: Only queues with queued or running jobs are considered in fairness calculations
+- **Dynamic fair share**: A queue's fair share may change as other queues become active or inactive
+
+Queues help organize jobs by user, team, project, or any other logical grouping that makes sense for your organization.
+
+## Job Sets
+
+A **job set** is a per-queue logical grouping of jobs that can be managed as a unit. Jobs within the same job set share a `jobSetId` and can be:
+
+- Monitored together
+- Cancelled as a unit
+- Tracked via event streams
+
+Job sets are particularly useful for workflows consisting of multiple related jobs. For example, when training a machine learning model across multiple datasets, each training job could belong to the same job set.
+
+**Note**: Job sets don't affect scheduling order—they're purely for organizational and management purposes.
+
+## Priorities
+
+Armada uses a multi-level priority system to control job scheduling order:
+
+### Job Priority
+
+Each job has a numeric priority value (lower values = higher priority). Within a queue, jobs are ordered by:
+
+1. Priority class priority
+2. Job priority
+3. Time submitted
+
+### Priority Classes
+
+Armada **priority classes** (PCs) are similar to Kubernetes priority classes but serve additional purposes:
+
+- **Priority**: An integer encoding urgency (higher priority jobs can preempt lower priority jobs)
+- **Fair share preemptibility**: Controls whether jobs can be preempted to maintain fairness
+
+Priority classes enable both:
+
+- **Urgency-based preemption**: More urgent jobs can preempt less urgent ones
+- **Fair-share preemption**: Jobs can be preempted to balance resource allocation between queues
+
+## Fair-Use Scheduling
+
+Armada implements **dominant resource fairness** to ensure fair resource allocation across queues over time.
+
+### How It Works
+
+1. **Resource cost calculation**: Each job's cost is computed based on its resource requests (CPU, memory, GPU, etc.)
+2. **Queue cost tracking**: The total cost of all running jobs from each queue is tracked
+3. **Fair share balancing**: The scheduler balances the ratio `c_i/w_i` for each active queue, where:
+   - `c_i` = cost (resource usage) of queue `i`
+   - `w_i` = weight (1/priority factor) of queue `i`
+
+### Priority Calculation
+
+Queue priority is calculated using an exponential moving average (inspired by HTCondor):
+
+```
+priority = priority × (1 - β) + resourceUsage × β
+β = 0.5^(timeChange / priorityHalftime)
+```
+
+This ensures that:
+
+- Queue priority gradually approaches current resource usage
+- Recent usage has more influence than historical usage
+- The `priorityHalftime` configuration controls how quickly priority adjusts
+
+### Scheduling Algorithm
+
+Armada schedules jobs to balance fairness, throughput, and timeliness:
+
+1. **Fairness**: Prioritize queues that are below their fair share
+2. **Throughput**: Maximize resource utilization
+3. **Timeliness**: Schedule urgent jobs before less urgent ones
+
+The scheduler uses two approaches:
+
+- **Deterministic slicing**: Allocate resources proportionally based on inverse priority
+- **Probabilistic scheduling**: Randomly select queues for remaining resources based on their fair share
+
+## Gang Scheduling
+
+**Gang scheduling** ensures that a set of related jobs either all start together or none start at all. This is critical for distributed computing frameworks like MPI where all processes must start simultaneously.
+
+Gang scheduling is controlled via job annotations:
+
+- `armadaproject.io/gangId`: Unique identifier for the gang
+- `armadaproject.io/gangCardinality`: Total number of jobs in the gang
+- `armadaproject.io/gangNodeUniformityLabel`: Optional constraint to schedule all gang jobs on nodes with the same label value
+
+## Preemption
+
+Armada supports two forms of preemption:
+
+1. **Urgency-based preemption**: Higher priority jobs can preempt lower priority jobs
+2. **Fair-share preemption**: Jobs from queues exceeding their fair share can be preempted to improve fairness
+
+Preemption helps ensure:
+
+- Urgent jobs run in a timely fashion
+- Fair resource distribution over time
+- High cluster utilization

@@ -86,9 +86,13 @@ describe("parseCpu", () => {
     ["1.1", 1100],
     ["27.345", 27345],
     ["27.9999999999", 28000],
-  ])("should return correct number of millicores for %s", (s, expected) => {
-    expect(parseCpu(s)).toEqual(expected)
-  })
+  ])(
+    /* eslint-disable-next-line @cspell/spellchecker */
+    "should return correct number of millicores for %s",
+    (s, expected) => {
+      expect(parseCpu(s)).toEqual(expected)
+    },
+  )
 
   it.each([["hello", "123.456.789", "123.", "123.5m"]])("should throw for invalid input %s", (s) => {
     expect(() => parseCpu(s)).toThrow(ParseError)

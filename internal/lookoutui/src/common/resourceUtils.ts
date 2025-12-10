@@ -52,24 +52,24 @@ export function parseBytes(str: string): number {
   return Math.round(parseFloat(str) * BYTE_MULTIPLIERS.Gi)
 }
 
-function formatMult(bytes: number, baseMult: number): string {
-  let mult = baseMult
-  while (Number.isInteger(bytes / mult)) {
-    mult *= baseMult
+function formatMultiple(bytes: number, baseMultiple: number): string {
+  let multiple = baseMultiple
+  while (Number.isInteger(bytes / multiple)) {
+    multiple *= baseMultiple
   }
-  mult /= baseMult
-  if (!(mult in BYTE_UNITS)) {
+  multiple /= baseMultiple
+  if (!(multiple in BYTE_UNITS)) {
     return `${bytes}B`
   }
-  return `${bytes / mult}${BYTE_UNITS[mult]}`
+  return `${bytes / multiple}${BYTE_UNITS[multiple]}`
 }
 
 export function formatBytes(bytes: number): string {
   if (bytes < 1000) {
     return `${bytes}B`
   }
-  const decimalStr = formatMult(bytes, 1000)
-  const binaryStr = formatMult(bytes, 1024)
+  const decimalStr = formatMultiple(bytes, 1000)
+  const binaryStr = formatMultiple(bytes, 1024)
   return decimalStr.length >= binaryStr.length ? binaryStr : decimalStr
 }
 
@@ -78,10 +78,12 @@ export function parseCpu(str: string): number {
   if (str.length === 0) {
     throw new EmptyInputError("input is empty")
   }
+  /* eslint-disable @cspell/spellchecker */
   const milliMatch = str.match(/^(\d+)m$/)
   if (milliMatch) {
     return parseInt(milliMatch[1])
   }
+  /* eslint-enable @cspell/spellchecker */
   if (str.match(/^\d+(\.\d+)?$/)) {
     return Math.round(parseFloat(str) * 1000)
   }

@@ -2,6 +2,7 @@ package util
 
 import (
 	"fmt"
+	"maps"
 	"strconv"
 
 	v1 "k8s.io/api/core/v1"
@@ -9,6 +10,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/armadaproject/armada/internal/common"
+	serverconfiguration "github.com/armadaproject/armada/internal/common/constants"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/executor/configuration"
 	"github.com/armadaproject/armada/internal/executor/domain"
@@ -29,6 +31,11 @@ func CreateOwnerReference(pod *v1.Pod) metav1.OwnerReference {
 func ExtractIngresses(job *executorapi.JobRunLease, pod *v1.Pod, executorIngressConfig *configuration.IngressConfiguration) []*networking.Ingress {
 	result := make([]*networking.Ingress, 0, 10)
 
+	annotations := make(map[string]string)
+	if executorIngressConfig != nil && len(executorIngressConfig.Annotations) > 0 {
+		annotations = maps.Clone(executorIngressConfig.Annotations)
+	}
+
 	for _, additionalObject := range job.Job.Objects {
 		switch typed := additionalObject.Object.(type) {
 		case *armadaevents.KubernetesObject_Ingress:
@@ -38,8 +45,7 @@ func ExtractIngresses(job *executorapi.JobRunLease, pod *v1.Pod, executorIngress
 				domain.Queue:     pod.Labels[domain.Queue],
 				domain.PodNumber: pod.Labels[domain.PodNumber],
 			})
-			annotations := executorIngressConfig.Annotations
-			annotations = util.MergeMaps(annotations, additionalObject.ObjectMeta.Annotations)
+			annotations := util.MergeMaps(annotations, additionalObject.ObjectMeta.Annotations)
 			annotations = util.MergeMaps(annotations, map[string]string{
 				domain.JobSetId: job.Jobset,
 				domain.Owner:    job.User,
@@ -130,6 +136,8 @@ func CreatePodFromExecutorApiJob(job *executorapi.JobRunLease, defaults *configu
 	applyDefaults(podSpec, defaults)
 	setRestartPolicyNever(podSpec)
 
+	injectArmadaEnvVars(podSpec, jobId, job.Queue, job.Jobset, annotation)
+
 	pod := &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        common.PodNamePrefix + job.Job.JobId + "-" + strconv.Itoa(0),
@@ -170,6 +178,8 @@ func CreatePod(job *api.Job, defaults *configuration.PodDefaults) *v1.Pod {
 
 	setRestartPolicyNever(podSpec)
 
+	injectArmadaEnvVars(podSpec, job.Id, job.Queue, job.JobSetId, annotation)
+
 	pod := &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        common.PodNamePrefix + job.Id + "-0",
@@ -194,4 +204,68 @@ func applyDefaults(spec *v1.PodSpec, defaults *configuration.PodDefaults) {
 
 func setRestartPolicyNever(podSpec *v1.PodSpec) {
 	podSpec.RestartPolicy = v1.RestartPolicyNever
+}
+
+// injectArmadaEnvVars injects Armada system environment variables into all containers.
+// It injects base variables for all jobs and additional variables for gang-scheduled jobs.
+func injectArmadaEnvVars(podSpec *v1.PodSpec, jobId string, queue string, jobsetId string, annotations map[string]string) {
+	// Base environment variables for all jobs
+	baseEnvVars := []v1.EnvVar{
+		{Name: serverconfiguration.JobIdEnvVar, Value: jobId},
+		{Name: serverconfiguration.QueueEnvVar, Value: queue},
+		{Name: serverconfiguration.JobSetIdEnvVar, Value: jobsetId},
+	}
+
+	// Gang-specific environment variables
+	var gangEnvVars []v1.EnvVar
+
+	if gangId, ok := annotations[serverconfiguration.GangIdAnnotation]; ok && gangId != "" {
+		gangEnvVars = append(gangEnvVars, v1.EnvVar{
+			Name:  serverconfiguration.GangIdEnvVar,
+			Value: gangId,
+		})
+	}
+	if gangCardinality, ok := annotations[serverconfiguration.GangCardinalityAnnotation]; ok && gangCardinality != "" {
+		gangEnvVars = append(gangEnvVars, v1.EnvVar{
+			Name:  serverconfiguration.GangCardinalityEnvVar,
+			Value: gangCardinality,
+		})
+	}
+
+	labelName, hasLabelName := annotations[serverconfiguration.GangNodeUniformityLabelNameEnvVar]
+	labelValue, hasLabelValue := annotations[serverconfiguration.GangNodeUniformityLabelValueEnvVar]
+	if hasLabelName && hasLabelValue {
+		gangEnvVars = append(gangEnvVars,
+			v1.EnvVar{Name: serverconfiguration.GangNodeUniformityLabelNameEnvVar, Value: labelName},
+			v1.EnvVar{Name: serverconfiguration.GangNodeUniformityLabelValueEnvVar, Value: labelValue},
+		)
+	}
+
+	allEnvVars := append(baseEnvVars, gangEnvVars...)
+
+	for i := range podSpec.InitContainers {
+		addEnvVarsIfNotExist(&podSpec.InitContainers[i], allEnvVars)
+	}
+	for i := range podSpec.Containers {
+		addEnvVarsIfNotExist(&podSpec.Containers[i], allEnvVars)
+	}
+}
+
+// addEnvVarsIfNotExist adds environment variables to a container if they don't already exist.
+func addEnvVarsIfNotExist(container *v1.Container, newEnvVars []v1.EnvVar) {
+	for _, newVar := range newEnvVars {
+		if !hasEnvVar(container.Env, newVar.Name) {
+			container.Env = append(container.Env, newVar)
+		}
+	}
+}
+
+// hasEnvVar checks if an environment variable with the given name exists in the slice.
+func hasEnvVar(envVars []v1.EnvVar, name string) bool {
+	for _, env := range envVars {
+		if env.Name == name {
+			return true
+		}
+	}
+	return false
 }

@@ -21,12 +21,12 @@
   overflow-y: auto;
 }
 
-.lookout-dialog-centered {
+.lookout-dialog-centred {
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 .MuiDialog-scrollPaper {
-    align-items: baseline !important;
+  align-items: baseline !important;
 }

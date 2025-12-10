@@ -12,6 +12,7 @@ export const DEFAULT_LOOKOUT_UI_CONFIG: LookoutUiConfig = {
   oidcEnabled: false,
   oidc: undefined,
   commandSpecs: [],
+  jobLinks: [],
   backend: undefined,
   pinnedTimeZoneIdentifiers: [],
   errorMonitoring: {

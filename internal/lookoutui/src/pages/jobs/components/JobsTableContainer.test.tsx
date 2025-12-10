@@ -3,7 +3,8 @@ import { getQueriesForElement, render, screen, waitFor, within } from "@testing-
 import userEvent from "@testing-library/user-event"
 import { SnackbarProvider } from "notistack"
 import { createMemoryRouter, RouterProvider } from "react-router-dom"
-import { v4 as uuidv4 } from "uuid"
+import { v4 as uuidV4 } from "uuid"
+import { vi } from "vitest"
 
 import { queryClient } from "../../../app/App"
 import { Job, JobState } from "../../../models/lookoutModels"
@@ -26,11 +27,22 @@ import { JobsTableContainer } from "./JobsTableContainer"
 
 const mockServer = new MockServer()
 
-const intersectionObserverMock = () => ({
-  observe: () => null,
-  disconnect: () => null,
+const IntersectionObserverMock = vi.fn(function () {
+  return {
+    disconnect: vi.fn().mockImplementation(function () {
+      return null
+    }),
+    observe: vi.fn().mockImplementation(function () {
+      return null
+    }),
+    takeRecords: vi.fn().mockImplementation(function () {
+      return null
+    }),
+    unobserve: vi.fn().mockImplementation(function () {
+      return null
+    }),
+  }
 })
-window.IntersectionObserver = vi.fn().mockImplementation(intersectionObserverMock)
 
 vi.setConfig({
   // This is quite a heavy component, and tests can timeout on a slower machine
@@ -51,7 +63,7 @@ function makeTestJobs(
       cpu: 1,
       ephemeralStorage: 8192,
       gpu: 8,
-      jobId: uuidv4(),
+      jobId: uuidV4(),
       jobSet: jobSet,
       lastTransitionTime: new Date().toISOString(),
       memory: 8192,
@@ -73,6 +85,7 @@ describe("JobsTableContainer", () => {
 
   beforeAll(() => {
     mockServer.listen()
+    vi.stubGlobal("IntersectionObserver", IntersectionObserverMock)
   })
 
   beforeEach(() => {
@@ -92,6 +105,7 @@ describe("JobsTableContainer", () => {
 
   afterAll(() => {
     mockServer.close()
+    vi.unstubAllGlobals()
   })
 
   const renderComponent = (
@@ -589,6 +603,7 @@ describe("JobsTableContainer", () => {
         expect(router.state.location.search).toContain("g[0]=queue")
         expect(router.state.location.search).toContain("g[1]=jobSet")
         expect(router.state.location.search).not.toContain("g[2]")
+        // eslint-disable-next-line @cspell/spellchecker
         expect(router.state.location.search).toContain("e[0]=queue%3Aqueue-3")
       })
     })
@@ -602,12 +617,13 @@ describe("JobsTableContainer", () => {
       ]
       renderComponent(
         jobs,
+        // eslint-disable-next-line @cspell/spellchecker
         `?page=0&g[0]=jobSet&sort[id]=jobId&sort[desc]=true&pS=50&f[0][id]=jobSet&f[0][value]=job-set-1&f[0][match]=startsWith&e[0]=jobSet%3Ajob-set-1`,
       )
 
       await waitForFinishedLoading()
 
-      // 1 jobset + jobs for expanded jobset
+      // 1 job set + jobs for expanded job set
       await assertNumDataRowsShown(1 + 5)
     })
 

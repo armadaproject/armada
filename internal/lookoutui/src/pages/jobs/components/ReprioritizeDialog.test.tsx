@@ -12,9 +12,9 @@ import {
   FORMAT_TIMESTAMP_SHOULD_FORMAT_KEY,
 } from "../../../userSettings/localStorageKeys"
 
-import { ReprioritiseDialog } from "./ReprioritiseDialog"
+import { ReprioritizeDialog } from "./ReprioritizeDialog"
 
-describe("ReprioritiseDialog", () => {
+describe("ReprioritizeDialog", () => {
   const numJobs = 5
   const numFinishedJobs = 0
   let jobs: Job[],
@@ -43,7 +43,7 @@ describe("ReprioritiseDialog", () => {
     ]
     getJobsService = new FakeGetJobsService(jobs)
     updateJobsService = {
-      reprioritiseJobs: vi.fn(),
+      reprioritizeJobs: vi.fn(),
     } as any
     onClose = vi.fn()
   })
@@ -55,7 +55,7 @@ describe("ReprioritiseDialog", () => {
   const renderComponent = () =>
     render(
       <SnackbarProvider>
-        <ReprioritiseDialog
+        <ReprioritizeDialog
           onClose={onClose}
           selectedItemFilters={selectedItemFilters}
           getJobsService={getJobsService}
@@ -68,10 +68,10 @@ describe("ReprioritiseDialog", () => {
     const { getByRole, findByRole, getByText } = renderComponent()
 
     // Initial render
-    getByRole("heading", { name: "Reprioritise jobs" })
+    getByRole("heading", { name: "Reprioritize jobs" })
 
     // Once job details are fetched
-    await findByRole("heading", { name: "Reprioritise 1 job" })
+    await findByRole("heading", { name: "Reprioritize 1 job" })
 
     // Check basic job information is displayed
     getByText("job-id-0")
@@ -108,14 +108,14 @@ describe("ReprioritiseDialog", () => {
     // 6000 total jobs, split between 2 queues = 3000 jobs per queue
     // But only a subset will be in a non-terminated state
     // These will always be the same numbers as long as the makeJobs random seed is the same
-    await findByRole("heading", { name: "Reprioritise 1480 jobs" }, { timeout: 3000 })
+    await findByRole("heading", { name: "Reprioritize 1480 jobs" }, { timeout: 3000 })
     getByText("6000 jobs are selected, but only 1480 jobs are in a non-terminated state.")
   })
 
-  it("allows the user to reprioritise jobs", async () => {
+  it("allows the user to reprioritize jobs", async () => {
     const { getByRole, findByText } = renderComponent()
 
-    updateJobsService.reprioritiseJobs = vi.fn((): Promise<UpdateJobsResponse> => {
+    updateJobsService.reprioritizeJobs = vi.fn((): Promise<UpdateJobsResponse> => {
       return Promise.resolve({
         successfulJobIds: [jobs[0].jobId],
         failedJobIds: [],
@@ -124,7 +124,7 @@ describe("ReprioritiseDialog", () => {
 
     await enterPriority("2")
 
-    const cancelButton = await waitFor(() => getByRole("button", { name: /Reprioritise 1 job/i }))
+    const cancelButton = await waitFor(() => getByRole("button", { name: /Reprioritize 1 job/i }))
     await userEvent.click(cancelButton)
 
     await findByText(/Successfully changed priority./i)
@@ -133,7 +133,7 @@ describe("ReprioritiseDialog", () => {
   it("does not allow the user to enter an invalid priority", async () => {
     const { getByRole } = renderComponent()
     await enterPriority("abc")
-    expect(getByRole("button", { name: /Reprioritise/ })).toBeDisabled()
+    expect(getByRole("button", { name: /Reprioritize/ })).toBeDisabled()
   })
 
   it("allows user to refetch jobs", async () => {
@@ -157,10 +157,10 @@ describe("ReprioritiseDialog", () => {
     await findByRole("cell", { name: "1234" })
   })
 
-  it("shows error reasons if reprioritisation fails", async () => {
+  it("shows error reasons if reprioritization fails", async () => {
     const { getByRole, findByText } = renderComponent()
 
-    updateJobsService.reprioritiseJobs = vi.fn((): Promise<UpdateJobsResponse> => {
+    updateJobsService.reprioritizeJobs = vi.fn((): Promise<UpdateJobsResponse> => {
       return Promise.resolve({
         successfulJobIds: [],
         failedJobIds: [{ jobId: jobs[0].jobId, errorReason: "This is a test" }],
@@ -169,11 +169,11 @@ describe("ReprioritiseDialog", () => {
 
     await enterPriority("3")
 
-    const reprioritiseButton = await waitFor(() => getByRole("button", { name: /Reprioritise 1 job/i }))
-    await userEvent.click(reprioritiseButton)
+    const reprioritizeButton = await waitFor(() => getByRole("button", { name: /Reprioritize 1 job/i }))
+    await userEvent.click(reprioritizeButton)
 
     // Snackbar popup
-    await findByText(/All jobs failed to reprioritise/i)
+    await findByText(/All jobs failed to reprioritize/i)
 
     // Verify reason is shown in table
     await findByText("This is a test", {}, { timeout: 3000 })
@@ -210,7 +210,7 @@ describe("ReprioritiseDialog", () => {
     const { getByRole, findByText, findByRole } = renderComponent()
 
     // Fail 1, succeed the other
-    updateJobsService.reprioritiseJobs = vi.fn((): Promise<UpdateJobsResponse> => {
+    updateJobsService.reprioritizeJobs = vi.fn((): Promise<UpdateJobsResponse> => {
       return Promise.resolve({
         successfulJobIds: [jobs[0].jobId],
         failedJobIds: [{ jobId: jobs[1].jobId, errorReason: "This is a test" }],
@@ -219,11 +219,11 @@ describe("ReprioritiseDialog", () => {
 
     await enterPriority("0")
 
-    const reprioritiseButton = await waitFor(() => getByRole("button", { name: /Reprioritise 2 jobs/i }))
-    await userEvent.click(reprioritiseButton)
+    const reprioritizeButton = await waitFor(() => getByRole("button", { name: /Reprioritize 2 jobs/i }))
+    await userEvent.click(reprioritizeButton)
 
     // Snackbar popup
-    await findByText(/Some jobs failed to reprioritise/i)
+    await findByText(/Some jobs failed to reprioritize/i)
 
     // Verify reason is shown in table
     await findByText("Success", {}, { timeout: 3000 })
@@ -235,7 +235,7 @@ describe("ReprioritiseDialog", () => {
     // Check the user can re-attempt the request after a refetch
     await userEvent.click(getByRole("button", { name: /Refetch jobs/i }))
     waitFor(async () => {
-      expect(await findByRole("button", { name: /Reprioritise 2 jobs/i })).toBeEnabled()
+      expect(await findByRole("button", { name: /Reprioritize 2 jobs/i })).toBeEnabled()
     })
   })
 

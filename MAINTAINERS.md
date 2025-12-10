@@ -17,6 +17,7 @@
 | Robert Smith        | [robertdavidsmith](https://github.com/robertdavidsmith) | G-Research  |
 | Sam Clark           | [samclark](https://github.com/samclark)                 | G-Research  |
 | Geoffrey Wilson     | [suprjinx](https://github.com/suprjinx)                 | G-Research  |
+| Nikola Jokic        | [nikola-jokic](https://github.com/nikola-jokic)         | G-Research  |
 
 ## Past
 

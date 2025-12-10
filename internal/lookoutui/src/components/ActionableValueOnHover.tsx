@@ -33,14 +33,14 @@ export interface ActionableValueOnHoverProps {
   children: ReactNode
   copyAction?: CopyActionProps
   filterAction?: FilterActionProps
-  stopPropogationOnActionClick?: boolean
+  stopPropagationOnActionClick?: boolean
 }
 
 export const ActionableValueOnHover = ({
   children,
   copyAction,
   filterAction,
-  stopPropogationOnActionClick = false,
+  stopPropagationOnActionClick = false,
 }: ActionableValueOnHoverProps) => {
   const [hovering, setHovering] = useState(false)
   return (
@@ -52,7 +52,7 @@ export const ActionableValueOnHover = ({
             content={copyAction.copyContent}
             size="small"
             onClick={(e) => {
-              if (stopPropogationOnActionClick) {
+              if (stopPropagationOnActionClick) {
                 e.stopPropagation()
               }
             }}
@@ -66,7 +66,7 @@ export const ActionableValueOnHover = ({
             size="small"
             hidden={!hovering}
             onClick={(e) => {
-              if (stopPropogationOnActionClick) {
+              if (stopPropagationOnActionClick) {
                 e.stopPropagation()
               }
               filterAction.onFilter()

@@ -434,6 +434,9 @@ func (c *InstructionConverter) handleJobRunErrors(ts time.Time, event *armadaeve
 		case *armadaevents.Error_LeaseExpired:
 			jobRunUpdate.JobRunState = pointer.Int32(lookout.JobRunLeaseExpiredOrdinal)
 			jobRunUpdate.Error = tryCompressError(event.JobId, "Lease expired", c.compressor)
+		case *armadaevents.Error_ReconciliationError:
+			jobRunUpdate.JobRunState = pointer.Int32(lookout.JobRunFailedOrdinal)
+			jobRunUpdate.Error = tryCompressError(event.JobId, reason.ReconciliationError.GetMessage(), c.compressor)
 		default:
 			jobRunUpdate.JobRunState = pointer.Int32(lookout.JobRunFailedOrdinal)
 			jobRunUpdate.Error = tryCompressError(event.JobId, "Unknown error", c.compressor)

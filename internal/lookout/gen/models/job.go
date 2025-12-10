@@ -8,6 +8,7 @@ package models
 import (
 	"context"
 	"encoding/json"
+	stderrors "errors"
 	"strconv"
 
 	"github.com/go-openapi/errors"
@@ -238,7 +239,7 @@ func (m *Job) validateCluster(formats strfmt.Registry) error {
 
 func (m *Job) validateCPU(formats strfmt.Registry) error {
 
-	if err := validate.Required("cpu", "body", int64(m.CPU)); err != nil {
+	if err := validate.Required("cpu", "body", m.CPU); err != nil {
 		return err
 	}
 
@@ -247,7 +248,7 @@ func (m *Job) validateCPU(formats strfmt.Registry) error {
 
 func (m *Job) validateDuplicate(formats strfmt.Registry) error {
 
-	if err := validate.Required("duplicate", "body", bool(m.Duplicate)); err != nil {
+	if err := validate.Required("duplicate", "body", m.Duplicate); err != nil {
 		return err
 	}
 
@@ -256,7 +257,7 @@ func (m *Job) validateDuplicate(formats strfmt.Registry) error {
 
 func (m *Job) validateEphemeralStorage(formats strfmt.Registry) error {
 
-	if err := validate.Required("ephemeralStorage", "body", int64(m.EphemeralStorage)); err != nil {
+	if err := validate.Required("ephemeralStorage", "body", m.EphemeralStorage); err != nil {
 		return err
 	}
 
@@ -265,7 +266,7 @@ func (m *Job) validateEphemeralStorage(formats strfmt.Registry) error {
 
 func (m *Job) validateGpu(formats strfmt.Registry) error {
 
-	if err := validate.Required("gpu", "body", int64(m.Gpu)); err != nil {
+	if err := validate.Required("gpu", "body", m.Gpu); err != nil {
 		return err
 	}
 
@@ -300,7 +301,7 @@ func (m *Job) validateJobSet(formats strfmt.Registry) error {
 
 func (m *Job) validateLastTransitionTime(formats strfmt.Registry) error {
 
-	if err := validate.Required("lastTransitionTime", "body", strfmt.DateTime(m.LastTransitionTime)); err != nil {
+	if err := validate.Required("lastTransitionTime", "body", m.LastTransitionTime); err != nil {
 		return err
 	}
 
@@ -317,7 +318,7 @@ func (m *Job) validateLastTransitionTime(formats strfmt.Registry) error {
 
 func (m *Job) validateMemory(formats strfmt.Registry) error {
 
-	if err := validate.Required("memory", "body", int64(m.Memory)); err != nil {
+	if err := validate.Required("memory", "body", m.Memory); err != nil {
 		return err
 	}
 
@@ -339,7 +340,7 @@ func (m *Job) validateOwner(formats strfmt.Registry) error {
 
 func (m *Job) validatePriority(formats strfmt.Registry) error {
 
-	if err := validate.Required("priority", "body", int64(m.Priority)); err != nil {
+	if err := validate.Required("priority", "body", m.Priority); err != nil {
 		return err
 	}
 
@@ -372,11 +373,15 @@ func (m *Job) validateRuns(formats strfmt.Registry) error {
 
 		if m.Runs[i] != nil {
 			if err := m.Runs[i].Validate(formats); err != nil {
-				if ve, ok := err.(*errors.Validation); ok {
+				ve := new(errors.Validation)
+				if stderrors.As(err, &ve) {
 					return ve.ValidateName("runs" + "." + strconv.Itoa(i))
-				} else if ce, ok := err.(*errors.CompositeError); ok {
+				}
+				ce := new(errors.CompositeError)
+				if stderrors.As(err, &ce) {
 					return ce.ValidateName("runs" + "." + strconv.Itoa(i))
 				}
+
 				return err
 			}
 		}
@@ -388,14 +393,14 @@ func (m *Job) validateRuns(formats strfmt.Registry) error {
 
 func (m *Job) validateRuntimeSeconds(formats strfmt.Registry) error {
 
-	if err := validate.Required("runtimeSeconds", "body", int32(m.RuntimeSeconds)); err != nil {
+	if err := validate.Required("runtimeSeconds", "body", m.RuntimeSeconds); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-var jobTypeStatePropEnum []interface{}
+var jobTypeStatePropEnum []any
 
 func init() {
 	var res []string
@@ -461,7 +466,7 @@ func (m *Job) validateState(formats strfmt.Registry) error {
 
 func (m *Job) validateSubmitted(formats strfmt.Registry) error {
 
-	if err := validate.Required("submitted", "body", strfmt.DateTime(m.Submitted)); err != nil {
+	if err := validate.Required("submitted", "body", m.Submitted); err != nil {
 		return err
 	}
 
@@ -501,11 +506,15 @@ func (m *Job) contextValidateRuns(ctx context.Context, formats strfmt.Registry) 
 			}
 
 			if err := m.Runs[i].ContextValidate(ctx, formats); err != nil {
-				if ve, ok := err.(*errors.Validation); ok {
+				ve := new(errors.Validation)
+				if stderrors.As(err, &ve) {
 					return ve.ValidateName("runs" + "." + strconv.Itoa(i))
-				} else if ce, ok := err.(*errors.CompositeError); ok {
+				}
+				ce := new(errors.CompositeError)
+				if stderrors.As(err, &ce) {
 					return ce.ValidateName("runs" + "." + strconv.Itoa(i))
 				}
+
 				return err
 			}
 		}

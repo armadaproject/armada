@@ -14,8 +14,11 @@ import (
 type ApplicationConfiguration struct {
 	// ClusterId is the unique identifier for the cluster that the executor is running on.
 	// It is used to identify the cluster in the scheduler.
-	ClusterId              string
-	Pool                   string
+	ClusterId string
+	Pool      string
+	// The suffix to be added to the pool if the node is reserved
+	// If set to empty string, no suffix will be added
+	ReservedNodePoolSuffix string
 	SubmitConcurrencyLimit int
 	UpdateConcurrencyLimit int
 	DeleteConcurrencyLimit int

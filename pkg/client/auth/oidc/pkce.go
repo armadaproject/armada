@@ -95,12 +95,17 @@ func AuthenticatePkce(config PKCEDetails, cacheToken bool) (*TokenCredentials, e
 	if err != nil {
 		panic(err)
 	}
-	defer listener.Close()
 
 	server := &http.Server{}
+	defer func() {
+		if err := server.Shutdown(context.Background()); err != nil {
+			log.WithStacktrace(err).Error("unable to shutdown server gracefully")
+		}
+		listener.Close()
+	}()
 
 	go func() {
-		if err := server.Serve(listener); err != nil {
+		if err := server.Serve(listener); err != nil && err != http.ErrServerClosed {
 			log.WithStacktrace(err).Error("unable to serve")
 		}
 	}()

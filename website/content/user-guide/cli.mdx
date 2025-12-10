@@ -1,0 +1,162 @@
+---
+title: 'CLI Reference'
+---
+
+## Installing armadactl
+
+`armadactl` is the official command-line tool for interacting with Armada. It's the recommended way to interact with Armada for most users, providing a simple and intuitive interface for all common operations.
+
+### Installation Methods
+
+**Using the Installation Script**
+
+The easiest way to install `armadactl` is using the provided installation script:
+
+```bash
+# From the Armada repository root
+scripts/get-armadactl.sh
+```
+
+**Download from Releases**
+
+Alternatively, you can download the latest `armadactl` binaries directly from the [Armada releases page](https://github.com/armadaproject/armada/releases). Download the appropriate binary for your platform:
+
+```bash
+# Example for macOS (Intel)
+curl -L -o /tmp/armadactl "https://github.com/armadaproject/armada/releases/download/v0.3.101/armadactl_0.3.101_darwin_all.tar.gz" && \
+  tar -xzvf /tmp/armadactl && \
+  mv armadactl /usr/local/bin/armadactl && \
+  rm /tmp/armadactl && \
+  chmod +x /usr/local/bin/armadactl
+
+# Example for Linux (AMD64)
+curl -L -o /tmp/armadactl "https://github.com/armadaproject/armada/releases/download/v0.3.101/armadactl_0.3.101_linux_amd64.tar.gz" && \
+  tar -xzvf /tmp/armadactl && \
+  mv armadactl /usr/local/bin/armadactl && \
+  rm /tmp/armadactl && \
+  chmod +x /usr/local/bin/armadactl
+```
+
+**Install via kubectl plugin (krew)**
+
+If you use `kubectl` and have [krew](https://krew.sigs.k8s.io/) installed, you can install `armadactl` as a kubectl plugin:
+
+```bash
+kubectl krew install armadactl
+```
+
+Then use it as:
+
+```bash
+kubectl armadactl [subcommand]
+```
+
+## Configuration
+
+`armadactl` uses a configuration file to manage connections to Armada instances. By default, it looks for a configuration file at `$HOME/.armadactl.yaml`.
+
+### Configuration File Structure
+
+```yaml
+currentContext: main # Default context to be used
+contexts:
+  main:
+    armadaUrl: <Your Armada API endpoint>
+    execAuth:
+      cmd: <Your auth command>
+      args:
+        - <Arg>
+  test:
+    armadaUrl: <Your Armada API endpoint>
+    execAuth:
+      cmd: <Your auth command>
+      args:
+        - <Arg>
+```
+
+You can also specify a custom config file using the `--config` flag:
+
+```bash
+armadactl --config /path/to/config.yaml submit job.yaml
+```
+
+## CLI Commands
+
+`armadactl` provides the following commands:
+
+- **`submit`** - Submit jobs to Armada queues
+- **`cancel`** - Cancel running or queued jobs
+- **`get`** - Get information about jobs, queues, or job sets
+- **`watch`** - Watch job events in real-time
+- **`create`** - Create queues and other resources
+- **`delete`** - Delete jobs, queues, or other resources
+- **`update`** - Update jobs or queues
+- **`reprioritize`** - Change job priorities
+- **`preempt`** - Preempt running jobs
+- **`cordon`** - Mark executors as unavailable
+- **`uncordon`** - Mark executors as available
+- **`config`** - Manage armadactl configuration contexts
+- **`version`** - Display version information
+- **`docs`** - Generate documentation
+
+## Example Usage Patterns
+
+### Submitting a Job
+
+```bash
+# Submit a single job from a YAML file
+armadactl submit job.yaml
+
+# Submit multiple jobs
+armadactl submit job1.yaml job2.yaml job3.yaml
+```
+
+### Monitoring Jobs
+
+```bash
+# Get job status
+armadactl get job <job-id>
+
+# Watch job events in real-time
+armadactl watch <job-set-id>
+
+# List all jobs in a queue
+armadactl get queue <queue-name>
+```
+
+### Managing Queues
+
+```bash
+# Create a new queue
+armadactl create queue my-queue
+
+# Get queue information
+armadactl get queue my-queue
+
+# Delete a queue
+armadactl delete queue my-queue
+```
+
+### Cancelling Jobs
+
+```bash
+# Cancel a specific job
+armadactl cancel <job-id>
+
+# Cancel all jobs in a job set
+armadactl cancel <job-set-id>
+```
+
+## Getting Help
+
+For detailed help on any command:
+
+```bash
+armadactl [command] --help
+```
+
+For general help:
+
+```bash
+armadactl --help
+```

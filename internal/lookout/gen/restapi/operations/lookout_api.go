@@ -44,24 +44,44 @@ func NewLookoutAPI(spec *loads.Document) *LookoutAPI {
 		TxtProducer:  runtime.TextProducer(),
 
 		GetHealthHandler: GetHealthHandlerFunc(func(params GetHealthParams) middleware.Responder {
+			_ = params
+
 			return middleware.NotImplemented("operation GetHealth has not yet been implemented")
 		}),
+
 		GetJobErrorHandler: GetJobErrorHandlerFunc(func(params GetJobErrorParams) middleware.Responder {
+			_ = params
+
 			return middleware.NotImplemented("operation GetJobError has not yet been implemented")
 		}),
+
 		GetJobRunDebugMessageHandler: GetJobRunDebugMessageHandlerFunc(func(params GetJobRunDebugMessageParams) middleware.Responder {
+			_ = params
+
 			return middleware.NotImplemented("operation GetJobRunDebugMessage has not yet been implemented")
 		}),
+
 		GetJobRunErrorHandler: GetJobRunErrorHandlerFunc(func(params GetJobRunErrorParams) middleware.Responder {
+			_ = params
+
 			return middleware.NotImplemented("operation GetJobRunError has not yet been implemented")
 		}),
+
 		GetJobSpecHandler: GetJobSpecHandlerFunc(func(params GetJobSpecParams) middleware.Responder {
+			_ = params
+
 			return middleware.NotImplemented("operation GetJobSpec has not yet been implemented")
 		}),
+
 		GetJobsHandler: GetJobsHandlerFunc(func(params GetJobsParams) middleware.Responder {
+			_ = params
+
 			return middleware.NotImplemented("operation GetJobs has not yet been implemented")
 		}),
+
 		GroupJobsHandler: GroupJobsHandlerFunc(func(params GroupJobsParams) middleware.Responder {
+			_ = params
+
 			return middleware.NotImplemented("operation GroupJobs has not yet been implemented")
 		}),
 	}
@@ -134,7 +154,7 @@ type LookoutAPI struct {
 	CommandLineOptionsGroups []swag.CommandLineOptionsGroup
 
 	// User defined logger function.
-	Logger func(string, ...interface{})
+	Logger func(string, ...any)
 }
 
 // UseRedoc for documentation at /docs
@@ -242,12 +262,12 @@ func (o *LookoutAPI) Authorizer() runtime.Authorizer {
 }
 
 // ConsumersFor gets the consumers for the specified media types.
+//
 // MIME type parameters are ignored here.
 func (o *LookoutAPI) ConsumersFor(mediaTypes []string) map[string]runtime.Consumer {
 	result := make(map[string]runtime.Consumer, len(mediaTypes))
 	for _, mt := range mediaTypes {
-		switch mt {
-		case "application/json":
+		if mt == "application/json" {
 			result["application/json"] = o.JSONConsumer
 		}
 
@@ -255,10 +275,12 @@ func (o *LookoutAPI) ConsumersFor(mediaTypes []string) map[string]runtime.Consum
 			result[mt] = c
 		}
 	}
+
 	return result
 }
 
 // ProducersFor gets the producers for the specified media types.
+//
 // MIME type parameters are ignored here.
 func (o *LookoutAPI) ProducersFor(mediaTypes []string) map[string]runtime.Producer {
 	result := make(map[string]runtime.Producer, len(mediaTypes))
@@ -274,6 +296,7 @@ func (o *LookoutAPI) ProducersFor(mediaTypes []string) map[string]runtime.Produc
 			result[mt] = p
 		}
 	}
+
 	return result
 }
 

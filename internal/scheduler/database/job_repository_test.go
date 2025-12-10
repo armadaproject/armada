@@ -187,7 +187,7 @@ func TestFetchInitialJobs(t *testing.T) {
 				ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
 
 				// Set up db
-				err := database.UpsertWithTransaction(ctx, repo.db, "jobs", tc.dbJobs)
+				err := database.UpsertWithTransaction(ctx, repo.db, "jobs", tc.dbJobs, database.WithExcludeColumns("terminated"))
 				require.NoError(t, err)
 				err = database.UpsertWithTransaction(ctx, repo.db, "runs", tc.dbRuns)
 				require.NoError(t, err)
@@ -290,7 +290,7 @@ func TestFetchJobUpdates(t *testing.T) {
 				ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
 
 				// Set up db
-				err := database.UpsertWithTransaction(ctx, repo.db, "jobs", tc.dbJobs)
+				err := database.UpsertWithTransaction(ctx, repo.db, "jobs", tc.dbJobs, database.WithExcludeColumns("terminated"))
 				require.NoError(t, err)
 				err = database.UpsertWithTransaction(ctx, repo.db, "runs", tc.dbRuns)
 				require.NoError(t, err)
@@ -723,7 +723,7 @@ func TestFetchJobRunLeases(t *testing.T) {
 				ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
 
 				// Set up db
-				err := database.UpsertWithTransaction(ctx, repo.db, "jobs", tc.dbJobs)
+				err := database.UpsertWithTransaction(ctx, repo.db, "jobs", tc.dbJobs, database.WithExcludeColumns("terminated"))
 				require.NoError(t, err)
 				err = database.UpsertWithTransaction(ctx, repo.db, "runs", tc.dbRuns)
 				require.NoError(t, err)

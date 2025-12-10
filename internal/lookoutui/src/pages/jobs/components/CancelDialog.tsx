@@ -16,7 +16,7 @@ import { ErrorBoundary } from "react-error-boundary"
 
 import { getUniqueJobsMatchingFilters } from "../../../common/jobsDialogUtils"
 import { formatJobState } from "../../../common/jobsTableFormatters"
-import { waitMillis, PlatformCancelReason } from "../../../common/utils"
+import { waitMs, PlatformCancelReason } from "../../../common/utils"
 import { AlertErrorFallback } from "../../../components/AlertErrorFallback"
 import { useFormatNumberWithUserSettings } from "../../../components/hooks/formatNumberWithUserSettings"
 import { useFormatIsoTimestampWithUserSettings } from "../../../components/hooks/formatTimeWithUserSettings"
@@ -114,6 +114,7 @@ export const CancelDialog = ({
   // On dialog open
   useEffect(() => {
     mounted.current = true
+    // eslint-disable-next-line no-console
     fetchSelectedJobs().catch(console.error)
     return () => {
       mounted.current = false
@@ -126,12 +127,13 @@ export const CancelDialog = ({
 
     // Wait a small period and then retrieve the job state of the cancelled jobs
     setIsLoadingJobs(true)
-    await waitMillis(500)
+    await waitMs(500)
     await fetchSelectedJobs()
   }, [cancelSelectedJobs, fetchSelectedJobs])
 
   const handleRefetch = useCallback(() => {
     setJobIdsToCancelResponses({})
+    // eslint-disable-next-line no-console
     fetchSelectedJobs().catch(console.error)
   }, [fetchSelectedJobs])
 

@@ -6,6 +6,7 @@ import (
 	"golang.org/x/exp/maps"
 	v1 "k8s.io/api/core/v1"
 
+	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/kubernetesobjects/label"
 	koTaint "github.com/armadaproject/armada/internal/scheduler/kubernetesobjects/taint"
@@ -33,6 +34,7 @@ type Node struct {
 	executor          string
 	name              string
 	pool              string
+	reservation       string
 	nodeType          *NodeType
 	reportingNodeType string
 
@@ -172,6 +174,7 @@ func CreateNode(
 	evictedJobRunIds map[string]bool,
 	keys [][]byte,
 ) *Node {
+	reservation := util.GetReservationName(taints)
 	return &Node{
 		id:                    id,
 		nodeType:              nodeType,
@@ -181,6 +184,7 @@ func CreateNode(
 		pool:                  pool,
 		reportingNodeType:     reportingNodeType,
 		taints:                koTaint.DeepCopyTaints(taints),
+		reservation:           reservation,
 		labels:                deepCopyLabels(labels),
 		unschedulable:         unschedulable,
 		totalResources:        totalResources,
@@ -211,6 +215,10 @@ func (node *Node) IsOverAllocated() bool {
 
 func (node *Node) GetPool() string {
 	return node.pool
+}
+
+func (node *Node) GetReservation() string {
+	return node.reservation
 }
 
 func (node *Node) GetReportingNodeType() string {
@@ -308,6 +316,7 @@ func (node *Node) DeepCopyNilKeys() *Node {
 		executor:             node.executor,
 		name:                 node.name,
 		pool:                 node.pool,
+		reservation:          node.reservation,
 		reportingNodeType:    node.reportingNodeType,
 		nodeType:             node.nodeType,
 		taints:               node.taints,
@@ -338,6 +347,7 @@ func (node *Node) SummaryString() string {
 	result += fmt.Sprintf("Executor: %s\n", node.executor)
 	result += fmt.Sprintf("Name: %s\n", node.name)
 	result += fmt.Sprintf("Pool: %s\n", node.pool)
+	result += fmt.Sprintf("Reservation: %s\n", node.reservation)
 	result += fmt.Sprintf("ReportingNodeType: %s\n", node.reportingNodeType)
 	result += fmt.Sprintf("Unschedulable: %t\n", node.unschedulable)
 	result += fmt.Sprintf("OverAllocated: %t\n", node.overAllocated)

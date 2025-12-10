@@ -125,6 +125,7 @@ export const SidebarTabJobLogs = ({ job }: SidebarTabJobLogsProps) => {
 
   const cluster = useMemo(() => {
     if (job.runs.length === 0) {
+      // eslint-disable-next-line no-console
       console.error("job has no runs")
       return ""
     }

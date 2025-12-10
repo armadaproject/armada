@@ -91,11 +91,6 @@ export const CustomViewPicker = ({
                     onChange={(e) => {
                       setNewCustomViewName(e.target.value)
                     }}
-                    onKeyUp={(e) => {
-                      if (e.key === "Enter") {
-                        console.log("Saving")
-                      }
-                    }}
                   />
                   <div className={styles.addCustomViewActions}>
                     <div className={styles.addCustomViewAction}>

@@ -77,22 +77,75 @@ func TestWithError(t *testing.T) {
 }
 
 func TestWithStacktrace(t *testing.T) {
-	logger, buf := testLogger()
-	err := errors.New("test error")
-	logger = logger.WithStacktrace(err)
-
-	logger.Info("test message")
-
-	assertLogLineExpected(
-		t,
-		&testLogEntry{
-			Level:      "info",
-			Message:    "test message",
-			Error:      "test error",
-			Stacktrace: fmt.Sprintf("%v", err.(stackTracer).StackTrace()),
+	errorsNew := errors.New("test error")
+	errorsErrorf := errors.Errorf("test error")
+	errorsWithStack := errors.WithStack(fmt.Errorf("inner error"))
+	innerErrorWithStackTrace := errors.Errorf("inner error")
+	errorsWithMessageNested := errors.WithMessage(innerErrorWithStackTrace, "outer message")
+	errorsWithMessageNested2 := errors.WithMessage(errorsWithMessageNested, "even outer message")
+	tests := map[string]struct {
+		err         error
+		expectedLog *testLogEntry
+	}{
+		"errors.New": {
+			err: errorsNew,
+			expectedLog: &testLogEntry{
+				Level:      "info",
+				Message:    "test message",
+				Error:      "test error",
+				Stacktrace: fmt.Sprintf("%v", errorsNew.(stackTracer).StackTrace()),
+			},
 		},
-		buf,
-	)
+		"errors.ErrorF": {
+			err: errorsErrorf,
+			expectedLog: &testLogEntry{
+				Level:      "info",
+				Message:    "test message",
+				Error:      "test error",
+				Stacktrace: fmt.Sprintf("%v", errorsErrorf.(stackTracer).StackTrace()),
+			},
+		},
+		"errors.WithStack": {
+			err: errorsWithStack,
+			expectedLog: &testLogEntry{
+				Level:      "info",
+				Message:    "test message",
+				Error:      "inner error",
+				Stacktrace: fmt.Sprintf("%v", errorsWithStack.(stackTracer).StackTrace()),
+			},
+		},
+		"errors.WithMessage - nested": {
+			err: errorsWithMessageNested,
+			expectedLog: &testLogEntry{
+				Level:      "info",
+				Message:    "test message",
+				Error:      "outer message: inner error",
+				Stacktrace: fmt.Sprintf("%v", innerErrorWithStackTrace.(stackTracer).StackTrace()),
+			},
+		},
+		"errors.WithMessage - nested 2": {
+			err: errorsWithMessageNested2,
+			expectedLog: &testLogEntry{
+				Level:      "info",
+				Message:    "test message",
+				Error:      "even outer message: outer message: inner error",
+				Stacktrace: fmt.Sprintf("%v", innerErrorWithStackTrace.(stackTracer).StackTrace()),
+			},
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			logger, buf := testLogger()
+			logger = logger.WithStacktrace(tc.err)
+			logger.Info("test message")
+
+			assertLogLineExpected(
+				t,
+				tc.expectedLog,
+				buf,
+			)
+		})
+	}
 }
 
 func TestLogAtLevel(t *testing.T) {

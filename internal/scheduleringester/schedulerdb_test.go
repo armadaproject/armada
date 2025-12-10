@@ -591,6 +591,9 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 			}
 		}
 		for k, v := range expected {
+			// Compute Terminated field to match database GENERATED column: terminated = cancelled OR succeeded OR failed
+			terminated := v.Cancelled || v.Succeeded || v.Failed
+			v.Terminated = &terminated
 			assert.Equal(t, v, actual[k])
 		}
 	case InsertRuns:

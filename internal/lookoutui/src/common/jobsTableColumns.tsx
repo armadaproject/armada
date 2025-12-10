@@ -202,9 +202,9 @@ export const GET_JOB_COLUMNS = ({
       />
     ),
     cell: (item: unknown) => {
-      const itemCasted = item as CellContext<JobTableRow, unknown>
-      const row = itemCasted.row
-      const onClickRowCheckbox = (itemCasted as any).onClickRowCheckbox as (row: Row<JobTableRow>) => void
+      const itemCast = item as CellContext<JobTableRow, unknown>
+      const row = itemCast.row
+      const onClickRowCheckbox = (itemCast as any).onClickRowCheckbox as (row: Row<JobTableRow>) => void
       return (
         <Checkbox
           checked={row.getIsGrouped() ? row.getIsAllSubRowsSelected() : row.getIsSelected()}

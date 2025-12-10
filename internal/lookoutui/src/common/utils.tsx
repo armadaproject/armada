@@ -74,6 +74,7 @@ export function tryParseJson(json: string): Record<string, unknown> | unknown[] 
     return JSON.parse(json) as Record<string, unknown>
   } catch (e: unknown) {
     if (e instanceof Error) {
+      // eslint-disable-next-line no-console
       console.error(e.message)
     }
     return undefined
@@ -86,8 +87,8 @@ export function priorityIsValid(priority: string): boolean {
   return priorityRegex.test(priority) && priority.length > 0
 }
 
-export async function waitMillis(millisToWait: number): Promise<void> {
-  await new Promise((resolve) => setTimeout(resolve, millisToWait))
+export async function waitMs(msToWait: number): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, msToWait))
 }
 
 export function removeUndefined(obj: Record<string, any>) {

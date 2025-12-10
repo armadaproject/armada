@@ -223,7 +223,8 @@ func SwaggerJsonTemplate() string {
 		"        \"sinceTime\": {\n" +
 		"          \"description\": \"An RFC3339 timestamp from which to show logs. If this value\\nprecedes the time a pod was started, only logs since the pod start will be returned.\\nIf this value is in the future, no logs will be returned.\\nOnly one of sinceSeconds or sinceTime may be specified.\\n+optional\",\n" +
 		"          \"type\": \"string\",\n" +
-		"          \"x-go-name\": \"SinceTime\"\n" +
+		"          \"x-go-name\": \"SinceTime\",\n" +
+		"          \"x-go-type\": \"k8s.io/apimachinery/pkg/apis/meta/v1.Time\"\n" +
 		"        },\n" +
 		"        \"tailLines\": {\n" +
 		"          \"description\": \"If set, the number of lines from the end of the logs to show. If not specified,\\nlogs are shown from the creation of the container or sinceSeconds or sinceTime\\n+optional\",\n" +

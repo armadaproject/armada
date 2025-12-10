@@ -135,6 +135,15 @@ type CustomThemeConfigs struct {
 	DefaultThemeName string        `json:"defaultThemeName"`
 }
 
+type JobLinkConfig struct {
+	// Label is the text which is displayed in the chip for this link
+	Label string `json:"label"`
+	// Colour is the colour of the chip for this link
+	Colour string `json:"colour"`
+	// LinkTemplate is the template string for the link. For example, use 'annotations["your.anno/tation-key"]' to interpolate the value of an annotation
+	LinkTemplate string `json:"linkTemplate"`
+}
+
 // UIConfig must match the LookoutUiConfig TypeScript interface defined in internal/lookoutui/src/lookoutUiConfig.d.ts
 type UIConfig struct {
 	CustomTitle string `json:"customTitle"`
@@ -163,6 +172,8 @@ type UIConfig struct {
 	PinnedTimeZoneIdentifiers []string `json:"pinnedTimeZoneIdentifiers"`
 
 	ErrorMonitoring ErrorMonitoringConfig `json:"errorMonitoring"`
+
+	JobLinks []JobLinkConfig `json:"jobLinks"`
 
 	CustomThemeConfigs *CustomThemeConfigs `json:"customThemeConfigs,omitempty"`
 }

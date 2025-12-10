@@ -10,6 +10,10 @@ updates:
     schedule:
       # Check for updates to GitHub Actions every week
       interval: "weekly"
+    groups:
+      all-dependencies:
+        patterns:
+          - "*"
 
   # Enable version updates for npm
   - package-ecosystem: "npm"
@@ -18,6 +22,10 @@ updates:
     # Check the npm registry for updates monthly
     schedule:
       interval: "monthly"
+    groups:
+      all-dependencies:
+        patterns:
+          - "*"
 
   # Maintain dependencies for Golang
   - package-ecosystem: "gomod"
@@ -25,6 +33,10 @@ updates:
     schedule:
       # Check for updates managed by Composer once a month
       interval: "monthly"
+    groups:
+      all-dependencies:
+        patterns:
+          - "*"
 
   # Enable version updates for Docker
   - package-ecosystem: "docker"
@@ -33,6 +45,10 @@ updates:
     # Check for updates once a month
     schedule:
       interval: "monthly"
+    groups:
+      all-dependencies:
+        patterns:
+          - "*"
 
   # Enable version updates for pip -- client/python dir
   - package-ecosystem: "pip"
@@ -40,6 +56,10 @@ updates:
     # Check the pip registry for updates monthly
     schedule:
       interval: "monthly"
+    groups:
+      all-dependencies:
+        patterns:
+          - "*"
 
   # Enable version updates for pip -- third_party/airflow dir
   - package-ecosystem: "pip"
@@ -47,3 +67,7 @@ updates:
     # Check the pip registry for updates monthly
     schedule:
       interval: "monthly"
+    groups:
+      all-dependencies:
+        patterns:
+          - "*"

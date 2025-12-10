@@ -57,15 +57,15 @@ func (mr *MockActionAuthorizerMockRecorder) AuthorizeAction(ctx, perm any) *gomo
 }
 
 // AuthorizeQueueAction mocks base method.
-func (m *MockActionAuthorizer) AuthorizeQueueAction(ctx *armadacontext.Context, queue queue.Queue, anyPerm permission.Permission, perm queue.PermissionVerb) error {
+func (m *MockActionAuthorizer) AuthorizeQueueAction(ctx *armadacontext.Context, arg1 queue.Queue, anyPerm permission.Permission, perm queue.PermissionVerb) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AuthorizeQueueAction", ctx, queue, anyPerm, perm)
+	ret := m.ctrl.Call(m, "AuthorizeQueueAction", ctx, arg1, anyPerm, perm)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // AuthorizeQueueAction indicates an expected call of AuthorizeQueueAction.
-func (mr *MockActionAuthorizerMockRecorder) AuthorizeQueueAction(ctx, queue, anyPerm, perm any) *gomock.Call {
+func (mr *MockActionAuthorizerMockRecorder) AuthorizeQueueAction(ctx, arg1, anyPerm, perm any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AuthorizeQueueAction", reflect.TypeOf((*MockActionAuthorizer)(nil).AuthorizeQueueAction), ctx, queue, anyPerm, perm)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AuthorizeQueueAction", reflect.TypeOf((*MockActionAuthorizer)(nil).AuthorizeQueueAction), ctx, arg1, anyPerm, perm)
 }

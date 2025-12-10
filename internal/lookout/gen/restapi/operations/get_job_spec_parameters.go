@@ -6,6 +6,7 @@ package operations
 // Editing this file might prove futile when you re-run the swagger generate command
 
 import (
+	stderrors "errors"
 	"io"
 	"net/http"
 
@@ -28,7 +29,6 @@ func NewGetJobSpecParams() GetJobSpecParams {
 //
 // swagger:parameters getJobSpec
 type GetJobSpecParams struct {
-
 	// HTTP Request Object
 	HTTPRequest *http.Request `json:"-"`
 
@@ -49,10 +49,12 @@ func (o *GetJobSpecParams) BindRequest(r *http.Request, route *middleware.Matche
 	o.HTTPRequest = r
 
 	if runtime.HasBody(r) {
-		defer r.Body.Close()
+		defer func() {
+			_ = r.Body.Close()
+		}()
 		var body GetJobSpecBody
 		if err := route.Consumer.Consume(r.Body, &body); err != nil {
-			if err == io.EOF {
+			if stderrors.Is(err, io.EOF) {
 				res = append(res, errors.Required("getJobSpecRequest", "body", ""))
 			} else {
 				res = append(res, errors.NewParseError("getJobSpecRequest", "body", "", err))

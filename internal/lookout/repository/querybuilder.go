@@ -226,7 +226,7 @@ func (qb *QueryBuilder) GroupBy(
 		activeJobSetsFilter = joinWithActiveJobSetsTable
 	}
 
-	queryAggregators, err := qb.getQueryAggregators(aggregates, filters)
+	queryAggregators, err := qb.getQueryAggregators(aggregates, filters, groupedField)
 	if err != nil {
 		return nil, err
 	}
@@ -654,7 +654,11 @@ func (qb *QueryBuilder) recordValue(value interface{}) string {
 	return fmt.Sprintf("$%d", len(qb.args))
 }
 
-func (qb *QueryBuilder) getQueryAggregators(aggregates []string, filters []*model.Filter) ([]QueryAggregator, error) {
+func (qb *QueryBuilder) getQueryAggregators(
+	aggregates []string,
+	filters []*model.Filter,
+	groupedField *model.GroupedField,
+) ([]QueryAggregator, error) {
 	var queryAggregators []QueryAggregator
 	for _, aggregate := range aggregates {
 		col, err := qb.lookoutTables.ColumnFromField(aggregate)
@@ -666,9 +670,16 @@ func (qb *QueryBuilder) getQueryAggregators(aggregates []string, filters []*mode
 			table:  jobTable,
 			abbrev: jobTableAbbrev,
 		}
-		aggregateType, err := qb.lookoutTables.GroupAggregateForCol(col)
-		if err != nil {
-			return nil, err
+
+		// For lastTransitionTime, use the selected aggregate type if specified
+		var aggregateType AggregateType
+		if col == lastTransitionTimeCol && groupedField != nil && groupedField.LastTransitionTimeAggregate != "" {
+			aggregateType = qb.lookoutTables.GetLastTransitionTimeAggregate(groupedField.LastTransitionTimeAggregate)
+		} else {
+			aggregateType, err = qb.lookoutTables.GroupAggregateForCol(col)
+			if err != nil {
+				return nil, err
+			}
 		}
 		newQueryAggregators, err := GetAggregatorsForColumn(aggregateColumn, aggregateType, filters)
 		if err != nil {

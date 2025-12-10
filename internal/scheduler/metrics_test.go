@@ -1,7 +1,6 @@
 package scheduler
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
@@ -245,17 +244,17 @@ func TestMetricsCollector_TestCollect_QueueMetrics(t *testing.T) {
 }
 
 func TestMetricsCollector_TestCollect_ClusterMetrics(t *testing.T) {
-	executor := createExecutor("cluster-1", createNode("type-1"), createNode("type-1"))
-	executorWithMultipleNodeTypes := createExecutor("cluster-1", createNode("type-1"), createNode("type-2"))
+	executor := createExecutor("cluster-1", createNode("type-1", "none"), createNode("type-1", "none"))
+	executorWithMultipleNodeTypes := createExecutor("cluster-1", createNode("type-1", "reservation-1"), createNode("type-2", "reservation-2"))
 
-	unschedulableNode := createNode("type-1")
+	unschedulableNode := createNode("type-1", "none")
 	unschedulableNode.Unschedulable = true
 
-	executorWithUnschedulableNodes := createExecutor("cluster-1", createNode("type-1"), unschedulableNode)
+	executorWithUnschedulableNodes := createExecutor("cluster-1", createNode("type-1", "none"), unschedulableNode)
 
 	job1 := testfixtures.TestRunningJobDbJob(0)
 	job2 := testfixtures.TestRunningJobDbJob(0)
-	nodeWithJobs := createNode("type-1")
+	nodeWithJobs := createNode("type-1", "none")
 	nodeWithJobs.StateByJobRunId[job1.LatestRun().Id()] = schedulerobjects.JobRunState_PENDING
 	nodeWithJobs.StateByJobRunId[job2.LatestRun().Id()] = schedulerobjects.JobRunState_RUNNING
 	nodeWithJobs.ResourceUsageByQueueAndPool = []*schedulerobjects.PoolQueueResource{
@@ -284,14 +283,14 @@ func TestMetricsCollector_TestCollect_ClusterMetrics(t *testing.T) {
 			jobDbJobs: []*jobdb.Job{},
 			executors: []*schedulerobjects.Executor{executor},
 			expected: []prometheus.Metric{
-				commonmetrics.NewClusterAvailableCapacity(64, "cluster-1", testfixtures.TestPool, "cpu", "type-1"),
-				commonmetrics.NewClusterAvailableCapacity(512*1024*1024*1024, "cluster-1", testfixtures.TestPool, "memory", "type-1"),
-				commonmetrics.NewClusterAvailableCapacity(2, "cluster-1", testfixtures.TestPool, "nodes", "type-1"),
-				commonmetrics.NewClusterTotalCapacity(64, "cluster-1", testfixtures.TestPool, "cpu", "type-1"),
-				commonmetrics.NewClusterTotalCapacity(512*1024*1024*1024, "cluster-1", testfixtures.TestPool, "memory", "type-1"),
-				commonmetrics.NewClusterTotalCapacity(2, "cluster-1", testfixtures.TestPool, "nodes", "type-1"),
-				commonmetrics.NewClusterFarmCapacity(64, "cluster-1", testfixtures.TestPool, "cpu", "type-1"),
-				commonmetrics.NewClusterFarmCapacity(512*1024*1024*1024, "cluster-1", testfixtures.TestPool, "memory", "type-1"),
+				commonmetrics.NewClusterAvailableCapacity(64, "cluster-1", testfixtures.TestPool, "cpu", "type-1", "none"),
+				commonmetrics.NewClusterAvailableCapacity(512*1024*1024*1024, "cluster-1", testfixtures.TestPool, "memory", "type-1", "none"),
+				commonmetrics.NewClusterAvailableCapacity(2, "cluster-1", testfixtures.TestPool, "nodes", "type-1", "none"),
+				commonmetrics.NewClusterTotalCapacity(64, "cluster-1", testfixtures.TestPool, "cpu", "type-1", "none"),
+				commonmetrics.NewClusterTotalCapacity(512*1024*1024*1024, "cluster-1", testfixtures.TestPool, "memory", "type-1", "none"),
+				commonmetrics.NewClusterTotalCapacity(2, "cluster-1", testfixtures.TestPool, "nodes", "type-1", "none"),
+				commonmetrics.NewClusterFarmCapacity(64, "cluster-1", testfixtures.TestPool, "cpu", "type-1", "none"),
+				commonmetrics.NewClusterFarmCapacity(512*1024*1024*1024, "cluster-1", testfixtures.TestPool, "memory", "type-1", "none"),
 				commonmetrics.NewClusterCordonedStatus(0.0, "cluster-1", "", ""),
 				commonmetrics.NewJobDBCumulativeInternedStrings(0.0),
 			},
@@ -301,22 +300,22 @@ func TestMetricsCollector_TestCollect_ClusterMetrics(t *testing.T) {
 			jobDbJobs: []*jobdb.Job{},
 			executors: []*schedulerobjects.Executor{executorWithMultipleNodeTypes},
 			expected: []prometheus.Metric{
-				commonmetrics.NewClusterAvailableCapacity(32, "cluster-1", testfixtures.TestPool, "cpu", "type-1"),
-				commonmetrics.NewClusterAvailableCapacity(256*1024*1024*1024, "cluster-1", testfixtures.TestPool, "memory", "type-1"),
-				commonmetrics.NewClusterAvailableCapacity(1, "cluster-1", testfixtures.TestPool, "nodes", "type-1"),
-				commonmetrics.NewClusterAvailableCapacity(32, "cluster-1", testfixtures.TestPool, "cpu", "type-2"),
-				commonmetrics.NewClusterAvailableCapacity(256*1024*1024*1024, "cluster-1", testfixtures.TestPool, "memory", "type-2"),
-				commonmetrics.NewClusterAvailableCapacity(1, "cluster-1", testfixtures.TestPool, "nodes", "type-2"),
-				commonmetrics.NewClusterTotalCapacity(32, "cluster-1", testfixtures.TestPool, "cpu", "type-1"),
-				commonmetrics.NewClusterTotalCapacity(256*1024*1024*1024, "cluster-1", testfixtures.TestPool, "memory", "type-1"),
-				commonmetrics.NewClusterTotalCapacity(1, "cluster-1", testfixtures.TestPool, "nodes", "type-1"),
-				commonmetrics.NewClusterTotalCapacity(32, "cluster-1", testfixtures.TestPool, "cpu", "type-2"),
-				commonmetrics.NewClusterTotalCapacity(256*1024*1024*1024, "cluster-1", testfixtures.TestPool, "memory", "type-2"),
-				commonmetrics.NewClusterTotalCapacity(1, "cluster-1", testfixtures.TestPool, "nodes", "type-2"),
-				commonmetrics.NewClusterFarmCapacity(32, "cluster-1", testfixtures.TestPool, "cpu", "type-1"),
-				commonmetrics.NewClusterFarmCapacity(256*1024*1024*1024, "cluster-1", testfixtures.TestPool, "memory", "type-1"),
-				commonmetrics.NewClusterFarmCapacity(32, "cluster-1", testfixtures.TestPool, "cpu", "type-2"),
-				commonmetrics.NewClusterFarmCapacity(256*1024*1024*1024, "cluster-1", testfixtures.TestPool, "memory", "type-2"),
+				commonmetrics.NewClusterAvailableCapacity(32, "cluster-1", testfixtures.TestPool, "cpu", "type-1", "reservation-1"),
+				commonmetrics.NewClusterAvailableCapacity(256*1024*1024*1024, "cluster-1", testfixtures.TestPool, "memory", "type-1", "reservation-1"),
+				commonmetrics.NewClusterAvailableCapacity(1, "cluster-1", testfixtures.TestPool, "nodes", "type-1", "reservation-1"),
+				commonmetrics.NewClusterAvailableCapacity(32, "cluster-1", testfixtures.TestPool, "cpu", "type-2", "reservation-2"),
+				commonmetrics.NewClusterAvailableCapacity(256*1024*1024*1024, "cluster-1", testfixtures.TestPool, "memory", "type-2", "reservation-2"),
+				commonmetrics.NewClusterAvailableCapacity(1, "cluster-1", testfixtures.TestPool, "nodes", "type-2", "reservation-2"),
+				commonmetrics.NewClusterTotalCapacity(32, "cluster-1", testfixtures.TestPool, "cpu", "type-1", "reservation-1"),
+				commonmetrics.NewClusterTotalCapacity(256*1024*1024*1024, "cluster-1", testfixtures.TestPool, "memory", "type-1", "reservation-1"),
+				commonmetrics.NewClusterTotalCapacity(1, "cluster-1", testfixtures.TestPool, "nodes", "type-1", "reservation-1"),
+				commonmetrics.NewClusterTotalCapacity(32, "cluster-1", testfixtures.TestPool, "cpu", "type-2", "reservation-2"),
+				commonmetrics.NewClusterTotalCapacity(256*1024*1024*1024, "cluster-1", testfixtures.TestPool, "memory", "type-2", "reservation-2"),
+				commonmetrics.NewClusterTotalCapacity(1, "cluster-1", testfixtures.TestPool, "nodes", "type-2", "reservation-2"),
+				commonmetrics.NewClusterFarmCapacity(32, "cluster-1", testfixtures.TestPool, "cpu", "type-1", "reservation-1"),
+				commonmetrics.NewClusterFarmCapacity(256*1024*1024*1024, "cluster-1", testfixtures.TestPool, "memory", "type-1", "reservation-1"),
+				commonmetrics.NewClusterFarmCapacity(32, "cluster-1", testfixtures.TestPool, "cpu", "type-2", "reservation-2"),
+				commonmetrics.NewClusterFarmCapacity(256*1024*1024*1024, "cluster-1", testfixtures.TestPool, "memory", "type-2", "reservation-2"),
 				commonmetrics.NewClusterCordonedStatus(0.0, "cluster-1", "", ""),
 				commonmetrics.NewJobDBCumulativeInternedStrings(0.0),
 			},
@@ -326,14 +325,14 @@ func TestMetricsCollector_TestCollect_ClusterMetrics(t *testing.T) {
 			jobDbJobs: []*jobdb.Job{},
 			executors: []*schedulerobjects.Executor{executorWithUnschedulableNodes},
 			expected: []prometheus.Metric{
-				commonmetrics.NewClusterAvailableCapacity(32, "cluster-1", testfixtures.TestPool, "cpu", "type-1"),
-				commonmetrics.NewClusterAvailableCapacity(256*1024*1024*1024, "cluster-1", testfixtures.TestPool, "memory", "type-1"),
-				commonmetrics.NewClusterAvailableCapacity(1, "cluster-1", testfixtures.TestPool, "nodes", "type-1"),
-				commonmetrics.NewClusterTotalCapacity(64, "cluster-1", testfixtures.TestPool, "cpu", "type-1"),
-				commonmetrics.NewClusterTotalCapacity(512*1024*1024*1024, "cluster-1", testfixtures.TestPool, "memory", "type-1"),
-				commonmetrics.NewClusterTotalCapacity(2, "cluster-1", testfixtures.TestPool, "nodes", "type-1"),
-				commonmetrics.NewClusterFarmCapacity(64, "cluster-1", testfixtures.TestPool, "cpu", "type-1"),
-				commonmetrics.NewClusterFarmCapacity(512*1024*1024*1024, "cluster-1", testfixtures.TestPool, "memory", "type-1"),
+				commonmetrics.NewClusterAvailableCapacity(32, "cluster-1", testfixtures.TestPool, "cpu", "type-1", "none"),
+				commonmetrics.NewClusterAvailableCapacity(256*1024*1024*1024, "cluster-1", testfixtures.TestPool, "memory", "type-1", "none"),
+				commonmetrics.NewClusterAvailableCapacity(1, "cluster-1", testfixtures.TestPool, "nodes", "type-1", "none"),
+				commonmetrics.NewClusterTotalCapacity(64, "cluster-1", testfixtures.TestPool, "cpu", "type-1", "none"),
+				commonmetrics.NewClusterTotalCapacity(512*1024*1024*1024, "cluster-1", testfixtures.TestPool, "memory", "type-1", "none"),
+				commonmetrics.NewClusterTotalCapacity(2, "cluster-1", testfixtures.TestPool, "nodes", "type-1", "none"),
+				commonmetrics.NewClusterFarmCapacity(64, "cluster-1", testfixtures.TestPool, "cpu", "type-1", "none"),
+				commonmetrics.NewClusterFarmCapacity(512*1024*1024*1024, "cluster-1", testfixtures.TestPool, "memory", "type-1", "none"),
 				commonmetrics.NewClusterCordonedStatus(0.0, "cluster-1", "", ""),
 				commonmetrics.NewJobDBCumulativeInternedStrings(0.0),
 			},
@@ -343,20 +342,20 @@ func TestMetricsCollector_TestCollect_ClusterMetrics(t *testing.T) {
 			jobDbJobs: []*jobdb.Job{job1, job2},
 			executors: []*schedulerobjects.Executor{executorWithJobs},
 			expected: []prometheus.Metric{
-				commonmetrics.NewQueueLeasedPodCount(1, "cluster-1", testfixtures.TestPool, testfixtures.TestQueue, "Pending", "type-1"),
-				commonmetrics.NewQueueLeasedPodCount(1, "cluster-1", testfixtures.TestPool, testfixtures.TestQueue, "Running", "type-1"),
-				commonmetrics.NewQueueAllocated(2, testfixtures.TestQueue, "cluster-1", testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, "None", "cpu", "type-1"),
-				commonmetrics.NewQueueAllocated(2*1024*1024*1024, testfixtures.TestQueue, "cluster-1", testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, "None", "memory", "type-1"),
-				commonmetrics.NewQueueUsed(1, testfixtures.TestQueue, "cluster-1", testfixtures.TestPool, "cpu", "type-1"),
-				commonmetrics.NewQueueUsed(1*1024*1024*1024, testfixtures.TestQueue, "cluster-1", testfixtures.TestPool, "memory", "type-1"),
-				commonmetrics.NewClusterAvailableCapacity(32, "cluster-1", testfixtures.TestPool, "cpu", "type-1"),
-				commonmetrics.NewClusterAvailableCapacity(256*1024*1024*1024, "cluster-1", testfixtures.TestPool, "memory", "type-1"),
-				commonmetrics.NewClusterAvailableCapacity(1, "cluster-1", testfixtures.TestPool, "nodes", "type-1"),
-				commonmetrics.NewClusterTotalCapacity(32, "cluster-1", testfixtures.TestPool, "cpu", "type-1"),
-				commonmetrics.NewClusterTotalCapacity(256*1024*1024*1024, "cluster-1", testfixtures.TestPool, "memory", "type-1"),
-				commonmetrics.NewClusterTotalCapacity(1, "cluster-1", testfixtures.TestPool, "nodes", "type-1"),
-				commonmetrics.NewClusterFarmCapacity(32, "cluster-1", testfixtures.TestPool, "cpu", "type-1"),
-				commonmetrics.NewClusterFarmCapacity(256*1024*1024*1024, "cluster-1", testfixtures.TestPool, "memory", "type-1"),
+				commonmetrics.NewQueueLeasedPodCount(1, "cluster-1", testfixtures.TestPool, testfixtures.TestQueue, "Pending", "type-1", "none"),
+				commonmetrics.NewQueueLeasedPodCount(1, "cluster-1", testfixtures.TestPool, testfixtures.TestQueue, "Running", "type-1", "none"),
+				commonmetrics.NewQueueAllocated(2, testfixtures.TestQueue, "cluster-1", testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, "None", "cpu", "type-1", "none"),
+				commonmetrics.NewQueueAllocated(2*1024*1024*1024, testfixtures.TestQueue, "cluster-1", testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, "None", "memory", "type-1", "none"),
+				commonmetrics.NewQueueUsed(1, testfixtures.TestQueue, "cluster-1", testfixtures.TestPool, "cpu", "type-1", "none"),
+				commonmetrics.NewQueueUsed(1*1024*1024*1024, testfixtures.TestQueue, "cluster-1", testfixtures.TestPool, "memory", "type-1", "none"),
+				commonmetrics.NewClusterAvailableCapacity(32, "cluster-1", testfixtures.TestPool, "cpu", "type-1", "none"),
+				commonmetrics.NewClusterAvailableCapacity(256*1024*1024*1024, "cluster-1", testfixtures.TestPool, "memory", "type-1", "none"),
+				commonmetrics.NewClusterAvailableCapacity(1, "cluster-1", testfixtures.TestPool, "nodes", "type-1", "none"),
+				commonmetrics.NewClusterTotalCapacity(32, "cluster-1", testfixtures.TestPool, "cpu", "type-1", "none"),
+				commonmetrics.NewClusterTotalCapacity(256*1024*1024*1024, "cluster-1", testfixtures.TestPool, "memory", "type-1", "none"),
+				commonmetrics.NewClusterTotalCapacity(1, "cluster-1", testfixtures.TestPool, "nodes", "type-1", "none"),
+				commonmetrics.NewClusterFarmCapacity(32, "cluster-1", testfixtures.TestPool, "cpu", "type-1", "none"),
+				commonmetrics.NewClusterFarmCapacity(256*1024*1024*1024, "cluster-1", testfixtures.TestPool, "memory", "type-1", "none"),
 				commonmetrics.NewClusterCordonedStatus(0.0, "cluster-1", "", ""),
 				commonmetrics.NewJobDBCumulativeInternedStrings(0.0),
 			},
@@ -366,16 +365,16 @@ func TestMetricsCollector_TestCollect_ClusterMetrics(t *testing.T) {
 			jobDbJobs: []*jobdb.Job{},
 			executors: []*schedulerobjects.Executor{executorWithJobs},
 			expected: []prometheus.Metric{
-				commonmetrics.NewQueueUsed(1, testfixtures.TestQueue, "cluster-1", testfixtures.TestPool, "cpu", "type-1"),
-				commonmetrics.NewQueueUsed(1*1024*1024*1024, testfixtures.TestQueue, "cluster-1", testfixtures.TestPool, "memory", "type-1"),
-				commonmetrics.NewClusterAvailableCapacity(32, "cluster-1", testfixtures.TestPool, "cpu", "type-1"),
-				commonmetrics.NewClusterAvailableCapacity(256*1024*1024*1024, "cluster-1", testfixtures.TestPool, "memory", "type-1"),
-				commonmetrics.NewClusterAvailableCapacity(1, "cluster-1", testfixtures.TestPool, "nodes", "type-1"),
-				commonmetrics.NewClusterTotalCapacity(32, "cluster-1", testfixtures.TestPool, "cpu", "type-1"),
-				commonmetrics.NewClusterTotalCapacity(256*1024*1024*1024, "cluster-1", testfixtures.TestPool, "memory", "type-1"),
-				commonmetrics.NewClusterTotalCapacity(1, "cluster-1", testfixtures.TestPool, "nodes", "type-1"),
-				commonmetrics.NewClusterFarmCapacity(32, "cluster-1", testfixtures.TestPool, "cpu", "type-1"),
-				commonmetrics.NewClusterFarmCapacity(256*1024*1024*1024, "cluster-1", testfixtures.TestPool, "memory", "type-1"),
+				commonmetrics.NewQueueUsed(1, testfixtures.TestQueue, "cluster-1", testfixtures.TestPool, "cpu", "type-1", "none"),
+				commonmetrics.NewQueueUsed(1*1024*1024*1024, testfixtures.TestQueue, "cluster-1", testfixtures.TestPool, "memory", "type-1", "none"),
+				commonmetrics.NewClusterAvailableCapacity(32, "cluster-1", testfixtures.TestPool, "cpu", "type-1", "none"),
+				commonmetrics.NewClusterAvailableCapacity(256*1024*1024*1024, "cluster-1", testfixtures.TestPool, "memory", "type-1", "none"),
+				commonmetrics.NewClusterAvailableCapacity(1, "cluster-1", testfixtures.TestPool, "nodes", "type-1", "none"),
+				commonmetrics.NewClusterTotalCapacity(32, "cluster-1", testfixtures.TestPool, "cpu", "type-1", "none"),
+				commonmetrics.NewClusterTotalCapacity(256*1024*1024*1024, "cluster-1", testfixtures.TestPool, "memory", "type-1", "none"),
+				commonmetrics.NewClusterTotalCapacity(1, "cluster-1", testfixtures.TestPool, "nodes", "type-1", "none"),
+				commonmetrics.NewClusterFarmCapacity(32, "cluster-1", testfixtures.TestPool, "cpu", "type-1", "none"),
+				commonmetrics.NewClusterFarmCapacity(256*1024*1024*1024, "cluster-1", testfixtures.TestPool, "memory", "type-1", "none"),
 				commonmetrics.NewClusterCordonedStatus(0.0, "cluster-1", "", ""),
 				commonmetrics.NewJobDBCumulativeInternedStrings(0.0),
 			},
@@ -386,8 +385,8 @@ func TestMetricsCollector_TestCollect_ClusterMetrics(t *testing.T) {
 			floatingResourceTypes: testfixtures.TestFloatingResources,
 			executors:             []*schedulerobjects.Executor{},
 			expected: []prometheus.Metric{
-				commonmetrics.NewClusterAvailableCapacity(10, "floating", "pool", "test-floating-resource", ""),
-				commonmetrics.NewClusterTotalCapacity(10, "floating", "pool", "test-floating-resource", ""),
+				commonmetrics.NewClusterAvailableCapacity(10, "floating", "pool", "test-floating-resource", "", ""),
+				commonmetrics.NewClusterTotalCapacity(10, "floating", "pool", "test-floating-resource", "", ""),
 				commonmetrics.NewJobDBCumulativeInternedStrings(0.0),
 			},
 			expectedExecutorSettings: []*schedulerobjects.ExecutorSettings{},
@@ -396,14 +395,14 @@ func TestMetricsCollector_TestCollect_ClusterMetrics(t *testing.T) {
 			jobDbJobs: []*jobdb.Job{},
 			executors: []*schedulerobjects.Executor{executor},
 			expected: []prometheus.Metric{
-				commonmetrics.NewClusterAvailableCapacity(0.0, "cluster-1", testfixtures.TestPool, "cpu", "type-1"),
-				commonmetrics.NewClusterAvailableCapacity(0.0, "cluster-1", testfixtures.TestPool, "memory", "type-1"),
-				commonmetrics.NewClusterAvailableCapacity(0.0, "cluster-1", testfixtures.TestPool, "nodes", "type-1"),
-				commonmetrics.NewClusterTotalCapacity(64, "cluster-1", testfixtures.TestPool, "cpu", "type-1"),
-				commonmetrics.NewClusterTotalCapacity(512*1024*1024*1024, "cluster-1", testfixtures.TestPool, "memory", "type-1"),
-				commonmetrics.NewClusterTotalCapacity(2, "cluster-1", testfixtures.TestPool, "nodes", "type-1"),
-				commonmetrics.NewClusterFarmCapacity(64, "cluster-1", testfixtures.TestPool, "cpu", "type-1"),
-				commonmetrics.NewClusterFarmCapacity(512*1024*1024*1024, "cluster-1", testfixtures.TestPool, "memory", "type-1"),
+				commonmetrics.NewClusterAvailableCapacity(0.0, "cluster-1", testfixtures.TestPool, "cpu", "type-1", "none"),
+				commonmetrics.NewClusterAvailableCapacity(0.0, "cluster-1", testfixtures.TestPool, "memory", "type-1", "none"),
+				commonmetrics.NewClusterAvailableCapacity(0.0, "cluster-1", testfixtures.TestPool, "nodes", "type-1", "none"),
+				commonmetrics.NewClusterTotalCapacity(64, "cluster-1", testfixtures.TestPool, "cpu", "type-1", "none"),
+				commonmetrics.NewClusterTotalCapacity(512*1024*1024*1024, "cluster-1", testfixtures.TestPool, "memory", "type-1", "none"),
+				commonmetrics.NewClusterTotalCapacity(2, "cluster-1", testfixtures.TestPool, "nodes", "type-1", "none"),
+				commonmetrics.NewClusterFarmCapacity(64, "cluster-1", testfixtures.TestPool, "cpu", "type-1", "none"),
+				commonmetrics.NewClusterFarmCapacity(512*1024*1024*1024, "cluster-1", testfixtures.TestPool, "memory", "type-1", "none"),
 				commonmetrics.NewClusterCordonedStatus(1.0, "cluster-1", "bad executor", ""),
 				commonmetrics.NewJobDBCumulativeInternedStrings(0.0),
 			},
@@ -467,9 +466,6 @@ func TestMetricsCollector_TestCollect_ClusterMetrics(t *testing.T) {
 				a1 := actual[i]
 				// As resources are a map, the ordering isn't deterministic, so we have to use compare
 				// Alternatively if we can work out how to sort prometheus.Metric we could do that instead
-				if !assert.Contains(t, tc.expected, a1) {
-					fmt.Println("here")
-				}
 				assert.Contains(t, tc.expected, a1)
 			}
 		})
@@ -477,9 +473,12 @@ func TestMetricsCollector_TestCollect_ClusterMetrics(t *testing.T) {
 }
 
 func TestMetricsCollector_TestCollect_ClusterMetricsAvailableCapacity(t *testing.T) {
-	node := createNode("type-1")
+	node := createNode("type-1", "reservation-1")
+	cordonedNode := createNode("type-1", "reservation-1")
+	cordonedNode.Unschedulable = true
 	job := testfixtures.TestRunningJobDbJob(0)
 	node.StateByJobRunId[job.LatestRun().Id()] = schedulerobjects.JobRunState_RUNNING
+	cordonedNode.StateByJobRunId[job.LatestRun().Id()] = schedulerobjects.JobRunState_RUNNING
 
 	tests := map[string]struct {
 		poolConfig       []configuration.PoolConfig
@@ -496,8 +495,8 @@ func TestMetricsCollector_TestCollect_ClusterMetricsAvailableCapacity(t *testing
 			nodes:            []*schedulerobjects.Node{node},
 			executorSettings: []*schedulerobjects.ExecutorSettings{},
 			expected: []prometheus.Metric{
-				commonmetrics.NewClusterAvailableCapacity(32, "cluster-1", testfixtures.TestPool, "cpu", "type-1"),
-				commonmetrics.NewClusterTotalCapacity(32, "cluster-1", testfixtures.TestPool, "cpu", "type-1"),
+				commonmetrics.NewClusterAvailableCapacity(32, "cluster-1", testfixtures.TestPool, "cpu", "type-1", "reservation-1"),
+				commonmetrics.NewClusterTotalCapacity(32, "cluster-1", testfixtures.TestPool, "cpu", "type-1", "reservation-1"),
 			},
 		},
 		"Away pools": {
@@ -514,10 +513,30 @@ func TestMetricsCollector_TestCollect_ClusterMetricsAvailableCapacity(t *testing
 			nodes:            []*schedulerobjects.Node{node},
 			executorSettings: []*schedulerobjects.ExecutorSettings{},
 			expected: []prometheus.Metric{
-				commonmetrics.NewClusterAvailableCapacity(32, "cluster-1", testfixtures.TestPool, "cpu", "type-1"),
-				commonmetrics.NewClusterTotalCapacity(32, "cluster-1", testfixtures.TestPool, "cpu", "type-1"),
-				commonmetrics.NewClusterAvailableCapacity(31, "cluster-1", testfixtures.TestPool2, "cpu", "type-1"),
-				commonmetrics.NewClusterTotalCapacity(31, "cluster-1", testfixtures.TestPool2, "cpu", "type-1"),
+				commonmetrics.NewClusterAvailableCapacity(32, "cluster-1", testfixtures.TestPool, "cpu", "type-1", "reservation-1"),
+				commonmetrics.NewClusterTotalCapacity(32, "cluster-1", testfixtures.TestPool, "cpu", "type-1", "reservation-1"),
+				commonmetrics.NewClusterAvailableCapacity(31, "cluster-1", testfixtures.TestPool2, "cpu", "type-1", "reservation-1"),
+				commonmetrics.NewClusterTotalCapacity(31, "cluster-1", testfixtures.TestPool2, "cpu", "type-1", "reservation-1"),
+			},
+		},
+		"Away pools - cordoned node": {
+			poolConfig: []configuration.PoolConfig{
+				{
+					Name: testfixtures.TestPool,
+				},
+				{
+					Name:      testfixtures.TestPool2,
+					AwayPools: []string{testfixtures.TestPool},
+				},
+			},
+			runningJobs:      []*jobdb.Job{job},
+			nodes:            []*schedulerobjects.Node{cordonedNode},
+			executorSettings: []*schedulerobjects.ExecutorSettings{},
+			expected: []prometheus.Metric{
+				commonmetrics.NewClusterAvailableCapacity(0, "cluster-1", testfixtures.TestPool, "cpu", "type-1", "reservation-1"),
+				commonmetrics.NewClusterTotalCapacity(32, "cluster-1", testfixtures.TestPool, "cpu", "type-1", "reservation-1"),
+				commonmetrics.NewClusterAvailableCapacity(0, "cluster-1", testfixtures.TestPool2, "cpu", "type-1", "reservation-1"),
+				commonmetrics.NewClusterTotalCapacity(31, "cluster-1", testfixtures.TestPool2, "cpu", "type-1", "reservation-1"),
 			},
 		},
 		"Cordoned cluster": {
@@ -534,8 +553,8 @@ func TestMetricsCollector_TestCollect_ClusterMetricsAvailableCapacity(t *testing
 				},
 			},
 			expected: []prometheus.Metric{
-				commonmetrics.NewClusterAvailableCapacity(0, "cluster-1", testfixtures.TestPool, "cpu", "type-1"),
-				commonmetrics.NewClusterTotalCapacity(32, "cluster-1", testfixtures.TestPool, "cpu", "type-1"),
+				commonmetrics.NewClusterAvailableCapacity(0, "cluster-1", testfixtures.TestPool, "cpu", "type-1", "reservation-1"),
+				commonmetrics.NewClusterTotalCapacity(32, "cluster-1", testfixtures.TestPool, "cpu", "type-1", "reservation-1"),
 			},
 		},
 	}
@@ -601,7 +620,7 @@ func createExecutor(clusterName string, nodes ...*schedulerobjects.Node) *schedu
 	}
 }
 
-func createNode(nodeType string) *schedulerobjects.Node {
+func createNode(nodeType string, reservation string) *schedulerobjects.Node {
 	node := testfixtures.TestSchedulerObjectsNode(
 		[]int32{},
 		map[string]*resource.Quantity{
@@ -610,6 +629,7 @@ func createNode(nodeType string) *schedulerobjects.Node {
 		},
 	)
 	node.ReportingNodeType = nodeType
+	node.Reservation = reservation
 	node.StateByJobRunId = map[string]schedulerobjects.JobRunState{}
 	node.ResourceUsageByQueueAndPool = []*schedulerobjects.PoolQueueResource{}
 	return node

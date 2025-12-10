@@ -1,0 +1,81 @@
+---
+title: 'API Reference'
+---
+
+## Overview
+
+Armada exposes both REST and gRPC APIs for programmatic access to all system functionality. These APIs are designed to be used programmatically, and the REST API is primarily intended for use with the Lookout UI.
+
+For most users, we recommend using `armadactl` (the CLI) or one of the available client libraries, which provide a more convenient and type-safe interface built on top of these APIs.
+
+## REST API
+
+The Armada REST API provides HTTP endpoints for interacting with the system. It's primarily designed for use with the Lookout UI, but can be used directly for custom integrations when needed.
+
+### OpenAPI Specification
+
+The REST API is fully documented with an auto-generated OpenAPI specification. This specification can be used to:
+
+- Generate client libraries in your preferred language
+- Explore available endpoints
+- Understand request and response formats
+- Test API endpoints
+
+### Base URL
+
+The REST API is typically available at:
+
+```
+http://<armada-server-host>:<port>/api/v1
+```
+
+### Authentication
+
+The REST API supports various authentication methods including:
+
+- Basic authentication
+- OIDC-based authentication
+- Exec-based authentication (via configuration)
+
+## gRPC API
+
+Armada's gRPC API provides a high-performance interface for programmatic access. The gRPC API is the foundation for all client libraries and offers:
+
+- **Type safety** - Strongly typed request and response messages
+- **Performance** - Efficient binary protocol with streaming support
+- **Language support** - Generate clients in any language that supports gRPC
+
+### Protocol Buffers
+
+The gRPC API is defined using Protocol Buffers (protobuf). The API definitions can be found in the Armada repository and include:
+
+- Job submission and management
+- Queue operations
+- Event streaming
+- Resource management
+
+### Key Services
+
+- **Submit** - Submit jobs to queues
+- **Event** - Stream job events
+- **Queue** - Manage queues and queue operations
+
+## When to Use the APIs Directly
+
+Consider using the APIs directly when:
+
+- No client library is available for your language
+- You need fine-grained control over API interactions
+- You're building custom tooling or integrations
+- You're contributing to Armada client libraries
+
+For most use cases, we recommend using:
+
+- `armadactl` for command-line interactions
+- Client libraries for programmatic access in applications
+
+## Resources
+
+- [OpenAPI Specification](https://github.com/armadaproject/armada/blob/master/pkg/api/api.swagger.json) - Full REST API documentation
+- [gRPC API Definitions](https://github.com/armadaproject/armada/tree/master/pkg/api) - Protocol buffer definitions
+- [Client Libraries](./clients.mdx) - Pre-built libraries for popular languages

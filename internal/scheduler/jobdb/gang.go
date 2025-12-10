@@ -6,8 +6,8 @@ import (
 
 	"github.com/pkg/errors"
 
+	"github.com/armadaproject/armada/internal/common/constants"
 	"github.com/armadaproject/armada/internal/scheduler/interfaces"
-	"github.com/armadaproject/armada/internal/server/configuration"
 )
 
 type GangInfo struct {
@@ -56,10 +56,14 @@ func (g GangInfo) Equal(other GangInfo) bool {
 	return g == other
 }
 
+func (g GangInfo) String() string {
+	return fmt.Sprintf("id: %s cardinality: %d uniformity label: %s gang: %t", g.Id(), g.Cardinality(), g.NodeUniformity(), g.IsGang())
+}
+
 func GangInfoFromMinimalJob(job interfaces.MinimalJob) (*GangInfo, error) {
 	basicGangInfo := BasicJobGangInfo()
 	annotations := job.Annotations()
-	gangId, ok := annotations[configuration.GangIdAnnotation]
+	gangId, ok := annotations[constants.GangIdAnnotation]
 	if !ok {
 		// Not a gang, default to basic gang info
 		return &basicGangInfo, nil
@@ -68,9 +72,9 @@ func GangInfoFromMinimalJob(job interfaces.MinimalJob) (*GangInfo, error) {
 		return nil, errors.Errorf("gang id is empty")
 	}
 
-	gangCardinalityString, ok := annotations[configuration.GangCardinalityAnnotation]
+	gangCardinalityString, ok := annotations[constants.GangCardinalityAnnotation]
 	if !ok {
-		return nil, errors.Errorf("gang cardinality annotation %s is missing", configuration.GangCardinalityAnnotation)
+		return nil, errors.Errorf("gang cardinality annotation %s is missing", constants.GangCardinalityAnnotation)
 	}
 	gangCardinality, err := strconv.Atoi(gangCardinalityString)
 	if err != nil {
@@ -84,7 +88,7 @@ func GangInfoFromMinimalJob(job interfaces.MinimalJob) (*GangInfo, error) {
 		return &basicGangInfo, nil
 	}
 
-	nodeUniformityLabel := job.Annotations()[configuration.GangNodeUniformityLabelAnnotation]
+	nodeUniformityLabel := job.Annotations()[constants.GangNodeUniformityLabelAnnotation]
 	gangInfo := CreateGangInfo(gangId, gangCardinality, nodeUniformityLabel)
 	return &gangInfo, nil
 }

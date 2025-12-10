@@ -40,6 +40,7 @@ function comparator(order: JobOrder): (a: Job, b: Job) => number {
     const valueB = b[field]
 
     if (valueA === undefined || valueB === undefined) {
+      // eslint-disable-next-line no-console
       console.error("comparator values are undefined")
       return 0
     }

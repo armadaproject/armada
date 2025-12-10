@@ -127,6 +127,7 @@ export const formatTimestamp = (ts: Date | string, { locale, format, timeZone }:
   try {
     dayJsInstance = dayJsInstance.locale(supportedLocaleToDayJsLocale[concreteSupportedLocale].localeName)
   } catch (e) {
+    // eslint-disable-next-line no-console
     console.error(`Setting locale to '${concreteSupportedLocale}'`, e)
   }
 
@@ -138,6 +139,7 @@ export const formatTimestamp = (ts: Date | string, { locale, format, timeZone }:
 
     dayJsInstance = dayJsInstance.subtract(tsUtcOffset - nowUtcOffset, "minute")
   } catch (e) {
+    // eslint-disable-next-line no-console
     console.error(`Converting to time zone '${concreteTimeZone}'`, e)
   }
 

@@ -90,9 +90,15 @@ func FromSwaggerOrder(order *models.Order) *model.Order {
 }
 
 func FromSwaggerGroupedField(groupedField *operations.GroupJobsParamsBodyGroupedField) *model.GroupedField {
+	lastTransitionTimeAggregate := ""
+	if groupedField.LastTransitionTimeAggregate != nil {
+		lastTransitionTimeAggregate = *groupedField.LastTransitionTimeAggregate
+	}
+
 	return &model.GroupedField{
-		Field:        groupedField.Field,
-		IsAnnotation: groupedField.IsAnnotation,
+		Field:                       groupedField.Field,
+		IsAnnotation:                groupedField.IsAnnotation,
+		LastTransitionTimeAggregate: lastTransitionTimeAggregate,
 	}
 }
 

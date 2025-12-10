@@ -21,7 +21,7 @@ type Group struct {
 
 	// aggregates
 	// Required: true
-	Aggregates map[string]interface{} `json:"aggregates"`
+	Aggregates map[string]any `json:"aggregates"`
 
 	// count
 	// Required: true
@@ -74,7 +74,7 @@ func (m *Group) validateAggregates(formats strfmt.Registry) error {
 
 func (m *Group) validateCount(formats strfmt.Registry) error {
 
-	if err := validate.Required("count", "body", int64(m.Count)); err != nil {
+	if err := validate.Required("count", "body", m.Count); err != nil {
 		return err
 	}
 

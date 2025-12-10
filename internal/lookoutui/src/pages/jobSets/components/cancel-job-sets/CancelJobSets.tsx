@@ -52,7 +52,7 @@ export default function CancelJobSets(props: CancelJobSetsProps) {
           onChange={(event) => props.setIsPlatformCancel(event.target.checked)}
         />
       </div>
-      <div className="lookout-dialog-centered lookout-dialog-fixed">
+      <div className="lookout-dialog-centred lookout-dialog-fixed">
         <Button loading={props.isLoading} onClick={props.onCancelJobSets}>
           Cancel Job Sets
         </Button>

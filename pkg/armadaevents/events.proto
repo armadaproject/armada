@@ -432,6 +432,7 @@ message Error {
         JobRunPreemptedError jobRunPreemptedError = 11;
         GangJobUnschedulable gangJobUnschedulable = 12;
         JobRejected jobRejected = 13;
+        ReconciliationError reconciliationError = 14;
     }
 }
 
@@ -520,6 +521,10 @@ message GangJobUnschedulable{
 }
 
 message JobRejected {
+  string message = 1;
+}
+
+message ReconciliationError {
   string message = 1;
 }
 

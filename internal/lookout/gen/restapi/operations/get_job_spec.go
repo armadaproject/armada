@@ -56,6 +56,7 @@ func (o *GetJobSpec) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	res := o.Handler.Handle(Params) // actually handle the request
+
 	o.Context.Respond(rw, r, route.Produces, route, res)
 
 }
@@ -122,7 +123,7 @@ func (o *GetJobSpecBody) UnmarshalBinary(b []byte) error {
 type GetJobSpecOKBody struct {
 
 	// Job Spec object
-	Job interface{} `json:"job,omitempty"`
+	Job any `json:"job,omitempty"`
 }
 
 // Validate validates this get job spec o k body

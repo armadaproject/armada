@@ -54,7 +54,7 @@ real-time. This serves the web app on
 [http://localhost:3000](http://localhost:3000). It proxies API requests to the
 target defined by your `PROXY_TARGET` environment variable, or otherwise your
 locally-running instance of the Lookout server at `http://localhost:10000`
-(please see [the main developer docs](../../docs/developer/ui.md) for details
+(please see [the main developer docs](https://armadaproject.io/developer-guide) for details
 of how to set this up).
 
 ```bash
@@ -105,7 +105,7 @@ yarn build
 ```
 
 This builds the app for production to the `build` folder. It correctly bundles
-React in production mode and optimizes the build for the best performance.
+React in production mode and optimises the build for the best performance.
 
 You can then run a server to serve this production bundle locally on
 [http://localhost:4173](http://localhost:4173):

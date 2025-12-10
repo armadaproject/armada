@@ -151,6 +151,7 @@ func KindTeardown() {
 
 // Generate scheduler SQL.
 func Sql() error {
+	mg.Deps(BootstrapTools)
 	mg.Deps(sqlcCheck)
 
 	if err := sqlcRun("generate", "-f", "internal/scheduler/database/sql.yaml"); err != nil {

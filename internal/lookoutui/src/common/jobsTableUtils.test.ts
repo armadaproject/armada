@@ -130,7 +130,7 @@ describe("JobsTableUtils", () => {
       const result = getFiltersForRowsSelection(
         [
           {
-            rowId: "queue:myqueue123",
+            rowId: "queue:my-queue123",
             isGroup: true,
             groupedField: StandardColumnId.Queue,
             subRows: [],
@@ -141,7 +141,7 @@ describe("JobsTableUtils", () => {
           },
         ],
         {
-          "queue:myqueue123": true,
+          "queue:my-queue123": true,
         },
         testColumnFilters,
         testColumnMatches,
@@ -155,7 +155,7 @@ describe("JobsTableUtils", () => {
               field: StandardColumnId.Queue,
               isAnnotation: false,
               match: Match.Exact,
-              value: "myqueue123",
+              value: "my-queue123",
             },
           ],
           excludesJobFilters: [],

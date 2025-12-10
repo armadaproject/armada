@@ -6,6 +6,7 @@ package operations
 // Editing this file might prove futile when you re-run the swagger generate command
 
 import (
+	stderrors "errors"
 	"io"
 	"net/http"
 
@@ -29,7 +30,6 @@ func NewGroupJobsParams() GroupJobsParams {
 //
 // swagger:parameters groupJobs
 type GroupJobsParams struct {
-
 	// HTTP Request Object
 	HTTPRequest *http.Request `json:"-"`
 
@@ -37,6 +37,7 @@ type GroupJobsParams struct {
 	  In: query
 	*/
 	Backend *string
+
 	/*
 	  Required: true
 	  In: body
@@ -52,7 +53,6 @@ func (o *GroupJobsParams) BindRequest(r *http.Request, route *middleware.Matched
 	var res []error
 
 	o.HTTPRequest = r
-
 	qs := runtime.Values(r.URL.Query())
 
 	qBackend, qhkBackend, _ := qs.GetOK("backend")
@@ -61,10 +61,12 @@ func (o *GroupJobsParams) BindRequest(r *http.Request, route *middleware.Matched
 	}
 
 	if runtime.HasBody(r) {
-		defer r.Body.Close()
+		defer func() {
+			_ = r.Body.Close()
+		}()
 		var body GroupJobsBody
 		if err := route.Consumer.Consume(r.Body, &body); err != nil {
-			if err == io.EOF {
+			if stderrors.Is(err, io.EOF) {
 				res = append(res, errors.Required("groupJobsRequest", "body", ""))
 			} else {
 				res = append(res, errors.NewParseError("groupJobsRequest", "body", "", err))
@@ -115,10 +117,10 @@ func (o *GroupJobsParams) bindBackend(rawData []string, hasKey bool, formats str
 	return nil
 }
 
-// validateBackend carries on validations for parameter Backend
+// validateBackend carries out validations for parameter Backend
 func (o *GroupJobsParams) validateBackend(formats strfmt.Registry) error {
 
-	if err := validate.EnumCase("backend", "query", *o.Backend, []interface{}{"jsonb"}, true); err != nil {
+	if err := validate.EnumCase("backend", "query", *o.Backend, []any{"jsonb"}, true); err != nil {
 		return err
 	}
 

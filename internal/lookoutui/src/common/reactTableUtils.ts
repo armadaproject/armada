@@ -77,7 +77,7 @@ interface MergeSubRowsResult<
   parentRow?: TGroupedRow
 }
 /**
- * Merges new rows (which may or may not be subrows) with existing data.
+ * Merges new rows (which may or may not be sub-rows) with existing data.
  */
 export const mergeSubRows = <
   TNonGroupedRow extends NonGroupedRow,
@@ -104,6 +104,7 @@ export const mergeSubRows = <
       rowToModify.subRows = newSubRows
     }
   } else {
+    // eslint-disable-next-line no-console
     console.warn("Could not find row to merge with path. This is a bug.", { parentRowId, existingData })
   }
 

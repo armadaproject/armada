@@ -50,6 +50,7 @@ export interface LookoutThemeConfigOptions {
 }
 
 export const DEFAULT_LOOKOUT_THEME_CONFIG_OPTIONS: Required<LookoutThemeConfigOptions> = {
+  /* eslint-disable @cspell/spellchecker */
   fontFamily: [
     "-apple-system",
     "BlinkMacSystemFont",
@@ -65,6 +66,7 @@ export const DEFAULT_LOOKOUT_THEME_CONFIG_OPTIONS: Required<LookoutThemeConfigOp
     .map((f) => `'${f}'`)
     .join(", "),
   monospaceFontFamily: ["Source Code Pro", "Menlo", "Monaco", "Consolas"].map((f) => `'${f}'`).join(", "),
+  /* eslint-enable @cspell/spellchecker */
   uppercaseButtonText: true,
   uppercaseOverlineText: true,
 

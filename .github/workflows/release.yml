@@ -70,6 +70,13 @@ jobs:
           # Checkout the tag that triggered the workflow.
           ref: ${{ github.event.workflow_run.head_branch }}
 
+      # Free disk space to prevent "no space left on device" during Docker builds.
+      # This runs on every build since GitHub runners are ephemeral.
+      - name: Free Disk Space (Ubuntu)
+        uses: jlumbroso/free-disk-space@v1.3.1
+        with:
+          tool-cache: false
+
       - name: Fetch Git tags
         run: git fetch --force --tags
 

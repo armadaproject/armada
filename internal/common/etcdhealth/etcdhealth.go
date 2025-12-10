@@ -153,9 +153,6 @@ func (srv *EtcdReplicaHealthMonitor) initialiseMetrics() {
 func (srv *EtcdReplicaHealthMonitor) IsHealthy() (bool, string, error) {
 	srv.mu.Lock()
 	defer srv.mu.Unlock()
-	if srv.hasTimedOut() {
-		return false, healthmonitor.UnavailableReason, nil
-	}
 	ok, reason := srv.isHealthy()
 	return ok, reason, nil
 }
@@ -165,6 +162,9 @@ func (srv *EtcdReplicaHealthMonitor) hasTimedOut() bool {
 }
 
 func (srv *EtcdReplicaHealthMonitor) isHealthy() (bool, string) {
+	if srv.hasTimedOut() {
+		return false, healthmonitor.UnavailableReason
+	}
 	if srv.sizeInUseFraction() > srv.fractionOfStorageInUseLimit {
 		return false, EtcdReplicaSizeInUseExceededReason
 	}
@@ -322,17 +322,20 @@ func (srv *EtcdReplicaHealthMonitor) Collect(c chan<- prometheus.Metric) {
 		float64(timeOfMostRecentSuccessfulCollectionAttempt.Unix()),
 		srv.name,
 	)
-	c <- prometheus.MustNewConstMetric(
-		srv.sizeInUseFractionPrometheusDesc,
-		prometheus.GaugeValue,
-		sizeInUseFraction,
-		srv.name,
-	)
-	c <- prometheus.MustNewConstMetric(
-		srv.sizeFractionPrometheusDesc,
-		prometheus.GaugeValue,
-		sizeFraction,
-		srv.name,
-	)
+	if !srv.hasTimedOut() {
+		c <- prometheus.MustNewConstMetric(
+			srv.sizeInUseFractionPrometheusDesc,
+			prometheus.GaugeValue,
+			sizeInUseFraction,
+			srv.name,
+		)
+		c <- prometheus.MustNewConstMetric(
+			srv.sizeFractionPrometheusDesc,
+			prometheus.GaugeValue,
+			sizeFraction,
+			srv.name,
+		)
+	}
+
 	srv.metricsCollectionDelayHistogram.Collect(c)
 }

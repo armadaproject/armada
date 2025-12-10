@@ -69,6 +69,7 @@ export const OidcAuthProvider = ({ children, oidcConfig }: OidcAuthProviderProps
   }, [userManager, isOidcRedirectPath])
 
   const handlerAuthenticationError = useCallback((e: any) => {
+    // eslint-disable-next-line no-console
     console.error(e)
     setAuthError(e)
     setIsLoading(false)

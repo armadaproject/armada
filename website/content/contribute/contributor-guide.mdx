@@ -1,0 +1,75 @@
+---
+title: 'Contributor Guide'
+description: 'Guidelines and tips for contributing to the Armada project.'
+---
+
+## Local Development Setup
+
+To setup your development environment, follow the instructions based on the area you want to contribute to:
+
+- **For Armada core development**: See the [Developer Guide](../developer-guide.mdx) for local setup, code structure, and development workflows
+- **For Armada Operator development**: See the [Armada Operator repository](https://github.com/armadaproject/armada-operator) for setup instructions and development guidelines
+
+## Reporting Issues
+
+If you spot a bug or have a feature request, please raise an issue in our main GitHub project:
+
+- [https://github.com/armadaproject/armada/issues](https://github.com/armadaproject/armada/issues)
+
+## Finding Issues to Work On
+
+New to the project? Check out issues tagged with ["good first issue"](https://github.com/armadaproject/armada/labels/good%20first%20issue). These are curated for newcomers to get familiar with the codebase.
+
+## Submitting Pull Requests
+
+When submitting a pull request, make sure to follow these guidelines:
+
+### Link to an issue
+
+Make sure your PR references a related [issue](https://github.com/armadaproject/armada/issues)
+
+### Use a separate branch
+
+Keep all pull requests on a separate branch with a proper name
+
+### Follow branch naming
+
+Branch names must follow Docker naming conventions (valid ASCII, lowercase and uppercase letters, digits, underscores, periods, and dashes; no leading period or dash; max 128 characters)
+
+### Squash small commits
+
+Squash fix-up commits to keep the repository clean ([guide](https://thoughtbot.com/blog/autosquashing-git-commits))
+
+### Signing Off Commits (DCO)
+
+All commits must be signed off using the Developer Certificate of Origin (DCO). This certifies that you have the right to submit your work under the project's open source license.
+
+> **Every commit in your PRs must have a "Signed-off-by" attribute.**
+
+Use the `-s` flag when committing:
+
+```bash
+git commit -s -m 'Your commit message'
+```
+
+The `Author` and `Signed-off-by` lines must match. If they don't, the PR will be rejected by the automated DCO check.
+
+If you forgot to sign off and haven't pushed yet, amend your commit:
+
+```bash
+git commit --amend -s
+```
+
+For more details, see [DCO](https://github.com/apps/dco).
+
+## Communication
+
+For real-time discussions, Slack channels, GitHub Discussions, and community meetings, see our [Community page](../community.mdx).
+
+## Security
+
+Please report security vulnerabilities to [security@gr-oss.io](mailto:security@gr-oss.io) for coordinated disclosure.
+
+## License
+
+Armada is licensed under the Apache 2.0 license. See [LICENSE](https://github.com/armadaproject/armada/blob/master/LICENSE) for details.

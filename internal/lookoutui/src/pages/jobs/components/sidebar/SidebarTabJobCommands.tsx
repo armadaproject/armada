@@ -26,6 +26,7 @@ function getCommandText(job: Job, commandSpec: CommandSpec): string {
     const compiledTemplate = template(commandSpec.template)
     return compiledTemplate(job)
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error("Failed to generate command text:", error)
     return "" // Return an empty string in case of failure
   }

@@ -20,6 +20,7 @@ const (
 	stateLabel               = "state"
 	priorStateLabel          = "priorState"
 	resourceLabel            = "resource"
+	reservationLabel         = "reservation"
 	jobShapeLabel            = "job_shape"
 	unschedulableReasonLabel = "unschedulable_reason"
 

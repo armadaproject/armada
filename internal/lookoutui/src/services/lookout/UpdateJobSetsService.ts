@@ -53,6 +53,7 @@ export class UpdateJobSetsService {
         )
         response.cancelledJobSets.push(jobSet)
       } catch (e) {
+        // eslint-disable-next-line no-console
         console.error(e)
         const text = await getErrorMessage(e)
         response.failedJobSetCancellations.push({ jobSet: jobSet, error: text })
@@ -88,6 +89,7 @@ export class UpdateJobSetsService {
         )
         if (apiResponse == null || apiResponse.reprioritizationResults == null) {
           const errorMessage = "No reprioritizationResults found in response body"
+          // eslint-disable-next-line no-console
           console.error(errorMessage)
           response.failedJobSetReprioritizations.push({
             jobSet: jobSet,
@@ -114,6 +116,7 @@ export class UpdateJobSetsService {
           response.failedJobSetReprioritizations.push({ jobSet: jobSet, error: message })
         }
       } catch (e) {
+        // eslint-disable-next-line no-console
         console.error(e)
         const text = await getErrorMessage(e)
         response.failedJobSetReprioritizations.push({ jobSet: jobSet, error: text })

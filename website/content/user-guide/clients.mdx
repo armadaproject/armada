@@ -1,0 +1,204 @@
+---
+title: 'Client Libraries'
+---
+
+## Overview
+
+Armada provides official client libraries for multiple programming languages, making it easy to integrate Armada into your applications. These libraries wrap the Armada gRPC APIs and provide type-safe, idiomatic interfaces for your preferred language.
+
+All client libraries support the core Armada features:
+
+- Submitting, canceling, and reprioritizing jobs
+- Watching for job events
+- Managing queues
+- Stream processing and real-time updates
+
+## Available Client Libraries
+
+import { Cards, Card } from 'fumadocs-ui/components/card';
+
+<Cards>
+  <Card
+    href='https://github.com/armadaproject/armada/tree/master/client/python'
+    external
+    title='Python Client'
+    description='Install from PyPI: pip install armada-client. Full-featured Python client with comprehensive documentation'
+  />
+  <Card
+    href='https://github.com/armadaproject/armada/tree/master/client/DotNet'
+    external
+    title='.NET Client'
+    description='C# client library for .NET Standard 2.0. Perfect for .NET applications and services'
+  />
+  <Card
+    href='https://github.com/armadaproject/armada/tree/master/client/java'
+    external
+    title='Java Client'
+    description='Java client library for JVM-based applications and services'
+  />
+  <Card
+    href='https://github.com/armadaproject/armada/tree/master/client/scala'
+    external
+    title='Scala Client'
+    description='Scala client library for Scala applications and Spark integrations'
+  />
+  <Card
+    href='https://github.com/armadaproject/armada/tree/master/pkg/client'
+    external
+    title='Go Client'
+    description='Go client package for building Go applications that interact with Armada'
+  />
+</Cards>
+
+## Python Client
+
+The Python client is the most mature and feature-rich client library. It's available on PyPI and can be installed with:
+
+```bash
+pip install armada-client
+```
+
+### Requirements
+
+- **Python 3.9+** - Required Python version
+
+### Features
+
+- Full support for all Armada operations
+- Event streaming and job watching
+- Comprehensive documentation and examples
+- Type hints for better IDE support
+
+### Quick Start
+
+```python
+import grpc
+from armada_client.client import ArmadaClient
+from armada_client.k8s.io.api.core.v1 import generated_pb2 as core_v1
+
+# Create client
+channel = grpc.insecure_channel("localhost:50051")
+client = ArmadaClient(channel)
+
+# Submit a job
+job = client.submit_jobs(
+    queue="my-queue",
+    job_set_id="my-job-set",
+    job_request_items=[job_request]
+)
+
+# Watch job events
+for event in client.get_job_events_stream(queue="my-queue", job_set_id="my-job-set"):
+    print(event)
+```
+
+[Full Python Client Documentation](https://github.com/armadaproject/armada/tree/master/client/python)
+[Python Client Repository](https://github.com/armadaproject/armada/tree/master/client/python)
+
+## .NET Client
+
+The .NET client provides C# bindings for Armada. It supports .NET Standard 2.0 and can be built from source.
+
+### Package Information
+
+- **Package ID**: `ArmadaProject.Io.Client`
+- **Target Framework**: .NET Standard 2.0
+
+### Features
+
+- Full gRPC API coverage
+- Async/await support
+- Strong typing with Protocol Buffers
+
+[.NET Client Repository](https://github.com/armadaproject/armada/tree/master/client/DotNet)
+
+## Java Client
+
+The Java client provides JVM-based applications with access to Armada functionality.
+
+### Requirements
+
+- **Java 11** - Required Java version (required by Jenkins K8s plugin)
+- **Maven 3.9.9** - Build tool
+
+### Features
+
+- Full gRPC support
+- Compatible with Java 11+
+- Works with JVM languages (Java, Kotlin, etc.)
+
+### Building
+
+Build from the root of the Armada repository:
+
+```bash
+mage BuildJava
+```
+
+[Java Client Repository](https://github.com/armadaproject/armada/tree/master/client/java)
+
+## Scala Client
+
+The Scala client is designed for Scala applications and is particularly useful for Spark integrations.
+
+### Features
+
+- Native Scala API
+- Spark integration support
+- Type-safe operations
+
+### Building
+
+Build from the root of the Armada repository:
+
+```bash
+# First, prepare proto files
+mage BootstrapProto
+
+# Then build Scala client
+cd client/scala/armada-scala-client
+mvn package
+```
+
+Or build in isolation from the repository root:
+
+```bash
+mage buildScala
+```
+
+[Scala Client Repository](https://github.com/armadaproject/armada/tree/master/client/scala)
+
+## Go Client
+
+The Go client is part of the Armada codebase and is used internally by `armadactl`. It can be imported as a Go package.
+
+### Features
+
+- Native Go implementation
+- Used by armadactl CLI
+- Full API coverage
+
+### Usage
+
+Import the client package in your Go code:
+
+```go
+import "github.com/armadaproject/armada/pkg/client"
+```
+
+[Go Client Package](https://github.com/armadaproject/armada/tree/master/pkg/client)
+
+## API Documentation
+
+For comprehensive API documentation across all clients:
+
+- [Python API Documentation](https://github.com/armadaproject/armada/tree/master/client/python) - Python client source code and examples
+- [Server API Documentation](https://github.com/armadaproject/armada/tree/master/pkg/api) - REST and gRPC API reference
+
+## Choosing a Client
+
+- **Python**: Best for data science, ML workflows, and scripting
+- **.NET**: Best for C# applications and .NET services
+- **Java**: Best for Java applications and enterprise services
+- **Scala**: Best for Scala applications and Spark workloads
+- **Go**: Best for Go applications and contributing to Armada tooling

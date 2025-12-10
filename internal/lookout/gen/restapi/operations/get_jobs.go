@@ -7,6 +7,7 @@ package operations
 
 import (
 	"context"
+	stderrors "errors"
 	"net/http"
 	"strconv"
 
@@ -59,6 +60,7 @@ func (o *GetJobs) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	res := o.Handler.Handle(Params) // actually handle the request
+
 	o.Context.Respond(rw, r, route.Produces, route, res)
 
 }
@@ -117,11 +119,15 @@ func (o *GetJobsBody) validateFilters(formats strfmt.Registry) error {
 
 		if o.Filters[i] != nil {
 			if err := o.Filters[i].Validate(formats); err != nil {
-				if ve, ok := err.(*errors.Validation); ok {
+				ve := new(errors.Validation)
+				if stderrors.As(err, &ve) {
 					return ve.ValidateName("getJobsRequest" + "." + "filters" + "." + strconv.Itoa(i))
-				} else if ce, ok := err.(*errors.CompositeError); ok {
+				}
+				ce := new(errors.CompositeError)
+				if stderrors.As(err, &ce) {
 					return ce.ValidateName("getJobsRequest" + "." + "filters" + "." + strconv.Itoa(i))
 				}
+
 				return err
 			}
 		}
@@ -139,11 +145,15 @@ func (o *GetJobsBody) validateOrder(formats strfmt.Registry) error {
 
 	if o.Order != nil {
 		if err := o.Order.Validate(formats); err != nil {
-			if ve, ok := err.(*errors.Validation); ok {
+			ve := new(errors.Validation)
+			if stderrors.As(err, &ve) {
 				return ve.ValidateName("getJobsRequest" + "." + "order")
-			} else if ce, ok := err.(*errors.CompositeError); ok {
+			}
+			ce := new(errors.CompositeError)
+			if stderrors.As(err, &ce) {
 				return ce.ValidateName("getJobsRequest" + "." + "order")
 			}
+
 			return err
 		}
 	}
@@ -180,11 +190,15 @@ func (o *GetJobsBody) contextValidateFilters(ctx context.Context, formats strfmt
 			}
 
 			if err := o.Filters[i].ContextValidate(ctx, formats); err != nil {
-				if ve, ok := err.(*errors.Validation); ok {
+				ve := new(errors.Validation)
+				if stderrors.As(err, &ve) {
 					return ve.ValidateName("getJobsRequest" + "." + "filters" + "." + strconv.Itoa(i))
-				} else if ce, ok := err.(*errors.CompositeError); ok {
+				}
+				ce := new(errors.CompositeError)
+				if stderrors.As(err, &ce) {
 					return ce.ValidateName("getJobsRequest" + "." + "filters" + "." + strconv.Itoa(i))
 				}
+
 				return err
 			}
 		}
@@ -199,11 +213,15 @@ func (o *GetJobsBody) contextValidateOrder(ctx context.Context, formats strfmt.R
 	if o.Order != nil {
 
 		if err := o.Order.ContextValidate(ctx, formats); err != nil {
-			if ve, ok := err.(*errors.Validation); ok {
+			ve := new(errors.Validation)
+			if stderrors.As(err, &ve) {
 				return ve.ValidateName("getJobsRequest" + "." + "order")
-			} else if ce, ok := err.(*errors.CompositeError); ok {
+			}
+			ce := new(errors.CompositeError)
+			if stderrors.As(err, &ce) {
 				return ce.ValidateName("getJobsRequest" + "." + "order")
 			}
+
 			return err
 		}
 	}
@@ -264,11 +282,15 @@ func (o *GetJobsOKBody) validateJobs(formats strfmt.Registry) error {
 
 		if o.Jobs[i] != nil {
 			if err := o.Jobs[i].Validate(formats); err != nil {
-				if ve, ok := err.(*errors.Validation); ok {
+				ve := new(errors.Validation)
+				if stderrors.As(err, &ve) {
 					return ve.ValidateName("getJobsOK" + "." + "jobs" + "." + strconv.Itoa(i))
-				} else if ce, ok := err.(*errors.CompositeError); ok {
+				}
+				ce := new(errors.CompositeError)
+				if stderrors.As(err, &ce) {
 					return ce.ValidateName("getJobsOK" + "." + "jobs" + "." + strconv.Itoa(i))
 				}
+
 				return err
 			}
 		}
@@ -303,11 +325,15 @@ func (o *GetJobsOKBody) contextValidateJobs(ctx context.Context, formats strfmt.
 			}
 
 			if err := o.Jobs[i].ContextValidate(ctx, formats); err != nil {
-				if ve, ok := err.(*errors.Validation); ok {
+				ve := new(errors.Validation)
+				if stderrors.As(err, &ve) {
 					return ve.ValidateName("getJobsOK" + "." + "jobs" + "." + strconv.Itoa(i))
-				} else if ce, ok := err.(*errors.CompositeError); ok {
+				}
+				ce := new(errors.CompositeError)
+				if stderrors.As(err, &ce) {
 					return ce.ValidateName("getJobsOK" + "." + "jobs" + "." + strconv.Itoa(i))
 				}
+
 				return err
 			}
 		}

@@ -7,7 +7,9 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
+	"github.com/armadaproject/armada/internal/common/pointer"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
+	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api"
 )
@@ -68,6 +70,7 @@ func NewNodeFromNodeInfo(nodeInfo *NodeInfo, executor string, allowedPriorities 
 		Unschedulable:               nodeInfo.Unschedulable,
 		ResourceUsageByQueueAndPool: resourceUsageByQueueAndPool,
 		ReportingNodeType:           nodeInfo.NodeType,
+		Reservation:                 util.GetReservationName(pointer.SliceToValues(nodeInfo.Taints)),
 	}, nil
 }
 

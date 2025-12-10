@@ -66,7 +66,7 @@ export const supportedLocaleDisplayNames: Record<SupportedLocale, string> = {
   de: "German",
   es: "Spanish",
   "es-MX": "Spanish (Mexico)",
-  "pt-BR": "Portugese (Brazil)",
+  "pt-BR": "Portuguese (Brazil)",
   it: "Italian",
   "zh-CN": "Chinese (PRC)",
   ru: "Russian",

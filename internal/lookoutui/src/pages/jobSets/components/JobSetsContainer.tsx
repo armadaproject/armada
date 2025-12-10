@@ -31,7 +31,7 @@ import { UpdateJobSetsService } from "../../../services/lookout/UpdateJobSetsSer
 
 import CancelJobSetsDialog, { getCancellableJobSets } from "./CancelJobSetsDialog"
 import JobSets from "./JobSets"
-import ReprioritizeJobSetsDialog, { getReprioritizeableJobSets } from "./ReprioritizeJobSetsDialog"
+import ReprioritizeJobSetsDialog, { getReprioritizableJobSets } from "./ReprioritizeJobSetsDialog"
 
 interface JobSetsContainerProps extends PropsWithRouter {
   v2GroupJobsService: IGroupJobsService
@@ -367,7 +367,7 @@ class JobSetsContainer extends Component<JobSetsContainerProps, JobSetsContainer
         <ErrorBoundary FallbackComponent={AlertErrorFallback}>
           <JobSets
             canCancel={getCancellableJobSets(selectedJobSets).length > 0}
-            canReprioritize={getReprioritizeableJobSets(selectedJobSets).length > 0}
+            canReprioritize={getReprioritizableJobSets(selectedJobSets).length > 0}
             queue={this.state.queue}
             jobSets={this.state.jobSets}
             selectedJobSets={this.state.selectedJobSets}
