@@ -142,6 +142,10 @@ func (l *FairSchedulingAlgo) Schedule(
 			continue
 		}
 
+		if pool.DisableAwayScheduling {
+			fsctx.nodeDb.DisableAwayScheduling()
+		}
+
 		start := time.Now()
 		resourceUnit, ok := resourceUnits[pool.Name]
 		if !ok {
@@ -561,7 +565,7 @@ func (l *FairSchedulingAlgo) SchedulePool(
 	if err != nil {
 		return nil, nil, err
 	}
-	err = CalculateIdealisedValue(
+	idealisedShareErr := CalculateIdealisedValue(
 		ctx,
 		fsctx.schedulingContext,
 		nodes,
@@ -572,8 +576,8 @@ func (l *FairSchedulingAlgo) SchedulePool(
 		l.resourceListFactory,
 		resourceUnit,
 	)
-	if err != nil {
-		return nil, nil, err
+	if idealisedShareErr != nil {
+		log.Warnf("failed to calculated idealised share for pool %s - %s", fsctx.pool, idealisedShareErr)
 	}
 
 	scheduler := NewPreemptingQueueScheduler(

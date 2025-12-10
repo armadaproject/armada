@@ -1,4 +1,4 @@
-package configuration
+package constants
 
 const (
 	// GangIdAnnotation maps to a unique id of the gang the job is part of; jobs with equal value make up a gang.
@@ -29,9 +29,10 @@ const (
 	// GangNumJobsScheduledAnnotation is set by the scheduler and indicates how many gang jobs were scheduled.
 	// FailFastAnnotation, if set to true, ensures Armada does not re-schedule jobs that fail to start.
 	// Instead, the job the pod is part of fails immediately.
-	JobPriceBand       = "armadaproject.io/priceBand"
-	FailFastAnnotation = "armadaproject.io/failFast"
-	PoolAnnotation     = "armadaproject.io/pool"
+	JobPriceBand        = "armadaproject.io/priceBand"
+	FailFastAnnotation  = "armadaproject.io/failFast"
+	PoolAnnotation      = "armadaproject.io/pool"
+	ReservationTaintKey = "armadaproject.io/reservation"
 )
 
 var schedulingAnnotations = map[string]bool{

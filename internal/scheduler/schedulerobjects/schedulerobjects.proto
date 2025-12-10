@@ -51,6 +51,8 @@ message Node {
     // The pool that this node belongs to, this is used for scheduling purposes
     string pool = 18;
     repeated PoolQueueResource resource_usage_by_queue_and_pool = 20;
+    // The name of the reservation for this node, will be empty if this node is not reserved
+    string reservation = 21;
 }
 
 enum JobRunState {
