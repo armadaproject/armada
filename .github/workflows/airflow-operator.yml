@@ -100,4 +100,6 @@ jobs:
         with:
           version: "23.3"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - run: go run github.com/magefile/mage@v1.14.0 -v teste2eAirflow
+      - run: |
+          sleep 30
+          go run github.com/magefile/mage@v1.14.0 -v teste2eAirflow
