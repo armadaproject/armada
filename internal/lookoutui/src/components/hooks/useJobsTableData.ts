@@ -14,9 +14,6 @@ import {
 } from "../../common/jobsTableColumns"
 import { LookoutColumnFilter } from "../../common/jobsTableUtils"
 import {
-  fetchJobGroups,
-  fetchJobs,
-  FetchRowRequest,
   getFiltersForGroupedAnnotations,
   getFiltersForRow,
   groupsToRows,
@@ -25,10 +22,12 @@ import {
 } from "../../common/jobsTableUtils"
 import { fromRowId, mergeSubRows } from "../../common/reactTableUtils"
 import { getErrorMessage } from "../../common/utils"
+import { getConfig } from "../../config"
 import { JobGroupRow, JobRow, JobTableRow } from "../../models/jobsTableModels"
 import { AggregateType, Job, JobFilter, JobId, JobOrder, Match } from "../../models/lookoutModels"
 import { useAuthenticatedFetch } from "../../oidcAuth"
 import { GroupedField, IGroupJobsService } from "../../services/lookout/GroupJobsService"
+import { GetJobsResponse } from "../../services/lookout/useGetJobs"
 
 export interface UseFetchJobsTableDataArgs {
   groupedColumns: ColumnId[]
@@ -302,4 +301,64 @@ const getColsToAggregate = (visibleCols: ColumnId[], filters: JobFilter[]): stri
     }
   }
   return aggregates
+}
+export const fetchJobs = async (
+  fetchFunc: GlobalFetch["fetch"],
+  rowRequest: FetchRowRequest,
+  abortSignal: AbortSignal,
+): Promise<GetJobsResponse> => {
+  const { filters, activeJobSets, skip, take, order } = rowRequest
+  const config = getConfig()
+
+  let path = "/api/v1/jobs"
+  if (config.backend) {
+    path += "?" + new URLSearchParams({ backend: config.backend })
+  }
+
+  const response = await fetchFunc(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      filters,
+      activeJobSets,
+      order,
+      skip,
+      take,
+    }),
+    signal: abortSignal,
+  })
+
+  const json = await response.json()
+  return {
+    jobs: json.jobs ?? [],
+  }
+}
+
+export interface FetchRowRequest {
+  filters: JobFilter[]
+  activeJobSets: boolean
+  skip: number
+  take: number
+  order: JobOrder
+}
+export const fetchJobGroups = async (
+  fetchFunc: GlobalFetch["fetch"],
+  rowRequest: FetchRowRequest,
+  groupJobsService: IGroupJobsService,
+  groupedColumn: GroupedField,
+  columnsToAggregate: string[],
+  abortSignal: AbortSignal,
+) => {
+  const { filters, activeJobSets, skip, take, order } = rowRequest
+  return await groupJobsService.groupJobs(
+    fetchFunc,
+    filters,
+    activeJobSets,
+    order,
+    groupedColumn,
+    columnsToAggregate,
+    skip,
+    take,
+    abortSignal,
+  )
 }

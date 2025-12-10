@@ -16,10 +16,15 @@ import {
 
 import { CancelDialog } from "./CancelDialog"
 
+const mockServer = new MockServer()
+
 describe("CancelDialog", () => {
   const numJobs = 5
   const numFinishedJobs = 0
-  let jobs: Job[], selectedItemFilters: JobFiltersWithExcludes[], mockServer: MockServer, onClose: () => void
+
+  let jobs: Job[]
+  let selectedItemFilters: JobFiltersWithExcludes[]
+  let onClose: () => void
 
   beforeEach(() => {
     localStorage.clear()
@@ -40,16 +45,17 @@ describe("CancelDialog", () => {
       },
     ]
 
-    mockServer = new MockServer()
     mockServer.listen()
-    // Return only the first job to match the filter for job-id-0
-    mockServer.setPostJobsResponse([jobs[0]])
 
     onClose = vi.fn()
   })
 
   afterEach(() => {
     localStorage.clear()
+    mockServer.reset()
+  })
+
+  afterAll(() => {
     mockServer.close()
   })
 
@@ -65,6 +71,7 @@ describe("CancelDialog", () => {
     )
 
   it("displays job information", async () => {
+    mockServer.setPostJobsResponse([jobs[0]])
     const { getByRole, findByRole, getByText } = renderComponent()
 
     // Initial render
@@ -80,7 +87,8 @@ describe("CancelDialog", () => {
   })
 
   it("shows an alert if all jobs in a terminated state", async () => {
-    jobs[0].state = JobState.Failed
+    const jobToReturn = { ...jobs[0], state: JobState.Failed }
+    mockServer.setPostJobsResponse([jobToReturn])
     const { findByText } = renderComponent()
 
     // Once job details are fetched
@@ -113,6 +121,7 @@ describe("CancelDialog", () => {
   })
 
   it("allows the user to cancel jobs", async () => {
+    mockServer.setPostJobsResponse([jobs[0]])
     const { getByRole, findByText } = renderComponent()
 
     mockServer.setCancelJobsResponse([jobs[0].jobId], [])
@@ -124,6 +133,7 @@ describe("CancelDialog", () => {
   })
 
   it("allows user to refetch jobs", async () => {
+    mockServer.setPostJobsResponse([jobs[0]])
     const { findByText, findByRole } = renderComponent()
 
     // Check job details are being shown
@@ -145,9 +155,10 @@ describe("CancelDialog", () => {
   })
 
   it("shows error reasons if cancellation fails", async () => {
+    mockServer.setPostJobsResponse(jobs)
     const { getByRole, findByText } = renderComponent()
 
-    mockServer.setCancelJobsResponse([], [])
+    mockServer.setCancelJobsResponse([], [jobs[0].jobId])
 
     const cancelButton = await waitFor(() => getByRole("button", { name: /Cancel 1 job/i }))
     await userEvent.click(cancelButton)
@@ -185,16 +196,14 @@ describe("CancelDialog", () => {
       },
     ]
 
-    // jobs[1] in the dataset is terminated, so lets just fix that for the test
-    jobs[1].state = JobState.Pending
-
-    // Update mock to return both jobs
-    mockServer.setPostJobsResponse([jobs[0], jobs[1]])
+    const firstJob = { ...jobs[0] }
+    const secondJob = { ...jobs[1], state: JobState.Pending }
+    mockServer.setPostJobsResponse([firstJob, secondJob])
 
     const { getByRole, findByText, findByRole } = renderComponent()
 
     // Fail 1, succeed the other
-    mockServer.setCancelJobsResponse([jobs[0].jobId], [])
+    mockServer.setCancelJobsResponse([firstJob.jobId], [secondJob.jobId])
 
     const cancelButton = await waitFor(() => getByRole("button", { name: /Cancel 2 jobs/i }))
     await userEvent.click(cancelButton)
@@ -208,7 +217,7 @@ describe("CancelDialog", () => {
     await findByText("failed to cancel job")
 
     // This job was successfully cancelled
-    jobs[0].state = JobState.Cancelled
+    mockServer.setPostJobsResponse([{ ...firstJob, state: JobState.Cancelled }, secondJob])
 
     // Check the user can re-attempt the other job after a refetch
     await userEvent.click(getByRole("button", { name: /Refetch jobs/i }))

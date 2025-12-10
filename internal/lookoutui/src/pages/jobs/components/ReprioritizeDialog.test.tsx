@@ -15,10 +15,14 @@ import {
 
 import { ReprioritizeDialog } from "./ReprioritizeDialog"
 
+const mockServer = new MockServer()
+
 describe("ReprioritizeDialog", () => {
   const numJobs = 5
   const numFinishedJobs = 0
-  let jobs: Job[], selectedItemFilters: JobFiltersWithExcludes[], mockServer: MockServer, onClose: () => void
+  let jobs: Job[]
+  let selectedItemFilters: JobFiltersWithExcludes[]
+  let onClose: () => void
 
   beforeEach(() => {
     localStorage.clear()
@@ -39,16 +43,17 @@ describe("ReprioritizeDialog", () => {
       },
     ]
 
-    mockServer = new MockServer()
     mockServer.listen()
-    // Return only the first job to match the filter for job-id-0
-    mockServer.setPostJobsResponse([jobs[0]])
 
     onClose = vi.fn()
   })
 
   afterEach(() => {
     localStorage.clear()
+    mockServer.reset()
+  })
+
+  afterAll(() => {
     mockServer.close()
   })
 
@@ -64,6 +69,7 @@ describe("ReprioritizeDialog", () => {
     )
 
   it("displays job information", async () => {
+    mockServer.setPostJobsResponse([jobs[0]])
     const { getByRole, findByRole, getByText } = renderComponent()
 
     // Initial render
@@ -79,7 +85,7 @@ describe("ReprioritizeDialog", () => {
   })
 
   it("shows an alert if all jobs in a terminated state", async () => {
-    jobs[0].state = JobState.Failed
+    mockServer.setPostJobsResponse([{ ...jobs[0], state: JobState.Failed }])
     const { findByText } = renderComponent()
 
     // Once job details are fetched
@@ -112,6 +118,7 @@ describe("ReprioritizeDialog", () => {
   })
 
   it("allows the user to reprioritize jobs", async () => {
+    mockServer.setPostJobsResponse([jobs[0]])
     const { getByRole, findByText } = renderComponent()
 
     mockServer.setReprioritizeJobsResponse([jobs[0].jobId], [])
@@ -131,6 +138,7 @@ describe("ReprioritizeDialog", () => {
   })
 
   it("allows user to refetch jobs", async () => {
+    mockServer.setPostJobsResponse([jobs[0]])
     const { findByText, findByRole } = renderComponent()
 
     // Check job details are being shown
@@ -193,11 +201,8 @@ describe("ReprioritizeDialog", () => {
       },
     ]
 
-    // jobs[1] in the dataset is terminated, so lets just fix that for the test
-    jobs[1].state = JobState.Pending
-
     // Update mock to return both jobs
-    mockServer.setPostJobsResponse([jobs[0], jobs[1]])
+    mockServer.setPostJobsResponse([jobs[0], { ...jobs[1], state: JobState.Pending }])
 
     const { getByRole, findByText, findByRole } = renderComponent()
 

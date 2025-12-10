@@ -1,11 +1,9 @@
 import { ExpandedStateList, RowSelectionState, Updater } from "@tanstack/react-table"
 import _ from "lodash"
 
-import { getConfig } from "../config"
 import { isJobGroupRow, JobGroupRow, JobRow, JobTableRow } from "../models/jobsTableModels"
-import { Job, JobFilter, JobFiltersWithExcludes, JobGroup, JobOrder, Match } from "../models/lookoutModels"
-import { GroupedField, IGroupJobsService } from "../services/lookout/GroupJobsService"
-import { GetJobsResponse } from "../services/lookout/useGetJobs"
+import { Job, JobFilter, JobFiltersWithExcludes, JobGroup, Match } from "../models/lookoutModels"
+import { GroupedField } from "../services/lookout/GroupJobsService"
 
 import { validDateFromNullableIsoString } from "./dates"
 import {
@@ -19,8 +17,6 @@ import {
   VALID_COLUMN_MATCHES,
 } from "./jobsTableColumns"
 import { findRowInData, fromRowId, RowId, RowIdParts, toRowId } from "./reactTableUtils"
-
-const config = getConfig()
 
 export interface LookoutColumnFilter {
   id: string
@@ -220,66 +216,6 @@ export function getFiltersForGroupedAnnotations(remainingGroups: string[]): JobF
         isAnnotation: true,
       }
     })
-}
-
-export interface FetchRowRequest {
-  filters: JobFilter[]
-  activeJobSets: boolean
-  skip: number
-  take: number
-  order: JobOrder
-}
-export const fetchJobs = async (
-  fetchFunc: GlobalFetch["fetch"],
-  rowRequest: FetchRowRequest,
-  abortSignal: AbortSignal,
-): Promise<GetJobsResponse> => {
-  const { filters, activeJobSets, skip, take, order } = rowRequest
-
-  let path = "/api/v1/jobs"
-  if (config.backend) {
-    path += "?" + new URLSearchParams({ backend: config.backend })
-  }
-
-  const response = await fetchFunc(path, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      filters,
-      activeJobSets,
-      order,
-      skip,
-      take,
-    }),
-    signal: abortSignal,
-  })
-
-  const json = await response.json()
-  return {
-    jobs: json.jobs ?? [],
-  }
-}
-
-export const fetchJobGroups = async (
-  fetchFunc: GlobalFetch["fetch"],
-  rowRequest: FetchRowRequest,
-  groupJobsService: IGroupJobsService,
-  groupedColumn: GroupedField,
-  columnsToAggregate: string[],
-  abortSignal: AbortSignal,
-) => {
-  const { filters, activeJobSets, skip, take, order } = rowRequest
-  return await groupJobsService.groupJobs(
-    fetchFunc,
-    filters,
-    activeJobSets,
-    order,
-    groupedColumn,
-    columnsToAggregate,
-    skip,
-    take,
-    abortSignal,
-  )
 }
 
 export const jobsToRows = (jobs: Job[]): JobRow[] => {

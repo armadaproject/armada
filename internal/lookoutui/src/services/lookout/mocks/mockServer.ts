@@ -115,14 +115,14 @@ export class MockServer {
     )
   }
 
-  setCancelJobsResponse(successfulJobIds: JobId[], failedJobIds: { jobId: JobId; errorReason: string }[] = []) {
+  setCancelJobsResponse(successfulJobIds: JobId[], failedJobIds: JobId[] = []) {
     this.server.use(
       http.post<PathParams, CancelJobsRequest["body"]>(CANCEL_JOBS_ENDPOINT, async (req) => {
         const reqJson = await req.request.json()
         const requestedJobIds = reqJson.jobIds as JobId[]
 
         const cancelledIds = requestedJobIds.filter(
-          (jobId) => successfulJobIds.includes(jobId) && !failedJobIds.some((f) => f.jobId === jobId),
+          (jobId) => successfulJobIds.includes(jobId) && !failedJobIds.some((f) => f === jobId),
         )
 
         return HttpResponse.json({
