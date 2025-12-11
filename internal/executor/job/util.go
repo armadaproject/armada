@@ -25,6 +25,11 @@ func CreateSubmitJobFromExecutorApiJobRunLease(
 		JobSet: jobRunLease.Jobset,
 		Queue:  jobRunLease.Queue,
 	}
+
+	var podDefaultIngress *configuration.IngressConfiguration
+	if podDefaults != nil {
+		podDefaultIngress = podDefaults.Ingress
+	}
 	return &SubmitJob{
 		Meta: SubmitJobMeta{
 			RunMeta:         runMeta,
@@ -32,7 +37,7 @@ func CreateSubmitJobFromExecutorApiJobRunLease(
 			OwnershipGroups: jobRunLease.Groups,
 		},
 		Pod:       pod,
-		Ingresses: util2.ExtractIngresses(jobRunLease, pod, podDefaults.Ingress),
+		Ingresses: util2.ExtractIngresses(jobRunLease, pod, podDefaultIngress),
 		Services:  util2.ExtractServices(jobRunLease, pod),
 	}, nil
 }

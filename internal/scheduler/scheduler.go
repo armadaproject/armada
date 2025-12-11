@@ -2,11 +2,13 @@ package scheduler
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/gogo/protobuf/types"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
+	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/utils/clock"
@@ -998,56 +1000,91 @@ func (s *Scheduler) removeRunsThatNoLongerReconcile(ctx *armadacontext.Context, 
 	if err != nil {
 		return nil, fmt.Errorf("failed to reconcile runs with nodes because - %s", err)
 	}
-	jobsToUpdate := make([]*jobdb.Job, 0, len(invalidJobs))
-	events := make([]*armadaevents.EventSequence, 0, len(invalidJobs)*2)
+	jobsUpdated := make(map[string]*jobdb.Job, len(invalidJobs))
+	gangsPreempted := map[gangKey][]string{}
+	events := make([]*armadaevents.EventSequence, 0, len(invalidJobs))
 	for _, invalidJobInfo := range invalidJobs {
 		job := invalidJobInfo.Job
 		if job.InTerminalState() || job.Queued() || job.LatestRun() == nil {
 			continue
 		}
 
-		now := s.clock.Now()
+		updatedJob, jobEvents := s.processJobReconciliationFailure(job, invalidJobInfo.Reason)
+		jobsUpdated[job.Id()] = updatedJob
+		events = append(events, jobEvents...)
 
-		job = job.WithQueued(false).WithFailed(true)
-		run := job.LatestRun()
-		job = job.WithUpdatedRun(run.WithFailed(true))
-
-		if job.PriorityClass().Preemptible {
-			run = run.WithPreemptedTime(&now)
-		}
-
-		jobsToUpdate = append(jobsToUpdate, job)
-
-		if job.PriorityClass().Preemptible {
-			s.metrics.ReportJobPreemptedWithType(job, schedulercontext.PreemptedViaNodeReconciler)
-			es := &armadaevents.EventSequence{
-				Queue:      job.Queue(),
-				JobSetName: job.Jobset(),
-				Events:     createEventsForPreemptedJob(job.Id(), run.Id(), invalidJobInfo.Reason, now),
+		if job.IsInGang() && job.PriorityClass().Preemptible {
+			key := gangKey{job.Queue(), job.GetGangInfo().Id()}
+			if _, exists := gangsPreempted[key]; !exists {
+				gangsPreempted[key] = []string{}
 			}
-			events = append(events, es)
-		} else {
-			reconciliationError := &armadaevents.Error{
-				Terminal: true,
-				Reason: &armadaevents.Error_ReconciliationError{
-					ReconciliationError: &armadaevents.ReconciliationError{
-						Message: invalidJobInfo.Reason,
-					},
-				},
-			}
-			es := &armadaevents.EventSequence{
-				Queue:      job.Queue(),
-				JobSetName: job.Jobset(),
-				Events:     createEventsForFailedJob(job.Id(), run.Id(), reconciliationError, now),
-			}
-			events = append(events, es)
+			gangsPreempted[key] = append(gangsPreempted[key], job.Id())
 		}
 	}
 
-	if err := txn.Upsert(jobsToUpdate); err != nil {
+	for gang, jobIds := range gangsPreempted {
+		jobs, err := txn.GetGangJobsByGangId(gang.queue, gang.gangId)
+		if err != nil {
+			return nil, fmt.Errorf("failed to process failed reconciliatiion gang jobs because - %s", err)
+		}
+
+		for _, job := range jobs {
+			_, alreadyProcessed := jobsUpdated[job.Id()]
+			if alreadyProcessed || job.InTerminalState() || !job.PriorityClass().Preemptible {
+				continue
+			}
+
+			reason := fmt.Sprintf("other jobs in the gang failed reconciliation (%s)", strings.Join(jobIds, ","))
+			updatedJob, jobEvents := s.processJobReconciliationFailure(job, reason)
+			jobsUpdated[job.Id()] = updatedJob
+			events = append(events, jobEvents...)
+		}
+	}
+
+	if err := txn.Upsert(maps.Values(jobsUpdated)); err != nil {
 		return nil, err
 	}
 	return events, nil
+}
+
+func (s *Scheduler) processJobReconciliationFailure(job *jobdb.Job, reason string) (*jobdb.Job, []*armadaevents.EventSequence) {
+	now := s.clock.Now()
+
+	job = job.WithQueued(false).WithFailed(true)
+	run := job.LatestRun()
+	job = job.WithUpdatedRun(run.WithFailed(true))
+
+	if job.PriorityClass().Preemptible {
+		run = run.WithPreemptedTime(&now)
+	}
+
+	events := make([]*armadaevents.EventSequence, 0, 3)
+	if job.PriorityClass().Preemptible {
+		s.metrics.ReportJobPreemptedWithType(job, schedulercontext.PreemptedViaNodeReconciler)
+		es := &armadaevents.EventSequence{
+			Queue:      job.Queue(),
+			JobSetName: job.Jobset(),
+			Events:     createEventsForPreemptedJob(job.Id(), run.Id(), reason, now),
+		}
+		events = append(events, es)
+	} else {
+		reconciliationError := &armadaevents.Error{
+			Terminal: true,
+			Reason: &armadaevents.Error_ReconciliationError{
+				ReconciliationError: &armadaevents.ReconciliationError{
+					Message: reason,
+				},
+			},
+		}
+		es := &armadaevents.EventSequence{
+			Queue:      job.Queue(),
+			JobSetName: job.Jobset(),
+			Events:     createEventsForFailedJob(job.Id(), run.Id(), reconciliationError, now),
+		}
+		events = append(events, es)
+	}
+
+	return job, events
 }
 
 // expireJobsIfNecessary removes any jobs from the JobDb which are running on stale executors.
