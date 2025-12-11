@@ -32,14 +32,14 @@ func TestGetReservationName(t *testing.T) {
 		},
 		"unreserved - no taints": {
 			input:          []v1.Taint{},
-			expectedResult: "",
+			expectedResult: NoReservationName,
 		},
 		"unreserved - taints": {
 			input: []v1.Taint{
 				{Key: "batch", Value: "true", Effect: v1.TaintEffectNoSchedule},
 				{Key: "gpu", Value: "true", Effect: v1.TaintEffectNoSchedule},
 			},
-			expectedResult: "",
+			expectedResult: NoReservationName,
 		},
 	}
 
