@@ -43,7 +43,6 @@ func NewTokenCache(providerUrl, clientId string) (*TokenCache, error) {
 		WinCredPrefix:                  "armada",
 	})
 	if err != nil {
-		log.Debug("No secure keyring backend available, token caching disabled")
 		return nil, fmt.Errorf("no secure keyring backend available: %w", err)
 	}
 
@@ -67,7 +66,7 @@ func (tc *TokenCache) GetCachedRefreshToken() (string, error) {
 	item, err := tc.ring.Get(key)
 	if err != nil {
 		if errors.Is(err, keyring.ErrKeyNotFound) {
-			return "", nil // No cached token
+			return "", nil
 		}
 		return "", fmt.Errorf("failed to get token from keyring: %w", err)
 	}
