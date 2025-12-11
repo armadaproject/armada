@@ -302,6 +302,61 @@ func TestConvertLeaseExpired(t *testing.T) {
 	assert.Equal(t, expected, apiEvents)
 }
 
+func TestConvertJobReconciliationError(t *testing.T) {
+	reconciliationError := &armadaevents.Error{
+		Terminal: true,
+		Reason: &armadaevents.Error_ReconciliationError{
+			ReconciliationError: &armadaevents.ReconciliationError{
+				Message: "reconciliation error",
+			},
+		},
+	}
+
+	jobReconciliationError := &armadaevents.EventSequence_Event{
+		Created: baseTimeProto,
+		Event: &armadaevents.EventSequence_Event_JobErrors{
+			JobErrors: &armadaevents.JobErrors{
+				JobId:  jobId,
+				Errors: []*armadaevents.Error{reconciliationError},
+			},
+		},
+	}
+
+	expected := []*api.EventMessage{
+		{
+			Events: &api.EventMessage_Failed{
+				Failed: &api.JobFailedEvent{
+					JobId:    jobId,
+					Reason:   "reconciliation error",
+					JobSetId: jobSetName,
+					Queue:    queue,
+					Created:  protoutil.ToTimestamp(baseTime),
+					Cause:    api.Cause_Error,
+				},
+			},
+		},
+	}
+
+	apiEvents, err := FromEventSequence(toEventSeq(jobReconciliationError))
+	assert.NoError(t, err)
+	assert.Equal(t, expected, apiEvents)
+
+	jobRunReconciliationError := &armadaevents.EventSequence_Event{
+		Created: baseTimeProto,
+		Event: &armadaevents.EventSequence_Event_JobRunErrors{
+			JobRunErrors: &armadaevents.JobRunErrors{
+				RunId:  runId,
+				JobId:  jobId,
+				Errors: []*armadaevents.Error{reconciliationError},
+			},
+		},
+	}
+
+	apiEvents, err = FromEventSequence(toEventSeq(jobRunReconciliationError))
+	assert.NoError(t, err)
+	assert.Empty(t, apiEvents)
+}
+
 func TestConvertPodLeaseReturned(t *testing.T) {
 	leaseReturned := &armadaevents.EventSequence_Event{
 		Created: baseTimeProto,

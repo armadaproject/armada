@@ -354,7 +354,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 		publishError                     bool                           // if true the publisher will throw an error
 		submitCheckerFailure             bool                           // if true the submit checker will say the job is unschedulable
 		submitGangValidateFailure        bool                           // if true the gang validator will say the gang job is invalid
-		runReconciliationFailure         bool                           // if true the run reconciler will say the details no longer reconcile with the node
+		jobIdsToFailReconciliation       []string                       // job ids the run reconciler will say the details no longer reconcile with the node
 		expectedJobRunLeased             []string                       // ids of jobs we expect to have produced leased messages
 		expectedJobRunErrors             []string                       // ids of jobs we expect to have produced jobRunErrors messages
 		expectedJobErrors                []string                       // ids of jobs we expect to have produced jobErrors messages
@@ -802,19 +802,36 @@ func TestScheduler_TestCycle(t *testing.T) {
 			expectedTerminal:          []string{queuedGangJob.Id()},
 		},
 		"Reconciliation failure - queued job - no action": {
-			initialJobs:              []*jobdb.Job{queuedJob},
-			runReconciliationFailure: true,
-			expectedQueued:           []string{queuedJob.Id()},
-			expectedQueuedVersion:    queuedJob.QueuedVersion(),
+			initialJobs:                []*jobdb.Job{queuedJob},
+			jobIdsToFailReconciliation: []string{queuedJob.Id()},
+			expectedQueued:             []string{queuedJob.Id()},
+			expectedQueuedVersion:      queuedJob.QueuedVersion(),
 		},
-		"Reconciliation failure - leased job - preempted": {
-			initialJobs:              []*jobdb.Job{leasedJob},
-			runReconciliationFailure: true,
-			expectedJobRunPreempted:  []string{leasedJob.Id()},
-			expectedJobErrors:        []string{leasedJob.Id()},
-			expectedJobRunErrors:     []string{leasedJob.Id()},
-			expectedTerminal:         []string{leasedJob.Id()},
-			expectedQueuedVersion:    leasedJob.QueuedVersion(),
+		"Reconciliation failure - leased preemptible job - preempted": {
+			initialJobs:                []*jobdb.Job{preemptibleLeasedJob},
+			jobIdsToFailReconciliation: []string{preemptibleLeasedJob.Id()},
+			expectedJobRunPreempted:    []string{preemptibleLeasedJob.Id()},
+			expectedJobErrors:          []string{preemptibleLeasedJob.Id()},
+			expectedJobRunErrors:       []string{preemptibleLeasedJob.Id()},
+			expectedTerminal:           []string{preemptibleLeasedJob.Id()},
+			expectedQueuedVersion:      preemptibleLeasedJob.QueuedVersion(),
+		},
+		"Reconciliation failure - leased non-preemptible job - failed": {
+			initialJobs:                []*jobdb.Job{leasedJob},
+			jobIdsToFailReconciliation: []string{leasedJob.Id()},
+			expectedJobErrors:          []string{leasedJob.Id()},
+			expectedJobRunErrors:       []string{leasedJob.Id()},
+			expectedTerminal:           []string{leasedJob.Id()},
+			expectedQueuedVersion:      leasedJob.QueuedVersion(),
+		},
+		"Reconciliation failure - actions all members of the same gang": {
+			initialJobs:                []*jobdb.Job{preemptibleGangJob1, preemptibleGangJob2},
+			jobIdsToFailReconciliation: []string{preemptibleGangJob1.Id()},
+			expectedJobRunPreempted:    []string{preemptibleGangJob1.Id(), preemptibleGangJob2.Id()},
+			expectedJobErrors:          []string{preemptibleGangJob1.Id(), preemptibleGangJob2.Id()},
+			expectedJobRunErrors:       []string{preemptibleGangJob1.Id(), preemptibleGangJob2.Id()},
+			expectedTerminal:           []string{preemptibleGangJob1.Id(), preemptibleGangJob2.Id()},
+			expectedQueuedVersion:      preemptibleGangJob1.QueuedVersion(),
 		},
 		"Job failed": {
 			initialJobs: []*jobdb.Job{leasedJob},
@@ -899,7 +916,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 			publisher := &testPublisher{shouldError: tc.publishError}
 			submitChecker := &testSubmitChecker{checkSuccess: !tc.submitCheckerFailure}
 			gangValidator := &testGangValidator{validateSuccess: !tc.submitGangValidateFailure}
-			runReconciler := &testRunReconciler{reconcileSuccess: !tc.runReconciliationFailure}
+			runReconciler := &testRunReconciler{jobIdsToFailReconciliation: tc.jobIdsToFailReconciliation}
 
 			heartbeatTime := testClock.Now()
 			if tc.staleExecutor {
@@ -1071,7 +1088,7 @@ func TestRun(t *testing.T) {
 	leaderController := leader.NewStandaloneLeaderController()
 	submitChecker := &testSubmitChecker{checkSuccess: true}
 	gangValidator := &testGangValidator{validateSuccess: true}
-	runReconciler := &testRunReconciler{reconcileSuccess: true}
+	runReconciler := &testRunReconciler{}
 	sched, err := NewScheduler(
 		testfixtures.NewJobDb(testfixtures.TestResourceListFactory),
 		&jobRepo,
@@ -1264,7 +1281,7 @@ func TestJobPriceUpdates(t *testing.T) {
 			leaderController := leader.NewStandaloneLeaderController()
 			submitChecker := &testSubmitChecker{checkSuccess: true}
 			gangValidator := &testGangValidator{validateSuccess: true}
-			runReconciler := &testRunReconciler{reconcileSuccess: true}
+			runReconciler := &testRunReconciler{}
 			sched, err := NewScheduler(
 				jobDb,
 				&jobRepo,
@@ -1717,17 +1734,19 @@ func TestScheduler_TestSyncState(t *testing.T) {
 }
 
 type testRunReconciler struct {
-	reconcileSuccess bool
+	jobIdsToFailReconciliation []string
 }
 
 func (t *testRunReconciler) ReconcileJobRuns(ctx *armadacontext.Context, txn *jobdb.Txn) ([]*FailedReconciliationResult, error) {
-	if t.reconcileSuccess {
+	if t.jobIdsToFailReconciliation == nil || len(t.jobIdsToFailReconciliation) == 0 {
 		return nil, nil
 	}
 	jobs := txn.GetAll()
 	result := make([]*FailedReconciliationResult, 0, len(jobs))
 	for _, job := range jobs {
-		result = append(result, &FailedReconciliationResult{Job: job, Reason: "reconciling this run with the node failed"})
+		if slices.Contains(t.jobIdsToFailReconciliation, job.Id()) {
+			result = append(result, &FailedReconciliationResult{Job: job, Reason: "reconciling this run with the node failed"})
+		}
 	}
 	return result, nil
 }
@@ -2853,9 +2872,7 @@ func TestCycleConsistency(t *testing.T) {
 					schedulerMetrics,
 					pricing.NoopBidPriceProvider{},
 					[]string{},
-					&testRunReconciler{
-						reconcileSuccess: true,
-					},
+					&testRunReconciler{},
 				)
 				require.NoError(t, err)
 				scheduler.clock = testClock
