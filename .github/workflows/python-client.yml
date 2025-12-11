@@ -50,7 +50,7 @@ jobs:
           - tox-env: 'py312'
             python-version: '3.12'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Setup Go
         uses: ./.github/actions/setup-go-cache
         with:
@@ -71,7 +71,7 @@ jobs:
       # This variable is picked up by the goreleaser config.
       DOCKER_BUILDX_BUILDER: "builder"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - run: docker buildx create --name ${DOCKER_BUILDX_BUILDER} --driver docker-container --use
       - run: docker buildx install
 
