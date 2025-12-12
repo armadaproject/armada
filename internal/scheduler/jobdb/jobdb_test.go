@@ -5,7 +5,6 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/armadaproject/armada/pkg/bidstore"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -20,6 +19,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
+	"github.com/armadaproject/armada/pkg/bidstore"
 )
 
 func NewTestJobDb() *JobDb {
