@@ -5,6 +5,7 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/armadaproject/armada/pkg/bidstore"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -301,6 +302,71 @@ func TestJobDb_TestBatchDelete(t *testing.T) {
 	// Can't delete with read only transaction
 	err = (jobDb.ReadTxn()).BatchDelete([]string{job1.Id()})
 	require.Error(t, err)
+}
+
+func TestJobDb_Abort_QueuedJobs(t *testing.T) {
+	tests := map[string]struct {
+		order JobSortOrder
+	}{
+		"price order": {
+			order: PriceOrder,
+		},
+		"fairshare order": {
+			order: FairShareOrder,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			jobDb := NewTestJobDb()
+			originalJob := newJob().WithQueued(true).WithPools([]string{"cpu", "cpu2", "cpu3"})
+
+			// Setup original state
+			txn := jobDb.WriteTxn()
+			err := txn.Upsert([]*Job{originalJob})
+			require.NoError(t, err)
+			txn.Commit()
+
+			// Update job in transaction
+			// Check updated job is reflected in iterator
+			txn = jobDb.WriteTxn()
+			updated := originalJob.WithPriceBand(bidstore.PriceBand_PRICE_BAND_B)
+			err = txn.Upsert([]*Job{updated})
+			require.NoError(t, err)
+
+			queuedJobIterator := txn.QueuedJobs(originalJob.Queue(), "cpu", PriceOrder)
+			allJobs := []*Job{}
+			for {
+				job, _ := queuedJobIterator.Next()
+				if job == nil {
+					break
+				}
+				allJobs = append(allJobs, job)
+			}
+
+			assert.Len(t, allJobs, 1)
+			// Check returned job is the updated job in transaction
+			assert.Equal(t, updated, allJobs[0])
+
+			txn.Abort()
+
+			// Check after abort the returned jobs reflected the original state
+			txn = jobDb.ReadTxn()
+			queuedJobIterator = txn.QueuedJobs(originalJob.Queue(), "cpu", tc.order)
+			allJobs = []*Job{}
+			for {
+				job, _ := queuedJobIterator.Next()
+				if job == nil {
+					break
+				}
+				allJobs = append(allJobs, job)
+			}
+
+			assert.Len(t, allJobs, 1)
+			// Check returned job is the original job as transaction was aborted
+			assert.Equal(t, originalJob, allJobs[0])
+		})
+	}
 }
 
 func TestJobDb_GangInfoIsPopulated(t *testing.T) {
