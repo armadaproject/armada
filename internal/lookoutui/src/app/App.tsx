@@ -105,9 +105,7 @@ export function App(props: AppProps) {
                                 element={
                                   <ErrorBoundary FallbackComponent={AlertInPageContainerErrorFallback}>
                                     <JobsPage
-                                      getJobsService={props.services.v2GetJobsService}
                                       groupJobsService={props.services.v2GroupJobsService}
-                                      updateJobsService={props.services.v2UpdateJobsService}
                                       debug={config.debugEnabled}
                                       autoRefreshMs={config.jobsAutoRefreshMs}
                                       commandSpecs={config.commandSpecs}

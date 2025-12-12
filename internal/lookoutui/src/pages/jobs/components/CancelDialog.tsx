@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 
 import { Refresh, Dangerous } from "@mui/icons-material"
 import {
@@ -11,10 +11,8 @@ import {
   DialogTitle,
   Alert,
 } from "@mui/material"
-import _ from "lodash"
 import { ErrorBoundary } from "react-error-boundary"
 
-import { getUniqueJobsMatchingFilters } from "../../../common/jobsDialogUtils"
 import { formatJobState } from "../../../common/jobsTableFormatters"
 import { waitMs, PlatformCancelReason } from "../../../common/utils"
 import { AlertErrorFallback } from "../../../components/AlertErrorFallback"
@@ -22,9 +20,8 @@ import { useFormatNumberWithUserSettings } from "../../../components/hooks/forma
 import { useFormatIsoTimestampWithUserSettings } from "../../../components/hooks/formatTimeWithUserSettings"
 import { useCustomSnackbar } from "../../../components/hooks/useCustomSnackbar"
 import { isTerminatedJobState, Job, JobFiltersWithExcludes, JobId } from "../../../models/lookoutModels"
-import { useAuthenticatedFetch, useGetAccessToken } from "../../../oidcAuth"
-import { IGetJobsService } from "../../../services/lookout/GetJobsService"
-import { UpdateJobsService } from "../../../services/lookout/UpdateJobsService"
+import { useCancelJobs } from "../../../services/lookout/useCancelJobs"
+import { useGetAllJobsMatchingFilters } from "../../../services/lookout/useGetAllJobsMatchingFilters"
 
 import dialogStyles from "./DialogStyles.module.css"
 import { JobStatusTable } from "./JobStatusTable"
@@ -32,110 +29,92 @@ import { JobStatusTable } from "./JobStatusTable"
 interface CancelDialogProps {
   onClose: () => void
   selectedItemFilters: JobFiltersWithExcludes[]
-  getJobsService: IGetJobsService
-  updateJobsService: UpdateJobsService
 }
 
-export const CancelDialog = ({
-  onClose,
-  selectedItemFilters,
-  getJobsService,
-  updateJobsService,
-}: CancelDialogProps) => {
-  const mounted = useRef(false)
+export const CancelDialog = ({ onClose, selectedItemFilters }: CancelDialogProps) => {
   // State
-  const [isLoadingJobs, setIsLoadingJobs] = useState(true)
-  const [selectedJobs, setSelectedJobs] = useState<Job[]>([])
   const [jobIdsToCancelResponses, setJobIdsToCancelResponses] = useState<Record<JobId, string>>({})
-  const cancellableJobs = useMemo(() => selectedJobs.filter((job) => !isTerminatedJobState(job.state)), [selectedJobs])
   const [isCancelling, setIsCancelling] = useState(false)
   const [hasAttemptedCancel, setHasAttemptedCancel] = useState(false)
   const [isPlatformCancel, setIsPlatformCancel] = useState(false)
+  const [refetchAfterCancel, setRefetchAfterCancel] = useState(false)
   const openSnackbar = useCustomSnackbar()
 
   const formatIsoTimestamp = useFormatIsoTimestampWithUserSettings()
+  const cancelJobsMutation = useCancelJobs()
 
-  const getAccessToken = useGetAccessToken()
+  // Fetch all jobs matching the filters using the new hook
+  const {
+    data: selectedJobs,
+    isLoading: isLoadingJobs,
+    error,
+    refetch,
+  } = useGetAllJobsMatchingFilters({
+    filtersGroups: selectedItemFilters,
+    activeJobSets: false,
+    enabled: true,
+  })
 
-  const authenticatedFetch = useAuthenticatedFetch()
+  const cancellableJobs = useMemo(() => selectedJobs.filter((job) => !isTerminatedJobState(job.state)), [selectedJobs])
 
   // Actions
-  const fetchSelectedJobs = useCallback(async () => {
-    if (!mounted.current) {
-      return
-    }
-
-    setIsLoadingJobs(true)
-
-    const uniqueJobsToCancel = await getUniqueJobsMatchingFilters(
-      authenticatedFetch,
-      selectedItemFilters,
-      false,
-      getJobsService,
-    )
-    const sortedJobs = _.orderBy(uniqueJobsToCancel, (job) => job.jobId, "desc")
-
-    if (!mounted.current) {
-      return
-    }
-
-    setSelectedJobs(sortedJobs)
-    setIsLoadingJobs(false)
-    setHasAttemptedCancel(false)
-  }, [selectedItemFilters, getJobsService])
-
   const cancelSelectedJobs = useCallback(async () => {
     setIsCancelling(true)
 
     const reason = isPlatformCancel ? PlatformCancelReason : ""
-    const accessToken = await getAccessToken()
-    const response = await updateJobsService.cancelJobs(cancellableJobs, reason, accessToken)
 
-    if (response.failedJobIds.length === 0) {
-      openSnackbar(
-        "Successfully began cancellation. Jobs may take some time to cancel, but you may navigate away.",
-        "success",
-      )
-    } else if (response.successfulJobIds.length === 0) {
-      openSnackbar("All jobs failed to cancel. See table for error responses.", "error")
-    } else {
-      openSnackbar("Some jobs failed to cancel. See table for error responses.", "warning")
+    try {
+      const response = await cancelJobsMutation.mutateAsync({
+        jobs: cancellableJobs,
+        reason,
+      })
+
+      if (response.failedJobIds.length === 0) {
+        openSnackbar(
+          "Successfully began cancellation. Jobs may take some time to cancel, but you may navigate away.",
+          "success",
+        )
+      } else if (response.successfulJobIds.length === 0) {
+        openSnackbar("All jobs failed to cancel. See table for error responses.", "error")
+      } else {
+        openSnackbar("Some jobs failed to cancel. See table for error responses.", "warning")
+      }
+
+      const newResponseStatus = { ...jobIdsToCancelResponses }
+      response.successfulJobIds.map((jobId) => (newResponseStatus[jobId] = "Success"))
+      response.failedJobIds.map(({ jobId, errorReason }) => (newResponseStatus[jobId] = errorReason))
+
+      setJobIdsToCancelResponses(newResponseStatus)
+      setHasAttemptedCancel(true)
+    } finally {
+      setIsCancelling(false)
     }
+  }, [cancellableJobs, jobIdsToCancelResponses, isPlatformCancel, cancelJobsMutation, openSnackbar])
 
-    const newResponseStatus = { ...jobIdsToCancelResponses }
-    response.successfulJobIds.map((jobId) => (newResponseStatus[jobId] = "Success"))
-    response.failedJobIds.map(({ jobId, errorReason }) => (newResponseStatus[jobId] = errorReason))
-
-    setJobIdsToCancelResponses(newResponseStatus)
-    setIsCancelling(false)
-    setHasAttemptedCancel(true)
-  }, [cancellableJobs, jobIdsToCancelResponses, isPlatformCancel])
-
-  // On dialog open
+  // Wait after cancel and refetch
   useEffect(() => {
-    mounted.current = true
-    // eslint-disable-next-line no-console
-    fetchSelectedJobs().catch(console.error)
-    return () => {
-      mounted.current = false
+    if (refetchAfterCancel) {
+      const doRefetch = async () => {
+        await waitMs(500)
+        refetch()
+        setRefetchAfterCancel(false)
+      }
+      doRefetch()
     }
-  }, [])
+  }, [refetchAfterCancel, refetch])
 
   // Event handlers
   const handleCancelJobs = useCallback(async () => {
     await cancelSelectedJobs()
-
-    // Wait a small period and then retrieve the job state of the cancelled jobs
-    setIsLoadingJobs(true)
-    await waitMs(500)
-    await fetchSelectedJobs()
-  }, [cancelSelectedJobs, fetchSelectedJobs])
+    // Trigger a refetch after a small delay
+    setRefetchAfterCancel(true)
+  }, [cancelSelectedJobs])
 
   const handleRefetch = useCallback(() => {
     setJobIdsToCancelResponses({})
-    // eslint-disable-next-line no-console
-    fetchSelectedJobs().catch(console.error)
-  }, [fetchSelectedJobs])
+    setHasAttemptedCancel(false)
+    refetch()
+  }, [refetch])
 
   const jobsToRender = useMemo(() => cancellableJobs.slice(0, 1000), [cancellableJobs])
   const formatState = useCallback((job: Job) => formatJobState(job.state), [])
@@ -162,7 +141,13 @@ export const CancelDialog = ({
             </div>
           )}
 
-          {!isLoadingJobs && (
+          {error && (
+            <Alert severity="error" sx={{ marginBottom: "0.5em" }}>
+              Failed to fetch jobs: {error}
+            </Alert>
+          )}
+
+          {!isLoadingJobs && !error && (
             <>
               {cancellableJobs.length > 0 && cancellableJobs.length < selectedJobs.length && (
                 <Alert severity="info" sx={{ marginBottom: "0.5em" }}>
