@@ -241,7 +241,11 @@ def test_publishes_xcom_state(context):
     assert op.hook.context_to_xcom.call_count == 2
 
 
-def test_reattaches_to_running_job(context):
+@pytest.mark.parametrize(
+    "policy_return, should_reattach",
+    [(True, True), (False, False)],
+)
+def test_reattaches_to_running_job(policy_return, should_reattach, context):
     # Simulate a retry
     context["ti"].try_number = 2
     context["ti"].max_tries = 5
@@ -249,7 +253,7 @@ def test_reattaches_to_running_job(context):
 
     op = operator(JobSubmitRequestItem())
     # Enable reattach
-    op.reattach_policy = lambda state, reason: True
+    op.reattach_policy = lambda state, reason: policy_return
 
     expected_context = running_job_context(
         job_state=JobState.RUNNING.name, cluster=DEFAULT_CLUSTER
@@ -258,10 +262,13 @@ def test_reattaches_to_running_job(context):
 
     op.execute(context)
 
-    assert op.job_context == running_job_context(
-        job_state=JobState.FAILED.name, cluster=DEFAULT_CLUSTER
-    )
-    op.hook.submit_job.assert_not_called()
+    if should_reattach:
+        assert op.job_context == dataclasses.replace(
+            expected_context, job_state=JobState.SUCCEEDED.name
+        )
+        op.hook.submit_job.assert_not_called()
+    else:
+        op.hook.submit_job.assert_called_once()
 
 
 @pytest.mark.skip("TODO")
