@@ -241,12 +241,20 @@ def test_publishes_xcom_state(context):
     assert op.hook.context_to_xcom.call_count == 2
 
 
-@pytest.mark.skip("We know this doesn't work - as xcom state is cleared on retry")
 def test_reattaches_to_running_job(context):
+    # Simulate a retry
+    context["ti"].try_number = 2
+    context["ti"].max_tries = 5
+    context["ti"].task.retries = 1
+
     op = operator(JobSubmitRequestItem())
-    op.hook.context_from_xcom.return_value = running_job_context(
-        job_state=JobState.SUCCEEDED.name, cluster=DEFAULT_CLUSTER
+    # Enable reattach
+    op.reattach_policy = lambda state, reason: True
+
+    expected_context = running_job_context(
+        job_state=JobState.RUNNING.name, cluster=DEFAULT_CLUSTER
     )
+    op.hook.job_by_external_job_uri.return_value = expected_context
 
     op.execute(context)
 
