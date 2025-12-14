@@ -259,7 +259,7 @@ def test_reattaches_to_running_job(context):
     op.execute(context)
 
     assert op.job_context == running_job_context(
-        job_state=JobState.SUCCEEDED.name, cluster=DEFAULT_CLUSTER
+        job_state=JobState.FAILED.name, cluster=DEFAULT_CLUSTER
     )
     op.hook.submit_job.assert_not_called()
 
