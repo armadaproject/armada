@@ -1,6 +1,6 @@
 import dataclasses
 from datetime import timedelta
-from typing import Optional
+from typing import Optional, Callable
 from unittest.mock import MagicMock, patch, ANY
 
 import pytest
@@ -73,6 +73,7 @@ def operator(
     deferrable: bool = False,
     job_acknowledgement_timeout_s: int = 30,
     container_logs: Optional[str] = None,
+    reattach_policy: Optional[str] | Callable[[JobState, str], bool] = None,
 ) -> ArmadaOperator:
     operator = ArmadaOperator(
         armada_queue=DEFAULT_QUEUE,
@@ -85,6 +86,7 @@ def operator(
         lookout_url_template="http://lookout.armadaproject.io/jobs?job_id=<job_id>",
         name="test",
         task_id=DEFAULT_TASK_ID,
+        reattach_policy=reattach_policy,
     )
 
     return operator
@@ -254,6 +256,38 @@ def test_reattaches_to_running_job(policy_return, should_reattach, context):
     op = operator(JobSubmitRequestItem())
     # Enable reattach
     op.reattach_policy = lambda state, reason: policy_return
+
+    expected_context = running_job_context(
+        job_state=JobState.RUNNING.name, cluster=DEFAULT_CLUSTER
+    )
+    op.hook.job_by_external_job_uri.return_value = expected_context
+
+    op.execute(context)
+
+    if should_reattach:
+        assert op.job_context == dataclasses.replace(
+            expected_context, job_state=JobState.SUCCEEDED.name
+        )
+        op.hook.submit_job.assert_not_called()
+    else:
+        op.hook.submit_job.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    "policy_return, should_reattach",
+    [(True, True), (False, False)],
+)
+def test_reattaches_to_running_job_callable_policy(
+    policy_return, should_reattach, context
+):
+    # Simulate a retry
+    context["ti"].try_number = 2
+    context["ti"].max_tries = 5
+    context["ti"].task.retries = 1
+
+    op = operator(
+        JobSubmitRequestItem(), reattach_policy=lambda state, reason: policy_return
+    )
 
     expected_context = running_job_context(
         job_state=JobState.RUNNING.name, cluster=DEFAULT_CLUSTER
