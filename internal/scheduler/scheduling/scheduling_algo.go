@@ -577,7 +577,7 @@ func (l *FairSchedulingAlgo) SchedulePool(
 		resourceUnit,
 	)
 	if idealisedShareErr != nil {
-		log.Warnf("failed to calculated idealised share for pool %s - %s", fsctx.pool, idealisedShareErr)
+		log.WithStacktrace(idealisedShareErr).Warnf("failed to calculated idealised share for pool %s - %s", fsctx.pool, idealisedShareErr)
 	}
 
 	scheduler := NewPreemptingQueueScheduler(
