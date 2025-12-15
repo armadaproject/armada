@@ -2,9 +2,8 @@ import { ExpandedStateList, RowSelectionState, Updater } from "@tanstack/react-t
 import _ from "lodash"
 
 import { isJobGroupRow, JobGroupRow, JobRow, JobTableRow } from "../models/jobsTableModels"
-import { Job, JobFilter, JobFiltersWithExcludes, JobGroup, JobOrder, Match } from "../models/lookoutModels"
-import { IGetJobsService } from "../services/lookout/GetJobsService"
-import { GroupedField, IGroupJobsService } from "../services/lookout/GroupJobsService"
+import { Job, JobFilter, JobFiltersWithExcludes, JobGroup, Match } from "../models/lookoutModels"
+import { GroupedField } from "../services/lookout/GroupJobsService"
 
 import { validDateFromNullableIsoString } from "./dates"
 import {
@@ -217,46 +216,6 @@ export function getFiltersForGroupedAnnotations(remainingGroups: string[]): JobF
         isAnnotation: true,
       }
     })
-}
-
-export interface FetchRowRequest {
-  filters: JobFilter[]
-  activeJobSets: boolean
-  skip: number
-  take: number
-  order: JobOrder
-}
-export const fetchJobs = async (
-  fetchFunc: GlobalFetch["fetch"],
-  rowRequest: FetchRowRequest,
-  getJobsService: IGetJobsService,
-  abortSignal: AbortSignal,
-) => {
-  const { filters, activeJobSets, skip, take, order } = rowRequest
-
-  return await getJobsService.getJobs(fetchFunc, filters, activeJobSets, order, skip, take, abortSignal)
-}
-
-export const fetchJobGroups = async (
-  fetchFunc: GlobalFetch["fetch"],
-  rowRequest: FetchRowRequest,
-  groupJobsService: IGroupJobsService,
-  groupedColumn: GroupedField,
-  columnsToAggregate: string[],
-  abortSignal: AbortSignal,
-) => {
-  const { filters, activeJobSets, skip, take, order } = rowRequest
-  return await groupJobsService.groupJobs(
-    fetchFunc,
-    filters,
-    activeJobSets,
-    order,
-    groupedColumn,
-    columnsToAggregate,
-    skip,
-    take,
-    abortSignal,
-  )
 }
 
 export const jobsToRows = (jobs: Job[]): JobRow[] => {
