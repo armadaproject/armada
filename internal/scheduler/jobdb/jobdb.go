@@ -160,7 +160,7 @@ func (jobDb *JobDb) Clone() *JobDb {
 		jobsByRunId:            jobDb.jobsByRunId,
 		jobsByGangKey:          maps.Clone(jobDb.jobsByGangKey),
 		jobsByQueue:            maps.Clone(jobDb.jobsByQueue),
-		jobsByPoolAndQueue:     maps.Clone(jobDb.jobsByPoolAndQueue),
+		jobsByPoolAndQueue:     deepClone(jobDb.jobsByPoolAndQueue),
 		unvalidatedJobs:        jobDb.unvalidatedJobs,
 		priorityClasses:        jobDb.priorityClasses,
 		defaultPriorityClass:   jobDb.defaultPriorityClass,
@@ -337,11 +337,20 @@ func (jobDb *JobDb) WriteTxn() *Txn {
 		jobsByRunId:        jobDb.jobsByRunId,
 		jobsByGangKey:      maps.Clone(jobDb.jobsByGangKey),
 		jobsByQueue:        maps.Clone(jobDb.jobsByQueue),
-		jobsByPoolAndQueue: maps.Clone(jobDb.jobsByPoolAndQueue),
+		jobsByPoolAndQueue: deepClone(jobDb.jobsByPoolAndQueue),
 		unvalidatedJobs:    jobDb.unvalidatedJobs,
 		active:             true,
 		jobDb:              jobDb,
 	}
+}
+
+func deepClone(original map[string]map[string]immutable.SortedSet[*Job]) map[string]map[string]immutable.SortedSet[*Job] {
+	clone := make(map[string]map[string]immutable.SortedSet[*Job])
+	for key, innerMap := range original {
+		// Create a new map for each inner map
+		clone[key] = maps.Clone(innerMap)
+	}
+	return clone
 }
 
 func (jobDb *JobDb) CumulativeInternedStringsCount() uint64 {

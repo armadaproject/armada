@@ -20,7 +20,7 @@ from armada_client.typings import JobState
 DEFAULT_TASK_ID = "test_task_1"
 DEFAULT_DAG_ID = "test_dag_1"
 DEFAULT_RUN_ID = "test_run_1"
-DEFAULT_QUEUE = "queue-a"
+DEFAULT_QUEUE = "e2e-test-queue"
 DEFAULT_NAMESPACE = "personal-anonymous"
 DEFAULT_POLLING_INTERVAL = 1
 DEFAULT_JOB_ACKNOWLEDGEMENT_TIMEOUT = 10
