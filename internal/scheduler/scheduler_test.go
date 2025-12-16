@@ -1737,15 +1737,15 @@ type testRunReconciler struct {
 	jobIdsToFailReconciliation []string
 }
 
-func (t *testRunReconciler) ReconcileJobRuns(ctx *armadacontext.Context, txn *jobdb.Txn) ([]*FailedReconciliationResult, error) {
+func (t *testRunReconciler) ReconcileJobRuns(ctx *armadacontext.Context, txn *jobdb.Txn) ([]*scheduling.FailedReconciliationResult, error) {
 	if t.jobIdsToFailReconciliation == nil || len(t.jobIdsToFailReconciliation) == 0 {
 		return nil, nil
 	}
 	jobs := txn.GetAll()
-	result := make([]*FailedReconciliationResult, 0, len(jobs))
+	result := make([]*scheduling.FailedReconciliationResult, 0, len(jobs))
 	for _, job := range jobs {
 		if slices.Contains(t.jobIdsToFailReconciliation, job.Id()) {
-			result = append(result, &FailedReconciliationResult{Job: job, Reason: "reconciling this run with the node failed"})
+			result = append(result, &scheduling.FailedReconciliationResult{Job: job, Reason: "reconciling this run with the node failed"})
 		}
 	}
 	return result, nil
