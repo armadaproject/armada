@@ -3,7 +3,6 @@ import { useMutation } from "@tanstack/react-query"
 import { getErrorMessage } from "../../common/utils"
 import { getConfig } from "../../config"
 import { Job, JobId } from "../../models/lookoutModels"
-import { appendAuthorizationHeaders, useGetAccessToken } from "../../oidcAuth"
 
 import { useApiClients } from "../apiClients"
 
@@ -45,7 +44,6 @@ function createJobBatches(jobs: Job[], batchSize: number): Map<string, Map<strin
 export const useCancelJobs = () => {
   const config = getConfig()
   const { submitApi } = useApiClients()
-  const getAccessToken = useGetAccessToken()
 
   return useMutation<UpdateJobsResponse, string, CancelJobsVariables>({
     mutationFn: async ({ jobs, reason }: CancelJobsVariables) => {
@@ -63,28 +61,19 @@ export const useCancelJobs = () => {
         const maxJobsPerRequest = 10000
         const chunks = createJobBatches(jobs, maxJobsPerRequest)
 
-        const accessToken = await getAccessToken()
-
         const apiResponsePromises = []
         for (const [queue, jobSetMap] of chunks) {
           for (const [jobSet, batches] of jobSetMap) {
             for (const batch of batches) {
-              const headers = new Headers()
-              if (accessToken) {
-                appendAuthorizationHeaders(headers, accessToken)
-              }
               apiResponsePromises.push({
-                promise: submitApi.cancelJobs(
-                  {
-                    body: {
-                      jobIds: batch,
-                      queue: queue,
-                      jobSetId: jobSet,
-                      reason: reason,
-                    },
+                promise: submitApi.cancelJobs({
+                  body: {
+                    jobIds: batch,
+                    queue: queue,
+                    jobSetId: jobSet,
+                    reason: reason,
                   },
-                  { headers },
-                ),
+                }),
                 jobIds: batch,
               })
             }
