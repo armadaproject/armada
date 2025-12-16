@@ -4,7 +4,6 @@ import _ from "lodash"
 import { getErrorMessage } from "../../common/utils"
 import { getConfig } from "../../config"
 import { Job, JobId } from "../../models/lookoutModels"
-import { appendAuthorizationHeaders, useGetAccessToken } from "../../oidcAuth"
 
 import { useApiClients } from "../apiClients"
 
@@ -48,7 +47,6 @@ function createJobBatches(jobs: Job[], batchSize: number): Map<string, Map<strin
 
 export const useReprioritizeJobs = () => {
   const { submitApi } = useApiClients()
-  const getAccessToken = useGetAccessToken()
 
   return useMutation<UpdateJobsResponse, string, ReprioritizeJobsVariables>({
     mutationFn: async ({ jobs, newPriority }: ReprioritizeJobsVariables) => {
@@ -65,28 +63,19 @@ export const useReprioritizeJobs = () => {
 
         const chunks = createJobBatches(jobs, maxJobsPerRequest)
 
-        const accessToken = await getAccessToken()
-
         const apiResponsePromises = []
         for (const [queue, jobSetMap] of chunks) {
           for (const [jobSet, batches] of jobSetMap) {
             for (const batch of batches) {
-              const headers = new Headers()
-              if (accessToken) {
-                appendAuthorizationHeaders(headers, accessToken)
-              }
               apiResponsePromises.push({
-                promise: submitApi.reprioritizeJobs(
-                  {
-                    body: {
-                      jobIds: batch,
-                      queue: queue,
-                      jobSetId: jobSet,
-                      newPriority: newPriority,
-                    },
+                promise: submitApi.reprioritizeJobs({
+                  body: {
+                    jobIds: batch,
+                    queue: queue,
+                    jobSetId: jobSet,
+                    newPriority: newPriority,
                   },
-                  { headers },
-                ),
+                }),
                 jobIds: batch,
               })
             }
