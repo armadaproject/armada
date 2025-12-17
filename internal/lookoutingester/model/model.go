@@ -44,27 +44,29 @@ type UpdateJobInstruction struct {
 
 // CreateJobRunInstruction is an instruction to update an existing row in the jobRuns table
 type CreateJobRunInstruction struct {
-	RunId       string
-	JobId       string
-	Cluster     string
-	Pool        string
-	Node        *string
-	Leased      *time.Time
-	Pending     *time.Time
-	JobRunState int32
+	RunId            string
+	JobId            string
+	Cluster          string
+	Pool             string
+	Node             *string
+	Leased           *time.Time
+	Pending          *time.Time
+	JobRunState      int32
+	IngressAddresses map[int32]string
 }
 
 // UpdateJobRunInstruction is an instruction to update an existing row in the job runs table
 type UpdateJobRunInstruction struct {
-	RunId       string
-	Node        *string
-	Pending     *time.Time
-	Started     *time.Time
-	Finished    *time.Time
-	JobRunState *int32
-	Error       []byte
-	Debug       []byte
-	ExitCode    *int32
+	RunId            string
+	Node             *string
+	Pending          *time.Time
+	Started          *time.Time
+	Finished         *time.Time
+	JobRunState      *int32
+	Error            []byte
+	Debug            []byte
+	ExitCode         *int32
+	IngressAddresses map[int32]string
 }
 
 // CreateJobErrorInstruction is an instruction to crearte a new row in the job_error table

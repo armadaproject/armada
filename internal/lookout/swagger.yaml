@@ -189,6 +189,10 @@ definitions:
         type: integer
         format: int32
         x-nullable: true
+      ingressAddresses:
+        type: object
+        additionalProperties:
+          type: string
   group:
     type: object
     required:
