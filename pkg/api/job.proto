@@ -29,6 +29,7 @@ message JobRunDetails {
   google.protobuf.Timestamp pending_ts = 8;
   google.protobuf.Timestamp started_ts = 9;
   google.protobuf.Timestamp finished_ts = 10;
+  map<int32, string> ingress_addresses = 11;
 }
 
 

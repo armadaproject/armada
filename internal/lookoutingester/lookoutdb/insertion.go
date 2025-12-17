@@ -563,14 +563,15 @@ func (l *LookoutDb) CreateJobRunsBatch(ctx *armadacontext.Context, instructions 
 		createTmp := func(tx pgx.Tx) error {
 			_, err := tx.Exec(ctx, fmt.Sprintf(`
 				CREATE TEMPORARY TABLE %s (
-					run_id        varchar(36),
-					job_id        varchar(32),
-					cluster       varchar(512),
-					node          varchar(512),
-					leased        timestamp,
-					pending       timestamp,
-					job_run_state smallint,
-					pool 		  text
+					run_id            varchar(36),
+					job_id            varchar(32),
+					cluster           varchar(512),
+					node              varchar(512),
+					leased            timestamp,
+					pending           timestamp,
+					job_run_state     smallint,
+					pool 		      text,
+					ingress_addresses jsonb
 				) ON COMMIT DROP;`, tmpTable))
 			if err != nil {
 				l.metrics.RecordDBError(commonmetrics.DBOperationCreateTempTable)
@@ -590,6 +591,7 @@ func (l *LookoutDb) CreateJobRunsBatch(ctx *armadacontext.Context, instructions 
 					"pending",
 					"job_run_state",
 					"pool",
+					"ingress_addresses",
 				},
 				pgx.CopyFromSlice(len(instructions), func(i int) ([]interface{}, error) {
 					return []interface{}{
@@ -601,6 +603,7 @@ func (l *LookoutDb) CreateJobRunsBatch(ctx *armadacontext.Context, instructions 
 						instructions[i].Pending,
 						instructions[i].JobRunState,
 						instructions[i].Pool,
+						instructions[i].IngressAddresses,
 					}, nil
 				}),
 			)
@@ -619,7 +622,8 @@ func (l *LookoutDb) CreateJobRunsBatch(ctx *armadacontext.Context, instructions 
 						leased,
 						pending,
 						job_run_state,
-						pool
+						pool,
+						ingress_addresses
 					) SELECT * from %s
 					ON CONFLICT DO NOTHING`, tmpTable))
 			if err != nil {
@@ -640,8 +644,9 @@ func (l *LookoutDb) CreateJobRunsScalar(ctx *armadacontext.Context, instructions
 			leased,
 			pending,
 			job_run_state,
-			pool)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+			pool,
+			ingress_addresses)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 		ON CONFLICT DO NOTHING`
 	for _, i := range instructions {
 		err := l.withDatabaseRetryInsert(func() error {
@@ -653,7 +658,9 @@ func (l *LookoutDb) CreateJobRunsScalar(ctx *armadacontext.Context, instructions
 				i.Leased,
 				i.Pending,
 				i.JobRunState,
-				i.Pool)
+				i.Pool,
+				i.IngressAddresses,
+			)
 			if err != nil {
 				l.metrics.RecordDBError(commonmetrics.DBOperationInsert)
 			}
@@ -672,15 +679,16 @@ func (l *LookoutDb) UpdateJobRunsBatch(ctx *armadacontext.Context, instructions 
 		createTmp := func(tx pgx.Tx) error {
 			_, err := tx.Exec(ctx, fmt.Sprintf(`
 				CREATE TEMPORARY TABLE %s (
-					run_id        varchar(36),
-					node          varchar(512),
-				    pending       timestamp,
-					started       timestamp,
-					finished      timestamp,
-				    job_run_state smallint,
-					error         bytea,
-					debug         bytea,
-				    exit_code     int
+					run_id            varchar(36),
+					node              varchar(512),
+				    pending           timestamp,
+					started           timestamp,
+					finished          timestamp,
+				    job_run_state     smallint,
+					error             bytea,
+					debug             bytea,
+				    exit_code         int,
+					ingress_addresses jsonb
 				) ON COMMIT DROP;`, tmpTable))
 			if err != nil {
 				l.metrics.RecordDBError(commonmetrics.DBOperationCreateTempTable)
@@ -701,6 +709,7 @@ func (l *LookoutDb) UpdateJobRunsBatch(ctx *armadacontext.Context, instructions 
 					"error",
 					"debug",
 					"exit_code",
+					"ingress_addresses",
 				},
 				pgx.CopyFromSlice(len(instructions), func(i int) ([]interface{}, error) {
 					return []interface{}{
@@ -713,6 +722,7 @@ func (l *LookoutDb) UpdateJobRunsBatch(ctx *armadacontext.Context, instructions 
 						instructions[i].Error,
 						instructions[i].Debug,
 						instructions[i].ExitCode,
+						instructions[i].IngressAddresses,
 					}, nil
 				}),
 			)
@@ -724,14 +734,15 @@ func (l *LookoutDb) UpdateJobRunsBatch(ctx *armadacontext.Context, instructions 
 				ctx,
 				fmt.Sprintf(`UPDATE job_run
 					SET
-						node          = coalesce(tmp.node, job_run.node),
-						pending       = coalesce(tmp.pending, job_run.pending),
-						started       = coalesce(tmp.started, job_run.started),
-						finished      = coalesce(tmp.finished, job_run.finished),
-						job_run_state = coalesce(tmp.job_run_state, job_run.job_run_state),
-						error         = coalesce(tmp.error, job_run.error),
-						debug         = coalesce(tmp.debug, job_run.debug),
-						exit_code     = coalesce(tmp.exit_code, job_run.exit_code)
+						node              = coalesce(tmp.node, job_run.node),
+						pending           = coalesce(tmp.pending, job_run.pending),
+						started           = coalesce(tmp.started, job_run.started),
+						finished          = coalesce(tmp.finished, job_run.finished),
+						job_run_state     = coalesce(tmp.job_run_state, job_run.job_run_state),
+						error             = coalesce(tmp.error, job_run.error),
+						debug             = coalesce(tmp.debug, job_run.debug),
+						exit_code         = coalesce(tmp.exit_code, job_run.exit_code),
+						ingress_addresses = coalesce(tmp.ingress_addresses, job_run.ingress_addresses)
 					FROM %s as tmp where tmp.run_id = job_run.run_id`, tmpTable),
 			)
 			if err != nil {
@@ -747,14 +758,15 @@ func (l *LookoutDb) UpdateJobRunsBatch(ctx *armadacontext.Context, instructions 
 func (l *LookoutDb) UpdateJobRunsScalar(ctx *armadacontext.Context, instructions []*model.UpdateJobRunInstruction) {
 	sqlStatement := `UPDATE job_run
 		SET
-			node          = coalesce($2, node),
-			started       = coalesce($3, started),
-			finished      = coalesce($4, finished),
-			job_run_state = coalesce($5, job_run_state),
-			error         = coalesce($6, error),
-			exit_code     = coalesce($7, exit_code),
-			pending       = coalesce($8, pending),
-			debug         = coalesce($9, debug)
+			node              = coalesce($2, node),
+			started           = coalesce($3, started),
+			finished          = coalesce($4, finished),
+			job_run_state     = coalesce($5, job_run_state),
+			error             = coalesce($6, error),
+			exit_code         = coalesce($7, exit_code),
+			pending           = coalesce($8, pending),
+			debug         	  = coalesce($9, debug),
+			ingress_addresses = coalesce($10, ingress_addresses)
 		WHERE run_id = $1`
 	for _, i := range instructions {
 		err := l.withDatabaseRetryInsert(func() error {
@@ -767,7 +779,9 @@ func (l *LookoutDb) UpdateJobRunsScalar(ctx *armadacontext.Context, instructions
 				i.Error,
 				i.ExitCode,
 				i.Pending,
-				i.Debug)
+				i.Debug,
+				i.IngressAddresses,
+			)
 			if err != nil {
 				l.metrics.RecordDBError(commonmetrics.DBOperationUpdate)
 			}
@@ -963,6 +977,9 @@ func conflateJobRunUpdates(updates []*model.UpdateJobRunInstruction) []*model.Up
 			}
 			if update.ExitCode != nil {
 				existing.ExitCode = update.ExitCode
+			}
+			if update.IngressAddresses != nil {
+				existing.IngressAddresses = update.IngressAddresses
 			}
 		} else {
 			updatesById[update.RunId] = update

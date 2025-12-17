@@ -89,15 +89,16 @@ func (t *PostgreSQLTime) UnmarshalJSON(b []byte) error {
 }
 
 type Run struct {
-	Cluster     string
-	ExitCode    *int32
-	Finished    *PostgreSQLTime
-	JobRunState int
-	Node        *string
-	Leased      *PostgreSQLTime
-	Pending     *PostgreSQLTime
-	RunId       string
-	Started     *PostgreSQLTime
+	Cluster          string
+	ExitCode         *int32
+	Finished         *PostgreSQLTime
+	JobRunState      int
+	Node             *string
+	Leased           *PostgreSQLTime
+	Pending          *PostgreSQLTime
+	RunId            string
+	Started          *PostgreSQLTime
+	IngressAddresses map[int32]string
 }
 
 type JobGroup struct {
