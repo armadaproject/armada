@@ -483,14 +483,7 @@ func (sch *PreemptingQueueScheduler) evictionAssertions(evictorResult *EvictorRe
 			)
 		}
 	}
-	evictedJctxsByGangId := make(map[string][]*schedulercontext.JobSchedulingContext)
 	for jobId, jctx := range evictorResult.EvictedJctxsByJobId {
-		if jctx.Job.IsInGang() {
-			if _, present := evictedJctxsByGangId[jctx.Job.GetGangInfo().Id()]; !present {
-				evictedJctxsByGangId[jctx.Job.GetGangInfo().Id()] = []*schedulercontext.JobSchedulingContext{}
-			}
-			evictedJctxsByGangId[jctx.Job.GetGangInfo().Id()] = append(evictedJctxsByGangId[jctx.Job.GetGangInfo().Id()], jctx)
-		}
 		if !jctx.IsEvicted {
 			return errors.New("evicted job %s is not marked as such")
 		}
@@ -500,29 +493,6 @@ func (sch *PreemptingQueueScheduler) evictionAssertions(evictorResult *EvictorRe
 			}
 		} else {
 			return errors.Errorf("evicted job %s is missing target node id selector: job nodeSelector %v", jobId, jctx.AdditionalNodeSelectors)
-		}
-	}
-	seenGangs := map[string]int{}
-	for gangId, evictedJctxs := range evictedJctxsByGangId {
-		if len(evictedJctxs) < 1 {
-			continue
-		}
-		representativeJctx := evictedJctxs[0]
-		if _, exists := seenGangs[gangId]; !exists {
-			activeGangJobs, err := sch.getActiveGangJobs(representativeJctx.Job.Queue(), representativeJctx.Job.GetGangInfo().Id())
-			if err != nil {
-				return err
-			}
-			seenGangs[gangId] = len(activeGangJobs)
-		}
-
-		activeGangJobCount := seenGangs[gangId]
-
-		if len(evictedJctxs) != activeGangJobCount {
-			return errors.Errorf(
-				"gang %s was partially evicted: %d out of %d jobs evicted",
-				gangId, len(evictedJctxs), activeGangJobCount,
-			)
 		}
 	}
 	return nil
