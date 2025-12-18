@@ -14,7 +14,7 @@ import (
 	"google.golang.org/grpc/encoding/gzip"
 	"google.golang.org/grpc/keepalive"
 
-	"github.com/armadaproject/armada/internal/common"
+	"github.com/armadaproject/armada/pkg/client/auth/basic"
 	"github.com/armadaproject/armada/pkg/client/auth/exec"
 	"github.com/armadaproject/armada/pkg/client/auth/kubernetes"
 	"github.com/armadaproject/armada/pkg/client/auth/oidc"
@@ -36,7 +36,7 @@ type ApiConnectionDetails struct {
 	// closed.
 	GrpcKeepAliveTimeout time.Duration
 	// Authentication options.
-	BasicAuth                   common.LoginCredentials
+	BasicAuth                   basic.LoginCredentials
 	KubernetesNativeAuth        kubernetes.NativeAuthDetails
 	OpenIdAuth                  oidc.PKCEDetails
 	OpenIdDeviceAuth            oidc.DeviceDetails
