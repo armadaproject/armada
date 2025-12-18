@@ -1870,7 +1870,7 @@ type testSchedulingAlgo struct {
 func (t *testSchedulingAlgo) Schedule(_ *armadacontext.Context, _ map[string]internaltypes.ResourceList, txn *jobdb.Txn) (*scheduling.SchedulerResult, error) {
 	t.numberOfScheduleCalls++
 	if t.shouldError {
-		return nil, errors.New("error scheduling jobs")
+		return &scheduling.SchedulerResult{}, errors.New("error scheduling jobs")
 	}
 	if t.persisted {
 		// Exit right away if decisions have already been persisted.
