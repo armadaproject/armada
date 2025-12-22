@@ -173,6 +173,26 @@ var expectedCancelledRun = model.UpdateJobRunInstruction{
 	JobRunState: pointer.Int32(lookout.JobRunCancelledOrdinal),
 }
 
+var standaloneIngressAddresses = map[int32]string{
+	80: "ingress.example.com",
+}
+
+var standaloneIngressInfoEvent = &armadaevents.EventSequence_Event{
+	Created: testfixtures.BaseTimeProto,
+	Event: &armadaevents.EventSequence_Event_StandaloneIngressInfo{
+		StandaloneIngressInfo: &armadaevents.StandaloneIngressInfo{
+			JobId:            testfixtures.JobId,
+			RunId:            testfixtures.RunId,
+			IngressAddresses: standaloneIngressAddresses,
+		},
+	},
+}
+
+var expectedStandaloneIngressRun = model.UpdateJobRunInstruction{
+	RunId:            testfixtures.RunId,
+	IngressAddresses: standaloneIngressAddresses,
+}
+
 func TestConvert(t *testing.T) {
 	submit, err := testfixtures.DeepCopy(testfixtures.Submit)
 	assert.NoError(t, err)
@@ -400,6 +420,16 @@ func TestConvert(t *testing.T) {
 			expected: &model.InstructionSet{
 				JobsToUpdate: []*model.UpdateJobInstruction{&expectedPreempted},
 				MessageIds:   []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+		},
+		"job run ingress info": {
+			events: &utils.EventsWithIds[*armadaevents.EventSequence]{
+				Events:     []*armadaevents.EventSequence{testfixtures.NewEventSequence(standaloneIngressInfoEvent)},
+				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+			expected: &model.InstructionSet{
+				JobRunsToUpdate: []*model.UpdateJobRunInstruction{&expectedStandaloneIngressRun},
+				MessageIds:      []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 		},
 		"job run preempted": {
