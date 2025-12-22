@@ -3,71 +3,74 @@
 
 version: 2
 updates:
-
-  # Enable version updated for GitHub actions used in workflows 
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      # Check for updates to GitHub Actions every week
       interval: "weekly"
     groups:
-      all-dependencies:
+      github-actions:
         patterns:
           - "*"
 
-  # Enable version updates for npm
   - package-ecosystem: "npm"
-    # Look for `package.json` and `lock` files in the `internal/lookout` directory
-    directory: "./internal/lookout"
-    # Check the npm registry for updates monthly
+    directory: "./internal/lookoutui"
     schedule:
-      interval: "monthly"
+      interval: "weekly"
     groups:
-      all-dependencies:
+      lookoutui:
         patterns:
           - "*"
 
-  # Maintain dependencies for Golang
+  - package-ecosystem: "npm"
+    directory: "./website"
+    schedule:
+      interval: "weekly"
+    groups:
+      website:
+        patterns:
+          - "*"
+
   - package-ecosystem: "gomod"
     directory: "/"
     schedule:
-      # Check for updates managed by Composer once a month
-      interval: "monthly"
+      interval: "weekly"
     groups:
-      all-dependencies:
+      gomod:
         patterns:
           - "*"
+    # Ignore k8s related dependencies since they should be
+    # upgraded manually
+    ignore:
+      - dependency-name: k8s.io/kubectl
+      - dependency-name: k8s.io/kubelet
+      - dependency-name: k8s.io/api
+      - dependency-name: k8s.io/apimachinery
+      - dependency-name: k8s.io/client-go
+      - dependency-name: k8s.io/component-helpers
 
-  # Enable version updates for Docker
   - package-ecosystem: "docker"
-    # Look for a `Dockerfile` in the `build` directory
     directory: "./build"
-    # Check for updates once a month
     schedule:
-      interval: "monthly"
+      interval: "weekly"
     groups:
-      all-dependencies:
+      docker:
         patterns:
           - "*"
 
-  # Enable version updates for pip -- client/python dir
   - package-ecosystem: "pip"
     directory: "./client/python"
-    # Check the pip registry for updates monthly
     schedule:
-      interval: "monthly"
+      interval: "weekly"
     groups:
-      all-dependencies:
+      client-python:
         patterns:
           - "*"
 
-  # Enable version updates for pip -- third_party/airflow dir
   - package-ecosystem: "pip"
     directory: "./third_party/airflow"
-    # Check the pip registry for updates monthly
     schedule:
-      interval: "monthly"
+      interval: "weekly"
     groups:
-      all-dependencies:
+      third-party-airflow:
         patterns:
           - "*"

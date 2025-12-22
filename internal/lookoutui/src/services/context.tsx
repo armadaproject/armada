@@ -1,16 +1,12 @@
 import { createContext, ReactNode, useContext } from "react"
 
 import { IGetJobInfoService } from "./lookout/GetJobInfoService"
-import { IGetJobsService } from "./lookout/GetJobsService"
 import { IGroupJobsService } from "./lookout/GroupJobsService"
 import { UpdateJobSetsService } from "./lookout/UpdateJobSetsService"
-import { UpdateJobsService } from "./lookout/UpdateJobsService"
 
 export interface Services {
-  v2GetJobsService: IGetJobsService
   v2GroupJobsService: IGroupJobsService
   v2JobSpecService: IGetJobInfoService
-  v2UpdateJobsService: UpdateJobsService
   v2UpdateJobSetsService: UpdateJobSetsService
 }
 
