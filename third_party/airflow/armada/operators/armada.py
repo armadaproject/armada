@@ -148,7 +148,7 @@ Regex patterns will be extracted from container logs (taking first match).
         self.dry_run = dry_run
         self.job_context = None
 
-        if reattach_policy is callable(reattach_policy):
+        if callable(reattach_policy):
             self.log.info(
                 f"Configured reattach policy with callable',"
                 f" max retries: {self.retries}"
