@@ -1,0 +1,180 @@
+---
+title: 'Integrations'
+---
+
+## Overview
+
+Armada integrates seamlessly with popular workflow orchestration and data processing frameworks. These integrations allow you to leverage Armada's powerful multi-cluster scheduling capabilities within your existing workflows and tools.
+
+Whether you're orchestrating workflows with Airflow, building ML pipelines with Metaflow, running CI/CD jobs with Jenkins, or processing data with Spark, Armada provides robust integrations to help you scale your workloads.
+
+## Available Integrations
+
+import { Cards, Card } from 'fumadocs-ui/components/card';
+
+<Cards>
+  <Card
+    href='https://github.com/armadaproject/armada/tree/master/third_party/airflow'
+    external
+    title='Apache Airflow Operator'
+    description='Submit Airflow tasks as Armada jobs for multi-cluster scheduling and advanced batch features'
+  />
+  <Card
+    href='https://github.com/armadaproject/armada-metaflow'
+    external
+    title='Metaflow Integration'
+    description='Use the @armada decorator to execute Metaflow steps as Armada jobs on Kubernetes clusters'
+  />
+  <Card
+    href='https://github.com/armadaproject/jenkins-plugin'
+    external
+    title='Jenkins Integration'
+    description='Integrate Armada with Jenkins for distributed build and test execution'
+  />
+  <Card
+    href='https://github.com/armadaproject/armada-spark'
+    external
+    title='Apache Spark Integration'
+    description='Use Armada as a cluster manager for Spark, enabling multi-cluster Spark deployments (Under Development)'
+  />
+</Cards>
+
+## Apache Airflow Operator
+
+The Armada Airflow Operator allows you to submit Airflow tasks as Armada jobs, enabling you to leverage Armada's advanced scheduling features, multi-cluster capabilities, and fair queuing for your Airflow workflows.
+
+### Features
+
+- Submit Airflow tasks to Armada queues
+- Monitor job status and events
+- Leverage Armada's gang scheduling and preemption
+- Scale across multiple Kubernetes clusters
+
+### Installation
+
+```bash
+pip install armada-airflow
+```
+
+### Usage
+
+```python
+from armada.operators.armada import ArmadaOperator
+from armada_client.armada import submit_pb2
+from armada_client.k8s.io.api.core.v1 import generated_pb2 as core_v1
+
+# Create a job request
+job_request = submit_pb2.JobSubmitRequestItem(
+    priority=1,
+    pod_spec=core_v1.PodSpec(...)
+)
+
+# Use in Airflow DAG
+task = ArmadaOperator(
+    task_id='armada_task',
+    channel_args={"target": "127.0.0.1:50051"},
+    armada_queue='my-queue',
+    job_request=job_request,
+    dag=dag
+)
+```
+
+[Airflow Operator Documentation](https://github.com/armadaproject/armada/tree/master/third_party/airflow)
+[Airflow Operator Repository](https://github.com/armadaproject/armada/tree/master/third_party/airflow)
+
+## Metaflow Integration
+
+The Armada Metaflow extension provides a `@armada` decorator that executes Metaflow steps as Armada jobs. This allows you to run Metaflow flows on Kubernetes clusters managed by Armada.
+
+### Features
+
+- Execute Metaflow steps as Armada jobs
+- Resource configuration (CPU, memory)
+- Live log streaming
+- Job set management
+
+### Installation
+
+```bash
+pip install armada-metaflow
+```
+
+### Usage
+
+```python
+from metaflow import step, FlowSpec
+from armada.decorators import armada
+
+class MyFlow(FlowSpec):
+    @step
+    @armada(
+        host='armada.example.com',
+        port=50051,
+        queue='metaflow',
+        job_set_id='my-flow'
+    )
+    def start(self):
+        # This step runs as an Armada job
+        pass
+```
+
+[Metaflow Integration Repository](https://github.com/armadaproject/armada-metaflow)
+
+## Jenkins Integration
+
+The Armada Jenkins plugin enables Jenkins to use Armada for distributed job execution. This allows you to leverage Armada's multi-cluster capabilities for your CI/CD pipelines.
+
+### Features
+
+- Submit Jenkins builds as Armada jobs
+- Dynamic Kubernetes pod configuration
+- Resource management and scheduling
+- Integration with Jenkins pipelines
+
+### Installation
+
+Install the plugin through the Jenkins plugin manager or download from the [Jenkins plugin repository](https://plugins.jenkins.io/).
+
+[Jenkins Plugin Repository](https://github.com/armadaproject/jenkins-plugin)
+
+## Apache Spark Integration
+
+The Armada-Spark integration allows you to use Armada as a cluster manager for Spark, enabling Spark applications to run across multiple Kubernetes clusters managed by Armada.
+
+### Status
+
+⚠️ **Under Development** - The Spark integration is currently under active development.
+
+### Features (Planned)
+
+- Use Armada as a Spark cluster manager
+- Multi-cluster Spark deployments
+- Gang scheduling for Spark executors
+- Resource management and fair scheduling
+
+### Supported Spark Versions
+
+- Spark 3.3
+- Spark 3.5
+- Spark 4.1
+
+[Spark Integration Repository](https://github.com/armadaproject/armada-spark)
+
+## Benefits of Using Integrations
+
+All Armada integrations provide:
+
+- **Multi-cluster scheduling** - Distribute workloads across multiple Kubernetes clusters
+- **Advanced batch features** - Fair queuing, gang scheduling, and intelligent preemption
+- **High throughput** - Handle millions of jobs per day
+- **Resource management** - Fine-grained control over resource allocation
+- **Production-ready** - Secure, highly available, and battle-tested
+
+## Getting Started with Integrations
+
+1. **Install the integration** - Follow the installation instructions for your chosen integration
+2. **Configure Armada connection** - Set up authentication and connection details
+3. **Create an Armada queue** - Use `armadactl` to create a queue for your workloads
+4. **Submit jobs** - Start submitting jobs through your integrated tool
+
+For detailed setup instructions, refer to the documentation for each specific integration.

@@ -76,6 +76,14 @@ func Test_GetAction_BadNode_ShouldIgnoreScheduledEvents(t *testing.T) {
 	assert.Equal(t, message, "Pod has received no updates within 1m0s deadline - likely the node is bad. Retrying")
 }
 
+func Test_GetAction_BadNode_ShouldIgnoreFailedSchedulingEvents(t *testing.T) {
+	podChecks := podChecksWithMocks(ActionWait, ActionWait)
+	result, cause, message := podChecks.GetAction(createBasicPod(true), []*v1.Event{{Message: "Failed to schedule onto node", Reason: EvenReasonFailedScheduling}}, 10*time.Minute)
+	assert.Equal(t, result, ActionRetry)
+	assert.Equal(t, cause, NoStatusUpdates)
+	assert.Equal(t, message, "Pod has received no updates within 1m0s deadline - likely the node is bad. Retrying")
+}
+
 func Test_GetAction_BadNodeButUnderTimeLimit(t *testing.T) {
 	podChecks := podChecksWithMocks(ActionWait, ActionWait)
 	result, cause, message := podChecks.GetAction(createBasicPod(true), []*v1.Event{}, 10*time.Second)

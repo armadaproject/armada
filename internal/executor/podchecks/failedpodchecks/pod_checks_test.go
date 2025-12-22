@@ -142,8 +142,9 @@ func TestPodRetryCheckerIsRetryable_ChecksPodHasNotStartedAnyContainers(t *testi
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			checker := PodRetryChecker{
-				podEventChecker:  &stubEventRetryChecker{isRetryable: true, message: "fallthrough"},
-				podStatusChecker: &stubPodStatusRetryChecker{isRetryable: true, message: "fallthrough"},
+				podEventChecker:              &stubEventRetryChecker{isRetryable: true, message: "fallthrough"},
+				podStatusChecker:             &stubPodStatusRetryChecker{isRetryable: true, message: "fallthrough"},
+				failedContainerStatusChecker: &stubFailedContainerStatusChecker{isRetryable: false, message: ""}, // if this reaches evaluation, then failure results in a non-retryable state overall
 			}
 
 			isRetryable, message := checker.IsRetryable(tc.pod, []*v1.Event{})
@@ -205,5 +206,14 @@ type stubPodStatusRetryChecker struct {
 }
 
 func (s *stubPodStatusRetryChecker) IsRetryable(pod *v1.Pod) (bool, string) {
+	return s.isRetryable, s.message
+}
+
+type stubFailedContainerStatusChecker struct {
+	isRetryable bool
+	message     string
+}
+
+func (s *stubFailedContainerStatusChecker) IsRetryable(pod *v1.Pod) (bool, string) {
 	return s.isRetryable, s.message
 }

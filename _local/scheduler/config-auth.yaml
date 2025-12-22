@@ -1,0 +1,28 @@
+grpc:
+  port: 50052
+  tls:
+    enabled: false
+auth:
+  anonymousAuth: true
+  permissionGroupMapping:
+    execute_jobs: ["everyone"]
+pulsar:
+  URL: "pulsar://localhost:6650"
+armadaApi:
+  armadaUrl: "localhost:50051"
+  forceNoTls: true
+  openIdClientCredentialsAuth:
+    providerUrl: "http://localhost:8180/realms/armada"
+    clientId: "armada-executor"
+    clientSecret: "executor-secret"
+    scopes: ["profile", "email"]
+postgres:
+  connection:
+    host: localhost
+    port: 5432
+    user: postgres
+    password: psw
+    dbname: scheduler
+    sslmode: disable
+metrics:
+  port: 9001

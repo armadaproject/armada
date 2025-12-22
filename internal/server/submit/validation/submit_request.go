@@ -2,13 +2,17 @@ package validation
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/pkg/errors"
 	"k8s.io/component-helpers/scheduling/corev1/nodeaffinity"
 
-	schedulercontext "github.com/armadaproject/armada/internal/scheduler/scheduling/context"
+	"github.com/armadaproject/armada/internal/common/constants"
+	armadaslices "github.com/armadaproject/armada/internal/common/slices"
+	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/bidstore"
 )
 
 // requestValidator is a function that validates the entire JobSubmitRequest
@@ -37,6 +41,7 @@ var (
 		validatePorts,
 		validateClientId,
 		validateTolerations,
+		validatePriceBand,
 	}
 )
 
@@ -153,7 +158,7 @@ func validateHasQueue(r *api.JobSubmitRequest, _ configuration.SubmissionConfig)
 	return nil
 }
 
-// Ensures that each container exposes a given port at most once.
+// Ensures that each pod exposes a given port at most once.
 func validatePorts(j *api.JobSubmitRequestItem, _ configuration.SubmissionConfig) error {
 	spec := j.GetMainPodSpec()
 	existingPortSet := make(map[int32]int)
@@ -208,6 +213,18 @@ func validateClientId(j *api.JobSubmitRequestItem, _ configuration.SubmissionCon
 	return nil
 }
 
+func validatePriceBand(j *api.JobSubmitRequestItem, _ configuration.SubmissionConfig) error {
+	priceBand, present := j.Annotations[constants.JobPriceBand]
+	if present {
+		_, valid := bidstore.PriceBandFromShortName[strings.ToUpper(priceBand)]
+		if !valid {
+			return fmt.Errorf("price band %s is not supported", priceBand)
+		}
+	}
+
+	return nil
+}
+
 // Ensures that if a request specifies a PriorityClass, that priority class is supported by Armada.
 func validatePriorityClasses(j *api.JobSubmitRequestItem, config configuration.SubmissionConfig) error {
 	spec := j.GetMainPodSpec()
@@ -234,14 +251,27 @@ func validateResources(j *api.JobSubmitRequestItem, config configuration.Submiss
 	if maxOversubscriptionByResource == nil {
 		maxOversubscriptionByResource = map[string]float64{}
 	}
-	for _, container := range spec.Containers {
-
+	for _, container := range armadaslices.Concatenate(spec.Containers, spec.InitContainers) {
 		if len(container.Resources.Requests) == 0 && len(container.Resources.Requests) == 0 {
 			return fmt.Errorf("container %v has no resources specified", container.Name)
 		}
 
 		if len(container.Resources.Requests) != len(container.Resources.Limits) {
 			return fmt.Errorf("container %v defines different resources for requests and limits", container.Name)
+		}
+
+		for resourceName, request := range container.Resources.Requests {
+			if request.Sign() < 0 {
+				return fmt.Errorf("container %v defines negative resource request (%s) for resource %s",
+					container.Name, request.String(), resourceName)
+			}
+		}
+
+		for resourceName, limit := range container.Resources.Limits {
+			if limit.Sign() < 0 {
+				return fmt.Errorf("container %v defines negative resource limit (%s) for resource %s",
+					container.Name, limit.String(), resourceName)
+			}
 		}
 
 		for resource, request := range container.Resources.Requests {
@@ -304,36 +334,52 @@ func (j jobAdapter) Annotations() map[string]string {
 //   - Priority Class
 //   - Node Uniformity
 func validateGangs(request *api.JobSubmitRequest, _ configuration.SubmissionConfig) error {
-	gangDetailsByGangId := make(map[string]schedulercontext.GangInfo)
+	type GangValidationInfo struct {
+		jobdb.GangInfo
+		PriorityClassName string
+	}
+	gangDetailsByGangId := make(map[string]GangValidationInfo)
 	for _, job := range request.JobRequestItems {
-		actual, err := schedulercontext.GangInfoFromLegacySchedulerJob(jobAdapter{job})
+		adaptedJob := jobAdapter{job}
+		rawGangInfo, err := jobdb.GangInfoFromMinimalJob(adaptedJob)
 		if err != nil {
-			return fmt.Errorf("invalid gang annotations: %s", err.Error())
+			return fmt.Errorf("invalid gang information: %s", err.Error())
 		}
-		if actual.Id == "" {
+		gangInfo := *rawGangInfo
+		if !gangInfo.IsGang() {
 			continue
 		}
-		if expected, ok := gangDetailsByGangId[actual.Id]; ok {
-			if expected.Cardinality != actual.Cardinality {
+
+		failFastFlag, present := job.Annotations[constants.FailFastAnnotation]
+		if present && failFastFlag != "true" {
+			return errors.Errorf(
+				"gang jobs may not set fail fast flag (annotation - %s) to anything but true",
+				constants.FailFastAnnotation,
+			)
+		}
+
+		actual := GangValidationInfo{gangInfo, adaptedJob.PriorityClassName()}
+		if expected, ok := gangDetailsByGangId[actual.Id()]; ok {
+			if expected.Cardinality() != actual.Cardinality() {
 				return errors.Errorf(
 					"inconsistent gang cardinality in gang %s: expected %d but got %d",
-					actual.Id, expected.Cardinality, actual.Cardinality,
+					actual.Id(), expected.Cardinality(), actual.Cardinality(),
 				)
 			}
 			if expected.PriorityClassName != actual.PriorityClassName {
 				return errors.Errorf(
 					"inconsistent PriorityClassName in gang %s: expected %s but got %s",
-					actual.Id, expected.PriorityClassName, actual.PriorityClassName,
+					actual.Id(), expected.PriorityClassName, actual.PriorityClassName,
 				)
 			}
-			if actual.NodeUniformity != expected.NodeUniformity {
+			if actual.NodeUniformity() != expected.NodeUniformity() {
 				return errors.Errorf(
 					"inconsistent nodeUniformityLabel in gang %s: expected %s but got %s",
-					actual.Id, expected.NodeUniformity, actual.NodeUniformity,
+					actual.Id(), expected.NodeUniformity(), actual.NodeUniformity(),
 				)
 			}
 		} else {
-			gangDetailsByGangId[actual.Id] = actual
+			gangDetailsByGangId[actual.Id()] = actual
 		}
 	}
 	return nil

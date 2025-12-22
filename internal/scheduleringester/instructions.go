@@ -1,16 +1,17 @@
 package scheduleringester
 
 import (
+	"strings"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
-	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
+	"github.com/armadaproject/armada/internal/common/constants"
 	"github.com/armadaproject/armada/internal/common/ingest/metrics"
 	"github.com/armadaproject/armada/internal/common/ingest/utils"
 	log "github.com/armadaproject/armada/internal/common/logging"
@@ -18,8 +19,8 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/adapters"
 	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
-	"github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/armadaproject/armada/pkg/armadaevents"
+	"github.com/armadaproject/armada/pkg/bidstore"
 	"github.com/armadaproject/armada/pkg/controlplaneevents"
 )
 
@@ -164,6 +165,18 @@ func (c *JobSetEventsInstructionConverter) handleSubmitJob(job *armadaevents.Sub
 		return nil, err
 	}
 
+	pricingBand := int32(0)
+	if job.ObjectMeta != nil {
+		pricingBandValue, ok := job.ObjectMeta.Annotations[constants.JobPriceBand]
+		if ok {
+			priceBandValue, exists := bidstore.PriceBandFromShortName[strings.ToUpper(pricingBandValue)]
+			if !exists {
+				log.Errorf("not setting pricing band for job %s, as an invalid pricing band was specified (pricing band %s)", jobId, priceBandValue)
+			}
+			pricingBand = int32(priceBandValue)
+		}
+	}
+
 	return []DbOperation{InsertJobs{jobId: &schedulerdb.Job{
 		JobID:                 jobId,
 		JobSet:                meta.jobset,
@@ -177,6 +190,7 @@ func (c *JobSetEventsInstructionConverter) handleSubmitJob(job *armadaevents.Sub
 		SubmitMessage:         compressedSubmitJobBytes,
 		SchedulingInfo:        schedulingInfoBytes,
 		SchedulingInfoVersion: int32(schedulingInfo.Version),
+		PriceBand:             pricingBand,
 	}}}, nil
 }
 
@@ -530,15 +544,20 @@ func SchedulingInfoFromSubmitJob(submitJob *armadaevents.SubmitJob, submitTime t
 		podSpec := object.PodSpec.PodSpec
 		schedulingInfo.PriorityClassName = podSpec.PriorityClassName
 		podRequirements := adapters.PodRequirementsFromPodSpec(podSpec)
+		if podRequirements.Annotations == nil {
+			podRequirements.Annotations = make(map[string]string, constants.SchedulingAnnotationCount())
+		}
+
 		if submitJob.ObjectMeta != nil {
-			podRequirements.Annotations = maps.Clone(submitJob.ObjectMeta.Annotations)
+			for k, v := range submitJob.ObjectMeta.Annotations {
+				if constants.IsSchedulingAnnotation(k) {
+					podRequirements.Annotations[k] = v
+				}
+			}
 		}
 		if submitJob.MainObject.ObjectMeta != nil {
-			if podRequirements.Annotations == nil {
-				podRequirements.Annotations = make(map[string]string, len(submitJob.MainObject.ObjectMeta.Annotations))
-			}
 			for k, v := range submitJob.MainObject.ObjectMeta.Annotations {
-				if configuration.IsSchedulingAnnotation(k) {
+				if constants.IsSchedulingAnnotation(k) {
 					podRequirements.Annotations[k] = v
 				}
 			}

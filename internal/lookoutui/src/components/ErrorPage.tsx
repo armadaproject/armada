@@ -12,8 +12,9 @@ import {
   Typography,
 } from "@mui/material"
 
+import { SPACING } from "../common/spacing"
+
 import { CodeBlock } from "./CodeBlock"
-import { SPACING } from "../styling/spacing"
 
 const Wrapper = styled("main")(({ theme }) => ({
   minHeight: "100vh",

@@ -146,6 +146,8 @@ type NodeDb struct {
 	scheduledAtPriorityByJobId map[string]int32
 
 	resourceListFactory *internaltypes.ResourceListFactory
+
+	disableAwayScheduling bool
 }
 
 func NewNodeDb(
@@ -323,6 +325,14 @@ func (nodeDb *NodeDb) GetNodeWithTxn(txn *memdb.Txn, id string) (*internaltypes.
 	return obj.(*internaltypes.Node), nil
 }
 
+func (nodeDb *NodeDb) DisableAwayScheduling() {
+	nodeDb.disableAwayScheduling = true
+}
+
+func (nodeDb *NodeDb) EnableAwayScheduling() {
+	nodeDb.disableAwayScheduling = false
+}
+
 func (nodeDb *NodeDb) GetNodes() ([]*internaltypes.Node, error) {
 	return nodeDb.GetNodesWithTxn(nodeDb.Txn(false))
 }
@@ -449,7 +459,7 @@ func (nodeDb *NodeDb) SelectNodeForJobWithTxn(txn *memdb.Txn, jctx *context.JobS
 	// If a gang gets scheduled away and then preempted in the same round
 	//  sometimes its fellow gang members aren't getting evicted and we end up scheduling a partial gang
 	// This is a temporary workaround until that bug is solved, do not remove unless you are confident the above bug is fixed
-	if !jctx.GangInfo.IsGang {
+	if !nodeDb.disableAwayScheduling && !jctx.Job.IsInGang() {
 		for _, awayNodeType := range priorityClass.AwayNodeTypes {
 			node, err := nodeDb.selectNodeForJobWithTxnAndAwayNodeType(txn, jctx, awayNodeType)
 			if err != nil {
@@ -471,7 +481,9 @@ func (nodeDb *NodeDb) selectNodeForJobWithTxnAndAwayNodeType(
 	txn *memdb.Txn,
 	jctx *context.JobSchedulingContext,
 	awayNodeType types.AwayNodeType,
-) (node *internaltypes.Node, err error) {
+) (*internaltypes.Node, error) {
+	var node *internaltypes.Node
+	var err error
 	// Save the number of additional tolerations that the job originally had; we
 	// use this value to restore the slice of additional toleration at the end
 	// of each loop iteration.
@@ -492,12 +504,19 @@ func (nodeDb *NodeDb) selectNodeForJobWithTxnAndAwayNodeType(
 	}
 
 	for _, taint := range wellKnownNodeType.Taints {
-		jctx.AdditionalTolerations = append(jctx.AdditionalTolerations, v1.Toleration{Key: taint.Key, Value: taint.Value, Effect: taint.Effect})
+		toleration := v1.Toleration{Key: taint.Key, Effect: taint.Effect}
+		if taint.Value == configuration.WildCardWellKnownNodeTypeValue {
+			toleration.Operator = v1.TolerationOpExists
+		} else {
+			toleration.Value = taint.Value
+		}
+
+		jctx.AdditionalTolerations = append(jctx.AdditionalTolerations, toleration)
 	}
 
 	jctx.PodSchedulingContext.ScheduledAtPriority = awayNodeType.Priority
 	node, err = nodeDb.selectNodeForJobWithTxnAtPriority(txn, jctx)
-	return
+	return node, err
 }
 
 func (nodeDb *NodeDb) selectNodeForJobWithTxnAtPriority(
@@ -620,7 +639,7 @@ func (nodeDb *NodeDb) selectNodeForPodAtPriority(
 ) (*internaltypes.Node, error) {
 	indexResourceRequests := make([]int64, len(nodeDb.indexedResources))
 	for i, t := range nodeDb.indexedResources {
-		indexResourceRequests[i] = jctx.KubernetesResourceRequirements.GetByNameZeroIfMissing(t)
+		indexResourceRequests[i] = jctx.KubernetesResourceRequirements.GetRawByNameZeroIfMissing(t)
 	}
 	indexName, ok := nodeDb.indexNameByPriority[priority]
 	if !ok {
@@ -670,7 +689,15 @@ func (nodeDb *NodeDb) selectNodeForPodWithItAtPriority(
 		var reason PodRequirementsNotMetReason
 		var err error
 		if onlyCheckDynamicRequirements {
-			matches, reason = DynamicJobRequirementsMet(node.AllocatableByPriority[priority], jctx)
+			// Always reschedule jobs onto overallocated nodes
+			// Otherwise we may preempt jobs because the resources have unexpectedly reduced momentarily
+			//  which can happen for a variety of reasons with external resources (i.e gpu-operator restart blips the gpu count to 0)
+			// It should be safe as the nodes are also unschedulable, so no new resource should get scheduled there
+			if node.IsUnschedulable() && node.IsOverAllocated() {
+				matches = true
+			} else {
+				matches, reason = DynamicJobRequirementsMet(node.AllocatableByPriority[priority], jctx)
+			}
 		} else {
 			matches, reason, err = JobRequirementsMet(node, priority, jctx)
 		}
@@ -782,7 +809,7 @@ func (nodeDb *NodeDb) selectNodeForJobWithFairPreemption(txn *memdb.Txn, jctx *c
 			if priority > maxPriority {
 				maxPriority = priority
 			}
-			job.JobSchedulingContext.PreemptingJobId = jctx.JobId
+			job.JobSchedulingContext.PreemptingJob = jctx.Job
 		}
 
 		selectedNode = nodeCopy

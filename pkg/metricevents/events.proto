@@ -1,0 +1,44 @@
+syntax = 'proto3';
+package metricevents;
+option go_package = "github.com/armadaproject/armada/pkg/metricevents";
+
+import "google/protobuf/timestamp.proto";
+import "k8s.io/apimachinery/pkg/api/resource/generated.proto";
+
+
+message Event {
+  google.protobuf.Timestamp created = 1;
+  oneof event {
+    CycleMetrics cycle_metrics = 2;
+  }
+}
+
+message QueueMetrics{
+  // Fraction of the pool allocated
+  double actual_share = 1;
+  // Fraction of the pool demanded. May be greater than 1
+  double  demand = 2;
+  // Fraction of the pool demanded, limited by scheduling constraints. May be greater than 1
+  double constrained_demand = 3;
+  // Demand per resource
+  map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> demand_by_resource_type = 4;
+  // Constrained Demand per resource
+  map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> constrained_demand_by_resource_type = 5;
+  // Short job penalty as a fraction of the pool
+  double short_job_penalty = 6;
+  // Resource that should be billed for this cycle
+  map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> billable_allocation_by_resource_type = 7;
+}
+
+message CycleMetrics {
+  // Pool that these metrics pertain to
+  string pool = 1;
+  // Per-Queue Metrics
+  map<string, QueueMetrics> queue_metrics= 2;
+  // Allocatable resources
+  map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> allocatable_resources = 3;
+  // Current spot price of the pool
+  double  spot_price = 4;
+  // The time that the information in this message is true from
+  google.protobuf.Timestamp cycle_time = 5;
+}

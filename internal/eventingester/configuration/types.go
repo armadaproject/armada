@@ -12,6 +12,9 @@ import (
 type EventIngesterConfiguration struct {
 	// Database configuration
 	Redis redis.UniversalOptions
+	// Database configuration - write to a second redis with this option
+	// Nearly always not set, but can be useful if migrating the armada control plane to another kubernetes cluster
+	RedisReplica redis.UniversalOptions
 	// Metrics configuration
 	MetricsPort uint16
 	// General Pulsar configuration

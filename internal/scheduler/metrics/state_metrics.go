@@ -189,7 +189,7 @@ func (m *jobStateMetrics) recordPreemptedSecondsLost(job *jobdb.Job, duration fl
 	requests := job.AllResourceRequirements()
 
 	for _, res := range m.trackedResourceNames {
-		resQty := requests.GetResourceByNameZeroIfMissing(string(res))
+		resQty := requests.GetByNameZeroIfMissing(string(res))
 		resSeconds := duration * float64(resQty.MilliValue()) / 1000
 		m.jobResourceSecondsLostToPreemptionByQueue.
 			WithLabelValues(job.Queue(), run.Pool(), checkpointLabel, res.String()).Add(resSeconds)
@@ -284,7 +284,7 @@ func (m *jobStateMetrics) updateStateDuration(job *jobdb.Job, state string, prio
 
 	// Resource Seconds
 	for _, res := range m.trackedResourceNames {
-		resQty := requests.GetResourceByNameZeroIfMissing(string(res))
+		resQty := requests.GetByNameZeroIfMissing(string(res))
 		resSeconds := duration * float64(resQty.MilliValue()) / 1000
 		m.jobStateResourceSecondsByQueue.
 			WithLabelValues(queue, pool, state, priorState, res.String()).Add(resSeconds)
@@ -364,8 +364,6 @@ func errorTypeAndMessageFromError(err *armadaevents.Error) (string, string) {
 	// The following errors relate to job run failures.
 	// We do not process JobRunPreemptedError as there is separate metric for preemption.
 	switch reason := err.Reason.(type) {
-	case *armadaevents.Error_PodUnschedulable:
-		return "podUnschedulable", reason.PodUnschedulable.Message
 	case *armadaevents.Error_LeaseExpired:
 		return "leaseExpired", ""
 	case *armadaevents.Error_PodError:

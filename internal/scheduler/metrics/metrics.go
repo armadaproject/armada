@@ -7,6 +7,9 @@ import (
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	v1 "k8s.io/api/core/v1"
+
+	"github.com/armadaproject/armada/internal/common/pulsarutils"
+	"github.com/armadaproject/armada/pkg/metricevents"
 )
 
 // Metrics is the top level scheduler metrics.
@@ -21,7 +24,7 @@ type resettableMetric interface {
 	Reset()
 }
 
-func New(errorRegexes []string, trackedResourceNames []v1.ResourceName, jobCheckpointIntervals []time.Duration, jobStateMetricsResetInterval time.Duration) (*Metrics, error) {
+func New(errorRegexes []string, trackedResourceNames []v1.ResourceName, jobCheckpointIntervals []time.Duration, jobStateMetricsResetInterval time.Duration, publisher pulsarutils.Publisher[*metricevents.Event]) (*Metrics, error) {
 	compiledErrorRegexes := make([]*regexp.Regexp, len(errorRegexes))
 	for i, errorRegex := range errorRegexes {
 		if r, err := regexp.Compile(errorRegex); err != nil {
@@ -31,7 +34,7 @@ func New(errorRegexes []string, trackedResourceNames []v1.ResourceName, jobCheck
 		}
 	}
 	return &Metrics{
-		cycleMetrics:    newCycleMetrics(),
+		cycleMetrics:    newCycleMetrics(publisher),
 		jobStateMetrics: newJobStateMetrics(compiledErrorRegexes, trackedResourceNames, jobCheckpointIntervals, jobStateMetricsResetInterval),
 	}, nil
 }

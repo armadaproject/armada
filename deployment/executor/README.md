@@ -16,7 +16,7 @@ A helm chart for armada-executor component
 | applicationConfig.httpPort | int | `8080` |  |
 | customServiceAccount | string | `nil` |  |
 | healthcheck.enabled | bool | `false` |  |
-| image.repository | string | `"gresearchdev/armada-executor"` |  |
+| image.repository | string | `"gresearch/armada-executor"` |  |
 | image.tag | string | `"0.0.0-latest"` |  |
 | nodeSelector | object | `{}` |  |
 | priorityClassName | string | `""` |  |

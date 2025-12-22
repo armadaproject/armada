@@ -1,5 +1,6 @@
 {
   "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.tsbuildinfo",
     "target": "es5",
     "lib": ["dom", "dom.iterable", "es2022"],
     "allowJs": true,
@@ -17,10 +18,7 @@
     "noEmit": true,
     "jsx": "react-jsx",
     "baseUrl": "src",
-    "types": ["vitest/globals"]
+    "types": ["vitest/globals", "node"]
   },
-  "include": [
-    "types/workarounds.d.ts",
-    "src"
-  ]
+  "include": ["src"]
 }

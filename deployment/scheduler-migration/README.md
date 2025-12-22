@@ -14,7 +14,7 @@ A Helm chart for the Armada Scheduler database migration
 | applicationConfig | object | `{}` |  |
 | args.timeout | string | `"5m"` |  |
 | customServiceAccount | string | `nil` |  |
-| image.repository | string | `"gresearchdev/armada-scheduler"` |  |
+| image.repository | string | `"gresearch/armada-scheduler"` |  |
 | image.tag | string | `"0.0.0-latest"` |  |
 | resources.limits.cpu | string | `"200m"` |  |
 | resources.limits.memory | string | `"256Mi"` |  |

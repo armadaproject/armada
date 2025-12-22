@@ -15,10 +15,11 @@ def is_terminal(self) -> bool:
     :rtype: bool
     """
     terminal_states = {
-        JobState.SUCCEEDED,
-        JobState.FAILED,
         JobState.CANCELLED,
+        JobState.FAILED,
         JobState.PREEMPTED,
+        JobState.REJECTED,
+        JobState.SUCCEEDED,
     }
     return self in terminal_states
 

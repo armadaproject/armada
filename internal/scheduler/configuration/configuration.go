@@ -58,6 +58,11 @@ type Configuration struct {
 	QueueRefreshPeriod time.Duration `validate:"required"`
 	// Allows queue priority overrides to be fetched from an external source.
 	PriorityOverride PriorityOverrideConfig
+	// Configuration for the pricing API
+	// This is used to retrieve queue pricing information
+	PricingApi PricingApiConfig
+	// Whether to publish metrics To Pulsar.  This is currently experimental
+	PublishMetricsToPulsar bool
 }
 
 type LeaderConfig struct {
@@ -233,7 +238,7 @@ type SchedulingConfig struct {
 	FloatingResources []FloatingResourceConfig
 	// WellKnownNodeTypes defines a set of well-known node types used to define "home" and "away" nodes for a given priority class.
 	WellKnownNodeTypes []WellKnownNodeType `validate:"dive"`
-	// Executor that haven't heartbeated in this time period are considered stale.
+	// Executors that haven't heartbeated in this time period are considered stale.
 	// No new jobs are scheduled onto stale executors.
 	ExecutorTimeout time.Duration
 	// Maximum number of jobs that can be assigned to a executor but not yet acknowledged, before
@@ -242,16 +247,16 @@ type SchedulingConfig struct {
 	// The frequency at which the scheduler updates the cluster state.
 	ExecutorUpdateFrequency time.Duration
 	// Default priority for pools that are not in the above list
-	DefaultPoolSchedulePriority   int
-	Pools                         []PoolConfig
-	ExperimentalIndicativePricing ExperimentalIndicativePricing
-	ExperimentalIndicativeShare   ExperimentalIndicativeShare
+	DefaultPoolSchedulePriority int
+	Pools                       []PoolConfig
+	ExperimentalIndicativeShare ExperimentalIndicativeShare
 }
 
 const (
 	DuplicateWellKnownNodeTypeErrorMessage     = "duplicate well-known node type name"
 	AwayNodeTypesWithoutPreemptionErrorMessage = "priority class has away node types but is not preemptible"
 	UnknownWellKnownNodeTypeErrorMessage       = "priority class refers to unknown well-known node type"
+	WildCardWellKnownNodeTypeValue             = "*"
 )
 
 // ResourceType represents a resource the scheduler indexes for efficient lookup.
@@ -281,11 +286,53 @@ type WellKnownNodeType struct {
 }
 
 type PoolConfig struct {
-	Name                                         string `validate:"required"`
-	AwayPools                                    []string
-	ProtectedFractionOfFairShare                 *float64
+	Name                         string `validate:"required"`
+	AwayPools                    []string
+	ProtectedFractionOfFairShare *float64
+	// List of resource names, (e.g. "cpu" or "memory"), to consider when computing DominantResourceFairness costs.
+	// Dominant resource fairness is the algorithm used to assign a cost to jobs and queues.
+	DominantResourceFairnessResourcesToConsider  []DominantResourceFairnessResource
 	ExperimentalProtectUncappedAdjustedFairShare bool
 	ExperimentalOptimiser                        *OptimiserConfig
+	// When calculating costs assume all jobs ran for at least this long.
+	// This penalizes jobs that ran for less than this value,
+	// since they are charged the same as a job that ran for this value.
+	ShortJobPenaltyCutoff         time.Duration
+	ExperimentalSubmissionGroup   string
+	ExperimentalMarketScheduling  *MarketSchedulingConfig
+	ExperimentalRunReconciliation *RunReconciliationConfig
+	DisableAwayScheduling         bool
+}
+
+func (p PoolConfig) GetSubmissionGroup() string {
+	if p.ExperimentalSubmissionGroup == "" {
+		return p.Name
+	}
+	return p.ExperimentalSubmissionGroup
+}
+
+type MarketSchedulingConfig struct {
+	Enabled bool
+	// The percentage of the pool that needs to be allocated to determine the spot price
+	SpotPriceCutoff              float64
+	GangIndicativePricingTimeout time.Duration `validate:"required"`
+	// Set of gang definitions that need to be priced. Price will be exposed via metrics.
+	GangsToPrice map[string]GangDefinition
+}
+
+type GangDefinition struct {
+	Size              int32
+	PriorityClassName string
+	NodeUniformity    string // metadata.gresearch.co.uk/armada-gang-boundary
+	NodeSelector      map[string]string
+	Tolerations       []v1.Toleration
+	Resources         *armadaresource.ComputeResources
+}
+
+type RunReconciliationConfig struct {
+	Enabled                       bool
+	EnsureReservationMatch        bool
+	EnsureReservationDoesNotMatch bool
 }
 
 type OptimiserConfig struct {
@@ -337,13 +384,34 @@ func (sc *SchedulingConfig) GetOptimiserConfig(poolName string) *OptimiserConfig
 	return nil
 }
 
-type ExperimentalIndicativeShare struct {
-	BasePriorities []int
+func (sc *SchedulingConfig) GetMarketConfig(poolName string) *MarketSchedulingConfig {
+	for _, poolConfig := range sc.Pools {
+		if poolConfig.Name == poolName {
+			return poolConfig.ExperimentalMarketScheduling
+		}
+	}
+	return nil
 }
 
-type ExperimentalIndicativePricing struct {
-	BasePrice    float64
-	BasePriority float64
+func (sc *SchedulingConfig) GetShortJobPenaltyCutoffs() map[string]time.Duration {
+	result := make(map[string]time.Duration)
+	for _, poolConfig := range sc.Pools {
+		result[poolConfig.Name] = poolConfig.ShortJobPenaltyCutoff
+	}
+	return result
+}
+
+func (sc *SchedulingConfig) GetPoolConfig(poolName string) *PoolConfig {
+	for _, poolConfig := range sc.Pools {
+		if poolConfig.Name == poolName {
+			return &poolConfig
+		}
+	}
+	return nil
+}
+
+type ExperimentalIndicativeShare struct {
+	BasePriorities []int
 }
 
 type PriorityOverrideConfig struct {
@@ -351,4 +419,14 @@ type PriorityOverrideConfig struct {
 	UpdateFrequency time.Duration
 	ServiceUrl      string
 	ForceNoTls      bool
+}
+
+type PricingApiConfig struct {
+	Enabled         bool
+	UpdateFrequency time.Duration
+	ServiceUrl      string
+	ForceNoTls      bool
+	// This is for local testing only
+	// It will stub the pricing api so it returns non-zero values but won't call and external service
+	DevModeEnabled bool
 }

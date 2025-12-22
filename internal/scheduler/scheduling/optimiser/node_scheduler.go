@@ -4,16 +4,13 @@ import (
 	"fmt"
 	"math"
 	"sort"
-	"strconv"
 	"time"
 
-	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/context"
-	"github.com/armadaproject/armada/internal/server/configuration"
 )
 
 type PreemptingNodeScheduler struct {
@@ -141,10 +138,13 @@ func (n *PreemptingNodeScheduler) getPreemptibleJobDetailsByQueue(
 ) (map[string][]*preemptibleJobDetails, error) {
 	queues := map[string][]*preemptibleJobDetails{}
 	start := time.Now()
-	for jobId, resource := range node.AllocatedByJobId {
+	for jobId, jobResource := range node.AllocatedByJobId {
 		job := n.jobDb.GetById(jobId)
 		if job == nil {
 			return nil, fmt.Errorf("job %s not found in jobDb", jobId)
+		}
+		if job.InTerminalState() {
+			continue
 		}
 		if !job.PriorityClass().Preemptible {
 			// Don't evict non-preemptible jobs
@@ -154,7 +154,7 @@ func (n *PreemptingNodeScheduler) getPreemptibleJobDetailsByQueue(
 			// Don't evict jobs larger than the maximum size
 			continue
 		}
-		if isGang(job) {
+		if job.IsInGang() {
 			// Don't evict gang jobs
 			continue
 		}
@@ -189,10 +189,10 @@ func (n *PreemptingNodeScheduler) getPreemptibleJobDetailsByQueue(
 			continue
 		}
 
-		cost := schedContext.Sctx.FairnessCostProvider.UnweightedCostFromAllocation(resource)
+		cost := schedContext.Sctx.FairnessCostProvider.UnweightedCostFromAllocation(jobResource)
 		runInfo := &preemptibleJobDetails{
 			cost:                cost,
-			resources:           resource,
+			resources:           jobResource,
 			jobId:               jobId,
 			queue:               queue,
 			scheduledAtPriority: scheduledAtPriority,
@@ -256,30 +256,14 @@ func isTooLargeToEvict(job *jobdb.Job, limit *internaltypes.ResourceList) bool {
 	if jobResources.Factory() != limit.Factory() {
 		panic("mismatched ResourceListFactory in node_scheduler")
 	}
-	for i, resource := range limit.GetResources() {
+	for i, resource := range limit.GetAll() {
 		if resource.Value.IsZero() {
 			continue
 		}
-		result := resource.Value.Cmp(jobResources.GetResources()[i].Value)
+		result := resource.Value.Cmp(jobResources.GetAll()[i].Value)
 		if result < 0 {
 			return true
 		}
 	}
 	return false
-}
-
-func isGang(job *jobdb.Job) bool {
-	if job == nil {
-		return false
-	}
-	gangCardinalityString, ok := job.Annotations()[configuration.GangCardinalityAnnotation]
-	if !ok {
-		return false
-	}
-	gangCardinality, err := strconv.Atoi(gangCardinalityString)
-	if err != nil {
-		logging.WithStacktrace(err).Errorf("unexpected value in gang cardinality annotation")
-		return false
-	}
-	return gangCardinality > 1
 }

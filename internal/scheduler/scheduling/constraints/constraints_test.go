@@ -146,7 +146,7 @@ func TestConstraints(t *testing.T) {
 			require.Equal(t, tc.expectedCheckConstraintsReason == "", ok)
 			require.Equal(t, tc.expectedCheckConstraintsReason, unscheduledReason)
 
-			require.Equal(t, tc.expectedQueueResourceLimit.String(), tc.constraints.GetQueueResourceLimit(tc.gctx.Queue, tc.gctx.PriorityClassName).String())
+			require.Equal(t, tc.expectedQueueResourceLimit.String(), tc.constraints.GetQueueResourceLimit(tc.gctx.Queue, tc.gctx.PriorityClassName()).String())
 		})
 	}
 }
@@ -300,9 +300,7 @@ func makeMultiLevelConstraintsTest(
 			Started: time.Now(),
 		},
 		gctx: &context.GangSchedulingContext{
-			GangInfo: context.GangInfo{
-				PriorityClassName: "priority-class-1",
-			},
+			PriorityClass:         "priority-class-1",
 			Queue:                 "queue-1",
 			TotalResourceRequests: rr,
 			JobSchedulingContexts: []*context.JobSchedulingContext{{}},
@@ -384,9 +382,7 @@ func makeConstraintsTest(constraints SchedulingConstraints, rlFactory *internalt
 			Started: time.Now(),
 		},
 		gctx: &context.GangSchedulingContext{
-			GangInfo: context.GangInfo{
-				PriorityClassName: "priority-class-1",
-			},
+			PriorityClass:         "priority-class-1",
 			Queue:                 "queue-1",
 			TotalResourceRequests: makeResourceList(rlFactory, "1", "1Gi"),
 			JobSchedulingContexts: []*context.JobSchedulingContext{{}},

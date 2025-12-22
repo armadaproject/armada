@@ -550,44 +550,6 @@ func (js *JobSimulator) Preempted(timestamp time.Time) *JobSimulator {
 	return js
 }
 
-func (js *JobSimulator) RunUnschedulable(runId string, cluster string, node string, message string, timestamp time.Time) *JobSimulator {
-	ts := timestampOrNow(timestamp)
-	unschedulableTime := protoutil.ToStdTime(ts)
-	runUnschedulable := &armadaevents.EventSequence_Event{
-		Created: ts,
-		Event: &armadaevents.EventSequence_Event_JobRunErrors{
-			JobRunErrors: &armadaevents.JobRunErrors{
-				JobId: js.jobId,
-				RunId: runId,
-				Errors: []*armadaevents.Error{
-					{
-						Terminal: false,
-						Reason: &armadaevents.Error_PodUnschedulable{
-							PodUnschedulable: &armadaevents.PodUnschedulable{
-								NodeName: node,
-								ObjectMeta: &armadaevents.ObjectMeta{
-									ExecutorId: cluster,
-								},
-								Message: message,
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-	js.events = append(js.events, runUnschedulable)
-
-	js.updateRun(js.job, &runPatch{
-		runId:       runId,
-		cluster:     &cluster,
-		finished:    &unschedulableTime,
-		jobRunState: lookout.JobRunUnableToSchedule,
-		node:        &node,
-	})
-	return js
-}
-
 func (js *JobSimulator) LeaseExpired(runId string, timestamp time.Time, _ clock.Clock) *JobSimulator {
 	ts := timestampOrNow(timestamp)
 	leaseExpiredTime := protoutil.ToStdTime(ts)
@@ -751,24 +713,27 @@ func prefixAnnotations(prefix string, annotations map[string]string) map[string]
 	return prefixed
 }
 
-func logQueryDebug(query *Query, description string) {
+func logQueryDebug(user string, query *Query, description string) {
 	log.
+		WithField("user", user).
 		WithField("query", removeNewlinesAndTabs(query.Sql)).
 		WithField("values", query.Args).
 		Debug(description)
 }
 
-func logQueryError(query *Query, description string, duration time.Duration) {
+func logQueryError(user string, query *Query, description string, duration time.Duration) {
 	log.
+		WithField("user", user).
 		WithField("query", removeNewlinesAndTabs(query.Sql)).
 		WithField("values", query.Args).
 		WithField("duration", duration).
 		Errorf("Error executing %s query", description)
 }
 
-func logSlowQuery(query *Query, description string, duration time.Duration) {
+func logSlowQuery(user string, query *Query, description string, duration time.Duration) {
 	if duration > 5*time.Second {
 		log.
+			WithField("user", user).
 			WithField("query", removeNewlinesAndTabs(query.Sql)).
 			WithField("values", query.Args).
 			WithField("duration", duration).

@@ -9,6 +9,9 @@ import (
 type PulsarConfig struct {
 	// Pulsar URL
 	URL string `validate:"required"`
+	// Pulsar REST API URL (Pulsar admin API)
+	// If not set, event latency metrics will not be published
+	RestURL string
 	// Path to the trusted TLS certificate file (must exist)
 	TLSTrustCertsFilePath string
 	// Whether Pulsar client accept untrusted TLS certificate from broker
@@ -23,10 +26,14 @@ type PulsarConfig struct {
 	AuthenticationType string
 	// Path to the JWT token (must exist). This must be set if AuthenticationType is "JWT"
 	JwtTokenPath string
+	// The config for topic processing delay monitor
+	DelayMonitor TopicDelayMonitor
 	// The pulsar topic that Jobset Events will be published to
 	JobsetEventsTopic string
 	// The pulsar topic that Control Plane Events will be published to
 	ControlPlaneEventsTopic string
+	// The pulsar topic that Metric Events will be published to
+	MetricEventsTopic string
 	// Compression to use.  Valid values are "None", "LZ4", "Zlib", "Zstd".  Default is "None"
 	CompressionType pulsar.CompressionType
 	// Compression Level to use.  Valid values are "Default", "Better", "Faster".  Default is "Default"
@@ -41,4 +48,12 @@ type PulsarConfig struct {
 	BackoffTime time.Duration
 	// Number of pulsar messages that will be queued by the pulsar consumer.
 	ReceiverQueueSize int
+}
+
+type TopicDelayMonitor struct {
+	// If the topic processing delay component should be enabled
+	// When enabled we'll expose metrics that show the processing delay for each partition
+	Enabled bool
+	// How often the monitor will check the delay for a partition
+	Interval time.Duration
 }

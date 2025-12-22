@@ -1,0 +1,87 @@
+queue: queue-a
+jobSetId: gang-job-set-1
+jobs:
+  - namespace: default
+    priority: 0
+    annotations:
+      armadaproject.io/gangId: "gang-123"
+      armadaproject.io/gangCardinality: "3"
+      armadaproject.io/gangNodeUniformityLabel: "kubernetes.io/hostname"
+    podSpec:
+      terminationGracePeriodSeconds: 0
+      restartPolicy: Never
+      containers:
+        - name: job
+          image: alpine:latest
+          command:
+            - sh
+          args:
+            - -c
+            - |
+              echo "Gang node uniformity label: $ARMADA_GANG_NODE_UNIFORMITY_LABEL_NAME"
+              echo "Gang node uniformity value: $ARMADA_GANG_NODE_UNIFORMITY_LABEL_VALUE"
+              sleep 30
+              echo "Job 1 completed"
+          resources:
+            limits:
+              memory: 512Mi
+              cpu: 1
+            requests:
+              memory: 512Mi
+              cpu: 1
+  - namespace: default
+    priority: 0
+    annotations:
+      armadaproject.io/gangId: "gang-123"
+      armadaproject.io/gangCardinality: "3"
+      armadaproject.io/gangNodeUniformityLabel: "kubernetes.io/hostname"
+    podSpec:
+      terminationGracePeriodSeconds: 0
+      restartPolicy: Never
+      containers:
+        - name: job
+          image: alpine:latest
+          command:
+            - sh
+          args:
+            - -c
+            - |
+              echo "Gang node uniformity label: $ARMADA_GANG_NODE_UNIFORMITY_LABEL_NAME"
+              echo "Gang node uniformity value: $ARMADA_GANG_NODE_UNIFORMITY_LABEL_VALUE"
+              sleep 30
+              echo "Job 2 completed"
+          resources:
+            limits:
+              memory: 256Mi
+              cpu: 0.5
+            requests:
+              memory: 256Mi
+              cpu: 0.5
+  - namespace: default
+    priority: 0
+    annotations:
+      armadaproject.io/gangId: "gang-123"
+      armadaproject.io/gangCardinality: "3"
+      armadaproject.io/gangNodeUniformityLabel: "kubernetes.io/hostname"
+    podSpec:
+      terminationGracePeriodSeconds: 0
+      restartPolicy: Never
+      containers:
+        - name: job
+          image: alpine:latest
+          command:
+            - sh
+          args:
+            - -c
+            - |
+              echo "Gang node uniformity label: $ARMADA_GANG_NODE_UNIFORMITY_LABEL_NAME"
+              echo "Gang node uniformity value: $ARMADA_GANG_NODE_UNIFORMITY_LABEL_VALUE"
+              sleep 30
+              echo "Job 3 completed"
+          resources:
+            limits:
+              memory: 256Mi
+              cpu: 0.5
+            requests:
+              memory: 256Mi
+              cpu: 0.5

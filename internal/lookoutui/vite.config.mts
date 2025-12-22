@@ -1,7 +1,7 @@
 import react from "@vitejs/plugin-react"
 import { defineConfig, ProxyOptions } from "vite"
 
-const PROXY_PATHS = ["/api", "/config"]
+const PROXY_PATHS = ["/api", "/lookout-ui-config.js"]
 const PROXY_OPTIONS: Record<string, string | ProxyOptions> = PROXY_PATHS.reduce<Record<string, ProxyOptions>>(
   (acc, path) => ({
     ...acc,
@@ -59,5 +59,6 @@ export default defineConfig({
   },
   build: {
     outDir: "build",
+    sourcemap: true,
   },
 })

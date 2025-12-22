@@ -1,0 +1,116 @@
+import { useState } from "react"
+
+import { Dialog, DialogContent, DialogTitle } from "@mui/material"
+import { ErrorBoundary } from "react-error-boundary"
+
+import { ApiResult, priorityIsValid, RequestStatus } from "../../../common/utils"
+import { AlertErrorFallback } from "../../../components/AlertErrorFallback"
+import { useGetAccessToken } from "../../../oidcAuth"
+import { JobSet } from "../../../services/JobService"
+import { ReprioritizeJobSetsResponse, UpdateJobSetsService } from "../../../services/lookout/UpdateJobSetsService"
+
+import ReprioritizeJobSets from "./reprioritize-job-sets/ReprioritizeJobSets"
+import ReprioritizeJobSetsOutcome from "./reprioritize-job-sets/ReprioritizeJobSetsOutcome"
+
+import "./Dialog.css"
+
+export type ReprioritizeJobSetsDialogState = "ReprioritizeJobSets" | "ReprioritizeJobSetsResult"
+
+type ReprioritizeJobSetsDialogProps = {
+  isOpen: boolean
+  queue: string
+  selectedJobSets: JobSet[]
+  updateJobSetsService: UpdateJobSetsService
+  onResult: (result: ApiResult) => void
+  onClose: () => void
+}
+
+export function getReprioritizableJobSets(jobSets: JobSet[]): JobSet[] {
+  return jobSets.filter((jobSet) => jobSet.jobsQueued > 0)
+}
+
+export default function ReprioritizeJobSetsDialog(props: ReprioritizeJobSetsDialogProps) {
+  const [state, setState] = useState<ReprioritizeJobSetsDialogState>("ReprioritizeJobSets")
+  const [response, setResponse] = useState<ReprioritizeJobSetsResponse>({
+    reprioritizedJobSets: [],
+    failedJobSetReprioritizations: [],
+  })
+  const [requestStatus, setRequestStatus] = useState<RequestStatus>("Idle")
+  const [priority, setPriority] = useState<string>("")
+
+  const jobSetsToReprioritize = getReprioritizableJobSets(props.selectedJobSets)
+
+  const getAccessToken = useGetAccessToken()
+
+  async function reprioritizeJobSets() {
+    if (requestStatus == "Loading" || !priorityIsValid(priority)) {
+      return
+    }
+
+    setRequestStatus("Loading")
+    const accessToken = await getAccessToken()
+    const reprioritizeJobSetsResponse = await props.updateJobSetsService.reprioritizeJobSets(
+      props.queue,
+      jobSetsToReprioritize,
+      Number(priority),
+      accessToken,
+    )
+    setRequestStatus("Idle")
+
+    setResponse(reprioritizeJobSetsResponse)
+    setState("ReprioritizeJobSetsResult")
+    if (reprioritizeJobSetsResponse.failedJobSetReprioritizations.length === 0) {
+      props.onResult("Success")
+    } else if (reprioritizeJobSetsResponse.reprioritizedJobSets.length === 0) {
+      props.onResult("Failure")
+    } else {
+      props.onResult("Partial success")
+    }
+  }
+
+  function cleanup() {
+    setPriority("")
+    setState("ReprioritizeJobSets")
+    setResponse({
+      reprioritizedJobSets: [],
+      failedJobSetReprioritizations: [],
+    })
+  }
+
+  return (
+    <Dialog
+      open={props.isOpen}
+      aria-labelledby="reprioritize-job-sets-dialog-title"
+      aria-describedby="reprioritize-job-sets-dialog-description"
+      onClose={props.onClose}
+      TransitionProps={{
+        onExited: cleanup,
+      }}
+      maxWidth={"md"}
+    >
+      <DialogTitle id="-reprioritize-job-sets-dialog-title">Reprioritize Job Sets</DialogTitle>
+      <DialogContent className="lookout-dialog">
+        <ErrorBoundary FallbackComponent={AlertErrorFallback}>
+          {state === "ReprioritizeJobSets" && (
+            <ReprioritizeJobSets
+              queue={props.queue}
+              jobSets={jobSetsToReprioritize}
+              isLoading={requestStatus === "Loading"}
+              isValid={priorityIsValid(priority)}
+              onReprioritizeJobsSets={reprioritizeJobSets}
+              onPriorityChange={setPriority}
+            />
+          )}
+          {state === "ReprioritizeJobSetsResult" && (
+            <ReprioritizeJobSetsOutcome
+              reprioritizeJobSetResponse={response}
+              isLoading={requestStatus === "Loading"}
+              newPriority={priority}
+              onReprioritizeJobSets={reprioritizeJobSets}
+            />
+          )}
+        </ErrorBoundary>
+      </DialogContent>
+    </Dialog>
+  )
+}

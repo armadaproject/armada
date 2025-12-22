@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	v1 "k8s.io/api/core/v1"
 	k8sResource "k8s.io/apimachinery/pkg/api/resource"
@@ -87,6 +88,17 @@ func TestSchedule(t *testing.T) {
 			queuedJobs:               testfixtures.WithPools(testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass4PreemptibleAway, 10), []string{testfixtures.TestPool}),
 			expectedScheduledIndices: []int{0, 1},
 			expectedScheduledByPool:  map[string]int{testfixtures.TestPool: 2},
+		},
+		"scheduling - home away - away scheduling disabled": {
+			schedulingConfig: testfixtures.WithAwaySchedulingDisabled(testfixtures.TestSchedulingConfig()),
+			executors: []*schedulerobjects.Executor{
+				makeTestExecutorWithNodes("executor-1",
+					withLargeNodeTaint(testNodeWithPool(testfixtures.TestPool))),
+			},
+			queues:                   []*api.Queue{testfixtures.MakeTestQueue()},
+			queuedJobs:               testfixtures.WithPools(testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass4PreemptibleAway, 10), []string{testfixtures.TestPool}),
+			expectedScheduledIndices: []int{},
+			expectedScheduledByPool:  map[string]int{},
 		},
 		"scheduling - cross pool - home away": {
 			schedulingConfig: multiPoolSchedulingConfig,
@@ -254,6 +266,24 @@ func TestSchedule(t *testing.T) {
 			executors:        []*schedulerobjects.Executor{},
 			queues:           []*api.Queue{testfixtures.MakeTestQueue()},
 			queuedJobs:       testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 10),
+		},
+		"reschedules all jobs onto overallocated node": {
+			schedulingConfig: testfixtures.WithProtectedFractionOfFairShareConfig(0, testfixtures.TestSchedulingConfig()),
+			executors: []*schedulerobjects.Executor{
+				test1Node32CoreExecutor("executor1"),
+			},
+			scheduledJobsByExecutorIndexAndNodeIndex: map[int]map[int]scheduledJobs{
+				0: {
+					0: scheduledJobs{
+						jobs:         testfixtures.N1Cpu16GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass6Preemptible, 33),
+						acknowledged: false,
+					},
+				},
+			},
+			queues:                   []*api.Queue{testfixtures.MakeTestQueue()},
+			expectedScheduledIndices: []int{},
+			expectedScheduledByPool:  map[string]int{},
+			expectedPreemptedJobIndicesByExecutorIndexAndNodeIndex: map[int]map[int][]int{},
 		},
 		"computation of allocated resources does not confuse priority class with per-queue priority": {
 			schedulingConfig: testfixtures.WithPerPriorityLimitsConfig(
@@ -500,6 +530,7 @@ func TestSchedule(t *testing.T) {
 				testfixtures.TestResourceListFactory,
 				testfixtures.TestEmptyFloatingResources,
 				priorityoverride.NewNoOpProvider(),
+				nil,
 			)
 			require.NoError(t, err)
 
@@ -544,7 +575,7 @@ func TestSchedule(t *testing.T) {
 			require.NoError(t, err)
 
 			// Run a scheduling round.
-			schedulerResult, err := sch.Schedule(ctx, txn)
+			schedulerResult, err := sch.Schedule(ctx, nil, txn)
 			require.NoError(t, err)
 
 			// Check that the expected preemptions took place.
@@ -609,13 +640,14 @@ func TestSchedule(t *testing.T) {
 			}
 
 			// Check that scheduled jobs are marked as such consistently.
-			for _, job := range scheduledJobs {
+			for _, jctx := range schedulerResult.ScheduledJobs {
+				job := jctx.Job
 				dbJob := txn.GetById(job.Id())
 				assert.False(t, dbJob.Failed())
 				assert.False(t, dbJob.Queued())
 				dbRun := dbJob.LatestRun()
 				assert.False(t, dbRun.Failed())
-				assert.Equal(t, schedulerResult.NodeIdByJobId[dbJob.Id()], dbRun.NodeId())
+				assert.Equal(t, jctx.PodSchedulingContext.NodeId, dbRun.NodeId())
 				assert.NotEmpty(t, dbRun.NodeName())
 			}
 
@@ -641,6 +673,86 @@ func TestSchedule(t *testing.T) {
 	}
 }
 
+func TestPopulateNodeDb(t *testing.T) {
+	tests := map[string]struct {
+		Jobs                    []*jobdb.Job
+		Node                    *internaltypes.Node
+		ExpectNodeAdded         bool
+		ExpectNodeUnschedulable bool
+		ExpectNodeOverAllocated bool
+	}{
+		"empty node": {
+			Jobs:            []*jobdb.Job{},
+			Node:            testfixtures.Test32CpuNode(testfixtures.TestPriorities),
+			ExpectNodeAdded: true,
+		},
+		"node with jobs": {
+			Jobs:            testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 5),
+			Node:            testfixtures.Test32CpuNode(testfixtures.TestPriorities),
+			ExpectNodeAdded: true,
+		},
+		"empty cordoned node": {
+			Jobs:            []*jobdb.Job{},
+			Node:            testfixtures.Test32CpuNode(testfixtures.TestPriorities).WithSchedulable(false),
+			ExpectNodeAdded: false,
+		},
+		"cordoned node with jobs": {
+			Jobs:                    testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 5),
+			Node:                    testfixtures.Test32CpuNode(testfixtures.TestPriorities).WithSchedulable(false),
+			ExpectNodeAdded:         true,
+			ExpectNodeUnschedulable: true,
+		},
+		"overallocated node": {
+			Jobs:                    testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 33),
+			Node:                    testfixtures.Test32CpuNode(testfixtures.TestPriorities),
+			ExpectNodeAdded:         true,
+			ExpectNodeUnschedulable: true,
+			ExpectNodeOverAllocated: true,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			schedulingConfig := testfixtures.TestSchedulingConfig()
+			nodeDb, err := nodedb.NewNodeDb(
+				schedulingConfig.PriorityClasses,
+				schedulingConfig.IndexedResources,
+				schedulingConfig.IndexedTaints,
+				schedulingConfig.IndexedNodeLabels,
+				schedulingConfig.WellKnownNodeTypes,
+				testfixtures.TestResourceListFactory,
+			)
+			require.NoError(t, err)
+
+			for i, job := range tc.Jobs {
+				tc.Jobs[i] = tc.Jobs[i].WithNewRun("executor-01", tc.Node.GetId(), tc.Node.GetName(), tc.Node.GetPool(), job.PriorityClass().Priority)
+			}
+
+			err = populateNodeDb(nodeDb, tc.Jobs, []*jobdb.Job{}, []*internaltypes.Node{tc.Node})
+			require.NoError(t, err)
+
+			nodes, err := nodeDb.GetNodes()
+			require.NoError(t, err)
+
+			if tc.ExpectNodeAdded {
+				assert.Len(t, nodes, 1)
+				node := nodes[0]
+				assert.Equal(t, tc.ExpectNodeOverAllocated, node.IsOverAllocated())
+				assert.Equal(t, tc.ExpectNodeUnschedulable, node.IsUnschedulable())
+				expectedJobIds := armadaslices.Map(tc.Jobs, func(job *jobdb.Job) string {
+					return job.Id()
+				})
+				slices.Sort(expectedJobIds)
+				actualJobIds := maps.Keys(node.AllocatedByJobId)
+				slices.Sort(actualJobIds)
+				assert.Equal(t, expectedJobIds, actualJobIds)
+			} else {
+				assert.Len(t, nodes, 0)
+			}
+		})
+	}
+}
+
 func BenchmarkNodeDbConstruction(b *testing.B) {
 	for e := 1; e <= 4; e++ {
 		numNodes := int(math.Pow10(e))
@@ -656,18 +768,6 @@ func BenchmarkNodeDbConstruction(b *testing.B) {
 			schedulingConfig := testfixtures.TestSchedulingConfig()
 			b.ResetTimer()
 			for n := 0; n < b.N; n++ {
-				b.StopTimer()
-				algo, err := NewFairSchedulingAlgo(
-					schedulingConfig,
-					time.Second*5,
-					nil,
-					nil,
-					nil,
-					testfixtures.TestResourceListFactory,
-					testfixtures.TestEmptyFloatingResources,
-					priorityoverride.NewNoOpProvider(),
-				)
-				require.NoError(b, err)
 				b.StartTimer()
 
 				nodeDb, err := nodedb.NewNodeDb(
@@ -685,7 +785,7 @@ func BenchmarkNodeDbConstruction(b *testing.B) {
 					dbNodes = append(dbNodes, node.DeepCopyNilKeys())
 				}
 
-				err = algo.populateNodeDb(nodeDb, jobs, []*jobdb.Job{}, dbNodes)
+				err = populateNodeDb(nodeDb, jobs, []*jobdb.Job{}, dbNodes)
 				require.NoError(b, err)
 			}
 		})

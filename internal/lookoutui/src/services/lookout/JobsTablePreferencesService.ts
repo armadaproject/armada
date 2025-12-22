@@ -2,9 +2,7 @@ import { ColumnFiltersState, ExpandedStateList, VisibilityState } from "@tanstac
 import _ from "lodash"
 import qs from "qs"
 
-import { LookoutColumnOrder } from "../../containers/lookout/JobsTableContainer"
-import { isValidMatch, JobId, Match } from "../../models/lookoutModels"
-import { removeUndefined, Router } from "../../utils"
+import { LookoutColumnOrder, TIME_RANGE_FILTER_COLUMNS } from "../../common/jobsTableColumns"
 import {
   AnnotationColumnId,
   ColumnId,
@@ -18,8 +16,10 @@ import {
   isStandardColId,
   PINNED_COLUMNS,
   StandardColumnId,
-} from "../../utils/jobsTableColumns"
-import { matchForColumn } from "../../utils/jobsTableUtils"
+} from "../../common/jobsTableColumns"
+import { matchForColumn } from "../../common/jobsTableUtils"
+import { removeUndefined, Router } from "../../common/utils"
+import { AggregateType, aggregateTypes, isValidMatch, JobId, Match } from "../../models/lookoutModels"
 
 export interface JobsTablePreferences {
   annotationColumnKeys: string[]
@@ -37,6 +37,7 @@ export interface JobsTablePreferences {
   sidebarWidth?: number
   activeJobSets?: boolean
   autoRefresh?: boolean
+  lastTransitionTimeAggregate?: AggregateType
 }
 
 // Need two 'defaults'
@@ -56,6 +57,7 @@ export const DEFAULT_PREFERENCES: JobsTablePreferences = {
   sidebarJobId: undefined,
   sidebarWidth: 600,
   columnSizing: {},
+  lastTransitionTimeAggregate: "average",
 }
 
 export const KEY_PREFIX = "lookoutV2"
@@ -93,6 +95,8 @@ export interface QueryStringPrefs {
   active: string | undefined
   // This is a boolean field, but the qs library turns it into a string.
   refresh: string | undefined
+  // Last transition time aggregate type
+  ltta: string | undefined
 }
 
 export const toQueryStringSafe = (prefs: JobsTablePreferences): QueryStringPrefs => {
@@ -118,15 +122,17 @@ export const toQueryStringSafe = (prefs: JobsTablePreferences): QueryStringPrefs
     sb: prefs.sidebarJobId,
     active: prefs.activeJobSets === undefined ? undefined : `${prefs.activeJobSets}`,
     refresh: prefs.autoRefresh === undefined ? undefined : `${prefs.autoRefresh}`,
+    ltta: prefs.lastTransitionTimeAggregate,
   }
 }
 
-const columnFiltersFromQueryStringFilters = (f: QueryStringJobFilter[]): ColumnFiltersState => {
-  return f.map((queryFilter) => ({
-    id: queryFilter.id,
-    value: queryFilter.value,
-  }))
-}
+const columnFiltersFromQueryStringFilters = (f: QueryStringJobFilter[]): ColumnFiltersState =>
+  f
+    .filter((queryFilter) => queryFilter.id && queryFilter.value)
+    .map((queryFilter) => ({
+      id: queryFilter.id,
+      value: queryFilter.value,
+    }))
 
 const columnMatchesFromQueryStringFilters = (f: QueryStringJobFilter[]): Record<string, Match> => {
   const columnMatches: Record<string, Match> = {}
@@ -137,23 +143,23 @@ const columnMatchesFromQueryStringFilters = (f: QueryStringJobFilter[]): Record<
 }
 
 const fromQueryStringSafe = (serializedPrefs: Partial<QueryStringPrefs>): Partial<JobsTablePreferences> => {
-  const { g, e, page, ps, sort, f, sb, active, refresh } = serializedPrefs
+  const { g, e, page, ps, sort, f, sb, active, refresh, ltta } = serializedPrefs
 
   if (f) {
     // The queue filter was a single-value filter, but changed to an any-of filter. If the queue column match is exact,
     // convert it to an equivalent any-of; otherwise remove the filter
-    const indiciesToRemove = [] as number[]
+    const indicesToRemove = [] as number[]
     f.forEach(({ id, value, match }, i) => {
       if (id === StandardColumnId.Queue) {
         if (match === Match.Exact || match === Match.AnyOf) {
           f[i].value = _.isArray(value) ? value : [value]
           f[i].match = Match.AnyOf
         } else {
-          indiciesToRemove.push(i)
+          indicesToRemove.push(i)
         }
       }
     })
-    indiciesToRemove.reverse().forEach((i) => f.splice(i, 1))
+    indicesToRemove.reverse().forEach((i) => f.splice(i, 1))
   }
 
   return {
@@ -169,6 +175,8 @@ const fromQueryStringSafe = (serializedPrefs: Partial<QueryStringPrefs>): Partia
     ...(sb && { sidebarJobId: sb }),
     ...(active && { activeJobSets: active.toLowerCase() === "true" }),
     ...(refresh && { autoRefresh: refresh.toLowerCase() === "true" }),
+    ...(ltta &&
+      ([...aggregateTypes] as string[]).includes(ltta) && { lastTransitionTimeAggregate: ltta as AggregateType }),
   }
 }
 
@@ -215,6 +223,7 @@ const mergeQueryParamsAndLocalStorage = (
     mergeColumnMatches(mergedPrefs.columnMatches, queryParamPrefs.columnMatches)
     mergedPrefs.activeJobSets = queryParamPrefs.activeJobSets
     mergedPrefs.autoRefresh = queryParamPrefs.autoRefresh
+    mergedPrefs.lastTransitionTimeAggregate = queryParamPrefs.lastTransitionTimeAggregate
   }
   return mergedPrefs
 }
@@ -223,12 +232,13 @@ const mergeQueryParamsAndLocalStorage = (
 const ensureFiltersAreConsistent = (filters: ColumnFiltersState, columnMatches: Record<string, Match>) => {
   filters.forEach(({ id, value }, i) => {
     const match = columnMatches[id]
-    if (match === Match.AnyOf && !_.isArray(value)) {
+    const isTimeRangeFilterColumn = isStandardColId(id) && TIME_RANGE_FILTER_COLUMNS.has(id)
+    if ((match === Match.AnyOf || isTimeRangeFilterColumn) && !_.isArray(value)) {
       // To prevent confusion, we clear the filter completely if the stored value is unexpectedly not an array
       filters[i].value = undefined
     }
 
-    if (match !== Match.AnyOf && _.isArray(value)) {
+    if (!(match === Match.AnyOf || isTimeRangeFilterColumn) && _.isArray(value)) {
       // We use the first element of the value array if the stored value is unexpectedly an array
       filters[i].value = value[0]
     }
@@ -329,6 +339,7 @@ export class JobsTablePreferencesService {
         search: stringifyQueryParams(mergedQueryParams),
       })
     } catch (e) {
+      // eslint-disable-next-line no-console
       console.warn("Unable to update URL query params with table state:", e)
     }
   }
@@ -345,6 +356,7 @@ export class JobsTablePreferencesService {
       })
       return fromQueryStringSafe(queryParamPrefs)
     } catch (e) {
+      // eslint-disable-next-line no-console
       console.warn("Unable to parse URL query params:", e)
       return {}
     }
@@ -450,6 +462,7 @@ function tryParseJson(json: string): any | undefined {
     return JSON.parse(json) as Record<string, unknown>
   } catch (e: unknown) {
     if (e instanceof Error) {
+      // eslint-disable-next-line no-console
       console.warn(e.message)
     }
     return undefined

@@ -1,6 +1,6 @@
 image:
-  repository: gresearchdev/armada-lookout-ingester
-  tag: 0.0.0-latest
+  repository: gresearch/armada-lookout-ingester
+  tag: latest
 resources:
   limits:
     memory: 1Gi

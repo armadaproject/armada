@@ -1,5 +1,6 @@
+import { compareValues, getActiveJobSets, mergeFilters, simulateApiWait } from "../../../common/fakeJobsUtils"
 import { Job, JobFilter, JobGroup, JobKey, JobOrder } from "../../../models/lookoutModels"
-import { compareValues, getActiveJobSets, mergeFilters, simulateApiWait } from "../../../utils/fakeJobsUtils"
+
 import { GroupedField, GroupJobsResponse, IGroupJobsService } from "../GroupJobsService"
 
 export default class FakeGroupJobsService implements IGroupJobsService {
@@ -9,6 +10,7 @@ export default class FakeGroupJobsService implements IGroupJobsService {
   ) {}
 
   async groupJobs(
+    _: GlobalFetch["fetch"],
     filters: JobFilter[],
     activeJobSets: boolean,
     order: JobOrder,
@@ -77,16 +79,18 @@ function groupBy(jobs: Job[], groupedField: GroupedField, aggregates: string[]):
       }
       const aggregateField = aggregateFieldMap.get(aggregate) as AggregateField
       switch (aggregateField.aggregateType) {
-        case "Max":
+        case "Max": {
           const max = Math.max(...jobs.map((job) => new Date(job[aggregateField.field] as string).getTime()))
           computedAggregates[aggregateField.field] = new Date(max).toISOString()
           break
-        case "Average":
+        }
+        case "Average": {
           const values = jobs.map((job) => new Date(job[aggregateField.field] as string).getTime())
           const avg = values.reduce((a, b) => a + b, 0) / values.length
           computedAggregates[aggregateField.field] = new Date(avg).toISOString()
           break
-        case "State Counts":
+        }
+        case "State Counts": {
           const stateCounts: Record<string, number> = {}
           for (const job of jobs) {
             if (!(job.state in stateCounts)) {
@@ -96,9 +100,12 @@ function groupBy(jobs: Job[], groupedField: GroupedField, aggregates: string[]):
           }
           computedAggregates[aggregateField.field] = stateCounts
           break
-        default:
+        }
+        default: {
+          // eslint-disable-next-line no-console
           console.error(`aggregate type not found: ${aggregateField.aggregateType}`)
           break
+        }
       }
     }
     return {
@@ -123,6 +130,7 @@ function comparator(order: JobOrder): (a: JobGroup, b: JobGroup) => number {
     const valueA = accessor(a)
     const valueB = accessor(b)
     if (valueA === undefined || valueB === undefined) {
+      // eslint-disable-next-line no-console
       console.error(`group accessor for field ${order.field} is undefined`, { a, b })
       return 0
     }

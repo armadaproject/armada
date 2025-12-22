@@ -62,7 +62,7 @@ func (j *QueueStatsWriter) Update(time time.Time, result *scheduling.SchedulerRe
 				Pool:              sctx.Pool,
 				FairShare:         qctx.FairShare,
 				AdjustedFairShare: qctx.DemandCappedAdjustedFairShare,
-				ActualShare:       sctx.FairnessCostProvider.UnweightedCostFromQueue(qctx),
+				ActualShare:       sctx.FairnessCostProvider.UnweightedCostFromAllocation(qctx.GetAllocation()),
 				CpuShare:          calculateResourceShare(sctx, qctx, "cpu"),
 				MemoryShare:       calculateResourceShare(sctx, qctx, "memory"),
 				GpuShare:          calculateResourceShare(sctx, qctx, "nvidia.com/gpu"),
@@ -90,12 +90,12 @@ func (j *QueueStatsWriter) Close(ctx *armadacontext.Context) {
 }
 
 func calculateResourceShare(sctx *context.SchedulingContext, qctx *context.QueueSchedulingContext, resource string) float64 {
-	total := sctx.Allocated.GetResourceByNameZeroIfMissing(resource)
-	allocated := qctx.Allocated.GetResourceByNameZeroIfMissing(resource)
+	total := sctx.Allocated.GetByNameZeroIfMissing(resource)
+	allocated := qctx.Allocated.GetByNameZeroIfMissing(resource)
 	return allocated.AsApproximateFloat64() / total.AsApproximateFloat64()
 }
 
 func allocatedResources(qctx *context.QueueSchedulingContext, resource string) int {
-	allocated := qctx.Allocated.GetResourceByNameZeroIfMissing(resource)
+	allocated := qctx.Allocated.GetByNameZeroIfMissing(resource)
 	return int(allocated.AsApproximateFloat64())
 }
