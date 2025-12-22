@@ -130,6 +130,11 @@ func (it *MarketBasedCandidateGangIterator) updatePQItem(item *MarketIteratorPQI
 	item.price = 0
 	gctx, err := item.it.Peek()
 	if err != nil {
+		// If we're in evicted-only mode and hit a context error, all evicted jobs have already been
+		// yielded, so we can safely skip this queue.
+		if it.onlyYieldEvicted && isContextFinishedErr(err) {
+			return nil
+		}
 		return err
 	}
 	if gctx == nil {
