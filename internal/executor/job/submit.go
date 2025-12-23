@@ -28,6 +28,7 @@ type SubmitService struct {
 	podDefaults              *configuration.PodDefaults
 	submissionThreadCount    int
 	fatalPodSubmissionErrors []string
+	resourcesToSanitize      []string
 }
 
 func NewSubmitter(
@@ -35,12 +36,14 @@ func NewSubmitter(
 	podDefaults *configuration.PodDefaults,
 	submissionThreadCount int,
 	fatalPodSubmissionErrors []string,
+	resourcesToSanitize []string,
 ) *SubmitService {
 	return &SubmitService{
 		clusterContext:           clusterContext,
 		podDefaults:              podDefaults,
 		submissionThreadCount:    submissionThreadCount,
 		fatalPodSubmissionErrors: fatalPodSubmissionErrors,
+		resourcesToSanitize:      resourcesToSanitize,
 	}
 }
 
@@ -115,6 +118,9 @@ func (submitService *SubmitService) submitPod(job *SubmitJob) (*v1.Pod, error) {
 	// Ensure the K8SService and K8SIngress fields are populated
 	submitService.applyExecutorSpecificIngressDetails(job)
 
+	// Remove any resources used for scheduling that are invalid during submission
+	submitService.sanitizePodResources(pod)
+
 	if len(job.Ingresses) > 0 || len(job.Services) > 0 {
 		pod.Annotations = util.MergeMaps(pod.Annotations, map[string]string{
 			domain.HasIngress:               "true",
@@ -145,6 +151,29 @@ func (submitService *SubmitService) submitPod(job *SubmitJob) (*v1.Pod, error) {
 	}
 
 	return pod, err
+}
+
+// Sanitizes pod resources that may be used during scheduling but are invalid at runtime.
+func (submitService *SubmitService) sanitizePodResources(pod *v1.Pod) {
+	for _, ic := range pod.Spec.InitContainers {
+		submitService.sanitizeResourceList(ic.Resources.Requests)
+		submitService.sanitizeResourceList(ic.Resources.Limits)
+	}
+
+	for _, c := range pod.Spec.Containers {
+		submitService.sanitizeResourceList(c.Resources.Requests)
+		submitService.sanitizeResourceList(c.Resources.Limits)
+	}
+}
+
+func (submitService *SubmitService) sanitizeResourceList(resourceList v1.ResourceList) {
+	for requestResource := range resourceList {
+		for _, resource := range submitService.resourcesToSanitize {
+			if requestResource.String() == resource {
+				delete(resourceList, requestResource)
+			}
+		}
+	}
 }
 
 // applyExecutorSpecificIngressDetails populates the executor specific details on ingresses
