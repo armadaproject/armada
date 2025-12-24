@@ -31,6 +31,100 @@ import (
 	"github.com/armadaproject/armada/pkg/api"
 )
 
+func TestSchedule_PoolFailureIsolation(t *testing.T) {
+	ctx := armadacontext.Background()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	testPool1 := "pool-1"
+	testPool2 := "pool-2"
+	schedulingConfig := testfixtures.TestSchedulingConfigWithPools([]configuration.PoolConfig{
+		{Name: testPool1},
+		{Name: testPool2},
+	})
+
+	executors := []*schedulerobjects.Executor{
+		makeTestExecutor("executor-1", testPool1),
+		makeTestExecutor("executor-2", testPool2),
+	}
+
+	mockExecutorRepo := schedulermocks.NewMockExecutorRepository(ctrl)
+	mockExecutorRepo.EXPECT().GetExecutors(gomock.Any()).Return(executors, nil).AnyTimes()
+	mockExecutorRepo.EXPECT().GetExecutorSettings(gomock.Any()).Return([]*schedulerobjects.ExecutorSettings{}, nil).AnyTimes()
+
+	queues := []*api.Queue{testfixtures.MakeTestQueue()}
+	mockQueueCache := schedulermocks.NewMockQueueCache(ctrl)
+
+	// Fail first pool by returning error from GetAll, succeed on second
+	callCount := 0
+	mockQueueCache.EXPECT().GetAll(gomock.Any()).DoAndReturn(
+		func(ctx *armadacontext.Context) ([]*api.Queue, error) {
+			callCount++
+			if callCount == 1 {
+				return nil, fmt.Errorf("simulated failure for pool")
+			}
+			return queues, nil
+		},
+	).Times(2)
+
+	schedulingContextRepo := reports.NewSchedulingContextRepository()
+	sch, err := NewFairSchedulingAlgo(
+		schedulingConfig,
+		0,
+		mockExecutorRepo,
+		mockQueueCache,
+		schedulingContextRepo,
+		testfixtures.TestResourceListFactory,
+		testfixtures.TestEmptyFloatingResources,
+		priorityoverride.NewNoOpProvider(),
+		nil,
+		nil,
+	)
+	require.NoError(t, err)
+	sch.clock = clock.NewFakeClock(testfixtures.BaseTime)
+
+	queuedJobs := testfixtures.WithPools(
+		testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 10),
+		[]string{testPool1, testPool2},
+	)
+
+	jobDb := testfixtures.NewJobDb(testfixtures.TestResourceListFactory)
+	txn := jobDb.WriteTxn()
+
+	jobsToUpsert := armadaslices.Map(queuedJobs, func(job *jobdb.Job) *jobdb.Job {
+		return job.WithQueued(true)
+	})
+	err = txn.Upsert(jobsToUpsert)
+	require.NoError(t, err)
+
+	// Schedule should not return error even though one pool failed
+	schedulerResult, err := sch.Schedule(ctx, nil, txn)
+	require.NoError(t, err)
+	require.NotNil(t, schedulerResult)
+
+	// Verify outcomes: pool-1 failed, pool-2 succeeded
+	require.Len(t, schedulerResult.PoolSchedulingOutcomes, 2)
+
+	outcomesByPool := armadaslices.GroupByFuncUnique(
+		schedulerResult.PoolSchedulingOutcomes,
+		func(o PoolSchedulingOutcome) string { return o.Pool },
+	)
+
+	// Failed pool
+	assert.False(t, outcomesByPool[testPool1].Success)
+	assert.Equal(t, PoolSchedulingTerminationReasonError, outcomesByPool[testPool1].TerminationReason)
+
+	// Successful pool
+	assert.True(t, outcomesByPool[testPool2].Success)
+
+	// Jobs scheduled only on successful pool
+	scheduledJobs := ScheduledJobsFromSchedulerResult(schedulerResult)
+	assert.NotEmpty(t, scheduledJobs)
+	for _, job := range scheduledJobs {
+		assert.Equal(t, testPool2, job.LatestRun().Pool())
+	}
+}
+
 type scheduledJobs struct {
 	jobs         []*jobdb.Job
 	acknowledged bool
