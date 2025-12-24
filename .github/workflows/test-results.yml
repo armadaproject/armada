@@ -21,7 +21,7 @@ jobs:
           run_id: ${{ github.event.workflow_run.id }}
 
       - name: Publish JUnit Report
-        uses: mikepenz/action-junit-report@v5
+        uses: mikepenz/action-junit-report@v6
         with:
           report_paths: ./test-results/*/*.xml
           fail_on_failure: true
