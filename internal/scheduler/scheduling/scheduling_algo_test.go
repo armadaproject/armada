@@ -705,8 +705,7 @@ func TestSchedule(t *testing.T) {
 				}
 			}
 
-			jobIdsToFailReconciliation :=
-				getJobIdsOfScheduledJobsByExecutorAndNodeIndex(t, tc.scheduledJobsByExecutorIndexAndNodeIndex, tc.jobsToFailReconciliationJobsByExecutorIndexAndNodeIndex)
+			jobIdsToFailReconciliation := getJobIdsOfScheduledJobsByExecutorAndNodeIndex(t, tc.scheduledJobsByExecutorIndexAndNodeIndex, tc.jobsToFailReconciliationJobsByExecutorIndexAndNodeIndex)
 			runReconciler.jobIdsToFailReconciliation = jobIdsToFailReconciliation
 
 			// Setup jobDb.
@@ -744,16 +743,14 @@ func TestSchedule(t *testing.T) {
 				assert.Equal(t, tc.expectedPreemptedJobIndicesByExecutorIndexAndNodeIndex, actualPreemptedJobsByExecutorIndexAndNodeIndex)
 			}
 
-			expectedJobIdsFailedDueToReconciliation :=
-				getJobIdsOfScheduledJobsByExecutorAndNodeIndex(t, tc.scheduledJobsByExecutorIndexAndNodeIndex, tc.expectedFailedDueToReconciliationByExecutorIndexAndNodeIndex)
+			expectedJobIdsFailedDueToReconciliation := getJobIdsOfScheduledJobsByExecutorAndNodeIndex(t, tc.scheduledJobsByExecutorIndexAndNodeIndex, tc.expectedFailedDueToReconciliationByExecutorIndexAndNodeIndex)
 			actualJobIdsFailedDueToReconciliation := jobIdsFromReconciliationResults(schedulerResult.FailedReconciliationJobs.FailedJobs)
 			slices.Sort(expectedJobIdsFailedDueToReconciliation)
 			slices.Sort(actualJobIdsFailedDueToReconciliation)
 
 			assert.Equal(t, expectedJobIdsFailedDueToReconciliation, actualJobIdsFailedDueToReconciliation)
 
-			expectedJobIdsPreemptedDueToReconciliation :=
-				getJobIdsOfScheduledJobsByExecutorAndNodeIndex(t, tc.scheduledJobsByExecutorIndexAndNodeIndex, tc.expectedPreemptedDueToReconciliationByExecutorIndexAndNodeIndex)
+			expectedJobIdsPreemptedDueToReconciliation := getJobIdsOfScheduledJobsByExecutorAndNodeIndex(t, tc.scheduledJobsByExecutorIndexAndNodeIndex, tc.expectedPreemptedDueToReconciliationByExecutorIndexAndNodeIndex)
 			actualJobIdsPreemptedDueToReconciliation := jobIdsFromReconciliationResults(schedulerResult.FailedReconciliationJobs.PreemptedJobs)
 			slices.Sort(expectedJobIdsPreemptedDueToReconciliation)
 			slices.Sort(actualJobIdsPreemptedDueToReconciliation)
