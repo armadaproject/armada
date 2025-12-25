@@ -25,9 +25,13 @@ const (
 )
 
 var (
-	baseTime, _      = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
-	baseTimestamp    = protoutil.ToTimestamp(baseTime)
-	testDecompressor = func() compress.Decompressor { return &compress.NoOpDecompressor{} }
+	baseTime, _          = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
+	baseTimestamp        = protoutil.ToTimestamp(baseTime)
+	testDecompressor     = func() compress.Decompressor { return &compress.NoOpDecompressor{} }
+	testIngressAddresses = map[int32]string{
+		80:  "ingress.example.com",
+		443: "ingress-backup.example.com",
+	}
 )
 
 func TestGetJobDetails(t *testing.T) {
@@ -41,8 +45,8 @@ func TestGetJobDetails(t *testing.T) {
 	testJobs := []database.Job{job1, job2}
 
 	testJobRuns := []database.JobRun{
-		newJobRun("job2", "run1", lookout.JobRunRunningOrdinal, baseTime, ""),
-		newJobRun("job2", "run2", lookout.JobRunLeaseReturnedOrdinal, baseTime.Add(-1*time.Minute), ""),
+		newJobRun("job2", "run1", lookout.JobRunRunningOrdinal, baseTime, "", testIngressAddresses),
+		newJobRun("job2", "run2", lookout.JobRunLeaseReturnedOrdinal, baseTime.Add(-1*time.Minute), "", nil),
 	}
 
 	// setup job db
@@ -109,8 +113,8 @@ func TestGetJobDetails(t *testing.T) {
 						"job2",
 						api.JobState_RUNNING,
 						"run1",
-						newJobRunDetails("job2", "run1", api.JobRunState_RUN_STATE_RUNNING, baseTime),
-						newJobRunDetails("job2", "run2", api.JobRunState_RUNS_STATE_LEASE_RETURNED, baseTime.Add(-1*time.Minute))),
+						newJobRunDetails("job2", "run1", api.JobRunState_RUN_STATE_RUNNING, baseTime, testIngressAddresses),
+						newJobRunDetails("job2", "run2", api.JobRunState_RUNS_STATE_LEASE_RETURNED, baseTime.Add(-1*time.Minute), nil)),
 				},
 			},
 		},
@@ -142,8 +146,8 @@ func TestGetJobRunDetails(t *testing.T) {
 	}
 
 	testJobRuns := []database.JobRun{
-		newJobRun("job1", "run1", lookout.JobRunRunningOrdinal, baseTime, ""),
-		newJobRun("job1", "run2", lookout.JobRunLeaseReturnedOrdinal, baseTime.Add(-1*time.Minute), ""),
+		newJobRun("job1", "run1", lookout.JobRunRunningOrdinal, baseTime, "", testIngressAddresses),
+		newJobRun("job1", "run2", lookout.JobRunLeaseReturnedOrdinal, baseTime.Add(-1*time.Minute), "", nil),
 	}
 
 	// setup job db
@@ -157,7 +161,7 @@ func TestGetJobRunDetails(t *testing.T) {
 			},
 			expectedResponse: &api.JobRunDetailsResponse{
 				JobRunDetails: map[string]*api.JobRunDetails{
-					"run1": newJobRunDetails("job1", "run1", api.JobRunState_RUN_STATE_RUNNING, baseTime),
+					"run1": newJobRunDetails("job1", "run1", api.JobRunState_RUN_STATE_RUNNING, baseTime, testIngressAddresses),
 				},
 			},
 		},
@@ -167,8 +171,8 @@ func TestGetJobRunDetails(t *testing.T) {
 			},
 			expectedResponse: &api.JobRunDetailsResponse{
 				JobRunDetails: map[string]*api.JobRunDetails{
-					"run1": newJobRunDetails("job1", "run1", api.JobRunState_RUN_STATE_RUNNING, baseTime),
-					"run2": newJobRunDetails("job1", "run2", api.JobRunState_RUNS_STATE_LEASE_RETURNED, baseTime.Add(-1*time.Minute)),
+					"run1": newJobRunDetails("job1", "run1", api.JobRunState_RUN_STATE_RUNNING, baseTime, testIngressAddresses),
+					"run2": newJobRunDetails("job1", "run2", api.JobRunState_RUNS_STATE_LEASE_RETURNED, baseTime.Add(-1*time.Minute), nil),
 				},
 			},
 		},
@@ -343,8 +347,8 @@ func TestGetJobErrors(t *testing.T) {
 	}
 
 	testJobRuns := []database.JobRun{
-		newJobRun("job1", "run1", lookout.JobRunRunningOrdinal, baseTime, ""),
-		newJobRun("job2", "run2", lookout.JobRunLeaseReturnedOrdinal, baseTime.Add(-1*time.Minute), "expected-failure"),
+		newJobRun("job1", "run1", lookout.JobRunRunningOrdinal, baseTime, "", testIngressAddresses),
+		newJobRun("job2", "run2", lookout.JobRunLeaseReturnedOrdinal, baseTime.Add(-1*time.Minute), "expected-failure", nil),
 	}
 
 	testJobErrors := []database.JobError{
@@ -443,10 +447,15 @@ func newJob(jobId string, state int16, latestRunId string) database.Job {
 	}
 }
 
-func newJobRun(jobId, runId string, state int16, leased time.Time, error string) database.JobRun {
+func newJobRun(jobId, runId string, state int16, leased time.Time, error string, ingressAddresses map[int32]string) database.JobRun {
 	var errorBytes []byte = nil
 	if error != "" {
 		errorBytes = []byte(error)
+	}
+
+	var ingressBytes []byte
+	if ingressAddresses != nil {
+		ingressBytes, _ = json.Marshal(ingressAddresses)
 	}
 
 	return database.JobRun{
@@ -470,6 +479,7 @@ func newJobRun(jobId, runId string, state int16, leased time.Time, error string)
 			Time:  leased,
 			Valid: true,
 		},
+		IngressAddresses: ingressBytes,
 	}
 }
 
@@ -491,16 +501,17 @@ func newJobDetails(jobId string, state api.JobState, latestRunId string, runs ..
 	}
 }
 
-func newJobRunDetails(jobId string, runId string, state api.JobRunState, leased time.Time) *api.JobRunDetails {
+func newJobRunDetails(jobId string, runId string, state api.JobRunState, leased time.Time, ingressAddresses map[int32]string) *api.JobRunDetails {
 	return &api.JobRunDetails{
-		RunId:      runId,
-		JobId:      jobId,
-		State:      state,
-		Cluster:    "testCluster",
-		Node:       "testNode",
-		LeasedTs:   protoutil.ToTimestamp(leased),
-		PendingTs:  baseTimestamp,
-		StartedTs:  baseTimestamp,
-		FinishedTs: nil,
+		RunId:            runId,
+		JobId:            jobId,
+		State:            state,
+		Cluster:          "testCluster",
+		Node:             "testNode",
+		LeasedTs:         protoutil.ToTimestamp(leased),
+		PendingTs:        baseTimestamp,
+		StartedTs:        baseTimestamp,
+		FinishedTs:       nil,
+		IngressAddresses: ingressAddresses,
 	}
 }

@@ -144,7 +144,8 @@ CROSS JOIN LATERAL (
 						'started', started AT TIME ZONE 'UTC',
 						'finished', finished AT TIME ZONE 'UTC',
 						'jobRunState', job_run_state,
-						'exitCode', exit_code
+						'exitCode', exit_code,
+						'ingressAddresses', ingress_addresses
 					)
 				)
 				ORDER BY COALESCE(leased, pending)

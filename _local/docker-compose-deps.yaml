@@ -1,4 +1,4 @@
-version: '3.8'
+version: "3.8"
 
 services:
   redis:
@@ -37,7 +37,8 @@ services:
       - "8090:8080"
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/admin/v2/brokers/health"]
+      test:
+        ["CMD", "curl", "-f", "http://localhost:8080/admin/v2/brokers/health"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -66,4 +67,3 @@ services:
       timeout: 5s
       retries: 10
       start_period: 30s
-

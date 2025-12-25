@@ -55,15 +55,16 @@ type JobOptions struct {
 }
 
 type runPatch struct {
-	runId       string
-	cluster     *string
-	exitCode    *int32
-	finished    *time.Time
-	jobRunState lookout.JobRunState
-	node        *string
-	leased      *time.Time
-	pending     *time.Time
-	started     *time.Time
+	runId            string
+	cluster          *string
+	exitCode         *int32
+	finished         *time.Time
+	jobRunState      lookout.JobRunState
+	node             *string
+	leased           *time.Time
+	pending          *time.Time
+	started          *time.Time
+	ingressAddresses map[int32]string
 }
 
 func NewJobSimulator(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb) *JobSimulator {
@@ -294,6 +295,27 @@ func (js *JobSimulator) Running(runId string, node string, timestamp time.Time) 
 		jobRunState: lookout.JobRunRunning,
 		node:        &node,
 		started:     &running,
+	})
+	return js
+}
+
+func (js *JobSimulator) IngressInfo(runId string, ingressAddresses map[int32]string, timestamp time.Time) *JobSimulator {
+	ts := timestampOrNow(timestamp)
+	ingressEvent := &armadaevents.EventSequence_Event{
+		Created: ts,
+		Event: &armadaevents.EventSequence_Event_StandaloneIngressInfo{
+			StandaloneIngressInfo: &armadaevents.StandaloneIngressInfo{
+				IngressAddresses: ingressAddresses,
+				JobId:            js.jobId,
+				RunId:            runId,
+			},
+		},
+	}
+	js.events = append(js.events, ingressEvent)
+
+	js.updateRun(js.job, &runPatch{
+		runId:            runId,
+		ingressAddresses: ingressAddresses,
 	})
 	return js
 }
@@ -667,15 +689,16 @@ func (js *JobSimulator) updateRun(job *model.Job, patch *runPatch) {
 		cluster = *patch.cluster
 	}
 	job.Runs = append(job.Runs, &model.Run{
-		Cluster:     cluster,
-		ExitCode:    patch.exitCode,
-		Finished:    model.NewPostgreSQLTime(patch.finished),
-		JobRunState: lookout.JobRunStateOrdinalMap[patch.jobRunState],
-		Node:        patch.node,
-		Leased:      model.NewPostgreSQLTime(patch.leased),
-		Pending:     model.NewPostgreSQLTime(patch.pending),
-		RunId:       patch.runId,
-		Started:     model.NewPostgreSQLTime(patch.started),
+		Cluster:          cluster,
+		ExitCode:         patch.exitCode,
+		Finished:         model.NewPostgreSQLTime(patch.finished),
+		JobRunState:      lookout.JobRunStateOrdinalMap[patch.jobRunState],
+		Node:             patch.node,
+		Leased:           model.NewPostgreSQLTime(patch.leased),
+		Pending:          model.NewPostgreSQLTime(patch.pending),
+		RunId:            patch.runId,
+		Started:          model.NewPostgreSQLTime(patch.started),
+		IngressAddresses: patch.ingressAddresses,
 	})
 	job.RuntimeSeconds = calculateJobRuntime(model.NewPostgreSQLTime(patch.started), model.NewPostgreSQLTime(patch.finished), js.clock)
 }
@@ -702,6 +725,9 @@ func patchRun(run *model.Run, patch *runPatch) {
 	}
 	if patch.started != nil {
 		run.Started = model.NewPostgreSQLTime(patch.started)
+	}
+	if patch.ingressAddresses != nil {
+		run.IngressAddresses = patch.ingressAddresses
 	}
 }
 
