@@ -1,58 +1,46 @@
-package scheduler
+package scheduling
 
 import (
 	"fmt"
 	"slices"
 
-	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/maps"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
-	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
-type FailedReconciliationResult struct {
-	Job    *jobdb.Job
-	Reason string
-}
-
 type JobRunNodeReconciler interface {
-	ReconcileJobRuns(ctx *armadacontext.Context, txn *jobdb.Txn) ([]*FailedReconciliationResult, error)
+	ReconcileJobRuns(txn *jobdb.Txn, executors []*schedulerobjects.Executor) []*FailedReconciliationResult
 }
 
 type RunNodeReconciler struct {
-	poolsToReconcile   []configuration.PoolConfig
-	executorRepository database.ExecutorRepository
+	poolsToReconcile []configuration.PoolConfig
 }
 
-func NewRunNodeReconciler(poolConfigs []configuration.PoolConfig, executorRepository database.ExecutorRepository) *RunNodeReconciler {
+func NewRunNodeReconciler(poolConfigs []configuration.PoolConfig) *RunNodeReconciler {
 	poolsToReconcile := armadaslices.Filter(poolConfigs, func(p configuration.PoolConfig) bool {
 		return p.ExperimentalRunReconciliation != nil && p.ExperimentalRunReconciliation.Enabled
 	})
 
 	return &RunNodeReconciler{
-		poolsToReconcile:   poolsToReconcile,
-		executorRepository: executorRepository,
+		poolsToReconcile: poolsToReconcile,
 	}
 }
 
-func (r *RunNodeReconciler) ReconcileJobRuns(ctx *armadacontext.Context, txn *jobdb.Txn) ([]*FailedReconciliationResult, error) {
+func (r *RunNodeReconciler) ReconcileJobRuns(txn *jobdb.Txn, executors []*schedulerobjects.Executor) []*FailedReconciliationResult {
 	if len(r.poolsToReconcile) == 0 {
-		return nil, nil
+		return nil
 	}
 
-	latestNodeInfos, err := r.getLatestNodes(ctx)
-	if err != nil {
-		return nil, err
-	}
-
+	nodes := r.getNodes(executors)
 	jobsToReconcile := r.getJobsToReconcileByNodeId(txn)
+
 	configByPool := poolConfigSliceToMap(r.poolsToReconcile)
 
 	var result []*FailedReconciliationResult
-	for _, node := range latestNodeInfos {
+	for _, node := range nodes {
 		jobsOnNode := jobsToReconcile[node.GetId()]
 
 		for _, job := range jobsOnNode {
@@ -94,7 +82,7 @@ func (r *RunNodeReconciler) ReconcileJobRuns(ctx *armadacontext.Context, txn *jo
 		}
 	}
 
-	return result, nil
+	return result
 }
 
 func poolConfigSliceToMap(config []configuration.PoolConfig) map[string]configuration.PoolConfig {
@@ -107,12 +95,7 @@ func poolConfigSliceToMap(config []configuration.PoolConfig) map[string]configur
 	)
 }
 
-func (r *RunNodeReconciler) getLatestNodes(ctx *armadacontext.Context) ([]*schedulerobjects.Node, error) {
-	executors, err := r.executorRepository.GetExecutors(ctx)
-	if err != nil {
-		return nil, err
-	}
-
+func (r *RunNodeReconciler) getNodes(executors []*schedulerobjects.Executor) []*schedulerobjects.Node {
 	nodes := []*schedulerobjects.Node{}
 	for _, executor := range executors {
 		for _, node := range executor.Nodes {
@@ -120,7 +103,7 @@ func (r *RunNodeReconciler) getLatestNodes(ctx *armadacontext.Context) ([]*sched
 		}
 	}
 
-	return nodes, nil
+	return nodes
 }
 
 func (r *RunNodeReconciler) getJobsToReconcileByNodeId(txn *jobdb.Txn) map[string][]*jobdb.Job {

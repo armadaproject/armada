@@ -3,6 +3,7 @@ package scheduling
 import (
 	"time"
 
+	"github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
@@ -49,12 +50,25 @@ type SchedulerResult struct {
 	PreemptedJobs []*context.JobSchedulingContext
 	// Queued jobs that should be scheduled.
 	ScheduledJobs []*context.JobSchedulingContext
+	// Running jobs that failed reconciliation
+	FailedReconciliationJobs *ReconciliationResult
 	// Each result may bundle the result of several scheduling decisions.
 	// These are the corresponding scheduling contexts.
 	// TODO: This doesn't seem like the right approach.
 	SchedulingContexts []*context.SchedulingContext
 	// scheduling stats
 	PerPoolSchedulingStats map[string]PerPoolSchedulingStats
+}
+
+type ReconciliationResult struct {
+	PreemptedJobs []*FailedReconciliationResult
+	FailedJobs    []*FailedReconciliationResult
+}
+
+func JobsFromFailedReconciliationResults(results []*FailedReconciliationResult) []*jobdb.Job {
+	return slices.Map(results, func(r *FailedReconciliationResult) *jobdb.Job {
+		return r.Job
+	})
 }
 
 // PreemptedJobsFromSchedulerResult returns the slice of preempted jobs in the result.
@@ -73,4 +87,9 @@ func ScheduledJobsFromSchedulerResult(sr *SchedulerResult) []*jobdb.Job {
 		rv[i] = jctx.Job
 	}
 	return rv
+}
+
+type FailedReconciliationResult struct {
+	Job    *jobdb.Job
+	Reason string
 }

@@ -344,36 +344,37 @@ var (
 // Test a single scheduler cycle
 func TestScheduler_TestCycle(t *testing.T) {
 	tests := map[string]struct {
-		initialJobs                      []*jobdb.Job                   // jobs in the jobDb at the start of the cycle
-		jobUpdates                       []database.Job                 // job updates from the database
-		runUpdates                       []database.Run                 // run updates from the database
-		jobRunErrors                     map[string]*armadaevents.Error // job run errors in the database
-		staleExecutor                    bool                           // if true then the executorRepository will report the executor as stale
-		fetchError                       bool                           // if true then the jobRepository will throw an error
-		scheduleError                    bool                           // if true then the scheduling algo will throw an error
-		publishError                     bool                           // if true the publisher will throw an error
-		submitCheckerFailure             bool                           // if true the submit checker will say the job is unschedulable
-		submitGangValidateFailure        bool                           // if true the gang validator will say the gang job is invalid
-		jobIdsToFailReconciliation       []string                       // job ids the run reconciler will say the details no longer reconcile with the node
-		expectedJobRunLeased             []string                       // ids of jobs we expect to have produced leased messages
-		expectedJobRunErrors             []string                       // ids of jobs we expect to have produced jobRunErrors messages
-		expectedJobErrors                []string                       // ids of jobs we expect to have produced jobErrors messages
-		expectedJobsRunsToPreempt        []string                       // ids of jobs we expect to be preempted by the scheduler
-		expectedJobRunPreempted          []string                       // ids of jobs we expect to have produced jobRunPreempted messages
-		expectedJobRunCancelled          []string                       // ids of jobs we expect to have produced jobRunPreempted messages
-		expectedJobCancelled             []string                       // ids of jobs we expect to have  produced cancelled messages
-		expectedJobRequestCancel         []string                       // ids of jobs we expect to have produced request cancel
-		expectedJobReprioritised         []string                       // ids of jobs we expect to have  produced reprioritised messages
-		expectedQueued                   []string                       // ids of jobs we expect to have  produced requeued messages
-		expectedJobSucceeded             []string                       // ids of jobs we expect to have  produced succeeded messages
-		expectedLeased                   []string                       // ids of jobs we expected to be leased in jobdb at the end of the cycle
-		expectedRequeued                 []string                       // ids of jobs we expected to be requeued in jobdb at the end of the cycle
-		expectedValidated                []string                       // ids of jobs we expected to have produced submit checked messages
-		expectedTerminal                 []string                       // ids of jobs we expected to be terminal in jobdb at the end of the cycle
-		expectedJobPriority              map[string]uint32              // expected priority of jobs at the end of the cycle
-		expectedNodeAntiAffinities       []string                       // list of nodes there is expected to be anti affinities for on job scheduling info
-		expectedJobSchedulingInfoVersion int                            // expected scheduling info version of jobs at the end of the cycle
-		expectedQueuedVersion            int32                          // expected queued version of jobs at the end of the cycle
+		initialJobs                        []*jobdb.Job                   // jobs in the jobDb at the start of the cycle
+		jobUpdates                         []database.Job                 // job updates from the database
+		runUpdates                         []database.Run                 // run updates from the database
+		jobRunErrors                       map[string]*armadaevents.Error // job run errors in the database
+		staleExecutor                      bool                           // if true then the executorRepository will report the executor as stale
+		fetchError                         bool                           // if true then the jobRepository will throw an error
+		scheduleError                      bool                           // if true then the scheduling algo will throw an error
+		publishError                       bool                           // if true the publisher will throw an error
+		submitCheckerFailure               bool                           // if true the submit checker will say the job is unschedulable
+		submitGangValidateFailure          bool                           // if true the gang validator will say the gang job is invalid
+		jobIdsToFailDueToReconciliation    []string                       // job ids that will be failed by the scheduler due to reconciliation issues
+		jobIdsToPreemptDueToReconciliation []string                       // job ids that will be preempted by the scheduler due to reconciliation issues
+		expectedJobRunLeased               []string                       // ids of jobs we expect to have produced leased messages
+		expectedJobRunErrors               []string                       // ids of jobs we expect to have produced jobRunErrors messages
+		expectedJobErrors                  []string                       // ids of jobs we expect to have produced jobErrors messages
+		expectedJobsRunsToPreempt          []string                       // ids of jobs we expect to be preempted by the scheduler
+		expectedJobRunPreempted            []string                       // ids of jobs we expect to have produced jobRunPreempted messages
+		expectedJobRunCancelled            []string                       // ids of jobs we expect to have produced jobRunPreempted messages
+		expectedJobCancelled               []string                       // ids of jobs we expect to have  produced cancelled messages
+		expectedJobRequestCancel           []string                       // ids of jobs we expect to have produced request cancel
+		expectedJobReprioritised           []string                       // ids of jobs we expect to have  produced reprioritised messages
+		expectedQueued                     []string                       // ids of jobs we expect to have  produced requeued messages
+		expectedJobSucceeded               []string                       // ids of jobs we expect to have  produced succeeded messages
+		expectedLeased                     []string                       // ids of jobs we expected to be leased in jobdb at the end of the cycle
+		expectedRequeued                   []string                       // ids of jobs we expected to be requeued in jobdb at the end of the cycle
+		expectedValidated                  []string                       // ids of jobs we expected to have produced submit checked messages
+		expectedTerminal                   []string                       // ids of jobs we expected to be terminal in jobdb at the end of the cycle
+		expectedJobPriority                map[string]uint32              // expected priority of jobs at the end of the cycle
+		expectedNodeAntiAffinities         []string                       // list of nodes there is expected to be anti affinities for on job scheduling info
+		expectedJobSchedulingInfoVersion   int                            // expected scheduling info version of jobs at the end of the cycle
+		expectedQueuedVersion              int32                          // expected queued version of jobs at the end of the cycle
 	}{
 		"Lease a single job already in the db": {
 			initialJobs:           []*jobdb.Job{queuedJob},
@@ -801,37 +802,31 @@ func TestScheduler_TestCycle(t *testing.T) {
 			expectedJobErrors:         []string{queuedGangJob.Id()},
 			expectedTerminal:          []string{queuedGangJob.Id()},
 		},
-		"Reconciliation failure - queued job - no action": {
-			initialJobs:                []*jobdb.Job{queuedJob},
-			jobIdsToFailReconciliation: []string{queuedJob.Id()},
-			expectedQueued:             []string{queuedJob.Id()},
-			expectedQueuedVersion:      queuedJob.QueuedVersion(),
+		"Reconciliation failure - preempted": {
+			initialJobs:                        []*jobdb.Job{preemptibleLeasedJob},
+			jobIdsToPreemptDueToReconciliation: []string{preemptibleLeasedJob.Id()},
+			expectedJobRunPreempted:            []string{preemptibleLeasedJob.Id()},
+			expectedJobErrors:                  []string{preemptibleLeasedJob.Id()},
+			expectedJobRunErrors:               []string{preemptibleLeasedJob.Id()},
+			expectedTerminal:                   []string{preemptibleLeasedJob.Id()},
+			expectedQueuedVersion:              preemptibleLeasedJob.QueuedVersion(),
 		},
-		"Reconciliation failure - leased preemptible job - preempted": {
-			initialJobs:                []*jobdb.Job{preemptibleLeasedJob},
-			jobIdsToFailReconciliation: []string{preemptibleLeasedJob.Id()},
-			expectedJobRunPreempted:    []string{preemptibleLeasedJob.Id()},
-			expectedJobErrors:          []string{preemptibleLeasedJob.Id()},
-			expectedJobRunErrors:       []string{preemptibleLeasedJob.Id()},
-			expectedTerminal:           []string{preemptibleLeasedJob.Id()},
-			expectedQueuedVersion:      preemptibleLeasedJob.QueuedVersion(),
+		"Reconciliation failure - failed": {
+			initialJobs:                     []*jobdb.Job{leasedJob},
+			jobIdsToFailDueToReconciliation: []string{leasedJob.Id()},
+			expectedJobErrors:               []string{leasedJob.Id()},
+			expectedJobRunErrors:            []string{leasedJob.Id()},
+			expectedTerminal:                []string{leasedJob.Id()},
+			expectedQueuedVersion:           leasedJob.QueuedVersion(),
 		},
-		"Reconciliation failure - leased non-preemptible job - failed": {
-			initialJobs:                []*jobdb.Job{leasedJob},
-			jobIdsToFailReconciliation: []string{leasedJob.Id()},
-			expectedJobErrors:          []string{leasedJob.Id()},
-			expectedJobRunErrors:       []string{leasedJob.Id()},
-			expectedTerminal:           []string{leasedJob.Id()},
-			expectedQueuedVersion:      leasedJob.QueuedVersion(),
-		},
-		"Reconciliation failure - actions all members of the same gang": {
-			initialJobs:                []*jobdb.Job{preemptibleGangJob1, preemptibleGangJob2},
-			jobIdsToFailReconciliation: []string{preemptibleGangJob1.Id()},
-			expectedJobRunPreempted:    []string{preemptibleGangJob1.Id(), preemptibleGangJob2.Id()},
-			expectedJobErrors:          []string{preemptibleGangJob1.Id(), preemptibleGangJob2.Id()},
-			expectedJobRunErrors:       []string{preemptibleGangJob1.Id(), preemptibleGangJob2.Id()},
-			expectedTerminal:           []string{preemptibleGangJob1.Id(), preemptibleGangJob2.Id()},
-			expectedQueuedVersion:      preemptibleGangJob1.QueuedVersion(),
+		"Reconciliation failure - leased and failed in same round": {
+			initialJobs:                     []*jobdb.Job{queuedJob},
+			expectedJobRunLeased:            []string{queuedJob.Id()},
+			jobIdsToFailDueToReconciliation: []string{queuedJob.Id()},
+			expectedJobErrors:               []string{queuedJob.Id()},
+			expectedJobRunErrors:            []string{queuedJob.Id()},
+			expectedTerminal:                []string{queuedJob.Id()},
+			expectedQueuedVersion:           leasedJob.QueuedVersion(),
 		},
 		"Job failed": {
 			initialJobs: []*jobdb.Job{leasedJob},
@@ -909,14 +904,15 @@ func TestScheduler_TestCycle(t *testing.T) {
 			}
 			testClock := clock.NewFakeClock(time.Now())
 			schedulingAlgo := &testSchedulingAlgo{
-				jobsToSchedule: tc.expectedJobRunLeased,
-				jobsToPreempt:  tc.expectedJobsRunsToPreempt,
-				shouldError:    tc.scheduleError,
+				jobsToSchedule:                   tc.expectedJobRunLeased,
+				jobsToPreempt:                    tc.expectedJobsRunsToPreempt,
+				jobsToFailDueToReconciliation:    tc.jobIdsToFailDueToReconciliation,
+				jobsToPreemptDueToReconciliation: tc.jobIdsToPreemptDueToReconciliation,
+				shouldError:                      tc.scheduleError,
 			}
 			publisher := &testPublisher{shouldError: tc.publishError}
 			submitChecker := &testSubmitChecker{checkSuccess: !tc.submitCheckerFailure}
 			gangValidator := &testGangValidator{validateSuccess: !tc.submitGangValidateFailure}
-			runReconciler := &testRunReconciler{jobIdsToFailReconciliation: tc.jobIdsToFailReconciliation}
 
 			heartbeatTime := testClock.Now()
 			if tc.staleExecutor {
@@ -943,7 +939,6 @@ func TestScheduler_TestCycle(t *testing.T) {
 				schedulerMetrics,
 				pricing.NoopBidPriceProvider{},
 				[]string{},
-				runReconciler,
 			)
 			require.NoError(t, err)
 			sched.EnableAssertions()
@@ -1088,7 +1083,6 @@ func TestRun(t *testing.T) {
 	leaderController := leader.NewStandaloneLeaderController()
 	submitChecker := &testSubmitChecker{checkSuccess: true}
 	gangValidator := &testGangValidator{validateSuccess: true}
-	runReconciler := &testRunReconciler{}
 	sched, err := NewScheduler(
 		testfixtures.NewJobDb(testfixtures.TestResourceListFactory),
 		&jobRepo,
@@ -1107,7 +1101,6 @@ func TestRun(t *testing.T) {
 		schedulerMetrics,
 		pricing.NoopBidPriceProvider{},
 		[]string{},
-		runReconciler,
 	)
 	require.NoError(t, err)
 	sched.EnableAssertions()
@@ -1281,7 +1274,6 @@ func TestJobPriceUpdates(t *testing.T) {
 			leaderController := leader.NewStandaloneLeaderController()
 			submitChecker := &testSubmitChecker{checkSuccess: true}
 			gangValidator := &testGangValidator{validateSuccess: true}
-			runReconciler := &testRunReconciler{}
 			sched, err := NewScheduler(
 				jobDb,
 				&jobRepo,
@@ -1300,7 +1292,6 @@ func TestJobPriceUpdates(t *testing.T) {
 				schedulerMetrics,
 				priceProvider,
 				tc.marketDrivenPools,
-				runReconciler,
 			)
 			require.NoError(t, err)
 
@@ -1487,7 +1478,6 @@ func TestScheduler_TestSyncInitialState(t *testing.T) {
 				schedulerMetrics,
 				pricing.NoopBidPriceProvider{},
 				[]string{},
-				nil,
 			)
 			require.NoError(t, err)
 			sched.EnableAssertions()
@@ -1700,7 +1690,6 @@ func TestScheduler_TestSyncState(t *testing.T) {
 				schedulerMetrics,
 				pricing.NoopBidPriceProvider{},
 				[]string{},
-				nil,
 			)
 			require.NoError(t, err)
 			sched.EnableAssertions()
@@ -1731,24 +1720,6 @@ func TestScheduler_TestSyncState(t *testing.T) {
 			}
 		})
 	}
-}
-
-type testRunReconciler struct {
-	jobIdsToFailReconciliation []string
-}
-
-func (t *testRunReconciler) ReconcileJobRuns(ctx *armadacontext.Context, txn *jobdb.Txn) ([]*FailedReconciliationResult, error) {
-	if t.jobIdsToFailReconciliation == nil || len(t.jobIdsToFailReconciliation) == 0 {
-		return nil, nil
-	}
-	jobs := txn.GetAll()
-	result := make([]*FailedReconciliationResult, 0, len(jobs))
-	for _, job := range jobs {
-		if slices.Contains(t.jobIdsToFailReconciliation, job.Id()) {
-			result = append(result, &FailedReconciliationResult{Job: job, Reason: "reconciling this run with the node failed"})
-		}
-	}
-	return result, nil
 }
 
 type testGangValidator struct {
@@ -1858,10 +1829,12 @@ func (t testExecutorRepository) StoreExecutor(ctx *armadacontext.Context, execut
 }
 
 type testSchedulingAlgo struct {
-	numberOfScheduleCalls int
-	jobsToPreempt         []string
-	jobsToSchedule        []string
-	shouldError           bool
+	numberOfScheduleCalls            int
+	jobsToPreempt                    []string
+	jobsToSchedule                   []string
+	jobsToFailDueToReconciliation    []string
+	jobsToPreemptDueToReconciliation []string
+	shouldError                      bool
 	// Set to true to indicate that preemption/scheduling/failure decisions have been persisted.
 	// Until persisted is set to true, the same jobs are preempted/scheduled/failed on every call.
 	persisted bool
@@ -1878,6 +1851,8 @@ func (t *testSchedulingAlgo) Schedule(_ *armadacontext.Context, _ map[string]int
 	}
 	preemptedJobs := make([]*jobdb.Job, 0, len(t.jobsToPreempt))
 	scheduledJobs := make([]*jobdb.Job, 0, len(t.jobsToSchedule))
+	failedDueToReconciliation := make([]*jobdb.Job, 0, len(t.jobsToFailDueToReconciliation))
+	preemptedDueToReconciliation := make([]*jobdb.Job, 0, len(t.jobsToPreemptDueToReconciliation))
 	for _, id := range t.jobsToPreempt {
 		job := txn.GetById(id)
 		if job == nil {
@@ -1897,6 +1872,10 @@ func (t *testSchedulingAlgo) Schedule(_ *armadacontext.Context, _ map[string]int
 		job = job.WithQueued(false).WithFailed(true)
 		preemptedJobs = append(preemptedJobs, job)
 	}
+	if err := txn.Upsert(preemptedJobs); err != nil {
+		return nil, err
+	}
+
 	for _, id := range t.jobsToSchedule {
 		job := txn.GetById(id)
 		if job == nil {
@@ -1914,13 +1893,56 @@ func (t *testSchedulingAlgo) Schedule(_ *armadacontext.Context, _ map[string]int
 		)
 		scheduledJobs = append(scheduledJobs, job)
 	}
-	if err := txn.Upsert(preemptedJobs); err != nil {
-		return nil, err
-	}
 	if err := txn.Upsert(scheduledJobs); err != nil {
 		return nil, err
 	}
-	return NewSchedulerResultForTest(preemptedJobs, scheduledJobs), nil
+
+	for _, id := range t.jobsToFailDueToReconciliation {
+		job := txn.GetById(id)
+		if job == nil {
+			return nil, errors.Errorf("was asked to fail %s but job does not exist", id)
+		}
+		if job.InTerminalState() {
+			return nil, errors.Errorf("was asked to fail job %s but job is in terminal state", id)
+		}
+		if job.Queued() {
+			return nil, errors.Errorf("was asked to fail job %s but job is still queued", job.Id())
+		}
+		if run := job.LatestRun(); run != nil {
+			job = job.WithUpdatedRun(run.WithFailed(true))
+		} else {
+			return nil, errors.Errorf("attempting to fail job %s with no associated runs", job.Id())
+		}
+		job = job.WithQueued(false).WithFailed(true)
+		failedDueToReconciliation = append(failedDueToReconciliation, job)
+	}
+	if err := txn.Upsert(failedDueToReconciliation); err != nil {
+		return nil, err
+	}
+
+	for _, id := range t.jobsToPreemptDueToReconciliation {
+		job := txn.GetById(id)
+		if job == nil {
+			return nil, errors.Errorf("was asked to preempt %s but job does not exist", id)
+		}
+		if job.InTerminalState() {
+			return nil, errors.Errorf("was asked to preempt job %s but job is in terminal state", id)
+		}
+		if job.Queued() {
+			return nil, errors.Errorf("was asked to preempt job %s but job is still queued", job.Id())
+		}
+		if run := job.LatestRun(); run != nil {
+			job = job.WithUpdatedRun(run.WithFailed(true))
+		} else {
+			return nil, errors.Errorf("attempting to preempt job %s with no associated runs", job.Id())
+		}
+		job = job.WithQueued(false).WithFailed(true)
+		preemptedDueToReconciliation = append(preemptedDueToReconciliation, job)
+	}
+	if err := txn.Upsert(preemptedDueToReconciliation); err != nil {
+		return nil, err
+	}
+	return NewSchedulerResultForTest(preemptedJobs, scheduledJobs, failedDueToReconciliation, preemptedDueToReconciliation), nil
 }
 
 func (t *testSchedulingAlgo) Persist() {
@@ -1935,11 +1957,28 @@ func (t *testSchedulingAlgo) Persist() {
 func NewSchedulerResultForTest[S ~[]T, T *jobdb.Job](
 	preemptedJobs S,
 	scheduledJobs S,
+	failedReconciliationJobs S,
+	preemptedReconciliationJobs S,
 ) *scheduling.SchedulerResult {
 	return &scheduling.SchedulerResult{
 		PreemptedJobs: schedulercontext.JobSchedulingContextsFromJobs(preemptedJobs),
 		ScheduledJobs: schedulercontext.JobSchedulingContextsFromJobs(scheduledJobs),
+		FailedReconciliationJobs: &scheduling.ReconciliationResult{
+			FailedJobs:    FailedReconciliationResultFromJobs(failedReconciliationJobs, "reconciliation failure"),
+			PreemptedJobs: FailedReconciliationResultFromJobs(preemptedReconciliationJobs, "reconciliation failure"),
+		},
 	}
+}
+
+func FailedReconciliationResultFromJobs[J *jobdb.Job](jobs []J, reason string) []*scheduling.FailedReconciliationResult {
+	results := make([]*scheduling.FailedReconciliationResult, 0, len(jobs))
+	for _, job := range jobs {
+		results = append(results, &scheduling.FailedReconciliationResult{
+			Job:    job,
+			Reason: reason,
+		})
+	}
+	return results
 }
 
 type testBidPriceProvider struct {
@@ -2872,7 +2911,6 @@ func TestCycleConsistency(t *testing.T) {
 					schedulerMetrics,
 					pricing.NoopBidPriceProvider{},
 					[]string{},
-					&testRunReconciler{},
 				)
 				require.NoError(t, err)
 				scheduler.clock = testClock

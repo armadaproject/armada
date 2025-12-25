@@ -339,6 +339,7 @@ func Run(config schedulerconfig.Configuration) error {
 		return submitChecker.Run(ctx)
 	})
 
+	runReconciler := scheduling.NewRunNodeReconciler(config.Scheduling.Pools)
 	shortJobPenalty := scheduling.NewShortJobPenalty(config.Scheduling.GetShortJobPenaltyCutoffs())
 	stringInterner := stringinterner.New(config.InternedStringsCacheSize)
 	schedulingAlgo, err := scheduling.NewFairSchedulingAlgo(
@@ -351,6 +352,7 @@ func Run(config schedulerconfig.Configuration) error {
 		floatingResourceTypes,
 		priorityOverrideProvider,
 		shortJobPenalty,
+		runReconciler,
 	)
 	if err != nil {
 		return errors.WithMessage(err, "error creating scheduling algo")
@@ -376,8 +378,6 @@ func Run(config schedulerconfig.Configuration) error {
 		return errors.WithStack(err)
 	}
 
-	runReconciler := NewRunNodeReconciler(config.Scheduling.Pools, executorRepository)
-
 	scheduler, err := NewScheduler(
 		jobDb,
 		jobRepository,
@@ -396,7 +396,6 @@ func Run(config schedulerconfig.Configuration) error {
 		schedulerMetrics,
 		bidPriceProvider,
 		marketDrivenPools,
-		runReconciler,
 	)
 	if err != nil {
 		return errors.WithMessage(err, "error creating scheduler")
