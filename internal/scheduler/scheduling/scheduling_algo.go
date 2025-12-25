@@ -17,7 +17,6 @@ import (
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
-	"github.com/armadaproject/armada/internal/scheduler"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/floatingresources"
@@ -45,7 +44,7 @@ type SchedulingAlgo interface {
 // FairSchedulingAlgo is a SchedulingAlgo based on PreemptingQueueScheduler.
 type FairSchedulingAlgo struct {
 	schedulingConfig            configuration.SchedulingConfig
-	stateValidator              scheduler.JobRunNodeReconciler
+	stateValidator              JobRunNodeReconciler
 	executorRepository          database.ExecutorRepository
 	queueCache                  queue.QueueCache
 	queueOverrideProvider       priorityoverride.Provider
@@ -73,6 +72,7 @@ func NewFairSchedulingAlgo(
 	floatingResourceTypes *floatingresources.FloatingResourceTypes,
 	queueOverrideProvider priorityoverride.Provider,
 	shortJobPenalty *ShortJobPenalty,
+	stateValidator JobRunNodeReconciler,
 ) (*FairSchedulingAlgo, error) {
 	if _, ok := config.PriorityClasses[config.DefaultPriorityClassName]; !ok {
 		return nil, errors.Errorf(
@@ -94,6 +94,7 @@ func NewFairSchedulingAlgo(
 		resourceListFactory:          resourceListFactory,
 		floatingResourceTypes:        floatingResourceTypes,
 		shortJobPenalty:              shortJobPenalty,
+		stateValidator:               stateValidator,
 	}, nil
 }
 
@@ -145,7 +146,7 @@ func (l *FairSchedulingAlgo) Schedule(
 			return nil, err
 		}
 
-		reconciliationResult, err := l.validateJobAndNodeState(txn, executors)
+		reconciliationResult, err := l.validateJobAndNodeState(pool, txn, executors)
 		if err != nil {
 			return nil, err
 		}
@@ -237,14 +238,17 @@ type gangKey struct {
 	gangId string
 }
 
-func (l *FairSchedulingAlgo) validateJobAndNodeState(txn *jobdb.Txn, executors []*schedulerobjects.Executor) (*ReconciliationResult, error) {
-	// TODO pass txn here - for efficiency
-	invalidJobs := l.stateValidator.ReconcileJobRuns(txn.GetAll(), executors)
+func (l *FairSchedulingAlgo) validateJobAndNodeState(config configuration.PoolConfig, txn *jobdb.Txn, executors []*schedulerobjects.Executor) (*ReconciliationResult, error) {
 	result := &ReconciliationResult{
 		FailedJobs:    []*FailedReconciliationResult{},
 		PreemptedJobs: []*FailedReconciliationResult{},
 	}
 
+	if config.ExperimentalRunReconciliation == nil || !config.ExperimentalRunReconciliation.Enabled {
+		return result, nil
+	}
+
+	invalidJobs := l.stateValidator.ReconcileJobRuns(txn, executors)
 	jobsUpdated := make(map[string]*jobdb.Job, len(invalidJobs))
 	gangsPreempted := map[gangKey][]string{}
 	for _, invalidJobInfo := range invalidJobs {

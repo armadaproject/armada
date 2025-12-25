@@ -2,14 +2,11 @@ package scheduler
 
 import (
 	"fmt"
-	"strings"
 	"time"
 
-	"github.com/armadaproject/armada/internal/executor/job"
 	"github.com/gogo/protobuf/types"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
-	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/utils/clock"
@@ -92,7 +89,6 @@ type Scheduler struct {
 	// A list of the pools that are market driven
 	// Used to know which jobs need update when updating job prices
 	marketDrivenPools []string
-	runNodeReconciler JobRunNodeReconciler
 }
 
 func NewScheduler(
@@ -113,7 +109,6 @@ func NewScheduler(
 	metrics *metrics.Metrics,
 	bidPriceProvider pricing.BidPriceProvider,
 	marketDrivenPools []string,
-	runNodeReconciler JobRunNodeReconciler,
 ) (*Scheduler, error) {
 	return &Scheduler{
 		jobRepository:      jobRepository,
@@ -136,7 +131,6 @@ func NewScheduler(
 		runsSerial:         -1,
 		metrics:            metrics,
 		marketDrivenPools:  marketDrivenPools,
-		runNodeReconciler:  runNodeReconciler,
 	}, nil
 }
 
@@ -350,14 +344,6 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	// Schedule jobs.
 	if shouldSchedule {
 		start := time.Now()
-
-		preemptionEvents, err := s.removeRunsThatNoLongerReconcile(ctx, txn)
-		if err != nil {
-			return overallSchedulerResult, err
-		}
-		ctx.Infof("Finished reconciling runs with nodes, generating %d preemption events", len(preemptionEvents))
-		events = append(events, preemptionEvents...)
-
 		resourceUnits, err := s.updateJobPrices(ctx, txn)
 		if err != nil {
 			return overallSchedulerResult, err
@@ -631,7 +617,7 @@ func EventsFromSchedulerResult(result *scheduling.SchedulerResult, time time.Tim
 		return nil, err
 	}
 
-	AppendEventSequencesFromReconciliationFailureJobs(eventSequences, result.FailedReconciliationJobs, time)
+	eventSequences = AppendEventSequencesFromReconciliationFailureJobs(eventSequences, result.FailedReconciliationJobs, time)
 
 	return eventSequences, nil
 }
@@ -754,7 +740,7 @@ func AppendEventSequencesFromReconciliationFailureJobs(eventSequences []*armadae
 		eventSequences = append(eventSequences, es)
 	}
 
-	return eventSequences, nil
+	return eventSequences
 }
 
 func AppendEventSequencesFromScheduledJobs(eventSequences []*armadaevents.EventSequence, jctxs []*schedulercontext.JobSchedulingContext) ([]*armadaevents.EventSequence, error) {
