@@ -45,6 +45,7 @@ type ApiConnectionDetails struct {
 	OpenIdKubernetesAuth        oidc.KubernetesDetails
 	ForceNoTls                  bool
 	ExecAuth                    exec.CommandDetails
+	CacheRefreshToken           bool
 }
 
 type ConnectionDetails func() (*ApiConnectionDetails, error)
@@ -101,11 +102,11 @@ func perRpcCredentials(config *ApiConnectionDetails) (credentials.PerRPCCredenti
 	} else if config.KubernetesNativeAuth.Enabled {
 		return kubernetes.AuthenticateKubernetesNative(config.KubernetesNativeAuth)
 	} else if config.OpenIdAuth.ProviderUrl != "" {
-		return oidc.AuthenticatePkce(config.OpenIdAuth)
+		return oidc.AuthenticatePkce(config.OpenIdAuth, config.CacheRefreshToken)
 	} else if config.OpenIdDeviceAuth.ProviderUrl != "" {
-		return oidc.AuthenticateDevice(config.OpenIdDeviceAuth)
+		return oidc.AuthenticateDevice(config.OpenIdDeviceAuth, config.CacheRefreshToken)
 	} else if config.OpenIdPasswordAuth.ProviderUrl != "" {
-		return oidc.AuthenticateWithPassword(config.OpenIdPasswordAuth)
+		return oidc.AuthenticateWithPassword(config.OpenIdPasswordAuth, config.CacheRefreshToken)
 	} else if config.OpenIdClientCredentialsAuth.ProviderUrl != "" {
 		return oidc.AuthenticateWithClientCredentials(config.OpenIdClientCredentialsAuth)
 	} else if config.OpenIdKubernetesAuth.ProviderUrl != "" {
