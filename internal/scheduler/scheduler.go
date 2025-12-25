@@ -714,6 +714,9 @@ func createEventsForPreemptedJob(jobId string, runId string, reason string, time
 }
 
 func AppendEventSequencesFromReconciliationFailureJobs(eventSequences []*armadaevents.EventSequence, reconciliationResult *scheduling.ReconciliationResult, time time.Time) []*armadaevents.EventSequence {
+	if reconciliationResult == nil {
+		return eventSequences
+	}
 	for _, jobInfo := range reconciliationResult.FailedJobs {
 		reconciliationError := &armadaevents.Error{
 			Terminal: true,
