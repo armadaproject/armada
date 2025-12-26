@@ -1,5 +1,6 @@
+import { compareValues, getActiveJobSets, mergeFilters, simulateApiWait } from "../../../common/fakeJobsUtils"
 import { Job, JobFilter, JobGroup, JobKey, JobOrder } from "../../../models/lookoutModels"
-import { compareValues, getActiveJobSets, mergeFilters, simulateApiWait } from "../../../utils/fakeJobsUtils"
+
 import { GroupedField, GroupJobsResponse, IGroupJobsService } from "../GroupJobsService"
 
 export default class FakeGroupJobsService implements IGroupJobsService {
@@ -101,6 +102,7 @@ function groupBy(jobs: Job[], groupedField: GroupedField, aggregates: string[]):
           break
         }
         default: {
+          // eslint-disable-next-line no-console
           console.error(`aggregate type not found: ${aggregateField.aggregateType}`)
           break
         }
@@ -128,6 +130,7 @@ function comparator(order: JobOrder): (a: JobGroup, b: JobGroup) => number {
     const valueA = accessor(a)
     const valueB = accessor(b)
     if (valueA === undefined || valueB === undefined) {
+      // eslint-disable-next-line no-console
       console.error(`group accessor for field ${order.field} is undefined`, { a, b })
       return 0
     }

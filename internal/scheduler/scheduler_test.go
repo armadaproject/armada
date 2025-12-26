@@ -18,6 +18,7 @@ import (
 	"k8s.io/utils/pointer"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	apiconfig "github.com/armadaproject/armada/internal/common/constants"
 	"github.com/armadaproject/armada/internal/common/ingest/utils"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
@@ -35,7 +36,6 @@ import (
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 	"github.com/armadaproject/armada/internal/scheduleringester"
-	apiconfig "github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/bidstore"
@@ -147,6 +147,21 @@ var queuedJob = testfixtures.NewJob(
 	"testQueue",
 	uint32(10),
 	toInternalSchedulingInfo(schedulingInfo),
+	true,
+	0,
+	false,
+	false,
+	false,
+	1,
+	true,
+)
+
+var queuedGangJob = testfixtures.NewJob(
+	util.NewULID(),
+	"testJobset",
+	"testQueue",
+	uint32(10),
+	toInternalSchedulingInfo(preemptibleGangSchedulingInfo),
 	true,
 	0,
 	false,
@@ -338,6 +353,8 @@ func TestScheduler_TestCycle(t *testing.T) {
 		scheduleError                    bool                           // if true then the scheduling algo will throw an error
 		publishError                     bool                           // if true the publisher will throw an error
 		submitCheckerFailure             bool                           // if true the submit checker will say the job is unschedulable
+		submitGangValidateFailure        bool                           // if true the gang validator will say the gang job is invalid
+		jobIdsToFailReconciliation       []string                       // job ids the run reconciler will say the details no longer reconcile with the node
 		expectedJobRunLeased             []string                       // ids of jobs we expect to have produced leased messages
 		expectedJobRunErrors             []string                       // ids of jobs we expect to have produced jobRunErrors messages
 		expectedJobErrors                []string                       // ids of jobs we expect to have produced jobErrors messages
@@ -348,7 +365,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 		expectedJobRequestCancel         []string                       // ids of jobs we expect to have produced request cancel
 		expectedJobReprioritised         []string                       // ids of jobs we expect to have  produced reprioritised messages
 		expectedQueued                   []string                       // ids of jobs we expect to have  produced requeued messages
-		expectedJobSucceeded             []string                       // ids of jobs we expect to have  produced succeeeded messages
+		expectedJobSucceeded             []string                       // ids of jobs we expect to have  produced succeeded messages
 		expectedLeased                   []string                       // ids of jobs we expected to be leased in jobdb at the end of the cycle
 		expectedRequeued                 []string                       // ids of jobs we expected to be requeued in jobdb at the end of the cycle
 		expectedValidated                []string                       // ids of jobs we expected to have produced submit checked messages
@@ -778,6 +795,44 @@ func TestScheduler_TestCycle(t *testing.T) {
 			expectedJobErrors:    []string{queuedJob.Id()},
 			expectedTerminal:     []string{queuedJob.Id()},
 		},
+		"Gang validation check failure": {
+			initialJobs:               []*jobdb.Job{queuedGangJob.WithValidated(false)},
+			submitGangValidateFailure: true,
+			expectedJobErrors:         []string{queuedGangJob.Id()},
+			expectedTerminal:          []string{queuedGangJob.Id()},
+		},
+		"Reconciliation failure - queued job - no action": {
+			initialJobs:                []*jobdb.Job{queuedJob},
+			jobIdsToFailReconciliation: []string{queuedJob.Id()},
+			expectedQueued:             []string{queuedJob.Id()},
+			expectedQueuedVersion:      queuedJob.QueuedVersion(),
+		},
+		"Reconciliation failure - leased preemptible job - preempted": {
+			initialJobs:                []*jobdb.Job{preemptibleLeasedJob},
+			jobIdsToFailReconciliation: []string{preemptibleLeasedJob.Id()},
+			expectedJobRunPreempted:    []string{preemptibleLeasedJob.Id()},
+			expectedJobErrors:          []string{preemptibleLeasedJob.Id()},
+			expectedJobRunErrors:       []string{preemptibleLeasedJob.Id()},
+			expectedTerminal:           []string{preemptibleLeasedJob.Id()},
+			expectedQueuedVersion:      preemptibleLeasedJob.QueuedVersion(),
+		},
+		"Reconciliation failure - leased non-preemptible job - failed": {
+			initialJobs:                []*jobdb.Job{leasedJob},
+			jobIdsToFailReconciliation: []string{leasedJob.Id()},
+			expectedJobErrors:          []string{leasedJob.Id()},
+			expectedJobRunErrors:       []string{leasedJob.Id()},
+			expectedTerminal:           []string{leasedJob.Id()},
+			expectedQueuedVersion:      leasedJob.QueuedVersion(),
+		},
+		"Reconciliation failure - actions all members of the same gang": {
+			initialJobs:                []*jobdb.Job{preemptibleGangJob1, preemptibleGangJob2},
+			jobIdsToFailReconciliation: []string{preemptibleGangJob1.Id()},
+			expectedJobRunPreempted:    []string{preemptibleGangJob1.Id(), preemptibleGangJob2.Id()},
+			expectedJobErrors:          []string{preemptibleGangJob1.Id(), preemptibleGangJob2.Id()},
+			expectedJobRunErrors:       []string{preemptibleGangJob1.Id(), preemptibleGangJob2.Id()},
+			expectedTerminal:           []string{preemptibleGangJob1.Id(), preemptibleGangJob2.Id()},
+			expectedQueuedVersion:      preemptibleGangJob1.QueuedVersion(),
+		},
 		"Job failed": {
 			initialJobs: []*jobdb.Job{leasedJob},
 			runUpdates: []database.Run{
@@ -860,6 +915,8 @@ func TestScheduler_TestCycle(t *testing.T) {
 			}
 			publisher := &testPublisher{shouldError: tc.publishError}
 			submitChecker := &testSubmitChecker{checkSuccess: !tc.submitCheckerFailure}
+			gangValidator := &testGangValidator{validateSuccess: !tc.submitGangValidateFailure}
+			runReconciler := &testRunReconciler{jobIdsToFailReconciliation: tc.jobIdsToFailReconciliation}
 
 			heartbeatTime := testClock.Now()
 			if tc.staleExecutor {
@@ -876,6 +933,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 				leader.NewStandaloneLeaderController(),
 				publisher,
 				submitChecker,
+				gangValidator,
 				1*time.Second,
 				5*time.Second,
 				clusterTimeout,
@@ -885,6 +943,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 				schedulerMetrics,
 				pricing.NoopBidPriceProvider{},
 				[]string{},
+				runReconciler,
 			)
 			require.NoError(t, err)
 			sched.EnableAssertions()
@@ -899,7 +958,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 
 			// run a scheduler cycle
 			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
-			_, err = sched.cycle(ctx, false, sched.leaderController.GetToken(), true)
+			_, err = sched.cycle(ctx, false, sched.leaderController.GetToken(), true, 1)
 			if tc.fetchError || tc.publishError || tc.scheduleError {
 				assert.Error(t, err)
 			} else {
@@ -1028,6 +1087,8 @@ func TestRun(t *testing.T) {
 	clusterRepo := &testExecutorRepository{}
 	leaderController := leader.NewStandaloneLeaderController()
 	submitChecker := &testSubmitChecker{checkSuccess: true}
+	gangValidator := &testGangValidator{validateSuccess: true}
+	runReconciler := &testRunReconciler{}
 	sched, err := NewScheduler(
 		testfixtures.NewJobDb(testfixtures.TestResourceListFactory),
 		&jobRepo,
@@ -1036,6 +1097,7 @@ func TestRun(t *testing.T) {
 		leaderController,
 		publisher,
 		submitChecker,
+		gangValidator,
 		1*time.Second,
 		15*time.Second,
 		1*time.Hour,
@@ -1045,6 +1107,7 @@ func TestRun(t *testing.T) {
 		schedulerMetrics,
 		pricing.NoopBidPriceProvider{},
 		[]string{},
+		runReconciler,
 	)
 	require.NoError(t, err)
 	sched.EnableAssertions()
@@ -1217,6 +1280,8 @@ func TestJobPriceUpdates(t *testing.T) {
 			clusterRepo := &testExecutorRepository{}
 			leaderController := leader.NewStandaloneLeaderController()
 			submitChecker := &testSubmitChecker{checkSuccess: true}
+			gangValidator := &testGangValidator{validateSuccess: true}
+			runReconciler := &testRunReconciler{}
 			sched, err := NewScheduler(
 				jobDb,
 				&jobRepo,
@@ -1225,6 +1290,7 @@ func TestJobPriceUpdates(t *testing.T) {
 				leaderController,
 				publisher,
 				submitChecker,
+				gangValidator,
 				1*time.Second,
 				15*time.Second,
 				1*time.Hour,
@@ -1234,6 +1300,7 @@ func TestJobPriceUpdates(t *testing.T) {
 				schedulerMetrics,
 				priceProvider,
 				tc.marketDrivenPools,
+				runReconciler,
 			)
 			require.NoError(t, err)
 
@@ -1410,6 +1477,7 @@ func TestScheduler_TestSyncInitialState(t *testing.T) {
 				leaderController,
 				publisher,
 				nil,
+				nil,
 				1*time.Second,
 				5*time.Second,
 				1*time.Hour,
@@ -1419,6 +1487,7 @@ func TestScheduler_TestSyncInitialState(t *testing.T) {
 				schedulerMetrics,
 				pricing.NoopBidPriceProvider{},
 				[]string{},
+				nil,
 			)
 			require.NoError(t, err)
 			sched.EnableAssertions()
@@ -1427,7 +1496,7 @@ func TestScheduler_TestSyncInitialState(t *testing.T) {
 			// which must be consistent within tests.
 			sched.jobDb = testfixtures.NewJobDb(testfixtures.TestResourceListFactory)
 
-			initialJobs, _, err := sched.syncState(ctx, true)
+			initialJobs, _, err := sched.syncState(ctx, true, false)
 			require.NoError(t, err)
 
 			expectedJobDb := testfixtures.NewJobDbWithJobs(tc.expectedInitialJobs)
@@ -1621,6 +1690,7 @@ func TestScheduler_TestSyncState(t *testing.T) {
 				leaderController,
 				publisher,
 				nil,
+				nil,
 				1*time.Second,
 				5*time.Second,
 				1*time.Hour,
@@ -1630,6 +1700,7 @@ func TestScheduler_TestSyncState(t *testing.T) {
 				schedulerMetrics,
 				pricing.NoopBidPriceProvider{},
 				[]string{},
+				nil,
 			)
 			require.NoError(t, err)
 			sched.EnableAssertions()
@@ -1644,7 +1715,7 @@ func TestScheduler_TestSyncState(t *testing.T) {
 			require.NoError(t, err)
 			txn.Commit()
 
-			updatedJobs, _, err := sched.syncState(ctx, false)
+			updatedJobs, _, err := sched.syncState(ctx, false, false)
 			require.NoError(t, err)
 
 			expectedJobDb := testfixtures.NewJobDbWithJobs(tc.expectedUpdatedJobs)
@@ -1660,6 +1731,39 @@ func TestScheduler_TestSyncState(t *testing.T) {
 			}
 		})
 	}
+}
+
+type testRunReconciler struct {
+	jobIdsToFailReconciliation []string
+}
+
+func (t *testRunReconciler) ReconcileJobRuns(ctx *armadacontext.Context, txn *jobdb.Txn) ([]*FailedReconciliationResult, error) {
+	if t.jobIdsToFailReconciliation == nil || len(t.jobIdsToFailReconciliation) == 0 {
+		return nil, nil
+	}
+	jobs := txn.GetAll()
+	result := make([]*FailedReconciliationResult, 0, len(jobs))
+	for _, job := range jobs {
+		if slices.Contains(t.jobIdsToFailReconciliation, job.Id()) {
+			result = append(result, &FailedReconciliationResult{Job: job, Reason: "reconciling this run with the node failed"})
+		}
+	}
+	return result, nil
+}
+
+type testGangValidator struct {
+	validateSuccess bool
+}
+
+func (t *testGangValidator) Validate(txn *jobdb.Txn, jobs []*jobdb.Job) ([]*invalidGangJobDetails, error) {
+	if t.validateSuccess {
+		return nil, nil
+	}
+	result := make([]*invalidGangJobDetails, 0, len(jobs))
+	for _, job := range jobs {
+		result = append(result, &invalidGangJobDetails{jobId: job.Id(), reason: "invalid"})
+	}
+	return result, nil
 }
 
 type testSubmitChecker struct {
@@ -1703,7 +1807,7 @@ func (t *testJobRepository) FetchJobRunLeases(ctx *armadacontext.Context, execut
 
 func (t *testJobRepository) FetchJobUpdates(ctx *armadacontext.Context, jobSerial int64, jobRunSerial int64) ([]database.Job, []database.Run, error) {
 	if t.shouldError {
-		return nil, nil, errors.New("error fetchiung job updates")
+		return nil, nil, errors.New("error fetching job updates")
 	}
 	return t.updatedJobs, t.updatedRuns, nil
 }
@@ -1816,7 +1920,7 @@ func (t *testSchedulingAlgo) Schedule(_ *armadacontext.Context, _ map[string]int
 	if err := txn.Upsert(scheduledJobs); err != nil {
 		return nil, err
 	}
-	return NewSchedulerResultForTest(preemptedJobs, scheduledJobs, nil), nil
+	return NewSchedulerResultForTest(preemptedJobs, scheduledJobs), nil
 }
 
 func (t *testSchedulingAlgo) Persist() {
@@ -1831,12 +1935,10 @@ func (t *testSchedulingAlgo) Persist() {
 func NewSchedulerResultForTest[S ~[]T, T *jobdb.Job](
 	preemptedJobs S,
 	scheduledJobs S,
-	nodeIdByJobId map[string]string,
 ) *scheduling.SchedulerResult {
 	return &scheduling.SchedulerResult{
 		PreemptedJobs: schedulercontext.JobSchedulingContextsFromJobs(preemptedJobs),
 		ScheduledJobs: schedulercontext.JobSchedulingContextsFromJobs(scheduledJobs),
-		NodeIdByJobId: nodeIdByJobId,
 	}
 }
 
@@ -2758,6 +2860,9 @@ func TestCycleConsistency(t *testing.T) {
 					&testSubmitChecker{
 						checkSuccess: !tc.failSubmitCheck,
 					},
+					&testGangValidator{
+						validateSuccess: true,
+					},
 					1*time.Second,
 					5*time.Second,
 					0,
@@ -2767,6 +2872,7 @@ func TestCycleConsistency(t *testing.T) {
 					schedulerMetrics,
 					pricing.NoopBidPriceProvider{},
 					[]string{},
+					&testRunReconciler{},
 				)
 				require.NoError(t, err)
 				scheduler.clock = testClock
@@ -2846,7 +2952,7 @@ func TestCycleConsistency(t *testing.T) {
 			// cycle runs one cycle.
 			cycle := func(s *Scheduler, updateAll, shouldSchedule bool) error {
 				t.Logf("cycle scheduler %p", s)
-				_, err := s.cycle(ctx, updateAll, s.leaderController.GetToken(), shouldSchedule)
+				_, err := s.cycle(ctx, updateAll, s.leaderController.GetToken(), shouldSchedule, 1)
 				return err
 			}
 

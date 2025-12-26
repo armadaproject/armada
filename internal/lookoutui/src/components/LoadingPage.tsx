@@ -1,6 +1,6 @@
 import { Container, LinearProgress, styled, Typography } from "@mui/material"
 
-import { SPACING } from "../styling/spacing"
+import { SPACING } from "../common/spacing"
 
 const Wrapper = styled("main")(({ theme }) => ({
   minHeight: "100vh",

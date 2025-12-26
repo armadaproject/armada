@@ -22,4 +22,5 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-openapi
+/src/openapi/*
+!/src/openapi/workarounds.d.ts

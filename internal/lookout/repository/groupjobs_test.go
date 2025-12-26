@@ -22,7 +22,7 @@ import (
 
 func withGroupJobsSetup(f func(*instructions.InstructionConverter, *lookoutdb.LookoutDb, *SqlGroupJobsRepository) error) error {
 	return lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get().Metrics, userAnnotationPrefix, &compress.NoOpCompressor{})
+		converter := instructions.NewInstructionConverter(metrics.Get().Metrics, userAnnotationPrefix, []string{}, &compress.NoOpCompressor{})
 		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
 		repo := NewSqlGroupJobsRepository(db)
 		return f(converter, store, repo)
@@ -1007,6 +1007,162 @@ func TestGroupByAnnotation(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestGroupByNode(t *testing.T) {
+	err := withGroupJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGroupJobsRepository) error {
+		node1 := "node-1"
+		node2 := "node-2"
+		node3 := "node-3"
+
+		// Create jobs for node-1
+		for i := 0; i < 10; i++ {
+			runId := uuid.NewString()
+			js := NewJobSimulator(converter, store)
+			js.Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{})
+			js.Lease(runId, cluster, node1, baseTime.Add(-2*time.Minute))
+			js.Pending(runId, cluster, baseTime.Add(-1*time.Minute))
+			js.Running(runId, node1, baseTime)
+			js.Build()
+		}
+
+		// Create jobs for node-2
+		for i := 0; i < 5; i++ {
+			runId := uuid.NewString()
+			js := NewJobSimulator(converter, store)
+			js.Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{})
+			js.Lease(runId, cluster, node2, baseTime.Add(-2*time.Minute))
+			js.Pending(runId, cluster, baseTime.Add(-1*time.Minute))
+			js.Running(runId, node2, baseTime)
+			js.Build()
+		}
+
+		// Create jobs for node-3
+		for i := 0; i < 3; i++ {
+			runId := uuid.NewString()
+			js := NewJobSimulator(converter, store)
+			js.Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{})
+			js.Lease(runId, cluster, node3, baseTime.Add(-2*time.Minute))
+			js.Pending(runId, cluster, baseTime.Add(-1*time.Minute))
+			js.Running(runId, node3, baseTime)
+			js.Build()
+		}
+
+		result, err := repo.GroupBy(
+			armadacontext.TODO(),
+			[]*model.Filter{},
+			false,
+			&model.Order{
+				Field:     "count",
+				Direction: "DESC",
+			},
+			&model.GroupedField{
+				Field: "node",
+			},
+			[]string{},
+			0,
+			10,
+		)
+		require.NoError(t, err)
+		require.Len(t, result.Groups, 3)
+		assert.Equal(t, result.Groups, []*model.JobGroup{
+			{
+				Name:       "node-1",
+				Count:      10,
+				Aggregates: map[string]interface{}{},
+			},
+			{
+				Name:       "node-2",
+				Count:      5,
+				Aggregates: map[string]interface{}{},
+			},
+			{
+				Name:       "node-3",
+				Count:      3,
+				Aggregates: map[string]interface{}{},
+			},
+		})
+		return nil
+	})
+	require.NoError(t, err)
+}
+
+func TestGroupByCluster(t *testing.T) {
+	err := withGroupJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGroupJobsRepository) error {
+		cluster1 := "cluster-1"
+		cluster2 := "cluster-2"
+		cluster3 := "cluster-3"
+
+		// Create jobs for cluster-1
+		for i := 0; i < 10; i++ {
+			runId := uuid.NewString()
+			js := NewJobSimulator(converter, store)
+			js.Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{})
+			js.Lease(runId, cluster1, node, baseTime.Add(-2*time.Minute))
+			js.Pending(runId, cluster1, baseTime.Add(-1*time.Minute))
+			js.Running(runId, node, baseTime)
+			js.Build()
+		}
+
+		// Create jobs for cluster-2
+		for i := 0; i < 5; i++ {
+			runId := uuid.NewString()
+			js := NewJobSimulator(converter, store)
+			js.Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{})
+			js.Lease(runId, cluster2, node, baseTime.Add(-2*time.Minute))
+			js.Pending(runId, cluster2, baseTime.Add(-1*time.Minute))
+			js.Running(runId, node, baseTime)
+			js.Build()
+		}
+
+		// Create jobs for cluster-3
+		for i := 0; i < 3; i++ {
+			runId := uuid.NewString()
+			js := NewJobSimulator(converter, store)
+			js.Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{})
+			js.Lease(runId, cluster3, node, baseTime.Add(-2*time.Minute))
+			js.Pending(runId, cluster3, baseTime.Add(-1*time.Minute))
+			js.Running(runId, node, baseTime)
+			js.Build()
+		}
+
+		result, err := repo.GroupBy(
+			armadacontext.TODO(),
+			[]*model.Filter{},
+			false,
+			&model.Order{
+				Field:     "count",
+				Direction: "DESC",
+			},
+			&model.GroupedField{
+				Field: "cluster",
+			},
+			[]string{},
+			0,
+			10,
+		)
+		require.NoError(t, err)
+		require.Len(t, result.Groups, 3)
+		assert.Equal(t, result.Groups, []*model.JobGroup{
+			{
+				Name:       "cluster-1",
+				Count:      10,
+				Aggregates: map[string]interface{}{},
+			},
+			{
+				Name:       "cluster-2",
+				Count:      5,
+				Aggregates: map[string]interface{}{},
+			},
+			{
+				Name:       "cluster-3",
+				Count:      3,
+				Aggregates: map[string]interface{}{},
+			},
+		})
+		return nil
+	})
+	require.NoError(t, err)
+}
+
 func TestGroupByAnnotationWithFiltersAndAggregates(t *testing.T) {
 	err := withGroupJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGroupJobsRepository) error {
 		manyJobs(5, &createJobsOpts{
@@ -1418,6 +1574,8 @@ type createJobsOpts struct {
 	annotations        map[string]string
 	submittedTime      *time.Time
 	lastTransitionTime *time.Time
+	cluster            *string
+	node               *string
 }
 
 type createJobsFn func(opts *createJobsOpts, converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb)
@@ -1511,13 +1669,22 @@ func makeRunning(opts *createJobsOpts, converter *instructions.InstructionConver
 		lastTransitionTime = *opts.lastTransitionTime
 	}
 	runId := uuid.NewString()
-	NewJobSimulator(converter, store).
-		Submit(opts.queue, opts.jobSet, owner, namespace, tSubmit, &JobOptions{
-			Annotations: opts.annotations,
-		}).
-		Pending(runId, cluster, lastTransitionTime.Add(-1*time.Minute)).
-		Running(runId, cluster, lastTransitionTime).
-		Build()
+	clusterValue := cluster
+	if opts.cluster != nil {
+		clusterValue = *opts.cluster
+	}
+	nodeValue := node
+	if opts.node != nil {
+		nodeValue = *opts.node
+	}
+	simulator := NewJobSimulator(converter, store)
+	simulator = simulator.Submit(opts.queue, opts.jobSet, owner, namespace, tSubmit, &JobOptions{
+		Annotations: opts.annotations,
+	})
+	simulator = simulator.Pending(runId, clusterValue, lastTransitionTime.Add(-1*time.Minute))
+	// The Running method takes node as second parameter
+	simulator = simulator.Running(runId, nodeValue, lastTransitionTime)
+	simulator.Build()
 }
 
 func makeSucceeded(opts *createJobsOpts, converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb) {

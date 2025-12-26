@@ -14,11 +14,12 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/pointer"
 
+	armadaconfiguration "github.com/armadaproject/armada/internal/common/constants"
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
-	armadaconfiguration "github.com/armadaproject/armada/internal/server/configuration"
+	"github.com/armadaproject/armada/pkg/bidstore"
 )
 
 func NewTestJobDb() *JobDb {
@@ -303,6 +304,71 @@ func TestJobDb_TestBatchDelete(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestJobDb_Abort_QueuedJobs(t *testing.T) {
+	tests := map[string]struct {
+		order JobSortOrder
+	}{
+		"price order": {
+			order: PriceOrder,
+		},
+		"fairshare order": {
+			order: FairShareOrder,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			jobDb := NewTestJobDb()
+			originalJob := newJob().WithQueued(true).WithPools([]string{"cpu", "cpu2", "cpu3"})
+
+			// Setup original state
+			txn := jobDb.WriteTxn()
+			err := txn.Upsert([]*Job{originalJob})
+			require.NoError(t, err)
+			txn.Commit()
+
+			// Update job in transaction
+			// Check updated job is reflected in iterator
+			txn = jobDb.WriteTxn()
+			updated := originalJob.WithPriceBand(bidstore.PriceBand_PRICE_BAND_B)
+			err = txn.Upsert([]*Job{updated})
+			require.NoError(t, err)
+
+			queuedJobIterator := txn.QueuedJobs(originalJob.Queue(), "cpu", PriceOrder)
+			allJobs := []*Job{}
+			for {
+				job, _ := queuedJobIterator.Next()
+				if job == nil {
+					break
+				}
+				allJobs = append(allJobs, job)
+			}
+
+			assert.Len(t, allJobs, 1)
+			// Check returned job is the updated job in transaction
+			assert.Equal(t, updated, allJobs[0])
+
+			txn.Abort()
+
+			// Check after abort the returned jobs reflected the original state
+			txn = jobDb.ReadTxn()
+			queuedJobIterator = txn.QueuedJobs(originalJob.Queue(), "cpu", tc.order)
+			allJobs = []*Job{}
+			for {
+				job, _ := queuedJobIterator.Next()
+				if job == nil {
+					break
+				}
+				allJobs = append(allJobs, job)
+			}
+
+			assert.Len(t, allJobs, 1)
+			// Check returned job is the original job as transaction was aborted
+			assert.Equal(t, originalJob, allJobs[0])
+		})
+	}
+}
+
 func TestJobDb_GangInfoIsPopulated(t *testing.T) {
 	tests := map[string]struct {
 		annotations      map[string]string
@@ -372,8 +438,8 @@ func TestJobDb_GangInfoIsPopulated(t *testing.T) {
 				Annotations:  tc.annotations,
 			}
 			jobSchedulingInfo := &internaltypes.JobSchedulingInfo{
-				PriorityClassName: "foo",
-				PodRequirements:   podRequirements,
+				PriorityClass:   "foo",
+				PodRequirements: podRequirements,
 			}
 			jobDb := NewTestJobDb()
 
@@ -393,8 +459,8 @@ func TestJobDb_SchedulingKeyIsPopulated(t *testing.T) {
 		NodeSelector: map[string]string{"foo": "bar"},
 	}
 	jobSchedulingInfo := &internaltypes.JobSchedulingInfo{
-		PriorityClassName: "foo",
-		PodRequirements:   podRequirements,
+		PriorityClass:   "foo",
+		PodRequirements: podRequirements,
 	}
 	jobDb := NewTestJobDb()
 	job, err := jobDb.NewJob("jobId", "jobSet", "queue", 1, jobSchedulingInfo, false, 0, false, false, false, 2, false, []string{}, 0)
@@ -1299,12 +1365,12 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 			skg := internaltypes.NewSchedulingKeyGenerator()
 
 			jobSchedulingInfoA := jobSchedulingInfo.DeepCopy()
-			jobSchedulingInfoA.PriorityClassName = tc.priorityClassNameA
+			jobSchedulingInfoA.PriorityClass = tc.priorityClassNameA
 			jobSchedulingInfoA.PodRequirements = tc.podRequirementsA
 			jobA := JobWithJobSchedulingInfo(baseJob, jobSchedulingInfoA)
 
 			jobSchedulingInfoB := jobSchedulingInfo.DeepCopy()
-			jobSchedulingInfoB.PriorityClassName = tc.priorityClassNameB
+			jobSchedulingInfoB.PriorityClass = tc.priorityClassNameB
 			jobSchedulingInfoB.PodRequirements = tc.podRequirementsB
 			jobB := JobWithJobSchedulingInfo(baseJob, jobSchedulingInfoB)
 
@@ -1341,7 +1407,7 @@ func newJob() *Job {
 }
 
 func newGangJob() *Job {
-	gangInfo, err := createGangInfo(gangJobSchedulingInfo)
+	gangInfo, err := GangInfoFromMinimalJob(gangJobSchedulingInfo)
 	if err != nil {
 		panic(err)
 	}

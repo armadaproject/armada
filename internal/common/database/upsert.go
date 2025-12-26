@@ -13,7 +13,26 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 )
 
-func UpsertWithTransaction[T any](ctx *armadacontext.Context, db *pgxpool.Pool, tableName string, records []T) error {
+type UpsertOption func(*upsertOptions)
+
+type upsertOptions struct {
+	excludeColumns map[string]bool
+}
+
+// WithExcludeColumns returns an option that excludes specific columns from upsert.
+// This is useful for PostgreSQL GENERATED ALWAYS columns which cannot be explicitly inserted.
+func WithExcludeColumns(columns ...string) UpsertOption {
+	return func(opts *upsertOptions) {
+		if opts.excludeColumns == nil {
+			opts.excludeColumns = make(map[string]bool)
+		}
+		for _, col := range columns {
+			opts.excludeColumns[col] = true
+		}
+	}
+}
+
+func UpsertWithTransaction[T any](ctx *armadacontext.Context, db *pgxpool.Pool, tableName string, records []T, options ...UpsertOption) error {
 	if len(records) == 0 {
 		return nil
 	}
@@ -22,7 +41,7 @@ func UpsertWithTransaction[T any](ctx *armadacontext.Context, db *pgxpool.Pool, 
 		AccessMode:     pgx.ReadWrite,
 		DeferrableMode: pgx.Deferrable,
 	}, func(tx pgx.Tx) error {
-		return Upsert(ctx, tx, tableName, records)
+		return Upsert(ctx, tx, tableName, records, options...)
 	})
 }
 
@@ -40,9 +59,18 @@ func UpsertWithTransaction[T any](ctx *armadacontext.Context, db *pgxpool.Pool, 
 // The records to write should be structs with fields marked with "db" tags.
 // Field names and values are extracted using the NamesValuesFromRecord function;
 // see its definition for details. The first field is used as the primary key in SQL.
-func Upsert[T any](ctx *armadacontext.Context, tx pgx.Tx, tableName string, records []T) error {
+//
+// Options can be provided to customize upsert behavior, such as excluding specific columns.
+func Upsert[T any](ctx *armadacontext.Context, tx pgx.Tx, tableName string, records []T, options ...UpsertOption) error {
 	if len(records) < 1 {
 		return nil
+	}
+
+	opts := &upsertOptions{
+		excludeColumns: make(map[string]bool),
+	}
+	for _, opt := range options {
+		opt(opts)
 	}
 
 	// Write records into postgres.
@@ -60,16 +88,35 @@ func Upsert[T any](ctx *armadacontext.Context, tx pgx.Tx, tableName string, reco
 	// https://pkg.go.dev/github.com/jackc/pgx/v5#hdr-Copy_Protocol
 	//
 	// We're guaranteed there is at least one record.
-	names, _ := NamesValuesFromRecord(records[0])
-	if len(names) < 2 {
-		return errors.Errorf("Names() must return at least 2 elements, but got %v", names)
+	allNames, _ := NamesValuesFromRecord(records[0])
+
+	// Filter out excluded columns (e.g., PostgreSQL GENERATED ALWAYS columns which cannot be explicitly inserted).
+	// We maintain both a list of writable column names and their original indices because:
+	// 1. Column names are needed for the SQL INSERT statement
+	// 2. Original indices are needed to extract corresponding values from each record
+	writableIndices := make([]int, 0, len(allNames))
+	writableNames := make([]string, 0, len(allNames))
+	for i, name := range allNames {
+		if !opts.excludeColumns[name] {
+			writableIndices = append(writableIndices, i)
+			writableNames = append(writableNames, name)
+		}
+	}
+
+	if len(writableNames) < 2 {
+		return errors.Errorf("Names() must return at least 2 elements, but got %v", writableNames)
 	}
 	n, err := tx.CopyFrom(ctx,
 		pgx.Identifier{tempTableName},
-		names,
+		writableNames,
 		pgx.CopyFromSlice(len(records), func(i int) ([]interface{}, error) {
 			// TODO: Are we guaranteed that values always come in the order listed in the record? Otherwise we need to control the order.
-			_, values := NamesValuesFromRecord(records[i])
+			_, allValues := NamesValuesFromRecord(records[i])
+			// Filter values to match filtered names
+			values := make([]interface{}, len(writableIndices))
+			for j, idx := range writableIndices {
+				values[j] = allValues[idx]
+			}
 			return values, nil
 		}),
 	)
@@ -82,11 +129,12 @@ func Upsert[T any](ctx *armadacontext.Context, tx pgx.Tx, tableName string, reco
 
 	// Move those rows into the main table, using ON CONFLICT rules to over-write existing rows.
 	var b strings.Builder
-	fmt.Fprintf(&b, "INSERT INTO %s SELECT * from %s ", tableName, tempTableName)
-	fmt.Fprintf(&b, "ON CONFLICT (%s) DO UPDATE SET ", names[0])
-	for i, name := range names {
+
+	fmt.Fprintf(&b, "INSERT INTO %s SELECT %s from %s ", tableName, strings.Join(writableNames, ","), tempTableName)
+	fmt.Fprintf(&b, "ON CONFLICT (%s) DO UPDATE SET ", writableNames[0])
+	for i, name := range writableNames {
 		fmt.Fprintf(&b, "%s = EXCLUDED.%s", name, name)
-		if i != len(names)-1 {
+		if i != len(writableNames)-1 {
 			fmt.Fprintf(&b, ", ")
 		}
 	}

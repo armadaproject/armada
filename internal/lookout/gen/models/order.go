@@ -49,7 +49,7 @@ func (m *Order) Validate(formats strfmt.Registry) error {
 	return nil
 }
 
-var orderTypeDirectionPropEnum []interface{}
+var orderTypeDirectionPropEnum []any
 
 func init() {
 	var res []string

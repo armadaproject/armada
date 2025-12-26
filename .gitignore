@@ -35,6 +35,9 @@ charts/armada-server-bundle/charts/pulsar-*.tgz
 charts/armada-server-bundle/charts/redis-ha-*.tgz
 charts/armada-server-bundle/charts/stan-*.tgz
 
+# misc
+*.pem
+
 # Binaries for programs and plugins
 *.exe
 *.exe~
@@ -103,3 +106,10 @@ developer/node_modules/
 
 # Vim
 .*.sw*
+
+# Temporary files
+tmp/
+*.tmp
+tmp.*
+*.tmp.*
+.aider*

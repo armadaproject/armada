@@ -35,6 +35,13 @@ func (a *ResourceList) Sub(b *ResourceList) {
 	a.initialise()
 	for t, qb := range b.Resources {
 		qa := a.Resources[t]
+		if qa == nil {
+			// Skip resources that don't exist in the resource list.
+			// This is an edge case which can happen with aliased resource advertisements.
+			// E.g. if a node advertises "nvidia.com/a100" instead of "nvidia.com/gpu",
+			// but Kubernetes still schedules pods with "nvidia.com/gpu" requests.
+			continue
+		}
 		qa.Sub(*qb)
 		a.Resources[t] = qa
 	}

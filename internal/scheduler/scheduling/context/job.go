@@ -2,25 +2,20 @@ package context
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 	"text/tabwriter"
 	"time"
 
-	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
-	log "github.com/armadaproject/armada/internal/common/logging"
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/util"
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
-	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
-	"github.com/armadaproject/armada/internal/server/configuration"
 )
 
 // JobSchedulingContext is created by the scheduler and contains information
@@ -54,9 +49,9 @@ type JobSchedulingContext struct {
 	UnschedulableReason string
 	// Pod scheduling contexts for the individual pods that make up the job.
 	PodSchedulingContext *PodSchedulingContext
-	// GangInfo holds all the information that is necessary to schedule a gang,
-	// such as the lower and upper bounds on its size.
-	GangInfo
+	// The number of active jobs in the gang this jctx belongs to
+	// This may differ from the jobs GangInfo cardinality, as it finished jobs are not included in this count
+	CurrentGangCardinality int
 	// This is the node the pod is assigned to.
 	// This is only set for evicted jobs and is set alongside adding an additionalNodeSelector for the node
 	AssignedNode *internaltypes.Node
@@ -68,6 +63,10 @@ type JobSchedulingContext struct {
 	PreemptionDescription string
 	// If this job context should contribute to the billable resource of the queue
 	Billable bool
+	// Gang node uniformity label name (e.g., "rack") - only set for gang jobs with uniformity requirements
+	GangNodeUniformityLabelName string
+	// Gang node uniformity label value (e.g., "rack-1") - the actual value selected during scheduling
+	GangNodeUniformityLabelValue string
 }
 
 func (jctx *JobSchedulingContext) IsHomeJob(currentPool string) bool {
@@ -139,61 +138,6 @@ func (jctx *JobSchedulingContext) AddNodeSelector(key, value string) {
 	}
 }
 
-type GangInfo struct {
-	Id                string
-	IsGang            bool
-	Cardinality       int
-	PriorityClassName string
-	NodeUniformity    string
-}
-
-// EmptyGangInfo returns a GangInfo for a job that is not in a gang.
-func EmptyGangInfo(job interfaces.MinimalJob) GangInfo {
-	return GangInfo{
-		// An Id of "" indicates that this job is not in a gang; we set
-		// Cardinality (as well as the other fields,
-		// which all make sense in this context) accordingly.
-		Id:                "",
-		IsGang:            false,
-		Cardinality:       1,
-		PriorityClassName: job.PriorityClassName(),
-		NodeUniformity:    job.Annotations()[configuration.GangNodeUniformityLabelAnnotation],
-	}
-}
-
-func GangInfoFromLegacySchedulerJob(job interfaces.MinimalJob) (GangInfo, error) {
-	gangInfo := EmptyGangInfo(job)
-
-	annotations := job.Annotations()
-
-	gangId, ok := annotations[configuration.GangIdAnnotation]
-	if !ok {
-		return gangInfo, nil
-	}
-	if gangId == "" {
-		return gangInfo, errors.Errorf("gang id is empty")
-	}
-
-	gangCardinalityString, ok := annotations[configuration.GangCardinalityAnnotation]
-	if !ok {
-		return gangInfo, errors.Errorf("annotation %s is missing", configuration.GangCardinalityAnnotation)
-	}
-	gangCardinality, err := strconv.Atoi(gangCardinalityString)
-	if err != nil {
-		return gangInfo, errors.WithStack(err)
-	}
-	if gangCardinality <= 0 {
-		return gangInfo, errors.Errorf("gang cardinality %d is non-positive", gangCardinality)
-	}
-	if gangCardinality > 1 {
-		gangInfo.IsGang = true
-	}
-
-	gangInfo.Id = gangId
-	gangInfo.Cardinality = gangCardinality
-	return gangInfo, nil
-}
-
 func JobSchedulingContextsFromJobs[J *jobdb.Job](jobs []J) []*JobSchedulingContext {
 	jctxs := make([]*JobSchedulingContext, len(jobs))
 	for i, job := range jobs {
@@ -203,17 +147,13 @@ func JobSchedulingContextsFromJobs[J *jobdb.Job](jobs []J) []*JobSchedulingConte
 }
 
 func JobSchedulingContextFromJob(job *jobdb.Job) *JobSchedulingContext {
-	gangInfo, err := GangInfoFromLegacySchedulerJob(job)
-	if err != nil {
-		log.Errorf("failed to extract gang info from job %s: %s", job.Id(), err)
-	}
 	return &JobSchedulingContext{
 		Created:                        time.Now(),
 		JobId:                          job.Id(),
 		Job:                            job,
 		PodRequirements:                job.PodRequirements(),
 		KubernetesResourceRequirements: job.KubernetesResourceRequirements(),
-		GangInfo:                       gangInfo,
+		CurrentGangCardinality:         job.GetGangInfo().Cardinality(),
 	}
 }
 

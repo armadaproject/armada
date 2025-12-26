@@ -1,7 +1,16 @@
 package jobdb
 
+import (
+	"fmt"
+	"strconv"
+
+	"github.com/pkg/errors"
+
+	"github.com/armadaproject/armada/internal/common/constants"
+	"github.com/armadaproject/armada/internal/scheduler/interfaces"
+)
+
 type GangInfo struct {
-	isGang         bool
 	id             string
 	cardinality    int
 	nodeUniformity string
@@ -9,7 +18,6 @@ type GangInfo struct {
 
 var basicJobGangInfo = GangInfo{
 	id:             "",
-	isGang:         false,
 	cardinality:    1,
 	nodeUniformity: "",
 }
@@ -22,14 +30,13 @@ func BasicJobGangInfo() GangInfo {
 func CreateGangInfo(id string, cardinality int, nodeUniformity string) GangInfo {
 	return GangInfo{
 		id:             id,
-		isGang:         true,
 		cardinality:    cardinality,
 		nodeUniformity: nodeUniformity,
 	}
 }
 
 func (g GangInfo) IsGang() bool {
-	return g.isGang
+	return g.cardinality > 1
 }
 
 func (g GangInfo) Id() string {
@@ -47,4 +54,41 @@ func (g GangInfo) NodeUniformity() string {
 func (g GangInfo) Equal(other GangInfo) bool {
 	// Currently we only have comparable fields, so we can rely on simple equality check
 	return g == other
+}
+
+func (g GangInfo) String() string {
+	return fmt.Sprintf("id: %s cardinality: %d uniformity label: %s gang: %t", g.Id(), g.Cardinality(), g.NodeUniformity(), g.IsGang())
+}
+
+func GangInfoFromMinimalJob(job interfaces.MinimalJob) (*GangInfo, error) {
+	basicGangInfo := BasicJobGangInfo()
+	annotations := job.Annotations()
+	gangId, ok := annotations[constants.GangIdAnnotation]
+	if !ok {
+		// Not a gang, default to basic gang info
+		return &basicGangInfo, nil
+	}
+	if gangId == "" {
+		return nil, errors.Errorf("gang id is empty")
+	}
+
+	gangCardinalityString, ok := annotations[constants.GangCardinalityAnnotation]
+	if !ok {
+		return nil, errors.Errorf("gang cardinality annotation %s is missing", constants.GangCardinalityAnnotation)
+	}
+	gangCardinality, err := strconv.Atoi(gangCardinalityString)
+	if err != nil {
+		return nil, fmt.Errorf("gang cardinality is not parseable - %s", errors.WithStack(err))
+	}
+	if gangCardinality <= 0 {
+		return nil, errors.Errorf("gang cardinality %d is non-positive", gangCardinality)
+	}
+	if gangCardinality < 2 {
+		// Not a gang, default to basic gang info
+		return &basicGangInfo, nil
+	}
+
+	nodeUniformityLabel := job.Annotations()[constants.GangNodeUniformityLabelAnnotation]
+	gangInfo := CreateGangInfo(gangId, gangCardinality, nodeUniformityLabel)
+	return &gangInfo, nil
 }

@@ -32,7 +32,7 @@ export const FontAwesomeSvgIcon = forwardRef<SVGSVGElement, FontAwesomeSvgIconPr
           <path d={svgPathData} />
         ) : (
           /**
-           * A multi-path Font Awesome icon seems to imply a duotune icon. The 0th path seems to
+           * A multi-path Font Awesome icon seems to imply a duotone icon. The 0th path seems to
            * be the faded element (referred to as the "secondary" path in the Font Awesome docs)
            * of a duotone icon. 40% is the default opacity.
            *
@@ -57,7 +57,7 @@ export const FaTimesCircle = (svgIconProps: SvgIconProps) => (
   <FontAwesomeSvgIcon icon={faTimesCircle} {...svgIconProps} />
 )
 export const FaBan = (svgIconProps: SvgIconProps) => <FontAwesomeSvgIcon icon={faBan} {...svgIconProps} />
-export const FaExcahngeAlt = (svgIconProps: SvgIconProps) => (
+export const FaExchangeAlt = (svgIconProps: SvgIconProps) => (
   <FontAwesomeSvgIcon icon={faExchangeAlt} {...svgIconProps} />
 )
 export const FaFileContract = (svgIconProps: SvgIconProps) => (

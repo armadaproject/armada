@@ -344,6 +344,19 @@ func FromInternalJobErrors(queueName string, jobSetName string, time time.Time, 
 				},
 			}
 			events = append(events, event)
+		case *armadaevents.Error_ReconciliationError:
+			event := &api.EventMessage{
+				Events: &api.EventMessage_Failed{
+					Failed: &api.JobFailedEvent{
+						JobId:    e.JobId,
+						JobSetId: jobSetName,
+						Queue:    queueName,
+						Created:  protoutil.ToTimestamp(time),
+						Reason:   reason.ReconciliationError.Message,
+					},
+				},
+			}
+			events = append(events, event)
 		default:
 			log.Warnf("unknown error %T for job %s", reason, e.JobId)
 			event := &api.EventMessage{

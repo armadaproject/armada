@@ -54,41 +54,126 @@ const (
 // tab in the Lookout UI
 type CommandSpec struct {
 	// Name is the title of the command
-	Name string
-	// Tempate is the template string for the command
-	Template string
+	Name string `json:"name"`
+	// Template is the template string for the command
+	Template string `json:"template"`
 	// DescriptionMd is an optional description for the command in Markdown
-	DescriptionMd string
+	DescriptionMd *string `json:"descriptionMd,omitempty"`
 	// AlertMessageMd is an optional message for the command, to be displayed as
 	// an alert, written in Markdown
-	AlertMessageMd string
+	AlertMessageMd *string `json:"alertMessageMd,omitempty"`
 	// AlertLevel is the severity level of the alert
-	AlertLevel AlertLevel
+	AlertLevel AlertLevel `json:"alertLevel"`
 }
 
+type SentryConfig struct {
+	Dsn         string `json:"dsn"`
+	Environment string `json:"environment"`
+}
+
+type ErrorMonitoringConfig struct {
+	Sentry *SentryConfig `json:"sentry,omitempty"`
+}
+
+type LookoutThemeConfigOptions struct {
+	// Typography
+	FontFamily            *string `json:"fontFamily,omitempty"`
+	MonospaceFontFamily   *string `json:"monospaceFontFamily,omitempty"`
+	UppercaseButtonText   *bool   `json:"uppercaseButtonText,omitempty"`
+	UppercaseOverlineText *bool   `json:"uppercaseOverlineText,omitempty"`
+
+	// Shape
+	BorderRadiusPx *int `json:"borderRadiusPx,omitempty"`
+
+	// Palette (light, default)
+	PrimaryColour                *string `json:"primaryColour,omitempty"`
+	SecondaryColour              *string `json:"secondaryColour,omitempty"`
+	AppBarColour                 *string `json:"appBarColour,omitempty"`
+	ErrorColour                  *string `json:"errorColour,omitempty"`
+	WarningColour                *string `json:"warningColour,omitempty"`
+	InfoColour                   *string `json:"infoColour,omitempty"`
+	SuccessColour                *string `json:"successColour,omitempty"`
+	StatusQueuedColour           *string `json:"statusQueuedColour,omitempty"`
+	StatusPendingColour          *string `json:"statusPendingColour,omitempty"`
+	StatusRunningColour          *string `json:"statusRunningColour,omitempty"`
+	StatusSucceededColour        *string `json:"statusSucceededColour,omitempty"`
+	StatusFailedColour           *string `json:"statusFailedColour,omitempty"`
+	StatusCancelledColour        *string `json:"statusCancelledColour,omitempty"`
+	StatusPreemptedColour        *string `json:"statusPreemptedColour,omitempty"`
+	StatusLeasedColour           *string `json:"statusLeasedColour,omitempty"`
+	StatusRejectedColour         *string `json:"statusRejectedColour,omitempty"`
+	DefaultBackgroundColour      *string `json:"defaultBackgroundColour,omitempty"`
+	PaperSurfaceBackgroundColour *string `json:"paperSurfaceBackgroundColour,omitempty"`
+
+	// Palette (dark)
+	PrimaryColourDark                *string `json:"primaryColourDark,omitempty"`
+	SecondaryColourDark              *string `json:"secondaryColourDark,omitempty"`
+	AppBarColourDark                 *string `json:"appBarColourDark,omitempty"`
+	ErrorColourDark                  *string `json:"errorColourDark,omitempty"`
+	WarningColourDark                *string `json:"warningColourDark,omitempty"`
+	InfoColourDark                   *string `json:"infoColourDark,omitempty"`
+	SuccessColourDark                *string `json:"successColourDark,omitempty"`
+	StatusQueuedColourDark           *string `json:"statusQueuedColourDark,omitempty"`
+	StatusPendingColourDark          *string `json:"statusPendingColourDark,omitempty"`
+	StatusRunningColourDark          *string `json:"statusRunningColourDark,omitempty"`
+	StatusSucceededColourDark        *string `json:"statusSucceededColourDark,omitempty"`
+	StatusFailedColourDark           *string `json:"statusFailedColourDark,omitempty"`
+	StatusCancelledColourDark        *string `json:"statusCancelledColourDark,omitempty"`
+	StatusPreemptedColourDark        *string `json:"statusPreemptedColourDark,omitempty"`
+	StatusLeasedColourDark           *string `json:"statusLeasedColourDark,omitempty"`
+	StatusRejectedColourDark         *string `json:"statusRejectedColourDark,omitempty"`
+	DefaultBackgroundColourDark      *string `json:"defaultBackgroundColourDark,omitempty"`
+	PaperSurfaceBackgroundColourDark *string `json:"paperSurfaceBackgroundColourDark,omitempty"`
+}
+type CustomTheme struct {
+	Name        string                    `json:"name"`
+	ThemeConfig LookoutThemeConfigOptions `json:"themeConfig"`
+}
+
+type CustomThemeConfigs struct {
+	Themes           []CustomTheme `json:"themes"`
+	DefaultThemeName string        `json:"defaultThemeName"`
+}
+
+type JobLinkConfig struct {
+	// Label is the text which is displayed in the chip for this link
+	Label string `json:"label"`
+	// Colour is the colour of the chip for this link
+	Colour string `json:"colour"`
+	// LinkTemplate is the template string for the link. For example, use 'annotations["your.anno/tation-key"]' to interpolate the value of an annotation
+	LinkTemplate string `json:"linkTemplate"`
+}
+
+// UIConfig must match the LookoutUiConfig TypeScript interface defined in internal/lookoutui/src/lookoutUiConfig.d.ts
 type UIConfig struct {
-	CustomTitle string
+	CustomTitle string `json:"customTitle"`
 
 	// We have a separate flag here (instead of making the Oidc field optional)
 	// so that clients can override the server's preference.
-	OidcEnabled bool
-	Oidc        struct {
-		Authority string
-		ClientId  string
-		Scope     string
-	}
+	OidcEnabled bool `json:"oidcEnabled"`
+	Oidc        *struct {
+		Authority string `json:"authority"`
+		ClientId  string `json:"clientId"`
+		Scope     string `json:"scope"`
+	} `json:"oidc,omitempty"`
 
-	ArmadaApiBaseUrl         string
-	UserAnnotationPrefix     string
-	BinocularsBaseUrlPattern string
+	ArmadaApiBaseUrl         string `json:"armadaApiBaseUrl"`
+	UserAnnotationPrefix     string `json:"userAnnotationPrefix"`
+	BinocularsBaseUrlPattern string `json:"binocularsBaseUrlPattern"`
 
-	JobSetsAutoRefreshMs int `json:",omitempty"`
-	JobsAutoRefreshMs    int `json:",omitempty"`
-	CommandSpecs         []CommandSpec
+	JobSetsAutoRefreshMs int           `json:"jobSetsAutoRefreshMs,omitempty"`
+	JobsAutoRefreshMs    int           `json:"jobsAutoRefreshMs,omitempty"`
+	CommandSpecs         []CommandSpec `json:"commandSpecs"`
 
-	Backend string `json:",omitempty"`
+	Backend string `json:"backend,omitempty"`
 
 	// PinnedTimeZoneIdentifiers is the list of identifiers of IANA time zones to be displayed at
 	// the top of the time zone selector.
-	PinnedTimeZoneIdentifiers []string
+	PinnedTimeZoneIdentifiers []string `json:"pinnedTimeZoneIdentifiers"`
+
+	ErrorMonitoring ErrorMonitoringConfig `json:"errorMonitoring"`
+
+	JobLinks []JobLinkConfig `json:"jobLinks"`
+
+	CustomThemeConfigs *CustomThemeConfigs `json:"customThemeConfigs,omitempty"`
 }

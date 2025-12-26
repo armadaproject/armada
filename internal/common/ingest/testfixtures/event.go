@@ -8,11 +8,11 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
+	"github.com/armadaproject/armada/internal/common/constants"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
-	"github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/controlplaneevents"
 )
@@ -39,6 +39,7 @@ const (
 	ExitCode                   = 322
 	ErrMsg                     = "sample error message"
 	DebugMsg                   = "sample debug message"
+	ReconciliationErrMsg       = "reconciliation error message"
 	LeaseReturnedMsg           = "lease returned error message"
 	UnschedulableMsg           = "test pod is unschedulable"
 	PreemptionReason           = "job preempted"
@@ -91,12 +92,80 @@ var Submit = &armadaevents.EventSequence_Event{
 			ObjectMeta: &armadaevents.ObjectMeta{
 				Namespace: Namespace,
 				Name:      "test-job",
+				Annotations: map[string]string{
+					"foo":                        "bar",
+					constants.FailFastAnnotation: "true",
+					constants.JobPriceBand:       "A",
+				},
 			},
 			MainObject: &armadaevents.KubernetesMainObject{
 				ObjectMeta: &armadaevents.ObjectMeta{
 					Annotations: map[string]string{
-						"foo":                            "bar",
-						configuration.FailFastAnnotation: "true",
+						"foo":                        "bar",
+						constants.FailFastAnnotation: "true",
+						constants.JobPriceBand:       "A",
+					},
+				},
+				Object: &armadaevents.KubernetesMainObject_PodSpec{
+					PodSpec: &armadaevents.PodSpecWithAvoidList{
+						PodSpec: &v1.PodSpec{
+							NodeSelector:      NodeSelector,
+							Tolerations:       Tolerations,
+							PriorityClassName: PriorityClassName,
+							Containers: []v1.Container{
+								{
+									Name:    "container1",
+									Image:   "alpine:latest",
+									Command: []string{"myprogram.sh"},
+									Args:    []string{"foo", "bar"},
+									Resources: v1.ResourceRequirements{
+										Limits: map[v1.ResourceName]resource.Quantity{
+											"memory": resource.MustParse("64Mi"),
+											"cpu":    resource.MustParse("150m"),
+										},
+										Requests: map[v1.ResourceName]resource.Quantity{
+											"memory": resource.MustParse("64Mi"),
+											"cpu":    resource.MustParse("150m"),
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	},
+}
+
+var SubmitWithIrrelevantAnnotations = &armadaevents.EventSequence_Event{
+	Created: testfixtures.BasetimeProto,
+	Event: &armadaevents.EventSequence_Event_SubmitJob{
+		SubmitJob: &armadaevents.SubmitJob{
+			JobId:           JobId,
+			Priority:        Priority,
+			AtMostOnce:      true,
+			Preemptible:     true,
+			ConcurrencySafe: true,
+			ObjectMeta: &armadaevents.ObjectMeta{
+				Namespace: Namespace,
+				Name:      "test-job",
+				Annotations: map[string]string{
+					"foo":                        "bar",
+					"fizz":                       "buzz",
+					"buzz":                       "fizz",
+					constants.FailFastAnnotation: "true",
+					constants.JobPriceBand:       "A",
+				},
+			},
+			MainObject: &armadaevents.KubernetesMainObject{
+				ObjectMeta: &armadaevents.ObjectMeta{
+					Annotations: map[string]string{
+						"foo":                        "bar",
+						"fizz":                       "buzz",
+						"buzz":                       "fizz",
+						constants.FailFastAnnotation: "true",
+						constants.JobPriceBand:       "A",
 					},
 				},
 				Object: &armadaevents.KubernetesMainObject_PodSpec{
@@ -363,6 +432,26 @@ var JobPreemptionRequested = &armadaevents.EventSequence_Event{
 	Event: &armadaevents.EventSequence_Event_JobPreemptionRequested{
 		JobPreemptionRequested: &armadaevents.JobPreemptionRequested{
 			JobId: JobId,
+		},
+	},
+}
+
+var JobRunReconciliationError = &armadaevents.EventSequence_Event{
+	Created: testfixtures.BasetimeProto,
+	Event: &armadaevents.EventSequence_Event_JobRunErrors{
+		JobRunErrors: &armadaevents.JobRunErrors{
+			JobId: JobId,
+			RunId: RunId,
+			Errors: []*armadaevents.Error{
+				{
+					Terminal: true,
+					Reason: &armadaevents.Error_ReconciliationError{
+						ReconciliationError: &armadaevents.ReconciliationError{
+							Message: ReconciliationErrMsg,
+						},
+					},
+				},
+			},
 		},
 	},
 }

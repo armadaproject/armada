@@ -1,0 +1,21 @@
+httpPort: 8083
+executorApiConnection:
+  armadaUrl: "localhost:50052"
+  forceNoTls: true
+metric:
+  port: 9008
+application:
+  clusterId: "fake-cluster"
+  pool: "default"
+kubernetes:
+  nodeIdLabel: "kubernetes.io/hostname"
+nodes:
+  - name: "fake-node"
+    count: 2
+    allocatable:
+      cpu: "8"
+      memory: "32Gi"
+      ephemeral-storage: "100Gi"
+    labels:
+      node.kubernetes.io/instance-type: "Standard_D8s_v3"
+    taints: []

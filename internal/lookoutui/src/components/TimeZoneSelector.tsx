@@ -2,19 +2,21 @@ import { useMemo } from "react"
 
 import { Autocomplete, AutocompleteProps, MenuItem, styled, TextField, Typography } from "@mui/material"
 
+import { SPACING } from "../common/spacing"
 import {
   getBrowserTimeZone,
   getTimeZoneOffsetAtTimestamp,
   TIME_ZONE_NAMES,
   UTC_TIME_ZONE_NAME,
 } from "../common/timeZones"
-import { useGetUiConfig } from "../services/lookout/useGetUiConfig"
-import { SPACING } from "../styling/spacing"
+import { getConfig } from "../config"
 
 // Place the local time zone and UTC first
 const FIRST_TIME_ZONES_TO_DISPLAY = [getBrowserTimeZone(), UTC_TIME_ZONE_NAME]
 
 const now = new Date()
+
+const maxTimeZoneNameSize = TIME_ZONE_NAMES.reduce((acc, tz) => Math.max(acc, tz.length), 0)
 
 const MenuItemContentContainer = styled("div")(({ theme }) => ({
   display: "flex",
@@ -33,23 +35,19 @@ export interface TimeZoneSelectorProps {
 }
 
 export const TimeZoneSelector = ({ idPrefix, label, value, onChange, fullWidth, size }: TimeZoneSelectorProps) => {
-  const { data, status, error } = useGetUiConfig()
+  const config = getConfig()
   const { topOptions, otherOptions } = useMemo(
     () => ({
       topOptions: [
         ...FIRST_TIME_ZONES_TO_DISPLAY,
-        ...(data?.pinnedTimeZoneIdentifiers ?? []).filter((tz) => !FIRST_TIME_ZONES_TO_DISPLAY.includes(tz)),
+        ...config.pinnedTimeZoneIdentifiers.filter((tz) => !FIRST_TIME_ZONES_TO_DISPLAY.includes(tz)),
       ],
       otherOptions: TIME_ZONE_NAMES.filter(
-        (tz) => !FIRST_TIME_ZONES_TO_DISPLAY.includes(tz) && !(data?.pinnedTimeZoneIdentifiers ?? []).includes(tz),
+        (tz) => !FIRST_TIME_ZONES_TO_DISPLAY.includes(tz) && !config.pinnedTimeZoneIdentifiers.includes(tz),
       ),
     }),
-    [data?.pinnedTimeZoneIdentifiers],
+    [config.pinnedTimeZoneIdentifiers],
   )
-
-  if (status === "error") {
-    console.error("Error getting UI config", error)
-  }
 
   return (
     <Autocomplete
@@ -99,6 +97,7 @@ export const TimeZoneSelector = ({ idPrefix, label, value, onChange, fullWidth, 
       size={size}
       disableClearable
       value={value}
+      sx={{ minWidth: `${maxTimeZoneNameSize + 18}ch` }}
       onChange={(_, newValue) => onChange(newValue)}
     />
   )

@@ -1,19 +1,24 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
     <link rel="icon" href="/favicon.ico" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#000000" />
-    <meta
-      name="description"
-      content="Armada Lookout"
-    />
+    <meta name="description" content="Armada Lookout" />
     <link rel="apple-touch-icon" href="/logo192.png" />
     <title>Armada Lookout</title>
   </head>
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>
+    <p id="error-loading-config-error-message" style="display: none">
+      Failed to load the Lookout UI config from /lookout-ui-config.js. Please reload the page, or contact your Armada
+      administrators if that doesn't fix this problem
+    </p>
+    <script
+      src="/lookout-ui-config.js"
+      onerror="document.getElementById('error-loading-config-error-message').style.display = 'unset'"
+    ></script>
     <div id="root"></div>
     <script type="module" src="/src/index.tsx"></script>
   </body>

@@ -3843,7 +3843,8 @@ func SwaggerJsonTemplate() string {
 		"        \"time\": {\n" +
 		"          \"description\": \"Time is the timestamp of when the ManagedFields entry was added. The\\ntimestamp will also be updated if a field is added, the manager\\nchanges any of the owned fields value or removes a field. The\\ntimestamp does not update when a field is removed from the entry\\nbecause another manager took it over.\\n+optional\",\n" +
 		"          \"type\": \"string\",\n" +
-		"          \"x-go-name\": \"Time\"\n" +
+		"          \"x-go-name\": \"Time\",\n" +
+		"          \"x-go-type\": \"k8s.io/apimachinery/pkg/apis/meta/v1.Time\"\n" +
 		"        }\n" +
 		"      },\n" +
 		"      \"x-go-package\": \"k8s.io/apimachinery/pkg/apis/meta/v1\"\n" +
@@ -4009,7 +4010,8 @@ func SwaggerJsonTemplate() string {
 		"        \"creationTimestamp\": {\n" +
 		"          \"description\": \"CreationTimestamp is a timestamp representing the server time when this object was\\ncreated. It is not guaranteed to be set in happens-before order across separate operations.\\nClients may not set this value. It is represented in RFC3339 form and is in UTC.\\n\\nPopulated by the system.\\nRead-only.\\nNull for lists.\\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata\\n+optional\",\n" +
 		"          \"type\": \"string\",\n" +
-		"          \"x-go-name\": \"CreationTimestamp\"\n" +
+		"          \"x-go-name\": \"CreationTimestamp\",\n" +
+		"          \"x-go-type\": \"k8s.io/apimachinery/pkg/apis/meta/v1.Time\"\n" +
 		"        },\n" +
 		"        \"deletionGracePeriodSeconds\": {\n" +
 		"          \"description\": \"Number of seconds allowed for this object to gracefully terminate before\\nit will be removed from the system. Only set when deletionTimestamp is also set.\\nMay only be shortened.\\nRead-only.\\n+optional\",\n" +
@@ -4020,7 +4022,8 @@ func SwaggerJsonTemplate() string {
 		"        \"deletionTimestamp\": {\n" +
 		"          \"description\": \"DeletionTimestamp is RFC 3339 date and time at which this resource will be deleted. This\\nfield is set by the server when a graceful deletion is requested by the user, and is not\\ndirectly settable by a client. The resource is expected to be deleted (no longer visible\\nfrom resource lists, and not reachable by name) after the time in this field, once the\\nfinalizers list is empty. As long as the finalizers list contains items, deletion is blocked.\\nOnce the deletionTimestamp is set, this value may not be unset or be set further into the\\nfuture, although it may be shortened or the resource may be deleted prior to this time.\\nFor example, a user may request that a pod is deleted in 30 seconds. The Kubelet will react\\nby sending a graceful termination signal to the containers in the pod. After that 30 seconds,\\nthe Kubelet will send a hard termination signal (SIGKILL) to the container and after cleanup,\\nremove the pod from the API. In the presence of network partitions, this object may still\\nexist after this timestamp, until an administrator or automated process can determine the\\nresource is fully terminated.\\nIf not set, graceful deletion of the object has not been requested.\\n\\nPopulated by the system when a graceful deletion is requested.\\nRead-only.\\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata\\n+optional\",\n" +
 		"          \"type\": \"string\",\n" +
-		"          \"x-go-name\": \"DeletionTimestamp\"\n" +
+		"          \"x-go-name\": \"DeletionTimestamp\",\n" +
+		"          \"x-go-type\": \"k8s.io/apimachinery/pkg/apis/meta/v1.Time\"\n" +
 		"        },\n" +
 		"        \"finalizers\": {\n" +
 		"          \"description\": \"Must be empty before the object is deleted from the registry. Each entry\\nis an identifier for the responsible component that will remove the entry\\nfrom the list. If the deletionTimestamp of the object is non-nil, entries\\nin this list can only be removed.\\nFinalizers may be processed and removed in any order.  Order is NOT enforced\\nbecause it introduces significant risk of stuck finalizers.\\nfinalizers is a shared field, any actor with permission can reorder it.\\nIf the finalizer list is processed in order, then this can lead to a situation\\nin which the component responsible for the first finalizer in the list is\\nwaiting for a signal (field value, external system, or other) produced by a\\ncomponent responsible for a finalizer later in the list, resulting in a deadlock.\\nWithout enforced ordering finalizers are free to order amongst themselves and\\nare not vulnerable to ordering changes in the list.\\n+optional\\n+patchStrategy=merge\",\n" +
@@ -4186,7 +4189,8 @@ func SwaggerJsonTemplate() string {
 		"        \"creationTimestamp\": {\n" +
 		"          \"description\": \"CreationTimestamp is a timestamp representing the server time when this object was\\ncreated. It is not guaranteed to be set in happens-before order across separate operations.\\nClients may not set this value. It is represented in RFC3339 form and is in UTC.\\n\\nPopulated by the system.\\nRead-only.\\nNull for lists.\\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata\\n+optional\",\n" +
 		"          \"type\": \"string\",\n" +
-		"          \"x-go-name\": \"CreationTimestamp\"\n" +
+		"          \"x-go-name\": \"CreationTimestamp\",\n" +
+		"          \"x-go-type\": \"k8s.io/apimachinery/pkg/apis/meta/v1.Time\"\n" +
 		"        },\n" +
 		"        \"deletionGracePeriodSeconds\": {\n" +
 		"          \"description\": \"Number of seconds allowed for this object to gracefully terminate before\\nit will be removed from the system. Only set when deletionTimestamp is also set.\\nMay only be shortened.\\nRead-only.\\n+optional\",\n" +
@@ -4197,7 +4201,8 @@ func SwaggerJsonTemplate() string {
 		"        \"deletionTimestamp\": {\n" +
 		"          \"description\": \"DeletionTimestamp is RFC 3339 date and time at which this resource will be deleted. This\\nfield is set by the server when a graceful deletion is requested by the user, and is not\\ndirectly settable by a client. The resource is expected to be deleted (no longer visible\\nfrom resource lists, and not reachable by name) after the time in this field, once the\\nfinalizers list is empty. As long as the finalizers list contains items, deletion is blocked.\\nOnce the deletionTimestamp is set, this value may not be unset or be set further into the\\nfuture, although it may be shortened or the resource may be deleted prior to this time.\\nFor example, a user may request that a pod is deleted in 30 seconds. The Kubelet will react\\nby sending a graceful termination signal to the containers in the pod. After that 30 seconds,\\nthe Kubelet will send a hard termination signal (SIGKILL) to the container and after cleanup,\\nremove the pod from the API. In the presence of network partitions, this object may still\\nexist after this timestamp, until an administrator or automated process can determine the\\nresource is fully terminated.\\nIf not set, graceful deletion of the object has not been requested.\\n\\nPopulated by the system when a graceful deletion is requested.\\nRead-only.\\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata\\n+optional\",\n" +
 		"          \"type\": \"string\",\n" +
-		"          \"x-go-name\": \"DeletionTimestamp\"\n" +
+		"          \"x-go-name\": \"DeletionTimestamp\",\n" +
+		"          \"x-go-type\": \"k8s.io/apimachinery/pkg/apis/meta/v1.Time\"\n" +
 		"        },\n" +
 		"        \"finalizers\": {\n" +
 		"          \"description\": \"Must be empty before the object is deleted from the registry. Each entry\\nis an identifier for the responsible component that will remove the entry\\nfrom the list. If the deletionTimestamp of the object is non-nil, entries\\nin this list can only be removed.\\nFinalizers may be processed and removed in any order.  Order is NOT enforced\\nbecause it introduces significant risk of stuck finalizers.\\nfinalizers is a shared field, any actor with permission can reorder it.\\nIf the finalizer list is processed in order, then this can lead to a situation\\nin which the component responsible for the first finalizer in the list is\\nwaiting for a signal (field value, external system, or other) produced by a\\ncomponent responsible for a finalizer later in the list, resulting in a deadlock.\\nWithout enforced ordering finalizers are free to order amongst themselves and\\nare not vulnerable to ordering changes in the list.\\n+optional\\n+patchStrategy=merge\",\n" +

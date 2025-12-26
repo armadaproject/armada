@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	k8sResource "k8s.io/apimachinery/pkg/api/resource"
 )
 
 func TestRlMapToString(t *testing.T) {
@@ -58,9 +59,11 @@ func TestNewAllocatableByPriorityAndResourceType(t *testing.T) {
 
 	result := NewAllocatableByPriorityAndResourceType([]int32{1, 2}, rl)
 	assert.Equal(t, 3, len(result))
-	assert.Equal(t, int64(2000), result[1].GetByNameZeroIfMissing("cpu"))
-	assert.Equal(t, int64(2000), result[2].GetByNameZeroIfMissing("cpu"))
-	assert.Equal(t, int64(2000), result[EvictedPriority].GetByNameZeroIfMissing("cpu"))
+
+	twoThousandMillis := *k8sResource.NewMilliQuantity(2000, k8sResource.DecimalSI)
+	assert.Equal(t, twoThousandMillis, result[1].GetByNameZeroIfMissing("cpu"))
+	assert.Equal(t, twoThousandMillis, result[2].GetByNameZeroIfMissing("cpu"))
+	assert.Equal(t, twoThousandMillis, result[EvictedPriority].GetByNameZeroIfMissing("cpu"))
 }
 
 func TestMarkAllocated(t *testing.T) {

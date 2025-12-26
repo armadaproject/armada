@@ -2,7 +2,6 @@ package jobdb
 
 import (
 	"fmt"
-	"strconv"
 	"sync"
 
 	"github.com/benbjohnson/immutable"
@@ -11,7 +10,8 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
-	k8sResource "k8s.io/apimachinery/pkg/api/resource"
+	v1 "k8s.io/api/core/v1"
+	resource "k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/utils/clock"
 
 	log "github.com/armadaproject/armada/internal/common/logging"
@@ -19,7 +19,6 @@ import (
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/adapters"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
-	"github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/armadaproject/armada/pkg/bidstore"
 )
 
@@ -161,7 +160,7 @@ func (jobDb *JobDb) Clone() *JobDb {
 		jobsByRunId:            jobDb.jobsByRunId,
 		jobsByGangKey:          maps.Clone(jobDb.jobsByGangKey),
 		jobsByQueue:            maps.Clone(jobDb.jobsByQueue),
-		jobsByPoolAndQueue:     maps.Clone(jobDb.jobsByPoolAndQueue),
+		jobsByPoolAndQueue:     deepClone(jobDb.jobsByPoolAndQueue),
 		unvalidatedJobs:        jobDb.unvalidatedJobs,
 		priorityClasses:        jobDb.priorityClasses,
 		defaultPriorityClass:   jobDb.defaultPriorityClass,
@@ -189,7 +188,8 @@ func (jobDb *JobDb) NewJob(
 	pools []string,
 	priceBand int32,
 ) (*Job, error) {
-	priorityClass, ok := jobDb.priorityClasses[schedulingInfo.PriorityClassName]
+	schedulingInfo = jobDb.internJobSchedulingInfoStrings(schedulingInfo)
+	priorityClass, ok := jobDb.priorityClasses[schedulingInfo.PriorityClass]
 	if !ok {
 		priorityClass = jobDb.defaultPriorityClass
 	}
@@ -202,7 +202,7 @@ func (jobDb *JobDb) NewJob(
 		pb = bidstore.PriceBand(priceBand)
 	}
 
-	gangInfo, err := createGangInfo(schedulingInfo)
+	gangInfo, err := GangInfoFromMinimalJob(schedulingInfo)
 	if err != nil {
 		log.Errorf("failed creating gang info for job %s", jobId)
 		// TODO should we error here or continue on interpreting the job as not a gang job?
@@ -219,7 +219,7 @@ func (jobDb *JobDb) NewJob(
 		queuedVersion:                  queuedVersion,
 		requestedPriority:              priority,
 		submittedTime:                  created,
-		jobSchedulingInfo:              jobDb.internJobSchedulingInfoStrings(schedulingInfo),
+		jobSchedulingInfo:              schedulingInfo,
 		allResourceRequirements:        rr,
 		kubernetesResourceRequirements: rr.OfType(internaltypes.Kubernetes),
 		priorityClass:                  priorityClass,
@@ -228,76 +228,82 @@ func (jobDb *JobDb) NewJob(
 		cancelled:                      cancelled,
 		validated:                      validated,
 		runsById:                       map[string]*JobRun{},
-		pools:                          pools,
+		pools:                          jobDb.internPools(pools),
 		priceBand:                      pb,
 		gangInfo:                       *gangInfo,
 	}
 	job.ensureJobSchedulingInfoFieldsInitialised()
+	job.updateReservations()
 	job.schedulingKey = SchedulingKeyFromJob(jobDb.schedulingKeyGenerator, job)
 	return job, nil
-}
-
-func createGangInfo(schedulingInfo *internaltypes.JobSchedulingInfo) (*GangInfo, error) {
-	basicGangInfo := BasicJobGangInfo()
-	annotations := schedulingInfo.PodRequirements.Annotations
-	gangId, ok := annotations[configuration.GangIdAnnotation]
-	if !ok {
-		// Not a gang, default to basic gang info
-		return &basicGangInfo, nil
-	}
-	if gangId == "" {
-		return nil, errors.Errorf("gang id is empty")
-	}
-
-	gangCardinalityString, ok := annotations[configuration.GangCardinalityAnnotation]
-	if !ok {
-		return nil, errors.Errorf("gang cardinality annotation %s is missing", configuration.GangCardinalityAnnotation)
-	}
-	gangCardinality, err := strconv.Atoi(gangCardinalityString)
-	if err != nil {
-		return nil, fmt.Errorf("gang cardinality is not parseable - %s", errors.WithStack(err))
-	}
-	if gangCardinality <= 0 {
-		return nil, errors.Errorf("gang cardinality %d is non-positive", gangCardinality)
-	}
-	if gangCardinality < 2 {
-		// Not a gang, default to basic gang info
-		return &basicGangInfo, nil
-	}
-
-	nodeUniformityLabel := schedulingInfo.PodRequirements.Annotations[configuration.GangNodeUniformityLabelAnnotation]
-	gangInfo := CreateGangInfo(gangId, gangCardinality, nodeUniformityLabel)
-	return &gangInfo, nil
 }
 
 func (jobDb *JobDb) getResourceRequirements(schedulingInfo *internaltypes.JobSchedulingInfo) internaltypes.ResourceList {
 	return jobDb.resourceListFactory.FromJobResourceListIgnoreUnknown(safeGetRequirements(schedulingInfo))
 }
 
-func safeGetRequirements(schedulingInfo *internaltypes.JobSchedulingInfo) map[string]k8sResource.Quantity {
+func safeGetRequirements(schedulingInfo *internaltypes.JobSchedulingInfo) map[string]resource.Quantity {
 	pr := schedulingInfo.PodRequirements
 	if pr == nil {
-		return map[string]k8sResource.Quantity{}
+		return map[string]resource.Quantity{}
 	}
 
 	req := pr.ResourceRequirements.Requests
 	if req == nil {
-		return map[string]k8sResource.Quantity{}
+		return map[string]resource.Quantity{}
 	}
 
 	return adapters.K8sResourceListToMap(req)
 }
 
 func (jobDb *JobDb) internJobSchedulingInfoStrings(info *internaltypes.JobSchedulingInfo) *internaltypes.JobSchedulingInfo {
+	info.PriorityClass = jobDb.stringInterner.Intern(info.PriorityClass)
 	pr := info.PodRequirements
+	newAnnotations := make(map[string]string, len(pr.Annotations))
 	for k, v := range pr.Annotations {
-		pr.Annotations[jobDb.stringInterner.Intern(k)] = jobDb.stringInterner.Intern(v)
+		newAnnotations[jobDb.stringInterner.Intern(k)] = jobDb.stringInterner.Intern(v)
+	}
+	pr.Annotations = newAnnotations
+
+	newNodeSelector := make(map[string]string, len(pr.NodeSelector))
+	for k, v := range pr.NodeSelector {
+		newNodeSelector[jobDb.stringInterner.Intern(k)] = jobDb.stringInterner.Intern(v)
+	}
+	pr.NodeSelector = newNodeSelector
+
+	for idx, toleration := range pr.Tolerations {
+		pr.Tolerations[idx] = v1.Toleration{
+			Key:               jobDb.stringInterner.Intern(toleration.Key),
+			Operator:          v1.TolerationOperator(jobDb.stringInterner.Intern(string(toleration.Operator))),
+			Value:             jobDb.stringInterner.Intern(toleration.Value),
+			Effect:            v1.TaintEffect(jobDb.stringInterner.Intern(string(toleration.Effect))),
+			TolerationSeconds: toleration.TolerationSeconds,
+		}
 	}
 
-	for k, v := range pr.NodeSelector {
-		pr.NodeSelector[jobDb.stringInterner.Intern(k)] = jobDb.stringInterner.Intern(v)
+	for idx, claim := range pr.ResourceRequirements.Claims {
+		pr.ResourceRequirements.Claims[idx].Name = jobDb.stringInterner.Intern(claim.Name)
 	}
+
+	for key, limit := range pr.ResourceRequirements.Limits {
+		limit.Format = resource.Format(jobDb.stringInterner.Intern(string(limit.Format)))
+		pr.ResourceRequirements.Limits[v1.ResourceName(jobDb.stringInterner.Intern(string(key)))] = limit
+	}
+
+	for key, request := range pr.ResourceRequirements.Requests {
+		request.Format = resource.Format(jobDb.stringInterner.Intern(string(request.Format)))
+		pr.ResourceRequirements.Requests[v1.ResourceName(jobDb.stringInterner.Intern(string(key)))] = request
+	}
+
 	return info
+}
+
+func (jobDb *JobDb) internPools(pools []string) []string {
+	newPools := make([]string, len(pools))
+	for idx, pool := range pools {
+		newPools[idx] = jobDb.stringInterner.Intern(pool)
+	}
+	return newPools
 }
 
 // ReadTxn returns a read-only transaction.
@@ -331,11 +337,24 @@ func (jobDb *JobDb) WriteTxn() *Txn {
 		jobsByRunId:        jobDb.jobsByRunId,
 		jobsByGangKey:      maps.Clone(jobDb.jobsByGangKey),
 		jobsByQueue:        maps.Clone(jobDb.jobsByQueue),
-		jobsByPoolAndQueue: maps.Clone(jobDb.jobsByPoolAndQueue),
+		jobsByPoolAndQueue: deepClone(jobDb.jobsByPoolAndQueue),
 		unvalidatedJobs:    jobDb.unvalidatedJobs,
 		active:             true,
 		jobDb:              jobDb,
 	}
+}
+
+func deepClone(original map[string]map[string]immutable.SortedSet[*Job]) map[string]map[string]immutable.SortedSet[*Job] {
+	clone := make(map[string]map[string]immutable.SortedSet[*Job])
+	for key, innerMap := range original {
+		// Create a new map for each inner map
+		clone[key] = maps.Clone(innerMap)
+	}
+	return clone
+}
+
+func (jobDb *JobDb) CumulativeInternedStringsCount() uint64 {
+	return jobDb.stringInterner.CumulativeInsertCount()
 }
 
 // Txn is a JobDb Transaction. Transactions provide a consistent view of the database, allowing readers to
@@ -558,14 +577,32 @@ func (txn *Txn) Upsert(jobs []*Job) error {
 	// gangs
 	go func() {
 		defer wg.Done()
-		for _, job := range jobs {
-			if job.GetGangInfo().IsGang() {
-				key := gangKey{queue: job.Queue(), gangId: job.GetGangInfo().Id()}
+		if hasJobs {
+			for _, job := range jobs {
+				if job.IsInGang() {
+					key := gangKey{queue: job.Queue(), gangId: job.GetGangInfo().Id()}
 
-				if _, present := txn.jobsByGangKey[key]; !present {
-					txn.jobsByGangKey[key] = immutable.NewSet[string](JobIdHasher{})
+					if _, present := txn.jobsByGangKey[key]; !present {
+						txn.jobsByGangKey[key] = immutable.NewSet[string](JobIdHasher{})
+					}
+					txn.jobsByGangKey[key] = txn.jobsByGangKey[key].Add(job.Id())
 				}
-				txn.jobsByGangKey[key] = txn.jobsByGangKey[key].Add(job.Id())
+			}
+		} else {
+			jobsByGangKey := map[gangKey]map[string]bool{}
+			for _, job := range jobs {
+				if job.IsInGang() {
+					key := gangKey{queue: job.Queue(), gangId: job.GetGangInfo().Id()}
+
+					if _, present := jobsByGangKey[key]; !present {
+						jobsByGangKey[key] = map[string]bool{}
+					}
+					jobsByGangKey[key][job.Id()] = true
+				}
+			}
+
+			for key, jobsInGang := range jobsByGangKey {
+				txn.jobsByGangKey[key] = immutable.NewSet[string](JobIdHasher{}, maps.Keys(jobsInGang)...)
 			}
 		}
 	}()
@@ -574,28 +611,65 @@ func (txn *Txn) Upsert(jobs []*Job) error {
 	// To enable iterating over them in the order they should be scheduled.
 	go func() {
 		defer wg.Done()
-		for _, job := range jobs {
-			if job.Queued() {
-				newQueue, ok := txn.jobsByQueue[job.queue]
-				if !ok {
-					q := emptyList
-					newQueue = q
-				}
-				newQueue = newQueue.Add(job)
-				txn.jobsByQueue[job.queue] = newQueue
+		if hasJobs {
+			for _, job := range jobs {
+				if job.Queued() {
+					newQueue, ok := txn.jobsByQueue[job.queue]
+					if !ok {
+						newQueue = emptyList
+					}
+					txn.jobsByQueue[job.queue] = newQueue.Add(job)
 
-				for _, pool := range job.Pools() {
-					_, present := txn.jobsByPoolAndQueue[pool]
-					if !present {
-						queues := map[string]immutable.SortedSet[*Job]{}
-						txn.jobsByPoolAndQueue[pool] = queues
+					for _, pool := range job.Pools() {
+						_, present := txn.jobsByPoolAndQueue[pool]
+						if !present {
+							queues := map[string]immutable.SortedSet[*Job]{}
+							txn.jobsByPoolAndQueue[pool] = queues
+						}
+						_, present = txn.jobsByPoolAndQueue[pool][job.queue]
+						if !present {
+							jobs := immutable.NewSortedSet[*Job](MarketJobPriorityComparer{Pool: pool})
+							txn.jobsByPoolAndQueue[pool][job.queue] = jobs
+						}
+						txn.jobsByPoolAndQueue[pool][job.queue] = txn.jobsByPoolAndQueue[pool][job.queue].Add(job)
 					}
-					_, present = txn.jobsByPoolAndQueue[pool][job.queue]
-					if !present {
-						jobs := immutable.NewSortedSet[*Job](MarketJobPriorityComparer{Pool: pool})
-						txn.jobsByPoolAndQueue[pool][job.queue] = jobs
+				}
+			}
+		} else {
+			jobsByQueue := map[string]map[*Job]bool{}
+			jobsByPoolAndQueue := map[string]map[string]map[*Job]bool{}
+
+			for _, job := range jobs {
+				if job.Queued() {
+					if _, ok := jobsByQueue[job.queue]; !ok {
+						jobsByQueue[job.queue] = map[*Job]bool{}
 					}
-					txn.jobsByPoolAndQueue[pool][job.queue] = txn.jobsByPoolAndQueue[pool][job.queue].Add(job)
+					jobsByQueue[job.queue][job] = true
+
+					for _, pool := range job.Pools() {
+						if _, present := jobsByPoolAndQueue[pool]; !present {
+							jobsByPoolAndQueue[pool] = map[string]map[*Job]bool{}
+						}
+						if _, present := jobsByPoolAndQueue[pool][job.queue]; !present {
+							jobsByPoolAndQueue[pool][job.queue] = map[*Job]bool{}
+						}
+						jobsByPoolAndQueue[pool][job.queue][job] = true
+					}
+				}
+			}
+
+			for queue, jobsForQueue := range jobsByQueue {
+				txn.jobsByQueue[queue] = immutable.NewSortedSet[*Job](JobPriorityComparer{}, maps.Keys(jobsForQueue)...)
+			}
+
+			for pool, jobsForPool := range jobsByPoolAndQueue {
+				if _, ok := txn.jobsByPoolAndQueue[pool]; !ok {
+					txn.jobsByPoolAndQueue[pool] = map[string]immutable.SortedSet[*Job]{}
+				}
+				for queue, jobsForQueueInPool := range jobsForPool {
+					if _, ok := txn.jobsByPoolAndQueue[pool][queue]; !ok {
+						txn.jobsByPoolAndQueue[pool][queue] = immutable.NewSortedSet[*Job](MarketJobPriorityComparer{Pool: pool}, maps.Keys(jobsForQueueInPool)...)
+					}
 				}
 			}
 		}
@@ -604,11 +678,24 @@ func (txn *Txn) Upsert(jobs []*Job) error {
 	// Unvalidated jobs
 	go func() {
 		defer wg.Done()
-		for _, job := range jobs {
-			if !job.Validated() {
-				unvalidatedJobs := txn.unvalidatedJobs.Add(job)
-				txn.unvalidatedJobs = &unvalidatedJobs
+		if hasJobs {
+			for _, job := range jobs {
+				if !job.Validated() {
+					unvalidatedJobs := txn.unvalidatedJobs.Add(job)
+					txn.unvalidatedJobs = &unvalidatedJobs
+				}
 			}
+		} else {
+			unvalidatedJobs := map[*Job]bool{}
+
+			for _, job := range jobs {
+				if !job.Validated() {
+					unvalidatedJobs[job] = true
+				}
+			}
+
+			unvalidatedJobsImmutable := immutable.NewSet[*Job](JobHasher{}, maps.Keys(unvalidatedJobs)...)
+			txn.unvalidatedJobs = &unvalidatedJobsImmutable
 		}
 	}()
 
@@ -772,7 +859,7 @@ func (txn *Txn) delete(jobId string) {
 			}
 			txn.jobsByPoolAndQueue[pool][job.queue] = existingJobs.Delete(job)
 		}
-		if job.GetGangInfo().IsGang() {
+		if job.IsInGang() {
 			key := gangKey{queue: job.queue, gangId: job.GetGangInfo().Id()}
 			gangJobIds, ok := txn.jobsByGangKey[key]
 			if ok {

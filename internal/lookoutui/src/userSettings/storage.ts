@@ -1,4 +1,4 @@
-import { Dispatch, SetStateAction, useCallback, useEffect, useState } from "react"
+import { Dispatch, SetStateAction, useCallback, useEffect, useRef, useState } from "react"
 
 export const booleanFromStorageValue = (storageValue: string | null): boolean | null => {
   if (storageValue === null) {
@@ -36,7 +36,7 @@ export const textEnumFromStorageValue = <TEnum extends string>(
 
 export const textEnumToStorageValue = <TEnum extends string>(value: TEnum): string => value
 
-const EVENT_TYPE = "localstorage"
+const getEventType = (key: string) => `localstorage:${key}`
 
 export const useLocalStorageValue = <TValue>(
   key: string,
@@ -44,15 +44,22 @@ export const useLocalStorageValue = <TValue>(
   fromStorageValue: (storageValue: string | null) => TValue | null,
   toStorageValue: (value: TValue) => string,
 ): [TValue, Dispatch<SetStateAction<TValue>>] => {
+  const prevParsedRef = useRef<TValue>(defaultValue)
+
   const updateState = useCallback(() => {
     const storageValue = localStorage.getItem(key)
     const value = fromStorageValue(storageValue)
     if (value !== null) {
-      return value
+      if (JSON.stringify(value) !== JSON.stringify(prevParsedRef.current)) {
+        prevParsedRef.current = value
+        return value
+      }
+      return prevParsedRef.current
     }
 
+    prevParsedRef.current = defaultValue
     localStorage.setItem(key, toStorageValue(defaultValue))
-    window.dispatchEvent(new Event(EVENT_TYPE))
+    window.dispatchEvent(new Event(getEventType(key)))
     return defaultValue
   }, [key, defaultValue, fromStorageValue, toStorageValue])
 
@@ -60,15 +67,15 @@ export const useLocalStorageValue = <TValue>(
 
   useEffect(() => {
     localStorage.setItem(key, toStorageValue(state))
-    window.dispatchEvent(new Event(EVENT_TYPE))
+    window.dispatchEvent(new Event(getEventType(key)))
   }, [key, state])
 
   useEffect(() => {
     const listenStorageChange = () => {
       setState(updateState)
     }
-    window.addEventListener(EVENT_TYPE, listenStorageChange)
-    return () => window.removeEventListener(EVENT_TYPE, listenStorageChange)
+    window.addEventListener(getEventType(key), listenStorageChange)
+    return () => window.removeEventListener(getEventType(key), listenStorageChange)
   }, [updateState])
 
   return [state, setState]

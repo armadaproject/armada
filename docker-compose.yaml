@@ -34,11 +34,14 @@ services:
   pulsar:
     image: ${PULSAR_IMAGE:-apachepulsar/pulsar:3.0.2}
     container_name: pulsar
-    volumes:
-      - ./developer/dependencies/pulsar.conf:/conf/pulsar.conf
-    entrypoint: bin/pulsar standalone
+    environment:
+      - PULSAR_PREFIX_allowAutoTopicCreation=true
+      - PULSAR_PREFIX_allowAutoTopicCreationType=partitioned
+      - PULSAR_PREFIX_defaultNumPartitions=2
+    entrypoint: sh -c "bin/apply-config-from-env.py conf/standalone.conf && bin/pulsar standalone"
     ports:
       - 0.0.0.0:6650:6650
+      - 0.0.0.0:8090:8080
     networks:
       - kind
 

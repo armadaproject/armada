@@ -123,7 +123,7 @@ func (m *Run) validateFinished(formats strfmt.Registry) error {
 	return nil
 }
 
-var runTypeJobRunStatePropEnum []interface{}
+var runTypeJobRunStatePropEnum []any
 
 func init() {
 	var res []string

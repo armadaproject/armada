@@ -13,3 +13,6 @@ export const FORMAT_TIMESTAMP_LOCALE_KEY = `${LOCAL_STORAGE_KEY_PREFIX}format-ti
 export const FORMAT_NUMBER_SHOULD_FORMAT_KEY = `${LOCAL_STORAGE_KEY_PREFIX}format-number-should-format`
 export const FORMAT_NUMBER_NOTATION_KEY = `${LOCAL_STORAGE_KEY_PREFIX}format-number-notation`
 export const FORMAT_NUMBER_LOCALE_KEY = `${LOCAL_STORAGE_KEY_PREFIX}format-number-locale`
+
+export const VISUAL_THEME_NAME_KEY = `${LOCAL_STORAGE_KEY_PREFIX}visual-theme-name`
+export const VISUAL_THEME_CUSTOM_CONFIG_JSON_KEY = `${LOCAL_STORAGE_KEY_PREFIX}visual-theme-custom-config-json`

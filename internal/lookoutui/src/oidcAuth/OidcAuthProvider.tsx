@@ -3,10 +3,11 @@ import { ReactNode, useCallback, useEffect, useMemo, useState } from "react"
 import { UserManager, WebStorageStateStore } from "oidc-client-ts"
 
 import { ErrorPage } from "../components/ErrorPage"
-import { OidcConfig } from "../utils"
-import { OidcAuthContext, OidcAuthContextProps } from "./OidcAuthContext"
 import { LoadingPage } from "../components/LoadingPage"
+import { OidcConfig } from "../config"
 import { OIDC_REDIRECT } from "../pathnames"
+
+import { OidcAuthContext, OidcAuthContextProps } from "./OidcAuthContext"
 
 const ELLIPSIS = "\u2026"
 
@@ -68,6 +69,7 @@ export const OidcAuthProvider = ({ children, oidcConfig }: OidcAuthProviderProps
   }, [userManager, isOidcRedirectPath])
 
   const handlerAuthenticationError = useCallback((e: any) => {
+    // eslint-disable-next-line no-console
     console.error(e)
     setAuthError(e)
     setIsLoading(false)

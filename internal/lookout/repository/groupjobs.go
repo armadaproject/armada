@@ -146,8 +146,15 @@ func scanGroup(rows pgx.Rows, field string, aggregates []string, filters []*mode
 			aggregatesMap[parser.GetField()] = val
 		}
 	}
+
+	var groupName string
+	if parsedGroup == nil {
+		groupName = ""
+	} else {
+		groupName = fmt.Sprintf("%s", parsedGroup)
+	}
 	return &model.JobGroup{
-		Name:       fmt.Sprintf("%s", parsedGroup),
+		Name:       groupName,
 		Count:      count,
 		Aggregates: aggregatesMap,
 	}, nil

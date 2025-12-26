@@ -189,7 +189,7 @@ func (m *jobStateMetrics) recordPreemptedSecondsLost(job *jobdb.Job, duration fl
 	requests := job.AllResourceRequirements()
 
 	for _, res := range m.trackedResourceNames {
-		resQty := requests.GetResourceByNameZeroIfMissing(string(res))
+		resQty := requests.GetByNameZeroIfMissing(string(res))
 		resSeconds := duration * float64(resQty.MilliValue()) / 1000
 		m.jobResourceSecondsLostToPreemptionByQueue.
 			WithLabelValues(job.Queue(), run.Pool(), checkpointLabel, res.String()).Add(resSeconds)
@@ -284,7 +284,7 @@ func (m *jobStateMetrics) updateStateDuration(job *jobdb.Job, state string, prio
 
 	// Resource Seconds
 	for _, res := range m.trackedResourceNames {
-		resQty := requests.GetResourceByNameZeroIfMissing(string(res))
+		resQty := requests.GetByNameZeroIfMissing(string(res))
 		resSeconds := duration * float64(resQty.MilliValue()) / 1000
 		m.jobStateResourceSecondsByQueue.
 			WithLabelValues(queue, pool, state, priorState, res.String()).Add(resSeconds)

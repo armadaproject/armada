@@ -9,11 +9,11 @@ import {
   FaCheckCircle,
   FaTimesCircle,
   FaBan,
-  FaExcahngeAlt,
+  FaExchangeAlt,
   FaFileContract,
   FaHand,
 } from "../components/fontAwesomeIcons"
-import { CustomPaletteColorToken } from "../theme/palette"
+import { CustomPaletteColorToken } from "../theme"
 
 // Values must match the server-side states
 export enum JobState {
@@ -29,15 +29,15 @@ export enum JobState {
 }
 
 export const jobStateColors: Record<JobState, CustomPaletteColorToken> = {
-  [JobState.Queued]: "statusGrey",
-  [JobState.Pending]: "statusGrey",
-  [JobState.Running]: "statusBlue",
-  [JobState.Succeeded]: "statusGreen",
-  [JobState.Failed]: "statusRed",
-  [JobState.Cancelled]: "statusAmber",
-  [JobState.Preempted]: "statusAmber",
-  [JobState.Leased]: "statusGrey",
-  [JobState.Rejected]: "statusRed",
+  [JobState.Queued]: "statusQueued",
+  [JobState.Pending]: "statusPending",
+  [JobState.Running]: "statusRunning",
+  [JobState.Succeeded]: "statusSucceeded",
+  [JobState.Failed]: "statusFailed",
+  [JobState.Cancelled]: "statusCancelled",
+  [JobState.Preempted]: "statusPreempted",
+  [JobState.Leased]: "statusLeased",
+  [JobState.Rejected]: "statusRejected",
 }
 
 export const jobStateIcons: Record<JobState, (svgIconProps: SvgIconProps) => ReactElement> = {
@@ -47,7 +47,7 @@ export const jobStateIcons: Record<JobState, (svgIconProps: SvgIconProps) => Rea
   [JobState.Succeeded]: FaCheckCircle,
   [JobState.Failed]: FaTimesCircle,
   [JobState.Cancelled]: FaBan,
-  [JobState.Preempted]: FaExcahngeAlt,
+  [JobState.Preempted]: FaExchangeAlt,
   [JobState.Leased]: FaFileContract,
   [JobState.Rejected]: FaHand,
 }
@@ -183,6 +183,16 @@ export interface JobFiltersWithExcludes {
   jobFilters: JobFilter[]
   excludesJobFilters: JobFilter[][]
 }
+
+export const aggregateTypes = ["latest", "earliest", "average"] as const
+
+/**
+ * Represents the different ways to aggregate the latestTransitionTime field.
+ * - latest: Shows the most recent transaction time (MAX in SQL)
+ * - earliest: Shows the oldest transaction time (MIN in SQL)
+ * - average: Shows the average transaction time (AVG in SQL)
+ */
+export type AggregateType = (typeof aggregateTypes)[number]
 
 export type JobGroup = {
   name: string

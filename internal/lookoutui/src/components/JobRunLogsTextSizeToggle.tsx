@@ -3,7 +3,7 @@ import { FC } from "react"
 import { FormatSize } from "@mui/icons-material"
 import { styled, SvgIconProps, ToggleButton, ToggleButtonGroup, ToggleButtonProps } from "@mui/material"
 
-import { SPACING } from "../styling/spacing"
+import { SPACING } from "../common/spacing"
 import { JOB_RUN_LOGS_TEXT_SIZES, JobRunLogsTextSize, useJobRunLogsTextSize } from "../userSettings"
 
 const ToggleButtonSmall = styled(ToggleButton)(({ theme }) => ({

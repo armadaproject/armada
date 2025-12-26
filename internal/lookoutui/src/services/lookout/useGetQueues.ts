@@ -1,15 +1,15 @@
 import { useQuery } from "@tanstack/react-query"
 import { isNil } from "lodash"
 
-import { useGetUiConfig } from "./useGetUiConfig"
+import { getErrorMessage } from "../../common/utils"
+import { getConfig } from "../../config"
 import { useAuthenticatedFetch } from "../../oidcAuth"
 import { ApiQueue, ApiQueueFromJSON } from "../../openapi/armada"
-import { getErrorMessage } from "../../utils"
 
 export const useGetQueues = (enabled = true) => {
-  const { data: uiConfig } = useGetUiConfig(enabled)
+  const config = getConfig()
 
-  const armadaApiBaseUrl = uiConfig?.armadaApiBaseUrl
+  const armadaApiBaseUrl = config.armadaApiBaseUrl
 
   const authenticatedFetch = useAuthenticatedFetch()
 

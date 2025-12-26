@@ -7,12 +7,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/armadaproject/armada/internal/common/constants"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/pricing"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
-	"github.com/armadaproject/armada/internal/server/configuration"
 )
 
 func TestPopulatePreemptionDescriptions(t *testing.T) {
@@ -149,15 +149,15 @@ func makeJob(t *testing.T, jobId string, isGang bool) *jobdb.Job {
 func makeJobWithPrice(t *testing.T, jobId string, isGang bool, price float64) *jobdb.Job {
 	annotations := map[string]string{}
 	if isGang {
-		annotations[configuration.GangIdAnnotation] = "gang"
-		annotations[configuration.GangCardinalityAnnotation] = "2"
-		annotations[configuration.GangNodeUniformityLabelAnnotation] = "uniformity"
+		annotations[constants.GangIdAnnotation] = "gang"
+		annotations[constants.GangCardinalityAnnotation] = "2"
+		annotations[constants.GangNodeUniformityLabelAnnotation] = "uniformity"
 	}
 	schedulingInfo := &internaltypes.JobSchedulingInfo{
 		PodRequirements: &internaltypes.PodRequirements{
 			Annotations: annotations,
 		},
-		PriorityClassName: testfixtures.PriorityClass6Preemptible,
+		PriorityClass: testfixtures.PriorityClass6Preemptible,
 	}
 
 	job, err := testfixtures.JobDb.NewJob(jobId, "jobset", "queue", 1, schedulingInfo, false, 1, false, false, false, 0, true, []string{}, 0)

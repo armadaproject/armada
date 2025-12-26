@@ -89,6 +89,17 @@ func TestSchedule(t *testing.T) {
 			expectedScheduledIndices: []int{0, 1},
 			expectedScheduledByPool:  map[string]int{testfixtures.TestPool: 2},
 		},
+		"scheduling - home away - away scheduling disabled": {
+			schedulingConfig: testfixtures.WithAwaySchedulingDisabled(testfixtures.TestSchedulingConfig()),
+			executors: []*schedulerobjects.Executor{
+				makeTestExecutorWithNodes("executor-1",
+					withLargeNodeTaint(testNodeWithPool(testfixtures.TestPool))),
+			},
+			queues:                   []*api.Queue{testfixtures.MakeTestQueue()},
+			queuedJobs:               testfixtures.WithPools(testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass4PreemptibleAway, 10), []string{testfixtures.TestPool}),
+			expectedScheduledIndices: []int{},
+			expectedScheduledByPool:  map[string]int{},
+		},
 		"scheduling - cross pool - home away": {
 			schedulingConfig: multiPoolSchedulingConfig,
 			executors: []*schedulerobjects.Executor{
@@ -629,13 +640,14 @@ func TestSchedule(t *testing.T) {
 			}
 
 			// Check that scheduled jobs are marked as such consistently.
-			for _, job := range scheduledJobs {
+			for _, jctx := range schedulerResult.ScheduledJobs {
+				job := jctx.Job
 				dbJob := txn.GetById(job.Id())
 				assert.False(t, dbJob.Failed())
 				assert.False(t, dbJob.Queued())
 				dbRun := dbJob.LatestRun()
 				assert.False(t, dbRun.Failed())
-				assert.Equal(t, schedulerResult.NodeIdByJobId[dbJob.Id()], dbRun.NodeId())
+				assert.Equal(t, jctx.PodSchedulingContext.NodeId, dbRun.NodeId())
 				assert.NotEmpty(t, dbRun.NodeName())
 			}
 

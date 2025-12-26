@@ -1,7 +1,8 @@
 import queryString, { ParseOptions, StringifyOptions } from "query-string"
 
-import { JobSetsContainerState } from "../containers/JobSetsContainer"
-import { Router } from "../utils"
+import { Router } from "../common/utils"
+import { JobSetsContainerState } from "../pages/jobSets/components/JobSetsContainer"
+
 import { JobSetsOrderByColumn } from "./JobService"
 
 const QUERY_STRING_OPTIONS: ParseOptions | StringifyOptions = {

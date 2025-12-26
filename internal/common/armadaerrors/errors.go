@@ -41,7 +41,8 @@ type ErrUnauthorized struct {
 	Message string
 }
 
-func (err *ErrUnauthorized) Error() (s string) {
+func (err *ErrUnauthorized) Error() string {
+	var s string
 	if err.Action != "" {
 		s = fmt.Sprintf("%s lacks permission %s required for action %s", err.Principal, err.Permission, err.Action)
 	} else {
@@ -50,7 +51,7 @@ func (err *ErrUnauthorized) Error() (s string) {
 	if err.Message != "" {
 		s += fmt.Sprintf("; %s", err.Message)
 	}
-	return
+	return s
 }
 
 // ErrAlreadyExists is a generic error to be returned whenever some resource already exists.
@@ -496,15 +497,15 @@ func (err *ErrUnauthenticated) GRPCStatus() *status.Status {
 	return status.New(codes.Unauthenticated, err.Error())
 }
 
-func (err *ErrUnauthenticated) Error() (s string) {
-	s = "Request could not be authenticated"
+func (err *ErrUnauthenticated) Error() string {
+	s := "Request could not be authenticated"
 	if err.Action != "" {
 		s += fmt.Sprintf(" for action %q", err.Action)
 	}
 	if err.Message != "" {
 		s += fmt.Sprintf(": %s", err.Message)
 	}
-	return
+	return s
 }
 
 // ErrInvalidCredentials is returned when a given set of credentials cannot
@@ -590,8 +591,8 @@ func craftFullErrorMessageForAuthRelatedErrors(mainMessage string,
 	authServiceName string,
 	action string,
 	auxMessage string,
-) (s string) {
-	s = mainMessage
+) string {
+	s := mainMessage
 	if username != "" {
 		s += fmt.Sprintf(" for user %q", username)
 	}
@@ -604,5 +605,5 @@ func craftFullErrorMessageForAuthRelatedErrors(mainMessage string,
 	if auxMessage != "" {
 		s += fmt.Sprintf(": %s", auxMessage)
 	}
-	return
+	return s
 }

@@ -49,6 +49,7 @@ export const createFakeLogs = (
   }))
 
 export const fakeRunError =
+  /* eslint-disable @cspell/spellchecker */
   "javax.servlet.ServletException: Something bad happened\n" +
   "    at com.example.myproject.OpenSessionInViewFilter.doFilter(OpenSessionInViewFilter.java:60)\n" +
   "    at org.mortbay.jetty.servlet.ServletHandler$CachedChain.doFilter(ServletHandler.java:1157)\n" +
@@ -111,6 +112,7 @@ export const fakeRunError =
   "    at com.mchange.v2.c3p0.impl.NewProxyPreparedStatement.executeUpdate(NewProxyPreparedStatement.java:105)\n" +
   "    at org.hibernate.id.insert.AbstractSelectingDelegate.performInsert(AbstractSelectingDelegate.java:57)\n" +
   "    ... 54 more"
+/* eslint-enable @cspell/spellchecker */
 
 export const fakeRunDebugMessage = "Failed to pull image from registry: RateLimitExceeded"
 

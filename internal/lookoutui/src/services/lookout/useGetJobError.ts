@@ -1,19 +1,21 @@
 import { useQuery } from "@tanstack/react-query"
 
+import { getErrorMessage } from "../../common/utils"
+import { getConfig } from "../../config"
 import { useAuthenticatedFetch } from "../../oidcAuth"
-import { getErrorMessage } from "../../utils"
+
 import { fakeJobError } from "./mocks/fakeData"
-import { useGetUiConfig } from "./useGetUiConfig"
 
 export const useGetJobError = (jobId: string, enabled = true) => {
-  const { data: uiConfig } = useGetUiConfig()
+  const config = getConfig()
+
   const authenticatedFetch = useAuthenticatedFetch()
 
   return useQuery<string, string>({
     queryKey: ["getJobError", jobId],
     queryFn: async ({ signal }) => {
       try {
-        if (uiConfig?.fakeDataEnabled) {
+        if (config.fakeDataEnabled) {
           return fakeJobError
         }
 
