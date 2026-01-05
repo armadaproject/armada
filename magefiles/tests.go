@@ -143,7 +143,7 @@ func Teste2eAirflow() error {
 	if err != nil {
 		return err
 	}
-	cmd = append(cmd, "go", "run", "cmd/armadactl/main.go", "create", "queue", "queue-a")
+	cmd = append(cmd, "go", "run", "cmd/armadactl/main.go", "create", "queue", "e2e-test-queue")
 	if err := dockerRun(cmd...); err != nil {
 		fmt.Println(err)
 	}
