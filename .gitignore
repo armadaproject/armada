@@ -112,3 +112,4 @@ tmp/
 *.tmp
 tmp.*
 *.tmp.*
+.aider*
