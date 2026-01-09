@@ -82,6 +82,13 @@ type PreemptOnExecutor struct {
 	PriorityClasses []string
 }
 
+type PreemptOnNode struct {
+	Name            string
+	Executor        string
+	Queues          []string
+	PriorityClasses []string
+}
+
 type CancelOnExecutor struct {
 	Name            string
 	Queues          []string
@@ -202,10 +209,16 @@ type (
 	UpsertExecutorSettings map[string]*ExecutorSettingsUpsert
 	DeleteExecutorSettings map[string]*ExecutorSettingsDelete
 	PreemptExecutor        map[string]*PreemptOnExecutor
+	PreemptNode            map[NodeOnExecutor]*PreemptOnNode
 	CancelExecutor         map[string]*CancelOnExecutor
 	PreemptQueue           map[string]*PreemptOnQueue
 	CancelQueue            map[string]*CancelOnQueue
 )
+
+type NodeOnExecutor struct {
+	Node     string
+	Executor string
+}
 
 type jobSetOperation interface {
 	AffectsJobSet(queue string, jobSet string) bool
@@ -372,6 +385,10 @@ func (a DeleteExecutorSettings) Merge(_ DbOperation) bool {
 }
 
 func (pe PreemptExecutor) Merge(_ DbOperation) bool {
+	return false
+}
+
+func (pe PreemptNode) Merge(_ DbOperation) bool {
 	return false
 }
 
@@ -586,6 +603,18 @@ func (ce CancelExecutor) CanBeAppliedBefore(b DbOperation) bool {
 	return true
 }
 
+func (pe PreemptNode) CanBeAppliedBefore(b DbOperation) bool {
+	switch op := b.(type) {
+	case nodeOperation:
+		for executor := range pe {
+			if affectsExecutor := op.affectsNodeOnExecutor(executor); affectsExecutor {
+				return false
+			}
+		}
+	}
+	return true
+}
+
 func (pq PreemptQueue) CanBeAppliedBefore(b DbOperation) bool {
 	switch op := b.(type) {
 	case queueOperation:
@@ -758,6 +787,10 @@ func (ce CancelExecutor) GetOperation() Operation {
 	return ControlPlaneOperation
 }
 
+func (ne NodeOnExecutor) GetOperation() Operation {
+	return ControlPlaneOperation
+}
+
 func (pq PreemptQueue) GetOperation() Operation {
 	return ControlPlaneOperation
 }
@@ -787,6 +820,15 @@ func (pe PreemptExecutor) affectsExecutor(executor string) bool {
 
 func (ce CancelExecutor) affectsExecutor(executor string) bool {
 	_, ok := ce[executor]
+	return ok
+}
+
+type nodeOperation interface {
+	affectsNodeOnExecutor(NodeOnExecutor) bool
+}
+
+func (ne PreemptNode) affectsNodeOnExecutor(nodeOnExecutor NodeOnExecutor) bool {
+	_, ok := ne[nodeOnExecutor]
 	return ok
 }
 
