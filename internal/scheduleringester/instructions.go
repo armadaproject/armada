@@ -432,12 +432,16 @@ func (c *ControlPlaneEventsInstructionConverter) dbOperationFromControlPlaneEven
 		operations, err = c.handleExecutorSettingsDelete(event.GetExecutorSettingsDelete())
 	case *controlplaneevents.Event_PreemptOnExecutor:
 		operations, err = c.handlePreemptOnExecutor(event.GetPreemptOnExecutor())
+	case *controlplaneevents.Event_CancelOnNode:
+		operations, err = c.handleCancelOnNode(event.GetCancelOnNode())
 	case *controlplaneevents.Event_CancelOnExecutor:
 		operations, err = c.handleCancelOnExecutor(event.GetCancelOnExecutor())
 	case *controlplaneevents.Event_PreemptOnQueue:
 		operations, err = c.handlePreemptOnQueue(event.GetPreemptOnQueue())
 	case *controlplaneevents.Event_CancelOnQueue:
 		operations, err = c.handleCancelOnQueue(event.GetCancelOnQueue())
+	case *controlplaneevents.Event_PreemptOnNode:
+		operations, err = c.handlePreemptOnNode(event.GetPreemptOnNode())
 	default:
 		log.Errorf("Unknown event of type %T", ev)
 	}
@@ -485,6 +489,22 @@ func (c *ControlPlaneEventsInstructionConverter) handlePreemptOnExecutor(preempt
 	}, nil
 }
 
+func (c *ControlPlaneEventsInstructionConverter) handleCancelOnNode(cancel *controlplaneevents.CancelOnNode) ([]DbOperation, error) {
+	return []DbOperation{
+		CancelNode{
+			NodeOnExecutor{
+				Node:     cancel.Name,
+				Executor: cancel.Executor,
+			}: {
+				Name:            cancel.Name,
+				Executor:        cancel.Executor,
+				Queues:          cancel.Queues,
+				PriorityClasses: cancel.PriorityClasses,
+			},
+		},
+	}, nil
+}
+
 func (c *ControlPlaneEventsInstructionConverter) handleCancelOnExecutor(cancel *controlplaneevents.CancelOnExecutor) ([]DbOperation, error) {
 	return []DbOperation{
 		CancelExecutor{
@@ -492,6 +512,22 @@ func (c *ControlPlaneEventsInstructionConverter) handleCancelOnExecutor(cancel *
 				Name:            cancel.Name,
 				Queues:          cancel.Queues,
 				PriorityClasses: cancel.PriorityClasses,
+			},
+		},
+	}, nil
+}
+
+func (c *ControlPlaneEventsInstructionConverter) handlePreemptOnNode(preempt *controlplaneevents.PreemptOnNode) ([]DbOperation, error) {
+	return []DbOperation{
+		PreemptNode{
+			NodeOnExecutor{
+				Node:     preempt.Name,
+				Executor: preempt.Executor,
+			}: {
+				Name:            preempt.Name,
+				Executor:        preempt.Executor,
+				Queues:          preempt.Queues,
+				PriorityClasses: preempt.PriorityClasses,
 			},
 		},
 	}, nil

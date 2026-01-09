@@ -4,7 +4,6 @@ import os
 
 from armada_client.log_client import JobLogClient
 
-
 DISABLE_SSL = os.environ.get("DISABLE_SSL", True)
 HOST = os.environ.get("BINOCULARS_SERVER", "localhost")
 PORT = os.environ.get("BINOCULARS_PORT", "50053")
