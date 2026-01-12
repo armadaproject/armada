@@ -787,7 +787,7 @@ func (ce CancelExecutor) GetOperation() Operation {
 	return ControlPlaneOperation
 }
 
-func (ne NodeOnExecutor) GetOperation() Operation {
+func (ne PreemptNode) GetOperation() Operation {
 	return ControlPlaneOperation
 }
 

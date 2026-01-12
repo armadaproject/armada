@@ -192,6 +192,7 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 	api.RegisterEventServer(grpcServer, eventServer)
 	api.RegisterQueueServiceServer(grpcServer, queueServer)
 	api.RegisterExecutorServer(grpcServer, executorServer)
+	api.RegisterNodeServer(grpcServer, nodeServer)
 
 	schedulerobjects.RegisterSchedulerReportingServer(grpcServer, schedulingReportsServer)
 

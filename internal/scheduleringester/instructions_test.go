@@ -339,6 +339,19 @@ func TestConvertControlPlaneEvent(t *testing.T) {
 				},
 			}},
 		},
+		"preempt on node": {
+			event: f.PreemptOnNode,
+			expected: []DbOperation{PreemptNode{
+				NodeOnExecutor{
+					Executor: f.ExecutorId,
+					Node:     f.NodeName,
+				}: &PreemptOnNode{
+					Name:            f.NodeName,
+					Queues:          []string{f.Queue},
+					PriorityClasses: []string{f.PriorityClassName},
+				},
+			}},
+		},
 		"preempt on queue": {
 			event: f.PreemptOnQueue,
 			expected: []DbOperation{PreemptQueue{
