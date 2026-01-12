@@ -5,6 +5,11 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/gogo/protobuf/types"
+	"github.com/gogo/status"
+	"google.golang.org/grpc/codes"
+	"k8s.io/utils/clock"
+
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	"github.com/armadaproject/armada/internal/common/auth"
@@ -13,10 +18,6 @@ import (
 	"github.com/armadaproject/armada/internal/server/permissions"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/controlplaneevents"
-	"github.com/gogo/protobuf/types"
-	"github.com/gogo/status"
-	"google.golang.org/grpc/codes"
-	"k8s.io/utils/clock"
 )
 
 type Server struct {

@@ -507,7 +507,6 @@ func (c *ControlPlaneEventsInstructionConverter) handlePreemptOnNode(preempt *co
 				Executor: preempt.Executor,
 			}: {
 				Name:            preempt.Name,
-				Executor:        preempt.Executor,
 				Queues:          preempt.Queues,
 				PriorityClasses: preempt.PriorityClasses,
 			},
