@@ -102,6 +102,10 @@ func NewFairSchedulingAlgo(
 // It iterates over each executor in turn (using lexicographical order) and assigns the jobs using a LegacyScheduler, before moving onto the next executor.
 // It maintains state of which executors it has considered already and may take multiple Schedule() calls to consider all executors if scheduling is slow.
 // Newly leased jobs are updated as such in the jobDb using the transaction provided and are also returned to the caller.
+//
+// This function must always return a non-nil SchedulerResult, even when returning an error.
+// The result contains PoolSchedulingOutcomes that track which pools succeeded or failed,
+// and callers depend on this for metrics reporting.
 func (l *FairSchedulingAlgo) Schedule(
 	ctx *armadacontext.Context,
 	resourceUnits map[string]internaltypes.ResourceList,
@@ -170,7 +174,9 @@ func (l *FairSchedulingAlgo) Schedule(
 		// If we use a different copy of nodes (possibly more to date copy) it may no longer align with the jobs/runs
 		fsctx, err := l.newFairSchedulingAlgoContext(ctx, txn, executors, pool)
 		if err != nil {
-			return nil, err
+			overallSchedulerResult.PoolSchedulingOutcomes = append(overallSchedulerResult.PoolSchedulingOutcomes,
+				PoolSchedulingOutcome{Pool: pool.Name, Success: false, TerminationReason: PoolSchedulingTerminationReasonError})
+			return overallSchedulerResult, err
 		}
 
 		if fsctx.nodeDb.NumNodes() <= 0 {
@@ -192,12 +198,15 @@ func (l *FairSchedulingAlgo) Schedule(
 
 		ctx.Infof("Scheduled on executor pool %s in %v with error %v", pool.Name, time.Now().Sub(start), err)
 
-		if errors.Is(err, context.DeadlineExceeded) {
-			// We've reached the scheduling time limit;
+		if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+			overallSchedulerResult.PoolSchedulingOutcomes = append(overallSchedulerResult.PoolSchedulingOutcomes,
+				PoolSchedulingOutcome{Pool: pool.Name, Success: true, TerminationReason: PoolSchedulingTerminationReasonTimeout})
 			ctx.Info("stopped scheduling early as we have hit the maximum scheduling duration")
 			break
 		} else if err != nil {
-			return nil, err
+			overallSchedulerResult.PoolSchedulingOutcomes = append(overallSchedulerResult.PoolSchedulingOutcomes,
+				PoolSchedulingOutcome{Pool: pool.Name, Success: false, TerminationReason: PoolSchedulingTerminationReasonError})
+			return overallSchedulerResult, err
 		}
 		if l.schedulingContextRepository != nil {
 			l.schedulingContextRepository.StoreSchedulingContext(sctx)
@@ -206,12 +215,20 @@ func (l *FairSchedulingAlgo) Schedule(
 		preemptedJobs := PreemptedJobsFromSchedulerResult(schedulerResult)
 		scheduledJobs := ScheduledJobsFromSchedulerResult(schedulerResult)
 
+		terminationReason := terminationReasonFromString(sctx.TerminationReason)
 		if err := txn.Upsert(preemptedJobs); err != nil {
-			return nil, err
+			overallSchedulerResult.PoolSchedulingOutcomes = append(overallSchedulerResult.PoolSchedulingOutcomes,
+				PoolSchedulingOutcome{Pool: pool.Name, Success: false, TerminationReason: PoolSchedulingTerminationReasonError})
+			return overallSchedulerResult, err
 		}
 		if err := txn.Upsert(scheduledJobs); err != nil {
-			return nil, err
+			overallSchedulerResult.PoolSchedulingOutcomes = append(overallSchedulerResult.PoolSchedulingOutcomes,
+				PoolSchedulingOutcome{Pool: pool.Name, Success: false, TerminationReason: PoolSchedulingTerminationReasonError})
+			return overallSchedulerResult, err
 		}
+
+		overallSchedulerResult.PoolSchedulingOutcomes = append(overallSchedulerResult.PoolSchedulingOutcomes,
+			PoolSchedulingOutcome{Pool: pool.Name, Success: true, TerminationReason: terminationReason})
 
 		// Aggregate changes across executors.
 		overallSchedulerResult.PreemptedJobs = append(overallSchedulerResult.PreemptedJobs, schedulerResult.PreemptedJobs...)

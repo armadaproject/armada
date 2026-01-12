@@ -562,17 +562,6 @@ func TestLastStatusChange_ReportsTimeFromContainerStatus(t *testing.T) {
 	assert.Nil(t, err)
 }
 
-func TestIsReportedDone(t *testing.T) {
-	isNotReportedDone := &v1.Pod{}
-	isReportedDone := &v1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Annotations: map[string]string{domain.JobDoneAnnotation: time.Now().String()},
-		},
-	}
-	assert.False(t, IsReportedDone(isNotReportedDone))
-	assert.True(t, IsReportedDone(isReportedDone))
-}
-
 func TestIsMarkedForDeletion(t *testing.T) {
 	isNotMarkedForDeletion := &v1.Pod{}
 	isMarkedForDeletion := &v1.Pod{

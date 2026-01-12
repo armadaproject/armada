@@ -48,6 +48,9 @@ var (
 				Pending:     &baseTimeSwagger,
 				RunID:       "run-id",
 				Started:     &baseTimeSwagger,
+				IngressAddresses: map[string]string{
+					"80": "address1.svc.cluster.local",
+				},
 			},
 		},
 		State:     string(lookout.JobFailed),
@@ -84,6 +87,9 @@ var (
 				Pending:     model.NewPostgreSQLTime(&baseTime),
 				RunId:       "run-id",
 				Started:     model.NewPostgreSQLTime(&baseTime),
+				IngressAddresses: map[int32]string{
+					80: "address1.svc.cluster.local",
+				},
 			},
 		},
 		State:     string(lookout.JobFailed),

@@ -46,19 +46,20 @@ type JobError struct {
 }
 
 type JobRun struct {
-	RunID       string           `db:"run_id"`
-	JobID       string           `db:"job_id"`
-	Cluster     string           `db:"cluster"`
-	Node        *string          `db:"node"`
-	Pending     pgtype.Timestamp `db:"pending"`
-	Started     pgtype.Timestamp `db:"started"`
-	Finished    pgtype.Timestamp `db:"finished"`
-	JobRunState int16            `db:"job_run_state"`
-	Error       []byte           `db:"error"`
-	ExitCode    *int32           `db:"exit_code"`
-	Leased      pgtype.Timestamp `db:"leased"`
-	Debug       []byte           `db:"debug"`
-	Pool        *string          `db:"pool"`
+	RunID            string           `db:"run_id"`
+	JobID            string           `db:"job_id"`
+	Cluster          string           `db:"cluster"`
+	Node             *string          `db:"node"`
+	Pending          pgtype.Timestamp `db:"pending"`
+	Started          pgtype.Timestamp `db:"started"`
+	Finished         pgtype.Timestamp `db:"finished"`
+	JobRunState      int16            `db:"job_run_state"`
+	Error            []byte           `db:"error"`
+	ExitCode         *int32           `db:"exit_code"`
+	Leased           pgtype.Timestamp `db:"leased"`
+	Debug            []byte           `db:"debug"`
+	Pool             *string          `db:"pool"`
+	IngressAddresses []byte           `db:"ingress_addresses"`
 }
 
 type JobSpec struct {

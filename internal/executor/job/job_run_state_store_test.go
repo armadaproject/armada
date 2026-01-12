@@ -42,7 +42,6 @@ func TestOnStartUp_ReconcilesWithKubernetes_ActivePod(t *testing.T) {
 func TestOnStartUp_ReconcilesWithKubernetes_IgnoresDonePods(t *testing.T) {
 	donePod := createPod()
 	donePod.Status.Phase = v1.PodSucceeded
-	donePod.Annotations[domain.JobDoneAnnotation] = "true"
 	donePod.Annotations[string(donePod.Status.Phase)] = fmt.Sprintf("%s", time.Now())
 
 	jobRunStateManager, _ := setup(t, []*v1.Pod{donePod})

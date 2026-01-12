@@ -207,6 +207,9 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 				if shouldSchedule {
 					previousSchedulingRoundEnd = s.clock.Now()
 				}
+
+				s.metrics.ReportPoolSchedulingOutcomes(result.PoolSchedulingOutcomes)
+
 				if err != nil {
 					ctx.Logger().WithStacktrace(err).Error("scheduling cycle failure")
 					leaderToken = leader.InvalidLeaderToken()
@@ -353,6 +356,8 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 		var result *scheduling.SchedulerResult
 		result, err = s.schedulingAlgo.Schedule(ctx, resourceUnits, txn)
 		if err != nil {
+			// Copy outcomes to the returned result so metrics are reported for pools that succeeded before the failure
+			overallSchedulerResult.PoolSchedulingOutcomes = result.PoolSchedulingOutcomes
 			return overallSchedulerResult, err
 		}
 
