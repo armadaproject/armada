@@ -80,7 +80,7 @@ type SchedulerResult struct {
 	// Running jobs that should be preempted.
 	PreemptedJobs []*schedulercontext.JobSchedulingContext
 	// Queued jobs that should be scheduled.
-	ScheduledJobs []*context.JobSchedulingContext
+	ScheduledJobs []*schedulercontext.JobSchedulingContext
 	// Running jobs that failed reconciliation
 	FailedReconciliationJobs *ReconciliationResult
 	// Each result may bundle the result of several scheduling decisions.
