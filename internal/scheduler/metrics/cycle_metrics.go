@@ -580,6 +580,15 @@ func (m *cycleMetrics) ReportSchedulerResult(ctx *armadacontext.Context, result 
 			}
 		}
 	}
+
+	if result.FailedReconciliationJobs != nil {
+		for _, info := range result.FailedReconciliationJobs.FailedJobs {
+			m.ReportJobPreemptedWithType(info.Job, context.PreemptedViaNodeReconciler)
+		}
+		for _, info := range result.FailedReconciliationJobs.PreemptedJobs {
+			m.ReportJobPreemptedWithType(info.Job, context.PreemptedViaNodeReconciler)
+		}
+	}
 	m.latestCycleMetrics.Store(currentCycle)
 
 	m.publishCycleMetrics(ctx, result)
