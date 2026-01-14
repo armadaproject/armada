@@ -42,7 +42,7 @@ jobs:
 
       - name: Save Docker image tarballs as artifacts
         if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/heads/patch/v')) }}
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: armada-image-tarballs
           path: /tmp/imgs
@@ -84,7 +84,7 @@ jobs:
         run: go run github.com/magefile/mage@v1.14.0 -v packNuget
 
       - name: Save nupkg artifacts
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: nupkg-artifacts
           path: |
