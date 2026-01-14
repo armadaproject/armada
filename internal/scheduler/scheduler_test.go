@@ -2121,14 +2121,6 @@ func jobRunIdToSetWithEventDetails(src []jobRunId) map[string]eventDetails {
 	return set
 }
 
-func jobRunIdSet(src []jobRunId) map[jobRunId]bool {
-	set := make(map[jobRunId]bool, len(src))
-	for _, s := range src {
-		set[s] = true
-	}
-	return set
-}
-
 var (
 	queuedJobA = &database.Job{
 		JobID:                 util.NewULID(),
