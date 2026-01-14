@@ -1539,6 +1539,12 @@
           "type": "string",
           "format": "date-time"
         },
+        "ingressAddresses": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
         "jobId": {
           "type": "string"
         },

@@ -111,6 +111,7 @@ func (r *SqlGetJobsRepository) getJobs(ctx *armadacontext.Context, filters []*mo
 		); err != nil {
 			return nil, err
 		}
+
 		job := jobRowToModel(&row)
 		if annotations.Valid {
 			if err := json.Unmarshal([]byte(annotations.String), &job.Annotations); err != nil {

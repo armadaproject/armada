@@ -23,6 +23,11 @@ const (
 	reservationLabel         = "reservation"
 	jobShapeLabel            = "job_shape"
 	unschedulableReasonLabel = "unschedulable_reason"
+	outcomeLabel             = "outcome"
+	terminationReasonLabel   = "termination_reason"
+
+	PoolSchedulingOutcomeSuccess = "success"
+	PoolSchedulingOutcomeFailure = "failure"
 
 	// Job state strings
 	queued    = "queued"
