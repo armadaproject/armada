@@ -144,6 +144,7 @@ export type JobRun = {
   finished?: string
   jobRunState: JobRunState
   exitCode?: number
+  ingressAddresses?: Record<string | number, string>
 }
 
 export enum Match {

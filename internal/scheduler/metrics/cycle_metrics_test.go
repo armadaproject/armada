@@ -311,6 +311,47 @@ func TestPublishCycleMetrics(t *testing.T) {
 	m.publishCycleMetrics(ctx, schedulerResult)
 }
 
+func TestReportPoolSchedulingOutcomes(t *testing.T) {
+	m := newCycleMetrics(pulsarutils.NoOpPublisher[*metricevents.Event]{})
+
+	outcomes := []scheduling.PoolSchedulingOutcome{
+		{
+			Pool:              "pool-1",
+			Success:           false,
+			TerminationReason: scheduling.PoolSchedulingTerminationReasonError,
+		},
+		{
+			Pool:              "pool-2",
+			Success:           true,
+			TerminationReason: scheduling.PoolSchedulingTerminationReasonCompleted,
+		},
+		{
+			Pool:              "pool-3",
+			Success:           true,
+			TerminationReason: scheduling.PoolSchedulingTerminationReasonTimeout,
+		},
+		{
+			Pool:              "pool-4",
+			Success:           true,
+			TerminationReason: scheduling.PoolSchedulingTerminationReasonRateLimit,
+		},
+	}
+
+	m.ReportPoolSchedulingOutcomes(outcomes)
+
+	failureCount := testutil.ToFloat64(m.poolSchedulingOutcome.WithLabelValues("pool-1", PoolSchedulingOutcomeFailure, string(scheduling.PoolSchedulingTerminationReasonError)))
+	assert.Equal(t, 1.0, failureCount, "failure outcome metric does not match")
+
+	completedCount := testutil.ToFloat64(m.poolSchedulingOutcome.WithLabelValues("pool-2", PoolSchedulingOutcomeSuccess, string(scheduling.PoolSchedulingTerminationReasonCompleted)))
+	assert.Equal(t, 1.0, completedCount, "completed outcome metric does not match")
+
+	timeoutCount := testutil.ToFloat64(m.poolSchedulingOutcome.WithLabelValues("pool-3", PoolSchedulingOutcomeSuccess, string(scheduling.PoolSchedulingTerminationReasonTimeout)))
+	assert.Equal(t, 1.0, timeoutCount, "timeout outcome metric does not match")
+
+	rateLimitCount := testutil.ToFloat64(m.poolSchedulingOutcome.WithLabelValues("pool-4", PoolSchedulingOutcomeSuccess, string(scheduling.PoolSchedulingTerminationReasonRateLimit)))
+	assert.Equal(t, 1.0, rateLimitCount, "rate limit outcome metric does not match")
+}
+
 func mustParseResourcePtr(qtyStr string) *resource.Quantity {
 	q := resource.MustParse(qtyStr)
 	return &q

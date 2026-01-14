@@ -31,6 +31,11 @@ import (
 	"github.com/armadaproject/armada/pkg/api"
 )
 
+type scheduledJobs struct {
+	jobs         []*jobdb.Job
+	acknowledged bool
+}
+
 func TestSchedule(t *testing.T) {
 	multiPoolSchedulingConfig := testfixtures.TestSchedulingConfig()
 	defaultExecutorSettings := []*schedulerobjects.ExecutorSettings{}
@@ -41,10 +46,6 @@ func TestSchedule(t *testing.T) {
 			Name:      testfixtures.AwayPool,
 			AwayPools: []string{testfixtures.TestPool2},
 		},
-	}
-	type scheduledJobs struct {
-		jobs         []*jobdb.Job
-		acknowledged bool
 	}
 	tests := map[string]struct {
 		schedulingConfig configuration.SchedulingConfig
@@ -58,9 +59,21 @@ func TestSchedule(t *testing.T) {
 		// where executorIndex refers to the index of executors, and nodeIndex the index of the node on that executor.
 		scheduledJobsByExecutorIndexAndNodeIndex map[int]map[int]scheduledJobs
 
+		// Indices of existing jobs the reconciler will fail to reconcile.
+		// Uses the same structure as scheduledJobsByExecutorIndexAndNodeIndex.
+		jobsToFailReconciliationJobsByExecutorIndexAndNodeIndex map[int]map[int][]int
+
 		// Indices of existing jobs expected to be preempted.
 		// Uses the same structure as scheduledJobsByExecutorIndexAndNodeIndex.
 		expectedPreemptedJobIndicesByExecutorIndexAndNodeIndex map[int]map[int][]int
+
+		// Indices of existing jobs expected to be preempted due to reconciliation.
+		// Uses the same structure as scheduledJobsByExecutorIndexAndNodeIndex.
+		expectedPreemptedDueToReconciliationByExecutorIndexAndNodeIndex map[int]map[int][]int
+
+		// Indices of existing jobs expected to be failed due to reconciliation.
+		// Uses the same structure as scheduledJobsByExecutorIndexAndNodeIndex.
+		expectedFailedDueToReconciliationByExecutorIndexAndNodeIndex map[int]map[int][]int
 
 		// Indices of queued jobs expected to be scheduled.
 		expectedScheduledIndices []int
@@ -207,6 +220,128 @@ func TestSchedule(t *testing.T) {
 				},
 			},
 			expectedScheduledIndices: []int{0, 1},
+		},
+		"reconcile - reconciliation disabled - does nothing": {
+			schedulingConfig: testfixtures.TestSchedulingConfig(),
+			executors: []*schedulerobjects.Executor{
+				test1Node32CoreExecutor("executor1"),
+			},
+			queues: []*api.Queue{testfixtures.MakeTestQueue()},
+			scheduledJobsByExecutorIndexAndNodeIndex: map[int]map[int]scheduledJobs{
+				0: {
+					0: scheduledJobs{
+						jobs:         testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass6Preemptible, 2),
+						acknowledged: true,
+					},
+				},
+			},
+			jobsToFailReconciliationJobsByExecutorIndexAndNodeIndex: map[int]map[int][]int{
+				0: {
+					0: {0},
+				},
+			},
+		},
+		"reconcile - preemptible job - preempted": {
+			schedulingConfig: testfixtures.WithReconcilerEnabled(testfixtures.TestSchedulingConfig()),
+			executors: []*schedulerobjects.Executor{
+				test1Node32CoreExecutor("executor1"),
+			},
+			queues: []*api.Queue{testfixtures.MakeTestQueue()},
+			scheduledJobsByExecutorIndexAndNodeIndex: map[int]map[int]scheduledJobs{
+				0: {
+					0: scheduledJobs{
+						jobs:         testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass6Preemptible, 2),
+						acknowledged: true,
+					},
+				},
+			},
+			jobsToFailReconciliationJobsByExecutorIndexAndNodeIndex: map[int]map[int][]int{
+				0: {
+					0: {0},
+				},
+			},
+			expectedPreemptedDueToReconciliationByExecutorIndexAndNodeIndex: map[int]map[int][]int{
+				0: {
+					0: {0},
+				},
+			},
+		},
+		"reconcile - non-preemptible job - failed": {
+			schedulingConfig: testfixtures.WithReconcilerEnabled(testfixtures.TestSchedulingConfig()),
+			executors: []*schedulerobjects.Executor{
+				test1Node32CoreExecutor("executor1"),
+			},
+			queues: []*api.Queue{testfixtures.MakeTestQueue()},
+			scheduledJobsByExecutorIndexAndNodeIndex: map[int]map[int]scheduledJobs{
+				0: {
+					0: scheduledJobs{
+						jobs:         testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass2NonPreemptible, 2),
+						acknowledged: true,
+					},
+				},
+			},
+			jobsToFailReconciliationJobsByExecutorIndexAndNodeIndex: map[int]map[int][]int{
+				0: {
+					0: {0},
+				},
+			},
+			expectedFailedDueToReconciliationByExecutorIndexAndNodeIndex: map[int]map[int][]int{
+				0: {
+					0: {0},
+				},
+			},
+		},
+		"reconcile - gang job - preempts all members": {
+			schedulingConfig: testfixtures.WithReconcilerEnabled(testfixtures.TestSchedulingConfig()),
+			executors: []*schedulerobjects.Executor{
+				test1Node32CoreExecutor("executor1"),
+			},
+			queues: []*api.Queue{testfixtures.MakeTestQueue()},
+			scheduledJobsByExecutorIndexAndNodeIndex: map[int]map[int]scheduledJobs{
+				0: {
+					0: scheduledJobs{
+						jobs:         testfixtures.WithGangAnnotationsJobs(testfixtures.N16Cpu128GiJobs("queue1", testfixtures.PriorityClass6Preemptible, 2)),
+						acknowledged: true,
+					},
+				},
+			},
+			jobsToFailReconciliationJobsByExecutorIndexAndNodeIndex: map[int]map[int][]int{
+				0: {
+					0: {0},
+				},
+			},
+			expectedPreemptedDueToReconciliationByExecutorIndexAndNodeIndex: map[int]map[int][]int{
+				0: {
+					0: {0, 1},
+				},
+			},
+		},
+		"reconcile - fills gap of preempted": {
+			schedulingConfig: testfixtures.WithReconcilerEnabled(testfixtures.TestSchedulingConfig()),
+			executors: []*schedulerobjects.Executor{
+				test1Node32CoreExecutor("executor1"),
+			},
+			queues:     []*api.Queue{testfixtures.MakeTestQueue()},
+			queuedJobs: testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 10),
+			scheduledJobsByExecutorIndexAndNodeIndex: map[int]map[int]scheduledJobs{
+				0: {
+					0: scheduledJobs{
+						jobs:         testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass6Preemptible, 2),
+						acknowledged: true,
+					},
+				},
+			},
+			jobsToFailReconciliationJobsByExecutorIndexAndNodeIndex: map[int]map[int][]int{
+				0: {
+					0: {0},
+				},
+			},
+			expectedPreemptedDueToReconciliationByExecutorIndexAndNodeIndex: map[int]map[int][]int{
+				0: {
+					0: {0},
+				},
+			},
+			expectedScheduledIndices: []int{0},
 		},
 		"MaximumResourceFractionPerQueue hit before scheduling": {
 			schedulingConfig: testfixtures.WithPerPriorityLimitsConfig(
@@ -521,6 +656,7 @@ func TestSchedule(t *testing.T) {
 			mockQueueCache.EXPECT().GetAll(ctx).Return(tc.queues, nil).AnyTimes()
 
 			schedulingContextRepo := reports.NewSchedulingContextRepository()
+			runReconciler := &testRunReconciler{}
 			sch, err := NewFairSchedulingAlgo(
 				tc.schedulingConfig,
 				0,
@@ -531,6 +667,7 @@ func TestSchedule(t *testing.T) {
 				testfixtures.TestEmptyFloatingResources,
 				priorityoverride.NewNoOpProvider(),
 				nil,
+				runReconciler,
 			)
 			require.NoError(t, err)
 
@@ -568,6 +705,9 @@ func TestSchedule(t *testing.T) {
 				}
 			}
 
+			jobIdsToFailReconciliation := getJobIdsOfScheduledJobsByExecutorAndNodeIndex(t, tc.scheduledJobsByExecutorIndexAndNodeIndex, tc.jobsToFailReconciliationJobsByExecutorIndexAndNodeIndex)
+			runReconciler.jobIdsToFailReconciliation = jobIdsToFailReconciliation
+
 			// Setup jobDb.
 			jobDb := testfixtures.NewJobDb(testfixtures.TestResourceListFactory)
 			txn := jobDb.WriteTxn()
@@ -602,6 +742,20 @@ func TestSchedule(t *testing.T) {
 			} else {
 				assert.Equal(t, tc.expectedPreemptedJobIndicesByExecutorIndexAndNodeIndex, actualPreemptedJobsByExecutorIndexAndNodeIndex)
 			}
+
+			expectedJobIdsFailedDueToReconciliation := getJobIdsOfScheduledJobsByExecutorAndNodeIndex(t, tc.scheduledJobsByExecutorIndexAndNodeIndex, tc.expectedFailedDueToReconciliationByExecutorIndexAndNodeIndex)
+			actualJobIdsFailedDueToReconciliation := jobIdsFromReconciliationResults(schedulerResult.FailedReconciliationJobs.FailedJobs)
+			slices.Sort(expectedJobIdsFailedDueToReconciliation)
+			slices.Sort(actualJobIdsFailedDueToReconciliation)
+
+			assert.Equal(t, expectedJobIdsFailedDueToReconciliation, actualJobIdsFailedDueToReconciliation)
+
+			expectedJobIdsPreemptedDueToReconciliation := getJobIdsOfScheduledJobsByExecutorAndNodeIndex(t, tc.scheduledJobsByExecutorIndexAndNodeIndex, tc.expectedPreemptedDueToReconciliationByExecutorIndexAndNodeIndex)
+			actualJobIdsPreemptedDueToReconciliation := jobIdsFromReconciliationResults(schedulerResult.FailedReconciliationJobs.PreemptedJobs)
+			slices.Sort(expectedJobIdsPreemptedDueToReconciliation)
+			slices.Sort(actualJobIdsPreemptedDueToReconciliation)
+
+			assert.Equal(t, expectedJobIdsPreemptedDueToReconciliation, actualJobIdsPreemptedDueToReconciliation)
 
 			// Check that jobs were scheduled as expected.
 			scheduledJobs := ScheduledJobsFromSchedulerResult(schedulerResult)
@@ -671,6 +825,31 @@ func TestSchedule(t *testing.T) {
 			}
 		})
 	}
+}
+
+func jobIdsFromReconciliationResults(results []*FailedReconciliationResult) []string {
+	ids := make([]string, 0, len(results))
+	for _, result := range results {
+		ids = append(ids, result.Job.Id())
+	}
+	return ids
+}
+
+func getJobIdsOfScheduledJobsByExecutorAndNodeIndex(t *testing.T, scheduledJobs map[int]map[int]scheduledJobs, jobIndexes map[int]map[int][]int) []string {
+	result := []string{}
+	for executorIndex, nodeIndexes := range jobIndexes {
+		existingJobsByNode, exists := scheduledJobs[executorIndex]
+		require.True(t, exists)
+
+		for nodeIndex, jobIndexes := range nodeIndexes {
+			nodeInfo, exists := existingJobsByNode[nodeIndex]
+			require.True(t, exists)
+			for _, jobIndex := range jobIndexes {
+				result = append(result, nodeInfo.jobs[jobIndex].Id())
+			}
+		}
+	}
+	return result
 }
 
 func TestPopulateNodeDb(t *testing.T) {
@@ -901,4 +1080,22 @@ func test32CpuNode(priorities []int32) *schedulerobjects.Node {
 			"memory": pointer.MustParseResource("256Gi"),
 		},
 	)
+}
+
+type testRunReconciler struct {
+	jobIdsToFailReconciliation []string
+}
+
+func (t *testRunReconciler) ReconcileJobRuns(txn *jobdb.Txn, _ []*schedulerobjects.Executor) []*FailedReconciliationResult {
+	if t.jobIdsToFailReconciliation == nil || len(t.jobIdsToFailReconciliation) == 0 {
+		return nil
+	}
+	jobs := txn.GetAll()
+	result := make([]*FailedReconciliationResult, 0, len(jobs))
+	for _, job := range jobs {
+		if slices.Contains(t.jobIdsToFailReconciliation, job.Id()) {
+			result = append(result, &FailedReconciliationResult{Job: job, Reason: "reconciling this run with the node failed"})
+		}
+	}
+	return result
 }
