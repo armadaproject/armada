@@ -6,6 +6,7 @@ jobs:
     podSpec:
       terminationGracePeriodSeconds: 0
       restartPolicy: Never
+      priorityClassName: armada-preemptible
       containers:
         - name: sleeper
           image: alpine:latest

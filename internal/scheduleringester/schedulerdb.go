@@ -460,18 +460,18 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 			if err != nil {
 				return errors.Wrapf(err, "error preempting jobs on node %s on executor %s by queue and priority class", nodeOnExecutor.Node, nodeOnExecutor.Executor)
 			}
-			inPriorityClasses := jobInPriorityClasses(preemptRequest.PriorityClasses)
-			jobsToPreempt := make([]schedulerdb.Job, 0)
-			for _, job := range jobs {
-				ok, err := inPriorityClasses(job)
+
+			if len(jobs) == 0 {
+				continue
+			}
+
+			if len(preemptRequest.PriorityClasses) > 0 {
+				jobs, err = filterJobsByPriorityClasses(jobs, preemptRequest.PriorityClasses)
 				if err != nil {
 					return errors.Wrapf(err, "error preempting jobs on node %s on executor %s by queue and priority class", nodeOnExecutor.Node, nodeOnExecutor.Executor)
 				}
-				if ok {
-					jobsToPreempt = append(jobsToPreempt, job)
-				}
 			}
-			for _, requestPreemptParams := range createMarkJobRunsPreemptRequestedByJobIdParams(jobsToPreempt) {
+			for _, requestPreemptParams := range createMarkJobRunsPreemptRequestedByJobIdParams(jobs) {
 				err = queries.MarkJobRunsPreemptRequestedByJobId(ctx, *requestPreemptParams)
 				if err != nil {
 					return errors.Wrapf(err, "error preempting jobs on node %s on executor %s by queue and priority class", nodeOnExecutor.Node, nodeOnExecutor.Executor)
@@ -661,4 +661,22 @@ func multiColumnRunsUpdateStmt(id, phaseColumn, timeStampColumn string) string {
 	as runs_temp(%[1]v, %[2]v, %[3]v)
 	where runs.%[1]v = runs_temp.%[1]v;`,
 		id, phaseColumn, timeStampColumn, "text")
+}
+
+func filterJobsByPriorityClasses(jobs []schedulerdb.Job, priorityClasses []string) ([]schedulerdb.Job, error) {
+	if len(priorityClasses) == 0 {
+		return jobs, nil
+	}
+	inPriorityClasses := jobInPriorityClasses(priorityClasses)
+	filteredJobs := make([]schedulerdb.Job, 0)
+	for _, job := range jobs {
+		ok, err := inPriorityClasses(job)
+		if err != nil {
+			return nil, errors.Wrapf(err, "error filtering jobs by priority class")
+		}
+		if ok {
+			filteredJobs = append(filteredJobs, job)
+		}
+	}
+	return filteredJobs, nil
 }

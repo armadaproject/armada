@@ -347,6 +347,7 @@ func TestConvertControlPlaneEvent(t *testing.T) {
 					Node:     f.NodeName,
 				}: &PreemptOnNode{
 					Name:            f.NodeName,
+					Executor:        f.ExecutorId,
 					Queues:          []string{f.Queue},
 					PriorityClasses: []string{f.PriorityClassName},
 				},
