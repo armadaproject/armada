@@ -622,7 +622,10 @@ func EventsFromSchedulerResult(result *scheduling.SchedulerResult, time time.Tim
 		return nil, err
 	}
 
-	eventSequences = AppendEventSequencesFromReconciliationFailureJobs(eventSequences, result.FailedReconciliationJobs, time)
+	eventSequences, err = AppendEventSequencesFromReconciliationFailureJobs(eventSequences, result.FailedReconciliationJobs, time)
+	if err != nil {
+		return nil, err
+	}
 
 	return eventSequences, nil
 }
@@ -718,11 +721,15 @@ func createEventsForPreemptedJob(jobId string, runId string, reason string, time
 	}
 }
 
-func AppendEventSequencesFromReconciliationFailureJobs(eventSequences []*armadaevents.EventSequence, reconciliationResult *scheduling.ReconciliationResult, time time.Time) []*armadaevents.EventSequence {
+func AppendEventSequencesFromReconciliationFailureJobs(eventSequences []*armadaevents.EventSequence, reconciliationResult *scheduling.ReconciliationResult, time time.Time) ([]*armadaevents.EventSequence, error) {
 	if reconciliationResult == nil {
-		return eventSequences
+		return eventSequences, nil
 	}
 	for _, jobInfo := range reconciliationResult.FailedJobs {
+		run := jobInfo.Job.LatestRun()
+		if run == nil {
+			return nil, errors.Errorf("attempting to generate reconciliation failed eventSequences for job %s with no associated runs", jobInfo.Job.Id())
+		}
 		reconciliationError := &armadaevents.Error{
 			Terminal: true,
 			Reason: &armadaevents.Error_ReconciliationError{
@@ -734,21 +741,25 @@ func AppendEventSequencesFromReconciliationFailureJobs(eventSequences []*armadae
 		es := &armadaevents.EventSequence{
 			Queue:      jobInfo.Job.Queue(),
 			JobSetName: jobInfo.Job.Jobset(),
-			Events:     createEventsForFailedJob(jobInfo.Job.Id(), jobInfo.Job.Id(), reconciliationError, time),
+			Events:     createEventsForFailedJob(jobInfo.Job.Id(), run.Id(), reconciliationError, time),
 		}
 		eventSequences = append(eventSequences, es)
 	}
 
 	for _, jobInfo := range reconciliationResult.PreemptedJobs {
+		run := jobInfo.Job.LatestRun()
+		if run == nil {
+			return nil, errors.Errorf("attempting to generate reconciliation preemption eventSequences for job %s with no associated runs", jobInfo.Job.Id())
+		}
 		es := &armadaevents.EventSequence{
 			Queue:      jobInfo.Job.Queue(),
 			JobSetName: jobInfo.Job.Jobset(),
-			Events:     createEventsForPreemptedJob(jobInfo.Job.Id(), jobInfo.Job.Id(), jobInfo.Reason, time),
+			Events:     createEventsForPreemptedJob(jobInfo.Job.Id(), run.Id(), jobInfo.Reason, time),
 		}
 		eventSequences = append(eventSequences, es)
 	}
 
-	return eventSequences
+	return eventSequences, nil
 }
 
 func AppendEventSequencesFromScheduledJobs(eventSequences []*armadaevents.EventSequence, jctxs []*schedulercontext.JobSchedulingContext) ([]*armadaevents.EventSequence, error) {
