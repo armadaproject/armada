@@ -432,6 +432,8 @@ func (c *ControlPlaneEventsInstructionConverter) dbOperationFromControlPlaneEven
 		operations, err = c.handleExecutorSettingsDelete(event.GetExecutorSettingsDelete())
 	case *controlplaneevents.Event_PreemptOnExecutor:
 		operations, err = c.handlePreemptOnExecutor(event.GetPreemptOnExecutor())
+	case *controlplaneevents.Event_CancelOnNode:
+		operations, err = c.handleCancelOnNode(event.GetCancelOnNode())
 	case *controlplaneevents.Event_CancelOnExecutor:
 		operations, err = c.handleCancelOnExecutor(event.GetCancelOnExecutor())
 	case *controlplaneevents.Event_PreemptOnQueue:
@@ -482,6 +484,22 @@ func (c *ControlPlaneEventsInstructionConverter) handlePreemptOnExecutor(preempt
 				Name:            preempt.Name,
 				Queues:          preempt.Queues,
 				PriorityClasses: preempt.PriorityClasses,
+			},
+		},
+	}, nil
+}
+
+func (c *ControlPlaneEventsInstructionConverter) handleCancelOnNode(cancel *controlplaneevents.CancelOnNode) ([]DbOperation, error) {
+	return []DbOperation{
+		CancelNode{
+			NodeOnExecutor{
+				Node:     cancel.Name,
+				Executor: cancel.Executor,
+			}: {
+				Name:            cancel.Name,
+				Executor:        cancel.Executor,
+				Queues:          cancel.Queues,
+				PriorityClasses: cancel.PriorityClasses,
 			},
 		},
 	}, nil

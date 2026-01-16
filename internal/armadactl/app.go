@@ -71,6 +71,7 @@ type ExecutorAPI struct {
 
 type NodeAPI struct {
 	PreemptOnNode node.PreemptAPI
+	CancelOnNode  node.CancelAPI
 }
 
 // New instantiates an App with default parameters, including standard output

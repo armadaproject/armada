@@ -13,10 +13,24 @@ service Node {
       body: "*"
     };
   }
+  rpc CancelOnNode (NodeCancelRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      post: "/v1/executor/cancel/{name}"
+      body: "*"
+    };
+  }
 }
 
 // Jobs on the specified node matching the given criteria will be cancelled.
 message NodePreemptRequest {
+  string name = 1;
+  string executor = 2;
+  repeated string queues = 3;
+  repeated string priorityClasses = 4;
+}
+
+// Jobs on the specified executor matching both the provided queues and priority classes will be cancelled
+message NodeCancelRequest {
   string name = 1;
   string executor = 2;
   repeated string queues = 3;

@@ -40,6 +40,7 @@ func initParams(cmd *cobra.Command, params *armadactl.Params) error {
 	params.ExecutorAPI.PreemptOnExecutor = ce.PreemptOnExecutor(client.ExtractCommandlineArmadaApiConnectionDetails)
 
 	params.NodeAPI.PreemptOnNode = cn.PreemptOnNode(client.ExtractCommandlineArmadaApiConnectionDetails)
+	params.NodeAPI.CancelOnNode = cn.CancelOnNode(client.ExtractCommandlineArmadaApiConnectionDetails)
 
 	return nil
 }

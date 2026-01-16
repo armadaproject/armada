@@ -353,6 +353,20 @@ func TestConvertControlPlaneEvent(t *testing.T) {
 				},
 			}},
 		},
+		"cancel on node": {
+			event: f.CancelOnNode,
+			expected: []DbOperation{CancelNode{
+				NodeOnExecutor{
+					Executor: f.ExecutorId,
+					Node:     f.NodeName,
+				}: &CancelOnNode{
+					Name:            f.NodeName,
+					Executor:        f.ExecutorId,
+					Queues:          []string{f.Queue},
+					PriorityClasses: []string{f.PriorityClassName},
+				},
+			}},
+		},
 		"preempt on queue": {
 			event: f.PreemptOnQueue,
 			expected: []DbOperation{PreemptQueue{

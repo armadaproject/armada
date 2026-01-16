@@ -100,7 +100,7 @@ func preemptNodeCmd() *cobra.Command {
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			onNode := args[0]
-			onExecutor := args[1]
+			executor := args[1]
 
 			priorityClasses, err := cmd.Flags().GetStringSlice("priority-classes")
 			if err != nil {
@@ -112,7 +112,7 @@ func preemptNodeCmd() *cobra.Command {
 				return fmt.Errorf("error reading queue selection: %s", err)
 			}
 
-			return a.PreemptOnNode(onNode, onExecutor, queues, priorityClasses)
+			return a.PreemptOnNode(onNode, executor, queues, priorityClasses)
 		},
 	}
 	cmd.Flags().StringSliceP(

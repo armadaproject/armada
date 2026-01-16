@@ -619,6 +619,17 @@ var PreemptOnNode = &controlplaneevents.Event{
 	},
 }
 
+var CancelOnNode = &controlplaneevents.Event{
+	Event: &controlplaneevents.Event_CancelOnNode{
+		CancelOnNode: &controlplaneevents.CancelOnNode{
+			Name:            NodeName,
+			Executor:        ExecutorId,
+			Queues:          []string{Queue},
+			PriorityClasses: []string{PriorityClassName},
+		},
+	},
+}
+
 var PreemptOnQueue = &controlplaneevents.Event{
 	Event: &controlplaneevents.Event_PreemptOnQueue{
 		PreemptOnQueue: &controlplaneevents.PreemptOnQueue{

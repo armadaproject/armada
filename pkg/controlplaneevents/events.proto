@@ -16,6 +16,7 @@ message Event {
     PreemptOnQueue preemptOnQueue = 6;
     CancelOnQueue cancelOnQueue = 7;
     PreemptOnNode preemptOnNode = 8;
+    CancelOnNode cancelOnNode = 9;
   }
 }
 
@@ -36,6 +37,12 @@ message PreemptOnExecutor {
   repeated string priorityClasses = 3;
 }
 
+message CancelOnExecutor {
+  string name = 1;
+  repeated string queues = 2;
+  repeated string priorityClasses = 3;
+}
+
 message PreemptOnNode {
   string name = 1;
   string executor = 2;
@@ -43,10 +50,11 @@ message PreemptOnNode {
   repeated string priorityClasses = 4;
 }
 
-message CancelOnExecutor {
+message CancelOnNode {
   string name = 1;
-  repeated string queues = 2;
-  repeated string priorityClasses = 3;
+  string executor = 2;
+  repeated string queues = 3;
+  repeated string priorityClasses = 4;
 }
 
 // A subset of JobState including only non-terminal states
