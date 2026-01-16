@@ -765,6 +765,12 @@ func init() {
           "format": "date-time",
           "x-nullable": true
         },
+        "ingressAddresses": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
         "jobRunState": {
           "type": "string",
           "enum": [
@@ -1610,6 +1616,12 @@ func init() {
           "type": "string",
           "format": "date-time",
           "x-nullable": true
+        },
+        "ingressAddresses": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
         },
         "jobRunState": {
           "type": "string",

@@ -28,19 +28,9 @@ jobs:
           yarn install --frozen-lockfile && yarn openapi && yarn build && CI=true yarn test --reporter=junit
         working-directory: ./internal/lookoutui
 
-      - name: Publish JUnit Report
-        uses: mikepenz/action-junit-report@v6
-        if: always()
-        with:
-          report_paths: ./internal/lookoutui/junit.xml
-          fail_on_failure: true
-          require_tests: true
-          detailed_summary: true
-          token: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Upload Test Reports Artifacts
         if: always()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: ts-unit-test-reports
           path: ./internal/lookoutui/junit.xml
@@ -66,19 +56,9 @@ jobs:
         id: unit_test
         run: go run github.com/magefile/mage@v1.14.0 -v tests
 
-      - name: Publish JUnit Report
-        uses: mikepenz/action-junit-report@v6
-        if: always()
-        with:
-          report_paths: test-reports/unit-tests.xml
-          fail_on_failure: true
-          require_tests: true
-          detailed_summary: true
-          token: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Upload Test Reports Artifacts
         if: always()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: go-unit-test-reports
           path: test-reports/
@@ -123,7 +103,7 @@ jobs:
         run: go run github.com/magefile/mage@v1.14.0 -v testsuite
 
       - name: Upload JUnit Report Artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: go-integration-test-reports
           path: junit.xml
@@ -137,23 +117,13 @@ jobs:
           docker logs pulsar > ./logs/pulsar.log 2>&1
 
       - name: Upload Docker Compose Logs
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         if: always()
         with:
           name: docker-compose-logs
           path: |
             ./logs/
           if-no-files-found: error
-
-      - name: Publish JUnit Report
-        uses: mikepenz/action-junit-report@v6
-        if: always()
-        with:
-          report_paths: junit.xml
-          fail_on_failure: true
-          require_tests: true
-          detailed_summary: true
-          token: ${{ secrets.GITHUB_TOKEN }}
 
   go-mod-up-to-date:
     name: Golang Mod Up To Date

@@ -7,8 +7,6 @@ import { ColumnId, JobTableColumn, PINNED_COLUMNS, toColId } from "../../../comm
 import AutoRefreshToggle from "../../../components/AutoRefreshToggle"
 import RefreshButton from "../../../components/RefreshButton"
 import { JobFiltersWithExcludes } from "../../../models/lookoutModels"
-import { IGetJobsService } from "../../../services/lookout/GetJobsService"
-import { UpdateJobsService } from "../../../services/lookout/UpdateJobsService"
 
 import { CancelDialog } from "./CancelDialog"
 import { ColumnConfigurationDialog } from "./ColumnConfigurationDialog"
@@ -38,8 +36,6 @@ export interface JobsTableActionBarProps {
   onEditAnnotationColumn: (colId: ColumnId, annotationKey: string) => void
   toggleColumnVisibility: (columnId: ColumnId) => void
   onGroupsChanged: (newGroups: ColumnId[]) => void
-  getJobsService: IGetJobsService
-  updateJobsService: UpdateJobsService
   onClearFilters: () => void
   onClearSorting: () => void
   customSortingApplied: boolean
@@ -71,8 +67,6 @@ export const JobsTableActionBar = memo(
     onEditAnnotationColumn,
     toggleColumnVisibility,
     onGroupsChanged,
-    getJobsService,
-    updateJobsService,
     onClearFilters,
     onClearSorting,
     customSortingApplied,
@@ -115,21 +109,9 @@ export const JobsTableActionBar = memo(
           onEditAnnotationColumn={onEditAnnotationColumn}
           onRemoveAnnotationColumn={onRemoveAnnotationColumn}
         />
-        {cancelDialogOpen && (
-          <CancelDialog
-            onClose={cancelDialogOnClose}
-            selectedItemFilters={selectedItemFilters}
-            getJobsService={getJobsService}
-            updateJobsService={updateJobsService}
-          />
-        )}
+        {cancelDialogOpen && <CancelDialog onClose={cancelDialogOnClose} selectedItemFilters={selectedItemFilters} />}
         {reprioritizeDialogOpen && (
-          <ReprioritizeDialog
-            onClose={reprioritizeDialogOnClose}
-            selectedItemFilters={selectedItemFilters}
-            getJobsService={getJobsService}
-            updateJobsService={updateJobsService}
-          />
+          <ReprioritizeDialog onClose={reprioritizeDialogOnClose} selectedItemFilters={selectedItemFilters} />
         )}
         <div className={styles.actionGroup}>
           <GroupBySelect columns={allColumns} groups={groupedColumns} onGroupsChanged={onGroupsChanged} />
