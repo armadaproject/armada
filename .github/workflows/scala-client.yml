@@ -48,7 +48,7 @@ jobs:
           version: '23.3'
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Restore Maven packages cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.m2/repository
           key: ${{ runner.os }}-mvn-build-${{ matrix.scala-version }}-${{ hashFiles('client/scala/armada-scala-client/pom.xml') }}
