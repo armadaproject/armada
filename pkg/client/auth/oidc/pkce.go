@@ -25,18 +25,16 @@ type PKCEDetails struct {
 	Scopes      []string
 }
 
-func AuthenticatePkce(config PKCEDetails) (*TokenCredentials, error) {
+func AuthenticatePkce(config PKCEDetails, cacheToken bool) (*TokenCredentials, error) {
 	ctx := context.Background()
-
-	result := make(chan *oauth2.Token)
-	errorResult := make(chan error)
 
 	provider, err := openId.NewProvider(ctx, config.ProviderUrl)
 	if err != nil {
 		return nil, err
 	}
 
-	localUrl := "localhost:" + strconv.Itoa(int(config.LocalPort))
+	portStr := strconv.Itoa(int(config.LocalPort))
+	localUrl := "localhost:" + portStr
 
 	oauth := oauth2.Config{
 		ClientID:    config.ClientId,
@@ -44,6 +42,16 @@ func AuthenticatePkce(config PKCEDetails) (*TokenCredentials, error) {
 		RedirectURL: "http://" + localUrl + "/auth/callback",
 		Scopes:      append(config.Scopes, openId.ScopeOpenID),
 	}
+
+	// Try to use cached refresh token if enabled
+	token, cache := tryGetCachedToken(ctx, &oauth, config.ProviderUrl, config.ClientId, cacheToken)
+	if token != nil {
+		return &TokenCredentials{oauth.TokenSource(ctx, token)}, nil
+	}
+
+	// Perform interactive authentication if no valid cached token
+	result := make(chan *oauth2.Token)
+	errorResult := make(chan error)
 
 	state := randomStringBase64() // xss protection
 	challenge := randomStringBase64()
@@ -104,18 +112,18 @@ func AuthenticatePkce(config PKCEDetails) (*TokenCredentials, error) {
 	}()
 
 	cmd, err := openBrowser("http://" + localUrl)
+	if err != nil {
+		return nil, err
+	}
 	defer func() {
 		if err := cmd.Process.Kill(); err != nil {
 			log.WithStacktrace(err).Error("unable to kill process")
 		}
 	}()
 
-	if err != nil {
-		return nil, err
-	}
-
 	select {
 	case t := <-result:
+		saveTokenToCache(t, cache)
 		return &TokenCredentials{oauth.TokenSource(ctx, t)}, nil
 	case e := <-errorResult:
 		return nil, e
