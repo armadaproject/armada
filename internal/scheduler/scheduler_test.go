@@ -18,6 +18,7 @@ import (
 	"k8s.io/utils/pointer"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	apiconfig "github.com/armadaproject/armada/internal/common/constants"
 	"github.com/armadaproject/armada/internal/common/ingest/utils"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
@@ -341,6 +342,11 @@ var (
 	))
 )
 
+type jobRunId struct {
+	jobId string
+	runId string
+}
+
 // Test a single scheduler cycle
 func TestScheduler_TestCycle(t *testing.T) {
 	tests := map[string]struct {
@@ -357,11 +363,11 @@ func TestScheduler_TestCycle(t *testing.T) {
 		jobIdsToFailDueToReconciliation    []string                       // job ids that will be failed by the scheduler due to reconciliation issues
 		jobIdsToPreemptDueToReconciliation []string                       // job ids that will be preempted by the scheduler due to reconciliation issues
 		expectedJobRunLeased               []string                       // ids of jobs we expect to have produced leased messages
-		expectedJobRunErrors               []string                       // ids of jobs we expect to have produced jobRunErrors messages
+		expectedJobRunErrors               []jobRunId                     // ids of jobs we expect to have produced jobRunErrors messages
 		expectedJobErrors                  []string                       // ids of jobs we expect to have produced jobErrors messages
 		expectedJobsRunsToPreempt          []string                       // ids of jobs we expect to be preempted by the scheduler
-		expectedJobRunPreempted            []string                       // ids of jobs we expect to have produced jobRunPreempted messages
-		expectedJobRunCancelled            []string                       // ids of jobs we expect to have produced jobRunPreempted messages
+		expectedJobRunPreempted            []jobRunId                     // ids of jobs we expect to have produced jobRunPreempted messages
+		expectedJobRunCancelled            []jobRunId                     // ids of jobs we expect to have produced jobRunPreempted messages
 		expectedJobCancelled               []string                       // ids of jobs we expect to have  produced cancelled messages
 		expectedJobRequestCancel           []string                       // ids of jobs we expect to have produced request cancel
 		expectedJobReprioritised           []string                       // ids of jobs we expect to have  produced reprioritised messages
@@ -631,7 +637,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 					Serial:          1,
 				},
 			},
-			expectedJobRunCancelled: []string{leasedJob.Id()},
+			expectedJobRunCancelled: []jobRunId{{jobId: leasedJob.Id(), runId: leasedJob.LatestRun().Id()}},
 			expectedJobCancelled:    []string{leasedJob.Id()},
 			expectedTerminal:        []string{leasedJob.Id()},
 			expectedQueuedVersion:   leasedJob.QueuedVersion(),
@@ -648,9 +654,9 @@ func TestScheduler_TestCycle(t *testing.T) {
 					Serial:           1,
 				},
 			},
-			expectedJobRunPreempted: []string{preemptibleLeasedJob.Id()},
+			expectedJobRunPreempted: []jobRunId{{jobId: preemptibleLeasedJob.Id(), runId: preemptibleLeasedJob.LatestRun().Id()}},
 			expectedJobErrors:       []string{preemptibleLeasedJob.Id()},
-			expectedJobRunErrors:    []string{preemptibleLeasedJob.Id()},
+			expectedJobRunErrors:    []jobRunId{{jobId: preemptibleLeasedJob.Id(), runId: preemptibleLeasedJob.LatestRun().Id()}},
 			expectedTerminal:        []string{preemptibleLeasedJob.Id()},
 			expectedQueuedVersion:   preemptibleLeasedJob.QueuedVersion(),
 		},
@@ -666,11 +672,17 @@ func TestScheduler_TestCycle(t *testing.T) {
 					Serial:           1,
 				},
 			},
-			expectedJobRunPreempted: []string{preemptibleGangJob1.Id(), preemptibleGangJob2.Id()},
-			expectedJobErrors:       []string{preemptibleGangJob1.Id(), preemptibleGangJob2.Id()},
-			expectedJobRunErrors:    []string{preemptibleGangJob1.Id(), preemptibleGangJob2.Id()},
-			expectedTerminal:        []string{preemptibleGangJob1.Id(), preemptibleGangJob2.Id()},
-			expectedQueuedVersion:   preemptibleGangJob1.QueuedVersion(),
+			expectedJobRunPreempted: []jobRunId{
+				{jobId: preemptibleGangJob1.Id(), runId: preemptibleGangJob1.LatestRun().Id()},
+				{jobId: preemptibleGangJob2.Id(), runId: preemptibleGangJob2.LatestRun().Id()},
+			},
+			expectedJobErrors: []string{preemptibleGangJob1.Id(), preemptibleGangJob2.Id()},
+			expectedJobRunErrors: []jobRunId{
+				{jobId: preemptibleGangJob1.Id(), runId: preemptibleGangJob1.LatestRun().Id()},
+				{jobId: preemptibleGangJob2.Id(), runId: preemptibleGangJob2.LatestRun().Id()},
+			},
+			expectedTerminal:      []string{preemptibleGangJob1.Id(), preemptibleGangJob2.Id()},
+			expectedQueuedVersion: preemptibleGangJob1.QueuedVersion(),
 		},
 		"Job Run preemption requested - job not pre-emptible - no action expected": {
 			initialJobs: []*jobdb.Job{leasedJob},
@@ -785,7 +797,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 		"Lease expired": {
 			initialJobs:           []*jobdb.Job{leasedJob},
 			staleExecutor:         true,
-			expectedJobRunErrors:  []string{leasedJob.Id()},
+			expectedJobRunErrors:  []jobRunId{{jobId: leasedJob.Id(), runId: leasedJob.LatestRun().Id()}},
 			expectedJobErrors:     []string{leasedJob.Id()},
 			expectedTerminal:      []string{leasedJob.Id()},
 			expectedQueuedVersion: leasedJob.QueuedVersion(),
@@ -805,9 +817,9 @@ func TestScheduler_TestCycle(t *testing.T) {
 		"Reconciliation failure - preempted": {
 			initialJobs:                        []*jobdb.Job{preemptibleLeasedJob},
 			jobIdsToPreemptDueToReconciliation: []string{preemptibleLeasedJob.Id()},
-			expectedJobRunPreempted:            []string{preemptibleLeasedJob.Id()},
+			expectedJobRunPreempted:            []jobRunId{{jobId: preemptibleLeasedJob.Id(), runId: preemptibleLeasedJob.LatestRun().Id()}},
 			expectedJobErrors:                  []string{preemptibleLeasedJob.Id()},
-			expectedJobRunErrors:               []string{preemptibleLeasedJob.Id()},
+			expectedJobRunErrors:               []jobRunId{{jobId: preemptibleLeasedJob.Id(), runId: preemptibleLeasedJob.LatestRun().Id()}},
 			expectedTerminal:                   []string{preemptibleLeasedJob.Id()},
 			expectedQueuedVersion:              preemptibleLeasedJob.QueuedVersion(),
 		},
@@ -815,7 +827,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 			initialJobs:                     []*jobdb.Job{leasedJob},
 			jobIdsToFailDueToReconciliation: []string{leasedJob.Id()},
 			expectedJobErrors:               []string{leasedJob.Id()},
-			expectedJobRunErrors:            []string{leasedJob.Id()},
+			expectedJobRunErrors:            []jobRunId{{jobId: leasedJob.Id(), runId: leasedJob.LatestRun().Id()}},
 			expectedTerminal:                []string{leasedJob.Id()},
 			expectedQueuedVersion:           leasedJob.QueuedVersion(),
 		},
@@ -824,7 +836,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 			expectedJobRunLeased:            []string{queuedJob.Id()},
 			jobIdsToFailDueToReconciliation: []string{queuedJob.Id()},
 			expectedJobErrors:               []string{queuedJob.Id()},
-			expectedJobRunErrors:            []string{queuedJob.Id()},
+			expectedJobRunErrors:            []jobRunId{{jobId: queuedJob.Id()}},
 			expectedTerminal:                []string{queuedJob.Id()},
 			expectedQueuedVersion:           leasedJob.QueuedVersion(),
 		},
@@ -866,9 +878,9 @@ func TestScheduler_TestCycle(t *testing.T) {
 		"Job preempted": {
 			initialJobs:               []*jobdb.Job{leasedJob},
 			expectedJobsRunsToPreempt: []string{leasedJob.Id()},
-			expectedJobRunPreempted:   []string{leasedJob.Id()},
+			expectedJobRunPreempted:   []jobRunId{{jobId: leasedJob.Id(), runId: leasedJob.LatestRun().Id()}},
 			expectedJobErrors:         []string{leasedJob.Id()},
-			expectedJobRunErrors:      []string{leasedJob.Id()},
+			expectedJobRunErrors:      []jobRunId{{jobId: leasedJob.Id(), runId: leasedJob.LatestRun().Id()}},
 			expectedTerminal:          []string{leasedJob.Id()},
 			expectedQueuedVersion:     leasedJob.QueuedVersion(),
 		},
@@ -961,22 +973,22 @@ func TestScheduler_TestCycle(t *testing.T) {
 			}
 
 			// Assert that all expected eventSequences are generated and that all eventSequences are expected.
-			outstandingEventsByType := map[string]map[string]bool{
-				fmt.Sprintf("%T", &armadaevents.EventSequence_Event_JobRunLeased{}):     stringSet(tc.expectedJobRunLeased),
-				fmt.Sprintf("%T", &armadaevents.EventSequence_Event_JobErrors{}):        stringSet(tc.expectedJobErrors),
-				fmt.Sprintf("%T", &armadaevents.EventSequence_Event_JobRunErrors{}):     stringSet(tc.expectedJobRunErrors),
-				fmt.Sprintf("%T", &armadaevents.EventSequence_Event_JobRunPreempted{}):  stringSet(tc.expectedJobRunPreempted),
-				fmt.Sprintf("%T", &armadaevents.EventSequence_Event_JobRunCancelled{}):  stringSet(tc.expectedJobRunCancelled),
-				fmt.Sprintf("%T", &armadaevents.EventSequence_Event_CancelledJob{}):     stringSet(tc.expectedJobCancelled),
-				fmt.Sprintf("%T", &armadaevents.EventSequence_Event_ReprioritisedJob{}): stringSet(tc.expectedJobReprioritised),
-				fmt.Sprintf("%T", &armadaevents.EventSequence_Event_JobSucceeded{}):     stringSet(tc.expectedJobSucceeded),
-				fmt.Sprintf("%T", &armadaevents.EventSequence_Event_JobRequeued{}):      stringSet(tc.expectedRequeued),
-				fmt.Sprintf("%T", &armadaevents.EventSequence_Event_CancelJob{}):        stringSet(tc.expectedJobRequestCancel),
-				fmt.Sprintf("%T", &armadaevents.EventSequence_Event_JobValidated{}):     stringSet(tc.expectedValidated),
+			outstandingJobEventsByType := map[string]map[string]eventDetails{
+				fmt.Sprintf("%T", &armadaevents.EventSequence_Event_JobRunLeased{}):     stringsToSetWithEventDetails(tc.expectedJobRunLeased),
+				fmt.Sprintf("%T", &armadaevents.EventSequence_Event_JobErrors{}):        stringsToSetWithEventDetails(tc.expectedJobErrors),
+				fmt.Sprintf("%T", &armadaevents.EventSequence_Event_JobRunErrors{}):     jobRunIdToSetWithEventDetails(tc.expectedJobRunErrors),
+				fmt.Sprintf("%T", &armadaevents.EventSequence_Event_JobRunPreempted{}):  jobRunIdToSetWithEventDetails(tc.expectedJobRunPreempted),
+				fmt.Sprintf("%T", &armadaevents.EventSequence_Event_JobRunCancelled{}):  jobRunIdToSetWithEventDetails(tc.expectedJobRunCancelled),
+				fmt.Sprintf("%T", &armadaevents.EventSequence_Event_CancelledJob{}):     stringsToSetWithEventDetails(tc.expectedJobCancelled),
+				fmt.Sprintf("%T", &armadaevents.EventSequence_Event_ReprioritisedJob{}): stringsToSetWithEventDetails(tc.expectedJobReprioritised),
+				fmt.Sprintf("%T", &armadaevents.EventSequence_Event_JobSucceeded{}):     stringsToSetWithEventDetails(tc.expectedJobSucceeded),
+				fmt.Sprintf("%T", &armadaevents.EventSequence_Event_JobRequeued{}):      stringsToSetWithEventDetails(tc.expectedRequeued),
+				fmt.Sprintf("%T", &armadaevents.EventSequence_Event_CancelJob{}):        stringsToSetWithEventDetails(tc.expectedJobRequestCancel),
+				fmt.Sprintf("%T", &armadaevents.EventSequence_Event_JobValidated{}):     stringsToSetWithEventDetails(tc.expectedValidated),
 			}
-			err = subtractEventsFromOutstandingEventsByType(publisher.eventSequences, outstandingEventsByType)
+			err = subtractEventsFromOutstandingEventsByType(publisher.eventSequences, outstandingJobEventsByType)
 			require.NoError(t, err)
-			for eventType, m := range outstandingEventsByType {
+			for eventType, m := range outstandingJobEventsByType {
 				assert.Empty(t, m, "%d outstanding eventSequences of type %s", len(m), eventType)
 			}
 
@@ -1054,7 +1066,7 @@ func createAntiAffinity(t *testing.T, key string, values []string) *v1.Affinity 
 	return newAffinity
 }
 
-func subtractEventsFromOutstandingEventsByType(eventSequences []*armadaevents.EventSequence, outstandingEventsByType map[string]map[string]bool) error {
+func subtractEventsFromOutstandingEventsByType(eventSequences []*armadaevents.EventSequence, outstandingEventsByType map[string]map[string]eventDetails) error {
 	for _, eventSequence := range eventSequences {
 		for _, event := range eventSequence.Events {
 			jobId, err := armadaevents.JobIdFromEvent(event)
@@ -1062,14 +1074,44 @@ func subtractEventsFromOutstandingEventsByType(eventSequences []*armadaevents.Ev
 				return err
 			}
 			key := fmt.Sprintf("%T", event.Event)
-			_, ok := outstandingEventsByType[key][jobId]
+			details, ok := outstandingEventsByType[key][jobId]
 			if !ok {
 				return errors.Errorf("received unexpected event for job %s: %T - %v", jobId, event.Event, event.Event)
 			}
+
+			if details.runId != "" {
+				runId, err := RunIdFromEvent(event)
+				if err != nil {
+					return err
+				}
+
+				if runId != details.runId {
+					return errors.Errorf("received expected event for job with unexpected runId %s: %T - %v", jobId, event.Event, event.Event)
+				}
+			}
+
 			delete(outstandingEventsByType[key], jobId)
 		}
 	}
 	return nil
+}
+
+func RunIdFromEvent(event *armadaevents.EventSequence_Event) (string, error) {
+	switch e := event.Event.(type) {
+	case *armadaevents.EventSequence_Event_JobRunErrors:
+		return e.JobRunErrors.RunId, nil
+	case *armadaevents.EventSequence_Event_JobRunPreempted:
+		return e.JobRunPreempted.PreemptedRunId, nil
+	case *armadaevents.EventSequence_Event_JobRunCancelled:
+		return e.JobRunCancelled.RunId, nil
+	default:
+		err := errors.WithStack(&armadaerrors.ErrInvalidArgument{
+			Name:    "event.Event",
+			Value:   e,
+			Message: "event doesn't contain a jobId",
+		})
+		return "", err
+	}
 }
 
 // Test running multiple scheduler cycles
@@ -2055,6 +2097,26 @@ func stringSet(src []string) map[string]bool {
 	set := make(map[string]bool, len(src))
 	for _, s := range src {
 		set[s] = true
+	}
+	return set
+}
+
+type eventDetails struct {
+	runId string
+}
+
+func stringsToSetWithEventDetails(src []string) map[string]eventDetails {
+	set := make(map[string]eventDetails, len(src))
+	for _, s := range src {
+		set[s] = eventDetails{}
+	}
+	return set
+}
+
+func jobRunIdToSetWithEventDetails(src []jobRunId) map[string]eventDetails {
+	set := make(map[string]eventDetails, len(src))
+	for _, s := range src {
+		set[s.jobId] = eventDetails{runId: s.runId}
 	}
 	return set
 }
