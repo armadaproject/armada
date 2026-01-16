@@ -22,7 +22,7 @@ type DeviceDetails struct {
 	Scopes      []string
 }
 
-func AuthenticateDevice(config DeviceDetails) (*TokenCredentials, error) {
+func AuthenticateDevice(config DeviceDetails, cacheToken bool) (*TokenCredentials, error) {
 	ctx := context.Background()
 
 	httpClient := http.DefaultClient
@@ -63,6 +63,12 @@ func AuthenticateDevice(config DeviceDetails) (*TokenCredentials, error) {
 		Scopes:   scopes,
 	}
 
+	// Try to use cached refresh token if enabled
+	token, cache := tryGetCachedToken(ctx, &oauth, config.ProviderUrl, config.ClientId, cacheToken)
+	if token != nil {
+		return &TokenCredentials{oauth.TokenSource(ctx, token)}, nil
+	}
+
 	deviceFlowResponse, err := requestDeviceAuthorization(ctx, httpClient, claims.DeviceAuthorizationEndpoint, config.ClientId, scopes)
 	if err != nil {
 		return nil, err
@@ -97,6 +103,7 @@ func AuthenticateDevice(config DeviceDetails) (*TokenCredentials, error) {
 			token, err := requestToken(ctx, httpClient, oauth.Endpoint.TokenURL, config.ClientId, deviceFlowResponse.DeviceCode)
 			if err == nil {
 				fmt.Printf("\nAuthentication successful!\n\n")
+				saveTokenToCache(token, cache)
 				return &TokenCredentials{oauth.TokenSource(ctx, token)}, nil
 			}
 
