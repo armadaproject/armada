@@ -1,0 +1,50 @@
+testDuration: 30s
+warmupDuration: 5s
+
+databaseConfig:
+  inMemory: true
+
+queueConfig:
+  - name: test-queue
+    proportion: 1.0
+    jobSetConfig:
+      - name: test-jobset
+        proportion: 1.0
+        historicalJobsConfig:
+          numberOfJobs: 10000
+          proportionSucceeded: 1.0
+          proportionErrored: 0.0
+          proportionCancelled: 0.0
+          proportionPreempted: 0.0
+
+ingestionConfig:
+  batchSize: 10
+  numWorkers: 5
+  submissionsPerHour: 9000
+  jobStateTransitionConfig:
+    queueingDuration: 1s
+    leasedDuration: 1s
+    pendingDuration: 1s
+    proportionSucceed: 0.8
+    runningToSuccessDuration: 3s
+    proportionFail: 0.2
+    runningToFailureDuration: 2s
+
+queryConfig:
+  getJobRunDebugMessageQueriesPerHour: 3600
+  getJobRunErrorQueriesPerHour: 3600
+  getJobSpecQueriesPerHour: 3600
+  getJobsQueriesPerHour: 3600
+  getJobsPageSize: 50
+  getJobGroupsQueriesPerHour: 1800
+  getJobGroupsPageSize: 25
+
+actionsConfig:
+  jobSetReprioritisations:
+    - performAfterTestStartTime: 15s
+      queue: test-queue
+      jobSet: test-jobset
+  jobSetCancellations:
+    - performAfterTestStartTime: 20s
+      queue: test-queue
+      jobSet: test-jobset

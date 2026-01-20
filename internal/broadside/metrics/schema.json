@@ -1,0 +1,487 @@
+{
+  "$schema": "1.0.0",
+  "$id": "https://armadaproject.io/broadside/test-result.schema.json",
+  "properties": {
+    "metadata": {
+      "properties": {
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO 8601 timestamp when the test was completed"
+        },
+        "version": {
+          "type": "string",
+          "description": "Schema version for compatibility tracking"
+        },
+        "testDuration": {
+          "type": "string",
+          "description": "Actual duration of the test (ISO 8601 duration format)"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "timestamp",
+        "version"
+      ]
+    },
+    "configuration": {
+      "properties": {
+        "testDuration": {
+          "type": "string",
+          "description": "Configured test duration (ISO 8601 duration format)"
+        },
+        "warmupDuration": {
+          "type": "string",
+          "description": "Warmup duration before metrics collection begins (ISO 8601 duration format)"
+        },
+        "databaseConfig": {
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "postgres",
+                "clickhouse",
+                "inmemory"
+              ],
+              "description": "Database backend type used for the test"
+            },
+            "connectionString": {
+              "type": "string",
+              "description": "Database connection details (sensitive data should be redacted)"
+            }
+          },
+          "additionalProperties": false,
+          "type": "object",
+          "required": [
+            "type"
+          ]
+        },
+        "queueConfig": {
+          "items": {
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "proportion": {
+                "type": "number"
+              },
+              "jobSetConfig": {
+                "items": {
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "proportion": {
+                      "type": "number"
+                    },
+                    "historicalJobsConfig": {
+                      "properties": {
+                        "numberOfJobs": {
+                          "type": "integer"
+                        },
+                        "proportionSucceeded": {
+                          "type": "number"
+                        },
+                        "proportionErrored": {
+                          "type": "number"
+                        },
+                        "proportionCancelled": {
+                          "type": "number"
+                        },
+                        "proportionPreempted": {
+                          "type": "number"
+                        }
+                      },
+                      "additionalProperties": false,
+                      "type": "object",
+                      "required": [
+                        "numberOfJobs",
+                        "proportionSucceeded",
+                        "proportionErrored",
+                        "proportionCancelled",
+                        "proportionPreempted"
+                      ]
+                    }
+                  },
+                  "additionalProperties": false,
+                  "type": "object",
+                  "required": [
+                    "name",
+                    "proportion"
+                  ]
+                },
+                "type": "array"
+              }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+              "name",
+              "proportion"
+            ]
+          },
+          "type": "array"
+        },
+        "ingestionConfig": {
+          "properties": {
+            "batchSize": {
+              "type": "integer"
+            },
+            "numWorkers": {
+              "type": "integer"
+            },
+            "submissionsPerHour": {
+              "type": "integer"
+            },
+            "jobStateTransitionConfig": {
+              "properties": {
+                "queueingDuration": {
+                  "type": "string"
+                },
+                "leasedDuration": {
+                  "type": "string"
+                },
+                "pendingDuration": {
+                  "type": "string"
+                },
+                "proportionSucceed": {
+                  "type": "number"
+                },
+                "runningToSuccessDuration": {
+                  "type": "string"
+                },
+                "proportionFail": {
+                  "type": "number"
+                },
+                "runningToFailureDuration": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false,
+              "type": "object",
+              "required": [
+                "queueingDuration",
+                "leasedDuration",
+                "pendingDuration",
+                "proportionSucceed",
+                "runningToSuccessDuration",
+                "proportionFail",
+                "runningToFailureDuration"
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "type": "object",
+          "required": [
+            "batchSize",
+            "numWorkers",
+            "submissionsPerHour"
+          ]
+        },
+        "queryConfig": {
+          "properties": {
+            "getJobRunDebugMessageQueriesPerHour": {
+              "type": "integer"
+            },
+            "getJobRunErrorQueriesPerHour": {
+              "type": "integer"
+            },
+            "getJobSpecQueriesPerHour": {
+              "type": "integer"
+            },
+            "getJobsQueriesPerHour": {
+              "type": "integer"
+            },
+            "getJobsPageSize": {
+              "type": "integer"
+            },
+            "getJobGroupsQueriesPerHour": {
+              "type": "integer"
+            },
+            "getJobGroupsPageSize": {
+              "type": "integer"
+            }
+          },
+          "additionalProperties": false,
+          "type": "object",
+          "required": [
+            "getJobRunDebugMessageQueriesPerHour",
+            "getJobRunErrorQueriesPerHour",
+            "getJobSpecQueriesPerHour",
+            "getJobsQueriesPerHour",
+            "getJobsPageSize",
+            "getJobGroupsQueriesPerHour",
+            "getJobGroupsPageSize"
+          ]
+        },
+        "actionsConfig": {
+          "properties": {
+            "jobSetReprioritisations": {
+              "items": {
+                "properties": {
+                  "performAfterTestStartTime": {
+                    "type": "string"
+                  },
+                  "queue": {
+                    "type": "string"
+                  },
+                  "jobSet": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": false,
+                "type": "object",
+                "required": [
+                  "performAfterTestStartTime",
+                  "queue",
+                  "jobSet"
+                ]
+              },
+              "type": "array"
+            },
+            "jobSetCancellations": {
+              "items": {
+                "properties": {
+                  "performAfterTestStartTime": {
+                    "type": "string"
+                  },
+                  "queue": {
+                    "type": "string"
+                  },
+                  "jobSet": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": false,
+                "type": "object",
+                "required": [
+                  "performAfterTestStartTime",
+                  "queue",
+                  "jobSet"
+                ]
+              },
+              "type": "array"
+            }
+          },
+          "additionalProperties": false,
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "testDuration",
+        "databaseConfig",
+        "queueConfig",
+        "ingestionConfig",
+        "queryConfig"
+      ]
+    },
+    "results": {
+      "properties": {
+        "ingester": {
+          "properties": {
+            "totalQueriesExecuted": {
+              "type": "integer",
+              "description": "Total number of database queries executed by the ingester"
+            },
+            "totalBatchesExecuted": {
+              "type": "integer",
+              "description": "Total number of batches processed"
+            },
+            "totalBatchesFailed": {
+              "type": "integer",
+              "description": "Number of batches that failed"
+            },
+            "peakBacklogSize": {
+              "type": "integer",
+              "description": "Maximum backlog size observed during the test"
+            },
+            "averageBacklogSize": {
+              "type": "number",
+              "description": "Average backlog size"
+            },
+            "p50BacklogSize": {
+              "type": "number",
+              "description": "50th percentile backlog size"
+            },
+            "p95BacklogSize": {
+              "type": "number",
+              "description": "95th percentile backlog size"
+            },
+            "p99BacklogSize": {
+              "type": "number",
+              "description": "99th percentile backlog size"
+            },
+            "p50BacklogWaitTime": {
+              "type": "string",
+              "description": "50th percentile wait time in backlog"
+            },
+            "p95BacklogWaitTime": {
+              "type": "string",
+              "description": "95th percentile wait time in backlog"
+            },
+            "p99BacklogWaitTime": {
+              "type": "string",
+              "description": "99th percentile wait time in backlog"
+            },
+            "maxBacklogWaitTime": {
+              "type": "string",
+              "description": "Maximum wait time in backlog"
+            },
+            "p50ExecutionLatency": {
+              "type": "string",
+              "description": "50th percentile batch execution latency"
+            },
+            "p95ExecutionLatency": {
+              "type": "string",
+              "description": "95th percentile batch execution latency"
+            },
+            "p99ExecutionLatency": {
+              "type": "string",
+              "description": "99th percentile batch execution latency"
+            }
+          },
+          "additionalProperties": false,
+          "type": "object",
+          "required": [
+            "totalQueriesExecuted",
+            "totalBatchesExecuted",
+            "totalBatchesFailed",
+            "peakBacklogSize",
+            "averageBacklogSize",
+            "p50BacklogSize",
+            "p95BacklogSize",
+            "p99BacklogSize",
+            "p50BacklogWaitTime",
+            "p95BacklogWaitTime",
+            "p99BacklogWaitTime",
+            "maxBacklogWaitTime",
+            "p50ExecutionLatency",
+            "p95ExecutionLatency",
+            "p99ExecutionLatency"
+          ]
+        },
+        "querier": {
+          "properties": {
+            "totalQueriesExecuted": {
+              "type": "integer",
+              "description": "Total number of queries executed"
+            },
+            "totalQueriesFailed": {
+              "type": "integer",
+              "description": "Total number of queries that failed"
+            },
+            "statsByQueryType": {
+              "items": {
+                "properties": {
+                  "queryType": {
+                    "type": "string",
+                    "description": "Type of query (e.g., GetJobs, GetJobGroups)"
+                  },
+                  "filterCombo": {
+                    "type": "string",
+                    "description": "Filter combination used"
+                  },
+                  "totalExecuted": {
+                    "type": "integer"
+                  },
+                  "totalFailed": {
+                    "type": "integer"
+                  },
+                  "p50Latency": {
+                    "type": "string",
+                    "description": "50th percentile latency"
+                  },
+                  "p95Latency": {
+                    "type": "string",
+                    "description": "95th percentile latency"
+                  },
+                  "p99Latency": {
+                    "type": "string",
+                    "description": "99th percentile latency"
+                  },
+                  "maxLatency": {
+                    "type": "string",
+                    "description": "Maximum latency observed"
+                  },
+                  "averageLatency": {
+                    "type": "string",
+                    "description": "Average latency"
+                  }
+                },
+                "additionalProperties": false,
+                "type": "object",
+                "required": [
+                  "queryType",
+                  "filterCombo",
+                  "totalExecuted",
+                  "totalFailed",
+                  "p50Latency",
+                  "p95Latency",
+                  "p99Latency",
+                  "maxLatency",
+                  "averageLatency"
+                ]
+              },
+              "type": "array",
+              "description": "Statistics broken down by query type and filter combination"
+            },
+            "errors": {
+              "items": {
+                "properties": {
+                  "queryType": {
+                    "type": "string"
+                  },
+                  "filterCombo": {
+                    "type": "string"
+                  },
+                  "error": {
+                    "type": "string"
+                  },
+                  "timestamp": {
+                    "type": "string",
+                    "format": "date-time"
+                  }
+                },
+                "additionalProperties": false,
+                "type": "object",
+                "required": [
+                  "queryType",
+                  "filterCombo",
+                  "error",
+                  "timestamp"
+                ]
+              },
+              "type": "array",
+              "description": "List of errors that occurred during queries"
+            }
+          },
+          "additionalProperties": false,
+          "type": "object",
+          "required": [
+            "totalQueriesExecuted",
+            "totalQueriesFailed",
+            "statsByQueryType"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "ingester",
+        "querier"
+      ]
+    }
+  },
+  "additionalProperties": false,
+  "type": "object",
+  "required": [
+    "metadata",
+    "configuration",
+    "results"
+  ],
+  "title": "Broadside Load Test Result",
+  "description": "Complete output of a Broadside load test including configuration and metrics"
+}
