@@ -9,42 +9,13 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/armadaproject/armada/internal/common"
 	serverconfiguration "github.com/armadaproject/armada/internal/common/constants"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/executor/configuration"
 	"github.com/armadaproject/armada/internal/executor/domain"
-	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/executorapi"
 )
-
-func TestCreateLabels_CreatesExpectedLabels(t *testing.T) {
-	job := api.Job{
-		Id:       "Id",
-		JobSetId: "JobSetId",
-		Queue:    "Queue1",
-		Owner:    "Owner",
-		PodSpec:  makePodSpec(),
-	}
-
-	expectedLabels := map[string]string{
-		domain.JobId:     job.Id,
-		domain.Queue:     job.Queue,
-		domain.PodNumber: "0",
-		domain.PodCount:  "1",
-	}
-
-	expectedAnnotations := map[string]string{
-		domain.JobSetId: job.JobSetId,
-		domain.Owner:    job.Owner,
-	}
-
-	result := CreatePod(&job, &configuration.PodDefaults{})
-
-	assert.Equal(t, result.Labels, expectedLabels)
-	assert.Equal(t, result.Annotations, expectedAnnotations)
-}
 
 func TestSetRestartPolicyNever_OverwritesExistingValue(t *testing.T) {
 	podSpec := makePodSpec()
@@ -54,43 +25,6 @@ func TestSetRestartPolicyNever_OverwritesExistingValue(t *testing.T) {
 
 	setRestartPolicyNever(podSpec)
 	assert.Equal(t, podSpec.RestartPolicy, v1.RestartPolicyNever)
-}
-
-func TestCreatePod_CreatesExpectedPod(t *testing.T) {
-	podSpec := makePodSpec()
-	job := api.Job{
-		Id:          "Id",
-		JobSetId:    "JobSetId",
-		Queue:       "Queue1",
-		Owner:       "User1",
-		PodSpec:     podSpec,
-		Annotations: map[string]string{"annotation": "test"},
-		Labels:      map[string]string{"label": "test"},
-	}
-
-	podSpec.RestartPolicy = v1.RestartPolicyNever
-
-	expectedOutput := v1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: common.PodNamePrefix + job.Id + "-0",
-			Labels: map[string]string{
-				domain.JobId:     job.Id,
-				domain.Queue:     job.Queue,
-				domain.PodNumber: "0",
-				domain.PodCount:  "1",
-				"label":          "test",
-			},
-			Annotations: map[string]string{
-				domain.JobSetId: job.JobSetId,
-				domain.Owner:    job.Owner,
-				"annotation":    "test",
-			},
-		},
-		Spec: *podSpec,
-	}
-
-	result := CreatePod(&job, &configuration.PodDefaults{})
-	assert.Equal(t, result, &expectedOutput)
 }
 
 func TestApplyDefaults(t *testing.T) {
