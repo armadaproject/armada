@@ -67,7 +67,7 @@ func TestReportStateTransitions(t *testing.T) {
 		},
 	}
 
-	m := newCycleMetrics(pulsarutils.NoOpPublisher[*metricevents.Event]{})
+	m := newCycleMetrics(pulsarutils.NoOpPublisher[*metricevents.Event]{}, []string{"pool1"})
 	m.ReportSchedulerResult(ctx, result)
 
 	poolQueue := []string{"pool1", "queue1"}
@@ -98,7 +98,7 @@ func TestReportStateTransitions(t *testing.T) {
 }
 
 func TestResetLeaderMetrics_Counters(t *testing.T) {
-	m := newCycleMetrics(pulsarutils.NoOpPublisher[*metricevents.Event]{})
+	m := newCycleMetrics(pulsarutils.NoOpPublisher[*metricevents.Event]{}, []string{"pool1"})
 	poolAndQueueAndPriorityClassTypeLabels := []string{"pool1", "queue1", "priorityClass1", "type1"}
 
 	testResetCounter := func(vec *prometheus.CounterVec, labelValues []string) {
@@ -115,7 +115,7 @@ func TestResetLeaderMetrics_Counters(t *testing.T) {
 }
 
 func TestResetLeaderMetrics_ResetsLatestCycleMetrics(t *testing.T) {
-	m := newCycleMetrics(pulsarutils.NoOpPublisher[*metricevents.Event]{})
+	m := newCycleMetrics(pulsarutils.NoOpPublisher[*metricevents.Event]{}, []string{"pool1"})
 	poolLabelValues := []string{"pool1"}
 	poolQueueLabelValues := []string{"pool1", "queue1"}
 	poolQueueResourceLabelValues := []string{"pool1", "queue1", "cpu"}
@@ -158,10 +158,11 @@ func TestResetLeaderMetrics_ResetsLatestCycleMetrics(t *testing.T) {
 	testResetGauge(func(metrics *cycleMetrics) *prometheus.GaugeVec {
 		return m.latestCycleMetrics.Load().nodeAllocatedResource
 	}, nodeResourceLabelValues)
+	testResetGauge(func(metrics *cycleMetrics) *prometheus.GaugeVec { return m.latestCycleMetrics.Load().nodePoolSize }, poolLabelValues)
 }
 
 func TestDisableLeaderMetrics(t *testing.T) {
-	m := newCycleMetrics(pulsarutils.NoOpPublisher[*metricevents.Event]{})
+	m := newCycleMetrics(pulsarutils.NoOpPublisher[*metricevents.Event]{}, []string{"pool1"})
 	poolQueueLabelValues := []string{"pool1", "queue1"}
 	poolAndQueueAndPriorityClassTypeLabels := []string{"pool1", "queue1", "priorityClass1", "type1"}
 
@@ -189,6 +190,7 @@ func TestDisableLeaderMetrics(t *testing.T) {
 		m.latestCycleMetrics.Load().evictedResources.WithLabelValues("pool1", "queue1", "cpu").Inc()
 		m.latestCycleMetrics.Load().nodeAllocatableResource.WithLabelValues("pool1", "node1", "cluster1", "type1", "cpu", "", "true", "false").Inc()
 		m.latestCycleMetrics.Load().nodeAllocatedResource.WithLabelValues("pool1", "node1", "cluster1", "type1", "cpu", "", "true", "false").Inc()
+		m.latestCycleMetrics.Load().nodePoolSize.WithLabelValues("pool1").Inc()
 
 		ch := make(chan prometheus.Metric, 1000)
 		m.collect(ch)
@@ -217,7 +219,7 @@ func TestPublishCycleMetrics(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	mockPublisher := mocks.NewMockPublisher[*metricevents.Event](ctrl)
-	m := newCycleMetrics(mockPublisher)
+	m := newCycleMetrics(mockPublisher, []string{"pool1"})
 
 	fairnessCostProvider, err := fairness.NewDominantResourceFairness(
 		cpu(100),
@@ -312,7 +314,7 @@ func TestPublishCycleMetrics(t *testing.T) {
 }
 
 func TestReportPoolSchedulingOutcomes(t *testing.T) {
-	m := newCycleMetrics(pulsarutils.NoOpPublisher[*metricevents.Event]{})
+	m := newCycleMetrics(pulsarutils.NoOpPublisher[*metricevents.Event]{}, []string{"pool1"})
 
 	outcomes := []scheduling.PoolSchedulingOutcome{
 		{
