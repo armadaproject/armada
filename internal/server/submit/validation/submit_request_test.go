@@ -782,6 +782,80 @@ func TestValidatePorts(t *testing.T) {
 			}},
 			expectSuccess: false,
 		},
+		"init container with unique port": {
+			req: &api.JobSubmitRequestItem{PodSpec: &v1.PodSpec{
+				InitContainers: []v1.Container{
+					{
+						Ports: []v1.ContainerPort{
+							{ContainerPort: 8080},
+						},
+					},
+				},
+				Containers: []v1.Container{
+					{
+						Ports: []v1.ContainerPort{
+							{ContainerPort: 80},
+						},
+					},
+				},
+			}},
+			expectSuccess: true,
+		},
+		"duplicate port between init container and container": {
+			req: &api.JobSubmitRequestItem{PodSpec: &v1.PodSpec{
+				InitContainers: []v1.Container{
+					{
+						Ports: []v1.ContainerPort{
+							{ContainerPort: 80},
+						},
+					},
+				},
+				Containers: []v1.Container{
+					{
+						Ports: []v1.ContainerPort{
+							{ContainerPort: 80},
+						},
+					},
+				},
+			}},
+			expectSuccess: false,
+		},
+		"duplicate port across multiple init containers": {
+			req: &api.JobSubmitRequestItem{PodSpec: &v1.PodSpec{
+				InitContainers: []v1.Container{
+					{
+						Ports: []v1.ContainerPort{
+							{ContainerPort: 80},
+						},
+					},
+					{
+						Ports: []v1.ContainerPort{
+							{ContainerPort: 80},
+						},
+					},
+				},
+				Containers: []v1.Container{{}},
+			}},
+			expectSuccess: false,
+		},
+		"init containers only with unique ports": {
+			req: &api.JobSubmitRequestItem{PodSpec: &v1.PodSpec{
+				InitContainers: []v1.Container{
+					{
+						Ports: []v1.ContainerPort{
+							{ContainerPort: 80},
+						},
+					},
+					{
+						Ports: []v1.ContainerPort{
+							{ContainerPort: 8080},
+						},
+					},
+				},
+				Containers: []v1.Container{{}},
+			}},
+			expectSuccess: true,
+		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
