@@ -153,6 +153,13 @@ var expectedPreempted = model.UpdateJobInstruction{
 	LastTransitionTimeSeconds: pointer.Int64(testfixtures.BaseTime.Unix()),
 }
 
+var expectedReconciliationErrRun = model.UpdateJobRunInstruction{
+	RunId:       testfixtures.RunId,
+	Finished:    &testfixtures.BaseTime,
+	JobRunState: pointer.Int32(lookout.JobRunFailedOrdinal),
+	Error:       []byte(testfixtures.ReconciliationErrMsg),
+}
+
 var expectedPreemptedRun = model.UpdateJobRunInstruction{
 	RunId:       testfixtures.RunId,
 	Finished:    &testfixtures.BaseTime,
@@ -164,6 +171,26 @@ var expectedCancelledRun = model.UpdateJobRunInstruction{
 	RunId:       testfixtures.RunId,
 	Finished:    &testfixtures.BaseTime,
 	JobRunState: pointer.Int32(lookout.JobRunCancelledOrdinal),
+}
+
+var standaloneIngressAddresses = map[int32]string{
+	80: "ingress.example.com",
+}
+
+var standaloneIngressInfoEvent = &armadaevents.EventSequence_Event{
+	Created: testfixtures.BaseTimeProto,
+	Event: &armadaevents.EventSequence_Event_StandaloneIngressInfo{
+		StandaloneIngressInfo: &armadaevents.StandaloneIngressInfo{
+			JobId:            testfixtures.JobId,
+			RunId:            testfixtures.RunId,
+			IngressAddresses: standaloneIngressAddresses,
+		},
+	},
+}
+
+var expectedStandaloneIngressRun = model.UpdateJobRunInstruction{
+	RunId:            testfixtures.RunId,
+	IngressAddresses: standaloneIngressAddresses,
 }
 
 func TestConvert(t *testing.T) {
@@ -354,6 +381,16 @@ func TestConvert(t *testing.T) {
 				MessageIds:      []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 		},
+		"job run failed - reconciliation error": {
+			events: &utils.EventsWithIds[*armadaevents.EventSequence]{
+				Events:     []*armadaevents.EventSequence{testfixtures.NewEventSequence(testfixtures.JobRunReconciliationError)},
+				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+			expected: &model.InstructionSet{
+				JobRunsToUpdate: []*model.UpdateJobRunInstruction{&expectedReconciliationErrRun},
+				MessageIds:      []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+		},
 		"job failed": {
 			events: &utils.EventsWithIds[*armadaevents.EventSequence]{
 				Events:     []*armadaevents.EventSequence{testfixtures.NewEventSequence(testfixtures.JobFailed)},
@@ -383,6 +420,16 @@ func TestConvert(t *testing.T) {
 			expected: &model.InstructionSet{
 				JobsToUpdate: []*model.UpdateJobInstruction{&expectedPreempted},
 				MessageIds:   []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+		},
+		"job run ingress info": {
+			events: &utils.EventsWithIds[*armadaevents.EventSequence]{
+				Events:     []*armadaevents.EventSequence{testfixtures.NewEventSequence(standaloneIngressInfoEvent)},
+				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+			expected: &model.InstructionSet{
+				JobRunsToUpdate: []*model.UpdateJobRunInstruction{&expectedStandaloneIngressRun},
+				MessageIds:      []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 		},
 		"job run preempted": {

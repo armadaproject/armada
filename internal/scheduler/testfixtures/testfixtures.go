@@ -15,6 +15,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
+	"github.com/armadaproject/armada/internal/common/constants"
 	"github.com/armadaproject/armada/internal/common/pointer"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/slices"
@@ -27,7 +28,6 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/pricing"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
-	"github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/bidstore"
 )
@@ -216,6 +216,32 @@ func TestSchedulingConfigWithPools(pools []schedulerconfiguration.PoolConfig) sc
 		SupportedResourceTypes:                      GetTestSupportedResourceTypes(),
 		Pools:                                       pools,
 	}
+}
+
+func WithReconcilerEnabled(config schedulerconfiguration.SchedulingConfig) schedulerconfiguration.SchedulingConfig {
+	for i, pool := range config.Pools {
+		pool.ExperimentalRunReconciliation = &schedulerconfiguration.RunReconciliationConfig{
+			Enabled: true,
+		}
+		config.Pools[i] = pool
+	}
+	return config
+}
+
+func WithAwaySchedulingDisabled(config schedulerconfiguration.SchedulingConfig) schedulerconfiguration.SchedulingConfig {
+	for i, pool := range config.Pools {
+		pool.DisableAwayScheduling = true
+		config.Pools[i] = pool
+	}
+	return config
+}
+
+func WithGangAwaySchedulingDisabled(config schedulerconfiguration.SchedulingConfig) schedulerconfiguration.SchedulingConfig {
+	for i, pool := range config.Pools {
+		pool.DisableGangAwayScheduling = true
+		config.Pools[i] = pool
+	}
+	return config
 }
 
 func WithMarketBasedSchedulingEnabled(config schedulerconfiguration.SchedulingConfig) schedulerconfiguration.SchedulingConfig {
@@ -466,7 +492,7 @@ func WithNodeUniformityGangAnnotationsJobs(jobs []*jobdb.Job, nodeUniformityLabe
 func WithGangJobDetails(jobs []*jobdb.Job, gangId string, gangCardinality int, nodeUniformityLabel string) []*jobdb.Job {
 	gangCardinalityStr := fmt.Sprintf("%d", gangCardinality)
 	updatedJobs := WithAnnotationsJobs(
-		map[string]string{configuration.GangIdAnnotation: gangId, configuration.GangCardinalityAnnotation: gangCardinalityStr, configuration.GangNodeUniformityLabelAnnotation: nodeUniformityLabel},
+		map[string]string{constants.GangIdAnnotation: gangId, constants.GangCardinalityAnnotation: gangCardinalityStr, constants.GangNodeUniformityLabelAnnotation: nodeUniformityLabel},
 		jobs,
 	)
 
@@ -572,6 +598,14 @@ func N16Cpu128GiJobs(queue string, priorityClassName string, n int) []*jobdb.Job
 	rv := make([]*jobdb.Job, n)
 	for i := 0; i < n; i++ {
 		rv[i] = Test16Cpu128GiJob(queue, priorityClassName)
+	}
+	return rv
+}
+
+func N16Cpu128GiJobsWithLargeJobToleration(queue string, priorityClassName string, n int) []*jobdb.Job {
+	rv := make([]*jobdb.Job, n)
+	for i := 0; i < n; i++ {
+		rv[i] = Test16Cpu128GiJobWithLargeJobToleration(queue, priorityClassName)
 	}
 	return rv
 }
@@ -704,6 +738,11 @@ func Test8Cpu64GiJobQueuedWithPrice(queue string, priorityClassName string, pric
 	return TestJobQueuedWithPrice(queue, jobId, priorityClassName, price, Test8Cpu64GiPodReqs(queue, jobId, extractPriority(priorityClassName)))
 }
 
+func Test16Cpu128GiJobWithLargeJobToleration(queue string, priorityClassName string) *jobdb.Job {
+	jobId := util.ULID()
+	return TestJob(queue, jobId, priorityClassName, Test16Cpu128GiPodReqsWithLargeJobToleration(queue, jobId, extractPriority(priorityClassName)))
+}
+
 func Test16Cpu128GiJob(queue string, priorityClassName string) *jobdb.Job {
 	jobId := util.ULID()
 	return TestJob(queue, jobId, priorityClassName, Test16Cpu128GiPodReqs(queue, jobId, extractPriority(priorityClassName)))
@@ -711,7 +750,7 @@ func Test16Cpu128GiJob(queue string, priorityClassName string) *jobdb.Job {
 
 func Test16Cpu128GiJobQueuedWithPrice(queue string, priorityClassName string, price float64) *jobdb.Job {
 	jobId := util.ULID()
-	return TestJobQueuedWithPrice(queue, jobId, priorityClassName, price, Test16Cpu128GiPodReqs(queue, jobId, extractPriority(priorityClassName)))
+	return TestJobQueuedWithPrice(queue, jobId, priorityClassName, price, Test16Cpu128GiPodReqsWithLargeJobToleration(queue, jobId, extractPriority(priorityClassName)))
 }
 
 func Test32Cpu256GiJob(queue string, priorityClassName string) *jobdb.Job {
@@ -776,6 +815,11 @@ func Test16Cpu128GiPodReqs(queue string, jobId ulid.ULID, priority int32) *inter
 		"cpu":    resource.MustParse("16"),
 		"memory": resource.MustParse("128Gi"),
 	})
+	return req
+}
+
+func Test16Cpu128GiPodReqsWithLargeJobToleration(queue string, jobId ulid.ULID, priority int32) *internaltypes.PodRequirements {
+	req := Test16Cpu128GiPodReqs(queue, jobId, priority)
 	req.Tolerations = []v1.Toleration{
 		{
 			Key:   "largeJobsOnly",

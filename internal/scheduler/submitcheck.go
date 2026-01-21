@@ -46,13 +46,14 @@ type SubmitScheduleChecker interface {
 }
 
 type SubmitChecker struct {
-	schedulingConfig      configuration.SchedulingConfig
-	executorRepository    database.ExecutorRepository
-	queueCache            queue.QueueCache
-	floatingResourceTypes *floatingresources.FloatingResourceTypes
-	resourceListFactory   *internaltypes.ResourceListFactory
-	state                 atomic.Pointer[schedulerState]
-	clock                 clock.Clock // can  be  overridden for testing
+	schedulingConfig       configuration.SchedulingConfig
+	poolsBySubmissionGroup map[string][]string
+	executorRepository     database.ExecutorRepository
+	queueCache             queue.QueueCache
+	floatingResourceTypes  *floatingresources.FloatingResourceTypes
+	resourceListFactory    *internaltypes.ResourceListFactory
+	state                  atomic.Pointer[schedulerState]
+	clock                  clock.Clock // can  be  overridden for testing
 }
 
 func NewSubmitChecker(
@@ -62,13 +63,21 @@ func NewSubmitChecker(
 	floatingResourceTypes *floatingresources.FloatingResourceTypes,
 	resourceListFactory *internaltypes.ResourceListFactory,
 ) *SubmitChecker {
+	poolsBySubmissionGroup := map[string][]string{}
+	for _, pool := range schedulingConfig.Pools {
+		if _, exists := poolsBySubmissionGroup[pool.GetSubmissionGroup()]; !exists {
+			poolsBySubmissionGroup[pool.GetSubmissionGroup()] = []string{}
+		}
+		poolsBySubmissionGroup[pool.GetSubmissionGroup()] = append(poolsBySubmissionGroup[pool.GetSubmissionGroup()], pool.Name)
+	}
 	return &SubmitChecker{
-		schedulingConfig:      schedulingConfig,
-		executorRepository:    executorRepository,
-		queueCache:            queueCache,
-		floatingResourceTypes: floatingResourceTypes,
-		resourceListFactory:   resourceListFactory,
-		clock:                 clock.RealClock{},
+		schedulingConfig:       schedulingConfig,
+		poolsBySubmissionGroup: poolsBySubmissionGroup,
+		executorRepository:     executorRepository,
+		queueCache:             queueCache,
+		floatingResourceTypes:  floatingResourceTypes,
+		resourceListFactory:    resourceListFactory,
+		clock:                  clock.RealClock{},
 	}
 }
 
@@ -178,6 +187,10 @@ func (srv *SubmitChecker) updateExecutors(ctx *armadacontext.Context) error {
 	return nil
 }
 
+func (srv *SubmitChecker) getPoolsBySubmissionGroup(submissionGroup string) []string {
+	return srv.poolsBySubmissionGroup[submissionGroup]
+}
+
 func (srv *SubmitChecker) Check(ctx *armadacontext.Context, jobs []*jobdb.Job) (map[string]schedulingResult, error) {
 	start := time.Now()
 	state := srv.state.Load()
@@ -284,6 +297,19 @@ poolStart:
 			// copy the gctx here, as we are going to mutate it
 			gctx := copyGangContext(originalGangCtx)
 
+			// TODO construct nodedb per synthetic pool to avoid needing to set this dynamically
+			if pool.DisableAwayScheduling {
+				ex.nodeDb.DisableAwayScheduling()
+			} else {
+				ex.nodeDb.EnableAwayScheduling()
+			}
+
+			if pool.DisableGangAwayScheduling {
+				ex.nodeDb.DisableGangAwayScheduling()
+			} else {
+				ex.nodeDb.EnableGangAwayScheduling()
+			}
+
 			txn := ex.nodeDb.Txn(true)
 			ok, err := ex.nodeDb.ScheduleManyWithTxn(txn, gctx)
 			txn.Abort()
@@ -297,7 +323,9 @@ poolStart:
 
 			if ok {
 				if !gctx.JobSchedulingContexts[0].PodSchedulingContext.ScheduledAway || len(pool.AwayPools) > 0 {
-					successfulPools[pool.Name] = true
+					for _, pool := range srv.getPoolsBySubmissionGroup(pool.GetSubmissionGroup()) {
+						successfulPools[pool] = true
+					}
 				}
 				continue
 			}

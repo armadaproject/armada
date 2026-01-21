@@ -1550,6 +1550,12 @@ func SwaggerJsonTemplate() string {
 		"          \"type\": \"string\",\n" +
 		"          \"format\": \"date-time\"\n" +
 		"        },\n" +
+		"        \"ingressAddresses\": {\n" +
+		"          \"type\": \"object\",\n" +
+		"          \"additionalProperties\": {\n" +
+		"            \"type\": \"string\"\n" +
+		"          }\n" +
+		"        },\n" +
 		"        \"jobId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +

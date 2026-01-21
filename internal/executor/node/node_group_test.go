@@ -7,19 +7,21 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/armadaproject/armada/internal/common/constants"
 	"github.com/armadaproject/armada/internal/executor/configuration"
 	fakeContext "github.com/armadaproject/armada/internal/executor/fake/context"
 )
 
 var (
-	testAppConfig = configuration.ApplicationConfiguration{ClusterId: "test", Pool: "pool"}
-	nodeTypeLabel = "node-type"
-	nodePoolLabel = "node-pool"
+	testAppConfig          = configuration.ApplicationConfiguration{ClusterId: "test", Pool: "pool"}
+	nodeTypeLabel          = "node-type"
+	nodePoolLabel          = "node-pool"
+	reservedNodePoolSuffix = "-reserved"
 )
 
 func TestGetPool_WhenNodeHasNodePoolLabel(t *testing.T) {
 	context := fakeContext.NewFakeClusterContext(testAppConfig, "kubernetes.io/hostname", nil)
-	nodeInfoService := NewKubernetesNodeInfoService(context, nodeTypeLabel, nodePoolLabel, []string{"tolerated1", "tolerated2"})
+	nodeInfoService := NewKubernetesNodeInfoService(context, nodeTypeLabel, nodePoolLabel, reservedNodePoolSuffix, []string{"tolerated1", "tolerated2"})
 	node := createNodeWithTaints("node1")
 	node.Labels = map[string]string{nodePoolLabel: "example-node-pool"}
 
@@ -29,7 +31,7 @@ func TestGetPool_WhenNodeHasNodePoolLabel(t *testing.T) {
 
 func TestGetPool_WhenNodeDoesNotHaveNodePoolLabel(t *testing.T) {
 	context := fakeContext.NewFakeClusterContext(testAppConfig, "kubernetes.io/hostname", nil)
-	nodeInfoService := NewKubernetesNodeInfoService(context, nodeTypeLabel, nodePoolLabel, []string{"tolerated1", "tolerated2"})
+	nodeInfoService := NewKubernetesNodeInfoService(context, nodeTypeLabel, nodePoolLabel, reservedNodePoolSuffix, []string{"tolerated1", "tolerated2"})
 	node := createNodeWithTaints("node1")
 
 	result := nodeInfoService.GetPool(node)
@@ -37,9 +39,29 @@ func TestGetPool_WhenNodeDoesNotHaveNodePoolLabel(t *testing.T) {
 	assert.Equal(t, result, testAppConfig.Pool)
 }
 
+func TestGetPool_WhenReservedNodeHasNodePoolLabel(t *testing.T) {
+	context := fakeContext.NewFakeClusterContext(testAppConfig, "kubernetes.io/hostname", nil)
+	nodeInfoService := NewKubernetesNodeInfoService(context, nodeTypeLabel, nodePoolLabel, reservedNodePoolSuffix, []string{"tolerated1", "tolerated2"})
+	node := createNodeWithTaints("node1", constants.ReservationTaintKey)
+	node.Labels = map[string]string{nodePoolLabel: "example-node-pool"}
+
+	result := nodeInfoService.GetPool(node)
+	assert.Equal(t, result, "example-node-pool-reserved")
+}
+
+func TestGetPool_WhenReservedNodeHasNodePoolLabel_SuffixDisabled(t *testing.T) {
+	context := fakeContext.NewFakeClusterContext(testAppConfig, "kubernetes.io/hostname", nil)
+	nodeInfoService := NewKubernetesNodeInfoService(context, nodeTypeLabel, nodePoolLabel, "", []string{"tolerated1", "tolerated2"})
+	node := createNodeWithTaints("node1", constants.ReservationTaintKey)
+	node.Labels = map[string]string{nodePoolLabel: "example-node-pool"}
+
+	result := nodeInfoService.GetPool(node)
+	assert.Equal(t, result, "example-node-pool")
+}
+
 func TestGetType_WhenNodeHasNoTaint(t *testing.T) {
 	context := fakeContext.NewFakeClusterContext(testAppConfig, "kubernetes.io/hostname", nil)
-	nodeInfoService := NewKubernetesNodeInfoService(context, nodeTypeLabel, nodePoolLabel, []string{"tolerated1", "tolerated2"})
+	nodeInfoService := NewKubernetesNodeInfoService(context, nodeTypeLabel, nodePoolLabel, reservedNodePoolSuffix, []string{"tolerated1", "tolerated2"})
 	node := createNodeWithTaints("node1")
 
 	result := nodeInfoService.GetType(node)
@@ -48,7 +70,7 @@ func TestGetType_WhenNodeHasNoTaint(t *testing.T) {
 
 func TestGetType_WhenNodeHasNodeTypeLabel(t *testing.T) {
 	context := fakeContext.NewFakeClusterContext(testAppConfig, "kubernetes.io/hostname", nil)
-	nodeInfoService := NewKubernetesNodeInfoService(context, nodeTypeLabel, nodePoolLabel, []string{"tolerated1", "tolerated2"})
+	nodeInfoService := NewKubernetesNodeInfoService(context, nodeTypeLabel, nodePoolLabel, reservedNodePoolSuffix, []string{"tolerated1", "tolerated2"})
 
 	node := createNodeWithTaints("node1", "tolerated1")
 	node.Labels = map[string]string{nodeTypeLabel: "example-node-type"}
@@ -59,7 +81,7 @@ func TestGetType_WhenNodeHasNodeTypeLabel(t *testing.T) {
 
 func TestGetType_WhenNodeHasUntoleratedTaint(t *testing.T) {
 	context := fakeContext.NewFakeClusterContext(testAppConfig, "kubernetes.io/hostname", nil)
-	nodeInfoService := NewKubernetesNodeInfoService(context, nodeTypeLabel, nodePoolLabel, []string{"tolerated1", "tolerated2"})
+	nodeInfoService := NewKubernetesNodeInfoService(context, nodeTypeLabel, nodePoolLabel, reservedNodePoolSuffix, []string{"tolerated1", "tolerated2"})
 	node := createNodeWithTaints("node1", "untolerated")
 
 	result := nodeInfoService.GetType(node)
@@ -68,7 +90,7 @@ func TestGetType_WhenNodeHasUntoleratedTaint(t *testing.T) {
 
 func TestGetType_WhenNodeHasToleratedTaint(t *testing.T) {
 	context := fakeContext.NewFakeClusterContext(testAppConfig, "kubernetes.io/hostname", nil)
-	nodeInfoService := NewKubernetesNodeInfoService(context, nodeTypeLabel, nodePoolLabel, []string{"tolerated1", "tolerated2"})
+	nodeInfoService := NewKubernetesNodeInfoService(context, nodeTypeLabel, nodePoolLabel, reservedNodePoolSuffix, []string{"tolerated1", "tolerated2"})
 
 	node := createNodeWithTaints("node1", "tolerated1")
 	result := nodeInfoService.GetType(node)
@@ -81,7 +103,7 @@ func TestGetType_WhenNodeHasToleratedTaint(t *testing.T) {
 
 func TestGetType_WhenSomeNodeTaintsTolerated(t *testing.T) {
 	context := fakeContext.NewFakeClusterContext(testAppConfig, "kubernetes.io/hostname", nil)
-	nodeInfoService := NewKubernetesNodeInfoService(context, nodeTypeLabel, nodePoolLabel, []string{"tolerated1", "tolerated2"})
+	nodeInfoService := NewKubernetesNodeInfoService(context, nodeTypeLabel, nodePoolLabel, reservedNodePoolSuffix, []string{"tolerated1", "tolerated2"})
 
 	node := createNodeWithTaints("node1", "tolerated1", "untolerated")
 	result := nodeInfoService.GetType(node)
@@ -90,7 +112,7 @@ func TestGetType_WhenSomeNodeTaintsTolerated(t *testing.T) {
 
 func TestGroupNodesByType(t *testing.T) {
 	context := fakeContext.NewFakeClusterContext(testAppConfig, "kubernetes.io/hostname", nil)
-	nodeInfoService := NewKubernetesNodeInfoService(context, nodeTypeLabel, nodePoolLabel, []string{"tolerated1", "tolerated2"})
+	nodeInfoService := NewKubernetesNodeInfoService(context, nodeTypeLabel, nodePoolLabel, reservedNodePoolSuffix, []string{"tolerated1", "tolerated2"})
 
 	node1 := createNodeWithTaints("node1")
 	node2 := createNodeWithTaints("node2", "untolerated")
@@ -116,7 +138,7 @@ func TestGroupNodesByType(t *testing.T) {
 
 func TestFilterAvailableProcessingNodes(t *testing.T) {
 	context := fakeContext.NewFakeClusterContext(testAppConfig, "kubernetes.io/hostname", nil)
-	nodeInfoService := NewKubernetesNodeInfoService(context, nodeTypeLabel, nodePoolLabel, []string{})
+	nodeInfoService := NewKubernetesNodeInfoService(context, nodeTypeLabel, nodePoolLabel, reservedNodePoolSuffix, []string{})
 
 	node := v1.Node{
 		Spec: v1.NodeSpec{
@@ -131,7 +153,7 @@ func TestFilterAvailableProcessingNodes(t *testing.T) {
 
 func TestIsAvailableProcessingNode_IsFalse_UnschedulableNode(t *testing.T) {
 	context := fakeContext.NewFakeClusterContext(testAppConfig, "kubernetes.io/hostname", nil)
-	nodeInfoService := NewKubernetesNodeInfoService(context, nodeTypeLabel, nodePoolLabel, []string{})
+	nodeInfoService := NewKubernetesNodeInfoService(context, nodeTypeLabel, nodePoolLabel, reservedNodePoolSuffix, []string{})
 
 	node := v1.Node{
 		Spec: v1.NodeSpec{
@@ -146,7 +168,7 @@ func TestIsAvailableProcessingNode_IsFalse_UnschedulableNode(t *testing.T) {
 
 func TestFilterAvailableProcessingNodes_IsFalse_NodeWithNoScheduleTaint(t *testing.T) {
 	context := fakeContext.NewFakeClusterContext(testAppConfig, "kubernetes.io/hostname", nil)
-	nodeInfoService := NewKubernetesNodeInfoService(context, nodeTypeLabel, nodePoolLabel, []string{})
+	nodeInfoService := NewKubernetesNodeInfoService(context, nodeTypeLabel, nodePoolLabel, reservedNodePoolSuffix, []string{})
 
 	taint := v1.Taint{
 		Key:    "taint",
@@ -165,7 +187,7 @@ func TestFilterAvailableProcessingNodes_IsFalse_NodeWithNoScheduleTaint(t *testi
 
 func TestFilterAvailableProcessingNodes_IsTrue_NodeWithToleratedTaint(t *testing.T) {
 	context := fakeContext.NewFakeClusterContext(testAppConfig, "kubernetes.io/hostname", nil)
-	nodeInfoService := NewKubernetesNodeInfoService(context, nodeTypeLabel, nodePoolLabel, []string{"taint"})
+	nodeInfoService := NewKubernetesNodeInfoService(context, nodeTypeLabel, nodePoolLabel, reservedNodePoolSuffix, []string{"taint"})
 
 	taint := v1.Taint{
 		Key:    "taint",

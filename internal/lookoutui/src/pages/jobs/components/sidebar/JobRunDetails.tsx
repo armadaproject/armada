@@ -87,8 +87,21 @@ const makeKeyValuePairsData = (
   if (node) {
     d.push({ key: "Node", value: node, allowCopy: true })
   }
-
   return d
+}
+
+const makeIngressAddressEntries = (ingressAddresses?: JobRun["ingressAddresses"]) => {
+  if (!ingressAddresses) {
+    return [] as { portLabel: string; address: string }[]
+  }
+
+  return Object.entries(ingressAddresses)
+    .filter(([, address]) => Boolean(address))
+    .map(([port, address]) => ({
+      portLabel: port.toString(),
+      address: address,
+    }))
+    .sort((a, b) => Number(a.portLabel) - Number(b.portLabel))
 }
 
 export interface JobRunDetailsProps {
@@ -99,7 +112,7 @@ export interface JobRunDetailsProps {
 }
 
 export const JobRunDetails = ({
-  run: { node, cluster, started, pending, leased, finished, jobRunState, runId, exitCode },
+  run: { node, cluster, started, pending, leased, finished, jobRunState, runId, exitCode, ingressAddresses },
   runIndex,
   defaultExpanded,
   setRunError,
@@ -139,21 +152,45 @@ export const JobRunDetails = ({
   headingTextParts.push(`(${formatJobRunState(jobRunState)})`)
   const headingText = headingTextParts.join(" ")
 
-  const tableData = useMemo(
-    () =>
-      makeKeyValuePairsData(formatIsoTimestamp, {
-        runId,
-        jobRunState,
-        leased,
-        pending,
-        started,
-        finished,
-        exitCode,
-        cluster,
-        node,
-      }),
-    [formatIsoTimestamp, runId, jobRunState, leased, pending, started, finished, exitCode, cluster, node],
-  )
+  const ingressAddressEntries = useMemo(() => makeIngressAddressEntries(ingressAddresses), [ingressAddresses])
+
+  const tableData = useMemo(() => {
+    const baseRows = makeKeyValuePairsData(formatIsoTimestamp, {
+      runId,
+      jobRunState,
+      leased,
+      pending,
+      started,
+      finished,
+      exitCode,
+      cluster,
+      node,
+    })
+
+    if (ingressAddressEntries.length === 0) {
+      return baseRows
+    }
+
+    const ingressRows = ingressAddressEntries.map(({ portLabel, address }, index) => ({
+      key: ingressAddressEntries.length === 1 ? "Ingress address" : `Ingress address ${index + 1}`,
+      value: portLabel ? `${address}:${portLabel}` : address,
+      allowCopy: true,
+    }))
+
+    return [...baseRows, ...ingressRows]
+  }, [
+    formatIsoTimestamp,
+    runId,
+    jobRunState,
+    leased,
+    pending,
+    started,
+    finished,
+    exitCode,
+    cluster,
+    node,
+    ingressAddressEntries,
+  ])
 
   return (
     <Accordion defaultExpanded={defaultExpanded}>

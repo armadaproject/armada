@@ -9,7 +9,7 @@ import {
   FaCheckCircle,
   FaTimesCircle,
   FaBan,
-  FaExcahngeAlt,
+  FaExchangeAlt,
   FaFileContract,
   FaHand,
 } from "../components/fontAwesomeIcons"
@@ -47,7 +47,7 @@ export const jobStateIcons: Record<JobState, (svgIconProps: SvgIconProps) => Rea
   [JobState.Succeeded]: FaCheckCircle,
   [JobState.Failed]: FaTimesCircle,
   [JobState.Cancelled]: FaBan,
-  [JobState.Preempted]: FaExcahngeAlt,
+  [JobState.Preempted]: FaExchangeAlt,
   [JobState.Leased]: FaFileContract,
   [JobState.Rejected]: FaHand,
 }
@@ -144,6 +144,7 @@ export type JobRun = {
   finished?: string
   jobRunState: JobRunState
   exitCode?: number
+  ingressAddresses?: Record<string | number, string>
 }
 
 export enum Match {

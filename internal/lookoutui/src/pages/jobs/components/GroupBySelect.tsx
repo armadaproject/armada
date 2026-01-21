@@ -120,8 +120,9 @@ export default function GroupBySelect({ groups, columns, onGroupsChanged }: Grou
 
   const swapGroupByColumns = (indexA: number, indexB: number) => {
     if (indexA < 0 || indexA >= groups.length || indexB < 0 || indexB >= groups.length) {
+      // eslint-disable-next-line no-console
       console.error(
-        `Invalid indexes provided for swappping group-by columns. Groups length: ${groups.length}. Index A: ${indexA}. Index B: ${indexB}.`,
+        `Invalid indexes provided for swapping group-by columns. Groups length: ${groups.length}. Index A: ${indexA}. Index B: ${indexB}.`,
       )
       return
     }

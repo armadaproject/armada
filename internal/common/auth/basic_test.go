@@ -7,9 +7,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc/metadata"
 
-	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	"github.com/armadaproject/armada/internal/common/auth/configuration"
+	"github.com/armadaproject/armada/pkg/client/auth/basic"
 )
 
 func TestBasicAuthService(t *testing.T) {
@@ -38,7 +38,7 @@ func TestBasicAuthService(t *testing.T) {
 }
 
 func basicPassword(user, password string) map[string][]string {
-	data, _ := (&common.LoginCredentials{
+	data, _ := (&basic.LoginCredentials{
 		Username: user,
 		Password: password,
 	}).GetRequestMetadata(context.Background())

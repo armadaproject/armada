@@ -140,12 +140,11 @@ func (clusterUtilisationService *ClusterUtilisationService) getRunIdsByNode(node
 			nodeIdToNodeName[nodeId] = n.Name
 		}
 	}
-	noLongerNeedsReportingFunc := util.IsReportedDone
 
 	result := map[string]map[string]api.JobState{}
 	for _, pod := range pods {
 		// Skip pods that are not armada pods or "complete" from the servers point of view
-		if !util.IsManagedPod(pod) || noLongerNeedsReportingFunc(pod) {
+		if !util.IsManagedPod(pod) || util.IsPodFinishedAndReported(pod) {
 			continue
 		}
 		nodeIdNodeSelector, nodeSelectorPresent := pod.Spec.NodeSelector[clusterUtilisationService.nodeIdLabel]

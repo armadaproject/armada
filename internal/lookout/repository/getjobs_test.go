@@ -2529,3 +2529,32 @@ func TestGetJobsByClusterOfLatestRun(t *testing.T) {
 	})
 	require.NoError(t, err)
 }
+
+func TestGetJobsIncludesIngressAddresses(t *testing.T) {
+	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository, testClock *clock.FakeClock) error {
+		runId := uuid.NewString()
+		ingressAddresses := map[int32]string{
+			80: "ingress.example.com",
+		}
+
+		job := NewJobSimulatorWithClock(converter, store, testClock).
+			Submit(queue, jobSet, owner, namespace, baseTime, basicJobOpts).
+			Lease(runId, cluster, node, baseTime).
+			Pending(runId, cluster, baseTime).
+			Running(runId, node, baseTime.Add(time.Minute)).
+			IngressInfo(runId, ingressAddresses, baseTime.Add(2*time.Minute)).
+			RunSucceeded(runId, baseTime.Add(3*time.Minute)).
+			Succeeded(baseTime.Add(3 * time.Minute)).
+			Build().
+			Job()
+
+		result, err := repo.GetJobs(armadacontext.TODO(), []*model.Filter{}, false, &model.Order{}, 0, 10)
+		require.NoError(t, err)
+		require.Len(t, result.Jobs, 1)
+		assert.Equal(t, job, result.Jobs[0])
+		require.Len(t, result.Jobs[0].Runs, 1)
+		assert.Equal(t, ingressAddresses, result.Jobs[0].Runs[0].IngressAddresses)
+		return nil
+	})
+	require.NoError(t, err)
+}

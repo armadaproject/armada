@@ -2,9 +2,8 @@ import { ExpandedStateList, RowSelectionState, Updater } from "@tanstack/react-t
 import _ from "lodash"
 
 import { isJobGroupRow, JobGroupRow, JobRow, JobTableRow } from "../models/jobsTableModels"
-import { Job, JobFilter, JobFiltersWithExcludes, JobGroup, JobOrder, Match } from "../models/lookoutModels"
-import { IGetJobsService } from "../services/lookout/GetJobsService"
-import { GroupedField, IGroupJobsService } from "../services/lookout/GroupJobsService"
+import { Job, JobFilter, JobFiltersWithExcludes, JobGroup, Match } from "../models/lookoutModels"
+import { GroupedField } from "../services/lookout/GroupJobsService"
 
 import { validDateFromNullableIsoString } from "./dates"
 import {
@@ -43,7 +42,7 @@ export const pendingDataForAllVisibleData = (
     return {
       parentRowId: rowId as RowId,
       // Retain the same number of rows that are currently shown (unless it's smaller than the page size)
-      // Since these are currently all retreived in one request, they could be slower
+      // Since these are currently all retrieved in one request, they could be slower
       // if there is a lot of expanded rows
       take: numSubRows > defaultPageSize ? numSubRows : defaultPageSize,
       skip: 0,
@@ -75,6 +74,7 @@ export const matchForColumn = (columnId: string, columnMatches: Record<string, M
     : VALID_COLUMN_MATCHES[ANNOTATION_COLUMN_PREFIX]
 
   if (!validMatches) {
+    // eslint-disable-next-line no-console
     console.error(`There are no valid column matches for column with ID '${columnId}'`)
     return match
   }
@@ -216,46 +216,6 @@ export function getFiltersForGroupedAnnotations(remainingGroups: string[]): JobF
         isAnnotation: true,
       }
     })
-}
-
-export interface FetchRowRequest {
-  filters: JobFilter[]
-  activeJobSets: boolean
-  skip: number
-  take: number
-  order: JobOrder
-}
-export const fetchJobs = async (
-  fetchFunc: GlobalFetch["fetch"],
-  rowRequest: FetchRowRequest,
-  getJobsService: IGetJobsService,
-  abortSignal: AbortSignal,
-) => {
-  const { filters, activeJobSets, skip, take, order } = rowRequest
-
-  return await getJobsService.getJobs(fetchFunc, filters, activeJobSets, order, skip, take, abortSignal)
-}
-
-export const fetchJobGroups = async (
-  fetchFunc: GlobalFetch["fetch"],
-  rowRequest: FetchRowRequest,
-  groupJobsService: IGroupJobsService,
-  groupedColumn: GroupedField,
-  columnsToAggregate: string[],
-  abortSignal: AbortSignal,
-) => {
-  const { filters, activeJobSets, skip, take, order } = rowRequest
-  return await groupJobsService.groupJobs(
-    fetchFunc,
-    filters,
-    activeJobSets,
-    order,
-    groupedColumn,
-    columnsToAggregate,
-    skip,
-    take,
-    abortSignal,
-  )
 }
 
 export const jobsToRows = (jobs: Job[]): JobRow[] => {

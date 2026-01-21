@@ -146,21 +146,46 @@ type SchedulingConfig struct {
 	// Set to true to enable larger job preferential ordering in the candidate gang iterator.
 	// This will result in larger jobs being ordered earlier in the job scheduling order
 	EnablePreferLargeJobOrdering bool
-	// Only queues allocated more than this fraction of their fair share are considered for preemption.
+	// ProtectedFractionOfFairShare sets the threshold for fair-share preemption.
+	// Queues at or below this fraction of their fair share are protected from preemption.
+	//
+	//   1.0 = Fair-share preemption disabled (default)
+	//   0.5 = Queues over 50% of fair share can have jobs preempted
+	//   0.1 = Aggressive - only queues under 10% of fair share are protected
+	//
+	// This only affects fair-share preemption, not priority-based preemption.
+	// Can be overridden per-pool via Pools[].ProtectedFractionOfFairShare.
 	ProtectedFractionOfFairShare float64 `validate:"gte=0"`
 	// Armada adds a node selector term to every scheduled pod using this label with the node name as value.
 	// This to force kube-scheduler to schedule pods on the node chosen by Armada.
 	// For example, if NodeIdLabel is "kubernetes.io/hostname" and armada schedules a pod on node "myNode",
 	// then Armada adds "kubernetes.io/hostname": "myNode" to the pod node selector before sending it to the executor.
 	NodeIdLabel string `validate:"required"`
-	// Map from priority class names to priority classes.
-	// Must be consistent with Kubernetes priority classes.
-	// I.e., priority classes defined here must be defined in all executor clusters and should map to the same priority.
+	// PriorityClasses defines Armada's own priority classes for scheduling and preemption.
+	// These are separate from Kubernetes PriorityClass resources. Armada handles all preemption
+	// in its scheduler before pods reach Kubernetes.
+	//
+	// Each class has two key fields:
+	//   - priority: Higher values are scheduled first and can preempt lower-priority jobs
+	//   - preemptible: If true, jobs can be evicted to rebalance resources across queues
+	//
+	// Example:
+	//   priorityClasses:
+	//     low:    { priority: 100,  preemptible: true }   # Can be preempted
+	//     medium: { priority: 500,  preemptible: true }   # Can be preempted, preempts "low"
+	//     high:   { priority: 1000, preemptible: false }  # Protected from fair-share preemption
 	PriorityClasses map[string]types.PriorityClass `validate:"dive"`
-	// Jobs with no priority class are assigned this priority class when ingested by the scheduler.
-	// Must be a key in the PriorityClasses map above.
+	// DefaultPriorityClassName is assigned to jobs submitted without a priority class.
+	// Must match a key in PriorityClasses.
 	DefaultPriorityClassName string
-	// If set, override the priority class name of pods with this value when sending to an executor.
+	// PriorityClassNameOverride sets the Kubernetes PriorityClass name on pods sent to executors.
+	// This controls what Kubernetes PriorityClass appears on the pod spec, not Armada's preemption behavior.
+	//
+	//   - "" (empty): Pods have no priorityClassName field
+	//   - Any other value: All pods use this Kubernetes PriorityClass
+	//
+	// This is only relevant for clusters that require pods to have a Kubernetes PriorityClass set.
+	// It does not affect how Armada schedules or preempts jobs.
 	PriorityClassNameOverride *string
 	// Number of jobs to load from the database at a time.
 	MaxQueueLookback uint
@@ -256,6 +281,7 @@ const (
 	DuplicateWellKnownNodeTypeErrorMessage     = "duplicate well-known node type name"
 	AwayNodeTypesWithoutPreemptionErrorMessage = "priority class has away node types but is not preemptible"
 	UnknownWellKnownNodeTypeErrorMessage       = "priority class refers to unknown well-known node type"
+	WildCardWellKnownNodeTypeValue             = "*"
 )
 
 // ResourceType represents a resource the scheduler indexes for efficient lookup.
@@ -296,8 +322,19 @@ type PoolConfig struct {
 	// When calculating costs assume all jobs ran for at least this long.
 	// This penalizes jobs that ran for less than this value,
 	// since they are charged the same as a job that ran for this value.
-	ShortJobPenaltyCutoff        time.Duration
-	ExperimentalMarketScheduling *MarketSchedulingConfig
+	ShortJobPenaltyCutoff         time.Duration
+	ExperimentalSubmissionGroup   string
+	ExperimentalMarketScheduling  *MarketSchedulingConfig
+	ExperimentalRunReconciliation *RunReconciliationConfig
+	DisableAwayScheduling         bool
+	DisableGangAwayScheduling     bool
+}
+
+func (p PoolConfig) GetSubmissionGroup() string {
+	if p.ExperimentalSubmissionGroup == "" {
+		return p.Name
+	}
+	return p.ExperimentalSubmissionGroup
 }
 
 type MarketSchedulingConfig struct {
@@ -316,6 +353,12 @@ type GangDefinition struct {
 	NodeSelector      map[string]string
 	Tolerations       []v1.Toleration
 	Resources         *armadaresource.ComputeResources
+}
+
+type RunReconciliationConfig struct {
+	Enabled                       bool
+	EnsureReservationMatch        bool
+	EnsureReservationDoesNotMatch bool
 }
 
 type OptimiserConfig struct {

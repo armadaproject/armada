@@ -10,6 +10,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/utils/pointer"
 
+	"github.com/armadaproject/armada/internal/common/constants"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/armadaproject/armada/pkg/armadaevents"
@@ -125,23 +126,23 @@ func TestDefaultGangNodeUniformity(t *testing.T) {
 				DefaultGangNodeUniformityLabel: "foo",
 			},
 			annotations: map[string]string{
-				configuration.GangIdAnnotation:          "bar",
-				configuration.GangCardinalityAnnotation: "1",
+				constants.GangIdAnnotation:          "bar",
+				constants.GangCardinalityAnnotation: "1",
 			},
 			expected: map[string]string{
-				configuration.GangIdAnnotation:          "bar",
-				configuration.GangCardinalityAnnotation: "1",
+				constants.GangIdAnnotation:          "bar",
+				constants.GangCardinalityAnnotation: "1",
 			},
 		},
 		"Empty default": {
 			annotations: map[string]string{
-				configuration.GangIdAnnotation:          "bar",
-				configuration.GangCardinalityAnnotation: "2",
+				constants.GangIdAnnotation:          "bar",
+				constants.GangCardinalityAnnotation: "2",
 			},
 			expected: map[string]string{
-				configuration.GangIdAnnotation:                  "bar",
-				configuration.GangCardinalityAnnotation:         "2",
-				configuration.GangNodeUniformityLabelAnnotation: "",
+				constants.GangIdAnnotation:                  "bar",
+				constants.GangCardinalityAnnotation:         "2",
+				constants.GangNodeUniformityLabelAnnotation: "",
 			},
 		},
 		"Add when missing": {
@@ -149,13 +150,13 @@ func TestDefaultGangNodeUniformity(t *testing.T) {
 				DefaultGangNodeUniformityLabel: "foo",
 			},
 			annotations: map[string]string{
-				configuration.GangIdAnnotation:          "bar",
-				configuration.GangCardinalityAnnotation: "2",
+				constants.GangIdAnnotation:          "bar",
+				constants.GangCardinalityAnnotation: "2",
 			},
 			expected: map[string]string{
-				configuration.GangIdAnnotation:                  "bar",
-				configuration.GangCardinalityAnnotation:         "2",
-				configuration.GangNodeUniformityLabelAnnotation: "foo",
+				constants.GangIdAnnotation:                  "bar",
+				constants.GangCardinalityAnnotation:         "2",
+				constants.GangNodeUniformityLabelAnnotation: "foo",
 			},
 		},
 	}
@@ -180,35 +181,35 @@ func TestDefaultGangFailFastFlag(t *testing.T) {
 		},
 		"No change for non-gang jobs with some gang annotations": {
 			annotations: map[string]string{
-				configuration.GangIdAnnotation:          "bar",
-				configuration.GangCardinalityAnnotation: "1",
+				constants.GangIdAnnotation:          "bar",
+				constants.GangCardinalityAnnotation: "1",
 			},
 			expected: map[string]string{
-				configuration.GangIdAnnotation:          "bar",
-				configuration.GangCardinalityAnnotation: "1",
+				constants.GangIdAnnotation:          "bar",
+				constants.GangCardinalityAnnotation: "1",
 			},
 		},
 		"Don't mutate existing": {
 			annotations: map[string]string{
-				configuration.GangIdAnnotation:          "bar",
-				configuration.GangCardinalityAnnotation: "2",
-				configuration.FailFastAnnotation:        "false",
+				constants.GangIdAnnotation:          "bar",
+				constants.GangCardinalityAnnotation: "2",
+				constants.FailFastAnnotation:        "false",
 			},
 			expected: map[string]string{
-				configuration.GangIdAnnotation:          "bar",
-				configuration.GangCardinalityAnnotation: "2",
-				configuration.FailFastAnnotation:        "false",
+				constants.GangIdAnnotation:          "bar",
+				constants.GangCardinalityAnnotation: "2",
+				constants.FailFastAnnotation:        "false",
 			},
 		},
 		"Add when missing": {
 			annotations: map[string]string{
-				configuration.GangIdAnnotation:          "bar",
-				configuration.GangCardinalityAnnotation: "2",
+				constants.GangIdAnnotation:          "bar",
+				constants.GangCardinalityAnnotation: "2",
 			},
 			expected: map[string]string{
-				configuration.GangIdAnnotation:          "bar",
-				configuration.GangCardinalityAnnotation: "2",
-				configuration.FailFastAnnotation:        "true",
+				constants.GangIdAnnotation:          "bar",
+				constants.GangCardinalityAnnotation: "2",
+				constants.FailFastAnnotation:        "true",
 			},
 		},
 	}
@@ -711,29 +712,29 @@ func TestAddGangIdLabel(t *testing.T) {
 		},
 		"Label added if gang id set": {
 			annotations: map[string]string{
-				configuration.GangIdAnnotation: "foo",
+				constants.GangIdAnnotation: "foo",
 			},
 			expectedLabels: map[string]string{
-				configuration.GangIdAnnotation: "foo",
+				constants.GangIdAnnotation: "foo",
 			},
 			enabled: true,
 		},
 		"Doesn't modify existing labels": {
 			annotations: map[string]string{
-				configuration.GangIdAnnotation: "foo",
+				constants.GangIdAnnotation: "foo",
 			},
 			initialLabels: map[string]string{
 				"fish": "chips",
 			},
 			expectedLabels: map[string]string{
-				"fish":                         "chips",
-				configuration.GangIdAnnotation: "foo",
+				"fish":                     "chips",
+				constants.GangIdAnnotation: "foo",
 			},
 			enabled: true,
 		},
 		"Unchanged if disabled": {
 			annotations: map[string]string{
-				configuration.GangIdAnnotation: "foo",
+				constants.GangIdAnnotation: "foo",
 			},
 			enabled: false,
 		},

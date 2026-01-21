@@ -14,7 +14,7 @@ import (
 	"google.golang.org/grpc/encoding/gzip"
 	"google.golang.org/grpc/keepalive"
 
-	"github.com/armadaproject/armada/internal/common"
+	"github.com/armadaproject/armada/pkg/client/auth/basic"
 	"github.com/armadaproject/armada/pkg/client/auth/exec"
 	"github.com/armadaproject/armada/pkg/client/auth/kubernetes"
 	"github.com/armadaproject/armada/pkg/client/auth/oidc"
@@ -36,7 +36,7 @@ type ApiConnectionDetails struct {
 	// closed.
 	GrpcKeepAliveTimeout time.Duration
 	// Authentication options.
-	BasicAuth                   common.LoginCredentials
+	BasicAuth                   basic.LoginCredentials
 	KubernetesNativeAuth        kubernetes.NativeAuthDetails
 	OpenIdAuth                  oidc.PKCEDetails
 	OpenIdDeviceAuth            oidc.DeviceDetails
@@ -45,6 +45,7 @@ type ApiConnectionDetails struct {
 	OpenIdKubernetesAuth        oidc.KubernetesDetails
 	ForceNoTls                  bool
 	ExecAuth                    exec.CommandDetails
+	CacheRefreshToken           bool
 }
 
 type ConnectionDetails func() (*ApiConnectionDetails, error)
@@ -101,11 +102,11 @@ func perRpcCredentials(config *ApiConnectionDetails) (credentials.PerRPCCredenti
 	} else if config.KubernetesNativeAuth.Enabled {
 		return kubernetes.AuthenticateKubernetesNative(config.KubernetesNativeAuth)
 	} else if config.OpenIdAuth.ProviderUrl != "" {
-		return oidc.AuthenticatePkce(config.OpenIdAuth)
+		return oidc.AuthenticatePkce(config.OpenIdAuth, config.CacheRefreshToken)
 	} else if config.OpenIdDeviceAuth.ProviderUrl != "" {
-		return oidc.AuthenticateDevice(config.OpenIdDeviceAuth)
+		return oidc.AuthenticateDevice(config.OpenIdDeviceAuth, config.CacheRefreshToken)
 	} else if config.OpenIdPasswordAuth.ProviderUrl != "" {
-		return oidc.AuthenticateWithPassword(config.OpenIdPasswordAuth)
+		return oidc.AuthenticateWithPassword(config.OpenIdPasswordAuth, config.CacheRefreshToken)
 	} else if config.OpenIdClientCredentialsAuth.ProviderUrl != "" {
 		return oidc.AuthenticateWithClientCredentials(config.OpenIdClientCredentialsAuth)
 	} else if config.OpenIdKubernetesAuth.ProviderUrl != "" {

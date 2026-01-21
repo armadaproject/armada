@@ -146,6 +146,9 @@ type NodeDb struct {
 	scheduledAtPriorityByJobId map[string]int32
 
 	resourceListFactory *internaltypes.ResourceListFactory
+
+	disableAwayScheduling     bool
+	disableGangAwayScheduling bool
 }
 
 func NewNodeDb(
@@ -323,6 +326,22 @@ func (nodeDb *NodeDb) GetNodeWithTxn(txn *memdb.Txn, id string) (*internaltypes.
 	return obj.(*internaltypes.Node), nil
 }
 
+func (nodeDb *NodeDb) DisableAwayScheduling() {
+	nodeDb.disableAwayScheduling = true
+}
+
+func (nodeDb *NodeDb) EnableAwayScheduling() {
+	nodeDb.disableAwayScheduling = false
+}
+
+func (nodeDb *NodeDb) DisableGangAwayScheduling() {
+	nodeDb.disableGangAwayScheduling = true
+}
+
+func (nodeDb *NodeDb) EnableGangAwayScheduling() {
+	nodeDb.disableGangAwayScheduling = false
+}
+
 func (nodeDb *NodeDb) GetNodes() ([]*internaltypes.Node, error) {
 	return nodeDb.GetNodesWithTxn(nodeDb.Txn(false))
 }
@@ -444,12 +463,8 @@ func (nodeDb *NodeDb) SelectNodeForJobWithTxn(txn *memdb.Txn, jctx *context.JobS
 		return node, nil
 	}
 
-	// Don't perform away scheduling for gang jobs
-	// The main reason for this is there is a bug somewhere in the eviction code
-	// If a gang gets scheduled away and then preempted in the same round
-	//  sometimes its fellow gang members aren't getting evicted and we end up scheduling a partial gang
-	// This is a temporary workaround until that bug is solved, do not remove unless you are confident the above bug is fixed
-	if !jctx.Job.IsInGang() {
+	awaySchedulingDisabled := nodeDb.disableAwayScheduling || (jctx.Job.IsInGang() && nodeDb.disableGangAwayScheduling)
+	if !awaySchedulingDisabled {
 		for _, awayNodeType := range priorityClass.AwayNodeTypes {
 			node, err := nodeDb.selectNodeForJobWithTxnAndAwayNodeType(txn, jctx, awayNodeType)
 			if err != nil {
@@ -494,7 +509,14 @@ func (nodeDb *NodeDb) selectNodeForJobWithTxnAndAwayNodeType(
 	}
 
 	for _, taint := range wellKnownNodeType.Taints {
-		jctx.AdditionalTolerations = append(jctx.AdditionalTolerations, v1.Toleration{Key: taint.Key, Value: taint.Value, Effect: taint.Effect})
+		toleration := v1.Toleration{Key: taint.Key, Effect: taint.Effect}
+		if taint.Value == configuration.WildCardWellKnownNodeTypeValue {
+			toleration.Operator = v1.TolerationOpExists
+		} else {
+			toleration.Value = taint.Value
+		}
+
+		jctx.AdditionalTolerations = append(jctx.AdditionalTolerations, toleration)
 	}
 
 	jctx.PodSchedulingContext.ScheduledAtPriority = awayNodeType.Priority

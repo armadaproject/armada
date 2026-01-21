@@ -180,6 +180,9 @@ func (submitService *SubmitService) sanitizeResourceList(resourceList v1.Resourc
 // These objects are mostly created server side however there will be details that are not known until submit time
 // So the executor must fill them in before it creates the objects in kubernetes
 func (submitService *SubmitService) applyExecutorSpecificIngressDetails(job *SubmitJob) {
+	if submitService.podDefaults == nil || submitService.podDefaults.Ingress == nil {
+		return
+	}
 	for _, ingress := range job.Ingresses {
 		ingress.Annotations = util.MergeMaps(
 			ingress.Annotations,

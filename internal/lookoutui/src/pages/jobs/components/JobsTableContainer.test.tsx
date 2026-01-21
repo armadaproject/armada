@@ -1,20 +1,18 @@
-import { QueryClientProvider } from "@tanstack/react-query"
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { getQueriesForElement, render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { SnackbarProvider } from "notistack"
 import { createMemoryRouter, RouterProvider } from "react-router-dom"
-import { v4 as uuidv4 } from "uuid"
+import { v4 as uuidV4 } from "uuid"
+import { vi } from "vitest"
 
-import { queryClient } from "../../../app/App"
 import { Job, JobState } from "../../../models/lookoutModels"
 import { JOBS, V2_REDIRECT } from "../../../pathnames"
+import { ApiClientsProvider } from "../../../services/apiClients"
 import { FakeServicesProvider } from "../../../services/fakeContext"
 import { IGetJobInfoService } from "../../../services/lookout/GetJobInfoService"
-import { GetJobsResponse, IGetJobsService } from "../../../services/lookout/GetJobsService"
 import { IGroupJobsService } from "../../../services/lookout/GroupJobsService"
 import { UpdateJobSetsService } from "../../../services/lookout/UpdateJobSetsService"
-import { UpdateJobsService } from "../../../services/lookout/UpdateJobsService"
-import FakeGetJobsService from "../../../services/lookout/mocks/FakeGetJobsService"
 import FakeGroupJobsService from "../../../services/lookout/mocks/FakeGroupJobsService"
 import { MockServer } from "../../../services/lookout/mocks/mockServer"
 import {
@@ -26,11 +24,22 @@ import { JobsTableContainer } from "./JobsTableContainer"
 
 const mockServer = new MockServer()
 
-const intersectionObserverMock = () => ({
-  observe: () => null,
-  disconnect: () => null,
+const IntersectionObserverMock = vi.fn(function () {
+  return {
+    disconnect: vi.fn().mockImplementation(function () {
+      return null
+    }),
+    observe: vi.fn().mockImplementation(function () {
+      return null
+    }),
+    takeRecords: vi.fn().mockImplementation(function () {
+      return null
+    }),
+    unobserve: vi.fn().mockImplementation(function () {
+      return null
+    }),
+  }
 })
-window.IntersectionObserver = vi.fn().mockImplementation(intersectionObserverMock)
 
 vi.setConfig({
   // This is quite a heavy component, and tests can timeout on a slower machine
@@ -51,7 +60,7 @@ function makeTestJobs(
       cpu: 1,
       ephemeralStorage: 8192,
       gpu: 8,
-      jobId: uuidv4(),
+      jobId: uuidV4(),
       jobSet: jobSet,
       lastTransitionTime: new Date().toISOString(),
       memory: 8192,
@@ -69,20 +78,17 @@ function makeTestJobs(
 }
 
 describe("JobsTableContainer", () => {
-  let getJobsService: IGetJobsService, groupJobsService: IGroupJobsService, updateJobsService: UpdateJobsService
+  let groupJobsService: IGroupJobsService
 
   beforeAll(() => {
     mockServer.listen()
+    vi.stubGlobal("IntersectionObserver", IntersectionObserverMock)
   })
 
   beforeEach(() => {
     localStorage.clear()
     localStorage.setItem(FORMAT_NUMBER_SHOULD_FORMAT_KEY, JSON.stringify(false))
     localStorage.setItem(FORMAT_TIMESTAMP_SHOULD_FORMAT_KEY, JSON.stringify(false))
-
-    updateJobsService = {
-      cancelJobs: vi.fn(),
-    } as any
   })
 
   afterEach(() => {
@@ -92,34 +98,46 @@ describe("JobsTableContainer", () => {
 
   afterAll(() => {
     mockServer.close()
+    vi.unstubAllGlobals()
   })
 
   const renderComponent = (
     fakeJobs: Job[] = [],
     search?: string,
     fakeServices: {
-      v2GetJobsService?: IGetJobsService
       v2GroupJobsService?: IGroupJobsService
       v2JobSpecService?: IGetJobInfoService
-      v2UpdateJobsService?: UpdateJobsService
       v2UpdateJobSetsService?: UpdateJobSetsService
     } = {},
   ) => {
-    getJobsService = new FakeGetJobsService(fakeJobs, false)
     groupJobsService = new FakeGroupJobsService(fakeJobs, false)
+
+    // Create a fresh query client for each test to avoid cache pollution
+    const testQueryClient = new QueryClient({
+      defaultOptions: {
+        queries: {
+          retry: false,
+          gcTime: 0,
+        },
+        mutations: {
+          retry: false,
+        },
+      },
+    })
+
     const element = (
       <SnackbarProvider>
-        <QueryClientProvider client={queryClient}>
-          <FakeServicesProvider fakeJobs={fakeJobs} simulateApiWait={false} {...fakeServices}>
-            <JobsTableContainer
-              getJobsService={fakeServices.v2GetJobsService ?? getJobsService}
-              groupJobsService={fakeServices.v2GroupJobsService ?? groupJobsService}
-              updateJobsService={fakeServices.v2UpdateJobsService ?? updateJobsService}
-              debug={false}
-              autoRefreshMs={30000}
-              commandSpecs={[]}
-            />
-          </FakeServicesProvider>
+        <QueryClientProvider client={testQueryClient}>
+          <ApiClientsProvider>
+            <FakeServicesProvider fakeJobs={fakeJobs} simulateApiWait={false} {...fakeServices}>
+              <JobsTableContainer
+                groupJobsService={fakeServices.v2GroupJobsService ?? groupJobsService}
+                debug={false}
+                autoRefreshMs={30000}
+                commandSpecs={[]}
+              />
+            </FakeServicesProvider>
+          </ApiClientsProvider>
         </QueryClientProvider>
       </SnackbarProvider>
     )
@@ -149,15 +167,14 @@ describe("JobsTableContainer", () => {
   }
 
   it("should render a spinner while loading initially", async () => {
-    const fakeGetJobsService = new FakeGetJobsService([])
-    fakeGetJobsService.getJobs = vi.fn(() => new Promise(() => undefined) as Promise<GetJobsResponse>)
-    const { findAllByRole } = renderComponent([], undefined, {
-      v2GetJobsService: fakeGetJobsService,
-    })
+    // Mock the jobs endpoint to never resolve to test loading state
+    mockServer.setPostJobsResponse([])
+    const { findAllByRole } = renderComponent([])
     await findAllByRole("progressbar")
   })
 
   it("should handle no data", async () => {
+    mockServer.setPostJobsResponse([])
     const { findByText } = renderComponent()
     await waitForFinishedLoading()
 
@@ -166,19 +183,21 @@ describe("JobsTableContainer", () => {
   })
 
   it("should show the correct total row count on the first page", async () => {
-    const { findByText } = renderComponent(
-      makeTestJobs(60, "queue-1", "job-set-1", JobState.Queued),
-      `?page=0&sort[id]=jobId&sort[desc]=false`,
-    )
+    const jobs = makeTestJobs(60, "queue-1", "job-set-1", JobState.Queued)
+
+    mockServer.setPostJobsResponse(jobs)
+
+    const { findByText } = renderComponent(jobs, `?page=0&sort[id]=jobId&sort[desc]=false`)
     await waitForFinishedLoading()
     await findByText("1–50 of more than 50")
   })
 
   it("should show the correct total row count on the last page", async () => {
-    const { findByText } = renderComponent(
-      makeTestJobs(60, "queue-1", "job-set-1", JobState.Queued),
-      `?page=1&sort[id]=jobId&sort[desc]=false`,
-    )
+    const jobs = makeTestJobs(60, "queue-1", "job-set-1", JobState.Queued)
+
+    mockServer.setPostJobsResponse(jobs)
+
+    const { findByText } = renderComponent(jobs, `?page=1&sort[id]=jobId&sort[desc]=false`)
     await waitForFinishedLoading()
     await findByText("51–60 of 60")
   })
@@ -196,10 +215,13 @@ describe("JobsTableContainer", () => {
 
       const numUniqueForJobKey = new Set(jobs.map((j) => j[groupKey])).size
 
+      mockServer.setPostJobsResponse(jobs)
+
       renderComponent(jobs)
       await waitForFinishedLoading()
 
       await groupByColumn(displayString)
+      await waitForFinishedLoading()
 
       // Check number of rendered rows has changed
       await assertNumDataRowsShown(numUniqueForJobKey)
@@ -219,6 +241,8 @@ describe("JobsTableContainer", () => {
         ...makeTestJobs(10, "queue-1", "job-set-1", JobState.Pending),
         ...makeTestJobs(15, "queue-1", "job-set-2", JobState.Running),
       ]
+
+      mockServer.setPostJobsResponse(jobs)
 
       renderComponent(jobs)
 
@@ -250,6 +274,8 @@ describe("JobsTableContainer", () => {
         ...makeTestJobs(15, "queue-1", "job-set-2", JobState.Running),
       ]
 
+      mockServer.setPostJobsResponse(jobs)
+
       const { getByRole, queryAllByRole } = renderComponent(jobs)
       await waitForFinishedLoading()
 
@@ -280,6 +306,8 @@ describe("JobsTableContainer", () => {
         ...makeTestJobs(10, "queue-2", "job-set-1", JobState.Pending),
         ...makeTestJobs(15, "queue-1", "job-set-2", JobState.Running),
       ]
+
+      mockServer.setPostJobsResponse(jobs)
 
       const { findByRole } = renderComponent(jobs)
       await waitForFinishedLoading()
@@ -314,6 +342,8 @@ describe("JobsTableContainer", () => {
         ...makeTestJobs(15, "queue-1", "job-set-2", JobState.Running),
       ]
 
+      mockServer.setPostJobsResponse(jobs)
+
       const { findByRole } = renderComponent(jobs)
       await waitForFinishedLoading()
 
@@ -329,6 +359,8 @@ describe("JobsTableContainer", () => {
         ...makeTestJobs(1000, "queue-1", "job-set-1", JobState.Pending),
         ...makeTestJobs(1500, "queue-1", "job-set-2", JobState.Running),
       ]
+
+      mockServer.setPostJobsResponse(jobs)
 
       const { findByRole } = renderComponent(jobs)
       await waitForFinishedLoading()
@@ -358,6 +390,7 @@ describe("JobsTableContainer", () => {
       ]
 
       mockServer.setGetQueuesResponse(["queue-1", "queue-2"])
+      mockServer.setPostJobsResponse(jobs)
 
       const { baseElement } = renderComponent(jobs)
       await waitForFinishedLoading()
@@ -378,6 +411,7 @@ describe("JobsTableContainer", () => {
         ...makeTestJobs(15, "queue-1", "job-set-2", JobState.Running),
       ]
 
+      mockServer.setPostJobsResponse(jobs)
       renderComponent(jobs)
       await clearAllGroupings()
       await waitForFinishedLoading()
@@ -397,6 +431,8 @@ describe("JobsTableContainer", () => {
         ...makeTestJobs(10, "queue-2", "job-set-1", JobState.Pending),
         ...makeTestJobs(15, "queue-1", "job-set-2", JobState.Running, { hyperparameter: "some-test-hyperparameter" }),
       ]
+
+      mockServer.setPostJobsResponse(jobs)
 
       const { findAllByRole } = renderComponent(jobs)
       await clearAllGroupings()
@@ -427,6 +463,8 @@ describe("JobsTableContainer", () => {
         }
       })
 
+      mockServer.setPostJobsResponse(jobs)
+
       const { getAllByRole } = renderComponent(jobs)
       await waitForFinishedLoading()
 
@@ -455,6 +493,9 @@ describe("JobsTableContainer", () => {
         ...makeTestJobs(10, "queue-2", "job-set-1", JobState.Pending),
         ...makeTestJobs(15, "queue-1", "job-set-2", JobState.Running),
       ]
+
+      mockServer.setPostJobsResponse(jobs)
+
       const { findByRole } = renderComponent(jobs)
       await waitForFinishedLoading()
       await assertNumDataRowsShown(30)
@@ -483,6 +524,7 @@ describe("JobsTableContainer", () => {
       ]
 
       mockServer.setGetQueuesResponse(["queue-1", "queue-2", "queue-3"])
+      mockServer.setPostJobsResponse(jobs)
 
       const { findByText, baseElement } = renderComponent(jobs)
       await waitForFinishedLoading()
@@ -512,6 +554,9 @@ describe("JobsTableContainer", () => {
         ...makeTestJobs(10, "queue-2", "job-set-1", JobState.Pending),
         ...makeTestJobs(15, "queue-3", "job-set-2", JobState.Running),
       ]
+
+      mockServer.setPostJobsResponse(jobs)
+
       const { getByRole } = renderComponent(jobs)
       await waitForFinishedLoading()
 
@@ -529,6 +574,9 @@ describe("JobsTableContainer", () => {
         ...makeTestJobs(10, "queue-2", "job-set-1", JobState.Pending),
         ...makeTestJobs(15, "queue-3", "job-set-2", JobState.Running),
       ]
+
+      mockServer.setPostJobsResponse(jobs)
+
       const { findByRole, queryByRole } = renderComponent(jobs)
       await waitForFinishedLoading()
 
@@ -543,6 +591,7 @@ describe("JobsTableContainer", () => {
 
   describe("Query Params", () => {
     it("should save table state to query params on load", async () => {
+      mockServer.setPostJobsResponse([])
       const { router } = renderComponent()
       await waitForFinishedLoading()
 
@@ -560,6 +609,9 @@ describe("JobsTableContainer", () => {
         ...makeTestJobs(5, "queue-2", "job-set-1", JobState.Pending),
         ...queue3JobSet1Jobs,
       ]
+
+      mockServer.setPostJobsResponse(jobs)
+
       const { router, baseElement, findByText } = renderComponent(jobs)
       await waitForFinishedLoading()
 
@@ -589,6 +641,7 @@ describe("JobsTableContainer", () => {
         expect(router.state.location.search).toContain("g[0]=queue")
         expect(router.state.location.search).toContain("g[1]=jobSet")
         expect(router.state.location.search).not.toContain("g[2]")
+        // eslint-disable-next-line @cspell/spellchecker
         expect(router.state.location.search).toContain("e[0]=queue%3Aqueue-3")
       })
     })
@@ -600,14 +653,18 @@ describe("JobsTableContainer", () => {
         ...makeTestJobs(10, "queue-2", "job-set-2", JobState.Pending),
         ...makeTestJobs(15, "queue-3", "job-set-3", JobState.Running),
       ]
+
+      mockServer.setPostJobsResponse(jobs)
+
       renderComponent(
         jobs,
+        // eslint-disable-next-line @cspell/spellchecker
         `?page=0&g[0]=jobSet&sort[id]=jobId&sort[desc]=true&pS=50&f[0][id]=jobSet&f[0][value]=job-set-1&f[0][match]=startsWith&e[0]=jobSet%3Ajob-set-1`,
       )
 
       await waitForFinishedLoading()
 
-      // 1 jobset + jobs for expanded jobset
+      // 1 job set + jobs for expanded job set
       await assertNumDataRowsShown(1 + 5)
     })
 
@@ -616,6 +673,8 @@ describe("JobsTableContainer", () => {
       for (let i = 0; i < 51; i++) {
         jobs[i].jobId = "job-" + `${i}`.padStart(2, "0")
       }
+
+      mockServer.setPostJobsResponse(jobs)
 
       const { getAllByRole } = renderComponent(jobs, `?page=1&sort[id]=jobId&sort[desc]=false`)
       await waitForFinishedLoading()

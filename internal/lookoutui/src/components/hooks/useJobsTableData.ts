@@ -14,9 +14,6 @@ import {
 } from "../../common/jobsTableColumns"
 import { LookoutColumnFilter } from "../../common/jobsTableUtils"
 import {
-  fetchJobGroups,
-  fetchJobs,
-  FetchRowRequest,
   getFiltersForGroupedAnnotations,
   getFiltersForRow,
   groupsToRows,
@@ -25,11 +22,12 @@ import {
 } from "../../common/jobsTableUtils"
 import { fromRowId, mergeSubRows } from "../../common/reactTableUtils"
 import { getErrorMessage } from "../../common/utils"
+import { getConfig } from "../../config"
 import { JobGroupRow, JobRow, JobTableRow } from "../../models/jobsTableModels"
 import { AggregateType, Job, JobFilter, JobId, JobOrder, Match } from "../../models/lookoutModels"
 import { useAuthenticatedFetch } from "../../oidcAuth"
-import { IGetJobsService } from "../../services/lookout/GetJobsService"
 import { GroupedField, IGroupJobsService } from "../../services/lookout/GroupJobsService"
+import { GetJobsResponse } from "../../services/lookout/useGetJobs"
 
 export interface UseFetchJobsTableDataArgs {
   groupedColumns: ColumnId[]
@@ -43,7 +41,6 @@ export interface UseFetchJobsTableDataArgs {
   allColumns: JobTableColumn[]
   selectedRows: RowSelectionState
   updateSelectedRows: (newState: RowSelectionState) => void
-  getJobsService: IGetJobsService
   groupJobsService: IGroupJobsService
   openSnackbar: (message: string, variant: VariantType) => void
   lastTransitionTimeAggregate?: AggregateType
@@ -139,7 +136,6 @@ export const useFetchJobsTableData = ({
   allColumns,
   selectedRows,
   updateSelectedRows,
-  getJobsService,
   groupJobsService,
   openSnackbar,
   lastTransitionTimeAggregate,
@@ -179,7 +175,7 @@ export const useFetchJobsTableData = ({
       let newData
       try {
         if (isJobFetch) {
-          const { jobs } = await fetchJobs(authenticatedFetch, rowRequest, getJobsService, abortController.signal)
+          const { jobs } = await fetchJobs(authenticatedFetch, rowRequest, abortController.signal)
           newData = jobsToRows(jobs)
 
           setJobInfoMap(new Map([...jobInfoMap.entries(), ...jobs.map((j): [JobId, Job] => [j.jobId, j])]))
@@ -244,6 +240,7 @@ export const useFetchJobsTableData = ({
       setPendingData(restOfRequests)
     }
 
+    // eslint-disable-next-line no-console
     fetchData().catch(console.error)
 
     // This will run when the current invocation is no longer needed (either because the
@@ -304,4 +301,64 @@ const getColsToAggregate = (visibleCols: ColumnId[], filters: JobFilter[]): stri
     }
   }
   return aggregates
+}
+export const fetchJobs = async (
+  fetchFunc: GlobalFetch["fetch"],
+  rowRequest: FetchRowRequest,
+  abortSignal: AbortSignal,
+): Promise<GetJobsResponse> => {
+  const { filters, activeJobSets, skip, take, order } = rowRequest
+  const config = getConfig()
+
+  let path = "/api/v1/jobs"
+  if (config.backend) {
+    path += "?" + new URLSearchParams({ backend: config.backend })
+  }
+
+  const response = await fetchFunc(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      filters,
+      activeJobSets,
+      order,
+      skip,
+      take,
+    }),
+    signal: abortSignal,
+  })
+
+  const json = await response.json()
+  return {
+    jobs: json.jobs ?? [],
+  }
+}
+
+export interface FetchRowRequest {
+  filters: JobFilter[]
+  activeJobSets: boolean
+  skip: number
+  take: number
+  order: JobOrder
+}
+export const fetchJobGroups = async (
+  fetchFunc: GlobalFetch["fetch"],
+  rowRequest: FetchRowRequest,
+  groupJobsService: IGroupJobsService,
+  groupedColumn: GroupedField,
+  columnsToAggregate: string[],
+  abortSignal: AbortSignal,
+) => {
+  const { filters, activeJobSets, skip, take, order } = rowRequest
+  return await groupJobsService.groupJobs(
+    fetchFunc,
+    filters,
+    activeJobSets,
+    order,
+    groupedColumn,
+    columnsToAggregate,
+    skip,
+    take,
+    abortSignal,
+  )
 }

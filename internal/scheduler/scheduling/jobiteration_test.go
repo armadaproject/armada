@@ -239,11 +239,6 @@ type mockJobRepository struct {
 	jobsById     map[string]*jobdb.Job
 }
 
-type gangKey struct {
-	queue  string
-	gangId string
-}
-
 func (repo *mockJobRepository) QueuedJobs(queue string, _ string, _ jobdb.JobSortOrder) jobdb.JobIterator {
 	q := repo.jobsByQueue[queue]
 	return &mockJobIterator{jobs: q}

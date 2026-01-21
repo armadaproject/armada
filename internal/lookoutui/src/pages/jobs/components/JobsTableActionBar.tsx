@@ -7,15 +7,13 @@ import { ColumnId, JobTableColumn, PINNED_COLUMNS, toColId } from "../../../comm
 import AutoRefreshToggle from "../../../components/AutoRefreshToggle"
 import RefreshButton from "../../../components/RefreshButton"
 import { JobFiltersWithExcludes } from "../../../models/lookoutModels"
-import { IGetJobsService } from "../../../services/lookout/GetJobsService"
-import { UpdateJobsService } from "../../../services/lookout/UpdateJobsService"
 
 import { CancelDialog } from "./CancelDialog"
 import { ColumnConfigurationDialog } from "./ColumnConfigurationDialog"
 import { CustomViewPicker } from "./CustomViewPicker"
 import GroupBySelect from "./GroupBySelect"
 import styles from "./JobsTableActionBar.module.css"
-import { ReprioritiseDialog } from "./ReprioritiseDialog"
+import { ReprioritizeDialog } from "./ReprioritizeDialog"
 
 export interface JobsTableActionBarProps {
   isLoading: boolean
@@ -38,8 +36,6 @@ export interface JobsTableActionBarProps {
   onEditAnnotationColumn: (colId: ColumnId, annotationKey: string) => void
   toggleColumnVisibility: (columnId: ColumnId) => void
   onGroupsChanged: (newGroups: ColumnId[]) => void
-  getJobsService: IGetJobsService
-  updateJobsService: UpdateJobsService
   onClearFilters: () => void
   onClearSorting: () => void
   customSortingApplied: boolean
@@ -71,8 +67,6 @@ export const JobsTableActionBar = memo(
     onEditAnnotationColumn,
     toggleColumnVisibility,
     onGroupsChanged,
-    getJobsService,
-    updateJobsService,
     onClearFilters,
     onClearSorting,
     customSortingApplied,
@@ -83,7 +77,7 @@ export const JobsTableActionBar = memo(
   }: JobsTableActionBarProps) => {
     const [columnConfigurationDialogOpen, setColumnConfigurationDialogOpen] = useState(false)
     const [cancelDialogOpen, setCancelDialogOpen] = useState(false)
-    const [reprioritiseDialogOpen, setReprioritiseDialogOpen] = useState(false)
+    const [reprioritizeDialogOpen, setReprioritizeDialogOpen] = useState(false)
 
     const numberSelectedColumns = useMemo(() => {
       const visibleColumnsSet = new Set(visibleColumns)
@@ -97,7 +91,7 @@ export const JobsTableActionBar = memo(
 
     const columnConfigurationDialogOpenOnClose = useCallback(() => setColumnConfigurationDialogOpen(false), [])
     const cancelDialogOnClose = useCallback(() => setCancelDialogOpen(false), [])
-    const reprioritiseDialogOnClose = useCallback(() => setReprioritiseDialogOpen(false), [])
+    const reprioritizeDialogOnClose = useCallback(() => setReprioritizeDialogOpen(false), [])
     return (
       <div className={styles.actionBar}>
         <ColumnConfigurationDialog
@@ -115,21 +109,9 @@ export const JobsTableActionBar = memo(
           onEditAnnotationColumn={onEditAnnotationColumn}
           onRemoveAnnotationColumn={onRemoveAnnotationColumn}
         />
-        {cancelDialogOpen && (
-          <CancelDialog
-            onClose={cancelDialogOnClose}
-            selectedItemFilters={selectedItemFilters}
-            getJobsService={getJobsService}
-            updateJobsService={updateJobsService}
-          />
-        )}
-        {reprioritiseDialogOpen && (
-          <ReprioritiseDialog
-            onClose={reprioritiseDialogOnClose}
-            selectedItemFilters={selectedItemFilters}
-            getJobsService={getJobsService}
-            updateJobsService={updateJobsService}
-          />
+        {cancelDialogOpen && <CancelDialog onClose={cancelDialogOnClose} selectedItemFilters={selectedItemFilters} />}
+        {reprioritizeDialogOpen && (
+          <ReprioritizeDialog onClose={reprioritizeDialogOnClose} selectedItemFilters={selectedItemFilters} />
         )}
         <div className={styles.actionGroup}>
           <GroupBySelect columns={allColumns} groups={groupedColumns} onGroupsChanged={onGroupsChanged} />
@@ -212,7 +194,7 @@ export const JobsTableActionBar = memo(
             <Button
               variant="contained"
               disabled={numSelectedItems === 0}
-              onClick={() => setReprioritiseDialogOpen(true)}
+              onClick={() => setReprioritizeDialogOpen(true)}
             >
               Reprioritize selected
             </Button>

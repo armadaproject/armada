@@ -61,7 +61,7 @@ import {
 } from "../../../common/jobsTableUtils"
 import { fromRowId, RowId } from "../../../common/reactTableUtils"
 import { EmptyInputError, ParseError } from "../../../common/resourceUtils"
-import { getErrorMessage, waitMillis } from "../../../common/utils"
+import { getErrorMessage, waitMs } from "../../../common/utils"
 import { AlertErrorFallback } from "../../../components/AlertErrorFallback"
 import { useFormatNumberWithUserSettings } from "../../../components/hooks/formatNumberWithUserSettings"
 import {
@@ -74,13 +74,11 @@ import { CommandSpec } from "../../../config"
 import { isJobGroupRow, JobRow, JobTableRow } from "../../../models/jobsTableModels"
 import { AggregateType, Job, JobFiltersWithExcludes, JobId, Match } from "../../../models/lookoutModels"
 import { CustomViewsService } from "../../../services/lookout/CustomViewsService"
-import { IGetJobsService } from "../../../services/lookout/GetJobsService"
 import { IGroupJobsService } from "../../../services/lookout/GroupJobsService"
 import {
   JobsTablePreferences,
   JobsTablePreferencesService,
 } from "../../../services/lookout/JobsTablePreferencesService"
-import { UpdateJobsService } from "../../../services/lookout/UpdateJobsService"
 
 import { JobsTableActionBar } from "./JobsTableActionBar"
 import { HeaderCell } from "./JobsTableCell"
@@ -91,9 +89,7 @@ import { Sidebar } from "./sidebar/Sidebar"
 const PAGE_SIZE_OPTIONS = [5, 25, 50, 100]
 
 interface JobsTableContainerProps {
-  getJobsService: IGetJobsService
   groupJobsService: IGroupJobsService
-  updateJobsService: UpdateJobsService
   debug: boolean
   autoRefreshMs: number | undefined
   commandSpecs: CommandSpec[]
@@ -122,9 +118,7 @@ function fromLookoutOrder(lookoutOrder: LookoutColumnOrder): SortingState {
 }
 
 export const JobsTableContainer = ({
-  getJobsService,
   groupJobsService,
-  updateJobsService,
   debug,
   autoRefreshMs,
   commandSpecs,
@@ -228,7 +222,6 @@ export const JobsTableContainer = ({
     allColumns,
     selectedRows,
     updateSelectedRows: setSelectedRows,
-    getJobsService,
     groupJobsService,
     openSnackbar,
     lastTransitionTimeAggregate,
@@ -247,7 +240,7 @@ export const JobsTableContainer = ({
     }
   }, [])
 
-  // Retrieve data for any expanded rows from intial query param state
+  // Retrieve data for any expanded rows from initial query param state
   useEffect(() => {
     const rowsToFetch: PendingData[] = [
       { parentRowId: "ROOT", skip: pagination.pageIndex * pagination.pageSize },
@@ -379,6 +372,7 @@ export const JobsTableContainer = ({
       setToFirstPage()
       loadPrefs(prefs)
     } catch (e) {
+      // eslint-disable-next-line no-console
       console.error(getErrorMessage(e))
       openSnackbar("Failed to load custom view", "error")
     }
@@ -556,7 +550,7 @@ export const JobsTableContainer = ({
       const [newlyExpanded] = diffOfKeys<RowId>(newExpandedState, expanded)
       setExpanded(newExpandedState)
 
-      // Fetch subrows for expanded rows
+      // Fetch sub-rows for expanded rows
       setRowsToFetch(newlyExpanded.map((rowId) => ({ parentRowId: rowId, skip: 0 })))
     },
     [expanded],
@@ -790,7 +784,7 @@ export const JobsTableContainer = ({
     const isSelected = row.getIsSelected()
     if (singleSelect) {
       table.toggleAllRowsSelected(false)
-      await waitMillis(1)
+      await waitMs(1)
     }
     row.toggleSelected(!isSelected)
   }
@@ -842,8 +836,6 @@ export const JobsTableContainer = ({
               onEditAnnotationColumn={editAnnotationCol}
               onGroupsChanged={onGroupingChange}
               toggleColumnVisibility={onColumnVisibilityChange}
-              getJobsService={getJobsService}
-              updateJobsService={updateJobsService}
               onClearFilters={clearFilters}
               onClearSorting={clearSorting}
               customSortingApplied={customSortingApplied}

@@ -118,11 +118,12 @@ func (c *InstructionConverter) convertSequence(
 			err = c.handleJobRequeued(ts, event.GetJobRequeued(), update)
 		case *armadaevents.EventSequence_Event_JobRunLeased:
 			err = c.handleJobRunLeased(ts, event.GetJobRunLeased(), update)
+		case *armadaevents.EventSequence_Event_StandaloneIngressInfo:
+			err = c.handleStandaloneIngressInfo(event.GetStandaloneIngressInfo(), update)
 		case *armadaevents.EventSequence_Event_ReprioritiseJobSet,
 			*armadaevents.EventSequence_Event_CancelJob,
 			*armadaevents.EventSequence_Event_CancelJobSet,
 			*armadaevents.EventSequence_Event_ResourceUtilisation,
-			*armadaevents.EventSequence_Event_StandaloneIngressInfo,
 			*armadaevents.EventSequence_Event_PartitionMarker,
 			*armadaevents.EventSequence_Event_JobValidated,
 			*armadaevents.EventSequence_Event_JobRunPreemptionRequested:
@@ -434,6 +435,9 @@ func (c *InstructionConverter) handleJobRunErrors(ts time.Time, event *armadaeve
 		case *armadaevents.Error_LeaseExpired:
 			jobRunUpdate.JobRunState = pointer.Int32(lookout.JobRunLeaseExpiredOrdinal)
 			jobRunUpdate.Error = tryCompressError(event.JobId, "Lease expired", c.compressor)
+		case *armadaevents.Error_ReconciliationError:
+			jobRunUpdate.JobRunState = pointer.Int32(lookout.JobRunFailedOrdinal)
+			jobRunUpdate.Error = tryCompressError(event.JobId, reason.ReconciliationError.GetMessage(), c.compressor)
 		default:
 			jobRunUpdate.JobRunState = pointer.Int32(lookout.JobRunFailedOrdinal)
 			jobRunUpdate.Error = tryCompressError(event.JobId, "Unknown error", c.compressor)
@@ -451,6 +455,15 @@ func (c *InstructionConverter) handleJobRunPreempted(ts time.Time, event *armada
 		JobRunState: pointer.Int32(lookout.JobRunPreemptedOrdinal),
 		Finished:    &ts,
 		Error:       tryCompressError(event.PreemptedJobId, event.Reason, c.compressor),
+	}
+	update.JobRunsToUpdate = append(update.JobRunsToUpdate, &jobRun)
+	return nil
+}
+
+func (c *InstructionConverter) handleStandaloneIngressInfo(event *armadaevents.StandaloneIngressInfo, update *model.InstructionSet) error {
+	jobRun := model.UpdateJobRunInstruction{
+		RunId:            event.RunId,
+		IngressAddresses: event.IngressAddresses,
 	}
 	update.JobRunsToUpdate = append(update.JobRunsToUpdate, &jobRun)
 	return nil
