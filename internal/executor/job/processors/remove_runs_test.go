@@ -8,20 +8,18 @@ import (
 	v1 "k8s.io/api/core/v1"
 
 	fakecontext "github.com/armadaproject/armada/internal/executor/context/fake"
-	"github.com/armadaproject/armada/internal/executor/domain"
 	"github.com/armadaproject/armada/internal/executor/job"
-	"github.com/armadaproject/armada/internal/executor/util"
 )
 
 func TestRun_RemoveRunProcessor(t *testing.T) {
 	pod := createPod()
 
 	terminalPod := pod.DeepCopy()
-	terminalPod.Annotations[string(v1.PodFailed)] = "value"
 	terminalPod.Status.Phase = v1.PodFailed
 
-	terminalAndReportedDonePod := terminalPod.DeepCopy()
-	terminalAndReportedDonePod.Annotations[domain.JobDoneAnnotation] = "value"
+	terminalPodWithStatusReported := pod.DeepCopy()
+	terminalPodWithStatusReported.Annotations[string(v1.PodFailed)] = "value"
+	terminalPodWithStatusReported.Status.Phase = v1.PodFailed
 
 	runMeta, err := job.ExtractJobRunMeta(pod)
 	require.NoError(t, err)
@@ -38,14 +36,18 @@ func TestRun_RemoveRunProcessor(t *testing.T) {
 	}
 
 	tests := map[string]struct {
-		initialPod                 *v1.Pod
-		initialRunState            *job.RunState
-		expectPodDeleted           bool
-		expectedRunDeleted         bool
-		expectAddJobDoneAnnotation bool
+		initialPod         *v1.Pod
+		initialRunState    *job.RunState
+		expectPodDeleted   bool
+		expectedRunDeleted bool
 	}{
 		"Delete pod if run cancelled": {
 			initialPod:       pod,
+			initialRunState:  cancelledJobRun,
+			expectPodDeleted: true,
+		},
+		"Delete pod if run cancelled - terminal pod": {
+			initialPod:       terminalPod,
 			initialRunState:  cancelledJobRun,
 			expectPodDeleted: true,
 		},
@@ -54,17 +56,12 @@ func TestRun_RemoveRunProcessor(t *testing.T) {
 			initialRunState:    cancelledJobRun,
 			expectedRunDeleted: true,
 		},
-		"Marks job as done if run cancelled and pod is terminal": {
-			initialPod:                 terminalPod,
-			initialRunState:            cancelledJobRun,
-			expectAddJobDoneAnnotation: true,
-		},
-		"Deletes run but leaves pod if pod is terminal and marked as done": {
-			initialPod:         terminalAndReportedDonePod,
+		"Deletes run but leaves pod if pod is terminal and reported": {
+			initialPod:         terminalPodWithStatusReported,
 			initialRunState:    cancelledJobRun,
 			expectedRunDeleted: true,
 		},
-		"Does nothing if run is cancelled": {
+		"Does nothing if run is not cancelled": {
 			initialPod:      terminalPod,
 			initialRunState: activeJobRun,
 		},
@@ -77,15 +74,6 @@ func TestRun_RemoveRunProcessor(t *testing.T) {
 
 			if tc.expectPodDeleted {
 				assert.Len(t, executorContext.Pods, 0)
-			}
-
-			if tc.expectAddJobDoneAnnotation {
-				addedAnnotations, exist := executorContext.AnnotationsAdded[util.ExtractJobId(tc.initialPod)]
-				assert.True(t, exist)
-				assert.Len(t, addedAnnotations, 1)
-				assert.True(t, addedAnnotations[domain.JobDoneAnnotation] != "")
-			} else {
-				assert.Len(t, executorContext.AnnotationsAdded, 0)
 			}
 
 			if tc.expectedRunDeleted {

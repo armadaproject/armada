@@ -1,0 +1,24 @@
+queue: queue-a
+jobSetId: job-set-preemptible
+jobs:
+  - namespace: default
+    priority: 0
+    podSpec:
+      terminationGracePeriodSeconds: 0
+      restartPolicy: Never
+      priorityClassName: armada-preemptible
+      containers:
+        - name: sleeper
+          image: alpine:latest
+          command:
+            - sh
+          args:
+            - -c
+            - sleep 600
+          resources:
+            limits:
+              memory: 128Mi
+              cpu: 0.2
+            requests:
+              memory: 128Mi
+              cpu: 0.2

@@ -1,6 +1,7 @@
 package lookoutdb
 
 import (
+	"encoding/json"
 	"fmt"
 	"regexp"
 	"sort"
@@ -46,6 +47,16 @@ var annotations = map[string]string{
 }
 
 var (
+	initialIngressAddresses = map[int32]string{
+		80: "ingress.example.com",
+	}
+	updatedIngressAddresses = map[int32]string{
+		80:  "ingress.example.com",
+		443: "ingress-backup.example.com",
+	}
+)
+
+var (
 	baseTime, _     = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
 	updateTime, _   = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:06.000Z")
 	startTime, _    = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:07.000Z")
@@ -87,17 +98,18 @@ type JobSpecRow struct {
 }
 
 type JobRunRow struct {
-	RunId       string
-	JobId       string
-	Cluster     string
-	Node        *string
-	Pending     time.Time
-	Started     *time.Time
-	Finished    *time.Time
-	JobRunState int32
-	Error       []byte
-	Debug       []byte
-	ExitCode    *int32
+	RunId            string
+	JobId            string
+	Cluster          string
+	Node             *string
+	Pending          time.Time
+	Started          *time.Time
+	Finished         *time.Time
+	JobRunState      int32
+	Error            []byte
+	Debug            []byte
+	ExitCode         *int32
+	IngressAddresses map[int32]string
 }
 
 type JobErrorRow struct {
@@ -116,21 +128,23 @@ func defaultInstructionSet() *model.InstructionSet {
 			LastTransitionTimeSeconds: pointer.Int64(updateTime.Unix()),
 		}},
 		JobRunsToCreate: []*model.CreateJobRunInstruction{{
-			RunId:       RunId,
-			JobId:       JobId,
-			Cluster:     executorId,
-			Leased:      &updateTime,
-			Pending:     &updateTime,
-			JobRunState: lookout.JobRunPendingOrdinal,
+			RunId:            RunId,
+			JobId:            JobId,
+			Cluster:          executorId,
+			Leased:           &updateTime,
+			Pending:          &updateTime,
+			JobRunState:      lookout.JobRunPendingOrdinal,
+			IngressAddresses: cloneIngressAddresses(initialIngressAddresses),
 		}},
 		JobRunsToUpdate: []*model.UpdateJobRunInstruction{{
-			RunId:       RunId,
-			Node:        pointer.String(nodeName),
-			Started:     &startTime,
-			Finished:    &finishedTime,
-			Debug:       []byte(testfixtures.DebugMsg),
-			JobRunState: pointer.Int32(lookout.JobRunSucceededOrdinal),
-			ExitCode:    pointer.Int32(0),
+			RunId:            RunId,
+			Node:             pointer.String(nodeName),
+			Started:          &startTime,
+			Finished:         &finishedTime,
+			Debug:            []byte(testfixtures.DebugMsg),
+			JobRunState:      pointer.Int32(lookout.JobRunSucceededOrdinal),
+			ExitCode:         pointer.Int32(0),
+			IngressAddresses: cloneIngressAddresses(updatedIngressAddresses),
 		}},
 		JobErrorsToCreate: []*model.CreateJobErrorInstruction{{
 			JobId: JobId,
@@ -183,11 +197,12 @@ var expectedJobAfterUpdate = JobRow{
 }
 
 var expectedJobRun = JobRunRow{
-	RunId:       RunId,
-	JobId:       JobId,
-	Cluster:     executorId,
-	Pending:     updateTime,
-	JobRunState: lookout.JobRunPendingOrdinal,
+	RunId:            RunId,
+	JobId:            JobId,
+	Cluster:          executorId,
+	Pending:          updateTime,
+	JobRunState:      lookout.JobRunPendingOrdinal,
+	IngressAddresses: cloneIngressAddresses(initialIngressAddresses),
 }
 
 var expectedJobError = JobErrorRow{
@@ -196,16 +211,17 @@ var expectedJobError = JobErrorRow{
 }
 
 var expectedJobRunAfterUpdate = JobRunRow{
-	RunId:       RunId,
-	JobId:       JobId,
-	Cluster:     executorId,
-	Node:        pointer.String(nodeName),
-	Pending:     updateTime,
-	Started:     &startTime,
-	Finished:    &finishedTime,
-	JobRunState: lookout.JobRunSucceededOrdinal,
-	ExitCode:    pointer.Int32(0),
-	Debug:       []byte(testfixtures.DebugMsg),
+	RunId:            RunId,
+	JobId:            JobId,
+	Cluster:          executorId,
+	Node:             pointer.String(nodeName),
+	Pending:          updateTime,
+	Started:          &startTime,
+	Finished:         &finishedTime,
+	JobRunState:      lookout.JobRunSucceededOrdinal,
+	ExitCode:         pointer.Int32(0),
+	Debug:            []byte(testfixtures.DebugMsg),
+	IngressAddresses: cloneIngressAddresses(updatedIngressAddresses),
 }
 
 func TestCreateJobsBatch(t *testing.T) {
@@ -1004,6 +1020,17 @@ func getJob(t *testing.T, db *pgxpool.Pool, jobId string) JobRow {
 	return job
 }
 
+func cloneIngressAddresses(source map[int32]string) map[int32]string {
+	if source == nil {
+		return nil
+	}
+	copy := make(map[int32]string, len(source))
+	for k, v := range source {
+		copy[k] = v
+	}
+	return copy
+}
+
 func getJobSpec(t *testing.T, db *pgxpool.Pool, jobId string) JobSpecRow {
 	jobSpec := JobSpecRow{}
 	r := db.QueryRow(
@@ -1036,9 +1063,11 @@ func getJobRun(t *testing.T, db *pgxpool.Pool, runId string) JobRunRow {
 			job_run_state,
 			error,
 			exit_code,
-			debug
+			debug,
+			ingress_addresses
 		FROM job_run WHERE run_id = $1`,
 		runId)
+	var ingressJSON []byte
 	err := r.Scan(
 		&run.RunId,
 		&run.JobId,
@@ -1051,8 +1080,13 @@ func getJobRun(t *testing.T, db *pgxpool.Pool, runId string) JobRunRow {
 		&run.Error,
 		&run.ExitCode,
 		&run.Debug,
+		&ingressJSON,
 	)
 	assert.NoError(t, err)
+	if len(ingressJSON) > 0 {
+		err = json.Unmarshal(ingressJSON, &run.IngressAddresses)
+		assert.NoError(t, err)
+	}
 	return run
 }
 

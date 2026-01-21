@@ -8,9 +8,9 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/armadaproject/armada/internal/common/constants"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/executor/domain"
-	"github.com/armadaproject/armada/internal/server/configuration"
 )
 
 func TestIsInTerminalState_ShouldReturnTrueWhenPodInSucceededPhase(t *testing.T) {
@@ -371,7 +371,7 @@ func TestExtractQueue(t *testing.T) {
 }
 
 func TestExtractPool(t *testing.T) {
-	podWithPool := &v1.Pod{ObjectMeta: metav1.ObjectMeta{Annotations: map[string]string{configuration.PoolAnnotation: "pool-1"}}}
+	podWithPool := &v1.Pod{ObjectMeta: metav1.ObjectMeta{Annotations: map[string]string{constants.PoolAnnotation: "pool-1"}}}
 	podWithoutPool := &v1.Pod{}
 
 	assert.Equal(t, ExtractPool(podWithPool), "pool-1")
@@ -560,17 +560,6 @@ func TestLastStatusChange_ReportsTimeFromContainerStatus(t *testing.T) {
 	result, err = LastStatusChange(&pod)
 	assert.Equal(t, result, now)
 	assert.Nil(t, err)
-}
-
-func TestIsReportedDone(t *testing.T) {
-	isNotReportedDone := &v1.Pod{}
-	isReportedDone := &v1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Annotations: map[string]string{domain.JobDoneAnnotation: time.Now().String()},
-		},
-	}
-	assert.False(t, IsReportedDone(isNotReportedDone))
-	assert.True(t, IsReportedDone(isReportedDone))
 }
 
 func TestIsMarkedForDeletion(t *testing.T) {

@@ -74,13 +74,11 @@ import { CommandSpec } from "../../../config"
 import { isJobGroupRow, JobRow, JobTableRow } from "../../../models/jobsTableModels"
 import { AggregateType, Job, JobFiltersWithExcludes, JobId, Match } from "../../../models/lookoutModels"
 import { CustomViewsService } from "../../../services/lookout/CustomViewsService"
-import { IGetJobsService } from "../../../services/lookout/GetJobsService"
 import { IGroupJobsService } from "../../../services/lookout/GroupJobsService"
 import {
   JobsTablePreferences,
   JobsTablePreferencesService,
 } from "../../../services/lookout/JobsTablePreferencesService"
-import { UpdateJobsService } from "../../../services/lookout/UpdateJobsService"
 
 import { JobsTableActionBar } from "./JobsTableActionBar"
 import { HeaderCell } from "./JobsTableCell"
@@ -91,9 +89,7 @@ import { Sidebar } from "./sidebar/Sidebar"
 const PAGE_SIZE_OPTIONS = [5, 25, 50, 100]
 
 interface JobsTableContainerProps {
-  getJobsService: IGetJobsService
   groupJobsService: IGroupJobsService
-  updateJobsService: UpdateJobsService
   debug: boolean
   autoRefreshMs: number | undefined
   commandSpecs: CommandSpec[]
@@ -122,9 +118,7 @@ function fromLookoutOrder(lookoutOrder: LookoutColumnOrder): SortingState {
 }
 
 export const JobsTableContainer = ({
-  getJobsService,
   groupJobsService,
-  updateJobsService,
   debug,
   autoRefreshMs,
   commandSpecs,
@@ -228,7 +222,6 @@ export const JobsTableContainer = ({
     allColumns,
     selectedRows,
     updateSelectedRows: setSelectedRows,
-    getJobsService,
     groupJobsService,
     openSnackbar,
     lastTransitionTimeAggregate,
@@ -843,8 +836,6 @@ export const JobsTableContainer = ({
               onEditAnnotationColumn={editAnnotationCol}
               onGroupsChanged={onGroupingChange}
               toggleColumnVisibility={onColumnVisibilityChange}
-              getJobsService={getJobsService}
-              updateJobsService={updateJobsService}
               onClearFilters={clearFilters}
               onClearSorting={clearSorting}
               customSortingApplied={customSortingApplied}
