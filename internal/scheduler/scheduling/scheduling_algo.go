@@ -188,6 +188,10 @@ func (l *FairSchedulingAlgo) Schedule(
 			fsctx.nodeDb.DisableAwayScheduling()
 		}
 
+		if pool.DisableGangAwayScheduling {
+			fsctx.nodeDb.DisableGangAwayScheduling()
+		}
+
 		start := time.Now()
 		resourceUnit, ok := resourceUnits[pool.Name]
 		if !ok {

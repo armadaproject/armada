@@ -327,6 +327,7 @@ type PoolConfig struct {
 	ExperimentalMarketScheduling  *MarketSchedulingConfig
 	ExperimentalRunReconciliation *RunReconciliationConfig
 	DisableAwayScheduling         bool
+	DisableGangAwayScheduling     bool
 }
 
 func (p PoolConfig) GetSubmissionGroup() string {
