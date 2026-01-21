@@ -573,11 +573,12 @@ func TestScheduleMany(t *testing.T) {
 
 func TestAwayNodeScheduling(t *testing.T) {
 	tests := map[string]struct {
-		shouldSubmitGang       bool
-		disableAwayScheduling  bool
-		nodeTaint              v1.Taint
-		wellKnownNodeTypeTaint v1.Taint
-		expectSuccess          bool
+		shouldSubmitGang          bool
+		disableAwayScheduling     bool
+		disableGangAwayScheduling bool
+		nodeTaint                 v1.Taint
+		wellKnownNodeTypeTaint    v1.Taint
+		expectSuccess             bool
 	}{
 		"should schedule away jobs": {
 			shouldSubmitGang:       false,
@@ -592,9 +593,9 @@ func TestAwayNodeScheduling(t *testing.T) {
 			nodeTaint:              v1.Taint{Key: "gpu", Value: "true", Effect: v1.TaintEffectNoSchedule},
 			wellKnownNodeTypeTaint: v1.Taint{Key: "gpu", Value: "*", Effect: v1.TaintEffectNoSchedule},
 		},
-		"should schedule not schedule gangs as away jobs": {
+		"should schedule away jobs - gang": {
 			shouldSubmitGang:       true,
-			expectSuccess:          false,
+			expectSuccess:          true,
 			nodeTaint:              v1.Taint{Key: "gpu", Value: "true", Effect: v1.TaintEffectNoSchedule},
 			wellKnownNodeTypeTaint: v1.Taint{Key: "gpu", Value: "true", Effect: v1.TaintEffectNoSchedule},
 		},
@@ -610,6 +611,27 @@ func TestAwayNodeScheduling(t *testing.T) {
 			expectSuccess:          false,
 			nodeTaint:              v1.Taint{Key: "gpu", Value: "true", Effect: v1.TaintEffectNoSchedule},
 			wellKnownNodeTypeTaint: v1.Taint{Key: "gpu", Value: "true", Effect: v1.TaintEffectNoSchedule},
+		},
+		"should not schedule away jobs - gang - when away scheduling disabled": {
+			shouldSubmitGang:       true,
+			disableAwayScheduling:  true,
+			expectSuccess:          false,
+			nodeTaint:              v1.Taint{Key: "gpu", Value: "true", Effect: v1.TaintEffectNoSchedule},
+			wellKnownNodeTypeTaint: v1.Taint{Key: "gpu", Value: "true", Effect: v1.TaintEffectNoSchedule},
+		},
+		"should schedule away jobs - when gang away scheduling disabled": {
+			shouldSubmitGang:          false,
+			disableGangAwayScheduling: true,
+			expectSuccess:             true,
+			nodeTaint:                 v1.Taint{Key: "gpu", Value: "true", Effect: v1.TaintEffectNoSchedule},
+			wellKnownNodeTypeTaint:    v1.Taint{Key: "gpu", Value: "true", Effect: v1.TaintEffectNoSchedule},
+		},
+		"should not schedule away jobs - gang - when gang away scheduling disabled": {
+			shouldSubmitGang:          true,
+			disableGangAwayScheduling: true,
+			expectSuccess:             false,
+			nodeTaint:                 v1.Taint{Key: "gpu", Value: "true", Effect: v1.TaintEffectNoSchedule},
+			wellKnownNodeTypeTaint:    v1.Taint{Key: "gpu", Value: "true", Effect: v1.TaintEffectNoSchedule},
 		},
 	}
 
@@ -629,6 +651,10 @@ func TestAwayNodeScheduling(t *testing.T) {
 			require.NoError(t, err)
 			if tc.disableAwayScheduling {
 				nodeDb.DisableAwayScheduling()
+			}
+
+			if tc.disableGangAwayScheduling {
+				nodeDb.DisableGangAwayScheduling()
 			}
 
 			nodeDbTxn := nodeDb.Txn(true)

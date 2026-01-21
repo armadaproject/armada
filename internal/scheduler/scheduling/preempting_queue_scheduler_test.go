@@ -614,6 +614,76 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				"D": 1,
 			},
 		},
+		"gang scheduled - away": {
+			SchedulingConfig: testfixtures.TestSchedulingConfig(),
+			Nodes:            testfixtures.NTainted32CpuNodes(2, testfixtures.TestPriorities),
+			Rounds: []SchedulingRound{
+				{
+					JobsByQueue: map[string][]*jobdb.Job{
+						"A": testfixtures.WithGangAnnotationsJobs(testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass4PreemptibleAway, 2)),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": testfixtures.IntRange(0, 1),
+					},
+				},
+			},
+			PriorityFactorByQueue: map[string]float64{
+				"A": 1,
+			},
+		},
+		"gang scheduled - mixed home and away": {
+			SchedulingConfig: testfixtures.TestSchedulingConfig(),
+			Nodes: armadaslices.Concatenate(
+				testfixtures.NTainted32CpuNodes(1, testfixtures.TestPriorities), // Tainted so one job will schedule away
+				testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			),
+			Rounds: []SchedulingRound{
+				{
+					JobsByQueue: map[string][]*jobdb.Job{
+						"A": testfixtures.WithGangAnnotationsJobs(testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass4PreemptibleAway, 2)),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": testfixtures.IntRange(0, 1),
+					},
+				},
+			},
+			PriorityFactorByQueue: map[string]float64{
+				"A": 1,
+			},
+		},
+		"gang scheduled mixed home and away - preempted in same round": {
+			SchedulingConfig: testfixtures.TestSchedulingConfig(),
+			Nodes: armadaslices.Concatenate(
+				testfixtures.NTainted32CpuNodes(1, testfixtures.TestPriorities), // Tainted so one job will schedule away
+				testfixtures.N32CpuNodes(2, testfixtures.TestPriorities),
+			),
+			Rounds: []SchedulingRound{
+				{
+					// Schedule queue B first, so it uses some share and schedule second in the second round
+					JobsByQueue: map[string][]*jobdb.Job{
+						"B": testfixtures.N32Cpu256GiJobs("B", testfixtures.PriorityClass6Preemptible, 1),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"B": testfixtures.IntRange(0, 0),
+					},
+				},
+				{
+					JobsByQueue: map[string][]*jobdb.Job{
+						"A": testfixtures.WithGangAnnotationsJobs(testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass4PreemptibleAway, 2)),
+						// Schedule a job for queue B that can run as "home" on the tainted nodes, so that it preempts the away schedule gang job
+						"B": testfixtures.N32Cpu256GiJobsWithLargeJobToleration("B", testfixtures.PriorityClass6Preemptible, 1),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"B": testfixtures.IntRange(0, 0),
+					},
+				},
+			},
+
+			PriorityFactorByQueue: map[string]float64{
+				"A": 1,
+				"B": 1,
+			},
+		},
 		"gang preemption": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
 			Nodes:            testfixtures.N32CpuNodes(2, testfixtures.TestPriorities),
