@@ -158,21 +158,22 @@ func validateHasQueue(r *api.JobSubmitRequest, _ configuration.SubmissionConfig)
 	return nil
 }
 
-// Ensures that each pod exposes a given port at most once.
+// Ensures that each pod exposes a given port at most once across all containers and init containers.
 func validatePorts(j *api.JobSubmitRequestItem, _ configuration.SubmissionConfig) error {
 	spec := j.GetMainPodSpec()
-	existingPortSet := make(map[int32]int)
-	for index, container := range spec.Containers {
+	existingPortSet := make(map[int32]string)
+
+	for _, container := range armadaslices.Concatenate(spec.Containers, spec.InitContainers) {
 		for _, port := range container.Ports {
-			if existingIndex, existing := existingPortSet[port.ContainerPort]; existing {
+			if existingContainer, existing := existingPortSet[port.ContainerPort]; existing {
 				return fmt.Errorf(
-					"container port %d is exposed multiple times, specified in containers with indexes %d, %d. Should only be exposed once",
-					port.ContainerPort, existingIndex, index)
-			} else {
-				existingPortSet[port.ContainerPort] = index
+					"container port %d is exposed multiple times, specified in containers %q and %q. Should only be exposed once",
+					port.ContainerPort, existingContainer, container.Name)
 			}
+			existingPortSet[port.ContainerPort] = container.Name
 		}
 	}
+
 	return nil
 }
 
