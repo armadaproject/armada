@@ -234,25 +234,40 @@ func (a ComputeResources) AsKubernetesResourceList() v1.ResourceList {
 type ComputeResourcesFloat map[string]float64
 
 // TotalPodResourceRequest represents the resource request for a given pod is the maximum of:
-//   - sum of all containers
-//   - any individual init container
+//   - sum of all containers + sum of native sidecar init containers
+//   - any individual classic init container
 //
 // This is because:
 //   - containers run in parallel (so need to sum resources)
-//   - init containers run sequentially (so only their individual resource need be considered)
+//   - native sidecar init containers (RestartPolicy=Always) run alongside main containers (so need to sum)
+//   - classic init containers run sequentially before main containers (so only their individual resource need be considered)
 //
 // So pod resource usage is the max for each resource type (cpu/memory etc.) that could be used at any given time
 func TotalPodResourceRequest(podSpec *v1.PodSpec) ComputeResources {
 	totalResources := make(ComputeResources)
+
+	// Sum resources from main containers
 	for _, container := range podSpec.Containers {
-		containerResource := FromResourceList(container.Resources.Requests)
-		totalResources.Add(containerResource)
+		totalResources.Add(FromResourceList(container.Resources.Requests))
 	}
+
+	// Process init containers: native sidecars are summed, classic init containers use max
 	for _, initContainer := range podSpec.InitContainers {
 		containerResource := FromResourceList(initContainer.Resources.Requests)
-		totalResources.Max(containerResource)
+		if IsNativeSidecar(&initContainer) {
+			totalResources.Add(containerResource)
+		} else {
+			totalResources.Max(containerResource)
+		}
 	}
 	return totalResources
+}
+
+// IsNativeSidecar returns true if the container is a native sidecar (init container with RestartPolicy=Always).
+// Native sidecars run alongside main containers for the lifetime of the pod, unlike classic init containers
+// which run to completion before main containers start.
+func IsNativeSidecar(container *v1.Container) bool {
+	return container.RestartPolicy != nil && *container.RestartPolicy == v1.ContainerRestartPolicyAlways
 }
 
 // CalculateTotalResource computes the combined total quantity of each resource (cpu, memory, etc) available for scheduling

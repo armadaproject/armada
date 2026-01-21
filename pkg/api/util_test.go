@@ -223,6 +223,156 @@ func TestSchedulingResourceRequirementsFromPodSpec(t *testing.T) {
 				},
 			},
 		},
+		"native sidecar init containers are summed with main containers": {
+			input: &v1.PodSpec{
+				Containers: []v1.Container{
+					{
+						Resources: v1.ResourceRequirements{
+							Requests: v1.ResourceList{
+								"cpu":    QuantityWithMilliValue(2000),
+								"memory": QuantityWithMilliValue(1000),
+							},
+							Limits: v1.ResourceList{
+								"cpu":    QuantityWithMilliValue(2000),
+								"memory": QuantityWithMilliValue(1000),
+							},
+						},
+					},
+				},
+				InitContainers: []v1.Container{
+					{
+						RestartPolicy: restartPolicyAlways(),
+						Resources: v1.ResourceRequirements{
+							Requests: v1.ResourceList{
+								"cpu":    QuantityWithMilliValue(1000),
+								"memory": QuantityWithMilliValue(500),
+							},
+							Limits: v1.ResourceList{
+								"cpu":    QuantityWithMilliValue(1000),
+								"memory": QuantityWithMilliValue(500),
+							},
+						},
+					},
+				},
+			},
+			// main (2000, 1000) + sidecar (1000, 500) = (3000, 1500)
+			expected: &v1.ResourceRequirements{
+				Requests: v1.ResourceList{
+					"cpu":    QuantityWithMilliValue(3000),
+					"memory": QuantityWithMilliValue(1500),
+				},
+				Limits: v1.ResourceList{
+					"cpu":    QuantityWithMilliValue(3000),
+					"memory": QuantityWithMilliValue(1500),
+				},
+			},
+		},
+		"mixed native sidecar and classic init containers": {
+			input: &v1.PodSpec{
+				Containers: []v1.Container{
+					{
+						Resources: v1.ResourceRequirements{
+							Requests: v1.ResourceList{
+								"cpu":    QuantityWithMilliValue(2000),
+								"memory": QuantityWithMilliValue(1000),
+							},
+							Limits: v1.ResourceList{
+								"cpu":    QuantityWithMilliValue(2000),
+								"memory": QuantityWithMilliValue(1000),
+							},
+						},
+					},
+				},
+				InitContainers: []v1.Container{
+					{
+						RestartPolicy: restartPolicyAlways(),
+						Resources: v1.ResourceRequirements{
+							Requests: v1.ResourceList{
+								"cpu":    QuantityWithMilliValue(1000),
+								"memory": QuantityWithMilliValue(500),
+							},
+							Limits: v1.ResourceList{
+								"cpu":    QuantityWithMilliValue(1000),
+								"memory": QuantityWithMilliValue(500),
+							},
+						},
+					},
+					{
+						Resources: v1.ResourceRequirements{
+							Requests: v1.ResourceList{
+								"cpu":    QuantityWithMilliValue(5000),
+								"memory": QuantityWithMilliValue(100),
+							},
+							Limits: v1.ResourceList{
+								"cpu":    QuantityWithMilliValue(5000),
+								"memory": QuantityWithMilliValue(100),
+							},
+						},
+					},
+				},
+			},
+			// Running total: main (2000, 1000) + sidecar (1000, 500) = (3000, 1500)
+			// Classic init: (5000, 100) -> max with running: (5000, 1500)
+			expected: &v1.ResourceRequirements{
+				Requests: v1.ResourceList{
+					"cpu":    QuantityWithMilliValue(5000),
+					"memory": QuantityWithMilliValue(1500),
+				},
+				Limits: v1.ResourceList{
+					"cpu":    QuantityWithMilliValue(5000),
+					"memory": QuantityWithMilliValue(1500),
+				},
+			},
+		},
+		"multiple native sidecars are all summed": {
+			input: &v1.PodSpec{
+				Containers: []v1.Container{
+					{
+						Resources: v1.ResourceRequirements{
+							Requests: v1.ResourceList{
+								"cpu": QuantityWithMilliValue(1000),
+							},
+							Limits: v1.ResourceList{
+								"cpu": QuantityWithMilliValue(1000),
+							},
+						},
+					},
+				},
+				InitContainers: []v1.Container{
+					{
+						RestartPolicy: restartPolicyAlways(),
+						Resources: v1.ResourceRequirements{
+							Requests: v1.ResourceList{
+								"cpu": QuantityWithMilliValue(500),
+							},
+							Limits: v1.ResourceList{
+								"cpu": QuantityWithMilliValue(500),
+							},
+						},
+					},
+					{
+						RestartPolicy: restartPolicyAlways(),
+						Resources: v1.ResourceRequirements{
+							Requests: v1.ResourceList{
+								"cpu": QuantityWithMilliValue(500),
+							},
+							Limits: v1.ResourceList{
+								"cpu": QuantityWithMilliValue(500),
+							},
+						},
+					},
+				},
+			},
+			// main (1000) + sidecar1 (500) + sidecar2 (500) = 2000
+			expected: &v1.ResourceRequirements{
+				Requests: v1.ResourceList{
+					"cpu": QuantityWithMilliValue(2000),
+				},
+				Limits: v1.ResourceList{
+					"cpu": QuantityWithMilliValue(2000),
+				},
+			},
+		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -231,7 +381,7 @@ func TestSchedulingResourceRequirementsFromPodSpec(t *testing.T) {
 	}
 }
 
-// quantityWithMilliValue returns a new quantity with the provided milli value assigned to it.
+// QuantityWithMilliValue returns a new quantity with the provided milli value assigned to it.
 // Using this instead of resource.MustParse avoids populating the cached string field,
 // which may cause assert.Equal to return false for quantities with equal value but where
 // either quantity doesn't have a cached string representation.
@@ -239,4 +389,10 @@ func QuantityWithMilliValue(v int64) resource.Quantity {
 	q := resource.Quantity{}
 	q.SetMilli(v)
 	return q
+}
+
+// restartPolicyAlways returns a pointer to ContainerRestartPolicyAlways for use in tests.
+func restartPolicyAlways() *v1.ContainerRestartPolicy {
+	policy := v1.ContainerRestartPolicyAlways
+	return &policy
 }

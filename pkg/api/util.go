@@ -6,6 +6,7 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 
+	"github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/controlplaneevents"
 )
@@ -37,42 +38,56 @@ func JobRunStateFromApiJobState(s JobState) schedulerobjects.JobRunState {
 //
 // max(
 //
-//	sum across all containers,
-//	max over all init containers,
+//	sum across all containers + sum across native sidecar init containers,
+//	max over all classic init containers,
 //
 // )
 //
-// This is because containers run in parallel, whereas initContainers run serially.
+// This is because:
+//   - containers run in parallel (sum)
+//   - native sidecar init containers (RestartPolicy=Always) run alongside main containers (sum)
+//   - classic init containers run sequentially before main containers (max)
 func SchedulingResourceRequirementsFromPodSpec(podSpec *v1.PodSpec) *v1.ResourceRequirements {
 	rv := v1.ResourceRequirements{
 		Requests: make(v1.ResourceList),
 		Limits:   make(v1.ResourceList),
 	}
+
+	// Sum resources from main containers
 	for _, c := range podSpec.Containers {
-		for t, request := range c.Resources.Requests {
-			q := rv.Requests[t]
-			q.Add(request)
-			rv.Requests[t] = q
-		}
-		for t, limit := range c.Resources.Limits {
-			q := rv.Limits[t]
-			q.Add(limit)
-			rv.Limits[t] = q
-		}
+		addResourcesToList(rv.Requests, c.Resources.Requests)
+		addResourcesToList(rv.Limits, c.Resources.Limits)
 	}
+
+	// Process init containers: native sidecars are summed, classic init containers use max
 	for _, c := range podSpec.InitContainers {
-		for t, request := range c.Resources.Requests {
-			if request.Cmp(rv.Requests[t]) == 1 {
-				rv.Requests[t] = request
-			}
-		}
-		for t, limit := range c.Resources.Limits {
-			if limit.Cmp(rv.Limits[t]) == 1 {
-				rv.Limits[t] = limit
-			}
+		if resource.IsNativeSidecar(&c) {
+			addResourcesToList(rv.Requests, c.Resources.Requests)
+			addResourcesToList(rv.Limits, c.Resources.Limits)
+		} else {
+			maxResourcesToList(rv.Requests, c.Resources.Requests)
+			maxResourcesToList(rv.Limits, c.Resources.Limits)
 		}
 	}
 	return &rv
+}
+
+// addResourcesToList adds each resource quantity from src to dst.
+func addResourcesToList(dst, src v1.ResourceList) {
+	for t, quantity := range src {
+		q := dst[t]
+		q.Add(quantity)
+		dst[t] = q
+	}
+}
+
+// maxResourcesToList updates dst with the max of dst and src for each resource.
+func maxResourcesToList(dst, src v1.ResourceList) {
+	for t, quantity := range src {
+		if quantity.Cmp(dst[t]) == 1 {
+			dst[t] = quantity.DeepCopy()
+		}
+	}
 }
 
 func (job *Job) GetMainPodSpec() *v1.PodSpec {
