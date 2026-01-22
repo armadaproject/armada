@@ -58,11 +58,17 @@ func TestReconcileJobRuns(t *testing.T) {
 			poolConfig:                  ensureReservationMismatchConfig,
 			expectReconciliationFailure: false,
 		},
-		"reconciliation success - no matching nodes": {
+		"node deleted - job references non-existent node": {
+			job:                         createLeasedJob("deleted-node", defaultPool),
+			node:                        createNodeWithPool("other-node", defaultPool),
+			poolConfig:                  reconciliationEnabledConfig,
+			expectReconciliationFailure: true,
+		},
+		"reconciliation failure - job's node no longer exists": {
 			job:                         createLeasedJob("node-1", defaultPool),
 			node:                        createNodeWithPool("node-2", "updated"),
 			poolConfig:                  reconciliationEnabledConfig,
-			expectReconciliationFailure: false,
+			expectReconciliationFailure: true,
 		},
 		"reconciliation success - pool mismatch - ignores queued job": {
 			job:                         createQueuedJob("node-1", defaultPool),

@@ -35,13 +35,34 @@ func (r *RunNodeReconciler) ReconcileJobRuns(txn *jobdb.Txn, executors []*schedu
 	}
 
 	nodes := r.getNodes(executors)
-	jobsToReconcile := r.getJobsToReconcileByNodeId(txn)
+	jobsToReconcileByNodeId := r.getJobsToReconcileByNodeId(txn)
 
 	configByPool := poolConfigSliceToMap(r.poolsToReconcile)
+	nodeIdSet := r.buildNodeIdSet(nodes)
 
 	var result []*FailedReconciliationResult
+
+	// Check for jobs whose nodes no longer exist
+	for nodeId, jobs := range jobsToReconcileByNodeId {
+		if nodeIdSet[nodeId] {
+			continue
+		}
+		for _, job := range jobs {
+			run := job.LatestRun()
+			if _, present := configByPool[run.Pool()]; !present {
+				continue
+			}
+			failedReconciliationResult := &FailedReconciliationResult{
+				Job:    job,
+				Reason: fmt.Sprintf("The node %s no longer exists - this job's placement is now invalid", nodeId),
+			}
+			result = append(result, failedReconciliationResult)
+		}
+	}
+
+	// Check jobs on existing nodes for pool/reservation mismatches
 	for _, node := range nodes {
-		jobsOnNode := jobsToReconcile[node.GetId()]
+		jobsOnNode := jobsToReconcileByNodeId[node.GetId()]
 
 		for _, job := range jobsOnNode {
 			run := job.LatestRun()
@@ -57,7 +78,7 @@ func (r *RunNodeReconciler) ReconcileJobRuns(txn *jobdb.Txn, executors []*schedu
 			if !slices.Contains(runPools, node.GetPool()) {
 				failedReconciliationResult := &FailedReconciliationResult{
 					Job: job,
-					Reason: fmt.Sprintf("The pool of node %s has been changed from %s to %s - this jobs placement is now invalid",
+					Reason: fmt.Sprintf("The pool of node %s has been changed from %s to %s - this job's placement is now invalid",
 						node.GetName(), run.Pool(), node.GetPool()),
 				}
 
@@ -73,7 +94,7 @@ func (r *RunNodeReconciler) ReconcileJobRuns(txn *jobdb.Txn, executors []*schedu
 			} else if config.ExperimentalRunReconciliation.EnsureReservationDoesNotMatch && job.MatchesReservation(node.GetReservation()) {
 				failedReconciliationResult := &FailedReconciliationResult{
 					Job: job,
-					Reason: fmt.Sprintf("The reservation of node %s has been changed and is now %s - this job is now incorrectly running away on a node with a matching resevation",
+					Reason: fmt.Sprintf("The reservation of node %s has been changed and is now %s - this job is now incorrectly running away on a node with a matching reservation",
 						node.GetName(), node.GetReservation()),
 				}
 
@@ -104,6 +125,14 @@ func (r *RunNodeReconciler) getNodes(executors []*schedulerobjects.Executor) []*
 	}
 
 	return nodes
+}
+
+func (r *RunNodeReconciler) buildNodeIdSet(nodes []*schedulerobjects.Node) map[string]bool {
+	nodeIdSet := make(map[string]bool, len(nodes))
+	for _, node := range nodes {
+		nodeIdSet[node.GetId()] = true
+	}
+	return nodeIdSet
 }
 
 func (r *RunNodeReconciler) getJobsToReconcileByNodeId(txn *jobdb.Txn) map[string][]*jobdb.Job {
