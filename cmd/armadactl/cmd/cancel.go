@@ -109,19 +109,21 @@ func cancelExecutorCmd() *cobra.Command {
 func cancelNodeCmd() *cobra.Command {
 	a := armadactl.New()
 	cmd := &cobra.Command{
-		Use:   "node <name> <executor>",
+		Use:   "node <name>",
 		Short: "Cancels jobs on node for specified executor.",
 		Long:  `Cancels jobs on node for executor with provided executor name, priority classes and queues.`,
-		Args:  cobra.ExactArgs(2),
+		Args:  cobra.ExactArgs(1),
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			if err := cmd.MarkFlagRequired("priority-classes"); err != nil {
 				return fmt.Errorf("error marking priority-class flag as required: %s", err)
+			}
+			if err := cmd.MarkFlagRequired("executor"); err != nil {
+				return fmt.Errorf("error marking executor flag as required: %s", err)
 			}
 			return initParams(cmd, a.Params)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			node := args[0]
-			executor := args[1]
 
 			priorityClasses, err := cmd.Flags().GetStringSlice("priority-classes")
 			if err != nil {
@@ -131,6 +133,11 @@ func cancelNodeCmd() *cobra.Command {
 			queues, err := cmd.Flags().GetStringSlice("queues")
 			if err != nil {
 				return fmt.Errorf("error reading queue selection: %s", err)
+			}
+
+			executor, err := cmd.Flags().GetString("executor")
+			if err != nil {
+				return fmt.Errorf("error reading executor flag: %s", err)
 			}
 
 			return a.CancelOnNode(node, executor, queues, priorityClasses)
@@ -148,6 +155,12 @@ func cancelNodeCmd() *cobra.Command {
 		"p",
 		[]string{},
 		"Cancel jobs on node for specified executor matching the specified priority classes. Provided priority classes should be comma separated, as in the following example: armada-default,armada-preemptible.",
+	)
+	cmd.Flags().StringP(
+		"executor",
+		"e",
+		"",
+		"Name of the executor that owns the node where jobs will be cancelled.",
 	)
 	return cmd
 }
