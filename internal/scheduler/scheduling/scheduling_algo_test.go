@@ -513,6 +513,26 @@ func TestSchedule(t *testing.T) {
 			queuedJobs:               testfixtures.WithGangAnnotationsJobs(testfixtures.N16Cpu128GiJobs("A", testfixtures.PriorityClass0, 2)),
 			expectedScheduledIndices: []int{0, 1},
 		},
+		"gang scheduling successful - away scheduling": {
+			schedulingConfig: testfixtures.TestSchedulingConfig(),
+			executors: []*schedulerobjects.Executor{
+				makeTestExecutorWithNodes("executor-1",
+					withLargeNodeTaint(testNodeWithPool(testfixtures.TestPool))),
+			},
+			queues:                   []*api.Queue{{Name: "A", PriorityFactor: 0.01}},
+			queuedJobs:               testfixtures.WithGangAnnotationsJobs(testfixtures.N16Cpu128GiJobs("A", testfixtures.PriorityClass4PreemptibleAway, 2)),
+			expectedScheduledIndices: []int{0, 1},
+		},
+		"not scheduling gang away - gang away scheduling disabled": {
+			schedulingConfig: testfixtures.WithGangAwaySchedulingDisabled(testfixtures.TestSchedulingConfig()),
+			executors: []*schedulerobjects.Executor{
+				makeTestExecutorWithNodes("executor-1",
+					withLargeNodeTaint(testNodeWithPool(testfixtures.TestPool))),
+			},
+			queues:                   []*api.Queue{{Name: "A", PriorityFactor: 0.01}},
+			queuedJobs:               testfixtures.WithGangAnnotationsJobs(testfixtures.N16Cpu128GiJobs("A", testfixtures.PriorityClass0, 2)),
+			expectedScheduledIndices: []int{},
+		},
 		"gang scheduling successful - mixed pool clusters": {
 			schedulingConfig: testfixtures.TestSchedulingConfigWithPools([]configuration.PoolConfig{{Name: "pool-1"}, {Name: "pool-2"}}),
 			executors: []*schedulerobjects.Executor{
