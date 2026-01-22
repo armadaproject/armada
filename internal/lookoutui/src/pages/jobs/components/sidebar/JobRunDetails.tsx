@@ -105,7 +105,7 @@ const makeIngressAddressEntries = (ingressAddresses?: JobRun["ingressAddresses"]
       portLabel: port.toString(),
       address: address,
     }))
-    .sort((a, b) => Number(a.portLabel) - Number(b.portLabel))
+    .sort((a, b) => a.address.localeCompare(b.address))
 }
 
 export interface JobRunDetailsProps {
@@ -176,9 +176,9 @@ export const JobRunDetails = ({
       return baseRows
     }
 
-    const ingressRows = ingressAddressEntries.map(({ portLabel, address }, index) => ({
+    const ingressRows = ingressAddressEntries.map(({ address }, index) => ({
       key: ingressAddressEntries.length === 1 ? "Ingress address" : `Ingress address ${index + 1}`,
-      value: portLabel ? `${address}:${portLabel}` : address,
+      value: address,
       allowCopy: true,
     }))
 
