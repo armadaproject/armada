@@ -148,6 +148,88 @@ func TestTotalResourceRequest_ShouldCombineMaxInitContainerResourcesWithSummedCo
 	assert.Equal(t, result, FromResourceList(expectedResult))
 }
 
+func TestTotalResourceRequest_NativeSidecarsShouldBeSummed(t *testing.T) {
+	mainResource := makeContainerResource(2, 1)
+	sidecarResource := makeContainerResource(1, 1)
+
+	pod := makePodWithNativeSidecar(
+		[]*v1.ResourceList{&mainResource},
+		[]*v1.ResourceList{&sidecarResource},
+	)
+	// main (2, 1) + sidecar (1, 1) = (3, 2)
+	expectedResult := makeContainerResource(3, 2)
+
+	result := TotalPodResourceRequest(&pod.Spec)
+	assert.Equal(t, result, FromResourceList(expectedResult))
+}
+
+func TestTotalResourceRequest_MixedNativeSidecarAndClassicInitContainers(t *testing.T) {
+	mainResource := makeContainerResource(2, 1)
+	sidecarResource := makeContainerResource(1, 1)
+	classicInitResource := makeContainerResource(5, 1)
+
+	pod := makePodWithMixedInitContainers(
+		[]*v1.ResourceList{&mainResource},
+		[]*v1.ResourceList{&sidecarResource},
+		[]*v1.ResourceList{&classicInitResource},
+	)
+	// Running total: main (2, 1) + sidecar (1, 1) = (3, 2)
+	// Classic init: (5, 1) -> max with running: (5, 2)
+	expectedResult := makeContainerResource(5, 2)
+
+	result := TotalPodResourceRequest(&pod.Spec)
+	assert.Equal(t, result, FromResourceList(expectedResult))
+}
+
+func TestTotalResourceRequest_MultipleNativeSidecarsAreSummed(t *testing.T) {
+	mainResource := makeContainerResource(1, 1)
+	sidecar1Resource := makeContainerResource(1, 1)
+	sidecar2Resource := makeContainerResource(1, 1)
+
+	pod := makePodWithNativeSidecar(
+		[]*v1.ResourceList{&mainResource},
+		[]*v1.ResourceList{&sidecar1Resource, &sidecar2Resource},
+	)
+	// main (1, 1) + sidecar1 (1, 1) + sidecar2 (1, 1) = (3, 3)
+	expectedResult := makeContainerResource(3, 3)
+
+	result := TotalPodResourceRequest(&pod.Spec)
+	assert.Equal(t, result, FromResourceList(expectedResult))
+}
+
+func TestIsNativeSidecar(t *testing.T) {
+	tests := map[string]struct {
+		container *v1.Container
+		expected  bool
+	}{
+		"native sidecar with RestartPolicy=Always": {
+			container: &v1.Container{
+				Name:          "sidecar",
+				RestartPolicy: restartPolicyAlways(),
+			},
+			expected: true,
+		},
+		"classic init container without RestartPolicy": {
+			container: &v1.Container{
+				Name: "init",
+			},
+			expected: false,
+		},
+		"classic init container with nil RestartPolicy": {
+			container: &v1.Container{
+				Name:          "init",
+				RestartPolicy: nil,
+			},
+			expected: false,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, IsNativeSidecar(tc.container))
+		})
+	}
+}
+
 func TestToProtoMap(t *testing.T) {
 	oneCpu := resource.MustParse("1")
 	oneGi := resource.MustParse("1Gi")
@@ -262,4 +344,49 @@ func makeNodeWithResource(resources map[v1.ResourceName]resource.Quantity) v1.No
 		},
 	}
 	return node
+}
+
+// makePodWithNativeSidecar creates a pod with main containers and native sidecar init containers.
+func makePodWithNativeSidecar(containerResources []*v1.ResourceList, sidecarResources []*v1.ResourceList) v1.Pod {
+	return v1.Pod{
+		Spec: v1.PodSpec{
+			Containers:     makeContainers("container", containerResources, nil),
+			InitContainers: makeContainers("sidecar", sidecarResources, restartPolicyAlways()),
+		},
+	}
+}
+
+// makePodWithMixedInitContainers creates a pod with main containers, native sidecars, and classic init containers.
+func makePodWithMixedInitContainers(containerResources []*v1.ResourceList, sidecarResources []*v1.ResourceList, classicInitResources []*v1.ResourceList) v1.Pod {
+	sidecars := makeContainers("sidecar", sidecarResources, restartPolicyAlways())
+	classicInits := makeContainers("init", classicInitResources, nil)
+	return v1.Pod{
+		Spec: v1.PodSpec{
+			Containers:     makeContainers("container", containerResources, nil),
+			InitContainers: append(sidecars, classicInits...),
+		},
+	}
+}
+
+// makeContainers creates a slice of containers with the given name prefix and resources.
+// If restartPolicy is non-nil, it's applied to each container (used for native sidecars).
+func makeContainers(namePrefix string, resources []*v1.ResourceList, restartPolicy *v1.ContainerRestartPolicy) []v1.Container {
+	containers := make([]v1.Container, len(resources))
+	for i, res := range resources {
+		containers[i] = v1.Container{
+			Name:          fmt.Sprintf("%s-%d", namePrefix, i),
+			RestartPolicy: restartPolicy,
+			Resources: v1.ResourceRequirements{
+				Requests: *res,
+				Limits:   *res,
+			},
+		}
+	}
+	return containers
+}
+
+// restartPolicyAlways returns a pointer to ContainerRestartPolicyAlways for use in tests.
+func restartPolicyAlways() *v1.ContainerRestartPolicy {
+	policy := v1.ContainerRestartPolicyAlways
+	return &policy
 }

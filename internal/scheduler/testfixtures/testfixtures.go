@@ -236,6 +236,14 @@ func WithAwaySchedulingDisabled(config schedulerconfiguration.SchedulingConfig) 
 	return config
 }
 
+func WithGangAwaySchedulingDisabled(config schedulerconfiguration.SchedulingConfig) schedulerconfiguration.SchedulingConfig {
+	for i, pool := range config.Pools {
+		pool.DisableGangAwayScheduling = true
+		config.Pools[i] = pool
+	}
+	return config
+}
+
 func WithMarketBasedSchedulingEnabled(config schedulerconfiguration.SchedulingConfig) schedulerconfiguration.SchedulingConfig {
 	for i, pool := range config.Pools {
 		pool.ExperimentalMarketScheduling = &schedulerconfiguration.MarketSchedulingConfig{
