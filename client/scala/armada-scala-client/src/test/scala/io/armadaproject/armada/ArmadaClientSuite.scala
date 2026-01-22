@@ -108,73 +108,69 @@ private class EventMockServer(
 
     // Emit events for each job showing the usual (not all possible) transition states
     matchingJobs.foreach { case (jobId, job) =>
-      // Check if job exists in statusMap
-      statusMap.get(jobId) match {
-        case Some(currentStatus) =>
-          // QUEUED
-          val queuedEvent = EventStreamMessage(
-            id = ulidGen.base32().toLowerCase(),
-            message = Option[EventMessage](
-              EventMessage(
-                api.event.EventMessage.Events.Queued(
-                  new JobQueuedEvent(jobId, job.jobSetId, job.queue)
-                )
+      if (statusMap.contains(jobId)) {
+        // QUEUED
+        val queuedEvent = EventStreamMessage(
+          id = ulidGen.base32().toLowerCase(),
+          message = Option[EventMessage](
+            EventMessage(
+              api.event.EventMessage.Events.Queued(
+                new JobQueuedEvent(jobId, job.jobSetId, job.queue)
               )
             )
           )
-          statusMap.put(jobId, JobState.QUEUED)
-          responseObserver.onNext(queuedEvent)
+        )
+        statusMap.put(jobId, JobState.QUEUED)
+        responseObserver.onNext(queuedEvent)
 
-          // PENDING
-          val pendingEvent = EventStreamMessage(
-            id = ulidGen.base32().toLowerCase(),
-            message = Option[EventMessage](
-              EventMessage(
-                api.event.EventMessage.Events.Pending(
-                  new JobPendingEvent(jobId, job.jobSetId, job.queue)
-                )
+        // PENDING
+        val pendingEvent = EventStreamMessage(
+          id = ulidGen.base32().toLowerCase(),
+          message = Option[EventMessage](
+            EventMessage(
+              api.event.EventMessage.Events.Pending(
+                new JobPendingEvent(jobId, job.jobSetId, job.queue)
               )
             )
           )
-          statusMap.put(jobId, JobState.PENDING)
-          responseObserver.onNext(pendingEvent)
+        )
+        statusMap.put(jobId, JobState.PENDING)
+        responseObserver.onNext(pendingEvent)
 
-          // RUNNING
-          val runningEvent = EventStreamMessage(
-            id = ulidGen.base32().toLowerCase(),
-            message = Option[EventMessage](
-              EventMessage(
-                api.event.EventMessage.Events.Running(
-                  new JobRunningEvent(jobId, job.jobSetId, job.queue)
-                )
+        // RUNNING
+        val runningEvent = EventStreamMessage(
+          id = ulidGen.base32().toLowerCase(),
+          message = Option[EventMessage](
+            EventMessage(
+              api.event.EventMessage.Events.Running(
+                new JobRunningEvent(jobId, job.jobSetId, job.queue)
               )
             )
           )
-          statusMap.put(jobId, JobState.RUNNING)
-          responseObserver.onNext(runningEvent)
+        )
+        statusMap.put(jobId, JobState.RUNNING)
+        responseObserver.onNext(runningEvent)
 
-          // SUCCEEDED
-          val succeededEvent = EventStreamMessage(
-            id = ulidGen.base32().toLowerCase(),
-            message = Option[EventMessage](
-              EventMessage(
-                api.event.EventMessage.Events.Succeeded(
-                  new JobSucceededEvent(jobId, job.jobSetId, job.queue)
-                )
+        // SUCCEEDED
+        val succeededEvent = EventStreamMessage(
+          id = ulidGen.base32().toLowerCase(),
+          message = Option[EventMessage](
+            EventMessage(
+              api.event.EventMessage.Events.Succeeded(
+                new JobSucceededEvent(jobId, job.jobSetId, job.queue)
               )
             )
           )
-          statusMap.put(jobId, JobState.SUCCEEDED)
-          responseObserver.onNext(succeededEvent)
-
-        case None =>
-          // Job exists in jobMap but not in statusMap - this shouldn't happen in normal flow
-          responseObserver.onError(
-            new StatusRuntimeException(
-              Status.INTERNAL.withDescription(s"Job '$jobId' has no status")
-            )
+        )
+        statusMap.put(jobId, JobState.SUCCEEDED)
+        responseObserver.onNext(succeededEvent)
+      } else {
+        // Job exists in jobMap but not in statusMap - this shouldn't happen in normal flow
+        responseObserver.onError(
+          new StatusRuntimeException(
+            Status.INTERNAL.withDescription(s"Job '$jobId' has no status")
           )
-          return
+        )
       }
     }
 
