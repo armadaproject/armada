@@ -55,6 +55,7 @@ func ToSwaggerRun(run *model.Run) *models.Run {
 		Node:             run.Node,
 		Leased:           PostgreSQLTimeToSwaggerTime(run.Leased),
 		Pending:          PostgreSQLTimeToSwaggerTime(run.Pending),
+		Pool:             run.Pool,
 		RunID:            run.RunId,
 		Started:          PostgreSQLTimeToSwaggerTime(run.Started),
 		IngressAddresses: ingressAddressesToSwagger(run.IngressAddresses),
