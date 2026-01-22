@@ -41,6 +41,7 @@ func ToSwaggerJob(job *model.Job) *models.Job {
 		CancelUser:         job.CancelUser,
 		Node:               job.Node,
 		Cluster:            job.Cluster,
+		Pool:               job.Pool,
 		ExitCode:           job.ExitCode,
 		RuntimeSeconds:     job.RuntimeSeconds,
 	}

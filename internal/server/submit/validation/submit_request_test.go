@@ -7,12 +7,12 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/utils/pointer"
 
 	"github.com/armadaproject/armada/internal/common/constants"
-	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/armadaproject/armada/pkg/api"
 )
@@ -657,7 +657,9 @@ func TestValidatePodSpecSize(t *testing.T) {
 		},
 	}
 
-	defaultPodSpecSize := uint(len(protoutil.MustMarshall(defaultPodSpec)))
+	b, err := defaultPodSpec.Marshal()
+	require.NoError(t, err)
+	defaultPodSpecSize := uint(len(b))
 
 	tests := map[string]struct {
 		req            *api.JobSubmitRequestItem
