@@ -1018,7 +1018,7 @@ func TestGroupByNode(t *testing.T) {
 			runId := uuid.NewString()
 			js := NewJobSimulator(converter, store)
 			js.Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{})
-			js.Lease(runId, cluster, node1, baseTime.Add(-2*time.Minute))
+			js.Lease(runId, cluster, node1, pool, baseTime.Add(-2*time.Minute))
 			js.Pending(runId, cluster, baseTime.Add(-1*time.Minute))
 			js.Running(runId, node1, baseTime)
 			js.Build()
@@ -1029,7 +1029,7 @@ func TestGroupByNode(t *testing.T) {
 			runId := uuid.NewString()
 			js := NewJobSimulator(converter, store)
 			js.Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{})
-			js.Lease(runId, cluster, node2, baseTime.Add(-2*time.Minute))
+			js.Lease(runId, cluster, node2, pool, baseTime.Add(-2*time.Minute))
 			js.Pending(runId, cluster, baseTime.Add(-1*time.Minute))
 			js.Running(runId, node2, baseTime)
 			js.Build()
@@ -1040,7 +1040,7 @@ func TestGroupByNode(t *testing.T) {
 			runId := uuid.NewString()
 			js := NewJobSimulator(converter, store)
 			js.Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{})
-			js.Lease(runId, cluster, node3, baseTime.Add(-2*time.Minute))
+			js.Lease(runId, cluster, node3, pool, baseTime.Add(-2*time.Minute))
 			js.Pending(runId, cluster, baseTime.Add(-1*time.Minute))
 			js.Running(runId, node3, baseTime)
 			js.Build()
@@ -1096,7 +1096,7 @@ func TestGroupByCluster(t *testing.T) {
 			runId := uuid.NewString()
 			js := NewJobSimulator(converter, store)
 			js.Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{})
-			js.Lease(runId, cluster1, node, baseTime.Add(-2*time.Minute))
+			js.Lease(runId, cluster1, node, pool, baseTime.Add(-2*time.Minute))
 			js.Pending(runId, cluster1, baseTime.Add(-1*time.Minute))
 			js.Running(runId, node, baseTime)
 			js.Build()
@@ -1107,7 +1107,7 @@ func TestGroupByCluster(t *testing.T) {
 			runId := uuid.NewString()
 			js := NewJobSimulator(converter, store)
 			js.Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{})
-			js.Lease(runId, cluster2, node, baseTime.Add(-2*time.Minute))
+			js.Lease(runId, cluster2, node, pool, baseTime.Add(-2*time.Minute))
 			js.Pending(runId, cluster2, baseTime.Add(-1*time.Minute))
 			js.Running(runId, node, baseTime)
 			js.Build()
@@ -1118,7 +1118,7 @@ func TestGroupByCluster(t *testing.T) {
 			runId := uuid.NewString()
 			js := NewJobSimulator(converter, store)
 			js.Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{})
-			js.Lease(runId, cluster3, node, baseTime.Add(-2*time.Minute))
+			js.Lease(runId, cluster3, node, pool, baseTime.Add(-2*time.Minute))
 			js.Pending(runId, cluster3, baseTime.Add(-1*time.Minute))
 			js.Running(runId, node, baseTime)
 			js.Build()
@@ -1638,7 +1638,7 @@ func makeLeased(opts *createJobsOpts, converter *instructions.InstructionConvert
 		Submit(opts.queue, opts.jobSet, owner, namespace, tSubmit, &JobOptions{
 			Annotations: opts.annotations,
 		}).
-		Lease(uuid.NewString(), cluster, node, lastTransitionTime).
+		Lease(uuid.NewString(), cluster, node, pool, lastTransitionTime).
 		Build()
 }
 

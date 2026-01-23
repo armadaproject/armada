@@ -203,6 +203,7 @@ func FromInternalLogJobRunLeased(queueName string, jobSetName string, time time.
 					Queue:     queueName,
 					Created:   protoutil.ToTimestamp(time),
 					ClusterId: e.ExecutorId,
+					Pool:      e.Pool,
 				},
 			},
 		},
