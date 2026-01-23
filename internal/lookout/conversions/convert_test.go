@@ -46,6 +46,7 @@ var (
 				Node:        pointer.String("node"),
 				Leased:      &baseTimeSwagger,
 				Pending:     &baseTimeSwagger,
+				Pool:        pointer.String("default"),
 				RunID:       "run-id",
 				Started:     &baseTimeSwagger,
 				IngressAddresses: map[string]string{
@@ -85,6 +86,7 @@ var (
 				Node:        pointer.String("node"),
 				Leased:      model.NewPostgreSQLTime(&baseTime),
 				Pending:     model.NewPostgreSQLTime(&baseTime),
+				Pool:        pointer.String("default"),
 				RunId:       "run-id",
 				Started:     model.NewPostgreSQLTime(&baseTime),
 				IngressAddresses: map[int32]string{
