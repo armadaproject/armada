@@ -177,7 +177,7 @@ func storeJob(job testJob, db *lookoutdb.LookoutDb, converter *instructions.Inst
 				"armadaproject.io/test-2": "two",
 			},
 		}).
-		Lease(runId, "cluster", "node", job.ts).
+		Lease(runId, "cluster", "node", "pool", job.ts).
 		Pending(runId, "cluster", job.ts).
 		Running(runId, "node", job.ts)
 

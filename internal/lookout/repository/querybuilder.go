@@ -146,6 +146,7 @@ CROSS JOIN LATERAL (
 						'jobRunState', job_run_state,
 						'exitCode', exit_code,
 						'pool', pool,
+						-- 'pool', NULLIF(pool, ''),
 						'ingressAddresses', ingress_addresses
 					)
 				)
