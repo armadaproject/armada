@@ -15,6 +15,7 @@ const (
 	lastTransitionTimeField = "lastTransitionTime"
 	clusterField            = "cluster"
 	nodeField               = "node"
+	poolField               = "pool"
 
 	jobTable    = "job"
 	jobRunTable = "job_run"
@@ -41,6 +42,7 @@ const (
 	// Job Run table columns
 	clusterCol = "cluster"
 	nodeCol    = "node"
+	poolCol    = "pool"
 )
 
 type AggregateType int
@@ -92,6 +94,7 @@ func NewTables() *LookoutTables {
 
 			"cluster": clusterCol,
 			"node":    nodeCol,
+			"pool":    poolCol,
 		},
 		columnTableMap: map[string]string{
 			jobIdCol:              jobTable,
@@ -111,6 +114,7 @@ func NewTables() *LookoutTables {
 
 			clusterCol: jobRunTable,
 			nodeCol:    jobRunTable,
+			poolCol:    jobRunTable,
 		},
 		orderableColumns: util.StringListToSet([]string{
 			jobIdCol,
@@ -137,6 +141,7 @@ func NewTables() *LookoutTables {
 
 			clusterCol: util.StringListToSet([]string{model.MatchExact}),
 			nodeCol:    util.StringListToSet([]string{model.MatchExact}),
+			poolCol:    util.StringListToSet([]string{model.MatchExact, model.MatchAnyOf}),
 		},
 		tableAbbrevs: map[string]string{
 			jobTable:    jobTableAbbrev,
@@ -150,6 +155,7 @@ func NewTables() *LookoutTables {
 
 			clusterCol,
 			nodeCol,
+			poolCol,
 		}),
 		groupAggregates: map[string]AggregateType{
 			submittedCol:          Min,

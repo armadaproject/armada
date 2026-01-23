@@ -93,6 +93,9 @@ type Job struct {
 	// Min Length: 1
 	Owner string `json:"owner"`
 
+	// pool
+	Pool *string `json:"pool,omitempty"`
+
 	// priority
 	// Required: true
 	Priority int64 `json:"priority"`
