@@ -56,6 +56,7 @@ export enum StandardColumnId {
   Count = "jobCount",
   Node = "node",
   Cluster = "cluster",
+  Pool = "pool",
   ExitCode = "exitCode",
   RuntimeSeconds = "runtimeSeconds",
 }
@@ -106,6 +107,7 @@ export const PREREQUISITE_FILTER_COLUMNS: Record<StandardColumnId, StandardColum
   [StandardColumnId.Count]: [],
   [StandardColumnId.Node]: [],
   [StandardColumnId.Cluster]: [],
+  [StandardColumnId.Pool]: [],
   [StandardColumnId.ExitCode]: [],
   [StandardColumnId.RuntimeSeconds]: [],
 }
@@ -131,6 +133,7 @@ export const STANDARD_COLUMN_DISPLAY_NAMES: Record<StandardColumnId, string> = {
   [StandardColumnId.Count]: "Count",
   [StandardColumnId.Node]: "Node",
   [StandardColumnId.Cluster]: "Cluster",
+  [StandardColumnId.Pool]: "Pool",
   [StandardColumnId.ExitCode]: "Exit Code",
   [StandardColumnId.RuntimeSeconds]: "Runtime",
 }
@@ -518,6 +521,19 @@ export const GET_JOB_COLUMNS = ({
     },
   }),
   accessorColumn({
+    id: StandardColumnId.Pool,
+    accessor: (row) => {
+      if (isJobGroupRow(row)) {
+        return ""
+      }
+      return row.runs?.[row.runs.length - 1]?.pool ?? ""
+    },
+    displayName: STANDARD_COLUMN_DISPLAY_NAMES[StandardColumnId.Pool],
+    additionalMetadata: {
+      allowCopy: true,
+    },
+  }),
+  accessorColumn({
     id: StandardColumnId.ExitCode,
     accessor: "exitCode",
     displayName: STANDARD_COLUMN_DISPLAY_NAMES[StandardColumnId.ExitCode],
@@ -603,6 +619,7 @@ export const DEFAULT_COLUMN_MATCHES: Record<string, Match> = {
   [StandardColumnId.Priority]: Match.Exact,
   [StandardColumnId.PriorityClass]: Match.Exact,
   [StandardColumnId.Cluster]: Match.Exact,
+  [StandardColumnId.Pool]: Match.Exact,
   [StandardColumnId.Node]: Match.Exact,
 }
 
@@ -650,6 +667,7 @@ export const VALID_COLUMN_MATCHES: Record<string, Match[]> = {
   ],
   [StandardColumnId.PriorityClass]: [Match.Exact, Match.StartsWith, Match.Contains],
   [StandardColumnId.Cluster]: [Match.Exact],
+  [StandardColumnId.Pool]: [Match.Exact],
   [StandardColumnId.Node]: [Match.Exact],
   [ANNOTATION_COLUMN_PREFIX]: [Match.Exact, Match.StartsWith, Match.Contains],
 }

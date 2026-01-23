@@ -57,6 +57,7 @@ type JobOptions struct {
 type runPatch struct {
 	runId            string
 	cluster          *string
+	pool             *string
 	exitCode         *int32
 	finished         *time.Time
 	jobRunState      lookout.JobRunState
@@ -188,7 +189,7 @@ func (js *JobSimulator) Submit(queue, jobSet, owner, namespace string, timestamp
 	return js
 }
 
-func (js *JobSimulator) Lease(runId string, cluster string, node string, timestamp time.Time) *JobSimulator {
+func (js *JobSimulator) Lease(runId string, cluster string, node string, pool string, timestamp time.Time) *JobSimulator {
 	ts := timestampOrNow(timestamp)
 	leased := protoutil.ToStdTime(ts)
 	leasedEvent := &armadaevents.EventSequence_Event{
@@ -199,6 +200,7 @@ func (js *JobSimulator) Lease(runId string, cluster string, node string, timesta
 				JobId:      js.jobId,
 				ExecutorId: cluster,
 				NodeId:     node,
+				Pool:       pool,
 			},
 		},
 	}
@@ -215,6 +217,7 @@ func (js *JobSimulator) Lease(runId string, cluster string, node string, timesta
 		cluster:     &cluster,
 		node:        &node,
 		leased:      &leased,
+		pool:        &pool,
 	})
 	return js
 }
@@ -696,6 +699,7 @@ func (js *JobSimulator) updateRun(job *model.Job, patch *runPatch) {
 		Node:             patch.node,
 		Leased:           model.NewPostgreSQLTime(patch.leased),
 		Pending:          model.NewPostgreSQLTime(patch.pending),
+		Pool:             patch.pool,
 		RunId:            patch.runId,
 		Started:          model.NewPostgreSQLTime(patch.started),
 		IngressAddresses: patch.ingressAddresses,
@@ -706,6 +710,9 @@ func (js *JobSimulator) updateRun(job *model.Job, patch *runPatch) {
 func patchRun(run *model.Run, patch *runPatch) {
 	if patch.cluster != nil {
 		run.Cluster = *patch.cluster
+	}
+	if patch.pool != nil {
+		run.Pool = patch.pool
 	}
 	if patch.exitCode != nil {
 		run.ExitCode = patch.exitCode

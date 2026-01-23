@@ -189,6 +189,9 @@ definitions:
         type: integer
         format: int32
         x-nullable: true
+      pool:
+        type: string
+        x-nullable: true
       ingressAddresses:
         type: object
         additionalProperties:
