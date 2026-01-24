@@ -109,6 +109,15 @@ private class EventMockServer(
     // Emit events for each job showing the usual (not all possible) transition states
     matchingJobs.foreach { case (jobId, job) =>
       if (statusMap.contains(jobId)) {
+        // This is a purposely fixed and basic flow of events, emitting a subset of the
+        // typical state-change events that a successful Armada job would experience.
+        // We do not emit new events for a job based upon the current state of a job; the
+        // goal is to verify that the Armada client's jobWatch() method correctly
+        // iterates through all the received event messages and returns them to its
+        // caller in the correct order (i.e. as we emit them here). Higher-order testing of
+        // job-state event transitions is done in the Armada core code (outside each
+        // client library implementation).
+
         // QUEUED
         val queuedEvent = EventStreamMessage(
           id = ulidGen.base32().toLowerCase(),
