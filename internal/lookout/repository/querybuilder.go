@@ -145,6 +145,8 @@ CROSS JOIN LATERAL (
 						'finished', finished AT TIME ZONE 'UTC',
 						'jobRunState', job_run_state,
 						'exitCode', exit_code,
+						'pool', pool,
+						-- 'pool', NULLIF(pool, ''),
 						'ingressAddresses', ingress_addresses
 					)
 				)

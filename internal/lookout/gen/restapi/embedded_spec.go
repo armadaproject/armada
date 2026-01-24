@@ -805,6 +805,10 @@ func init() {
           "minLength": 1,
           "x-nullable": true
         },
+        "pool": {
+          "type": "string",
+          "x-nullable": true
+        },
         "runId": {
           "type": "string",
           "minLength": 1,
@@ -1655,6 +1659,10 @@ func init() {
           "type": "string",
           "format": "date-time",
           "minLength": 1,
+          "x-nullable": true
+        },
+        "pool": {
+          "type": "string",
           "x-nullable": true
         },
         "runId": {

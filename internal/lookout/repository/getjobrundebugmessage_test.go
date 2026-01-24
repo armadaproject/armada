@@ -26,7 +26,7 @@ func TestGetJobRunDebugMessage(t *testing.T) {
 		for _, expected := range debugMessageStrings {
 			_ = NewJobSimulator(converter, store).
 				Submit(queue, jobSet, owner, namespace, baseTime, basicJobOpts).
-				Lease(runId, cluster, node, baseTime).
+				Lease(runId, cluster, node, pool, baseTime).
 				Pending(runId, cluster, baseTime).
 				Running(runId, node, baseTime).
 				RunFailed(runId, node, 137, "", expected, baseTime).
