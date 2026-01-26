@@ -53,6 +53,9 @@ type Run struct {
 	// Format: date-time
 	Pending *strfmt.DateTime `json:"pending,omitempty"`
 
+	// pool
+	Pool *string `json:"pool,omitempty"`
+
 	// run Id
 	// Required: true
 	// Min Length: 1

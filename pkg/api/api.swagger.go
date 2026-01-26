@@ -1393,6 +1393,9 @@ func SwaggerJsonTemplate() string {
 		"        \"jobSetId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
+		"        \"pool\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
 		"        \"queue\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        }\n" +

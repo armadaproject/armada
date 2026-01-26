@@ -114,7 +114,7 @@ func ParserForGroup(field string) FieldParser {
 	switch field {
 	case stateField:
 		return &StateParser{}
-	case clusterField, nodeField:
+	case clusterField, nodeField, poolField:
 		return &NullStringParser{field: field}
 	default:
 		return &BasicParser[string]{field: field}

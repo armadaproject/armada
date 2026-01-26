@@ -1382,6 +1382,9 @@
         "jobSetId": {
           "type": "string"
         },
+        "pool": {
+          "type": "string"
+        },
         "queue": {
           "type": "string"
         }
