@@ -2531,6 +2531,158 @@ func TestGetJobsByClusterOfLatestRun(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestGetJobsByPoolOfLatestRun(t *testing.T) {
+	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository, testClock *clock.FakeClock) error {
+		// Create job that had multiple runs on different pools, with latest on pool-3
+		firstRunId := uuid.NewString()
+		secondRunId := uuid.NewString()
+		latestRunId := uuid.NewString()
+
+		jobWithMultipleRuns := NewJobSimulatorWithClock(converter, store, testClock).
+			Submit(queue, jobSet, owner, namespace, baseTime, basicJobOpts).
+			Lease(firstRunId, "cluster-1", "node-1", "pool-1", baseTime).
+			Pending(firstRunId, "cluster-1", baseTime).
+			Running(firstRunId, "node-1", baseTime.Add(time.Minute)).
+			RunFailed(firstRunId, "node-1", 1, "failed", "", baseTime.Add(2*time.Minute)).
+			Lease(secondRunId, "cluster-2", "node-2", "pool-2", baseTime.Add(3*time.Minute)).
+			Pending(secondRunId, "cluster-2", baseTime.Add(3*time.Minute)).
+			Running(secondRunId, "node-2", baseTime.Add(4*time.Minute)).
+			RunFailed(secondRunId, "node-2", 1, "failed", "", baseTime.Add(5*time.Minute)).
+			Lease(latestRunId, "cluster-3", "node-3", "pool-3", baseTime.Add(6*time.Minute)).
+			Pending(latestRunId, "cluster-3", baseTime.Add(6*time.Minute)).
+			Running(latestRunId, "node-3", baseTime.Add(7*time.Minute)).
+			RunSucceeded(latestRunId, baseTime.Add(8*time.Minute)).
+			Succeeded(baseTime.Add(8 * time.Minute)).
+			Build().
+			Job()
+
+		// Create job with a single run on a different pool
+		differentPoolRunId := uuid.NewString()
+		differentPoolJob := NewJobSimulatorWithClock(converter, store, testClock).
+			Submit(queue, "job-set-2", owner, namespace, baseTime, basicJobOpts).
+			Lease(differentPoolRunId, "cluster-4", "node-4", "pool-4", baseTime).
+			Pending(differentPoolRunId, "cluster-4", baseTime).
+			Running(differentPoolRunId, "node-4", baseTime.Add(time.Minute)).
+			RunSucceeded(differentPoolRunId, baseTime.Add(2*time.Minute)).
+			Succeeded(baseTime.Add(2 * time.Minute)).
+			Build().
+			Job()
+
+		// Create another job on pool-3
+		anotherPool3RunId := uuid.NewString()
+		anotherPool3Job := NewJobSimulatorWithClock(converter, store, testClock).
+			Submit(queue, "job-set-3", owner, namespace, baseTime, basicJobOpts).
+			Lease(anotherPool3RunId, "cluster-5", "node-5", "pool-3", baseTime).
+			Pending(anotherPool3RunId, "cluster-5", baseTime).
+			Running(anotherPool3RunId, "node-5", baseTime.Add(time.Minute)).
+			RunSucceeded(anotherPool3RunId, baseTime.Add(2*time.Minute)).
+			Succeeded(baseTime.Add(2 * time.Minute)).
+			Build().
+			Job()
+
+		// Create job with no runs
+		NewJobSimulatorWithClock(converter, store, testClock).
+			Submit(queue, "job-set-4", owner, namespace, baseTime, basicJobOpts).
+			Build().
+			Job()
+
+		// Test filtering by latest run's pool (MatchExact)
+		result, err := repo.GetJobs(
+			armadacontext.TODO(),
+			[]*model.Filter{
+				{
+					Field: "pool",
+					Match: model.MatchExact,
+					Value: "pool-3",
+				},
+			},
+			false,
+			&model.Order{},
+			0,
+			10,
+		)
+
+		require.NoError(t, err)
+		require.Len(t, result.Jobs, 2)
+		jobIds := []string{result.Jobs[0].JobId, result.Jobs[1].JobId}
+		assert.Contains(t, jobIds, jobWithMultipleRuns.JobId)
+		assert.Contains(t, jobIds, anotherPool3Job.JobId)
+		// Verify that Pool field is populated on Job struct
+		for _, job := range result.Jobs {
+			assert.NotNil(t, job.Pool)
+			assert.Equal(t, "pool-3", *job.Pool)
+		}
+
+		// Test filtering by a different pool
+		result, err = repo.GetJobs(
+			armadacontext.TODO(),
+			[]*model.Filter{
+				{
+					Field: "pool",
+					Match: model.MatchExact,
+					Value: "pool-4",
+				},
+			},
+			false,
+			&model.Order{},
+			0,
+			10,
+		)
+
+		require.NoError(t, err)
+		require.Len(t, result.Jobs, 1)
+		assert.Equal(t, differentPoolJob.JobId, result.Jobs[0].JobId)
+		// Verify that Pool field is populated on Job struct
+		assert.NotNil(t, result.Jobs[0].Pool)
+		assert.Equal(t, "pool-4", *result.Jobs[0].Pool)
+
+		// Test filtering by non-existent pool
+		result, err = repo.GetJobs(
+			armadacontext.TODO(),
+			[]*model.Filter{
+				{
+					Field: "pool",
+					Match: model.MatchExact,
+					Value: "pool-does-not-exist",
+				},
+			},
+			false,
+			&model.Order{},
+			0,
+			10,
+		)
+
+		require.NoError(t, err)
+		require.Len(t, result.Jobs, 0)
+
+		// Test filtering by multiple pools using MatchAnyOf
+		result, err = repo.GetJobs(
+			armadacontext.TODO(),
+			[]*model.Filter{
+				{
+					Field: "pool",
+					Match: model.MatchAnyOf,
+					Value: []interface{}{"pool-3", "pool-4"},
+				},
+			},
+			false,
+			&model.Order{},
+			0,
+			10,
+		)
+
+		require.NoError(t, err)
+		require.Len(t, result.Jobs, 3)
+		jobIds = []string{result.Jobs[0].JobId, result.Jobs[1].JobId, result.Jobs[2].JobId}
+		assert.Contains(t, jobIds, jobWithMultipleRuns.JobId)
+		assert.Contains(t, jobIds, differentPoolJob.JobId)
+		assert.Contains(t, jobIds, anotherPool3Job.JobId)
+
+		return nil
+	})
+	require.NoError(t, err)
+}
+
 func TestGetJobsIncludesIngressAddresses(t *testing.T) {
 	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository, testClock *clock.FakeClock) error {
 		runId := uuid.NewString()

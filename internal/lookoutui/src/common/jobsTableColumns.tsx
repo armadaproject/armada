@@ -522,15 +522,17 @@ export const GET_JOB_COLUMNS = ({
   }),
   accessorColumn({
     id: StandardColumnId.Pool,
-    accessor: (row) => {
-      if (isJobGroupRow(row)) {
-        return ""
-      }
-      return row.runs?.[row.runs.length - 1]?.pool ?? ""
-    },
+    accessor: "pool",
     displayName: STANDARD_COLUMN_DISPLAY_NAMES[StandardColumnId.Pool],
     additionalMetadata: {
       allowCopy: true,
+      filterType: FilterType.Text,
+      defaultMatchType: Match.Exact,
+    },
+    additionalOptions: {
+      enableGrouping: true,
+      enableColumnFilter: true,
+      size: 150,
     },
   }),
   accessorColumn({

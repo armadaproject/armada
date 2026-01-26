@@ -48,6 +48,7 @@ type Job struct {
 	CancelUser         *string
 	Node               *string
 	Cluster            string
+	Pool               *string
 	ExitCode           *int32
 	RuntimeSeconds     int32
 }
