@@ -671,6 +671,10 @@ func init() {
           "minLength": 1,
           "x-nullable": false
         },
+        "pool": {
+          "type": "string",
+          "x-nullable": true
+        },
         "priority": {
           "type": "integer",
           "format": "int64",
@@ -1526,6 +1530,10 @@ func init() {
           "type": "string",
           "minLength": 1,
           "x-nullable": false
+        },
+        "pool": {
+          "type": "string",
+          "x-nullable": true
         },
         "priority": {
           "type": "integer",

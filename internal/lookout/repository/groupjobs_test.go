@@ -1163,6 +1163,171 @@ func TestGroupByCluster(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestGroupByPool(t *testing.T) {
+	err := withGroupJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGroupJobsRepository) error {
+		pool1 := "pool-1"
+		pool2 := "pool-2"
+		pool3 := "pool-3"
+		cluster := "test-cluster"
+		node := "test-node"
+
+		// Create jobs for pool-1
+		for i := 0; i < 10; i++ {
+			runId := uuid.NewString()
+			js := NewJobSimulator(converter, store)
+			js.Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{})
+			js.Lease(runId, cluster, node, pool1, baseTime.Add(-2*time.Minute))
+			js.Pending(runId, cluster, baseTime.Add(-1*time.Minute))
+			js.Running(runId, node, baseTime)
+			js.Build()
+		}
+
+		// Create jobs for pool-2
+		for i := 0; i < 5; i++ {
+			runId := uuid.NewString()
+			js := NewJobSimulator(converter, store)
+			js.Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{})
+			js.Lease(runId, cluster, node, pool2, baseTime.Add(-2*time.Minute))
+			js.Pending(runId, cluster, baseTime.Add(-1*time.Minute))
+			js.Running(runId, node, baseTime)
+			js.Build()
+		}
+
+		// Create jobs for pool-3
+		for i := 0; i < 3; i++ {
+			runId := uuid.NewString()
+			js := NewJobSimulator(converter, store)
+			js.Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{})
+			js.Lease(runId, cluster, node, pool3, baseTime.Add(-2*time.Minute))
+			js.Pending(runId, cluster, baseTime.Add(-1*time.Minute))
+			js.Running(runId, node, baseTime)
+			js.Build()
+		}
+
+		result, err := repo.GroupBy(
+			armadacontext.TODO(),
+			[]*model.Filter{},
+			false,
+			&model.Order{
+				Field:     "count",
+				Direction: "DESC",
+			},
+			&model.GroupedField{
+				Field: "pool",
+			},
+			[]string{},
+			0,
+			10,
+		)
+		require.NoError(t, err)
+		require.Len(t, result.Groups, 3)
+		assert.Equal(t, result.Groups, []*model.JobGroup{
+			{
+				Name:       "pool-1",
+				Count:      10,
+				Aggregates: map[string]interface{}{},
+			},
+			{
+				Name:       "pool-2",
+				Count:      5,
+				Aggregates: map[string]interface{}{},
+			},
+			{
+				Name:       "pool-3",
+				Count:      3,
+				Aggregates: map[string]interface{}{},
+			},
+		})
+		return nil
+	})
+	require.NoError(t, err)
+}
+
+func TestGroupByPoolWithFilter(t *testing.T) {
+	err := withGroupJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGroupJobsRepository) error {
+		pool1 := "pool-1"
+		pool2 := "pool-2"
+		pool3 := "pool-3"
+		cluster := "test-cluster"
+		node := "test-node"
+		queue1 := "queue-1"
+		queue2 := "queue-2"
+
+		// Create jobs for pool-1 in queue-1
+		for i := 0; i < 10; i++ {
+			runId := uuid.NewString()
+			js := NewJobSimulator(converter, store)
+			js.Submit(queue1, jobSet, owner, namespace, baseTime, &JobOptions{})
+			js.Lease(runId, cluster, node, pool1, baseTime.Add(-2*time.Minute))
+			js.Pending(runId, cluster, baseTime.Add(-1*time.Minute))
+			js.Running(runId, node, baseTime)
+			js.Build()
+		}
+
+		// Create jobs for pool-2 in queue-1
+		for i := 0; i < 5; i++ {
+			runId := uuid.NewString()
+			js := NewJobSimulator(converter, store)
+			js.Submit(queue1, jobSet, owner, namespace, baseTime, &JobOptions{})
+			js.Lease(runId, cluster, node, pool2, baseTime.Add(-2*time.Minute))
+			js.Pending(runId, cluster, baseTime.Add(-1*time.Minute))
+			js.Running(runId, node, baseTime)
+			js.Build()
+		}
+
+		// Create jobs for pool-3 in queue-2
+		for i := 0; i < 3; i++ {
+			runId := uuid.NewString()
+			js := NewJobSimulator(converter, store)
+			js.Submit(queue2, jobSet, owner, namespace, baseTime, &JobOptions{})
+			js.Lease(runId, cluster, node, pool3, baseTime.Add(-2*time.Minute))
+			js.Pending(runId, cluster, baseTime.Add(-1*time.Minute))
+			js.Running(runId, node, baseTime)
+			js.Build()
+		}
+
+		// Group by pool with filter on queue-1
+		result, err := repo.GroupBy(
+			armadacontext.TODO(),
+			[]*model.Filter{
+				{
+					Field: "queue",
+					Match: model.MatchExact,
+					Value: queue1,
+				},
+			},
+			false,
+			&model.Order{
+				Field:     "count",
+				Direction: "DESC",
+			},
+			&model.GroupedField{
+				Field: "pool",
+			},
+			[]string{},
+			0,
+			10,
+		)
+		require.NoError(t, err)
+		require.Len(t, result.Groups, 2)
+		assert.Equal(t, result.Groups, []*model.JobGroup{
+			{
+				Name:       "pool-1",
+				Count:      10,
+				Aggregates: map[string]interface{}{},
+			},
+			{
+				Name:       "pool-2",
+				Count:      5,
+				Aggregates: map[string]interface{}{},
+			},
+		})
+
+		return nil
+	})
+	require.NoError(t, err)
+}
+
 func TestGroupByAnnotationWithFiltersAndAggregates(t *testing.T) {
 	err := withGroupJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGroupJobsRepository) error {
 		manyJobs(5, &createJobsOpts{
