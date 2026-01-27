@@ -243,7 +243,7 @@ func (jobDb *JobDb) reconcileRunDifferences(jobRun *JobRun, jobRepoRun *database
 			rst.Running = true
 		}
 		if jobRepoRun.PreemptRequested && !jobRun.PreemptRequested() {
-			jobRun = jobRun.WithPreemptRequested(true)
+			jobRun = jobRun.WithPreemptRequested(true).WithPreemptReason(jobRepoRun.PreemptReason)
 			rst.PreemptionRequested = true
 		}
 		if jobRepoRun.Preempted && !jobRun.Preempted() {
@@ -359,6 +359,7 @@ func (jobDb *JobDb) schedulerRunFromDatabaseRun(dbRun *database.Run) *JobRun {
 		dbRun.Pending,
 		dbRun.Running,
 		dbRun.PreemptRequested,
+		dbRun.PreemptReason,
 		dbRun.Preempted,
 		dbRun.Succeeded,
 		dbRun.Failed,
