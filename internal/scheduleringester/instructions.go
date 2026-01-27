@@ -320,7 +320,9 @@ func (c *JobSetEventsInstructionConverter) handleJobPreemptionRequested(preempti
 		JobSetKey{
 			queue:  meta.queue,
 			jobSet: meta.jobset,
-		}: []string{preemptionRequested.JobId},
+		}: map[string]string{
+			preemptionRequested.JobId: preemptionRequested.Reason,
+		},
 	}}, nil
 }
 
