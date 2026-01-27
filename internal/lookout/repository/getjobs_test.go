@@ -28,6 +28,7 @@ const (
 	queue      = "queue-1"
 	jobSet     = "job-set-1"
 	cluster    = "cluster-1"
+	pool       = "pool-1"
 	owner      = "user-1"
 	cancelUser = "canceluser"
 	namespace  = "namespace-1"
@@ -82,7 +83,7 @@ func TestGetJobsSingle(t *testing.T) {
 					"hello":     "world",
 				},
 			}).
-			Lease(runId, cluster, node, baseTime).
+			Lease(runId, cluster, node, pool, baseTime).
 			Pending(runId, cluster, baseTime).
 			Running(runId, node, baseTime).
 			RunSucceeded(runId, baseTime).
@@ -106,11 +107,11 @@ func TestGetJobsMultipleRuns(t *testing.T) {
 
 		job := NewJobSimulatorWithClock(converter, store, testClock).
 			Submit(queue, jobSet, owner, namespace, baseTime, basicJobOpts).
-			Lease(firstRunId, cluster, node, baseTime).
+			Lease(firstRunId, cluster, node, pool, baseTime).
 			Pending(firstRunId, cluster, baseTime).
-			Lease(secondRunId, cluster, node, baseTime.Add(time.Second)).
+			Lease(secondRunId, cluster, node, pool, baseTime.Add(time.Second)).
 			Pending(secondRunId, cluster, baseTime.Add(time.Second)).
-			Lease(runId, cluster, node, baseTime.Add(2*time.Second)).
+			Lease(runId, cluster, node, pool, baseTime.Add(2*time.Second)).
 			Pending(runId, cluster, baseTime.Add(2*time.Second)).
 			Running(runId, node, baseTime.Add(2*time.Second)).
 			RunSucceeded(runId, baseTime.Add(2*time.Second)).
@@ -304,7 +305,7 @@ func TestGetJobsOrderByLastTransitionTime(t *testing.T) {
 		runId1 := uuid.NewString()
 		third := NewJobSimulatorWithClock(converter, store, testClock).
 			Submit(queue, jobSet, owner, namespace, baseTime, basicJobOpts).
-			Lease(runId1, cluster, node, baseTime).
+			Lease(runId1, cluster, node, pool, baseTime).
 			Pending(runId1, cluster, baseTime).
 			Running(runId1, node, baseTime.Add(3*time.Minute)).
 			Build().
@@ -313,7 +314,7 @@ func TestGetJobsOrderByLastTransitionTime(t *testing.T) {
 		runId2 := uuid.NewString()
 		second := NewJobSimulatorWithClock(converter, store, testClock).
 			Submit(queue, jobSet, owner, namespace, baseTime, basicJobOpts).
-			Lease(runId2, cluster, node, baseTime.Add(2*time.Minute)).
+			Lease(runId2, cluster, node, pool, baseTime.Add(2*time.Minute)).
 			Pending(runId2, cluster, baseTime.Add(2*time.Minute)).
 			Build().
 			Job()
@@ -750,7 +751,7 @@ func TestGetJobsByState(t *testing.T) {
 		runId1 := uuid.NewString()
 		pending := NewJobSimulatorWithClock(converter, store, testClock).
 			Submit(queue, jobSet, owner, namespace, baseTime, basicJobOpts).
-			Lease(runId1, cluster, node, baseTime).
+			Lease(runId1, cluster, node, pool, baseTime).
 			Pending(runId1, cluster, baseTime).
 			Build().
 			Job()
@@ -758,7 +759,7 @@ func TestGetJobsByState(t *testing.T) {
 		runId2 := uuid.NewString()
 		running := NewJobSimulatorWithClock(converter, store, testClock).
 			Submit(queue, jobSet, owner, namespace, baseTime, basicJobOpts).
-			Lease(runId2, cluster, node, baseTime).
+			Lease(runId2, cluster, node, pool, baseTime).
 			Pending(runId2, cluster, baseTime).
 			Running(runId2, node, baseTime).
 			Build().
@@ -767,7 +768,7 @@ func TestGetJobsByState(t *testing.T) {
 		runId3 := uuid.NewString()
 		_ = NewJobSimulatorWithClock(converter, store, testClock).
 			Submit(queue, jobSet, owner, namespace, baseTime, basicJobOpts).
-			Lease(runId3, cluster, node, baseTime).
+			Lease(runId3, cluster, node, pool, baseTime).
 			Pending(runId3, cluster, baseTime).
 			Running(runId3, node, baseTime).
 			Succeeded(baseTime).
@@ -2167,10 +2168,10 @@ func TestGetJobsWithLatestRunDetails(t *testing.T) {
 		firstRunId := uuid.NewString()
 		NewJobSimulatorWithClock(converter, store, testClock).
 			Submit(queue, jobSet, owner, namespace, baseTime, basicJobOpts).
-			Lease(firstRunId, "first-cluster", "first-node", baseTime).
+			Lease(firstRunId, "first-cluster", "first-node", "first-pool", baseTime).
 			Pending(firstRunId, "first-cluster", baseTime).
 			Running(firstRunId, "first-node", baseTime.Add(time.Minute)).
-			Lease(runIdLatest, "latest-cluster", "latest-node", baseTime.Add(2*time.Minute)).
+			Lease(runIdLatest, "latest-cluster", "latest-node", "latest-pool", baseTime.Add(2*time.Minute)).
 			Pending(runIdLatest, "latest-cluster", baseTime.Add(2*time.Minute)).
 			Running(runIdLatest, "latest-node", baseTime.Add(3*time.Minute)).
 			RunSucceeded(runIdLatest, baseTime.Add(4*time.Minute)).
@@ -2203,7 +2204,7 @@ func TestGetJobsWithSpecificRunDetails(t *testing.T) {
 		// Simulate job submission and a specific failed run
 		NewJobSimulatorWithClock(converter, store, testClock).
 			Submit(queue, jobSet, owner, namespace, baseTime, basicJobOpts).
-			Lease(runIdSpecific, "specific-cluster", "specific-node", baseTime).
+			Lease(runIdSpecific, "specific-cluster", "specific-node", "specific-pool", baseTime).
 			Pending(runIdSpecific, "specific-cluster", baseTime).
 			Running(runIdSpecific, "specific-node", baseTime.Add(time.Minute)).
 			RunFailed(runIdSpecific, "specific-node", 2, "Specific failure message", "", baseTime.Add(2*time.Minute)).
@@ -2236,7 +2237,7 @@ func TestJobRuntimeWhenNoStartOrEnd(t *testing.T) {
 
 		NewJobSimulatorWithClock(converter, store, testClock).
 			Submit(queue, jobSet, owner, namespace, time.Now(), basicJobOpts).
-			Lease(runId, "cluster", "node", time.Now()).
+			Lease(runId, "cluster", "node", "pool", time.Now()).
 			Build().
 			Job()
 
@@ -2261,7 +2262,7 @@ func TestJobRuntimeWhenStartedButNotFinishedWithClock(t *testing.T) {
 
 		NewJobSimulatorWithClock(converter, store, testClock).
 			Submit(queue, jobSet, owner, namespace, startTime, basicJobOpts).
-			Lease(runId, "cluster", "node", startTime).
+			Lease(runId, "cluster", "node", "pool", startTime).
 			Pending(runId, "cluster", startTime).
 			Running(runId, "node", runningTime).
 			Build().
@@ -2293,7 +2294,7 @@ func TestJobRuntimeWhenRunFinishedWithClock(t *testing.T) {
 
 		NewJobSimulatorWithClock(converter, store, clk).
 			Submit(queue, jobSet, owner, namespace, startTime, basicJobOpts).
-			Lease(runId, "specific-cluster", "specific-node", startTime).
+			Lease(runId, "specific-cluster", "specific-node", "pool", startTime).
 			Pending(runId, "cluster", startTime).
 			Running(runId, "node", runningTime).
 			RunFailed(runId, "node", 1, "failed", "debug", endTime).
@@ -2325,15 +2326,15 @@ func TestGetJobsByNodeOfLatestRun(t *testing.T) {
 
 		jobWithMultipleRuns := NewJobSimulatorWithClock(converter, store, testClock).
 			Submit(queue, jobSet, owner, namespace, baseTime, basicJobOpts).
-			Lease(firstRunId, "cluster-1", "node-1", baseTime).
+			Lease(firstRunId, "cluster-1", "node-1", "pool-1", baseTime).
 			Pending(firstRunId, "cluster-1", baseTime).
 			Running(firstRunId, "node-1", baseTime.Add(time.Minute)).
 			RunFailed(firstRunId, "node-1", 1, "failed", "", baseTime.Add(2*time.Minute)).
-			Lease(secondRunId, "cluster-2", "node-2", baseTime.Add(3*time.Minute)).
+			Lease(secondRunId, "cluster-2", "node-2", "pool-2", baseTime.Add(3*time.Minute)).
 			Pending(secondRunId, "cluster-2", baseTime.Add(3*time.Minute)).
 			Running(secondRunId, "node-2", baseTime.Add(4*time.Minute)).
 			RunFailed(secondRunId, "node-2", 1, "failed", "", baseTime.Add(5*time.Minute)).
-			Lease(latestRunId, "cluster-3", "node-3", baseTime.Add(6*time.Minute)).
+			Lease(latestRunId, "cluster-3", "node-3", "pool-3", baseTime.Add(6*time.Minute)).
 			Pending(latestRunId, "cluster-3", baseTime.Add(6*time.Minute)).
 			Running(latestRunId, "node-3", baseTime.Add(7*time.Minute)).
 			RunSucceeded(latestRunId, baseTime.Add(8*time.Minute)).
@@ -2345,7 +2346,7 @@ func TestGetJobsByNodeOfLatestRun(t *testing.T) {
 		differentNodeRunId := uuid.NewString()
 		differentNodeJob := NewJobSimulatorWithClock(converter, store, testClock).
 			Submit(queue, "job-set-2", owner, namespace, baseTime, basicJobOpts).
-			Lease(differentNodeRunId, "cluster-4", "node-4", baseTime).
+			Lease(differentNodeRunId, "cluster-4", "node-4", "pool-4", baseTime).
 			Pending(differentNodeRunId, "cluster-4", baseTime).
 			Running(differentNodeRunId, "node-4", baseTime.Add(time.Minute)).
 			RunSucceeded(differentNodeRunId, baseTime.Add(2*time.Minute)).
@@ -2432,15 +2433,15 @@ func TestGetJobsByClusterOfLatestRun(t *testing.T) {
 
 		jobWithMultipleRuns := NewJobSimulatorWithClock(converter, store, testClock).
 			Submit(queue, jobSet, owner, namespace, baseTime, basicJobOpts).
-			Lease(firstRunId, "cluster-1", "node-1", baseTime).
+			Lease(firstRunId, "cluster-1", "node-1", "pool-1", baseTime).
 			Pending(firstRunId, "cluster-1", baseTime).
 			Running(firstRunId, "node-1", baseTime.Add(time.Minute)).
 			RunFailed(firstRunId, "node-1", 1, "failed", "", baseTime.Add(2*time.Minute)).
-			Lease(secondRunId, "cluster-2", "node-2", baseTime.Add(3*time.Minute)).
+			Lease(secondRunId, "cluster-2", "node-2", "pool-2", baseTime.Add(3*time.Minute)).
 			Pending(secondRunId, "cluster-2", baseTime.Add(3*time.Minute)).
 			Running(secondRunId, "node-2", baseTime.Add(4*time.Minute)).
 			RunFailed(secondRunId, "node-2", 1, "failed", "", baseTime.Add(5*time.Minute)).
-			Lease(latestRunId, "cluster-3", "node-3", baseTime.Add(6*time.Minute)).
+			Lease(latestRunId, "cluster-3", "node-3", "pool-3", baseTime.Add(6*time.Minute)).
 			Pending(latestRunId, "cluster-3", baseTime.Add(6*time.Minute)).
 			Running(latestRunId, "node-3", baseTime.Add(7*time.Minute)).
 			RunSucceeded(latestRunId, baseTime.Add(8*time.Minute)).
@@ -2452,7 +2453,7 @@ func TestGetJobsByClusterOfLatestRun(t *testing.T) {
 		differentClusterRunId := uuid.NewString()
 		differentClusterJob := NewJobSimulatorWithClock(converter, store, testClock).
 			Submit(queue, "job-set-2", owner, namespace, baseTime, basicJobOpts).
-			Lease(differentClusterRunId, "cluster-4", "node-4", baseTime).
+			Lease(differentClusterRunId, "cluster-4", "node-4", "pool-4", baseTime).
 			Pending(differentClusterRunId, "cluster-4", baseTime).
 			Running(differentClusterRunId, "node-4", baseTime.Add(time.Minute)).
 			RunSucceeded(differentClusterRunId, baseTime.Add(2*time.Minute)).
@@ -2530,6 +2531,158 @@ func TestGetJobsByClusterOfLatestRun(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestGetJobsByPoolOfLatestRun(t *testing.T) {
+	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository, testClock *clock.FakeClock) error {
+		// Create job that had multiple runs on different pools, with latest on pool-3
+		firstRunId := uuid.NewString()
+		secondRunId := uuid.NewString()
+		latestRunId := uuid.NewString()
+
+		jobWithMultipleRuns := NewJobSimulatorWithClock(converter, store, testClock).
+			Submit(queue, jobSet, owner, namespace, baseTime, basicJobOpts).
+			Lease(firstRunId, "cluster-1", "node-1", "pool-1", baseTime).
+			Pending(firstRunId, "cluster-1", baseTime).
+			Running(firstRunId, "node-1", baseTime.Add(time.Minute)).
+			RunFailed(firstRunId, "node-1", 1, "failed", "", baseTime.Add(2*time.Minute)).
+			Lease(secondRunId, "cluster-2", "node-2", "pool-2", baseTime.Add(3*time.Minute)).
+			Pending(secondRunId, "cluster-2", baseTime.Add(3*time.Minute)).
+			Running(secondRunId, "node-2", baseTime.Add(4*time.Minute)).
+			RunFailed(secondRunId, "node-2", 1, "failed", "", baseTime.Add(5*time.Minute)).
+			Lease(latestRunId, "cluster-3", "node-3", "pool-3", baseTime.Add(6*time.Minute)).
+			Pending(latestRunId, "cluster-3", baseTime.Add(6*time.Minute)).
+			Running(latestRunId, "node-3", baseTime.Add(7*time.Minute)).
+			RunSucceeded(latestRunId, baseTime.Add(8*time.Minute)).
+			Succeeded(baseTime.Add(8 * time.Minute)).
+			Build().
+			Job()
+
+		// Create job with a single run on a different pool
+		differentPoolRunId := uuid.NewString()
+		differentPoolJob := NewJobSimulatorWithClock(converter, store, testClock).
+			Submit(queue, "job-set-2", owner, namespace, baseTime, basicJobOpts).
+			Lease(differentPoolRunId, "cluster-4", "node-4", "pool-4", baseTime).
+			Pending(differentPoolRunId, "cluster-4", baseTime).
+			Running(differentPoolRunId, "node-4", baseTime.Add(time.Minute)).
+			RunSucceeded(differentPoolRunId, baseTime.Add(2*time.Minute)).
+			Succeeded(baseTime.Add(2 * time.Minute)).
+			Build().
+			Job()
+
+		// Create another job on pool-3
+		anotherPool3RunId := uuid.NewString()
+		anotherPool3Job := NewJobSimulatorWithClock(converter, store, testClock).
+			Submit(queue, "job-set-3", owner, namespace, baseTime, basicJobOpts).
+			Lease(anotherPool3RunId, "cluster-5", "node-5", "pool-3", baseTime).
+			Pending(anotherPool3RunId, "cluster-5", baseTime).
+			Running(anotherPool3RunId, "node-5", baseTime.Add(time.Minute)).
+			RunSucceeded(anotherPool3RunId, baseTime.Add(2*time.Minute)).
+			Succeeded(baseTime.Add(2 * time.Minute)).
+			Build().
+			Job()
+
+		// Create job with no runs
+		NewJobSimulatorWithClock(converter, store, testClock).
+			Submit(queue, "job-set-4", owner, namespace, baseTime, basicJobOpts).
+			Build().
+			Job()
+
+		// Test filtering by latest run's pool (MatchExact)
+		result, err := repo.GetJobs(
+			armadacontext.TODO(),
+			[]*model.Filter{
+				{
+					Field: "pool",
+					Match: model.MatchExact,
+					Value: "pool-3",
+				},
+			},
+			false,
+			&model.Order{},
+			0,
+			10,
+		)
+
+		require.NoError(t, err)
+		require.Len(t, result.Jobs, 2)
+		jobIds := []string{result.Jobs[0].JobId, result.Jobs[1].JobId}
+		assert.Contains(t, jobIds, jobWithMultipleRuns.JobId)
+		assert.Contains(t, jobIds, anotherPool3Job.JobId)
+		// Verify that Pool field is populated on Job struct
+		for _, job := range result.Jobs {
+			assert.NotNil(t, job.Pool)
+			assert.Equal(t, "pool-3", *job.Pool)
+		}
+
+		// Test filtering by a different pool
+		result, err = repo.GetJobs(
+			armadacontext.TODO(),
+			[]*model.Filter{
+				{
+					Field: "pool",
+					Match: model.MatchExact,
+					Value: "pool-4",
+				},
+			},
+			false,
+			&model.Order{},
+			0,
+			10,
+		)
+
+		require.NoError(t, err)
+		require.Len(t, result.Jobs, 1)
+		assert.Equal(t, differentPoolJob.JobId, result.Jobs[0].JobId)
+		// Verify that Pool field is populated on Job struct
+		assert.NotNil(t, result.Jobs[0].Pool)
+		assert.Equal(t, "pool-4", *result.Jobs[0].Pool)
+
+		// Test filtering by non-existent pool
+		result, err = repo.GetJobs(
+			armadacontext.TODO(),
+			[]*model.Filter{
+				{
+					Field: "pool",
+					Match: model.MatchExact,
+					Value: "pool-does-not-exist",
+				},
+			},
+			false,
+			&model.Order{},
+			0,
+			10,
+		)
+
+		require.NoError(t, err)
+		require.Len(t, result.Jobs, 0)
+
+		// Test filtering by multiple pools using MatchAnyOf
+		result, err = repo.GetJobs(
+			armadacontext.TODO(),
+			[]*model.Filter{
+				{
+					Field: "pool",
+					Match: model.MatchAnyOf,
+					Value: []interface{}{"pool-3", "pool-4"},
+				},
+			},
+			false,
+			&model.Order{},
+			0,
+			10,
+		)
+
+		require.NoError(t, err)
+		require.Len(t, result.Jobs, 3)
+		jobIds = []string{result.Jobs[0].JobId, result.Jobs[1].JobId, result.Jobs[2].JobId}
+		assert.Contains(t, jobIds, jobWithMultipleRuns.JobId)
+		assert.Contains(t, jobIds, differentPoolJob.JobId)
+		assert.Contains(t, jobIds, anotherPool3Job.JobId)
+
+		return nil
+	})
+	require.NoError(t, err)
+}
+
 func TestGetJobsIncludesIngressAddresses(t *testing.T) {
 	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository, testClock *clock.FakeClock) error {
 		runId := uuid.NewString()
@@ -2539,7 +2692,7 @@ func TestGetJobsIncludesIngressAddresses(t *testing.T) {
 
 		job := NewJobSimulatorWithClock(converter, store, testClock).
 			Submit(queue, jobSet, owner, namespace, baseTime, basicJobOpts).
-			Lease(runId, cluster, node, baseTime).
+			Lease(runId, cluster, node, pool, baseTime).
 			Pending(runId, cluster, baseTime).
 			Running(runId, node, baseTime.Add(time.Minute)).
 			IngressInfo(runId, ingressAddresses, baseTime.Add(2*time.Minute)).

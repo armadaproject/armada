@@ -41,6 +41,7 @@ func ToSwaggerJob(job *model.Job) *models.Job {
 		CancelUser:         job.CancelUser,
 		Node:               job.Node,
 		Cluster:            job.Cluster,
+		Pool:               job.Pool,
 		ExitCode:           job.ExitCode,
 		RuntimeSeconds:     job.RuntimeSeconds,
 	}
@@ -55,6 +56,7 @@ func ToSwaggerRun(run *model.Run) *models.Run {
 		Node:             run.Node,
 		Leased:           PostgreSQLTimeToSwaggerTime(run.Leased),
 		Pending:          PostgreSQLTimeToSwaggerTime(run.Pending),
+		Pool:             run.Pool,
 		RunID:            run.RunId,
 		Started:          PostgreSQLTimeToSwaggerTime(run.Started),
 		IngressAddresses: ingressAddressesToSwagger(run.IngressAddresses),
