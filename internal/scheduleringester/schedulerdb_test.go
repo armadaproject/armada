@@ -12,7 +12,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/constraints"
 	"golang.org/x/exp/maps"
-	"k8s.io/utils/strings/slices"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/ingest/metrics"
@@ -123,7 +122,7 @@ func TestWriteOps(t *testing.T) {
 				runIds[3]: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobIds[3], RunID: runIds[3], Queue: "queue-2", JobSet: "set1"}},
 				runIds[4]: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobIds[4], RunID: runIds[4], Queue: "queue-2", JobSet: "set2"}},
 			},
-			MarkRunsForJobPreemptRequested{JobSetKey{queue: testQueueName, jobSet: "set1"}: []string{jobIds[0], jobIds[1]}},
+			MarkRunsForJobPreemptRequested{JobSetKey{queue: testQueueName, jobSet: "set1"}: map[string]string{jobIds[0]: "test-reason", jobIds[1]: "test-reason"}},
 		}},
 		"MarkJobSetsCancelRequested": {Ops: []DbOperation{
 			InsertJobs{
@@ -712,7 +711,7 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 					return errors.WithStack(err)
 				}
 				for _, run := range runs {
-					if slices.Contains(req, run.JobID) {
+					if _, ok := req[run.JobID]; ok {
 						assert.True(t, run.PreemptRequested)
 						runsChanged++
 					}
