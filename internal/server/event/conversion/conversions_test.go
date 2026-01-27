@@ -233,6 +233,7 @@ func TestConvertLeased(t *testing.T) {
 			JobRunLeased: &armadaevents.JobRunLeased{
 				JobId:      jobId,
 				ExecutorId: executorId,
+				Pool:       "test-pool",
 				PodRequirementsOverlay: &schedulerobjects.PodRequirements{
 					Tolerations: []*v1.Toleration{
 						{
@@ -255,6 +256,7 @@ func TestConvertLeased(t *testing.T) {
 					Queue:     queue,
 					Created:   protoutil.ToTimestamp(baseTime),
 					ClusterId: executorId,
+					Pool:      "test-pool",
 				},
 			},
 		},

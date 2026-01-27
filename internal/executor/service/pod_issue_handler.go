@@ -233,7 +233,7 @@ func (p *PodIssueHandler) detectPodIssues(allManagedPods []*v1.Pod) {
 			// it is safer to produce failed event than retrying as the job might have run already
 			issue := &podIssue{
 				OriginalPodState: pod.DeepCopy(),
-				Message:          "pod stuck in terminating phase, this might be due to platform problems",
+				Message:          "job couldn't shut down cleanly as pod stuck in terminating phase, this indicates a node issue",
 				Retryable:        false,
 				Type:             StuckTerminating,
 			}

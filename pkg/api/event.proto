@@ -32,6 +32,7 @@ message JobLeasedEvent {
     string queue = 3;
     google.protobuf.Timestamp created = 4;
     string cluster_id = 5;
+    string pool = 6;
 }
 
 message JobLeaseReturnedEvent {

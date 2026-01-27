@@ -48,6 +48,7 @@ type Job struct {
 	CancelUser         *string
 	Node               *string
 	Cluster            string
+	Pool               *string
 	ExitCode           *int32
 	RuntimeSeconds     int32
 }
@@ -96,6 +97,7 @@ type Run struct {
 	Node             *string
 	Leased           *PostgreSQLTime
 	Pending          *PostgreSQLTime
+	Pool             *string
 	RunId            string
 	Started          *PostgreSQLTime
 	IngressAddresses map[int32]string

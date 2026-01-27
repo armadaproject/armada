@@ -39,17 +39,37 @@ import api.job.{
 }
 import com.google.protobuf.empty.Empty
 import api.health.HealthCheckResponse
-import api.event.{EventGrpc, EventStreamMessage, JobSetRequest, WatchRequest}
+import api.event.{
+  EventGrpc,
+  EventMessage,
+  EventStreamMessage,
+  JobPendingEvent,
+  JobQueuedEvent,
+  JobRunningEvent,
+  JobSetRequest,
+  JobSucceededEvent,
+  WatchRequest
+}
+import api.event.EventMessage.Events
+
 import io.grpc.{Server, ServerBuilder, Status, StatusRuntimeException}
 import jkugiya.ulid.ULID
-import org.scalatest.BeforeAndAfterAll
+import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 import org.scalatest.funsuite.AnyFunSuite
 
 import scala.collection.concurrent.TrieMap
-import scala.concurrent.Future
-import scala.util.{Failure, Random, Success}
+import scala.concurrent.{Await, Future}
+import scala.concurrent.duration._
+import scala.util.Random
 
-private class EventMockServer extends EventGrpc.Event {
+private class EventMockServer(
+    jobMap: TrieMap[String, Job],
+    queueMap: TrieMap[String, Queue],
+    statusMap: TrieMap[String, JobState]
+) extends EventGrpc.Event {
+
+  val ulidGen = ULID.getGenerator()
+
   override def health(
       empty: Empty
   ): scala.concurrent.Future[HealthCheckResponse] = {
@@ -69,14 +89,108 @@ private class EventMockServer extends EventGrpc.Event {
       request: WatchRequest,
       responseObserver: io.grpc.stub.StreamObserver[EventStreamMessage]
   ): Unit = {
-    // TODO: fill-in
+    // Verify queue exists
+    if (!queueMap.contains(request.queue)) {
+      responseObserver.onError(
+        new StatusRuntimeException(
+          Status.NOT_FOUND.withDescription(
+            s"Queue '${request.queue}' not found"
+          )
+        )
+      )
+      return
+    }
+
+    // Find all jobs in the specified jobSet
+    val matchingJobs = jobMap.filter { case (_, job) =>
+      job.jobSetId == request.jobSetId
+    }
+
+    // Emit events for each job showing the usual (not all possible) transition states
+    matchingJobs.foreach { case (jobId, job) =>
+      if (statusMap.contains(jobId)) {
+        // This is a purposely fixed and basic flow of events, emitting a subset of the
+        // typical state-change events that a successful Armada job would experience.
+        // We do not emit new events for a job based upon the current state of a job; the
+        // goal is to verify that the Armada client's jobWatch() method correctly
+        // iterates through all the received event messages and returns them to its
+        // caller in the correct order (i.e. as we emit them here). Higher-order testing of
+        // job-state event transitions is done in the Armada core code (outside each
+        // client library implementation).
+
+        // QUEUED
+        val queuedEvent = EventStreamMessage(
+          id = ulidGen.base32().toLowerCase(),
+          message = Option[EventMessage](
+            EventMessage(
+              api.event.EventMessage.Events.Queued(
+                new JobQueuedEvent(jobId, job.jobSetId, job.queue)
+              )
+            )
+          )
+        )
+        statusMap.put(jobId, JobState.QUEUED)
+        responseObserver.onNext(queuedEvent)
+
+        // PENDING
+        val pendingEvent = EventStreamMessage(
+          id = ulidGen.base32().toLowerCase(),
+          message = Option[EventMessage](
+            EventMessage(
+              api.event.EventMessage.Events.Pending(
+                new JobPendingEvent(jobId, job.jobSetId, job.queue)
+              )
+            )
+          )
+        )
+        statusMap.put(jobId, JobState.PENDING)
+        responseObserver.onNext(pendingEvent)
+
+        // RUNNING
+        val runningEvent = EventStreamMessage(
+          id = ulidGen.base32().toLowerCase(),
+          message = Option[EventMessage](
+            EventMessage(
+              api.event.EventMessage.Events.Running(
+                new JobRunningEvent(jobId, job.jobSetId, job.queue)
+              )
+            )
+          )
+        )
+        statusMap.put(jobId, JobState.RUNNING)
+        responseObserver.onNext(runningEvent)
+
+        // SUCCEEDED
+        val succeededEvent = EventStreamMessage(
+          id = ulidGen.base32().toLowerCase(),
+          message = Option[EventMessage](
+            EventMessage(
+              api.event.EventMessage.Events.Succeeded(
+                new JobSucceededEvent(jobId, job.jobSetId, job.queue)
+              )
+            )
+          )
+        )
+        statusMap.put(jobId, JobState.SUCCEEDED)
+        responseObserver.onNext(succeededEvent)
+      } else {
+        // Job exists in jobMap but not in statusMap - this shouldn't happen in normal flow
+        responseObserver.onError(
+          new StatusRuntimeException(
+            Status.INTERNAL.withDescription(s"Job '$jobId' has no status")
+          )
+        )
+      }
+    }
+
+    responseObserver.onCompleted()
   }
 }
 
 private class SubmitMockServer(
-    jobMap: TrieMap[String, Job],
-    queueMap: TrieMap[String, Queue],
-    statusMap: TrieMap[String, JobState]
+    jobMap: TrieMap[String, Job], // jobId -> Job
+    queueMap: TrieMap[String, Queue], // queueName -> Queue
+    statusMap: TrieMap[String, JobState] // jobId -> JobState
 ) extends SubmitGrpc.Submit {
 
   val ulidGen = ULID.getGenerator()
@@ -188,6 +302,7 @@ private class SubmitMockServer(
         )
       }
     }
+
   }
 
   def updateQueue(
@@ -256,7 +371,10 @@ private class JobsMockServer(
   }
 }
 
-class ArmadaClientSuite extends AnyFunSuite with BeforeAndAfterAll {
+class ArmadaClientSuite
+    extends AnyFunSuite
+    with BeforeAndAfterAll
+    with BeforeAndAfterEach {
   val testPort = 12345
 
   private var server: Server = null
@@ -275,7 +393,10 @@ class ArmadaClientSuite extends AnyFunSuite with BeforeAndAfterAll {
     server = ServerBuilder
       .forPort(testPort)
       .addService(
-        EventGrpc.bindService(new EventMockServer, ExecutionContext.global)
+        EventGrpc.bindService(
+          new EventMockServer(jobMap, queueMap, statusMap),
+          ExecutionContext.global
+        )
       )
       .addService(
         SubmitGrpc.bindService(
@@ -295,6 +416,12 @@ class ArmadaClientSuite extends AnyFunSuite with BeforeAndAfterAll {
     server.shutdown()
   }
 
+  override def beforeEach(): Unit = {
+    jobMap.clear()
+    queueMap.clear()
+    statusMap.clear()
+  }
+
   test("ArmadaClient.eventHealth()") {
     val ac = ArmadaClient("localhost", testPort)
     val status = ac.eventHealth()
@@ -304,12 +431,8 @@ class ArmadaClientSuite extends AnyFunSuite with BeforeAndAfterAll {
   test("ArmadaClient.submitHealth()") {
     val ac = ArmadaClient("localhost", testPort)
     val healthResp = ac.submitHealth()
-    healthResp.onComplete {
-      case scala.util.Success(resp) =>
-        assert(resp.status === HealthCheckResponse.ServingStatus.SERVING)
-      case scala.util.Failure(exception) =>
-        fail("submitHealth() test failed: " + exception)
-    }
+    val resp = Await.result(healthResp, 10.seconds)
+    assert(resp.status === HealthCheckResponse.ServingStatus.SERVING)
   }
 
   test("ArmadaClient.submitJobs()") {
@@ -364,27 +487,20 @@ class ArmadaClientSuite extends AnyFunSuite with BeforeAndAfterAll {
       jobs = jobs :+ response.jobResponseItems(0).jobId
     }
 
-    // Required for processing Futures in test
-    implicit val ec: scala.concurrent.ExecutionContext =
-      scala.concurrent.ExecutionContext.global
-
     // Cancel the first two of the jobs and validate they are cancelled
     val cancelRes =
       ac.cancelJobs(new JobCancelRequest().withJobIds(jobs.take(2)))
 
-    cancelRes.onComplete {
-      case Success(_) => {
-        // Verify both cancelled jobs
-        for (i <- 0 to 1) {
-          val jobStatus = ac.getJobStatus(jobs(i))
-          assert(jobStatus.jobStates(jobs(i)) === JobState.CANCELLED)
-        }
+    Await.result(cancelRes, 10.seconds)
 
-        // The third job should still be running
-        assert(ac.getJobStatus(jobs(2)).jobStates(jobs(2)).isRunning)
-      }
-      case Failure(_) => fail("cancelJobs() test failed")
+    // Verify both cancelled jobs
+    for (i <- 0 to 1) {
+      val jobStatus = ac.getJobStatus(jobs(i))
+      assert(jobStatus.jobStates(jobs(i)) === JobState.CANCELLED)
     }
+
+    // The third job should still be running
+    assert(ac.getJobStatus(jobs(2)).jobStates(jobs(2)).isRunning)
 
     ac.deleteQueue(qName)
   }
@@ -410,10 +526,6 @@ class ArmadaClientSuite extends AnyFunSuite with BeforeAndAfterAll {
       ac.submitJobs(qName, "runJobSet", List(new JobSubmitRequestItem()))
     assert(response.jobResponseItems.length === 1)
     val runJobId = response.jobResponseItems(0).jobId
-
-    // Required for processing Futures in test
-    implicit val ec: scala.concurrent.ExecutionContext =
-      scala.concurrent.ExecutionContext.global
 
     ac.cancelJobSet(cancelJobSetId)
 
@@ -450,4 +562,60 @@ class ArmadaClientSuite extends AnyFunSuite with BeforeAndAfterAll {
     }
     assert(q.name !== qName)
   }
+
+  test("ArmadaClient.jobWatcher()") {
+    val ac = ArmadaClient("localhost", testPort)
+    val qName = "queue-" + Random.alphanumeric.take(8).mkString
+    val watchJobSetId = "jobset-666"
+
+    ac.createQueue(qName)
+
+    val response =
+      ac.submitJobs(qName, watchJobSetId, List(new JobSubmitRequestItem()))
+    assert(response.jobResponseItems.length === 1)
+
+    var watchJobIds = Seq[String](response.jobResponseItems(0).jobId)
+
+    // Required for processing Futures in test
+    implicit val ec: scala.concurrent.ExecutionContext =
+      scala.concurrent.ExecutionContext.global
+
+    // call jobWatcher and observe if it gets all the expected events
+    val watchIter =
+      ac.jobWatcher(q = qName, jobSet = watchJobSetId, lastMessage = "")
+
+    var evs = Seq[String]()
+    while (watchIter.hasNext) {
+      var evStreamMsg = watchIter.next()
+
+      evStreamMsg.message match {
+        case Some(msg) =>
+          evs = evs :+ getEventStatus(msg)
+        case None =>
+          fail(
+            "jobWatcher() test failed: test event stream entry had no EventMessage "
+          )
+      }
+    }
+
+    val expectedStates =
+      Seq[String]("QUEUED", "PENDING", "RUNNING", "SUCCEEDED")
+
+    assert(expectedStates.length == evs.length)
+    // Check that events arrived in the expected order
+    for (n <- 0 to (expectedStates.length - 1)) {
+      assert(expectedStates(n) == evs(n))
+    }
+
+    ac.deleteQueue(qName)
+  }
+
+  // Given an EventMessage object, derive the basic Armada event
+  // status, e.g. "PENDING", "RUNNING", "SUCCEEDED", etc.
+  def getEventStatus(eventMessage: EventMessage): String =
+    eventMessage.events match {
+      case Events.Empty => "UNKNOWN"
+      case e =>
+        e.productPrefix.replaceAll("([a-z])([A-Z])", "$1_$2").toUpperCase
+    }
 }
