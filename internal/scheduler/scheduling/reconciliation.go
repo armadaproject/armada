@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 
+	log "github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/maps"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
@@ -60,11 +61,18 @@ func (r *RunNodeReconciler) checkJobsOnDeletedNodes(jobsToReconcileByNodeId map[
 			if _, present := configByPool[run.Pool()]; !present {
 				continue
 			}
-			failedReconciliationResult := &FailedReconciliationResult{
-				Job:    job,
-				Reason: fmt.Sprintf("The node %s no longer exists - this job's placement is now invalid", nodeId),
+
+			reason := fmt.Sprintf("The node %s no longer exists - this job's placement is now invalid", nodeId)
+
+			if job.IsInGang() {
+				failedReconciliationResult := &FailedReconciliationResult{
+					Job:    job,
+					Reason: reason,
+				}
+				result = append(result, failedReconciliationResult)
+			} else {
+				log.Warnf("Non-gang job %s on deleted node: %s", job.Id(), reason)
 			}
-			result = append(result, failedReconciliationResult)
 		}
 	}
 

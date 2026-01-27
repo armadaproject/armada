@@ -58,15 +58,15 @@ func TestReconcileJobRuns(t *testing.T) {
 			poolConfig:                  ensureReservationMismatchConfig,
 			expectReconciliationFailure: false,
 		},
-		"node deleted - job references non-existent node": {
-			job:                         createLeasedJob("deleted-node", defaultPool),
-			node:                        createNodeWithPool("other-node", defaultPool),
-			poolConfig:                  reconciliationEnabledConfig,
-			expectReconciliationFailure: true,
-		},
-		"reconciliation failure - job's node no longer exists": {
+		"reconciliation success - no matching nodes": {
 			job:                         createLeasedJob("node-1", defaultPool),
 			node:                        createNodeWithPool("node-2", "updated"),
+			poolConfig:                  reconciliationEnabledConfig,
+			expectReconciliationFailure: false,
+		},
+		"gang job on deleted node - reconciliation failure": {
+			job:                         createLeasedGangJob("node-1", defaultPool),
+			node:                        createNodeWithPool("node-2", defaultPool),
 			poolConfig:                  reconciliationEnabledConfig,
 			expectReconciliationFailure: true,
 		},
@@ -156,6 +156,13 @@ func createTerminalJob(nodeId string, pool string) *jobdb.Job {
 
 func createLeasedJob(nodeId string, pool string) *jobdb.Job {
 	return testfixtures.Test1Cpu4GiJob("testQueue", testfixtures.PriorityClass6Preemptible).
+		WithNewRun("testExecutor", nodeId, "node", pool, 5)
+}
+
+func createLeasedGangJob(nodeId string, pool string) *jobdb.Job {
+	gangInfo := jobdb.CreateGangInfo("test-gang-id", 2, "")
+	return testfixtures.Test1Cpu4GiJob("testQueue", testfixtures.PriorityClass6Preemptible).
+		WithGangInfo(gangInfo).
 		WithNewRun("testExecutor", nodeId, "node", pool, 5)
 }
 
