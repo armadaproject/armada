@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 
+	log "github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/maps"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
@@ -35,54 +36,102 @@ func (r *RunNodeReconciler) ReconcileJobRuns(txn *jobdb.Txn, executors []*schedu
 	}
 
 	nodes := r.getNodes(executors)
-	jobsToReconcile := r.getJobsToReconcileByNodeId(txn)
+	jobsToReconcileByNodeId := r.getJobsToReconcileByNodeId(txn)
 
 	configByPool := poolConfigSliceToMap(r.poolsToReconcile)
+	nodeIdSet := r.buildNodeIdSet(nodes)
 
 	var result []*FailedReconciliationResult
-	for _, node := range nodes {
-		jobsOnNode := jobsToReconcile[node.GetId()]
 
-		for _, job := range jobsOnNode {
+	result = append(result, r.checkJobsOnDeletedNodes(jobsToReconcileByNodeId, nodeIdSet, configByPool)...)
+	result = append(result, r.checkJobsOnExistingNodes(nodes, jobsToReconcileByNodeId, configByPool)...)
+
+	return result
+}
+
+func (r *RunNodeReconciler) checkJobsOnDeletedNodes(jobsToReconcileByNodeId map[string][]*jobdb.Job, nodeIdSet map[string]bool, configByPool map[string]configuration.PoolConfig) []*FailedReconciliationResult {
+	var result []*FailedReconciliationResult
+
+	for nodeId, jobs := range jobsToReconcileByNodeId {
+		if nodeIdSet[nodeId] {
+			continue
+		}
+		for _, job := range jobs {
 			run := job.LatestRun()
-			config, present := configByPool[run.Pool()]
-			if !present {
+			if _, present := configByPool[run.Pool()]; !present {
 				continue
 			}
-			runPools := []string{run.Pool()}
-			if len(config.AwayPools) > 0 {
-				runPools = append(runPools, config.AwayPools...)
-			}
 
-			if !slices.Contains(runPools, node.GetPool()) {
+			reason := fmt.Sprintf("The node %s no longer exists - this job's placement is now invalid", nodeId)
+
+			if job.IsInGang() {
 				failedReconciliationResult := &FailedReconciliationResult{
-					Job: job,
-					Reason: fmt.Sprintf("The pool of node %s has been changed from %s to %s - this jobs placement is now invalid",
-						node.GetName(), run.Pool(), node.GetPool()),
+					Job:    job,
+					Reason: reason,
 				}
-
 				result = append(result, failedReconciliationResult)
-			} else if config.ExperimentalRunReconciliation.EnsureReservationMatch && !job.MatchesReservation(node.GetReservation()) {
-				failedReconciliationResult := &FailedReconciliationResult{
-					Job: job,
-					Reason: fmt.Sprintf("The reservation of node %s has been changed and is now %s - this job no longer matches the node reservation",
-						node.GetName(), node.GetReservation()),
-				}
-
-				result = append(result, failedReconciliationResult)
-			} else if config.ExperimentalRunReconciliation.EnsureReservationDoesNotMatch && job.MatchesReservation(node.GetReservation()) {
-				failedReconciliationResult := &FailedReconciliationResult{
-					Job: job,
-					Reason: fmt.Sprintf("The reservation of node %s has been changed and is now %s - this job is now incorrectly running away on a node with a matching resevation",
-						node.GetName(), node.GetReservation()),
-				}
-
-				result = append(result, failedReconciliationResult)
+			} else {
+				log.Warnf("Non-gang job %s on deleted node: %s", job.Id(), reason)
 			}
 		}
 	}
 
 	return result
+}
+
+func (r *RunNodeReconciler) checkJobsOnExistingNodes(nodes []*schedulerobjects.Node, jobsToReconcileByNodeId map[string][]*jobdb.Job, configByPool map[string]configuration.PoolConfig) []*FailedReconciliationResult {
+	var result []*FailedReconciliationResult
+
+	for _, node := range nodes {
+		jobsOnNode := jobsToReconcileByNodeId[node.GetId()]
+
+		for _, job := range jobsOnNode {
+			if failedResult := r.checkJobNodeMatch(job, node, configByPool); failedResult != nil {
+				result = append(result, failedResult)
+			}
+		}
+	}
+
+	return result
+}
+
+func (r *RunNodeReconciler) checkJobNodeMatch(job *jobdb.Job, node *schedulerobjects.Node, configByPool map[string]configuration.PoolConfig) *FailedReconciliationResult {
+	run := job.LatestRun()
+	config, present := configByPool[run.Pool()]
+	if !present {
+		return nil
+	}
+
+	runPools := []string{run.Pool()}
+	if len(config.AwayPools) > 0 {
+		runPools = append(runPools, config.AwayPools...)
+	}
+
+	if !slices.Contains(runPools, node.GetPool()) {
+		return &FailedReconciliationResult{
+			Job: job,
+			Reason: fmt.Sprintf("The pool of node %s has been changed from %s to %s - this job's placement is now invalid",
+				node.GetName(), run.Pool(), node.GetPool()),
+		}
+	}
+
+	if config.ExperimentalRunReconciliation.EnsureReservationMatch && !job.MatchesReservation(node.GetReservation()) {
+		return &FailedReconciliationResult{
+			Job: job,
+			Reason: fmt.Sprintf("The reservation of node %s has been changed and is now %s - this job no longer matches the node reservation",
+				node.GetName(), node.GetReservation()),
+		}
+	}
+
+	if config.ExperimentalRunReconciliation.EnsureReservationDoesNotMatch && job.MatchesReservation(node.GetReservation()) {
+		return &FailedReconciliationResult{
+			Job: job,
+			Reason: fmt.Sprintf("The reservation of node %s has been changed and is now %s - this job is now incorrectly running away on a node with a matching reservation",
+				node.GetName(), node.GetReservation()),
+		}
+	}
+
+	return nil
 }
 
 func poolConfigSliceToMap(config []configuration.PoolConfig) map[string]configuration.PoolConfig {
@@ -104,6 +153,14 @@ func (r *RunNodeReconciler) getNodes(executors []*schedulerobjects.Executor) []*
 	}
 
 	return nodes
+}
+
+func (r *RunNodeReconciler) buildNodeIdSet(nodes []*schedulerobjects.Node) map[string]bool {
+	nodeIdSet := make(map[string]bool, len(nodes))
+	for _, node := range nodes {
+		nodeIdSet[node.GetId()] = true
+	}
+	return nodeIdSet
 }
 
 func (r *RunNodeReconciler) getJobsToReconcileByNodeId(txn *jobdb.Txn) map[string][]*jobdb.Job {
