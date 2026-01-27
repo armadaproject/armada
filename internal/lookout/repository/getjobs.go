@@ -127,6 +127,7 @@ func (r *SqlGetJobsRepository) getJobs(ctx *armadacontext.Context, filters []*mo
 			lastRun := job.Runs[len(job.Runs)-1] // Get the last run
 			job.Node = lastRun.Node
 			job.Cluster = lastRun.Cluster
+			job.Pool = lastRun.Pool
 			job.ExitCode = lastRun.ExitCode
 			job.RuntimeSeconds = calculateJobRuntime(lastRun.Started, lastRun.Finished, r.clock)
 		}
