@@ -34,8 +34,12 @@ const (
 	PoolAnnotation      = "armadaproject.io/pool"
 	ReservationTaintKey = "armadaproject.io/reservation"
 
-	PreemptionRetryCountMaxAnnotation = "armadaproject.io/preemptionRetryCountMax"
-	PreemptionRetryEnabledAnnotation  = "armadaproject.io/preemptionRetryEnabled"
+	// PreemptionRetryEnabledAnnotation enables or disables preemption retries for a job.
+	// When set to "true", the job will be rescheduled if preempted, up to the max retry count.
+	PreemptionRetryEnabledAnnotation = "armadaproject.io/preemptionRetryEnabled"
+	// PreemptionMaxRetryCountAnnotation specifies the maximum number of times a job can be
+	// rescheduled after preemption. Must be a positive integer.
+	PreemptionMaxRetryCountAnnotation = "armadaproject.io/preemptionMaxRetryCount"
 )
 
 var schedulingAnnotations = map[string]bool{
@@ -44,6 +48,8 @@ var schedulingAnnotations = map[string]bool{
 	GangNodeUniformityLabelAnnotation: true,
 	FailFastAnnotation:                true,
 	JobPriceBand:                      true,
+	PreemptionRetryEnabledAnnotation:  true,
+	PreemptionMaxRetryCountAnnotation: true,
 }
 
 func IsSchedulingAnnotation(annotation string) bool {

@@ -763,8 +763,8 @@ func (l *FairSchedulingAlgo) SchedulePool(
 		} else {
 			return nil, nil, errors.Errorf("attempting to preempt job %s with no associated runs", jobDbJob.Id())
 		}
-		if jobDbJob.IsEligibleForPreemptionRetry(l.schedulingConfig.DefaultPreemptionRetry) {
-			ctx.Infof("Handling preemption retry %d / %d for job %s. Job will be requeued.", jobDbJob.NumPreemptedRuns(), jobDbJob.MaxPreemptionRetryCount(l.schedulingConfig.DefaultPreemptionRetry), jobDbJob.Id())
+		if jobDbJob.IsEligibleForPreemptionRetry(l.schedulingConfig.PreemptionRetry) {
+			ctx.Infof("Handling preemption retry %d / %d for job %s. Job will be requeued.", jobDbJob.NumPreemptedRuns(), jobDbJob.MaxPreemptionRetryCount(l.schedulingConfig.PreemptionRetry), jobDbJob.Id())
 			result.PreemptedJobs[i].Job = jobDbJob.WithQueued(true).WithQueuedVersion(jobDbJob.QueuedVersion() + 1)
 		} else {
 			result.PreemptedJobs[i].Job = jobDbJob.WithQueued(false).WithFailed(true)

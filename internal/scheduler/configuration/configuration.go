@@ -9,6 +9,7 @@ import (
 	authconfig "github.com/armadaproject/armada/internal/common/auth/configuration"
 	commonconfig "github.com/armadaproject/armada/internal/common/config"
 	grpcconfig "github.com/armadaproject/armada/internal/common/grpc/configuration"
+	"github.com/armadaproject/armada/internal/common/preemption"
 	profilingconfig "github.com/armadaproject/armada/internal/common/profiling/configuration"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/common/types"
@@ -297,8 +298,8 @@ type SchedulingConfig struct {
 	DefaultPoolSchedulePriority int
 	Pools                       []PoolConfig
 	ExperimentalIndicativeShare ExperimentalIndicativeShare
-	// Default preemption retries settings so you don't have to annotate all jobs with retries.
-	DefaultPreemptionRetry PreemptionRetryConfig
+	// Preemption retry settings. Jobs can override via annotations.
+	PreemptionRetry preemption.RetryConfig
 }
 
 const (
@@ -481,9 +482,4 @@ type PricingApiConfig struct {
 	// This is for local testing only
 	// It will stub the pricing api so it returns non-zero values but won't call and external service
 	DevModeEnabled bool
-}
-
-type PreemptionRetryConfig struct {
-	Enabled              bool
-	DefaultMaxRetryCount *uint
 }

@@ -343,7 +343,7 @@ func validateGangs(request *api.JobSubmitRequest, _ configuration.SubmissionConf
 		jobdb.GangInfo
 		PriorityClassName        string
 		PreemptionRetriesEnabled bool
-		PreemptionRetryCountMax  uint
+		PreemptionMaxRetryCount  uint
 	}
 	gangDetailsByGangId := make(map[string]GangValidationInfo)
 	for _, job := range request.JobRequestItems {
@@ -366,9 +366,9 @@ func validateGangs(request *api.JobSubmitRequest, _ configuration.SubmissionConf
 		}
 
 		preemptionRetriesEnabled, _ := preemption.AreRetriesEnabled(job.GetAnnotations())
-		preemptionRetryCountMax, _ := preemption.GetMaxRetryCount(job.GetAnnotations())
+		preemptionMaxRetryCount, _ := preemption.GetMaxRetryCount(job.GetAnnotations())
 
-		actual := GangValidationInfo{gangInfo, adaptedJob.PriorityClassName(), preemptionRetriesEnabled, preemptionRetryCountMax}
+		actual := GangValidationInfo{gangInfo, adaptedJob.PriorityClassName(), preemptionRetriesEnabled, preemptionMaxRetryCount}
 		if expected, ok := gangDetailsByGangId[actual.Id()]; ok {
 			if expected.Cardinality() != actual.Cardinality() {
 				return errors.Errorf(
@@ -393,10 +393,10 @@ func validateGangs(request *api.JobSubmitRequest, _ configuration.SubmissionConf
 					"inconsistent preemptionRetriesEnabled in gang %s: expected %t but got %t",
 					actual.Id(), expected.PreemptionRetriesEnabled, preemptionRetriesEnabled)
 			}
-			if preemptionRetryCountMax != expected.PreemptionRetryCountMax {
+			if preemptionMaxRetryCount != expected.PreemptionMaxRetryCount {
 				return errors.Errorf(
-					"inconsistent preemptionRetryCountMax in gang %s: expected %d but got %d",
-					actual.Id(), expected.PreemptionRetryCountMax, preemptionRetryCountMax)
+					"inconsistent preemptionMaxRetryCount in gang %s: expected %d but got %d",
+					actual.Id(), expected.PreemptionMaxRetryCount, preemptionMaxRetryCount)
 			}
 		} else {
 			gangDetailsByGangId[actual.Id()] = actual
@@ -476,23 +476,34 @@ func validateTolerations(j *api.JobSubmitRequestItem, config configuration.Submi
 	return nil
 }
 
-// Ensures that if a request specified preemption retry annotations, they are valid.
-func validatePreemptionRetryConfig(j *api.JobSubmitRequestItem, _ configuration.SubmissionConfig) error {
+// Ensures that if a request specifies preemption retry annotations, they are valid.
+func validatePreemptionRetryConfig(j *api.JobSubmitRequestItem, config configuration.SubmissionConfig) error {
 	annotations := j.GetAnnotations()
 
-	if enabledStr, exists := annotations[constants.PreemptionRetryEnabledAnnotation]; exists {
+	enabledStr, hasEnabledAnnotation := annotations[constants.PreemptionRetryEnabledAnnotation]
+	maxCountStr, hasMaxCountAnnotation := annotations[constants.PreemptionMaxRetryCountAnnotation]
+
+	// If preemption retries are disabled globally, reject jobs that try to use them
+	if !config.PreemptionRetry.Enabled && (hasEnabledAnnotation || hasMaxCountAnnotation) {
+		return fmt.Errorf("preemption retry annotations are not allowed: feature is disabled")
+	}
+
+	if hasEnabledAnnotation {
 		if _, err := strconv.ParseBool(enabledStr); err != nil {
 			return fmt.Errorf("invalid preemption retry enabled annotation value: %w", err)
 		}
 	}
 
-	if maxCountStr, exists := annotations[constants.PreemptionRetryCountMaxAnnotation]; exists {
+	if hasMaxCountAnnotation {
 		maxCount, err := strconv.Atoi(maxCountStr)
 		if err != nil {
 			return fmt.Errorf("invalid preemption retry count max annotation value: %w", err)
 		}
 		if maxCount <= 0 {
 			return fmt.Errorf("preemption retry count max must be greater than zero")
+		}
+		if config.PreemptionRetry.MaxRetryCount != nil && uint(maxCount) > *config.PreemptionRetry.MaxRetryCount {
+			return fmt.Errorf("preemption retry count max %d exceeds maximum allowed value of %d", maxCount, *config.PreemptionRetry.MaxRetryCount)
 		}
 	}
 
