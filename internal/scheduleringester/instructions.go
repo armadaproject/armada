@@ -316,12 +316,17 @@ func (c *JobSetEventsInstructionConverter) handleJobErrors(jobErrors *armadaeven
 }
 
 func (c *JobSetEventsInstructionConverter) handleJobPreemptionRequested(preemptionRequested *armadaevents.JobPreemptionRequested, meta eventSequenceCommon) ([]DbOperation, error) {
+	// cobine the preemption reason and user
+	reasonWithUser := preemptionRequested.Reason
+	if meta.user != "" {
+		reasonWithUser = preemptionRequested.Reason + " | Preempted by " + meta.user
+	}
 	return []DbOperation{MarkRunsForJobPreemptRequested{
 		JobSetKey{
 			queue:  meta.queue,
 			jobSet: meta.jobset,
 		}: map[string]string{
-			preemptionRequested.JobId: preemptionRequested.Reason,
+			preemptionRequested.JobId: reasonWithUser,
 		},
 	}}, nil
 }
