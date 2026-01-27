@@ -125,6 +125,9 @@ definitions:
       cluster:
         type: string
         x-nullable: false
+      pool:
+        type: string
+        x-nullable: true
       exitCode:
         type: integer
         format: int32

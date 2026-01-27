@@ -211,6 +211,7 @@ func (js *JobSimulator) Lease(runId string, cluster string, node string, pool st
 	js.job.State = string(lookout.JobLeased)
 	js.job.Cluster = cluster
 	js.job.Node = &node
+	js.job.Pool = &pool
 	js.updateRun(js.job, &runPatch{
 		runId:       runId,
 		jobRunState: lookout.JobRunLeased,

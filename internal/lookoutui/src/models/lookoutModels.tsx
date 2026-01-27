@@ -127,6 +127,7 @@ export type Job = {
   cancelUser?: string
   node?: string
   cluster?: string
+  pool?: string
   exitCode?: number
   runtimeSeconds?: number
 }

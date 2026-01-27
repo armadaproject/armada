@@ -1,7 +1,7 @@
 package io.armadaproject.armada
 
 import api.job.{JobStatusRequest, JobStatusResponse, JobsGrpc}
-import api.event.EventGrpc
+import api.event.{EventGrpc, WatchRequest}
 import api.submit.{
   CancellationResult,
   JobCancelRequest,
@@ -73,6 +73,18 @@ class ArmadaClient(channel: ManagedChannel) {
     val qReq = QueueGetRequest(name)
     val blockingStub = SubmitGrpc.blockingStub(channel)
     blockingStub.getQueue(qReq)
+  }
+
+  def jobWatcher(
+      q: String,
+      jobSet: String,
+      lastMessage: String
+  ): scala.collection.Iterator[api.event.EventStreamMessage] = {
+    val eventStub = EventGrpc.blockingStub(channel)
+    val watchRequest =
+      WatchRequest(queue = q, jobSetId = jobSet, fromId = lastMessage)
+
+    return eventStub.watch(watchRequest)
   }
 }
 
