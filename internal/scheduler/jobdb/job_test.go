@@ -9,8 +9,8 @@ import (
 	k8sResource "k8s.io/apimachinery/pkg/api/resource"
 
 	armadaconfiguration "github.com/armadaproject/armada/internal/common/constants"
+	"github.com/armadaproject/armada/internal/common/preemption"
 	"github.com/armadaproject/armada/internal/common/types"
-	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/pricing"
 	"github.com/armadaproject/armada/pkg/bidstore"
@@ -78,7 +78,7 @@ var jobSchedulingInfoWithRetryEnabled = &internaltypes.JobSchedulingInfo{
 		},
 		Annotations: map[string]string{
 			armadaconfiguration.PreemptionRetryEnabledAnnotation:  "true",
-			armadaconfiguration.PreemptionRetryCountMaxAnnotation: "1",
+			armadaconfiguration.PreemptionMaxRetryCountAnnotation: "1",
 		},
 	},
 }
@@ -632,84 +632,178 @@ func milliQuantity(millis int) k8sResource.Quantity {
 	return *k8sResource.NewMilliQuantity(int64(millis), k8sResource.DecimalSI)
 }
 
+func TestNumPreemptedRuns(t *testing.T) {
+	makePreemptedRun := func(created int64) *JobRun {
+		return &JobRun{
+			id:        uuid.New().String(),
+			created:   created,
+			executor:  "test-executor",
+			preempted: true,
+		}
+	}
+	makeNonPreemptedRun := func(created int64) *JobRun {
+		return &JobRun{
+			id:        uuid.New().String(),
+			created:   created,
+			executor:  "test-executor",
+			preempted: false,
+		}
+	}
+
+	tests := map[string]struct {
+		job      *Job
+		expected uint
+	}{
+		"job with no runs": {
+			job:      baseJob,
+			expected: 0,
+		},
+		"job with one non-preempted run": {
+			job:      baseJob.WithUpdatedRun(makeNonPreemptedRun(4)),
+			expected: 0,
+		},
+		"job with one preempted run": {
+			job:      baseJob.WithUpdatedRun(makePreemptedRun(3)),
+			expected: 1,
+		},
+		"job with mixed runs": {
+			job:      baseJob.WithUpdatedRun(makePreemptedRun(3)).WithUpdatedRun(makeNonPreemptedRun(4)),
+			expected: 1,
+		},
+		"job with multiple preempted runs": {
+			job:      baseJob.WithUpdatedRun(makePreemptedRun(3)).WithUpdatedRun(makePreemptedRun(5)),
+			expected: 2,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, tc.job.NumPreemptedRuns())
+		})
+	}
+}
+
 func TestIsEligibleForPreemptionRetry(t *testing.T) {
-	premptedRun1 := &JobRun{
-		id:        uuid.New().String(),
-		created:   3,
-		executor:  "test-executor",
-		preempted: true,
+	makePreemptedRun := func(created int64) *JobRun {
+		return &JobRun{
+			id:        uuid.New().String(),
+			created:   created,
+			executor:  "test-executor",
+			preempted: true,
+		}
 	}
 
-	premptedRun2 := &JobRun{
-		id:        uuid.New().String(),
-		created:   5,
-		executor:  "test-executor",
-		preempted: true,
+	defaultRetryCount := uint(5)
+	zeroRetryCount := uint(0)
+	retryEnabled := preemption.RetryConfig{Enabled: true, DefaultRetryCount: &defaultRetryCount}
+	retryDisabled := preemption.RetryConfig{Enabled: false}
+	retryEnabledZeroCount := preemption.RetryConfig{Enabled: true, DefaultRetryCount: &zeroRetryCount}
+
+	tests := map[string]struct {
+		job      *Job
+		config   preemption.RetryConfig
+		expected bool
+	}{
+		// Job annotation overrides platform config
+		"job annotation enabled overrides platform disabled": {
+			job:      baseJobWithRetryEnabled,
+			config:   retryDisabled,
+			expected: true,
+		},
+		"job annotation disabled overrides platform enabled": {
+			job:      baseJobWithRetryDisabled,
+			config:   retryEnabled,
+			expected: false,
+		},
+		// Platform config applies when no job annotation
+		"platform enabled with no job annotation": {
+			job:      baseJob,
+			config:   retryEnabled,
+			expected: true,
+		},
+		"platform disabled with no job annotation": {
+			job:      baseJob,
+			config:   retryDisabled,
+			expected: false,
+		},
+		// Non-preempted runs don't count toward retry limit
+		"eligible when runs exist but none preempted": {
+			job:      baseJob.WithUpdatedRun(baseRun).WithUpdatedRun(baseRun),
+			config:   retryEnabled,
+			expected: true,
+		},
+		// Preempted runs count toward limit
+		"eligible with one preempted run under limit": {
+			job:      baseJob.WithUpdatedRun(makePreemptedRun(3)),
+			config:   retryEnabled,
+			expected: true,
+		},
+		"eligible with preempted runs under limit": {
+			job:      baseJob.WithUpdatedRun(makePreemptedRun(3)).WithUpdatedRun(makePreemptedRun(5)),
+			config:   retryEnabled,
+			expected: true, // 2 preemptions <= 5 max
+		},
+		// Retry exhaustion: job annotation max=1, 2 preemptions -> not eligible
+		"not eligible when job annotation max exceeded": {
+			job:      baseJobWithRetryEnabled.WithUpdatedRun(makePreemptedRun(3)).WithUpdatedRun(makePreemptedRun(5)),
+			config:   retryDisabled, // job has max=1, 2 preemptions
+			expected: false,
+		},
+		"not eligible when job annotation max exceeded even with platform enabled": {
+			job:      baseJobWithRetryEnabled.WithUpdatedRun(makePreemptedRun(3)).WithUpdatedRun(makePreemptedRun(5)),
+			config:   retryEnabled, // job has max=1, overrides platform max=5
+			expected: false,
+		},
+		// Edge case: platform default is 0 (effectively disabled via count)
+		"not eligible when platform default count is zero": {
+			job:      baseJob.WithUpdatedRun(makePreemptedRun(3)),
+			config:   retryEnabledZeroCount, // enabled but max=0 means no retries allowed
+			expected: false,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, tc.job.IsEligibleForPreemptionRetry(tc.config))
+		})
+	}
+}
+
+func TestMaxPreemptionRetryCount(t *testing.T) {
+	defaultRetryCount := uint(5)
+
+	tests := map[string]struct {
+		job      *Job
+		config   preemption.RetryConfig
+		expected uint
+	}{
+		"uses platform default when no job annotation": {
+			job: baseJob,
+			config: preemption.RetryConfig{
+				Enabled:           true,
+				DefaultRetryCount: &defaultRetryCount,
+			},
+			expected: 5,
+		},
+		"job annotation overrides platform default": {
+			job: baseJobWithRetryEnabled, // has annotation with max=1
+			config: preemption.RetryConfig{
+				Enabled:           true,
+				DefaultRetryCount: &defaultRetryCount,
+			},
+			expected: 1,
+		},
+		"returns zero when no defaults set": {
+			job: baseJob,
+			config: preemption.RetryConfig{
+				Enabled: true,
+			},
+			expected: 0,
+		},
 	}
 
-	defaultMaxRetryCountEnabled := uint(5)
-	platformDefaultEnabled := schedulerconfig.PreemptionRetryConfig{
-		Enabled:              true,
-		DefaultMaxRetryCount: &defaultMaxRetryCountEnabled,
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			result := tc.job.MaxPreemptionRetryCount(tc.config)
+			assert.Equal(t, tc.expected, result)
+		})
 	}
-
-	defaultMaxRetryCountDisabled := uint(0)
-	platformDefaultDisabled := schedulerconfig.PreemptionRetryConfig{
-		Enabled:              false,
-		DefaultMaxRetryCount: &defaultMaxRetryCountDisabled,
-	}
-
-	// no runs
-	t.Run("job with retry enabled and platform disabled and no runs", func(t *testing.T) {
-		assert.True(t, baseJobWithRetryEnabled.IsEligibleForPreemptionRetry(platformDefaultDisabled))
-	})
-
-	t.Run("job with retry disabled and platform enabled and no runs", func(t *testing.T) {
-		assert.False(t, baseJobWithRetryDisabled.IsEligibleForPreemptionRetry(platformDefaultEnabled))
-	})
-
-	t.Run("job with platform retry enabled and no runs", func(t *testing.T) {
-		assert.True(t, baseJob.IsEligibleForPreemptionRetry(platformDefaultEnabled))
-	})
-
-	t.Run("job with platform retry disabled and no runs", func(t *testing.T) {
-		assert.False(t, baseJob.IsEligibleForPreemptionRetry(platformDefaultDisabled))
-	})
-
-	// runs but none are preempted
-	t.Run("job with retry enabled and platform disabled runs but no preempted runs", func(t *testing.T) {
-		updatedJob := baseJobWithRetryEnabled.WithUpdatedRun(baseRun).WithUpdatedRun(baseRun)
-		assert.True(t, updatedJob.IsEligibleForPreemptionRetry(platformDefaultDisabled))
-	})
-
-	t.Run("job with platform enabled runs but no preempted runs", func(t *testing.T) {
-		updatedJob := baseJob.WithUpdatedRun(baseRun).WithUpdatedRun(baseRun)
-		assert.True(t, updatedJob.IsEligibleForPreemptionRetry(platformDefaultEnabled))
-	})
-
-	t.Run("job with retry enabled and platform disabled and one run", func(t *testing.T) {
-		updatedJob := baseJobWithRetryEnabled.WithUpdatedRun(premptedRun1)
-		assert.True(t, updatedJob.IsEligibleForPreemptionRetry(platformDefaultDisabled))
-	})
-
-	t.Run("job with platform enabled and one run", func(t *testing.T) {
-		updatedJob := baseJob.WithUpdatedRun(premptedRun1)
-		assert.True(t, updatedJob.IsEligibleForPreemptionRetry(platformDefaultEnabled))
-	})
-
-	// runs that are preempted
-	t.Run("job with retry enabled and platform disabled and out of retries", func(t *testing.T) {
-		updatedJob := baseJobWithRetryEnabled.WithUpdatedRun(premptedRun1).WithUpdatedRun(premptedRun2)
-		assert.False(t, updatedJob.IsEligibleForPreemptionRetry(platformDefaultDisabled))
-	})
-
-	t.Run("job with retry enabled with platform enabled and out of retries", func(t *testing.T) {
-		updatedJob := baseJobWithRetryEnabled.WithUpdatedRun(premptedRun1).WithUpdatedRun(premptedRun2)
-		assert.False(t, updatedJob.IsEligibleForPreemptionRetry(platformDefaultEnabled))
-	})
-
-	t.Run("job with platform enabled and retries left", func(t *testing.T) {
-		updatedJob := baseJob.WithUpdatedRun(premptedRun1).WithUpdatedRun(premptedRun2)
-		assert.True(t, updatedJob.IsEligibleForPreemptionRetry(platformDefaultEnabled))
-	})
 }

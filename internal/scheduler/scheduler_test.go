@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/armadaproject/armada/internal/scheduler/configuration"
+	"github.com/armadaproject/armada/internal/common/preemption"
 
 	"github.com/gogo/protobuf/types"
 	"github.com/google/uuid"
@@ -124,7 +124,7 @@ var (
 					PodRequirements: &schedulerobjects.PodRequirements{
 						Annotations: map[string]string{
 							apiconfig.PreemptionRetryEnabledAnnotation:  "true",
-							apiconfig.PreemptionRetryCountMaxAnnotation: "1",
+							apiconfig.PreemptionMaxRetryCountAnnotation: "1",
 						},
 					},
 				},
@@ -1962,7 +1962,7 @@ func (t *testSchedulingAlgo) Schedule(_ *armadacontext.Context, _ map[string]int
 		} else {
 			return nil, errors.Errorf("attempting to preempt job %s with no associated runs", job.Id())
 		}
-		if job.IsEligibleForPreemptionRetry(configuration.PreemptionRetryConfig{}) {
+		if job.IsEligibleForPreemptionRetry(preemption.RetryConfig{}) {
 			job = job.WithQueued(true).WithQueuedVersion(job.QueuedVersion() + 1)
 		} else {
 			job = job.WithQueued(false).WithFailed(true)
@@ -2983,7 +2983,7 @@ func TestCycleConsistency(t *testing.T) {
 														NodeSelector:         map[string]string{},
 														Annotations: map[string]string{
 															apiconfig.PreemptionRetryEnabledAnnotation:  "true",
-															apiconfig.PreemptionRetryCountMaxAnnotation: "1",
+															apiconfig.PreemptionMaxRetryCountAnnotation: "1",
 														},
 													},
 												},

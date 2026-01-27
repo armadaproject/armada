@@ -849,7 +849,7 @@ func TestSchedule(t *testing.T) {
 			// Check that preempted jobs are marked as such consistently.
 			for _, job := range preemptedJobs {
 				dbJob := txn.GetById(job.Id())
-				if dbJob.IsEligibleForPreemptionRetry(tc.schedulingConfig.DefaultPreemptionRetry) {
+				if dbJob.IsEligibleForPreemptionRetry(tc.schedulingConfig.PreemptionRetry) {
 					assert.False(t, dbJob.Failed())
 					assert.True(t, dbJob.Queued())
 				} else {

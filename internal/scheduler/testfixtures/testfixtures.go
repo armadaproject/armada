@@ -18,6 +18,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/constants"
 	"github.com/armadaproject/armada/internal/common/pointer"
+	"github.com/armadaproject/armada/internal/common/preemption"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/stringinterner"
@@ -115,6 +116,13 @@ var (
 	SchedulingKeyGenerator = internaltypes.NewSchedulingKeyGeneratorWithKey(make([]byte, 32))
 	// Used for job creation.
 	JobDb = NewJobDb(TestResourceListFactory)
+
+	// Preemption retry test configs
+	defaultRetryCount              = uint(3)
+	PreemptionRetryConfigEnabled   = preemption.RetryConfig{Enabled: true, DefaultRetryCount: &defaultRetryCount}
+	PreemptionRetryConfigDisabled  = preemption.RetryConfig{Enabled: false}
+	zeroRetryCount                 = uint(0)
+	PreemptionRetryConfigZeroCount = preemption.RetryConfig{Enabled: true, DefaultRetryCount: &zeroRetryCount}
 )
 
 func NewJobDbWithJobs(jobs []*jobdb.Job) *jobdb.JobDb {
@@ -478,10 +486,55 @@ func WithPreemptionRetryAnnotationsJobs(jobs []*jobdb.Job, retryCount int) []*jo
 	return WithAnnotationsJobs(
 		map[string]string{
 			constants.PreemptionRetryEnabledAnnotation:  "true",
-			constants.PreemptionRetryCountMaxAnnotation: strconv.Itoa(retryCount),
+			constants.PreemptionMaxRetryCountAnnotation: strconv.Itoa(retryCount),
 		},
 		jobs,
 	)
+}
+
+// WithPreemptionRetryDisabledJobs adds annotations to disable preemption retries on jobs.
+func WithPreemptionRetryDisabledJobs(jobs []*jobdb.Job) []*jobdb.Job {
+	return WithAnnotationsJobs(
+		map[string]string{
+			constants.PreemptionRetryEnabledAnnotation: "false",
+		},
+		jobs,
+	)
+}
+
+// CreatePreemptedRun creates a job run that has been marked as preempted.
+func CreatePreemptedRun(executor string, preemptedTime time.Time) *jobdb.JobRun {
+	return JobDb.CreateRun(
+		uuid.NewString(),         // id
+		0,                        // index
+		util.NewULID(),           // jobId
+		preemptedTime.UnixNano(), // creationTime
+		executor,                 // executor
+		executor+"-node",         // nodeId
+		"node",                   // nodeName
+		TestPool,                 // pool
+		nil,                      // scheduledAtPriority
+		false,                    // leased
+		false,                    // pending
+		false,                    // running
+		false,                    // preemptRequested
+		true,                     // preempted
+		false,                    // succeeded
+		false,                    // failed
+		false,                    // cancelled
+		nil,                      // leaseTime
+		nil,                      // pendingTime
+		nil,                      // runningTime
+		&preemptedTime,           // preemptedTime
+		nil,                      // terminatedTime
+		false,                    // returned
+		false,                    // runAttempted
+	)
+}
+
+// WithPreemptedRun adds a preempted run to a job.
+func WithPreemptedRun(job *jobdb.Job, executor string, preemptedTime time.Time) *jobdb.Job {
+	return job.WithUpdatedRun(CreatePreemptedRun(executor, preemptedTime))
 }
 
 func WithPools(jobs []*jobdb.Job, pools []string) []*jobdb.Job {

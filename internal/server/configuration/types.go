@@ -9,6 +9,7 @@ import (
 	authconfig "github.com/armadaproject/armada/internal/common/auth/configuration"
 	commonconfig "github.com/armadaproject/armada/internal/common/config"
 	grpcconfig "github.com/armadaproject/armada/internal/common/grpc/configuration"
+	"github.com/armadaproject/armada/internal/common/preemption"
 	profilingconfig "github.com/armadaproject/armada/internal/common/profiling/configuration"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/pkg/client"
@@ -97,6 +98,8 @@ type SubmissionConfig struct {
 	AddGangIdLabel bool
 	// Controls whether custom service names are allowed
 	AllowCustomServiceNames bool
+	// PreemptionRetry configures preemption retry behavior and validation.
+	PreemptionRetry preemption.RetryConfig
 }
 
 // TODO: we can probably just typedef this to map[string]string
