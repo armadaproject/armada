@@ -284,9 +284,9 @@ type clusterCordonedStatus struct {
 }
 
 type nodeJobPhaseMetricKey struct {
-	node     string
-	executor string
-	phase    string
+	node    string
+	cluster string
+	phase   string
 }
 
 func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]prometheus.Metric, error) {
@@ -430,9 +430,9 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 					switch jobRunState {
 					case schedulerobjects.JobRunState_RUNNING, schedulerobjects.JobRunState_PENDING: // Only active phases
 						nodeJobsMetricCounts[nodeJobPhaseMetricKey{
-							node:     node.Name,
-							executor: executor.Id,
-							phase:    phase,
+							node:    node.Name,
+							cluster: executor.Id,
+							phase:   phase,
 						}]++
 					}
 
@@ -518,7 +518,7 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 			commonmetrics.NewNodeJobPhaseCountMetric(
 				float64(v),
 				k.node,
-				k.executor,
+				k.cluster,
 				k.phase,
 			),
 		)

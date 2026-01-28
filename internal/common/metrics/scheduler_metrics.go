@@ -169,7 +169,7 @@ var QueueLeasedPodCountDesc = prometheus.NewDesc(
 var NodeJobPhaseCounterDesc = prometheus.NewDesc(
 	MetricPrefix+"node_job_phase_count",
 	"Number of jobs in a given phase on a node",
-	[]string{"node", "executor", "phase"},
+	[]string{"node", "cluster", "phase"},
 	nil,
 )
 
@@ -589,13 +589,13 @@ func isValidMetricLabelName(labelName string) bool {
 	return match
 }
 
-func NewNodeJobPhaseCountMetric(value float64, node, executor, phase string) prometheus.Metric {
+func NewNodeJobPhaseCountMetric(value float64, node, cluster, phase string) prometheus.Metric {
 	return prometheus.MustNewConstMetric(
 		NodeJobPhaseCounterDesc,
 		prometheus.GaugeValue,
 		value,
 		node,
-		executor,
+		cluster,
 		phase,
 	)
 }
