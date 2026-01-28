@@ -54,7 +54,7 @@ jobs:
 
       - name: Unit Tests
         id: unit_test
-        run: go run github.com/magefile/mage@v1.14.0 -v tests
+        run: go run github.com/magefile/mage@v1.15.0 -v tests
 
       - name: Upload Test Reports Artifacts
         if: always()
@@ -97,10 +97,10 @@ jobs:
           cache-tools: true
 
       - name: Setup Integration Tests
-        run: go run github.com/magefile/mage@v1.14.0 -v localdev minimal
+        run: go run github.com/magefile/mage@v1.15.0 -v localdev minimal
 
       - name: Run Integration Tests
-        run: go run github.com/magefile/mage@v1.14.0 -v testsuite
+        run: go run github.com/magefile/mage@v1.15.0 -v testsuite
 
       - name: Upload JUnit Report Artifact
         uses: actions/upload-artifact@v6
@@ -191,8 +191,8 @@ jobs:
       #             since it's possible for this to fail without any go changes being made.
       - name: Validate no changes in generated proto files
         run: |
-          go run github.com/magefile/mage@v1.14.0 -v proto
-          go run github.com/magefile/mage@v1.14.0 -v dotnet
+          go run github.com/magefile/mage@v1.15.0 -v proto
+          go run github.com/magefile/mage@v1.15.0 -v dotnet
 
           changed=$(git status -s -uno | wc -l)
 
@@ -232,7 +232,7 @@ jobs:
 
       - name: Validate no changes in generated SQL files
         run: |
-          go run github.com/magefile/mage@v1.14.0 -v sql
+          go run github.com/magefile/mage@v1.15.0 -v sql
 
           changed=$(git status -s -uno | wc -l)
 

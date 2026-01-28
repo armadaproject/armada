@@ -42,10 +42,10 @@ func TestCleanUpResources_RemovesPodsMarkedForDeletion(t *testing.T) {
 	// Younger than expiry age
 	succeededPod := makePodWithCreationTimeAndCurrentStateReported(v1.PodSucceeded, now.Add(-1*time.Minute))
 	succeededPodWithDeletionTimestamp := makePodWithCreationTimeAndCurrentStateReported(v1.PodSucceeded, now.Add(-1*time.Minute))
-	succeededPodWithDeletionTimestamp.DeletionTimestamp = &metav1.Time{now}
+	succeededPodWithDeletionTimestamp.DeletionTimestamp = &metav1.Time{Time: now}
 	failedPod := makePodWithCreationTimeAndCurrentStateReported(v1.PodFailed, now.Add(-1*time.Minute))
 	failedPodWithDeletionTimestamp := makePodWithCreationTimeAndCurrentStateReported(v1.PodFailed, now.Add(-1*time.Minute))
-	failedPodWithDeletionTimestamp.DeletionTimestamp = &metav1.Time{now}
+	failedPodWithDeletionTimestamp.DeletionTimestamp = &metav1.Time{Time: now}
 	addPods(t, s.clusterContext, succeededPod, succeededPodWithDeletionTimestamp, failedPod, failedPodWithDeletionTimestamp)
 
 	s.CleanupResources()

@@ -3,7 +3,6 @@ package internaltypes
 import (
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
 	v1 "k8s.io/api/core/v1"
@@ -67,13 +66,13 @@ func (p *PodRequirements) GetAffinityNodeSelector() *v1.NodeSelector {
 }
 
 func (p *PodRequirements) DeepCopy() *PodRequirements {
-	clonedResourceRequirements := proto.Clone(&p.ResourceRequirements).(*v1.ResourceRequirements)
+	clonedResourceRequirements := p.ResourceRequirements.DeepCopy()
 	return &PodRequirements{
 		NodeSelector: maps.Clone(p.NodeSelector),
-		Affinity:     proto.Clone(p.Affinity).(*v1.Affinity),
+		Affinity:     p.Affinity.DeepCopy(),
 		Annotations:  maps.Clone(p.Annotations),
 		Tolerations: armadaslices.Map(p.Tolerations, func(t v1.Toleration) v1.Toleration {
-			cloned := proto.Clone(&t).(*v1.Toleration)
+			cloned := t.DeepCopy()
 			return *cloned
 		}),
 		ResourceRequirements: *clonedResourceRequirements,
@@ -96,9 +95,9 @@ func FromSchedulerObjectsJobSchedulingInfo(j *schedulerobjects.JobSchedulingInfo
 		Priority:      j.Priority,
 		PodRequirements: &PodRequirements{
 			NodeSelector: maps.Clone(podRequirements.NodeSelector),
-			Affinity:     proto.Clone(podRequirements.Affinity).(*v1.Affinity),
+			Affinity:     podRequirements.Affinity.DeepCopy(),
 			Tolerations: armadaslices.Map(podRequirements.Tolerations, func(t *v1.Toleration) v1.Toleration {
-				cloned := proto.Clone(t).(*v1.Toleration)
+				cloned := t.DeepCopy()
 				return *cloned
 			}),
 			Annotations:          maps.Clone(podRequirements.Annotations),
@@ -122,7 +121,7 @@ func ToSchedulerObjectsJobSchedulingInfo(j *JobSchedulingInfo) *schedulerobjects
 						NodeSelector: maps.Clone(podRequirements.NodeSelector),
 						Affinity:     podRequirements.Affinity.DeepCopy(),
 						Tolerations: armadaslices.Map(podRequirements.Tolerations, func(t v1.Toleration) *v1.Toleration {
-							return proto.Clone(&t).(*v1.Toleration)
+							return t.DeepCopy()
 						}),
 						Annotations:          maps.Clone(podRequirements.Annotations),
 						ResourceRequirements: podRequirements.ResourceRequirements.DeepCopy(),
