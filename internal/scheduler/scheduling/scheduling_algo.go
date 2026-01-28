@@ -174,9 +174,10 @@ func (l *FairSchedulingAlgo) Schedule(
 		// If we use a different copy of nodes (possibly more to date copy) it may no longer align with the jobs/runs
 		fsctx, err := l.newFairSchedulingAlgoContext(ctx, txn, executors, pool)
 		if err != nil {
+			ctx.Errorf("failed to create scheduling context for pool %s: %v", pool.Name, err)
 			overallSchedulerResult.PoolSchedulingOutcomes = append(overallSchedulerResult.PoolSchedulingOutcomes,
 				PoolSchedulingOutcome{Pool: pool.Name, Success: false, TerminationReason: PoolSchedulingTerminationReasonError})
-			return overallSchedulerResult, err
+			continue
 		}
 
 		if fsctx.nodeDb.NumNodes() <= 0 {
@@ -208,9 +209,10 @@ func (l *FairSchedulingAlgo) Schedule(
 			ctx.Info("stopped scheduling early as we have hit the maximum scheduling duration")
 			break
 		} else if err != nil {
+			ctx.Errorf("failed to schedule pool %s: %v", pool.Name, err)
 			overallSchedulerResult.PoolSchedulingOutcomes = append(overallSchedulerResult.PoolSchedulingOutcomes,
 				PoolSchedulingOutcome{Pool: pool.Name, Success: false, TerminationReason: PoolSchedulingTerminationReasonError})
-			return overallSchedulerResult, err
+			continue
 		}
 		if l.schedulingContextRepository != nil {
 			l.schedulingContextRepository.StoreSchedulingContext(sctx)
