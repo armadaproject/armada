@@ -474,8 +474,11 @@ func TestMetricsCollector_TestCollect_ClusterMetrics(t *testing.T) {
 
 func TestMetricsCollector_TestCollect_ClusterMetricsAvailableCapacity(t *testing.T) {
 	node := createNode("type-1", "reservation-1")
+	cordonedNode := createNode("type-1", "reservation-1")
+	cordonedNode.Unschedulable = true
 	job := testfixtures.TestRunningJobDbJob(0)
 	node.StateByJobRunId[job.LatestRun().Id()] = schedulerobjects.JobRunState_RUNNING
+	cordonedNode.StateByJobRunId[job.LatestRun().Id()] = schedulerobjects.JobRunState_RUNNING
 
 	tests := map[string]struct {
 		poolConfig       []configuration.PoolConfig
@@ -513,6 +516,26 @@ func TestMetricsCollector_TestCollect_ClusterMetricsAvailableCapacity(t *testing
 				commonmetrics.NewClusterAvailableCapacity(32, "cluster-1", testfixtures.TestPool, "cpu", "type-1", "reservation-1"),
 				commonmetrics.NewClusterTotalCapacity(32, "cluster-1", testfixtures.TestPool, "cpu", "type-1", "reservation-1"),
 				commonmetrics.NewClusterAvailableCapacity(31, "cluster-1", testfixtures.TestPool2, "cpu", "type-1", "reservation-1"),
+				commonmetrics.NewClusterTotalCapacity(31, "cluster-1", testfixtures.TestPool2, "cpu", "type-1", "reservation-1"),
+			},
+		},
+		"Away pools - cordoned node": {
+			poolConfig: []configuration.PoolConfig{
+				{
+					Name: testfixtures.TestPool,
+				},
+				{
+					Name:      testfixtures.TestPool2,
+					AwayPools: []string{testfixtures.TestPool},
+				},
+			},
+			runningJobs:      []*jobdb.Job{job},
+			nodes:            []*schedulerobjects.Node{cordonedNode},
+			executorSettings: []*schedulerobjects.ExecutorSettings{},
+			expected: []prometheus.Metric{
+				commonmetrics.NewClusterAvailableCapacity(0, "cluster-1", testfixtures.TestPool, "cpu", "type-1", "reservation-1"),
+				commonmetrics.NewClusterTotalCapacity(32, "cluster-1", testfixtures.TestPool, "cpu", "type-1", "reservation-1"),
+				commonmetrics.NewClusterAvailableCapacity(0, "cluster-1", testfixtures.TestPool2, "cpu", "type-1", "reservation-1"),
 				commonmetrics.NewClusterTotalCapacity(31, "cluster-1", testfixtures.TestPool2, "cpu", "type-1", "reservation-1"),
 			},
 		},

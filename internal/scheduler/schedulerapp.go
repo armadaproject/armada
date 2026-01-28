@@ -339,6 +339,7 @@ func Run(config schedulerconfig.Configuration) error {
 		return submitChecker.Run(ctx)
 	})
 
+	runReconciler := scheduling.NewRunNodeReconciler(config.Scheduling.Pools)
 	shortJobPenalty := scheduling.NewShortJobPenalty(config.Scheduling.GetShortJobPenaltyCutoffs())
 	stringInterner := stringinterner.New(config.InternedStringsCacheSize)
 	schedulingAlgo, err := scheduling.NewFairSchedulingAlgo(
@@ -351,6 +352,7 @@ func Run(config schedulerconfig.Configuration) error {
 		floatingResourceTypes,
 		priorityOverrideProvider,
 		shortJobPenalty,
+		runReconciler,
 	)
 	if err != nil {
 		return errors.WithMessage(err, "error creating scheduling algo")
@@ -362,12 +364,14 @@ func Run(config schedulerconfig.Configuration) error {
 		resourceListFactory,
 	)
 
+	poolNames := slices.Map(config.Scheduling.Pools, func(p schedulerconfig.PoolConfig) string { return p.Name })
 	schedulerMetrics, err := metrics.New(
 		config.Metrics.TrackedErrorRegexes,
 		config.Metrics.TrackedResourceNames,
 		config.Metrics.JobCheckpointIntervals,
 		config.Metrics.JobStateMetricsResetInterval,
 		metricPublisher,
+		poolNames,
 	)
 	if err != nil {
 		return err
@@ -375,8 +379,6 @@ func Run(config schedulerconfig.Configuration) error {
 	if err := prometheus.Register(schedulerMetrics); err != nil {
 		return errors.WithStack(err)
 	}
-
-	runReconciler := NewRunNodeReconciler(config.Scheduling.Pools, executorRepository)
 
 	scheduler, err := NewScheduler(
 		jobDb,
@@ -386,7 +388,7 @@ func Run(config schedulerconfig.Configuration) error {
 		leaderController,
 		jobsetEventPublisher,
 		submitChecker,
-		NewGangValidator(),
+		NewGangValidator(config.Scheduling.DefaultPriorityClassName),
 		config.CyclePeriod,
 		config.SchedulePeriod,
 		config.ExecutorTimeout,
@@ -396,7 +398,6 @@ func Run(config schedulerconfig.Configuration) error {
 		schedulerMetrics,
 		bidPriceProvider,
 		marketDrivenPools,
-		runReconciler,
 	)
 	if err != nil {
 		return errors.WithMessage(err, "error creating scheduler")

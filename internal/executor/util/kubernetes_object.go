@@ -2,6 +2,7 @@ package util
 
 import (
 	"fmt"
+	"maps"
 	"strconv"
 
 	v1 "k8s.io/api/core/v1"
@@ -13,7 +14,6 @@ import (
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/executor/configuration"
 	"github.com/armadaproject/armada/internal/executor/domain"
-	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/executorapi"
 )
@@ -30,6 +30,11 @@ func CreateOwnerReference(pod *v1.Pod) metav1.OwnerReference {
 func ExtractIngresses(job *executorapi.JobRunLease, pod *v1.Pod, executorIngressConfig *configuration.IngressConfiguration) []*networking.Ingress {
 	result := make([]*networking.Ingress, 0, 10)
 
+	annotations := make(map[string]string)
+	if executorIngressConfig != nil && len(executorIngressConfig.Annotations) > 0 {
+		annotations = maps.Clone(executorIngressConfig.Annotations)
+	}
+
 	for _, additionalObject := range job.Job.Objects {
 		switch typed := additionalObject.Object.(type) {
 		case *armadaevents.KubernetesObject_Ingress:
@@ -39,8 +44,7 @@ func ExtractIngresses(job *executorapi.JobRunLease, pod *v1.Pod, executorIngress
 				domain.Queue:     pod.Labels[domain.Queue],
 				domain.PodNumber: pod.Labels[domain.PodNumber],
 			})
-			annotations := executorIngressConfig.Annotations
-			annotations = util.MergeMaps(annotations, additionalObject.ObjectMeta.Annotations)
+			annotations := util.MergeMaps(annotations, additionalObject.ObjectMeta.Annotations)
 			annotations = util.MergeMaps(annotations, map[string]string{
 				domain.JobSetId: job.Jobset,
 				domain.Owner:    job.User,
@@ -155,37 +159,6 @@ func getPodSpec(job *executorapi.JobRunLease) (*v1.PodSpec, error) {
 		return typed.PodSpec.PodSpec, nil
 	}
 	return nil, fmt.Errorf("no podspec found in the main object - jobs must specify a podspec")
-}
-
-func CreatePod(job *api.Job, defaults *configuration.PodDefaults) *v1.Pod {
-	podSpec := job.GetMainPodSpec()
-	applyDefaults(podSpec, defaults)
-	labels := util.MergeMaps(job.Labels, map[string]string{
-		domain.JobId:     job.Id,
-		domain.Queue:     job.Queue,
-		domain.PodNumber: "0",
-		domain.PodCount:  "1",
-	})
-	annotation := util.MergeMaps(job.Annotations, map[string]string{
-		domain.JobSetId: job.JobSetId,
-		domain.Owner:    job.Owner,
-	})
-
-	setRestartPolicyNever(podSpec)
-
-	injectArmadaEnvVars(podSpec, job.Id, job.Queue, job.JobSetId, annotation)
-
-	pod := &v1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:        common.PodNamePrefix + job.Id + "-0",
-			Labels:      labels,
-			Annotations: annotation,
-			Namespace:   job.Namespace,
-		},
-		Spec: *podSpec,
-	}
-
-	return pod
 }
 
 func applyDefaults(spec *v1.PodSpec, defaults *configuration.PodDefaults) {

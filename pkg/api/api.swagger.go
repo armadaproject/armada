@@ -1321,6 +1321,9 @@ func SwaggerJsonTemplate() string {
 		"        \"jobSetId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
+		"        \"pool\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
 		"        \"queue\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        }\n" +
@@ -1549,6 +1552,12 @@ func SwaggerJsonTemplate() string {
 		"        \"finishedTs\": {\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"format\": \"date-time\"\n" +
+		"        },\n" +
+		"        \"ingressAddresses\": {\n" +
+		"          \"type\": \"object\",\n" +
+		"          \"additionalProperties\": {\n" +
+		"            \"type\": \"string\"\n" +
+		"          }\n" +
 		"        },\n" +
 		"        \"jobId\": {\n" +
 		"          \"type\": \"string\"\n" +

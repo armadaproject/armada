@@ -271,11 +271,6 @@ func IsMarkedForDeletion(pod *v1.Pod) bool {
 	return exists
 }
 
-func IsReportedDone(pod *v1.Pod) bool {
-	_, exists := pod.Annotations[domain.JobDoneAnnotation]
-	return exists
-}
-
 func IsReportedPreempted(pod *v1.Pod) bool {
 	_, exists := pod.Annotations[domain.JobPreemptedAnnotation]
 	return exists
@@ -294,7 +289,6 @@ func GetDeletionGracePeriodOrDefault(pod *v1.Pod) time.Duration {
 
 func IsPodFinishedAndReported(pod *v1.Pod) bool {
 	if !IsInTerminalState(pod) ||
-		!IsReportedDone(pod) ||
 		!HasCurrentStateBeenReported(pod) {
 		return false
 	}

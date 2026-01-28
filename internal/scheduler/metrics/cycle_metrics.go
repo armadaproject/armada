@@ -30,6 +30,7 @@ var (
 	poolAndShapeLabels                     = []string{poolLabel, jobShapeLabel}
 	poolAndShapeAndReasonLabels            = []string{poolLabel, jobShapeLabel, unschedulableReasonLabel}
 	poolQueueAndResourceLabels             = []string{poolLabel, queueLabel, resourceLabel}
+	poolAndOutcomeLabels                   = []string{poolLabel, outcomeLabel, terminationReasonLabel}
 	defaultType                            = "unknown"
 )
 
@@ -65,6 +66,7 @@ type perCycleMetrics struct {
 	idealisedScheduledValue      *prometheus.GaugeVec
 	idealisedAllocatedResource   *prometheus.GaugeVec
 	realisedScheduledValue       *prometheus.GaugeVec
+	nodePoolSize                 *prometheus.GaugeVec
 }
 
 func newPerCycleMetrics() *perCycleMetrics {
@@ -316,6 +318,14 @@ func newPerCycleMetrics() *perCycleMetrics {
 		poolAndQueueLabels,
 	)
 
+	nodePoolSize := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: prefix + "node_pool_size",
+			Help: "Number of nodes in each pool",
+		},
+		poolLabels,
+	)
+
 	return &perCycleMetrics{
 		consideredJobs:               consideredJobs,
 		fairShare:                    fairShare,
@@ -348,6 +358,7 @@ func newPerCycleMetrics() *perCycleMetrics {
 		idealisedScheduledValue:      idealisedScheduledValue,
 		idealisedAllocatedResource:   idealisedAllocatedResource,
 		realisedScheduledValue:       realisedScheduledValue,
+		nodePoolSize:                 nodePoolSize,
 	}
 }
 
@@ -356,13 +367,15 @@ type cycleMetrics struct {
 
 	scheduledJobs           *prometheus.CounterVec
 	premptedJobs            *prometheus.CounterVec
+	poolSchedulingOutcome   *prometheus.CounterVec
 	scheduleCycleTime       prometheus.Histogram
 	reconciliationCycleTime prometheus.Histogram
 	latestCycleMetrics      atomic.Pointer[perCycleMetrics]
 	metricsPublisher        pulsarutils.Publisher[*metricevents.Event]
+	poolNames               []string
 }
 
-func newCycleMetrics(publisher pulsarutils.Publisher[*metricevents.Event]) *cycleMetrics {
+func newCycleMetrics(publisher pulsarutils.Publisher[*metricevents.Event], poolNames []string) *cycleMetrics {
 	scheduledJobs := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: prefix + "scheduled_jobs",
@@ -395,14 +408,24 @@ func newCycleMetrics(publisher pulsarutils.Publisher[*metricevents.Event]) *cycl
 		},
 	)
 
+	poolSchedulingOutcome := prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: prefix + "pool_scheduling_outcome",
+			Help: "Number of scheduling attempts per pool by outcome",
+		},
+		poolAndOutcomeLabels,
+	)
+
 	cycleMetrics := &cycleMetrics{
 		leaderMetricsEnabled:    true,
 		scheduledJobs:           scheduledJobs,
 		premptedJobs:            premptedJobs,
+		poolSchedulingOutcome:   poolSchedulingOutcome,
 		scheduleCycleTime:       scheduleCycleTime,
 		reconciliationCycleTime: reconciliationCycleTime,
 		latestCycleMetrics:      atomic.Pointer[perCycleMetrics]{},
 		metricsPublisher:        publisher,
+		poolNames:               poolNames,
 	}
 	cycleMetrics.latestCycleMetrics.Store(newPerCycleMetrics())
 	return cycleMetrics
@@ -420,6 +443,7 @@ func (m *cycleMetrics) disableLeaderMetrics() {
 func (m *cycleMetrics) resetLeaderMetrics() {
 	m.premptedJobs.Reset()
 	m.scheduledJobs.Reset()
+	m.poolSchedulingOutcome.Reset()
 	m.latestCycleMetrics.Store(newPerCycleMetrics())
 }
 
@@ -438,9 +462,28 @@ func (m *cycleMetrics) ReportJobPreemptedWithType(job *jobdb.Job, preemptionType
 	m.premptedJobs.WithLabelValues(job.LatestRun().Pool(), job.Queue(), job.PriorityClassName(), string(preemptionType)).Inc()
 }
 
+// ReportPoolSchedulingOutcomes reports outcomes for all pools from the scheduler result
+func (m *cycleMetrics) ReportPoolSchedulingOutcomes(outcomes []scheduling.PoolSchedulingOutcome) {
+	for _, o := range outcomes {
+		terminationReason := string(o.TerminationReason)
+		outcome := PoolSchedulingOutcomeSuccess
+		if !o.Success {
+			outcome = PoolSchedulingOutcomeFailure
+		}
+		m.poolSchedulingOutcome.WithLabelValues(o.Pool, outcome, terminationReason).Inc()
+	}
+}
+
 func (m *cycleMetrics) ReportSchedulerResult(ctx *armadacontext.Context, result scheduling.SchedulerResult) {
 	// Metrics that depend on pool
 	currentCycle := newPerCycleMetrics()
+
+	// Initialize nodePoolSize to 0 for all configured pools
+	// This ensures pools with no nodes still appear in the metric
+	for _, poolName := range m.poolNames {
+		currentCycle.nodePoolSize.WithLabelValues(poolName).Set(0)
+	}
+
 	for _, schedContext := range result.SchedulingContexts {
 		pool := schedContext.Pool
 		for queue, queueContext := range schedContext.QueueSchedulingContexts {
@@ -525,6 +568,7 @@ func (m *cycleMetrics) ReportSchedulerResult(ctx *armadacontext.Context, result 
 		if err != nil {
 			log.Errorf("unable to generate node stats as failed to get nodes from nodeDb %s", err)
 		} else {
+			currentCycle.nodePoolSize.WithLabelValues(pool).Set(float64(len(nodes)))
 			for _, node := range nodes {
 				isSchedulable := strconv.FormatBool(!node.IsUnschedulable())
 				isOverallocated := strconv.FormatBool(node.IsOverAllocated())
@@ -556,6 +600,15 @@ func (m *cycleMetrics) ReportSchedulerResult(ctx *armadacontext.Context, result 
 			}
 		}
 	}
+
+	if result.FailedReconciliationJobs != nil {
+		for _, info := range result.FailedReconciliationJobs.FailedJobs {
+			m.ReportJobPreemptedWithType(info.Job, context.PreemptedViaNodeReconciler)
+		}
+		for _, info := range result.FailedReconciliationJobs.PreemptedJobs {
+			m.ReportJobPreemptedWithType(info.Job, context.PreemptedViaNodeReconciler)
+		}
+	}
 	m.latestCycleMetrics.Store(currentCycle)
 
 	m.publishCycleMetrics(ctx, result)
@@ -565,6 +618,7 @@ func (m *cycleMetrics) describe(ch chan<- *prometheus.Desc) {
 	if m.leaderMetricsEnabled {
 		m.scheduledJobs.Describe(ch)
 		m.premptedJobs.Describe(ch)
+		m.poolSchedulingOutcome.Describe(ch)
 		m.scheduleCycleTime.Describe(ch)
 
 		currentCycle := m.latestCycleMetrics.Load()
@@ -599,6 +653,7 @@ func (m *cycleMetrics) describe(ch chan<- *prometheus.Desc) {
 		currentCycle.idealisedScheduledValue.Describe(ch)
 		currentCycle.idealisedAllocatedResource.Describe(ch)
 		currentCycle.realisedScheduledValue.Describe(ch)
+		currentCycle.nodePoolSize.Describe(ch)
 	}
 
 	m.reconciliationCycleTime.Describe(ch)
@@ -608,6 +663,7 @@ func (m *cycleMetrics) collect(ch chan<- prometheus.Metric) {
 	if m.leaderMetricsEnabled {
 		m.scheduledJobs.Collect(ch)
 		m.premptedJobs.Collect(ch)
+		m.poolSchedulingOutcome.Collect(ch)
 		m.scheduleCycleTime.Collect(ch)
 
 		currentCycle := m.latestCycleMetrics.Load()
@@ -642,6 +698,7 @@ func (m *cycleMetrics) collect(ch chan<- prometheus.Metric) {
 		currentCycle.idealisedScheduledValue.Collect(ch)
 		currentCycle.idealisedAllocatedResource.Collect(ch)
 		currentCycle.realisedScheduledValue.Collect(ch)
+		currentCycle.nodePoolSize.Collect(ch)
 	}
 
 	m.reconciliationCycleTime.Collect(ch)

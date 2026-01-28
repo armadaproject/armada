@@ -67,7 +67,7 @@ func TestReportStateTransitions(t *testing.T) {
 		},
 	}
 
-	m := newCycleMetrics(pulsarutils.NoOpPublisher[*metricevents.Event]{})
+	m := newCycleMetrics(pulsarutils.NoOpPublisher[*metricevents.Event]{}, []string{"pool1"})
 	m.ReportSchedulerResult(ctx, result)
 
 	poolQueue := []string{"pool1", "queue1"}
@@ -98,7 +98,7 @@ func TestReportStateTransitions(t *testing.T) {
 }
 
 func TestResetLeaderMetrics_Counters(t *testing.T) {
-	m := newCycleMetrics(pulsarutils.NoOpPublisher[*metricevents.Event]{})
+	m := newCycleMetrics(pulsarutils.NoOpPublisher[*metricevents.Event]{}, []string{"pool1"})
 	poolAndQueueAndPriorityClassTypeLabels := []string{"pool1", "queue1", "priorityClass1", "type1"}
 
 	testResetCounter := func(vec *prometheus.CounterVec, labelValues []string) {
@@ -115,7 +115,7 @@ func TestResetLeaderMetrics_Counters(t *testing.T) {
 }
 
 func TestResetLeaderMetrics_ResetsLatestCycleMetrics(t *testing.T) {
-	m := newCycleMetrics(pulsarutils.NoOpPublisher[*metricevents.Event]{})
+	m := newCycleMetrics(pulsarutils.NoOpPublisher[*metricevents.Event]{}, []string{"pool1"})
 	poolLabelValues := []string{"pool1"}
 	poolQueueLabelValues := []string{"pool1", "queue1"}
 	poolQueueResourceLabelValues := []string{"pool1", "queue1", "cpu"}
@@ -158,10 +158,11 @@ func TestResetLeaderMetrics_ResetsLatestCycleMetrics(t *testing.T) {
 	testResetGauge(func(metrics *cycleMetrics) *prometheus.GaugeVec {
 		return m.latestCycleMetrics.Load().nodeAllocatedResource
 	}, nodeResourceLabelValues)
+	testResetGauge(func(metrics *cycleMetrics) *prometheus.GaugeVec { return m.latestCycleMetrics.Load().nodePoolSize }, poolLabelValues)
 }
 
 func TestDisableLeaderMetrics(t *testing.T) {
-	m := newCycleMetrics(pulsarutils.NoOpPublisher[*metricevents.Event]{})
+	m := newCycleMetrics(pulsarutils.NoOpPublisher[*metricevents.Event]{}, []string{"pool1"})
 	poolQueueLabelValues := []string{"pool1", "queue1"}
 	poolAndQueueAndPriorityClassTypeLabels := []string{"pool1", "queue1", "priorityClass1", "type1"}
 
@@ -189,6 +190,7 @@ func TestDisableLeaderMetrics(t *testing.T) {
 		m.latestCycleMetrics.Load().evictedResources.WithLabelValues("pool1", "queue1", "cpu").Inc()
 		m.latestCycleMetrics.Load().nodeAllocatableResource.WithLabelValues("pool1", "node1", "cluster1", "type1", "cpu", "", "true", "false").Inc()
 		m.latestCycleMetrics.Load().nodeAllocatedResource.WithLabelValues("pool1", "node1", "cluster1", "type1", "cpu", "", "true", "false").Inc()
+		m.latestCycleMetrics.Load().nodePoolSize.WithLabelValues("pool1").Inc()
 
 		ch := make(chan prometheus.Metric, 1000)
 		m.collect(ch)
@@ -217,7 +219,7 @@ func TestPublishCycleMetrics(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	mockPublisher := mocks.NewMockPublisher[*metricevents.Event](ctrl)
-	m := newCycleMetrics(mockPublisher)
+	m := newCycleMetrics(mockPublisher, []string{"pool1"})
 
 	fairnessCostProvider, err := fairness.NewDominantResourceFairness(
 		cpu(100),
@@ -309,6 +311,47 @@ func TestPublishCycleMetrics(t *testing.T) {
 		return nil
 	})
 	m.publishCycleMetrics(ctx, schedulerResult)
+}
+
+func TestReportPoolSchedulingOutcomes(t *testing.T) {
+	m := newCycleMetrics(pulsarutils.NoOpPublisher[*metricevents.Event]{}, []string{"pool1"})
+
+	outcomes := []scheduling.PoolSchedulingOutcome{
+		{
+			Pool:              "pool-1",
+			Success:           false,
+			TerminationReason: scheduling.PoolSchedulingTerminationReasonError,
+		},
+		{
+			Pool:              "pool-2",
+			Success:           true,
+			TerminationReason: scheduling.PoolSchedulingTerminationReasonCompleted,
+		},
+		{
+			Pool:              "pool-3",
+			Success:           true,
+			TerminationReason: scheduling.PoolSchedulingTerminationReasonTimeout,
+		},
+		{
+			Pool:              "pool-4",
+			Success:           true,
+			TerminationReason: scheduling.PoolSchedulingTerminationReasonRateLimit,
+		},
+	}
+
+	m.ReportPoolSchedulingOutcomes(outcomes)
+
+	failureCount := testutil.ToFloat64(m.poolSchedulingOutcome.WithLabelValues("pool-1", PoolSchedulingOutcomeFailure, string(scheduling.PoolSchedulingTerminationReasonError)))
+	assert.Equal(t, 1.0, failureCount, "failure outcome metric does not match")
+
+	completedCount := testutil.ToFloat64(m.poolSchedulingOutcome.WithLabelValues("pool-2", PoolSchedulingOutcomeSuccess, string(scheduling.PoolSchedulingTerminationReasonCompleted)))
+	assert.Equal(t, 1.0, completedCount, "completed outcome metric does not match")
+
+	timeoutCount := testutil.ToFloat64(m.poolSchedulingOutcome.WithLabelValues("pool-3", PoolSchedulingOutcomeSuccess, string(scheduling.PoolSchedulingTerminationReasonTimeout)))
+	assert.Equal(t, 1.0, timeoutCount, "timeout outcome metric does not match")
+
+	rateLimitCount := testutil.ToFloat64(m.poolSchedulingOutcome.WithLabelValues("pool-4", PoolSchedulingOutcomeSuccess, string(scheduling.PoolSchedulingTerminationReasonRateLimit)))
+	assert.Equal(t, 1.0, rateLimitCount, "rate limit outcome metric does not match")
 }
 
 func mustParseResourcePtr(qtyStr string) *resource.Quantity {

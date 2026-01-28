@@ -304,6 +304,12 @@ poolStart:
 				ex.nodeDb.EnableAwayScheduling()
 			}
 
+			if pool.DisableGangAwayScheduling {
+				ex.nodeDb.DisableGangAwayScheduling()
+			} else {
+				ex.nodeDb.EnableGangAwayScheduling()
+			}
+
 			txn := ex.nodeDb.Txn(true)
 			ok, err := ex.nodeDb.ScheduleManyWithTxn(txn, gctx)
 			txn.Abort()

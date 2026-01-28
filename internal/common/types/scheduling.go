@@ -15,9 +15,16 @@ type AwayNodeType struct {
 	WellKnownNodeTypeName string `validate:"required"`
 }
 
+// PriorityClass represents an Armada-specific priority class used for scheduling and preemption.
+// This is separate from Kubernetes PriorityClass resources - Armada manages preemption
+// in its own scheduler before pods are ever submitted to Kubernetes.
 type PriorityClass struct {
+	// Priority controls scheduling order. Higher values get scheduled first and can
+	// preempt running jobs with lower priority values (urgency-based preemption).
 	Priority int32 `validate:"gte=0"`
-	// If true, Armada may preempt jobs of this class to improve fairness.
+	// Preemptible determines if jobs can be evicted to rebalance resources across queues.
+	// When false, jobs are protected from fair-share preemption but can still be preempted
+	// by higher-priority jobs.
 	Preemptible bool
 	// Limits resources assigned to jobs of this priority class.
 	// Specifically, jobs of this priority class are only scheduled if doing so does not exceed this limit.

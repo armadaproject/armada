@@ -32,6 +32,9 @@ type Run struct {
 	// Format: date-time
 	Finished *strfmt.DateTime `json:"finished,omitempty"`
 
+	// ingress addresses
+	IngressAddresses map[string]string `json:"ingressAddresses,omitempty"`
+
 	// job run state
 	// Required: true
 	// Enum: ["RUN_PENDING","RUN_RUNNING","RUN_SUCCEEDED","RUN_FAILED","RUN_TERMINATED","RUN_PREEMPTED","RUN_UNABLE_TO_SCHEDULE","RUN_LEASE_RETURNED","RUN_LEASE_EXPIRED","RUN_MAX_RUNS_EXCEEDED","RUN_LEASED","RUN_CANCELLED"]
@@ -49,6 +52,9 @@ type Run struct {
 	// Min Length: 1
 	// Format: date-time
 	Pending *strfmt.DateTime `json:"pending,omitempty"`
+
+	// pool
+	Pool *string `json:"pool,omitempty"`
 
 	// run Id
 	// Required: true

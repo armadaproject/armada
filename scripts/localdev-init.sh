@@ -25,7 +25,7 @@
 # - POSTGRES_CONTAINER: Name of the PostgreSQL Docker container (default: postgres)
 # - GO_BIN: Path to Go binary (default: go)
 
-set -eu  # Exit on error and undefined variable
+set -eu # Exit on error and undefined variable
 
 # Configuration
 POSTGRES_CONTAINER="${POSTGRES_CONTAINER:-postgres}"
@@ -43,7 +43,7 @@ print_info() { echo -e "${YELLOW}→${NC} $1"; }
 
 print_info "Waiting for PostgreSQL container '${POSTGRES_CONTAINER}' to be ready..."
 for i in {1..30}; do
-  if docker exec "${POSTGRES_CONTAINER}" pg_isready -U postgres > /dev/null 2>&1; then
+  if docker exec "${POSTGRES_CONTAINER}" pg_isready -U postgres >/dev/null 2>&1; then
     print_success "PostgreSQL is ready!"
     break
   fi

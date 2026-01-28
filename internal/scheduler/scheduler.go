@@ -89,7 +89,6 @@ type Scheduler struct {
 	// A list of the pools that are market driven
 	// Used to know which jobs need update when updating job prices
 	marketDrivenPools []string
-	runNodeReconciler JobRunNodeReconciler
 }
 
 func NewScheduler(
@@ -110,7 +109,6 @@ func NewScheduler(
 	metrics *metrics.Metrics,
 	bidPriceProvider pricing.BidPriceProvider,
 	marketDrivenPools []string,
-	runNodeReconciler JobRunNodeReconciler,
 ) (*Scheduler, error) {
 	return &Scheduler{
 		jobRepository:      jobRepository,
@@ -133,7 +131,6 @@ func NewScheduler(
 		runsSerial:         -1,
 		metrics:            metrics,
 		marketDrivenPools:  marketDrivenPools,
-		runNodeReconciler:  runNodeReconciler,
 	}, nil
 }
 
@@ -210,6 +207,9 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 				if shouldSchedule {
 					previousSchedulingRoundEnd = s.clock.Now()
 				}
+
+				s.metrics.ReportPoolSchedulingOutcomes(result.PoolSchedulingOutcomes)
+
 				if err != nil {
 					ctx.Logger().WithStacktrace(err).Error("scheduling cycle failure")
 					leaderToken = leader.InvalidLeaderToken()
@@ -347,14 +347,6 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	// Schedule jobs.
 	if shouldSchedule {
 		start := time.Now()
-
-		preemptionEvents, err := s.removeRunsThatNoLongerReconcile(ctx, txn)
-		if err != nil {
-			return overallSchedulerResult, err
-		}
-		ctx.Infof("Finished reconciling runs with nodes, generating %d preemption events", len(preemptionEvents))
-		events = append(events, preemptionEvents...)
-
 		resourceUnits, err := s.updateJobPrices(ctx, txn)
 		if err != nil {
 			return overallSchedulerResult, err
@@ -364,6 +356,8 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 		var result *scheduling.SchedulerResult
 		result, err = s.schedulingAlgo.Schedule(ctx, resourceUnits, txn)
 		if err != nil {
+			// Copy outcomes to the returned result so metrics are reported for pools that succeeded before the failure
+			overallSchedulerResult.PoolSchedulingOutcomes = result.PoolSchedulingOutcomes
 			return overallSchedulerResult, err
 		}
 
@@ -627,6 +621,12 @@ func EventsFromSchedulerResult(result *scheduling.SchedulerResult, time time.Tim
 	if err != nil {
 		return nil, err
 	}
+
+	eventSequences, err = AppendEventSequencesFromReconciliationFailureJobs(eventSequences, result.FailedReconciliationJobs, time)
+	if err != nil {
+		return nil, err
+	}
+
 	return eventSequences, nil
 }
 
@@ -719,6 +719,47 @@ func createEventsForPreemptedJob(jobId string, runId string, reason string, time
 			},
 		},
 	}
+}
+
+func AppendEventSequencesFromReconciliationFailureJobs(eventSequences []*armadaevents.EventSequence, reconciliationResult *scheduling.ReconciliationResult, time time.Time) ([]*armadaevents.EventSequence, error) {
+	if reconciliationResult == nil {
+		return eventSequences, nil
+	}
+	for _, jobInfo := range reconciliationResult.FailedJobs {
+		run := jobInfo.Job.LatestRun()
+		if run == nil {
+			return nil, errors.Errorf("attempting to generate reconciliation failed eventSequences for job %s with no associated runs", jobInfo.Job.Id())
+		}
+		reconciliationError := &armadaevents.Error{
+			Terminal: true,
+			Reason: &armadaevents.Error_ReconciliationError{
+				ReconciliationError: &armadaevents.ReconciliationError{
+					Message: jobInfo.Reason,
+				},
+			},
+		}
+		es := &armadaevents.EventSequence{
+			Queue:      jobInfo.Job.Queue(),
+			JobSetName: jobInfo.Job.Jobset(),
+			Events:     createEventsForFailedJob(jobInfo.Job.Id(), run.Id(), reconciliationError, time),
+		}
+		eventSequences = append(eventSequences, es)
+	}
+
+	for _, jobInfo := range reconciliationResult.PreemptedJobs {
+		run := jobInfo.Job.LatestRun()
+		if run == nil {
+			return nil, errors.Errorf("attempting to generate reconciliation preemption eventSequences for job %s with no associated runs", jobInfo.Job.Id())
+		}
+		es := &armadaevents.EventSequence{
+			Queue:      jobInfo.Job.Queue(),
+			JobSetName: jobInfo.Job.Jobset(),
+			Events:     createEventsForPreemptedJob(jobInfo.Job.Id(), run.Id(), jobInfo.Reason, time),
+		}
+		eventSequences = append(eventSequences, es)
+	}
+
+	return eventSequences, nil
 }
 
 func AppendEventSequencesFromScheduledJobs(eventSequences []*armadaevents.EventSequence, jctxs []*schedulercontext.JobSchedulingContext) ([]*armadaevents.EventSequence, error) {
@@ -991,63 +1032,6 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 	}
 
 	return nil, nil
-}
-
-func (s *Scheduler) removeRunsThatNoLongerReconcile(ctx *armadacontext.Context, txn *jobdb.Txn) ([]*armadaevents.EventSequence, error) {
-	invalidJobs, err := s.runNodeReconciler.ReconcileJobRuns(ctx, txn)
-	if err != nil {
-		return nil, fmt.Errorf("failed to reconcile runs with nodes because - %s", err)
-	}
-	jobsToUpdate := make([]*jobdb.Job, 0, len(invalidJobs))
-	events := make([]*armadaevents.EventSequence, 0, len(invalidJobs)*2)
-	for _, invalidJobInfo := range invalidJobs {
-		job := invalidJobInfo.Job
-		if job.InTerminalState() || job.Queued() || job.LatestRun() == nil {
-			continue
-		}
-
-		now := s.clock.Now()
-
-		job = job.WithQueued(false).WithFailed(true)
-		run := job.LatestRun()
-		job = job.WithUpdatedRun(run.WithFailed(true))
-
-		if job.PriorityClass().Preemptible {
-			run = run.WithPreemptedTime(&now)
-		}
-
-		jobsToUpdate = append(jobsToUpdate, job)
-
-		if job.PriorityClass().Preemptible {
-			s.metrics.ReportJobPreemptedWithType(job, schedulercontext.PreemptedViaNodeReconciler)
-			es := &armadaevents.EventSequence{
-				Queue:      job.Queue(),
-				JobSetName: job.Jobset(),
-				Events:     createEventsForPreemptedJob(job.Id(), run.Id(), invalidJobInfo.Reason, now),
-			}
-			events = append(events, es)
-		} else {
-			reconciliationError := &armadaevents.Error{
-				Terminal: true,
-				Reason: &armadaevents.Error_ReconciliationError{
-					ReconciliationError: &armadaevents.ReconciliationError{
-						Message: invalidJobInfo.Reason,
-					},
-				},
-			}
-			es := &armadaevents.EventSequence{
-				Queue:      job.Queue(),
-				JobSetName: job.Jobset(),
-				Events:     createEventsForFailedJob(job.Id(), run.Id(), reconciliationError, now),
-			}
-			events = append(events, es)
-		}
-	}
-
-	if err := txn.Upsert(jobsToUpdate); err != nil {
-		return nil, err
-	}
-	return events, nil
 }
 
 // expireJobsIfNecessary removes any jobs from the JobDb which are running on stale executors.

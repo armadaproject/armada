@@ -218,9 +218,27 @@ func TestSchedulingConfigWithPools(pools []schedulerconfiguration.PoolConfig) sc
 	}
 }
 
+func WithReconcilerEnabled(config schedulerconfiguration.SchedulingConfig) schedulerconfiguration.SchedulingConfig {
+	for i, pool := range config.Pools {
+		pool.ExperimentalRunReconciliation = &schedulerconfiguration.RunReconciliationConfig{
+			Enabled: true,
+		}
+		config.Pools[i] = pool
+	}
+	return config
+}
+
 func WithAwaySchedulingDisabled(config schedulerconfiguration.SchedulingConfig) schedulerconfiguration.SchedulingConfig {
 	for i, pool := range config.Pools {
 		pool.DisableAwayScheduling = true
+		config.Pools[i] = pool
+	}
+	return config
+}
+
+func WithGangAwaySchedulingDisabled(config schedulerconfiguration.SchedulingConfig) schedulerconfiguration.SchedulingConfig {
+	for i, pool := range config.Pools {
+		pool.DisableGangAwayScheduling = true
 		config.Pools[i] = pool
 	}
 	return config
