@@ -12,6 +12,7 @@ import (
 	"k8s.io/utils/pointer"
 
 	"github.com/armadaproject/armada/internal/common/constants"
+	"github.com/armadaproject/armada/internal/common/preemption"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/armadaproject/armada/pkg/api"
@@ -391,6 +392,91 @@ func TestValidateGangs(t *testing.T) {
 						constants.GangIdAnnotation:                  "bar",
 						constants.GangCardinalityAnnotation:         strconv.Itoa(2),
 						constants.GangNodeUniformityLabelAnnotation: "bar",
+					},
+					PodSpec: &v1.PodSpec{},
+				},
+			},
+			expectSuccess: false,
+		},
+		"consistent preemption retry settings": {
+			jobRequests: []*api.JobSubmitRequestItem{
+				{
+					Annotations: map[string]string{
+						constants.GangIdAnnotation:                  "bar",
+						constants.GangCardinalityAnnotation:         strconv.Itoa(2),
+						constants.PreemptionRetryEnabledAnnotation:  "true",
+						constants.PreemptionMaxRetryCountAnnotation: "5",
+					},
+					PodSpec: &v1.PodSpec{},
+				},
+				{
+					Annotations: map[string]string{
+						constants.GangIdAnnotation:                  "bar",
+						constants.GangCardinalityAnnotation:         strconv.Itoa(2),
+						constants.PreemptionRetryEnabledAnnotation:  "true",
+						constants.PreemptionMaxRetryCountAnnotation: "5",
+					},
+					PodSpec: &v1.PodSpec{},
+				},
+			},
+			expectSuccess: true,
+		},
+		"inconsistent preemption retry enabled": {
+			jobRequests: []*api.JobSubmitRequestItem{
+				{
+					Annotations: map[string]string{
+						constants.GangIdAnnotation:                 "bar",
+						constants.GangCardinalityAnnotation:        strconv.Itoa(2),
+						constants.PreemptionRetryEnabledAnnotation: "true",
+					},
+					PodSpec: &v1.PodSpec{},
+				},
+				{
+					Annotations: map[string]string{
+						constants.GangIdAnnotation:                 "bar",
+						constants.GangCardinalityAnnotation:        strconv.Itoa(2),
+						constants.PreemptionRetryEnabledAnnotation: "false",
+					},
+					PodSpec: &v1.PodSpec{},
+				},
+			},
+			expectSuccess: false,
+		},
+		"inconsistent preemption retry max count": {
+			jobRequests: []*api.JobSubmitRequestItem{
+				{
+					Annotations: map[string]string{
+						constants.GangIdAnnotation:                  "bar",
+						constants.GangCardinalityAnnotation:         strconv.Itoa(2),
+						constants.PreemptionMaxRetryCountAnnotation: "5",
+					},
+					PodSpec: &v1.PodSpec{},
+				},
+				{
+					Annotations: map[string]string{
+						constants.GangIdAnnotation:                  "bar",
+						constants.GangCardinalityAnnotation:         strconv.Itoa(2),
+						constants.PreemptionMaxRetryCountAnnotation: "10",
+					},
+					PodSpec: &v1.PodSpec{},
+				},
+			},
+			expectSuccess: false,
+		},
+		"one gang member has preemption retry other does not": {
+			jobRequests: []*api.JobSubmitRequestItem{
+				{
+					Annotations: map[string]string{
+						constants.GangIdAnnotation:                 "bar",
+						constants.GangCardinalityAnnotation:        strconv.Itoa(2),
+						constants.PreemptionRetryEnabledAnnotation: "true",
+					},
+					PodSpec: &v1.PodSpec{},
+				},
+				{
+					Annotations: map[string]string{
+						constants.GangIdAnnotation:          "bar",
+						constants.GangCardinalityAnnotation: strconv.Itoa(2),
 					},
 					PodSpec: &v1.PodSpec{},
 				},
@@ -1382,6 +1468,108 @@ func TestValidateRestrictedTolerations(t *testing.T) {
 			err := validateTolerations(tc.req, configuration.SubmissionConfig{
 				RestrictedTolerationKeys: tc.restrictedTolerations,
 			})
+			if tc.expectSuccess {
+				assert.NoError(t, err)
+			} else {
+				assert.Error(t, err)
+			}
+		})
+	}
+}
+
+func TestValidatePreemptionRetryConfig(t *testing.T) {
+	maxRetryCount := uint(10)
+	tests := map[string]struct {
+		req           *api.JobSubmitRequestItem
+		config        configuration.SubmissionConfig
+		expectSuccess bool
+	}{
+		"no annotations": {
+			req:           &api.JobSubmitRequestItem{},
+			config:        configuration.SubmissionConfig{PreemptionRetry: preemption.RetryConfig{Enabled: true}},
+			expectSuccess: true,
+		},
+		"valid enabled annotation - true": {
+			req: &api.JobSubmitRequestItem{
+				Annotations: map[string]string{constants.PreemptionRetryEnabledAnnotation: "true"},
+			},
+			config:        configuration.SubmissionConfig{PreemptionRetry: preemption.RetryConfig{Enabled: true}},
+			expectSuccess: true,
+		},
+		"valid enabled annotation - false": {
+			req: &api.JobSubmitRequestItem{
+				Annotations: map[string]string{constants.PreemptionRetryEnabledAnnotation: "false"},
+			},
+			config:        configuration.SubmissionConfig{PreemptionRetry: preemption.RetryConfig{Enabled: true}},
+			expectSuccess: true,
+		},
+		"invalid enabled annotation": {
+			req: &api.JobSubmitRequestItem{
+				Annotations: map[string]string{constants.PreemptionRetryEnabledAnnotation: "yes"},
+			},
+			config:        configuration.SubmissionConfig{PreemptionRetry: preemption.RetryConfig{Enabled: true}},
+			expectSuccess: false,
+		},
+		"valid max count annotation": {
+			req: &api.JobSubmitRequestItem{
+				Annotations: map[string]string{constants.PreemptionMaxRetryCountAnnotation: "5"},
+			},
+			config:        configuration.SubmissionConfig{PreemptionRetry: preemption.RetryConfig{Enabled: true}},
+			expectSuccess: true,
+		},
+		"invalid max count annotation - not a number": {
+			req: &api.JobSubmitRequestItem{
+				Annotations: map[string]string{constants.PreemptionMaxRetryCountAnnotation: "abc"},
+			},
+			config:        configuration.SubmissionConfig{PreemptionRetry: preemption.RetryConfig{Enabled: true}},
+			expectSuccess: false,
+		},
+		"invalid max count annotation - zero": {
+			req: &api.JobSubmitRequestItem{
+				Annotations: map[string]string{constants.PreemptionMaxRetryCountAnnotation: "0"},
+			},
+			config:        configuration.SubmissionConfig{PreemptionRetry: preemption.RetryConfig{Enabled: true}},
+			expectSuccess: false,
+		},
+		"invalid max count annotation - negative": {
+			req: &api.JobSubmitRequestItem{
+				Annotations: map[string]string{constants.PreemptionMaxRetryCountAnnotation: "-5"},
+			},
+			config:        configuration.SubmissionConfig{PreemptionRetry: preemption.RetryConfig{Enabled: true}},
+			expectSuccess: false,
+		},
+		"max count exceeds upper bound": {
+			req: &api.JobSubmitRequestItem{
+				Annotations: map[string]string{constants.PreemptionMaxRetryCountAnnotation: "15"},
+			},
+			config:        configuration.SubmissionConfig{PreemptionRetry: preemption.RetryConfig{Enabled: true, MaxRetryCount: &maxRetryCount}},
+			expectSuccess: false,
+		},
+		"max count within upper bound": {
+			req: &api.JobSubmitRequestItem{
+				Annotations: map[string]string{constants.PreemptionMaxRetryCountAnnotation: "5"},
+			},
+			config:        configuration.SubmissionConfig{PreemptionRetry: preemption.RetryConfig{Enabled: true, MaxRetryCount: &maxRetryCount}},
+			expectSuccess: true,
+		},
+		"feature disabled - annotations rejected": {
+			req: &api.JobSubmitRequestItem{
+				Annotations: map[string]string{constants.PreemptionRetryEnabledAnnotation: "true"},
+			},
+			config:        configuration.SubmissionConfig{PreemptionRetry: preemption.RetryConfig{Enabled: false}},
+			expectSuccess: false,
+		},
+		"feature disabled - max count rejected": {
+			req: &api.JobSubmitRequestItem{
+				Annotations: map[string]string{constants.PreemptionMaxRetryCountAnnotation: "5"},
+			},
+			config:        configuration.SubmissionConfig{PreemptionRetry: preemption.RetryConfig{Enabled: false}},
+			expectSuccess: false,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			err := validatePreemptionRetryConfig(tc.req, tc.config)
 			if tc.expectSuccess {
 				assert.NoError(t, err)
 			} else {

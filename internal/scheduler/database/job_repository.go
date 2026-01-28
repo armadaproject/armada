@@ -24,6 +24,7 @@ type hasSerial interface {
 
 type JobRunLease struct {
 	RunID                  string
+	RunIndex               *int64
 	Queue                  string
 	Pool                   string
 	JobSet                 string
@@ -54,7 +55,7 @@ type JobRepository interface {
 	CountReceivedPartitions(ctx *armadacontext.Context, groupId uuid.UUID) (uint32, error)
 
 	// FindInactiveRuns returns a slice containing all dbRuns that the scheduler does not currently consider active
-	// Runs are inactive if they don't exist or if they have succeeded, failed or been cancelled
+	// Runs are inactive if they don't exist or if they have succeeded, failed, preempted or been cancelled
 	FindInactiveRuns(ctx *armadacontext.Context, runIds []string) ([]string, error)
 
 	// FetchJobRunLeases fetches new job runs for a given executor.  A maximum of maxResults rows will be returned, while run
@@ -299,7 +300,7 @@ func (r *PostgresJobRepository) FetchJobUpdates(ctx *armadacontext.Context, jobS
 }
 
 // FindInactiveRuns returns a slice containing all dbRuns that the scheduler does not currently consider active
-// Runs are inactive if they don't exist or if they have succeeded, failed or been cancelled
+// Runs are inactive if they don't exist or if they have succeeded, failed, preempted or been cancelled
 func (r *PostgresJobRepository) FindInactiveRuns(ctx *armadacontext.Context, runIds []string) ([]string, error) {
 	var inactiveRuns []string
 	err := pgx.BeginTxFunc(ctx, r.db, pgx.TxOptions{
@@ -319,6 +320,7 @@ func (r *PostgresJobRepository) FindInactiveRuns(ctx *armadacontext.Context, run
 		WHERE runs.run_id IS NULL
 		OR runs.succeeded = true
  		OR runs.failed = true
+		OR runs.preempted = true
 		OR runs.cancelled = true;`
 
 		rows, err := tx.Query(ctx, fmt.Sprintf(query, tmpTable))
@@ -357,7 +359,7 @@ func (r *PostgresJobRepository) FetchJobRunLeases(ctx *armadacontext.Context, ex
 		}
 
 		query := `
-				SELECT jr.run_id, jr.node, j.queue, j.job_set,  jr.pool, j.user_id, j.groups, j.submit_message, jr.pod_requirements_overlay
+				SELECT jr.run_id, jr.run_index, jr.node, j.queue, j.job_set,  jr.pool, j.user_id, j.groups, j.submit_message, jr.pod_requirements_overlay
 				FROM runs jr
 				LEFT JOIN %s as tmp ON (tmp.run_id = jr.run_id)
 			    JOIN jobs j
@@ -367,6 +369,7 @@ func (r *PostgresJobRepository) FetchJobRunLeases(ctx *armadacontext.Context, ex
 				AND jr.succeeded = false
 				AND jr.failed = false
 				AND jr.cancelled = false
+				AND jr.preempted = false
 				ORDER BY jr.serial
 				LIMIT %d;
 `
@@ -378,7 +381,7 @@ func (r *PostgresJobRepository) FetchJobRunLeases(ctx *armadacontext.Context, ex
 		defer rows.Close()
 		for rows.Next() {
 			run := JobRunLease{}
-			err = rows.Scan(&run.RunID, &run.Node, &run.Queue, &run.JobSet, &run.Pool, &run.UserID, &run.Groups, &run.SubmitMessage, &run.PodRequirementsOverlay)
+			err = rows.Scan(&run.RunID, &run.RunIndex, &run.Node, &run.Queue, &run.JobSet, &run.Pool, &run.UserID, &run.Groups, &run.SubmitMessage, &run.PodRequirementsOverlay)
 			if err != nil {
 				return errors.WithStack(err)
 			}

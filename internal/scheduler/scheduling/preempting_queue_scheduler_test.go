@@ -17,6 +17,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/logging"
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
+	"github.com/armadaproject/armada/internal/common/preemption"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/types"
@@ -2322,13 +2323,17 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				var preemptedJobs []*jobdb.Job
 				for _, jctx := range result.PreemptedJobs {
 					job := jctx.Job
-					preemptedJobs = append(
-						preemptedJobs,
-						job.
-							WithUpdatedRun(job.LatestRun().WithFailed(true)).
-							WithQueued(false).
-							WithFailed(true),
-					)
+					preeemptedTime := time.Now()
+
+					updatedRun := job.LatestRun().WithPreempted(true).WithPreemptedTime(&preeemptedTime)
+					job = job.WithUpdatedRun(updatedRun)
+
+					if job.IsEligibleForPreemptionRetry(preemption.RetryConfig{}) {
+						job = job.WithQueued(true).WithQueuedVersion(job.QueuedVersion() + 1)
+					} else {
+						job = job.WithQueued(false).WithFailed(true)
+					}
+					preemptedJobs = append(preemptedJobs, job)
 				}
 				err = jobDbTxn.Upsert(preemptedJobs)
 				require.NoError(t, err)
