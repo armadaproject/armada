@@ -1,0 +1,38 @@
+syntax = 'proto3';
+package api;
+option go_package = "github.com/armadaproject/armada/pkg/api";
+
+import "google/api/annotations.proto";
+import "google/protobuf/empty.proto";
+
+
+service Node {
+  rpc PreemptOnNode (NodePreemptRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      post: "/v1/node/preempt/{name}"
+      body: "*"
+    };
+  }
+  rpc CancelOnNode (NodeCancelRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      post: "/v1/node/cancel/{name}"
+      body: "*"
+    };
+  }
+}
+
+// Jobs on the specified node matching the given criteria will be preempted.
+message NodePreemptRequest {
+  string name = 1;
+  string executor = 2;
+  repeated string queues = 3;
+  repeated string priorityClasses = 4;
+}
+
+// Jobs on the specified node matching both the provided queues and priority classes will be cancelled.
+message NodeCancelRequest {
+  string name = 1;
+  string executor = 2;
+  repeated string queues = 3;
+  repeated string priorityClasses = 4;
+}

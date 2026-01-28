@@ -28,6 +28,7 @@ import (
 	"github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/armadaproject/armada/internal/server/event"
 	"github.com/armadaproject/armada/internal/server/executor"
+	"github.com/armadaproject/armada/internal/server/node"
 	"github.com/armadaproject/armada/internal/server/queryapi"
 	"github.com/armadaproject/armada/internal/server/queue"
 	"github.com/armadaproject/armada/internal/server/submit"
@@ -188,10 +189,13 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 
 	executorServer := executor.New(controlPlaneEventsPublisher, authorizer)
 
+	nodeServer := node.New(controlPlaneEventsPublisher, authorizer)
+
 	api.RegisterSubmitServer(grpcServer, submitServer)
 	api.RegisterEventServer(grpcServer, eventServer)
 	api.RegisterQueueServiceServer(grpcServer, queueServer)
 	api.RegisterExecutorServer(grpcServer, executorServer)
+	api.RegisterNodeServer(grpcServer, nodeServer)
 
 	schedulerobjects.RegisterSchedulerReportingServer(grpcServer, schedulingReportsServer)
 

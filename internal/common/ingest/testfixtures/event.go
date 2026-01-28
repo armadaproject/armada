@@ -608,6 +608,28 @@ var CancelOnExecutor = &controlplaneevents.Event{
 	},
 }
 
+var PreemptOnNode = &controlplaneevents.Event{
+	Event: &controlplaneevents.Event_PreemptOnNode{
+		PreemptOnNode: &controlplaneevents.PreemptOnNode{
+			Name:            NodeName,
+			Executor:        ExecutorId,
+			Queues:          []string{Queue},
+			PriorityClasses: []string{PriorityClassName},
+		},
+	},
+}
+
+var CancelOnNode = &controlplaneevents.Event{
+	Event: &controlplaneevents.Event_CancelOnNode{
+		CancelOnNode: &controlplaneevents.CancelOnNode{
+			Name:            NodeName,
+			Executor:        ExecutorId,
+			Queues:          []string{Queue},
+			PriorityClasses: []string{PriorityClassName},
+		},
+	},
+}
+
 var PreemptOnQueue = &controlplaneevents.Event{
 	Event: &controlplaneevents.Event_PreemptOnQueue{
 		PreemptOnQueue: &controlplaneevents.PreemptOnQueue{

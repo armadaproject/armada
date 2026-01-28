@@ -454,6 +454,78 @@
         }
       }
     },
+    "/v1/node/cancel/{name}": {
+      "post": {
+        "tags": [
+          "Node"
+        ],
+        "operationId": "CancelOnNode",
+        "parameters": [
+          {
+            "type": "string",
+            "name": "name",
+            "in": "path",
+            "required": true
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiNodeCancelRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {}
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        }
+      }
+    },
+    "/v1/node/preempt/{name}": {
+      "post": {
+        "tags": [
+          "Node"
+        ],
+        "operationId": "PreemptOnNode",
+        "parameters": [
+          {
+            "type": "string",
+            "name": "name",
+            "in": "path",
+            "required": true
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiNodePreemptRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {}
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        }
+      }
+    },
     "/v1/queue": {
       "post": {
         "tags": [
@@ -1962,6 +2034,54 @@
           "type": "object",
           "additionalProperties": {
             "$ref": "#/definitions/resourceQuantity"
+          }
+        }
+      }
+    },
+    "apiNodeCancelRequest": {
+      "description": "Jobs on the specified node matching both the provided queues and priority classes will be cancelled.",
+      "type": "object",
+      "properties": {
+        "executor": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "priorityClasses": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "queues": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "apiNodePreemptRequest": {
+      "description": "Jobs on the specified node matching the given criteria will be preempted.",
+      "type": "object",
+      "properties": {
+        "executor": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "priorityClasses": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "queues": {
+          "type": "array",
+          "items": {
+            "type": "string"
           }
         }
       }

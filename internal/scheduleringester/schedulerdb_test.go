@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -20,6 +21,7 @@ import (
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/util"
 	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
 const testQueueName = "test"
@@ -124,6 +126,41 @@ func TestWriteOps(t *testing.T) {
 				runIds[4]: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobIds[4], RunID: runIds[4], Queue: "queue-2", JobSet: "set2"}},
 			},
 			MarkRunsForJobPreemptRequested{JobSetKey{queue: testQueueName, jobSet: "set1"}: []string{jobIds[0], jobIds[1]}},
+		}},
+		"PreemptNode": {Ops: []DbOperation{
+			InsertJobs{
+				jobIds[0]: &schedulerdb.Job{JobID: jobIds[0], Queue: testQueueName, JobSet: "set1"},
+				jobIds[1]: &schedulerdb.Job{JobID: jobIds[1], Queue: testQueueName, JobSet: "set1"},
+				jobIds[2]: &schedulerdb.Job{JobID: jobIds[2], Queue: "queue-2", JobSet: "set1"},
+				jobIds[3]: &schedulerdb.Job{JobID: jobIds[3], Queue: testQueueName, JobSet: "set2"},
+			},
+			InsertRuns{
+				runIds[0]: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobIds[0], RunID: runIds[0], Queue: testQueueName, JobSet: "set1", Executor: "executor-1", Node: "node-1"}},
+				runIds[1]: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobIds[1], RunID: runIds[1], Queue: testQueueName, JobSet: "set1", Executor: "executor-2", Node: "node-1"}},
+				runIds[2]: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobIds[2], RunID: runIds[2], Queue: "queue-2", JobSet: "set1", Executor: "executor-1", Node: "node-1"}},
+				runIds[3]: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobIds[3], RunID: runIds[3], Queue: testQueueName, JobSet: "set2", Executor: "executor-1", Node: "node-2"}},
+			},
+			PreemptNode{
+				NodeOnExecutor{Node: "node-1", Executor: "executor-1"}: &PreemptOnNode{Name: "node-1", Executor: "executor-1", Queues: []string{testQueueName}},
+			},
+		}},
+		"PreemptNode - PriorityClass": {Ops: []DbOperation{
+			InsertJobs{
+				jobIds[0]: &schedulerdb.Job{JobID: jobIds[0], Queue: testQueueName, JobSet: "set1", SchedulingInfo: mustMarshalSchedulingInfo(t, "pc-1")},
+				jobIds[1]: &schedulerdb.Job{JobID: jobIds[1], Queue: testQueueName, JobSet: "set1", SchedulingInfo: mustMarshalSchedulingInfo(t, "pc-2")},
+			},
+			InsertRuns{
+				runIds[0]: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobIds[0], RunID: runIds[0], Queue: testQueueName, JobSet: "set1", Executor: "executor-1", Node: "node-1"}},
+				runIds[1]: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobIds[1], RunID: runIds[1], Queue: testQueueName, JobSet: "set1", Executor: "executor-1", Node: "node-1"}},
+			},
+			PreemptNode{
+				NodeOnExecutor{Node: "node-1", Executor: "executor-1"}: &PreemptOnNode{
+					Name:            "node-1",
+					Executor:        "executor-1",
+					Queues:          []string{testQueueName},
+					PriorityClasses: []string{"pc-1"},
+				},
+			},
 		}},
 		"MarkJobSetsCancelRequested": {Ops: []DbOperation{
 			InsertJobs{
@@ -535,9 +572,15 @@ func addDefaultValues(op DbOperation) DbOperation {
 	switch o := op.(type) {
 	case InsertJobs:
 		for _, job := range o {
-			job.Groups = make([]byte, 0)
-			job.SubmitMessage = make([]byte, 0)
-			job.SchedulingInfo = make([]byte, 0)
+			if job.Groups == nil {
+				job.Groups = make([]byte, 0)
+			}
+			if job.SubmitMessage == nil {
+				job.SubmitMessage = make([]byte, 0)
+			}
+			if job.SchedulingInfo == nil {
+				job.SchedulingInfo = make([]byte, 0)
+			}
 		}
 	case InsertRuns:
 	case UpdateJobSetPriorities:
@@ -965,6 +1008,110 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 			}
 		}
 		assert.Equal(t, len(expected), numChanged)
+	case PreemptNode:
+		jobs, err := selectNewJobs(ctx, 0)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		jobById := make(map[string]schedulerdb.Job, len(jobs))
+		jobIds := make([]string, 0, len(jobs))
+		for _, job := range jobs {
+			jobById[job.JobID] = job
+			jobIds = append(jobIds, job.JobID)
+		}
+		runs, err := queries.SelectNewRunsForJobs(ctx, schedulerdb.SelectNewRunsForJobsParams{Serial: 0, JobIds: jobIds})
+		if err != nil {
+			return errors.WithStack(err)
+		}
+
+		expectedRunIds := map[string]bool{}
+		for nodeOnExecutor, req := range expected {
+			inPriorityClasses := jobInPriorityClasses(req.PriorityClasses)
+			for _, run := range runs {
+				if run.Node != nodeOnExecutor.Node || run.Executor != nodeOnExecutor.Executor {
+					continue
+				}
+				job, ok := jobById[run.JobID]
+				if !ok {
+					continue
+				}
+				if !slices.Contains(req.Queues, job.Queue) {
+					continue
+				}
+				if len(req.PriorityClasses) > 0 {
+					ok, err := inPriorityClasses(job)
+					if err != nil {
+						return err
+					}
+					if !ok {
+						continue
+					}
+				}
+				expectedRunIds[run.RunID] = true
+			}
+		}
+
+		updatedRuns, err := queries.SelectNewRunsForJobs(ctx, schedulerdb.SelectNewRunsForJobsParams{Serial: serials["runs"], JobIds: jobIds})
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		assert.Equal(t, len(expectedRunIds), len(updatedRuns))
+		for _, run := range updatedRuns {
+			assert.True(t, expectedRunIds[run.RunID])
+			assert.True(t, run.PreemptRequested)
+		}
+	case CancelNode:
+		jobs, err := selectNewJobs(ctx, 0)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		jobById := make(map[string]schedulerdb.Job, len(jobs))
+		jobIds := make([]string, 0, len(jobs))
+		for _, job := range jobs {
+			jobById[job.JobID] = job
+			jobIds = append(jobIds, job.JobID)
+		}
+		runs, err := queries.SelectNewRunsForJobs(ctx, schedulerdb.SelectNewRunsForJobsParams{Serial: 0, JobIds: jobIds})
+		if err != nil {
+			return errors.WithStack(err)
+		}
+
+		expectedJobIds := map[string]bool{}
+		for nodeOnExecutor, req := range expected {
+			inPriorityClasses := jobInPriorityClasses(req.PriorityClasses)
+			for _, run := range runs {
+				if run.Node != nodeOnExecutor.Node || run.Executor != nodeOnExecutor.Executor {
+					continue
+				}
+				job, ok := jobById[run.JobID]
+				if !ok {
+					continue
+				}
+				if !slices.Contains(req.Queues, job.Queue) {
+					continue
+				}
+				if len(req.PriorityClasses) > 0 {
+					ok, err := inPriorityClasses(job)
+					if err != nil {
+						return err
+					}
+					if !ok {
+						continue
+					}
+				}
+				expectedJobIds[job.JobID] = true
+			}
+		}
+
+		updatedJobs, err := selectNewJobs(ctx, serials["jobs"])
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		assert.Equal(t, len(expectedJobIds), len(updatedJobs))
+		for _, job := range updatedJobs {
+			assert.True(t, expectedJobIds[job.JobID])
+			assert.True(t, job.CancelRequested)
+		}
 	case UpsertExecutorSettings:
 		allSettings, err := queries.SelectAllExecutorSettings(ctx)
 		if err != nil {
@@ -1041,5 +1188,12 @@ func max[E constraints.Ordered](a, b E) E {
 	if a > b {
 		return a
 	}
+	return b
+}
+
+func mustMarshalSchedulingInfo(t *testing.T, priorityClassName string) []byte {
+	t.Helper()
+	b, err := proto.Marshal(&schedulerobjects.JobSchedulingInfo{PriorityClassName: priorityClassName})
+	require.NoError(t, err)
 	return b
 }

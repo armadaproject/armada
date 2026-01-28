@@ -39,7 +39,7 @@ func (a *App) Preempt(queue string, jobSetId string, jobId string, reason string
 func (a *App) PreemptOnExecutor(executor string, queues []string, priorityClasses []string) error {
 	queueMsg := strings.Join(queues, ",")
 	priorityClassesMsg := strings.Join(priorityClasses, ",")
-	// If the provided slice of queues is empty, jobs on all queues will be cancelled
+	// If the provided slice of queues is empty, jobs on all queues will be preempted
 	if len(queues) == 0 {
 		apiQueues, err := a.getAllQueuesAsAPIQueue(&QueueQueryArgs{})
 		if err != nil {
@@ -52,6 +52,26 @@ func (a *App) PreemptOnExecutor(executor string, queues []string, priorityClasse
 	fmt.Fprintf(a.Out, "Requesting preemption of jobs matching executor: %s, queues: %s, priority-classes: %s\n", executor, queueMsg, priorityClassesMsg)
 	if err := a.Params.ExecutorAPI.PreemptOnExecutor(executor, queues, priorityClasses); err != nil {
 		return fmt.Errorf("error preempting jobs on executor %s: %s", executor, err)
+	}
+	return nil
+}
+
+func (a *App) PreemptOnNode(node string, executor string, queues []string, priorityClasses []string) error {
+	queueMsg := strings.Join(queues, ",")
+	priorityClassesMsg := strings.Join(priorityClasses, ",")
+	// If the provided slice of queues is empty, jobs on all queues will be preempted
+	if len(queues) == 0 {
+		apiQueues, err := a.getAllQueuesAsAPIQueue(&QueueQueryArgs{})
+		if err != nil {
+			return fmt.Errorf("error preempting jobs on node %s: %s", node, err)
+		}
+		queues = armadaslices.Map(apiQueues, func(q *api.Queue) string { return q.Name })
+		queueMsg = "all"
+	}
+
+	fmt.Fprintf(a.Out, "Requesting preemption of jobs matching node: %s, executor: %s, queues: %s, priority-classes: %s\n", node, executor, queueMsg, priorityClassesMsg)
+	if err := a.Params.NodeAPI.PreemptOnNode(node, executor, queues, priorityClasses); err != nil {
+		return fmt.Errorf("error preempting jobs on node %s: %s", node, err)
 	}
 	return nil
 }
