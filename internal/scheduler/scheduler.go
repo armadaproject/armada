@@ -1012,7 +1012,11 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 			}
 		} else if lastRun.PreemptRequested() && job.PriorityClass().Preemptible {
 			job = job.WithQueued(false).WithFailed(true).WithUpdatedRun(lastRun.WithoutTerminal().WithFailed(true))
-			events = append(events, createEventsForPreemptedJob(job.Id(), lastRun.Id(), "Preempted - preemption requested via API", s.clock.Now())...)
+			reason := "Preempted - preemption requested via API"
+			if lastRun.PreemptReason() != nil && *lastRun.PreemptReason() != "" {
+				reason = *lastRun.PreemptReason()
+			}
+			events = append(events, createEventsForPreemptedJob(job.Id(), lastRun.Id(), reason, s.clock.Now())...)
 			s.metrics.ReportJobPreemptedWithType(job, schedulercontext.PreemptedViaApi)
 		}
 	}

@@ -12,7 +12,7 @@ jobs:
       containers:
         - name: sleep
           imagePullPolicy: IfNotPresent
-          image: bitnamilegacy/kubectl:1.24.8
+          image: bitnamilegacy/kubectl:1.33.4
           command: ["bash", "-c"]
           args:
             - |
