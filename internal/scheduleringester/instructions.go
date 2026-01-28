@@ -480,6 +480,7 @@ func (c *ControlPlaneEventsInstructionConverter) handlePreemptOnExecutor(preempt
 				Name:            preempt.Name,
 				Queues:          preempt.Queues,
 				PriorityClasses: preempt.PriorityClasses,
+				Pools:           preempt.Pools,
 			},
 		},
 	}, nil
@@ -492,6 +493,7 @@ func (c *ControlPlaneEventsInstructionConverter) handleCancelOnExecutor(cancel *
 				Name:            cancel.Name,
 				Queues:          cancel.Queues,
 				PriorityClasses: cancel.PriorityClasses,
+				Pools:           cancel.Pools,
 			},
 		},
 	}, nil
@@ -503,6 +505,7 @@ func (c *ControlPlaneEventsInstructionConverter) handlePreemptOnQueue(preempt *c
 			preempt.Name: {
 				Name:            preempt.Name,
 				PriorityClasses: preempt.PriorityClasses,
+				Pools:           preempt.Pools,
 			},
 		},
 	}, nil
@@ -515,6 +518,7 @@ func (c *ControlPlaneEventsInstructionConverter) handleCancelOnQueue(cancel *con
 				Name:            cancel.Name,
 				PriorityClasses: cancel.PriorityClasses,
 				JobStates:       cancel.JobStates,
+				Pools:           cancel.Pools,
 			},
 		},
 	}, nil

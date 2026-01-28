@@ -277,6 +277,7 @@ func (s *Server) CancelOnQueue(grpcCtx context.Context, req *api.QueueCancelRequ
 				Name:            req.Name,
 				PriorityClasses: req.PriorityClasses,
 				JobStates:       activeJobStates,
+				Pools:           req.Pools,
 			},
 		},
 	}
@@ -311,6 +312,7 @@ func (s *Server) PreemptOnQueue(grpcCtx context.Context, req *api.QueuePreemptRe
 			PreemptOnQueue: &controlplaneevents.PreemptOnQueue{
 				Name:            req.Name,
 				PriorityClasses: req.PriorityClasses,
+				Pools:           req.Pools,
 			},
 		},
 	}

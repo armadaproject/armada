@@ -80,23 +80,27 @@ type PreemptOnExecutor struct {
 	Name            string
 	Queues          []string
 	PriorityClasses []string
+	Pools           []string
 }
 
 type CancelOnExecutor struct {
 	Name            string
 	Queues          []string
 	PriorityClasses []string
+	Pools           []string
 }
 
 type PreemptOnQueue struct {
 	Name            string
 	PriorityClasses []string
+	Pools           []string
 }
 
 type CancelOnQueue struct {
 	Name            string
 	PriorityClasses []string
 	JobStates       []controlplaneevents.ActiveJobState
+	Pools           []string
 }
 
 // DbOperation captures a generic batch database operation.
