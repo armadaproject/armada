@@ -6,7 +6,7 @@ import { createMemoryRouter, RouterProvider } from "react-router-dom"
 import { v4 as uuidV4 } from "uuid"
 import { vi } from "vitest"
 
-import { Job, JobState } from "../../../models/lookoutModels"
+import { Job, JobState, JobStateCategory, jobStateCategoryDisplayNames } from "../../../models/lookoutModels"
 import { JOBS, V2_REDIRECT } from "../../../pathnames"
 import { ApiClientsProvider } from "../../../services/apiClients"
 import { FakeServicesProvider } from "../../../services/fakeContext"
@@ -425,6 +425,28 @@ describe("JobsTableContainer", () => {
       await assertNumDataRowsShown(30)
     })
 
+    it("allows filtering by jobStateCategory", async () => {
+      const jobs = [
+        ...makeTestJobs(5, "queue-1", "job-set-1", JobState.Queued),
+        ...makeTestJobs(10, "queue-2", "job-set-1", JobState.Pending),
+        ...makeTestJobs(5, "queue-3", "job-set-2", JobState.Cancelled),
+      ]
+      mockServer.setPostJobsResponse(jobs)
+      renderComponent(jobs)
+      await clearAllGroupings()
+      await waitForFinishedLoading()
+
+      await assertNumDataRowsShown(20)
+
+      // Select the "Active" category to filter for active jobs
+      const activeCategoryName = jobStateCategoryDisplayNames[JobStateCategory.Active]
+      await toggleEnumFilterCategory("State", activeCategoryName)
+      await assertNumDataRowsShown(15)
+
+      await toggleEnumFilterCategory("State", activeCategoryName)
+      await assertNumDataRowsShown(20)
+    })
+
     it("allows filtering on annotation columns", async () => {
       const jobs = [
         ...makeTestJobs(5, "queue-1", "job-set-1", JobState.Queued),
@@ -786,6 +808,15 @@ describe("JobsTableContainer", () => {
     }
 
     // Ensure the dropdown is closed
+    await userEvent.tab()
+  }
+
+  async function toggleEnumFilterCategory(columnDisplayName: string, categoryName: string) {
+    const headerCell = await getHeaderCell(columnDisplayName)
+    const dropdownTrigger = await within(headerCell).findByLabelText("Filter\u2026")
+    await userEvent.click(dropdownTrigger)
+    const categoryHeader = await screen.findByText(categoryName, { selector: ".MuiListSubheader-root *" })
+    await userEvent.click(categoryHeader)
     await userEvent.tab()
   }
 

@@ -4,9 +4,18 @@ import { ColumnDef, createColumnHelper, VisibilityState } from "@tanstack/table-
 
 import { JobGroupStateCounts } from "../components/JobGroupStateCounts"
 import { JobStateChip } from "../components/JobStateChip"
-import { EnumFilterOption } from "../components/JobsTableFilter"
+import { EnumFilterCategory, EnumFilterOption } from "../components/JobsTableFilter"
 import { isJobGroupRow, JobTableRow } from "../models/jobsTableModels"
-import { JobState, jobStateColors, jobStateIcons, Match, SortDirection } from "../models/lookoutModels"
+import {
+  JobState,
+  JobStateCategory,
+  jobStateCategories,
+  jobStateCategoryDisplayNames,
+  jobStateColors,
+  jobStateIcons,
+  Match,
+  SortDirection,
+} from "../models/lookoutModels"
 
 import { formatDuration, formatTimestampRelative, TimestampFormat } from "./formatTime"
 import { formatJobState } from "./jobsTableFormatters"
@@ -27,6 +36,7 @@ export interface JobTableColumnMetadata {
 
   filterType?: FilterType
   enumFilterValues?: EnumFilterOption[]
+  enumFilterCategories?: EnumFilterCategory[]
   defaultMatchType?: Match
 
   annotation?: {
@@ -349,6 +359,11 @@ export const GET_JOB_COLUMNS = ({
         displayName: formatJobState(state),
         Icon: jobStateIcons[state],
         iconColor: jobStateColors[state],
+        categories: jobStateCategories[state],
+      })),
+      enumFilterCategories: Object.values(JobStateCategory).map((category) => ({
+        value: category,
+        displayName: jobStateCategoryDisplayNames[category],
       })),
       defaultMatchType: Match.AnyOf,
     },
