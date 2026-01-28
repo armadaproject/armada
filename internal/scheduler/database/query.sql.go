@@ -538,17 +538,19 @@ FROM runs jr
        JOIN jobs j
             ON jr.job_id = j.job_id
 WHERE jr.executor = $1
-  AND j.queue = ANY($2::text[])
+  AND jr.queue = ANY($2::text[])
+  AND (cardinality($3::text[]) = 0 OR jr.pool = ANY($3::text[]))
   AND jr.succeeded = false AND jr.failed = false AND jr.cancelled = false AND jr.preempted = false
 `
 
 type SelectJobsByExecutorAndQueuesParams struct {
 	Executor string   `db:"executor"`
 	Queues   []string `db:"queues"`
+	Pools    []string `db:"pools"`
 }
 
 func (q *Queries) SelectJobsByExecutorAndQueues(ctx context.Context, arg SelectJobsByExecutorAndQueuesParams) ([]Job, error) {
-	rows, err := q.db.Query(ctx, selectJobsByExecutorAndQueues, arg.Executor, arg.Queues)
+	rows, err := q.db.Query(ctx, selectJobsByExecutorAndQueues, arg.Executor, arg.Queues, arg.Pools)
 	if err != nil {
 		return nil, err
 	}
@@ -671,17 +673,23 @@ SELECT j.job_id, j.job_set, j.queue, j.user_id, j.submitted, j.groups, j.priorit
 FROM runs jr
        JOIN jobs j
             ON jr.job_id = j.job_id
-WHERE j.queue = ANY($1::text[])
+WHERE jr.queue = ANY($1::text[])
   AND jr.running = false
   AND jr.pending = false
   AND jr.succeeded = false
   AND jr.failed = false
   AND jr.cancelled = false
   AND jr.preempted = false
+  AND (cardinality($2::text[]) = 0 OR jr.pool = ANY($2::text[]))
 `
 
-func (q *Queries) SelectLeasedJobsByQueue(ctx context.Context, queue []string) ([]Job, error) {
-	rows, err := q.db.Query(ctx, selectLeasedJobsByQueue, queue)
+type SelectLeasedJobsByQueueParams struct {
+	Queue []string `db:"queue"`
+	Pools []string `db:"pools"`
+}
+
+func (q *Queries) SelectLeasedJobsByQueue(ctx context.Context, arg SelectLeasedJobsByQueueParams) ([]Job, error) {
+	rows, err := q.db.Query(ctx, selectLeasedJobsByQueue, arg.Queue, arg.Pools)
 	if err != nil {
 		return nil, err
 	}
@@ -920,17 +928,23 @@ SELECT j.job_id, j.job_set, j.queue, j.user_id, j.submitted, j.groups, j.priorit
 FROM runs jr
        JOIN jobs j
             ON jr.job_id = j.job_id
-WHERE j.queue = ANY($1::text[])
+WHERE jr.queue = ANY($1::text[])
   AND jr.running = false
   AND jr.pending = true
   AND jr.succeeded = false
   AND jr.failed = false
   AND jr.cancelled = false
   AND jr.preempted = false
+  AND (cardinality($2::text[]) = 0 OR jr.pool = ANY($2::text[]))
 `
 
-func (q *Queries) SelectPendingJobsByQueue(ctx context.Context, queue []string) ([]Job, error) {
-	rows, err := q.db.Query(ctx, selectPendingJobsByQueue, queue)
+type SelectPendingJobsByQueueParams struct {
+	Queue []string `db:"queue"`
+	Pools []string `db:"pools"`
+}
+
+func (q *Queries) SelectPendingJobsByQueue(ctx context.Context, arg SelectPendingJobsByQueueParams) ([]Job, error) {
+	rows, err := q.db.Query(ctx, selectPendingJobsByQueue, arg.Queue, arg.Pools)
 	if err != nil {
 		return nil, err
 	}
@@ -980,10 +994,16 @@ SELECT j.job_id, j.job_set, j.queue, j.user_id, j.submitted, j.groups, j.priorit
 FROM jobs j
 WHERE j.queue = ANY($1::text[])
   AND j.queued = true
+  AND (cardinality($2::text[]) = 0 OR j.pools && $2::text[])
 `
 
-func (q *Queries) SelectQueuedJobsByQueue(ctx context.Context, queue []string) ([]Job, error) {
-	rows, err := q.db.Query(ctx, selectQueuedJobsByQueue, queue)
+type SelectQueuedJobsByQueueParams struct {
+	Queue []string `db:"queue"`
+	Pools []string `db:"pools"`
+}
+
+func (q *Queries) SelectQueuedJobsByQueue(ctx context.Context, arg SelectQueuedJobsByQueueParams) ([]Job, error) {
+	rows, err := q.db.Query(ctx, selectQueuedJobsByQueue, arg.Queue, arg.Pools)
 	if err != nil {
 		return nil, err
 	}
@@ -1058,17 +1078,23 @@ SELECT j.job_id, j.job_set, j.queue, j.user_id, j.submitted, j.groups, j.priorit
 FROM runs jr
        JOIN jobs j
             ON jr.job_id = j.job_id
-WHERE j.queue = ANY($1::text[])
+WHERE jr.queue = ANY($1::text[])
   AND jr.running = true
   AND jr.returned = false
   AND jr.succeeded = false
   AND jr.failed = false
   AND jr.cancelled = false
   AND jr.preempted = false
+  AND (cardinality($2::text[]) = 0 OR jr.pool = ANY($2::text[]))
 `
 
-func (q *Queries) SelectRunningJobsByQueue(ctx context.Context, queue []string) ([]Job, error) {
-	rows, err := q.db.Query(ctx, selectRunningJobsByQueue, queue)
+type SelectRunningJobsByQueueParams struct {
+	Queue []string `db:"queue"`
+	Pools []string `db:"pools"`
+}
+
+func (q *Queries) SelectRunningJobsByQueue(ctx context.Context, arg SelectRunningJobsByQueueParams) ([]Job, error) {
+	rows, err := q.db.Query(ctx, selectRunningJobsByQueue, arg.Queue, arg.Pools)
 	if err != nil {
 		return nil, err
 	}

@@ -598,12 +598,34 @@ var PreemptOnExecutor = &controlplaneevents.Event{
 	},
 }
 
+var PreemptOnExecutorWithPools = &controlplaneevents.Event{
+	Event: &controlplaneevents.Event_PreemptOnExecutor{
+		PreemptOnExecutor: &controlplaneevents.PreemptOnExecutor{
+			Name:            ExecutorId,
+			Queues:          []string{Queue},
+			PriorityClasses: []string{PriorityClassName},
+			Pools:           []string{Pool},
+		},
+	},
+}
+
 var CancelOnExecutor = &controlplaneevents.Event{
 	Event: &controlplaneevents.Event_CancelOnExecutor{
 		CancelOnExecutor: &controlplaneevents.CancelOnExecutor{
 			Name:            ExecutorId,
 			Queues:          []string{Queue},
 			PriorityClasses: []string{PriorityClassName},
+		},
+	},
+}
+
+var CancelOnExecutorWithPools = &controlplaneevents.Event{
+	Event: &controlplaneevents.Event_CancelOnExecutor{
+		CancelOnExecutor: &controlplaneevents.CancelOnExecutor{
+			Name:            ExecutorId,
+			Queues:          []string{Queue},
+			PriorityClasses: []string{PriorityClassName},
+			Pools:           []string{Pool},
 		},
 	},
 }
@@ -617,12 +639,33 @@ var PreemptOnQueue = &controlplaneevents.Event{
 	},
 }
 
+var PreemptOnQueueWithPools = &controlplaneevents.Event{
+	Event: &controlplaneevents.Event_PreemptOnQueue{
+		PreemptOnQueue: &controlplaneevents.PreemptOnQueue{
+			Name:            Queue,
+			PriorityClasses: []string{PriorityClassName},
+			Pools:           []string{Pool},
+		},
+	},
+}
+
 var CancelQueuedOnQueue = &controlplaneevents.Event{
 	Event: &controlplaneevents.Event_CancelOnQueue{
 		CancelOnQueue: &controlplaneevents.CancelOnQueue{
 			Name:            Queue,
 			PriorityClasses: []string{PriorityClassName},
 			JobStates:       []controlplaneevents.ActiveJobState{controlplaneevents.ActiveJobState_QUEUED},
+		},
+	},
+}
+
+var CancelQueuedOnQueueWithPools = &controlplaneevents.Event{
+	Event: &controlplaneevents.Event_CancelOnQueue{
+		CancelOnQueue: &controlplaneevents.CancelOnQueue{
+			Name:            Queue,
+			PriorityClasses: []string{PriorityClassName},
+			JobStates:       []controlplaneevents.ActiveJobState{controlplaneevents.ActiveJobState_QUEUED},
+			Pools:           []string{Pool},
 		},
 	},
 }

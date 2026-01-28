@@ -153,51 +153,56 @@ FROM runs jr
        JOIN jobs j
             ON jr.job_id = j.job_id
 WHERE jr.executor = @executor
-  AND j.queue = ANY(@queues::text[])
+  AND jr.queue = ANY(@queues::text[])
+  AND (cardinality(@pools::text[]) = 0 OR jr.pool = ANY(@pools::text[]))
   AND jr.succeeded = false AND jr.failed = false AND jr.cancelled = false AND jr.preempted = false;
 
 -- name: SelectQueuedJobsByQueue :many
 SELECT j.*
 FROM jobs j
 WHERE j.queue = ANY(@queue::text[])
-  AND j.queued = true;
+  AND j.queued = true
+  AND (cardinality(@pools::text[]) = 0 OR j.pools && @pools::text[]);
 
 -- name: SelectLeasedJobsByQueue :many
 SELECT j.*
 FROM runs jr
        JOIN jobs j
             ON jr.job_id = j.job_id
-WHERE j.queue = ANY(@queue::text[])
+WHERE jr.queue = ANY(@queue::text[])
   AND jr.running = false
   AND jr.pending = false
   AND jr.succeeded = false
   AND jr.failed = false
   AND jr.cancelled = false
-  AND jr.preempted = false;
+  AND jr.preempted = false
+  AND (cardinality(@pools::text[]) = 0 OR jr.pool = ANY(@pools::text[]));
 
 -- name: SelectPendingJobsByQueue :many
 SELECT j.*
 FROM runs jr
        JOIN jobs j
             ON jr.job_id = j.job_id
-WHERE j.queue = ANY(@queue::text[])
+WHERE jr.queue = ANY(@queue::text[])
   AND jr.running = false
   AND jr.pending = true
   AND jr.succeeded = false
   AND jr.failed = false
   AND jr.cancelled = false
-  AND jr.preempted = false;
+  AND jr.preempted = false
+  AND (cardinality(@pools::text[]) = 0 OR jr.pool = ANY(@pools::text[]));
 
 -- name: SelectRunningJobsByQueue :many
 SELECT j.*
 FROM runs jr
        JOIN jobs j
             ON jr.job_id = j.job_id
-WHERE j.queue = ANY(@queue::text[])
+WHERE jr.queue = ANY(@queue::text[])
   AND jr.running = true
   AND jr.returned = false
   AND jr.succeeded = false
   AND jr.failed = false
   AND jr.cancelled = false
-  AND jr.preempted = false;
+  AND jr.preempted = false
+  AND (cardinality(@pools::text[]) = 0 OR jr.pool = ANY(@pools::text[]));
 

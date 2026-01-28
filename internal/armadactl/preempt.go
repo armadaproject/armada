@@ -36,10 +36,11 @@ func (a *App) Preempt(queue string, jobSetId string, jobId string, reason string
 	})
 }
 
-func (a *App) PreemptOnExecutor(executor string, queues []string, priorityClasses []string) error {
+func (a *App) PreemptOnExecutor(executor string, queues []string, priorityClasses []string, pools []string) error {
 	queueMsg := strings.Join(queues, ",")
 	priorityClassesMsg := strings.Join(priorityClasses, ",")
-	// If the provided slice of queues is empty, jobs on all queues will be cancelled
+	poolsMsg := strings.Join(pools, ",")
+	// If the provided slice of queues is empty, jobs on all queues will be preempted
 	if len(queues) == 0 {
 		apiQueues, err := a.getAllQueuesAsAPIQueue(&QueueQueryArgs{})
 		if err != nil {
@@ -48,27 +49,34 @@ func (a *App) PreemptOnExecutor(executor string, queues []string, priorityClasse
 		queues = armadaslices.Map(apiQueues, func(q *api.Queue) string { return q.Name })
 		queueMsg = "all"
 	}
+	if len(pools) == 0 {
+		poolsMsg = "all"
+	}
 
-	fmt.Fprintf(a.Out, "Requesting preemption of jobs matching executor: %s, queues: %s, priority-classes: %s\n", executor, queueMsg, priorityClassesMsg)
-	if err := a.Params.ExecutorAPI.PreemptOnExecutor(executor, queues, priorityClasses); err != nil {
+	fmt.Fprintf(a.Out, "Requesting preemption of jobs matching executor: %s, queues: %s, priority-classes: %s, pools: %s\n", executor, queueMsg, priorityClassesMsg, poolsMsg)
+	if err := a.Params.ExecutorAPI.PreemptOnExecutor(executor, queues, priorityClasses, pools); err != nil {
 		return fmt.Errorf("error preempting jobs on executor %s: %s", executor, err)
 	}
 	return nil
 }
 
 // PreemptOnQueues preempts all jobs on queues matching the provided QueueQueryArgs filter
-func (a *App) PreemptOnQueues(args *QueueQueryArgs, priorityClasses []string, dryRun bool) error {
+func (a *App) PreemptOnQueues(args *QueueQueryArgs, priorityClasses []string, pools []string, dryRun bool) error {
 	queues, err := a.getAllQueuesAsAPIQueue(args)
 	if err != nil {
 		return errors.Errorf("error fetching queues: %s", err)
 	}
 
 	priorityClassesMsg := strings.Join(priorityClasses, ",")
+	poolsMsg := strings.Join(pools, ",")
+	if len(pools) == 0 {
+		poolsMsg = "all"
+	}
 
 	for _, queue := range queues {
-		fmt.Fprintf(a.Out, "Requesting preemption of jobs matching queue: %s, priorityClasses: %s\n", queue.Name, priorityClassesMsg)
+		fmt.Fprintf(a.Out, "Requesting preemption of jobs matching queue: %s, priorityClasses: %s, pools: %s\n", queue.Name, priorityClassesMsg, poolsMsg)
 		if !dryRun {
-			if err := a.Params.QueueAPI.Preempt(queue.Name, priorityClasses); err != nil {
+			if err := a.Params.QueueAPI.Preempt(queue.Name, priorityClasses, pools); err != nil {
 				return fmt.Errorf("error preempting jobs on queue %s: %s", queue.Name, err)
 			}
 		}
