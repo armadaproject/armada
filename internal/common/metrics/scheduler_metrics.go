@@ -166,6 +166,13 @@ var QueueLeasedPodCountDesc = prometheus.NewDesc(
 	nil,
 )
 
+var NodeJobPhaseCounterDesc = prometheus.NewDesc(
+	MetricPrefix+"node_job_phase_count",
+	"Number of jobs in a given phase on a node",
+	[]string{"node", "cluster", "phase"},
+	nil,
+)
+
 var ClusterCapacityDesc = prometheus.NewDesc(
 	MetricPrefix+"cluster_capacity",
 	"Cluster capacity",
@@ -580,4 +587,15 @@ func isValidMetricLabelName(labelName string) bool {
 	// See: https://prometheus.io/docs/concepts/data_model/
 	match, _ := regexp.MatchString("^[a-zA-Z_][a-zA-Z0-9_]*$", labelName)
 	return match
+}
+
+func NewNodeJobPhaseCountMetric(value float64, node, cluster, phase string) prometheus.Metric {
+	return prometheus.MustNewConstMetric(
+		NodeJobPhaseCounterDesc,
+		prometheus.GaugeValue,
+		value,
+		node,
+		cluster,
+		phase,
+	)
 }
