@@ -10,6 +10,7 @@ import (
 	commonconfig "github.com/armadaproject/armada/internal/common/config"
 	grpcconfig "github.com/armadaproject/armada/internal/common/grpc/configuration"
 	profilingconfig "github.com/armadaproject/armada/internal/common/profiling/configuration"
+	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/armadaproject/armada/pkg/client"
@@ -55,12 +56,13 @@ type Configuration struct {
 	DatabaseFetchSize int `validate:"required"`
 	// Frequency at which queues will be fetched from the API
 	QueueRefreshPeriod time.Duration `validate:"required"`
-	// Allows queue priority multipliers to be fetched from an external source. This cannot be enabled at the same time
-	// as PriorityOverrides
-	PriorityMultiplier PriorityMultiplierConfig
-	// Allows queue priority overrides to be fetched from an external source. This cannot be enabled at the same time
-	// as PriorityMultipliers
+	// Allows queue priority overrides to be fetched from an external source.
 	PriorityOverride PriorityOverrideConfig
+	// Configuration for the pricing API
+	// This is used to retrieve queue pricing information
+	PricingApi PricingApiConfig
+	// Whether to publish metrics To Pulsar.  This is currently experimental
+	PublishMetricsToPulsar bool
 }
 
 type LeaderConfig struct {
@@ -106,6 +108,9 @@ type MetricsConfig struct {
 	Port                         uint16
 	RefreshInterval              time.Duration
 	JobStateMetricsResetInterval time.Duration
+	// Used to calculate job seconds lost to preemption
+	// Calculate as if the job checkpoints at these different intervals
+	JobCheckpointIntervals []time.Duration
 	// Regexes used for job error categorisation.
 	// Specifically, the subCategory label for job failure counters is the first regex that matches the job error.
 	// If no regex matches, the subCategory label is the empty string.
@@ -141,21 +146,46 @@ type SchedulingConfig struct {
 	// Set to true to enable larger job preferential ordering in the candidate gang iterator.
 	// This will result in larger jobs being ordered earlier in the job scheduling order
 	EnablePreferLargeJobOrdering bool
-	// Only queues allocated more than this fraction of their fair share are considered for preemption.
+	// ProtectedFractionOfFairShare sets the threshold for fair-share preemption.
+	// Queues at or below this fraction of their fair share are protected from preemption.
+	//
+	//   1.0 = Fair-share preemption disabled (default)
+	//   0.5 = Queues over 50% of fair share can have jobs preempted
+	//   0.1 = Aggressive - only queues under 10% of fair share are protected
+	//
+	// This only affects fair-share preemption, not priority-based preemption.
+	// Can be overridden per-pool via Pools[].ProtectedFractionOfFairShare.
 	ProtectedFractionOfFairShare float64 `validate:"gte=0"`
 	// Armada adds a node selector term to every scheduled pod using this label with the node name as value.
 	// This to force kube-scheduler to schedule pods on the node chosen by Armada.
 	// For example, if NodeIdLabel is "kubernetes.io/hostname" and armada schedules a pod on node "myNode",
 	// then Armada adds "kubernetes.io/hostname": "myNode" to the pod node selector before sending it to the executor.
 	NodeIdLabel string `validate:"required"`
-	// Map from priority class names to priority classes.
-	// Must be consistent with Kubernetes priority classes.
-	// I.e., priority classes defined here must be defined in all executor clusters and should map to the same priority.
+	// PriorityClasses defines Armada's own priority classes for scheduling and preemption.
+	// These are separate from Kubernetes PriorityClass resources. Armada handles all preemption
+	// in its scheduler before pods reach Kubernetes.
+	//
+	// Each class has two key fields:
+	//   - priority: Higher values are scheduled first and can preempt lower-priority jobs
+	//   - preemptible: If true, jobs can be evicted to rebalance resources across queues
+	//
+	// Example:
+	//   priorityClasses:
+	//     low:    { priority: 100,  preemptible: true }   # Can be preempted
+	//     medium: { priority: 500,  preemptible: true }   # Can be preempted, preempts "low"
+	//     high:   { priority: 1000, preemptible: false }  # Protected from fair-share preemption
 	PriorityClasses map[string]types.PriorityClass `validate:"dive"`
-	// Jobs with no priority class are assigned this priority class when ingested by the scheduler.
-	// Must be a key in the PriorityClasses map above.
+	// DefaultPriorityClassName is assigned to jobs submitted without a priority class.
+	// Must match a key in PriorityClasses.
 	DefaultPriorityClassName string
-	// If set, override the priority class name of pods with this value when sending to an executor.
+	// PriorityClassNameOverride sets the Kubernetes PriorityClass name on pods sent to executors.
+	// This controls what Kubernetes PriorityClass appears on the pod spec, not Armada's preemption behavior.
+	//
+	//   - "" (empty): Pods have no priorityClassName field
+	//   - Any other value: All pods use this Kubernetes PriorityClass
+	//
+	// This is only relevant for clusters that require pods to have a Kubernetes PriorityClass set.
+	// It does not affect how Armada schedules or preempts jobs.
 	PriorityClassNameOverride *string
 	// Number of jobs to load from the database at a time.
 	MaxQueueLookback uint
@@ -233,7 +263,7 @@ type SchedulingConfig struct {
 	FloatingResources []FloatingResourceConfig
 	// WellKnownNodeTypes defines a set of well-known node types used to define "home" and "away" nodes for a given priority class.
 	WellKnownNodeTypes []WellKnownNodeType `validate:"dive"`
-	// Executor that haven't heartbeated in this time period are considered stale.
+	// Executors that haven't heartbeated in this time period are considered stale.
 	// No new jobs are scheduled onto stale executors.
 	ExecutorTimeout time.Duration
 	// Maximum number of jobs that can be assigned to a executor but not yet acknowledged, before
@@ -244,15 +274,14 @@ type SchedulingConfig struct {
 	// Default priority for pools that are not in the above list
 	DefaultPoolSchedulePriority int
 	Pools                       []PoolConfig
-	// TODO: Remove this feature gate
-	EnableExecutorCordoning       bool
-	ExperimentalIndicativePricing ExperimentalIndicativePricing
+	ExperimentalIndicativeShare ExperimentalIndicativeShare
 }
 
 const (
 	DuplicateWellKnownNodeTypeErrorMessage     = "duplicate well-known node type name"
 	AwayNodeTypesWithoutPreemptionErrorMessage = "priority class has away node types but is not preemptible"
 	UnknownWellKnownNodeTypeErrorMessage       = "priority class refers to unknown well-known node type"
+	WildCardWellKnownNodeTypeValue             = "*"
 )
 
 // ResourceType represents a resource the scheduler indexes for efficient lookup.
@@ -282,11 +311,76 @@ type WellKnownNodeType struct {
 }
 
 type PoolConfig struct {
-	Name                                         string `validate:"required"`
-	AwayPools                                    []string
-	ProtectedFractionOfFairShare                 *float64
-	MarketDriven                                 bool
+	Name                         string `validate:"required"`
+	AwayPools                    []string
+	ProtectedFractionOfFairShare *float64
+	// List of resource names, (e.g. "cpu" or "memory"), to consider when computing DominantResourceFairness costs.
+	// Dominant resource fairness is the algorithm used to assign a cost to jobs and queues.
+	DominantResourceFairnessResourcesToConsider  []DominantResourceFairnessResource
 	ExperimentalProtectUncappedAdjustedFairShare bool
+	ExperimentalOptimiser                        *OptimiserConfig
+	// When calculating costs assume all jobs ran for at least this long.
+	// This penalizes jobs that ran for less than this value,
+	// since they are charged the same as a job that ran for this value.
+	ShortJobPenaltyCutoff         time.Duration
+	ExperimentalSubmissionGroup   string
+	ExperimentalMarketScheduling  *MarketSchedulingConfig
+	ExperimentalRunReconciliation *RunReconciliationConfig
+	DisableAwayScheduling         bool
+	DisableGangAwayScheduling     bool
+}
+
+func (p PoolConfig) GetSubmissionGroup() string {
+	if p.ExperimentalSubmissionGroup == "" {
+		return p.Name
+	}
+	return p.ExperimentalSubmissionGroup
+}
+
+type MarketSchedulingConfig struct {
+	Enabled bool
+	// The percentage of the pool that needs to be allocated to determine the spot price
+	SpotPriceCutoff              float64
+	GangIndicativePricingTimeout time.Duration `validate:"required"`
+	// Set of gang definitions that need to be priced. Price will be exposed via metrics.
+	GangsToPrice map[string]GangDefinition
+}
+
+type GangDefinition struct {
+	Size              int32
+	PriorityClassName string
+	NodeUniformity    string // metadata.gresearch.co.uk/armada-gang-boundary
+	NodeSelector      map[string]string
+	Tolerations       []v1.Toleration
+	Resources         *armadaresource.ComputeResources
+}
+
+type RunReconciliationConfig struct {
+	Enabled                       bool
+	EnsureReservationMatch        bool
+	EnsureReservationDoesNotMatch bool
+}
+
+type OptimiserConfig struct {
+	Enabled bool
+	// How often the optimiser should run, likely desirable to not run every scheduling round
+	Interval time.Duration
+	// How long the optimiser can run for before giving up
+	// The optimiser is relatively inefficient,
+	//  on large pools this protects against the optimiser causing very long scheduling rounds
+	Timeout time.Duration `validate:"required"`
+	// Maximum jobs the optimiser will scheduler per round
+	MaximumJobsPerRound int
+	// Maximum fraction of the pool the optimiser will scheduler per round
+	MaximumResourceFractionToSchedule map[string]float64
+	// MinimumJobSizeToSchedule - The optimiser will not scheduler jobs that aren't at least as big as this field
+	MinimumJobSizeToSchedule *armadaresource.ComputeResources
+	// MaximumJobSizeToPreempt - The optimiser won't preempt jobs that are bigger than this field
+	MaximumJobSizeToPreempt *armadaresource.ComputeResources
+	// The minimum fairness improvement (as a percentage) for the optimiser to take action
+	// I.e, Optimiser tries to scheduler a 16 CPU job and has to preempt a 10 CPU jobs
+	// - 16/10 = 160%, 60% improvement
+	MinimumFairnessImprovementPercentage float64
 }
 
 func (sc *SchedulingConfig) GetProtectedFractionOfFairShare(poolName string) float64 {
@@ -307,16 +401,43 @@ func (sc *SchedulingConfig) GetProtectUncappedAdjustedFairShare(poolName string)
 	return false
 }
 
-type ExperimentalIndicativePricing struct {
-	BasePrice    float64
-	BasePriority float64
+func (sc *SchedulingConfig) GetOptimiserConfig(poolName string) *OptimiserConfig {
+	for _, poolConfig := range sc.Pools {
+		if poolConfig.Name == poolName {
+			return poolConfig.ExperimentalOptimiser
+		}
+	}
+	return nil
 }
 
-type PriorityMultiplierConfig struct {
-	Enabled         bool
-	UpdateFrequency time.Duration
-	ServiceUrl      string
-	ForceNoTls      bool
+func (sc *SchedulingConfig) GetMarketConfig(poolName string) *MarketSchedulingConfig {
+	for _, poolConfig := range sc.Pools {
+		if poolConfig.Name == poolName {
+			return poolConfig.ExperimentalMarketScheduling
+		}
+	}
+	return nil
+}
+
+func (sc *SchedulingConfig) GetShortJobPenaltyCutoffs() map[string]time.Duration {
+	result := make(map[string]time.Duration)
+	for _, poolConfig := range sc.Pools {
+		result[poolConfig.Name] = poolConfig.ShortJobPenaltyCutoff
+	}
+	return result
+}
+
+func (sc *SchedulingConfig) GetPoolConfig(poolName string) *PoolConfig {
+	for _, poolConfig := range sc.Pools {
+		if poolConfig.Name == poolName {
+			return &poolConfig
+		}
+	}
+	return nil
+}
+
+type ExperimentalIndicativeShare struct {
+	BasePriorities []int
 }
 
 type PriorityOverrideConfig struct {
@@ -324,4 +445,14 @@ type PriorityOverrideConfig struct {
 	UpdateFrequency time.Duration
 	ServiceUrl      string
 	ForceNoTls      bool
+}
+
+type PricingApiConfig struct {
+	Enabled         bool
+	UpdateFrequency time.Duration
+	ServiceUrl      string
+	ForceNoTls      bool
+	// This is for local testing only
+	// It will stub the pricing api so it returns non-zero values but won't call and external service
+	DevModeEnabled bool
 }

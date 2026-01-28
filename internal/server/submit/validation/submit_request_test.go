@@ -11,6 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/utils/pointer"
 
+	"github.com/armadaproject/armada/internal/common/constants"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/armadaproject/armada/pkg/api"
@@ -134,8 +135,8 @@ func TestValidateGangs(t *testing.T) {
 			jobRequests: []*api.JobSubmitRequestItem{
 				{
 					Annotations: map[string]string{
-						configuration.GangIdAnnotation:          "foo",
-						configuration.GangCardinalityAnnotation: strconv.Itoa(1),
+						constants.GangIdAnnotation:          "foo",
+						constants.GangCardinalityAnnotation: strconv.Itoa(1),
 					},
 				},
 			},
@@ -145,8 +146,32 @@ func TestValidateGangs(t *testing.T) {
 			jobRequests: []*api.JobSubmitRequestItem{
 				{
 					Annotations: map[string]string{
-						configuration.GangIdAnnotation:          "",
-						configuration.GangCardinalityAnnotation: strconv.Itoa(1),
+						constants.GangIdAnnotation:          "",
+						constants.GangCardinalityAnnotation: strconv.Itoa(1),
+					},
+				},
+			},
+			expectSuccess: false,
+		},
+		"set fail fast flag - true": {
+			jobRequests: []*api.JobSubmitRequestItem{
+				{
+					Annotations: map[string]string{
+						constants.GangIdAnnotation:          "foo",
+						constants.GangCardinalityAnnotation: strconv.Itoa(2),
+						constants.FailFastAnnotation:        "true",
+					},
+				},
+			},
+			expectSuccess: true,
+		},
+		"set fail fast flag - false": {
+			jobRequests: []*api.JobSubmitRequestItem{
+				{
+					Annotations: map[string]string{
+						constants.GangIdAnnotation:          "foo",
+						constants.GangCardinalityAnnotation: strconv.Itoa(2),
+						constants.FailFastAnnotation:        "false",
 					},
 				},
 			},
@@ -156,20 +181,20 @@ func TestValidateGangs(t *testing.T) {
 			jobRequests: []*api.JobSubmitRequestItem{
 				{
 					Annotations: map[string]string{
-						configuration.GangIdAnnotation:          "foo",
-						configuration.GangCardinalityAnnotation: strconv.Itoa(3),
+						constants.GangIdAnnotation:          "foo",
+						constants.GangCardinalityAnnotation: strconv.Itoa(3),
 					},
 				},
 				{
 					Annotations: map[string]string{
-						configuration.GangIdAnnotation:          "foo",
-						configuration.GangCardinalityAnnotation: strconv.Itoa(3),
+						constants.GangIdAnnotation:          "foo",
+						constants.GangCardinalityAnnotation: strconv.Itoa(3),
 					},
 				},
 				{
 					Annotations: map[string]string{
-						configuration.GangIdAnnotation:          "foo",
-						configuration.GangCardinalityAnnotation: strconv.Itoa(3),
+						constants.GangIdAnnotation:          "foo",
+						constants.GangCardinalityAnnotation: strconv.Itoa(3),
 					},
 				},
 			},
@@ -179,32 +204,32 @@ func TestValidateGangs(t *testing.T) {
 			jobRequests: []*api.JobSubmitRequestItem{
 				{
 					Annotations: map[string]string{
-						configuration.GangIdAnnotation:          "bar",
-						configuration.GangCardinalityAnnotation: strconv.Itoa(2),
+						constants.GangIdAnnotation:          "bar",
+						constants.GangCardinalityAnnotation: strconv.Itoa(2),
 					},
 				},
 				{
 					Annotations: map[string]string{
-						configuration.GangIdAnnotation:          "foo",
-						configuration.GangCardinalityAnnotation: strconv.Itoa(3),
+						constants.GangIdAnnotation:          "foo",
+						constants.GangCardinalityAnnotation: strconv.Itoa(3),
 					},
 				},
 				{
 					Annotations: map[string]string{
-						configuration.GangIdAnnotation:          "foo",
-						configuration.GangCardinalityAnnotation: strconv.Itoa(3),
+						constants.GangIdAnnotation:          "foo",
+						constants.GangCardinalityAnnotation: strconv.Itoa(3),
 					},
 				},
 				{
 					Annotations: map[string]string{
-						configuration.GangIdAnnotation:          "foo",
-						configuration.GangCardinalityAnnotation: strconv.Itoa(3),
+						constants.GangIdAnnotation:          "foo",
+						constants.GangCardinalityAnnotation: strconv.Itoa(3),
 					},
 				},
 				{
 					Annotations: map[string]string{
-						configuration.GangIdAnnotation:          "bar",
-						configuration.GangCardinalityAnnotation: strconv.Itoa(2),
+						constants.GangIdAnnotation:          "bar",
+						constants.GangCardinalityAnnotation: strconv.Itoa(2),
 					},
 				},
 			},
@@ -214,26 +239,26 @@ func TestValidateGangs(t *testing.T) {
 			jobRequests: []*api.JobSubmitRequestItem{
 				{
 					Annotations: map[string]string{
-						configuration.GangIdAnnotation:          "bar",
-						configuration.GangCardinalityAnnotation: strconv.Itoa(2),
+						constants.GangIdAnnotation:          "bar",
+						constants.GangCardinalityAnnotation: strconv.Itoa(2),
 					},
 				},
 				{
 					Annotations: map[string]string{
-						configuration.GangIdAnnotation:          "foo",
-						configuration.GangCardinalityAnnotation: strconv.Itoa(3),
+						constants.GangIdAnnotation:          "foo",
+						constants.GangCardinalityAnnotation: strconv.Itoa(3),
 					},
 				},
 				{
 					Annotations: map[string]string{
-						configuration.GangIdAnnotation:          "foo",
-						configuration.GangCardinalityAnnotation: strconv.Itoa(3),
+						constants.GangIdAnnotation:          "foo",
+						constants.GangCardinalityAnnotation: strconv.Itoa(3),
 					},
 				},
 				{
 					Annotations: map[string]string{
-						configuration.GangIdAnnotation:          "bar",
-						configuration.GangCardinalityAnnotation: strconv.Itoa(2),
+						constants.GangIdAnnotation:          "bar",
+						constants.GangCardinalityAnnotation: strconv.Itoa(2),
 					},
 				},
 			},
@@ -243,13 +268,13 @@ func TestValidateGangs(t *testing.T) {
 			jobRequests: []*api.JobSubmitRequestItem{
 				{
 					Annotations: map[string]string{
-						configuration.GangIdAnnotation:          "bar",
-						configuration.GangCardinalityAnnotation: strconv.Itoa(2),
+						constants.GangIdAnnotation:          "bar",
+						constants.GangCardinalityAnnotation: strconv.Itoa(2),
 					},
 				},
 				{
 					Annotations: map[string]string{
-						configuration.GangIdAnnotation: "bar",
+						constants.GangIdAnnotation: "bar",
 					},
 				},
 			},
@@ -259,13 +284,13 @@ func TestValidateGangs(t *testing.T) {
 			jobRequests: []*api.JobSubmitRequestItem{
 				{
 					Annotations: map[string]string{
-						configuration.GangIdAnnotation:          "bar",
-						configuration.GangCardinalityAnnotation: "not an int",
+						constants.GangIdAnnotation:          "bar",
+						constants.GangCardinalityAnnotation: "not an int",
 					},
 				},
 				{
 					Annotations: map[string]string{
-						configuration.GangIdAnnotation: "not an int",
+						constants.GangIdAnnotation: "not an int",
 					},
 				},
 			},
@@ -275,8 +300,8 @@ func TestValidateGangs(t *testing.T) {
 			jobRequests: []*api.JobSubmitRequestItem{
 				{
 					Annotations: map[string]string{
-						configuration.GangIdAnnotation:          "bar",
-						configuration.GangCardinalityAnnotation: "0",
+						constants.GangIdAnnotation:          "bar",
+						constants.GangCardinalityAnnotation: "0",
 					},
 				},
 			},
@@ -286,8 +311,8 @@ func TestValidateGangs(t *testing.T) {
 			jobRequests: []*api.JobSubmitRequestItem{
 				{
 					Annotations: map[string]string{
-						configuration.GangIdAnnotation:          "bar",
-						configuration.GangCardinalityAnnotation: "-1",
+						constants.GangIdAnnotation:          "bar",
+						constants.GangCardinalityAnnotation: "-1",
 					},
 				},
 			},
@@ -297,32 +322,32 @@ func TestValidateGangs(t *testing.T) {
 			jobRequests: []*api.JobSubmitRequestItem{
 				{
 					Annotations: map[string]string{
-						configuration.GangIdAnnotation:          "bar",
-						configuration.GangCardinalityAnnotation: strconv.Itoa(2),
+						constants.GangIdAnnotation:          "bar",
+						constants.GangCardinalityAnnotation: strconv.Itoa(2),
 					},
 				},
 				{
 					Annotations: map[string]string{
-						configuration.GangIdAnnotation:          "foo",
-						configuration.GangCardinalityAnnotation: strconv.Itoa(3),
+						constants.GangIdAnnotation:          "foo",
+						constants.GangCardinalityAnnotation: strconv.Itoa(3),
 					},
 				},
 				{
 					Annotations: map[string]string{
-						configuration.GangIdAnnotation:          "foo",
-						configuration.GangCardinalityAnnotation: strconv.Itoa(3),
+						constants.GangIdAnnotation:          "foo",
+						constants.GangCardinalityAnnotation: strconv.Itoa(3),
 					},
 				},
 				{
 					Annotations: map[string]string{
-						configuration.GangIdAnnotation:          "bar",
-						configuration.GangCardinalityAnnotation: strconv.Itoa(2),
+						constants.GangIdAnnotation:          "bar",
+						constants.GangCardinalityAnnotation: strconv.Itoa(2),
 					},
 				},
 				{
 					Annotations: map[string]string{
-						configuration.GangIdAnnotation:          "foo",
-						configuration.GangCardinalityAnnotation: strconv.Itoa(2),
+						constants.GangIdAnnotation:          "foo",
+						constants.GangCardinalityAnnotation: strconv.Itoa(2),
 					},
 				},
 			},
@@ -332,8 +357,8 @@ func TestValidateGangs(t *testing.T) {
 			jobRequests: []*api.JobSubmitRequestItem{
 				{
 					Annotations: map[string]string{
-						configuration.GangIdAnnotation:          "bar",
-						configuration.GangCardinalityAnnotation: strconv.Itoa(2),
+						constants.GangIdAnnotation:          "bar",
+						constants.GangCardinalityAnnotation: strconv.Itoa(2),
 					},
 					PodSpec: &v1.PodSpec{
 						PriorityClassName: "baz",
@@ -341,8 +366,8 @@ func TestValidateGangs(t *testing.T) {
 				},
 				{
 					Annotations: map[string]string{
-						configuration.GangIdAnnotation:          "bar",
-						configuration.GangCardinalityAnnotation: strconv.Itoa(2),
+						constants.GangIdAnnotation:          "bar",
+						constants.GangCardinalityAnnotation: strconv.Itoa(2),
 					},
 					PodSpec: &v1.PodSpec{
 						PriorityClassName: "zab",
@@ -355,17 +380,17 @@ func TestValidateGangs(t *testing.T) {
 			jobRequests: []*api.JobSubmitRequestItem{
 				{
 					Annotations: map[string]string{
-						configuration.GangIdAnnotation:                  "bar",
-						configuration.GangCardinalityAnnotation:         strconv.Itoa(2),
-						configuration.GangNodeUniformityLabelAnnotation: "foo",
+						constants.GangIdAnnotation:                  "bar",
+						constants.GangCardinalityAnnotation:         strconv.Itoa(2),
+						constants.GangNodeUniformityLabelAnnotation: "foo",
 					},
 					PodSpec: &v1.PodSpec{},
 				},
 				{
 					Annotations: map[string]string{
-						configuration.GangIdAnnotation:                  "bar",
-						configuration.GangCardinalityAnnotation:         strconv.Itoa(2),
-						configuration.GangNodeUniformityLabelAnnotation: "bar",
+						constants.GangIdAnnotation:                  "bar",
+						constants.GangCardinalityAnnotation:         strconv.Itoa(2),
+						constants.GangNodeUniformityLabelAnnotation: "bar",
 					},
 					PodSpec: &v1.PodSpec{},
 				},
@@ -583,6 +608,46 @@ func TestValidateJobSetIdLength(t *testing.T) {
 	}
 }
 
+func TestValidatePriceBand(t *testing.T) {
+	tests := map[string]struct {
+		req           *api.JobSubmitRequestItem
+		expectSuccess bool
+	}{
+		"no price band": {
+			req:           &api.JobSubmitRequestItem{},
+			expectSuccess: true,
+		},
+		"valid price band - lowercase": {
+			req: &api.JobSubmitRequestItem{
+				Annotations: map[string]string{constants.JobPriceBand: "a"},
+			},
+			expectSuccess: true,
+		},
+		"valid price band - uppercase": {
+			req: &api.JobSubmitRequestItem{
+				Annotations: map[string]string{constants.JobPriceBand: "A"},
+			},
+			expectSuccess: true,
+		},
+		"invalid price band": {
+			req: &api.JobSubmitRequestItem{
+				Annotations: map[string]string{constants.JobPriceBand: "z"},
+			},
+			expectSuccess: false,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			err := validatePriceBand(tc.req, configuration.SubmissionConfig{})
+			if tc.expectSuccess {
+				assert.NoError(t, err)
+			} else {
+				assert.Error(t, err)
+			}
+		})
+	}
+}
+
 func TestValidatePodSpecSize(t *testing.T) {
 	defaultPodSpec := &v1.PodSpec{
 		Volumes: []v1.Volume{
@@ -717,6 +782,80 @@ func TestValidatePorts(t *testing.T) {
 			}},
 			expectSuccess: false,
 		},
+		"init container with unique port": {
+			req: &api.JobSubmitRequestItem{PodSpec: &v1.PodSpec{
+				InitContainers: []v1.Container{
+					{
+						Ports: []v1.ContainerPort{
+							{ContainerPort: 8080},
+						},
+					},
+				},
+				Containers: []v1.Container{
+					{
+						Ports: []v1.ContainerPort{
+							{ContainerPort: 80},
+						},
+					},
+				},
+			}},
+			expectSuccess: true,
+		},
+		"duplicate port between init container and container": {
+			req: &api.JobSubmitRequestItem{PodSpec: &v1.PodSpec{
+				InitContainers: []v1.Container{
+					{
+						Ports: []v1.ContainerPort{
+							{ContainerPort: 80},
+						},
+					},
+				},
+				Containers: []v1.Container{
+					{
+						Ports: []v1.ContainerPort{
+							{ContainerPort: 80},
+						},
+					},
+				},
+			}},
+			expectSuccess: false,
+		},
+		"duplicate port across multiple init containers": {
+			req: &api.JobSubmitRequestItem{PodSpec: &v1.PodSpec{
+				InitContainers: []v1.Container{
+					{
+						Ports: []v1.ContainerPort{
+							{ContainerPort: 80},
+						},
+					},
+					{
+						Ports: []v1.ContainerPort{
+							{ContainerPort: 80},
+						},
+					},
+				},
+				Containers: []v1.Container{{}},
+			}},
+			expectSuccess: false,
+		},
+		"init containers only with unique ports": {
+			req: &api.JobSubmitRequestItem{PodSpec: &v1.PodSpec{
+				InitContainers: []v1.Container{
+					{
+						Ports: []v1.ContainerPort{
+							{ContainerPort: 80},
+						},
+					},
+					{
+						Ports: []v1.ContainerPort{
+							{ContainerPort: 8080},
+						},
+					},
+				},
+				Containers: []v1.Container{{}},
+			}},
+			expectSuccess: true,
+		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -836,50 +975,6 @@ func TestValidateQueue(t *testing.T) {
 	}
 }
 
-func TestValidatePrice(t *testing.T) {
-	tests := map[string]struct {
-		item          *api.JobSubmitRequestItem
-		expectSuccess bool
-	}{
-		"nil ExperimentalPriceInfo is ok": {
-			item:          &api.JobSubmitRequestItem{},
-			expectSuccess: true,
-		},
-		"zero price is ok": {
-			item: &api.JobSubmitRequestItem{
-				ExperimentalPriceInfo: &api.ExperimentalPriceInfo{},
-			},
-			expectSuccess: true,
-		},
-		"positive price is ok": {
-			item: &api.JobSubmitRequestItem{
-				ExperimentalPriceInfo: &api.ExperimentalPriceInfo{
-					BidPrice: 1.0,
-				},
-			},
-			expectSuccess: true,
-		},
-		"negative price is rejected": {
-			item: &api.JobSubmitRequestItem{
-				ExperimentalPriceInfo: &api.ExperimentalPriceInfo{
-					BidPrice: -1.0,
-				},
-			},
-			expectSuccess: false,
-		},
-	}
-	for name, tc := range tests {
-		t.Run(name, func(t *testing.T) {
-			err := validatePrice(tc.item, configuration.SubmissionConfig{})
-			if tc.expectSuccess {
-				assert.NoError(t, err)
-			} else {
-				assert.Error(t, err)
-			}
-		})
-	}
-}
-
 func TestValidateResources(t *testing.T) {
 	oneCpu := v1.ResourceList{
 		v1.ResourceCPU: resource.MustParse("1"),
@@ -889,42 +984,46 @@ func TestValidateResources(t *testing.T) {
 		v1.ResourceCPU: resource.MustParse("2"),
 	}
 
+	negativeOneCpu := v1.ResourceList{
+		v1.ResourceCPU: resource.MustParse("-1"),
+	}
+
 	tests := map[string]struct {
-		req                                  *api.JobSubmitRequestItem
+		containers                           []v1.Container
 		minJobResources                      v1.ResourceList
 		maxOversubscriptionByResourceRequest map[string]float64
 		expectSuccess                        bool
 	}{
 		"Requests Missing": {
-			req: reqFromContainer(v1.Container{
+			containers: []v1.Container{{
 				Resources: v1.ResourceRequirements{
 					Limits: oneCpu,
 				},
-			}),
+			}},
 			expectSuccess: false,
 		},
 		"Limits Missing": {
-			req: reqFromContainer(v1.Container{
+			containers: []v1.Container{{
 				Resources: v1.ResourceRequirements{
 					Requests: oneCpu,
 				},
-			}),
+			}},
 			expectSuccess: false,
 		},
 		"Limits Less Than Request": {
-			req: reqFromContainer(v1.Container{
+			containers: []v1.Container{{
 				Resources: v1.ResourceRequirements{
 					Requests: twoCpu,
 					Limits:   oneCpu,
 				},
-			}),
+			}},
 			expectSuccess: false,
 			maxOversubscriptionByResourceRequest: map[string]float64{
 				"cpu": 2.0,
 			},
 		},
 		"Limits And Requests specify different resources": {
-			req: reqFromContainer(v1.Container{
+			containers: []v1.Container{{
 				Resources: v1.ResourceRequirements{
 					Requests: v1.ResourceList{
 						v1.ResourceCPU: resource.MustParse("1"),
@@ -934,7 +1033,7 @@ func TestValidateResources(t *testing.T) {
 						v1.ResourceMemory: resource.MustParse("2Gi"),
 					},
 				},
-			}),
+			}},
 			expectSuccess: false,
 			maxOversubscriptionByResourceRequest: map[string]float64{
 				"cpu":    2.0,
@@ -942,49 +1041,76 @@ func TestValidateResources(t *testing.T) {
 			},
 		},
 		"Requests and limits different with MaxResourceOversubscriptionByResourceRequest undefined": {
-			req: reqFromContainer(v1.Container{
+			containers: []v1.Container{{
 				Resources: v1.ResourceRequirements{
 					Requests: oneCpu,
 					Limits:   twoCpu,
 				},
-			}),
+			}},
 			expectSuccess: false,
 		},
 		"Requests and limits different, passes MaxResourceOversubscriptionByResourceRequest": {
-			req: reqFromContainer(v1.Container{
+			containers: []v1.Container{{
 				Resources: v1.ResourceRequirements{
 					Requests: oneCpu,
 					Limits:   twoCpu,
 				},
-			}),
+			}},
 			maxOversubscriptionByResourceRequest: map[string]float64{
 				"cpu": 2.0,
 			},
 			expectSuccess: true,
 		},
 		"Requests and limits different, fails MaxResourceOversubscriptionByResourceRequest": {
-			req: reqFromContainer(v1.Container{
+			containers: []v1.Container{{
 				Resources: v1.ResourceRequirements{
 					Requests: oneCpu,
 					Limits:   twoCpu,
 				},
-			}),
+			}},
+			expectSuccess: false,
 			maxOversubscriptionByResourceRequest: map[string]float64{
 				"cpu": 1.9,
 			},
+		},
+		"Negative resources request": {
+			containers: []v1.Container{{
+				Resources: v1.ResourceRequirements{
+					Requests: negativeOneCpu,
+					Limits:   oneCpu,
+				},
+			}},
+			expectSuccess: false,
+		},
+		"Negative resource limit": {
+			containers: []v1.Container{{
+				Resources: v1.ResourceRequirements{
+					Requests: oneCpu,
+					Limits:   negativeOneCpu,
+				},
+			}},
+			expectSuccess: false,
+		},
+		"Negative resources": {
+			containers: []v1.Container{{
+				Resources: v1.ResourceRequirements{
+					Requests: negativeOneCpu,
+					Limits:   negativeOneCpu,
+				},
+			}},
 			expectSuccess: false,
 		},
 		"Request and limits the same": {
-			req: reqFromContainer(v1.Container{
+			containers: []v1.Container{{
 				Resources: v1.ResourceRequirements{
 					Requests: oneCpu,
 					Limits:   oneCpu,
 				},
-			}),
+			}},
 			expectSuccess: true,
 		},
 		"Request and limits the same with two containers": {
-			req: reqFromContainers([]v1.Container{
+			containers: []v1.Container{
 				{
 					Resources: v1.ResourceRequirements{
 						Requests: oneCpu,
@@ -997,23 +1123,30 @@ func TestValidateResources(t *testing.T) {
 						Limits:   twoCpu,
 					},
 				},
-			}),
+			},
 			expectSuccess: true,
 		},
 	}
 	for name, tc := range tests {
-		t.Run(name, func(t *testing.T) {
-			submitConfg := configuration.SubmissionConfig{}
-			if tc.maxOversubscriptionByResourceRequest != nil {
-				submitConfg.MaxOversubscriptionByResourceRequest = tc.maxOversubscriptionByResourceRequest
-			}
-			err := validateResources(tc.req, submitConfg)
-			if tc.expectSuccess {
-				assert.NoError(t, err)
-			} else {
-				assert.Error(t, err)
-			}
-		})
+		runTest := func(name string, req *api.JobSubmitRequestItem) {
+			t.Run(name, func(t *testing.T) {
+				submitConfg := configuration.SubmissionConfig{}
+				if tc.maxOversubscriptionByResourceRequest != nil {
+					submitConfg.MaxOversubscriptionByResourceRequest = tc.maxOversubscriptionByResourceRequest
+				}
+				err := validateResources(req, submitConfg)
+				if tc.expectSuccess {
+					assert.NoError(t, err)
+				} else {
+					assert.Error(t, err)
+				}
+			})
+		}
+
+		// Run the tests for a request with main containers, a request with init containers and a request containing both
+		runTest(name+" - main containers", reqWithContainers(nil, tc.containers))
+		runTest(name+" - init containers", reqWithContainers(tc.containers, nil))
+		runTest(name+" - combined containers", reqWithContainers(tc.containers, tc.containers))
 	}
 }
 
@@ -1258,13 +1391,12 @@ func TestValidateRestrictedTolerations(t *testing.T) {
 	}
 }
 
-func reqFromContainer(container v1.Container) *api.JobSubmitRequestItem {
-	return reqFromContainers([]v1.Container{container})
-}
-
-func reqFromContainers(containers []v1.Container) *api.JobSubmitRequestItem {
+func reqWithContainers(initContainers []v1.Container, containers []v1.Container) *api.JobSubmitRequestItem {
 	return &api.JobSubmitRequestItem{
-		PodSpec: &v1.PodSpec{Containers: containers},
+		PodSpec: &v1.PodSpec{
+			InitContainers: initContainers,
+			Containers:     containers,
+		},
 	}
 }
 

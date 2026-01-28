@@ -6,17 +6,28 @@ const (
 	prefix = "armada_scheduler_"
 
 	// Prometheus Labels
-	poolLabel             = "pool"
-	queueLabel            = "queue"
-	priorityClassLabel    = "priority_class"
-	nodeLabel             = "node"
-	nodeTypeLabel         = "nodeType"
-	clusterLabel          = "cluster"
-	errorCategoryLabel    = "category"
-	errorSubcategoryLabel = "subcategory"
-	stateLabel            = "state"
-	priorStateLabel       = "priorState"
-	resourceLabel         = "resource"
+	checkpointLabel          = "checkpoint_interval"
+	poolLabel                = "pool"
+	typeLabel                = "type"
+	priorityLabel            = "priority"
+	queueLabel               = "queue"
+	priorityClassLabel       = "priority_class"
+	nodeLabel                = "node"
+	nodeTypeLabel            = "nodeType"
+	clusterLabel             = "cluster"
+	errorCategoryLabel       = "category"
+	errorSubcategoryLabel    = "subcategory"
+	stateLabel               = "state"
+	priorStateLabel          = "priorState"
+	resourceLabel            = "resource"
+	reservationLabel         = "reservation"
+	jobShapeLabel            = "job_shape"
+	unschedulableReasonLabel = "unschedulable_reason"
+	outcomeLabel             = "outcome"
+	terminationReasonLabel   = "termination_reason"
+
+	PoolSchedulingOutcomeSuccess = "success"
+	PoolSchedulingOutcomeFailure = "failure"
 
 	// Job state strings
 	queued    = "queued"
@@ -27,4 +38,6 @@ const (
 	preempted = "preempted"
 	failed    = "failed"
 	succeeded = "succeeded"
+
+	noCheckpointLabelValue = "none"
 )

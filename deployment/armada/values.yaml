@@ -2,8 +2,8 @@ nameOverride: ""
 fullnameOverride: ""
 
 image:
-  repository: gresearchdev/armada-server
-  tag: 0.0.0-latest
+  repository: gresearch/armada-server
+  tag: latest
 
 resources:
   limits:
@@ -71,6 +71,8 @@ prometheus:
   scrapeTimeout: 10s
 
 podDisruptionBudget: {}
+
+topologyKey: kubernetes.io/hostname
 
 # Service type.  May be NodePort, ClusterIp, LoadBalancer
 serviceType: ClusterIP

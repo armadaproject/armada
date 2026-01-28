@@ -67,12 +67,12 @@ func TestGetTotalAvailableForPool(t *testing.T) {
 	sut := makeSut(t, makeRlFactory())
 
 	cpuPool := sut.GetTotalAvailableForPool("cpu")
-	assert.Equal(t, int64(200000), cpuPool.GetByNameZeroIfMissing("floating-resource-1"))
-	assert.Equal(t, int64(300000), cpuPool.GetByNameZeroIfMissing("floating-resource-2"))
+	assert.Equal(t, "200", qToStr(cpuPool.GetByNameZeroIfMissing("floating-resource-1")))
+	assert.Equal(t, "300", qToStr(cpuPool.GetByNameZeroIfMissing("floating-resource-2")))
 
 	gpuPool := sut.GetTotalAvailableForPool("gpu")
-	assert.Equal(t, int64(100000), gpuPool.GetByNameZeroIfMissing("floating-resource-1"))
-	assert.Equal(t, int64(0), gpuPool.GetByNameZeroIfMissing("floating-resource-2"))
+	assert.Equal(t, "100", qToStr(gpuPool.GetByNameZeroIfMissing("floating-resource-1")))
+	assert.Equal(t, "0", qToStr(gpuPool.GetByNameZeroIfMissing("floating-resource-2")))
 
 	notFound := sut.GetTotalAvailableForPool("some-invalid-value")
 	assert.True(t, notFound.IsEmpty())
@@ -198,4 +198,8 @@ func makeSut(t *testing.T, rlFactory *internaltypes.ResourceListFactory) *Floati
 	sut, err := NewFloatingResourceTypes(testConfig(), rlFactory)
 	assert.Nil(t, err)
 	return sut
+}
+
+func qToStr(q resource.Quantity) string {
+	return q.String()
 }

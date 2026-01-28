@@ -15,6 +15,7 @@ import (
 	clock "k8s.io/utils/clock/testing"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/common/pointer"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/floatingresources"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
@@ -32,7 +33,7 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 	smallJob2 := testfixtures.Test1Cpu4GiJob("queue", testfixtures.PriorityClass1)
 	smallGpuJob := testfixtures.Test1GpuJob("queue", testfixtures.PriorityClass4PreemptibleAway)
 	smallAwayJob := testfixtures.Test1Cpu4GiJob("queue", testfixtures.PriorityClass4PreemptibleAway)
-	largeJob1 := testfixtures.Test32Cpu256GiJob("queue", testfixtures.PriorityClass1)
+	largeJob1 := testfixtures.Test32Cpu256GiJobWithLargeJobToleration("queue", testfixtures.PriorityClass1)
 
 	// This Gang job will fit
 	smallGangJob := testfixtures.
@@ -48,25 +49,27 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 		{Name: "cpu2"},
 		{Name: "gpu"},
 		{Name: "cpu-away", AwayPools: []string{"gpu"}},
+		{Name: "cpu-grouped-1", ExperimentalSubmissionGroup: "group-1"},
+		{Name: "cpu-grouped-2", ExperimentalSubmissionGroup: "group-1"},
 	}
 
 	tests := map[string]struct {
-		executorTimout time.Duration
-		executors      []*schedulerobjects.Executor
-		jobs           []*jobdb.Job
-		expectedResult map[string]schedulingResult
-		queue          *api.Queue
+		executorTimeout time.Duration
+		executors       []*schedulerobjects.Executor
+		jobs            []*jobdb.Job
+		expectedResult  map[string]schedulingResult
+		queue           *api.Queue
 	}{
 		"One job schedulable": {
-			executorTimout: defaultTimeout,
-			executors:      []*schedulerobjects.Executor{Executor(SmallNode("cpu"))},
-			jobs:           []*jobdb.Job{smallJob1},
+			executorTimeout: defaultTimeout,
+			executors:       []*schedulerobjects.Executor{Executor(SmallNode("cpu"))},
+			jobs:            []*jobdb.Job{smallJob1},
 			expectedResult: map[string]schedulingResult{
 				smallJob1.Id(): {isSchedulable: true, pools: []string{"cpu"}},
 			},
 		},
 		"One job schedulable, multiple executors": {
-			executorTimout: defaultTimeout,
+			executorTimeout: defaultTimeout,
 			executors: []*schedulerobjects.Executor{
 				Executor(SmallNode("cpu")),
 				Executor(SmallNode("cpu")),
@@ -77,15 +80,15 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 			},
 		},
 		"One job schedulable, multiple executors but only fits on one": {
-			executorTimout: defaultTimeout,
-			executors:      []*schedulerobjects.Executor{Executor(SmallNode("cpu")), Executor()},
-			jobs:           []*jobdb.Job{smallJob1},
+			executorTimeout: defaultTimeout,
+			executors:       []*schedulerobjects.Executor{Executor(SmallNode("cpu")), Executor()},
+			jobs:            []*jobdb.Job{smallJob1},
 			expectedResult: map[string]schedulingResult{
 				smallJob1.Id(): {isSchedulable: true, pools: []string{"cpu"}},
 			},
 		},
 		"One job schedulable, home jobs not assigned to away pools": {
-			executorTimout: defaultTimeout,
+			executorTimeout: defaultTimeout,
 			executors: []*schedulerobjects.Executor{
 				Executor(GpuNode("gpu")),
 			},
@@ -99,7 +102,7 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 			},
 		},
 		"One job schedulable, away pools": {
-			executorTimout: defaultTimeout,
+			executorTimeout: defaultTimeout,
 			executors: []*schedulerobjects.Executor{
 				Executor(SmallNode("cpu")),
 				Executor(GpuNode("gpu")),
@@ -110,7 +113,7 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 			},
 		},
 		"One job schedulable, away pools, multiple executors": {
-			executorTimout: defaultTimeout,
+			executorTimeout: defaultTimeout,
 			executors: []*schedulerobjects.Executor{
 				Executor(SmallNode("cpu")),
 				Executor(GpuNode("gpu")),
@@ -121,8 +124,16 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 				smallAwayJob.Id(): {isSchedulable: true, pools: []string{"cpu", "cpu-away"}},
 			},
 		},
+		"One job schedulable - scheduling group": {
+			executorTimeout: defaultTimeout,
+			executors:       []*schedulerobjects.Executor{Executor(SmallNode("cpu-grouped-1"))},
+			jobs:            []*jobdb.Job{smallJob1},
+			expectedResult: map[string]schedulingResult{
+				smallJob1.Id(): {isSchedulable: true, pools: []string{"cpu-grouped-1", "cpu-grouped-2"}},
+			},
+		},
 		"One job schedulable, multiple pools": {
-			executorTimout: defaultTimeout,
+			executorTimeout: defaultTimeout,
 			executors: []*schedulerobjects.Executor{
 				Executor(SmallNode("cpu")),
 				Executor(SmallNode("cpu2")),
@@ -133,7 +144,7 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 			},
 		},
 		"One job schedulable, one executor, multiple pools": {
-			executorTimout: defaultTimeout,
+			executorTimeout: defaultTimeout,
 			executors: []*schedulerobjects.Executor{
 				Executor(SmallNode("cpu"), SmallNode("cpu2")),
 			},
@@ -143,52 +154,52 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 			},
 		},
 		"Two jobs schedules": {
-			executorTimout: defaultTimeout,
-			executors:      []*schedulerobjects.Executor{Executor(SmallNode("cpu"))},
-			jobs:           []*jobdb.Job{smallJob1, smallJob2},
+			executorTimeout: defaultTimeout,
+			executors:       []*schedulerobjects.Executor{Executor(SmallNode("cpu"))},
+			jobs:            []*jobdb.Job{smallJob1, smallJob2},
 			expectedResult: map[string]schedulingResult{
 				smallJob1.Id(): {isSchedulable: true, pools: []string{"cpu"}},
 				smallJob2.Id(): {isSchedulable: true, pools: []string{"cpu"}},
 			},
 		},
 		"One job schedulable, one not due to resources": {
-			executorTimout: defaultTimeout,
-			executors:      []*schedulerobjects.Executor{Executor(SmallNode("cpu"))},
-			jobs:           []*jobdb.Job{smallJob1, largeJob1},
+			executorTimeout: defaultTimeout,
+			executors:       []*schedulerobjects.Executor{Executor(SmallNode("cpu"))},
+			jobs:            []*jobdb.Job{smallJob1, largeJob1},
 			expectedResult: map[string]schedulingResult{
 				smallJob1.Id(): {isSchedulable: true, pools: []string{"cpu"}},
 				largeJob1.Id(): {isSchedulable: false},
 			},
 		},
 		"No jobs schedulable due to resources": {
-			executorTimout: defaultTimeout,
-			executors:      []*schedulerobjects.Executor{Executor(SmallNode("cpu"))},
-			jobs:           []*jobdb.Job{largeJob1},
+			executorTimeout: defaultTimeout,
+			executors:       []*schedulerobjects.Executor{Executor(SmallNode("cpu"))},
+			jobs:            []*jobdb.Job{largeJob1},
 			expectedResult: map[string]schedulingResult{
 				largeJob1.Id(): {isSchedulable: false},
 			},
 		},
 		"No jobs schedulable due to selector": {
-			executorTimout: defaultTimeout,
-			executors:      []*schedulerobjects.Executor{Executor(SmallNode("cpu"))},
-			jobs:           []*jobdb.Job{testfixtures.WithNodeSelectorJob(map[string]string{"foo": "bar"}, smallJob1)},
+			executorTimeout: defaultTimeout,
+			executors:       []*schedulerobjects.Executor{Executor(SmallNode("cpu"))},
+			jobs:            []*jobdb.Job{testfixtures.WithNodeSelectorJob(map[string]string{"foo": "bar"}, smallJob1)},
 			expectedResult: map[string]schedulingResult{
 				smallJob1.Id(): {isSchedulable: false},
 			},
 		},
 		"Gang Schedules - one cluster one node": {
-			executorTimout: defaultTimeout,
-			executors:      []*schedulerobjects.Executor{Executor(SmallNode("cpu"))},
-			jobs:           smallGangJob,
+			executorTimeout: defaultTimeout,
+			executors:       []*schedulerobjects.Executor{Executor(SmallNode("cpu"))},
+			jobs:            smallGangJob,
 			expectedResult: map[string]schedulingResult{
 				smallGangJob[0].Id(): {isSchedulable: true, pools: []string{"cpu"}},
 				smallGangJob[1].Id(): {isSchedulable: true, pools: []string{"cpu"}},
 			},
 		},
 		"Gang Schedules - one cluster multiple node": {
-			executorTimout: defaultTimeout,
-			executors:      []*schedulerobjects.Executor{Executor(SmallNode("cpu"), SmallNode("cpu"))},
-			jobs:           largeGangJob,
+			executorTimeout: defaultTimeout,
+			executors:       []*schedulerobjects.Executor{Executor(SmallNode("cpu"), SmallNode("cpu"))},
+			jobs:            largeGangJob,
 			expectedResult: map[string]schedulingResult{
 				largeGangJob[0].Id(): {isSchedulable: true, pools: []string{"cpu"}},
 				largeGangJob[1].Id(): {isSchedulable: true, pools: []string{"cpu"}},
@@ -197,9 +208,9 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 			},
 		},
 		"Individual jobs fit but gang doesn't": {
-			executorTimout: defaultTimeout,
-			executors:      []*schedulerobjects.Executor{Executor(SmallNode("cpu"))},
-			jobs:           largeGangJob,
+			executorTimeout: defaultTimeout,
+			executors:       []*schedulerobjects.Executor{Executor(SmallNode("cpu"))},
+			jobs:            largeGangJob,
 			expectedResult: map[string]schedulingResult{
 				largeGangJob[0].Id(): {isSchedulable: false},
 				largeGangJob[1].Id(): {isSchedulable: false},
@@ -208,9 +219,9 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 			},
 		},
 		"Individual jobs fit but gang doesn't on mixed pool cluster": {
-			executorTimout: defaultTimeout,
-			executors:      []*schedulerobjects.Executor{Executor(SmallNode("cpu"), SmallNode("cpu2"))},
-			jobs:           largeGangJob,
+			executorTimeout: defaultTimeout,
+			executors:       []*schedulerobjects.Executor{Executor(SmallNode("cpu"), SmallNode("cpu2"))},
+			jobs:            largeGangJob,
 			expectedResult: map[string]schedulingResult{
 				largeGangJob[0].Id(): {isSchedulable: false},
 				largeGangJob[1].Id(): {isSchedulable: false},
@@ -219,9 +230,9 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 			},
 		},
 		"One job fits, one gang doesn't, out of order": {
-			executorTimout: defaultTimeout,
-			executors:      []*schedulerobjects.Executor{Executor(SmallNode("cpu"))},
-			jobs:           []*jobdb.Job{largeGangJob[0], smallJob1, largeGangJob[1], largeGangJob[2], largeGangJob[3]},
+			executorTimeout: defaultTimeout,
+			executors:       []*schedulerobjects.Executor{Executor(SmallNode("cpu"))},
+			jobs:            []*jobdb.Job{largeGangJob[0], smallJob1, largeGangJob[1], largeGangJob[2], largeGangJob[3]},
 			expectedResult: map[string]schedulingResult{
 				largeGangJob[0].Id(): {isSchedulable: false},
 				largeGangJob[1].Id(): {isSchedulable: false},
@@ -231,9 +242,9 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 			},
 		},
 		"One job exceeds queue fraction limit": {
-			executorTimout: defaultTimeout,
-			executors:      []*schedulerobjects.Executor{Executor(SmallNode("cpu"))},
-			jobs:           []*jobdb.Job{smallJob1},
+			executorTimeout: defaultTimeout,
+			executors:       []*schedulerobjects.Executor{Executor(SmallNode("cpu"))},
+			jobs:            []*jobdb.Job{smallJob1},
 			expectedResult: map[string]schedulingResult{
 				smallJob1.Id(): {isSchedulable: false},
 			},
@@ -250,12 +261,12 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 			},
 		},
 		"One job exceeds total floating resources": {
-			executorTimout: defaultTimeout,
-			executors:      []*schedulerobjects.Executor{Executor(SmallNode("cpu"))},
+			executorTimeout: defaultTimeout,
+			executors:       []*schedulerobjects.Executor{Executor(SmallNode("cpu"))},
 			jobs: testfixtures.WithRequestsJobs(
 				schedulerobjects.ResourceList{
-					Resources: map[string]resource.Quantity{
-						"test-floating-resource": resource.MustParse("11"),
+					Resources: map[string]*resource.Quantity{
+						"test-floating-resource": pointer.MustParseResource("11"),
 					},
 				},
 				[]*jobdb.Job{smallJob1}),
@@ -390,10 +401,10 @@ func Executor(nodes ...*schedulerobjects.Node) *schedulerobjects.Executor {
 func GpuNode(pool string) *schedulerobjects.Node {
 	node := testfixtures.TestSchedulerObjectsNode(
 		testfixtures.TestPriorities,
-		map[string]resource.Quantity{
-			"cpu":            resource.MustParse("30"),
-			"memory":         resource.MustParse("512Gi"),
-			"nvidia.com/gpu": resource.MustParse("8"),
+		map[string]*resource.Quantity{
+			"cpu":            pointer.MustParseResource("30"),
+			"memory":         pointer.MustParseResource("512Gi"),
+			"nvidia.com/gpu": pointer.MustParseResource("8"),
 		})
 	node.Taints = []*v1.Taint{
 		{
@@ -409,9 +420,9 @@ func GpuNode(pool string) *schedulerobjects.Node {
 func SmallNode(pool string) *schedulerobjects.Node {
 	node := testfixtures.TestSchedulerObjectsNode(
 		testfixtures.TestPriorities,
-		map[string]resource.Quantity{
-			"cpu":    resource.MustParse("2"),
-			"memory": resource.MustParse("64Gi"),
+		map[string]*resource.Quantity{
+			"cpu":    pointer.MustParseResource("2"),
+			"memory": pointer.MustParseResource("64Gi"),
 		})
 	node.Pool = pool
 	return node

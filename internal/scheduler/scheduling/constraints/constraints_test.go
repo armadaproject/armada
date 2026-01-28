@@ -9,6 +9,7 @@ import (
 	"golang.org/x/time/rate"
 	"k8s.io/apimachinery/pkg/api/resource"
 
+	"github.com/armadaproject/armada/internal/common/pointer"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
@@ -145,7 +146,7 @@ func TestConstraints(t *testing.T) {
 			require.Equal(t, tc.expectedCheckConstraintsReason == "", ok)
 			require.Equal(t, tc.expectedCheckConstraintsReason, unscheduledReason)
 
-			require.Equal(t, tc.expectedQueueResourceLimit.String(), tc.constraints.GetQueueResourceLimit(tc.gctx.Queue, tc.gctx.PriorityClassName).String())
+			require.Equal(t, tc.expectedQueueResourceLimit.String(), tc.constraints.GetQueueResourceLimit(tc.gctx.Queue, tc.gctx.PriorityClassName()).String())
 		})
 	}
 }
@@ -299,9 +300,7 @@ func makeMultiLevelConstraintsTest(
 			Started: time.Now(),
 		},
 		gctx: &context.GangSchedulingContext{
-			GangInfo: context.GangInfo{
-				PriorityClassName: "priority-class-1",
-			},
+			PriorityClass:         "priority-class-1",
 			Queue:                 "queue-1",
 			TotalResourceRequests: rr,
 			JobSchedulingContexts: []*context.JobSchedulingContext{{}},
@@ -323,11 +322,11 @@ func makeMultiLevelConstraintsTest(
 func makeMultiLevelConstraints(rlFactory *internaltypes.ResourceListFactory) SchedulingConstraints {
 	return NewSchedulingConstraints("pool-1",
 		rlFactory.FromNodeProto(
-			map[string]resource.Quantity{
-				"a": resource.MustParse("1000"),
-				"b": resource.MustParse("1000"),
-				"c": resource.MustParse("1000"),
-				"d": resource.MustParse("1000"),
+			map[string]*resource.Quantity{
+				"a": pointer.MustParseResource("1000"),
+				"b": pointer.MustParseResource("1000"),
+				"c": pointer.MustParseResource("1000"),
+				"d": pointer.MustParseResource("1000"),
 			},
 		),
 		configuration.SchedulingConfig{
@@ -383,9 +382,7 @@ func makeConstraintsTest(constraints SchedulingConstraints, rlFactory *internalt
 			Started: time.Now(),
 		},
 		gctx: &context.GangSchedulingContext{
-			GangInfo: context.GangInfo{
-				PriorityClassName: "priority-class-1",
-			},
+			PriorityClass:         "priority-class-1",
 			Queue:                 "queue-1",
 			TotalResourceRequests: makeResourceList(rlFactory, "1", "1Gi"),
 			JobSchedulingContexts: []*context.JobSchedulingContext{{}},
@@ -412,9 +409,9 @@ func makeSchedulingConfig() configuration.SchedulingConfig {
 
 func makeResourceList(rlFactory *internaltypes.ResourceListFactory, cpu string, memory string) internaltypes.ResourceList {
 	return rlFactory.FromNodeProto(
-		map[string]resource.Quantity{
-			"cpu":    resource.MustParse(cpu),
-			"memory": resource.MustParse(memory),
+		map[string]*resource.Quantity{
+			"cpu":    pointer.MustParseResource(cpu),
+			"memory": pointer.MustParseResource(memory),
 		},
 	)
 }

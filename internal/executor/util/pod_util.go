@@ -10,10 +10,10 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
 
+	"github.com/armadaproject/armada/internal/common/constants"
 	log "github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/executor/domain"
-	"github.com/armadaproject/armada/internal/server/configuration"
 )
 
 var managedPodSelector labels.Selector
@@ -111,7 +111,7 @@ func ExtractQueue(pod *v1.Pod) string {
 }
 
 func ExtractPool(pod *v1.Pod) string {
-	return pod.Annotations[configuration.PoolAnnotation]
+	return pod.Annotations[constants.PoolAnnotation]
 }
 
 func ExtractJobSet(pod *v1.Pod) string {
@@ -271,11 +271,6 @@ func IsMarkedForDeletion(pod *v1.Pod) bool {
 	return exists
 }
 
-func IsReportedDone(pod *v1.Pod) bool {
-	_, exists := pod.Annotations[domain.JobDoneAnnotation]
-	return exists
-}
-
 func IsReportedPreempted(pod *v1.Pod) bool {
 	_, exists := pod.Annotations[domain.JobPreemptedAnnotation]
 	return exists
@@ -294,7 +289,6 @@ func GetDeletionGracePeriodOrDefault(pod *v1.Pod) time.Duration {
 
 func IsPodFinishedAndReported(pod *v1.Pod) bool {
 	if !IsInTerminalState(pod) ||
-		!IsReportedDone(pod) ||
 		!HasCurrentStateBeenReported(pod) {
 		return false
 	}

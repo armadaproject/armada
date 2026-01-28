@@ -1,3 +1,5 @@
+import { tryParseJson } from "../../common/utils"
+
 import {
   DEFAULT_PREFERENCES,
   ensurePreferencesAreConsistent,
@@ -5,7 +7,6 @@ import {
   KEY_PREFIX,
   stringIsInvalid,
 } from "./JobsTablePreferencesService"
-import { tryParseJson } from "../../utils"
 
 const CUSTOM_KEY_PREFIX = `${KEY_PREFIX}CustomPrefs_`
 const CUSTOM_VIEWS_LIST_KEY = `${KEY_PREFIX}ListCustomPrefs`
@@ -68,7 +69,7 @@ export class CustomViewsService {
       return []
     }
     const obj = tryParseJson(json as string)
-    if (Array.isArray(obj) && obj.length > 0 && typeof obj[0] === "string") {
+    if (Array.isArray(obj) && obj.length > 0 && obj.every((e) => typeof e === "string")) {
       return obj
     }
     return []

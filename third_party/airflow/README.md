@@ -39,7 +39,7 @@ def create_dummy_job():
         containers=[
             core_v1.Container(
                 name="sleep",
-                image="alpine:3.21.0",
+                image="alpine:3.21.3",
                 args=["sh", "-c", "for i in $(seq 1 60); do echo $i; sleep 1; done"],
                 securityContext=core_v1.SecurityContext(runAsUser=1000),
                 resources=core_v1.ResourceRequirements(
@@ -120,7 +120,7 @@ For documentation by example, see [hello_armada.py](./examples/hello_armada.py) 
 
 ## Operator Documentation
 
-[Armada Operator](../../docs/python_airflow_operator.md)
+[Armada Operator](../../docs/armada_airflow_operator.md)
 
 ## Usage
 

@@ -3,6 +3,8 @@
 package lookout
 
 import (
+	"fmt"
+
 	"github.com/IBM/pgxpoolprometheus"
 	"github.com/go-openapi/loads"
 	"github.com/go-openapi/runtime/middleware"
@@ -11,6 +13,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/common/auth"
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/database"
 	"github.com/armadaproject/armada/internal/common/logging"
@@ -174,6 +177,12 @@ func Serve(configuration configuration.LookoutConfig) error {
 		server.Port = configuration.ApiPort
 	}
 
+	authServices, err := auth.ConfigureAuth(configuration.Auth)
+	if err != nil {
+		return fmt.Errorf("creating auth services: %w", err)
+	}
+
+	restapi.SetAuthService(auth.NewMultiAuthService(authServices))
 	restapi.SetCorsAllowedOrigins(configuration.CorsAllowedOrigins) // This needs to happen before ConfigureAPI
 	server.ConfigureAPI()
 	if err := server.Serve(); err != nil {

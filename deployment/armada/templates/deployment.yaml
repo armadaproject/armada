@@ -128,7 +128,14 @@ spec:
                       operator: In
                       values:
                         - {{ include "armada.name" . }}
-                topologyKey: kubernetes.io/hostname
+                topologyKey: {{ .Values.topologyKey }}
+      {{- if .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml .Values.nodeSelector | nindent 8 }}
+      {{- end }}
+      {{- if .Values.priorityClassName }}
+      priorityClassName: {{ .Values.priorityClassName }}
+      {{- end }}
       volumes:
         - name: user-config
           configMap:

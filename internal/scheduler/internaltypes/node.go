@@ -4,9 +4,9 @@ import (
 	"fmt"
 
 	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
 	v1 "k8s.io/api/core/v1"
 
+	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/kubernetesobjects/label"
 	koTaint "github.com/armadaproject/armada/internal/scheduler/kubernetesobjects/taint"
@@ -34,6 +34,7 @@ type Node struct {
 	executor          string
 	name              string
 	pool              string
+	reservation       string
 	nodeType          *NodeType
 	reportingNodeType string
 
@@ -43,14 +44,13 @@ type Node struct {
 	labels map[string]string
 
 	unschedulable bool
+	overAllocated bool
 
 	// Total space on this node
 	totalResources ResourceList
 	// Total space allocatable by armada jobs on this node
 	// allocatableResources = totalResources - sum(unallocatableResources)
 	allocatableResources ResourceList
-
-	unallocatableResources map[int32]ResourceList
 
 	// This field is set when inserting the Node into a NodeDb.
 	Keys [][]byte
@@ -69,14 +69,7 @@ func FromSchedulerObjectsNode(node *schedulerobjects.Node,
 	resourceListFactory *ResourceListFactory,
 ) *Node {
 	totalResources := resourceListFactory.FromNodeProto(node.TotalResources.Resources)
-	allocatableResources := totalResources
-	unallocatableResources := make(map[int32]ResourceList, len(node.UnallocatableResources))
-	for p, rl := range node.UnallocatableResources {
-		resource := resourceListFactory.FromJobResourceListIgnoreUnknown(rl.Resources)
-		allocatableResources = allocatableResources.Subtract(resource)
-		unallocatableResources[p] = resource
-	}
-
+	allocatableResources := resourceListFactory.FromNodeProto(node.AvailableArmadaResource().ToProtoMap())
 	allocatableByPriority := map[int32]ResourceList{}
 	for _, p := range allowedPriorities {
 		allocatableByPriority[p] = allocatableResources
@@ -104,7 +97,6 @@ func FromSchedulerObjectsNode(node *schedulerobjects.Node,
 		indexedNodeLabels,
 		totalResources,
 		allocatableResources,
-		unallocatableResources,
 		allocatableByPriority,
 	)
 }
@@ -123,7 +115,6 @@ func CreateNodeAndType(
 	indexedNodeLabels map[string]bool,
 	totalResources ResourceList,
 	allocatableResources ResourceList,
-	unallocatableResources map[int32]ResourceList,
 	allocatableByPriority map[int32]ResourceList,
 ) *Node {
 	if unschedulable {
@@ -157,7 +148,6 @@ func CreateNodeAndType(
 		unschedulable,
 		totalResources,
 		allocatableResources,
-		unallocatableResources,
 		allocatableByPriority,
 		map[string]ResourceList{},
 		map[string]ResourceList{},
@@ -178,32 +168,32 @@ func CreateNode(
 	unschedulable bool,
 	totalResources ResourceList,
 	allocatableResources ResourceList,
-	unallocatableResources map[int32]ResourceList,
 	allocatableByPriority map[int32]ResourceList,
 	allocatedByQueue map[string]ResourceList,
 	allocatedByJobId map[string]ResourceList,
 	evictedJobRunIds map[string]bool,
 	keys [][]byte,
 ) *Node {
+	reservation := util.GetReservationName(taints)
 	return &Node{
-		id:                     id,
-		nodeType:               nodeType,
-		index:                  index,
-		executor:               executor,
-		name:                   name,
-		pool:                   pool,
-		reportingNodeType:      reportingNodeType,
-		taints:                 koTaint.DeepCopyTaints(taints),
-		labels:                 deepCopyLabels(labels),
-		unschedulable:          unschedulable,
-		totalResources:         totalResources,
-		allocatableResources:   allocatableResources,
-		unallocatableResources: maps.Clone(unallocatableResources),
-		AllocatableByPriority:  maps.Clone(allocatableByPriority),
-		AllocatedByQueue:       maps.Clone(allocatedByQueue),
-		AllocatedByJobId:       maps.Clone(allocatedByJobId),
-		EvictedJobRunIds:       evictedJobRunIds,
-		Keys:                   keys,
+		id:                    id,
+		nodeType:              nodeType,
+		index:                 index,
+		executor:              executor,
+		name:                  name,
+		pool:                  pool,
+		reportingNodeType:     reportingNodeType,
+		taints:                koTaint.DeepCopyTaints(taints),
+		reservation:           reservation,
+		labels:                deepCopyLabels(labels),
+		unschedulable:         unschedulable,
+		totalResources:        totalResources,
+		allocatableResources:  allocatableResources,
+		AllocatableByPriority: maps.Clone(allocatableByPriority),
+		AllocatedByQueue:      maps.Clone(allocatedByQueue),
+		AllocatedByJobId:      maps.Clone(allocatedByJobId),
+		EvictedJobRunIds:      evictedJobRunIds,
+		Keys:                  keys,
 	}
 }
 
@@ -219,8 +209,16 @@ func (node *Node) IsUnschedulable() bool {
 	return node.unschedulable
 }
 
+func (node *Node) IsOverAllocated() bool {
+	return node.overAllocated
+}
+
 func (node *Node) GetPool() string {
 	return node.pool
+}
+
+func (node *Node) GetReservation() string {
+	return node.reservation
 }
 
 func (node *Node) GetReportingNodeType() string {
@@ -245,6 +243,10 @@ func (node *Node) GetNodeType() *NodeType {
 
 func (node *Node) GetLabels() map[string]string {
 	return deepCopyLabels(node.labels)
+}
+
+func (node *Node) GetRunningJobIds() []string {
+	return maps.Keys(node.AllocatedByJobId)
 }
 
 func (node *Node) GetLabelValue(key string) (string, bool) {
@@ -280,26 +282,49 @@ func (node *Node) GetAllocatableResources() ResourceList {
 	return node.allocatableResources
 }
 
-func (node *Node) GetUnallocatableResources() map[int32]ResourceList {
-	return maps.Clone(node.unallocatableResources)
+func (node *Node) WithOverAllocated(overAllocated bool) *Node {
+	result := node.DeepCopyNilKeys()
+	result.overAllocated = overAllocated
+	return result
+}
+
+func (node *Node) WithSchedulable(schedulable bool) *Node {
+	result := node.DeepCopyNilKeys()
+	result.unschedulable = !schedulable
+	if !schedulable {
+		result.taints = append(koTaint.DeepCopyTaints(result.taints), UnschedulableTaint())
+	} else {
+		// Remove unschedulable taint
+		taints := make([]v1.Taint, 0, len(result.taints))
+		unschedulableTaint := UnschedulableTaint()
+		unschedulableTaintPtr := &unschedulableTaint
+		for _, taint := range taints {
+			if !taint.MatchTaint(unschedulableTaintPtr) {
+				taints = append(taints, taint)
+			}
+			result.taints = koTaint.DeepCopyTaints(taints)
+		}
+	}
+	return result
 }
 
 func (node *Node) DeepCopyNilKeys() *Node {
 	return &Node{
 		// private fields are immutable so a shallow copy is fine
-		id:                     node.id,
-		index:                  node.index,
-		executor:               node.executor,
-		name:                   node.name,
-		pool:                   node.pool,
-		reportingNodeType:      node.reportingNodeType,
-		nodeType:               node.nodeType,
-		taints:                 node.taints,
-		labels:                 node.labels,
-		unschedulable:          node.unschedulable,
-		totalResources:         node.totalResources,
-		allocatableResources:   node.allocatableResources,
-		unallocatableResources: node.unallocatableResources,
+		id:                   node.id,
+		index:                node.index,
+		executor:             node.executor,
+		name:                 node.name,
+		pool:                 node.pool,
+		reservation:          node.reservation,
+		reportingNodeType:    node.reportingNodeType,
+		nodeType:             node.nodeType,
+		taints:               node.taints,
+		labels:               node.labels,
+		unschedulable:        node.unschedulable,
+		overAllocated:        node.overAllocated,
+		totalResources:       node.totalResources,
+		allocatableResources: node.allocatableResources,
 
 		// keys set to nil
 		Keys: nil,
@@ -322,19 +347,14 @@ func (node *Node) SummaryString() string {
 	result += fmt.Sprintf("Executor: %s\n", node.executor)
 	result += fmt.Sprintf("Name: %s\n", node.name)
 	result += fmt.Sprintf("Pool: %s\n", node.pool)
+	result += fmt.Sprintf("Reservation: %s\n", node.reservation)
 	result += fmt.Sprintf("ReportingNodeType: %s\n", node.reportingNodeType)
 	result += fmt.Sprintf("Unschedulable: %t\n", node.unschedulable)
+	result += fmt.Sprintf("OverAllocated: %t\n", node.overAllocated)
 	result += fmt.Sprintf("TotalResources: %s\n", node.totalResources.String())
 	result += fmt.Sprintf("AllocatableResources: %s\n", node.allocatableResources.String())
 	result += fmt.Sprintf("Labels: %v\n", node.labels)
 	result += fmt.Sprintf("Taints: %v\n", node.taints)
-	priorities := maps.Keys(node.unallocatableResources)
-	slices.Sort(priorities)
-	for _, p := range priorities {
-		u := node.unallocatableResources[p]
-		result += fmt.Sprintf("Unallocatable at %d: %s\n", p, u.String())
-	}
-
 	return result
 }
 

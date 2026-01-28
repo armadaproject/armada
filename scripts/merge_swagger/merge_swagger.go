@@ -33,7 +33,9 @@ func main() {
 	resultSpec := definitionsSpec
 
 	// Hack: Generated resourceQuantity type needs to be fixed to be string instead of object
-	resultSpec.Definitions["resourceQuantity"].Type[0] = "string"
+	if len(resultSpec.Definitions["resourceQuantity"].Type) > 0 {
+		resultSpec.Definitions["resourceQuantity"].Type[0] = "string"
+	}
 
 	// Hack: Easiest way to make ndjson streaming work in generated clients is to pretend the stream is actually a file
 	if eventMethod, ok := resultSpec.Paths.Paths["/v1/job-set/{queue}/{id}"]; ok {

@@ -8,11 +8,52 @@ import (
 	v1 "k8s.io/api/core/v1"
 	k8sResource "k8s.io/apimachinery/pkg/api/resource"
 
+	armadaconfiguration "github.com/armadaproject/armada/internal/common/constants"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
+	"github.com/armadaproject/armada/internal/scheduler/pricing"
+	"github.com/armadaproject/armada/pkg/bidstore"
 )
 
 var jobSchedulingInfo = &internaltypes.JobSchedulingInfo{
+	PodRequirements: &internaltypes.PodRequirements{
+		ResourceRequirements: v1.ResourceRequirements{
+			Requests: v1.ResourceList{
+				"cpu":                 k8sResource.MustParse("1"),
+				"storage-connections": k8sResource.MustParse("1"),
+			},
+		},
+		Annotations: map[string]string{
+			"foo": "bar",
+		},
+		Tolerations: []v1.Toleration{
+			{
+				Key:   armadaconfiguration.ReservationTaintKey,
+				Value: "reservation-1",
+			},
+		},
+	},
+}
+
+var gangJobSchedulingInfo = &internaltypes.JobSchedulingInfo{
+	PodRequirements: &internaltypes.PodRequirements{
+		ResourceRequirements: v1.ResourceRequirements{
+			Requests: v1.ResourceList{
+				"cpu":                 k8sResource.MustParse("1"),
+				"storage-connections": k8sResource.MustParse("1"),
+			},
+		},
+		Annotations: map[string]string{
+			"foo": "bar",
+			armadaconfiguration.GangCardinalityAnnotation:         "2",
+			armadaconfiguration.GangNodeUniformityLabelAnnotation: "uniformity",
+			armadaconfiguration.GangIdAnnotation:                  "id",
+		},
+	},
+}
+
+var preemptibleJobSchedulingInfo = &internaltypes.JobSchedulingInfo{
+	PriorityClass: PriorityClass0,
 	PodRequirements: &internaltypes.PodRequirements{
 		ResourceRequirements: v1.ResourceRequirements{
 			Requests: v1.ResourceList{
@@ -31,7 +72,6 @@ var baseJob, _ = jobDb.NewJob(
 	"test-jobSet",
 	"test-queue",
 	2,
-	0.0,
 	jobSchedulingInfo,
 	true,
 	0,
@@ -41,6 +81,24 @@ var baseJob, _ = jobDb.NewJob(
 	3,
 	false,
 	[]string{},
+	int32(1),
+)
+
+var preemptibleJob, _ = jobDb.NewJob(
+	"test-job",
+	"test-jobSet",
+	"test-queue",
+	2,
+	preemptibleJobSchedulingInfo,
+	true,
+	0,
+	false,
+	false,
+	false,
+	3,
+	false,
+	[]string{},
+	int32(1),
 )
 
 var baseRun = &JobRun{
@@ -63,12 +121,21 @@ func TestJob_TestGetter(t *testing.T) {
 	assert.Equal(t, baseJob.Annotations(), map[string]string{
 		"foo": "bar",
 	})
+	assert.Equal(t, bidstore.PriceBand_PRICE_BAND_A, baseJob.GetPriceBand())
 }
 
 func TestJob_TestPriority(t *testing.T) {
 	newJob := baseJob.WithPriority(3)
 	assert.Equal(t, uint32(2), baseJob.Priority())
 	assert.Equal(t, uint32(3), newJob.Priority())
+}
+
+func TestJob_Reservation(t *testing.T) {
+	newJob := baseJob.WithPriority(3)
+	assert.Equal(t, []string{"reservation-1"}, newJob.GetReservations())
+
+	assert.True(t, newJob.MatchesReservation("reservation-1"))
+	assert.False(t, newJob.MatchesReservation("reservation-2"))
 }
 
 func TestJob_TestRequestedPriority(t *testing.T) {
@@ -124,6 +191,72 @@ func TestJob_TestInTerminalState(t *testing.T) {
 	assert.Equal(t, true, baseJob.WithSucceeded(true).InTerminalState())
 	assert.Equal(t, true, baseJob.WithFailed(true).InTerminalState())
 	assert.Equal(t, true, baseJob.WithCancelled(true).InTerminalState())
+}
+
+func TestJob_IsInGang(t *testing.T) {
+	// Non-gang job
+	job := baseJob.WithGangInfo(BasicJobGangInfo())
+	assert.False(t, job.IsInGang())
+
+	// Gang job
+	job = job.WithGangInfo(CreateGangInfo("id", 2, "uniformity"))
+	assert.True(t, job.IsInGang())
+}
+
+func TestJob_BidPrices_PreemptibleJob(t *testing.T) {
+	pool1Bid := pricing.Bid{QueuedBid: 1, RunningBid: 2}
+	pool2Bid := pricing.Bid{QueuedBid: 3, RunningBid: 4}
+
+	// Job queued
+	newJob := preemptibleJob.WithBidPrices(map[string]pricing.Bid{"pool1": pool1Bid, "pool2": pool2Bid})
+	assert.Equal(t, float64(1), newJob.GetBidPrice("pool1"))
+	assert.Equal(t, float64(3), newJob.GetBidPrice("pool2"))
+	assert.Equal(t, float64(0), newJob.GetBidPrice("pool3")) // default to 0
+
+	// Job running
+	newJob = newJob.WithQueued(false)
+	assert.Equal(t, float64(2), newJob.GetBidPrice("pool1"))
+	assert.Equal(t, float64(4), newJob.GetBidPrice("pool2"))
+	assert.Equal(t, float64(0), newJob.GetBidPrice("pool3")) // default to 0
+
+	// Assert mutating external bid obj doesn't effect what the job returns
+	pool1Bid.RunningBid = 5
+	pool2Bid.RunningBid = 5
+	assert.Equal(t, float64(2), newJob.GetBidPrice("pool1"))
+	assert.Equal(t, float64(4), newJob.GetBidPrice("pool2"))
+}
+
+func TestJob_BidPrices_NonPreemptibleJob(t *testing.T) {
+	pool1Bid := pricing.Bid{QueuedBid: 1, RunningBid: 2}
+	pool2Bid := pricing.Bid{QueuedBid: 3, RunningBid: 4}
+
+	// Job queued
+	newJob := baseJob.WithBidPrices(map[string]pricing.Bid{"pool1": pool1Bid, "pool2": pool2Bid})
+	assert.Equal(t, float64(1), newJob.GetBidPrice("pool1"))
+	assert.Equal(t, float64(3), newJob.GetBidPrice("pool2"))
+	assert.Equal(t, float64(0), newJob.GetBidPrice("pool3")) // default to 0
+
+	// Job running
+	newJob = newJob.WithQueued(false)
+	assert.Equal(t, float64(pricing.NonPreemptibleRunningPrice), newJob.GetBidPrice("pool1"))
+	assert.Equal(t, float64(pricing.NonPreemptibleRunningPrice), newJob.GetBidPrice("pool2"))
+	assert.Equal(t, float64(pricing.NonPreemptibleRunningPrice), newJob.GetBidPrice("pool3")) // default to NonPreemptibleRunningPrice
+}
+
+func TestJob_GetAllBidPrices(t *testing.T) {
+	pool1Bid := pricing.Bid{QueuedBid: 1, RunningBid: 2}
+	pool2Bid := pricing.Bid{QueuedBid: 3, RunningBid: 4}
+	inputPrices := map[string]pricing.Bid{"pool1": pool1Bid, "pool2": pool2Bid}
+	expectedBidPrices := map[string]pricing.Bid{"pool1": pool1Bid, "pool2": pool2Bid}
+
+	job := baseJob.WithBidPrices(inputPrices)
+	assert.Equal(t, expectedBidPrices, job.GetAllBidPrices())
+
+	// Assert mutating external bid obj doesn't effect what the job returns
+	pool1Bid.RunningBid = 5
+	pool2Bid.RunningBid = 5
+	inputPrices["pool3"] = pricing.Bid{QueuedBid: 3, RunningBid: 7}
+	assert.Equal(t, expectedBidPrices, job.GetAllBidPrices())
 }
 
 func TestJob_TestHasRuns(t *testing.T) {
@@ -314,10 +447,10 @@ func TestJob_TestWithCreated(t *testing.T) {
 }
 
 func TestJob_DeepCopy(t *testing.T) {
-	original, err := jobDb.NewJob("test-job", "test-jobSet", "test-queue", 2, 0.0, jobSchedulingInfo, true, 0, false, false, false, 3, false, []string{})
+	original, err := jobDb.NewJob("test-job", "test-jobSet", "test-queue", 2, jobSchedulingInfo, true, 0, false, false, false, 3, false, []string{}, 0)
 	assert.Nil(t, err)
 	original = original.WithUpdatedRun(baseJobRun.DeepCopy())
-	expected, err := jobDb.NewJob("test-job", "test-jobSet", "test-queue", 2, 0.0, jobSchedulingInfo, true, 0, false, false, false, 3, false, []string{})
+	expected, err := jobDb.NewJob("test-job", "test-jobSet", "test-queue", 2, jobSchedulingInfo, true, 0, false, false, false, 3, false, []string{}, 0)
 	assert.Nil(t, err)
 	expected = expected.WithUpdatedRun(baseJobRun.DeepCopy())
 
@@ -353,15 +486,15 @@ func TestJob_TestWithJobSchedulingInfo(t *testing.T) {
 	assert.Equal(t, jobSchedulingInfo, baseJob.JobSchedulingInfo())
 	assert.Equal(t, newSchedInfo, newJob.JobSchedulingInfo())
 
-	assert.Equal(t, int64(1000), baseJob.AllResourceRequirements().GetByNameZeroIfMissing("cpu"))
-	assert.Equal(t, int64(1), baseJob.AllResourceRequirements().GetByNameZeroIfMissing("storage-connections"))
-	assert.Equal(t, int64(1000), baseJob.KubernetesResourceRequirements().GetByNameZeroIfMissing("cpu"))
-	assert.Equal(t, int64(0), baseJob.KubernetesResourceRequirements().GetByNameZeroIfMissing("storage-connections"))
+	assert.Equal(t, milliQuantity(1000), baseJob.AllResourceRequirements().GetByNameZeroIfMissing("cpu"))
+	assert.Equal(t, quantity(1), baseJob.AllResourceRequirements().GetByNameZeroIfMissing("storage-connections"))
+	assert.Equal(t, milliQuantity(1000), baseJob.KubernetesResourceRequirements().GetByNameZeroIfMissing("cpu"))
+	assert.Equal(t, quantity(0), baseJob.KubernetesResourceRequirements().GetByNameZeroIfMissing("storage-connections"))
 
-	assert.Equal(t, int64(2000), newJob.AllResourceRequirements().GetByNameZeroIfMissing("cpu"))
-	assert.Equal(t, int64(2), newJob.AllResourceRequirements().GetByNameZeroIfMissing("storage-connections"))
-	assert.Equal(t, int64(2000), newJob.KubernetesResourceRequirements().GetByNameZeroIfMissing("cpu"))
-	assert.Equal(t, int64(0), newJob.KubernetesResourceRequirements().GetByNameZeroIfMissing("storage-connections"))
+	assert.Equal(t, milliQuantity(2000), newJob.AllResourceRequirements().GetByNameZeroIfMissing("cpu"))
+	assert.Equal(t, quantity(2), newJob.AllResourceRequirements().GetByNameZeroIfMissing("storage-connections"))
+	assert.Equal(t, milliQuantity(2000), newJob.KubernetesResourceRequirements().GetByNameZeroIfMissing("cpu"))
+	assert.Equal(t, quantity(0), newJob.KubernetesResourceRequirements().GetByNameZeroIfMissing("storage-connections"))
 }
 
 func TestRequestsFloatingResources(t *testing.T) {
@@ -388,7 +521,7 @@ func TestJobSchedulingInfoFieldsInitialised(t *testing.T) {
 	assert.Nil(t, infoWithNilFields.PodRequirements.NodeSelector)
 	assert.Nil(t, infoWithNilFields.PodRequirements.Annotations)
 
-	job, err := jobDb.NewJob("test-job", "test-jobSet", "test-queue", 2, 0.0, infoWithNilFieldsCopy, true, 0, false, false, false, 3, false, []string{})
+	job, err := jobDb.NewJob("test-job", "test-jobSet", "test-queue", 2, infoWithNilFieldsCopy, true, 0, false, false, false, 3, false, []string{}, 0)
 	assert.Nil(t, err)
 	assert.NotNil(t, job.NodeSelector())
 	assert.NotNil(t, job.Annotations())
@@ -418,11 +551,19 @@ func TestJob_TestResolvedPools(t *testing.T) {
 }
 
 func TestJob_TestAllResourceRequirements(t *testing.T) {
-	assert.Equal(t, int64(1000), baseJob.AllResourceRequirements().GetByNameZeroIfMissing("cpu"))
-	assert.Equal(t, int64(1), baseJob.AllResourceRequirements().GetByNameZeroIfMissing("storage-connections"))
+	assert.Equal(t, milliQuantity(1000), baseJob.AllResourceRequirements().GetByNameZeroIfMissing("cpu"))
+	assert.Equal(t, quantity(1), baseJob.AllResourceRequirements().GetByNameZeroIfMissing("storage-connections"))
 }
 
 func TestJob_TestKubernetesResourceRequirements(t *testing.T) {
-	assert.Equal(t, int64(1000), baseJob.KubernetesResourceRequirements().GetByNameZeroIfMissing("cpu"))
-	assert.Equal(t, int64(0), baseJob.KubernetesResourceRequirements().GetByNameZeroIfMissing("storage-connections"))
+	assert.Equal(t, milliQuantity(1000), baseJob.KubernetesResourceRequirements().GetByNameZeroIfMissing("cpu"))
+	assert.Equal(t, quantity(0), baseJob.KubernetesResourceRequirements().GetByNameZeroIfMissing("storage-connections"))
+}
+
+func quantity(val int) k8sResource.Quantity {
+	return *k8sResource.NewQuantity(int64(val), k8sResource.DecimalSI)
+}
+
+func milliQuantity(millis int) k8sResource.Quantity {
+	return *k8sResource.NewMilliQuantity(int64(millis), k8sResource.DecimalSI)
 }

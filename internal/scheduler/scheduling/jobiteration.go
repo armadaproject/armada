@@ -3,6 +3,7 @@ package scheduling
 import (
 	"sync"
 
+	"github.com/benbjohnson/immutable"
 	"golang.org/x/exp/slices"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -13,11 +14,6 @@ import (
 
 type JobContextIterator interface {
 	Next() (*schedulercontext.JobSchedulingContext, error)
-}
-
-type JobRepository interface {
-	QueuedJobs(queueName string, order jobdb.JobSortOrder) jobdb.JobIterator
-	GetById(id string) *jobdb.Job
 }
 
 type InMemoryJobIterator struct {
@@ -41,20 +37,20 @@ func (it *InMemoryJobIterator) Next() (*schedulercontext.JobSchedulingContext, e
 }
 
 type InMemoryJobRepository struct {
-	jctxsByQueue map[string][]*schedulercontext.JobSchedulingContext
-	jctxsById    map[string]*schedulercontext.JobSchedulingContext
-	currentPool  string
-	sortOrder    func(a, b *jobdb.Job) int
+	jctxsByQueue  map[string][]*schedulercontext.JobSchedulingContext
+	jctxsById     map[string]*schedulercontext.JobSchedulingContext
+	currentPool   string
+	jobComparator immutable.Comparer[*jobdb.Job]
 	// Protects the above fields.
 	mu sync.Mutex
 }
 
-func NewInMemoryJobRepository(pool string, sortOrder func(a, b *jobdb.Job) int) *InMemoryJobRepository {
+func NewInMemoryJobRepository(pool string, jobComparator immutable.Comparer[*jobdb.Job]) *InMemoryJobRepository {
 	return &InMemoryJobRepository{
-		currentPool:  pool,
-		jctxsByQueue: make(map[string][]*schedulercontext.JobSchedulingContext),
-		jctxsById:    make(map[string]*schedulercontext.JobSchedulingContext),
-		sortOrder:    sortOrder,
+		currentPool:   pool,
+		jctxsByQueue:  make(map[string][]*schedulercontext.JobSchedulingContext),
+		jctxsById:     make(map[string]*schedulercontext.JobSchedulingContext),
+		jobComparator: jobComparator,
 	}
 }
 
@@ -79,7 +75,7 @@ func (repo *InMemoryJobRepository) EnqueueMany(jctxs []*schedulercontext.JobSche
 // sortQueue sorts jobs in a specified queue by the order in which they should be scheduled.
 func (repo *InMemoryJobRepository) sortQueue(queue string) {
 	slices.SortFunc(repo.jctxsByQueue[queue], func(a, b *schedulercontext.JobSchedulingContext) int {
-		return repo.sortOrder(a.Job, b.Job)
+		return repo.jobComparator.Compare(a.Job, b.Job)
 	})
 }
 
@@ -117,9 +113,9 @@ type QueuedJobsIterator struct {
 	ctx     *armadacontext.Context
 }
 
-func NewQueuedJobsIterator(ctx *armadacontext.Context, queue string, pool string, repo JobRepository, order jobdb.JobSortOrder) *QueuedJobsIterator {
+func NewQueuedJobsIterator(ctx *armadacontext.Context, queue string, pool string, sortOrder jobdb.JobSortOrder, repo jobdb.JobRepository) *QueuedJobsIterator {
 	return &QueuedJobsIterator{
-		jobIter: repo.QueuedJobs(queue, order),
+		jobIter: repo.QueuedJobs(queue, pool, sortOrder),
 		pool:    pool,
 		ctx:     ctx,
 	}
@@ -135,9 +131,7 @@ func (it *QueuedJobsIterator) Next() (*schedulercontext.JobSchedulingContext, er
 			if job == nil {
 				return nil, nil
 			}
-			if slices.Contains(job.Pools(), it.pool) {
-				return schedulercontext.JobSchedulingContextFromJob(job), nil
-			}
+			return schedulercontext.JobSchedulingContextFromJob(job), nil
 		}
 	}
 }
@@ -172,18 +166,20 @@ func (it *MultiJobsIterator) Next() (*schedulercontext.JobSchedulingContext, err
 
 // MarketDrivenMultiJobsIterator combines two iterators by price
 type MarketDrivenMultiJobsIterator struct {
-	it1 JobContextIterator
-	it2 JobContextIterator
+	it1  JobContextIterator
+	it2  JobContextIterator
+	pool string
 
 	// TODO: ideally we add peek() to JobContextIterator and remove these
 	it1Value *schedulercontext.JobSchedulingContext
 	it2Value *schedulercontext.JobSchedulingContext
 }
 
-func NewMarketDrivenMultiJobsIterator(it1, it2 JobContextIterator) *MarketDrivenMultiJobsIterator {
+func NewMarketDrivenMultiJobsIterator(pool string, it1, it2 JobContextIterator) *MarketDrivenMultiJobsIterator {
 	return &MarketDrivenMultiJobsIterator{
-		it1: it1,
-		it2: it2,
+		pool: pool,
+		it1:  it1,
+		it2:  it2,
 	}
 }
 
@@ -207,8 +203,8 @@ func (it *MarketDrivenMultiJobsIterator) Next() (*schedulercontext.JobScheduling
 	j1 := it.it1Value
 	j2 := it.it2Value
 	// Both iterators active.
-	if it.it1Value != nil && j2 != nil {
-		if (jobdb.MarketSchedulingOrderCompare(j1.Job, j2.Job)) < 0 {
+	if j1 != nil && j2 != nil {
+		if (jobdb.MarketSchedulingOrderCompare(it.pool, j1.Job, j2.Job)) < 0 {
 			it.it1Value = nil
 			return j1, nil
 		} else {

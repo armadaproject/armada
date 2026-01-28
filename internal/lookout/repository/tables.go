@@ -1,6 +1,8 @@
 package repository
 
 import (
+	"fmt"
+
 	"github.com/pkg/errors"
 
 	"github.com/armadaproject/armada/internal/common/util"
@@ -11,6 +13,9 @@ const (
 	stateField              = "state"
 	submittedField          = "submitted"
 	lastTransitionTimeField = "lastTransitionTime"
+	clusterField            = "cluster"
+	nodeField               = "node"
+	poolField               = "pool"
 
 	jobTable    = "job"
 	jobRunTable = "job_run"
@@ -18,6 +23,7 @@ const (
 	jobTableAbbrev    = "j"
 	jobRunTableAbbrev = "jr"
 
+	// Job table columns
 	jobIdCol              = "job_id"
 	queueCol              = "queue"
 	namespaceCol          = "namespace"
@@ -32,6 +38,11 @@ const (
 	submittedCol          = "submitted"
 	lastTransitionTimeCol = "last_transition_time_seconds"
 	priorityClassCol      = "priority_class"
+
+	// Job Run table columns
+	clusterCol = "cluster"
+	nodeCol    = "node"
+	poolCol    = "pool"
 )
 
 type AggregateType int
@@ -47,6 +58,8 @@ const (
 type LookoutTables struct {
 	// field name -> column name
 	fieldColumnMap map[string]string
+	// column name -> table name
+	columnTableMap map[string]string
 	// set of column names that can be ordered
 	orderableColumns map[string]bool
 	// column name -> set of supported matches for column
@@ -57,6 +70,8 @@ type LookoutTables struct {
 	groupableColumns map[string]bool
 	// map from column to aggregate that can be performed on it
 	groupAggregates map[string]AggregateType
+	// map from string name to aggregate type for lastTransitionTime
+	lastTransitionTimeAggregateMap map[string]AggregateType
 }
 
 func NewTables() *LookoutTables {
@@ -76,12 +91,38 @@ func NewTables() *LookoutTables {
 			"submitted":          submittedCol,
 			"lastTransitionTime": lastTransitionTimeCol,
 			"priorityClass":      priorityClassCol,
+
+			"cluster": clusterCol,
+			"node":    nodeCol,
+			"pool":    poolCol,
+		},
+		columnTableMap: map[string]string{
+			jobIdCol:              jobTable,
+			queueCol:              jobTable,
+			jobSetCol:             jobTable,
+			ownerCol:              jobTable,
+			namespaceCol:          jobTable,
+			stateCol:              jobTable,
+			cpuCol:                jobTable,
+			memoryCol:             jobTable,
+			ephemeralStorageCol:   jobTable,
+			gpuCol:                jobTable,
+			priorityCol:           jobTable,
+			submittedCol:          jobTable,
+			lastTransitionTimeCol: jobTable,
+			priorityClassCol:      jobTable,
+
+			clusterCol: jobRunTable,
+			nodeCol:    jobRunTable,
+			poolCol:    jobRunTable,
 		},
 		orderableColumns: util.StringListToSet([]string{
 			jobIdCol,
 			jobSetCol,
 			submittedCol,
 			lastTransitionTimeCol,
+			queueCol,
+			stateCol,
 		}),
 		filterableColumns: map[string]map[string]bool{
 			jobIdCol:            util.StringListToSet([]string{model.MatchExact}),
@@ -95,7 +136,12 @@ func NewTables() *LookoutTables {
 			ephemeralStorageCol: util.StringListToSet([]string{model.MatchExact, model.MatchGreaterThan, model.MatchLessThan, model.MatchGreaterThanOrEqualTo, model.MatchLessThanOrEqualTo}),
 			gpuCol:              util.StringListToSet([]string{model.MatchExact, model.MatchGreaterThan, model.MatchLessThan, model.MatchGreaterThanOrEqualTo, model.MatchLessThanOrEqualTo}),
 			priorityCol:         util.StringListToSet([]string{model.MatchExact, model.MatchGreaterThan, model.MatchLessThan, model.MatchGreaterThanOrEqualTo, model.MatchLessThanOrEqualTo}),
+			submittedCol:        util.StringListToSet([]string{model.MatchGreaterThan, model.MatchLessThan, model.MatchGreaterThanOrEqualTo, model.MatchLessThanOrEqualTo}),
 			priorityClassCol:    util.StringListToSet([]string{model.MatchExact, model.MatchStartsWith, model.MatchContains}),
+
+			clusterCol: util.StringListToSet([]string{model.MatchExact}),
+			nodeCol:    util.StringListToSet([]string{model.MatchExact}),
+			poolCol:    util.StringListToSet([]string{model.MatchExact, model.MatchAnyOf}),
 		},
 		tableAbbrevs: map[string]string{
 			jobTable:    jobTableAbbrev,
@@ -106,11 +152,20 @@ func NewTables() *LookoutTables {
 			namespaceCol,
 			jobSetCol,
 			stateCol,
+
+			clusterCol,
+			nodeCol,
+			poolCol,
 		}),
 		groupAggregates: map[string]AggregateType{
 			submittedCol:          Min,
 			lastTransitionTimeCol: Average,
 			stateCol:              StateCounts,
+		},
+		lastTransitionTimeAggregateMap: map[string]AggregateType{
+			model.AggregateLatest:   Max,
+			model.AggregateEarliest: Min,
+			model.AggregateAverage:  Average,
 		},
 	}
 }
@@ -121,6 +176,14 @@ func (c *LookoutTables) ColumnFromField(field string) (string, error) {
 		return "", errors.Errorf("column for field %s not found", field)
 	}
 	return col, nil
+}
+
+func (c *LookoutTables) TableForCol(col string) (string, error) {
+	table, ok := c.columnTableMap[col]
+	if !ok {
+		return "", fmt.Errorf("unknown table for column %s: it is not present in columnTableMap", col)
+	}
+	return table, nil
 }
 
 func (c *LookoutTables) IsOrderable(col string) bool {
@@ -161,4 +224,20 @@ func (c *LookoutTables) GroupAggregateForCol(col string) (AggregateType, error) 
 		return Unknown, errors.Errorf("no aggregate found for column %s", col)
 	}
 	return aggregate, nil
+}
+
+// GetLastTransitionTimeAggregate returns the aggregate type to use for lastTransitionTime
+// based on the provided string. If the string is empty or not recognised, it returns the default,
+// Average.
+func (c *LookoutTables) GetLastTransitionTimeAggregate(aggregateType string) AggregateType {
+	if aggregateType == "" {
+		return Average
+	}
+
+	aggregateTypeEnum, ok := c.lastTransitionTimeAggregateMap[aggregateType]
+	if !ok {
+		return Average
+	}
+
+	return aggregateTypeEnum
 }

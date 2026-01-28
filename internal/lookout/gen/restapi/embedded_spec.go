@@ -142,6 +142,16 @@ func init() {
                     "isAnnotation": {
                       "type": "boolean",
                       "x-nullable": false
+                    },
+                    "lastTransitionTimeAggregate": {
+                      "description": "Type of aggregate to use for lastTransitionTime (latest, earliest, average)",
+                      "type": "string",
+                      "enum": [
+                        "latest",
+                        "earliest",
+                        "average"
+                      ],
+                      "x-nullable": true
                     }
                   }
                 },
@@ -661,6 +671,10 @@ func init() {
           "minLength": 1,
           "x-nullable": false
         },
+        "pool": {
+          "type": "string",
+          "x-nullable": true
+        },
         "priority": {
           "type": "integer",
           "format": "int64",
@@ -755,6 +769,12 @@ func init() {
           "format": "date-time",
           "x-nullable": true
         },
+        "ingressAddresses": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
         "jobRunState": {
           "type": "string",
           "enum": [
@@ -787,6 +807,10 @@ func init() {
           "type": "string",
           "format": "date-time",
           "minLength": 1,
+          "x-nullable": true
+        },
+        "pool": {
+          "type": "string",
           "x-nullable": true
         },
         "runId": {
@@ -939,6 +963,16 @@ func init() {
                     "isAnnotation": {
                       "type": "boolean",
                       "x-nullable": false
+                    },
+                    "lastTransitionTimeAggregate": {
+                      "description": "Type of aggregate to use for lastTransitionTime (latest, earliest, average)",
+                      "type": "string",
+                      "enum": [
+                        "latest",
+                        "earliest",
+                        "average"
+                      ],
+                      "x-nullable": true
                     }
                   }
                 },
@@ -1300,6 +1334,16 @@ func init() {
         "isAnnotation": {
           "type": "boolean",
           "x-nullable": false
+        },
+        "lastTransitionTimeAggregate": {
+          "description": "Type of aggregate to use for lastTransitionTime (latest, earliest, average)",
+          "type": "string",
+          "enum": [
+            "latest",
+            "earliest",
+            "average"
+          ],
+          "x-nullable": true
         }
       }
     },
@@ -1487,6 +1531,10 @@ func init() {
           "minLength": 1,
           "x-nullable": false
         },
+        "pool": {
+          "type": "string",
+          "x-nullable": true
+        },
         "priority": {
           "type": "integer",
           "format": "int64",
@@ -1581,6 +1629,12 @@ func init() {
           "format": "date-time",
           "x-nullable": true
         },
+        "ingressAddresses": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
         "jobRunState": {
           "type": "string",
           "enum": [
@@ -1613,6 +1667,10 @@ func init() {
           "type": "string",
           "format": "date-time",
           "minLength": 1,
+          "x-nullable": true
+        },
+        "pool": {
+          "type": "string",
           "x-nullable": true
         },
         "runId": {

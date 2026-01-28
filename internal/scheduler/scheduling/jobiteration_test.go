@@ -30,7 +30,7 @@ func TestInMemoryJobRepository(t *testing.T) {
 	for i, job := range jobs {
 		jctxs[i] = &schedulercontext.JobSchedulingContext{Job: job, KubernetesResourceRequirements: job.KubernetesResourceRequirements()}
 	}
-	repo := NewInMemoryJobRepository(testfixtures.TestPool, jobdb.SchedulingOrderCompare)
+	repo := NewInMemoryJobRepository(testfixtures.TestPool, jobdb.JobPriorityComparer{})
 	repo.EnqueueMany(jctxs)
 	expected := []*jobdb.Job{
 		jobs[4], jobs[1], jobs[2], jobs[0], jobs[5], jobs[3],
@@ -65,7 +65,7 @@ func TestMultiJobsIterator_TwoQueues(t *testing.T) {
 	ctx := armadacontext.Background()
 	its := make([]JobContextIterator, 3)
 	for i, queue := range []string{"A", "B", "C"} {
-		it := NewQueuedJobsIterator(ctx, queue, testfixtures.TestPool, repo, jobdb.FairShareOrder)
+		it := NewQueuedJobsIterator(ctx, queue, testfixtures.TestPool, jobdb.FairShareOrder, repo)
 		its[i] = it
 	}
 	it := NewMultiJobsIterator(its...)
@@ -94,7 +94,7 @@ func TestQueuedJobsIterator_OneQueue(t *testing.T) {
 		expected = append(expected, job.Id())
 	}
 	ctx := armadacontext.Background()
-	it := NewQueuedJobsIterator(ctx, "A", testfixtures.TestPool, repo, jobdb.FairShareOrder)
+	it := NewQueuedJobsIterator(ctx, "A", testfixtures.TestPool, jobdb.FairShareOrder, repo)
 	actual := make([]string, 0)
 	for {
 		jctx, err := it.Next()
@@ -116,7 +116,7 @@ func TestQueuedJobsIterator_ExceedsBufferSize(t *testing.T) {
 		expected = append(expected, job.Id())
 	}
 	ctx := armadacontext.Background()
-	it := NewQueuedJobsIterator(ctx, "A", testfixtures.TestPool, repo, jobdb.FairShareOrder)
+	it := NewQueuedJobsIterator(ctx, "A", testfixtures.TestPool, jobdb.FairShareOrder, repo)
 	actual := make([]string, 0)
 	for {
 		jctx, err := it.Next()
@@ -138,7 +138,7 @@ func TestQueuedJobsIterator_ManyJobs(t *testing.T) {
 		expected = append(expected, job.Id())
 	}
 	ctx := armadacontext.Background()
-	it := NewQueuedJobsIterator(ctx, "A", testfixtures.TestPool, repo, jobdb.FairShareOrder)
+	it := NewQueuedJobsIterator(ctx, "A", testfixtures.TestPool, jobdb.FairShareOrder, repo)
 	actual := make([]string, 0)
 	for {
 		jctx, err := it.Next()
@@ -165,7 +165,7 @@ func TestCreateQueuedJobsIterator_TwoQueues(t *testing.T) {
 		repo.Enqueue(job)
 	}
 	ctx := armadacontext.Background()
-	it := NewQueuedJobsIterator(ctx, "A", testfixtures.TestPool, repo, jobdb.FairShareOrder)
+	it := NewQueuedJobsIterator(ctx, "A", testfixtures.TestPool, jobdb.FairShareOrder, repo)
 	actual := make([]string, 0)
 	for {
 		jctx, err := it.Next()
@@ -188,7 +188,7 @@ func TestCreateQueuedJobsIterator_RespectsTimeout(t *testing.T) {
 	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), time.Millisecond)
 	time.Sleep(20 * time.Millisecond)
 	defer cancel()
-	it := NewQueuedJobsIterator(ctx, "A", testfixtures.TestPool, repo, jobdb.FairShareOrder)
+	it := NewQueuedJobsIterator(ctx, "A", testfixtures.TestPool, jobdb.FairShareOrder, repo)
 	job, err := it.Next()
 	assert.Nil(t, job)
 	assert.ErrorIs(t, err, context.DeadlineExceeded)
@@ -206,7 +206,7 @@ func TestCreateQueuedJobsIterator_NilOnEmpty(t *testing.T) {
 		repo.Enqueue(job)
 	}
 	ctx := armadacontext.Background()
-	it := NewQueuedJobsIterator(ctx, "A", testfixtures.TestPool, repo, jobdb.FairShareOrder)
+	it := NewQueuedJobsIterator(ctx, "A", testfixtures.TestPool, jobdb.FairShareOrder, repo)
 	for job, err := it.Next(); job != nil; job, err = it.Next() {
 		require.NoError(t, err)
 	}
@@ -234,13 +234,18 @@ func (iter *mockJobIterator) Next() (*jobdb.Job, bool) {
 }
 
 type mockJobRepository struct {
-	jobsByQueue map[string][]*jobdb.Job
-	jobsById    map[string]*jobdb.Job
+	jobsByQueue  map[string][]*jobdb.Job
+	jobsByGangId map[gangKey][]*jobdb.Job
+	jobsById     map[string]*jobdb.Job
 }
 
-func (repo *mockJobRepository) QueuedJobs(queueName string, _ jobdb.JobSortOrder) jobdb.JobIterator {
-	q := repo.jobsByQueue[queueName]
+func (repo *mockJobRepository) QueuedJobs(queue string, _ string, _ jobdb.JobSortOrder) jobdb.JobIterator {
+	q := repo.jobsByQueue[queue]
 	return &mockJobIterator{jobs: q}
+}
+
+func (repo *mockJobRepository) GetGangJobsByGangId(queue string, gangId string) ([]*jobdb.Job, error) {
+	return repo.jobsByGangId[gangKey{queue: queue, gangId: gangId}], nil
 }
 
 func (repo *mockJobRepository) GetById(id string) *jobdb.Job {
@@ -248,10 +253,30 @@ func (repo *mockJobRepository) GetById(id string) *jobdb.Job {
 	return j
 }
 
+func (repo *mockJobRepository) NewJob(
+	jobId string,
+	jobSet string,
+	queue string,
+	priority uint32,
+	schedulingInfo *internaltypes.JobSchedulingInfo,
+	queued bool,
+	queuedVersion int32,
+	cancelRequested bool,
+	cancelByJobSetRequested bool,
+	cancelled bool,
+	created int64,
+	validated bool,
+	pools []string,
+	priceBand int32,
+) (*jobdb.Job, error) {
+	return &jobdb.Job{}, nil
+}
+
 func newMockJobRepository() *mockJobRepository {
 	return &mockJobRepository{
-		jobsByQueue: make(map[string][]*jobdb.Job),
-		jobsById:    make(map[string]*jobdb.Job),
+		jobsByQueue:  make(map[string][]*jobdb.Job),
+		jobsByGangId: make(map[gangKey][]*jobdb.Job),
+		jobsById:     make(map[string]*jobdb.Job),
 	}
 }
 
@@ -263,11 +288,15 @@ func (repo *mockJobRepository) EnqueueMany(jobs []*jobdb.Job) {
 
 func (repo *mockJobRepository) Enqueue(job *jobdb.Job) {
 	repo.jobsByQueue[job.Queue()] = append(repo.jobsByQueue[job.Queue()], job)
+	if job.IsInGang() {
+		key := gangKey{queue: job.Queue(), gangId: job.GetGangInfo().Id()}
+		repo.jobsByGangId[key] = append(repo.jobsByGangId[key], job)
+	}
 	repo.jobsById[job.Id()] = job
 }
 
 func (repo *mockJobRepository) GetJobIterator(ctx *armadacontext.Context, queue string) JobContextIterator {
-	return NewQueuedJobsIterator(ctx, queue, testfixtures.TestPool, repo, jobdb.FairShareOrder)
+	return NewQueuedJobsIterator(ctx, queue, testfixtures.TestPool, jobdb.FairShareOrder, repo)
 }
 
 func jobFromPodSpec(queue string, req *internaltypes.PodRequirements) *jobdb.Job {

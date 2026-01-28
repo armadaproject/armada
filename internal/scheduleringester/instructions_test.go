@@ -11,13 +11,13 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/common/compress"
+	"github.com/armadaproject/armada/internal/common/constants"
 	"github.com/armadaproject/armada/internal/common/ingest/metrics"
 	f "github.com/armadaproject/armada/internal/common/ingest/testfixtures"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
-	"github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/controlplaneevents"
 )
@@ -47,6 +47,24 @@ func TestConvertEventSequence(t *testing.T) {
 				Submitted:      f.BaseTime.UnixNano(),
 				SubmitMessage:  protoutil.MustMarshallAndCompress(f.Submit.GetSubmitJob(), compressor),
 				SchedulingInfo: protoutil.MustMarshall(getExpectedSubmitMessageSchedulingInfo(t)),
+				PriceBand:      1,
+			}}},
+		},
+		"submit with annotations we want to filter": {
+			events: []*armadaevents.EventSequence_Event{f.SubmitWithIrrelevantAnnotations},
+			expected: []DbOperation{InsertJobs{f.JobId: &schedulerdb.Job{
+				JobID:          f.JobId,
+				JobSet:         f.JobsetName,
+				UserID:         f.UserId,
+				Groups:         compress.MustCompressStringArray(f.Groups, compressor),
+				Queue:          f.Queue,
+				Queued:         true,
+				QueuedVersion:  0,
+				Priority:       int64(f.Priority),
+				Submitted:      f.BaseTime.UnixNano(),
+				SubmitMessage:  protoutil.MustMarshallAndCompress(f.SubmitWithIrrelevantAnnotations.GetSubmitJob(), compressor),
+				SchedulingInfo: protoutil.MustMarshall(getExpectedSubmitMessageSchedulingInfo(t)),
+				PriceBand:      1,
 			}}},
 		},
 		"job run leased": {
@@ -454,7 +472,9 @@ func getExpectedSubmitMessageSchedulingInfo(t *testing.T) *schedulerobjects.JobS
 							},
 						},
 						Annotations: map[string]string{
-							configuration.FailFastAnnotation: "true",
+							// Only certain annotations permitted, determined by configuration.IsSchedulingAnnotation()
+							constants.FailFastAnnotation: "true",
+							constants.JobPriceBand:       "A",
 						},
 					},
 				},

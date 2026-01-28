@@ -59,13 +59,15 @@ func (mr *MockJobRepositoryMockRecorder) CountReceivedPartitions(ctx, groupId an
 }
 
 // FetchInitialJobs mocks base method.
-func (m *MockJobRepository) FetchInitialJobs(ctx *armadacontext.Context) ([]database.Job, []database.Run, error) {
+func (m *MockJobRepository) FetchInitialJobs(ctx *armadacontext.Context) ([]database.Job, []database.Run, *int64, *int64, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchInitialJobs", ctx)
 	ret0, _ := ret[0].([]database.Job)
 	ret1, _ := ret[1].([]database.Run)
-	ret2, _ := ret[2].(error)
-	return ret0, ret1, ret2
+	ret2, _ := ret[2].(*int64)
+	ret3, _ := ret[3].(*int64)
+	ret4, _ := ret[4].(error)
+	return ret0, ret1, ret2, ret3, ret4
 }
 
 // FetchInitialJobs indicates an expected call of FetchInitialJobs.

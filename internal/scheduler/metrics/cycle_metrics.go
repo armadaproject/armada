@@ -8,18 +8,30 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"k8s.io/apimachinery/pkg/api/resource"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	log "github.com/armadaproject/armada/internal/common/logging"
-	armadaresource "github.com/armadaproject/armada/internal/common/resource"
+	armadamaps "github.com/armadaproject/armada/internal/common/maps"
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
+	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
+	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling"
+	"github.com/armadaproject/armada/internal/scheduler/scheduling/context"
+	"github.com/armadaproject/armada/pkg/metricevents"
 )
 
 var (
-	poolLabels                  = []string{poolLabel}
-	poolAndQueueLabels          = []string{poolLabel, queueLabel}
-	queueAndPriorityClassLabels = []string{queueLabel, priorityClassLabel}
-	poolQueueAndResourceLabels  = []string{poolLabel, queueLabel, resourceLabel}
+	poolLabels                             = []string{poolLabel}
+	poolAndPriorityLabels                  = []string{poolLabel, priorityLabel}
+	poolAndQueueLabels                     = []string{poolLabel, queueLabel}
+	poolAndQueueAndPriorityClassTypeLabels = []string{poolLabel, queueLabel, priorityClassLabel, typeLabel}
+	poolAndShapeLabels                     = []string{poolLabel, jobShapeLabel}
+	poolAndShapeAndReasonLabels            = []string{poolLabel, jobShapeLabel, unschedulableReasonLabel}
+	poolQueueAndResourceLabels             = []string{poolLabel, queueLabel, resourceLabel}
+	poolAndOutcomeLabels                   = []string{poolLabel, outcomeLabel, terminationReasonLabel}
+	defaultType                            = "unknown"
 )
 
 type perCycleMetrics struct {
@@ -28,9 +40,11 @@ type perCycleMetrics struct {
 	adjustedFairShare            *prometheus.GaugeVec
 	uncappedAdjustedFairShare    *prometheus.GaugeVec
 	actualShare                  *prometheus.GaugeVec
+	billableResource             *prometheus.GaugeVec
 	fairnessError                *prometheus.GaugeVec
 	demand                       *prometheus.GaugeVec
 	constrainedDemand            *prometheus.GaugeVec
+	shortJobPenalty              *prometheus.GaugeVec
 	queueWeight                  *prometheus.GaugeVec
 	rawQueueWeight               *prometheus.GaugeVec
 	gangsConsidered              *prometheus.GaugeVec
@@ -42,10 +56,17 @@ type perCycleMetrics struct {
 	evictedJobs                  *prometheus.GaugeVec
 	evictedResources             *prometheus.GaugeVec
 	spotPrice                    *prometheus.GaugeVec
+	indicativeShare              *prometheus.GaugeVec
 	nodePreemptibility           *prometheus.GaugeVec
 	protectedFractionOfFairShare *prometheus.GaugeVec
 	nodeAllocatableResource      *prometheus.GaugeVec
 	nodeAllocatedResource        *prometheus.GaugeVec
+	indicativePrice              *prometheus.GaugeVec
+	indicativePriceSchedulable   *prometheus.GaugeVec
+	idealisedScheduledValue      *prometheus.GaugeVec
+	idealisedAllocatedResource   *prometheus.GaugeVec
+	realisedScheduledValue       *prometheus.GaugeVec
+	nodePoolSize                 *prometheus.GaugeVec
 }
 
 func newPerCycleMetrics() *perCycleMetrics {
@@ -101,6 +122,14 @@ func newPerCycleMetrics() *perCycleMetrics {
 		prometheus.GaugeOpts{
 			Name: prefix + "constrained_demand",
 			Help: "Constrained demand of each queue and pool.  This differs from demand in that it limits demand by scheduling constraints",
+		},
+		poolAndQueueLabels,
+	)
+
+	shortJobPenalty := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: prefix + "short_job_penalty",
+			Help: "Short job penalty for each queue. This is the resource used by jobs that started recently and exited soon after they started.",
 		},
 		poolAndQueueLabels,
 	)
@@ -193,6 +222,14 @@ func newPerCycleMetrics() *perCycleMetrics {
 		poolQueueAndResourceLabels,
 	)
 
+	billableResources := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: prefix + "billable_resources",
+			Help: "Resources billable for in this cycle",
+		},
+		poolQueueAndResourceLabels,
+	)
+
 	spotPrice := prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: prefix + "spot_price",
@@ -201,12 +238,20 @@ func newPerCycleMetrics() *perCycleMetrics {
 		poolLabels,
 	)
 
+	indicativeShare := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: prefix + "indicative_share",
+			Help: "indicative share for some priority in the given pool",
+		},
+		poolAndPriorityLabels,
+	)
+
 	nodePreemptibility := prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: prefix + "node_preemptibility",
-			Help: "is it possible to clear this node by preempting all jobs on it, and, if not, why?",
+			Help: "is it possible to clear this node by preempting any jobs on it?",
 		},
-		[]string{poolLabel, nodeLabel, clusterLabel, nodeTypeLabel, "isPreemptible", "notPreemptibleReason"},
+		[]string{poolLabel, nodeLabel, clusterLabel, nodeTypeLabel, "isPreemptible", "reason"},
 	)
 
 	protectedFractionOfFairShare := prometheus.NewGaugeVec(
@@ -222,7 +267,7 @@ func newPerCycleMetrics() *perCycleMetrics {
 			Name: prefix + "node_allocatable_resource",
 			Help: "Resource that can be allocated to Armada jobs on this node",
 		},
-		[]string{poolLabel, nodeLabel, clusterLabel, nodeTypeLabel, resourceLabel, "schedulable"},
+		[]string{poolLabel, nodeLabel, clusterLabel, nodeTypeLabel, resourceLabel, reservationLabel, "schedulable", "overAllocated"},
 	)
 
 	nodeAllocatedResource := prometheus.NewGaugeVec(
@@ -230,7 +275,55 @@ func newPerCycleMetrics() *perCycleMetrics {
 			Name: prefix + "node_allocated_resource",
 			Help: "Resource allocated by Armada jobs on this node",
 		},
-		[]string{poolLabel, nodeLabel, clusterLabel, nodeTypeLabel, resourceLabel, "schedulable"},
+		[]string{poolLabel, nodeLabel, clusterLabel, nodeTypeLabel, resourceLabel, reservationLabel, "schedulable", "overAllocated"},
+	)
+
+	indicativePrice := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: prefix + "indicative_price",
+			Help: "indicative price for configured job in pool",
+		},
+		poolAndShapeLabels,
+	)
+
+	indicativePriceSchedulable := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: prefix + "indicative_price_is_schedulable",
+			Help: "determines whether defined job is at all schedulable",
+		},
+		poolAndShapeAndReasonLabels,
+	)
+
+	idealisedScheduledValue := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: prefix + "idealised_scheduled_value",
+			Help: "Idealised value scheduled per queue",
+		},
+		poolAndQueueLabels,
+	)
+
+	idealisedAllocatedResource := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: prefix + "idealised_allocated_resource",
+			Help: "Idealised value scheduled per queue",
+		},
+		[]string{poolLabel, queueLabel, resourceLabel},
+	)
+
+	realisedScheduledValue := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: prefix + "realised_scheduled_value",
+			Help: "Realised value scheduled per queue",
+		},
+		poolAndQueueLabels,
+	)
+
+	nodePoolSize := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: prefix + "node_pool_size",
+			Help: "Number of nodes in each pool",
+		},
+		poolLabels,
 	)
 
 	return &perCycleMetrics{
@@ -241,6 +334,7 @@ func newPerCycleMetrics() *perCycleMetrics {
 		actualShare:                  actualShare,
 		demand:                       demand,
 		constrainedDemand:            constrainedDemand,
+		shortJobPenalty:              shortJobPenalty,
 		queueWeight:                  queueWeight,
 		rawQueueWeight:               rawQueueWeight,
 		fairnessError:                fairnessError,
@@ -252,11 +346,19 @@ func newPerCycleMetrics() *perCycleMetrics {
 		loopNumber:                   loopNumber,
 		evictedJobs:                  evictedJobs,
 		evictedResources:             evictedResources,
+		billableResource:             billableResources,
 		spotPrice:                    spotPrice,
+		indicativeShare:              indicativeShare,
 		nodePreemptibility:           nodePreemptibility,
 		protectedFractionOfFairShare: protectedFractionOfFairShare,
 		nodeAllocatableResource:      nodeAllocatableResource,
 		nodeAllocatedResource:        nodeAllocatedResource,
+		indicativePrice:              indicativePrice,
+		indicativePriceSchedulable:   indicativePriceSchedulable,
+		idealisedScheduledValue:      idealisedScheduledValue,
+		idealisedAllocatedResource:   idealisedAllocatedResource,
+		realisedScheduledValue:       realisedScheduledValue,
+		nodePoolSize:                 nodePoolSize,
 	}
 }
 
@@ -265,18 +367,21 @@ type cycleMetrics struct {
 
 	scheduledJobs           *prometheus.CounterVec
 	premptedJobs            *prometheus.CounterVec
+	poolSchedulingOutcome   *prometheus.CounterVec
 	scheduleCycleTime       prometheus.Histogram
 	reconciliationCycleTime prometheus.Histogram
 	latestCycleMetrics      atomic.Pointer[perCycleMetrics]
+	metricsPublisher        pulsarutils.Publisher[*metricevents.Event]
+	poolNames               []string
 }
 
-func newCycleMetrics() *cycleMetrics {
+func newCycleMetrics(publisher pulsarutils.Publisher[*metricevents.Event], poolNames []string) *cycleMetrics {
 	scheduledJobs := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: prefix + "scheduled_jobs",
 			Help: "Number of events scheduled",
 		},
-		queueAndPriorityClassLabels,
+		poolAndQueueAndPriorityClassTypeLabels,
 	)
 
 	premptedJobs := prometheus.NewCounterVec(
@@ -284,7 +389,7 @@ func newCycleMetrics() *cycleMetrics {
 			Name: prefix + "preempted_jobs",
 			Help: "Number of jobs preempted",
 		},
-		queueAndPriorityClassLabels,
+		poolAndQueueAndPriorityClassTypeLabels,
 	)
 
 	scheduleCycleTime := prometheus.NewHistogram(
@@ -303,13 +408,24 @@ func newCycleMetrics() *cycleMetrics {
 		},
 	)
 
+	poolSchedulingOutcome := prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: prefix + "pool_scheduling_outcome",
+			Help: "Number of scheduling attempts per pool by outcome",
+		},
+		poolAndOutcomeLabels,
+	)
+
 	cycleMetrics := &cycleMetrics{
 		leaderMetricsEnabled:    true,
 		scheduledJobs:           scheduledJobs,
 		premptedJobs:            premptedJobs,
+		poolSchedulingOutcome:   poolSchedulingOutcome,
 		scheduleCycleTime:       scheduleCycleTime,
 		reconciliationCycleTime: reconciliationCycleTime,
 		latestCycleMetrics:      atomic.Pointer[perCycleMetrics]{},
+		metricsPublisher:        publisher,
+		poolNames:               poolNames,
 	}
 	cycleMetrics.latestCycleMetrics.Store(newPerCycleMetrics())
 	return cycleMetrics
@@ -327,6 +443,7 @@ func (m *cycleMetrics) disableLeaderMetrics() {
 func (m *cycleMetrics) resetLeaderMetrics() {
 	m.premptedJobs.Reset()
 	m.scheduledJobs.Reset()
+	m.poolSchedulingOutcome.Reset()
 	m.latestCycleMetrics.Store(newPerCycleMetrics())
 }
 
@@ -338,16 +455,43 @@ func (m *cycleMetrics) ReportReconcileCycleTime(cycleTime time.Duration) {
 	m.reconciliationCycleTime.Observe(float64(cycleTime.Milliseconds()))
 }
 
-func (m *cycleMetrics) ReportSchedulerResult(result scheduling.SchedulerResult) {
+func (m *cycleMetrics) ReportJobPreemptedWithType(job *jobdb.Job, preemptionType context.PreemptionType) {
+	if job.LatestRun() == nil {
+		return
+	}
+	m.premptedJobs.WithLabelValues(job.LatestRun().Pool(), job.Queue(), job.PriorityClassName(), string(preemptionType)).Inc()
+}
+
+// ReportPoolSchedulingOutcomes reports outcomes for all pools from the scheduler result
+func (m *cycleMetrics) ReportPoolSchedulingOutcomes(outcomes []scheduling.PoolSchedulingOutcome) {
+	for _, o := range outcomes {
+		terminationReason := string(o.TerminationReason)
+		outcome := PoolSchedulingOutcomeSuccess
+		if !o.Success {
+			outcome = PoolSchedulingOutcomeFailure
+		}
+		m.poolSchedulingOutcome.WithLabelValues(o.Pool, outcome, terminationReason).Inc()
+	}
+}
+
+func (m *cycleMetrics) ReportSchedulerResult(ctx *armadacontext.Context, result scheduling.SchedulerResult) {
 	// Metrics that depend on pool
 	currentCycle := newPerCycleMetrics()
+
+	// Initialize nodePoolSize to 0 for all configured pools
+	// This ensures pools with no nodes still appear in the metric
+	for _, poolName := range m.poolNames {
+		currentCycle.nodePoolSize.WithLabelValues(poolName).Set(0)
+	}
+
 	for _, schedContext := range result.SchedulingContexts {
 		pool := schedContext.Pool
 		for queue, queueContext := range schedContext.QueueSchedulingContexts {
 			jobsConsidered := float64(len(queueContext.UnsuccessfulJobSchedulingContexts) + len(queueContext.SuccessfulJobSchedulingContexts))
-			actualShare := schedContext.FairnessCostProvider.UnweightedCostFromQueue(queueContext)
+			actualShare := schedContext.FairnessCostProvider.UnweightedCostFromAllocation(queueContext.GetAllocation())
 			demand := schedContext.FairnessCostProvider.UnweightedCostFromAllocation(queueContext.Demand)
 			constrainedDemand := schedContext.FairnessCostProvider.UnweightedCostFromAllocation(queueContext.ConstrainedDemand)
+			shortJobPenalty := schedContext.FairnessCostProvider.UnweightedCostFromAllocation(queueContext.ShortJobPenalty)
 
 			currentCycle.consideredJobs.WithLabelValues(pool, queue).Set(jobsConsidered)
 			currentCycle.fairShare.WithLabelValues(pool, queue).Set(queueContext.FairShare)
@@ -356,19 +500,23 @@ func (m *cycleMetrics) ReportSchedulerResult(result scheduling.SchedulerResult) 
 			currentCycle.actualShare.WithLabelValues(pool, queue).Set(actualShare)
 			currentCycle.demand.WithLabelValues(pool, queue).Set(demand)
 			currentCycle.constrainedDemand.WithLabelValues(pool, queue).Set(constrainedDemand)
+			currentCycle.shortJobPenalty.WithLabelValues(pool, queue).Set(shortJobPenalty)
 			currentCycle.queueWeight.WithLabelValues(pool, queue).Set(queueContext.Weight)
 			currentCycle.rawQueueWeight.WithLabelValues(pool, queue).Set(queueContext.RawWeight)
+			currentCycle.idealisedScheduledValue.WithLabelValues(pool, queue).Set(queueContext.IdealisedValue)
+			currentCycle.realisedScheduledValue.WithLabelValues(pool, queue).Set(queueContext.RealisedValue)
+			for _, r := range queueContext.GetBillableResource().GetAll() {
+				currentCycle.billableResource.WithLabelValues(pool, queue, r.Name).Set(r.Value.AsApproximateFloat64())
+			}
+			for _, r := range queueContext.IdealisedAllocated.GetAll() {
+				currentCycle.idealisedAllocatedResource.WithLabelValues(pool, queue, r.Name).Set(r.Value.AsApproximateFloat64())
+			}
 		}
 		currentCycle.fairnessError.WithLabelValues(pool).Set(schedContext.FairnessError())
-		currentCycle.spotPrice.WithLabelValues(pool).Set(schedContext.SpotPrice)
-	}
-
-	for _, jobCtx := range result.ScheduledJobs {
-		m.scheduledJobs.WithLabelValues(jobCtx.Job.Queue(), jobCtx.PriorityClassName).Inc()
-	}
-
-	for _, jobCtx := range result.PreemptedJobs {
-		m.premptedJobs.WithLabelValues(jobCtx.Job.Queue(), jobCtx.PriorityClassName).Inc()
+		currentCycle.spotPrice.WithLabelValues(pool).Set(schedContext.GetSpotPrice())
+		for priority, share := range schedContext.ExperimentalIndicativeShares {
+			currentCycle.indicativeShare.WithLabelValues(pool, strconv.Itoa(priority)).Set(share)
+		}
 	}
 
 	for pool, schedulingStats := range result.PerPoolSchedulingStats {
@@ -380,13 +528,29 @@ func (m *cycleMetrics) ReportSchedulerResult(result scheduling.SchedulerResult) 
 			currentCycle.perQueueCycleTime.WithLabelValues(pool, queue).Set(float64(s.Time.Milliseconds()))
 		}
 
+		for _, jobCtx := range schedulingStats.ScheduledJobs {
+			schedulingType := defaultType
+			if jobCtx.PodSchedulingContext != nil && jobCtx.PodSchedulingContext.SchedulingMethod != "" {
+				schedulingType = string(jobCtx.PodSchedulingContext.SchedulingMethod)
+			}
+			m.scheduledJobs.WithLabelValues(pool, jobCtx.Job.Queue(), jobCtx.Job.PriorityClassName(), schedulingType).Inc()
+		}
+
+		for _, jobCtx := range schedulingStats.PreemptedJobs {
+			preemptionType := defaultType
+			if jobCtx.PreemptionType != "" {
+				preemptionType = string(jobCtx.PreemptionType)
+			}
+			m.premptedJobs.WithLabelValues(pool, jobCtx.Job.Queue(), jobCtx.Job.PriorityClassName(), preemptionType).Inc()
+		}
+
 		currentCycle.loopNumber.WithLabelValues(pool).Set(float64(schedulingStats.LoopNumber))
 
 		for queue, s := range schedulingStats.EvictorResult.GetStatsPerQueue() {
 			currentCycle.evictedJobs.WithLabelValues(pool, queue).Set(float64(s.EvictedJobCount))
 
-			for _, r := range s.EvictedResources.GetResources() {
-				currentCycle.evictedResources.WithLabelValues(pool, queue, r.Name).Set(float64(r.RawValue))
+			for _, r := range s.EvictedResources.GetAll() {
+				currentCycle.evictedResources.WithLabelValues(pool, queue, r.Name).Set(r.Value.AsApproximateFloat64())
 			}
 		}
 
@@ -396,7 +560,7 @@ func (m *cycleMetrics) ReportSchedulerResult(result scheduling.SchedulerResult) 
 				nodePreemptiblityStats.NodeName,
 				nodePreemptiblityStats.Cluster,
 				nodePreemptiblityStats.NodeType,
-				fmt.Sprintf("%t", nodePreemptiblityStats.Reason == ""),
+				fmt.Sprintf("%t", nodePreemptiblityStats.Preemptible),
 				nodePreemptiblityStats.Reason).Set(1.0)
 		}
 
@@ -404,29 +568,57 @@ func (m *cycleMetrics) ReportSchedulerResult(result scheduling.SchedulerResult) 
 		if err != nil {
 			log.Errorf("unable to generate node stats as failed to get nodes from nodeDb %s", err)
 		} else {
+			currentCycle.nodePoolSize.WithLabelValues(pool).Set(float64(len(nodes)))
 			for _, node := range nodes {
 				isSchedulable := strconv.FormatBool(!node.IsUnschedulable())
-				for _, resource := range node.GetAllocatableResources().GetResources() {
-					currentCycle.nodeAllocatableResource.WithLabelValues(node.GetPool(), node.GetName(), node.GetExecutor(), node.GetReportingNodeType(), resource.Name, isSchedulable).Set(armadaresource.QuantityAsFloat64(resource.Value))
+				isOverallocated := strconv.FormatBool(node.IsOverAllocated())
+				for _, resource := range node.GetAllocatableResources().GetAll() {
+					currentCycle.nodeAllocatableResource.WithLabelValues(node.GetPool(), node.GetName(), node.GetExecutor(), node.GetReportingNodeType(), resource.Name, node.GetReservation(), isSchedulable, isOverallocated).Set(resource.Value.AsApproximateFloat64())
 				}
 
 				allocated := node.GetAllocatableResources().Subtract(node.AllocatableByPriority[internaltypes.EvictedPriority])
-				for _, resource := range allocated.GetResources() {
-					allocatableValue := math.Max(armadaresource.QuantityAsFloat64(resource.Value), 0)
-					currentCycle.nodeAllocatedResource.WithLabelValues(node.GetPool(), node.GetName(), node.GetExecutor(), node.GetReportingNodeType(), resource.Name, isSchedulable).Set(allocatableValue)
+				for _, resource := range allocated.GetAll() {
+					allocatableValue := math.Max(resource.Value.AsApproximateFloat64(), 0)
+					currentCycle.nodeAllocatedResource.WithLabelValues(node.GetPool(), node.GetName(), node.GetExecutor(), node.GetReportingNodeType(), resource.Name, node.GetReservation(), isSchedulable, isOverallocated).Set(allocatableValue)
 				}
 			}
 		}
 
 		currentCycle.protectedFractionOfFairShare.WithLabelValues(pool).Set(schedulingStats.ProtectedFractionOfFairShare)
+
+		for name, pricingInfo := range schedulingStats.MarketDrivenIndicativePrices {
+			if pricingInfo.Evaluated {
+				currentCycle.indicativePrice.WithLabelValues(pool, name).Set(pricingInfo.Price)
+				if pricingInfo.Schedulable {
+					currentCycle.indicativePriceSchedulable.WithLabelValues(pool, name, pricingInfo.UnschedulableReason).Set(1.0)
+				} else {
+					currentCycle.indicativePriceSchedulable.WithLabelValues(pool, name, pricingInfo.UnschedulableReason).Set(0.0)
+				}
+			} else {
+				currentCycle.indicativePrice.WithLabelValues(pool, name).Set(math.NaN())
+				currentCycle.indicativePriceSchedulable.WithLabelValues(pool, name, pricingInfo.UnschedulableReason).Set(math.NaN())
+			}
+		}
+	}
+
+	if result.FailedReconciliationJobs != nil {
+		for _, info := range result.FailedReconciliationJobs.FailedJobs {
+			m.ReportJobPreemptedWithType(info.Job, context.PreemptedViaNodeReconciler)
+		}
+		for _, info := range result.FailedReconciliationJobs.PreemptedJobs {
+			m.ReportJobPreemptedWithType(info.Job, context.PreemptedViaNodeReconciler)
+		}
 	}
 	m.latestCycleMetrics.Store(currentCycle)
+
+	m.publishCycleMetrics(ctx, result)
 }
 
 func (m *cycleMetrics) describe(ch chan<- *prometheus.Desc) {
 	if m.leaderMetricsEnabled {
 		m.scheduledJobs.Describe(ch)
 		m.premptedJobs.Describe(ch)
+		m.poolSchedulingOutcome.Describe(ch)
 		m.scheduleCycleTime.Describe(ch)
 
 		currentCycle := m.latestCycleMetrics.Load()
@@ -438,6 +630,7 @@ func (m *cycleMetrics) describe(ch chan<- *prometheus.Desc) {
 		currentCycle.fairnessError.Describe(ch)
 		currentCycle.demand.Describe(ch)
 		currentCycle.constrainedDemand.Describe(ch)
+		currentCycle.shortJobPenalty.Describe(ch)
 		currentCycle.queueWeight.Describe(ch)
 		currentCycle.rawQueueWeight.Describe(ch)
 		currentCycle.gangsConsidered.Describe(ch)
@@ -448,11 +641,19 @@ func (m *cycleMetrics) describe(ch chan<- *prometheus.Desc) {
 		currentCycle.loopNumber.Describe(ch)
 		currentCycle.evictedJobs.Describe(ch)
 		currentCycle.evictedResources.Describe(ch)
+		currentCycle.billableResource.Describe(ch)
 		currentCycle.spotPrice.Describe(ch)
+		currentCycle.indicativeShare.Describe(ch)
 		currentCycle.nodePreemptibility.Describe(ch)
 		currentCycle.protectedFractionOfFairShare.Describe(ch)
 		currentCycle.nodeAllocatableResource.Describe(ch)
 		currentCycle.nodeAllocatedResource.Describe(ch)
+		currentCycle.indicativePrice.Describe(ch)
+		currentCycle.indicativePriceSchedulable.Describe(ch)
+		currentCycle.idealisedScheduledValue.Describe(ch)
+		currentCycle.idealisedAllocatedResource.Describe(ch)
+		currentCycle.realisedScheduledValue.Describe(ch)
+		currentCycle.nodePoolSize.Describe(ch)
 	}
 
 	m.reconciliationCycleTime.Describe(ch)
@@ -462,6 +663,7 @@ func (m *cycleMetrics) collect(ch chan<- prometheus.Metric) {
 	if m.leaderMetricsEnabled {
 		m.scheduledJobs.Collect(ch)
 		m.premptedJobs.Collect(ch)
+		m.poolSchedulingOutcome.Collect(ch)
 		m.scheduleCycleTime.Collect(ch)
 
 		currentCycle := m.latestCycleMetrics.Load()
@@ -473,6 +675,7 @@ func (m *cycleMetrics) collect(ch chan<- prometheus.Metric) {
 		currentCycle.fairnessError.Collect(ch)
 		currentCycle.demand.Collect(ch)
 		currentCycle.constrainedDemand.Collect(ch)
+		currentCycle.shortJobPenalty.Collect(ch)
 		currentCycle.rawQueueWeight.Collect(ch)
 		currentCycle.queueWeight.Collect(ch)
 		currentCycle.gangsConsidered.Collect(ch)
@@ -483,12 +686,58 @@ func (m *cycleMetrics) collect(ch chan<- prometheus.Metric) {
 		currentCycle.loopNumber.Collect(ch)
 		currentCycle.evictedJobs.Collect(ch)
 		currentCycle.evictedResources.Collect(ch)
+		currentCycle.billableResource.Collect(ch)
 		currentCycle.spotPrice.Collect(ch)
+		currentCycle.indicativeShare.Collect(ch)
 		currentCycle.nodePreemptibility.Collect(ch)
 		currentCycle.protectedFractionOfFairShare.Collect(ch)
 		currentCycle.nodeAllocatableResource.Collect(ch)
 		currentCycle.nodeAllocatedResource.Collect(ch)
+		currentCycle.indicativePrice.Collect(ch)
+		currentCycle.indicativePriceSchedulable.Collect(ch)
+		currentCycle.idealisedScheduledValue.Collect(ch)
+		currentCycle.idealisedAllocatedResource.Collect(ch)
+		currentCycle.realisedScheduledValue.Collect(ch)
+		currentCycle.nodePoolSize.Collect(ch)
 	}
 
 	m.reconciliationCycleTime.Collect(ch)
+}
+
+func (m *cycleMetrics) publishCycleMetrics(ctx *armadacontext.Context, result scheduling.SchedulerResult) {
+	events := make([]*metricevents.Event, len(result.SchedulingContexts))
+
+	// convenience function to convert k8s qty struct to pointers as demanded by proto
+	toQtyPtr := func(q resource.Quantity) *resource.Quantity {
+		return &q
+	}
+
+	for i, sc := range result.SchedulingContexts {
+		queueMetrics := make(map[string]*metricevents.QueueMetrics, len(sc.QueueSchedulingContexts))
+		for qName, qCtx := range sc.QueueSchedulingContexts {
+			queueMetrics[qName] = &metricevents.QueueMetrics{
+				ActualShare:                      sc.FairnessCostProvider.UnweightedCostFromAllocation(qCtx.GetAllocation()),
+				Demand:                           sc.FairnessCostProvider.UnweightedCostFromAllocation(qCtx.Demand),
+				ConstrainedDemand:                sc.FairnessCostProvider.UnweightedCostFromAllocation(qCtx.ConstrainedDemand),
+				DemandByResourceType:             armadamaps.MapValues(qCtx.Demand.ToMap(), toQtyPtr),
+				ConstrainedDemandByResourceType:  armadamaps.MapValues(qCtx.ConstrainedDemand.ToMap(), toQtyPtr),
+				ShortJobPenalty:                  sc.FairnessCostProvider.UnweightedCostFromAllocation(qCtx.ShortJobPenalty),
+				BillableAllocationByResourceType: armadamaps.MapValues(qCtx.GetBillableResource().ToMap(), toQtyPtr),
+			}
+		}
+		events[i] = &metricevents.Event{
+			Created: protoutil.ToTimestamp(sc.Finished),
+			Event: &metricevents.Event_CycleMetrics{CycleMetrics: &metricevents.CycleMetrics{
+				Pool:                 sc.Pool,
+				QueueMetrics:         queueMetrics,
+				AllocatableResources: armadamaps.MapValues(sc.TotalResources.ToMap(), toQtyPtr),
+				SpotPrice:            sc.GetSpotPrice(),
+				CycleTime:            protoutil.ToTimestamp(sc.Finished),
+			}},
+		}
+	}
+	err := m.metricsPublisher.PublishMessages(ctx, events...)
+	if err != nil {
+		ctx.Logger().WithError(err).Warn("Error publishing cycle metrics")
+	}
 }

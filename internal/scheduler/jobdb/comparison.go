@@ -2,28 +2,35 @@ package jobdb
 
 type (
 	JobPriorityComparer       struct{}
-	MarketJobPriorityComparer struct{}
-	JobIdHasher               struct{}
+	MarketJobPriorityComparer struct {
+		Pool string
+	}
+	JobHasher   struct{}
+	JobIdHasher struct{}
 )
 
-func (JobIdHasher) Hash(j *Job) uint32 {
+func (JobIdHasher) Hash(jobId string) uint32 {
 	var hash uint32
-	for _, c := range j.id {
+	for _, c := range jobId {
 		hash = 31*hash + uint32(c)
 	}
 	return hash
 }
 
-func (JobIdHasher) Equal(a, b *Job) bool {
+func (JobIdHasher) Equal(a, b string) bool {
+	return a == b
+}
+
+func (JobHasher) Hash(j *Job) uint32 {
+	return JobIdHasher{}.Hash(j.id)
+}
+
+func (JobHasher) Equal(a, b *Job) bool {
 	return a == b
 }
 
 func (JobPriorityComparer) Compare(job, other *Job) int {
 	return SchedulingOrderCompare(job, other)
-}
-
-func (MarketJobPriorityComparer) Compare(job, other *Job) int {
-	return MarketSchedulingOrderCompare(job, other)
 }
 
 // SchedulingOrderCompare defines the order in which jobs in a particular queue should be scheduled,
@@ -99,18 +106,15 @@ func SchedulingOrderCompare(job, other *Job) int {
 	panic("We should never get here. Since we check for job id equality at the top of this function.")
 }
 
-func MarketSchedulingOrderCompare(job, other *Job) int {
+func (m MarketJobPriorityComparer) Compare(job, other *Job) int {
+	return MarketSchedulingOrderCompare(m.Pool, job, other)
+}
+
+func MarketSchedulingOrderCompare(currentPool string, job, other *Job) int {
 	// Jobs with equal id are always considered equal.
 	// This ensures at most one job with a particular id can exist in the jobDb.
 	if job.id == other.id {
 		return 0
-	}
-
-	// Next we sort on bidPrice
-	if job.bidPrice > other.bidPrice {
-		return -1
-	} else if job.bidPrice < other.bidPrice {
-		return 1
 	}
 
 	// PriorityClassPriority indicates urgency.
@@ -121,23 +125,32 @@ func MarketSchedulingOrderCompare(job, other *Job) int {
 		return 1
 	}
 
-	// Jobs higher in queue-priority come first.
-	if job.priority < other.priority {
+	jobBidPrice := job.GetBidPrice(currentPool)
+	otherBidPrice := other.GetBidPrice(currentPool)
+	// Next we sort on bidPrice
+	if jobBidPrice > otherBidPrice {
 		return -1
-	} else if job.priority > other.priority {
+	} else if jobBidPrice < otherBidPrice {
 		return 1
 	}
 
+	// If one job is active, order that first
 	// If both jobs are active, order by time since the job was scheduled.
 	// This ensures jobs that have been running for longer are rescheduled first,
 	// which reduces wasted compute time when preempting.
 	jobIsActive := job.activeRun != nil && !job.activeRun.InTerminalState()
 	otherIsActive := other.activeRun != nil && !other.activeRun.InTerminalState()
-	if jobIsActive && otherIsActive {
-		if job.activeRunTimestamp < other.activeRunTimestamp {
+	if jobIsActive || otherIsActive {
+		if !otherIsActive {
 			return -1
-		} else if job.activeRunTimestamp > other.activeRunTimestamp {
+		} else if !jobIsActive {
 			return 1
+		} else {
+			if job.activeRunTimestamp < other.activeRunTimestamp {
+				return -1
+			} else if job.activeRunTimestamp > other.activeRunTimestamp {
+				return 1
+			}
 		}
 	}
 

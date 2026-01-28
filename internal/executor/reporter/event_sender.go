@@ -1,6 +1,8 @@
 package reporter
 
 import (
+	"time"
+
 	"github.com/gogo/protobuf/proto"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -45,12 +47,19 @@ func (eventSender *ExecutorApiEventSender) SendEvents(events []EventMessage) err
 	}
 
 	for _, eventList := range eventLists {
-		_, err = eventSender.eventClient.ReportEvents(armadacontext.Background(), eventList)
+		err = eventSender.reportEvents(eventList)
 		if err != nil {
 			return err
 		}
 	}
 
+	return err
+}
+
+func (eventSender *ExecutorApiEventSender) reportEvents(eventList *executorapi.EventList) error {
+	timeout, cancel := armadacontext.WithTimeout(armadacontext.Background(), time.Second*30)
+	defer cancel()
+	_, err := eventSender.eventClient.ReportEvents(timeout, eventList)
 	return err
 }
 

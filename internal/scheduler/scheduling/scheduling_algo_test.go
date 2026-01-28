@@ -9,12 +9,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	v1 "k8s.io/api/core/v1"
 	k8sResource "k8s.io/apimachinery/pkg/api/resource"
 	clock "k8s.io/utils/clock/testing"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/common/pointer"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
@@ -22,7 +24,6 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	schedulermocks "github.com/armadaproject/armada/internal/scheduler/mocks"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
-	"github.com/armadaproject/armada/internal/scheduler/prioritymultiplier"
 	"github.com/armadaproject/armada/internal/scheduler/priorityoverride"
 	"github.com/armadaproject/armada/internal/scheduler/reports"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -30,8 +31,14 @@ import (
 	"github.com/armadaproject/armada/pkg/api"
 )
 
+type scheduledJobs struct {
+	jobs         []*jobdb.Job
+	acknowledged bool
+}
+
 func TestSchedule(t *testing.T) {
 	multiPoolSchedulingConfig := testfixtures.TestSchedulingConfig()
+	defaultExecutorSettings := []*schedulerobjects.ExecutorSettings{}
 	multiPoolSchedulingConfig.Pools = []configuration.PoolConfig{
 		{Name: testfixtures.TestPool},
 		{Name: testfixtures.TestPool2},
@@ -39,10 +46,6 @@ func TestSchedule(t *testing.T) {
 			Name:      testfixtures.AwayPool,
 			AwayPools: []string{testfixtures.TestPool2},
 		},
-	}
-	type scheduledJobs struct {
-		jobs         []*jobdb.Job
-		acknowledged bool
 	}
 	tests := map[string]struct {
 		schedulingConfig configuration.SchedulingConfig
@@ -56,9 +59,21 @@ func TestSchedule(t *testing.T) {
 		// where executorIndex refers to the index of executors, and nodeIndex the index of the node on that executor.
 		scheduledJobsByExecutorIndexAndNodeIndex map[int]map[int]scheduledJobs
 
+		// Indices of existing jobs the reconciler will fail to reconcile.
+		// Uses the same structure as scheduledJobsByExecutorIndexAndNodeIndex.
+		jobsToFailReconciliationJobsByExecutorIndexAndNodeIndex map[int]map[int][]int
+
 		// Indices of existing jobs expected to be preempted.
 		// Uses the same structure as scheduledJobsByExecutorIndexAndNodeIndex.
 		expectedPreemptedJobIndicesByExecutorIndexAndNodeIndex map[int]map[int][]int
+
+		// Indices of existing jobs expected to be preempted due to reconciliation.
+		// Uses the same structure as scheduledJobsByExecutorIndexAndNodeIndex.
+		expectedPreemptedDueToReconciliationByExecutorIndexAndNodeIndex map[int]map[int][]int
+
+		// Indices of existing jobs expected to be failed due to reconciliation.
+		// Uses the same structure as scheduledJobsByExecutorIndexAndNodeIndex.
+		expectedFailedDueToReconciliationByExecutorIndexAndNodeIndex map[int]map[int][]int
 
 		// Indices of queued jobs expected to be scheduled.
 		expectedScheduledIndices []int
@@ -86,6 +101,17 @@ func TestSchedule(t *testing.T) {
 			queuedJobs:               testfixtures.WithPools(testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass4PreemptibleAway, 10), []string{testfixtures.TestPool}),
 			expectedScheduledIndices: []int{0, 1},
 			expectedScheduledByPool:  map[string]int{testfixtures.TestPool: 2},
+		},
+		"scheduling - home away - away scheduling disabled": {
+			schedulingConfig: testfixtures.WithAwaySchedulingDisabled(testfixtures.TestSchedulingConfig()),
+			executors: []*schedulerobjects.Executor{
+				makeTestExecutorWithNodes("executor-1",
+					withLargeNodeTaint(testNodeWithPool(testfixtures.TestPool))),
+			},
+			queues:                   []*api.Queue{testfixtures.MakeTestQueue()},
+			queuedJobs:               testfixtures.WithPools(testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass4PreemptibleAway, 10), []string{testfixtures.TestPool}),
+			expectedScheduledIndices: []int{},
+			expectedScheduledByPool:  map[string]int{},
 		},
 		"scheduling - cross pool - home away": {
 			schedulingConfig: multiPoolSchedulingConfig,
@@ -195,6 +221,128 @@ func TestSchedule(t *testing.T) {
 			},
 			expectedScheduledIndices: []int{0, 1},
 		},
+		"reconcile - reconciliation disabled - does nothing": {
+			schedulingConfig: testfixtures.TestSchedulingConfig(),
+			executors: []*schedulerobjects.Executor{
+				test1Node32CoreExecutor("executor1"),
+			},
+			queues: []*api.Queue{testfixtures.MakeTestQueue()},
+			scheduledJobsByExecutorIndexAndNodeIndex: map[int]map[int]scheduledJobs{
+				0: {
+					0: scheduledJobs{
+						jobs:         testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass6Preemptible, 2),
+						acknowledged: true,
+					},
+				},
+			},
+			jobsToFailReconciliationJobsByExecutorIndexAndNodeIndex: map[int]map[int][]int{
+				0: {
+					0: {0},
+				},
+			},
+		},
+		"reconcile - preemptible job - preempted": {
+			schedulingConfig: testfixtures.WithReconcilerEnabled(testfixtures.TestSchedulingConfig()),
+			executors: []*schedulerobjects.Executor{
+				test1Node32CoreExecutor("executor1"),
+			},
+			queues: []*api.Queue{testfixtures.MakeTestQueue()},
+			scheduledJobsByExecutorIndexAndNodeIndex: map[int]map[int]scheduledJobs{
+				0: {
+					0: scheduledJobs{
+						jobs:         testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass6Preemptible, 2),
+						acknowledged: true,
+					},
+				},
+			},
+			jobsToFailReconciliationJobsByExecutorIndexAndNodeIndex: map[int]map[int][]int{
+				0: {
+					0: {0},
+				},
+			},
+			expectedPreemptedDueToReconciliationByExecutorIndexAndNodeIndex: map[int]map[int][]int{
+				0: {
+					0: {0},
+				},
+			},
+		},
+		"reconcile - non-preemptible job - failed": {
+			schedulingConfig: testfixtures.WithReconcilerEnabled(testfixtures.TestSchedulingConfig()),
+			executors: []*schedulerobjects.Executor{
+				test1Node32CoreExecutor("executor1"),
+			},
+			queues: []*api.Queue{testfixtures.MakeTestQueue()},
+			scheduledJobsByExecutorIndexAndNodeIndex: map[int]map[int]scheduledJobs{
+				0: {
+					0: scheduledJobs{
+						jobs:         testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass2NonPreemptible, 2),
+						acknowledged: true,
+					},
+				},
+			},
+			jobsToFailReconciliationJobsByExecutorIndexAndNodeIndex: map[int]map[int][]int{
+				0: {
+					0: {0},
+				},
+			},
+			expectedFailedDueToReconciliationByExecutorIndexAndNodeIndex: map[int]map[int][]int{
+				0: {
+					0: {0},
+				},
+			},
+		},
+		"reconcile - gang job - preempts all members": {
+			schedulingConfig: testfixtures.WithReconcilerEnabled(testfixtures.TestSchedulingConfig()),
+			executors: []*schedulerobjects.Executor{
+				test1Node32CoreExecutor("executor1"),
+			},
+			queues: []*api.Queue{testfixtures.MakeTestQueue()},
+			scheduledJobsByExecutorIndexAndNodeIndex: map[int]map[int]scheduledJobs{
+				0: {
+					0: scheduledJobs{
+						jobs:         testfixtures.WithGangAnnotationsJobs(testfixtures.N16Cpu128GiJobs("queue1", testfixtures.PriorityClass6Preemptible, 2)),
+						acknowledged: true,
+					},
+				},
+			},
+			jobsToFailReconciliationJobsByExecutorIndexAndNodeIndex: map[int]map[int][]int{
+				0: {
+					0: {0},
+				},
+			},
+			expectedPreemptedDueToReconciliationByExecutorIndexAndNodeIndex: map[int]map[int][]int{
+				0: {
+					0: {0, 1},
+				},
+			},
+		},
+		"reconcile - fills gap of preempted": {
+			schedulingConfig: testfixtures.WithReconcilerEnabled(testfixtures.TestSchedulingConfig()),
+			executors: []*schedulerobjects.Executor{
+				test1Node32CoreExecutor("executor1"),
+			},
+			queues:     []*api.Queue{testfixtures.MakeTestQueue()},
+			queuedJobs: testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 10),
+			scheduledJobsByExecutorIndexAndNodeIndex: map[int]map[int]scheduledJobs{
+				0: {
+					0: scheduledJobs{
+						jobs:         testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass6Preemptible, 2),
+						acknowledged: true,
+					},
+				},
+			},
+			jobsToFailReconciliationJobsByExecutorIndexAndNodeIndex: map[int]map[int][]int{
+				0: {
+					0: {0},
+				},
+			},
+			expectedPreemptedDueToReconciliationByExecutorIndexAndNodeIndex: map[int]map[int][]int{
+				0: {
+					0: {0},
+				},
+			},
+			expectedScheduledIndices: []int{0},
+		},
 		"MaximumResourceFractionPerQueue hit before scheduling": {
 			schedulingConfig: testfixtures.WithPerPriorityLimitsConfig(
 				map[string]map[string]float64{
@@ -253,6 +401,24 @@ func TestSchedule(t *testing.T) {
 			executors:        []*schedulerobjects.Executor{},
 			queues:           []*api.Queue{testfixtures.MakeTestQueue()},
 			queuedJobs:       testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 10),
+		},
+		"reschedules all jobs onto overallocated node": {
+			schedulingConfig: testfixtures.WithProtectedFractionOfFairShareConfig(0, testfixtures.TestSchedulingConfig()),
+			executors: []*schedulerobjects.Executor{
+				test1Node32CoreExecutor("executor1"),
+			},
+			scheduledJobsByExecutorIndexAndNodeIndex: map[int]map[int]scheduledJobs{
+				0: {
+					0: scheduledJobs{
+						jobs:         testfixtures.N1Cpu16GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass6Preemptible, 33),
+						acknowledged: false,
+					},
+				},
+			},
+			queues:                   []*api.Queue{testfixtures.MakeTestQueue()},
+			expectedScheduledIndices: []int{},
+			expectedScheduledByPool:  map[string]int{},
+			expectedPreemptedJobIndicesByExecutorIndexAndNodeIndex: map[int]map[int][]int{},
 		},
 		"computation of allocated resources does not confuse priority class with per-queue priority": {
 			schedulingConfig: testfixtures.WithPerPriorityLimitsConfig(
@@ -346,6 +512,26 @@ func TestSchedule(t *testing.T) {
 			queues:                   []*api.Queue{{Name: "A", PriorityFactor: 0.01}},
 			queuedJobs:               testfixtures.WithGangAnnotationsJobs(testfixtures.N16Cpu128GiJobs("A", testfixtures.PriorityClass0, 2)),
 			expectedScheduledIndices: []int{0, 1},
+		},
+		"gang scheduling successful - away scheduling": {
+			schedulingConfig: testfixtures.TestSchedulingConfig(),
+			executors: []*schedulerobjects.Executor{
+				makeTestExecutorWithNodes("executor-1",
+					withLargeNodeTaint(testNodeWithPool(testfixtures.TestPool))),
+			},
+			queues:                   []*api.Queue{{Name: "A", PriorityFactor: 0.01}},
+			queuedJobs:               testfixtures.WithGangAnnotationsJobs(testfixtures.N16Cpu128GiJobs("A", testfixtures.PriorityClass4PreemptibleAway, 2)),
+			expectedScheduledIndices: []int{0, 1},
+		},
+		"not scheduling gang away - gang away scheduling disabled": {
+			schedulingConfig: testfixtures.WithGangAwaySchedulingDisabled(testfixtures.TestSchedulingConfig()),
+			executors: []*schedulerobjects.Executor{
+				makeTestExecutorWithNodes("executor-1",
+					withLargeNodeTaint(testNodeWithPool(testfixtures.TestPool))),
+			},
+			queues:                   []*api.Queue{{Name: "A", PriorityFactor: 0.01}},
+			queuedJobs:               testfixtures.WithGangAnnotationsJobs(testfixtures.N16Cpu128GiJobs("A", testfixtures.PriorityClass0, 2)),
+			expectedScheduledIndices: []int{},
 		},
 		"gang scheduling successful - mixed pool clusters": {
 			schedulingConfig: testfixtures.TestSchedulingConfigWithPools([]configuration.PoolConfig{{Name: "pool-1"}, {Name: "pool-2"}}),
@@ -485,10 +671,12 @@ func TestSchedule(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockExecutorRepo := schedulermocks.NewMockExecutorRepository(ctrl)
 			mockExecutorRepo.EXPECT().GetExecutors(ctx).Return(tc.executors, nil).AnyTimes()
+			mockExecutorRepo.EXPECT().GetExecutorSettings(ctx).Return(defaultExecutorSettings, nil).AnyTimes()
 			mockQueueCache := schedulermocks.NewMockQueueCache(ctrl)
 			mockQueueCache.EXPECT().GetAll(ctx).Return(tc.queues, nil).AnyTimes()
 
 			schedulingContextRepo := reports.NewSchedulingContextRepository()
+			runReconciler := &testRunReconciler{}
 			sch, err := NewFairSchedulingAlgo(
 				tc.schedulingConfig,
 				0,
@@ -497,8 +685,9 @@ func TestSchedule(t *testing.T) {
 				schedulingContextRepo,
 				testfixtures.TestResourceListFactory,
 				testfixtures.TestEmptyFloatingResources,
-				prioritymultiplier.NewNoOpProvider(),
 				priorityoverride.NewNoOpProvider(),
+				nil,
+				runReconciler,
 			)
 			require.NoError(t, err)
 
@@ -536,6 +725,9 @@ func TestSchedule(t *testing.T) {
 				}
 			}
 
+			jobIdsToFailReconciliation := getJobIdsOfScheduledJobsByExecutorAndNodeIndex(t, tc.scheduledJobsByExecutorIndexAndNodeIndex, tc.jobsToFailReconciliationJobsByExecutorIndexAndNodeIndex)
+			runReconciler.jobIdsToFailReconciliation = jobIdsToFailReconciliation
+
 			// Setup jobDb.
 			jobDb := testfixtures.NewJobDb(testfixtures.TestResourceListFactory)
 			txn := jobDb.WriteTxn()
@@ -543,7 +735,7 @@ func TestSchedule(t *testing.T) {
 			require.NoError(t, err)
 
 			// Run a scheduling round.
-			schedulerResult, err := sch.Schedule(ctx, txn)
+			schedulerResult, err := sch.Schedule(ctx, nil, txn)
 			require.NoError(t, err)
 
 			// Check that the expected preemptions took place.
@@ -570,6 +762,20 @@ func TestSchedule(t *testing.T) {
 			} else {
 				assert.Equal(t, tc.expectedPreemptedJobIndicesByExecutorIndexAndNodeIndex, actualPreemptedJobsByExecutorIndexAndNodeIndex)
 			}
+
+			expectedJobIdsFailedDueToReconciliation := getJobIdsOfScheduledJobsByExecutorAndNodeIndex(t, tc.scheduledJobsByExecutorIndexAndNodeIndex, tc.expectedFailedDueToReconciliationByExecutorIndexAndNodeIndex)
+			actualJobIdsFailedDueToReconciliation := jobIdsFromReconciliationResults(schedulerResult.FailedReconciliationJobs.FailedJobs)
+			slices.Sort(expectedJobIdsFailedDueToReconciliation)
+			slices.Sort(actualJobIdsFailedDueToReconciliation)
+
+			assert.Equal(t, expectedJobIdsFailedDueToReconciliation, actualJobIdsFailedDueToReconciliation)
+
+			expectedJobIdsPreemptedDueToReconciliation := getJobIdsOfScheduledJobsByExecutorAndNodeIndex(t, tc.scheduledJobsByExecutorIndexAndNodeIndex, tc.expectedPreemptedDueToReconciliationByExecutorIndexAndNodeIndex)
+			actualJobIdsPreemptedDueToReconciliation := jobIdsFromReconciliationResults(schedulerResult.FailedReconciliationJobs.PreemptedJobs)
+			slices.Sort(expectedJobIdsPreemptedDueToReconciliation)
+			slices.Sort(actualJobIdsPreemptedDueToReconciliation)
+
+			assert.Equal(t, expectedJobIdsPreemptedDueToReconciliation, actualJobIdsPreemptedDueToReconciliation)
 
 			// Check that jobs were scheduled as expected.
 			scheduledJobs := ScheduledJobsFromSchedulerResult(schedulerResult)
@@ -608,13 +814,14 @@ func TestSchedule(t *testing.T) {
 			}
 
 			// Check that scheduled jobs are marked as such consistently.
-			for _, job := range scheduledJobs {
+			for _, jctx := range schedulerResult.ScheduledJobs {
+				job := jctx.Job
 				dbJob := txn.GetById(job.Id())
 				assert.False(t, dbJob.Failed())
 				assert.False(t, dbJob.Queued())
 				dbRun := dbJob.LatestRun()
 				assert.False(t, dbRun.Failed())
-				assert.Equal(t, schedulerResult.NodeIdByJobId[dbJob.Id()], dbRun.NodeId())
+				assert.Equal(t, jctx.PodSchedulingContext.NodeId, dbRun.NodeId())
 				assert.NotEmpty(t, dbRun.NodeName())
 			}
 
@@ -640,6 +847,111 @@ func TestSchedule(t *testing.T) {
 	}
 }
 
+func jobIdsFromReconciliationResults(results []*FailedReconciliationResult) []string {
+	ids := make([]string, 0, len(results))
+	for _, result := range results {
+		ids = append(ids, result.Job.Id())
+	}
+	return ids
+}
+
+func getJobIdsOfScheduledJobsByExecutorAndNodeIndex(t *testing.T, scheduledJobs map[int]map[int]scheduledJobs, jobIndexes map[int]map[int][]int) []string {
+	result := []string{}
+	for executorIndex, nodeIndexes := range jobIndexes {
+		existingJobsByNode, exists := scheduledJobs[executorIndex]
+		require.True(t, exists)
+
+		for nodeIndex, jobIndexes := range nodeIndexes {
+			nodeInfo, exists := existingJobsByNode[nodeIndex]
+			require.True(t, exists)
+			for _, jobIndex := range jobIndexes {
+				result = append(result, nodeInfo.jobs[jobIndex].Id())
+			}
+		}
+	}
+	return result
+}
+
+func TestPopulateNodeDb(t *testing.T) {
+	tests := map[string]struct {
+		Jobs                    []*jobdb.Job
+		Node                    *internaltypes.Node
+		ExpectNodeAdded         bool
+		ExpectNodeUnschedulable bool
+		ExpectNodeOverAllocated bool
+	}{
+		"empty node": {
+			Jobs:            []*jobdb.Job{},
+			Node:            testfixtures.Test32CpuNode(testfixtures.TestPriorities),
+			ExpectNodeAdded: true,
+		},
+		"node with jobs": {
+			Jobs:            testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 5),
+			Node:            testfixtures.Test32CpuNode(testfixtures.TestPriorities),
+			ExpectNodeAdded: true,
+		},
+		"empty cordoned node": {
+			Jobs:            []*jobdb.Job{},
+			Node:            testfixtures.Test32CpuNode(testfixtures.TestPriorities).WithSchedulable(false),
+			ExpectNodeAdded: false,
+		},
+		"cordoned node with jobs": {
+			Jobs:                    testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 5),
+			Node:                    testfixtures.Test32CpuNode(testfixtures.TestPriorities).WithSchedulable(false),
+			ExpectNodeAdded:         true,
+			ExpectNodeUnschedulable: true,
+		},
+		"overallocated node": {
+			Jobs:                    testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 33),
+			Node:                    testfixtures.Test32CpuNode(testfixtures.TestPriorities),
+			ExpectNodeAdded:         true,
+			ExpectNodeUnschedulable: true,
+			ExpectNodeOverAllocated: true,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			schedulingConfig := testfixtures.TestSchedulingConfig()
+			nodeDb, err := nodedb.NewNodeDb(
+				schedulingConfig.PriorityClasses,
+				schedulingConfig.IndexedResources,
+				schedulingConfig.IndexedTaints,
+				schedulingConfig.IndexedNodeLabels,
+				schedulingConfig.WellKnownNodeTypes,
+				testfixtures.TestResourceListFactory,
+			)
+			require.NoError(t, err)
+
+			for i, job := range tc.Jobs {
+				tc.Jobs[i] = tc.Jobs[i].WithNewRun("executor-01", tc.Node.GetId(), tc.Node.GetName(), tc.Node.GetPool(), job.PriorityClass().Priority)
+			}
+
+			err = populateNodeDb(nodeDb, tc.Jobs, []*jobdb.Job{}, []*internaltypes.Node{tc.Node})
+			require.NoError(t, err)
+
+			nodes, err := nodeDb.GetNodes()
+			require.NoError(t, err)
+
+			if tc.ExpectNodeAdded {
+				assert.Len(t, nodes, 1)
+				node := nodes[0]
+				assert.Equal(t, tc.ExpectNodeOverAllocated, node.IsOverAllocated())
+				assert.Equal(t, tc.ExpectNodeUnschedulable, node.IsUnschedulable())
+				expectedJobIds := armadaslices.Map(tc.Jobs, func(job *jobdb.Job) string {
+					return job.Id()
+				})
+				slices.Sort(expectedJobIds)
+				actualJobIds := maps.Keys(node.AllocatedByJobId)
+				slices.Sort(actualJobIds)
+				assert.Equal(t, expectedJobIds, actualJobIds)
+			} else {
+				assert.Len(t, nodes, 0)
+			}
+		})
+	}
+}
+
 func BenchmarkNodeDbConstruction(b *testing.B) {
 	for e := 1; e <= 4; e++ {
 		numNodes := int(math.Pow10(e))
@@ -655,19 +967,6 @@ func BenchmarkNodeDbConstruction(b *testing.B) {
 			schedulingConfig := testfixtures.TestSchedulingConfig()
 			b.ResetTimer()
 			for n := 0; n < b.N; n++ {
-				b.StopTimer()
-				algo, err := NewFairSchedulingAlgo(
-					schedulingConfig,
-					time.Second*5,
-					nil,
-					nil,
-					nil,
-					testfixtures.TestResourceListFactory,
-					testfixtures.TestEmptyFloatingResources,
-					prioritymultiplier.NewNoOpProvider(),
-					priorityoverride.NewNoOpProvider(),
-				)
-				require.NoError(b, err)
 				b.StartTimer()
 
 				nodeDb, err := nodedb.NewNodeDb(
@@ -685,7 +984,7 @@ func BenchmarkNodeDbConstruction(b *testing.B) {
 					dbNodes = append(dbNodes, node.DeepCopyNilKeys())
 				}
 
-				err = algo.populateNodeDb(nodeDb, jobs, []*jobdb.Job{}, dbNodes)
+				err = populateNodeDb(nodeDb, jobs, []*jobdb.Job{}, dbNodes)
 				require.NoError(b, err)
 			}
 		})
@@ -723,8 +1022,8 @@ func TestMarkResourceUnallocatable_ProtectsFromNegativeValues(t *testing.T) {
 }
 
 func makeResourceList(resourceName string, value string) internaltypes.ResourceList {
-	return testfixtures.TestResourceListFactory.FromNodeProto(map[string]k8sResource.Quantity{
-		resourceName: k8sResource.MustParse(value),
+	return testfixtures.TestResourceListFactory.FromNodeProto(map[string]*k8sResource.Quantity{
+		resourceName: pointer.MustParseResource(value),
 	},
 	)
 }
@@ -796,9 +1095,27 @@ func withLargeNodeTaint(node *schedulerobjects.Node) *schedulerobjects.Node {
 func test32CpuNode(priorities []int32) *schedulerobjects.Node {
 	return testfixtures.TestSchedulerObjectsNode(
 		priorities,
-		map[string]k8sResource.Quantity{
-			"cpu":    k8sResource.MustParse("32"),
-			"memory": k8sResource.MustParse("256Gi"),
+		map[string]*k8sResource.Quantity{
+			"cpu":    pointer.MustParseResource("32"),
+			"memory": pointer.MustParseResource("256Gi"),
 		},
 	)
+}
+
+type testRunReconciler struct {
+	jobIdsToFailReconciliation []string
+}
+
+func (t *testRunReconciler) ReconcileJobRuns(txn *jobdb.Txn, _ []*schedulerobjects.Executor) []*FailedReconciliationResult {
+	if t.jobIdsToFailReconciliation == nil || len(t.jobIdsToFailReconciliation) == 0 {
+		return nil
+	}
+	jobs := txn.GetAll()
+	result := make([]*FailedReconciliationResult, 0, len(jobs))
+	for _, job := range jobs {
+		if slices.Contains(t.jobIdsToFailReconciliation, job.Id()) {
+			result = append(result, &FailedReconciliationResult{Job: job, Reason: "reconciling this run with the node failed"})
+		}
+	}
+	return result
 }

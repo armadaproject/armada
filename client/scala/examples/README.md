@@ -1,6 +1,6 @@
-To build the example Armada client programs, build the Scala Armada client first:
+To build the example Armada client programs, build the Armada Scala client first:
 ```
-cd client/scala/scala-armada-client/
+cd client/scala/armada-scala-client/
 sbt publishLocal
 ```
 

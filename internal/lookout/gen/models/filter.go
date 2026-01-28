@@ -35,7 +35,7 @@ type Filter struct {
 
 	// value
 	// Required: true
-	Value interface{} `json:"value"`
+	Value any `json:"value"`
 }
 
 // Validate validates this filter
@@ -73,7 +73,7 @@ func (m *Filter) validateField(formats strfmt.Registry) error {
 	return nil
 }
 
-var filterTypeMatchPropEnum []interface{}
+var filterTypeMatchPropEnum []any
 
 func init() {
 	var res []string

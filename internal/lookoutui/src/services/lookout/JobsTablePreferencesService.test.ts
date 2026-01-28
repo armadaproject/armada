@@ -1,6 +1,19 @@
 import { Location, NavigateFunction, Params } from "react-router-dom"
 
 import {
+  ColumnId,
+  DEFAULT_COLUMN_MATCHES,
+  DEFAULT_COLUMN_ORDERING,
+  StandardColumnId,
+} from "../../common/jobsTableColumns"
+import { Router } from "../../common/utils"
+import { JobState, Match } from "../../models/lookoutModels"
+import {
+  FORMAT_NUMBER_SHOULD_FORMAT_KEY,
+  FORMAT_TIMESTAMP_SHOULD_FORMAT_KEY,
+} from "../../userSettings/localStorageKeys"
+
+import {
   DEFAULT_PREFERENCES,
   ensurePreferencesAreConsistent,
   JobsTablePreferences,
@@ -9,9 +22,6 @@ import {
   QueryStringPrefs,
   stringifyQueryParams,
 } from "./JobsTablePreferencesService"
-import { Match } from "../../models/lookoutModels"
-import { Router } from "../../utils"
-import { ColumnId, DEFAULT_COLUMN_ORDERING, StandardColumnId } from "../../utils/jobsTableColumns"
 
 class FakeRouter implements Router {
   location: Location
@@ -128,11 +138,9 @@ describe("JobsTablePreferencesService", () => {
 
   describe("Column filters", () => {
     it("makes filter value and match types consistent (migrating to anyOf)", () => {
-      savePartialPrefs({ filters: [{ id: StandardColumnId.Queue, value: "i-am-a-string-and-not-an-array" }] })
-      expect(router.location.search).toContain(
-        "f[0][id]=queue&f[0][value]=i-am-a-string-and-not-an-array&f[0][match]=anyOf",
-      )
-      expect(service.getUserPrefs().filters).toStrictEqual([{ id: StandardColumnId.Queue, value: undefined }])
+      savePartialPrefs({ filters: [{ id: StandardColumnId.State, value: JobState.Failed }] })
+      expect(router.location.search).toContain("f[0][id]=state&f[0][value]=FAILED&f[0][match]=anyOf")
+      expect(service.getUserPrefs().filters).toStrictEqual([{ id: StandardColumnId.State, value: undefined }])
     })
 
     it("makes filter value and match types consistent (migrating from anyOf)", () => {
@@ -286,7 +294,218 @@ describe("JobsTablePreferencesService", () => {
     })
   })
 
-  describe("Queue parameters and Local storage", () => {
+  describe("Last transition time aggregate", () => {
+    it("round-trips average aggregate type", () => {
+      savePartialPrefs({ lastTransitionTimeAggregate: "average" })
+      expect(router.location.search).toContain("ltta=average")
+      expect(service.getUserPrefs().lastTransitionTimeAggregate).toStrictEqual("average")
+    })
+
+    it("round-trips latest aggregate type", () => {
+      savePartialPrefs({ lastTransitionTimeAggregate: "latest" })
+      expect(router.location.search).toContain("ltta=latest")
+      expect(service.getUserPrefs().lastTransitionTimeAggregate).toStrictEqual("latest")
+    })
+
+    it("round-trips earliest aggregate type", () => {
+      savePartialPrefs({ lastTransitionTimeAggregate: "earliest" })
+      expect(router.location.search).toContain("ltta=earliest")
+      expect(service.getUserPrefs().lastTransitionTimeAggregate).toStrictEqual("earliest")
+    })
+
+    it("defaults to average when no specified", () => {
+      savePartialPrefs({ lastTransitionTimeAggregate: undefined })
+      expect(router.location.search).not.toContain("ltta=")
+      expect(service.getUserPrefs().lastTransitionTimeAggregate).toStrictEqual("average")
+    })
+
+    it("ignores invalid aggregate type", () => {
+      router.navigate({ search: "?ltta=iNvAlId" })
+      expect(service.getUserPrefs().lastTransitionTimeAggregate).toStrictEqual("average")
+    })
+  })
+
+  describe("Query parameters and Local storage", () => {
+    beforeEach(() => {
+      localStorage.clear()
+      localStorage.setItem(FORMAT_NUMBER_SHOULD_FORMAT_KEY, JSON.stringify(false))
+      localStorage.setItem(FORMAT_TIMESTAMP_SHOULD_FORMAT_KEY, JSON.stringify(false))
+    })
+
+    afterEach(() => {
+      localStorage.clear()
+    })
+
+    it("migrates old queue filter type in query params (exact)", () => {
+      const queryParams: Partial<QueryStringPrefs> = {
+        f: [{ id: StandardColumnId.Queue, match: Match.Exact, value: "myq123" }],
+      }
+      router.navigate({
+        search: stringifyQueryParams(queryParams),
+      })
+      expect(service.getUserPrefs()).toMatchObject({
+        columnMatches: DEFAULT_COLUMN_MATCHES,
+        filters: [{ id: StandardColumnId.Queue, value: ["myq123"] }],
+      })
+    })
+
+    it("migrates old queue filter type in query params (starts-with)", () => {
+      const queryParams: Partial<QueryStringPrefs> = {
+        f: [{ id: StandardColumnId.Queue, match: Match.StartsWith, value: "myq123" }],
+      }
+      router.navigate({
+        search: stringifyQueryParams(queryParams),
+      })
+      expect(service.getUserPrefs()).toMatchObject({
+        columnMatches: DEFAULT_COLUMN_MATCHES,
+        filters: [],
+      })
+    })
+
+    it("migrates old queue filter type in query params (contains)", () => {
+      const queryParams: Partial<QueryStringPrefs> = {
+        f: [{ id: StandardColumnId.Queue, match: Match.Contains, value: "myq123" }],
+      }
+      router.navigate({
+        search: stringifyQueryParams(queryParams),
+      })
+      expect(service.getUserPrefs()).toMatchObject({
+        columnMatches: DEFAULT_COLUMN_MATCHES,
+        filters: [],
+      })
+    })
+
+    it("leaves unchanged new queue filter type in query params (single value)", () => {
+      const queryParams: Partial<QueryStringPrefs> = {
+        f: [{ id: StandardColumnId.Queue, match: Match.AnyOf, value: ["myq123"] }],
+      }
+      router.navigate({
+        search: stringifyQueryParams(queryParams),
+      })
+      expect(service.getUserPrefs()).toMatchObject({
+        columnMatches: DEFAULT_COLUMN_MATCHES,
+        filters: [{ id: StandardColumnId.Queue, value: ["myq123"] }],
+      })
+    })
+
+    it("leaves unchanged new queue filter type in query params (multiple values)", () => {
+      const queryParams: Partial<QueryStringPrefs> = {
+        f: [{ id: StandardColumnId.Queue, match: Match.AnyOf, value: ["myq123", "myq456"] }],
+      }
+      router.navigate({
+        search: stringifyQueryParams(queryParams),
+      })
+      expect(service.getUserPrefs()).toMatchObject({
+        columnMatches: DEFAULT_COLUMN_MATCHES,
+        filters: [{ id: StandardColumnId.Queue, value: ["myq123", "myq456"] }],
+      })
+    })
+
+    it("migrates old queue filter type in local storage (exact)", () => {
+      const localStorageParams: JobsTablePreferences = {
+        annotationColumnKeys: [],
+        expandedState: {},
+        filters: [{ id: StandardColumnId.Queue, value: "myq123" }],
+        columnMatches: { [StandardColumnId.Queue]: Match.Exact },
+        groupedColumns: [],
+        columnOrder: [],
+        order: { id: StandardColumnId.TimeInState, direction: "ASC" },
+        pageIndex: 0,
+        pageSize: 20,
+        sidebarJobId: undefined,
+        visibleColumns: {},
+      }
+      localStorage.setItem(PREFERENCES_KEY, JSON.stringify(localStorageParams))
+
+      expect(service.getUserPrefs()).toMatchObject({
+        filters: [{ id: StandardColumnId.Queue, value: ["myq123"] }],
+      })
+    })
+
+    it("migrates old queue filter type in local storage (starts-with)", () => {
+      const localStorageParams: JobsTablePreferences = {
+        annotationColumnKeys: [],
+        expandedState: {},
+        filters: [{ id: StandardColumnId.Queue, value: "myq123" }],
+        columnMatches: { [StandardColumnId.Queue]: Match.StartsWith },
+        groupedColumns: [],
+        columnOrder: [],
+        order: { id: StandardColumnId.TimeInState, direction: "ASC" },
+        pageIndex: 0,
+        pageSize: 20,
+        sidebarJobId: undefined,
+        visibleColumns: {},
+      }
+      localStorage.setItem(PREFERENCES_KEY, JSON.stringify(localStorageParams))
+
+      expect(service.getUserPrefs()).toMatchObject({
+        filters: [],
+      })
+    })
+
+    it("migrates old queue filter type in local storage (contains)", () => {
+      const localStorageParams: JobsTablePreferences = {
+        annotationColumnKeys: [],
+        expandedState: {},
+        filters: [{ id: StandardColumnId.Queue, value: "myq123" }],
+        columnMatches: { [StandardColumnId.Queue]: Match.Contains },
+        groupedColumns: [],
+        columnOrder: [],
+        order: { id: StandardColumnId.TimeInState, direction: "ASC" },
+        pageIndex: 0,
+        pageSize: 20,
+        sidebarJobId: undefined,
+        visibleColumns: {},
+      }
+      localStorage.setItem(PREFERENCES_KEY, JSON.stringify(localStorageParams))
+
+      expect(service.getUserPrefs()).toMatchObject({
+        filters: [],
+      })
+    })
+
+    it("leaves unchanged new queue filter type in local storage (single value)", () => {
+      const localStorageParams: JobsTablePreferences = {
+        annotationColumnKeys: [],
+        expandedState: {},
+        filters: [{ id: StandardColumnId.Queue, value: ["myq123"] }],
+        columnMatches: { [StandardColumnId.Queue]: Match.AnyOf },
+        groupedColumns: [],
+        columnOrder: [],
+        order: { id: StandardColumnId.TimeInState, direction: "ASC" },
+        pageIndex: 0,
+        pageSize: 20,
+        sidebarJobId: undefined,
+        visibleColumns: {},
+      }
+      localStorage.setItem(PREFERENCES_KEY, JSON.stringify(localStorageParams))
+
+      expect(service.getUserPrefs()).toMatchObject({
+        filters: [{ id: StandardColumnId.Queue, value: ["myq123"] }],
+      })
+    })
+
+    it("leaves unchanged new queue filter type in local storage (multiple values)", () => {
+      const localStorageParams: JobsTablePreferences = {
+        annotationColumnKeys: [],
+        expandedState: {},
+        filters: [{ id: StandardColumnId.Queue, value: ["myq123", "myq456"] }],
+        columnMatches: { [StandardColumnId.Queue]: Match.AnyOf },
+        groupedColumns: [],
+        columnOrder: [],
+        order: { id: StandardColumnId.TimeInState, direction: "ASC" },
+        pageIndex: 0,
+        pageSize: 20,
+        sidebarJobId: undefined,
+        visibleColumns: {},
+      }
+      localStorage.setItem(PREFERENCES_KEY, JSON.stringify(localStorageParams))
+
+      expect(service.getUserPrefs()).toMatchObject({
+        filters: [{ id: StandardColumnId.Queue, value: ["myq123", "myq456"] }],
+      })
+    })
+
     it("should override for all query params even if only one is defined", () => {
       const queryParams: Partial<QueryStringPrefs> = {
         sb: "112233",
@@ -303,6 +522,7 @@ describe("JobsTablePreferencesService", () => {
         pageSize: 20,
         sidebarJobId: "223344",
         visibleColumns: { foo: true, bar: true },
+        lastTransitionTimeAggregate: "latest",
       }
       localStorage.setItem(PREFERENCES_KEY, JSON.stringify(localStorageParams))
       router.navigate({
@@ -334,6 +554,7 @@ describe("JobsTablePreferencesService", () => {
           StandardColumnId.TimeSubmittedAgo,
           StandardColumnId.Node,
           StandardColumnId.Cluster,
+          StandardColumnId.Pool,
           StandardColumnId.ExitCode,
           StandardColumnId.RuntimeSeconds,
         ],
@@ -342,6 +563,7 @@ describe("JobsTablePreferencesService", () => {
         pageSize: 50,
         sidebarJobId: "112233",
         visibleColumns: { foo: true, bar: true },
+        lastTransitionTimeAggregate: "average",
       })
     })
 
@@ -356,6 +578,7 @@ describe("JobsTablePreferencesService", () => {
         ],
         sort: { id: StandardColumnId.TimeInState, desc: "false" },
         g: [StandardColumnId.JobSet],
+        ltta: "latest",
       }
       const localStorageParams: JobsTablePreferences = {
         annotationColumnKeys: ["key"],
@@ -369,6 +592,7 @@ describe("JobsTablePreferencesService", () => {
         pageSize: 20,
         sidebarJobId: "223344",
         visibleColumns: { foo: true, bar: true },
+        lastTransitionTimeAggregate: "earliest",
       }
       localStorage.setItem(PREFERENCES_KEY, JSON.stringify(localStorageParams))
       router.navigate({
@@ -406,6 +630,7 @@ describe("JobsTablePreferencesService", () => {
           StandardColumnId.TimeSubmittedAgo,
           StandardColumnId.Node,
           StandardColumnId.Cluster,
+          StandardColumnId.Pool,
           StandardColumnId.ExitCode,
           StandardColumnId.RuntimeSeconds,
         ],
@@ -414,6 +639,7 @@ describe("JobsTablePreferencesService", () => {
         pageSize: 50,
         sidebarJobId: undefined,
         visibleColumns: { foo: true, bar: true },
+        lastTransitionTimeAggregate: "latest",
       })
     })
   })
@@ -429,17 +655,17 @@ describe("JobsTablePreferencesService", () => {
 describe("ensurePreferencesAreConsistent", () => {
   it("does not change valid preferences", () => {
     const validPreferences: JobsTablePreferences = {
-      annotationColumnKeys: ["preferenc.es/foo-alpha", "preferenc.es/foo-bravo", "preferenc.es/foo-charlie"],
+      annotationColumnKeys: ["preferences.com/foo-alpha", "preferences.com/foo-bravo", "preferences.com/foo-charlie"],
       expandedState: {},
       filters: [{ id: StandardColumnId.JobID, value: "112233" }],
       columnMatches: { jobId: Match.Exact },
       groupedColumns: [StandardColumnId.Queue, StandardColumnId.JobSet],
       columnOrder: [
         StandardColumnId.Owner,
-        "annotation_preferenc.es/foo-bravo",
+        "annotation_preferences.com/foo-bravo",
         StandardColumnId.JobID,
         StandardColumnId.State,
-        "annotation_preferenc.es/foo-charlie",
+        "annotation_preferences.com/foo-charlie",
         StandardColumnId.RuntimeSeconds,
         StandardColumnId.Queue,
         StandardColumnId.Namespace,
@@ -449,6 +675,7 @@ describe("ensurePreferencesAreConsistent", () => {
         StandardColumnId.Memory,
         StandardColumnId.EphemeralStorage,
         StandardColumnId.PriorityClass,
+        StandardColumnId.Pool,
         StandardColumnId.TimeSubmittedUtc,
         StandardColumnId.CPU,
         StandardColumnId.ExitCode,
@@ -457,7 +684,7 @@ describe("ensurePreferencesAreConsistent", () => {
         StandardColumnId.GPU,
         StandardColumnId.TimeSubmittedAgo,
         StandardColumnId.Cluster,
-        "annotation_preferenc.es/foo-alpha",
+        "annotation_preferences.com/foo-alpha",
         StandardColumnId.Node,
       ],
       order: { id: StandardColumnId.TimeInState, direction: "ASC" },
@@ -465,8 +692,8 @@ describe("ensurePreferencesAreConsistent", () => {
       pageSize: 20,
       sidebarJobId: "223344",
       visibleColumns: {
-        "annotation_preferenc.es/foo-charlie": true,
-        "annotation_preferenc.es/foo-bravo": true,
+        "annotation_preferences.com/foo-charlie": true,
+        "annotation_preferences.com/foo-bravo": true,
         queue: true,
         jobId: true,
         jobSet: true,
@@ -477,17 +704,17 @@ describe("ensurePreferencesAreConsistent", () => {
     ensurePreferencesAreConsistent(validPreferences)
 
     const expected: JobsTablePreferences = {
-      annotationColumnKeys: ["preferenc.es/foo-alpha", "preferenc.es/foo-bravo", "preferenc.es/foo-charlie"],
+      annotationColumnKeys: ["preferences.com/foo-alpha", "preferences.com/foo-bravo", "preferences.com/foo-charlie"],
       expandedState: {},
       filters: [{ id: StandardColumnId.JobID, value: "112233" }],
       columnMatches: { jobId: Match.Exact },
       groupedColumns: [StandardColumnId.Queue, StandardColumnId.JobSet],
       columnOrder: [
         StandardColumnId.Owner,
-        "annotation_preferenc.es/foo-bravo",
+        "annotation_preferences.com/foo-bravo",
         StandardColumnId.JobID,
         StandardColumnId.State,
-        "annotation_preferenc.es/foo-charlie",
+        "annotation_preferences.com/foo-charlie",
         StandardColumnId.RuntimeSeconds,
         StandardColumnId.Queue,
         StandardColumnId.Namespace,
@@ -497,6 +724,7 @@ describe("ensurePreferencesAreConsistent", () => {
         StandardColumnId.Memory,
         StandardColumnId.EphemeralStorage,
         StandardColumnId.PriorityClass,
+        StandardColumnId.Pool,
         StandardColumnId.TimeSubmittedUtc,
         StandardColumnId.CPU,
         StandardColumnId.ExitCode,
@@ -505,7 +733,7 @@ describe("ensurePreferencesAreConsistent", () => {
         StandardColumnId.GPU,
         StandardColumnId.TimeSubmittedAgo,
         StandardColumnId.Cluster,
-        "annotation_preferenc.es/foo-alpha",
+        "annotation_preferences.com/foo-alpha",
         StandardColumnId.Node,
       ],
       order: { id: StandardColumnId.TimeInState, direction: "ASC" },
@@ -513,8 +741,8 @@ describe("ensurePreferencesAreConsistent", () => {
       pageSize: 20,
       sidebarJobId: "223344",
       visibleColumns: {
-        "annotation_preferenc.es/foo-charlie": true,
-        "annotation_preferenc.es/foo-bravo": true,
+        "annotation_preferences.com/foo-charlie": true,
+        "annotation_preferences.com/foo-bravo": true,
         queue: true,
         jobId: true,
         jobSet: true,
@@ -527,10 +755,10 @@ describe("ensurePreferencesAreConsistent", () => {
 
   it("adds annotation key columns for annotations referenced in filters", () => {
     const validPreferences: JobsTablePreferences = {
-      annotationColumnKeys: ["preferenc.es/foo-alpha"],
+      annotationColumnKeys: ["preferences.com/foo-alpha"],
       expandedState: {},
-      filters: [{ id: "annotation_preferenc.es/foo-delta", value: "ddd" }],
-      columnMatches: { "annotation_preferenc.es/foo-delta": Match.StartsWith },
+      filters: [{ id: "annotation_preferences.com/foo-delta", value: "ddd" }],
+      columnMatches: { "annotation_preferences.com/foo-delta": Match.StartsWith },
       groupedColumns: [],
       columnOrder: [
         StandardColumnId.JobID,
@@ -552,16 +780,17 @@ describe("ensurePreferencesAreConsistent", () => {
         StandardColumnId.TimeSubmittedAgo,
         StandardColumnId.Node,
         StandardColumnId.Cluster,
+        StandardColumnId.Pool,
         StandardColumnId.ExitCode,
         StandardColumnId.RuntimeSeconds,
-        "annotation_preferenc.es/foo-alpha",
+        "annotation_preferences.com/foo-alpha",
       ],
       order: { id: StandardColumnId.TimeInState, direction: "ASC" },
       pageIndex: 5,
       pageSize: 20,
       sidebarJobId: "223344",
       visibleColumns: {
-        "annotation_preferenc.es/foo-alpha": true,
+        "annotation_preferences.com/foo-alpha": true,
         queue: true,
         jobId: true,
         jobSet: true,
@@ -573,12 +802,12 @@ describe("ensurePreferencesAreConsistent", () => {
 
     const expected: JobsTablePreferences = {
       annotationColumnKeys: [
-        "preferenc.es/foo-alpha",
-        "preferenc.es/foo-delta", // added
+        "preferences.com/foo-alpha",
+        "preferences.com/foo-delta", // added
       ],
       expandedState: {},
-      filters: [{ id: "annotation_preferenc.es/foo-delta", value: "ddd" }],
-      columnMatches: { "annotation_preferenc.es/foo-delta": Match.StartsWith },
+      filters: [{ id: "annotation_preferences.com/foo-delta", value: "ddd" }],
+      columnMatches: { "annotation_preferences.com/foo-delta": Match.StartsWith },
       groupedColumns: [],
       columnOrder: [
         StandardColumnId.JobID,
@@ -600,18 +829,19 @@ describe("ensurePreferencesAreConsistent", () => {
         StandardColumnId.TimeSubmittedAgo,
         StandardColumnId.Node,
         StandardColumnId.Cluster,
+        StandardColumnId.Pool,
         StandardColumnId.ExitCode,
         StandardColumnId.RuntimeSeconds,
-        "annotation_preferenc.es/foo-alpha",
-        "annotation_preferenc.es/foo-delta", // added
+        "annotation_preferences.com/foo-alpha",
+        "annotation_preferences.com/foo-delta", // added
       ],
       order: { id: StandardColumnId.TimeInState, direction: "ASC" },
       pageIndex: 5,
       pageSize: 20,
       sidebarJobId: "223344",
       visibleColumns: {
-        "annotation_preferenc.es/foo-alpha": true,
-        "annotation_preferenc.es/foo-delta": true, // added
+        "annotation_preferences.com/foo-alpha": true,
+        "annotation_preferences.com/foo-delta": true, // added
         queue: true,
         jobId: true,
         jobSet: true,
@@ -624,20 +854,23 @@ describe("ensurePreferencesAreConsistent", () => {
 
   it("makes grouped, ordered and filtered columns are visible", () => {
     const validPreferences: JobsTablePreferences = {
-      annotationColumnKeys: ["preferenc.es/foo-alpha"],
+      annotationColumnKeys: ["preferences.com/foo-alpha"],
       expandedState: {},
       filters: [
-        { id: "annotation_preferenc.es/foo-alpha", value: "aaa" },
+        { id: "annotation_preferences.com/foo-alpha", value: "aaa" },
         {
           id: StandardColumnId.State,
           value: ["QUEUED", "PENDING", "RUNNING"],
         },
       ],
-      columnMatches: { "annotation_preferenc.es/foo-alpha": Match.StartsWith, [StandardColumnId.State]: Match.AnyOf },
-      groupedColumns: [StandardColumnId.Queue, "annotation_preferenc.es/foo-alpha", StandardColumnId.JobSet],
+      columnMatches: {
+        "annotation_preferences.com/foo-alpha": Match.StartsWith,
+        [StandardColumnId.State]: Match.AnyOf,
+      },
+      groupedColumns: [StandardColumnId.Queue, "annotation_preferences.com/foo-alpha", StandardColumnId.JobSet],
       columnOrder: [
         StandardColumnId.JobID,
-        "annotation_preferenc.es/foo-alpha",
+        "annotation_preferences.com/foo-alpha",
         StandardColumnId.Queue,
         StandardColumnId.Namespace,
         StandardColumnId.JobSet,
@@ -656,6 +889,7 @@ describe("ensurePreferencesAreConsistent", () => {
         StandardColumnId.TimeSubmittedAgo,
         StandardColumnId.Node,
         StandardColumnId.Cluster,
+        StandardColumnId.Pool,
         StandardColumnId.ExitCode,
         StandardColumnId.RuntimeSeconds,
       ],
@@ -669,20 +903,23 @@ describe("ensurePreferencesAreConsistent", () => {
     ensurePreferencesAreConsistent(validPreferences)
 
     const expected: JobsTablePreferences = {
-      annotationColumnKeys: ["preferenc.es/foo-alpha"],
+      annotationColumnKeys: ["preferences.com/foo-alpha"],
       expandedState: {},
       filters: [
-        { id: "annotation_preferenc.es/foo-alpha", value: "aaa" },
+        { id: "annotation_preferences.com/foo-alpha", value: "aaa" },
         {
           id: StandardColumnId.State,
           value: ["QUEUED", "PENDING", "RUNNING"],
         },
       ],
-      columnMatches: { "annotation_preferenc.es/foo-alpha": Match.StartsWith, [StandardColumnId.State]: Match.AnyOf },
-      groupedColumns: [StandardColumnId.Queue, "annotation_preferenc.es/foo-alpha", StandardColumnId.JobSet],
+      columnMatches: {
+        "annotation_preferences.com/foo-alpha": Match.StartsWith,
+        [StandardColumnId.State]: Match.AnyOf,
+      },
+      groupedColumns: [StandardColumnId.Queue, "annotation_preferences.com/foo-alpha", StandardColumnId.JobSet],
       columnOrder: [
         StandardColumnId.JobID,
-        "annotation_preferenc.es/foo-alpha",
+        "annotation_preferences.com/foo-alpha",
         StandardColumnId.Queue,
         StandardColumnId.Namespace,
         StandardColumnId.JobSet,
@@ -701,6 +938,7 @@ describe("ensurePreferencesAreConsistent", () => {
         StandardColumnId.TimeSubmittedAgo,
         StandardColumnId.Node,
         StandardColumnId.Cluster,
+        StandardColumnId.Pool,
         StandardColumnId.ExitCode,
         StandardColumnId.RuntimeSeconds,
       ],
@@ -710,7 +948,7 @@ describe("ensurePreferencesAreConsistent", () => {
       sidebarJobId: "223344",
       // All added
       visibleColumns: {
-        "annotation_preferenc.es/foo-alpha": true,
+        "annotation_preferences.com/foo-alpha": true,
         jobSet: true,
         queue: true,
         state: true,
@@ -723,7 +961,7 @@ describe("ensurePreferencesAreConsistent", () => {
 
   it("adds to the column order includes all unpinned standard columns and annotations and removes any columns which are neither", () => {
     const validPreferences: JobsTablePreferences = {
-      annotationColumnKeys: ["preferenc.es/foo-alpha", "preferenc.es/foo-bravo", "preferenc.es/foo-charlie"],
+      annotationColumnKeys: ["preferences.com/foo-alpha", "preferences.com/foo-bravo", "preferences.com/foo-charlie"],
       expandedState: {},
       filters: [],
       columnMatches: {},
@@ -731,7 +969,7 @@ describe("ensurePreferencesAreConsistent", () => {
       columnOrder: [
         StandardColumnId.TimeInState,
         "annotation_rubbish-annotation",
-        "annotation_preferenc.es/foo-bravo",
+        "annotation_preferences.com/foo-bravo",
         "rubbish" as ColumnId,
         StandardColumnId.JobID,
       ],
@@ -742,26 +980,26 @@ describe("ensurePreferencesAreConsistent", () => {
       visibleColumns: {
         [StandardColumnId.JobID]: true,
         [StandardColumnId.TimeInState]: true,
-        'annotation_"preferenc.es/foo-bravo': true,
+        'annotation_"preferences.com/foo-bravo': true,
       },
     }
 
     ensurePreferencesAreConsistent(validPreferences)
 
     const expected: JobsTablePreferences = {
-      annotationColumnKeys: ["preferenc.es/foo-alpha", "preferenc.es/foo-bravo", "preferenc.es/foo-charlie"],
+      annotationColumnKeys: ["preferences.com/foo-alpha", "preferences.com/foo-bravo", "preferences.com/foo-charlie"],
       expandedState: {},
       filters: [],
       columnMatches: {},
       groupedColumns: [],
       columnOrder: [
         StandardColumnId.TimeInState,
-        "annotation_preferenc.es/foo-bravo",
+        "annotation_preferences.com/foo-bravo",
         StandardColumnId.JobID,
 
         // All the following elements are added
-        "annotation_preferenc.es/foo-alpha",
-        "annotation_preferenc.es/foo-charlie",
+        "annotation_preferences.com/foo-alpha",
+        "annotation_preferences.com/foo-charlie",
         StandardColumnId.Queue,
         StandardColumnId.Namespace,
         StandardColumnId.JobSet,
@@ -779,6 +1017,7 @@ describe("ensurePreferencesAreConsistent", () => {
         StandardColumnId.TimeSubmittedAgo,
         StandardColumnId.Node,
         StandardColumnId.Cluster,
+        StandardColumnId.Pool,
         StandardColumnId.ExitCode,
         StandardColumnId.RuntimeSeconds,
       ],
@@ -789,7 +1028,7 @@ describe("ensurePreferencesAreConsistent", () => {
       visibleColumns: {
         [StandardColumnId.JobID]: true,
         [StandardColumnId.TimeInState]: true,
-        'annotation_"preferenc.es/foo-bravo': true,
+        'annotation_"preferences.com/foo-bravo': true,
       },
     }
 

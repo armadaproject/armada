@@ -34,13 +34,15 @@ func TestReportEvents(t *testing.T) {
 		err := r.Store(armadacontext.Background(), update)
 		assert.NoError(t, err)
 
-		read1, err := ReadEvent(ctx, r.db, "testQueue", "testJobset")
-		assert.NoError(t, err)
-		assert.Equal(t, update.Events[0].Event, read1)
+		for _, db := range r.dbs {
+			read1, err := ReadEvent(ctx, db, "testQueue", "testJobset")
+			assert.NoError(t, err)
+			assert.Equal(t, update.Events[0].Event, read1)
 
-		read2, err := ReadEvent(ctx, r.db, "testQueue", "testJobset2")
-		assert.NoError(t, err)
-		assert.Equal(t, update.Events[1].Event, read2)
+			read2, err := ReadEvent(ctx, db, "testQueue", "testJobset2")
+			assert.NoError(t, err)
+			assert.Equal(t, update.Events[1].Event, read2)
+		}
 	})
 }
 
@@ -49,9 +51,14 @@ func withRedisEventStore(ctx *armadacontext.Context, action func(es *RedisEventS
 	defer client.FlushDB(ctx)
 	defer client.Close()
 
+	client2 := redis.NewClient(&redis.Options{Addr: "localhost:6379", DB: 11})
+	defer client2.FlushDB(ctx)
+	defer client2.Close()
+
 	client.FlushDB(ctx)
 	repo := &RedisEventStore{
-		db: client,
+		dbs:     []redis.UniversalClient{client, client2},
+		dbNames: []string{"client", "client2"},
 		eventRetention: configuration.EventRetentionPolicy{
 			RetentionDuration: time.Hour,
 		},

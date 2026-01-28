@@ -81,7 +81,7 @@ func (a *App) GetQueue(name string) error {
 	if err != nil {
 		return errors.Errorf("[armadactl.GetQueue] error unmarshalling queue %s: %s", name, err)
 	}
-	fmt.Fprintf(a.Out, headerYaml()+string(b))
+	fmt.Fprint(a.Out, headerYaml()+string(b))
 	return nil
 }
 
@@ -127,7 +127,7 @@ func (a *App) GetAllQueues(args *QueueQueryArgs) error {
 	if err != nil {
 		return errors.Errorf("error unmarshalling queues: %s", err)
 	}
-	fmt.Fprintf(a.Out, headerYaml()+string(b))
+	fmt.Fprint(a.Out, headerYaml()+string(b))
 	return nil
 }
 

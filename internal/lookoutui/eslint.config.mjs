@@ -1,79 +1,181 @@
-import prettier from "eslint-plugin-prettier";
-import _import from "eslint-plugin-import";
-import { fixupPluginRules } from "@eslint/compat";
-import tsParser from "@typescript-eslint/parser";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-import js from "@eslint/js";
-import { FlatCompat } from "@eslint/eslintrc";
+import cspellPlugin from "@cspell/eslint-plugin"
+import eslint from "@eslint/js"
+import queryPlugin from "@tanstack/eslint-plugin-query"
+import tsParser from "@typescript-eslint/parser"
+import eslintConfigPrettier from "eslint-config-prettier/flat"
+import importPlugin from "eslint-plugin-import"
+import prettierRecommended from "eslint-plugin-prettier/recommended"
+import reactPlugin from "eslint-plugin-react"
+import tseslint from "typescript-eslint"
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const compat = new FlatCompat({
-    baseDirectory: __dirname,
-    recommendedConfig: js.configs.recommended,
-    allConfig: js.configs.all
-});
+export default tseslint.config(
+  {
+    ignores: ["build", "src/openapi/"],
+  },
 
-export default [{
-    ignores: ["src/openapi/"],
-}, ...compat.extends("plugin:@typescript-eslint/recommended", "prettier"), {
+  {
+    files: ["src/**/*.{js,ts,tsx}", "*.config.mjs"],
+
+    extends: [
+      eslint.configs.recommended,
+      tseslint.configs.recommended,
+      reactPlugin.configs.flat.recommended,
+      queryPlugin.configs["flat/recommended"],
+      eslintConfigPrettier,
+      prettierRecommended,
+    ],
+
     plugins: {
-        prettier,
-        import: fixupPluginRules(_import),
+      import: importPlugin,
+      "@cspell": cspellPlugin,
     },
 
     languageOptions: {
-        parser: tsParser,
-        ecmaVersion: 2020,
-        sourceType: "module",
+      parser: tsParser,
+      ecmaVersion: 2020,
+      sourceType: "module",
 
-        parserOptions: {
-            ecmaFeatures: {
-                jsx: true,
-            },
+      parserOptions: {
+        ecmaFeatures: {
+          jsx: true,
         },
+      },
     },
 
     settings: {
-        react: {
-            version: "detect",
-        },
+      react: {
+        version: "detect",
+      },
     },
 
     rules: {
-        "prettier/prettier": ["warn", {
-            endOfLine: "auto",
-        }],
+      "prettier/prettier": [
+        "error",
+        {
+          endOfLine: "auto",
+        },
+      ],
 
-        "import/order": ["warn", {
-            groups: ["builtin", "external", "internal"],
+      "no-console": "error",
 
-            pathGroups: [{
-                pattern: "react",
-                group: "external",
-                position: "before",
-            }],
+      "@cspell/spellchecker": [
+        "error",
+        {
+          autoFix: true,
+          cspell: {
+            language: "en-GB",
 
-            pathGroupsExcludedImportTypes: ["react"],
-            "newlines-between": "always",
+            ignoreWords: [
+              "preempted",
+              "preempted",
+              "preemptible",
+              "groupable",
+              "aggregatable",
+              "ingester",
 
-            alphabetize: {
-                order: "asc",
-                caseInsensitive: false,
+              // Use the American spelling of these words for consistency with the Armada API
+              "reprioritize",
+              "reprioritized",
+              "reprioritizing",
+              "reprioritization",
+              "reprioritizations",
+              "reprioritizable",
+
+              // Maintainers whose names may appear in comments
+              "mauriceyap",
+
+              // URL parameter keys
+              "ltta", // last transition time aggregate
+            ],
+
+            /* eslint-disable @cspell/spellchecker */
+            flagWords: [
+              // Use the American spelling of these words for consistency with the Armada API
+              "reprioritise",
+              "reprioritised",
+              "reprioritising",
+              "reprioritisation",
+              "reprioritisations",
+              "reprioritisable",
+            ],
+            /* eslint-disable @cspell/spellchecker */
+          },
+        },
+      ],
+
+      "import/order": [
+        "error",
+        {
+          groups: ["builtin", "external", "internal", "sibling"],
+
+          pathGroups: [
+            {
+              pattern: "react",
+              group: "external",
+              position: "before",
             },
-        }],
+            {
+              pattern: "../../../../../../**",
+              group: "internal",
+              position: "after",
+            },
+            {
+              pattern: "../../../../../**",
+              group: "internal",
+              position: "after",
+            },
+            {
+              pattern: "../../../../**",
+              group: "internal",
+              position: "after",
+            },
+            {
+              pattern: "../../../**",
+              group: "internal",
+              position: "after",
+            },
+            {
+              pattern: "../../**",
+              group: "internal",
+              position: "after",
+            },
+            {
+              pattern: "../**",
+              group: "internal",
+              position: "after",
+            },
+            {
+              pattern: "./**",
+              group: "sibling",
+              position: "after",
+            },
+          ],
 
-        "@typescript-eslint/no-unused-vars": ["warn", {
-            argsIgnorePattern: "^_",
-            varsIgnorePattern: "^_",
-            caughtErrorsIgnorePattern: "^_",
-        }],
+          pathGroupsExcludedImportTypes: ["react"],
+          "newlines-between": "always",
 
-        "@typescript-eslint/no-empty-function": "warn",
-        "@typescript-eslint/no-explicit-any": "off",
-        "@typescript-eslint/explicit-module-boundary-types": "off",
-        "react/display-name": "off",
-        "react/react-in-jsx-scope": "off",
+          alphabetize: {
+            order: "asc",
+            caseInsensitive: false,
+          },
+        },
+      ],
+
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_",
+        },
+      ],
+
+      "@typescript-eslint/no-empty-function": "error",
+      "@typescript-eslint/no-explicit-any": "off",
+      "@typescript-eslint/explicit-module-boundary-types": "off",
+      "react/display-name": "off",
+      "react/react-in-jsx-scope": "off",
+      "react/prop-types": "off",
     },
-}];
+  },
+)

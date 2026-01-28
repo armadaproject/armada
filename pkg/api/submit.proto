@@ -26,7 +26,6 @@ message JobSubmitRequestItem {
     // Indicates which scheduler should manage this job.
     // If empty, the default scheduler is used.
     string scheduler = 11;
-    ExperimentalPriceInfo experimentalPriceInfo = 13;
 }
 
 message IngressConfig {
@@ -41,6 +40,7 @@ message IngressConfig {
 message ServiceConfig {
     ServiceType type = 1;
     repeated uint32 ports = 2;
+    string name = 3; // The name of the service resource that is created. If empty a name will be generated based on the job ID.
 }
 
 // Ingress type is being kept here to maintain backwards compatibility for a while.
@@ -106,7 +106,7 @@ enum JobState {
 }
 
 message Job {
-  reserved 22;
+  reserved 22, 30;
   string id = 1;
   string client_id = 13;
   string job_set_id = 2;
@@ -146,12 +146,8 @@ message Job {
   // Indicates which scheduler should manage this job.
   // If empty, the default scheduler is used.
   string scheduler = 20;
-  ExperimentalPriceInfo experimentalPriceInfo = 30;
 }
 
-message ExperimentalPriceInfo {
-  double bidPrice = 1;
-}
 
 // swagger:model
 message JobReprioritizeRequest {

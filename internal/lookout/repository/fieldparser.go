@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"database/sql"
 	"fmt"
 	"math"
 	"time"
@@ -89,10 +90,32 @@ func (fp *BasicParser[T]) ParseValue() (interface{}, error) {
 	return fp.variable, nil
 }
 
+type NullStringParser struct {
+	field    string
+	variable sql.NullString
+}
+
+func (fp *NullStringParser) GetField() string {
+	return fp.field
+}
+
+func (fp *NullStringParser) GetVariableRef() interface{} {
+	return &fp.variable
+}
+
+func (fp *NullStringParser) ParseValue() (interface{}, error) {
+	if fp.variable.Valid {
+		return fp.variable.String, nil
+	}
+	return nil, nil
+}
+
 func ParserForGroup(field string) FieldParser {
 	switch field {
 	case stateField:
 		return &StateParser{}
+	case clusterField, nodeField, poolField:
+		return &NullStringParser{field: field}
 	default:
 		return &BasicParser[string]{field: field}
 	}

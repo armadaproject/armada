@@ -2,6 +2,7 @@ package queryapi
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/jackc/pgx/v5"
@@ -120,7 +121,11 @@ func (q *QueryApi) GetJobDetails(ctx context.Context, req *api.JobDetailsRequest
 				if !ok {
 					jobRuns = []*api.JobRunDetails{}
 				}
-				jobRuns = append(jobRuns, parseJobDetails(row))
+				jobRunDetails, err := parseJobDetails(row)
+				if err != nil {
+					return err
+				}
+				jobRuns = append(jobRuns, jobRunDetails)
 				runsByJob[row.JobID] = jobRuns
 			}
 
@@ -153,11 +158,15 @@ func (q *QueryApi) GetJobErrors(ctx context.Context, req *api.JobErrorsRequest) 
 	decompressor := q.decompressorFactory()
 	errorsById := make(map[string]string, len(queryResult))
 	for _, row := range queryResult {
-		decompressed, err := decompressor.Decompress(row.Error)
-		if err != nil {
-			return nil, err
+		if len(row.Error) > 0 {
+			decompressed, err := decompressor.Decompress(row.Error)
+			if err != nil {
+				return nil, err
+			}
+			errorsById[row.JobID] = string(decompressed)
+		} else {
+			errorsById[row.JobID] = ""
 		}
-		errorsById[row.JobID] = string(decompressed)
 	}
 	return &api.JobErrorsResponse{
 		JobErrors: errorsById,
@@ -176,7 +185,11 @@ func (q *QueryApi) GetJobRunDetails(ctx context.Context, req *api.JobRunDetailsR
 	}
 	detailsById := make(map[string]*api.JobRunDetails, len(resultRows))
 	for _, row := range resultRows {
-		detailsById[row.RunID] = parseJobDetails(row)
+		jobRunDetails, err := parseJobDetails(row)
+		if err != nil {
+			return nil, err
+		}
+		detailsById[row.RunID] = jobRunDetails
 	}
 	return &api.JobRunDetailsResponse{
 		JobRunDetails: detailsById,
@@ -238,6 +251,32 @@ func (q *QueryApi) GetJobStatusUsingExternalJobUri(ctx context.Context, req *api
 	}, nil
 }
 
+func (q *QueryApi) GetActiveQueues(ctx context.Context, _ *api.GetActiveQueuesRequest) (*api.GetActiveQueuesResponse, error) {
+	queries := database.New(q.db)
+	activeQueues, err := queries.GetActiveQueuesByPool(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("could not get active queues by pool")
+	}
+	queuesByPool := map[string]*api.ActiveQueues{}
+	for _, result := range activeQueues {
+		if result.Pool == nil {
+			continue
+		}
+
+		pool := *result.Pool
+		if _, ok := queuesByPool[pool]; !ok {
+			queuesByPool[pool] = &api.ActiveQueues{
+				Queues: []string{},
+			}
+		}
+		queuesByPool[pool].Queues = append(queuesByPool[pool].Queues, result.Queue)
+	}
+
+	return &api.GetActiveQueuesResponse{
+		ActiveQueuesByPool: queuesByPool,
+	}, nil
+}
+
 func parseDbJobStateToApi(dbStatus int16) api.JobState {
 	apiStatus, ok := JobStateMap[dbStatus]
 	if !ok {
@@ -246,20 +285,39 @@ func parseDbJobStateToApi(dbStatus int16) api.JobState {
 	return apiStatus
 }
 
-func parseJobDetails(row database.JobRun) *api.JobRunDetails {
+func parseJobDetails(row database.JobRun) (*api.JobRunDetails, error) {
 	runState, ok := JobRunStateMap[row.JobRunState]
 	if !ok {
 		runState = api.JobRunState_RUN_STATE_UNKNOWN
 	}
-	return &api.JobRunDetails{
-		RunId:      row.RunID,
-		JobId:      row.JobID,
-		State:      runState,
-		Cluster:    row.Cluster,
-		Node:       NilStringToString(row.Node),
-		LeasedTs:   DbTimeToTimestamp(row.Leased),
-		PendingTs:  DbTimeToTimestamp(row.Pending),
-		StartedTs:  DbTimeToTimestamp(row.Started),
-		FinishedTs: DbTimeToTimestamp(row.Finished),
+	ingressAddresses, err := parseIngressAddresses(row.IngressAddresses)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse ingress addresses for run %s: %w", row.RunID, err)
 	}
+	return &api.JobRunDetails{
+		RunId:            row.RunID,
+		JobId:            row.JobID,
+		State:            runState,
+		Cluster:          row.Cluster,
+		Node:             NilStringToString(row.Node),
+		LeasedTs:         DbTimeToTimestamp(row.Leased),
+		PendingTs:        DbTimeToTimestamp(row.Pending),
+		StartedTs:        DbTimeToTimestamp(row.Started),
+		FinishedTs:       DbTimeToTimestamp(row.Finished),
+		IngressAddresses: ingressAddresses,
+	}, nil
+}
+
+func parseIngressAddresses(raw []byte) (map[int32]string, error) {
+	if len(raw) == 0 {
+		return nil, nil
+	}
+	var ingressAddresses map[int32]string
+	if err := json.Unmarshal(raw, &ingressAddresses); err != nil {
+		return nil, fmt.Errorf("unmarshal ingress addresses json: %w", err)
+	}
+	if len(ingressAddresses) == 0 {
+		return nil, nil
+	}
+	return ingressAddresses, nil
 }

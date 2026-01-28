@@ -65,6 +65,7 @@ var expectedLeasedRun = model.CreateJobRunInstruction{
 	Cluster:     testfixtures.ExecutorId,
 	Leased:      &testfixtures.BaseTime,
 	Node:        pointer.String(testfixtures.NodeName),
+	Pool:        testfixtures.Pool,
 	JobRunState: lookout.JobRunLeasedOrdinal,
 }
 
@@ -133,11 +134,6 @@ var expectedFailedRun = model.UpdateJobRunInstruction{
 	ExitCode:    pointer.Int32(testfixtures.ExitCode),
 }
 
-var expectedUnschedulable = model.UpdateJobRunInstruction{
-	RunId: testfixtures.RunId,
-	Node:  pointer.String(testfixtures.NodeName),
-}
-
 var expectedRejected = model.UpdateJobInstruction{
 	JobId:                     testfixtures.JobId,
 	State:                     pointer.Int32(lookout.JobRejectedOrdinal),
@@ -157,6 +153,13 @@ var expectedPreempted = model.UpdateJobInstruction{
 	LastTransitionTimeSeconds: pointer.Int64(testfixtures.BaseTime.Unix()),
 }
 
+var expectedReconciliationErrRun = model.UpdateJobRunInstruction{
+	RunId:       testfixtures.RunId,
+	Finished:    &testfixtures.BaseTime,
+	JobRunState: pointer.Int32(lookout.JobRunFailedOrdinal),
+	Error:       []byte(testfixtures.ReconciliationErrMsg),
+}
+
 var expectedPreemptedRun = model.UpdateJobRunInstruction{
 	RunId:       testfixtures.RunId,
 	Finished:    &testfixtures.BaseTime,
@@ -168,6 +171,26 @@ var expectedCancelledRun = model.UpdateJobRunInstruction{
 	RunId:       testfixtures.RunId,
 	Finished:    &testfixtures.BaseTime,
 	JobRunState: pointer.Int32(lookout.JobRunCancelledOrdinal),
+}
+
+var standaloneIngressAddresses = map[int32]string{
+	80: "ingress.example.com",
+}
+
+var standaloneIngressInfoEvent = &armadaevents.EventSequence_Event{
+	Created: testfixtures.BaseTimeProto,
+	Event: &armadaevents.EventSequence_Event_StandaloneIngressInfo{
+		StandaloneIngressInfo: &armadaevents.StandaloneIngressInfo{
+			JobId:            testfixtures.JobId,
+			RunId:            testfixtures.RunId,
+			IngressAddresses: standaloneIngressAddresses,
+		},
+	},
+}
+
+var expectedStandaloneIngressRun = model.UpdateJobRunInstruction{
+	RunId:            testfixtures.RunId,
+	IngressAddresses: standaloneIngressAddresses,
 }
 
 func TestConvert(t *testing.T) {
@@ -358,6 +381,16 @@ func TestConvert(t *testing.T) {
 				MessageIds:      []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 		},
+		"job run failed - reconciliation error": {
+			events: &utils.EventsWithIds[*armadaevents.EventSequence]{
+				Events:     []*armadaevents.EventSequence{testfixtures.NewEventSequence(testfixtures.JobRunReconciliationError)},
+				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+			expected: &model.InstructionSet{
+				JobRunsToUpdate: []*model.UpdateJobRunInstruction{&expectedReconciliationErrRun},
+				MessageIds:      []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+		},
 		"job failed": {
 			events: &utils.EventsWithIds[*armadaevents.EventSequence]{
 				Events:     []*armadaevents.EventSequence{testfixtures.NewEventSequence(testfixtures.JobFailed)},
@@ -366,16 +399,6 @@ func TestConvert(t *testing.T) {
 			expected: &model.InstructionSet{
 				JobsToUpdate: []*model.UpdateJobInstruction{&expectedFailed},
 				MessageIds:   []pulsar.MessageID{pulsarutils.NewMessageId(1)},
-			},
-		},
-		"unschedulable": {
-			events: &utils.EventsWithIds[*armadaevents.EventSequence]{
-				Events:     []*armadaevents.EventSequence{testfixtures.NewEventSequence(testfixtures.JobRunUnschedulable)},
-				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
-			},
-			expected: &model.InstructionSet{
-				JobRunsToUpdate: []*model.UpdateJobRunInstruction{&expectedUnschedulable},
-				MessageIds:      []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 		},
 		"job rejected": {
@@ -397,6 +420,16 @@ func TestConvert(t *testing.T) {
 			expected: &model.InstructionSet{
 				JobsToUpdate: []*model.UpdateJobInstruction{&expectedPreempted},
 				MessageIds:   []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+		},
+		"job run ingress info": {
+			events: &utils.EventsWithIds[*armadaevents.EventSequence]{
+				Events:     []*armadaevents.EventSequence{testfixtures.NewEventSequence(standaloneIngressInfoEvent)},
+				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+			expected: &model.InstructionSet{
+				JobRunsToUpdate: []*model.UpdateJobRunInstruction{&expectedStandaloneIngressRun},
+				MessageIds:      []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 		},
 		"job run preempted": {
@@ -448,7 +481,7 @@ func TestConvert(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			converter := NewInstructionConverter(metrics.Get().Metrics, userAnnotationPrefix, &compress.NoOpCompressor{})
+			converter := NewInstructionConverter(metrics.Get().Metrics, userAnnotationPrefix, []string{}, &compress.NoOpCompressor{})
 			decompressor := &compress.NoOpDecompressor{}
 			instructionSet := converter.Convert(armadacontext.TODO(), tc.events)
 			require.Equal(t, len(tc.expected.JobsToCreate), len(instructionSet.JobsToCreate))
@@ -519,7 +552,7 @@ func TestTruncatesStringsThatAreTooLong(t *testing.T) {
 		MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 	}
 
-	converter := NewInstructionConverter(metrics.Get().Metrics, userAnnotationPrefix, &compress.NoOpCompressor{})
+	converter := NewInstructionConverter(metrics.Get().Metrics, userAnnotationPrefix, []string{}, &compress.NoOpCompressor{})
 	actual := converter.Convert(armadacontext.TODO(), events)
 
 	// String lengths obtained from database schema
@@ -538,4 +571,30 @@ func TestExtractNodeName(t *testing.T) {
 	assert.Nil(t, extractNodeName(&podError))
 	podError.NodeName = testfixtures.NodeName
 	assert.Equal(t, pointer.String(testfixtures.NodeName), extractNodeName(&podError))
+}
+
+func TestExtractUserAnnotations_NoPrefixNoBlocklist_SomeAnnotations(t *testing.T) {
+	annotations := map[string]string{"a": "1", "b": "2"}
+	result := extractUserAnnotations("", map[string]struct{}{}, annotations)
+	assert.Equal(t, annotations, result)
+}
+
+func TestExtractUserAnnotations_NoPrefixNoBlocklist_EmptyAnnotations(t *testing.T) {
+	result := extractUserAnnotations("", map[string]struct{}{}, map[string]string{})
+	assert.Empty(t, result)
+}
+
+func TestExtractUserAnnotations_PrefixTrimming(t *testing.T) {
+	annotations := map[string]string{"prefix/key": "value", "other": "v2"}
+	expected := map[string]string{"key": "value", "other": "v2"}
+	result := extractUserAnnotations("prefix/", map[string]struct{}{}, annotations)
+	assert.Equal(t, expected, result)
+}
+
+func TestExtractUserAnnotations_Blocklist(t *testing.T) {
+	annotations := map[string]string{"Block": "v1", "block": "v2", "keep": "v3"}
+	blocklist := map[string]struct{}{"block": {}}
+	result := extractUserAnnotations("", blocklist, annotations)
+	expected := map[string]string{"keep": "v3"}
+	assert.Equal(t, expected, result)
 }

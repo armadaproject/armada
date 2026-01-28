@@ -12,12 +12,14 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	clock "k8s.io/utils/clock/testing"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	"github.com/armadaproject/armada/internal/common/auth/permission"
 	"github.com/armadaproject/armada/internal/common/compress"
+	"github.com/armadaproject/armada/internal/common/constants"
 	"github.com/armadaproject/armada/internal/common/mocks"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/slices"
@@ -29,7 +31,6 @@ import (
 	schedulermocks "github.com/armadaproject/armada/internal/scheduler/mocks"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
-	"github.com/armadaproject/armada/internal/server/configuration"
 	servermocks "github.com/armadaproject/armada/internal/server/mocks"
 	"github.com/armadaproject/armada/internal/server/permissions"
 	"github.com/armadaproject/armada/pkg/api"
@@ -67,6 +68,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 					runId2: api.JobState_RUNNING,
 				},
 				NodeType:                    "node-type-1",
+				Taints:                      []*v1.Taint{{Key: constants.ReservationTaintKey, Value: "test-reservation", Effect: v1.TaintEffectNoSchedule}},
 				ResourceUsageByQueueAndPool: []*executorapi.PoolQueueResource{},
 			},
 		},
@@ -81,20 +83,14 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 				Id:                          "test-executor-test-node",
 				Name:                        "test-node",
 				Executor:                    "test-executor",
-				TotalResources:              schedulerobjects.NewResourceList(0),
+				TotalResources:              &schedulerobjects.ResourceList{Resources: map[string]*resource.Quantity{}},
 				StateByJobRunId:             map[string]schedulerobjects.JobRunState{runId1: schedulerobjects.JobRunState_RUNNING, runId2: schedulerobjects.JobRunState_RUNNING},
-				UnallocatableResources:      map[int32]schedulerobjects.ResourceList{},
+				UnallocatableResources:      map[int32]*schedulerobjects.ResourceList{},
 				ResourceUsageByQueueAndPool: []*schedulerobjects.PoolQueueResource{},
-				AllocatableByPriorityAndResource: map[int32]schedulerobjects.ResourceList{
-					1000: {
-						Resources: nil,
-					},
-					2000: {
-						Resources: nil,
-					},
-				},
-				LastSeen:          protoutil.ToTimestamp(testClock.Now().UTC()),
-				ReportingNodeType: "node-type-1",
+				LastSeen:                    protoutil.ToTimestamp(testClock.Now().UTC()),
+				Taints:                      []*v1.Taint{{Key: constants.ReservationTaintKey, Value: "test-reservation", Effect: v1.TaintEffectNoSchedule}},
+				ReportingNodeType:           "node-type-1",
+				Reservation:                 "test-reservation",
 			},
 		},
 		LastUpdateTime:    protoutil.ToTimestamp(testClock.Now().UTC()),
@@ -105,7 +101,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 		t,
 		&armadaevents.ObjectMeta{
 			Labels:      map[string]string{armadaJobPreemptibleLabel: "false"},
-			Annotations: map[string]string{configuration.PoolAnnotation: "test-pool"},
+			Annotations: map[string]string{constants.PoolAnnotation: "test-pool"},
 		},
 		&v1.PodSpec{
 			NodeSelector: map[string]string{nodeIdName: "node-id"},
@@ -125,7 +121,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 	submitWithoutNodeSelector, compressedSubmitNoNodeSelector := submitMsg(t,
 		&armadaevents.ObjectMeta{
 			Labels:      map[string]string{armadaJobPreemptibleLabel: "false"},
-			Annotations: map[string]string{configuration.PoolAnnotation: "test-pool"},
+			Annotations: map[string]string{constants.PoolAnnotation: "test-pool"},
 		},
 		nil,
 	)
@@ -143,7 +139,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 		t,
 		&armadaevents.ObjectMeta{
 			Labels:      map[string]string{armadaJobPreemptibleLabel: "true"},
-			Annotations: map[string]string{configuration.PoolAnnotation: "test-pool"},
+			Annotations: map[string]string{constants.PoolAnnotation: "test-pool"},
 		},
 
 		&v1.PodSpec{
@@ -185,14 +181,14 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 				Tolerations: armadaslices.Map(tolerations, func(t v1.Toleration) *v1.Toleration {
 					return &t
 				}),
-				Annotations: map[string]string{configuration.PoolAnnotation: "test-pool", "runtime_gang_cardinality": "3"},
+				Annotations: map[string]string{constants.PoolAnnotation: "test-pool", "runtime_gang_cardinality": "3"},
 			},
 		),
 	}
 	submitWithOverlay, _ := submitMsg(
 		t,
 		&armadaevents.ObjectMeta{
-			Annotations: map[string]string{configuration.PoolAnnotation: "test-pool", "runtime_gang_cardinality": "3"},
+			Annotations: map[string]string{constants.PoolAnnotation: "test-pool", "runtime_gang_cardinality": "3"},
 			Labels:      map[string]string{armadaJobPreemptibleLabel: "false"},
 		},
 		&v1.PodSpec{

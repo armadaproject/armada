@@ -3,26 +3,35 @@ package metrics
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 	"k8s.io/apimachinery/pkg/api/resource"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/common/mocks"
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
+	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/fairness"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
+	"github.com/armadaproject/armada/pkg/metricevents"
 )
 
 const epsilon = 1e-6
 
 func TestReportStateTransitions(t *testing.T) {
+	ctx := armadacontext.Background()
 	fairnessCostProvider, err := fairness.NewDominantResourceFairness(
 		cpu(100),
+		poolLabel,
 		configuration.SchedulingConfig{DominantResourceFairnessResourcesToConsider: []string{"cpu"}},
 	)
 	require.NoError(t, err)
@@ -38,6 +47,7 @@ func TestReportStateTransitions(t *testing.T) {
 						ConstrainedDemand:             cpu(15),
 						DemandCappedAdjustedFairShare: 0.15,
 						UncappedAdjustedFairShare:     0.2,
+						ShortJobPenalty:               cpu(28),
 						SuccessfulJobSchedulingContexts: map[string]*context.JobSchedulingContext{
 							"job1": {
 								Job: testfixtures.Test1Cpu4GiJob("queue1", testfixtures.PriorityClass0),
@@ -57,8 +67,8 @@ func TestReportStateTransitions(t *testing.T) {
 		},
 	}
 
-	m := newCycleMetrics()
-	m.ReportSchedulerResult(result)
+	m := newCycleMetrics(pulsarutils.NoOpPublisher[*metricevents.Event]{}, []string{"pool1"})
+	m.ReportSchedulerResult(ctx, result)
 
 	poolQueue := []string{"pool1", "queue1"}
 
@@ -74,6 +84,9 @@ func TestReportStateTransitions(t *testing.T) {
 	constrainedDemand := testutil.ToFloat64(m.latestCycleMetrics.Load().constrainedDemand.WithLabelValues(poolQueue...))
 	assert.InDelta(t, 0.15, constrainedDemand, epsilon, "constrainedDemand")
 
+	shortJobPenalty := testutil.ToFloat64(m.latestCycleMetrics.Load().shortJobPenalty.WithLabelValues(poolQueue...))
+	assert.InDelta(t, 0.28, shortJobPenalty, epsilon, "shortJobPenalty")
+
 	adjustedFairShare := testutil.ToFloat64(m.latestCycleMetrics.Load().adjustedFairShare.WithLabelValues(poolQueue...))
 	assert.InDelta(t, 0.15, adjustedFairShare, epsilon, "adjustedFairShare")
 
@@ -85,8 +98,8 @@ func TestReportStateTransitions(t *testing.T) {
 }
 
 func TestResetLeaderMetrics_Counters(t *testing.T) {
-	m := newCycleMetrics()
-	queuePriorityClassLabelValues := []string{"pool1", "priorityClass1"}
+	m := newCycleMetrics(pulsarutils.NoOpPublisher[*metricevents.Event]{}, []string{"pool1"})
+	poolAndQueueAndPriorityClassTypeLabels := []string{"pool1", "queue1", "priorityClass1", "type1"}
 
 	testResetCounter := func(vec *prometheus.CounterVec, labelValues []string) {
 		vec.WithLabelValues(labelValues...).Inc()
@@ -97,16 +110,16 @@ func TestResetLeaderMetrics_Counters(t *testing.T) {
 		assert.Equal(t, 0.0, counterVal)
 	}
 
-	testResetCounter(m.scheduledJobs, queuePriorityClassLabelValues)
-	testResetCounter(m.premptedJobs, queuePriorityClassLabelValues)
+	testResetCounter(m.scheduledJobs, poolAndQueueAndPriorityClassTypeLabels)
+	testResetCounter(m.premptedJobs, poolAndQueueAndPriorityClassTypeLabels)
 }
 
 func TestResetLeaderMetrics_ResetsLatestCycleMetrics(t *testing.T) {
-	m := newCycleMetrics()
+	m := newCycleMetrics(pulsarutils.NoOpPublisher[*metricevents.Event]{}, []string{"pool1"})
 	poolLabelValues := []string{"pool1"}
 	poolQueueLabelValues := []string{"pool1", "queue1"}
 	poolQueueResourceLabelValues := []string{"pool1", "queue1", "cpu"}
-	nodeResourceLabelValues := []string{"pool1", "node1", "cluster1", "type1", "cpu", "true"}
+	nodeResourceLabelValues := []string{"pool1", "node1", "cluster1", "type1", "cpu", "", "true", "false"}
 
 	testResetGauge := func(getVec func(metrics *cycleMetrics) *prometheus.GaugeVec, labelValues []string) {
 		vec := getVec(m)
@@ -126,6 +139,7 @@ func TestResetLeaderMetrics_ResetsLatestCycleMetrics(t *testing.T) {
 	testResetGauge(func(metrics *cycleMetrics) *prometheus.GaugeVec { return m.latestCycleMetrics.Load().fairnessError }, []string{"pool1"})
 	testResetGauge(func(metrics *cycleMetrics) *prometheus.GaugeVec { return m.latestCycleMetrics.Load().demand }, poolQueueLabelValues)
 	testResetGauge(func(metrics *cycleMetrics) *prometheus.GaugeVec { return m.latestCycleMetrics.Load().constrainedDemand }, poolQueueLabelValues)
+	testResetGauge(func(metrics *cycleMetrics) *prometheus.GaugeVec { return m.latestCycleMetrics.Load().shortJobPenalty }, poolQueueLabelValues)
 	testResetGauge(func(metrics *cycleMetrics) *prometheus.GaugeVec { return m.latestCycleMetrics.Load().gangsConsidered }, poolQueueLabelValues)
 	testResetGauge(func(metrics *cycleMetrics) *prometheus.GaugeVec { return m.latestCycleMetrics.Load().gangsScheduled }, poolQueueLabelValues)
 	testResetGauge(func(metrics *cycleMetrics) *prometheus.GaugeVec {
@@ -144,17 +158,17 @@ func TestResetLeaderMetrics_ResetsLatestCycleMetrics(t *testing.T) {
 	testResetGauge(func(metrics *cycleMetrics) *prometheus.GaugeVec {
 		return m.latestCycleMetrics.Load().nodeAllocatedResource
 	}, nodeResourceLabelValues)
+	testResetGauge(func(metrics *cycleMetrics) *prometheus.GaugeVec { return m.latestCycleMetrics.Load().nodePoolSize }, poolLabelValues)
 }
 
 func TestDisableLeaderMetrics(t *testing.T) {
-	m := newCycleMetrics()
-
+	m := newCycleMetrics(pulsarutils.NoOpPublisher[*metricevents.Event]{}, []string{"pool1"})
 	poolQueueLabelValues := []string{"pool1", "queue1"}
-	queuePriorityClassLabelValues := []string{"pool1", "priorityClass1"}
+	poolAndQueueAndPriorityClassTypeLabels := []string{"pool1", "queue1", "priorityClass1", "type1"}
 
 	collect := func(m *cycleMetrics) []prometheus.Metric {
-		m.scheduledJobs.WithLabelValues(queuePriorityClassLabelValues...).Inc()
-		m.premptedJobs.WithLabelValues(queuePriorityClassLabelValues...).Inc()
+		m.scheduledJobs.WithLabelValues(poolAndQueueAndPriorityClassTypeLabels...).Inc()
+		m.premptedJobs.WithLabelValues(poolAndQueueAndPriorityClassTypeLabels...).Inc()
 		m.latestCycleMetrics.Load().consideredJobs.WithLabelValues(poolQueueLabelValues...).Inc()
 		m.latestCycleMetrics.Load().fairShare.WithLabelValues(poolQueueLabelValues...).Inc()
 		m.latestCycleMetrics.Load().adjustedFairShare.WithLabelValues(poolQueueLabelValues...).Inc()
@@ -162,6 +176,8 @@ func TestDisableLeaderMetrics(t *testing.T) {
 		m.latestCycleMetrics.Load().fairnessError.WithLabelValues("pool1").Inc()
 		m.latestCycleMetrics.Load().demand.WithLabelValues(poolQueueLabelValues...).Inc()
 		m.latestCycleMetrics.Load().constrainedDemand.WithLabelValues(poolQueueLabelValues...).Inc()
+		m.latestCycleMetrics.Load().shortJobPenalty.WithLabelValues(poolQueueLabelValues...).Inc()
+
 		m.scheduleCycleTime.Observe(float64(1000))
 		m.reconciliationCycleTime.Observe(float64(1000))
 		m.latestCycleMetrics.Load().gangsConsidered.WithLabelValues("pool1", "queue1").Inc()
@@ -172,8 +188,9 @@ func TestDisableLeaderMetrics(t *testing.T) {
 		m.latestCycleMetrics.Load().loopNumber.WithLabelValues("pool1").Inc()
 		m.latestCycleMetrics.Load().evictedJobs.WithLabelValues("pool1", "queue1").Inc()
 		m.latestCycleMetrics.Load().evictedResources.WithLabelValues("pool1", "queue1", "cpu").Inc()
-		m.latestCycleMetrics.Load().nodeAllocatableResource.WithLabelValues("pool1", "node1", "cluster1", "type1", "cpu", "true").Inc()
-		m.latestCycleMetrics.Load().nodeAllocatedResource.WithLabelValues("pool1", "node1", "cluster1", "type1", "cpu", "true").Inc()
+		m.latestCycleMetrics.Load().nodeAllocatableResource.WithLabelValues("pool1", "node1", "cluster1", "type1", "cpu", "", "true", "false").Inc()
+		m.latestCycleMetrics.Load().nodeAllocatedResource.WithLabelValues("pool1", "node1", "cluster1", "type1", "cpu", "", "true", "false").Inc()
+		m.latestCycleMetrics.Load().nodePoolSize.WithLabelValues("pool1").Inc()
 
 		ch := make(chan prometheus.Metric, 1000)
 		m.collect(ch)
@@ -194,6 +211,152 @@ func TestDisableLeaderMetrics(t *testing.T) {
 	// Enabled
 	m.enableLeaderMetrics()
 	assert.NotZero(t, len(collect(m)))
+}
+
+func TestPublishCycleMetrics(t *testing.T) {
+	ts := time.Now()
+	ctx := armadacontext.Background()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	mockPublisher := mocks.NewMockPublisher[*metricevents.Event](ctrl)
+	m := newCycleMetrics(mockPublisher, []string{"pool1"})
+
+	fairnessCostProvider, err := fairness.NewDominantResourceFairness(
+		cpu(100),
+		poolLabel,
+		configuration.SchedulingConfig{DominantResourceFairnessResourcesToConsider: []string{"cpu"}},
+	)
+	require.NoError(t, err)
+	spotPrice := float64(5)
+	schedulerResult := scheduling.SchedulerResult{
+		SchedulingContexts: []*context.SchedulingContext{
+			{
+				Pool:                 "pool1",
+				Finished:             ts,
+				FairnessCostProvider: fairnessCostProvider,
+				TotalResources:       cpu(100),
+				QueueSchedulingContexts: map[string]*context.QueueSchedulingContext{
+					"queue1": {
+						Queue:             "queue1",
+						Allocated:         cpu(10),
+						Demand:            cpu(20),
+						ConstrainedDemand: cpu(15),
+						BillableResource:  cpu(9),
+					},
+				},
+				SpotPrice: &spotPrice,
+			},
+		},
+	}
+
+	expectedMetrics := &metricevents.QueueMetrics{
+		ActualShare:       0.1,
+		Demand:            0.2,
+		ConstrainedDemand: 0.15,
+		DemandByResourceType: map[string]*resource.Quantity{
+			"cpu":                    mustParseResourcePtr("20"),
+			"memory":                 mustParseResourcePtr("0"),
+			"nvidia.com/gpu":         mustParseResourcePtr("0"),
+			"test-floating-resource": mustParseResourcePtr("0"),
+		},
+		ConstrainedDemandByResourceType: map[string]*resource.Quantity{
+			"cpu":                    mustParseResourcePtr("15"),
+			"memory":                 mustParseResourcePtr("0"),
+			"nvidia.com/gpu":         mustParseResourcePtr("0"),
+			"test-floating-resource": mustParseResourcePtr("0"),
+		},
+		BillableAllocationByResourceType: map[string]*resource.Quantity{
+			"cpu":                    mustParseResourcePtr("9"),
+			"memory":                 mustParseResourcePtr("0"),
+			"nvidia.com/gpu":         mustParseResourcePtr("0"),
+			"test-floating-resource": mustParseResourcePtr("0"),
+		},
+	}
+
+	mockPublisher.EXPECT().PublishMessages(ctx, gomock.Any()).DoAndReturn(func(ctx *armadacontext.Context, events ...*metricevents.Event) error {
+		require.Equal(t, 1, len(events))
+		actual := events[0].GetCycleMetrics()
+		assert.Equal(t, "pool1", actual.Pool)
+
+		require.Equal(t, spotPrice, actual.SpotPrice)
+		require.Equal(t, protoutil.ToTimestamp(ts), actual.CycleTime)
+		queueMetrics := actual.GetQueueMetrics()["queue1"]
+		require.NotNil(t, queueMetrics)
+
+		assert.Equal(t, expectedMetrics.ActualShare, queueMetrics.ActualShare)
+		assert.Equal(t, expectedMetrics.Demand, queueMetrics.Demand)
+		assert.Equal(t, expectedMetrics.ConstrainedDemand, queueMetrics.ConstrainedDemand)
+		require.Equal(t, protoutil.ToTimestamp(ts), actual.CycleTime)
+
+		require.Equal(t, len(expectedMetrics.DemandByResourceType), len(queueMetrics.DemandByResourceType))
+		for r, q := range expectedMetrics.DemandByResourceType {
+			actualQty := *queueMetrics.DemandByResourceType[r]
+			assert.True(t, q.Equal(actualQty),
+				"DemandByResourceType for resource type %s are not equal.  Expected %s, got %s", r, q.String(), actualQty.String())
+		}
+
+		require.Equal(t, len(expectedMetrics.ConstrainedDemandByResourceType), len(queueMetrics.ConstrainedDemandByResourceType))
+		for r, q := range expectedMetrics.ConstrainedDemandByResourceType {
+			actualQty := *queueMetrics.ConstrainedDemandByResourceType[r]
+			assert.True(t, q.Equal(actualQty),
+				"ConstrainedDemandByResourceType for resource type %s are not equal.  Expected %s, got %s", r, q.String(), actualQty.String())
+		}
+		require.Equal(t, len(expectedMetrics.BillableAllocationByResourceType), len(queueMetrics.BillableAllocationByResourceType))
+		for r, q := range expectedMetrics.BillableAllocationByResourceType {
+			actualQty := *queueMetrics.BillableAllocationByResourceType[r]
+			assert.True(t, q.Equal(actualQty),
+				"BillableAllocationByResourceType for resource type %s are not equal.  Expected %s, got %s", r, q.String(), actualQty.String())
+		}
+
+		return nil
+	})
+	m.publishCycleMetrics(ctx, schedulerResult)
+}
+
+func TestReportPoolSchedulingOutcomes(t *testing.T) {
+	m := newCycleMetrics(pulsarutils.NoOpPublisher[*metricevents.Event]{}, []string{"pool1"})
+
+	outcomes := []scheduling.PoolSchedulingOutcome{
+		{
+			Pool:              "pool-1",
+			Success:           false,
+			TerminationReason: scheduling.PoolSchedulingTerminationReasonError,
+		},
+		{
+			Pool:              "pool-2",
+			Success:           true,
+			TerminationReason: scheduling.PoolSchedulingTerminationReasonCompleted,
+		},
+		{
+			Pool:              "pool-3",
+			Success:           true,
+			TerminationReason: scheduling.PoolSchedulingTerminationReasonTimeout,
+		},
+		{
+			Pool:              "pool-4",
+			Success:           true,
+			TerminationReason: scheduling.PoolSchedulingTerminationReasonRateLimit,
+		},
+	}
+
+	m.ReportPoolSchedulingOutcomes(outcomes)
+
+	failureCount := testutil.ToFloat64(m.poolSchedulingOutcome.WithLabelValues("pool-1", PoolSchedulingOutcomeFailure, string(scheduling.PoolSchedulingTerminationReasonError)))
+	assert.Equal(t, 1.0, failureCount, "failure outcome metric does not match")
+
+	completedCount := testutil.ToFloat64(m.poolSchedulingOutcome.WithLabelValues("pool-2", PoolSchedulingOutcomeSuccess, string(scheduling.PoolSchedulingTerminationReasonCompleted)))
+	assert.Equal(t, 1.0, completedCount, "completed outcome metric does not match")
+
+	timeoutCount := testutil.ToFloat64(m.poolSchedulingOutcome.WithLabelValues("pool-3", PoolSchedulingOutcomeSuccess, string(scheduling.PoolSchedulingTerminationReasonTimeout)))
+	assert.Equal(t, 1.0, timeoutCount, "timeout outcome metric does not match")
+
+	rateLimitCount := testutil.ToFloat64(m.poolSchedulingOutcome.WithLabelValues("pool-4", PoolSchedulingOutcomeSuccess, string(scheduling.PoolSchedulingTerminationReasonRateLimit)))
+	assert.Equal(t, 1.0, rateLimitCount, "rate limit outcome metric does not match")
+}
+
+func mustParseResourcePtr(qtyStr string) *resource.Quantity {
+	q := resource.MustParse(qtyStr)
+	return &q
 }
 
 func cpu(n int) internaltypes.ResourceList {

@@ -233,7 +233,7 @@ func (p *PodIssueHandler) detectPodIssues(allManagedPods []*v1.Pod) {
 			// it is safer to produce failed event than retrying as the job might have run already
 			issue := &podIssue{
 				OriginalPodState: pod.DeepCopy(),
-				Message:          "pod stuck in terminating phase, this might be due to platform problems",
+				Message:          "job couldn't shut down cleanly as pod stuck in terminating phase, this indicates a node issue",
 				Retryable:        false,
 				Type:             StuckTerminating,
 			}
@@ -302,6 +302,9 @@ func (p *PodIssueHandler) detectPodIssues(allManagedPods []*v1.Pod) {
 	}
 }
 
+// Maximum size for debug messages to prevent Pulsar message overflow
+const maxDebugMessageSize = 10 * 1024
+
 func createDebugMessage(podEvents []*v1.Event) string {
 	events := make([]v1.Event, 0, len(podEvents))
 	for _, e := range podEvents {
@@ -313,7 +316,12 @@ func createDebugMessage(podEvents []*v1.Event) string {
 	prefixWriter := describe.NewPrefixWriter(&writer)
 
 	describe.DescribeEvents(&eventList, prefixWriter)
-	return writer.String()
+
+	message := writer.String()
+	if len(message) > maxDebugMessageSize {
+		message = "[truncated]..." + message[len(message)-maxDebugMessageSize:]
+	}
+	return message
 }
 
 // Returns true if the pod has been running longer than its activeDeadlineSeconds + grace period

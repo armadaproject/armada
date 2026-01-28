@@ -14,10 +14,12 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/pointer"
 
+	armadaconfiguration "github.com/armadaproject/armada/internal/common/constants"
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
+	"github.com/armadaproject/armada/pkg/bidstore"
 )
 
 func NewTestJobDb() *JobDb {
@@ -94,6 +96,56 @@ func TestJobDb_TestGetUnvalidated(t *testing.T) {
 	assert.Equal(t, expected, actual)
 }
 
+func TestJobDb_TestGetJobsByGangId(t *testing.T) {
+	jobDb := NewTestJobDb()
+	job1 := newGangJob()
+	job2 := newGangJob()
+	txn := jobDb.WriteTxn()
+
+	// Add job1
+	err := txn.Upsert([]*Job{job1})
+	require.NoError(t, err)
+	result := txn.GetGangJobsIdsByGangId(job1.Queue(), job1.GetGangInfo().Id())
+	assert.Len(t, result, 1)
+	assert.Equal(t, job1.Id(), result[0])
+
+	// Add job2
+	err = txn.Upsert([]*Job{job2})
+	require.NoError(t, err)
+	result = txn.GetGangJobsIdsByGangId(job1.Queue(), job1.GetGangInfo().Id())
+	assert.Len(t, result, 2)
+	assert.Contains(t, result, job1.Id())
+	assert.Contains(t, result, job2.Id())
+
+	// Delete job1
+	err = txn.BatchDelete([]string{job1.Id()})
+	require.NoError(t, err)
+	result = txn.GetGangJobsIdsByGangId(job1.Queue(), job1.GetGangInfo().Id())
+	require.NoError(t, err)
+	assert.Len(t, result, 1)
+	assert.Equal(t, job2.Id(), result[0])
+
+	// Delete job2
+	err = txn.BatchDelete([]string{job2.Id()})
+	require.NoError(t, err)
+	result = txn.GetGangJobsIdsByGangId(job1.Queue(), job1.GetGangInfo().Id())
+	require.NoError(t, err)
+	assert.Empty(t, result)
+}
+
+func TestJobDb_TestGetJobsByGangId_NonGangJob(t *testing.T) {
+	jobDb := NewTestJobDb()
+	job1 := newJob()
+	txn := jobDb.WriteTxn()
+
+	err := txn.Upsert([]*Job{job1})
+	require.NoError(t, err)
+
+	result, err := txn.GetGangJobsByGangId(job1.Queue(), job1.GetGangInfo().Id())
+	require.NoError(t, err)
+	assert.Empty(t, result)
+}
+
 func TestJobDb_TestGetByRunId(t *testing.T) {
 	jobDb := NewTestJobDb()
 	job1 := newJob().WithNewRun("executor", "nodeId", "nodeName", "pool", 5)
@@ -128,35 +180,6 @@ func TestJobDb_TestHasQueuedJobs(t *testing.T) {
 	assert.False(t, txn.HasQueuedJobs("non-existent-queue"))
 }
 
-func TestJobDb_TestQueuedJobsWithPriceOrdering(t *testing.T) {
-	a := newJob().WithQueued(true).WithBidPrice(100.0).WithSubmittedTime(4)
-	b := newJob().WithQueued(true).WithBidPrice(99.0).WithSubmittedTime(3)
-	c := newJob().WithQueued(true).WithBidPrice(101.0).WithSubmittedTime(2)
-	d := newJob().WithQueued(true).WithBidPrice(100.0).WithSubmittedTime(1)
-
-	txn := jobDb.WriteTxn()
-	err := txn.Upsert([]*Job{a, b, c, d})
-	require.NoError(t, err)
-
-	iter := txn.QueuedJobs("test-queue", PriceOrder)
-
-	job, ok := iter.Next()
-	require.True(t, ok)
-	assert.Equal(t, c, job)
-
-	job, ok = iter.Next()
-	require.True(t, ok)
-	assert.Equal(t, d, job)
-
-	job, ok = iter.Next()
-	require.True(t, ok)
-	assert.Equal(t, a, job)
-
-	job, ok = iter.Next()
-	require.True(t, ok)
-	assert.Equal(t, b, job)
-}
-
 func TestJobDb_TestQueuedJobs(t *testing.T) {
 	jobDb := NewTestJobDb()
 	jobs := make([]*Job, 10)
@@ -173,7 +196,7 @@ func TestJobDb_TestQueuedJobs(t *testing.T) {
 	require.NoError(t, err)
 	collect := func() []*Job {
 		retrieved := make([]*Job, 0)
-		iter := txn.QueuedJobs(jobs[0].Queue(), FairShareOrder)
+		iter := txn.QueuedJobs(jobs[0].Queue(), "pool", FairShareOrder)
 		for !iter.Done() {
 			j, _ := iter.Next()
 			retrieved = append(retrieved, j)
@@ -281,16 +304,166 @@ func TestJobDb_TestBatchDelete(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestJobDb_Abort_QueuedJobs(t *testing.T) {
+	tests := map[string]struct {
+		order JobSortOrder
+	}{
+		"price order": {
+			order: PriceOrder,
+		},
+		"fairshare order": {
+			order: FairShareOrder,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			jobDb := NewTestJobDb()
+			originalJob := newJob().WithQueued(true).WithPools([]string{"cpu", "cpu2", "cpu3"})
+
+			// Setup original state
+			txn := jobDb.WriteTxn()
+			err := txn.Upsert([]*Job{originalJob})
+			require.NoError(t, err)
+			txn.Commit()
+
+			// Update job in transaction
+			// Check updated job is reflected in iterator
+			txn = jobDb.WriteTxn()
+			updated := originalJob.WithPriceBand(bidstore.PriceBand_PRICE_BAND_B)
+			err = txn.Upsert([]*Job{updated})
+			require.NoError(t, err)
+
+			queuedJobIterator := txn.QueuedJobs(originalJob.Queue(), "cpu", PriceOrder)
+			allJobs := []*Job{}
+			for {
+				job, _ := queuedJobIterator.Next()
+				if job == nil {
+					break
+				}
+				allJobs = append(allJobs, job)
+			}
+
+			assert.Len(t, allJobs, 1)
+			// Check returned job is the updated job in transaction
+			assert.Equal(t, updated, allJobs[0])
+
+			txn.Abort()
+
+			// Check after abort the returned jobs reflected the original state
+			txn = jobDb.ReadTxn()
+			queuedJobIterator = txn.QueuedJobs(originalJob.Queue(), "cpu", tc.order)
+			allJobs = []*Job{}
+			for {
+				job, _ := queuedJobIterator.Next()
+				if job == nil {
+					break
+				}
+				allJobs = append(allJobs, job)
+			}
+
+			assert.Len(t, allJobs, 1)
+			// Check returned job is the original job as transaction was aborted
+			assert.Equal(t, originalJob, allJobs[0])
+		})
+	}
+}
+
+func TestJobDb_GangInfoIsPopulated(t *testing.T) {
+	tests := map[string]struct {
+		annotations      map[string]string
+		expectedGangInfo GangInfo
+		expectError      bool
+	}{
+		"non-gang job": {
+			expectedGangInfo: BasicJobGangInfo(),
+			expectError:      false,
+		},
+		"non-gang job - with cardinality 1 gang annotations": {
+			annotations: map[string]string{
+				armadaconfiguration.GangCardinalityAnnotation:         "1",
+				armadaconfiguration.GangIdAnnotation:                  "id",
+				armadaconfiguration.GangNodeUniformityLabelAnnotation: "node-uniformity",
+			},
+			expectedGangInfo: BasicJobGangInfo(),
+			expectError:      false,
+		},
+		"non-gang job - without gang id annotation": {
+			annotations: map[string]string{
+				armadaconfiguration.GangCardinalityAnnotation:         "2",
+				armadaconfiguration.GangNodeUniformityLabelAnnotation: "node-uniformity",
+			},
+			expectedGangInfo: BasicJobGangInfo(),
+			expectError:      false,
+		},
+		"gang job": {
+			annotations: map[string]string{
+				armadaconfiguration.GangCardinalityAnnotation:         "4",
+				armadaconfiguration.GangIdAnnotation:                  "id",
+				armadaconfiguration.GangNodeUniformityLabelAnnotation: "node-uniformity",
+			},
+			expectedGangInfo: CreateGangInfo("id", 4, "node-uniformity"),
+			expectError:      false,
+		},
+		"invalid gang job - id empty": {
+			annotations: map[string]string{
+				armadaconfiguration.GangCardinalityAnnotation:         "4",
+				armadaconfiguration.GangIdAnnotation:                  "",
+				armadaconfiguration.GangNodeUniformityLabelAnnotation: "node-uniformity",
+			},
+			expectError: true,
+		},
+		"invalid gang job - cardinality is not an int": {
+			annotations: map[string]string{
+				armadaconfiguration.GangCardinalityAnnotation:         "error",
+				armadaconfiguration.GangIdAnnotation:                  "",
+				armadaconfiguration.GangNodeUniformityLabelAnnotation: "node-uniformity",
+			},
+			expectError: true,
+		},
+		"invalid gang job - cardinality is not a positive int": {
+			annotations: map[string]string{
+				armadaconfiguration.GangCardinalityAnnotation:         "0",
+				armadaconfiguration.GangIdAnnotation:                  "",
+				armadaconfiguration.GangNodeUniformityLabelAnnotation: "node-uniformity",
+			},
+			expectError: true,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			podRequirements := &internaltypes.PodRequirements{
+				NodeSelector: map[string]string{"foo": "bar"},
+				Annotations:  tc.annotations,
+			}
+			jobSchedulingInfo := &internaltypes.JobSchedulingInfo{
+				PriorityClass:   "foo",
+				PodRequirements: podRequirements,
+			}
+			jobDb := NewTestJobDb()
+
+			job, err := jobDb.NewJob("jobId", "jobSet", "queue", 1, jobSchedulingInfo, false, 0, false, false, false, 2, false, []string{}, 0)
+			if tc.expectError {
+				assert.Error(t, err)
+			} else {
+				assert.Nil(t, err)
+				assert.Equal(t, tc.expectedGangInfo, job.GetGangInfo())
+			}
+		})
+	}
+}
+
 func TestJobDb_SchedulingKeyIsPopulated(t *testing.T) {
 	podRequirements := &internaltypes.PodRequirements{
 		NodeSelector: map[string]string{"foo": "bar"},
 	}
 	jobSchedulingInfo := &internaltypes.JobSchedulingInfo{
-		PriorityClassName: "foo",
-		PodRequirements:   podRequirements,
+		PriorityClass:   "foo",
+		PodRequirements: podRequirements,
 	}
 	jobDb := NewTestJobDb()
-	job, err := jobDb.NewJob("jobId", "jobSet", "queue", 1, 0.0, jobSchedulingInfo, false, 0, false, false, false, 2, false, []string{})
+	job, err := jobDb.NewJob("jobId", "jobSet", "queue", 1, jobSchedulingInfo, false, 0, false, false, false, 2, false, []string{}, 0)
 	assert.Nil(t, err)
 	assert.Equal(t, SchedulingKeyFromJob(jobDb.schedulingKeyGenerator, job), job.SchedulingKey())
 }
@@ -1192,12 +1365,12 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 			skg := internaltypes.NewSchedulingKeyGenerator()
 
 			jobSchedulingInfoA := jobSchedulingInfo.DeepCopy()
-			jobSchedulingInfoA.PriorityClassName = tc.priorityClassNameA
+			jobSchedulingInfoA.PriorityClass = tc.priorityClassNameA
 			jobSchedulingInfoA.PodRequirements = tc.podRequirementsA
 			jobA := JobWithJobSchedulingInfo(baseJob, jobSchedulingInfoA)
 
 			jobSchedulingInfoB := jobSchedulingInfo.DeepCopy()
-			jobSchedulingInfoB.PriorityClassName = tc.priorityClassNameB
+			jobSchedulingInfoB.PriorityClass = tc.priorityClassNameB
 			jobSchedulingInfoB.PodRequirements = tc.podRequirementsB
 			jobB := JobWithJobSchedulingInfo(baseJob, jobSchedulingInfoB)
 
@@ -1229,5 +1402,25 @@ func newJob() *Job {
 		queued:            false,
 		runsById:          map[string]*JobRun{},
 		jobSchedulingInfo: jobSchedulingInfo,
+		pools:             []string{"pool"},
+	}
+}
+
+func newGangJob() *Job {
+	gangInfo, err := GangInfoFromMinimalJob(gangJobSchedulingInfo)
+	if err != nil {
+		panic(err)
+	}
+	return &Job{
+		jobDb:             NewTestJobDb(),
+		id:                util.NewULID(),
+		queue:             "test-queue",
+		priority:          0,
+		submittedTime:     0,
+		queued:            false,
+		runsById:          map[string]*JobRun{},
+		jobSchedulingInfo: gangJobSchedulingInfo,
+		pools:             []string{"pool"},
+		gangInfo:          *gangInfo,
 	}
 }

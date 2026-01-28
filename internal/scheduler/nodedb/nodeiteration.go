@@ -171,8 +171,8 @@ func (it *nodeTypesIteratorPQ) less(a, b *internaltypes.Node) bool {
 	allocatableByPriorityA := a.AllocatableByPriority[it.priority]
 	allocatableByPriorityB := b.AllocatableByPriority[it.priority]
 	for _, t := range it.indexedResources {
-		qa := allocatableByPriorityA.GetByNameZeroIfMissing(t)
-		qb := allocatableByPriorityB.GetByNameZeroIfMissing(t)
+		qa := allocatableByPriorityA.GetRawByNameZeroIfMissing(t)
+		qb := allocatableByPriorityB.GetRawByNameZeroIfMissing(t)
 
 		if qa < qb {
 			return true
@@ -343,7 +343,7 @@ func (it *NodeTypeIterator) NextNode() (*internaltypes.Node, error) {
 			return nil, errors.Errorf("node %s has no resources registered at priority %d: %v", node.GetId(), it.priority, node.AllocatableByPriority)
 		}
 		for i, t := range it.indexedResources {
-			nodeQuantity := allocatableByPriority.GetByNameZeroIfMissing(t)
+			nodeQuantity := allocatableByPriority.GetRawByNameZeroIfMissing(t)
 			requestQuantity := it.indexedResourceRequests[i]
 			it.newLowerBound[i] = roundQuantityToResolution(nodeQuantity, it.indexedResourceResolution[i])
 

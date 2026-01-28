@@ -10,7 +10,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-const GOLANGCI_LINT_VERSION_CONSTRAINT = ">= 1.52.0"
+const GOLANGCI_LINT_VERSION_CONSTRAINT = ">= 2.5.0"
 
 // Extract the version of golangci-lint
 func golangciLintVersion() (*semver.Version, error) {

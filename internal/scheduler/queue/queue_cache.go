@@ -2,6 +2,7 @@ package queue
 
 import (
 	"fmt"
+	"io"
 	"sync/atomic"
 	"time"
 
@@ -72,10 +73,12 @@ func (c *ApiQueueCache) fetchQueues(ctx *armadacontext.Context) error {
 		return err
 	}
 	queues := make([]*api.Queue, 0)
-	for {
-		msg, err := stream.Recv()
-		if err != nil {
-			return err
+	shouldEndStream := false
+
+	for !shouldEndStream {
+		msg, recvErr := stream.Recv()
+		if recvErr != nil {
+			return recvErr
 		}
 		switch msg.GetEvent().(type) {
 		case *api.StreamingQueueMessage_Queue:
@@ -83,9 +86,31 @@ func (c *ApiQueueCache) fetchQueues(ctx *armadacontext.Context) error {
 		case *api.StreamingQueueMessage_End:
 			c.queues.Store(&queues)
 			ctx.Infof("Refreshed Queues in %s", time.Since(start))
-			return nil
+			shouldEndStream = true
 		default:
 			return fmt.Errorf("unknown event of type %T", msg.GetEvent())
 		}
+	}
+
+	if closeErr := closeStream(stream); closeErr != nil {
+		return fmt.Errorf("closing get queues stream: %w", closeErr)
+	}
+
+	return nil
+}
+
+// This should be called after our end of stream message has been seen (StreamingQueueMessage_End)
+// We call recv one more time and expect an EOF back, indicating the stream is properly closed
+func closeStream(stream api.Submit_GetQueuesClient) error {
+	res, err := stream.Recv()
+	if err == nil {
+		switch typed := res.GetEvent().(type) {
+		default:
+			return fmt.Errorf("failed closing stream - unexpectedly received event of type %T", typed)
+		}
+	} else if err == io.EOF {
+		return nil
+	} else {
+		return err
 	}
 }

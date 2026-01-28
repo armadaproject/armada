@@ -5,14 +5,17 @@ import { IconButton, Skeleton, styled, useColorScheme } from "@mui/material"
 import { Highlight, themes } from "prism-react-renderer"
 import Prism from "prismjs"
 import "prismjs/components/prism-bash"
+import "prismjs/components/prism-json"
 import "prismjs/components/prism-yaml"
 
-import { CopyIconButton } from "./CopyIconButton"
+import { downloadTextFile } from "../common/downloadTextFile"
 import { useCodeSnippetsWrapLines } from "../userSettings"
 
-// All langauges in this set must be imported from Prism in the form:
+import { CopyIconButton } from "./CopyIconButton"
+
+// All languages in this set must be imported from Prism in the form:
 // import "prismjs/components/prism-{language}"
-type SupportedLanguage = "bash" | "yaml"
+type SupportedLanguage = "bash" | "yaml" | "json"
 
 const DEFAULT_LOADING_LINES = 20
 const DEFAULT_LOADING_LINE_LENGTH = 80
@@ -43,7 +46,7 @@ const StyledPre = styled("pre", { shouldForwardProp: (prop) => prop !== "wrap" }
     fontSize: theme.typography.body2.fontSize,
     overflow: "auto",
     padding: 5,
-    borderRadius: 5,
+    borderRadius: theme.shape.borderRadius,
     minHeight: 50,
     display: "flex",
     alignItems: "center",
@@ -95,13 +98,13 @@ interface CodeBlockLoadedProps {
   language: SupportedLanguage | "text"
 }
 
-interface CodeBlockDownloadbaleProps {
+interface CodeBlockDownloadableProps {
   downloadable: true
   downloadBlobType: string
   downloadFileName: string
 }
 
-interface CodeBlockNonDownloadbaleProps {
+interface CodeBlockNonDownloadableProps {
   downloadable: false
   downloadBlobType?: undefined | string
   downloadFileName?: undefined | string
@@ -116,7 +119,7 @@ interface CodeBlockBaseProps {
 
 export type CodeBlockProps = CodeBlockBaseProps &
   (CodeBlockLoadedProps | CodeBlockLoadingProps) &
-  (CodeBlockDownloadbaleProps | CodeBlockNonDownloadbaleProps)
+  (CodeBlockDownloadableProps | CodeBlockNonDownloadableProps)
 
 export const CodeBlock = ({
   language,
@@ -138,14 +141,7 @@ export const CodeBlock = ({
       return
     }
 
-    const element = document.createElement("a")
-    const file = new Blob([code], {
-      type: downloadBlobType,
-    })
-    element.href = URL.createObjectURL(file)
-    element.download = downloadFileName
-    document.body.appendChild(element)
-    element.click()
+    downloadTextFile(code, downloadFileName, downloadBlobType)
   }, [code, downloadable, downloadBlobType, downloadFileName])
 
   if (loading) {

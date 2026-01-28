@@ -153,9 +153,6 @@ func (srv *EtcdReplicaHealthMonitor) initialiseMetrics() {
 func (srv *EtcdReplicaHealthMonitor) IsHealthy() (bool, string, error) {
 	srv.mu.Lock()
 	defer srv.mu.Unlock()
-	if srv.hasTimedOut() {
-		return false, healthmonitor.UnavailableReason, nil
-	}
 	ok, reason := srv.isHealthy()
 	return ok, reason, nil
 }
@@ -165,6 +162,9 @@ func (srv *EtcdReplicaHealthMonitor) hasTimedOut() bool {
 }
 
 func (srv *EtcdReplicaHealthMonitor) isHealthy() (bool, string) {
+	if srv.hasTimedOut() {
+		return false, healthmonitor.UnavailableReason
+	}
 	if srv.sizeInUseFraction() > srv.fractionOfStorageInUseLimit {
 		return false, EtcdReplicaSizeInUseExceededReason
 	}
@@ -185,6 +185,8 @@ func (srv *EtcdReplicaHealthMonitor) sizeFraction() float64 {
 func (srv *EtcdReplicaHealthMonitor) Run(ctx *armadacontext.Context) error {
 	ctx.Info("starting etcd health monitor")
 	defer ctx.Info("stopping etcd health monitor")
+	srv.setHealthFromMetrics(ctx)
+
 	ticker := time.NewTicker(srv.scrapeInterval)
 	defer ticker.Stop()
 	for {
@@ -192,40 +194,46 @@ func (srv *EtcdReplicaHealthMonitor) Run(ctx *armadacontext.Context) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-ticker.C:
-			t := time.Now()
-			metrics, err := srv.metricsProvider.Collect(ctx)
-			srv.mu.Lock()
-			srv.timeOfMostRecentCollectionAttempt = time.Now()
-			if err != nil {
-				ctx.Logger().WithStacktrace(err).Errorf("failed to scrape etcd metrics from %s", srv.name)
-			} else {
-				success := true
-				if err := srv.setSizeInUseBytesFromMetrics(metrics); err != nil {
-					success = false
-					ctx.Logger().WithStacktrace(err).Errorf("failed to scrape etcd metrics from %s", srv.name)
-				}
-				if err := srv.setSizeBytesFromMetrics(metrics); err != nil {
-					success = false
-					ctx.Logger().WithStacktrace(err).Errorf("failed to scrape etcd metrics from %s", srv.name)
-				}
-				if err := srv.setCapacityBytesFromMetrics(metrics); err != nil {
-					success = false
-					ctx.Logger().WithStacktrace(err).Errorf("failed to scrape etcd metrics from %s", srv.name)
-				}
-				if success {
-					srv.timeOfMostRecentSuccessfulCollectionAttempt = srv.timeOfMostRecentCollectionAttempt
-					srv.metricsCollectionDelayHistogram.Observe(floatingPointSecondsFromDuration(time.Since(t)))
-				}
-			}
-
-			// Unblock any threads waiting for collection to finish.
-			for _, c := range srv.watchers {
-				close(c)
-			}
-			srv.watchers = nil
-			srv.mu.Unlock()
+			srv.setHealthFromMetrics(ctx)
 		}
 	}
+}
+
+func (srv *EtcdReplicaHealthMonitor) setHealthFromMetrics(ctx *armadacontext.Context) {
+	ctx.Info("scraping etcd metrics for etcd health check")
+	t := time.Now()
+	metrics, err := srv.metricsProvider.Collect(ctx)
+	srv.mu.Lock()
+	srv.timeOfMostRecentCollectionAttempt = time.Now()
+	if err != nil {
+		ctx.Logger().WithStacktrace(err).Errorf("failed to scrape etcd metrics from %s", srv.name)
+	} else {
+		success := true
+		if err := srv.setSizeInUseBytesFromMetrics(metrics); err != nil {
+			success = false
+			ctx.Logger().WithStacktrace(err).Errorf("failed to scrape etcd metrics from %s", srv.name)
+		}
+		if err := srv.setSizeBytesFromMetrics(metrics); err != nil {
+			success = false
+			ctx.Logger().WithStacktrace(err).Errorf("failed to scrape etcd metrics from %s", srv.name)
+		}
+		if err := srv.setCapacityBytesFromMetrics(metrics); err != nil {
+			success = false
+			ctx.Logger().WithStacktrace(err).Errorf("failed to scrape etcd metrics from %s", srv.name)
+		}
+		if success {
+			ctx.Info("Successfully collected health values from etcd metrics")
+			srv.timeOfMostRecentSuccessfulCollectionAttempt = srv.timeOfMostRecentCollectionAttempt
+			srv.metricsCollectionDelayHistogram.Observe(floatingPointSecondsFromDuration(time.Since(t)))
+		}
+	}
+
+	// Unblock any threads waiting for collection to finish.
+	for _, c := range srv.watchers {
+		close(c)
+	}
+	srv.watchers = nil
+	srv.mu.Unlock()
 }
 
 func floatingPointSecondsFromDuration(d time.Duration) float64 {
@@ -289,6 +297,7 @@ func (srv *EtcdReplicaHealthMonitor) Collect(c chan<- prometheus.Metric) {
 	if ok, _ := srv.isHealthy(); ok {
 		resultOfMostRecentHealthCheck = 1.0
 	}
+
 	timeOfMostRecentCollectionAttempt := srv.timeOfMostRecentCollectionAttempt
 	timeOfMostRecentSuccessfulCollectionAttempt := srv.timeOfMostRecentSuccessfulCollectionAttempt
 	sizeInUseFraction := srv.sizeInUseFraction()
@@ -313,17 +322,20 @@ func (srv *EtcdReplicaHealthMonitor) Collect(c chan<- prometheus.Metric) {
 		float64(timeOfMostRecentSuccessfulCollectionAttempt.Unix()),
 		srv.name,
 	)
-	c <- prometheus.MustNewConstMetric(
-		srv.sizeInUseFractionPrometheusDesc,
-		prometheus.GaugeValue,
-		sizeInUseFraction,
-		srv.name,
-	)
-	c <- prometheus.MustNewConstMetric(
-		srv.sizeFractionPrometheusDesc,
-		prometheus.GaugeValue,
-		sizeFraction,
-		srv.name,
-	)
+	if !srv.hasTimedOut() {
+		c <- prometheus.MustNewConstMetric(
+			srv.sizeInUseFractionPrometheusDesc,
+			prometheus.GaugeValue,
+			sizeInUseFraction,
+			srv.name,
+		)
+		c <- prometheus.MustNewConstMetric(
+			srv.sizeFractionPrometheusDesc,
+			prometheus.GaugeValue,
+			sizeFraction,
+			srv.name,
+		)
+	}
+
 	srv.metricsCollectionDelayHistogram.Collect(c)
 }

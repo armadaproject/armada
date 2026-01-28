@@ -1,6 +1,7 @@
 package conversions
 
 import (
+	"strconv"
 	"time"
 
 	"github.com/go-openapi/strfmt"
@@ -40,6 +41,7 @@ func ToSwaggerJob(job *model.Job) *models.Job {
 		CancelUser:         job.CancelUser,
 		Node:               job.Node,
 		Cluster:            job.Cluster,
+		Pool:               job.Pool,
 		ExitCode:           job.ExitCode,
 		RuntimeSeconds:     job.RuntimeSeconds,
 	}
@@ -47,15 +49,17 @@ func ToSwaggerJob(job *model.Job) *models.Job {
 
 func ToSwaggerRun(run *model.Run) *models.Run {
 	return &models.Run{
-		Cluster:     run.Cluster,
-		ExitCode:    run.ExitCode,
-		Finished:    PostgreSQLTimeToSwaggerTime(run.Finished),
-		JobRunState: string(lookout.JobRunStateMap[run.JobRunState]),
-		Node:        run.Node,
-		Leased:      PostgreSQLTimeToSwaggerTime(run.Leased),
-		Pending:     PostgreSQLTimeToSwaggerTime(run.Pending),
-		RunID:       run.RunId,
-		Started:     PostgreSQLTimeToSwaggerTime(run.Started),
+		Cluster:          run.Cluster,
+		ExitCode:         run.ExitCode,
+		Finished:         PostgreSQLTimeToSwaggerTime(run.Finished),
+		JobRunState:      string(lookout.JobRunStateMap[run.JobRunState]),
+		Node:             run.Node,
+		Leased:           PostgreSQLTimeToSwaggerTime(run.Leased),
+		Pending:          PostgreSQLTimeToSwaggerTime(run.Pending),
+		Pool:             run.Pool,
+		RunID:            run.RunId,
+		Started:          PostgreSQLTimeToSwaggerTime(run.Started),
+		IngressAddresses: ingressAddressesToSwagger(run.IngressAddresses),
 	}
 }
 
@@ -90,9 +94,15 @@ func FromSwaggerOrder(order *models.Order) *model.Order {
 }
 
 func FromSwaggerGroupedField(groupedField *operations.GroupJobsParamsBodyGroupedField) *model.GroupedField {
+	lastTransitionTimeAggregate := ""
+	if groupedField.LastTransitionTimeAggregate != nil {
+		lastTransitionTimeAggregate = *groupedField.LastTransitionTimeAggregate
+	}
+
 	return &model.GroupedField{
-		Field:        groupedField.Field,
-		IsAnnotation: groupedField.IsAnnotation,
+		Field:                       groupedField.Field,
+		IsAnnotation:                groupedField.IsAnnotation,
+		LastTransitionTimeAggregate: lastTransitionTimeAggregate,
 	}
 }
 
@@ -110,4 +120,16 @@ func PostgreSQLTimeToSwaggerTime(t *model.PostgreSQLTime) *strfmt.DateTime {
 	}
 	s := strfmt.DateTime(t.Time)
 	return &s
+}
+
+func ingressAddressesToSwagger(addresses map[int32]string) map[string]string {
+	if len(addresses) == 0 {
+		return nil
+	}
+
+	swaggerAddresses := make(map[string]string, len(addresses))
+	for k, v := range addresses {
+		swaggerAddresses[strconv.Itoa(int(k))] = v
+	}
+	return swaggerAddresses
 }

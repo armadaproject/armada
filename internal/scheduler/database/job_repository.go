@@ -36,8 +36,9 @@ type JobRunLease struct {
 
 // JobRepository is an interface to be implemented by structs which provide job and run information
 type JobRepository interface {
-	// FetchInitialJobs returns all non-terminal jobs and their associated job runs.
-	FetchInitialJobs(ctx *armadacontext.Context) ([]Job, []Run, error)
+	// FetchInitialJobs returns all non-terminal jobs and their associated job runs as well as the maximum job and run
+	// serials in the event that there are no non-terminal jobs/runs.
+	FetchInitialJobs(ctx *armadacontext.Context) ([]Job, []Run, *int64, *int64, error)
 
 	// FetchJobUpdates returns all jobs and job dbRuns that have been updated after jobSerial and jobRunSerial respectively
 	// These updates are guaranteed to be consistent with each other
@@ -76,15 +77,17 @@ func NewPostgresJobRepository(db *pgxpool.Pool, batchSize int32) *PostgresJobRep
 	}
 }
 
-func (r *PostgresJobRepository) FetchInitialJobs(ctx *armadacontext.Context) ([]Job, []Run, error) {
-	var updatedJobs []Job
+func (r *PostgresJobRepository) FetchInitialJobs(ctx *armadacontext.Context) ([]Job, []Run, *int64, *int64, error) {
+	var initialJobs []Job
 	var initialRuns []Run
+	var maxJobSerial *int64
+	var maxRunSerial *int64
 
 	start := time.Now()
 	defer func() {
 		ctx.Infof(
 			"received %d initial jobs and %d initial job runs from postgres in %s",
-			len(updatedJobs), len(initialRuns), time.Since(start),
+			len(initialJobs), len(initialRuns), time.Since(start),
 		)
 	}()
 
@@ -98,23 +101,23 @@ func (r *PostgresJobRepository) FetchInitialJobs(ctx *armadacontext.Context) ([]
 		queries := New(tx)
 
 		// Fetch jobs
-		initialJobRows, err := fetch(0, r.batchSize, func(from int64) ([]SelectInitialJobsRow, error) {
+		loggerCtx := armadacontext.New(ctx, ctx.Logger().WithField("query", "initial-jobs"))
+		initialJobRows, err := fetch(loggerCtx, 0, r.batchSize, func(from int64) ([]SelectInitialJobsRow, error) {
 			return queries.SelectInitialJobs(ctx, SelectInitialJobsParams{Serial: from, Limit: r.batchSize})
 		})
 		if err != nil {
-			return err
+			return fmt.Errorf("selecting initial jobs: %w", err)
 		}
 
-		updatedJobs = make([]Job, len(initialJobRows))
+		initialJobs = make([]Job, len(initialJobRows))
 		updatedJobIds := make([]string, len(initialJobRows))
 		for i, row := range initialJobRows {
 			updatedJobIds[i] = row.JobID
-			updatedJobs[i] = Job{
+			initialJobs[i] = Job{
 				JobID:                   row.JobID,
 				JobSet:                  row.JobSet,
 				Queue:                   row.Queue,
 				Priority:                row.Priority,
-				BidPrice:                row.BidPrice,
 				Submitted:               row.Submitted,
 				Validated:               row.Validated,
 				Queued:                  row.Queued,
@@ -129,18 +132,47 @@ func (r *PostgresJobRepository) FetchInitialJobs(ctx *armadacontext.Context) ([]
 				SchedulingInfoVersion:   row.SchedulingInfoVersion,
 				Serial:                  row.Serial,
 				Pools:                   row.Pools,
+				PriceBand:               row.PriceBand,
 			}
 		}
 
 		// Fetch dbRuns
-		initialRuns, err = fetch(0, r.batchSize, func(from int64) ([]Run, error) {
+		loggerCtx = armadacontext.New(ctx, ctx.Logger().WithField("query", "initial-runs"))
+		initialRuns, err = fetch(loggerCtx, 0, r.batchSize, func(from int64) ([]Run, error) {
 			return queries.SelectInitialRuns(ctx, SelectInitialRunsParams{Serial: from, Limit: r.batchSize, JobIds: updatedJobIds})
 		})
+		if err != nil {
+			return fmt.Errorf("selecting initial runs: %w", err)
+		}
 
-		return err
+		// Hit a case where the database is empty or all rows are in a terminal state. In the event that all rows are
+		// in a terminal state return the max job/run serial.
+		if len(initialJobs) == 0 {
+			maybeMaxJobSerial, err := queries.SelectMaxJobSerial(ctx)
+			if err != nil {
+				if !errors.Is(err, pgx.ErrNoRows) { // Ignore errors when the DB is empty
+					return fmt.Errorf("selecting max job serial: %w", err)
+				}
+			} else {
+				maxJobSerial = &maybeMaxJobSerial
+			}
+		}
+
+		if len(initialRuns) == 0 {
+			maybeMaxRunSerial, err := queries.SelectMaxRunSerial(ctx)
+			if err != nil {
+				if !errors.Is(err, pgx.ErrNoRows) { // Ignore errors when the DB is empty
+					return fmt.Errorf("selecting max run serial: %w", err)
+				}
+			} else {
+				maxRunSerial = &maybeMaxRunSerial
+			}
+		}
+
+		return nil
 	})
 
-	return updatedJobs, initialRuns, err
+	return initialJobs, initialRuns, maxJobSerial, maxRunSerial, err
 }
 
 // FetchJobRunErrors returns all armadaevents.JobRunErrors for the provided job run ids.  The returned map is
@@ -220,7 +252,8 @@ func (r *PostgresJobRepository) FetchJobUpdates(ctx *armadacontext.Context, jobS
 		queries := New(tx)
 
 		// Fetch jobs
-		updatedJobRows, err := fetch(jobSerial, r.batchSize, func(from int64) ([]SelectUpdatedJobsRow, error) {
+		loggerCtx := armadacontext.New(ctx, ctx.Logger().WithField("query", "updated-jobs"))
+		updatedJobRows, err := fetch(loggerCtx, jobSerial, r.batchSize, func(from int64) ([]SelectUpdatedJobsRow, error) {
 			return queries.SelectUpdatedJobs(ctx, SelectUpdatedJobsParams{Serial: from, Limit: r.batchSize})
 		})
 		updatedJobs = make([]Job, len(updatedJobRows))
@@ -231,7 +264,6 @@ func (r *PostgresJobRepository) FetchJobUpdates(ctx *armadacontext.Context, jobS
 				JobSet:                  row.JobSet,
 				Queue:                   row.Queue,
 				Priority:                row.Priority,
-				BidPrice:                row.BidPrice,
 				Submitted:               row.Submitted,
 				Validated:               row.Validated,
 				Queued:                  row.Queued,
@@ -246,6 +278,7 @@ func (r *PostgresJobRepository) FetchJobUpdates(ctx *armadacontext.Context, jobS
 				SchedulingInfoVersion:   row.SchedulingInfoVersion,
 				Serial:                  row.Serial,
 				Pools:                   row.Pools,
+				PriceBand:               row.PriceBand,
 			}
 		}
 
@@ -254,7 +287,8 @@ func (r *PostgresJobRepository) FetchJobUpdates(ctx *armadacontext.Context, jobS
 		}
 
 		// Fetch dbRuns
-		updatedRuns, err = fetch(jobRunSerial, r.batchSize, func(from int64) ([]Run, error) {
+		loggerCtx = armadacontext.New(ctx, ctx.Logger().WithField("query", "updated-runs"))
+		updatedRuns, err = fetch(loggerCtx, jobRunSerial, r.batchSize, func(from int64) ([]Run, error) {
 			return queries.SelectNewRuns(ctx, SelectNewRunsParams{Serial: from, Limit: r.batchSize})
 		})
 
@@ -369,8 +403,10 @@ func (r *PostgresJobRepository) CountReceivedPartitions(ctx *armadacontext.Conte
 
 // fetch gets all rows from the database with a serial greater than from.
 // Rows are fetched in batches using the supplied fetchBatch function
-func fetch[T hasSerial](from int64, batchSize int32, fetchBatch func(int64) ([]T, error)) ([]T, error) {
+func fetch[T hasSerial](ctx *armadacontext.Context, from int64, batchSize int32, fetchBatch func(int64) ([]T, error)) ([]T, error) {
+	timeOfLastLogging := time.Now()
 	values := make([]T, 0)
+	ctx.Infof("fetching in batches of size %d", batchSize)
 	for {
 		batch, err := fetchBatch(from)
 		if err != nil {
@@ -381,7 +417,12 @@ func fetch[T hasSerial](from int64, batchSize int32, fetchBatch func(int64) ([]T
 			break
 		}
 		from = batch[len(batch)-1].GetSerial()
+		if time.Now().Sub(timeOfLastLogging) > time.Second*5 {
+			ctx.Infof("fetched %d rows so far", len(values))
+			timeOfLastLogging = time.Now()
+		}
 	}
+	ctx.Infof("finished fetching - %d rows fetched", len(values))
 	return values, nil
 }
 

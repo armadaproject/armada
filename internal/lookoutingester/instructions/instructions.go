@@ -40,6 +40,7 @@ type HasNodeName interface {
 type InstructionConverter struct {
 	metrics              *metrics.Metrics
 	userAnnotationPrefix string
+	blocklistAnnotations map[string]struct{}
 	compressor           compress.Compressor
 }
 
@@ -50,10 +51,15 @@ type jobResources struct {
 	Gpu              int64
 }
 
-func NewInstructionConverter(m *metrics.Metrics, userAnnotationPrefix string, compressor compress.Compressor) *InstructionConverter {
+func NewInstructionConverter(m *metrics.Metrics, userAnnotationPrefix string, blocklistAnnotations []string, compressor compress.Compressor) *InstructionConverter {
+	blocked := make(map[string]struct{}, len(blocklistAnnotations))
+	for _, b := range blocklistAnnotations {
+		blocked[strings.ToLower(b)] = struct{}{}
+	}
 	return &InstructionConverter{
 		metrics:              m,
 		userAnnotationPrefix: userAnnotationPrefix,
+		blocklistAnnotations: blocked,
 		compressor:           compressor,
 	}
 }
@@ -112,13 +118,15 @@ func (c *InstructionConverter) convertSequence(
 			err = c.handleJobRequeued(ts, event.GetJobRequeued(), update)
 		case *armadaevents.EventSequence_Event_JobRunLeased:
 			err = c.handleJobRunLeased(ts, event.GetJobRunLeased(), update)
-		case *armadaevents.EventSequence_Event_ReprioritiseJobSet:
-		case *armadaevents.EventSequence_Event_CancelJob:
-		case *armadaevents.EventSequence_Event_CancelJobSet:
-		case *armadaevents.EventSequence_Event_ResourceUtilisation:
 		case *armadaevents.EventSequence_Event_StandaloneIngressInfo:
-		case *armadaevents.EventSequence_Event_PartitionMarker:
-		case *armadaevents.EventSequence_Event_JobValidated:
+			err = c.handleStandaloneIngressInfo(event.GetStandaloneIngressInfo(), update)
+		case *armadaevents.EventSequence_Event_ReprioritiseJobSet,
+			*armadaevents.EventSequence_Event_CancelJob,
+			*armadaevents.EventSequence_Event_CancelJobSet,
+			*armadaevents.EventSequence_Event_ResourceUtilisation,
+			*armadaevents.EventSequence_Event_PartitionMarker,
+			*armadaevents.EventSequence_Event_JobValidated,
+			*armadaevents.EventSequence_Event_JobRunPreemptionRequested:
 			log.Debugf("Ignoring event type %T", event.GetEvent())
 		default:
 			log.Warnf("Ignoring unknown event type %T", event.GetEvent())
@@ -166,7 +174,7 @@ func (c *InstructionConverter) handleSubmitJob(
 	}
 
 	annotations := event.GetObjectMeta().GetAnnotations()
-	userAnnotations := extractUserAnnotations(c.userAnnotationPrefix, annotations)
+	userAnnotations := extractUserAnnotations(c.userAnnotationPrefix, c.blocklistAnnotations, annotations)
 	externalJobUri := util.Truncate(annotations["armadaproject.io/externalJobUri"], maxAnnotationValLen)
 
 	job := model.CreateJobInstruction{
@@ -194,18 +202,25 @@ func (c *InstructionConverter) handleSubmitJob(
 	return err
 }
 
-// extractUserAnnotations strips userAnnotationPrefix from all keys and truncates keys and values to their maximal
-// lengths (as specified by maxAnnotationKeyLen and maxAnnotationValLen).
-func extractUserAnnotations(userAnnotationPrefix string, jobAnnotations map[string]string) map[string]string {
+/*
+extractUserAnnotations strips userAnnotationPrefix from all keys,
+filters out any keys in blocklistAnnotations (case-insensitive),
+and truncates keys and values to their maximal lengths as specified by
+maxAnnotationKeyLen and maxAnnotationValLen.
+*/
+func extractUserAnnotations(userAnnotationPrefix string, blocklistAnnotations map[string]struct{}, jobAnnotations map[string]string) map[string]string {
 	result := make(map[string]string, len(jobAnnotations))
 	n := len(userAnnotationPrefix)
 	for k, v := range jobAnnotations {
+		if _, exists := blocklistAnnotations[strings.ToLower(k)]; exists {
+			continue
+		}
 		if strings.HasPrefix(k, userAnnotationPrefix) {
 			k = k[n:]
 		}
-		k = util.Truncate(k, maxAnnotationKeyLen)
-		v = util.Truncate(v, maxAnnotationValLen)
-		result[k] = v
+		key := util.Truncate(k, maxAnnotationKeyLen)
+		val := util.Truncate(v, maxAnnotationValLen)
+		result[key] = val
 	}
 	return result
 }
@@ -337,6 +352,7 @@ func (c *InstructionConverter) handleJobRunLeased(ts time.Time, event *armadaeve
 		JobId:       event.JobId,
 		Cluster:     util.Truncate(event.ExecutorId, maxClusterLen),
 		Node:        pointer.String(util.Truncate(event.NodeId, maxNodeLen)),
+		Pool:        event.Pool,
 		Leased:      &ts,
 		JobRunState: lookout.JobRunLeasedOrdinal,
 	}
@@ -412,8 +428,6 @@ func (c *InstructionConverter) handleJobRunErrors(ts time.Time, event *armadaeve
 			// This case is already handled by the JobRunPreempted event
 			// When we formalise that as a terminal event, we'll remove this JobRunError getting produced
 			continue
-		case *armadaevents.Error_PodUnschedulable:
-			jobRunUpdate.Node = extractNodeName(reason.PodUnschedulable)
 		case *armadaevents.Error_PodLeaseReturned:
 			jobRunUpdate.JobRunState = pointer.Int32(lookout.JobRunLeaseReturnedOrdinal)
 			jobRunUpdate.Error = tryCompressError(event.JobId, reason.PodLeaseReturned.GetMessage(), c.compressor)
@@ -421,6 +435,9 @@ func (c *InstructionConverter) handleJobRunErrors(ts time.Time, event *armadaeve
 		case *armadaevents.Error_LeaseExpired:
 			jobRunUpdate.JobRunState = pointer.Int32(lookout.JobRunLeaseExpiredOrdinal)
 			jobRunUpdate.Error = tryCompressError(event.JobId, "Lease expired", c.compressor)
+		case *armadaevents.Error_ReconciliationError:
+			jobRunUpdate.JobRunState = pointer.Int32(lookout.JobRunFailedOrdinal)
+			jobRunUpdate.Error = tryCompressError(event.JobId, reason.ReconciliationError.GetMessage(), c.compressor)
 		default:
 			jobRunUpdate.JobRunState = pointer.Int32(lookout.JobRunFailedOrdinal)
 			jobRunUpdate.Error = tryCompressError(event.JobId, "Unknown error", c.compressor)
@@ -438,6 +455,15 @@ func (c *InstructionConverter) handleJobRunPreempted(ts time.Time, event *armada
 		JobRunState: pointer.Int32(lookout.JobRunPreemptedOrdinal),
 		Finished:    &ts,
 		Error:       tryCompressError(event.PreemptedJobId, event.Reason, c.compressor),
+	}
+	update.JobRunsToUpdate = append(update.JobRunsToUpdate, &jobRun)
+	return nil
+}
+
+func (c *InstructionConverter) handleStandaloneIngressInfo(event *armadaevents.StandaloneIngressInfo, update *model.InstructionSet) error {
+	jobRun := model.UpdateJobRunInstruction{
+		RunId:            event.RunId,
+		IngressAddresses: event.IngressAddresses,
 	}
 	update.JobRunsToUpdate = append(update.JobRunsToUpdate, &jobRun)
 	return nil

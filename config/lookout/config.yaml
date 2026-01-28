@@ -1,5 +1,7 @@
 apiPort: 10000
 metricsPort: 9003
+auth:
+  anonymousAuth: true
 corsAllowedOrigins:
   - "http://localhost:3000"
   - "http://localhost:8089"
@@ -36,3 +38,14 @@ uiConfig:
       alertMessageMd: |
         This will only work if the container is still running.
       alertLevel: info
+  pinnedTimeZoneIdentifiers:
+    - America/New_York
+    - Europe/London
+    - Europe/Paris
+    - Asia/Tokyo
+    - Asia/Shanghai
+    - America/Los_Angeles
+    - America/Chicago
+    - Australia/Sydney
+    - Asia/Dubai
+    - Asia/Kolkata

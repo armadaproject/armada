@@ -124,7 +124,14 @@ spec:
                       operator: In
                       values:
                         - {{ include "armada-scheduler.name" . }}
-                topologyKey: kubernetes.io/hostname
+                topologyKey: {{ .Values.scheduler.topologyKey }}
+      {{- if .Values.scheduler.nodeSelector }}
+      nodeSelector:
+        {{- toYaml .Values.scheduler.nodeSelector | nindent 8 }}
+      {{- end }}
+      {{- if .Values.scheduler.priorityClassName }}
+      priorityClassName: {{ .Values.scheduler.priorityClassName }}
+      {{- end }}
       volumes:
         {{- if .Values.scheduler.applicationConfig.grpc.tls.enabled }}
         - name: tls-certs

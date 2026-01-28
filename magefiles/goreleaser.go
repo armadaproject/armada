@@ -5,7 +5,7 @@ import (
 	"os"
 	"time"
 
-	goreleaserConfig "github.com/goreleaser/goreleaser/pkg/config"
+	goreleaserConfig "github.com/goreleaser/goreleaser/v2/pkg/config"
 	"github.com/magefile/mage/sh"
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"

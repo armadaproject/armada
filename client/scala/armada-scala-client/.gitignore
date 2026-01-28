@@ -1,0 +1,30 @@
+# macOS
+.DS_Store
+
+# During development of this client, you may want to
+# comment out the next three lines, so IDEs/LSPs can
+# find and use the protoc-generated scala code.
+target/
+
+# copied during compilation from the root of this repository
+src/main/protobuf
+
+.history
+.ensime
+.ensime_cache/
+
+# Bloop
+.bsp
+
+# VS Code
+.vscode/
+
+# Metals
+.bloop/
+.metals/
+metals.sbt
+
+# IDEA
+.idea
+.idea_modules
+/.worksheet/

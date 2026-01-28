@@ -26,7 +26,7 @@ const baseConfigFileName = "config"
 func BindCommandlineArguments() {
 	err := viper.BindPFlags(pflag.CommandLine)
 	if err != nil {
-		log.Fatalf(err.Error())
+		log.Fatal(err.Error())
 	}
 }
 

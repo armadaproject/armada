@@ -1,6 +1,9 @@
 package metrics
 
 import (
+	"strconv"
+	"time"
+
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
@@ -30,11 +33,13 @@ const (
 )
 
 type Metrics struct {
-	dbErrorsCounter         *prometheus.CounterVec
-	pulsarConnectionError   prometheus.Counter
-	pulsarMessageError      *prometheus.CounterVec
-	pulsarMessagesProcessed prometheus.Counter
-	eventsProcessed         *prometheus.CounterVec
+	dbErrorsCounter              *prometheus.CounterVec
+	pulsarConnectionError        prometheus.Counter
+	pulsarMessageError           *prometheus.CounterVec
+	pulsarMessagesProcessed      prometheus.Counter
+	pulsarMessagePublishTime     *prometheus.GaugeVec
+	pulsarMessageProcessingDelay *prometheus.GaugeVec
+	eventsProcessed              *prometheus.CounterVec
 }
 
 func NewMetrics(prefix string) *Metrics {
@@ -54,17 +59,27 @@ func NewMetrics(prefix string) *Metrics {
 		Name: prefix + "pulsar_messages_processed",
 		Help: "Number of pulsar messages processed",
 	}
+	pulsarMessagePublishTime := prometheus.GaugeOpts{
+		Name: prefix + "pulsar_message_publish_time",
+		Help: "Publish time of pulsar message being processed",
+	}
+	pulsarMessageProcessingDelayOpts := prometheus.GaugeOpts{
+		Name: prefix + "pulsar_message_processing_delay",
+		Help: "Delay in ms of pulsar messages",
+	}
 	eventsProcessedOpts := prometheus.CounterOpts{
 		Name: prefix + "events_processed",
 		Help: "Number of events processed",
 	}
 
 	return &Metrics{
-		dbErrorsCounter:         promauto.NewCounterVec(dbErrorsCounterOpts, []string{"operation"}),
-		pulsarMessageError:      promauto.NewCounterVec(pulsarMessageErrorOpts, []string{"error"}),
-		pulsarConnectionError:   promauto.NewCounter(pulsarConnectionErrorOpts),
-		pulsarMessagesProcessed: promauto.NewCounter(pulsarMessagesProcessedOpts),
-		eventsProcessed:         promauto.NewCounterVec(eventsProcessedOpts, []string{"queue", "eventType", "msgType"}),
+		dbErrorsCounter:              promauto.NewCounterVec(dbErrorsCounterOpts, []string{"operation"}),
+		pulsarMessageError:           promauto.NewCounterVec(pulsarMessageErrorOpts, []string{"error"}),
+		pulsarConnectionError:        promauto.NewCounter(pulsarConnectionErrorOpts),
+		pulsarMessageProcessingDelay: promauto.NewGaugeVec(pulsarMessageProcessingDelayOpts, []string{"subscription", "partition"}),
+		pulsarMessagePublishTime:     promauto.NewGaugeVec(pulsarMessagePublishTime, []string{"subscription", "partition"}),
+		pulsarMessagesProcessed:      promauto.NewCounter(pulsarMessagesProcessedOpts),
+		eventsProcessed:              promauto.NewCounterVec(eventsProcessedOpts, []string{"queue", "eventType", "msgType"}),
 	}
 }
 
@@ -82,6 +97,16 @@ func (m *Metrics) RecordPulsarConnectionError() {
 
 func (m *Metrics) RecordPulsarMessageProcessed() {
 	m.pulsarMessagesProcessed.Inc()
+}
+
+func (m *Metrics) RecordPulsarMessagePublishTime(subscriptionName string, partition int, publishTime time.Time) {
+	partitionStr := strconv.Itoa(partition)
+	m.pulsarMessagePublishTime.WithLabelValues(subscriptionName, partitionStr).Set(float64(publishTime.UTC().Unix()))
+}
+
+func (m *Metrics) RecordPulsarProcessingDelay(subscriptionName string, partition int, delayInMs float64) {
+	partitionStr := strconv.Itoa(partition)
+	m.pulsarMessageProcessingDelay.WithLabelValues(subscriptionName, partitionStr).Set(delayInMs)
 }
 
 func (m *Metrics) RecordEventSequenceProcessed(queue string, msgType string) {

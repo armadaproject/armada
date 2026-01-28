@@ -32,6 +32,7 @@ message JobLeasedEvent {
     string queue = 3;
     google.protobuf.Timestamp created = 4;
     string cluster_id = 5;
+    string pool = 6;
 }
 
 message JobLeaseReturnedEvent {
@@ -90,20 +91,6 @@ message JobIngressInfoEvent {
     string pod_name = 10;
     string pod_namespace = 11;
     map<int32, string> ingress_addresses = 9;
-}
-
-message JobUnableToScheduleEvent {
-    string job_id = 1;
-    string job_set_id = 2;
-    string queue = 3;
-    google.protobuf.Timestamp created = 4;
-    string cluster_id = 5;
-    string reason = 6;
-    string kubernetes_id = 7;
-    string node_name = 8;
-    int32 pod_number = 9;
-    string pod_name = 10;
-    string pod_namespace = 11;
 }
 
 message JobFailedEvent {
@@ -224,6 +211,7 @@ message JobTerminatedEvent {
 
 
 message EventMessage {
+  reserved 8,14,16,19,20;
     oneof events {
         JobSubmittedEvent submitted = 1;
         JobQueuedEvent queued = 2;
@@ -232,7 +220,6 @@ message EventMessage {
         JobLeaseExpiredEvent lease_expired = 5;
         JobPendingEvent pending = 6;
         JobRunningEvent running = 7;
-        JobUnableToScheduleEvent unable_to_schedule = 8;
         JobFailedEvent failed = 9;
         JobSucceededEvent succeeded = 10;
         JobReprioritizedEvent reprioritized = 11;

@@ -55,15 +55,17 @@ type JobOptions struct {
 }
 
 type runPatch struct {
-	runId       string
-	cluster     *string
-	exitCode    *int32
-	finished    *time.Time
-	jobRunState lookout.JobRunState
-	node        *string
-	leased      *time.Time
-	pending     *time.Time
-	started     *time.Time
+	runId            string
+	cluster          *string
+	pool             *string
+	exitCode         *int32
+	finished         *time.Time
+	jobRunState      lookout.JobRunState
+	node             *string
+	leased           *time.Time
+	pending          *time.Time
+	started          *time.Time
+	ingressAddresses map[int32]string
 }
 
 func NewJobSimulator(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb) *JobSimulator {
@@ -187,7 +189,7 @@ func (js *JobSimulator) Submit(queue, jobSet, owner, namespace string, timestamp
 	return js
 }
 
-func (js *JobSimulator) Lease(runId string, cluster string, node string, timestamp time.Time) *JobSimulator {
+func (js *JobSimulator) Lease(runId string, cluster string, node string, pool string, timestamp time.Time) *JobSimulator {
 	ts := timestampOrNow(timestamp)
 	leased := protoutil.ToStdTime(ts)
 	leasedEvent := &armadaevents.EventSequence_Event{
@@ -198,6 +200,7 @@ func (js *JobSimulator) Lease(runId string, cluster string, node string, timesta
 				JobId:      js.jobId,
 				ExecutorId: cluster,
 				NodeId:     node,
+				Pool:       pool,
 			},
 		},
 	}
@@ -208,12 +211,14 @@ func (js *JobSimulator) Lease(runId string, cluster string, node string, timesta
 	js.job.State = string(lookout.JobLeased)
 	js.job.Cluster = cluster
 	js.job.Node = &node
+	js.job.Pool = &pool
 	js.updateRun(js.job, &runPatch{
 		runId:       runId,
 		jobRunState: lookout.JobRunLeased,
 		cluster:     &cluster,
 		node:        &node,
 		leased:      &leased,
+		pool:        &pool,
 	})
 	return js
 }
@@ -294,6 +299,27 @@ func (js *JobSimulator) Running(runId string, node string, timestamp time.Time) 
 		jobRunState: lookout.JobRunRunning,
 		node:        &node,
 		started:     &running,
+	})
+	return js
+}
+
+func (js *JobSimulator) IngressInfo(runId string, ingressAddresses map[int32]string, timestamp time.Time) *JobSimulator {
+	ts := timestampOrNow(timestamp)
+	ingressEvent := &armadaevents.EventSequence_Event{
+		Created: ts,
+		Event: &armadaevents.EventSequence_Event_StandaloneIngressInfo{
+			StandaloneIngressInfo: &armadaevents.StandaloneIngressInfo{
+				IngressAddresses: ingressAddresses,
+				JobId:            js.jobId,
+				RunId:            runId,
+			},
+		},
+	}
+	js.events = append(js.events, ingressEvent)
+
+	js.updateRun(js.job, &runPatch{
+		runId:            runId,
+		ingressAddresses: ingressAddresses,
 	})
 	return js
 }
@@ -550,44 +576,6 @@ func (js *JobSimulator) Preempted(timestamp time.Time) *JobSimulator {
 	return js
 }
 
-func (js *JobSimulator) RunUnschedulable(runId string, cluster string, node string, message string, timestamp time.Time) *JobSimulator {
-	ts := timestampOrNow(timestamp)
-	unschedulableTime := protoutil.ToStdTime(ts)
-	runUnschedulable := &armadaevents.EventSequence_Event{
-		Created: ts,
-		Event: &armadaevents.EventSequence_Event_JobRunErrors{
-			JobRunErrors: &armadaevents.JobRunErrors{
-				JobId: js.jobId,
-				RunId: runId,
-				Errors: []*armadaevents.Error{
-					{
-						Terminal: false,
-						Reason: &armadaevents.Error_PodUnschedulable{
-							PodUnschedulable: &armadaevents.PodUnschedulable{
-								NodeName: node,
-								ObjectMeta: &armadaevents.ObjectMeta{
-									ExecutorId: cluster,
-								},
-								Message: message,
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-	js.events = append(js.events, runUnschedulable)
-
-	js.updateRun(js.job, &runPatch{
-		runId:       runId,
-		cluster:     &cluster,
-		finished:    &unschedulableTime,
-		jobRunState: lookout.JobRunUnableToSchedule,
-		node:        &node,
-	})
-	return js
-}
-
 func (js *JobSimulator) LeaseExpired(runId string, timestamp time.Time, _ clock.Clock) *JobSimulator {
 	ts := timestampOrNow(timestamp)
 	leaseExpiredTime := protoutil.ToStdTime(ts)
@@ -705,15 +693,17 @@ func (js *JobSimulator) updateRun(job *model.Job, patch *runPatch) {
 		cluster = *patch.cluster
 	}
 	job.Runs = append(job.Runs, &model.Run{
-		Cluster:     cluster,
-		ExitCode:    patch.exitCode,
-		Finished:    model.NewPostgreSQLTime(patch.finished),
-		JobRunState: lookout.JobRunStateOrdinalMap[patch.jobRunState],
-		Node:        patch.node,
-		Leased:      model.NewPostgreSQLTime(patch.leased),
-		Pending:     model.NewPostgreSQLTime(patch.pending),
-		RunId:       patch.runId,
-		Started:     model.NewPostgreSQLTime(patch.started),
+		Cluster:          cluster,
+		ExitCode:         patch.exitCode,
+		Finished:         model.NewPostgreSQLTime(patch.finished),
+		JobRunState:      lookout.JobRunStateOrdinalMap[patch.jobRunState],
+		Node:             patch.node,
+		Leased:           model.NewPostgreSQLTime(patch.leased),
+		Pending:          model.NewPostgreSQLTime(patch.pending),
+		Pool:             patch.pool,
+		RunId:            patch.runId,
+		Started:          model.NewPostgreSQLTime(patch.started),
+		IngressAddresses: patch.ingressAddresses,
 	})
 	job.RuntimeSeconds = calculateJobRuntime(model.NewPostgreSQLTime(patch.started), model.NewPostgreSQLTime(patch.finished), js.clock)
 }
@@ -721,6 +711,9 @@ func (js *JobSimulator) updateRun(job *model.Job, patch *runPatch) {
 func patchRun(run *model.Run, patch *runPatch) {
 	if patch.cluster != nil {
 		run.Cluster = *patch.cluster
+	}
+	if patch.pool != nil {
+		run.Pool = patch.pool
 	}
 	if patch.exitCode != nil {
 		run.ExitCode = patch.exitCode
@@ -741,6 +734,9 @@ func patchRun(run *model.Run, patch *runPatch) {
 	if patch.started != nil {
 		run.Started = model.NewPostgreSQLTime(patch.started)
 	}
+	if patch.ingressAddresses != nil {
+		run.IngressAddresses = patch.ingressAddresses
+	}
 }
 
 func prefixAnnotations(prefix string, annotations map[string]string) map[string]string {
@@ -751,24 +747,27 @@ func prefixAnnotations(prefix string, annotations map[string]string) map[string]
 	return prefixed
 }
 
-func logQueryDebug(query *Query, description string) {
+func logQueryDebug(user string, query *Query, description string) {
 	log.
+		WithField("user", user).
 		WithField("query", removeNewlinesAndTabs(query.Sql)).
 		WithField("values", query.Args).
 		Debug(description)
 }
 
-func logQueryError(query *Query, description string, duration time.Duration) {
+func logQueryError(user string, query *Query, description string, duration time.Duration) {
 	log.
+		WithField("user", user).
 		WithField("query", removeNewlinesAndTabs(query.Sql)).
 		WithField("values", query.Args).
 		WithField("duration", duration).
 		Errorf("Error executing %s query", description)
 }
 
-func logSlowQuery(query *Query, description string, duration time.Duration) {
+func logSlowQuery(user string, query *Query, description string, duration time.Duration) {
 	if duration > 5*time.Second {
 		log.
+			WithField("user", user).
 			WithField("query", removeNewlinesAndTabs(query.Sql)).
 			WithField("values", query.Args).
 			WithField("duration", duration).

@@ -2,6 +2,7 @@ httpPort: 8080
 application:
   clusterId : "Cluster1"
   pool: "default"
+  reservedNodePoolSuffix: "-reserved"
   submitConcurrencyLimit: 2
   updateConcurrencyLimit: 10
   deleteConcurrencyLimit: 2
@@ -60,7 +61,7 @@ kubernetes:
     deadlineForUpdates: 5m
     deadlineForNodeAssignment: 5m
     events:
-      - regexp: "Failed to pull image.*desc = failed to pull and unpack image"            # Suggests genuine problem with image name, no point in waiting around too long.
+      - regexp: "Failed to pull image.* failed to pull and unpack image"            # Suggests genuine problem with image name, no point in waiting around too long.
         type: Warning
         gracePeriod: 90s
         action: Fail

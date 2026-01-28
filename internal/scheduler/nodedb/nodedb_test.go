@@ -12,6 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
+	"github.com/armadaproject/armada/internal/common/pointer"
 	"github.com/armadaproject/armada/internal/common/util"
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
@@ -153,7 +154,7 @@ func TestNodeBindingEvictionUnbinding(t *testing.T) {
 
 	jobId := job.Id()
 
-	boundNode, err := nodeDb.bindJobToNode(entry, job, job.PriorityClass().Priority)
+	boundNode, err := nodeDb.BindJobToNode(entry, job, job.PriorityClass().Priority)
 	require.NoError(t, err)
 
 	unboundNode, err := nodeDb.UnbindJobFromNode(job, boundNode)
@@ -168,7 +169,7 @@ func TestNodeBindingEvictionUnbinding(t *testing.T) {
 	evictedUnboundNode, err := nodeDb.UnbindJobFromNode(job, evictedNode)
 	require.NoError(t, err)
 
-	evictedBoundNode, err := nodeDb.bindJobToNode(evictedNode, job, job.PriorityClass().Priority)
+	evictedBoundNode, err := nodeDb.BindJobToNode(evictedNode, job, job.PriorityClass().Priority)
 	require.NoError(t, err)
 
 	_, err = nodeDb.EvictJobsFromNode([]*jobdb.Job{job}, entry)
@@ -177,7 +178,7 @@ func TestNodeBindingEvictionUnbinding(t *testing.T) {
 	_, err = nodeDb.UnbindJobFromNode(job, entry)
 	require.NoError(t, err)
 
-	_, err = nodeDb.bindJobToNode(boundNode, job, job.PriorityClass().Priority)
+	_, err = nodeDb.BindJobToNode(boundNode, job, job.PriorityClass().Priority)
 	require.Error(t, err)
 
 	_, err = nodeDb.EvictJobsFromNode([]*jobdb.Job{job}, evictedNode)
@@ -289,11 +290,14 @@ func TestEviction(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 0, len(node.EvictedJobRunIds))
 	assert.Equal(t, map[int32]internaltypes.ResourceList{
-		-1: testfixtures.CpuMem("30", "248Gi"),
-		0:  testfixtures.CpuMem("30", "248Gi"),
-		1:  testfixtures.CpuMem("31", "252Gi"),
-		2:  testfixtures.CpuMem("31", "252Gi"),
-		3:  testfixtures.CpuMem("31", "252Gi"),
+		-1:    testfixtures.CpuMem("30", "248Gi"),
+		0:     testfixtures.CpuMem("30", "248Gi"),
+		1:     testfixtures.CpuMem("31", "252Gi"),
+		2:     testfixtures.CpuMem("31", "252Gi"),
+		3:     testfixtures.CpuMem("31", "252Gi"),
+		28000: testfixtures.CpuMem("32", "256Gi"),
+		29000: testfixtures.CpuMem("32", "256Gi"),
+		30000: testfixtures.CpuMem("32", "256Gi"),
 	}, node.AllocatableByPriority)
 
 	returnedNode, err := nodeDb.EvictJobsFromNode(jobs, node)
@@ -302,19 +306,25 @@ func TestEviction(t *testing.T) {
 	assert.Equal(t, len(jobs), len(returnedNode.EvictedJobRunIds))
 
 	assert.Equal(t, map[int32]internaltypes.ResourceList{
-		-1: testfixtures.CpuMem("30", "248Gi"),
-		0:  testfixtures.CpuMem("30", "248Gi"),
-		1:  testfixtures.CpuMem("31", "252Gi"),
-		2:  testfixtures.CpuMem("31", "252Gi"),
-		3:  testfixtures.CpuMem("31", "252Gi"),
+		-1:    testfixtures.CpuMem("30", "248Gi"),
+		0:     testfixtures.CpuMem("30", "248Gi"),
+		1:     testfixtures.CpuMem("31", "252Gi"),
+		2:     testfixtures.CpuMem("31", "252Gi"),
+		3:     testfixtures.CpuMem("31", "252Gi"),
+		28000: testfixtures.CpuMem("32", "256Gi"),
+		29000: testfixtures.CpuMem("32", "256Gi"),
+		30000: testfixtures.CpuMem("32", "256Gi"),
 	}, node.AllocatableByPriority)
 
 	assert.Equal(t, map[int32]internaltypes.ResourceList{
-		-1: testfixtures.CpuMem("30", "248Gi"),
-		0:  testfixtures.CpuMem("32", "256Gi"),
-		1:  testfixtures.CpuMem("32", "256Gi"),
-		2:  testfixtures.CpuMem("32", "256Gi"),
-		3:  testfixtures.CpuMem("32", "256Gi"),
+		-1:    testfixtures.CpuMem("30", "248Gi"),
+		0:     testfixtures.CpuMem("32", "256Gi"),
+		1:     testfixtures.CpuMem("32", "256Gi"),
+		2:     testfixtures.CpuMem("32", "256Gi"),
+		3:     testfixtures.CpuMem("32", "256Gi"),
+		28000: testfixtures.CpuMem("32", "256Gi"),
+		29000: testfixtures.CpuMem("32", "256Gi"),
+		30000: testfixtures.CpuMem("32", "256Gi"),
 	}, returnedNode.AllocatableByPriority)
 }
 
@@ -343,8 +353,8 @@ func TestScheduleIndividually(t *testing.T) {
 			Nodes: testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			Jobs: testfixtures.WithRequestsJobs(
 				schedulerobjects.ResourceList{
-					Resources: map[string]resource.Quantity{
-						"gibberish": resource.MustParse("1"),
+					Resources: map[string]*resource.Quantity{
+						"gibberish": pointer.MustParseResource("1"),
 					},
 				},
 				testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1),
@@ -369,7 +379,7 @@ func TestScheduleIndividually(t *testing.T) {
 					testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1),
 					testfixtures.N1GpuJobs("A", testfixtures.PriorityClass0, 1)...,
 				),
-				testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 1)...,
+				testfixtures.N32Cpu256GiJobsWithLargeJobToleration("A", testfixtures.PriorityClass0, 1)...,
 			),
 			ExpectSuccess: []bool{false, false, true},
 		},
@@ -522,7 +532,7 @@ func TestScheduleMany(t *testing.T) {
 			Nodes: testfixtures.N32CpuNodes(2, testfixtures.TestPriorities),
 			Jobs: [][]*jobdb.Job{
 				append(
-					testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 1),
+					testfixtures.N32Cpu256GiJobsWithLargeJobToleration("A", testfixtures.PriorityClass0, 1),
 					testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 32)...,
 				),
 				testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1),
@@ -563,16 +573,65 @@ func TestScheduleMany(t *testing.T) {
 
 func TestAwayNodeScheduling(t *testing.T) {
 	tests := map[string]struct {
-		shouldSubmitGang bool
-		expectSuccess    bool
+		shouldSubmitGang          bool
+		disableAwayScheduling     bool
+		disableGangAwayScheduling bool
+		nodeTaint                 v1.Taint
+		wellKnownNodeTypeTaint    v1.Taint
+		expectSuccess             bool
 	}{
 		"should schedule away jobs": {
-			shouldSubmitGang: false,
-			expectSuccess:    true,
+			shouldSubmitGang:       false,
+			expectSuccess:          true,
+			nodeTaint:              v1.Taint{Key: "gpu", Value: "true", Effect: v1.TaintEffectNoSchedule},
+			wellKnownNodeTypeTaint: v1.Taint{Key: "gpu", Value: "true", Effect: v1.TaintEffectNoSchedule},
 		},
-		"should schedule not schedule gangs as away jobs": {
-			shouldSubmitGang: true,
-			expectSuccess:    false,
+
+		"should schedule away jobs - wild card well known node type": {
+			shouldSubmitGang:       false,
+			expectSuccess:          true,
+			nodeTaint:              v1.Taint{Key: "gpu", Value: "true", Effect: v1.TaintEffectNoSchedule},
+			wellKnownNodeTypeTaint: v1.Taint{Key: "gpu", Value: "*", Effect: v1.TaintEffectNoSchedule},
+		},
+		"should schedule away jobs - gang": {
+			shouldSubmitGang:       true,
+			expectSuccess:          true,
+			nodeTaint:              v1.Taint{Key: "gpu", Value: "true", Effect: v1.TaintEffectNoSchedule},
+			wellKnownNodeTypeTaint: v1.Taint{Key: "gpu", Value: "true", Effect: v1.TaintEffectNoSchedule},
+		},
+		"should not schedule away jobs - when node doesn't match configured away types": {
+			shouldSubmitGang:       false,
+			expectSuccess:          false,
+			nodeTaint:              v1.Taint{Key: "cpu", Value: "true", Effect: v1.TaintEffectNoSchedule},
+			wellKnownNodeTypeTaint: v1.Taint{Key: "gpu", Value: "true", Effect: v1.TaintEffectNoSchedule},
+		},
+		"should not schedule away jobs - when away scheduling disabled": {
+			shouldSubmitGang:       false,
+			disableAwayScheduling:  true,
+			expectSuccess:          false,
+			nodeTaint:              v1.Taint{Key: "gpu", Value: "true", Effect: v1.TaintEffectNoSchedule},
+			wellKnownNodeTypeTaint: v1.Taint{Key: "gpu", Value: "true", Effect: v1.TaintEffectNoSchedule},
+		},
+		"should not schedule away jobs - gang - when away scheduling disabled": {
+			shouldSubmitGang:       true,
+			disableAwayScheduling:  true,
+			expectSuccess:          false,
+			nodeTaint:              v1.Taint{Key: "gpu", Value: "true", Effect: v1.TaintEffectNoSchedule},
+			wellKnownNodeTypeTaint: v1.Taint{Key: "gpu", Value: "true", Effect: v1.TaintEffectNoSchedule},
+		},
+		"should schedule away jobs - when gang away scheduling disabled": {
+			shouldSubmitGang:          false,
+			disableGangAwayScheduling: true,
+			expectSuccess:             true,
+			nodeTaint:                 v1.Taint{Key: "gpu", Value: "true", Effect: v1.TaintEffectNoSchedule},
+			wellKnownNodeTypeTaint:    v1.Taint{Key: "gpu", Value: "true", Effect: v1.TaintEffectNoSchedule},
+		},
+		"should not schedule away jobs - gang - when gang away scheduling disabled": {
+			shouldSubmitGang:          true,
+			disableGangAwayScheduling: true,
+			expectSuccess:             false,
+			nodeTaint:                 v1.Taint{Key: "gpu", Value: "true", Effect: v1.TaintEffectNoSchedule},
+			wellKnownNodeTypeTaint:    v1.Taint{Key: "gpu", Value: "true", Effect: v1.TaintEffectNoSchedule},
 		},
 	}
 
@@ -583,22 +642,26 @@ func TestAwayNodeScheduling(t *testing.T) {
 				testfixtures.TestResources,
 				testfixtures.TestIndexedTaints,
 				testfixtures.TestIndexedNodeLabels,
-				testfixtures.TestWellKnownNodeTypes,
+				[]schedulerconfig.WellKnownNodeType{
+					{Name: "gpu", Taints: []v1.Taint{tc.wellKnownNodeTypeTaint}},
+					{Name: "large", Taints: []v1.Taint{{Key: "large", Value: "true", Effect: v1.TaintEffectNoSchedule}}},
+				},
 				testfixtures.TestResourceListFactory,
 			)
 			require.NoError(t, err)
+			if tc.disableAwayScheduling {
+				nodeDb.DisableAwayScheduling()
+			}
+
+			if tc.disableGangAwayScheduling {
+				nodeDb.DisableGangAwayScheduling()
+			}
 
 			nodeDbTxn := nodeDb.Txn(true)
 			node := testfixtures.Test32CpuNode([]int32{29000, 30000})
 			node = testfixtures.TestNodeFactory.AddTaints(
 				[]*internaltypes.Node{node},
-				[]v1.Taint{
-					{
-						Key:    "gpu",
-						Value:  "true",
-						Effect: v1.TaintEffectNoSchedule,
-					},
-				},
+				[]v1.Taint{tc.nodeTaint},
 			)[0]
 
 			jobId := util.ULID()
@@ -612,7 +675,7 @@ func TestAwayNodeScheduling(t *testing.T) {
 			}
 
 			jctx := context.JobSchedulingContextFromJob(job)
-			assert.Equal(t, tc.shouldSubmitGang, jctx.IsGang)
+			assert.Equal(t, tc.shouldSubmitGang, jctx.Job.IsInGang())
 
 			require.NoError(t, nodeDb.CreateAndInsertWithJobDbJobsWithTxn(nodeDbTxn, nil, node))
 
@@ -628,17 +691,19 @@ func TestAwayNodeScheduling(t *testing.T) {
 				assert.Equal(t, node.GetId(), jctx.PodSchedulingContext.NodeId)
 				assert.Equal(t, context.ScheduledAsAwayJob, jctx.PodSchedulingContext.SchedulingMethod)
 				assert.Equal(t, int32(29000), jctx.PodSchedulingContext.ScheduledAtPriority)
-				require.Equal(
-					t,
-					[]v1.Toleration{
-						{
-							Key:    "gpu",
-							Value:  "true",
-							Effect: v1.TaintEffectNoSchedule,
-						},
-					},
-					jctx.AdditionalTolerations,
-				)
+				if tc.wellKnownNodeTypeTaint.Value == schedulerconfig.WildCardWellKnownNodeTypeValue {
+					require.Equal(
+						t,
+						[]v1.Toleration{{Key: "gpu", Operator: v1.TolerationOpExists, Effect: v1.TaintEffectNoSchedule}},
+						jctx.AdditionalTolerations,
+					)
+				} else {
+					require.Equal(
+						t,
+						[]v1.Toleration{{Key: "gpu", Value: "true", Effect: v1.TaintEffectNoSchedule}},
+						jctx.AdditionalTolerations,
+					)
+				}
 			} else {
 				require.False(t, ok)
 				assert.NotNil(t, jctx.PodSchedulingContext)

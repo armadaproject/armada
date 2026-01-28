@@ -1,0 +1,35 @@
+import { useMutation } from "@tanstack/react-query"
+
+import { getErrorMessage } from "../../common/utils"
+import { getConfig } from "../../config"
+
+import { useApiClients } from "../apiClients"
+
+export interface CordonNodeVariables {
+  cluster: string
+  node: string
+}
+
+export const useCordonNode = () => {
+  const config = getConfig()
+  const { getBinocularsApi } = useApiClients()
+
+  return useMutation<object, string, CordonNodeVariables>({
+    mutationFn: async ({ node, cluster }: CordonNodeVariables) => {
+      if (config.fakeDataEnabled) {
+        await new Promise((r) => setTimeout(r, 1_000))
+        return {}
+      }
+
+      try {
+        return await getBinocularsApi(cluster).cordon({
+          body: {
+            nodeName: node,
+          },
+        })
+      } catch (e) {
+        throw await getErrorMessage(e)
+      }
+    },
+  })
+}

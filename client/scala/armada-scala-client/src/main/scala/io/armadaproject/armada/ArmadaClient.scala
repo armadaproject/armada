@@ -1,0 +1,130 @@
+package io.armadaproject.armada
+
+import api.job.{JobStatusRequest, JobStatusResponse, JobsGrpc}
+import api.event.{EventGrpc, WatchRequest}
+import api.submit.{
+  CancellationResult,
+  JobCancelRequest,
+  JobSetCancelRequest,
+  JobSubmitRequest,
+  JobSubmitRequestItem,
+  JobSubmitResponse,
+  Queue,
+  QueueDeleteRequest,
+  QueueGetRequest,
+  SubmitGrpc
+}
+import api.health.HealthCheckResponse
+import com.google.protobuf.empty.Empty
+import io.grpc.netty.NettyChannelBuilder
+import io.grpc.stub.MetadataUtils
+import io.grpc.{ManagedChannel, Metadata}
+
+import scala.concurrent.Future
+
+class ArmadaClient(channel: ManagedChannel) {
+  def submitJobs(
+      queue: String,
+      jobSetId: String,
+      jobRequestItems: Seq[JobSubmitRequestItem]
+  ): JobSubmitResponse = {
+    val blockingStub = SubmitGrpc.blockingStub(channel)
+    blockingStub.submitJobs(JobSubmitRequest(queue, jobSetId, jobRequestItems))
+  }
+
+  def getJobStatus(jobId: String): JobStatusResponse = {
+    val blockingStub = JobsGrpc.blockingStub(channel)
+    blockingStub.getJobStatus(JobStatusRequest(jobIds = Seq(jobId)))
+  }
+
+  def cancelJobs(
+      cancelReq: JobCancelRequest
+  ): scala.concurrent.Future[CancellationResult] = {
+    SubmitGrpc.stub(channel).cancelJobs(cancelReq)
+  }
+
+  def cancelJobSet(jobSetId: String): Future[Empty] = {
+    SubmitGrpc.blockingStub(channel).cancelJobSet(JobSetCancelRequest(jobSetId))
+    Future.successful(new Empty)
+  }
+
+  def eventHealth(): HealthCheckResponse.ServingStatus = {
+    val blockingStub = EventGrpc.blockingStub(channel)
+    blockingStub.health(Empty()).status
+  }
+
+  def submitHealth(): scala.concurrent.Future[HealthCheckResponse] = {
+    SubmitGrpc.stub(channel).health(Empty())
+  }
+
+  def createQueue(name: String): Unit = {
+    val blockingStub = SubmitGrpc.blockingStub(channel)
+    val q = api.submit.Queue().withName(name).withPriorityFactor(1)
+    blockingStub.createQueue(q)
+  }
+
+  def deleteQueue(name: String): Unit = {
+    val qReq = QueueDeleteRequest(name)
+    val blockingStub = SubmitGrpc.blockingStub(channel)
+    blockingStub.deleteQueue(qReq)
+  }
+
+  def getQueue(name: String): Queue = {
+    val qReq = QueueGetRequest(name)
+    val blockingStub = SubmitGrpc.blockingStub(channel)
+    blockingStub.getQueue(qReq)
+  }
+
+  def jobWatcher(
+      q: String,
+      jobSet: String,
+      lastMessage: String
+  ): scala.collection.Iterator[api.event.EventStreamMessage] = {
+    val eventStub = EventGrpc.blockingStub(channel)
+    val watchRequest =
+      WatchRequest(queue = q, jobSetId = jobSet, fromId = lastMessage)
+
+    return eventStub.watch(watchRequest)
+  }
+}
+
+object ArmadaClient {
+  def apply(channel: ManagedChannel): ArmadaClient = {
+    new ArmadaClient(channel)
+  }
+
+  def apply(host: String, port: Int): ArmadaClient = {
+    apply(host, port, false, None)
+  }
+
+  def apply(
+      host: String,
+      port: Int,
+      useSsl: Boolean,
+      bearerToken: Option[String]
+  ): ArmadaClient = {
+    val secureMode =
+      host.startsWith("https://") || host.startsWith("grpcs://") || useSsl
+    val channel = (secureMode, bearerToken) match {
+      case (false, None) =>
+        NettyChannelBuilder.forAddress(host, port).usePlaintext().build()
+      case (true, None) =>
+        NettyChannelBuilder
+          .forAddress(host, port)
+          .useTransportSecurity()
+          .build()
+      case (_, Some(token)) =>
+        val metadata = new Metadata()
+        metadata.put(
+          Metadata.Key.of("Authorization", Metadata.ASCII_STRING_MARSHALLER),
+          "Bearer " + token
+        )
+        NettyChannelBuilder
+          .forAddress(host, port)
+          .useTransportSecurity()
+          .intercept(MetadataUtils.newAttachHeadersInterceptor(metadata))
+          .build
+    }
+    ArmadaClient(channel)
+  }
+}

@@ -33,6 +33,8 @@ type QueueScheduler struct {
 	schedulingContext     *schedulercontext.SchedulingContext
 	candidateGangIterator CandidateGangIterator
 	gangScheduler         *GangScheduler
+	marketDriven          bool
+	spotPriceCutoff       float64
 }
 
 func NewQueueScheduler(
@@ -46,6 +48,7 @@ func NewQueueScheduler(
 	prioritiseLargerJobs bool,
 	maxQueueLookBack uint,
 	marketDriven bool,
+	spotPriceCutoff float64,
 ) (*QueueScheduler, error) {
 	for queue := range jobIteratorByQueue {
 		if _, ok := sctx.QueueSchedulingContexts[queue]; !ok {
@@ -72,20 +75,22 @@ func NewQueueScheduler(
 			return nil, err
 		}
 	}
-
 	return &QueueScheduler{
 		schedulingContext:     sctx,
 		candidateGangIterator: candidateGangIterator,
 		gangScheduler:         gangScheduler,
+		marketDriven:          marketDriven,
+		spotPriceCutoff:       spotPriceCutoff,
 	}, nil
 }
 
 func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResult, error) {
 	var scheduledJobs []*schedulercontext.JobSchedulingContext
+	sctx := sch.schedulingContext
 
-	nodeIdByJobId := make(map[string]string)
-	ctx.Infof("Looping through candidate gangs for pool %s...", sch.schedulingContext.Pool)
+	ctx.Infof("Looping through candidate gangs for pool %s...", sctx.Pool)
 
+	scheduledResource := sch.schedulingContext.TotalResources.Factory().MakeAllZero()
 	statsPerQueue := map[string]QueueStats{}
 	loopNumber := 0
 	for {
@@ -93,7 +98,7 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 		// Calling Clear() after (failing to) schedule ensures we get the next gang in order of smallest fair share.
 		gctx, queueCostInclGang, err := sch.candidateGangIterator.Peek()
 		if err != nil {
-			sch.schedulingContext.TerminationReason = err.Error()
+			sctx.TerminationReason = err.Error()
 			return nil, err
 		}
 		if gctx == nil {
@@ -109,7 +114,7 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 		case <-ctx.Done():
 			// TODO: Better to push ctx into next and have that control it.
 			err := ctx.Err()
-			sch.schedulingContext.TerminationReason = err.Error()
+			sctx.TerminationReason = err.Error()
 			return nil, err
 		default:
 		}
@@ -121,13 +126,34 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 			for _, jctx := range gctx.JobSchedulingContexts {
 				if pctx := jctx.PodSchedulingContext; pctx.IsSuccessful() {
 					scheduledJobs = append(scheduledJobs, jctx)
-					nodeIdByJobId[jctx.JobId] = pctx.NodeId
+				}
+			}
+
+			scheduledResource = scheduledResource.Add(gctx.TotalResourceRequests)
+			if sch.marketDriven && sctx.SpotPrice == nil {
+				totalAllocation := sctx.FairnessCostProvider.UnweightedCostFromAllocation(scheduledResource)
+				if totalAllocation > sch.spotPriceCutoff {
+					price := gctx.JobSchedulingContexts[0].Job.GetBidPrice(sctx.Pool)
+					priceSettingJctx := gctx.JobSchedulingContexts[0]
+					for _, jctx := range gctx.JobSchedulingContexts {
+						if jctx.Job.GetBidPrice(sctx.Pool) < price {
+							price = jctx.Job.GetBidPrice(sctx.Pool)
+							priceSettingJctx = jctx
+						}
+					}
+					ctx.Infof("setting spot price to %f based on job %s, current scheduled resource is %s, total resource is %s",
+						price, priceSettingJctx.JobId, scheduledResource, sctx.TotalResources)
+
+					sctx.SpotPrice = &price
+					for _, qctx := range sctx.QueueSchedulingContexts {
+						qctx.SetBillableResource()
+					}
 				}
 			}
 		} else if schedulerconstraints.IsTerminalUnschedulableReason(unschedulableReason) {
 			// If unschedulableReason indicates no more new jobs can be scheduled,
 			// instruct the underlying iterator to only yield evicted jobs from now on.
-			sch.schedulingContext.TerminationReason = unschedulableReason
+			sctx.TerminationReason = unschedulableReason
 			sch.candidateGangIterator.OnlyYieldEvicted()
 		} else if schedulerconstraints.IsTerminalQueueUnschedulableReason(unschedulableReason) {
 			// If unschedulableReason indicates no more new jobs can be scheduled for this queue,
@@ -183,7 +209,7 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 		loopNumber++
 	}
 
-	ctx.Infof("Finished %d loops through candidate gangs for pool %s: details %v", loopNumber, sch.schedulingContext.Pool, armadamaps.MapValues(statsPerQueue, func(s QueueStats) string {
+	ctx.Infof("Finished %d loops through candidate gangs for pool %s: details %v", loopNumber, sctx.Pool, armadamaps.MapValues(statsPerQueue, func(s QueueStats) string {
 		return fmt.Sprintf("{gangsConsidered=%d, jobsConsidered=%d, gangsScheduled=%d, "+
 			"firstGangConsideredSampleJobId=%s, firstGangConsideredResult=%s, firstGangConsideredQueuePosition=%d, "+
 			"lastGangScheduledSampleJobId=%s, lastGangScheduledQueuePosition=%d, lastGangScheduledQueueCost=%f,"+
@@ -202,11 +228,8 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 			s.Time.Seconds())
 	}))
 
-	if sch.schedulingContext.TerminationReason == "" {
-		sch.schedulingContext.TerminationReason = "no remaining candidate jobs"
-	}
-	if len(scheduledJobs) != len(nodeIdByJobId) {
-		return nil, errors.Errorf("only %d out of %d jobs mapped to a node", len(nodeIdByJobId), len(scheduledJobs))
+	if sctx.TerminationReason == "" {
+		sctx.TerminationReason = "no remaining candidate jobs"
 	}
 
 	schedulingStats := PerPoolSchedulingStats{
@@ -217,10 +240,9 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 	return &SchedulerResult{
 		PreemptedJobs:      nil,
 		ScheduledJobs:      scheduledJobs,
-		NodeIdByJobId:      nodeIdByJobId,
-		SchedulingContexts: []*schedulercontext.SchedulingContext{sch.schedulingContext},
+		SchedulingContexts: []*schedulercontext.SchedulingContext{sctx},
 		PerPoolSchedulingStats: map[string]PerPoolSchedulingStats{
-			sch.schedulingContext.Pool: schedulingStats,
+			sctx.Pool: schedulingStats,
 		},
 	}, nil
 }
@@ -311,11 +333,12 @@ func (it *QueuedGangIterator) Peek() (*schedulercontext.GangSchedulingContext, e
 				}
 			}
 		}
-		if gangId := jctx.GangInfo.Id; gangId != "" {
+		if jctx.Job.IsInGang() {
+			gangId := jctx.Job.GetGangInfo().Id()
 			gang := it.jctxsByGangId[gangId]
 			gang = append(gang, jctx)
 			it.jctxsByGangId[gangId] = gang
-			if len(gang) == jctx.GangInfo.Cardinality {
+			if len(gang) == jctx.CurrentGangCardinality {
 				delete(it.jctxsByGangId, gangId)
 				it.next = schedulercontext.NewGangSchedulingContext(gang)
 				return it.next, nil
@@ -483,8 +506,8 @@ func (it *CostBasedCandidateGangIterator) updatePQItem(item *QueueCandidateGangI
 	if err != nil {
 		return err
 	}
-	item.proposedQueueCost = it.fairnessCostProvider.WeightedCostFromAllocation(queue.GetAllocation().Add(gctx.TotalResourceRequests), queue.GetWeight())
-	item.currentQueueCost = it.fairnessCostProvider.WeightedCostFromAllocation(queue.GetAllocation(), queue.GetWeight())
+	item.proposedQueueCost = it.fairnessCostProvider.WeightedCostFromAllocation(queue.GetAllocationInclShortJobPenalty().Add(gctx.TotalResourceRequests), queue.GetWeight())
+	item.currentQueueCost = it.fairnessCostProvider.WeightedCostFromAllocation(queue.GetAllocationInclShortJobPenalty(), queue.GetWeight())
 	// We multiply here, as queue weights are a fraction
 	// So for the same job size, highly weighted queues jobs will look larger
 	item.itemSize = it.fairnessCostProvider.UnweightedCostFromAllocation(gctx.TotalResourceRequests) * queue.GetWeight()

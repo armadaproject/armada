@@ -76,8 +76,8 @@ func TestEvictOversubscribed(t *testing.T) {
 
 	for nodeId, node := range result.AffectedNodesById {
 		for _, p := range priorities {
-			for _, r := range node.AllocatableByPriority[p].GetResources() {
-				assert.True(t, r.RawValue >= 0, "resource %s oversubscribed by %d on node %s", r.Name, r.RawValue, nodeId)
+			for _, r := range node.AllocatableByPriority[p].GetAll() {
+				assert.False(t, r.IsNegative(), "resource oversubscribed by %s on node %s", r.String(), nodeId)
 			}
 		}
 	}
@@ -97,6 +97,8 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 		IndicesToUnbind map[string]map[int][]int
 		// Indices of nodes that should be cordoned before scheduling.
 		NodeIndicesToCordon []int
+		// If this round should run with the optimiser enabled
+		OptimiserEnabled bool
 	}
 	tests := map[string]struct {
 		SchedulingConfig configuration.SchedulingConfig
@@ -163,6 +165,50 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				"A": 1,
 				"B": 1,
 				"C": 1,
+			},
+		},
+		"optimiser": {
+			SchedulingConfig: testfixtures.WithProtectedFractionOfFairShareConfig(1,
+				testfixtures.WithOptimiserConfig(testfixtures.TestPool, createOptimiserConfig(10, map[string]float64{}, nil),
+					testfixtures.TestSchedulingConfig())),
+			Nodes: armadaslices.Concatenate(
+				testfixtures.NTainted32CpuNodes(1, testfixtures.TestPriorities), // Here to ensure B isn't above fairshare
+				testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			),
+			Rounds: []SchedulingRound{
+				{
+					JobsByQueue: map[string][]*jobdb.Job{
+						"A": testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass2, 1),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": testfixtures.IntRange(0, 0),
+					},
+				},
+				{
+					JobsByQueue: map[string][]*jobdb.Job{
+						"B": testfixtures.N32Cpu256GiJobs("B", testfixtures.PriorityClass2, 1),
+					},
+					ExpectedScheduledIndices: map[string][]int{},
+					ExpectedPreemptedIndices: map[string]map[int][]int{},
+				},
+				{
+					JobsByQueue: map[string][]*jobdb.Job{
+						"B": testfixtures.N32Cpu256GiJobs("B", testfixtures.PriorityClass2, 1),
+					},
+					OptimiserEnabled: true,
+					ExpectedScheduledIndices: map[string][]int{
+						"B": testfixtures.IntRange(0, 0),
+					},
+					ExpectedPreemptedIndices: map[string]map[int][]int{
+						"A": {
+							0: testfixtures.IntRange(0, 0),
+						},
+					},
+				},
+			},
+			PriorityFactorByQueue: map[string]float64{
+				"A": 1,
+				"B": 1,
 			},
 		},
 		"balancing two queues weighted": {
@@ -277,7 +323,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				},
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"B": testfixtures.N32Cpu256GiJobs("B", testfixtures.PriorityClass0, 1),
+						"B": testfixtures.N32Cpu256GiJobsWithLargeJobToleration("B", testfixtures.PriorityClass0, 1),
 					},
 				},
 			},
@@ -300,7 +346,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				},
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 1),
+						"A": testfixtures.N32Cpu256GiJobsWithLargeJobToleration("A", testfixtures.PriorityClass0, 1),
 					},
 				},
 			},
@@ -323,7 +369,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				},
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"B": testfixtures.N32Cpu256GiJobs("B", testfixtures.PriorityClass0, 1),
+						"B": testfixtures.N32Cpu256GiJobsWithLargeJobToleration("B", testfixtures.PriorityClass0, 1),
 					},
 					ExpectedPreemptedIndices: map[string]map[int][]int{
 						"A": {
@@ -394,6 +440,26 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				"B": 1,
 			},
 		},
+		"urgency-based preemption - gangs": {
+			SchedulingConfig: testfixtures.TestSchedulingConfig(),
+			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			Rounds: []SchedulingRound{
+				{
+					JobsByQueue: map[string][]*jobdb.Job{
+						"A": testfixtures.WithGangAnnotationsJobs(testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 32)),
+						"B": testfixtures.WithGangAnnotationsJobs(testfixtures.N1Cpu4GiJobs("B", testfixtures.PriorityClass1, 32)),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"B": testfixtures.IntRange(0, 31),
+					},
+				},
+				{}, // Empty round to make sure nothing changes.
+			},
+			PriorityFactorByQueue: map[string]float64{
+				"A": 1,
+				"B": 1,
+			},
+		},
 		"urgency-based preemption stability": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
 			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
@@ -437,7 +503,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 1),
+						"A": testfixtures.N32Cpu256GiJobsWithLargeJobToleration("A", testfixtures.PriorityClass0, 1),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"A": testfixtures.IntRange(0, 0),
@@ -446,7 +512,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				{
 					// These should all be scheduled onto the second node with no preemptions necessary.
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass1, 1),
+						"A": testfixtures.N32Cpu256GiJobsWithLargeJobToleration("A", testfixtures.PriorityClass1, 1),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"A": testfixtures.IntRange(0, 0),
@@ -463,7 +529,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass1, 1),
+						"A": testfixtures.N32Cpu256GiJobsWithLargeJobToleration("A", testfixtures.PriorityClass1, 1),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"A": testfixtures.IntRange(0, 0),
@@ -471,7 +537,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				},
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 1),
+						"A": testfixtures.N32Cpu256GiJobsWithLargeJobToleration("A", testfixtures.PriorityClass0, 1),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"A": testfixtures.IntRange(0, 0),
@@ -480,7 +546,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				{
 					// This job should preempt the priority-0 jobs.
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass2, 1),
+						"A": testfixtures.N32Cpu256GiJobsWithLargeJobToleration("A", testfixtures.PriorityClass2, 1),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"A": testfixtures.IntRange(0, 0),
@@ -502,7 +568,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass1, 1),
+						"A": testfixtures.N32Cpu256GiJobsWithLargeJobToleration("A", testfixtures.PriorityClass1, 1),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"A": testfixtures.IntRange(0, 0),
@@ -511,7 +577,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				{
 					// These should all be scheduled onto the second node with no preemptions necessary.
 					JobsByQueue: map[string][]*jobdb.Job{
-						"B": testfixtures.N32Cpu256GiJobs("B", testfixtures.PriorityClass0, 1),
+						"B": testfixtures.N32Cpu256GiJobsWithLargeJobToleration("B", testfixtures.PriorityClass0, 1),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"B": testfixtures.IntRange(0, 0),
@@ -520,7 +586,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				{
 					// These should all be scheduled onto the second node with no preemptions necessary.
 					JobsByQueue: map[string][]*jobdb.Job{
-						"C": testfixtures.N32Cpu256GiJobs("C", testfixtures.PriorityClass2, 1),
+						"C": testfixtures.N32Cpu256GiJobsWithLargeJobToleration("C", testfixtures.PriorityClass2, 1),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"C": testfixtures.IntRange(0, 0),
@@ -529,7 +595,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				{
 					// These should all be scheduled onto the second node with no preemptions necessary.
 					JobsByQueue: map[string][]*jobdb.Job{
-						"D": testfixtures.N32Cpu256GiJobs("D", testfixtures.PriorityClass3, 1),
+						"D": testfixtures.N32Cpu256GiJobsWithLargeJobToleration("D", testfixtures.PriorityClass3, 1),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"D": testfixtures.IntRange(0, 0),
@@ -546,6 +612,76 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				"B": 1,
 				"C": 1,
 				"D": 1,
+			},
+		},
+		"gang scheduled - away": {
+			SchedulingConfig: testfixtures.TestSchedulingConfig(),
+			Nodes:            testfixtures.NTainted32CpuNodes(2, testfixtures.TestPriorities),
+			Rounds: []SchedulingRound{
+				{
+					JobsByQueue: map[string][]*jobdb.Job{
+						"A": testfixtures.WithGangAnnotationsJobs(testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass4PreemptibleAway, 2)),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": testfixtures.IntRange(0, 1),
+					},
+				},
+			},
+			PriorityFactorByQueue: map[string]float64{
+				"A": 1,
+			},
+		},
+		"gang scheduled - mixed home and away": {
+			SchedulingConfig: testfixtures.TestSchedulingConfig(),
+			Nodes: armadaslices.Concatenate(
+				testfixtures.NTainted32CpuNodes(1, testfixtures.TestPriorities), // Tainted so one job will schedule away
+				testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			),
+			Rounds: []SchedulingRound{
+				{
+					JobsByQueue: map[string][]*jobdb.Job{
+						"A": testfixtures.WithGangAnnotationsJobs(testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass4PreemptibleAway, 2)),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": testfixtures.IntRange(0, 1),
+					},
+				},
+			},
+			PriorityFactorByQueue: map[string]float64{
+				"A": 1,
+			},
+		},
+		"gang scheduled mixed home and away - preempted in same round": {
+			SchedulingConfig: testfixtures.TestSchedulingConfig(),
+			Nodes: armadaslices.Concatenate(
+				testfixtures.NTainted32CpuNodes(1, testfixtures.TestPriorities), // Tainted so one job will schedule away
+				testfixtures.N32CpuNodes(2, testfixtures.TestPriorities),
+			),
+			Rounds: []SchedulingRound{
+				{
+					// Schedule queue B first, so it uses some share and schedule second in the second round
+					JobsByQueue: map[string][]*jobdb.Job{
+						"B": testfixtures.N32Cpu256GiJobs("B", testfixtures.PriorityClass6Preemptible, 1),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"B": testfixtures.IntRange(0, 0),
+					},
+				},
+				{
+					JobsByQueue: map[string][]*jobdb.Job{
+						"A": testfixtures.WithGangAnnotationsJobs(testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass4PreemptibleAway, 2)),
+						// Schedule a job for queue B that can run as "home" on the tainted nodes, so that it preempts the away schedule gang job
+						"B": testfixtures.N32Cpu256GiJobsWithLargeJobToleration("B", testfixtures.PriorityClass6Preemptible, 1),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"B": testfixtures.IntRange(0, 0),
+					},
+				},
+			},
+
+			PriorityFactorByQueue: map[string]float64{
+				"A": 1,
+				"B": 1,
 			},
 		},
 		"gang preemption": {
@@ -624,7 +760,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					// Schedule a job that requires preempting the one job on node 3.
 					// Assert that the entire second gang is preempted and that the first gang isn't.
 					JobsByQueue: map[string][]*jobdb.Job{
-						"B": testfixtures.N32Cpu256GiJobs("B", testfixtures.PriorityClass1, 1),
+						"B": testfixtures.N32Cpu256GiJobsWithLargeJobToleration("B", testfixtures.PriorityClass1, 1),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"B": testfixtures.IntRange(0, 0),
@@ -763,7 +899,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 1),
+						"A": testfixtures.N32Cpu256GiJobsWithLargeJobToleration("A", testfixtures.PriorityClass0, 1),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"A": testfixtures.IntRange(0, 0),
@@ -771,7 +907,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				},
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass1, 1),
+						"A": testfixtures.N32Cpu256GiJobsWithLargeJobToleration("A", testfixtures.PriorityClass1, 1),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"A": testfixtures.IntRange(0, 0),
@@ -793,7 +929,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 1),
+						"A": testfixtures.N32Cpu256GiJobsWithLargeJobToleration("A", testfixtures.PriorityClass0, 1),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"A": testfixtures.IntRange(0, 0),
@@ -801,7 +937,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				},
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"B": testfixtures.N32Cpu256GiJobs("B", testfixtures.PriorityClass1, 1),
+						"B": testfixtures.N32Cpu256GiJobsWithLargeJobToleration("B", testfixtures.PriorityClass1, 1),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"B": testfixtures.IntRange(0, 0),
@@ -824,7 +960,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": append(testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 1), testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass1, 1)...),
+						"A": append(testfixtures.N32Cpu256GiJobsWithLargeJobToleration("A", testfixtures.PriorityClass0, 1), testfixtures.N32Cpu256GiJobsWithLargeJobToleration("A", testfixtures.PriorityClass1, 1)...),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"A": testfixtures.IntRange(1, 1),
@@ -1492,7 +1628,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 										},
 									},
 								},
-								testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 3),
+								testfixtures.N32Cpu256GiJobsWithLargeJobToleration("A", testfixtures.PriorityClass0, 3),
 							),
 						),
 					},
@@ -1583,12 +1719,13 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": func() (jobs []*jobdb.Job) {
+						"A": func() []*jobdb.Job {
+							var jobs []*jobdb.Job
 							for i := 0; i < 96; i++ {
 								jobId := util.ULID()
 								jobs = append(jobs, testfixtures.TestJob("A", jobId, "armada-preemptible-away", testfixtures.Test1Cpu4GiPodReqs("A", jobId, 30000)))
 							}
-							return
+							return jobs
 						}(),
 					},
 					ExpectedScheduledIndices: map[string][]int{"A": testfixtures.IntRange(0, 95)},
@@ -1596,14 +1733,15 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				},
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"B": func() (jobs []*jobdb.Job) {
+						"B": func() []*jobdb.Job {
+							var jobs []*jobdb.Job
 							for i := 0; i < 12; i++ {
 								jobId := util.ULID()
 								req := testfixtures.Test1GpuPodReqs("B", jobId, 30000)
 								req.Tolerations = append(req.Tolerations, v1.Toleration{Key: "gpu", Value: "true", Effect: v1.TaintEffectNoSchedule})
 								jobs = append(jobs, testfixtures.TestJob("B", jobId, "armada-preemptible", req))
 							}
-							return
+							return jobs
 						}(),
 					},
 					ExpectedScheduledIndices: map[string][]int{"B": testfixtures.IntRange(0, 11)},
@@ -1640,14 +1778,15 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"B": func() (jobs []*jobdb.Job) {
+						"B": func() []*jobdb.Job {
+							var jobs []*jobdb.Job
 							for i := 0; i < 12; i++ {
 								jobId := util.ULID()
 								req := testfixtures.Test1GpuPodReqs("B", jobId, 30000)
 								req.Tolerations = append(req.Tolerations, v1.Toleration{Key: "gpu", Value: "true", Effect: v1.TaintEffectNoSchedule})
 								jobs = append(jobs, testfixtures.TestJob("B", jobId, "armada-preemptible", req))
 							}
-							return
+							return jobs
 						}(),
 					},
 					ExpectedScheduledIndices: map[string][]int{"B": testfixtures.IntRange(0, 11)},
@@ -1655,12 +1794,13 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				},
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": func() (jobs []*jobdb.Job) {
+						"A": func() []*jobdb.Job {
+							var jobs []*jobdb.Job
 							for i := 0; i < 96; i++ {
 								jobId := util.ULID()
 								jobs = append(jobs, testfixtures.TestJob("A", jobId, "armada-preemptible-away", testfixtures.Test1Cpu4GiPodReqs("A", jobId, 30000)))
 							}
-							return
+							return jobs
 						}(),
 					},
 					ExpectedScheduledIndices: map[string][]int{"A": testfixtures.IntRange(0, 31)},
@@ -1707,12 +1847,13 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": func() (jobs []*jobdb.Job) {
+						"A": func() []*jobdb.Job {
+							var jobs []*jobdb.Job
 							for i := 0; i < 96; i++ {
 								jobId := util.ULID()
 								jobs = append(jobs, testfixtures.TestJob("A", jobId, "armada-preemptible-away", testfixtures.Test1Cpu4GiPodReqs("A", jobId, 30000)))
 							}
-							return
+							return jobs
 						}(),
 					},
 					ExpectedScheduledIndices: map[string][]int{"A": testfixtures.IntRange(0, 95)},
@@ -1720,14 +1861,15 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				},
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"B": func() (jobs []*jobdb.Job) {
+						"B": func() []*jobdb.Job {
+							var jobs []*jobdb.Job
 							for i := 0; i < 12; i++ {
 								jobId := util.ULID()
 								req := testfixtures.Test1GpuPodReqs("B", jobId, 30000)
 								req.Tolerations = append(req.Tolerations, v1.Toleration{Key: "gpu", Value: "true", Effect: v1.TaintEffectNoSchedule})
 								jobs = append(jobs, testfixtures.TestJob("B", jobId, "armada-preemptible", req))
 							}
-							return
+							return jobs
 						}(),
 					},
 					ExpectedScheduledIndices: map[string][]int{"B": testfixtures.IntRange(0, 7)},
@@ -1768,14 +1910,15 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"B": func() (jobs []*jobdb.Job) {
+						"B": func() []*jobdb.Job {
+							var jobs []*jobdb.Job
 							for i := 0; i < 12; i++ {
 								jobId := util.ULID()
 								req := testfixtures.Test1GpuPodReqs("B", jobId, 30000)
 								req.Tolerations = append(req.Tolerations, v1.Toleration{Key: "gpu", Value: "true", Effect: v1.TaintEffectNoSchedule})
 								jobs = append(jobs, testfixtures.TestJob("B", jobId, "armada-preemptible", req))
 							}
-							return
+							return jobs
 						}(),
 					},
 					ExpectedScheduledIndices: map[string][]int{"B": testfixtures.IntRange(0, 7)},
@@ -1783,12 +1926,13 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				},
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": func() (jobs []*jobdb.Job) {
+						"A": func() []*jobdb.Job {
+							var jobs []*jobdb.Job
 							for i := 0; i < 96; i++ {
 								jobId := util.ULID()
 								jobs = append(jobs, testfixtures.TestJob("A", jobId, "armada-preemptible-away", testfixtures.Test1Cpu4GiPodReqs("A", jobId, 30000)))
 							}
-							return
+							return jobs
 						}(),
 					},
 					ExpectedScheduledIndices: map[string][]int{"A": testfixtures.IntRange(0, 31)},
@@ -1838,21 +1982,23 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": func() (jobs []*jobdb.Job) {
+						"A": func() []*jobdb.Job {
+							var jobs []*jobdb.Job
 							for i := 0; i < 16; i++ {
 								jobId := util.ULID()
 								req := testfixtures.Test1Cpu4GiPodReqs("A", jobId, 30000)
 								jobs = append(jobs, testfixtures.TestJob("A", jobId, "armada-preemptible-away-lower", req))
 							}
-							return
+							return jobs
 						}(),
-						"B": func() (jobs []*jobdb.Job) {
+						"B": func() []*jobdb.Job {
+							var jobs []*jobdb.Job
 							for i := 0; i < 16; i++ {
 								jobId := util.ULID()
 								req := testfixtures.Test1Cpu4GiPodReqs("B", jobId, 30000)
 								jobs = append(jobs, testfixtures.TestJob("B", jobId, "armada-preemptible-away", req))
 							}
-							return
+							return jobs
 						}(),
 					},
 					ExpectedScheduledIndices: map[string][]int{
@@ -1862,14 +2008,15 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				},
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"C": func() (jobs []*jobdb.Job) {
+						"C": func() []*jobdb.Job {
+							var jobs []*jobdb.Job
 							for i := 0; i < 17; i++ {
 								jobId := util.ULID()
 								req := testfixtures.Test1Cpu4GiPodReqs("C", jobId, 30000)
 								req.Tolerations = append(req.Tolerations, v1.Toleration{Key: "gpu", Value: "true", Effect: v1.TaintEffectNoSchedule})
 								jobs = append(jobs, testfixtures.TestJob("C", jobId, "armada-preemptible", req))
 							}
-							return
+							return jobs
 						}(),
 					},
 					ExpectedScheduledIndices: map[string][]int{
@@ -1915,8 +2062,6 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 			indexByJobId := make(map[string]int)
 			allocatedByQueueAndPriorityClass := make(map[string]map[string]internaltypes.ResourceList)
 			nodeIdByJobId := make(map[string]string)
-			var jobIdsByGangId map[string]map[string]bool
-			var gangIdByJobId map[string]string
 
 			// Scheduling rate-limiters persist between rounds.
 			// We control the rate at which time passes between scheduling rounds.
@@ -1987,10 +2132,6 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 							require.NoError(t, err)
 							err = nodeDb.Upsert(node)
 							require.NoError(t, err)
-							if gangId, ok := gangIdByJobId[job.Id()]; ok {
-								delete(gangIdByJobId, job.Id())
-								delete(jobIdsByGangId[gangId], job.Id())
-							}
 							demandByQueue[job.Queue()] = demandByQueue[job.Queue()].Subtract(job.AllResourceRequirements())
 						}
 					}
@@ -2017,6 +2158,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 
 				fairnessCostProvider, err := fairness.NewDominantResourceFairness(
 					nodeDb.TotalKubernetesResources(),
+					testfixtures.TestPool,
 					tc.SchedulingConfig,
 				)
 				require.NoError(t, err)
@@ -2038,6 +2180,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 						allocatedByQueueAndPriorityClass[queue],
 						queueDemand,
 						queueDemand,
+						internaltypes.ResourceList{},
 						limiterByQueue[queue],
 					)
 					require.NoError(t, err)
@@ -2061,16 +2204,10 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					tc.SchedulingConfig,
 					jobDbTxn,
 					nodeDb,
-					nodeIdByJobId,
-					jobIdsByGangId,
-					gangIdByJobId,
-					false,
+					round.OptimiserEnabled,
 				)
-
 				result, err := sch.Schedule(ctx)
 				require.NoError(t, err)
-				jobIdsByGangId = sch.jobIdsByGangId
-				gangIdByJobId = sch.gangIdByJobId
 
 				// Test resource accounting.
 				for _, jctx := range result.PreemptedJobs {
@@ -2099,8 +2236,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				// Test that jobs are mapped to nodes correctly.
 				for _, jctx := range result.PreemptedJobs {
 					job := jctx.Job
-					nodeId, ok := result.NodeIdByJobId[job.Id()]
-					assert.True(t, ok)
+					nodeId := jctx.AssignedNode.GetId()
 					assert.NotEmpty(t, nodeId)
 
 					// Check that preempted jobs are preempted from the node they were previously scheduled onto.
@@ -2109,8 +2245,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				}
 				for _, jctx := range result.ScheduledJobs {
 					job := jctx.Job
-					nodeId, ok := result.NodeIdByJobId[job.Id()]
-					assert.True(t, ok)
+					nodeId := jctx.PodSchedulingContext.NodeId
 					assert.NotEmpty(t, nodeId)
 
 					node, err := nodeDb.GetNode(nodeId)
@@ -2129,11 +2264,6 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 						assert.Equal(t, expectedNodeId, nodeId, "job %s scheduled onto unexpected node", job.Id())
 					} else {
 						nodeIdByJobId[job.Id()] = nodeId
-					}
-				}
-				for jobId, nodeId := range result.NodeIdByJobId {
-					if expectedNodeId, ok := nodeIdByJobId[jobId]; ok {
-						assert.Equal(t, expectedNodeId, nodeId, "job %s preempted from/scheduled onto unexpected node", jobId)
 					}
 				}
 
@@ -2180,8 +2310,8 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				require.NoError(t, err)
 				for node := it.NextNode(); node != nil; node = it.NextNode() {
 					for _, p := range priorities {
-						for _, r := range node.AllocatableByPriority[p].GetResources() {
-							assert.True(t, r.RawValue >= 0, "resource %s oversubscribed by %d on node %s", r.Name, r.RawValue, node.GetId())
+						for _, r := range node.AllocatableByPriority[p].GetAll() {
+							assert.False(t, r.IsNegative(), "resource oversubscribed by %s on node %s", r.String(), node.GetId())
 						}
 					}
 				}
@@ -2222,7 +2352,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				for _, jctx := range result.ScheduledJobs {
 					job := jctx.Job
 					jobId := job.Id()
-					node, err := nodeDb.GetNode(result.NodeIdByJobId[jobId])
+					node, err := nodeDb.GetNode(jctx.PodSchedulingContext.NodeId)
 					require.NotNil(t, node)
 					require.NoError(t, err)
 					priority, ok := nodeDb.GetScheduledAtPriority(jobId)
@@ -2378,6 +2508,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 
 			fairnessCostProvider, err := fairness.NewDominantResourceFairness(
 				nodeDb.TotalKubernetesResources(),
+				testfixtures.TestPool,
 				tc.SchedulingConfig,
 			)
 			require.NoError(b, err)
@@ -2390,7 +2521,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 			for queue, priorityFactor := range priorityFactorByQueue {
 				weight := 1 / priorityFactor
 				err := sctx.AddQueueSchedulingContext(queue, weight, weight, make(map[string]internaltypes.ResourceList),
-					internaltypes.ResourceList{}, internaltypes.ResourceList{}, limiterByQueue[queue])
+					internaltypes.ResourceList{}, internaltypes.ResourceList{}, internaltypes.ResourceList{}, limiterByQueue[queue])
 				require.NoError(b, err)
 			}
 			constraints := schedulerconstraints.NewSchedulingConstraints(
@@ -2412,9 +2543,6 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 				tc.SchedulingConfig,
 				jobDbTxn,
 				nodeDb,
-				nil,
-				nil,
-				nil,
 				false,
 			)
 			result, err := sch.Schedule(ctx)
@@ -2436,9 +2564,9 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 			require.NoError(b, err)
 
 			jobsByNodeId := make(map[string][]*jobdb.Job)
-			for _, job := range ScheduledJobsFromSchedulerResult(result) {
-				nodeId := result.NodeIdByJobId[job.Id()]
-				jobsByNodeId[nodeId] = append(jobsByNodeId[nodeId], job)
+			for _, jctx := range result.ScheduledJobs {
+				nodeId := jctx.PodSchedulingContext.NodeId
+				jobsByNodeId[nodeId] = append(jobsByNodeId[nodeId], jctx.Job)
 			}
 			nodeDb, err = NewNodeDb(tc.SchedulingConfig, stringinterner.New(1024))
 			require.NoError(b, err)
@@ -2462,7 +2590,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 				for queue, priorityFactor := range priorityFactorByQueue {
 					weight := 1 / priorityFactor
 					err := sctx.AddQueueSchedulingContext(queue, weight, weight, allocatedByQueueAndPriorityClass[queue],
-						internaltypes.ResourceList{}, internaltypes.ResourceList{}, limiterByQueue[queue])
+						internaltypes.ResourceList{}, internaltypes.ResourceList{}, internaltypes.ResourceList{}, limiterByQueue[queue])
 					require.NoError(b, err)
 				}
 
@@ -2475,9 +2603,6 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 					tc.SchedulingConfig,
 					jobDbTxn,
 					nodeDb,
-					nil,
-					nil,
-					nil,
 					false,
 				)
 				result, err := sch.Schedule(ctx)
@@ -2505,7 +2630,6 @@ func testNodeWithTaints(node *internaltypes.Node, taints []v1.Taint) *internalty
 		false,
 		node.GetTotalResources(),
 		node.GetAllocatableResources(),
-		node.GetUnallocatableResources(),
 		node.AllocatableByPriority,
 		node.AllocatedByQueue,
 		node.AllocatedByJobId,

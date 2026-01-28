@@ -8,6 +8,7 @@ import (
 	networking "k8s.io/api/networking/v1"
 
 	"github.com/armadaproject/armada/internal/common"
+	log "github.com/armadaproject/armada/internal/common/logging"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/executor/domain"
@@ -26,7 +27,7 @@ func SubmitJobFromApiRequest(
 ) *armadaevents.SubmitJob {
 	jobId := idGen()
 	priority := PriorityAsInt32(jobReq.GetPriority())
-	ingressesAndServices := convertIngressesAndServices(jobReq, jobId, jobSetId, queue, owner)
+	ingressesAndServices := convertIngressesAndServices(config, jobReq, jobId, jobSetId, queue, owner)
 
 	msg := &armadaevents.SubmitJob{
 		JobId:           jobId,
@@ -48,27 +49,25 @@ func SubmitJobFromApiRequest(
 		Scheduler: jobReq.Scheduler,
 	}
 
-	if jobReq.ExperimentalPriceInfo != nil {
-		msg.ExperimentalPriceInfo = &armadaevents.ExperimentalPriceInfo{
-			BidPrice: jobReq.ExperimentalPriceInfo.BidPrice,
-		}
-	}
-
 	postProcess(msg, config)
 	return msg
 }
 
 // Creates KubernetesObjects representing ingresses and services from the *api.JobSubmitRequestItem.
-// An ingress will have  a corresponding service created for it.
+// An ingress will have a corresponding service created for it.
 func convertIngressesAndServices(
+	config configuration.SubmissionConfig,
 	jobReq *api.JobSubmitRequestItem,
 	jobId, jobsetId, queue, owner string,
 ) []*armadaevents.KubernetesObject {
 	objects := make([]*armadaevents.KubernetesObject, 0, 2*len(jobReq.Ingress)+len(jobReq.Services))
 	serviceIdx := 0
+	ingressIdx := 0
 
-	// Extract Ports from containers
+	// Extract Ports from main containers and native sidecar containers
 	availableServicePorts := make([]v1.ServicePort, 0)
+
+	// Extract from main containers
 	for _, container := range jobReq.GetMainPodSpec().Containers {
 		for _, port := range container.Ports {
 			// Don't expose host via service, this will already be handled by kubernetes
@@ -83,25 +82,30 @@ func convertIngressesAndServices(
 		}
 	}
 
-	// Create ingress and associated services
-	for _, ingressConfig := range jobReq.Ingress {
-		ports := filterServicePorts(availableServicePorts, ingressConfig.Ports)
-		if len(ports) > 0 {
-			serviceObject := createService(jobId, serviceIdx, ports, v1.ServiceTypeClusterIP, ingressConfig.UseClusterIP)
-			serviceIdx++
-			ingressObject := createIngressFromService(
-				serviceObject.GetService(),
-				serviceIdx,
-				ingressConfig,
-				serviceObject.ObjectMeta.Name,
-				jobReq.Namespace,
-				jobId)
-			objects = append(objects, serviceObject)
-			objects = append(objects, ingressObject)
+	// Extract from native sidecar init containers (restartPolicy: Always)
+	// Classic init containers (without restartPolicy) run to completion before
+	// main containers start, so their ports shouldn't be exposed.
+	for _, container := range jobReq.GetMainPodSpec().InitContainers {
+		// Skip classic init containers
+		if container.RestartPolicy == nil || *container.RestartPolicy != v1.ContainerRestartPolicyAlways {
+			continue
+		}
+
+		for _, port := range container.Ports {
+			// Don't expose host via service, this will already be handled by kubernetes
+			if port.HostPort > 0 {
+				continue
+			}
+			availableServicePorts = append(availableServicePorts, v1.ServicePort{
+				Name:     fmt.Sprintf("%s-%d", container.Name, port.ContainerPort),
+				Port:     port.ContainerPort,
+				Protocol: port.Protocol,
+			})
 		}
 	}
 
-	// Create standalone services
+	// Create standalone services first
+	createdServices := make([]*armadaevents.KubernetesObject, 0)
 	for _, serviceConfig := range jobReq.Services {
 		ports := filterServicePorts(availableServicePorts, serviceConfig.Ports)
 		if len(ports) > 0 {
@@ -111,9 +115,73 @@ func convertIngressesAndServices(
 				serviceType = v1.ServiceTypeNodePort
 				useClusterIp = true
 			}
-			serviceObject := createService(jobId, serviceIdx, ports, serviceType, useClusterIp)
-			serviceIdx++
+
+			serviceName := fmt.Sprintf("%s-service-%d", common.PodName(jobId), serviceIdx)
+			serviceNameCustomized := false
+
+			if len(serviceConfig.Name) > 0 {
+				if config.AllowCustomServiceNames {
+					serviceName = serviceConfig.Name
+					serviceNameCustomized = true
+				} else {
+					log.Warnf("Feature flag to allow customized service name %s is not enabled. "+
+						"Using generated service name %s", serviceConfig.Name, serviceName)
+				}
+			}
+
+			if !serviceNameCustomized {
+				serviceIdx++
+			}
+
+			serviceObject := createService(serviceName, jobId, ports, serviceType, useClusterIp)
+			createdServices = append(createdServices, serviceObject)
 			objects = append(objects, serviceObject)
+		}
+	}
+
+	// Create ingresses, reusing existing services when possible
+	for _, ingressConfig := range jobReq.Ingress {
+		ingressPorts := filterServicePorts(availableServicePorts, ingressConfig.Ports)
+		if len(ingressPorts) == 0 {
+			continue
+		}
+
+		// Check if any existing service covers the ingress port(s)
+		var targetService *armadaevents.KubernetesObject
+		for _, service := range createdServices {
+			servicePorts := service.GetService().Ports
+			if containsAllPorts(servicePorts, ingressPorts) {
+				targetService = service
+				break
+			}
+		}
+
+		if targetService != nil {
+			// Reuse existing service - create only the ingress
+			ingressObject := createIngressFromService(
+				targetService.GetService(),
+				ingressIdx,
+				ingressConfig,
+				targetService.ObjectMeta.Name,
+				jobReq.Namespace,
+				jobId)
+			objects = append(objects, ingressObject)
+			ingressIdx++
+		} else {
+			// No suitable service exists - create both service and ingress
+			serviceName := fmt.Sprintf("%s-service-%d", common.PodName(jobId), serviceIdx)
+			serviceObject := createService(serviceName, jobId, ingressPorts, v1.ServiceTypeClusterIP, ingressConfig.UseClusterIP)
+			serviceIdx++
+			ingressObject := createIngressFromService(
+				serviceObject.GetService(),
+				ingressIdx,
+				ingressConfig,
+				serviceObject.ObjectMeta.Name,
+				jobReq.Namespace,
+				jobId)
+			objects = append(objects, serviceObject)
+			objects = append(objects, ingressObject)
+			ingressIdx++
 		}
 	}
 
@@ -135,8 +203,8 @@ func convertIngressesAndServices(
 }
 
 func createService(
+	serviceName string,
 	jobId string,
-	serviceIdx int,
 	ports []v1.ServicePort,
 	serviceType v1.ServiceType,
 	useClusterIP bool,
@@ -150,7 +218,7 @@ func createService(
 
 	return &armadaevents.KubernetesObject{
 		ObjectMeta: &armadaevents.ObjectMeta{
-			Name:        fmt.Sprintf("%s-service-%d", common.PodName(jobId), serviceIdx),
+			Name:        serviceName,
 			Annotations: map[string]string{},
 			Labels:      map[string]string{},
 		},
@@ -173,11 +241,17 @@ func createIngressFromService(
 	ingressConfig *api.IngressConfig,
 	serviceName, namespace, jobId string,
 ) *armadaevents.KubernetesObject {
-	rules := make([]networking.IngressRule, 0, len(service.Ports))
-	tlsHosts := make([]string, 0, len(service.Ports))
+	// Use specified ingress ports, or all service ports if none specified (legacy behavior)
+	ingressPorts := service.Ports
+	if len(ingressConfig.Ports) > 0 {
+		ingressPorts = filterServicePorts(service.Ports, ingressConfig.Ports)
+	}
 
-	// Rest of the hosts are generated off port information
-	for _, servicePort := range service.Ports {
+	rules := make([]networking.IngressRule, 0, len(ingressPorts))
+	tlsHosts := make([]string, 0, len(ingressPorts))
+
+	// Create ingress rules only for the specified ingress ports
+	for _, servicePort := range ingressPorts {
 		host := fmt.Sprintf("%s-%s.%s.", servicePort.Name, common.PodName(jobId), namespace)
 		tlsHosts = append(tlsHosts, host)
 
@@ -255,4 +329,21 @@ func filterServicePorts(availablePorts []v1.ServicePort, desiredPorts []uint32) 
 		}
 		return false
 	})
+}
+
+// containsAllPorts checks if servicePorts contains all ports from requiredPorts
+func containsAllPorts(servicePorts []v1.ServicePort, requiredPorts []v1.ServicePort) bool {
+	for _, requiredPort := range requiredPorts {
+		found := false
+		for _, servicePort := range servicePorts {
+			if servicePort.Port == requiredPort.Port {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+	return true
 }

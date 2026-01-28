@@ -3,10 +3,11 @@
     <toRun name="Event Ingester" type="GoApplicationRunConfiguration" />
     <toRun name="Executor" type="GoApplicationRunConfiguration" />
     <toRun name="Lookout Ingester" type="GoApplicationRunConfiguration" />
-    <toRun name="Lookout" type="GoApplicationRunConfiguration" />
     <toRun name="Scheduler" type="GoApplicationRunConfiguration" />
     <toRun name="Scheduler Ingester" type="GoApplicationRunConfiguration" />
     <toRun name="Server" type="GoApplicationRunConfiguration" />
+    <toRun name="lookoutPostgresMigration" type="GoApplicationRunConfiguration" />
+    <toRun name="schedulerPostgresMigration" type="GoApplicationRunConfiguration" />
     <method v="2" />
   </configuration>
 </component>

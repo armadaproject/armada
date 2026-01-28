@@ -326,7 +326,7 @@ func TestNodeTypeIterator(t *testing.T) {
 
 			assert.Nil(t, err)
 			for i, resourceName := range nodeDb.indexedResources {
-				indexedResourceRequests[i], err = tc.resourceRequests.GetByName(resourceName)
+				indexedResourceRequests[i], err = tc.resourceRequests.GetRawByName(resourceName)
 				assert.Nil(t, err)
 			}
 			keyIndex := -1
@@ -656,7 +656,7 @@ func TestNodeTypesIterator(t *testing.T) {
 
 			indexedResourceRequests := make([]int64, len(testfixtures.TestResources))
 			for i, resourceName := range testfixtures.TestResourceNames {
-				indexedResourceRequests[i], err = rr.GetByName(resourceName)
+				indexedResourceRequests[i], err = rr.GetRawByName(resourceName)
 				assert.Nil(t, err)
 			}
 			it, err := NewNodeTypesIterator(

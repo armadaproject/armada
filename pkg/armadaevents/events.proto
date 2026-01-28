@@ -124,7 +124,7 @@ message ResourceUtilisation {
 // When the main object exits, all other objects are cleaned up.
 // The priority, together with the queue the job is submitted to, determines the order in which jobs are run.
 message SubmitJob {
-    reserved 1, 13;
+    reserved 1, 13, 15;
     // User-provided id used for server-side deduplication.
     // I.e., jobs submitted with the same deduplication_id as an existing job are discarded.
     string deduplication_id = 2;
@@ -157,12 +157,6 @@ message SubmitJob {
     bool isDuplicate = 12;
     // The job id
     string job_id = 14;
-    // Pricing Information for the job.  Currently experimental
-    ExperimentalPriceInfo experimentalPriceInfo = 15;
-}
-
-message ExperimentalPriceInfo {
-  double bidPrice = 1;
 }
 
 // Kubernetes objects that can serve as main objects for an Armada job.
@@ -423,6 +417,7 @@ message JobRunErrors {
 // This message may only be published to the log as part of a JobRunError message.
 // TODO: Check if the container status contained any useful info for non-failed containers.
 message Error {
+    reserved 5,10;
     // If true, this error represents an unrecoverable failure and Armada has given up on this job or job run.
     bool terminal = 1;
     // Additional information for this particular combination of component and error. May be set to nil.
@@ -430,7 +425,6 @@ message Error {
         KubernetesError kubernetesError = 2;
         ContainerError containerError = 3;
         ExecutorError executorError = 4;
-        PodUnschedulable podUnschedulable = 5;
         LeaseExpired leaseExpired = 6;
         MaxRunsExceeded maxRunsExceeded = 7;
         PodError podError = 8;
@@ -438,6 +432,7 @@ message Error {
         JobRunPreemptedError jobRunPreemptedError = 11;
         GangJobUnschedulable gangJobUnschedulable = 12;
         JobRejected jobRejected = 13;
+        ReconciliationError reconciliationError = 14;
     }
 }
 
@@ -526,6 +521,10 @@ message GangJobUnschedulable{
 }
 
 message JobRejected {
+  string message = 1;
+}
+
+message ReconciliationError {
   string message = 1;
 }
 

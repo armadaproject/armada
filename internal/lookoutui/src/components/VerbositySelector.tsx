@@ -3,7 +3,7 @@ import { useState } from "react"
 import { Chat, ChatBubbleOutline } from "@mui/icons-material"
 import { Rating, styled, Typography } from "@mui/material"
 
-import { SPACING } from "../styling/spacing"
+import { SPACING } from "../common/spacing"
 
 const OuterContainer = styled("div")(({ theme }) => ({
   display: "flex",

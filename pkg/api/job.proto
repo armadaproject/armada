@@ -29,6 +29,7 @@ message JobRunDetails {
   google.protobuf.Timestamp pending_ts = 8;
   google.protobuf.Timestamp started_ts = 9;
   google.protobuf.Timestamp finished_ts = 10;
+  map<int32, string> ingress_addresses = 11;
 }
 
 
@@ -78,6 +79,16 @@ message JobStatusRequest{
   repeated string job_ids = 1;
 }
 
+message ActiveQueues {
+  repeated string queues = 1;
+}
+
+message GetActiveQueuesRequest {}
+
+message GetActiveQueuesResponse {
+  map<string, ActiveQueues> active_queues_by_pool = 1;
+}
+
 message JobStatusUsingExternalJobUriRequest {
   string queue = 1;
   string jobset = 2;
@@ -116,6 +127,12 @@ service Jobs {
   rpc GetJobRunDetails (JobRunDetailsRequest) returns (JobRunDetailsResponse) {
     option (google.api.http) = {
       post: "/v1/run/details"
+      body: "*"
+    };
+  }
+  rpc GetActiveQueues (GetActiveQueuesRequest) returns (GetActiveQueuesResponse) {
+    option (google.api.http) = {
+      post: "/v1/queues/active"
       body: "*"
     };
   }

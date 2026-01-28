@@ -7,9 +7,9 @@ networking:
   apiServerAddress: 0.0.0.0
 nodes:
 - role: worker
-  image: kindest/node:v1.26.15
+  image: kindest/node:v1.28.15
 - role: control-plane
-  image: kindest/node:v1.26.15
+  image: kindest/node:v1.28.15
   labels:
     armadaproject.io/pool: control-plane
   kubeadmConfigPatches:

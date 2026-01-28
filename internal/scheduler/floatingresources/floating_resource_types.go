@@ -26,7 +26,7 @@ func NewFloatingResourceTypes(config []configuration.FloatingResourceConfig, rlF
 	for _, fr := range config {
 		for _, poolConfig := range fr.Pools {
 			floatingResourceLimitsByPool[poolConfig.Name] = floatingResourceLimitsByPool[poolConfig.Name].Add(
-				rlFactory.FromNodeProto(map[string]resource.Quantity{fr.Name: poolConfig.Quantity}),
+				rlFactory.FromNodeProto(map[string]*resource.Quantity{fr.Name: &poolConfig.Quantity}),
 			)
 		}
 	}
@@ -60,7 +60,7 @@ func validate(config []configuration.FloatingResourceConfig) error {
 func (frt *FloatingResourceTypes) WithinLimits(poolName string, allocated internaltypes.ResourceList) (bool, string) {
 	available := frt.GetTotalAvailableForPool(poolName)
 	if available.AllZero() {
-		return false, fmt.Sprintf("floating resources not connfigured for pool %s", poolName)
+		return false, fmt.Sprintf("floating resources not configured for pool %s", poolName)
 	}
 
 	resourceName, _, _, exceeds := allocated.OfType(internaltypes.Floating).ExceedsAvailable(available)
@@ -88,7 +88,7 @@ func (frt *FloatingResourceTypes) GetTotalAvailableForPool(poolName string) inte
 func (frt *FloatingResourceTypes) GetTotalAvailableForPoolAsMap(poolName string) map[string]resource.Quantity {
 	limits := frt.GetTotalAvailableForPool(poolName)
 	result := map[string]resource.Quantity{}
-	for _, res := range limits.GetResources() {
+	for _, res := range limits.GetAll() {
 		if res.Type != internaltypes.Floating {
 			continue
 		}
