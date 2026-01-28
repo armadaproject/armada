@@ -73,7 +73,7 @@ func TestPreemptOnNode_AuthorizeErrorUnavailable(t *testing.T) {
 
 	_, err := s.PreemptOnNode(ctx, &api.NodePreemptRequest{Name: "executor-1", Executor: "executor-id"})
 	require.Error(t, err)
-	requireGrpcCode(t, err, codes.Unavailable)
+	requireGrpcCode(t, err, codes.Internal)
 }
 
 func TestPreemptOnNode_Validation(t *testing.T) {
@@ -163,12 +163,63 @@ func TestCancelOnNode_PermissionDenied(t *testing.T) {
 	m.authorizer.
 		EXPECT().
 		AuthorizeAction(ctx, permission.Permission(permissions.CancelAnyJobs)).
-		Return(&armadaerrors.ErrUnauthorized{Principal: "alice", Permission: "preempt"}).
+		Return(&armadaerrors.ErrUnauthorized{Principal: "alice", Permission: "cancel"}).
 		Times(1)
 
 	_, err := s.CancelOnNode(ctx, &api.NodeCancelRequest{Name: "executor-1", Executor: "executor-id"})
 	require.Error(t, err)
 	requireGrpcCode(t, err, codes.PermissionDenied)
+}
+
+func TestCancelOnNode_AuthorizeErrorUnavailable(t *testing.T) {
+	s, m := newTestServer(t)
+	ctx := armadacontext.Background()
+
+	m.authorizer.
+		EXPECT().
+		AuthorizeAction(ctx, permission.Permission(permissions.CancelAnyJobs)).
+		Return(errors.New("authorizer down")).
+		Times(1)
+
+	_, err := s.CancelOnNode(ctx, &api.NodeCancelRequest{Name: "executor-1", Executor: "executor-id"})
+	require.Error(t, err)
+	requireGrpcCode(t, err, codes.Internal)
+}
+
+func TestCancelOnNode_Validation(t *testing.T) {
+	s, m := newTestServer(t)
+	ctx := armadacontext.Background()
+
+	m.authorizer.
+		EXPECT().
+		AuthorizeAction(ctx, permission.Permission(permissions.CancelAnyJobs)).
+		Return(nil).
+		Times(1)
+
+	_, err := s.CancelOnNode(ctx, &api.NodeCancelRequest{Name: "", Executor: "executor-id"})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "must provide non-empty executor name")
+}
+
+func TestCancelOnNode_PublishErrorInternal(t *testing.T) {
+	s, m := newTestServer(t)
+	ctx := armadacontext.Background()
+
+	m.authorizer.
+		EXPECT().
+		AuthorizeAction(ctx, permission.Permission(permissions.CancelAnyJobs)).
+		Return(nil).
+		Times(1)
+
+	m.publisher.
+		EXPECT().
+		PublishMessages(ctx, gomock.Any()).
+		Return(errors.New("publish failed")).
+		Times(1)
+
+	_, err := s.CancelOnNode(ctx, &api.NodeCancelRequest{Name: "executor-1", Executor: "executor-id"})
+	require.Error(t, err)
+	requireGrpcCode(t, err, codes.Internal)
 }
 
 func TestCancelOnNode_SuccessPublishesExpectedEvent(t *testing.T) {

@@ -47,7 +47,7 @@ func (s *Server) PreemptOnNode(grpcCtx context.Context, req *api.NodePreemptRequ
 	if errors.As(err, &ep) {
 		return nil, status.Errorf(codes.PermissionDenied, "error preempting jobs on executor %s: %s", req.Name, ep)
 	} else if err != nil {
-		return nil, status.Errorf(codes.Unavailable, "error checking permissions: %s", err)
+		return nil, status.Errorf(codes.Internal, "error checking permissions: %s", err)
 	}
 
 	if req.Name == "" {
@@ -86,7 +86,7 @@ func (s *Server) CancelOnNode(grpcCtx context.Context, req *api.NodeCancelReques
 	if errors.As(err, &ep) {
 		return nil, status.Errorf(codes.PermissionDenied, "error canceling jobs on executor %s: %s", req.Name, ep)
 	} else if err != nil {
-		return nil, status.Errorf(codes.Unavailable, "error checking permissions: %s", err)
+		return nil, status.Errorf(codes.Internal, "error checking permissions: %s", err)
 	}
 
 	if req.Name == "" {
