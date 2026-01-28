@@ -427,8 +427,8 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 					}
 					phaseCountByQueue[key]++
 
-					switch phase {
-					case "PENDING", "RUNNING": // Only active phases
+					switch jobRunState {
+					case schedulerobjects.JobRunState_RUNNING, schedulerobjects.JobRunState_PENDING: // Only active phases
 						nodeJobsMetricCounts[nodeJobPhaseMetricKey{
 							node:     node.Name,
 							executor: executor.Id,
