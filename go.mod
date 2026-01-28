@@ -53,7 +53,7 @@ require (
 
 require (
 	github.com/IBM/pgxpoolprometheus v1.1.1
-	github.com/Masterminds/semver/v3 v3.3.1
+	github.com/Masterminds/semver/v3 v3.4.0
 	github.com/benbjohnson/immutable v0.4.3
 	github.com/charmbracelet/glamour v0.8.0
 	github.com/go-openapi/errors v0.22.4
