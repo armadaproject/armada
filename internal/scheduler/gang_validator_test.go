@@ -55,6 +55,18 @@ func TestGangValidator_Validate(t *testing.T) {
 			jobsToValidate:            createNQueuedGangJob(1, "id-1", 2),
 			expectedInvalidJobIndexes: []int{0},
 		},
+		"invalid gang submission - single submission - inconsistent priority class": {
+			jobsToValidate: armadaslices.Concatenate(
+				createNQueuedGangJobWithPriorityClass(1, "id-1", 2, testfixtures.PriorityClass1),
+				createNQueuedGangJobWithPriorityClass(1, "id-1", 2, testfixtures.PriorityClass2),
+			),
+			expectedInvalidJobIndexes: []int{0, 1},
+		},
+		"invalid gang submission - multiple submission - inconsistent priority class": {
+			existingJobs:              createNQueuedGangJobWithPriorityClass(1, "id-1", 2, testfixtures.PriorityClass1),
+			jobsToValidate:            createNQueuedGangJobWithPriorityClass(1, "id-1", 2, testfixtures.PriorityClass2),
+			expectedInvalidJobIndexes: []int{0},
+		},
 		"mixed valid and invalid - single submission": {
 			jobsToValidate: armadaslices.Concatenate(
 				createNQueuedGangJob(2, "id-1", 2),
@@ -80,7 +92,7 @@ func TestGangValidator_Validate(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			gangValidator := NewGangValidator()
+			gangValidator := NewGangValidator(testfixtures.TestDefaultPriorityClass)
 
 			jobDb := testfixtures.NewJobDb(testfixtures.TestResourceListFactory)
 			txn := jobDb.WriteTxn()
@@ -106,7 +118,7 @@ func TestGangValidator_Validate(t *testing.T) {
 }
 
 func TestGangValidator_Validate_ErrorsOnJobsMissingFromTxn(t *testing.T) {
-	gangValidator := NewGangValidator()
+	gangValidator := NewGangValidator(testfixtures.TestDefaultPriorityClass)
 	jobsToValidate := createNQueuedGangJob(2, "id-1", 2)
 
 	jobDb := testfixtures.NewJobDb(testfixtures.TestResourceListFactory)
@@ -118,23 +130,23 @@ func TestGangValidator_Validate_ErrorsOnJobsMissingFromTxn(t *testing.T) {
 	assert.Nil(t, result)
 }
 
+func createGangJobs(count int, gangId string, cardinality int, queued bool, priorityClass string) []*jobdb.Job {
+	jobs := make([]*jobdb.Job, 0, count)
+	for i := 0; i < count; i++ {
+		job := testfixtures.Test1Cpu4GiJob("queue", priorityClass).WithQueued(queued)
+		jobs = append(jobs, job)
+	}
+	return testfixtures.WithGangJobDetails(jobs, gangId, cardinality, "node-uniformity")
+}
+
 func createNQueuedGangJob(count int, gangId string, cardinality int) []*jobdb.Job {
-	return createNGangJobs(count, gangId, cardinality, false)
+	return createGangJobs(count, gangId, cardinality, true, testfixtures.PriorityClass1)
 }
 
 func createNRunningGangJobs(count int, gangId string, cardinality int) []*jobdb.Job {
-	return createNGangJobs(count, gangId, cardinality, true)
+	return createGangJobs(count, gangId, cardinality, false, testfixtures.PriorityClass1)
 }
 
-func createNGangJobs(count int, gangId string, cardinality int, running bool) []*jobdb.Job {
-	jobs := make([]*jobdb.Job, 0, count)
-
-	for i := 0; i < count; i++ {
-		job := testfixtures.Test1Cpu4GiJob("queue", testfixtures.PriorityClass1)
-		job = job.WithQueued(!running)
-		jobs = append(jobs, job)
-	}
-
-	jobs = testfixtures.WithGangJobDetails(jobs, gangId, cardinality, "node-uniformity")
-	return jobs
+func createNQueuedGangJobWithPriorityClass(count int, gangId string, cardinality int, priorityClass string) []*jobdb.Job {
+	return createGangJobs(count, gangId, cardinality, true, priorityClass)
 }
