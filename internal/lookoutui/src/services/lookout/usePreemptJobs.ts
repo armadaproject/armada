@@ -1,12 +1,11 @@
 import { useMutation } from "@tanstack/react-query"
-import _, { update } from "lodash"
+import _ from "lodash"
 
 import { getErrorMessage } from "../../common/utils"
 import { getConfig } from "../../config"
 import { Job, JobId } from "../../models/lookoutModels"
 
 import { useApiClients } from "../apiClients"
-import { stat } from "fs"
 
 const config = getConfig()
 const maxJobsPerRequest = 10000
@@ -56,14 +55,18 @@ export const usePreemptJobs = () => {
       if (config.fakeDataEnabled) {
         await new Promise((r) => setTimeout(r, 1_000))
         return {
-            status_code: 200,
-            successfulJobIds: jobs.map(job => job.jobId),
-            failedJobIds: []
+          status_code: 200,
+          successfulJobIds: jobs.map((job) => job.jobId),
+          failedJobIds: [],
         }
       }
 
       try {
-        const response: UpdateJobsResponse = { status_code: 200, successfulJobIds: jobs.map(job => job.jobId), failedJobIds: [] }
+        const response: UpdateJobsResponse = {
+          status_code: 200,
+          successfulJobIds: jobs.map((job) => job.jobId),
+          failedJobIds: [],
+        }
 
         const chunks = createJobBatches(jobs, maxJobsPerRequest)
 
@@ -72,13 +75,14 @@ export const usePreemptJobs = () => {
           for (const [jobSet, batches] of jobSets) {
             for (const batch of batches) {
               apiResponsePromises.push({
-                promise: submitApi.preemptJobsRaw({ // Use raw to access status code
-                body: {
+                promise: submitApi.preemptJobsRaw({
+                  // Use raw to access status code
+                  body: {
                     jobIds: batch,
                     queue: queue,
                     jobSetId: jobSet,
                     reason: preemptReason,
-                    },
+                  },
                 }),
                 jobIds: batch,
               })
@@ -87,47 +91,47 @@ export const usePreemptJobs = () => {
         }
 
         for (const apiResponsePromise of apiResponsePromises) {
-            try {
-                const apiResponse = await apiResponsePromise.promise
-                const statusCode = apiResponse.raw.status
-                const statusText = apiResponse.raw.statusText
+          try {
+            const apiResponse = await apiResponsePromise.promise
+            const statusCode = apiResponse.raw.status
+            const statusText = apiResponse.raw.statusText
 
-                // If any request fails, capture the error for each job in the batch
-                if (statusCode < 200 || statusCode >= 300) {
-                    response.status_code = statusCode
-                    response.status_text = statusText
+            // If any request fails, capture the error for each job in the batch
+            if (statusCode < 200 || statusCode >= 300) {
+              response.status_code = statusCode
+              response.status_text = statusText
 
-                    // Mark all jobs in this batch as failed
-                    for (const jobId of apiResponsePromise.jobIds) {
-                        response.failedJobIds.push({
-                        jobId: jobId,
-                        errorReason: statusText || `Request failed with status ${statusCode}`
-                        })
-                    }
-                    return response
-                } else {
-                    // Otherwise, all jobs in this batch are successful
-                    response.successfulJobIds.push(...apiResponsePromise.jobIds)
-                }
-            } catch (e) {
-                const text = await getErrorMessage(e)
-                response.status_code = 500
-                response.status_text = text
-
-                for (const jobId of apiResponsePromise.jobIds) {
-                    response.failedJobIds.push({
-                        jobId: jobId,
-                        errorReason: text
-                    })
-                }
-                return response
+              // Mark all jobs in this batch as failed
+              for (const jobId of apiResponsePromise.jobIds) {
+                response.failedJobIds.push({
+                  jobId: jobId,
+                  errorReason: statusText || `Request failed with status ${statusCode}`,
+                })
+              }
+              return response
+            } else {
+              // Otherwise, all jobs in this batch are successful
+              response.successfulJobIds.push(...apiResponsePromise.jobIds)
             }
+          } catch (e) {
+            const text = await getErrorMessage(e)
+            response.status_code = 500
+            response.status_text = text
+
+            for (const jobId of apiResponsePromise.jobIds) {
+              response.failedJobIds.push({
+                jobId: jobId,
+                errorReason: text,
+              })
+            }
+            return response
+          }
         }
 
         return response
-        } catch (e) {
-            throw await getErrorMessage(e)
-        }
+      } catch (e) {
+        throw await getErrorMessage(e)
+      }
     },
   })
 }

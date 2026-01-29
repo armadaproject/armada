@@ -66,9 +66,12 @@ export default tseslint.config(
             language: "en-GB",
 
             ignoreWords: [
+              "preempt",
               "preempted",
               "preempted",
               "preemptible",
+              "preempting",
+              "preemption",
               "groupable",
               "aggregatable",
               "ingester",

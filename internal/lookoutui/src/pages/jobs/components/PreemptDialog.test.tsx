@@ -164,6 +164,10 @@ describe("PreemptDialog", () => {
     const preemptButton = await waitFor(() => getByRole("button", { name: /Preempt 1 job/i }))
     await userEvent.click(preemptButton)
     await findByText(/Some preemption requests failed. See table for job statuses./i)
+
+    // Check the user can re-attempt the other job after a refetch
+    await userEvent.click(getByRole("button", { name: /Refetch jobs/i }))
+    expect(await findByRole("button", { name: /Preempt 1 job/i })).toBeEnabled()
   })
 
   async function enterPreemptReason(reason: string) {

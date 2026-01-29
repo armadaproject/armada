@@ -13,8 +13,8 @@ import { ColumnConfigurationDialog } from "./ColumnConfigurationDialog"
 import { CustomViewPicker } from "./CustomViewPicker"
 import GroupBySelect from "./GroupBySelect"
 import styles from "./JobsTableActionBar.module.css"
-import { ReprioritizeDialog } from "./ReprioritizeDialog"
 import { PreemptDialog } from "./PreemptDialog"
+import { ReprioritizeDialog } from "./ReprioritizeDialog"
 
 export interface JobsTableActionBarProps {
   isLoading: boolean
@@ -206,11 +206,7 @@ export const JobsTableActionBar = memo(
             </Button>
           </div>
           <div>
-            <Button 
-              variant="contained" 
-              disabled={numSelectedItems === 0} 
-              onClick={() => setPreemptDialogOpen(true)}
-            >
+            <Button variant="contained" disabled={numSelectedItems === 0} onClick={() => setPreemptDialogOpen(true)}>
               Preempt selected
             </Button>
           </div>

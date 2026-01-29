@@ -151,21 +151,21 @@ export class MockServer {
   }
 
   setPreemptJobsResponse(status_code: number = 200, status_text: string = "") {
-  this.server.use(
-    http.post(PREEMPT_JOBS_ENDPOINT, async () => {
-      if (status_code !== 200) {
-        return HttpResponse.json(
-          {
-            code: 500,
-            message: "Internal server error",
-            details: [],
-          },
-          { status: status_code, statusText: status_text },
-        )
-      }
-      // The actual API returns google.protobuf.Empty which is just an empty object
-      return HttpResponse.json({})
-    }),
-  )
-}
+    this.server.use(
+      http.post(PREEMPT_JOBS_ENDPOINT, async () => {
+        if (status_code !== 200) {
+          return HttpResponse.json(
+            {
+              code: 500,
+              message: "Internal server error",
+              details: [],
+            },
+            { status: status_code, statusText: status_text },
+          )
+        }
+        // The actual API returns google.protobuf.Empty which is just an empty object
+        return HttpResponse.json({})
+      }),
+    )
+  }
 }
