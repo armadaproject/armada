@@ -112,8 +112,6 @@ export function HeaderCell({
 
   const match = matchForColumn(header.id, columnMatches)
 
-  
-
   if (header.isPlaceholder) {
     return (
       <HeaderTableCell
@@ -263,27 +261,24 @@ export function HeaderCell({
           {header.column.id === StandardColumnId.TimeInState &&
             Boolean(groupedColumns.find((id) => id !== StandardColumnId.TimeInState)) && (
               <LastTransitionTimeAggregateSelector
-              value={lastTransitionTimeAggregate}
-              onChange={onLastTransitionTimeAggregateChange}
-            />
-          )}
+                value={lastTransitionTimeAggregate}
+                onChange={onLastTransitionTimeAggregateChange}
+              />
+            )}
         </div>
 
         <div
           {...{
             onMouseDown: header.getResizeHandler(),
             onTouchStart: header.getResizeHandler(),
-            className: (header.column.getIsResizing()
-              ? [styles.resizer, styles.isResizing]
-              : [styles.resizer]
-            ).join(" "),
+            className: (header.column.getIsResizing() ? [styles.resizer, styles.isResizing] : [styles.resizer]).join(
+              " "
+            ),
             style: {
               transform:
-                columnResizeMode === "onEnd" && header.column.getIsResizing()
-                  ? `translateX(${deltaOffset}px)`
-                  : "",
-              },
-            }}
+                columnResizeMode === "onEnd" && header.column.getIsResizing() ? `translateX(${deltaOffset}px)` : "",
+            },
+          }}
         />
       </div>
     </HeaderTableCell>
