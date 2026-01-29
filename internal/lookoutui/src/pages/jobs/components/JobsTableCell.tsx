@@ -111,6 +111,9 @@ export function HeaderCell({
   )
 
   const match = matchForColumn(header.id, columnMatches)
+
+  
+
   if (header.isPlaceholder) {
     return (
       <HeaderTableCell
@@ -169,93 +172,59 @@ export function HeaderCell({
             padding: "0 10px 0 10px",
           }}
         >
-          {header.column.getCanSort() ? (
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "row",
-                alignItems: "center",
-                gap: 6,
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-                overflow: "hidden",
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 6,
+              whiteSpace: "nowrap",
+            }}
+          >
+            <TableSortLabel
+              active={Boolean(sortDirection)}
+              direction={sortDirection || defaultSortDirection}
+              onClick={() => {
+                const desc = sortDirection ? sortDirection === "asc" : false
+                header.column.toggleSorting(desc)
               }}
+              aria-label={"Toggle sort"}
+              sx={{ flex: 1, minWidth: 0 }}
             >
-              <TableSortLabel
-                active={Boolean(sortDirection)}
-                direction={sortDirection || defaultSortDirection}
-                onClick={() => {
-                  const desc = sortDirection ? sortDirection === "asc" : false
-                  header.column.toggleSorting(desc)
-                }}
-                aria-label={"Toggle sort"}
-                sx={{ 
-                  flex: 1, 
-                  minWidth: 0 
+              <div
+                style={{
+                  flex: 1,
+                  minWidth: 0,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
                 }}
               >
-                <div 
+                {flexRender(columnDef.header, header.getContext())}
+              </div>
+            </TableSortLabel>
+
+            {isJobIdColumn && visibleRowsExist && (
+              <Tooltip title="Copy All" arrow>
+                <span 
                   style={{ 
-                    flex: 1, 
-                    minWidth: 0, 
-                    textOverflow: "ellipsis", 
-                    whiteSpace: "nowrap", 
-                    overflow: "hidden" 
-                  }}>
-                  {flexRender(columnDef.header, header.getContext())}
-                </div>
-              </TableSortLabel>
-
-              {isJobIdColumn && visibleRowsExist && (
-                <Tooltip title="Copy All" arrow>
-                  <span 
-                    style={{
-                      flex: "0 0 auto", 
-                      display: "flex", 
-                      alignItems: "center"
-                    }}>
-                  <CopyIconButton
-                    size="small" 
-                    content = {copyContent}                
-                    onClick={(e: React.MouseEvent) => {
-                      e.stopPropagation()
-                    }}
-                    aria-label="Copy all Job IDs"
-                  />
-                  </span>
-                </Tooltip>
-              )}
-            </div>
-          ) : (
-            <div 
-              style={{ 
-                textOverflow: "ellipsis", 
-                whiteSpace: "nowrap", 
-                overflow: "hidden" 
-              }}>
-              {flexRender(columnDef.header, header.getContext())}
-
-              {isJobIdColumn && visibleRowsExist && (
-                <Tooltip title="Copy All" arrow>
-                  <span 
-                    style={{
-                      flex: "0 0 auto", 
-                      display: "flex", 
-                      alignItems: "center"
-                    }}>
+                    flex: "0 0 auto", 
+                    display: "flex", 
+                    alignItems: "center" 
+                  }}
+                >
                   <CopyIconButton
                     size="small"
-                    content = {copyContent}
-                    onClick={(e: React.MouseEvent) => {
+                    content={copyContent}
+                    onClick={(e) => {
                       e.stopPropagation()
                     }}
                     aria-label="Copy all Job IDs"
                   />
-                  </span>
-                </Tooltip>
-              )}
-            </div>
-          )}
+                </span>
+              </Tooltip>
+            )}
+          </div>
 
           {header.column.getCanFilter() &&
             metadata.filterType &&
@@ -294,23 +263,27 @@ export function HeaderCell({
           {header.column.id === StandardColumnId.TimeInState &&
             Boolean(groupedColumns.find((id) => id !== StandardColumnId.TimeInState)) && (
               <LastTransitionTimeAggregateSelector
-                value={lastTransitionTimeAggregate}
-                onChange={onLastTransitionTimeAggregateChange}
-              />
-            )}
+              value={lastTransitionTimeAggregate}
+              onChange={onLastTransitionTimeAggregateChange}
+            />
+          )}
         </div>
+
         <div
           {...{
             onMouseDown: header.getResizeHandler(),
             onTouchStart: header.getResizeHandler(),
-            className: (header.column.getIsResizing() ? [styles.resizer, styles.isResizing] : [styles.resizer]).join(
-              " ",
-            ),
+            className: (header.column.getIsResizing()
+              ? [styles.resizer, styles.isResizing]
+              : [styles.resizer]
+            ).join(" "),
             style: {
               transform:
-                columnResizeMode === "onEnd" && header.column.getIsResizing() ? `translateX(${deltaOffset}px)` : "",
-            },
-          }}
+                columnResizeMode === "onEnd" && header.column.getIsResizing()
+                  ? `translateX(${deltaOffset}px)`
+                  : "",
+              },
+            }}
         />
       </div>
     </HeaderTableCell>
