@@ -10,7 +10,7 @@ You need to have Go installed for this.
     cd ../../..
 
     # Go needs to be installed
-    go run github.com/magefile/mage@v1.14.0 -v BootstrapProto
+    go run github.com/magefile/mage@v1.15.0 -v BootstrapProto
 
 ## Build
 
@@ -32,7 +32,7 @@ Alternatively, you can build this project isolated from your system in a Docker 
     cd ../../..
 
     # Go and Docker needs to be installed, the rest is isolated
-    go run github.com/magefile/mage@v1.14.0 -v buildScala
+    go run github.com/magefile/mage@v1.15.0 -v buildScala
 
 ## Notes
 

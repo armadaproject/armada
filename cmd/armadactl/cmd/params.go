@@ -6,6 +6,7 @@ import (
 	"github.com/armadaproject/armada/internal/armadactl"
 	"github.com/armadaproject/armada/pkg/client"
 	ce "github.com/armadaproject/armada/pkg/client/executor"
+	cn "github.com/armadaproject/armada/pkg/client/node"
 	cq "github.com/armadaproject/armada/pkg/client/queue"
 )
 
@@ -37,6 +38,9 @@ func initParams(cmd *cobra.Command, params *armadactl.Params) error {
 
 	params.ExecutorAPI.CancelOnExecutor = ce.CancelOnExecutor(client.ExtractCommandlineArmadaApiConnectionDetails)
 	params.ExecutorAPI.PreemptOnExecutor = ce.PreemptOnExecutor(client.ExtractCommandlineArmadaApiConnectionDetails)
+
+	params.NodeAPI.PreemptOnNode = cn.PreemptOnNode(client.ExtractCommandlineArmadaApiConnectionDetails)
+	params.NodeAPI.CancelOnNode = cn.CancelOnNode(client.ExtractCommandlineArmadaApiConnectionDetails)
 
 	return nil
 }
