@@ -319,7 +319,7 @@ func (c *JobSetEventsInstructionConverter) handleJobPreemptionRequested(preempti
 	// combine the preemption reason and user
 	reasonWithUser := preemptionRequested.Reason
 	if meta.user != "" {
-		reasonWithUser = preemptionRequested.Reason + " | Preempted by " + meta.user
+		reasonWithUser += " | Preempted by " + meta.user
 	}
 	return []DbOperation{MarkRunsForJobPreemptRequested{
 		JobSetKey{
