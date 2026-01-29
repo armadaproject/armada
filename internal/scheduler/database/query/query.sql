@@ -153,7 +153,7 @@ FROM runs jr
        JOIN jobs j
             ON jr.job_id = j.job_id
 WHERE jr.executor = @executor
-  AND j.queue = ANY(@queues::text[])
+  AND jr.queue = ANY(@queues::text[])
   AND jr.succeeded = false AND jr.failed = false AND jr.cancelled = false AND jr.preempted = false;
 
 -- name: SelectJobsByNodeAndExecutorAndQueues :many
@@ -163,7 +163,7 @@ FROM runs jr
              ON jr.job_id = j.job_id
 WHERE jr.node = @node
   AND jr.executor = @executor
-  AND j.queue = ANY(@queues::text[])
+  AND jr.queue = ANY(@queues::text[])
   AND jr.succeeded = false AND jr.failed = false AND jr.cancelled = false AND jr.preempted = false;
 
 -- name: SelectQueuedJobsByQueue :many
@@ -177,7 +177,7 @@ SELECT j.*
 FROM runs jr
        JOIN jobs j
             ON jr.job_id = j.job_id
-WHERE j.queue = ANY(@queue::text[])
+WHERE jr.queue = ANY(@queue::text[])
   AND jr.running = false
   AND jr.pending = false
   AND jr.succeeded = false
@@ -190,7 +190,7 @@ SELECT j.*
 FROM runs jr
        JOIN jobs j
             ON jr.job_id = j.job_id
-WHERE j.queue = ANY(@queue::text[])
+WHERE jr.queue = ANY(@queue::text[])
   AND jr.running = false
   AND jr.pending = true
   AND jr.succeeded = false
@@ -203,7 +203,7 @@ SELECT j.*
 FROM runs jr
        JOIN jobs j
             ON jr.job_id = j.job_id
-WHERE j.queue = ANY(@queue::text[])
+WHERE jr.queue = ANY(@queue::text[])
   AND jr.running = true
   AND jr.returned = false
   AND jr.succeeded = false
