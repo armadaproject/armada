@@ -118,7 +118,21 @@ describe("PreemptDialog", () => {
     getByText("6000 jobs are selected, but only 1480 jobs are in a non-terminated state.")
   })
 
-  it("allows the user to preempt jobs", async () => {
+  it.each([
+    {
+      method: "clicking the button",
+      action: async (getByRole: ReturnType<typeof render>["getByRole"]) => {
+        const preemptButton = await waitFor(() => getByRole("button", { name: /Preempt 1 job/i }))
+        await userEvent.click(preemptButton)
+      },
+    },
+    {
+      method: "pressing Enter",
+      action: async () => {
+        await userEvent.keyboard("{Enter}")
+      },
+    },
+  ])("allows the user to preempt jobs by $method", async ({ action }) => {
     mockServer.setPostJobsResponse([jobs[0]])
     const { getByRole, findByText } = renderComponent()
 
@@ -126,8 +140,7 @@ describe("PreemptDialog", () => {
 
     await enterPreemptReason("Reason for preemption")
 
-    const preemptButton = await waitFor(() => getByRole("button", { name: /Preempt 1 job/i }))
-    await userEvent.click(preemptButton)
+    await action(getByRole)
     await findByText(/Successfully requested preemption of selected jobs. See table for job statuses./i)
   })
 

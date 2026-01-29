@@ -121,6 +121,22 @@ export const PreemptDialog = ({ onClose, selectedItemFilters }: PreemptDialogPro
     refetch()
   }, [refetch])
 
+  const handleDialogKeyDown = useCallback(
+    (event: React.KeyboardEvent) => {
+      if (
+        event.key === "Enter" &&
+        !isLoadingJobs &&
+        !hasAttemptedPreempt &&
+        !isPreempting &&
+        preemptibleJobs.length > 0
+      ) {
+        event.preventDefault()
+        handlePreemptJobs()
+      }
+    },
+    [isLoadingJobs, hasAttemptedPreempt, isPreempting, preemptibleJobs.length, handlePreemptJobs],
+  )
+
   const jobsToRender = useMemo(() => preemptibleJobs.slice(0, 1000), [preemptibleJobs])
   const formatState = useCallback((job: Job) => formatJobState(job.state), [])
   const formatSubmittedTime = useCallback((job: Job) => formatIsoTimestamp(job.submitted, "full"), [formatIsoTimestamp])
@@ -130,7 +146,7 @@ export const PreemptDialog = ({ onClose, selectedItemFilters }: PreemptDialogPro
   const preemptibleJobsCount = preemptibleJobs.length
   const selectedJobsCount = selectedJobs.length
   return (
-    <Dialog open={true} onClose={onClose} fullWidth maxWidth="xl">
+    <Dialog open={true} onClose={onClose} fullWidth maxWidth="xl" onKeyDown={handleDialogKeyDown}>
       <DialogTitle>
         {isLoadingJobs
           ? "Preempt jobs"
