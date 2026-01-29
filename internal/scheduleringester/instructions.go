@@ -316,7 +316,7 @@ func (c *JobSetEventsInstructionConverter) handleJobErrors(jobErrors *armadaeven
 }
 
 func (c *JobSetEventsInstructionConverter) handleJobPreemptionRequested(preemptionRequested *armadaevents.JobPreemptionRequested, meta eventSequenceCommon) ([]DbOperation, error) {
-	// cobine the preemption reason and user
+	// combine the preemption reason and user
 	reasonWithUser := preemptionRequested.Reason
 	if meta.user != "" {
 		reasonWithUser = preemptionRequested.Reason + " | Preempted by " + meta.user

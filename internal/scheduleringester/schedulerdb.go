@@ -229,7 +229,7 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 		}
 	case MarkRunsForJobPreemptRequested:
 		for key, jobReasons := range o {
-			// pocess each job individually since each job has its own reason
+			// process each job individually since each job has its own reason
 			for jobId, reason := range jobReasons {
 				params := schedulerdb.MarkJobRunsPreemptRequestedByJobIdParams{
 					Queue:         key.queue,
