@@ -111,7 +111,6 @@ export function HeaderCell({
   )
 
   const match = matchForColumn(header.id, columnMatches)
-
   if (header.isPlaceholder) {
     return (
       <HeaderTableCell
@@ -266,13 +265,12 @@ export function HeaderCell({
               />
             )}
         </div>
-
         <div
           {...{
             onMouseDown: header.getResizeHandler(),
             onTouchStart: header.getResizeHandler(),
             className: (header.column.getIsResizing() ? [styles.resizer, styles.isResizing] : [styles.resizer]).join(
-              " "
+              " ",
             ),
             style: {
               transform:
