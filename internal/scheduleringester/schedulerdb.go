@@ -117,7 +117,7 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 			records[i] = *v.DbRun
 			i++
 		}
-		err := database.Upsert(ctx, tx, "runs", records)
+		err := database.Upsert(ctx, tx, "runs", records, database.WithExcludeColumns("terminated"))
 		if err != nil {
 			return err
 		}
@@ -306,11 +306,11 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 		}
 	case MarkRunsRunning:
 		runIds := make([]string, 0, len(o))
-		runningTimes := make([]interface{}, 0, len(runIds))
-		running := make([]bool, 0, len(runIds))
-		for runId, failTime := range o {
+		runningTimes := make([]interface{}, 0, len(o))
+		running := make([]bool, 0, len(o))
+		for runId, runningTime := range o {
 			runIds = append(runIds, runId)
-			runningTimes = append(runningTimes, failTime)
+			runningTimes = append(runningTimes, runningTime)
 			running = append(running, true)
 		}
 		sqlStmt := multiColumnRunsUpdateStmt("run_id", "running", "running_timestamp")
@@ -668,17 +668,11 @@ func getLockKey(operations []DbOperation) (int, error) {
 func execBatch(ctx *armadacontext.Context, tx pgx.Tx, batch *pgx.Batch) error {
 	result := tx.SendBatch(ctx, batch)
 	for i := 0; i < batch.Len(); i++ {
-		_, err := result.Exec()
-		if err != nil {
+		if _, err := result.Exec(); err != nil {
 			return err
 		}
 	}
-
-	err := result.Close()
-	if err != nil {
-		return err
-	}
-	return nil
+	return result.Close()
 }
 
 func multiColumnRunsUpdateStmt(id, phaseColumn, timeStampColumn string) string {
