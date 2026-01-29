@@ -253,3 +253,8 @@ require (
 	sigs.k8s.io/kustomize/kyaml v0.18.1 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.4.2 // indirect
 )
+
+replace (
+	charm.land/lipgloss/v2 => github.com/charmbracelet/lipgloss/v2 v2.0.0-beta.3.0.20251120230642-dcccabe2cd63
+	nhooyr.io/websocket => github.com/nhooyr/websocket v1.8.7
+)
