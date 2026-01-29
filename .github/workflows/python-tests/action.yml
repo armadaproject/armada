@@ -29,7 +29,7 @@ runs:
         version: '23.3'
         repo-token: ${{ inputs.github-token }}
     # Generate the proto files for python, required for later steps
-    - run: go run github.com/magefile/mage@v1.14.0 -v buildPython
+    - run: go run github.com/magefile/mage@v1.15.0 -v buildPython
       shell: bash
     - name: Run tox format environment
       run: tox -e format
