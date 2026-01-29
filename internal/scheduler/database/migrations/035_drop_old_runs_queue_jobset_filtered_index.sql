@@ -1,0 +1,1 @@
+DROP INDEX CONCURRENTLY IF EXISTS idx_runs_queue_jobset_jobid_filtered;

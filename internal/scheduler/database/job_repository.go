@@ -54,7 +54,7 @@ type JobRepository interface {
 	CountReceivedPartitions(ctx *armadacontext.Context, groupId uuid.UUID) (uint32, error)
 
 	// FindInactiveRuns returns a slice containing all dbRuns that the scheduler does not currently consider active
-	// Runs are inactive if they don't exist or if they have succeeded, failed or been cancelled
+	// Runs are inactive if they don't exist or if they have terminated
 	FindInactiveRuns(ctx *armadacontext.Context, runIds []string) ([]string, error)
 
 	// FetchJobRunLeases fetches new job runs for a given executor.  A maximum of maxResults rows will be returned, while run
@@ -299,7 +299,7 @@ func (r *PostgresJobRepository) FetchJobUpdates(ctx *armadacontext.Context, jobS
 }
 
 // FindInactiveRuns returns a slice containing all dbRuns that the scheduler does not currently consider active
-// Runs are inactive if they don't exist or if they have succeeded, failed or been cancelled
+// Runs are inactive if they don't exist or if they have terminated
 func (r *PostgresJobRepository) FindInactiveRuns(ctx *armadacontext.Context, runIds []string) ([]string, error) {
 	var inactiveRuns []string
 	err := pgx.BeginTxFunc(ctx, r.db, pgx.TxOptions{
@@ -317,9 +317,7 @@ func (r *PostgresJobRepository) FindInactiveRuns(ctx *armadacontext.Context, run
 		FROM %s as tmp
 		LEFT JOIN runs ON (tmp.run_id = runs.run_id)
 		WHERE runs.run_id IS NULL
-		OR runs.succeeded = true
- 		OR runs.failed = true
-		OR runs.cancelled = true;`
+		OR runs.terminated = true;`
 
 		rows, err := tx.Query(ctx, fmt.Sprintf(query, tmpTable))
 		if err != nil {
@@ -364,9 +362,7 @@ func (r *PostgresJobRepository) FetchJobRunLeases(ctx *armadacontext.Context, ex
 			    ON jr.job_id = j.job_id
 				WHERE jr.executor = $1
 			    AND tmp.run_id IS NULL
-				AND jr.succeeded = false
-				AND jr.failed = false
-				AND jr.cancelled = false
+				AND jr.terminated = false
 				ORDER BY jr.serial
 				LIMIT %d;
 `
@@ -417,7 +413,7 @@ func fetch[T hasSerial](ctx *armadacontext.Context, from int64, batchSize int32,
 			break
 		}
 		from = batch[len(batch)-1].GetSerial()
-		if time.Now().Sub(timeOfLastLogging) > time.Second*5 {
+		if time.Since(timeOfLastLogging) > time.Second*5 {
 			ctx.Infof("fetched %d rows so far", len(values))
 			timeOfLastLogging = time.Now()
 		}
