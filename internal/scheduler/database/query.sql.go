@@ -538,7 +538,7 @@ FROM runs jr
        JOIN jobs j
             ON jr.job_id = j.job_id
 WHERE jr.executor = $1
-  AND j.queue = ANY($2::text[])
+  AND jr.queue = ANY($2::text[])
   AND jr.succeeded = false AND jr.failed = false AND jr.cancelled = false AND jr.preempted = false
 `
 
@@ -600,7 +600,7 @@ FROM runs jr
              ON jr.job_id = j.job_id
 WHERE jr.node = $1
   AND jr.executor = $2
-  AND j.queue = ANY($3::text[])
+  AND jr.queue = ANY($3::text[])
   AND jr.succeeded = false AND jr.failed = false AND jr.cancelled = false AND jr.preempted = false
 `
 
@@ -734,7 +734,7 @@ SELECT j.job_id, j.job_set, j.queue, j.user_id, j.submitted, j.groups, j.priorit
 FROM runs jr
        JOIN jobs j
             ON jr.job_id = j.job_id
-WHERE j.queue = ANY($1::text[])
+WHERE jr.queue = ANY($1::text[])
   AND jr.running = false
   AND jr.pending = false
   AND jr.succeeded = false
@@ -983,7 +983,7 @@ SELECT j.job_id, j.job_set, j.queue, j.user_id, j.submitted, j.groups, j.priorit
 FROM runs jr
        JOIN jobs j
             ON jr.job_id = j.job_id
-WHERE j.queue = ANY($1::text[])
+WHERE jr.queue = ANY($1::text[])
   AND jr.running = false
   AND jr.pending = true
   AND jr.succeeded = false
@@ -1121,7 +1121,7 @@ SELECT j.job_id, j.job_set, j.queue, j.user_id, j.submitted, j.groups, j.priorit
 FROM runs jr
        JOIN jobs j
             ON jr.job_id = j.job_id
-WHERE j.queue = ANY($1::text[])
+WHERE jr.queue = ANY($1::text[])
   AND jr.running = true
   AND jr.returned = false
   AND jr.succeeded = false
