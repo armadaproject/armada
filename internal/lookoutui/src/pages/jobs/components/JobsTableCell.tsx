@@ -213,6 +213,7 @@ export function HeaderCell({
                 filterType={metadata.filterType}
                 matchType={match}
                 enumFilterValues={metadata.enumFilterValues}
+                enumFilterCategories={metadata.enumFilterCategories}
                 parseError={parseError}
                 onFilterChange={onFilterChange}
                 onColumnMatchChange={onColumnMatchChange}
