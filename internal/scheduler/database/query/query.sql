@@ -156,6 +156,16 @@ WHERE jr.executor = @executor
   AND j.queue = ANY(@queues::text[])
   AND jr.succeeded = false AND jr.failed = false AND jr.cancelled = false AND jr.preempted = false;
 
+-- name: SelectJobsByNodeAndExecutorAndQueues :many
+SELECT j.*
+FROM runs jr
+        JOIN jobs j
+             ON jr.job_id = j.job_id
+WHERE jr.node = @node
+  AND jr.executor = @executor
+  AND j.queue = ANY(@queues::text[])
+  AND jr.succeeded = false AND jr.failed = false AND jr.cancelled = false AND jr.preempted = false;
+
 -- name: SelectQueuedJobsByQueue :many
 SELECT j.*
 FROM jobs j
