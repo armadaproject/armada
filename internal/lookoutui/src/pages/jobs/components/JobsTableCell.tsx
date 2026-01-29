@@ -148,7 +148,6 @@ export function HeaderCell({
         height: 65,
         textOverflow: "ellipsis",
         whiteSpace: "nowrap",
-        overflow: "hidden",
       }}
     >
       <div
@@ -190,15 +189,16 @@ export function HeaderCell({
                   header.column.toggleSorting(desc)
                 }}
                 aria-label={"Toggle sort"}
-                sx={{ width: "100%" }}
+                sx={{ flex: 1, minWidth: 0 }}
               >
-                <div style={{ textOverflow: "ellipsis", whiteSpace: "nowrap", overflow: "hidden" }}>
+                <div style={{ flex: 1, minWidth: 0, textOverflow: "ellipsis", whiteSpace: "nowrap", overflow: "hidden" }}>
                   {flexRender(columnDef.header, header.getContext())}
                 </div>
               </TableSortLabel>
 
               {isJobIdColumn && visibleRowsExist && (
                 <Tooltip title="Copy All" arrow>
+                  <span style={{flex: "0 0 auto", display: "flex", alignItems: "center"}}>
                   <CopyIconButton
                     size="small" 
                     content = {copyContent}                
@@ -207,6 +207,7 @@ export function HeaderCell({
                     }}
                     aria-label="Copy all Job IDs"
                   />
+                  </span>
                 </Tooltip>
               )}
             </div>
@@ -216,6 +217,7 @@ export function HeaderCell({
 
               {isJobIdColumn && visibleRowsExist && (
                 <Tooltip title="Copy All" arrow>
+                  <span style={{flex: "0 0 auto", display: "flex", alignItems: "center"}}>
                   <CopyIconButton
                     size="small"
                     content = {copyContent}
@@ -224,6 +226,7 @@ export function HeaderCell({
                     }}
                     aria-label="Copy all Job IDs"
                   />
+                  </span>
                 </Tooltip>
               )}
             </div>
