@@ -67,7 +67,7 @@ jobs:
           git diff
         shell: bash
       - name: Bootstrap Proto files
-        run: go run github.com/magefile/mage@v1.14.0 -v BootstrapProto
+        run: go run github.com/magefile/mage@v1.15.0 -v BootstrapProto
         shell: bash
       - name: Fetch mvn dependencies
         working-directory: client/scala/armada-scala-client

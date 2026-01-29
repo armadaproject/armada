@@ -61,7 +61,7 @@ jobs:
         with:
           version: '23.3'
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - run: go run github.com/magefile/mage@v1.14.0 -v airflowOperator
+      - run: go run github.com/magefile/mage@v1.15.0 -v airflowOperator
       - uses: ./.github/workflows/python-tests
         with:
           python-version: ${{ matrix.python }}
@@ -92,10 +92,10 @@ jobs:
           # Manually create folders to ensure perms are correct.
           mkdir -p .kube/internal
           mkdir -p .kube/external
-          go run github.com/magefile/mage@v1.14.0 -v localdev minimal
+          go run github.com/magefile/mage@v1.15.0 -v localdev minimal
       - name: Install Protoc
         uses: arduino/setup-protoc@v3
         with:
           version: '23.3'
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - run: go run github.com/magefile/mage@v1.14.0 -v teste2eAirflow
+      - run: go run github.com/magefile/mage@v1.15.0 -v teste2eAirflow
