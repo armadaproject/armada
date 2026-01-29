@@ -75,6 +75,25 @@ func (a *App) CancelOnExecutor(executor string, queues []string, priorityClasses
 	return nil
 }
 
+func (a *App) CancelOnNode(node string, executor string, queues []string, priorityClasses []string) error {
+	queueMsg := strings.Join(queues, ",")
+	priorityClassesMsg := strings.Join(priorityClasses, ",")
+	// If the provided slice of queues is empty, jobs on all queues will be cancelled
+	if len(queues) == 0 {
+		apiQueues, err := a.getAllQueuesAsAPIQueue(&QueueQueryArgs{})
+		if err != nil {
+			return fmt.Errorf("error cancelling jobs on executor %s: %s", executor, err)
+		}
+		queues = armadaslices.Map(apiQueues, func(q *api.Queue) string { return q.Name })
+		queueMsg = "all"
+	}
+	fmt.Fprintf(a.Out, "Requesting cancellation of jobs matching node: %s,  executor: %s, queues: %s, priority-classes: %s\n", node, executor, queueMsg, priorityClassesMsg)
+	if err := a.Params.NodeAPI.CancelOnNode(node, executor, queues, priorityClasses); err != nil {
+		return fmt.Errorf("error cancelling jobs on executor %s: %s", executor, err)
+	}
+	return nil
+}
+
 // CancelOnQueues cancels all jobs on queues matching the provided QueueQueryArgs filter
 func (a *App) CancelOnQueues(args *QueueQueryArgs, priorityClasses []string, jobStates []utils.ActiveJobState, dryRun bool) error {
 	queues, err := a.getAllQueuesAsAPIQueue(args)
