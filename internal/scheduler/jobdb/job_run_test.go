@@ -40,6 +40,7 @@ var (
 		makeTestResourceListFactory(),
 	)
 	scheduledAtPriority = int32(5)
+	testPreemptReason   = "test preempt reason"
 )
 
 func init() {
@@ -137,7 +138,7 @@ func TestDeepCopy(t *testing.T) {
 		true,
 		true,
 		true,
-		nil,
+		&testPreemptReason,
 		true,
 		true,
 		true,
@@ -163,7 +164,7 @@ func TestDeepCopy(t *testing.T) {
 		true,
 		true,
 		true,
-		nil,
+		&testPreemptReason,
 		true,
 		true,
 		true,
