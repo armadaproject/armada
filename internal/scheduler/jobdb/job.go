@@ -12,6 +12,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/constants"
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
+	"github.com/armadaproject/armada/internal/common/preemption"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/adapters"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
@@ -771,8 +772,10 @@ func (job *Job) ValidateResourceRequests() error {
 // WithNewRun creates a copy of the job with a new run on the given executor.
 func (job *Job) WithNewRun(executor, nodeId, nodeName, pool string, scheduledAtPriority int32) *Job {
 	now := job.jobDb.clock.Now()
+	nextRunIndex := len(job.runsById)
 	return job.WithUpdatedRun(job.jobDb.CreateRun(
 		job.jobDb.uuidProvider.New(),
+		uint32(nextRunIndex),
 		job.Id(),
 		now.UnixNano(),
 		executor,
@@ -836,6 +839,48 @@ func (job *Job) NumAttempts() uint {
 		}
 	}
 	return attempts
+}
+
+// IsEligibleForPreemptionRetry determines whether the job is eligible for preemption retries. It checks whether the
+// scheduler or the job has opted in for preemption retries. It then checks whether the job has exhausted the number
+// of retries.
+func (job *Job) IsEligibleForPreemptionRetry(retryConfig preemption.RetryConfig) bool {
+	// Check if job explicitly enabled/disabled retries, falling back to platform default
+	enabled := retryConfig.Enabled
+	if jobRetryEnabled, exists := preemption.AreRetriesEnabled(job.Annotations()); exists {
+		enabled = jobRetryEnabled
+	}
+
+	if !enabled {
+		return false
+	}
+
+	return job.NumPreemptedRuns() <= job.MaxPreemptionRetryCount(retryConfig)
+}
+
+func (job *Job) NumPreemptedRuns() uint {
+	preemptCount := uint(0)
+	for _, run := range job.runsById {
+		if run.preempted {
+			preemptCount++
+		}
+	}
+	return preemptCount
+}
+
+func (job *Job) MaxPreemptionRetryCount(retryConfig preemption.RetryConfig) uint {
+	// Start with platform default
+	var maxRetryCount uint
+	if retryConfig.DefaultRetryCount != nil {
+		maxRetryCount = *retryConfig.DefaultRetryCount
+	}
+
+	// Allow jobs to override with a custom max retry count
+	if jobMaxRetryCount, exists := preemption.GetMaxRetryCount(job.Annotations()); exists {
+		maxRetryCount = jobMaxRetryCount
+	}
+
+	return maxRetryCount
 }
 
 // AllRuns returns all runs associated with job.

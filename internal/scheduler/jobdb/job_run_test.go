@@ -48,6 +48,7 @@ func init() {
 
 var baseJobRun = jobDb.CreateRun(
 	uuid.New().String(),
+	1,
 	uuid.NewString(),
 	5,
 	"test-executor",
@@ -122,9 +123,55 @@ func TestJobRun_TestRunAttempted(t *testing.T) {
 	assert.True(t, attemptedRun.RunAttempted())
 }
 
+func TestJobRun_InTerminalState(t *testing.T) {
+	tests := map[string]struct {
+		run      *JobRun
+		expected bool
+	}{
+		"base run is not terminal": {
+			run:      baseJobRun,
+			expected: false,
+		},
+		"succeeded run is terminal": {
+			run:      baseJobRun.WithSucceeded(true),
+			expected: true,
+		},
+		"failed run is terminal": {
+			run:      baseJobRun.WithFailed(true),
+			expected: true,
+		},
+		"cancelled run is terminal": {
+			run:      baseJobRun.WithCancelled(true),
+			expected: true,
+		},
+		"returned run is terminal": {
+			run:      baseJobRun.WithReturned(true),
+			expected: true,
+		},
+		"preempted run is terminal": {
+			run:      baseJobRun.WithPreempted(true),
+			expected: true,
+		},
+		"running run is not terminal": {
+			run:      baseJobRun.WithRunning(true),
+			expected: false,
+		},
+		"pending run is not terminal": {
+			run:      baseJobRun.WithPending(true),
+			expected: false,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, tc.run.InTerminalState())
+		})
+	}
+}
+
 func TestDeepCopy(t *testing.T) {
 	run := jobDb.CreateRun(
 		uuid.NewString(),
+		1,
 		"job id",
 		1,
 		"executor",
@@ -150,6 +197,7 @@ func TestDeepCopy(t *testing.T) {
 	)
 	expected := jobDb.CreateRun(
 		run.id,
+		1,
 		"job id",
 		1,
 		"executor",
