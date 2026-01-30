@@ -143,6 +143,7 @@ func dockerCheck() error {
 	if err != nil {
 		return errors.Errorf("error parsing constraint: %v", err)
 	}
+	constraint.IncludePrerelease = true
 	if !constraint.Check(version) {
 		return errors.Errorf("found docker version %v but it failed constraint %v", version, constraint)
 	}
