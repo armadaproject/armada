@@ -42,8 +42,7 @@ func (q *Queries) DeleteOldMarkers(ctx context.Context, cutoff time.Time) error 
 }
 
 const findActiveRuns = `-- name: FindActiveRuns :many
-SELECT run_id FROM runs WHERE run_id = ANY($1::text[])
-                         AND (succeeded = false AND failed = false AND cancelled = false)
+SELECT run_id FROM runs WHERE run_id = ANY($1::text[]) AND terminated = false
 `
 
 func (q *Queries) FindActiveRuns(ctx context.Context, runIds []string) ([]string, error) {
@@ -100,7 +99,7 @@ func (q *Queries) MarkJobRunsFailedById(ctx context.Context, runIds []string) er
 }
 
 const markJobRunsPreemptRequestedByJobId = `-- name: MarkJobRunsPreemptRequestedByJobId :exec
-UPDATE runs SET preempt_requested = true WHERE queue = $1 and job_set = $2 and job_id = ANY($3::text[]) and cancelled = false and succeeded = false and failed = false
+UPDATE runs SET preempt_requested = true WHERE queue = $1 and job_set = $2 and job_id = ANY($3::text[]) and terminated = false
 `
 
 type MarkJobRunsPreemptRequestedByJobIdParams struct {
@@ -476,7 +475,7 @@ func (q *Queries) SelectInitialJobs(ctx context.Context, arg SelectInitialJobsPa
 }
 
 const selectInitialRuns = `-- name: SelectInitialRuns :many
-SELECT run_id, job_id, created, job_set, executor, node, cancelled, running, succeeded, failed, returned, run_attempted, serial, last_modified, leased_timestamp, pending_timestamp, running_timestamp, terminated_timestamp, scheduled_at_priority, preempted, pending, preempted_timestamp, pod_requirements_overlay, preempt_requested, queue, pool FROM runs WHERE serial > $1 AND job_id = ANY($3::text[]) ORDER BY serial LIMIT $2
+SELECT run_id, job_id, created, job_set, executor, node, cancelled, running, succeeded, failed, returned, run_attempted, serial, last_modified, leased_timestamp, pending_timestamp, running_timestamp, terminated_timestamp, scheduled_at_priority, preempted, pending, preempted_timestamp, pod_requirements_overlay, preempt_requested, queue, pool, terminated FROM runs WHERE serial > $1 AND job_id = ANY($3::text[]) ORDER BY serial LIMIT $2
 `
 
 type SelectInitialRunsParams struct {
@@ -521,6 +520,7 @@ func (q *Queries) SelectInitialRuns(ctx context.Context, arg SelectInitialRunsPa
 			&i.PreemptRequested,
 			&i.Queue,
 			&i.Pool,
+			&i.Terminated,
 		); err != nil {
 			return nil, err
 		}
@@ -538,8 +538,9 @@ FROM runs jr
        JOIN jobs j
             ON jr.job_id = j.job_id
 WHERE jr.executor = $1
-  AND j.queue = ANY($2::text[])
-  AND jr.succeeded = false AND jr.failed = false AND jr.cancelled = false AND jr.preempted = false
+  AND jr.queue = ANY($2::text[])
+  AND jr.terminated = false
+  AND jr.preempted = false
 `
 
 type SelectJobsByExecutorAndQueuesParams struct {
@@ -600,8 +601,9 @@ FROM runs jr
              ON jr.job_id = j.job_id
 WHERE jr.node = $1
   AND jr.executor = $2
-  AND j.queue = ANY($3::text[])
-  AND jr.succeeded = false AND jr.failed = false AND jr.cancelled = false AND jr.preempted = false
+  AND jr.queue = ANY($3::text[])
+  AND jr.terminated = false
+  AND jr.preempted = false
 `
 
 type SelectJobsByNodeAndExecutorAndQueuesParams struct {
@@ -663,7 +665,7 @@ FROM runs jr
               ON jr.job_id = j.job_id
 WHERE jr.executor = $1
   AND jr.run_id NOT IN ($2::text[])
-  AND jr.succeeded = false AND jr.failed = false AND jr.cancelled = false
+  AND jr.terminated = false
 `
 
 type SelectJobsForExecutorParams struct {
@@ -734,12 +736,10 @@ SELECT j.job_id, j.job_set, j.queue, j.user_id, j.submitted, j.groups, j.priorit
 FROM runs jr
        JOIN jobs j
             ON jr.job_id = j.job_id
-WHERE j.queue = ANY($1::text[])
+WHERE jr.queue = ANY($1::text[])
   AND jr.running = false
   AND jr.pending = false
-  AND jr.succeeded = false
-  AND jr.failed = false
-  AND jr.cancelled = false
+  AND jr.terminated = false
   AND jr.preempted = false
 `
 
@@ -867,7 +867,7 @@ func (q *Queries) SelectNewJobs(ctx context.Context, arg SelectNewJobsParams) ([
 }
 
 const selectNewRuns = `-- name: SelectNewRuns :many
-SELECT run_id, job_id, created, job_set, executor, node, cancelled, running, succeeded, failed, returned, run_attempted, serial, last_modified, leased_timestamp, pending_timestamp, running_timestamp, terminated_timestamp, scheduled_at_priority, preempted, pending, preempted_timestamp, pod_requirements_overlay, preempt_requested, queue, pool FROM runs WHERE serial > $1 ORDER BY serial LIMIT $2
+SELECT run_id, job_id, created, job_set, executor, node, cancelled, running, succeeded, failed, returned, run_attempted, serial, last_modified, leased_timestamp, pending_timestamp, running_timestamp, terminated_timestamp, scheduled_at_priority, preempted, pending, preempted_timestamp, pod_requirements_overlay, preempt_requested, queue, pool, terminated FROM runs WHERE serial > $1 ORDER BY serial LIMIT $2
 `
 
 type SelectNewRunsParams struct {
@@ -911,6 +911,7 @@ func (q *Queries) SelectNewRuns(ctx context.Context, arg SelectNewRunsParams) ([
 			&i.PreemptRequested,
 			&i.Queue,
 			&i.Pool,
+			&i.Terminated,
 		); err != nil {
 			return nil, err
 		}
@@ -923,7 +924,7 @@ func (q *Queries) SelectNewRuns(ctx context.Context, arg SelectNewRunsParams) ([
 }
 
 const selectNewRunsForJobs = `-- name: SelectNewRunsForJobs :many
-SELECT run_id, job_id, created, job_set, executor, node, cancelled, running, succeeded, failed, returned, run_attempted, serial, last_modified, leased_timestamp, pending_timestamp, running_timestamp, terminated_timestamp, scheduled_at_priority, preempted, pending, preempted_timestamp, pod_requirements_overlay, preempt_requested, queue, pool FROM runs WHERE serial > $1 AND job_id = ANY($2::text[]) ORDER BY serial
+SELECT run_id, job_id, created, job_set, executor, node, cancelled, running, succeeded, failed, returned, run_attempted, serial, last_modified, leased_timestamp, pending_timestamp, running_timestamp, terminated_timestamp, scheduled_at_priority, preempted, pending, preempted_timestamp, pod_requirements_overlay, preempt_requested, queue, pool, terminated FROM runs WHERE serial > $1 AND job_id = ANY($2::text[]) ORDER BY serial
 `
 
 type SelectNewRunsForJobsParams struct {
@@ -967,6 +968,7 @@ func (q *Queries) SelectNewRunsForJobs(ctx context.Context, arg SelectNewRunsFor
 			&i.PreemptRequested,
 			&i.Queue,
 			&i.Pool,
+			&i.Terminated,
 		); err != nil {
 			return nil, err
 		}
@@ -983,12 +985,10 @@ SELECT j.job_id, j.job_set, j.queue, j.user_id, j.submitted, j.groups, j.priorit
 FROM runs jr
        JOIN jobs j
             ON jr.job_id = j.job_id
-WHERE j.queue = ANY($1::text[])
+WHERE jr.queue = ANY($1::text[])
   AND jr.running = false
   AND jr.pending = true
-  AND jr.succeeded = false
-  AND jr.failed = false
-  AND jr.cancelled = false
+  AND jr.terminated = false
   AND jr.preempted = false
 `
 
@@ -1121,12 +1121,10 @@ SELECT j.job_id, j.job_set, j.queue, j.user_id, j.submitted, j.groups, j.priorit
 FROM runs jr
        JOIN jobs j
             ON jr.job_id = j.job_id
-WHERE j.queue = ANY($1::text[])
+WHERE jr.queue = ANY($1::text[])
   AND jr.running = true
   AND jr.returned = false
-  AND jr.succeeded = false
-  AND jr.failed = false
-  AND jr.cancelled = false
+  AND jr.terminated = false
   AND jr.preempted = false
 `
 

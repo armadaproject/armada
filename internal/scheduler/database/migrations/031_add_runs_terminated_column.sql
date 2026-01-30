@@ -1,0 +1,2 @@
+ALTER TABLE runs ADD COLUMN IF NOT EXISTS terminated BOOLEAN NOT NULL
+GENERATED ALWAYS AS (cancelled OR succeeded OR failed) STORED;
