@@ -401,6 +401,7 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 			jobs, err := queries.SelectJobsByExecutorAndQueues(ctx, schedulerdb.SelectJobsByExecutorAndQueuesParams{
 				Executor: executor,
 				Queues:   cancelRequest.Queues,
+				Pools:    cancelRequest.Pools,
 			})
 			if err != nil {
 				return errors.Wrapf(err, "error cancelling jobs on executor %s by queue and priority class", executor)
@@ -427,6 +428,7 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 			jobs, err := queries.SelectJobsByExecutorAndQueues(ctx, schedulerdb.SelectJobsByExecutorAndQueuesParams{
 				Executor: executor,
 				Queues:   preemptRequest.Queues,
+				Pools:    preemptRequest.Pools,
 			})
 			if err != nil {
 				return errors.Wrapf(err, "error preempting jobs on executor %s by queue and priority class", executor)
@@ -478,37 +480,37 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 			}
 		}
 	case CancelNode:
-		for nodeOnExecutor, preemptRequest := range o {
+		for nodeOnExecutor, cancelRequest := range o {
 			jobs, err := queries.SelectJobsByNodeAndExecutorAndQueues(ctx, schedulerdb.SelectJobsByNodeAndExecutorAndQueuesParams{
 				Node:     nodeOnExecutor.Node,
 				Executor: nodeOnExecutor.Executor,
-				Queues:   preemptRequest.Queues,
+				Queues:   cancelRequest.Queues,
 			})
 			if err != nil {
-				return errors.Wrapf(err, "error preempting jobs on node %s on executor %s by queue and priority class", nodeOnExecutor.Node, nodeOnExecutor.Executor)
+				return errors.Wrapf(err, "error cancelling jobs on node %s on executor %s by queue and priority class", nodeOnExecutor.Node, nodeOnExecutor.Executor)
 			}
 
 			if len(jobs) == 0 {
 				continue
 			}
 
-			if len(preemptRequest.PriorityClasses) > 0 {
-				jobs, err = filterJobsByPriorityClasses(jobs, preemptRequest.PriorityClasses)
+			if len(cancelRequest.PriorityClasses) > 0 {
+				jobs, err = filterJobsByPriorityClasses(jobs, cancelRequest.PriorityClasses)
 				if err != nil {
-					return errors.Wrapf(err, "error preempting jobs on node %s on executor %s by queue and priority class", nodeOnExecutor.Node, nodeOnExecutor.Executor)
+					return errors.Wrapf(err, "error cancelling jobs on node %s on executor %s by queue and priority class", nodeOnExecutor.Node, nodeOnExecutor.Executor)
 				}
 			}
-			for _, requestPreemptParams := range createMarkJobsCancelRequestedByIdParams(jobs) {
-				err = queries.MarkJobsCancelRequestedById(ctx, *requestPreemptParams)
+			for _, requestCancelParams := range createMarkJobsCancelRequestedByIdParams(jobs) {
+				err = queries.MarkJobsCancelRequestedById(ctx, *requestCancelParams)
 				if err != nil {
-					return errors.Wrapf(err, "error preempting jobs on node %s on executor %s by queue and priority class", nodeOnExecutor.Node, nodeOnExecutor.Executor)
+					return errors.Wrapf(err, "error cancelling jobs on node %s on executor %s by queue and priority class", nodeOnExecutor.Node, nodeOnExecutor.Executor)
 				}
 			}
 		}
 
 	case CancelQueue:
 		for _, cancelRequest := range o {
-			jobs, err := s.selectAllJobsByQueueAndJobState(ctx, queries, cancelRequest.Name, cancelRequest.JobStates)
+			jobs, err := s.selectAllJobsByQueueAndJobState(ctx, queries, cancelRequest.Name, cancelRequest.JobStates, cancelRequest.Pools)
 			if err != nil {
 				return errors.Wrapf(err, "error cancelling jobs by queue, job state and priority class")
 			}
@@ -534,7 +536,7 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 		for _, preemptRequest := range o {
 			// Only allocated jobs can be preempted
 			jobStates := []controlplaneevents.ActiveJobState{controlplaneevents.ActiveJobState_LEASED, controlplaneevents.ActiveJobState_PENDING, controlplaneevents.ActiveJobState_RUNNING}
-			jobs, err := s.selectAllJobsByQueueAndJobState(ctx, queries, preemptRequest.Name, jobStates)
+			jobs, err := s.selectAllJobsByQueueAndJobState(ctx, queries, preemptRequest.Name, jobStates, preemptRequest.Pools)
 			if err != nil {
 				return errors.Wrapf(err, "error preempting jobs by queue, job state and priority class")
 			}
@@ -562,20 +564,32 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 	return nil
 }
 
-func (s *SchedulerDb) selectAllJobsByQueueAndJobState(ctx *armadacontext.Context, queries *schedulerdb.Queries, queue string, jobStates []controlplaneevents.ActiveJobState) ([]schedulerdb.Job, error) {
+func (s *SchedulerDb) selectAllJobsByQueueAndJobState(ctx *armadacontext.Context, queries *schedulerdb.Queries, queue string, jobStates []controlplaneevents.ActiveJobState, pools []string) ([]schedulerdb.Job, error) {
 	items := []schedulerdb.Job{}
 	for _, state := range jobStates {
 		var jobs []schedulerdb.Job
 		var err error
 		switch state {
 		case controlplaneevents.ActiveJobState_QUEUED:
-			jobs, err = queries.SelectQueuedJobsByQueue(ctx, []string{queue})
+			jobs, err = queries.SelectQueuedJobsByQueue(ctx, schedulerdb.SelectQueuedJobsByQueueParams{
+				Queue: []string{queue},
+				Pools: pools,
+			})
 		case controlplaneevents.ActiveJobState_LEASED:
-			jobs, err = queries.SelectLeasedJobsByQueue(ctx, []string{queue})
+			jobs, err = queries.SelectLeasedJobsByQueue(ctx, schedulerdb.SelectLeasedJobsByQueueParams{
+				Queue: []string{queue},
+				Pools: pools,
+			})
 		case controlplaneevents.ActiveJobState_PENDING:
-			jobs, err = queries.SelectPendingJobsByQueue(ctx, []string{queue})
+			jobs, err = queries.SelectPendingJobsByQueue(ctx, schedulerdb.SelectPendingJobsByQueueParams{
+				Queue: []string{queue},
+				Pools: pools,
+			})
 		case controlplaneevents.ActiveJobState_RUNNING:
-			jobs, err = queries.SelectRunningJobsByQueue(ctx, []string{queue})
+			jobs, err = queries.SelectRunningJobsByQueue(ctx, schedulerdb.SelectRunningJobsByQueueParams{
+				Queue: []string{queue},
+				Pools: pools,
+			})
 		default:
 			return nil, fmt.Errorf("unknown active job state %+v", state)
 		}

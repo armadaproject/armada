@@ -8,10 +8,12 @@ import (
 	"github.com/armadaproject/armada/pkg/client"
 )
 
-type PreemptAPI func(string, []string) error
+// PreemptAPI preempts jobs on a queue.
+// Parameters: queue name, priorityClasses, pools (empty=all)
+type PreemptAPI func(queueName string, priorityClasses, pools []string) error
 
 func Preempt(getConnectionDetails client.ConnectionDetails) PreemptAPI {
-	return func(queueName string, priorityClasses []string) error {
+	return func(queueName string, priorityClasses, pools []string) error {
 		connectionDetails, err := getConnectionDetails()
 		if err != nil {
 			return fmt.Errorf("failed to obtain api connection details: %s", err)
@@ -26,9 +28,7 @@ func Preempt(getConnectionDetails client.ConnectionDetails) PreemptAPI {
 		defer cancel()
 
 		queueClient := api.NewQueueServiceClient(conn)
-		if _, err = queueClient.PreemptOnQueue(ctx, &api.QueuePreemptRequest{Name: queueName, PriorityClasses: priorityClasses}); err != nil {
-			return err
-		}
-		return nil
+		_, err = queueClient.PreemptOnQueue(ctx, &api.QueuePreemptRequest{Name: queueName, PriorityClasses: priorityClasses, Pools: pools})
+		return err
 	}
 }

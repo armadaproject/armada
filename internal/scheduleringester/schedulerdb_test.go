@@ -22,6 +22,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/util"
 	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/pkg/controlplaneevents"
 )
 
 const testQueueName = "test"
@@ -1197,4 +1198,137 @@ func mustMarshalSchedulingInfo(t *testing.T, priorityClassName string) []byte {
 	b, err := proto.Marshal(&schedulerobjects.JobSchedulingInfo{PriorityClassName: priorityClassName})
 	require.NoError(t, err)
 	return b
+}
+
+func TestPoolFiltering(t *testing.T) {
+	const (
+		exec  = "exec"
+		q     = "queue"
+		js    = "jobset"
+		pc    = "pc"
+		poolA = "pool-a"
+		poolB = "pool-b"
+	)
+
+	info, _ := proto.Marshal(&schedulerobjects.JobSchedulingInfo{PriorityClassName: pc})
+
+	job := func(id string, queued bool, pools []string) *schedulerdb.Job {
+		return &schedulerdb.Job{
+			JobID: id, Queue: q, JobSet: js, Queued: queued, Pools: pools,
+			SchedulingInfo: info, Groups: []byte{}, SubmitMessage: []byte{},
+		}
+	}
+	run := func(id, jobID, pool string) *schedulerdb.Run {
+		return &schedulerdb.Run{RunID: id, JobID: jobID, Executor: exec, Queue: q, JobSet: js, Pool: pool}
+	}
+
+	tests := map[string]struct {
+		jobs          []*schedulerdb.Job
+		runs          []*schedulerdb.Run
+		op            DbOperation
+		wantPreempted []string
+		wantCancelled []string
+	}{
+		"executor preempt filters by pool": {
+			jobs: []*schedulerdb.Job{job("j1", false, nil), job("j2", false, nil)},
+			runs: []*schedulerdb.Run{run("r1", "j1", poolA), run("r2", "j2", poolB)},
+			op: PreemptExecutor{exec: &PreemptOnExecutor{
+				Name: exec, Queues: []string{q}, PriorityClasses: []string{pc}, Pools: []string{poolA},
+			}},
+			wantPreempted: []string{"r1"},
+		},
+		"executor preempt empty pools matches all": {
+			jobs: []*schedulerdb.Job{job("j1", false, nil), job("j2", false, nil)},
+			runs: []*schedulerdb.Run{run("r1", "j1", poolA), run("r2", "j2", poolB)},
+			op: PreemptExecutor{exec: &PreemptOnExecutor{
+				Name: exec, Queues: []string{q}, PriorityClasses: []string{pc}, Pools: []string{},
+			}},
+			wantPreempted: []string{"r1", "r2"},
+		},
+		"queue preempt filters leased by pool": {
+			jobs: []*schedulerdb.Job{job("j1", false, nil), job("j2", false, nil)},
+			runs: []*schedulerdb.Run{run("r1", "j1", poolA), run("r2", "j2", poolB)},
+			op: PreemptQueue{q: &PreemptOnQueue{
+				Name: q, PriorityClasses: []string{pc}, Pools: []string{poolA},
+			}},
+			wantPreempted: []string{"r1"},
+		},
+		"queue cancel filters queued by pool overlap": {
+			jobs: []*schedulerdb.Job{
+				job("j1", true, []string{poolA}),
+				job("j2", true, []string{poolB}),
+				job("j3", true, []string{poolA, poolB}),
+			},
+			op: CancelQueue{q: &CancelOnQueue{
+				Name: q, PriorityClasses: []string{pc}, Pools: []string{poolA},
+				JobStates: []controlplaneevents.ActiveJobState{controlplaneevents.ActiveJobState_QUEUED},
+			}},
+			wantCancelled: []string{"j1", "j3"},
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			err := schedulerdb.WithTestDb(func(queries *schedulerdb.Queries, db *pgxpool.Pool) error {
+				ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 30*time.Second)
+				defer cancel()
+				sdb := &SchedulerDb{db: db}
+
+				execTx := func(op DbOperation) {
+					require.NoError(t, pgx.BeginTxFunc(ctx, db, pgx.TxOptions{}, func(tx pgx.Tx) error {
+						return sdb.WriteDbOp(ctx, tx, op)
+					}))
+				}
+
+				insertJobs := InsertJobs{}
+				for _, j := range tc.jobs {
+					insertJobs[j.JobID] = j
+				}
+				execTx(insertJobs)
+
+				if len(tc.runs) > 0 {
+					insertRuns := InsertRuns{}
+					for _, r := range tc.runs {
+						insertRuns[r.RunID] = &JobRunDetails{Queue: q, DbRun: r}
+					}
+					execTx(insertRuns)
+				}
+
+				execTx(tc.op)
+
+				if len(tc.wantPreempted) > 0 {
+					jobIds := make([]string, len(tc.jobs))
+					for i, j := range tc.jobs {
+						jobIds[i] = j.JobID
+					}
+					runs, err := queries.SelectNewRunsForJobs(ctx, schedulerdb.SelectNewRunsForJobsParams{Serial: 0, JobIds: jobIds})
+					require.NoError(t, err)
+
+					var got []string
+					for _, r := range runs {
+						if r.PreemptRequested {
+							got = append(got, r.RunID)
+						}
+					}
+					assert.ElementsMatch(t, tc.wantPreempted, got)
+				}
+
+				if len(tc.wantCancelled) > 0 {
+					jobs, err := queries.SelectNewJobs(ctx, schedulerdb.SelectNewJobsParams{Serial: 0, Limit: 1000})
+					require.NoError(t, err)
+
+					var got []string
+					for _, j := range jobs {
+						if j.CancelRequested {
+							got = append(got, j.JobID)
+						}
+					}
+					assert.ElementsMatch(t, tc.wantCancelled, got)
+				}
+
+				return nil
+			})
+			assert.NoError(t, err)
+		})
+	}
 }
