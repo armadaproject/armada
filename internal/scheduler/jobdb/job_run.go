@@ -46,6 +46,8 @@ type JobRun struct {
 	runningTime *time.Time
 	// True if a user has requested this run be preempted.
 	preemptRequested bool
+	// The reason provided when preemption was requested.
+	preemptReason *string
 	// True if the run has been reported as preempted by the executor.
 	preempted bool
 	// The time at which the run was reported as preempted by the executor.
@@ -224,6 +226,7 @@ func (jobDb *JobDb) CreateRun(
 	pending bool,
 	running bool,
 	preemptRequested bool,
+	preemptReason *string,
 	preempted bool,
 	succeeded bool,
 	failed bool,
@@ -249,6 +252,7 @@ func (jobDb *JobDb) CreateRun(
 		pending:             pending,
 		running:             running,
 		preemptRequested:    preemptRequested,
+		preemptReason:       preemptReason,
 		preempted:           preempted,
 		succeeded:           succeeded,
 		failed:              failed,
@@ -431,6 +435,18 @@ func (run *JobRun) PreemptRequested() bool {
 func (run *JobRun) WithPreemptRequested(preemptRequested bool) *JobRun {
 	run = run.DeepCopy()
 	run.preemptRequested = preemptRequested
+	return run
+}
+
+// PreemptReason returns the reason provided when preemption was requested, or nil if no reason was provided.
+func (run *JobRun) PreemptReason() *string {
+	return run.preemptReason
+}
+
+// WithPreemptReason returns a copy of the job run with the preemptReason updated.
+func (run *JobRun) WithPreemptReason(preemptReason *string) *JobRun {
+	run = run.DeepCopy()
+	run.preemptReason = preemptReason
 	return run
 }
 

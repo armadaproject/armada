@@ -92,4 +92,5 @@ type Run struct {
 	Queue                  string     `db:"queue"`
 	Pool                   string     `db:"pool"`
 	Terminated             bool       `db:"terminated"`
+	PreemptReason          *string    `db:"preempt_reason"`
 }
