@@ -664,6 +664,7 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 			if v, ok := expected[run.RunID]; ok {
 				v.DbRun.Serial = run.Serial
 				v.DbRun.LastModified = run.LastModified
+				v.DbRun.Terminated = run.Terminated
 			}
 		}
 		assert.Equal(t, expected, actual)
