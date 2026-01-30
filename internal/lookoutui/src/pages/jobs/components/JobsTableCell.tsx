@@ -1,7 +1,7 @@
 import { ReactNode, RefObject, useCallback } from "react"
 
 import { KeyboardArrowRight, KeyboardArrowDown, OpenInNew } from "@mui/icons-material"
-import { TableCell, IconButton, TableSortLabel, Box, styled, Typography, Link } from "@mui/material"
+import { TableCell, IconButton, TableSortLabel, Box, styled, Typography, Link, Tooltip } from "@mui/material"
 import { Cell, ColumnResizeMode, flexRender, Header, Row } from "@tanstack/react-table"
 import validator from "validator"
 
@@ -24,6 +24,7 @@ import { AggregateType, JobState, Match } from "../../../models/lookoutModels"
 
 import { JobGroupStateCountsColumnHeader } from "./JobGroupStateCountsColumnHeader"
 import styles from "./JobsTableCell.module.css"
+import { CopyIconButton } from "../../../components/CopyIconButton"
 
 const sharedCellStyle = {
   padding: 0,
@@ -94,6 +95,16 @@ export function HeaderCell({
   const borderWidth = 1
   const remainingWidth = totalWidth - resizerWidth - borderWidth
 
+  // job ID copy values
+  const isJobIdColumn = header.column.id === StandardColumnId.JobID
+  const jobsTable = header.getContext().table
+  const visibleRows = jobsTable.getRowModel().rows
+  const visibleRowsExist = visibleRows.length > 0
+  const allJobIds = visibleRows
+    .map((row) => row.original.jobId)
+    .filter(Boolean)
+  const copyContent = allJobIds.join(", ")
+
   const onFilterChange = useCallback(
     (newFilter: string | string[] | number | undefined) => header.column.setFilterValue(newFilter),
     [header.column.setFilterValue],
@@ -137,7 +148,6 @@ export function HeaderCell({
         height: 65,
         textOverflow: "ellipsis",
         whiteSpace: "nowrap",
-        overflow: "hidden",
       }}
     >
       <div
@@ -159,50 +169,59 @@ export function HeaderCell({
             padding: "0 10px 0 10px",
           }}
         >
-          {header.column.getCanSort() ? (
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "row",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-                overflow: "hidden",
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 6,
+              whiteSpace: "nowrap",
+            }}
+          >
+            <TableSortLabel
+              active={Boolean(sortDirection)}
+              direction={sortDirection || defaultSortDirection}
+              onClick={() => {
+                const desc = sortDirection ? sortDirection === "asc" : false
+                header.column.toggleSorting(desc)
               }}
+              aria-label={"Toggle sort"}
+              sx={{ flex: 1, minWidth: 0 }}
             >
-              <TableSortLabel
-                active={Boolean(sortDirection)}
-                direction={sortDirection || defaultSortDirection}
-                onClick={() => {
-                  const desc = sortDirection ? sortDirection === "asc" : false
-                  header.column.toggleSorting(desc)
-                }}
-                aria-label={"Toggle sort"}
-                sx={{
-                  width: "100%",
+              <div
+                style={{
+                  flex: 1,
+                  minWidth: 0,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
                 }}
               >
-                <div
-                  style={{
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                    overflow: "hidden",
+                {flexRender(columnDef.header, header.getContext())}
+              </div>
+            </TableSortLabel>
+
+            {isJobIdColumn && visibleRowsExist && (
+              <Tooltip title="Copy All" arrow>
+                <span 
+                  style={{ 
+                    flex: "0 0 auto", 
+                    display: "flex", 
+                    alignItems: "center" 
                   }}
                 >
-                  {flexRender(columnDef.header, header.getContext())}
-                </div>
-              </TableSortLabel>
-            </div>
-          ) : (
-            <div
-              style={{
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-                overflow: "hidden",
-              }}
-            >
-              {flexRender(columnDef.header, header.getContext())}
-            </div>
-          )}
+                  <CopyIconButton
+                    size="small"
+                    content={copyContent}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                    }}
+                    aria-label="Copy all Job IDs"
+                  />
+                </span>
+              </Tooltip>
+            )}
+          </div>
 
           {header.column.getCanFilter() &&
             metadata.filterType &&
