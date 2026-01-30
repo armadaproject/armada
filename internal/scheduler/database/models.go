@@ -91,6 +91,6 @@ type Run struct {
 	PreemptRequested       bool       `db:"preempt_requested"`
 	Queue                  string     `db:"queue"`
 	Pool                   string     `db:"pool"`
-	PreemptReason          *string    `db:"preempt_reason"`
 	Terminated             bool       `db:"terminated"`
+	PreemptReason          *string    `db:"preempt_reason"`
 }
