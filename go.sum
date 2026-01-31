@@ -927,10 +927,10 @@ github.com/prometheus/common v0.67.5 h1:pIgK94WWlQt1WLwAC5j2ynLaBRDiinoAb86HZHTU
 github.com/prometheus/common v0.67.5/go.mod h1:SjE/0MzDEEAyrdr5Gqc6G+sXI67maCxzaT3A2+HqjUw=
 github.com/prometheus/procfs v0.19.2 h1:zUMhqEW66Ex7OXIiDkll3tl9a1ZdilUOd/F6ZXw4Vws=
 github.com/prometheus/procfs v0.19.2/go.mod h1:M0aotyiemPhBCM0z5w87kL22CxfcH05ZpYlu+b4J7mw=
-github.com/redis/go-redis/extra/redisprometheus/v9 v9.17.2 h1:0c8P2OMKaMFMMA7ve1SJPUXVsI9urJMO6BNVZzgKNJY=
-github.com/redis/go-redis/extra/redisprometheus/v9 v9.17.2/go.mod h1:cncJRRYpIpSRR2zyFcXjC9mSULvKWAfOOGnyQi6z1mQ=
-github.com/redis/go-redis/v9 v9.17.2 h1:P2EGsA4qVIM3Pp+aPocCJ7DguDHhqrXNhVcEp4ViluI=
-github.com/redis/go-redis/v9 v9.17.2/go.mod h1:u410H11HMLoB+TP67dz8rL9s6QW2j76l0//kSOd3370=
+github.com/redis/go-redis/extra/redisprometheus/v9 v9.17.3 h1:sash0Z8Dea+Ck/52IhxOlvRiJTP4R7kNQUiGWh2fo6U=
+github.com/redis/go-redis/extra/redisprometheus/v9 v9.17.3/go.mod h1:Jr/OTb7cX/aS8wb5+9xv5goQr2TJ2vDbQi+9TphfzbU=
+github.com/redis/go-redis/v9 v9.17.3 h1:fN29NdNrE17KttK5Ndf20buqfDZwGNgoUr9qjl1DQx4=
+github.com/redis/go-redis/v9 v9.17.3/go.mod h1:u410H11HMLoB+TP67dz8rL9s6QW2j76l0//kSOd3370=
 github.com/renstrom/shortuuid v3.0.0+incompatible h1:F6T1U7bWlI3FTV+JE8HyeR7bkTeYZJntqQLA9ST4HOQ=
 github.com/renstrom/shortuuid v3.0.0+incompatible/go.mod h1:n18Ycpn8DijG+h/lLBQVnGKv1BCtTeXo8KKSbBOrQ8c=
 github.com/rivo/uniseg v0.1.0/go.mod h1:J6wj4VEh+S6ZtnVlnTBMWIodfgj8LQOQFoIToxlJtxc=
