@@ -5,3 +5,12 @@ metadata:
 value: 1000
 globalDefault: false
 description: "Default priority class for pods created by Armada."
+
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: armada-preemptible
+value: 500
+globalDefault: false
+description: "Lower-priority class for pods that should be preempted by armada-default pods."

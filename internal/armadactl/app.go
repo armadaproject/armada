@@ -19,6 +19,7 @@ import (
 
 	"github.com/armadaproject/armada/pkg/client"
 	"github.com/armadaproject/armada/pkg/client/executor"
+	"github.com/armadaproject/armada/pkg/client/node"
 	"github.com/armadaproject/armada/pkg/client/queue"
 )
 
@@ -41,6 +42,7 @@ type Params struct {
 	ApiConnectionDetails *client.ApiConnectionDetails
 	QueueAPI             *QueueAPI
 	ExecutorAPI          *ExecutorAPI
+	NodeAPI              *NodeAPI
 }
 
 // QueueAPI struct holds pointers to functions that are called by armadactl.
@@ -67,15 +69,21 @@ type ExecutorAPI struct {
 	PreemptOnExecutor executor.PreemptAPI
 }
 
+type NodeAPI struct {
+	PreemptOnNode node.PreemptAPI
+	CancelOnNode  node.CancelAPI
+}
+
 // New instantiates an App with default parameters, including standard output
 // and cryptographically secure random source.
 func New() *App {
-	app := &App{
-		Params: &Params{},
+	return &App{
+		Params: &Params{
+			QueueAPI:    &QueueAPI{},
+			ExecutorAPI: &ExecutorAPI{},
+			NodeAPI:     &NodeAPI{},
+		},
 		Out:    os.Stdout,
 		Random: rand.Reader,
 	}
-	app.Params.QueueAPI = &QueueAPI{}
-	app.Params.ExecutorAPI = &ExecutorAPI{}
-	return app
 }

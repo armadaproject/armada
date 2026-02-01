@@ -48,7 +48,7 @@ func TestFetchInitialJobs(t *testing.T) {
 		JobID:    leasedJob.JobID,
 		JobSet:   "test-jobset",
 		Executor: "test-executor",
-		Node:     fmt.Sprintf("test-node-%d", 0),
+		Node:     "test-node-0",
 		Running:  true,
 	}
 
@@ -57,7 +57,7 @@ func TestFetchInitialJobs(t *testing.T) {
 		JobID:    leasedJob.JobID,
 		JobSet:   "test-jobset",
 		Executor: "test-executor",
-		Node:     fmt.Sprintf("test-node-%d", 0),
+		Node:     "test-node-0",
 		Running:  true,
 		Serial:   1,
 	}
@@ -97,7 +97,7 @@ func TestFetchInitialJobs(t *testing.T) {
 		JobID:     cancelledJob.JobID,
 		JobSet:    "test-jobset",
 		Executor:  "test-executor",
-		Node:      fmt.Sprintf("test-node-%d", 0),
+		Node:      "test-node-0",
 		Cancelled: true,
 	}
 
@@ -116,7 +116,7 @@ func TestFetchInitialJobs(t *testing.T) {
 		JobID:    failedJob.JobID,
 		JobSet:   "test-jobset",
 		Executor: "test-executor",
-		Node:     fmt.Sprintf("test-node-%d", 0),
+		Node:     "test-node-0",
 		Failed:   true,
 	}
 
@@ -136,7 +136,7 @@ func TestFetchInitialJobs(t *testing.T) {
 		JobID:     succeededJob.JobID,
 		JobSet:    "test-jobset",
 		Executor:  "test-executor",
-		Node:      fmt.Sprintf("test-node-%d", 0),
+		Node:      "test-node-0",
 		Succeeded: true,
 	}
 
@@ -187,9 +187,9 @@ func TestFetchInitialJobs(t *testing.T) {
 				ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
 
 				// Set up db
-				err := database.UpsertWithTransaction(ctx, repo.db, "jobs", tc.dbJobs, database.WithExcludeColumns("terminated"))
+				err := upsertJobs(ctx, repo.db, tc.dbJobs)
 				require.NoError(t, err)
-				err = database.UpsertWithTransaction(ctx, repo.db, "runs", tc.dbRuns)
+				err = upsertRuns(ctx, repo.db, tc.dbRuns)
 				require.NoError(t, err)
 
 				// Fetch updates
@@ -290,9 +290,9 @@ func TestFetchJobUpdates(t *testing.T) {
 				ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
 
 				// Set up db
-				err := database.UpsertWithTransaction(ctx, repo.db, "jobs", tc.dbJobs, database.WithExcludeColumns("terminated"))
+				err := upsertJobs(ctx, repo.db, tc.dbJobs)
 				require.NoError(t, err)
-				err = database.UpsertWithTransaction(ctx, repo.db, "runs", tc.dbRuns)
+				err = upsertRuns(ctx, repo.db, tc.dbRuns)
 				require.NoError(t, err)
 
 				// Fetch updates
@@ -526,29 +526,11 @@ func TestFindInactiveRuns(t *testing.T) {
 			},
 			expectedInactive: nil,
 		},
-		"run succeeded": {
+		"terminated run": {
 			runsToCheck: runIds,
 			dbRuns: []Run{
 				{RunID: runIds[0]},
 				{RunID: runIds[1], Succeeded: true},
-				{RunID: runIds[2]},
-			},
-			expectedInactive: []string{runIds[1]},
-		},
-		"run failed": {
-			runsToCheck: runIds,
-			dbRuns: []Run{
-				{RunID: runIds[0]},
-				{RunID: runIds[1], Failed: true},
-				{RunID: runIds[2]},
-			},
-			expectedInactive: []string{runIds[1]},
-		},
-		"run cancelled": {
-			runsToCheck: runIds,
-			dbRuns: []Run{
-				{RunID: runIds[0]},
-				{RunID: runIds[1], Cancelled: true},
 				{RunID: runIds[2]},
 			},
 			expectedInactive: []string{runIds[1]},
@@ -568,7 +550,7 @@ func TestFindInactiveRuns(t *testing.T) {
 				ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 500*time.Second)
 
 				// Set up db
-				err := database.UpsertWithTransaction(ctx, repo.db, "runs", tc.dbRuns)
+				err := upsertRuns(ctx, repo.db, tc.dbRuns)
 				require.NoError(t, err)
 
 				inactive, err := repo.FindInactiveRuns(ctx, tc.runsToCheck)
@@ -637,22 +619,6 @@ func TestFetchJobRunLeases(t *testing.T) {
 			Executor: executorName,
 			Pool:     "test-pool",
 			Failed:   true, // should be ignored as terminal
-		},
-		{
-			RunID:     uuid.NewString(),
-			JobID:     dbJobs[0].JobID,
-			JobSet:    "test-jobset",
-			Executor:  executorName,
-			Pool:      "test-pool",
-			Cancelled: true, // should be ignored as terminal
-		},
-		{
-			RunID:     uuid.NewString(),
-			JobID:     dbJobs[3].JobID,
-			JobSet:    "test-jobset",
-			Executor:  executorName,
-			Pool:      "test-pool",
-			Succeeded: true, // should be ignored as terminal
 		},
 	}
 	expectedLeases := make([]*JobRunLease, 4)
@@ -723,9 +689,9 @@ func TestFetchJobRunLeases(t *testing.T) {
 				ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
 
 				// Set up db
-				err := database.UpsertWithTransaction(ctx, repo.db, "jobs", tc.dbJobs, database.WithExcludeColumns("terminated"))
+				err := upsertJobs(ctx, repo.db, tc.dbJobs)
 				require.NoError(t, err)
-				err = database.UpsertWithTransaction(ctx, repo.db, "runs", tc.dbRuns)
+				err = upsertRuns(ctx, repo.db, tc.dbRuns)
 				require.NoError(t, err)
 
 				leases, err := repo.FetchJobRunLeases(ctx, tc.executor, tc.maxRowsToFetch, tc.excludedRuns)
@@ -771,20 +737,425 @@ func createTestRuns(numRuns int) ([]Run, []Run) {
 
 	for i, run := range dbRuns {
 		expectedRuns[i] = Run{
-			RunID:     run.RunID,
-			JobID:     run.JobID,
-			JobSet:    run.JobSet,
-			Executor:  run.Executor,
-			Node:      fmt.Sprintf("test-node-%d", i),
-			Cancelled: run.Cancelled,
-			Running:   run.Running,
-			Succeeded: run.Succeeded,
-			Failed:    run.Failed,
-			Returned:  run.Returned,
-			Serial:    int64(i + 1),
+			RunID:      run.RunID,
+			JobID:      run.JobID,
+			JobSet:     run.JobSet,
+			Executor:   run.Executor,
+			Node:       fmt.Sprintf("test-node-%d", i),
+			Cancelled:  run.Cancelled,
+			Running:    run.Running,
+			Succeeded:  run.Succeeded,
+			Failed:     run.Failed,
+			Returned:   run.Returned,
+			Terminated: true,
+			Serial:     int64(i + 1),
 		}
 	}
 	return dbRuns, expectedRuns
+}
+
+func TestSelectJobsByExecutorAndQueues(t *testing.T) {
+	activeJob := Job{
+		JobID:          util.NewULID(),
+		JobSet:         "test-jobset",
+		Queue:          "test-queue",
+		QueuedVersion:  1,
+		SchedulingInfo: []byte{byte(0)},
+		SubmitMessage:  []byte{},
+	}
+	otherQueueJob := Job{
+		JobID:          util.NewULID(),
+		JobSet:         "test-jobset",
+		Queue:          "other-queue",
+		QueuedVersion:  1,
+		SchedulingInfo: []byte{byte(0)},
+		SubmitMessage:  []byte{},
+	}
+
+	activeRun := Run{
+		RunID:    uuid.NewString(),
+		JobID:    activeJob.JobID,
+		JobSet:   "test-jobset",
+		Executor: "test-executor",
+		Queue:    "test-queue",
+	}
+	terminatedRun := Run{
+		RunID:     uuid.NewString(),
+		JobID:     activeJob.JobID,
+		JobSet:    "test-jobset",
+		Executor:  "test-executor",
+		Queue:     "test-queue",
+		Cancelled: true,
+	}
+	otherQueueRun := Run{
+		RunID:    uuid.NewString(),
+		JobID:    otherQueueJob.JobID,
+		JobSet:   "test-jobset",
+		Executor: "test-executor",
+		Queue:    "other-queue",
+	}
+	preemptedRun := Run{
+		RunID:     uuid.NewString(),
+		JobID:     activeJob.JobID,
+		JobSet:    "test-jobset",
+		Executor:  "test-executor",
+		Queue:     "test-queue",
+		Preempted: true,
+	}
+	otherExecutorRun := Run{
+		RunID:    uuid.NewString(),
+		JobID:    activeJob.JobID,
+		JobSet:   "test-jobset",
+		Executor: "other-executor",
+		Queue:    "test-queue",
+	}
+
+	tests := map[string]struct {
+		dbJobs       []Job
+		dbRuns       []Run
+		executor     string
+		queues       []string
+		expectedJobs int
+	}{
+		"active run returned": {
+			dbJobs:       []Job{activeJob},
+			dbRuns:       []Run{activeRun},
+			executor:     "test-executor",
+			queues:       []string{"test-queue"},
+			expectedJobs: 1,
+		},
+		"terminated run excluded": {
+			dbJobs:       []Job{activeJob},
+			dbRuns:       []Run{terminatedRun},
+			executor:     "test-executor",
+			queues:       []string{"test-queue"},
+			expectedJobs: 0,
+		},
+		"preempted run excluded": {
+			dbJobs:       []Job{activeJob},
+			dbRuns:       []Run{preemptedRun},
+			executor:     "test-executor",
+			queues:       []string{"test-queue"},
+			expectedJobs: 0,
+		},
+		"filters by queue": {
+			dbJobs:       []Job{activeJob, otherQueueJob},
+			dbRuns:       []Run{activeRun, otherQueueRun},
+			executor:     "test-executor",
+			queues:       []string{"test-queue"},
+			expectedJobs: 1,
+		},
+		"filters by executor": {
+			dbJobs:       []Job{activeJob},
+			dbRuns:       []Run{activeRun, otherExecutorRun},
+			executor:     "test-executor",
+			queues:       []string{"test-queue"},
+			expectedJobs: 1,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			err := WithTestDb(func(queries *Queries, db *pgxpool.Pool) error {
+				ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
+				t.Cleanup(cancel)
+
+				err := upsertJobs(ctx, db, tc.dbJobs)
+				require.NoError(t, err)
+				err = upsertRuns(ctx, db, tc.dbRuns)
+				require.NoError(t, err)
+
+				jobs, err := queries.SelectJobsByExecutorAndQueues(ctx, SelectJobsByExecutorAndQueuesParams{
+					Executor: tc.executor,
+					Queues:   tc.queues,
+				})
+				require.NoError(t, err)
+				assert.Equal(t, tc.expectedJobs, len(jobs))
+				return nil
+			})
+			require.NoError(t, err)
+		})
+	}
+}
+
+func TestSelectLeasedJobsByQueue(t *testing.T) {
+	job := Job{
+		JobID:          util.NewULID(),
+		JobSet:         "test-jobset",
+		Queue:          "test-queue",
+		QueuedVersion:  1,
+		SchedulingInfo: []byte{byte(0)},
+		SubmitMessage:  []byte{},
+	}
+
+	leasedRun := Run{
+		RunID:    uuid.NewString(),
+		JobID:    job.JobID,
+		JobSet:   "test-jobset",
+		Executor: "test-executor",
+		Queue:    "test-queue",
+	}
+	pendingRun := Run{
+		RunID:    uuid.NewString(),
+		JobID:    job.JobID,
+		JobSet:   "test-jobset",
+		Executor: "test-executor",
+		Queue:    "test-queue",
+		Pending:  true,
+	}
+	runningRun := Run{
+		RunID:    uuid.NewString(),
+		JobID:    job.JobID,
+		JobSet:   "test-jobset",
+		Executor: "test-executor",
+		Queue:    "test-queue",
+		Running:  true,
+	}
+	terminatedRun := Run{
+		RunID:     uuid.NewString(),
+		JobID:     job.JobID,
+		JobSet:    "test-jobset",
+		Executor:  "test-executor",
+		Queue:     "test-queue",
+		Cancelled: true,
+	}
+	preemptedRun := Run{
+		RunID:     uuid.NewString(),
+		JobID:     job.JobID,
+		JobSet:    "test-jobset",
+		Executor:  "test-executor",
+		Queue:     "test-queue",
+		Preempted: true,
+	}
+
+	tests := map[string]struct {
+		dbRuns       []Run
+		expectedJobs int
+	}{
+		"leased run returned": {
+			dbRuns:       []Run{leasedRun},
+			expectedJobs: 1,
+		},
+		"pending run excluded": {
+			dbRuns:       []Run{pendingRun},
+			expectedJobs: 0,
+		},
+		"running run excluded": {
+			dbRuns:       []Run{runningRun},
+			expectedJobs: 0,
+		},
+		"terminated run excluded": {
+			dbRuns:       []Run{terminatedRun},
+			expectedJobs: 0,
+		},
+		"preempted run excluded": {
+			dbRuns:       []Run{preemptedRun},
+			expectedJobs: 0,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			err := WithTestDb(func(queries *Queries, db *pgxpool.Pool) error {
+				ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
+				t.Cleanup(cancel)
+
+				err := upsertJobs(ctx, db, []Job{job})
+				require.NoError(t, err)
+				err = upsertRuns(ctx, db, tc.dbRuns)
+				require.NoError(t, err)
+
+				jobs, err := queries.SelectLeasedJobsByQueue(ctx, []string{"test-queue"})
+				require.NoError(t, err)
+				assert.Equal(t, tc.expectedJobs, len(jobs))
+				return nil
+			})
+			require.NoError(t, err)
+		})
+	}
+}
+
+func TestSelectPendingJobsByQueue(t *testing.T) {
+	job := Job{
+		JobID:          util.NewULID(),
+		JobSet:         "test-jobset",
+		Queue:          "test-queue",
+		QueuedVersion:  1,
+		SchedulingInfo: []byte{byte(0)},
+		SubmitMessage:  []byte{},
+	}
+
+	pendingRun := Run{
+		RunID:    uuid.NewString(),
+		JobID:    job.JobID,
+		JobSet:   "test-jobset",
+		Executor: "test-executor",
+		Queue:    "test-queue",
+		Pending:  true,
+	}
+	leasedRun := Run{
+		RunID:    uuid.NewString(),
+		JobID:    job.JobID,
+		JobSet:   "test-jobset",
+		Executor: "test-executor",
+		Queue:    "test-queue",
+	}
+	terminatedPendingRun := Run{
+		RunID:     uuid.NewString(),
+		JobID:     job.JobID,
+		JobSet:    "test-jobset",
+		Executor:  "test-executor",
+		Queue:     "test-queue",
+		Pending:   true,
+		Cancelled: true,
+	}
+	preemptedPendingRun := Run{
+		RunID:     uuid.NewString(),
+		JobID:     job.JobID,
+		JobSet:    "test-jobset",
+		Executor:  "test-executor",
+		Queue:     "test-queue",
+		Pending:   true,
+		Preempted: true,
+	}
+
+	tests := map[string]struct {
+		dbRuns       []Run
+		expectedJobs int
+	}{
+		"pending run returned": {
+			dbRuns:       []Run{pendingRun},
+			expectedJobs: 1,
+		},
+		"leased run excluded": {
+			dbRuns:       []Run{leasedRun},
+			expectedJobs: 0,
+		},
+		"terminated pending run excluded": {
+			dbRuns:       []Run{terminatedPendingRun},
+			expectedJobs: 0,
+		},
+		"preempted pending run excluded": {
+			dbRuns:       []Run{preemptedPendingRun},
+			expectedJobs: 0,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			err := WithTestDb(func(queries *Queries, db *pgxpool.Pool) error {
+				ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
+				t.Cleanup(cancel)
+
+				err := upsertJobs(ctx, db, []Job{job})
+				require.NoError(t, err)
+				err = upsertRuns(ctx, db, tc.dbRuns)
+				require.NoError(t, err)
+
+				jobs, err := queries.SelectPendingJobsByQueue(ctx, []string{"test-queue"})
+				require.NoError(t, err)
+				assert.Equal(t, tc.expectedJobs, len(jobs))
+				return nil
+			})
+			require.NoError(t, err)
+		})
+	}
+}
+
+func TestSelectRunningJobsByQueue(t *testing.T) {
+	job := Job{
+		JobID:          util.NewULID(),
+		JobSet:         "test-jobset",
+		Queue:          "test-queue",
+		QueuedVersion:  1,
+		SchedulingInfo: []byte{byte(0)},
+		SubmitMessage:  []byte{},
+	}
+
+	runningRun := Run{
+		RunID:    uuid.NewString(),
+		JobID:    job.JobID,
+		JobSet:   "test-jobset",
+		Executor: "test-executor",
+		Queue:    "test-queue",
+		Running:  true,
+	}
+	returnedRun := Run{
+		RunID:    uuid.NewString(),
+		JobID:    job.JobID,
+		JobSet:   "test-jobset",
+		Executor: "test-executor",
+		Queue:    "test-queue",
+		Running:  true,
+		Returned: true,
+	}
+	terminatedRunningRun := Run{
+		RunID:    uuid.NewString(),
+		JobID:    job.JobID,
+		JobSet:   "test-jobset",
+		Executor: "test-executor",
+		Queue:    "test-queue",
+		Running:  true,
+		Failed:   true,
+	}
+	preemptedRunningRun := Run{
+		RunID:     uuid.NewString(),
+		JobID:     job.JobID,
+		JobSet:    "test-jobset",
+		Executor:  "test-executor",
+		Queue:     "test-queue",
+		Running:   true,
+		Preempted: true,
+	}
+	leasedRun := Run{
+		RunID:    uuid.NewString(),
+		JobID:    job.JobID,
+		JobSet:   "test-jobset",
+		Executor: "test-executor",
+		Queue:    "test-queue",
+	}
+
+	tests := map[string]struct {
+		dbRuns       []Run
+		expectedJobs int
+	}{
+		"running run returned": {
+			dbRuns:       []Run{runningRun},
+			expectedJobs: 1,
+		},
+		"returned run excluded": {
+			dbRuns:       []Run{returnedRun},
+			expectedJobs: 0,
+		},
+		"terminated running run excluded": {
+			dbRuns:       []Run{terminatedRunningRun},
+			expectedJobs: 0,
+		},
+		"preempted running run excluded": {
+			dbRuns:       []Run{preemptedRunningRun},
+			expectedJobs: 0,
+		},
+		"leased run excluded": {
+			dbRuns:       []Run{leasedRun},
+			expectedJobs: 0,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			err := WithTestDb(func(queries *Queries, db *pgxpool.Pool) error {
+				ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
+				t.Cleanup(cancel)
+
+				err := upsertJobs(ctx, db, []Job{job})
+				require.NoError(t, err)
+				err = upsertRuns(ctx, db, tc.dbRuns)
+				require.NoError(t, err)
+
+				jobs, err := queries.SelectRunningJobsByQueue(ctx, []string{"test-queue"})
+				require.NoError(t, err)
+				assert.Equal(t, tc.expectedJobs, len(jobs))
+				return nil
+			})
+			require.NoError(t, err)
+		})
+	}
 }
 
 func withJobRepository(action func(repository *PostgresJobRepository) error) error {
@@ -792,6 +1163,14 @@ func withJobRepository(action func(repository *PostgresJobRepository) error) err
 		repo := NewPostgresJobRepository(db, defaultBatchSize)
 		return action(repo)
 	})
+}
+
+func upsertJobs(ctx *armadacontext.Context, db *pgxpool.Pool, jobs []Job) error {
+	return database.UpsertWithTransaction(ctx, db, "jobs", jobs, database.WithExcludeColumns("terminated"))
+}
+
+func upsertRuns(ctx *armadacontext.Context, db *pgxpool.Pool, runs []Run) error {
+	return database.UpsertWithTransaction(ctx, db, "runs", runs, database.WithExcludeColumns("terminated"))
 }
 
 func insertMarkers(ctx *armadacontext.Context, markers []Marker, db *pgxpool.Pool) error {

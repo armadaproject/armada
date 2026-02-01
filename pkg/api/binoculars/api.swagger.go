@@ -226,8 +226,13 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"SinceTime\",\n" +
 		"          \"x-go-type\": \"k8s.io/apimachinery/pkg/apis/meta/v1.Time\"\n" +
 		"        },\n" +
+		"        \"stream\": {\n" +
+		"          \"description\": \"Specify which container log stream to return to the client.\\nAcceptable values are \\\"All\\\", \\\"Stdout\\\" and \\\"Stderr\\\". If not specified, \\\"All\\\" is used, and both stdout and stderr\\nare returned interleaved.\\nNote that when \\\"TailLines\\\" is specified, \\\"Stream\\\" can only be set to nil or \\\"All\\\".\\n+featureGate=PodLogsQuerySplitStreams\\n+optional\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"Stream\"\n" +
+		"        },\n" +
 		"        \"tailLines\": {\n" +
-		"          \"description\": \"If set, the number of lines from the end of the logs to show. If not specified,\\nlogs are shown from the creation of the container or sinceSeconds or sinceTime\\n+optional\",\n" +
+		"          \"description\": \"If set, the number of lines from the end of the logs to show. If not specified,\\nlogs are shown from the creation of the container or sinceSeconds or sinceTime.\\nNote that when \\\"TailLines\\\" is specified, \\\"Stream\\\" can only be set to nil or \\\"All\\\".\\n+optional\",\n" +
 		"          \"type\": \"integer\",\n" +
 		"          \"format\": \"int64\",\n" +
 		"          \"x-go-name\": \"TailLines\"\n" +
