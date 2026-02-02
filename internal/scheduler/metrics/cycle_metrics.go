@@ -462,20 +462,20 @@ func (m *cycleMetrics) ReportJobPreemptedWithType(job *jobdb.Job, preemptionType
 	m.premptedJobs.WithLabelValues(job.LatestRun().Pool(), job.Queue(), job.PriorityClassName(), string(preemptionType)).Inc()
 }
 
-func (m *cycleMetrics) ReportPoolSchedulingOutcomes(outcome scheduling.PoolSchedulingOutcome) {
-	terminationReason := string(outcome.TerminationReason)
+func (m *cycleMetrics) ReportPoolSchedulingOutcomes(pool string, outcome scheduling.PoolSchedulingOutcome) {
+	terminationReason := string(outcome.TerminationReason())
 	result := PoolSchedulingOutcomeSuccess
-	if !outcome.Success {
+	if !outcome.Success() {
 		result = PoolSchedulingOutcomeFailure
 	}
-	m.poolSchedulingOutcome.WithLabelValues(outcome.Pool, result, terminationReason).Inc()
+	m.poolSchedulingOutcome.WithLabelValues(pool, result, terminationReason).Inc()
 }
 
 func (m *cycleMetrics) ReportSchedulerResult(ctx *armadacontext.Context, result scheduling.SchedulerResult) {
 	currentCycle := newPerCycleMetrics()
 
 	for _, poolResult := range result.PoolResults {
-		m.ReportPoolSchedulingOutcomes(poolResult.Outcome)
+		m.ReportPoolSchedulingOutcomes(poolResult.Name, poolResult.Outcome)
 		if poolResult.ReconciliationResult != nil {
 			for _, info := range poolResult.ReconciliationResult.FailedJobs {
 				m.ReportJobPreemptedWithType(info.Job, context.PreemptedViaNodeReconciler)

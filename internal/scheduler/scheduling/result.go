@@ -30,11 +30,12 @@ type QueueStats struct {
 type PoolSchedulingTerminationReason string
 
 const (
-	PoolSchedulingTerminationReasonCompleted    PoolSchedulingTerminationReason = "completed"
-	PoolSchedulingTerminationReasonTimeout      PoolSchedulingTerminationReason = "timeout"
-	PoolSchedulingTerminationReasonRateLimit    PoolSchedulingTerminationReason = "rate_limit"
-	PoolSchedulingTerminationReasonMaxResources PoolSchedulingTerminationReason = "max_resources"
-	PoolSchedulingTerminationReasonError        PoolSchedulingTerminationReason = "error"
+	PoolSchedulingTerminationReasonCompleted          PoolSchedulingTerminationReason = "completed"
+	PoolSchedulingTerminationReasonSchedulingDisabled PoolSchedulingTerminationReason = "scheduling_disabled"
+	PoolSchedulingTerminationReasonTimeout            PoolSchedulingTerminationReason = "timeout"
+	PoolSchedulingTerminationReasonRateLimit          PoolSchedulingTerminationReason = "rate_limit"
+	PoolSchedulingTerminationReasonMaxResources       PoolSchedulingTerminationReason = "max_resources"
+	PoolSchedulingTerminationReasonError              PoolSchedulingTerminationReason = "error"
 )
 
 func terminationReasonFromString(reason string) PoolSchedulingTerminationReason {
@@ -51,9 +52,27 @@ func terminationReasonFromString(reason string) PoolSchedulingTerminationReason 
 }
 
 type PoolSchedulingOutcome struct {
-	Pool              string
-	Success           bool
-	TerminationReason PoolSchedulingTerminationReason
+	error             error
+	terminationReason PoolSchedulingTerminationReason
+}
+
+func NewPoolSchedulingOutcome(terminationReason PoolSchedulingTerminationReason, error error) *PoolSchedulingOutcome {
+	return &PoolSchedulingOutcome{
+		terminationReason: terminationReason,
+		error:             error,
+	}
+}
+
+func (p *PoolSchedulingOutcome) Success() bool {
+	return p.error == nil
+}
+
+func (p *PoolSchedulingOutcome) Error() error {
+	return p.error
+}
+
+func (p *PoolSchedulingOutcome) TerminationReason() PoolSchedulingTerminationReason {
+	return p.terminationReason
 }
 
 type SchedulingInformation struct {
