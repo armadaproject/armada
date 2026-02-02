@@ -130,7 +130,7 @@ func Upsert[T any](ctx *armadacontext.Context, tx pgx.Tx, tableName string, reco
 	// Move those rows into the main table, using ON CONFLICT rules to over-write existing rows.
 	var b strings.Builder
 
-	fmt.Fprintf(&b, "INSERT INTO %s SELECT %s from %s ", tableName, strings.Join(writableNames, ","), tempTableName)
+	fmt.Fprintf(&b, "INSERT INTO %s (%s) SELECT %s from %s ", tableName, strings.Join(writableNames, ","), strings.Join(writableNames, ","), tempTableName)
 	fmt.Fprintf(&b, "ON CONFLICT (%s) DO UPDATE SET ", writableNames[0])
 	for i, name := range writableNames {
 		fmt.Fprintf(&b, "%s = EXCLUDED.%s", name, name)
