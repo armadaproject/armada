@@ -147,6 +147,7 @@ export function HeaderCell({
         height: 65,
         textOverflow: "ellipsis",
         whiteSpace: "nowrap",
+        overflow: "hidden",
       }}
     >
       <div
@@ -168,59 +169,81 @@ export function HeaderCell({
             padding: "0 10px 0 10px",
           }}
         >
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 6,
-              whiteSpace: "nowrap",
-            }}
-          >
-            <TableSortLabel
-              active={Boolean(sortDirection)}
-              direction={sortDirection || defaultSortDirection}
-              onClick={() => {
-                const desc = sortDirection ? sortDirection === "asc" : false
-                header.column.toggleSorting(desc)
+          {header.column.getCanSort() ? (
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "row",
+                alignItems: "center",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
               }}
-              aria-label={"Toggle sort"}
-              sx={{ flex: 1, minWidth: 0 }}
             >
-              <div
-                style={{
+              <TableSortLabel
+                active={Boolean(sortDirection)}
+                direction={sortDirection || defaultSortDirection}
+                onClick={() => {
+                  const desc = sortDirection ? sortDirection === "asc" : false
+                  header.column.toggleSorting(desc)
+                }}
+                aria-label={"Toggle sort"}
+                sx={{
                   flex: 1,
                   minWidth: 0,
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
                 }}
               >
-                {flexRender(columnDef.header, header.getContext())}
-              </div>
-            </TableSortLabel>
-
-            {allowCopyColumn && visibleRows.length > 0 && (
-              <Tooltip title="Copy All" arrow>
-                <span 
-                  style={{ 
-                    flex: "0 0 auto", 
-                    display: "flex", 
-                    alignItems: "center" 
+                <div
+                  style={{
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
                   }}
                 >
-                  <CopyIconButton
-                    size="small"
-                    content={copyContent}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                    }}
-                    aria-label="Copy all Job IDs"
-                  />
-                </span>
-              </Tooltip>
-            )}
-          </div>
+                  {flexRender(columnDef.header, header.getContext())}
+                </div>
+              </TableSortLabel>
+
+              {allowCopyColumn && copyContent && (
+                <Tooltip title="Copy All" arrow>
+                  <span 
+                    style={{ 
+                      flex: "0 0 auto", 
+                      display: "flex", 
+                      alignItems: "center" 
+                    }}>
+                    <CopyIconButton
+                      size="small"
+                      content={copyContent}
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  </span>
+                </Tooltip>
+              )}
+            </div>
+          ) : (
+            <div
+              style={{
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+              }}
+            >
+              {flexRender(columnDef.header, header.getContext())}
+
+              {allowCopyColumn && copyContent && (
+                <Tooltip title="Copy All" arrow>
+                  <span style={{ display: "inline-flex", alignItems: "center", marginLeft: 6 }}>
+                    <CopyIconButton
+                      size="small"
+                      content={copyContent}
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  </span>
+                </Tooltip>
+              )}
+            </div>
+          )}
 
           {header.column.getCanFilter() &&
             metadata.filterType &&
