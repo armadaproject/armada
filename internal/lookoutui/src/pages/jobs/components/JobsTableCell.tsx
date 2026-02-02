@@ -2,7 +2,7 @@ import { ReactNode, RefObject, useCallback } from "react"
 
 import { KeyboardArrowRight, KeyboardArrowDown, OpenInNew } from "@mui/icons-material"
 import { TableCell, IconButton, TableSortLabel, Box, styled, Typography, Link, Tooltip } from "@mui/material"
-import { Cell, ColumnResizeMode, flexRender, Header, Row } from "@tanstack/react-table"
+import { Cell, ColumnResizeMode, flexRender, Header, Row, RowSelection } from "@tanstack/react-table"
 import validator from "validator"
 
 import {
@@ -95,15 +95,14 @@ export function HeaderCell({
   const borderWidth = 1
   const remainingWidth = totalWidth - resizerWidth - borderWidth
 
-  // job ID copy values
   const allowCopyColumn = Boolean(metadata.allowCopyColumn)
-  const jobsTable = header.getContext().table
-  const visibleRows = jobsTable.getRowModel().rows
-  const visibleRowsExist = visibleRows.length > 0
-  const allJobIds = visibleRows
-    .map((row) => row.original.jobId)
-    .filter(Boolean)
-  const copyContent = allJobIds.join(", ")
+  const visibleRows = header.getContext().table.getRowModel().rows
+  const copyContent = getColumnMetadata(header.column.columnDef).allowCopyColumn
+    ? visibleRows
+        .map((row) => row.original.jobId)
+        .filter(Boolean)
+        .join(", ")
+    : ""
 
   const onFilterChange = useCallback(
     (newFilter: string | string[] | number | undefined) => header.column.setFilterValue(newFilter),
@@ -201,7 +200,7 @@ export function HeaderCell({
               </div>
             </TableSortLabel>
 
-            {allowCopyColumn && visibleRowsExist && (
+            {allowCopyColumn && visibleRows.length > 0 && (
               <Tooltip title="Copy All" arrow>
                 <span 
                   style={{ 
