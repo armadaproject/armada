@@ -537,22 +537,24 @@ func (m *cycleMetrics) ReportSchedulerResult(ctx *armadacontext.Context, result 
 
 				currentCycle.loopNumber.WithLabelValues(pool).Set(float64(schedulingStats.LoopNumber))
 
-				for queue, s := range schedulingStats.EvictorResult.GetStatsPerQueue() {
-					currentCycle.evictedJobs.WithLabelValues(pool, queue).Set(float64(s.EvictedJobCount))
+				if schedulingStats.EvictorResult != nil {
+					for queue, s := range schedulingStats.EvictorResult.GetStatsPerQueue() {
+						currentCycle.evictedJobs.WithLabelValues(pool, queue).Set(float64(s.EvictedJobCount))
 
-					for _, r := range s.EvictedResources.GetAll() {
-						currentCycle.evictedResources.WithLabelValues(pool, queue, r.Name).Set(r.Value.AsApproximateFloat64())
+						for _, r := range s.EvictedResources.GetAll() {
+							currentCycle.evictedResources.WithLabelValues(pool, queue, r.Name).Set(r.Value.AsApproximateFloat64())
+						}
 					}
-				}
 
-				for _, nodePreemptiblityStats := range schedulingStats.EvictorResult.NodePreemptiblityStats {
-					currentCycle.nodePreemptibility.WithLabelValues(
-						pool,
-						nodePreemptiblityStats.NodeName,
-						nodePreemptiblityStats.Cluster,
-						nodePreemptiblityStats.NodeType,
-						fmt.Sprintf("%t", nodePreemptiblityStats.Preemptible),
-						nodePreemptiblityStats.Reason).Set(1.0)
+					for _, nodePreemptiblityStats := range schedulingStats.EvictorResult.NodePreemptiblityStats {
+						currentCycle.nodePreemptibility.WithLabelValues(
+							pool,
+							nodePreemptiblityStats.NodeName,
+							nodePreemptiblityStats.Cluster,
+							nodePreemptiblityStats.NodeType,
+							fmt.Sprintf("%t", nodePreemptiblityStats.Preemptible),
+							nodePreemptiblityStats.Reason).Set(1.0)
+					}
 				}
 
 				nodes, err := schedulingStats.NodeDb.GetNodes()

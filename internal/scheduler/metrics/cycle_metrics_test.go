@@ -326,31 +326,31 @@ func TestPublishCycleMetrics(t *testing.T) {
 func TestReportPoolSchedulingOutcomes(t *testing.T) {
 	m := newCycleMetrics(pulsarutils.NoOpPublisher[*metricevents.Event]{}, []string{"pool1"})
 
-	outcomes := []scheduling.PoolSchedulingOutcome{
+	type outcome struct {
+		pool              string
+		schedulingOutcome *scheduling.PoolSchedulingOutcome
+	}
+	outcomes := []outcome{
 		{
-			Pool:              "pool-1",
-			Success:           false,
-			TerminationReason: scheduling.PoolSchedulingTerminationReasonError,
+			pool:              "pool-1",
+			schedulingOutcome: scheduling.NewPoolSchedulingOutcome(scheduling.PoolSchedulingTerminationReasonError, fmt.Errorf("error")),
 		},
 		{
-			Pool:              "pool-2",
-			Success:           true,
-			TerminationReason: scheduling.PoolSchedulingTerminationReasonCompleted,
+			pool:              "pool-2",
+			schedulingOutcome: scheduling.NewPoolSchedulingOutcome(scheduling.PoolSchedulingTerminationReasonCompleted, nil),
 		},
 		{
-			Pool:              "pool-3",
-			Success:           true,
-			TerminationReason: scheduling.PoolSchedulingTerminationReasonTimeout,
+			pool:              "pool-3",
+			schedulingOutcome: scheduling.NewPoolSchedulingOutcome(scheduling.PoolSchedulingTerminationReasonTimeout, nil),
 		},
 		{
-			Pool:              "pool-4",
-			Success:           true,
-			TerminationReason: scheduling.PoolSchedulingTerminationReasonRateLimit,
+			pool:              "pool-4",
+			schedulingOutcome: scheduling.NewPoolSchedulingOutcome(scheduling.PoolSchedulingTerminationReasonRateLimit, nil),
 		},
 	}
 
 	for _, outcome := range outcomes {
-		m.ReportPoolSchedulingOutcomes(outcome)
+		m.ReportPoolSchedulingOutcomes(outcome.pool, *outcome.schedulingOutcome)
 	}
 
 	failureCount := testutil.ToFloat64(m.poolSchedulingOutcome.WithLabelValues("pool-1", PoolSchedulingOutcomeFailure, string(scheduling.PoolSchedulingTerminationReasonError)))

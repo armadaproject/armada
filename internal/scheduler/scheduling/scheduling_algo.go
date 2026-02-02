@@ -137,8 +137,12 @@ func (l *FairSchedulingAlgo) Schedule(
 		}
 
 		// If pools are not configured to fail independently, cause total scheduling round failure on pool failure
-		if !outcome.Success() && l.schedulingConfig.DisableIndependentPoolFailures {
-			return nil, outcome.Error()
+		if !outcome.Success() {
+			if l.schedulingConfig.DisableIndependentPoolFailures {
+				return nil, outcome.Error()
+			} else {
+				log.Errorf("scheduling on pool %s failed but continuing as the error was non-fatal - error %s", pool.Name, outcome.Error())
+			}
 		}
 
 		poolResult := &PoolSchedulingResult{
@@ -161,14 +165,13 @@ func (l *FairSchedulingAlgo) reconcileAndSchedulePool(
 
 	select {
 	case <-ctx.Done():
-		// We've reached the scheduling time limit; exit gracefully.
-		ctx.Info("ending scheduling round early as we have hit the maximum scheduling duration")
-		return NewPoolSchedulingOutcome(PoolSchedulingTerminationReasonTimeout, fmt.Errorf("scheduling round hit maximum scheduling duration")), nil, nil, nil
+		return NewPoolSchedulingOutcome(PoolSchedulingTerminationReasonTimeout, fmt.Errorf("scheduling round hit global maximum scheduling duration")), nil, nil, nil
 	default:
 	}
 
 	// Exit immediately if scheduling is disabled.
 	if l.schedulingConfig.DisableScheduling {
+		log.Infof("not scheduling on pool %s as scheduling is disabled", pool.Name)
 		return NewPoolSchedulingOutcome(PoolSchedulingTerminationReasonSchedulingDisabled, nil), nil, nil, nil
 	}
 
@@ -198,7 +201,7 @@ func (l *FairSchedulingAlgo) reconcileAndSchedulePool(
 	// If we use a different copy of nodes (possibly more to date copy) it may no longer align with the jobs/runs
 	fsctx, err := l.newFairSchedulingAlgoContext(ctx, txn, executors, pool)
 	if err != nil {
-		return NewPoolSchedulingOutcome(PoolSchedulingTerminationReasonSchedulingDisabled, err), nil, nil, nil
+		return NewPoolSchedulingOutcome(PoolSchedulingTerminationReasonSchedulingDisabled, errors.WithMessagef(err, "failed to create scheduling algo context")), nil, nil, nil
 	}
 
 	if fsctx.nodeDb.NumNodes() <= 0 {
@@ -230,14 +233,16 @@ func (l *FairSchedulingAlgo) reconcileAndSchedulePool(
 		resourceUnit = l.resourceListFactory.MakeAllZero()
 	}
 	schedulingResult, sctx, err := l.SchedulePool(ctx, fsctx, pool, resourceUnit)
-
-	ctx.Infof("Scheduled on executor pool %s in %v with error %v", pool.Name, time.Now().Sub(start), err)
-
-	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
-		return NewPoolSchedulingOutcome(PoolSchedulingTerminationReasonTimeout, err), nil, nil, nil
-	} else if err != nil {
-		return NewPoolSchedulingOutcome(PoolSchedulingTerminationReasonError, err), nil, nil, nil
+	if err != nil {
+		ctx.Infof("Scheduled on pool %s in %v - failed with error %s", pool.Name, time.Now().Sub(start), err)
+		if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+			return NewPoolSchedulingOutcome(PoolSchedulingTerminationReasonTimeout, err), nil, nil, nil
+		} else if err != nil {
+			return NewPoolSchedulingOutcome(PoolSchedulingTerminationReasonError, errors.WithMessagef(err, "failed scheduling on pool %s", pool.Name)), nil, nil, nil
+		}
 	}
+
+	ctx.Infof("Scheduled on pool %s in %v", pool.Name, time.Now().Sub(start))
 	if l.schedulingContextRepository != nil {
 		l.schedulingContextRepository.StoreSchedulingContext(sctx)
 	}
