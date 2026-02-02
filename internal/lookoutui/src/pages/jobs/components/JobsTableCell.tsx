@@ -96,7 +96,7 @@ export function HeaderCell({
   const remainingWidth = totalWidth - resizerWidth - borderWidth
 
   // job ID copy values
-  const isJobIdColumn = header.column.id === StandardColumnId.JobID
+  const allowCopyColumn = Boolean(metadata.allowCopyColumn)
   const jobsTable = header.getContext().table
   const visibleRows = jobsTable.getRowModel().rows
   const visibleRowsExist = visibleRows.length > 0
@@ -201,7 +201,7 @@ export function HeaderCell({
               </div>
             </TableSortLabel>
 
-            {isJobIdColumn && visibleRowsExist && (
+            {allowCopyColumn && visibleRowsExist && (
               <Tooltip title="Copy All" arrow>
                 <span 
                   style={{ 
