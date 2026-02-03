@@ -53,7 +53,7 @@ SELECT run_id FROM runs;
 SELECT * FROM runs WHERE serial > $1 AND job_id = ANY(sqlc.arg(job_ids)::text[]) ORDER BY serial;
 
 -- name: MarkJobRunsPreemptRequestedByJobId :exec
-UPDATE runs SET preempt_requested = true WHERE queue = sqlc.arg(queue) and job_set = sqlc.arg(job_set) and job_id = ANY(sqlc.arg(job_ids)::text[]) and cancelled = false and succeeded = false and failed = false;
+UPDATE runs SET preempt_requested = true WHERE queue = sqlc.arg(queue) and job_set = sqlc.arg(job_set) and job_id = ANY(sqlc.arg(job_ids)::text[]) and terminated = false;
 
 -- name: MarkJobRunsSucceededById :exec
 UPDATE runs SET succeeded = true WHERE run_id = ANY(sqlc.arg(run_ids)::text[]);
@@ -77,11 +77,10 @@ FROM runs jr
               ON jr.job_id = j.job_id
 WHERE jr.executor = $1
   AND jr.run_id NOT IN (sqlc.arg(run_ids)::text[])
-  AND jr.succeeded = false AND jr.failed = false AND jr.cancelled = false;
+  AND jr.terminated = false;
 
 -- name: FindActiveRuns :many
-SELECT run_id FROM runs WHERE run_id = ANY(sqlc.arg(run_ids)::text[])
-                         AND (succeeded = false AND failed = false AND cancelled = false);
+SELECT run_id FROM runs WHERE run_id = ANY(sqlc.arg(run_ids)::text[]) AND terminated = false;
 
 -- name: CountGroup :one
 SELECT COUNT(*) FROM markers WHERE group_id= $1;
@@ -153,8 +152,20 @@ FROM runs jr
        JOIN jobs j
             ON jr.job_id = j.job_id
 WHERE jr.executor = @executor
-  AND j.queue = ANY(@queues::text[])
-  AND jr.succeeded = false AND jr.failed = false AND jr.cancelled = false AND jr.preempted = false;
+  AND jr.queue = ANY(@queues::text[])
+  AND jr.terminated = false
+  AND jr.preempted = false;
+
+-- name: SelectJobsByNodeAndExecutorAndQueues :many
+SELECT j.*
+FROM runs jr
+        JOIN jobs j
+             ON jr.job_id = j.job_id
+WHERE jr.node = @node
+  AND jr.executor = @executor
+  AND jr.queue = ANY(@queues::text[])
+  AND jr.terminated = false
+  AND jr.preempted = false;
 
 -- name: SelectQueuedJobsByQueue :many
 SELECT j.*
@@ -167,12 +178,10 @@ SELECT j.*
 FROM runs jr
        JOIN jobs j
             ON jr.job_id = j.job_id
-WHERE j.queue = ANY(@queue::text[])
+WHERE jr.queue = ANY(@queue::text[])
   AND jr.running = false
   AND jr.pending = false
-  AND jr.succeeded = false
-  AND jr.failed = false
-  AND jr.cancelled = false
+  AND jr.terminated = false
   AND jr.preempted = false;
 
 -- name: SelectPendingJobsByQueue :many
@@ -180,12 +189,10 @@ SELECT j.*
 FROM runs jr
        JOIN jobs j
             ON jr.job_id = j.job_id
-WHERE j.queue = ANY(@queue::text[])
+WHERE jr.queue = ANY(@queue::text[])
   AND jr.running = false
   AND jr.pending = true
-  AND jr.succeeded = false
-  AND jr.failed = false
-  AND jr.cancelled = false
+  AND jr.terminated = false
   AND jr.preempted = false;
 
 -- name: SelectRunningJobsByQueue :many
@@ -193,11 +200,9 @@ SELECT j.*
 FROM runs jr
        JOIN jobs j
             ON jr.job_id = j.job_id
-WHERE j.queue = ANY(@queue::text[])
+WHERE jr.queue = ANY(@queue::text[])
   AND jr.running = true
   AND jr.returned = false
-  AND jr.succeeded = false
-  AND jr.failed = false
-  AND jr.cancelled = false
+  AND jr.terminated = false
   AND jr.preempted = false;
 

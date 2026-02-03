@@ -19,5 +19,8 @@ postgres:
     password: psw
     dbname: scheduler
     sslmode: disable
+scheduling:
+  indexedNodeLabels:
+    - "kubernetes.io/hostname"
 metrics:
   port: 9001

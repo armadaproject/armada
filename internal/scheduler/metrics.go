@@ -283,6 +283,12 @@ type clusterCordonedStatus struct {
 	setByUser string
 }
 
+type nodeJobPhaseMetricKey struct {
+	node    string
+	cluster string
+	phase   string
+}
+
 func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]prometheus.Metric, error) {
 	executors, err := c.executorRepository.GetExecutors(ctx)
 	if err != nil {
@@ -302,6 +308,7 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 	totalFarmResourceByCluster := map[clusterMetricKey]resource.ComputeResources{}
 	schedulableNodeCountByCluster := map[clusterMetricKey]int{}
 	totalNodeCountByCluster := map[clusterMetricKey]int{}
+	nodeJobsMetricCounts := map[nodeJobPhaseMetricKey]int{}
 
 	poolToAwayPools := map[string][]string{}
 	for _, poolConfig := range c.pools {
@@ -420,6 +427,15 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 					}
 					phaseCountByQueue[key]++
 
+					switch jobRunState {
+					case schedulerobjects.JobRunState_RUNNING, schedulerobjects.JobRunState_PENDING: // Only active phases
+						nodeJobsMetricCounts[nodeJobPhaseMetricKey{
+							node:    node.Name,
+							cluster: executor.Id,
+							phase:   phase,
+						}]++
+					}
+
 					podRequirements := job.PodRequirements()
 					if podRequirements != nil {
 						jobRequirements := resource.FromResourceList(podRequirements.ResourceRequirements.Requests)
@@ -495,6 +511,17 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 	}
 	for k, v := range totalNodeCountByCluster {
 		clusterMetrics = append(clusterMetrics, commonmetrics.NewClusterTotalCapacity(float64(v), k.cluster, k.pool, "nodes", k.nodeType, k.reservation))
+	}
+	for k, v := range nodeJobsMetricCounts {
+		clusterMetrics = append(
+			clusterMetrics,
+			commonmetrics.NewNodeJobPhaseCountMetric(
+				float64(v),
+				k.node,
+				k.cluster,
+				k.phase,
+			),
+		)
 	}
 	for cluster, v := range cordonedStatusByCluster {
 		clusterMetrics = append(clusterMetrics, commonmetrics.NewClusterCordonedStatus(v.status, cluster, v.reason, v.setByUser))
