@@ -32,6 +32,7 @@ export enum FilterType {
 export interface JobTableColumnMetadata {
   displayName: string
   allowCopy?: boolean
+  allowCopyColumn?: boolean
   isRightAligned?: boolean
 
   filterType?: FilterType
@@ -304,6 +305,7 @@ export const GET_JOB_COLUMNS = ({
       filterType: FilterType.Text,
       defaultMatchType: Match.Exact, // Job ID does not support startsWith
       allowCopy: true,
+      allowCopyColumn: true,
     },
   }),
   accessorColumn({
