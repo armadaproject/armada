@@ -26,7 +26,6 @@ import { AggregateType, JobState, Match } from "../../../models/lookoutModels"
 import { JobGroupStateCountsColumnHeader } from "./JobGroupStateCountsColumnHeader"
 import styles from "./JobsTableCell.module.css"
 
-
 const sharedCellStyle = {
   padding: 0,
   overflowWrap: "normal",
@@ -226,7 +225,7 @@ export function HeaderCell({
               {allowCopyColumn && copyContent && (
                 <Tooltip title="Copy All" arrow>
                   <span style={{ display: "inline-flex", alignItems: "center", marginLeft: 6 }}>
-                    <CopyIconButton size="small" content={copyContent}onClick={(e) => e.stopPropagation()} />
+                    <CopyIconButton size="small" content={copyContent} onClick={(e) => e.stopPropagation()} />
                   </span>
                 </Tooltip>
               )}
