@@ -131,6 +131,30 @@ export const ReprioritizeDialog = ({ onClose, selectedItemFilters }: Reprioritiz
     refetch()
   }, [refetch])
 
+  const handleSubmit = useCallback(
+    (event: React.FormEvent) => {
+      event.preventDefault()
+      handleReprioritizeJobs()
+    },
+    [handleReprioritizeJobs],
+  )
+
+  const handleDialogKeyDown = useCallback(
+    (event: React.KeyboardEvent) => {
+      if (
+        event.key === "Enter" &&
+        !isLoadingJobs &&
+        !hasAttemptedReprioritize &&
+        !isReprioritizing &&
+        reprioritizableJobs.length > 0 &&
+        newPriority !== undefined
+      ) {
+        handleSubmit(event as React.FormEvent)
+      }
+    },
+    [isLoadingJobs, hasAttemptedReprioritize, isReprioritizing, reprioritizableJobs.length, newPriority, handleSubmit],
+  )
+
   const jobsToRender = useMemo(() => reprioritizableJobs.slice(0, 1000), [reprioritizableJobs])
   const formatPriority = useCallback((job: Job) => job.priority.toString(), [])
   const formatSubmittedTime = useCallback((job: Job) => formatIsoTimestamp(job.submitted, "full"), [formatIsoTimestamp])
@@ -140,7 +164,7 @@ export const ReprioritizeDialog = ({ onClose, selectedItemFilters }: Reprioritiz
   const reprioritizableJobsCount = reprioritizableJobs.length
   const selectedJobsCount = selectedJobs.length
   return (
-    <Dialog open={true} onClose={onClose} fullWidth maxWidth="xl">
+    <Dialog open={true} onClose={onClose} fullWidth maxWidth="xl" onKeyDown={handleDialogKeyDown}>
       <DialogTitle>
         {isLoadingJobs
           ? "Reprioritize jobs"
@@ -148,64 +172,66 @@ export const ReprioritizeDialog = ({ onClose, selectedItemFilters }: Reprioritiz
       </DialogTitle>
       <DialogContent sx={{ display: "flex", flexDirection: "column" }}>
         <ErrorBoundary FallbackComponent={AlertErrorFallback}>
-          {isLoadingJobs && (
-            <div className={dialogStyles.loadingInfo}>
-              Fetching info on selected jobs...
-              <CircularProgress variant="indeterminate" />
-            </div>
-          )}
+          <form id="reprioritize-form" onSubmit={handleSubmit}>
+            {isLoadingJobs && (
+              <div className={dialogStyles.loadingInfo}>
+                Fetching info on selected jobs...
+                <CircularProgress variant="indeterminate" />
+              </div>
+            )}
 
-          {error && (
-            <Alert severity="error" sx={{ marginBottom: "0.5em" }}>
-              Failed to fetch jobs: {error}
-            </Alert>
-          )}
+            {error && (
+              <Alert severity="error" sx={{ marginBottom: "0.5em" }}>
+                Failed to fetch jobs: {error}
+              </Alert>
+            )}
 
-          {!isLoadingJobs && !error && (
-            <>
-              {reprioritizableJobs.length > 0 && reprioritizableJobs.length < selectedJobs.length && (
-                <Alert severity="info" sx={{ marginBottom: "0.5em" }}>
-                  {formatNumber(selectedJobsCount)} {selectedJobsCount === 1 ? "job is" : "jobs are"} selected, but only{" "}
-                  {formatNumber(reprioritizableJobsCount)} {reprioritizableJobsCount === 1 ? "job is" : "jobs are"} in a
-                  non-terminated state.
-                </Alert>
-              )}
+            {!isLoadingJobs && !error && (
+              <>
+                {reprioritizableJobs.length > 0 && reprioritizableJobs.length < selectedJobs.length && (
+                  <Alert severity="info" sx={{ marginBottom: "0.5em" }}>
+                    {formatNumber(selectedJobsCount)} {selectedJobsCount === 1 ? "job is" : "jobs are"} selected, but
+                    only {formatNumber(reprioritizableJobsCount)}{" "}
+                    {reprioritizableJobsCount === 1 ? "job is" : "jobs are"} in a non-terminated state.
+                  </Alert>
+                )}
 
-              {reprioritizableJobs.length === 0 && (
-                <Alert severity="success">
-                  All selected jobs are in a terminated state already, therefore there is nothing to reprioritize.
-                </Alert>
-              )}
+                {reprioritizableJobs.length === 0 && (
+                  <Alert severity="success">
+                    All selected jobs are in a terminated state already, therefore there is nothing to reprioritize.
+                  </Alert>
+                )}
 
-              {reprioritizableJobs.length > 0 && (
-                <JobStatusTable
-                  jobsToRender={jobsToRender}
-                  jobStatus={jobIdsToReprioritizeResponses}
-                  totalJobCount={reprioritizableJobs.length}
-                  additionalColumnsToDisplay={[
-                    { displayName: "Priority", formatter: formatPriority },
-                    { displayName: "Submitted Time", formatter: formatSubmittedTime },
-                  ]}
-                  showStatus={Object.keys(jobIdsToReprioritizeResponses).length > 0}
+                {reprioritizableJobs.length > 0 && (
+                  <JobStatusTable
+                    jobsToRender={jobsToRender}
+                    jobStatus={jobIdsToReprioritizeResponses}
+                    totalJobCount={reprioritizableJobs.length}
+                    additionalColumnsToDisplay={[
+                      { displayName: "Priority", formatter: formatPriority },
+                      { displayName: "Submitted Time", formatter: formatSubmittedTime },
+                    ]}
+                    showStatus={Object.keys(jobIdsToReprioritizeResponses).length > 0}
+                  />
+                )}
+
+                <TextField
+                  value={newPriority ?? ""}
+                  autoFocus={true}
+                  label={"New priority for jobs"}
+                  helperText="(0 = highest priority)"
+                  margin={"normal"}
+                  type={"text"}
+                  required
+                  onChange={handlePriorityChange}
+                  sx={{ maxWidth: "250px" }}
+                  slotProps={{
+                    htmlInput: { inputMode: "numeric", pattern: "[0-9]+" },
+                  }}
                 />
-              )}
-
-              <TextField
-                value={newPriority ?? ""}
-                autoFocus={true}
-                label={"New priority for jobs"}
-                helperText="(0 = highest priority)"
-                margin={"normal"}
-                type={"text"}
-                required
-                onChange={handlePriorityChange}
-                sx={{ maxWidth: "250px" }}
-                slotProps={{
-                  htmlInput: { inputMode: "numeric", pattern: "[0-9]+" },
-                }}
-              />
-            </>
-          )}
+              </>
+            )}
+          </form>
         </ErrorBoundary>
       </DialogContent>
       <DialogActions>
@@ -219,7 +245,8 @@ export const ReprioritizeDialog = ({ onClose, selectedItemFilters }: Reprioritiz
           Refetch jobs
         </Button>
         <Button
-          onClick={handleReprioritizeJobs}
+          type="submit"
+          form="reprioritize-form"
           loading={isReprioritizing}
           disabled={
             isLoadingJobs || hasAttemptedReprioritize || reprioritizableJobs.length === 0 || newPriority === undefined
