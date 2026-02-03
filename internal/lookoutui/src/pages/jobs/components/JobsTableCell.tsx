@@ -2,7 +2,7 @@ import { ReactNode, RefObject, useCallback } from "react"
 
 import { KeyboardArrowRight, KeyboardArrowDown, OpenInNew } from "@mui/icons-material"
 import { TableCell, IconButton, TableSortLabel, Box, styled, Typography, Link, Tooltip } from "@mui/material"
-import { Cell, ColumnResizeMode, flexRender, Header, Row, RowSelection } from "@tanstack/react-table"
+import { Cell, ColumnResizeMode, flexRender, Header, Row } from "@tanstack/react-table"
 import validator from "validator"
 
 import {
@@ -17,6 +17,7 @@ import {
 } from "../../../common/jobsTableColumns"
 import { matchForColumn } from "../../../common/jobsTableUtils"
 import { ActionableValueOnHover } from "../../../components/ActionableValueOnHover"
+import { CopyIconButton } from "../../../components/CopyIconButton"
 import { JobsTableFilter } from "../../../components/JobsTableFilter"
 import { LastTransitionTimeAggregateSelector } from "../../../components/LastTransitionTimeAggregateSelector"
 import { JobRow, JobTableRow } from "../../../models/jobsTableModels"
@@ -24,7 +25,7 @@ import { AggregateType, JobState, Match } from "../../../models/lookoutModels"
 
 import { JobGroupStateCountsColumnHeader } from "./JobGroupStateCountsColumnHeader"
 import styles from "./JobsTableCell.module.css"
-import { CopyIconButton } from "../../../components/CopyIconButton"
+
 
 const sharedCellStyle = {
   padding: 0,
@@ -206,17 +207,8 @@ export function HeaderCell({
 
               {allowCopyColumn && copyContent && (
                 <Tooltip title="Copy All" arrow>
-                  <span 
-                    style={{ 
-                      flex: "0 0 auto", 
-                      display: "flex", 
-                      alignItems: "center" 
-                    }}>
-                    <CopyIconButton
-                      size="small"
-                      content={copyContent}
-                      onClick={(e) => e.stopPropagation()}
-                    />
+                  <span style={{ flex: "0 0 auto", display: "flex", alignItems: "center" }}>
+                    <CopyIconButton size="small" content={copyContent} onClick={(e) => e.stopPropagation()} />
                   </span>
                 </Tooltip>
               )}
@@ -234,11 +226,7 @@ export function HeaderCell({
               {allowCopyColumn && copyContent && (
                 <Tooltip title="Copy All" arrow>
                   <span style={{ display: "inline-flex", alignItems: "center", marginLeft: 6 }}>
-                    <CopyIconButton
-                      size="small"
-                      content={copyContent}
-                      onClick={(e) => e.stopPropagation()}
-                    />
+                    <CopyIconButton size="small" content={copyContent}onClick={(e) => e.stopPropagation()} />
                   </span>
                 </Tooltip>
               )}
