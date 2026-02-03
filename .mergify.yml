@@ -1,5 +1,5 @@
 pull_request_rules:
-  - name: Require approval from frontend or Armada maintainers for lookoutui changes
+  - name: Require approval from frontend or Armada maintainers for Lookout UI changes
     conditions:
       - "#approved-reviews-by>=1"
       - "files~=^internal/lookoutui/"
@@ -11,7 +11,7 @@ pull_request_rules:
               - "#approved-reviews-by>=2"
               - and:
                   - "#approved-reviews-by>=1"
-                  - "author~=^(d80tb7|dave[-]gantenbein|dejanzele|eleanorpratt|geaere|JamesMurkin|mauriceyap|masipauskas|MustafaI|zuqq|richscott|robertdavidsmith|samclark|suprjinx|EnricoMi|nikola-jokic|dslear|d2burkhalter|ianhockett|Sigele|williamvega|tgucks)$"
+                  - "author~=^(d80tb7|dave[-]gantenbein|dejanzele|eleanorpratt|geaere|JamesMurkin|mauriceyap|masipauskas|MustafaI|zuqq|richscott|robertdavidsmith|samclark|suprjinx|EnricoMi|nikola-jokic|dslear|d2burkhalter|ianhockett|Sigele|williamvega|tgucks|YHines004)$"
         title: Two approvals required, or one if author is a frontend or Armada maintainer.
 
   - name: Require approval from Armada maintainers
