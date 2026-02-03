@@ -120,14 +120,27 @@ describe("CancelDialog", () => {
     getByText("6000 jobs are selected, but only 1480 jobs are in a cancellable (non-terminated) state.")
   })
 
-  it("allows the user to cancel jobs", async () => {
+  it.each([
+    {
+      method: "clicking the button",
+      action: async (getByRole: ReturnType<typeof render>["getByRole"]) => {
+        const cancelButton = await waitFor(() => getByRole("button", { name: /Cancel 1 job/i }))
+        await userEvent.click(cancelButton)
+      },
+    },
+    {
+      method: "pressing Enter",
+      action: async () => {
+        await userEvent.keyboard("{Enter}")
+      },
+    },
+  ])("allows the user to cancel jobs by $method", async ({ action }) => {
     mockServer.setPostJobsResponse([jobs[0]])
     const { getByRole, findByText } = renderComponent()
 
     mockServer.setCancelJobsResponse([jobs[0].jobId], [])
 
-    const cancelButton = await waitFor(() => getByRole("button", { name: /Cancel 1 job/i }))
-    await userEvent.click(cancelButton)
+    await action(getByRole)
 
     await findByText(/Successfully began cancellation/i)
   })
