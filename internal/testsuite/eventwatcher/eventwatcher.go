@@ -238,10 +238,13 @@ func isTerminalEvent(msg *api.EventMessage) bool {
 }
 
 // ErrorOnNoActiveJobs returns an error if there are no active jobs.
+// Note: The executor intentionally sends both Preempted and Failed events for preempted jobs,
+// so we allow Failed or Cancelled to follow Preempted without erroring.
 func ErrorOnNoActiveJobs(parent context.Context, C chan *api.EventMessage, jobIds map[string]bool) error {
 	numActive := 0
 	numRemaining := len(jobIds)
 	exitedByJobId := make(map[string]bool)
+	preemptedJobIds := make(map[string]bool)
 	for {
 		select {
 		case <-parent.Done():
@@ -259,8 +262,11 @@ func ErrorOnNoActiveJobs(parent context.Context, C chan *api.EventMessage, jobId
 				}
 				numActive--
 			} else if e := msg.GetFailed(); e != nil {
-				if _, ok := exitedByJobId[e.JobId]; ok {
-					return errors.Errorf("received multiple terminal events for job %s", e.JobId)
+				// Allow Failed after Preempted (executor sends both events for preempted jobs)
+				if _, wasPreempted := preemptedJobIds[e.JobId]; !wasPreempted {
+					if _, ok := exitedByJobId[e.JobId]; ok {
+						return errors.Errorf("received multiple terminal events for job %s", e.JobId)
+					}
 				}
 				exitedByJobId[e.JobId] = true
 				if _, ok := jobIds[e.JobId]; ok {
@@ -268,8 +274,11 @@ func ErrorOnNoActiveJobs(parent context.Context, C chan *api.EventMessage, jobId
 				}
 				numActive--
 			} else if e := msg.GetCancelled(); e != nil {
-				if _, ok := exitedByJobId[e.JobId]; ok {
-					return errors.Errorf("received multiple terminal events for job %s", e.JobId)
+				// Allow Cancelled after Preempted (edge case)
+				if _, wasPreempted := preemptedJobIds[e.JobId]; !wasPreempted {
+					if _, ok := exitedByJobId[e.JobId]; ok {
+						return errors.Errorf("received multiple terminal events for job %s", e.JobId)
+					}
 				}
 				exitedByJobId[e.JobId] = true
 				if _, ok := jobIds[e.JobId]; ok {
@@ -281,6 +290,7 @@ func ErrorOnNoActiveJobs(parent context.Context, C chan *api.EventMessage, jobId
 					return errors.Errorf("received multiple terminal events for job %s", e.JobId)
 				}
 				exitedByJobId[e.JobId] = true
+				preemptedJobIds[e.JobId] = true // Mark as preempted to allow subsequent Failed/Cancelled
 				if _, ok := jobIds[e.JobId]; ok {
 					numRemaining--
 				}
