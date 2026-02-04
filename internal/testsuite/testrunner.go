@@ -141,12 +141,30 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 	// 	}
 	// }
 
+	// Build list of event channels based on test configuration.
+	eventChannels := []chan *api.EventMessage{assertCh, ingressCh, noActiveCh, benchmarkCh, srv.eventLogger.In}
+
+	// Add preempt channel if preemption is configured.
+	var preemptCh chan *api.EventMessage
+	if srv.testSpec.Action == api.TestSpec_ACTION_PREEMPT {
+		preemptCh = make(chan *api.EventMessage)
+		eventChannels = append(eventChannels, preemptCh)
+	}
+
 	// Duplicate events across all downstream services.
 	splitter := eventsplitter.New(
 		watcher.C,
-		[]chan *api.EventMessage{assertCh, ingressCh, noActiveCh, benchmarkCh, srv.eventLogger.In}...,
+		eventChannels...,
 	)
 	g.Go(func() error { return splitter.Run(ctx) })
+
+	// If configured, preempt jobs once they are running.
+	// Used to test job preemption.
+	if srv.testSpec.Action == api.TestSpec_ACTION_PREEMPT {
+		g.Go(func() error {
+			return preemptJobsWhenRunning(ctx, preemptCh, srv.testSpec, srv.apiConnectionDetails, jobIds)
+		})
+	}
 
 	// Cancel the errgroup if there are no active jobs.
 	g.Go(func() error { return eventwatcher.ErrorOnNoActiveJobs(ctx, noActiveCh, maps.Clone(jobIdMap)) })
@@ -185,12 +203,16 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 
 // tryCancelJobs cancels submitted jobs if cancellation is configured.
 func tryCancelJobs(ctx context.Context, testSpec *api.TestSpec, conn *client.ApiConnectionDetails, jobIds []string) error {
+	if testSpec.Action != api.TestSpec_ACTION_CANCEL {
+		return nil
+	}
+
 	req := &api.JobCancelRequest{
 		Queue:    testSpec.GetQueue(),
 		JobSetId: testSpec.GetJobSetId(),
 	}
 	switch {
-	case testSpec.Cancel == api.TestSpec_BY_ID:
+	case testSpec.Selection == api.TestSpec_SELECTION_BY_ID:
 		return client.WithSubmitClient(conn, func(sc api.SubmitClient) error {
 			time.Sleep(3 * time.Second)
 			for _, jobId := range jobIds {
@@ -202,7 +224,7 @@ func tryCancelJobs(ctx context.Context, testSpec *api.TestSpec, conn *client.Api
 			}
 			return nil
 		})
-	case testSpec.Cancel == api.TestSpec_BY_SET:
+	case testSpec.Selection == api.TestSpec_SELECTION_BY_SET:
 		return client.WithSubmitClient(conn, func(sc api.SubmitClient) error {
 			time.Sleep(3 * time.Second)
 			_, err := sc.CancelJobs(ctx, req)
@@ -211,11 +233,83 @@ func tryCancelJobs(ctx context.Context, testSpec *api.TestSpec, conn *client.Api
 			}
 			return nil
 		})
-	case testSpec.Cancel == api.TestSpec_BY_IDS:
+	case testSpec.Selection == api.TestSpec_SELECTION_BY_IDS:
 		return client.WithSubmitClient(conn, func(sc api.SubmitClient) error {
 			time.Sleep(3 * time.Second)
 			req.JobIds = jobIds
 			_, err := sc.CancelJobs(ctx, req)
+			if err != nil {
+				return errors.WithStack(err)
+			}
+			return nil
+		})
+	}
+	return nil
+}
+
+// preemptJobsWhenRunning waits for jobs to be running, then preempts them.
+func preemptJobsWhenRunning(ctx context.Context, eventCh chan *api.EventMessage, testSpec *api.TestSpec, conn *client.ApiConnectionDetails, jobIds []string) error {
+	runningJobs := make(map[string]bool)
+
+	// Wait for all jobs to be running
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case msg := <-eventCh:
+			if e := msg.GetRunning(); e != nil {
+				runningJobs[e.JobId] = true
+
+				// Once all jobs are running, preempt them
+				if len(runningJobs) == len(jobIds) {
+					time.Sleep(1 * time.Second) // Brief delay to ensure job is fully running
+					_ = tryPreemptJobs(ctx, testSpec, conn, jobIds)
+					// Continue consuming events but don't preempt again
+					for {
+						select {
+						case <-ctx.Done():
+							return nil
+						case <-eventCh:
+							// Keep consuming to avoid blocking the splitter
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
+// tryPreemptJobs preempts submitted jobs if preemption is configured.
+func tryPreemptJobs(ctx context.Context, testSpec *api.TestSpec, conn *client.ApiConnectionDetails, jobIds []string) error {
+	req := &api.JobPreemptRequest{
+		Queue:    testSpec.GetQueue(),
+		JobSetId: testSpec.GetJobSetId(),
+		Reason:   testSpec.GetPreemptReason(),
+	}
+	switch {
+	case testSpec.Selection == api.TestSpec_SELECTION_BY_ID:
+		return client.WithSubmitClient(conn, func(sc api.SubmitClient) error {
+			for _, jobId := range jobIds {
+				req.JobIds = []string{jobId}
+				_, err := sc.PreemptJobs(ctx, req)
+				if err != nil {
+					return errors.WithStack(err)
+				}
+			}
+			return nil
+		})
+	case testSpec.Selection == api.TestSpec_SELECTION_BY_SET:
+		return client.WithSubmitClient(conn, func(sc api.SubmitClient) error {
+			_, err := sc.PreemptJobs(ctx, req)
+			if err != nil {
+				return errors.WithStack(err)
+			}
+			return nil
+		})
+	case testSpec.Selection == api.TestSpec_SELECTION_BY_IDS:
+		return client.WithSubmitClient(conn, func(sc api.SubmitClient) error {
+			req.JobIds = jobIds
+			_, err := sc.PreemptJobs(ctx, req)
 			if err != nil {
 				return errors.WithStack(err)
 			}
