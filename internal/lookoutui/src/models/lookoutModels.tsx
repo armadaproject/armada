@@ -64,6 +64,28 @@ export const jobStateDisplayNames: Record<JobState, string> = {
   [JobState.Rejected]: "Rejected",
 }
 
+export enum JobStateCategory {
+  Active = "ACTIVE",
+  InActive = "INACTIVE",
+}
+
+export const jobStateCategoryDisplayNames: Record<JobStateCategory, string> = {
+  [JobStateCategory.Active]: "Active",
+  [JobStateCategory.InActive]: "Inactive",
+}
+
+export const jobStateCategories: Record<JobState, JobStateCategory[]> = {
+  [JobState.Queued]: [JobStateCategory.Active],
+  [JobState.Leased]: [JobStateCategory.Active],
+  [JobState.Pending]: [JobStateCategory.Active],
+  [JobState.Running]: [JobStateCategory.Active],
+  [JobState.Succeeded]: [JobStateCategory.InActive],
+  [JobState.Failed]: [JobStateCategory.InActive],
+  [JobState.Cancelled]: [JobStateCategory.InActive],
+  [JobState.Preempted]: [JobStateCategory.InActive],
+  [JobState.Rejected]: [JobStateCategory.InActive],
+}
+
 const terminatedJobStates = new Set([
   JobState.Succeeded,
   JobState.Failed,
