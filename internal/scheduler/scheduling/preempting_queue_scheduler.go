@@ -77,7 +77,7 @@ func NewPreemptingQueueScheduler(
 // Schedule
 // - preempts jobs belonging to queues with total allocation above their fair share and
 // - schedules new jobs belonging to queues with total allocation less than their fair share.
-func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResult, error) {
+func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulingResult, error) {
 	defer func() {
 		sch.schedulingContext.Finished = time.Now()
 	}()
@@ -263,24 +263,20 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 	schedulercontext.PrintJobSummary(ctx, "Scheduling new jobs;", scheduledJobs)
 	// TODO: Show failed jobs.
 
-	schedulingStats := PerPoolSchedulingStats{
-		StatsPerQueue:                schedulerResult.PerPoolSchedulingStats[sch.schedulingContext.Pool].StatsPerQueue,
-		LoopNumber:                   schedulerResult.PerPoolSchedulingStats[sch.schedulingContext.Pool].LoopNumber,
+	schedulingStats := &SchedulingInformation{
+		StatsPerQueue:                schedulerResult.AdditionalSchedulingInfo.StatsPerQueue,
+		LoopNumber:                   schedulerResult.AdditionalSchedulingInfo.LoopNumber,
 		EvictorResult:                evictorResult,
 		ProtectedFractionOfFairShare: sch.protectedFractionOfFairShare,
 		NodeDb:                       sch.nodeDb,
-		ScheduledJobs:                scheduledJobs,
-		PreemptedJobs:                preemptedJobs,
 		MarketDrivenIndicativePrices: indicativePrices,
 	}
 
-	return &SchedulerResult{
-		PreemptedJobs:      preemptedJobs,
-		ScheduledJobs:      scheduledJobs,
-		SchedulingContexts: []*schedulercontext.SchedulingContext{sch.schedulingContext},
-		PerPoolSchedulingStats: map[string]PerPoolSchedulingStats{
-			sch.schedulingContext.Pool: schedulingStats,
-		},
+	return &SchedulingResult{
+		PreemptedJobs:            preemptedJobs,
+		ScheduledJobs:            scheduledJobs,
+		SchedulingContext:        sch.schedulingContext,
+		AdditionalSchedulingInfo: schedulingStats,
 	}, nil
 }
 
@@ -640,7 +636,7 @@ func (sch *PreemptingQueueScheduler) runPricer(ctx *armadacontext.Context) (Indi
 	return result, err
 }
 
-func (sch *PreemptingQueueScheduler) runOptimiser(ctx *armadacontext.Context) (*SchedulerResult, error) {
+func (sch *PreemptingQueueScheduler) runOptimiser(ctx *armadacontext.Context) (*SchedulingResult, error) {
 	factory := sch.schedulingContext.TotalResources.Factory()
 	var maximumJobSizeToPreempt *internaltypes.ResourceList
 	if sch.optimiserConfig.MaximumJobSizeToPreempt != nil {
@@ -675,7 +671,7 @@ func (sch *PreemptingQueueScheduler) runOptimiser(ctx *armadacontext.Context) (*
 		// This is deliberately defensive to guard against the experimental optimiser causing the main scheduler issues
 		if errors.Is(err, context.DeadlineExceeded) {
 			ctx.Warnf("optimiser timed out, configured timeout %s", sch.optimiserConfig.Timeout)
-			return &SchedulerResult{
+			return &SchedulingResult{
 				PreemptedJobs: []*schedulercontext.JobSchedulingContext{},
 				ScheduledJobs: []*schedulercontext.JobSchedulingContext{},
 			}, nil
@@ -691,7 +687,7 @@ func (sch *PreemptingQueueScheduler) schedule(
 	jobRepo jobdb.JobRepository,
 	skipUnsuccessfulSchedulingKeyCheck bool,
 	considerPriorityCLassPriority bool,
-) (*SchedulerResult, error) {
+) (*SchedulingResult, error) {
 	sortOrder := jobdb.FairShareOrder
 	if sch.marketDriven {
 		sortOrder = jobdb.PriceOrder

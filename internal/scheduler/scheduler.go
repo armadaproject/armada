@@ -208,8 +208,6 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 					previousSchedulingRoundEnd = s.clock.Now()
 				}
 
-				s.metrics.ReportPoolSchedulingOutcomes(result.PoolSchedulingOutcomes)
-
 				if err != nil {
 					ctx.Logger().WithStacktrace(err).Error("scheduling cycle failure")
 					leaderToken = leader.InvalidLeaderToken()
@@ -357,7 +355,9 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 		result, err = s.schedulingAlgo.Schedule(ctx, resourceUnits, txn)
 		if err != nil {
 			// Copy outcomes to the returned result so metrics are reported for pools that succeeded before the failure
-			overallSchedulerResult.PoolSchedulingOutcomes = result.PoolSchedulingOutcomes
+			if result != nil {
+				overallSchedulerResult.PoolResults = result.PoolResults
+			}
 			return overallSchedulerResult, err
 		}
 
@@ -394,10 +394,10 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	ctx.Info("Completed committing cycle transaction")
 
 	if s.metrics.LeaderMetricsEnabled() {
-		for _, jctx := range overallSchedulerResult.ScheduledJobs {
+		for _, jctx := range overallSchedulerResult.GetAllScheduledJobs() {
 			s.metrics.ReportJobLeased(jctx.Job)
 		}
-		for _, jctx := range overallSchedulerResult.PreemptedJobs {
+		for _, jctx := range overallSchedulerResult.GetAllPreemptedJobs() {
 			s.metrics.ReportJobPreempted(jctx.Job)
 		}
 	}
@@ -612,17 +612,19 @@ func (s *Scheduler) eventsFromSchedulerResult(result *scheduling.SchedulerResult
 
 // EventsFromSchedulerResult generates necessary EventSequences from the provided SchedulerResult.
 func EventsFromSchedulerResult(result *scheduling.SchedulerResult, time time.Time) ([]*armadaevents.EventSequence, error) {
-	eventSequences := make([]*armadaevents.EventSequence, 0, len(result.PreemptedJobs)+len(result.ScheduledJobs))
-	eventSequences, err := AppendEventSequencesFromPreemptedJobs(eventSequences, result.PreemptedJobs, time)
+	scheduledJobs := result.GetAllScheduledJobs()
+	preemptedJobs := result.GetAllPreemptedJobs()
+	eventSequences := make([]*armadaevents.EventSequence, 0, len(scheduledJobs)+len(preemptedJobs))
+	eventSequences, err := AppendEventSequencesFromPreemptedJobs(eventSequences, preemptedJobs, time)
 	if err != nil {
 		return nil, err
 	}
-	eventSequences, err = AppendEventSequencesFromScheduledJobs(eventSequences, result.ScheduledJobs)
+	eventSequences, err = AppendEventSequencesFromScheduledJobs(eventSequences, scheduledJobs)
 	if err != nil {
 		return nil, err
 	}
 
-	eventSequences, err = AppendEventSequencesFromReconciliationFailureJobs(eventSequences, result.FailedReconciliationJobs, time)
+	eventSequences, err = AppendEventSequencesFromReconciliationFailureJobs(eventSequences, result.GetCombinedReconciliationResult(), time)
 	if err != nil {
 		return nil, err
 	}

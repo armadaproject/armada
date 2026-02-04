@@ -462,153 +462,154 @@ func (m *cycleMetrics) ReportJobPreemptedWithType(job *jobdb.Job, preemptionType
 	m.premptedJobs.WithLabelValues(job.LatestRun().Pool(), job.Queue(), job.PriorityClassName(), string(preemptionType)).Inc()
 }
 
-// ReportPoolSchedulingOutcomes reports outcomes for all pools from the scheduler result
-func (m *cycleMetrics) ReportPoolSchedulingOutcomes(outcomes []scheduling.PoolSchedulingOutcome) {
-	for _, o := range outcomes {
-		terminationReason := string(o.TerminationReason)
-		outcome := PoolSchedulingOutcomeSuccess
-		if !o.Success {
-			outcome = PoolSchedulingOutcomeFailure
-		}
-		m.poolSchedulingOutcome.WithLabelValues(o.Pool, outcome, terminationReason).Inc()
+func (m *cycleMetrics) ReportPoolSchedulingOutcomes(outcome scheduling.PoolSchedulingOutcome) {
+	terminationReason := string(outcome.TerminationReason)
+	result := PoolSchedulingOutcomeSuccess
+	if !outcome.Success {
+		result = PoolSchedulingOutcomeFailure
 	}
+	m.poolSchedulingOutcome.WithLabelValues(outcome.Pool, result, terminationReason).Inc()
 }
 
 func (m *cycleMetrics) ReportSchedulerResult(ctx *armadacontext.Context, result scheduling.SchedulerResult) {
-	// Metrics that depend on pool
 	currentCycle := newPerCycleMetrics()
 
-	// Initialize nodePoolSize to 0 for all configured pools
-	// This ensures pools with no nodes still appear in the metric
-	for _, poolName := range m.poolNames {
-		currentCycle.nodePoolSize.WithLabelValues(poolName).Set(0)
-	}
-
-	for _, schedContext := range result.SchedulingContexts {
-		pool := schedContext.Pool
-		for queue, queueContext := range schedContext.QueueSchedulingContexts {
-			jobsConsidered := float64(len(queueContext.UnsuccessfulJobSchedulingContexts) + len(queueContext.SuccessfulJobSchedulingContexts))
-			actualShare := schedContext.FairnessCostProvider.UnweightedCostFromAllocation(queueContext.GetAllocation())
-			demand := schedContext.FairnessCostProvider.UnweightedCostFromAllocation(queueContext.Demand)
-			constrainedDemand := schedContext.FairnessCostProvider.UnweightedCostFromAllocation(queueContext.ConstrainedDemand)
-			shortJobPenalty := schedContext.FairnessCostProvider.UnweightedCostFromAllocation(queueContext.ShortJobPenalty)
-
-			currentCycle.consideredJobs.WithLabelValues(pool, queue).Set(jobsConsidered)
-			currentCycle.fairShare.WithLabelValues(pool, queue).Set(queueContext.FairShare)
-			currentCycle.adjustedFairShare.WithLabelValues(pool, queue).Set(queueContext.DemandCappedAdjustedFairShare)
-			currentCycle.uncappedAdjustedFairShare.WithLabelValues(pool, queue).Set(queueContext.UncappedAdjustedFairShare)
-			currentCycle.actualShare.WithLabelValues(pool, queue).Set(actualShare)
-			currentCycle.demand.WithLabelValues(pool, queue).Set(demand)
-			currentCycle.constrainedDemand.WithLabelValues(pool, queue).Set(constrainedDemand)
-			currentCycle.shortJobPenalty.WithLabelValues(pool, queue).Set(shortJobPenalty)
-			currentCycle.queueWeight.WithLabelValues(pool, queue).Set(queueContext.Weight)
-			currentCycle.rawQueueWeight.WithLabelValues(pool, queue).Set(queueContext.RawWeight)
-			currentCycle.idealisedScheduledValue.WithLabelValues(pool, queue).Set(queueContext.IdealisedValue)
-			currentCycle.realisedScheduledValue.WithLabelValues(pool, queue).Set(queueContext.RealisedValue)
-			for _, r := range queueContext.GetBillableResource().GetAll() {
-				currentCycle.billableResource.WithLabelValues(pool, queue, r.Name).Set(r.Value.AsApproximateFloat64())
+	for _, poolResult := range result.PoolResults {
+		m.ReportPoolSchedulingOutcomes(poolResult.Outcome)
+		if poolResult.ReconciliationResult != nil {
+			for _, info := range poolResult.ReconciliationResult.FailedJobs {
+				m.ReportJobPreemptedWithType(info.Job, context.PreemptedViaNodeReconciler)
 			}
-			for _, r := range queueContext.IdealisedAllocated.GetAll() {
-				currentCycle.idealisedAllocatedResource.WithLabelValues(pool, queue, r.Name).Set(r.Value.AsApproximateFloat64())
-			}
-		}
-		currentCycle.fairnessError.WithLabelValues(pool).Set(schedContext.FairnessError())
-		currentCycle.spotPrice.WithLabelValues(pool).Set(schedContext.GetSpotPrice())
-		for priority, share := range schedContext.ExperimentalIndicativeShares {
-			currentCycle.indicativeShare.WithLabelValues(pool, strconv.Itoa(priority)).Set(share)
-		}
-	}
-
-	for pool, schedulingStats := range result.PerPoolSchedulingStats {
-		for queue, s := range schedulingStats.StatsPerQueue {
-			currentCycle.gangsConsidered.WithLabelValues(pool, queue).Set(float64(s.GangsConsidered))
-			currentCycle.gangsScheduled.WithLabelValues(pool, queue).Set(float64(s.GangsScheduled))
-			currentCycle.firstGangQueuePosition.WithLabelValues(pool, queue).Set(float64(s.FirstGangConsideredQueuePosition))
-			currentCycle.lastGangQueuePosition.WithLabelValues(pool, queue).Set(float64(s.LastGangScheduledQueuePosition))
-			currentCycle.perQueueCycleTime.WithLabelValues(pool, queue).Set(float64(s.Time.Milliseconds()))
-		}
-
-		for _, jobCtx := range schedulingStats.ScheduledJobs {
-			schedulingType := defaultType
-			if jobCtx.PodSchedulingContext != nil && jobCtx.PodSchedulingContext.SchedulingMethod != "" {
-				schedulingType = string(jobCtx.PodSchedulingContext.SchedulingMethod)
-			}
-			m.scheduledJobs.WithLabelValues(pool, jobCtx.Job.Queue(), jobCtx.Job.PriorityClassName(), schedulingType).Inc()
-		}
-
-		for _, jobCtx := range schedulingStats.PreemptedJobs {
-			preemptionType := defaultType
-			if jobCtx.PreemptionType != "" {
-				preemptionType = string(jobCtx.PreemptionType)
-			}
-			m.premptedJobs.WithLabelValues(pool, jobCtx.Job.Queue(), jobCtx.Job.PriorityClassName(), preemptionType).Inc()
-		}
-
-		currentCycle.loopNumber.WithLabelValues(pool).Set(float64(schedulingStats.LoopNumber))
-
-		for queue, s := range schedulingStats.EvictorResult.GetStatsPerQueue() {
-			currentCycle.evictedJobs.WithLabelValues(pool, queue).Set(float64(s.EvictedJobCount))
-
-			for _, r := range s.EvictedResources.GetAll() {
-				currentCycle.evictedResources.WithLabelValues(pool, queue, r.Name).Set(r.Value.AsApproximateFloat64())
+			for _, info := range poolResult.ReconciliationResult.PreemptedJobs {
+				m.ReportJobPreemptedWithType(info.Job, context.PreemptedViaNodeReconciler)
 			}
 		}
 
-		for _, nodePreemptiblityStats := range schedulingStats.EvictorResult.NodePreemptiblityStats {
-			currentCycle.nodePreemptibility.WithLabelValues(
-				pool,
-				nodePreemptiblityStats.NodeName,
-				nodePreemptiblityStats.Cluster,
-				nodePreemptiblityStats.NodeType,
-				fmt.Sprintf("%t", nodePreemptiblityStats.Preemptible),
-				nodePreemptiblityStats.Reason).Set(1.0)
-		}
+		if poolResult.SchedulingResult != nil {
+			schedulingResult := poolResult.SchedulingResult
 
-		nodes, err := schedulingStats.NodeDb.GetNodes()
-		if err != nil {
-			log.Errorf("unable to generate node stats as failed to get nodes from nodeDb %s", err)
-		} else {
-			currentCycle.nodePoolSize.WithLabelValues(pool).Set(float64(len(nodes)))
-			for _, node := range nodes {
-				isSchedulable := strconv.FormatBool(!node.IsUnschedulable())
-				isOverallocated := strconv.FormatBool(node.IsOverAllocated())
-				for _, resource := range node.GetAllocatableResources().GetAll() {
-					currentCycle.nodeAllocatableResource.WithLabelValues(node.GetPool(), node.GetName(), node.GetExecutor(), node.GetReportingNodeType(), resource.Name, node.GetReservation(), isSchedulable, isOverallocated).Set(resource.Value.AsApproximateFloat64())
+			pool := poolResult.Name
+			schedContext := schedulingResult.SchedulingContext
+			if schedContext != nil {
+				for queue, queueContext := range schedContext.QueueSchedulingContexts {
+					jobsConsidered := float64(len(queueContext.UnsuccessfulJobSchedulingContexts) + len(queueContext.SuccessfulJobSchedulingContexts))
+					actualShare := schedContext.FairnessCostProvider.UnweightedCostFromAllocation(queueContext.GetAllocation())
+					demand := schedContext.FairnessCostProvider.UnweightedCostFromAllocation(queueContext.Demand)
+					constrainedDemand := schedContext.FairnessCostProvider.UnweightedCostFromAllocation(queueContext.ConstrainedDemand)
+					shortJobPenalty := schedContext.FairnessCostProvider.UnweightedCostFromAllocation(queueContext.ShortJobPenalty)
+
+					currentCycle.consideredJobs.WithLabelValues(pool, queue).Set(jobsConsidered)
+					currentCycle.fairShare.WithLabelValues(pool, queue).Set(queueContext.FairShare)
+					currentCycle.adjustedFairShare.WithLabelValues(pool, queue).Set(queueContext.DemandCappedAdjustedFairShare)
+					currentCycle.uncappedAdjustedFairShare.WithLabelValues(pool, queue).Set(queueContext.UncappedAdjustedFairShare)
+					currentCycle.actualShare.WithLabelValues(pool, queue).Set(actualShare)
+					currentCycle.demand.WithLabelValues(pool, queue).Set(demand)
+					currentCycle.constrainedDemand.WithLabelValues(pool, queue).Set(constrainedDemand)
+					currentCycle.shortJobPenalty.WithLabelValues(pool, queue).Set(shortJobPenalty)
+					currentCycle.queueWeight.WithLabelValues(pool, queue).Set(queueContext.Weight)
+					currentCycle.rawQueueWeight.WithLabelValues(pool, queue).Set(queueContext.RawWeight)
+					currentCycle.idealisedScheduledValue.WithLabelValues(pool, queue).Set(queueContext.IdealisedValue)
+					currentCycle.realisedScheduledValue.WithLabelValues(pool, queue).Set(queueContext.RealisedValue)
+					for _, r := range queueContext.GetBillableResource().GetAll() {
+						currentCycle.billableResource.WithLabelValues(pool, queue, r.Name).Set(r.Value.AsApproximateFloat64())
+					}
+					for _, r := range queueContext.IdealisedAllocated.GetAll() {
+						currentCycle.idealisedAllocatedResource.WithLabelValues(pool, queue, r.Name).Set(r.Value.AsApproximateFloat64())
+					}
 				}
-
-				allocated := node.GetAllocatableResources().Subtract(node.AllocatableByPriority[internaltypes.EvictedPriority])
-				for _, resource := range allocated.GetAll() {
-					allocatableValue := math.Max(resource.Value.AsApproximateFloat64(), 0)
-					currentCycle.nodeAllocatedResource.WithLabelValues(node.GetPool(), node.GetName(), node.GetExecutor(), node.GetReportingNodeType(), resource.Name, node.GetReservation(), isSchedulable, isOverallocated).Set(allocatableValue)
+				currentCycle.fairnessError.WithLabelValues(pool).Set(schedContext.FairnessError())
+				currentCycle.spotPrice.WithLabelValues(pool).Set(schedContext.GetSpotPrice())
+				for priority, share := range schedContext.ExperimentalIndicativeShares {
+					currentCycle.indicativeShare.WithLabelValues(pool, strconv.Itoa(priority)).Set(share)
 				}
 			}
-		}
 
-		currentCycle.protectedFractionOfFairShare.WithLabelValues(pool).Set(schedulingStats.ProtectedFractionOfFairShare)
+			schedulingStats := schedulingResult.AdditionalSchedulingInfo
 
-		for name, pricingInfo := range schedulingStats.MarketDrivenIndicativePrices {
-			if pricingInfo.Evaluated {
-				currentCycle.indicativePrice.WithLabelValues(pool, name).Set(pricingInfo.Price)
-				if pricingInfo.Schedulable {
-					currentCycle.indicativePriceSchedulable.WithLabelValues(pool, name, pricingInfo.UnschedulableReason).Set(1.0)
+			if schedulingStats != nil {
+				for queue, s := range schedulingStats.StatsPerQueue {
+					currentCycle.gangsConsidered.WithLabelValues(pool, queue).Set(float64(s.GangsConsidered))
+					currentCycle.gangsScheduled.WithLabelValues(pool, queue).Set(float64(s.GangsScheduled))
+					currentCycle.firstGangQueuePosition.WithLabelValues(pool, queue).Set(float64(s.FirstGangConsideredQueuePosition))
+					currentCycle.lastGangQueuePosition.WithLabelValues(pool, queue).Set(float64(s.LastGangScheduledQueuePosition))
+					currentCycle.perQueueCycleTime.WithLabelValues(pool, queue).Set(float64(s.Time.Milliseconds()))
+				}
+
+				currentCycle.loopNumber.WithLabelValues(pool).Set(float64(schedulingStats.LoopNumber))
+
+				for queue, s := range schedulingStats.EvictorResult.GetStatsPerQueue() {
+					currentCycle.evictedJobs.WithLabelValues(pool, queue).Set(float64(s.EvictedJobCount))
+
+					for _, r := range s.EvictedResources.GetAll() {
+						currentCycle.evictedResources.WithLabelValues(pool, queue, r.Name).Set(r.Value.AsApproximateFloat64())
+					}
+				}
+
+				for _, nodePreemptiblityStats := range schedulingStats.EvictorResult.NodePreemptiblityStats {
+					currentCycle.nodePreemptibility.WithLabelValues(
+						pool,
+						nodePreemptiblityStats.NodeName,
+						nodePreemptiblityStats.Cluster,
+						nodePreemptiblityStats.NodeType,
+						fmt.Sprintf("%t", nodePreemptiblityStats.Preemptible),
+						nodePreemptiblityStats.Reason).Set(1.0)
+				}
+
+				nodes, err := schedulingStats.NodeDb.GetNodes()
+				if err != nil {
+					log.Errorf("unable to generate node stats as failed to get nodes from nodeDb %s", err)
 				} else {
-					currentCycle.indicativePriceSchedulable.WithLabelValues(pool, name, pricingInfo.UnschedulableReason).Set(0.0)
+					currentCycle.nodePoolSize.WithLabelValues(pool).Set(float64(len(nodes)))
+					for _, node := range nodes {
+						isSchedulable := strconv.FormatBool(!node.IsUnschedulable())
+						isOverallocated := strconv.FormatBool(node.IsOverAllocated())
+						for _, resource := range node.GetAllocatableResources().GetAll() {
+							currentCycle.nodeAllocatableResource.WithLabelValues(node.GetPool(), node.GetName(), node.GetExecutor(), node.GetReportingNodeType(), resource.Name, node.GetReservation(), isSchedulable, isOverallocated).Set(resource.Value.AsApproximateFloat64())
+						}
+
+						allocated := node.GetAllocatableResources().Subtract(node.AllocatableByPriority[internaltypes.EvictedPriority])
+						for _, resource := range allocated.GetAll() {
+							allocatableValue := math.Max(resource.Value.AsApproximateFloat64(), 0)
+							currentCycle.nodeAllocatedResource.WithLabelValues(node.GetPool(), node.GetName(), node.GetExecutor(), node.GetReportingNodeType(), resource.Name, node.GetReservation(), isSchedulable, isOverallocated).Set(allocatableValue)
+						}
+					}
 				}
-			} else {
-				currentCycle.indicativePrice.WithLabelValues(pool, name).Set(math.NaN())
-				currentCycle.indicativePriceSchedulable.WithLabelValues(pool, name, pricingInfo.UnschedulableReason).Set(math.NaN())
+
+				currentCycle.protectedFractionOfFairShare.WithLabelValues(pool).Set(schedulingStats.ProtectedFractionOfFairShare)
+
+				for name, pricingInfo := range schedulingStats.MarketDrivenIndicativePrices {
+					if pricingInfo.Evaluated {
+						currentCycle.indicativePrice.WithLabelValues(pool, name).Set(pricingInfo.Price)
+						if pricingInfo.Schedulable {
+							currentCycle.indicativePriceSchedulable.WithLabelValues(pool, name, pricingInfo.UnschedulableReason).Set(1.0)
+						} else {
+							currentCycle.indicativePriceSchedulable.WithLabelValues(pool, name, pricingInfo.UnschedulableReason).Set(0.0)
+						}
+					} else {
+						currentCycle.indicativePrice.WithLabelValues(pool, name).Set(math.NaN())
+						currentCycle.indicativePriceSchedulable.WithLabelValues(pool, name, pricingInfo.UnschedulableReason).Set(math.NaN())
+					}
+				}
+			}
+
+			for _, jobCtx := range schedulingResult.ScheduledJobs {
+				schedulingType := defaultType
+				if jobCtx.PodSchedulingContext != nil && jobCtx.PodSchedulingContext.SchedulingMethod != "" {
+					schedulingType = string(jobCtx.PodSchedulingContext.SchedulingMethod)
+				}
+				m.scheduledJobs.WithLabelValues(pool, jobCtx.Job.Queue(), jobCtx.Job.PriorityClassName(), schedulingType).Inc()
+			}
+
+			for _, jobCtx := range schedulingResult.PreemptedJobs {
+				preemptionType := defaultType
+				if jobCtx.PreemptionType != "" {
+					preemptionType = string(jobCtx.PreemptionType)
+				}
+				m.premptedJobs.WithLabelValues(pool, jobCtx.Job.Queue(), jobCtx.Job.PriorityClassName(), preemptionType).Inc()
 			}
 		}
 	}
 
-	if result.FailedReconciliationJobs != nil {
-		for _, info := range result.FailedReconciliationJobs.FailedJobs {
-			m.ReportJobPreemptedWithType(info.Job, context.PreemptedViaNodeReconciler)
-		}
-		for _, info := range result.FailedReconciliationJobs.PreemptedJobs {
-			m.ReportJobPreemptedWithType(info.Job, context.PreemptedViaNodeReconciler)
-		}
-	}
 	m.latestCycleMetrics.Store(currentCycle)
 
 	m.publishCycleMetrics(ctx, result)
@@ -621,39 +622,39 @@ func (m *cycleMetrics) describe(ch chan<- *prometheus.Desc) {
 		m.poolSchedulingOutcome.Describe(ch)
 		m.scheduleCycleTime.Describe(ch)
 
-		currentCycle := m.latestCycleMetrics.Load()
-		currentCycle.consideredJobs.Describe(ch)
-		currentCycle.fairShare.Describe(ch)
-		currentCycle.adjustedFairShare.Describe(ch)
-		currentCycle.uncappedAdjustedFairShare.Describe(ch)
-		currentCycle.actualShare.Describe(ch)
-		currentCycle.fairnessError.Describe(ch)
-		currentCycle.demand.Describe(ch)
-		currentCycle.constrainedDemand.Describe(ch)
-		currentCycle.shortJobPenalty.Describe(ch)
-		currentCycle.queueWeight.Describe(ch)
-		currentCycle.rawQueueWeight.Describe(ch)
-		currentCycle.gangsConsidered.Describe(ch)
-		currentCycle.gangsScheduled.Describe(ch)
-		currentCycle.firstGangQueuePosition.Describe(ch)
-		currentCycle.lastGangQueuePosition.Describe(ch)
-		currentCycle.perQueueCycleTime.Describe(ch)
-		currentCycle.loopNumber.Describe(ch)
-		currentCycle.evictedJobs.Describe(ch)
-		currentCycle.evictedResources.Describe(ch)
-		currentCycle.billableResource.Describe(ch)
-		currentCycle.spotPrice.Describe(ch)
-		currentCycle.indicativeShare.Describe(ch)
-		currentCycle.nodePreemptibility.Describe(ch)
-		currentCycle.protectedFractionOfFairShare.Describe(ch)
-		currentCycle.nodeAllocatableResource.Describe(ch)
-		currentCycle.nodeAllocatedResource.Describe(ch)
-		currentCycle.indicativePrice.Describe(ch)
-		currentCycle.indicativePriceSchedulable.Describe(ch)
-		currentCycle.idealisedScheduledValue.Describe(ch)
-		currentCycle.idealisedAllocatedResource.Describe(ch)
-		currentCycle.realisedScheduledValue.Describe(ch)
-		currentCycle.nodePoolSize.Describe(ch)
+		cycleMetrics := newPerCycleMetrics()
+		cycleMetrics.consideredJobs.Describe(ch)
+		cycleMetrics.fairShare.Describe(ch)
+		cycleMetrics.adjustedFairShare.Describe(ch)
+		cycleMetrics.uncappedAdjustedFairShare.Describe(ch)
+		cycleMetrics.actualShare.Describe(ch)
+		cycleMetrics.fairnessError.Describe(ch)
+		cycleMetrics.demand.Describe(ch)
+		cycleMetrics.constrainedDemand.Describe(ch)
+		cycleMetrics.shortJobPenalty.Describe(ch)
+		cycleMetrics.queueWeight.Describe(ch)
+		cycleMetrics.rawQueueWeight.Describe(ch)
+		cycleMetrics.gangsConsidered.Describe(ch)
+		cycleMetrics.gangsScheduled.Describe(ch)
+		cycleMetrics.firstGangQueuePosition.Describe(ch)
+		cycleMetrics.lastGangQueuePosition.Describe(ch)
+		cycleMetrics.perQueueCycleTime.Describe(ch)
+		cycleMetrics.loopNumber.Describe(ch)
+		cycleMetrics.evictedJobs.Describe(ch)
+		cycleMetrics.evictedResources.Describe(ch)
+		cycleMetrics.billableResource.Describe(ch)
+		cycleMetrics.spotPrice.Describe(ch)
+		cycleMetrics.indicativeShare.Describe(ch)
+		cycleMetrics.nodePreemptibility.Describe(ch)
+		cycleMetrics.protectedFractionOfFairShare.Describe(ch)
+		cycleMetrics.nodeAllocatableResource.Describe(ch)
+		cycleMetrics.nodeAllocatedResource.Describe(ch)
+		cycleMetrics.indicativePrice.Describe(ch)
+		cycleMetrics.indicativePriceSchedulable.Describe(ch)
+		cycleMetrics.idealisedScheduledValue.Describe(ch)
+		cycleMetrics.idealisedAllocatedResource.Describe(ch)
+		cycleMetrics.realisedScheduledValue.Describe(ch)
+		cycleMetrics.nodePoolSize.Describe(ch)
 	}
 
 	m.reconciliationCycleTime.Describe(ch)
@@ -705,14 +706,18 @@ func (m *cycleMetrics) collect(ch chan<- prometheus.Metric) {
 }
 
 func (m *cycleMetrics) publishCycleMetrics(ctx *armadacontext.Context, result scheduling.SchedulerResult) {
-	events := make([]*metricevents.Event, len(result.SchedulingContexts))
+	events := make([]*metricevents.Event, len(result.PoolResults))
 
 	// convenience function to convert k8s qty struct to pointers as demanded by proto
 	toQtyPtr := func(q resource.Quantity) *resource.Quantity {
 		return &q
 	}
 
-	for i, sc := range result.SchedulingContexts {
+	for i, pr := range result.PoolResults {
+		if pr.GetSchedulingContext() == nil {
+			continue
+		}
+		sc := pr.GetSchedulingContext()
 		queueMetrics := make(map[string]*metricevents.QueueMetrics, len(sc.QueueSchedulingContexts))
 		for qName, qCtx := range sc.QueueSchedulingContexts {
 			queueMetrics[qName] = &metricevents.QueueMetrics{

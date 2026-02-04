@@ -10,7 +10,7 @@ import (
 
 type Sink interface {
 	OnNewStateTransitions(transitions []*model.StateTransition) error
-	OnCycleEnd(time time.Time, result *scheduling.SchedulerResult) error
+	OnCycleEnd(time time.Time, result *scheduling.SchedulingResult) error
 	Close(ctx *armadacontext.Context)
 }
 
@@ -44,7 +44,7 @@ func (s *ParquetSink) OnNewStateTransitions(transitions []*model.StateTransition
 	return nil
 }
 
-func (s *ParquetSink) OnCycleEnd(time time.Time, result *scheduling.SchedulerResult) error {
+func (s *ParquetSink) OnCycleEnd(time time.Time, result *scheduling.SchedulingResult) error {
 	err := s.fairShareWriter.Update(time, result)
 	if err != nil {
 		return err
@@ -63,7 +63,7 @@ func (s NullSink) OnNewStateTransitions(_ []*model.StateTransition) error {
 	return nil
 }
 
-func (s NullSink) OnCycleEnd(_ time.Time, _ *scheduling.SchedulerResult) error {
+func (s NullSink) OnCycleEnd(_ time.Time, _ *scheduling.SchedulingResult) error {
 	return nil
 }
 

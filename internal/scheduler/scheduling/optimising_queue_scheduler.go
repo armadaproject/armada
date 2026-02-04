@@ -55,7 +55,7 @@ func NewOptimisingQueueScheduler(
 //   - It iterates through unscheduled (not evicted) jobs of queues below their fairshare
 //   - It them makes some basic checks (rate limits etc)
 //   - If the Job won't put the queue above its faishare and passes the checks, it off to the gangScheduler to schedule the job
-func (q *OptimisingQueueScheduler) Schedule(ctx *armadacontext.Context, sctx *schedulercontext.SchedulingContext) (*SchedulerResult, error) {
+func (q *OptimisingQueueScheduler) Schedule(ctx *armadacontext.Context, sctx *schedulercontext.SchedulingContext) (*SchedulingResult, error) {
 	gangIterator, err := q.createCandidateGangIterator(ctx, sctx)
 	if err != nil {
 		return nil, err
@@ -170,7 +170,7 @@ loop:
 	}
 	ctx.Infof("optimiser completed %d loops in %s, scheduling %d jobs, preempting %d jobs",
 		loopNumber, time.Now().Sub(start), len(scheduledJobs), len(preemptedJobs))
-	return &SchedulerResult{
+	return &SchedulingResult{
 		ScheduledJobs: scheduledJobs,
 		PreemptedJobs: preemptedJobs,
 	}, nil

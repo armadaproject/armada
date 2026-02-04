@@ -764,14 +764,14 @@ func TestSchedule(t *testing.T) {
 			}
 
 			expectedJobIdsFailedDueToReconciliation := getJobIdsOfScheduledJobsByExecutorAndNodeIndex(t, tc.scheduledJobsByExecutorIndexAndNodeIndex, tc.expectedFailedDueToReconciliationByExecutorIndexAndNodeIndex)
-			actualJobIdsFailedDueToReconciliation := jobIdsFromReconciliationResults(schedulerResult.FailedReconciliationJobs.FailedJobs)
+			actualJobIdsFailedDueToReconciliation := jobIdsFromReconciliationResults(schedulerResult.GetCombinedReconciliationResult().FailedJobs)
 			slices.Sort(expectedJobIdsFailedDueToReconciliation)
 			slices.Sort(actualJobIdsFailedDueToReconciliation)
 
 			assert.Equal(t, expectedJobIdsFailedDueToReconciliation, actualJobIdsFailedDueToReconciliation)
 
 			expectedJobIdsPreemptedDueToReconciliation := getJobIdsOfScheduledJobsByExecutorAndNodeIndex(t, tc.scheduledJobsByExecutorIndexAndNodeIndex, tc.expectedPreemptedDueToReconciliationByExecutorIndexAndNodeIndex)
-			actualJobIdsPreemptedDueToReconciliation := jobIdsFromReconciliationResults(schedulerResult.FailedReconciliationJobs.PreemptedJobs)
+			actualJobIdsPreemptedDueToReconciliation := jobIdsFromReconciliationResults(schedulerResult.GetCombinedReconciliationResult().PreemptedJobs)
 			slices.Sort(expectedJobIdsPreemptedDueToReconciliation)
 			slices.Sort(actualJobIdsPreemptedDueToReconciliation)
 
@@ -814,7 +814,7 @@ func TestSchedule(t *testing.T) {
 			}
 
 			// Check that scheduled jobs are marked as such consistently.
-			for _, jctx := range schedulerResult.ScheduledJobs {
+			for _, jctx := range schedulerResult.GetAllScheduledJobs() {
 				job := jctx.Job
 				dbJob := txn.GetById(job.Id())
 				assert.False(t, dbJob.Failed())
@@ -837,7 +837,7 @@ func TestSchedule(t *testing.T) {
 			}
 
 			// Check that we calculated fair share and adjusted fair share
-			for _, schCtx := range schedulerResult.SchedulingContexts {
+			for _, schCtx := range schedulerResult.GetAllSchedulingContexts() {
 				for _, qtx := range schCtx.QueueSchedulingContexts {
 					assert.NotEqual(t, 0, qtx.DemandCappedAdjustedFairShare)
 					assert.NotEqual(t, 0, qtx.FairShare)
