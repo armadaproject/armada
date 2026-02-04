@@ -116,7 +116,7 @@ func TestResetLeaderMetrics_Counters(t *testing.T) {
 	}
 
 	testResetCounter(m.scheduledJobs, poolAndQueueAndPriorityClassTypeLabels)
-	testResetCounter(m.premptedJobs, poolAndQueueAndPriorityClassTypeLabels)
+	testResetCounter(m.preemptedJobs, poolAndQueueAndPriorityClassTypeLabels)
 }
 
 func TestResetLeaderMetrics_ResetsLatestCycleMetrics(t *testing.T) {
@@ -173,7 +173,7 @@ func TestDisableLeaderMetrics(t *testing.T) {
 
 	collect := func(m *cycleMetrics) []prometheus.Metric {
 		m.scheduledJobs.WithLabelValues(poolAndQueueAndPriorityClassTypeLabels...).Inc()
-		m.premptedJobs.WithLabelValues(poolAndQueueAndPriorityClassTypeLabels...).Inc()
+		m.preemptedJobs.WithLabelValues(poolAndQueueAndPriorityClassTypeLabels...).Inc()
 		m.latestCycleMetrics.Load().consideredJobs.WithLabelValues(poolQueueLabelValues...).Inc()
 		m.latestCycleMetrics.Load().fairShare.WithLabelValues(poolQueueLabelValues...).Inc()
 		m.latestCycleMetrics.Load().adjustedFairShare.WithLabelValues(poolQueueLabelValues...).Inc()

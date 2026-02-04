@@ -127,10 +127,12 @@ func (l *FairSchedulingAlgo) Schedule(
 	}
 
 	for _, pool := range l.schedulingConfig.Pools {
+		startTime := l.clock.Now()
 		outcome, reconcileResult, schedulingResult, err := l.reconcileAndSchedulePool(ctx, pool, resourceUnits, txn)
 		if err != nil {
 			return nil, err
 		}
+		endTime := l.clock.Now()
 
 		if outcome == nil {
 			return nil, fmt.Errorf("unexpected got nil scheduling result for pool %s", pool)
@@ -149,6 +151,8 @@ func (l *FairSchedulingAlgo) Schedule(
 			Name:                 pool.Name,
 			ReconciliationResult: reconcileResult,
 			SchedulingResult:     schedulingResult,
+			StartTime:            startTime,
+			EndTime:              endTime,
 			Outcome:              *outcome,
 		}
 

@@ -212,6 +212,7 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 				if shouldSchedule && leaderToken.Leader() {
 					// Only the leader does real scheduling rounds.
 					s.metrics.ReportScheduleCycleTime(cycleTime)
+					s.metrics.ReportScheduleCycleOutcome(err == nil)
 					ctx.Infof("scheduling cycle completed in %s", cycleTime)
 				} else {
 					s.metrics.ReportReconcileCycleTime(cycleTime)
@@ -384,8 +385,10 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	txn.Commit()
 	ctx.Info("Completed committing cycle transaction")
 
-	s.metrics.ReportSchedulerResult(ctx, schedulerResult)
 	if s.metrics.LeaderMetricsEnabled() {
+		if shouldSchedule {
+			s.metrics.ReportSchedulerResult(ctx, schedulerResult)
+		}
 		for _, jctx := range schedulerResult.GetAllScheduledJobs() {
 			s.metrics.ReportJobLeased(jctx.Job)
 		}

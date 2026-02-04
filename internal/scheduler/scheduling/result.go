@@ -110,8 +110,26 @@ type PoolSchedulingResult struct {
 	ReconciliationResult *ReconciliationResult
 	// The result of scheduling new jobs on this pool
 	SchedulingResult *SchedulingResult
+	// The time the scheduling on this pool started
+	// This will include everything in the cycle and not just scheduling
+	//  such as setup, reconciliation and scheduling
+	StartTime time.Time
+	// The time the scheduling on this pool ended
+	EndTime time.Time
 	// Scheduling outcome
 	Outcome PoolSchedulingOutcome
+}
+
+func (p *PoolSchedulingResult) GetDuration() time.Duration {
+	if p.StartTime.IsZero() || p.EndTime.IsZero() {
+		return time.Duration(0)
+	}
+
+	if p.EndTime.Before(p.StartTime) {
+		return time.Duration(0)
+	}
+
+	return p.EndTime.Sub(p.StartTime)
 }
 
 func (p *PoolSchedulingResult) GetScheduledJobs() []*schedulercontext.JobSchedulingContext {
