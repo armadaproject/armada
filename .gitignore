@@ -19,7 +19,6 @@ delve
 !.vscode/tasks.json
 __debug_bin
 **/__debug_bin*
-.devcontainer/devcontainer.env
 
 # Build artifacts
 dist

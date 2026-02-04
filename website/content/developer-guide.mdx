@@ -7,7 +7,7 @@ This guide helps you set up a development environment for contributing to Armada
 
 ## Prerequisites
 
-Install the following tools before you begin or use a [Dev Container](#optional-dev-container-setup). These are verified requirements from the Armada source code:
+Install the following tools before you begin. These are verified requirements from the Armada source code:
 
 - **[Go](https://go.dev/doc/install)** (version 1.25 or later) - Required for building Armada
 - **gcc** (for Windows, see [tdm-gcc](https://jmeubank.github.io/tdm-gcc/)) - Required for CGO compilation
@@ -18,19 +18,6 @@ Install the following tools before you begin or use a [Dev Container](#optional-
 - **[kind](https://kind.sigs.k8s.io/)** - Kubernetes in Docker (bootstrapped via `mage BootstrapTools`)
 
 **Note:** Additional tools are automatically installed via `mage BootstrapTools` from [`tools.yaml`](https://github.com/armadaproject/armada/blob/master/tools.yaml), including golangci-lint, sqlc, go-swagger, and others.
-
-### Optional Dev Container Setup
-
-This project has a [Dev Container](https://code.visualstudio.com/docs/devcontainers/containers) that includes all the tools required for Armada development. To configure Git within the devcontainer, create an environment file at `.devcontainer/devcontainer.env`:
-
-```
-# example devcontainer.env
-GIT_USER_NAME=Hugh.Man
-GIT_USER_EMAIL=hugh.man@example.com
-GIT_SIGNING_KEY=ssh-123 somethingforwarded
-```
-
-The `GIT_SIGNING_KEY` is can be set to your [SSH signing key](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/generating-a-new-ssh-key-and-adding-it-to-the-ssh-agent).
 
 ## Development Environment Setup
 
