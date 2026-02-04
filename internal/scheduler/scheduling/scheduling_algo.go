@@ -116,32 +116,33 @@ func (l *FairSchedulingAlgo) Schedule(
 		ctx, cancel = armadacontext.WithTimeout(ctx, l.maxSchedulingDuration)
 		defer cancel()
 	}
-	overallSchedulerResult := &SchedulerResult{
-		PerPoolSchedulingStats: make(map[string]PerPoolSchedulingStats),
-		FailedReconciliationJobs: &ReconciliationResult{
-			FailedJobs:    []*FailedReconciliationResult{},
-			PreemptedJobs: []*FailedReconciliationResult{},
-		},
+
+	schedulerResult := &SchedulerResult{
+		PoolResults: make([]*PoolSchedulingResult, 0, len(l.schedulingConfig.Pools)),
 	}
 
 	// Exit immediately if scheduling is disabled.
 	if l.schedulingConfig.DisableScheduling {
 		ctx.Info("scheduling disabled; exiting")
-		return overallSchedulerResult, nil
+		return schedulerResult, nil
 	}
 
 	// Exit immediately if priority overrides are not ready
 	if !l.queueOverrideProvider.Ready() {
 		ctx.Warn("queue overrides are not ready; exiting")
-		return overallSchedulerResult, nil
+		return schedulerResult, nil
 	}
 
 	for _, pool := range l.schedulingConfig.Pools {
+		poolResult := &PoolSchedulingResult{
+			Name: pool.Name,
+		}
+
 		select {
 		case <-ctx.Done():
 			// We've reached the scheduling time limit; exit gracefully.
 			ctx.Info("ending scheduling round early as we have hit the maximum scheduling duration")
-			return overallSchedulerResult, nil
+			return schedulerResult, nil
 		default:
 		}
 
@@ -165,18 +166,16 @@ func (l *FairSchedulingAlgo) Schedule(
 		if err := txn.Upsert(failedDueToReconciliationJobs); err != nil {
 			return nil, err
 		}
-
-		overallSchedulerResult.FailedReconciliationJobs.FailedJobs = append(overallSchedulerResult.FailedReconciliationJobs.FailedJobs, reconciliationResult.FailedJobs...)
-		overallSchedulerResult.FailedReconciliationJobs.PreemptedJobs = append(overallSchedulerResult.FailedReconciliationJobs.PreemptedJobs, reconciliationResult.PreemptedJobs...)
+		poolResult.ReconciliationResult = reconciliationResult
 
 		// It is important to pass the validated executors here
 		// This is because the validation ensures those nodes are inline with the jobs
 		// If we use a different copy of nodes (possibly more to date copy) it may no longer align with the jobs/runs
 		fsctx, err := l.newFairSchedulingAlgoContext(ctx, txn, executors, pool)
 		if err != nil {
-			overallSchedulerResult.PoolSchedulingOutcomes = append(overallSchedulerResult.PoolSchedulingOutcomes,
-				PoolSchedulingOutcome{Pool: pool.Name, Success: false, TerminationReason: PoolSchedulingTerminationReasonError})
-			return overallSchedulerResult, err
+			poolResult.Outcome = PoolSchedulingOutcome{Pool: pool.Name, Success: false, TerminationReason: PoolSchedulingTerminationReasonError}
+			schedulerResult.PoolResults = append(schedulerResult.PoolResults, poolResult)
+			return schedulerResult, err
 		}
 
 		if fsctx.nodeDb.NumNodes() <= 0 {
@@ -198,52 +197,43 @@ func (l *FairSchedulingAlgo) Schedule(
 			ctx.Warnf("Pool %s has no resource unit defined", pool.Name)
 			resourceUnit = l.resourceListFactory.MakeAllZero()
 		}
-		schedulerResult, sctx, err := l.SchedulePool(ctx, fsctx, pool, resourceUnit)
+		schedulingResult, sctx, err := l.SchedulePool(ctx, fsctx, pool, resourceUnit)
 
 		ctx.Infof("Scheduled on executor pool %s in %v with error %v", pool.Name, time.Now().Sub(start), err)
 
 		if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
-			overallSchedulerResult.PoolSchedulingOutcomes = append(overallSchedulerResult.PoolSchedulingOutcomes,
-				PoolSchedulingOutcome{Pool: pool.Name, Success: true, TerminationReason: PoolSchedulingTerminationReasonTimeout})
-			ctx.Info("stopped scheduling early as we have hit the maximum scheduling duration")
-			break
+			poolResult.Outcome = PoolSchedulingOutcome{Pool: pool.Name, Success: false, TerminationReason: PoolSchedulingTerminationReasonTimeout}
+			schedulerResult.PoolResults = append(schedulerResult.PoolResults, poolResult)
+			return schedulerResult, err
 		} else if err != nil {
-			overallSchedulerResult.PoolSchedulingOutcomes = append(overallSchedulerResult.PoolSchedulingOutcomes,
-				PoolSchedulingOutcome{Pool: pool.Name, Success: false, TerminationReason: PoolSchedulingTerminationReasonError})
-			return overallSchedulerResult, err
+			poolResult.Outcome = PoolSchedulingOutcome{Pool: pool.Name, Success: false, TerminationReason: PoolSchedulingTerminationReasonError}
+			schedulerResult.PoolResults = append(schedulerResult.PoolResults, poolResult)
+			return schedulerResult, err
 		}
 		if l.schedulingContextRepository != nil {
 			l.schedulingContextRepository.StoreSchedulingContext(sctx)
 		}
 
-		preemptedJobs := PreemptedJobsFromSchedulerResult(schedulerResult)
-		scheduledJobs := ScheduledJobsFromSchedulerResult(schedulerResult)
+		preemptedJobs := PreemptedJobsFromSchedulingResult(schedulingResult)
+		scheduledJobs := ScheduledJobsFromSchedulingResult(schedulingResult)
 
 		terminationReason := terminationReasonFromString(sctx.TerminationReason)
 		if err := txn.Upsert(preemptedJobs); err != nil {
-			overallSchedulerResult.PoolSchedulingOutcomes = append(overallSchedulerResult.PoolSchedulingOutcomes,
-				PoolSchedulingOutcome{Pool: pool.Name, Success: false, TerminationReason: PoolSchedulingTerminationReasonError})
-			return overallSchedulerResult, err
+			poolResult.Outcome = PoolSchedulingOutcome{Pool: pool.Name, Success: false, TerminationReason: PoolSchedulingTerminationReasonError}
+			schedulerResult.PoolResults = append(schedulerResult.PoolResults, poolResult)
+			return schedulerResult, err
 		}
 		if err := txn.Upsert(scheduledJobs); err != nil {
-			overallSchedulerResult.PoolSchedulingOutcomes = append(overallSchedulerResult.PoolSchedulingOutcomes,
-				PoolSchedulingOutcome{Pool: pool.Name, Success: false, TerminationReason: PoolSchedulingTerminationReasonError})
-			return overallSchedulerResult, err
+			poolResult.Outcome = PoolSchedulingOutcome{Pool: pool.Name, Success: false, TerminationReason: PoolSchedulingTerminationReasonError}
+			schedulerResult.PoolResults = append(schedulerResult.PoolResults, poolResult)
+			return schedulerResult, err
 		}
 
-		overallSchedulerResult.PoolSchedulingOutcomes = append(overallSchedulerResult.PoolSchedulingOutcomes,
-			PoolSchedulingOutcome{Pool: pool.Name, Success: true, TerminationReason: terminationReason})
-
-		// Aggregate changes across executors.
-		overallSchedulerResult.PreemptedJobs = append(overallSchedulerResult.PreemptedJobs, schedulerResult.PreemptedJobs...)
-		overallSchedulerResult.ScheduledJobs = append(overallSchedulerResult.ScheduledJobs, schedulerResult.ScheduledJobs...)
-		overallSchedulerResult.SchedulingContexts = append(overallSchedulerResult.SchedulingContexts, schedulerResult.SchedulingContexts...)
-
-		for p, s := range schedulerResult.PerPoolSchedulingStats {
-			overallSchedulerResult.PerPoolSchedulingStats[p] = s
-		}
+		poolResult.Outcome = PoolSchedulingOutcome{Pool: pool.Name, Success: true, TerminationReason: terminationReason}
+		poolResult.SchedulingResult = schedulingResult
+		schedulerResult.PoolResults = append(schedulerResult.PoolResults, poolResult)
 	}
-	return overallSchedulerResult, nil
+	return schedulerResult, nil
 }
 
 type FairSchedulingAlgoContext struct {
@@ -673,7 +663,7 @@ func (l *FairSchedulingAlgo) SchedulePool(
 	fsctx *FairSchedulingAlgoContext,
 	pool configuration.PoolConfig,
 	resourceUnit internaltypes.ResourceList,
-) (*SchedulerResult, *schedulercontext.SchedulingContext, error) {
+) (*SchedulingResult, *schedulercontext.SchedulingContext, error) {
 	totalResources := fsctx.nodeDb.TotalKubernetesResources()
 	totalResources = totalResources.Add(l.floatingResourceTypes.GetTotalAvailableForPool(pool.Name))
 	constraints := schedulerconstraints.NewSchedulingConstraints(pool.Name, totalResources, l.schedulingConfig, maps.Values(fsctx.queues))
