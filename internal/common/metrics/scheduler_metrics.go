@@ -20,7 +20,7 @@ const (
 )
 
 var PoolInfoDesc = prometheus.NewDesc(
-	MetricPrefix+"pool_info",
+	MetricPrefix+"scheduler_pool_info",
 	"Information about the pools that are currently being scheduled",
 	[]string{"pool"},
 	nil,
