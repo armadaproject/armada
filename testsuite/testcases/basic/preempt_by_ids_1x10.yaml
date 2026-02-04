@@ -1,0 +1,34 @@
+numBatches: 1
+batchSize: 10
+queue: e2e-test-queue
+jobSetId: job-set-preemptible
+jobs:
+  - namespace: default
+    priority: 0
+    podSpec:
+      terminationGracePeriodSeconds: 0
+      restartPolicy: Never
+      priorityClassName: armada-preemptible
+      containers:
+        - name: sleeper
+          image: alpine:latest
+          command:
+            - sh
+          args:
+            - -c
+            - sleep 600
+          resources:
+            limits:
+              memory: 128Mi
+              cpu: 0.2
+            requests:
+              memory: 128Mi
+              cpu: 0.2
+---
+action: ACTION_PREEMPT
+selection: SELECTION_BY_IDS
+preemptReason: "Test job preemption for validation"
+timeout: "100s"
+expectedEvents:
+  - submitted:
+  - preempted:
