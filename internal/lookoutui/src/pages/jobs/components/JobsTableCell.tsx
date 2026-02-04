@@ -1,7 +1,7 @@
 import { ReactNode, RefObject, useCallback } from "react"
 
 import { KeyboardArrowRight, KeyboardArrowDown, OpenInNew } from "@mui/icons-material"
-import { TableCell, IconButton, TableSortLabel, Box, styled, Typography, Link } from "@mui/material"
+import { TableCell, IconButton, TableSortLabel, Box, styled, Typography, Link, Tooltip } from "@mui/material"
 import { Cell, ColumnResizeMode, flexRender, Header, Row } from "@tanstack/react-table"
 import validator from "validator"
 
@@ -17,6 +17,7 @@ import {
 } from "../../../common/jobsTableColumns"
 import { matchForColumn } from "../../../common/jobsTableUtils"
 import { ActionableValueOnHover } from "../../../components/ActionableValueOnHover"
+import { CopyIconButton } from "../../../components/CopyIconButton"
 import { JobsTableFilter } from "../../../components/JobsTableFilter"
 import { LastTransitionTimeAggregateSelector } from "../../../components/LastTransitionTimeAggregateSelector"
 import { JobRow, JobTableRow } from "../../../models/jobsTableModels"
@@ -94,6 +95,15 @@ export function HeaderCell({
   const borderWidth = 1
   const remainingWidth = totalWidth - resizerWidth - borderWidth
 
+  const allowCopyColumn = Boolean(metadata.allowCopyColumn)
+  const visibleRows = header.getContext().table.getRowModel().rows
+  const copyContent = getColumnMetadata(header.column.columnDef).allowCopyColumn
+    ? visibleRows
+        .map((row) => row.original.jobId)
+        .filter(Boolean)
+        .join(", ")
+    : ""
+
   const onFilterChange = useCallback(
     (newFilter: string | string[] | number | undefined) => header.column.setFilterValue(newFilter),
     [header.column.setFilterValue],
@@ -164,6 +174,7 @@ export function HeaderCell({
               style={{
                 display: "flex",
                 flexDirection: "row",
+                alignItems: "center",
                 textOverflow: "ellipsis",
                 whiteSpace: "nowrap",
                 overflow: "hidden",
@@ -178,7 +189,8 @@ export function HeaderCell({
                 }}
                 aria-label={"Toggle sort"}
                 sx={{
-                  width: "100%",
+                  flex: 1,
+                  minWidth: 0,
                 }}
               >
                 <div
@@ -191,6 +203,14 @@ export function HeaderCell({
                   {flexRender(columnDef.header, header.getContext())}
                 </div>
               </TableSortLabel>
+
+              {allowCopyColumn && copyContent && (
+                <Tooltip title="Copy All" arrow>
+                  <span style={{ flex: "0 0 auto", display: "flex", alignItems: "center" }}>
+                    <CopyIconButton size="small" content={copyContent} onClick={(e) => e.stopPropagation()} />
+                  </span>
+                </Tooltip>
+              )}
             </div>
           ) : (
             <div
@@ -201,6 +221,14 @@ export function HeaderCell({
               }}
             >
               {flexRender(columnDef.header, header.getContext())}
+
+              {allowCopyColumn && copyContent && (
+                <Tooltip title="Copy All" arrow>
+                  <span style={{ display: "inline-flex", alignItems: "center", marginLeft: 6 }}>
+                    <CopyIconButton size="small" content={copyContent} onClick={(e) => e.stopPropagation()} />
+                  </span>
+                </Tooltip>
+              )}
             </div>
           )}
 
