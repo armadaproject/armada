@@ -199,7 +199,7 @@ func (s *Server) CancelJobs(grpcCtx context.Context, req *api.JobCancelRequest) 
 	}, nil
 }
 
-func (s *Server) PreemptJobs(grpcCtx context.Context, req *api.JobPreemptRequest) (*types.Empty, error) {
+func (s *Server) PreemptJobs(grpcCtx context.Context, req *api.JobPreemptRequest) (*api.PreemptionResult, error) {
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
 	err := validation.ValidateQueueAndJobSet(req)
 	if err != nil {
@@ -222,7 +222,9 @@ func (s *Server) PreemptJobs(grpcCtx context.Context, req *api.JobPreemptRequest
 		return nil, status.Error(codes.Internal, "Failed to send message")
 	}
 
-	return &types.Empty{}, nil
+	return &api.PreemptionResult{
+		PreemptedIds: req.JobIds,
+	}, nil
 }
 
 func preemptJobEventSequenceForJobIds(clock clock.Clock, jobIds []string, q, jobSet, userId, reason string, groups []string) (*armadaevents.EventSequence, error) {
