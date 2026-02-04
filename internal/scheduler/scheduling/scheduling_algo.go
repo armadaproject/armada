@@ -143,7 +143,7 @@ func (l *FairSchedulingAlgo) Schedule(
 			if l.schedulingConfig.DisableIndependentPoolFailures {
 				return nil, outcome.Error()
 			} else {
-				log.Errorf("scheduling on pool %s failed but continuing as the error was non-fatal - error %s", pool.Name, outcome.Error())
+				ctx.Logger().WithStacktrace(err).Errorf("scheduling on pool %s failed but continuing as the error was non-fatal - error %s", pool.Name, outcome.Error())
 			}
 		}
 
@@ -175,7 +175,7 @@ func (l *FairSchedulingAlgo) reconcileAndSchedulePool(
 
 	// Exit immediately if scheduling is disabled.
 	if l.schedulingConfig.DisableScheduling {
-		log.Infof("not scheduling on pool %s as scheduling is disabled", pool.Name)
+		ctx.Infof("not scheduling on pool %s as scheduling is disabled", pool.Name)
 		return NewPoolSchedulingOutcome(PoolSchedulingTerminationReasonSchedulingDisabled, nil), nil, nil, nil
 	}
 
