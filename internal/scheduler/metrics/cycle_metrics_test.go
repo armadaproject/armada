@@ -36,29 +36,34 @@ func TestReportStateTransitions(t *testing.T) {
 	)
 	require.NoError(t, err)
 	result := scheduling.SchedulerResult{
-		SchedulingContexts: []*context.SchedulingContext{
+		PoolResults: []*scheduling.PoolSchedulingResult{
 			{
-				Pool:                 "pool1",
-				FairnessCostProvider: fairnessCostProvider,
-				QueueSchedulingContexts: map[string]*context.QueueSchedulingContext{
-					"queue1": {
-						Allocated:                     cpu(10),
-						Demand:                        cpu(20),
-						ConstrainedDemand:             cpu(15),
-						DemandCappedAdjustedFairShare: 0.15,
-						UncappedAdjustedFairShare:     0.2,
-						ShortJobPenalty:               cpu(28),
-						SuccessfulJobSchedulingContexts: map[string]*context.JobSchedulingContext{
-							"job1": {
-								Job: testfixtures.Test1Cpu4GiJob("queue1", testfixtures.PriorityClass0),
-							},
-							"job2": {
-								Job: testfixtures.Test1Cpu4GiJob("queue1", testfixtures.PriorityClass0),
-							},
-						},
-						UnsuccessfulJobSchedulingContexts: map[string]*context.JobSchedulingContext{
-							"job2": {
-								Job: testfixtures.Test1Cpu4GiJob("queue1", testfixtures.PriorityClass0),
+				Name: "pool1",
+				SchedulingResult: &scheduling.SchedulingResult{
+					SchedulingContext: &context.SchedulingContext{
+						Pool:                 "pool1",
+						FairnessCostProvider: fairnessCostProvider,
+						QueueSchedulingContexts: map[string]*context.QueueSchedulingContext{
+							"queue1": {
+								Allocated:                     cpu(10),
+								Demand:                        cpu(20),
+								ConstrainedDemand:             cpu(15),
+								DemandCappedAdjustedFairShare: 0.15,
+								UncappedAdjustedFairShare:     0.2,
+								ShortJobPenalty:               cpu(28),
+								SuccessfulJobSchedulingContexts: map[string]*context.JobSchedulingContext{
+									"job1": {
+										Job: testfixtures.Test1Cpu4GiJob("queue1", testfixtures.PriorityClass0),
+									},
+									"job2": {
+										Job: testfixtures.Test1Cpu4GiJob("queue1", testfixtures.PriorityClass0),
+									},
+								},
+								UnsuccessfulJobSchedulingContexts: map[string]*context.JobSchedulingContext{
+									"job2": {
+										Job: testfixtures.Test1Cpu4GiJob("queue1", testfixtures.PriorityClass0),
+									},
+								},
 							},
 						},
 					},
@@ -229,22 +234,27 @@ func TestPublishCycleMetrics(t *testing.T) {
 	require.NoError(t, err)
 	spotPrice := float64(5)
 	schedulerResult := scheduling.SchedulerResult{
-		SchedulingContexts: []*context.SchedulingContext{
+		PoolResults: []*scheduling.PoolSchedulingResult{
 			{
-				Pool:                 "pool1",
-				Finished:             ts,
-				FairnessCostProvider: fairnessCostProvider,
-				TotalResources:       cpu(100),
-				QueueSchedulingContexts: map[string]*context.QueueSchedulingContext{
-					"queue1": {
-						Queue:             "queue1",
-						Allocated:         cpu(10),
-						Demand:            cpu(20),
-						ConstrainedDemand: cpu(15),
-						BillableResource:  cpu(9),
+				Name: "pool1",
+				SchedulingResult: &scheduling.SchedulingResult{
+					SchedulingContext: &context.SchedulingContext{
+						Pool:                 "pool1",
+						Finished:             ts,
+						FairnessCostProvider: fairnessCostProvider,
+						TotalResources:       cpu(100),
+						QueueSchedulingContexts: map[string]*context.QueueSchedulingContext{
+							"queue1": {
+								Queue:             "queue1",
+								Allocated:         cpu(10),
+								Demand:            cpu(20),
+								ConstrainedDemand: cpu(15),
+								BillableResource:  cpu(9),
+							},
+						},
+						SpotPrice: &spotPrice,
 					},
 				},
-				SpotPrice: &spotPrice,
 			},
 		},
 	}
@@ -339,7 +349,9 @@ func TestReportPoolSchedulingOutcomes(t *testing.T) {
 		},
 	}
 
-	m.ReportPoolSchedulingOutcomes(outcomes)
+	for _, outcome := range outcomes {
+		m.ReportPoolSchedulingOutcomes(outcome)
+	}
 
 	failureCount := testutil.ToFloat64(m.poolSchedulingOutcome.WithLabelValues("pool-1", PoolSchedulingOutcomeFailure, string(scheduling.PoolSchedulingTerminationReasonError)))
 	assert.Equal(t, 1.0, failureCount, "failure outcome metric does not match")
