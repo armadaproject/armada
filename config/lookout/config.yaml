@@ -23,6 +23,12 @@ prunerConfig:
   deduplicationExpireAfter: 168h # 7 days
   timeout: 1h
   batchSize: 1000
+
+# Enable MCP (Model Context Protocol) endpoint for LLM integrations
+# When enabled, exposes /mcp endpoint for job queries via MCP protocol
+mcpEnabled: false
+lookoutUIBaseUrl: "http://localhost:10000"
+
 uiConfig:
   backend: "jsonb"
   armadaApiBaseUrl: "http://armada-server:8080"

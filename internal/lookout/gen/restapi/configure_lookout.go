@@ -97,6 +97,12 @@ func setupMiddlewares(handler http.Handler) http.Handler {
 
 var UIConfig configuration.UIConfig
 
+var mcpHandlerFunc http.HandlerFunc
+
+func SetMCPHandler(handler http.HandlerFunc) {
+	mcpHandlerFunc = handler
+}
+
 // The middleware configuration happens before anything, this middleware also applies to serving the swagger.json document.
 // So this is a good place to plug in a panic handling middleware, logging and metrics.
 func setupGlobalMiddleware(apiHandler http.Handler) http.Handler {
@@ -152,6 +158,11 @@ func uiHandler(apiHandler http.Handler) http.Handler {
 
 	mux.Handle("/api/", apiHandler)
 	mux.Handle("/health", apiHandler)
+
+	// MCP endpoint (if configured)
+	if mcpHandlerFunc != nil {
+		mux.HandleFunc("/mcp", mcpHandlerFunc)
+	}
 
 	return mux
 }
