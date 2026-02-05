@@ -47,36 +47,35 @@ func NewQueueStatsWriter(path string) (*QueueStatsWriter, error) {
 	}, nil
 }
 
-func (j *QueueStatsWriter) Update(time time.Time, result *scheduling.SchedulerResult) error {
+func (j *QueueStatsWriter) Update(time time.Time, result *scheduling.SchedulingResult) error {
 	// Work out number of preemptions per queue
 	preemptedJobsByQueue := map[string]int{}
 	for _, job := range result.PreemptedJobs {
 		preemptedJobsByQueue[job.Job.Queue()] = preemptedJobsByQueue[job.Job.Queue()] + 1
 	}
 
-	for _, sctx := range result.SchedulingContexts {
-		for _, qctx := range sctx.QueueSchedulingContexts {
-			row := QueueStatsRow{
-				Ts:                time.Unix(),
-				Queue:             qctx.Queue,
-				Pool:              sctx.Pool,
-				FairShare:         qctx.FairShare,
-				AdjustedFairShare: qctx.DemandCappedAdjustedFairShare,
-				ActualShare:       sctx.FairnessCostProvider.UnweightedCostFromAllocation(qctx.GetAllocation()),
-				CpuShare:          calculateResourceShare(sctx, qctx, "cpu"),
-				MemoryShare:       calculateResourceShare(sctx, qctx, "memory"),
-				GpuShare:          calculateResourceShare(sctx, qctx, "nvidia.com/gpu"),
-				AllocatedCPU:      allocatedResources(qctx, "cpu"),
-				AllocatedMemory:   allocatedResources(qctx, "memory") / (1024 * 1024), // in MB
-				AllocatedGPU:      allocatedResources(qctx, "nvidia.com/gpu"),
-				NumScheduled:      len(qctx.SuccessfulJobSchedulingContexts),
-				NumPreempted:      preemptedJobsByQueue[qctx.Queue],
-				NumEvicted:        len(qctx.EvictedJobsById),
-			}
-			err := j.writer.Write(row)
-			if err != nil {
-				return err
-			}
+	sctx := result.SchedulingContext
+	for _, qctx := range sctx.QueueSchedulingContexts {
+		row := QueueStatsRow{
+			Ts:                time.Unix(),
+			Queue:             qctx.Queue,
+			Pool:              sctx.Pool,
+			FairShare:         qctx.FairShare,
+			AdjustedFairShare: qctx.DemandCappedAdjustedFairShare,
+			ActualShare:       sctx.FairnessCostProvider.UnweightedCostFromAllocation(qctx.GetAllocation()),
+			CpuShare:          calculateResourceShare(sctx, qctx, "cpu"),
+			MemoryShare:       calculateResourceShare(sctx, qctx, "memory"),
+			GpuShare:          calculateResourceShare(sctx, qctx, "nvidia.com/gpu"),
+			AllocatedCPU:      allocatedResources(qctx, "cpu"),
+			AllocatedMemory:   allocatedResources(qctx, "memory") / (1024 * 1024), // in MB
+			AllocatedGPU:      allocatedResources(qctx, "nvidia.com/gpu"),
+			NumScheduled:      len(qctx.SuccessfulJobSchedulingContexts),
+			NumPreempted:      preemptedJobsByQueue[qctx.Queue],
+			NumEvicted:        len(qctx.EvictedJobsById),
+		}
+		err := j.writer.Write(row)
+		if err != nil {
+			return err
 		}
 	}
 	return nil

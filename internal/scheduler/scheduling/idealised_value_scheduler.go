@@ -65,7 +65,7 @@ func NewIdealisedValueScheduler(
 	}, nil
 }
 
-func (sch *IdealisedValueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResult, error) {
+func (sch *IdealisedValueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulingResult, error) {
 	pool := sch.schedulingContext.Pool
 	sctx := sch.schedulingContext
 

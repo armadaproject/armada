@@ -84,7 +84,7 @@ func NewQueueScheduler(
 	}, nil
 }
 
-func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResult, error) {
+func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulingResult, error) {
 	var scheduledJobs []*schedulercontext.JobSchedulingContext
 	sctx := sch.schedulingContext
 
@@ -232,18 +232,16 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 		sctx.TerminationReason = "no remaining candidate jobs"
 	}
 
-	schedulingStats := PerPoolSchedulingStats{
+	schedulingStats := &SchedulingInformation{
 		StatsPerQueue: statsPerQueue,
 		LoopNumber:    loopNumber,
 	}
 
-	return &SchedulerResult{
-		PreemptedJobs:      nil,
-		ScheduledJobs:      scheduledJobs,
-		SchedulingContexts: []*schedulercontext.SchedulingContext{sctx},
-		PerPoolSchedulingStats: map[string]PerPoolSchedulingStats{
-			sctx.Pool: schedulingStats,
-		},
+	return &SchedulingResult{
+		PreemptedJobs:            nil,
+		ScheduledJobs:            scheduledJobs,
+		SchedulingContext:        sctx,
+		AdditionalSchedulingInfo: schedulingStats,
 	}, nil
 }
 
