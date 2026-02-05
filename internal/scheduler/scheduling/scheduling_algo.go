@@ -165,8 +165,8 @@ func (l *FairSchedulingAlgo) reconcileAndSchedulePool(
 	ctx *armadacontext.Context,
 	pool configuration.PoolConfig,
 	resourceUnits map[string]internaltypes.ResourceList,
-	txn *jobdb.Txn) (*PoolSchedulingOutcome, *ReconciliationResult, *SchedulingResult, error) {
-
+	txn *jobdb.Txn,
+) (*PoolSchedulingOutcome, *ReconciliationResult, *SchedulingResult, error) {
 	select {
 	case <-ctx.Done():
 		return NewPoolSchedulingOutcome(PoolSchedulingTerminationReasonTimeout, fmt.Errorf("scheduling round hit global maximum scheduling duration")), nil, nil, nil
