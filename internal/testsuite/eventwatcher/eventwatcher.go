@@ -262,11 +262,14 @@ func ErrorOnNoActiveJobs(parent context.Context, C chan *api.EventMessage, jobId
 				}
 				numActive--
 			} else if e := msg.GetFailed(); e != nil {
-				// Allow Failed after Preempted (executor sends both events for preempted jobs)
-				if _, wasPreempted := preemptedJobIds[e.JobId]; !wasPreempted {
-					if _, ok := exitedByJobId[e.JobId]; ok {
-						return errors.Errorf("received multiple terminal events for job %s", e.JobId)
-					}
+				// Allow Failed after Preempted (scheduler sends both events for preempted jobs)
+				if _, wasPreempted := preemptedJobIds[e.JobId]; wasPreempted {
+					// Job was already counted as exited when Preempted event was received
+					// Don't decrement counters again
+					continue
+				}
+				if _, ok := exitedByJobId[e.JobId]; ok {
+					return errors.Errorf("received multiple terminal events for job %s", e.JobId)
 				}
 				exitedByJobId[e.JobId] = true
 				if _, ok := jobIds[e.JobId]; ok {
