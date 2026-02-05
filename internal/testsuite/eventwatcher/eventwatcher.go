@@ -238,7 +238,7 @@ func isTerminalEvent(msg *api.EventMessage) bool {
 }
 
 // ErrorOnNoActiveJobs returns an error if there are no active jobs.
-// Note: The executor intentionally sends both Preempted and Failed events for preempted jobs,
+// Note: The scheduler intentionally sends both Preempted and Failed events for preempted jobs,
 // so we allow Failed to follow Preempted without erroring.
 func ErrorOnNoActiveJobs(parent context.Context, C chan *api.EventMessage, jobIds map[string]bool) error {
 	numActive := 0
