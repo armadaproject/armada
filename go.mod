@@ -68,8 +68,8 @@ require (
 	github.com/minio/highwayhash v1.0.3
 	github.com/openconfig/goyang v1.6.3
 	github.com/prometheus/common v0.67.5
-	github.com/redis/go-redis/extra/redisprometheus/v9 v9.17.2
-	github.com/redis/go-redis/v9 v9.17.2
+	github.com/redis/go-redis/extra/redisprometheus/v9 v9.17.3
+	github.com/redis/go-redis/v9 v9.17.3
 	github.com/rs/zerolog v1.34.0
 	github.com/segmentio/fasthash v1.0.3
 	github.com/xitongsys/parquet-go v1.6.2
