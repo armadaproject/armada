@@ -211,6 +211,9 @@ func (s *Server) PreemptJobs(grpcCtx context.Context, req *api.JobPreemptRequest
 		return nil, err
 	}
 
+	// results maps job ids to strings containing error messages.
+	results := make(map[string]string)
+
 	sequence, err := preemptJobEventSequenceForJobIds(s.clock, req.JobIds, req.Queue, req.JobSetId, userId, req.Reason, groups)
 	if err != nil {
 		return nil, err
@@ -222,8 +225,12 @@ func (s *Server) PreemptJobs(grpcCtx context.Context, req *api.JobPreemptRequest
 		return nil, status.Error(codes.Internal, "Failed to send message")
 	}
 
+	for _, jobId := range req.JobIds {
+		results[jobId] = "" // empty string indicates no error
+	}
+
 	return &api.PreemptionResult{
-		PreemptedIds: req.JobIds,
+		PreemptionResults: results,
 	}, nil
 }
 

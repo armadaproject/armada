@@ -226,7 +226,7 @@ message CancellationResult {
 
 // swagger:model
 message PreemptionResult {
-    repeated string preempted_ids = 1;
+    map<string, string> preemption_results = 1;
 }
 
 //swagger:model

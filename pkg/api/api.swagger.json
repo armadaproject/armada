@@ -2092,9 +2092,9 @@
       "type": "object",
       "title": "swagger:model",
       "properties": {
-        "preemptedIds": {
-          "type": "array",
-          "items": {
+        "preemptionResults": {
+          "type": "object",
+          "additionalProperties": {
             "type": "string"
           }
         }
