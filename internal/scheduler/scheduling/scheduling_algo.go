@@ -135,7 +135,7 @@ func (l *FairSchedulingAlgo) Schedule(
 		endTime := l.clock.Now()
 
 		if outcome == nil {
-			return nil, fmt.Errorf("unexpected got nil scheduling result for pool %s", pool)
+			return nil, fmt.Errorf("unexpectedly got nil scheduling result for pool %s", pool.Name)
 		}
 
 		// If pools are not configured to fail independently, cause total scheduling round failure on pool failure
