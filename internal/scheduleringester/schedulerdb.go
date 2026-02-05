@@ -117,7 +117,7 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 			records[i] = *v.DbRun
 			i++
 		}
-		err := database.Upsert(ctx, tx, "runs", records)
+		err := database.Upsert(ctx, tx, "runs", records, database.WithExcludeColumns("terminated"))
 		if err != nil {
 			return err
 		}
@@ -306,11 +306,11 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 		}
 	case MarkRunsRunning:
 		runIds := make([]string, 0, len(o))
-		runningTimes := make([]interface{}, 0, len(runIds))
-		running := make([]bool, 0, len(runIds))
-		for runId, failTime := range o {
+		runningTimes := make([]interface{}, 0, len(o))
+		running := make([]bool, 0, len(o))
+		for runId, runningTime := range o {
 			runIds = append(runIds, runId)
-			runningTimes = append(runningTimes, failTime)
+			runningTimes = append(runningTimes, runningTime)
 			running = append(running, true)
 		}
 		sqlStmt := multiColumnRunsUpdateStmt("run_id", "running", "running_timestamp")
@@ -405,18 +405,17 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 			if err != nil {
 				return errors.Wrapf(err, "error cancelling jobs on executor %s by queue and priority class", executor)
 			}
-			inPriorityClasses := jobInPriorityClasses(cancelRequest.PriorityClasses)
-			jobsToCancel := make([]schedulerdb.Job, 0)
-			for _, job := range jobs {
-				ok, err := inPriorityClasses(job)
+
+			if len(jobs) == 0 {
+				continue
+			}
+			if len(cancelRequest.PriorityClasses) > 0 {
+				jobs, err = filterJobsByPriorityClasses(jobs, cancelRequest.PriorityClasses)
 				if err != nil {
 					return errors.Wrapf(err, "error cancelling jobs on executor %s by queue and priority class", executor)
 				}
-				if ok {
-					jobsToCancel = append(jobsToCancel, job)
-				}
 			}
-			for _, requestCancelParams := range createMarkJobsCancelRequestedByIdParams(jobsToCancel) {
+			for _, requestCancelParams := range createMarkJobsCancelRequestedByIdParams(jobs) {
 				err = queries.MarkJobsCancelRequestedById(ctx, *requestCancelParams)
 				if err != nil {
 					return errors.Wrapf(err, "error cancelling jobs on executor %s by queue and priority class", executor)
@@ -432,24 +431,81 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 			if err != nil {
 				return errors.Wrapf(err, "error preempting jobs on executor %s by queue and priority class", executor)
 			}
-			inPriorityClasses := jobInPriorityClasses(preemptRequest.PriorityClasses)
-			jobsToPreempt := make([]schedulerdb.Job, 0)
-			for _, job := range jobs {
-				ok, err := inPriorityClasses(job)
+			if len(jobs) == 0 {
+				continue
+			}
+
+			if len(preemptRequest.PriorityClasses) > 0 {
+				jobs, err = filterJobsByPriorityClasses(jobs, preemptRequest.PriorityClasses)
 				if err != nil {
 					return errors.Wrapf(err, "error preempting jobs on executor %s by queue and priority class", executor)
 				}
-				if ok {
-					jobsToPreempt = append(jobsToPreempt, job)
-				}
 			}
-			for _, requestPreemptParams := range createMarkJobRunsPreemptRequestedByJobIdParams(jobsToPreempt) {
+
+			for _, requestPreemptParams := range createMarkJobRunsPreemptRequestedByJobIdParams(jobs) {
 				err = queries.MarkJobRunsPreemptRequestedByJobId(ctx, *requestPreemptParams)
 				if err != nil {
 					return errors.Wrapf(err, "error preempting jobs on executor %s by queue and priority class", executor)
 				}
 			}
 		}
+	case PreemptNode:
+		for nodeOnExecutor, preemptRequest := range o {
+			jobs, err := queries.SelectJobsByNodeAndExecutorAndQueues(ctx, schedulerdb.SelectJobsByNodeAndExecutorAndQueuesParams{
+				Node:     nodeOnExecutor.Node,
+				Executor: nodeOnExecutor.Executor,
+				Queues:   preemptRequest.Queues,
+			})
+			if err != nil {
+				return errors.Wrapf(err, "error preempting jobs on node %s on executor %s by queue and priority class", nodeOnExecutor.Node, nodeOnExecutor.Executor)
+			}
+
+			if len(jobs) == 0 {
+				continue
+			}
+
+			if len(preemptRequest.PriorityClasses) > 0 {
+				jobs, err = filterJobsByPriorityClasses(jobs, preemptRequest.PriorityClasses)
+				if err != nil {
+					return errors.Wrapf(err, "error preempting jobs on node %s on executor %s by queue and priority class", nodeOnExecutor.Node, nodeOnExecutor.Executor)
+				}
+			}
+			for _, requestPreemptParams := range createMarkJobRunsPreemptRequestedByJobIdParams(jobs) {
+				err = queries.MarkJobRunsPreemptRequestedByJobId(ctx, *requestPreemptParams)
+				if err != nil {
+					return errors.Wrapf(err, "error preempting jobs on node %s on executor %s by queue and priority class", nodeOnExecutor.Node, nodeOnExecutor.Executor)
+				}
+			}
+		}
+	case CancelNode:
+		for nodeOnExecutor, preemptRequest := range o {
+			jobs, err := queries.SelectJobsByNodeAndExecutorAndQueues(ctx, schedulerdb.SelectJobsByNodeAndExecutorAndQueuesParams{
+				Node:     nodeOnExecutor.Node,
+				Executor: nodeOnExecutor.Executor,
+				Queues:   preemptRequest.Queues,
+			})
+			if err != nil {
+				return errors.Wrapf(err, "error preempting jobs on node %s on executor %s by queue and priority class", nodeOnExecutor.Node, nodeOnExecutor.Executor)
+			}
+
+			if len(jobs) == 0 {
+				continue
+			}
+
+			if len(preemptRequest.PriorityClasses) > 0 {
+				jobs, err = filterJobsByPriorityClasses(jobs, preemptRequest.PriorityClasses)
+				if err != nil {
+					return errors.Wrapf(err, "error preempting jobs on node %s on executor %s by queue and priority class", nodeOnExecutor.Node, nodeOnExecutor.Executor)
+				}
+			}
+			for _, requestPreemptParams := range createMarkJobsCancelRequestedByIdParams(jobs) {
+				err = queries.MarkJobsCancelRequestedById(ctx, *requestPreemptParams)
+				if err != nil {
+					return errors.Wrapf(err, "error preempting jobs on node %s on executor %s by queue and priority class", nodeOnExecutor.Node, nodeOnExecutor.Executor)
+				}
+			}
+		}
+
 	case CancelQueue:
 		for _, cancelRequest := range o {
 			jobs, err := s.selectAllJobsByQueueAndJobState(ctx, queries, cancelRequest.Name, cancelRequest.JobStates)
@@ -612,17 +668,11 @@ func getLockKey(operations []DbOperation) (int, error) {
 func execBatch(ctx *armadacontext.Context, tx pgx.Tx, batch *pgx.Batch) error {
 	result := tx.SendBatch(ctx, batch)
 	for i := 0; i < batch.Len(); i++ {
-		_, err := result.Exec()
-		if err != nil {
+		if _, err := result.Exec(); err != nil {
 			return err
 		}
 	}
-
-	err := result.Close()
-	if err != nil {
-		return err
-	}
-	return nil
+	return result.Close()
 }
 
 func multiColumnRunsUpdateStmt(id, phaseColumn, timeStampColumn string) string {
@@ -633,4 +683,22 @@ func multiColumnRunsUpdateStmt(id, phaseColumn, timeStampColumn string) string {
 	as runs_temp(%[1]v, %[2]v, %[3]v)
 	where runs.%[1]v = runs_temp.%[1]v;`,
 		id, phaseColumn, timeStampColumn, "text")
+}
+
+func filterJobsByPriorityClasses(jobs []schedulerdb.Job, priorityClasses []string) ([]schedulerdb.Job, error) {
+	if len(priorityClasses) == 0 {
+		return jobs, nil
+	}
+	inPriorityClasses := jobInPriorityClasses(priorityClasses)
+	filteredJobs := make([]schedulerdb.Job, 0)
+	for _, job := range jobs {
+		ok, err := inPriorityClasses(job)
+		if err != nil {
+			return nil, errors.Wrapf(err, "error filtering jobs by priority class")
+		}
+		if ok {
+			filteredJobs = append(filteredJobs, job)
+		}
+	}
+	return filteredJobs, nil
 }
