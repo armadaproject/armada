@@ -256,5 +256,6 @@ require (
 
 replace (
 	charm.land/lipgloss/v2 => github.com/charmbracelet/lipgloss/v2 v2.0.0-beta.3.0.20251120230642-dcccabe2cd63
+	cyphar.com/go-pathrs => github.com/cyphar/libpathrs/go-pathrs v0.2.1
 	nhooyr.io/websocket => github.com/nhooyr/websocket v1.8.7
 )
