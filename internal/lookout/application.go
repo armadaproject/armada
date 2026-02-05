@@ -15,6 +15,7 @@ import (
 	"github.com/go-openapi/loads"
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/gogo/protobuf/jsonpb"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jessevdk/go-flags"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
@@ -33,7 +34,6 @@ import (
 	"github.com/armadaproject/armada/internal/lookout/model"
 	"github.com/armadaproject/armada/internal/lookout/repository"
 	"github.com/armadaproject/armada/internal/lookoutmcp/mcp"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func Serve(configuration configuration.LookoutConfig) error {
@@ -288,7 +288,7 @@ func (s *mcpServerState) handleMCPRequest(ctx armadacontext.Context, data []byte
 	var req mcp.Request
 	if err := json.Unmarshal(data, &req); err != nil {
 		s.logger.WithError(err).WithField("data", string(data)).Error("failed to parse MCP request")
-		s.sendMCPError(w, nil, mcp.ErrorCodeParseError, "parse error", err.Error())
+		_ = s.sendMCPError(w, nil, mcp.ErrorCodeParseError, "parse error", err.Error())
 		return err
 	}
 
@@ -306,7 +306,7 @@ func (s *mcpServerState) handleMCPRequest(ctx armadacontext.Context, data []byte
 		return s.handleMCPCallTool(ctx, w, req)
 	default:
 		logger.WithField("method", req.Method).Warn("unknown method")
-		s.sendMCPError(w, req.ID, mcp.ErrorCodeMethodNotFound, "method not found", nil)
+		_ = s.sendMCPError(w, req.ID, mcp.ErrorCodeMethodNotFound, "method not found", nil)
 		return nil
 	}
 }
@@ -314,7 +314,7 @@ func (s *mcpServerState) handleMCPRequest(ctx armadacontext.Context, data []byte
 func (s *mcpServerState) handleMCPInitialize(w http.ResponseWriter, req mcp.Request) error {
 	var params mcp.InitializeParams
 	if err := json.Unmarshal(req.Params, &params); err != nil {
-		s.sendMCPError(w, req.ID, mcp.ErrorCodeInvalidParams, "invalid params", err.Error())
+		_ = s.sendMCPError(w, req.ID, mcp.ErrorCodeInvalidParams, "invalid params", err.Error())
 		return err
 	}
 
@@ -491,7 +491,7 @@ func (s *mcpServerState) handleMCPListTools(w http.ResponseWriter, req mcp.Reque
 func (s *mcpServerState) handleMCPCallTool(ctx armadacontext.Context, w http.ResponseWriter, req mcp.Request) error {
 	var params mcp.CallToolParams
 	if err := json.Unmarshal(req.Params, &params); err != nil {
-		s.sendMCPError(w, req.ID, mcp.ErrorCodeInvalidParams, "invalid params", err.Error())
+		_ = s.sendMCPError(w, req.ID, mcp.ErrorCodeInvalidParams, "invalid params", err.Error())
 		return err
 	}
 
@@ -518,7 +518,7 @@ func (s *mcpServerState) handleMCPCallTool(ctx armadacontext.Context, w http.Res
 	case "get_lookout_ui_link":
 		result, err = s.handleGetLookoutUILink(params.Arguments)
 	default:
-		s.sendMCPError(w, req.ID, mcp.ErrorCodeInvalidParams, "unknown tool", params.Name)
+		_ = s.sendMCPError(w, req.ID, mcp.ErrorCodeInvalidParams, "unknown tool", params.Name)
 		return nil
 	}
 
