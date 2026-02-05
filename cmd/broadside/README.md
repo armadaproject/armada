@@ -309,13 +309,14 @@ benchmarks reflect reality:
 
 ```
 cmd/broadside/
-├── main.go              # Entry point (currently hardcoded config)
+├── main.go              # Entry point with YAML configuration support
 ├── configs/             # Your test configurations (gitignored)
 │   ├── README.md
 │   ├── examples/        # Example configs and setup scripts
 │   │   ├── README.md
 │   │   ├── docker-compose-postgres.yaml  # Local dev PostgreSQL (not for benchmarking)
-│   │   └── *.yaml       # Example test configurations (coming soon)
+│   │   ├── test-inmemory.yaml           # In-memory smoke test configuration
+│   │   └── test-postgres.yaml           # PostgreSQL example configuration
 │   └── *.yaml          # Your configurations
 └── results/             # Test output (gitignored)
     ├── README.md
@@ -357,44 +358,66 @@ databaseConfig:
 - Scale resources based on expected query load
 - Monitor CPU, memory, disk I/O during tests
 
-## Implementation Status
+## Features
 
-### ✅ Completed
+Broadside provides comprehensive load testing capabilities:
 
-- [x] Directory structure (configs/, results/, configs/examples/)
-- [x] PostgreSQL schema initialisation (reuses Lookout migrations)
-- [x] PostgreSQL read queries (GetJobs, GetJobGroups, GetJobSpec,
-  GetJobRunError, GetJobRunDebugMessage)
-  - All getter methods delegate to Lookout repositories for production fidelity
-  - NoOpDecompressor used since Broadside stores uncompressed data
-- [x] PostgreSQL write operations (ExecuteIngestionQueryBatch)
-  - Batch inserts using COPY protocol for performance
-  - Parallel execution of independent operations with proper dependency ordering
-  - Batch updates delegate to Lookout ingester (`UpdateJobsBatch`,
-    `UpdateJobRunsBatch`)
-  - Full conversion from Broadside query types to Lookout instruction format
-- [x] Database lifecycle (InitialiseSchema, TearDown, Close)
-- [x] Results output to `cmd/broadside/results/`
-- [x] Example Docker Compose for local PostgreSQL (development only)
-- [x] YAML configuration file support using Viper
-  - Requires `--config` flag to specify configuration file
-  - Supports multiple config files for layered configuration
-  - Example configurations provided in `configs/examples/`
-  - Comprehensive validation with detailed error messages
-  - Environment variable support (ARMADA_ prefix)
-- [x] Actions system for simulating bulk operations
-  - Job set reprioritisations (bulk priority updates)
-  - Job set cancellations (bulk cancellations)
-  - Scheduled execution based on test start time
-  - Metrics collection for action latency and throughput
-  - Separate metrics section in test results
+**Database Support**
+- PostgreSQL adapter with production Lookout schema and queries
+- In-memory adapter for framework smoke-testing
+- ClickHouse adapter interface (awaiting implementation)
 
-### 📋 TODO
+**Configuration**
+- YAML-based configuration with Viper
+- Environment variable support (ARMADA_ prefix)
+- Multiple config file layering
+- Comprehensive validation with detailed error messages
+- Example configurations for common scenarios
 
-- [ ] ClickHouse adapter implementation
-- [ ] Results comparison/visualisation tool
-- [ ] Documentation for interpreting test results
-- [ ] CI/CD integration for automated benchmarking
+**Job Ingestion Simulation**
+- Configurable submission rates (jobs per hour)
+- Parallel batch execution with multiple workers
+- PostgreSQL COPY protocol for high-throughput inserts
+- Realistic job state transitions (queued → leased → pending → running → terminal)
+- Historical job population with configurable state distributions
+- Backlog management with configurable drop/block/error strategies
+
+**Query Simulation**
+- GetJobs queries with seven filter combinations
+- GetJobGroups queries with aggregation support
+- Follow-up queries (GetJobSpec, GetJobRunError, GetJobRunDebugMessage)
+- Deterministic query parameter selection for reproducibility
+- Concurrent query execution
+- Latency tracking by query type and filter combination
+
+**Bulk Actions**
+- Job set reprioritisations (scheduled bulk priority updates)
+- Job set cancellations (scheduled bulk cancellations)
+- Time-based scheduling relative to test start
+- Metrics collection for action latency and throughput
+
+**Metrics and Reporting**
+- Histogram-based metrics with exponential buckets (bounded memory usage)
+- Query latency percentiles (P50, P95, P99)
+- Backlog size and wait time tracking
+- Batch execution performance
+- JSON output with full configuration snapshot
+- Timestamped result files for long-term tracking
+
+**Test Lifecycle**
+- Warmup period with metrics reset
+- Progress logging every 30 seconds
+- Graceful shutdown with in-flight batch completion
+- Database teardown and cleanup
+
+## Future Enhancements
+
+The following features would be valuable additions:
+
+- **ClickHouse Adapter**: Implement ClickHouse backend for comparison testing
+- **Results Comparison Tool**: Build tooling to compare results across runs and visualise trends
+- **Results Interpretation Guide**: Add documentation for analysing performance metrics and identifying bottlenecks
+- **CI/CD Integration**: Automate benchmarking in continuous integration pipelines for regression detection
 
 ## Why Reuse Lookout Infrastructure?
 
@@ -482,14 +505,6 @@ When comparing PostgreSQL vs ClickHouse:
 4. **Same Duration**: Use identical test and warmup durations
 5. **Document Configuration**: Save database tuning parameters for
    reproducibility
-
-## Next Steps
-
-1. **ClickHouse Adapter**: Implement ClickHouse backend for comparison testing
-2. **Results Analysis**: Build tooling to compare results across runs
-3. **Documentation**: Add guide for interpreting performance metrics
-4. **CI/CD Integration**: Automate benchmarking in continuous integration
-   pipelines
 
 ## Troubleshooting
 
