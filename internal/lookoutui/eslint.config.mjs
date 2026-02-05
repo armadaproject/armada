@@ -67,7 +67,7 @@ export default tseslint.config(
 
             ignoreWords: [
               "preempt",
-              "preempted",
+              "preempts",
               "preempted",
               "preemptible",
               "preempting",
