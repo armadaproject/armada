@@ -99,7 +99,7 @@ func (q *Queries) MarkJobRunsFailedById(ctx context.Context, runIds []string) er
 }
 
 const markJobRunsPreemptRequestedByJobId = `-- name: MarkJobRunsPreemptRequestedByJobId :exec
-UPDATE runs SET preempt_requested = true, preempt_reason = $1 WHERE queue = $2 and job_set = $3 and job_id = ANY($4::text[]) and cancelled = false and succeeded = false and failed = false and terminated = false
+UPDATE runs SET preempt_requested = true, preempt_reason = $1 WHERE queue = $2 and job_set = $3 and job_id = ANY($4::text[]) and terminated = false
 `
 
 type MarkJobRunsPreemptRequestedByJobIdParams struct {
