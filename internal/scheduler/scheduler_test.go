@@ -2003,11 +2003,17 @@ func NewSchedulerResultForTest[S ~[]T, T *jobdb.Job](
 	preemptedReconciliationJobs S,
 ) *scheduling.SchedulerResult {
 	return &scheduling.SchedulerResult{
-		PreemptedJobs: schedulercontext.JobSchedulingContextsFromJobs(preemptedJobs),
-		ScheduledJobs: schedulercontext.JobSchedulingContextsFromJobs(scheduledJobs),
-		FailedReconciliationJobs: &scheduling.ReconciliationResult{
-			FailedJobs:    FailedReconciliationResultFromJobs(failedReconciliationJobs, "reconciliation failure"),
-			PreemptedJobs: FailedReconciliationResultFromJobs(preemptedReconciliationJobs, "reconciliation failure"),
+		PoolResults: []*scheduling.PoolSchedulingResult{
+			{
+				SchedulingResult: &scheduling.SchedulingResult{
+					PreemptedJobs: schedulercontext.JobSchedulingContextsFromJobs(preemptedJobs),
+					ScheduledJobs: schedulercontext.JobSchedulingContextsFromJobs(scheduledJobs),
+				},
+				ReconciliationResult: &scheduling.ReconciliationResult{
+					FailedJobs:    FailedReconciliationResultFromJobs(failedReconciliationJobs, "reconciliation failure"),
+					PreemptedJobs: FailedReconciliationResultFromJobs(preemptedReconciliationJobs, "reconciliation failure"),
+				},
+			},
 		},
 	}
 }
