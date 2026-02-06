@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import dataclasses
 import datetime
+from functools import cached_property
 import os
 import time
 from typing import Any, Callable, Dict, Optional, Sequence, Tuple, Union
@@ -30,7 +31,7 @@ import re
 from airflow.configuration import conf
 from airflow.exceptions import AirflowFailException
 from airflow.models import BaseOperator
-from airflow.models.taskinstance import TaskInstance
+from airflow.models.taskinstance import TaskInstance, TaskInstanceKey
 from airflow.serialization.serde import deserialize
 from airflow.utils.context import Context
 from airflow.utils.log.logging_mixin import LoggingMixin
@@ -48,7 +49,22 @@ from ..model import RunningJobContext
 from ..policies.reattach import external_job_uri, policy
 from ..triggers import ArmadaPollJobTrigger
 from ..utils import log_exceptions, xcom_pull_for_ti, resolve_parameter_value
-from ..links import LookoutLink, DynamicLink, persist_link_value, UrlFromLogsExtractor
+from ..links import (
+    LookoutLink,
+    DynamicLink,
+    persist_link_value,
+    UrlFromLogsExtractor,
+    get_link_value,
+)
+
+# The `airflow.operators.python.get_current_context` import is deprecated,
+# we want to maintain compatibility with multiple Airflow versions,
+# so try to import from the new location first
+# and fall back to the old one if it's not available.
+try:
+    from airflow.sdk import get_current_context
+except ImportError:
+    from airflow.operators.python import get_current_context
 
 
 class ArmadaOperator(BaseOperator, LoggingMixin):
@@ -137,7 +153,6 @@ Regex patterns will be extracted from container logs (taking first match).
         self.channel_args = channel_args
         self.armada_queue = armada_queue
         self.job_request = job_request
-        self.job_set_id = None
         self.job_set_prefix = job_set_prefix
         self.lookout_url_template = lookout_url_template
         self.poll_interval = poll_interval
@@ -146,35 +161,10 @@ Regex patterns will be extracted from container logs (taking first match).
         self.deferrable = deferrable
         self.job_acknowledgement_timeout = job_acknowledgement_timeout
         self.dry_run = dry_run
-        self.job_context = None
-
-        if callable(reattach_policy):
-            self.log.info(
-                f"Configured reattach policy with callable',"
-                f" max retries: {self.retries}"
-            )
-            self.reattach_policy = reattach_policy
-            self.configured_reattach_policy = "callable"
-        else:
-            configured_reattach_policy: str = resolve_parameter_value(
-                "reattach_policy", reattach_policy, kwargs, "never"
-            )
-            self.configured_reattach_policy = configured_reattach_policy
-            self.log.info(
-                f"Configured reattach policy to: '{configured_reattach_policy}',"
-                f" max retries: {self.retries}"
-            )
-            self.reattach_policy = policy(configured_reattach_policy)
-
-        if self.container_logs and self.k8s_token_retriever is None:
-            self.log.warning(
-                "Token refresh mechanism not configured, airflow may stop retrieving "
-                "logs from Kubernetes"
-            )
-
+        self.reattach_policy = reattach_policy
         self.extra_links = extra_links or {}
-        operator_links = []
 
+        operator_links = []
         if self.lookout_url_template:
             operator_links.append(LookoutLink())
 
@@ -182,12 +172,14 @@ Regex patterns will be extracted from container logs (taking first match).
         self.operator_extra_links = operator_links
 
     @log_exceptions
-    def execute(self, context) -> None:
+    def execute(self, context) -> Dict[str, Any]:
         """
         Submits the job to Armada and polls for completion.
 
         :param context: The execution context provided by Airflow.
         :type context: Context
+        :return: Dictionary containing job information and links
+        :rtype: Dict[str, Any]
         """
 
         self.log.info(
@@ -196,20 +188,36 @@ Regex patterns will be extracted from container logs (taking first match).
             f"dry_run: {self.dry_run}, "
             f"poll_interval: {self.poll_interval}s, "
             f"job_acknowledgement_timeout: {self.job_acknowledgement_timeout}s, "
-            f"reattach_policy: {self.configured_reattach_policy}, "
             f"retries: {self.retries})"
         )
 
+        if self.container_logs and self.k8s_token_retriever is None:
+            self.log.warning(
+                "Token refresh mechanism not configured, airflow may stop retrieving "
+                "logs from Kubernetes"
+            )
+
+        if self.container_logs and self.k8s_token_retriever is None:
+            self.log.warning(
+                "Token refresh mechanism not configured, airflow may stop retrieving "
+                "logs from Kubernetes"
+            )
+
+        # Setup extra links xcom values to be rendered in UI,
+        # we will update the values with actual URLs as they become available.
+        for link_name in self.extra_links.keys():
+            persist_link_value(context["ti"], link_name, "")
+
         # We take the job_set_id from Airflow's run_id.
         # So all jobs in the dag will be in the same jobset.
-        self.job_set_id = f"{self.job_set_prefix}{context['run_id']}"
+        job_set_id = f"{self.job_set_prefix}{context['run_id']}"
 
         if self.dry_run:
             self.log.info(
-                f"Running in dry_run mode. job_set_id: {self.job_set_id} \n"
+                f"Running in dry_run mode. job_set_id: {job_set_id} \n"
                 f"{self.job_request}"
             )
-            return
+            return {}
 
         if self.deferrable:
             # We push channel args via xcom - so we do it once per execution.
@@ -217,17 +225,19 @@ Regex patterns will be extracted from container logs (taking first match).
 
         # Submit job or reattach to previously submitted job.
         # Always do this synchronously.
-        self.job_context = self._reattach_or_submit_job(
-            context, self.job_set_id, self.job_request
+        job_context = self._reattach_or_submit_job(
+            context, job_set_id, self.job_request
         )
 
-        self._poll_for_termination(context)
+        job_context = self._poll_for_termination(context, job_context)
 
-    @property
+        return self._execution_result(context, job_context, job_set_id)
+
+    @cached_property
     def hook(self) -> ArmadaHook:
         return ArmadaHook(self.channel_args)
 
-    @property
+    @cached_property
     def pod_manager(self) -> KubernetesPodLogManager:
         return KubernetesPodLogManager(token_retriever=self.k8s_token_retriever)
 
@@ -304,30 +314,107 @@ Regex patterns will be extracted from container logs (taking first match).
 
         for name, url in self.extra_links.items():
             if isinstance(url, re.Pattern):
-                self.log.warning(
-                    f"Skipping link {name} because the URL appears is a regex: {url}"
+                self.log.debug(
+                    f"Skipping link {name} because the URL is a regex pattern: {url}"
                 )
                 continue
             try:
                 rendered_url = jinja_env.from_string(url).render(context)
-                persist_link_value(context["ti"].key, name, rendered_url)
+                persist_link_value(context["ti"], name, rendered_url)
             except jinja2.TemplateError as e:
                 self.log.error(f"Error rendering template for {name} ({url}): {e}")
 
     def on_kill(self) -> None:
-        if self.job_context is not None:
-            self.log.info(
-                f"on_kill called, "
-                f"cancelling Armada job with job-id {self.job_context.job_id} in queue "
-                f"{self.job_context.armada_queue}"
-            )
-            self.hook.cancel_job(self.job_context)
-            self.job_context = None
+        try:
+            context = get_current_context()
+            job_context = self.hook.context_from_xcom(context["ti"])
+            if job_context is not None:
+                self.log.info(
+                    f"on_kill called, "
+                    f"cancelling Armada job with job-id {job_context.job_id} in queue "
+                    f"{job_context.armada_queue}"
+                )
+                self.hook.cancel_job(job_context)
+        except Exception as e:
+            self.log.warning(f"Unable to cancel job in on_kill: {e}")
 
     def lookout_url(self, job_id):
         if self.lookout_url_template:
             return self.lookout_url_template.replace("<job_id>", job_id)
         return None
+
+    def _execution_result(
+        self, context: Context, job_context: RunningJobContext, job_set_id: str
+    ) -> Dict[str, Any]:
+        """
+        Build the execution result dictionary with job info and links.
+
+        :param context: The execution context
+        :param job_context: The job context
+        :param job_set_id: The job set ID
+        :return: Dictionary with job information and links
+        """
+        ti_key = self._get_ti_key(context["ti"])
+
+        links = {}
+        lookout_url = self.lookout_url(job_context.job_id)
+        if lookout_url:
+            links["lookout"] = lookout_url
+
+        # Collect extra links from xcom
+        for link_name in self.extra_links.keys():
+            link_url = get_link_value(ti_key, link_name)
+            if link_url:
+                links[link_name] = link_url
+
+        return {
+            "armada_queue": self.armada_queue,
+            "job_id": job_context.job_id,
+            "job_set_id": job_set_id,
+            "job_state": job_context.state.name,
+            "links": links,
+        }
+
+    def _reattach_policy(
+        self, context: Context, log: bool = False
+    ) -> Callable[[JobState, str], bool]:
+        """
+        Evaluate reattach policy for a given job state and reason.
+
+        :param state: The job state
+        :param reason: The termination reason
+        :param log_from_execute: If True, log policy evaluation (only from execute)
+        :return: True if should reattach, False otherwise
+        """
+        if callable(self.reattach_policy):
+            policy_func = self.reattach_policy
+            policy_name = "callable"
+        else:
+            policy_name: str = resolve_parameter_value(
+                "reattach_policy", self.reattach_policy, context, "never"
+            )
+            policy_func = policy(policy_name)  # type: ignore
+        if log:
+            self.log.info(
+                f"Resolved reattach_policy: {policy_name}, retries: {self.retries}"
+            )
+
+        return policy_func
+
+    @staticmethod
+    def _get_ti_key(ti: TaskInstance) -> TaskInstanceKey:
+        """
+        Get TaskInstanceKey from TaskInstance.
+        In Airflow 3.x, TaskInstance no longer has a .key attribute,
+        so we construct it manually.
+        """
+        return TaskInstanceKey(
+            dag_id=ti.dag_id,
+            task_id=ti.task_id,
+            run_id=ti.run_id,
+            try_number=ti.try_number,
+            map_index=ti.map_index if hasattr(ti, "map_index") else -1,
+        )
 
     def _trigger_tracking_message(self, job_id):
         url = self.lookout_url(job_id)
@@ -350,11 +437,16 @@ Regex patterns will be extracted from container logs (taking first match).
 
     def _trigger_reentry(
         self, context: Context, event: Tuple[str, Dict[str, Any]]
-    ) -> None:
-        self.job_context = self.hook.context_from_xcom(context["ti"])
-        if not self.job_context:
-            self.job_context = deserialize(event)
-        self._poll_for_termination(context)
+    ) -> Dict[str, Any]:
+        job_context = self.hook.context_from_xcom(context["ti"])
+        if not job_context:
+            job_context = deserialize(event)
+        job_context = self._poll_for_termination(context, job_context)
+
+        # Get job_set_id from context
+        job_set_id = f"{self.job_set_prefix}{context['run_id']}"
+
+        return self._execution_result(context, job_context, job_set_id)
 
     def _reattach_or_submit_job(
         self,
@@ -362,7 +454,7 @@ Regex patterns will be extracted from container logs (taking first match).
         job_set_id: str,
         job_request: JobSubmitRequestItem,
     ) -> RunningJobContext:
-        ctx = self._try_reattach_to_running_job(context)
+        ctx = self._try_reattach_to_running_job(context, job_set_id, log=True)
         if ctx:
             self.log.info(
                 "Attached to existing Armada job "
@@ -383,8 +475,11 @@ Regex patterns will be extracted from container logs (taking first match).
         return ctx
 
     def _try_reattach_to_running_job(
-        self, context: Context
+        self, context: Context, job_set_id: str, log: bool = False
     ) -> Optional[RunningJobContext]:
+        # This way we log re-attach policy if desired.
+        reattach_policy = self._reattach_policy(context, log)
+
         # On first try we intentionally do not re-attach.
         new_run = (
             context["ti"].max_tries - context["ti"].try_number + 1
@@ -401,12 +496,12 @@ Regex patterns will be extracted from container logs (taking first match).
 
         expected_job_uri = external_job_uri(context)
         ctx = self.hook.job_by_external_job_uri(
-            self.armada_queue, self.job_set_id, expected_job_uri
+            self.armada_queue, job_set_id, expected_job_uri
         )
 
         if ctx:
             termination_reason = self.hook.job_termination_reason(ctx)
-            if self.reattach_policy(ctx.state, termination_reason):
+            if reattach_policy(ctx.state, termination_reason):
                 return ctx
             else:
                 self.log.info(
@@ -418,90 +513,98 @@ Regex patterns will be extracted from container logs (taking first match).
 
         return None
 
-    def _poll_for_termination(self, context: Context) -> None:
-        while self.job_context.state.is_active():
-            self._check_job_status_and_fetch_logs(context)
-            if self.job_context.state.is_active():
+    def _poll_for_termination(
+        self, context: Context, job_context: RunningJobContext
+    ) -> RunningJobContext:
+        while job_context.state.is_active():
+            job_context = self._check_job_status_and_fetch_logs(context, job_context)
+            if job_context.state.is_active():
                 self._yield()
 
-        self._running_job_terminated(context["ti"], self.job_context)
+        self._running_job_terminated(context, job_context)
+        return job_context
 
-    def _running_job_terminated(self, ti: TaskInstance, context: RunningJobContext):
+    def _running_job_terminated(self, context: Context, job_context: RunningJobContext):
         self.log.info(
-            f"job {context.job_id} terminated with state: {context.state.name}"
+            f"job {job_context.job_id} terminated with state: {job_context.state.name}"
         )
-        if context.state != JobState.SUCCEEDED:
+        if job_context.state != JobState.SUCCEEDED:
             error = ArmadaOperatorJobFailedError(
-                context.armada_queue,
-                context.job_id,
-                context.state,
-                self.hook.job_termination_reason(context),
+                job_context.armada_queue,
+                job_context.job_id,
+                job_context.state,
+                self.hook.job_termination_reason(job_context),
             )
-            if self.reattach_policy(error.state, error.reason):
+            policy_func = self._reattach_policy(context)
+            if policy_func(error.state, error.reason):
                 self.log.error(str(error))
                 raise AirflowFailException()
-            elif context.state == JobState.REJECTED:
+            elif job_context.state == JobState.REJECTED:
                 self.log.error(
-                    f"Armada job ({context.job_id}) was REJECTED: "
+                    f"Armada job ({job_context.job_id}) was REJECTED: "
                     f"{str(error)} will not retry"
                 )
                 raise AirflowFailException()
             else:
                 raise error
 
-    def _not_acknowledged_within_timeout(self) -> bool:
-        if self.job_context.state == JobState.UNKNOWN:
+    def _not_acknowledged_within_timeout(self, job_context: RunningJobContext) -> bool:
+        if job_context.state == JobState.UNKNOWN:
             if (
-                DateTime.utcnow().diff(self.job_context.submit_time).in_seconds()
+                DateTime.utcnow().diff(job_context.submit_time).in_seconds()
                 > self.job_acknowledgement_timeout
             ):
                 return True
         return False
 
-    def _should_have_a_pod_in_k8s(self) -> bool:
-        return self.job_context.state in {
+    def _should_have_a_pod_in_k8s(self, job_context: RunningJobContext) -> bool:
+        return job_context.state in {
             JobState.RUNNING,
             JobState.FAILED,
             JobState.SUCCEEDED,
         }
 
     @log_exceptions
-    def _check_job_status_and_fetch_logs(self, context) -> None:
-        self.job_context = self.hook.refresh_context(
-            self.job_context, self._trigger_tracking_message(self.job_context.job_id)
+    def _check_job_status_and_fetch_logs(
+        self, context, job_context: RunningJobContext
+    ) -> RunningJobContext:
+        job_context = self.hook.refresh_context(
+            job_context, self._trigger_tracking_message(job_context.job_id)
         )
 
-        if self._not_acknowledged_within_timeout():
+        if self._not_acknowledged_within_timeout(job_context):
             self.log.info(
-                f"Armada job with job-id: {self.job_context.job_id} not acknowledged "
+                f"Armada job with job-id: {job_context.job_id} not acknowledged "
                 f"within timeout ({self.job_acknowledgement_timeout}), terminating"
             )
-            self.job_context = self.hook.cancel_job(self.job_context)
-            return
+            job_context = self.hook.cancel_job(job_context)
+            return job_context
 
-        if self._should_have_a_pod_in_k8s() and self.container_logs:
+        if self._should_have_a_pod_in_k8s(job_context) and self.container_logs:
             try:
                 link_extractor = UrlFromLogsExtractor.create(
-                    self.extra_links, context["ti"].key
+                    self.extra_links, context["ti"]
                 )
                 last_log_time = self.pod_manager.fetch_container_logs(
-                    k8s_context=self.job_context.cluster,
+                    k8s_context=job_context.cluster,
                     namespace=self.job_request.namespace,
-                    pod=f"armada-{self.job_context.job_id}-0",
+                    pod=f"armada-{job_context.job_id}-0",
                     container=self.container_logs,
-                    since_time=self.job_context.last_log_time,
+                    since_time=job_context.last_log_time,
                     link_extractor=link_extractor,
                 )
                 if last_log_time:
-                    self.job_context = dataclasses.replace(
-                        self.job_context, last_log_time=last_log_time
+                    job_context = dataclasses.replace(
+                        job_context, last_log_time=last_log_time
                     )
             except Exception as e:
                 self.log.warning(f"Error fetching logs {e}")
 
         self.hook.context_to_xcom(
-            context["ti"], self.job_context, self.lookout_url(self.job_context.job_id)
+            context["ti"], job_context, self.lookout_url(job_context.job_id)
         )
+
+        return job_context
 
     @tenacity.retry(
         wait=tenacity.wait_random_exponential(max=3),
