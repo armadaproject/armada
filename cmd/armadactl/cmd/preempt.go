@@ -51,7 +51,7 @@ func preemptExecutorCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "executor <executor>",
 		Short: "Preempts jobs on executor.",
-		Long:  `Preempts jobs on executor with provided executor name, priority classes and queues.`,
+		Long:  `Preempts jobs on executor with provided executor name, priority classes, queues, and pools.`,
 		Args:  cobra.ExactArgs(1),
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			if err := cmd.MarkFlagRequired("priority-classes"); err != nil {
@@ -72,7 +72,12 @@ func preemptExecutorCmd() *cobra.Command {
 				return fmt.Errorf("error reading queue selection: %s", err)
 			}
 
-			return a.PreemptOnExecutor(onExecutor, queues, priorityClasses)
+			pools, err := cmd.Flags().GetStringSlice("pools")
+			if err != nil {
+				return fmt.Errorf("error reading pools flag: %s", err)
+			}
+
+			return a.PreemptOnExecutor(onExecutor, queues, priorityClasses, pools)
 		},
 	}
 	cmd.Flags().StringSliceP(
@@ -82,6 +87,7 @@ func preemptExecutorCmd() *cobra.Command {
 		"Preempt jobs on executor matching the specified queue names. If no queues are provided, jobs across all queues will be preempted. Provided queues should be comma separated, as in the following example: queueA,queueB,queueC.",
 	)
 	cmd.Flags().StringSliceP("priority-classes", "p", []string{}, "Preempt jobs on executor matching the specified priority classes. Provided priority classes should be comma separated, as in the following example: armada-default,armada-preemptible.")
+	cmd.Flags().StringSlice("pools", []string{}, "Preempt jobs on executor matching the specified pools. If no pools are provided, jobs across all pools will be preempted. Provided pools should be comma separated, as in the following example: pool-a,pool-b.")
 	return cmd
 }
 
@@ -90,7 +96,7 @@ func preemptNodeCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "node <name>",
 		Short: "Preempts jobs on node for specified executor.",
-		Long:  `Preempts jobs on node for specified exeucotr with provided node name, executor name, priority classes and queues.`,
+		Long:  `Preempts jobs on node for specified executor with provided node name, executor name, priority classes and queues.`,
 		Args:  cobra.ExactArgs(1),
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			if err := cmd.MarkFlagRequired("priority-classes"); err != nil {
@@ -148,7 +154,7 @@ func preemptQueuesCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "queues <queue_1> <queue_2> <queue_3> ...",
 		Short:   "Preempts jobs on queues.",
-		Long:    `Preempts jobs on selected queues in specified priority classes. Allows selecting of queues by label or name, one of which must be provided. All flags with multiple values must be comma separated.`,
+		Long:    `Preempts jobs on selected queues in specified priority classes and pools. Allows selecting of queues by label or name, one of which must be provided. All flags with multiple values must be comma separated.`,
 		Aliases: []string{"queue"},
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			if err := cmd.MarkFlagRequired("priority-classes"); err != nil {
@@ -182,6 +188,11 @@ func preemptQueuesCmd() *cobra.Command {
 				return fmt.Errorf("error reading priority-classes flag: %s", err)
 			}
 
+			pools, err := cmd.Flags().GetStringSlice("pools")
+			if err != nil {
+				return fmt.Errorf("error reading pools flag: %s", err)
+			}
+
 			dryRun, err := cmd.Flags().GetBool("dry-run")
 			if err != nil {
 				return fmt.Errorf("error reading dry-run flag: %s", err)
@@ -199,11 +210,12 @@ func preemptQueuesCmd() *cobra.Command {
 				ContainsAllLabels: labels,
 				InvertResult:      inverse,
 				OnlyCordoned:      onlyCordoned,
-			}, priorityClasses, dryRun)
+			}, priorityClasses, pools, dryRun)
 		},
 	}
 	cmd.Flags().StringSliceP("priority-classes", "p", []string{}, "Jobs matching the provided priority classes will be preempted.")
 	cmd.Flags().StringSliceP("selector", "l", []string{}, "Select queues to preempt by label.")
+	cmd.Flags().StringSlice("pools", []string{}, "Preempt jobs matching the specified pools. If no pools are provided, jobs across all pools will be preempted.")
 	cmd.Flags().Bool("inverse", false, "Inverts result to preempt all queues that don't match the specified criteria. Defaults to false.")
 	cmd.Flags().Bool("only-cordoned", false, "Only preempts queues that are cordoned. Defaults to false.")
 	cmd.Flags().Bool("dry-run", false, "Prints out queues on which jobs will be preempted. Defaults to false.")
