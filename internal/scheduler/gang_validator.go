@@ -23,13 +23,10 @@ type SubmitGangValidator interface {
 }
 
 type GangValidator struct {
-	defaultPriorityClassName string
 }
 
-func NewGangValidator(defaultPriorityClassName string) *GangValidator {
-	return &GangValidator{
-		defaultPriorityClassName: defaultPriorityClassName,
-	}
+func NewGangValidator() *GangValidator {
+	return &GangValidator{}
 }
 
 func (g *GangValidator) Validate(txn *jobdb.Txn, jobs []*jobdb.Job) ([]*invalidGangJobDetails, error) {
@@ -81,16 +78,15 @@ func (g *GangValidator) validateGang(txn *jobdb.Txn, key *gangKey, gangJobs []*j
 	)
 
 	// Validate all gang members are queued and have consistent priority class
-	firstJob := allGangMembersInDb[0]
-	firstPriorityClass := g.effectivePriorityClass(firstJob)
+	representativeJob := allGangMembersInDb[0]
 	for _, gangJob := range allGangMembersInDb {
 		if !gangJob.Queued() {
 			reason := fmt.Sprintf("cannot submit to gang that has running jobs - example running job %s", gangJob.Id())
 			return false, reason, nil
 		}
-		if pc := g.effectivePriorityClass(gangJob); pc != firstPriorityClass {
+		if representativeJob.PriorityClassName() != gangJob.PriorityClassName() {
 			reason := fmt.Sprintf("cannot submit jobs with different priority classes to the same gang - job %s has priority class %s but job %s has %s",
-				firstJob.Id(), firstPriorityClass, gangJob.Id(), pc)
+				representativeJob.Id(), representativeJob.PriorityClassName(), gangJob.Id(), gangJob.PriorityClassName())
 			return false, reason, nil
 		}
 	}
@@ -101,7 +97,6 @@ func (g *GangValidator) validateGang(txn *jobdb.Txn, key *gangKey, gangJobs []*j
 		return false, reason, nil
 	}
 
-	representativeJob := allGangMembersInDb[0]
 	if len(allGangMembersInDb) > representativeJob.GetGangInfo().Cardinality() {
 		reason := fmt.Sprintf("cannot submit more jobs to gang than specified in gang cardinality - cardinality set to %d (based on job %s) but found %d jobs",
 			gangJobs[0].GetGangInfo().Cardinality(), representativeJob.Id(), len(gangJobs))
@@ -109,15 +104,6 @@ func (g *GangValidator) validateGang(txn *jobdb.Txn, key *gangKey, gangJobs []*j
 	}
 
 	return true, "", nil
-}
-
-// effectivePriorityClass returns the job's priority class, defaulting to the
-// configured default if the job has no explicit priority class set.
-func (g *GangValidator) effectivePriorityClass(job *jobdb.Job) string {
-	if pc := job.PriorityClassName(); pc != "" {
-		return pc
-	}
-	return g.defaultPriorityClassName
 }
 
 func createGangInfoSummaryString(gangInfos map[jobdb.GangInfo][]*jobdb.Job) string {

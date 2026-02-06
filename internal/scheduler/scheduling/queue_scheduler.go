@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"k8s.io/utils/clock"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
@@ -35,6 +36,10 @@ type QueueScheduler struct {
 	gangScheduler         *GangScheduler
 	marketDriven          bool
 	spotPriceCutoff       float64
+	clock                 clock.Clock
+	// Soft timeout for scheduling new jobs. After this duration, only evicted jobs are scheduled.
+	// Set to 0 to disable soft timeout.
+	softTimeout time.Duration
 }
 
 func NewQueueScheduler(
@@ -49,6 +54,8 @@ func NewQueueScheduler(
 	maxQueueLookBack uint,
 	marketDriven bool,
 	spotPriceCutoff float64,
+	clk clock.Clock,
+	softTimeout time.Duration,
 ) (*QueueScheduler, error) {
 	for queue := range jobIteratorByQueue {
 		if _, ok := sctx.QueueSchedulingContexts[queue]; !ok {
@@ -81,6 +88,8 @@ func NewQueueScheduler(
 		gangScheduler:         gangScheduler,
 		marketDriven:          marketDriven,
 		spotPriceCutoff:       spotPriceCutoff,
+		clock:                 clk,
+		softTimeout:           softTimeout,
 	}, nil
 }
 
@@ -93,7 +102,25 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulingResu
 	scheduledResource := sch.schedulingContext.TotalResources.Factory().MakeAllZero()
 	statsPerQueue := map[string]QueueStats{}
 	loopNumber := 0
+	onlySchedulingEvictedJobs := false
+	startTime := sch.clock.Now()
 	for {
+		// Hard timeout check via context - if exceeded, abort immediately with error.
+		select {
+		case <-ctx.Done():
+			sctx.TerminationReason = fmt.Sprintf("hard timeout: %s", ctx.Err().Error())
+			return nil, ctx.Err()
+		default:
+		}
+
+		// Soft timeout check via clock - if exceeded, switch to evicted-only mode.
+		if !onlySchedulingEvictedJobs && sch.softTimeout > 0 && sch.clock.Since(startTime) > sch.softTimeout {
+			ctx.Infof("Soft timeout reached for pool %s, switching to evicted-only mode", sctx.Pool)
+			sctx.TerminationReason = "soft timeout: scheduling only evicted jobs"
+			sch.candidateGangIterator.OnlyYieldEvicted()
+			onlySchedulingEvictedJobs = true
+		}
+
 		// Peek() returns the next gang to try to schedule. Call Clear() before calling Peek() again.
 		// Calling Clear() after (failing to) schedule ensures we get the next gang in order of smallest fair share.
 		gctx, queueCostInclGang, err := sch.candidateGangIterator.Peek()
@@ -109,14 +136,6 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulingResu
 				return nil, err
 			}
 			continue
-		}
-		select {
-		case <-ctx.Done():
-			// TODO: Better to push ctx into next and have that control it.
-			err := ctx.Err()
-			sctx.TerminationReason = err.Error()
-			return nil, err
-		default:
 		}
 		start := time.Now()
 		scheduledOk, unschedulableReason, err := sch.gangScheduler.Schedule(ctx, gctx)
@@ -161,7 +180,7 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulingResu
 			sch.candidateGangIterator.OnlyYieldEvictedForQueue(gctx.Queue)
 		}
 
-		duration := time.Now().Sub(start)
+		duration := time.Since(start)
 		stats := statsPerQueue[gctx.Queue]
 
 		stats.GangsConsidered++
@@ -273,14 +292,14 @@ func NewQueuedGangIterator(sctx *schedulercontext.SchedulingContext, it JobConte
 }
 
 func (it *QueuedGangIterator) Next() (*schedulercontext.GangSchedulingContext, error) {
-	if gctx, err := it.Peek(); err != nil {
+	gctx, err := it.Peek()
+	if err != nil {
 		return nil, err
-	} else {
-		if err := it.Clear(); err != nil {
-			return nil, err
-		}
-		return gctx, nil
 	}
+	if err := it.Clear(); err != nil {
+		return nil, err
+	}
+	return gctx, nil
 }
 
 func (it *QueuedGangIterator) Clear() error {
@@ -417,10 +436,20 @@ func NewCostBasedCandidateGangIterator(
 
 func (it *CostBasedCandidateGangIterator) OnlyYieldEvicted() {
 	it.onlyYieldEvicted = true
+	// Immediately filter out non-evicted gangs from the head of the queue.
+	// This ensures the next Peek() returns an evicted gang (or nil if none exist).
+	for it.pq.Len() > 0 && !it.pq.items[0].gctx.AllJobsEvicted {
+		heap.Pop(&it.pq)
+	}
 }
 
 func (it *CostBasedCandidateGangIterator) OnlyYieldEvictedForQueue(queue string) {
 	it.onlyYieldEvictedByQueue[queue] = true
+	// Immediately filter out non-evicted gangs for this queue from the head of the queue.
+	// This ensures the next Peek() returns an evicted gang (or a gang from another queue).
+	for it.pq.Len() > 0 && it.pq.items[0].gctx.Queue == queue && !it.pq.items[0].gctx.AllJobsEvicted {
+		heap.Pop(&it.pq)
+	}
 }
 
 // Clear removes the first item in the iterator.

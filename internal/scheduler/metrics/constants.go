@@ -26,8 +26,8 @@ const (
 	outcomeLabel             = "outcome"
 	terminationReasonLabel   = "termination_reason"
 
-	PoolSchedulingOutcomeSuccess = "success"
-	PoolSchedulingOutcomeFailure = "failure"
+	SchedulingOutcomeSuccess = "success"
+	SchedulingOutcomeFailure = "failure"
 
 	// Job state strings
 	queued    = "queued"

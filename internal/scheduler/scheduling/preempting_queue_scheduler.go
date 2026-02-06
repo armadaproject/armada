@@ -11,6 +11,7 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
+	"k8s.io/utils/clock"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
@@ -43,6 +44,9 @@ type PreemptingQueueScheduler struct {
 	optimiserEnabled                 bool
 	marketConfig                     *configuration.MarketSchedulingConfig
 	marketDriven                     bool
+	clock                            clock.Clock
+	// Soft timeout for scheduling new jobs. After this duration, only evicted jobs are scheduled.
+	newJobsSchedulingTimeout time.Duration
 }
 
 func NewPreemptingQueueScheduler(
@@ -53,6 +57,8 @@ func NewPreemptingQueueScheduler(
 	jobRepo jobdb.JobRepository,
 	nodeDb *nodedb.NodeDb,
 	optimiserEnabled bool,
+	clk clock.Clock,
+	newJobsSchedulingTimeout time.Duration,
 ) *PreemptingQueueScheduler {
 	marketConfig := config.GetMarketConfig(sctx.Pool)
 	marketDriven := marketConfig != nil && marketConfig.Enabled
@@ -71,6 +77,8 @@ func NewPreemptingQueueScheduler(
 		optimiserEnabled:                 optimiserEnabled,
 		marketConfig:                     marketConfig,
 		marketDriven:                     marketDriven,
+		clock:                            clk,
+		newJobsSchedulingTimeout:         newJobsSchedulingTimeout,
 	}
 }
 
@@ -698,7 +706,7 @@ func (sch *PreemptingQueueScheduler) schedule(
 		if jobRepo == nil || reflect.ValueOf(jobRepo).IsNil() {
 			jobIteratorByQueue[qctx.Queue] = evictedIt
 		} else {
-			queueIt := NewQueuedJobsIterator(ctx, qctx.Queue, sch.schedulingContext.Pool, sortOrder, jobRepo)
+			queueIt := NewQueuedJobsIterator(qctx.Queue, sch.schedulingContext.Pool, sortOrder, jobRepo)
 			if sch.marketDriven {
 				jobIteratorByQueue[qctx.Queue] = NewMarketDrivenMultiJobsIterator(sch.schedulingContext.Pool, evictedIt, queueIt)
 			} else {
@@ -727,6 +735,8 @@ func (sch *PreemptingQueueScheduler) schedule(
 		sch.maxQueueLookBack,
 		sch.marketDriven,
 		spotPriceCutoff,
+		sch.clock,
+		sch.newJobsSchedulingTimeout,
 	)
 	if err != nil {
 		return nil, err

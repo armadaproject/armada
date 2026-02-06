@@ -6,7 +6,6 @@ import (
 	"github.com/benbjohnson/immutable"
 	"golang.org/x/exp/slices"
 
-	"github.com/armadaproject/armada/internal/common/armadacontext"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/scheduling/context"
@@ -110,30 +109,21 @@ func (repo *InMemoryJobRepository) GetJobIterator(queue string) JobContextIterat
 type QueuedJobsIterator struct {
 	jobIter jobdb.JobIterator
 	pool    string
-	ctx     *armadacontext.Context
 }
 
-func NewQueuedJobsIterator(ctx *armadacontext.Context, queue string, pool string, sortOrder jobdb.JobSortOrder, repo jobdb.JobRepository) *QueuedJobsIterator {
+func NewQueuedJobsIterator(queue string, pool string, sortOrder jobdb.JobSortOrder, repo jobdb.JobRepository) *QueuedJobsIterator {
 	return &QueuedJobsIterator{
 		jobIter: repo.QueuedJobs(queue, pool, sortOrder),
 		pool:    pool,
-		ctx:     ctx,
 	}
 }
 
 func (it *QueuedJobsIterator) Next() (*schedulercontext.JobSchedulingContext, error) {
-	for {
-		select {
-		case <-it.ctx.Done():
-			return nil, it.ctx.Err()
-		default:
-			job, _ := it.jobIter.Next()
-			if job == nil {
-				return nil, nil
-			}
-			return schedulercontext.JobSchedulingContextFromJob(job), nil
-		}
+	job, _ := it.jobIter.Next()
+	if job == nil {
+		return nil, nil
 	}
+	return schedulercontext.JobSchedulingContextFromJob(job), nil
 }
 
 // MultiJobsIterator chains several JobIterators together in the order provided.
@@ -159,9 +149,8 @@ func (it *MultiJobsIterator) Next() (*schedulercontext.JobSchedulingContext, err
 	if v == nil {
 		it.i++
 		return it.Next()
-	} else {
-		return v, err
 	}
+	return v, nil
 }
 
 // MarketDrivenMultiJobsIterator combines two iterators by price

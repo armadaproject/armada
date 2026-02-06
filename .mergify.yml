@@ -2,12 +2,11 @@ pull_request_rules:
   - name: Require approval from frontend or Armada maintainers for Lookout UI changes
     conditions:
       - "#approved-reviews-by>=1"
-      - "files~=^internal/lookoutui/"
-      - "-files~=^(?!internal/lookoutui/).*$"
     actions:
       post_check:
         success_conditions:
           - or:
+              - "-files~=^internal/lookoutui/"
               - "#approved-reviews-by>=2"
               - and:
                   - "#approved-reviews-by>=1"
@@ -19,12 +18,11 @@ pull_request_rules:
       - "#approved-reviews-by>=1"
     actions:
       post_check:
-        neutral_conditions:
-          - and:
-              - "files~=^internal/lookoutui/"
-              - "-files~=^(?!internal/lookoutui/).*$"
         success_conditions:
           - or:
+              - and:
+                  - "files~=^internal/lookoutui/"
+                  - "-files~=^(?!internal/lookoutui/).*$"
               - "#approved-reviews-by>=2"
               - and:
                   - "#approved-reviews-by>=1"

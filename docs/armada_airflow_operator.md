@@ -1,44 +1,23 @@
-# Armada Airflow operator
-- [Armada Airflow operator](#armada-airflow-operator)
-  - [armada.operators.armada module](#armadaoperatorsarmada-module)
-    - [_class_ armada.operators.armada.ArmadaOperator(name, channel\_args, armada\_queue, job\_request, job\_set\_prefix='', lookout\_url\_template=None, poll\_interval=30, container\_logs=None, k8s\_token\_retriever=None, deferrable=False, job\_acknowledgement\_timeout=300, dry\_run=False, reattach\_policy=None, extra\_links=None, \*\*kwargs)](#class-armadaoperatorsarmadaarmadaoperatorname-channel_args-armada_queue-job_request-job_set_prefix-lookout_url_templatenone-poll_interval30-container_logsnone-k8s_token_retrievernone-deferrablefalse-job_acknowledgement_timeout300-dry_runfalse-reattach_policynone-extra_linksnone-kwargs)
-      - [execute(context)](#executecontext)
-      - [_property_ hook(_: ArmadaHoo_ )](#property-hook-armadahoo-)
-      - [lookout\_url(job\_id)](#lookout_urljob_id)
-      - [on\_kill()](#on_kill)
-      - [_property_ pod\_manager(_: KubernetesPodLogManage_ )](#property-pod_manager-kubernetespodlogmanage-)
-      - [render\_extra\_links\_urls(context, jinja\_env=None)](#render_extra_links_urlscontext-jinja_envnone)
-      - [render\_template\_fields(context, jinja\_env=None)](#render_template_fieldscontext-jinja_envnone)
-      - [template\_fields(_: Sequence\[str_ \_ = ('job\_request', 'job\_set\_prefix'\_ )](#template_fields-sequencestr-_--job_request-job_set_prefix_-)
-      - [template\_fields\_renderers(_: Dict\[str, str_ \_ = {'job\_request': 'py'\_ )](#template_fields_renderers-dictstr-str-_--job_request-py_-)
-  - [armada.triggers.armada module](#armadatriggersarmada-module)
-  - [armada.auth module](#armadaauth-module)
-    - [_class_ armada.auth.TokenRetriever(\*args, \*\*kwargs)](#class-armadaauthtokenretrieverargs-kwargs)
-      - [get\_token()](#get_token)
-  - [armada.model module](#armadamodel-module)
-    - [_class_ armada.model.GrpcChannelArgs(target, options=None, compression=None, auth=None)](#class-armadamodelgrpcchannelargstarget-optionsnone-compressionnone-authnone)
-      - [_static_ deserialize(data, version)](#static-deserializedata-version)
-      - [serialize()](#serialize)
-    - [_class_ armada.model.RunningJobContext(armada\_queue: 'str', job\_id: 'str', job\_set\_id: 'str', submit\_time: 'DateTime', cluster: 'Optional\[str\]' = None, last\_log\_time: 'Optional\[DateTime\]' = None, job\_state: 'str' = 'UNKNOWN')](#class-armadamodelrunningjobcontextarmada_queue-str-job_id-str-job_set_id-str-submit_time-datetime-cluster-optionalstr--none-last_log_time-optionaldatetime--none-job_state-str--unknown)
-      - [armada\_queue(_: st_ )](#armada_queue-st-)
-      - [cluster(_: str | Non_ \_ = Non\_ )](#cluster-str--non-_--non_-)
-      - [job\_id(_: st_ )](#job_id-st-)
-      - [job\_set\_id(_: st_ )](#job_set_id-st-)
-      - [job\_state(_: st_ \_ = 'UNKNOWN\_ )](#job_state-st-_--unknown_-)
-      - [last\_log\_time(_: DateTime | Non_ \_ = Non\_ )](#last_log_time-datetime--non-_--non_-)
-      - [_property_ state(_: JobStat_ )](#property-state-jobstat-)
-      - [submit\_time(_: DateTim_ )](#submit_time-datetim-)
+---
+docname: python_airflow_operator
+images: {}
+path: /python-airflow-operator
+title: Armada Airflow Operator
+---
 
-This class provides integration with Airflow and Armada.
+# Armada Airflow Operator
+
+This class provides integration with Airflow and Armada
 
 ## armada.operators.armada module
+
 
 ### _class_ armada.operators.armada.ArmadaOperator(name, channel_args, armada_queue, job_request, job_set_prefix='', lookout_url_template=None, poll_interval=30, container_logs=None, k8s_token_retriever=None, deferrable=False, job_acknowledgement_timeout=300, dry_run=False, reattach_policy=None, extra_links=None, \*\*kwargs)
 Bases: `BaseOperator`, `LoggingMixin`
 
 An Airflow operator that manages Job submission to Armada.
 
-This operator submits a job to an Armada cluster, polls for its completion
+This operator submits a job to an Armada cluster, polls for its completion,
 and handles job cancellation if the Airflow task is killed.
 
 
@@ -98,9 +77,15 @@ Submits the job to Armada and polls for completion.
 
 
 
+* **Returns**
+
+    Dictionary containing job information and links
+
+
+
 * **Return type**
 
-    None
+    Dict[str, Any]
 
 
 

@@ -963,7 +963,7 @@ func TestSelectLeasedJobsByQueue(t *testing.T) {
 				err = upsertRuns(ctx, db, tc.dbRuns)
 				require.NoError(t, err)
 
-				jobs, err := queries.SelectLeasedJobsByQueue(ctx, []string{"test-queue"})
+				jobs, err := queries.SelectLeasedJobsByQueue(ctx, SelectLeasedJobsByQueueParams{Queue: []string{"test-queue"}})
 				require.NoError(t, err)
 				assert.Equal(t, tc.expectedJobs, len(jobs))
 				return nil
@@ -1049,7 +1049,7 @@ func TestSelectPendingJobsByQueue(t *testing.T) {
 				err = upsertRuns(ctx, db, tc.dbRuns)
 				require.NoError(t, err)
 
-				jobs, err := queries.SelectPendingJobsByQueue(ctx, []string{"test-queue"})
+				jobs, err := queries.SelectPendingJobsByQueue(ctx, SelectPendingJobsByQueueParams{Queue: []string{"test-queue"}})
 				require.NoError(t, err)
 				assert.Equal(t, tc.expectedJobs, len(jobs))
 				return nil
@@ -1148,7 +1148,7 @@ func TestSelectRunningJobsByQueue(t *testing.T) {
 				err = upsertRuns(ctx, db, tc.dbRuns)
 				require.NoError(t, err)
 
-				jobs, err := queries.SelectRunningJobsByQueue(ctx, []string{"test-queue"})
+				jobs, err := queries.SelectRunningJobsByQueue(ctx, SelectRunningJobsByQueueParams{Queue: []string{"test-queue"}})
 				require.NoError(t, err)
 				assert.Equal(t, tc.expectedJobs, len(jobs))
 				return nil
