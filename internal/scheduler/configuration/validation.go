@@ -7,6 +7,14 @@ import (
 )
 
 func (c Configuration) Validate() error {
+	// Validate scheduling timeout relationship
+	if c.NewJobsSchedulingTimeout > 0 && c.NewJobsSchedulingTimeout >= c.MaxSchedulingDuration {
+		return fmt.Errorf("%s: NewJobsSchedulingTimeout=%v, MaxSchedulingDuration=%v",
+			InvalidSchedulingTimeoutErrorMessage,
+			c.NewJobsSchedulingTimeout,
+			c.MaxSchedulingDuration)
+	}
+
 	validate := validator.New()
 	validate.RegisterStructValidation(SchedulingConfigValidation, SchedulingConfig{})
 	return validate.Struct(c)

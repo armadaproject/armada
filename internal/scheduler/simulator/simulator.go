@@ -16,6 +16,7 @@ import (
 	"golang.org/x/exp/slices"
 	"golang.org/x/time/rate"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/utils/clock"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	serverconfig "github.com/armadaproject/armada/internal/common/constants"
@@ -602,6 +603,8 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 			txn,
 			nodeDb,
 			shouldRunOptimiser,
+			clock.RealClock{},
+			0, // Soft timeout disabled: scheduler uses real clock but simulator uses simulated time
 		)
 
 		schedulerCtx := ctx

@@ -152,10 +152,20 @@ func (it *MarketBasedCandidateGangIterator) updatePQItem(item *MarketIteratorPQI
 
 func (it *MarketBasedCandidateGangIterator) OnlyYieldEvicted() {
 	it.onlyYieldEvicted = true
+	// Immediately filter out non-evicted gangs from the head of the queue.
+	// This ensures the next Peek() returns an evicted gang (or nil if none exist).
+	for it.pq.Len() > 0 && !it.pq.items[0].gctx.AllJobsEvicted {
+		heap.Pop(&it.pq)
+	}
 }
 
 func (it *MarketBasedCandidateGangIterator) OnlyYieldEvictedForQueue(queue string) {
 	it.onlyYieldEvictedByQueue[queue] = true
+	// Immediately filter out non-evicted gangs for this queue from the head of the queue.
+	// This ensures the next Peek() returns an evicted gang (or a gang from another queue).
+	for it.pq.Len() > 0 && it.pq.items[0].gctx.Queue == queue && !it.pq.items[0].gctx.AllJobsEvicted {
+		heap.Pop(&it.pq)
+	}
 }
 
 type MarketIteratorPQItem struct {
@@ -185,11 +195,7 @@ func (pq *MarketIteratorPQ) Less(i, j int) bool {
 	// If price is the same, order running jobs over queued jobs
 	// This prevents preempting running jobs to run jobs of the same price
 	if pq.items[i].queued != pq.items[j].queued {
-		if !pq.items[i].queued {
-			return true
-		} else {
-			return false
-		}
+		return !pq.items[i].queued
 	}
 
 	// This section causes the iterator to round robin between queues bidding the same price

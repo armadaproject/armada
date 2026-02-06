@@ -11,6 +11,7 @@ import (
 	"golang.org/x/exp/slices"
 	"golang.org/x/time/rate"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/utils/clock"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
@@ -666,6 +667,8 @@ func TestMarketDrivenPreemptingQueueScheduler(t *testing.T) {
 					jobDbTxn,
 					nodeDb,
 					false,
+					clock.RealClock{},
+					0,
 				)
 
 				result, err := sch.Schedule(ctx)

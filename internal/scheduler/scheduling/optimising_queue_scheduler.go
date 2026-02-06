@@ -205,7 +205,7 @@ func (q *OptimisingQueueScheduler) createCandidateGangIterator(
 		if actualShare >= qctx.DemandCappedAdjustedFairShare {
 			continue
 		}
-		queueIt := NewQueuedJobsIterator(ctx, qctx.Queue, sctx.Pool, jobdb.FairShareOrder, q.jobDb)
+		queueIt := NewQueuedJobsIterator(qctx.Queue, sctx.Pool, jobdb.FairShareOrder, q.jobDb)
 		jobIteratorByQueue[qctx.Queue] = queueIt
 	}
 
