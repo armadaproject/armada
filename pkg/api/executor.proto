@@ -43,16 +43,20 @@ message ExecutorSettingsDeleteRequest {
   string name = 1;
 }
 
-// Jobs on the specified executor matching both the provided queues and priority classes will be preempted
+// Jobs on the specified executor matching the provided queues, priority classes, and pools will be preempted
 message ExecutorPreemptRequest {
   string name = 1;
   repeated string queues = 2;
   repeated string priorityClasses = 3;
+  // If empty, jobs on all pools will be preempted
+  repeated string pools = 4;
 }
 
-// Jobs on the specified executor matching both the provided queues and priority classes will be cancelled
+// Jobs on the specified executor matching the provided queues, priority classes, and pools will be cancelled
 message ExecutorCancelRequest {
   string name = 1;
   repeated string queues = 2;
   repeated string priorityClasses = 3;
+  // If empty, jobs on all pools will be cancelled
+  repeated string pools = 4;
 }

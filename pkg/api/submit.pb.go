@@ -2227,6 +2227,8 @@ func (*StreamingQueueMessage) XXX_OneofWrappers() []interface{} {
 type QueuePreemptRequest struct {
 	Name            string   `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	PriorityClasses []string `protobuf:"bytes,2,rep,name=priorityClasses,proto3" json:"priorityClasses,omitempty"`
+	// If empty, jobs on all pools will be preempted
+	Pools []string `protobuf:"bytes,3,rep,name=pools,proto3" json:"pools,omitempty"`
 }
 
 func (m *QueuePreemptRequest) Reset()         { *m = QueuePreemptRequest{} }
@@ -2276,11 +2278,20 @@ func (m *QueuePreemptRequest) GetPriorityClasses() []string {
 	return nil
 }
 
+func (m *QueuePreemptRequest) GetPools() []string {
+	if m != nil {
+		return m.Pools
+	}
+	return nil
+}
+
 type QueueCancelRequest struct {
 	Name            string   `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	PriorityClasses []string `protobuf:"bytes,2,rep,name=priorityClasses,proto3" json:"priorityClasses,omitempty"`
 	// In practice jobs are only cancellable from non-terminal states
 	JobStates []JobState `protobuf:"varint,3,rep,packed,name=jobStates,proto3,enum=api.JobState" json:"jobStates,omitempty"`
+	// If empty, jobs on all pools will be cancelled
+	Pools []string `protobuf:"bytes,4,rep,name=pools,proto3" json:"pools,omitempty"`
 }
 
 func (m *QueueCancelRequest) Reset()         { *m = QueueCancelRequest{} }
@@ -2333,6 +2344,13 @@ func (m *QueueCancelRequest) GetPriorityClasses() []string {
 func (m *QueueCancelRequest) GetJobStates() []JobState {
 	if m != nil {
 		return m.JobStates
+	}
+	return nil
+}
+
+func (m *QueueCancelRequest) GetPools() []string {
+	if m != nil {
+		return m.Pools
 	}
 	return nil
 }
@@ -5517,6 +5535,15 @@ func (m *QueuePreemptRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	_ = i
 	var l int
 	_ = l
+	if len(m.Pools) > 0 {
+		for iNdEx := len(m.Pools) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.Pools[iNdEx])
+			copy(dAtA[i:], m.Pools[iNdEx])
+			i = encodeVarintSubmit(dAtA, i, uint64(len(m.Pools[iNdEx])))
+			i--
+			dAtA[i] = 0x1a
+		}
+	}
 	if len(m.PriorityClasses) > 0 {
 		for iNdEx := len(m.PriorityClasses) - 1; iNdEx >= 0; iNdEx-- {
 			i -= len(m.PriorityClasses[iNdEx])
@@ -5556,6 +5583,15 @@ func (m *QueueCancelRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	_ = i
 	var l int
 	_ = l
+	if len(m.Pools) > 0 {
+		for iNdEx := len(m.Pools) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.Pools[iNdEx])
+			copy(dAtA[i:], m.Pools[iNdEx])
+			i = encodeVarintSubmit(dAtA, i, uint64(len(m.Pools[iNdEx])))
+			i--
+			dAtA[i] = 0x22
+		}
+	}
 	if len(m.JobStates) > 0 {
 		dAtA19 := make([]byte, len(m.JobStates)*10)
 		var j18 int
@@ -6459,6 +6495,12 @@ func (m *QueuePreemptRequest) Size() (n int) {
 			n += 1 + l + sovSubmit(uint64(l))
 		}
 	}
+	if len(m.Pools) > 0 {
+		for _, s := range m.Pools {
+			l = len(s)
+			n += 1 + l + sovSubmit(uint64(l))
+		}
+	}
 	return n
 }
 
@@ -6484,6 +6526,12 @@ func (m *QueueCancelRequest) Size() (n int) {
 			l += sovSubmit(uint64(e))
 		}
 		n += 1 + sovSubmit(uint64(l)) + l
+	}
+	if len(m.Pools) > 0 {
+		for _, s := range m.Pools {
+			l = len(s)
+			n += 1 + l + sovSubmit(uint64(l))
+		}
 	}
 	return n
 }
@@ -12873,6 +12921,38 @@ func (m *QueuePreemptRequest) Unmarshal(dAtA []byte) error {
 			}
 			m.PriorityClasses = append(m.PriorityClasses, string(dAtA[iNdEx:postIndex]))
 			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Pools", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowSubmit
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthSubmit
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthSubmit
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Pools = append(m.Pools, string(dAtA[iNdEx:postIndex]))
+			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skipSubmit(dAtA[iNdEx:])
@@ -13056,6 +13136,38 @@ func (m *QueueCancelRequest) Unmarshal(dAtA []byte) error {
 			} else {
 				return fmt.Errorf("proto: wrong wireType = %d for field JobStates", wireType)
 			}
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Pools", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowSubmit
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthSubmit
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthSubmit
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Pools = append(m.Pools, string(dAtA[iNdEx:postIndex]))
+			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skipSubmit(dAtA[iNdEx:])
