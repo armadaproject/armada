@@ -345,6 +345,7 @@ func Run(config schedulerconfig.Configuration) error {
 	schedulingAlgo, err := scheduling.NewFairSchedulingAlgo(
 		config.Scheduling,
 		config.MaxSchedulingDuration,
+		config.NewJobsSchedulingTimeout,
 		executorRepository,
 		queueCache,
 		schedulingContextRepository,
@@ -386,7 +387,7 @@ func Run(config schedulerconfig.Configuration) error {
 		leaderController,
 		jobsetEventPublisher,
 		submitChecker,
-		NewGangValidator(config.Scheduling.DefaultPriorityClassName),
+		NewGangValidator(),
 		config.CyclePeriod,
 		config.SchedulePeriod,
 		config.ExecutorTimeout,
