@@ -1138,5 +1138,4 @@ func (m *MemoryDatabase) TearDown(_ context.Context) error {
 }
 
 func (m *MemoryDatabase) Close() {
-
 }

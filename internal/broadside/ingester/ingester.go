@@ -7,10 +7,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/gogo/protobuf/proto"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+
+	"github.com/armadaproject/armada/internal/common/logging"
 
 	"github.com/armadaproject/armada/internal/broadside/configuration"
 	"github.com/armadaproject/armada/internal/broadside/db"
@@ -28,12 +29,11 @@ const (
 )
 
 var (
-	simulatedError     = []byte("simulated error")
-	simulatedDebugMsg  = []byte("simulated debug message: pod failed to start due to image pull error")
-	preemptionError    = []byte("preempted by higher priority job")
-	preemptionDebugMsg = []byte("preemption debug: node resources required for higher priority workload")
-	cancelReason       = "user requested"
-	defaultJobSpec     = generateDefaultJobSpec()
+	simulatedError    = []byte("simulated error")
+	simulatedDebugMsg = []byte("simulated debug message: pod failed to start due to image pull error")
+	preemptionError   = []byte("preempted by higher priority job")
+	cancelReason      = "user requested"
+	defaultJobSpec    = generateDefaultJobSpec()
 )
 
 func generateDefaultJobSpec() string {
@@ -290,7 +290,6 @@ func (i *Ingester) runBatchExecutor(
 	ctx context.Context,
 	queryChan <-chan timestampedQuery,
 ) {
-
 	batch := make([]db.IngestionQuery, 0, i.config.BatchSize)
 	flushTimer := time.NewTimer(time.Second)
 	flushTimer.Stop()

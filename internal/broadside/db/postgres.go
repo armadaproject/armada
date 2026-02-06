@@ -283,7 +283,6 @@ func (p *PostgresDatabase) insertJobs(ctx context.Context, jobs []InsertJob) err
 		},
 		&copyFromRows{rows: rows},
 	)
-
 	if err != nil {
 		return fmt.Errorf("copying %d jobs: %w", len(jobs), err)
 	}
@@ -311,7 +310,6 @@ func (p *PostgresDatabase) insertJobSpecs(ctx context.Context, specs []InsertJob
 		[]string{"job_id", "job_spec"},
 		&copyFromRows{rows: rows},
 	)
-
 	if err != nil {
 		return fmt.Errorf("copying %d job specs: %w", len(specs), err)
 	}
@@ -361,7 +359,6 @@ func (p *PostgresDatabase) insertJobRuns(ctx context.Context, runs []InsertJobRu
 		},
 		&copyFromRows{rows: rows},
 	)
-
 	if err != nil {
 		return fmt.Errorf("copying %d job runs: %w", len(runs), err)
 	}
@@ -389,7 +386,6 @@ func (p *PostgresDatabase) insertJobErrors(ctx context.Context, errors []InsertJ
 		[]string{"job_id", "error"},
 		&copyFromRows{rows: rows},
 	)
-
 	if err != nil {
 		return fmt.Errorf("copying %d job errors: %w", len(errors), err)
 	}
