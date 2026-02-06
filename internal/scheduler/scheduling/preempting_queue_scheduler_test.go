@@ -13,6 +13,7 @@ import (
 	"golang.org/x/exp/slices"
 	"golang.org/x/time/rate"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/utils/clock"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/logging"
@@ -2205,6 +2206,8 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					jobDbTxn,
 					nodeDb,
 					round.OptimiserEnabled,
+					clock.RealClock{},
+					0,
 				)
 				result, err := sch.Schedule(ctx)
 				require.NoError(t, err)
@@ -2544,6 +2547,8 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 				jobDbTxn,
 				nodeDb,
 				false,
+				clock.RealClock{},
+				0,
 			)
 			result, err := sch.Schedule(ctx)
 			require.NoError(b, err)
@@ -2604,6 +2609,8 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 					jobDbTxn,
 					nodeDb,
 					false,
+					clock.RealClock{},
+					0,
 				)
 				result, err := sch.Schedule(ctx)
 				require.NoError(b, err)
@@ -2614,6 +2621,154 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 			}
 		})
 	}
+}
+
+func TestPreemptingQueueSchedulerTimeouts(t *testing.T) {
+	t.Run("soft timeout: schedules evicted jobs, blocks new jobs", func(t *testing.T) {
+		// Setup: Queue A has 32 running jobs consuming all resources on 1 node.
+		// Queue B submits 32 new jobs. Fairness requires evicting some of A's jobs.
+		// With soft timeout, only A's evicted jobs should be re-scheduled, not B's new jobs.
+		config := testfixtures.TestSchedulingConfig()
+		stringInterner := stringinterner.New(1024)
+		nodes := testfixtures.N32CpuNodes(1, testfixtures.TestPriorities)
+		node := nodes[0]
+
+		// Queue A: 32 jobs already running on the node
+		runningJobs := testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 32)
+		jobDb := jobdb.NewJobDb(config.PriorityClasses, config.DefaultPriorityClassName, stringInterner, testfixtures.TestResourceListFactory)
+		jobDbTxn := jobDb.WriteTxn()
+		for _, job := range runningJobs {
+			err := jobDbTxn.Upsert([]*jobdb.Job{
+				job.WithQueued(false).WithNewRun(node.GetExecutor(), node.GetId(), node.GetName(), node.GetPool(), job.PriorityClass().Priority),
+			})
+			require.NoError(t, err)
+		}
+
+		// Queue B: 32 new queued jobs
+		newJobs := testfixtures.N1Cpu4GiJobs("B", testfixtures.PriorityClass0, 32)
+		require.NoError(t, jobDbTxn.Upsert(newJobs))
+
+		// Create nodeDb with running jobs placed on node
+		nodeDb, err := NewNodeDb(config, stringInterner)
+		require.NoError(t, err)
+		txn := nodeDb.Txn(true)
+		runningJobsFromDb := make([]*jobdb.Job, 0, 32)
+		for _, job := range jobDbTxn.GetAll() {
+			if job.LatestRun() != nil {
+				runningJobsFromDb = append(runningJobsFromDb, job)
+			}
+		}
+		require.NoError(t, nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, runningJobsFromDb, node.DeepCopyNilKeys()))
+		txn.Commit()
+
+		totalResources := nodeDb.TotalKubernetesResources()
+		fairnessCostProvider, err := fairness.NewDominantResourceFairness(totalResources, testfixtures.TestPool, config)
+		require.NoError(t, err)
+
+		sctx := schedulingcontext.NewSchedulingContext(
+			testfixtures.TestPool,
+			fairnessCostProvider,
+			rate.NewLimiter(rate.Limit(config.MaximumSchedulingRate), config.MaximumSchedulingBurst),
+			totalResources,
+		)
+
+		demandA := testfixtures.TestResourceListFactory.MakeAllZero()
+		for _, job := range runningJobs {
+			demandA = demandA.Add(job.AllResourceRequirements())
+		}
+		demandB := testfixtures.TestResourceListFactory.MakeAllZero()
+		for _, job := range newJobs {
+			demandB = demandB.Add(job.AllResourceRequirements())
+		}
+
+		// Queue A has initial allocation (jobs already running)
+		initialAllocatedA := map[string]internaltypes.ResourceList{
+			testfixtures.PriorityClass0: demandA,
+		}
+		require.NoError(t, sctx.AddQueueSchedulingContext(
+			"A", 1.0, 1.0, initialAllocatedA, demandA, demandA, internaltypes.ResourceList{},
+			rate.NewLimiter(rate.Limit(config.MaximumPerQueueSchedulingRate), config.MaximumPerQueueSchedulingBurst),
+		))
+		require.NoError(t, sctx.AddQueueSchedulingContext(
+			"B", 1.0, 1.0, nil, demandB, demandB, internaltypes.ResourceList{},
+			rate.NewLimiter(rate.Limit(config.MaximumPerQueueSchedulingRate), config.MaximumPerQueueSchedulingBurst),
+		))
+
+		constraints := schedulerconstraints.NewSchedulingConstraints(
+			testfixtures.TestPool, totalResources, config,
+			[]*api.Queue{{Name: "A", PriorityFactor: 1.0}, {Name: "B", PriorityFactor: 1.0}},
+		)
+
+		sch := NewPreemptingQueueScheduler(
+			sctx, constraints, testfixtures.TestEmptyFloatingResources,
+			config, jobDbTxn, nodeDb, false, clock.RealClock{}, 1*time.Nanosecond,
+		)
+
+		result, err := sch.Schedule(armadacontext.Background())
+		require.NoError(t, err)
+		require.NotNil(t, result)
+
+		// With soft timeout: B's new queued jobs should NOT be scheduled.
+		// A's evicted jobs get re-scheduled but don't appear in ScheduledJobs
+		// (ScheduledJobs only contains newly scheduled queued jobs, not re-scheduled evicted jobs).
+		// Since A had no queued jobs and B's jobs were blocked by soft timeout, ScheduledJobs should be empty.
+		assert.Empty(t, result.ScheduledJobs, "no new queued jobs should be scheduled after soft timeout")
+	})
+
+	t.Run("hard timeout: returns error", func(t *testing.T) {
+		config := testfixtures.TestSchedulingConfig()
+		stringInterner := stringinterner.New(1024)
+
+		nodeDb, err := NewNodeDb(config, stringInterner)
+		require.NoError(t, err)
+		txn := nodeDb.Txn(true)
+		for _, node := range testfixtures.N32CpuNodes(1, testfixtures.TestPriorities) {
+			require.NoError(t, nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, node.DeepCopyNilKeys()))
+		}
+		txn.Commit()
+
+		totalResources := nodeDb.TotalKubernetesResources()
+		fairnessCostProvider, err := fairness.NewDominantResourceFairness(totalResources, testfixtures.TestPool, config)
+		require.NoError(t, err)
+
+		jobs := testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 10)
+		jobDb := jobdb.NewJobDb(config.PriorityClasses, config.DefaultPriorityClassName, stringInterner, testfixtures.TestResourceListFactory)
+		jobDbTxn := jobDb.WriteTxn()
+		require.NoError(t, jobDbTxn.Upsert(jobs))
+
+		sctx := schedulingcontext.NewSchedulingContext(
+			testfixtures.TestPool,
+			fairnessCostProvider,
+			rate.NewLimiter(rate.Limit(config.MaximumSchedulingRate), config.MaximumSchedulingBurst),
+			totalResources,
+		)
+		demand := testfixtures.TestResourceListFactory.MakeAllZero()
+		for _, job := range jobs {
+			demand = demand.Add(job.AllResourceRequirements())
+		}
+		require.NoError(t, sctx.AddQueueSchedulingContext(
+			"A", 1.0, 1.0, nil, demand, demand, internaltypes.ResourceList{},
+			rate.NewLimiter(rate.Limit(config.MaximumPerQueueSchedulingRate), config.MaximumPerQueueSchedulingBurst),
+		))
+
+		constraints := schedulerconstraints.NewSchedulingConstraints(
+			testfixtures.TestPool, totalResources, config,
+			[]*api.Queue{{Name: "A", PriorityFactor: 1.0}},
+		)
+
+		sch := NewPreemptingQueueScheduler(
+			sctx, constraints, testfixtures.TestEmptyFloatingResources,
+			config, jobDbTxn, nodeDb, false, clock.RealClock{}, 0,
+		)
+
+		ctx, cancel := armadacontext.WithCancel(armadacontext.Background())
+		cancel()
+
+		result, err := sch.Schedule(ctx)
+		assert.Error(t, err)
+		assert.Nil(t, result)
+		assert.ErrorIs(t, err, context.Canceled)
+	})
 }
 
 func testNodeWithTaints(node *internaltypes.Node, taints []v1.Taint) *internaltypes.Node {

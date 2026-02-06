@@ -12,6 +12,7 @@ const POST_JOB_RUN_DEBUG_MESSAGE_ENDPOINT = "/api/v1/jobRunDebugMessage"
 const POST_JOBS_ENDPOINT = "/api/v1/jobs"
 const CANCEL_JOBS_ENDPOINT = `${FAKE_ARMADA_API_BASE_URL}/v1/job/cancel`
 const REPRIORITIZE_JOBS_ENDPOINT = `${FAKE_ARMADA_API_BASE_URL}/v1/job/reprioritize`
+const PREEMPT_JOBS_ENDPOINT = `${FAKE_ARMADA_API_BASE_URL}/v1/job/preempt`
 
 export class MockServer {
   private server: SetupServerApi
@@ -145,6 +146,25 @@ export class MockServer {
         return HttpResponse.json({
           reprioritizationResults,
         })
+      }),
+    )
+  }
+
+  setPreemptJobsResponse(status_code: number = 200, status_text: string = "") {
+    this.server.use(
+      http.post(PREEMPT_JOBS_ENDPOINT, async () => {
+        if (status_code !== 200) {
+          return HttpResponse.json(
+            {
+              code: 500,
+              message: "Internal server error",
+              details: [],
+            },
+            { status: status_code, statusText: status_text },
+          )
+        }
+        // The actual API returns google.protobuf.Empty which is just an empty object
+        return HttpResponse.json({})
       }),
     )
   }

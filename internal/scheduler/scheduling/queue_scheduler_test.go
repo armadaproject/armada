@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -11,6 +12,8 @@ import (
 	"golang.org/x/exp/slices"
 	"golang.org/x/time/rate"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/utils/clock"
+	testclock "k8s.io/utils/clock/testing"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	armadaconfiguration "github.com/armadaproject/armada/internal/common/constants"
@@ -547,7 +550,7 @@ func TestQueueScheduler(t *testing.T) {
 				it := jobRepo.GetJobIterator(q.Name)
 				jobIteratorByQueue[q.Name] = it
 			}
-			sch, err := NewQueueScheduler(sctx, constraints, testfixtures.TestEmptyFloatingResources, nodeDb, jobIteratorByQueue, false, false, tc.SchedulingConfig.EnablePreferLargeJobOrdering, tc.SchedulingConfig.MaxQueueLookback, false, 0)
+			sch, err := NewQueueScheduler(sctx, constraints, testfixtures.TestEmptyFloatingResources, nodeDb, jobIteratorByQueue, false, false, tc.SchedulingConfig.EnablePreferLargeJobOrdering, tc.SchedulingConfig.MaxQueueLookback, false, 0, clock.RealClock{}, 0)
 			require.NoError(t, err)
 
 			result, err := sch.Schedule(armadacontext.Background())
@@ -822,4 +825,195 @@ func TestQueueCandidateGangIteratorPQ_Fallback(t *testing.T) {
 	// Will fallback to ordering by queue name in the case all queues are the same sizes etc
 	expectedOrder := []*QueueCandidateGangIteratorItem{queueA, queueB, queueC}
 	assert.Equal(t, expectedOrder, pq.items)
+}
+
+// steppingClock advances time by a fixed step on each Now() call.
+// This is used to test soft timeout: since the scheduler calls Now() during iteration,
+// the stepping clock ensures elapsed time exceeds the soft timeout threshold.
+type steppingClock struct {
+	fakeClock *testclock.FakeClock
+	step      time.Duration
+}
+
+func newSteppingClock(start time.Time, step time.Duration) *steppingClock {
+	return &steppingClock{
+		fakeClock: testclock.NewFakeClock(start),
+		step:      step,
+	}
+}
+
+func (c *steppingClock) Now() time.Time {
+	now := c.fakeClock.Now()
+	c.fakeClock.Step(c.step)
+	return now
+}
+
+func (c *steppingClock) Since(t time.Time) time.Duration {
+	return c.fakeClock.Now().Sub(t)
+}
+
+func (c *steppingClock) NewTimer(d time.Duration) clock.Timer {
+	return c.fakeClock.NewTimer(d)
+}
+
+func (c *steppingClock) NewTicker(d time.Duration) clock.Ticker {
+	return c.fakeClock.NewTicker(d)
+}
+
+func (c *steppingClock) Sleep(d time.Duration) {
+	c.fakeClock.Sleep(d)
+}
+
+func (c *steppingClock) After(d time.Duration) <-chan time.Time {
+	return c.fakeClock.After(d)
+}
+
+func (c *steppingClock) Tick(d time.Duration) <-chan time.Time {
+	return c.fakeClock.Tick(d)
+}
+
+type timeoutTestSetup struct {
+	config      configuration.SchedulingConfig
+	nodeDb      *nodedb.NodeDb
+	sctx        *context.SchedulingContext
+	constraints schedulerconstraints.SchedulingConstraints
+}
+
+func setupTimeoutTest(t *testing.T, queues []*api.Queue, jobsByQueue map[string][]*jobdb.Job, numNodes int) *timeoutTestSetup {
+	t.Helper()
+	config := testfixtures.TestSchedulingConfig()
+
+	nodeDb, err := NewNodeDb(config, stringinterner.New(1024))
+	require.NoError(t, err)
+
+	txn := nodeDb.Txn(true)
+	for _, node := range testfixtures.N32CpuNodes(numNodes, testfixtures.TestPriorities) {
+		require.NoError(t, nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, node.DeepCopyNilKeys()))
+	}
+	txn.Commit()
+	totalResources := nodeDb.TotalKubernetesResources()
+
+	fairnessCostProvider, err := fairness.NewDominantResourceFairness(totalResources, testfixtures.TestPool, config)
+	require.NoError(t, err)
+
+	sctx := context.NewSchedulingContext(
+		testfixtures.TestPool,
+		fairnessCostProvider,
+		rate.NewLimiter(rate.Limit(config.MaximumSchedulingRate), config.MaximumSchedulingBurst),
+		totalResources,
+	)
+
+	for _, queue := range queues {
+		jobs := jobsByQueue[queue.Name]
+		demand := testfixtures.TestResourceListFactory.MakeAllZero()
+		for _, job := range jobs {
+			demand = demand.Add(job.AllResourceRequirements())
+		}
+		err = sctx.AddQueueSchedulingContext(
+			queue.Name, queue.PriorityFactor, queue.PriorityFactor,
+			nil, demand, demand, internaltypes.ResourceList{},
+			rate.NewLimiter(rate.Limit(config.MaximumPerQueueSchedulingRate), config.MaximumPerQueueSchedulingBurst),
+		)
+		require.NoError(t, err)
+	}
+
+	constraints := schedulerconstraints.NewSchedulingConstraints(testfixtures.TestPool, totalResources, config, queues)
+
+	return &timeoutTestSetup{
+		config:      config,
+		nodeDb:      nodeDb,
+		sctx:        sctx,
+		constraints: constraints,
+	}
+}
+
+func markJobsAsEvicted(jctxs []*context.JobSchedulingContext) {
+	for _, jctx := range jctxs {
+		jctx.IsEvicted = true
+	}
+}
+
+func (s *timeoutTestSetup) createScheduler(clk clock.Clock, softTimeout time.Duration, jobIteratorsByQueue map[string]JobContextIterator) (*QueueScheduler, error) {
+	return NewQueueScheduler(
+		s.sctx, s.constraints, nil, s.nodeDb, jobIteratorsByQueue,
+		false, false, true, s.config.MaxQueueLookback, false, 0,
+		clk, softTimeout,
+	)
+}
+
+func createJobRepoWithJobs(jctxs ...[]*context.JobSchedulingContext) *InMemoryJobRepository {
+	jobRepo := NewInMemoryJobRepository(testfixtures.TestPool, jobdb.JobPriorityComparer{})
+	for _, batch := range jctxs {
+		jobRepo.EnqueueMany(batch)
+	}
+	return jobRepo
+}
+
+func TestQueueSchedulerTimeouts(t *testing.T) {
+	tests := map[string]struct {
+		softTimeout       time.Duration
+		cancelContext     bool
+		expectError       bool
+		expectedScheduled int
+	}{
+		"soft timeout: schedules only evicted jobs": {
+			softTimeout:       1 * time.Nanosecond,
+			expectedScheduled: 50,
+		},
+		"hard timeout: returns error": {
+			cancelContext: true,
+			expectError:   true,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			queue := &api.Queue{Name: "A", PriorityFactor: 1.0}
+			// 50 evicted + 100 new jobs; with soft timeout only the 50 evicted should be scheduled
+			evictedJobs := testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 50)
+			newJobs := testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 100)
+
+			evictedJctxs := context.JobSchedulingContextsFromJobs(evictedJobs)
+			markJobsAsEvicted(evictedJctxs)
+
+			allJobs := armadaslices.Concatenate(evictedJobs, newJobs)
+			// 10 nodes * 32 CPUs = 320 CPUs total, enough capacity for all 150 jobs
+			setup := setupTimeoutTest(t, []*api.Queue{queue}, map[string][]*jobdb.Job{"A": allJobs}, 10)
+			jobIteratorsByQueue := map[string]JobContextIterator{
+				"A": createJobRepoWithJobs(evictedJctxs, context.JobSchedulingContextsFromJobs(newJobs)).GetJobIterator("A"),
+			}
+
+			var clk clock.Clock = clock.RealClock{}
+			if tc.softTimeout > 0 {
+				// Step 10s per Now() call ensures soft timeout (1ns) is exceeded immediately
+				clk = newSteppingClock(time.Now(), 10*time.Second)
+			}
+			sch, err := setup.createScheduler(clk, tc.softTimeout, jobIteratorsByQueue)
+			require.NoError(t, err)
+
+			ctx := armadacontext.Background()
+			if tc.cancelContext {
+				var cancel func()
+				ctx, cancel = armadacontext.WithCancel(ctx)
+				cancel()
+			}
+
+			result, err := sch.Schedule(ctx)
+
+			if tc.expectError {
+				assert.Error(t, err)
+				assert.Nil(t, result)
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, result)
+				assert.Len(t, result.ScheduledJobs, tc.expectedScheduled)
+				// Verify all scheduled jobs are evicted (soft timeout only allows evicted jobs)
+				if tc.softTimeout > 0 {
+					for _, jctx := range result.ScheduledJobs {
+						assert.True(t, jctx.IsEvicted, "only evicted jobs should be scheduled after soft timeout")
+					}
+				}
+			}
+		})
+	}
 }

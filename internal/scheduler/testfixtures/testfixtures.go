@@ -236,6 +236,11 @@ func WithAwaySchedulingDisabled(config schedulerconfiguration.SchedulingConfig) 
 	return config
 }
 
+func WithIndependentPoolFailureDisabled(config schedulerconfiguration.SchedulingConfig) schedulerconfiguration.SchedulingConfig {
+	config.DisableIndependentPoolFailures = true
+	return config
+}
+
 func WithGangAwaySchedulingDisabled(config schedulerconfiguration.SchedulingConfig) schedulerconfiguration.SchedulingConfig {
 	for i, pool := range config.Pools {
 		pool.DisableGangAwayScheduling = true
