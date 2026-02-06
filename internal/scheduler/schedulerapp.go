@@ -365,14 +365,12 @@ func Run(config schedulerconfig.Configuration) error {
 		resourceListFactory,
 	)
 
-	poolNames := slices.Map(config.Scheduling.Pools, func(p schedulerconfig.PoolConfig) string { return p.Name })
 	schedulerMetrics, err := metrics.New(
 		config.Metrics.TrackedErrorRegexes,
 		config.Metrics.TrackedResourceNames,
 		config.Metrics.JobCheckpointIntervals,
 		config.Metrics.JobStateMetricsResetInterval,
 		metricPublisher,
-		poolNames,
 	)
 	if err != nil {
 		return err
