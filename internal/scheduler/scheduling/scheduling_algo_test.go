@@ -114,6 +114,7 @@ func TestSchedule_PoolFailureIsolation(t *testing.T) {
 			sch, err := NewFairSchedulingAlgo(
 				schedulingConfig,
 				0,
+				0,
 				mockExecutorRepo,
 				mockQueueCache,
 				reports.NewSchedulingContextRepository(),
