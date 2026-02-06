@@ -203,7 +203,7 @@ type (
 	UpdateJobQueuedState           map[string]*JobQueuedStateUpdate
 	MarkRunsSucceeded              map[string]time.Time
 	MarkRunsFailed                 map[string]*JobRunFailed
-	MarkRunsForJobPreemptRequested map[JobSetKey][]string
+	MarkRunsForJobPreemptRequested map[JobSetKey]map[string]string
 	MarkRunsRunning                map[string]time.Time
 	MarkRunsPending                map[string]time.Time
 	MarkRunsPreempted              map[string]time.Time
@@ -289,7 +289,21 @@ func (a MarkJobsCancelRequested) Merge(b DbOperation) bool {
 }
 
 func (a MarkRunsForJobPreemptRequested) Merge(b DbOperation) bool {
-	return mergeListMaps(a, b)
+	switch op := b.(type) {
+	case MarkRunsForJobPreemptRequested:
+		for k, v := range op {
+			if _, present := a[k]; present {
+				// merge the inner maps
+				for jobId, reason := range v {
+					a[k][jobId] = reason
+				}
+			} else {
+				a[k] = v
+			}
+		}
+		return true
+	}
+	return false
 }
 
 func (a UpdateJobSchedulingInfo) Merge(b DbOperation) bool {

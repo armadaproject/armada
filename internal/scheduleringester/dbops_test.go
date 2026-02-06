@@ -36,10 +36,10 @@ func TestMerge_MarkRunsForJobPreemptRequested(t *testing.T) {
 	jobId2 := util.NewULID()
 	jobId3 := util.NewULID()
 	jobId4 := util.NewULID()
-	markPreemptRequested1 := MarkRunsForJobPreemptRequested{JobSetKey{queue: testQueueName, jobSet: "set1"}: []string{jobId1}}
-	markPreemptRequested2 := MarkRunsForJobPreemptRequested{JobSetKey{queue: testQueueName, jobSet: "set1"}: []string{jobId2}}
-	markPreemptRequested3 := MarkRunsForJobPreemptRequested{JobSetKey{queue: testQueueName, jobSet: "set2"}: []string{jobId3}}
-	markPreemptRequested4 := MarkRunsForJobPreemptRequested{JobSetKey{queue: "test-queue-2", jobSet: "set1"}: []string{jobId4}}
+	markPreemptRequested1 := MarkRunsForJobPreemptRequested{JobSetKey{queue: testQueueName, jobSet: "set1"}: map[string]string{jobId1: "test-preempt-reason"}}
+	markPreemptRequested2 := MarkRunsForJobPreemptRequested{JobSetKey{queue: testQueueName, jobSet: "set1"}: map[string]string{jobId2: "test-preempt-reason"}}
+	markPreemptRequested3 := MarkRunsForJobPreemptRequested{JobSetKey{queue: testQueueName, jobSet: "set2"}: map[string]string{jobId3: "test-preempt-reason"}}
+	markPreemptRequested4 := MarkRunsForJobPreemptRequested{JobSetKey{queue: "test-queue-2", jobSet: "set1"}: map[string]string{jobId4: "test-preempt-reason"}}
 
 	ok := markPreemptRequested1.Merge(markPreemptRequested2)
 	assert.True(t, ok)
@@ -51,11 +51,11 @@ func TestMerge_MarkRunsForJobPreemptRequested(t *testing.T) {
 	assert.Equal(t,
 		MarkRunsForJobPreemptRequested{
 			// When jobset key matches, values are merged
-			JobSetKey{queue: testQueueName, jobSet: "set1"}: []string{jobId1, jobId2},
+			JobSetKey{queue: testQueueName, jobSet: "set1"}: map[string]string{jobId1: "test-preempt-reason", jobId2: "test-preempt-reason"},
 			// Does not merge values when different jobset in key
-			JobSetKey{queue: testQueueName, jobSet: "set2"}: []string{jobId3},
+			JobSetKey{queue: testQueueName, jobSet: "set2"}: map[string]string{jobId3: "test-preempt-reason"},
 			// Does not merge values when different queue in key
-			JobSetKey{queue: "test-queue-2", jobSet: "set1"}: []string{jobId4},
+			JobSetKey{queue: "test-queue-2", jobSet: "set1"}: map[string]string{jobId4: "test-preempt-reason"},
 		},
 		markPreemptRequested1)
 }
@@ -225,12 +225,12 @@ func TestDbOperationOptimisation(t *testing.T) {
 			}, // 4
 		}},
 		"MarkRunsForJobPreemptRequested": {N: 2, Ops: []DbOperation{
-			InsertJobs{jobIds[0]: &schedulerdb.Job{JobID: jobIds[0], Queue: testQueueName, JobSet: "set1"}},      // 1
-			InsertJobs{jobIds[1]: &schedulerdb.Job{JobID: jobIds[1], Queue: testQueueName, JobSet: "set1"}},      // 1
-			MarkRunsForJobPreemptRequested{JobSetKey{queue: testQueueName, jobSet: "set1"}: []string{jobIds[0]}}, // 2                                                            // 2
-			MarkRunsForJobPreemptRequested{JobSetKey{queue: testQueueName, jobSet: "set1"}: []string{jobIds[1]}}, // 2                                                            // 2
-			InsertJobs{jobIds[2]: &schedulerdb.Job{JobID: jobIds[2], Queue: testQueueName, JobSet: "set1"}},      // 1
-			MarkRunsForJobPreemptRequested{JobSetKey{queue: testQueueName, jobSet: "set1"}: []string{jobIds[2]}}, // 2
+			InsertJobs{jobIds[0]: &schedulerdb.Job{JobID: jobIds[0], Queue: testQueueName, JobSet: "set1"}},                              // 1
+			InsertJobs{jobIds[1]: &schedulerdb.Job{JobID: jobIds[1], Queue: testQueueName, JobSet: "set1"}},                              // 1
+			MarkRunsForJobPreemptRequested{JobSetKey{queue: testQueueName, jobSet: "set1"}: map[string]string{jobIds[0]: "test-reason"}}, // 2                                                            // 2
+			MarkRunsForJobPreemptRequested{JobSetKey{queue: testQueueName, jobSet: "set1"}: map[string]string{jobIds[1]: "test-reason"}}, // 2                                                            // 2
+			InsertJobs{jobIds[2]: &schedulerdb.Job{JobID: jobIds[2], Queue: testQueueName, JobSet: "set1"}},                              // 1
+			MarkRunsForJobPreemptRequested{JobSetKey{queue: testQueueName, jobSet: "set1"}: map[string]string{jobIds[2]: "test-reason"}}, // 2
 		}},
 		"MarkJobsSucceeded": {N: 2, Ops: []DbOperation{
 			InsertJobs{jobIds[0]: &schedulerdb.Job{JobID: jobIds[0]}}, // 1

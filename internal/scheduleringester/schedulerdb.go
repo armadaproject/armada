@@ -228,15 +228,25 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 			return errors.WithStack(err)
 		}
 	case MarkRunsForJobPreemptRequested:
-		for key, value := range o {
-			params := schedulerdb.MarkJobRunsPreemptRequestedByJobIdParams{
-				Queue:  key.queue,
-				JobSet: key.jobSet,
-				JobIds: value,
+		for key, preemptReason := range o {
+			// group by reason
+			reasonToJobIds := make(map[string][]string)
+			for jobId, reason := range preemptReason {
+				reasonToJobIds[reason] = append(reasonToJobIds[reason], jobId)
 			}
-			err := queries.MarkJobRunsPreemptRequestedByJobId(ctx, params)
-			if err != nil {
-				return errors.WithStack(err)
+
+			// updates runs with the same reason in one query
+			for reason, jobIds := range reasonToJobIds {
+				reasonCopy := reason
+				err := queries.MarkJobRunsPreemptRequestedByJobId(ctx, schedulerdb.MarkJobRunsPreemptRequestedByJobIdParams{
+					PreemptReason: &reasonCopy,
+					Queue:         key.queue,
+					JobSet:        key.jobSet,
+					JobIds:        jobIds,
+				})
+				if err != nil {
+					return errors.WithStack(err)
+				}
 			}
 		}
 	case MarkJobsSucceeded:
