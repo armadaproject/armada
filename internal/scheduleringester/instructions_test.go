@@ -326,6 +326,18 @@ func TestConvertControlPlaneEvent(t *testing.T) {
 					Name:            f.ExecutorId,
 					Queues:          []string{f.Queue},
 					PriorityClasses: []string{f.PriorityClassName},
+					Pools:           nil,
+				},
+			}},
+		},
+		"preempt on executor with pools": {
+			event: f.PreemptOnExecutorWithPools,
+			expected: []DbOperation{PreemptExecutor{
+				f.ExecutorId: &PreemptOnExecutor{
+					Name:            f.ExecutorId,
+					Queues:          []string{f.Queue},
+					PriorityClasses: []string{f.PriorityClassName},
+					Pools:           []string{f.Pool},
 				},
 			}},
 		},
@@ -336,6 +348,18 @@ func TestConvertControlPlaneEvent(t *testing.T) {
 					Name:            f.ExecutorId,
 					Queues:          []string{f.Queue},
 					PriorityClasses: []string{f.PriorityClassName},
+					Pools:           nil,
+				},
+			}},
+		},
+		"cancel on executor with pools": {
+			event: f.CancelOnExecutorWithPools,
+			expected: []DbOperation{CancelExecutor{
+				f.ExecutorId: &CancelOnExecutor{
+					Name:            f.ExecutorId,
+					Queues:          []string{f.Queue},
+					PriorityClasses: []string{f.PriorityClassName},
+					Pools:           []string{f.Pool},
 				},
 			}},
 		},
@@ -373,6 +397,17 @@ func TestConvertControlPlaneEvent(t *testing.T) {
 				f.Queue: &PreemptOnQueue{
 					Name:            f.Queue,
 					PriorityClasses: []string{f.PriorityClassName},
+					Pools:           nil,
+				},
+			}},
+		},
+		"preempt on queue with pools": {
+			event: f.PreemptOnQueueWithPools,
+			expected: []DbOperation{PreemptQueue{
+				f.Queue: &PreemptOnQueue{
+					Name:            f.Queue,
+					PriorityClasses: []string{f.PriorityClassName},
+					Pools:           []string{f.Pool},
 				},
 			}},
 		},
@@ -383,6 +418,18 @@ func TestConvertControlPlaneEvent(t *testing.T) {
 					Name:            f.Queue,
 					PriorityClasses: []string{f.PriorityClassName},
 					JobStates:       []controlplaneevents.ActiveJobState{controlplaneevents.ActiveJobState_QUEUED},
+					Pools:           nil,
+				},
+			}},
+		},
+		"cancel queued on queue with pools": {
+			event: f.CancelQueuedOnQueueWithPools,
+			expected: []DbOperation{CancelQueue{
+				f.Queue: &CancelOnQueue{
+					Name:            f.Queue,
+					PriorityClasses: []string{f.PriorityClassName},
+					JobStates:       []controlplaneevents.ActiveJobState{controlplaneevents.ActiveJobState_QUEUED},
+					Pools:           []string{f.Pool},
 				},
 			}},
 		},
@@ -393,6 +440,7 @@ func TestConvertControlPlaneEvent(t *testing.T) {
 					Name:            f.Queue,
 					PriorityClasses: []string{f.PriorityClassName},
 					JobStates:       []controlplaneevents.ActiveJobState{controlplaneevents.ActiveJobState_RUNNING},
+					Pools:           nil,
 				},
 			}},
 		},

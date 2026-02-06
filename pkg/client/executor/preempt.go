@@ -8,10 +8,12 @@ import (
 	"github.com/armadaproject/armada/pkg/client"
 )
 
-type PreemptAPI func(string, []string, []string) error
+// PreemptAPI preempts jobs on an executor matching the given queues, priority classes, and pools.
+// Empty queues or pools means all queues or all pools respectively.
+type PreemptAPI func(executor string, queues, priorityClasses, pools []string) error
 
 func PreemptOnExecutor(getConnectionDetails client.ConnectionDetails) PreemptAPI {
-	return func(executor string, queues []string, priorityClasses []string) error {
+	return func(executor string, queues []string, priorityClasses []string, pools []string) error {
 		connectionDetails, err := getConnectionDetails()
 		if err != nil {
 			return fmt.Errorf("failed to obtain api connection details: %s", err)
@@ -26,14 +28,12 @@ func PreemptOnExecutor(getConnectionDetails client.ConnectionDetails) PreemptAPI
 		defer cancel()
 
 		executorClient := api.NewExecutorClient(conn)
-		newPreemptOnExecutor := &api.ExecutorPreemptRequest{
+		_, err = executorClient.PreemptOnExecutor(ctx, &api.ExecutorPreemptRequest{
 			Name:            executor,
 			Queues:          queues,
 			PriorityClasses: priorityClasses,
-		}
-		if _, err = executorClient.PreemptOnExecutor(ctx, newPreemptOnExecutor); err != nil {
-			return err
-		}
-		return nil
+			Pools:           pools,
+		})
+		return err
 	}
 }

@@ -116,134 +116,153 @@ func (l *FairSchedulingAlgo) Schedule(
 		ctx, cancel = armadacontext.WithTimeout(ctx, l.maxSchedulingDuration)
 		defer cancel()
 	}
-	overallSchedulerResult := &SchedulerResult{
-		PerPoolSchedulingStats: make(map[string]PerPoolSchedulingStats),
-		FailedReconciliationJobs: &ReconciliationResult{
-			FailedJobs:    []*FailedReconciliationResult{},
-			PreemptedJobs: []*FailedReconciliationResult{},
-		},
+
+	schedulerResult := &SchedulerResult{
+		PoolResults: make([]*PoolSchedulingResult, 0, len(l.schedulingConfig.Pools)),
+	}
+
+	// Error immediately if priority overrides are not ready
+	if !l.queueOverrideProvider.Ready() {
+		return nil, fmt.Errorf("queue overrides is not ready")
+	}
+
+	for _, pool := range l.schedulingConfig.Pools {
+		startTime := l.clock.Now()
+		outcome, reconcileResult, schedulingResult, err := l.reconcileAndSchedulePool(ctx, pool, resourceUnits, txn)
+		if err != nil {
+			return nil, err
+		}
+		endTime := l.clock.Now()
+
+		if outcome == nil {
+			return nil, fmt.Errorf("unexpectedly got nil scheduling result for pool %s", pool.Name)
+		}
+
+		// If pools are not configured to fail independently, cause total scheduling round failure on pool failure
+		if !outcome.Success() {
+			if l.schedulingConfig.DisableIndependentPoolFailures {
+				return nil, outcome.Error()
+			} else {
+				ctx.Logger().WithStacktrace(err).Errorf("scheduling on pool %s failed but continuing as the error was non-fatal - error %s", pool.Name, outcome.Error())
+			}
+		}
+
+		poolResult := &PoolSchedulingResult{
+			Name:                 pool.Name,
+			ReconciliationResult: reconcileResult,
+			SchedulingResult:     schedulingResult,
+			StartTime:            startTime,
+			EndTime:              endTime,
+			Outcome:              *outcome,
+		}
+
+		schedulerResult.PoolResults = append(schedulerResult.PoolResults, poolResult)
+	}
+	return schedulerResult, nil
+}
+
+func (l *FairSchedulingAlgo) reconcileAndSchedulePool(
+	ctx *armadacontext.Context,
+	pool configuration.PoolConfig,
+	resourceUnits map[string]internaltypes.ResourceList,
+	txn *jobdb.Txn,
+) (*PoolSchedulingOutcome, *ReconciliationResult, *SchedulingResult, error) {
+	select {
+	case <-ctx.Done():
+		return NewPoolSchedulingOutcome(PoolSchedulingTerminationReasonTimeout, fmt.Errorf("scheduling round hit global maximum scheduling duration")), nil, nil, nil
+	default:
 	}
 
 	// Exit immediately if scheduling is disabled.
 	if l.schedulingConfig.DisableScheduling {
-		ctx.Info("scheduling disabled; exiting")
-		return overallSchedulerResult, nil
+		ctx.Infof("not scheduling on pool %s as scheduling is disabled", pool.Name)
+		return NewPoolSchedulingOutcome(PoolSchedulingTerminationReasonSchedulingDisabled, nil), nil, nil, nil
 	}
 
-	// Exit immediately if priority overrides are not ready
-	if !l.queueOverrideProvider.Ready() {
-		ctx.Warn("queue overrides are not ready; exiting")
-		return overallSchedulerResult, nil
+	executors, err := l.executorRepository.GetExecutors(ctx)
+	if err != nil {
+		return nil, nil, nil, err
 	}
 
-	for _, pool := range l.schedulingConfig.Pools {
-		select {
-		case <-ctx.Done():
-			// We've reached the scheduling time limit; exit gracefully.
-			ctx.Info("ending scheduling round early as we have hit the maximum scheduling duration")
-			return overallSchedulerResult, nil
-		default:
-		}
+	reconciliationResult, err := l.validateJobAndNodeState(pool, txn, executors)
+	if err != nil {
+		return NewPoolSchedulingOutcome(PoolSchedulingTerminationReasonError, err), nil, nil, nil
+	}
+	ctx.Infof("Finished reconciling runs with nodes for pool %s, preempting %d jobs and failing %d jobs", pool.Name, len(reconciliationResult.PreemptedJobs), len(reconciliationResult.FailedJobs))
 
-		executors, err := l.executorRepository.GetExecutors(ctx)
-		if err != nil {
-			return nil, err
-		}
+	preemptedDueToReconciliationJobs := JobsFromFailedReconciliationResults(reconciliationResult.PreemptedJobs)
+	if err := txn.Upsert(preemptedDueToReconciliationJobs); err != nil {
+		return nil, nil, nil, err
+	}
 
-		reconciliationResult, err := l.validateJobAndNodeState(pool, txn, executors)
-		if err != nil {
-			return nil, err
-		}
-		ctx.Infof("Finished reconciling runs with nodes for pool %s, preempting %d jobs and failing %d jobs", pool.Name, len(reconciliationResult.PreemptedJobs), len(reconciliationResult.FailedJobs))
+	failedDueToReconciliationJobs := JobsFromFailedReconciliationResults(reconciliationResult.PreemptedJobs)
+	if err := txn.Upsert(failedDueToReconciliationJobs); err != nil {
+		return nil, nil, nil, err
+	}
 
-		preemptedDueToReconciliationJobs := JobsFromFailedReconciliationResults(reconciliationResult.PreemptedJobs)
-		if err := txn.Upsert(preemptedDueToReconciliationJobs); err != nil {
-			return nil, err
-		}
+	// It is important to pass the validated executors here
+	// This is because the validation ensures those nodes are inline with the jobs
+	// If we use a different copy of nodes (possibly more to date copy) it may no longer align with the jobs/runs
+	fsctx, err := l.newFairSchedulingAlgoContext(ctx, txn, executors, pool)
+	if err != nil {
+		return NewPoolSchedulingOutcome(PoolSchedulingTerminationReasonSchedulingDisabled, errors.WithMessagef(err, "failed to create scheduling algo context")), nil, nil, nil
+	}
 
-		failedDueToReconciliationJobs := JobsFromFailedReconciliationResults(reconciliationResult.PreemptedJobs)
-		if err := txn.Upsert(failedDueToReconciliationJobs); err != nil {
-			return nil, err
-		}
+	if fsctx.nodeDb.NumNodes() <= 0 {
+		ctx.Infof("Skipping pool %s as it has no active nodes", pool.Name)
+		return NewPoolSchedulingOutcome(PoolSchedulingTerminationReasonCompleted, nil),
+			reconciliationResult,
+			&SchedulingResult{
+				SchedulingContext: fsctx.schedulingContext,
+				ScheduledJobs:     []*schedulercontext.JobSchedulingContext{},
+				PreemptedJobs:     []*schedulercontext.JobSchedulingContext{},
+				AdditionalSchedulingInfo: &SchedulingInformation{
+					NodeDb: fsctx.nodeDb,
+				},
+			}, nil
+	}
 
-		overallSchedulerResult.FailedReconciliationJobs.FailedJobs = append(overallSchedulerResult.FailedReconciliationJobs.FailedJobs, reconciliationResult.FailedJobs...)
-		overallSchedulerResult.FailedReconciliationJobs.PreemptedJobs = append(overallSchedulerResult.FailedReconciliationJobs.PreemptedJobs, reconciliationResult.PreemptedJobs...)
+	if pool.DisableAwayScheduling {
+		fsctx.nodeDb.DisableAwayScheduling()
+	}
 
-		// It is important to pass the validated executors here
-		// This is because the validation ensures those nodes are inline with the jobs
-		// If we use a different copy of nodes (possibly more to date copy) it may no longer align with the jobs/runs
-		fsctx, err := l.newFairSchedulingAlgoContext(ctx, txn, executors, pool)
-		if err != nil {
-			overallSchedulerResult.PoolSchedulingOutcomes = append(overallSchedulerResult.PoolSchedulingOutcomes,
-				PoolSchedulingOutcome{Pool: pool.Name, Success: false, TerminationReason: PoolSchedulingTerminationReasonError})
-			return overallSchedulerResult, err
-		}
+	if pool.DisableGangAwayScheduling {
+		fsctx.nodeDb.DisableGangAwayScheduling()
+	}
 
-		if fsctx.nodeDb.NumNodes() <= 0 {
-			ctx.Infof("Skipping pool %s as it has no active nodes", pool.Name)
-			continue
-		}
-
-		if pool.DisableAwayScheduling {
-			fsctx.nodeDb.DisableAwayScheduling()
-		}
-
-		if pool.DisableGangAwayScheduling {
-			fsctx.nodeDb.DisableGangAwayScheduling()
-		}
-
-		start := time.Now()
-		resourceUnit, ok := resourceUnits[pool.Name]
-		if !ok {
-			ctx.Warnf("Pool %s has no resource unit defined", pool.Name)
-			resourceUnit = l.resourceListFactory.MakeAllZero()
-		}
-		schedulerResult, sctx, err := l.SchedulePool(ctx, fsctx, pool, resourceUnit)
-
-		ctx.Infof("Scheduled on executor pool %s in %v with error %v", pool.Name, time.Now().Sub(start), err)
-
+	start := time.Now()
+	resourceUnit, ok := resourceUnits[pool.Name]
+	if !ok {
+		ctx.Warnf("Pool %s has no resource unit defined", pool.Name)
+		resourceUnit = l.resourceListFactory.MakeAllZero()
+	}
+	schedulingResult, sctx, err := l.SchedulePool(ctx, fsctx, pool, resourceUnit)
+	if err != nil {
+		ctx.Infof("Scheduled on pool %s in %v - failed with error %s", pool.Name, time.Now().Sub(start), err)
 		if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
-			overallSchedulerResult.PoolSchedulingOutcomes = append(overallSchedulerResult.PoolSchedulingOutcomes,
-				PoolSchedulingOutcome{Pool: pool.Name, Success: true, TerminationReason: PoolSchedulingTerminationReasonTimeout})
-			ctx.Info("stopped scheduling early as we have hit the maximum scheduling duration")
-			break
+			return NewPoolSchedulingOutcome(PoolSchedulingTerminationReasonTimeout, err), nil, nil, nil
 		} else if err != nil {
-			overallSchedulerResult.PoolSchedulingOutcomes = append(overallSchedulerResult.PoolSchedulingOutcomes,
-				PoolSchedulingOutcome{Pool: pool.Name, Success: false, TerminationReason: PoolSchedulingTerminationReasonError})
-			return overallSchedulerResult, err
-		}
-		if l.schedulingContextRepository != nil {
-			l.schedulingContextRepository.StoreSchedulingContext(sctx)
-		}
-
-		preemptedJobs := PreemptedJobsFromSchedulerResult(schedulerResult)
-		scheduledJobs := ScheduledJobsFromSchedulerResult(schedulerResult)
-
-		terminationReason := terminationReasonFromString(sctx.TerminationReason)
-		if err := txn.Upsert(preemptedJobs); err != nil {
-			overallSchedulerResult.PoolSchedulingOutcomes = append(overallSchedulerResult.PoolSchedulingOutcomes,
-				PoolSchedulingOutcome{Pool: pool.Name, Success: false, TerminationReason: PoolSchedulingTerminationReasonError})
-			return overallSchedulerResult, err
-		}
-		if err := txn.Upsert(scheduledJobs); err != nil {
-			overallSchedulerResult.PoolSchedulingOutcomes = append(overallSchedulerResult.PoolSchedulingOutcomes,
-				PoolSchedulingOutcome{Pool: pool.Name, Success: false, TerminationReason: PoolSchedulingTerminationReasonError})
-			return overallSchedulerResult, err
-		}
-
-		overallSchedulerResult.PoolSchedulingOutcomes = append(overallSchedulerResult.PoolSchedulingOutcomes,
-			PoolSchedulingOutcome{Pool: pool.Name, Success: true, TerminationReason: terminationReason})
-
-		// Aggregate changes across executors.
-		overallSchedulerResult.PreemptedJobs = append(overallSchedulerResult.PreemptedJobs, schedulerResult.PreemptedJobs...)
-		overallSchedulerResult.ScheduledJobs = append(overallSchedulerResult.ScheduledJobs, schedulerResult.ScheduledJobs...)
-		overallSchedulerResult.SchedulingContexts = append(overallSchedulerResult.SchedulingContexts, schedulerResult.SchedulingContexts...)
-
-		for p, s := range schedulerResult.PerPoolSchedulingStats {
-			overallSchedulerResult.PerPoolSchedulingStats[p] = s
+			return NewPoolSchedulingOutcome(PoolSchedulingTerminationReasonError, errors.WithMessagef(err, "failed scheduling on pool %s", pool.Name)), nil, nil, nil
 		}
 	}
-	return overallSchedulerResult, nil
+
+	ctx.Infof("Scheduled on pool %s in %v", pool.Name, time.Now().Sub(start))
+	if l.schedulingContextRepository != nil {
+		l.schedulingContextRepository.StoreSchedulingContext(sctx)
+	}
+
+	preemptedJobs := PreemptedJobsFromSchedulingResult(schedulingResult)
+	scheduledJobs := ScheduledJobsFromSchedulingResult(schedulingResult)
+
+	terminationReason := terminationReasonFromString(sctx.TerminationReason)
+	if err := txn.Upsert(preemptedJobs); err != nil {
+		return nil, nil, nil, err
+	}
+	if err := txn.Upsert(scheduledJobs); err != nil {
+		return nil, nil, nil, err
+	}
+
+	return NewPoolSchedulingOutcome(terminationReason, nil), reconciliationResult, schedulingResult, nil
 }
 
 type FairSchedulingAlgoContext struct {
@@ -673,7 +692,7 @@ func (l *FairSchedulingAlgo) SchedulePool(
 	fsctx *FairSchedulingAlgoContext,
 	pool configuration.PoolConfig,
 	resourceUnit internaltypes.ResourceList,
-) (*SchedulerResult, *schedulercontext.SchedulingContext, error) {
+) (*SchedulingResult, *schedulercontext.SchedulingContext, error) {
 	totalResources := fsctx.nodeDb.TotalKubernetesResources()
 	totalResources = totalResources.Add(l.floatingResourceTypes.GetTotalAvailableForPool(pool.Name))
 	constraints := schedulerconstraints.NewSchedulingConstraints(pool.Name, totalResources, l.schedulingConfig, maps.Values(fsctx.queues))
