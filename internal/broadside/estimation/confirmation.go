@@ -17,9 +17,7 @@ const (
 	maxDurationThreshold = time.Hour
 )
 
-var (
-	p = message.NewPrinter(language.English)
-)
+var p = message.NewPrinter(language.English)
 
 func ShouldPrompt(est Estimation) bool {
 	return est.TotalJobs > maxJobsThreshold ||

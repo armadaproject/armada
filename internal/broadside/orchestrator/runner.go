@@ -174,7 +174,7 @@ func (r *Runner) Run(ctx context.Context) error {
 	testResult := metrics.BuildTestResult(r.config, ingesterReport, querierReport, actorReport, actualTestDuration)
 
 	resultsDir := filepath.Join("cmd", "broadside", "results")
-	if err := os.MkdirAll(resultsDir, 0755); err != nil {
+	if err := os.MkdirAll(resultsDir, 0o755); err != nil {
 		return fmt.Errorf("creating results directory: %w", err)
 	}
 
