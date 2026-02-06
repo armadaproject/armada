@@ -1,6 +1,6 @@
 import { ElementType, MouseEvent, RefObject, useCallback, useEffect, useRef, useState } from "react"
 
-import { Check, MoreVert } from "@mui/icons-material"
+import { Check, Clear, MoreVert } from "@mui/icons-material"
 import {
   Box,
   Checkbox,
@@ -215,8 +215,29 @@ const EnumFilter = ({ currentFilter, enumFilterValues, categories, label, onFilt
         style: {
           padding: 0,
           paddingLeft: "7px",
+          paddingRight: currentFilter.length > 0 ? "54px" : 0,
         },
       }}
+      endAdornment={
+        currentFilter.length > 0 && (
+          <InputAdornment position="end" sx={{ position: "absolute", right: "24px" }}>
+            <IconButton
+              size="small"
+              onClick={(e) => {
+                e.stopPropagation()
+                onFilterChange(undefined)
+              }}
+              aria-label="Clear filter"
+              sx={{
+                height: "22px",
+                width: "22px",
+              }}
+            >
+              <Clear fontSize="small" />
+            </IconButton>
+          </InputAdornment>
+        )
+      }
     >
       {[
         // Render category headers and their options below them allowing selecting/deselecting all in category
@@ -373,6 +394,19 @@ const TextFilter = ({
           },
           endAdornment: (
             <InputAdornment position="end">
+              {textFieldValue && (
+                <IconButton
+                  size="small"
+                  onClick={() => setTextFieldValue("")}
+                  aria-label="Clear filter"
+                  sx={{
+                    height: "22px",
+                    width: "22px",
+                  }}
+                >
+                  <Clear fontSize="small" />
+                </IconButton>
+              )}
               <MatchSelect possibleMatches={possibleMatches} currentMatch={match} onSelect={onColumnMatchChange} />
             </InputAdornment>
           ),
