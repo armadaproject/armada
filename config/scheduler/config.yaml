@@ -80,6 +80,7 @@ scheduling:
     - name: nvidia.com/gpu
       resolution: "1"
   disableScheduling: false
+  disableIndependentPoolFailures: true
   enableAssertions: false
   enablePreferLargeJobOrdering: false
   protectedFractionOfFairShare: 1.0

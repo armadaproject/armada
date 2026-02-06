@@ -140,6 +140,11 @@ type HistogramConfig struct {
 type SchedulingConfig struct {
 	// Set to true to disable scheduling
 	DisableScheduling bool
+	// Set to true to make scheduling all or nothing
+	// By default pools the scheduler will attempt fail scheduling independently, not causing other pools to also fail
+	// This only applies to certain types of known failures
+	//	- critical failures will still cause a total scheduling round failure
+	DisableIndependentPoolFailures bool
 	// Set to true to enable scheduler assertions. This results in some performance loss.
 	EnableAssertions bool
 	// Experimental

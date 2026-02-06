@@ -139,7 +139,7 @@ var (
 	}
 	schedulingInfoWithUpdatedPriorityBytes = protoutil.MustMarshall(schedulingInfoWithUpdatedPriority)
 
-	schedulerMetrics, _ = metrics.New(nil, nil, []time.Duration{}, 12*time.Hour, pulsarutils.NoOpPublisher[*metricevents.Event]{}, nil)
+	schedulerMetrics, _ = metrics.New(nil, nil, []time.Duration{}, 12*time.Hour, pulsarutils.NoOpPublisher[*metricevents.Event]{})
 )
 
 var queuedJob = testfixtures.NewJob(
@@ -965,7 +965,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 
 			// run a scheduler cycle
 			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
-			_, err = sched.cycle(ctx, false, sched.leaderController.GetToken(), true, 1)
+			err = sched.cycle(ctx, false, sched.leaderController.GetToken(), true, 1)
 			if tc.fetchError || tc.publishError || tc.scheduleError {
 				assert.Error(t, err)
 			} else {
@@ -3058,7 +3058,7 @@ func TestCycleConsistency(t *testing.T) {
 			// cycle runs one cycle.
 			cycle := func(s *Scheduler, updateAll, shouldSchedule bool) error {
 				t.Logf("cycle scheduler %p", s)
-				_, err := s.cycle(ctx, updateAll, s.leaderController.GetToken(), shouldSchedule, 1)
+				err := s.cycle(ctx, updateAll, s.leaderController.GetToken(), shouldSchedule, 1)
 				return err
 			}
 

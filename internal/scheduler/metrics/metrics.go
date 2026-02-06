@@ -24,7 +24,7 @@ type resettableMetric interface {
 	Reset()
 }
 
-func New(errorRegexes []string, trackedResourceNames []v1.ResourceName, jobCheckpointIntervals []time.Duration, jobStateMetricsResetInterval time.Duration, publisher pulsarutils.Publisher[*metricevents.Event], poolNames []string) (*Metrics, error) {
+func New(errorRegexes []string, trackedResourceNames []v1.ResourceName, jobCheckpointIntervals []time.Duration, jobStateMetricsResetInterval time.Duration, publisher pulsarutils.Publisher[*metricevents.Event]) (*Metrics, error) {
 	compiledErrorRegexes := make([]*regexp.Regexp, len(errorRegexes))
 	for i, errorRegex := range errorRegexes {
 		if r, err := regexp.Compile(errorRegex); err != nil {
@@ -34,7 +34,7 @@ func New(errorRegexes []string, trackedResourceNames []v1.ResourceName, jobCheck
 		}
 	}
 	return &Metrics{
-		cycleMetrics:    newCycleMetrics(publisher, poolNames),
+		cycleMetrics:    newCycleMetrics(publisher),
 		jobStateMetrics: newJobStateMetrics(compiledErrorRegexes, trackedResourceNames, jobCheckpointIntervals, jobStateMetricsResetInterval),
 	}, nil
 }
