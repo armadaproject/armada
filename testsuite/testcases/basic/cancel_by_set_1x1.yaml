@@ -22,7 +22,8 @@ jobs:
               memory: 25Mi
               cpu: 100m
 ---
-cancel: BY_SET
+action: ACTION_CANCEL
+selection: SELECTION_BY_SET
 timeout: "100s"
 expectedEvents:
   - submitted:
