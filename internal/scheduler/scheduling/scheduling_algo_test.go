@@ -36,6 +36,133 @@ type scheduledJobs struct {
 	acknowledged bool
 }
 
+func TestSchedule_PoolFailureIsolation(t *testing.T) {
+	type poolSchedulingInfo struct {
+		name               string
+		recoverableError   bool
+		unrecoverableError bool
+	}
+	tests := map[string]struct {
+		pools                          []poolSchedulingInfo
+		disableIndependentPoolFailures bool
+
+		expectError               bool
+		expectedSuccessfulPools   []string
+		expectedUnsuccessfulPools []string
+	}{
+		"one pool recoverable error - independent pool failure enabled": {
+			pools:                     []poolSchedulingInfo{{name: "pool1"}, {name: "pool2", recoverableError: true}, {name: "pool3"}},
+			expectedSuccessfulPools:   []string{"pool1", "pool3"},
+			expectedUnsuccessfulPools: []string{"pool2"},
+		},
+		"one pool recoverable error - independent pool failure disabled": {
+			pools:                          []poolSchedulingInfo{{name: "pool1"}, {name: "pool2", recoverableError: true}, {name: "pool3"}},
+			disableIndependentPoolFailures: true,
+			expectError:                    true,
+		},
+		"one pool unrecoverable error - independent pool failure enabled": {
+			pools:       []poolSchedulingInfo{{name: "pool1"}, {name: "pool2", unrecoverableError: true}, {name: "pool3"}},
+			expectError: true,
+		},
+		"one pool unrecoverable error - independent pool failure disabled": {
+			pools:                          []poolSchedulingInfo{{name: "pool1"}, {name: "pool2", unrecoverableError: true}, {name: "pool3"}},
+			disableIndependentPoolFailures: true,
+			expectError:                    true,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			ctx := armadacontext.Background()
+			ctrl := gomock.NewController(t)
+
+			mockExecutorRepo := schedulermocks.NewMockExecutorRepository(ctrl)
+			executorRepoCallCount := 0
+			mockExecutorRepo.EXPECT().GetExecutors(ctx).DoAndReturn(
+				func(ctx *armadacontext.Context) ([]*schedulerobjects.Executor, error) {
+					executorRepoCallCount++
+					if tc.pools[executorRepoCallCount-1].unrecoverableError {
+						return nil, fmt.Errorf("simulated critical failure for pool")
+					}
+					return []*schedulerobjects.Executor{}, nil
+				},
+			).AnyTimes()
+			mockExecutorRepo.EXPECT().GetExecutorSettings(ctx).Return([]*schedulerobjects.ExecutorSettings{}, nil).AnyTimes()
+			mockQueueCache := schedulermocks.NewMockQueueCache(ctrl)
+			queueCacheCallCount := 0
+			// TODO This is a hack, we should refactor so we can inject a failing scheduler and simulate scheduling failing directly
+			mockQueueCache.EXPECT().GetAll(gomock.Any()).DoAndReturn(
+				func(ctx *armadacontext.Context) ([]*api.Queue, error) {
+					queueCacheCallCount++
+					if tc.pools[queueCacheCallCount-1].recoverableError {
+						return nil, fmt.Errorf("simulated recoverable failure for pool")
+					}
+					return []*api.Queue{}, nil
+				},
+			).AnyTimes()
+
+			pools := []configuration.PoolConfig{}
+			for _, poolInfo := range tc.pools {
+				pools = append(pools, configuration.PoolConfig{Name: poolInfo.name})
+			}
+
+			schedulingConfig := testfixtures.TestSchedulingConfigWithPools(pools)
+			if tc.disableIndependentPoolFailures {
+				schedulingConfig = testfixtures.WithIndependentPoolFailureDisabled(schedulingConfig)
+			}
+
+			sch, err := NewFairSchedulingAlgo(
+				schedulingConfig,
+				0,
+				0,
+				mockExecutorRepo,
+				mockQueueCache,
+				reports.NewSchedulingContextRepository(),
+				testfixtures.TestResourceListFactory,
+				testfixtures.TestEmptyFloatingResources,
+				priorityoverride.NewNoOpProvider(),
+				nil,
+				&testRunReconciler{},
+			)
+			require.NoError(t, err)
+
+			jobDb := testfixtures.NewJobDb(testfixtures.TestResourceListFactory)
+			txn := jobDb.WriteTxn()
+
+			schedulerResult, err := sch.Schedule(ctx, nil, txn)
+			if tc.expectError {
+				assert.Error(t, err)
+				assert.Nil(t, schedulerResult)
+			} else {
+				assert.NoError(t, err)
+				assert.Len(t, schedulerResult.PoolResults, len(tc.expectedUnsuccessfulPools)+len(tc.expectedSuccessfulPools))
+				for _, successfulPool := range tc.expectedSuccessfulPools {
+					found := false
+					for _, poolResult := range schedulerResult.PoolResults {
+						if poolResult.Name == successfulPool {
+							assert.NotNil(t, poolResult.ReconciliationResult)
+							assert.NotNil(t, poolResult.SchedulingResult)
+							found = true
+							break
+						}
+					}
+					assert.True(t, found)
+				}
+				for _, failedPool := range tc.expectedUnsuccessfulPools {
+					found := false
+					for _, poolResult := range schedulerResult.PoolResults {
+						if poolResult.Name == failedPool {
+							found = true
+							break
+						}
+					}
+					assert.True(t, found)
+				}
+			}
+		})
+	}
+}
+
 func TestSchedule(t *testing.T) {
 	multiPoolSchedulingConfig := testfixtures.TestSchedulingConfig()
 	defaultExecutorSettings := []*schedulerobjects.ExecutorSettings{}
@@ -679,7 +806,8 @@ func TestSchedule(t *testing.T) {
 			runReconciler := &testRunReconciler{}
 			sch, err := NewFairSchedulingAlgo(
 				tc.schedulingConfig,
-				0,
+				0, // maxSchedulingDuration (disabled)
+				0, // newJobsSchedulingTimeout (disabled)
 				mockExecutorRepo,
 				mockQueueCache,
 				schedulingContextRepo,

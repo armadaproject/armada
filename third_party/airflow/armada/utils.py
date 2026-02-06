@@ -26,7 +26,9 @@ def log_exceptions(method):
 )
 @log_exceptions
 def xcom_pull_for_ti(ti: TaskInstance, key: str) -> Any:
-    return ti.xcom_pull(key=key, task_ids=ti.task_id, map_indexes=ti.map_index)
+    # In Airflow 3.0+, xcom_pull handles map_index automatically from ti
+    # No need to pass map_indexes parameter
+    return ti.xcom_pull(key=key, task_ids=ti.task_id)
 
 
 T = TypeVar("T")

@@ -56,9 +56,10 @@ func (a *App) CancelJobSet(queue string, jobSetId string) (outerErr error) {
 	})
 }
 
-func (a *App) CancelOnExecutor(executor string, queues []string, priorityClasses []string) error {
+func (a *App) CancelOnExecutor(executor string, queues []string, priorityClasses []string, pools []string) error {
 	queueMsg := strings.Join(queues, ",")
 	priorityClassesMsg := strings.Join(priorityClasses, ",")
+	poolsMsg := strings.Join(pools, ",")
 	// If the provided slice of queues is empty, jobs on all queues will be cancelled
 	if len(queues) == 0 {
 		apiQueues, err := a.getAllQueuesAsAPIQueue(&QueueQueryArgs{})
@@ -68,8 +69,12 @@ func (a *App) CancelOnExecutor(executor string, queues []string, priorityClasses
 		queues = armadaslices.Map(apiQueues, func(q *api.Queue) string { return q.Name })
 		queueMsg = "all"
 	}
-	fmt.Fprintf(a.Out, "Requesting cancellation of jobs matching executor: %s, queues: %s, priority-classes: %s\n", executor, queueMsg, priorityClassesMsg)
-	if err := a.Params.ExecutorAPI.CancelOnExecutor(executor, queues, priorityClasses); err != nil {
+	if len(pools) == 0 {
+		poolsMsg = "all"
+	}
+
+	fmt.Fprintf(a.Out, "Requesting cancellation of jobs matching executor: %s, queues: %s, priority-classes: %s, pools: %s\n", executor, queueMsg, priorityClassesMsg, poolsMsg)
+	if err := a.Params.ExecutorAPI.CancelOnExecutor(executor, queues, priorityClasses, pools); err != nil {
 		return fmt.Errorf("error cancelling jobs on executor %s: %s", executor, err)
 	}
 	return nil
@@ -95,7 +100,7 @@ func (a *App) CancelOnNode(node string, executor string, queues []string, priori
 }
 
 // CancelOnQueues cancels all jobs on queues matching the provided QueueQueryArgs filter
-func (a *App) CancelOnQueues(args *QueueQueryArgs, priorityClasses []string, jobStates []utils.ActiveJobState, dryRun bool) error {
+func (a *App) CancelOnQueues(args *QueueQueryArgs, priorityClasses []string, pools []string, jobStates []utils.ActiveJobState, dryRun bool) error {
 	queues, err := a.getAllQueuesAsAPIQueue(args)
 	if err != nil {
 		return errors.Errorf("error fetching queues: %s", err)
@@ -103,12 +108,16 @@ func (a *App) CancelOnQueues(args *QueueQueryArgs, priorityClasses []string, job
 
 	priorityClassesMsg := strings.Join(priorityClasses, ",")
 	jobStatesMsg := strings.Join(armadaslices.Map(jobStates, func(s utils.ActiveJobState) string { return s.String() }), ",")
+	poolsMsg := strings.Join(pools, ",")
+	if len(pools) == 0 {
+		poolsMsg = "all"
+	}
 	apiJobStates := armadaslices.Map(jobStates, utils.ApiJobStateFromActiveJobState)
 
 	for _, queue := range queues {
-		fmt.Fprintf(a.Out, "Requesting cancellation of jobs matching queue: %s, priorityClasses: %s, jobStates: %s\n", queue.Name, priorityClassesMsg, jobStatesMsg)
+		fmt.Fprintf(a.Out, "Requesting cancellation of jobs matching queue: %s, priorityClasses: %s, jobStates: %s, pools: %s\n", queue.Name, priorityClassesMsg, jobStatesMsg, poolsMsg)
 		if !dryRun {
-			if err := a.Params.QueueAPI.Cancel(queue.Name, priorityClasses, apiJobStates); err != nil {
+			if err := a.Params.QueueAPI.Cancel(queue.Name, priorityClasses, apiJobStates, pools); err != nil {
 				return fmt.Errorf("error cancelling jobs on queue %s: %s", queue.Name, err)
 			}
 		}

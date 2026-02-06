@@ -92,7 +92,7 @@ func TestGangValidator_Validate(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			gangValidator := NewGangValidator(testfixtures.TestDefaultPriorityClass)
+			gangValidator := NewGangValidator()
 
 			jobDb := testfixtures.NewJobDb(testfixtures.TestResourceListFactory)
 			txn := jobDb.WriteTxn()
@@ -118,7 +118,7 @@ func TestGangValidator_Validate(t *testing.T) {
 }
 
 func TestGangValidator_Validate_ErrorsOnJobsMissingFromTxn(t *testing.T) {
-	gangValidator := NewGangValidator(testfixtures.TestDefaultPriorityClass)
+	gangValidator := NewGangValidator()
 	jobsToValidate := createNQueuedGangJob(2, "id-1", 2)
 
 	jobDb := testfixtures.NewJobDb(testfixtures.TestResourceListFactory)

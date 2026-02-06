@@ -30,11 +30,12 @@ type QueueStats struct {
 type PoolSchedulingTerminationReason string
 
 const (
-	PoolSchedulingTerminationReasonCompleted    PoolSchedulingTerminationReason = "completed"
-	PoolSchedulingTerminationReasonTimeout      PoolSchedulingTerminationReason = "timeout"
-	PoolSchedulingTerminationReasonRateLimit    PoolSchedulingTerminationReason = "rate_limit"
-	PoolSchedulingTerminationReasonMaxResources PoolSchedulingTerminationReason = "max_resources"
-	PoolSchedulingTerminationReasonError        PoolSchedulingTerminationReason = "error"
+	PoolSchedulingTerminationReasonCompleted          PoolSchedulingTerminationReason = "completed"
+	PoolSchedulingTerminationReasonSchedulingDisabled PoolSchedulingTerminationReason = "scheduling_disabled"
+	PoolSchedulingTerminationReasonTimeout            PoolSchedulingTerminationReason = "timeout"
+	PoolSchedulingTerminationReasonRateLimit          PoolSchedulingTerminationReason = "rate_limit"
+	PoolSchedulingTerminationReasonMaxResources       PoolSchedulingTerminationReason = "max_resources"
+	PoolSchedulingTerminationReasonError              PoolSchedulingTerminationReason = "error"
 )
 
 func terminationReasonFromString(reason string) PoolSchedulingTerminationReason {
@@ -51,9 +52,27 @@ func terminationReasonFromString(reason string) PoolSchedulingTerminationReason 
 }
 
 type PoolSchedulingOutcome struct {
-	Pool              string
-	Success           bool
-	TerminationReason PoolSchedulingTerminationReason
+	error             error
+	terminationReason PoolSchedulingTerminationReason
+}
+
+func NewPoolSchedulingOutcome(terminationReason PoolSchedulingTerminationReason, error error) *PoolSchedulingOutcome {
+	return &PoolSchedulingOutcome{
+		terminationReason: terminationReason,
+		error:             error,
+	}
+}
+
+func (p *PoolSchedulingOutcome) Success() bool {
+	return p.error == nil
+}
+
+func (p *PoolSchedulingOutcome) Error() error {
+	return p.error
+}
+
+func (p *PoolSchedulingOutcome) TerminationReason() PoolSchedulingTerminationReason {
+	return p.terminationReason
 }
 
 type SchedulingInformation struct {
@@ -91,8 +110,26 @@ type PoolSchedulingResult struct {
 	ReconciliationResult *ReconciliationResult
 	// The result of scheduling new jobs on this pool
 	SchedulingResult *SchedulingResult
+	// The time the scheduling on this pool started
+	// This will include everything in the cycle and not just scheduling
+	//  such as setup, reconciliation and scheduling
+	StartTime time.Time
+	// The time the scheduling on this pool ended
+	EndTime time.Time
 	// Scheduling outcome
 	Outcome PoolSchedulingOutcome
+}
+
+func (p *PoolSchedulingResult) GetDuration() time.Duration {
+	if p.StartTime.IsZero() || p.EndTime.IsZero() {
+		return time.Duration(0)
+	}
+
+	if p.EndTime.Before(p.StartTime) {
+		return time.Duration(0)
+	}
+
+	return p.EndTime.Sub(p.StartTime)
 }
 
 func (p *PoolSchedulingResult) GetScheduledJobs() []*schedulercontext.JobSchedulingContext {
