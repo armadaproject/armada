@@ -7,7 +7,6 @@ pull_request_rules:
         success_conditions:
           - or:
               - "-files~=^internal/lookoutui/"
-              - "files~=^(?!internal/lookoutui/).*$"
               - "#approved-reviews-by>=2"
               - and:
                   - "#approved-reviews-by>=1"
