@@ -8,10 +8,12 @@ import (
 	"github.com/armadaproject/armada/pkg/client"
 )
 
-type CancelAPI func(string, []string, []string) error
+// CancelAPI cancels jobs on an executor matching the given queues, priority classes, and pools.
+// Empty queues or pools means all queues or all pools respectively.
+type CancelAPI func(executor string, queues, priorityClasses, pools []string) error
 
 func CancelOnExecutor(getConnectionDetails client.ConnectionDetails) CancelAPI {
-	return func(executor string, queues []string, priorityClasses []string) error {
+	return func(executor string, queues []string, priorityClasses []string, pools []string) error {
 		connectionDetails, err := getConnectionDetails()
 		if err != nil {
 			return fmt.Errorf("failed to obtain api connection details: %s", err)
@@ -26,14 +28,12 @@ func CancelOnExecutor(getConnectionDetails client.ConnectionDetails) CancelAPI {
 		defer cancel()
 
 		executorClient := api.NewExecutorClient(conn)
-		newCancelOnExecutor := &api.ExecutorCancelRequest{
+		_, err = executorClient.CancelOnExecutor(ctx, &api.ExecutorCancelRequest{
 			Name:            executor,
 			Queues:          queues,
 			PriorityClasses: priorityClasses,
-		}
-		if _, err = executorClient.CancelOnExecutor(ctx, newCancelOnExecutor); err != nil {
-			return err
-		}
-		return nil
+			Pools:           pools,
+		})
+		return err
 	}
 }
