@@ -86,6 +86,11 @@ func (s *EventServer) serveEventsFromRepository(request *api.JobSetRequest, even
 	stream api.Event_GetJobSetEventsServer,
 ) error {
 	ctx := armadacontext.FromGrpcCtx(stream.Context())
+	if request.Watch {
+		user := auth.GetPrincipal(ctx).GetName()
+		activeEventSubscriptions.WithLabelValues(user).Inc()
+		defer activeEventSubscriptions.WithLabelValues(user).Dec()
+	}
 	if request.ErrorIfMissing {
 		exists, err := eventRepository.CheckStreamExists(ctx, request.Queue, request.Id)
 		if err != nil {

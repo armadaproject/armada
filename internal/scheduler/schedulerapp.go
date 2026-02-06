@@ -345,6 +345,7 @@ func Run(config schedulerconfig.Configuration) error {
 	schedulingAlgo, err := scheduling.NewFairSchedulingAlgo(
 		config.Scheduling,
 		config.MaxSchedulingDuration,
+		config.NewJobsSchedulingTimeout,
 		executorRepository,
 		queueCache,
 		schedulingContextRepository,
@@ -364,14 +365,12 @@ func Run(config schedulerconfig.Configuration) error {
 		resourceListFactory,
 	)
 
-	poolNames := slices.Map(config.Scheduling.Pools, func(p schedulerconfig.PoolConfig) string { return p.Name })
 	schedulerMetrics, err := metrics.New(
 		config.Metrics.TrackedErrorRegexes,
 		config.Metrics.TrackedResourceNames,
 		config.Metrics.JobCheckpointIntervals,
 		config.Metrics.JobStateMetricsResetInterval,
 		metricPublisher,
-		poolNames,
 	)
 	if err != nil {
 		return err
@@ -388,7 +387,7 @@ func Run(config schedulerconfig.Configuration) error {
 		leaderController,
 		jobsetEventPublisher,
 		submitChecker,
-		NewGangValidator(config.Scheduling.DefaultPriorityClassName),
+		NewGangValidator(),
 		config.CyclePeriod,
 		config.SchedulePeriod,
 		config.ExecutorTimeout,

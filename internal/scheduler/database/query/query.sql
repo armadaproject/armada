@@ -153,6 +153,7 @@ FROM runs jr
             ON jr.job_id = j.job_id
 WHERE jr.executor = @executor
   AND jr.queue = ANY(@queues::text[])
+  AND (@pools::text[] IS NULL OR cardinality(@pools::text[]) = 0 OR jr.pool = ANY(@pools::text[]))
   AND jr.terminated = false
   AND jr.preempted = false;
 
@@ -171,7 +172,8 @@ WHERE jr.node = @node
 SELECT j.*
 FROM jobs j
 WHERE j.queue = ANY(@queue::text[])
-  AND j.queued = true;
+  AND j.queued = true
+  AND (@pools::text[] IS NULL OR cardinality(@pools::text[]) = 0 OR j.pools && @pools::text[]);
 
 -- name: SelectLeasedJobsByQueue :many
 SELECT j.*
@@ -182,7 +184,8 @@ WHERE jr.queue = ANY(@queue::text[])
   AND jr.running = false
   AND jr.pending = false
   AND jr.terminated = false
-  AND jr.preempted = false;
+  AND jr.preempted = false
+  AND (@pools::text[] IS NULL OR cardinality(@pools::text[]) = 0 OR jr.pool = ANY(@pools::text[]));
 
 -- name: SelectPendingJobsByQueue :many
 SELECT j.*
@@ -193,7 +196,8 @@ WHERE jr.queue = ANY(@queue::text[])
   AND jr.running = false
   AND jr.pending = true
   AND jr.terminated = false
-  AND jr.preempted = false;
+  AND jr.preempted = false
+  AND (@pools::text[] IS NULL OR cardinality(@pools::text[]) = 0 OR jr.pool = ANY(@pools::text[]));
 
 -- name: SelectRunningJobsByQueue :many
 SELECT j.*
@@ -204,5 +208,6 @@ WHERE jr.queue = ANY(@queue::text[])
   AND jr.running = true
   AND jr.returned = false
   AND jr.terminated = false
-  AND jr.preempted = false;
+  AND jr.preempted = false
+  AND (@pools::text[] IS NULL OR cardinality(@pools::text[]) = 0 OR jr.pool = ANY(@pools::text[]));
 

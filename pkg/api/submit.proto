@@ -286,6 +286,8 @@ message StreamingQueueMessage{
 message QueuePreemptRequest {
   string name = 1;
   repeated string priorityClasses = 2;
+  // If empty, jobs on all pools will be preempted
+  repeated string pools = 3;
 }
 
 message QueueCancelRequest {
@@ -293,6 +295,8 @@ message QueueCancelRequest {
   repeated string priorityClasses = 2;
   // In practice jobs are only cancellable from non-terminal states
   repeated JobState jobStates = 3;
+  // If empty, jobs on all pools will be cancelled
+  repeated string pools = 4;
 }
 
 service QueueService {

@@ -48,8 +48,25 @@ type Configuration struct {
 	// This is expected to be a greater value than CyclePeriod as we don't need to schedule every cycle
 	// This keeps the system more responsive as other operations happen in each cycle - such as state changes
 	SchedulePeriod time.Duration `validate:"required"`
-	// The maximum time allowed for a job scheduling round
+	// MaxSchedulingDuration is the hard timeout for a scheduling cycle.
+	// When exceeded, the scheduler aborts immediately and returns an error,
+	// discarding all uncommitted work from the current cycle.
+	//
+	// This is a safety limit to prevent runaway scheduling cycles from blocking
+	// the system indefinitely.
+	//
+	// Must be greater than NewJobsSchedulingTimeout.
 	MaxSchedulingDuration time.Duration `validate:"required"`
+	// NewJobsSchedulingTimeout is the soft timeout for scheduling new jobs.
+	// When exceeded, the scheduler stops considering new jobs and only
+	// attempts to reschedule evicted jobs for the remainder of the cycle.
+	//
+	// This ensures evicted jobs (which were preempted mid-simulation) get
+	// rescheduled before the cycle commits, while still bounding total cycle time.
+	//
+	// Set to 0 to disable (scheduler will schedule new jobs until hard timeout).
+	// Must be less than MaxSchedulingDuration when non-zero.
+	NewJobsSchedulingTimeout time.Duration
 	// How long after a heartbeat an executor will be considered lost
 	ExecutorTimeout time.Duration `validate:"required"`
 	// Maximum number of rows to fetch in a given query
@@ -140,6 +157,11 @@ type HistogramConfig struct {
 type SchedulingConfig struct {
 	// Set to true to disable scheduling
 	DisableScheduling bool
+	// Set to true to make scheduling all or nothing
+	// By default pools the scheduler will attempt fail scheduling independently, not causing other pools to also fail
+	// This only applies to certain types of known failures
+	//	- critical failures will still cause a total scheduling round failure
+	DisableIndependentPoolFailures bool
 	// Set to true to enable scheduler assertions. This results in some performance loss.
 	EnableAssertions bool
 	// Experimental
@@ -281,6 +303,7 @@ const (
 	DuplicateWellKnownNodeTypeErrorMessage     = "duplicate well-known node type name"
 	AwayNodeTypesWithoutPreemptionErrorMessage = "priority class has away node types but is not preemptible"
 	UnknownWellKnownNodeTypeErrorMessage       = "priority class refers to unknown well-known node type"
+	InvalidSchedulingTimeoutErrorMessage       = "NewJobsSchedulingTimeout must be less than MaxSchedulingDuration"
 	WildCardWellKnownNodeTypeValue             = "*"
 )
 

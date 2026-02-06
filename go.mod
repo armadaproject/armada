@@ -68,8 +68,8 @@ require (
 	github.com/minio/highwayhash v1.0.3
 	github.com/openconfig/goyang v1.6.3
 	github.com/prometheus/common v0.67.5
-	github.com/redis/go-redis/extra/redisprometheus/v9 v9.17.2
-	github.com/redis/go-redis/v9 v9.17.2
+	github.com/redis/go-redis/extra/redisprometheus/v9 v9.17.3
+	github.com/redis/go-redis/v9 v9.17.3
 	github.com/rs/zerolog v1.34.0
 	github.com/segmentio/fasthash v1.0.3
 	github.com/xitongsys/parquet-go v1.6.2
@@ -256,5 +256,6 @@ require (
 
 replace (
 	charm.land/lipgloss/v2 => github.com/charmbracelet/lipgloss/v2 v2.0.0-beta.3.0.20251120230642-dcccabe2cd63
+	cyphar.com/go-pathrs => github.com/cyphar/libpathrs/go-pathrs v0.2.1
 	nhooyr.io/websocket => github.com/nhooyr/websocket v1.8.7
 )

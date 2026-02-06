@@ -52,17 +52,21 @@ func CreateGrpcServer(
 		grpc.KeepaliveEnforcementPolicy(keepaliveEnforcementPolicy),
 		setupTls(tlsConfig),
 		grpc.ChainUnaryInterceptor(
-			srvMetrics.UnaryServerInterceptor(),
 			requestid.UnaryServerInterceptor(false),
 			grpc_auth.UnaryServerInterceptor(authFunction),
+			srvMetrics.UnaryServerInterceptor(
+				grpc_prometheus.WithLabelsFromContext(extendGRPCLabels),
+			),
 			grpc_logging.UnaryServerInterceptor(InterceptorLogger(), loggerOpts...),
 			armadaerrors.UnaryServerInterceptor(2000),
 			grpc_recovery.UnaryServerInterceptor(grpc_recovery.WithRecoveryHandler(panicRecoveryHandler)),
 		),
 		grpc.ChainStreamInterceptor(
-			srvMetrics.StreamServerInterceptor(),
 			requestid.StreamServerInterceptor(false),
 			grpc_auth.StreamServerInterceptor(authFunction),
+			srvMetrics.StreamServerInterceptor(
+				grpc_prometheus.WithLabelsFromContext(extendGRPCLabels),
+			),
 			grpc_logging.StreamServerInterceptor(InterceptorLogger(), loggerOpts...),
 			armadaerrors.StreamServerInterceptor(2000),
 			grpc_recovery.StreamServerInterceptor(grpc_recovery.WithRecoveryHandler(panicRecoveryHandler)),
@@ -75,9 +79,18 @@ func setupPromMetrics() *grpc_prometheus.ServerMetrics {
 		grpc_prometheus.WithServerHandlingTimeHistogram(
 			grpc_prometheus.WithHistogramBuckets([]float64{0.001, 0.01, 0.1, 0.3, 0.6, 1, 3, 6, 9, 20, 30, 60, 90, 120}),
 		),
+		grpc_prometheus.WithContextLabels("user"),
 	)
 	prometheus.MustRegister(srvMetrics)
 	return srvMetrics
+}
+
+func extendGRPCLabels(ctx context.Context) prometheus.Labels {
+	principal := auth.GetPrincipal(ctx)
+	user := principal.GetName()
+	return prometheus.Labels{
+		"user": user,
+	}
 }
 
 // TODO We don't need this function. Just do this at the caller.
