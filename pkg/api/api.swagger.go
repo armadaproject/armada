@@ -2365,6 +2365,13 @@ func SwaggerJsonTemplate() string {
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +
+		"    \"timeTime\": {\n" +
+		"      \"description\": \"Programs using times should typically store and pass them as values,\\nnot pointers. That is, time variables and struct fields should be of\\ntype [time.Time], not *time.Time.\\n\\nA Time value can be used by multiple goroutines simultaneously except\\nthat the methods [Time.GobDecode], [Time.UnmarshalBinary], [Time.UnmarshalJSON] and\\n[Time.UnmarshalText] are not concurrency-safe.\\n\\nTime instants can be compared using the [Time.Before], [Time.After], and [Time.Equal] methods.\\nThe [Time.Sub] method subtracts two instants, producing a [Duration].\\nThe [Time.Add] method adds a Time and a Duration, producing a Time.\\n\\nThe zero value of type Time is January 1, year 1, 00:00:00.000000000 UTC.\\nAs this time is unlikely to come up in practice, the [Time.IsZero] method gives\\na simple way of detecting a time that has not been initialized explicitly.\\n\\nEach time has an associated [Location]. The methods [Time.Local], [Time.UTC], and Time.In return a\\nTime with a specific Location. Changing the Location of a Time value with\\nthese methods does not change the actual instant it represents, only the time\\nzone in which to interpret it.\\n\\nRepresentations of a Time value saved by the [Time.GobEncode], [Time.MarshalBinary], [Time.AppendBinary],\\n[Time.MarshalJSON], [Time.MarshalText] and [Time.AppendText] methods store the [Time.Location]'s offset,\\nbut not the location name. They therefore lose information about Daylight Saving Time.\\n\\nIn addition to the required “wall clock” reading, a Time may contain an optional\\nreading of the current process's monotonic clock, to provide additional precision\\nfor comparison or subtraction.\\nSee the “Monotonic Clocks” section in the package documentation for details.\\n\\nNote that the Go == operator compares not just the time instant but also the\\nLocation and the monotonic clock reading. Therefore, Time values should not\\nbe used as map or database keys without first guaranteeing that the\\nidentical Location has been set for all values, which can be achieved\\nthrough use of the UTC or Local method, and that the monotonic clock reading\\nhas been stripped by setting t = t.Round(0). In general, prefer t.Equal(u)\\nto t == u, since t.Equal uses the most accurate comparison available and\\ncorrectly handles the case when only one of its arguments has a monotonic\\nclock reading.\",\n" +
+		"      \"type\": \"string\",\n" +
+		"      \"format\": \"date-time\",\n" +
+		"      \"title\": \"A Time represents an instant in time with nanosecond precision.\",\n" +
+		"      \"x-go-package\": \"time\"\n" +
+		"    },\n" +
 		"    \"typesUID\": {\n" +
 		"      \"description\": \"UID is a type that holds unique ID values, including UUIDs.  Because we\\ndon't ONLY use UUIDs, this is an alias to string.  Being a type captures\\nintent and helps make sure that UIDs and names do not get conflated.\",\n" +
 		"      \"type\": \"string\",\n" +
@@ -4041,10 +4048,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"Subresource\"\n" +
 		"        },\n" +
 		"        \"time\": {\n" +
-		"          \"description\": \"Time is the timestamp of when the ManagedFields entry was added. The\\ntimestamp will also be updated if a field is added, the manager\\nchanges any of the owned fields value or removes a field. The\\ntimestamp does not update when a field is removed from the entry\\nbecause another manager took it over.\\n+optional\",\n" +
-		"          \"type\": \"string\",\n" +
-		"          \"x-go-name\": \"Time\",\n" +
-		"          \"x-go-type\": \"k8s.io/apimachinery/pkg/apis/meta/v1.Time\"\n" +
+		"          \"$ref\": \"#/definitions/timeTime\"\n" +
 		"        }\n" +
 		"      },\n" +
 		"      \"x-go-package\": \"k8s.io/apimachinery/pkg/apis/meta/v1\"\n" +
@@ -4208,10 +4212,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"Annotations\"\n" +
 		"        },\n" +
 		"        \"creationTimestamp\": {\n" +
-		"          \"description\": \"CreationTimestamp is a timestamp representing the server time when this object was\\ncreated. It is not guaranteed to be set in happens-before order across separate operations.\\nClients may not set this value. It is represented in RFC3339 form and is in UTC.\\n\\nPopulated by the system.\\nRead-only.\\nNull for lists.\\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata\\n+optional\",\n" +
-		"          \"type\": \"string\",\n" +
-		"          \"x-go-name\": \"CreationTimestamp\",\n" +
-		"          \"x-go-type\": \"k8s.io/apimachinery/pkg/apis/meta/v1.Time\"\n" +
+		"          \"$ref\": \"#/definitions/timeTime\"\n" +
 		"        },\n" +
 		"        \"deletionGracePeriodSeconds\": {\n" +
 		"          \"description\": \"Number of seconds allowed for this object to gracefully terminate before\\nit will be removed from the system. Only set when deletionTimestamp is also set.\\nMay only be shortened.\\nRead-only.\\n+optional\",\n" +
@@ -4220,10 +4221,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"DeletionGracePeriodSeconds\"\n" +
 		"        },\n" +
 		"        \"deletionTimestamp\": {\n" +
-		"          \"description\": \"DeletionTimestamp is RFC 3339 date and time at which this resource will be deleted. This\\nfield is set by the server when a graceful deletion is requested by the user, and is not\\ndirectly settable by a client. The resource is expected to be deleted (no longer visible\\nfrom resource lists, and not reachable by name) after the time in this field, once the\\nfinalizers list is empty. As long as the finalizers list contains items, deletion is blocked.\\nOnce the deletionTimestamp is set, this value may not be unset or be set further into the\\nfuture, although it may be shortened or the resource may be deleted prior to this time.\\nFor example, a user may request that a pod is deleted in 30 seconds. The Kubelet will react\\nby sending a graceful termination signal to the containers in the pod. After that 30 seconds,\\nthe Kubelet will send a hard termination signal (SIGKILL) to the container and after cleanup,\\nremove the pod from the API. In the presence of network partitions, this object may still\\nexist after this timestamp, until an administrator or automated process can determine the\\nresource is fully terminated.\\nIf not set, graceful deletion of the object has not been requested.\\n\\nPopulated by the system when a graceful deletion is requested.\\nRead-only.\\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata\\n+optional\",\n" +
-		"          \"type\": \"string\",\n" +
-		"          \"x-go-name\": \"DeletionTimestamp\",\n" +
-		"          \"x-go-type\": \"k8s.io/apimachinery/pkg/apis/meta/v1.Time\"\n" +
+		"          \"$ref\": \"#/definitions/timeTime\"\n" +
 		"        },\n" +
 		"        \"finalizers\": {\n" +
 		"          \"description\": \"Must be empty before the object is deleted from the registry. Each entry\\nis an identifier for the responsible component that will remove the entry\\nfrom the list. If the deletionTimestamp of the object is non-nil, entries\\nin this list can only be removed.\\nFinalizers may be processed and removed in any order.  Order is NOT enforced\\nbecause it introduces significant risk of stuck finalizers.\\nfinalizers is a shared field, any actor with permission can reorder it.\\nIf the finalizer list is processed in order, then this can lead to a situation\\nin which the component responsible for the first finalizer in the list is\\nwaiting for a signal (field value, external system, or other) produced by a\\ncomponent responsible for a finalizer later in the list, resulting in a deadlock.\\nWithout enforced ordering finalizers are free to order amongst themselves and\\nare not vulnerable to ordering changes in the list.\\n+optional\\n+patchStrategy=merge\\n+listType=set\",\n" +
@@ -4392,10 +4390,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"Annotations\"\n" +
 		"        },\n" +
 		"        \"creationTimestamp\": {\n" +
-		"          \"description\": \"CreationTimestamp is a timestamp representing the server time when this object was\\ncreated. It is not guaranteed to be set in happens-before order across separate operations.\\nClients may not set this value. It is represented in RFC3339 form and is in UTC.\\n\\nPopulated by the system.\\nRead-only.\\nNull for lists.\\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata\\n+optional\",\n" +
-		"          \"type\": \"string\",\n" +
-		"          \"x-go-name\": \"CreationTimestamp\",\n" +
-		"          \"x-go-type\": \"k8s.io/apimachinery/pkg/apis/meta/v1.Time\"\n" +
+		"          \"$ref\": \"#/definitions/timeTime\"\n" +
 		"        },\n" +
 		"        \"deletionGracePeriodSeconds\": {\n" +
 		"          \"description\": \"Number of seconds allowed for this object to gracefully terminate before\\nit will be removed from the system. Only set when deletionTimestamp is also set.\\nMay only be shortened.\\nRead-only.\\n+optional\",\n" +
@@ -4404,10 +4399,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"DeletionGracePeriodSeconds\"\n" +
 		"        },\n" +
 		"        \"deletionTimestamp\": {\n" +
-		"          \"description\": \"DeletionTimestamp is RFC 3339 date and time at which this resource will be deleted. This\\nfield is set by the server when a graceful deletion is requested by the user, and is not\\ndirectly settable by a client. The resource is expected to be deleted (no longer visible\\nfrom resource lists, and not reachable by name) after the time in this field, once the\\nfinalizers list is empty. As long as the finalizers list contains items, deletion is blocked.\\nOnce the deletionTimestamp is set, this value may not be unset or be set further into the\\nfuture, although it may be shortened or the resource may be deleted prior to this time.\\nFor example, a user may request that a pod is deleted in 30 seconds. The Kubelet will react\\nby sending a graceful termination signal to the containers in the pod. After that 30 seconds,\\nthe Kubelet will send a hard termination signal (SIGKILL) to the container and after cleanup,\\nremove the pod from the API. In the presence of network partitions, this object may still\\nexist after this timestamp, until an administrator or automated process can determine the\\nresource is fully terminated.\\nIf not set, graceful deletion of the object has not been requested.\\n\\nPopulated by the system when a graceful deletion is requested.\\nRead-only.\\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata\\n+optional\",\n" +
-		"          \"type\": \"string\",\n" +
-		"          \"x-go-name\": \"DeletionTimestamp\",\n" +
-		"          \"x-go-type\": \"k8s.io/apimachinery/pkg/apis/meta/v1.Time\"\n" +
+		"          \"$ref\": \"#/definitions/timeTime\"\n" +
 		"        },\n" +
 		"        \"finalizers\": {\n" +
 		"          \"description\": \"Must be empty before the object is deleted from the registry. Each entry\\nis an identifier for the responsible component that will remove the entry\\nfrom the list. If the deletionTimestamp of the object is non-nil, entries\\nin this list can only be removed.\\nFinalizers may be processed and removed in any order.  Order is NOT enforced\\nbecause it introduces significant risk of stuck finalizers.\\nfinalizers is a shared field, any actor with permission can reorder it.\\nIf the finalizer list is processed in order, then this can lead to a situation\\nin which the component responsible for the first finalizer in the list is\\nwaiting for a signal (field value, external system, or other) produced by a\\ncomponent responsible for a finalizer later in the list, resulting in a deadlock.\\nWithout enforced ordering finalizers are free to order amongst themselves and\\nare not vulnerable to ordering changes in the list.\\n+optional\\n+patchStrategy=merge\\n+listType=set\",\n" +

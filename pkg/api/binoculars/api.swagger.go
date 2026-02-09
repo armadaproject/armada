@@ -174,6 +174,13 @@ func SwaggerJsonTemplate() string {
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +
+		"    \"timeTime\": {\n" +
+		"      \"description\": \"Programs using times should typically store and pass them as values,\\nnot pointers. That is, time variables and struct fields should be of\\ntype [time.Time], not *time.Time.\\n\\nA Time value can be used by multiple goroutines simultaneously except\\nthat the methods [Time.GobDecode], [Time.UnmarshalBinary], [Time.UnmarshalJSON] and\\n[Time.UnmarshalText] are not concurrency-safe.\\n\\nTime instants can be compared using the [Time.Before], [Time.After], and [Time.Equal] methods.\\nThe [Time.Sub] method subtracts two instants, producing a [Duration].\\nThe [Time.Add] method adds a Time and a Duration, producing a Time.\\n\\nThe zero value of type Time is January 1, year 1, 00:00:00.000000000 UTC.\\nAs this time is unlikely to come up in practice, the [Time.IsZero] method gives\\na simple way of detecting a time that has not been initialized explicitly.\\n\\nEach time has an associated [Location]. The methods [Time.Local], [Time.UTC], and Time.In return a\\nTime with a specific Location. Changing the Location of a Time value with\\nthese methods does not change the actual instant it represents, only the time\\nzone in which to interpret it.\\n\\nRepresentations of a Time value saved by the [Time.GobEncode], [Time.MarshalBinary], [Time.AppendBinary],\\n[Time.MarshalJSON], [Time.MarshalText] and [Time.AppendText] methods store the [Time.Location]'s offset,\\nbut not the location name. They therefore lose information about Daylight Saving Time.\\n\\nIn addition to the required “wall clock” reading, a Time may contain an optional\\nreading of the current process's monotonic clock, to provide additional precision\\nfor comparison or subtraction.\\nSee the “Monotonic Clocks” section in the package documentation for details.\\n\\nNote that the Go == operator compares not just the time instant but also the\\nLocation and the monotonic clock reading. Therefore, Time values should not\\nbe used as map or database keys without first guaranteeing that the\\nidentical Location has been set for all values, which can be achieved\\nthrough use of the UTC or Local method, and that the monotonic clock reading\\nhas been stripped by setting t = t.Round(0). In general, prefer t.Equal(u)\\nto t == u, since t.Equal uses the most accurate comparison available and\\ncorrectly handles the case when only one of its arguments has a monotonic\\nclock reading.\",\n" +
+		"      \"type\": \"string\",\n" +
+		"      \"format\": \"date-time\",\n" +
+		"      \"title\": \"A Time represents an instant in time with nanosecond precision.\",\n" +
+		"      \"x-go-package\": \"time\"\n" +
+		"    },\n" +
 		"    \"v1PodLogOptions\": {\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"title\": \"PodLogOptions is the query options for a Pod's logs REST call.\",\n" +
@@ -221,10 +228,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"SinceSeconds\"\n" +
 		"        },\n" +
 		"        \"sinceTime\": {\n" +
-		"          \"description\": \"An RFC3339 timestamp from which to show logs. If this value\\nprecedes the time a pod was started, only logs since the pod start will be returned.\\nIf this value is in the future, no logs will be returned.\\nOnly one of sinceSeconds or sinceTime may be specified.\\n+optional\",\n" +
-		"          \"type\": \"string\",\n" +
-		"          \"x-go-name\": \"SinceTime\",\n" +
-		"          \"x-go-type\": \"k8s.io/apimachinery/pkg/apis/meta/v1.Time\"\n" +
+		"          \"$ref\": \"#/definitions/timeTime\"\n" +
 		"        },\n" +
 		"        \"stream\": {\n" +
 		"          \"description\": \"Specify which container log stream to return to the client.\\nAcceptable values are \\\"All\\\", \\\"Stdout\\\" and \\\"Stderr\\\". If not specified, \\\"All\\\" is used, and both stdout and stderr\\nare returned interleaved.\\nNote that when \\\"TailLines\\\" is specified, \\\"Stream\\\" can only be set to nil or \\\"All\\\".\\n+featureGate=PodLogsQuerySplitStreams\\n+optional\",\n" +
