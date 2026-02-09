@@ -224,6 +224,11 @@ message CancellationResult {
     repeated string cancelled_ids = 1;
 }
 
+// swagger:model
+message PreemptionResult {
+    map<string, string> preemption_results = 1;
+}
+
 //swagger:model
 message QueueGetRequest {
     string name = 1;
@@ -338,7 +343,7 @@ service Submit {
             body: "*"
         };
     }
-    rpc PreemptJobs (JobPreemptRequest) returns (google.protobuf.Empty) {
+    rpc PreemptJobs (JobPreemptRequest) returns (PreemptionResult) {
       option (google.api.http) = {
         post: "/v1/job/preempt"
         body: "*"
