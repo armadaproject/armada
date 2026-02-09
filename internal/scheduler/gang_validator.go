@@ -22,8 +22,7 @@ type SubmitGangValidator interface {
 	Validate(txn *jobdb.Txn, jobs []*jobdb.Job) ([]*invalidGangJobDetails, error)
 }
 
-type GangValidator struct {
-}
+type GangValidator struct{}
 
 func NewGangValidator() *GangValidator {
 	return &GangValidator{}
