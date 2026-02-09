@@ -8,10 +8,12 @@ import (
 	"github.com/armadaproject/armada/pkg/client"
 )
 
-type CancelAPI func(string, []string, []api.JobState) error
+// CancelAPI cancels jobs on a queue.
+// Parameters: queue name, priorityClasses, jobStates, pools (empty=all)
+type CancelAPI func(queueName string, priorityClasses []string, jobStates []api.JobState, pools []string) error
 
 func Cancel(getConnectionDetails client.ConnectionDetails) CancelAPI {
-	return func(queueName string, priorityClasses []string, jobStates []api.JobState) error {
+	return func(queueName string, priorityClasses []string, jobStates []api.JobState, pools []string) error {
 		connectionDetails, err := getConnectionDetails()
 		if err != nil {
 			return fmt.Errorf("failed to obtain api connection details: %s", err)
@@ -26,9 +28,7 @@ func Cancel(getConnectionDetails client.ConnectionDetails) CancelAPI {
 		defer cancel()
 
 		queueClient := api.NewQueueServiceClient(conn)
-		if _, err = queueClient.CancelOnQueue(ctx, &api.QueueCancelRequest{Name: queueName, PriorityClasses: priorityClasses, JobStates: jobStates}); err != nil {
-			return err
-		}
-		return nil
+		_, err = queueClient.CancelOnQueue(ctx, &api.QueueCancelRequest{Name: queueName, PriorityClasses: priorityClasses, JobStates: jobStates, Pools: pools})
+		return err
 	}
 }

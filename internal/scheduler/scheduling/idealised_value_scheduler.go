@@ -5,6 +5,7 @@ import (
 
 	"github.com/google/uuid"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/utils/clock"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
@@ -65,7 +66,7 @@ func NewIdealisedValueScheduler(
 	}, nil
 }
 
-func (sch *IdealisedValueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResult, error) {
+func (sch *IdealisedValueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulingResult, error) {
 	pool := sch.schedulingContext.Pool
 	sctx := sch.schedulingContext
 
@@ -79,11 +80,12 @@ func (sch *IdealisedValueScheduler) Schedule(ctx *armadacontext.Context) (*Sched
 	jobIteratorsByQueue := make(map[string]JobContextIterator)
 	for _, qctx := range sctx.QueueSchedulingContexts {
 		runningIt := NewStaticRequirementsIgnoringIterator(inMemoryJobRepo.GetJobIterator(qctx.Queue))
-		queueIt := NewStaticRequirementsIgnoringIterator(NewQueuedJobsIterator(ctx, qctx.Queue, sctx.Pool, jobdb.PriceOrder, sch.jobRepo))
+		queueIt := NewStaticRequirementsIgnoringIterator(NewQueuedJobsIterator(qctx.Queue, sctx.Pool, jobdb.PriceOrder, sch.jobRepo))
 		jobIteratorsByQueue[qctx.Queue] = NewMarketDrivenMultiJobsIterator(sctx.Pool, runningIt, queueIt)
 	}
 
-	// Run  a scheduling round
+	// Run a scheduling round. Soft timeout is disabled because we want to calculate the
+	// complete theoretical maximum value without early cutoff. Hard timeout still applies.
 	qs, err := NewQueueScheduler(
 		sch.schedulingContext,
 		sch.constraints,
@@ -95,7 +97,10 @@ func (sch *IdealisedValueScheduler) Schedule(ctx *armadacontext.Context) (*Sched
 		false,
 		sch.schedulingConfig.MaxQueueLookback,
 		true,
-		1.0)
+		1.0,
+		clock.RealClock{},
+		0,
+	)
 	if err != nil {
 		return nil, err
 	}

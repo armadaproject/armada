@@ -1,6 +1,6 @@
 import { ElementType, MouseEvent, RefObject, useCallback, useEffect, useRef, useState } from "react"
 
-import { Check, MoreVert } from "@mui/icons-material"
+import { Check, Clear, MoreVert } from "@mui/icons-material"
 import {
   Box,
   Checkbox,
@@ -9,6 +9,7 @@ import {
   InputLabel,
   ListItemIcon,
   ListItemText,
+  ListSubheader,
   MenuItem,
   OutlinedInput,
   Select,
@@ -51,6 +52,7 @@ export interface JobsTableFilterProps {
   filterType: FilterType
   matchType: Match
   enumFilterValues?: EnumFilterOption[]
+  enumFilterCategories?: EnumFilterCategory[]
   id: string
   parseError: string | undefined
   onFilterChange: (newFilter: string | string[] | number | undefined) => void
@@ -65,6 +67,7 @@ export const JobsTableFilter = ({
   matchType,
   parseError,
   enumFilterValues,
+  enumFilterCategories,
   onFilterChange,
   onColumnMatchChange,
   onSetTextFieldRef,
@@ -102,6 +105,7 @@ export const JobsTableFilter = ({
       <EnumFilter
         currentFilter={(currentFilter ?? []) as string[]}
         enumFilterValues={enumFilterValues ?? []}
+        categories={enumFilterCategories}
         label={label}
         onFilterChange={onFilterChange}
       />
@@ -141,19 +145,41 @@ export const JobsTableFilter = ({
   return <Box sx={{ display: "block", width: "100%" }}>{filter}</Box>
 }
 
+export interface EnumFilterCategory {
+  value: string
+  displayName: string
+}
+
 export interface EnumFilterOption {
   value: string
   displayName: string
   Icon?: ElementType<SvgIconProps>
   iconColor?: CustomPaletteColorToken
+  categories?: string[]
 }
 interface EnumFilterProps {
   currentFilter: string[]
   enumFilterValues: EnumFilterOption[]
+  categories?: EnumFilterCategory[]
   label: string
   onFilterChange: JobsTableFilterProps["onFilterChange"]
 }
-const EnumFilter = ({ currentFilter, enumFilterValues, label, onFilterChange }: EnumFilterProps) => {
+const EnumFilter = ({ currentFilter, enumFilterValues, categories, label, onFilterChange }: EnumFilterProps) => {
+  const handleCategoryClick = (categoryValue: string) => {
+    const statesInCategory = enumFilterValues
+      .filter((option) => option.categories?.includes(categoryValue))
+      .map((option) => option.value)
+    const allStatesInCategorySelected = statesInCategory.every((state) => currentFilter.includes(state))
+
+    if (allStatesInCategorySelected) {
+      const newFilter = currentFilter.filter((state) => !statesInCategory.includes(state))
+      onFilterChange(newFilter.length === 0 ? undefined : newFilter)
+    } else {
+      const newFilter = [...new Set([...currentFilter, ...statesInCategory])]
+      onFilterChange(newFilter)
+    }
+  }
+
   return (
     <Select
       variant="standard"
@@ -164,7 +190,9 @@ const EnumFilter = ({ currentFilter, enumFilterValues, label, onFilterChange }: 
         if (typeof value === "string") {
           onFilterChange(value === "" ? undefined : value)
         } else {
-          onFilterChange(value.length === 0 ? undefined : value)
+          // Filter out any invalid values that might come from clicking category headers
+          const validValues = value.filter((v) => enumFilterValues.some((option) => option.value === v))
+          onFilterChange(validValues.length === 0 ? undefined : validValues)
         }
       }}
       input={<OutlinedInput margin="dense" />}
@@ -187,20 +215,113 @@ const EnumFilter = ({ currentFilter, enumFilterValues, label, onFilterChange }: 
         style: {
           padding: 0,
           paddingLeft: "7px",
+          paddingRight: currentFilter.length > 0 ? "54px" : 0,
         },
       }}
+      endAdornment={
+        currentFilter.length > 0 && (
+          <InputAdornment position="end" sx={{ position: "absolute", right: "24px" }}>
+            <IconButton
+              size="small"
+              onClick={(e) => {
+                e.stopPropagation()
+                onFilterChange(undefined)
+              }}
+              aria-label="Clear filter"
+              sx={{
+                height: "22px",
+                width: "22px",
+              }}
+            >
+              <Clear fontSize="small" />
+            </IconButton>
+          </InputAdornment>
+        )
+      }
     >
-      {(enumFilterValues ?? []).map(({ value, displayName, Icon, iconColor }) => (
-        <MenuItem key={value} value={value} dense>
-          <Checkbox checked={currentFilter.indexOf(value) > -1} size="small" sx={{ padding: "3px" }} />
-          <ListItemText primary={displayName} />
-          {Icon && (
-            <ListItemIcon>
-              <Icon fontSize="inherit" color={iconColor ?? "inherit"} />
-            </ListItemIcon>
-          )}
-        </MenuItem>
-      ))}
+      {[
+        // Render category headers and their options below them allowing selecting/deselecting all in category
+        ...(categories ?? []).flatMap(({ value, displayName }) => {
+          const categoryOptions = enumFilterValues.filter((option) => option.categories?.includes(value))
+          const statesInCategory = categoryOptions.map((option) => option.value)
+          const allStatesInCategorySelected = statesInCategory.every((state) => currentFilter.includes(state))
+          const someStatesInCategorySelected =
+            !allStatesInCategorySelected && statesInCategory.some((state) => currentFilter.includes(state))
+
+          return [
+            <ListSubheader
+              key={value}
+              component="div"
+              role="button"
+              tabIndex={0}
+              aria-label={`${allStatesInCategorySelected ? "Deselect" : "Select"} all ${displayName} states`}
+              onMouseDown={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                handleCategoryClick(value)
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  handleCategoryClick(value)
+                }
+              }}
+              sx={{
+                cursor: "pointer",
+                display: "flex",
+                "&:hover": {
+                  backgroundColor: "action.hover",
+                },
+                "&:focus": {
+                  backgroundColor: "action.hover",
+                },
+              }}
+            >
+              <Checkbox
+                checked={allStatesInCategorySelected}
+                indeterminate={someStatesInCategorySelected}
+                size="small"
+                tabIndex={-1}
+                sx={{ padding: "3px", pointerEvents: "none" }}
+              />
+              <ListItemText
+                primary={displayName}
+                slotProps={{
+                  primary: {
+                    fontWeight: "bold",
+                    color: "text.primary",
+                  },
+                }}
+              />
+            </ListSubheader>,
+            ...categoryOptions.map((option) => (
+              <MenuItem key={option.value} value={option.value} dense sx={{ pl: 5 }}>
+                <Checkbox checked={currentFilter.indexOf(option.value) > -1} size="small" sx={{ padding: "3px" }} />
+                <ListItemText primary={option.displayName} />
+                {option.Icon && (
+                  <ListItemIcon>
+                    <option.Icon fontSize="inherit" color={option.iconColor ?? "inherit"} />
+                  </ListItemIcon>
+                )}
+              </MenuItem>
+            )),
+          ]
+        }),
+        ...(enumFilterValues ?? [])
+          .filter((option) => !categories?.some((cat) => option.categories?.includes(cat.value)))
+          .map(({ value, displayName, Icon, iconColor }) => (
+            <MenuItem key={value} value={value} dense>
+              <Checkbox checked={currentFilter.indexOf(value) > -1} size="small" sx={{ padding: "3px" }} />
+              <ListItemText primary={displayName} />
+              {Icon && (
+                <ListItemIcon>
+                  <Icon fontSize="inherit" color={iconColor ?? "inherit"} />
+                </ListItemIcon>
+              )}
+            </MenuItem>
+          )),
+      ]}
     </Select>
   )
 }
@@ -273,6 +394,19 @@ const TextFilter = ({
           },
           endAdornment: (
             <InputAdornment position="end">
+              {textFieldValue && (
+                <IconButton
+                  size="small"
+                  onClick={() => setTextFieldValue("")}
+                  aria-label="Clear filter"
+                  sx={{
+                    height: "22px",
+                    width: "22px",
+                  }}
+                >
+                  <Clear fontSize="small" />
+                </IconButton>
+              )}
               <MatchSelect possibleMatches={possibleMatches} currentMatch={match} onSelect={onColumnMatchChange} />
             </InputAdornment>
           ),

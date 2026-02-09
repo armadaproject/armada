@@ -59,6 +59,9 @@ def context():
     mock_ti.task_id = DEFAULT_TASK_ID
     mock_ti.try_number = 1
     mock_ti.xcom_pull.return_value = None
+    mock_ti.dag_id = "test_dag_1"
+    mock_ti.run_id = "test_run_1"
+    mock_ti.map_index = -1
 
     mock_dag = MagicMock()
     mock_dag.dag_id = "test_dag_1"
@@ -154,10 +157,9 @@ def test_execute_in_deferrable(_, context):
         DEFAULT_QUEUE, DEFAULT_JOB_SET, op.job_request
     )
     assert deferred.value.timeout == op.execution_timeout
+    # Trigger equality only checks moment, not context/channel_args
     assert deferred.value.trigger == ArmadaPollJobTrigger(
         moment=DEFAULT_CURRENT_TIME + timedelta(seconds=op.poll_interval),
-        context=op.job_context,
-        channel_args=op.channel_args,
     )
     assert deferred.value.method_name == "_trigger_reentry"
 
@@ -191,15 +193,22 @@ def test_execute_fail(terminal_state, context):
     op.pod_manager.fetch_container_logs.assert_not_called()
 
 
-def test_on_kill_terminates_running_job():
+@patch("armada.operators.armada.get_current_context")
+def test_on_kill_terminates_running_job(mock_get_context):
     op = operator(JobSubmitRequestItem())
     job_context = running_job_context()
-    op.job_context = job_context
+
+    # Mock get_current_context to return a context with ti
+    mock_ti = MagicMock()
+    mock_get_context.return_value = {"ti": mock_ti}
+
+    # First call returns job_context, second call returns None (already cancelled)
+    op.hook.context_from_xcom.side_effect = [job_context, None]
 
     op.on_kill()
     op.on_kill()
 
-    # We ensure we only try to cancel job once.
+    # We ensure we only try to cancel job once (second call has no context).
     op.hook.cancel_job.assert_called_once_with(job_context)
 
 
@@ -253,21 +262,20 @@ def test_reattaches_to_running_job(policy_return, should_reattach, context):
     context["ti"].max_tries = 5
     context["ti"].task.retries = 1
 
-    op = operator(JobSubmitRequestItem())
-    # Enable reattach
-    op.reattach_policy = lambda state, reason: policy_return
+    op = operator(
+        JobSubmitRequestItem(), reattach_policy=lambda state, reason: policy_return
+    )
 
     expected_context = running_job_context(
         job_state=JobState.RUNNING.name, cluster=DEFAULT_CLUSTER
     )
     op.hook.job_by_external_job_uri.return_value = expected_context
 
-    op.execute(context)
+    result = op.execute(context)
 
     if should_reattach:
-        assert op.job_context == dataclasses.replace(
-            expected_context, job_state=JobState.SUCCEEDED.name
-        )
+        assert result["job_id"] == DEFAULT_JOB_ID
+        assert result["job_state"] == JobState.SUCCEEDED.name
         op.hook.submit_job.assert_not_called()
     else:
         op.hook.submit_job.assert_called_once()
@@ -294,12 +302,11 @@ def test_reattaches_to_running_job_callable_policy(
     )
     op.hook.job_by_external_job_uri.return_value = expected_context
 
-    op.execute(context)
+    result = op.execute(context)
 
     if should_reattach:
-        assert op.job_context == dataclasses.replace(
-            expected_context, job_state=JobState.SUCCEEDED.name
-        )
+        assert result["job_id"] == DEFAULT_JOB_ID
+        assert result["job_state"] == JobState.SUCCEEDED.name
         op.hook.submit_job.assert_not_called()
     else:
         op.hook.submit_job.assert_called_once()

@@ -133,6 +133,7 @@ func (c *MetricsCollector) Collect(metrics chan<- prometheus.Metric) {
 func (c *MetricsCollector) refresh(ctx *armadacontext.Context) error {
 	ctx.Debugf("Refreshing prometheus metrics")
 	start := time.Now()
+	poolMetrics := c.updatePoolMetrics()
 	queueMetrics, err := c.updateQueueMetrics(ctx)
 	if err != nil {
 		return err
@@ -142,10 +143,20 @@ func (c *MetricsCollector) refresh(ctx *armadacontext.Context) error {
 		return err
 	}
 	jobDbMetrics := c.updateJobDBMetrics()
-	allMetrics := append(append(queueMetrics, clusterMetrics...), jobDbMetrics...)
+	allMetrics := append(append(append(queueMetrics, clusterMetrics...), jobDbMetrics...), poolMetrics...)
 	c.state.Store(allMetrics)
 	ctx.Debugf("Refreshed prometheus metrics in %s", time.Since(start))
 	return nil
+}
+
+func (c *MetricsCollector) updatePoolMetrics() []prometheus.Metric {
+	poolMetrics := make([]prometheus.Metric, 0, len(c.pools))
+
+	for _, pool := range c.pools {
+		poolMetrics = append(poolMetrics, commonmetrics.NewPoolInfoMetric(pool.Name))
+	}
+
+	return poolMetrics
 }
 
 func (c *MetricsCollector) updateQueueMetrics(ctx *armadacontext.Context) ([]prometheus.Metric, error) {

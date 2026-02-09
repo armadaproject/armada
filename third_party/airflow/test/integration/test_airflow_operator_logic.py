@@ -101,12 +101,12 @@ def armada_operator(image: str, channel_args: GrpcChannelArgs):
 def test_success_job(client: ArmadaClient, context: Any, channel_args: GrpcChannelArgs):
     operator = armada_operator("busybox", channel_args)
 
-    operator.execute(context)
-    job = operator.job_context
+    result = operator.execute(context)
 
-    assert job.state == JobState.SUCCEEDED
-    response = client.get_job_status([job.job_id])
-    assert JobState(response.job_states[job.job_id]) == JobState.SUCCEEDED
+    assert result["job_state"] == JobState.SUCCEEDED.name
+    job_id = result["job_id"]
+    response = client.get_job_status([job_id])
+    assert JobState(response.job_states[job_id]) == JobState.SUCCEEDED
 
 
 def test_bad_job(client: ArmadaClient, context: Any, channel_args: GrpcChannelArgs):
@@ -119,12 +119,19 @@ def test_bad_job(client: ArmadaClient, context: Any, channel_args: GrpcChannelAr
         )
     except AirflowException:  # Expected
         # Assert state failed
-        job = operator.job_context
-        assert job.state == JobState.FAILED
+        # We retrieve the job context from the xcom_push call
+        call_args = context["ti"].xcom_push.call_args
+        assert call_args is not None
+        kwargs = call_args[1]
+        assert kwargs["key"] == "job_context"
+        job_context = kwargs["value"]
+
+        assert job_context["armada_job_state"] == JobState.FAILED.name
 
         # Assert actual job failed too
-        response = client.get_job_status([job.job_id])
-        assert JobState(response.job_states[job.job_id]) == JobState.FAILED
+        job_id = job_context["armada_job_id"]
+        response = client.get_job_status([job_id])
+        assert JobState(response.job_states[job_id]) == JobState.FAILED
     except Exception as e:
         pytest.fail(
             "Operator did not raise AirflowException on job failure as expected, "
@@ -147,10 +154,11 @@ def _success_job(
         deferrable=False,
     )
 
-    operator.execute(context)
+    result = operator.execute(context)
 
-    response = client.get_job_status([operator.job_id])
-    return JobState(response.job_states[operator.job_id])
+    job_id = result["job_id"]
+    response = client.get_job_status([job_id])
+    return JobState(response.job_states[job_id])
 
 
 @pytest.mark.skip(reason="we should not test performance in the CI.")

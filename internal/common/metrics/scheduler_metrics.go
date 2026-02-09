@@ -19,6 +19,13 @@ const (
 	RunningPhase = "running"
 )
 
+var PoolInfoDesc = prometheus.NewDesc(
+	MetricPrefix+"scheduler_pool_info",
+	"Information about the pools that are currently being scheduled",
+	[]string{"pool"},
+	nil,
+)
+
 var QueueSizeDesc = prometheus.NewDesc(
 	MetricPrefix+"queue_size",
 	"Number of jobs in a queue",
@@ -281,6 +288,7 @@ var QueueLabelDesc = prometheus.NewDesc(
 )
 
 var AllDescs = []*prometheus.Desc{
+	PoolInfoDesc,
 	QueueSizeDesc,
 	QueuePriorityDesc,
 	QueueResourcesDesc,
@@ -419,6 +427,10 @@ func CollectQueueMetrics(pools []configuration.PoolConfig, queueCounts map[strin
 		metrics = append(metrics, NewQueueLabelsMetric(queue.Name, queue.Labels))
 	}
 	return metrics
+}
+
+func NewPoolInfoMetric(pool string) prometheus.Metric {
+	return prometheus.MustNewConstMetric(PoolInfoDesc, prometheus.GaugeValue, float64(1), pool)
 }
 
 func NewQueueSizeMetric(value int, queue string) prometheus.Metric {

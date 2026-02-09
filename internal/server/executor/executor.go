@@ -14,7 +14,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	"github.com/armadaproject/armada/internal/common/auth"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
-	pulsarutils "github.com/armadaproject/armada/internal/common/pulsarutils"
+	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/server/permissions"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/controlplaneevents"
@@ -127,6 +127,7 @@ func (s *Server) PreemptOnExecutor(grpcCtx context.Context, req *api.ExecutorPre
 				Name:            req.Name,
 				Queues:          req.Queues,
 				PriorityClasses: req.PriorityClasses,
+				Pools:           req.Pools,
 			},
 		},
 	}
@@ -160,6 +161,7 @@ func (s *Server) CancelOnExecutor(grpcCtx context.Context, req *api.ExecutorCanc
 				Name:            req.Name,
 				Queues:          req.Queues,
 				PriorityClasses: req.PriorityClasses,
+				Pools:           req.Pools,
 			},
 		},
 	}

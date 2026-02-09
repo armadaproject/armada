@@ -36,29 +36,34 @@ func TestReportStateTransitions(t *testing.T) {
 	)
 	require.NoError(t, err)
 	result := scheduling.SchedulerResult{
-		SchedulingContexts: []*context.SchedulingContext{
+		PoolResults: []*scheduling.PoolSchedulingResult{
 			{
-				Pool:                 "pool1",
-				FairnessCostProvider: fairnessCostProvider,
-				QueueSchedulingContexts: map[string]*context.QueueSchedulingContext{
-					"queue1": {
-						Allocated:                     cpu(10),
-						Demand:                        cpu(20),
-						ConstrainedDemand:             cpu(15),
-						DemandCappedAdjustedFairShare: 0.15,
-						UncappedAdjustedFairShare:     0.2,
-						ShortJobPenalty:               cpu(28),
-						SuccessfulJobSchedulingContexts: map[string]*context.JobSchedulingContext{
-							"job1": {
-								Job: testfixtures.Test1Cpu4GiJob("queue1", testfixtures.PriorityClass0),
-							},
-							"job2": {
-								Job: testfixtures.Test1Cpu4GiJob("queue1", testfixtures.PriorityClass0),
-							},
-						},
-						UnsuccessfulJobSchedulingContexts: map[string]*context.JobSchedulingContext{
-							"job2": {
-								Job: testfixtures.Test1Cpu4GiJob("queue1", testfixtures.PriorityClass0),
+				Name: "pool1",
+				SchedulingResult: &scheduling.SchedulingResult{
+					SchedulingContext: &context.SchedulingContext{
+						Pool:                 "pool1",
+						FairnessCostProvider: fairnessCostProvider,
+						QueueSchedulingContexts: map[string]*context.QueueSchedulingContext{
+							"queue1": {
+								Allocated:                     cpu(10),
+								Demand:                        cpu(20),
+								ConstrainedDemand:             cpu(15),
+								DemandCappedAdjustedFairShare: 0.15,
+								UncappedAdjustedFairShare:     0.2,
+								ShortJobPenalty:               cpu(28),
+								SuccessfulJobSchedulingContexts: map[string]*context.JobSchedulingContext{
+									"job1": {
+										Job: testfixtures.Test1Cpu4GiJob("queue1", testfixtures.PriorityClass0),
+									},
+									"job2": {
+										Job: testfixtures.Test1Cpu4GiJob("queue1", testfixtures.PriorityClass0),
+									},
+								},
+								UnsuccessfulJobSchedulingContexts: map[string]*context.JobSchedulingContext{
+									"job2": {
+										Job: testfixtures.Test1Cpu4GiJob("queue1", testfixtures.PriorityClass0),
+									},
+								},
 							},
 						},
 					},
@@ -67,7 +72,7 @@ func TestReportStateTransitions(t *testing.T) {
 		},
 	}
 
-	m := newCycleMetrics(pulsarutils.NoOpPublisher[*metricevents.Event]{}, []string{"pool1"})
+	m := newCycleMetrics(pulsarutils.NoOpPublisher[*metricevents.Event]{})
 	m.ReportSchedulerResult(ctx, result)
 
 	poolQueue := []string{"pool1", "queue1"}
@@ -97,8 +102,38 @@ func TestReportStateTransitions(t *testing.T) {
 	assert.InDelta(t, 0.05, fairnessError, epsilon, "fairnessError")
 }
 
+func TestReportOutcomes(t *testing.T) {
+	now := time.Now()
+	ctx := armadacontext.Background()
+	result := scheduling.SchedulerResult{
+		PoolResults: []*scheduling.PoolSchedulingResult{
+			{
+				Name:      "success",
+				Outcome:   *scheduling.NewPoolSchedulingOutcome("success-reason", nil),
+				StartTime: now,
+				EndTime:   now.Add(time.Second * 5),
+			},
+			{
+				Name:      "fail",
+				Outcome:   *scheduling.NewPoolSchedulingOutcome("error", fmt.Errorf("failed")),
+				StartTime: now,
+				EndTime:   now.Add(time.Second * 2),
+			},
+		},
+	}
+
+	m := newCycleMetrics(pulsarutils.NoOpPublisher[*metricevents.Event]{})
+	m.ReportSchedulerResult(ctx, result)
+
+	successOutcome := testutil.ToFloat64(m.poolSchedulingOutcome.WithLabelValues("success", SchedulingOutcomeSuccess, "success-reason"))
+	assert.Equal(t, 1.0, successOutcome)
+
+	errorOutcome := testutil.ToFloat64(m.poolSchedulingOutcome.WithLabelValues("fail", SchedulingOutcomeFailure, "error"))
+	assert.Equal(t, 1.0, errorOutcome)
+}
+
 func TestResetLeaderMetrics_Counters(t *testing.T) {
-	m := newCycleMetrics(pulsarutils.NoOpPublisher[*metricevents.Event]{}, []string{"pool1"})
+	m := newCycleMetrics(pulsarutils.NoOpPublisher[*metricevents.Event]{})
 	poolAndQueueAndPriorityClassTypeLabels := []string{"pool1", "queue1", "priorityClass1", "type1"}
 
 	testResetCounter := func(vec *prometheus.CounterVec, labelValues []string) {
@@ -111,11 +146,12 @@ func TestResetLeaderMetrics_Counters(t *testing.T) {
 	}
 
 	testResetCounter(m.scheduledJobs, poolAndQueueAndPriorityClassTypeLabels)
-	testResetCounter(m.premptedJobs, poolAndQueueAndPriorityClassTypeLabels)
+	testResetCounter(m.preemptedJobs, poolAndQueueAndPriorityClassTypeLabels)
+	testResetCounter(m.failedJobs, poolAndQueueAndPriorityClassTypeLabels)
 }
 
 func TestResetLeaderMetrics_ResetsLatestCycleMetrics(t *testing.T) {
-	m := newCycleMetrics(pulsarutils.NoOpPublisher[*metricevents.Event]{}, []string{"pool1"})
+	m := newCycleMetrics(pulsarutils.NoOpPublisher[*metricevents.Event]{})
 	poolLabelValues := []string{"pool1"}
 	poolQueueLabelValues := []string{"pool1", "queue1"}
 	poolQueueResourceLabelValues := []string{"pool1", "queue1", "cpu"}
@@ -162,13 +198,13 @@ func TestResetLeaderMetrics_ResetsLatestCycleMetrics(t *testing.T) {
 }
 
 func TestDisableLeaderMetrics(t *testing.T) {
-	m := newCycleMetrics(pulsarutils.NoOpPublisher[*metricevents.Event]{}, []string{"pool1"})
+	m := newCycleMetrics(pulsarutils.NoOpPublisher[*metricevents.Event]{})
 	poolQueueLabelValues := []string{"pool1", "queue1"}
 	poolAndQueueAndPriorityClassTypeLabels := []string{"pool1", "queue1", "priorityClass1", "type1"}
 
 	collect := func(m *cycleMetrics) []prometheus.Metric {
 		m.scheduledJobs.WithLabelValues(poolAndQueueAndPriorityClassTypeLabels...).Inc()
-		m.premptedJobs.WithLabelValues(poolAndQueueAndPriorityClassTypeLabels...).Inc()
+		m.preemptedJobs.WithLabelValues(poolAndQueueAndPriorityClassTypeLabels...).Inc()
 		m.latestCycleMetrics.Load().consideredJobs.WithLabelValues(poolQueueLabelValues...).Inc()
 		m.latestCycleMetrics.Load().fairShare.WithLabelValues(poolQueueLabelValues...).Inc()
 		m.latestCycleMetrics.Load().adjustedFairShare.WithLabelValues(poolQueueLabelValues...).Inc()
@@ -179,7 +215,10 @@ func TestDisableLeaderMetrics(t *testing.T) {
 		m.latestCycleMetrics.Load().shortJobPenalty.WithLabelValues(poolQueueLabelValues...).Inc()
 
 		m.scheduleCycleTime.Observe(float64(1000))
+		m.scheduleCycleOutcome.WithLabelValues(SchedulingOutcomeSuccess)
 		m.reconciliationCycleTime.Observe(float64(1000))
+		m.poolSchedulingCycleTime.WithLabelValues("pool1").Observe(float64(1000))
+		m.poolSchedulingOutcome.WithLabelValues("pool1", SchedulingOutcomeSuccess, "reason")
 		m.latestCycleMetrics.Load().gangsConsidered.WithLabelValues("pool1", "queue1").Inc()
 		m.latestCycleMetrics.Load().gangsScheduled.WithLabelValues("pool1", "queue1").Inc()
 		m.latestCycleMetrics.Load().firstGangQueuePosition.WithLabelValues("pool1", "queue1").Inc()
@@ -202,7 +241,7 @@ func TestDisableLeaderMetrics(t *testing.T) {
 	}
 
 	// Enabled
-	assert.NotZero(t, len(collect(m)))
+	assert.True(t, len(collect(m)) > 1)
 
 	// Disabled
 	m.disableLeaderMetrics()
@@ -210,7 +249,7 @@ func TestDisableLeaderMetrics(t *testing.T) {
 
 	// Enabled
 	m.enableLeaderMetrics()
-	assert.NotZero(t, len(collect(m)))
+	assert.True(t, len(collect(m)) > 1)
 }
 
 func TestPublishCycleMetrics(t *testing.T) {
@@ -219,7 +258,7 @@ func TestPublishCycleMetrics(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	mockPublisher := mocks.NewMockPublisher[*metricevents.Event](ctrl)
-	m := newCycleMetrics(mockPublisher, []string{"pool1"})
+	m := newCycleMetrics(mockPublisher)
 
 	fairnessCostProvider, err := fairness.NewDominantResourceFairness(
 		cpu(100),
@@ -229,22 +268,33 @@ func TestPublishCycleMetrics(t *testing.T) {
 	require.NoError(t, err)
 	spotPrice := float64(5)
 	schedulerResult := scheduling.SchedulerResult{
-		SchedulingContexts: []*context.SchedulingContext{
+		PoolResults: []*scheduling.PoolSchedulingResult{
 			{
-				Pool:                 "pool1",
-				Finished:             ts,
-				FairnessCostProvider: fairnessCostProvider,
-				TotalResources:       cpu(100),
-				QueueSchedulingContexts: map[string]*context.QueueSchedulingContext{
-					"queue1": {
-						Queue:             "queue1",
-						Allocated:         cpu(10),
-						Demand:            cpu(20),
-						ConstrainedDemand: cpu(15),
-						BillableResource:  cpu(9),
+				Name: "pool1",
+				SchedulingResult: &scheduling.SchedulingResult{
+					SchedulingContext: &context.SchedulingContext{
+						Pool:                 "pool1",
+						Finished:             ts,
+						FairnessCostProvider: fairnessCostProvider,
+						TotalResources:       cpu(100),
+						QueueSchedulingContexts: map[string]*context.QueueSchedulingContext{
+							"queue1": {
+								Queue:             "queue1",
+								Allocated:         cpu(10),
+								Demand:            cpu(20),
+								ConstrainedDemand: cpu(15),
+								BillableResource:  cpu(9),
+							},
+						},
+						SpotPrice: &spotPrice,
 					},
 				},
-				SpotPrice: &spotPrice,
+			},
+			{
+				// Failed pools should have no data to publish and fail the other pools sending data
+				Name:             "pool2",
+				Outcome:          *scheduling.NewPoolSchedulingOutcome("error", fmt.Errorf("error")),
+				SchedulingResult: nil,
 			},
 		},
 	}
@@ -314,43 +364,45 @@ func TestPublishCycleMetrics(t *testing.T) {
 }
 
 func TestReportPoolSchedulingOutcomes(t *testing.T) {
-	m := newCycleMetrics(pulsarutils.NoOpPublisher[*metricevents.Event]{}, []string{"pool1"})
+	m := newCycleMetrics(pulsarutils.NoOpPublisher[*metricevents.Event]{})
 
-	outcomes := []scheduling.PoolSchedulingOutcome{
+	type outcome struct {
+		pool              string
+		schedulingOutcome *scheduling.PoolSchedulingOutcome
+	}
+	outcomes := []outcome{
 		{
-			Pool:              "pool-1",
-			Success:           false,
-			TerminationReason: scheduling.PoolSchedulingTerminationReasonError,
+			pool:              "pool-1",
+			schedulingOutcome: scheduling.NewPoolSchedulingOutcome(scheduling.PoolSchedulingTerminationReasonError, fmt.Errorf("error")),
 		},
 		{
-			Pool:              "pool-2",
-			Success:           true,
-			TerminationReason: scheduling.PoolSchedulingTerminationReasonCompleted,
+			pool:              "pool-2",
+			schedulingOutcome: scheduling.NewPoolSchedulingOutcome(scheduling.PoolSchedulingTerminationReasonCompleted, nil),
 		},
 		{
-			Pool:              "pool-3",
-			Success:           true,
-			TerminationReason: scheduling.PoolSchedulingTerminationReasonTimeout,
+			pool:              "pool-3",
+			schedulingOutcome: scheduling.NewPoolSchedulingOutcome(scheduling.PoolSchedulingTerminationReasonTimeout, nil),
 		},
 		{
-			Pool:              "pool-4",
-			Success:           true,
-			TerminationReason: scheduling.PoolSchedulingTerminationReasonRateLimit,
+			pool:              "pool-4",
+			schedulingOutcome: scheduling.NewPoolSchedulingOutcome(scheduling.PoolSchedulingTerminationReasonRateLimit, nil),
 		},
 	}
 
-	m.ReportPoolSchedulingOutcomes(outcomes)
+	for _, outcome := range outcomes {
+		m.ReportPoolSchedulingOutcome(outcome.pool, *outcome.schedulingOutcome)
+	}
 
-	failureCount := testutil.ToFloat64(m.poolSchedulingOutcome.WithLabelValues("pool-1", PoolSchedulingOutcomeFailure, string(scheduling.PoolSchedulingTerminationReasonError)))
+	failureCount := testutil.ToFloat64(m.poolSchedulingOutcome.WithLabelValues("pool-1", SchedulingOutcomeFailure, string(scheduling.PoolSchedulingTerminationReasonError)))
 	assert.Equal(t, 1.0, failureCount, "failure outcome metric does not match")
 
-	completedCount := testutil.ToFloat64(m.poolSchedulingOutcome.WithLabelValues("pool-2", PoolSchedulingOutcomeSuccess, string(scheduling.PoolSchedulingTerminationReasonCompleted)))
+	completedCount := testutil.ToFloat64(m.poolSchedulingOutcome.WithLabelValues("pool-2", SchedulingOutcomeSuccess, string(scheduling.PoolSchedulingTerminationReasonCompleted)))
 	assert.Equal(t, 1.0, completedCount, "completed outcome metric does not match")
 
-	timeoutCount := testutil.ToFloat64(m.poolSchedulingOutcome.WithLabelValues("pool-3", PoolSchedulingOutcomeSuccess, string(scheduling.PoolSchedulingTerminationReasonTimeout)))
+	timeoutCount := testutil.ToFloat64(m.poolSchedulingOutcome.WithLabelValues("pool-3", SchedulingOutcomeSuccess, string(scheduling.PoolSchedulingTerminationReasonTimeout)))
 	assert.Equal(t, 1.0, timeoutCount, "timeout outcome metric does not match")
 
-	rateLimitCount := testutil.ToFloat64(m.poolSchedulingOutcome.WithLabelValues("pool-4", PoolSchedulingOutcomeSuccess, string(scheduling.PoolSchedulingTerminationReasonRateLimit)))
+	rateLimitCount := testutil.ToFloat64(m.poolSchedulingOutcome.WithLabelValues("pool-4", SchedulingOutcomeSuccess, string(scheduling.PoolSchedulingTerminationReasonRateLimit)))
 	assert.Equal(t, 1.0, rateLimitCount, "rate limit outcome metric does not match")
 }
 

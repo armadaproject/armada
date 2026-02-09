@@ -1,5 +1,5 @@
 import { QueryClientProvider } from "@tanstack/react-query"
-import { render, waitFor } from "@testing-library/react"
+import { render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { SnackbarProvider } from "notistack"
 
@@ -14,14 +14,13 @@ import {
   FORMAT_TIMESTAMP_SHOULD_FORMAT_KEY,
 } from "../../../userSettings/localStorageKeys"
 
-import { CancelDialog } from "./CancelDialog"
+import { PreemptDialog } from "./PreemptDialog"
 
 const mockServer = new MockServer()
 
-describe("CancelDialog", () => {
+describe("PreemptDialog", () => {
   const numJobs = 5
   const numFinishedJobs = 0
-
   let jobs: Job[]
   let selectedItemFilters: JobFiltersWithExcludes[]
   let onClose: () => void
@@ -64,7 +63,7 @@ describe("CancelDialog", () => {
       <QueryClientProvider client={queryClient}>
         <ApiClientsProvider>
           <SnackbarProvider>
-            <CancelDialog onClose={onClose} selectedItemFilters={selectedItemFilters} />
+            <PreemptDialog onClose={onClose} selectedItemFilters={selectedItemFilters} />
           </SnackbarProvider>
         </ApiClientsProvider>
       </QueryClientProvider>,
@@ -75,10 +74,10 @@ describe("CancelDialog", () => {
     const { getByRole, findByRole, getByText } = renderComponent()
 
     // Initial render
-    getByRole("heading", { name: "Cancel jobs" })
+    getByRole("heading", { name: "Preempt jobs" })
 
     // Once job details are fetched
-    await findByRole("heading", { name: "Cancel 1 job" })
+    await findByRole("heading", { name: "Preempt 1 job" })
 
     // Check basic job information is displayed
     getByText("job-id-0")
@@ -87,8 +86,7 @@ describe("CancelDialog", () => {
   })
 
   it("shows an alert if all jobs in a terminated state", async () => {
-    const jobToReturn = { ...jobs[0], state: JobState.Failed }
-    mockServer.setPostJobsResponse([jobToReturn])
+    mockServer.setPostJobsResponse([{ ...jobs[0], state: JobState.Failed }])
     const { findByText } = renderComponent()
 
     // Once job details are fetched
@@ -116,16 +114,16 @@ describe("CancelDialog", () => {
     // 6000 total jobs, split between 2 queues = 3000 jobs per queue
     // But only a subset will be in a non-terminated state
     // These will always be the same numbers as long as the makeJobs random seed is the same
-    await findByRole("heading", { name: "Cancel 1480 jobs" }, { timeout: 3000 })
-    getByText("6000 jobs are selected, but only 1480 jobs are in a cancellable (non-terminated) state.")
+    await findByRole("heading", { name: "Preempt 1480 jobs" }, { timeout: 3000 })
+    getByText("6000 jobs are selected, but only 1480 jobs are in a non-terminated state.")
   })
 
   it.each([
     {
       method: "clicking the button",
       action: async (getByRole: ReturnType<typeof render>["getByRole"]) => {
-        const cancelButton = await waitFor(() => getByRole("button", { name: /Cancel 1 job/i }))
-        await userEvent.click(cancelButton)
+        const preemptButton = await waitFor(() => getByRole("button", { name: /Preempt 1 job/i }))
+        await userEvent.click(preemptButton)
       },
     },
     {
@@ -134,15 +132,16 @@ describe("CancelDialog", () => {
         await userEvent.keyboard("{Enter}")
       },
     },
-  ])("allows the user to cancel jobs by $method", async ({ action }) => {
+  ])("allows the user to preempt jobs by $method", async ({ action }) => {
     mockServer.setPostJobsResponse([jobs[0]])
     const { getByRole, findByText } = renderComponent()
 
-    mockServer.setCancelJobsResponse([jobs[0].jobId], [])
+    mockServer.setPreemptJobsResponse()
+
+    await enterPreemptReason("Reason for preemption")
 
     await action(getByRole)
-
-    await findByText(/Successfully began cancellation/i)
+    await findByText(/Successfully requested preemption of selected jobs. See table for job statuses./i)
   })
 
   it("allows user to refetch jobs", async () => {
@@ -167,73 +166,26 @@ describe("CancelDialog", () => {
     await findByText(formatJobState(jobs[0].state))
   })
 
-  it("shows error reasons if cancellation fails", async () => {
-    mockServer.setPostJobsResponse(jobs)
-    const { getByRole, findByText } = renderComponent()
-
-    mockServer.setCancelJobsResponse([], [jobs[0].jobId])
-
-    const cancelButton = await waitFor(() => getByRole("button", { name: /Cancel 1 job/i }))
-    await userEvent.click(cancelButton)
-
-    // Snackbar popup
-    await findByText(/All jobs failed to cancel/i)
-
-    // Verify reason is shown in table
-    // Longer timeout since another fetch call is made before this is shown
-    await findByText("failed to cancel job", {}, { timeout: 3000 })
-  })
-
-  it("handles a partial success", async () => {
-    // Select 2 jobs
-    selectedItemFilters = [
-      {
-        jobFilters: [
-          {
-            field: "jobId",
-            value: jobs[0].jobId,
-            match: Match.Exact,
-          },
-        ],
-        excludesJobFilters: [],
-      },
-      {
-        jobFilters: [
-          {
-            field: "jobId",
-            value: jobs[1].jobId,
-            match: Match.Exact,
-          },
-        ],
-        excludesJobFilters: [],
-      },
-    ]
-
-    const firstJob = { ...jobs[0] }
-    const secondJob = { ...jobs[1], state: JobState.Pending }
-    mockServer.setPostJobsResponse([firstJob, secondJob])
-
+  it("handles failures to preempt jobs", async () => {
+    mockServer.setPostJobsResponse([jobs[0]])
     const { getByRole, findByText, findByRole } = renderComponent()
 
-    // Fail 1, succeed the other
-    mockServer.setCancelJobsResponse([firstJob.jobId], [secondJob.jobId])
+    mockServer.setPreemptJobsResponse(500, "Internal Server Error")
 
-    const cancelButton = await waitFor(() => getByRole("button", { name: /Cancel 2 jobs/i }))
-    await userEvent.click(cancelButton)
+    await enterPreemptReason("Reason for preemption")
 
-    // Snackbar popup
-    await findByText(/Some jobs failed to cancel/i)
-
-    // Verify reason is shown in table
-    // Longer timeout since another fetch call is made before this is shown
-    await findByText("Success", {}, { timeout: 3000 })
-    await findByText("failed to cancel job")
-
-    // This job was successfully cancelled
-    mockServer.setPostJobsResponse([{ ...firstJob, state: JobState.Cancelled }, secondJob])
+    const preemptButton = await waitFor(() => getByRole("button", { name: /Preempt 1 job/i }))
+    await userEvent.click(preemptButton)
+    await findByText(/Some preemption requests failed. See table for job statuses./i)
 
     // Check the user can re-attempt the other job after a refetch
     await userEvent.click(getByRole("button", { name: /Refetch jobs/i }))
-    expect(await findByRole("button", { name: /Cancel 1 job/i })).toBeEnabled()
+    expect(await findByRole("button", { name: /Preempt 1 job/i })).toBeEnabled()
   })
+
+  async function enterPreemptReason(reason: string) {
+    const reasonTextBox = await screen.findByRole("textbox", { name: "Reason for job preemption" })
+    await userEvent.clear(reasonTextBox)
+    await userEvent.type(reasonTextBox, reason)
+  }
 })

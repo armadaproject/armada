@@ -117,7 +117,21 @@ describe("ReprioritizeDialog", () => {
     getByText("6000 jobs are selected, but only 1480 jobs are in a non-terminated state.")
   })
 
-  it("allows the user to reprioritize jobs", async () => {
+  it.each([
+    {
+      method: "clicking the button",
+      action: async (getByRole: ReturnType<typeof render>["getByRole"]) => {
+        const reprioritizeButton = await waitFor(() => getByRole("button", { name: /Reprioritize 1 job/i }))
+        await userEvent.click(reprioritizeButton)
+      },
+    },
+    {
+      method: "pressing Enter",
+      action: async () => {
+        await userEvent.keyboard("{Enter}")
+      },
+    },
+  ])("allows the user to reprioritize jobs by $method", async ({ action }) => {
     mockServer.setPostJobsResponse([jobs[0]])
     const { getByRole, findByText } = renderComponent()
 
@@ -125,8 +139,7 @@ describe("ReprioritizeDialog", () => {
 
     await enterPriority("2")
 
-    const cancelButton = await waitFor(() => getByRole("button", { name: /Reprioritize 1 job/i }))
-    await userEvent.click(cancelButton)
+    await action(getByRole)
 
     await findByText(/Successfully changed priority./i)
   })
