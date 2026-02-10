@@ -45,6 +45,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/priorityoverride"
 	"github.com/armadaproject/armada/internal/scheduler/queue"
 	"github.com/armadaproject/armada/internal/scheduler/reports"
+	"github.com/armadaproject/armada/internal/scheduler/retry"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/api/schedulerobjects"
@@ -342,6 +343,10 @@ func Run(config schedulerconfig.Configuration) error {
 	runReconciler := scheduling.NewRunNodeReconciler(config.Scheduling.Pools)
 	shortJobPenalty := scheduling.NewShortJobPenalty(config.Scheduling.GetShortJobPenaltyCutoffs())
 	stringInterner := stringinterner.New(config.InternedStringsCacheSize)
+	retryEngine, err := retry.NewEngine(config.Scheduling.RetryPolicy)
+	if err != nil {
+		return errors.WithMessage(err, "error creating retry engine")
+	}
 	schedulingAlgo, err := scheduling.NewFairSchedulingAlgo(
 		config.Scheduling,
 		config.MaxSchedulingDuration,
@@ -354,6 +359,7 @@ func Run(config schedulerconfig.Configuration) error {
 		priorityOverrideProvider,
 		shortJobPenalty,
 		runReconciler,
+		retryEngine,
 	)
 	if err != nil {
 		return errors.WithMessage(err, "error creating scheduling algo")
@@ -397,6 +403,8 @@ func Run(config schedulerconfig.Configuration) error {
 		schedulerMetrics,
 		bidPriceProvider,
 		marketDrivenPools,
+		retryEngine,
+		queueCache,
 	)
 	if err != nil {
 		return errors.WithMessage(err, "error creating scheduler")

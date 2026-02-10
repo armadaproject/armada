@@ -15,6 +15,10 @@ message LogRequest {
     string pod_namespace = 3;
     string since_time = 4; // allows to specify high precision time as string
     k8s.io.api.core.v1.PodLogOptions log_options = 5;
+    // Run attempt index for retry support (0-based). Only used if include_run_index is true.
+    int32 run_index = 6;
+    // If true, include run_index in pod name lookup. False for legacy pods without run index suffix.
+    bool include_run_index = 7;
 }
 
 // swagger:model

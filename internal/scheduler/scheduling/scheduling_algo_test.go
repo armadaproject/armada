@@ -26,6 +26,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/priorityoverride"
 	"github.com/armadaproject/armada/internal/scheduler/reports"
+	"github.com/armadaproject/armada/internal/scheduler/retry"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 	"github.com/armadaproject/armada/pkg/api"
@@ -123,6 +124,7 @@ func TestSchedule_PoolFailureIsolation(t *testing.T) {
 				priorityoverride.NewNoOpProvider(),
 				nil,
 				&testRunReconciler{},
+				nil, // retryEngine - when nil, preempted jobs fail (no retry)
 			)
 			require.NoError(t, err)
 
@@ -608,11 +610,11 @@ func TestSchedule(t *testing.T) {
 			schedulingConfig: testfixtures.TestSchedulingConfig(),
 			executors:        []*schedulerobjects.Executor{test1Node32CoreExecutor("executor1")},
 			queues:           []*api.Queue{{Name: "A"}},
-			queuedJobs:       testfixtures.WithPreemptionRetryAnnotationsJobs(testfixtures.N16Cpu128GiJobs("A", testfixtures.PriorityClass1, 2), 10),
+			queuedJobs:       testfixtures.N16Cpu128GiJobs("A", testfixtures.PriorityClass1, 2),
 			scheduledJobsByExecutorIndexAndNodeIndex: map[int]map[int]scheduledJobs{
 				0: {
 					0: scheduledJobs{
-						jobs:         testfixtures.WithPreemptionRetryAnnotationsJobs(testfixtures.N16Cpu128GiJobs("A", testfixtures.PriorityClass0, 1), 10),
+						jobs:         testfixtures.N16Cpu128GiJobs("A", testfixtures.PriorityClass0, 1),
 						acknowledged: true,
 					},
 				},
@@ -668,11 +670,11 @@ func TestSchedule(t *testing.T) {
 			schedulingConfig: testfixtures.TestSchedulingConfig(),
 			executors:        []*schedulerobjects.Executor{test1Node32CoreExecutor("executor1")},
 			queues:           []*api.Queue{{Name: "A", PriorityFactor: 0.01}, {Name: "B", PriorityFactor: 0.01}},
-			queuedJobs:       testfixtures.WithPreemptionRetryAnnotationsJobs(testfixtures.N16Cpu128GiJobs("A", testfixtures.PriorityClass0, 2), 10),
+			queuedJobs:       testfixtures.N16Cpu128GiJobs("A", testfixtures.PriorityClass0, 2),
 			scheduledJobsByExecutorIndexAndNodeIndex: map[int]map[int]scheduledJobs{
 				0: {
 					0: scheduledJobs{
-						jobs:         testfixtures.WithPreemptionRetryAnnotationsJobs(testfixtures.N16Cpu128GiJobs("B", testfixtures.PriorityClass0, 2), 10),
+						jobs:         testfixtures.N16Cpu128GiJobs("B", testfixtures.PriorityClass0, 2),
 						acknowledged: true,
 					},
 				},
@@ -867,6 +869,7 @@ func TestSchedule(t *testing.T) {
 				priorityoverride.NewNoOpProvider(),
 				nil,
 				runReconciler,
+				nil, // retryEngine - when nil, preempted jobs fail (no retry)
 			)
 			require.NoError(t, err)
 
@@ -986,15 +989,11 @@ func TestSchedule(t *testing.T) {
 			}
 
 			// Check that preempted jobs are marked as such consistently.
+			// With retryEngine=nil, all preempted jobs fail (no retry).
 			for _, job := range preemptedJobs {
 				dbJob := txn.GetById(job.Id())
-				if dbJob.IsEligibleForPreemptionRetry(tc.schedulingConfig.PreemptionRetry) {
-					assert.False(t, dbJob.Failed())
-					assert.True(t, dbJob.Queued())
-				} else {
-					assert.True(t, dbJob.Failed())
-					assert.False(t, dbJob.Queued())
-				}
+				assert.True(t, dbJob.Failed())
+				assert.False(t, dbJob.Queued())
 
 				// The job run is always marked for preemption
 				lastRun := dbJob.LatestRun()
@@ -1307,4 +1306,180 @@ func (t *testRunReconciler) ReconcileJobRuns(txn *jobdb.Txn, _ []*schedulerobjec
 		}
 	}
 	return result
+}
+
+// TestSchedule_PreemptionRetryWithRetryEngine tests that the scheduling algorithm
+// correctly requeues preempted jobs when a retry engine with preemption retry is configured.
+func TestSchedule_PreemptionRetryWithRetryEngine(t *testing.T) {
+	ctx := armadacontext.Background()
+
+	// Create a retry engine that allows preemption retry
+	retryEngine, err := retry.NewEngine(configuration.RetryPolicyConfig{
+		Enabled:          true,
+		GlobalMaxRetries: 10,
+		Default: configuration.Policy{
+			RetryLimit: 5,
+			Rules: []configuration.Rule{
+				{
+					Action: configuration.ActionRetry,
+					OnConditions: []configuration.FailureCondition{
+						configuration.ConditionPreempted,
+					},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	ctrl := gomock.NewController(t)
+	mockExecutorRepo := schedulermocks.NewMockExecutorRepository(ctrl)
+	executor := test1Node32CoreExecutor("executor1")
+	mockExecutorRepo.EXPECT().GetExecutors(ctx).Return([]*schedulerobjects.Executor{executor}, nil).AnyTimes()
+	mockExecutorRepo.EXPECT().GetExecutorSettings(ctx).Return([]*schedulerobjects.ExecutorSettings{}, nil).AnyTimes()
+
+	mockQueueCache := schedulermocks.NewMockQueueCache(ctrl)
+	queue := &api.Queue{Name: "A", RetryPolicy: ""} // Empty = use default policy
+	mockQueueCache.EXPECT().GetAll(ctx).Return([]*api.Queue{queue}, nil).AnyTimes()
+
+	sch, err := NewFairSchedulingAlgo(
+		testfixtures.TestSchedulingConfig(),
+		0, // maxSchedulingDuration
+		0, // newJobsSchedulingTimeout
+		mockExecutorRepo,
+		mockQueueCache,
+		reports.NewSchedulingContextRepository(),
+		testfixtures.TestResourceListFactory,
+		testfixtures.TestEmptyFloatingResources,
+		priorityoverride.NewNoOpProvider(),
+		nil,
+		&testRunReconciler{},
+		retryEngine, // Enable retry engine
+	)
+	require.NoError(t, err)
+	sch.clock = clock.NewFakeClock(testfixtures.BaseTime)
+
+	// Create a low priority job that will be preempted
+	lowPriorityJob := testfixtures.Test16Cpu128GiJob("A", testfixtures.PriorityClass0).
+		WithQueued(false).
+		WithNewRun(executor.Id, executor.Nodes[0].Id, executor.Nodes[0].Name, executor.Nodes[0].Pool, 0)
+
+	// Mark the run as acknowledged (running)
+	executor.Nodes[0].StateByJobRunId[lowPriorityJob.LatestRun().Id()] = schedulerobjects.JobRunState_RUNNING
+
+	// Create high priority jobs that will cause preemption
+	highPriorityJobs := testfixtures.N16Cpu128GiJobs("A", testfixtures.PriorityClass1, 2)
+	for i := range highPriorityJobs {
+		highPriorityJobs[i] = highPriorityJobs[i].WithQueued(true)
+	}
+
+	// Setup jobDb
+	jobDb := testfixtures.NewJobDb(testfixtures.TestResourceListFactory)
+	txn := jobDb.WriteTxn()
+	err = txn.Upsert(append([]*jobdb.Job{lowPriorityJob}, highPriorityJobs...))
+	require.NoError(t, err)
+
+	// Run scheduling
+	schedulerResult, err := sch.Schedule(ctx, nil, txn)
+	require.NoError(t, err)
+
+	// Verify the low priority job was preempted
+	preemptedJobs := PreemptedJobsFromSchedulerResult(schedulerResult)
+	require.Len(t, preemptedJobs, 1, "Expected one job to be preempted")
+	assert.Equal(t, lowPriorityJob.Id(), preemptedJobs[0].Id())
+
+	// Verify the preempted job is requeued (not failed) due to retry policy
+	dbJob := txn.GetById(lowPriorityJob.Id())
+	assert.True(t, dbJob.Queued(), "Preempted job should be requeued when retry policy allows")
+	assert.False(t, dbJob.Failed(), "Preempted job should not be failed when retry policy allows retry")
+
+	// The run should still be marked as preempted
+	lastRun := dbJob.LatestRun()
+	assert.True(t, lastRun.Preempted(), "Run should be marked as preempted")
+	assert.NotNil(t, lastRun.PreemptedTime(), "Preempted time should be set")
+
+	// Verify high priority jobs were scheduled
+	scheduledJobs := ScheduledJobsFromSchedulerResult(schedulerResult)
+	assert.Len(t, scheduledJobs, 2, "Expected two high priority jobs to be scheduled")
+}
+
+// TestSchedule_PreemptionNoRetryWhenPolicyDisallows tests that the scheduling algorithm
+// correctly fails preempted jobs when the retry policy does not allow preemption retry.
+func TestSchedule_PreemptionNoRetryWhenPolicyDisallows(t *testing.T) {
+	ctx := armadacontext.Background()
+
+	// Create a retry engine that does NOT allow preemption retry (only OOM)
+	retryEngine, err := retry.NewEngine(configuration.RetryPolicyConfig{
+		Enabled:          true,
+		GlobalMaxRetries: 10,
+		Default: configuration.Policy{
+			RetryLimit: 5,
+			Rules: []configuration.Rule{
+				{
+					Action: configuration.ActionRetry,
+					OnConditions: []configuration.FailureCondition{
+						configuration.ConditionOOMKilled, // Only OOM, not Preempted
+					},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	ctrl := gomock.NewController(t)
+	mockExecutorRepo := schedulermocks.NewMockExecutorRepository(ctrl)
+	executor := test1Node32CoreExecutor("executor1")
+	mockExecutorRepo.EXPECT().GetExecutors(ctx).Return([]*schedulerobjects.Executor{executor}, nil).AnyTimes()
+	mockExecutorRepo.EXPECT().GetExecutorSettings(ctx).Return([]*schedulerobjects.ExecutorSettings{}, nil).AnyTimes()
+
+	mockQueueCache := schedulermocks.NewMockQueueCache(ctrl)
+	queue := &api.Queue{Name: "A", RetryPolicy: ""}
+	mockQueueCache.EXPECT().GetAll(ctx).Return([]*api.Queue{queue}, nil).AnyTimes()
+
+	sch, err := NewFairSchedulingAlgo(
+		testfixtures.TestSchedulingConfig(),
+		0,
+		0,
+		mockExecutorRepo,
+		mockQueueCache,
+		reports.NewSchedulingContextRepository(),
+		testfixtures.TestResourceListFactory,
+		testfixtures.TestEmptyFloatingResources,
+		priorityoverride.NewNoOpProvider(),
+		nil,
+		&testRunReconciler{},
+		retryEngine,
+	)
+	require.NoError(t, err)
+	sch.clock = clock.NewFakeClock(testfixtures.BaseTime)
+
+	lowPriorityJob := testfixtures.Test16Cpu128GiJob("A", testfixtures.PriorityClass0).
+		WithQueued(false).
+		WithNewRun(executor.Id, executor.Nodes[0].Id, executor.Nodes[0].Name, executor.Nodes[0].Pool, 0)
+
+	executor.Nodes[0].StateByJobRunId[lowPriorityJob.LatestRun().Id()] = schedulerobjects.JobRunState_RUNNING
+
+	highPriorityJobs := testfixtures.N16Cpu128GiJobs("A", testfixtures.PriorityClass1, 2)
+	for i := range highPriorityJobs {
+		highPriorityJobs[i] = highPriorityJobs[i].WithQueued(true)
+	}
+
+	jobDb := testfixtures.NewJobDb(testfixtures.TestResourceListFactory)
+	txn := jobDb.WriteTxn()
+	err = txn.Upsert(append([]*jobdb.Job{lowPriorityJob}, highPriorityJobs...))
+	require.NoError(t, err)
+
+	schedulerResult, err := sch.Schedule(ctx, nil, txn)
+	require.NoError(t, err)
+
+	// Verify the low priority job was preempted
+	preemptedJobs := PreemptedJobsFromSchedulerResult(schedulerResult)
+	require.Len(t, preemptedJobs, 1)
+
+	// Verify the preempted job is failed (not requeued) because policy doesn't allow preemption retry
+	dbJob := txn.GetById(lowPriorityJob.Id())
+	assert.False(t, dbJob.Queued(), "Preempted job should not be requeued when policy disallows")
+	assert.True(t, dbJob.Failed(), "Preempted job should be failed when policy disallows preemption retry")
+
+	lastRun := dbJob.LatestRun()
+	assert.True(t, lastRun.Preempted())
 }

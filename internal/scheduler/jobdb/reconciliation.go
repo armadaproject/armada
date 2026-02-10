@@ -201,6 +201,9 @@ func (jobDb *JobDb) reconcileJobDifferences(job *Job, jobRepoJob *database.Job, 
 			job = job.WithQueuedVersion(jobRepoJob.QueuedVersion)
 			job = job.WithQueued(jobRepoJob.Queued)
 		}
+		if uint32(jobRepoJob.FailureCount) > job.FailureCount() {
+			job = job.WithFailureCount(uint32(jobRepoJob.FailureCount))
+		}
 	}
 
 	// Reconcile run state transitions.
@@ -339,6 +342,9 @@ func (jobDb *JobDb) schedulerJobFromDatabaseJob(dbJob *database.Job) (*Job, erro
 	if uint32(dbJob.Priority) != job.RequestedPriority() {
 		// TODO(albin): Same comment as the above.
 		job = job.WithRequestedPriority(uint32(dbJob.Priority))
+	}
+	if dbJob.FailureCount > 0 {
+		job = job.WithFailureCount(uint32(dbJob.FailureCount))
 	}
 	return job, nil
 }

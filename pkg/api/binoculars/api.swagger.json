@@ -100,6 +100,10 @@
       "type": "object",
       "title": "swagger:model",
       "properties": {
+        "includeRunIndex": {
+          "description": "If true, include run_index in pod name lookup. False for legacy pods without run index suffix.",
+          "type": "boolean"
+        },
         "jobId": {
           "type": "string"
         },
@@ -110,6 +114,11 @@
           "type": "string"
         },
         "podNumber": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "runIndex": {
+          "description": "Run attempt index for retry support (0-based). Only used if include_run_index is true.",
           "type": "integer",
           "format": "int32"
         },

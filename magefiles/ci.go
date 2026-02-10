@@ -12,8 +12,15 @@ import (
 )
 
 func createQueue() error {
+	// Create basic queue (no retry policy)
 	out, err := runArmadaCtl("create", "queue", "e2e-test-queue")
-	// check if err text contains "already exists" and ignore if it does
+	if err != nil && !strings.Contains(out, "already exists") {
+		fmt.Println(out)
+		return err
+	}
+
+	// Create retry queue (with retry-all policy for retry tests)
+	out, err = runArmadaCtl("create", "queue", "e2e-test-queue-retry", "--retry-policy", "retry-all")
 	if err != nil && !strings.Contains(out, "already exists") {
 		fmt.Println(out)
 		return err
@@ -34,19 +41,34 @@ func TestSuite() error {
 		os.Setenv("ARMADA_EXECUTOR_INGRESS_PORT", "5001")
 	}
 
+	// Run basic tests
 	timeTaken := time.Now()
-	out, err2 := goOutput("run", "cmd/testsuite/main.go", "test",
+	out, err := goOutput("run", "cmd/testsuite/main.go", "test",
 		"--tests", "testsuite/testcases/basic/*",
 		"--junit", "junit.xml",
 		"--config", "e2e/config/armadactl_config.yaml",
 	)
-	if err2 != nil {
+	if err != nil {
 		fmt.Println(out)
-		return err2
+		return err
 	}
-	fmt.Printf("(Real) Time to run tests: %s\n\n", time.Since(timeTaken))
-
+	fmt.Printf("(Real) Time to run basic tests: %s\n\n", time.Since(timeTaken))
 	fmt.Println(out)
+
+	// Run retry tests
+	timeTaken = time.Now()
+	out, err = goOutput("run", "cmd/testsuite/main.go", "test",
+		"--tests", "testsuite/testcases/retry/*",
+		"--junit", "junit-retry.xml",
+		"--config", "e2e/config/armadactl_config.yaml",
+	)
+	if err != nil {
+		fmt.Println(out)
+		return err
+	}
+	fmt.Printf("(Real) Time to run retry tests: %s\n\n", time.Since(timeTaken))
+	fmt.Println(out)
+
 	return nil
 }
 

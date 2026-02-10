@@ -50,6 +50,7 @@ type Job struct {
 	CancelUser              *string   `db:"cancel_user"`
 	PriceBand               int32     `db:"price_band"`
 	Terminated              *bool     `db:"terminated"`
+	FailureCount            int32     `db:"failure_count"`
 }
 
 type JobRunError struct {

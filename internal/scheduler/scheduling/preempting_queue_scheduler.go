@@ -391,12 +391,12 @@ func (sch *PreemptingQueueScheduler) collectIdsForGangEviction(evictorResult *Ev
 			continue
 		}
 
-		activeGangJobs, err := sch.getActiveGangJobs(jctx.Job.Queue(), jctx.Job.GetGangInfo().Id())
+		activeGangJobs, err := sch.getActiveGangJobs(jctx.Job.Queue(), jctx.Job.GetGangInfo().Id(), jctx.Job.NumAttempts())
 		if err != nil {
 			return nil, nil, err
 		}
 		if len(activeGangJobs) == 0 {
-			return nil, nil, errors.Errorf("no jobs found for gang %s", gangId)
+			return nil, nil, errors.Errorf("no jobs found for gang %s (generation %d)", gangId, jctx.Job.NumAttempts())
 		}
 
 		// Collect all job ids part of that gang.
@@ -441,37 +441,48 @@ func getNodeIdFromSchedulingContext(sctx *schedulercontext.SchedulingContext, jo
 	return jctx.PodSchedulingContext.NodeId, nil
 }
 
-func (sch *PreemptingQueueScheduler) getActiveGangJobs(queue string, gangId string) ([]*jobdb.Job, error) {
+// getActiveGangJobs returns active (non-terminal) jobs in the gang that belong to the same
+// generation (same NumAttempts). This prevents counting jobs from previous retry attempts
+// as part of the current gang generation.
+func (sch *PreemptingQueueScheduler) getActiveGangJobs(queue string, gangId string, generation uint) ([]*jobdb.Job, error) {
 	gangJobs, err := sch.jobRepo.GetGangJobsByGangId(queue, gangId)
 	if err != nil {
 		return nil, err
 	}
 	activeGangJobs := armadaslices.Filter(gangJobs, func(j *jobdb.Job) bool {
-		return !j.InTerminalState()
+		// Only count jobs from the same generation (retry attempt) and that are not terminal
+		return !j.InTerminalState() && j.NumAttempts() == generation
 	})
 	return activeGangJobs, nil
+}
+
+// gangGenerationKey uniquely identifies a gang generation (gangId + attempt count)
+type gangGenerationKey struct {
+	gangId     string
+	generation uint
 }
 
 // Some jobs in a gang may have terminated since the gang was scheduled.
 // For these gangs, we need to set the gang cardinality to the number of jobs in the gang yet to terminate.
 // Otherwise, the evicted gang jobs will not be schedulable, since some gang jobs will be considered missing.
 func (sch *PreemptingQueueScheduler) setEvictedGangCardinality(evictorResult *EvictorResult) error {
-	seenGangs := map[string]int{}
+	seenGangs := map[gangGenerationKey]int{}
 	for _, jctx := range evictorResult.EvictedJctxsByJobId {
 		if !jctx.Job.IsInGang() {
 			// Not a gang job.
 			continue
 		}
 
-		if _, exists := seenGangs[jctx.Job.GetGangInfo().Id()]; !exists {
-			activeGangJobs, err := sch.getActiveGangJobs(jctx.Job.Queue(), jctx.Job.GetGangInfo().Id())
+		key := gangGenerationKey{gangId: jctx.Job.GetGangInfo().Id(), generation: jctx.Job.NumAttempts()}
+		if _, exists := seenGangs[key]; !exists {
+			activeGangJobs, err := sch.getActiveGangJobs(jctx.Job.Queue(), jctx.Job.GetGangInfo().Id(), jctx.Job.NumAttempts())
 			if err != nil {
 				return err
 			}
-			seenGangs[jctx.Job.GetGangInfo().Id()] = len(activeGangJobs)
+			seenGangs[key] = len(activeGangJobs)
 		}
 
-		cardinality := seenGangs[jctx.Job.GetGangInfo().Id()]
+		cardinality := seenGangs[key]
 		// Override cardinality with the number of active jobs in this gang.
 		jctx.CurrentGangCardinality = cardinality
 	}
@@ -506,26 +517,28 @@ func (sch *PreemptingQueueScheduler) evictionAssertions(evictorResult *EvictorRe
 			return errors.Errorf("evicted job %s is missing target node id selector: job nodeSelector %v", jobId, jctx.AdditionalNodeSelectors)
 		}
 	}
-	seenGangs := map[string]int{}
+	seenGangs := map[gangGenerationKey]int{}
 	for gangId, evictedJctxs := range evictedJctxsByGangId {
 		if len(evictedJctxs) < 1 {
 			continue
 		}
 		representativeJctx := evictedJctxs[0]
-		if _, exists := seenGangs[gangId]; !exists {
-			activeGangJobs, err := sch.getActiveGangJobs(representativeJctx.Job.Queue(), representativeJctx.Job.GetGangInfo().Id())
+		generation := representativeJctx.Job.NumAttempts()
+		key := gangGenerationKey{gangId: gangId, generation: generation}
+		if _, exists := seenGangs[key]; !exists {
+			activeGangJobs, err := sch.getActiveGangJobs(representativeJctx.Job.Queue(), representativeJctx.Job.GetGangInfo().Id(), generation)
 			if err != nil {
 				return err
 			}
-			seenGangs[gangId] = len(activeGangJobs)
+			seenGangs[key] = len(activeGangJobs)
 		}
 
-		activeGangJobCount := seenGangs[gangId]
+		activeGangJobCount := seenGangs[key]
 
 		if len(evictedJctxs) != activeGangJobCount {
 			return errors.Errorf(
-				"gang %s was partially evicted: %d out of %d jobs evicted",
-				gangId, len(evictedJctxs), activeGangJobCount,
+				"gang %s (generation %d) was partially evicted: %d out of %d jobs evicted",
+				gangId, generation, len(evictedJctxs), activeGangJobCount,
 			)
 		}
 	}

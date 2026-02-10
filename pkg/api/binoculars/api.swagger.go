@@ -111,6 +111,10 @@ func SwaggerJsonTemplate() string {
 		"      \"type\": \"object\",\n" +
 		"      \"title\": \"swagger:model\",\n" +
 		"      \"properties\": {\n" +
+		"        \"includeRunIndex\": {\n" +
+		"          \"description\": \"If true, include run_index in pod name lookup. False for legacy pods without run index suffix.\",\n" +
+		"          \"type\": \"boolean\"\n" +
+		"        },\n" +
 		"        \"jobId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
@@ -121,6 +125,11 @@ func SwaggerJsonTemplate() string {
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
 		"        \"podNumber\": {\n" +
+		"          \"type\": \"integer\",\n" +
+		"          \"format\": \"int32\"\n" +
+		"        },\n" +
+		"        \"runIndex\": {\n" +
+		"          \"description\": \"Run attempt index for retry support (0-based). Only used if include_run_index is true.\",\n" +
 		"          \"type\": \"integer\",\n" +
 		"          \"format\": \"int32\"\n" +
 		"        },\n" +

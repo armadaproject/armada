@@ -12,7 +12,6 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/constants"
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
-	"github.com/armadaproject/armada/internal/common/preemption"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/adapters"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
@@ -70,6 +69,9 @@ type Job struct {
 	failed bool
 	// True if the scheduler has marked the job as succeeded
 	succeeded bool
+	// Number of failures that count toward the retry limit.
+	// Incremented only when retry policy action is Retry, not Ignore.
+	failureCount uint32
 	// Job Runs by run id
 	runsById map[string]*JobRun
 	// The currently active run. The run with the latest timestamp is the active run.
@@ -364,6 +366,9 @@ func (job *Job) Equal(other *Job) bool {
 		return false
 	}
 	if job.succeeded != other.succeeded {
+		return false
+	}
+	if job.failureCount != other.failureCount {
 		return false
 	}
 	if !job.activeRun.Equal(other.activeRun) {
@@ -842,46 +847,22 @@ func (job *Job) NumAttempts() uint {
 	return attempts
 }
 
-// IsEligibleForPreemptionRetry determines whether the job is eligible for preemption retries. It checks whether the
-// scheduler or the job has opted in for preemption retries. It then checks whether the job has exhausted the number
-// of retries.
-func (job *Job) IsEligibleForPreemptionRetry(retryConfig preemption.RetryConfig) bool {
-	// Check if job explicitly enabled/disabled retries, falling back to platform default
-	enabled := retryConfig.Enabled
-	if jobRetryEnabled, exists := preemption.AreRetriesEnabled(job.Annotations()); exists {
-		enabled = jobRetryEnabled
-	}
-
-	if !enabled {
-		return false
-	}
-
-	return job.NumPreemptedRuns() <= job.MaxPreemptionRetryCount(retryConfig)
+// FailureCount returns the number of failures that count toward the retry limit.
+// This is only incremented when the retry policy action is Retry.
+func (job *Job) FailureCount() uint32 {
+	return job.failureCount
 }
 
-func (job *Job) NumPreemptedRuns() uint {
-	preemptCount := uint(0)
-	for _, run := range job.runsById {
-		if run.preempted {
-			preemptCount++
-		}
-	}
-	return preemptCount
+// WithFailureCount returns a copy of the job with the failure count set.
+func (job *Job) WithFailureCount(count uint32) *Job {
+	j := shallowCopyJob(*job)
+	j.failureCount = count
+	return j
 }
 
-func (job *Job) MaxPreemptionRetryCount(retryConfig preemption.RetryConfig) uint {
-	// Start with platform default
-	var maxRetryCount uint
-	if retryConfig.DefaultRetryCount != nil {
-		maxRetryCount = *retryConfig.DefaultRetryCount
-	}
-
-	// Allow jobs to override with a custom max retry count
-	if jobMaxRetryCount, exists := preemption.GetMaxRetryCount(job.Annotations()); exists {
-		maxRetryCount = jobMaxRetryCount
-	}
-
-	return maxRetryCount
+// WithIncrementedFailureCount returns a copy of the job with failure count incremented by 1.
+func (job *Job) WithIncrementedFailureCount() *Job {
+	return job.WithFailureCount(job.failureCount + 1)
 }
 
 // AllRuns returns all runs associated with job.

@@ -9,7 +9,6 @@ import (
 	authconfig "github.com/armadaproject/armada/internal/common/auth/configuration"
 	commonconfig "github.com/armadaproject/armada/internal/common/config"
 	grpcconfig "github.com/armadaproject/armada/internal/common/grpc/configuration"
-	"github.com/armadaproject/armada/internal/common/preemption"
 	profilingconfig "github.com/armadaproject/armada/internal/common/profiling/configuration"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/common/types"
@@ -245,7 +244,12 @@ type SchedulingConfig struct {
 	// Per-queue version of MaximumSchedulingBurst.
 	MaximumPerQueueSchedulingBurst int `validate:"gt=0"`
 	// Maximum number of times a job is retried before considered failed.
+	// Used when RetryPolicy.Enabled is false (the default).
 	MaxRetries uint
+	// RetryPolicy configures fine-grained retry behavior.
+	// When Enabled is true, this takes precedence over MaxRetries.
+	// When Enabled is false (default), MaxRetries is used instead.
+	RetryPolicy RetryPolicyConfig
 	// List of resource names, e.g., []string{"cpu", "memory"}, to consider when computing DominantResourceFairness costs.
 	// Dominant resource fairness is the algorithm used to assign a cost to jobs and queues.
 	DominantResourceFairnessResourcesToConsider []string
@@ -298,8 +302,6 @@ type SchedulingConfig struct {
 	DefaultPoolSchedulePriority int
 	Pools                       []PoolConfig
 	ExperimentalIndicativeShare ExperimentalIndicativeShare
-	// Preemption retry settings. Jobs can override via annotations.
-	PreemptionRetry preemption.RetryConfig
 }
 
 const (

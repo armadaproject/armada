@@ -110,6 +110,9 @@ message JobFailedEvent {
     string pod_namespace = 14;
     repeated ContainerStatus container_statuses = 11;
     Cause cause = 12;
+    // Indicates whether this failure will trigger a retry.
+    // When true, this is not a terminal event and the job will be rescheduled.
+    bool retryable = 15;
 }
 
 message JobPreemptingEvent {

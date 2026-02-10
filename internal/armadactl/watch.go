@@ -37,7 +37,7 @@ func (a *App) Watch(queue string, jobSetId string, raw bool, exitOnInactive bool
 					if jobInfo != nil && jobInfo.ClusterId != "" && jobInfo.Job != nil {
 						fmt.Fprintf(
 							a.Out, "Found no logs for job; try '%s --tail=50\n",
-							client.GetKubectlCommand(jobInfo.ClusterId, jobInfo.Job.Namespace, event2.JobId, int(event2.PodNumber), "logs"),
+							client.GetKubectlCommand(jobInfo.ClusterId, jobInfo.Job.Namespace, event2.JobId, int(event2.PodNumber), nil, "logs"),
 						)
 					}
 				default:

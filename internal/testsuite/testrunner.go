@@ -149,7 +149,10 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 	g.Go(func() error { return splitter.Run(ctx) })
 
 	// Cancel the errgroup if there are no active jobs.
-	g.Go(func() error { return eventwatcher.ErrorOnNoActiveJobs(ctx, noActiveCh, maps.Clone(jobIdMap)) })
+	// Pass expected events so retryable failures don't prematurely terminate the test.
+	g.Go(func() error {
+		return eventwatcher.ErrorOnNoActiveJobs(ctx, noActiveCh, maps.Clone(jobIdMap), srv.testSpec.ExpectedEvents)
+	})
 
 	// Record time spent per job state. Used to benchmark jobs.
 	eventBenchmark := eventbenchmark.New(benchmarkCh)

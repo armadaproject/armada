@@ -26,11 +26,13 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/priorityoverride"
 	"github.com/armadaproject/armada/internal/scheduler/queue"
 	"github.com/armadaproject/armada/internal/scheduler/reports"
+	"github.com/armadaproject/armada/internal/scheduler/retry"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/scheduling/constraints"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/fairness"
 	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 // SchedulingAlgo is the interface between the Pulsar-backed scheduler and the
@@ -62,6 +64,7 @@ type FairSchedulingAlgo struct {
 	resourceListFactory      *internaltypes.ResourceListFactory
 	floatingResourceTypes    *floatingresources.FloatingResourceTypes
 	shortJobPenalty          *ShortJobPenalty
+	retryEngine              *retry.Engine
 }
 
 func NewFairSchedulingAlgo(
@@ -76,6 +79,7 @@ func NewFairSchedulingAlgo(
 	queueOverrideProvider priorityoverride.Provider,
 	shortJobPenalty *ShortJobPenalty,
 	stateValidator JobRunNodeReconciler,
+	retryEngine *retry.Engine,
 ) (*FairSchedulingAlgo, error) {
 	if _, ok := config.PriorityClasses[config.DefaultPriorityClassName]; !ok {
 		return nil, errors.Errorf(
@@ -99,6 +103,7 @@ func NewFairSchedulingAlgo(
 		floatingResourceTypes:        floatingResourceTypes,
 		shortJobPenalty:              shortJobPenalty,
 		stateValidator:               stateValidator,
+		retryEngine:                  retryEngine,
 	}, nil
 }
 
@@ -754,6 +759,7 @@ func (l *FairSchedulingAlgo) SchedulePool(
 	if err != nil {
 		return nil, nil, err
 	}
+	retryPolicies := queue.RetryPolicyMap(ctx, l.queueCache)
 	for i, jctx := range result.PreemptedJobs {
 		jobDbJob := jctx.Job
 		now := l.clock.Now()
@@ -763,8 +769,26 @@ func (l *FairSchedulingAlgo) SchedulePool(
 		} else {
 			return nil, nil, errors.Errorf("attempting to preempt job %s with no associated runs", jobDbJob.Id())
 		}
-		if jobDbJob.IsEligibleForPreemptionRetry(l.schedulingConfig.PreemptionRetry) {
-			ctx.Infof("Handling preemption retry %d / %d for job %s. Job will be requeued.", jobDbJob.NumPreemptedRuns(), jobDbJob.MaxPreemptionRetryCount(l.schedulingConfig.PreemptionRetry), jobDbJob.Id())
+
+		// Determine whether to requeue the preempted job using the retry policy engine
+		var shouldRequeue bool
+		if l.retryEngine != nil && l.retryEngine.Enabled() {
+			failureInfo := &armadaevents.FailureInfo{
+				Condition: armadaevents.FailureCondition_FAILURE_CONDITION_PREEMPTED,
+			}
+			queueRetryPolicy := retryPolicies[jobDbJob.Queue()]
+			retryResult := l.retryEngine.Evaluate(queueRetryPolicy, failureInfo, jobDbJob.FailureCount(), jobDbJob.NumAttempts())
+			shouldRequeue = retryResult.ShouldRequeue
+			if shouldRequeue {
+				ctx.Infof("Retry policy allows preemption retry for job %s (policy=%s, attempts=%d). Job will be requeued.",
+					jobDbJob.Id(), queueRetryPolicy, jobDbJob.NumAttempts())
+			} else {
+				ctx.Infof("Retry policy denies preemption retry for job %s (policy=%s, attempts=%d). Job will fail.",
+					jobDbJob.Id(), queueRetryPolicy, jobDbJob.NumAttempts())
+			}
+		}
+
+		if shouldRequeue {
 			result.PreemptedJobs[i].Job = jobDbJob.WithQueued(true).WithQueuedVersion(jobDbJob.QueuedVersion() + 1)
 		} else {
 			result.PreemptedJobs[i].Job = jobDbJob.WithQueued(false).WithFailed(true)

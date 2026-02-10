@@ -134,6 +134,7 @@ func (r *PostgresJobRepository) FetchInitialJobs(ctx *armadacontext.Context) ([]
 				Serial:                  row.Serial,
 				Pools:                   row.Pools,
 				PriceBand:               row.PriceBand,
+				FailureCount:            row.FailureCount,
 			}
 		}
 
@@ -257,8 +258,10 @@ func (r *PostgresJobRepository) FetchJobUpdates(ctx *armadacontext.Context, jobS
 		updatedJobRows, err := fetch(loggerCtx, jobSerial, r.batchSize, func(from int64) ([]SelectUpdatedJobsRow, error) {
 			return queries.SelectUpdatedJobs(ctx, SelectUpdatedJobsParams{Serial: from, Limit: r.batchSize})
 		})
+		if err != nil {
+			return err
+		}
 		updatedJobs = make([]Job, len(updatedJobRows))
-
 		for i, row := range updatedJobRows {
 			updatedJobs[i] = Job{
 				JobID:                   row.JobID,
@@ -270,9 +273,9 @@ func (r *PostgresJobRepository) FetchJobUpdates(ctx *armadacontext.Context, jobS
 				Queued:                  row.Queued,
 				QueuedVersion:           row.QueuedVersion,
 				CancelRequested:         row.CancelRequested,
-				Cancelled:               row.Cancelled,
-				CancelByJobsetRequested: row.CancelByJobsetRequested,
 				CancelUser:              row.CancelUser,
+				CancelByJobsetRequested: row.CancelByJobsetRequested,
+				Cancelled:               row.Cancelled,
 				Succeeded:               row.Succeeded,
 				Failed:                  row.Failed,
 				SchedulingInfo:          row.SchedulingInfo,
@@ -280,11 +283,8 @@ func (r *PostgresJobRepository) FetchJobUpdates(ctx *armadacontext.Context, jobS
 				Serial:                  row.Serial,
 				Pools:                   row.Pools,
 				PriceBand:               row.PriceBand,
+				FailureCount:            row.FailureCount,
 			}
-		}
-
-		if err != nil {
-			return err
 		}
 
 		// Fetch dbRuns

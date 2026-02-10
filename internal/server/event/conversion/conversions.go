@@ -271,6 +271,14 @@ func FromInternalJobRunErrors(queueName string, jobSetName string, time time.Tim
 				},
 			}
 			events = append(events, event)
+		case *armadaevents.Error_PodError:
+			// Convert PodError to Failed event (for both terminal and non-terminal run failures)
+			event := &api.EventMessage{
+				Events: &api.EventMessage_Failed{
+					Failed: makeJobFailed(e.JobId, queueName, jobSetName, time, reason),
+				},
+			}
+			events = append(events, event)
 		default:
 			log.Debugf("Ignoring event %T", reason)
 		}

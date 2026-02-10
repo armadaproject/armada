@@ -216,6 +216,9 @@ func CreateJobFailedEvent(pod *v1.Pod, reason string, cause armadaevents.Kuberne
 		return nil, err
 	}
 
+	// Extract structured failure info for retry policy evaluation
+	failureInfo := util.ExtractFailureInfo(pod, false, reason)
+
 	sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
 		Created: types.TimestampNow(),
 		Event: &armadaevents.EventSequence_Event_JobRunErrors{
@@ -224,7 +227,8 @@ func CreateJobFailedEvent(pod *v1.Pod, reason string, cause armadaevents.Kuberne
 				JobId: jobId,
 				Errors: []*armadaevents.Error{
 					{
-						Terminal: true,
+						Terminal:    true,
+						FailureInfo: failureInfo,
 						Reason: &armadaevents.Error_PodError{
 							PodError: &armadaevents.PodError{
 								ObjectMeta: &armadaevents.ObjectMeta{
@@ -289,6 +293,10 @@ func CreateReturnLeaseEvent(pod *v1.Pod, reason string, debugMessage string, clu
 		return nil, err
 	}
 
+	// Extract structured failure info for retry policy evaluation
+	// Lease returns are typically retryable (pod couldn't be scheduled)
+	failureInfo := util.ExtractFailureInfo(pod, true, reason)
+
 	sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
 		Created: types.TimestampNow(),
 		Event: &armadaevents.EventSequence_Event_JobRunErrors{
@@ -297,7 +305,8 @@ func CreateReturnLeaseEvent(pod *v1.Pod, reason string, debugMessage string, clu
 				JobId: jobId,
 				Errors: []*armadaevents.Error{
 					{
-						Terminal: true, // EventMessage_LeaseReturned indicates a pod could not be scheduled.
+						Terminal:    true, // EventMessage_LeaseReturned indicates a pod could not be scheduled.
+						FailureInfo: failureInfo,
 						Reason: &armadaevents.Error_PodLeaseReturned{
 							PodLeaseReturned: &armadaevents.PodLeaseReturned{
 								ObjectMeta: &armadaevents.ObjectMeta{
