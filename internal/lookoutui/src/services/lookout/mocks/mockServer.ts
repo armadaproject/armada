@@ -152,7 +152,7 @@ export class MockServer {
 
   setPreemptJobsResponse(status_code: number = 200, status_text: string = "") {
     this.server.use(
-      http.post(PREEMPT_JOBS_ENDPOINT, async () => {
+      http.post(PREEMPT_JOBS_ENDPOINT, async (req) => {
         if (status_code !== 200) {
           return HttpResponse.json(
             {
@@ -163,8 +163,14 @@ export class MockServer {
             { status: status_code, statusText: status_text },
           )
         }
-        // The actual API returns google.protobuf.Empty which is just an empty object
-        return HttpResponse.json({})
+        // The actual API returns a PreemptionResult with a map of job IDs to status strings
+        const reqJson = (await req.request.json()) as { jobIds?: string[] }
+        const jobIds = reqJson.jobIds ?? []
+        const preemptionResults: Record<string, string> = {}
+        for (const jobId of jobIds) {
+          preemptionResults[jobId] = ""
+        }
+        return HttpResponse.json({ preemptionResults })
       }),
     )
   }

@@ -72,7 +72,17 @@ export const PreemptDialog = ({ onClose, selectedItemFilters }: PreemptDialogPro
       })
 
       if (response.failedJobIds.length === 0) {
-        openSnackbar("Successfully requested preemption of selected jobs. See table for job statuses.", "success")
+        const ids = response.successfulJobIds
+        const MAX_DISPLAY = 4
+        if (ids.length <= MAX_DISPLAY) {
+          openSnackbar(`Successfully requested preemption for: ${ids.join(", ")}`, "success")
+        } else {
+          const displayed = ids.slice(0, MAX_DISPLAY).join(", ")
+          openSnackbar(
+            `Successfully requested preemption for ${ids.length} jobs: ${displayed}, and ${ids.length - MAX_DISPLAY} more`,
+            "success",
+          )
+        }
       } else {
         openSnackbar("Some preemption requests failed. See table for job statuses.", "warning")
       }
