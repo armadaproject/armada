@@ -147,6 +147,7 @@ type NodeDb struct {
 
 	resourceListFactory *internaltypes.ResourceListFactory
 
+	disableHomeScheduling     bool
 	disableAwayScheduling     bool
 	disableGangAwayScheduling bool
 }
@@ -334,6 +335,14 @@ func (nodeDb *NodeDb) EnableAwayScheduling() {
 	nodeDb.disableAwayScheduling = false
 }
 
+func (nodeDb *NodeDb) DisableHomeScheduling() {
+	nodeDb.disableHomeScheduling = true
+}
+
+func (nodeDb *NodeDb) EnableHomeScheduling() {
+	nodeDb.disableHomeScheduling = false
+}
+
 func (nodeDb *NodeDb) DisableGangAwayScheduling() {
 	nodeDb.disableGangAwayScheduling = true
 }
@@ -455,12 +464,14 @@ func (nodeDb *NodeDb) SelectNodeForJobWithTxn(txn *memdb.Txn, jctx *context.JobS
 		}
 	}
 
-	node, err := nodeDb.selectNodeForJobWithTxnAtPriority(txn, jctx)
-	if err != nil {
-		return nil, err
-	}
-	if node != nil {
-		return node, nil
+	if !nodeDb.disableHomeScheduling {
+		node, err := nodeDb.selectNodeForJobWithTxnAtPriority(txn, jctx)
+		if err != nil {
+			return nil, err
+		}
+		if node != nil {
+			return node, nil
+		}
 	}
 
 	awaySchedulingDisabled := nodeDb.disableAwayScheduling || (jctx.Job.IsInGang() && nodeDb.disableGangAwayScheduling)
