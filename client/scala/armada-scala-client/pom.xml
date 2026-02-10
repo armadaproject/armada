@@ -200,7 +200,6 @@
           </execution>
         </executions>
         <configuration>
-          <protocCommand>${protoc.path}</protocCommand>
           <includeMavenTypes>transitive</includeMavenTypes>
           <includeDirectories>${project.basedir}/src/main/protobuf</includeDirectories>
           <outputTargets>

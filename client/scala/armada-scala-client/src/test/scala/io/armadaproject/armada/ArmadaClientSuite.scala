@@ -270,9 +270,7 @@ private class SubmitMockServer(
   def preemptJobs(
       request: JobPreemptRequest
   ): scala.concurrent.Future[PreemptionResult] = {
-    Future.successful(
-      PreemptionResult(preemptionResults = request.jobIds.map(_ -> "").toMap)
-    )
+    Future.successful(new PreemptionResult)
   }
 
   def reprioritizeJobs(
