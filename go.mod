@@ -1,6 +1,6 @@
 module github.com/armadaproject/armada
 
-go 1.25.5
+go 1.26.0
 
 require (
 	github.com/apache/pulsar-client-go v0.18.0
