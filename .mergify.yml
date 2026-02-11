@@ -10,7 +10,7 @@ pull_request_rules:
               - "#approved-reviews-by>=2"
               - and:
                   - "#approved-reviews-by>=1"
-                  - "author~=^(d80tb7|dave[-]gantenbein|dejanzele|eleanorpratt|geaere|JamesMurkin|mauriceyap|masipauskas|MustafaI|zuqq|richscott|robertdavidsmith|samclark|suprjinx|EnricoMi|nikola-jokic|dslear|d2burkhalter|ianhockett|Sigele|williamvega|tgucks|YHines004)$"
+                  - "author~=^(d80tb7|dave[-]gantenbein|dejanzele|eleanorpratt|geaere|JamesMurkin|mauriceyap|masipauskas|MustafaI|zuqq|richscott|robertdavidsmith|samclark|suprjinx|EnricoMi|nikola-jokic|dslear|d2burkhalter|ianhockett|Sigele|williamvega|tgucks|YHines004|j8169)$"
         title: Two approvals required, or one if author is a frontend or Armada maintainer.
 
   - name: Require approval from Armada maintainers
@@ -26,5 +26,5 @@ pull_request_rules:
               - "#approved-reviews-by>=2"
               - and:
                   - "#approved-reviews-by>=1"
-                  - "author~=^(d80tb7|dave[-]gantenbein|dejanzele|eleanorpratt|geaere|JamesMurkin|mauriceyap|masipauskas|MustafaI|zuqq|richscott|robertdavidsmith|samclark|suprjinx|EnricoMi|nikola-jokic)$"
+                  - "author~=^(d80tb7|dave[-]gantenbein|dejanzele|eleanorpratt|geaere|JamesMurkin|mauriceyap|masipauskas|MustafaI|zuqq|richscott|robertdavidsmith|samclark|suprjinx|EnricoMi|nikola-jokic|j8169)$"
         title: Two approvals required, or one if author is a maintainer.
