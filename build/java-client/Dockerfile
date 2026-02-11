@@ -14,7 +14,7 @@ RUN set -ex && \
     apt update && \
     apt install -y curl git && \
     # Download and install Maven
-    curl -s -O https://downloads.apache.org/maven/maven-3/${MAVEN_VERSION}/binaries/apache-maven-${MAVEN_VERSION}-bin.tar.gz && \
+    curl -fLsS -O https://archive.apache.org/dist/maven/maven-3/${MAVEN_VERSION}/binaries/apache-maven-${MAVEN_VERSION}-bin.tar.gz && \
     tar -C /opt -xzvf apache-maven-${MAVEN_VERSION}-bin.tar.gz && \
     ln -s /opt/apache-maven-${MAVEN_VERSION}/bin/mvn /usr/local/bin/mvn && \
     # Clean up

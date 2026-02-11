@@ -25,6 +25,7 @@
 		}
 	},
 	"mounts": [
+		"source=${env:HOME}/.ssh,target=/home/vscode/.ssh,type=bind",
 		"source=armada-lookoutui-node_modules,target=${containerWorkspaceFolder}/internal/lookoutui/node_modules,type=volume",
 		"source=armada-website-node_modules,target=${containerWorkspaceFolder}/website/node_modules,type=volume",
 		"source=armada-go-pkg,target=/go/pkg,type=volume"
