@@ -349,6 +349,7 @@ type PoolConfig struct {
 	ExperimentalSubmissionGroup   string
 	ExperimentalMarketScheduling  *MarketSchedulingConfig
 	ExperimentalRunReconciliation *RunReconciliationConfig
+	DisableHomeScheduling         bool
 	DisableAwayScheduling         bool
 	DisableGangAwayScheduling     bool
 }

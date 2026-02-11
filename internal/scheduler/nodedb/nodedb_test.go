@@ -571,6 +571,107 @@ func TestScheduleMany(t *testing.T) {
 	}
 }
 
+func TestHomeNodeScheduling(t *testing.T) {
+	tests := map[string]struct {
+		disableHomeScheduling bool
+		addNodeTaint          bool
+		addJobToleration      bool
+		jobPriorityClassName  string
+		expectSuccess         bool
+		expectScheduledAway   bool
+	}{
+		"should schedule home jobs": {
+			expectSuccess: true,
+		},
+		"should schedule home jobs - when job toleration matches node taint": {
+			expectSuccess:    true,
+			addNodeTaint:     true,
+			addJobToleration: true,
+		},
+		"should not schedule home jobs - when job toleration does not match node taint": {
+			expectSuccess: false,
+			addNodeTaint:  true,
+		},
+		"should not schedule home job - when home scheduling disabled": {
+			expectSuccess:         false,
+			disableHomeScheduling: true,
+		},
+		"should schedule away job - when home scheduling disabled - away scheduling available": {
+			expectSuccess:         true,
+			expectScheduledAway:   true,
+			disableHomeScheduling: true,
+			jobPriorityClassName:  "armada-preemptible-away",
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			nodeDb, err := NewNodeDb(
+				testfixtures.TestPriorityClasses,
+				testfixtures.TestResources,
+				testfixtures.TestIndexedTaints,
+				testfixtures.TestIndexedNodeLabels,
+				[]schedulerconfig.WellKnownNodeType{
+					{Name: "gpu", Taints: []v1.Taint{{Key: "gpu", Value: "true", Effect: v1.TaintEffectNoSchedule}}},
+					{Name: "large", Taints: []v1.Taint{{Key: "largeJobsOnly", Value: "true", Effect: v1.TaintEffectNoSchedule}}},
+				},
+				testfixtures.TestResourceListFactory,
+			)
+			require.NoError(t, err)
+			if tc.disableHomeScheduling {
+				nodeDb.DisableHomeScheduling()
+			}
+
+			nodeDbTxn := nodeDb.Txn(true)
+			node := testfixtures.Test32CpuNode([]int32{29000, 30000})
+			if tc.addNodeTaint {
+				node = testfixtures.TestNodeFactory.AddTaints(
+					[]*internaltypes.Node{node},
+					[]v1.Taint{{Key: "largeJobsOnly", Value: "true", Effect: v1.TaintEffectNoSchedule}},
+				)[0]
+			}
+
+			priorityClassName := testfixtures.PriorityClass6Preemptible
+			if tc.jobPriorityClassName != "" {
+				priorityClassName = tc.jobPriorityClassName
+			}
+
+			job := testfixtures.Test16Cpu128GiJob(testfixtures.TestQueue, priorityClassName)
+			if tc.addJobToleration {
+				job = testfixtures.Test16Cpu128GiJobWithLargeJobToleration(testfixtures.TestQueue, priorityClassName)
+			}
+
+			jctx := context.JobSchedulingContextFromJob(job)
+			require.NoError(t, nodeDb.CreateAndInsertWithJobDbJobsWithTxn(nodeDbTxn, nil, node))
+
+			require.Empty(t, jctx.AdditionalTolerations)
+			gctx := context.NewGangSchedulingContext([]*context.JobSchedulingContext{jctx})
+
+			ok, err := nodeDb.ScheduleManyWithTxn(nodeDbTxn, gctx)
+			require.NoError(t, err)
+			if tc.expectSuccess {
+				require.True(t, ok)
+				assert.NotNil(t, jctx.PodSchedulingContext)
+				assert.True(t, jctx.PodSchedulingContext.IsSuccessful())
+				assert.Equal(t, node.GetId(), jctx.PodSchedulingContext.NodeId)
+				if tc.expectScheduledAway {
+					assert.Equal(t, context.ScheduledAsAwayJob, jctx.PodSchedulingContext.SchedulingMethod)
+					assert.Equal(t, int32(29000), jctx.PodSchedulingContext.ScheduledAtPriority)
+				} else {
+					assert.Equal(t, context.ScheduledWithoutPreemption, jctx.PodSchedulingContext.SchedulingMethod)
+					assert.Equal(t, int32(30000), jctx.PodSchedulingContext.ScheduledAtPriority)
+				}
+			} else {
+				require.False(t, ok)
+				assert.NotNil(t, jctx.PodSchedulingContext)
+				assert.False(t, jctx.PodSchedulingContext.IsSuccessful())
+				assert.Empty(t, jctx.PodSchedulingContext.NodeId)
+				assert.Empty(t, jctx.AdditionalTolerations)
+			}
+		})
+	}
+}
+
 func TestAwayNodeScheduling(t *testing.T) {
 	tests := map[string]struct {
 		shouldSubmitGang          bool

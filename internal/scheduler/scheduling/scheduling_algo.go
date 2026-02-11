@@ -230,6 +230,10 @@ func (l *FairSchedulingAlgo) reconcileAndSchedulePool(
 		fsctx.nodeDb.DisableAwayScheduling()
 	}
 
+	if pool.DisableHomeScheduling {
+		fsctx.nodeDb.DisableHomeScheduling()
+	}
+
 	if pool.DisableGangAwayScheduling {
 		fsctx.nodeDb.DisableGangAwayScheduling()
 	}
