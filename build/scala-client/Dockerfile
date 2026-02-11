@@ -14,7 +14,7 @@ RUN set -ex && \
     apt install -y bash curl && \
     curl -s -O https://downloads.lightbend.com/scala/${SCALA_VERSION}/scala-${SCALA_VERSION}.deb && \
     apt install -y ./scala-${SCALA_VERSION}.deb && \
-    curl -s -L -O https://dlcdn.apache.org/maven/maven-3/${MVN3_VERSION}/binaries/apache-maven-${MVN3_VERSION}-bin.tar.gz && \
+    curl -fLsS -O https://archive.apache.org/dist/maven/maven-3/${MVN3_VERSION}/binaries/apache-maven-${MVN3_VERSION}-bin.tar.gz && \
     tar -C / -xzvf apache-maven-${MVN3_VERSION}-bin.tar.gz && \
     mv /apache-maven-${MVN3_VERSION} /mvn && \
     apt-get clean && \
