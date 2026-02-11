@@ -163,7 +163,6 @@ export class MockServer {
             { status: status_code, statusText: status_text },
           )
         }
-        // The actual API returns a PreemptionResult with a map of job IDs to status strings
         const reqJson = (await req.request.json()) as { jobIds?: string[] }
         const jobIds = reqJson.jobIds ?? []
         const preemptionResults: Record<string, string> = {}
