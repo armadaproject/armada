@@ -228,6 +228,14 @@ func WithReconcilerEnabled(config schedulerconfiguration.SchedulingConfig) sched
 	return config
 }
 
+func WithHomeSchedulingDisabled(config schedulerconfiguration.SchedulingConfig) schedulerconfiguration.SchedulingConfig {
+	for i, pool := range config.Pools {
+		pool.DisableHomeScheduling = true
+		config.Pools[i] = pool
+	}
+	return config
+}
+
 func WithAwaySchedulingDisabled(config schedulerconfiguration.SchedulingConfig) schedulerconfiguration.SchedulingConfig {
 	for i, pool := range config.Pools {
 		pool.DisableAwayScheduling = true

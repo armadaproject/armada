@@ -304,6 +304,12 @@ poolStart:
 				ex.nodeDb.EnableAwayScheduling()
 			}
 
+			if pool.DisableHomeScheduling {
+				ex.nodeDb.DisableHomeScheduling()
+			} else {
+				ex.nodeDb.EnableHomeScheduling()
+			}
+
 			if pool.DisableGangAwayScheduling {
 				ex.nodeDb.DisableGangAwayScheduling()
 			} else {
