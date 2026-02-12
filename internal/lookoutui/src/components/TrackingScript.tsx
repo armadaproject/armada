@@ -7,31 +7,43 @@ interface TrackingScriptProps {
 }
 
 /**
- * Component that dynamically injects a tracking script into the document head
+ * Component that dynamically injects tracking scripts into the document head
  * based on the configuration provided.
  */
 export const TrackingScript = ({ config }: TrackingScriptProps) => {
   useEffect(() => {
-    if (!config?.src) {
+    if (!config?.scripts || config.scripts.length === 0) {
       return
     }
 
-    const script = document.createElement("script")
-    script.src = config.src
-    script.defer = true
+    const scriptElements: HTMLScriptElement[] = []
 
-    // Add any additional attributes from the config
-    if (config.attributes) {
-      Object.entries(config.attributes).forEach(([key, value]) => {
-        script.setAttribute(key, value)
-      })
-    }
+    config.scripts.forEach((scriptTag) => {
+      const script = document.createElement("script")
 
-    document.head.appendChild(script)
+      // Set content if provided
+      if (scriptTag.content) {
+        script.textContent = scriptTag.content
+      }
 
-    // Cleanup function to remove the script when component unmounts
+      // Set attributes if provided
+      if (scriptTag.attributes) {
+        Object.entries(scriptTag.attributes).forEach(([key, value]) => {
+          script.setAttribute(key, value)
+        })
+      }
+
+      document.head.appendChild(script)
+      scriptElements.push(script)
+    })
+
+    // Cleanup function to remove scripts when component unmounts
     return () => {
-      document.head.removeChild(script)
+      scriptElements.forEach((script) => {
+        if (script.parentNode) {
+          document.head.removeChild(script)
+        }
+      })
     }
   }, [config])
 

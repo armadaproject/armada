@@ -34,12 +34,7 @@ export const TrackingButton = forwardRef<HTMLButtonElement, TrackingButtonProps>
     let trackingAttributes: Record<string, string> = {}
 
     if (trackingConfig && trackingConfig.trackedEvents?.includes(eventName)) {
-      trackingAttributes = buildTrackingAttributes(
-        eventName,
-        trackingConfig.eventAttribute,
-        trackingConfig.dataAttribute,
-        eventData,
-      )
+      trackingAttributes = buildTrackingAttributes(eventName, trackingConfig, eventData)
     }
 
     return <Button ref={ref} {...buttonProps} {...trackingAttributes} />

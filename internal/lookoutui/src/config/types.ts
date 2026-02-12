@@ -39,11 +39,15 @@ export interface JobLinkConfig {
   linkTemplate: string
 }
 
-export interface TrackingScriptConfig {
-  src: string
+export interface ScriptTag {
+  content?: string
   attributes?: Record<string, string>
-  eventAttribute: string
-  dataAttribute: string
+}
+
+export interface TrackingScriptConfig {
+  scripts: ScriptTag[]
+  eventAttribute?: string
+  dataAttribute?: string
   trackedEvents?: string[]
 }
 

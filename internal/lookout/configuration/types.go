@@ -144,15 +144,20 @@ type JobLinkConfig struct {
 	LinkTemplate string `json:"linkTemplate"`
 }
 
-type TrackingScriptConfig struct {
-	// Src is the URL of the tracking script
-	Src string `json:"src"`
-	// Attributes is a map of HTML attributes to add to the script tag
+type ScriptTag struct {
+	// Content is the script content to inject (for inline scripts)
+	Content string `json:"content,omitempty"`
+	// Attributes are the HTML attributes to set on the script tag (e.g., "async", "defer", "src", "type")
 	Attributes map[string]string `json:"attributes,omitempty"`
+}
+
+type TrackingScriptConfig struct {
+	// Scripts is a list of script tags to inject into the document head
+	Scripts []ScriptTag `json:"scripts"`
 	// EventAttribute is the HTML attribute name to use for tracking events
-	EventAttribute string `json:"eventAttribute"`
+	EventAttribute string `json:"eventAttribute,omitempty"`
 	// DataAttribute is the HTML attribute name to use for event data
-	DataAttribute string `json:"dataAttribute"`
+	DataAttribute string `json:"dataAttribute,omitempty"`
 	// TrackedEvents is a list of event names that should be tracked
 	TrackedEvents []string `json:"trackedEvents,omitempty"`
 }

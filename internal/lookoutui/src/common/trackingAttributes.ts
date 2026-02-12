@@ -1,3 +1,5 @@
+import { TrackingScriptConfig } from "config"
+
 /**
  * Builds tracking attributes based on the configured analytics provider
  * @param eventName The event name to track
@@ -6,16 +8,16 @@
  */
 export function buildTrackingAttributes(
   eventName: string,
-  eventAttribute: string,
-  dataAttribute: string,
+  trackingConfig: TrackingScriptConfig,
   eventData?: Record<string, string>,
 ): Record<string, string> {
   const trackingAttributes: Record<string, string> = {}
-
-  trackingAttributes[eventAttribute] = eventName
-  if (eventData) {
+  if (trackingConfig.eventAttribute) {
+    trackingAttributes[trackingConfig.eventAttribute] = eventName
+  }
+  if (trackingConfig.dataAttribute && eventData) {
     Object.entries(eventData).forEach(([key, value]) => {
-      trackingAttributes[`${dataAttribute}-${key}`] = value
+      trackingAttributes[`${trackingConfig.dataAttribute}-${key}`] = value
     })
   }
 

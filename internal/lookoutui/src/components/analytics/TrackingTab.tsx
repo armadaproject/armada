@@ -37,12 +37,7 @@ export const TrackingTab = forwardRef<HTMLDivElement, TrackingTabProps>(
     let trackingAttributes: Record<string, string> = {}
 
     if (trackingConfig && trackingConfig.trackedEvents?.includes(eventName)) {
-      trackingAttributes = buildTrackingAttributes(
-        eventName,
-        trackingConfig.eventAttribute,
-        trackingConfig.dataAttribute,
-        eventData,
-      )
+      trackingAttributes = buildTrackingAttributes(eventName, trackingConfig, eventData)
     }
 
     const handleClick = useCallback(
