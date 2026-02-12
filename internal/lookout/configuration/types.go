@@ -154,9 +154,11 @@ type ScriptTag struct {
 type TrackingScriptConfig struct {
 	// Scripts is a list of script tags to inject into the document head
 	Scripts []ScriptTag `json:"scripts"`
-	// EventAttribute is the HTML attribute name to use for tracking events
+	// Method specifies how to add tracking data: "attribute" for HTML attributes (e.g., Umami), "class" for CSS classes (e.g., Plausible)
+	Method string `json:"method,omitempty"`
+	// EventAttribute is the HTML attribute name to use for tracking events (attribute method) or class prefix (class method)
 	EventAttribute string `json:"eventAttribute,omitempty"`
-	// DataAttribute is the HTML attribute name to use for event data
+	// DataAttribute is the HTML attribute name to use for event data (attribute method) or class prefix (class method)
 	DataAttribute string `json:"dataAttribute,omitempty"`
 	// TrackedEvents is a list of event names that should be tracked
 	TrackedEvents []string `json:"trackedEvents,omitempty"`

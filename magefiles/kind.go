@@ -71,6 +71,10 @@ func kindInitCluster() error {
 		return err
 	}
 	if strings.Contains(out, KIND_NAME) {
+		// Cluster exists, ensure kubeconfig is updated
+		if err := kindWriteKubeConfig(); err != nil {
+			return err
+		}
 		return nil
 	}
 	err = kindRun("create", "cluster", "--config", "e2e/setup/kind.yaml")
@@ -213,6 +217,14 @@ func kindSetup() error {
 // Write kubeconfig to disk.
 // Needed by the executor to interact with the cluster.
 func kindWriteKubeConfig() error {
+	// Export kubeconfig using kind's built-in export command
+	// This updates the default kubeconfig location (~/.kube/config)
+	err := kindRun("export", "kubeconfig", "--name", KIND_NAME)
+	if err != nil {
+		return err
+	}
+
+	// Also write to custom locations for executor
 	out, err := kindOutput("get", "kubeconfig", "--name", KIND_NAME)
 	if err != nil {
 		return err

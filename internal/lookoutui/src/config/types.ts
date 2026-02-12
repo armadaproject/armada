@@ -46,6 +46,7 @@ export interface ScriptTag {
 
 export interface TrackingScriptConfig {
   scripts: ScriptTag[]
+  method?: "attribute" | "class"
   eventAttribute?: string
   dataAttribute?: string
   trackedEvents?: string[]

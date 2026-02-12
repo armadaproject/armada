@@ -18,7 +18,11 @@ interface TrackingButtonProps extends ButtonProps {
 
 /**
  * A button component that automatically adds the correct tracking attributes
- * based on the configured analytics provider (Umami, Plausible, Google Analytics, etc.)
+ * based on the configured analytics provider.
+ *
+ * Supports:
+ * - Attribute-based tracking (e.g., Umami): adds HTML attributes like data-umami-event="Event Name"
+ * - Class-based tracking (e.g., Plausible): adds CSS classes like plausible-event-name=Event+Name
  *
  * Usage:
  * ```tsx
