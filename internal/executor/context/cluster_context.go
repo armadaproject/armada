@@ -331,6 +331,7 @@ func (c *KubernetesClusterContext) DeletePodWithCondition(pod *v1.Pod, condition
 		}
 	}
 
+	log.Infof("Calling delete on pod %s/%s", currentPod.Namespace, currentPod.Name)
 	err = c.deletePod(currentPod, deleteOptions)
 	if err != nil && k8s_errors.IsNotFound(err) {
 		return nil
@@ -403,6 +404,9 @@ func (c *KubernetesClusterContext) doDelete(pod *v1.Pod, force bool) {
 		deleteOptions := metav1.DeleteOptions{GracePeriodSeconds: nil}
 		if force {
 			deleteOptions.GracePeriodSeconds = pointer.Int64(0)
+			log.Infof("Calling delete on pod %s/%s - with force", pod.Namespace, pod.Name)
+		} else {
+			log.Infof("Calling delete on pod %s/%s", pod.Namespace, pod.Name)
 		}
 		err = c.deletePod(pod, deleteOptions)
 	}
