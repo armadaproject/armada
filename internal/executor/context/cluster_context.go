@@ -319,11 +319,9 @@ func (c *KubernetesClusterContext) DeletePodWithCondition(pod *v1.Pod, condition
 	}
 
 	if currentPod.DeletionTimestamp != nil {
-		killTime := currentPod.DeletionTimestamp.
-			Add(util.GetDeletionGracePeriodOrDefault(currentPod)).
-			Add(c.podKillTimeout)
+		killTime := currentPod.DeletionTimestamp.Add(c.podKillTimeout)
 		if c.clock.Now().After(killTime) {
-			log.Infof("Pod %s/%s was requested deleted at %s, but is still present. Force killing.", currentPod.Namespace, currentPod.Name, currentPod.DeletionTimestamp)
+			log.Infof("Pod %s/%s was requested deleted by %s, but is still present. Force killing.", currentPod.Namespace, currentPod.Name, currentPod.DeletionTimestamp)
 			deleteOptions.GracePeriodSeconds = pointer.Int64(0)
 		} else {
 			log.Debugf("Asked to delete pod %s/%s but this pod is already being deleted", currentPod.Namespace, currentPod.Name)
@@ -375,11 +373,9 @@ func (c *KubernetesClusterContext) ProcessPodsToDelete() {
 		} else {
 			// we've tried to delete this pod before. If we're after the kill period then force delete
 			// else it's a no-op
-			killTime := podToDelete.DeletionTimestamp.
-				Add(util.GetDeletionGracePeriodOrDefault(podToDelete)).
-				Add(c.podKillTimeout)
+			killTime := podToDelete.DeletionTimestamp.Add(c.podKillTimeout)
 			if c.clock.Now().After(killTime) {
-				log.Infof("Pod %s/%s was requested deleted at %s, but is still present.  Force killing.", podToDelete.Namespace, podToDelete.Name, podToDelete.DeletionTimestamp)
+				log.Infof("Pod %s/%s was requested deleted by %s, but is still present.  Force killing.", podToDelete.Namespace, podToDelete.Name, podToDelete.DeletionTimestamp)
 				c.doDelete(podToDelete, true)
 			} else {
 				log.Debugf("Asked to delete pod %s/%s but this pod is already being deleted", podToDelete.Namespace, podToDelete.Name)
