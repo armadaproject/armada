@@ -18,13 +18,20 @@ import (
 	"github.com/armadaproject/armada/internal/common/logging"
 )
 
-const customConfigLocation string = "config"
+const (
+	customConfigLocation string = "config"
+	resultsDirFlag       string = "results-dir"
+)
 
 func init() {
 	pflag.StringSlice(
 		customConfigLocation,
 		[]string{},
 		"Fully qualified path to application configuration file")
+	pflag.String(
+		resultsDirFlag,
+		"",
+		"Directory to write result files to (defaults to cmd/broadside/results)")
 	pflag.Parse()
 }
 
@@ -98,7 +105,8 @@ func main() {
 		}
 	}
 
-	if err := orchestrator.NewRunner(config).Run(context.Background()); err != nil {
+	resultsDir := viper.GetString(resultsDirFlag)
+	if err := orchestrator.NewRunner(config, resultsDir).Run(context.Background()); err != nil {
 		panic(err)
 	}
 }

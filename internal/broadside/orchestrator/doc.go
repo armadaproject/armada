@@ -73,8 +73,9 @@ After the test completes, the runner writes a comprehensive JSON file containing
     errors with timestamps
 
 The JSON output file is named with a timestamp (broadside-result-YYYYMMDD-HHMMSS.json)
-to facilitate collection and comparison of multiple test runs. A JSON schema
-(internal/broadside/metrics/schema.json) is provided for validation. This structured
+to facilitate collection and comparison of multiple test runs. The results directory
+is configurable via the --results-dir CLI flag, defaulting to cmd/broadside/results.
+A JSON schema (internal/broadside/metrics/schema.json) is provided for validation. This structured
 output enables building tools for visualising trends and comparing database backend
 performance across multiple test runs.
 
@@ -96,7 +97,7 @@ performance across multiple test runs.
 	    },
 	}
 
-	runner := orchestrator.NewRunner(config)
+	runner := orchestrator.NewRunner(config, "/path/to/results")
 	if err := runner.Run(ctx); err != nil {
 	    log.Fatal(err)
 	}

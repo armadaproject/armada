@@ -18,16 +18,25 @@ import (
 	"github.com/armadaproject/armada/internal/broadside/querier"
 )
 
+const defaultResultsDir = "cmd/broadside/results"
+
 // Runner orchestrates a Broadside load test. It initialises the database,
 // starts the ingester, manages the test lifecycle, and collects metrics.
 type Runner struct {
-	config configuration.TestConfig
+	config     configuration.TestConfig
+	resultsDir string
 }
 
 // NewRunner creates a new Runner with the given test configuration.
-func NewRunner(config configuration.TestConfig) *Runner {
+// If resultsDir is empty, results are written to the default directory
+// (cmd/broadside/results).
+func NewRunner(config configuration.TestConfig, resultsDir string) *Runner {
+	if resultsDir == "" {
+		resultsDir = defaultResultsDir
+	}
 	return &Runner{
-		config: config,
+		config:     config,
+		resultsDir: resultsDir,
 	}
 }
 
@@ -39,7 +48,7 @@ func NewRunner(config configuration.TestConfig) *Runner {
 //  3. If configured, waits for a warmup period before resetting metrics
 //  4. Waits for the test duration to complete
 //  5. Tears down the database
-//  6. Writes metrics reports and configuration to a timestamped JSON file in cmd/broadside/results/
+//  6. Writes metrics reports and configuration to a timestamped JSON file in the results directory
 //
 // The warmup period allows the system to reach steady state before
 // measurement begins. During warmup, both ingester and querier metrics
@@ -173,7 +182,7 @@ func (r *Runner) Run(ctx context.Context) error {
 
 	testResult := metrics.BuildTestResult(r.config, ingesterReport, querierReport, actorReport, actualTestDuration)
 
-	resultsDir := filepath.Join("cmd", "broadside", "results")
+	resultsDir := r.resultsDir
 	if err := os.MkdirAll(resultsDir, 0o755); err != nil {
 		return fmt.Errorf("creating results directory: %w", err)
 	}
