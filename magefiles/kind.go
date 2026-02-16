@@ -158,32 +158,13 @@ func kindSetupExternalImages(buildConfig BuildConfig, images []string) error {
 			return fmt.Errorf("error pulling image: %w", err)
 		}
 
-		if err := kindLoadImage(image); err != nil {
+		err := kindRun("load", "docker-image", image, "--name", KIND_NAME)
+		if err != nil {
 			return fmt.Errorf("error loading image to kind: %w", err)
 		}
 	}
 
 	return nil
-}
-
-// kindLoadImage loads a Docker image into the kind cluster by saving it to a
-// temporary archive and loading via "kind load image-archive". This avoids
-// the --all-platforms flag that "kind load docker-image" passes to ctr, which
-// fails when Docker has only pulled layers for the host platform.
-func kindLoadImage(image string) error {
-	f, err := os.CreateTemp("", "kind-image-*.tar")
-	if err != nil {
-		return fmt.Errorf("error creating temp file: %w", err)
-	}
-	archivePath := f.Name()
-	f.Close()
-	defer os.Remove(archivePath)
-
-	if err := dockerRun("save", "-o", archivePath, image); err != nil {
-		return fmt.Errorf("error saving image to archive: %w", err)
-	}
-
-	return kindRun("load", "image-archive", archivePath, "--name", KIND_NAME)
 }
 
 func kindSetup() error {
