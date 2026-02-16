@@ -152,15 +152,21 @@ func remapDockerImagesInKubernetesManifest(filePath string, images []string, bui
 }
 
 func kindSetupExternalImages(buildConfig BuildConfig, images []string) error {
+	nodesOutput, err := kindOutput("get", "nodes", "--name", KIND_NAME)
+	if err != nil {
+		return fmt.Errorf("error getting kind nodes: %w", err)
+	}
+	nodes := strings.Fields(strings.TrimSpace(nodesOutput))
+	if len(nodes) == 0 {
+		return fmt.Errorf("no nodes found in kind cluster %s", KIND_NAME)
+	}
+
 	for _, image := range images {
 		image = remapDockerRegistryIfRequired(image, buildConfig.DockerRegistries)
-		if err := dockerRun("pull", image); err != nil {
-			return fmt.Errorf("error pulling image: %w", err)
-		}
-
-		err := kindRun("load", "docker-image", image, "--name", KIND_NAME)
-		if err != nil {
-			return fmt.Errorf("error loading image to kind: %w", err)
+		for _, node := range nodes {
+			if err := dockerRun("exec", node, "crictl", "pull", image); err != nil {
+				return fmt.Errorf("error pulling image %s on node %s: %w", image, node, err)
+			}
 		}
 	}
 
