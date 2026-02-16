@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	KIND_VERSION_CONSTRAINT = ">= 0.21.0"
+	KIND_VERSION_CONSTRAINT = ">= 0.27.0"
 	KIND_CONFIG_INTERNAL    = ".kube/internal/config"
 	KIND_CONFIG_EXTERNAL    = ".kube/external/config"
 	KIND_NAME               = "armada-test"
