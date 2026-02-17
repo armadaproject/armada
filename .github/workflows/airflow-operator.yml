@@ -78,6 +78,10 @@ jobs:
       DOCKER_BUILDX_BUILDER: "builder"
     steps:
       - uses: actions/checkout@v6
+      - name: Setup Docker
+        uses: docker/setup-docker-action@v4
+        with:
+          daemon-config: '{"features":{"containerd-snapshotter":false}}'
       - run: docker buildx create --name ${DOCKER_BUILDX_BUILDER} --driver docker-container --use
       - run: docker buildx install
 
