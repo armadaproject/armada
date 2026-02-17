@@ -17,8 +17,9 @@ func TestCreateEventForCurrentState_WhenPodPending(t *testing.T) {
 	assert.Nil(t, err)
 
 	assert.Len(t, result.Events, 1)
-	_, ok := result.Events[0].Event.(*armadaevents.EventSequence_Event_JobRunAssigned)
+	assigned, ok := result.Events[0].Event.(*armadaevents.EventSequence_Event_JobRunAssigned)
 	assert.True(t, ok)
+	assert.Equal(t, "test-pool", assigned.JobRunAssigned.Pool)
 }
 
 func TestCreateEventForCurrentState_WhenPodRunning(t *testing.T) {
@@ -28,8 +29,9 @@ func TestCreateEventForCurrentState_WhenPodRunning(t *testing.T) {
 	assert.Nil(t, err)
 
 	assert.Len(t, result.Events, 1)
-	_, ok := result.Events[0].Event.(*armadaevents.EventSequence_Event_JobRunRunning)
+	running, ok := result.Events[0].Event.(*armadaevents.EventSequence_Event_JobRunRunning)
 	assert.True(t, ok)
+	assert.Equal(t, "test-pool", running.JobRunRunning.Pool)
 }
 
 func TestCreateEventForCurrentState_WhenPodFailed(t *testing.T) {

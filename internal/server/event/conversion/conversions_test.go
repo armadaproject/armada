@@ -574,6 +574,7 @@ func TestConvertJobRunning(t *testing.T) {
 			JobRunRunning: &armadaevents.JobRunRunning{
 				RunId: runId,
 				JobId: jobId,
+				Pool:  "test-pool",
 				ResourceInfos: []*armadaevents.KubernetesResourceInfo{
 					{
 						ObjectMeta: &armadaevents.ObjectMeta{
@@ -608,6 +609,7 @@ func TestConvertJobRunning(t *testing.T) {
 					PodNumber:    podNumber,
 					PodName:      podName,
 					PodNamespace: namespace,
+					Pool:         "test-pool",
 				},
 			},
 		},
@@ -669,6 +671,7 @@ func TestConvertJobAssigned(t *testing.T) {
 			JobRunAssigned: &armadaevents.JobRunAssigned{
 				RunId: runId,
 				JobId: jobId,
+				Pool:  "test-pool",
 				ResourceInfos: []*armadaevents.KubernetesResourceInfo{
 					{
 						ObjectMeta: &armadaevents.ObjectMeta{
@@ -702,6 +705,7 @@ func TestConvertJobAssigned(t *testing.T) {
 					PodNumber:    podNumber,
 					PodName:      podName,
 					PodNamespace: namespace,
+					Pool:         "test-pool",
 				},
 			},
 		},

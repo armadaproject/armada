@@ -1421,6 +1421,9 @@
           "type": "integer",
           "format": "int32"
         },
+        "pool": {
+          "type": "string"
+        },
         "queue": {
           "type": "string"
         }
@@ -1717,6 +1720,9 @@
         "podNumber": {
           "type": "integer",
           "format": "int32"
+        },
+        "pool": {
+          "type": "string"
         },
         "queue": {
           "type": "string"
