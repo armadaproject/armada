@@ -31,6 +31,7 @@ func CreateEventForCurrentState(pod *v1.Pod, clusterId string) (*armadaevents.Ev
 				JobRunAssigned: &armadaevents.JobRunAssigned{
 					RunId: runId,
 					JobId: jobId,
+					Pool:  util.ExtractPool(pod),
 					ResourceInfos: []*armadaevents.KubernetesResourceInfo{
 						{
 							ObjectMeta: &armadaevents.ObjectMeta{
@@ -57,6 +58,7 @@ func CreateEventForCurrentState(pod *v1.Pod, clusterId string) (*armadaevents.Ev
 				JobRunRunning: &armadaevents.JobRunRunning{
 					RunId: runId,
 					JobId: jobId,
+					Pool:  util.ExtractPool(pod),
 					ResourceInfos: []*armadaevents.KubernetesResourceInfo{
 						{
 							ObjectMeta: &armadaevents.ObjectMeta{

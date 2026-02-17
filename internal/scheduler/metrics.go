@@ -443,7 +443,7 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 						nodeJobsMetricCounts[nodeJobPhaseMetricKey{
 							node:    node.Name,
 							cluster: executor.Id,
-							phase:   phase,
+							phase:   strings.Title(strings.ToLower(phase)),
 						}]++
 					}
 
