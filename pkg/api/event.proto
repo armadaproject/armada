@@ -64,6 +64,7 @@ message JobPendingEvent {
     int32 pod_number = 7;
     string pod_name = 8;
     string pod_namespace = 9;
+    string pool = 10;
 }
 
 message JobRunningEvent {
@@ -77,6 +78,7 @@ message JobRunningEvent {
     int32 pod_number = 8;
     string pod_name = 9;
     string pod_namespace = 10;
+    string pool = 11;
 }
 
 message JobIngressInfoEvent {
