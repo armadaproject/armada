@@ -26,6 +26,8 @@ import { usePreemptJobs } from "../../../services/lookout/usePreemptJobs"
 import dialogStyles from "./DialogStyles.module.css"
 import { JobStatusTable } from "./JobStatusTable"
 
+const MAX_JOB_IDS_TO_DISPLAY = 4
+
 interface PreemptDialogProps {
   onClose: () => void
   selectedItemFilters: JobFiltersWithExcludes[]
@@ -73,13 +75,12 @@ export const PreemptDialog = ({ onClose, selectedItemFilters }: PreemptDialogPro
 
       if (response.failedJobIds.length === 0) {
         const ids = response.successfulJobIds
-        const MAX_DISPLAY = 4
-        if (ids.length <= MAX_DISPLAY) {
+        if (ids.length <= MAX_JOB_IDS_TO_DISPLAY) {
           openSnackbar(`Successfully requested preemption for: ${ids.join(", ")}`, "success")
         } else {
-          const displayed = ids.slice(0, MAX_DISPLAY).join(", ")
+          const displayed = ids.slice(0, MAX_JOB_IDS_TO_DISPLAY).join(", ")
           openSnackbar(
-            `Successfully requested preemption for ${ids.length} jobs: ${displayed}, and ${ids.length - MAX_DISPLAY} more`,
+            `Successfully requested preemption for ${ids.length} jobs: ${displayed}, and ${ids.length - MAX_JOB_IDS_TO_DISPLAY} more`,
             "success",
           )
         }
@@ -88,6 +89,9 @@ export const PreemptDialog = ({ onClose, selectedItemFilters }: PreemptDialogPro
       }
 
       const newResponseStatus = { ...jobIdsToPreemptResponses }
+
+      response.successfulJobIds.forEach((jobId) => {newResponseStatus[jobId] = "Success"})
+      response.failedJobIds.forEach(({ jobId, errorReason }) => {newResponseStatus[jobId] = errorReason})
 
       setJobIdsToPreemptResponses(newResponseStatus)
       setHasAttemptedPreempt(true)

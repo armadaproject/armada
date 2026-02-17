@@ -150,26 +150,19 @@ export class MockServer {
     )
   }
 
-  setPreemptJobsResponse(status_code: number = 200, status_text: string = "") {
+  setPreemptJobsResponse(successfulJobIds: JobId[], failedJobIds: { jobId: JobId; errorReason: string }[] = []) {
     this.server.use(
       http.post(PREEMPT_JOBS_ENDPOINT, async (req) => {
-        if (status_code !== 200) {
-          return HttpResponse.json(
-            {
-              code: 500,
-              message: "Internal server error",
-              details: [],
-            },
-            { status: status_code, statusText: status_text },
-          )
-        }
-        const reqJson = (await req.request.json()) as { jobIds?: string[] }
-        const jobIds = reqJson.jobIds ?? []
-        const preemptionResults: Record<string, string> = {}
-        for (const jobId of jobIds) {
+        const preemptionResults: Record<JobId, string> = {}
+        for (const jobId of successfulJobIds) {
           preemptionResults[jobId] = ""
         }
-        return HttpResponse.json({ preemptionResults })
+        for (const { jobId, errorReason } of failedJobIds) {
+          preemptionResults[jobId] = errorReason
+        }
+        return HttpResponse.json({ 
+          preemptionResults, 
+        })
       }),
     )
   }

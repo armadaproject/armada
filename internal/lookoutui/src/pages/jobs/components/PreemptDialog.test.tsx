@@ -136,7 +136,7 @@ describe("PreemptDialog", () => {
     mockServer.setPostJobsResponse([jobs[0]])
     const { getByRole, findByText } = renderComponent()
 
-    mockServer.setPreemptJobsResponse()
+    mockServer.setPreemptJobsResponse([jobs[0].jobId], [])
 
     await enterPreemptReason("Reason for preemption")
 
@@ -170,7 +170,7 @@ describe("PreemptDialog", () => {
     mockServer.setPostJobsResponse([jobs[0]])
     const { getByRole, findByText, findByRole } = renderComponent()
 
-    mockServer.setPreemptJobsResponse(500, "Internal Server Error")
+    mockServer.setPreemptJobsResponse([], [{ jobId: jobs[0].jobId, errorReason: "Internal Server Error" }])
 
     await enterPreemptReason("Reason for preemption")
 
