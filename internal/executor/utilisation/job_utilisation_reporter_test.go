@@ -69,8 +69,7 @@ func TestUtilisationEventReporter_ReportUtilisationEvents(t *testing.T) {
 	event2CreatedTime := fakeEventReporter.ReceivedEvents[1].Event.Events[0].Created
 	period := protoutil.ToStdTime(event2CreatedTime).Sub(protoutil.ToStdTime(event1CreatedTime))
 
-	accuracy := time.Millisecond * 20
-	assert.Equal(t, period/accuracy, reportingPeriod/accuracy)
+	assert.InDelta(t, float64(reportingPeriod), float64(period), float64(2*time.Millisecond))
 }
 
 func TestUtilisationEventReporter_ReportUtilisationEvents_WhenNoUtilisationData(t *testing.T) {
