@@ -152,7 +152,7 @@ export class MockServer {
 
   setPreemptJobsResponse(successfulJobIds: JobId[], failedJobIds: { jobId: JobId; errorReason: string }[] = []) {
     this.server.use(
-      http.post(PREEMPT_JOBS_ENDPOINT, async (req) => {
+      http.post(PREEMPT_JOBS_ENDPOINT, async () => {
         const preemptionResults: Record<JobId, string> = {}
         for (const jobId of successfulJobIds) {
           preemptionResults[jobId] = ""
@@ -160,8 +160,8 @@ export class MockServer {
         for (const { jobId, errorReason } of failedJobIds) {
           preemptionResults[jobId] = errorReason
         }
-        return HttpResponse.json({ 
-          preemptionResults, 
+        return HttpResponse.json({
+          preemptionResults,
         })
       }),
     )

@@ -90,8 +90,12 @@ export const PreemptDialog = ({ onClose, selectedItemFilters }: PreemptDialogPro
 
       const newResponseStatus = { ...jobIdsToPreemptResponses }
 
-      response.successfulJobIds.forEach((jobId) => {newResponseStatus[jobId] = "Success"})
-      response.failedJobIds.forEach(({ jobId, errorReason }) => {newResponseStatus[jobId] = errorReason})
+      response.successfulJobIds.forEach((jobId) => {
+        newResponseStatus[jobId] = "Success"
+      })
+      response.failedJobIds.forEach(({ jobId, errorReason }) => {
+        newResponseStatus[jobId] = errorReason
+      })
 
       setJobIdsToPreemptResponses(newResponseStatus)
       setHasAttemptedPreempt(true)
