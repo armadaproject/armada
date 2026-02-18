@@ -297,6 +297,10 @@ func TestPreemptJobs(t *testing.T) {
 			req:            &api.JobPreemptRequest{JobIds: []string{jobId1, jobId2}, Queue: testfixtures.DefaultQueue.Name, JobSetId: testfixtures.DefaultJobset, Reason: "preemption-reason"},
 			expectedEvents: testfixtures.CreatePreemptJobSequenceEvents([]string{jobId1, jobId2}, "preemption-reason"),
 		},
+		"Preempt single job": {
+			req:            &api.JobPreemptRequest{JobIds: []string{jobId1}, Queue: testfixtures.DefaultQueue.Name, JobSetId: testfixtures.DefaultJobset, Reason: "single preemption"},
+			expectedEvents: testfixtures.CreatePreemptJobSequenceEvents([]string{jobId1}, "single preemption"),
+		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -333,8 +337,19 @@ func TestPreemptJobs(t *testing.T) {
 					capturedEventSequence = es
 				})
 
-			_, err := server.PreemptJobs(ctx, tc.req)
+			result, err := server.PreemptJobs(ctx, tc.req)
 			assert.NoError(t, err)
+			assert.NotNil(t, result)
+			assert.NotNil(t, result.PreemptionResults)
+
+			// Verify all requested job IDs are in the results map
+			assert.Equal(t, len(tc.req.JobIds), len(result.PreemptionResults))
+			for _, jobId := range tc.req.JobIds {
+				errMsg, exists := result.PreemptionResults[jobId]
+				assert.True(t, exists, "Job ID %s should be in preemption results", jobId)
+				assert.Empty(t, errMsg, "Error message should be empty for successful preemption of job %s", jobId)
+			}
+
 			assert.Equal(t, expectedEventSequence, capturedEventSequence)
 			cancel()
 		})

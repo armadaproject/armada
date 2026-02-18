@@ -296,7 +296,9 @@ func SwaggerJsonTemplate() string {
 		"        \"responses\": {\n" +
 		"          \"200\": {\n" +
 		"            \"description\": \"A successful response.\",\n" +
-		"            \"schema\": {}\n" +
+		"            \"schema\": {\n" +
+		"              \"$ref\": \"#/definitions/apiPreemptionResult\"\n" +
+		"            }\n" +
 		"          },\n" +
 		"          \"default\": {\n" +
 		"            \"description\": \"An unexpected error response.\",\n" +
@@ -2098,6 +2100,18 @@ func SwaggerJsonTemplate() string {
 		"        \"queues\": {\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
+		"            \"type\": \"string\"\n" +
+		"          }\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"apiPreemptionResult\": {\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"title\": \"swagger:model\",\n" +
+		"      \"properties\": {\n" +
+		"        \"preemptionResults\": {\n" +
+		"          \"type\": \"object\",\n" +
+		"          \"additionalProperties\": {\n" +
 		"            \"type\": \"string\"\n" +
 		"          }\n" +
 		"        }\n" +
