@@ -448,27 +448,6 @@ func mergeInMap[M ~map[K]V, K comparable, V any](a M, b DbOperation) bool {
 	return false
 }
 
-// mergeListMaps merges an op b into a, provided that b is of the same type as a.
-// If merged, the resulting map will contain all keys from a and b
-// In case both a and b have the same key, the values for that key will be combined
-// Returns true if the ops were merged and false otherwise.
-func mergeListMaps[M ~map[K][]V, K comparable, V any](a M, b DbOperation) bool {
-	// Using a type switch here, since using a type assertion
-	// (which should also work in theory) crashes the go1.19 compiler.
-	switch op := b.(type) {
-	case M:
-		for k, v := range op {
-			if _, present := a[k]; present {
-				a[k] = append(a[k], v...)
-			} else {
-				a[k] = v
-			}
-		}
-		return true
-	}
-	return false
-}
-
 func (a InsertJobs) CanBeAppliedBefore(b DbOperation) bool {
 	// We don't check for job and run ops here,
 	// since job and run ops can never appear before the corresponding InsertJobs.

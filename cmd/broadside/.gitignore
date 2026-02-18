@@ -1,0 +1,10 @@
+# Broadside load tester gitignore
+
+# User-defined configuration files
+configs/*
+!configs/README.md
+!configs/examples
+
+# Generated test result files
+results/*
+!results/README.md
