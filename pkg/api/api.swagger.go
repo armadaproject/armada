@@ -1430,6 +1430,9 @@ func SwaggerJsonTemplate() string {
 		"          \"type\": \"integer\",\n" +
 		"          \"format\": \"int32\"\n" +
 		"        },\n" +
+		"        \"pool\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
 		"        \"queue\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        }\n" +
@@ -1726,6 +1729,9 @@ func SwaggerJsonTemplate() string {
 		"        \"podNumber\": {\n" +
 		"          \"type\": \"integer\",\n" +
 		"          \"format\": \"int32\"\n" +
+		"        },\n" +
+		"        \"pool\": {\n" +
+		"          \"type\": \"string\"\n" +
 		"        },\n" +
 		"        \"queue\": {\n" +
 		"          \"type\": \"string\"\n" +
