@@ -638,6 +638,12 @@ func (qb *QueryBuilder) valueForMatch(value interface{}, match string) (string, 
 				ids[i] = qb.recordValue(val)
 			}
 			return fmt.Sprintf("(%s)", strings.Join(ids, ", ")), nil
+		case []string:
+			ids := make([]string, len(v))
+			for i, val := range v {
+				ids[i] = qb.recordValue(val)
+			}
+			return fmt.Sprintf("(%s)", strings.Join(ids, ", ")), nil
 		default:
 			return "", errors.Errorf("unsupported type for anyOf: %T", v)
 		}

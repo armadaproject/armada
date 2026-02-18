@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: postgres:15
+    container_name: broadside-postgres
+    environment:
+      POSTGRES_USER: broadside
+      POSTGRES_PASSWORD: broadside
+      POSTGRES_DB: broadside_test
+    ports:
+      - "5433:5432" # Use 5433 to avoid conflicts with other Postgres instances
+    volumes:
+      - broadside-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U broadside -d broadside_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  broadside-postgres-data:
