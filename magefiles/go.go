@@ -8,7 +8,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-const GO_VERSION_CONSTRAINT = ">= 1.25.0"
+const GO_VERSION_CONSTRAINT = ">= 1.26.0"
 
 func goBinary() string {
 	return binaryWithExt("go")
