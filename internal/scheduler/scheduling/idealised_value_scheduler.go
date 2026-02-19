@@ -181,6 +181,10 @@ type staticRequirementsIgnoringIterator struct {
 	iter JobContextIterator
 }
 
+func (s staticRequirementsIgnoringIterator) OnlyYieldEvicted() {
+	s.iter.OnlyYieldEvicted()
+}
+
 func (s staticRequirementsIgnoringIterator) Next() (*schedulercontext.JobSchedulingContext, error) {
 	next, err := s.iter.Next()
 	if err != nil {

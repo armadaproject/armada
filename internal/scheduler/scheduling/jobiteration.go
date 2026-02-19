@@ -13,11 +13,13 @@ import (
 
 type JobContextIterator interface {
 	Next() (*schedulercontext.JobSchedulingContext, error)
+	OnlyYieldEvicted()
 }
 
 type InMemoryJobIterator struct {
-	i     int
-	jctxs []*schedulercontext.JobSchedulingContext
+	i                int
+	onlyYieldEvicted bool
+	jctxs            []*schedulercontext.JobSchedulingContext
 }
 
 func NewInMemoryJobIterator(jctxs []*schedulercontext.JobSchedulingContext) *InMemoryJobIterator {
@@ -32,7 +34,21 @@ func (it *InMemoryJobIterator) Next() (*schedulercontext.JobSchedulingContext, e
 	}
 	v := it.jctxs[it.i]
 	it.i++
+	if it.onlyYieldEvicted && !v.IsEvicted {
+		for !v.IsEvicted {
+			if it.i >= len(it.jctxs) {
+				return nil, nil
+			}
+			v = it.jctxs[it.i]
+			it.i++
+		}
+	}
+
 	return v, nil
+}
+
+func (it *InMemoryJobIterator) OnlyYieldEvicted() {
+	it.onlyYieldEvicted = true
 }
 
 type InMemoryJobRepository struct {
@@ -107,8 +123,9 @@ func (repo *InMemoryJobRepository) GetJobIterator(queue string) JobContextIterat
 
 // QueuedJobsIterator is an iterator over all jobs in a queue.
 type QueuedJobsIterator struct {
-	jobIter jobdb.JobIterator
-	pool    string
+	jobIter          jobdb.JobIterator
+	onlyYieldEvicted bool
+	pool             string
 }
 
 func NewQueuedJobsIterator(queue string, pool string, sortOrder jobdb.JobSortOrder, repo jobdb.JobRepository) *QueuedJobsIterator {
@@ -119,11 +136,18 @@ func NewQueuedJobsIterator(queue string, pool string, sortOrder jobdb.JobSortOrd
 }
 
 func (it *QueuedJobsIterator) Next() (*schedulercontext.JobSchedulingContext, error) {
+	if it.onlyYieldEvicted {
+		return nil, nil
+	}
 	job, _ := it.jobIter.Next()
 	if job == nil {
 		return nil, nil
 	}
 	return schedulercontext.JobSchedulingContextFromJob(job), nil
+}
+
+func (it *QueuedJobsIterator) OnlyYieldEvicted() {
+	it.onlyYieldEvicted = true
 }
 
 // MultiJobsIterator chains several JobIterators together in the order provided.
@@ -151,6 +175,12 @@ func (it *MultiJobsIterator) Next() (*schedulercontext.JobSchedulingContext, err
 		return it.Next()
 	}
 	return v, nil
+}
+
+func (it *MultiJobsIterator) OnlyYieldEvicted() {
+	for _, iter := range it.its {
+		iter.OnlyYieldEvicted()
+	}
 }
 
 // MarketDrivenMultiJobsIterator combines two iterators by price
@@ -216,4 +246,15 @@ func (it *MarketDrivenMultiJobsIterator) Next() (*schedulercontext.JobScheduling
 
 	// If we get to here then both iterators exhausted
 	return nil, nil
+}
+
+func (it *MarketDrivenMultiJobsIterator) OnlyYieldEvicted() {
+	it.it1.OnlyYieldEvicted()
+	if it.it1Value != nil && !it.it1Value.IsEvicted {
+		it.it1Value = nil
+	}
+	it.it2.OnlyYieldEvicted()
+	if it.it2Value != nil && !it.it2Value.IsEvicted {
+		it.it2Value = nil
+	}
 }
