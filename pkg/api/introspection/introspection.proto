@@ -1,0 +1,156 @@
+syntax = 'proto3';
+
+package api;
+
+option go_package = "github.com/armadaproject/armada/pkg/api";
+
+import "google/api/annotations.proto";
+
+service Introspection {
+    // stream logs for the pod corresponding to a job
+    // if follow = true the server keeps the stream open
+    // else it sends a finite set of lines and then closes
+    rpc GetJobLogs (GetJobLogsRequest) returns (stream LogLine) {
+        option(google.api.http) = {
+            post: "/v1/job/logs:stream"
+            body: "*"
+        };
+    }
+
+    rpc DescribeJobPod(DescribeJobPodRequest) returns (DescribeJobPodResponse) {
+        option (google.api.http) = {
+            post: "/v1/job/pod/describe"
+            body: "*"
+        };
+    }
+
+    rpc DescribeNode(DescribeNodeRequest) returns (DescribeNodeResponse) {
+        option (google.api.http) = {
+            post: "/v1/node/describe"
+            body: "*"
+        };
+    }
+
+    rpc DescribeNodeByJobRun(DescribeNodeByJobRunRequest) returns (DescribeNodeResponse) {
+        option (google.api.http) = {
+            post: "/v1/job/node/describe"
+            body: "*"
+        };
+    }
+}
+
+message GetJobLogsRequest {
+    string job_id = 1;
+    string run_id = 2;
+    string cluster = 3;
+    string pod_namespace = 4;
+    string pod_name = 5;
+    string container = 6;
+    string since_time = 7;
+    int32 tail_lines = 8;
+    bool follow = 9;
+    bool previous = 10;
+    bool timestamps = 11;
+}
+
+message LogLine {
+    string timestamp = 1;
+    string line = 2;
+    string stream = 3;
+}
+
+message DescribeJobPodRequest {
+    string job_id = 1;
+    string run_id = 2;
+    string cluster = 3;
+    bool include_raw = 4;
+    bool include_events = 5;
+}
+
+message DescribeJobPodResponse {
+    string cluster = 1;
+    string pod_namespace = 2;
+    string pod_name = 3;
+    string pod_uid = 4;
+    string node_name = 5;
+    string phase = 6;
+    repeated ContainerStatus containers = 7;
+    repeated PodCondition conditions = 8;
+    repeated PodEvent events = 9;
+    bytes raw_pod_json = 10;
+}
+
+message ContainerStatus {
+    string name = 1;
+    bool ready = 2;
+    int32 restart_count = 3;
+    string state = 4; 
+    string reason = 5;
+    string message = 6;
+}
+
+message PodCondition {
+    string type = 1;
+    string status = 2;
+    string reason = 3;
+    string message = 4;
+    string last_transition_time = 5;
+}
+
+message PodEvent {
+    string type = 1;
+    string reason = 2;
+    string message = 3;
+    string first_timestamp = 4;
+    string last_timestamp = 5;
+    int32 count = 6;
+}
+
+message DescribeNodeRequest {
+    string cluster = 1;
+    string node_id = 2;
+    bool include_raw = 3;
+}
+
+message DescribeNodeByJobRunRequest {
+    string job_id = 1;
+    string run_id = 2;
+    string cluster = 3;
+    bool include_raw = 4;
+}
+
+message DescribeNodeResponse {
+    string cluster = 1;
+    string node_name = 2;
+    string node_uid = 3;
+    repeated NodeAddress addresses = 4;
+    map<string, string> labels = 5;
+    repeated Taint taints = 6;
+    repeated NodeCondition conditions = 7;
+    ResourceList capacity = 8;
+    ResourceList allocatable = 9;
+    bytes raw_node_json = 10;
+}
+
+message NodeAddress {
+    string type = 1;
+    string address = 2;
+}
+
+message Taint {
+    string key = 1;
+    string value = 2;
+    string effect = 3;
+}
+
+message NodeCondition {
+    string type = 1;
+    string status = 2;
+    string reason = 3;
+    string message = 4;
+    string last_transition_time = 5;
+}
+
+message ResourceList {
+    map<string, string> resources = 1;
+}
