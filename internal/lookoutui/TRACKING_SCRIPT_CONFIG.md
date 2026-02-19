@@ -1,26 +1,50 @@
 # Example Lookout UI Configuration with Tracking Script
 
-To enable a tracking script (like Umami, Google Analytics, Plausible, etc.) in the Lookout UI, add the `trackingScript` configuration to your Lookout configuration YAML file:
+To enable a tracking script (like Umami, Google Analytics, Plausible, etc.) in the Lookout UI, add the `trackingScript` configuration to your Lookout configuration YAML file. Many analytics solutions operate by inserting `<script>` tags inside the `<head>` and adding information to other tags through HTML attributes or css classes for event tracking.
+
+## trackingScript Schema
 
 ```yaml
 uiConfig:
   # ... other UI configuration ...
 
   trackingScript:
-    scripts:
-      - content: |
+    scripts: # list of <script> that will be added to <head>
+      - content: | # content of <script>
           console.log("Inline script example");
-        attributes:
+        attributes: # HTML attributes of <script>
+          src: "https://analytics.yourdomain.com/script.js"
           type: "text/javascript"
-      - attributes:
-          src: "http://localhost:3000/script.js"
-          data-website-id: "b92c8526-afb0-46c3-85d4-6878632efb01"
           defer: "true"
-    eventAttribute: "data-foo-event" # add css attribute for tracking events
-    dataAttribute: "data-foo-event" # add css attribute for tracking event payloads
-    trackedEvents: # list of eventNames to track
-      - "Something Clicked"
+    method: attribute | class # specify if analytic solution uses HTML attributes or css class
+    eventAttribute: "data-foo-event" # analytic solution base identifier for events
+    dataAttribute: "data-foo-data" # analytic solution base identifier for data associated with an event
 ```
+
+This will result in a tracking script being added to the `<head>` element
+
+```html
+<head>
+  ...
+  <script src="https://analytics.yourdomain.com/script.js" defer="true" type="text/javascript">
+    console.log("Inline script example")
+  </script>
+</head>
+```
+
+Event tracking where `eventName=Something Clicked` and `eventData={yourEvent: 1}`
+
+```html
+<!-- HTML Attribute method -->
+<button type="button" data-foo-event="Something Clicked" data-foo-data-yourevent="1">Something</button>
+
+<!-- CSS class method -->
+<button type="button" class="data-foo-event=Something+Clicked data-foo-data-yourevent=1">Something</button>
+```
+
+### CSS Method
+
+Css based event tracking
 
 ## Examples
 
@@ -34,53 +58,34 @@ uiConfig:
           src: "https://analytics.yourdomain.com/script.js"
           data-website-id: "your-website-id"
           defer: "true"
+    method: "attribute"
     eventAttribute: "data-umami-event"
     dataAttribute: "data-umami-event"
-    trackedEvents:
-      - "Cancel Jobs Clicked"
-      - "Reprioritize Jobs Clicked"
 ```
 
-### OpenPanel
+Follow [Umami docs](https://umami.is/docs) on how to run and set up an instance of Umami. Details for `<script>` tag are in the [Tracking code](https://umami.is/docs/collect-data) section.
+
+### Plausible
 
 ```yaml
 uiConfig:
   trackingScript:
     scripts:
-      - content: |
-          window.op=window.op||function(){var n=[];return new Proxy(function(){arguments.length&&n.push([].slice.call(arguments))},{get:function(t,r){return"q"===r?n:function(){n.push([r].concat([].slice.call(arguments)))}} ,has:function(t,r){return"q"===r}}) }();
-          window.op('init', {
-            apiUrl: 'https://your-domain.com/api',
-            clientId: 'YOUR_CLIENT_ID',
-            trackScreenViews: true,
-            trackOutgoingLinks: true,
-            trackAttributes: true,
-          });
-        attributes:
-          type: "text/javascript"
       - attributes:
-          src: "https://openpanel.dev/op1.js"
-          defer: "true"
-          async: "true"
-    eventAttribute: "data-track"
-    dataAttribute: "data"
-    trackedEvents:
-      - "Cancel Jobs Clicked"
-      - "Reprioritize Jobs Clicked"
+           src: "https://analytics.yourdomain.com/js/script_name.js"
+           async: "true"
+           defer: "true"
+       - content: |
+           window.plausible=window.plausible||function(){(plausible.q=plausible.q||[]).push(arguments)},plausible.init=plausible.init||function(i){plausible.o=i||{}};
+           plausible.init({
+           endpoint: "https://analytics.yourdomain.com/api/event",
+           });
+     method: "class"
+     eventAttribute: "plausible-event-name"
+     dataAttribute: "plausible-event"
 ```
 
-This will result in a tracking script being added to the `<head>` element and tracking attributes being added to elements
-
-```html
-<head>
-  ...
-  <script src="https://analytics.yourdomain.com/script.js" defer="true" data-website-id="your-website-id"></script>
-</head>
-...
-<button type="button" data-umami-event="Something Clicked" data-umami-event-yourevent="1">Something</button>
-```
-
-Follow [Umami docs](https://umami.is/docs) on how to run and set up an instance of Umami. The `src` and `data-website-id` are in the <b>Tracking code</b> section.
+Follow [Plausible docs](https://plausible.io/docs) on how to run and set up an instance of Plausible Community Edition. Details to get the snippet with the `<script>` tags are [here](https://plausible.io/docs/plausible-script).
 
 ## TrackingButton Component
 

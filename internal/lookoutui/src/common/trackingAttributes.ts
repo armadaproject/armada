@@ -28,7 +28,7 @@ export function buildTrackingAttributes(
       Object.entries(eventData).forEach(([key, value]) => {
         // Replace spaces with + for Plausible class format
         const propValue = value.replace(/\s/g, "+")
-        classes.push(`${trackingConfig.dataAttribute}-${key}=${propValue}`)
+        classes.push(`${trackingConfig.dataAttribute}-${key.toLowerCase()}=${propValue}`)
       })
     }
 
@@ -41,7 +41,7 @@ export function buildTrackingAttributes(
     }
     if (trackingConfig.dataAttribute && eventData) {
       Object.entries(eventData).forEach(([key, value]) => {
-        trackingAttributes[`${trackingConfig.dataAttribute}-${key}`] = value
+        trackingAttributes[`${trackingConfig.dataAttribute}-${key.toLowerCase()}`] = value
       })
     }
 

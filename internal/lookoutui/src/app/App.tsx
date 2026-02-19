@@ -15,7 +15,7 @@ import { FullPageErrorFallback } from "../components/FullPageErrorFallback"
 import { TrackingScript } from "../components/TrackingScript"
 import { getConfig } from "../config"
 import { LookoutThemeProvider } from "../lookoutThemeState"
-import { OidcAuthProvider } from "../oidcAuth"
+import { OidcAuthProvider, useIdentifyUserForTracking } from "../oidcAuth"
 import { JobSetsPage } from "../pages/jobSets/JobSetsPage"
 import { JobsPage } from "../pages/jobs/JobsPage"
 import { SettingsPage } from "../pages/settings/SettingsPage"
@@ -70,6 +70,12 @@ const V2Redirect = withRouter(({ router }) => <Navigate to={{ ...router.location
 
 const config = getConfig()
 
+// Component that handles user identification for tracking
+const TrackingIdentifier = () => {
+  useIdentifyUserForTracking()
+  return null
+}
+
 export function App(props: AppProps) {
   useEffect(() => {
     if (config.customTitle) {
@@ -95,6 +101,7 @@ export function App(props: AppProps) {
             <QueryClientProvider client={queryClient}>
               <ErrorBoundary FallbackComponent={FullPageErrorFallback}>
                 <OidcAuthProvider oidcConfig={config.oidcEnabled ? config.oidc : undefined}>
+                  <TrackingIdentifier />
                   <ApiClientsProvider>
                     <BrowserRouter>
                       <ServicesProvider services={props.services}>
