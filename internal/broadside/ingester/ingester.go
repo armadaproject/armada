@@ -3,6 +3,7 @@ package ingester
 import (
 	"container/heap"
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -141,7 +142,7 @@ type Ingester struct {
 // routerSend wraps the router send with config-aware backlog handling
 func (i *Ingester) routerSend(router *queryRouter, q timestampedQuery, ctx context.Context) {
 	err := router.send(q, i.config.BacklogDropStrategy, i.config.MaxBacklogSize, ctx)
-	if err != nil && !isContextCancelled(err) {
+	if err != nil && !errors.Is(err, context.Canceled) {
 		logging.WithError(err).Warn("Failed to send query to worker")
 	}
 }
@@ -351,13 +352,9 @@ func (i *Ingester) executeBatch(ctx context.Context, batch []db.IngestionQuery) 
 
 	i.metrics.RecordBatchExecution(len(batch), duration, err)
 
-	if err != nil && !isContextCancelled(err) {
+	if err != nil && !errors.Is(err, context.Canceled) {
 		logging.WithError(err).Warn("Failed to execute batch")
 	}
-}
-
-func isContextCancelled(err error) bool {
-	return err == context.Canceled || err == context.DeadlineExceeded
 }
 
 func (i *Ingester) createNewJob(jobNumber, queueIdx, jobSetIdx int, submissionTime time.Time) *db.NewJob {

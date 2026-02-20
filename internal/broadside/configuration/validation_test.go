@@ -423,8 +423,23 @@ func TestQueueConfig_Validate(t *testing.T) {
 					},
 				},
 			},
+			wantErr: false,
+		},
+		{
+			name: "negative proportion",
+			config: QueueConfig{
+				Name:       "queue1",
+				Proportion: -0.1,
+				JobSetConfig: []JobSetConfig{
+					{
+						Name:                 "jobset1",
+						Proportion:           1.0,
+						HistoricalJobsConfig: HistoricalJobsConfig{},
+					},
+				},
+			},
 			wantErr: true,
-			errText: "proportion must be in range (0, 1]",
+			errText: "proportion must be in range [0, 1]",
 		},
 		{
 			name: "proportion greater than 1",
@@ -440,7 +455,7 @@ func TestQueueConfig_Validate(t *testing.T) {
 				},
 			},
 			wantErr: true,
-			errText: "proportion must be in range (0, 1]",
+			errText: "proportion must be in range [0, 1]",
 		},
 		{
 			name: "no jobsets",
@@ -521,8 +536,17 @@ func TestJobSetConfig_Validate(t *testing.T) {
 				Proportion:           0,
 				HistoricalJobsConfig: HistoricalJobsConfig{},
 			},
+			wantErr: false,
+		},
+		{
+			name: "negative proportion",
+			config: JobSetConfig{
+				Name:                 "jobset1",
+				Proportion:           -0.1,
+				HistoricalJobsConfig: HistoricalJobsConfig{},
+			},
 			wantErr: true,
-			errText: "proportion must be in range (0, 1]",
+			errText: "proportion must be in range [0, 1]",
 		},
 	}
 

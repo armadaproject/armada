@@ -2,7 +2,7 @@ package querier
 
 import (
 	"context"
-	"strings"
+	"errors"
 	"sync"
 	"time"
 
@@ -152,15 +152,17 @@ func (q *Querier) executeGetJobsQuery(ctx context.Context, queryIndex int) {
 	jobs, err := q.database.GetJobs(&ctx, filters, true, order, 0, pageSize)
 	duration := time.Since(start)
 
+	if errors.Is(err, context.Canceled) {
+		return
+	}
+
 	q.metrics.RecordQuery(metrics.QueryTypeGetJobs, filterCombo, duration, err)
 
 	if err != nil {
-		if !isExpectedError(err) {
-			logging.WithError(err).WithFields(map[string]any{
-				"queryIndex":  queryIndex,
-				"filterCombo": filterCombo,
-			}).Warn("GetJobs query failed")
-		}
+		logging.WithError(err).WithFields(map[string]any{
+			"queryIndex":  queryIndex,
+			"filterCombo": filterCombo,
+		}).Warn("GetJobs query failed")
 		return
 	}
 
@@ -398,9 +400,13 @@ func (q *Querier) executeGetJobGroupsQuery(ctx context.Context, queryIndex int) 
 	_, err := q.database.GetJobGroups(&ctx, filters, order, groupedField, aggregates, 0, pageSize)
 	duration := time.Since(start)
 
+	if errors.Is(err, context.Canceled) {
+		return
+	}
+
 	q.metrics.RecordQuery(metrics.QueryTypeGetJobGroups, filterCombo, duration, err)
 
-	if err != nil && !isExpectedError(err) {
+	if err != nil {
 		logging.WithError(err).WithFields(map[string]any{
 			"queryIndex":   queryIndex,
 			"filterCombo":  filterCombo,
@@ -501,17 +507,6 @@ func containsString(slice []string, str string) bool {
 	return false
 }
 
-func isExpectedError(err error) bool {
-	if err == nil {
-		return false
-	}
-	// Don't log "not found" errors or context cancellation errors
-	errStr := err.Error()
-	return strings.Contains(errStr, "not found") ||
-		strings.Contains(errStr, "context canceled") ||
-		strings.Contains(errStr, "context deadline exceeded")
-}
-
 func (q *Querier) executeFollowUpQueriesForErroredJobs(ctx context.Context, jobs []*model.Job) {
 	debugMessageRate := q.queryConfig.GetJobRunDebugMessageQueriesPerHour
 	runErrorRate := q.queryConfig.GetJobRunErrorQueriesPerHour
@@ -610,9 +605,13 @@ func (q *Querier) executeGetJobRunDebugMessage(ctx context.Context, runID string
 	_, err := q.database.GetJobRunDebugMessage(ctx, runID)
 	duration := time.Since(start)
 
+	if errors.Is(err, context.Canceled) {
+		return
+	}
+
 	q.metrics.RecordQuery(metrics.QueryTypeGetJobRunDebugMessage, metrics.FilterCombinationNone, duration, err)
 
-	if err != nil && !isExpectedError(err) {
+	if err != nil {
 		logging.WithError(err).WithField("runID", runID).Warn("GetJobRunDebugMessage query failed")
 	}
 }
@@ -622,9 +621,13 @@ func (q *Querier) executeGetJobRunError(ctx context.Context, runID string) {
 	_, err := q.database.GetJobRunError(ctx, runID)
 	duration := time.Since(start)
 
+	if errors.Is(err, context.Canceled) {
+		return
+	}
+
 	q.metrics.RecordQuery(metrics.QueryTypeGetJobRunError, metrics.FilterCombinationNone, duration, err)
 
-	if err != nil && !isExpectedError(err) {
+	if err != nil {
 		logging.WithError(err).WithField("runID", runID).Warn("GetJobRunError query failed")
 	}
 }
@@ -634,9 +637,13 @@ func (q *Querier) executeGetJobSpec(ctx context.Context, jobID string) {
 	_, err := q.database.GetJobSpec(ctx, jobID)
 	duration := time.Since(start)
 
+	if errors.Is(err, context.Canceled) {
+		return
+	}
+
 	q.metrics.RecordQuery(metrics.QueryTypeGetJobSpec, metrics.FilterCombinationNone, duration, err)
 
-	if err != nil && !isExpectedError(err) {
+	if err != nil {
 		logging.WithError(err).WithField("jobID", jobID).Warn("GetJobSpec query failed")
 	}
 }

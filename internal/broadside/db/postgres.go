@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 
@@ -160,13 +161,27 @@ func (p *PostgresDatabase) ExecuteIngestionQueryBatch(ctx context.Context, queri
 // GetJobRunDebugMessage retrieves the debug message for a specific job run.
 func (p *PostgresDatabase) GetJobRunDebugMessage(ctx context.Context, jobRunID string) (string, error) {
 	armadaCtx := armadacontext.FromGrpcCtx(ctx)
-	return p.jobRunDebugRepository.GetJobRunDebugMessage(armadaCtx, jobRunID)
+	msg, err := p.jobRunDebugRepository.GetJobRunDebugMessage(armadaCtx, jobRunID)
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return "", nil
+		}
+		return "", err
+	}
+	return msg, nil
 }
 
 // GetJobRunError retrieves the error message for a specific job run.
 func (p *PostgresDatabase) GetJobRunError(ctx context.Context, jobRunID string) (string, error) {
 	armadaCtx := armadacontext.FromGrpcCtx(ctx)
-	return p.jobRunErrorRepository.GetJobRunError(armadaCtx, jobRunID)
+	msg, err := p.jobRunErrorRepository.GetJobRunError(armadaCtx, jobRunID)
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return "", nil
+		}
+		return "", err
+	}
+	return msg, nil
 }
 
 // GetJobSpec retrieves the job specification for a specific job.
