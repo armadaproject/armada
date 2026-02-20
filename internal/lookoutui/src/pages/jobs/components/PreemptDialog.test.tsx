@@ -136,12 +136,12 @@ describe("PreemptDialog", () => {
     mockServer.setPostJobsResponse([jobs[0]])
     const { getByRole, findByText } = renderComponent()
 
-    mockServer.setPreemptJobsResponse()
+    mockServer.setPreemptJobsResponse([jobs[0].jobId], [])
 
     await enterPreemptReason("Reason for preemption")
 
     await action(getByRole)
-    await findByText(/Successfully requested preemption of selected jobs. See table for job statuses./i)
+    await findByText(/Successfully requested preemption for: job-id-0/i)
   })
 
   it("allows user to refetch jobs", async () => {
@@ -170,7 +170,7 @@ describe("PreemptDialog", () => {
     mockServer.setPostJobsResponse([jobs[0]])
     const { getByRole, findByText, findByRole } = renderComponent()
 
-    mockServer.setPreemptJobsResponse(500, "Internal Server Error")
+    mockServer.setPreemptJobsResponse([], [{ jobId: jobs[0].jobId, errorReason: "Internal Server Error" }])
 
     await enterPreemptReason("Reason for preemption")
 

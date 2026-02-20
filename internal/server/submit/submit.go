@@ -199,7 +199,7 @@ func (s *Server) CancelJobs(grpcCtx context.Context, req *api.JobCancelRequest) 
 	}, nil
 }
 
-func (s *Server) PreemptJobs(grpcCtx context.Context, req *api.JobPreemptRequest) (*types.Empty, error) {
+func (s *Server) PreemptJobs(grpcCtx context.Context, req *api.JobPreemptRequest) (*api.PreemptionResult, error) {
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
 	err := validation.ValidateQueueAndJobSet(req)
 	if err != nil {
@@ -210,6 +210,9 @@ func (s *Server) PreemptJobs(grpcCtx context.Context, req *api.JobPreemptRequest
 	if err != nil {
 		return nil, err
 	}
+
+	// results maps job ids to strings containing error messages.
+	results := make(map[string]string)
 
 	sequence, err := preemptJobEventSequenceForJobIds(s.clock, req.JobIds, req.Queue, req.JobSetId, userId, req.Reason, groups)
 	if err != nil {
@@ -222,7 +225,13 @@ func (s *Server) PreemptJobs(grpcCtx context.Context, req *api.JobPreemptRequest
 		return nil, status.Error(codes.Internal, "Failed to send message")
 	}
 
-	return &types.Empty{}, nil
+	for _, jobId := range req.JobIds {
+		results[jobId] = "" // empty string indicates no error
+	}
+
+	return &api.PreemptionResult{
+		PreemptionResults: results,
+	}, nil
 }
 
 func preemptJobEventSequenceForJobIds(clock clock.Clock, jobIds []string, q, jobSet, userId, reason string, groups []string) (*armadaevents.EventSequence, error) {
