@@ -1069,7 +1069,6 @@ func TestQueuedGangIterator_OnlyYieldEvicted_TopItemNonEvicted(t *testing.T) {
 
 	it.OnlyYieldEvicted()
 
-	// No change expected as first job is evicted
 	gctx, err = it.Peek()
 	require.NoError(t, err)
 	assert.Len(t, gctx.JobSchedulingContexts, 1)
