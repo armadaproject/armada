@@ -1,14 +1,17 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"os"
 	"strings"
 
 	mapstructure "github.com/go-viper/mapstructure/v2"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	"golang.org/x/exp/slices"
+	"gopkg.in/yaml.v3"
 
 	"github.com/armadaproject/armada/internal/broadside/configuration"
 	"github.com/armadaproject/armada/internal/broadside/estimation"
@@ -35,27 +38,100 @@ func init() {
 	pflag.Parse()
 }
 
+// resolveYAMLMergeKeys reads a YAML file and resolves any merge keys (<<)
+// and anchors/aliases, which Viper does not natively support. The yaml.v3
+// library handles parsing and alias resolution, but does not apply merge key
+// semantics (a YAML 1.1 feature) when decoding to interface{}.
+func resolveYAMLMergeKeys(path string) (*bytes.Reader, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("reading %s: %w", path, err)
+	}
+	var raw interface{}
+	if err := yaml.Unmarshal(data, &raw); err != nil {
+		return nil, fmt.Errorf("parsing %s: %w", path, err)
+	}
+	applyMergeKeys(raw)
+	resolved, err := yaml.Marshal(raw)
+	if err != nil {
+		return nil, fmt.Errorf("re-marshalling %s: %w", path, err)
+	}
+	return bytes.NewReader(resolved), nil
+}
+
+// applyMergeKeys recursively walks a decoded YAML tree and applies merge key
+// (<<) semantics: keys from the referenced mapping are merged into the parent
+// mapping without overwriting existing keys.
+func applyMergeKeys(v interface{}) {
+	switch val := v.(type) {
+	case map[string]interface{}:
+		for _, child := range val {
+			applyMergeKeys(child)
+		}
+		mergeVal, ok := val["<<"]
+		if !ok {
+			return
+		}
+		delete(val, "<<")
+		mergeMappingInto(val, mergeVal)
+	case []interface{}:
+		for _, item := range val {
+			applyMergeKeys(item)
+		}
+	}
+}
+
+// mergeMappingInto merges keys from src into dst without overwriting. src may
+// be a single mapping or a sequence of mappings, per the YAML merge key spec.
+func mergeMappingInto(dst map[string]interface{}, src interface{}) {
+	switch s := src.(type) {
+	case map[string]interface{}:
+		for k, v := range s {
+			if _, exists := dst[k]; !exists {
+				dst[k] = v
+			}
+		}
+	case []interface{}:
+		for _, item := range s {
+			if m, ok := item.(map[string]interface{}); ok {
+				for k, v := range m {
+					if _, exists := dst[k]; !exists {
+						dst[k] = v
+					}
+				}
+			}
+		}
+	}
+}
+
 func loadConfig(configFiles []string) configuration.TestConfig {
 	if len(configFiles) == 0 {
 		logging.Fatal("No configuration file specified. Use --config flag to specify a configuration file.")
 	}
 
 	v := viper.NewWithOptions(viper.KeyDelimiter("::"))
+	v.SetConfigType("yaml")
 
-	// Load the first config file
-	v.SetConfigFile(configFiles[0])
-	if err := v.ReadInConfig(); err != nil {
+	// Load the first config file, resolving YAML merge keys
+	reader, err := resolveYAMLMergeKeys(configFiles[0])
+	if err != nil {
 		logging.Fatalf("Error reading config from %s: %v", configFiles[0], err)
 	}
-	logging.Infof("Read config from %s", v.ConfigFileUsed())
+	if err := v.ReadConfig(reader); err != nil {
+		logging.Fatalf("Error reading config from %s: %v", configFiles[0], err)
+	}
+	logging.Infof("Read config from %s", configFiles[0])
 
 	// Merge in any additional config files
 	for i := 1; i < len(configFiles); i++ {
-		v.SetConfigFile(configFiles[i])
-		if err := v.MergeInConfig(); err != nil {
+		reader, err := resolveYAMLMergeKeys(configFiles[i])
+		if err != nil {
 			logging.Fatalf("Error merging config from %s: %v", configFiles[i], err)
 		}
-		logging.Infof("Merged config from %s", v.ConfigFileUsed())
+		if err := v.MergeConfig(reader); err != nil {
+			logging.Fatalf("Error merging config from %s: %v", configFiles[i], err)
+		}
+		logging.Infof("Merged config from %s", configFiles[i])
 	}
 
 	// Environment variable support
