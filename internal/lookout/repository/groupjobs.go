@@ -72,7 +72,7 @@ func (r *SqlGroupJobsRepository) GroupBy(
 		logQueryError(user, query, "GroupBy", queryDuration)
 		return nil, err
 	}
-	logSlowQuery(user, query, "GroupBy", queryDuration)
+	logSlowQuery(ctx, user, query, "GroupBy", queryDuration)
 
 	groups, err = rowsToGroups(groupRows, groupedField, aggregates, filters)
 	if err != nil {

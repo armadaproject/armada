@@ -177,7 +177,7 @@ func (p *PostgresDatabase) GetJobSpec(ctx context.Context, jobID string) (*api.J
 
 // GetJobs retrieves jobs matching the given filters using the Lookout repository.
 func (p *PostgresDatabase) GetJobs(ctx *context.Context, filters []*model.Filter, activeJobSets bool, order *model.Order, skip int, take int) ([]*model.Job, error) {
-	armadaCtx := armadacontext.FromGrpcCtx(*ctx)
+	armadaCtx := armadacontext.FromGrpcCtx(repository.ContextWithSlowQueryLoggingDisabled(*ctx))
 	result, err := p.jobsRepository.GetJobs(armadaCtx, filters, activeJobSets, order, skip, take)
 	if err != nil {
 		return nil, err
@@ -187,7 +187,7 @@ func (p *PostgresDatabase) GetJobs(ctx *context.Context, filters []*model.Filter
 
 // GetJobGroups retrieves aggregated job groups using the Lookout repository.
 func (p *PostgresDatabase) GetJobGroups(ctx *context.Context, filters []*model.Filter, order *model.Order, groupedField *model.GroupedField, aggregates []string, skip int, take int) ([]*model.JobGroup, error) {
-	armadaCtx := armadacontext.FromGrpcCtx(*ctx)
+	armadaCtx := armadacontext.FromGrpcCtx(repository.ContextWithSlowQueryLoggingDisabled(*ctx))
 
 	result, err := p.groupRepository.GroupBy(armadaCtx, filters, false, order, groupedField, aggregates, skip, take)
 	if err != nil {
