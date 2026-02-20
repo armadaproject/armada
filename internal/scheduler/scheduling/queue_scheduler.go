@@ -477,7 +477,11 @@ func (it *CostBasedCandidateGangIterator) OnlyYieldEvictedForQueue(queue string)
 				if err != nil {
 					return err
 				}
-				heap.Fix(&it.pq, item.index)
+				if item.gctx == nil {
+					heap.Remove(&it.pq, item.index)
+				} else {
+					heap.Fix(&it.pq, item.index)
+				}
 				break
 			}
 		}
