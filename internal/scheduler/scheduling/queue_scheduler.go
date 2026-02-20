@@ -289,7 +289,9 @@ type QueuedGangIterator struct {
 	skipKnownUnschedulableJobs bool
 	// Number of jobs we have seen so far.
 	jobsSeen uint
-	next     *schedulercontext.GangSchedulingContext
+	// If the iterator should only be yielding evicted jobs
+	onlyYieldEvicted bool
+	next             *schedulercontext.GangSchedulingContext
 }
 
 func NewQueuedGangIterator(sctx *schedulercontext.SchedulingContext, it JobContextIterator, maxLookback uint, skipKnownUnschedulableJobs bool) *QueuedGangIterator {
@@ -303,6 +305,7 @@ func NewQueuedGangIterator(sctx *schedulercontext.SchedulingContext, it JobConte
 }
 
 func (it *QueuedGangIterator) OnlyYieldEvicted() {
+	it.onlyYieldEvicted = true
 	it.queuedJobsIterator.OnlyYieldEvicted()
 	if it.next != nil && !it.next.AllJobsEvicted {
 		it.Clear()
@@ -314,9 +317,6 @@ func (it *QueuedGangIterator) Clear() {
 }
 
 func (it *QueuedGangIterator) Peek() (*schedulercontext.GangSchedulingContext, error) {
-	if it.hitLookbackLimit() {
-		return nil, nil
-	}
 	if it.next != nil {
 		return it.next, nil
 	}
@@ -325,6 +325,7 @@ func (it *QueuedGangIterator) Peek() (*schedulercontext.GangSchedulingContext, e
 	// 1. get a job that isn't part of a gang, in which case we yield it immediately, or
 	// 2. get the final job in a gang, in which case we yield the entire gang.
 	for {
+		it.stopYieldingNewJobsIfLimitHit()
 		jctx, err := it.queuedJobsIterator.Next()
 		if err != nil {
 			return nil, err
@@ -335,9 +336,6 @@ func (it *QueuedGangIterator) Peek() (*schedulercontext.GangSchedulingContext, e
 		// Queue lookback limits. Rescheduled jobs don't count towards the limit.
 		if !jctx.IsEvicted {
 			it.jobsSeen++
-		}
-		if it.hitLookbackLimit() {
-			return nil, nil
 		}
 
 		// Skip this job if it's known to be unschedulable.
@@ -376,11 +374,16 @@ func (it *QueuedGangIterator) Peek() (*schedulercontext.GangSchedulingContext, e
 	}
 }
 
-func (it *QueuedGangIterator) hitLookbackLimit() bool {
+func (it *QueuedGangIterator) stopYieldingNewJobsIfLimitHit() {
 	if it.maxLookback == 0 {
-		return false
+		return
 	}
-	return it.jobsSeen > it.maxLookback
+	if it.onlyYieldEvicted {
+		return
+	}
+	if it.jobsSeen >= it.maxLookback {
+		it.OnlyYieldEvicted()
+	}
 }
 
 // CostBasedCandidateGangIterator determines which gang to try scheduling next across queues.
