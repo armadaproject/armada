@@ -345,7 +345,6 @@ func Run(config schedulerconfig.Configuration) error {
 	schedulingAlgo, err := scheduling.NewFairSchedulingAlgo(
 		config.Scheduling,
 		config.MaxSchedulingDuration,
-		config.NewJobsSchedulingTimeout,
 		executorRepository,
 		queueCache,
 		schedulingContextRepository,

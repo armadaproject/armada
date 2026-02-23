@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"math"
 	"reflect"
-	"time"
 
 	"github.com/pkg/errors"
 	"k8s.io/utils/clock"
@@ -37,9 +36,6 @@ type QueueScheduler struct {
 	marketDriven          bool
 	spotPriceCutoff       float64
 	clock                 clock.Clock
-	// Soft timeout for scheduling new jobs. After this duration, only evicted jobs are scheduled.
-	// Set to 0 to disable soft timeout.
-	softTimeout time.Duration
 }
 
 func NewQueueScheduler(
@@ -55,7 +51,6 @@ func NewQueueScheduler(
 	marketDriven bool,
 	spotPriceCutoff float64,
 	clk clock.Clock,
-	softTimeout time.Duration,
 ) (*QueueScheduler, error) {
 	for queue := range jobIteratorByQueue {
 		if _, ok := sctx.QueueSchedulingContexts[queue]; !ok {
@@ -89,7 +84,6 @@ func NewQueueScheduler(
 		marketDriven:          marketDriven,
 		spotPriceCutoff:       spotPriceCutoff,
 		clock:                 clk,
-		softTimeout:           softTimeout,
 	}, nil
 }
 
@@ -102,8 +96,6 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulingResu
 	scheduledResource := sch.schedulingContext.TotalResources.Factory().MakeAllZero()
 	statsPerQueue := map[string]QueueStats{}
 	loopNumber := 0
-	onlySchedulingEvictedJobs := false
-	startTime := sch.clock.Now()
 	for {
 		// Hard timeout check via context - if exceeded, abort immediately with error.
 		select {
@@ -111,17 +103,6 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulingResu
 			sctx.TerminationReason = fmt.Sprintf("hard timeout: %s", ctx.Err().Error())
 			return nil, ctx.Err()
 		default:
-		}
-
-		// Soft timeout check via clock - if exceeded, switch to evicted-only mode.
-		if !onlySchedulingEvictedJobs && sch.softTimeout > 0 && sch.clock.Since(startTime) > sch.softTimeout {
-			ctx.Infof("Soft timeout reached for pool %s, switching to evicted-only mode", sctx.Pool)
-			sctx.TerminationReason = "soft timeout: scheduling only evicted jobs"
-			err := sch.candidateGangIterator.OnlyYieldEvicted()
-			if err != nil {
-				return nil, err
-			}
-			onlySchedulingEvictedJobs = true
 		}
 
 		// Peek() returns the next gang to try to schedule. Call Clear() before calling Peek() again.
@@ -140,7 +121,7 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulingResu
 			}
 			continue
 		}
-		start := time.Now()
+		start := sch.clock.Now()
 		scheduledOk, unschedulableReason, err := sch.gangScheduler.Schedule(ctx, gctx)
 		if err != nil {
 			return nil, err
@@ -197,7 +178,13 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulingResu
 			}
 		}
 
-		duration := time.Since(start)
+		duration := sch.clock.Since(start)
+		if !gctx.AllJobsEvicted {
+			err := sch.schedulingContext.RecordNewJobSchedulingDuration(gctx, duration)
+			if err != nil {
+				return nil, err
+			}
+		}
 		stats := statsPerQueue[gctx.Queue]
 
 		stats.GangsConsidered++

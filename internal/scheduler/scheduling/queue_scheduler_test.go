@@ -550,7 +550,7 @@ func TestQueueScheduler(t *testing.T) {
 				it := jobRepo.GetJobIterator(q.Name)
 				jobIteratorByQueue[q.Name] = it
 			}
-			sch, err := NewQueueScheduler(sctx, constraints, testfixtures.TestEmptyFloatingResources, nodeDb, jobIteratorByQueue, false, false, tc.SchedulingConfig.EnablePreferLargeJobOrdering, tc.SchedulingConfig.MaxQueueLookback, false, 0, clock.RealClock{}, 0)
+			sch, err := NewQueueScheduler(sctx, constraints, testfixtures.TestEmptyFloatingResources, nodeDb, jobIteratorByQueue, false, false, tc.SchedulingConfig.EnablePreferLargeJobOrdering, tc.SchedulingConfig.MaxQueueLookback, false, 0, clock.RealClock{})
 			require.NoError(t, err)
 
 			result, err := sch.Schedule(armadacontext.Background())
@@ -879,9 +879,11 @@ type timeoutTestSetup struct {
 	constraints schedulerconstraints.SchedulingConstraints
 }
 
-func setupTimeoutTest(t *testing.T, queues []*api.Queue, jobsByQueue map[string][]*jobdb.Job, numNodes int) *timeoutTestSetup {
+func setupTimeoutTest(t *testing.T, queues []*api.Queue, jobsByQueue map[string][]*jobdb.Job, numNodes int, globalTimeout time.Duration, queueTimeout time.Duration) *timeoutTestSetup {
 	t.Helper()
 	config := testfixtures.TestSchedulingConfig()
+	config.MaxNewJobSchedulingDuration = globalTimeout
+	config.MaxNewJobSchedulingDurationPerQueue = queueTimeout
 
 	nodeDb, err := NewNodeDb(config, stringinterner.New(1024))
 	require.NoError(t, err)
@@ -933,11 +935,11 @@ func markJobsAsEvicted(jctxs []*context.JobSchedulingContext) {
 	}
 }
 
-func (s *timeoutTestSetup) createScheduler(clk clock.Clock, softTimeout time.Duration, jobIteratorsByQueue map[string]JobContextIterator) (*QueueScheduler, error) {
+func (s *timeoutTestSetup) createScheduler(clk clock.Clock, jobIteratorsByQueue map[string]JobContextIterator) (*QueueScheduler, error) {
 	return NewQueueScheduler(
 		s.sctx, s.constraints, nil, s.nodeDb, jobIteratorsByQueue,
 		false, false, true, s.config.MaxQueueLookback, false, 0,
-		clk, softTimeout,
+		clk,
 	)
 }
 
@@ -1084,16 +1086,48 @@ func createJctx(evicted bool) *context.JobSchedulingContext {
 
 func TestQueueSchedulerTimeouts(t *testing.T) {
 	tests := map[string]struct {
-		softTimeout       time.Duration
-		cancelContext     bool
-		expectError       bool
-		expectedScheduled int
+		globalSoftTimeout            time.Duration
+		queueSoftTimeout             time.Duration
+		queues                       []*api.Queue
+		cancelContext                bool
+		expectError                  bool
+		expectedNewJobsScheduled     map[string]int
+		expectedEvictedJobsScheduled map[string]int
 	}{
-		"soft timeout: schedules only evicted jobs": {
-			softTimeout:       1 * time.Nanosecond,
-			expectedScheduled: 50,
+		"global soft timeout exceeded": {
+			globalSoftTimeout: 1 * time.Nanosecond,
+			queues: []*api.Queue{
+				{Name: "A", PriorityFactor: 100},
+				{Name: "B", PriorityFactor: 1},
+			},
+			// 1 new job scheduled - we expect one as the bounds check happens after the first schedule
+			// 50 evicted jobs scheduled
+			expectedNewJobsScheduled: map[string]int{
+				"A": 1,
+			},
+			expectedEvictedJobsScheduled: map[string]int{
+				"A": 50,
+				"B": 50,
+			},
 		},
-		"hard timeout: returns error": {
+		"queue soft timeout exceeded": {
+			queueSoftTimeout: 1 * time.Nanosecond,
+			queues: []*api.Queue{
+				{Name: "A", PriorityFactor: 100},
+				{Name: "B", PriorityFactor: 1},
+			},
+			// 1 new job scheduled - we expect one as the bounds check happens after the first schedule
+			// 50 evicted jobs scheduled
+			expectedNewJobsScheduled: map[string]int{
+				"A": 1,
+				"B": 1,
+			},
+			expectedEvictedJobsScheduled: map[string]int{
+				"A": 50,
+				"B": 50,
+			},
+		},
+		"global hard timeout: returns error": {
 			cancelContext: true,
 			expectError:   true,
 		},
@@ -1101,27 +1135,31 @@ func TestQueueSchedulerTimeouts(t *testing.T) {
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			queue := &api.Queue{Name: "A", PriorityFactor: 1.0}
-			// 50 evicted + 100 new jobs; with soft timeout only the 50 evicted should be scheduled
-			evictedJobs := testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 50)
-			newJobs := testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 100)
+			jobsPerQueue := map[string][]*jobdb.Job{}
+			jobIteratorsByQueue := map[string]JobContextIterator{}
 
-			evictedJctxs := context.JobSchedulingContextsFromJobs(evictedJobs)
-			markJobsAsEvicted(evictedJctxs)
+			for _, queue := range tc.queues {
+				// 50 evicted + 100 new jobs; with soft timeout only the 50 evicted should be scheduled
+				evictedJobs := testfixtures.N1Cpu4GiJobs(queue.Name, testfixtures.PriorityClass0, 50)
+				newJobs := testfixtures.N1Cpu4GiJobs(queue.Name, testfixtures.PriorityClass0, 100)
 
-			allJobs := armadaslices.Concatenate(evictedJobs, newJobs)
-			// 10 nodes * 32 CPUs = 320 CPUs total, enough capacity for all 150 jobs
-			setup := setupTimeoutTest(t, []*api.Queue{queue}, map[string][]*jobdb.Job{"A": allJobs}, 10)
-			jobIteratorsByQueue := map[string]JobContextIterator{
-				"A": createJobRepoWithJobs(evictedJctxs, context.JobSchedulingContextsFromJobs(newJobs)).GetJobIterator("A"),
+				evictedJctxs := context.JobSchedulingContextsFromJobs(evictedJobs)
+				markJobsAsEvicted(evictedJctxs)
+
+				allJobs := armadaslices.Concatenate(evictedJobs, newJobs)
+
+				jobsPerQueue[queue.Name] = allJobs
+				jobIteratorsByQueue[queue.Name] = createJobRepoWithJobs(evictedJctxs, context.JobSchedulingContextsFromJobs(newJobs)).GetJobIterator(queue.Name)
 			}
 
 			var clk clock.Clock = clock.RealClock{}
-			if tc.softTimeout > 0 {
+			if tc.globalSoftTimeout > 0 {
 				// Step 10s per Now() call ensures soft timeout (1ns) is exceeded immediately
 				clk = newSteppingClock(time.Now(), 10*time.Second)
 			}
-			sch, err := setup.createScheduler(clk, tc.softTimeout, jobIteratorsByQueue)
+
+			setup := setupTimeoutTest(t, tc.queues, jobsPerQueue, 10, tc.globalSoftTimeout, tc.queueSoftTimeout)
+			sch, err := setup.createScheduler(clk, jobIteratorsByQueue)
 			require.NoError(t, err)
 
 			ctx := armadacontext.Background()
@@ -1139,12 +1177,33 @@ func TestQueueSchedulerTimeouts(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 				require.NotNil(t, result)
-				assert.Len(t, result.ScheduledJobs, tc.expectedScheduled)
-				// Verify all scheduled jobs are evicted (soft timeout only allows evicted jobs)
-				if tc.softTimeout > 0 {
-					for _, jctx := range result.ScheduledJobs {
-						assert.True(t, jctx.IsEvicted, "only evicted jobs should be scheduled after soft timeout")
+
+				totalNumberJobsExpected := 0
+				for _, expected := range tc.expectedNewJobsScheduled {
+					totalNumberJobsExpected += expected
+				}
+
+				for _, expected := range tc.expectedEvictedJobsScheduled {
+					totalNumberJobsExpected += expected
+				}
+
+				assert.Len(t, result.ScheduledJobs, totalNumberJobsExpected)
+				scheduledByQueue := armadaslices.GroupByFunc(result.ScheduledJobs, func(jctx *context.JobSchedulingContext) string {
+					return jctx.Job.Queue()
+				})
+				for queue, scheduledJobs := range scheduledByQueue {
+					assert.Len(t, scheduledJobs, tc.expectedNewJobsScheduled[queue]+tc.expectedEvictedJobsScheduled[queue])
+					numberNewJobsScheduled := 0
+					numberEvictedJobsScheduled := 0
+					for _, jctx := range scheduledJobs {
+						if !jctx.IsEvicted {
+							numberNewJobsScheduled++
+						} else {
+							numberEvictedJobsScheduled++
+						}
 					}
+					assert.Equal(t, tc.expectedNewJobsScheduled[queue], numberNewJobsScheduled)
+					assert.Equal(t, tc.expectedEvictedJobsScheduled[queue], numberEvictedJobsScheduled)
 				}
 			}
 		})
