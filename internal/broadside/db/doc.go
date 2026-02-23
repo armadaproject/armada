@@ -12,9 +12,21 @@ The Database interface provides methods for:
 
   - Schema initialisation (InitialiseSchema)
   - Batch ingestion query execution (ExecuteIngestionQueryBatch)
+  - Historical job population (PopulateHistoricalJobs)
   - Individual record retrieval (GetJobRunDebugMessage, GetJobRunError, GetJobSpec)
   - Multiple record retrieval (GetJobs, GetJobGroups)
   - Resource cleanup (TearDown, Close)
+
+# Historical Job Population
+
+PopulateHistoricalJobs inserts a batch of pre-completed historical jobs for a
+single (queue, job set) pair. It accepts a HistoricalJobsParams struct that
+specifies the queue and job set identifiers, the number of jobs to create, and
+threshold values used to divide jobs into terminal states (succeeded, errored,
+cancelled, preempted) via modular arithmetic on the job number. Implementations
+may perform the insertion using server-side SQL generation (e.g. PostgreSQL
+INSERT...SELECT FROM generate_series) to avoid round-trip overhead, or using
+in-memory Go loops for the MemoryDatabase.
 
 # Ingestion Queries
 
