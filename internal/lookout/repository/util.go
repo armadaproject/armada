@@ -755,8 +755,9 @@ func logQueryDebug(user string, query *Query, description string) {
 		Debug(description)
 }
 
-func logQueryError(user string, query *Query, description string, duration time.Duration) {
+func logQueryError(user string, query *Query, description string, duration time.Duration, err error) {
 	log.
+		WithError(err).
 		WithField("user", user).
 		WithField("query", removeNewlinesAndTabs(query.Sql)).
 		WithField("values", query.Args).

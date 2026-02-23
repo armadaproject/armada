@@ -69,7 +69,7 @@ func (r *SqlGroupJobsRepository) GroupBy(
 	groupRows, err := r.db.Query(ctx, query.Sql, query.Args...)
 	queryDuration := time.Since(queryStart)
 	if err != nil {
-		logQueryError(user, query, "GroupBy", queryDuration)
+		logQueryError(user, query, "GroupBy", queryDuration, err)
 		return nil, err
 	}
 	logSlowQuery(user, query, "GroupBy", queryDuration)
