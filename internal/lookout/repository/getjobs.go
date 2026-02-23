@@ -76,10 +76,10 @@ func (r *SqlGetJobsRepository) getJobs(ctx *armadacontext.Context, filters []*mo
 	rows, err := r.db.Query(ctx, query.Sql, query.Args...)
 	queryDuration := time.Since(queryStart)
 	if err != nil {
-		logQueryError(user, query, "GetJobs", queryDuration)
+		logQueryError(user, query, "GetJobs", queryDuration, err)
 		return nil, err
 	}
-	logSlowQuery(user, query, "GetJobs", queryDuration)
+	logSlowQuery(ctx, user, query, "GetJobs", queryDuration)
 
 	defer rows.Close()
 	for rows.Next() {

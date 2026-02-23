@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -755,8 +756,9 @@ func logQueryDebug(user string, query *Query, description string) {
 		Debug(description)
 }
 
-func logQueryError(user string, query *Query, description string, duration time.Duration) {
+func logQueryError(user string, query *Query, description string, duration time.Duration, err error) {
 	log.
+		WithError(err).
 		WithField("user", user).
 		WithField("query", removeNewlinesAndTabs(query.Sql)).
 		WithField("values", query.Args).
@@ -764,7 +766,21 @@ func logQueryError(user string, query *Query, description string, duration time.
 		Errorf("Error executing %s query", description)
 }
 
-func logSlowQuery(user string, query *Query, description string, duration time.Duration) {
+// slowQueryLoggingDisabledKey is a context key used to suppress slow query
+// log messages. This is useful for load testing tools (e.g. Broadside) where
+// slow queries are expected and the warnings are noise.
+type slowQueryLoggingDisabledKey struct{}
+
+// ContextWithSlowQueryLoggingDisabled returns a child context that suppresses
+// slow query log messages from the lookout repository query functions.
+func ContextWithSlowQueryLoggingDisabled(ctx context.Context) context.Context {
+	return context.WithValue(ctx, slowQueryLoggingDisabledKey{}, struct{}{})
+}
+
+func logSlowQuery(ctx context.Context, user string, query *Query, description string, duration time.Duration) {
+	if ctx.Value(slowQueryLoggingDisabledKey{}) != nil {
+		return
+	}
 	if duration > 5*time.Second {
 		log.
 			WithField("user", user).

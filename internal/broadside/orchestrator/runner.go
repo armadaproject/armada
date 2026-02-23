@@ -149,6 +149,7 @@ func (r *Runner) Run(ctx context.Context) error {
 			logging.Infof("Test measurement period started (duration: %v)", r.config.TestDuration-r.config.WarmupDuration)
 		case <-ctx.Done():
 			wg.Wait()
+			r.tearDown(database)
 			return ctx.Err()
 		}
 	} else {
@@ -163,6 +164,7 @@ func (r *Runner) Run(ctx context.Context) error {
 	case <-ctx.Done():
 		cancel()
 		wg.Wait()
+		r.tearDown(database)
 		return ctx.Err()
 	}
 
@@ -171,9 +173,7 @@ func (r *Runner) Run(ctx context.Context) error {
 
 	actualTestDuration := time.Since(metricsStart)
 
-	// Skip database teardown and connection cleanup - the program is about to exit anyway,
-	// and these operations can hang if background goroutines haven't fully stopped.
-	// The OS will clean up database connections when the process exits.
+	r.tearDown(database)
 
 	logging.Info("Generating metrics reports")
 	ingesterReport := ingesterMetrics.GenerateReport()
@@ -230,6 +230,18 @@ func (r *Runner) logProgress(ctx context.Context, ingesterMetrics *metrics.Inges
 			}).Info("Test progress update")
 		}
 	}
+}
+
+func (r *Runner) tearDown(database db.Database) {
+	logging.Info("Tearing down database")
+	tearDownCtx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	if err := database.TearDown(tearDownCtx); err != nil {
+		logging.WithError(err).Warn("Failed to tear down database")
+	} else {
+		logging.Info("Database torn down successfully")
+	}
+	database.Close()
 }
 
 // newDatabase creates a database instance based on the configuration.

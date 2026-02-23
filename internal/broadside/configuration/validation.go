@@ -141,8 +141,8 @@ func (q *QueueConfig) Validate() error {
 	if q.Name == "" {
 		return fmt.Errorf("queue name must not be empty")
 	}
-	if q.Proportion <= 0 || q.Proportion > 1 {
-		return fmt.Errorf("queue '%s' proportion must be in range (0, 1], got %.6f", q.Name, q.Proportion)
+	if q.Proportion < 0 || q.Proportion > 1 {
+		return fmt.Errorf("queue '%s' proportion must be in range [0, 1], got %.6f", q.Name, q.Proportion)
 	}
 	if len(q.JobSetConfig) == 0 {
 		return fmt.Errorf("queue '%s' must contain at least one jobSetConfig", q.Name)
@@ -168,8 +168,8 @@ func (j *JobSetConfig) Validate() error {
 	if j.Name == "" {
 		return fmt.Errorf("jobSet name must not be empty")
 	}
-	if j.Proportion <= 0 || j.Proportion > 1 {
-		return fmt.Errorf("jobSet '%s' proportion must be in range (0, 1], got %.6f", j.Name, j.Proportion)
+	if j.Proportion < 0 || j.Proportion > 1 {
+		return fmt.Errorf("jobSet '%s' proportion must be in range [0, 1], got %.6f", j.Name, j.Proportion)
 	}
 	if err := j.HistoricalJobsConfig.Validate(); err != nil {
 		return fmt.Errorf("jobSet '%s' historicalJobsConfig validation failed: %w", j.Name, err)

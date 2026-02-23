@@ -49,6 +49,7 @@ func TestGetJobRunDebugMessageNotFound(t *testing.T) {
 		repo := NewSqlGetJobRunDebugMessageRepository(db, &compress.NoOpDecompressor{})
 		_, err := repo.GetJobRunDebugMessage(armadacontext.TODO(), runId)
 		assert.Error(t, err)
+		assert.ErrorIs(t, err, ErrNotFound)
 		return nil
 	})
 	assert.NoError(t, err)

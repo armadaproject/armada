@@ -223,12 +223,19 @@ func (p *PodIssueHandler) detectPodIssues(allManagedPods []*v1.Pod) {
 		if p.HasIssue(util.ExtractJobRunId(pod)) {
 			continue
 		}
-		if util.IsInTerminalState(pod) && util.HasCurrentStateBeenReported(pod) {
+		if util.IsInTerminalState(pod) {
 			// No need to detect issues on completed pods
 			// This prevents us sending updates on pods that are already finished and reported
 			continue
 		}
 		if pod.DeletionTimestamp != nil && pod.DeletionTimestamp.Add(p.stuckTerminatingPodExpiry).Before(p.clock.Now()) {
+			if util.IsMarkedForDeletion(pod) {
+				// If the executor marked the pod for deletion, make sure the deletion logic is handling the pod
+				// However don't handle it as a pod issue, as we don't want to send events about pods we're deleting
+				p.clusterContext.DeletePods([]*v1.Pod{pod})
+				continue
+			}
+
 			// pod is stuck in terminating phase, this sometimes happen on node failure
 			// it is safer to produce failed event than retrying as the job might have run already
 			issue := &podIssue{

@@ -1,9 +1,11 @@
 package repository
 
 import (
+	"errors"
+	"fmt"
+
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/pkg/errors"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
@@ -31,7 +33,7 @@ func (r *SqlGetJobErrorMessageRepository) GetJobErrorMessage(ctx *armadacontext.
 	err := r.db.QueryRow(ctx, "SELECT error FROM job_error WHERE job_id = $1", jobId).Scan(&rawBytes)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return "", errors.Errorf("no error found for job with id %s", jobId)
+			return "", fmt.Errorf("no error found for job with id %s: %w", jobId, ErrNotFound)
 		}
 		return "", err
 	}
