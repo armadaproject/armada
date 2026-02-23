@@ -9,7 +9,7 @@ import (
 	log "github.com/armadaproject/armada/internal/common/logging"
 )
 
-func (c Configuration) Mutate() (config.Config, error) {
+func (c *Configuration) Mutate() (config.Config, error) {
 	if c.MaxSchedulingDuration > 0 {
 		log.Warnf("use of top level MaxSchedulingDuration has been deprecated - please use scheduling.MaxSchedulingDuration. Applying MaxSchedulingDuration to scheduling.MaxSchedulingDuration")
 		c.Scheduling.MaxSchedulingDuration = c.MaxSchedulingDuration
@@ -23,7 +23,7 @@ func (c Configuration) Mutate() (config.Config, error) {
 	return c, nil
 }
 
-func (c Configuration) Validate() error {
+func (c *Configuration) Validate() error {
 	validate := validator.New()
 	validate.RegisterStructValidation(SchedulingConfigValidation, SchedulingConfig{})
 	return validate.Struct(c)
@@ -40,11 +40,11 @@ func SchedulingConfigValidation(sl validator.StructLevel) {
 			c.MaxSchedulingDuration)
 		sl.ReportError("MaxNewJobSchedulingDuration", "", "", errString, "")
 	}
-	if c.MaxNewJobSchedulingDurationPerQueue > 0 && c.MaxNewJobSchedulingDurationPerQueue >= c.MaxNewJobSchedulingDuration {
-		errString := fmt.Sprintf("%s: MaxNewJobSchedulingDurationPerQueue=%v, MaxNewJobSchedulingDuration=%v",
+	if c.MaxNewJobSchedulingDurationPerQueue > 0 && c.MaxNewJobSchedulingDurationPerQueue >= c.MaxSchedulingDuration {
+		errString := fmt.Sprintf("%s: MaxNewJobSchedulingDurationPerQueue=%v, MaxSchedulingDuration=%v",
 			InvalidQueueSchedulingTimeoutErrorMessage,
 			c.MaxNewJobSchedulingDurationPerQueue,
-			c.MaxNewJobSchedulingDuration)
+			c.MaxSchedulingDuration)
 		sl.ReportError("MaxNewJobSchedulingDurationPerQueue", "", "", errString, "")
 	}
 

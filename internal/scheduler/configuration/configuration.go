@@ -175,7 +175,7 @@ type SchedulingConfig struct {
 	// This is a safety limit to prevent runaway scheduling cycles from blocking
 	// the system indefinitely.
 	//
-	// Must be greater than MaxNewJobSchedulingDuration.
+	// Must be greater than MaxNewJobSchedulingDuration and MaxNewJobSchedulingDurationPerQueue.
 	MaxSchedulingDuration time.Duration `validate:"required"`
 	// MaxNewJobSchedulingDuration is the soft timeout for scheduling new jobs.
 	// When exceeded, the scheduler stops considering new jobs and only
@@ -195,7 +195,7 @@ type SchedulingConfig struct {
 	// rescheduled before the cycle commits, while still bounding total cycle time.
 	//
 	// Set to 0 to disable (scheduler will schedule new jobs until hard timeout).
-	// Must be less than MaxNewJobSchedulingDuration when non-zero.
+	// Must be less than MaxSchedulingDuration when non-zero.
 	MaxNewJobSchedulingDurationPerQueue time.Duration
 	// Set to true to enable scheduler assertions. This results in some performance loss.
 	EnableAssertions bool

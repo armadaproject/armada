@@ -112,10 +112,9 @@ func TestValidate_SchedulingTimeoutConfig(t *testing.T) {
 			expectSuccess:        false,
 			expectedErrorMessage: InvalidGlobalSchedulingTimeoutErrorMessage,
 		},
-		"invalid - MaxNewJobSchedulingDuration greater than MaxNewJobSchedulingDuration": {
+		"invalid - MaxNewJobSchedulingDurationPerQueue greater than MaxSchedulingDuration": {
 			config: func(c Configuration) Configuration {
-				c.Scheduling.MaxSchedulingDuration = time.Second * 30
-				c.Scheduling.MaxNewJobSchedulingDuration = time.Second * 10
+				c.Scheduling.MaxSchedulingDuration = time.Second * 10
 				c.Scheduling.MaxNewJobSchedulingDurationPerQueue = time.Second * 11
 				return c
 			},
