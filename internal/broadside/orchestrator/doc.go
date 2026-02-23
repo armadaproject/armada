@@ -58,7 +58,9 @@ errors. Individual database operations use detached contexts with their own time
 allowing in-flight batches to complete gracefully during shutdown.
 
 The warmup and test duration timers respect external context cancellation, allowing
-tests to be interrupted gracefully at any point.
+tests to be interrupted gracefully at any point. When the context is cancelled,
+the runner waits for all goroutines to stop, tears down the database, and then
+returns the context error.
 
 # Metrics Collection and Output
 

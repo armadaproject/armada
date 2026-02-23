@@ -5,7 +5,9 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 
 	mapstructure "github.com/go-viper/mapstructure/v2"
 	"github.com/spf13/pflag"
@@ -182,7 +184,23 @@ func main() {
 	}
 
 	resultsDir := viper.GetString(resultsDirFlag)
-	if err := orchestrator.NewRunner(config, resultsDir).Run(context.Background()); err != nil {
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+	defer signal.Stop(sigCh)
+	go func() {
+		select {
+		case <-sigCh:
+			logging.Info("Interrupt received, cleaning up...")
+			cancel()
+		case <-ctx.Done():
+		}
+	}()
+
+	if err := orchestrator.NewRunner(config, resultsDir).Run(ctx); err != nil {
 		panic(err)
 	}
 }
