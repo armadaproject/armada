@@ -103,5 +103,14 @@ performance across multiple test runs.
 	if err := runner.Run(ctx); err != nil {
 	    log.Fatal(err)
 	}
+
+NewDatabase is also exported for use by callers that need a database instance
+without running a full test (for example, the --teardown-only CLI flag):
+
+	database, err := orchestrator.NewDatabase(config)
+	if err != nil {
+	    log.Fatal(err)
+	}
+	defer database.Close()
 */
 package orchestrator
