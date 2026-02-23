@@ -765,7 +765,7 @@ func logQueryError(user string, query *Query, description string, duration time.
 		Errorf("Error executing %s query", description)
 }
 
-// slowQueryLoggingDisabledKey is a context jey used to suppress slow query
+// slowQueryLoggingDisabledKey is a context key used to suppress slow query
 // log messages. This is useful for load testing tools (e.g. Broadside) where
 // slow queries are expected and the warnings are noise.
 type slowQueryLoggingDisabledKey struct{}
