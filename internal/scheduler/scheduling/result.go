@@ -33,6 +33,7 @@ const (
 	PoolSchedulingTerminationReasonCompleted          PoolSchedulingTerminationReason = "completed"
 	PoolSchedulingTerminationReasonSchedulingDisabled PoolSchedulingTerminationReason = "scheduling_disabled"
 	PoolSchedulingTerminationReasonTimeout            PoolSchedulingTerminationReason = "timeout"
+	PoolSchedulingTerminationReasonSoftTimeout        PoolSchedulingTerminationReason = "soft_timeout"
 	PoolSchedulingTerminationReasonRateLimit          PoolSchedulingTerminationReason = "rate_limit"
 	PoolSchedulingTerminationReasonMaxResources       PoolSchedulingTerminationReason = "max_resources"
 	PoolSchedulingTerminationReasonError              PoolSchedulingTerminationReason = "error"
@@ -42,6 +43,8 @@ func terminationReasonFromString(reason string) PoolSchedulingTerminationReason 
 	switch reason {
 	case context.Canceled.Error(), context.DeadlineExceeded.Error():
 		return PoolSchedulingTerminationReasonTimeout
+	case constraints.GlobalNewJobSchedulingDurationExceededUnschedulableReason:
+		return PoolSchedulingTerminationReasonSoftTimeout
 	case constraints.GlobalRateLimitExceededUnschedulableReason:
 		return PoolSchedulingTerminationReasonRateLimit
 	case constraints.MaximumResourcesScheduledUnschedulableReason:
