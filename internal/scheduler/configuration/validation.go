@@ -4,17 +4,26 @@ import (
 	"fmt"
 
 	"github.com/go-playground/validator/v10"
+
+	"github.com/armadaproject/armada/internal/common/config"
+	log "github.com/armadaproject/armada/internal/common/logging"
 )
 
-func (c Configuration) Validate() error {
-	// Validate scheduling timeout relationship
-	if c.NewJobsSchedulingTimeout > 0 && c.NewJobsSchedulingTimeout >= c.MaxSchedulingDuration {
-		return fmt.Errorf("%s: NewJobsSchedulingTimeout=%v, MaxSchedulingDuration=%v",
-			InvalidSchedulingTimeoutErrorMessage,
-			c.NewJobsSchedulingTimeout,
-			c.MaxSchedulingDuration)
+func (c Configuration) Mutate() (config.Config, error) {
+	if c.MaxSchedulingDuration > 0 {
+		log.Warnf("use of top level MaxSchedulingDuration has been deprecated - please use scheduling.MaxSchedulingDuration. Applying MaxSchedulingDuration to scheduling.MaxSchedulingDuration")
+		c.Scheduling.MaxSchedulingDuration = c.MaxSchedulingDuration
 	}
 
+	if c.NewJobsSchedulingTimeout > 0 {
+		log.Warnf("use of top level NewJobsSchedulingTimeout has been deprecated - please use scheduling.MaxNewJobSchedulingDuration. Applying NewJobsSchedulingTimeout to scheduling.MaxNewJobSchedulingDuration")
+		c.Scheduling.MaxNewJobSchedulingDuration = c.NewJobsSchedulingTimeout
+	}
+
+	return c, nil
+}
+
+func (c Configuration) Validate() error {
 	validate := validator.New()
 	validate.RegisterStructValidation(SchedulingConfigValidation, SchedulingConfig{})
 	return validate.Struct(c)
@@ -22,6 +31,22 @@ func (c Configuration) Validate() error {
 
 func SchedulingConfigValidation(sl validator.StructLevel) {
 	c := sl.Current().Interface().(SchedulingConfig)
+
+	// Validate scheduling timeouts
+	if c.MaxNewJobSchedulingDuration > 0 && c.MaxNewJobSchedulingDuration >= c.MaxSchedulingDuration {
+		errString := fmt.Sprintf("%s: MaxNewJobSchedulingDuration=%v, MaxSchedulingDuration=%v",
+			InvalidGlobalSchedulingTimeoutErrorMessage,
+			c.MaxNewJobSchedulingDuration,
+			c.MaxSchedulingDuration)
+		sl.ReportError("MaxNewJobSchedulingDuration", "", "", errString, "")
+	}
+	if c.MaxNewJobSchedulingDurationPerQueue > 0 && c.MaxNewJobSchedulingDurationPerQueue >= c.MaxNewJobSchedulingDuration {
+		errString := fmt.Sprintf("%s: MaxNewJobSchedulingDurationPerQueue=%v, MaxNewJobSchedulingDuration=%v",
+			InvalidQueueSchedulingTimeoutErrorMessage,
+			c.MaxNewJobSchedulingDurationPerQueue,
+			c.MaxNewJobSchedulingDuration)
+		sl.ReportError("MaxNewJobSchedulingDurationPerQueue", "", "", errString, "")
+	}
 
 	wellKnownNodeTypes := make(map[string]bool)
 	for i, wellKnownNodeType := range c.WellKnownNodeTypes {

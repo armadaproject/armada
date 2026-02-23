@@ -49,7 +49,7 @@ type Configuration struct {
 	// This keeps the system more responsive as other operations happen in each cycle - such as state changes
 	SchedulePeriod time.Duration `validate:"required"`
 	// Deprecated - replaced by Scheduling.MaxNewJobSchedulingDuration
-	// For now the scheduler will use the greater of the two values but this value config will be removed in future
+	// For now the scheduler will use this value if set and fall back to scheduling.MaxSchedulingDuration
 	//
 	// MaxSchedulingDuration is the hard timeout for a scheduling cycle.
 	// When exceeded, the scheduler aborts immediately and returns an error,
@@ -59,9 +59,9 @@ type Configuration struct {
 	// the system indefinitely.
 	//
 	// Must be greater than MaxNewJobSchedulingDuration.
-	MaxSchedulingDuration time.Duration `validate:"required"`
+	MaxSchedulingDuration time.Duration
 	// Deprecated - replaced by Scheduling.MaxNewJobSchedulingDuration
-	// For now the scheduler will use the greater of the two values but this value config will be removed in future
+	// For now the scheduler will use this value if set and fall back to scheduling.MaxNewJobSchedulingDuration
 	//
 	// NewJobsSchedulingTimeout is the soft timeout for scheduling new jobs.
 	// When exceeded, the scheduler stops considering new jobs and only
@@ -338,7 +338,8 @@ const (
 	DuplicateWellKnownNodeTypeErrorMessage     = "duplicate well-known node type name"
 	AwayNodeTypesWithoutPreemptionErrorMessage = "priority class has away node types but is not preemptible"
 	UnknownWellKnownNodeTypeErrorMessage       = "priority class refers to unknown well-known node type"
-	InvalidSchedulingTimeoutErrorMessage       = "MaxNewJobSchedulingDuration must be less than MaxSchedulingDuration"
+	InvalidGlobalSchedulingTimeoutErrorMessage = "MaxNewJobSchedulingDuration must be less than MaxSchedulingDuration"
+	InvalidQueueSchedulingTimeoutErrorMessage  = "MaxNewJobSchedulingDurationPerQueue must be less than MaxNewJobSchedulingDuration"
 	WildCardWellKnownNodeTypeValue             = "*"
 )
 

@@ -9,6 +9,7 @@ import (
 )
 
 type Config interface {
+	Mutate() (Config, error)
 	Validate() error
 }
 
