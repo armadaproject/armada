@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/armadaproject/armada/internal/broadside/jobspec"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/database"
@@ -233,11 +235,192 @@ func (p *PostgresDatabase) TearDown(ctx context.Context) error {
 	return nil
 }
 
-// Close closes the database connection pool.
-func (p *PostgresDatabase) Close() {
-	if p.pool != nil {
-		p.pool.Close()
+// Close is a no-op: pgxpool.Close can hang on background health-check goroutines.
+// Pool connections will be reclaimed by the OS on process exit.
+func (p *PostgresDatabase) Close() {}
+
+// PopulateHistoricalJobs inserts a batch of terminal historical jobs directly
+// into the Lookout database using four server-side INSERT ... SELECT FROM
+// generate_series statements, avoiding the overhead of per-row Go logic.
+func (p *PostgresDatabase) PopulateHistoricalJobs(ctx context.Context, params HistoricalJobsParams) error {
+	if params.NJobs == 0 {
+		return nil
 	}
+	if strings.ContainsRune(params.QueueName, '\'') || strings.ContainsRune(params.JobSetName, '\'') {
+		return fmt.Errorf("queue/jobset names must not contain single quotes")
+	}
+
+	prefix := fmt.Sprintf("%04d%04d", params.QueueIdx, params.JobSetIdx)
+	succeeded := params.SucceededThreshold
+	errored := params.ErroredThreshold
+	cancelled := params.CancelledThreshold
+	lastIdx := params.NJobs - 1
+
+	cpuArr := int64SliceToSQL(jobspec.CpuOptions)
+	memArr := int64SliceToSQL(jobspec.MemoryOptions)
+	ephArr := int64SliceToSQL(jobspec.EphemeralStorageOptions)
+	gpuArr := int64SliceToSQL(jobspec.GpuOptions)
+	poolArr := stringSliceToSQL(jobspec.PoolOptions)
+	nsArr := stringSliceToSQL(jobspec.NamespaceOptions)
+	pcArr := stringSliceToSQL(jobspec.PriorityClassOptions)
+
+	jobSQL := fmt.Sprintf(`
+INSERT INTO job (
+    job_id, queue, owner, namespace, jobset,
+    cpu, memory, ephemeral_storage, gpu, priority,
+    submitted, state, last_transition_time, last_transition_time_seconds,
+    priority_class, annotations, latest_run_id,
+    cancelled, cancel_reason, cancel_user
+)
+SELECT
+    '%s' || lpad(i::text, 10, '0'),
+    '%s',
+    '%s',
+    (%s)[i%%%d+1],
+    '%s',
+    (%s)[i%%%d+1],
+    (%s)[i%%%d+1],
+    (%s)[i%%%d+1],
+    (%s)[i%%%d+1],
+    (i%%2000)+1,
+    NOW() - INTERVAL '24 hours',
+    CASE WHEN i%%1000 < %d THEN 5
+         WHEN i%%1000 < %d THEN 4
+         WHEN i%%1000 < %d THEN 6
+         ELSE 8 END,
+    NOW() - INTERVAL '24 hours' + INTERVAL '10 seconds',
+    EXTRACT(EPOCH FROM NOW() - INTERVAL '24 hours' + INTERVAL '10 seconds')::bigint,
+    (%s)[i%%%d+1],
+    %s,
+    '%s' || lpad(i::text, 10, '0') || '00',
+    CASE WHEN i%%1000 >= %d AND i%%1000 < %d
+         THEN NOW() - INTERVAL '24 hours' + INTERVAL '10 seconds' END,
+    CASE WHEN i%%1000 >= %d AND i%%1000 < %d
+         THEN 'user requested' END,
+    CASE WHEN i%%1000 >= %d AND i%%1000 < %d
+         THEN '%s' END
+FROM generate_series(0, %d) AS i`,
+		prefix,
+		params.QueueName, params.QueueName,
+		nsArr, len(jobspec.NamespaceOptions),
+		params.JobSetName,
+		cpuArr, len(jobspec.CpuOptions),
+		memArr, len(jobspec.MemoryOptions),
+		ephArr, len(jobspec.EphemeralStorageOptions),
+		gpuArr, len(jobspec.GpuOptions),
+		succeeded, errored, cancelled,
+		pcArr, len(jobspec.PriorityClassOptions),
+		buildAnnotationSQL(),
+		prefix,
+		errored, cancelled,
+		errored, cancelled,
+		errored, cancelled, params.QueueName,
+		lastIdx,
+	)
+
+	jobSpecSQL := fmt.Sprintf(`
+INSERT INTO job_spec (job_id, job_spec)
+SELECT '%s' || lpad(i::text, 10, '0'), $1::bytea
+FROM generate_series(0, %d) AS i`,
+		prefix, lastIdx,
+	)
+
+	jobRunSQL := fmt.Sprintf(`
+INSERT INTO job_run (
+    run_id, job_id, cluster, node, leased, pending, started, finished,
+    pool, job_run_state, error, debug, exit_code
+)
+SELECT
+    '%s' || lpad(i::text, 10, '0') || '00',
+    '%s' || lpad(i::text, 10, '0'),
+    'broadside-cluster-' || (i%%40+1),
+    'broadside-cluster-' || (i%%40+1) || '-node-' || (i%%80+1),
+    NOW() - INTERVAL '24 hours' + INTERVAL '1 second',
+    NOW() - INTERVAL '24 hours' + INTERVAL '2 seconds',
+    NOW() - INTERVAL '24 hours' + INTERVAL '3 seconds',
+    NOW() - INTERVAL '24 hours' + INTERVAL '10 seconds',
+    (%s)[i%%%d+1],
+    CASE WHEN i%%1000 < %d THEN 3
+         WHEN i%%1000 < %d THEN 4
+         WHEN i%%1000 < %d THEN 6
+         ELSE 5 END,
+    CASE WHEN i%%1000 >= %d AND i%%1000 < %d THEN $1::bytea
+         WHEN i%%1000 >= %d                  THEN $3::bytea
+    END,
+    CASE WHEN i%%1000 >= %d AND i%%1000 < %d THEN $2::bytea END,
+    CASE WHEN i%%1000 < %d THEN 0 END
+FROM generate_series(0, %d) AS i`,
+		prefix, prefix,
+		poolArr, len(jobspec.PoolOptions),
+		succeeded, errored, cancelled,
+		succeeded, errored,
+		cancelled,
+		succeeded, errored,
+		errored,
+		lastIdx,
+	)
+
+	jobErrorSQL := fmt.Sprintf(`
+INSERT INTO job_error (job_id, error)
+SELECT '%s' || lpad(i::text, 10, '0'), $1::bytea
+FROM generate_series(0, %d) AS i
+WHERE i%%1000 >= %d AND i%%1000 < %d`,
+		prefix, lastIdx, succeeded, errored,
+	)
+
+	tx, err := p.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("beginning transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	type stmtArgs struct {
+		sql  string
+		args []any
+	}
+	stmts := []stmtArgs{
+		{jobSQL, nil},
+		{jobSpecSQL, []any{params.JobSpecBytes}},
+		{jobRunSQL, []any{params.ErrorBytes, params.DebugBytes, params.PreemptionBytes}},
+		{jobErrorSQL, []any{params.ErrorBytes}},
+	}
+	for _, s := range stmts {
+		if _, err := tx.Exec(ctx, s.sql, s.args...); err != nil {
+			return fmt.Errorf("executing historical jobs SQL: %w", err)
+		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("committing transaction: %w", err)
+	}
+	return nil
+}
+
+func int64SliceToSQL(vals []int64) string {
+	parts := make([]string, len(vals))
+	for i, v := range vals {
+		parts[i] = fmt.Sprintf("%d", v)
+	}
+	return "ARRAY[" + strings.Join(parts, ",") + "]"
+}
+
+func stringSliceToSQL(vals []string) string {
+	parts := make([]string, len(vals))
+	for i, v := range vals {
+		parts[i] = "'" + v + "'"
+	}
+	return "ARRAY[" + strings.Join(parts, ",") + "]"
+}
+
+func buildAnnotationSQL() string {
+	parts := make([]string, 0, len(jobspec.AnnotationConfigs)*2)
+	for _, ac := range jobspec.AnnotationConfigs {
+		parts = append(parts,
+			fmt.Sprintf("'%s'", ac.Key),
+			fmt.Sprintf("'value-' || (i%%%d)", ac.MaxUniqueValues),
+		)
+	}
+	return "jsonb_build_object(" + strings.Join(parts, ", ") + ")"
 }
 
 // insertJobs batch inserts jobs using the COPY protocol for performance.

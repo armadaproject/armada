@@ -37,9 +37,12 @@ runs whilst avoiding the overhead of random number generation.
 
 # Job Properties
 
-Constants and helper functions define the range of job properties (CPU, memory,
-annotations, etc.) used in synthetic job generation. These properties are
-selected deterministically based on job number to create realistic variation
-whilst maintaining reproducibility.
+Exported variable slices (NamespaceOptions, PriorityClassOptions, CpuOptions,
+MemoryOptions, EphemeralStorageOptions, GpuOptions, PoolOptions,
+AnnotationConfigs) and helper functions define the range of job properties used
+in synthetic job generation. These are selected deterministically based on job
+number to create realistic variation whilst maintaining reproducibility. The
+slices are exported so that database implementations can reference them directly
+for server-side SQL generation.
 */
 package jobspec

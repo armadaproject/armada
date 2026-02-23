@@ -4,7 +4,10 @@ Package ingester simulates job ingestion events for the Broadside load tester.
 The ingester has two main phases:
 
  1. Setup Phase (Setup method) - Blocking initialisation that populates the
-    database with historical jobs according to the configured proportions.
+    database with historical jobs according to the configured proportions. For
+    each (queue, job set) pair it calls database.PopulateHistoricalJobs once,
+    delegating the actual insertion to the database layer rather than issuing
+    per-job queries from Go.
 
  2. Run Phase (Run method) - Non-blocking simulation that submits new jobs at
     the configured rate and processes state transitions through the job

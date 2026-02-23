@@ -1125,6 +1125,19 @@ func paginateGroups(groups []*model.JobGroup, skip, take int) []*model.JobGroup 
 	return groups
 }
 
+func (m *MemoryDatabase) PopulateHistoricalJobs(ctx context.Context, params HistoricalJobsParams) error {
+	queries := make([]IngestionQuery, 0, params.NJobs*10)
+	for jobNum := 0; jobNum < params.NJobs; jobNum++ {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+		queries = append(queries, buildHistoricalJobQueries(jobNum, params)...)
+	}
+	return m.ExecuteIngestionQueryBatch(ctx, queries)
+}
+
 func (m *MemoryDatabase) TearDown(_ context.Context) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()

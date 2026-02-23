@@ -21,19 +21,10 @@ import (
 	"github.com/armadaproject/armada/pkg/api"
 )
 
-const (
-	historicalJobAge           = 24 * time.Hour
-	historicalLeasedOffset     = time.Second
-	historicalPendingOffset    = 2 * time.Second
-	historicalRunningOffset    = 3 * time.Second
-	historicalTerminatedOffset = 10 * time.Second
-)
-
 var (
 	simulatedError    = []byte("simulated error")
 	simulatedDebugMsg = []byte("simulated debug message: pod failed to start due to image pull error")
 	preemptionError   = []byte("preempted by higher priority job")
-	cancelReason      = "user requested"
 	defaultJobSpec    = generateDefaultJobSpec()
 )
 
@@ -170,38 +161,42 @@ func NewIngester(
 func (i *Ingester) Setup(ctx context.Context) error {
 	logging.Info("Populating database with historical jobs")
 
-	queries := make([]db.IngestionQuery, 0, i.config.BatchSize)
-
 	for qIdx, queueCfg := range i.queueConfigs {
 		for jsIdx, jobSetCfg := range queueCfg.JobSetConfig {
-			historicalCfg := jobSetCfg.HistoricalJobsConfig
-
-			for jobNum := 0; jobNum < historicalCfg.NumberOfJobs; jobNum++ {
-				select {
-				case <-ctx.Done():
-					return ctx.Err()
-				default:
-				}
-
-				state := jobspec.DetermineHistoricalState(jobNum, historicalCfg)
-
-				queries = append(queries, i.generateHistoricalJobQueries(
-					qIdx, jsIdx, jobNum, state,
-				)...)
-
-				if len(queries) >= i.config.BatchSize {
-					if err := i.database.ExecuteIngestionQueryBatch(ctx, queries); err != nil {
-						return err
-					}
-					queries = queries[:0]
-				}
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			default:
 			}
-		}
-	}
 
-	if len(queries) > 0 {
-		if err := i.database.ExecuteIngestionQueryBatch(ctx, queries); err != nil {
-			return err
+			historicalCfg := jobSetCfg.HistoricalJobsConfig
+			if historicalCfg.NumberOfJobs == 0 {
+				continue
+			}
+
+			succeededThreshold := int(historicalCfg.ProportionSucceeded * 1000)
+			erroredThreshold := succeededThreshold + int(historicalCfg.ProportionErrored*1000)
+			cancelledThreshold := erroredThreshold + int(historicalCfg.ProportionCancelled*1000)
+
+			params := db.HistoricalJobsParams{
+				QueueIdx:           qIdx,
+				JobSetIdx:          jsIdx,
+				QueueName:          queueCfg.Name,
+				JobSetName:         jobSetCfg.Name,
+				NJobs:              historicalCfg.NumberOfJobs,
+				SucceededThreshold: succeededThreshold,
+				ErroredThreshold:   erroredThreshold,
+				CancelledThreshold: cancelledThreshold,
+				JobSpecBytes:       []byte(defaultJobSpec),
+				ErrorBytes:         simulatedError,
+				DebugBytes:         simulatedDebugMsg,
+				PreemptionBytes:    preemptionError,
+			}
+
+			if err := i.database.PopulateHistoricalJobs(ctx, params); err != nil {
+				return fmt.Errorf("populating historical jobs for queue %s jobset %s: %w",
+					queueCfg.Name, jobSetCfg.Name, err)
+			}
 		}
 	}
 
@@ -551,88 +546,4 @@ func (i *Ingester) processTransition(
 			enqueuedAt: now,
 		}, ctx)
 	}
-}
-
-func (i *Ingester) generateHistoricalJobQueries(
-	queueIdx, jobSetIdx, jobNum int,
-	state jobspec.JobState,
-) []db.IngestionQuery {
-	baseTime := time.Now().Add(-historicalJobAge)
-	newJob := i.createNewJob(jobNum, queueIdx, jobSetIdx, baseTime)
-	runID := jobspec.EncodeRunID(newJob.JobID, 0)
-	cluster, node := jobspec.GetClusterNodeForJobNumber(jobNum)
-
-	leasedTime := baseTime.Add(historicalLeasedOffset)
-	pendingTime := baseTime.Add(historicalPendingOffset)
-	runningTime := baseTime.Add(historicalRunningOffset)
-	terminalTime := baseTime.Add(historicalTerminatedOffset)
-
-	queries := make([]db.IngestionQuery, 0, 11)
-	queries = append(queries,
-		db.InsertJob{
-			Job: newJob,
-		},
-		db.InsertJobSpec{
-			JobID:   newJob.JobID,
-			JobSpec: defaultJobSpec,
-		},
-		db.SetJobLeased{
-			JobID: newJob.JobID,
-			Time:  leasedTime,
-			RunID: runID,
-		},
-		db.InsertJobRun{
-			JobRunID: runID,
-			JobID:    newJob.JobID,
-			Cluster:  cluster,
-			Node:     node,
-			Pool:     jobspec.GetPool(jobNum),
-			Time:     leasedTime,
-		},
-		db.SetJobPending{
-			JobID: newJob.JobID,
-			Time:  pendingTime,
-			RunID: runID,
-		},
-		db.SetJobRunPending{
-			JobRunID: runID,
-			Time:     pendingTime,
-		},
-		db.SetJobRunning{
-			JobID:       newJob.JobID,
-			Time:        runningTime,
-			LatestRunID: runID,
-		},
-		db.SetJobRunStarted{
-			JobRunID: runID,
-			Time:     runningTime,
-			Node:     node,
-		},
-	)
-
-	switch state {
-	case jobspec.StateSucceeded:
-		queries = append(queries,
-			db.SetJobSucceeded{JobID: newJob.JobID, Time: terminalTime},
-			db.SetJobRunSucceeded{JobRunID: runID, Time: terminalTime},
-		)
-	case jobspec.StateErrored:
-		queries = append(queries,
-			db.SetJobErrored{JobID: newJob.JobID, Time: terminalTime},
-			db.SetJobRunFailed{JobRunID: runID, Time: terminalTime, Error: simulatedError, Debug: simulatedDebugMsg},
-			db.InsertJobError{JobID: newJob.JobID, Error: simulatedError},
-		)
-	case jobspec.StateCancelled:
-		queries = append(queries,
-			db.SetJobCancelled{JobID: newJob.JobID, Time: terminalTime, CancelReason: cancelReason, CancelUser: newJob.Owner},
-			db.SetJobRunCancelled{JobRunID: runID, Time: terminalTime},
-		)
-	case jobspec.StatePreempted:
-		queries = append(queries,
-			db.SetJobPreempted{JobID: newJob.JobID, Time: terminalTime},
-			db.SetJobRunPreempted{JobRunID: runID, Time: terminalTime, Error: preemptionError},
-		)
-	}
-
-	return queries
 }
