@@ -1,0 +1,534 @@
+{
+  "consumes": [
+    "application/json"
+  ],
+  "produces": [
+    "application/json"
+  ],
+  "swagger": "2.0",
+  "info": {
+    "title": "pkg/api/introspection/introspection.proto",
+    "version": "version not set"
+  },
+  "paths": {
+    "/v1/job/logs:stream": {
+      "post": {
+        "tags": [
+          "Introspection"
+        ],
+        "summary": "stream logs for the pod corresponding to a job\nif follow = true the server keeps the stream open\nelse it sends a finite set of lines and then closes",
+        "operationId": "GetJobLogs",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/introspectionGetJobLogsRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A successful response.(streaming responses)",
+            "schema": {
+              "type": "object",
+              "title": "Stream result of introspectionLogLine",
+              "properties": {
+                "error": {
+                  "$ref": "#/definitions/runtimeStreamError"
+                },
+                "result": {
+                  "$ref": "#/definitions/introspectionLogLine"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        }
+      }
+    },
+    "/v1/job/node/describe": {
+      "post": {
+        "tags": [
+          "Introspection"
+        ],
+        "operationId": "DescribeNodeByJobRun",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/introspectionDescribeNodeByJobRunRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/introspectionDescribeNodeResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        }
+      }
+    },
+    "/v1/job/pod/describe": {
+      "post": {
+        "tags": [
+          "Introspection"
+        ],
+        "operationId": "DescribeJobPod",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/introspectionDescribeJobPodRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/introspectionDescribeJobPodResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        }
+      }
+    },
+    "/v1/node/describe": {
+      "post": {
+        "tags": [
+          "Introspection"
+        ],
+        "operationId": "DescribeNode",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/introspectionDescribeNodeRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/introspectionDescribeNodeResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "introspectionContainerStatus": {
+      "type": "object",
+      "properties": {
+        "message": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "ready": {
+          "type": "boolean"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "restartCount": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "state": {
+          "type": "string"
+        }
+      }
+    },
+    "introspectionDescribeJobPodRequest": {
+      "type": "object",
+      "properties": {
+        "cluster": {
+          "type": "string"
+        },
+        "includeEvents": {
+          "type": "boolean"
+        },
+        "includeRaw": {
+          "type": "boolean"
+        },
+        "jobId": {
+          "type": "string"
+        },
+        "runId": {
+          "type": "string"
+        }
+      }
+    },
+    "introspectionDescribeJobPodResponse": {
+      "type": "object",
+      "properties": {
+        "cluster": {
+          "type": "string"
+        },
+        "conditions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/introspectionPodCondition"
+          }
+        },
+        "containers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/introspectionContainerStatus"
+          }
+        },
+        "events": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/introspectionPodEvent"
+          }
+        },
+        "nodeName": {
+          "type": "string"
+        },
+        "phase": {
+          "type": "string"
+        },
+        "podName": {
+          "type": "string"
+        },
+        "podNamespace": {
+          "type": "string"
+        },
+        "podUid": {
+          "type": "string"
+        },
+        "rawPodJson": {
+          "type": "string",
+          "format": "byte"
+        }
+      }
+    },
+    "introspectionDescribeNodeByJobRunRequest": {
+      "type": "object",
+      "properties": {
+        "cluster": {
+          "type": "string"
+        },
+        "includeRaw": {
+          "type": "boolean"
+        },
+        "jobId": {
+          "type": "string"
+        },
+        "runId": {
+          "type": "string"
+        }
+      }
+    },
+    "introspectionDescribeNodeRequest": {
+      "type": "object",
+      "properties": {
+        "cluster": {
+          "type": "string"
+        },
+        "includeRaw": {
+          "type": "boolean"
+        },
+        "nodeId": {
+          "type": "string"
+        }
+      }
+    },
+    "introspectionDescribeNodeResponse": {
+      "type": "object",
+      "properties": {
+        "addresses": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/introspectionNodeAddress"
+          }
+        },
+        "allocatable": {
+          "$ref": "#/definitions/introspectionResourceList"
+        },
+        "capacity": {
+          "$ref": "#/definitions/introspectionResourceList"
+        },
+        "cluster": {
+          "type": "string"
+        },
+        "conditions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/introspectionNodeCondition"
+          }
+        },
+        "labels": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "nodeName": {
+          "type": "string"
+        },
+        "nodeUid": {
+          "type": "string"
+        },
+        "rawNodeJson": {
+          "type": "string",
+          "format": "byte"
+        },
+        "taints": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/introspectionTaint"
+          }
+        }
+      }
+    },
+    "introspectionGetJobLogsRequest": {
+      "type": "object",
+      "properties": {
+        "cluster": {
+          "type": "string"
+        },
+        "container": {
+          "type": "string"
+        },
+        "follow": {
+          "type": "boolean"
+        },
+        "jobId": {
+          "type": "string"
+        },
+        "podName": {
+          "type": "string"
+        },
+        "podNamespace": {
+          "type": "string"
+        },
+        "previous": {
+          "type": "boolean"
+        },
+        "runId": {
+          "type": "string"
+        },
+        "sinceTime": {
+          "type": "string"
+        },
+        "tailLines": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "timestamps": {
+          "type": "boolean"
+        }
+      }
+    },
+    "introspectionLogLine": {
+      "type": "object",
+      "properties": {
+        "line": {
+          "type": "string"
+        },
+        "stream": {
+          "type": "string"
+        },
+        "timestamp": {
+          "type": "string"
+        }
+      }
+    },
+    "introspectionNodeAddress": {
+      "type": "object",
+      "properties": {
+        "address": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        }
+      }
+    },
+    "introspectionNodeCondition": {
+      "type": "object",
+      "properties": {
+        "lastTransitionTime": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        }
+      }
+    },
+    "introspectionPodCondition": {
+      "type": "object",
+      "properties": {
+        "lastTransitionTime": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        }
+      }
+    },
+    "introspectionPodEvent": {
+      "type": "object",
+      "properties": {
+        "count": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "firstTimestamp": {
+          "type": "string"
+        },
+        "lastTimestamp": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        }
+      }
+    },
+    "introspectionResourceList": {
+      "type": "object",
+      "properties": {
+        "resources": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "introspectionTaint": {
+      "type": "object",
+      "properties": {
+        "effect": {
+          "type": "string"
+        },
+        "key": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        }
+      }
+    },
+    "protobufAny": {
+      "type": "object",
+      "properties": {
+        "typeUrl": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string",
+          "format": "byte"
+        }
+      }
+    },
+    "runtimeError": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "details": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/protobufAny"
+          }
+        },
+        "error": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        }
+      }
+    },
+    "runtimeStreamError": {
+      "type": "object",
+      "properties": {
+        "details": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/protobufAny"
+          }
+        },
+        "grpcCode": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "httpCode": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "httpStatus": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}
