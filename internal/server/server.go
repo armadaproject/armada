@@ -32,7 +32,9 @@ import (
 	"github.com/armadaproject/armada/internal/server/queryapi"
 	"github.com/armadaproject/armada/internal/server/queue"
 	"github.com/armadaproject/armada/internal/server/submit"
+	"github.com/armadaproject/armada/internal/server/introspection"
 	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/api/introspection"
 	"github.com/armadaproject/armada/pkg/api/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/client"
@@ -164,6 +166,7 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 	}
 	defer controlPlaneEventsPublisher.Close()
 
+	// introspectionServer := introspection.NewServer(controlPlaneEventsPublisher, authorizer)
 	queueServer := queue.NewServer(controlPlaneEventsPublisher, queueRepository, authorizer)
 
 	submitServer := submit.NewServer(
@@ -191,6 +194,7 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 
 	nodeServer := node.New(controlPlaneEventsPublisher, authorizer)
 
+	// api.RegisterIntrospectionServer(grpcServer, introspectionServer)
 	api.RegisterSubmitServer(grpcServer, submitServer)
 	api.RegisterEventServer(grpcServer, eventServer)
 	api.RegisterQueueServiceServer(grpcServer, queueServer)
