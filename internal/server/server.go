@@ -16,6 +16,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/auth"
+	cluster "github.com/armadaproject/armada/internal/common/cluster"
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/database"
 	grpcCommon "github.com/armadaproject/armada/internal/common/grpc"
@@ -32,9 +33,9 @@ import (
 	"github.com/armadaproject/armada/internal/server/queryapi"
 	"github.com/armadaproject/armada/internal/server/queue"
 	"github.com/armadaproject/armada/internal/server/submit"
-	"github.com/armadaproject/armada/internal/server/introspection"
+	introspectionserver "github.com/armadaproject/armada/internal/server/introspection"
 	"github.com/armadaproject/armada/pkg/api"
-	"github.com/armadaproject/armada/pkg/api/introspection"
+	introspectionapi "github.com/armadaproject/armada/pkg/api/introspection"
 	"github.com/armadaproject/armada/pkg/api/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/client"
@@ -193,8 +194,16 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 	executorServer := executor.New(controlPlaneEventsPublisher, authorizer)
 
 	nodeServer := node.New(controlPlaneEventsPublisher, authorizer)
+	// kube client for introspection plumbing
+	// impersonate users, qps, burst
+	provider, err := cluster.NewKubernetesClientProvider(false, 50, 100)
+	if err != nil { return err }
 
-	// api.RegisterIntrospectionServer(grpcServer, introspectionServer)
+	kubeFactory := introspectionserver.NewSingleClusterKubeFactory(provider)
+
+	introspectionServer := introspectionserver.NewIntrospectionServer(kubeFactory, queryapiServer)
+	introspectionapi.RegisterIntrospectionServer(grpcServer, introspectionServer)
+	
 	api.RegisterSubmitServer(grpcServer, submitServer)
 	api.RegisterEventServer(grpcServer, eventServer)
 	api.RegisterQueueServiceServer(grpcServer, queueServer)

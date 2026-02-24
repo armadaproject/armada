@@ -21,6 +21,7 @@ func RootCmd() *cobra.Command {
 		cancelCmd(),
 		createCmd(armadactl.New()),
 		deleteCmd(),
+		describeCmd(),
 		updateCmd(),
 		getCmd(),
 		reprioritizeCmd(),
