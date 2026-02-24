@@ -38,11 +38,24 @@ func SchedulingConfigValidation(sl validator.StructLevel) {
 			sl.ReportError(priorityClass.Preemptible, fieldName, "", AwayNodeTypesWithoutPreemptionErrorMessage, "")
 		}
 
-		for i, awayNodeType := range priorityClass.AwayNodeTypes {
-			if !wellKnownNodeTypes[awayNodeType.WellKnownNodeTypeName] {
-				fieldName := fmt.Sprintf("Preemption.PriorityClasses[%s].AwayNodeTypes[%d].WellKnownNodeTypeName", priorityClassName, i)
-				sl.ReportError(awayNodeType.WellKnownNodeTypeName, fieldName, "", UnknownWellKnownNodeTypeErrorMessage, "")
-			}
-		}
+		//for i, awayNodeType := range priorityClass.AwayNodeTypes {
+		//for j, wkntConfig := range awayNodeType.WellKnownNodeTypes {
+		//	if !wellKnownNodeTypes[wkntConfig.Name] {
+		//		fieldName := fmt.Sprintf("Preemption.PriorityClasses[%s].AwayNodeTypes[%d].WellKnownNodeTypes[%d].Name", priorityClassName, i, j)
+		//		sl.ReportError(wkntConfig.Name, fieldName, "", UnknownWellKnownNodeTypeErrorMessage, "")
+		//	}
+		//	for k, cond := range wkntConfig.Conditions {
+		//		validOps := map[string]bool{">": true, ">=": true, "<": true, "<=": true, "==": true}
+		//		if !validOps[string(cond.Operator)] {
+		//			fieldName := fmt.Sprintf("Preemption.PriorityClasses[%s].AwayNodeTypes[%d].WellKnownNodeTypes[%d].Conditions[%d].Operator", priorityClassName, i, j, k)
+		//			sl.ReportError(cond.Operator, fieldName, "", InvalidAwayNodeTypeConditionOperatorErrorMessage, "")
+		//		}
+		//		if _, err := k8sResource.ParseQuantity(cond.Value); err != nil {
+		//			fieldName := fmt.Sprintf("Preemption.PriorityClasses[%s].AwayNodeTypes[%d].WellKnownNodeTypes[%d].Conditions[%d].Value", priorityClassName, i, j, k)
+		//			sl.ReportError(cond.Value, fieldName, "", InvalidAwayNodeTypeConditionValueErrorMessage, "")
+		//		}
+		//	}
+		//}
+		//}
 	}
 }

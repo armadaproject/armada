@@ -10,7 +10,6 @@ import (
 	"github.com/hashicorp/go-memdb"
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
-	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
@@ -129,8 +128,6 @@ type NodeDb struct {
 	// Node types are not cleaned up if all nodes of that type are removed from the NodeDb.
 	nodeTypes map[uint64]*internaltypes.NodeType
 
-	wellKnownNodeTypes map[string]*configuration.WellKnownNodeType
-
 	// Map from podRequirementsNotMetReason Sum64() to the string representation of that reason.
 	// Used to avoid allocs.
 	podRequirementsNotMetReasonStringCache map[uint64]string
@@ -157,7 +154,6 @@ func NewNodeDb(
 	indexedResources []configuration.ResourceType,
 	indexedTaints []string,
 	indexedNodeLabels []string,
-	wellKnownNodeTypes []configuration.WellKnownNodeType,
 	resourceListFactory *internaltypes.ResourceListFactory,
 ) (*NodeDb, error) {
 	nodeDbPriorities := []int32{internaltypes.EvictedPriority}
@@ -206,7 +202,6 @@ func NewNodeDb(
 		indexedNodeLabels:         util.StringListToSet(indexedNodeLabels),
 		indexedNodeLabelValues:    indexedNodeLabelValues,
 		nodeTypes:                 make(map[uint64]*internaltypes.NodeType),
-		wellKnownNodeTypes:        make(map[string]*configuration.WellKnownNodeType),
 		numNodesByNodeType:        make(map[uint64]int),
 		totalAllocatableResources: resourceListFactory.MakeAllZero(),
 		db:                        db,
@@ -215,11 +210,6 @@ func NewNodeDb(
 
 		scheduledAtPriorityByJobId: make(map[string]int32),
 		resourceListFactory:        resourceListFactory,
-	}
-
-	for _, wellKnownNodeType := range wellKnownNodeTypes {
-		wellKnownNodeType := wellKnownNodeType
-		nodeDb.wellKnownNodeTypes[wellKnownNodeType.Name] = &wellKnownNodeType
 	}
 
 	return &nodeDb, nil
@@ -418,8 +408,6 @@ func deleteEvictedJobSchedulingContextIfExistsWithTxn(txn *memdb.Txn, jobId stri
 
 // SelectNodeForJobWithTxn selects a node on which the job can be scheduled.
 func (nodeDb *NodeDb) SelectNodeForJobWithTxn(txn *memdb.Txn, jctx *context.JobSchedulingContext) (*internaltypes.Node, error) {
-	priorityClass := jctx.Job.PriorityClass()
-
 	// If the job has already been scheduled, get the priority at which it was scheduled.
 	// Otherwise, get the original priority the job was submitted with.
 	priority, ok := nodeDb.GetScheduledAtPriority(jctx.JobId)
@@ -476,13 +464,12 @@ func (nodeDb *NodeDb) SelectNodeForJobWithTxn(txn *memdb.Txn, jctx *context.JobS
 
 	awaySchedulingDisabled := nodeDb.disableAwayScheduling || (jctx.Job.IsInGang() && nodeDb.disableGangAwayScheduling)
 	if !awaySchedulingDisabled {
-		for _, awayNodeType := range priorityClass.AwayNodeTypes {
-			node, err := nodeDb.selectNodeForJobWithTxnAndAwayNodeType(txn, jctx, awayNodeType)
+		for _, effectiveAnt := range jctx.Job.EffectiveAwayNodeTypes() {
+			node, err := nodeDb.selectNodeForJobWithTxnAndAwayNodeType(txn, jctx, effectiveAnt)
 			if err != nil {
 				return nil, err
 			}
 			if node != nil {
-				pctx.WellKnownNodeTypeName = awayNodeType.WellKnownNodeTypeName
 				pctx.SchedulingMethod = context.ScheduledAsAwayJob
 				pctx.ScheduledAway = true
 				return node, nil
@@ -496,12 +483,12 @@ func (nodeDb *NodeDb) SelectNodeForJobWithTxn(txn *memdb.Txn, jctx *context.JobS
 func (nodeDb *NodeDb) selectNodeForJobWithTxnAndAwayNodeType(
 	txn *memdb.Txn,
 	jctx *context.JobSchedulingContext,
-	awayNodeType types.AwayNodeType,
+	effectiveAnt types.EffectiveAwayNodeType,
 ) (*internaltypes.Node, error) {
 	var node *internaltypes.Node
 	var err error
 	// Save the number of additional tolerations that the job originally had; we
-	// use this value to restore the slice of additional toleration at the end
+	// use this value to restore the slice of additional tolerations at the end
 	// of each loop iteration.
 	numAdditionalTolerations := len(jctx.AdditionalTolerations)
 	defer func() {
@@ -514,23 +501,8 @@ func (nodeDb *NodeDb) selectNodeForJobWithTxnAndAwayNodeType(
 		jctx.AdditionalTolerations = jctx.AdditionalTolerations[:numAdditionalTolerations]
 	}()
 
-	wellKnownNodeType, ok := nodeDb.wellKnownNodeTypes[awayNodeType.WellKnownNodeTypeName]
-	if !ok {
-		return nil, fmt.Errorf("unknown well-known node type %s; must be in %v", awayNodeType.WellKnownNodeTypeName, nodeDb.wellKnownNodeTypes)
-	}
-
-	for _, taint := range wellKnownNodeType.Taints {
-		toleration := v1.Toleration{Key: taint.Key, Effect: taint.Effect}
-		if taint.Value == configuration.WildCardWellKnownNodeTypeValue {
-			toleration.Operator = v1.TolerationOpExists
-		} else {
-			toleration.Value = taint.Value
-		}
-
-		jctx.AdditionalTolerations = append(jctx.AdditionalTolerations, toleration)
-	}
-
-	jctx.PodSchedulingContext.ScheduledAtPriority = awayNodeType.Priority
+	jctx.AdditionalTolerations = append(jctx.AdditionalTolerations, effectiveAnt.Tolerations...)
+	jctx.PodSchedulingContext.ScheduledAtPriority = effectiveAnt.Priority
 	node, err = nodeDb.selectNodeForJobWithTxnAtPriority(txn, jctx)
 	return node, err
 }

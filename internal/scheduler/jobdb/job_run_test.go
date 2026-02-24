@@ -10,6 +10,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/types"
+	schedulerconfiguration "github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 )
 
@@ -38,6 +39,7 @@ var (
 		SchedulingKeyGenerator,
 		stringinterner.New(1024),
 		makeTestResourceListFactory(),
+		[]schedulerconfiguration.WellKnownNodeType{},
 	)
 	scheduledAtPriority = int32(5)
 	testPreemptReason   = "test preempt reason"

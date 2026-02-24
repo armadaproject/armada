@@ -18,6 +18,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/adapters"
+	schedulerconfiguration "github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/pkg/bidstore"
 )
@@ -87,6 +88,9 @@ type JobDb struct {
 	uuidProvider IDProvider
 	// Used to make efficient ResourceList types.
 	resourceListFactory *internaltypes.ResourceListFactory
+	// Pre-computed map from WellKnownNodeType name to the tolerations it contributes.
+	// Used when pre-computing effective away node types for new jobs.
+	wellKnownNodeTypeTolerations map[string][]v1.Toleration
 }
 
 // IDProvider is an interface used to mock run id  generation for tests.
@@ -105,6 +109,7 @@ func NewJobDb(priorityClasses map[string]types.PriorityClass,
 	defaultPriorityClassName string,
 	stringInterner *stringinterner.StringInterner,
 	resourceListFactory *internaltypes.ResourceListFactory,
+	wellKnownNodeTypes []schedulerconfiguration.WellKnownNodeType,
 ) *JobDb {
 	return NewJobDbWithSchedulingKeyGenerator(
 		priorityClasses,
@@ -112,6 +117,7 @@ func NewJobDb(priorityClasses map[string]types.PriorityClass,
 		internaltypes.NewSchedulingKeyGenerator(),
 		stringInterner,
 		resourceListFactory,
+		wellKnownNodeTypes,
 	)
 }
 
@@ -121,27 +127,43 @@ func NewJobDbWithSchedulingKeyGenerator(
 	skg *internaltypes.SchedulingKeyGenerator,
 	stringInterner *stringinterner.StringInterner,
 	resourceListFactory *internaltypes.ResourceListFactory,
+	wellKnownNodeTypes []schedulerconfiguration.WellKnownNodeType,
 ) *JobDb {
 	defaultPriorityClass, ok := priorityClasses[defaultPriorityClassName]
 	if !ok {
 		// TODO(albin): Return an error instead.
 		panic(fmt.Sprintf("unknown default priority class %s", defaultPriorityClassName))
 	}
+	wkntTolerations := make(map[string][]v1.Toleration, len(wellKnownNodeTypes))
+	for _, wknt := range wellKnownNodeTypes {
+		tols := make([]v1.Toleration, 0, len(wknt.Taints))
+		for _, taint := range wknt.Taints {
+			tol := v1.Toleration{Key: taint.Key, Effect: taint.Effect}
+			if taint.Value == schedulerconfiguration.WildCardWellKnownNodeTypeValue {
+				tol.Operator = v1.TolerationOpExists
+			} else {
+				tol.Value = taint.Value
+			}
+			tols = append(tols, tol)
+		}
+		wkntTolerations[wknt.Name] = tols
+	}
 	unvalidatedJobs := immutable.NewSet[*Job](JobHasher{})
 	return &JobDb{
-		jobsById:               immutable.NewMap[string, *Job](nil),
-		jobsByRunId:            immutable.NewMap[string, string](nil),
-		jobsByGangKey:          map[gangKey]immutable.Set[string]{},
-		jobsByQueue:            map[string]immutable.SortedSet[*Job]{},
-		jobsByPoolAndQueue:     map[string]map[string]immutable.SortedSet[*Job]{},
-		unvalidatedJobs:        &unvalidatedJobs,
-		priorityClasses:        priorityClasses,
-		defaultPriorityClass:   defaultPriorityClass,
-		schedulingKeyGenerator: skg,
-		stringInterner:         stringInterner,
-		clock:                  clock.RealClock{},
-		uuidProvider:           RealUUIDProvider{},
-		resourceListFactory:    resourceListFactory,
+		jobsById:                     immutable.NewMap[string, *Job](nil),
+		jobsByRunId:                  immutable.NewMap[string, string](nil),
+		jobsByGangKey:                map[gangKey]immutable.Set[string]{},
+		jobsByQueue:                  map[string]immutable.SortedSet[*Job]{},
+		jobsByPoolAndQueue:           map[string]map[string]immutable.SortedSet[*Job]{},
+		unvalidatedJobs:              &unvalidatedJobs,
+		priorityClasses:              priorityClasses,
+		defaultPriorityClass:         defaultPriorityClass,
+		schedulingKeyGenerator:       skg,
+		stringInterner:               stringInterner,
+		clock:                        clock.RealClock{},
+		uuidProvider:                 RealUUIDProvider{},
+		resourceListFactory:          resourceListFactory,
+		wellKnownNodeTypeTolerations: wkntTolerations,
 	}
 }
 
@@ -156,17 +178,18 @@ func (jobDb *JobDb) SetUUIDProvider(uuidProvider IDProvider) {
 // Clone returns a copy of the jobDb.
 func (jobDb *JobDb) Clone() *JobDb {
 	return &JobDb{
-		jobsById:               jobDb.jobsById,
-		jobsByRunId:            jobDb.jobsByRunId,
-		jobsByGangKey:          maps.Clone(jobDb.jobsByGangKey),
-		jobsByQueue:            maps.Clone(jobDb.jobsByQueue),
-		jobsByPoolAndQueue:     deepClone(jobDb.jobsByPoolAndQueue),
-		unvalidatedJobs:        jobDb.unvalidatedJobs,
-		priorityClasses:        jobDb.priorityClasses,
-		defaultPriorityClass:   jobDb.defaultPriorityClass,
-		schedulingKeyGenerator: jobDb.schedulingKeyGenerator,
-		stringInterner:         jobDb.stringInterner,
-		resourceListFactory:    jobDb.resourceListFactory,
+		jobsById:                     jobDb.jobsById,
+		jobsByRunId:                  jobDb.jobsByRunId,
+		jobsByGangKey:                maps.Clone(jobDb.jobsByGangKey),
+		jobsByQueue:                  maps.Clone(jobDb.jobsByQueue),
+		jobsByPoolAndQueue:           deepClone(jobDb.jobsByPoolAndQueue),
+		unvalidatedJobs:              jobDb.unvalidatedJobs,
+		priorityClasses:              jobDb.priorityClasses,
+		defaultPriorityClass:         jobDb.defaultPriorityClass,
+		schedulingKeyGenerator:       jobDb.schedulingKeyGenerator,
+		stringInterner:               jobDb.stringInterner,
+		resourceListFactory:          jobDb.resourceListFactory,
+		wellKnownNodeTypeTolerations: jobDb.wellKnownNodeTypeTolerations,
 	}
 }
 
@@ -195,6 +218,11 @@ func (jobDb *JobDb) NewJob(
 	}
 
 	rr := jobDb.getResourceRequirements(schedulingInfo)
+
+	effectiveAwayNodeTypes := jobDb.computeEffectiveAwayNodeTypes(
+		priorityClass.AwayNodeTypes,
+		rr,
+	)
 
 	_, ok = bidstore.PriceBand_name[priceBand]
 	pb := bidstore.PriceBand_PRICE_BAND_UNSPECIFIED
@@ -231,6 +259,7 @@ func (jobDb *JobDb) NewJob(
 		pools:                          jobDb.internPools(pools),
 		priceBand:                      pb,
 		gangInfo:                       *gangInfo,
+		effectiveAwayNodeTypes:         effectiveAwayNodeTypes,
 	}
 	job.ensureJobSchedulingInfoFieldsInitialised()
 	job.updateReservations()
@@ -240,6 +269,66 @@ func (jobDb *JobDb) NewJob(
 
 func (jobDb *JobDb) getResourceRequirements(schedulingInfo *internaltypes.JobSchedulingInfo) internaltypes.ResourceList {
 	return jobDb.resourceListFactory.FromJobResourceListIgnoreUnknown(safeGetRequirements(schedulingInfo))
+}
+
+func MatchesConditions(conditions []types.AwayNodeTypeCondition, jobResources internaltypes.ResourceList) bool {
+	for _, c := range conditions {
+		jobVal := jobResources.GetByNameZeroIfMissing(c.Resource)
+		j := jobVal.Value()
+		resource := c.Value[c.Resource]
+		value := resource.Value()
+
+		switch c.Operator {
+		case types.AwayNodeTypeConditionOpGreaterThan:
+			return j > value
+		case types.AwayNodeTypeConditionOpLessThan:
+			return j < value
+		case types.AwayNodeTypeConditionOpEqual:
+			return j == value
+		}
+	}
+	return true
+}
+
+// computeEffectiveAwayNodeTypes evaluates each AwayNodeType group in the priority class
+// against the job's resource requirements, resolves matching well-known node type taints to
+// tolerations, and returns the pre-computed groups to use at scheduling time.
+// Groups where no entries match are omitted, skipping unnecessary scheduling rounds.
+func (jobDb *JobDb) computeEffectiveAwayNodeTypes(
+	awayNodeTypes []types.AwayNodeType,
+	jobResources internaltypes.ResourceList,
+) []types.EffectiveAwayNodeType {
+	return ComputeEffectiveAwayNodeTypes(awayNodeTypes, jobResources, jobDb.wellKnownNodeTypeTolerations)
+}
+
+// ComputeEffectiveAwayNodeTypes evaluates each AwayNodeType group against the job's resources
+// using the provided well-known node type toleration map, and returns the pre-computed groups.
+// This is exported for use in tests that need to recompute effective away node types when
+// jobs are used with a different well-known node type configuration than they were created with.
+func ComputeEffectiveAwayNodeTypes(
+	awayNodeTypes []types.AwayNodeType,
+	jobResources internaltypes.ResourceList,
+	wellKnownNodeTypeTolerations map[string][]v1.Toleration,
+) []types.EffectiveAwayNodeType {
+	result := make([]types.EffectiveAwayNodeType, 0, len(awayNodeTypes))
+	for _, ant := range awayNodeTypes {
+		var tolerations []v1.Toleration
+		for _, wkntConfig := range ant.WellKnownNodeTypes {
+			if !MatchesConditions(wkntConfig.Conditions, jobResources) {
+				continue
+			}
+			tolerations = append(tolerations, wellKnownNodeTypeTolerations[wkntConfig.Name]...)
+		}
+		if len(tolerations) == 0 {
+			// No node types in this group matched — skip the scheduling round entirely.
+			continue
+		}
+		result = append(result, types.EffectiveAwayNodeType{
+			Priority:    ant.Priority,
+			Tolerations: tolerations,
+		})
+	}
+	return result
 }
 
 func safeGetRequirements(schedulingInfo *internaltypes.JobSchedulingInfo) map[string]resource.Quantity {

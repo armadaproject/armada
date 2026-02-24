@@ -1057,7 +1057,6 @@ func TestPopulateNodeDb(t *testing.T) {
 				schedulingConfig.IndexedResources,
 				schedulingConfig.IndexedTaints,
 				schedulingConfig.IndexedNodeLabels,
-				schedulingConfig.WellKnownNodeTypes,
 				testfixtures.TestResourceListFactory,
 			)
 			require.NoError(t, err)
@@ -1113,7 +1112,6 @@ func BenchmarkNodeDbConstruction(b *testing.B) {
 					schedulingConfig.IndexedResources,
 					schedulingConfig.IndexedTaints,
 					schedulingConfig.IndexedNodeLabels,
-					schedulingConfig.WellKnownNodeTypes,
 					testfixtures.TestResourceListFactory,
 				)
 				require.NoError(b, err)

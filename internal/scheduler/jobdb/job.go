@@ -86,6 +86,10 @@ type Job struct {
 	gangInfo GangInfo
 	// The reservations this job matches
 	reservations map[string]bool
+	// Pre-computed list of away scheduling groups for this job.
+	// Each entry represents one scheduling round with its combined tolerations.
+	// Computed once at job creation based on resource requirements and conditions.
+	effectiveAwayNodeTypes []types.EffectiveAwayNodeType
 }
 
 func (job *Job) String() string {
@@ -502,6 +506,22 @@ func (job *Job) WithGangInfo(gangInfo GangInfo) *Job {
 
 func (job *Job) GetGangInfo() GangInfo {
 	return job.gangInfo
+}
+
+// EffectiveAwayNodeTypes returns the pre-computed away scheduling groups for this job.
+// Each entry represents one scheduling round: the combined tolerations from all
+// well-known node type configs in the group that matched the job's resource requirements.
+func (job *Job) EffectiveAwayNodeTypes() []types.EffectiveAwayNodeType {
+	return job.effectiveAwayNodeTypes
+}
+
+// WithEffectiveAwayNodeTypes returns a copy of the job with the effective away node types updated.
+// This is used in tests where a job is created with one JobDb configuration and then used
+// in a context with different well-known node types.
+func (job *Job) WithEffectiveAwayNodeTypes(effectiveAwayNodeTypes []types.EffectiveAwayNodeType) *Job {
+	j := shallowCopyJob(*job)
+	j.effectiveAwayNodeTypes = effectiveAwayNodeTypes
+	return j
 }
 
 func (job *Job) IsInGang() bool {

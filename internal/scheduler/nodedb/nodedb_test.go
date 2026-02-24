@@ -13,6 +13,7 @@ import (
 
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	"github.com/armadaproject/armada/internal/common/pointer"
+	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/common/util"
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
@@ -611,10 +612,6 @@ func TestHomeNodeScheduling(t *testing.T) {
 				testfixtures.TestResources,
 				testfixtures.TestIndexedTaints,
 				testfixtures.TestIndexedNodeLabels,
-				[]schedulerconfig.WellKnownNodeType{
-					{Name: "gpu", Taints: []v1.Taint{{Key: "gpu", Value: "true", Effect: v1.TaintEffectNoSchedule}}},
-					{Name: "large", Taints: []v1.Taint{{Key: "largeJobsOnly", Value: "true", Effect: v1.TaintEffectNoSchedule}}},
-				},
 				testfixtures.TestResourceListFactory,
 			)
 			require.NoError(t, err)
@@ -743,10 +740,6 @@ func TestAwayNodeScheduling(t *testing.T) {
 				testfixtures.TestResources,
 				testfixtures.TestIndexedTaints,
 				testfixtures.TestIndexedNodeLabels,
-				[]schedulerconfig.WellKnownNodeType{
-					{Name: "gpu", Taints: []v1.Taint{tc.wellKnownNodeTypeTaint}},
-					{Name: "large", Taints: []v1.Taint{{Key: "large", Value: "true", Effect: v1.TaintEffectNoSchedule}}},
-				},
 				testfixtures.TestResourceListFactory,
 			)
 			require.NoError(t, err)
@@ -771,6 +764,14 @@ func TestAwayNodeScheduling(t *testing.T) {
 				"armada-preemptible-away",
 				testfixtures.Test1Cpu4GiPodReqs(testfixtures.TestQueue, jobId, 30000),
 			)
+			// Recompute effectiveAwayNodeTypes using the test-case taint, because the shared
+			// testfixtures.JobDb may have different well-known node type taints configured.
+			wkntTolMap := testfixtures.WellKnownNodeTypeTolerationMap([]schedulerconfig.WellKnownNodeType{
+				{Name: "gpu", Taints: []v1.Taint{tc.wellKnownNodeTypeTaint}},
+			})
+			pc := job.PriorityClass()
+			effectiveAnt := jobdb.ComputeEffectiveAwayNodeTypes(pc.AwayNodeTypes, job.AllResourceRequirements().ToMap(), wkntTolMap)
+			job = job.WithEffectiveAwayNodeTypes(effectiveAnt)
 			if tc.shouldSubmitGang {
 				job = testfixtures.WithGangAnnotationsJobs([]*jobdb.Job{job.DeepCopy(), job.DeepCopy()})[0]
 			}
@@ -810,6 +811,112 @@ func TestAwayNodeScheduling(t *testing.T) {
 				assert.NotNil(t, jctx.PodSchedulingContext)
 				assert.False(t, jctx.PodSchedulingContext.IsSuccessful())
 				assert.Empty(t, jctx.PodSchedulingContext.NodeId)
+				assert.Empty(t, jctx.AdditionalTolerations)
+			}
+		})
+	}
+}
+
+func TestConditionalAwayNodeScheduling(t *testing.T) {
+	// The node has a "gpu" taint. The away node type "gpu" has a condition: job must request
+	// >= 1 nvidia.com/gpu. Jobs that don't request a GPU should not get the toleration
+	// and therefore cannot land on the tainted node.
+	gpuTaint := v1.Taint{Key: "gpu", Value: "true", Effect: v1.TaintEffectNoSchedule}
+	gpuWKNT := schedulerconfig.WellKnownNodeType{
+		Name:   "gpu",
+		Taints: []v1.Taint{gpuTaint},
+	}
+
+	// Priority class with a conditional away node type: only apply when nvidia.com/gpu >= 1.
+	priorityClasses := map[string]types.PriorityClass{
+		"away": {
+			Priority:    30000,
+			Preemptible: true,
+			AwayNodeTypes: []types.AwayNodeType{
+				{
+					Priority: 29000,
+					WellKnownNodeTypes: []types.WellKnownNodeTypeConfig{
+						{
+							Name: "gpu",
+							Conditions: []types.AwayNodeTypeCondition{
+								{Resource: "nvidia.com/gpu", Operator: ">=", Value: "1"},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	wkntTolMap := testfixtures.WellKnownNodeTypeTolerationMap([]schedulerconfig.WellKnownNodeType{gpuWKNT})
+
+	tests := map[string]struct {
+		jobResources    map[string]resource.Quantity
+		expectScheduled bool
+	}{
+		"job requesting gpu meets condition and lands on away node": {
+			jobResources: map[string]resource.Quantity{
+				"cpu":            resource.MustParse("1"),
+				"memory":         resource.MustParse("4Gi"),
+				"nvidia.com/gpu": resource.MustParse("1"),
+			},
+			expectScheduled: true,
+		},
+		"job not requesting gpu does not meet condition and is not scheduled on away node": {
+			jobResources: map[string]resource.Quantity{
+				"cpu":    resource.MustParse("1"),
+				"memory": resource.MustParse("4Gi"),
+			},
+			expectScheduled: false,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			nodeDb, err := NewNodeDb(
+				priorityClasses,
+				testfixtures.TestResources,
+				testfixtures.TestIndexedTaints,
+				testfixtures.TestIndexedNodeLabels,
+				testfixtures.TestResourceListFactory,
+			)
+			require.NoError(t, err)
+			nodeDb.DisableHomeScheduling()
+
+			// Build a node with the gpu taint.
+			node := testfixtures.Test32CpuNode([]int32{29000, 30000})
+			node = testfixtures.TestNodeFactory.AddTaints([]*internaltypes.Node{node}, []v1.Taint{gpuTaint})[0]
+
+			txn := nodeDb.Txn(true)
+			require.NoError(t, nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, node))
+
+			// Create a job via the shared JobDb then recompute effectiveAwayNodeTypes using
+			// the test-specific priority class and well-known node type configuration.
+			jobId := util.ULID()
+			job := testfixtures.TestJob(
+				testfixtures.TestQueue, jobId, "away",
+				testfixtures.Test1Cpu4GiPodReqs(testfixtures.TestQueue, jobId, 30000),
+			)
+			pc := priorityClasses["away"]
+			effectiveAnt := jobdb.ComputeEffectiveAwayNodeTypes(pc.AwayNodeTypes, tc.jobResources, wkntTolMap)
+			job = job.WithPriorityClass(pc).WithEffectiveAwayNodeTypes(effectiveAnt)
+
+			jctx := context.JobSchedulingContextFromJob(job)
+			gctx := context.NewGangSchedulingContext([]*context.JobSchedulingContext{jctx})
+
+			ok, err := nodeDb.ScheduleManyWithTxn(txn, gctx)
+			require.NoError(t, err)
+
+			if tc.expectScheduled {
+				require.True(t, ok)
+				assert.Equal(t, context.ScheduledAsAwayJob, jctx.PodSchedulingContext.SchedulingMethod)
+				assert.Equal(t, int32(29000), jctx.PodSchedulingContext.ScheduledAtPriority)
+				assert.Equal(t,
+					[]v1.Toleration{{Key: "gpu", Value: "true", Effect: v1.TaintEffectNoSchedule}},
+					jctx.AdditionalTolerations,
+				)
+			} else {
+				require.False(t, ok)
 				assert.Empty(t, jctx.AdditionalTolerations)
 			}
 		})
@@ -938,7 +1045,6 @@ func benchmarkUpsert(nodes []*internaltypes.Node, b *testing.B) {
 		testfixtures.TestResources,
 		testfixtures.TestIndexedTaints,
 		testfixtures.TestIndexedNodeLabels,
-		testfixtures.TestWellKnownNodeTypes,
 		testfixtures.TestResourceListFactory,
 	)
 	require.NoError(b, err)
@@ -978,7 +1084,6 @@ func benchmarkScheduleMany(b *testing.B, nodes []*internaltypes.Node, jobs []*jo
 		testfixtures.TestResources,
 		testfixtures.TestIndexedTaints,
 		testfixtures.TestIndexedNodeLabels,
-		testfixtures.TestWellKnownNodeTypes,
 		testfixtures.TestResourceListFactory,
 	)
 	require.NoError(b, err)
@@ -1103,7 +1208,6 @@ func newNodeDbWithNodes(nodes []*internaltypes.Node) (*NodeDb, error) {
 		testfixtures.TestResources,
 		testfixtures.TestIndexedTaints,
 		testfixtures.TestIndexedNodeLabels,
-		testfixtures.TestWellKnownNodeTypes,
 		testfixtures.TestResourceListFactory,
 	)
 	if err != nil {

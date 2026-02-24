@@ -375,7 +375,6 @@ func (srv *SubmitChecker) constructNodeDb(nodes []*internaltypes.Node) (*nodedb.
 		srv.schedulingConfig.IndexedResources,
 		srv.schedulingConfig.IndexedTaints,
 		srv.schedulingConfig.IndexedNodeLabels,
-		srv.schedulingConfig.WellKnownNodeTypes,
 		srv.resourceListFactory,
 	)
 	if err != nil {

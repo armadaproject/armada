@@ -63,7 +63,7 @@ func TestEvictOversubscribed(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	jobDb := jobdb.NewJobDb(config.PriorityClasses, config.DefaultPriorityClassName, stringInterner, testfixtures.TestResourceListFactory)
+	jobDb := jobdb.NewJobDb(config.PriorityClasses, config.DefaultPriorityClassName, stringInterner, testfixtures.TestResourceListFactory, config.WellKnownNodeTypes)
 	jobDbTxn := jobDb.WriteTxn()
 	err = jobDbTxn.Upsert(jobs)
 	require.NoError(t, err)
@@ -1762,7 +1762,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 						Priority:    30000,
 						Preemptible: true,
 
-						AwayNodeTypes: []types.AwayNodeType{{Priority: 29000, WellKnownNodeTypeName: "gpu"}},
+						AwayNodeTypes: []types.AwayNodeType{{Priority: 29000, WellKnownNodeTypes: []types.WellKnownNodeTypeConfig{{Name: "gpu"}}}},
 					},
 					"armada-preemptible": {
 						Priority:    30000,
@@ -1821,7 +1821,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 						Priority:    30000,
 						Preemptible: true,
 
-						AwayNodeTypes: []types.AwayNodeType{{Priority: 29000, WellKnownNodeTypeName: "gpu"}},
+						AwayNodeTypes: []types.AwayNodeType{{Priority: 29000, WellKnownNodeTypes: []types.WellKnownNodeTypeConfig{{Name: "gpu"}}}},
 					},
 					"armada-preemptible": {
 						Priority:    30000,
@@ -1890,7 +1890,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 						Priority:    30000,
 						Preemptible: true,
 
-						AwayNodeTypes: []types.AwayNodeType{{Priority: 29000, WellKnownNodeTypeName: "gpu"}},
+						AwayNodeTypes: []types.AwayNodeType{{Priority: 29000, WellKnownNodeTypes: []types.WellKnownNodeTypeConfig{{Name: "gpu"}}}},
 					},
 					"armada-preemptible": {
 						Priority:    30000,
@@ -1954,13 +1954,13 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 						Priority:    30000,
 						Preemptible: true,
 
-						AwayNodeTypes: []types.AwayNodeType{{Priority: 28000, WellKnownNodeTypeName: "gpu"}},
+						AwayNodeTypes: []types.AwayNodeType{{Priority: 28000, WellKnownNodeTypes: []types.WellKnownNodeTypeConfig{{Name: "gpu"}}}},
 					},
 					"armada-preemptible-away": {
 						Priority:    30000,
 						Preemptible: true,
 
-						AwayNodeTypes: []types.AwayNodeType{{Priority: 29000, WellKnownNodeTypeName: "gpu"}},
+						AwayNodeTypes: []types.AwayNodeType{{Priority: 29000, WellKnownNodeTypes: []types.WellKnownNodeTypeConfig{{Name: "gpu"}}}},
 					},
 					"armada-preemptible": {
 						Priority:    30000,
@@ -2043,7 +2043,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			priorities := types.AllowedPriorities(tc.SchedulingConfig.PriorityClasses)
 
-			jobDb := jobdb.NewJobDb(tc.SchedulingConfig.PriorityClasses, tc.SchedulingConfig.DefaultPriorityClassName, stringinterner.New(1024), testfixtures.TestResourceListFactory)
+			jobDb := jobdb.NewJobDb(tc.SchedulingConfig.PriorityClasses, tc.SchedulingConfig.DefaultPriorityClassName, stringinterner.New(1024), testfixtures.TestResourceListFactory, tc.SchedulingConfig.WellKnownNodeTypes)
 			jobDbTxn := jobDb.WriteTxn()
 
 			// Add all the initial jobs, creating runs for them
@@ -2486,7 +2486,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 			}
 			txn.Commit()
 
-			jobDb := jobdb.NewJobDb(tc.SchedulingConfig.PriorityClasses, tc.SchedulingConfig.DefaultPriorityClassName, stringinterner.New(1024), testfixtures.TestResourceListFactory)
+			jobDb := jobdb.NewJobDb(tc.SchedulingConfig.PriorityClasses, tc.SchedulingConfig.DefaultPriorityClassName, stringinterner.New(1024), testfixtures.TestResourceListFactory, tc.SchedulingConfig.WellKnownNodeTypes)
 			jobDbTxn := jobDb.WriteTxn()
 			var queuedJobs []*jobdb.Job
 			for _, jobs := range jobsByQueue {
@@ -2635,7 +2635,7 @@ func TestPreemptingQueueSchedulerTimeouts(t *testing.T) {
 
 		// Queue A: 32 jobs already running on the node
 		runningJobs := testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 32)
-		jobDb := jobdb.NewJobDb(config.PriorityClasses, config.DefaultPriorityClassName, stringInterner, testfixtures.TestResourceListFactory)
+		jobDb := jobdb.NewJobDb(config.PriorityClasses, config.DefaultPriorityClassName, stringInterner, testfixtures.TestResourceListFactory, config.WellKnownNodeTypes)
 		jobDbTxn := jobDb.WriteTxn()
 		for _, job := range runningJobs {
 			err := jobDbTxn.Upsert([]*jobdb.Job{
@@ -2732,7 +2732,7 @@ func TestPreemptingQueueSchedulerTimeouts(t *testing.T) {
 		require.NoError(t, err)
 
 		jobs := testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 10)
-		jobDb := jobdb.NewJobDb(config.PriorityClasses, config.DefaultPriorityClassName, stringInterner, testfixtures.TestResourceListFactory)
+		jobDb := jobdb.NewJobDb(config.PriorityClasses, config.DefaultPriorityClassName, stringInterner, testfixtures.TestResourceListFactory, config.WellKnownNodeTypes)
 		jobDbTxn := jobDb.WriteTxn()
 		require.NoError(t, jobDbTxn.Upsert(jobs))
 

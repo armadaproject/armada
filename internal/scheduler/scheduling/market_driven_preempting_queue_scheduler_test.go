@@ -559,7 +559,7 @@ func TestMarketDrivenPreemptingQueueScheduler(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			priorities := types.AllowedPriorities(tc.SchedulingConfig.PriorityClasses)
 
-			jobDb := jobdb.NewJobDb(tc.SchedulingConfig.PriorityClasses, tc.SchedulingConfig.DefaultPriorityClassName, stringinterner.New(1024), testfixtures.TestResourceListFactory)
+			jobDb := jobdb.NewJobDb(tc.SchedulingConfig.PriorityClasses, tc.SchedulingConfig.DefaultPriorityClassName, stringinterner.New(1024), testfixtures.TestResourceListFactory, tc.SchedulingConfig.WellKnownNodeTypes)
 			jobDbTxn := jobDb.WriteTxn()
 
 			// Accounting across scheduling rounds.

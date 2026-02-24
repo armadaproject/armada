@@ -363,6 +363,7 @@ func Run(config schedulerconfig.Configuration) error {
 		config.Scheduling.DefaultPriorityClassName,
 		stringInterner,
 		resourceListFactory,
+		config.Scheduling.WellKnownNodeTypes,
 	)
 
 	schedulerMetrics, err := metrics.New(

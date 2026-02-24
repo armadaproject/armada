@@ -378,7 +378,6 @@ func newNodeDb(config configuration.SchedulingConfig) (*nodedb.NodeDb, error) {
 		config.IndexedResources,
 		config.IndexedTaints,
 		config.IndexedNodeLabels,
-		config.WellKnownNodeTypes,
 		testfixtures.TestResourceListFactory,
 	)
 	if err != nil {

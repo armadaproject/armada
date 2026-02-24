@@ -113,7 +113,6 @@ func createNodeDb(schedulingConfig configuration.SchedulingConfig, rlf *internal
 		schedulingConfig.IndexedResources,
 		schedulingConfig.IndexedTaints,
 		slices.Concat([]string{gangUniformityLabel}, schedulingConfig.IndexedNodeLabels),
-		schedulingConfig.WellKnownNodeTypes,
 		rlf,
 	)
 	if err != nil {

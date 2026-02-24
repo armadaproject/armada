@@ -18,6 +18,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/common/util"
+	schedulerconfiguration "github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/pkg/bidstore"
 )
@@ -31,6 +32,7 @@ func NewTestJobDb() *JobDb {
 		"foo",
 		stringinterner.New(1024),
 		testResourceListFactory,
+		[]schedulerconfiguration.WellKnownNodeType{},
 	)
 }
 

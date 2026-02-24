@@ -78,8 +78,8 @@ var (
 		PriorityClass2:                           {Priority: 2, Preemptible: true},
 		PriorityClass2NonPreemptible:             {Priority: 2, Preemptible: false},
 		PriorityClass3:                           {Priority: 3, Preemptible: false},
-		PriorityClass4PreemptibleAway:            {Priority: 30000, Preemptible: true, AwayNodeTypes: []types.AwayNodeType{{Priority: 29000, WellKnownNodeTypeName: "gpu"}, {Priority: 29000, WellKnownNodeTypeName: "large"}}},
-		PriorityClass5PreemptibleAwayLowPriority: {Priority: 30000, Preemptible: true, AwayNodeTypes: []types.AwayNodeType{{Priority: 28000, WellKnownNodeTypeName: "gpu"}, {Priority: 28000, WellKnownNodeTypeName: "large"}}},
+		PriorityClass4PreemptibleAway:            {Priority: 30000, Preemptible: true, AwayNodeTypes: []types.AwayNodeType{{Priority: 29000, WellKnownNodeTypes: []types.WellKnownNodeTypeConfig{{Name: "gpu"}}}, {Priority: 29000, WellKnownNodeTypes: []types.WellKnownNodeTypeConfig{{Name: "large"}}}}},
+		PriorityClass5PreemptibleAwayLowPriority: {Priority: 30000, Preemptible: true, AwayNodeTypes: []types.AwayNodeType{{Priority: 28000, WellKnownNodeTypes: []types.WellKnownNodeTypeConfig{{Name: "gpu"}}}, {Priority: 28000, WellKnownNodeTypes: []types.WellKnownNodeTypeConfig{{Name: "large"}}}}},
 		PriorityClass6Preemptible:                {Priority: 30000, Preemptible: true},
 	}
 	TestDefaultPriorityClass = PriorityClass3
@@ -135,11 +135,34 @@ func NewJobDb(resourceListFactory *internaltypes.ResourceListFactory) *jobdb.Job
 		SchedulingKeyGenerator,
 		stringinterner.New(1024),
 		resourceListFactory,
+		TestWellKnownNodeTypes,
 	)
 	// Mock out the clock and uuid provider to ensure consistent ids and timestamps are generated.
 	jobDb.SetClock(NewMockPassiveClock())
 	jobDb.SetUUIDProvider(NewMockIDProvider())
 	return jobDb
+}
+
+// WellKnownNodeTypeTolerationMap builds the name→tolerations map from a slice of
+// WellKnownNodeType config, using the same conversion logic as JobDb.
+// Use this in tests that need to recompute job.EffectiveAwayNodeTypes when jobs
+// are created with the shared testfixtures.JobDb but run against a test-specific config.
+func WellKnownNodeTypeTolerationMap(wellKnownNodeTypes []schedulerconfiguration.WellKnownNodeType) map[string][]v1.Toleration {
+	result := make(map[string][]v1.Toleration, len(wellKnownNodeTypes))
+	for _, wknt := range wellKnownNodeTypes {
+		tols := make([]v1.Toleration, 0, len(wknt.Taints))
+		for _, taint := range wknt.Taints {
+			tol := v1.Toleration{Key: taint.Key, Effect: taint.Effect}
+			if taint.Value == schedulerconfiguration.WildCardWellKnownNodeTypeValue {
+				tol.Operator = v1.TolerationOpExists
+			} else {
+				tol.Value = taint.Value
+			}
+			tols = append(tols, tol)
+		}
+		result[wknt.Name] = tols
+	}
+	return result
 }
 
 func NewJob(

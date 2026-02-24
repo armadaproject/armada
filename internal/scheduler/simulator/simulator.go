@@ -146,6 +146,7 @@ func NewSimulator(
 		schedulingConfig.DefaultPriorityClassName,
 		stringinterner.New(1024),
 		resourceListFactory,
+		schedulingConfig.WellKnownNodeTypes,
 	)
 	randomSeed := workloadSpec.RandomSeed
 	if randomSeed == 0 {
@@ -327,7 +328,6 @@ func (s *Simulator) setupClusters() error {
 				s.schedulingConfig.IndexedResources,
 				s.schedulingConfig.IndexedTaints,
 				indexedNodeLabels,
-				s.schedulingConfig.WellKnownNodeTypes,
 				s.resourceListFactory,
 			)
 			if err != nil {

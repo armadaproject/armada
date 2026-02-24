@@ -300,11 +300,13 @@ type SchedulingConfig struct {
 }
 
 const (
-	DuplicateWellKnownNodeTypeErrorMessage     = "duplicate well-known node type name"
-	AwayNodeTypesWithoutPreemptionErrorMessage = "priority class has away node types but is not preemptible"
-	UnknownWellKnownNodeTypeErrorMessage       = "priority class refers to unknown well-known node type"
-	InvalidSchedulingTimeoutErrorMessage       = "NewJobsSchedulingTimeout must be less than MaxSchedulingDuration"
-	WildCardWellKnownNodeTypeValue             = "*"
+	DuplicateWellKnownNodeTypeErrorMessage           = "duplicate well-known node type name"
+	AwayNodeTypesWithoutPreemptionErrorMessage       = "priority class has away node types but is not preemptible"
+	UnknownWellKnownNodeTypeErrorMessage             = "priority class refers to unknown well-known node type"
+	InvalidSchedulingTimeoutErrorMessage             = "NewJobsSchedulingTimeout must be less than MaxSchedulingDuration"
+	WildCardWellKnownNodeTypeValue                   = "*"
+	InvalidAwayNodeTypeConditionOperatorErrorMessage = "away node type condition has invalid operator; must be one of >, >=, <, <=, =="
+	InvalidAwayNodeTypeConditionValueErrorMessage    = "away node type condition has unparseable resource quantity value"
 )
 
 // ResourceType represents a resource the scheduler indexes for efficient lookup.

@@ -400,7 +400,7 @@ func TestSimulator(t *testing.T) {
 						Priority:    30000,
 						Preemptible: true,
 
-						AwayNodeTypes: []types.AwayNodeType{{Priority: 29000, WellKnownNodeTypeName: "gpu-whale"}},
+						AwayNodeTypes: []types.AwayNodeType{{Priority: 29000, WellKnownNodeTypes: []types.WellKnownNodeTypeConfig{{Name: "gpu-whale"}}}},
 					},
 					"armada-preemptible": {
 						Priority:    30000,

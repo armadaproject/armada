@@ -401,8 +401,8 @@ func TestGangScheduler(t *testing.T) {
 						Preemptible: true,
 
 						AwayNodeTypes: []types.AwayNodeType{
-							{Priority: 29000, WellKnownNodeTypeName: "node-type-a"},
-							{Priority: 29000, WellKnownNodeTypeName: "node-type-b"},
+							{Priority: 29000, WellKnownNodeTypes: []types.WellKnownNodeTypeConfig{{Name: "node-type-a"}}},
+							{Priority: 29000, WellKnownNodeTypes: []types.WellKnownNodeTypeConfig{{Name: "node-type-b"}}},
 						},
 					},
 					"armada-preemptible-away-both": {
@@ -410,7 +410,7 @@ func TestGangScheduler(t *testing.T) {
 						Preemptible: true,
 
 						AwayNodeTypes: []types.AwayNodeType{
-							{Priority: 29000, WellKnownNodeTypeName: "node-type-ab"},
+							{Priority: 29000, WellKnownNodeTypes: []types.WellKnownNodeTypeConfig{{Name: "node-type-ab"}}},
 						},
 					},
 				}
@@ -473,7 +473,7 @@ func TestGangScheduler(t *testing.T) {
 						Priority:    30000,
 						Preemptible: true,
 						AwayNodeTypes: []types.AwayNodeType{
-							{Priority: 29000, WellKnownNodeTypeName: "node-type-a"},
+							{Priority: 29000, WellKnownNodeTypes: []types.WellKnownNodeTypeConfig{{Name: "node-type-a"}}},
 						},
 					},
 				}
@@ -543,9 +543,12 @@ func TestGangScheduler(t *testing.T) {
 			// because textfixtures.TestJob() initialises the jobs using a jobDb that doesn't know anything about the
 			// priority classes we have defined in this test.  We therefore need to fix the priority classes here.
 			// The long term strategy is to try and remove the need to have a jobDB for creating jobs.
+			wkntTolMap := testfixtures.WellKnownNodeTypeTolerationMap(tc.SchedulingConfig.WellKnownNodeTypes)
 			for i, gang := range tc.Gangs {
 				for j, job := range gang {
-					tc.Gangs[i][j] = job.WithPriorityClass(tc.SchedulingConfig.PriorityClasses[job.PriorityClassName()])
+					pc := tc.SchedulingConfig.PriorityClasses[job.PriorityClassName()]
+					effectiveAnt := jobdb.ComputeEffectiveAwayNodeTypes(pc.AwayNodeTypes, job.AllResourceRequirements().ToMap(), wkntTolMap)
+					tc.Gangs[i][j] = job.WithPriorityClass(pc).WithEffectiveAwayNodeTypes(effectiveAnt)
 				}
 			}
 
@@ -572,7 +575,6 @@ func TestGangScheduler(t *testing.T) {
 				tc.SchedulingConfig.IndexedResources,
 				tc.SchedulingConfig.IndexedTaints,
 				tc.SchedulingConfig.IndexedNodeLabels,
-				tc.SchedulingConfig.WellKnownNodeTypes,
 				testfixtures.TestResourceListFactory,
 			)
 			require.NoError(t, err)

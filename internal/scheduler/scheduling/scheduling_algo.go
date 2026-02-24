@@ -594,7 +594,6 @@ func (l *FairSchedulingAlgo) constructNodeDb(currentPoolJobs []*jobdb.Job, other
 		l.schedulingConfig.IndexedResources,
 		l.schedulingConfig.IndexedTaints,
 		l.schedulingConfig.IndexedNodeLabels,
-		l.schedulingConfig.WellKnownNodeTypes,
 		l.resourceListFactory,
 	)
 	if err != nil {
