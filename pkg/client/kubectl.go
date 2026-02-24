@@ -1,7 +1,6 @@
 package client
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/spf13/viper"
@@ -9,11 +8,16 @@ import (
 	"github.com/armadaproject/armada/internal/common"
 )
 
-func GetKubectlCommand(cluster string, namespace string, jobId string, podNumber int, cmd string) string {
+// GetKubectlCommand constructs a kubectl command for interacting with a pod.
+// runIndex is optional - if nil, uses legacy pod name format for backward compatibility.
+func GetKubectlCommand(cluster string, namespace string, jobId string, podNumber int, runIndex *int, cmd string) string {
 	t := viper.GetString("kubectlCommandTemplate")
 	if t == "" {
 		t = "kubectl --context {{cluster}} -n {{namespace}} {{cmd}} {{pod}}"
 	}
+
+	podName := common.BuildPodName(jobId, podNumber, runIndex)
+
 	r := strings.NewReplacer(
 		"{{cluster}}",
 		cluster,
@@ -22,7 +26,7 @@ func GetKubectlCommand(cluster string, namespace string, jobId string, podNumber
 		"{{cmd}}",
 		cmd,
 		"{{pod}}",
-		fmt.Sprintf("%s%s-%d", common.PodNamePrefix, jobId, podNumber),
+		podName,
 	)
 	command := r.Replace(t)
 

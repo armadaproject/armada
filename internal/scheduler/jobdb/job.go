@@ -69,6 +69,9 @@ type Job struct {
 	failed bool
 	// True if the scheduler has marked the job as succeeded
 	succeeded bool
+	// Number of failures that count toward the retry limit.
+	// Incremented only when retry policy action is Retry, not Ignore.
+	failureCount uint32
 	// Job Runs by run id
 	runsById map[string]*JobRun
 	// The currently active run. The run with the latest timestamp is the active run.
@@ -363,6 +366,9 @@ func (job *Job) Equal(other *Job) bool {
 		return false
 	}
 	if job.succeeded != other.succeeded {
+		return false
+	}
+	if job.failureCount != other.failureCount {
 		return false
 	}
 	if !job.activeRun.Equal(other.activeRun) {
@@ -771,8 +777,10 @@ func (job *Job) ValidateResourceRequests() error {
 // WithNewRun creates a copy of the job with a new run on the given executor.
 func (job *Job) WithNewRun(executor, nodeId, nodeName, pool string, scheduledAtPriority int32) *Job {
 	now := job.jobDb.clock.Now()
+	nextRunIndex := len(job.runsById)
 	return job.WithUpdatedRun(job.jobDb.CreateRun(
 		job.jobDb.uuidProvider.New(),
+		uint32(nextRunIndex),
 		job.Id(),
 		now.UnixNano(),
 		executor,
@@ -837,6 +845,24 @@ func (job *Job) NumAttempts() uint {
 		}
 	}
 	return attempts
+}
+
+// FailureCount returns the number of failures that count toward the retry limit.
+// This is only incremented when the retry policy action is Retry.
+func (job *Job) FailureCount() uint32 {
+	return job.failureCount
+}
+
+// WithFailureCount returns a copy of the job with the failure count set.
+func (job *Job) WithFailureCount(count uint32) *Job {
+	j := shallowCopyJob(*job)
+	j.failureCount = count
+	return j
+}
+
+// WithIncrementedFailureCount returns a copy of the job with failure count incremented by 1.
+func (job *Job) WithIncrementedFailureCount() *Job {
+	return job.WithFailureCount(job.failureCount + 1)
 }
 
 // AllRuns returns all runs associated with job.

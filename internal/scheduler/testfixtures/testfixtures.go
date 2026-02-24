@@ -486,6 +486,42 @@ func WithNodeSelectorJob(selector map[string]string, job *jobdb.Job) *jobdb.Job 
 	return job
 }
 
+// CreatePreemptedRun creates a job run that has been marked as preempted.
+func CreatePreemptedRun(executor string, preemptedTime time.Time) *jobdb.JobRun {
+	return JobDb.CreateRun(
+		uuid.NewString(),         // id
+		0,                        // index
+		util.NewULID(),           // jobId
+		preemptedTime.UnixNano(), // creationTime
+		executor,                 // executor
+		executor+"-node",         // nodeId
+		"node",                   // nodeName
+		TestPool,                 // pool
+		nil,                      // scheduledAtPriority
+		false,                    // leased
+		false,                    // pending
+		false,                    // running
+		false,                    // preemptRequested
+		nil,                      // preemptReason
+		true,                     // preempted
+		false,                    // succeeded
+		false,                    // failed
+		false,                    // cancelled
+		nil,                      // leaseTime
+		nil,                      // pendingTime
+		nil,                      // runningTime
+		&preemptedTime,           // preemptedTime
+		nil,                      // terminatedTime
+		false,                    // returned
+		false,                    // runAttempted
+	)
+}
+
+// WithPreemptedRun adds a preempted run to a job.
+func WithPreemptedRun(job *jobdb.Job, executor string, preemptedTime time.Time) *jobdb.Job {
+	return job.WithUpdatedRun(CreatePreemptedRun(executor, preemptedTime))
+}
+
 func WithPools(jobs []*jobdb.Job, pools []string) []*jobdb.Job {
 	result := make([]*jobdb.Job, 0, len(jobs))
 	for _, job := range jobs {

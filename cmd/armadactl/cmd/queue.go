@@ -63,6 +63,11 @@ Job priority is evaluated inside queue, queue has its own priority.  Any labels 
 				return fmt.Errorf("error converting queue labels to map: %s", err)
 			}
 
+			retryPolicy, err := cmd.Flags().GetString("retry-policy")
+			if err != nil {
+				return fmt.Errorf("error reading retry-policy: %s", err)
+			}
+
 			newQueue, err := queue.NewQueue(&api.Queue{
 				Name:           name,
 				PriorityFactor: priorityFactor,
@@ -70,6 +75,7 @@ Job priority is evaluated inside queue, queue has its own priority.  Any labels 
 				GroupOwners:    groups,
 				Cordoned:       cordoned,
 				Labels:         labelsAsMap,
+				RetryPolicy:    retryPolicy,
 			})
 			if err != nil {
 				return fmt.Errorf("invalid queue data: %s", err)
@@ -83,6 +89,7 @@ Job priority is evaluated inside queue, queue has its own priority.  Any labels 
 	cmd.Flags().StringSlice("group-owners", []string{}, "Comma separated list of queue group owners, defaults to empty list.")
 	cmd.Flags().Bool("cordon", false, "Used to pause scheduling on specified queue. Defaults to false.")
 	cmd.Flags().StringSliceP("labels", "l", []string{}, "Comma separated list of key-value queue labels, for example: armadaproject.io/submitter=airflow. Defaults to empty list.")
+	cmd.Flags().String("retry-policy", "", "Name of the retry policy from scheduler config to use for this queue. Defaults to empty (uses default policy).")
 	return cmd
 }
 
@@ -230,6 +237,11 @@ func queueUpdateCmdWithApp(a *armadactl.App) *cobra.Command {
 				return fmt.Errorf("error converting queue labels to map: %s", err)
 			}
 
+			retryPolicy, err := cmd.Flags().GetString("retry-policy")
+			if err != nil {
+				return fmt.Errorf("error reading retry-policy: %s", err)
+			}
+
 			newQueue, err := queue.NewQueue(&api.Queue{
 				Name:           name,
 				PriorityFactor: priorityFactor,
@@ -237,6 +249,7 @@ func queueUpdateCmdWithApp(a *armadactl.App) *cobra.Command {
 				GroupOwners:    groups,
 				Cordoned:       cordoned,
 				Labels:         labelsAsMap,
+				RetryPolicy:    retryPolicy,
 			})
 			if err != nil {
 				return fmt.Errorf("invalid queue data: %s", err)
@@ -251,5 +264,6 @@ func queueUpdateCmdWithApp(a *armadactl.App) *cobra.Command {
 	cmd.Flags().StringSlice("group-owners", []string{}, "Comma separated list of queue group owners, defaults to empty list.")
 	cmd.Flags().Bool("cordon", false, "Used to pause scheduling on specified queue. Defaults to false.")
 	cmd.Flags().StringSliceP("labels", "l", []string{}, "Comma separated list of key-value queue labels, for example: armadaproject.io/submitter=airflow. Defaults to empty list.")
+	cmd.Flags().String("retry-policy", "", "Name of the retry policy from scheduler config to use for this queue. Defaults to empty (uses default policy).")
 	return cmd
 }

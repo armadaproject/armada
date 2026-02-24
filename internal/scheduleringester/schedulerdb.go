@@ -100,25 +100,19 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 	queries := schedulerdb.New(tx)
 	switch o := op.(type) {
 	case InsertJobs:
-		records := make([]any, len(o))
-		i := 0
+		records := make([]any, 0, len(o))
 		for _, v := range o {
-			records[i] = *v
-			i++
+			records = append(records, *v)
 		}
-		err := database.Upsert(ctx, tx, "jobs", records, database.WithExcludeColumns("terminated"))
-		if err != nil {
+		if err := database.Upsert(ctx, tx, "jobs", records, database.WithExcludeColumns("terminated")); err != nil {
 			return err
 		}
 	case InsertRuns:
-		records := make([]any, len(o))
-		i := 0
+		records := make([]any, 0, len(o))
 		for _, v := range o {
-			records[i] = *v.DbRun
-			i++
+			records = append(records, *v.DbRun)
 		}
-		err := database.Upsert(ctx, tx, "runs", records, database.WithExcludeColumns("terminated"))
-		if err != nil {
+		if err := database.Upsert(ctx, tx, "runs", records, database.WithExcludeColumns("terminated")); err != nil {
 			return err
 		}
 	case UpdateJobSetPriorities:
@@ -359,11 +353,9 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 			return errors.WithStack(err)
 		}
 	case InsertJobRunErrors:
-		records := make([]any, len(o))
-		i := 0
+		records := make([]any, 0, len(o))
 		for _, v := range o {
-			records[i] = *v
-			i++
+			records = append(records, *v)
 		}
 		return database.Upsert(ctx, tx, "job_run_errors", records)
 	case *InsertPartitionMarker:

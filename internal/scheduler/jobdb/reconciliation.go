@@ -201,6 +201,9 @@ func (jobDb *JobDb) reconcileJobDifferences(job *Job, jobRepoJob *database.Job, 
 			job = job.WithQueuedVersion(jobRepoJob.QueuedVersion)
 			job = job.WithQueued(jobRepoJob.Queued)
 		}
+		if uint32(jobRepoJob.FailureCount) > job.FailureCount() {
+			job = job.WithFailureCount(uint32(jobRepoJob.FailureCount))
+		}
 	}
 
 	// Reconcile run state transitions.
@@ -340,14 +343,22 @@ func (jobDb *JobDb) schedulerJobFromDatabaseJob(dbJob *database.Job) (*Job, erro
 		// TODO(albin): Same comment as the above.
 		job = job.WithRequestedPriority(uint32(dbJob.Priority))
 	}
+	if dbJob.FailureCount > 0 {
+		job = job.WithFailureCount(uint32(dbJob.FailureCount))
+	}
 	return job, nil
 }
 
 // schedulerRunFromDatabaseRun creates a new scheduler job run from a database job run
 func (jobDb *JobDb) schedulerRunFromDatabaseRun(dbRun *database.Run) *JobRun {
 	nodeId := api.NodeIdFromExecutorAndNodeName(dbRun.Executor, dbRun.Node)
+	var runIndex uint32 = 0
+	if dbRun.RunIndex != nil {
+		runIndex = uint32(*dbRun.RunIndex)
+	}
 	return jobDb.CreateRun(
 		dbRun.RunID,
+		runIndex,
 		dbRun.JobID,
 		dbRun.Created,
 		dbRun.Executor,

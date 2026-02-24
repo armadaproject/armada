@@ -13,3 +13,25 @@ auth:
     watch_all_events: ["everyone"]
     execute_jobs: ["everyone"]
     update_executor_settings: ["everyone"]
+
+# Scheduler-specific config (ignored by other components)
+scheduling:
+  retryPolicy:
+    enabled: true
+    globalMaxRetries: 5
+    default:
+      retryLimit: 3
+      rules: []  # No rules = failures fail immediately
+    policies:
+      retry-all:
+        retryLimit: 3
+        rules:
+          - action: Retry
+            onExitCodes:
+              operator: In
+              values: [42]
+          - action: Retry
+            onConditions: [OOMKilled]
+          - action: Retry
+            onTerminationMessage:
+              pattern: ".*TRANSIENT.*"

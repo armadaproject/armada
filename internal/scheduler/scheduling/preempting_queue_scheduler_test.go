@@ -2325,13 +2325,14 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				var preemptedJobs []*jobdb.Job
 				for _, jctx := range result.PreemptedJobs {
 					job := jctx.Job
-					preemptedJobs = append(
-						preemptedJobs,
-						job.
-							WithUpdatedRun(job.LatestRun().WithFailed(true)).
-							WithQueued(false).
-							WithFailed(true),
-					)
+					preeemptedTime := time.Now()
+
+					updatedRun := job.LatestRun().WithPreempted(true).WithPreemptedTime(&preeemptedTime)
+					job = job.WithUpdatedRun(updatedRun)
+
+					// In tests without a retry engine, preempted jobs fail
+					job = job.WithQueued(false).WithFailed(true)
+					preemptedJobs = append(preemptedJobs, job)
 				}
 				err = jobDbTxn.Upsert(preemptedJobs)
 				require.NoError(t, err)

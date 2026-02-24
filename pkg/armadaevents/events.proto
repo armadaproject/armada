@@ -309,6 +309,7 @@ message JobRunLeased {
     // pool is the pool this run was scheduled on to
     // This would be determined by the pool of the node this run was scheduled on to, at the time of scheduling
     string pool = 12;
+    uint32 run_index = 13;
 }
 
 // Indicates that a job has been assigned to nodes by Kubernetes.
@@ -436,6 +437,9 @@ message Error {
         JobRejected jobRejected = 13;
         ReconciliationError reconciliationError = 14;
     }
+    // Structured failure information for retry policy evaluation.
+    // Populated by the executor when reporting job run failures.
+    FailureInfo failure_info = 15;
 }
 
 // Represents an error associated with a particular Kubernetes resource.
@@ -528,6 +532,45 @@ message JobRejected {
 
 message ReconciliationError {
   string message = 1;
+}
+
+// High-level categorization of job run failures for retry policy evaluation.
+enum FailureCondition {
+    FAILURE_CONDITION_UNSPECIFIED = 0;
+    // Pod was preempted by Kubernetes or Armada scheduler.
+    FAILURE_CONDITION_PREEMPTED = 1;
+    // Pod was evicted from node (e.g., due to node pressure).
+    FAILURE_CONDITION_EVICTED = 2;
+    // Container was killed due to exceeding memory limits.
+    FAILURE_CONDITION_OOM_KILLED = 3;
+    // Pod exceeded its activeDeadlineSeconds.
+    FAILURE_CONDITION_DEADLINE_EXCEEDED = 4;
+    // Pod could not be scheduled to any node.
+    FAILURE_CONDITION_UNSCHEDULABLE = 5;
+    // User code exited with non-zero exit code.
+    FAILURE_CONDITION_USER_ERROR = 6;
+}
+
+// Structured failure information for retry policy evaluation.
+// Extracted by the executor and sent to the scheduler with JobRunErrors.
+message FailureInfo {
+    // Exit code from the first failed container, if applicable.
+    // A value of 0 means no exit code is available (proto3 default).
+    int32 exit_code = 1;
+
+    // High-level failure categorization.
+    FailureCondition condition = 2;
+
+    // Pod check's original retry decision (for backward compatibility).
+    // When retry policy is disabled, this determines retry behavior.
+    bool pod_check_retryable = 3;
+
+    // Message from pod check explaining the failure.
+    string pod_check_message = 4;
+
+    // Termination message from the first failed container.
+    // This is the content written to /dev/termination-log or container output.
+    string termination_message = 5;
 }
 
 // Message to indicate that a JobRun has been preempted.

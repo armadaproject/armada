@@ -535,6 +535,24 @@ func TestFindInactiveRuns(t *testing.T) {
 			},
 			expectedInactive: []string{runIds[1]},
 		},
+		"run failed": {
+			runsToCheck: runIds,
+			dbRuns: []Run{
+				{RunID: runIds[0]},
+				{RunID: runIds[1], Failed: true},
+				{RunID: runIds[2]},
+			},
+			expectedInactive: []string{runIds[1]},
+		},
+		"run cancelled": {
+			runsToCheck: runIds,
+			dbRuns: []Run{
+				{RunID: runIds[0]},
+				{RunID: runIds[1], Cancelled: true},
+				{RunID: runIds[2]},
+			},
+			expectedInactive: []string{runIds[1]},
+		},
 		"run missing": {
 			runsToCheck: runIds,
 			dbRuns: []Run{
@@ -619,6 +637,22 @@ func TestFetchJobRunLeases(t *testing.T) {
 			Executor: executorName,
 			Pool:     "test-pool",
 			Failed:   true, // should be ignored as terminal
+		},
+		{
+			RunID:     uuid.NewString(),
+			JobID:     dbJobs[0].JobID,
+			JobSet:    "test-jobset",
+			Executor:  executorName,
+			Pool:      "test-pool",
+			Cancelled: true, // should be ignored as terminal
+		},
+		{
+			RunID:     uuid.NewString(),
+			JobID:     dbJobs[3].JobID,
+			JobSet:    "test-jobset",
+			Executor:  executorName,
+			Pool:      "test-pool",
+			Succeeded: true, // should be ignored as terminal
 		},
 	}
 	expectedLeases := make([]*JobRunLease, 4)

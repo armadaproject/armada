@@ -112,8 +112,21 @@ var (
 		},
 		Version: 1,
 	}
-	schedulingInfoBytes   = protoutil.MustMarshall(schedulingInfo)
-	updatedSchedulingInfo = &schedulerobjects.JobSchedulingInfo{
+	schedulingInfoBytes          = protoutil.MustMarshall(schedulingInfo)
+	preemptibleSchedulingInfoAlt = &schedulerobjects.JobSchedulingInfo{
+		AtMostOnce:        true,
+		PriorityClassName: testfixtures.PriorityClass1,
+		ObjectRequirements: []*schedulerobjects.ObjectRequirements{
+			{
+				Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
+					PodRequirements: &schedulerobjects.PodRequirements{},
+				},
+			},
+		},
+		Version: 1,
+	}
+	preemptibleSchedulingInfoAltBytes = protoutil.MustMarshall(preemptibleSchedulingInfoAlt)
+	updatedSchedulingInfo             = &schedulerobjects.JobSchedulingInfo{
 		AtMostOnce: true,
 		ObjectRequirements: []*schedulerobjects.ObjectRequirements{
 			{
@@ -187,6 +200,21 @@ var leasedJob = testfixtures.NewJob(
 	true,
 ).WithNewRun("testExecutor", "test-node", "node", "pool", 5)
 
+var leasedJobWithRetryEnabled = testfixtures.NewJob(
+	util.NewULID(),
+	"testJobset",
+	"testQueue",
+	0,
+	toInternalSchedulingInfo(preemptibleSchedulingInfoAlt),
+	false,
+	1,
+	false,
+	false,
+	false,
+	1,
+	true,
+).WithNewRun("testExecutor", "test-node", "node", "pool", 5)
+
 var preemptibleLeasedJob = testfixtures.NewJob(
 	util.NewULID(),
 	"testJobset",
@@ -232,6 +260,7 @@ var returnedOnceLeasedJob = testfixtures.NewJob(
 	true,
 ).WithUpdatedRun(testfixtures.JobDb.CreateRun(
 	uuid.NewString(),
+	0,
 	"01h3w2wtdchtc80hgyp782shrv",
 	0,
 	"testExecutor",
@@ -318,6 +347,7 @@ var (
 		true,
 	).WithUpdatedRun(testfixtures.JobDb.CreateRun(
 		uuid.NewString(),
+		1,
 		requeuedJobId,
 		time.Now().Unix(),
 		"testExecutor",
@@ -886,6 +916,16 @@ func TestScheduler_TestCycle(t *testing.T) {
 			expectedTerminal:          []string{leasedJob.Id()},
 			expectedQueuedVersion:     leasedJob.QueuedVersion(),
 		},
+		"Job preempted with preemptible priority class": {
+			// Without a retry engine, preempted jobs fail
+			initialJobs:               []*jobdb.Job{leasedJobWithRetryEnabled},
+			expectedJobsRunsToPreempt: []string{leasedJobWithRetryEnabled.Id()},
+			expectedJobRunPreempted:   []jobRunId{{jobId: leasedJobWithRetryEnabled.Id(), runId: leasedJobWithRetryEnabled.LatestRun().Id()}},
+			expectedJobErrors:         []string{leasedJobWithRetryEnabled.Id()},
+			expectedJobRunErrors:      []jobRunId{{jobId: leasedJobWithRetryEnabled.Id(), runId: leasedJobWithRetryEnabled.LatestRun().Id()}},
+			expectedTerminal:          []string{leasedJobWithRetryEnabled.Id()},
+			expectedQueuedVersion:     leasedJobWithRetryEnabled.QueuedVersion(),
+		},
 		"Fetch fails": {
 			initialJobs:           []*jobdb.Job{leasedJob},
 			fetchError:            true,
@@ -953,6 +993,8 @@ func TestScheduler_TestCycle(t *testing.T) {
 				schedulerMetrics,
 				pricing.NoopBidPriceProvider{},
 				[]string{},
+				nil,
+				nil,
 			)
 			require.NoError(t, err)
 			sched.EnableAssertions()
@@ -1145,6 +1187,8 @@ func TestRun(t *testing.T) {
 		schedulerMetrics,
 		pricing.NoopBidPriceProvider{},
 		[]string{},
+		nil,
+		nil,
 	)
 	require.NoError(t, err)
 	sched.EnableAssertions()
@@ -1336,6 +1380,8 @@ func TestJobPriceUpdates(t *testing.T) {
 				schedulerMetrics,
 				priceProvider,
 				tc.marketDrivenPools,
+				nil,
+				nil,
 			)
 			require.NoError(t, err)
 
@@ -1465,6 +1511,7 @@ func TestScheduler_TestSyncInitialState(t *testing.T) {
 				queuedJob.WithUpdatedRun(
 					testfixtures.JobDb.CreateRun(
 						leasedJob.LatestRun().Id(),
+						leasedJob.LatestRun().Index(),
 						queuedJob.Id(),
 						123,
 						"test-executor",
@@ -1523,6 +1570,8 @@ func TestScheduler_TestSyncInitialState(t *testing.T) {
 				schedulerMetrics,
 				pricing.NoopBidPriceProvider{},
 				[]string{},
+				nil,
+				nil,
 			)
 			require.NoError(t, err)
 			sched.EnableAssertions()
@@ -1626,6 +1675,7 @@ func TestScheduler_TestSyncState(t *testing.T) {
 				queuedJob.WithUpdatedRun(
 					testfixtures.JobDb.CreateRun(
 						leasedJob.LatestRun().Id(),
+						leasedJob.LatestRun().Index(),
 						queuedJob.Id(),
 						123,
 						"test-executor",
@@ -1736,6 +1786,8 @@ func TestScheduler_TestSyncState(t *testing.T) {
 				schedulerMetrics,
 				pricing.NoopBidPriceProvider{},
 				[]string{},
+				nil,
+				nil,
 			)
 			require.NoError(t, err)
 			sched.EnableAssertions()
@@ -1911,7 +1963,8 @@ func (t *testSchedulingAlgo) Schedule(_ *armadacontext.Context, _ map[string]int
 			return nil, errors.Errorf("was asked to preempt job %s but job is still queued", job.Id())
 		}
 		if run := job.LatestRun(); run != nil {
-			job = job.WithUpdatedRun(run.WithFailed(true))
+			now := time.Now()
+			job = job.WithUpdatedRun(run.WithPreempted(true).WithPreemptedTime(&now))
 		} else {
 			return nil, errors.Errorf("attempting to preempt job %s with no associated runs", job.Id())
 		}
@@ -2172,6 +2225,16 @@ var (
 		QueuedVersion:         1,
 		SchedulingInfo:        schedulingInfoBytes,
 		SchedulingInfoVersion: int32(schedulingInfo.Version),
+		Validated:             true,
+		Serial:                0,
+	}
+	runningAndRetryableJobA = &database.Job{
+		JobID:                 queuedJobA.JobID,
+		JobSet:                "testJobSet",
+		Queue:                 "testQueue",
+		QueuedVersion:         1,
+		SchedulingInfo:        preemptibleSchedulingInfoAltBytes,
+		SchedulingInfoVersion: int32(preemptibleSchedulingInfoAlt.Version),
 		Validated:             true,
 		Serial:                0,
 	}
@@ -2868,6 +2931,69 @@ func TestCycleConsistency(t *testing.T) {
 				},
 			},
 		},
+		"Running preemptible job is preempted and fails without retry engine": {
+			// Without a retry engine, preempted jobs fail (no retry)
+			firstSchedulerDbUpdate: schedulerDbUpdate{
+				jobUpdates: []*database.Job{
+					runningAndRetryableJobA,
+				},
+				runUpdates: []*database.Run{
+					newRunA,
+				},
+			},
+			idsOfJobsToPreempt:      []string{queuedJobA.JobID},
+			expectedJobDbCycleThree: make([]*jobdb.Job, 0),
+			expectedEventSequencesCycleThree: []*armadaevents.EventSequence{
+				{
+					Queue:      queuedJobA.Queue,
+					JobSetName: queuedJobA.JobSet,
+					Events: []*armadaevents.EventSequence_Event{
+						{
+							Created: &types.Timestamp{},
+							Event: &armadaevents.EventSequence_Event_JobRunPreempted{
+								JobRunPreempted: &armadaevents.JobRunPreempted{
+									PreemptedRunId: testfixtures.UUIDFromInt(1).String(),
+									PreemptedJobId: queuedJobA.JobID,
+								},
+							},
+						},
+						{
+							Created: &types.Timestamp{},
+							Event: &armadaevents.EventSequence_Event_JobRunErrors{
+								JobRunErrors: &armadaevents.JobRunErrors{
+									JobId: queuedJobA.JobID,
+									RunId: testfixtures.UUIDFromInt(1).String(),
+									Errors: []*armadaevents.Error{
+										{
+											Terminal: true,
+											Reason: &armadaevents.Error_JobRunPreemptedError{
+												JobRunPreemptedError: &armadaevents.JobRunPreemptedError{},
+											},
+										},
+									},
+								},
+							},
+						},
+						{
+							Created: &types.Timestamp{},
+							Event: &armadaevents.EventSequence_Event_JobErrors{
+								JobErrors: &armadaevents.JobErrors{
+									JobId: queuedJobA.JobID,
+									Errors: []*armadaevents.Error{
+										{
+											Terminal: true,
+											Reason: &armadaevents.Error_JobRunPreemptedError{
+												JobRunPreemptedError: &armadaevents.JobRunPreemptedError{},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
 		"Queued job is cancelled": {
 			firstSchedulerDbUpdate: schedulerDbUpdate{
 				jobUpdates: []*database.Job{
@@ -2983,6 +3109,8 @@ func TestCycleConsistency(t *testing.T) {
 					schedulerMetrics,
 					pricing.NoopBidPriceProvider{},
 					[]string{},
+					nil,
+					nil,
 				)
 				require.NoError(t, err)
 				scheduler.clock = testClock

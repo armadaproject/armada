@@ -65,6 +65,36 @@ func TestJobPriorityComparer(t *testing.T) {
 			),
 			expected: 1,
 		},
+		"Requeued jobs come before new jobs with same priority": {
+			// Job a: has been attempted before (requeued), submitted later
+			a: (&Job{id: "a", priority: 1, priorityClass: types.PriorityClass{Priority: 1}, submittedTime: 2}).WithUpdatedRun(
+				&JobRun{id: "r1", created: 1, runAttempted: true, failed: true},
+			),
+			// Job b: never attempted (new job), submitted earlier
+			b: &Job{id: "b", priority: 1, priorityClass: types.PriorityClass{Priority: 1}, submittedTime: 1},
+			// Requeued job should be scheduled first despite later submission
+			expected: -1,
+		},
+		"New jobs come after requeued jobs with same priority": {
+			// Job a: never attempted (new job), submitted earlier
+			a: &Job{id: "a", priority: 1, priorityClass: types.PriorityClass{Priority: 1}, submittedTime: 1},
+			// Job b: has been attempted before (requeued), submitted later
+			b: (&Job{id: "b", priority: 1, priorityClass: types.PriorityClass{Priority: 1}, submittedTime: 2}).WithUpdatedRun(
+				&JobRun{id: "r1", created: 1, runAttempted: true, failed: true},
+			),
+			// New job should be scheduled after requeued job
+			expected: 1,
+		},
+		"Priority class still takes precedence over requeued status": {
+			// Job a: new job with higher priority class
+			a: &Job{id: "a", priority: 1, priorityClass: types.PriorityClass{Priority: 2}, submittedTime: 2},
+			// Job b: requeued job with lower priority class
+			b: (&Job{id: "b", priority: 1, priorityClass: types.PriorityClass{Priority: 1}, submittedTime: 1}).WithUpdatedRun(
+				&JobRun{id: "r1", created: 1, runAttempted: true, failed: true},
+			),
+			// Higher priority class should still win
+			expected: -1,
+		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -160,6 +190,28 @@ func TestMarketJobPriorityComparer(t *testing.T) {
 			),
 			currentPool: "a",
 			expected:    1,
+		},
+		"Requeued jobs come before new jobs with same priority and bid": {
+			// Job a: has been attempted before (requeued), submitted later
+			a: (&Job{id: "a", queued: true, priorityClass: types.PriorityClass{Priority: 1, Preemptible: true}, bidPricesPool: bidPricesA, submittedTime: 2}).WithUpdatedRun(
+				&JobRun{id: "r1", created: 1, runAttempted: true, failed: true},
+			),
+			// Job b: never attempted (new job), submitted earlier
+			b:           &Job{id: "b", queued: true, priorityClass: types.PriorityClass{Priority: 1, Preemptible: true}, bidPricesPool: bidPricesA, submittedTime: 1},
+			currentPool: "a",
+			// Requeued job should be scheduled first despite later submission
+			expected: -1,
+		},
+		"New jobs come after requeued jobs with same priority and bid": {
+			// Job a: never attempted (new job), submitted earlier
+			a: &Job{id: "a", queued: true, priorityClass: types.PriorityClass{Priority: 1, Preemptible: true}, bidPricesPool: bidPricesA, submittedTime: 1},
+			// Job b: has been attempted before (requeued), submitted later
+			b: (&Job{id: "b", queued: true, priorityClass: types.PriorityClass{Priority: 1, Preemptible: true}, bidPricesPool: bidPricesA, submittedTime: 2}).WithUpdatedRun(
+				&JobRun{id: "r1", created: 1, runAttempted: true, failed: true},
+			),
+			currentPool: "a",
+			// New job should be scheduled after requeued job
+			expected: 1,
 		},
 	}
 	for name, tc := range tests {

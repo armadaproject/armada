@@ -22,5 +22,25 @@ postgres:
 scheduling:
   indexedNodeLabels:
     - "kubernetes.io/hostname"
+  retryPolicy:
+    enabled: true
+    globalMaxRetries: 5
+    default:
+      retryLimit: 3
+      rules: []  # No rules = failures fail immediately
+    policies:
+      # Combined policy for retry tests (used by e2e-test-queue-retry)
+      retry-all:
+        retryLimit: 3
+        rules:
+          - action: Retry
+            onExitCodes:
+              operator: In
+              values: [42]
+          - action: Retry
+            onConditions: [OOMKilled]
+          - action: Retry
+            onTerminationMessage:
+              pattern: ".*TRANSIENT.*"
 metrics:
   port: 9001

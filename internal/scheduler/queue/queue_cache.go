@@ -114,3 +114,25 @@ func closeStream(stream api.Submit_GetQueuesClient) error {
 		return err
 	}
 }
+
+// RetryPolicyMap builds a map of queue name → retry policy name from the cache.
+// Returns nil if cache is nil or unavailable. Callers should treat missing keys
+// as empty string (default policy).
+func RetryPolicyMap(ctx *armadacontext.Context, cache QueueCache) map[string]string {
+	if cache == nil {
+		ctx.Warnf("Queue cache is nil when building retry policy map, using default policy for all queues")
+		return nil
+	}
+	queues, err := cache.GetAll(ctx)
+	if err != nil {
+		ctx.Warnf("Failed to get queues from cache for retry policy lookup: %v, using default policy for all queues", err)
+		return nil
+	}
+	m := make(map[string]string, len(queues))
+	for _, q := range queues {
+		if q.RetryPolicy != "" {
+			m[q.Name] = q.RetryPolicy
+		}
+	}
+	return m
+}

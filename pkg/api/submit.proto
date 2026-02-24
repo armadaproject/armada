@@ -199,6 +199,9 @@ message Queue {
     // A list of Kubernetes-like key-value labels, e.g. armadaproject.io/priority=critical
     repeated string labels_deprecated = 9 [deprecated=true];
     map<string,string> labels = 10;
+    // References a named retry policy from scheduler config.
+    // If empty or policy not found, the default policy is used.
+    string retry_policy = 11;
 }
 
 message PriorityClassResourceLimits {

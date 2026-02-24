@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"strconv"
 
 	"github.com/gogo/protobuf/types"
 
@@ -28,10 +27,17 @@ func NewBinocularsServer(logService service.LogService, cordonService service.Co
 func (b *BinocularsServer) Logs(ctx context.Context, request *binoculars.LogRequest) (*binoculars.LogResponse, error) {
 	principal := auth.GetPrincipal(ctx)
 
+	var runIndex *int
+	if request.IncludeRunIndex {
+		ri := int(request.RunIndex)
+		runIndex = &ri
+	}
+	podName := common.BuildPodName(request.JobId, int(request.PodNumber), runIndex)
+
 	logLines, err := b.logService.GetLogs(armadacontext.FromGrpcCtx(ctx), &service.LogParams{
 		Principal:  principal,
 		Namespace:  request.PodNamespace,
-		PodName:    common.PodNamePrefix + request.JobId + "-" + strconv.Itoa(int(request.PodNumber)),
+		PodName:    podName,
 		SinceTime:  request.SinceTime,
 		LogOptions: request.LogOptions,
 	})

@@ -92,7 +92,7 @@ func ExtractServices(job *executorapi.JobRunLease, pod *v1.Pod) []*v1.Service {
 				Spec: *typed.Service,
 			}
 
-			// TODO Once migrated  fully executor api - consider adding jobRunId here
+			// Selector uses JobId (not JobRunId) so services work across retries
 			service.Spec.Selector = map[string]string{
 				domain.JobId:     pod.Labels[domain.JobId],
 				domain.Queue:     pod.Labels[domain.Queue],
@@ -121,11 +121,12 @@ func CreatePodFromExecutorApiJob(job *executorapi.JobRunLease, defaults *configu
 	}
 
 	labels := util.MergeMaps(job.Job.ObjectMeta.Labels, map[string]string{
-		domain.JobId:     jobId,
-		domain.JobRunId:  runId,
-		domain.Queue:     job.Queue,
-		domain.PodNumber: strconv.Itoa(0),
-		domain.PodCount:  strconv.Itoa(1),
+		domain.JobId:       jobId,
+		domain.JobRunId:    runId,
+		domain.JobRunIndex: strconv.Itoa(int(job.JobRunIndex)),
+		domain.Queue:       job.Queue,
+		domain.PodNumber:   strconv.Itoa(0),
+		domain.PodCount:    strconv.Itoa(1),
 	})
 	annotation := util.MergeMaps(job.Job.ObjectMeta.Annotations, map[string]string{
 		domain.JobSetId: job.Jobset,
@@ -137,9 +138,10 @@ func CreatePodFromExecutorApiJob(job *executorapi.JobRunLease, defaults *configu
 
 	injectArmadaEnvVars(podSpec, jobId, job.Queue, job.Jobset, annotation)
 
+	runIndex := int(job.JobRunIndex)
 	pod := &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        common.PodNamePrefix + job.Job.JobId + "-" + strconv.Itoa(0),
+			Name:        common.BuildPodName(job.Job.JobId, 0, &runIndex),
 			Labels:      labels,
 			Annotations: annotation,
 			Namespace:   job.Job.ObjectMeta.Namespace,

@@ -72,6 +72,7 @@ require (
 	github.com/redis/go-redis/v9 v9.17.3
 	github.com/rs/zerolog v1.34.0
 	github.com/segmentio/fasthash v1.0.3
+	github.com/sirupsen/logrus v1.9.4
 	github.com/xitongsys/parquet-go v1.6.2
 	github.com/zalando/go-keyring v0.2.6
 	go.uber.org/atomic v1.11.0
@@ -219,7 +220,6 @@ require (
 	github.com/sagikazarmark/locafero v0.12.0 // indirect
 	github.com/sergi/go-diff v1.4.0 // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect
-	github.com/sirupsen/logrus v1.9.4 // indirect
 	github.com/skeema/knownhosts v1.3.2 // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
 	github.com/spf13/afero v1.15.0 // indirect

@@ -78,6 +78,19 @@ func SchedulingOrderCompare(job, other *Job) int {
 		return 1
 	}
 
+	// For queued jobs, requeued jobs (those that have been attempted before)
+	// should be scheduled before jobs that haven't been attempted yet.
+	// This ensures preempted/retried jobs go to the front of the queue.
+	if !jobIsActive && !otherIsActive {
+		jobAttempts := job.NumAttempts()
+		otherAttempts := other.NumAttempts()
+		if jobAttempts > 0 && otherAttempts == 0 {
+			return -1
+		} else if jobAttempts == 0 && otherAttempts > 0 {
+			return 1
+		}
+	}
+
 	// If both jobs are active, order by time since the job was scheduled.
 	// This ensures jobs that have been running for longer are rescheduled first,
 	// which reduces wasted compute time when preempting.
@@ -151,6 +164,19 @@ func MarketSchedulingOrderCompare(currentPool string, job, other *Job) int {
 			} else if job.activeRunTimestamp > other.activeRunTimestamp {
 				return 1
 			}
+		}
+	}
+
+	// For queued jobs, requeued jobs (those that have been attempted before)
+	// should be scheduled before jobs that haven't been attempted yet.
+	// This ensures preempted/retried jobs go to the front of the queue.
+	if !jobIsActive && !otherIsActive {
+		jobAttempts := job.NumAttempts()
+		otherAttempts := other.NumAttempts()
+		if jobAttempts > 0 && otherAttempts == 0 {
+			return -1
+		} else if jobAttempts == 0 && otherAttempts > 0 {
+			return 1
 		}
 	}
 

@@ -24,6 +24,7 @@ type hasSerial interface {
 
 type JobRunLease struct {
 	RunID                  string
+	RunIndex               *int64
 	Queue                  string
 	Pool                   string
 	JobSet                 string
@@ -133,6 +134,7 @@ func (r *PostgresJobRepository) FetchInitialJobs(ctx *armadacontext.Context) ([]
 				Serial:                  row.Serial,
 				Pools:                   row.Pools,
 				PriceBand:               row.PriceBand,
+				FailureCount:            row.FailureCount,
 			}
 		}
 
@@ -256,8 +258,10 @@ func (r *PostgresJobRepository) FetchJobUpdates(ctx *armadacontext.Context, jobS
 		updatedJobRows, err := fetch(loggerCtx, jobSerial, r.batchSize, func(from int64) ([]SelectUpdatedJobsRow, error) {
 			return queries.SelectUpdatedJobs(ctx, SelectUpdatedJobsParams{Serial: from, Limit: r.batchSize})
 		})
+		if err != nil {
+			return err
+		}
 		updatedJobs = make([]Job, len(updatedJobRows))
-
 		for i, row := range updatedJobRows {
 			updatedJobs[i] = Job{
 				JobID:                   row.JobID,
@@ -269,9 +273,9 @@ func (r *PostgresJobRepository) FetchJobUpdates(ctx *armadacontext.Context, jobS
 				Queued:                  row.Queued,
 				QueuedVersion:           row.QueuedVersion,
 				CancelRequested:         row.CancelRequested,
-				Cancelled:               row.Cancelled,
-				CancelByJobsetRequested: row.CancelByJobsetRequested,
 				CancelUser:              row.CancelUser,
+				CancelByJobsetRequested: row.CancelByJobsetRequested,
+				Cancelled:               row.Cancelled,
 				Succeeded:               row.Succeeded,
 				Failed:                  row.Failed,
 				SchedulingInfo:          row.SchedulingInfo,
@@ -279,11 +283,8 @@ func (r *PostgresJobRepository) FetchJobUpdates(ctx *armadacontext.Context, jobS
 				Serial:                  row.Serial,
 				Pools:                   row.Pools,
 				PriceBand:               row.PriceBand,
+				FailureCount:            row.FailureCount,
 			}
-		}
-
-		if err != nil {
-			return err
 		}
 
 		// Fetch dbRuns
@@ -355,7 +356,7 @@ func (r *PostgresJobRepository) FetchJobRunLeases(ctx *armadacontext.Context, ex
 		}
 
 		query := `
-				SELECT jr.run_id, jr.node, j.queue, j.job_set,  jr.pool, j.user_id, j.groups, j.submit_message, jr.pod_requirements_overlay
+				SELECT jr.run_id, jr.run_index, jr.node, j.queue, j.job_set,  jr.pool, j.user_id, j.groups, j.submit_message, jr.pod_requirements_overlay
 				FROM runs jr
 				LEFT JOIN %s as tmp ON (tmp.run_id = jr.run_id)
 			    JOIN jobs j
@@ -374,7 +375,7 @@ func (r *PostgresJobRepository) FetchJobRunLeases(ctx *armadacontext.Context, ex
 		defer rows.Close()
 		for rows.Next() {
 			run := JobRunLease{}
-			err = rows.Scan(&run.RunID, &run.Node, &run.Queue, &run.JobSet, &run.Pool, &run.UserID, &run.Groups, &run.SubmitMessage, &run.PodRequirementsOverlay)
+			err = rows.Scan(&run.RunID, &run.RunIndex, &run.Node, &run.Queue, &run.JobSet, &run.Pool, &run.UserID, &run.Groups, &run.SubmitMessage, &run.PodRequirementsOverlay)
 			if err != nil {
 				return errors.WithStack(err)
 			}

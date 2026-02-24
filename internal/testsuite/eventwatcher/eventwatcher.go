@@ -191,11 +191,14 @@ func AssertEvents(ctx context.Context, c chan *api.EventMessage, jobIds map[stri
 			}
 
 			// Return an error if the job has exited without us seeing all expected events.
+			// Exception: if we just matched a Failed event marked as retryable in the expected spec.
 			if isTerminalEvent(actual) && i < len(expected) {
-				return &ErrUnexpectedEvent{
-					jobId:    actualJobId,
-					expected: expected[i],
-					actual:   actual,
+				if !wasRetryableFailure(expected, i) {
+					return &ErrUnexpectedEvent{
+						jobId:    actualJobId,
+						expected: expected[i],
+						actual:   actual,
+					}
 				}
 			}
 		}
@@ -225,56 +228,96 @@ func assertEventErrorString(expected []*api.EventMessage, indexByJobId map[strin
 
 func isTerminalEvent(msg *api.EventMessage) bool {
 	switch msg.Events.(type) {
-	case *api.EventMessage_Failed:
+	case *api.EventMessage_Failed, *api.EventMessage_Succeeded, *api.EventMessage_Cancelled:
 		return true
-	case *api.EventMessage_Succeeded:
-		return true
-	case *api.EventMessage_Cancelled:
-		return true
+	default:
+		return false
 	}
-	return false
+}
+
+// wasRetryableFailure checks if the most recently matched event (at index i-1) was a
+// retryable Failed event. This is used to determine if a terminal event should be
+// treated as non-terminal because the job will be retried.
+func wasRetryableFailure(expected []*api.EventMessage, currentIndex int) bool {
+	if currentIndex <= 0 || currentIndex > len(expected) {
+		return false
+	}
+	failedEvent := expected[currentIndex-1].GetFailed()
+	return failedEvent != nil && failedEvent.GetRetryable()
 }
 
 // ErrorOnNoActiveJobs returns an error if there are no active jobs.
-func ErrorOnNoActiveJobs(parent context.Context, C chan *api.EventMessage, jobIds map[string]bool) error {
+// The expected parameter is used to determine if a Failed event is retryable
+// (i.e., the job will be retried and shouldn't be counted as terminated).
+func ErrorOnNoActiveJobs(parent context.Context, C chan *api.EventMessage, jobIds map[string]bool, expected []*api.EventMessage) error {
 	numActive := 0
 	numRemaining := len(jobIds)
 	exitedByJobId := make(map[string]bool)
+	indexByJobId := make(map[string]int)
+
+	advanceIndex := func(jobId string, msg *api.EventMessage) int {
+		idx := indexByJobId[jobId]
+		if idx < len(expected) && reflect.TypeOf(msg.Events) == reflect.TypeOf(expected[idx].Events) {
+			indexByJobId[jobId] = idx + 1
+		}
+		return idx
+	}
+
+	isRetryableFailure := func(expectedIndex int) bool {
+		if expectedIndex < 0 || expectedIndex >= len(expected) {
+			return false
+		}
+		failedEvent := expected[expectedIndex].GetFailed()
+		return failedEvent != nil && failedEvent.GetRetryable()
+	}
+
+	markTerminal := func(jobId string) error {
+		if exitedByJobId[jobId] {
+			return errors.Errorf("received multiple terminal events for job %s", jobId)
+		}
+		exitedByJobId[jobId] = true
+		numRemaining--
+		numActive--
+		return nil
+	}
+
 	for {
 		select {
 		case <-parent.Done():
 			return nil
 		case msg := <-C:
-			if e := msg.GetSubmitted(); e != nil {
-				numActive++
-			} else if e := msg.GetSucceeded(); e != nil {
-				if _, ok := exitedByJobId[e.JobId]; ok {
-					return errors.Errorf("received multiple terminal events for job %s", e.JobId)
-				}
-				exitedByJobId[e.JobId] = true
-				if _, ok := jobIds[e.JobId]; ok {
-					numRemaining--
-				}
-				numActive--
-			} else if e := msg.GetFailed(); e != nil {
-				if _, ok := exitedByJobId[e.JobId]; ok {
-					return errors.Errorf("received multiple terminal events for job %s", e.JobId)
-				}
-				exitedByJobId[e.JobId] = true
-				if _, ok := jobIds[e.JobId]; ok {
-					numRemaining--
-				}
-				numActive--
-			} else if e := msg.GetCancelled(); e != nil {
-				if _, ok := exitedByJobId[e.JobId]; ok {
-					return errors.Errorf("received multiple terminal events for job %s", e.JobId)
-				}
-				exitedByJobId[e.JobId] = true
-				if _, ok := jobIds[e.JobId]; ok {
-					numRemaining--
-				}
-				numActive--
+			jobId := api.JobIdFromApiEvent(msg)
+			if _, ok := jobIds[jobId]; !ok {
+				continue
 			}
+
+			switch {
+			case msg.GetSubmitted() != nil:
+				advanceIndex(jobId, msg)
+				numActive++
+
+			case msg.GetSucceeded() != nil:
+				advanceIndex(jobId, msg)
+				if err := markTerminal(jobId); err != nil {
+					return err
+				}
+
+			case msg.GetFailed() != nil:
+				idx := advanceIndex(jobId, msg)
+				if isRetryableFailure(idx) {
+					continue
+				}
+				if err := markTerminal(jobId); err != nil {
+					return err
+				}
+
+			case msg.GetCancelled() != nil:
+				advanceIndex(jobId, msg)
+				if err := markTerminal(jobId); err != nil {
+					return err
+				}
+			}
+
 			if numRemaining <= 0 {
 				return errors.New("no jobs active")
 			}

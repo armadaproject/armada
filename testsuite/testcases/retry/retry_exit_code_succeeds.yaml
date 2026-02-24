@@ -1,0 +1,41 @@
+numBatches: 1
+batchSize: 1
+queue: e2e-test-queue-retry
+jobs:
+  - priority: 0
+    namespace: personal-anonymous
+    podSpec:
+      terminationGracePeriodSeconds: 0
+      restartPolicy: Never
+      containers:
+        - name: retry-exit-code
+          imagePullPolicy: IfNotPresent
+          image: alpine:3.20.0
+          command:
+            - sh
+            - -c
+            - |
+              # Extract run index from pod name (format: armada-<jobId>-0-<runIndex>)
+              RUN_INDEX=$(hostname | rev | cut -d'-' -f1 | rev)
+              echo "Run index: $RUN_INDEX"
+              if [ "$RUN_INDEX" = "0" ]; then
+                echo "First attempt: exiting with code 42"
+                exit 42
+              else
+                echo "Retry attempt: succeeding"
+                exit 0
+              fi
+          resources:
+            limits:
+              memory: 25Mi
+              cpu: 100m
+            requests:
+              memory: 25Mi
+              cpu: 100m
+---
+timeout: "120s"
+expectedEvents:
+  - submitted:
+  - failed:
+      retryable: true
+  - succeeded:

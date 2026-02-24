@@ -1281,6 +1281,10 @@ func SwaggerJsonTemplate() string {
 		"        },\n" +
 		"        \"reason\": {\n" +
 		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"retryable\": {\n" +
+		"          \"description\": \"Indicates whether this failure will trigger a retry.\\nWhen true, this is not a terminal event and the job will be rescheduled.\",\n" +
+		"          \"type\": \"boolean\"\n" +
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +
@@ -2203,6 +2207,10 @@ func SwaggerJsonTemplate() string {
 		"          \"additionalProperties\": {\n" +
 		"            \"$ref\": \"#/definitions/apiPriorityClassResourceLimits\"\n" +
 		"          }\n" +
+		"        },\n" +
+		"        \"retryPolicy\": {\n" +
+		"          \"description\": \"References a named retry policy from scheduler config.\\nIf empty or policy not found, the default policy is used.\",\n" +
+		"          \"type\": \"string\"\n" +
 		"        },\n" +
 		"        \"userOwners\": {\n" +
 		"          \"type\": \"array\",\n" +

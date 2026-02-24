@@ -1,0 +1,42 @@
+numBatches: 1
+batchSize: 1
+queue: e2e-test-queue-retry
+jobs:
+  - priority: 0
+    namespace: personal-anonymous
+    podSpec:
+      terminationGracePeriodSeconds: 0
+      restartPolicy: Never
+      containers:
+        - name: retry-oom-condition
+          imagePullPolicy: IfNotPresent
+          image: alpine:3.20.0
+          command:
+            - sh
+            - -c
+            - |
+              # Extract run index from pod name (format: armada-<jobId>-0-<runIndex>)
+              RUN_INDEX=$(hostname | rev | cut -d'-' -f1 | rev)
+              echo "Run index: $RUN_INDEX"
+              if [ "$RUN_INDEX" = "0" ]; then
+                echo "First attempt: triggering OOM"
+                dd if=/dev/zero of=/dev/shm/oom bs=1M count=50 2>/dev/null
+                tail /dev/zero
+              else
+                echo "Retry attempt: succeeding"
+                exit 0
+              fi
+          resources:
+            limits:
+              memory: 10Mi
+              cpu: 100m
+            requests:
+              memory: 10Mi
+              cpu: 100m
+---
+timeout: "180s"
+expectedEvents:
+  - submitted:
+  - failed:
+      retryable: true
+  - succeeded:
