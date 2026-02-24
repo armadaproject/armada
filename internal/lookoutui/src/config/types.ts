@@ -49,7 +49,6 @@ export interface TrackingScriptConfig {
   method?: "attribute" | "class"
   eventAttribute?: string
   dataAttribute?: string
-  trackedEvents?: string[]
 }
 
 // This must match the UIConfig Go struct defined in internal/lookout/configuration/types.go

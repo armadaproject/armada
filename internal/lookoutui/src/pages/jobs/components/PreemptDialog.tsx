@@ -16,7 +16,7 @@ import { ErrorBoundary } from "react-error-boundary"
 import { formatJobState } from "../../../common/jobsTableFormatters"
 import { waitMs } from "../../../common/utils"
 import { AlertErrorFallback } from "../../../components/AlertErrorFallback"
-import { TrackingButton } from "../../../components/analytics/TrackingButton"
+import { Tracking } from "../../../components/analytics/Tracking"
 import { useFormatNumberWithUserSettings } from "../../../components/hooks/formatNumberWithUserSettings"
 import { useFormatIsoTimestampWithUserSettings } from "../../../components/hooks/formatTimeWithUserSettings"
 import { useCustomSnackbar } from "../../../components/hooks/useCustomSnackbar"
@@ -224,7 +224,8 @@ export const PreemptDialog = ({ onClose, selectedItemFilters }: PreemptDialogPro
         >
           Refetch jobs
         </Button>
-        <TrackingButton
+        <Tracking
+          component={Button}
           eventName="Preempt Jobs Clicked"
           eventData={{ preemptReason: preemptReason ?? "" }}
           onClick={handlePreemptJobs}
@@ -234,7 +235,7 @@ export const PreemptDialog = ({ onClose, selectedItemFilters }: PreemptDialogPro
           endIcon={<Dangerous />}
         >
           Preempt {formatNumber(preemptibleJobsCount)} {preemptibleJobsCount === 1 ? "job" : "jobs"}
-        </TrackingButton>
+        </Tracking>
       </DialogActions>
     </Dialog>
   )

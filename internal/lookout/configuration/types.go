@@ -160,8 +160,6 @@ type TrackingScriptConfig struct {
 	EventAttribute string `json:"eventAttribute,omitempty"`
 	// DataAttribute is the HTML attribute name to use for event data (attribute method) or class prefix (class method)
 	DataAttribute string `json:"dataAttribute,omitempty"`
-	// TrackedEvents is a list of event names that should be tracked
-	TrackedEvents []string `json:"trackedEvents,omitempty"`
 }
 
 // UIConfig must match the LookoutUiConfig TypeScript interface defined in internal/lookoutui/src/lookoutUiConfig.d.ts

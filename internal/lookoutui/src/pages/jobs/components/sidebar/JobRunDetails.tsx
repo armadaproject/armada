@@ -21,6 +21,7 @@ import { formatJobRunState } from "../../../../common/jobsTableFormatters"
 import { SPACING } from "../../../../common/spacing"
 import { AlertErrorFallback } from "../../../../components/AlertErrorFallback"
 import { CodeBlock } from "../../../../components/CodeBlock"
+import { Tracking } from "../../../../components/analytics/Tracking"
 import { useFormatIsoTimestampWithUserSettings } from "../../../../components/hooks/formatTimeWithUserSettings"
 import { useCustomSnackbar } from "../../../../components/hooks/useCustomSnackbar"
 import { JobRun } from "../../../../models/lookoutModels"
@@ -231,7 +232,9 @@ export const JobRunDetails = ({
                   <Button color="error" onClick={() => setMarkUnschedulableDialogOpen(false)}>
                     Cancel
                   </Button>
-                  <Button
+                  <Tracking
+                    component={Button}
+                    eventName="Mark Node Unschedulable Confirmed"
                     onClick={async () => {
                       await cordonNode({ cluster: cluster, node: node })
                       setMarkUnschedulableDialogOpen(false)
@@ -240,7 +243,7 @@ export const JobRunDetails = ({
                     loading={cordonNodeStatus === "pending"}
                   >
                     Confirm
-                  </Button>
+                  </Tracking>
                 </DialogActions>
               </ErrorBoundary>
             </Dialog>

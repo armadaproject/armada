@@ -87,50 +87,51 @@ uiConfig:
 
 Follow [Plausible docs](https://plausible.io/docs) on how to run and set up an instance of Plausible Community Edition. Details to get the snippet with the `<script>` tags are [here](https://plausible.io/docs/plausible-script).
 
-## TrackingButton Component
+## Tracking Component
 
-This component wraps MUI Button and adds tracking attributes
+This is a universal component that adds tracking attributes to any component based on the configured analytics provider.
 
 ```tsx
-import { TrackingButton } from "src/components/analytics/TrackingButton.tsx"
+import { Tracking } from "src/components/analytics/Tracking"
+import { Button, Tab, Link } from "@mui/material"
 
-// Simple usage
-<TrackingButton eventName="Something Clicked">
-  Something
-</TrackingButton>
-
-// With event data
-<TrackingButton
-  eventName="Submit Job"
-  eventData={{ foo: "bar", baz: "5" }}
-  ...
+// With Button
+<Tracking
+  component={Button}
+  eventName="Cancel Job"
+  eventData={{ jobId: job.id }}
+  variant="contained"
 >
-  Submit
-</TrackingButton>
+  Cancel
+</Tracking>
+
+// With Tab - eventName can be shared between tabs, eventData differentiates them
+<Tracking
+  component={Tab}
+  label="Details"
+  value="details"
+  eventName="Sidebar Tab View"
+  eventData={{ tab: "details" }}
+/>
+
+// With Link
+<Tracking component={Link} href="/jobs" eventName="Navigate to Jobs">
+  View Jobs
+</Tracking>
+
+// With any MUI or HTML component
+<Tracking component="div" eventName="Custom Action" eventData={{ foo: "bar" }}>
+  Any component
+</Tracking>
 ```
 
-## TackingTab Component
+The `Tracking` component:
 
-This component wraps the MUI Tab and adds tracking attributes, the eventName can be shared between multiple tabs and eventData can be used to track which tab was accessed
-
-```tsx
-import { TrackingTab } from "/analytics/TrackingTab"
-
-<TabsContainer>
-  <SidebarTabs>
-    <TrackingTab>
-      eventName="Sidebar Tab"
-      eventData={{ tab: "Info Page" }}
-      ...
-      />
-    <TrackingTab>
-      eventName="Sidebar Tab"
-      eventData={{ tab: "Contact Page" }}
-      ...
-      />
-  </SidebarTab>
-</TabsContainer>
-```
+- Takes a `component` prop specifying what component to render
+- Automatically adds the correct tracking attributes (data attributes or CSS classes) based on your configuration
+- Wraps the onClick handler to dispatch tracking events
+- Supports full TypeScript type safety for the component's props
+- Merges classNames for class-based tracking systems
 
 ## Notes
 

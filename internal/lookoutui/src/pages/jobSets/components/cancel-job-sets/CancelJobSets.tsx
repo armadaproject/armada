@@ -1,5 +1,6 @@
 import { Button, Checkbox, List, ListItem, ListItemText, Paper } from "@mui/material"
 
+import { Tracking } from "../../../../components/analytics/Tracking"
 import { JobSet } from "../../../../services/JobService"
 
 import "./CancelJobSets.css"
@@ -53,9 +54,19 @@ export default function CancelJobSets(props: CancelJobSetsProps) {
         />
       </div>
       <div className="lookout-dialog-centred lookout-dialog-fixed">
-        <Button loading={props.isLoading} onClick={props.onCancelJobSets}>
+        <Tracking
+          component={Button}
+          eventName="Cancel Job Sets Clicked"
+          eventData={{
+            queued: String(props.queuedSelected),
+            pendingAndRunning: String(props.runningSelected),
+            isPlatformError: String(props.isPlatformCancel),
+          }}
+          loading={props.isLoading}
+          onClick={props.onCancelJobSets}
+        >
           Cancel Job Sets
-        </Button>
+        </Tracking>
       </div>
     </div>
   )

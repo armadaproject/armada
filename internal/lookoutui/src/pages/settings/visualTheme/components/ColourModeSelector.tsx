@@ -10,6 +10,7 @@ import {
 } from "@mui/material"
 
 import { SPACING } from "../../../../common/spacing"
+import { Tracking } from "../../../../components/analytics/Tracking"
 
 const ColourModeSelectorContainer = styled("div")(({ theme }) => ({
   display: "flex",
@@ -50,12 +51,12 @@ export const ColourModeSelector = () => {
           aria-label="colour mode"
           onChange={(_, colorMode) => setMode(colorMode)}
         >
-          <ToggleButton value="light">
+          <Tracking component={ToggleButton} eventName="Light Mode Selected" value="light">
             Light mode{mode === "system" && systemMode === "light" && <> (synced with system)</>}
-          </ToggleButton>
-          <ToggleButton value="dark">
+          </Tracking>
+          <Tracking component={ToggleButton} eventName="Dark Mode Selected" value="dark">
             Dark mode{mode === "system" && systemMode === "dark" && <> (synced with system)</>}
-          </ToggleButton>
+          </Tracking>
         </ToggleButtonGroup>
       </div>
     </ColourModeSelectorContainer>
