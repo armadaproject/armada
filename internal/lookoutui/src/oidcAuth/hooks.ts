@@ -28,35 +28,6 @@ export const useUsername = (): string | null => {
   return username
 }
 
-/**
- * Hook that automatically identifies the user with Umami analytics when authenticated.
- * Call this hook in a top-level component to track the authenticated user across sessions.
- */
-export const useIdentifyUserForTracking = () => {
-  const userManager = useUserManager()
-
-  useEffect(() => {
-    if (!userManager) {
-      return
-    }
-
-    ;(async () => {
-      const user = await userManager.getUser()
-      if (!user || !user.profile) {
-        return
-      }
-
-      // Check if umami is available
-      if (typeof window !== "undefined" && "umami" in window && typeof window.umami === "object") {
-        const umami = window.umami as { identify?: (id: string) => void }
-        if (typeof umami.identify === "function") {
-          umami.identify(user.profile.sub)
-        }
-      }
-    })()
-  }, [userManager])
-}
-
 export const useGetAccessToken = () => {
   const userManager = useUserManager()
 

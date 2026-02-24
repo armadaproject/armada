@@ -1,16 +1,16 @@
 import { useEffect } from "react"
 
-import { TrackingScriptConfig } from "../config/types"
+import { AnalyticsScriptConfig } from "../config/types"
 
-interface TrackingScriptProps {
-  config: TrackingScriptConfig | undefined
+interface AnalyticsScriptProps {
+  config: AnalyticsScriptConfig | undefined
 }
 
 /**
- * Component that dynamically injects tracking scripts into the document head
+ * Component that dynamically injects analytics scripts into the document head
  * based on the configuration provided.
  */
-export const TrackingScript = ({ config }: TrackingScriptProps) => {
+export const AnalyticsScript = ({ config }: AnalyticsScriptProps) => {
   useEffect(() => {
     if (!config?.scripts || config.scripts.length === 0) {
       return

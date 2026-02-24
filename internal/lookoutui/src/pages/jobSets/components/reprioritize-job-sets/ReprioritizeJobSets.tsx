@@ -1,6 +1,6 @@
 import { Button, List, ListItem, ListItemText, Paper, TextField } from "@mui/material"
 
-import { Tracking } from "../../../../components/analytics/Tracking"
+import { Analytics } from "../../../../analytics"
 import { JobSet } from "../../../../services/JobService"
 
 import "./ReprioritizeJobSets.css"
@@ -39,7 +39,7 @@ export default function ReprioritizeJobSets(props: ReprioritizeJobSetsProps) {
           />
         </div>
         <div>
-          <Tracking
+          <Analytics
             component={Button}
             eventName="Reprioritize Job Sets Clicked"
             disabled={!props.isValid}
@@ -47,7 +47,7 @@ export default function ReprioritizeJobSets(props: ReprioritizeJobSetsProps) {
             onClick={props.onReprioritizeJobsSets}
           >
             Reprioritize Job Sets
-          </Tracking>
+          </Analytics>
         </div>
       </div>
     </div>

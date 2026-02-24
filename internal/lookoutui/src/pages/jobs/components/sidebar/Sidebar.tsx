@@ -5,9 +5,9 @@ import { Divider, Drawer, DrawerProps, Stack, styled, Tab, Tabs } from "@mui/mat
 import { grey } from "@mui/material/colors"
 import { ErrorBoundary } from "react-error-boundary"
 
+import { Analytics } from "../../../../analytics"
 import { SPACING } from "../../../../common/spacing"
 import { AlertErrorFallback } from "../../../../components/AlertErrorFallback"
-import { Tracking } from "../../../../components/analytics/Tracking"
 import { CommandSpec } from "../../../../config/types"
 import { Job, JobState } from "../../../../models/lookoutModels"
 
@@ -248,14 +248,14 @@ export const Sidebar = memo(({ job, sidebarWidth, onClose, onWidthChange, comman
               <TabContext value={openTab}>
                 <TabsContainer>
                   <SidebarTabs value={openTab} onChange={handleTabChange}>
-                    <Tracking
+                    <Analytics
                       component={Tab}
                       label="Details"
                       value={SidebarTab.JobDetails}
                       eventName="Sidebar Tab View"
                       eventData={{ tab: "Details", jobState: job.state }}
                     />
-                    <Tracking
+                    <Analytics
                       component={Tab}
                       label="Result"
                       value={SidebarTab.JobResult}
@@ -263,7 +263,7 @@ export const Sidebar = memo(({ job, sidebarWidth, onClose, onWidthChange, comman
                       eventData={{ tab: "Result", jobState: job.state }}
                     />
                     {job.state === JobState.Queued && (
-                      <Tracking
+                      <Analytics
                         component={Tab}
                         label="Scheduling"
                         value={SidebarTab.Scheduling}
@@ -271,14 +271,14 @@ export const Sidebar = memo(({ job, sidebarWidth, onClose, onWidthChange, comman
                         eventData={{ tab: "Scheduling", jobState: job.state }}
                       />
                     )}
-                    <Tracking
+                    <Analytics
                       component={Tab}
                       label="YAML"
                       value={SidebarTab.Yaml}
                       eventName="Sidebar Tab View"
                       eventData={{ tab: "YAML", jobState: job.state }}
                     />
-                    <Tracking
+                    <Analytics
                       component={Tab}
                       label="Logs"
                       value={SidebarTab.Logs}
@@ -286,7 +286,7 @@ export const Sidebar = memo(({ job, sidebarWidth, onClose, onWidthChange, comman
                       eventName="Sidebar Tab View"
                       eventData={{ tab: "Logs", jobState: job.state }}
                     />
-                    <Tracking
+                    <Analytics
                       component={Tab}
                       label="Commands"
                       value={SidebarTab.Commands}

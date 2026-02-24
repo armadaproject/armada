@@ -8,14 +8,14 @@ import { SnackbarProvider } from "notistack"
 import { ErrorBoundary } from "react-error-boundary"
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom"
 
+import { AnalyticsScript, AnalyticsIdentifier } from "../analytics"
 import { dayJsLocales, getBrowserSupportedLocale } from "../common/locales"
 import { withRouter } from "../common/utils"
 import { AlertInPageContainerErrorFallback } from "../components/AlertInPageContainerErrorFallback"
 import { FullPageErrorFallback } from "../components/FullPageErrorFallback"
-import { TrackingScript } from "../components/TrackingScript"
 import { getConfig } from "../config"
 import { LookoutThemeProvider } from "../lookoutThemeState"
-import { OidcAuthProvider, useIdentifyUserForTracking } from "../oidcAuth"
+import { OidcAuthProvider } from "../oidcAuth"
 import { JobSetsPage } from "../pages/jobSets/JobSetsPage"
 import { JobsPage } from "../pages/jobs/JobsPage"
 import { SettingsPage } from "../pages/settings/SettingsPage"
@@ -70,12 +70,6 @@ const V2Redirect = withRouter(({ router }) => <Navigate to={{ ...router.location
 
 const config = getConfig()
 
-// Component that handles user identification for tracking
-const TrackingIdentifier = () => {
-  useIdentifyUserForTracking()
-  return null
-}
-
 export function App(props: AppProps) {
   useEffect(() => {
     if (config.customTitle) {
@@ -89,7 +83,7 @@ export function App(props: AppProps) {
 
   return (
     <ErrorBoundary FallbackComponent={FullPageErrorFallback}>
-      <TrackingScript config={config.trackingScript} />
+      <AnalyticsScript config={config.analyticsScript} />
       <LookoutThemeProvider>
         <CssBaseline />
         <SnackbarProvider
@@ -101,7 +95,7 @@ export function App(props: AppProps) {
             <QueryClientProvider client={queryClient}>
               <ErrorBoundary FallbackComponent={FullPageErrorFallback}>
                 <OidcAuthProvider oidcConfig={config.oidcEnabled ? config.oidc : undefined}>
-                  <TrackingIdentifier />
+                  <AnalyticsIdentifier />
                   <ApiClientsProvider>
                     <BrowserRouter>
                       <ServicesProvider services={props.services}>

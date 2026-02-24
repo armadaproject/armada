@@ -1,14 +1,14 @@
-# Example Lookout UI Configuration with Tracking Script
+# Example Lookout UI Configuration with Analytics Script
 
-To enable a tracking script (like Umami, Google Analytics, Plausible, etc.) in the Lookout UI, add the `trackingScript` configuration to your Lookout configuration YAML file. Many analytics solutions operate by inserting `<script>` tags inside the `<head>` and adding information to other tags through HTML attributes or css classes for event tracking.
+To enable a analytics script (like Umami, Google Analytics, Plausible, etc.) in the Lookout UI, add the `analyticsScript` configuration to your Lookout configuration YAML file. Many analytics solutions operate by inserting `<script>` tags inside the `<head>` and adding information to other tags through HTML attributes or css classes for event analytics.
 
-## trackingScript Schema
+## analyticsScript Schema
 
 ```yaml
 uiConfig:
   # ... other UI configuration ...
 
-  trackingScript:
+  analyticsScript:
     scripts: # list of <script> that will be added to <head>
       - content: | # content of <script>
           console.log("Inline script example");
@@ -21,7 +21,7 @@ uiConfig:
     dataAttribute: "data-foo-data" # analytic solution base identifier for data associated with an event
 ```
 
-This will result in a tracking script being added to the `<head>` element
+This will result in a analytics script being added to the `<head>` element
 
 ```html
 <head>
@@ -32,7 +32,7 @@ This will result in a tracking script being added to the `<head>` element
 </head>
 ```
 
-Event tracking where `eventName=Something Clicked` and `eventData={yourEvent: 1}`
+Event analytics where `eventName=Something Clicked` and `eventData={yourEvent: 1}`
 
 ```html
 <!-- HTML Attribute method -->
@@ -44,7 +44,7 @@ Event tracking where `eventName=Something Clicked` and `eventData={yourEvent: 1}
 
 ### CSS Method
 
-Css based event tracking
+Css based event analytics
 
 ## Examples
 
@@ -52,7 +52,7 @@ Css based event tracking
 
 ```yaml
 uiConfig:
-  trackingScript:
+  analyticsScript:
     scripts:
       - attributes:
           src: "https://analytics.yourdomain.com/script.js"
@@ -63,13 +63,13 @@ uiConfig:
     dataAttribute: "data-umami-event"
 ```
 
-Follow [Umami docs](https://umami.is/docs) on how to run and set up an instance of Umami. Details for `<script>` tag are in the [Tracking code](https://umami.is/docs/collect-data) section.
+Follow [Umami docs](https://umami.is/docs) on how to run and set up an instance of Umami. Details for `<script>` tag are in the [Analytics code](https://umami.is/docs/collect-data) section.
 
 ### Plausible
 
 ```yaml
 uiConfig:
-  trackingScript:
+  analyticsScript:
     scripts:
       - attributes:
            src: "https://analytics.yourdomain.com/js/script_name.js"
@@ -87,26 +87,26 @@ uiConfig:
 
 Follow [Plausible docs](https://plausible.io/docs) on how to run and set up an instance of Plausible Community Edition. Details to get the snippet with the `<script>` tags are [here](https://plausible.io/docs/plausible-script).
 
-## Tracking Component
+## Analytics Component
 
-This is a universal component that adds tracking attributes to any component based on the configured analytics provider.
+This is a universal component that adds analytics attributes to any component based on the configured analytics provider.
 
 ```tsx
-import { Tracking } from "src/components/analytics/Tracking"
+import { Analytics } from "src/components/analytics/Analytics"
 import { Button, Tab, Link } from "@mui/material"
 
 // With Button
-<Tracking
+<Analytics
   component={Button}
   eventName="Cancel Job"
   eventData={{ jobId: job.id }}
   variant="contained"
 >
   Cancel
-</Tracking>
+</Analytics>
 
 // With Tab - eventName can be shared between tabs, eventData differentiates them
-<Tracking
+<Analytics
   component={Tab}
   label="Details"
   value="details"
@@ -115,28 +115,28 @@ import { Button, Tab, Link } from "@mui/material"
 />
 
 // With Link
-<Tracking component={Link} href="/jobs" eventName="Navigate to Jobs">
+<Analytics component={Link} href="/jobs" eventName="Navigate to Jobs">
   View Jobs
-</Tracking>
+</Analytics>
 
 // With any MUI or HTML component
-<Tracking component="div" eventName="Custom Action" eventData={{ foo: "bar" }}>
+<Analytics component="div" eventName="Custom Action" eventData={{ foo: "bar" }}>
   Any component
-</Tracking>
+</Analytics>
 ```
 
-The `Tracking` component:
+The `Analytics` component:
 
 - Takes a `component` prop specifying what component to render
-- Automatically adds the correct tracking attributes (data attributes or CSS classes) based on your configuration
-- Wraps the onClick handler to dispatch tracking events
+- Automatically adds the correct analytics attributes (data attributes or CSS classes) based on your configuration
+- Wraps the onClick handler to dispatch analytics events
 - Supports full TypeScript type safety for the component's props
-- Merges classNames for class-based tracking systems
+- Merges classNames for class-based analytics systems
 
 ## Notes
 
 - Script attributes like `defer` and `async` should be specified in the `attributes` map
 - Scripts with `content` are inline scripts; scripts with `src` in attributes are external scripts
 - The script is injected dynamically when the app loads
-- If no `trackingScript` configuration is provided, no tracking script will be loaded
+- If no `analyticsScript` configuration is provided, no analytics script will be loaded
 - All attributes in the `attributes` map will be added to the `<script>` tag as HTML attributes

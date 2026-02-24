@@ -151,7 +151,7 @@ type ScriptTag struct {
 	Attributes map[string]string `json:"attributes,omitempty"`
 }
 
-type TrackingScriptConfig struct {
+type AnalyticsScriptConfig struct {
 	// Scripts is a list of script tags to inject into the document head
 	Scripts []ScriptTag `json:"scripts"`
 	// Method specifies how to add tracking data: "attribute" for HTML attributes (e.g., Umami), "class" for CSS classes (e.g., Plausible)
@@ -195,6 +195,6 @@ type UIConfig struct {
 
 	CustomThemeConfigs *CustomThemeConfigs `json:"customThemeConfigs,omitempty"`
 
-	// TrackingScript is an optional tracking script configuration
-	TrackingScript *TrackingScriptConfig `json:"trackingScript,omitempty"`
+	// AnalyticsScript is an optional analytics script configuration
+	AnalyticsScript *AnalyticsScriptConfig `json:"analyticsScript,omitempty"`
 }

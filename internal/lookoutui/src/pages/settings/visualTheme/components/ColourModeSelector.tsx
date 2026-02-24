@@ -9,8 +9,8 @@ import {
   useMediaQuery,
 } from "@mui/material"
 
+import { Analytics } from "../../../../analytics"
 import { SPACING } from "../../../../common/spacing"
-import { Tracking } from "../../../../components/analytics/Tracking"
 
 const ColourModeSelectorContainer = styled("div")(({ theme }) => ({
   display: "flex",
@@ -51,12 +51,12 @@ export const ColourModeSelector = () => {
           aria-label="colour mode"
           onChange={(_, colorMode) => setMode(colorMode)}
         >
-          <Tracking component={ToggleButton} eventName="Light Mode Selected" value="light">
+          <Analytics component={ToggleButton} eventName="Light Mode Selected" value="light">
             Light mode{mode === "system" && systemMode === "light" && <> (synced with system)</>}
-          </Tracking>
-          <Tracking component={ToggleButton} eventName="Dark Mode Selected" value="dark">
+          </Analytics>
+          <Analytics component={ToggleButton} eventName="Dark Mode Selected" value="dark">
             Dark mode{mode === "system" && systemMode === "dark" && <> (synced with system)</>}
-          </Tracking>
+          </Analytics>
         </ToggleButtonGroup>
       </div>
     </ColourModeSelectorContainer>

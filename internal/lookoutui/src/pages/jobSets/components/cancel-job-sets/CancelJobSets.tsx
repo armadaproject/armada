@@ -1,6 +1,6 @@
 import { Button, Checkbox, List, ListItem, ListItemText, Paper } from "@mui/material"
 
-import { Tracking } from "../../../../components/analytics/Tracking"
+import { Analytics } from "../../../../analytics"
 import { JobSet } from "../../../../services/JobService"
 
 import "./CancelJobSets.css"
@@ -54,7 +54,7 @@ export default function CancelJobSets(props: CancelJobSetsProps) {
         />
       </div>
       <div className="lookout-dialog-centred lookout-dialog-fixed">
-        <Tracking
+        <Analytics
           component={Button}
           eventName="Cancel Job Sets Clicked"
           eventData={{
@@ -66,7 +66,7 @@ export default function CancelJobSets(props: CancelJobSetsProps) {
           onClick={props.onCancelJobSets}
         >
           Cancel Job Sets
-        </Tracking>
+        </Analytics>
       </div>
     </div>
   )

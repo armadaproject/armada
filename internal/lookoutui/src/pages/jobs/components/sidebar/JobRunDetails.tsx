@@ -16,12 +16,12 @@ import {
 } from "@mui/material"
 import { ErrorBoundary } from "react-error-boundary"
 
+import { Analytics } from "../../../../analytics"
 import { formatDuration, TimestampFormat } from "../../../../common/formatTime"
 import { formatJobRunState } from "../../../../common/jobsTableFormatters"
 import { SPACING } from "../../../../common/spacing"
 import { AlertErrorFallback } from "../../../../components/AlertErrorFallback"
 import { CodeBlock } from "../../../../components/CodeBlock"
-import { Tracking } from "../../../../components/analytics/Tracking"
 import { useFormatIsoTimestampWithUserSettings } from "../../../../components/hooks/formatTimeWithUserSettings"
 import { useCustomSnackbar } from "../../../../components/hooks/useCustomSnackbar"
 import { JobRun } from "../../../../models/lookoutModels"
@@ -232,7 +232,7 @@ export const JobRunDetails = ({
                   <Button color="error" onClick={() => setMarkUnschedulableDialogOpen(false)}>
                     Cancel
                   </Button>
-                  <Tracking
+                  <Analytics
                     component={Button}
                     eventName="Mark Node Unschedulable Confirmed"
                     onClick={async () => {
@@ -243,7 +243,7 @@ export const JobRunDetails = ({
                     loading={cordonNodeStatus === "pending"}
                   >
                     Confirm
-                  </Tracking>
+                  </Analytics>
                 </DialogActions>
               </ErrorBoundary>
             </Dialog>

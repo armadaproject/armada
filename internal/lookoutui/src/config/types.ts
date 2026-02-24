@@ -44,7 +44,7 @@ export interface ScriptTag {
   attributes?: Record<string, string>
 }
 
-export interface TrackingScriptConfig {
+export interface AnalyticsScriptConfig {
   scripts: ScriptTag[]
   method?: "attribute" | "class"
   eventAttribute?: string
@@ -67,7 +67,7 @@ export interface LookoutUiConfig {
   pinnedTimeZoneIdentifiers: string[]
   errorMonitoring: ErrorMonitoringConfig
   customThemeConfigs: CustomThemeConfigs | undefined
-  trackingScript: TrackingScriptConfig | undefined
+  analyticsScript: AnalyticsScriptConfig | undefined
 }
 
 export interface Config extends LookoutUiConfig {
