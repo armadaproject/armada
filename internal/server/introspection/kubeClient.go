@@ -1,7 +1,7 @@
 package introspection
 
 import (
-	"github.com/armadaproject/armada/internal/server/introspection"
+	introspectionapi "github.com/armadaproject/armada/pkg/api/introspection"
 	"k8s.io/client-go/kubernetes"
 )
 
@@ -12,7 +12,7 @@ type KubeClientFactory interface {
 
 func New(kube KubeClientFactory) *IntrospectionServer {
 	return &IntrospectionServer{
-		UnimplementedIntrospectionServer: &introspection.UnimplementedIntrospectionServer{},
+		UnimplementedIntrospectionServer: &introspectionapi.UnimplementedIntrospectionServer{},
 		kube: kube,
 	}
 }
