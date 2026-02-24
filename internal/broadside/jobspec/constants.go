@@ -18,28 +18,28 @@ var (
 		"research-green",
 		"research-yellow",
 	}
-	priorityClassOptions = []string{
+	PriorityClassOptions = []string{
 		"armada-default",
 		"armada-resilient",
 		"armada-high",
 		"armada-custom",
 	}
-	cpuOptions    = []int64{1, 2, 4, 8, 16, 32}
-	memoryOptions = []int64{
+	CpuOptions    = []int64{1, 2, 4, 8, 16, 32}
+	MemoryOptions = []int64{
 		1024 * 1024 * 1024,
 		4 * 1024 * 1024 * 1024,
 		64 * 1024 * 1024 * 1024,
 		1024 * 1024 * 1024 * 1024,
 	}
-	ephemeralStorageOptions = []int64{
+	EphemeralStorageOptions = []int64{
 		512 * 1024 * 1024,
 		2 * 1024 * 1024 * 1024,
 		10 * 1024 * 1024 * 1024,
 		1024 * 1024 * 1024 * 1024,
 		30 * 1024 * 1024 * 1024 * 1024,
 	}
-	gpuOptions  = []int64{0, 0, 0, 1, 0, 0, 0, 8}
-	poolOptions = []string{
+	GpuOptions  = []int64{0, 0, 0, 1, 0, 0, 0, 8}
+	PoolOptions = []string{
 		"general-purpose",
 		"high-memory",
 		"high-cpu",
@@ -106,25 +106,25 @@ func GetNamespace(jobNumber int) string {
 }
 
 func GetPriorityClass(jobNumber int) string {
-	return priorityClassOptions[jobNumber%len(priorityClassOptions)]
+	return PriorityClassOptions[jobNumber%len(PriorityClassOptions)]
 }
 
 func GetCpu(jobNumber int) int64 {
-	return cpuOptions[jobNumber%len(cpuOptions)]
+	return CpuOptions[jobNumber%len(CpuOptions)]
 }
 
 func GetMemory(jobNumber int) int64 {
-	return memoryOptions[jobNumber%len(memoryOptions)]
+	return MemoryOptions[jobNumber%len(MemoryOptions)]
 }
 
 func GetEphemeralStorage(jobNumber int) int64 {
-	return ephemeralStorageOptions[jobNumber%len(ephemeralStorageOptions)]
+	return EphemeralStorageOptions[jobNumber%len(EphemeralStorageOptions)]
 }
 
 func GetGpu(jobNumber int) int64 {
-	return gpuOptions[jobNumber%len(gpuOptions)]
+	return GpuOptions[jobNumber%len(GpuOptions)]
 }
 
 func GetPool(jobNumber int) string {
-	return poolOptions[jobNumber%len(poolOptions)]
+	return PoolOptions[jobNumber%len(PoolOptions)]
 }

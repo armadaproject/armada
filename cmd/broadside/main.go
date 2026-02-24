@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
 
 	mapstructure "github.com/go-viper/mapstructure/v2"
 	"github.com/spf13/pflag"
@@ -26,6 +27,8 @@ import (
 const (
 	customConfigLocation string = "config"
 	resultsDirFlag       string = "results-dir"
+	teardownOnlyFlag     string = "teardown-only"
+	teardownTimeout             = 2 * time.Minute
 )
 
 func init() {
@@ -37,6 +40,10 @@ func init() {
 		resultsDirFlag,
 		"",
 		"Directory to write result files to (defaults to cmd/broadside/results)")
+	pflag.Bool(
+		teardownOnlyFlag,
+		false,
+		"Connect to the configured database and tear it down, then exit. Use to clean up after a crashed load test.")
 	pflag.Parse()
 }
 
@@ -170,6 +177,24 @@ func main() {
 
 	userSpecifiedConfigs := viper.GetStringSlice(customConfigLocation)
 	config := loadConfig(userSpecifiedConfigs)
+
+	if viper.GetBool(teardownOnlyFlag) {
+		database, err := orchestrator.NewDatabase(config)
+		if err != nil {
+			logging.Fatalf("creating database: %v", err)
+		}
+		teardownCtx, teardownCancel := context.WithTimeout(context.Background(), teardownTimeout)
+		defer teardownCancel()
+		if err := database.InitialiseSchema(teardownCtx); err != nil {
+			logging.Fatalf("initialising database schema: %v", err)
+		}
+		if err := database.TearDown(teardownCtx); err != nil {
+			logging.Fatalf("tearing down database: %v", err)
+		}
+		logging.Info("Database teardown complete.")
+		database.Close()
+		return
+	}
 
 	est := estimation.Estimate(config)
 	if estimation.ShouldPrompt(est) {

@@ -244,15 +244,19 @@ func (r *Runner) tearDown(database db.Database) {
 	database.Close()
 }
 
-// newDatabase creates a database instance based on the configuration.
-// Exactly one database backend must be configured.
 func (r *Runner) newDatabase() (db.Database, error) {
+	return NewDatabase(r.config)
+}
+
+// NewDatabase creates a database instance based on the configuration.
+// Exactly one database backend must be configured.
+func NewDatabase(config configuration.TestConfig) (db.Database, error) {
 	switch {
-	case len(r.config.DatabaseConfig.Postgres) > 0:
-		return db.NewPostgresDatabase(r.config.DatabaseConfig.Postgres), nil
-	case len(r.config.DatabaseConfig.ClickHouse) > 0:
-		return db.NewClickHouseDatabase(r.config.DatabaseConfig.ClickHouse), nil
-	case r.config.DatabaseConfig.InMemory:
+	case len(config.DatabaseConfig.Postgres) > 0:
+		return db.NewPostgresDatabase(config.DatabaseConfig.Postgres), nil
+	case len(config.DatabaseConfig.ClickHouse) > 0:
+		return db.NewClickHouseDatabase(config.DatabaseConfig.ClickHouse), nil
+	case config.DatabaseConfig.InMemory:
 		return db.NewMemoryDatabase(), nil
 	default:
 		return nil, fmt.Errorf("no database backend configured")

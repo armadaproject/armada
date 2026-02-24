@@ -43,6 +43,10 @@ func (c *ClickHouseDatabase) GetJobGroups(ctx *context.Context, filters []*model
 	panic("not implemented")
 }
 
+func (c *ClickHouseDatabase) PopulateHistoricalJobs(_ context.Context, _ HistoricalJobsParams) error {
+	panic("not implemented")
+}
+
 func (c *ClickHouseDatabase) TearDown(ctx context.Context) error {
 	panic("not implemented")
 }

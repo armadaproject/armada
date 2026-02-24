@@ -16,8 +16,34 @@ type Database interface {
 	GetJobSpec(ctx context.Context, jobID string) (*api.Job, error)
 	GetJobGroups(ctx *context.Context, filters []*model.Filter, order *model.Order, groupedField *model.GroupedField, aggregates []string, skip int, take int) ([]*model.JobGroup, error)
 	GetJobs(ctx *context.Context, filters []*model.Filter, activeJobSets bool, order *model.Order, skip int, take int) ([]*model.Job, error)
+	PopulateHistoricalJobs(ctx context.Context, params HistoricalJobsParams) error
 	TearDown(ctx context.Context) error
 	Close()
+}
+
+// HistoricalJobsParams describes a batch of terminal historical jobs to insert.
+//
+// The threshold fields use a scale of 1000: a job with index i is assigned a
+// state based on i%1000. Jobs where i%1000 < SucceededThreshold are succeeded,
+// i%1000 < ErroredThreshold are errored, i%1000 < CancelledThreshold are
+// cancelled, and the remainder are preempted. Derive them as:
+//
+//	SucceededThreshold = int(ProportionSucceeded * 1000)
+//	ErroredThreshold   = SucceededThreshold + int(ProportionErrored * 1000)
+//	CancelledThreshold = ErroredThreshold   + int(ProportionCancelled * 1000)
+type HistoricalJobsParams struct {
+	QueueIdx           int
+	JobSetIdx          int
+	QueueName          string
+	JobSetName         string
+	NJobs              int
+	SucceededThreshold int
+	ErroredThreshold   int
+	CancelledThreshold int
+	JobSpecBytes       []byte
+	ErrorBytes         []byte
+	DebugBytes         []byte
+	PreemptionBytes    []byte
 }
 
 type IngestionQuery interface {
