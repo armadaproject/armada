@@ -493,6 +493,51 @@ func (nodeDb *NodeDb) SelectNodeForJobWithTxn(txn *memdb.Txn, jctx *context.JobS
 	return nil, nil
 }
 
+func MatchesConditions(conditions []types.AwayNodeTypeCondition, jobResources internaltypes.ResourceList) bool {
+	for _, c := range conditions {
+		jobVal := jobResources.GetByNameZeroIfMissing(c.Resource)
+		j := jobVal.Value()
+		r := c.Value[c.Resource]
+		value := r.Value()
+
+		switch c.Operator {
+		case types.AwayNodeTypeConditionOpGreaterThan:
+			return j > value
+		case types.AwayNodeTypeConditionOpLessThan:
+			return j < value
+		case types.AwayNodeTypeConditionOpEqual:
+			return j == value
+		}
+	}
+	return true
+}
+
+func (nodeDb *NodeDb) ComputeEffectiveAwayNodeTypes(
+	priorityClass types.PriorityClass,
+	jobResources internaltypes.ResourceList,
+	wellKnownNodeTypeTolerations map[string][]v1.Toleration,
+) []types.EffectiveAwayNodeType {
+	result := make([]types.EffectiveAwayNodeType, 0, len(priorityClass.AwayNodeTypes))
+	for _, ant := range priorityClass.AwayNodeTypes {
+		var tolerations []v1.Toleration
+		for _, nodeTypes := range ant.NodeTypes {
+			if !MatchesConditions(nodeTypes.Conditions, jobResources) {
+				continue
+			}
+			tolerations = append(tolerations, wellKnownNodeTypeTolerations[nodeTypes.Name]...)
+		}
+		if len(tolerations) == 0 {
+			// No node types in this group matched — skip this type entirely
+			continue
+		}
+		result = append(result, types.EffectiveAwayNodeType{
+			Priority:    ant.Priority,
+			Tolerations: tolerations,
+		})
+	}
+	return result
+}
+
 func (nodeDb *NodeDb) selectNodeForJobWithTxnAndAwayNodeType(
 	txn *memdb.Txn,
 	jctx *context.JobSchedulingContext,
