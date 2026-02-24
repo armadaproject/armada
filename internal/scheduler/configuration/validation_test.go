@@ -13,14 +13,14 @@ import (
 
 func TestMutate(t *testing.T) {
 	tests := map[string]struct {
-		input    Configuration
-		expected Configuration
+		input    *Configuration
+		expected *Configuration
 	}{
 		"MaxSchedulingDuration": {
-			input: Configuration{
+			input: &Configuration{
 				MaxSchedulingDuration: time.Second * 10,
 			},
-			expected: Configuration{
+			expected: &Configuration{
 				MaxSchedulingDuration: time.Second * 10,
 				Scheduling: SchedulingConfig{
 					MaxSchedulingDuration: time.Second * 10,
@@ -28,13 +28,13 @@ func TestMutate(t *testing.T) {
 			},
 		},
 		"MaxSchedulingDuration - overwrites scheduling.MaxSchedulingDuration": {
-			input: Configuration{
+			input: &Configuration{
 				MaxSchedulingDuration: time.Second * 10,
 				Scheduling: SchedulingConfig{
 					MaxSchedulingDuration: time.Second * 5,
 				},
 			},
-			expected: Configuration{
+			expected: &Configuration{
 				MaxSchedulingDuration: time.Second * 10,
 				Scheduling: SchedulingConfig{
 					MaxSchedulingDuration: time.Second * 10,
@@ -42,24 +42,24 @@ func TestMutate(t *testing.T) {
 			},
 		},
 		"MaxNewJobSchedulingDuration": {
-			input: Configuration{
+			input: &Configuration{
 				NewJobsSchedulingTimeout: time.Second * 10,
 			},
-			expected: Configuration{
+			expected: &Configuration{
 				NewJobsSchedulingTimeout: time.Second * 10,
 				Scheduling: SchedulingConfig{
 					MaxNewJobSchedulingDuration: time.Second * 10,
 				},
 			},
 		},
-		"MaxNewJobSchedulingDuration  - overwrites scheduling.MaxNewJobSchedulingDuration": {
-			input: Configuration{
+		"MaxNewJobSchedulingDuration - overwrites scheduling.MaxNewJobSchedulingDuration": {
+			input: &Configuration{
 				NewJobsSchedulingTimeout: time.Second * 10,
 				Scheduling: SchedulingConfig{
 					MaxNewJobSchedulingDuration: time.Second * 7,
 				},
 			},
-			expected: Configuration{
+			expected: &Configuration{
 				NewJobsSchedulingTimeout: time.Second * 10,
 				Scheduling: SchedulingConfig{
 					MaxNewJobSchedulingDuration: time.Second * 10,
