@@ -219,7 +219,7 @@ func TestSchedule(t *testing.T) {
 			expectedScheduledByPool:  map[string]int{testfixtures.TestPool: 4},
 		},
 		"scheduling - disallowed job resources": {
-			schedulingConfig: testfixtures.WithDisallowedJobResources(testfixtures.TestSchedulingConfig(), []string{"cpu"}),
+			schedulingConfig: testfixtures.WithUnschedulableResources(testfixtures.TestSchedulingConfig(), []string{"cpu"}),
 			executors: []*schedulerobjects.Executor{
 				test1Node32CoreExecutor("executor1"),
 				test1Node32CoreExecutor("executor2"),
