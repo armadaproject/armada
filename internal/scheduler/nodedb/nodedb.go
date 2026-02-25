@@ -152,7 +152,7 @@ type NodeDb struct {
 	// Resources that are not scheduled by this nodedb
 	// If a job requests one of these resources
 	// it will not be scheduled onto any node regardless of if the nodes have enough resource
-	deniedResourceTypes []string
+	disallowedJobResources []string
 
 	disableHomeScheduling     bool
 	disableAwayScheduling     bool
@@ -359,7 +359,7 @@ func (nodeDb *NodeDb) EnableGangAwayScheduling() {
 }
 
 func (nodeDb *NodeDb) SetDisallowedJobResources(resources []string) {
-	nodeDb.deniedResourceTypes = resources
+	nodeDb.disallowedJobResources = resources
 }
 
 func (nodeDb *NodeDb) GetNodes() ([]*internaltypes.Node, error) {
@@ -475,7 +475,7 @@ func (nodeDb *NodeDb) SelectNodeForJobWithTxn(txn *memdb.Txn, jctx *context.JobS
 		}
 	}
 
-	for _, resourceName := range nodeDb.deniedResourceTypes {
+	for _, resourceName := range nodeDb.disallowedJobResources {
 		if jctx.KubernetesResourceRequirements.GetRawByNameZeroIfMissing(resourceName) > 0 {
 			pctx.NumExcludedNodesByReason[disallowedResourceRequested] = int(nodeDb.numNodes)
 			return nil, nil
