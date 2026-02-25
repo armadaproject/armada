@@ -238,6 +238,8 @@ func (l *FairSchedulingAlgo) reconcileAndSchedulePool(
 		fsctx.nodeDb.DisableGangAwayScheduling()
 	}
 
+	fsctx.nodeDb.SetDisallowedJobResources(pool.ExperimentalUnschedulableResources)
+
 	start := time.Now()
 	resourceUnit, ok := resourceUnits[pool.Name]
 	if !ok {
