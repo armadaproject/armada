@@ -615,13 +615,15 @@ func (m *cycleMetrics) ReportSchedulerResult(ctx *armadacontext.Context, result 
 							nodeCapacityClass = CapacityClassShared
 						}
 						for _, resource := range node.GetAllocatableResources().GetAll() {
-							currentCycle.nodeAllocatableResource.WithLabelValues(pool, node.GetName(), node.GetExecutor(), node.GetReportingNodeType(), resource.Name, node.GetReservation(), isSchedulable, isOverallocated, node.GetPool(), nodeCapacityClass).Set(resource.Value.AsApproximateFloat64())
+							currentCycle.nodeAllocatableResource.WithLabelValues(pool, node.GetName(), node.GetExecutor(), node.GetReportingNodeType(), resource.Name, node.GetReservation(),
+								isSchedulable, isOverallocated, node.GetPool(), nodeCapacityClass).Set(resource.Value.AsApproximateFloat64())
 						}
 
 						allocated := node.GetAllocatableResources().Subtract(node.AllocatableByPriority[internaltypes.EvictedPriority])
 						for _, resource := range allocated.GetAll() {
 							allocatableValue := math.Max(resource.Value.AsApproximateFloat64(), 0)
-							currentCycle.nodeAllocatedResource.WithLabelValues(pool, node.GetName(), node.GetExecutor(), node.GetReportingNodeType(), resource.Name, node.GetReservation(), isSchedulable, isOverallocated, node.GetPool(), nodeCapacityClass).Set(allocatableValue)
+							currentCycle.nodeAllocatedResource.WithLabelValues(pool, node.GetName(), node.GetExecutor(), node.GetReportingNodeType(), resource.Name, node.GetReservation(),
+								isSchedulable, isOverallocated, node.GetPool(), nodeCapacityClass).Set(allocatableValue)
 						}
 					}
 				}
