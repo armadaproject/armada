@@ -236,9 +236,9 @@ func WithHomeSchedulingDisabled(config schedulerconfiguration.SchedulingConfig) 
 	return config
 }
 
-func WithUnschedulableResources(config schedulerconfiguration.SchedulingConfig, disallowedResources []string) schedulerconfiguration.SchedulingConfig {
+func WithUnscheduledResources(config schedulerconfiguration.SchedulingConfig, disallowedResources []string) schedulerconfiguration.SchedulingConfig {
 	for i, pool := range config.Pools {
-		pool.ExperimentalUnschedulableResources = disallowedResources
+		pool.ExperimentalUnscheduledResources = disallowedResources
 		config.Pools[i] = pool
 	}
 	return config

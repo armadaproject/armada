@@ -351,10 +351,10 @@ type PoolConfig struct {
 	ExperimentalRunReconciliation *RunReconciliationConfig
 	// This prevents jobs being scheduled on this pool if they request one of the listed resources
 	// The list should be the name of the resource type. For example, "cpu", "memory", or "nvidia.com/gpu".
-	ExperimentalUnschedulableResources []string
-	DisableHomeScheduling              bool
-	DisableAwayScheduling              bool
-	DisableGangAwayScheduling          bool
+	ExperimentalUnscheduledResources []string
+	DisableHomeScheduling            bool
+	DisableAwayScheduling            bool
+	DisableGangAwayScheduling        bool
 }
 
 func (p PoolConfig) GetSubmissionGroup() string {
