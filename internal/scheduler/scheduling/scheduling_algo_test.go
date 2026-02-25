@@ -1130,43 +1130,6 @@ func BenchmarkNodeDbConstruction(b *testing.B) {
 	}
 }
 
-func TestMarkResourceUnallocatable(t *testing.T) {
-	input := map[int32]internaltypes.ResourceList{
-		100:  makeResourceList("cpu", "500"),
-		1000: makeResourceList("cpu", "900"),
-	}
-
-	expected := map[int32]internaltypes.ResourceList{
-		100:  makeResourceList("cpu", "400"),
-		1000: makeResourceList("cpu", "800"),
-	}
-
-	markResourceUnallocatable(input, makeResourceList("cpu", "100"))
-	assert.Equal(t, expected, input)
-}
-
-func TestMarkResourceUnallocatable_ProtectsFromNegativeValues(t *testing.T) {
-	input := map[int32]internaltypes.ResourceList{
-		100:  makeResourceList("cpu", "500"),
-		1000: makeResourceList("cpu", "900"),
-	}
-
-	expected := map[int32]internaltypes.ResourceList{
-		100:  makeResourceList("cpu", "0"),
-		1000: makeResourceList("cpu", "300"),
-	}
-
-	markResourceUnallocatable(input, makeResourceList("cpu", "600"))
-	assert.Equal(t, expected, input)
-}
-
-func makeResourceList(resourceName string, value string) internaltypes.ResourceList {
-	return testfixtures.TestResourceListFactory.FromNodeProto(map[string]*k8sResource.Quantity{
-		resourceName: pointer.MustParseResource(value),
-	},
-	)
-}
-
 func makeTestExecutorWithNodes(executorId string, nodes ...*schedulerobjects.Node) *schedulerobjects.Executor {
 	for _, node := range nodes {
 		node.Name = fmt.Sprintf("%s-node", executorId)

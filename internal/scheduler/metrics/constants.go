@@ -21,6 +21,10 @@ const (
 	priorStateLabel          = "priorState"
 	resourceLabel            = "resource"
 	reservationLabel         = "reservation"
+	schedulable              = "schedulable"
+	overAllocated            = "overAllocated"
+	physicalPool             = "physical_pool"
+	capacityClass            = "capacity_class"
 	jobShapeLabel            = "job_shape"
 	unschedulableReasonLabel = "unschedulable_reason"
 	outcomeLabel             = "outcome"
@@ -40,4 +44,7 @@ const (
 	succeeded = "succeeded"
 
 	noCheckpointLabelValue = "none"
+
+	CapacityClassDedicated = "dedicated"
+	CapacityClassShared    = "shared"
 )

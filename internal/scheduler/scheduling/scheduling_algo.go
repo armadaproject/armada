@@ -856,7 +856,8 @@ func populateNodeDb(nodeDb *nodedb.NodeDb, currentPoolJobs []*jobdb.Job, otherPo
 			continue
 		}
 		// Mark resource used by jobs of other pools as unallocatable so we don't double schedule this resource
-		markResourceUnallocatable(node.AllocatableByPriority, job.KubernetesResourceRequirements())
+		node = node.MarkResourceUnallocatable(job.KubernetesResourceRequirements())
+		nodesById[nodeId] = node
 		if _, present := allocatedByNodeId[nodeId]; !present {
 			allocatedByNodeId[nodeId] = job.KubernetesResourceRequirements()
 		} else {
@@ -864,7 +865,7 @@ func populateNodeDb(nodeDb *nodedb.NodeDb, currentPoolJobs []*jobdb.Job, otherPo
 		}
 	}
 
-	for _, node := range nodes {
+	for _, node := range nodesById {
 		if node.IsUnschedulable() && len(jobsByNodeId[node.GetId()]) == 0 {
 			// Don't add nodes that cannot be scheduled on into the nodedb
 			// - For efficiency
@@ -886,13 +887,6 @@ func populateNodeDb(nodeDb *nodedb.NodeDb, currentPoolJobs []*jobdb.Job, otherPo
 	}
 	txn.Commit()
 	return nil
-}
-
-func markResourceUnallocatable(allocatableByPriority map[int32]internaltypes.ResourceList, rl internaltypes.ResourceList) {
-	for pri, allocatable := range allocatableByPriority {
-		newAllocatable := allocatable.Subtract(rl).FloorAtZero()
-		allocatableByPriority[pri] = newAllocatable
-	}
 }
 
 // filterCordonedExecutors returns all executors which aren't marked as cordoned from the provided executorSettings
