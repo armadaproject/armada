@@ -98,7 +98,8 @@ var (
 						},
 					},
 				},
-			}}},
+			},
+		}},
 	}
 	TestDefaultPriorityClass = PriorityClass3
 	TestPriorities           = []int32{0, 1, 2, 3, 28000, 29000, 30000}
