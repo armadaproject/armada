@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/database"
+	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/lookout/model"
 	"github.com/armadaproject/armada/internal/lookout/repository"
 	"github.com/armadaproject/armada/internal/lookout/schema"
@@ -74,7 +76,7 @@ func (p *PostgresDatabase) InitialiseSchema(ctx context.Context) error {
 	}
 
 	decompressor := &compress.NoOpDecompressor{}
-	p.lookoutDb = lookoutdb.NewLookoutDb(p.pool, nil, nil, 0)
+	p.lookoutDb = lookoutdb.NewLookoutDb(p.pool, nil, nil, 16, 12)
 	p.jobsRepository = repository.NewSqlGetJobsRepository(p.pool)
 	p.groupRepository = repository.NewSqlGroupJobsRepository(p.pool)
 	p.jobSpecRepository = repository.NewSqlGetJobSpecRepository(p.pool, decompressor)
@@ -239,9 +241,16 @@ func (p *PostgresDatabase) TearDown(ctx context.Context) error {
 // Pool connections will be reclaimed by the OS on process exit.
 func (p *PostgresDatabase) Close() {}
 
-// PopulateHistoricalJobs inserts a batch of terminal historical jobs directly
-// into the Lookout database using four server-side INSERT ... SELECT FROM
-// generate_series statements, avoiding the overhead of per-row Go logic.
+const (
+	defaultHistoricalJobChunkSize = 500000
+	maxChunkRetries               = 3
+	retryBaseDelay                = 5 * time.Second
+)
+
+// PopulateHistoricalJobs inserts terminal historical jobs in chunks, with
+// automatic resume on restart. Each chunk is a separate transaction so that
+// progress survives interruptions. On entry the method queries the database
+// to find the highest job index already present and resumes from there.
 func (p *PostgresDatabase) PopulateHistoricalJobs(ctx context.Context, params HistoricalJobsParams) error {
 	if params.NJobs == 0 {
 		return nil
@@ -250,11 +259,110 @@ func (p *PostgresDatabase) PopulateHistoricalJobs(ctx context.Context, params Hi
 		return fmt.Errorf("queue/jobset names must not contain single quotes")
 	}
 
+	chunkSize := params.ChunkSize
+	if chunkSize <= 0 {
+		chunkSize = defaultHistoricalJobChunkSize
+	}
+
+	startFrom, err := p.detectHistoricalJobProgress(ctx, params.QueueIdx, params.JobSetIdx)
+	if err != nil {
+		return fmt.Errorf("detecting historical job progress: %w", err)
+	}
+
+	if startFrom >= params.NJobs {
+		logging.Infof("Historical jobs: queue %q jobset %q: already complete (%d/%d)",
+			params.QueueName, params.JobSetName, params.NJobs, params.NJobs)
+		return nil
+	}
+
+	if startFrom > 0 {
+		logging.Infof("Historical jobs: queue %q jobset %q: resuming from %d/%d (%.1f%%)",
+			params.QueueName, params.JobSetName, startFrom, params.NJobs,
+			float64(startFrom)/float64(params.NJobs)*100)
+	}
+
+	for chunkStart := startFrom; chunkStart < params.NJobs; chunkStart += chunkSize {
+		chunkEnd := chunkStart + chunkSize
+		if chunkEnd > params.NJobs {
+			chunkEnd = params.NJobs
+		}
+		chunkLastIdx := chunkEnd - 1
+
+		if err := p.insertHistoricalJobChunkWithRetry(ctx, params, chunkStart, chunkLastIdx); err != nil {
+			return fmt.Errorf("inserting historical jobs chunk [%d, %d] for queue %s jobset %s: %w",
+				chunkStart, chunkLastIdx, params.QueueName, params.JobSetName, err)
+		}
+
+		logging.Infof("Historical jobs: queue %q jobset %q: %d/%d (%.1f%%)",
+			params.QueueName, params.JobSetName, chunkEnd, params.NJobs,
+			float64(chunkEnd)/float64(params.NJobs)*100)
+	}
+
+	return nil
+}
+
+// detectHistoricalJobProgress queries the database for the highest job index
+// already inserted for the given (queueIdx, jobSetIdx) pair. Returns the
+// index to resume from (i.e. maxExisting + 1), or 0 if nothing exists.
+func (p *PostgresDatabase) detectHistoricalJobProgress(ctx context.Context, queueIdx, jobSetIdx int) (int, error) {
+	prefix := fmt.Sprintf("%04d%04d", queueIdx, jobSetIdx)
+	var maxIdx int
+	err := p.pool.QueryRow(ctx,
+		`SELECT COALESCE(MAX(RIGHT(job_id, 10)::int), -1) FROM job WHERE job_id LIKE $1`,
+		prefix+"%",
+	).Scan(&maxIdx)
+	if err != nil {
+		return 0, fmt.Errorf("querying max job index for prefix %s: %w", prefix, err)
+	}
+	if maxIdx < 0 {
+		return 0, nil
+	}
+	return maxIdx + 1, nil
+}
+
+// insertHistoricalJobChunkWithRetry attempts to insert a chunk, retrying on
+// transient failures. Between retries it re-queries progress in case the
+// previous attempt actually committed (e.g. connection dropped after the
+// server processed COMMIT but before the client received the ack).
+func (p *PostgresDatabase) insertHistoricalJobChunkWithRetry(ctx context.Context, params HistoricalJobsParams, chunkStart, chunkLastIdx int) error {
+	var lastErr error
+	for attempt := range maxChunkRetries + 1 {
+		if attempt > 0 {
+			progress, err := p.detectHistoricalJobProgress(ctx, params.QueueIdx, params.JobSetIdx)
+			if err != nil {
+				logging.WithError(err).Warn("Failed to re-check progress during retry")
+			} else if progress > chunkLastIdx {
+				return nil
+			}
+
+			backoff := time.Duration(attempt) * retryBaseDelay
+			logging.Infof("Historical jobs: retrying chunk [%d, %d] (attempt %d/%d) after %v",
+				chunkStart, chunkLastIdx, attempt+1, maxChunkRetries+1, backoff)
+			select {
+			case <-time.After(backoff):
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		}
+
+		lastErr = p.insertHistoricalJobChunk(ctx, params, chunkStart, chunkLastIdx)
+		if lastErr == nil {
+			return nil
+		}
+
+		logging.WithError(lastErr).Warnf("Historical jobs: chunk [%d, %d] failed (attempt %d/%d)",
+			chunkStart, chunkLastIdx, attempt+1, maxChunkRetries+1)
+	}
+	return lastErr
+}
+
+// insertHistoricalJobChunk inserts a single chunk [startIdx, lastIdx] of
+// historical jobs in one transaction using server-side generate_series.
+func (p *PostgresDatabase) insertHistoricalJobChunk(ctx context.Context, params HistoricalJobsParams, startIdx, lastIdx int) error {
 	prefix := fmt.Sprintf("%04d%04d", params.QueueIdx, params.JobSetIdx)
 	succeeded := params.SucceededThreshold
 	errored := params.ErroredThreshold
 	cancelled := params.CancelledThreshold
-	lastIdx := params.NJobs - 1
 
 	cpuArr := int64SliceToSQL(jobspec.CpuOptions)
 	memArr := int64SliceToSQL(jobspec.MemoryOptions)
@@ -299,7 +407,7 @@ SELECT
          THEN 'user requested' END,
     CASE WHEN i%%1000 >= %d AND i%%1000 < %d
          THEN '%s' END
-FROM generate_series(0, %d) AS i`,
+FROM generate_series(%d, %d) AS i`,
 		prefix,
 		params.QueueName, params.QueueName,
 		nsArr, len(jobspec.NamespaceOptions),
@@ -315,14 +423,14 @@ FROM generate_series(0, %d) AS i`,
 		errored, cancelled,
 		errored, cancelled,
 		errored, cancelled, params.QueueName,
-		lastIdx,
+		startIdx, lastIdx,
 	)
 
 	jobSpecSQL := fmt.Sprintf(`
 INSERT INTO job_spec (job_id, job_spec)
 SELECT '%s' || lpad(i::text, 10, '0'), $1::bytea
-FROM generate_series(0, %d) AS i`,
-		prefix, lastIdx,
+FROM generate_series(%d, %d) AS i`,
+		prefix, startIdx, lastIdx,
 	)
 
 	jobRunSQL := fmt.Sprintf(`
@@ -349,7 +457,7 @@ SELECT
     END,
     CASE WHEN i%%1000 >= %d AND i%%1000 < %d THEN $2::bytea END,
     CASE WHEN i%%1000 < %d THEN 0 END
-FROM generate_series(0, %d) AS i`,
+FROM generate_series(%d, %d) AS i`,
 		prefix, prefix,
 		poolArr, len(jobspec.PoolOptions),
 		succeeded, errored, cancelled,
@@ -357,15 +465,15 @@ FROM generate_series(0, %d) AS i`,
 		cancelled,
 		succeeded, errored,
 		errored,
-		lastIdx,
+		startIdx, lastIdx,
 	)
 
 	jobErrorSQL := fmt.Sprintf(`
 INSERT INTO job_error (job_id, error)
 SELECT '%s' || lpad(i::text, 10, '0'), $1::bytea
-FROM generate_series(0, %d) AS i
+FROM generate_series(%d, %d) AS i
 WHERE i%%1000 >= %d AND i%%1000 < %d`,
-		prefix, lastIdx, succeeded, errored,
+		prefix, startIdx, lastIdx, succeeded, errored,
 	)
 
 	tx, err := p.pool.Begin(ctx)

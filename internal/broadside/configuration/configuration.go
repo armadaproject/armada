@@ -26,6 +26,9 @@ type IngestionConfig struct {
 	ChannelBufferSizeMultiplier int                      `yaml:"channelBufferSizeMultiplier,omitempty"`
 	MaxBacklogSize              int                      `yaml:"maxBacklogSize,omitempty"`
 	BacklogDropStrategy         string                   `yaml:"backlogDropStrategy,omitempty"`
+	BatchTimeout                time.Duration            `yaml:"batchTimeout,omitempty"`
+	HistoricalJobChunkSize      int                      `yaml:"historicalJobChunkSize,omitempty"`
+	HistoricalJobWorkers        int                      `yaml:"historicalJobWorkers,omitempty"`
 	JobStateTransitionConfig    JobStateTransitionConfig `yaml:"jobStateTransitionConfig"`
 }
 
