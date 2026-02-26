@@ -74,7 +74,7 @@ func (p *PostgresDatabase) InitialiseSchema(ctx context.Context) error {
 	}
 
 	decompressor := &compress.NoOpDecompressor{}
-	p.lookoutDb = lookoutdb.NewLookoutDb(p.pool, nil, nil, 0)
+	p.lookoutDb = lookoutdb.NewLookoutDb(p.pool, nil, nil, 0, 0)
 	p.jobsRepository = repository.NewSqlGetJobsRepository(p.pool)
 	p.groupRepository = repository.NewSqlGroupJobsRepository(p.pool)
 	p.jobSpecRepository = repository.NewSqlGetJobSpecRepository(p.pool, decompressor)

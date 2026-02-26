@@ -17,7 +17,7 @@ import (
 func TestGetJobRunError(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		converter := instructions.NewInstructionConverter(metrics.Get().Metrics, userAnnotationPrefix, []string{}, &compress.NoOpCompressor{})
-		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
+		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10, 10)
 
 		errorStrings := []string{
 			"some bad error happened!",
