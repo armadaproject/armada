@@ -97,3 +97,83 @@ func TestPostgresDatabase_PopulateHistoricalJobs_StateDistribution(t *testing.T)
 	assert.Equal(t, 100, states["CANCELLED"])
 	assert.Equal(t, 100, states["PREEMPTED"])
 }
+
+func TestPostgresDatabase_PopulateHistoricalJobs_Chunked(t *testing.T) {
+	cfg := postgresConfig(t)
+	pg := db.NewPostgresDatabase(cfg)
+	ctx := context.Background()
+	require.NoError(t, pg.InitialiseSchema(ctx))
+	defer func() { _ = pg.TearDown(ctx) }()
+	defer pg.Close()
+
+	params := db.HistoricalJobsParams{
+		QueueIdx:           0,
+		JobSetIdx:          0,
+		QueueName:          "test-queue",
+		JobSetName:         "test-jobset",
+		NJobs:              500,
+		ChunkSize:          200,
+		SucceededThreshold: 700,
+		ErroredThreshold:   800,
+		CancelledThreshold: 900,
+		JobSpecBytes:       []byte("fakejobspec"),
+		ErrorBytes:         []byte("simulated error"),
+		DebugBytes:         []byte("debug"),
+		PreemptionBytes:    []byte("preempted"),
+	}
+
+	err := pg.PopulateHistoricalJobs(ctx, params)
+	require.NoError(t, err)
+
+	jobs, err := pg.GetJobs(&ctx, nil, false, nil, 0, 1000)
+	require.NoError(t, err)
+	assert.Len(t, jobs, 500)
+
+	// All 500 jobs have i < 700, so all should be SUCCEEDED
+	states := make(map[string]int)
+	for _, j := range jobs {
+		states[j.State]++
+	}
+	assert.Equal(t, 500, states["SUCCEEDED"])
+}
+
+func TestPostgresDatabase_PopulateHistoricalJobs_Resume(t *testing.T) {
+	cfg := postgresConfig(t)
+	pg := db.NewPostgresDatabase(cfg)
+	ctx := context.Background()
+	require.NoError(t, pg.InitialiseSchema(ctx))
+	defer func() { _ = pg.TearDown(ctx) }()
+	defer pg.Close()
+
+	params := db.HistoricalJobsParams{
+		QueueIdx:           0,
+		JobSetIdx:          0,
+		QueueName:          "test-queue",
+		JobSetName:         "test-jobset",
+		NJobs:              1000,
+		ChunkSize:          300,
+		SucceededThreshold: 800,
+		ErroredThreshold:   900,
+		CancelledThreshold: 950,
+		JobSpecBytes:       []byte("fakejobspec"),
+		ErrorBytes:         []byte("simulated error"),
+		DebugBytes:         []byte("debug"),
+		PreemptionBytes:    []byte("preempted"),
+	}
+
+	// First run: insert all 1000 jobs in chunks of 300
+	err := pg.PopulateHistoricalJobs(ctx, params)
+	require.NoError(t, err)
+
+	jobs, err := pg.GetJobs(&ctx, nil, false, nil, 0, 2000)
+	require.NoError(t, err)
+	assert.Len(t, jobs, 1000)
+
+	// Second run: should detect all jobs already exist and be a no-op
+	err = pg.PopulateHistoricalJobs(ctx, params)
+	require.NoError(t, err)
+
+	jobs, err = pg.GetJobs(&ctx, nil, false, nil, 0, 2000)
+	require.NoError(t, err)
+	assert.Len(t, jobs, 1000, "re-running should not create duplicates")
+}
