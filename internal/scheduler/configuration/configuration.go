@@ -124,6 +124,7 @@ type HttpConfig struct {
 type MetricsConfig struct {
 	Port                         uint16
 	RefreshInterval              time.Duration
+	QueuedJobPrimaryPoolOrder    []string
 	JobStateMetricsResetInterval time.Duration
 	// Used to calculate job seconds lost to preemption
 	// Calculate as if the job checkpoints at these different intervals

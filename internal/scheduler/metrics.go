@@ -62,15 +62,16 @@ func (m metricProvider) GetRunningJobMetrics(queueName string) []*commonmetrics.
 // MetricsCollector is a Prometheus Collector that handles scheduler metrics.
 // The metrics themselves are calculated asynchronously every refreshPeriod
 type MetricsCollector struct {
-	jobDb                 *jobdb.JobDb
-	queueCache            queue.QueueCache
-	bidPriceProvider      pricing.BidPriceProvider
-	executorRepository    database.ExecutorRepository
-	pools                 []configuration.PoolConfig
-	refreshPeriod         time.Duration
-	clock                 clock.WithTicker
-	state                 atomic.Value
-	floatingResourceTypes *floatingresources.FloatingResourceTypes
+	jobDb                              *jobdb.JobDb
+	queueCache                         queue.QueueCache
+	bidPriceProvider                   pricing.BidPriceProvider
+	executorRepository                 database.ExecutorRepository
+	pools                              []configuration.PoolConfig
+	queuedJobPrimaryPoolReportingOrder []string
+	refreshPeriod                      time.Duration
+	clock                              clock.WithTicker
+	state                              atomic.Value
+	floatingResourceTypes              *floatingresources.FloatingResourceTypes
 }
 
 func NewMetricsCollector(
@@ -79,19 +80,21 @@ func NewMetricsCollector(
 	bidPriceProvider pricing.BidPriceProvider,
 	executorRepository database.ExecutorRepository,
 	pools []configuration.PoolConfig,
+	queuedJobPrimaryPoolReportingOrder []string,
 	refreshPeriod time.Duration,
 	floatingResourceTypes *floatingresources.FloatingResourceTypes,
 ) *MetricsCollector {
 	return &MetricsCollector{
-		jobDb:                 jobDb,
-		queueCache:            queueCache,
-		bidPriceProvider:      bidPriceProvider,
-		executorRepository:    executorRepository,
-		pools:                 pools,
-		refreshPeriod:         refreshPeriod,
-		clock:                 clock.RealClock{},
-		state:                 atomic.Value{},
-		floatingResourceTypes: floatingResourceTypes,
+		jobDb:                              jobDb,
+		queueCache:                         queueCache,
+		bidPriceProvider:                   bidPriceProvider,
+		executorRepository:                 executorRepository,
+		pools:                              pools,
+		queuedJobPrimaryPoolReportingOrder: queuedJobPrimaryPoolReportingOrder,
+		refreshPeriod:                      refreshPeriod,
+		clock:                              clock.RealClock{},
+		state:                              atomic.Value{},
+		floatingResourceTypes:              floatingResourceTypes,
 	}
 }
 
@@ -239,10 +242,20 @@ func (c *MetricsCollector) updateQueueMetrics(ctx *armadacontext.Context) ([]pro
 			recorder = qs.runningJobRecorder
 			timeInState = currentTime.Sub(time.Unix(0, run.Created()))
 		}
+		primaryReportingPool := c.calculateQueuedJobPrimaryPool(job)
 		for _, pool := range pools {
-			recorder.RecordJobRuntime(pool, priorityClass, timeInState)
-			recorder.RecordResources(pool, priorityClass, job.GetPriceBand(), jobResources)
-			recorder.RecordBidPrice(pool, priorityClass, job.GetBidPrice(pool))
+			accountingRole := ""
+			if primaryReportingPool != "" {
+				if pool == primaryReportingPool {
+					accountingRole = commonmetrics.AccountingRolePrimary
+				} else {
+					accountingRole = commonmetrics.AccountingRoleSecondary
+				}
+			}
+
+			recorder.RecordJobRuntime(pool, priorityClass, accountingRole, timeInState)
+			recorder.RecordResources(pool, priorityClass, accountingRole, job.GetPriceBand(), jobResources)
+			recorder.RecordBidPrice(pool, priorityClass, accountingRole, job.GetBidPrice(pool))
 		}
 	}
 
@@ -252,6 +265,35 @@ func (c *MetricsCollector) updateQueueMetrics(ctx *armadacontext.Context) ([]pro
 
 	queueMetrics := commonmetrics.CollectQueueMetrics(c.pools, queuedJobsCount, bidPrices, queuedDistinctSchedulingKeysCount, provider)
 	return queueMetrics, nil
+}
+
+func (c *MetricsCollector) calculateQueuedJobPrimaryPool(job *jobdb.Job) string {
+	if !job.Queued() || !job.Validated() {
+		return ""
+	}
+
+	pools := job.Pools()
+	if len(pools) == 0 {
+		return ""
+	}
+
+	if len(pools) == 1 {
+		return pools[0]
+	}
+
+	poolSet := make(map[string]bool, len(pools))
+	for _, pool := range pools {
+		poolSet[pool] = true
+	}
+
+	for _, pool := range c.queuedJobPrimaryPoolReportingOrder {
+		if poolSet[pool] {
+			return pool
+		}
+	}
+
+	// fallback to first item
+	return pools[0]
 }
 
 type queueMetricKey struct {

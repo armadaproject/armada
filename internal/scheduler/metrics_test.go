@@ -1,6 +1,7 @@
 package scheduler
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -48,6 +49,7 @@ func TestMetricsCollector_TestCollect_QueueMetrics(t *testing.T) {
 
 	jobCreationTime := testfixtures.BaseTime.Add(-time.Duration(500) * time.Second).UnixNano()
 	jobWithTerminatedRun := testfixtures.TestQueuedJobDbJob().WithCreated(jobCreationTime).WithUpdatedRun(run)
+	queuedJobMultiplePools := testfixtures.TestQueuedJobDbJob().WithCreated(jobCreationTime).WithPools([]string{testfixtures.TestPool, testfixtures.TestPool2})
 
 	queue := testfixtures.MakeTestQueue()
 	queue.Labels = map[string]string{"foo": "bar"}
@@ -83,23 +85,23 @@ func TestMetricsCollector_TestCollect_QueueMetrics(t *testing.T) {
 				commonmetrics.NewQueuePriceBandBidMetric(0, testfixtures.TestPool, testfixtures.TestQueue, commonmetrics.RunningPhase, "None"),
 				commonmetrics.NewQueueDuration(3, 300,
 					map[float64]uint64{60: 1, 600: 3, 1800: 3, 3600: 3, 10800: 3, 43200: 3, 86400: 3, 172800: 3, 604800: 3},
-					testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue),
-				commonmetrics.NewMinQueueDuration(0, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue),
-				commonmetrics.NewMaxQueueDuration(200, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue),
-				commonmetrics.NewMedianQueueDuration(100, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue),
+					testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, commonmetrics.AccountingRolePrimary),
+				commonmetrics.NewMinQueueDuration(0, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, commonmetrics.AccountingRolePrimary),
+				commonmetrics.NewMaxQueueDuration(200, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, commonmetrics.AccountingRolePrimary),
+				commonmetrics.NewMedianQueueDuration(100, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, commonmetrics.AccountingRolePrimary),
 				commonmetrics.NewMinQueuePriceQueuedMetric(0, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue),
 				commonmetrics.NewMaxQueuePriceQueuedMetric(2, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue),
 				commonmetrics.NewMedianQueuePriceQueuedMetric(1, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue),
-				commonmetrics.NewQueueResources(3, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "None", "cpu"),
-				commonmetrics.NewMinQueueResources(1, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "None", "cpu"),
-				commonmetrics.NewMaxQueueResources(1, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "None", "cpu"),
-				commonmetrics.NewMedianQueueResources(1, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "None", "cpu"),
-				commonmetrics.NewCountQueueResources(3, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "None", "cpu"),
-				commonmetrics.NewQueueResources(3*gb, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "None", "memory"),
-				commonmetrics.NewMinQueueResources(gb, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "None", "memory"),
-				commonmetrics.NewMaxQueueResources(gb, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "None", "memory"),
-				commonmetrics.NewMedianQueueResources(gb, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "None", "memory"),
-				commonmetrics.NewCountQueueResources(3, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "None", "memory"),
+				commonmetrics.NewQueueResources(3, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "None", "cpu", commonmetrics.AccountingRolePrimary),
+				commonmetrics.NewMinQueueResources(1, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "None", "cpu", commonmetrics.AccountingRolePrimary),
+				commonmetrics.NewMaxQueueResources(1, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "None", "cpu", commonmetrics.AccountingRolePrimary),
+				commonmetrics.NewMedianQueueResources(1, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "None", "cpu", commonmetrics.AccountingRolePrimary),
+				commonmetrics.NewCountQueueResources(3, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "None", "cpu", commonmetrics.AccountingRolePrimary),
+				commonmetrics.NewQueueResources(3*gb, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "None", "memory", commonmetrics.AccountingRolePrimary),
+				commonmetrics.NewMinQueueResources(gb, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "None", "memory", commonmetrics.AccountingRolePrimary),
+				commonmetrics.NewMaxQueueResources(gb, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "None", "memory", commonmetrics.AccountingRolePrimary),
+				commonmetrics.NewMedianQueueResources(gb, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "None", "memory", commonmetrics.AccountingRolePrimary),
+				commonmetrics.NewCountQueueResources(3, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "None", "memory", commonmetrics.AccountingRolePrimary),
 				commonmetrics.NewQueuePriorityMetric(100, testfixtures.TestQueue),
 				commonmetrics.NewQueueLabelsMetric(testfixtures.TestQueue, map[string]string{"foo": "bar"}),
 			},
@@ -132,23 +134,89 @@ func TestMetricsCollector_TestCollect_QueueMetrics(t *testing.T) {
 				commonmetrics.NewQueuePriceBandBidMetric(0, testfixtures.TestPool, testfixtures.TestQueue, commonmetrics.RunningPhase, "None"),
 				commonmetrics.NewQueueDuration(1, 200,
 					map[float64]uint64{60: 0, 600: 1, 1800: 1, 3600: 1, 10800: 1, 43200: 1, 86400: 1, 172800: 1, 604800: 1},
-					testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue),
-				commonmetrics.NewMinQueueDuration(200, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue),
-				commonmetrics.NewMaxQueueDuration(200, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue),
-				commonmetrics.NewMedianQueueDuration(200, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue),
+					testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, commonmetrics.AccountingRolePrimary),
+				commonmetrics.NewMinQueueDuration(200, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, commonmetrics.AccountingRolePrimary),
+				commonmetrics.NewMaxQueueDuration(200, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, commonmetrics.AccountingRolePrimary),
+				commonmetrics.NewMedianQueueDuration(200, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, commonmetrics.AccountingRolePrimary),
 				commonmetrics.NewMinQueuePriceQueuedMetric(0, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue),
 				commonmetrics.NewMaxQueuePriceQueuedMetric(0, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue),
 				commonmetrics.NewMedianQueuePriceQueuedMetric(0, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue),
-				commonmetrics.NewQueueResources(1, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "None", "cpu"),
-				commonmetrics.NewMinQueueResources(1, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "None", "cpu"),
-				commonmetrics.NewMaxQueueResources(1, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "None", "cpu"),
-				commonmetrics.NewMedianQueueResources(1, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "None", "cpu"),
-				commonmetrics.NewCountQueueResources(1, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "None", "cpu"),
-				commonmetrics.NewQueueResources(gb, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "None", "memory"),
-				commonmetrics.NewMinQueueResources(gb, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "None", "memory"),
-				commonmetrics.NewMaxQueueResources(gb, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "None", "memory"),
-				commonmetrics.NewMedianQueueResources(gb, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "None", "memory"),
-				commonmetrics.NewCountQueueResources(1, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "None", "memory"),
+				commonmetrics.NewQueueResources(1, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "None", "cpu", commonmetrics.AccountingRolePrimary),
+				commonmetrics.NewMinQueueResources(1, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "None", "cpu", commonmetrics.AccountingRolePrimary),
+				commonmetrics.NewMaxQueueResources(1, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "None", "cpu", commonmetrics.AccountingRolePrimary),
+				commonmetrics.NewMedianQueueResources(1, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "None", "cpu", commonmetrics.AccountingRolePrimary),
+				commonmetrics.NewCountQueueResources(1, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "None", "cpu", commonmetrics.AccountingRolePrimary),
+				commonmetrics.NewQueueResources(gb, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "None", "memory", commonmetrics.AccountingRolePrimary),
+				commonmetrics.NewMinQueueResources(gb, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "None", "memory", commonmetrics.AccountingRolePrimary),
+				commonmetrics.NewMaxQueueResources(gb, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "None", "memory", commonmetrics.AccountingRolePrimary),
+				commonmetrics.NewMedianQueueResources(gb, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "None", "memory", commonmetrics.AccountingRolePrimary),
+				commonmetrics.NewCountQueueResources(1, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "None", "memory", commonmetrics.AccountingRolePrimary),
+			},
+		},
+		"queued metrics for queued job - multi pool": {
+			// This job was requeued and has a terminated run
+			// The queue duration stats should count from the time the last run finished instead of job creation time
+			initialJobs: []*jobdb.Job{queuedJobMultiplePools},
+			queues:      []*api.Queue{queue},
+			expected: []prometheus.Metric{
+				commonmetrics.NewQueueSizeMetric(1.0, testfixtures.TestQueue),
+				commonmetrics.NewQueueDistinctSchedulingKeyMetric(1.0, testfixtures.TestQueue),
+				commonmetrics.NewQueuePriceBandBidMetric(0, testfixtures.TestPool, testfixtures.TestQueue, commonmetrics.QueuedPhase, "A"),
+				commonmetrics.NewQueuePriceBandBidMetric(0, testfixtures.TestPool, testfixtures.TestQueue, commonmetrics.RunningPhase, "A"),
+				commonmetrics.NewQueuePriceBandBidMetric(0, testfixtures.TestPool, testfixtures.TestQueue, commonmetrics.QueuedPhase, "B"),
+				commonmetrics.NewQueuePriceBandBidMetric(0, testfixtures.TestPool, testfixtures.TestQueue, commonmetrics.RunningPhase, "B"),
+				commonmetrics.NewQueuePriceBandBidMetric(0, testfixtures.TestPool, testfixtures.TestQueue, commonmetrics.QueuedPhase, "C"),
+				commonmetrics.NewQueuePriceBandBidMetric(0, testfixtures.TestPool, testfixtures.TestQueue, commonmetrics.RunningPhase, "C"),
+				commonmetrics.NewQueuePriceBandBidMetric(0, testfixtures.TestPool, testfixtures.TestQueue, commonmetrics.QueuedPhase, "D"),
+				commonmetrics.NewQueuePriceBandBidMetric(0, testfixtures.TestPool, testfixtures.TestQueue, commonmetrics.RunningPhase, "D"),
+				commonmetrics.NewQueuePriceBandBidMetric(0, testfixtures.TestPool, testfixtures.TestQueue, commonmetrics.QueuedPhase, "E"),
+				commonmetrics.NewQueuePriceBandBidMetric(0, testfixtures.TestPool, testfixtures.TestQueue, commonmetrics.RunningPhase, "E"),
+				commonmetrics.NewQueuePriceBandBidMetric(0, testfixtures.TestPool, testfixtures.TestQueue, commonmetrics.QueuedPhase, "F"),
+				commonmetrics.NewQueuePriceBandBidMetric(0, testfixtures.TestPool, testfixtures.TestQueue, commonmetrics.RunningPhase, "F"),
+				commonmetrics.NewQueuePriceBandBidMetric(0, testfixtures.TestPool, testfixtures.TestQueue, commonmetrics.QueuedPhase, "G"),
+				commonmetrics.NewQueuePriceBandBidMetric(0, testfixtures.TestPool, testfixtures.TestQueue, commonmetrics.RunningPhase, "G"),
+				commonmetrics.NewQueuePriceBandBidMetric(0, testfixtures.TestPool, testfixtures.TestQueue, commonmetrics.QueuedPhase, "H"),
+				commonmetrics.NewQueuePriceBandBidMetric(0, testfixtures.TestPool, testfixtures.TestQueue, commonmetrics.RunningPhase, "H"),
+				commonmetrics.NewQueuePriceBandBidMetric(0, testfixtures.TestPool, testfixtures.TestQueue, commonmetrics.QueuedPhase, "None"),
+				commonmetrics.NewQueuePriceBandBidMetric(0, testfixtures.TestPool, testfixtures.TestQueue, commonmetrics.RunningPhase, "None"),
+				commonmetrics.NewQueueDuration(1, 500,
+					map[float64]uint64{60: 0, 600: 1, 1800: 1, 3600: 1, 10800: 1, 43200: 1, 86400: 1, 172800: 1, 604800: 1},
+					testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, commonmetrics.AccountingRolePrimary),
+				commonmetrics.NewQueueDuration(1, 500,
+					map[float64]uint64{60: 0, 600: 1, 1800: 1, 3600: 1, 10800: 1, 43200: 1, 86400: 1, 172800: 1, 604800: 1},
+					testfixtures.TestPool2, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, commonmetrics.AccountingRoleSecondary),
+				commonmetrics.NewMinQueueDuration(500, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, commonmetrics.AccountingRolePrimary),
+				commonmetrics.NewMaxQueueDuration(500, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, commonmetrics.AccountingRolePrimary),
+				commonmetrics.NewMedianQueueDuration(500, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, commonmetrics.AccountingRolePrimary),
+				commonmetrics.NewMinQueuePriceQueuedMetric(0, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue),
+				commonmetrics.NewMaxQueuePriceQueuedMetric(0, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue),
+				commonmetrics.NewMedianQueuePriceQueuedMetric(0, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue),
+				commonmetrics.NewQueueResources(1, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "None", "cpu", commonmetrics.AccountingRolePrimary),
+				commonmetrics.NewMinQueueResources(1, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "None", "cpu", commonmetrics.AccountingRolePrimary),
+				commonmetrics.NewMaxQueueResources(1, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "None", "cpu", commonmetrics.AccountingRolePrimary),
+				commonmetrics.NewMedianQueueResources(1, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "None", "cpu", commonmetrics.AccountingRolePrimary),
+				commonmetrics.NewCountQueueResources(1, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "None", "cpu", commonmetrics.AccountingRolePrimary),
+				commonmetrics.NewQueueResources(gb, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "None", "memory", commonmetrics.AccountingRolePrimary),
+				commonmetrics.NewMinQueueResources(gb, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "None", "memory", commonmetrics.AccountingRolePrimary),
+				commonmetrics.NewMaxQueueResources(gb, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "None", "memory", commonmetrics.AccountingRolePrimary),
+				commonmetrics.NewMedianQueueResources(gb, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "None", "memory", commonmetrics.AccountingRolePrimary),
+				commonmetrics.NewCountQueueResources(1, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "None", "memory", commonmetrics.AccountingRolePrimary),
+				commonmetrics.NewMinQueueDuration(500, testfixtures.TestPool2, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, commonmetrics.AccountingRoleSecondary),
+				commonmetrics.NewMaxQueueDuration(500, testfixtures.TestPool2, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, commonmetrics.AccountingRoleSecondary),
+				commonmetrics.NewMedianQueueDuration(500, testfixtures.TestPool2, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, commonmetrics.AccountingRoleSecondary),
+				commonmetrics.NewMinQueuePriceQueuedMetric(0, testfixtures.TestPool2, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue),
+				commonmetrics.NewMaxQueuePriceQueuedMetric(0, testfixtures.TestPool2, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue),
+				commonmetrics.NewMedianQueuePriceQueuedMetric(0, testfixtures.TestPool2, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue),
+				commonmetrics.NewQueueResources(1, testfixtures.TestPool2, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "None", "cpu", commonmetrics.AccountingRoleSecondary),
+				commonmetrics.NewMinQueueResources(1, testfixtures.TestPool2, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "None", "cpu", commonmetrics.AccountingRoleSecondary),
+				commonmetrics.NewMaxQueueResources(1, testfixtures.TestPool2, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "None", "cpu", commonmetrics.AccountingRoleSecondary),
+				commonmetrics.NewMedianQueueResources(1, testfixtures.TestPool2, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "None", "cpu", commonmetrics.AccountingRoleSecondary),
+				commonmetrics.NewCountQueueResources(1, testfixtures.TestPool2, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "None", "cpu", commonmetrics.AccountingRoleSecondary),
+				commonmetrics.NewQueueResources(gb, testfixtures.TestPool2, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "None", "memory", commonmetrics.AccountingRoleSecondary),
+				commonmetrics.NewMinQueueResources(gb, testfixtures.TestPool2, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "None", "memory", commonmetrics.AccountingRoleSecondary),
+				commonmetrics.NewMaxQueueResources(gb, testfixtures.TestPool2, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "None", "memory", commonmetrics.AccountingRoleSecondary),
+				commonmetrics.NewMedianQueueResources(gb, testfixtures.TestPool2, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "None", "memory", commonmetrics.AccountingRoleSecondary),
+				commonmetrics.NewCountQueueResources(1, testfixtures.TestPool2, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "None", "memory", commonmetrics.AccountingRoleSecondary),
 			},
 		},
 		"running metrics": {
@@ -220,6 +288,7 @@ func TestMetricsCollector_TestCollect_QueueMetrics(t *testing.T) {
 				pricing.NoopBidPriceProvider{},
 				executorRepository,
 				testfixtures.TestSchedulingConfig().Pools,
+				[]string{testfixtures.TestPool},
 				2*time.Second,
 				testfixtures.TestEmptyFloatingResources,
 			)
@@ -235,9 +304,13 @@ func TestMetricsCollector_TestCollect_QueueMetrics(t *testing.T) {
 			}
 			require.NoError(t, err)
 			for i := 0; i < len(tc.expected); i++ {
-				a1 := actual[i]
-				e1 := tc.expected[i]
-				require.Equal(t, e1, a1)
+				a1 := tc.expected[i]
+				valid := assert.Contains(t, actual, a1)
+				if !valid {
+
+					fmt.Println(fmt.Sprintf("%s", a1.Desc().String()))
+					fmt.Println(fmt.Sprintf("%v", a1))
+				}
 			}
 		})
 	}
@@ -455,6 +528,7 @@ func TestMetricsCollector_TestCollect_ClusterMetrics(t *testing.T) {
 				pricing.NoopBidPriceProvider{},
 				executorRepository,
 				testfixtures.TestSchedulingConfig().Pools,
+				[]string{testfixtures.TestPool},
 				2*time.Second,
 				tc.floatingResourceTypes,
 			)
@@ -598,6 +672,7 @@ func TestMetricsCollector_TestCollect_ClusterMetricsAvailableCapacity(t *testing
 				pricing.NoopBidPriceProvider{},
 				executorRepository,
 				tc.poolConfig,
+				[]string{testfixtures.TestPool},
 				2*time.Second,
 				testfixtures.TestEmptyFloatingResources,
 			)

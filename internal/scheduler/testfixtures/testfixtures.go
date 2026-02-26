@@ -1082,7 +1082,7 @@ func TestQueuedJobDbJob() *jobdb.Job {
 		false,
 		false,
 		BaseTime.UnixNano(),
-		false,
+		true,
 		[]string{TestPool},
 		0,
 	)
