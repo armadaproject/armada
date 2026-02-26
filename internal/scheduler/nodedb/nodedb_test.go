@@ -571,7 +571,7 @@ func TestScheduleMany(t *testing.T) {
 	}
 }
 
-func TestDeniedResourceTypes(t *testing.T) {
+func TestDisallowedJobResources(t *testing.T) {
 	tests := map[string]struct {
 		disallowedJobResources []string
 		job                    *jobdb.Job
