@@ -79,9 +79,8 @@ func TestMutate(t *testing.T) {
 
 func TestValidate_SchedulingTimeoutConfig(t *testing.T) {
 	tests := map[string]struct {
-		config               func(c Configuration) Configuration
-		expectSuccess        bool
-		expectedErrorMessage string
+		config        func(c Configuration) Configuration
+		expectSuccess bool
 	}{
 		"valid - empty": {
 			config:        func(c Configuration) Configuration { return c },
@@ -109,8 +108,7 @@ func TestValidate_SchedulingTimeoutConfig(t *testing.T) {
 				c.Scheduling.MaxNewJobSchedulingDuration = time.Second * 11
 				return c
 			},
-			expectSuccess:        false,
-			expectedErrorMessage: InvalidGlobalSchedulingTimeoutErrorMessage,
+			expectSuccess: false,
 		},
 		"invalid - MaxNewJobSchedulingDurationPerQueue greater than MaxSchedulingDuration": {
 			config: func(c Configuration) Configuration {
@@ -118,8 +116,7 @@ func TestValidate_SchedulingTimeoutConfig(t *testing.T) {
 				c.Scheduling.MaxNewJobSchedulingDurationPerQueue = time.Second * 11
 				return c
 			},
-			expectSuccess:        false,
-			expectedErrorMessage: InvalidQueueSchedulingTimeoutErrorMessage,
+			expectSuccess: false,
 		},
 	}
 	for name, tc := range tests {
@@ -132,8 +129,6 @@ func TestValidate_SchedulingTimeoutConfig(t *testing.T) {
 				assert.NoError(t, err)
 			} else {
 				assert.Error(t, err)
-				s := err.Error()
-				assert.Contains(t, s, tc.expectedErrorMessage)
 			}
 		})
 	}

@@ -176,7 +176,7 @@ type SchedulingConfig struct {
 	// the system indefinitely.
 	//
 	// Must be greater than MaxNewJobSchedulingDuration and MaxNewJobSchedulingDurationPerQueue.
-	MaxSchedulingDuration time.Duration `validate:"required"`
+	MaxSchedulingDuration time.Duration `validate:"required,gt=0"`
 	// MaxNewJobSchedulingDuration is the soft timeout for scheduling new jobs.
 	// When exceeded, the scheduler stops considering new jobs and only
 	// attempts to reschedule evicted jobs for the remainder of the cycle.
@@ -186,7 +186,7 @@ type SchedulingConfig struct {
 	//
 	// Set to 0 to disable (scheduler will schedule new jobs until hard timeout).
 	// Must be less than MaxSchedulingDuration when non-zero.
-	MaxNewJobSchedulingDuration time.Duration
+	MaxNewJobSchedulingDuration time.Duration `validate:"omitempty,ltfield=MaxSchedulingDuration"`
 	// MaxNewJobSchedulingDurationPerQueue is the soft timeout for scheduling new jobs for a queue.
 	// When exceeded, the scheduler stops considering new jobs for that queue and only
 	// attempts to reschedule evicted jobs for the remainder of the cycle.
@@ -196,7 +196,7 @@ type SchedulingConfig struct {
 	//
 	// Set to 0 to disable (scheduler will schedule new jobs until hard timeout).
 	// Must be less than MaxSchedulingDuration when non-zero.
-	MaxNewJobSchedulingDurationPerQueue time.Duration
+	MaxNewJobSchedulingDurationPerQueue time.Duration `validate:"omitempty,ltfield=MaxSchedulingDuration"`
 	// Set to true to enable scheduler assertions. This results in some performance loss.
 	EnableAssertions bool
 	// Experimental
@@ -338,8 +338,6 @@ const (
 	DuplicateWellKnownNodeTypeErrorMessage     = "duplicate well-known node type name"
 	AwayNodeTypesWithoutPreemptionErrorMessage = "priority class has away node types but is not preemptible"
 	UnknownWellKnownNodeTypeErrorMessage       = "priority class refers to unknown well-known node type"
-	InvalidGlobalSchedulingTimeoutErrorMessage = "MaxNewJobSchedulingDuration must be less than MaxSchedulingDuration"
-	InvalidQueueSchedulingTimeoutErrorMessage  = "MaxNewJobSchedulingDurationPerQueue must be less than MaxNewJobSchedulingDuration"
 	WildCardWellKnownNodeTypeValue             = "*"
 )
 

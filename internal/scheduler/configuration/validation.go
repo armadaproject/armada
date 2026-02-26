@@ -3,10 +3,9 @@ package configuration
 import (
 	"fmt"
 
-	"github.com/go-playground/validator/v10"
-
 	"github.com/armadaproject/armada/internal/common/config"
 	log "github.com/armadaproject/armada/internal/common/logging"
+	"github.com/go-playground/validator/v10"
 )
 
 func (c *Configuration) Mutate() (config.Config, error) {
@@ -31,22 +30,6 @@ func (c *Configuration) Validate() error {
 
 func SchedulingConfigValidation(sl validator.StructLevel) {
 	c := sl.Current().Interface().(SchedulingConfig)
-
-	// Validate scheduling timeouts
-	if c.MaxNewJobSchedulingDuration > 0 && c.MaxNewJobSchedulingDuration >= c.MaxSchedulingDuration {
-		errString := fmt.Sprintf("%s: MaxNewJobSchedulingDuration=%v, MaxSchedulingDuration=%v",
-			InvalidGlobalSchedulingTimeoutErrorMessage,
-			c.MaxNewJobSchedulingDuration,
-			c.MaxSchedulingDuration)
-		sl.ReportError("MaxNewJobSchedulingDuration", "", "", errString, "")
-	}
-	if c.MaxNewJobSchedulingDurationPerQueue > 0 && c.MaxNewJobSchedulingDurationPerQueue >= c.MaxSchedulingDuration {
-		errString := fmt.Sprintf("%s: MaxNewJobSchedulingDurationPerQueue=%v, MaxSchedulingDuration=%v",
-			InvalidQueueSchedulingTimeoutErrorMessage,
-			c.MaxNewJobSchedulingDurationPerQueue,
-			c.MaxSchedulingDuration)
-		sl.ReportError("MaxNewJobSchedulingDurationPerQueue", "", "", errString, "")
-	}
 
 	wellKnownNodeTypes := make(map[string]bool)
 	for i, wellKnownNodeType := range c.WellKnownNodeTypes {
