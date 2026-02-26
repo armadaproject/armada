@@ -40,6 +40,7 @@ var (
 		makeTestResourceListFactory(),
 	)
 	scheduledAtPriority = int32(5)
+	testPreemptReason   = "test preempt reason"
 )
 
 func init() {
@@ -59,6 +60,7 @@ var baseJobRun = jobDb.CreateRun(
 	false,
 	false,
 	false,
+	nil,
 	false,
 	false,
 	false,
@@ -136,6 +138,7 @@ func TestDeepCopy(t *testing.T) {
 		true,
 		true,
 		true,
+		&testPreemptReason,
 		true,
 		true,
 		true,
@@ -161,6 +164,7 @@ func TestDeepCopy(t *testing.T) {
 		true,
 		true,
 		true,
+		&testPreemptReason,
 		true,
 		true,
 		true,

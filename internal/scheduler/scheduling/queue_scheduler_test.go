@@ -949,6 +949,139 @@ func createJobRepoWithJobs(jctxs ...[]*context.JobSchedulingContext) *InMemoryJo
 	return jobRepo
 }
 
+func TestQueuedGangIterator(t *testing.T) {
+	tests := map[string]struct {
+		jctxs                 []*context.JobSchedulingContext
+		maxLookback           uint
+		onlyYieldEvicted      bool
+		expectReturnedIndexes []int
+	}{
+		"iterates all jobs": {
+			jctxs: []*context.JobSchedulingContext{
+				createJctx(false),
+				createJctx(false),
+				createJctx(true),
+			},
+			maxLookback:           1000,
+			expectReturnedIndexes: []int{0, 1, 2},
+		},
+		"max lookback": {
+			jctxs: []*context.JobSchedulingContext{
+				createJctx(false),
+				createJctx(false),
+				createJctx(false),
+				createJctx(false),
+			},
+			maxLookback:           2,
+			expectReturnedIndexes: []int{0, 1},
+		},
+		"max lookback - still returns all evicted jobs": {
+			jctxs: []*context.JobSchedulingContext{
+				createJctx(false),
+				createJctx(false),
+				createJctx(true),
+				createJctx(true),
+			},
+			maxLookback:           1,
+			expectReturnedIndexes: []int{0, 2, 3},
+		},
+		"only yield evicted": {
+			jctxs: []*context.JobSchedulingContext{
+				createJctx(false),
+				createJctx(true),
+				createJctx(true),
+				createJctx(false),
+			},
+			maxLookback:           1000,
+			onlyYieldEvicted:      true,
+			expectReturnedIndexes: []int{1, 2},
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			sctx := context.NewSchedulingContext("pool", nil, nil, testfixtures.TestResourceListFactory.MakeAllZero())
+			it := NewQueuedGangIterator(sctx, NewInMemoryJobIterator(tc.jctxs), tc.maxLookback, false)
+			if tc.onlyYieldEvicted {
+				it.OnlyYieldEvicted()
+			}
+
+			expected := []string{}
+			for _, index := range tc.expectReturnedIndexes {
+				expected = append(expected, tc.jctxs[index].JobId)
+			}
+
+			result := make([]string, 0)
+			for {
+				gctx, err := it.Peek()
+				require.NoError(t, err)
+				if gctx == nil {
+					break
+				}
+				assert.Len(t, gctx.JobSchedulingContexts, 1)
+				result = append(result, gctx.JobSchedulingContexts[0].Job.Id())
+				it.Clear()
+			}
+
+			assert.Equal(t, expected, result)
+		})
+	}
+}
+
+func TestQueuedGangIterator_OnlyYieldEvicted_TopItemEvicted(t *testing.T) {
+	jctxs := []*context.JobSchedulingContext{
+		createJctx(true),
+		createJctx(true),
+		createJctx(true),
+	}
+
+	sctx := context.NewSchedulingContext("pool", nil, nil, testfixtures.TestResourceListFactory.MakeAllZero())
+	it := NewQueuedGangIterator(sctx, NewInMemoryJobIterator(jctxs), 1, false)
+
+	gctx, err := it.Peek()
+	require.NoError(t, err)
+	assert.Len(t, gctx.JobSchedulingContexts, 1)
+	assert.Equal(t, jctxs[0].JobId, gctx.JobSchedulingContexts[0].JobId)
+
+	it.OnlyYieldEvicted()
+
+	// No change expected as first job is evicted
+	gctx, err = it.Peek()
+	require.NoError(t, err)
+	assert.Len(t, gctx.JobSchedulingContexts, 1)
+	assert.Equal(t, jctxs[0].JobId, gctx.JobSchedulingContexts[0].JobId)
+}
+
+func TestQueuedGangIterator_OnlyYieldEvicted_TopItemNonEvicted(t *testing.T) {
+	jctxs := []*context.JobSchedulingContext{
+		createJctx(false),
+		createJctx(true),
+		createJctx(true),
+	}
+
+	sctx := context.NewSchedulingContext("pool", nil, nil, testfixtures.TestResourceListFactory.MakeAllZero())
+	it := NewQueuedGangIterator(sctx, NewInMemoryJobIterator(jctxs), 1, false)
+
+	gctx, err := it.Peek()
+	require.NoError(t, err)
+	assert.Len(t, gctx.JobSchedulingContexts, 1)
+	assert.Equal(t, jctxs[0].JobId, gctx.JobSchedulingContexts[0].JobId)
+
+	it.OnlyYieldEvicted()
+
+	gctx, err = it.Peek()
+	require.NoError(t, err)
+	assert.Len(t, gctx.JobSchedulingContexts, 1)
+	assert.Equal(t, jctxs[1].JobId, gctx.JobSchedulingContexts[0].JobId)
+}
+
+func createJctx(evicted bool) *context.JobSchedulingContext {
+	job := testfixtures.Test1Cpu4GiJob("A", testfixtures.PriorityClass0)
+	jctx := context.JobSchedulingContextFromJob(job)
+	jctx.IsEvicted = evicted
+	return jctx
+}
+
 func TestQueueSchedulerTimeouts(t *testing.T) {
 	tests := map[string]struct {
 		softTimeout       time.Duration

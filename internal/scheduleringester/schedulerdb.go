@@ -228,13 +228,27 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 			return errors.WithStack(err)
 		}
 	case MarkRunsForJobPreemptRequested:
-		for key, value := range o {
-			params := schedulerdb.MarkJobRunsPreemptRequestedByJobIdParams{
-				Queue:  key.queue,
-				JobSet: key.jobSet,
-				JobIds: value,
+		const batchSize = 5000
+		markRunsPreemptRequestedSqlStatement := "UPDATE runs SET preempt_requested = true, preempt_reason = $1 WHERE queue = $2 and job_set = $3 and job_id = ANY($4::text[]) and terminated = false"
+
+		for key, preemptReason := range o {
+			// group by reason
+			reasonToJobIds := make(map[string][]string)
+			for jobId, reason := range preemptReason {
+				reasonToJobIds[reason] = append(reasonToJobIds[reason], jobId)
 			}
-			err := queries.MarkJobRunsPreemptRequestedByJobId(ctx, params)
+
+			// batch updates for jobs with the same reason
+			batch := &pgx.Batch{}
+			for reason, jobIds := range reasonToJobIds {
+				for i := 0; i < len(jobIds); i += batchSize {
+					end := min(i+batchSize, len(jobIds))
+					jobIdBatch := jobIds[i:end]
+					batch.Queue(markRunsPreemptRequestedSqlStatement, reason, key.queue, key.jobSet, jobIdBatch)
+				}
+			}
+
+			err := execBatch(ctx, tx, batch)
 			if err != nil {
 				return errors.WithStack(err)
 			}

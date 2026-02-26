@@ -59,8 +59,6 @@ func TestMarketDrivenPreemptingQueueScheduler(t *testing.T) {
 		Rounds []SchedulingRound
 		// Map from queue to the priority factor associated with that queue.
 		PriorityFactorByQueue map[string]float64
-		// Map of nodeId to jobs running on those nodes
-		InitialRunningJobs map[int][]*jobdb.Job
 	}{
 		"three users, highest price jobs from single queue get on": {
 			SchedulingConfig: testfixtures.WithMarketBasedSchedulingEnabled(testfixtures.TestSchedulingConfig()),
@@ -294,6 +292,29 @@ func TestMarketDrivenPreemptingQueueScheduler(t *testing.T) {
 				},
 			},
 			PriorityFactorByQueue: map[string]float64{"A": 1, "B": 1},
+		},
+		"reschedules evicted jobs if scheduling limits hit": {
+			SchedulingConfig: testfixtures.WithGlobalSchedulingRateLimiterConfig(1, 1, testfixtures.WithMarketBasedSchedulingEnabled(testfixtures.TestSchedulingConfig())),
+			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			Rounds: []SchedulingRound{
+				{
+					JobsByQueue: map[string][]*jobdb.Job{
+						"A": testfixtures.N1Cpu4GiJobsWithPriceBand("A", bidstore.PriceBand_PRICE_BAND_B, 32),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": testfixtures.IntRange(0, 0),
+					},
+				},
+				{
+					JobsByQueue: map[string][]*jobdb.Job{
+						"A": testfixtures.N1Cpu4GiJobsWithPriceBand("A", bidstore.PriceBand_PRICE_BAND_C, 31),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": testfixtures.IntRange(0, 0),
+					},
+				},
+			},
+			PriorityFactorByQueue: map[string]float64{"A": 1},
 		},
 		"gang preemption": {
 			SchedulingConfig: testfixtures.WithMarketBasedSchedulingEnabled(testfixtures.TestSchedulingConfig()),
@@ -540,18 +561,6 @@ func TestMarketDrivenPreemptingQueueScheduler(t *testing.T) {
 
 			jobDb := jobdb.NewJobDb(tc.SchedulingConfig.PriorityClasses, tc.SchedulingConfig.DefaultPriorityClassName, stringinterner.New(1024), testfixtures.TestResourceListFactory)
 			jobDbTxn := jobDb.WriteTxn()
-
-			// Add all the initial jobs, creating runs for them
-			for nodeIdx, jobs := range tc.InitialRunningJobs {
-				node := tc.Nodes[nodeIdx]
-				for _, job := range jobs {
-					err := jobDbTxn.Upsert([]*jobdb.Job{
-						job.WithQueued(false).
-							WithNewRun(node.GetExecutor(), node.GetId(), node.GetName(), node.GetPool(), job.PriorityClass().Priority),
-					})
-					require.NoError(t, err)
-				}
-			}
 
 			// Accounting across scheduling rounds.
 			roundByJobId := make(map[string]int)

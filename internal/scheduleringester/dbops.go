@@ -203,7 +203,7 @@ type (
 	UpdateJobQueuedState           map[string]*JobQueuedStateUpdate
 	MarkRunsSucceeded              map[string]time.Time
 	MarkRunsFailed                 map[string]*JobRunFailed
-	MarkRunsForJobPreemptRequested map[JobSetKey][]string
+	MarkRunsForJobPreemptRequested map[JobSetKey]map[string]string
 	MarkRunsRunning                map[string]time.Time
 	MarkRunsPending                map[string]time.Time
 	MarkRunsPreempted              map[string]time.Time
@@ -289,7 +289,21 @@ func (a MarkJobsCancelRequested) Merge(b DbOperation) bool {
 }
 
 func (a MarkRunsForJobPreemptRequested) Merge(b DbOperation) bool {
-	return mergeListMaps(a, b)
+	switch op := b.(type) {
+	case MarkRunsForJobPreemptRequested:
+		for k, v := range op {
+			if _, present := a[k]; present {
+				// merge the inner maps
+				for jobId, reason := range v {
+					a[k][jobId] = reason
+				}
+			} else {
+				a[k] = v
+			}
+		}
+		return true
+	}
+	return false
 }
 
 func (a UpdateJobSchedulingInfo) Merge(b DbOperation) bool {
@@ -429,27 +443,6 @@ func mergeInMap[M ~map[K]V, K comparable, V any](a M, b DbOperation) bool {
 	switch op := b.(type) {
 	case M:
 		maps.Copy(a, op)
-		return true
-	}
-	return false
-}
-
-// mergeListMaps merges an op b into a, provided that b is of the same type as a.
-// If merged, the resulting map will contain all keys from a and b
-// In case both a and b have the same key, the values for that key will be combined
-// Returns true if the ops were merged and false otherwise.
-func mergeListMaps[M ~map[K][]V, K comparable, V any](a M, b DbOperation) bool {
-	// Using a type switch here, since using a type assertion
-	// (which should also work in theory) crashes the go1.19 compiler.
-	switch op := b.(type) {
-	case M:
-		for k, v := range op {
-			if _, present := a[k]; present {
-				a[k] = append(a[k], v...)
-			} else {
-				a[k] = v
-			}
-		}
 		return true
 	}
 	return false

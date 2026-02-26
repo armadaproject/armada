@@ -382,6 +382,7 @@ func FromInternalJobRunRunning(queueName string, jobSetName string, time time.Ti
 		JobSetId: jobSetName,
 		Queue:    queueName,
 		Created:  protoutil.ToTimestamp(time),
+		Pool:     e.Pool,
 	}
 
 	if len(e.ResourceInfos) > 0 {
@@ -409,6 +410,7 @@ func FromInternalJobRunAssigned(queueName string, jobSetName string, time time.T
 		JobSetId: jobSetName,
 		Queue:    queueName,
 		Created:  protoutil.ToTimestamp(time),
+		Pool:     e.Pool,
 	}
 
 	if len(e.ResourceInfos) > 0 {

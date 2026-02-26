@@ -319,11 +319,11 @@ func TestKubernetesClusterContext_DeletePodWithCondition_WhenPodDoesNotExist(t *
 func TestKubernetesClusterContext_DeletePodWithCondition_ForceDeletesPod(t *testing.T) {
 	clusterContext, client := setupTest()
 	testClock := clock.NewFakeClock(time.Now())
-	// create a pod with a deletion event 5 minutes in the past. This should be ignored
+	// create a pod with a deletion event 4 minutes and 59 seconds in the past. This should be ignored as timeout is 5 mins
 	pod := createBatchPod()
 	pod.ObjectMeta.Annotations = map[string]string{domain.MarkedForDeletion: "now"}
 	pod.DeletionGracePeriodSeconds = pointer.Int64(10)
-	pod.DeletionTimestamp = &metav1.Time{Time: testClock.Now().Add(-300 * time.Second)}
+	pod.DeletionTimestamp = &metav1.Time{Time: testClock.Now().Add(-299 * time.Second)}
 	submitPodsWithWait(t, clusterContext, pod)
 	client.Fake.ClearActions()
 
@@ -333,11 +333,11 @@ func TestKubernetesClusterContext_DeletePodWithCondition_ForceDeletesPod(t *test
 	assert.NoError(t, err)
 	assert.Equal(t, len(client.Fake.Actions()), 0)
 
-	// create another pod with a deletion event 5 minutes and 10 seconds in the past. This should be force killed
+	// create another pod with a deletion event 5 minutes in the past. This should be force killed
 	pod = createBatchPod()
 	pod.ObjectMeta.Annotations = map[string]string{domain.MarkedForDeletion: "now"}
 	pod.DeletionGracePeriodSeconds = pointer.Int64(10)
-	pod.DeletionTimestamp = &metav1.Time{Time: testClock.Now().Add(-310 * time.Second)}
+	pod.DeletionTimestamp = &metav1.Time{Time: testClock.Now().Add(-300 * time.Second)}
 	submitPodsWithWait(t, clusterContext, pod)
 	client.Fake.ClearActions()
 
@@ -403,20 +403,20 @@ func TestKubernetesClusterContext_ProcessPodsToDelete_ForceKill(t *testing.T) {
 	clusterContext, client := setupTest()
 	testClock := clock.NewFakeClock(time.Now())
 
-	// create a pod with a deletion event 5 minutes in the past. This should be ignored
+	// create a pod with a deletion event 4 minutes and 59 seconds in the past. This should be ignored as timeout is 5 mins
 	pod := createSubmittedBatchPod(t, clusterContext)
 	pod.DeletionGracePeriodSeconds = pointer.Int64(10)
-	pod.DeletionTimestamp = &metav1.Time{Time: testClock.Now().Add(-300 * time.Second)}
+	pod.DeletionTimestamp = &metav1.Time{Time: testClock.Now().Add(-299 * time.Second)}
 	client.Fake.ClearActions()
 
 	clusterContext.DeletePods([]*v1.Pod{pod})
 	clusterContext.ProcessPodsToDelete()
 	assert.Equal(t, len(client.Fake.Actions()), 0)
 
-	// create another pod with a deletion event 5 minutes and 10 seconds in the past. This should be force killed
+	// create another pod with a deletion event 5 minutes in the past. This should be force killed
 	pod = createSubmittedBatchPod(t, clusterContext)
 	pod.DeletionGracePeriodSeconds = pointer.Int64(10)
-	pod.DeletionTimestamp = &metav1.Time{Time: testClock.Now().Add(-310 * time.Second)}
+	pod.DeletionTimestamp = &metav1.Time{Time: testClock.Now().Add(-300 * time.Second)}
 	client.Fake.ClearActions()
 
 	// submitPodsWithWait(t, clusterContext, pod)

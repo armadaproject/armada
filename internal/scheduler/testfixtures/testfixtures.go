@@ -533,7 +533,7 @@ func WithQueued(jobs []*jobdb.Job) []*jobdb.Job {
 	return jobs
 }
 
-func setPricing(job *jobdb.Job) *jobdb.Job {
+func SetPricing(job *jobdb.Job) *jobdb.Job {
 	runningBid := float64(job.GetPriceBand())
 	if !job.PriorityClass().Preemptible {
 		runningBid = pricing.NonPreemptibleRunningPrice
@@ -566,7 +566,7 @@ func N1Cpu4GiJobsWithPriceBandAndPriorityClass(queue string, priceBand bidstore.
 	for i := 0; i < n; i++ {
 		j := Test1Cpu4GiJob(queue, priorityClass)
 		j = j.WithPriceBand(priceBand)
-		j = setPricing(j)
+		j = SetPricing(j)
 		rv[i] = j
 	}
 	return rv
@@ -577,7 +577,7 @@ func N1GpuJobsWithPriceBandAndPriorityClass(queue string, priceBand bidstore.Pri
 	for i := 0; i < n; i++ {
 		j := Test1GpuJob(queue, priorityClass)
 		j = j.WithPriceBand(priceBand)
-		j = setPricing(j)
+		j = SetPricing(j)
 		rv[i] = j
 	}
 	return rv
@@ -695,7 +695,7 @@ func TestJob(queue string, jobId ulid.ULID, priorityClassName string, req *inter
 		[]string{TestPool},
 		0,
 	)
-	return setPricing(job)
+	return SetPricing(job)
 }
 
 func TestJobQueuedWithPrice(queue string, jobId ulid.ULID, priorityClassName string, price float64, req *internaltypes.PodRequirements) *jobdb.Job {

@@ -71,7 +71,7 @@ func Setup(lookoutIngesterConfig configuration.LookoutIngesterConfiguration, tes
 		fatalRegexes[i] = rgx
 	}
 
-	lookoutDb := lookoutdb.NewLookoutDb(db, fatalRegexes, m, lookoutIngesterConfig.MaxBackoff)
+	lookoutDb := lookoutdb.NewLookoutDb(db, fatalRegexes, m, lookoutIngesterConfig.MaxBackoff, 0)
 
 	// To avoid load testing the compression algorithm, the compressor is configured not to compress.
 	compressor, err := compress.NewZlibCompressor(math.MaxInt)

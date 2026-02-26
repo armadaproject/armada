@@ -205,14 +205,14 @@ func (mr *MockSubmitClientMockRecorder) Health(ctx, in any, opts ...any) *gomock
 }
 
 // PreemptJobs mocks base method.
-func (m *MockSubmitClient) PreemptJobs(ctx context.Context, in *api.JobPreemptRequest, opts ...grpc.CallOption) (*types.Empty, error) {
+func (m *MockSubmitClient) PreemptJobs(ctx context.Context, in *api.JobPreemptRequest, opts ...grpc.CallOption) (*api.PreemptionResult, error) {
 	m.ctrl.T.Helper()
 	varargs := []any{ctx, in}
 	for _, a := range opts {
 		varargs = append(varargs, a)
 	}
 	ret := m.ctrl.Call(m, "PreemptJobs", varargs...)
-	ret0, _ := ret[0].(*types.Empty)
+	ret0, _ := ret[0].(*api.PreemptionResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

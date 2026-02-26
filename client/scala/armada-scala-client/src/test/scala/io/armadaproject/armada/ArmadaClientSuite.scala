@@ -15,6 +15,7 @@ import api.submit.{
   JobSubmitRequestItem,
   JobSubmitResponse,
   JobSubmitResponseItem,
+  PreemptionResult,
   Queue,
   QueueDeleteRequest,
   QueueGetRequest,
@@ -268,8 +269,8 @@ private class SubmitMockServer(
 
   def preemptJobs(
       request: JobPreemptRequest
-  ): scala.concurrent.Future[com.google.protobuf.empty.Empty] = {
-    Future.successful(new Empty)
+  ): scala.concurrent.Future[PreemptionResult] = {
+    Future.successful(new PreemptionResult)
   }
 
   def reprioritizeJobs(

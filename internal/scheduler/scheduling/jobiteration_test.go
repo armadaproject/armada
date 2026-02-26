@@ -11,30 +11,51 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
+	"github.com/armadaproject/armada/pkg/bidstore"
 )
 
 func TestInMemoryJobRepository(t *testing.T) {
-	emptyRequirements := &internaltypes.PodRequirements{}
-	jobs := []*jobdb.Job{
-		testfixtures.TestJob("A", util.ULID(), "armada-default", emptyRequirements).WithCreated(3).WithPriority(1),
-		testfixtures.TestJob("A", util.ULID(), "armada-default", emptyRequirements).WithCreated(1).WithPriority(1),
-		testfixtures.TestJob("A", util.ULID(), "armada-default", emptyRequirements).WithCreated(2).WithPriority(1),
-		testfixtures.TestJob("A", util.ULID(), "armada-default", emptyRequirements).WithCreated(0).WithPriority(3),
-		testfixtures.TestJob("A", util.ULID(), "armada-default", emptyRequirements).WithCreated(0).WithPriority(0),
-		testfixtures.TestJob("A", util.ULID(), "armada-default", emptyRequirements).WithCreated(0).WithPriority(2),
-	}
-	jctxs := make([]*schedulercontext.JobSchedulingContext, len(jobs))
-	for i, job := range jobs {
-		jctxs[i] = &schedulercontext.JobSchedulingContext{Job: job, KubernetesResourceRequirements: job.KubernetesResourceRequirements()}
+	jctxs := []*schedulercontext.JobSchedulingContext{
+		createJctxCreatedTimeAndPriority("A", 3, 1, true),
+		createJctxCreatedTimeAndPriority("A", 1, 1, true),
+		createJctxCreatedTimeAndPriority("A", 2, 1, false),
+		createJctxCreatedTimeAndPriority("A", 0, 3, false),
+		createJctxCreatedTimeAndPriority("A", 0, 0, false),
+		createJctxCreatedTimeAndPriority("A", 0, 2, true),
 	}
 	repo := NewInMemoryJobRepository(testfixtures.TestPool, jobdb.JobPriorityComparer{})
 	repo.EnqueueMany(jctxs)
+	expected := []string{
+		jctxs[4].JobId, jctxs[1].JobId, jctxs[2].JobId, jctxs[0].JobId, jctxs[5].JobId, jctxs[3].JobId,
+	}
+	it := repo.GetJobIterator("A")
+	actual := getAllJobIdsFromIterator(t, it)
+	assert.Equal(t, expected, actual)
+}
+
+func TestInMemoryJobRepository_OnlyYieldEvicted(t *testing.T) {
+	jctxs := []*schedulercontext.JobSchedulingContext{
+		createJctxCreatedTimeAndPriority("A", 0, 1, true),
+		createJctxCreatedTimeAndPriority("A", 1, 1, true),
+		createJctxCreatedTimeAndPriority("A", 2, 1, false),
+		createJctxCreatedTimeAndPriority("A", 3, 1, false),
+		createJctxCreatedTimeAndPriority("A", 4, 1, false),
+		createJctxCreatedTimeAndPriority("A", 5, 1, true),
+	}
+
+	repo := NewInMemoryJobRepository(testfixtures.TestPool, jobdb.JobPriorityComparer{})
+	repo.EnqueueMany(jctxs)
 	expected := []*jobdb.Job{
-		jobs[4], jobs[1], jobs[2], jobs[0], jobs[5], jobs[3],
+		// OnlyYieldEvicted called after 2nd job
+		// We should still see the final job, as it is evicted
+		jctxs[0].Job, jctxs[1].Job, jctxs[5].Job,
 	}
 	actual := make([]*jobdb.Job, 0)
 	it := repo.GetJobIterator("A")
-	for {
+	for i := 0; ; i++ {
+		if i > 1 {
+			it.OnlyYieldEvicted()
+		}
 		jctx, err := it.Next()
 		require.NoError(t, err)
 		if jctx == nil {
@@ -66,9 +87,112 @@ func TestMultiJobsIterator_TwoQueues(t *testing.T) {
 	}
 	it := NewMultiJobsIterator(its...)
 
+	actual := getAllJobIdsFromIterator(t, it)
+	assert.Equal(t, expected, actual)
+	v, err := it.Next()
+	require.NoError(t, err)
+	require.Nil(t, v)
+}
+
+func TestMultiJobsIterator_OnlyYieldEvicted(t *testing.T) {
+	jctxs := []*schedulercontext.JobSchedulingContext{
+		createJctxCreatedTimeAndPriority("B", 0, 1, true),
+		createJctxCreatedTimeAndPriority("B", 1, 1, true),
+		createJctxCreatedTimeAndPriority("B", 2, 1, false),
+		createJctxCreatedTimeAndPriority("B", 3, 1, false),
+	}
+	inMemoryRepo := NewInMemoryJobRepository(testfixtures.TestPool, jobdb.JobPriorityComparer{})
+	inMemoryRepo.EnqueueMany(jctxs)
+
+	repo := newMockJobRepository()
+	for _, req := range testfixtures.N1CpuPodReqs("A", 0, 5) {
+		job := jobFromPodSpec("A", req)
+		repo.Enqueue(job)
+	}
+	it := NewQueuedJobsIterator("A", testfixtures.TestPool, jobdb.FairShareOrder, repo)
+
+	multiIt := NewMultiJobsIterator(inMemoryRepo.GetJobIterator("B"), it)
+	multiIt.OnlyYieldEvicted()
+
+	expected := []string{jctxs[0].JobId, jctxs[1].JobId}
+	actual := getAllJobIdsFromIterator(t, multiIt)
+	assert.Equal(t, expected, actual)
+	v, err := multiIt.Next()
+	require.NoError(t, err)
+	require.Nil(t, v)
+}
+
+func TestMarketDrivenMultiJobsIterator(t *testing.T) {
+	newJctxs := []*schedulercontext.JobSchedulingContext{
+		createJctxWithPrice("A", bidstore.PriceBand_PRICE_BAND_H, false),
+		createJctxWithPrice("A", bidstore.PriceBand_PRICE_BAND_C, false),
+	}
+	newJctxsRepo := NewInMemoryJobRepository(testfixtures.TestPool, jobdb.MarketJobPriorityComparer{})
+	newJctxsRepo.EnqueueMany(newJctxs)
+	evictedJctxs := []*schedulercontext.JobSchedulingContext{
+		createJctxWithPrice("A", bidstore.PriceBand_PRICE_BAND_F, true),
+		createJctxWithPrice("A", bidstore.PriceBand_PRICE_BAND_D, true),
+	}
+	evictedJctxsRepo := NewInMemoryJobRepository(testfixtures.TestPool, jobdb.MarketJobPriorityComparer{})
+	evictedJctxsRepo.EnqueueMany(evictedJctxs)
+	multiIt := NewMarketDrivenMultiJobsIterator(testfixtures.TestPool, newJctxsRepo.GetJobIterator("A"), evictedJctxsRepo.GetJobIterator("A"))
+
+	expected := []string{newJctxs[0].JobId, evictedJctxs[0].JobId, evictedJctxs[1].JobId, newJctxs[1].JobId}
+	actual := getAllJobIdsFromIterator(t, multiIt)
+	assert.Equal(t, expected, actual)
+	v, err := multiIt.Next()
+	require.NoError(t, err)
+	require.Nil(t, v)
+}
+
+func TestMarketDrivenMultiJobsIterator_OnlyYieldEvicted(t *testing.T) {
+	newJctxs := []*schedulercontext.JobSchedulingContext{
+		createJctxWithPrice("A", bidstore.PriceBand_PRICE_BAND_H, false),
+		createJctxWithPrice("A", bidstore.PriceBand_PRICE_BAND_H, false),
+	}
+	newJctxsRepo := NewInMemoryJobRepository(testfixtures.TestPool, jobdb.MarketJobPriorityComparer{})
+	newJctxsRepo.EnqueueMany(newJctxs)
+	evictedJctxs := []*schedulercontext.JobSchedulingContext{
+		createJctxWithPrice("A", bidstore.PriceBand_PRICE_BAND_F, true),
+		createJctxWithPrice("A", bidstore.PriceBand_PRICE_BAND_D, true),
+	}
+	evictedJctxsRepo := NewInMemoryJobRepository(testfixtures.TestPool, jobdb.MarketJobPriorityComparer{})
+	evictedJctxsRepo.EnqueueMany(evictedJctxs)
+	multiIt := NewMarketDrivenMultiJobsIterator(testfixtures.TestPool, newJctxsRepo.GetJobIterator("A"), evictedJctxsRepo.GetJobIterator("A"))
+	multiIt.OnlyYieldEvicted()
+
+	expected := []string{evictedJctxs[0].JobId, evictedJctxs[1].JobId}
+	actual := getAllJobIdsFromIterator(t, multiIt)
+	assert.Equal(t, expected, actual)
+	v, err := multiIt.Next()
+	require.NoError(t, err)
+	require.Nil(t, v)
+}
+
+func TestMarketDrivenMultiJobsIterator_OnlyYieldEvicted_CalledMidIteration(t *testing.T) {
+	jctxs1 := []*schedulercontext.JobSchedulingContext{
+		createJctxWithPrice("A", bidstore.PriceBand_PRICE_BAND_H, false),
+		createJctxWithPrice("A", bidstore.PriceBand_PRICE_BAND_E, false),
+		createJctxWithPrice("A", bidstore.PriceBand_PRICE_BAND_B, true),
+	}
+	jctxsRepo1 := NewInMemoryJobRepository(testfixtures.TestPool, jobdb.MarketJobPriorityComparer{})
+	jctxsRepo1.EnqueueMany(jctxs1)
+	jctxs2 := []*schedulercontext.JobSchedulingContext{
+		createJctxWithPrice("A", bidstore.PriceBand_PRICE_BAND_F, false),
+		createJctxWithPrice("A", bidstore.PriceBand_PRICE_BAND_F, false),
+		createJctxWithPrice("A", bidstore.PriceBand_PRICE_BAND_D, true),
+	}
+	jctxsRepo2 := NewInMemoryJobRepository(testfixtures.TestPool, jobdb.MarketJobPriorityComparer{})
+	jctxsRepo2.EnqueueMany(jctxs2)
+	multiIt := NewMarketDrivenMultiJobsIterator(testfixtures.TestPool, jctxsRepo1.GetJobIterator("A"), jctxsRepo2.GetJobIterator("A"))
+
+	expected := []string{jctxs1[0].JobId, jctxs2[0].JobId, jctxs2[2].JobId, jctxs1[2].JobId}
 	actual := make([]string, 0)
-	for {
-		jctx, err := it.Next()
+	for i := 0; ; i++ {
+		if i > 1 {
+			multiIt.OnlyYieldEvicted()
+		}
+		jctx, err := multiIt.Next()
 		require.NoError(t, err)
 		if jctx == nil {
 			break
@@ -76,7 +200,7 @@ func TestMultiJobsIterator_TwoQueues(t *testing.T) {
 		actual = append(actual, jctx.Job.Id())
 	}
 	assert.Equal(t, expected, actual)
-	v, err := it.Next()
+	v, err := multiIt.Next()
 	require.NoError(t, err)
 	require.Nil(t, v)
 }
@@ -90,15 +214,20 @@ func TestQueuedJobsIterator_OneQueue(t *testing.T) {
 		expected = append(expected, job.Id())
 	}
 	it := NewQueuedJobsIterator("A", testfixtures.TestPool, jobdb.FairShareOrder, repo)
-	actual := make([]string, 0)
-	for {
-		jctx, err := it.Next()
-		require.NoError(t, err)
-		if jctx == nil {
-			break
-		}
-		actual = append(actual, jctx.Job.Id())
+	actual := getAllJobIdsFromIterator(t, it)
+	assert.Equal(t, expected, actual)
+}
+
+func TestQueuedJobsIterator_OnlyYieldEvicted(t *testing.T) {
+	repo := newMockJobRepository()
+	for _, req := range testfixtures.N1CpuPodReqs("A", 0, 10) {
+		job := jobFromPodSpec("A", req)
+		repo.Enqueue(job)
 	}
+	it := NewQueuedJobsIterator("A", testfixtures.TestPool, jobdb.FairShareOrder, repo)
+	it.OnlyYieldEvicted()
+	expected := make([]string, 0)
+	actual := getAllJobIdsFromIterator(t, it)
 	assert.Equal(t, expected, actual)
 }
 
@@ -111,15 +240,7 @@ func TestQueuedJobsIterator_ExceedsBufferSize(t *testing.T) {
 		expected = append(expected, job.Id())
 	}
 	it := NewQueuedJobsIterator("A", testfixtures.TestPool, jobdb.FairShareOrder, repo)
-	actual := make([]string, 0)
-	for {
-		jctx, err := it.Next()
-		require.NoError(t, err)
-		if jctx == nil {
-			break
-		}
-		actual = append(actual, jctx.Job.Id())
-	}
+	actual := getAllJobIdsFromIterator(t, it)
 	assert.Equal(t, expected, actual)
 }
 
@@ -132,15 +253,7 @@ func TestQueuedJobsIterator_ManyJobs(t *testing.T) {
 		expected = append(expected, job.Id())
 	}
 	it := NewQueuedJobsIterator("A", testfixtures.TestPool, jobdb.FairShareOrder, repo)
-	actual := make([]string, 0)
-	for {
-		jctx, err := it.Next()
-		require.NoError(t, err)
-		if jctx == nil {
-			break
-		}
-		actual = append(actual, jctx.Job.Id())
-	}
+	actual := getAllJobIdsFromIterator(t, it)
 	assert.Equal(t, expected, actual)
 }
 
@@ -158,15 +271,7 @@ func TestCreateQueuedJobsIterator_TwoQueues(t *testing.T) {
 		repo.Enqueue(job)
 	}
 	it := NewQueuedJobsIterator("A", testfixtures.TestPool, jobdb.FairShareOrder, repo)
-	actual := make([]string, 0)
-	for {
-		jctx, err := it.Next()
-		require.NoError(t, err)
-		if jctx == nil {
-			break
-		}
-		actual = append(actual, jctx.Job.Id())
-	}
+	actual := getAllJobIdsFromIterator(t, it)
 	assert.Equal(t, expected, actual)
 }
 
@@ -183,6 +288,39 @@ func TestCreateQueuedJobsIterator_NilOnEmpty(t *testing.T) {
 	job, err := it.Next()
 	assert.Nil(t, job)
 	assert.NoError(t, err)
+}
+
+func getAllJobIdsFromIterator(t *testing.T, it JobContextIterator) []string {
+	result := make([]string, 0)
+	for {
+		jctx, err := it.Next()
+		require.NoError(t, err)
+		if jctx == nil {
+			break
+		}
+		result = append(result, jctx.Job.Id())
+	}
+	return result
+}
+
+func createJctxWithPrice(queue string, priceBand bidstore.PriceBand, evicted bool) *schedulercontext.JobSchedulingContext {
+	emptyRequirements := &internaltypes.PodRequirements{}
+	job := testfixtures.TestJob(queue, util.ULID(), "armada-preemptible", emptyRequirements)
+	job = job.WithPriceBand(priceBand)
+	job = testfixtures.SetPricing(job)
+	jctx := schedulercontext.JobSchedulingContextFromJob(job)
+	jctx.IsEvicted = evicted
+
+	return jctx
+}
+
+func createJctxCreatedTimeAndPriority(queue string, createdTime int64, priority uint32, evicted bool) *schedulercontext.JobSchedulingContext {
+	emptyRequirements := &internaltypes.PodRequirements{}
+	job := testfixtures.TestJob(queue, util.ULID(), "armada-default", emptyRequirements).WithPriority(priority).WithCreated(createdTime)
+	jctx := schedulercontext.JobSchedulingContextFromJob(job)
+	jctx.IsEvicted = evicted
+
+	return jctx
 }
 
 type mockJobIterator struct {

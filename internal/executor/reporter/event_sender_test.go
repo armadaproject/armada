@@ -15,9 +15,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sTypes "k8s.io/apimachinery/pkg/types"
 
-	"github.com/armadaproject/armada/internal/executor/domain"
-
+	"github.com/armadaproject/armada/internal/common/constants"
 	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/executor/domain"
 	"github.com/armadaproject/armada/pkg/executorapi"
 )
 
@@ -103,7 +103,8 @@ func makeTestPod(phase v1.PodPhase) *v1.Pod {
 				domain.JobRunId: uuid.New().String(),
 			},
 			Annotations: map[string]string{
-				domain.JobSetId: "job-set-id-1",
+				domain.JobSetId:          "job-set-id-1",
+				constants.PoolAnnotation: "test-pool",
 			},
 			CreationTimestamp: metav1.Time{time.Now().Add(-10 * time.Minute)},
 			UID:               k8sTypes.UID(util.NewULID()),

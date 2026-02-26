@@ -53,6 +53,27 @@ func TestPodIssueService_DoesNothingIfNoStuckPodsAreFound(t *testing.T) {
 	assert.Len(t, remainingActivePods, 1)
 }
 
+func TestPodIssueService_DoesNothingToTerminalPods(t *testing.T) {
+	podIssueService, _, fakeClusterContext, eventsReporter, err := setupTestComponents([]*job.RunState{})
+	require.NoError(t, err)
+	unretryableFailedStuckPod := makeUnretryableStuckPod()
+	unretryableFailedStuckPod.Status.Phase = v1.PodFailed
+	addPod(t, fakeClusterContext, unretryableFailedStuckPod)
+	addPodEvents(fakeClusterContext, unretryableFailedStuckPod, []*v1.Event{{Message: "Image pull has failed", Type: "Warning"}})
+
+	unretryableSuccessfulStuckPod := makeUnretryableStuckPod()
+	unretryableSuccessfulStuckPod.Status.Phase = v1.PodSucceeded
+	addPod(t, fakeClusterContext, unretryableSuccessfulStuckPod)
+	addPodEvents(fakeClusterContext, unretryableSuccessfulStuckPod, []*v1.Event{{Message: "Image pull has failed", Type: "Warning"}})
+
+	podIssueService.HandlePodIssues()
+
+	assert.Len(t, eventsReporter.ReceivedEvents, 0)
+	assert.Len(t, podIssueService.knownPodIssues, 0)
+	remainingActivePods := getActivePods(t, fakeClusterContext)
+	assert.Len(t, remainingActivePods, 2)
+}
+
 func TestPodIssueService_DeletesPodAndReportsFailed_IfStuckAndUnretryable(t *testing.T) {
 	podIssueService, _, fakeClusterContext, eventsReporter, err := setupTestComponents([]*job.RunState{})
 	require.NoError(t, err)
@@ -72,6 +93,20 @@ func TestPodIssueService_DeletesPodAndReportsFailed_IfStuckAndUnretryable(t *tes
 	assert.Len(t, failedEvent.JobRunErrors.Errors, 1)
 	assert.Contains(t, failedEvent.JobRunErrors.Errors[0].GetPodError().Message, "unrecoverable problem")
 	assert.Contains(t, failedEvent.JobRunErrors.Errors[0].GetPodError().DebugMessage, "Image pull has failed")
+}
+
+func TestPodIssueService_OnlyDeletesPod_IfStuckTerminatingButDeletedByExecutor(t *testing.T) {
+	podIssueService, _, fakeClusterContext, eventsReporter, err := setupTestComponents([]*job.RunState{})
+	require.NoError(t, err)
+	terminatingPod := makeTerminatingPod()
+	terminatingPod.Annotations[domain.MarkedForDeletion] = time.Now().String()
+	addPod(t, fakeClusterContext, terminatingPod)
+
+	podIssueService.HandlePodIssues()
+
+	remainingActivePods := getActivePods(t, fakeClusterContext)
+	assert.Equal(t, []*v1.Pod{}, remainingActivePods)
+	assert.Len(t, eventsReporter.ReceivedEvents, 0)
 }
 
 func TestPodIssueService_DeletesPodAndReportsFailed_IfStuckTerminating(t *testing.T) {

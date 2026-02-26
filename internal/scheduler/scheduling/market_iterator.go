@@ -71,27 +71,11 @@ func (it *MarketBasedCandidateGangIterator) Clear() error {
 		return nil
 	}
 	item := heap.Pop(&it.pq).(*MarketIteratorPQItem)
-	if err := item.it.Clear(); err != nil {
-		return err
-	}
+	item.it.Clear()
 	it.pq.previousResultQueue = item.queue
 	it.pq.previousResultCost = item.price
 	if _, err := it.updateAndPushPQItem(item); err != nil {
 		return err
-	}
-
-	// If set to only yield evicted gangs, drop any queues for which the next gang is non-evicted here.
-	// We assume here that all evicted jobs appear before non-evicted jobs in the queue.
-	// Hence, it's safe to drop a queue if the first job is non-evicted.
-	if it.onlyYieldEvicted {
-		for it.pq.Len() > 0 && !it.pq.items[0].gctx.AllJobsEvicted {
-			heap.Pop(&it.pq)
-		}
-	} else {
-		// Same check as above on a per-queue basis.
-		for it.pq.Len() > 0 && it.onlyYieldEvictedByQueue[it.pq.items[0].gctx.Queue] && !it.pq.items[0].gctx.AllJobsEvicted {
-			heap.Pop(&it.pq)
-		}
 	}
 	return nil
 }
@@ -113,12 +97,6 @@ func (it *MarketBasedCandidateGangIterator) updateAndPushPQItem(item *MarketIter
 		return false, err
 	}
 	if item.gctx == nil {
-		return false, nil
-	}
-	if it.onlyYieldEvicted && !item.gctx.AllJobsEvicted {
-		return false, nil
-	}
-	if it.onlyYieldEvictedByQueue[item.gctx.Queue] && !item.gctx.AllJobsEvicted {
 		return false, nil
 	}
 	heap.Push(&it.pq, item)
@@ -150,22 +128,51 @@ func (it *MarketBasedCandidateGangIterator) updatePQItem(item *MarketIteratorPQI
 	return nil
 }
 
-func (it *MarketBasedCandidateGangIterator) OnlyYieldEvicted() {
-	it.onlyYieldEvicted = true
-	// Immediately filter out non-evicted gangs from the head of the queue.
-	// This ensures the next Peek() returns an evicted gang (or nil if none exist).
-	for it.pq.Len() > 0 && !it.pq.items[0].gctx.AllJobsEvicted {
-		heap.Pop(&it.pq)
+func (it *MarketBasedCandidateGangIterator) OnlyYieldEvicted() error {
+	if !it.onlyYieldEvicted {
+		newPq := make([]*MarketIteratorPQItem, 0, it.pq.Len())
+
+		for _, item := range it.pq.items {
+			item.it.OnlyYieldEvicted()
+			err := it.updatePQItem(item)
+			if err != nil {
+				return err
+			}
+
+			// Do not add items that no longer have jobs
+			if item.gctx != nil {
+				newPq = append(newPq, item)
+			}
+		}
+		it.pq.items = newPq
+
+		// Sort heap now items have been updated
+		heap.Init(&it.pq)
 	}
+	it.onlyYieldEvicted = true
+	return nil
 }
 
-func (it *MarketBasedCandidateGangIterator) OnlyYieldEvictedForQueue(queue string) {
-	it.onlyYieldEvictedByQueue[queue] = true
-	// Immediately filter out non-evicted gangs for this queue from the head of the queue.
-	// This ensures the next Peek() returns an evicted gang (or a gang from another queue).
-	for it.pq.Len() > 0 && it.pq.items[0].gctx.Queue == queue && !it.pq.items[0].gctx.AllJobsEvicted {
-		heap.Pop(&it.pq)
+func (it *MarketBasedCandidateGangIterator) OnlyYieldEvictedForQueue(queue string) error {
+	if !it.onlyYieldEvicted && !it.onlyYieldEvictedByQueue[queue] {
+		for _, item := range it.pq.items {
+			if item.queue == queue {
+				item.it.OnlyYieldEvicted()
+				err := it.updatePQItem(item)
+				if err != nil {
+					return err
+				}
+				if item.gctx == nil {
+					heap.Remove(&it.pq, item.index)
+				} else {
+					heap.Fix(&it.pq, item.index)
+				}
+				break
+			}
+		}
 	}
+	it.onlyYieldEvictedByQueue[queue] = true
+	return nil
 }
 
 type MarketIteratorPQItem struct {

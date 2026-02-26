@@ -132,7 +132,10 @@ loop:
 			} else if schedulerconstraints.IsTerminalQueueUnschedulableReason(reason) {
 				// If unschedulableReason indicates no more new jobs can be scheduled for this queue,
 				// instruct the underlying iterator to skip the rest of this queue
-				gangIterator.OnlyYieldEvictedForQueue(gctx.Queue)
+				err := gangIterator.OnlyYieldEvictedForQueue(gctx.Queue)
+				if err != nil {
+					return nil, err
+				}
 			}
 			continue
 		}

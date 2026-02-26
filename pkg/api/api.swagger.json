@@ -285,7 +285,9 @@
         "responses": {
           "200": {
             "description": "A successful response.",
-            "schema": {}
+            "schema": {
+              "$ref": "#/definitions/apiPreemptionResult"
+            }
           },
           "default": {
             "description": "An unexpected error response.",
@@ -1419,6 +1421,9 @@
           "type": "integer",
           "format": "int32"
         },
+        "pool": {
+          "type": "string"
+        },
         "queue": {
           "type": "string"
         }
@@ -1715,6 +1720,9 @@
         "podNumber": {
           "type": "integer",
           "format": "int32"
+        },
+        "pool": {
+          "type": "string"
         },
         "queue": {
           "type": "string"
@@ -2081,6 +2089,18 @@
         "queues": {
           "type": "array",
           "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "apiPreemptionResult": {
+      "type": "object",
+      "title": "swagger:model",
+      "properties": {
+        "preemptionResults": {
+          "type": "object",
+          "additionalProperties": {
             "type": "string"
           }
         }

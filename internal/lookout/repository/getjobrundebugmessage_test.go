@@ -17,7 +17,7 @@ import (
 func TestGetJobRunDebugMessage(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		converter := instructions.NewInstructionConverter(metrics.Get().Metrics, userAnnotationPrefix, []string{}, &compress.NoOpCompressor{})
-		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
+		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10, 10)
 
 		debugMessageStrings := []string{
 			"some bad error happened!",
@@ -49,6 +49,7 @@ func TestGetJobRunDebugMessageNotFound(t *testing.T) {
 		repo := NewSqlGetJobRunDebugMessageRepository(db, &compress.NoOpDecompressor{})
 		_, err := repo.GetJobRunDebugMessage(armadacontext.TODO(), runId)
 		assert.Error(t, err)
+		assert.ErrorIs(t, err, ErrNotFound)
 		return nil
 	})
 	assert.NoError(t, err)

@@ -24,8 +24,8 @@ type CandidateGangIterator interface {
 	Peek() (*schedulercontext.GangSchedulingContext, float64, error)
 	Clear() error
 	GetAllocationForQueue(queue string) (internaltypes.ResourceList, bool)
-	OnlyYieldEvicted()
-	OnlyYieldEvictedForQueue(queue string)
+	OnlyYieldEvicted() error
+	OnlyYieldEvictedForQueue(queue string) error
 }
 
 // QueueScheduler is responsible for choosing the order in which to attempt scheduling queued gangs.
@@ -117,7 +117,10 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulingResu
 		if !onlySchedulingEvictedJobs && sch.softTimeout > 0 && sch.clock.Since(startTime) > sch.softTimeout {
 			ctx.Infof("Soft timeout reached for pool %s, switching to evicted-only mode", sctx.Pool)
 			sctx.TerminationReason = "soft timeout: scheduling only evicted jobs"
-			sch.candidateGangIterator.OnlyYieldEvicted()
+			err := sch.candidateGangIterator.OnlyYieldEvicted()
+			if err != nil {
+				return nil, err
+			}
 			onlySchedulingEvictedJobs = true
 		}
 
@@ -141,7 +144,15 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulingResu
 		scheduledOk, unschedulableReason, err := sch.gangScheduler.Schedule(ctx, gctx)
 		if err != nil {
 			return nil, err
-		} else if scheduledOk {
+		}
+
+		// Clear() to get the next gang in order of smallest fair share.
+		// Calling clear here ensures the gang scheduled in this iteration is accounted for.
+		if err := sch.candidateGangIterator.Clear(); err != nil {
+			return nil, err
+		}
+
+		if scheduledOk {
 			for _, jctx := range gctx.JobSchedulingContexts {
 				if pctx := jctx.PodSchedulingContext; pctx.IsSuccessful() {
 					scheduledJobs = append(scheduledJobs, jctx)
@@ -173,11 +184,17 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulingResu
 			// If unschedulableReason indicates no more new jobs can be scheduled,
 			// instruct the underlying iterator to only yield evicted jobs from now on.
 			sctx.TerminationReason = unschedulableReason
-			sch.candidateGangIterator.OnlyYieldEvicted()
+			err := sch.candidateGangIterator.OnlyYieldEvicted()
+			if err != nil {
+				return nil, err
+			}
 		} else if schedulerconstraints.IsTerminalQueueUnschedulableReason(unschedulableReason) {
 			// If unschedulableReason indicates no more new jobs can be scheduled for this queue,
 			// instruct the underlying iterator to only yield evicted jobs for this queue from now on.
-			sch.candidateGangIterator.OnlyYieldEvictedForQueue(gctx.Queue)
+			err := sch.candidateGangIterator.OnlyYieldEvictedForQueue(gctx.Queue)
+			if err != nil {
+				return nil, err
+			}
 		}
 
 		duration := time.Since(start)
@@ -217,12 +234,6 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulingResu
 		statsPerQueue[gctx.Queue] = stats
 		if duration.Seconds() > 1 {
 			ctx.Infof("Slow schedule: queue %s, gang cardinality %d, sample job id %s, time %fs", gctx.Queue, gctx.Cardinality(), gctx.JobIds()[0], duration.Seconds())
-		}
-
-		// Clear() to get the next gang in order of smallest fair share.
-		// Calling clear here ensures the gang scheduled in this iteration is accounted for.
-		if err := sch.candidateGangIterator.Clear(); err != nil {
-			return nil, err
 		}
 
 		loopNumber++
@@ -278,7 +289,9 @@ type QueuedGangIterator struct {
 	skipKnownUnschedulableJobs bool
 	// Number of jobs we have seen so far.
 	jobsSeen uint
-	next     *schedulercontext.GangSchedulingContext
+	// If the iterator should only be yielding evicted jobs
+	onlyYieldEvicted bool
+	next             *schedulercontext.GangSchedulingContext
 }
 
 func NewQueuedGangIterator(sctx *schedulercontext.SchedulingContext, it JobContextIterator, maxLookback uint, skipKnownUnschedulableJobs bool) *QueuedGangIterator {
@@ -291,26 +304,19 @@ func NewQueuedGangIterator(sctx *schedulercontext.SchedulingContext, it JobConte
 	}
 }
 
-func (it *QueuedGangIterator) Next() (*schedulercontext.GangSchedulingContext, error) {
-	gctx, err := it.Peek()
-	if err != nil {
-		return nil, err
+func (it *QueuedGangIterator) OnlyYieldEvicted() {
+	it.onlyYieldEvicted = true
+	it.queuedJobsIterator.OnlyYieldEvicted()
+	if it.next != nil && !it.next.AllJobsEvicted {
+		it.Clear()
 	}
-	if err := it.Clear(); err != nil {
-		return nil, err
-	}
-	return gctx, nil
 }
 
-func (it *QueuedGangIterator) Clear() error {
+func (it *QueuedGangIterator) Clear() {
 	it.next = nil
-	return nil
 }
 
 func (it *QueuedGangIterator) Peek() (*schedulercontext.GangSchedulingContext, error) {
-	if it.hitLookbackLimit() {
-		return nil, nil
-	}
 	if it.next != nil {
 		return it.next, nil
 	}
@@ -319,6 +325,7 @@ func (it *QueuedGangIterator) Peek() (*schedulercontext.GangSchedulingContext, e
 	// 1. get a job that isn't part of a gang, in which case we yield it immediately, or
 	// 2. get the final job in a gang, in which case we yield the entire gang.
 	for {
+		it.stopYieldingNewJobsIfLimitHit()
 		jctx, err := it.queuedJobsIterator.Next()
 		if err != nil {
 			return nil, err
@@ -329,9 +336,6 @@ func (it *QueuedGangIterator) Peek() (*schedulercontext.GangSchedulingContext, e
 		// Queue lookback limits. Rescheduled jobs don't count towards the limit.
 		if !jctx.IsEvicted {
 			it.jobsSeen++
-		}
-		if it.hitLookbackLimit() {
-			return nil, nil
 		}
 
 		// Skip this job if it's known to be unschedulable.
@@ -370,11 +374,16 @@ func (it *QueuedGangIterator) Peek() (*schedulercontext.GangSchedulingContext, e
 	}
 }
 
-func (it *QueuedGangIterator) hitLookbackLimit() bool {
+func (it *QueuedGangIterator) stopYieldingNewJobsIfLimitHit() {
 	if it.maxLookback == 0 {
-		return false
+		return
 	}
-	return it.jobsSeen > it.maxLookback
+	if it.onlyYieldEvicted {
+		return
+	}
+	if it.jobsSeen >= it.maxLookback {
+		it.OnlyYieldEvicted()
+	}
 }
 
 // CostBasedCandidateGangIterator determines which gang to try scheduling next across queues.
@@ -434,22 +443,51 @@ func NewCostBasedCandidateGangIterator(
 	return it, nil
 }
 
-func (it *CostBasedCandidateGangIterator) OnlyYieldEvicted() {
-	it.onlyYieldEvicted = true
-	// Immediately filter out non-evicted gangs from the head of the queue.
-	// This ensures the next Peek() returns an evicted gang (or nil if none exist).
-	for it.pq.Len() > 0 && !it.pq.items[0].gctx.AllJobsEvicted {
-		heap.Pop(&it.pq)
+func (it *CostBasedCandidateGangIterator) OnlyYieldEvicted() error {
+	if !it.onlyYieldEvicted {
+		newPq := make([]*QueueCandidateGangIteratorItem, 0, it.pq.Len())
+
+		for _, item := range it.pq.items {
+			item.it.OnlyYieldEvicted()
+			err := it.updatePQItem(item)
+			if err != nil {
+				return err
+			}
+
+			// Do not add items that no longer have jobs
+			if item.gctx != nil {
+				newPq = append(newPq, item)
+			}
+		}
+		it.pq.items = newPq
+
+		// Sort heap now items have been updated
+		heap.Init(&it.pq)
 	}
+	it.onlyYieldEvicted = true
+	return nil
 }
 
-func (it *CostBasedCandidateGangIterator) OnlyYieldEvictedForQueue(queue string) {
-	it.onlyYieldEvictedByQueue[queue] = true
-	// Immediately filter out non-evicted gangs for this queue from the head of the queue.
-	// This ensures the next Peek() returns an evicted gang (or a gang from another queue).
-	for it.pq.Len() > 0 && it.pq.items[0].gctx.Queue == queue && !it.pq.items[0].gctx.AllJobsEvicted {
-		heap.Pop(&it.pq)
+func (it *CostBasedCandidateGangIterator) OnlyYieldEvictedForQueue(queue string) error {
+	if !it.onlyYieldEvicted && !it.onlyYieldEvictedByQueue[queue] {
+		for _, item := range it.pq.items {
+			if item.queue == queue {
+				item.it.OnlyYieldEvicted()
+				err := it.updatePQItem(item)
+				if err != nil {
+					return err
+				}
+				if item.gctx == nil {
+					heap.Remove(&it.pq, item.index)
+				} else {
+					heap.Fix(&it.pq, item.index)
+				}
+				break
+			}
+		}
 	}
+	it.onlyYieldEvictedByQueue[queue] = true
+	return nil
 }
 
 // Clear removes the first item in the iterator.
@@ -459,26 +497,11 @@ func (it *CostBasedCandidateGangIterator) Clear() error {
 		return nil
 	}
 	item := heap.Pop(&it.pq).(*QueueCandidateGangIteratorItem)
-	if err := item.it.Clear(); err != nil {
-		return err
-	}
+	item.it.Clear()
 	if _, err := it.updateAndPushPQItem(item); err != nil {
 		return err
 	}
 
-	// If set to only yield evicted gangs, drop any queues for which the next gang is non-evicted here.
-	// We assume here that all evicted jobs appear before non-evicted jobs in the queue.
-	// Hence, it's safe to drop a queue if the first job is non-evicted.
-	if it.onlyYieldEvicted {
-		for it.pq.Len() > 0 && !it.pq.items[0].gctx.AllJobsEvicted {
-			heap.Pop(&it.pq)
-		}
-	} else {
-		// Same check as above on a per-queue basis.
-		for it.pq.Len() > 0 && it.onlyYieldEvictedByQueue[it.pq.items[0].gctx.Queue] && !it.pq.items[0].gctx.AllJobsEvicted {
-			heap.Pop(&it.pq)
-		}
-	}
 	return nil
 }
 
@@ -504,12 +527,6 @@ func (it *CostBasedCandidateGangIterator) updateAndPushPQItem(item *QueueCandida
 		return false, err
 	}
 	if item.gctx == nil {
-		return false, nil
-	}
-	if it.onlyYieldEvicted && !item.gctx.AllJobsEvicted {
-		return false, nil
-	}
-	if it.onlyYieldEvictedByQueue[item.gctx.Queue] && !item.gctx.AllJobsEvicted {
 		return false, nil
 	}
 	heap.Push(&it.pq, item)

@@ -1,0 +1,86 @@
+testDuration: 60s
+warmupDuration: 10s
+
+databaseConfig:
+  postgres:
+    host: localhost
+    port: "5433"
+    database: broadside_test
+    user: broadside
+    password: broadside
+    sslmode: disable
+
+queueConfig:
+  - name: queue-1
+    proportion: 0.6
+    jobSetConfig:
+      - name: jobset-1
+        proportion: 0.7
+        historicalJobsConfig:
+          numberOfJobs: 1000
+          proportionSucceeded: 0.8
+          proportionErrored: 0.1
+          proportionCancelled: 0.05
+          proportionPreempted: 0.05
+      - name: jobset-2
+        proportion: 0.3
+        historicalJobsConfig:
+          numberOfJobs: 500
+          proportionSucceeded: 0.9
+          proportionErrored: 0.05
+          proportionCancelled: 0.03
+          proportionPreempted: 0.02
+  - name: queue-2
+    proportion: 0.4
+    jobSetConfig:
+      - name: jobset-3
+        proportion: 1.0
+        historicalJobsConfig:
+          numberOfJobs: 750
+          proportionSucceeded: 0.85
+          proportionErrored: 0.08
+          proportionCancelled: 0.04
+          proportionPreempted: 0.03
+
+ingestionConfig:
+  batchSize: 100
+  numWorkers: 4
+  submissionsPerHour: 3600
+  # Optional: Configure channel buffer size (default: 10x batchSize)
+  # channelBufferSizeMultiplier: 10
+  # Optional: Set maximum backlog size before drop strategy activates
+  # maxBacklogSize: 10000
+  # Optional: Strategy when backlog is full: "block" (default), "drop", or "error"
+  # backlogDropStrategy: block
+  jobStateTransitionConfig:
+    queueingDuration: 2s
+    leasedDuration: 1s
+    pendingDuration: 1s
+    proportionSucceed: 0.85
+    runningToSuccessDuration: 5s
+    proportionFail: 0.15
+    runningToFailureDuration: 2s
+
+queryConfig:
+  getJobRunDebugMessageQueriesPerHour: 900
+  getJobRunErrorQueriesPerHour: 900
+  getJobSpecQueriesPerHour: 900
+  getJobsQueriesPerHour: 900
+  getJobsPageSize: 100
+  getJobGroupsQueriesPerHour: 1800
+  getJobGroupsPageSize: 50
+  # Optional: Maximum number of errors to collect (default: 2000, uses circular buffer)
+  # maxErrorsToCollect: 2000
+
+actionsConfig:
+  jobSetReprioritisations:
+    - performAfterTestStartTime: 25s
+      queue: queue-1
+      jobSet: jobset-1
+    - performAfterTestStartTime: 40s
+      queue: queue-2
+      jobSet: jobset-3
+  jobSetCancellations:
+    - performAfterTestStartTime: 35s
+      queue: queue-1
+      jobSet: jobset-2
