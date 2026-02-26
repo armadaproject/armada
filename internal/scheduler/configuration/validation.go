@@ -39,7 +39,7 @@ func SchedulingConfigValidation(sl validator.StructLevel) {
 		}
 
 		for i, awayNodeType := range priorityClass.AwayNodeTypes {
-			if !wellKnownNodeTypes[awayNodeType.WellKnownNodeTypeName] {
+			if awayNodeType.WellKnownNodeTypeName != "" && !wellKnownNodeTypes[awayNodeType.WellKnownNodeTypeName] {
 				fieldName := fmt.Sprintf("Preemption.PriorityClasses[%s].AwayNodeTypes[%d].WellKnownNodeTypeName", priorityClassName, i)
 				sl.ReportError(awayNodeType.WellKnownNodeTypeName, fieldName, "", UnknownWellKnownNodeTypeErrorMessage, "")
 			}
