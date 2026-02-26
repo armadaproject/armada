@@ -1,10 +1,9 @@
 package types
 
 import (
-	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
-	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 )
 
 // AwayNodeTypeConditionOperator is the comparison operator for an AwayNodeTypeCondition.
@@ -24,12 +23,14 @@ type AwayNodeTypeCondition struct {
 	// Operator is one of ">", "<", "==".
 	Operator AwayNodeTypeConditionOperator `validate:"required"`
 	// Value is a Kubernetes resource quantity string, e.g. "1", "4Gi".
-	Value armadaresource.ComputeResources `validate:"required"`
+	Value resource.Quantity `validate:"required"`
 }
 
 type AwayTypeEntry struct {
 	// Name references a WellKnownNodeType defined in SchedulingConfig.WellKnownNodeTypes.
-	Name       string                  `validate:"required"`
+	Name string `validate:"required"`
+	// Conditions which must be met for this entry to be applied for away scheduling
+	// If the conditions are not met, the tolerations for the referenced well known node type will not be added to the job
 	Conditions []AwayNodeTypeCondition `validate:"dive"`
 }
 
@@ -39,17 +40,14 @@ type AwayNodeType struct {
 	// referenced by WellKnownNodeTypeName; it overrides the Priority field of
 	// PriorityClass.
 	Priority int32 `validate:"gte=0"`
-	// TODO deprecated
 	// WellKnownNodeTypeName is the Name of the WellKnownNodeType in question.
-	WellKnownNodeTypeName string `validate:"required"`
-	// TODO Improve naming
+	// Deprecated
+	// Use NodeTypes which provides the the same functionality with additional features
+	// For now this configuration will still be respected but will be removed in future
+	WellKnownNodeTypeName string
+	// NodeTypes
+	// A list of away type entries that define this away node type
 	NodeTypes []AwayTypeEntry
-}
-
-// EffectiveAwayNodeType is the computed result for one away scheduling group.
-type EffectiveAwayNodeType struct {
-	Priority    int32
-	Tolerations []v1.Toleration
 }
 
 // PriorityClass represents an Armada-specific priority class used for scheduling and preemption.

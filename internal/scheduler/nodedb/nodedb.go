@@ -493,49 +493,49 @@ func (nodeDb *NodeDb) SelectNodeForJobWithTxn(txn *memdb.Txn, jctx *context.JobS
 	return nil, nil
 }
 
-func MatchesConditions(conditions []types.AwayNodeTypeCondition, jobResources internaltypes.ResourceList) bool {
+func matchesCondition(conditions []types.AwayNodeTypeCondition, jobResources internaltypes.ResourceList) bool {
 	for _, c := range conditions {
 		jobVal := jobResources.GetByNameZeroIfMissing(c.Resource)
-		j := jobVal.Value()
-		r := c.Value[c.Resource]
-		value := r.Value()
+		jobResource := jobVal.Value()
+		value := c.Value.Value()
 
 		switch c.Operator {
 		case types.AwayNodeTypeConditionOpGreaterThan:
-			return j > value
+			return jobResource > value
 		case types.AwayNodeTypeConditionOpLessThan:
-			return j < value
+			return jobResource < value
 		case types.AwayNodeTypeConditionOpEqual:
-			return j == value
+			return jobResource == value
 		}
 	}
 	return true
 }
 
-func (nodeDb *NodeDb) ComputeEffectiveAwayNodeTypes(
-	priorityClass types.PriorityClass,
-	jobResources internaltypes.ResourceList,
-	wellKnownNodeTypeTolerations map[string][]v1.Toleration,
-) []types.EffectiveAwayNodeType {
-	result := make([]types.EffectiveAwayNodeType, 0, len(priorityClass.AwayNodeTypes))
-	for _, ant := range priorityClass.AwayNodeTypes {
-		var tolerations []v1.Toleration
-		for _, nodeTypes := range ant.NodeTypes {
-			if !MatchesConditions(nodeTypes.Conditions, jobResources) {
-				continue
-			}
-			tolerations = append(tolerations, wellKnownNodeTypeTolerations[nodeTypes.Name]...)
+func (nodeDb *NodeDb) getEffectiveAwayNodeTaints(awayNodeType types.AwayNodeType, job *jobdb.Job) ([]v1.Taint, error) {
+	var taints []v1.Taint
+
+	if awayNodeType.WellKnownNodeTypeName != "" {
+		wellKnownNodeType, exists := nodeDb.wellKnownNodeTypes[awayNodeType.WellKnownNodeTypeName]
+		if !exists {
+			return nil, fmt.Errorf("unknown well-known node type %s; must be in %v", awayNodeType.WellKnownNodeTypeName, nodeDb.wellKnownNodeTypes)
 		}
-		if len(tolerations) == 0 {
-			// No node types in this group matched — skip this type entirely
+
+		taints = append(taints, wellKnownNodeType.Taints...)
+	}
+
+	for _, nodeTypes := range awayNodeType.NodeTypes {
+		wellKnownNodeType, exists := nodeDb.wellKnownNodeTypes[nodeTypes.Name]
+		if !exists {
+			return nil, fmt.Errorf("unknown well-known node type %s; must be in %v", nodeTypes.Name, nodeDb.wellKnownNodeTypes)
+		}
+		if !matchesCondition(nodeTypes.Conditions, job.AllResourceRequirements()) {
 			continue
 		}
-		result = append(result, types.EffectiveAwayNodeType{
-			Priority:    ant.Priority,
-			Tolerations: tolerations,
-		})
+
+		taints = append(taints, wellKnownNodeType.Taints...)
 	}
-	return result
+
+	return taints, nil
 }
 
 func (nodeDb *NodeDb) selectNodeForJobWithTxnAndAwayNodeType(
@@ -559,12 +559,16 @@ func (nodeDb *NodeDb) selectNodeForJobWithTxnAndAwayNodeType(
 		jctx.AdditionalTolerations = jctx.AdditionalTolerations[:numAdditionalTolerations]
 	}()
 
-	wellKnownNodeType, ok := nodeDb.wellKnownNodeTypes[awayNodeType.WellKnownNodeTypeName]
-	if !ok {
-		return nil, fmt.Errorf("unknown well-known node type %s; must be in %v", awayNodeType.WellKnownNodeTypeName, nodeDb.wellKnownNodeTypes)
+	awayNodeTaints, err := nodeDb.getEffectiveAwayNodeTaints(awayNodeType, jctx.Job)
+	if err != nil {
+		return nil, err
+	}
+	if len(awayNodeTaints) == 0 {
+		// No extra taints to tolerate will mean no extra scheduling capability
+		return nil, nil
 	}
 
-	for _, taint := range wellKnownNodeType.Taints {
+	for _, taint := range awayNodeTaints {
 		toleration := v1.Toleration{Key: taint.Key, Effect: taint.Effect}
 		if taint.Value == configuration.WildCardWellKnownNodeTypeValue {
 			toleration.Operator = v1.TolerationOpExists

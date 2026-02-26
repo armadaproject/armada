@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/maps"
@@ -667,6 +668,153 @@ func TestHomeNodeScheduling(t *testing.T) {
 				assert.False(t, jctx.PodSchedulingContext.IsSuccessful())
 				assert.Empty(t, jctx.PodSchedulingContext.NodeId)
 				assert.Empty(t, jctx.AdditionalTolerations)
+			}
+		})
+	}
+}
+
+func TestMatchesConditions(t *testing.T) {
+	cpu0 := resource.MustParse("0")
+	cpu2 := resource.MustParse("2")
+	cpu4 := resource.MustParse("4")
+
+	tests := map[string]struct {
+		conditions   []types.AwayNodeTypeCondition
+		jobResources internaltypes.ResourceList
+		expectMatch  bool
+	}{
+		"empty conditions always matches": {
+			conditions:   nil,
+			jobResources: testfixtures.Cpu("2"),
+			expectMatch:  true,
+		},
+		"empty conditions with empty resources": {
+			conditions:   []types.AwayNodeTypeCondition{},
+			jobResources: internaltypes.ResourceList{},
+			expectMatch:  true,
+		},
+		// GreaterThan
+		"gt: job value above threshold matches": {
+			conditions:   []types.AwayNodeTypeCondition{{Resource: "cpu", Operator: types.AwayNodeTypeConditionOpGreaterThan, Value: cpu2}},
+			jobResources: testfixtures.Cpu("4"),
+			expectMatch:  true,
+		},
+		"gt: job value equal to threshold does not match": {
+			conditions:   []types.AwayNodeTypeCondition{{Resource: "cpu", Operator: types.AwayNodeTypeConditionOpGreaterThan, Value: cpu2}},
+			jobResources: testfixtures.Cpu("2"),
+			expectMatch:  false,
+		},
+		"gt: job value below threshold does not match": {
+			conditions:   []types.AwayNodeTypeCondition{{Resource: "cpu", Operator: types.AwayNodeTypeConditionOpGreaterThan, Value: cpu4}},
+			jobResources: testfixtures.Cpu("2"),
+			expectMatch:  false,
+		},
+		// LessThan
+		"lt: job value below threshold matches": {
+			conditions:   []types.AwayNodeTypeCondition{{Resource: "cpu", Operator: types.AwayNodeTypeConditionOpLessThan, Value: cpu4}},
+			jobResources: testfixtures.Cpu("2"),
+			expectMatch:  true,
+		},
+		"lt: job value equal to threshold does not match": {
+			conditions:   []types.AwayNodeTypeCondition{{Resource: "cpu", Operator: types.AwayNodeTypeConditionOpLessThan, Value: cpu2}},
+			jobResources: testfixtures.Cpu("2"),
+			expectMatch:  false,
+		},
+		"lt: job value above threshold does not match": {
+			conditions:   []types.AwayNodeTypeCondition{{Resource: "cpu", Operator: types.AwayNodeTypeConditionOpLessThan, Value: cpu2}},
+			jobResources: testfixtures.Cpu("4"),
+			expectMatch:  false,
+		},
+		// Equal
+		"eq: job value equal to threshold matches": {
+			conditions:   []types.AwayNodeTypeCondition{{Resource: "cpu", Operator: types.AwayNodeTypeConditionOpEqual, Value: cpu2}},
+			jobResources: testfixtures.Cpu("2"),
+			expectMatch:  true,
+		},
+		"eq: job value above threshold does not match": {
+			conditions:   []types.AwayNodeTypeCondition{{Resource: "cpu", Operator: types.AwayNodeTypeConditionOpEqual, Value: cpu2}},
+			jobResources: testfixtures.Cpu("4"),
+			expectMatch:  false,
+		},
+		"eq: job value below threshold does not match": {
+			conditions:   []types.AwayNodeTypeCondition{{Resource: "cpu", Operator: types.AwayNodeTypeConditionOpEqual, Value: cpu4}},
+			jobResources: testfixtures.Cpu("2"),
+			expectMatch:  false,
+		},
+		// Missing resource treated as zero
+		"missing resource treated as zero - gt zero does not match": {
+			conditions:   []types.AwayNodeTypeCondition{{Resource: "nvidia.com/gpu", Operator: types.AwayNodeTypeConditionOpGreaterThan, Value: cpu0}},
+			jobResources: testfixtures.Cpu("2"),
+			expectMatch:  false,
+		},
+		"missing resource treated as zero - eq zero matches": {
+			conditions:   []types.AwayNodeTypeCondition{{Resource: "nvidia.com/gpu", Operator: types.AwayNodeTypeConditionOpEqual, Value: cpu0}},
+			jobResources: testfixtures.Cpu("2"),
+			expectMatch:  true,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			result := matchesCondition(tc.conditions, tc.jobResources)
+			assert.Equal(t, tc.expectMatch, result)
+		})
+	}
+}
+
+func TestConditionalAwayNodeScheduling(t *testing.T) {
+	gpuPodReqs := testfixtures.TestPodReqs(v1.ResourceList{
+		"cpu":            resource.MustParse("8"),
+		"memory":         resource.MustParse("128Gi"),
+		"nvidia.com/gpu": resource.MustParse("1"),
+	})
+	gpuJobWithoutGpuToleration := testfixtures.TestJob("A", util.ULID(), testfixtures.PriorityClass7PreemptibleAwayConditional, gpuPodReqs)
+	tests := map[string]struct {
+		job             *jobdb.Job
+		node            *internaltypes.Node
+		expectScheduled bool
+	}{
+		"scheduled - cpu job can conditionally schedule away on gpu nodes": {
+			job:             testfixtures.Test1Cpu4GiJob("A", testfixtures.PriorityClass7PreemptibleAwayConditional),
+			node:            testfixtures.WithGpuTaint(testfixtures.Test8GpuNode(testfixtures.TestPriorities)),
+			expectScheduled: true,
+		},
+		"not scheduled - gpu job can not conditionally schedule away on gpu nodes": {
+			job:             gpuJobWithoutGpuToleration,
+			node:            testfixtures.WithGpuTaint(testfixtures.Test8GpuNode(testfixtures.TestPriorities)),
+			expectScheduled: false,
+		},
+		// Large node toleration added unconditionally
+		"scheduled - cpu job schedule away on large nodes": {
+			job:             testfixtures.Test1Cpu4GiJob("A", testfixtures.PriorityClass7PreemptibleAwayConditional),
+			node:            testfixtures.WithLargeJobsOnlyTaint(testfixtures.Test8GpuNode(testfixtures.TestPriorities)),
+			expectScheduled: true,
+		},
+		// Large node toleration added unconditionally
+		"scheduled - gpu job schedule away on large nodes": {
+			job:             gpuJobWithoutGpuToleration,
+			node:            testfixtures.WithLargeJobsOnlyTaint(testfixtures.Test8GpuNode(testfixtures.TestPriorities)),
+			expectScheduled: true,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			nodeDb, err := newNodeDbWithNodes([]*internaltypes.Node{tc.node})
+			require.NoError(t, err)
+
+			jctx := context.JobSchedulingContextFromJob(tc.job)
+
+			nodeDbTxn := nodeDb.Txn(true)
+			node, err := nodeDb.SelectNodeForJobWithTxn(nodeDbTxn, jctx)
+			require.NoError(t, err)
+
+			if tc.expectScheduled {
+				assert.NotNil(t, node)
+				assert.Equal(t, node.GetId(), jctx.PodSchedulingContext.NodeId)
+				assert.Equal(t, context.ScheduledAsAwayJob, jctx.PodSchedulingContext.SchedulingMethod)
+			} else {
+				assert.Nil(t, node)
 			}
 		})
 	}

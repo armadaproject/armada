@@ -43,6 +43,21 @@ func SchedulingConfigValidation(sl validator.StructLevel) {
 				fieldName := fmt.Sprintf("Preemption.PriorityClasses[%s].AwayNodeTypes[%d].WellKnownNodeTypeName", priorityClassName, i)
 				sl.ReportError(awayNodeType.WellKnownNodeTypeName, fieldName, "", UnknownWellKnownNodeTypeErrorMessage, "")
 			}
+
+			for j, entry := range awayNodeType.NodeTypes {
+				if !wellKnownNodeTypes[entry.Name] {
+					fieldName := fmt.Sprintf("Preemption.PriorityClasses[%s].AwayNodeTypes[%d].NodeTypes[%d].Name", priorityClassName, i, j)
+					sl.ReportError(entry.Name, fieldName, "", UnknownWellKnownNodeTypeErrorMessage, "")
+				}
+
+				for k, cond := range entry.Conditions {
+					validOps := map[string]bool{">": true, "<": true, "==": true}
+					if !validOps[string(cond.Operator)] {
+						fieldName := fmt.Sprintf("Preemption.PriorityClasses[%s].AwayNodeTypes[%d].WellKnownNodeTypes[%d].Conditions[%d].Operator", priorityClassName, i, j, k)
+						sl.ReportError(cond.Operator, fieldName, "", InvalidAwayNodeTypeConditionOperatorErrorMessage, "")
+					}
+				}
+			}
 		}
 	}
 }

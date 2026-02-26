@@ -53,6 +53,7 @@ const (
 	PriorityClass4PreemptibleAway            = "armada-preemptible-away"
 	PriorityClass5PreemptibleAwayLowPriority = "armada-preemptible-away-lower"
 	PriorityClass6Preemptible                = "armada-preemptible"
+	PriorityClass7PreemptibleAwayConditional = "armada-preemptible-away-conditional"
 )
 
 var (
@@ -81,6 +82,23 @@ var (
 		PriorityClass4PreemptibleAway:            {Priority: 30000, Preemptible: true, AwayNodeTypes: []types.AwayNodeType{{Priority: 29000, WellKnownNodeTypeName: "gpu"}, {Priority: 29000, WellKnownNodeTypeName: "large"}}},
 		PriorityClass5PreemptibleAwayLowPriority: {Priority: 30000, Preemptible: true, AwayNodeTypes: []types.AwayNodeType{{Priority: 28000, WellKnownNodeTypeName: "gpu"}, {Priority: 28000, WellKnownNodeTypeName: "large"}}},
 		PriorityClass6Preemptible:                {Priority: 30000, Preemptible: true},
+		PriorityClass7PreemptibleAwayConditional: {Priority: 30000, Preemptible: true, AwayNodeTypes: []types.AwayNodeType{
+			{
+				Priority:              29000,
+				WellKnownNodeTypeName: "large",
+				NodeTypes: []types.AwayTypeEntry{
+					{
+						Name: "gpu",
+						Conditions: []types.AwayNodeTypeCondition{
+							{
+								Resource: "nvidia.com/gpu",
+								Operator: types.AwayNodeTypeConditionOpEqual,
+								Value:    resource.MustParse("0"),
+							},
+						},
+					},
+				},
+			}}},
 	}
 	TestDefaultPriorityClass = PriorityClass3
 	TestPriorities           = []int32{0, 1, 2, 3, 28000, 29000, 30000}
@@ -1041,6 +1059,28 @@ func Test8GpuNode(priorities []int32) *internaltypes.Node {
 		[]*internaltypes.Node{node},
 		map[string]string{"gpu": "true"},
 	)[0]
+}
+
+func WithGpuTaint(node *internaltypes.Node) *internaltypes.Node {
+	return TestNodeFactory.AddTaints([]*internaltypes.Node{node},
+		[]v1.Taint{
+			{
+				Key:    "gpu",
+				Value:  "true",
+				Effect: v1.TaintEffectNoSchedule,
+			},
+		})[0]
+}
+
+func WithLargeJobsOnlyTaint(node *internaltypes.Node) *internaltypes.Node {
+	return TestNodeFactory.AddTaints([]*internaltypes.Node{node},
+		[]v1.Taint{
+			{
+				Key:    "largeJobsOnly",
+				Value:  "true",
+				Effect: v1.TaintEffectNoSchedule,
+			},
+		})[0]
 }
 
 func MakeTestQueue() *api.Queue {
