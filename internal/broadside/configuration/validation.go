@@ -130,6 +130,15 @@ func (i *IngestionConfig) Validate() error {
 			return fmt.Errorf("backlogDropStrategy must be one of %v, got '%s'", validStrategies, i.BacklogDropStrategy)
 		}
 	}
+	if i.BatchTimeout < 0 {
+		return fmt.Errorf("batchTimeout must be non-negative, got %v", i.BatchTimeout)
+	}
+	if i.HistoricalJobChunkSize < 0 {
+		return fmt.Errorf("historicalJobChunkSize must be non-negative, got %d", i.HistoricalJobChunkSize)
+	}
+	if i.HistoricalJobWorkers < 0 {
+		return fmt.Errorf("historicalJobWorkers must be non-negative, got %d", i.HistoricalJobWorkers)
+	}
 	if err := i.JobStateTransitionConfig.Validate(); err != nil {
 		return fmt.Errorf("jobStateTransitionConfig validation failed: %w", err)
 	}
