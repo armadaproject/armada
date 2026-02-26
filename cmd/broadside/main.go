@@ -28,7 +28,7 @@ const (
 	customConfigLocation string = "config"
 	resultsDirFlag       string = "results-dir"
 	teardownOnlyFlag     string = "teardown-only"
-	yesFlag              string = "tes"
+	yesFlag              string = "yes"
 	teardownTimeout             = 2 * time.Minute
 )
 
