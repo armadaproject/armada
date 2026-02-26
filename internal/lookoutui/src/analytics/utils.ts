@@ -1,4 +1,33 @@
 import { AnalyticsScriptConfig } from "config"
+import { User } from "oidc-client-ts"
+
+/**
+ * Identifies a user to the configured analytics provider
+ * @param user The OIDC user object containing profile information
+ * @param analyticsConfig The analytics configuration
+ */
+export function identifyUser(user: User, analyticsConfig: AnalyticsScriptConfig): void {
+  if (!analyticsConfig.userIdentify || !user?.profile) {
+    return
+  }
+
+  const { provider, identifyParam } = analyticsConfig.userIdentify
+  const userId = user.profile.sub
+
+  // Check if analytics provider is available.
+  if (typeof window !== "undefined" && provider in window) {
+    const analytics = (window as any)[provider]
+    if (typeof analytics === "object" && typeof analytics.identify === "function") {
+      if (identifyParam) {
+        // Object format with specified key
+        analytics.identify({ [identifyParam]: userId })
+      } else {
+        // String format - pass userId directly
+        analytics.identify(userId)
+      }
+    }
+  }
+}
 
 /**
  * Builds analytics attributes based on the configured analytics provider

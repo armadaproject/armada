@@ -151,6 +151,16 @@ type ScriptTag struct {
 	Attributes map[string]string `json:"attributes,omitempty"`
 }
 
+type UserIdentify struct {
+	// Provider is the name of the analytics provider on the window object (e.g., "umami", "analytics", "mixpanel", "op")
+	Provider string `json:"provider"`
+	// IdentifyParam defines the key name for object-based identify calls
+	// - empty/omitted: provider.identify(userId) - string parameter
+	// - "profileId": provider.identify({ profileId: userId })
+	// - "id": provider.identify({ id: userId })
+	IdentifyParam string `json:"identifyParam,omitempty"`
+}
+
 type AnalyticsScriptConfig struct {
 	// Scripts is a list of script tags to inject into the document head
 	Scripts []ScriptTag `json:"scripts"`
@@ -160,6 +170,8 @@ type AnalyticsScriptConfig struct {
 	EventAttribute string `json:"eventAttribute,omitempty"`
 	// DataAttribute is the HTML attribute name to use for event data (attribute method) or class prefix (class method)
 	DataAttribute string `json:"dataAttribute,omitempty"`
+	// UserIdentify specifies whether and how to identify authenticated users to the analytics provider
+	UserIdentify *UserIdentify `json:"userIdentify,omitempty"`
 }
 
 // UIConfig must match the LookoutUiConfig TypeScript interface defined in internal/lookoutui/src/lookoutUiConfig.d.ts

@@ -42,11 +42,7 @@ Event analytics where `eventName=Something Clicked` and `eventData={yourEvent: 1
 <button type="button" class="data-foo-event=Something+Clicked data-foo-data-yourevent=1">Something</button>
 ```
 
-### CSS Method
-
-Css based event analytics
-
-## Examples
+## Example Implementations
 
 ### Umami Analytics
 
@@ -95,7 +91,7 @@ This is a universal component that adds analytics attributes to any component ba
 import { Analytics } from "src/components/analytics/Analytics"
 import { Button, Tab, Link } from "@mui/material"
 
-// With Button
+// Button
 <Analytics
   component={Button}
   eventName="Cancel Job"
@@ -105,7 +101,7 @@ import { Button, Tab, Link } from "@mui/material"
   Cancel
 </Analytics>
 
-// With Tab - eventName can be shared between tabs, eventData differentiates them
+// Tab - eventName can be shared between tabs, eventData differentiates them
 <Analytics
   component={Tab}
   label="Details"
@@ -114,7 +110,7 @@ import { Button, Tab, Link } from "@mui/material"
   eventData={{ tab: "details" }}
 />
 
-// With Link
+// Link
 <Analytics component={Link} href="/jobs" eventName="Navigate to Jobs">
   View Jobs
 </Analytics>
@@ -135,8 +131,5 @@ The `Analytics` component:
 
 ## Notes
 
-- Script attributes like `defer` and `async` should be specified in the `attributes` map
-- Scripts with `content` are inline scripts; scripts with `src` in attributes are external scripts
 - The script is injected dynamically when the app loads
 - If no `analyticsScript` configuration is provided, no analytics script will be loaded
-- All attributes in the `attributes` map will be added to the `<script>` tag as HTML attributes

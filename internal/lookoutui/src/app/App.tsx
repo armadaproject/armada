@@ -8,7 +8,7 @@ import { SnackbarProvider } from "notistack"
 import { ErrorBoundary } from "react-error-boundary"
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom"
 
-import { AnalyticsScript, AnalyticsIdentifier } from "../analytics"
+import { AnalyticsScript } from "../analytics"
 import { dayJsLocales, getBrowserSupportedLocale } from "../common/locales"
 import { withRouter } from "../common/utils"
 import { AlertInPageContainerErrorFallback } from "../components/AlertInPageContainerErrorFallback"
@@ -94,8 +94,10 @@ export function App(props: AppProps) {
           <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale={dayJsLocale}>
             <QueryClientProvider client={queryClient}>
               <ErrorBoundary FallbackComponent={FullPageErrorFallback}>
-                <OidcAuthProvider oidcConfig={config.oidcEnabled ? config.oidc : undefined}>
-                  <AnalyticsIdentifier />
+                <OidcAuthProvider
+                  oidcConfig={config.oidcEnabled ? config.oidc : undefined}
+                  analyticsConfig={config.analyticsScript}
+                >
                   <ApiClientsProvider>
                     <BrowserRouter>
                       <ServicesProvider services={props.services}>

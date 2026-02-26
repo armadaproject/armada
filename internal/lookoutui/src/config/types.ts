@@ -49,6 +49,14 @@ export interface AnalyticsScriptConfig {
   method?: "attribute" | "class"
   eventAttribute?: string
   dataAttribute?: string
+  userIdentify?: {
+    provider: string
+    // identifyParam defines the key name for object-based identify calls
+    // - undefined: provider.identify(userId) - string parameter
+    // - "profileId": provider.identify({ profileId: userId })
+    // - "id": provider.identify({ id: userId })
+    identifyParam?: string
+  }
 }
 
 // This must match the UIConfig Go struct defined in internal/lookout/configuration/types.go
