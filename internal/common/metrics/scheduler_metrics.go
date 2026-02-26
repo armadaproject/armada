@@ -180,6 +180,13 @@ var NodeJobPhaseCounterDesc = prometheus.NewDesc(
 	nil,
 )
 
+// ClusterCapacityDesc
+// physical_pool - This is the pool of the physical node providing this capacity
+//   - It will be the same as pool, except when the resource is being provided via away pool scheduling
+//
+// capacity_class - This is either: `dedicated` or `shared`
+//   - dedicated - the capacity is provided by a node dedicated to this pool
+//   - shared    - the capacity is provided by a node in another pool and is being shared
 var ClusterCapacityDesc = prometheus.NewDesc(
 	MetricPrefix+"cluster_capacity",
 	"Cluster capacity",
@@ -187,6 +194,13 @@ var ClusterCapacityDesc = prometheus.NewDesc(
 	nil,
 )
 
+// ClusterFarmCapacityDesc
+// physical_pool - This is the pool of the physical node providing this capacity
+//   - It will be the same as pool, except when the resource is being provided via away pool scheduling
+//
+// capacity_class - This is either: `dedicated` or `shared`
+//   - dedicated - the capacity is provided by a node dedicated to this pool
+//   - shared    - the capacity is provided by a node in another pool and is being shared
 var ClusterFarmCapacityDesc = prometheus.NewDesc(
 	MetricPrefix+"cluster_farm_capacity",
 	"Cluster capacity less usage from non-Armada pods",
@@ -194,6 +208,13 @@ var ClusterFarmCapacityDesc = prometheus.NewDesc(
 	nil,
 )
 
+// ClusterAvailableCapacityDesc
+// physical_pool - This is the pool of the physical node providing this capacity
+//   - It will be the same as pool, except when the resource is being provided via away pool scheduling
+//
+// capacity_class - This is either: `dedicated` or `shared`
+//   - dedicated - the capacity is provided by a node dedicated to this pool
+//   - shared    - the capacity is provided by a node in another pool and is being shared
 var ClusterAvailableCapacityDesc = prometheus.NewDesc(
 	MetricPrefix+"cluster_available_capacity",
 	"Cluster capacity available for Armada jobs",

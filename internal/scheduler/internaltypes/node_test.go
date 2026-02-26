@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
@@ -159,7 +160,7 @@ func TestMarkResourceUnallocatable(t *testing.T) {
 		},
 		nil,
 	)
-	assert.Nil(t, err)
+	require.Nil(t, err)
 
 	allocatableResources := makeCpuResourceList(resourceListFactory, "10")
 	allocatableByPriority := map[int32]ResourceList{
