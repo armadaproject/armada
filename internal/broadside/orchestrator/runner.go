@@ -233,13 +233,17 @@ func (r *Runner) logProgress(ctx context.Context, ingesterMetrics *metrics.Inges
 }
 
 func (r *Runner) tearDown(database db.Database) {
-	logging.Info("Tearing down database")
-	tearDownCtx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	defer cancel()
-	if err := database.TearDown(tearDownCtx); err != nil {
-		logging.WithError(err).Warn("Failed to tear down database")
+	if r.config.SkipTearDown {
+		logging.Info("Skipping database teardown (skipTearDown is enabled)")
 	} else {
-		logging.Info("Database torn down successfully")
+		logging.Info("Tearing down database")
+		tearDownCtx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+		defer cancel()
+		if err := database.TearDown(tearDownCtx); err != nil {
+			logging.WithError(err).Warn("Failed to tear down database")
+		} else {
+			logging.Info("Database torn down successfully")
+		}
 	}
 	database.Close()
 }

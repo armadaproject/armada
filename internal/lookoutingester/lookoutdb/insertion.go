@@ -22,14 +22,16 @@ type LookoutDb struct {
 	db          *pgxpool.Pool
 	metrics     *metrics.Metrics
 	maxBackoff  int
+	maxRetries  int
 	fatalErrors []*regexp.Regexp
 }
 
-func NewLookoutDb(db *pgxpool.Pool, fatalErrors []*regexp.Regexp, metrics *metrics.Metrics, maxBackoff int) *LookoutDb {
+func NewLookoutDb(db *pgxpool.Pool, fatalErrors []*regexp.Regexp, metrics *metrics.Metrics, maxBackoff int, maxRetries int) *LookoutDb {
 	return &LookoutDb{
 		db:          db,
 		metrics:     metrics,
 		maxBackoff:  maxBackoff,
+		maxRetries:  maxRetries,
 		fatalErrors: fatalErrors,
 	}
 }
@@ -1088,10 +1090,11 @@ func (l *LookoutDb) withDatabaseRetryInsert(executeDb func() error) error {
 	return err
 }
 
-// Executes a database function, retrying until it either succeeds or encounters a non-retryable error
+// Executes a database function, retrying until it either succeeds, exceeds the
+// retry limit, or encounters a non-retryable error.
 func (l *LookoutDb) withDatabaseRetryQuery(executeDb func() (interface{}, error)) (interface{}, error) {
-	// TODO: arguably this should come from config
 	backOff := 1
+	retries := 0
 	for {
 		res, err := executeDb()
 
@@ -1100,8 +1103,12 @@ func (l *LookoutDb) withDatabaseRetryQuery(executeDb func() (interface{}, error)
 		}
 
 		if armadaerrors.IsRetryablePostgresError(err, l.fatalErrors) {
+			retries++
+			if l.maxRetries > 0 && retries >= l.maxRetries {
+				return nil, fmt.Errorf("exceeded max retries (%d): %w", l.maxRetries, err)
+			}
 			backOff = min(2*backOff, l.maxBackoff)
-			log.WithError(err).Warnf("Retryable error encountered executing sql, will wait for %d seconds before retrying.", backOff)
+			log.WithError(err).Warnf("Retryable error encountered executing sql (attempt %d/%d), will wait for %d seconds before retrying.", retries, l.maxRetries, backOff)
 			time.Sleep(time.Duration(backOff) * time.Second)
 		} else {
 			// Non retryable error

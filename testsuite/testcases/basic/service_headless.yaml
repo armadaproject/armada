@@ -31,11 +31,11 @@ jobs:
                   fieldPath: metadata.labels['armada_job_id']
           resources:
             limits:
-              memory: 20Mi
-              cpu: 100m
+              memory: 128Mi
+              cpu: 200m
             requests:
-              memory: 20Mi
-              cpu: 100m
+              memory: 128Mi
+              cpu: 200m
           ports:
             - containerPort: 1000
               protocol: TCP

@@ -32,14 +32,23 @@ message TestSpec {
     google.protobuf.Duration interval = 7;
     // Number of seconds to wait for jobs to finish.
     google.protobuf.Duration timeout = 8;
-    // If the jobs in this spec. should be cancelled.
-    enum Cancel {
-        NO = 0; // Do not cancel jobs.
-        BY_ID = 1; // Cancel jobs individually.
-        BY_SET = 2; // Cancel all jobs in the job set in bulk.
-        BY_IDS = 3; // Cancel all jobs in the job set by multiple ids
+    // Action type for jobs in this spec.
+    enum ActionType {
+        ACTION_NONE = 0; // No action.
+        ACTION_CANCEL = 1; // Cancel jobs.
+        ACTION_PREEMPT = 2; // Preempt jobs.
     }
-    Cancel cancel = 9;
+    ActionType action = 9;
+    // Selection method for the action.
+    enum SelectionType {
+        SELECTION_NO = 0; // No selection (no action).
+        SELECTION_BY_ID = 1; // Select jobs individually.
+        SELECTION_BY_SET = 2; // Select all jobs in the job set in bulk.
+        SELECTION_BY_IDS = 3; // Select all jobs in the job set by multiple ids.
+    }
+    SelectionType selection = 17;
+    // Reason for preempting jobs (if preemption is configured).
+    string preempt_reason = 16;
     // Test name. Defaults to the filename if not provided.
     string name = 10;
     // Randomize clientId if not provided

@@ -5,6 +5,7 @@ import "time"
 type TestConfig struct {
 	TestDuration    time.Duration   `yaml:"testDuration"`
 	WarmupDuration  time.Duration   `yaml:"warmupDuration"`
+	SkipTearDown    bool            `yaml:"skipTearDown,omitempty"`
 	DatabaseConfig  DatabaseConfig  `yaml:"databaseConfig"`
 	QueueConfig     []QueueConfig   `yaml:"queueConfig"`
 	IngestionConfig IngestionConfig `yaml:"ingestionConfig"`
@@ -25,6 +26,9 @@ type IngestionConfig struct {
 	ChannelBufferSizeMultiplier int                      `yaml:"channelBufferSizeMultiplier,omitempty"`
 	MaxBacklogSize              int                      `yaml:"maxBacklogSize,omitempty"`
 	BacklogDropStrategy         string                   `yaml:"backlogDropStrategy,omitempty"`
+	BatchTimeout                time.Duration            `yaml:"batchTimeout,omitempty"`
+	HistoricalJobChunkSize      int                      `yaml:"historicalJobChunkSize,omitempty"`
+	HistoricalJobWorkers        int                      `yaml:"historicalJobWorkers,omitempty"`
 	JobStateTransitionConfig    JobStateTransitionConfig `yaml:"jobStateTransitionConfig"`
 }
 
