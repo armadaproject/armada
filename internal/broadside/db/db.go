@@ -37,6 +37,7 @@ type HistoricalJobsParams struct {
 	QueueName          string
 	JobSetName         string
 	NJobs              int
+	ChunkSize          int
 	SucceededThreshold int
 	ErroredThreshold   int
 	CancelledThreshold int

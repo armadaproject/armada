@@ -253,6 +253,36 @@ func TestIngestionConfig_Validate(t *testing.T) {
 			wantErr: true,
 			errText: "submissionsPerHour must be non-negative",
 		},
+		{
+			name: "negative historical job chunk size",
+			modify: func(c *IngestionConfig) {
+				c.HistoricalJobChunkSize = -1
+			},
+			wantErr: true,
+			errText: "historicalJobChunkSize must be non-negative",
+		},
+		{
+			name: "negative historical job workers",
+			modify: func(c *IngestionConfig) {
+				c.HistoricalJobWorkers = -1
+			},
+			wantErr: true,
+			errText: "historicalJobWorkers must be non-negative",
+		},
+		{
+			name: "zero historical job chunk size is valid",
+			modify: func(c *IngestionConfig) {
+				c.HistoricalJobChunkSize = 0
+			},
+			wantErr: false,
+		},
+		{
+			name: "zero historical job workers is valid",
+			modify: func(c *IngestionConfig) {
+				c.HistoricalJobWorkers = 0
+			},
+			wantErr: false,
+		},
 	}
 
 	for _, tt := range tests {
