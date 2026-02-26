@@ -5,6 +5,7 @@ import "time"
 type TestConfig struct {
 	TestDuration    time.Duration   `yaml:"testDuration"`
 	WarmupDuration  time.Duration   `yaml:"warmupDuration"`
+	SkipTearDown    bool            `yaml:"skipTearDown,omitempty"`
 	DatabaseConfig  DatabaseConfig  `yaml:"databaseConfig"`
 	QueueConfig     []QueueConfig   `yaml:"queueConfig"`
 	IngestionConfig IngestionConfig `yaml:"ingestionConfig"`
