@@ -2,10 +2,9 @@ import { ReactNode, useCallback, useEffect, useMemo, useState } from "react"
 
 import { UserManager, WebStorageStateStore } from "oidc-client-ts"
 
-import { identifyUser } from "../analytics"
 import { ErrorPage } from "../components/ErrorPage"
 import { LoadingPage } from "../components/LoadingPage"
-import { AnalyticsScriptConfig, OidcConfig } from "../config"
+import { OidcConfig } from "../config"
 import { OIDC_REDIRECT } from "../pathnames"
 
 import { OidcAuthContext, OidcAuthContextProps } from "./OidcAuthContext"
@@ -17,10 +16,9 @@ const userManagerStore = new WebStorageStateStore({ store: window.localStorage }
 export interface OidcAuthProviderProps {
   children: ReactNode
   oidcConfig: OidcConfig | undefined
-  analyticsConfig: AnalyticsScriptConfig | undefined
 }
 
-export const OidcAuthProvider = ({ children, oidcConfig, analyticsConfig }: OidcAuthProviderProps) => {
+export const OidcAuthProvider = ({ children, oidcConfig }: OidcAuthProviderProps) => {
   const [isLoading, setIsLoading] = useState(true)
 
   const userManager = useMemo<UserManager | undefined>(
@@ -52,11 +50,6 @@ export const OidcAuthProvider = ({ children, oidcConfig, analyticsConfig }: Oidc
     if (isOidcRedirectPath) {
       const user = await userManager.signinCallback()
       if (user) {
-        if (analyticsConfig?.userIdentify) {
-          // Identify user for analytics after successful authentication
-          identifyUser(user, analyticsConfig)
-        }
-
         if (typeof user.state === "string" && user.state) {
           const originalURL = new URL(user.state)
           // Preserve the current location's host, in case this has been changed by the redirect
@@ -70,16 +63,11 @@ export const OidcAuthProvider = ({ children, oidcConfig, analyticsConfig }: Oidc
       if (!user || user.expired) {
         return await userManager.signinRedirect({ state: window.location.href })
       }
-
-      // Identify user for analytics after successful authentication
-      if (analyticsConfig?.userIdentify) {
-        identifyUser(user, analyticsConfig)
-      }
     }
 
     setAuthError(undefined)
     setIsLoading(false)
-  }, [userManager, isOidcRedirectPath, analyticsConfig])
+  }, [userManager, isOidcRedirectPath])
 
   const handlerAuthenticationError = useCallback((e: any) => {
     // eslint-disable-next-line no-console
