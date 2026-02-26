@@ -624,7 +624,6 @@ func TestDeniedResourceTypes(t *testing.T) {
 			}
 		})
 	}
-
 }
 
 func TestHomeNodeScheduling(t *testing.T) {
