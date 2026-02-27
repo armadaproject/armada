@@ -748,7 +748,6 @@ func TestMatchesConditions(t *testing.T) {
 			jobResources: internaltypes.ResourceList{},
 			expectMatch:  true,
 		},
-		// GreaterThan
 		"gt: job value above threshold matches": {
 			conditions:   []types.AwayNodeTypeCondition{{Resource: "cpu", Operator: types.AwayNodeTypeConditionOpGreaterThan, Value: cpu2}},
 			jobResources: testfixtures.Cpu("4"),
@@ -764,7 +763,6 @@ func TestMatchesConditions(t *testing.T) {
 			jobResources: testfixtures.Cpu("2"),
 			expectMatch:  false,
 		},
-		// LessThan
 		"lt: job value below threshold matches": {
 			conditions:   []types.AwayNodeTypeCondition{{Resource: "cpu", Operator: types.AwayNodeTypeConditionOpLessThan, Value: cpu4}},
 			jobResources: testfixtures.Cpu("2"),
@@ -780,7 +778,6 @@ func TestMatchesConditions(t *testing.T) {
 			jobResources: testfixtures.Cpu("4"),
 			expectMatch:  false,
 		},
-		// Equal
 		"eq: job value equal to threshold matches": {
 			conditions:   []types.AwayNodeTypeCondition{{Resource: "cpu", Operator: types.AwayNodeTypeConditionOpEqual, Value: cpu2}},
 			jobResources: testfixtures.Cpu("2"),
@@ -796,7 +793,6 @@ func TestMatchesConditions(t *testing.T) {
 			jobResources: testfixtures.Cpu("2"),
 			expectMatch:  false,
 		},
-		// Missing resource treated as zero
 		"missing resource treated as zero - gt zero does not match": {
 			conditions:   []types.AwayNodeTypeCondition{{Resource: "nvidia.com/gpu", Operator: types.AwayNodeTypeConditionOpGreaterThan, Value: cpu0}},
 			jobResources: testfixtures.Cpu("2"),
