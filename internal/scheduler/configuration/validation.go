@@ -4,17 +4,26 @@ import (
 	"fmt"
 
 	"github.com/go-playground/validator/v10"
+
+	"github.com/armadaproject/armada/internal/common/config"
+	log "github.com/armadaproject/armada/internal/common/logging"
 )
 
-func (c Configuration) Validate() error {
-	// Validate scheduling timeout relationship
-	if c.NewJobsSchedulingTimeout > 0 && c.NewJobsSchedulingTimeout >= c.MaxSchedulingDuration {
-		return fmt.Errorf("%s: NewJobsSchedulingTimeout=%v, MaxSchedulingDuration=%v",
-			InvalidSchedulingTimeoutErrorMessage,
-			c.NewJobsSchedulingTimeout,
-			c.MaxSchedulingDuration)
+func (c *Configuration) Mutate() (config.Config, error) {
+	if c.MaxSchedulingDuration > 0 {
+		log.Warnf("use of top level MaxSchedulingDuration has been deprecated - please use scheduling.MaxSchedulingDuration. Applying MaxSchedulingDuration to scheduling.MaxSchedulingDuration")
+		c.Scheduling.MaxSchedulingDuration = c.MaxSchedulingDuration
 	}
 
+	if c.NewJobsSchedulingTimeout > 0 {
+		log.Warnf("use of top level NewJobsSchedulingTimeout has been deprecated - please use scheduling.MaxNewJobSchedulingDuration. Applying NewJobsSchedulingTimeout to scheduling.MaxNewJobSchedulingDuration")
+		c.Scheduling.MaxNewJobSchedulingDuration = c.NewJobsSchedulingTimeout
+	}
+
+	return c, nil
+}
+
+func (c *Configuration) Validate() error {
 	validate := validator.New()
 	validate.RegisterStructValidation(SchedulingConfigValidation, SchedulingConfig{})
 	return validate.Struct(c)

@@ -604,7 +604,6 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 			nodeDb,
 			shouldRunOptimiser,
 			clock.RealClock{},
-			0, // Soft timeout disabled: scheduler uses real clock but simulator uses simulated time
 		)
 
 		schedulerCtx := ctx

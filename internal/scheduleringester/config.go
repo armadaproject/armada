@@ -27,6 +27,10 @@ type Configuration struct {
 	Profiling *profilingconfig.ProfilingConfig
 }
 
+func (c Configuration) Mutate() (commonconfig.Config, error) {
+	return c, nil
+}
+
 func (c Configuration) Validate() error {
 	validate := validator.New()
 	return validate.Struct(c)

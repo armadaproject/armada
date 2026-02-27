@@ -55,6 +55,32 @@ func TestConstraints(t *testing.T) {
 				},
 				[]*api.Queue{{Name: "queue-1", Cordoned: false, ResourceLimitsByPriorityClassName: map[string]*api.PriorityClassResourceLimits{"priority-class-1": {MaximumResourceFraction: map[string]float64{"cpu": 0.9, "memory": 0.9}}}}},
 			), rlFactory).withExpectedQueueResourceLimit(makeResourceList(rlFactory, "900", "900Gi")),
+		"global new job scheduling limit - exceeded": func() *constraintTest {
+			t := makeConstraintsTest(
+				NewSchedulingConstraints("pool-1", makeResourceList(rlFactory, "1000", "1000Gi"), makeSchedulingConfigWithSchedulingDurationLimits(time.Second, time.Second), []*api.Queue{}), rlFactory)
+			t.sctx.TotalNewJobSchedulingTime = time.Second * 2
+			t.expectedCheckConstraintsReason = GlobalNewJobSchedulingDurationExceededUnschedulableReason
+			return t
+		}(),
+		"global new job scheduling limit - not enforced when 0": func() *constraintTest {
+			t := makeConstraintsTest(
+				NewSchedulingConstraints("pool-1", makeResourceList(rlFactory, "1000", "1000Gi"), makeSchedulingConfigWithSchedulingDurationLimits(time.Duration(0), time.Second), []*api.Queue{}), rlFactory)
+			t.sctx.TotalNewJobSchedulingTime = time.Second * 2
+			return t
+		}(),
+		"queue level new job scheduling limit - exceeded": func() *constraintTest {
+			t := makeConstraintsTest(
+				NewSchedulingConstraints("pool-1", makeResourceList(rlFactory, "1000", "1000Gi"), makeSchedulingConfigWithSchedulingDurationLimits(time.Second, time.Second), []*api.Queue{}), rlFactory)
+			t.sctx.QueueSchedulingContexts["queue-1"].TotalNewJobSchedulingTime = time.Second * 2
+			t.expectedCheckConstraintsReason = QueueNewJobSchedulingDurationExceededUnschedulableReason
+			return t
+		}(),
+		"queue level new job scheduling limit - not enforced when 0": func() *constraintTest {
+			t := makeConstraintsTest(
+				NewSchedulingConstraints("pool-1", makeResourceList(rlFactory, "1000", "1000Gi"), makeSchedulingConfigWithSchedulingDurationLimits(time.Second, time.Duration(0)), []*api.Queue{}), rlFactory)
+			t.sctx.QueueSchedulingContexts["queue-1"].TotalNewJobSchedulingTime = time.Second * 2
+			return t
+		}(),
 		"exceeds-queue-priority-class-constraint": func() *constraintTest {
 			t := makeConstraintsTest(NewSchedulingConstraints("pool-1", makeResourceList(rlFactory, "1000", "1000Gi"), makeSchedulingConfig(), []*api.Queue{
 				{
@@ -405,6 +431,13 @@ func makeSchedulingConfig() configuration.SchedulingConfig {
 		MaximumResourceFractionToSchedule: map[string]float64{"cpu": 0.1, "memory": 0.1},
 		PriorityClasses:                   map[string]types.PriorityClass{"priority-class-1": {}},
 	}
+}
+
+func makeSchedulingConfigWithSchedulingDurationLimits(maxGlobalDuration time.Duration, maxQueueDuration time.Duration) configuration.SchedulingConfig {
+	schedulingConfig := makeSchedulingConfig()
+	schedulingConfig.MaxNewJobSchedulingDuration = maxGlobalDuration
+	schedulingConfig.MaxNewJobSchedulingDurationPerQueue = maxQueueDuration
+	return schedulingConfig
 }
 
 func makeResourceList(rlFactory *internaltypes.ResourceListFactory, cpu string, memory string) internaltypes.ResourceList {

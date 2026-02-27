@@ -48,6 +48,9 @@ type Configuration struct {
 	// This is expected to be a greater value than CyclePeriod as we don't need to schedule every cycle
 	// This keeps the system more responsive as other operations happen in each cycle - such as state changes
 	SchedulePeriod time.Duration `validate:"required"`
+	// Deprecated - replaced by Scheduling.MaxNewJobSchedulingDuration
+	// For now the scheduler will use this value if set and fall back to scheduling.MaxSchedulingDuration
+	//
 	// MaxSchedulingDuration is the hard timeout for a scheduling cycle.
 	// When exceeded, the scheduler aborts immediately and returns an error,
 	// discarding all uncommitted work from the current cycle.
@@ -55,8 +58,11 @@ type Configuration struct {
 	// This is a safety limit to prevent runaway scheduling cycles from blocking
 	// the system indefinitely.
 	//
-	// Must be greater than NewJobsSchedulingTimeout.
-	MaxSchedulingDuration time.Duration `validate:"required"`
+	// Must be greater than MaxNewJobSchedulingDuration.
+	MaxSchedulingDuration time.Duration
+	// Deprecated - replaced by Scheduling.MaxNewJobSchedulingDuration
+	// For now the scheduler will use this value if set and fall back to scheduling.MaxNewJobSchedulingDuration
+	//
 	// NewJobsSchedulingTimeout is the soft timeout for scheduling new jobs.
 	// When exceeded, the scheduler stops considering new jobs and only
 	// attempts to reschedule evicted jobs for the remainder of the cycle.
@@ -163,6 +169,35 @@ type SchedulingConfig struct {
 	// This only applies to certain types of known failures
 	//	- critical failures will still cause a total scheduling round failure
 	DisableIndependentPoolFailures bool
+	// MaxSchedulingDuration is the hard timeout for a scheduling cycle.
+	// When exceeded, the scheduler aborts immediately and returns an error,
+	// discarding all uncommitted work from the current cycle.
+	//
+	// This is a safety limit to prevent runaway scheduling cycles from blocking
+	// the system indefinitely.
+	//
+	// Must be greater than MaxNewJobSchedulingDuration and MaxNewJobSchedulingDurationPerQueue.
+	MaxSchedulingDuration time.Duration `validate:"required,gt=0"`
+	// MaxNewJobSchedulingDuration is the soft timeout for scheduling new jobs.
+	// When exceeded, the scheduler stops considering new jobs and only
+	// attempts to reschedule evicted jobs for the remainder of the cycle.
+	//
+	// This ensures evicted jobs (which were preempted mid-simulation) get
+	// rescheduled before the cycle commits, while still bounding total cycle time.
+	//
+	// Set to 0 to disable (scheduler will schedule new jobs until hard timeout).
+	// Must be less than MaxSchedulingDuration when non-zero.
+	MaxNewJobSchedulingDuration time.Duration `validate:"omitempty,ltfield=MaxSchedulingDuration"`
+	// MaxNewJobSchedulingDurationPerQueue is the soft timeout for scheduling new jobs for a queue.
+	// When exceeded, the scheduler stops considering new jobs for that queue and only
+	// attempts to reschedule evicted jobs for the remainder of the cycle.
+	//
+	// This ensures evicted jobs (which were preempted mid-simulation) get
+	// rescheduled before the cycle commits, while still bounding total cycle time.
+	//
+	// Set to 0 to disable (scheduler will schedule new jobs until hard timeout).
+	// Must be less than MaxSchedulingDuration when non-zero.
+	MaxNewJobSchedulingDurationPerQueue time.Duration `validate:"omitempty,ltfield=MaxSchedulingDuration"`
 	// Set to true to enable scheduler assertions. This results in some performance loss.
 	EnableAssertions bool
 	// Experimental
@@ -304,7 +339,6 @@ const (
 	DuplicateWellKnownNodeTypeErrorMessage           = "duplicate well-known node type name"
 	AwayNodeTypesWithoutPreemptionErrorMessage       = "priority class has away node types but is not preemptible"
 	UnknownWellKnownNodeTypeErrorMessage             = "priority class refers to unknown well-known node type"
-	InvalidSchedulingTimeoutErrorMessage             = "NewJobsSchedulingTimeout must be less than MaxSchedulingDuration"
 	WildCardWellKnownNodeTypeValue                   = "*"
 	InvalidAwayNodeTypeConditionOperatorErrorMessage = "away node type condition has invalid operator; must be one of >, <, =="
 )

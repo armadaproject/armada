@@ -56,18 +56,15 @@ type FairSchedulingAlgo struct {
 	lastOptimiserRoundTimeByPool map[string]time.Time
 	// Max amount of time each scheduling round is allowed to take (hard timeout).
 	maxSchedulingDuration time.Duration
-	// Soft timeout for scheduling new jobs. After this duration, only evicted jobs are scheduled.
-	newJobsSchedulingTimeout time.Duration
-	clock                    clock.Clock
-	resourceListFactory      *internaltypes.ResourceListFactory
-	floatingResourceTypes    *floatingresources.FloatingResourceTypes
-	shortJobPenalty          *ShortJobPenalty
+	clock                 clock.Clock
+	resourceListFactory   *internaltypes.ResourceListFactory
+	floatingResourceTypes *floatingresources.FloatingResourceTypes
+	shortJobPenalty       *ShortJobPenalty
 }
 
 func NewFairSchedulingAlgo(
 	config configuration.SchedulingConfig,
 	maxSchedulingDuration time.Duration,
-	newJobsSchedulingTimeout time.Duration,
 	executorRepository database.ExecutorRepository,
 	queueCache queue.QueueCache,
 	schedulingContextRepository *reports.SchedulingContextRepository,
@@ -93,7 +90,6 @@ func NewFairSchedulingAlgo(
 		limiterByQueue:               make(map[string]*rate.Limiter),
 		lastOptimiserRoundTimeByPool: make(map[string]time.Time, len(config.Pools)),
 		maxSchedulingDuration:        maxSchedulingDuration,
-		newJobsSchedulingTimeout:     newJobsSchedulingTimeout,
 		clock:                        clock.RealClock{},
 		resourceListFactory:          resourceListFactory,
 		floatingResourceTypes:        floatingResourceTypes,
@@ -742,7 +738,6 @@ func (l *FairSchedulingAlgo) SchedulePool(
 		fsctx.nodeDb,
 		shouldRunOptimiser,
 		l.clock,
-		l.newJobsSchedulingTimeout,
 	)
 
 	ctx.Infof("Scheduling on pool %s with capacity %s protectedFractionOfFairShare %f protectUncappedAdjustedFairShare %t",
