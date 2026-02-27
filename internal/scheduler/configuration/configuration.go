@@ -350,9 +350,12 @@ type PoolConfig struct {
 	ExperimentalSubmissionGroup   string
 	ExperimentalMarketScheduling  *MarketSchedulingConfig
 	ExperimentalRunReconciliation *RunReconciliationConfig
-	DisableHomeScheduling         bool
-	DisableAwayScheduling         bool
-	DisableGangAwayScheduling     bool
+	// This prevents jobs being scheduled on this pool if they request one of the listed resources
+	// The list should be the name of the resource type. For example, "cpu", "memory", or "nvidia.com/gpu".
+	ExperimentalUnscheduledResources []string
+	DisableHomeScheduling            bool
+	DisableAwayScheduling            bool
+	DisableGangAwayScheduling        bool
 }
 
 func (p PoolConfig) GetSubmissionGroup() string {

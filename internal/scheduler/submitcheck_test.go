@@ -47,6 +47,7 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 	schedulingConfig.Pools = []configuration.PoolConfig{
 		{Name: "cpu"},
 		{Name: "cpu2"},
+		{Name: "cpu-disallowed-resources", ExperimentalUnscheduledResources: []string{"cpu"}},
 		{Name: "gpu"},
 		{Name: "cpu-away", AwayPools: []string{"gpu"}},
 		{Name: "cpu-grouped-1", ExperimentalSubmissionGroup: "group-1"},
@@ -85,6 +86,18 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 			jobs:            []*jobdb.Job{smallJob1},
 			expectedResult: map[string]schedulingResult{
 				smallJob1.Id(): {isSchedulable: true, pools: []string{"cpu"}},
+			},
+		},
+		"One job schedulable, jobs not assigned to pools with matching disallowed resources": {
+			executorTimeout: defaultTimeout,
+			executors: []*schedulerobjects.Executor{
+				Executor(SmallNode("cpu")),
+				Executor(SmallNode("cpu-disallowed-resources")),
+				Executor(SmallNode("cpu2")),
+			},
+			jobs: []*jobdb.Job{smallJob1},
+			expectedResult: map[string]schedulingResult{
+				smallJob1.Id(): {isSchedulable: true, pools: []string{"cpu", "cpu2"}},
 			},
 		},
 		"One job schedulable, home jobs not assigned to away pools": {

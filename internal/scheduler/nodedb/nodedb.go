@@ -23,6 +23,8 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 )
 
+const disallowedResourceRequested = "job requests disallowed resource and therefore cannot be scheduled"
+
 var empty struct{}
 
 func (nodeDb *NodeDb) addNodeToStats(node *internaltypes.Node) {
@@ -146,6 +148,11 @@ type NodeDb struct {
 	scheduledAtPriorityByJobId map[string]int32
 
 	resourceListFactory *internaltypes.ResourceListFactory
+
+	// Resources that are not scheduled by this nodedb
+	// If a job requests one of these resources
+	// it will not be scheduled onto any node regardless of if the nodes have enough resource
+	disallowedJobResources []string
 
 	disableHomeScheduling     bool
 	disableAwayScheduling     bool
@@ -351,6 +358,10 @@ func (nodeDb *NodeDb) EnableGangAwayScheduling() {
 	nodeDb.disableGangAwayScheduling = false
 }
 
+func (nodeDb *NodeDb) SetDisallowedJobResources(resources []string) {
+	nodeDb.disallowedJobResources = resources
+}
+
 func (nodeDb *NodeDb) GetNodes() ([]*internaltypes.Node, error) {
 	return nodeDb.GetNodesWithTxn(nodeDb.Txn(false))
 }
@@ -461,6 +472,13 @@ func (nodeDb *NodeDb) SelectNodeForJobWithTxn(txn *memdb.Txn, jctx *context.JobS
 				jctx.PodSchedulingContext.SchedulingMethod = context.Rescheduled
 				return node, nil
 			}
+		}
+	}
+
+	for _, resourceName := range nodeDb.disallowedJobResources {
+		if jctx.KubernetesResourceRequirements.GetRawByNameZeroIfMissing(resourceName) > 0 {
+			pctx.NumExcludedNodesByReason[disallowedResourceRequested] = int(nodeDb.numNodes)
+			return nil, nil
 		}
 	}
 

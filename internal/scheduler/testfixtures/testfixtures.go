@@ -236,6 +236,14 @@ func WithHomeSchedulingDisabled(config schedulerconfiguration.SchedulingConfig) 
 	return config
 }
 
+func WithUnscheduledResources(config schedulerconfiguration.SchedulingConfig, disallowedResources []string) schedulerconfiguration.SchedulingConfig {
+	for i, pool := range config.Pools {
+		pool.ExperimentalUnscheduledResources = disallowedResources
+		config.Pools[i] = pool
+	}
+	return config
+}
+
 func WithAwaySchedulingDisabled(config schedulerconfiguration.SchedulingConfig) schedulerconfiguration.SchedulingConfig {
 	for i, pool := range config.Pools {
 		pool.DisableAwayScheduling = true

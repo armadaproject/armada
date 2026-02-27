@@ -31,6 +31,7 @@ var (
 	poolAndShapeAndReasonLabels            = []string{poolLabel, jobShapeLabel, unschedulableReasonLabel}
 	poolQueueAndResourceLabels             = []string{poolLabel, queueLabel, resourceLabel}
 	poolAndOutcomeLabels                   = []string{poolLabel, outcomeLabel, terminationReasonLabel}
+	nodeLabels                             = []string{poolLabel, nodeLabel, clusterLabel, nodeTypeLabel, resourceLabel, reservationLabel, schedulableLabel, overAllocatedLabel, physicalPoolLabel, capacityClassLabel}
 	defaultType                            = "unknown"
 	reconcilerFailureType                  = "reconciler"
 )
@@ -268,7 +269,7 @@ func newPerCycleMetrics() *perCycleMetrics {
 			Name: prefix + "node_allocatable_resource",
 			Help: "Resource that can be allocated to Armada jobs on this node",
 		},
-		[]string{poolLabel, nodeLabel, clusterLabel, nodeTypeLabel, resourceLabel, reservationLabel, "schedulable", "overAllocated"},
+		nodeLabels,
 	)
 
 	nodeAllocatedResource := prometheus.NewGaugeVec(
@@ -276,7 +277,7 @@ func newPerCycleMetrics() *perCycleMetrics {
 			Name: prefix + "node_allocated_resource",
 			Help: "Resource allocated by Armada jobs on this node",
 		},
-		[]string{poolLabel, nodeLabel, clusterLabel, nodeTypeLabel, resourceLabel, reservationLabel, "schedulable", "overAllocated"},
+		nodeLabels,
 	)
 
 	indicativePrice := prometheus.NewGaugeVec(
@@ -609,14 +610,20 @@ func (m *cycleMetrics) ReportSchedulerResult(ctx *armadacontext.Context, result 
 					for _, node := range nodes {
 						isSchedulable := strconv.FormatBool(!node.IsUnschedulable())
 						isOverallocated := strconv.FormatBool(node.IsOverAllocated())
+						nodeCapacityClass := CapacityClassDedicated
+						if pool != node.GetPool() {
+							nodeCapacityClass = CapacityClassShared
+						}
 						for _, resource := range node.GetAllocatableResources().GetAll() {
-							currentCycle.nodeAllocatableResource.WithLabelValues(node.GetPool(), node.GetName(), node.GetExecutor(), node.GetReportingNodeType(), resource.Name, node.GetReservation(), isSchedulable, isOverallocated).Set(resource.Value.AsApproximateFloat64())
+							currentCycle.nodeAllocatableResource.WithLabelValues(pool, node.GetName(), node.GetExecutor(), node.GetReportingNodeType(), resource.Name, node.GetReservation(),
+								isSchedulable, isOverallocated, node.GetPool(), nodeCapacityClass).Set(resource.Value.AsApproximateFloat64())
 						}
 
 						allocated := node.GetAllocatableResources().Subtract(node.AllocatableByPriority[internaltypes.EvictedPriority])
 						for _, resource := range allocated.GetAll() {
 							allocatableValue := math.Max(resource.Value.AsApproximateFloat64(), 0)
-							currentCycle.nodeAllocatedResource.WithLabelValues(node.GetPool(), node.GetName(), node.GetExecutor(), node.GetReportingNodeType(), resource.Name, node.GetReservation(), isSchedulable, isOverallocated).Set(allocatableValue)
+							currentCycle.nodeAllocatedResource.WithLabelValues(pool, node.GetName(), node.GetExecutor(), node.GetReportingNodeType(), resource.Name, node.GetReservation(),
+								isSchedulable, isOverallocated, node.GetPool(), nodeCapacityClass).Set(allocatableValue)
 						}
 					}
 				}

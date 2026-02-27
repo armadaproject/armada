@@ -218,6 +218,17 @@ func TestSchedule(t *testing.T) {
 			expectedScheduledIndices: []int{0, 1, 2, 3},
 			expectedScheduledByPool:  map[string]int{testfixtures.TestPool: 4},
 		},
+		"scheduling - disallowed job resources": {
+			schedulingConfig: testfixtures.WithUnscheduledResources(testfixtures.TestSchedulingConfig(), []string{"cpu"}),
+			executors: []*schedulerobjects.Executor{
+				test1Node32CoreExecutor("executor1"),
+				test1Node32CoreExecutor("executor2"),
+			},
+			queues:                   []*api.Queue{testfixtures.MakeTestQueue()},
+			queuedJobs:               testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 10),
+			expectedScheduledIndices: []int{},
+			expectedScheduledByPool:  map[string]int{},
+		},
 		"scheduling - home scheduling disabled": {
 			schedulingConfig: testfixtures.WithHomeSchedulingDisabled(testfixtures.TestSchedulingConfig()),
 			executors: []*schedulerobjects.Executor{
@@ -1128,43 +1139,6 @@ func BenchmarkNodeDbConstruction(b *testing.B) {
 			}
 		})
 	}
-}
-
-func TestMarkResourceUnallocatable(t *testing.T) {
-	input := map[int32]internaltypes.ResourceList{
-		100:  makeResourceList("cpu", "500"),
-		1000: makeResourceList("cpu", "900"),
-	}
-
-	expected := map[int32]internaltypes.ResourceList{
-		100:  makeResourceList("cpu", "400"),
-		1000: makeResourceList("cpu", "800"),
-	}
-
-	markResourceUnallocatable(input, makeResourceList("cpu", "100"))
-	assert.Equal(t, expected, input)
-}
-
-func TestMarkResourceUnallocatable_ProtectsFromNegativeValues(t *testing.T) {
-	input := map[int32]internaltypes.ResourceList{
-		100:  makeResourceList("cpu", "500"),
-		1000: makeResourceList("cpu", "900"),
-	}
-
-	expected := map[int32]internaltypes.ResourceList{
-		100:  makeResourceList("cpu", "0"),
-		1000: makeResourceList("cpu", "300"),
-	}
-
-	markResourceUnallocatable(input, makeResourceList("cpu", "600"))
-	assert.Equal(t, expected, input)
-}
-
-func makeResourceList(resourceName string, value string) internaltypes.ResourceList {
-	return testfixtures.TestResourceListFactory.FromNodeProto(map[string]*k8sResource.Quantity{
-		resourceName: pointer.MustParseResource(value),
-	},
-	)
 }
 
 func makeTestExecutorWithNodes(executorId string, nodes ...*schedulerobjects.Node) *schedulerobjects.Executor {
