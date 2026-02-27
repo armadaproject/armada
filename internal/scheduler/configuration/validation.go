@@ -3,9 +3,10 @@ package configuration
 import (
 	"fmt"
 
+	"github.com/go-playground/validator/v10"
+
 	"github.com/armadaproject/armada/internal/common/config"
 	log "github.com/armadaproject/armada/internal/common/logging"
-	"github.com/go-playground/validator/v10"
 )
 
 func (c *Configuration) Mutate() (config.Config, error) {
