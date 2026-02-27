@@ -571,6 +571,61 @@ func TestScheduleMany(t *testing.T) {
 	}
 }
 
+func TestDisallowedJobResources(t *testing.T) {
+	tests := map[string]struct {
+		disallowedJobResources []string
+		job                    *jobdb.Job
+		node                   *internaltypes.Node
+		jobEvicted             bool
+		expectScheduled        bool
+	}{
+		"scheduled - only using allowed resources": {
+			job:             testfixtures.Test1Cpu4GiJob("A", testfixtures.PriorityClass0),
+			node:            testfixtures.Test32CpuNode(testfixtures.TestPriorities),
+			expectScheduled: true,
+		},
+		"not scheduled - using disallowed resources": {
+			job:                    testfixtures.Test1Cpu4GiJob("A", testfixtures.PriorityClass0),
+			node:                   testfixtures.Test32CpuNode(testfixtures.TestPriorities),
+			disallowedJobResources: []string{"cpu"},
+			expectScheduled:        false,
+		},
+		"scheduled - reschedules even if using disallowed resources": {
+			job:                    testfixtures.Test1Cpu4GiJob("A", testfixtures.PriorityClass0),
+			node:                   testfixtures.Test32CpuNode(testfixtures.TestPriorities),
+			disallowedJobResources: []string{"cpu"},
+			jobEvicted:             true,
+			expectScheduled:        true,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			nodeDb, err := newNodeDbWithNodes([]*internaltypes.Node{tc.node})
+			require.NoError(t, err)
+
+			jctx := context.JobSchedulingContextFromJob(tc.job)
+			if tc.jobEvicted {
+				jctx.IsEvicted = true
+				jctx.SetAssignedNode(tc.node)
+			}
+
+			nodeDbTxn := nodeDb.Txn(true)
+			nodeDb.SetDisallowedJobResources(tc.disallowedJobResources)
+			node, err := nodeDb.SelectNodeForJobWithTxn(nodeDbTxn, jctx)
+			require.NoError(t, err)
+
+			if tc.expectScheduled {
+				assert.NotNil(t, node)
+				assert.Equal(t, node.GetId(), jctx.PodSchedulingContext.NodeId)
+			} else {
+				assert.Nil(t, node)
+				assert.Equal(t, map[string]int{disallowedResourceRequested: 1}, jctx.PodSchedulingContext.NumExcludedNodesByReason)
+			}
+		})
+	}
+}
+
 func TestHomeNodeScheduling(t *testing.T) {
 	tests := map[string]struct {
 		disableHomeScheduling bool

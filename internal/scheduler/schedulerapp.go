@@ -414,6 +414,7 @@ func Run(config schedulerconfig.Configuration) error {
 		bidPriceProvider,
 		executorRepository,
 		config.Scheduling.Pools,
+		config.Metrics.QueuedJobPrimaryPoolOrder,
 		config.Metrics.RefreshInterval,
 		floatingResourceTypes,
 	)

@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
@@ -150,4 +151,102 @@ func TestNode(t *testing.T) {
 	nodeCopy := node.DeepCopyNilKeys()
 	node.Keys = nil // UnsafeCopy() sets Keys to nil
 	assert.Equal(t, node, nodeCopy)
+}
+
+func TestMarkResourceUnallocatable(t *testing.T) {
+	resourceListFactory, err := NewResourceListFactory(
+		[]schedulerconfiguration.ResourceType{
+			{Name: "cpu", Resolution: resource.MustParse("1m")},
+		},
+		nil,
+	)
+	require.Nil(t, err)
+
+	allocatableResources := makeCpuResourceList(resourceListFactory, "10")
+	allocatableByPriority := map[int32]ResourceList{
+		1: makeCpuResourceList(resourceListFactory, "8"),
+		2: makeCpuResourceList(resourceListFactory, "6"),
+	}
+
+	node := createNode(allocatableResources, allocatableByPriority)
+
+	unallocatable := makeCpuResourceList(resourceListFactory, "2")
+	expectedAllocatableResources := makeCpuResourceList(resourceListFactory, "8")
+	expectedAllocatableByPriority := map[int32]ResourceList{
+		1: makeCpuResourceList(resourceListFactory, "6"),
+		2: makeCpuResourceList(resourceListFactory, "4"),
+	}
+
+	result := node.MarkResourceUnallocatable(unallocatable)
+
+	assert.Equal(t, expectedAllocatableResources, result.allocatableResources)
+	assert.Equal(t, expectedAllocatableByPriority, result.AllocatableByPriority)
+}
+
+func TestMarkResourceUnallocatable_ProtectsFromNegativeValues(t *testing.T) {
+	resourceListFactory, err := NewResourceListFactory(
+		[]schedulerconfiguration.ResourceType{
+			{Name: "cpu", Resolution: resource.MustParse("1m")},
+		},
+		nil,
+	)
+	assert.Nil(t, err)
+
+	allocatableResources := makeCpuResourceList(resourceListFactory, "10")
+	allocatableByPriority := map[int32]ResourceList{
+		1: makeCpuResourceList(resourceListFactory, "8"),
+		2: makeCpuResourceList(resourceListFactory, "6"),
+	}
+
+	node := createNode(allocatableResources, allocatableByPriority)
+
+	unallocatable := makeCpuResourceList(resourceListFactory, "9")
+	expectedAllocatableResources := makeCpuResourceList(resourceListFactory, "1")
+	expectedAllocatableByPriority := map[int32]ResourceList{
+		1: makeCpuResourceList(resourceListFactory, "0"),
+		2: makeCpuResourceList(resourceListFactory, "0"),
+	}
+
+	result := node.MarkResourceUnallocatable(unallocatable)
+
+	assert.Equal(t, expectedAllocatableResources, result.allocatableResources)
+	assert.Equal(t, expectedAllocatableByPriority, result.AllocatableByPriority)
+}
+
+func makeCpuResourceList(factory *ResourceListFactory, cpu string) ResourceList {
+	return factory.FromNodeProto(
+		map[string]*resource.Quantity{
+			"cpu": pointer.MustParseResource(cpu),
+		},
+	)
+}
+
+func createNode(allocatableResource ResourceList, allocatableByPriority map[int32]ResourceList) *Node {
+	const id = "id"
+	const reportingNodeType = "re"
+	const pool = "pool"
+	const index = uint64(1)
+	const executor = "executor"
+	const name = "name"
+	node := CreateNode(
+		id,
+		nil,
+		index,
+		executor,
+		name,
+		pool,
+		reportingNodeType,
+		nil,
+		nil,
+		false,
+		allocatableResource,
+		allocatableResource,
+		allocatableByPriority,
+		nil,
+		nil,
+		nil,
+		nil,
+	)
+
+	return node
 }

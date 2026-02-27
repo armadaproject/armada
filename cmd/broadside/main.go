@@ -28,6 +28,7 @@ const (
 	customConfigLocation string = "config"
 	resultsDirFlag       string = "results-dir"
 	teardownOnlyFlag     string = "teardown-only"
+	yesFlag              string = "yes"
 	teardownTimeout             = 2 * time.Minute
 )
 
@@ -44,6 +45,11 @@ func init() {
 		teardownOnlyFlag,
 		false,
 		"Connect to the configured database and tear it down, then exit. Use to clean up after a crashed load test.")
+	pflag.BoolP(
+		yesFlag,
+		"y",
+		false,
+		"Skip the confirmation prompt for data generation")
 	pflag.Parse()
 }
 
@@ -197,7 +203,7 @@ func main() {
 	}
 
 	est := estimation.Estimate(config)
-	if estimation.ShouldPrompt(est) {
+	if estimation.ShouldPrompt(est) && !viper.GetBool(yesFlag) {
 		confirmed, err := estimation.DisplayEstimationAndConfirm(est)
 		if err != nil {
 			panic(err)
