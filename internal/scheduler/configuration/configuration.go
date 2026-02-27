@@ -124,6 +124,7 @@ type HttpConfig struct {
 type MetricsConfig struct {
 	Port                         uint16
 	RefreshInterval              time.Duration
+	QueuedJobPrimaryPoolOrder    []string
 	JobStateMetricsResetInterval time.Duration
 	// Used to calculate job seconds lost to preemption
 	// Calculate as if the job checkpoints at these different intervals
@@ -350,9 +351,12 @@ type PoolConfig struct {
 	ExperimentalSubmissionGroup   string
 	ExperimentalMarketScheduling  *MarketSchedulingConfig
 	ExperimentalRunReconciliation *RunReconciliationConfig
-	DisableHomeScheduling         bool
-	DisableAwayScheduling         bool
-	DisableGangAwayScheduling     bool
+	// This prevents jobs being scheduled on this pool if they request one of the listed resources
+	// The list should be the name of the resource type. For example, "cpu", "memory", or "nvidia.com/gpu".
+	ExperimentalUnscheduledResources []string
+	DisableHomeScheduling            bool
+	DisableAwayScheduling            bool
+	DisableGangAwayScheduling        bool
 }
 
 func (p PoolConfig) GetSubmissionGroup() string {
