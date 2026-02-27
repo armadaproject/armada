@@ -19,6 +19,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/floatingresources"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
+	"github.com/armadaproject/armada/internal/scheduler/metrics"
 	"github.com/armadaproject/armada/internal/scheduler/pricing"
 	"github.com/armadaproject/armada/internal/scheduler/queue"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -255,11 +256,12 @@ func (c *MetricsCollector) updateQueueMetrics(ctx *armadacontext.Context) ([]pro
 }
 
 type queueMetricKey struct {
-	cluster     string
-	pool        string
-	queueName   string
-	nodeType    string
-	reservation string
+	cluster      string
+	pool         string
+	queueName    string
+	nodeType     string
+	reservation  string
+	physicalPool string
 }
 
 type queuePriceBandMetricKey struct {
@@ -270,6 +272,7 @@ type queuePriceBandMetricKey struct {
 	reservation   string
 	priorityClass string
 	priceBand     string
+	physicalPool  string
 }
 
 type queuePhaseMetricKey struct {
@@ -282,10 +285,12 @@ type queuePhaseMetricKey struct {
 }
 
 type clusterMetricKey struct {
-	cluster     string
-	pool        string
-	nodeType    string
-	reservation string
+	cluster       string
+	pool          string
+	nodeType      string
+	reservation   string
+	physicalPool  string
+	capacityClass string
 }
 
 type clusterCordonedStatus struct {
@@ -362,10 +367,12 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 			awayPools := poolToAwayPools[nodePool]
 
 			clusterKey := clusterMetricKey{
-				cluster:     executor.Id,
-				pool:        nodePool,
-				nodeType:    node.ReportingNodeType,
-				reservation: reservation,
+				cluster:       executor.Id,
+				pool:          nodePool,
+				nodeType:      node.ReportingNodeType,
+				reservation:   reservation,
+				physicalPool:  nodePool,
+				capacityClass: metrics.CapacityClassDedicated,
 			}
 
 			if _, ok := schedulableNodeCountByCluster[clusterKey]; !ok {
@@ -375,10 +382,12 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 			awayClusterKeys := make([]clusterMetricKey, 0, len(awayPools))
 			for _, ap := range awayPools {
 				awayClusterKeys = append(awayClusterKeys, clusterMetricKey{
-					cluster:     executor.Id,
-					pool:        ap,
-					nodeType:    node.ReportingNodeType,
-					reservation: reservation,
+					cluster:       executor.Id,
+					pool:          ap,
+					nodeType:      node.ReportingNodeType,
+					reservation:   reservation,
+					physicalPool:  nodePool,
+					capacityClass: metrics.CapacityClassShared,
 				})
 			}
 
@@ -393,31 +402,27 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 				uncordonedNodeResources.Zero()
 			}
 
+			// Add resources to the home cluster pool
 			addToResourceListMap(availableResourceByCluster, clusterKey, uncordonedNodeResources)
 			addToResourceListMap(totalFarmResourceByCluster, clusterKey, nodeResources)
+			addToResourceListMap(totalResourceByCluster, clusterKey, node.TotalResources.ToComputeResources())
 
 			// Add available resources to the away cluster pool
 			for _, awayClusterKey := range awayClusterKeys {
 				addToResourceListMap(availableResourceByCluster, awayClusterKey, uncordonedNodeResources)
 				addToResourceListMap(totalFarmResourceByCluster, awayClusterKey, nodeResources)
+				addToResourceListMap(totalResourceByCluster, awayClusterKey, node.TotalResources.ToComputeResources())
 			}
 			totalNodeCountByCluster[clusterKey]++
 
-			// Add total resources to the home cluster pool
-			addToResourceListMap(totalResourceByCluster, clusterKey, node.TotalResources.ToComputeResources())
-
-			// Add total resources to the away cluster pool
-			for _, awayClusterKey := range awayClusterKeys {
-				addToResourceListMap(totalResourceByCluster, awayClusterKey, node.TotalResources.ToComputeResources())
-			}
-
 			for _, resourceUsageQp := range node.ResourceUsageByQueueAndPool {
 				queueKey := queueMetricKey{
-					cluster:     executor.Id,
-					pool:        resourceUsageQp.Pool,
-					queueName:   resourceUsageQp.Queue,
-					nodeType:    node.ReportingNodeType,
-					reservation: reservation,
+					cluster:      executor.Id,
+					pool:         resourceUsageQp.Pool,
+					queueName:    resourceUsageQp.Queue,
+					nodeType:     node.ReportingNodeType,
+					reservation:  reservation,
+					physicalPool: nodePool,
 				}
 				addToResourceListMap(usedResourceByQueue, queueKey, resourceUsageQp.Resources.ToComputeResources())
 			}
@@ -458,6 +463,7 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 							nodeType:      node.ReportingNodeType,
 							reservation:   reservation,
 							priceBand:     commonmetrics.GetPriceBandShortName(job.GetPriceBand()),
+							physicalPool:  nodePool,
 						}
 						addToResourceListMap(allocatedResourceByQueue, queueKey, jobRequirements)
 
@@ -494,34 +500,34 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 	}
 	for k, r := range allocatedResourceByQueue {
 		for resourceKey, resourceValue := range r {
-			clusterMetrics = append(clusterMetrics, commonmetrics.NewQueueAllocated(resourceValue.AsApproximateFloat64(), k.queueName, k.cluster, k.pool, k.priorityClass, k.priceBand, resourceKey, k.nodeType, k.reservation))
+			clusterMetrics = append(clusterMetrics, commonmetrics.NewQueueAllocated(resourceValue.AsApproximateFloat64(), k.queueName, k.cluster, k.pool, k.priorityClass, k.priceBand, resourceKey, k.nodeType, k.reservation, k.physicalPool))
 		}
 	}
 	for k, r := range usedResourceByQueue {
 		for resourceKey, resourceValue := range r {
-			clusterMetrics = append(clusterMetrics, commonmetrics.NewQueueUsed(resourceValue.AsApproximateFloat64(), k.queueName, k.cluster, k.pool, resourceKey, k.nodeType, k.reservation))
+			clusterMetrics = append(clusterMetrics, commonmetrics.NewQueueUsed(resourceValue.AsApproximateFloat64(), k.queueName, k.cluster, k.pool, resourceKey, k.nodeType, k.reservation, k.physicalPool))
 		}
 	}
 	for k, r := range availableResourceByCluster {
 		for resourceKey, resourceValue := range r {
-			clusterMetrics = append(clusterMetrics, commonmetrics.NewClusterAvailableCapacity(resourceValue.AsApproximateFloat64(), k.cluster, k.pool, resourceKey, k.nodeType, k.reservation))
+			clusterMetrics = append(clusterMetrics, commonmetrics.NewClusterAvailableCapacity(resourceValue.AsApproximateFloat64(), k.cluster, k.pool, resourceKey, k.nodeType, k.reservation, k.physicalPool, k.capacityClass))
 		}
 	}
 	for k, r := range totalFarmResourceByCluster {
 		for resourceKey, resourceValue := range r {
-			clusterMetrics = append(clusterMetrics, commonmetrics.NewClusterFarmCapacity(resourceValue.AsApproximateFloat64(), k.cluster, k.pool, resourceKey, k.nodeType, k.reservation))
+			clusterMetrics = append(clusterMetrics, commonmetrics.NewClusterFarmCapacity(resourceValue.AsApproximateFloat64(), k.cluster, k.pool, resourceKey, k.nodeType, k.reservation, k.physicalPool, k.capacityClass))
 		}
 	}
 	for k, r := range totalResourceByCluster {
 		for resourceKey, resourceValue := range r {
-			clusterMetrics = append(clusterMetrics, commonmetrics.NewClusterTotalCapacity(resourceValue.AsApproximateFloat64(), k.cluster, k.pool, resourceKey, k.nodeType, k.reservation))
+			clusterMetrics = append(clusterMetrics, commonmetrics.NewClusterTotalCapacity(resourceValue.AsApproximateFloat64(), k.cluster, k.pool, resourceKey, k.nodeType, k.reservation, k.physicalPool, k.capacityClass))
 		}
 	}
 	for k, v := range schedulableNodeCountByCluster {
-		clusterMetrics = append(clusterMetrics, commonmetrics.NewClusterAvailableCapacity(float64(v), k.cluster, k.pool, "nodes", k.nodeType, k.reservation))
+		clusterMetrics = append(clusterMetrics, commonmetrics.NewClusterAvailableCapacity(float64(v), k.cluster, k.pool, "nodes", k.nodeType, k.reservation, k.physicalPool, k.capacityClass))
 	}
 	for k, v := range totalNodeCountByCluster {
-		clusterMetrics = append(clusterMetrics, commonmetrics.NewClusterTotalCapacity(float64(v), k.cluster, k.pool, "nodes", k.nodeType, k.reservation))
+		clusterMetrics = append(clusterMetrics, commonmetrics.NewClusterTotalCapacity(float64(v), k.cluster, k.pool, "nodes", k.nodeType, k.reservation, k.physicalPool, k.capacityClass))
 	}
 	for k, v := range nodeJobsMetricCounts {
 		clusterMetrics = append(

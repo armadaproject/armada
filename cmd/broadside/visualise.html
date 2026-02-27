@@ -1,0 +1,2035 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Broadside Results Visualiser</title>
+    <style>
+      /* ── Reset ── */
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      /* ── Design tokens ── */
+      :root {
+        --bg: #f5f0e8;
+        --surface: #ffffff;
+        --border: #000000;
+        --border-mid: #555555;
+        --text: #111111;
+        --text-dim: #444444;
+        --text-muted: #777777;
+        --text-bright: #000000;
+        --green: #00551a;
+        --green-bg: #d6f5de;
+        --red: #880000;
+        --red-bg: #fde8e8;
+        --sans: Arial, Helvetica, sans-serif;
+        --sans-heavy: "Arial Black", Impact, Arial, sans-serif;
+        --mono: "Courier New", Courier, monospace;
+      }
+
+      /* ── Base ── */
+      body {
+        background: var(--bg);
+        color: var(--text);
+        font-family: var(--sans);
+        font-size: 13px;
+        line-height: 1.5;
+        min-height: 100vh;
+      }
+
+      /* ── Header ── */
+      #hdr {
+        background: var(--surface);
+        border-bottom: 3px solid var(--border);
+        padding: 0 24px;
+        display: flex;
+        align-items: stretch;
+        gap: 0;
+        position: sticky;
+        top: 0;
+        z-index: 200;
+        height: 48px;
+      }
+      #hdr .hdr-brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        border-right: 2px solid var(--border);
+        padding-right: 20px;
+        margin-right: 16px;
+      }
+      #hdr h1 {
+        font-size: 15px;
+        font-weight: 900;
+        color: var(--text-bright);
+        font-family: var(--sans-heavy);
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+      }
+      #hdr .sub {
+        font-size: 11px;
+        color: var(--text-dim);
+        align-self: center;
+        font-family: var(--mono);
+      }
+      #hdr .spacer {
+        flex: 1;
+      }
+      .btn-load {
+        background: var(--surface);
+        border: 2px solid var(--border);
+        color: var(--text);
+        cursor: pointer;
+        font-size: 12px;
+        font-family: var(--sans-heavy);
+        font-weight: 900;
+        padding: 5px 14px;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        box-shadow: 3px 3px 0 var(--border);
+        align-self: center;
+        transition:
+          box-shadow 0.08s,
+          transform 0.08s;
+      }
+      .btn-load:hover {
+        box-shadow: 1px 1px 0 var(--border);
+        transform: translate(2px, 2px);
+      }
+      .btn-load:active {
+        box-shadow: none;
+        transform: translate(3px, 3px);
+      }
+
+      /* ── Main ── */
+      main {
+        padding: 20px 24px;
+        max-width: 1600px;
+        margin: 0 auto;
+      }
+
+      /* ── Drop zone ── */
+      #dropzone {
+        border: 3px dashed var(--border);
+        background: var(--surface);
+        padding: 48px 40px;
+        text-align: center;
+        cursor: pointer;
+        transition: background 0.15s;
+        margin-bottom: 16px;
+      }
+      #dropzone.drag {
+        background: #fffbe6;
+      }
+      #dropzone .dz-icon {
+        width: 36px;
+        height: 36px;
+        margin: 0 auto 14px;
+        border: 2px solid var(--border);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      #dropzone h2 {
+        font-size: 14px;
+        font-weight: 900;
+        font-family: var(--sans-heavy);
+        color: var(--text-bright);
+        margin-bottom: 6px;
+        text-transform: uppercase;
+      }
+      #dropzone p {
+        font-size: 12px;
+        color: var(--text-dim);
+      }
+      #dropzone .hint {
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--text-muted);
+        margin-top: 12px;
+      }
+      #file-input {
+        display: none;
+      }
+
+      /* ── Filters ── */
+      #filter-bar {
+        border-top: 2px solid var(--border);
+        border-bottom: 2px solid var(--border);
+        padding: 10px 0;
+        margin-bottom: 16px;
+        display: none;
+      }
+      #filter-bar .filter-title {
+        font-size: 11px;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--text);
+        margin-bottom: 8px;
+        font-family: var(--sans-heavy);
+      }
+      .filter-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: flex-end;
+      }
+      .fg {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        min-width: 140px;
+      }
+      .fg label {
+        font-size: 10px;
+        color: var(--text-dim);
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        font-weight: 700;
+      }
+      .fg select {
+        background: var(--surface);
+        border: 2px solid var(--border);
+        color: var(--text);
+        padding: 4px 6px;
+        font-size: 12px;
+        font-family: var(--mono);
+        outline: none;
+      }
+      .fg select:focus {
+        outline: 2px solid #003399;
+        outline-offset: 1px;
+      }
+      .btn-clear {
+        background: var(--surface);
+        border: 2px solid var(--border);
+        color: var(--text);
+        cursor: pointer;
+        font-size: 11px;
+        font-weight: 700;
+        font-family: var(--sans);
+        padding: 4px 12px;
+        box-shadow: 2px 2px 0 var(--border);
+        transition:
+          box-shadow 0.08s,
+          transform 0.08s;
+      }
+      .btn-clear:hover {
+        box-shadow: 1px 1px 0 var(--border);
+        transform: translate(1px, 1px);
+      }
+
+      /* ── Run cards ── */
+      #run-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-bottom: 20px;
+      }
+      .run-card {
+        background: var(--surface);
+        border: 2px solid var(--border);
+        border-left: 5px solid var(--rc);
+        box-shadow: 4px 4px 0 var(--border);
+        padding: 10px 12px;
+        flex: 1 1 220px;
+        max-width: 260px;
+        position: relative;
+        transition: opacity 0.15s;
+      }
+      .run-card.filtered-out {
+        opacity: 0.3;
+      }
+      .run-card .rc-name {
+        font-size: 12px;
+        font-weight: 900;
+        color: var(--text-bright);
+        font-family: var(--sans-heavy);
+        margin-bottom: 6px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .db-badge {
+        padding: 1px 6px;
+        font-size: 9px;
+        font-weight: 900;
+        border: 1px solid var(--border);
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        font-family: var(--sans-heavy);
+      }
+      .db-postgres {
+        background: #cce0ff;
+        color: #001a66;
+      }
+      .db-clickhouse {
+        background: #ffe4c0;
+        color: #5c3000;
+      }
+      .db-inmemory {
+        background: #c8f5d8;
+        color: #003311;
+      }
+      .run-meta {
+        font-size: 11px;
+        color: var(--text-dim);
+        line-height: 1.8;
+        font-family: var(--mono);
+      }
+      .run-meta b {
+        color: var(--text);
+        font-weight: 700;
+      }
+      .run-meta .fail {
+        color: var(--red);
+        font-weight: 900;
+      }
+      .run-remove {
+        position: absolute;
+        top: 4px;
+        right: 6px;
+        background: none;
+        border: none;
+        color: var(--text-muted);
+        cursor: pointer;
+        font-size: 16px;
+        line-height: 1;
+        padding: 2px 4px;
+        font-weight: 900;
+        transition: color 0.1s;
+      }
+      .run-remove:hover {
+        color: var(--red);
+      }
+
+      /* ── Charts area ── */
+      #charts-area {
+        display: none;
+      }
+
+      /* ── Tabs ── */
+      .tabs {
+        display: flex;
+        gap: 0;
+        margin-bottom: 20px;
+        border-bottom: 3px solid var(--border);
+      }
+      .tab-btn {
+        background: none;
+        border: none;
+        border-bottom: 4px solid transparent;
+        color: var(--text-dim);
+        cursor: pointer;
+        font-size: 13px;
+        font-weight: 700;
+        font-family: var(--sans-heavy);
+        padding: 8px 20px;
+        margin-bottom: -3px;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        transition: color 0.1s;
+      }
+      .tab-btn:hover {
+        color: var(--text);
+      }
+      .tab-btn.active {
+        color: var(--text);
+        border-bottom: 4px solid var(--border);
+        background: var(--surface);
+      }
+      .tab-panel {
+        display: none;
+      }
+      .tab-panel.active {
+        display: block;
+      }
+
+      /* ── Section headings ── */
+      .sec-head {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin: 0 0 14px;
+      }
+      .sec-head h2 {
+        font-size: 12px;
+        font-weight: 900;
+        color: var(--text);
+        font-family: var(--sans-heavy);
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        white-space: nowrap;
+      }
+      .sec-hr {
+        flex: 1;
+        height: 2px;
+        background: var(--border);
+      }
+      .count-pill {
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--text-muted);
+        white-space: nowrap;
+      }
+
+      /* ── Comparison table ── */
+      .tbl-wrap {
+        overflow: auto;
+        max-height: 70vh;
+        border: 2px solid var(--border);
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 12px;
+      }
+      thead th {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        background: var(--surface);
+        padding: 10px 14px;
+        border-bottom: 3px solid var(--border);
+        border-right: 1px solid var(--border-mid);
+        font-weight: 700;
+        white-space: nowrap;
+      }
+      th.metric-hdr {
+        text-align: left;
+        color: var(--text);
+        font-size: 10px;
+        font-family: var(--sans-heavy);
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        min-width: 180px;
+        position: sticky;
+        left: 0;
+        z-index: 20;
+        background: var(--surface);
+      }
+      th.run-hdr {
+        text-align: center;
+        min-width: 155px;
+      }
+      th.run-hdr .rh-inner {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 2px;
+      }
+      th.run-hdr .rh-dot {
+        width: 10px;
+        height: 10px;
+        border: 1px solid var(--border);
+        background: var(--rc);
+        display: inline-block;
+      }
+      th.run-hdr .rh-id {
+        font-size: 13px;
+        color: var(--text-bright);
+        font-weight: 900;
+        font-family: var(--sans-heavy);
+        display: flex;
+        align-items: center;
+        gap: 5px;
+      }
+      th.run-hdr .rh-sub {
+        font-size: 10px;
+        color: var(--text-dim);
+        font-weight: 400;
+        font-family: var(--mono);
+      }
+      tbody td {
+        padding: 5px 14px;
+        border-bottom: 1px solid var(--border-mid);
+        border-right: 1px solid #ddd;
+        vertical-align: middle;
+      }
+      tbody tr:last-child td {
+        border-bottom: none;
+      }
+      tbody tr:hover td {
+        background: #fffbe6;
+      }
+      tbody tr:hover td.metric-lbl {
+        background: #fffbe6;
+      }
+      td.metric-lbl {
+        position: sticky;
+        left: 0;
+        background: var(--bg);
+        color: var(--text-dim);
+        font-size: 11px;
+        font-family: var(--mono);
+        z-index: 5;
+        border-right: 2px solid var(--border);
+      }
+      td.group-hdr {
+        background: var(--border);
+        color: #ffffff;
+        font-size: 10px;
+        font-weight: 900;
+        font-family: var(--sans-heavy);
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        padding: 5px 14px;
+        position: sticky;
+        left: 0;
+      }
+      td.val-cell {
+        text-align: center;
+        font-family: var(--mono);
+        font-size: 11px;
+      }
+      td.val-cell.best {
+        background: var(--green-bg);
+        color: var(--green);
+        font-weight: 700;
+      }
+      td.val-cell.worst {
+        background: var(--red-bg);
+        color: var(--red);
+        font-weight: 700;
+      }
+      td.val-cell.na {
+        color: var(--text-muted);
+      }
+
+      /* ── Chart grid ── */
+      .chart-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+        gap: 16px;
+      }
+      .chart-card {
+        background: var(--surface);
+        border: 2px solid var(--border);
+        box-shadow: 5px 5px 0 var(--border);
+        padding: 16px 18px;
+      }
+      .chart-card h3 {
+        font-size: 13px;
+        font-weight: 900;
+        color: var(--text-bright);
+        font-family: var(--sans-heavy);
+        margin-bottom: 2px;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+      }
+      .chart-card .chart-sub {
+        font-size: 10px;
+        color: var(--text-dim);
+        margin-bottom: 12px;
+        font-family: var(--mono);
+      }
+      .chart-card svg {
+        display: block;
+        width: 100%;
+        overflow: visible;
+      }
+
+      /* ── Legend ── */
+      .legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-top: 10px;
+      }
+      .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 11px;
+        color: var(--text-dim);
+        font-family: var(--mono);
+      }
+      .legend-swatch {
+        width: 10px;
+        height: 10px;
+        border: 1px solid var(--border);
+        flex-shrink: 0;
+      }
+
+      /* ── Tooltip ── */
+      #tooltip {
+        position: fixed;
+        background: var(--surface);
+        border: 2px solid var(--border);
+        padding: 5px 9px;
+        font-size: 11px;
+        color: var(--text);
+        pointer-events: none;
+        z-index: 999;
+        white-space: nowrap;
+        display: none;
+        font-family: var(--mono);
+        box-shadow: 3px 3px 0 var(--border);
+      }
+
+      /* ── Empty state ── */
+      .empty {
+        text-align: center;
+        color: var(--text-muted);
+        padding: 48px;
+        font-size: 12px;
+        font-family: var(--mono);
+      }
+
+      /* ── Scrollbar ── */
+      ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: var(--bg);
+        border-left: 1px solid var(--border-mid);
+      }
+      ::-webkit-scrollbar-thumb {
+        background: var(--border-mid);
+      }
+    </style>
+  </head>
+  <body>
+    <div id="tooltip"></div>
+
+    <header id="hdr">
+      <div class="hdr-brand">
+        <h1>Broadside</h1>
+      </div>
+      <span class="sub">Lookout load test analysis</span>
+      <div class="spacer"></div>
+      <label class="btn-load" for="file-input">Load JSON files</label>
+      <input type="file" id="file-input" multiple accept=".json" />
+    </header>
+
+    <main>
+      <div id="dropzone">
+        <div class="dz-icon">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path
+              d="M8 2v8M5 7l3 3 3-3M3 12h10"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+        </div>
+        <h2>Drop result files here</h2>
+        <p>Drag in one or more files to compare runs side-by-side</p>
+        <div class="hint">broadside-result-*.json</div>
+      </div>
+
+      <div id="filter-bar">
+        <div class="filter-title">Filter runs</div>
+        <div class="filter-row">
+          <div class="fg">
+            <label>Database</label>
+            <select id="f-db">
+              <option value="">All</option>
+            </select>
+          </div>
+          <div class="fg">
+            <label>Submissions / hour</label>
+            <select id="f-sph">
+              <option value="">All</option>
+            </select>
+          </div>
+          <div class="fg">
+            <label>Batch size</label>
+            <select id="f-batch">
+              <option value="">All</option>
+            </select>
+          </div>
+          <div class="fg">
+            <label>Workers</label>
+            <select id="f-workers">
+              <option value="">All</option>
+            </select>
+          </div>
+          <div class="fg">
+            <label>Test duration</label>
+            <select id="f-dur">
+              <option value="">All</option>
+            </select>
+          </div>
+          <div class="fg">
+            <label>Historical jobs</label>
+            <select id="f-hist">
+              <option value="">All</option>
+            </select>
+          </div>
+          <button class="btn-clear" id="btn-clear-filters">Clear</button>
+        </div>
+      </div>
+
+      <div id="run-list"></div>
+
+      <div id="charts-area">
+        <div class="tabs">
+          <button class="tab-btn active" data-tab="overview">Overview</button>
+          <button class="tab-btn" data-tab="ingester">Ingester</button>
+          <button class="tab-btn" data-tab="querier">Querier</button>
+          <button class="tab-btn" data-tab="actions">Actions</button>
+        </div>
+
+        <div class="tab-panel active" id="tab-overview">
+          <div class="sec-head">
+            <h2>Run comparison</h2>
+            <div class="sec-hr"></div>
+            <span class="count-pill" id="run-count">0 runs</span>
+          </div>
+          <div class="tbl-wrap">
+            <table id="cmp-table">
+              <thead id="cmp-thead"></thead>
+              <tbody id="cmp-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="tab-panel" id="tab-ingester">
+          <div class="sec-head">
+            <h2>Ingester performance</h2>
+            <div class="sec-hr"></div>
+          </div>
+          <div class="chart-grid" id="ingester-grid"></div>
+        </div>
+
+        <div class="tab-panel" id="tab-querier">
+          <div class="sec-head">
+            <h2>Querier latency by type</h2>
+            <div class="sec-hr"></div>
+          </div>
+          <div class="chart-grid" id="querier-grid"></div>
+        </div>
+
+        <div class="tab-panel" id="tab-actions">
+          <div class="sec-head">
+            <h2>Bulk action latencies</h2>
+            <div class="sec-hr"></div>
+          </div>
+          <div class="chart-grid" id="actions-grid"></div>
+        </div>
+      </div>
+    </main>
+
+    <script>
+      // ── Palette ───────────────────────────────────────────────────────────────
+      const PALETTE = [
+        "#1a5fb4",
+        "#2ec27e",
+        "#e66100",
+        "#813d9c",
+        "#c01c28",
+        "#0077c2",
+        "#986a00",
+        "#c64600",
+        "#3d6a00",
+        "#1c5a8a",
+      ];
+
+      function totalHistoricalJobs(data) {
+        return (data.configuration.queueConfig || []).reduce(
+          (sum, q) =>
+            sum +
+            (q.jobSetConfig || []).reduce(
+              (s2, js) => s2 + (js.historicalJobsConfig?.numberOfJobs ?? 0),
+              0,
+            ),
+          0,
+        );
+      }
+
+      function esc(s) {
+        return String(s)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;");
+      }
+
+      // ── State ─────────────────────────────────────────────────────────────────
+      let runs = []; // { id, filename, data, color }
+      let filtered = []; // subset after filters
+      let counter = 0;
+
+      // ── Utilities ─────────────────────────────────────────────────────────────
+
+      /** Parse latency string to ms. e.g. "18.5ms" -> 18.5, "1.2s" -> 1200, "400µs" -> 0.4 */
+      function toMs(s) {
+        if (!s) return null;
+        if (s.endsWith("µs")) return parseFloat(s) / 1000;
+        if (s.endsWith("ms")) return parseFloat(s);
+        if (s.endsWith("s")) return parseFloat(s) * 1000;
+        return null;
+      }
+
+      /** Format ms for display on axes */
+      function fmtMs(ms) {
+        if (ms === null) return "—";
+        if (ms >= 1000) return (ms / 1000).toFixed(2) + "s";
+        if (ms >= 1) return ms.toFixed(1) + "ms";
+        return ms.toFixed(2) + "ms";
+      }
+
+      /** Render Go or ISO 8601 duration as human string */
+      function fmtDur(s) {
+        if (!s) return "—";
+        // Go duration: "1m30.5s", "45s", "2h0m0s"
+        const go = s.match(/^(?:(\d+)h)?(?:(\d+)m)?(?:([\d.]+)s)?$/);
+        if (go && s !== "") {
+          const parts = [];
+          if (go[1]) parts.push(`${go[1]}h`);
+          if (go[2]) parts.push(`${go[2]}m`);
+          if (go[3]) parts.push(`${parseFloat(go[3]).toFixed(0)}s`);
+          if (parts.length) return parts.join(" ");
+        }
+        // ISO 8601
+        const iso = s.match(
+          /P(?:(\d+)D)?T?(?:(\d+)H)?(?:(\d+)M)?(?:([\d.]+)S)?/,
+        );
+        if (iso) {
+          const parts = [];
+          if (iso[1]) parts.push(`${iso[1]}d`);
+          if (iso[2]) parts.push(`${iso[2]}h`);
+          if (iso[3]) parts.push(`${iso[3]}m`);
+          if (iso[4]) parts.push(`${parseFloat(iso[4]).toFixed(0)}s`);
+          if (parts.length) return parts.join(" ");
+        }
+        return esc(s);
+      }
+
+      // ── Tooltip ───────────────────────────────────────────────────────────────
+      const tip = document.getElementById("tooltip");
+
+      function showTip(ev, text) {
+        tip.textContent = text;
+        tip.style.display = "block";
+        moveTip(ev);
+      }
+      function moveTip(ev) {
+        tip.style.left = ev.clientX + 14 + "px";
+        tip.style.top = ev.clientY - 28 + "px";
+      }
+      function hideTip() {
+        tip.style.display = "none";
+      }
+
+      // ── SVG helpers ───────────────────────────────────────────────────────────
+
+      /**
+       * Make a chart card and return { svgWrap, addLegend }.
+       * @param {string} containerId  - id of grid container
+       * @param {string} title
+       * @param {string} subtitle
+       */
+      function makeCard(containerId, title, subtitle) {
+        const card = document.createElement("div");
+        card.className = "chart-card";
+        card.innerHTML = `<h3>${esc(title)}</h3><div class="chart-sub">${esc(subtitle)}</div>`;
+        const svgWrap = document.createElement("div");
+        card.appendChild(svgWrap);
+        document.getElementById(containerId).appendChild(card);
+
+        return {
+          svgWrap,
+          addLegend(items) {
+            // items: [{color, label}]
+            const leg = document.createElement("div");
+            leg.className = "legend";
+            items.forEach(({ color, label }) => {
+              leg.innerHTML += `<div class="legend-item">
+          <div class="legend-swatch" style="background:${esc(color)}"></div>${esc(label)}</div>`;
+            });
+            card.appendChild(leg);
+          },
+        };
+      }
+
+      /**
+       * Render a grouped bar chart as an SVG string.
+       *
+       * @param {string[]} groups    - x-axis group labels
+       * @param {{ label:string, color:string, values:(number|null)[] }[]} series
+       * @param {{ yFmt?:(v:number)=>string, height?:number, rotateX?:boolean }} opts
+       * @returns {string}  SVG element as HTML string
+       */
+      function barChartSVG(groups, series, opts = {}) {
+        const W = 440;
+        const H = opts.height || 220;
+        const PAD = {
+          top: 16,
+          right: 12,
+          bottom: opts.rotateX ? 80 : 44,
+          left: 54,
+        };
+        const cW = W - PAD.left - PAD.right;
+        const cH = H - PAD.top - PAD.bottom;
+
+        const allVals = series
+          .flatMap((s) => s.values)
+          .filter((v) => v != null && !isNaN(v));
+        if (allVals.length === 0)
+          return `<svg viewBox="0 0 ${W} ${H}">
+    <text x="${W / 2}" y="${H / 2}" text-anchor="middle" fill="#777777" font-size="12">No data</text></svg>`;
+
+        const maxVal = Math.max(...allVals) * 1.12 || 1;
+        const yFmt = opts.yFmt || ((v) => v.toFixed(1));
+
+        let svg = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">`;
+
+        // Y grid + labels
+        const ticks = 5;
+        for (let i = 0; i <= ticks; i++) {
+          const y = PAD.top + cH - (i / ticks) * cH;
+          const val = (maxVal * i) / ticks;
+          svg += `<line x1="${PAD.left}" y1="${y}" x2="${PAD.left + cW}" y2="${y}"
+              stroke="#cccccc" stroke-width="1"/>`;
+          svg += `<text x="${PAD.left - 6}" y="${y + 4}" text-anchor="end"
+              fill="#555555" font-size="10" font-family="Courier New, monospace">${esc(yFmt(val))}</text>`;
+        }
+
+        // Chart border
+        svg += `<rect x="${PAD.left}" y="${PAD.top}" width="${cW}" height="${cH}"
+            fill="none" stroke="#000000" stroke-width="1"/>`;
+
+        // Bars
+        const nGroups = groups.length;
+        const nSeries = series.length;
+        const groupW = cW / nGroups;
+        const barPad = 2;
+        const barW = Math.max(3, (groupW - barPad * (nSeries + 1)) / nSeries);
+
+        series.forEach((s, si) => {
+          s.values.forEach((val, gi) => {
+            if (val == null || isNaN(val)) return;
+            const x = PAD.left + gi * groupW + barPad * (si + 1) + si * barW;
+            const barH = (val / maxVal) * cH;
+            const y = PAD.top + cH - barH;
+            const label = `${s.label}: ${yFmt(val)}`;
+            svg += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}"
+                width="${barW.toFixed(1)}" height="${barH.toFixed(1)}"
+                rx="0" fill="${esc(s.color)}"
+                stroke="#000000" stroke-width="0.5"
+                class="bar" data-tip="${esc(label)}"
+                style="cursor:default"/>`;
+          });
+        });
+
+        // X labels
+        groups.forEach((lbl, i) => {
+          const x = PAD.left + i * groupW + groupW / 2;
+          const y = PAD.top + cH + 8;
+          if (opts.rotateX) {
+            svg += `<text transform="translate(${x},${y}) rotate(-40)"
+                text-anchor="end" fill="#555555" font-size="9"
+                font-family="Courier New, monospace">${esc(lbl)}</text>`;
+          } else {
+            const short = lbl.length > 12 ? lbl.slice(0, 11) + "…" : lbl;
+            svg += `<text x="${x}" y="${y + 11}" text-anchor="middle"
+                fill="#555555" font-size="10" font-family="Courier New, monospace">${esc(short)}</text>`;
+          }
+        });
+
+        svg += "</svg>";
+        return svg;
+      }
+
+      /**
+       * Render a stacked bar chart as an SVG string.
+       * Each group gets one bar; series are stacked bottom-to-top.
+       * Values in each series are the raw (cumulative) values; segments are
+       * rendered as deltas so the bar height equals the maximum series value.
+       *
+       * @param {string[]} groups
+       * @param {{ label:string, color:string, values:(number|null)[] }[]} series
+       * @param {{ yFmt?:(v:number)=>string, height?:number }} opts
+       * @returns {string}
+       */
+      function stackedBarChartSVG(groups, series, opts = {}) {
+        const W = 440;
+        const H = opts.height || 220;
+        const PAD = { top: 16, right: 12, bottom: 44, left: 54 };
+        const cW = W - PAD.left - PAD.right;
+        const cH = H - PAD.top - PAD.bottom;
+
+        const allVals = series
+          .flatMap((s) => s.values)
+          .filter((v) => v != null && !isNaN(v));
+        if (allVals.length === 0)
+          return `<svg viewBox="0 0 ${W} ${H}">
+    <text x="${W / 2}" y="${H / 2}" text-anchor="middle" fill="#777777" font-size="12">No data</text></svg>`;
+
+        const maxVal = Math.max(...allVals) * 1.12 || 1;
+        const yFmt = opts.yFmt || ((v) => v.toFixed(1));
+
+        let svg = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">`;
+
+        // Y grid + labels
+        const ticks = 5;
+        for (let i = 0; i <= ticks; i++) {
+          const y = PAD.top + cH - (i / ticks) * cH;
+          const val = (maxVal * i) / ticks;
+          svg += `<line x1="${PAD.left}" y1="${y}" x2="${PAD.left + cW}" y2="${y}"
+              stroke="#cccccc" stroke-width="1"/>`;
+          svg += `<text x="${PAD.left - 6}" y="${y + 4}" text-anchor="end"
+              fill="#555555" font-size="10" font-family="Courier New, monospace">${esc(yFmt(val))}</text>`;
+        }
+
+        // Chart border
+        svg += `<rect x="${PAD.left}" y="${PAD.top}" width="${cW}" height="${cH}"
+            fill="none" stroke="#000000" stroke-width="1"/>`;
+
+        // Bars
+        const nGroups = groups.length;
+        const groupW = cW / nGroups;
+        const barPad = 4;
+        const barW = Math.max(4, groupW - barPad * 2);
+
+        groups.forEach((lbl, gi) => {
+          const x = PAD.left + gi * groupW + barPad;
+          let baseY = PAD.top + cH;
+
+          series.forEach((s, si) => {
+            const rawVal = s.values[gi];
+            if (rawVal == null || isNaN(rawVal)) return;
+            const prevVal = si > 0 ? (series[si - 1].values[gi] ?? 0) : 0;
+            const delta = Math.max(0, rawVal - prevVal);
+            const segH = (delta / maxVal) * cH;
+            if (segH < 0.5) return;
+            const segY = baseY - segH;
+            svg += `<rect x="${x.toFixed(1)}" y="${segY.toFixed(1)}"
+                width="${barW.toFixed(1)}" height="${segH.toFixed(1)}"
+                rx="0" fill="${esc(s.color)}"
+                stroke="#000000" stroke-width="0.5"
+                class="bar" data-tip="${esc(`${s.label}: ${yFmt(rawVal)}`)}"
+                style="cursor:default"/>`;
+            baseY = segY;
+          });
+        });
+
+        // X labels
+        groups.forEach((lbl, i) => {
+          const x = PAD.left + i * groupW + groupW / 2;
+          const y = PAD.top + cH + 8;
+          const short = lbl.length > 12 ? lbl.slice(0, 11) + "…" : lbl;
+          svg += `<text x="${x}" y="${y + 11}" text-anchor="middle"
+              fill="#555555" font-size="10" font-family="Courier New, monospace">${esc(short)}</text>`;
+        });
+
+        svg += "</svg>";
+        return svg;
+      }
+
+      /**
+       * Render grouped stacked bars: each x-group contains one stacked bar per
+       * run, with percentile segments stacked within each bar.
+       *
+       * @param {string[]} groups   - x-axis group labels (e.g. filter combos)
+       * @param {{label:string, color:string}[]} runs  - one entry per run
+       * @param {{label:string, color:string, values:(number|null)[][]}[]} stacks
+       *   - one entry per percentile tier; values[ri][gi] = value for run ri, group gi
+       * @param {{ yFmt?:(v:number)=>string, height?:number, rotateX?:boolean }} opts
+       * @returns {string}
+       */
+      function groupedStackedBarChartSVG(groups, runs, stacks, opts = {}) {
+        const W = 440;
+        const H = opts.height || 220;
+        const PAD = {
+          top: 16,
+          right: 12,
+          bottom: opts.rotateX ? 80 : 44,
+          left: 54,
+        };
+        const cW = W - PAD.left - PAD.right;
+        const cH = H - PAD.top - PAD.bottom;
+
+        const allVals = stacks
+          .flatMap((s) => s.values.flat())
+          .filter((v) => v != null && !isNaN(v));
+        if (allVals.length === 0)
+          return `<svg viewBox="0 0 ${W} ${H}">
+    <text x="${W / 2}" y="${H / 2}" text-anchor="middle" fill="#777777" font-size="12">No data</text></svg>`;
+
+        const maxVal = Math.max(...allVals) * 1.12 || 1;
+        const yFmt = opts.yFmt || ((v) => v.toFixed(1));
+
+        let svg = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">`;
+
+        // Y grid + labels
+        const ticks = 5;
+        for (let i = 0; i <= ticks; i++) {
+          const y = PAD.top + cH - (i / ticks) * cH;
+          const val = (maxVal * i) / ticks;
+          svg += `<line x1="${PAD.left}" y1="${y}" x2="${PAD.left + cW}" y2="${y}"
+              stroke="#cccccc" stroke-width="1"/>`;
+          svg += `<text x="${PAD.left - 6}" y="${y + 4}" text-anchor="end"
+              fill="#555555" font-size="10" font-family="Courier New, monospace">${esc(yFmt(val))}</text>`;
+        }
+
+        // Chart border
+        svg += `<rect x="${PAD.left}" y="${PAD.top}" width="${cW}" height="${cH}"
+            fill="none" stroke="#000000" stroke-width="1"/>`;
+
+        // Bars
+        const nGroups = groups.length;
+        const nRuns = runs.length;
+        const groupW = cW / nGroups;
+        const runPad = 2;
+        const barW = Math.max(3, (groupW - runPad * (nRuns + 1)) / nRuns);
+
+        groups.forEach((lbl, gi) => {
+          runs.forEach((run, ri) => {
+            const x = PAD.left + gi * groupW + runPad * (ri + 1) + ri * barW;
+            let baseY = PAD.top + cH;
+
+            stacks.forEach((stack, si) => {
+              const rawVal = stack.values[ri]?.[gi];
+              if (rawVal == null || isNaN(rawVal)) return;
+              const prevVal =
+                si > 0 ? (stacks[si - 1].values[ri]?.[gi] ?? 0) : 0;
+              const delta = Math.max(0, rawVal - prevVal);
+              const segH = (delta / maxVal) * cH;
+              if (segH < 0.5) return;
+              const segY = baseY - segH;
+              const tip = `${run.label} ${stack.label}: ${yFmt(rawVal)}`;
+              svg += `<rect x="${x.toFixed(1)}" y="${segY.toFixed(1)}"
+                  width="${barW.toFixed(1)}" height="${segH.toFixed(1)}"
+                  rx="0" fill="${esc(stack.color)}"
+                  stroke="#000000" stroke-width="0.5"
+                  class="bar" data-tip="${esc(tip)}"
+                  style="cursor:default"/>`;
+              baseY = segY;
+            });
+          });
+        });
+
+        // Run colour strips below x-axis
+        groups.forEach((lbl, gi) => {
+          runs.forEach((run, ri) => {
+            const x = PAD.left + gi * groupW + runPad * (ri + 1) + ri * barW;
+            svg += `<rect x="${x.toFixed(1)}" y="${(PAD.top + cH + 2).toFixed(1)}"
+                width="${barW.toFixed(1)}" height="4"
+                rx="0" fill="${esc(run.color)}" stroke="none"/>`;
+          });
+        });
+
+        // X labels
+        groups.forEach((lbl, i) => {
+          const x = PAD.left + i * groupW + groupW / 2;
+          const y = PAD.top + cH + 14;
+          if (opts.rotateX) {
+            svg += `<text transform="translate(${x},${y}) rotate(-40)"
+                text-anchor="end" fill="#555555" font-size="9"
+                font-family="Courier New, monospace">${esc(lbl)}</text>`;
+          } else {
+            const short = lbl.length > 12 ? lbl.slice(0, 11) + "…" : lbl;
+            svg += `<text x="${x}" y="${y + 11}" text-anchor="middle"
+                fill="#555555" font-size="10" font-family="Courier New, monospace">${esc(short)}</text>`;
+          }
+        });
+
+        svg += "</svg>";
+        return svg;
+      }
+
+      /** Attach tooltip listeners to all .bar elements inside el */
+      function attachBarTips(el) {
+        el.querySelectorAll(".bar").forEach((bar) => {
+          bar.addEventListener("mouseenter", (ev) =>
+            showTip(ev, bar.dataset.tip),
+          );
+          bar.addEventListener("mousemove", moveTip);
+          bar.addEventListener("mouseleave", hideTip);
+        });
+      }
+
+      /** Clear grid element and return it */
+      function clearGrid(id) {
+        const el = document.getElementById(id);
+        el.innerHTML = "";
+        return el;
+      }
+
+      // ── File loading ──────────────────────────────────────────────────────────
+      document.getElementById("file-input").addEventListener("change", (e) => {
+        loadFiles(e.target.files);
+        e.target.value = "";
+      });
+
+      const dz = document.getElementById("dropzone");
+      dz.addEventListener("click", () =>
+        document.getElementById("file-input").click(),
+      );
+      dz.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        dz.classList.add("drag");
+      });
+      dz.addEventListener("dragleave", () => dz.classList.remove("drag"));
+      dz.addEventListener("drop", (e) => {
+        e.preventDefault();
+        dz.classList.remove("drag");
+        loadFiles(e.dataTransfer.files);
+      });
+
+      function loadFiles(files) {
+        Array.from(files).forEach((f) => {
+          const reader = new FileReader();
+          reader.onload = (ev) => {
+            try {
+              const data = JSON.parse(ev.target.result);
+              if (!data.metadata || !data.configuration || !data.results) {
+                alert(`${f.name}: not a valid Broadside result file.`);
+                return;
+              }
+              counter++;
+              runs.push({
+                id: counter,
+                filename: f.name,
+                data,
+                color: PALETTE[(counter - 1) % PALETTE.length],
+              });
+              refreshFilters();
+              applyFilters();
+            } catch (err) {
+              alert(`${f.name}: JSON parse error — ${err.message}`);
+            }
+          };
+          reader.readAsText(f);
+        });
+      }
+
+      function removeRun(id) {
+        runs = runs.filter((r) => r.id !== id);
+        refreshFilters();
+        applyFilters();
+      }
+
+      // ── Filters ───────────────────────────────────────────────────────────────
+      const FILTER_IDS = [
+        "f-db",
+        "f-sph",
+        "f-batch",
+        "f-workers",
+        "f-dur",
+        "f-hist",
+      ];
+
+      function uniqueVals(fn) {
+        return [...new Set(runs.map(fn))].sort((a, b) =>
+          typeof a === "number" ? a - b : String(a).localeCompare(String(b)),
+        );
+      }
+
+      function refreshFilters() {
+        const specs = [
+          { id: "f-db", fn: (d) => d.configuration.databaseConfig.type },
+          {
+            id: "f-sph",
+            fn: (d) => d.configuration.ingestionConfig.submissionsPerHour,
+          },
+          {
+            id: "f-batch",
+            fn: (d) => d.configuration.ingestionConfig.batchSize,
+          },
+          {
+            id: "f-workers",
+            fn: (d) => d.configuration.ingestionConfig.numWorkers,
+          },
+          { id: "f-dur", fn: (d) => d.configuration.testDuration },
+          { id: "f-hist", fn: (d) => totalHistoricalJobs(d) },
+        ];
+        specs.forEach(({ id, fn }) => {
+          const sel = document.getElementById(id);
+          const cur = sel.value;
+          while (sel.options.length > 1) sel.remove(1);
+          uniqueVals((r) => fn(r.data)).forEach((v) => {
+            const o = document.createElement("option");
+            o.value = v;
+            o.text = v;
+            sel.add(o);
+          });
+          sel.value = cur;
+        });
+      }
+
+      function applyFilters() {
+        const db = document.getElementById("f-db").value;
+        const sph = document.getElementById("f-sph").value;
+        const batch = document.getElementById("f-batch").value;
+        const workers = document.getElementById("f-workers").value;
+        const dur = document.getElementById("f-dur").value;
+        const hist = document.getElementById("f-hist").value;
+
+        filtered = runs.filter((r) => {
+          const cfg = r.data.configuration;
+          if (db && cfg.databaseConfig.type !== db) return false;
+          if (sph && cfg.ingestionConfig.submissionsPerHour != sph)
+            return false;
+          if (batch && cfg.ingestionConfig.batchSize != batch) return false;
+          if (workers && cfg.ingestionConfig.numWorkers != workers)
+            return false;
+          if (dur && cfg.testDuration !== dur) return false;
+          if (hist && totalHistoricalJobs(r.data) != hist) return false;
+          return true;
+        });
+
+        render();
+      }
+
+      FILTER_IDS.forEach((id) =>
+        document.getElementById(id).addEventListener("change", applyFilters),
+      );
+      document
+        .getElementById("btn-clear-filters")
+        .addEventListener("click", () => {
+          FILTER_IDS.forEach((id) => {
+            document.getElementById(id).value = "";
+          });
+          applyFilters();
+        });
+
+      // ── Tab switching ─────────────────────────────────────────────────────────
+      document.querySelectorAll(".tab-btn").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          document
+            .querySelectorAll(".tab-btn")
+            .forEach((b) => b.classList.remove("active"));
+          document
+            .querySelectorAll(".tab-panel")
+            .forEach((p) => p.classList.remove("active"));
+          btn.classList.add("active");
+          document
+            .getElementById("tab-" + btn.dataset.tab)
+            .classList.add("active");
+        });
+      });
+
+      // ── Top-level render ──────────────────────────────────────────────────────
+      function render() {
+        const hasRuns = runs.length > 0;
+        document.getElementById("dropzone").style.display = hasRuns
+          ? "none"
+          : "";
+        document.getElementById("filter-bar").style.display = hasRuns
+          ? "block"
+          : "none";
+        document.getElementById("charts-area").style.display = hasRuns
+          ? "block"
+          : "none";
+        renderRunCards();
+        renderOverview();
+        renderIngester();
+        renderQuerier();
+        renderActions();
+      }
+
+      // Stubs — filled in subsequent tasks
+      function renderRunCards() {
+        const el = document.getElementById("run-list");
+        el.innerHTML = "";
+        runs.forEach((run) => {
+          const cfg = run.data.configuration;
+          const res = run.data.results;
+          const ts = (run.data.metadata.timestamp ?? "")
+            .slice(0, 16)
+            .replace("T", " ");
+          const isOut = !filtered.includes(run);
+          const dbtype = cfg.databaseConfig.type;
+          const batchFail = res.ingester?.totalBatchesFailed ?? 0;
+          const qFail = res.querier?.totalQueriesFailed ?? 0;
+
+          const card = document.createElement("div");
+          card.className = "run-card" + (isOut ? " filtered-out" : "");
+          card.style.setProperty("--rc", run.color);
+          const histJobs = totalHistoricalJobs(run.data);
+          card.innerHTML = `
+      <button class="run-remove" title="Remove run">×</button>
+      <div class="rc-name">
+        <span class="db-badge db-${esc(dbtype)}">${esc(dbtype)}</span>
+        Run #${run.id}
+      </div>
+      <div class="run-meta">
+        <div>${esc(run.filename)}</div>
+        <div>${esc(ts)}</div>
+        <div>Rate: <b>${cfg.ingestionConfig.submissionsPerHour.toLocaleString()}/hr</b>
+             &nbsp;Dur: <b>${fmtDur(cfg.testDuration)}</b></div>
+        <div>Workers: <b>${cfg.ingestionConfig.numWorkers}</b>
+             &nbsp;Batch: <b>${cfg.ingestionConfig.batchSize}</b></div>
+        <div>Hist. jobs: <b>${histJobs.toLocaleString()}</b></div>
+        <div>Batch fails: <b class="${batchFail > 0 ? "fail" : ""}">${batchFail}</b>
+             &nbsp;Query fails: <b class="${qFail > 0 ? "fail" : ""}">${qFail}</b></div>
+      </div>`;
+          card.querySelector(".run-remove").addEventListener("click", (e) => {
+            e.stopPropagation();
+            removeRun(run.id);
+          });
+          el.appendChild(card);
+        });
+      }
+      function renderOverview() {
+        document.getElementById("run-count").textContent =
+          `${filtered.length} run${filtered.length !== 1 ? "s" : ""}`;
+
+        const thead = document.getElementById("cmp-thead");
+        const tbody = document.getElementById("cmp-tbody");
+        thead.innerHTML = "";
+        tbody.innerHTML = "";
+
+        if (filtered.length === 0) {
+          tbody.innerHTML =
+            '<tr><td colspan="99" class="empty">No runs match the current filters.</td></tr>';
+          return;
+        }
+
+        // Header row
+        const hr = document.createElement("tr");
+        hr.innerHTML = '<th class="metric-hdr">Metric</th>';
+        filtered.forEach((run) => {
+          const cfg = run.data.configuration;
+          hr.innerHTML += `<th class="run-hdr" style="--rc:${esc(run.color)}">
+      <div class="rh-inner">
+        <div class="rh-id"><span class="rh-dot"></span>#${run.id}</div>
+        <div class="rh-sub">${esc(cfg.databaseConfig.type)} · ${esc(cfg.ingestionConfig.submissionsPerHour.toLocaleString())}/hr</div>
+        <div class="rh-sub">${esc(fmtDur(cfg.testDuration))}</div>
+      </div></th>`;
+        });
+        thead.appendChild(hr);
+
+        // Row definitions
+        const rows = [
+          { group: "Configuration" },
+          {
+            label: "Database",
+            get: (d) => d.configuration.databaseConfig.type,
+          },
+          {
+            label: "Submissions / hr",
+            get: (d) =>
+              d.configuration.ingestionConfig.submissionsPerHour.toLocaleString(),
+          },
+          {
+            label: "Batch size",
+            get: (d) => d.configuration.ingestionConfig.batchSize,
+          },
+          {
+            label: "Workers",
+            get: (d) => d.configuration.ingestionConfig.numWorkers,
+          },
+          {
+            label: "Test duration",
+            get: (d) => fmtDur(d.configuration.testDuration),
+          },
+          {
+            label: "Warmup duration",
+            get: (d) => fmtDur(d.configuration.warmupDuration),
+          },
+          {
+            label: "Queues",
+            get: (d) => (d.configuration.queueConfig || []).length,
+          },
+          {
+            label: "Historical jobs",
+            get: (d) => totalHistoricalJobs(d),
+            fmt: (v) => v.toLocaleString(),
+            num: true,
+          },
+          { group: "Ingester \u2014 throughput" },
+          {
+            label: "Batches executed",
+            get: (d) => d.results.ingester?.totalBatchesExecuted ?? null,
+            fmt: (v) => v.toLocaleString(),
+            num: true,
+            hi: true,
+          },
+          {
+            label: "Queries executed",
+            get: (d) => d.results.ingester?.totalQueriesExecuted ?? null,
+            fmt: (v) => v.toLocaleString(),
+            num: true,
+            hi: true,
+          },
+          {
+            label: "Batches failed",
+            get: (d) => d.results.ingester?.totalBatchesFailed ?? null,
+            fmt: (v) => v.toLocaleString(),
+            num: true,
+            lo: true,
+          },
+          { group: "Ingester \u2014 backlog" },
+          {
+            label: "Peak backlog",
+            get: (d) => d.results.ingester?.peakBacklogSize ?? null,
+            fmt: (v) => v.toLocaleString(),
+            num: true,
+            lo: true,
+          },
+          {
+            label: "Avg backlog",
+            get: (d) => d.results.ingester?.averageBacklogSize ?? null,
+            fmt: (v) => v.toFixed(1),
+            num: true,
+            lo: true,
+          },
+          {
+            label: "p50 backlog",
+            get: (d) => d.results.ingester?.p50BacklogSize ?? null,
+            fmt: (v) => v.toFixed(1),
+            num: true,
+            lo: true,
+          },
+          {
+            label: "p95 backlog",
+            get: (d) => d.results.ingester?.p95BacklogSize ?? null,
+            fmt: (v) => v.toFixed(1),
+            num: true,
+            lo: true,
+          },
+          {
+            label: "p99 backlog",
+            get: (d) => d.results.ingester?.p99BacklogSize ?? null,
+            fmt: (v) => v.toFixed(1),
+            num: true,
+            lo: true,
+          },
+          { group: "Ingester \u2014 wait time" },
+          {
+            label: "p50 wait",
+            get: (d) => d.results.ingester?.p50BacklogWaitTime ?? null,
+            num: true,
+            lo: true,
+            ms: true,
+          },
+          {
+            label: "p95 wait",
+            get: (d) => d.results.ingester?.p95BacklogWaitTime ?? null,
+            num: true,
+            lo: true,
+            ms: true,
+          },
+          {
+            label: "p99 wait",
+            get: (d) => d.results.ingester?.p99BacklogWaitTime ?? null,
+            num: true,
+            lo: true,
+            ms: true,
+          },
+          {
+            label: "Max wait",
+            get: (d) => d.results.ingester?.maxBacklogWaitTime ?? null,
+            num: true,
+            lo: true,
+            ms: true,
+          },
+          { group: "Ingester \u2014 execution latency" },
+          {
+            label: "p50 exec latency",
+            get: (d) => d.results.ingester?.p50ExecutionLatency ?? null,
+            num: true,
+            lo: true,
+            ms: true,
+          },
+          {
+            label: "p95 exec latency",
+            get: (d) => d.results.ingester?.p95ExecutionLatency ?? null,
+            num: true,
+            lo: true,
+            ms: true,
+          },
+          {
+            label: "p99 exec latency",
+            get: (d) => d.results.ingester?.p99ExecutionLatency ?? null,
+            num: true,
+            lo: true,
+            ms: true,
+          },
+          { group: "Querier" },
+          {
+            label: "Total queries",
+            get: (d) => d.results.querier?.totalQueriesExecuted ?? null,
+            fmt: (v) => v.toLocaleString(),
+            num: true,
+            hi: true,
+          },
+          {
+            label: "Queries failed",
+            get: (d) => d.results.querier?.totalQueriesFailed ?? null,
+            fmt: (v) => v.toLocaleString(),
+            num: true,
+            lo: true,
+          },
+          {
+            label: "Failure rate",
+            get: (d) => {
+              const t = d.results.querier?.totalQueriesExecuted;
+              const f = d.results.querier?.totalQueriesFailed;
+              if (t == null || f == null) return null;
+              return t > 0 ? f / t : 0;
+            },
+            fmt: (v) => (v * 100).toFixed(1) + "%",
+            num: true,
+            lo: true,
+          },
+          { group: "Actions" },
+          {
+            label: "Reprioritisations",
+            get: (d) => d.results.actor?.totalReprioritisations ?? "\u2014",
+          },
+          {
+            label: "Jobs reprioritised",
+            get: (d) =>
+              d.results.actor
+                ? d.results.actor.totalJobsReprioritised.toLocaleString()
+                : "\u2014",
+          },
+          {
+            label: "Cancellations",
+            get: (d) => d.results.actor?.totalCancellations ?? "\u2014",
+          },
+          {
+            label: "Jobs cancelled",
+            get: (d) =>
+              d.results.actor
+                ? d.results.actor.totalJobsCancelled.toLocaleString()
+                : "\u2014",
+          },
+          {
+            label: "Reprio p50",
+            get: (d) => d.results.actor?.reprioritisationP50Latency ?? null,
+            ms: true,
+            num: true,
+            lo: true,
+          },
+          {
+            label: "Reprio p95",
+            get: (d) => d.results.actor?.reprioritisationP95Latency ?? null,
+            ms: true,
+            num: true,
+            lo: true,
+          },
+          {
+            label: "Cancel p50",
+            get: (d) => d.results.actor?.cancellationP50Latency ?? null,
+            ms: true,
+            num: true,
+            lo: true,
+          },
+          {
+            label: "Cancel p95",
+            get: (d) => d.results.actor?.cancellationP95Latency ?? null,
+            ms: true,
+            num: true,
+            lo: true,
+          },
+        ];
+
+        rows.forEach((row) => {
+          const tr = document.createElement("tr");
+          if (row.group) {
+            tr.innerHTML = `<td colspan="${filtered.length + 1}" class="group-hdr">${esc(row.group)}</td>`;
+          } else {
+            const rawVals = filtered.map((r) => row.get(r.data));
+            const nums = rawVals.map((v) => {
+              if (row.ms) return toMs(v);
+              if (row.num && typeof v === "number") return v;
+              return null;
+            });
+            const validNums = nums.filter((n) => n !== null && !isNaN(n));
+            const minN = validNums.length > 1 ? Math.min(...validNums) : null;
+            const maxN = validNums.length > 1 ? Math.max(...validNums) : null;
+
+            tr.innerHTML = `<td class="metric-lbl">${esc(row.label)}</td>`;
+            rawVals.forEach((v, i) => {
+              const display =
+                v == null
+                  ? "\u2014"
+                  : row.ms
+                    ? typeof v === "string"
+                      ? v
+                      : "\u2014"
+                    : row.fmt
+                      ? row.fmt(v)
+                      : String(v);
+
+              let cls = "val-cell";
+              if (validNums.length > 1 && nums[i] !== null && minN !== maxN) {
+                if (row.lo && nums[i] === minN) cls += " best";
+                else if (row.lo && nums[i] === maxN) cls += " worst";
+                else if (row.hi && nums[i] === maxN) cls += " best";
+                else if (row.hi && nums[i] === minN) cls += " worst";
+              }
+              if (display === "\u2014") cls += " na";
+              tr.innerHTML += `<td class="${cls}">${esc(String(display))}</td>`;
+            });
+          }
+          tbody.appendChild(tr);
+        });
+      }
+      function renderIngester() {
+        clearGrid("ingester-grid");
+        if (filtered.length === 0) return;
+
+        const labels = filtered.map((r) => `#${r.id}`);
+
+        // Backlog size
+        const backlogSeries = [
+          {
+            label: "p50",
+            color: "#2ec27e",
+            values: filtered.map(
+              (r) => r.data.results.ingester?.p50BacklogSize ?? null,
+            ),
+          },
+          {
+            label: "p95",
+            color: "#986a00",
+            values: filtered.map(
+              (r) => r.data.results.ingester?.p95BacklogSize ?? null,
+            ),
+          },
+          {
+            label: "p99",
+            color: "#c01c28",
+            values: filtered.map(
+              (r) => r.data.results.ingester?.p99BacklogSize ?? null,
+            ),
+          },
+          {
+            label: "peak",
+            color: "#813d9c",
+            values: filtered.map(
+              (r) => r.data.results.ingester?.peakBacklogSize ?? null,
+            ),
+          },
+        ];
+        const { svgWrap: w1, addLegend: l1 } = makeCard(
+          "ingester-grid",
+          "Backlog size",
+          "Number of items queued in the ingestion backlog",
+        );
+        w1.innerHTML = stackedBarChartSVG(labels, backlogSeries, {
+          yFmt: (v) => v.toFixed(0),
+        });
+        attachBarTips(w1);
+        l1(backlogSeries.map((s) => ({ color: s.color, label: s.label })));
+
+        // Backlog wait time
+        const waitSeries = [
+          {
+            label: "p50",
+            color: "#2ec27e",
+            values: filtered.map((r) =>
+              toMs(r.data.results.ingester?.p50BacklogWaitTime),
+            ),
+          },
+          {
+            label: "p95",
+            color: "#986a00",
+            values: filtered.map((r) =>
+              toMs(r.data.results.ingester?.p95BacklogWaitTime),
+            ),
+          },
+          {
+            label: "p99",
+            color: "#c01c28",
+            values: filtered.map((r) =>
+              toMs(r.data.results.ingester?.p99BacklogWaitTime),
+            ),
+          },
+          {
+            label: "max",
+            color: "#813d9c",
+            values: filtered.map((r) =>
+              toMs(r.data.results.ingester?.maxBacklogWaitTime),
+            ),
+          },
+        ];
+        const { svgWrap: w2, addLegend: l2 } = makeCard(
+          "ingester-grid",
+          "Backlog wait time",
+          "How long items wait before being processed",
+        );
+        w2.innerHTML = stackedBarChartSVG(labels, waitSeries, { yFmt: fmtMs });
+        attachBarTips(w2);
+        l2(waitSeries.map((s) => ({ color: s.color, label: s.label })));
+
+        // Execution latency
+        const latSeries = [
+          {
+            label: "p50",
+            color: "#2ec27e",
+            values: filtered.map((r) =>
+              toMs(r.data.results.ingester?.p50ExecutionLatency),
+            ),
+          },
+          {
+            label: "p95",
+            color: "#986a00",
+            values: filtered.map((r) =>
+              toMs(r.data.results.ingester?.p95ExecutionLatency),
+            ),
+          },
+          {
+            label: "p99",
+            color: "#c01c28",
+            values: filtered.map((r) =>
+              toMs(r.data.results.ingester?.p99ExecutionLatency),
+            ),
+          },
+        ];
+        const { svgWrap: w3, addLegend: l3 } = makeCard(
+          "ingester-grid",
+          "Batch execution latency",
+          "Time to execute one ingestion batch",
+        );
+        w3.innerHTML = stackedBarChartSVG(labels, latSeries, { yFmt: fmtMs });
+        attachBarTips(w3);
+        l3(latSeries.map((s) => ({ color: s.color, label: s.label })));
+
+        // Throughput
+        const thruSeries = [
+          {
+            label: "batches",
+            color: "#1a5fb4",
+            values: filtered.map(
+              (r) => r.data.results.ingester?.totalBatchesExecuted ?? null,
+            ),
+          },
+        ];
+        const { svgWrap: w4 } = makeCard(
+          "ingester-grid",
+          "Batches executed",
+          "Total ingestion batches completed",
+        );
+        w4.innerHTML = barChartSVG(labels, thruSeries, {
+          yFmt: (v) => v.toLocaleString(),
+        });
+        attachBarTips(w4);
+
+        // Failures
+        const failSeries = [
+          {
+            label: "batch failures",
+            color: "#c01c28",
+            values: filtered.map(
+              (r) => r.data.results.ingester?.totalBatchesFailed ?? null,
+            ),
+          },
+          {
+            label: "query failures",
+            color: "#813d9c",
+            values: filtered.map(
+              (r) => r.data.results.querier?.totalQueriesFailed ?? null,
+            ),
+          },
+        ];
+        const { svgWrap: w5, addLegend: l5 } = makeCard(
+          "ingester-grid",
+          "Failure counts",
+          "Ingester batch and querier query failures",
+        );
+        w5.innerHTML = barChartSVG(labels, failSeries, {
+          yFmt: (v) => v.toFixed(0),
+        });
+        attachBarTips(w5);
+        l5(failSeries.map((s) => ({ color: s.color, label: s.label })));
+      }
+      function renderQuerier() {
+        clearGrid("querier-grid");
+        if (filtered.length === 0) return;
+
+        const allQueryTypes = [
+          ...new Set(
+            filtered.flatMap((r) =>
+              (r.data.results.querier?.statsByQueryType || []).map(
+                (s) => s.queryType,
+              ),
+            ),
+          ),
+        ].sort();
+
+        if (allQueryTypes.length === 0) {
+          document.getElementById("querier-grid").innerHTML =
+            '<div class="empty">No query stats in selected runs.</div>';
+          return;
+        }
+
+        allQueryTypes.forEach((qt) => {
+          const allCombos = [
+            ...new Set(
+              filtered.flatMap((r) =>
+                (r.data.results.querier?.statsByQueryType || [])
+                  .filter((s) => s.queryType === qt)
+                  .map((s) => s.filterCombo),
+              ),
+            ),
+          ].sort();
+
+          const PERC = [
+            { label: "p50", color: "#2ec27e", key: "p50Latency" },
+            { label: "p95", color: "#986a00", key: "p95Latency" },
+            { label: "p99", color: "#c01c28", key: "p99Latency" },
+            { label: "max", color: "#813d9c", key: "maxLatency" },
+          ];
+
+          const stacks = PERC.map((p) => ({
+            label: p.label,
+            color: p.color,
+            values: filtered.map((run) =>
+              allCombos.map((fc) => {
+                const stat = (
+                  run.data.results.querier?.statsByQueryType || []
+                ).find((s) => s.queryType === qt && s.filterCombo === fc);
+                return stat ? toMs(stat[p.key]) : null;
+              }),
+            ),
+          }));
+
+          const runMeta = filtered.map((r) => ({
+            label: `#${r.id}`,
+            color: r.color,
+          }));
+
+          const { svgWrap, addLegend } = makeCard(
+            "querier-grid",
+            qt,
+            "p50/p95/p99/max latency by filter combination",
+          );
+          svgWrap.innerHTML = groupedStackedBarChartSVG(
+            allCombos,
+            runMeta,
+            stacks,
+            {
+              yFmt: fmtMs,
+              rotateX: allCombos.length > 3,
+              height: allCombos.length > 3 ? 260 : 220,
+            },
+          );
+          attachBarTips(svgWrap);
+          addLegend([
+            ...PERC.map((p) => ({ color: p.color, label: p.label })),
+            ...filtered.map((r) => ({ color: r.color, label: `run #${r.id}` })),
+          ]);
+        });
+      }
+      function renderActions() {
+        const grid = clearGrid("actions-grid");
+        const runsWithActor = filtered.filter((r) => r.data.results.actor);
+
+        if (runsWithActor.length === 0) {
+          grid.innerHTML =
+            '<div class="empty">No action data in selected runs.</div>';
+          return;
+        }
+
+        const labels = runsWithActor.map((r) => `#${r.id}`);
+
+        // Reprioritisation latency
+        const reprioSeries = [
+          {
+            label: "p50",
+            color: "#2ec27e",
+            values: runsWithActor.map((r) =>
+              toMs(r.data.results.actor.reprioritisationP50Latency),
+            ),
+          },
+          {
+            label: "p95",
+            color: "#986a00",
+            values: runsWithActor.map((r) =>
+              toMs(r.data.results.actor.reprioritisationP95Latency),
+            ),
+          },
+          {
+            label: "p99",
+            color: "#c01c28",
+            values: runsWithActor.map((r) =>
+              toMs(r.data.results.actor.reprioritisationP99Latency),
+            ),
+          },
+        ];
+        const { svgWrap: w1, addLegend: l1 } = makeCard(
+          "actions-grid",
+          "Reprioritisation latency",
+          "Time to reprioritise all jobs in a job set",
+        );
+        w1.innerHTML = stackedBarChartSVG(labels, reprioSeries, {
+          yFmt: fmtMs,
+        });
+        attachBarTips(w1);
+        l1(reprioSeries.map((s) => ({ color: s.color, label: s.label })));
+
+        // Cancellation latency
+        const cancelSeries = [
+          {
+            label: "p50",
+            color: "#2ec27e",
+            values: runsWithActor.map((r) =>
+              toMs(r.data.results.actor.cancellationP50Latency),
+            ),
+          },
+          {
+            label: "p95",
+            color: "#986a00",
+            values: runsWithActor.map((r) =>
+              toMs(r.data.results.actor.cancellationP95Latency),
+            ),
+          },
+          {
+            label: "p99",
+            color: "#c01c28",
+            values: runsWithActor.map((r) =>
+              toMs(r.data.results.actor.cancellationP99Latency),
+            ),
+          },
+        ];
+        const { svgWrap: w2, addLegend: l2 } = makeCard(
+          "actions-grid",
+          "Cancellation latency",
+          "Time to cancel all jobs in a job set",
+        );
+        w2.innerHTML = stackedBarChartSVG(labels, cancelSeries, {
+          yFmt: fmtMs,
+        });
+        attachBarTips(w2);
+        l2(cancelSeries.map((s) => ({ color: s.color, label: s.label })));
+
+        // Scale
+        const scaleSeries = [
+          {
+            label: "reprioritised",
+            color: "#1a5fb4",
+            values: runsWithActor.map(
+              (r) => r.data.results.actor.totalJobsReprioritised,
+            ),
+          },
+          {
+            label: "cancelled",
+            color: "#e66100",
+            values: runsWithActor.map(
+              (r) => r.data.results.actor.totalJobsCancelled,
+            ),
+          },
+        ];
+        const { svgWrap: w3, addLegend: l3 } = makeCard(
+          "actions-grid",
+          "Scale of actions",
+          "Total jobs affected per run",
+        );
+        w3.innerHTML = barChartSVG(labels, scaleSeries, {
+          yFmt: (v) => v.toLocaleString(),
+        });
+        attachBarTips(w3);
+        l3(scaleSeries.map((s) => ({ color: s.color, label: s.label })));
+      }
+    </script>
+  </body>
+</html>

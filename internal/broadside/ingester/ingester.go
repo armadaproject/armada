@@ -161,43 +161,105 @@ func NewIngester(
 func (i *Ingester) Setup(ctx context.Context) error {
 	logging.Info("Populating database with historical jobs")
 
+	type pairWork struct {
+		queueIdx  int
+		jobSetIdx int
+		queueCfg  configuration.QueueConfig
+		jobSetCfg configuration.JobSetConfig
+	}
+
+	var pairs []pairWork
 	for qIdx, queueCfg := range i.queueConfigs {
 		for jsIdx, jobSetCfg := range queueCfg.JobSetConfig {
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			default:
-			}
-
-			historicalCfg := jobSetCfg.HistoricalJobsConfig
-			if historicalCfg.NumberOfJobs == 0 {
+			if jobSetCfg.HistoricalJobsConfig.NumberOfJobs == 0 {
 				continue
 			}
-
-			succeededThreshold := int(historicalCfg.ProportionSucceeded * 1000)
-			erroredThreshold := succeededThreshold + int(historicalCfg.ProportionErrored*1000)
-			cancelledThreshold := erroredThreshold + int(historicalCfg.ProportionCancelled*1000)
-
-			params := db.HistoricalJobsParams{
-				QueueIdx:           qIdx,
-				JobSetIdx:          jsIdx,
-				QueueName:          queueCfg.Name,
-				JobSetName:         jobSetCfg.Name,
-				NJobs:              historicalCfg.NumberOfJobs,
-				SucceededThreshold: succeededThreshold,
-				ErroredThreshold:   erroredThreshold,
-				CancelledThreshold: cancelledThreshold,
-				JobSpecBytes:       []byte(defaultJobSpec),
-				ErrorBytes:         simulatedError,
-				DebugBytes:         simulatedDebugMsg,
-				PreemptionBytes:    preemptionError,
-			}
-
-			if err := i.database.PopulateHistoricalJobs(ctx, params); err != nil {
-				return fmt.Errorf("populating historical jobs for queue %s jobset %s: %w",
-					queueCfg.Name, jobSetCfg.Name, err)
-			}
+			pairs = append(pairs, pairWork{
+				queueIdx:  qIdx,
+				jobSetIdx: jsIdx,
+				queueCfg:  queueCfg,
+				jobSetCfg: jobSetCfg,
+			})
 		}
+	}
+
+	if len(pairs) == 0 {
+		logging.Info("No historical jobs to populate")
+		return nil
+	}
+
+	numWorkers := i.config.HistoricalJobWorkers
+	if numWorkers <= 0 {
+		numWorkers = 1
+	}
+	if numWorkers > len(pairs) {
+		numWorkers = len(pairs)
+	}
+
+	chunkSize := i.config.HistoricalJobChunkSize
+
+	logging.Infof("Historical job ingestion: %d pairs, %d workers", len(pairs), numWorkers)
+
+	errCh := make(chan error, 1)
+	pairCh := make(chan pairWork, len(pairs))
+	for _, p := range pairs {
+		pairCh <- p
+	}
+	close(pairCh)
+
+	workerCtx, cancelWorkers := context.WithCancel(ctx)
+	defer cancelWorkers()
+
+	var wg sync.WaitGroup
+	for range numWorkers {
+		wg.Go(func() {
+			for pair := range pairCh {
+				select {
+				case <-workerCtx.Done():
+					return
+				default:
+				}
+
+				historicalCfg := pair.jobSetCfg.HistoricalJobsConfig
+				succeededThreshold := int(historicalCfg.ProportionSucceeded * 1000)
+				erroredThreshold := succeededThreshold + int(historicalCfg.ProportionErrored*1000)
+				cancelledThreshold := erroredThreshold + int(historicalCfg.ProportionCancelled*1000)
+
+				params := db.HistoricalJobsParams{
+					QueueIdx:           pair.queueIdx,
+					JobSetIdx:          pair.jobSetIdx,
+					QueueName:          pair.queueCfg.Name,
+					JobSetName:         pair.jobSetCfg.Name,
+					NJobs:              historicalCfg.NumberOfJobs,
+					ChunkSize:          chunkSize,
+					SucceededThreshold: succeededThreshold,
+					ErroredThreshold:   erroredThreshold,
+					CancelledThreshold: cancelledThreshold,
+					JobSpecBytes:       []byte(defaultJobSpec),
+					ErrorBytes:         simulatedError,
+					DebugBytes:         simulatedDebugMsg,
+					PreemptionBytes:    preemptionError,
+				}
+
+				if err := i.database.PopulateHistoricalJobs(workerCtx, params); err != nil {
+					select {
+					case errCh <- fmt.Errorf("populating historical jobs for queue %s jobset %s: %w",
+						pair.queueCfg.Name, pair.jobSetCfg.Name, err):
+					default:
+					}
+					cancelWorkers()
+					return
+				}
+			}
+		})
+	}
+
+	wg.Wait()
+
+	select {
+	case err := <-errCh:
+		return err
+	default:
 	}
 
 	logging.Info("Finished populating database with historical jobs")
@@ -338,7 +400,11 @@ func (i *Ingester) executeBatch(ctx context.Context, batch []db.IngestionQuery) 
 	// Create a detached context with timeout for this batch operation
 	// This allows the batch to complete even if the parent context is cancelled,
 	// preventing partial writes and ensuring clean shutdown
-	batchCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	batchTimeout := i.config.BatchTimeout
+	if batchTimeout == 0 {
+		batchTimeout = 30 * time.Second
+	}
+	batchCtx, cancel := context.WithTimeout(context.Background(), batchTimeout)
 	defer cancel()
 
 	start := time.Now()
