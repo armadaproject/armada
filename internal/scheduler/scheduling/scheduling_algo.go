@@ -850,9 +850,8 @@ func populateNodeDb(nodeDb *nodedb.NodeDb, currentPoolJobs []*jobdb.Job, otherPo
 			continue
 		}
 
-		res := job.KubernetesResourceRequirements()
-		allocatedByNodeId[nodeId] = allocatedByNodeId[nodeId].Add(res)
-		allocatedToOtherPoolsByNodeId[nodeId] = allocatedToOtherPoolsByNodeId[nodeId].Add(res)
+		allocatedByNodeId[nodeId] = allocatedByNodeId[nodeId].Add(job.KubernetesResourceRequirements())
+		allocatedToOtherPoolsByNodeId[nodeId] = allocatedToOtherPoolsByNodeId[nodeId].Add(job.KubernetesResourceRequirements())
 	}
 
 	for _, node := range nodes {
