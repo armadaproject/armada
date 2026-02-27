@@ -56,18 +56,15 @@ type FairSchedulingAlgo struct {
 	lastOptimiserRoundTimeByPool map[string]time.Time
 	// Max amount of time each scheduling round is allowed to take (hard timeout).
 	maxSchedulingDuration time.Duration
-	// Soft timeout for scheduling new jobs. After this duration, only evicted jobs are scheduled.
-	newJobsSchedulingTimeout time.Duration
-	clock                    clock.Clock
-	resourceListFactory      *internaltypes.ResourceListFactory
-	floatingResourceTypes    *floatingresources.FloatingResourceTypes
-	shortJobPenalty          *ShortJobPenalty
+	clock                 clock.Clock
+	resourceListFactory   *internaltypes.ResourceListFactory
+	floatingResourceTypes *floatingresources.FloatingResourceTypes
+	shortJobPenalty       *ShortJobPenalty
 }
 
 func NewFairSchedulingAlgo(
 	config configuration.SchedulingConfig,
 	maxSchedulingDuration time.Duration,
-	newJobsSchedulingTimeout time.Duration,
 	executorRepository database.ExecutorRepository,
 	queueCache queue.QueueCache,
 	schedulingContextRepository *reports.SchedulingContextRepository,
@@ -93,7 +90,6 @@ func NewFairSchedulingAlgo(
 		limiterByQueue:               make(map[string]*rate.Limiter),
 		lastOptimiserRoundTimeByPool: make(map[string]time.Time, len(config.Pools)),
 		maxSchedulingDuration:        maxSchedulingDuration,
-		newJobsSchedulingTimeout:     newJobsSchedulingTimeout,
 		clock:                        clock.RealClock{},
 		resourceListFactory:          resourceListFactory,
 		floatingResourceTypes:        floatingResourceTypes,
@@ -237,6 +233,8 @@ func (l *FairSchedulingAlgo) reconcileAndSchedulePool(
 	if pool.DisableGangAwayScheduling {
 		fsctx.nodeDb.DisableGangAwayScheduling()
 	}
+
+	fsctx.nodeDb.SetDisallowedJobResources(pool.ExperimentalUnscheduledResources)
 
 	start := time.Now()
 	resourceUnit, ok := resourceUnits[pool.Name]
@@ -740,7 +738,6 @@ func (l *FairSchedulingAlgo) SchedulePool(
 		fsctx.nodeDb,
 		shouldRunOptimiser,
 		l.clock,
-		l.newJobsSchedulingTimeout,
 	)
 
 	ctx.Infof("Scheduling on pool %s with capacity %s protectedFractionOfFairShare %f protectUncappedAdjustedFairShare %t",
@@ -856,7 +853,8 @@ func populateNodeDb(nodeDb *nodedb.NodeDb, currentPoolJobs []*jobdb.Job, otherPo
 			continue
 		}
 		// Mark resource used by jobs of other pools as unallocatable so we don't double schedule this resource
-		markResourceUnallocatable(node.AllocatableByPriority, job.KubernetesResourceRequirements())
+		node = node.MarkResourceUnallocatable(job.KubernetesResourceRequirements())
+		nodesById[nodeId] = node
 		if _, present := allocatedByNodeId[nodeId]; !present {
 			allocatedByNodeId[nodeId] = job.KubernetesResourceRequirements()
 		} else {
@@ -864,7 +862,7 @@ func populateNodeDb(nodeDb *nodedb.NodeDb, currentPoolJobs []*jobdb.Job, otherPo
 		}
 	}
 
-	for _, node := range nodes {
+	for _, node := range nodesById {
 		if node.IsUnschedulable() && len(jobsByNodeId[node.GetId()]) == 0 {
 			// Don't add nodes that cannot be scheduled on into the nodedb
 			// - For efficiency
@@ -886,13 +884,6 @@ func populateNodeDb(nodeDb *nodedb.NodeDb, currentPoolJobs []*jobdb.Job, otherPo
 	}
 	txn.Commit()
 	return nil
-}
-
-func markResourceUnallocatable(allocatableByPriority map[int32]internaltypes.ResourceList, rl internaltypes.ResourceList) {
-	for pri, allocatable := range allocatableByPriority {
-		newAllocatable := allocatable.Subtract(rl).FloorAtZero()
-		allocatableByPriority[pri] = newAllocatable
-	}
 }
 
 // filterCordonedExecutors returns all executors which aren't marked as cordoned from the provided executorSettings

@@ -84,6 +84,8 @@ type QueueSchedulingContext struct {
 	UnsuccessfulJobSchedulingContexts map[string]*JobSchedulingContext
 	// Jobs evicted in this round.
 	EvictedJobsById map[string]bool
+	// Time spent scheduling new jobs in this round.
+	TotalNewJobSchedulingTime time.Duration
 }
 
 func (qctx *QueueSchedulingContext) String() string {

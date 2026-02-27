@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	commonconfig "github.com/armadaproject/armada/internal/common/config"
 	"github.com/armadaproject/armada/internal/common/database"
 	log "github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/lookout/configuration"
@@ -21,6 +22,10 @@ type ReadTestConfig struct {
 	Ids          []any
 	QueueCounts  map[string]int64
 	JobsetCounts map[string]int64
+}
+
+func (r ReadTestConfig) Mutate() (commonconfig.Config, error) {
+	return r, nil
 }
 
 func (r ReadTestConfig) Validate() error {
