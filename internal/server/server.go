@@ -31,6 +31,7 @@ import (
 	"github.com/armadaproject/armada/internal/server/node"
 	"github.com/armadaproject/armada/internal/server/queryapi"
 	"github.com/armadaproject/armada/internal/server/queue"
+	"github.com/armadaproject/armada/internal/server/redismetrics"
 	"github.com/armadaproject/armada/internal/server/submit"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/api/schedulerobjects"
@@ -103,6 +104,32 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 	}()
 	prometheus.MustRegister(
 		redisprometheus.NewCollector("armada", "events_redis", eventDb))
+
+	// Redis memory metrics collector (optional)
+	if config.RedisMemoryMetrics.Enabled {
+		var metricsRedisClient redis.UniversalClient
+		if len(config.RedisMemoryMetrics.MetricsRedis.Addrs) > 0 {
+			metricsRedisClient = createRedisClient(&config.RedisMemoryMetrics.MetricsRedis)
+			defer metricsRedisClient.Close()
+		} else {
+			metricsRedisClient = eventDb // reuse existing connection
+		}
+		metricsConfig := redismetrics.Config{
+			Enabled:            config.RedisMemoryMetrics.Enabled,
+			CollectionInterval: config.RedisMemoryMetrics.CollectionInterval,
+			TopN:               config.RedisMemoryMetrics.TopN,
+			ScanBatchSize:      config.RedisMemoryMetrics.ScanBatchSize,
+			PipelineBatchSize:  config.RedisMemoryMetrics.PipelineBatchSize,
+			InterBatchDelay:    config.RedisMemoryMetrics.InterBatchDelay,
+			MemoryUsageSamples: config.RedisMemoryMetrics.MemoryUsageSamples,
+		}
+		scanner := redismetrics.NewScanner(metricsRedisClient, metricsConfig)
+		collector := redismetrics.NewCollector(scanner, metricsConfig)
+		prometheus.MustRegister(collector)
+		services = append(services, func() error {
+			return collector.Run(ctx)
+		})
+	}
 
 	queueRepository := queue.NewPostgresQueueRepository(dbPool)
 	queueCache := queue.NewCachedQueueRepository(queueRepository, config.QueueCacheRefreshPeriod)

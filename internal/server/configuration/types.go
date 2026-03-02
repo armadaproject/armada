@@ -39,6 +39,7 @@ type ArmadaConfig struct {
 
 	// Config relating to job submission.
 	Submission SubmissionConfig
+	RedisMemoryMetrics RedisMemoryMetricsConfig
 }
 
 // SubmissionConfig contains config relating to job submission.
@@ -106,4 +107,16 @@ type PostgresConfig struct {
 
 type QueryApiConfig struct {
 	MaxQueryItems int
+}
+
+// RedisMemoryMetricsConfig contains configuration for Redis memory metrics collection.
+type RedisMemoryMetricsConfig struct {
+	Enabled              bool
+	CollectionInterval   time.Duration
+	TopN                 int
+	ScanBatchSize        int64
+	PipelineBatchSize    int
+	InterBatchDelay      time.Duration
+	MemoryUsageSamples   int
+	MetricsRedis         redis.UniversalOptions
 }
