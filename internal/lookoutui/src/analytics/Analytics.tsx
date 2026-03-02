@@ -1,29 +1,17 @@
 import { ComponentPropsWithRef, ElementType, forwardRef, ReactNode, JSX } from "react"
 
-import { getConfig, AnalyticsScriptConfig } from "../config"
+import { getConfig, analyticsConfig } from "../config"
 
 type AnalyticsProps<C extends ElementType> = {
-  /**
-   * The component to render with analytics attributes
-   */
   component: C
-  /**
-   * The event name to track when the component is interacted with
-   */
   eventName: string
-  /**
-   * Optional event data to include with the analytics event
-   */
   eventData?: Record<string, string>
-  /**
-   * Optional children for the component
-   */
   children?: ReactNode
 } & ComponentPropsWithRef<C>
 
 function buildAnalyticsAttributes(
   eventName: string,
-  analyticsConfig: AnalyticsScriptConfig,
+  analyticsConfig: analyticsConfig,
   eventData?: Record<string, string>,
 ): Record<string, string> {
   const method = analyticsConfig.method || "attribute"
@@ -61,6 +49,16 @@ function buildAnalyticsAttributes(
 
 /**
  * Component that wraps any element and injects properties for analytics
+ *
+ * @param {C} component - The component to render with analytics attributes
+ * @param {string} eventName - The event name to track when the component is interacted with
+ * @param {Record<string, string>} [eventData] - Optional event data to include with the analytics event
+ * @param {ReactNode} [children] - Optional children for the component
+ *
+ * @example
+ * <Analytics component="button" eventName="click_submit" eventData={{ form: "login" }}>
+ *   Submit
+ * </Analytics>
  */
 export const Analytics = forwardRef(
   <C extends ElementType>(
@@ -69,7 +67,7 @@ export const Analytics = forwardRef(
   ) => {
     const Component = component
     const config = getConfig()
-    const analyticsConfig = config.analyticsScript
+    const analyticsConfig = config.analytics
 
     const analyticsAttributes = analyticsConfig ? buildAnalyticsAttributes(eventName, analyticsConfig, eventData) : {}
 

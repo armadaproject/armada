@@ -145,33 +145,21 @@ type JobLinkConfig struct {
 }
 
 type ScriptTag struct {
-	// Content is the script content to inject (for inline scripts)
-	Content string `json:"content,omitempty"`
-	// Attributes are the HTML attributes to set on the script tag (e.g., "async", "defer", "src", "type")
+	Content    string            `json:"content,omitempty"`
 	Attributes map[string]string `json:"attributes,omitempty"`
 }
 
 type UserIdentify struct {
-	// Provider is the name of the analytics provider on the window object (e.g., "umami", "analytics", "mixpanel", "op")
-	Provider string `json:"provider"`
-	// IdentifyParam defines the key name for object-based identify calls
-	// - empty/omitted: provider.identify(userId) - string parameter
-	// - "profileId": provider.identify({ profileId: userId })
-	// - "id": provider.identify({ id: userId })
+	Provider      string `json:"provider"`
 	IdentifyParam string `json:"identifyParam,omitempty"`
 }
 
-type AnalyticsScriptConfig struct {
-	// Scripts is a list of script tags to inject into the document head
-	Scripts []ScriptTag `json:"scripts"`
-	// Method specifies how to add tracking data: "attribute" for HTML attributes (e.g., Umami), "class" for CSS classes (e.g., Plausible)
-	Method string `json:"method,omitempty"`
-	// EventAttribute is the HTML attribute name to use for tracking events (attribute method) or class prefix (class method)
-	EventAttribute string `json:"eventAttribute,omitempty"`
-	// DataAttribute is the HTML attribute name to use for event data (attribute method) or class prefix (class method)
-	DataAttribute string `json:"dataAttribute,omitempty"`
-	// UserIdentify specifies whether and how to identify authenticated users to the analytics provider
-	UserIdentify *UserIdentify `json:"userIdentify,omitempty"`
+type Analytics struct {
+	Scripts        []ScriptTag   `json:"scripts"`
+	Method         string        `json:"method,omitempty"`
+	EventAttribute string        `json:"eventAttribute,omitempty"`
+	DataAttribute  string        `json:"dataAttribute,omitempty"`
+	UserIdentify   *UserIdentify `json:"userIdentify,omitempty"`
 }
 
 // UIConfig must match the LookoutUiConfig TypeScript interface defined in internal/lookoutui/src/lookoutUiConfig.d.ts
@@ -207,6 +195,6 @@ type UIConfig struct {
 
 	CustomThemeConfigs *CustomThemeConfigs `json:"customThemeConfigs,omitempty"`
 
-	// AnalyticsScript is an optional analytics script configuration
-	AnalyticsScript *AnalyticsScriptConfig `json:"analyticsScript,omitempty"`
+	// Analytics is an optional analytics configuration
+	Analytics *Analytics `json:"analytics,omitempty"`
 }

@@ -1,14 +1,14 @@
 # Example Lookout UI Configuration with Analytics Script
 
-To enable a analytics script (like Umami, Google Analytics, Plausible, etc.) in the Lookout UI, add the `analyticsScript` configuration to your Lookout configuration YAML file. Many analytics solutions operate by inserting `<script>` tags inside the `<head>` and adding information to other tags through HTML attributes or css classes for event analytics.
+To enable a analytics script (like Umami, Google Analytics, Plausible, etc.) in the Lookout UI, add the `analytics` configuration to your Lookout configuration YAML file. Many analytics solutions operate by inserting `<script>` tags inside the `<head>` and adding information to other tags through HTML attributes or css classes for event analytics.
 
-## analyticsScript Schema
+## analytics Schema
 
 ```yaml
 uiConfig:
   # ... other UI configuration ...
 
-  analyticsScript:
+  analytics:
     scripts: # list of <script> that will be added to <head>
       - content: | # content of <script>
           console.log("Inline script example");
@@ -19,6 +19,9 @@ uiConfig:
     method: attribute | class # specify if analytic solution uses HTML attributes or css class
     eventAttribute: "data-foo-event" # analytic solution base identifier for events
     dataAttribute: "data-foo-data" # analytic solution base identifier for data associated with an event
+    userIdentify:
+      provider: foo # name of analytic solution in browsers window
+      identifyPararm: distinctID # required parameter for analytic solutions which use object for input
 ```
 
 This will result in a analytics script being added to the `<head>` element
@@ -42,13 +45,25 @@ Event analytics where `eventName=Something Clicked` and `eventData={yourEvent: 1
 <button type="button" class="data-foo-event=Something+Clicked data-foo-data-yourevent=1">Something</button>
 ```
 
+Identify script execution
+
+```js
+// where userIdentify.provider=foo
+foo.identify("user123")
+
+// where userIdentify.provider=foo and userIdentify.identifyParam=distinctID
+foo.identify({
+  distinctID: "user123",
+})
+```
+
 ## Example Implementations
 
 ### Umami Analytics
 
 ```yaml
 uiConfig:
-  analyticsScript:
+  analytics:
     scripts:
       - attributes:
           src: "https://analytics.yourdomain.com/script.js"
@@ -57,6 +72,8 @@ uiConfig:
     method: "attribute"
     eventAttribute: "data-umami-event"
     dataAttribute: "data-umami-event"
+    userIdentify:
+      provider: "umami"
 ```
 
 Follow [Umami docs](https://umami.is/docs) on how to run and set up an instance of Umami. Details for `<script>` tag are in the [Analytics code](https://umami.is/docs/collect-data) section.
@@ -65,7 +82,7 @@ Follow [Umami docs](https://umami.is/docs) on how to run and set up an instance 
 
 ```yaml
 uiConfig:
-  analyticsScript:
+  analytics:
     scripts:
       - attributes:
            src: "https://analytics.yourdomain.com/js/script_name.js"
@@ -132,4 +149,4 @@ The `Analytics` component:
 ## Notes
 
 - The script is injected dynamically when the app loads
-- If no `analyticsScript` configuration is provided, no analytics script will be loaded
+- If no `analytics` configuration is provided, no analytics script will be loaded

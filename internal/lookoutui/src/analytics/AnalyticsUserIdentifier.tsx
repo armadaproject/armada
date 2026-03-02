@@ -1,14 +1,14 @@
 import { useEffect, useRef } from "react"
 
-import { AnalyticsScriptConfig } from "../config"
+import { analyticsConfig } from "../config"
 import { useUserManager } from "../oidcAuth"
 
 export interface AnalyticsUserIdentifierProps {
-  analyticsConfig: AnalyticsScriptConfig | undefined
+  analyticsConfig: analyticsConfig | undefined
 }
 
 /**
- * Analytics providers may not load immediately so add retry mechanism
+ * Retry mechanism for analytics providers since they may not load in time for user identification
  */
 async function waitForAnalyticsProvider(provider: string): Promise<any | undefined> {
   const maxRetries = 20

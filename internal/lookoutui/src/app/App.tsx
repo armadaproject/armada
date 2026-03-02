@@ -83,7 +83,7 @@ export function App(props: AppProps) {
 
   return (
     <ErrorBoundary FallbackComponent={FullPageErrorFallback}>
-      <AnalyticsScript config={config.analyticsScript} />
+      <AnalyticsScript config={config.analytics} />
       <LookoutThemeProvider>
         <CssBaseline />
         <SnackbarProvider
@@ -95,7 +95,7 @@ export function App(props: AppProps) {
             <QueryClientProvider client={queryClient}>
               <ErrorBoundary FallbackComponent={FullPageErrorFallback}>
                 <OidcAuthProvider oidcConfig={config.oidcEnabled ? config.oidc : undefined}>
-                  <AnalyticsUserIdentifier analyticsConfig={config.analyticsScript} />
+                  <AnalyticsUserIdentifier analyticsConfig={config.analytics} />
                   <ApiClientsProvider>
                     <BrowserRouter>
                       <ServicesProvider services={props.services}>

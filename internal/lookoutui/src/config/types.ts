@@ -44,17 +44,13 @@ export interface ScriptTag {
   attributes?: Record<string, string>
 }
 
-export interface AnalyticsScriptConfig {
+export interface analyticsConfig {
   scripts: ScriptTag[]
   method?: "attribute" | "class"
   eventAttribute?: string
   dataAttribute?: string
   userIdentify?: {
     provider: string
-    // identifyParam defines the key name for object-based identify calls
-    // - undefined: provider.identify(userId) - string parameter
-    // - "profileId": provider.identify({ profileId: userId })
-    // - "id": provider.identify({ id: userId })
     identifyParam?: string
   }
 }
@@ -75,7 +71,7 @@ export interface LookoutUiConfig {
   pinnedTimeZoneIdentifiers: string[]
   errorMonitoring: ErrorMonitoringConfig
   customThemeConfigs: CustomThemeConfigs | undefined
-  analyticsScript: AnalyticsScriptConfig | undefined
+  analytics: analyticsConfig | undefined
 }
 
 export interface Config extends LookoutUiConfig {
