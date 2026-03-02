@@ -60,6 +60,8 @@ const SidebarTabs = styled(Tabs)({
   flex: "0 0 auto",
 })
 
+const StyledSidebarTab = styled(Tab)({ minWidth: 50 })
+
 const Resizer = styled("div", { shouldForwardProp: (prop) => prop !== "isResizing" })<
   HTMLProps<"div"> & { isResizing: boolean }
 >(({ isResizing, theme }) => [
@@ -249,14 +251,14 @@ export const Sidebar = memo(({ job, sidebarWidth, onClose, onWidthChange, comman
                 <TabsContainer>
                   <SidebarTabs value={openTab} onChange={handleTabChange}>
                     <Analytics
-                      component={Tab}
+                      component={StyledSidebarTab}
                       label="Details"
                       value={SidebarTab.JobDetails}
                       eventName="Sidebar Tab View"
                       eventData={{ tab: "Details", jobState: job.state }}
                     />
                     <Analytics
-                      component={Tab}
+                      component={StyledSidebarTab}
                       label="Result"
                       value={SidebarTab.JobResult}
                       eventName="Sidebar Tab View"
@@ -264,7 +266,7 @@ export const Sidebar = memo(({ job, sidebarWidth, onClose, onWidthChange, comman
                     />
                     {job.state === JobState.Queued && (
                       <Analytics
-                        component={Tab}
+                        component={StyledSidebarTab}
                         label="Scheduling"
                         value={SidebarTab.Scheduling}
                         eventName="Sidebar Tab View"
@@ -272,14 +274,14 @@ export const Sidebar = memo(({ job, sidebarWidth, onClose, onWidthChange, comman
                       />
                     )}
                     <Analytics
-                      component={Tab}
+                      component={StyledSidebarTab}
                       label="YAML"
                       value={SidebarTab.Yaml}
                       eventName="Sidebar Tab View"
                       eventData={{ tab: "YAML", jobState: job.state }}
                     />
                     <Analytics
-                      component={Tab}
+                      component={StyledSidebarTab}
                       label="Logs"
                       value={SidebarTab.Logs}
                       disabled={job.state === JobState.Queued}
@@ -287,7 +289,7 @@ export const Sidebar = memo(({ job, sidebarWidth, onClose, onWidthChange, comman
                       eventData={{ tab: "Logs", jobState: job.state }}
                     />
                     <Analytics
-                      component={Tab}
+                      component={StyledSidebarTab}
                       label="Commands"
                       value={SidebarTab.Commands}
                       disabled={job.state === JobState.Queued}

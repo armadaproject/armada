@@ -1,6 +1,6 @@
 # Example Lookout UI Configuration with Analytics Script
 
-To enable a analytics script (like Umami, Google Analytics, Plausible, etc.) in the Lookout UI, add the `analytics` configuration to your Lookout configuration YAML file. Many analytics solutions operate by inserting `<script>` tags inside the `<head>` and adding information to other tags through HTML attributes or css classes for event analytics.
+To enable a analytics script (like Umami, Google Analytics, Plausible, etc.) in the Lookout UI, add the `analytics` configuration to your Lookout configuration YAML file. This works for analytic solutions that operate by inserting `<script>` tags inside the `<head>` and adding information to other tags through HTML attributes or css classes for event analytics.
 
 ## analytics Schema
 
@@ -105,7 +105,7 @@ Follow [Plausible docs](https://plausible.io/docs) on how to run and set up an i
 This is a universal component that adds analytics attributes to any component based on the configured analytics provider.
 
 ```tsx
-import { Analytics } from "src/components/analytics/Analytics"
+import { Analytics } from "src/analytics/Analytics"
 import { Button, Tab, Link } from "@mui/material"
 
 // Button
@@ -140,11 +140,18 @@ import { Button, Tab, Link } from "@mui/material"
 
 The `Analytics` component:
 
-- Takes a `component` prop specifying what component to render
+- Takes a `component` prop specifying what component to render (any HTML element or React component)
 - Automatically adds the correct analytics attributes (data attributes or CSS classes) based on your configuration
-- Wraps the onClick handler to dispatch analytics events
-- Supports full TypeScript type safety for the component's props
-- Merges classNames for class-based analytics systems
+- Supports all props of the wrapped component with full TypeScript type safety
+- Merges classNames properly for class-based analytics systems
+- Forwards refs to the underlying component
+
+### Props
+
+- `component` (required): The component or HTML element to render
+- `eventName` (required): The event name to track
+- `eventData` (optional): Additional key-value pairs to include with the event
+- All other props are passed through to the underlying component
 
 ## Notes
 
