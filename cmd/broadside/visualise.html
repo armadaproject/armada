@@ -763,18 +763,37 @@
 
       // ── Utilities ─────────────────────────────────────────────────────────────
 
-      /** Parse latency string to ms. e.g. "18.5ms" -> 18.5, "1.2s" -> 1200, "400µs" -> 0.4 */
+      /** Parse Go duration string to ms. e.g. "18.5ms" -> 18.5, "1.2s" -> 1200, "400µs" -> 0.4, "28m35.01s" -> 1715010 */
       function toMs(s) {
         if (!s) return null;
-        if (s.endsWith("µs")) return parseFloat(s) / 1000;
-        if (s.endsWith("ms")) return parseFloat(s);
-        if (s.endsWith("s")) return parseFloat(s) * 1000;
+        // Simple units without compound parts
+        if (s.endsWith("µs") && !s.match(/[hm]/)) return parseFloat(s) / 1000;
+        if (s.endsWith("ms") && !s.match(/[hm]/)) return parseFloat(s);
+        // Go compound duration: optional h, optional m, optional s (e.g. "1h2m3.5s", "28m35.01s", "45s")
+        const go = s.match(/^(?:(\d+)h)?(?:(\d+)m)?(?:([\d.]+)s)?$/);
+        if (go && (go[1] || go[2] || go[3])) {
+          const h = go[1] ? parseInt(go[1], 10) : 0;
+          const m = go[2] ? parseInt(go[2], 10) : 0;
+          const sec = go[3] ? parseFloat(go[3]) : 0;
+          return (h * 3600 + m * 60 + sec) * 1000;
+        }
         return null;
       }
 
       /** Format ms for display on axes */
       function fmtMs(ms) {
         if (ms === null) return "—";
+        if (ms >= 3600000) {
+          const h = Math.floor(ms / 3600000);
+          const m = Math.floor((ms % 3600000) / 60000);
+          const s = ((ms % 60000) / 1000).toFixed(0);
+          return m > 0 || s > 0 ? `${h}h ${m}m ${s}s` : `${h}h`;
+        }
+        if (ms >= 60000) {
+          const m = Math.floor(ms / 60000);
+          const s = ((ms % 60000) / 1000).toFixed(1);
+          return s > 0 ? `${m}m ${s}s` : `${m}m`;
+        }
         if (ms >= 1000) return (ms / 1000).toFixed(2) + "s";
         if (ms >= 1) return ms.toFixed(1) + "ms";
         return ms.toFixed(2) + "ms";

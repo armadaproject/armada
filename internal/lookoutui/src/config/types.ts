@@ -13,6 +13,7 @@ export interface OidcConfig {
   authority: string
   clientId: string
   scope: string
+  loadUserInfo: boolean
 }
 
 export interface CommandSpec {

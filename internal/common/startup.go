@@ -76,6 +76,11 @@ func LoadConfig(config commonconfig.Config, defaultPath string, overrideConfigs 
 		log.Debugf("Unset keys: %v", metadata.Unset)
 	}
 
+	config, err := config.Mutate()
+	if err != nil {
+		os.Exit(-1)
+	}
+
 	if err := config.Validate(); err != nil {
 		log.Error(commonconfig.FormatValidationErrors(err).Error())
 		os.Exit(-1)

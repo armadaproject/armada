@@ -99,7 +99,6 @@ func (sch *IdealisedValueScheduler) Schedule(ctx *armadacontext.Context) (*Sched
 		true,
 		1.0,
 		clock.RealClock{},
-		0,
 	)
 	if err != nil {
 		return nil, err

@@ -30,7 +30,7 @@ export const OidcAuthProvider = ({ children, oidcConfig }: OidcAuthProviderProps
             redirect_uri: `${window.location.origin}${OIDC_REDIRECT}`,
             scope: oidcConfig.scope,
             userStore: userManagerStore,
-            loadUserInfo: true,
+            loadUserInfo: oidcConfig.loadUserInfo ?? true,
           })
         : undefined,
     [oidcConfig],

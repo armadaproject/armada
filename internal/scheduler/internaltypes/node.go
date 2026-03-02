@@ -282,6 +282,17 @@ func (node *Node) GetAllocatableResources() ResourceList {
 	return node.allocatableResources
 }
 
+func (node *Node) MarkResourceUnallocatable(unallocatable ResourceList) *Node {
+	result := node.DeepCopyNilKeys()
+
+	for pri, allocatable := range result.AllocatableByPriority {
+		newAllocatable := allocatable.Subtract(unallocatable).FloorAtZero()
+		result.AllocatableByPriority[pri] = newAllocatable
+	}
+	result.allocatableResources = result.allocatableResources.Subtract(unallocatable).FloorAtZero()
+	return result
+}
+
 func (node *Node) WithOverAllocated(overAllocated bool) *Node {
 	result := node.DeepCopyNilKeys()
 	result.overAllocated = overAllocated

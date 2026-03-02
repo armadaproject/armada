@@ -345,7 +345,6 @@ func Run(config schedulerconfig.Configuration) error {
 	schedulingAlgo, err := scheduling.NewFairSchedulingAlgo(
 		config.Scheduling,
 		config.MaxSchedulingDuration,
-		config.NewJobsSchedulingTimeout,
 		executorRepository,
 		queueCache,
 		schedulingContextRepository,
@@ -415,6 +414,7 @@ func Run(config schedulerconfig.Configuration) error {
 		bidPriceProvider,
 		executorRepository,
 		config.Scheduling.Pools,
+		config.Metrics.QueuedJobPrimaryPoolOrder,
 		config.Metrics.RefreshInterval,
 		floatingResourceTypes,
 	)

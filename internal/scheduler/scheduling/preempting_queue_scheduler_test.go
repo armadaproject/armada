@@ -2207,7 +2207,6 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					nodeDb,
 					round.OptimiserEnabled,
 					clock.RealClock{},
-					0,
 				)
 				result, err := sch.Schedule(ctx)
 				require.NoError(t, err)
@@ -2548,7 +2547,6 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 				nodeDb,
 				false,
 				clock.RealClock{},
-				0,
 			)
 			result, err := sch.Schedule(ctx)
 			require.NoError(b, err)
@@ -2610,7 +2608,6 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 					nodeDb,
 					false,
 					clock.RealClock{},
-					0,
 				)
 				result, err := sch.Schedule(ctx)
 				require.NoError(b, err)
@@ -2701,7 +2698,7 @@ func TestPreemptingQueueSchedulerTimeouts(t *testing.T) {
 
 		sch := NewPreemptingQueueScheduler(
 			sctx, constraints, testfixtures.TestEmptyFloatingResources,
-			config, jobDbTxn, nodeDb, false, clock.RealClock{}, 1*time.Nanosecond,
+			config, jobDbTxn, nodeDb, false, clock.RealClock{},
 		)
 
 		result, err := sch.Schedule(armadacontext.Background())
@@ -2758,7 +2755,7 @@ func TestPreemptingQueueSchedulerTimeouts(t *testing.T) {
 
 		sch := NewPreemptingQueueScheduler(
 			sctx, constraints, testfixtures.TestEmptyFloatingResources,
-			config, jobDbTxn, nodeDb, false, clock.RealClock{}, 0,
+			config, jobDbTxn, nodeDb, false, clock.RealClock{},
 		)
 
 		ctx, cancel := armadacontext.WithCancel(armadacontext.Background())

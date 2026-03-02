@@ -170,9 +170,10 @@ type UIConfig struct {
 	// so that clients can override the server's preference.
 	OidcEnabled bool `json:"oidcEnabled"`
 	Oidc        *struct {
-		Authority string `json:"authority"`
-		ClientId  string `json:"clientId"`
-		Scope     string `json:"scope"`
+		Authority    string `json:"authority"`
+		ClientId     string `json:"clientId"`
+		Scope        string `json:"scope"`
+		LoadUserInfo *bool  `json:"loadUserInfo"`
 	} `json:"oidc,omitempty"`
 
 	ArmadaApiBaseUrl         string `json:"armadaApiBaseUrl"`

@@ -2,6 +2,7 @@ package constraints
 
 import (
 	"math"
+	"time"
 
 	"github.com/pkg/errors"
 
@@ -34,6 +35,10 @@ const (
 	QueueRateLimitExceededUnschedulableReason  = "queue scheduling rate limit exceeded"
 	QueueCordonedUnschedulableReason           = "queue cordoned"
 
+	// Indicates that scheduling new jobs would exceed a maximum duration allowed.
+	GlobalNewJobSchedulingDurationExceededUnschedulableReason = "global new job scheduling duration exceeded"
+	QueueNewJobSchedulingDurationExceededUnschedulableReason  = "queue new job scheduling duration exceeded"
+
 	// Indicates that scheduling a gang would exceed the rate limit.
 	GlobalRateLimitExceededByGangUnschedulableReason = "gang would exceed global scheduling rate limit"
 	QueueRateLimitExceededByGangUnschedulableReason  = "gang would exceed queue scheduling rate limit"
@@ -58,17 +63,26 @@ func UnschedulableReasonIsPropertyOfGang(reason string) bool {
 // it's not possible to schedule any more jobs in this round.
 func IsTerminalUnschedulableReason(reason string) bool {
 	return reason == MaximumResourcesScheduledUnschedulableReason ||
-		reason == GlobalRateLimitExceededUnschedulableReason
+		reason == GlobalRateLimitExceededUnschedulableReason ||
+		reason == GlobalNewJobSchedulingDurationExceededUnschedulableReason
 }
 
 // IsTerminalQueueUnschedulableReason returns true if reason indicates
 // it's not possible to schedule any more jobs from this queue in this round.
 func IsTerminalQueueUnschedulableReason(reason string) bool {
-	return reason == QueueRateLimitExceededUnschedulableReason || reason == QueueCordonedUnschedulableReason
+	return reason == QueueRateLimitExceededUnschedulableReason ||
+		reason == QueueCordonedUnschedulableReason ||
+		reason == QueueNewJobSchedulingDurationExceededUnschedulableReason
 }
 
 // SchedulingConstraints contains scheduling constraints, e.g., per-queue resource limits.
 type schedulingConstraints struct {
+	// Limits the total time that can be spent scheduling new jobs per scheduling round.7
+	// Set to 0 to disable the time restriction
+	maximumNewJobSchedulingDuration time.Duration
+	// Limits the total time that can be spent scheduling new jobs per scheduling round for a given queue.
+	// Set to 0 to disable the time restriction
+	maximumNewJobSchedulingDurationPerQueue time.Duration
 	// Limits total resources scheduled per scheduling round.
 	maximumResourcesToSchedule internaltypes.ResourceList
 	// Queues that are cordoned (i.e. no jobs may be scheduled on them)
@@ -88,9 +102,11 @@ func NewSchedulingConstraints(
 		func(q *api.Queue) bool { return q.Cordoned })
 
 	return &schedulingConstraints{
-		cordonedQueues:                         cordonedQueues,
-		maximumResourcesToSchedule:             calculatePerRoundLimits(totalResources, pool, config),
-		resourceLimitsPerQueuePerPriorityClass: calculatePerQueueLimits(totalResources, pool, config.PriorityClasses, queues),
+		cordonedQueues:                          cordonedQueues,
+		maximumNewJobSchedulingDuration:         config.MaxNewJobSchedulingDuration,
+		maximumNewJobSchedulingDurationPerQueue: config.MaxNewJobSchedulingDurationPerQueue,
+		maximumResourcesToSchedule:              calculatePerRoundLimits(totalResources, pool, config),
+		resourceLimitsPerQueuePerPriorityClass:  calculatePerQueueLimits(totalResources, pool, config.PriorityClasses, queues),
 	}
 }
 
@@ -138,6 +154,18 @@ func (constraints *schedulingConstraints) CheckJobConstraints(
 	}
 	if tokens < float64(gctx.Cardinality()) {
 		return false, QueueRateLimitExceededByGangUnschedulableReason, nil
+	}
+
+	// Global new job scheduling time limit
+	if constraints.maximumNewJobSchedulingDuration > 0 &&
+		sctx.TotalNewJobSchedulingTime > constraints.maximumNewJobSchedulingDuration {
+		return false, GlobalNewJobSchedulingDurationExceededUnschedulableReason, nil
+	}
+
+	// Per-queue new job scheduling time limit
+	if constraints.maximumNewJobSchedulingDurationPerQueue > 0 &&
+		qctx.TotalNewJobSchedulingTime > constraints.maximumNewJobSchedulingDurationPerQueue {
+		return false, QueueNewJobSchedulingDurationExceededUnschedulableReason, nil
 	}
 
 	queueLimit := constraints.GetQueueResourceLimit(qctx.Queue, gctx.PriorityClassName())
