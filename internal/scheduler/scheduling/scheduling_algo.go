@@ -823,6 +823,7 @@ func populateNodeDb(nodeDb *nodedb.NodeDb, currentPoolJobs []*jobdb.Job, otherPo
 	)
 	jobsByNodeId := make(map[string][]*jobdb.Job, len(nodes))
 	allocatedByNodeId := make(map[string]internaltypes.ResourceList, len(nodes))
+	allocatedToOtherPoolsByNodeId := make(map[string]internaltypes.ResourceList, len(nodes))
 	for _, job := range currentPoolJobs {
 		if job.InTerminalState() || !job.HasRuns() {
 			continue
@@ -836,33 +837,24 @@ func populateNodeDb(nodeDb *nodedb.NodeDb, currentPoolJobs []*jobdb.Job, otherPo
 			continue
 		}
 		jobsByNodeId[nodeId] = append(jobsByNodeId[nodeId], job)
-		if _, present := allocatedByNodeId[nodeId]; !present {
-			allocatedByNodeId[nodeId] = job.KubernetesResourceRequirements()
-		} else {
-			allocatedByNodeId[nodeId] = allocatedByNodeId[nodeId].Add(job.KubernetesResourceRequirements())
-		}
+		allocatedByNodeId[nodeId] = allocatedByNodeId[nodeId].Add(job.KubernetesResourceRequirements())
 	}
 	for _, job := range otherPoolsJobs {
 		if job.InTerminalState() || !job.HasRuns() {
 			continue
 		}
 		nodeId := job.LatestRun().NodeId()
-		node, ok := nodesById[nodeId]
+		_, ok := nodesById[nodeId]
 		if !ok {
 			// Job is allocated to a node which isn't part of this pool, ignore it
 			continue
 		}
-		// Mark resource used by jobs of other pools as unallocatable so we don't double schedule this resource
-		node = node.MarkResourceUnallocatable(job.KubernetesResourceRequirements())
-		nodesById[nodeId] = node
-		if _, present := allocatedByNodeId[nodeId]; !present {
-			allocatedByNodeId[nodeId] = job.KubernetesResourceRequirements()
-		} else {
-			allocatedByNodeId[nodeId] = allocatedByNodeId[nodeId].Add(job.KubernetesResourceRequirements())
-		}
+
+		allocatedByNodeId[nodeId] = allocatedByNodeId[nodeId].Add(job.KubernetesResourceRequirements())
+		allocatedToOtherPoolsByNodeId[nodeId] = allocatedToOtherPoolsByNodeId[nodeId].Add(job.KubernetesResourceRequirements())
 	}
 
-	for _, node := range nodesById {
+	for _, node := range nodes {
 		if node.IsUnschedulable() && len(jobsByNodeId[node.GetId()]) == 0 {
 			// Don't add nodes that cannot be scheduled on into the nodedb
 			// - For efficiency
@@ -878,6 +870,13 @@ func populateNodeDb(nodeDb *nodedb.NodeDb, currentPoolJobs []*jobdb.Job, otherPo
 				node = node.WithSchedulable(false)
 			}
 		}
+
+		allocatedToOtherPools, exists := allocatedToOtherPoolsByNodeId[node.GetId()]
+		if exists {
+			// Mark resource used by jobs of other pools as unallocatable so we don't double schedule this resource
+			node = node.MarkResourceUnallocatable(allocatedToOtherPools)
+		}
+
 		if err := nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, jobsByNodeId[node.GetId()], node); err != nil {
 			return err
 		}
