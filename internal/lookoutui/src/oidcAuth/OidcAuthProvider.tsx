@@ -37,7 +37,6 @@ export const OidcAuthProvider = ({ children, oidcConfig }: OidcAuthProviderProps
   )
 
   const [authError, setAuthError] = useState<any>(undefined)
-
   const isOidcRedirectPath = window.location.pathname === OIDC_REDIRECT
 
   const authenticate = useCallback(async () => {

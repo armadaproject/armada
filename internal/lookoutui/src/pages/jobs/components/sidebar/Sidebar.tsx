@@ -8,7 +8,7 @@ import { ErrorBoundary } from "react-error-boundary"
 import { Analytics } from "../../../../analytics"
 import { SPACING } from "../../../../common/spacing"
 import { AlertErrorFallback } from "../../../../components/AlertErrorFallback"
-import { CommandSpec } from "../../../../config/types"
+import { CommandSpec } from "../../../../config"
 import { Job, JobState } from "../../../../models/lookoutModels"
 
 import { SidebarHeader } from "./SidebarHeader"
