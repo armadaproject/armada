@@ -677,7 +677,6 @@ func TestMarketDrivenPreemptingQueueScheduler(t *testing.T) {
 					nodeDb,
 					false,
 					clock.RealClock{},
-					0,
 				)
 
 				result, err := sch.Schedule(ctx)

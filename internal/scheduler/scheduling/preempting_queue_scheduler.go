@@ -45,8 +45,6 @@ type PreemptingQueueScheduler struct {
 	marketConfig                     *configuration.MarketSchedulingConfig
 	marketDriven                     bool
 	clock                            clock.Clock
-	// Soft timeout for scheduling new jobs. After this duration, only evicted jobs are scheduled.
-	newJobsSchedulingTimeout time.Duration
 }
 
 func NewPreemptingQueueScheduler(
@@ -58,7 +56,6 @@ func NewPreemptingQueueScheduler(
 	nodeDb *nodedb.NodeDb,
 	optimiserEnabled bool,
 	clk clock.Clock,
-	newJobsSchedulingTimeout time.Duration,
 ) *PreemptingQueueScheduler {
 	marketConfig := config.GetMarketConfig(sctx.Pool)
 	marketDriven := marketConfig != nil && marketConfig.Enabled
@@ -78,7 +75,6 @@ func NewPreemptingQueueScheduler(
 		marketConfig:                     marketConfig,
 		marketDriven:                     marketDriven,
 		clock:                            clk,
-		newJobsSchedulingTimeout:         newJobsSchedulingTimeout,
 	}
 }
 
@@ -736,7 +732,6 @@ func (sch *PreemptingQueueScheduler) schedule(
 		sch.marketDriven,
 		spotPriceCutoff,
 		sch.clock,
-		sch.newJobsSchedulingTimeout,
 	)
 	if err != nil {
 		return nil, err

@@ -3,6 +3,8 @@ package configuration
 import (
 	"fmt"
 	"math"
+
+	commonconfig "github.com/armadaproject/armada/internal/common/config"
 )
 
 const proportionTolerance = 0.001 // Tolerance for floating point comparison
@@ -33,6 +35,10 @@ func (t *TestConfig) Validate() error {
 	return nil
 }
 
+func (t *TestConfig) Mutate() (commonconfig.Config, error) {
+	return t, nil
+}
+
 func validateQueueConfigs(queueConfigs []QueueConfig) error {
 	if len(queueConfigs) == 0 {
 		return fmt.Errorf("queueConfig must contain at least one queue")
@@ -50,6 +56,10 @@ func validateQueueConfigs(queueConfigs []QueueConfig) error {
 	}
 
 	return nil
+}
+
+func (d *DatabaseConfig) Mutate() (commonconfig.Config, error) {
+	return d, nil
 }
 
 // Validate validates the DatabaseConfig configuration.
@@ -100,6 +110,10 @@ func validateDatabaseMap(dbMap map[string]string, dbType string) error {
 	return nil
 }
 
+func (i *IngestionConfig) Mutate() (commonconfig.Config, error) {
+	return i, nil
+}
+
 // Validate validates the IngestionConfig configuration.
 func (i *IngestionConfig) Validate() error {
 	if i.BatchSize <= 0 {
@@ -145,6 +159,10 @@ func (i *IngestionConfig) Validate() error {
 	return nil
 }
 
+func (q *QueueConfig) Mutate() (commonconfig.Config, error) {
+	return q, nil
+}
+
 // Validate validates the QueueConfig configuration.
 func (q *QueueConfig) Validate() error {
 	if q.Name == "" {
@@ -172,6 +190,10 @@ func (q *QueueConfig) Validate() error {
 	return nil
 }
 
+func (j *JobSetConfig) Mutate() (commonconfig.Config, error) {
+	return j, nil
+}
+
 // Validate validates the JobSetConfig configuration.
 func (j *JobSetConfig) Validate() error {
 	if j.Name == "" {
@@ -184,6 +206,10 @@ func (j *JobSetConfig) Validate() error {
 		return fmt.Errorf("jobSet '%s' historicalJobsConfig validation failed: %w", j.Name, err)
 	}
 	return nil
+}
+
+func (h *HistoricalJobsConfig) Mutate() (commonconfig.Config, error) {
+	return h, nil
 }
 
 // Validate validates the HistoricalJobsConfig configuration.
@@ -214,6 +240,10 @@ func (h *HistoricalJobsConfig) Validate() error {
 	}
 
 	return nil
+}
+
+func (j *JobStateTransitionConfig) Mutate() (commonconfig.Config, error) {
+	return j, nil
 }
 
 // Validate validates the JobStateTransitionConfig configuration.
@@ -301,6 +331,10 @@ func (j *JobSetCancellation) Validate(testDurationNano int64) error {
 		return fmt.Errorf("jobSet must not be empty")
 	}
 	return nil
+}
+
+func (q *QueryConfig) Mutate() (commonconfig.Config, error) {
+	return q, nil
 }
 
 // Validate validates the QueryConfig configuration.

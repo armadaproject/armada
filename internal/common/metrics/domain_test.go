@@ -41,18 +41,18 @@ var (
 
 func TestRecordJobRuntime_ShouldReportRuntimeDurations(t *testing.T) {
 	jobMetricsRecorder := NewJobMetricsRecorder()
-	jobMetricsRecorder.RecordJobRuntime("pool-1", "", time.Second)
-	jobMetricsRecorder.RecordJobRuntime("pool-1", "", 2*time.Second)
-	jobMetricsRecorder.RecordJobRuntime("pool-1", "", 3*time.Second)
+	jobMetricsRecorder.RecordJobRuntime("pool-1", "", AccountingRolePrimary, time.Second)
+	jobMetricsRecorder.RecordJobRuntime("pool-1", "", AccountingRolePrimary, 2*time.Second)
+	jobMetricsRecorder.RecordJobRuntime("pool-1", "", AccountingRolePrimary, 3*time.Second)
 
-	jobMetricsRecorder.RecordJobRuntime("pool-2", "", 2*time.Second)
-	jobMetricsRecorder.RecordJobRuntime("pool-2", "", 3*time.Second)
+	jobMetricsRecorder.RecordJobRuntime("pool-2", "", AccountingRolePrimary, 2*time.Second)
+	jobMetricsRecorder.RecordJobRuntime("pool-2", "", AccountingRolePrimary, 3*time.Second)
 
-	jobMetricsRecorder.RecordJobRuntime("pool-3", "", 6*time.Second)
-	jobMetricsRecorder.RecordJobRuntime("pool-3", "", 8*time.Second)
+	jobMetricsRecorder.RecordJobRuntime("pool-3", "", AccountingRolePrimary, 6*time.Second)
+	jobMetricsRecorder.RecordJobRuntime("pool-3", "", AccountingRolePrimary, 8*time.Second)
 
-	jobMetricsRecorder.RecordJobRuntime("pool-4", "", 8*time.Second)
-	jobMetricsRecorder.RecordJobRuntime("pool-4", "", 10*time.Second)
+	jobMetricsRecorder.RecordJobRuntime("pool-4", "", AccountingRolePrimary, 8*time.Second)
+	jobMetricsRecorder.RecordJobRuntime("pool-4", "", AccountingRolePrimary, 10*time.Second)
 	expected := map[string][]float64{
 		"pool-1": {1, 3, 6},
 		"pool-2": {2, 3, 5},
@@ -66,9 +66,9 @@ func TestRecordJobRuntime_ShouldReportRuntimeDurations(t *testing.T) {
 
 func TestRecordResources_ShouldReportRuntimeResourcesForSinglePool(t *testing.T) {
 	jobMetricsRecorder := NewJobMetricsRecorder()
-	jobMetricsRecorder.RecordResources("pool-1", "", bidstore.PriceBand_PRICE_BAND_A, crf1)
-	jobMetricsRecorder.RecordResources("pool-1", "", bidstore.PriceBand_PRICE_BAND_A, crf2)
-	jobMetricsRecorder.RecordResources("pool-1", "", bidstore.PriceBand_PRICE_BAND_A, crf3)
+	jobMetricsRecorder.RecordResources("pool-1", "", AccountingRolePrimary, bidstore.PriceBand_PRICE_BAND_A, crf1)
+	jobMetricsRecorder.RecordResources("pool-1", "", AccountingRolePrimary, bidstore.PriceBand_PRICE_BAND_A, crf2)
+	jobMetricsRecorder.RecordResources("pool-1", "", AccountingRolePrimary, bidstore.PriceBand_PRICE_BAND_A, crf3)
 	expected := map[string][]float64{
 		"cpu":    {8, 2, 5, 15},
 		"gpu":    {5, 2, 3, 10},
@@ -87,10 +87,10 @@ func TestRecordResources_ShouldReportRuntimeResourcesForSinglePool(t *testing.T)
 
 func TestRecordResources_ShouldReportRuntimeResourcesForMultiplePools(t *testing.T) {
 	jobMetricsRecorder := NewJobMetricsRecorder()
-	jobMetricsRecorder.RecordResources("pool-1", "", bidstore.PriceBand_PRICE_BAND_A, crf1)
-	jobMetricsRecorder.RecordResources("pool-1", "", bidstore.PriceBand_PRICE_BAND_A, crf2)
-	jobMetricsRecorder.RecordResources("pool-2", "", bidstore.PriceBand_PRICE_BAND_A, crf3)
-	jobMetricsRecorder.RecordResources("pool-2", "", bidstore.PriceBand_PRICE_BAND_A, crf4)
+	jobMetricsRecorder.RecordResources("pool-1", "", AccountingRolePrimary, bidstore.PriceBand_PRICE_BAND_A, crf1)
+	jobMetricsRecorder.RecordResources("pool-1", "", AccountingRolePrimary, bidstore.PriceBand_PRICE_BAND_A, crf2)
+	jobMetricsRecorder.RecordResources("pool-2", "", AccountingRoleSecondary, bidstore.PriceBand_PRICE_BAND_A, crf3)
+	jobMetricsRecorder.RecordResources("pool-2", "", AccountingRoleSecondary, bidstore.PriceBand_PRICE_BAND_A, crf4)
 
 	expected := map[string]map[string][]float64{
 		"pool-1": {
