@@ -14,9 +14,11 @@ type TestConfig struct {
 }
 
 type DatabaseConfig struct {
-	Postgres   map[string]string `yaml:"postgres,omitempty"`
-	ClickHouse map[string]string `yaml:"clickHouse,omitempty"`
-	InMemory   bool              `yaml:"inMemory,omitempty"`
+	Postgres                map[string]string `yaml:"postgres,omitempty"`
+	ClickHouse              map[string]string `yaml:"clickHouse,omitempty"`
+	InMemory                bool              `yaml:"inMemory,omitempty"`
+	PostgresTuningSQL       []string          `yaml:"postgresTuningSQL,omitempty"`
+	PostgresTuningRevertSQL []string          `yaml:"postgresTuningRevertSQL,omitempty"`
 }
 
 type IngestionConfig struct {

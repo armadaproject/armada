@@ -595,6 +595,14 @@
       ::-webkit-scrollbar-thumb {
         background: var(--border-mid);
       }
+      .tuning-sql-pre {
+        margin: 0.5rem 0 0;
+        white-space: pre-wrap;
+        word-break: break-all;
+        font-size: 0.75rem;
+        max-height: 20rem;
+        overflow-y: auto;
+      }
     </style>
   </head>
   <body>
@@ -1431,6 +1439,28 @@
             get: (d) => d.configuration.databaseConfig.type,
           },
           {
+            label: "Tuning SQL",
+            html: true,
+            get: (d) => {
+              const stmts = d.configuration.databaseConfig.tuningSql;
+              if (!stmts || stmts.length === 0) return "\u2014";
+              const preview = `${stmts.length} statement${stmts.length !== 1 ? "s" : ""}`;
+              const escaped = stmts.map((s) => esc(s)).join("\n");
+              return `<details><summary>${esc(preview)}</summary><pre class="tuning-sql-pre">${escaped}</pre></details>`;
+            },
+          },
+          {
+            label: "Tuning revert SQL",
+            html: true,
+            get: (d) => {
+              const stmts = d.configuration.databaseConfig.tuningRevertSql;
+              if (!stmts || stmts.length === 0) return "\u2014";
+              const preview = `${stmts.length} statement${stmts.length !== 1 ? "s" : ""}`;
+              const escaped = stmts.map((s) => esc(s)).join("\n");
+              return `<details><summary>${esc(preview)}</summary><pre class="tuning-sql-pre">${escaped}</pre></details>`;
+            },
+          },
+          {
             label: "Submissions / hr",
             get: (d) =>
               d.configuration.ingestionConfig.submissionsPerHour.toLocaleString(),
@@ -1686,7 +1716,7 @@
                 else if (row.hi && nums[i] === minN) cls += " worst";
               }
               if (display === "\u2014") cls += " na";
-              tr.innerHTML += `<td class="${cls}">${esc(String(display))}</td>`;
+              tr.innerHTML += `<td class="${cls}">${row.html ? display : esc(String(display))}</td>`;
             });
           }
           tbody.appendChild(tr);
