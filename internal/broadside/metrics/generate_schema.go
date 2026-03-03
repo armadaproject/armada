@@ -33,8 +33,10 @@ type ConfigurationSnapshot struct {
 }
 
 type DatabaseConfigSnapshot struct {
-	Type             string `json:"type" jsonschema:"enum=postgres,enum=clickhouse,enum=inmemory" jsonschema_description:"Database backend type used for the test"`
-	ConnectionString string `json:"connectionString,omitempty" jsonschema_description:"Database connection details (sensitive data should be redacted)"`
+	Type             string   `json:"type" jsonschema:"enum=postgres,enum=clickhouse,enum=inmemory" jsonschema_description:"Database backend type used for the test"`
+	ConnectionString string   `json:"connectionString,omitempty" jsonschema_description:"Database connection details (sensitive data should be redacted)"`
+	TuningSQL        []string `json:"tuningSql,omitempty" jsonschema_description:"Postgres tuning SQL statements applied after migrations"`
+	TuningRevertSQL  []string `json:"tuningRevertSql,omitempty" jsonschema_description:"Postgres revert SQL statements executed at the start of teardown"`
 }
 
 type QueueConfigSnapshot struct {

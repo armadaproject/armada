@@ -35,8 +35,10 @@ type ConfigurationSnapshot struct {
 }
 
 type DatabaseConfigSnapshot struct {
-	Type             string `json:"type"`
-	ConnectionString string `json:"connectionString,omitempty"`
+	Type             string   `json:"type"`
+	ConnectionString string   `json:"connectionString,omitempty"`
+	TuningSQL        []string `json:"tuningSql,omitempty"`
+	TuningRevertSQL  []string `json:"tuningRevertSql,omitempty"`
 }
 
 type QueueConfigSnapshot struct {
@@ -207,6 +209,14 @@ func convertDatabaseConfig(config configuration.DatabaseConfig) DatabaseConfigSn
 		}
 	} else if config.InMemory {
 		snapshot.Type = "inmemory"
+	}
+
+	if len(config.PostgresTuningSQL) > 0 {
+		snapshot.TuningSQL = config.PostgresTuningSQL
+	}
+
+	if len(config.PostgresTuningRevertSQL) > 0 {
+		snapshot.TuningRevertSQL = config.PostgresTuningRevertSQL
 	}
 
 	return snapshot

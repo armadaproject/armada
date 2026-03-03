@@ -252,7 +252,11 @@ func (r *Runner) newDatabase() (db.Database, error) {
 func NewDatabase(config configuration.TestConfig) (db.Database, error) {
 	switch {
 	case len(config.DatabaseConfig.Postgres) > 0:
-		return db.NewPostgresDatabase(config.DatabaseConfig.Postgres), nil
+		return db.NewPostgresDatabase(
+			config.DatabaseConfig.Postgres,
+			config.DatabaseConfig.PostgresTuningSQL,
+			config.DatabaseConfig.PostgresTuningRevertSQL,
+		), nil
 	case len(config.DatabaseConfig.ClickHouse) > 0:
 		return db.NewClickHouseDatabase(config.DatabaseConfig.ClickHouse), nil
 	case config.DatabaseConfig.InMemory:

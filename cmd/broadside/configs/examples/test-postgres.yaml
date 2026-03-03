@@ -9,6 +9,14 @@ databaseConfig:
     user: broadside
     password: broadside
     sslmode: disable
+  # Optional: Postgres tuning SQL statements applied after schema migrations.
+  postgresTuningSQL:
+    - "ALTER TABLE job SET (autovacuum_vacuum_scale_factor = 0.01, autovacuum_analyze_scale_factor = 0.005, autovacuum_vacuum_threshold = 1000, autovacuum_analyze_threshold = 500)"
+    - "ALTER TABLE job_run SET (autovacuum_vacuum_scale_factor = 0.02, autovacuum_analyze_scale_factor = 0.01)"
+  # Optional: Postgres revert SQL statements executed at the start of TearDown.
+  postgresTuningRevertSQL:
+    - "ALTER TABLE job RESET (autovacuum_vacuum_scale_factor, autovacuum_analyze_scale_factor, autovacuum_vacuum_threshold, autovacuum_analyze_threshold)"
+    - "ALTER TABLE job_run RESET (autovacuum_vacuum_scale_factor, autovacuum_analyze_scale_factor)"
 
 queueConfig:
   - name: queue-1

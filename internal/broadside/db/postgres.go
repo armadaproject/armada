@@ -28,14 +28,16 @@ import (
 // It reuses the Lookout schema and query infrastructure to ensure
 // realistic testing of production query patterns.
 type PostgresDatabase struct {
-	config                map[string]string
-	pool                  *pgxpool.Pool
-	lookoutDb             *lookoutdb.LookoutDb
-	jobsRepository        *repository.SqlGetJobsRepository
-	groupRepository       *repository.SqlGroupJobsRepository
-	jobSpecRepository     *repository.SqlGetJobSpecRepository
-	jobRunErrorRepository *repository.SqlGetJobRunErrorRepository
-	jobRunDebugRepository *repository.SqlGetJobRunDebugMessageRepository
+	config                    map[string]string
+	tuningSQLStatements       []string
+	tuningRevertSQLStatements []string
+	pool                      *pgxpool.Pool
+	lookoutDb                 *lookoutdb.LookoutDb
+	jobsRepository            *repository.SqlGetJobsRepository
+	groupRepository           *repository.SqlGroupJobsRepository
+	jobSpecRepository         *repository.SqlGetJobSpecRepository
+	jobRunErrorRepository     *repository.SqlGetJobRunErrorRepository
+	jobRunDebugRepository     *repository.SqlGetJobRunDebugMessageRepository
 }
 
 // NewPostgresDatabase creates a new PostgresDatabase instance.
@@ -46,12 +48,17 @@ type PostgresDatabase struct {
 //   - password: database password
 //   - dbname: database name (e.g., "broadside_test")
 //   - sslmode: SSL mode (e.g., "disable")
-func NewPostgresDatabase(config map[string]string) *PostgresDatabase {
-	return &PostgresDatabase{config: config}
+func NewPostgresDatabase(config map[string]string, tuningSQLStatements []string, tuningRevertSQLStatements []string) *PostgresDatabase {
+	return &PostgresDatabase{
+		config:                    config,
+		tuningSQLStatements:       tuningSQLStatements,
+		tuningRevertSQLStatements: tuningRevertSQLStatements,
+	}
 }
 
 // InitialiseSchema opens the connection pool, applies the Lookout database
-// migrations, and initialises the query repository.
+// migrations, applies per-table autovacuum tuning SQL, and initialises the
+// query repository.
 func (p *PostgresDatabase) InitialiseSchema(ctx context.Context) error {
 	pgConfig := configuration.PostgresConfig{
 		Connection: p.config,
@@ -75,6 +82,11 @@ func (p *PostgresDatabase) InitialiseSchema(ctx context.Context) error {
 		return fmt.Errorf("applying migrations: %w", err)
 	}
 
+	if err := p.applyTuningSQL(ctx); err != nil {
+		pool.Close()
+		return fmt.Errorf("applying tuning SQL: %w", err)
+	}
+
 	decompressor := &compress.NoOpDecompressor{}
 	p.lookoutDb = lookoutdb.NewLookoutDb(p.pool, nil, nil, 16, 12)
 	p.jobsRepository = repository.NewSqlGetJobsRepository(p.pool)
@@ -83,6 +95,26 @@ func (p *PostgresDatabase) InitialiseSchema(ctx context.Context) error {
 	p.jobRunErrorRepository = repository.NewSqlGetJobRunErrorRepository(p.pool, decompressor)
 	p.jobRunDebugRepository = repository.NewSqlGetJobRunDebugMessageRepository(p.pool, decompressor)
 
+	return nil
+}
+
+func (p *PostgresDatabase) applyTuningSQL(ctx context.Context) error {
+	for i, stmt := range p.tuningSQLStatements {
+		if _, err := p.pool.Exec(ctx, stmt); err != nil {
+			return fmt.Errorf("executing tuning SQL statement %d: %w", i+1, err)
+		}
+		logging.Infof("Applied tuning SQL statement %d", i+1)
+	}
+	return nil
+}
+
+func (p *PostgresDatabase) revertTuningSQL(ctx context.Context) error {
+	for i, stmt := range p.tuningRevertSQLStatements {
+		if _, err := p.pool.Exec(ctx, stmt); err != nil {
+			return fmt.Errorf("executing tuning revert SQL statement %d: %w", i+1, err)
+		}
+		logging.Infof("Executed tuning revert SQL statement %d", i+1)
+	}
 	return nil
 }
 
@@ -219,6 +251,10 @@ func (p *PostgresDatabase) GetJobGroups(ctx *context.Context, filters []*model.F
 // This is faster than dropping and recreating the database, and
 // allows multiple test runs against the same database instance.
 func (p *PostgresDatabase) TearDown(ctx context.Context) error {
+	if err := p.revertTuningSQL(ctx); err != nil {
+		return fmt.Errorf("reverting tuning SQL: %w", err)
+	}
+
 	tables := []string{
 		"job_run",
 		"job_spec",

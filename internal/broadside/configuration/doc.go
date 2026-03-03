@@ -11,7 +11,7 @@ job submissions, state transitions, and query patterns.
 The main configuration type is TestConfig, which defines:
 
   - Test duration and warmup period
-  - Database configuration (Postgres or ClickHouse connection parameters)
+  - Database configuration (Postgres or ClickHouse connection parameters, optional Postgres tuning and revert SQL)
   - Queue configuration (queue/jobset distribution and historical job setup)
   - Ingestion configuration (job submission rates and state transitions)
   - Query configuration (rates for different query types)
@@ -26,6 +26,10 @@ The main configuration type is TestConfig, which defines:
 	    host: localhost
 	    port: "5432"
 	    database: lookout
+	  # postgresTuningSQL:
+	  #   - "ALTER TABLE job SET (autovacuum_vacuum_scale_factor = 0.01)"
+	  # postgresTuningRevertSQL:
+	  #   - "ALTER TABLE job RESET (autovacuum_vacuum_scale_factor)"
 	queueConfig:
 	  - name: queue-a
 	    proportion: 0.7
