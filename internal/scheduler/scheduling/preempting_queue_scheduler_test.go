@@ -2768,6 +2768,245 @@ func TestPreemptingQueueSchedulerTimeouts(t *testing.T) {
 	})
 }
 
+type gangEvictionTestFixture struct {
+	config    configuration.SchedulingConfig
+	nodeDb    *nodedb.NodeDb
+	sctx      *schedulingcontext.SchedulingContext
+	scheduler *PreemptingQueueScheduler
+	jobDbTxn  *jobdb.Txn
+	nodes     []*internaltypes.Node
+}
+
+// setupGangEvictionTest creates the shared infrastructure for gang eviction tests.
+func setupGangEvictionTest(t *testing.T, numNodes int) *gangEvictionTestFixture {
+	t.Helper()
+
+	config := testfixtures.TestSchedulingConfig()
+	stringInterner := stringinterner.New(1024)
+
+	ndb, err := NewNodeDb(config, stringInterner)
+	require.NoError(t, err)
+
+	nodes := testfixtures.N32CpuNodes(numNodes, testfixtures.TestPriorities)
+	txn := ndb.Txn(true)
+	for _, node := range nodes {
+		require.NoError(t, ndb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, node.DeepCopyNilKeys()))
+	}
+	txn.Commit()
+
+	totalResources := ndb.TotalKubernetesResources()
+	fairnessCostProvider, err := fairness.NewDominantResourceFairness(totalResources, testfixtures.TestPool, config)
+	require.NoError(t, err)
+
+	jdb := jobdb.NewJobDb(config.PriorityClasses, config.DefaultPriorityClassName, stringInterner, testfixtures.TestResourceListFactory)
+	jobDbTxn := jdb.WriteTxn()
+
+	sctx := schedulingcontext.NewSchedulingContext(
+		testfixtures.TestPool,
+		fairnessCostProvider,
+		rate.NewLimiter(rate.Limit(config.MaximumSchedulingRate), config.MaximumSchedulingBurst),
+		totalResources,
+	)
+
+	return &gangEvictionTestFixture{
+		config:   config,
+		nodeDb:   ndb,
+		sctx:     sctx,
+		jobDbTxn: jobDbTxn,
+		nodes:    nodes,
+	}
+}
+
+func (f *gangEvictionTestFixture) addQueueAndBuildScheduler(t *testing.T, jobs []*jobdb.Job) {
+	t.Helper()
+
+	demand := testfixtures.TestResourceListFactory.MakeAllZero()
+	for _, job := range jobs {
+		demand = demand.Add(job.AllResourceRequirements())
+	}
+	totalResources := f.nodeDb.TotalKubernetesResources()
+	require.NoError(t, f.sctx.AddQueueSchedulingContext(
+		"A", 1.0, 1.0, nil, demand, demand, internaltypes.ResourceList{},
+		rate.NewLimiter(rate.Limit(f.config.MaximumPerQueueSchedulingRate), f.config.MaximumPerQueueSchedulingBurst),
+	))
+
+	constraints := schedulerconstraints.NewSchedulingConstraints(
+		testfixtures.TestPool, totalResources, f.config,
+		[]*api.Queue{{Name: "A", PriorityFactor: 1.0}},
+	)
+
+	f.scheduler = NewPreemptingQueueScheduler(
+		f.sctx, constraints, testfixtures.TestEmptyFloatingResources,
+		f.config, f.jobDbTxn, f.nodeDb, false, clock.RealClock{},
+	)
+}
+
+func makeGangBaseJobs(gangId string, n int) []*jobdb.Job {
+	return testfixtures.WithGangJobDetails(
+		testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, n),
+		gangId, n, "",
+	)
+}
+
+func withRun(job *jobdb.Job, nodeId string, queued bool) *jobdb.Job {
+	return job.
+		WithNewRun("executor", nodeId, "node-name", testfixtures.TestPool, job.PriorityClass().Priority).
+		WithQueued(queued)
+}
+
+// TestCollectIdsForGangEviction_UsesSchedulingContextOverLatestRun verifies that
+// collectIdsForGangEviction prefers node IDs from the scheduling context (current round)
+// over LatestRun().NodeId(). This matters for requeued jobs whose LatestRun still
+// points to the old node after being rescheduled to a new one.
+func TestCollectIdsForGangEviction_UsesSchedulingContextOverLatestRun(t *testing.T) {
+	f := setupGangEvictionTest(t, 1)
+	baseJobs := makeGangBaseJobs("test-gang-id", 3)
+
+	oldNodeIds := []string{"old-node-0", "old-node-1", "old-node-2"}
+	newNodeIds := []string{"new-node-0", "new-node-1", "new-node-2"}
+
+	// All jobs requeued: have runs on old nodes but Queued==true.
+	gangJobs := make([]*jobdb.Job, 3)
+	for i, job := range baseJobs {
+		gangJobs[i] = withRun(job, oldNodeIds[i], true)
+	}
+	require.NoError(t, f.jobDbTxn.Upsert(gangJobs))
+	f.addQueueAndBuildScheduler(t, gangJobs)
+
+	// Populate SuccessfulJobSchedulingContexts with new node IDs
+	// (simulating jobs scheduled to new nodes in the current round).
+	qctx := f.sctx.QueueSchedulingContexts["A"]
+	for i, job := range gangJobs {
+		jctx := schedulingcontext.JobSchedulingContextFromJob(job)
+		jctx.PodSchedulingContext = &schedulingcontext.PodSchedulingContext{
+			NodeId: newNodeIds[i],
+		}
+		qctx.SuccessfulJobSchedulingContexts[job.Id()] = jctx
+	}
+
+	evictorResult := &EvictorResult{
+		EvictedJctxsByJobId: map[string]*schedulingcontext.JobSchedulingContext{
+			gangJobs[0].Id(): qctx.SuccessfulJobSchedulingContexts[gangJobs[0].Id()],
+		},
+	}
+
+	allGangJobIds, gangNodeIds, err := f.scheduler.collectIdsForGangEviction(evictorResult)
+	require.NoError(t, err)
+
+	assert.Len(t, allGangJobIds, 3)
+	for _, job := range gangJobs {
+		assert.True(t, allGangJobIds[job.Id()], "expected gang job %s to be in allGangJobIds", job.Id())
+	}
+	for _, nodeId := range newNodeIds {
+		assert.True(t, gangNodeIds[nodeId], "expected new node %s in gangNodeIds", nodeId)
+	}
+	for _, nodeId := range oldNodeIds {
+		assert.False(t, gangNodeIds[nodeId], "stale old node %s should NOT be in gangNodeIds", nodeId)
+	}
+}
+
+// TestCollectIdsForGangEviction_FallsBackToLatestRunForNonScheduledJobs verifies that
+// for running gang jobs not scheduled this round, collectIdsForGangEviction falls back
+// to LatestRun().NodeId().
+func TestCollectIdsForGangEviction_FallsBackToLatestRunForNonScheduledJobs(t *testing.T) {
+	f := setupGangEvictionTest(t, 1)
+	baseJobs := makeGangBaseJobs("test-gang-id", 3)
+
+	runNodeIds := []string{"node-0", "node-1", "node-2"}
+
+	// All jobs running (not requeued), not in scheduling context (scheduled in a previous cycle).
+	gangJobs := make([]*jobdb.Job, 3)
+	for i, job := range baseJobs {
+		gangJobs[i] = withRun(job, runNodeIds[i], false)
+	}
+	require.NoError(t, f.jobDbTxn.Upsert(gangJobs))
+	f.addQueueAndBuildScheduler(t, gangJobs)
+
+	evictorResult := &EvictorResult{
+		EvictedJctxsByJobId: map[string]*schedulingcontext.JobSchedulingContext{
+			gangJobs[0].Id(): schedulingcontext.JobSchedulingContextFromJob(gangJobs[0]),
+		},
+	}
+
+	_, gangNodeIds, err := f.scheduler.collectIdsForGangEviction(evictorResult)
+	require.NoError(t, err)
+
+	for _, nodeId := range runNodeIds {
+		assert.True(t, gangNodeIds[nodeId], "expected node %s from LatestRun() in gangNodeIds", nodeId)
+	}
+}
+
+// TestCollectIdsForGangEviction_MixedStateGangWithRequeuedMember verifies that a gang
+// with one requeued member (not on any node) and two running members correctly collects
+// all job IDs but only running members' node IDs.
+func TestCollectIdsForGangEviction_MixedStateGangWithRequeuedMember(t *testing.T) {
+	f := setupGangEvictionTest(t, 1)
+	baseJobs := makeGangBaseJobs("test-gang-id", 3)
+
+	requeuedJob := withRun(baseJobs[0], "old-node-0", true)
+	runningJob1 := withRun(baseJobs[1], "node-1", false)
+	runningJob2 := withRun(baseJobs[2], "node-2", false)
+
+	require.NoError(t, f.jobDbTxn.Upsert([]*jobdb.Job{requeuedJob, runningJob1, runningJob2}))
+	f.addQueueAndBuildScheduler(t, []*jobdb.Job{requeuedJob, runningJob1, runningJob2})
+
+	evictorResult := &EvictorResult{
+		EvictedJctxsByJobId: map[string]*schedulingcontext.JobSchedulingContext{
+			runningJob1.Id(): schedulingcontext.JobSchedulingContextFromJob(runningJob1),
+		},
+	}
+
+	allGangJobIds, gangNodeIds, err := f.scheduler.collectIdsForGangEviction(evictorResult)
+	require.NoError(t, err)
+
+	assert.True(t, allGangJobIds[requeuedJob.Id()], "requeued job should be in allGangJobIds")
+	assert.True(t, allGangJobIds[runningJob1.Id()], "running job 1 should be in allGangJobIds")
+	assert.True(t, allGangJobIds[runningJob2.Id()], "running job 2 should be in allGangJobIds")
+
+	assert.True(t, gangNodeIds["node-1"], "running job 1's node should be in gangNodeIds")
+	assert.True(t, gangNodeIds["node-2"], "running job 2's node should be in gangNodeIds")
+	assert.False(t, gangNodeIds["old-node-0"], "requeued job's old node should NOT be in gangNodeIds")
+	assert.Len(t, gangNodeIds, 2)
+}
+
+// TestEvictionAssertions_MixedStateGangWithRequeuedMember verifies that evictionAssertions
+// passes when a gang has a requeued member (not on any node) excluded from eviction,
+// while all running members were properly evicted.
+func TestEvictionAssertions_MixedStateGangWithRequeuedMember(t *testing.T) {
+	f := setupGangEvictionTest(t, 2)
+	baseJobs := makeGangBaseJobs("test-gang-id", 3)
+	node1Id := f.nodes[0].GetId()
+	node2Id := f.nodes[1].GetId()
+
+	requeuedJob := withRun(baseJobs[0], "old-node-0", true)
+	runningJob1 := withRun(baseJobs[1], node1Id, false)
+	runningJob2 := withRun(baseJobs[2], node2Id, false)
+
+	require.NoError(t, f.jobDbTxn.Upsert([]*jobdb.Job{requeuedJob, runningJob1, runningJob2}))
+	f.addQueueAndBuildScheduler(t, []*jobdb.Job{requeuedJob, runningJob1, runningJob2})
+
+	evictedJctx1 := schedulingcontext.JobSchedulingContextFromJob(runningJob1)
+	evictedJctx1.IsEvicted = true
+	evictedJctx1.SetAssignedNode(f.nodes[0])
+	evictedJctx2 := schedulingcontext.JobSchedulingContextFromJob(runningJob2)
+	evictedJctx2.IsEvicted = true
+	evictedJctx2.SetAssignedNode(f.nodes[1])
+
+	evictorResult := &EvictorResult{
+		EvictedJctxsByJobId: map[string]*schedulingcontext.JobSchedulingContext{
+			runningJob1.Id(): evictedJctx1,
+			runningJob2.Id(): evictedJctx2,
+		},
+		AffectedNodesById: map[string]*internaltypes.Node{
+			node1Id: f.nodes[0],
+			node2Id: f.nodes[1],
+		},
+	}
+
+	err := f.scheduler.evictionAssertions(evictorResult)
+	assert.NoError(t, err, "requeued member not on a node should be excluded from eviction count")
+}
+
 func testNodeWithTaints(node *internaltypes.Node, taints []v1.Taint) *internaltypes.Node {
 	return internaltypes.CreateNode(
 		node.GetId(),
