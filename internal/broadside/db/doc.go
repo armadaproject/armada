@@ -77,10 +77,15 @@ Supported ingestion query types:
 Three implementations are provided:
 
   - PostgresDatabase: PostgreSQL adapter using the production Lookout schema and
-    query infrastructure. After applying schema migrations, InitialiseSchema
-    executes any Postgres tuning SQL statements supplied via configuration. TearDown
-    reverts tuning settings by executing any Postgres tuning revert SQL statements,
-    then truncates all tables.
+    query infrastructure. ExecuteIngestionQueryBatch converts the batch of
+    IngestionQuery values into a lookoutmodel.InstructionSet and delegates to
+    LookoutDb.Store, which enforces the same sequential insert ordering as the
+    real ingester: job rows are committed before job runs are inserted, and all
+    inserts are committed before updates. This avoids FK-constraint lock
+    contention between concurrent job run inserts and job row updates. After
+    applying schema migrations, InitialiseSchema executes any Postgres tuning SQL
+    statements supplied via configuration. TearDown reverts tuning settings by
+    executing any Postgres tuning revert SQL statements, then truncates all tables.
   - ClickHouseDatabase: ClickHouse adapter (placeholder implementation)
   - MemoryDatabase: In-memory adapter for smoke-testing Broadside
 
