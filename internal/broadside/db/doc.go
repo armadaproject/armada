@@ -76,7 +76,11 @@ Supported ingestion query types:
 
 Three implementations are provided:
 
-  - PostgresDatabase: PostgreSQL adapter (placeholder implementation)
+  - PostgresDatabase: PostgreSQL adapter using the production Lookout schema and
+    query infrastructure. After applying schema migrations, InitialiseSchema
+    executes any Postgres tuning SQL statements supplied via configuration. TearDown
+    reverts tuning settings by executing any Postgres tuning revert SQL statements,
+    then truncates all tables.
   - ClickHouseDatabase: ClickHouse adapter (placeholder implementation)
   - MemoryDatabase: In-memory adapter for smoke-testing Broadside
 
@@ -119,7 +123,7 @@ Create a database instance using the appropriate constructor:
 	    "host":     "localhost",
 	    "port":     "5432",
 	    "database": "lookout",
-	})
+	}, nil, nil)
 
 	// For ClickHouse
 	db := db.NewClickHouseDatabase(map[string]string{
