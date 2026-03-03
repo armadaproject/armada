@@ -1,0 +1,58 @@
+name: Rust Client
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - 'client/rust/**'
+      - 'pkg/api/*.proto'
+      - '.github/workflows/rust-client.yml'
+
+  pull_request:
+    branches-ignore:
+      - gh-pages
+    paths:
+      - 'client/rust/**'
+      - 'pkg/api/*.proto'
+      - '.github/workflows/rust-client.yml'
+
+jobs:
+  rust-client-test:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Install protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          version: '23.3'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Cache cargo registry and build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            client/rust/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('client/rust/Cargo.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Check formatting
+        run: cargo fmt --manifest-path client/rust/Cargo.toml -- --check
+
+      - name: Build
+        run: cargo build --manifest-path client/rust/Cargo.toml
+
+      - name: Test
+        run: cargo test --manifest-path client/rust/Cargo.toml
+
+      - name: Clippy
+        run: cargo clippy --manifest-path client/rust/Cargo.toml -- -D warnings
