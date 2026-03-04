@@ -1,18 +1,24 @@
 // Watch a job set and print events as they arrive.
 //
-// Required environment variables:
-//   ARMADA_ENDPOINT  — gRPC endpoint, e.g. "http://localhost:50051"
-//   ARMADA_TOKEN     — Bearer token (may be empty for unauthenticated clusters)
-//   ARMADA_QUEUE     — Queue name
+// Auth (pick one):
+//   ARMADA_USER / ARMADA_PASS  — HTTP Basic Auth (for clusters with basicAuth enabled)
+//   ARMADA_TOKEN               — Bearer token   (for token-authenticated clusters)
+//
+// Other variables:
+//   ARMADA_ENDPOINT  — gRPC endpoint, default: http://localhost:50051
+//   ARMADA_QUEUE     — Queue name,    default: test
 //   ARMADA_JOB_SET   — Job set ID to watch
 //
-// Run:
+// Basic-auth example (quickstart secure cluster):
 //   ARMADA_ENDPOINT=http://localhost:30002 \
-//   ARMADA_QUEUE=rust-test \
-//   ARMADA_JOB_SET=my-job-set \
+//   ARMADA_USER=admin ARMADA_PASS=admin \
+//   ARMADA_QUEUE=rust-test ARMADA_JOB_SET=my-job-set \
 //   cargo run --manifest-path client/rust/Cargo.toml --example watch
 
-use armada_client::{ArmadaClient, StaticTokenProvider};
+#[path = "common/mod.rs"]
+mod common;
+
+use armada_client::ArmadaClient;
 use futures::StreamExt;
 
 #[tokio::main]
@@ -21,15 +27,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let endpoint =
         std::env::var("ARMADA_ENDPOINT").unwrap_or_else(|_| "http://localhost:50051".to_string());
-    let token = std::env::var("ARMADA_TOKEN").unwrap_or_default();
-    if token.is_empty() {
-        eprintln!("Warning: ARMADA_TOKEN is not set — requests may be rejected by the server");
-    }
     let queue = std::env::var("ARMADA_QUEUE").unwrap_or_else(|_| "test".to_string());
     let job_set_id =
         std::env::var("ARMADA_JOB_SET").unwrap_or_else(|_| "rust-smoke-test".to_string());
 
-    let client = ArmadaClient::connect(endpoint, StaticTokenProvider::new(token)).await?;
+    let client = ArmadaClient::connect(endpoint, common::auth_from_env()).await?;
 
     println!("Watching job set '{job_set_id}' on queue '{queue}'...");
     let mut stream = client.watch(&queue, &job_set_id, None).await?;

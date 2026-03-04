@@ -184,7 +184,7 @@ pub mod error;
 pub use api::{
     EventMessage, EventStreamMessage, JobSubmitRequest, JobSubmitRequestItem, JobSubmitResponse,
 };
-pub use auth::{StaticTokenProvider, TokenProvider};
+pub use auth::{BasicAuthProvider, StaticTokenProvider, TokenProvider};
 pub use builder::JobRequestItemBuilder;
 pub use client::ArmadaClient;
 pub use error::Error;

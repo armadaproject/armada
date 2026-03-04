@@ -3,7 +3,6 @@ use std::time::Duration;
 
 use futures::stream::BoxStream;
 use futures::StreamExt;
-use tonic::metadata::MetadataValue;
 use tonic::transport::{Channel, ClientTlsConfig};
 use tracing::instrument;
 
@@ -201,8 +200,9 @@ impl ArmadaClient {
     pub async fn submit(&self, request: JobSubmitRequest) -> Result<JobSubmitResponse, Error> {
         let token = self.token_provider.token().await?;
         let mut req = tonic::Request::new(request);
-        req.metadata_mut()
-            .insert("authorization", bearer_header(&token)?);
+        if !token.is_empty() {
+            req.metadata_mut().insert("authorization", token.parse()?);
+        }
         self.apply_timeout(&mut req);
         let resp = self.submit_client.clone().submit_jobs(req).await?;
         Ok(resp.into_inner())
@@ -285,8 +285,9 @@ impl ArmadaClient {
             error_if_missing: true,
         };
         let mut req = tonic::Request::new(job_set_request);
-        req.metadata_mut()
-            .insert("authorization", bearer_header(&token)?);
+        if !token.is_empty() {
+            req.metadata_mut().insert("authorization", token.parse()?);
+        }
         self.apply_timeout(&mut req);
         let stream = self
             .event_client
@@ -296,10 +297,4 @@ impl ArmadaClient {
             .into_inner();
         Ok(Box::pin(stream.map(|r| r.map_err(Error::Grpc))))
     }
-}
-
-// `tonic::Status` is 176 bytes — we can't shrink a third-party type.
-#[allow(clippy::result_large_err)]
-fn bearer_header(token: &str) -> Result<MetadataValue<tonic::metadata::Ascii>, Error> {
-    Ok(format!("Bearer {token}").parse()?)
 }
