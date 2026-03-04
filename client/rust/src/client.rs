@@ -152,8 +152,8 @@ impl ArmadaClient {
 
     /// Submit a batch of jobs to Armada.
     ///
-    /// Attaches an `authorization: Bearer <token>` header on every call using
-    /// the configured [`TokenProvider`]. Multiple job items can be included in
+    /// Attaches an `authorization` header on every call using the configured
+    /// [`TokenProvider`] (e.g. `Bearer <token>` or `Basic <credentials>`). Multiple job items can be included in
     /// a single request — they are all submitted atomically to the same queue
     /// and job set.
     ///
