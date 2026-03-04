@@ -1,14 +1,14 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use futures::stream::BoxStream;
 use futures::StreamExt;
+use futures::stream::BoxStream;
 use tonic::transport::{Channel, ClientTlsConfig};
 use tracing::instrument;
 
 use crate::api::{
-    event_client::EventClient, submit_client::SubmitClient, EventStreamMessage, JobSetRequest,
-    JobSubmitRequest, JobSubmitResponse,
+    EventStreamMessage, JobSetRequest, JobSubmitRequest, JobSubmitResponse,
+    event_client::EventClient, submit_client::SubmitClient,
 };
 use crate::auth::TokenProvider;
 use crate::error::Error;
