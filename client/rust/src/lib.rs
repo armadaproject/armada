@@ -102,6 +102,12 @@
 //! ```
 
 pub mod api {
+    #![allow(
+        clippy::tabs_in_doc_comments,
+        clippy::doc_lazy_continuation,
+        clippy::doc_overindented_list_items,
+        clippy::large_enum_variant
+    )]
     tonic::include_proto!("api");
 }
 
@@ -109,7 +115,13 @@ pub mod api {
 // Armada API protos. Not part of the public API — used internally by api.rs.
 pub(crate) mod google {
     pub mod api {
-        #![allow(dead_code)]
+        #![allow(
+            dead_code,
+            clippy::tabs_in_doc_comments,
+            clippy::doc_lazy_continuation,
+            clippy::doc_overindented_list_items,
+            clippy::large_enum_variant
+        )]
         tonic::include_proto!("google.api");
     }
 }
@@ -117,6 +129,12 @@ pub(crate) mod google {
 // k8s types referenced by the api package — must mirror the proto package hierarchy
 // so that generated api.rs cross-package refs (e.g., super::k8s::io::api::core::v1::PodSpec) resolve.
 pub mod k8s {
+    #![allow(
+        clippy::tabs_in_doc_comments,
+        clippy::doc_lazy_continuation,
+        clippy::doc_overindented_list_items,
+        clippy::large_enum_variant
+    )]
     pub mod io {
         pub mod api {
             pub mod core {
