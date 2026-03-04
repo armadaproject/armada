@@ -1,8 +1,8 @@
 [package]
 name = "armada-client"
 version = "0.1.0"
-edition = "2021"
-rust-version = "1.75"
+edition = "2024"
+rust-version = "1.85"
 description = "Rust client for the Armada batch job scheduler"
 license = "Apache-2.0"
 
