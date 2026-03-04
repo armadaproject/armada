@@ -96,6 +96,38 @@ func SwaggerJsonTemplate() string {
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +
+		"    \"/v1/job/node/describe-by-id\": {\n" +
+		"      \"post\": {\n" +
+		"        \"tags\": [\n" +
+		"          \"Introspection\"\n" +
+		"        ],\n" +
+		"        \"operationId\": \"DescribeNodeByJobId\",\n" +
+		"        \"parameters\": [\n" +
+		"          {\n" +
+		"            \"name\": \"body\",\n" +
+		"            \"in\": \"body\",\n" +
+		"            \"required\": true,\n" +
+		"            \"schema\": {\n" +
+		"              \"$ref\": \"#/definitions/introspectionDescribeNodeByJobIdRequest\"\n" +
+		"            }\n" +
+		"          }\n" +
+		"        ],\n" +
+		"        \"responses\": {\n" +
+		"          \"200\": {\n" +
+		"            \"description\": \"A successful response.\",\n" +
+		"            \"schema\": {\n" +
+		"              \"$ref\": \"#/definitions/introspectionDescribeNodeResponse\"\n" +
+		"            }\n" +
+		"          },\n" +
+		"          \"default\": {\n" +
+		"            \"description\": \"An unexpected error response.\",\n" +
+		"            \"schema\": {\n" +
+		"              \"$ref\": \"#/definitions/runtimeError\"\n" +
+		"            }\n" +
+		"          }\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
 		"    \"/v1/job/pod/describe\": {\n" +
 		"      \"post\": {\n" +
 		"        \"tags\": [\n" +
@@ -248,6 +280,17 @@ func SwaggerJsonTemplate() string {
 		"        \"rawPodJson\": {\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"format\": \"byte\"\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"introspectionDescribeNodeByJobIdRequest\": {\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"includeRaw\": {\n" +
+		"          \"type\": \"boolean\"\n" +
+		"        },\n" +
+		"        \"jobId\": {\n" +
+		"          \"type\": \"string\"\n" +
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +

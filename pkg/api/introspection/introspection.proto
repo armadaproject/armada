@@ -37,6 +37,13 @@ service Introspection {
             body: "*"
         };
     }
+
+    rpc DescribeNodeByJobId(DescribeNodeByJobIdRequest) returns (DescribeNodeResponse) {
+        option (google.api.http) = {
+        post: "/v1/job/node/describe-by-id"
+        body: "*"
+        };
+    }
 }
 
 message GetJobLogsRequest {
@@ -117,6 +124,11 @@ message DescribeNodeByJobRunRequest {
     string run_id = 2;
     string cluster = 3;
     bool include_raw = 4;
+}
+
+message DescribeNodeByJobIdRequest {
+    string job_id = 1;
+    bool include_raw = 2;
 }
 
 message DescribeNodeResponse {
