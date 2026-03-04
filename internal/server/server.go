@@ -92,11 +92,11 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 		return errors.WithMessage(err, "error creating postgres pool")
 	}
 	defer dbPool.Close()
-	queryapiServer := queryapi.New(
+	queryApiServer := queryapi.New(
 		dbPool,
 		config.QueryApi.MaxQueryItems,
 		func() compress.Decompressor { return compress.NewZlibDecompressor() })
-	api.RegisterJobsServer(grpcServer, queryapiServer)
+	api.RegisterJobsServer(grpcServer, queryApiServer)
 
 	eventDb := createRedisClient(&config.EventsApiRedis)
 	defer func() {
@@ -201,7 +201,7 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 
 	kubeFactory := introspectionserver.NewSingleClusterKubeFactory(provider)
 
-	introspectionServer := introspectionserver.NewIntrospectionServer(kubeFactory, queryapiServer)
+	introspectionServer := introspectionserver.NewIntrospectionServer(kubeFactory, queryApiServer, queryApiServer)
 	introspectionapi.RegisterIntrospectionServer(grpcServer, introspectionServer)
 	
 	api.RegisterSubmitServer(grpcServer, submitServer)

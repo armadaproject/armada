@@ -17,17 +17,23 @@ type IntrospectionServer struct {
 	*introspectionapi.UnimplementedIntrospectionServer
 	kube KubeClientFactory
 	runs JobRunDetailsGetter
+	jobs JobDetailsGetter
 }
 
 type JobRunDetailsGetter interface {
 	GetJobRunDetails(ctx context.Context, req *api.JobRunDetailsRequest) (*api.JobRunDetailsResponse, error)
 }
 
+type JobDetailsGetter interface {
+	GetJobDetails(ctx context.Context, req *api.JobDetailsRequest) (*api.JobDetailsResponse, error)
+}
+
 func NewIntrospectionServer(
-	kube KubeClientFactory, runs JobRunDetailsGetter) *IntrospectionServer {
+	kube KubeClientFactory, runs JobRunDetailsGetter, jobs JobDetailsGetter) *IntrospectionServer {
 	return &IntrospectionServer{
 		kube: kube,
 		runs: runs,
+		jobs: jobs,
 	}
 }
 
@@ -136,6 +142,40 @@ func (s *IntrospectionServer) DescribeNodeByJobRun(ctx context.Context, req *int
 		Cluster: d.Cluster,
 		NodeId: d.Node,
 		IncludeRaw: req.IncludeRaw,
+	})
+}
+
+func (s *IntrospectionServer) DescribeNodeByJobId(ctx context.Context, req *introspectionapi.DescribeNodeByJobIdRequest) (*introspectionapi.DescribeNodeResponse, error) {
+	if req.GetJobId() == "" {
+		return nil, status.Error(codes.InvalidArgument, "job_id is required")
+	}
+	if s.jobs == nil {
+		return nil, status.Error(codes.FailedPrecondition, "job details getter is not configured")
+	}
+	if s.runs == nil {
+		return nil, status.Error(codes.FailedPrecondition, "run details getter is not configured")
+	}
+
+	jr, err := s.jobs.GetJobDetails(ctx, &api.JobDetailsRequest{
+		JobIds: 		[]string{req.JobId},
+		ExpandJobRun: 	false,
+	})
+	if err != nil {
+		return nil, err
+	}
+	jd := jr.JobDetails[req.JobId]
+	if jd == nil {
+		return nil, status.Errorf(codes.NotFound, "job_id %q not found", req.JobId)
+	}
+
+	runId := jd.GetLatestRunId()
+	if runId == "" {
+		return nil, status.Errorf(codes.FailedPrecondition, "job_id %q has no run yet(not leased/scheduled)", req.JobId)
+	}
+
+	return s.DescribeNodeByJobRun(ctx, &introspectionapi.DescribeNodeByJobRunRequest{
+		RunId: runId,
+		IncludeRaw: req.GetIncludeRaw(),
 	})
 }
 // func (s *IntrospectionServer) GetJobLogs (request *introspection.GetJobLogsRequest, stream introspection.Introspection_GetJobLogsClient) error {

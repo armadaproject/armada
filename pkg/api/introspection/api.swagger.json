@@ -85,6 +85,38 @@
         }
       }
     },
+    "/v1/job/node/describe-by-id": {
+      "post": {
+        "tags": [
+          "Introspection"
+        ],
+        "operationId": "DescribeNodeByJobId",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/introspectionDescribeNodeByJobIdRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/introspectionDescribeNodeResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        }
+      }
+    },
     "/v1/job/pod/describe": {
       "post": {
         "tags": [
@@ -237,6 +269,17 @@
         "rawPodJson": {
           "type": "string",
           "format": "byte"
+        }
+      }
+    },
+    "introspectionDescribeNodeByJobIdRequest": {
+      "type": "object",
+      "properties": {
+        "includeRaw": {
+          "type": "boolean"
+        },
+        "jobId": {
+          "type": "string"
         }
       }
     },
