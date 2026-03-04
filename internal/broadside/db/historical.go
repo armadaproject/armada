@@ -61,8 +61,7 @@ func buildHistoricalJobQueries(jobNum int, params HistoricalJobsParams) []Ingest
 	}
 
 	queries := []IngestionQuery{
-		InsertJob{Job: newJob},
-		InsertJobSpec{JobID: jobID, JobSpec: string(params.JobSpecBytes)},
+		InsertJob{Job: newJob, JobSpec: params.JobSpecBytes},
 		SetJobLeased{JobID: jobID, Time: leasedTime, RunID: runID},
 		InsertJobRun{JobRunID: runID, JobID: jobID, Cluster: cluster, Node: node, Pool: jobspec.GetPool(jobNum), Time: leasedTime},
 		SetJobPending{JobID: jobID, Time: pendingTime, RunID: runID},

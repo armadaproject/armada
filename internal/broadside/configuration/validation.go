@@ -356,6 +356,10 @@ func (q *QueryConfig) Validate() error {
 		}
 	}
 
+	if q.MaxConcurrentQueries < 0 {
+		return fmt.Errorf("maxConcurrentQueries must be non-negative, got %d", q.MaxConcurrentQueries)
+	}
+
 	if q.MaxErrorsToCollect < 0 {
 		return fmt.Errorf("maxErrorsToCollect must be non-negative, got %d", q.MaxErrorsToCollect)
 	}

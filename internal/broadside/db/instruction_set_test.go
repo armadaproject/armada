@@ -8,18 +8,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestQueriesToInstructionSet_InsertJobAndSpecMerged(t *testing.T) {
+func TestQueriesToInstructionSet_InsertJobWithSpec(t *testing.T) {
 	now := time.Now()
-	job := &NewJob{
-		JobID:     "job001",
-		Queue:     "q1",
-		JobSet:    "js1",
-		Owner:     "owner",
-		Submitted: now,
-	}
 	queries := []IngestionQuery{
-		InsertJob{Job: job},
-		InsertJobSpec{JobID: "job001", JobSpec: "specbytes"},
+		InsertJob{
+			Job:     &NewJob{JobID: "job001", Queue: "q1", JobSet: "js1", Owner: "owner", Submitted: now},
+			JobSpec: []byte("specbytes"),
+		},
 	}
 
 	set, err := queriesToInstructionSet(queries)

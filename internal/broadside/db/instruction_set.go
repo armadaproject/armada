@@ -9,15 +9,10 @@ import (
 // queriesToInstructionSet converts a batch of IngestionQuery values into a
 // lookoutmodel.InstructionSet suitable for passing to the LookoutDb methods.
 //
-// InsertJob and InsertJobSpec are matched by JobID and merged into a single
-// CreateJobInstruction. If InsertJobSpec is absent for a job in this batch,
-// JobProto will be nil — callers must filter before passing to CreateJobSpecs.
-//
 // Multiple job or job-run updates for the same ID within a batch are conflated
 // (last write wins per field) to avoid undefined behaviour in the UPDATE … FROM
 // temp-table pattern when duplicate source rows are present.
 func queriesToInstructionSet(queries []IngestionQuery) (*lookoutmodel.InstructionSet, error) {
-	// Keyed by JobID so InsertJob and InsertJobSpec can be merged.
 	jobCreates := make(map[string]*lookoutmodel.CreateJobInstruction)
 
 	// Keyed by JobID / RunID for last-write-wins conflation.
@@ -29,20 +24,8 @@ func queriesToInstructionSet(queries []IngestionQuery) (*lookoutmodel.Instructio
 	for _, query := range queries {
 		switch q := query.(type) {
 		case InsertJob:
-			instr, ok := jobCreates[q.Job.JobID]
-			if !ok {
-				instr = jobToCreateInstruction(q.Job)
-				jobCreates[q.Job.JobID] = instr
-			}
-			_ = instr // spec bytes set by a later InsertJobSpec if present
-
-		case InsertJobSpec:
-			instr, ok := jobCreates[q.JobID]
-			if !ok {
-				instr = &lookoutmodel.CreateJobInstruction{JobId: q.JobID}
-				jobCreates[q.JobID] = instr
-			}
-			instr.JobProto = []byte(q.JobSpec)
+			instr := jobToCreateInstruction(q)
+			jobCreates[q.Job.JobID] = instr
 
 		case InsertJobRun:
 			set.JobRunsToCreate = append(set.JobRunsToCreate, jobRunToCreateInstruction(q))
@@ -207,20 +190,8 @@ func runUpdate(m map[string]*lookoutmodel.UpdateJobRunInstruction, runID string)
 	return u
 }
 
-// jobSpecInstructions returns only those instructions that have a non-nil
-// JobProto. This filters out jobs whose InsertJobSpec arrived in a different
-// batch from their InsertJob.
-func jobSpecInstructions(jobs []*lookoutmodel.CreateJobInstruction) []*lookoutmodel.CreateJobInstruction {
-	var result []*lookoutmodel.CreateJobInstruction
-	for _, j := range jobs {
-		if j.JobProto != nil {
-			result = append(result, j)
-		}
-	}
-	return result
-}
-
-func jobToCreateInstruction(job *NewJob) *lookoutmodel.CreateJobInstruction {
+func jobToCreateInstruction(q InsertJob) *lookoutmodel.CreateJobInstruction {
+	job := q.Job
 	var priorityClass *string
 	if job.PriorityClass != "" {
 		priorityClass = &job.PriorityClass
@@ -242,6 +213,7 @@ func jobToCreateInstruction(job *NewJob) *lookoutmodel.CreateJobInstruction {
 		LastTransitionTimeSeconds: job.Submitted.Unix(),
 		PriorityClass:             priorityClass,
 		Annotations:               job.Annotations,
+		JobProto:                  q.JobSpec,
 	}
 }
 

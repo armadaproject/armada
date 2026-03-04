@@ -89,5 +89,6 @@ type QueryConfig struct {
 	GetJobsPageSize                     int `yaml:"getJobsPageSize"`
 	GetJobGroupsQueriesPerHour          int `yaml:"getJobGroupsQueriesPerHour"`
 	GetJobGroupsPageSize                int `yaml:"getJobGroupsPageSize"`
+	MaxConcurrentQueries                int `yaml:"maxConcurrentQueries,omitempty"`
 	MaxErrorsToCollect                  int `yaml:"maxErrorsToCollect,omitempty"`
 }

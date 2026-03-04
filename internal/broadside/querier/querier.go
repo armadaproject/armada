@@ -53,6 +53,7 @@ type Querier struct {
 	testStart    time.Time
 	testDuration time.Duration
 	queryWg      sync.WaitGroup // Tracks in-flight queries
+	querySem     chan struct{}  // Limits concurrent database queries; nil means unlimited
 }
 
 // NewQuerier creates a new Querier with the given configuration.
@@ -64,6 +65,10 @@ func NewQuerier(
 	testStart time.Time,
 	testDuration time.Duration,
 ) *Querier {
+	var sem chan struct{}
+	if queryConfig.MaxConcurrentQueries > 0 {
+		sem = make(chan struct{}, queryConfig.MaxConcurrentQueries)
+	}
 	return &Querier{
 		queryConfig:  queryConfig,
 		queueConfigs: queueConfigs,
@@ -71,6 +76,7 @@ func NewQuerier(
 		metrics:      metrics,
 		testStart:    testStart,
 		testDuration: testDuration,
+		querySem:     sem,
 	}
 }
 
@@ -139,7 +145,30 @@ func (q *Querier) Metrics() *metrics.QuerierMetrics {
 	return q.metrics
 }
 
+func (q *Querier) acquireSem(ctx context.Context) bool {
+	if q.querySem == nil {
+		return true
+	}
+	select {
+	case q.querySem <- struct{}{}:
+		return true
+	case <-ctx.Done():
+		return false
+	}
+}
+
+func (q *Querier) releaseSem() {
+	if q.querySem != nil {
+		<-q.querySem
+	}
+}
+
 func (q *Querier) executeGetJobsQuery(ctx context.Context, queryIndex int) {
+	if !q.acquireSem(ctx) {
+		return
+	}
+	defer q.releaseSem()
+
 	filters, filterCombo := q.buildFilters(queryIndex)
 	order := q.buildOrder(queryIndex)
 
@@ -149,7 +178,7 @@ func (q *Querier) executeGetJobsQuery(ctx context.Context, queryIndex int) {
 	}
 
 	start := time.Now()
-	jobs, err := q.database.GetJobs(&ctx, filters, true, order, 0, pageSize)
+	jobs, err := q.database.GetJobs(&ctx, filters, false, order, 0, pageSize)
 	duration := time.Since(start)
 
 	if errors.Is(err, context.Canceled) {
@@ -386,6 +415,11 @@ func (q *Querier) selectQueueAndJobSet(queryIndex int) (int, string) {
 }
 
 func (q *Querier) executeGetJobGroupsQuery(ctx context.Context, queryIndex int) {
+	if !q.acquireSem(ctx) {
+		return
+	}
+	defer q.releaseSem()
+
 	groupedField := q.buildGroupedField(queryIndex)
 	aggregates := q.buildAggregates(queryIndex, groupedField)
 	filters, filterCombo := q.buildFilters(queryIndex)
@@ -601,6 +635,11 @@ func (q *Querier) executeFollowUpQueriesForAllJobs(ctx context.Context, jobs []*
 }
 
 func (q *Querier) executeGetJobRunDebugMessage(ctx context.Context, runID string) {
+	if !q.acquireSem(ctx) {
+		return
+	}
+	defer q.releaseSem()
+
 	start := time.Now()
 	_, err := q.database.GetJobRunDebugMessage(ctx, runID)
 	duration := time.Since(start)
@@ -617,6 +656,11 @@ func (q *Querier) executeGetJobRunDebugMessage(ctx context.Context, runID string
 }
 
 func (q *Querier) executeGetJobRunError(ctx context.Context, runID string) {
+	if !q.acquireSem(ctx) {
+		return
+	}
+	defer q.releaseSem()
+
 	start := time.Now()
 	_, err := q.database.GetJobRunError(ctx, runID)
 	duration := time.Since(start)
@@ -633,6 +677,11 @@ func (q *Querier) executeGetJobRunError(ctx context.Context, runID string) {
 }
 
 func (q *Querier) executeGetJobSpec(ctx context.Context, jobID string) {
+	if !q.acquireSem(ctx) {
+		return
+	}
+	defer q.releaseSem()
+
 	start := time.Now()
 	_, err := q.database.GetJobSpec(ctx, jobID)
 	duration := time.Since(start)
