@@ -146,6 +146,96 @@ func TestExtractFailedPodContainerStatuses(t *testing.T) {
 	assert.Equal(t, containerStatuses[0].KubernetesReason, armadaevents.KubernetesReason_AppError)
 }
 
+func TestExtractFailureInfo(t *testing.T) {
+	tests := map[string]struct {
+		pod               *v1.Pod
+		retryable         bool
+		message           string
+		categories        []string
+		expectedCondition armadaevents.FailureCondition
+		expectedExitCode  int32
+		expectedTermMsg   string
+	}{
+		"OOM pod": {
+			pod:               oomPod,
+			retryable:         true,
+			message:           "pod check says retry",
+			categories:        []string{"oom"},
+			expectedCondition: armadaevents.FailureCondition_FAILURE_CONDITION_OOM_KILLED,
+			expectedExitCode:  137,
+		},
+		"evicted pod": {
+			pod:               evictedPod,
+			expectedCondition: armadaevents.FailureCondition_FAILURE_CONDITION_EVICTED,
+			expectedExitCode:  0,
+		},
+		"deadline exceeded pod": {
+			pod:               deadlineExceededPod,
+			expectedCondition: armadaevents.FailureCondition_FAILURE_CONDITION_DEADLINE_EXCEEDED,
+			expectedExitCode:  0,
+		},
+		"custom error pod": {
+			pod:               customErrorPod,
+			expectedCondition: armadaevents.FailureCondition_FAILURE_CONDITION_USER_ERROR,
+			expectedExitCode:  1,
+			expectedTermMsg:   "Custom error",
+		},
+		"nil pod": {
+			pod:               nil,
+			expectedCondition: armadaevents.FailureCondition_FAILURE_CONDITION_UNSPECIFIED,
+			expectedExitCode:  0,
+		},
+		"preempted pod": {
+			pod: &v1.Pod{
+				Status: v1.PodStatus{
+					Phase: v1.PodFailed,
+					Conditions: []v1.PodCondition{
+						{Type: v1.DisruptionTarget, Reason: "PreemptionByScheduler"},
+					},
+					ContainerStatuses: []v1.ContainerStatus{
+						{Name: "main", State: v1.ContainerState{
+							Terminated: &v1.ContainerStateTerminated{ExitCode: 137},
+						}},
+					},
+				},
+			},
+			expectedCondition: armadaevents.FailureCondition_FAILURE_CONDITION_PREEMPTED,
+			expectedExitCode:  137,
+		},
+		"preempted pod with OOM during shutdown": {
+			pod: &v1.Pod{
+				Status: v1.PodStatus{
+					Phase: v1.PodFailed,
+					Conditions: []v1.PodCondition{
+						{Type: v1.DisruptionTarget, Reason: "PreemptionByScheduler"},
+					},
+					ContainerStatuses: []v1.ContainerStatus{
+						{Name: "main", State: v1.ContainerState{
+							Terminated: &v1.ContainerStateTerminated{ExitCode: 137, Reason: "OOMKilled"},
+						}},
+					},
+				},
+			},
+			expectedCondition: armadaevents.FailureCondition_FAILURE_CONDITION_PREEMPTED,
+			expectedExitCode:  137,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			info := ExtractFailureInfo(tc.pod, tc.retryable, tc.message, tc.categories)
+			assert.Equal(t, tc.expectedCondition, info.Condition)
+			assert.Equal(t, tc.expectedExitCode, info.ExitCode)
+			assert.Equal(t, tc.retryable, info.PodCheckRetryable)
+			assert.Equal(t, tc.message, info.PodCheckMessage)
+			assert.Equal(t, tc.categories, info.Categories)
+			if tc.expectedTermMsg != "" {
+				assert.Equal(t, tc.expectedTermMsg, info.TerminationMessage)
+			}
+		})
+	}
+}
+
 func createOomContainerStatus() v1.ContainerStatus {
 	return v1.ContainerStatus{
 		Name: "custom-error",

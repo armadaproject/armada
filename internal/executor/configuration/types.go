@@ -7,6 +7,7 @@ import (
 
 	profilingconfig "github.com/armadaproject/armada/internal/common/profiling/configuration"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
+	"github.com/armadaproject/armada/internal/executor/categorizer"
 	"github.com/armadaproject/armada/internal/executor/configuration/podchecks"
 	"github.com/armadaproject/armada/pkg/client"
 )
@@ -91,6 +92,10 @@ type KubernetesConfiguration struct {
 	// MinimumResourcesMarkedAllocatedToNonArmadaPodsPerNode, those resources are marked allocated at this priority.
 	MinimumResourcesMarkedAllocatedToNonArmadaPodsPerNodePriority int32
 	PodKillTimeout                                                time.Duration
+	// ErrorCategories defines category rules for classifying pod failures.
+	// Each category has a name and rules that match against exit codes,
+	// termination messages, or failure conditions. Empty means no categorization.
+	ErrorCategories []categorizer.CategoryConfig `yaml:"errorCategories"`
 }
 
 type EtcdConfiguration struct {

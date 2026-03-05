@@ -114,6 +114,59 @@ func ExtractFailedPodContainerStatuses(pod *v1.Pod, clusterId string) []*armadae
 	return returnStatuses
 }
 
+// ExtractFailureInfo builds a FailureInfo proto from pod status, pod check results,
+// and category labels. It maps KubernetesReason to FailureCondition and extracts
+// the exit code and termination message from the first failed container.
+func ExtractFailureInfo(pod *v1.Pod, podCheckRetryable bool, podCheckMessage string, categories []string) *armadaevents.FailureInfo {
+	info := &armadaevents.FailureInfo{
+		PodCheckRetryable: podCheckRetryable,
+		PodCheckMessage:   podCheckMessage,
+		Categories:        categories,
+	}
+
+	if pod != nil {
+		info.Condition = mapReasonToCondition(pod)
+
+		// Extract exit code and termination message from the first failed container.
+		for _, cs := range GetPodContainerStatuses(pod) {
+			if cs.State.Terminated != nil && cs.State.Terminated.ExitCode != 0 {
+				info.ExitCode = cs.State.Terminated.ExitCode
+				info.TerminationMessage = cs.State.Terminated.Message
+				break
+			}
+		}
+	}
+
+	return info
+}
+
+func mapReasonToCondition(pod *v1.Pod) armadaevents.FailureCondition {
+	if isPreempted(pod) {
+		return armadaevents.FailureCondition_FAILURE_CONDITION_PREEMPTED
+	}
+	switch ExtractPodFailureCause(pod) {
+	case armadaevents.KubernetesReason_Evicted:
+		return armadaevents.FailureCondition_FAILURE_CONDITION_EVICTED
+	case armadaevents.KubernetesReason_OOM:
+		return armadaevents.FailureCondition_FAILURE_CONDITION_OOM_KILLED
+	case armadaevents.KubernetesReason_DeadlineExceeded:
+		return armadaevents.FailureCondition_FAILURE_CONDITION_DEADLINE_EXCEEDED
+	default:
+		return armadaevents.FailureCondition_FAILURE_CONDITION_USER_ERROR
+	}
+}
+
+// isPreempted checks if the pod was preempted by looking for the
+// DisruptionTarget condition with "PreemptionByScheduler" reason.
+func isPreempted(pod *v1.Pod) bool {
+	for _, cond := range pod.Status.Conditions {
+		if cond.Type == v1.DisruptionTarget && cond.Reason == "PreemptionByScheduler" {
+			return true
+		}
+	}
+	return false
+}
+
 func isOom(containerStatus v1.ContainerStatus) bool {
 	return containerStatus.State.Terminated != nil && containerStatus.State.Terminated.Reason == oomKilledReason
 }
