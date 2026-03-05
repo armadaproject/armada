@@ -8,5 +8,5 @@
 -- small and allows PostgreSQL to satisfy the entire subquery as an index-only scan.
 -- fillfactor 80 accounts for frequent state transitions on active jobs.
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_job_active_queue_jobset ON job (queue, jobset)
-WHERE state IN (1, 2, 3, 8)
-WITH (fillfactor = '80');
+WITH (fillfactor = 80)
+WHERE state IN (1, 2, 3, 8);
