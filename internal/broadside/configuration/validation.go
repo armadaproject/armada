@@ -239,6 +239,17 @@ func (h *HistoricalJobsConfig) Validate() error {
 		return fmt.Errorf("sum of all proportions must not exceed 1.0, got %.6f", totalProportion)
 	}
 
+	if h.NumberOfJobs > 0 {
+		if len(h.JobAgeDays) == 0 {
+			return fmt.Errorf("jobAgeDays must contain at least one value when numberOfJobs > 0")
+		}
+		for i, d := range h.JobAgeDays {
+			if d < 0 {
+				return fmt.Errorf("jobAgeDays[%d] must be non-negative, got %d", i, d)
+			}
+		}
+	}
+
 	return nil
 }
 
