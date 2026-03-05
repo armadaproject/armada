@@ -235,6 +235,7 @@ func (i *Ingester) Setup(ctx context.Context) error {
 					SucceededThreshold: succeededThreshold,
 					ErroredThreshold:   erroredThreshold,
 					CancelledThreshold: cancelledThreshold,
+					JobAgeDays:         historicalCfg.JobAgeDays,
 					JobSpecBytes:       []byte(defaultJobSpec),
 					ErrorBytes:         simulatedError,
 					DebugBytes:         simulatedDebugMsg,

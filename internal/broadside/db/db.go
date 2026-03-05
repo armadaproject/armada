@@ -41,6 +41,7 @@ type HistoricalJobsParams struct {
 	SucceededThreshold int
 	ErroredThreshold   int
 	CancelledThreshold int
+	JobAgeDays         []int
 	JobSpecBytes       []byte
 	ErrorBytes         []byte
 	DebugBytes         []byte
