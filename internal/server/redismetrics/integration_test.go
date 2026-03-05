@@ -7,12 +7,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/common/compress"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 func withRedisClient(t *testing.T, action func(client redis.UniversalClient)) {
@@ -36,10 +39,33 @@ func withRedisClient(t *testing.T, action func(client redis.UniversalClient)) {
 
 func createTestStream(t *testing.T, client redis.UniversalClient, ctx context.Context, queue, jobSetId string, eventCount int) string {
 	streamKey := fmt.Sprintf("Events:%s:%s", queue, jobSetId)
+
+	compressor, err := compress.NewZlibCompressor(0)
+	require.NoError(t, err)
+
 	for i := 0; i < eventCount; i++ {
-		_, err := client.XAdd(ctx, &redis.XAddArgs{
+		es := &armadaevents.EventSequence{
+			Queue:      queue,
+			JobSetName: jobSetId,
+			Events: []*armadaevents.EventSequence_Event{{
+				Event: &armadaevents.EventSequence_Event_JobRunRunning{
+					JobRunRunning: &armadaevents.JobRunRunning{
+						RunId: fmt.Sprintf("00000000-0000-0000-0000-%012d", i),
+						JobId: fmt.Sprintf("01f3j0g1md4qx7z5qb148q%04d", i),
+					},
+				},
+			}},
+		}
+
+		bytes, err := proto.Marshal(es)
+		require.NoError(t, err)
+
+		compressed, err := compressor.Compress(bytes)
+		require.NoError(t, err)
+
+		_, err = client.XAdd(ctx, &redis.XAddArgs{
 			Stream: streamKey,
-			Values: map[string]interface{}{"event": fmt.Sprintf("test-event-%d", i)},
+			Values: map[string]interface{}{"message": compressed},
 		}).Result()
 		require.NoError(t, err)
 	}
