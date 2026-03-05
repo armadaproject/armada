@@ -139,7 +139,7 @@ func (p *PostgresDatabase) ExecuteIngestionQueryBatch(ctx context.Context, queri
 	// Phase 1: job rows must be committed before job_run FK references them.
 	var wg sync.WaitGroup
 	wg.Go(func() { p.lookoutDb.CreateJobs(armadaCtx, set.JobsToCreate) })
-	wg.Go(func() { p.lookoutDb.CreateJobSpecs(armadaCtx, jobSpecInstructions(set.JobsToCreate)) })
+	wg.Go(func() { p.lookoutDb.CreateJobSpecs(armadaCtx, set.JobsToCreate) })
 	wg.Wait()
 
 	// Phase 2: job runs, errors and job-state updates can proceed in parallel.

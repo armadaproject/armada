@@ -52,8 +52,7 @@ parallel batch execution whilst maintaining per-job ordering).
 
 Supported ingestion query types:
 
-  - InsertJob: Insert a new job record
-  - InsertJobSpec: Insert job specification
+  - InsertJob: Insert a new job record (with optional job spec)
   - UpdateJobPriority: Update job priority
   - SetJobCancelled: Mark job as cancelled
   - SetJobSucceeded: Mark job as succeeded
