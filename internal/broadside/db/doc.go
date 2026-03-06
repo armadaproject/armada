@@ -90,10 +90,12 @@ Three implementations are provided:
     job_historical table, moves existing terminal rows from job into it, adds a
     CHECK constraint to job restricting it to active states, and creates the
     job_all UNION ALL view. TearDown reverts the migration (sql/hotcold_down.sql)
-    after truncation. During ingestion, terminal jobs are atomically moved from job
-    to job_historical via a DELETE … RETURNING CTE (sql/move_terminal_jobs.sql)
-    after each batch's UpdateJobs phase completes. Historical job population writes
-    directly to job_historical when the toggle is enabled.
+    after truncation. During ingestion, terminal-state job updates are intercepted
+    before Phase 2 and handled by sql/update_and_move_terminal_jobs.sql, which
+    atomically applies the state change and moves the row from job to job_historical
+    in a single statement — ensuring no terminal state is ever written to job.
+    Historical job population writes directly to job_historical when the toggle is
+    enabled.
   - ClickHouseDatabase: ClickHouse adapter (placeholder implementation)
   - MemoryDatabase: In-memory adapter for smoke-testing Broadside
 

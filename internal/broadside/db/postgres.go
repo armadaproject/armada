@@ -15,12 +15,14 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/database"
+	"github.com/armadaproject/armada/internal/common/database/lookout"
 	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/lookout/model"
 	"github.com/armadaproject/armada/internal/lookout/repository"
 	"github.com/armadaproject/armada/internal/lookout/schema"
 	"github.com/armadaproject/armada/internal/lookoutingester/lookoutdb"
 	lookoutingestermetrics "github.com/armadaproject/armada/internal/lookoutingester/metrics"
+	lookoutmodel "github.com/armadaproject/armada/internal/lookoutingester/model"
 	serverconfiguration "github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/armadaproject/armada/pkg/api"
 )
@@ -140,9 +142,14 @@ func (p *PostgresDatabase) revertTuningSQL(ctx context.Context) error {
 //
 //  1. Create job rows and their specs (specs only for jobs whose InsertJobSpec
 //     arrived in the same batch — avoids inserting null into job_spec.job_spec).
-//  2. In parallel: update job rows, create job runs, create job errors.
+//  2. In parallel: update job rows (non-terminal only), create job runs, create job errors.
 //  3. Update job runs.
-//  4. (Hot/cold split only) Move terminal jobs from job to job_historical.
+//  4. (Hot/cold split only) Atomically apply terminal state updates and move those
+//     jobs from job to job_historical.
+//
+// When HotColdSplit is enabled, terminal-state updates are separated out before
+// Phase 2 so they never touch job (which is constrained to active states only).
+// They are instead applied atomically in Phase 4 as part of the move operation.
 //
 // Job updates and job-run updates are conflated within the batch (last write
 // wins) before being sent, preventing undefined behaviour when duplicate IDs
@@ -154,6 +161,19 @@ func (p *PostgresDatabase) ExecuteIngestionQueryBatch(ctx context.Context, queri
 	}
 	armadaCtx := armadacontext.FromGrpcCtx(ctx)
 
+	jobUpdates := set.JobsToUpdate
+	var terminalUpdates []*lookoutmodel.UpdateJobInstruction
+	if p.features.HotColdSplit {
+		jobUpdates = nil
+		for _, u := range set.JobsToUpdate {
+			if u.State != nil && isTerminalState(*u.State) {
+				terminalUpdates = append(terminalUpdates, u)
+			} else {
+				jobUpdates = append(jobUpdates, u)
+			}
+		}
+	}
+
 	// Phase 1: job rows must be committed before job_run FK references them.
 	var wg sync.WaitGroup
 	wg.Go(func() { p.lookoutDb.CreateJobs(armadaCtx, set.JobsToCreate) })
@@ -161,7 +181,9 @@ func (p *PostgresDatabase) ExecuteIngestionQueryBatch(ctx context.Context, queri
 	wg.Wait()
 
 	// Phase 2: job runs, errors and job-state updates can proceed in parallel.
-	wg.Go(func() { p.lookoutDb.UpdateJobs(armadaCtx, set.JobsToUpdate) })
+	// When HotColdSplit is enabled, jobUpdates contains only non-terminal updates,
+	// so no terminal state is ever written to job (which has chk_job_active_state).
+	wg.Go(func() { p.lookoutDb.UpdateJobs(armadaCtx, jobUpdates) })
 	wg.Go(func() { p.lookoutDb.CreateJobRuns(armadaCtx, set.JobRunsToCreate) })
 	wg.Go(func() { p.lookoutDb.CreateJobErrors(armadaCtx, set.JobErrorsToCreate) })
 	wg.Wait()
@@ -169,18 +191,11 @@ func (p *PostgresDatabase) ExecuteIngestionQueryBatch(ctx context.Context, queri
 	// Phase 3: job-run updates depend on job-run rows existing.
 	p.lookoutDb.UpdateJobRuns(armadaCtx, set.JobRunsToUpdate)
 
-	// Phase 4 (hot/cold split only): move terminal jobs out of job and into
-	// job_historical. This runs after UpdateJobs so that the final terminal
-	// state is written to job before the row is moved.
+	// Phase 4 (hot/cold split only): atomically apply terminal state updates and
+	// move those jobs from job to job_historical in a single SQL statement.
 	if p.features.HotColdSplit {
-		var terminalJobIDs []string
-		for _, u := range set.JobsToUpdate {
-			if u.State != nil && isTerminalState(*u.State) {
-				terminalJobIDs = append(terminalJobIDs, u.JobId)
-			}
-		}
-		if err := p.moveTerminalJobs(ctx, terminalJobIDs); err != nil {
-			return fmt.Errorf("moving terminal jobs: %w", err)
+		if err := p.updateAndMoveTerminalJobs(ctx, terminalUpdates); err != nil {
+			return fmt.Errorf("updating and moving terminal jobs: %w", err)
 		}
 	}
 
@@ -443,10 +458,10 @@ SELECT
     (%s)[i%%%d+1],
     (i%%2000)+1,
     NOW() - INTERVAL '24 hours',
-    CASE WHEN i%%1000 < %d THEN 5
-         WHEN i%%1000 < %d THEN 4
-         WHEN i%%1000 < %d THEN 6
-         ELSE 8 END,
+    CASE WHEN i%%1000 < %d THEN %d
+         WHEN i%%1000 < %d THEN %d
+         WHEN i%%1000 < %d THEN %d
+         ELSE %d END,
     NOW() - INTERVAL '24 hours' + INTERVAL '10 seconds',
     EXTRACT(EPOCH FROM NOW() - INTERVAL '24 hours' + INTERVAL '10 seconds')::bigint,
     (%s)[i%%%d+1],
@@ -468,7 +483,10 @@ FROM generate_series(%d, %d) AS i`,
 		memArr, len(jobspec.MemoryOptions),
 		ephArr, len(jobspec.EphemeralStorageOptions),
 		gpuArr, len(jobspec.GpuOptions),
-		succeeded, errored, cancelled,
+		succeeded, lookout.JobSucceededOrdinal,
+		errored, lookout.JobFailedOrdinal,
+		cancelled, lookout.JobCancelledOrdinal,
+		lookout.JobPreemptedOrdinal,
 		pcArr, len(jobspec.PriorityClassOptions),
 		buildAnnotationSQL(),
 		prefix,

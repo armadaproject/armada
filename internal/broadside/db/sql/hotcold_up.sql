@@ -91,8 +91,17 @@ FROM moved;
 
 -- Step 3: add a CHECK constraint to job restricting it to active states.
 -- This is what enables constraint exclusion on job_all queries filtered by state.
-ALTER TABLE job ADD CONSTRAINT chk_job_active_state
-    CHECK (state IN (1, 2, 3, 8));
+-- PostgreSQL does not support ADD CONSTRAINT IF NOT EXISTS, so a DO block is used
+-- to make this idempotent.
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'chk_job_active_state'
+    ) THEN
+        ALTER TABLE job ADD CONSTRAINT chk_job_active_state
+            CHECK (state IN (1, 2, 3, 8));
+    END IF;
+END$$;
 
 -- Step 4: create indexes on job_historical mirroring those on job so that
 -- filtered queries against job_all perform equally well on both sides.
