@@ -5,6 +5,7 @@ import { Divider, Drawer, DrawerProps, Stack, styled, Tab, Tabs } from "@mui/mat
 import { grey } from "@mui/material/colors"
 import { ErrorBoundary } from "react-error-boundary"
 
+import { Analytics } from "../../../../analytics"
 import { SPACING } from "../../../../common/spacing"
 import { AlertErrorFallback } from "../../../../components/AlertErrorFallback"
 import { CommandSpec } from "../../../../config"
@@ -249,17 +250,51 @@ export const Sidebar = memo(({ job, sidebarWidth, onClose, onWidthChange, comman
               <TabContext value={openTab}>
                 <TabsContainer>
                   <SidebarTabs value={openTab} onChange={handleTabChange}>
-                    <StyledSidebarTab label="Details" value={SidebarTab.JobDetails} />
-                    <StyledSidebarTab label="Result" value={SidebarTab.JobResult} />
+                    <Analytics
+                      component={StyledSidebarTab}
+                      label="Details"
+                      value={SidebarTab.JobDetails}
+                      eventName="Sidebar Tab View"
+                      eventData={{ tab: "Details", jobState: job.state }}
+                    />
+                    <Analytics
+                      component={StyledSidebarTab}
+                      label="Result"
+                      value={SidebarTab.JobResult}
+                      eventName="Sidebar Tab View"
+                      eventData={{ tab: "Result", jobState: job.state }}
+                    />
                     {job.state === JobState.Queued && (
-                      <StyledSidebarTab label="Scheduling" value={SidebarTab.Scheduling} />
+                      <Analytics
+                        component={StyledSidebarTab}
+                        label="Scheduling"
+                        value={SidebarTab.Scheduling}
+                        eventName="Sidebar Tab View"
+                        eventData={{ tab: "Scheduling", jobState: job.state }}
+                      />
                     )}
-                    <StyledSidebarTab label="YAML" value={SidebarTab.Yaml} />
-                    <StyledSidebarTab label="Logs" value={SidebarTab.Logs} disabled={job.state === JobState.Queued} />
-                    <StyledSidebarTab
+                    <Analytics
+                      component={StyledSidebarTab}
+                      label="YAML"
+                      value={SidebarTab.Yaml}
+                      eventName="Sidebar Tab View"
+                      eventData={{ tab: "YAML", jobState: job.state }}
+                    />
+                    <Analytics
+                      component={StyledSidebarTab}
+                      label="Logs"
+                      value={SidebarTab.Logs}
+                      disabled={job.state === JobState.Queued}
+                      eventName="Sidebar Tab View"
+                      eventData={{ tab: "Logs", jobState: job.state }}
+                    />
+                    <Analytics
+                      component={StyledSidebarTab}
                       label="Commands"
                       value={SidebarTab.Commands}
                       disabled={job.state === JobState.Queued}
+                      eventName="Sidebar Tab View"
+                      eventData={{ tab: "Commands", jobState: job.state }}
                     />
                   </SidebarTabs>
                 </TabsContainer>

@@ -9,6 +9,7 @@ import {
   useMediaQuery,
 } from "@mui/material"
 
+import { Analytics } from "../../../../analytics"
 import { SPACING } from "../../../../common/spacing"
 
 const ColourModeSelectorContainer = styled("div")(({ theme }) => ({
@@ -50,12 +51,12 @@ export const ColourModeSelector = () => {
           aria-label="colour mode"
           onChange={(_, colorMode) => setMode(colorMode)}
         >
-          <ToggleButton value="light">
+          <Analytics component={ToggleButton} eventName="Light Mode Selected" value="light">
             Light mode{mode === "system" && systemMode === "light" && <> (synced with system)</>}
-          </ToggleButton>
-          <ToggleButton value="dark">
+          </Analytics>
+          <Analytics component={ToggleButton} eventName="Dark Mode Selected" value="dark">
             Dark mode{mode === "system" && systemMode === "dark" && <> (synced with system)</>}
-          </ToggleButton>
+          </Analytics>
         </ToggleButtonGroup>
       </div>
     </ColourModeSelectorContainer>

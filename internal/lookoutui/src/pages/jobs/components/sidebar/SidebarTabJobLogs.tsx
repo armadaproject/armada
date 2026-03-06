@@ -19,6 +19,7 @@ import {
   Tooltip,
 } from "@mui/material"
 
+import { Analytics } from "../../../../analytics"
 import { downloadTextFile } from "../../../../common/downloadTextFile"
 import { SPACING } from "../../../../common/spacing"
 import { JobRunLogsTextSizeToggle } from "../../../../components/JobRunLogsTextSizeToggle"
@@ -253,7 +254,9 @@ export const SidebarTabJobLogs = ({ job }: SidebarTabJobLogsProps) => {
             arrow
             title={`The file ${showTimestamps ? "will include" : "will not include"} timestamps for each log line. Toggle the 'show timestamps' switch below to change this.`}
           >
-            <Button
+            <Analytics
+              component={Button}
+              eventName="Download Logs Clicked"
               aria-label="download logs"
               loading={getLogsResult.status === "pending"}
               disabled={getLogsResult.status !== "success"}
@@ -263,7 +266,7 @@ export const SidebarTabJobLogs = ({ job }: SidebarTabJobLogsProps) => {
               onClick={downloadLogs}
             >
               Download logs
-            </Button>
+            </Analytics>
           </Tooltip>
         </div>
       </RunContainerSelectors>
