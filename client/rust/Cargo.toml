@@ -1,0 +1,37 @@
+[package]
+name = "armada-client"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+description = "Rust client for the Armada batch job scheduler"
+license = "Apache-2.0"
+
+[lib]
+name = "armada_client"
+path = "src/lib.rs"
+doctest = false
+
+[[example]]
+name = "submit"
+path = "examples/submit.rs"
+
+[[example]]
+name = "watch"
+path = "examples/watch.rs"
+
+[dependencies]
+tonic = { version = "0.12", features = ["tls", "tls-roots"] }
+prost       = "0.13"
+prost-types = "0.13"  # must stay in sync with prost version
+futures = "0.3"
+tracing = "0.1"
+thiserror = "1"
+base64 = "0.22"
+
+[build-dependencies]
+tonic-build = "0.12"
+
+[dev-dependencies]
+# rt-multi-thread + macros only needed for #[tokio::main] in examples and #[tokio::test]
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+tracing-subscriber = "0.3"
