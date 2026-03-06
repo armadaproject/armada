@@ -12,6 +12,7 @@ queueConfig:
         proportion: 1.0
         historicalJobsConfig:
           numberOfJobs: 10000
+          jobAgeDays: [1, 2, 3]
           proportionSucceeded: 1.0
           proportionErrored: 0.0
           proportionCancelled: 0.0
