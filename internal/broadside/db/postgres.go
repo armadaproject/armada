@@ -10,17 +10,20 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	broadsideconfiguration "github.com/armadaproject/armada/internal/broadside/configuration"
 	"github.com/armadaproject/armada/internal/broadside/jobspec"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/database"
+	"github.com/armadaproject/armada/internal/common/database/lookout"
 	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/lookout/model"
 	"github.com/armadaproject/armada/internal/lookout/repository"
 	"github.com/armadaproject/armada/internal/lookout/schema"
 	"github.com/armadaproject/armada/internal/lookoutingester/lookoutdb"
 	lookoutingestermetrics "github.com/armadaproject/armada/internal/lookoutingester/metrics"
-	"github.com/armadaproject/armada/internal/server/configuration"
+	lookoutmodel "github.com/armadaproject/armada/internal/lookoutingester/model"
+	serverconfiguration "github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/armadaproject/armada/pkg/api"
 )
 
@@ -29,6 +32,7 @@ import (
 // realistic testing of production query patterns.
 type PostgresDatabase struct {
 	config                    map[string]string
+	features                  broadsideconfiguration.FeatureToggles
 	tuningSQLStatements       []string
 	tuningRevertSQLStatements []string
 	pool                      *pgxpool.Pool
@@ -48,9 +52,10 @@ type PostgresDatabase struct {
 //   - password: database password
 //   - dbname: database name (e.g., "broadside_test")
 //   - sslmode: SSL mode (e.g., "disable")
-func NewPostgresDatabase(config map[string]string, tuningSQLStatements []string, tuningRevertSQLStatements []string) *PostgresDatabase {
+func NewPostgresDatabase(config map[string]string, features broadsideconfiguration.FeatureToggles, tuningSQLStatements []string, tuningRevertSQLStatements []string) *PostgresDatabase {
 	return &PostgresDatabase{
 		config:                    config,
+		features:                  features,
 		tuningSQLStatements:       tuningSQLStatements,
 		tuningRevertSQLStatements: tuningRevertSQLStatements,
 	}
@@ -60,7 +65,7 @@ func NewPostgresDatabase(config map[string]string, tuningSQLStatements []string,
 // migrations, applies per-table autovacuum tuning SQL, and initialises the
 // query repository.
 func (p *PostgresDatabase) InitialiseSchema(ctx context.Context) error {
-	pgConfig := configuration.PostgresConfig{
+	pgConfig := serverconfiguration.PostgresConfig{
 		Connection: p.config,
 	}
 
@@ -87,10 +92,24 @@ func (p *PostgresDatabase) InitialiseSchema(ctx context.Context) error {
 		return fmt.Errorf("applying tuning SQL: %w", err)
 	}
 
+	if p.features.HotColdSplit {
+		if _, err := p.pool.Exec(ctx, hotColdMigrationSQL); err != nil {
+			pool.Close()
+			return fmt.Errorf("applying hot/cold split migration: %w", err)
+		}
+		logging.Info("Hot/cold split migration applied")
+	}
+
 	decompressor := &compress.NoOpDecompressor{}
 	p.lookoutDb = lookoutdb.NewLookoutDb(p.pool, nil, lookoutingestermetrics.Get(), 16, 12)
-	p.jobsRepository = repository.NewSqlGetJobsRepository(p.pool)
-	p.groupRepository = repository.NewSqlGroupJobsRepository(p.pool)
+	if p.features.HotColdSplit {
+		tables := repository.NewTablesWithJobTable("job_all")
+		p.jobsRepository = repository.NewSqlGetJobsRepositoryWithTables(p.pool, tables)
+		p.groupRepository = repository.NewSqlGroupJobsRepositoryWithTables(p.pool, tables)
+	} else {
+		p.jobsRepository = repository.NewSqlGetJobsRepository(p.pool)
+		p.groupRepository = repository.NewSqlGroupJobsRepository(p.pool)
+	}
 	p.jobSpecRepository = repository.NewSqlGetJobSpecRepository(p.pool, decompressor)
 	p.jobRunErrorRepository = repository.NewSqlGetJobRunErrorRepository(p.pool, decompressor)
 	p.jobRunDebugRepository = repository.NewSqlGetJobRunDebugMessageRepository(p.pool, decompressor)
@@ -123,8 +142,14 @@ func (p *PostgresDatabase) revertTuningSQL(ctx context.Context) error {
 //
 //  1. Create job rows and their specs (specs only for jobs whose InsertJobSpec
 //     arrived in the same batch — avoids inserting null into job_spec.job_spec).
-//  2. In parallel: update job rows, create job runs, create job errors.
+//  2. In parallel: update job rows (non-terminal only), create job runs, create job errors.
 //  3. Update job runs.
+//  4. (Hot/cold split only) Atomically apply terminal state updates and move those
+//     jobs from job to job_historical.
+//
+// When HotColdSplit is enabled, terminal-state updates are separated out before
+// Phase 2 so they never touch job (which is constrained to active states only).
+// They are instead applied atomically in Phase 4 as part of the move operation.
 //
 // Job updates and job-run updates are conflated within the batch (last write
 // wins) before being sent, preventing undefined behaviour when duplicate IDs
@@ -136,6 +161,19 @@ func (p *PostgresDatabase) ExecuteIngestionQueryBatch(ctx context.Context, queri
 	}
 	armadaCtx := armadacontext.FromGrpcCtx(ctx)
 
+	jobUpdates := set.JobsToUpdate
+	var terminalUpdates []*lookoutmodel.UpdateJobInstruction
+	if p.features.HotColdSplit {
+		jobUpdates = nil
+		for _, u := range set.JobsToUpdate {
+			if u.State != nil && isTerminalState(*u.State) {
+				terminalUpdates = append(terminalUpdates, u)
+			} else {
+				jobUpdates = append(jobUpdates, u)
+			}
+		}
+	}
+
 	// Phase 1: job rows must be committed before job_run FK references them.
 	var wg sync.WaitGroup
 	wg.Go(func() { p.lookoutDb.CreateJobs(armadaCtx, set.JobsToCreate) })
@@ -143,13 +181,23 @@ func (p *PostgresDatabase) ExecuteIngestionQueryBatch(ctx context.Context, queri
 	wg.Wait()
 
 	// Phase 2: job runs, errors and job-state updates can proceed in parallel.
-	wg.Go(func() { p.lookoutDb.UpdateJobs(armadaCtx, set.JobsToUpdate) })
+	// When HotColdSplit is enabled, jobUpdates contains only non-terminal updates,
+	// so no terminal state is ever written to job (which has chk_job_active_state).
+	wg.Go(func() { p.lookoutDb.UpdateJobs(armadaCtx, jobUpdates) })
 	wg.Go(func() { p.lookoutDb.CreateJobRuns(armadaCtx, set.JobRunsToCreate) })
 	wg.Go(func() { p.lookoutDb.CreateJobErrors(armadaCtx, set.JobErrorsToCreate) })
 	wg.Wait()
 
 	// Phase 3: job-run updates depend on job-run rows existing.
 	p.lookoutDb.UpdateJobRuns(armadaCtx, set.JobRunsToUpdate)
+
+	// Phase 4 (hot/cold split only): atomically apply terminal state updates and
+	// move those jobs from job to job_historical in a single SQL statement.
+	if p.features.HotColdSplit {
+		if err := p.updateAndMoveTerminalJobs(ctx, terminalUpdates); err != nil {
+			return fmt.Errorf("updating and moving terminal jobs: %w", err)
+		}
+	}
 
 	return nil
 }
@@ -210,6 +258,9 @@ func (p *PostgresDatabase) GetJobGroups(ctx *context.Context, filters []*model.F
 // TearDown truncates all tables to clean up after a test run.
 // This is faster than dropping and recreating the database, and
 // allows multiple test runs against the same database instance.
+// When the HotColdSplit feature toggle is enabled, job_historical is also
+// truncated and the hot/cold migration is reverted so the schema is left
+// in its original state.
 func (p *PostgresDatabase) TearDown(ctx context.Context) error {
 	if err := p.revertTuningSQL(ctx); err != nil {
 		return fmt.Errorf("reverting tuning SQL: %w", err)
@@ -222,12 +273,22 @@ func (p *PostgresDatabase) TearDown(ctx context.Context) error {
 		"job",
 		"job_deduplication",
 	}
+	if p.features.HotColdSplit {
+		tables = append(tables, "job_historical")
+	}
 
 	for _, table := range tables {
 		query := fmt.Sprintf("TRUNCATE TABLE %s CASCADE", table)
 		if _, err := p.pool.Exec(ctx, query); err != nil {
 			return fmt.Errorf("truncating table %s: %w", table, err)
 		}
+	}
+
+	if p.features.HotColdSplit {
+		if _, err := p.pool.Exec(ctx, hotColdRevertSQL); err != nil {
+			return fmt.Errorf("reverting hot/cold split migration: %w", err)
+		}
+		logging.Info("Hot/cold split migration reverted")
 	}
 
 	return nil
@@ -302,9 +363,13 @@ func (p *PostgresDatabase) PopulateHistoricalJobs(ctx context.Context, params Hi
 // index to resume from (i.e. maxExisting + 1), or 0 if nothing exists.
 func (p *PostgresDatabase) detectHistoricalJobProgress(ctx context.Context, queueIdx, jobSetIdx int) (int, error) {
 	prefix := fmt.Sprintf("%04d%04d", queueIdx, jobSetIdx)
+	table := "job"
+	if p.features.HotColdSplit {
+		table = "job_historical"
+	}
 	var maxIdx int
 	err := p.pool.QueryRow(ctx,
-		`SELECT COALESCE(MAX(RIGHT(job_id, 10)::int), -1) FROM job WHERE job_id LIKE $1`,
+		fmt.Sprintf(`SELECT COALESCE(MAX(RIGHT(job_id, 10)::int), -1) FROM %s WHERE job_id LIKE $1`, table),
 		prefix+"%",
 	).Scan(&maxIdx)
 	if err != nil {
@@ -368,8 +433,13 @@ func (p *PostgresDatabase) insertHistoricalJobChunk(ctx context.Context, params 
 	nsArr := stringSliceToSQL(jobspec.NamespaceOptions)
 	pcArr := stringSliceToSQL(jobspec.PriorityClassOptions)
 
+	jobTable := "job"
+	if p.features.HotColdSplit {
+		jobTable = "job_historical"
+	}
+
 	jobSQL := fmt.Sprintf(`
-INSERT INTO job (
+INSERT INTO %s (
     job_id, queue, owner, namespace, jobset,
     cpu, memory, ephemeral_storage, gpu, priority,
     submitted, state, last_transition_time, last_transition_time_seconds,
@@ -388,10 +458,10 @@ SELECT
     (%s)[i%%%d+1],
     (i%%2000)+1,
     NOW() - INTERVAL '24 hours',
-    CASE WHEN i%%1000 < %d THEN 5
-         WHEN i%%1000 < %d THEN 4
-         WHEN i%%1000 < %d THEN 6
-         ELSE 8 END,
+    CASE WHEN i%%1000 < %d THEN %d
+         WHEN i%%1000 < %d THEN %d
+         WHEN i%%1000 < %d THEN %d
+         ELSE %d END,
     NOW() - INTERVAL '24 hours' + INTERVAL '10 seconds',
     EXTRACT(EPOCH FROM NOW() - INTERVAL '24 hours' + INTERVAL '10 seconds')::bigint,
     (%s)[i%%%d+1],
@@ -404,6 +474,7 @@ SELECT
     CASE WHEN i%%1000 >= %d AND i%%1000 < %d
          THEN '%s' END
 FROM generate_series(%d, %d) AS i`,
+		jobTable,
 		prefix,
 		params.QueueName, params.QueueName,
 		nsArr, len(jobspec.NamespaceOptions),
@@ -412,7 +483,10 @@ FROM generate_series(%d, %d) AS i`,
 		memArr, len(jobspec.MemoryOptions),
 		ephArr, len(jobspec.EphemeralStorageOptions),
 		gpuArr, len(jobspec.GpuOptions),
-		succeeded, errored, cancelled,
+		succeeded, lookout.JobSucceededOrdinal,
+		errored, lookout.JobFailedOrdinal,
+		cancelled, lookout.JobCancelledOrdinal,
+		lookout.JobPreemptedOrdinal,
 		pcArr, len(jobspec.PriorityClassOptions),
 		buildAnnotationSQL(),
 		prefix,

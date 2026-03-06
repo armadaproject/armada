@@ -3,6 +3,7 @@ package configuration
 import "time"
 
 type TestConfig struct {
+	FeatureToggles  FeatureToggles  `yaml:"featureToggles,omitempty"`
 	TestDuration    time.Duration   `yaml:"testDuration"`
 	WarmupDuration  time.Duration   `yaml:"warmupDuration"`
 	SkipTearDown    bool            `yaml:"skipTearDown,omitempty"`
@@ -11,6 +12,10 @@ type TestConfig struct {
 	IngestionConfig IngestionConfig `yaml:"ingestionConfig"`
 	QueryConfig     QueryConfig     `yaml:"queryConfig"`
 	ActionsConfig   ActionsConfig   `yaml:"actionsConfig"`
+}
+
+type FeatureToggles struct {
+	HotColdSplit bool `yaml:"hotColdSplit,omitempty"`
 }
 
 type DatabaseConfig struct {
