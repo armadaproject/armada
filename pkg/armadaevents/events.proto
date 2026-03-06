@@ -436,6 +436,9 @@ message Error {
         JobRejected jobRejected = 13;
         ReconciliationError reconciliationError = 14;
     }
+    // Structured failure metadata (exit code, condition, categories).
+    // Set by the executor for pod failures; nil for non-pod errors.
+    FailureInfo failure_info = 15;
 }
 
 // Represents an error associated with a particular Kubernetes resource.
@@ -528,6 +531,34 @@ message JobRejected {
 
 message ReconciliationError {
   string message = 1;
+}
+
+// Condition that caused a job failure, derived from Kubernetes signals.
+enum FailureCondition {
+    FAILURE_CONDITION_UNSPECIFIED = 0;
+    FAILURE_CONDITION_PREEMPTED = 1;
+    FAILURE_CONDITION_EVICTED = 2;
+    FAILURE_CONDITION_OOM_KILLED = 3;
+    FAILURE_CONDITION_DEADLINE_EXCEEDED = 4;
+    FAILURE_CONDITION_UNSCHEDULABLE = 5;
+    FAILURE_CONDITION_USER_ERROR = 6;
+}
+
+// Structured failure metadata extracted from pod status at the executor.
+// Attached to Error messages to enable category-based retry policies and
+// observability in Lookout.
+message FailureInfo {
+    // Exit code of the first failed container (0 if no container terminated with failure).
+    int32 exit_code = 1;
+    // Failure condition derived from Kubernetes pod status signals.
+    FailureCondition condition = 2;
+    // Result from the executor's pod checks system (podchecks.Checks).
+    bool pod_check_retryable = 3;
+    string pod_check_message = 4;
+    // Termination message from the first failed container.
+    string termination_message = 5;
+    // Executor-assigned category labels, matched from ErrorCategories config.
+    repeated string categories = 6;
 }
 
 // Message to indicate that a JobRun has been preempted.

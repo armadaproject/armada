@@ -146,6 +146,92 @@ func TestExtractFailedPodContainerStatuses(t *testing.T) {
 	assert.Equal(t, containerStatuses[0].KubernetesReason, armadaevents.KubernetesReason_AppError)
 }
 
+func TestExtractFailureInfo(t *testing.T) {
+	tests := map[string]struct {
+		pod               *v1.Pod
+		expectedCondition armadaevents.FailureCondition
+		expectedExitCode  int32
+		expectedTermMsg   string
+	}{
+		"OOM pod": {
+			pod:               oomPod,
+			expectedCondition: armadaevents.FailureCondition_FAILURE_CONDITION_OOM_KILLED,
+			expectedExitCode:  137,
+		},
+		"evicted pod": {
+			pod:               evictedPod,
+			expectedCondition: armadaevents.FailureCondition_FAILURE_CONDITION_EVICTED,
+		},
+		"deadline exceeded pod": {
+			pod:               deadlineExceededPod,
+			expectedCondition: armadaevents.FailureCondition_FAILURE_CONDITION_DEADLINE_EXCEEDED,
+		},
+		"custom error pod": {
+			pod:               customErrorPod,
+			expectedCondition: armadaevents.FailureCondition_FAILURE_CONDITION_USER_ERROR,
+			expectedExitCode:  1,
+			expectedTermMsg:   "Custom error",
+		},
+		"nil pod": {
+			pod:               nil,
+			expectedCondition: armadaevents.FailureCondition_FAILURE_CONDITION_UNSPECIFIED,
+		},
+		"preempted pod": {
+			pod: &v1.Pod{
+				Status: v1.PodStatus{
+					Phase: v1.PodFailed,
+					Conditions: []v1.PodCondition{
+						{Type: v1.DisruptionTarget, Reason: "PreemptionByScheduler"},
+					},
+					ContainerStatuses: []v1.ContainerStatus{
+						{Name: "main", State: v1.ContainerState{
+							Terminated: &v1.ContainerStateTerminated{ExitCode: 137},
+						}},
+					},
+				},
+			},
+			expectedCondition: armadaevents.FailureCondition_FAILURE_CONDITION_PREEMPTED,
+			expectedExitCode:  137,
+		},
+		"preempted pod with OOM during shutdown": {
+			pod: &v1.Pod{
+				Status: v1.PodStatus{
+					Phase: v1.PodFailed,
+					Conditions: []v1.PodCondition{
+						{Type: v1.DisruptionTarget, Reason: "PreemptionByScheduler"},
+					},
+					ContainerStatuses: []v1.ContainerStatus{
+						{Name: "main", State: v1.ContainerState{
+							Terminated: &v1.ContainerStateTerminated{ExitCode: 137, Reason: "OOMKilled"},
+						}},
+					},
+				},
+			},
+			expectedCondition: armadaevents.FailureCondition_FAILURE_CONDITION_PREEMPTED,
+			expectedExitCode:  137,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			info := ExtractFailureInfo(tc.pod, false, "", nil)
+			assert.Equal(t, tc.expectedCondition, info.Condition)
+			assert.Equal(t, tc.expectedExitCode, info.ExitCode)
+			if tc.expectedTermMsg != "" {
+				assert.Equal(t, tc.expectedTermMsg, info.TerminationMessage)
+			}
+		})
+	}
+}
+
+func TestExtractFailureInfo_PassThroughFields(t *testing.T) {
+	categories := []string{"oom", "gpu"}
+	info := ExtractFailureInfo(oomPod, true, "retry this", categories)
+	assert.True(t, info.PodCheckRetryable)
+	assert.Equal(t, "retry this", info.PodCheckMessage)
+	assert.Equal(t, categories, info.Categories)
+}
+
 func createOomContainerStatus() v1.ContainerStatus {
 	return v1.ContainerStatus{
 		Name: "custom-error",

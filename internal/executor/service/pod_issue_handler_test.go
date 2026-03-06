@@ -15,6 +15,7 @@ import (
 	clock "k8s.io/utils/clock/testing"
 
 	commonutil "github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/executor/categorizer"
 	"github.com/armadaproject/armada/internal/executor/configuration"
 	podchecksConfig "github.com/armadaproject/armada/internal/executor/configuration/podchecks"
 	"github.com/armadaproject/armada/internal/executor/context"
@@ -93,6 +94,61 @@ func TestPodIssueService_DeletesPodAndReportsFailed_IfStuckAndUnretryable(t *tes
 	assert.Len(t, failedEvent.JobRunErrors.Errors, 1)
 	assert.Contains(t, failedEvent.JobRunErrors.Errors[0].GetPodError().Message, "unrecoverable problem")
 	assert.Contains(t, failedEvent.JobRunErrors.Errors[0].GetPodError().DebugMessage, "Image pull has failed")
+}
+
+func TestPodIssueService_FailureInfoIncludesCategories_WhenClassifierConfigured(t *testing.T) {
+	classifier, err := categorizer.NewClassifier([]categorizer.CategoryConfig{
+		{
+			Name: "oom-failure",
+			Rules: []categorizer.CategoryRule{
+				{OnConditions: []string{"OOMKilled"}},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	fakeClusterContext := fakecontext.NewSyncFakeClusterContext()
+	eventReporter := mocks.NewFakeEventReporter()
+	runStateStore := job.NewJobRunStateStoreWithInitialState([]*job.RunState{})
+	stateChecksConfig := configuration.StateChecksConfiguration{
+		DeadlineForSubmittedPodConsideredMissing: time.Minute * 15,
+		DeadlineForActivePodConsideredMissing:    time.Minute * 5,
+	}
+
+	podIssueService, err := NewPodIssuerHandler(
+		runStateStore,
+		fakeClusterContext,
+		eventReporter,
+		stateChecksConfig,
+		makePendingPodChecker(),
+		makeFailedPodChecker(),
+		time.Minute*3,
+		classifier,
+	)
+	require.NoError(t, err)
+
+	// Stuck terminating pod with an OOMKilled container - the classifier should match
+	pod := makeTerminatingPod()
+	pod.Status.ContainerStatuses = []v1.ContainerStatus{
+		{
+			Name: "main",
+			State: v1.ContainerState{
+				Terminated: &v1.ContainerStateTerminated{ExitCode: 137, Reason: "OOMKilled"},
+			},
+		},
+	}
+	addPod(t, fakeClusterContext, pod)
+
+	podIssueService.HandlePodIssues()
+
+	require.Len(t, eventReporter.ReceivedEvents, 1)
+	failedEvent, ok := eventReporter.ReceivedEvents[0].Event.Events[0].Event.(*armadaevents.EventSequence_Event_JobRunErrors)
+	require.True(t, ok)
+
+	failureInfo := failedEvent.JobRunErrors.Errors[0].GetFailureInfo()
+	require.NotNil(t, failureInfo, "FailureInfo should be set on failed events")
+	assert.Equal(t, []string{"oom-failure"}, failureInfo.Categories)
+	assert.False(t, failureInfo.PodCheckRetryable, "non-retryable issue should have PodCheckRetryable=false")
 }
 
 func TestPodIssueService_OnlyDeletesPod_IfStuckTerminatingButDeletedByExecutor(t *testing.T) {
@@ -467,6 +523,7 @@ func setupTestComponents(initialRunState []*job.RunState) (*PodIssueHandler, *jo
 		pendingPodChecker,
 		failedPodChecker,
 		time.Minute*3,
+		nil,
 	)
 
 	return podIssueHandler, runStateStore, fakeClusterContext, eventReporter, err
