@@ -122,7 +122,28 @@ func (qb *QueryBuilder) GetJobs(
 	selected_jobs.annotations,
 	selected_runs.runs
 FROM (
-	SELECT *
+	SELECT
+		j.job_id,
+		j.queue,
+		j.owner,
+		j.namespace,
+		j.jobset,
+		j.cpu,
+		j.memory,
+		j.ephemeral_storage,
+		j.gpu,
+		j.priority,
+		j.submitted,
+		j.cancelled,
+		j.state,
+		j.last_transition_time,
+		j.last_transition_time_seconds,
+		j.duplicate,
+		j.priority_class,
+		j.latest_run_id,
+		j.cancel_reason,
+		j.cancel_user,
+		j.annotations
 	FROM %s AS %s
 	%s
 	%s
