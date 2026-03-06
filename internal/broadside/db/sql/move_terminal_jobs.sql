@@ -12,19 +12,19 @@
 WITH moved AS (
     DELETE FROM job WHERE job_id = ANY($1)
     RETURNING
-        job_id, queue, owner, namespace, jobset,
+        job_id, queue, owner, jobset,
         cpu, memory, ephemeral_storage, gpu, priority,
         submitted, cancelled, state,
         last_transition_time, last_transition_time_seconds,
         job_spec, duplicate, priority_class, latest_run_id,
-        cancel_reason, external_job_uri, cancel_user, annotations
+        cancel_reason, namespace, annotations, external_job_uri, cancel_user
 )
 INSERT INTO job_historical (
-    job_id, queue, owner, namespace, jobset,
+    job_id, queue, owner, jobset,
     cpu, memory, ephemeral_storage, gpu, priority,
     submitted, cancelled, state,
     last_transition_time, last_transition_time_seconds,
     job_spec, duplicate, priority_class, latest_run_id,
-    cancel_reason, external_job_uri, cancel_user, annotations
+    cancel_reason, namespace, annotations, external_job_uri, cancel_user
 )
 SELECT * FROM moved;

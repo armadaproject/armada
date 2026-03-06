@@ -20,11 +20,20 @@
 -- Step 1: create the cold table with the same schema as job, plus a CHECK constraint
 -- that restricts it to terminal states. SET STORAGE EXTERNAL keeps job_spec bytes out
 -- of the main relation to avoid bloating index pages.
+--
+-- IMPORTANT: the column order must exactly match the physical column order in job,
+-- which reflects the order columns were added across all migrations:
+--   001: job_id … latest_run_id
+--   002: cancel_reason
+--   004: namespace
+--   005: annotations
+--   014: external_job_uri
+--   015: cancel_user
+-- The UNION ALL view uses SELECT *, which matches columns positionally.
 CREATE TABLE IF NOT EXISTS job_historical (
     job_id                       varchar(32)   NOT NULL PRIMARY KEY,
     queue                        varchar(512)  NOT NULL,
     owner                        varchar(512)  NOT NULL,
-    namespace                    varchar(512)  NULL,
     jobset                       varchar(1024) NOT NULL,
     cpu                          bigint        NOT NULL,
     memory                       bigint        NOT NULL,
@@ -41,9 +50,10 @@ CREATE TABLE IF NOT EXISTS job_historical (
     priority_class               varchar(63)   NULL,
     latest_run_id                varchar(36)   NULL,
     cancel_reason                varchar(512)  NULL,
+    namespace                    varchar(512)  NULL,
+    annotations                  jsonb         NOT NULL DEFAULT '{}'::jsonb,
     external_job_uri             varchar(1024) NULL,
     cancel_user                  varchar(512)  NULL,
-    annotations                  jsonb         NOT NULL DEFAULT '{}'::jsonb,
     CONSTRAINT chk_job_historical_terminal_state
         CHECK (state IN (4, 5, 6, 7, 9))
 );
@@ -55,29 +65,28 @@ WITH moved AS (
     DELETE FROM job
     WHERE state IN (4, 5, 6, 7, 9)
     RETURNING
-        job_id, queue, owner, namespace, jobset,
+        job_id, queue, owner, jobset,
         cpu, memory, ephemeral_storage, gpu, priority,
         submitted, cancelled, state,
         last_transition_time, last_transition_time_seconds,
         job_spec, duplicate, priority_class, latest_run_id,
-        cancel_reason, external_job_uri, cancel_user, annotations
+        cancel_reason, namespace, annotations, external_job_uri, cancel_user
 )
 INSERT INTO job_historical (
-    job_id, queue, owner, namespace, jobset,
+    job_id, queue, owner, jobset,
     cpu, memory, ephemeral_storage, gpu, priority,
     submitted, cancelled, state,
     last_transition_time, last_transition_time_seconds,
     job_spec, duplicate, priority_class, latest_run_id,
-    cancel_reason, external_job_uri, cancel_user, annotations
+    cancel_reason, namespace, annotations, external_job_uri, cancel_user
 )
 SELECT
-    job_id, queue, owner, namespace, jobset,
+    job_id, queue, owner, jobset,
     cpu, memory, ephemeral_storage, gpu, priority,
     submitted, cancelled, state,
     last_transition_time, last_transition_time_seconds,
     job_spec, duplicate, priority_class, latest_run_id,
-    cancel_reason, external_job_uri, cancel_user,
-    COALESCE(annotations, '{}'::jsonb)
+    cancel_reason, namespace, COALESCE(annotations, '{}'::jsonb), external_job_uri, cancel_user
 FROM moved;
 
 -- Step 3: add a CHECK constraint to job restricting it to active states.
