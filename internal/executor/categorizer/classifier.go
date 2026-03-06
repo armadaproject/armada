@@ -129,8 +129,7 @@ func categoryMatches(cat category, containers []containerInfo, podReason string)
 	return false
 }
 
-// ruleMatches evaluates a single rule. It checks the first non-nil matcher:
-// conditions > exit codes > termination message.
+// ruleMatches evaluates the rule's single matcher.
 func ruleMatches(r rule, containers []containerInfo, podReason string) bool {
 	if len(r.onConditions) > 0 {
 		return matchesCondition(r.onConditions, containers, podReason)
@@ -184,15 +183,15 @@ func matchesTerminationMessage(re *regexp.Regexp, containers []containerInfo) bo
 	return false
 }
 
-// containerInfo holds the failure-relevant fields from a terminated container.
+// containerInfo holds fields from a terminated container used for rule matching.
 type containerInfo struct {
 	exitCode           int32
 	reason             string
 	terminationMessage string
 }
 
-// failedContainers extracts failure info from all terminated containers
-// (both regular and init containers).
+// failedContainers returns terminated container data from both regular
+// and init containers.
 func failedContainers(pod *v1.Pod) []containerInfo {
 	statuses := pod.Status.ContainerStatuses
 	statuses = append(statuses, pod.Status.InitContainerStatuses...)

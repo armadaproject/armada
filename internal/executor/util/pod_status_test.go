@@ -149,30 +149,22 @@ func TestExtractFailedPodContainerStatuses(t *testing.T) {
 func TestExtractFailureInfo(t *testing.T) {
 	tests := map[string]struct {
 		pod               *v1.Pod
-		retryable         bool
-		message           string
-		categories        []string
 		expectedCondition armadaevents.FailureCondition
 		expectedExitCode  int32
 		expectedTermMsg   string
 	}{
 		"OOM pod": {
 			pod:               oomPod,
-			retryable:         true,
-			message:           "pod check says retry",
-			categories:        []string{"oom"},
 			expectedCondition: armadaevents.FailureCondition_FAILURE_CONDITION_OOM_KILLED,
 			expectedExitCode:  137,
 		},
 		"evicted pod": {
 			pod:               evictedPod,
 			expectedCondition: armadaevents.FailureCondition_FAILURE_CONDITION_EVICTED,
-			expectedExitCode:  0,
 		},
 		"deadline exceeded pod": {
 			pod:               deadlineExceededPod,
 			expectedCondition: armadaevents.FailureCondition_FAILURE_CONDITION_DEADLINE_EXCEEDED,
-			expectedExitCode:  0,
 		},
 		"custom error pod": {
 			pod:               customErrorPod,
@@ -183,7 +175,6 @@ func TestExtractFailureInfo(t *testing.T) {
 		"nil pod": {
 			pod:               nil,
 			expectedCondition: armadaevents.FailureCondition_FAILURE_CONDITION_UNSPECIFIED,
-			expectedExitCode:  0,
 		},
 		"preempted pod": {
 			pod: &v1.Pod{
@@ -223,17 +214,22 @@ func TestExtractFailureInfo(t *testing.T) {
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			info := ExtractFailureInfo(tc.pod, tc.retryable, tc.message, tc.categories)
+			info := ExtractFailureInfo(tc.pod, false, "", nil)
 			assert.Equal(t, tc.expectedCondition, info.Condition)
 			assert.Equal(t, tc.expectedExitCode, info.ExitCode)
-			assert.Equal(t, tc.retryable, info.PodCheckRetryable)
-			assert.Equal(t, tc.message, info.PodCheckMessage)
-			assert.Equal(t, tc.categories, info.Categories)
 			if tc.expectedTermMsg != "" {
 				assert.Equal(t, tc.expectedTermMsg, info.TerminationMessage)
 			}
 		})
 	}
+}
+
+func TestExtractFailureInfo_PassThroughFields(t *testing.T) {
+	categories := []string{"oom", "gpu"}
+	info := ExtractFailureInfo(oomPod, true, "retry this", categories)
+	assert.True(t, info.PodCheckRetryable)
+	assert.Equal(t, "retry this", info.PodCheckMessage)
+	assert.Equal(t, categories, info.Categories)
 }
 
 func createOomContainerStatus() v1.ContainerStatus {

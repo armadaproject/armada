@@ -9,12 +9,13 @@ import (
 	v1 "k8s.io/api/core/v1"
 	networking "k8s.io/api/networking/v1"
 
+	"github.com/armadaproject/armada/internal/executor/categorizer"
 	"github.com/armadaproject/armada/internal/executor/domain"
 	"github.com/armadaproject/armada/internal/executor/util"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
-func CreateEventForCurrentState(pod *v1.Pod, clusterId string) (*armadaevents.EventSequence, error) {
+func CreateEventForCurrentState(pod *v1.Pod, clusterId string, classifier *categorizer.Classifier) (*armadaevents.EventSequence, error) {
 	phase := pod.Status.Phase
 	sequence := createEmptySequence(pod)
 	jobId, runId, err := extractIds(pod)
@@ -80,13 +81,15 @@ func CreateEventForCurrentState(pod *v1.Pod, clusterId string) (*armadaevents.Ev
 		})
 		return sequence, nil
 	case v1.PodFailed:
+		failureInfo := util.ExtractFailureInfo(pod, false, "", classifier.Classify(pod))
 		return CreateJobFailedEvent(
 			pod,
 			util.ExtractPodFailedReason(pod),
 			util.ExtractPodFailureCause(pod),
 			"",
 			util.ExtractFailedPodContainerStatuses(pod, clusterId),
-			clusterId)
+			clusterId,
+			failureInfo)
 	case v1.PodSucceeded:
 		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
 			Created: now,
@@ -203,12 +206,12 @@ func CreateSimpleJobPreemptedEvent(pod *v1.Pod) (*armadaevents.EventSequence, er
 	return sequence, nil
 }
 
-func CreateSimpleJobFailedEvent(pod *v1.Pod, reason string, debugMessage string, clusterId string, cause armadaevents.KubernetesReason) (*armadaevents.EventSequence, error) {
-	return CreateJobFailedEvent(pod, reason, cause, debugMessage, []*armadaevents.ContainerError{}, clusterId)
+func CreateSimpleJobFailedEvent(pod *v1.Pod, reason string, debugMessage string, clusterId string, cause armadaevents.KubernetesReason, failureInfo *armadaevents.FailureInfo) (*armadaevents.EventSequence, error) {
+	return CreateJobFailedEvent(pod, reason, cause, debugMessage, []*armadaevents.ContainerError{}, clusterId, failureInfo)
 }
 
 func CreateJobFailedEvent(pod *v1.Pod, reason string, cause armadaevents.KubernetesReason, debugMessage string,
-	containerStatuses []*armadaevents.ContainerError, clusterId string,
+	containerStatuses []*armadaevents.ContainerError, clusterId string, failureInfo *armadaevents.FailureInfo,
 ) (*armadaevents.EventSequence, error) {
 	sequence := createEmptySequence(pod)
 	jobId, runId, err := extractIds(pod)
@@ -241,6 +244,7 @@ func CreateJobFailedEvent(pod *v1.Pod, reason string, cause armadaevents.Kuberne
 								DebugMessage:     debugMessage,
 							},
 						},
+						FailureInfo: failureInfo,
 					},
 				},
 			},

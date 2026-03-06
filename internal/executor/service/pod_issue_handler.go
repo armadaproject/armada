@@ -13,6 +13,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	log "github.com/armadaproject/armada/internal/common/logging"
+	"github.com/armadaproject/armada/internal/executor/categorizer"
 	"github.com/armadaproject/armada/internal/executor/configuration"
 	executorContext "github.com/armadaproject/armada/internal/executor/context"
 	"github.com/armadaproject/armada/internal/executor/job"
@@ -75,6 +76,7 @@ type PodIssueHandler struct {
 	pendingPodChecker podchecks.PodChecker
 	failedPodChecker  failedpodchecks.RetryChecker
 	stateChecksConfig configuration.StateChecksConfiguration
+	classifier        *categorizer.Classifier
 
 	stuckTerminatingPodExpiry time.Duration
 
@@ -93,6 +95,7 @@ func NewPodIssuerHandler(
 	pendingPodChecker podchecks.PodChecker,
 	failedPodChecker failedpodchecks.RetryChecker,
 	stuckTerminatingPodExpiry time.Duration,
+	classifier *categorizer.Classifier,
 ) (*PodIssueHandler, error) {
 	issueHandler := &PodIssueHandler{
 		jobRunState:               jobRunState,
@@ -101,6 +104,7 @@ func NewPodIssuerHandler(
 		pendingPodChecker:         pendingPodChecker,
 		failedPodChecker:          failedPodChecker,
 		stateChecksConfig:         stateChecksConfig,
+		classifier:                classifier,
 		stuckTerminatingPodExpiry: stuckTerminatingPodExpiry,
 		knownPodIssues:            map[string]*runIssue{},
 		podIssueMutex:             sync.Mutex{},
@@ -420,7 +424,9 @@ func (p *PodIssueHandler) handleNonRetryableJobIssue(issue *issue) {
 		log.Infof("Handling non-retryable issue detected for job %s run %s", issue.RunIssue.JobId, issue.RunIssue.RunId)
 		podIssue := issue.RunIssue.PodIssue
 
-		failedEvent, err := reporter.CreateSimpleJobFailedEvent(podIssue.OriginalPodState, podIssue.Message, podIssue.DebugMessage, p.clusterContext.GetClusterId(), podIssue.Cause)
+		failureInfo := util.ExtractFailureInfo(podIssue.OriginalPodState, podIssue.Retryable, podIssue.Message, p.classifier.Classify(podIssue.OriginalPodState))
+
+		failedEvent, err := reporter.CreateSimpleJobFailedEvent(podIssue.OriginalPodState, podIssue.Message, podIssue.DebugMessage, p.clusterContext.GetClusterId(), podIssue.Cause, failureInfo)
 		if err != nil {
 			log.Errorf("Failed to create failed event for job %s because %s", issue.RunIssue.JobId, err)
 			return
