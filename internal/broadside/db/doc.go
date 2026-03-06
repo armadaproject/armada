@@ -85,6 +85,15 @@ Three implementations are provided:
     applying schema migrations, InitialiseSchema executes any Postgres tuning SQL
     statements supplied via configuration. TearDown reverts tuning settings by
     executing any Postgres tuning revert SQL statements, then truncates all tables.
+    When the HotColdSplit feature toggle is enabled, InitialiseSchema additionally
+    applies the hot/cold split migration (sql/hotcold_up.sql), which creates the
+    job_historical table, moves existing terminal rows from job into it, adds a
+    CHECK constraint to job restricting it to active states, and creates the
+    job_all UNION ALL view. TearDown reverts the migration (sql/hotcold_down.sql)
+    after truncation. During ingestion, terminal jobs are atomically moved from job
+    to job_historical via a DELETE … RETURNING CTE (sql/move_terminal_jobs.sql)
+    after each batch's UpdateJobs phase completes. Historical job population writes
+    directly to job_historical when the toggle is enabled.
   - ClickHouseDatabase: ClickHouse adapter (placeholder implementation)
   - MemoryDatabase: In-memory adapter for smoke-testing Broadside
 
