@@ -492,6 +492,37 @@ var JobRunFailed = &armadaevents.EventSequence_Event{
 	},
 }
 
+var JobRunFailedWithFailureInfo = &armadaevents.EventSequence_Event{
+	Created: testfixtures.BasetimeProto,
+	Event: &armadaevents.EventSequence_Event_JobRunErrors{
+		JobRunErrors: &armadaevents.JobRunErrors{
+			JobId: JobId,
+			RunId: RunId,
+			Errors: []*armadaevents.Error{
+				{
+					Terminal: true,
+					Reason: &armadaevents.Error_PodError{
+						PodError: &armadaevents.PodError{
+							Message:      ErrMsg,
+							DebugMessage: DebugMsg,
+							NodeName:     NodeName,
+							ContainerErrors: []*armadaevents.ContainerError{
+								{ExitCode: ExitCode},
+							},
+						},
+					},
+					FailureInfo: &armadaevents.FailureInfo{
+						ExitCode:           ExitCode,
+						Condition:          armadaevents.FailureCondition_FAILURE_CONDITION_OOM_KILLED,
+						TerminationMessage: "OOM killed by kernel",
+						Categories:         []string{"RESOURCE_LIMIT", "MEMORY"},
+					},
+				},
+			},
+		},
+	},
+}
+
 var JobPreempted = &armadaevents.EventSequence_Event{
 	Created: testfixtures.BasetimeProto,
 	Event: &armadaevents.EventSequence_Event_JobErrors{

@@ -7,3 +7,15 @@ metric:
 application:
   clusterId: "local-cluster"
   pool: "default"
+  errorCategories:
+    - name: oom
+      rules:
+        - onConditions: ["OOMKilled"]
+    - name: user_error
+      rules:
+        - onExitCodes:
+            operator: In
+            values: [1, 2, 126, 127]
+    - name: infra_error
+      rules:
+        - onConditions: ["Evicted"]
