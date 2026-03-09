@@ -690,7 +690,8 @@ func (l *LookoutDb) UpdateJobRunsBatch(ctx *armadacontext.Context, instructions 
 					error             bytea,
 					debug             bytea,
 				    exit_code         int,
-					ingress_addresses jsonb
+					ingress_addresses jsonb,
+					failure_info      jsonb
 				) ON COMMIT DROP;`, tmpTable))
 			if err != nil {
 				l.metrics.RecordDBError(commonmetrics.DBOperationCreateTempTable)
@@ -712,6 +713,7 @@ func (l *LookoutDb) UpdateJobRunsBatch(ctx *armadacontext.Context, instructions 
 					"debug",
 					"exit_code",
 					"ingress_addresses",
+					"failure_info",
 				},
 				pgx.CopyFromSlice(len(instructions), func(i int) ([]interface{}, error) {
 					return []interface{}{
@@ -725,6 +727,7 @@ func (l *LookoutDb) UpdateJobRunsBatch(ctx *armadacontext.Context, instructions 
 						instructions[i].Debug,
 						instructions[i].ExitCode,
 						instructions[i].IngressAddresses,
+						instructions[i].FailureInfo,
 					}, nil
 				}),
 			)
@@ -744,7 +747,8 @@ func (l *LookoutDb) UpdateJobRunsBatch(ctx *armadacontext.Context, instructions 
 						error             = coalesce(tmp.error, job_run.error),
 						debug             = coalesce(tmp.debug, job_run.debug),
 						exit_code         = coalesce(tmp.exit_code, job_run.exit_code),
-						ingress_addresses = coalesce(tmp.ingress_addresses, job_run.ingress_addresses)
+						ingress_addresses = coalesce(tmp.ingress_addresses, job_run.ingress_addresses),
+						failure_info      = coalesce(tmp.failure_info, job_run.failure_info)
 					FROM %s as tmp where tmp.run_id = job_run.run_id`, tmpTable),
 			)
 			if err != nil {
@@ -768,7 +772,8 @@ func (l *LookoutDb) UpdateJobRunsScalar(ctx *armadacontext.Context, instructions
 			exit_code         = coalesce($7, exit_code),
 			pending           = coalesce($8, pending),
 			debug         	  = coalesce($9, debug),
-			ingress_addresses = coalesce($10, ingress_addresses)
+			ingress_addresses = coalesce($10, ingress_addresses),
+			failure_info      = coalesce($11, failure_info)
 		WHERE run_id = $1`
 	for _, i := range instructions {
 		err := l.withDatabaseRetryInsert(ctx, func() error {
@@ -783,6 +788,7 @@ func (l *LookoutDb) UpdateJobRunsScalar(ctx *armadacontext.Context, instructions
 				i.Pending,
 				i.Debug,
 				i.IngressAddresses,
+				i.FailureInfo,
 			)
 			if err != nil {
 				l.metrics.RecordDBError(commonmetrics.DBOperationUpdate)
@@ -982,6 +988,9 @@ func conflateJobRunUpdates(updates []*model.UpdateJobRunInstruction) []*model.Up
 			}
 			if update.IngressAddresses != nil {
 				existing.IngressAddresses = update.IngressAddresses
+			}
+			if update.FailureInfo != nil {
+				existing.FailureInfo = update.FailureInfo
 			}
 		} else {
 			updatesById[update.RunId] = update

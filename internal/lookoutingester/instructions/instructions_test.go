@@ -153,6 +153,22 @@ var expectedPreempted = model.UpdateJobInstruction{
 	LastTransitionTimeSeconds: pointer.Int64(testfixtures.BaseTime.Unix()),
 }
 
+var expectedFailedRunWithFailureInfo = model.UpdateJobRunInstruction{
+	RunId:       testfixtures.RunId,
+	Node:        pointer.String(testfixtures.NodeName),
+	Finished:    &testfixtures.BaseTime,
+	JobRunState: pointer.Int32(lookout.JobRunFailedOrdinal),
+	Error:       []byte(testfixtures.ErrMsg),
+	Debug:       []byte(testfixtures.DebugMsg),
+	ExitCode:    pointer.Int32(testfixtures.ExitCode),
+	FailureInfo: map[string]any{
+		"condition":          "FAILURE_CONDITION_OOM_KILLED",
+		"exitCode":           int32(testfixtures.ExitCode),
+		"terminationMessage": "OOM killed by kernel",
+		"categories":         []string{"RESOURCE_LIMIT", "MEMORY"},
+	},
+}
+
 var expectedReconciliationErrRun = model.UpdateJobRunInstruction{
 	RunId:       testfixtures.RunId,
 	Finished:    &testfixtures.BaseTime,
@@ -378,6 +394,16 @@ func TestConvert(t *testing.T) {
 			},
 			expected: &model.InstructionSet{
 				JobRunsToUpdate: []*model.UpdateJobRunInstruction{&expectedFailedRun},
+				MessageIds:      []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+		},
+		"job run failed with failure info": {
+			events: &utils.EventsWithIds[*armadaevents.EventSequence]{
+				Events:     []*armadaevents.EventSequence{testfixtures.NewEventSequence(testfixtures.JobRunFailedWithFailureInfo)},
+				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+			expected: &model.InstructionSet{
+				JobRunsToUpdate: []*model.UpdateJobRunInstruction{&expectedFailedRunWithFailureInfo},
 				MessageIds:      []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 		},

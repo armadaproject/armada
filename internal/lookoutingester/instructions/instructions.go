@@ -23,14 +23,15 @@ import (
 )
 
 const (
-	maxQueueLen         = 512
-	maxOwnerLen         = 512
-	maxJobSetLen        = 1024
-	maxAnnotationKeyLen = 1024
-	maxAnnotationValLen = 1024
-	maxPriorityClassLen = 63
-	maxClusterLen       = 512
-	maxNodeLen          = 512
+	maxQueueLen              = 512
+	maxOwnerLen              = 512
+	maxJobSetLen             = 1024
+	maxAnnotationKeyLen      = 1024
+	maxAnnotationValLen      = 1024
+	maxPriorityClassLen      = 63
+	maxClusterLen            = 512
+	maxNodeLen               = 512
+	maxTerminationMessageLen = 4096
 )
 
 type HasNodeName interface {
@@ -443,6 +444,13 @@ func (c *InstructionConverter) handleJobRunErrors(ts time.Time, event *armadaeve
 			jobRunUpdate.Error = tryCompressError(event.JobId, "Unknown error", c.compressor)
 			log.Debugf("Ignoring event %T", reason)
 		}
+		// Only persist FailureInfo for terminal errors - transient failures
+		// may be retried and the final FailureInfo is the one that matters.
+		if e.Terminal {
+			if fi := e.GetFailureInfo(); fi != nil {
+				jobRunUpdate.FailureInfo = failureInfoToMap(fi)
+			}
+		}
 		update.JobRunsToUpdate = append(update.JobRunsToUpdate, jobRunUpdate)
 		break
 	}
@@ -467,6 +475,29 @@ func (c *InstructionConverter) handleStandaloneIngressInfo(event *armadaevents.S
 	}
 	update.JobRunsToUpdate = append(update.JobRunsToUpdate, &jobRun)
 	return nil
+}
+
+// failureInfoToMap converts a FailureInfo proto to a JSON-friendly map for JSONB storage.
+// Only non-zero fields are included. After a JSON round-trip through PostgreSQL,
+// numeric fields arrive as float64 - see failureInfoToSwagger for the read side.
+func failureInfoToMap(fi *armadaevents.FailureInfo) map[string]any {
+	m := make(map[string]any, 4)
+	if c := fi.GetCondition(); c != armadaevents.FailureCondition_FAILURE_CONDITION_UNSPECIFIED {
+		m["condition"] = c.String()
+	}
+	if fi.GetExitCode() != 0 {
+		m["exitCode"] = fi.GetExitCode()
+	}
+	if fi.GetTerminationMessage() != "" {
+		m["terminationMessage"] = util.Truncate(fi.GetTerminationMessage(), maxTerminationMessageLen)
+	}
+	if len(fi.GetCategories()) > 0 {
+		m["categories"] = fi.GetCategories()
+	}
+	if len(m) == 0 {
+		return nil
+	}
+	return m
 }
 
 func tryCompressError(jobId string, errorString string, compressor compress.Compressor) []byte {

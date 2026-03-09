@@ -60,6 +60,7 @@ func ToSwaggerRun(run *model.Run) *models.Run {
 		RunID:            run.RunId,
 		Started:          PostgreSQLTimeToSwaggerTime(run.Started),
 		IngressAddresses: ingressAddressesToSwagger(run.IngressAddresses),
+		FailureInfo:      failureInfoToSwagger(run.FailureInfo),
 	}
 }
 
@@ -120,6 +121,37 @@ func PostgreSQLTimeToSwaggerTime(t *model.PostgreSQLTime) *strfmt.DateTime {
 	}
 	s := strfmt.DateTime(t.Time)
 	return &s
+}
+
+func failureInfoToSwagger(failureInfo map[string]any) *models.RunFailureInfo {
+	if len(failureInfo) == 0 {
+		return nil
+	}
+
+	result := &models.RunFailureInfo{}
+	if condition, ok := failureInfo["condition"].(string); ok {
+		result.Condition = condition
+	}
+	// After JSON round-trip through PostgreSQL's json_agg, Go's json.Unmarshal
+	// produces float64 for numbers and []interface{} for arrays in map[string]any.
+	if v, ok := failureInfo["exitCode"].(float64); ok {
+		result.ExitCode = int32(v)
+	}
+	if msg, ok := failureInfo["terminationMessage"].(string); ok {
+		result.TerminationMessage = msg
+	}
+	if cats, ok := failureInfo["categories"].([]interface{}); ok {
+		result.Categories = make([]string, 0, len(cats))
+		for _, c := range cats {
+			if s, ok := c.(string); ok {
+				result.Categories = append(result.Categories, s)
+			}
+		}
+	}
+	if name, ok := failureInfo["containerName"].(string); ok {
+		result.ContainerName = name
+	}
+	return result
 }
 
 func ingressAddressesToSwagger(addresses map[int32]string) map[string]string {
