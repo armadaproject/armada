@@ -52,6 +52,7 @@ type HistoricalJobsConfig struct {
 	ProportionErrored   float64 `yaml:"proportionErrored"`
 	ProportionCancelled float64 `yaml:"proportionCancelled"`
 	ProportionPreempted float64 `yaml:"proportionPreempted"`
+	JobAgeDays          []int   `yaml:"jobAgeDays"`
 }
 
 type JobStateTransitionConfig struct {
