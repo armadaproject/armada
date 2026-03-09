@@ -125,6 +125,16 @@ CREATE INDEX IF NOT EXISTS idx_job_historical_ltt_jobid
 -- Step 5: create the UNION ALL view that query repositories target when the
 -- hot/cold split is enabled.
 CREATE OR REPLACE VIEW job_all AS
-    SELECT * FROM job
+    SELECT job_id, queue, owner, jobset, cpu, memory, ephemeral_storage, gpu,
+           priority, submitted, cancelled, state, last_transition_time,
+           last_transition_time_seconds, job_spec, duplicate, priority_class,
+           latest_run_id, cancel_reason, namespace, annotations,
+           external_job_uri, cancel_user
+    FROM job
     UNION ALL
-    SELECT * FROM job_historical;
+    SELECT job_id, queue, owner, jobset, cpu, memory, ephemeral_storage, gpu,
+           priority, submitted, cancelled, state, last_transition_time,
+           last_transition_time_seconds, job_spec, duplicate, priority_class,
+           latest_run_id, cancel_reason, namespace, annotations,
+           external_job_uri, cancel_user
+    FROM job_historical;

@@ -53,12 +53,19 @@ func (p *PostgresDatabase) updateAndMoveTerminalJobs(ctx context.Context, update
 
 	for i, u := range updates {
 		jobIDs[i] = u.JobId
+		if u.State == nil {
+			return fmt.Errorf("terminal job update for %s has nil state", u.JobId)
+		}
 		states[i] = int16(*u.State)
 		if u.LastTransitionTime != nil {
 			ltts[i] = *u.LastTransitionTime
+		} else {
+			return fmt.Errorf("terminal job update for %s has nil LastTransitionTime", u.JobId)
 		}
 		if u.LastTransitionTimeSeconds != nil {
 			lttSeconds[i] = *u.LastTransitionTimeSeconds
+		} else {
+			return fmt.Errorf("terminal job update for %s has nil LastTransitionTimeSeconds", u.JobId)
 		}
 		cancelled[i] = u.Cancelled
 		cancelReasons[i] = u.CancelReason

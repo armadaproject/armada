@@ -2,8 +2,8 @@
 --
 -- It removes the job_all view, drops job_historical entirely, and removes the
 -- active-state CHECK constraint from job. No data is preserved: the caller is
--- expected to truncate job_historical before running this (as TearDown does),
--- since DROP TABLE will fail if the table is non-empty and referenced by FKs.
+-- expected to truncate job_historical before running this (as TearDown does).
+-- The view must be dropped before the table because it depends on job_historical.
 --
 -- This file is embedded by internal/broadside/db/hotcold.go and executed by
 -- TearDown when the HotColdSplit feature toggle is enabled.
