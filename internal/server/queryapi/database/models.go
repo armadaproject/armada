@@ -60,6 +60,7 @@ type JobRun struct {
 	Debug            []byte           `db:"debug"`
 	Pool             *string          `db:"pool"`
 	IngressAddresses []byte           `db:"ingress_addresses"`
+	FailureInfo      []byte           `db:"failure_info"`
 }
 
 type JobSpec struct {
