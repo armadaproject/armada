@@ -202,7 +202,15 @@ jobs:
           curl -sSfL https://raw.githubusercontent.com/googleapis/googleapis/798823426715215eccca4d7e7ee4c814843045d7/google/api/http.proto \
             -o client/rust/proto/google/api/http.proto
 
+          mkdir -p client/rust/proto/pkg/api
+          cp pkg/api/submit.proto pkg/api/event.proto pkg/api/job.proto pkg/api/health.proto \
+            client/rust/proto/pkg/api/
+
       - name: Publish to crates.io
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        run: cargo publish --manifest-path client/rust/Cargo.toml --no-verify
+          TAG: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          VERSION=${TAG#v}
+          sed -i "s/^version = \".*\"/version = \"$VERSION\"/" client/rust/Cargo.toml
+          cargo publish --manifest-path client/rust/Cargo.toml --no-verify --allow-dirty
