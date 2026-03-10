@@ -194,7 +194,7 @@ func (p *PostgresDatabase) ExecuteIngestionQueryBatch(ctx context.Context, queri
 	// Phase 4 (hot/cold split only): atomically apply terminal state updates and
 	// move those jobs from job to job_historical in a single SQL statement.
 	if p.features.HotColdSplit {
-		if err := p.updateAndMoveTerminalJobs(ctx, terminalUpdates); err != nil {
+		if err := p.updateAndMoveTerminalJobs(armadaCtx, terminalUpdates); err != nil {
 			return fmt.Errorf("updating and moving terminal jobs: %w", err)
 		}
 	}
