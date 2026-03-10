@@ -125,10 +125,11 @@ impl ArmadaClient {
 
     /// Set a default timeout applied to every RPC call.
     ///
-    /// When the timeout elapses before the server responds, the call fails with
-    /// [`Error::Grpc`] wrapping a `DEADLINE_EXCEEDED` status. Note that for
-    /// streaming calls like [`ArmadaClient::watch`], the deadline is applied to
-    /// the initial connection, not to individual messages on the stream.
+    /// When the timeout elapses the call fails with [`Error::Grpc`] wrapping a
+    /// `DEADLINE_EXCEEDED` status. For streaming calls like
+    /// [`ArmadaClient::watch`], the deadline covers the **entire stream
+    /// duration** — if it elapses while events are still arriving the stream
+    /// is cancelled immediately.
     ///
     /// Returns `self` so the call can be chained directly after construction:
     ///

@@ -75,6 +75,7 @@ impl<S> JobRequestItemBuilder<S> {
     /// Job priority relative to others in the queue. Higher values are
     /// scheduled first. Must be non-negative; the server will reject negative
     /// values. Defaults to `0.0`.
+    #[must_use]
     pub fn priority(mut self, p: f64) -> Self {
         self.priority = p;
         self
@@ -84,6 +85,7 @@ impl<S> JobRequestItemBuilder<S> {
     ///
     /// Typically `"default"` unless your cluster uses a dedicated namespace
     /// for batch workloads.
+    #[must_use]
     pub fn namespace(mut self, ns: impl Into<String>) -> Self {
         self.namespace = ns.into();
         self
@@ -94,60 +96,70 @@ impl<S> JobRequestItemBuilder<S> {
     /// If the same `client_id` is submitted twice, Armada will deduplicate
     /// the request and return the existing job rather than creating a new one.
     /// Leave empty (the default) to disable deduplication.
+    #[must_use]
     pub fn client_id(mut self, id: impl Into<String>) -> Self {
         self.client_id = id.into();
         self
     }
 
     /// Replace the entire labels map.
+    #[must_use]
     pub fn labels(mut self, l: HashMap<String, String>) -> Self {
         self.labels = l;
         self
     }
 
     /// Insert a single label. Can be chained multiple times.
+    #[must_use]
     pub fn label(mut self, k: impl Into<String>, v: impl Into<String>) -> Self {
         self.labels.insert(k.into(), v.into());
         self
     }
 
     /// Replace the entire annotations map.
+    #[must_use]
     pub fn annotations(mut self, a: HashMap<String, String>) -> Self {
         self.annotations = a;
         self
     }
 
     /// Insert a single annotation. Can be chained multiple times.
+    #[must_use]
     pub fn annotation(mut self, k: impl Into<String>, v: impl Into<String>) -> Self {
         self.annotations.insert(k.into(), v.into());
         self
     }
 
     /// Override the scheduler for this job. Leave empty to use the cluster default.
+    #[must_use]
     pub fn scheduler(mut self, s: impl Into<String>) -> Self {
         self.scheduler = s.into();
         self
     }
 
     /// Replace the entire ingress config list.
+    #[must_use]
     pub fn ingress(mut self, i: Vec<IngressConfig>) -> Self {
         self.ingress = i;
         self
     }
 
     /// Append a single ingress config. Can be chained multiple times.
+    #[must_use]
     pub fn add_ingress(mut self, i: IngressConfig) -> Self {
         self.ingress.push(i);
         self
     }
 
     /// Replace the entire service config list.
+    #[must_use]
     pub fn services(mut self, s: Vec<ServiceConfig>) -> Self {
         self.services = s;
         self
     }
 
     /// Append a single service config. Can be chained multiple times.
+    #[must_use]
     pub fn add_service(mut self, s: ServiceConfig) -> Self {
         self.services.push(s);
         self
@@ -158,6 +170,7 @@ impl<S> JobRequestItemBuilder<S> {
     ///
     /// Shorthand for `.pod_specs(vec![spec])`. If called again on a
     /// `JobRequestItemBuilder<HasPodSpec>`, the previous spec is replaced.
+    #[must_use]
     pub fn pod_spec(self, spec: PodSpec) -> JobRequestItemBuilder<HasPodSpec> {
         self.pod_specs(vec![spec])
     }
@@ -167,6 +180,7 @@ impl<S> JobRequestItemBuilder<S> {
     ///
     /// If called again on a `JobRequestItemBuilder<HasPodSpec>`, the previous
     /// specs are replaced entirely.
+    #[must_use]
     pub fn pod_specs(self, specs: Vec<PodSpec>) -> JobRequestItemBuilder<HasPodSpec> {
         JobRequestItemBuilder {
             priority: self.priority,
