@@ -3,10 +3,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // source change. Restrict re-runs to changes that actually affect codegen.
     println!("cargo:rerun-if-changed=proto/");
     println!("cargo:rerun-if-changed=build.rs");
+
+    // NOTE: This probe assumes the crate lives exactly two directories below the
+    // monorepo root (i.e. <root>/client/rust/). If the crate is relocated,
+    // update these relative paths accordingly.
+    //
+    // Cached once so both the rerun-if-changed directives and the compile_protos
+    // call use the same decision, preventing a future refactor from accidentally
+    // mismatching the two branches.
+    let in_monorepo = std::path::Path::new("../../pkg/api/submit.proto").exists();
+
     // Only emit monorepo paths when they exist; cargo treats missing
     // rerun-if-changed paths as "always rerun", which would hurt consumers
     // of the published crate where ../../pkg/api/ is not present.
-    if std::path::Path::new("../../pkg/api/submit.proto").exists() {
+    if in_monorepo {
         println!("cargo:rerun-if-changed=../../pkg/api/submit.proto");
         println!("cargo:rerun-if-changed=../../pkg/api/event.proto");
         println!("cargo:rerun-if-changed=../../pkg/api/job.proto");
@@ -37,32 +47,28 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // When building inside the monorepo the protos live at ../../pkg/api/ relative
     // to this manifest. When building from a crates.io package they are vendored
     // into proto/pkg/api/ (mirroring the import paths used inside the .proto files).
-    // NOTE: This probe assumes the crate lives exactly two directories below the
-    // monorepo root (i.e. <root>/client/rust/). If the crate is relocated,
-    // update these relative paths accordingly.
-    let (armada_protos, armada_includes): (Vec<&str>, Vec<&str>) =
-        if std::path::Path::new("../../pkg/api/submit.proto").exists() {
-            (
-                vec![
-                    "../../pkg/api/submit.proto",
-                    "../../pkg/api/event.proto",
-                    "../../pkg/api/job.proto",
-                    "../../pkg/api/health.proto",
-                ],
-                vec!["../../", "proto"],
-            )
-        } else {
-            // Vendored layout used by the published crate.
-            (
-                vec![
-                    "proto/pkg/api/submit.proto",
-                    "proto/pkg/api/event.proto",
-                    "proto/pkg/api/job.proto",
-                    "proto/pkg/api/health.proto",
-                ],
-                vec!["proto"],
-            )
-        };
+    let (armada_protos, armada_includes): (Vec<&str>, Vec<&str>) = if in_monorepo {
+        (
+            vec![
+                "../../pkg/api/submit.proto",
+                "../../pkg/api/event.proto",
+                "../../pkg/api/job.proto",
+                "../../pkg/api/health.proto",
+            ],
+            vec!["../../", "proto"],
+        )
+    } else {
+        // Vendored layout used by the published crate.
+        (
+            vec![
+                "proto/pkg/api/submit.proto",
+                "proto/pkg/api/event.proto",
+                "proto/pkg/api/job.proto",
+                "proto/pkg/api/health.proto",
+            ],
+            vec!["proto"],
+        )
+    };
 
     tonic_build::configure()
         .build_server(false)

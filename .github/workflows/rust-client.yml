@@ -73,6 +73,9 @@ jobs:
       - name: Test (MSRV)
         run: cargo test --manifest-path client/rust/Cargo.toml
 
+      - name: Package (verify crate is publishable at MSRV)
+        run: cargo package --manifest-path client/rust/Cargo.toml --allow-dirty
+
   rust-client-test:
     runs-on: ubuntu-22.04
     steps:
