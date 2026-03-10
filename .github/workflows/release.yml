@@ -161,3 +161,48 @@ jobs:
         run: |
           VERSION=${TAG#v}
           dotnet nuget push ./bin/client/DotNet/ArmadaProject.Io.Client.$VERSION.nupkg -k ${{ secrets.NUGET_API_KEY }} -s https://api.nuget.org/v3/index.json
+
+  push-crate:
+    name: Push crates.io client
+    needs: validate
+    runs-on: ubuntu-22.04
+    environment: crates-release
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.workflow_run.head_branch }}
+
+      - name: Install Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          version: '23.3'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Fetch proto dependencies
+        run: |
+          mkdir -p client/rust/proto/k8s.io/api client/rust/proto/k8s.io/apimachinery client/rust/proto/google/api
+
+          git clone --depth=1 --filter=blob:none --sparse --branch v0.32.0 \
+            https://github.com/kubernetes/api.git /tmp/k8s-api
+          git -C /tmp/k8s-api sparse-checkout set core/v1 networking/v1
+          cp -r /tmp/k8s-api/core client/rust/proto/k8s.io/api/
+          cp -r /tmp/k8s-api/networking client/rust/proto/k8s.io/api/
+
+          git clone --depth=1 --filter=blob:none --sparse --branch v0.32.0 \
+            https://github.com/kubernetes/apimachinery.git /tmp/k8s-apimachinery
+          git -C /tmp/k8s-apimachinery sparse-checkout set pkg/api/resource pkg/apis/meta/v1 pkg/runtime pkg/util/intstr
+          cp -r /tmp/k8s-apimachinery/pkg client/rust/proto/k8s.io/apimachinery/
+
+          curl -sSfL https://raw.githubusercontent.com/googleapis/googleapis/798823426715215eccca4d7e7ee4c814843045d7/google/api/annotations.proto \
+            -o client/rust/proto/google/api/annotations.proto
+          curl -sSfL https://raw.githubusercontent.com/googleapis/googleapis/798823426715215eccca4d7e7ee4c814843045d7/google/api/http.proto \
+            -o client/rust/proto/google/api/http.proto
+
+      - name: Publish to crates.io
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish --manifest-path client/rust/Cargo.toml --no-verify

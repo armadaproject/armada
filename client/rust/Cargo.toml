@@ -5,7 +5,11 @@ edition = "2024"
 rust-version = "1.85"
 description = "Rust client for the Armada batch job scheduler"
 license = "Apache-2.0"
-publish = false
+repository = "https://github.com/armadaproject/armada"
+homepage = "https://armadaproject.io"
+documentation = "https://docs.rs/armada-client"
+keywords = ["armada", "kubernetes", "batch", "jobs", "grpc"]
+categories = ["api-bindings"]
 
 [lib]
 name = "armada_client"
