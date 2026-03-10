@@ -45,7 +45,7 @@ pub enum Error {
     /// - `PERMISSION_DENIED` — the bearer token lacks the required privileges.
     /// - `INVALID_ARGUMENT` — the request payload was rejected by the server.
     #[error("gRPC error: {0}")]
-    Grpc(Box<tonic::Status>),
+    Grpc(#[source] Box<tonic::Status>),
 
     /// Returned by custom [`crate::auth::TokenProvider`] implementations
     /// to signal that token retrieval failed.

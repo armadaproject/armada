@@ -206,6 +206,7 @@ impl JobRequestItemBuilder<HasPodSpec> {
     /// [`.pod_spec()`](JobRequestItemBuilder::pod_spec) or
     /// [`.pod_specs()`](JobRequestItemBuilder::pod_specs). Calling `.build()`
     /// on a `JobRequestItemBuilder<NoPodSpec>` is a **compile-time error**.
+    #[must_use]
     pub fn build(self) -> JobSubmitRequestItem {
         #[allow(deprecated)]
         JobSubmitRequestItem {
