@@ -100,6 +100,7 @@ uiConfig:
           plausible.init({
           endpoint: "https://analytics.yourdomain.com/api/event",
           });
+```
 
 Follow [Plausible docs](https://plausible.io/docs) on how to run and set up an instance of Plausible Community Edition. Details to get the snippet with the `<script>` tags are [here](https://plausible.io/docs/plausible-script).
 

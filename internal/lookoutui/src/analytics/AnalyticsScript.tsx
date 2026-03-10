@@ -51,6 +51,12 @@ export const AnalyticsScript = ({ config, onReady }: AnalyticsScriptProps) => {
         })
       })
 
+    Promise.allSettled(loadPromises).then(() => {
+      if (!cancelled) {
+        onReady()
+      }
+    })
+
     // Cleanup function to remove scripts when component unmounts
     return () => {
       cancelled = true
