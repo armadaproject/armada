@@ -325,7 +325,7 @@ println!("{p:?}");  // StaticTokenProvider { token: "[redacted]" }
 | Variant | Cause |
 |---------|-------|
 | `Transport(tonic::transport::Error)` | TCP/TLS connection failure |
-| `Grpc(tonic::Status)` | Server returned a non-OK gRPC status |
+| `Grpc(Box<tonic::Status>)` | Server returned a non-OK gRPC status |
 | `Auth(String)` | Token provider returned an error |
 | `InvalidUri(String)` | Malformed endpoint string |
 | `InvalidMetadata(…)` | Token contains characters invalid in HTTP headers |

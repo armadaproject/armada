@@ -5,6 +5,7 @@ edition = "2024"
 rust-version = "1.85"
 description = "Rust client for the Armada batch job scheduler"
 license = "Apache-2.0"
+publish = false
 
 [lib]
 name = "armada_client"

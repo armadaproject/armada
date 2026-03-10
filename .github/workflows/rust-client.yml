@@ -26,6 +26,17 @@ jobs:
       - name: Install Rust (MSRV 1.85)
         uses: dtolnay/rust-toolchain@1.85
 
+      - name: Cache cargo registry and build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            client/rust/target
+          key: ${{ runner.os }}-cargo-msrv-${{ hashFiles('client/rust/Cargo.toml', 'client/rust/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-msrv-
+
       - name: Install protoc
         uses: arduino/setup-protoc@v3
         with:
