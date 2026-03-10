@@ -78,4 +78,4 @@ jobs:
         run: cargo test --manifest-path client/rust/Cargo.toml
 
       - name: Clippy
-        run: cargo clippy --manifest-path client/rust/Cargo.toml -- -D warnings
+        run: cargo clippy --manifest-path client/rust/Cargo.toml --all-targets -- -D warnings

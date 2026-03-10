@@ -263,8 +263,10 @@ impl ArmadaClient {
     ///
     /// - [`Error::Auth`] if the token provider fails.
     /// - [`Error::InvalidMetadata`] if the token contains invalid header characters.
-    /// - [`Error::Grpc`] immediately if the job set does not exist on the server,
-    ///   or if the server returns a non-OK status on the initial call.
+    /// - [`Error::Grpc`] if the server returns a non-OK status on the initial call.
+    ///   The stream will not error simply because the job set does not exist yet —
+    ///   it will wait for events, which avoids races when `watch` is called
+    ///   immediately after `submit`.
     /// - Individual stream items may also be [`Err(Error::Grpc)`] if the server
     ///   sends a trailing error status.
     #[instrument(skip_all, fields(queue, job_set_id))]
@@ -285,8 +287,12 @@ impl ArmadaClient {
             id: job_set_id,
             queue,
             from_message_id: from_message_id.unwrap_or_default(),
+            // Keep the stream open for new events.
             watch: true,
-            error_if_missing: true,
+            // Do not fail immediately if the job set does not exist yet — this
+            // avoids a race between submit() and watch() where the server has
+            // not yet created the job set by the time the watch RPC arrives.
+            error_if_missing: false,
         };
         let mut req = tonic::Request::new(job_set_request);
         if !token.is_empty() {

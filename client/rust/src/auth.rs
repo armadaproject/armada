@@ -107,13 +107,19 @@ impl StaticTokenProvider {
     ///
     /// let provider = StaticTokenProvider::new("my-bearer-token");
     /// let same     = StaticTokenProvider::new("Bearer my-bearer-token"); // identical result
+    /// let also     = StaticTokenProvider::new("bearer my-bearer-token"); // also identical
     /// let empty    = StaticTokenProvider::new("");   // unauthenticated
     /// ```
     pub fn new(token: impl Into<String>) -> Self {
         let token = token.into();
-        // Strip any pre-existing "Bearer " prefix so callers who copy-paste a
-        // full header value don't accidentally produce "Bearer Bearer <token>".
-        let raw = token.strip_prefix("Bearer ").unwrap_or(&token);
+        // Strip any pre-existing "Bearer " prefix (case-insensitive) so callers
+        // who copy-paste a full header value don't accidentally produce
+        // "Bearer Bearer <token>" or "Bearer bearer <token>".
+        let raw = if token.len() >= 7 && token[..7].eq_ignore_ascii_case("bearer ") {
+            &token[7..]
+        } else {
+            &token
+        };
         Self {
             token: if raw.is_empty() {
                 raw.to_string()
@@ -185,10 +191,31 @@ impl TokenProvider for BasicAuthProvider {
 mod tests {
     use super::*;
 
+    #[test]
+    fn static_provider_debug_redacts_token() {
+        let p = StaticTokenProvider::new("super-secret");
+        assert_eq!(
+            format!("{p:?}"),
+            "StaticTokenProvider { token: \"[redacted]\" }"
+        );
+    }
+
     #[tokio::test]
     async fn static_provider_returns_bearer_header() {
         let provider = StaticTokenProvider::new("tok");
         assert_eq!(provider.token().await.unwrap(), "Bearer tok");
+    }
+
+    #[tokio::test]
+    async fn static_provider_strips_bearer_prefix_case_insensitive() {
+        for prefix in &["Bearer ", "bearer ", "BEARER "] {
+            let provider = StaticTokenProvider::new(format!("{prefix}tok"));
+            assert_eq!(
+                provider.token().await.unwrap(),
+                "Bearer tok",
+                "failed for prefix {prefix:?}"
+            );
+        }
     }
 
     #[tokio::test]
