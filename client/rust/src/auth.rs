@@ -115,7 +115,10 @@ impl StaticTokenProvider {
         // Strip any pre-existing "Bearer " prefix (case-insensitive) so callers
         // who copy-paste a full header value don't accidentally produce
         // "Bearer Bearer <token>" or "Bearer bearer <token>".
-        let raw = if token.len() >= 7 && token[..7].eq_ignore_ascii_case("bearer ") {
+        let raw = if token
+            .get(..7)
+            .is_some_and(|s| s.eq_ignore_ascii_case("bearer "))
+        {
             &token[7..]
         } else {
             &token
