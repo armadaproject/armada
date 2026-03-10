@@ -12,13 +12,13 @@ Provides two operations:
 
 | Tool | Purpose | Install |
 |------|---------|---------|
-| Rust ≥ 1.75 | Build toolchain | `curl https://sh.rustup.rs \| sh` |
+| Rust ≥ 1.85 | Build toolchain | `curl https://sh.rustup.rs \| sh` |
 | `protoc` | Proto code generation at build time | `brew install protobuf` (macOS) / `apt install protobuf-compiler` (Linux) |
 
 Verify both are available:
 
 ```bash
-rustc --version   # rustc 1.75.0 or newer
+rustc --version   # rustc 1.85.0 or newer
 protoc --version  # libprotoc 23.x or newer
 ```
 
@@ -51,8 +51,10 @@ cargo test --manifest-path client/rust/Cargo.toml
 Expected output:
 
 ```
-running 10 tests
-test auth::tests::static_provider_returns_token ... ok
+running 12 tests
+test auth::tests::basic_provider_returns_basic_header ... ok
+test auth::tests::static_provider_empty_token_returns_empty ... ok
+test auth::tests::static_provider_returns_bearer_header ... ok
 test builder::tests::builder_with_pod_specs_builds_correctly ... ok
 test builder::tests::label_and_annotation_helpers ... ok
 test builder::tests::optional_fields_default_to_empty ... ok
@@ -63,7 +65,7 @@ test error::tests::from_invalid_metadata ... ok
 test error::tests::from_status ... ok
 test error::tests::invalid_uri_holds_message ... ok
 
-test result: ok. 10 passed; 0 failed
+test result: ok. 12 passed; 0 failed
 ```
 
 Doc-tests are disabled (`doctest = false`) because the vendored k8s and google API proto files contain Go/YAML syntax in their doc comments that is not valid Rust.

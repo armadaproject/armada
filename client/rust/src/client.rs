@@ -59,8 +59,11 @@ use crate::error::Error;
 /// # Timeouts
 ///
 /// Apply a per-call deadline with [`ArmadaClient::with_timeout`]. When set,
-/// every RPC (submit *and* watch) will fail with a `DEADLINE_EXCEEDED` status
-/// if the server has not responded within the given duration.
+/// every RPC is governed by the deadline for its **entire duration**. For
+/// unary calls (`submit`) the deadline covers the round-trip. For streaming
+/// calls (`watch`) it covers the full lifetime of the stream — if the timeout
+/// elapses while events are still being received the stream is cancelled with
+/// a `DEADLINE_EXCEEDED` status.
 #[derive(Clone)]
 pub struct ArmadaClient {
     submit_client: SubmitClient<Channel>,

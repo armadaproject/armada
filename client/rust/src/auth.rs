@@ -94,23 +94,31 @@ impl std::fmt::Debug for StaticTokenProvider {
 }
 
 impl StaticTokenProvider {
-    /// Create a new `StaticTokenProvider` from any string-like value.
+    /// Create a new `StaticTokenProvider` from a raw bearer token string.
     ///
-    /// Pass an empty string for unauthenticated clusters:
+    /// Pass the raw token value **without** the `"Bearer "` scheme prefix —
+    /// the prefix is added automatically. If the value already starts with
+    /// `"Bearer "` (e.g. copied from an HTTP header) it is stripped first so
+    /// the header is never double-prefixed. Pass an empty string for
+    /// unauthenticated clusters:
     ///
     /// ```
     /// use armada_client::StaticTokenProvider;
     ///
     /// let provider = StaticTokenProvider::new("my-bearer-token");
+    /// let same     = StaticTokenProvider::new("Bearer my-bearer-token"); // identical result
     /// let empty    = StaticTokenProvider::new("");   // unauthenticated
     /// ```
     pub fn new(token: impl Into<String>) -> Self {
         let token = token.into();
+        // Strip any pre-existing "Bearer " prefix so callers who copy-paste a
+        // full header value don't accidentally produce "Bearer Bearer <token>".
+        let raw = token.strip_prefix("Bearer ").unwrap_or(&token);
         Self {
-            token: if token.is_empty() {
-                token
+            token: if raw.is_empty() {
+                raw.to_string()
             } else {
-                format!("Bearer {token}")
+                format!("Bearer {raw}")
             },
         }
     }
