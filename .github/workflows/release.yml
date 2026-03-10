@@ -217,5 +217,9 @@ jobs:
             echo "::error::TAG is empty or not set; cannot determine crate version"
             exit 1
           fi
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-patch[0-9]+)?$ ]]; then
+            echo "::error::Derived VERSION '$VERSION' is not a valid semver string"
+            exit 1
+          fi
           sed -i "s/^version = \".*\"/version = \"$VERSION\"/" client/rust/Cargo.toml
           cargo publish --manifest-path client/rust/Cargo.toml --allow-dirty

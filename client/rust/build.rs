@@ -37,6 +37,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // When building inside the monorepo the protos live at ../../pkg/api/ relative
     // to this manifest. When building from a crates.io package they are vendored
     // into proto/pkg/api/ (mirroring the import paths used inside the .proto files).
+    // NOTE: This probe assumes the crate lives exactly two directories below the
+    // monorepo root (i.e. <root>/client/rust/). If the crate is relocated,
+    // update these relative paths accordingly.
     let (armada_protos, armada_includes): (Vec<&str>, Vec<&str>) =
         if std::path::Path::new("../../pkg/api/submit.proto").exists() {
             (
