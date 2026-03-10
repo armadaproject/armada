@@ -213,5 +213,9 @@ jobs:
           TAG: ${{ github.event.workflow_run.head_branch }}
         run: |
           VERSION=${TAG#v}
+          if [[ -z "$VERSION" ]]; then
+            echo "::error::TAG is empty or not set; cannot determine crate version"
+            exit 1
+          fi
           sed -i "s/^version = \".*\"/version = \"$VERSION\"/" client/rust/Cargo.toml
           cargo publish --manifest-path client/rust/Cargo.toml --allow-dirty
