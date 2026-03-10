@@ -70,6 +70,7 @@ export enum StandardColumnId {
   Pool = "pool",
   ExitCode = "exitCode",
   RuntimeSeconds = "runtimeSeconds",
+  ErrorCategories = "errorCategories",
 }
 
 export type LookoutColumnOrder = {
@@ -121,6 +122,7 @@ export const PREREQUISITE_FILTER_COLUMNS: Record<StandardColumnId, StandardColum
   [StandardColumnId.Pool]: [],
   [StandardColumnId.ExitCode]: [],
   [StandardColumnId.RuntimeSeconds]: [],
+  [StandardColumnId.ErrorCategories]: [],
 }
 
 export const STANDARD_COLUMN_DISPLAY_NAMES: Record<StandardColumnId, string> = {
@@ -147,6 +149,7 @@ export const STANDARD_COLUMN_DISPLAY_NAMES: Record<StandardColumnId, string> = {
   [StandardColumnId.Pool]: "Pool",
   [StandardColumnId.ExitCode]: "Exit Code",
   [StandardColumnId.RuntimeSeconds]: "Runtime",
+  [StandardColumnId.ErrorCategories]: "Error Categories",
 }
 
 const columnHelper = createColumnHelper<JobTableRow>()
@@ -186,6 +189,8 @@ export interface JobColumnsOptions {
   displayedTimeZoneName: string
   formatNumber: (n: number) => string
 }
+
+export const getLastRunCategories = (row: JobTableRow): string[] => row.runs?.at(-1)?.failureInfo?.categories ?? []
 
 // Columns will appear in this order by default
 export const GET_JOB_COLUMNS = ({
@@ -572,6 +577,22 @@ export const GET_JOB_COLUMNS = ({
           : null,
     },
   }),
+  accessorColumn({
+    id: StandardColumnId.ErrorCategories,
+    accessor: (jobTableRow) => {
+      const cats = getLastRunCategories(jobTableRow)
+      return cats.length === 0 ? "" : cats.join(", ")
+    },
+    displayName: STANDARD_COLUMN_DISPLAY_NAMES[StandardColumnId.ErrorCategories],
+    additionalOptions: {
+      size: 200,
+      enableColumnFilter: true,
+    },
+    additionalMetadata: {
+      filterType: FilterType.Text,
+      defaultMatchType: Match.Contains,
+    },
+  }),
 ]
 
 export const DEFAULT_COLUMNS_TO_DISPLAY: Set<ColumnId> = new Set([
@@ -624,6 +645,10 @@ export const INPUT_PARSERS: Record<ParseType, (val: string) => number | string |
 
 export const TIME_RANGE_FILTER_COLUMNS: Set<StandardColumnId> = new Set([StandardColumnId.TimeSubmittedUtc])
 
+// Columns that are filtered client-side only (not sent to the API).
+// Used when the backend does not yet support filtering on these fields.
+export const CLIENT_SIDE_FILTER_COLUMNS: Set<StandardColumnId> = new Set([StandardColumnId.ErrorCategories])
+
 export const DEFAULT_COLUMN_MATCHES: Record<string, Match> = {
   [StandardColumnId.Queue]: Match.AnyOf,
   [StandardColumnId.JobSet]: Match.StartsWith,
@@ -640,6 +665,7 @@ export const DEFAULT_COLUMN_MATCHES: Record<string, Match> = {
   [StandardColumnId.Cluster]: Match.Exact,
   [StandardColumnId.Pool]: Match.Exact,
   [StandardColumnId.Node]: Match.Exact,
+  [StandardColumnId.ErrorCategories]: Match.Contains,
 }
 
 export const VALID_COLUMN_MATCHES: Record<string, Match[]> = {
@@ -688,6 +714,7 @@ export const VALID_COLUMN_MATCHES: Record<string, Match[]> = {
   [StandardColumnId.Cluster]: [Match.Exact],
   [StandardColumnId.Pool]: [Match.Exact],
   [StandardColumnId.Node]: [Match.Exact],
+  [StandardColumnId.ErrorCategories]: [Match.Exact, Match.Contains],
   [ANNOTATION_COLUMN_PREFIX]: [Match.Exact, Match.StartsWith, Match.Contains],
 }
 

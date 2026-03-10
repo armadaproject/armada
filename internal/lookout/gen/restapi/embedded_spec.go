@@ -774,10 +774,6 @@ func init() {
               },
               "x-omitempty": true
             },
-            "condition": {
-              "description": "Failure condition derived from Kubernetes pod status. One of: FAILURE_CONDITION_PREEMPTED, FAILURE_CONDITION_EVICTED, FAILURE_CONDITION_OOM_KILLED, FAILURE_CONDITION_DEADLINE_EXCEEDED, FAILURE_CONDITION_USER_ERROR.\n",
-              "type": "string"
-            },
             "containerName": {
               "type": "string"
             },
@@ -1384,10 +1380,6 @@ func init() {
           },
           "x-omitempty": true
         },
-        "condition": {
-          "description": "Failure condition derived from Kubernetes pod status. One of: FAILURE_CONDITION_PREEMPTED, FAILURE_CONDITION_EVICTED, FAILURE_CONDITION_OOM_KILLED, FAILURE_CONDITION_DEADLINE_EXCEEDED, FAILURE_CONDITION_USER_ERROR.\n",
-          "type": "string"
-        },
         "containerName": {
           "type": "string"
         },
@@ -1687,10 +1679,6 @@ func init() {
                 "type": "string"
               },
               "x-omitempty": true
-            },
-            "condition": {
-              "description": "Failure condition derived from Kubernetes pod status. One of: FAILURE_CONDITION_PREEMPTED, FAILURE_CONDITION_EVICTED, FAILURE_CONDITION_OOM_KILLED, FAILURE_CONDITION_DEADLINE_EXCEEDED, FAILURE_CONDITION_USER_ERROR.\n",
-              "type": "string"
             },
             "containerName": {
               "type": "string"

@@ -355,10 +355,6 @@ type RunFailureInfo struct {
 	// categories
 	Categories []string `json:"categories,omitempty"`
 
-	// Failure condition derived from Kubernetes pod status. One of: FAILURE_CONDITION_PREEMPTED, FAILURE_CONDITION_EVICTED, FAILURE_CONDITION_OOM_KILLED, FAILURE_CONDITION_DEADLINE_EXCEEDED, FAILURE_CONDITION_USER_ERROR.
-	//
-	Condition string `json:"condition,omitempty"`
-
 	// container name
 	ContainerName string `json:"containerName,omitempty"`
 
