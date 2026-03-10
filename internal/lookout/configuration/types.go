@@ -144,7 +144,25 @@ type JobLinkConfig struct {
 	LinkTemplate string `json:"linkTemplate"`
 }
 
-// UIConfig must match the LookoutUiConfig TypeScript interface defined in internal/lookoutui/src/lookoutUiConfig.d.ts
+type ScriptTag struct {
+	Content    string            `json:"content,omitempty"`
+	Attributes map[string]string `json:"attributes,omitempty"`
+}
+
+type UserIdentify struct {
+	TrackUsers    bool   `json:"trackUsers"`
+	IdentifyParam string `json:"identifyParam,omitempty"`
+}
+
+type AnalyticsConfig struct {
+	Scripts             []ScriptTag   `json:"scripts"`
+	Provider            string        `json:"provider"`
+	UserIdentify        *UserIdentify `json:"userIdentify,omitempty"`
+	CustomEventFunction string        `json:"customEventFunction,omitempty"`
+	DataWrapper         string        `json:"dataWrapper,omitempty"`
+}
+
+// UIConfig must match the LookoutUiConfig TypeScript interface defined in internal/lookoutui/src/config/types.ts
 type UIConfig struct {
 	CustomTitle string `json:"customTitle"`
 
@@ -177,4 +195,7 @@ type UIConfig struct {
 	JobLinks []JobLinkConfig `json:"jobLinks"`
 
 	CustomThemeConfigs *CustomThemeConfigs `json:"customThemeConfigs,omitempty"`
+
+	// Analytics is an optional analytics configuration
+	Analytics *AnalyticsConfig `json:"analytics,omitempty"`
 }
