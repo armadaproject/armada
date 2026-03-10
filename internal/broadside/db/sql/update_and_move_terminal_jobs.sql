@@ -43,7 +43,7 @@ moved AS (
         u.new_ltt_seconds                                      AS last_transition_time_seconds,
         j.job_spec, j.duplicate, j.priority_class, j.latest_run_id,
         COALESCE(u.new_cancel_reason, j.cancel_reason)         AS cancel_reason,
-        j.namespace, j.annotations, j.external_job_uri,
+        j.namespace, COALESCE(j.annotations, '{}'::jsonb) AS annotations, j.external_job_uri,
         COALESCE(u.new_cancel_user, j.cancel_user)             AS cancel_user
 )
 INSERT INTO job_historical (
