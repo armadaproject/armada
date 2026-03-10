@@ -2,7 +2,7 @@ export const ANALYTICS_EVENTS = {
   CANCEL_JOBS_CLICKED: "Cancel Jobs Clicked",
   PREEMPT_JOBS_CLICKED: "Preempt Jobs Clicked",
   REPRIORITIZE_JOBS_CLICKED: "Reprioritize Jobs Clicked",
-  SIDEBAR_TAB_VIEW: "Sidebar Tab View",
+  SIDEBAR_TAB_CLICKED: "Sidebar Tab Clicked",
   DOWNLOAD_LOGS_CLICKED: "Download Logs Clicked",
   MARK_NODE_UNSCHEDULABLE_CONFIRMED: "Mark Node Unschedulable Confirmed",
   CANCEL_JOB_SETS_CLICKED: "Cancel Job Sets Clicked",

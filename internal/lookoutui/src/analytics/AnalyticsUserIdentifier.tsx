@@ -30,7 +30,6 @@ export const AnalyticsUserIdentifier = ({ analyticsConfig, providerReady }: Anal
       const identifyParam = analyticsConfig.userIdentify!.identifyParam
       const userId = user.profile.sub
 
-      // Only identify if the user has changed or hasn't been identified yet
       if (identifiedUserId.current === userId) {
         return
       }

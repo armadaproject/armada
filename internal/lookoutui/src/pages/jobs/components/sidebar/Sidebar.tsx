@@ -254,14 +254,14 @@ export const Sidebar = memo(({ job, sidebarWidth, onClose, onWidthChange, comman
                       component={StyledSidebarTab}
                       label="Details"
                       value={SidebarTab.JobDetails}
-                      eventName={ANALYTICS_EVENTS.SIDEBAR_TAB_VIEW}
+                      eventName={ANALYTICS_EVENTS.SIDEBAR_TAB_CLICKED}
                       eventData={{ tab: "Details", jobState: job.state }}
                     />
                     <Analytics
                       component={StyledSidebarTab}
                       label="Result"
                       value={SidebarTab.JobResult}
-                      eventName={ANALYTICS_EVENTS.SIDEBAR_TAB_VIEW}
+                      eventName={ANALYTICS_EVENTS.SIDEBAR_TAB_CLICKED}
                       eventData={{ tab: "Result", jobState: job.state }}
                     />
                     {job.state === JobState.Queued && (
@@ -269,7 +269,7 @@ export const Sidebar = memo(({ job, sidebarWidth, onClose, onWidthChange, comman
                         component={StyledSidebarTab}
                         label="Scheduling"
                         value={SidebarTab.Scheduling}
-                        eventName={ANALYTICS_EVENTS.SIDEBAR_TAB_VIEW}
+                        eventName={ANALYTICS_EVENTS.SIDEBAR_TAB_CLICKED}
                         eventData={{ tab: "Scheduling", jobState: job.state }}
                       />
                     )}
@@ -277,7 +277,7 @@ export const Sidebar = memo(({ job, sidebarWidth, onClose, onWidthChange, comman
                       component={StyledSidebarTab}
                       label="YAML"
                       value={SidebarTab.Yaml}
-                      eventName={ANALYTICS_EVENTS.SIDEBAR_TAB_VIEW}
+                      eventName={ANALYTICS_EVENTS.SIDEBAR_TAB_CLICKED}
                       eventData={{ tab: "YAML", jobState: job.state }}
                     />
                     <Analytics
@@ -285,7 +285,7 @@ export const Sidebar = memo(({ job, sidebarWidth, onClose, onWidthChange, comman
                       label="Logs"
                       value={SidebarTab.Logs}
                       disabled={job.state === JobState.Queued}
-                      eventName={ANALYTICS_EVENTS.SIDEBAR_TAB_VIEW}
+                      eventName={ANALYTICS_EVENTS.SIDEBAR_TAB_CLICKED}
                       eventData={{ tab: "Logs", jobState: job.state }}
                     />
                     <Analytics
@@ -293,7 +293,7 @@ export const Sidebar = memo(({ job, sidebarWidth, onClose, onWidthChange, comman
                       label="Commands"
                       value={SidebarTab.Commands}
                       disabled={job.state === JobState.Queued}
-                      eventName={ANALYTICS_EVENTS.SIDEBAR_TAB_VIEW}
+                      eventName={ANALYTICS_EVENTS.SIDEBAR_TAB_CLICKED}
                       eventData={{ tab: "Commands", jobState: job.state }}
                     />
                   </SidebarTabs>

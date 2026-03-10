@@ -55,10 +55,16 @@ export const Analytics = forwardRef(
         if (analyticsConfig.dataWrapper && eventData) {
           dataToSend = { [analyticsConfig.dataWrapper]: eventData }
         }
-        if (typeof analyticsProvider === "function") {
-          analyticsProvider(eventName, dataToSend)
-        } else if (typeof analyticsProvider === "object" && typeof analyticsProvider[trackFunction] === "function") {
-          analyticsProvider[trackFunction](eventName, dataToSend)
+
+        try {
+          if (typeof analyticsProvider === "function") {
+            analyticsProvider(eventName, dataToSend)
+          } else if (typeof analyticsProvider === "object" && typeof analyticsProvider[trackFunction] === "function") {
+            analyticsProvider[trackFunction](eventName, dataToSend)
+          }
+        } catch (e) {
+          // eslint-disable-next-line no-console
+          console.error("Analytics provider error:", e)
         }
       }
 
