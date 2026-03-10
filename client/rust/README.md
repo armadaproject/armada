@@ -50,9 +50,9 @@ git -C /tmp/k8s-apimachinery sparse-checkout set pkg/api/resource pkg/apis/meta/
 cp -r /tmp/k8s-apimachinery/pkg client/rust/proto/k8s.io/apimachinery/
 
 # google/api annotations
-curl -sSfL https://raw.githubusercontent.com/googleapis/googleapis/master/google/api/annotations.proto \
+curl -sSfL https://raw.githubusercontent.com/googleapis/googleapis/798823426715215eccca4d7e7ee4c814843045d7/google/api/annotations.proto \
   -o client/rust/proto/google/api/annotations.proto
-curl -sSfL https://raw.githubusercontent.com/googleapis/googleapis/master/google/api/http.proto \
+curl -sSfL https://raw.githubusercontent.com/googleapis/googleapis/798823426715215eccca4d7e7ee4c814843045d7/google/api/http.proto \
   -o client/rust/proto/google/api/http.proto
 ```
 
