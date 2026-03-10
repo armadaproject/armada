@@ -47,7 +47,10 @@ export const AnalyticsUserIdentifier = ({ analyticsConfig, providerReady }: Anal
       }
     }
 
-    identifyUser()
+    identifyUser().catch((e) => {
+      // eslint-disable-next-line no-console
+      console.error("Analytics user identification error:", e)
+    })
   }, [analyticsConfig, userManager, providerReady])
 
   return null
