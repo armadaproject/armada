@@ -41,6 +41,7 @@ type HistoricalJobsParams struct {
 	SucceededThreshold int
 	ErroredThreshold   int
 	CancelledThreshold int
+	JobAgeDays         []int
 	JobSpecBytes       []byte
 	ErrorBytes         []byte
 	DebugBytes         []byte
@@ -57,8 +58,6 @@ func JobIDFromQuery(q IngestionQuery) string {
 	switch v := q.(type) {
 	case InsertJob:
 		return v.Job.JobID
-	case InsertJobSpec:
-		return v.JobID
 	case UpdateJobPriority:
 		return v.JobID
 	case SetJobCancelled:
@@ -106,7 +105,8 @@ func jobIDFromRunID(runID string) string {
 }
 
 type InsertJob struct {
-	Job *NewJob
+	Job     *NewJob
+	JobSpec []byte
 }
 
 func (InsertJob) isIngestionQuery() {}
@@ -126,13 +126,6 @@ type NewJob struct {
 	Gpu              int64
 	Annotations      map[string]string
 }
-
-type InsertJobSpec struct {
-	JobID   string
-	JobSpec string
-}
-
-func (InsertJobSpec) isIngestionQuery() {}
 
 type UpdateJobPriority struct {
 	JobID    string

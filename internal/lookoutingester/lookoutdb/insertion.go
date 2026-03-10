@@ -193,7 +193,7 @@ func (l *LookoutDb) CreateJobErrors(ctx *armadacontext.Context, instructions []*
 }
 
 func (l *LookoutDb) CreateJobsBatch(ctx *armadacontext.Context, instructions []*model.CreateJobInstruction) error {
-	return l.withDatabaseRetryInsert(func() error {
+	return l.withDatabaseRetryInsert(ctx, func() error {
 		tmpTable := "job_create_tmp"
 
 		createTmp := func(tx pgx.Tx) error {
@@ -330,7 +330,7 @@ func (l *LookoutDb) CreateJobsScalar(ctx *armadacontext.Context, instructions []
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
 		ON CONFLICT DO NOTHING`
 	for _, i := range instructions {
-		err := l.withDatabaseRetryInsert(func() error {
+		err := l.withDatabaseRetryInsert(ctx, func() error {
 			_, err := l.db.Exec(ctx, sqlStatement,
 				i.JobId,
 				i.Queue,
@@ -362,7 +362,7 @@ func (l *LookoutDb) CreateJobsScalar(ctx *armadacontext.Context, instructions []
 }
 
 func (l *LookoutDb) UpdateJobsBatch(ctx *armadacontext.Context, instructions []*model.UpdateJobInstruction) error {
-	return l.withDatabaseRetryInsert(func() error {
+	return l.withDatabaseRetryInsert(ctx, func() error {
 		tmpTable := "job_update_tmp"
 
 		createTmp := func(tx pgx.Tx) error {
@@ -458,7 +458,7 @@ func (l *LookoutDb) UpdateJobsScalar(ctx *armadacontext.Context, instructions []
 			cancel_user                  = coalesce($10, job.cancel_user)
 		WHERE job_id = $1`
 	for _, i := range instructions {
-		err := l.withDatabaseRetryInsert(func() error {
+		err := l.withDatabaseRetryInsert(ctx, func() error {
 			_, err := l.db.Exec(ctx, sqlStatement,
 				i.JobId,
 				i.Priority,
@@ -482,7 +482,7 @@ func (l *LookoutDb) UpdateJobsScalar(ctx *armadacontext.Context, instructions []
 }
 
 func (l *LookoutDb) CreateJobSpecsBatch(ctx *armadacontext.Context, instructions []*model.CreateJobInstruction) error {
-	return l.withDatabaseRetryInsert(func() error {
+	return l.withDatabaseRetryInsert(ctx, func() error {
 		tmpTable := "job_spec_create_tmp"
 
 		createTmp := func(tx pgx.Tx) error {
@@ -542,7 +542,7 @@ func (l *LookoutDb) CreateJobSpecsScalar(ctx *armadacontext.Context, instruction
 		VALUES ($1, $2)
 		ON CONFLICT DO NOTHING`
 	for _, i := range instructions {
-		err := l.withDatabaseRetryInsert(func() error {
+		err := l.withDatabaseRetryInsert(ctx, func() error {
 			_, err := l.db.Exec(ctx, sqlStatement,
 				i.JobId,
 				i.JobProto,
@@ -559,7 +559,7 @@ func (l *LookoutDb) CreateJobSpecsScalar(ctx *armadacontext.Context, instruction
 }
 
 func (l *LookoutDb) CreateJobRunsBatch(ctx *armadacontext.Context, instructions []*model.CreateJobRunInstruction) error {
-	return l.withDatabaseRetryInsert(func() error {
+	return l.withDatabaseRetryInsert(ctx, func() error {
 		tmpTable := "job_run_create_tmp"
 
 		createTmp := func(tx pgx.Tx) error {
@@ -651,7 +651,7 @@ func (l *LookoutDb) CreateJobRunsScalar(ctx *armadacontext.Context, instructions
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 		ON CONFLICT DO NOTHING`
 	for _, i := range instructions {
-		err := l.withDatabaseRetryInsert(func() error {
+		err := l.withDatabaseRetryInsert(ctx, func() error {
 			_, err := l.db.Exec(ctx, sqlStatement,
 				i.RunId,
 				i.JobId,
@@ -675,7 +675,7 @@ func (l *LookoutDb) CreateJobRunsScalar(ctx *armadacontext.Context, instructions
 }
 
 func (l *LookoutDb) UpdateJobRunsBatch(ctx *armadacontext.Context, instructions []*model.UpdateJobRunInstruction) error {
-	return l.withDatabaseRetryInsert(func() error {
+	return l.withDatabaseRetryInsert(ctx, func() error {
 		tmpTable := "job_run_update_tmp"
 
 		createTmp := func(tx pgx.Tx) error {
@@ -771,7 +771,7 @@ func (l *LookoutDb) UpdateJobRunsScalar(ctx *armadacontext.Context, instructions
 			ingress_addresses = coalesce($10, ingress_addresses)
 		WHERE run_id = $1`
 	for _, i := range instructions {
-		err := l.withDatabaseRetryInsert(func() error {
+		err := l.withDatabaseRetryInsert(ctx, func() error {
 			_, err := l.db.Exec(ctx, sqlStatement,
 				i.RunId,
 				i.Node,
@@ -797,7 +797,7 @@ func (l *LookoutDb) UpdateJobRunsScalar(ctx *armadacontext.Context, instructions
 
 func (l *LookoutDb) CreateJobErrorsBatch(ctx *armadacontext.Context, instructions []*model.CreateJobErrorInstruction) error {
 	tmpTable := "job_error_create_tmp"
-	return l.withDatabaseRetryInsert(func() error {
+	return l.withDatabaseRetryInsert(ctx, func() error {
 		createTmp := func(tx pgx.Tx) error {
 			_, err := tx.Exec(ctx, fmt.Sprintf(`
 				CREATE TEMPORARY TABLE %s (
@@ -850,7 +850,7 @@ func (l *LookoutDb) CreateJobErrorsScalar(ctx *armadacontext.Context, instructio
 		VALUES ($1, $2)
 		ON CONFLICT DO NOTHING`
 	for _, i := range instructions {
-		err := l.withDatabaseRetryInsert(func() error {
+		err := l.withDatabaseRetryInsert(ctx, func() error {
 			_, err := l.db.Exec(ctx, sqlStatement,
 				i.JobId,
 				i.Error)
@@ -1020,7 +1020,7 @@ func (l *LookoutDb) filterEventsForTerminalJobs(
 		jobIds[i] = instruction.JobId
 	}
 	queryStart := time.Now()
-	rowsRaw, err := l.withDatabaseRetryQuery(func() (interface{}, error) {
+	rowsRaw, err := l.withDatabaseRetryQuery(ctx, func() (interface{}, error) {
 		terminalStates := []int{
 			lookout.JobSucceededOrdinal,
 			lookout.JobFailedOrdinal,
@@ -1083,16 +1083,16 @@ func (l *LookoutDb) filterEventsForTerminalJobs(
 	}
 }
 
-func (l *LookoutDb) withDatabaseRetryInsert(executeDb func() error) error {
-	_, err := l.withDatabaseRetryQuery(func() (interface{}, error) {
+func (l *LookoutDb) withDatabaseRetryInsert(ctx *armadacontext.Context, executeDb func() error) error {
+	_, err := l.withDatabaseRetryQuery(ctx, func() (interface{}, error) {
 		return nil, executeDb()
 	})
 	return err
 }
 
 // Executes a database function, retrying until it either succeeds, exceeds the
-// retry limit, or encounters a non-retryable error.
-func (l *LookoutDb) withDatabaseRetryQuery(executeDb func() (interface{}, error)) (interface{}, error) {
+// retry limit, encounters a non-retryable error, or the context is cancelled.
+func (l *LookoutDb) withDatabaseRetryQuery(ctx *armadacontext.Context, executeDb func() (interface{}, error)) (interface{}, error) {
 	backOff := 1
 	retries := 0
 	for {
@@ -1102,6 +1102,10 @@ func (l *LookoutDb) withDatabaseRetryQuery(executeDb func() (interface{}, error)
 			return res, nil
 		}
 
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+
 		if armadaerrors.IsRetryablePostgresError(err, l.fatalErrors) {
 			retries++
 			if l.maxRetries > 0 && retries >= l.maxRetries {
@@ -1109,7 +1113,11 @@ func (l *LookoutDb) withDatabaseRetryQuery(executeDb func() (interface{}, error)
 			}
 			backOff = min(2*backOff, l.maxBackoff)
 			log.WithError(err).Warnf("Retryable error encountered executing sql (attempt %d/%d), will wait for %d seconds before retrying.", retries, l.maxRetries, backOff)
-			time.Sleep(time.Duration(backOff) * time.Second)
+			select {
+			case <-time.After(time.Duration(backOff) * time.Second):
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			}
 		} else {
 			// Non retryable error
 			return nil, err
