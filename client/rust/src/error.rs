@@ -45,7 +45,7 @@ pub enum Error {
     /// - `PERMISSION_DENIED` — the bearer token lacks the required privileges.
     /// - `INVALID_ARGUMENT` — the request payload was rejected by the server.
     #[error("gRPC error: {0}")]
-    Grpc(#[from] tonic::Status),
+    Grpc(Box<tonic::Status>),
 
     /// Returned by custom [`crate::auth::TokenProvider`] implementations
     /// to signal that token retrieval failed.
@@ -63,6 +63,12 @@ pub enum Error {
     /// control characters (`\0`, `\r`, `\n`, etc.).
     #[error("invalid metadata value: {0}")]
     InvalidMetadata(#[from] tonic::metadata::errors::InvalidMetadataValue),
+}
+
+impl From<tonic::Status> for Error {
+    fn from(s: tonic::Status) -> Self {
+        Self::Grpc(Box::new(s))
+    }
 }
 
 impl Error {

@@ -298,6 +298,6 @@ impl ArmadaClient {
             .get_job_set_events(req)
             .await?
             .into_inner();
-        Ok(Box::pin(stream.map(|r| r.map_err(Error::Grpc))))
+        Ok(Box::pin(stream.map(|r| r.map_err(Error::from))))
     }
 }
