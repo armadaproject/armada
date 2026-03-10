@@ -13,16 +13,10 @@ export interface AnalyticsUserIdentifierProps {
  */
 export const AnalyticsUserIdentifier = ({ analyticsConfig, providerReady }: AnalyticsUserIdentifierProps) => {
   const userManager = useUserManager()
-  const hasIdentified = useRef(false)
+  const identifiedUserId = useRef<string | null>(null)
 
   useEffect(() => {
-    if (
-      hasIdentified.current ||
-      !analyticsConfig ||
-      !analyticsConfig.userIdentify?.trackUsers ||
-      !userManager ||
-      !providerReady
-    ) {
+    if (!analyticsConfig || !analyticsConfig.userIdentify?.trackUsers || !userManager || !providerReady) {
       return
     }
 
@@ -36,6 +30,11 @@ export const AnalyticsUserIdentifier = ({ analyticsConfig, providerReady }: Anal
       const identifyParam = analyticsConfig.userIdentify!.identifyParam
       const userId = user.profile.sub
 
+      // Only identify if the user has changed or hasn't been identified yet
+      if (identifiedUserId.current === userId) {
+        return
+      }
+
       if (typeof window !== "undefined" && provider in window) {
         const analyticsProvider = (window as any)[provider]
         if (typeof analyticsProvider === "object" && typeof analyticsProvider.identify === "function") {
@@ -44,7 +43,7 @@ export const AnalyticsUserIdentifier = ({ analyticsConfig, providerReady }: Anal
           } else {
             analyticsProvider.identify(userId)
           }
-          hasIdentified.current = true
+          identifiedUserId.current = userId
         }
       }
     }

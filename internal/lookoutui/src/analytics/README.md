@@ -13,6 +13,9 @@ uiConfig:
       - content: | # content of <script>
           console.log("Inline script example");
         attributes: # HTML attributes of <script>
+          defer: "true"
+          type: "text/javascript"
+      - attributes:
           src: "https://analytics.yourdomain.com/script.js"
           type: "text/javascript"
           defer: "true"
@@ -31,9 +34,10 @@ This will result in a analytics script being added to the `<head>` element
 ```html
 <head>
   ...
-  <script src="https://analytics.yourdomain.com/script.js" defer="true" type="text/javascript">
+  <script defer="true" type="text/javascript">
     console.log("Inline script example")
   </script>
+  <script src="https://analytics.yourdomain.com/script.js" defer="true" type="text/javascript"></script>
 </head>
 ```
 
