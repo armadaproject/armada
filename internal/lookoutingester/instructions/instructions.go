@@ -482,9 +482,6 @@ func (c *InstructionConverter) handleStandaloneIngressInfo(event *armadaevents.S
 // numeric fields arrive as float64 - see failureInfoToSwagger for the read side.
 func failureInfoToMap(fi *armadaevents.FailureInfo) map[string]any {
 	m := make(map[string]any, 4)
-	if c := fi.GetCondition(); c != armadaevents.FailureCondition_FAILURE_CONDITION_UNSPECIFIED {
-		m["condition"] = c.String()
-	}
 	if fi.GetExitCode() != 0 {
 		m["exitCode"] = fi.GetExitCode()
 	}
@@ -493,6 +490,9 @@ func failureInfoToMap(fi *armadaevents.FailureInfo) map[string]any {
 	}
 	if len(fi.GetCategories()) > 0 {
 		m["categories"] = fi.GetCategories()
+	}
+	if fi.GetContainerName() != "" {
+		m["containerName"] = fi.GetContainerName()
 	}
 	if len(m) == 0 {
 		return nil

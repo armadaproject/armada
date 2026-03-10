@@ -129,9 +129,6 @@ func failureInfoToSwagger(failureInfo map[string]any) *models.RunFailureInfo {
 	}
 
 	result := &models.RunFailureInfo{}
-	if condition, ok := failureInfo["condition"].(string); ok {
-		result.Condition = condition
-	}
 	// After JSON round-trip through PostgreSQL's json_agg, Go's json.Unmarshal
 	// produces float64 for numbers and []interface{} for arrays in map[string]any.
 	if v, ok := failureInfo["exitCode"].(float64); ok {

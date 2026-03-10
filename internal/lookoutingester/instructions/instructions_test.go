@@ -162,7 +162,6 @@ var expectedFailedRunWithFailureInfo = model.UpdateJobRunInstruction{
 	Debug:       []byte(testfixtures.DebugMsg),
 	ExitCode:    pointer.Int32(testfixtures.ExitCode),
 	FailureInfo: map[string]any{
-		"condition":          "FAILURE_CONDITION_OOM_KILLED",
 		"exitCode":           int32(testfixtures.ExitCode),
 		"terminationMessage": "OOM killed by kernel",
 		"categories":         []string{"RESOURCE_LIMIT", "MEMORY"},
