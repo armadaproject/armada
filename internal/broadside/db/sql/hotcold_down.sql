@@ -8,6 +8,8 @@
 -- This file is embedded by internal/broadside/db/hotcold.go and executed by
 -- TearDown when the HotColdSplit feature toggle is enabled.
 
+BEGIN;
 DROP VIEW IF EXISTS job_all;
 DROP TABLE IF EXISTS job_historical;
 ALTER TABLE job DROP CONSTRAINT IF EXISTS chk_job_active_state;
+COMMIT;

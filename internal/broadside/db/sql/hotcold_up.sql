@@ -30,6 +30,8 @@
 --   014: external_job_uri
 --   015: cancel_user
 -- The UNION ALL view uses SELECT *, which matches columns positionally.
+BEGIN;
+
 CREATE TABLE IF NOT EXISTS job_historical (
     job_id                       varchar(32)   NOT NULL PRIMARY KEY,
     queue                        varchar(512)  NOT NULL,
@@ -138,3 +140,5 @@ CREATE OR REPLACE VIEW job_all AS
            latest_run_id, cancel_reason, namespace, annotations,
            external_job_uri, cancel_user
     FROM job_historical;
+
+COMMIT;
