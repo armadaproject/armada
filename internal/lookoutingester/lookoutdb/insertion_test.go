@@ -55,10 +55,10 @@ var (
 		443: "ingress-backup.example.com",
 	}
 	testFailureInfo = map[string]any{
-		"condition":          "FAILURE_CONDITION_OOM_KILLED",
 		"exitCode":           float64(137),
 		"terminationMessage": "OOM killed",
 		"categories":         []interface{}{"RESOURCE_LIMIT"},
+		"containerName":      "main",
 	}
 )
 

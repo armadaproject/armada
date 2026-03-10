@@ -206,13 +206,6 @@ definitions:
           exitCode:
             type: integer
             format: int32
-          condition:
-            type: string
-            description: >
-              Failure condition derived from Kubernetes pod status. One of:
-              FAILURE_CONDITION_PREEMPTED, FAILURE_CONDITION_EVICTED,
-              FAILURE_CONDITION_OOM_KILLED, FAILURE_CONDITION_DEADLINE_EXCEEDED,
-              FAILURE_CONDITION_USER_ERROR.
           categories:
             type: array
             x-omitempty: true

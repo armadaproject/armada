@@ -513,7 +513,6 @@ var JobRunFailedWithFailureInfo = &armadaevents.EventSequence_Event{
 					},
 					FailureInfo: &armadaevents.FailureInfo{
 						ExitCode:           ExitCode,
-						Condition:          armadaevents.FailureCondition_FAILURE_CONDITION_OOM_KILLED,
 						TerminationMessage: "OOM killed by kernel",
 						Categories:         []string{"RESOURCE_LIMIT", "MEMORY"},
 					},

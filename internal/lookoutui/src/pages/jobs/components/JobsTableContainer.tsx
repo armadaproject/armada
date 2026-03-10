@@ -670,13 +670,15 @@ export const JobsTableContainer = ({
   }
   const sideBarClose = () => setSidebarJobId(undefined)
 
+  const filteredData = data ?? []
+
   const selectedItemsFilters: JobFiltersWithExcludes[] = useMemo(
-    () => getFiltersForRowsSelection(data, selectedRows, lookoutFilters, columnMatches),
-    [data, selectedRows, columnFilterState, lookoutFilters, allColumns],
+    () => getFiltersForRowsSelection(filteredData, selectedRows, lookoutFilters, columnMatches),
+    [filteredData, selectedRows, lookoutFilters, columnMatches],
   )
 
   const table = useReactTable({
-    data: data ?? [],
+    data: filteredData,
     columns: allColumns,
     state: {
       grouping,

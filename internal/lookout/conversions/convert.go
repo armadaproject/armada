@@ -129,19 +129,20 @@ func failureInfoToSwagger(failureInfo map[string]any) *models.RunFailureInfo {
 	}
 
 	result := &models.RunFailureInfo{}
-	if condition, ok := failureInfo["condition"].(string); ok {
-		result.Condition = condition
-	}
+	populated := false
 	// After JSON round-trip through PostgreSQL's json_agg, Go's json.Unmarshal
 	// produces float64 for numbers and []interface{} for arrays in map[string]any.
 	if v, ok := failureInfo["exitCode"].(float64); ok {
 		result.ExitCode = int32(v)
+		populated = true
 	}
 	if msg, ok := failureInfo["terminationMessage"].(string); ok {
 		result.TerminationMessage = msg
+		populated = true
 	}
 	if cats, ok := failureInfo["categories"].([]interface{}); ok {
 		result.Categories = make([]string, 0, len(cats))
+		populated = true
 		for _, c := range cats {
 			if s, ok := c.(string); ok {
 				result.Categories = append(result.Categories, s)
@@ -150,6 +151,10 @@ func failureInfoToSwagger(failureInfo map[string]any) *models.RunFailureInfo {
 	}
 	if name, ok := failureInfo["containerName"].(string); ok {
 		result.ContainerName = name
+		populated = true
+	}
+	if !populated {
+		return nil
 	}
 	return result
 }
