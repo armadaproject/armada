@@ -5,13 +5,21 @@ edition = "2024"
 rust-version = "1.85"
 description = "Rust client for the Armada batch job scheduler"
 license = "Apache-2.0"
-publish = false
+repository = "https://github.com/armadaproject/armada"
+homepage = "https://armadaproject.io"
+documentation = "https://docs.rs/armada-client"
+keywords = ["armada", "kubernetes", "batch", "jobs", "grpc"]
+categories = ["api-bindings"]
+include = ["src/**/*", "build.rs", "proto/**/*", "examples/**/*", "README.md"]
 
 [lib]
 name = "armada_client"
 path = "src/lib.rs"
 doctest = false
 
+# examples/common/ is a shared helper module used by both examples below.
+# It is not a standalone example binary; it is included in the tarball via
+# examples/**/* and compiled as part of the submit and watch example builds.
 [[example]]
 name = "submit"
 path = "examples/submit.rs"

@@ -89,3 +89,51 @@ jobs:
           name: nupkg-artifacts
           path: |
             ./bin/client/DotNet/ArmadaProject.Io.Client.${{ steps.create-release-tag.outputs.release_tag }}.nupkg
+
+  pack-rust-crate:
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-22.04
+    permissions: {}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          version: '23.3'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Fetch proto dependencies
+        uses: ./.github/actions/fetch-rust-protos
+        with:
+          include-armada-protos: 'true'
+
+      - name: Set crate version from tag
+        run: |
+          # Strip the leading 'v' and any '-patchN' suffix so patch-release tags
+          # (e.g. v1.2.3-patch1) publish as stable semver versions (1.2.3) on crates.io.
+          VERSION=$(echo "${GITHUB_REF_NAME#v}" | sed 's/-patch[0-9]*$//')
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Derived VERSION '$VERSION' is not a valid semver string"
+            exit 1
+          fi
+          sed -i "s/^version = \".*\"/version = \"$VERSION\"/" client/rust/Cargo.toml
+          grep -q "^version = \"$VERSION\"" client/rust/Cargo.toml || {
+            echo "::error::sed did not update version in Cargo.toml — pattern may not have matched"
+            exit 1
+          }
+          cargo generate-lockfile --manifest-path client/rust/Cargo.toml
+
+      - name: Package crate
+        run: cargo package --manifest-path client/rust/Cargo.toml --allow-dirty --verbose
+
+      - name: Save crate artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: crate-artifact
+          path: client/rust/target/package/armada-client-*.crate
+          if-no-files-found: error

@@ -1,0 +1,53 @@
+name: Fetch Rust proto dependencies
+description: >
+  Fetches the external proto files required to build the armada-client Rust crate:
+  kubernetes/api v0.32.0, kubernetes/apimachinery v0.32.0, and google/api protos
+  (pinned to commit 798823426715215eccca4d7e7ee4c814843045d7).
+
+inputs:
+  include-armada-protos:
+    description: >
+      When 'true', also copies the Armada API protos (pkg/api/*.proto) into
+      client/rust/proto/pkg/api/. Required for the published-crate vendored layout
+      (release job). Must NOT be set during monorepo build/test steps — see note in
+      client/rust/build.rs about the "Input is shadowed" protoc error.
+    required: false
+    default: 'false'
+
+runs:
+  using: composite
+  steps:
+    - name: Fetch proto dependencies
+      shell: bash
+      run: |
+        mkdir -p client/rust/proto/k8s.io/api client/rust/proto/k8s.io/apimachinery client/rust/proto/google/api
+
+        # Skip if already fetched (action may be called more than once per job).
+        if [ ! -d client/rust/proto/k8s.io/api/core ]; then
+          # kubernetes/api — pinned to v0.32.0, sparse clone (only proto directories needed)
+          git clone --depth=1 --filter=blob:none --sparse --branch v0.32.0 \
+            https://github.com/kubernetes/api.git /tmp/k8s-api
+          git -C /tmp/k8s-api sparse-checkout set core/v1 networking/v1
+          cp -r /tmp/k8s-api/core client/rust/proto/k8s.io/api/
+          cp -r /tmp/k8s-api/networking client/rust/proto/k8s.io/api/
+
+          # kubernetes/apimachinery — pinned to v0.32.0, sparse clone
+          git clone --depth=1 --filter=blob:none --sparse --branch v0.32.0 \
+            https://github.com/kubernetes/apimachinery.git /tmp/k8s-apimachinery
+          git -C /tmp/k8s-apimachinery sparse-checkout set pkg/api/resource pkg/apis/meta/v1 pkg/runtime pkg/util/intstr
+          cp -r /tmp/k8s-apimachinery/pkg client/rust/proto/k8s.io/apimachinery/
+
+          # google/api protos — pinned to a specific commit for reproducibility
+          curl -sSfL https://raw.githubusercontent.com/googleapis/googleapis/798823426715215eccca4d7e7ee4c814843045d7/google/api/annotations.proto \
+            -o client/rust/proto/google/api/annotations.proto
+          curl -sSfL https://raw.githubusercontent.com/googleapis/googleapis/798823426715215eccca4d7e7ee4c814843045d7/google/api/http.proto \
+            -o client/rust/proto/google/api/http.proto
+        fi
+
+    - name: Vendor Armada API protos
+      if: ${{ inputs.include-armada-protos == 'true' }}
+      shell: bash
+      run: |
+        mkdir -p client/rust/proto/pkg/api
+        cp pkg/api/submit.proto pkg/api/event.proto pkg/api/job.proto pkg/api/health.proto \
+          client/rust/proto/pkg/api/
