@@ -7,7 +7,7 @@ export const ANALYTICS_EVENTS = {
   MARK_NODE_UNSCHEDULABLE_CONFIRMED: "Mark Node Unschedulable Confirmed",
   CANCEL_JOB_SETS_CLICKED: "Cancel Job Sets Clicked",
   REPRIORITIZE_JOB_SETS_CLICKED: "Reprioritize Job Sets Clicked",
-  SYSTEM_COLOR_MODE_SELECTED: "System Color Mode Selected",
+  SYSTEM_COLOR_MODE_TOGGLED: "System Color Mode Toggled",
   LIGHT_MODE_SELECTED: "Light Mode Selected",
   DARK_MODE_SELECTED: "Dark Mode Selected",
 } as const

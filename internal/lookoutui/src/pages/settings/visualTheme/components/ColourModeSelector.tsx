@@ -30,7 +30,8 @@ export const ColourModeSelector = () => {
           control={
             <Analytics
               component={Switch}
-              eventName={ANALYTICS_EVENTS.SYSTEM_COLOR_MODE_SELECTED}
+              eventName={ANALYTICS_EVENTS.SYSTEM_COLOR_MODE_TOGGLED}
+              eventData={{ enabled: String(!(mode === "system")) }}
               checked={mode === "system"}
               onChange={(_, checked) => {
                 if (checked) {
