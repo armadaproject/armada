@@ -838,6 +838,9 @@ func (qb *QueryBuilder) validateGroupOrder(order *model.Order, groupedField *mod
 	// StateCounts produces multiple output columns with no single alias, so ordering
 	// by it is only valid when it is the grouped field itself (selected directly).
 	if aggErr == nil && aggregateType == StateCounts {
+		if groupedField.IsAnnotation {
+			return errors.Errorf("unsupported field for order: %s", order.Field)
+		}
 		groupedCol, gErr := qb.lookoutTables.ColumnFromField(groupedField.Field)
 		if gErr != nil || groupedCol != col {
 			return errors.Errorf("unsupported field for order: %s", order.Field)
