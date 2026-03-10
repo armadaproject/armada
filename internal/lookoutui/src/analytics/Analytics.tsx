@@ -14,7 +14,7 @@ type AnalyticsProps<C extends ElementType> = {
 /**
  * Component that wraps any element and injects properties for analytics
  *
- * @param {C} component - The component to render with analytics attributes
+ * @param {C} component - The component to render with analytics tracking
  * @param {string} eventName - The event name to track when the component is interacted with
  * @param {Record<string, string>} [eventData] - Optional event data to include with the analytics event
  * @param {ReactNode} [children] - Optional children for the component
