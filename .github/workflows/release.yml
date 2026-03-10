@@ -214,4 +214,4 @@ jobs:
         run: |
           VERSION=${TAG#v}
           sed -i "s/^version = \".*\"/version = \"$VERSION\"/" client/rust/Cargo.toml
-          cargo publish --manifest-path client/rust/Cargo.toml --no-verify --allow-dirty
+          cargo publish --manifest-path client/rust/Cargo.toml --allow-dirty
