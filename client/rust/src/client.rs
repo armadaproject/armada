@@ -208,6 +208,8 @@ impl ArmadaClient {
             req.metadata_mut().insert("authorization", token.parse()?);
         }
         self.apply_timeout(&mut req);
+        // `.clone()` on a tonic client is O(1) — it clones an Arc over the
+        // shared channel, not the underlying connection.
         let resp = self.submit_client.clone().submit_jobs(req).await?;
         Ok(resp.into_inner())
     }
@@ -299,6 +301,8 @@ impl ArmadaClient {
             req.metadata_mut().insert("authorization", token.parse()?);
         }
         self.apply_timeout(&mut req);
+        // `.clone()` on a tonic client is O(1) — it clones an Arc over the
+        // shared channel, not the underlying connection.
         let stream = self
             .event_client
             .clone()

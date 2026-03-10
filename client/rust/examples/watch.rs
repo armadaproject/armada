@@ -34,18 +34,29 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let client = ArmadaClient::connect(endpoint, common::auth_from_env()).await?;
 
     println!("Watching job set '{job_set_id}' on queue '{queue}'...");
+
+    // Track the last received message ID so that reconnection can resume from
+    // the correct cursor and avoid replaying already-processed events.
+    let mut last_id = String::new();
+
     let mut stream = client.watch(&queue, &job_set_id, None).await?;
     while let Some(event) = stream.next().await {
         match event {
             Ok(msg) => {
+                last_id = msg.id.clone();
                 println!("  event id={} message={:?}", msg.id, msg.message);
             }
             Err(e) => {
                 eprintln!("  stream error: {e}");
+                // Reconnect example:
+                //   stream = client.watch(&queue, &job_set_id, Some(last_id.clone())).await?;
                 break;
             }
         }
     }
+
+    // `last_id` now holds the cursor for the next reconnection attempt.
+    let _ = last_id;
 
     Ok(())
 }

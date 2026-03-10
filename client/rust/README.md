@@ -28,6 +28,36 @@ protoc --version  # libprotoc 23.x or newer
 
 The crate lives inside the Armada monorepo. It does **not** participate in a Cargo workspace — all commands use `--manifest-path`.
 
+### Step 1 — fetch vendored proto files
+
+`build.rs` requires k8s and Google API proto files that are not committed to the repository. Fetch them once before the first build (and whenever you want to update them):
+
+```bash
+# from the repo root
+mkdir -p client/rust/proto/k8s.io/api client/rust/proto/k8s.io/apimachinery client/rust/proto/google/api
+
+# kubernetes/api
+git clone --depth=1 --filter=blob:none --sparse --branch v0.32.0 \
+  https://github.com/kubernetes/api.git /tmp/k8s-api
+git -C /tmp/k8s-api sparse-checkout set core/v1 networking/v1
+cp -r /tmp/k8s-api/core client/rust/proto/k8s.io/api/
+cp -r /tmp/k8s-api/networking client/rust/proto/k8s.io/api/
+
+# kubernetes/apimachinery
+git clone --depth=1 --filter=blob:none --sparse --branch v0.32.0 \
+  https://github.com/kubernetes/apimachinery.git /tmp/k8s-apimachinery
+git -C /tmp/k8s-apimachinery sparse-checkout set pkg/api/resource pkg/apis/meta/v1 pkg/runtime pkg/util/intstr
+cp -r /tmp/k8s-apimachinery/pkg client/rust/proto/k8s.io/apimachinery/
+
+# google/api annotations
+curl -sSfL https://raw.githubusercontent.com/googleapis/googleapis/master/google/api/annotations.proto \
+  -o client/rust/proto/google/api/annotations.proto
+curl -sSfL https://raw.githubusercontent.com/googleapis/googleapis/master/google/api/http.proto \
+  -o client/rust/proto/google/api/http.proto
+```
+
+### Step 2 — build
+
 ```bash
 # from the repo root
 cargo build --manifest-path client/rust/Cargo.toml

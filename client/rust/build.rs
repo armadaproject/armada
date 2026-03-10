@@ -1,4 +1,13 @@
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Without these directives Cargo's default is to re-run build.rs on every
+    // source change. Restrict re-runs to changes that actually affect codegen.
+    println!("cargo:rerun-if-changed=proto/");
+    println!("cargo:rerun-if-changed=../../pkg/api/submit.proto");
+    println!("cargo:rerun-if-changed=../../pkg/api/event.proto");
+    println!("cargo:rerun-if-changed=../../pkg/api/job.proto");
+    println!("cargo:rerun-if-changed=../../pkg/api/health.proto");
+    println!("cargo:rerun-if-changed=build.rs");
+
     // Pass 1: compile vendored k8s protos to generate their Rust types.
     // No extern_path — we want these files emitted into OUT_DIR.
     tonic_build::configure()
