@@ -518,6 +518,8 @@ func (q *Querier) buildGroupOrder(queryIndex int, groupedField *model.GroupedFie
 		// State aggregates produce multiple output columns (one per state), so there is no
 		// single column to order by unless state is also the grouped field.
 		if aggregate == "state" && (groupedField.IsAnnotation || groupedField.Field != "state") {
+			continue
+		}
 		validOrderFields = append(validOrderFields, aggregate)
 	}
 	if !containsString(validOrderFields, groupedField.Field) && !groupedField.IsAnnotation {
