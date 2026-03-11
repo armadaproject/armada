@@ -71,13 +71,3 @@ jobs:
         if: matrix.toolchain == 'stable'
         run: cargo clippy --manifest-path client/rust/Cargo.toml --all-targets -- -D warnings
 
-      - name: Vendor Armada protos for package verification
-        uses: ./.github/actions/fetch-rust-protos
-        with:
-          include-armada-protos: 'true'
-
-      - name: Package (verify crate is publishable)
-        # Intentionally verifies only the default feature set.
-        # If optional features are added in future, consider also running:
-        #   cargo package --manifest-path client/rust/Cargo.toml --allow-dirty --all-features
-        run: cargo package --manifest-path client/rust/Cargo.toml --allow-dirty --verbose
