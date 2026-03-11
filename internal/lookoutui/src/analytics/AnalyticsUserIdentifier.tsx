@@ -43,6 +43,9 @@ export const AnalyticsUserIdentifier = ({ analyticsConfig, providerReady }: Anal
             analyticsProvider.identify(userId)
           }
           identifiedUserId.current = userId
+        } else {
+          // eslint-disable-next-line no-console
+          console.warn(`Analytics: provider "${provider}" does not expose an identify() function`)
         }
       }
     }
