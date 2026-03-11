@@ -130,6 +130,7 @@ services:
       - 4001:4000
     volumes:
       - "./.kube/internal:/.kube"
+      - "./e2e/config/executor_config.yaml:/app/e2e/config/executor_config.yaml:ro"
       - "go-cache:/root/.cache/go-build:rw"
       - "gomod-cache:/go/pkg/mod:rw"
     environment:
@@ -137,7 +138,7 @@ services:
     env_file:
       - developer/env/docker/executor.env
     working_dir: /app
-    command: ./executor
+    command: ./executor --config /app/e2e/config/executor_config.yaml
 
   binoculars:
     container_name: binoculars

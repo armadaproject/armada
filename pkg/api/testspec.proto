@@ -59,4 +59,14 @@ message TestSpec {
     string environment = 13;
     // Value of the target label set on exported Prometheus metrics.
     string target = 14;
+    // Expected failure properties on the last run of each submitted job.
+    // Verified against the Lookout API after event assertions pass.
+    // If unset, no Lookout assertion is performed.
+    ExpectedFailure failure = 18;
+}
+
+// Expected failure properties to assert against Lookout after a job fails.
+message ExpectedFailure {
+    // Error categories expected on the last run.
+    repeated string categories = 1;
 }

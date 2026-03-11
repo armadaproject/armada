@@ -45,7 +45,10 @@ type ApiConnectionDetails struct {
 	OpenIdKubernetesAuth        oidc.KubernetesDetails
 	ForceNoTls                  bool
 	ExecAuth                    exec.CommandDetails
-	CacheRefreshToken           bool
+	// LookoutUrl is the base URL of the Lookout REST API (e.g. "http://localhost:8089").
+	// Used by the testsuite to verify error categories on job runs.
+	LookoutUrl        string
+	CacheRefreshToken bool
 }
 
 type ConnectionDetails func() (*ApiConnectionDetails, error)
