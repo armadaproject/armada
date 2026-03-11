@@ -177,6 +177,17 @@ jobs:
       - name: Install Rust (stable)
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Cache cargo registry and build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            client/rust/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('client/rust/Cargo.toml', 'client/rust/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
       - name: Install protoc
         uses: arduino/setup-protoc@v3
         with:
@@ -222,4 +233,8 @@ jobs:
             exit 1
           fi
           sed -i "s/^version = \".*\"/version = \"$VERSION\"/" client/rust/Cargo.toml
+          grep -q "^version = \"$VERSION\"" client/rust/Cargo.toml || {
+            echo "::error::sed did not update version in Cargo.toml — pattern may not have matched"
+            exit 1
+          }
           cargo publish --manifest-path client/rust/Cargo.toml --allow-dirty

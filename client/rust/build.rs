@@ -59,6 +59,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
     } else {
         // Vendored layout used by the published crate.
+        // proto/google/, proto/k8s.io/, and proto/pkg/ must all be present —
+        // they are populated by CI's "Fetch proto dependencies" step and bundled
+        // into the package via `include = ["proto/**/*"]` in Cargo.toml.
+        // Removing or skipping that step will cause protoc to fail with a
+        // "file not found" error when resolving google/api/annotations.proto.
         (
             vec![
                 "proto/pkg/api/submit.proto",
