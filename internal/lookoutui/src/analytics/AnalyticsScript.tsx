@@ -7,6 +7,8 @@ interface AnalyticsScriptProps {
   onReady: () => void
 }
 
+let scriptsInjected = false
+
 /**
  * Component that dynamically injects analytics scripts into the document head
  * based on the configuration provided. While this dynamically creates and injects script elements,
@@ -20,6 +22,14 @@ export const AnalyticsScript = ({ config, onReady }: AnalyticsScriptProps) => {
       onReady()
       return
     }
+
+    // Prevent re-injection on Strict Mode remounts
+    if (scriptsInjected) {
+      onReady()
+      return
+    }
+
+    scriptsInjected = true
 
     const scriptElements: HTMLScriptElement[] = []
 
@@ -57,14 +67,10 @@ export const AnalyticsScript = ({ config, onReady }: AnalyticsScriptProps) => {
       }
     })
 
-    // Cleanup function to remove scripts when component unmounts
+    // Cleanup: cancel pending callbacks but don't remove scripts
+    // Scripts persist for the page lifetime to avoid re-initialization during Strict Mode remounts
     return () => {
       cancelled = true
-      scriptElements.forEach((script) => {
-        if (script.parentNode) {
-          document.head.removeChild(script)
-        }
-      })
     }
   }, [config, onReady])
 
