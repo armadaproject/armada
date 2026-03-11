@@ -237,5 +237,5 @@ jobs:
             echo "::error::sed did not update version in Cargo.toml — pattern may not have matched"
             exit 1
           }
-          cargo update --manifest-path client/rust/Cargo.toml --precise "$VERSION" 2>/dev/null || true
+          cargo generate-lockfile --manifest-path client/rust/Cargo.toml
           cargo publish --manifest-path client/rust/Cargo.toml --allow-dirty

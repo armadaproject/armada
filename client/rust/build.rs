@@ -48,14 +48,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // to this manifest. When building from a crates.io package they are vendored
     // into proto/pkg/api/ (mirroring the import paths used inside the .proto files).
     let (armada_protos, armada_includes): (Vec<&str>, Vec<&str>) = if in_monorepo {
+        // Input files are passed as include-relative names (e.g. "pkg/api/submit.proto")
+        // rather than physical paths (e.g. "../../pkg/api/submit.proto"). This lets
+        // protoc resolve them through the include list, which avoids the "Input is
+        // shadowed" error that occurs when proto/pkg/api/ is also present on disk
+        // (e.g. during `cargo package` verification).
+        //
+        // Include order: "proto" is first so that google/ and k8s.io/ imports always
+        // resolve from the vendored copies in proto/ rather than anything that might
+        // exist at the repo root. "../../" is second so that intra-Armada imports
+        // (e.g. `import "pkg/api/health.proto"`) fall through to the monorepo source.
         (
             vec![
-                "../../pkg/api/submit.proto",
-                "../../pkg/api/event.proto",
-                "../../pkg/api/job.proto",
-                "../../pkg/api/health.proto",
+                "pkg/api/submit.proto",
+                "pkg/api/event.proto",
+                "pkg/api/job.proto",
+                "pkg/api/health.proto",
             ],
-            vec!["../../", "proto"],
+            vec!["proto", "../../"],
         )
     } else {
         // Vendored layout used by the published crate.
