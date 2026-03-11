@@ -223,12 +223,16 @@ jobs:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
           TAG: ${{ github.event.workflow_run.head_branch }}
         run: |
-          VERSION=${TAG#v}
+          # Strip the leading 'v' and any '-patchN' suffix so that patch-release tags
+          # (e.g. v1.2.3-patch1) publish as stable semver versions (1.2.3) on crates.io.
+          # Without this, Cargo treats versions with a pre-release identifier as
+          # opt-in only and consumers using `armada-client = "1"` would never receive them.
+          VERSION=$(echo "${TAG#v}" | sed 's/-patch[0-9]*$//')
           if [[ -z "$VERSION" ]]; then
             echo "::error::TAG is empty or not set; cannot determine crate version"
             exit 1
           fi
-          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-patch[0-9]+)?$ ]]; then
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "::error::Derived VERSION '$VERSION' is not a valid semver string"
             exit 1
           fi
