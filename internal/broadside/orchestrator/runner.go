@@ -254,6 +254,7 @@ func NewDatabase(config configuration.TestConfig) (db.Database, error) {
 	case len(config.DatabaseConfig.Postgres) > 0:
 		return db.NewPostgresDatabase(
 			config.DatabaseConfig.Postgres,
+			config.FeatureToggles,
 			config.DatabaseConfig.PostgresTuningSQL,
 			config.DatabaseConfig.PostgresTuningRevertSQL,
 		), nil

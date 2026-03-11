@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/armadaproject/armada/internal/broadside/configuration"
 	"github.com/armadaproject/armada/internal/broadside/db"
 )
 
@@ -29,7 +30,7 @@ func postgresConfig(t *testing.T) map[string]string {
 
 func TestPostgresDatabase_PopulateHistoricalJobs_JobCount(t *testing.T) {
 	cfg := postgresConfig(t)
-	pg := db.NewPostgresDatabase(cfg, nil, nil)
+	pg := db.NewPostgresDatabase(cfg, configuration.FeatureToggles{}, nil, nil)
 	ctx := context.Background()
 	require.NoError(t, pg.InitialiseSchema(ctx))
 	defer func() { _ = pg.TearDown(ctx) }()
@@ -61,7 +62,7 @@ func TestPostgresDatabase_PopulateHistoricalJobs_JobCount(t *testing.T) {
 
 func TestPostgresDatabase_PopulateHistoricalJobs_StateDistribution(t *testing.T) {
 	cfg := postgresConfig(t)
-	pg := db.NewPostgresDatabase(cfg, nil, nil)
+	pg := db.NewPostgresDatabase(cfg, configuration.FeatureToggles{}, nil, nil)
 	ctx := context.Background()
 	require.NoError(t, pg.InitialiseSchema(ctx))
 	defer func() { _ = pg.TearDown(ctx) }()
@@ -102,7 +103,7 @@ func TestPostgresDatabase_PopulateHistoricalJobs_StateDistribution(t *testing.T)
 
 func TestPostgresDatabase_PopulateHistoricalJobs_Chunked(t *testing.T) {
 	cfg := postgresConfig(t)
-	pg := db.NewPostgresDatabase(cfg, nil, nil)
+	pg := db.NewPostgresDatabase(cfg, configuration.FeatureToggles{}, nil, nil)
 	ctx := context.Background()
 	require.NoError(t, pg.InitialiseSchema(ctx))
 	defer func() { _ = pg.TearDown(ctx) }()
@@ -142,7 +143,7 @@ func TestPostgresDatabase_PopulateHistoricalJobs_Chunked(t *testing.T) {
 
 func TestPostgresDatabase_PopulateHistoricalJobs_Resume(t *testing.T) {
 	cfg := postgresConfig(t)
-	pg := db.NewPostgresDatabase(cfg, nil, nil)
+	pg := db.NewPostgresDatabase(cfg, configuration.FeatureToggles{}, nil, nil)
 	ctx := context.Background()
 	require.NoError(t, pg.InitialiseSchema(ctx))
 	defer func() { _ = pg.TearDown(ctx) }()
@@ -187,7 +188,7 @@ func TestPostgresDatabase_InitialiseSchema_ExecutesTuningSQLWithoutError(t *test
 	tuningSQLStatements := []string{
 		"ALTER TABLE job SET (autovacuum_vacuum_scale_factor = 0.01)",
 	}
-	pg := db.NewPostgresDatabase(cfg, tuningSQLStatements, nil)
+	pg := db.NewPostgresDatabase(cfg, configuration.FeatureToggles{}, tuningSQLStatements, nil)
 	ctx := context.Background()
 	require.NoError(t, pg.InitialiseSchema(ctx))
 	defer func() { _ = pg.TearDown(ctx) }()
@@ -202,7 +203,7 @@ func TestPostgresDatabase_TearDown_ExecutesTuningRevertSQLWithoutError(t *testin
 	revertSQLStatements := []string{
 		"ALTER TABLE job RESET (autovacuum_vacuum_scale_factor)",
 	}
-	pg := db.NewPostgresDatabase(cfg, nil, revertSQLStatements)
+	pg := db.NewPostgresDatabase(cfg, configuration.FeatureToggles{}, nil, revertSQLStatements)
 	ctx := context.Background()
 	require.NoError(t, pg.InitialiseSchema(ctx))
 	defer pg.Close()
