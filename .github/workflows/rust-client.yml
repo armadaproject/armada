@@ -63,9 +63,10 @@ jobs:
           curl -sSfL https://raw.githubusercontent.com/googleapis/googleapis/798823426715215eccca4d7e7ee4c814843045d7/google/api/http.proto \
             -o client/rust/proto/google/api/http.proto
 
-          mkdir -p client/rust/proto/pkg/api
-          cp pkg/api/submit.proto pkg/api/event.proto pkg/api/job.proto pkg/api/health.proto \
-            client/rust/proto/pkg/api/
+          # Note: Armada protos are NOT copied to proto/pkg/api/ here because in the
+          # monorepo build.rs uses ../../pkg/api/ directly. Copying them would cause
+          # protoc to error with "Input is shadowed" when both paths resolve to the
+          # same logical proto name.
 
       - name: Build (MSRV)
         run: cargo build --manifest-path client/rust/Cargo.toml
@@ -129,11 +130,10 @@ jobs:
           curl -sSfL https://raw.githubusercontent.com/googleapis/googleapis/798823426715215eccca4d7e7ee4c814843045d7/google/api/http.proto \
             -o client/rust/proto/google/api/http.proto
 
-          # Vendor Armada API protos into proto/pkg/api/ mirroring their import paths,
-          # so the published crate is self-contained without depending on monorepo layout.
-          mkdir -p client/rust/proto/pkg/api
-          cp pkg/api/submit.proto pkg/api/event.proto pkg/api/job.proto pkg/api/health.proto \
-            client/rust/proto/pkg/api/
+          # Note: Armada protos are NOT copied to proto/pkg/api/ here because in the
+          # monorepo build.rs uses ../../pkg/api/ directly. Copying them would cause
+          # protoc to error with "Input is shadowed" when both paths resolve to the
+          # same logical proto name.
 
       - name: Check formatting
         run: cargo fmt --manifest-path client/rust/Cargo.toml -- --check
