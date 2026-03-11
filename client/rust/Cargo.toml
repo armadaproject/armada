@@ -17,6 +17,9 @@ name = "armada_client"
 path = "src/lib.rs"
 doctest = false
 
+# examples/common/ is a shared helper module used by both examples below.
+# It is not a standalone example binary; it is included in the tarball via
+# examples/**/* and compiled as part of the submit and watch example builds.
 [[example]]
 name = "submit"
 path = "examples/submit.rs"
