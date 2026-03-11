@@ -242,4 +242,4 @@ jobs:
             exit 1
           }
           cargo generate-lockfile --manifest-path client/rust/Cargo.toml
-          cargo publish --manifest-path client/rust/Cargo.toml --allow-dirty
+          cargo publish --manifest-path client/rust/Cargo.toml --allow-dirty --verbose
