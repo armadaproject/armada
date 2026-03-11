@@ -55,7 +55,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 "../../pkg/api/job.proto",
                 "../../pkg/api/health.proto",
             ],
-            vec!["../../", "proto"],
+            // "proto" is listed first so that google/ and k8s.io/ imports resolve
+            // from the vendored copies in proto/ before protoc falls through to "../../".
+            // "../../" is still required as a fallback so that intra-Armada imports
+            // (e.g. `import "pkg/api/health.proto"`) resolve correctly from the repo root.
+            vec!["proto", "../../"],
         )
     } else {
         // Vendored layout used by the published crate.
