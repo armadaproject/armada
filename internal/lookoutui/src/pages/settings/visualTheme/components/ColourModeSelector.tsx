@@ -54,10 +54,20 @@ export const ColourModeSelector = () => {
           aria-label="colour mode"
           onChange={(_, colorMode) => setMode(colorMode)}
         >
-          <Analytics component={ToggleButton} eventName={ANALYTICS_EVENTS.LIGHT_MODE_SELECTED} value="light">
+          <Analytics
+            component={ToggleButton}
+            eventName={ANALYTICS_EVENTS.LIGHT_MODE_SELECTED}
+            eventData={{ action: mode === "light" ? "deselect" : "select" }}
+            value="light"
+          >
             Light mode{mode === "system" && systemMode === "light" && <> (synced with system)</>}
           </Analytics>
-          <Analytics component={ToggleButton} eventName={ANALYTICS_EVENTS.DARK_MODE_SELECTED} value="dark">
+          <Analytics
+            component={ToggleButton}
+            eventName={ANALYTICS_EVENTS.DARK_MODE_SELECTED}
+            eventData={{ action: mode === "dark" ? "deselect" : "select" }}
+            value="dark"
+          >
             Dark mode{mode === "system" && systemMode === "dark" && <> (synced with system)</>}
           </Analytics>
         </ToggleButtonGroup>

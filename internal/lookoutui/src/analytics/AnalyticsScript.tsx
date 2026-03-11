@@ -7,7 +7,9 @@ interface AnalyticsScriptProps {
   onReady: () => void
 }
 
+// Module-level state to prevent re-injection during React Strict Mode remounts
 let scriptsInjected = false
+let scriptsReadyPromise: Promise<void> | null = null
 
 /**
  * Component that dynamically injects analytics scripts into the document head
@@ -23,9 +25,12 @@ export const AnalyticsScript = ({ config, onReady }: AnalyticsScriptProps) => {
       return
     }
 
-    // Prevent re-injection on Strict Mode remounts
     if (scriptsInjected) {
-      onReady()
+      if (scriptsReadyPromise) {
+        scriptsReadyPromise.then(onReady)
+      } else {
+        onReady()
+      }
       return
     }
 
@@ -61,7 +66,9 @@ export const AnalyticsScript = ({ config, onReady }: AnalyticsScriptProps) => {
         })
       })
 
-    Promise.allSettled(loadPromises).then(() => {
+    scriptsReadyPromise = Promise.allSettled(loadPromises).then(() => undefined)
+
+    scriptsReadyPromise.then(() => {
       if (!cancelled) {
         onReady()
       }
