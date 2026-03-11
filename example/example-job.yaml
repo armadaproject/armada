@@ -1,4 +1,4 @@
-queue: queue-a
+queue: example
 jobSetId: job-set-1
 jobs:
   - namespace: default

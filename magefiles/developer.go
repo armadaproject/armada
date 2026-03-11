@@ -51,28 +51,32 @@ func getComponentsList() []string {
 
 // Runs scheduler and lookout migrations
 func RunMigrations() error {
+	composeFile := getComposeFile()
 	migrations := []string{
 		"scheduler-migration",
 		"lookout-migration",
 	}
-	command := append([]string{"compose", "up", "-d"}, migrations...)
+	command := append([]string{"compose", "-f", composeFile, "up", "-d"}, migrations...)
 	return dockerRun(command...)
 }
 
 // Starts armada infrastructure dependencies
 func StartDependencies() error {
-	command := append([]string{"compose", "up", "-d"}, dependencies...)
+	composeFile := getComposeFile()
+	command := append([]string{"compose", "-f", composeFile, "up", "-d"}, dependencies...)
 	return dockerRun(command...)
 }
 
 // Stops the dependencies.
 func StopDependencies() error {
-	command := append([]string{"compose", "stop"}, dependencies...)
+	composeFile := getComposeFile()
+
+	command := append([]string{"compose", "-f", composeFile, "stop"}, dependencies...)
 	if err := dockerRun(command...); err != nil {
 		return err
 	}
 
-	command = append([]string{"compose", "rm", "-f"}, dependencies...)
+	command = append([]string{"compose", "-f", composeFile, "rm", "-f"}, dependencies...)
 	return dockerRun(command...)
 }
 
@@ -84,12 +88,10 @@ func StartComponents() error {
 		components = defaultComponents
 	}
 
+	// Do NOT force KUBECONFIG here.
+	// docker-compose.override.yaml is expected to mount the kubeconfig and set env vars.
 	componentsArg := append([]string{"compose", "-f", composeFile, "up", "-d"}, components...)
-	if err := dockerRun(componentsArg...); err != nil {
-		return err
-	}
-
-	return nil
+	return dockerRun(componentsArg...)
 }
 
 func StopComponents() error {
@@ -113,11 +115,18 @@ func StopComponents() error {
 }
 
 func CheckPulsarRunning() error {
-	return CheckDockerContainerRunning("pulsar", "alive")
+	// Use pulsar-admin (present in the image) rather than curl (may not be).
+	// Also avoid `docker compose run` loops; exec into the already-running container.
+	return CheckDockerServiceReadyExec("pulsar", []string{
+		`bin/pulsar-admin --admin-url http://localhost:8080 brokers list >/dev/null`,
+	})
 }
 
 func CheckPostgresRunning() error {
-	return CheckDockerContainerRunning("pulsar", "alive")
+	// Fixes the bug where this previously checked pulsar, and waits for actual readiness.
+	return CheckDockerServiceReadyExec("postgres", []string{
+		`pg_isready -h localhost -p 5432 >/dev/null`,
+	})
 }
 
 func CheckServerRunning() error {
@@ -157,7 +166,6 @@ func CheckDockerContainerRunning(containerName string, expectedLogRegex string) 
 				return err
 			}
 			if len(logMatchRegex.FindStringSubmatch(out)) > 0 {
-				// if seconds is less than 1, it means that pulsar had already started
 				if seconds < 1 {
 					fmt.Printf("\n%s had already started!\n\n", containerName)
 					return nil
@@ -169,6 +177,54 @@ func CheckDockerContainerRunning(containerName string, expectedLogRegex string) 
 			seconds++
 		}
 	}
+}
+
+// Runs readiness commands via `docker compose exec` against the *running* service container.
+// This is appropriate for dependencies (pulsar/postgres/redis) that should remain running.
+func CheckDockerServiceReadyExec(serviceName string, shCommands []string) error {
+	// Pulsar can legitimately take a while on cold starts.
+	timeout := time.After(5 * time.Minute)
+	tick := time.Tick(2 * time.Second)
+	seconds := 0
+
+	composeFile := getComposeFile()
+	cmd := "set -e; " + strings.Join(shCommands, "; ")
+
+	for {
+		select {
+		case <-timeout:
+			return fmt.Errorf("timed out waiting for %s to become ready", serviceName)
+		case <-tick:
+			out, err := exec.Command(
+				dockerBinary(),
+				"compose", "-f", composeFile,
+				"exec", "-T", serviceName,
+				"sh", "-lc", cmd,
+			).CombinedOutput()
+
+			if err == nil {
+				if seconds < 1 {
+					fmt.Printf("\n%s had already been ready!\n\n", serviceName)
+				} else {
+					fmt.Printf("\n%s became ready after %d seconds!\n\n", serviceName, seconds)
+				}
+				return nil
+			}
+			_ = out
+			seconds += 2
+		}
+	}
+}
+
+func dockerRunWithEnv(env map[string]string, args ...string) error {
+	cmd := exec.Command(dockerBinary(), args...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Env = os.Environ()
+	for k, v := range env {
+		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", k, v))
+	}
+	return cmd.Run()
 }
 
 // Download Dependency Images for Docker Compose

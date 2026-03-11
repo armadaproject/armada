@@ -248,14 +248,110 @@ func kindWriteKubeConfig() error {
 }
 
 func kindWaitUntilReady() error {
-	return kubectlRun(
+	// 1) Wait for nodes.
+	if err := kubectlRun(
 		"wait",
-		"--namespace", "ingress-nginx",
+		"--for=condition=Ready", "node",
+		"--all",
+		"--timeout=10m",
+		"--context", "kind-armada-test",
+	); err != nil {
+		return err
+	}
+
+	// 2) Wait for ingress workload.
+	if err := kubectlRun(
+		"-n", "ingress-nginx",
+		"wait",
+		"--for=condition=Available",
+		"deployment/ingress-nginx-controller",
+		"--timeout=10m",
+		"--context", "kind-armada-test",
+	); err != nil {
+		// Fallback to daemonset form.
+		if err2 := kubectlRun(
+			"-n", "ingress-nginx",
+			"rollout", "status",
+			"daemonset/ingress-nginx-controller",
+			"--timeout=10m",
+			"--context", "kind-armada-test",
+		); err2 != nil {
+			return err
+		}
+	}
+
+	// 3) Wait for controller pod readiness; if it times out, dump diagnostics.
+	err := kubectlRun(
+		"-n", "ingress-nginx",
+		"wait",
 		"--for=condition=ready", "pod",
 		"--selector=app.kubernetes.io/component=controller",
-		"--timeout=2m",
+		"--timeout=10m",
 		"--context", "kind-armada-test",
 	)
+	if err == nil {
+		return nil
+	}
+
+	// Diagnostics: print current pod status + describe + logs + recent events.
+	fmt.Println("\n[ingress-nginx diagnostics]")
+
+	// Pod list
+	if out, e := sh.Output(kubectlBinary(),
+		"--context", "kind-armada-test",
+		"-n", "ingress-nginx",
+		"get", "pods", "-o", "wide",
+	); e == nil {
+		fmt.Println("\n== kubectl get pods -n ingress-nginx -o wide ==")
+		fmt.Println(out)
+	}
+
+	// Pick the controller pod name (first match)
+	podName := ""
+	if out, e := sh.Output(kubectlBinary(),
+		"--context", "kind-armada-test",
+		"-n", "ingress-nginx",
+		"get", "pods",
+		"-l", "app.kubernetes.io/component=controller",
+		"-o", "jsonpath={.items[0].metadata.name}",
+	); e == nil {
+		podName = strings.TrimSpace(out)
+	}
+
+	if podName != "" {
+		if out, e := sh.Output(kubectlBinary(),
+			"--context", "kind-armada-test",
+			"-n", "ingress-nginx",
+			"describe", "pod", podName,
+		); e == nil {
+			fmt.Printf("\n== kubectl describe pod %s -n ingress-nginx ==\n", podName)
+			fmt.Println(out)
+		}
+
+		if out, e := sh.Output(kubectlBinary(),
+			"--context", "kind-armada-test",
+			"-n", "ingress-nginx",
+			"logs", podName,
+			"--all-containers=true",
+			"--tail=200",
+		); e == nil {
+			fmt.Printf("\n== kubectl logs %s -n ingress-nginx (all containers, tail 200) ==\n", podName)
+			fmt.Println(out)
+		}
+	}
+
+	// Events (recent)
+	if out, e := sh.Output(kubectlBinary(),
+		"--context", "kind-armada-test",
+		"-n", "ingress-nginx",
+		"get", "events",
+		"--sort-by=.lastTimestamp",
+	); e == nil {
+		fmt.Println("\n== kubectl get events -n ingress-nginx --sort-by=.lastTimestamp ==")
+		fmt.Println(out)
+	}
+
+	return err
 }
 
 func kindTeardown() error {

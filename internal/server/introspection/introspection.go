@@ -8,7 +8,6 @@ import (
 	"google.golang.org/grpc/status"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"github.com/armadaproject/armada/pkg/api"
-	"github.com/armadaproject/armada/pkg/api/introspection"
 	introspectionapi "github.com/armadaproject/armada/pkg/api/introspection"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -37,7 +36,7 @@ func NewIntrospectionServer(
 	}
 }
 
-func (s *IntrospectionServer) DescribeNode (ctx context.Context, req *introspection.DescribeNodeRequest) (*introspectionapi.DescribeNodeResponse, error) {
+func (s *IntrospectionServer) DescribeNode (ctx context.Context, req *introspectionapi.DescribeNodeRequest) (*introspectionapi.DescribeNodeResponse, error) {
 	if req.GetCluster() == "" {
 		return nil, status.Error(codes.InvalidArgument, "cluster is required")
 	}
@@ -118,7 +117,7 @@ func (s *IntrospectionServer) DescribeNode (ctx context.Context, req *introspect
 	return resp, nil
 }
 
-func (s *IntrospectionServer) DescribeNodeByJobRun(ctx context.Context, req *introspection.DescribeNodeByJobRunRequest) (*introspectionapi.DescribeNodeResponse, error) {
+func (s *IntrospectionServer) DescribeNodeByJobRun(ctx context.Context, req *introspectionapi.DescribeNodeByJobRunRequest) (*introspectionapi.DescribeNodeResponse, error) {
 	if req.GetRunId() == "" {
 		return nil, status.Error(codes.InvalidArgument, "run_id is required")
 	}
@@ -178,11 +177,16 @@ func (s *IntrospectionServer) DescribeNodeByJobId(ctx context.Context, req *intr
 		IncludeRaw: req.GetIncludeRaw(),
 	})
 }
-// func (s *IntrospectionServer) GetJobLogs (request *introspection.GetJobLogsRequest, stream introspection.Introspection_GetJobLogsClient) error {
-// 	ctx := armadacontext.FromGrpcCtx(stream.Context())
-// 	q, err := s.
+
+// func (s *IntrospectionServer) DescribeJobPod (ctx context.Context, req *introspectionapi.DescribeJobPodRequest) (*introspectionapi.DescribeJobPodResponse, error) {
+// 	if req.GetJobId() == "" {
+// 		return nil, status.Error(codes.InvalidArgument, "job_id is required")
+// 	}
+// 	if s.jobs == nil {
+// 		return nil, status.Error(codes.FailedPrecondition, "job details getter is not configured")
+// 	}
+// 	if s.runs == nil {
+
+// 	}
 // }
 
-// func (s *IntrospectionServer) DescribeJobPod (request *introspection.DescribeJobPodRequest, stream introspection.Introspection_DescribeJobPodClient) error {
-
-// }
