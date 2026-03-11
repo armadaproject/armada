@@ -1,0 +1,29 @@
+numBatches: 1
+batchSize: 1
+queue: e2e-test-queue
+jobs:
+  - priority: 0
+    namespace: default
+    podSpec:
+      terminationGracePeriodSeconds: 0
+      restartPolicy: Never
+      containers:
+        - name: fail
+          imagePullPolicy: IfNotPresent
+          image: alpine:3.20.0
+          command: ["sh", "-c", "exit 1"]
+          resources:
+            limits:
+              memory: 25Mi
+              cpu: 100m
+            requests:
+              memory: 25Mi
+              cpu: 100m
+---
+timeout: "300s"
+expectedEvents:
+  - submitted:
+  - failed:
+failure:
+  categories:
+    - "user_error"
