@@ -74,6 +74,16 @@ jobs:
       - name: Test (MSRV)
         run: cargo test --manifest-path client/rust/Cargo.toml
 
+      - name: Vendor Armada protos for package verification
+        # cargo package extracts the tarball to a temp dir where ../../pkg/api/ does not
+        # exist, so build.rs takes the vendored path and needs proto/pkg/api/ to be present.
+        # This copy happens after build/test to avoid the "Input is shadowed" protoc error
+        # that occurs when both ../../pkg/api/ and proto/pkg/api/ exist during compilation.
+        run: |
+          mkdir -p client/rust/proto/pkg/api
+          cp pkg/api/submit.proto pkg/api/event.proto pkg/api/job.proto pkg/api/health.proto \
+            client/rust/proto/pkg/api/
+
       - name: Package (verify crate is publishable at MSRV)
         # Intentionally verifies only the default feature set.
         # If optional features are added in future, consider also running:
@@ -146,6 +156,16 @@ jobs:
 
       - name: Clippy
         run: cargo clippy --manifest-path client/rust/Cargo.toml --all-targets -- -D warnings
+
+      - name: Vendor Armada protos for package verification
+        # cargo package extracts the tarball to a temp dir where ../../pkg/api/ does not
+        # exist, so build.rs takes the vendored path and needs proto/pkg/api/ to be present.
+        # This copy happens after build/test to avoid the "Input is shadowed" protoc error
+        # that occurs when both ../../pkg/api/ and proto/pkg/api/ exist during compilation.
+        run: |
+          mkdir -p client/rust/proto/pkg/api
+          cp pkg/api/submit.proto pkg/api/event.proto pkg/api/job.proto pkg/api/health.proto \
+            client/rust/proto/pkg/api/
 
       - name: Package (verify crate is publishable)
         # Intentionally verifies only the default feature set.
