@@ -18,25 +18,6 @@ import (
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
-func withRedisClient(t *testing.T, action func(client redis.UniversalClient)) {
-	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 60*time.Second)
-	defer cancel()
-
-	client := redis.NewClient(&redis.Options{Addr: "localhost:6379", DB: 10})
-	defer func() {
-		client.FlushDB(ctx)
-		client.Close()
-	}()
-
-	err := client.FlushDB(ctx).Err()
-	require.NoError(t, err)
-
-	action(client)
-
-	err = client.FlushDB(ctx).Err()
-	require.NoError(t, err)
-}
-
 func createTestStream(t *testing.T, client redis.UniversalClient, ctx context.Context, queue, jobSetId string, eventCount int) string {
 	streamKey := fmt.Sprintf("Events:%s:%s", queue, jobSetId)
 
