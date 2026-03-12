@@ -168,22 +168,43 @@ jobs:
     runs-on: ubuntu-22.04
     environment: crates-release
     steps:
+      - name: Checkout at release tag
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
       - name: Install Rust (stable)
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Download crate artifact
-        run: gh run download ${{ github.event.workflow_run.id }} --repo ${{ github.event.workflow_run.repository.full_name }} --name crate-artifact --dir ./crate
+      - name: Set crate version from tag
         env:
-          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          VERSION=$(echo "${TAG#v}" | sed 's/-patch[0-9]*$//')
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Derived VERSION '$VERSION' is not a valid semver string"
+            exit 1
+          fi
+          sed -i "s/^version = \".*\"/version = \"$VERSION\"/" client/rust/Cargo.toml
+          grep -q "^version = \"$VERSION\"" client/rust/Cargo.toml || {
+            echo "::error::sed did not update version in Cargo.toml — pattern may not have matched"
+            exit 1
+          }
+          cargo generate-lockfile --manifest-path client/rust/Cargo.toml
+
+      - name: Vendor Armada protos
+        run: |
+          mkdir -p client/rust/proto/pkg/api
+          cp pkg/api/submit.proto pkg/api/event.proto pkg/api/job.proto pkg/api/health.proto \
+            client/rust/proto/pkg/api/
 
       - name: Publish to crates.io
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         run: |
-          tar -xzf ./crate/armada-client-*.crate -C ./crate/
-          cd ./crate/armada-client-*/
-          # --no-verify skips re-packaging and re-building the crate.
-          # Full build verification (including protoc compilation) already ran
-          # in the pack-rust-crate job in build.yml; re-running it here would
-          # require installing protoc and re-fetching all proto dependencies.
-          cargo publish --no-verify --verbose
+          # --no-verify skips the build step (protoc is not installed here; full
+          # build verification already ran in pack-rust-crate). Publishing from
+          # the checked-out source tree ensures .git is present so cargo embeds
+          # .cargo_vcs_info.json in the uploaded crate, preserving VCS traceability
+          # on crates.io.
+          cargo publish --manifest-path client/rust/Cargo.toml --allow-dirty --no-verify --verbose

@@ -23,6 +23,7 @@ jobs:
   rust-client:
     runs-on: ubuntu-22.04
     strategy:
+      fail-fast: false
       matrix:
         include:
           - toolchain: '1.85'
