@@ -11,6 +11,7 @@ func describeCmd() *cobra.Command {
 	}
 
 	cmd.AddCommand(describeNodeCmd())
+	cmd.AddCommand(describePodCmd())
 
 	return cmd
 }
