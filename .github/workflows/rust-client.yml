@@ -8,6 +8,7 @@ on:
       - 'client/rust/**'
       - 'pkg/api/*.proto'
       - '.github/workflows/rust-client.yml'
+      - '.github/actions/fetch-rust-protos/**'
 
   pull_request:
     branches-ignore:
@@ -16,6 +17,7 @@ on:
       - 'client/rust/**'
       - 'pkg/api/*.proto'
       - '.github/workflows/rust-client.yml'
+      - '.github/actions/fetch-rust-protos/**'
 
 jobs:
   rust-client:
