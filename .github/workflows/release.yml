@@ -182,4 +182,8 @@ jobs:
         run: |
           tar -xzf ./crate/armada-client-*.crate -C ./crate/
           cd ./crate/armada-client-*/
-          cargo publish --verbose
+          # --no-verify skips re-packaging and re-building the crate.
+          # Full build verification (including protoc compilation) already ran
+          # in the pack-rust-crate job in build.yml; re-running it here would
+          # require installing protoc and re-fetching all proto dependencies.
+          cargo publish --no-verify --verbose
