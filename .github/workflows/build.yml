@@ -108,7 +108,7 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             client/rust/target
-          key: ${{ runner.os }}-cargo-pack-${{ hashFiles('client/rust/Cargo.toml', 'client/rust/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-pack-${{ hashFiles('client/rust/Cargo.toml', 'client/rust/Cargo.lock', '.github/actions/fetch-rust-protos/action.yml') }}
           restore-keys: |
             ${{ runner.os }}-cargo-pack-
 
