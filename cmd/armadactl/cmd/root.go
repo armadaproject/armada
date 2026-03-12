@@ -22,6 +22,7 @@ func RootCmd() *cobra.Command {
 		createCmd(armadactl.New()),
 		deleteCmd(),
 		describeCmd(),
+		kubeDescribeCmd(),
 		updateCmd(),
 		getCmd(),
 		reprioritizeCmd(),

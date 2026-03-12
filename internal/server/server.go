@@ -13,6 +13,9 @@ import (
 	"github.com/redis/go-redis/extra/redisprometheus/v9"
 	"github.com/redis/go-redis/v9"
 	"google.golang.org/grpc"
+	"k8s.io/client-go/informers"
+	"k8s.io/client-go/tools/cache"
+	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/auth"
@@ -29,11 +32,11 @@ import (
 	"github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/armadaproject/armada/internal/server/event"
 	"github.com/armadaproject/armada/internal/server/executor"
+	introspectionserver "github.com/armadaproject/armada/internal/server/introspection"
 	"github.com/armadaproject/armada/internal/server/node"
 	"github.com/armadaproject/armada/internal/server/queryapi"
 	"github.com/armadaproject/armada/internal/server/queue"
 	"github.com/armadaproject/armada/internal/server/submit"
-	introspectionserver "github.com/armadaproject/armada/internal/server/introspection"
 	"github.com/armadaproject/armada/pkg/api"
 	introspectionapi "github.com/armadaproject/armada/pkg/api/introspection"
 	"github.com/armadaproject/armada/pkg/api/schedulerobjects"
@@ -201,7 +204,36 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 
 	kubeFactory := introspectionserver.NewSingleClusterKubeFactory(provider)
 
-	introspectionServer := introspectionserver.NewIntrospectionServer(kubeFactory, queryApiServer, queryApiServer)
+	kubeClient := provider.Client()
+
+	testNodes, err := kubeClient.CoreV1().Nodes().List(ctx, metaV1.ListOptions{})
+	if err != nil {
+		log.Warnf("kubernetes node list failed: %v", err)
+	} else {
+		log.Infof("kubernetes node list ok, found %d nodes", len(testNodes.Items))
+	}
+
+	informerFactory := informers.NewSharedInformerFactory(kubeClient, 0)
+	podInformer := informerFactory.Core().V1().Pods()
+	nodeInformer := informerFactory.Core().V1().Nodes()
+
+	informerFactory.Start(ctx.Done())
+
+	go func() {
+      if !cache.WaitForCacheSync(ctx.Done(),
+          podInformer.Informer().HasSynced,
+          nodeInformer.Informer().HasSynced,
+      ) {
+          log.Warn("informer cache sync did not complete - kube-describe results may be empty until sync completes")
+      } else {
+          log.Info("informer cache synced")
+      }
+  	}()
+
+	podLister := podInformer.Lister()
+	nodeLister := nodeInformer.Lister()
+
+	introspectionServer := introspectionserver.NewIntrospectionServer(kubeFactory, queryApiServer, queryApiServer).WithListers(podLister, nodeLister)
 	introspectionapi.RegisterIntrospectionServer(grpcServer, introspectionServer)
 	
 	api.RegisterSubmitServer(grpcServer, submitServer)

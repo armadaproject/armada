@@ -44,6 +44,34 @@ service Introspection {
         body: "*"
         };
     }
+
+    rpc KubeDescribeJobPod(DescribeJobPodRequest) returns (DescribeJobPodResponse) {
+        option (google.api.http) = {
+            post: "/v1/job/pod/describe-cached"
+            body: "*"
+        };
+    }
+
+    rpc KubeDescribeNode(DescribeNodeRequest) returns (DescribeNodeResponse) {
+        option (google.api.http) = {
+            post: "/v1/node/describe-cached"
+            body: "*"
+        };
+    }
+
+    rpc KubeDescribeNodeByJobRun(DescribeNodeByJobRunRequest) returns (DescribeNodeResponse) {
+        option (google.api.http) = {
+            post: "/v1/job/node/describe-cached" 
+            body: "*"
+        };
+    }
+
+    rpc KubeDescribeNodeByJobId(DescribeNodeByJobIdRequest) returns (DescribeNodeResponse) {
+        option (google.api.http) = {
+            post: "/v1/job/node/describe-by-id-cached"
+            body: "*"
+        };
+    }
 }
 
 message GetJobLogsRequest {

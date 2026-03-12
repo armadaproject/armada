@@ -128,6 +128,70 @@ func SwaggerJsonTemplate() string {
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +
+		"    \"/v1/job/node/describe-by-id-cached\": {\n" +
+		"      \"post\": {\n" +
+		"        \"tags\": [\n" +
+		"          \"Introspection\"\n" +
+		"        ],\n" +
+		"        \"operationId\": \"KubeDescribeNodeByJobId\",\n" +
+		"        \"parameters\": [\n" +
+		"          {\n" +
+		"            \"name\": \"body\",\n" +
+		"            \"in\": \"body\",\n" +
+		"            \"required\": true,\n" +
+		"            \"schema\": {\n" +
+		"              \"$ref\": \"#/definitions/introspectionDescribeNodeByJobIdRequest\"\n" +
+		"            }\n" +
+		"          }\n" +
+		"        ],\n" +
+		"        \"responses\": {\n" +
+		"          \"200\": {\n" +
+		"            \"description\": \"A successful response.\",\n" +
+		"            \"schema\": {\n" +
+		"              \"$ref\": \"#/definitions/introspectionDescribeNodeResponse\"\n" +
+		"            }\n" +
+		"          },\n" +
+		"          \"default\": {\n" +
+		"            \"description\": \"An unexpected error response.\",\n" +
+		"            \"schema\": {\n" +
+		"              \"$ref\": \"#/definitions/runtimeError\"\n" +
+		"            }\n" +
+		"          }\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"/v1/job/node/describe-cached\": {\n" +
+		"      \"post\": {\n" +
+		"        \"tags\": [\n" +
+		"          \"Introspection\"\n" +
+		"        ],\n" +
+		"        \"operationId\": \"KubeDescribeNodeByJobRun\",\n" +
+		"        \"parameters\": [\n" +
+		"          {\n" +
+		"            \"name\": \"body\",\n" +
+		"            \"in\": \"body\",\n" +
+		"            \"required\": true,\n" +
+		"            \"schema\": {\n" +
+		"              \"$ref\": \"#/definitions/introspectionDescribeNodeByJobRunRequest\"\n" +
+		"            }\n" +
+		"          }\n" +
+		"        ],\n" +
+		"        \"responses\": {\n" +
+		"          \"200\": {\n" +
+		"            \"description\": \"A successful response.\",\n" +
+		"            \"schema\": {\n" +
+		"              \"$ref\": \"#/definitions/introspectionDescribeNodeResponse\"\n" +
+		"            }\n" +
+		"          },\n" +
+		"          \"default\": {\n" +
+		"            \"description\": \"An unexpected error response.\",\n" +
+		"            \"schema\": {\n" +
+		"              \"$ref\": \"#/definitions/runtimeError\"\n" +
+		"            }\n" +
+		"          }\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
 		"    \"/v1/job/pod/describe\": {\n" +
 		"      \"post\": {\n" +
 		"        \"tags\": [\n" +
@@ -160,12 +224,76 @@ func SwaggerJsonTemplate() string {
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +
+		"    \"/v1/job/pod/describe-cached\": {\n" +
+		"      \"post\": {\n" +
+		"        \"tags\": [\n" +
+		"          \"Introspection\"\n" +
+		"        ],\n" +
+		"        \"operationId\": \"KubeDescribeJobPod\",\n" +
+		"        \"parameters\": [\n" +
+		"          {\n" +
+		"            \"name\": \"body\",\n" +
+		"            \"in\": \"body\",\n" +
+		"            \"required\": true,\n" +
+		"            \"schema\": {\n" +
+		"              \"$ref\": \"#/definitions/introspectionDescribeJobPodRequest\"\n" +
+		"            }\n" +
+		"          }\n" +
+		"        ],\n" +
+		"        \"responses\": {\n" +
+		"          \"200\": {\n" +
+		"            \"description\": \"A successful response.\",\n" +
+		"            \"schema\": {\n" +
+		"              \"$ref\": \"#/definitions/introspectionDescribeJobPodResponse\"\n" +
+		"            }\n" +
+		"          },\n" +
+		"          \"default\": {\n" +
+		"            \"description\": \"An unexpected error response.\",\n" +
+		"            \"schema\": {\n" +
+		"              \"$ref\": \"#/definitions/runtimeError\"\n" +
+		"            }\n" +
+		"          }\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
 		"    \"/v1/node/describe\": {\n" +
 		"      \"post\": {\n" +
 		"        \"tags\": [\n" +
 		"          \"Introspection\"\n" +
 		"        ],\n" +
 		"        \"operationId\": \"DescribeNode\",\n" +
+		"        \"parameters\": [\n" +
+		"          {\n" +
+		"            \"name\": \"body\",\n" +
+		"            \"in\": \"body\",\n" +
+		"            \"required\": true,\n" +
+		"            \"schema\": {\n" +
+		"              \"$ref\": \"#/definitions/introspectionDescribeNodeRequest\"\n" +
+		"            }\n" +
+		"          }\n" +
+		"        ],\n" +
+		"        \"responses\": {\n" +
+		"          \"200\": {\n" +
+		"            \"description\": \"A successful response.\",\n" +
+		"            \"schema\": {\n" +
+		"              \"$ref\": \"#/definitions/introspectionDescribeNodeResponse\"\n" +
+		"            }\n" +
+		"          },\n" +
+		"          \"default\": {\n" +
+		"            \"description\": \"An unexpected error response.\",\n" +
+		"            \"schema\": {\n" +
+		"              \"$ref\": \"#/definitions/runtimeError\"\n" +
+		"            }\n" +
+		"          }\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"/v1/node/describe-cached\": {\n" +
+		"      \"post\": {\n" +
+		"        \"tags\": [\n" +
+		"          \"Introspection\"\n" +
+		"        ],\n" +
+		"        \"operationId\": \"KubeDescribeNode\",\n" +
 		"        \"parameters\": [\n" +
 		"          {\n" +
 		"            \"name\": \"body\",\n" +
