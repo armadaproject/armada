@@ -153,6 +153,11 @@ func (c *Collector) Run(ctx *armadacontext.Context) error {
 			ctx.Debugf("Context cancelled, returning")
 			return nil
 		case <-ticker.C:
+			if !c.leaderController.GetToken().Leader() {
+				c.ClearState()
+				continue
+			}
+
 			err := c.collectOnce(ctx)
 			if err != nil {
 				ctx.Logger().WithError(err).Warnf("error collecting Redis metrics")
@@ -180,13 +185,23 @@ func (c *Collector) Describe(out chan<- *prometheus.Desc) {
 
 // Collect implements prometheus.Collector.
 // It serves metrics from the cached atomic snapshot without triggering any Redis operations.
+// Non-leaders return immediately to prevent stale metrics exposure during leadership transitions.
 func (c *Collector) Collect(metrics chan<- prometheus.Metric) {
+	// Scrape-time leadership check prevents stale metrics during failover
+	if c.leaderController != nil && !c.leaderController.GetToken().Leader() {
+		return
+	}
+
 	state, ok := c.state.Load().([]prometheus.Metric)
 	if ok {
 		for _, m := range state {
 			metrics <- m
 		}
 	}
+}
+
+func (c *Collector) ClearState() {
+	c.state.Store([]prometheus.Metric{})
 }
 
 // collectOnce performs a single collection cycle.

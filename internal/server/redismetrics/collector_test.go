@@ -3,6 +3,7 @@ package redismetrics
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -605,4 +606,287 @@ func TestCollect_MultipleQueues(t *testing.T) {
 
 	// Should have metrics for multiple queues
 	require.Greater(t, len(metrics), 0, "should have metrics from multiple queues")
+}
+
+// TestCollector_LeaderMode_EmitsMetrics verifies that leader collector publishes Redis metrics
+func TestCollector_LeaderMode_EmitsMetrics(t *testing.T) {
+	streams := generateStreams(10, "queue-leader")
+	scanner := &mockScanner{
+		streams: streams,
+		err:     nil,
+	}
+
+	leaderController := leader.NewStandaloneLeaderController()
+	leaderController.SetToken(leader.NewLeaderToken())
+
+	collector := NewCollector(scanner, Config{
+		Enabled:            true,
+		CollectionInterval: 100 * time.Millisecond,
+		TopN:               5,
+		ScanBatchSize:      100,
+		PipelineBatchSize:  10,
+		InterBatchDelay:    0,
+		MemoryUsageSamples: 5,
+	}, leaderController)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	collector.collectOnce(ctx)
+
+	metrics := collectMetrics(collector)
+
+	require.Greater(t, len(metrics), 0, "leader should emit Redis metrics")
+
+	hasQueueMetrics := false
+	for _, m := range metrics {
+		if m.Desc().String() == "Desc{fqName: \"armada_redis_queue_streams_total\", help: \"Total number of streams per queue\", constLabels: {}, variableLabels: [queue]}" ||
+			strings.Contains(m.Desc().String(), "armada_redis_queue") ||
+			strings.Contains(m.Desc().String(), "armada_redis_stream") {
+			hasQueueMetrics = true
+			break
+		}
+	}
+
+	require.True(t, hasQueueMetrics, "leader should emit queue-level or stream metrics from streams")
+}
+
+// TestCollector_NonLeaderMode_NoMetrics verifies that non-leader collector emits no Redis metrics
+func TestCollector_NonLeaderMode_NoMetrics(t *testing.T) {
+	streams := generateStreams(10, "queue-nonleader")
+	scanner := &mockScanner{
+		streams: streams,
+		err:     nil,
+	}
+
+	leaderController := leader.NewStandaloneLeaderController()
+	leaderController.SetToken(leader.InvalidLeaderToken())
+
+	collector := NewCollector(scanner, Config{
+		Enabled:            true,
+		CollectionInterval: 100 * time.Millisecond,
+		TopN:               5,
+		ScanBatchSize:      100,
+		PipelineBatchSize:  10,
+		InterBatchDelay:    0,
+		MemoryUsageSamples: 5,
+	}, leaderController)
+
+	leaderController.SetToken(leader.NewLeaderToken())
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	collector.collectOnce(ctx)
+
+	leaderController.SetToken(leader.InvalidLeaderToken())
+	collector.ClearState()
+
+	metrics := collectMetrics(collector)
+
+	for _, m := range metrics {
+		desc := m.Desc().String()
+		if desc == "Desc{fqName: \"armada_redis_queue_streams_total\", help: \"Total number of streams per queue\", constLabels: {}, variableLabels: [queue]}" {
+			t.Fatalf("non-leader should not emit queue metrics")
+		}
+	}
+}
+
+// TestCollector_LeadershipTransition verifies clean behavior when transitioning leadership
+func TestCollector_LeadershipTransition(t *testing.T) {
+	streams := generateStreams(10, "queue-transition")
+	scanner := &mockScanner{
+		streams: streams,
+		err:     nil,
+	}
+
+	leaderController := leader.NewStandaloneLeaderController()
+	leaderController.SetToken(leader.NewLeaderToken())
+
+	collector := NewCollector(scanner, Config{
+		Enabled:            true,
+		CollectionInterval: 100 * time.Millisecond,
+		TopN:               5,
+		ScanBatchSize:      100,
+		PipelineBatchSize:  10,
+		InterBatchDelay:    0,
+		MemoryUsageSamples: 5,
+	}, leaderController)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	collector.collectOnce(ctx)
+	metricsAsLeader := collectMetrics(collector)
+
+	require.Greater(t, len(metricsAsLeader), 0, "should have metrics as leader")
+
+	hasQueueMetricsAsLeader := false
+	for _, m := range metricsAsLeader {
+		if strings.Contains(m.Desc().String(), "armada_redis_queue") || strings.Contains(m.Desc().String(), "armada_redis_stream") {
+			hasQueueMetricsAsLeader = true
+			break
+		}
+	}
+	require.True(t, hasQueueMetricsAsLeader, "should have queue or stream metrics while leader")
+
+	leaderController.SetToken(leader.InvalidLeaderToken())
+	collector.ClearState()
+	metricsAsNonLeader := collectMetrics(collector)
+
+	for _, m := range metricsAsNonLeader {
+		if strings.Contains(m.Desc().String(), "armada_redis_queue") || strings.Contains(m.Desc().String(), "armada_redis_stream") {
+			t.Fatalf("metrics should be cleared after losing leadership")
+		}
+	}
+
+	leaderController.SetToken(leader.NewLeaderToken())
+	collector.collectOnce(ctx)
+	metricsAfterRegaining := collectMetrics(collector)
+
+	hasQueueMetricsAfterRegain := false
+	for _, m := range metricsAfterRegaining {
+		if strings.Contains(m.Desc().String(), "armada_redis_queue") || strings.Contains(m.Desc().String(), "armada_redis_stream") {
+			hasQueueMetricsAfterRegain = true
+			break
+		}
+	}
+
+	require.True(t, hasQueueMetricsAfterRegain, "metrics should be restored after regaining leadership")
+}
+
+// TestCollector_Describe_LeadershipIndependent verifies Describe remains stable regardless of leadership
+func TestCollector_Describe_LeadershipIndependent(t *testing.T) {
+	streams := generateStreams(5, "queue-describe")
+	scanner := &mockScanner{
+		streams: streams,
+		err:     nil,
+	}
+
+	leaderController := leader.NewStandaloneLeaderController()
+
+	collector := NewCollector(scanner, Config{
+		Enabled:            true,
+		CollectionInterval: 100 * time.Millisecond,
+		TopN:               5,
+		ScanBatchSize:      100,
+		PipelineBatchSize:  10,
+		InterBatchDelay:    0,
+		MemoryUsageSamples: 5,
+	}, leaderController)
+
+	leaderController.SetToken(leader.NewLeaderToken())
+	ch1 := make(chan *prometheus.Desc, 100)
+	collector.Describe(ch1)
+	close(ch1)
+	var descriptorsAsLeader []*prometheus.Desc
+	for desc := range ch1 {
+		descriptorsAsLeader = append(descriptorsAsLeader, desc)
+	}
+
+	leaderController.SetToken(leader.InvalidLeaderToken())
+	ch2 := make(chan *prometheus.Desc, 100)
+	collector.Describe(ch2)
+	close(ch2)
+	var descriptorsAsNonLeader []*prometheus.Desc
+	for desc := range ch2 {
+		descriptorsAsNonLeader = append(descriptorsAsNonLeader, desc)
+	}
+
+	require.Equal(t, len(descriptorsAsLeader), len(descriptorsAsNonLeader), "Describe should return same number of descriptors regardless of leadership")
+
+	leaderDescStrings := make(map[string]bool)
+	for _, desc := range descriptorsAsLeader {
+		leaderDescStrings[desc.String()] = true
+	}
+
+	for _, desc := range descriptorsAsNonLeader {
+		require.True(t, leaderDescStrings[desc.String()], "non-leader should have same descriptors as leader")
+	}
+}
+
+// TestCollector_ScrapetimeLeadershipCheck verifies that losing leadership immediately stops metric emission
+// even without calling ClearState(). This proves the scrape-time check prevents stale metrics exposure.
+func TestCollector_ScrapetimeLeadershipCheck(t *testing.T) {
+	streams := generateStreams(10, "queue-scrapetime")
+	scanner := &mockScanner{
+		streams: streams,
+		err:     nil,
+	}
+
+	leaderController := leader.NewStandaloneLeaderController()
+	leaderController.SetToken(leader.NewLeaderToken())
+
+	collector := NewCollector(scanner, Config{
+		Enabled:            true,
+		CollectionInterval: 100 * time.Millisecond,
+		TopN:               5,
+		ScanBatchSize:      100,
+		PipelineBatchSize:  10,
+		InterBatchDelay:    0,
+		MemoryUsageSamples: 5,
+	}, leaderController)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Step 1: Populate state while leader
+	collector.collectOnce(ctx)
+	metricsAsLeader := collectMetrics(collector)
+	require.Greater(t, len(metricsAsLeader), 0, "should have metrics while leader")
+
+	// Step 2: Invalidate leadership WITHOUT calling ClearState()
+	leaderController.SetToken(leader.InvalidLeaderToken())
+
+	// Step 3: Collect metrics - should be empty due to scrape-time check in Collect()
+	metricsAfterLeadershipLoss := collectMetrics(collector)
+
+	// Step 4: Assert ZERO metrics (not even self-monitoring metrics)
+	require.Equal(t, 0, len(metricsAfterLeadershipLoss),
+		"non-leader should emit ZERO metrics via Collect() even with populated state (scrape-time check)")
+
+	// Verify deterministically by running multiple times
+	for i := 0; i < 2; i++ {
+		metricsRetry := collectMetrics(collector)
+		require.Equal(t, 0, len(metricsRetry),
+			"non-leader should consistently emit ZERO metrics on retry %d", i+1)
+	}
+}
+
+// TestCollector_ScrapetimeLeadershipCheck_RunsAfterRegain verifies that regaining leadership
+// resumes metric emission without needing state repopulation (collector retains state).
+func TestCollector_ScrapetimeLeadershipCheck_RunsAfterRegain(t *testing.T) {
+	streams := generateStreams(10, "queue-scrapetime-regain")
+	scanner := &mockScanner{
+		streams: streams,
+		err:     nil,
+	}
+
+	leaderController := leader.NewStandaloneLeaderController()
+	leaderController.SetToken(leader.NewLeaderToken())
+
+	collector := NewCollector(scanner, Config{
+		Enabled:            true,
+		CollectionInterval: 100 * time.Millisecond,
+		TopN:               5,
+		ScanBatchSize:      100,
+		PipelineBatchSize:  10,
+		InterBatchDelay:    0,
+		MemoryUsageSamples: 5,
+	}, leaderController)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Populate state while leader
+	collector.collectOnce(ctx)
+	metricsAsLeader := collectMetrics(collector)
+	require.Greater(t, len(metricsAsLeader), 0, "should have metrics as leader")
+
+	// Lose leadership
+	leaderController.SetToken(leader.InvalidLeaderToken())
+	metricsAsNonLeader := collectMetrics(collector)
+	require.Equal(t, 0, len(metricsAsNonLeader), "non-leader should emit zero metrics")
+
+	// Regain leadership - state is retained, so metrics should be emitted again
+	leaderController.SetToken(leader.NewLeaderToken())
+	metricsAfterRegain := collectMetrics(collector)
+	require.Greater(t, len(metricsAfterRegain), 0, "should emit metrics again after regaining leadership without state repopulation")
 }

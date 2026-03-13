@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -276,5 +277,136 @@ func TestIntegration_KeyExpiryMidScan(t *testing.T) {
 		assert.True(t, streamKeys["Events:queue-persist:jobset-2"])
 		assert.True(t, streamKeys["Events:queue-persist:jobset-3"])
 		assert.False(t, streamKeys[expiringKey])
+	})
+}
+
+func TestIntegration_LeaderMode_EmitsMetrics(t *testing.T) {
+	withRedisClient(t, func(client redis.UniversalClient) {
+		ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 60*time.Second)
+		defer cancel()
+
+		createTestStream(t, client, ctx, "queue-a", "jobset-1", 100)
+		createTestStream(t, client, ctx, "queue-b", "jobset-1", 50)
+
+		leaderController := leader.NewStandaloneLeaderController()
+		leaderController.SetToken(leader.NewLeaderToken())
+
+		config := Config{
+			CollectionInterval: 5 * time.Minute,
+			TopN:               5,
+			ScanBatchSize:      1000,
+			PipelineBatchSize:  500,
+			InterBatchDelay:    0,
+			MemoryUsageSamples: 5,
+		}
+		scanner := NewScanner(client, config)
+		collector := NewCollector(scanner, config, leaderController)
+
+		err := collector.collectOnce(ctx)
+		require.NoError(t, err)
+
+		metrics := collectMetrics(collector)
+
+		var foundQueueMetrics bool
+		for _, m := range metrics {
+			if strings.Contains(m.Desc().String(), "armada_redis_queue") {
+				foundQueueMetrics = true
+				break
+			}
+		}
+		assert.True(t, foundQueueMetrics, "Expected to find redis queue metrics in leader mode")
+	})
+}
+
+func TestIntegration_NonLeaderMode_NoMetrics(t *testing.T) {
+	withRedisClient(t, func(client redis.UniversalClient) {
+		ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 60*time.Second)
+		defer cancel()
+
+		createTestStream(t, client, ctx, "queue-a", "jobset-1", 100)
+		createTestStream(t, client, ctx, "queue-b", "jobset-1", 50)
+
+		leaderController := leader.NewStandaloneLeaderController()
+		leaderController.SetToken(leader.NewLeaderToken())
+
+		config := Config{
+			CollectionInterval: 5 * time.Minute,
+			TopN:               5,
+			ScanBatchSize:      1000,
+			PipelineBatchSize:  500,
+			InterBatchDelay:    0,
+			MemoryUsageSamples: 5,
+		}
+		scanner := NewScanner(client, config)
+		collector := NewCollector(scanner, config, leaderController)
+
+		err := collector.collectOnce(ctx)
+		require.NoError(t, err)
+
+		leaderController.SetToken(leader.InvalidLeaderToken())
+		collector.ClearState()
+
+		metrics := collectMetrics(collector)
+
+		for _, m := range metrics {
+			assert.False(t, strings.Contains(m.Desc().String(), "armada_redis_"),
+				"Non-leader should not emit redis metrics, but found: %s", m.Desc().String())
+		}
+	})
+}
+
+func TestIntegration_LeadershipTransition(t *testing.T) {
+	withRedisClient(t, func(client redis.UniversalClient) {
+		ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 60*time.Second)
+		defer cancel()
+
+		createTestStream(t, client, ctx, "queue-a", "jobset-1", 100)
+		createTestStream(t, client, ctx, "queue-b", "jobset-1", 50)
+
+		leaderController := leader.NewStandaloneLeaderController()
+		config := Config{
+			CollectionInterval: 5 * time.Minute,
+			TopN:               5,
+			ScanBatchSize:      1000,
+			PipelineBatchSize:  500,
+			InterBatchDelay:    0,
+			MemoryUsageSamples: 5,
+		}
+		scanner := NewScanner(client, config)
+		collector := NewCollector(scanner, config, leaderController)
+
+		leaderController.SetToken(leader.NewLeaderToken())
+		err := collector.collectOnce(ctx)
+		require.NoError(t, err)
+		metricsAsLeader := collectMetrics(collector)
+		var leaderFoundMetrics bool
+		for _, m := range metricsAsLeader {
+			if strings.Contains(m.Desc().String(), "armada_redis_queue") {
+				leaderFoundMetrics = true
+				break
+			}
+		}
+		assert.True(t, leaderFoundMetrics, "Expected metrics when running as leader")
+
+		leaderController.SetToken(leader.InvalidLeaderToken())
+		collector.ClearState()
+		metricsAsNonLeader := collectMetrics(collector)
+		for _, m := range metricsAsNonLeader {
+			assert.False(t, strings.Contains(m.Desc().String(), "armada_redis_"),
+				"Non-leader should not emit redis metrics after transition")
+		}
+
+		leaderController.SetToken(leader.NewLeaderToken())
+		err = collector.collectOnce(ctx)
+		require.NoError(t, err)
+		metricsAfterRestore := collectMetrics(collector)
+		var restoredFoundMetrics bool
+		for _, m := range metricsAfterRestore {
+			if strings.Contains(m.Desc().String(), "armada_redis_queue") {
+				restoredFoundMetrics = true
+				break
+			}
+		}
+		assert.True(t, restoredFoundMetrics, "Expected metrics to return when restored to leader")
 	})
 }
