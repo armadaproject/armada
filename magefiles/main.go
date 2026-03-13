@@ -229,7 +229,7 @@ func LocalDev(arg string) error {
 
 	switch arg {
 	case "minimal":
-		os.Setenv("ARMADA_COMPONENTS", "executor,server,scheduler")
+		os.Setenv("ARMADA_COMPONENTS", "executor,server,scheduler,lookout")
 		mg.Deps(StartComponents)
 		// This is a naive check to confirm the containers are running, it doesn't check they are ready
 		// TODO Make a good check to confirm the system is ready, such as seeing armadactl get executors return a value

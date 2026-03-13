@@ -17,6 +17,7 @@ import (
 	"github.com/armadaproject/armada/internal/testsuite/eventlogger"
 	"github.com/armadaproject/armada/internal/testsuite/eventsplitter"
 	"github.com/armadaproject/armada/internal/testsuite/eventwatcher"
+	"github.com/armadaproject/armada/internal/testsuite/lookoutclient"
 	"github.com/armadaproject/armada/internal/testsuite/submitter"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/client"
@@ -75,6 +76,11 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 		ctx, cancel = context.WithCancel(ctx)
 	}
 	defer cancel()
+
+	// Save the timeout-bounded context for post-event assertions (e.g., Lookout queries).
+	// The errgroup context below gets cancelled when ErrorOnNoActiveJobs fires,
+	// which would prematurely cancel any HTTP calls made after AssertEvents returns.
+	timeoutCtx := ctx
 
 	// Setup an errgroup that cancels on any job failing or there being no active jobs.
 	g, ctx := errgroup.WithContext(ctx)
@@ -192,11 +198,16 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 		}
 	}
 
-	// Armada JobSet logs
-	// TODO: Optionally get logs from failed jobs.
-	// if testSpec.GetLogs && executorClustersDefined {
-	// 	jobLogger.PrintLogs()
-	// }
+	// Verify error categories via Lookout API if expected.
+	// Uses timeoutCtx instead of the errgroup ctx, which is cancelled by ErrorOnNoActiveJobs.
+	if err = lookoutclient.AssertCategories(
+		timeoutCtx,
+		srv.apiConnectionDetails.LookoutUrl,
+		jobIds,
+		srv.testSpec.GetFailure().GetCategories(),
+	); err != nil {
+		return err
+	}
 
 	return nil
 }

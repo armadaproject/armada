@@ -2,3 +2,4 @@ currentContext: test
 contexts:
   test:
     armadaUrl: localhost:50051
+    lookoutUrl: http://localhost:10000
