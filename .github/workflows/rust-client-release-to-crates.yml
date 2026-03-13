@@ -48,7 +48,7 @@ jobs:
       - name: Clippy
         run: cargo clippy --manifest-path client/rust/Cargo.toml --all-targets -- -D warnings
 
-      - name: Vendor Armada protos for published crate
+      - name: Vendor protos for published crate
         uses: ./.github/actions/fetch-rust-protos
         with:
           include-armada-protos: 'true'
