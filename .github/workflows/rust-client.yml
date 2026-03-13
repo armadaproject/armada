@@ -18,13 +18,24 @@ on:
       - '.github/workflows/rust-client.yml'
 
 jobs:
-  rust-client-msrv:
+  rust-client:
     runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        include:
+          - toolchain: '1.85'
+            cache-key: cargo-msrv
+          - toolchain: stable
+            cache-key: cargo
+            extra-components: 'clippy,rustfmt'
     steps:
       - uses: actions/checkout@v6
 
-      - name: Install Rust (MSRV 1.85)
-        uses: dtolnay/rust-toolchain@1.85
+      - name: Install Rust (${{ matrix.toolchain }})
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.toolchain }}
+          components: ${{ matrix.extra-components }}
 
       - name: Cache cargo registry and build
         uses: actions/cache@v4
@@ -33,9 +44,9 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             client/rust/target
-          key: ${{ runner.os }}-cargo-msrv-${{ hashFiles('client/rust/Cargo.toml', 'client/rust/Cargo.lock') }}
+          key: ${{ runner.os }}-${{ matrix.cache-key }}-${{ hashFiles('client/rust/Cargo.toml', 'client/rust/Cargo.lock', '.github/workflows/rust-client.yml') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-msrv-
+            ${{ runner.os }}-${{ matrix.cache-key }}-
 
       - name: Install protoc
         uses: arduino/setup-protoc@v3
@@ -44,82 +55,10 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Fetch proto dependencies
-        run: |
-          mkdir -p client/rust/proto/k8s.io/api client/rust/proto/k8s.io/apimachinery client/rust/proto/google/api
-
-          git clone --depth=1 --filter=blob:none --sparse --branch v0.32.0 \
-            https://github.com/kubernetes/api.git /tmp/k8s-api
-          git -C /tmp/k8s-api sparse-checkout set core/v1 networking/v1
-          cp -r /tmp/k8s-api/core client/rust/proto/k8s.io/api/
-          cp -r /tmp/k8s-api/networking client/rust/proto/k8s.io/api/
-
-          git clone --depth=1 --filter=blob:none --sparse --branch v0.32.0 \
-            https://github.com/kubernetes/apimachinery.git /tmp/k8s-apimachinery
-          git -C /tmp/k8s-apimachinery sparse-checkout set pkg/api/resource pkg/apis/meta/v1 pkg/runtime pkg/util/intstr
-          cp -r /tmp/k8s-apimachinery/pkg client/rust/proto/k8s.io/apimachinery/
-
-          curl -sSfL https://raw.githubusercontent.com/googleapis/googleapis/798823426715215eccca4d7e7ee4c814843045d7/google/api/annotations.proto \
-            -o client/rust/proto/google/api/annotations.proto
-          curl -sSfL https://raw.githubusercontent.com/googleapis/googleapis/798823426715215eccca4d7e7ee4c814843045d7/google/api/http.proto \
-            -o client/rust/proto/google/api/http.proto
-
-      - name: Build (MSRV)
-        run: cargo build --manifest-path client/rust/Cargo.toml
-
-      - name: Test (MSRV)
-        run: cargo test --manifest-path client/rust/Cargo.toml
-
-  rust-client-test:
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@v6
-
-      - name: Install Rust (stable)
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy, rustfmt
-
-      - name: Install protoc
-        uses: arduino/setup-protoc@v3
-        with:
-          version: '23.3'
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Cache cargo registry and build
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            client/rust/target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('client/rust/Cargo.toml', 'client/rust/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-
-
-      - name: Fetch proto dependencies
-        run: |
-          mkdir -p client/rust/proto/k8s.io/api client/rust/proto/k8s.io/apimachinery client/rust/proto/google/api
-
-          # kubernetes/api — pinned to v0.32.0, sparse clone (only proto directories needed)
-          git clone --depth=1 --filter=blob:none --sparse --branch v0.32.0 \
-            https://github.com/kubernetes/api.git /tmp/k8s-api
-          git -C /tmp/k8s-api sparse-checkout set core/v1 networking/v1
-          cp -r /tmp/k8s-api/core client/rust/proto/k8s.io/api/
-          cp -r /tmp/k8s-api/networking client/rust/proto/k8s.io/api/
-
-          # kubernetes/apimachinery — pinned to v0.32.0, sparse clone
-          git clone --depth=1 --filter=blob:none --sparse --branch v0.32.0 \
-            https://github.com/kubernetes/apimachinery.git /tmp/k8s-apimachinery
-          git -C /tmp/k8s-apimachinery sparse-checkout set pkg/api/resource pkg/apis/meta/v1 pkg/runtime pkg/util/intstr
-          cp -r /tmp/k8s-apimachinery/pkg client/rust/proto/k8s.io/apimachinery/
-
-          # google/api protos — pinned to a specific commit for reproducibility
-          curl -sSfL https://raw.githubusercontent.com/googleapis/googleapis/798823426715215eccca4d7e7ee4c814843045d7/google/api/annotations.proto \
-            -o client/rust/proto/google/api/annotations.proto
-          curl -sSfL https://raw.githubusercontent.com/googleapis/googleapis/798823426715215eccca4d7e7ee4c814843045d7/google/api/http.proto \
-            -o client/rust/proto/google/api/http.proto
+        uses: ./.github/actions/fetch-rust-protos
 
       - name: Check formatting
+        if: matrix.toolchain == 'stable'
         run: cargo fmt --manifest-path client/rust/Cargo.toml -- --check
 
       - name: Build
@@ -129,4 +68,6 @@ jobs:
         run: cargo test --manifest-path client/rust/Cargo.toml
 
       - name: Clippy
+        if: matrix.toolchain == 'stable'
         run: cargo clippy --manifest-path client/rust/Cargo.toml --all-targets -- -D warnings
+
