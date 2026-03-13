@@ -1,4 +1,4 @@
-import { useEffect } from "react"
+import { useCallback, useEffect, useState } from "react"
 
 import { CssBaseline, styled } from "@mui/material"
 import { LocalizationProvider } from "@mui/x-date-pickers"
@@ -8,6 +8,7 @@ import { SnackbarProvider } from "notistack"
 import { ErrorBoundary } from "react-error-boundary"
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom"
 
+import { AnalyticsScript, AnalyticsUserIdentifier } from "../analytics"
 import { dayJsLocales, getBrowserSupportedLocale } from "../common/locales"
 import { withRouter } from "../common/utils"
 import { AlertInPageContainerErrorFallback } from "../components/AlertInPageContainerErrorFallback"
@@ -70,10 +71,16 @@ const V2Redirect = withRouter(({ router }) => <Navigate to={{ ...router.location
 const config = getConfig()
 
 export function App(props: AppProps) {
+  const [analyticsReady, setAnalyticsReady] = useState(false)
+
   useEffect(() => {
     if (config.customTitle) {
       document.title = `${config.customTitle} - Armada Lookout`
     }
+  }, [])
+
+  const handleAnalyticsReady = useCallback(() => {
+    setAnalyticsReady(true)
   }, [])
 
   const [formatTimestampLocale] = useFormatTimestampLocale()
@@ -82,6 +89,7 @@ export function App(props: AppProps) {
 
   return (
     <ErrorBoundary FallbackComponent={FullPageErrorFallback}>
+      <AnalyticsScript config={config.analytics} onReady={handleAnalyticsReady} />
       <LookoutThemeProvider>
         <CssBaseline />
         <SnackbarProvider
@@ -93,6 +101,7 @@ export function App(props: AppProps) {
             <QueryClientProvider client={queryClient}>
               <ErrorBoundary FallbackComponent={FullPageErrorFallback}>
                 <OidcAuthProvider oidcConfig={config.oidcEnabled ? config.oidc : undefined}>
+                  <AnalyticsUserIdentifier analyticsConfig={config.analytics} providerReady={analyticsReady} />
                   <ApiClientsProvider>
                     <BrowserRouter>
                       <ServicesProvider services={props.services}>
