@@ -11,6 +11,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/scheduler/leader"
 )
 
 // ScannerInterface defines the interface for scanning Redis streams.
@@ -23,6 +24,9 @@ type ScannerInterface interface {
 type Collector struct {
 	scanner ScannerInterface
 	config  Config
+
+	// Leadership support for gating metric collection
+	leaderController leader.LeaderController
 
 	// Top-N gauges (labels: queue, jobset)
 	topNMemoryGauge *prometheus.GaugeVec
@@ -50,10 +54,11 @@ type Collector struct {
 }
 
 // NewCollector creates a new Collector instance.
-func NewCollector(scanner ScannerInterface, config Config) *Collector {
+func NewCollector(scanner ScannerInterface, config Config, leaderController leader.LeaderController) *Collector {
 	return &Collector{
-		scanner: scanner,
-		config:  config,
+		scanner:          scanner,
+		config:           config,
+		leaderController: leaderController,
 
 		topNMemoryGauge: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{

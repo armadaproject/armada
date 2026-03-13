@@ -24,6 +24,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	controlplaneeventspulsarutils "github.com/armadaproject/armada/internal/common/pulsarutils/controlplaneevents"
 	"github.com/armadaproject/armada/internal/common/pulsarutils/jobsetevents"
+	"github.com/armadaproject/armada/internal/scheduler/leader"
 	"github.com/armadaproject/armada/internal/scheduler/reports"
 	"github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/armadaproject/armada/internal/server/event"
@@ -124,7 +125,8 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 			MemoryUsageSamples: config.RedisMemoryMetrics.MemoryUsageSamples,
 		}
 		scanner := redismetrics.NewScanner(metricsRedisClient, metricsConfig)
-		collector := redismetrics.NewCollector(scanner, metricsConfig)
+		leaderController := leader.NewStandaloneLeaderController()
+		collector := redismetrics.NewCollector(scanner, metricsConfig, leaderController)
 		prometheus.MustRegister(collector)
 		services = append(services, func() error {
 			return collector.Run(ctx)

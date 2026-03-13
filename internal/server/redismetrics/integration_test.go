@@ -15,6 +15,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
+	"github.com/armadaproject/armada/internal/scheduler/leader"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
@@ -169,7 +170,7 @@ func TestIntegration_CollectorMetrics(t *testing.T) {
 			MemoryUsageSamples: 5,
 		}
 		scanner := NewScanner(client, config)
-		collector := NewCollector(scanner, config)
+		collector := NewCollector(scanner, config, leader.NewStandaloneLeaderController())
 
 		streams, err := scanner.ScanAll(ctx)
 		require.NoError(t, err)

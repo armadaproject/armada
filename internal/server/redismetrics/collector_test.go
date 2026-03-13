@@ -10,6 +10,8 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
+
+	"github.com/armadaproject/armada/internal/scheduler/leader"
 )
 
 // mockScanner implements the scanner interface for testing
@@ -30,6 +32,10 @@ func (m *mockScanner) ScanAll(ctx context.Context) ([]StreamInfo, error) {
 		}
 	}
 	return m.streams, m.err
+}
+
+func newTestCollector(scanner ScannerInterface, config Config) *Collector {
+	return NewCollector(scanner, config, leader.NewStandaloneLeaderController())
 }
 
 // generateStreams creates test streams with configurable count and memory sizes
@@ -85,7 +91,7 @@ func TestCollect_EmptyStreams(t *testing.T) {
 		err:     nil,
 	}
 
-	collector := NewCollector(scanner, Config{
+	collector := newTestCollector(scanner, Config{
 		Enabled:            true,
 		CollectionInterval: 100 * time.Millisecond,
 		TopN:               5,
@@ -129,7 +135,7 @@ func TestCollect_TopN_Memory(t *testing.T) {
 
 	topN := 5
 
-	collector := NewCollector(scanner, Config{
+	collector := newTestCollector(scanner, Config{
 		Enabled:            true,
 		CollectionInterval: 100 * time.Millisecond,
 		TopN:               topN,
@@ -176,7 +182,7 @@ func TestCollect_TopN_Events(t *testing.T) {
 
 	topN := 5
 
-	collector := NewCollector(scanner, Config{
+	collector := newTestCollector(scanner, Config{
 		Enabled:            true,
 		CollectionInterval: 100 * time.Millisecond,
 		TopN:               topN,
@@ -211,7 +217,7 @@ func TestCollect_PerQueueAggregation(t *testing.T) {
 		err:     nil,
 	}
 
-	collector := NewCollector(scanner, Config{
+	collector := newTestCollector(scanner, Config{
 		Enabled:            true,
 		CollectionInterval: 100 * time.Millisecond,
 		TopN:               20,
@@ -251,7 +257,7 @@ func TestCollect_StaleLabelsCleared(t *testing.T) {
 		err:     nil,
 	}
 
-	collector := NewCollector(scanner, Config{
+	collector := newTestCollector(scanner, Config{
 		Enabled:            true,
 		CollectionInterval: 100 * time.Millisecond,
 		TopN:               5,
@@ -292,7 +298,7 @@ func TestCollect_ScannerError(t *testing.T) {
 		err:     fmt.Errorf("redis connection error"),
 	}
 
-	collector := NewCollector(scanner, Config{
+	collector := newTestCollector(scanner, Config{
 		Enabled:            true,
 		CollectionInterval: 100 * time.Millisecond,
 		TopN:               5,
@@ -333,7 +339,7 @@ func TestCollect_SkipIfBusy(t *testing.T) {
 		delay:   500 * time.Millisecond, // Slow collection
 	}
 
-	collector := NewCollector(scanner, Config{
+	collector := newTestCollector(scanner, Config{
 		Enabled:            true,
 		CollectionInterval: 100 * time.Millisecond,
 		TopN:               5,
@@ -373,7 +379,7 @@ func TestCollect_MetricDescriptions(t *testing.T) {
 		err:     nil,
 	}
 
-	collector := NewCollector(scanner, Config{
+	collector := newTestCollector(scanner, Config{
 		Enabled:            true,
 		CollectionInterval: 100 * time.Millisecond,
 		TopN:               5,
@@ -407,7 +413,7 @@ func TestCollect_ConcurrentCollect(t *testing.T) {
 		err:     nil,
 	}
 
-	collector := NewCollector(scanner, Config{
+	collector := newTestCollector(scanner, Config{
 		Enabled:            true,
 		CollectionInterval: 100 * time.Millisecond,
 		TopN:               5,
@@ -445,7 +451,7 @@ func TestCollect_ContextCancellation(t *testing.T) {
 		delay:   100 * time.Millisecond,
 	}
 
-	collector := NewCollector(scanner, Config{
+	collector := newTestCollector(scanner, Config{
 		Enabled:            true,
 		CollectionInterval: 100 * time.Millisecond,
 		TopN:               5,
@@ -476,7 +482,7 @@ func TestCollect_LargeDataset(t *testing.T) {
 		err:     nil,
 	}
 
-	collector := NewCollector(scanner, Config{
+	collector := newTestCollector(scanner, Config{
 		Enabled:            true,
 		CollectionInterval: 100 * time.Millisecond,
 		TopN:               10,
@@ -504,7 +510,7 @@ func TestCollect_NoMetricsWhenDisabled(t *testing.T) {
 		err:     nil,
 	}
 
-	collector := NewCollector(scanner, Config{
+	collector := newTestCollector(scanner, Config{
 		Enabled:            false, // Disabled
 		CollectionInterval: 100 * time.Millisecond,
 		TopN:               5,
@@ -571,7 +577,7 @@ func TestCollect_MultipleQueues(t *testing.T) {
 		err:     nil,
 	}
 
-	collector := NewCollector(scanner, Config{
+	collector := newTestCollector(scanner, Config{
 		Enabled:            true,
 		CollectionInterval: 100 * time.Millisecond,
 		TopN:               10,
