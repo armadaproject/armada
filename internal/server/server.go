@@ -217,6 +217,9 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 	podInformer := informerFactory.Core().V1().Pods()
 	nodeInformer := informerFactory.Core().V1().Nodes()
 
+	_ = podInformer.Informer()
+	_ = nodeInformer.Informer()
+
 	informerFactory.Start(ctx.Done())
 
 	go func() {
