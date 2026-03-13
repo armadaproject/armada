@@ -6,6 +6,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/armadaproject/armada/internal/common/database/lookout"
 )
 
 func TestQueriesToInstructionSet_InsertJobWithSpec(t *testing.T) {
@@ -56,7 +58,7 @@ func TestQueriesToInstructionSet_JobUpdateProducesUpdate(t *testing.T) {
 	require.Len(t, set.JobsToUpdate, 1)
 	assert.Equal(t, "job001", set.JobsToUpdate[0].JobId)
 	require.NotNil(t, set.JobsToUpdate[0].State)
-	assert.Equal(t, int32(1), *set.JobsToUpdate[0].State)
+	assert.Equal(t, int32(lookout.JobLeasedOrdinal), *set.JobsToUpdate[0].State)
 }
 
 func TestQueriesToInstructionSet_JobRunUpdateProducesUpdate(t *testing.T) {

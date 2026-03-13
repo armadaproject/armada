@@ -3,6 +3,7 @@ package db
 import (
 	"fmt"
 
+	"github.com/armadaproject/armada/internal/common/database/lookout"
 	lookoutmodel "github.com/armadaproject/armada/internal/lookoutingester/model"
 )
 
@@ -41,7 +42,7 @@ func queriesToInstructionSet(queries []IngestionQuery) (*lookoutmodel.Instructio
 			u.Priority = &q.Priority
 
 		case SetJobLeased:
-			state := int32(1)
+			state := int32(lookout.JobLeasedOrdinal)
 			seconds := q.Time.Unix()
 			u := jobUpdate(jobUpdates, q.JobID)
 			u.State = &state
@@ -50,7 +51,7 @@ func queriesToInstructionSet(queries []IngestionQuery) (*lookoutmodel.Instructio
 			u.LastTransitionTimeSeconds = &seconds
 
 		case SetJobPending:
-			state := int32(2)
+			state := int32(lookout.JobPendingOrdinal)
 			seconds := q.Time.Unix()
 			u := jobUpdate(jobUpdates, q.JobID)
 			u.State = &state
@@ -59,7 +60,7 @@ func queriesToInstructionSet(queries []IngestionQuery) (*lookoutmodel.Instructio
 			u.LastTransitionTimeSeconds = &seconds
 
 		case SetJobRunning:
-			state := int32(3)
+			state := int32(lookout.JobRunningOrdinal)
 			seconds := q.Time.Unix()
 			u := jobUpdate(jobUpdates, q.JobID)
 			u.State = &state
@@ -68,7 +69,7 @@ func queriesToInstructionSet(queries []IngestionQuery) (*lookoutmodel.Instructio
 			u.LastTransitionTimeSeconds = &seconds
 
 		case SetJobErrored:
-			state := int32(4)
+			state := int32(lookout.JobFailedOrdinal)
 			seconds := q.Time.Unix()
 			u := jobUpdate(jobUpdates, q.JobID)
 			u.State = &state
@@ -76,7 +77,7 @@ func queriesToInstructionSet(queries []IngestionQuery) (*lookoutmodel.Instructio
 			u.LastTransitionTimeSeconds = &seconds
 
 		case SetJobSucceeded:
-			state := int32(5)
+			state := int32(lookout.JobSucceededOrdinal)
 			seconds := q.Time.Unix()
 			u := jobUpdate(jobUpdates, q.JobID)
 			u.State = &state
@@ -84,7 +85,7 @@ func queriesToInstructionSet(queries []IngestionQuery) (*lookoutmodel.Instructio
 			u.LastTransitionTimeSeconds = &seconds
 
 		case SetJobCancelled:
-			state := int32(6)
+			state := int32(lookout.JobCancelledOrdinal)
 			seconds := q.Time.Unix()
 			u := jobUpdate(jobUpdates, q.JobID)
 			u.State = &state
@@ -93,7 +94,7 @@ func queriesToInstructionSet(queries []IngestionQuery) (*lookoutmodel.Instructio
 			u.LastTransitionTimeSeconds = &seconds
 
 		case SetJobRejected:
-			state := int32(7)
+			state := int32(lookout.JobRejectedOrdinal)
 			seconds := q.Time.Unix()
 			u := jobUpdate(jobUpdates, q.JobID)
 			u.State = &state
@@ -101,7 +102,7 @@ func queriesToInstructionSet(queries []IngestionQuery) (*lookoutmodel.Instructio
 			u.LastTransitionTimeSeconds = &seconds
 
 		case SetJobPreempted:
-			state := int32(8)
+			state := int32(lookout.JobPreemptedOrdinal)
 			seconds := q.Time.Unix()
 			u := jobUpdate(jobUpdates, q.JobID)
 			u.State = &state
@@ -109,27 +110,27 @@ func queriesToInstructionSet(queries []IngestionQuery) (*lookoutmodel.Instructio
 			u.LastTransitionTimeSeconds = &seconds
 
 		case SetJobRunPending:
-			state := int32(1)
+			state := int32(lookout.JobRunPendingOrdinal)
 			u := runUpdate(jobRunUpdates, q.JobRunID)
 			u.Pending = &q.Time
 			u.JobRunState = &state
 
 		case SetJobRunStarted:
-			state := int32(2)
+			state := int32(lookout.JobRunRunningOrdinal)
 			u := runUpdate(jobRunUpdates, q.JobRunID)
 			u.Node = &q.Node
 			u.Started = &q.Time
 			u.JobRunState = &state
 
 		case SetJobRunSucceeded:
-			state := int32(3)
+			state := int32(lookout.JobRunSucceededOrdinal)
 			u := runUpdate(jobRunUpdates, q.JobRunID)
 			u.Finished = &q.Time
 			u.ExitCode = &q.ExitCode
 			u.JobRunState = &state
 
 		case SetJobRunFailed:
-			state := int32(4)
+			state := int32(lookout.JobRunFailedOrdinal)
 			u := runUpdate(jobRunUpdates, q.JobRunID)
 			u.Finished = &q.Time
 			u.Error = q.Error
@@ -138,13 +139,13 @@ func queriesToInstructionSet(queries []IngestionQuery) (*lookoutmodel.Instructio
 			u.JobRunState = &state
 
 		case SetJobRunCancelled:
-			state := int32(6)
+			state := int32(lookout.JobRunCancelledOrdinal)
 			u := runUpdate(jobRunUpdates, q.JobRunID)
 			u.Finished = &q.Time
 			u.JobRunState = &state
 
 		case SetJobRunPreempted:
-			state := int32(5)
+			state := int32(lookout.JobRunPreemptedOrdinal)
 			u := runUpdate(jobRunUpdates, q.JobRunID)
 			u.Finished = &q.Time
 			u.Error = q.Error
@@ -208,7 +209,7 @@ func jobToCreateInstruction(q InsertJob) *lookoutmodel.CreateJobInstruction {
 		Gpu:                       job.Gpu,
 		Priority:                  job.Priority,
 		Submitted:                 job.Submitted,
-		State:                     0, // queued
+		State:                     lookout.JobQueuedOrdinal,
 		LastTransitionTime:        job.Submitted,
 		LastTransitionTimeSeconds: job.Submitted.Unix(),
 		PriorityClass:             priorityClass,
@@ -224,7 +225,7 @@ func jobRunToCreateInstruction(q InsertJobRun) *lookoutmodel.CreateJobRunInstruc
 		JobId:       q.JobID,
 		Cluster:     q.Cluster,
 		Leased:      &leased,
-		JobRunState: 0, // leased
+		JobRunState: lookout.JobRunLeasedOrdinal,
 	}
 	if q.Node != "" {
 		instr.Node = &q.Node
