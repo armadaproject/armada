@@ -1,0 +1,59 @@
+name: Release Rust Client to crates.io
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  publish:
+    runs-on: ubuntu-22.04
+    environment: crates-release
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy,rustfmt
+
+      - name: Cache cargo registry and build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            client/rust/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('client/rust/Cargo.toml', 'client/rust/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Install protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          version: '23.3'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Fetch proto dependencies
+        uses: ./.github/actions/fetch-rust-protos
+
+      - name: Check formatting
+        run: cargo fmt --manifest-path client/rust/Cargo.toml -- --check
+
+      - name: Build
+        run: cargo build --manifest-path client/rust/Cargo.toml
+
+      - name: Test
+        run: cargo test --manifest-path client/rust/Cargo.toml
+
+      - name: Clippy
+        run: cargo clippy --manifest-path client/rust/Cargo.toml --all-targets -- -D warnings
+
+      - name: Vendor Armada protos for published crate
+        uses: ./.github/actions/fetch-rust-protos
+        with:
+          include-armada-protos: 'true'
+
+      - name: Publish to crates.io
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish --manifest-path client/rust/Cargo.toml --verbose
