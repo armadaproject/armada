@@ -156,6 +156,13 @@ export type Job = {
 
 export type JobKey = keyof Job
 
+export type FailureInfo = {
+  exitCode?: number
+  categories?: string[]
+  terminationMessage?: string
+  containerName?: string
+}
+
 export type JobRun = {
   runId: string
   jobId: string
@@ -169,6 +176,7 @@ export type JobRun = {
   exitCode?: number
   ingressAddresses?: Record<string | number, string>
   pool?: string
+  failureInfo?: FailureInfo
 }
 
 export enum Match {

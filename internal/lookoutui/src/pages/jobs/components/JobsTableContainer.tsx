@@ -37,12 +37,15 @@ import { ErrorBoundary } from "react-error-boundary"
 import { useLocation, useNavigate, useParams } from "react-router-dom"
 
 import {
+  CLIENT_SIDE_FILTER_COLUMNS,
   COLUMN_PARSE_TYPES,
   ColumnId,
   createAnnotationColumn,
   getAnnotationKeyCols,
+  getLastRunCategories,
   INPUT_PARSERS,
   GET_JOB_COLUMNS,
+  isStandardColId,
   JobTableColumn,
   PINNED_COLUMNS,
   StandardColumnId,
@@ -670,13 +673,36 @@ export const JobsTableContainer = ({
   }
   const sideBarClose = () => setSidebarJobId(undefined)
 
+  // Apply client-side-only filters (e.g. ErrorCategories) to already-fetched data.
+  const filteredData = useMemo(() => {
+    if (!data) return []
+    const clientFilters = columnFilterState
+      .filter((f) => isStandardColId(f.id) && CLIENT_SIDE_FILTER_COLUMNS.has(f.id as StandardColumnId))
+      .map((f) => ({ id: f.id as StandardColumnId, normalized: (f.value as string).toLowerCase() }))
+    if (clientFilters.length === 0) return data
+
+    return data.filter((row) => {
+      if (isJobGroupRow(row)) return true
+      return clientFilters.every(({ id, normalized }) => {
+        if (!normalized) return true
+        if (id === StandardColumnId.ErrorCategories) {
+          const categories = getLastRunCategories(row)
+          const match = columnMatches[id] ?? Match.Contains
+          if (match === Match.Exact) return categories.some((c) => c.toLowerCase() === normalized)
+          return categories.join(", ").toLowerCase().includes(normalized)
+        }
+        return true
+      })
+    })
+  }, [data, columnFilterState, columnMatches])
+
   const selectedItemsFilters: JobFiltersWithExcludes[] = useMemo(
-    () => getFiltersForRowsSelection(data, selectedRows, lookoutFilters, columnMatches),
-    [data, selectedRows, columnFilterState, lookoutFilters, allColumns],
+    () => getFiltersForRowsSelection(filteredData, selectedRows, lookoutFilters, columnMatches),
+    [filteredData, selectedRows, lookoutFilters, columnMatches],
   )
 
   const table = useReactTable({
-    data: data ?? [],
+    data: filteredData,
     columns: allColumns,
     state: {
       grouping,

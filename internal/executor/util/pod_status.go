@@ -5,17 +5,12 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 
+	"github.com/armadaproject/armada/internal/common/errormatch"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 var imagePullBackOffStatesSet = util.StringListToSet([]string{"ImagePullBackOff", "ErrImagePull"})
-
-const (
-	oomKilledReason  = "OOMKilled"
-	evictedReason    = "Evicted"
-	deadlineExceeded = "DeadlineExceeded"
-)
 
 // TODO: Need to detect pod preemption. So that job failed events can include a string indicating a pod was preempted.
 // We need this so that whatever system submitted the job knows the job was preempted.
@@ -46,10 +41,10 @@ func ExtractPodFailedReason(pod *v1.Pod) string {
 }
 
 func ExtractPodFailureCause(pod *v1.Pod) armadaevents.KubernetesReason {
-	if pod.Status.Reason == evictedReason {
+	if pod.Status.Reason == errormatch.ConditionEvicted {
 		return armadaevents.KubernetesReason_Evicted
 	}
-	if pod.Status.Reason == deadlineExceeded {
+	if pod.Status.Reason == errormatch.ConditionDeadlineExceeded {
 		return armadaevents.KubernetesReason_DeadlineExceeded
 	}
 
@@ -114,8 +109,30 @@ func ExtractFailedPodContainerStatuses(pod *v1.Pod, clusterId string) []*armadae
 	return returnStatuses
 }
 
+// ExtractFailureInfo builds a FailureInfo proto from pod status and category labels.
+// It extracts the exit code and termination message from the first failed container.
+func ExtractFailureInfo(pod *v1.Pod, categories []string) *armadaevents.FailureInfo {
+	info := &armadaevents.FailureInfo{
+		Categories: categories,
+	}
+
+	if pod != nil {
+		// Extract exit code, termination message, and container name from the first failed container.
+		for _, cs := range GetPodContainerStatuses(pod) {
+			if cs.State.Terminated != nil && cs.State.Terminated.ExitCode != 0 {
+				info.ExitCode = cs.State.Terminated.ExitCode
+				info.TerminationMessage = cs.State.Terminated.Message
+				info.ContainerName = cs.Name
+				break
+			}
+		}
+	}
+
+	return info
+}
+
 func isOom(containerStatus v1.ContainerStatus) bool {
-	return containerStatus.State.Terminated != nil && containerStatus.State.Terminated.Reason == oomKilledReason
+	return containerStatus.State.Terminated != nil && containerStatus.State.Terminated.Reason == errormatch.ConditionOOMKilled
 }
 
 type PodStartupStatus int
