@@ -7,6 +7,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	log "github.com/armadaproject/armada/internal/common/logging"
+	"github.com/armadaproject/armada/internal/executor/categorizer"
 	clusterContext "github.com/armadaproject/armada/internal/executor/context"
 	domain2 "github.com/armadaproject/armada/internal/executor/domain"
 	"github.com/armadaproject/armada/internal/executor/reporter"
@@ -17,17 +18,20 @@ type JobStateReporter struct {
 	eventReporter   reporter.EventReporter
 	clusterContext  clusterContext.ClusterContext
 	podIssueHandler IssueHandler
+	classifier      *categorizer.Classifier
 }
 
 func NewJobStateReporter(
 	clusterContext clusterContext.ClusterContext,
 	eventReporter reporter.EventReporter,
 	podIssueHandler IssueHandler,
+	classifier *categorizer.Classifier,
 ) (*JobStateReporter, error) {
 	stateReporter := &JobStateReporter{
 		eventReporter:   eventReporter,
 		clusterContext:  clusterContext,
 		podIssueHandler: podIssueHandler,
+		classifier:      classifier,
 	}
 
 	_, err := clusterContext.AddPodEventHandler(stateReporter.podEventHandler())
@@ -86,7 +90,7 @@ func (stateReporter *JobStateReporter) reportCurrentStatus(pod *v1.Pod) {
 		return
 	}
 
-	event, err := reporter.CreateEventForCurrentState(pod, stateReporter.clusterContext.GetClusterId())
+	event, err := reporter.CreateEventForCurrentState(pod, stateReporter.clusterContext.GetClusterId(), stateReporter.classifier)
 	if err != nil {
 		log.Errorf("Failed to report event: %v", err)
 		return
