@@ -232,7 +232,7 @@ func (qb *QueryBuilder) GroupBy(
 	if err != nil {
 		return nil, errors.Wrap(err, "filters are invalid")
 	}
-	err = qb.validateGroupOrder(order)
+	err = qb.validateGroupOrder(order, groupedField)
 	if err != nil {
 		return nil, errors.Wrap(err, "group order is invalid")
 	}
@@ -822,7 +822,7 @@ func orderIsNull(order *model.Order) bool {
 	return order == nil || (order.Direction == "" && order.Field == "")
 }
 
-func (qb *QueryBuilder) validateGroupOrder(order *model.Order) error {
+func (qb *QueryBuilder) validateGroupOrder(order *model.Order, groupedField *model.GroupedField) error {
 	if order == nil {
 		return nil
 	}
@@ -834,9 +834,21 @@ func (qb *QueryBuilder) validateGroupOrder(order *model.Order) error {
 		return errors.Errorf("unsupported field for order: %s", order.Field)
 	}
 
-	_, err = qb.lookoutTables.GroupAggregateForCol(col)
+	aggregateType, aggErr := qb.lookoutTables.GroupAggregateForCol(col)
+	// StateCounts produces multiple output columns with no single alias, so ordering
+	// by it is only valid when it is the grouped field itself (selected directly).
+	if aggErr == nil && aggregateType == StateCounts {
+		if groupedField.IsAnnotation {
+			return errors.Errorf("unsupported field for order: %s", order.Field)
+		}
+		groupedCol, gErr := qb.lookoutTables.ColumnFromField(groupedField.Field)
+		if gErr != nil || groupedCol != col {
+			return errors.Errorf("unsupported field for order: %s", order.Field)
+		}
+	}
+
 	// If it is not an aggregate and not groupable, it can't be ordered by
-	if err != nil && !qb.lookoutTables.IsGroupable(col) {
+	if aggErr != nil && !qb.lookoutTables.IsGroupable(col) {
 		return errors.Errorf("unsupported field for order: %s, cannot sort by column %s", order.Field, col)
 	}
 	return nil
