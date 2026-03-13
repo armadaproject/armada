@@ -37,6 +37,13 @@ redisMemoryMetrics:
   #   addrs:
   #     - redis-replica:6379
   #   db: 1
+  leader:
+    mode: "kubernetes"
+    leaseLockName: "armada-redis-metrics-leader"
+    leaseLockNamespace: "armada"
+    leaseDuration: 15s
+    renewDeadline: 10s
+    retryPeriod: 2s
 submission:
   allowedPriorityClassNames:
     armada-default: true

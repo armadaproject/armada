@@ -38,7 +38,7 @@ type ArmadaConfig struct {
 	QueueCacheRefreshPeriod time.Duration
 
 	// Config relating to job submission.
-	Submission SubmissionConfig
+	Submission         SubmissionConfig
 	RedisMemoryMetrics RedisMemoryMetricsConfig
 }
 
@@ -111,12 +111,24 @@ type QueryApiConfig struct {
 
 // RedisMemoryMetricsConfig contains configuration for Redis memory metrics collection.
 type RedisMemoryMetricsConfig struct {
-	Enabled              bool
-	CollectionInterval   time.Duration
-	TopN                 int
-	ScanBatchSize        int64
-	PipelineBatchSize    int
-	InterBatchDelay      time.Duration
-	MemoryUsageSamples   int
-	MetricsRedis         redis.UniversalOptions
+	Enabled            bool
+	CollectionInterval time.Duration
+	TopN               int
+	ScanBatchSize      int64
+	PipelineBatchSize  int
+	InterBatchDelay    time.Duration
+	MemoryUsageSamples int
+	MetricsRedis       redis.UniversalOptions
+	Leader             LeaderConfig
+}
+
+// LeaderConfig contains configuration for leader election of redismetrics service.
+type LeaderConfig struct {
+	// Valid modes are "standalone" or "kubernetes"
+	Mode               string
+	LeaseLockName      string
+	LeaseLockNamespace string
+	LeaseDuration      time.Duration
+	RenewDeadline      time.Duration
+	RetryPeriod        time.Duration
 }
