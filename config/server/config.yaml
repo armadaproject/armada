@@ -25,6 +25,25 @@ eventsApiRedis:
   password: ""
   db: 1
   poolSize: 1000
+redisMemoryMetrics:
+  enabled: false
+  collectionInterval: 5m
+  topN: 100
+  scanBatchSize: 1000
+  pipelineBatchSize: 500
+  interBatchDelay: 100ms
+  memoryUsageSamples: 5
+  # metricsRedis:  # Optional: separate Redis for metrics collection
+  #   addrs:
+  #     - redis-replica:6379
+  #   db: 1
+  leader:
+    mode: "kubernetes"
+    leaseLockName: "armada-redis-metrics-leader"
+    leaseLockNamespace: "armada"
+    leaseDuration: 15s
+    renewDeadline: 10s
+    retryPeriod: 2s
 submission:
   allowedPriorityClassNames:
     armada-default: true

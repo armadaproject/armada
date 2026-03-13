@@ -253,7 +253,7 @@ func validateResources(j *api.JobSubmitRequestItem, config configuration.Submiss
 		maxOversubscriptionByResource = map[string]float64{}
 	}
 	for _, container := range armadaslices.Concatenate(spec.Containers, spec.InitContainers) {
-		if len(container.Resources.Requests) == 0 && len(container.Resources.Requests) == 0 {
+		if len(container.Resources.Requests) == 0 {
 			return fmt.Errorf("container %v has no resources specified", container.Name)
 		}
 
