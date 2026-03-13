@@ -1,0 +1,32 @@
+# Demo: job that fails with a clear error message.
+# Exits with code 1 after printing a diagnostic message to stderr.
+# Container state will show: Terminated, reason=Error, exit code 1
+# Use: armadactl kube-describe pod <job-id>
+#      armadactl describe pod <job-id>  (compare live vs cached output)
+queue: example
+jobSetId: demo-failed
+jobs:
+  - namespace: default
+    priority: 0
+    podSpec:
+      terminationGracePeriodSeconds: 0
+      restartPolicy: Never
+      containers:
+        - name: failing-job
+          image: alpine:latest
+          command:
+            - sh
+          args:
+            - -c
+            - |
+              echo "Starting job..." >&2
+              echo "ERROR: required data file /mnt/data/input.csv not found" >&2
+              echo "Hint: check that the input volume is mounted and the file exists" >&2
+              exit 1
+          resources:
+            limits:
+              memory: 128Mi
+              cpu: "0.2"
+            requests:
+              memory: 128Mi
+              cpu: "0.2"

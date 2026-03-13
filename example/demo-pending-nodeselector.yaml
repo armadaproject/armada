@@ -1,0 +1,30 @@
+# Demo: job stuck in Pending due to node selector with no matching node.
+# Requires label gpu=true which does not exist on any node in the local cluster.
+# Pod events will show: FailedScheduling: no nodes available to schedule pods
+# Use: armadactl kube-describe pod <job-id> --include-events
+#      armadactl kube-describe node <job-id>  (shows real node labels - gpu label absent)
+queue: example
+jobSetId: demo-pending-nodeselector
+jobs:
+  - namespace: default
+    priority: 0
+    podSpec:
+      terminationGracePeriodSeconds: 0
+      restartPolicy: Never
+      nodeSelector:
+        gpu: "true"
+      containers:
+        - name: pending-nodeselector
+          image: alpine:latest
+          command:
+            - sh
+          args:
+            - -c
+            - echo "this should never run"
+          resources:
+            limits:
+              memory: 128Mi
+              cpu: "0.2"
+            requests:
+              memory: 128Mi
+              cpu: "0.2"
