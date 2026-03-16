@@ -138,6 +138,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // src/gen/ so they can be bundled into the crates.io package.  Users who
     // download the crate then build without protoc via the early-return path above.
     if std::env::var("ARMADA_GENERATE").is_ok() {
+        if gen_dir.exists() {
+            std::fs::remove_dir_all(gen_dir)?;
+        }
         std::fs::create_dir_all(gen_dir)?;
         copy_rs_files(out_path, gen_dir)?;
     }
