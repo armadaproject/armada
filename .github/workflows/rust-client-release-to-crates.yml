@@ -48,10 +48,10 @@ jobs:
         run: ARMADA_GENERATE=1 cargo build --manifest-path client/rust/Cargo.toml
 
       - name: Test
-        run: cargo test --manifest-path client/rust/Cargo.toml
+        run: ARMADA_GENERATE=1 cargo test --manifest-path client/rust/Cargo.toml
 
       - name: Clippy
-        run: cargo clippy --manifest-path client/rust/Cargo.toml --all-targets -- -D warnings
+        run: ARMADA_GENERATE=1 cargo clippy --manifest-path client/rust/Cargo.toml --all-targets -- -D warnings
 
       - name: Publish to crates.io
         env:
