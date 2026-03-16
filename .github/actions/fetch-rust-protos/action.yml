@@ -4,16 +4,6 @@ description: >
   kubernetes/api v0.32.0, kubernetes/apimachinery v0.32.0, and google/api protos
   (pinned to commit 798823426715215eccca4d7e7ee4c814843045d7).
 
-inputs:
-  include-armada-protos:
-    description: >
-      When 'true', also copies the Armada API protos (pkg/api/*.proto) into
-      client/rust/proto/pkg/api/. Required for the published-crate vendored layout
-      (release job). Must NOT be set during monorepo build/test steps — see note in
-      client/rust/build.rs about the "Input is shadowed" protoc error.
-    required: false
-    default: 'false'
-
 runs:
   using: composite
   steps:
@@ -48,10 +38,3 @@ runs:
             -o client/rust/proto/google/api/http.proto
         fi
 
-    - name: Vendor Armada API protos
-      if: ${{ inputs.include-armada-protos == 'true' }}
-      shell: bash
-      run: |
-        mkdir -p client/rust/proto/pkg/api
-        cp pkg/api/submit.proto pkg/api/event.proto pkg/api/job.proto pkg/api/health.proto \
-          client/rust/proto/pkg/api/

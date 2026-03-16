@@ -1,8 +1,36 @@
+fn copy_rs_files(
+    from: &std::path::Path,
+    to: &std::path::Path,
+) -> Result<(), Box<dyn std::error::Error>> {
+    for entry in std::fs::read_dir(from)? {
+        let entry = entry?;
+        let path = entry.path();
+        if path.extension().is_some_and(|e| e == "rs") {
+            std::fs::copy(&path, to.join(entry.file_name()))?;
+        }
+    }
+    Ok(())
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Without these directives Cargo's default is to re-run build.rs on every
     // source change. Restrict re-runs to changes that actually affect codegen.
     println!("cargo:rerun-if-changed=proto/");
     println!("cargo:rerun-if-changed=build.rs");
+    println!("cargo:rerun-if-changed=src/gen/");
+    println!("cargo:rerun-if-env-changed=ARMADA_GENERATE");
+
+    let out_dir = std::env::var("OUT_DIR")?;
+    let out_path = std::path::Path::new(&out_dir);
+    let gen_dir = std::path::Path::new("src/gen");
+
+    // Pre-generated files exist (published crate from crates.io): copy them to
+    // OUT_DIR so that tonic::include_proto! resolves correctly, then return.
+    // This path requires no protoc and no proto sources.
+    if gen_dir.join("api.rs").exists() {
+        copy_rs_files(gen_dir, out_path)?;
+        return Ok(());
+    }
 
     // NOTE: This probe assumes the crate lives exactly two directories below the
     // monorepo root (i.e. <root>/client/rust/). If the crate is relocated,
@@ -68,12 +96,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             vec!["proto", "../../"],
         )
     } else {
-        // Vendored layout used by the published crate.
-        // proto/google/, proto/k8s.io/, and proto/pkg/ must all be present —
-        // they are populated by CI's "Fetch proto dependencies" step and bundled
-        // into the package via `include = ["proto/**/*"]` in Cargo.toml.
-        // Removing or skipping that step will cause protoc to fail with a
-        // "file not found" error when resolving google/api/annotations.proto.
+        // Fallback: outside the monorepo and no pre-generated src/gen/ files.
+        // Expects proto sources in proto/pkg/api/ (manually provided).
         (
             vec![
                 "proto/pkg/api/submit.proto",
@@ -109,6 +133,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "crate::k8s::io::apimachinery::pkg::util::intstr",
         )
         .compile_protos(&armada_protos, &armada_includes)?;
+
+    // When ARMADA_GENERATE is set (release CI), copy the generated files into
+    // src/gen/ so they can be bundled into the crates.io package.  Users who
+    // download the crate then build without protoc via the early-return path above.
+    if std::env::var("ARMADA_GENERATE").is_ok() {
+        std::fs::create_dir_all(gen_dir)?;
+        copy_rs_files(out_path, gen_dir)?;
+    }
 
     Ok(())
 }
