@@ -9,6 +9,7 @@ on:
       - 'pkg/api/*.proto'
       - '.github/workflows/rust-client.yml'
       - 'magefiles/proto.go'
+      - 'magefiles/main.go'
 
   pull_request:
     branches-ignore:
@@ -18,6 +19,7 @@ on:
       - 'pkg/api/*.proto'
       - '.github/workflows/rust-client.yml'
       - 'magefiles/proto.go'
+      - 'magefiles/main.go'
 
 jobs:
   rust-client:
