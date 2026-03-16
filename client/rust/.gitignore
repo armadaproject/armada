@@ -1,4 +1,2 @@
 target/
-proto/k8s.io/
-proto/google/
 src/gen/

@@ -13,12 +13,36 @@ fn copy_rs_files(
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // NOTE: This probe assumes the crate lives exactly two directories below the
+    // monorepo root (i.e. <root>/client/rust/). If the crate is relocated,
+    // update these relative paths accordingly.
+    //
+    // Cached once so both the rerun-if-changed directives and the compile_protos
+    // calls use the same decision, preventing a future refactor from accidentally
+    // mismatching the two branches.
+    let in_monorepo = std::path::Path::new("../../pkg/api/submit.proto").exists();
+
     // Without these directives Cargo's default is to re-run build.rs on every
     // source change. Restrict re-runs to changes that actually affect codegen.
-    println!("cargo:rerun-if-changed=proto/");
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed=src/gen/");
     println!("cargo:rerun-if-env-changed=ARMADA_GENERATE");
+
+    if in_monorepo {
+        // In the monorepo, third-party protos live at the repo-root proto/
+        // directory, populated by `mage BootstrapProto` (same as Java/Scala).
+        // Only emit monorepo paths when they exist; cargo treats missing
+        // rerun-if-changed paths as "always rerun".
+        println!("cargo:rerun-if-changed=../../proto/");
+        println!("cargo:rerun-if-changed=../../pkg/api/submit.proto");
+        println!("cargo:rerun-if-changed=../../pkg/api/event.proto");
+        println!("cargo:rerun-if-changed=../../pkg/api/job.proto");
+        println!("cargo:rerun-if-changed=../../pkg/api/health.proto");
+    } else {
+        // Outside the monorepo, expect third-party protos under proto/ relative
+        // to this crate (manually provided).
+        println!("cargo:rerun-if-changed=proto/");
+    }
 
     let out_dir = std::env::var("OUT_DIR")?;
     let out_path = std::path::Path::new(&out_dir);
@@ -32,32 +56,26 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
 
-    // NOTE: This probe assumes the crate lives exactly two directories below the
-    // monorepo root (i.e. <root>/client/rust/). If the crate is relocated,
-    // update these relative paths accordingly.
-    //
-    // Cached once so both the rerun-if-changed directives and the compile_protos
-    // call use the same decision, preventing a future refactor from accidentally
-    // mismatching the two branches.
-    let in_monorepo = std::path::Path::new("../../pkg/api/submit.proto").exists();
-
-    // Only emit monorepo paths when they exist; cargo treats missing
-    // rerun-if-changed paths as "always rerun", which would hurt consumers
-    // of the published crate where ../../pkg/api/ is not present.
-    if in_monorepo {
-        println!("cargo:rerun-if-changed=../../pkg/api/submit.proto");
-        println!("cargo:rerun-if-changed=../../pkg/api/event.proto");
-        println!("cargo:rerun-if-changed=../../pkg/api/job.proto");
-        println!("cargo:rerun-if-changed=../../pkg/api/health.proto");
-    }
-
     // Pass 1: compile vendored k8s protos to generate their Rust types.
     // No extern_path — we want these files emitted into OUT_DIR.
-    tonic_build::configure()
-        .build_client(false)
-        .build_server(false)
-        .compile_protos(
-            &[
+    //
+    // In the monorepo, k8s protos are at ../../proto/ (populated by
+    // `mage BootstrapProto`). Outside the monorepo, expect them under proto/.
+    let (k8s_protos, k8s_includes): (Vec<&str>, Vec<&str>) = if in_monorepo {
+        (
+            vec![
+                "../../proto/k8s.io/api/core/v1/generated.proto",
+                "../../proto/k8s.io/api/networking/v1/generated.proto",
+                "../../proto/k8s.io/apimachinery/pkg/api/resource/generated.proto",
+                "../../proto/k8s.io/apimachinery/pkg/apis/meta/v1/generated.proto",
+                "../../proto/k8s.io/apimachinery/pkg/runtime/generated.proto",
+                "../../proto/k8s.io/apimachinery/pkg/util/intstr/generated.proto",
+            ],
+            vec!["../../proto"],
+        )
+    } else {
+        (
+            vec![
                 "proto/k8s.io/api/core/v1/generated.proto",
                 "proto/k8s.io/api/networking/v1/generated.proto",
                 "proto/k8s.io/apimachinery/pkg/api/resource/generated.proto",
@@ -65,8 +83,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 "proto/k8s.io/apimachinery/pkg/runtime/generated.proto",
                 "proto/k8s.io/apimachinery/pkg/util/intstr/generated.proto",
             ],
-            &["proto"],
-        )?;
+            vec!["proto"],
+        )
+    };
+
+    tonic_build::configure()
+        .build_client(false)
+        .build_server(false)
+        .compile_protos(&k8s_protos, &k8s_includes)?;
 
     // Pass 2: compile Armada API protos.
     // extern_path tells prost that k8s types live in our module tree (from pass 1)
@@ -82,9 +106,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         // shadowed" error that occurs when proto/pkg/api/ is also present on disk
         // (e.g. during `cargo package` verification).
         //
-        // Include order: "proto" is first so that google/ and k8s.io/ imports always
-        // resolve from the vendored copies in proto/ rather than anything that might
-        // exist at the repo root. "../../" is second so that intra-Armada imports
+        // Include order: "../../proto" is first so that google/ and k8s.io/ imports
+        // always resolve from the repo-root proto/ (populated by mage BootstrapProto)
+        // rather than anything else. "../../" is second so that intra-Armada imports
         // (e.g. `import "pkg/api/health.proto"`) fall through to the monorepo source.
         (
             vec![
@@ -93,7 +117,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 "pkg/api/job.proto",
                 "pkg/api/health.proto",
             ],
-            vec!["proto", "../../"],
+            vec!["../../proto", "../../"],
         )
     } else {
         // Fallback: outside the monorepo and no pre-generated src/gen/ files.
