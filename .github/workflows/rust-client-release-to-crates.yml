@@ -56,4 +56,4 @@ jobs:
       - name: Publish to crates.io
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        run: cargo publish --allow-dirty --manifest-path client/rust/Cargo.toml
+        run: cargo publish --manifest-path client/rust/Cargo.toml
