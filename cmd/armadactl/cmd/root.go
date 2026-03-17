@@ -23,6 +23,7 @@ func RootCmd() *cobra.Command {
 		deleteCmd(),
 		describeCmd(),
 		kubeDescribeCmd(),
+		nativeDescribeCmd(),
 		updateCmd(),
 		getCmd(),
 		reprioritizeCmd(),
