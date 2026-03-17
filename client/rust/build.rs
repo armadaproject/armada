@@ -31,13 +31,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // source change. Restrict re-runs to changes that actually affect codegen.
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-env-changed=ARMADA_GENERATE");
-    // Only watch src/gen/ outside the monorepo (crates.io path). Cargo treats
-    // missing rerun-if-changed paths as "always rerun", so emitting this in a
-    // fresh monorepo clone (where src/gen/ never exists) would cause build.rs
-    // to re-run on every build.
-    if !in_monorepo {
-        println!("cargo:rerun-if-changed=src/gen/");
-    }
 
     if in_monorepo {
         // Narrow to the two subdirectories actually consumed by this build.
