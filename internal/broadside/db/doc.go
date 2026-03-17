@@ -52,8 +52,7 @@ parallel batch execution whilst maintaining per-job ordering).
 
 Supported ingestion query types:
 
-  - InsertJob: Insert a new job record
-  - InsertJobSpec: Insert job specification
+  - InsertJob: Insert a new job record (with optional job spec)
   - UpdateJobPriority: Update job priority
   - SetJobCancelled: Mark job as cancelled
   - SetJobSucceeded: Mark job as succeeded
@@ -76,7 +75,27 @@ Supported ingestion query types:
 
 Three implementations are provided:
 
-  - PostgresDatabase: PostgreSQL adapter (placeholder implementation)
+  - PostgresDatabase: PostgreSQL adapter using the production Lookout schema and
+    query infrastructure. ExecuteIngestionQueryBatch converts the batch of
+    IngestionQuery values into a lookoutmodel.InstructionSet and delegates to
+    LookoutDb.Store, which enforces the same sequential insert ordering as the
+    real ingester: job rows are committed before job runs are inserted, and all
+    inserts are committed before updates. This avoids FK-constraint lock
+    contention between concurrent job run inserts and job row updates. After
+    applying schema migrations, InitialiseSchema executes any Postgres tuning SQL
+    statements supplied via configuration. TearDown reverts tuning settings by
+    executing any Postgres tuning revert SQL statements, then truncates all tables.
+    When the HotColdSplit feature toggle is enabled, InitialiseSchema additionally
+    applies the hot/cold split migration (sql/hotcold_up.sql), which creates the
+    job_historical table, moves existing terminal rows from job into it, adds a
+    CHECK constraint to job restricting it to active states, and creates the
+    job_all UNION ALL view. TearDown reverts the migration (sql/hotcold_down.sql)
+    after truncation. During ingestion, terminal-state job updates are intercepted
+    before Phase 2 and handled by sql/update_and_move_terminal_jobs.sql, which
+    atomically applies the state change and moves the row from job to job_historical
+    in a single statement — ensuring no terminal state is ever written to job.
+    Historical job population writes directly to job_historical when the toggle is
+    enabled.
   - ClickHouseDatabase: ClickHouse adapter (placeholder implementation)
   - MemoryDatabase: In-memory adapter for smoke-testing Broadside
 
@@ -119,7 +138,7 @@ Create a database instance using the appropriate constructor:
 	    "host":     "localhost",
 	    "port":     "5432",
 	    "database": "lookout",
-	})
+	}, nil, nil)
 
 	// For ClickHouse
 	db := db.NewClickHouseDatabase(map[string]string{

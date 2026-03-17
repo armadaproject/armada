@@ -242,21 +242,21 @@ var QueuePriorityDesc = prometheus.NewDesc(
 var MinQueuePriceQueuedDesc = prometheus.NewDesc(
 	MetricPrefix+"queue_price_queued_min",
 	"Minimum price of queued jobs",
-	[]string{"pool", "priorityClass", "queue"},
+	[]string{"pool", "priorityClass", "queue", "accounting_role"},
 	nil,
 )
 
 var MaxQueuePriceQueuedDesc = prometheus.NewDesc(
 	MetricPrefix+"queue_price_queued_max",
 	"Maximum price of queued jobs",
-	[]string{"pool", "priorityClass", "queue"},
+	[]string{"pool", "priorityClass", "queue", "accounting_role"},
 	nil,
 )
 
 var MedianQueuePriceQueuedDesc = prometheus.NewDesc(
 	MetricPrefix+"queue_price_queued_median",
 	"Median price of queued jobs",
-	[]string{"pool", "priorityClass", "queue"},
+	[]string{"pool", "priorityClass", "queue", "accounting_role"},
 	nil,
 )
 
@@ -386,9 +386,9 @@ func CollectQueueMetrics(pools []configuration.PoolConfig, queueCounts map[strin
 				metrics = append(metrics, NewMedianQueueDuration(queueDurations.GetMedian(), m.Pool, m.PriorityClass, q, m.AccountingRole))
 			}
 
-			metrics = append(metrics, NewMinQueuePriceQueuedMetric(m.BidPrices.GetMin(), m.Pool, m.PriorityClass, q))
-			metrics = append(metrics, NewMaxQueuePriceQueuedMetric(m.BidPrices.GetMax(), m.Pool, m.PriorityClass, q))
-			metrics = append(metrics, NewMedianQueuePriceQueuedMetric(m.BidPrices.GetMedian(), m.Pool, m.PriorityClass, q))
+			metrics = append(metrics, NewMinQueuePriceQueuedMetric(m.BidPrices.GetMin(), m.Pool, m.PriorityClass, q, m.AccountingRole))
+			metrics = append(metrics, NewMaxQueuePriceQueuedMetric(m.BidPrices.GetMax(), m.Pool, m.PriorityClass, q, m.AccountingRole))
+			metrics = append(metrics, NewMedianQueuePriceQueuedMetric(m.BidPrices.GetMedian(), m.Pool, m.PriorityClass, q, m.AccountingRole))
 
 			// Sort the keys so we get a predictable output order
 			resourcePriceBands := maps.Keys(m.Resources)
@@ -561,16 +561,16 @@ func NewQueuePriorityMetric(value float64, queue string) prometheus.Metric {
 	return prometheus.MustNewConstMetric(QueuePriorityDesc, prometheus.GaugeValue, value, queue, queue)
 }
 
-func NewMinQueuePriceQueuedMetric(value float64, pool string, priorityClass string, queue string) prometheus.Metric {
-	return prometheus.MustNewConstMetric(MinQueuePriceQueuedDesc, prometheus.GaugeValue, value, pool, priorityClass, queue)
+func NewMinQueuePriceQueuedMetric(value float64, pool string, priorityClass string, queue string, accountingRole string) prometheus.Metric {
+	return prometheus.MustNewConstMetric(MinQueuePriceQueuedDesc, prometheus.GaugeValue, value, pool, priorityClass, queue, accountingRole)
 }
 
-func NewMaxQueuePriceQueuedMetric(value float64, pool string, priorityClass string, queue string) prometheus.Metric {
-	return prometheus.MustNewConstMetric(MaxQueuePriceQueuedDesc, prometheus.GaugeValue, value, pool, priorityClass, queue)
+func NewMaxQueuePriceQueuedMetric(value float64, pool string, priorityClass string, queue string, accountingRole string) prometheus.Metric {
+	return prometheus.MustNewConstMetric(MaxQueuePriceQueuedDesc, prometheus.GaugeValue, value, pool, priorityClass, queue, accountingRole)
 }
 
-func NewMedianQueuePriceQueuedMetric(value float64, pool string, priorityClass string, queue string) prometheus.Metric {
-	return prometheus.MustNewConstMetric(MedianQueuePriceQueuedDesc, prometheus.GaugeValue, value, pool, priorityClass, queue)
+func NewMedianQueuePriceQueuedMetric(value float64, pool string, priorityClass string, queue string, accountingRole string) prometheus.Metric {
+	return prometheus.MustNewConstMetric(MedianQueuePriceQueuedDesc, prometheus.GaugeValue, value, pool, priorityClass, queue, accountingRole)
 }
 
 func NewMinQueuePriceRunningMetric(value float64, pool string, priorityClass string, queue string) prometheus.Metric {

@@ -387,7 +387,7 @@ func (sch *PreemptingQueueScheduler) collectIdsForGangEviction(evictorResult *Ev
 			continue
 		}
 
-		activeGangJobs, err := sch.getActiveGangJobs(jctx.Job.Queue(), jctx.Job.GetGangInfo().Id())
+		activeGangJobs, err := sch.getActiveGangJobs(jctx.Job.Queue(), gangId)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -395,19 +395,23 @@ func (sch *PreemptingQueueScheduler) collectIdsForGangEviction(evictorResult *Ev
 			return nil, nil, errors.Errorf("no jobs found for gang %s", gangId)
 		}
 
-		// Collect all job ids part of that gang.
 		for _, gangJob := range activeGangJobs {
 			allGangJobIds[gangJob.Id()] = true
-			// If the latest run is nil, it means the job was scheduled in the current scheduling round
-			// So we need to find which node it was scheduled on in the scheduling context as it won't have been persisted in the jobdb yet
-			if gangJob.LatestRun() == nil {
-				nodeId, err := getNodeIdFromSchedulingContext(sch.schedulingContext, gangJob)
-				if err != nil {
-					return nil, nil, err
+
+			if gangJob.Queued() {
+				// Queued jobs (e.g. requeued after executor return) are not on any node.
+				// If rescheduled this round, use the scheduling context for the new node.
+				if nodeId, err := getNodeIdFromSchedulingContext(sch.schedulingContext, gangJob); err == nil {
+					gangNodeIds[nodeId] = true
 				}
-				gangNodeIds[nodeId] = true
-			} else {
+				continue
+			}
+
+			// Running job — use the node from its active run.
+			if gangJob.LatestRun() != nil {
 				gangNodeIds[gangJob.LatestRun().NodeId()] = true
+			} else {
+				return nil, nil, errors.Errorf("gang job %s is not queued and has no latest run", gangJob.Id())
 			}
 		}
 		seenGangs[gangId] = true
@@ -509,11 +513,23 @@ func (sch *PreemptingQueueScheduler) evictionAssertions(evictorResult *EvictorRe
 		}
 		representativeJctx := evictedJctxs[0]
 		if _, exists := seenGangs[gangId]; !exists {
-			activeGangJobs, err := sch.getActiveGangJobs(representativeJctx.Job.Queue(), representativeJctx.Job.GetGangInfo().Id())
+			activeGangJobs, err := sch.getActiveGangJobs(representativeJctx.Job.Queue(), gangId)
 			if err != nil {
 				return err
 			}
-			seenGangs[gangId] = len(activeGangJobs)
+			// Exclude queued jobs that were not evicted (e.g. requeued after executor return).
+			// They are not on any node and cannot be evicted.
+			evictedJobIds := make(map[string]bool, len(evictedJctxs))
+			for _, jctx := range evictedJctxs {
+				evictedJobIds[jctx.Job.Id()] = true
+			}
+			expectedEvictions := len(activeGangJobs)
+			for _, j := range activeGangJobs {
+				if j.Queued() && !evictedJobIds[j.Id()] {
+					expectedEvictions--
+				}
+			}
+			seenGangs[gangId] = expectedEvictions
 		}
 
 		activeGangJobCount := seenGangs[gangId]

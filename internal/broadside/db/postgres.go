@@ -10,17 +10,20 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	broadsideconfiguration "github.com/armadaproject/armada/internal/broadside/configuration"
 	"github.com/armadaproject/armada/internal/broadside/jobspec"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/database"
+	"github.com/armadaproject/armada/internal/common/database/lookout"
 	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/lookout/model"
 	"github.com/armadaproject/armada/internal/lookout/repository"
 	"github.com/armadaproject/armada/internal/lookout/schema"
 	"github.com/armadaproject/armada/internal/lookoutingester/lookoutdb"
+	lookoutingestermetrics "github.com/armadaproject/armada/internal/lookoutingester/metrics"
 	lookoutmodel "github.com/armadaproject/armada/internal/lookoutingester/model"
-	"github.com/armadaproject/armada/internal/server/configuration"
+	serverconfiguration "github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/armadaproject/armada/pkg/api"
 )
 
@@ -28,14 +31,17 @@ import (
 // It reuses the Lookout schema and query infrastructure to ensure
 // realistic testing of production query patterns.
 type PostgresDatabase struct {
-	config                map[string]string
-	pool                  *pgxpool.Pool
-	lookoutDb             *lookoutdb.LookoutDb
-	jobsRepository        *repository.SqlGetJobsRepository
-	groupRepository       *repository.SqlGroupJobsRepository
-	jobSpecRepository     *repository.SqlGetJobSpecRepository
-	jobRunErrorRepository *repository.SqlGetJobRunErrorRepository
-	jobRunDebugRepository *repository.SqlGetJobRunDebugMessageRepository
+	config                    map[string]string
+	features                  broadsideconfiguration.FeatureToggles
+	tuningSQLStatements       []string
+	tuningRevertSQLStatements []string
+	pool                      *pgxpool.Pool
+	lookoutDb                 *lookoutdb.LookoutDb
+	jobsRepository            *repository.SqlGetJobsRepository
+	groupRepository           *repository.SqlGroupJobsRepository
+	jobSpecRepository         *repository.SqlGetJobSpecRepository
+	jobRunErrorRepository     *repository.SqlGetJobRunErrorRepository
+	jobRunDebugRepository     *repository.SqlGetJobRunDebugMessageRepository
 }
 
 // NewPostgresDatabase creates a new PostgresDatabase instance.
@@ -46,14 +52,20 @@ type PostgresDatabase struct {
 //   - password: database password
 //   - dbname: database name (e.g., "broadside_test")
 //   - sslmode: SSL mode (e.g., "disable")
-func NewPostgresDatabase(config map[string]string) *PostgresDatabase {
-	return &PostgresDatabase{config: config}
+func NewPostgresDatabase(config map[string]string, features broadsideconfiguration.FeatureToggles, tuningSQLStatements []string, tuningRevertSQLStatements []string) *PostgresDatabase {
+	return &PostgresDatabase{
+		config:                    config,
+		features:                  features,
+		tuningSQLStatements:       tuningSQLStatements,
+		tuningRevertSQLStatements: tuningRevertSQLStatements,
+	}
 }
 
 // InitialiseSchema opens the connection pool, applies the Lookout database
-// migrations, and initialises the query repository.
+// migrations, applies per-table autovacuum tuning SQL, and initialises the
+// query repository.
 func (p *PostgresDatabase) InitialiseSchema(ctx context.Context) error {
-	pgConfig := configuration.PostgresConfig{
+	pgConfig := serverconfiguration.PostgresConfig{
 		Connection: p.config,
 	}
 
@@ -75,10 +87,29 @@ func (p *PostgresDatabase) InitialiseSchema(ctx context.Context) error {
 		return fmt.Errorf("applying migrations: %w", err)
 	}
 
+	if err := p.applyTuningSQL(ctx); err != nil {
+		pool.Close()
+		return fmt.Errorf("applying tuning SQL: %w", err)
+	}
+
+	if p.features.HotColdSplit {
+		if _, err := p.pool.Exec(ctx, hotColdMigrationSQL); err != nil {
+			pool.Close()
+			return fmt.Errorf("applying hot/cold split migration: %w", err)
+		}
+		logging.Info("Hot/cold split migration applied")
+	}
+
 	decompressor := &compress.NoOpDecompressor{}
-	p.lookoutDb = lookoutdb.NewLookoutDb(p.pool, nil, nil, 16, 12)
-	p.jobsRepository = repository.NewSqlGetJobsRepository(p.pool)
-	p.groupRepository = repository.NewSqlGroupJobsRepository(p.pool)
+	p.lookoutDb = lookoutdb.NewLookoutDb(p.pool, nil, lookoutingestermetrics.Get(), 16, 12)
+	if p.features.HotColdSplit {
+		tables := repository.NewTablesWithJobTable("job_all")
+		p.jobsRepository = repository.NewSqlGetJobsRepositoryWithTables(p.pool, tables)
+		p.groupRepository = repository.NewSqlGroupJobsRepositoryWithTables(p.pool, tables)
+	} else {
+		p.jobsRepository = repository.NewSqlGetJobsRepository(p.pool)
+		p.groupRepository = repository.NewSqlGroupJobsRepository(p.pool)
+	}
 	p.jobSpecRepository = repository.NewSqlGetJobSpecRepository(p.pool, decompressor)
 	p.jobRunErrorRepository = repository.NewSqlGetJobRunErrorRepository(p.pool, decompressor)
 	p.jobRunDebugRepository = repository.NewSqlGetJobRunDebugMessageRepository(p.pool, decompressor)
@@ -86,77 +117,86 @@ func (p *PostgresDatabase) InitialiseSchema(ctx context.Context) error {
 	return nil
 }
 
-// ExecuteIngestionQueryBatch executes a batch of ingestion queries.
-// Jobs are grouped by type and inserted/updated in the appropriate order to maintain
-// referential integrity.
-func (p *PostgresDatabase) ExecuteIngestionQueryBatch(ctx context.Context, queries []IngestionQuery) error {
-	// Group queries by type for batch processing
-	var jobsToInsert []InsertJob
-	var jobSpecsToInsert []InsertJobSpec
-	var jobRunsToInsert []InsertJobRun
-	var jobErrorsToInsert []InsertJobError
-	var jobUpdates []IngestionQuery
-	var jobRunUpdates []IngestionQuery
+func (p *PostgresDatabase) applyTuningSQL(ctx context.Context) error {
+	for i, stmt := range p.tuningSQLStatements {
+		if _, err := p.pool.Exec(ctx, stmt); err != nil {
+			return fmt.Errorf("executing tuning SQL statement %d: %w", i+1, err)
+		}
+		logging.Infof("Applied tuning SQL statement %d", i+1)
+	}
+	return nil
+}
 
-	for _, query := range queries {
-		switch q := query.(type) {
-		case InsertJob:
-			jobsToInsert = append(jobsToInsert, q)
-		case InsertJobSpec:
-			jobSpecsToInsert = append(jobSpecsToInsert, q)
-		case InsertJobRun:
-			jobRunsToInsert = append(jobRunsToInsert, q)
-		case InsertJobError:
-			jobErrorsToInsert = append(jobErrorsToInsert, q)
-		case UpdateJobPriority, SetJobCancelled, SetJobSucceeded, SetJobPreempted,
-			SetJobRejected, SetJobErrored, SetJobRunning, SetJobPending, SetJobLeased:
-			jobUpdates = append(jobUpdates, query)
-		case SetJobRunStarted, SetJobRunPending, SetJobRunCancelled,
-			SetJobRunFailed, SetJobRunSucceeded, SetJobRunPreempted:
-			jobRunUpdates = append(jobRunUpdates, query)
-		default:
-			return fmt.Errorf("unknown ingestion query type: %T", query)
+func (p *PostgresDatabase) revertTuningSQL(ctx context.Context) error {
+	for i, stmt := range p.tuningRevertSQLStatements {
+		if _, err := p.pool.Exec(ctx, stmt); err != nil {
+			return fmt.Errorf("executing tuning revert SQL statement %d: %w", i+1, err)
+		}
+		logging.Infof("Executed tuning revert SQL statement %d", i+1)
+	}
+	return nil
+}
+
+// ExecuteIngestionQueryBatch executes a batch of ingestion queries using the
+// same sequential phase ordering as the production Lookout ingester:
+//
+//  1. Create job rows and their specs (specs only for jobs whose InsertJobSpec
+//     arrived in the same batch — avoids inserting null into job_spec.job_spec).
+//  2. In parallel: update job rows (non-terminal only), create job runs, create job errors.
+//  3. Update job runs.
+//  4. (Hot/cold split only) Atomically apply terminal state updates and move those
+//     jobs from job to job_historical.
+//
+// When HotColdSplit is enabled, terminal-state updates are separated out before
+// Phase 2 so they never touch job (which is constrained to active states only).
+// They are instead applied atomically in Phase 4 as part of the move operation.
+//
+// Job updates and job-run updates are conflated within the batch (last write
+// wins) before being sent, preventing undefined behaviour when duplicate IDs
+// appear in the UPDATE … FROM temp-table pattern.
+func (p *PostgresDatabase) ExecuteIngestionQueryBatch(ctx context.Context, queries []IngestionQuery) error {
+	set, err := queriesToInstructionSet(queries)
+	if err != nil {
+		return err
+	}
+	armadaCtx := armadacontext.FromGrpcCtx(ctx)
+
+	jobUpdates := set.JobsToUpdate
+	var terminalUpdates []*lookoutmodel.UpdateJobInstruction
+	if p.features.HotColdSplit {
+		jobUpdates = nil
+		for _, u := range set.JobsToUpdate {
+			if u.State != nil && isTerminalState(*u.State) {
+				terminalUpdates = append(terminalUpdates, u)
+			} else {
+				jobUpdates = append(jobUpdates, u)
+			}
 		}
 	}
 
-	// Insert jobs first (required by foreign key constraints)
-	if err := p.insertJobs(ctx, jobsToInsert); err != nil {
-		return fmt.Errorf("inserting jobs: %w", err)
-	}
-
-	// Insert job specs, runs, and errors in parallel (they all only depend on jobs existing)
-	var specErr, runErr, errorErr error
+	// Phase 1: job rows must be committed before job_run FK references them.
 	var wg sync.WaitGroup
-
-	wg.Go(func() { specErr = p.insertJobSpecs(ctx, jobSpecsToInsert) })
-	wg.Go(func() { runErr = p.insertJobRuns(ctx, jobRunsToInsert) })
-	wg.Go(func() { errorErr = p.insertJobErrors(ctx, jobErrorsToInsert) })
-
+	wg.Go(func() { p.lookoutDb.CreateJobs(armadaCtx, set.JobsToCreate) })
+	wg.Go(func() { p.lookoutDb.CreateJobSpecs(armadaCtx, set.JobsToCreate) })
 	wg.Wait()
 
-	if specErr != nil {
-		return fmt.Errorf("inserting job specs: %w", specErr)
-	}
-	if runErr != nil {
-		return fmt.Errorf("inserting job runs: %w", runErr)
-	}
-	if errorErr != nil {
-		return fmt.Errorf("inserting job errors: %w", errorErr)
-	}
-
-	// Update jobs and job runs (can be done in parallel)
-	var jobUpdateErr, jobRunUpdateErr error
-
-	wg.Go(func() { jobUpdateErr = p.updateJobs(ctx, jobUpdates) })
-	wg.Go(func() { jobRunUpdateErr = p.updateJobRuns(ctx, jobRunUpdates) })
-
+	// Phase 2: job runs, errors and job-state updates can proceed in parallel.
+	// When HotColdSplit is enabled, jobUpdates contains only non-terminal updates,
+	// so no terminal state is ever written to job (which has chk_job_active_state).
+	wg.Go(func() { p.lookoutDb.UpdateJobs(armadaCtx, jobUpdates) })
+	wg.Go(func() { p.lookoutDb.CreateJobRuns(armadaCtx, set.JobRunsToCreate) })
+	wg.Go(func() { p.lookoutDb.CreateJobErrors(armadaCtx, set.JobErrorsToCreate) })
 	wg.Wait()
 
-	if jobUpdateErr != nil {
-		return fmt.Errorf("updating jobs: %w", jobUpdateErr)
-	}
-	if jobRunUpdateErr != nil {
-		return fmt.Errorf("updating job runs: %w", jobRunUpdateErr)
+	// Phase 3: job-run updates depend on job-run rows existing.
+	p.lookoutDb.UpdateJobRuns(armadaCtx, set.JobRunsToUpdate)
+
+	// Phase 4 (hot/cold split only): atomically apply terminal state updates and
+	// move those jobs from job to job_historical in a single SQL statement.
+	if p.features.HotColdSplit {
+		if err := p.updateAndMoveTerminalJobs(armadaCtx, terminalUpdates); err != nil {
+			return fmt.Errorf("updating and moving terminal jobs: %w", err)
+		}
 	}
 
 	return nil
@@ -218,7 +258,14 @@ func (p *PostgresDatabase) GetJobGroups(ctx *context.Context, filters []*model.F
 // TearDown truncates all tables to clean up after a test run.
 // This is faster than dropping and recreating the database, and
 // allows multiple test runs against the same database instance.
+// When the HotColdSplit feature toggle is enabled, job_historical is also
+// truncated and the hot/cold migration is reverted so the schema is left
+// in its original state.
 func (p *PostgresDatabase) TearDown(ctx context.Context) error {
+	if err := p.revertTuningSQL(ctx); err != nil {
+		return fmt.Errorf("reverting tuning SQL: %w", err)
+	}
+
 	tables := []string{
 		"job_run",
 		"job_spec",
@@ -226,12 +273,22 @@ func (p *PostgresDatabase) TearDown(ctx context.Context) error {
 		"job",
 		"job_deduplication",
 	}
+	if p.features.HotColdSplit {
+		tables = append(tables, "job_historical")
+	}
 
 	for _, table := range tables {
 		query := fmt.Sprintf("TRUNCATE TABLE %s CASCADE", table)
 		if _, err := p.pool.Exec(ctx, query); err != nil {
 			return fmt.Errorf("truncating table %s: %w", table, err)
 		}
+	}
+
+	if p.features.HotColdSplit {
+		if _, err := p.pool.Exec(ctx, hotColdRevertSQL); err != nil {
+			return fmt.Errorf("reverting hot/cold split migration: %w", err)
+		}
+		logging.Info("Hot/cold split migration reverted")
 	}
 
 	return nil
@@ -306,9 +363,13 @@ func (p *PostgresDatabase) PopulateHistoricalJobs(ctx context.Context, params Hi
 // index to resume from (i.e. maxExisting + 1), or 0 if nothing exists.
 func (p *PostgresDatabase) detectHistoricalJobProgress(ctx context.Context, queueIdx, jobSetIdx int) (int, error) {
 	prefix := fmt.Sprintf("%04d%04d", queueIdx, jobSetIdx)
+	table := "job"
+	if p.features.HotColdSplit {
+		table = "job_historical"
+	}
 	var maxIdx int
 	err := p.pool.QueryRow(ctx,
-		`SELECT COALESCE(MAX(RIGHT(job_id, 10)::int), -1) FROM job WHERE job_id LIKE $1`,
+		fmt.Sprintf(`SELECT COALESCE(MAX(RIGHT(job_id, 10)::int), -1) FROM %s WHERE job_id LIKE $1`, table),
 		prefix+"%",
 	).Scan(&maxIdx)
 	if err != nil {
@@ -372,8 +433,13 @@ func (p *PostgresDatabase) insertHistoricalJobChunk(ctx context.Context, params 
 	nsArr := stringSliceToSQL(jobspec.NamespaceOptions)
 	pcArr := stringSliceToSQL(jobspec.PriorityClassOptions)
 
+	jobTable := "job"
+	if p.features.HotColdSplit {
+		jobTable = "job_historical"
+	}
+
 	jobSQL := fmt.Sprintf(`
-INSERT INTO job (
+INSERT INTO %s (
     job_id, queue, owner, namespace, jobset,
     cpu, memory, ephemeral_storage, gpu, priority,
     submitted, state, last_transition_time, last_transition_time_seconds,
@@ -392,10 +458,10 @@ SELECT
     (%s)[i%%%d+1],
     (i%%2000)+1,
     NOW() - INTERVAL '24 hours',
-    CASE WHEN i%%1000 < %d THEN 5
-         WHEN i%%1000 < %d THEN 4
-         WHEN i%%1000 < %d THEN 6
-         ELSE 8 END,
+    CASE WHEN i%%1000 < %d THEN %d
+         WHEN i%%1000 < %d THEN %d
+         WHEN i%%1000 < %d THEN %d
+         ELSE %d END,
     NOW() - INTERVAL '24 hours' + INTERVAL '10 seconds',
     EXTRACT(EPOCH FROM NOW() - INTERVAL '24 hours' + INTERVAL '10 seconds')::bigint,
     (%s)[i%%%d+1],
@@ -408,6 +474,7 @@ SELECT
     CASE WHEN i%%1000 >= %d AND i%%1000 < %d
          THEN '%s' END
 FROM generate_series(%d, %d) AS i`,
+		jobTable,
 		prefix,
 		params.QueueName, params.QueueName,
 		nsArr, len(jobspec.NamespaceOptions),
@@ -416,7 +483,10 @@ FROM generate_series(%d, %d) AS i`,
 		memArr, len(jobspec.MemoryOptions),
 		ephArr, len(jobspec.EphemeralStorageOptions),
 		gpuArr, len(jobspec.GpuOptions),
-		succeeded, errored, cancelled,
+		succeeded, lookout.JobSucceededOrdinal,
+		errored, lookout.JobFailedOrdinal,
+		cancelled, lookout.JobCancelledOrdinal,
+		lookout.JobPreemptedOrdinal,
 		pcArr, len(jobspec.PriorityClassOptions),
 		buildAnnotationSQL(),
 		prefix,
@@ -529,341 +599,4 @@ func buildAnnotationSQL() string {
 		)
 	}
 	return "jsonb_build_object(" + strings.Join(parts, ", ") + ")"
-}
-
-// insertJobs batch inserts jobs using the COPY protocol for performance.
-func (p *PostgresDatabase) insertJobs(ctx context.Context, jobs []InsertJob) error {
-	if len(jobs) == 0 {
-		return nil
-	}
-
-	// Use COPY protocol for bulk insert (much faster than individual INSERTs)
-	rows := make([][]interface{}, len(jobs))
-	for i, job := range jobs {
-		// Convert annotations map to JSONB
-		var annotations interface{}
-		if len(job.Job.Annotations) > 0 {
-			annotations = job.Job.Annotations
-		}
-
-		rows[i] = []interface{}{
-			job.Job.JobID,
-			job.Job.Queue,
-			job.Job.Owner,
-			job.Job.Namespace,
-			job.Job.JobSet,
-			job.Job.Cpu,
-			job.Job.Memory,
-			job.Job.EphemeralStorage,
-			job.Job.Gpu,
-			job.Job.Priority,
-			job.Job.Submitted,
-			0,                        // state (queued)
-			job.Job.Submitted,        // last_transition_time
-			job.Job.Submitted.Unix(), // last_transition_time_seconds
-			job.Job.PriorityClass,
-			annotations,
-		}
-	}
-
-	_, err := p.pool.CopyFrom(
-		ctx,
-		[]string{"job"}, // table name
-		[]string{
-			"job_id",
-			"queue",
-			"owner",
-			"namespace",
-			"jobset",
-			"cpu",
-			"memory",
-			"ephemeral_storage",
-			"gpu",
-			"priority",
-			"submitted",
-			"state",
-			"last_transition_time",
-			"last_transition_time_seconds",
-			"priority_class",
-			"annotations",
-		},
-		&copyFromRows{rows: rows},
-	)
-	if err != nil {
-		return fmt.Errorf("copying %d jobs: %w", len(jobs), err)
-	}
-
-	return nil
-}
-
-// insertJobSpecs batch inserts job specifications.
-func (p *PostgresDatabase) insertJobSpecs(ctx context.Context, specs []InsertJobSpec) error {
-	if len(specs) == 0 {
-		return nil
-	}
-
-	rows := make([][]interface{}, len(specs))
-	for i, spec := range specs {
-		rows[i] = []interface{}{
-			spec.JobID,
-			[]byte(spec.JobSpec),
-		}
-	}
-
-	_, err := p.pool.CopyFrom(
-		ctx,
-		[]string{"job_spec"},
-		[]string{"job_id", "job_spec"},
-		&copyFromRows{rows: rows},
-	)
-	if err != nil {
-		return fmt.Errorf("copying %d job specs: %w", len(specs), err)
-	}
-
-	return nil
-}
-
-// insertJobRuns batch inserts job run records.
-func (p *PostgresDatabase) insertJobRuns(ctx context.Context, runs []InsertJobRun) error {
-	if len(runs) == 0 {
-		return nil
-	}
-
-	rows := make([][]interface{}, len(runs))
-	for i, run := range runs {
-		var node *string
-		if run.Node != "" {
-			node = &run.Node
-		}
-		var pool *string
-		if run.Pool != "" {
-			pool = &run.Pool
-		}
-
-		rows[i] = []interface{}{
-			run.JobRunID,
-			run.JobID,
-			run.Cluster,
-			node,
-			run.Time, // leased time
-			pool,
-			0, // job_run_state (leased)
-		}
-	}
-
-	_, err := p.pool.CopyFrom(
-		ctx,
-		[]string{"job_run"},
-		[]string{
-			"run_id",
-			"job_id",
-			"cluster",
-			"node",
-			"leased",
-			"pool",
-			"job_run_state",
-		},
-		&copyFromRows{rows: rows},
-	)
-	if err != nil {
-		return fmt.Errorf("copying %d job runs: %w", len(runs), err)
-	}
-
-	return nil
-}
-
-// insertJobErrors batch inserts job error records.
-func (p *PostgresDatabase) insertJobErrors(ctx context.Context, errors []InsertJobError) error {
-	if len(errors) == 0 {
-		return nil
-	}
-
-	rows := make([][]interface{}, len(errors))
-	for i, err := range errors {
-		rows[i] = []interface{}{
-			err.JobID,
-			err.Error,
-		}
-	}
-
-	_, err := p.pool.CopyFrom(
-		ctx,
-		[]string{"job_error"},
-		[]string{"job_id", "error"},
-		&copyFromRows{rows: rows},
-	)
-	if err != nil {
-		return fmt.Errorf("copying %d job errors: %w", len(errors), err)
-	}
-
-	return nil
-}
-
-// updateJobs converts Broadside query types to Lookout instructions
-// and delegates to the production Lookout ingester for batch updates.
-func (p *PostgresDatabase) updateJobs(ctx context.Context, queries []IngestionQuery) error {
-	if len(queries) == 0 {
-		return nil
-	}
-
-	// Convert Broadside queries to Lookout UpdateJobInstruction format
-	instructions := make([]*lookoutmodel.UpdateJobInstruction, len(queries))
-	for i, query := range queries {
-		instruction := &lookoutmodel.UpdateJobInstruction{}
-		switch q := query.(type) {
-		case UpdateJobPriority:
-			instruction.JobId = q.JobID
-			instruction.Priority = &q.Priority
-		case SetJobCancelled:
-			instruction.JobId = q.JobID
-			state := int32(6)
-			instruction.State = &state
-			instruction.Cancelled = &q.Time
-			instruction.LastTransitionTime = &q.Time
-			seconds := q.Time.Unix()
-			instruction.LastTransitionTimeSeconds = &seconds
-			instruction.CancelReason = &q.CancelReason
-			instruction.CancelUser = &q.CancelUser
-		case SetJobSucceeded:
-			instruction.JobId = q.JobID
-			state := int32(5)
-			instruction.State = &state
-			instruction.LastTransitionTime = &q.Time
-			seconds := q.Time.Unix()
-			instruction.LastTransitionTimeSeconds = &seconds
-		case SetJobPreempted:
-			instruction.JobId = q.JobID
-			state := int32(8)
-			instruction.State = &state
-			instruction.LastTransitionTime = &q.Time
-			seconds := q.Time.Unix()
-			instruction.LastTransitionTimeSeconds = &seconds
-		case SetJobRejected:
-			instruction.JobId = q.JobID
-			state := int32(7)
-			instruction.State = &state
-			instruction.LastTransitionTime = &q.Time
-			seconds := q.Time.Unix()
-			instruction.LastTransitionTimeSeconds = &seconds
-		case SetJobErrored:
-			instruction.JobId = q.JobID
-			state := int32(4)
-			instruction.State = &state
-			instruction.LastTransitionTime = &q.Time
-			seconds := q.Time.Unix()
-			instruction.LastTransitionTimeSeconds = &seconds
-		case SetJobRunning:
-			instruction.JobId = q.JobID
-			state := int32(3)
-			instruction.State = &state
-			instruction.LatestRunId = &q.LatestRunID
-			instruction.LastTransitionTime = &q.Time
-			seconds := q.Time.Unix()
-			instruction.LastTransitionTimeSeconds = &seconds
-		case SetJobPending:
-			instruction.JobId = q.JobID
-			state := int32(2)
-			instruction.State = &state
-			instruction.LatestRunId = &q.RunID
-			instruction.LastTransitionTime = &q.Time
-			seconds := q.Time.Unix()
-			instruction.LastTransitionTimeSeconds = &seconds
-		case SetJobLeased:
-			instruction.JobId = q.JobID
-			state := int32(1)
-			instruction.State = &state
-			instruction.LatestRunId = &q.RunID
-			instruction.LastTransitionTime = &q.Time
-			seconds := q.Time.Unix()
-			instruction.LastTransitionTimeSeconds = &seconds
-		default:
-			return fmt.Errorf("unknown job update query type: %T", query)
-		}
-		instructions[i] = instruction
-	}
-
-	// Delegate to the production Lookout ingester
-	armadaCtx := armadacontext.FromGrpcCtx(ctx)
-	return p.lookoutDb.UpdateJobsBatch(armadaCtx, instructions)
-}
-
-// updateJobRuns converts Broadside query types to Lookout instructions
-// and delegates to the production Lookout ingester for batch updates.
-func (p *PostgresDatabase) updateJobRuns(ctx context.Context, queries []IngestionQuery) error {
-	if len(queries) == 0 {
-		return nil
-	}
-
-	// Convert Broadside queries to Lookout UpdateJobRunInstruction format
-	instructions := make([]*lookoutmodel.UpdateJobRunInstruction, len(queries))
-	for i, query := range queries {
-		instruction := &lookoutmodel.UpdateJobRunInstruction{}
-		switch q := query.(type) {
-		case SetJobRunStarted:
-			instruction.RunId = q.JobRunID
-			instruction.Node = &q.Node
-			instruction.Started = &q.Time
-			state := int32(2)
-			instruction.JobRunState = &state
-		case SetJobRunPending:
-			instruction.RunId = q.JobRunID
-			instruction.Pending = &q.Time
-			state := int32(1)
-			instruction.JobRunState = &state
-		case SetJobRunCancelled:
-			instruction.RunId = q.JobRunID
-			instruction.Finished = &q.Time
-			state := int32(6)
-			instruction.JobRunState = &state
-		case SetJobRunFailed:
-			instruction.RunId = q.JobRunID
-			instruction.Finished = &q.Time
-			instruction.Error = q.Error
-			instruction.Debug = q.Debug
-			instruction.ExitCode = &q.ExitCode
-			state := int32(4)
-			instruction.JobRunState = &state
-		case SetJobRunSucceeded:
-			instruction.RunId = q.JobRunID
-			instruction.Finished = &q.Time
-			instruction.ExitCode = &q.ExitCode
-			state := int32(3)
-			instruction.JobRunState = &state
-		case SetJobRunPreempted:
-			instruction.RunId = q.JobRunID
-			instruction.Finished = &q.Time
-			instruction.Error = q.Error
-			state := int32(5)
-			instruction.JobRunState = &state
-		default:
-			return fmt.Errorf("unknown job run update query type: %T", query)
-		}
-		instructions[i] = instruction
-	}
-
-	// Delegate to the production Lookout ingester
-	armadaCtx := armadacontext.FromGrpcCtx(ctx)
-	return p.lookoutDb.UpdateJobRunsBatch(armadaCtx, instructions)
-}
-
-// copyFromRows implements pgx.CopyFromSource for batch inserts.
-type copyFromRows struct {
-	rows [][]interface{}
-	idx  int
-}
-
-func (c *copyFromRows) Next() bool {
-	c.idx++
-	return c.idx <= len(c.rows)
-}
-
-func (c *copyFromRows) Values() ([]interface{}, error) {
-	if c.idx > len(c.rows) {
-		return nil, fmt.Errorf("index out of range")
-	}
-	return c.rows[c.idx-1], nil
-}
-
-func (c *copyFromRows) Err() error {
-	return nil
 }

@@ -50,7 +50,12 @@ func TestMetricsCollector_TestCollect_QueueMetrics(t *testing.T) {
 
 	jobCreationTime := testfixtures.BaseTime.Add(-time.Duration(500) * time.Second).UnixNano()
 	jobWithTerminatedRun := testfixtures.TestQueuedJobDbJob().WithCreated(jobCreationTime).WithUpdatedRun(run)
-	queuedJobMultiplePools := testfixtures.TestQueuedJobDbJob().WithCreated(jobCreationTime).WithPools([]string{testfixtures.TestPool, testfixtures.TestPool2})
+
+	bids := map[string]pricing.Bid{
+		testfixtures.TestPool:  {QueuedBid: 1, RunningBid: 2},
+		testfixtures.TestPool2: {QueuedBid: 2, RunningBid: 4},
+	}
+	queuedJobMultiplePools := testfixtures.TestQueuedJobDbJob().WithCreated(jobCreationTime).WithPools([]string{testfixtures.TestPool, testfixtures.TestPool2}).WithBidPrices(bids)
 
 	queue := testfixtures.MakeTestQueue()
 	queue.Labels = map[string]string{"foo": "bar"}
@@ -90,9 +95,9 @@ func TestMetricsCollector_TestCollect_QueueMetrics(t *testing.T) {
 				commonmetrics.NewMinQueueDuration(0, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, commonmetrics.AccountingRolePrimary),
 				commonmetrics.NewMaxQueueDuration(200, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, commonmetrics.AccountingRolePrimary),
 				commonmetrics.NewMedianQueueDuration(100, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, commonmetrics.AccountingRolePrimary),
-				commonmetrics.NewMinQueuePriceQueuedMetric(0, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue),
-				commonmetrics.NewMaxQueuePriceQueuedMetric(2, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue),
-				commonmetrics.NewMedianQueuePriceQueuedMetric(1, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue),
+				commonmetrics.NewMinQueuePriceQueuedMetric(0, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, commonmetrics.AccountingRolePrimary),
+				commonmetrics.NewMaxQueuePriceQueuedMetric(2, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, commonmetrics.AccountingRolePrimary),
+				commonmetrics.NewMedianQueuePriceQueuedMetric(1, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, commonmetrics.AccountingRolePrimary),
 				commonmetrics.NewQueueResources(3, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "None", "cpu", commonmetrics.AccountingRolePrimary),
 				commonmetrics.NewMinQueueResources(1, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "None", "cpu", commonmetrics.AccountingRolePrimary),
 				commonmetrics.NewMaxQueueResources(1, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "None", "cpu", commonmetrics.AccountingRolePrimary),
@@ -139,9 +144,9 @@ func TestMetricsCollector_TestCollect_QueueMetrics(t *testing.T) {
 				commonmetrics.NewMinQueueDuration(200, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, commonmetrics.AccountingRolePrimary),
 				commonmetrics.NewMaxQueueDuration(200, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, commonmetrics.AccountingRolePrimary),
 				commonmetrics.NewMedianQueueDuration(200, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, commonmetrics.AccountingRolePrimary),
-				commonmetrics.NewMinQueuePriceQueuedMetric(0, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue),
-				commonmetrics.NewMaxQueuePriceQueuedMetric(0, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue),
-				commonmetrics.NewMedianQueuePriceQueuedMetric(0, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue),
+				commonmetrics.NewMinQueuePriceQueuedMetric(0, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, commonmetrics.AccountingRolePrimary),
+				commonmetrics.NewMaxQueuePriceQueuedMetric(0, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, commonmetrics.AccountingRolePrimary),
+				commonmetrics.NewMedianQueuePriceQueuedMetric(0, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, commonmetrics.AccountingRolePrimary),
 				commonmetrics.NewQueueResources(1, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "None", "cpu", commonmetrics.AccountingRolePrimary),
 				commonmetrics.NewMinQueueResources(1, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "None", "cpu", commonmetrics.AccountingRolePrimary),
 				commonmetrics.NewMaxQueueResources(1, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "None", "cpu", commonmetrics.AccountingRolePrimary),
@@ -189,9 +194,9 @@ func TestMetricsCollector_TestCollect_QueueMetrics(t *testing.T) {
 				commonmetrics.NewMinQueueDuration(500, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, commonmetrics.AccountingRolePrimary),
 				commonmetrics.NewMaxQueueDuration(500, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, commonmetrics.AccountingRolePrimary),
 				commonmetrics.NewMedianQueueDuration(500, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, commonmetrics.AccountingRolePrimary),
-				commonmetrics.NewMinQueuePriceQueuedMetric(0, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue),
-				commonmetrics.NewMaxQueuePriceQueuedMetric(0, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue),
-				commonmetrics.NewMedianQueuePriceQueuedMetric(0, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue),
+				commonmetrics.NewMinQueuePriceQueuedMetric(1, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, commonmetrics.AccountingRolePrimary),
+				commonmetrics.NewMaxQueuePriceQueuedMetric(1, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, commonmetrics.AccountingRolePrimary),
+				commonmetrics.NewMedianQueuePriceQueuedMetric(1, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, commonmetrics.AccountingRolePrimary),
 				commonmetrics.NewQueueResources(1, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "None", "cpu", commonmetrics.AccountingRolePrimary),
 				commonmetrics.NewMinQueueResources(1, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "None", "cpu", commonmetrics.AccountingRolePrimary),
 				commonmetrics.NewMaxQueueResources(1, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "None", "cpu", commonmetrics.AccountingRolePrimary),
@@ -205,9 +210,9 @@ func TestMetricsCollector_TestCollect_QueueMetrics(t *testing.T) {
 				commonmetrics.NewMinQueueDuration(500, testfixtures.TestPool2, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, commonmetrics.AccountingRoleSecondary),
 				commonmetrics.NewMaxQueueDuration(500, testfixtures.TestPool2, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, commonmetrics.AccountingRoleSecondary),
 				commonmetrics.NewMedianQueueDuration(500, testfixtures.TestPool2, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, commonmetrics.AccountingRoleSecondary),
-				commonmetrics.NewMinQueuePriceQueuedMetric(0, testfixtures.TestPool2, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue),
-				commonmetrics.NewMaxQueuePriceQueuedMetric(0, testfixtures.TestPool2, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue),
-				commonmetrics.NewMedianQueuePriceQueuedMetric(0, testfixtures.TestPool2, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue),
+				commonmetrics.NewMinQueuePriceQueuedMetric(2, testfixtures.TestPool2, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, commonmetrics.AccountingRoleSecondary),
+				commonmetrics.NewMaxQueuePriceQueuedMetric(2, testfixtures.TestPool2, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, commonmetrics.AccountingRoleSecondary),
+				commonmetrics.NewMedianQueuePriceQueuedMetric(2, testfixtures.TestPool2, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, commonmetrics.AccountingRoleSecondary),
 				commonmetrics.NewQueueResources(1, testfixtures.TestPool2, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "None", "cpu", commonmetrics.AccountingRoleSecondary),
 				commonmetrics.NewMinQueueResources(1, testfixtures.TestPool2, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "None", "cpu", commonmetrics.AccountingRoleSecondary),
 				commonmetrics.NewMaxQueueResources(1, testfixtures.TestPool2, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "None", "cpu", commonmetrics.AccountingRoleSecondary),

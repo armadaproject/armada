@@ -57,7 +57,7 @@ The TestResult structure includes:
 
   - Metadata: timestamp, schema version, and actual test duration
   - Configuration snapshot: complete test configuration including database
-    settings, queue configuration, ingestion and query parameters
+    settings, tuning SQL and revert SQL, queue configuration, ingestion and query parameters
   - Results: ingester and querier metrics in JSON-serialisable format
 
 JSON output files are written with timestamps in their filenames
