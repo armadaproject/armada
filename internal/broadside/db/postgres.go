@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -177,7 +178,7 @@ func (p *PostgresDatabase) execTuningSQLOnPartitions(ctx context.Context, stmts 
 	for i, stmt := range stmts {
 		if targetsJobTable(stmt) {
 			for _, part := range partitions {
-				partStmt := strings.Replace(stmt, "job", part, 1)
+				partStmt := replaceJobTable(stmt, part)
 				if _, err := p.pool.Exec(ctx, partStmt); err != nil {
 					return fmt.Errorf("%s tuning SQL statement %d on partition %s: %w", verb, i+1, part, err)
 				}
@@ -223,6 +224,17 @@ func targetsJobTable(stmt string) bool {
 	lower := strings.ToLower(stmt)
 	return strings.Contains(lower, "alter table job ") &&
 		!strings.Contains(lower, "alter table job_")
+}
+
+// alterTableJobRe matches "ALTER TABLE job " case-insensitively so that the
+// table name can be rewritten to a specific partition name without accidentally
+// matching "job" inside SQL comments or in unrelated table names.
+var alterTableJobRe = regexp.MustCompile(`(?i)ALTER TABLE job `)
+
+// replaceJobTable rewrites the "ALTER TABLE job " phrase in stmt to target the
+// named partition instead, handling any casing of the original keyword.
+func replaceJobTable(stmt, partition string) string {
+	return alterTableJobRe.ReplaceAllLiteralString(stmt, "ALTER TABLE "+partition+" ")
 }
 
 // ExecuteIngestionQueryBatch executes a batch of ingestion queries using the

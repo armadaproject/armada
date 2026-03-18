@@ -373,8 +373,8 @@ func (i *Ingester) runBatchExecutor(
 					// cleanly — otherwise the Postgres backend will be mid-rollback
 					// when TearDown tries to TRUNCATE, blocking on lock acquisition.
 					flushCtx, flushCancel := context.WithTimeout(context.Background(), 10*time.Second)
+					defer flushCancel()
 					i.executeBatch(flushCtx, batch)
-					flushCancel()
 				}
 				return
 			}
