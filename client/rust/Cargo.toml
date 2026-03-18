@@ -10,7 +10,7 @@ homepage = "https://armadaproject.io"
 documentation = "https://docs.rs/armada-client"
 keywords = ["armada", "kubernetes", "batch", "jobs", "grpc"]
 categories = ["api-bindings"]
-include = ["src/**/*", "build.rs", "proto/**/*", "examples/**/*", "README.md"]
+include = ["src/**/*", "build.rs", "examples/**/*", "README.md"]
 
 [lib]
 name = "armada_client"

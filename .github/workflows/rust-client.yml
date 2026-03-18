@@ -8,6 +8,8 @@ on:
       - 'client/rust/**'
       - 'pkg/api/*.proto'
       - '.github/workflows/rust-client.yml'
+      - 'magefiles/proto.go'
+      - 'magefiles/main.go'
 
   pull_request:
     branches-ignore:
@@ -16,6 +18,8 @@ on:
       - 'client/rust/**'
       - 'pkg/api/*.proto'
       - '.github/workflows/rust-client.yml'
+      - 'magefiles/proto.go'
+      - 'magefiles/main.go'
 
 jobs:
   rust-client:
@@ -48,14 +52,19 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-${{ matrix.cache-key }}-
 
+      - name: Setup Go
+        uses: ./.github/actions/setup-go-cache
+        with:
+          cache-prefix: rust-client-${{ matrix.cache-key }}
+
       - name: Install protoc
         uses: arduino/setup-protoc@v3
         with:
           version: '23.3'
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Fetch proto dependencies
-        uses: ./.github/actions/fetch-rust-protos
+      - name: Bootstrap proto dependencies
+        run: go run github.com/magefile/mage@v1.15.0 -v BootstrapProto
 
       - name: Check formatting
         if: matrix.toolchain == 'stable'
@@ -63,6 +72,12 @@ jobs:
 
       - name: Build
         run: cargo build --manifest-path client/rust/Cargo.toml
+
+      - name: Verify generated code is up to date
+        if: matrix.toolchain == 'stable'
+        run: |
+          ARMADA_GENERATE=1 cargo build --manifest-path client/rust/Cargo.toml
+          git diff --exit-code client/rust/src/gen/
 
       - name: Test
         run: cargo test --manifest-path client/rust/Cargo.toml

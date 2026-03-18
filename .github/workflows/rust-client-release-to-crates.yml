@@ -27,31 +27,34 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-
 
+      - name: Setup Go
+        uses: ./.github/actions/setup-go-cache
+        with:
+          cache-prefix: rust-client-release
+
       - name: Install protoc
         uses: arduino/setup-protoc@v3
         with:
           version: '23.3'
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Fetch proto dependencies
-        uses: ./.github/actions/fetch-rust-protos
+      - name: Bootstrap proto dependencies
+        run: go run github.com/magefile/mage@v1.15.0 -v BootstrapProto
 
       - name: Check formatting
         run: cargo fmt --manifest-path client/rust/Cargo.toml -- --check
 
-      - name: Build
-        run: cargo build --manifest-path client/rust/Cargo.toml
+      - name: Build and generate pre-built proto code
+        run: ARMADA_GENERATE=1 cargo build --manifest-path client/rust/Cargo.toml
+
+      - name: Verify generated code is up to date
+        run: git diff --exit-code client/rust/src/gen/
 
       - name: Test
-        run: cargo test --manifest-path client/rust/Cargo.toml
+        run: ARMADA_GENERATE=1 cargo test --manifest-path client/rust/Cargo.toml
 
       - name: Clippy
-        run: cargo clippy --manifest-path client/rust/Cargo.toml --all-targets -- -D warnings
-
-      - name: Vendor protos for published crate
-        uses: ./.github/actions/fetch-rust-protos
-        with:
-          include-armada-protos: 'true'
+        run: ARMADA_GENERATE=1 cargo clippy --manifest-path client/rust/Cargo.toml --all-targets -- -D warnings
 
       - name: Publish to crates.io
         env:
