@@ -47,6 +47,9 @@ jobs:
       - name: Build and generate pre-built proto code
         run: ARMADA_GENERATE=1 cargo build --manifest-path client/rust/Cargo.toml
 
+      - name: Verify generated code is up to date
+        run: git diff --exit-code client/rust/src/gen/
+
       - name: Test
         run: ARMADA_GENERATE=1 cargo test --manifest-path client/rust/Cargo.toml
 

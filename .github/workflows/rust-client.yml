@@ -73,6 +73,12 @@ jobs:
       - name: Build
         run: cargo build --manifest-path client/rust/Cargo.toml
 
+      - name: Verify generated code is up to date
+        if: matrix.toolchain == 'stable'
+        run: |
+          ARMADA_GENERATE=1 cargo build --manifest-path client/rust/Cargo.toml
+          git diff --exit-code client/rust/src/gen/
+
       - name: Test
         run: cargo test --manifest-path client/rust/Cargo.toml
 
