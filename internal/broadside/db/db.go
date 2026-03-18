@@ -128,8 +128,9 @@ type NewJob struct {
 }
 
 type UpdateJobPriority struct {
-	JobID    string
-	Priority int64
+	JobID     string
+	Priority  int64
+	Submitted time.Time
 }
 
 func (UpdateJobPriority) isIngestionQuery() {}
@@ -139,41 +140,47 @@ type SetJobCancelled struct {
 	Time         time.Time
 	CancelReason string
 	CancelUser   string
+	Submitted    time.Time
 }
 
 func (SetJobCancelled) isIngestionQuery() {}
 
 type SetJobSucceeded struct {
-	JobID string
-	Time  time.Time
+	JobID     string
+	Time      time.Time
+	Submitted time.Time
 }
 
 func (SetJobSucceeded) isIngestionQuery() {}
 
 type InsertJobError struct {
-	JobID string
-	Error []byte
+	JobID     string
+	Error     []byte
+	Submitted time.Time
 }
 
 func (InsertJobError) isIngestionQuery() {}
 
 type SetJobPreempted struct {
-	JobID string
-	Time  time.Time
+	JobID     string
+	Time      time.Time
+	Submitted time.Time
 }
 
 func (SetJobPreempted) isIngestionQuery() {}
 
 type SetJobRejected struct {
-	JobID string
-	Time  time.Time
+	JobID     string
+	Time      time.Time
+	Submitted time.Time
 }
 
 func (SetJobRejected) isIngestionQuery() {}
 
 type SetJobErrored struct {
-	JobID string
-	Time  time.Time
+	JobID     string
+	Time      time.Time
+	Submitted time.Time
 }
 
 func (SetJobErrored) isIngestionQuery() {}
@@ -182,81 +189,91 @@ type SetJobRunning struct {
 	JobID       string
 	Time        time.Time
 	LatestRunID string
+	Submitted   time.Time
 }
 
 func (SetJobRunning) isIngestionQuery() {}
 
 type SetJobRunStarted struct {
-	JobRunID string
-	Time     time.Time
-	Node     string
+	JobRunID  string
+	Time      time.Time
+	Node      string
+	Submitted time.Time
 }
 
 func (SetJobRunStarted) isIngestionQuery() {}
 
 type SetJobPending struct {
-	JobID string
-	Time  time.Time
-	RunID string
+	JobID     string
+	Time      time.Time
+	RunID     string
+	Submitted time.Time
 }
 
 func (SetJobPending) isIngestionQuery() {}
 
 type SetJobRunPending struct {
-	JobRunID string
-	Time     time.Time
+	JobRunID  string
+	Time      time.Time
+	Submitted time.Time
 }
 
 func (SetJobRunPending) isIngestionQuery() {}
 
 type SetJobRunCancelled struct {
-	JobRunID string
-	Time     time.Time
+	JobRunID  string
+	Time      time.Time
+	Submitted time.Time
 }
 
 func (SetJobRunCancelled) isIngestionQuery() {}
 
 type SetJobRunFailed struct {
-	JobRunID string
-	Time     time.Time
-	Error    []byte
-	Debug    []byte
-	ExitCode int32
+	JobRunID  string
+	Time      time.Time
+	Error     []byte
+	Debug     []byte
+	ExitCode  int32
+	Submitted time.Time
 }
 
 func (SetJobRunFailed) isIngestionQuery() {}
 
 type SetJobRunSucceeded struct {
-	JobRunID string
-	Time     time.Time
-	ExitCode int32
+	JobRunID  string
+	Time      time.Time
+	ExitCode  int32
+	Submitted time.Time
 }
 
 func (SetJobRunSucceeded) isIngestionQuery() {}
 
 type SetJobRunPreempted struct {
-	JobRunID string
-	Time     time.Time
-	Error    []byte
+	JobRunID  string
+	Time      time.Time
+	Error     []byte
+	Submitted time.Time
 }
 
 func (SetJobRunPreempted) isIngestionQuery() {}
 
 type SetJobLeased struct {
-	JobID string
-	Time  time.Time
-	RunID string
+	JobID     string
+	Time      time.Time
+	RunID     string
+	Submitted time.Time
 }
 
 func (SetJobLeased) isIngestionQuery() {}
 
 type InsertJobRun struct {
-	JobRunID string
-	JobID    string
-	Cluster  string
-	Node     string
-	Pool     string
-	Time     time.Time
+	JobRunID  string
+	JobID     string
+	Cluster   string
+	Node      string
+	Pool      string
+	Time      time.Time
+	Submitted time.Time
 }
 
 func (InsertJobRun) isIngestionQuery() {}
