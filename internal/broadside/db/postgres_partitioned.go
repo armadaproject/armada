@@ -322,7 +322,7 @@ func (p *PostgresDatabase) insertHistoricalJobChunkForBucket(
 	// Compute the partition date using the same logic as createDailyPartitions
 	// so we can insert directly into the named partition, bypassing the
 	// parent table's partition routing entirely.
-	baseTime := time.Now().Truncate(24 * time.Hour).AddDate(0, 0, -ageDays)
+	baseTime := time.Now().Truncate(24*time.Hour).AddDate(0, 0, -ageDays)
 	baseTimeExpr := fmt.Sprintf("'%s'::timestamp", baseTime.Format("2006-01-02 15:04:05"))
 	partitionName := fmt.Sprintf("job_p%s", baseTime.Format("20060102"))
 
