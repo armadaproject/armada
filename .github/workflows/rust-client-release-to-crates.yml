@@ -7,6 +7,9 @@ jobs:
   publish:
     runs-on: ubuntu-22.04
     environment: crates-release
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -56,7 +59,11 @@ jobs:
       - name: Clippy
         run: ARMADA_GENERATE=1 cargo clippy --manifest-path client/rust/Cargo.toml --all-targets -- -D warnings
 
+      - name: Setup trusted publishing credentials
+        uses: rust-lang/crates-io-auth-action@v1
+        id: auth
+
       - name: Publish to crates.io
         env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
         run: cargo publish --manifest-path client/rust/Cargo.toml
