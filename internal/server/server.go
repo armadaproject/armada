@@ -170,7 +170,6 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 	}
 	defer controlPlaneEventsPublisher.Close()
 
-	// introspectionServer := introspection.NewServer(controlPlaneEventsPublisher, authorizer)
 	queueServer := queue.NewServer(controlPlaneEventsPublisher, queueRepository, authorizer)
 
 	submitServer := submit.NewServer(
@@ -197,6 +196,9 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 	executorServer := executor.New(controlPlaneEventsPublisher, authorizer)
 
 	nodeServer := node.New(controlPlaneEventsPublisher, authorizer)
+
+
+	// hybrid A - live k8s call + Armada DB
 	// kube client for introspection plumbing
 	// impersonate users, qps, burst
 	provider, err := cluster.NewKubernetesClientProvider(false, 50, 100)
@@ -213,6 +215,8 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 		log.Infof("kubernetes node list ok, found %d nodes", len(testNodes.Items))
 	}
 
+
+	// hybrid B - in-memory cache + Armada DB
 	informerFactory := informers.NewSharedInformerFactory(kubeClient, 0)
 	podInformer := informerFactory.Core().V1().Pods()
 	nodeInformer := informerFactory.Core().V1().Nodes()
@@ -236,7 +240,16 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 	podLister := podInformer.Lister()
 	nodeLister := nodeInformer.Lister()
 
-	introspectionServer := introspectionserver.NewIntrospectionServer(kubeFactory, queryApiServer, queryApiServer).WithListers(podLister, nodeLister)
+	// cached kubectl
+	kubectlCache := introspectionserver.NewKubectlCache(kubeClient, 30*time.Second)
+	services = append(services, func() error {
+		return kubectlCache.Run(ctx)
+	})
+
+	introspectionServer := introspectionserver.NewIntrospectionServer(kubeFactory, queryApiServer, queryApiServer).
+		WithListers(podLister, nodeLister).
+		WithKubectlCache(kubectlCache)
+		
 	introspectionapi.RegisterIntrospectionServer(grpcServer, introspectionServer)
 	
 	api.RegisterSubmitServer(grpcServer, submitServer)

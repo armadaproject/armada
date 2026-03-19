@@ -50,6 +50,11 @@ func (s *IntrospectionServer) WithListers(pods corev1listers.PodLister, nodes co
 	return s
 }
 
+func (s *IntrospectionServer) WithKubectlCache(cache *KubectlCache) *IntrospectionServer {
+	s.kubectlCache = cache
+	return s
+}
+
 func (s *IntrospectionServer) DescribeNode (ctx context.Context, req *introspectionapi.DescribeNodeRequest) (*introspectionapi.DescribeNodeResponse, error) {
 	if req.GetCluster() == "" {
 		return nil, status.Error(codes.InvalidArgument, "cluster is required")

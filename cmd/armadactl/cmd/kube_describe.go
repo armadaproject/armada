@@ -7,7 +7,7 @@ import (
 func kubeDescribeCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use: "kube-describe",
-		Short: "Describe Armada resources with cached kubectl data",
+		Short: "Describe Armada resources with informer cached data",
 	}
 
 	cmd.AddCommand(kubeDescribeNodeCmd())
