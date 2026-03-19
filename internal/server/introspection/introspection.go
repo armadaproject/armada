@@ -7,9 +7,10 @@ import (
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	gogotypes "github.com/gogo/protobuf/types"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	corev1listers "k8s.io/client-go/listers/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	corev1listers "k8s.io/client-go/listers/core/v1"
 
 	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/pkg/api"
@@ -18,11 +19,12 @@ import (
 
 type IntrospectionServer struct {
 	*introspectionapi.UnimplementedIntrospectionServer
-	kube KubeClientFactory
-	runs JobRunDetailsGetter
-	jobs JobDetailsGetter
-	podLister corev1listers.PodLister
-	nodeLister corev1listers.NodeLister
+	kube         KubeClientFactory
+	runs         JobRunDetailsGetter
+	jobs         JobDetailsGetter
+	podLister    corev1listers.PodLister
+	nodeLister   corev1listers.NodeLister
+	kubectlCache *KubectlCache
 }
 
 type JobRunDetailsGetter interface {
@@ -583,4 +585,58 @@ func (s *IntrospectionServer) KubeDescribeJobPod (ctx context.Context, req *intr
 	}
 
 	return resp, nil
+}
+
+func (s *IntrospectionServer) CachedKubectlDescribeNode(ctx context.Context, req *introspectionapi.CachedKubectlDescribeNodeRequest) (*introspectionapi.CachedKubectlDescribeResponse, error) {
+	if s.kubectlCache == nil {
+		return nil, status.Error(codes.FailedPrecondition, "kubectl cache not configured")
+	}
+	if s.runs == nil {
+		return nil, status.Error(codes.FailedPrecondition, "run details getter is not configured")
+	}
+	runID := req.GetRunId()
+	if runID == "" {
+		// resolve job_id → latest run_id
+		if s.jobs == nil {
+			return nil, status.Error(codes.FailedPrecondition, "job details getter is not configured")
+		}
+		if req.GetJobId() == "" {
+			return nil, status.Error(codes.InvalidArgument, "either job_id or run_id is required")
+		}
+		jr, err := s.jobs.GetJobDetails(ctx, &api.JobDetailsRequest{JobIds: []string{req.JobId}})
+		if err != nil {
+			return nil, err
+		}
+		jd := jr.JobDetails[req.JobId]
+		if jd == nil {
+			return nil, status.Errorf(codes.NotFound, "job_id %q not found", req.JobId)
+		}
+		runID = jd.GetLatestRunId()
+		if runID == "" {
+			return nil, status.Errorf(codes.FailedPrecondition, "job_id %q has no run yet", req.JobId)
+		}
+	}
+
+	runResp, err := s.runs.GetJobRunDetails(ctx, &api.JobRunDetailsRequest{RunIds: []string{runID}})
+	if err != nil {
+		return nil, err
+	}
+	rd := runResp.JobRunDetails[runID]
+	if rd == nil {
+		return nil, status.Errorf(codes.NotFound, "run_id %q not found", runID)
+	}
+	if rd.Node == "" {
+		return nil, status.Errorf(codes.FailedPrecondition, "run_id %q has no node assigned", runID)
+	}
+
+	text, updatedAt, ok := s.kubectlCache.GetNode(rd.Node)
+	if !ok {
+		return nil, status.Errorf(codes.NotFound, "node %q not found in kubectl cache (cache may still be initializing)", rd.Node)
+	}
+
+	cachedAt, _ := gogotypes.TimestampProto(updatedAt)
+	return &introspectionapi.CachedKubectlDescribeResponse{
+		Output:   text,
+		CachedAt: cachedAt,
+	}, nil
 }
