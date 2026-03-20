@@ -1,0 +1,708 @@
+package redismetrics
+
+import (
+	"context"
+	"fmt"
+	"sort"
+	"strings"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/testutil"
+	dto "github.com/prometheus/client_model/go"
+	"github.com/redis/go-redis/v9"
+	"github.com/stretchr/testify/require"
+
+	"github.com/armadaproject/armada/internal/scheduler/leader"
+)
+
+func testCollectorConfig(topN int) Config {
+	return Config{
+		Enabled:            true,
+		CollectionInterval: 100 * time.Millisecond,
+		TopN:               topN,
+		ScanBatchSize:      100,
+		PipelineBatchSize:  10,
+		InterBatchDelay:    0,
+		MemoryUsageSamples: 5,
+	}
+}
+
+func newRedisBackedCollector(client redis.UniversalClient, config Config, leaderController leader.LeaderController) *Collector {
+	return NewCollector(NewScanner(client, config), config, leaderController)
+}
+
+func seedGeneratedStreams(t *testing.T, client redis.UniversalClient, ctx context.Context, count int, queuePrefix string) {
+	t.Helper()
+
+	for i := range count {
+		queue := fmt.Sprintf("%s-%03d", queuePrefix, i)
+		jobSetId := fmt.Sprintf("jobset-%03d", i)
+		seedRedisStream(t, client, ctx, queue, jobSetId, (i+1)*10)
+	}
+}
+
+func collectMetrics(c *Collector) []prometheus.Metric {
+	ch := make(chan prometheus.Metric, 10000)
+	go func() {
+		c.Collect(ch)
+		close(ch)
+	}()
+
+	var metrics []prometheus.Metric
+	for m := range ch {
+		metrics = append(metrics, m)
+	}
+	return metrics
+}
+
+func gaugeMetricValues(t *testing.T, collector prometheus.Collector) map[string]float64 {
+	t.Helper()
+
+	ch := make(chan prometheus.Metric, 1000)
+	collector.Collect(ch)
+	close(ch)
+
+	metrics := make(map[string]float64)
+	for metric := range ch {
+		pb := &dto.Metric{}
+		require.NoError(t, metric.Write(pb))
+
+		labels := make([]string, 0, len(pb.Label))
+		for _, label := range pb.Label {
+			labels = append(labels, fmt.Sprintf("%s=%s", label.GetName(), label.GetValue()))
+		}
+		sort.Strings(labels)
+
+		if pb.Gauge != nil {
+			metrics[strings.Join(labels, ",")] = pb.GetGauge().GetValue()
+		}
+	}
+
+	return metrics
+}
+
+func topNLabelSet(streams []StreamInfo, topN int, less func(a, b StreamInfo) bool) map[string]struct{} {
+	sorted := make([]StreamInfo, len(streams))
+	copy(sorted, streams)
+	sort.Slice(sorted, func(i, j int) bool {
+		return less(sorted[i], sorted[j])
+	})
+
+	if topN > len(sorted) {
+		topN = len(sorted)
+	}
+
+	result := make(map[string]struct{}, topN)
+	for i := 0; i < topN; i++ {
+		result[fmt.Sprintf("jobset=%s,queue=%s", sorted[i].JobSetId, sorted[i].Queue)] = struct{}{}
+	}
+
+	return result
+}
+
+func metricKeys(metrics map[string]float64) map[string]struct{} {
+	result := make(map[string]struct{}, len(metrics))
+	for key := range metrics {
+		result[key] = struct{}{}
+	}
+	return result
+}
+
+func TestCollect_EmptyStreams(t *testing.T) {
+	withRedisClient(t, func(client redis.UniversalClient) {
+		collector := newRedisBackedCollector(client, testCollectorConfig(5), leader.NewStandaloneLeaderController())
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		require.NoError(t, collector.collectOnce(ctx))
+
+		require.Zero(t, testutil.CollectAndCount(collector.topNMemoryGauge))
+		require.Zero(t, testutil.CollectAndCount(collector.topNEventsGauge))
+		require.Zero(t, testutil.CollectAndCount(collector.queueStreamsGauge))
+	})
+}
+
+func TestCollect_TopN_Memory(t *testing.T) {
+	withRedisClient(t, func(client redis.UniversalClient) {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		seedGeneratedStreams(t, client, ctx, 30, "queue-memory")
+
+		config := testCollectorConfig(5)
+		scanner := NewScanner(client, config)
+		streams, err := scanner.ScanAll(ctx)
+		require.NoError(t, err)
+
+		collector := NewCollector(scanner, config, leader.NewStandaloneLeaderController())
+		require.NoError(t, collector.collectOnce(ctx))
+
+		expected := topNLabelSet(streams, config.TopN, func(a, b StreamInfo) bool {
+			return a.MemoryBytes > b.MemoryBytes
+		})
+		actual := metricKeys(gaugeMetricValues(t, collector.topNMemoryGauge))
+
+		require.Equal(t, expected, actual)
+	})
+}
+
+func TestCollect_TopN_Events(t *testing.T) {
+	withRedisClient(t, func(client redis.UniversalClient) {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		seedGeneratedStreams(t, client, ctx, 30, "queue-events")
+
+		config := testCollectorConfig(5)
+		scanner := NewScanner(client, config)
+		streams, err := scanner.ScanAll(ctx)
+		require.NoError(t, err)
+
+		collector := NewCollector(scanner, config, leader.NewStandaloneLeaderController())
+		require.NoError(t, collector.collectOnce(ctx))
+
+		expected := topNLabelSet(streams, config.TopN, func(a, b StreamInfo) bool {
+			return a.Length > b.Length
+		})
+		actual := metricKeys(gaugeMetricValues(t, collector.topNEventsGauge))
+
+		require.Equal(t, expected, actual)
+	})
+}
+
+func TestCollect_PerQueueAggregation(t *testing.T) {
+	withRedisClient(t, func(client redis.UniversalClient) {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		for i := 1; i <= 5; i++ {
+			seedRedisStream(t, client, ctx, "queue1", fmt.Sprintf("jobset-%d", i), i*10)
+			seedRedisStream(t, client, ctx, "queue2", fmt.Sprintf("jobset-%d", i), i*10)
+			seedRedisStream(t, client, ctx, "queue3", fmt.Sprintf("jobset-%d", i), i*10)
+		}
+
+		collector := newRedisBackedCollector(client, testCollectorConfig(20), leader.NewStandaloneLeaderController())
+		require.NoError(t, collector.collectOnce(ctx))
+
+		require.Equal(t, 5.0, testutil.ToFloat64(collector.queueStreamsGauge.WithLabelValues("queue1")))
+		require.Equal(t, 5.0, testutil.ToFloat64(collector.queueStreamsGauge.WithLabelValues("queue2")))
+		require.Equal(t, 5.0, testutil.ToFloat64(collector.queueStreamsGauge.WithLabelValues("queue3")))
+		require.Equal(t, 150.0, testutil.ToFloat64(collector.queueEventsGauge.WithLabelValues("queue1")))
+		require.Equal(t, 150.0, testutil.ToFloat64(collector.queueEventsGauge.WithLabelValues("queue2")))
+		require.Equal(t, 150.0, testutil.ToFloat64(collector.queueEventsGauge.WithLabelValues("queue3")))
+	})
+}
+
+func TestCollect_StaleLabelsCleared(t *testing.T) {
+	withRedisClient(t, func(client redis.UniversalClient) {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		for i := 0; i < 10; i++ {
+			seedRedisStream(t, client, ctx, "queue-stale-a", fmt.Sprintf("old-%d", i), (i+1)*10)
+		}
+
+		config := testCollectorConfig(5)
+		collector := newRedisBackedCollector(client, config, leader.NewStandaloneLeaderController())
+		require.NoError(t, collector.collectOnce(ctx))
+
+		firstMetrics := metricKeys(gaugeMetricValues(t, collector.topNMemoryGauge))
+		require.Len(t, firstMetrics, 5)
+
+		require.NoError(t, client.FlushDB(ctx).Err())
+		for i := 0; i < 5; i++ {
+			seedRedisStream(t, client, ctx, "queue-stale-b", fmt.Sprintf("new-%d", i), (i+1)*50)
+		}
+
+		require.NoError(t, collector.collectOnce(ctx))
+
+		secondMetrics := metricKeys(gaugeMetricValues(t, collector.topNMemoryGauge))
+		expectedSecond := map[string]struct{}{}
+		for i := 0; i < 5; i++ {
+			expectedSecond[fmt.Sprintf("jobset=new-%d,queue=queue-stale-b", i)] = struct{}{}
+		}
+
+		require.Equal(t, expectedSecond, secondMetrics)
+		for key := range firstMetrics {
+			_, stillPresent := secondMetrics[key]
+			require.False(t, stillPresent)
+		}
+	})
+}
+
+func TestCollect_ScannerError(t *testing.T) {
+	withRedisClient(t, func(client redis.UniversalClient) {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		collector := newRedisBackedCollector(client, testCollectorConfig(5), leader.NewStandaloneLeaderController())
+
+		err := collector.collectOnce(ctx)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "scanner error: context canceled")
+		require.Equal(t, 1.0, testutil.ToFloat64(collector.errorsTotal))
+	})
+}
+
+func TestCollect_SkipIfBusy(t *testing.T) {
+	withRedisClient(t, func(client redis.UniversalClient) {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		seedGeneratedStreams(t, client, ctx, 40, "queue-busy")
+
+		config := testCollectorConfig(5)
+		config.ScanBatchSize = 5
+		config.PipelineBatchSize = 2
+		config.InterBatchDelay = 100 * time.Millisecond
+
+		collector := newRedisBackedCollector(client, config, leader.NewStandaloneLeaderController())
+
+		firstErr := make(chan error, 1)
+		go func() {
+			firstErr <- collector.collectOnce(ctx)
+		}()
+
+		time.Sleep(20 * time.Millisecond)
+		err := collector.collectOnce(ctx)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "previous collection still running, skipping")
+		require.NoError(t, <-firstErr)
+	})
+}
+
+func TestCollect_MetricDescriptions(t *testing.T) {
+	withRedisClient(t, func(client redis.UniversalClient) {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		seedRedisStream(t, client, ctx, "queue-desc", "jobset-1", 10)
+
+		collector := newRedisBackedCollector(client, testCollectorConfig(5), leader.NewStandaloneLeaderController())
+		require.NoError(t, collector.collectOnce(ctx))
+
+		descCh := make(chan *prometheus.Desc, 100)
+		go func() {
+			collector.Describe(descCh)
+			close(descCh)
+		}()
+
+		descCount := 0
+		for range descCh {
+			descCount++
+		}
+
+		require.Equal(t, 13, descCount)
+	})
+}
+
+func TestCollect_ConcurrentCollect(t *testing.T) {
+	withRedisClient(t, func(client redis.UniversalClient) {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		seedGeneratedStreams(t, client, ctx, 20, "queue-concurrent")
+
+		collector := newRedisBackedCollector(client, testCollectorConfig(5), leader.NewStandaloneLeaderController())
+		require.NoError(t, collector.collectOnce(ctx))
+
+		var wg sync.WaitGroup
+		for i := 0; i < 10; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				metrics := collectMetrics(collector)
+				require.Greater(t, len(metrics), 0)
+			}()
+		}
+		wg.Wait()
+	})
+}
+
+func TestCollect_ContextCancellation(t *testing.T) {
+	withRedisClient(t, func(client redis.UniversalClient) {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		seedCtx, seedCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer seedCancel()
+		seedGeneratedStreams(t, client, seedCtx, 20, "queue-cancel")
+
+		collector := newRedisBackedCollector(client, testCollectorConfig(5), leader.NewStandaloneLeaderController())
+
+		err := collector.collectOnce(ctx)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "scanner error: context canceled")
+		require.NotNil(t, collectMetrics(collector))
+	})
+}
+
+func TestCollect_LargeDataset(t *testing.T) {
+	withRedisClient(t, func(client redis.UniversalClient) {
+		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+		defer cancel()
+
+		seedGeneratedStreams(t, client, ctx, 200, "queue-large")
+
+		collector := newRedisBackedCollector(client, testCollectorConfig(10), leader.NewStandaloneLeaderController())
+		require.NoError(t, collector.collectOnce(ctx))
+		require.Equal(t, 10, testutil.CollectAndCount(collector.topNMemoryGauge))
+		require.Greater(t, testutil.ToFloat64(collector.streamsScannedGauge), 0.0)
+	})
+}
+
+func TestCollect_NoMetricsWhenDisabled(t *testing.T) {
+	withRedisClient(t, func(client redis.UniversalClient) {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		seedRedisStream(t, client, ctx, "queue-disabled", "jobset-1", 10)
+
+		config := testCollectorConfig(5)
+		config.Enabled = false
+		collector := newRedisBackedCollector(client, config, leader.NewStandaloneLeaderController())
+
+		require.Len(t, collectMetrics(collector), 0)
+	})
+}
+
+func TestCollect_MultipleQueues(t *testing.T) {
+	withRedisClient(t, func(client redis.UniversalClient) {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		seedRedisStream(t, client, ctx, "queue-a", "js1", 100)
+		seedRedisStream(t, client, ctx, "queue-a", "js2", 200)
+		seedRedisStream(t, client, ctx, "queue-b", "js1", 150)
+
+		collector := newRedisBackedCollector(client, testCollectorConfig(10), leader.NewStandaloneLeaderController())
+		require.NoError(t, collector.collectOnce(ctx))
+
+		require.Equal(t, 2.0, testutil.ToFloat64(collector.queueStreamsGauge.WithLabelValues("queue-a")))
+		require.Equal(t, 1.0, testutil.ToFloat64(collector.queueStreamsGauge.WithLabelValues("queue-b")))
+		require.Equal(t, 300.0, testutil.ToFloat64(collector.queueEventsGauge.WithLabelValues("queue-a")))
+		require.Equal(t, 150.0, testutil.ToFloat64(collector.queueEventsGauge.WithLabelValues("queue-b")))
+	})
+}
+
+func TestCollector_LeaderMode_EmitsMetrics(t *testing.T) {
+	withRedisClient(t, func(client redis.UniversalClient) {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		seedGeneratedStreams(t, client, ctx, 10, "queue-leader")
+
+		leaderController := leader.NewStandaloneLeaderController()
+		leaderController.SetToken(leader.NewLeaderToken())
+
+		collector := newRedisBackedCollector(client, testCollectorConfig(5), leaderController)
+		require.NoError(t, collector.collectOnce(ctx))
+
+		metrics := collectMetrics(collector)
+		require.Greater(t, len(metrics), 0)
+
+		hasRedisMetrics := false
+		for _, m := range metrics {
+			desc := m.Desc().String()
+			if strings.Contains(desc, "armada_redis_queue") || strings.Contains(desc, "armada_redis_stream") {
+				hasRedisMetrics = true
+				break
+			}
+		}
+
+		require.True(t, hasRedisMetrics)
+	})
+}
+
+func TestCollector_NonLeaderMode_NoMetrics(t *testing.T) {
+	withRedisClient(t, func(client redis.UniversalClient) {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		seedGeneratedStreams(t, client, ctx, 10, "queue-nonleader")
+
+		leaderController := leader.NewStandaloneLeaderController()
+		leaderController.SetToken(leader.NewLeaderToken())
+
+		collector := newRedisBackedCollector(client, testCollectorConfig(5), leaderController)
+		require.NoError(t, collector.collectOnce(ctx))
+
+		leaderController.SetToken(leader.InvalidLeaderToken())
+		collector.ClearState()
+
+		for _, m := range collectMetrics(collector) {
+			require.False(t, strings.Contains(m.Desc().String(), "armada_redis_"))
+		}
+	})
+}
+
+func TestCollector_LeadershipTransition(t *testing.T) {
+	withRedisClient(t, func(client redis.UniversalClient) {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		seedGeneratedStreams(t, client, ctx, 10, "queue-transition")
+
+		leaderController := leader.NewStandaloneLeaderController()
+		collector := newRedisBackedCollector(client, testCollectorConfig(5), leaderController)
+
+		leaderController.SetToken(leader.NewLeaderToken())
+		require.NoError(t, collector.collectOnce(ctx))
+		metricsAsLeader := collectMetrics(collector)
+		require.Greater(t, len(metricsAsLeader), 0)
+
+		hasQueueMetricsAsLeader := false
+		for _, m := range metricsAsLeader {
+			if strings.Contains(m.Desc().String(), "armada_redis_queue") || strings.Contains(m.Desc().String(), "armada_redis_stream") {
+				hasQueueMetricsAsLeader = true
+				break
+			}
+		}
+		require.True(t, hasQueueMetricsAsLeader)
+
+		leaderController.SetToken(leader.InvalidLeaderToken())
+		collector.ClearState()
+		for _, m := range collectMetrics(collector) {
+			require.False(t, strings.Contains(m.Desc().String(), "armada_redis_queue"))
+			require.False(t, strings.Contains(m.Desc().String(), "armada_redis_stream"))
+		}
+
+		leaderController.SetToken(leader.NewLeaderToken())
+		require.NoError(t, collector.collectOnce(ctx))
+		metricsAfterRegaining := collectMetrics(collector)
+
+		hasQueueMetricsAfterRegain := false
+		for _, m := range metricsAfterRegaining {
+			if strings.Contains(m.Desc().String(), "armada_redis_queue") || strings.Contains(m.Desc().String(), "armada_redis_stream") {
+				hasQueueMetricsAfterRegain = true
+				break
+			}
+		}
+
+		require.True(t, hasQueueMetricsAfterRegain)
+	})
+}
+
+func TestCollector_Describe_LeadershipIndependent(t *testing.T) {
+	withRedisClient(t, func(client redis.UniversalClient) {
+		leaderController := leader.NewStandaloneLeaderController()
+		collector := newRedisBackedCollector(client, testCollectorConfig(5), leaderController)
+
+		leaderController.SetToken(leader.NewLeaderToken())
+		ch1 := make(chan *prometheus.Desc, 100)
+		collector.Describe(ch1)
+		close(ch1)
+
+		var descriptorsAsLeader []*prometheus.Desc
+		for desc := range ch1 {
+			descriptorsAsLeader = append(descriptorsAsLeader, desc)
+		}
+
+		leaderController.SetToken(leader.InvalidLeaderToken())
+		ch2 := make(chan *prometheus.Desc, 100)
+		collector.Describe(ch2)
+		close(ch2)
+
+		var descriptorsAsNonLeader []*prometheus.Desc
+		for desc := range ch2 {
+			descriptorsAsNonLeader = append(descriptorsAsNonLeader, desc)
+		}
+
+		require.Equal(t, len(descriptorsAsLeader), len(descriptorsAsNonLeader))
+
+		leaderDescStrings := make(map[string]bool, len(descriptorsAsLeader))
+		for _, desc := range descriptorsAsLeader {
+			leaderDescStrings[desc.String()] = true
+		}
+
+		for _, desc := range descriptorsAsNonLeader {
+			require.True(t, leaderDescStrings[desc.String()])
+		}
+	})
+}
+
+func TestCollector_ScrapetimeLeadershipCheck(t *testing.T) {
+	withRedisClient(t, func(client redis.UniversalClient) {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		seedGeneratedStreams(t, client, ctx, 10, "queue-scrapetime")
+
+		leaderController := leader.NewStandaloneLeaderController()
+		leaderController.SetToken(leader.NewLeaderToken())
+
+		collector := newRedisBackedCollector(client, testCollectorConfig(5), leaderController)
+		require.NoError(t, collector.collectOnce(ctx))
+
+		metricsAsLeader := collectMetrics(collector)
+		require.Greater(t, len(metricsAsLeader), 0)
+
+		leaderController.SetToken(leader.InvalidLeaderToken())
+		metricsAfterLeadershipLoss := collectMetrics(collector)
+		require.Len(t, metricsAfterLeadershipLoss, 0)
+
+		for i := 0; i < 2; i++ {
+			require.Len(t, collectMetrics(collector), 0)
+		}
+	})
+}
+
+func TestCollector_ScrapetimeLeadershipCheck_RunsAfterRegain(t *testing.T) {
+	withRedisClient(t, func(client redis.UniversalClient) {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		seedGeneratedStreams(t, client, ctx, 10, "queue-scrapetime-regain")
+
+		leaderController := leader.NewStandaloneLeaderController()
+		leaderController.SetToken(leader.NewLeaderToken())
+
+		collector := newRedisBackedCollector(client, testCollectorConfig(5), leaderController)
+		require.NoError(t, collector.collectOnce(ctx))
+		require.Greater(t, len(collectMetrics(collector)), 0)
+
+		leaderController.SetToken(leader.InvalidLeaderToken())
+		require.Len(t, collectMetrics(collector), 0)
+
+		leaderController.SetToken(leader.NewLeaderToken())
+		require.Greater(t, len(collectMetrics(collector)), 0)
+	})
+}
+
+type mockScanner struct {
+	streams []StreamInfo
+	err     error
+}
+
+func (m *mockScanner) ScanAll(ctx context.Context) ([]StreamInfo, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	return m.streams, nil
+}
+
+func TestHistogramBuckets_BytesDistribution(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	testCases := []struct {
+		name          string
+		memoryBytes   int64
+		expectedCount uint64
+	}{
+		{"small_1KB", 1024, 1},
+		{"medium_1MB", 1024 * 1024, 1},
+		{"large_100MB", 100 * 1024 * 1024, 1},
+		{"very_large_1GB", 1024 * 1024 * 1024, 1},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			scanner := &mockScanner{
+				streams: []StreamInfo{
+					{
+						Queue:       "test-queue",
+						JobSetId:    "test-jobset",
+						Key:         "Events:test-queue:test-jobset",
+						MemoryBytes: tc.memoryBytes,
+						Length:      100,
+						AgeSeconds:  300,
+					},
+				},
+			}
+
+			collector := NewCollector(scanner, testCollectorConfig(5), leader.NewStandaloneLeaderController())
+			require.NoError(t, collector.collectOnce(ctx))
+
+			pb := &dto.Metric{}
+			require.NoError(t, collector.bytesHistogram.Write(pb))
+			require.NotNil(t, pb.Histogram)
+			require.Equal(t, tc.expectedCount, pb.Histogram.GetSampleCount())
+		})
+	}
+}
+
+func TestHistogramBuckets_EventsDistribution(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	testCases := []struct {
+		name          string
+		eventCount    int64
+		expectedCount uint64
+	}{
+		{"tiny_10_events", 10, 1},
+		{"small_1K_events", 1000, 1},
+		{"medium_100K_events", 100000, 1},
+		{"large_1M_events", 1000000, 1},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			scanner := &mockScanner{
+				streams: []StreamInfo{
+					{
+						Queue:       "test-queue",
+						JobSetId:    "test-jobset",
+						Key:         "Events:test-queue:test-jobset",
+						MemoryBytes: 10240,
+						Length:      tc.eventCount,
+						AgeSeconds:  300,
+					},
+				},
+			}
+
+			collector := NewCollector(scanner, testCollectorConfig(5), leader.NewStandaloneLeaderController())
+			require.NoError(t, collector.collectOnce(ctx))
+
+			pb := &dto.Metric{}
+			require.NoError(t, collector.eventsHistogram.Write(pb))
+			require.NotNil(t, pb.Histogram)
+			require.Equal(t, tc.expectedCount, pb.Histogram.GetSampleCount())
+		})
+	}
+}
+
+func TestHistogramBuckets_AgeDistribution(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	testCases := []struct {
+		name          string
+		ageSeconds    float64
+		expectedCount uint64
+	}{
+		{"fresh_1min", 60, 1},
+		{"recent_1hour", 3600, 1},
+		{"old_1day", 86400, 1},
+		{"very_old_7days", 604800, 1},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			scanner := &mockScanner{
+				streams: []StreamInfo{
+					{
+						Queue:       "test-queue",
+						JobSetId:    "test-jobset",
+						Key:         "Events:test-queue:test-jobset",
+						MemoryBytes: 10240,
+						Length:      100,
+						AgeSeconds:  tc.ageSeconds,
+					},
+				},
+			}
+
+			collector := NewCollector(scanner, testCollectorConfig(5), leader.NewStandaloneLeaderController())
+			require.NoError(t, collector.collectOnce(ctx))
+
+			pb := &dto.Metric{}
+			require.NoError(t, collector.ageHistogram.Write(pb))
+			require.NotNil(t, pb.Histogram)
+			require.Equal(t, tc.expectedCount, pb.Histogram.GetSampleCount())
+		})
+	}
+}
