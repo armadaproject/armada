@@ -223,14 +223,36 @@ func (p *PostgresDatabase) listJobPartitions(ctx context.Context) ([]string, err
 
 // targetsJobTable returns true if the SQL statement is an ALTER TABLE targeting
 // the "job" table specifically (not job_run, job_spec, etc.).
+// Line comments (-- ...) are stripped before matching to avoid false positives
+// from table names mentioned in comments.
 func targetsJobTable(stmt string) bool {
-	lower := strings.ToLower(stmt)
+	lower := stripLineComments(strings.ToLower(stmt))
 	idx := strings.Index(lower, "alter table ")
 	if idx == -1 {
 		return false
 	}
 	after := lower[idx+len("alter table "):]
 	return strings.HasPrefix(after, "job ") || strings.HasPrefix(after, "job\n") || strings.HasPrefix(after, "job\t")
+}
+
+// stripLineComments removes SQL line comments (-- to end of line) from s.
+func stripLineComments(s string) string {
+	var b strings.Builder
+	for {
+		i := strings.Index(s, "--")
+		if i == -1 {
+			b.WriteString(s)
+			break
+		}
+		b.WriteString(s[:i])
+		rest := s[i:]
+		if j := strings.Index(rest, "\n"); j != -1 {
+			s = rest[j:] // keep the newline so line structure is preserved
+		} else {
+			break
+		}
+	}
+	return b.String()
 }
 
 // alterTableJobRe matches "ALTER TABLE job " case-insensitively so that the
