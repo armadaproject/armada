@@ -110,7 +110,18 @@ CREATE INDEX idx_job_queue_jobset_state ON job (queue, jobset, state);
 
 CREATE INDEX idx_job_state ON job (state);
 
-CREATE INDEX idx_job_submitted ON job (submitted);
+CREATE INDEX idx_job_jobset_pattern ON job (jobset varchar_pattern_ops) WITH (fillfactor = 80);
+
+CREATE INDEX idx_job_ltt_jobid ON job (last_transition_time, job_id) WITH (fillfactor = 80);
+
+CREATE INDEX idx_job_active_queue_jobset ON job (queue, jobset) WITH (fillfactor = 80)
+WHERE state IN (1, 2, 3, 8);
+
+CREATE INDEX idx_job_queue_namespace ON job (queue, namespace) WITH (fillfactor = 80);
+
+CREATE INDEX idx_job_latest_run_id ON job (latest_run_id) WITH (fillfactor = 80);
+
+CREATE INDEX idx_job_submitted ON job (submitted DESC);
 
 ALTER TABLE job ALTER COLUMN job_spec SET STORAGE EXTERNAL;
 

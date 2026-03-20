@@ -108,18 +108,12 @@ func setIfAbsent(m map[string]time.Time, key string, val time.Time) {
 	}
 }
 
-// createJobsPartitioned inserts jobs using CopyFrom directly into the named
-// leaf partition (bypassing parent-table routing which can fail with COPY).
-// Instructions are grouped by partition based on their submitted date.
+// createJobsPartitioned inserts jobs via the partitioned parent table, allowing
+// PostgreSQL's partition routing to direct each row to the correct leaf partition
+// (including job_default for any dates outside the pre-created range).
 func (p *PostgresDatabase) createJobsPartitioned(ctx context.Context, instructions []*lookoutmodel.CreateJobInstruction) error {
 	if len(instructions) == 0 {
 		return nil
-	}
-
-	groups := make(map[string][]*lookoutmodel.CreateJobInstruction)
-	for _, instr := range instructions {
-		part := partitionNameForTime(instr.Submitted)
-		groups[part] = append(groups[part], instr)
 	}
 
 	columns := []string{
@@ -129,32 +123,23 @@ func (p *PostgresDatabase) createJobsPartitioned(ctx context.Context, instructio
 		"priority_class", "annotations", "job_spec",
 	}
 
-	for partName, instrs := range groups {
-		_, err := p.pool.CopyFrom(ctx,
-			pgx.Identifier{partName},
-			columns,
-			pgx.CopyFromSlice(len(instrs), func(i int) ([]interface{}, error) {
-				instr := instrs[i]
-				return []interface{}{
-					instr.JobId, instr.Queue, instr.Owner, instr.Namespace, instr.JobSet,
-					instr.Cpu, instr.Memory, instr.EphemeralStorage, instr.Gpu, instr.Priority,
-					instr.Submitted, instr.State, instr.LastTransitionTime, instr.LastTransitionTimeSeconds,
-					instr.PriorityClass, instr.Annotations, instr.JobProto,
-				}, nil
-			}),
-		)
-		if err != nil {
-			return fmt.Errorf("copying into partition %s: %w", partName, err)
-		}
+	_, err := p.pool.CopyFrom(ctx,
+		pgx.Identifier{"job"},
+		columns,
+		pgx.CopyFromSlice(len(instructions), func(i int) ([]interface{}, error) {
+			instr := instructions[i]
+			return []interface{}{
+				instr.JobId, instr.Queue, instr.Owner, instr.Namespace, instr.JobSet,
+				instr.Cpu, instr.Memory, instr.EphemeralStorage, instr.Gpu, instr.Priority,
+				instr.Submitted, instr.State, instr.LastTransitionTime, instr.LastTransitionTimeSeconds,
+				instr.PriorityClass, instr.Annotations, instr.JobProto,
+			}, nil
+		}),
+	)
+	if err != nil {
+		return fmt.Errorf("copying jobs into partitioned table: %w", err)
 	}
 	return nil
-}
-
-// partitionNameForTime returns the daily partition name for the given timestamp,
-// using the same date-truncation logic as createDailyPartitions.
-func partitionNameForTime(t time.Time) string {
-	date := t.Truncate(24 * time.Hour)
-	return fmt.Sprintf("job_p%s", date.Format("20060102"))
 }
 
 // createJobSpecsPartitioned inserts job_spec rows with submitted.

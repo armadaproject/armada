@@ -225,8 +225,12 @@ func (p *PostgresDatabase) listJobPartitions(ctx context.Context) ([]string, err
 // the "job" table specifically (not job_run, job_spec, etc.).
 func targetsJobTable(stmt string) bool {
 	lower := strings.ToLower(stmt)
-	return strings.Contains(lower, "alter table job ") &&
-		!strings.Contains(lower, "alter table job_")
+	idx := strings.Index(lower, "alter table ")
+	if idx == -1 {
+		return false
+	}
+	after := lower[idx+len("alter table "):]
+	return strings.HasPrefix(after, "job ") || strings.HasPrefix(after, "job\n") || strings.HasPrefix(after, "job\t")
 }
 
 // alterTableJobRe matches "ALTER TABLE job " case-insensitively so that the

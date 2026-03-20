@@ -37,6 +37,11 @@ func TestTargetsJobTable(t *testing.T) {
 			stmt:     "-- tune the job table\nALTER TABLE job_run SET (autovacuum_vacuum_scale_factor = 0.01)",
 			expected: false,
 		},
+		{
+			name:     "comment referencing alter table job_ before real alter table job",
+			stmt:     "-- Tunes job table, see alter table job_run for the equivalent\nALTER TABLE job SET (autovacuum_vacuum_scale_factor = 0.01)",
+			expected: true,
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
