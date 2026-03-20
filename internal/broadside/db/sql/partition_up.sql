@@ -112,4 +112,6 @@ CREATE INDEX idx_job_state ON job (state);
 
 CREATE INDEX idx_job_submitted ON job (submitted);
 
+ALTER TABLE job ALTER COLUMN job_spec SET STORAGE EXTERNAL;
+
 COMMIT;

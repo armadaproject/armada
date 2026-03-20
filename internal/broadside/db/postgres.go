@@ -183,12 +183,12 @@ func (p *PostgresDatabase) execTuningSQLOnPartitions(ctx context.Context, stmts 
 					return fmt.Errorf("%s tuning SQL statement %d on partition %s: %w", verb, i+1, part, err)
 				}
 			}
-			logging.Infof("%s tuning SQL statement %d: applied to %d partitions", strings.Title(verb), i+1, len(partitions))
+			logging.Infof("%s tuning SQL statement %d: applied to %d partitions", capitalize(verb), i+1, len(partitions))
 		} else {
 			if _, err := p.pool.Exec(ctx, stmt); err != nil {
 				return fmt.Errorf("%s tuning SQL statement %d: %w", verb, i+1, err)
 			}
-			logging.Infof("%s tuning SQL statement %d", strings.Title(verb), i+1)
+			logging.Infof("%s tuning SQL statement %d", capitalize(verb), i+1)
 		}
 	}
 	return nil
@@ -214,6 +214,9 @@ func (p *PostgresDatabase) listJobPartitions(ctx context.Context) ([]string, err
 			return nil, fmt.Errorf("scanning partition name: %w", err)
 		}
 		partitions = append(partitions, name)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterating job partitions: %w", err)
 	}
 	return partitions, nil
 }
@@ -538,6 +541,9 @@ func (p *PostgresDatabase) insertHistoricalJobChunk(ctx context.Context, params 
 	if p.features.PartitionBySubmitted {
 		return p.insertHistoricalJobChunkPartitioned(ctx, params, startIdx, lastIdx)
 	}
+	if len(params.JobAgeDays) == 0 {
+		return nil
+	}
 	prefix := fmt.Sprintf("%04d%04d", params.QueueIdx, params.JobSetIdx)
 	succeeded := params.SucceededThreshold
 	errored := params.ErroredThreshold
@@ -724,6 +730,13 @@ func stringSliceToSQL(vals []string) string {
 		parts[i] = "'" + v + "'"
 	}
 	return "ARRAY[" + strings.Join(parts, ",") + "]"
+}
+
+func capitalize(s string) string {
+	if s == "" {
+		return s
+	}
+	return strings.ToUpper(s[:1]) + s[1:]
 }
 
 func buildAnnotationSQL() string {

@@ -21,6 +21,10 @@ import (
 // The submitted column is required because:
 //   - The job table PK is (job_id, submitted), so UPDATEs need it for partition pruning
 //   - Child tables (job_run, job_spec, job_error) have a NOT NULL submitted column
+//
+// This function is NOT idempotent. Phase 1 uses CopyFrom (COPY protocol) which
+// has no ON CONFLICT support. Retrying after a partial failure will produce
+// duplicate-key errors. Do not add retry logic around this call.
 func (p *PostgresDatabase) executePartitionedBatch(ctx context.Context, queries []IngestionQuery) error {
 	submittedMap := buildJobSubmittedMap(queries)
 	set, err := queriesToInstructionSet(queries)
@@ -28,20 +32,17 @@ func (p *PostgresDatabase) executePartitionedBatch(ctx context.Context, queries 
 		return err
 	}
 
-	// Phase 1: Create jobs and job specs (must exist before job_run references).
-	var wg sync.WaitGroup
-	var jobErr, specErr error
-	wg.Go(func() { jobErr = p.createJobsPartitioned(ctx, set.JobsToCreate) })
-	wg.Go(func() { specErr = p.createJobSpecsPartitioned(ctx, set.JobsToCreate, submittedMap) })
-	wg.Wait()
-	if jobErr != nil {
-		return fmt.Errorf("creating jobs (partitioned): %w", jobErr)
+	// Phase 1: Create jobs, then job specs (job_spec.job_id references job.job_id,
+	// so specs must be inserted after jobs are committed).
+	if err := p.createJobsPartitioned(ctx, set.JobsToCreate); err != nil {
+		return fmt.Errorf("creating jobs (partitioned): %w", err)
 	}
-	if specErr != nil {
-		return fmt.Errorf("creating job specs (partitioned): %w", specErr)
+	if err := p.createJobSpecsPartitioned(ctx, set.JobsToCreate, submittedMap); err != nil {
+		return fmt.Errorf("creating job specs (partitioned): %w", err)
 	}
 
 	// Phase 2: Update jobs, create job_runs, create job_errors (parallel).
+	var wg sync.WaitGroup
 	var updateErr, runErr, errErr error
 	wg.Go(func() { updateErr = p.updateJobsPartitioned(ctx, set.JobsToUpdate, submittedMap) })
 	wg.Go(func() { runErr = p.createJobRunsPartitioned(ctx, set.JobRunsToCreate, submittedMap) })
@@ -73,7 +74,7 @@ func buildJobSubmittedMap(queries []IngestionQuery) map[string]time.Time {
 	for _, q := range queries {
 		switch v := q.(type) {
 		case InsertJob:
-			m[v.Job.JobID] = v.Job.Submitted
+			setIfAbsent(m, v.Job.JobID, v.Job.Submitted)
 		case SetJobLeased:
 			setIfAbsent(m, v.JobID, v.Submitted)
 		case InsertJobRun:

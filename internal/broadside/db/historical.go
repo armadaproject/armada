@@ -72,32 +72,32 @@ func buildHistoricalJobQueries(jobNum int, params HistoricalJobsParams) []Ingest
 		SetJobLeased{JobID: jobID, Time: leasedTime, RunID: runID, Submitted: baseTime},
 		InsertJobRun{JobRunID: runID, JobID: jobID, Cluster: cluster, Node: node, Pool: jobspec.GetPool(jobNum), Time: leasedTime, Submitted: baseTime},
 		SetJobPending{JobID: jobID, Time: pendingTime, RunID: runID, Submitted: baseTime},
-		SetJobRunPending{JobRunID: runID, Time: pendingTime, Submitted: baseTime},
+		SetJobRunPending{JobRunID: runID, Time: pendingTime},
 		SetJobRunning{JobID: jobID, Time: runningTime, LatestRunID: runID, Submitted: baseTime},
-		SetJobRunStarted{JobRunID: runID, Time: runningTime, Node: node, Submitted: baseTime},
+		SetJobRunStarted{JobRunID: runID, Time: runningTime, Node: node},
 	}
 
 	switch historicalState(jobNum, params) {
 	case jobspec.StateSucceeded:
 		queries = append(queries,
 			SetJobSucceeded{JobID: jobID, Time: terminalTime, Submitted: baseTime},
-			SetJobRunSucceeded{JobRunID: runID, Time: terminalTime, Submitted: baseTime},
+			SetJobRunSucceeded{JobRunID: runID, Time: terminalTime},
 		)
 	case jobspec.StateErrored:
 		queries = append(queries,
 			SetJobErrored{JobID: jobID, Time: terminalTime, Submitted: baseTime},
-			SetJobRunFailed{JobRunID: runID, Time: terminalTime, Error: params.ErrorBytes, Debug: params.DebugBytes, Submitted: baseTime},
+			SetJobRunFailed{JobRunID: runID, Time: terminalTime, Error: params.ErrorBytes, Debug: params.DebugBytes},
 			InsertJobError{JobID: jobID, Error: params.ErrorBytes, Submitted: baseTime},
 		)
 	case jobspec.StateCancelled:
 		queries = append(queries,
 			SetJobCancelled{JobID: jobID, Time: terminalTime, CancelReason: "user requested", CancelUser: params.QueueName, Submitted: baseTime},
-			SetJobRunCancelled{JobRunID: runID, Time: terminalTime, Submitted: baseTime},
+			SetJobRunCancelled{JobRunID: runID, Time: terminalTime},
 		)
 	case jobspec.StatePreempted:
 		queries = append(queries,
 			SetJobPreempted{JobID: jobID, Time: terminalTime, Submitted: baseTime},
-			SetJobRunPreempted{JobRunID: runID, Time: terminalTime, Error: params.PreemptionBytes, Submitted: baseTime},
+			SetJobRunPreempted{JobRunID: runID, Time: terminalTime, Error: params.PreemptionBytes},
 		)
 	}
 

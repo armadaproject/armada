@@ -521,9 +521,8 @@ func (i *Ingester) processTransition(
 		}, ctx)
 		i.routerSend(router, timestampedQuery{
 			query: db.SetJobRunPending{
-				JobRunID:  trans.RunID(),
-				Time:      now,
-				Submitted: submitted,
+				JobRunID: trans.RunID(),
+				Time:     now,
 			},
 			enqueuedAt: now,
 		}, ctx)
@@ -547,10 +546,9 @@ func (i *Ingester) processTransition(
 		}, ctx)
 		i.routerSend(router, timestampedQuery{
 			query: db.SetJobRunStarted{
-				JobRunID:  trans.RunID(),
-				Time:      now,
-				Node:      node,
-				Submitted: submitted,
+				JobRunID: trans.RunID(),
+				Time:     now,
+				Node:     node,
 			},
 			enqueuedAt: now,
 		}, ctx)
@@ -584,9 +582,8 @@ func (i *Ingester) processTransition(
 		}, ctx)
 		i.routerSend(router, timestampedQuery{
 			query: db.SetJobRunSucceeded{
-				JobRunID:  trans.RunID(),
-				Time:      now,
-				Submitted: submitted,
+				JobRunID: trans.RunID(),
+				Time:     now,
 			},
 			enqueuedAt: now,
 		}, ctx)
@@ -602,11 +599,10 @@ func (i *Ingester) processTransition(
 		}, ctx)
 		i.routerSend(router, timestampedQuery{
 			query: db.SetJobRunFailed{
-				JobRunID:  trans.RunID(),
-				Time:      now,
-				Error:     simulatedError,
-				Debug:     simulatedDebugMsg,
-				Submitted: submitted,
+				JobRunID: trans.RunID(),
+				Time:     now,
+				Error:    simulatedError,
+				Debug:    simulatedDebugMsg,
 			},
 			enqueuedAt: now,
 		}, ctx)
