@@ -1,8 +1,7 @@
 # Demo: job stuck in Pending due to unschedulable resource request.
-# Requests 500 CPU - far beyond any node's allocatable capacity.
-# Pod events will show: FailedScheduling: Insufficient cpu
-# Use: armadactl kube-describe pod <job-id> --include-events
-#      armadactl kube-describe node <job-id>  (shows real allocatable CPU)
+# Requests 5 CPU - fits within queue limit but exceeds any single node's allocatable capacity.
+# Armada scheduler holds job in queue; no K8s pod is created.
+# Use: armadactl native-describe pod <job-id>  (shows job queued, no run assigned)
 queue: example
 jobSetId: demo-pending-resources
 jobs:
@@ -22,7 +21,7 @@ jobs:
           resources:
             limits:
               memory: 128Mi
-              cpu: "500"
+              cpu: "5"
             requests:
               memory: 128Mi
-              cpu: "500"
+              cpu: "5"

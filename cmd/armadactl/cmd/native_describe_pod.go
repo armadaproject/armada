@@ -71,15 +71,29 @@ func runNativeDescribePod(cmd *cobra.Command, args []string) error {
 
 	client := api.NewJobsClient(conn)
 	resp, err := client.GetJobDetails(ctx, &api.JobDetailsRequest{
-		JobIds: []string{jobID},
+		JobIds:       []string{jobID},
 		ExpandJobRun: true,
 	})
 	if err != nil {
 		return err
 	}
 
-	out, _ := json.MarshalIndent(resp.JobDetails[jobID], "", "  ")
+	details := resp.JobDetails[jobID]
+	if details == nil {
+		return fmt.Errorf("job %q not found", jobID)
+	}
+
+	errResp, err := client.GetJobErrors(ctx, &api.JobErrorsRequest{JobIds: []string{jobID}})
+	if err != nil {
+		return err
+	}
+
+	out, _ := json.MarshalIndent(details, "", "  ")
 	fmt.Println(string(out))
+	fmt.Printf("state:  %s\n", api.JobState_name[int32(details.State)])
+	if reason, ok := errResp.JobErrors[jobID]; ok && reason != "" {
+		fmt.Printf("reason: %s\n", reason)
+	}
 
 	return nil
 }

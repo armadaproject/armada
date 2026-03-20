@@ -645,3 +645,24 @@ func (s *IntrospectionServer) CachedKubectlDescribeNode(ctx context.Context, req
 		CachedAt: cachedAt,
 	}, nil
 }
+
+func (s *IntrospectionServer) CachedKubectlDescribePod(ctx context.Context, req *introspectionapi.CachedKubectlDescribeJobPodRequest) (*introspectionapi.CachedKubectlDescribeResponse, error) {
+	if s.kubectlCache == nil {
+		return nil, status.Error(codes.FailedPrecondition, "kubectl cache not configured")
+	}
+	if req.GetJobId() == "" {
+		return nil, status.Error(codes.InvalidArgument, "job_id is required")
+	}
+
+	podName := common.PodName(req.JobId)
+	text, updatedAt, ok := s.kubectlCache.GetPod(podName)
+	if !ok {
+		return nil, status.Errorf(codes.NotFound, "pod %q not found in kubectl cache (cache may still be initializing)", podName)
+	}
+
+	cachedAt, _ := gogotypes.TimestampProto(updatedAt)
+	return &introspectionapi.CachedKubectlDescribeResponse{
+		Output:   text,
+		CachedAt: cachedAt,
+	}, nil
+}
