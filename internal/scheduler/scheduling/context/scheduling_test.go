@@ -529,6 +529,7 @@ func TestIsWithinFloatingResourceLimits(t *testing.T) {
 		})
 	}
 }
+
 func addFloatingResourceRequest(request string, job *jobdb.Job) *jobdb.Job {
 	return testfixtures.WithRequestsJobs(
 		schedulerobjects.ResourceList{
