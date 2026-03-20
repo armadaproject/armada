@@ -830,10 +830,9 @@ func populateNodeDb(poolConfig configuration.PoolConfig, nodeDb *nodedb.NodeDb, 
 		}
 		nodeId := job.LatestRun().NodeId()
 		if _, ok := nodesById[nodeId]; !ok {
-			currentRun := job.LatestRun()
 			// Don't log errors for away jobs, as by design they may be scheduled on nodes that don't exist in this pool
 			// TODO move this check to the reconciler
-			if currentRun != nil && currentRun.Pool() == poolConfig.Name {
+			if job.LatestRun().Pool() == poolConfig.Name {
 				log.Errorf(
 					"job %s assigned to node %s on executor %s, but no such node found",
 					job.Id(), nodeId, job.LatestRun().Executor(),
