@@ -226,12 +226,15 @@ func withRedisEventRepository(ctx *armadacontext.Context, action func(r *RedisEv
 }
 
 func assertExpected(t *testing.T, actual []*api.EventStreamMessage, lastMessageId *sequence.ExternalSeqNo, expected ...*api.EventMessage) {
-	assert.Equal(t, len(actual), len(expected))
+	t.Helper()
+	assert.Equal(t, len(expected), len(actual))
 
-	for i, streamMessage := range expected {
-		assert.Equal(t, expected[i].Events, streamMessage.Events)
+	for i, streamMessage := range actual {
+		assert.Equal(t, expected[i].Events, streamMessage.Message.Events)
 	}
-	assert.Equal(t, actual[len(actual)-1].Id, lastMessageId.String())
+	if assert.NotNil(t, lastMessageId) && len(actual) > 0 {
+		assert.Equal(t, actual[len(actual)-1].Id, lastMessageId.String())
+	}
 }
 
 func storeEvents(ctx *armadacontext.Context, r *RedisEventRepository, events ...*armadaevents.EventSequence_Event) error {
