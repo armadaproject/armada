@@ -40,6 +40,8 @@ func TestGangScheduler(t *testing.T) {
 		TotalResources internaltypes.ResourceList
 		// Gangs to try scheduling.
 		Gangs [][]*jobdb.Job
+		// Set to true to add away versions of each queue context
+		AddAwayQueueContexts bool
 		// Indices of gangs expected to be scheduled.
 		ExpectedScheduledIndices []int
 		// Cumulative number of jobs we expect to schedule successfully.
@@ -113,6 +115,24 @@ func TestGangScheduler(t *testing.T) {
 			ExpectedScheduledIndices:               testfixtures.IntRange(0, 0),
 			ExpectedCumulativeScheduledJobs:        []int{1, 1},
 			ExpectedRuntimeGangCardinality:         []int{1, 0},
+			ExpectedUnfeasibleSchedulingKeyIndices: []int{},
+		},
+		"floating resources - away jobs": {
+			SchedulingConfig: func() configuration.SchedulingConfig {
+				cfg := testfixtures.TestSchedulingConfig()
+				cfg.FloatingResources = testfixtures.TestFloatingResourceConfig
+				return cfg
+			}(),
+			Nodes: testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			Gangs: [][]*jobdb.Job{
+				// These should both schedule, as they are away so should not be limited by this pools floating resource limits
+				addFloatingResourceRequest("6", testfixtures.WithGangAnnotationsJobs([]*jobdb.Job{createAwayJob()})),
+				addFloatingResourceRequest("6", testfixtures.WithGangAnnotationsJobs([]*jobdb.Job{createAwayJob()})),
+			},
+			AddAwayQueueContexts:                   true,
+			ExpectedScheduledIndices:               testfixtures.IntRange(0, 1),
+			ExpectedCumulativeScheduledJobs:        []int{1, 2},
+			ExpectedRuntimeGangCardinality:         []int{1, 1},
 			ExpectedUnfeasibleSchedulingKeyIndices: []int{},
 		},
 		"MaximumResourceFractionToSchedule": {
@@ -590,6 +610,9 @@ func TestGangScheduler(t *testing.T) {
 			for _, jobs := range tc.Gangs {
 				for _, job := range jobs {
 					priorityFactorByQueue[job.Queue()] = 1
+					if tc.AddAwayQueueContexts {
+						priorityFactorByQueue[context.CalculateAwayQueueName(job.Queue())] = 1
+					}
 				}
 			}
 
@@ -702,6 +725,10 @@ func TestGangScheduler(t *testing.T) {
 			assert.Equal(t, expectedUnfeasibleJobSchedulingKeys, maps.Keys(sch.schedulingContext.UnfeasibleSchedulingKeys))
 		})
 	}
+}
+
+func createAwayJob() *jobdb.Job {
+	return testfixtures.Test1Cpu4GiJob(testfixtures.TestQueue, testfixtures.PriorityClass2).WithNewRun("executor-1", "node-1", "node-1", "away", 1)
 }
 
 func addFloatingResourceRequest(request string, jobs []*jobdb.Job) []*jobdb.Job {
