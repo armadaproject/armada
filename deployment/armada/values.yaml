@@ -114,3 +114,32 @@ applicationConfig:
     tlsEnabled: false
     # -- Name of the secret which contains the Pulsar CA certificate
     cacert: armada-pulsar-ca-tls
+  metrics:
+    redis:
+      # -- Toggle Redis memory metrics collection
+      enabled: false
+      # -- Collection interval for Redis memory metrics
+      collectionInterval: 15m
+      # -- Top N keys to track
+      topN: 100
+      # -- Batch size for Redis SCAN
+      scanBatchSize: 1000
+      # -- Pipeline batch size
+      pipelineBatchSize: 500
+      # -- Inter-batch delay
+      interBatchDelay: 100ms
+      # -- Number of memory usage samples
+      memoryUsageSamples: 25
+      leader:
+        # -- Leader election mode (standalone, kubernetes)
+        mode: "kubernetes"
+        # -- Lease lock name for Kubernetes leader election
+        leaseLockName: "armada-redis-metrics-leader"
+        # -- Lease lock namespace for Kubernetes leader election
+        leaseLockNamespace: "armada"
+        # -- Lease duration for leader election
+        leaseDuration: 15s
+        # -- Lease renew deadline
+        renewDeadline: 10s
+        # -- Lease retry period
+        retryPeriod: 2s
