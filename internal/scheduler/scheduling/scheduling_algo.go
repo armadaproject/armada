@@ -429,7 +429,7 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 
 	nodePools := append(currentPool.AwayPools, currentPool.Name)
 
-	nodeDb, err := l.constructNodeDb(currentPoolJobs, otherPoolsJobs,
+	nodeDb, err := l.constructNodeDb(currentPool, currentPoolJobs, otherPoolsJobs,
 		armadaslices.Filter(nodes, func(node *internaltypes.Node) bool { return slices.Contains(nodePools, node.GetPool()) }))
 	if err != nil {
 		return nil, err
@@ -586,7 +586,7 @@ func (l *FairSchedulingAlgo) calculateJobSchedulingInfo(ctx *armadacontext.Conte
 	}, nil
 }
 
-func (l *FairSchedulingAlgo) constructNodeDb(currentPoolJobs []*jobdb.Job, otherPoolsJobs []*jobdb.Job, nodes []*internaltypes.Node) (*nodedb.NodeDb, error) {
+func (l *FairSchedulingAlgo) constructNodeDb(poolConfig configuration.PoolConfig, currentPoolJobs []*jobdb.Job, otherPoolsJobs []*jobdb.Job, nodes []*internaltypes.Node) (*nodedb.NodeDb, error) {
 	nodeDb, err := nodedb.NewNodeDb(
 		l.schedulingConfig.PriorityClasses,
 		l.schedulingConfig.IndexedResources,
@@ -598,7 +598,7 @@ func (l *FairSchedulingAlgo) constructNodeDb(currentPoolJobs []*jobdb.Job, other
 	if err != nil {
 		return nil, err
 	}
-	if err := populateNodeDb(nodeDb, currentPoolJobs, otherPoolsJobs, nodes); err != nil {
+	if err := populateNodeDb(poolConfig, nodeDb, currentPoolJobs, otherPoolsJobs, nodes); err != nil {
 		return nil, err
 	}
 
@@ -814,7 +814,7 @@ func (l *FairSchedulingAlgo) updateOptimiserLastRunTime(pool configuration.PoolC
 }
 
 // populateNodeDb adds all the nodes and jobs associated with a particular pool to the nodeDb.
-func populateNodeDb(nodeDb *nodedb.NodeDb, currentPoolJobs []*jobdb.Job, otherPoolsJobs []*jobdb.Job, nodes []*internaltypes.Node) error {
+func populateNodeDb(poolConfig configuration.PoolConfig, nodeDb *nodedb.NodeDb, currentPoolJobs []*jobdb.Job, otherPoolsJobs []*jobdb.Job, nodes []*internaltypes.Node) error {
 	txn := nodeDb.Txn(true)
 	defer txn.Abort()
 	nodesById := armadaslices.GroupByFuncUnique(
@@ -830,10 +830,16 @@ func populateNodeDb(nodeDb *nodedb.NodeDb, currentPoolJobs []*jobdb.Job, otherPo
 		}
 		nodeId := job.LatestRun().NodeId()
 		if _, ok := nodesById[nodeId]; !ok {
-			log.Errorf(
-				"job %s assigned to node %s on executor %s, but no such node found",
-				job.Id(), nodeId, job.LatestRun().Executor(),
-			)
+			currentRun := job.LatestRun()
+			// Don't log errors for away jobs, as by design they may be scheduled on nodes that don't exist in this pool
+			// TODO move this check to the reconciler
+			if currentRun != nil && currentRun.Pool() == poolConfig.Name {
+				log.Errorf(
+					"job %s assigned to node %s on executor %s, but no such node found",
+					job.Id(), nodeId, job.LatestRun().Executor(),
+				)
+			}
+
 			continue
 		}
 		jobsByNodeId[nodeId] = append(jobsByNodeId[nodeId], job)
