@@ -309,7 +309,7 @@ func TestIntegration_LeaderMode_EmitsMetrics(t *testing.T) {
 
 		var foundQueueMetrics bool
 		for _, m := range metrics {
-			if strings.Contains(m.Desc().String(), "armada_redis_queue") {
+			if strings.Contains(m.Desc().String(), ArmadaRedisMetricsPrefix+"queue") {
 				foundQueueMetrics = true
 				break
 			}
@@ -349,7 +349,7 @@ func TestIntegration_NonLeaderMode_NoMetrics(t *testing.T) {
 		metrics := collectMetrics(collector)
 
 		for _, m := range metrics {
-			assert.False(t, strings.Contains(m.Desc().String(), "armada_redis_"),
+			assert.False(t, strings.Contains(m.Desc().String(), ArmadaRedisMetricsPrefix),
 				"Non-leader should not emit redis metrics, but found: %s", m.Desc().String())
 		}
 	})
@@ -381,7 +381,7 @@ func TestIntegration_LeadershipTransition(t *testing.T) {
 		metricsAsLeader := collectMetrics(collector)
 		var leaderFoundMetrics bool
 		for _, m := range metricsAsLeader {
-			if strings.Contains(m.Desc().String(), "armada_redis_queue") {
+			if strings.Contains(m.Desc().String(), ArmadaRedisMetricsPrefix+"queue") {
 				leaderFoundMetrics = true
 				break
 			}
@@ -392,7 +392,7 @@ func TestIntegration_LeadershipTransition(t *testing.T) {
 		collector.ClearState()
 		metricsAsNonLeader := collectMetrics(collector)
 		for _, m := range metricsAsNonLeader {
-			assert.False(t, strings.Contains(m.Desc().String(), "armada_redis_"),
+			assert.False(t, strings.Contains(m.Desc().String(), ArmadaRedisMetricsPrefix),
 				"Non-leader should not emit redis metrics after transition")
 		}
 
@@ -402,7 +402,7 @@ func TestIntegration_LeadershipTransition(t *testing.T) {
 		metricsAfterRestore := collectMetrics(collector)
 		var restoredFoundMetrics bool
 		for _, m := range metricsAfterRestore {
-			if strings.Contains(m.Desc().String(), "armada_redis_queue") {
+			if strings.Contains(m.Desc().String(), ArmadaRedisMetricsPrefix+"queue") {
 				restoredFoundMetrics = true
 				break
 			}

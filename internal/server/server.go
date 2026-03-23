@@ -3,7 +3,6 @@ package server
 import (
 	"fmt"
 	"net"
-	"strings"
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
@@ -14,9 +13,6 @@ import (
 	"github.com/redis/go-redis/extra/redisprometheus/v9"
 	"github.com/redis/go-redis/v9"
 	"google.golang.org/grpc"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/auth"
@@ -28,8 +24,6 @@ import (
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	controlplaneeventspulsarutils "github.com/armadaproject/armada/internal/common/pulsarutils/controlplaneevents"
 	"github.com/armadaproject/armada/internal/common/pulsarutils/jobsetevents"
-	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
-	"github.com/armadaproject/armada/internal/scheduler/leader"
 	"github.com/armadaproject/armada/internal/scheduler/reports"
 	"github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/armadaproject/armada/internal/server/event"
@@ -37,7 +31,6 @@ import (
 	"github.com/armadaproject/armada/internal/server/node"
 	"github.com/armadaproject/armada/internal/server/queryapi"
 	"github.com/armadaproject/armada/internal/server/queue"
-	"github.com/armadaproject/armada/internal/server/redismetrics"
 	"github.com/armadaproject/armada/internal/server/submit"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/api/schedulerobjects"
@@ -110,46 +103,6 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 	}()
 	prometheus.MustRegister(
 		redisprometheus.NewCollector("armada", "events_redis", eventDb))
-
-	// Redis memory metrics collector (optional)
-	if config.Metrics.Redis.Enabled {
-		var metricsRedisClient redis.UniversalClient
-		if len(config.Metrics.Redis.ConnectionInfo.Addrs) > 0 {
-			metricsRedisClient = createRedisClient(&config.Metrics.Redis.ConnectionInfo)
-			defer metricsRedisClient.Close()
-		} else {
-			metricsRedisClient = eventDb // reuse existing connection
-		}
-		metricsConfig := redismetrics.Config{
-			Enabled:            config.Metrics.Redis.Enabled,
-			CollectionInterval: config.Metrics.Redis.CollectionInterval,
-			TopN:               config.Metrics.Redis.TopN,
-			ScanBatchSize:      config.Metrics.Redis.ScanBatchSize,
-			PipelineBatchSize:  config.Metrics.Redis.PipelineBatchSize,
-			InterBatchDelay:    config.Metrics.Redis.InterBatchDelay,
-			MemoryUsageSamples: config.Metrics.Redis.MemoryUsageSamples,
-		}
-		scanner := redismetrics.NewScanner(metricsRedisClient, metricsConfig)
-
-		// Create leader controller based on configuration
-		leaderController, err := createLeaderController(ctx, config.Metrics.Redis.Leader)
-		if err != nil {
-			return errors.Wrapf(err, "failed to create leader controller for redis metrics")
-		}
-
-		collector := redismetrics.NewCollector(scanner, metricsConfig, leaderController)
-		prometheus.MustRegister(collector)
-
-		// Add leader controller Run to services
-		services = append(services, func() error {
-			return leaderController.Run(ctx)
-		})
-
-		// Add collector Run to services
-		services = append(services, func() error {
-			return collector.Run(ctx)
-		})
-	}
 
 	queueRepository := queue.NewPostgresQueueRepository(dbPool)
 	queueCache := queue.NewCachedQueueRepository(queueRepository, config.QueueCacheRefreshPeriod)
@@ -295,51 +248,4 @@ func createApiConnection(connectionDetails client.ApiConnectionDetails) (*grpc.C
 		grpc.WithChainUnaryInterceptor(clientMetrics.UnaryClientInterceptor()),
 		grpc.WithChainStreamInterceptor(clientMetrics.StreamClientInterceptor()),
 	)
-}
-
-func createLeaderController(ctx *armadacontext.Context, config configuration.LeaderConfig) (leader.LeaderController, error) {
-	switch mode := strings.ToLower(config.Mode); mode {
-	case "standalone":
-		ctx.Infof("Redis metrics will run in standalone mode")
-		return leader.NewStandaloneLeaderController(), nil
-	case "kubernetes":
-		ctx.Infof("Redis metrics will run kubernetes mode")
-		clusterConfig, err := loadClusterConfig(ctx)
-		if err != nil {
-			return nil, errors.Wrapf(err, "error creating kubernetes client")
-		}
-		clientSet, err := kubernetes.NewForConfig(clusterConfig)
-		if err != nil {
-			return nil, errors.Wrapf(err, "error creating kubernetes client")
-		}
-
-		schedulerLeaderConfig := schedulerconfig.LeaderConfig{
-			Mode:               config.Mode,
-			LeaseLockName:      config.LeaseLockName,
-			LeaseLockNamespace: config.LeaseLockNamespace,
-			LeaseDuration:      config.LeaseDuration,
-			RenewDeadline:      config.RenewDeadline,
-			RetryPeriod:        config.RetryPeriod,
-		}
-
-		leaderController := leader.NewKubernetesLeaderController(schedulerLeaderConfig, clientSet.CoordinationV1())
-		leaderStatusMetrics := leader.NewLeaderStatusMetricsCollector(config.LeaseLockName)
-		leaderController.RegisterListener(leaderStatusMetrics)
-		prometheus.MustRegister(leaderStatusMetrics)
-		return leaderController, nil
-	default:
-		return nil, errors.Errorf("%s is not a valid leader mode", config.Mode)
-	}
-}
-
-func loadClusterConfig(ctx *armadacontext.Context) (*rest.Config, error) {
-	config, err := rest.InClusterConfig()
-	if errors.Is(err, rest.ErrNotInCluster) {
-		ctx.Info("Running with default client configuration")
-		rules := clientcmd.NewDefaultClientConfigLoadingRules()
-		overrides := &clientcmd.ConfigOverrides{}
-		return clientcmd.NewNonInteractiveDeferredLoadingClientConfig(rules, overrides).ClientConfig()
-	}
-	ctx.Info("Running with in cluster client configuration")
-	return config, err
 }

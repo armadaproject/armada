@@ -119,16 +119,12 @@ var expectedPending = api.EventMessage{
 var expectedRunning = api.EventMessage{
 	Events: &api.EventMessage_Running{
 		Running: &api.JobRunningEvent{
-			JobId:        jobId,
-			JobSetId:     jobSetName,
-			Queue:        testQueue,
-			Created:      protoutil.ToTimestamp(baseTime),
-			ClusterId:    executorId,
-			KubernetesId: runId,
-			NodeName:     nodeName,
-			PodNumber:    podNumber,
-			PodName:      podName,
-			PodNamespace: namespace,
+			JobId:     jobId,
+			JobSetId:  jobSetName,
+			Queue:     testQueue,
+			Created:   protoutil.ToTimestamp(baseTime),
+			NodeName:  nodeName,
+			PodNumber: podNumber,
 		},
 	},
 }
