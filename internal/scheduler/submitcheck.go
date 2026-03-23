@@ -316,6 +316,8 @@ poolStart:
 				ex.nodeDb.EnableGangAwayScheduling()
 			}
 
+			ex.nodeDb.SetDisallowedJobResources(pool.ExperimentalUnscheduledResources)
+
 			txn := ex.nodeDb.Txn(true)
 			ok, err := ex.nodeDb.ScheduleManyWithTxn(txn, gctx)
 			txn.Abort()

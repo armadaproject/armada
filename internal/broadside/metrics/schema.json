@@ -49,6 +49,20 @@
             "connectionString": {
               "type": "string",
               "description": "Database connection details (sensitive data should be redacted)"
+            },
+            "tuningSql": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array",
+              "description": "Postgres tuning SQL statements applied after migrations"
+            },
+            "tuningRevertSql": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array",
+              "description": "Postgres revert SQL statements executed at the start of teardown"
             }
           },
           "additionalProperties": false,

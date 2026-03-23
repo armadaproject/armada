@@ -3,6 +3,7 @@ package configuration
 import "time"
 
 type TestConfig struct {
+	FeatureToggles  FeatureToggles  `yaml:"featureToggles,omitempty"`
 	TestDuration    time.Duration   `yaml:"testDuration"`
 	WarmupDuration  time.Duration   `yaml:"warmupDuration"`
 	SkipTearDown    bool            `yaml:"skipTearDown,omitempty"`
@@ -13,10 +14,16 @@ type TestConfig struct {
 	ActionsConfig   ActionsConfig   `yaml:"actionsConfig"`
 }
 
+type FeatureToggles struct {
+	HotColdSplit bool `yaml:"hotColdSplit,omitempty"`
+}
+
 type DatabaseConfig struct {
-	Postgres   map[string]string `yaml:"postgres,omitempty"`
-	ClickHouse map[string]string `yaml:"clickHouse,omitempty"`
-	InMemory   bool              `yaml:"inMemory,omitempty"`
+	Postgres                map[string]string `yaml:"postgres,omitempty"`
+	ClickHouse              map[string]string `yaml:"clickHouse,omitempty"`
+	InMemory                bool              `yaml:"inMemory,omitempty"`
+	PostgresTuningSQL       []string          `yaml:"postgresTuningSQL,omitempty"`
+	PostgresTuningRevertSQL []string          `yaml:"postgresTuningRevertSQL,omitempty"`
 }
 
 type IngestionConfig struct {
@@ -26,6 +33,9 @@ type IngestionConfig struct {
 	ChannelBufferSizeMultiplier int                      `yaml:"channelBufferSizeMultiplier,omitempty"`
 	MaxBacklogSize              int                      `yaml:"maxBacklogSize,omitempty"`
 	BacklogDropStrategy         string                   `yaml:"backlogDropStrategy,omitempty"`
+	BatchTimeout                time.Duration            `yaml:"batchTimeout,omitempty"`
+	HistoricalJobChunkSize      int                      `yaml:"historicalJobChunkSize,omitempty"`
+	HistoricalJobWorkers        int                      `yaml:"historicalJobWorkers,omitempty"`
 	JobStateTransitionConfig    JobStateTransitionConfig `yaml:"jobStateTransitionConfig"`
 }
 
@@ -47,6 +57,7 @@ type HistoricalJobsConfig struct {
 	ProportionErrored   float64 `yaml:"proportionErrored"`
 	ProportionCancelled float64 `yaml:"proportionCancelled"`
 	ProportionPreempted float64 `yaml:"proportionPreempted"`
+	JobAgeDays          []int   `yaml:"jobAgeDays"`
 }
 
 type JobStateTransitionConfig struct {
@@ -84,5 +95,6 @@ type QueryConfig struct {
 	GetJobsPageSize                     int `yaml:"getJobsPageSize"`
 	GetJobGroupsQueriesPerHour          int `yaml:"getJobGroupsQueriesPerHour"`
 	GetJobGroupsPageSize                int `yaml:"getJobGroupsPageSize"`
+	MaxConcurrentQueries                int `yaml:"maxConcurrentQueries,omitempty"`
 	MaxErrorsToCollect                  int `yaml:"maxErrorsToCollect,omitempty"`
 }

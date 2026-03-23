@@ -4,17 +4,26 @@ import (
 	"fmt"
 
 	"github.com/go-playground/validator/v10"
+
+	"github.com/armadaproject/armada/internal/common/config"
+	log "github.com/armadaproject/armada/internal/common/logging"
 )
 
-func (c Configuration) Validate() error {
-	// Validate scheduling timeout relationship
-	if c.NewJobsSchedulingTimeout > 0 && c.NewJobsSchedulingTimeout >= c.MaxSchedulingDuration {
-		return fmt.Errorf("%s: NewJobsSchedulingTimeout=%v, MaxSchedulingDuration=%v",
-			InvalidSchedulingTimeoutErrorMessage,
-			c.NewJobsSchedulingTimeout,
-			c.MaxSchedulingDuration)
+func (c *Configuration) Mutate() (config.Config, error) {
+	if c.MaxSchedulingDuration > 0 {
+		log.Warnf("use of top level MaxSchedulingDuration has been deprecated - please use scheduling.MaxSchedulingDuration. Applying MaxSchedulingDuration to scheduling.MaxSchedulingDuration")
+		c.Scheduling.MaxSchedulingDuration = c.MaxSchedulingDuration
 	}
 
+	if c.NewJobsSchedulingTimeout > 0 {
+		log.Warnf("use of top level NewJobsSchedulingTimeout has been deprecated - please use scheduling.MaxNewJobSchedulingDuration. Applying NewJobsSchedulingTimeout to scheduling.MaxNewJobSchedulingDuration")
+		c.Scheduling.MaxNewJobSchedulingDuration = c.NewJobsSchedulingTimeout
+	}
+
+	return c, nil
+}
+
+func (c *Configuration) Validate() error {
 	validate := validator.New()
 	validate.RegisterStructValidation(SchedulingConfigValidation, SchedulingConfig{})
 	return validate.Struct(c)
@@ -39,9 +48,24 @@ func SchedulingConfigValidation(sl validator.StructLevel) {
 		}
 
 		for i, awayNodeType := range priorityClass.AwayNodeTypes {
-			if !wellKnownNodeTypes[awayNodeType.WellKnownNodeTypeName] {
+			if awayNodeType.WellKnownNodeTypeName != "" && !wellKnownNodeTypes[awayNodeType.WellKnownNodeTypeName] {
 				fieldName := fmt.Sprintf("Preemption.PriorityClasses[%s].AwayNodeTypes[%d].WellKnownNodeTypeName", priorityClassName, i)
 				sl.ReportError(awayNodeType.WellKnownNodeTypeName, fieldName, "", UnknownWellKnownNodeTypeErrorMessage, "")
+			}
+
+			for j, entry := range awayNodeType.NodeTypes {
+				if !wellKnownNodeTypes[entry.Name] {
+					fieldName := fmt.Sprintf("Preemption.PriorityClasses[%s].AwayNodeTypes[%d].NodeTypes[%d].Name", priorityClassName, i, j)
+					sl.ReportError(entry.Name, fieldName, "", UnknownWellKnownNodeTypeErrorMessage, "")
+				}
+
+				for k, cond := range entry.Conditions {
+					validOps := map[string]bool{">": true, "<": true, "==": true}
+					if !validOps[string(cond.Operator)] {
+						fieldName := fmt.Sprintf("Preemption.PriorityClasses[%s].AwayNodeTypes[%d].WellKnownNodeTypes[%d].Conditions[%d].Operator", priorityClassName, i, j, k)
+						sl.ReportError(cond.Operator, fieldName, "", InvalidAwayNodeTypeConditionOperatorErrorMessage, "")
+					}
+				}
 			}
 		}
 	}

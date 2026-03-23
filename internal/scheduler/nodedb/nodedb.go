@@ -23,6 +23,8 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 )
 
+const disallowedResourceRequested = "job requests disallowed resource and therefore cannot be scheduled"
+
 var empty struct{}
 
 func (nodeDb *NodeDb) addNodeToStats(node *internaltypes.Node) {
@@ -146,6 +148,11 @@ type NodeDb struct {
 	scheduledAtPriorityByJobId map[string]int32
 
 	resourceListFactory *internaltypes.ResourceListFactory
+
+	// Resources that are not scheduled by this nodedb
+	// If a job requests one of these resources
+	// it will not be scheduled onto any node regardless of if the nodes have enough resource
+	disallowedJobResources []string
 
 	disableHomeScheduling     bool
 	disableAwayScheduling     bool
@@ -351,6 +358,10 @@ func (nodeDb *NodeDb) EnableGangAwayScheduling() {
 	nodeDb.disableGangAwayScheduling = false
 }
 
+func (nodeDb *NodeDb) SetDisallowedJobResources(resources []string) {
+	nodeDb.disallowedJobResources = resources
+}
+
 func (nodeDb *NodeDb) GetNodes() ([]*internaltypes.Node, error) {
 	return nodeDb.GetNodesWithTxn(nodeDb.Txn(false))
 }
@@ -464,6 +475,13 @@ func (nodeDb *NodeDb) SelectNodeForJobWithTxn(txn *memdb.Txn, jctx *context.JobS
 		}
 	}
 
+	for _, resourceName := range nodeDb.disallowedJobResources {
+		if jctx.KubernetesResourceRequirements.GetRawByNameZeroIfMissing(resourceName) > 0 {
+			pctx.NumExcludedNodesByReason[disallowedResourceRequested] = int(nodeDb.numNodes)
+			return nil, nil
+		}
+	}
+
 	if !nodeDb.disableHomeScheduling {
 		node, err := nodeDb.selectNodeForJobWithTxnAtPriority(txn, jctx)
 		if err != nil {
@@ -493,6 +511,51 @@ func (nodeDb *NodeDb) SelectNodeForJobWithTxn(txn *memdb.Txn, jctx *context.JobS
 	return nil, nil
 }
 
+func matchesCondition(conditions []types.AwayNodeTypeCondition, jobResources internaltypes.ResourceList) bool {
+	for _, c := range conditions {
+		jobVal := jobResources.GetByNameZeroIfMissing(c.Resource)
+		jobResource := jobVal.Value()
+		value := c.Value.Value()
+
+		switch c.Operator {
+		case types.AwayNodeTypeConditionOpGreaterThan:
+			return jobResource > value
+		case types.AwayNodeTypeConditionOpLessThan:
+			return jobResource < value
+		case types.AwayNodeTypeConditionOpEqual:
+			return jobResource == value
+		}
+	}
+	return true
+}
+
+func (nodeDb *NodeDb) getEffectiveAwayNodeTaints(awayNodeType types.AwayNodeType, job *jobdb.Job) ([]v1.Taint, error) {
+	var taints []v1.Taint
+
+	if awayNodeType.WellKnownNodeTypeName != "" {
+		wellKnownNodeType, exists := nodeDb.wellKnownNodeTypes[awayNodeType.WellKnownNodeTypeName]
+		if !exists {
+			return nil, fmt.Errorf("unknown well-known node type %s; must be in %v", awayNodeType.WellKnownNodeTypeName, nodeDb.wellKnownNodeTypes)
+		}
+
+		taints = append(taints, wellKnownNodeType.Taints...)
+	}
+
+	for _, nodeTypes := range awayNodeType.NodeTypes {
+		wellKnownNodeType, exists := nodeDb.wellKnownNodeTypes[nodeTypes.Name]
+		if !exists {
+			return nil, fmt.Errorf("unknown well-known node type %s; must be in %v", nodeTypes.Name, nodeDb.wellKnownNodeTypes)
+		}
+		if !matchesCondition(nodeTypes.Conditions, job.AllResourceRequirements()) {
+			continue
+		}
+
+		taints = append(taints, wellKnownNodeType.Taints...)
+	}
+
+	return taints, nil
+}
+
 func (nodeDb *NodeDb) selectNodeForJobWithTxnAndAwayNodeType(
 	txn *memdb.Txn,
 	jctx *context.JobSchedulingContext,
@@ -514,12 +577,16 @@ func (nodeDb *NodeDb) selectNodeForJobWithTxnAndAwayNodeType(
 		jctx.AdditionalTolerations = jctx.AdditionalTolerations[:numAdditionalTolerations]
 	}()
 
-	wellKnownNodeType, ok := nodeDb.wellKnownNodeTypes[awayNodeType.WellKnownNodeTypeName]
-	if !ok {
-		return nil, fmt.Errorf("unknown well-known node type %s; must be in %v", awayNodeType.WellKnownNodeTypeName, nodeDb.wellKnownNodeTypes)
+	awayNodeTaints, err := nodeDb.getEffectiveAwayNodeTaints(awayNodeType, jctx.Job)
+	if err != nil {
+		return nil, err
+	}
+	if len(awayNodeTaints) == 0 {
+		// No extra taints to tolerate will mean no extra scheduling capability
+		return nil, nil
 	}
 
-	for _, taint := range wellKnownNodeType.Taints {
+	for _, taint := range awayNodeTaints {
 		toleration := v1.Toleration{Key: taint.Key, Effect: taint.Effect}
 		if taint.Value == configuration.WildCardWellKnownNodeTypeValue {
 			toleration.Operator = v1.TolerationOpExists

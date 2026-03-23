@@ -119,8 +119,6 @@ func (m *MemoryDatabase) executeQuery(query IngestionQuery) error {
 	switch q := query.(type) {
 	case InsertJob:
 		return m.insertJob(q)
-	case InsertJobSpec:
-		return m.insertJobSpec(q)
 	case UpdateJobPriority:
 		return m.updateJobPriority(q)
 	case SetJobCancelled:
@@ -221,18 +219,18 @@ func (m *MemoryDatabase) insertJob(q InsertJob) error {
 			}
 		}
 	}
-	return nil
-}
 
-func (m *MemoryDatabase) insertJobSpec(q InsertJobSpec) error {
-	var job api.Job
-	if err := proto.Unmarshal([]byte(q.JobSpec), &job); err != nil {
-		return fmt.Errorf("unmarshalling job spec for %s: %w", q.JobID, err)
+	if len(q.JobSpec) > 0 {
+		var apiJob api.Job
+		if err := proto.Unmarshal(q.JobSpec, &apiJob); err != nil {
+			return fmt.Errorf("unmarshalling job spec for %s: %w", job.JobID, err)
+		}
+		m.jobSpecs[job.JobID] = &jobSpecRecord{
+			JobID:   job.JobID,
+			JobSpec: &apiJob,
+		}
 	}
-	m.jobSpecs[q.JobID] = &jobSpecRecord{
-		JobID:   q.JobID,
-		JobSpec: &job,
-	}
+
 	return nil
 }
 

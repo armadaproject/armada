@@ -3,6 +3,7 @@ package context
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -309,6 +310,65 @@ func TestCalculateTheoreticalShare(t *testing.T) {
 			}
 			theoreticalShare := sctx.CalculateTheoreticalShare(tc.basePriority)
 			assert.InDelta(t, tc.expectedTheoreticalShare, theoreticalShare, 1e-6)
+		})
+	}
+}
+
+func TestRecordNewJobSchedulingDuration(t *testing.T) {
+	tests := map[string]struct {
+		gctx                                *GangSchedulingContext
+		timeToRecord                        time.Duration
+		initialTotalSchedulingDuration      time.Duration
+		initialQueueTotalSchedulingDuration time.Duration
+		expectError                         bool
+	}{
+		" existing queue": {
+			gctx:         NewGangSchedulingContext([]*JobSchedulingContext{JobSchedulingContextFromJob(testfixtures.Test16Cpu128GiJob("A", testfixtures.TestDefaultPriorityClass))}),
+			timeToRecord: time.Second,
+		},
+		" adds to existing times": {
+			gctx:                                NewGangSchedulingContext([]*JobSchedulingContext{JobSchedulingContextFromJob(testfixtures.Test16Cpu128GiJob("A", testfixtures.TestDefaultPriorityClass))}),
+			timeToRecord:                        time.Second,
+			initialTotalSchedulingDuration:      time.Second * 5,
+			initialQueueTotalSchedulingDuration: time.Second * 3,
+		},
+		"unknown queue": {
+			gctx:         NewGangSchedulingContext([]*JobSchedulingContext{JobSchedulingContextFromJob(testfixtures.Test16Cpu128GiJob("C", testfixtures.TestDefaultPriorityClass))}),
+			timeToRecord: time.Second,
+			expectError:  true,
+		},
+		"nil gctx": {
+			gctx:         nil,
+			timeToRecord: time.Second,
+			expectError:  true,
+		},
+		"empty gctx": {
+			gctx:         &GangSchedulingContext{},
+			timeToRecord: time.Second,
+			expectError:  true,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			fairnessCostProvider, err := fairness.NewDominantResourceFairness(cpu(100), "pool", configuration.SchedulingConfig{DominantResourceFairnessResourcesToConsider: []string{"cpu"}})
+			require.NoError(t, err)
+			sctx := NewSchedulingContext("pool", fairnessCostProvider, nil, cpu(100))
+			if tc.initialTotalSchedulingDuration > 0 {
+				sctx.TotalNewJobSchedulingTime = tc.initialTotalSchedulingDuration
+			}
+			sctx.QueueSchedulingContexts = map[string]*QueueSchedulingContext{"A": {TotalNewJobSchedulingTime: tc.initialQueueTotalSchedulingDuration}, "B": {}}
+			err = sctx.RecordNewJobSchedulingDuration(tc.gctx, tc.timeToRecord)
+			if tc.expectError {
+				assert.Error(t, err)
+				assert.Equal(t, sctx.TotalNewJobSchedulingTime, tc.initialTotalSchedulingDuration)
+				assert.Equal(t, sctx.QueueSchedulingContexts["A"].TotalNewJobSchedulingTime, tc.initialQueueTotalSchedulingDuration)
+				assert.Equal(t, sctx.QueueSchedulingContexts["B"].TotalNewJobSchedulingTime, time.Duration(0))
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, sctx.TotalNewJobSchedulingTime, tc.timeToRecord+tc.initialTotalSchedulingDuration)
+				assert.Equal(t, sctx.QueueSchedulingContexts["A"].TotalNewJobSchedulingTime, tc.timeToRecord+tc.initialQueueTotalSchedulingDuration)
+				assert.Equal(t, sctx.QueueSchedulingContexts["B"].TotalNewJobSchedulingTime, time.Duration(0))
+			}
 		})
 	}
 }

@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
 
 	mapstructure "github.com/go-viper/mapstructure/v2"
+	"github.com/rs/zerolog"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	"golang.org/x/exp/slices"
@@ -28,7 +30,9 @@ const (
 	customConfigLocation string = "config"
 	resultsDirFlag       string = "results-dir"
 	teardownOnlyFlag     string = "teardown-only"
+	yesFlag              string = "yes"
 	teardownTimeout             = 2 * time.Minute
+	defaultResultsDir           = "cmd/broadside/results"
 )
 
 func init() {
@@ -44,6 +48,11 @@ func init() {
 		teardownOnlyFlag,
 		false,
 		"Connect to the configured database and tear it down, then exit. Use to clean up after a crashed load test.")
+	pflag.BoolP(
+		yesFlag,
+		"y",
+		false,
+		"Skip the confirmation prompt for data generation")
 	pflag.Parse()
 }
 
@@ -172,11 +181,44 @@ func loadConfig(configFiles []string) configuration.TestConfig {
 	return config
 }
 
+func setupLogging(resultsDir, runTimestamp string) (func(), error) {
+	logPath := filepath.Join(resultsDir, fmt.Sprintf("broadside-log-%s.log", runTimestamp))
+	logFile, fileWriter, err := logging.NewFileWriter(logPath)
+	if err != nil {
+		return nil, fmt.Errorf("opening log file: %w", err)
+	}
+
+	zerolog.TimeFieldFormat = logging.RFC3339Milli
+	stdoutWriter, err := logging.NewStdoutWriter()
+	if err != nil {
+		logFile.Close()
+		return nil, fmt.Errorf("creating stdout writer: %w", err)
+	}
+	multi := zerolog.MultiLevelWriter(stdoutWriter, fileWriter)
+	logger := zerolog.New(multi).With().Timestamp().Logger()
+	logging.ReplaceStdLogger(logging.FromZerolog(logger))
+
+	logging.Infof("Log file: %s", logPath)
+	return func() { logFile.Close() }, nil
+}
+
 func main() {
 	common.BindCommandlineArguments()
 
 	userSpecifiedConfigs := viper.GetStringSlice(customConfigLocation)
 	config := loadConfig(userSpecifiedConfigs)
+
+	runTimestamp := time.Now().Format("20060102-150405")
+	resultsDir := viper.GetString(resultsDirFlag)
+	if resultsDir == "" {
+		resultsDir = defaultResultsDir
+	}
+
+	closeLog, err := setupLogging(resultsDir, runTimestamp)
+	if err != nil {
+		logging.Fatalf("setting up log file: %v", err)
+	}
+	defer closeLog()
 
 	if viper.GetBool(teardownOnlyFlag) {
 		database, err := orchestrator.NewDatabase(config)
@@ -197,7 +239,7 @@ func main() {
 	}
 
 	est := estimation.Estimate(config)
-	if estimation.ShouldPrompt(est) {
+	if estimation.ShouldPrompt(est) && !viper.GetBool(yesFlag) {
 		confirmed, err := estimation.DisplayEstimationAndConfirm(est)
 		if err != nil {
 			panic(err)
@@ -207,8 +249,6 @@ func main() {
 			return
 		}
 	}
-
-	resultsDir := viper.GetString(resultsDirFlag)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -225,7 +265,7 @@ func main() {
 		}
 	}()
 
-	if err := orchestrator.NewRunner(config, resultsDir).Run(ctx); err != nil {
+	if err := orchestrator.NewRunner(config, resultsDir, runTimestamp).Run(ctx); err != nil {
 		panic(err)
 	}
 }

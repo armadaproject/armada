@@ -1,6 +1,5 @@
 cyclePeriod: 1s
 schedulePeriod: 10s
-maxSchedulingDuration: 5s
 executorTimeout: 1h
 databaseFetchSize: 1000
 pulsarSendTimeout: 5s
@@ -81,6 +80,7 @@ scheduling:
       resolution: "1"
   disableScheduling: false
   disableIndependentPoolFailures: true
+  maxSchedulingDuration: 5s
   enableAssertions: false
   enablePreferLargeJobOrdering: false
   protectedFractionOfFairShare: 1.0

@@ -253,6 +253,36 @@ func TestIngestionConfig_Validate(t *testing.T) {
 			wantErr: true,
 			errText: "submissionsPerHour must be non-negative",
 		},
+		{
+			name: "negative historical job chunk size",
+			modify: func(c *IngestionConfig) {
+				c.HistoricalJobChunkSize = -1
+			},
+			wantErr: true,
+			errText: "historicalJobChunkSize must be non-negative",
+		},
+		{
+			name: "negative historical job workers",
+			modify: func(c *IngestionConfig) {
+				c.HistoricalJobWorkers = -1
+			},
+			wantErr: true,
+			errText: "historicalJobWorkers must be non-negative",
+		},
+		{
+			name: "zero historical job chunk size is valid",
+			modify: func(c *IngestionConfig) {
+				c.HistoricalJobChunkSize = 0
+			},
+			wantErr: false,
+		},
+		{
+			name: "zero historical job workers is valid",
+			modify: func(c *IngestionConfig) {
+				c.HistoricalJobWorkers = 0
+			},
+			wantErr: false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -578,6 +608,7 @@ func TestHistoricalJobsConfig_Validate(t *testing.T) {
 				ProportionErrored:   0.1,
 				ProportionCancelled: 0.1,
 				ProportionPreempted: 0.1,
+				JobAgeDays:          []int{1},
 			},
 			wantErr: false,
 		},
@@ -587,6 +618,14 @@ func TestHistoricalJobsConfig_Validate(t *testing.T) {
 				NumberOfJobs:        1000,
 				ProportionSucceeded: 0.5,
 				ProportionErrored:   0.3,
+				JobAgeDays:          []int{3, 5},
+			},
+			wantErr: false,
+		},
+		{
+			name: "zero jobs does not require jobAgeDays",
+			config: HistoricalJobsConfig{
+				NumberOfJobs: 0,
 			},
 			wantErr: false,
 		},
@@ -603,6 +642,7 @@ func TestHistoricalJobsConfig_Validate(t *testing.T) {
 			config: HistoricalJobsConfig{
 				NumberOfJobs:        1000,
 				ProportionSucceeded: 1.5,
+				JobAgeDays:          []int{0},
 			},
 			wantErr: true,
 			errText: "proportionSucceeded must be in range [0, 1]",
@@ -612,6 +652,7 @@ func TestHistoricalJobsConfig_Validate(t *testing.T) {
 			config: HistoricalJobsConfig{
 				NumberOfJobs:      1000,
 				ProportionErrored: -0.1,
+				JobAgeDays:        []int{1},
 			},
 			wantErr: true,
 			errText: "proportionErrored must be in range [0, 1]",
@@ -623,9 +664,38 @@ func TestHistoricalJobsConfig_Validate(t *testing.T) {
 				ProportionSucceeded: 0.6,
 				ProportionErrored:   0.3,
 				ProportionCancelled: 0.3,
+				JobAgeDays:          []int{1},
 			},
 			wantErr: true,
 			errText: "sum of all proportions must not exceed 1.0",
+		},
+		{
+			name: "missing jobAgeDays when numberOfJobs > 0",
+			config: HistoricalJobsConfig{
+				NumberOfJobs:        1000,
+				ProportionSucceeded: 1.0,
+			},
+			wantErr: true,
+			errText: "jobAgeDays must contain at least one value",
+		},
+		{
+			name: "zero value in jobAgeDays",
+			config: HistoricalJobsConfig{
+				NumberOfJobs:        1000,
+				ProportionSucceeded: 1.0,
+				JobAgeDays:          []int{0},
+			},
+			wantErr: false,
+		},
+		{
+			name: "negative value in jobAgeDays",
+			config: HistoricalJobsConfig{
+				NumberOfJobs:        1000,
+				ProportionSucceeded: 1.0,
+				JobAgeDays:          []int{1, -2},
+			},
+			wantErr: true,
+			errText: "jobAgeDays[1] must be non-negative",
 		},
 	}
 

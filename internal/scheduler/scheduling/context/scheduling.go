@@ -14,6 +14,7 @@ import (
 	"golang.org/x/time/rate"
 
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
+	log "github.com/armadaproject/armada/internal/common/logging"
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
@@ -63,6 +64,8 @@ type SchedulingContext struct {
 	UnfeasibleSchedulingKeys     map[internaltypes.SchedulingKey]*JobSchedulingContext
 	ExperimentalIndicativeShares map[int]float64
 	SpotPrice                    *float64
+	// Time spent scheduling new jobs in this round.
+	TotalNewJobSchedulingTime time.Duration
 }
 
 func NewSchedulingContext(
@@ -193,6 +196,34 @@ func (sctx *SchedulingContext) UpdateFairShares() {
 		qtx.DemandCappedAdjustedFairShare = q.demandCappedAdjustedFairShare
 		qtx.UncappedAdjustedFairShare = q.uncappedAdjustedFairShare
 	}
+}
+
+// RecordNewJobSchedulingDuration adds to the counters of how much time has been spent scheduling new jobs
+func (sctx *SchedulingContext) RecordNewJobSchedulingDuration(gctx *GangSchedulingContext, duration time.Duration) error {
+	if gctx == nil || len(gctx.JobSchedulingContexts) <= 0 {
+		return errors.Errorf("failed recording new job scheduling duration: empty gctx provided")
+	}
+	jctx := gctx.JobSchedulingContexts[0]
+
+	if duration < 0 {
+		log.Errorf("requested to record a negative job scheduling duration for job %s - defaulting to 0", jctx.JobId)
+		duration = time.Duration(0)
+	}
+
+	queue := gctx.Queue
+	if !jctx.IsHomeJob(sctx.Pool) {
+		queue = CalculateAwayQueueName(jctx.Job.Queue())
+	}
+
+	qctx, ok := sctx.QueueSchedulingContexts[queue]
+	if !ok {
+		return errors.Errorf("failed recording new job scheduling duration for gang with job %s: no context for queue %s", jctx.JobId, queue)
+	}
+
+	sctx.TotalNewJobSchedulingTime += duration
+	qctx.TotalNewJobSchedulingTime += duration
+
+	return nil
 }
 
 // CalculateTheoreticalShare calculates the maximum potential adjustedFairShare share of a new queue at a given priority.

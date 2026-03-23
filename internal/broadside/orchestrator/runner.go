@@ -18,25 +18,20 @@ import (
 	"github.com/armadaproject/armada/internal/broadside/querier"
 )
 
-const defaultResultsDir = "cmd/broadside/results"
-
 // Runner orchestrates a Broadside load test. It initialises the database,
 // starts the ingester, manages the test lifecycle, and collects metrics.
 type Runner struct {
-	config     configuration.TestConfig
-	resultsDir string
+	config       configuration.TestConfig
+	resultsDir   string
+	runTimestamp string
 }
 
 // NewRunner creates a new Runner with the given test configuration.
-// If resultsDir is empty, results are written to the default directory
-// (cmd/broadside/results).
-func NewRunner(config configuration.TestConfig, resultsDir string) *Runner {
-	if resultsDir == "" {
-		resultsDir = defaultResultsDir
-	}
+func NewRunner(config configuration.TestConfig, resultsDir string, runTimestamp string) *Runner {
 	return &Runner{
-		config:     config,
-		resultsDir: resultsDir,
+		config:       config,
+		resultsDir:   resultsDir,
+		runTimestamp: runTimestamp,
 	}
 }
 
@@ -187,7 +182,7 @@ func (r *Runner) Run(ctx context.Context) error {
 		return fmt.Errorf("creating results directory: %w", err)
 	}
 
-	outputFilename := fmt.Sprintf("broadside-result-%s.json", time.Now().Format("20060102-150405"))
+	outputFilename := fmt.Sprintf("broadside-result-%s.json", r.runTimestamp)
 	outputPath := filepath.Join(resultsDir, outputFilename)
 	if err := metrics.WriteTestResultToFile(testResult, outputPath); err != nil {
 		return fmt.Errorf("writing test result to file: %w", err)
@@ -257,7 +252,12 @@ func (r *Runner) newDatabase() (db.Database, error) {
 func NewDatabase(config configuration.TestConfig) (db.Database, error) {
 	switch {
 	case len(config.DatabaseConfig.Postgres) > 0:
-		return db.NewPostgresDatabase(config.DatabaseConfig.Postgres), nil
+		return db.NewPostgresDatabase(
+			config.DatabaseConfig.Postgres,
+			config.FeatureToggles,
+			config.DatabaseConfig.PostgresTuningSQL,
+			config.DatabaseConfig.PostgresTuningRevertSQL,
+		), nil
 	case len(config.DatabaseConfig.ClickHouse) > 0:
 		return db.NewClickHouseDatabase(config.DatabaseConfig.ClickHouse), nil
 	case config.DatabaseConfig.InMemory:
