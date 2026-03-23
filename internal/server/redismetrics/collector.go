@@ -77,6 +77,33 @@ type Collector struct {
 	collectMu sync.Mutex   // skip-if-busy pattern
 }
 
+func newBytesHistogram() prometheus.Histogram {
+	return prometheus.NewHistogram(prometheus.HistogramOpts{
+		Name: RedisStreamSizeBytesDistributionMetricName,
+		Help: "Distribution of Redis stream sizes in bytes",
+		// Up to 512 GiB with 30 buckets (1 KiB, 2 KiB, 4 KiB, ..., 512 GiB)
+		Buckets: prometheus.ExponentialBuckets(1024, 2, 30),
+	})
+}
+
+func newEventsHistogram() prometheus.Histogram {
+	return prometheus.NewHistogram(prometheus.HistogramOpts{
+		Name: RedisStreamSizeEventsDistributionMetricName,
+		Help: "Distribution of Redis stream event counts",
+		// Up to 536 million events
+		Buckets: prometheus.ExponentialBuckets(10, 2, 30),
+	})
+}
+
+func newAgeHistogram() prometheus.Histogram {
+	return prometheus.NewHistogram(prometheus.HistogramOpts{
+		Name: RedisStreamAgeSecondsDistributionMetricName,
+		Help: "Distribution of Redis stream ages in seconds",
+		// Up to the 388.36 days (1 year) range with 25 buckets
+		Buckets: prometheus.ExponentialBuckets(60, 2, 25),
+	})
+}
+
 // NewCollector creates a new Collector instance.
 func NewCollector(scanner ScannerInterface, config Config, leaderController leader.LeaderController) *Collector {
 	return &Collector{
@@ -105,24 +132,9 @@ func NewCollector(scanner ScannerInterface, config Config, leaderController lead
 			},
 			[]string{"queue", "jobset"},
 		),
-		bytesHistogram: prometheus.NewHistogram(prometheus.HistogramOpts{
-			Name: RedisStreamSizeBytesDistributionMetricName,
-			Help: "Distribution of Redis stream sizes in bytes",
-			// Up to 512 GiB with 30 buckets (1 KiB, 2 KiB, 4 KiB, ..., 512 GiB)
-			Buckets: prometheus.ExponentialBuckets(1024, 2, 30),
-		}),
-		eventsHistogram: prometheus.NewHistogram(prometheus.HistogramOpts{
-			Name: RedisStreamSizeEventsDistributionMetricName,
-			Help: "Distribution of Redis stream event counts",
-			// Up to 536 million events
-			Buckets: prometheus.ExponentialBuckets(10, 2, 30),
-		}),
-		ageHistogram: prometheus.NewHistogram(prometheus.HistogramOpts{
-			Name: RedisStreamAgeSecondsDistributionMetricName,
-			Help: "Distribution of Redis stream ages in seconds",
-			// Up to the 388.36 days (1 year) range with 25 buckets
-			Buckets: prometheus.ExponentialBuckets(60, 2, 25),
-		}),
+		bytesHistogram:  newBytesHistogram(),
+		eventsHistogram: newEventsHistogram(),
+		ageHistogram:    newAgeHistogram(),
 		queueStreamsGauge: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: RedisQueueStreamsMetricName,
@@ -174,10 +186,18 @@ func (c *Collector) Run(ctx *armadacontext.Context) error {
 	defer ticker.Stop()
 
 	ctx.Infof("Will update Redis metrics every %s", c.config.CollectionInterval)
+	wasLeader := false
 	for {
-		if !c.leaderController.GetToken().Leader() {
+		isLeader := c.leaderController.GetToken().Leader()
+		if !isLeader {
 			c.ClearState()
+			wasLeader = false
 		} else {
+			if !wasLeader {
+				c.reallocateHistograms()
+			}
+			wasLeader = true
+
 			err := c.collectOnce(ctx)
 			if err != nil {
 				ctx.Logger().WithError(err).Warnf("error collecting Redis metrics")
@@ -228,6 +248,15 @@ func (c *Collector) Collect(metrics chan<- prometheus.Metric) {
 
 func (c *Collector) ClearState() {
 	c.state.Store([]prometheus.Metric{})
+}
+
+func (c *Collector) reallocateHistograms() {
+	c.collectMu.Lock()
+	defer c.collectMu.Unlock()
+
+	c.bytesHistogram = newBytesHistogram()
+	c.eventsHistogram = newEventsHistogram()
+	c.ageHistogram = newAgeHistogram()
 }
 
 // collectOnce performs a single collection cycle.

@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/require"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/scheduler/leader"
 )
 
@@ -407,7 +409,7 @@ func TestCollector_LeaderMode_EmitsMetrics(t *testing.T) {
 		hasRedisMetrics := false
 		for _, m := range metrics {
 			desc := m.Desc().String()
-			if strings.Contains(desc, "armada_redis_queue") || strings.Contains(desc, "armada_redis_stream") {
+			if strings.Contains(desc, ArmadaRedisMetricsPrefix+"queue") || strings.Contains(desc, ArmadaRedisMetricsPrefix+"stream") {
 				hasRedisMetrics = true
 				break
 			}
@@ -434,7 +436,7 @@ func TestCollector_NonLeaderMode_NoMetrics(t *testing.T) {
 		collector.ClearState()
 
 		for _, m := range collectMetrics(collector) {
-			require.False(t, strings.Contains(m.Desc().String(), "armada_redis_"))
+			require.False(t, strings.Contains(m.Desc().String(), ArmadaRedisMetricsPrefix))
 		}
 	})
 }
@@ -456,7 +458,7 @@ func TestCollector_LeadershipTransition(t *testing.T) {
 
 		hasQueueMetricsAsLeader := false
 		for _, m := range metricsAsLeader {
-			if strings.Contains(m.Desc().String(), "armada_redis_queue") || strings.Contains(m.Desc().String(), "armada_redis_stream") {
+			if strings.Contains(m.Desc().String(), ArmadaRedisMetricsPrefix+"queue") || strings.Contains(m.Desc().String(), ArmadaRedisMetricsPrefix+"stream") {
 				hasQueueMetricsAsLeader = true
 				break
 			}
@@ -466,8 +468,8 @@ func TestCollector_LeadershipTransition(t *testing.T) {
 		leaderController.SetToken(leader.InvalidLeaderToken())
 		collector.ClearState()
 		for _, m := range collectMetrics(collector) {
-			require.False(t, strings.Contains(m.Desc().String(), "armada_redis_queue"))
-			require.False(t, strings.Contains(m.Desc().String(), "armada_redis_stream"))
+			require.False(t, strings.Contains(m.Desc().String(), ArmadaRedisMetricsPrefix+"queue"))
+			require.False(t, strings.Contains(m.Desc().String(), ArmadaRedisMetricsPrefix+"stream"))
 		}
 
 		leaderController.SetToken(leader.NewLeaderToken())
@@ -476,7 +478,7 @@ func TestCollector_LeadershipTransition(t *testing.T) {
 
 		hasQueueMetricsAfterRegain := false
 		for _, m := range metricsAfterRegaining {
-			if strings.Contains(m.Desc().String(), "armada_redis_queue") || strings.Contains(m.Desc().String(), "armada_redis_stream") {
+			if strings.Contains(m.Desc().String(), ArmadaRedisMetricsPrefix+"queue") || strings.Contains(m.Desc().String(), ArmadaRedisMetricsPrefix+"stream") {
 				hasQueueMetricsAfterRegain = true
 				break
 			}
@@ -582,6 +584,296 @@ func (m *mockScanner) ScanAll(ctx context.Context) ([]StreamInfo, error) {
 		return nil, m.err
 	}
 	return m.streams, nil
+}
+
+type blockingMockScanner struct {
+	streams   []StreamInfo
+	err       error
+	startedCh chan int
+	unblockCh chan struct{}
+	calls     atomic.Int64
+}
+
+func newBlockingMockScanner(streams []StreamInfo) *blockingMockScanner {
+	return &blockingMockScanner{
+		streams:   streams,
+		startedCh: make(chan int, 10),
+		unblockCh: make(chan struct{}, 10),
+	}
+}
+
+func (m *blockingMockScanner) ScanAll(ctx context.Context) ([]StreamInfo, error) {
+	call := int(m.calls.Add(1))
+	select {
+	case m.startedCh <- call:
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+
+	select {
+	case <-m.unblockCh:
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+
+	if m.err != nil {
+		return nil, m.err
+	}
+
+	return m.streams, nil
+}
+
+func waitForScanCall(t *testing.T, startedCh <-chan int, expectedCall int) {
+	t.Helper()
+
+	select {
+	case got := <-startedCh:
+		require.Equal(t, expectedCall, got)
+	case <-time.After(3 * time.Second):
+		t.Fatalf("timed out waiting for scan call %d", expectedCall)
+	}
+}
+
+func assertNoScanCall(t *testing.T, startedCh <-chan int, wait time.Duration) {
+	t.Helper()
+
+	select {
+	case got := <-startedCh:
+		t.Fatalf("unexpected scan call %d", got)
+	case <-time.After(wait):
+	}
+}
+
+func histogramSampleCount(t *testing.T, h prometheus.Histogram) uint64 {
+	t.Helper()
+
+	pb := &dto.Metric{}
+	require.NoError(t, h.Write(pb))
+	require.NotNil(t, pb.Histogram)
+
+	return pb.Histogram.GetSampleCount()
+}
+
+func TestCollector_ReallocateHistograms_ResetsSampleCounts(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	scanner := &mockScanner{
+		streams: []StreamInfo{
+			{Queue: "q1", JobSetId: "js1", MemoryBytes: 1024, Length: 10, AgeSeconds: 60},
+			{Queue: "q2", JobSetId: "js2", MemoryBytes: 2048, Length: 20, AgeSeconds: 120},
+			{Queue: "q3", JobSetId: "js3", MemoryBytes: 4096, Length: 30, AgeSeconds: 240},
+		},
+	}
+
+	collector := NewCollector(scanner, testCollectorConfig(5), leader.NewStandaloneLeaderController())
+	require.NoError(t, collector.collectOnce(ctx))
+
+	require.Equal(t, uint64(3), histogramSampleCount(t, collector.bytesHistogram))
+	require.Equal(t, uint64(3), histogramSampleCount(t, collector.eventsHistogram))
+	require.Equal(t, uint64(3), histogramSampleCount(t, collector.ageHistogram))
+
+	collector.reallocateHistograms()
+
+	require.Zero(t, histogramSampleCount(t, collector.bytesHistogram))
+	require.Zero(t, histogramSampleCount(t, collector.eventsHistogram))
+	require.Zero(t, histogramSampleCount(t, collector.ageHistogram))
+
+	require.NoError(t, collector.collectOnce(ctx))
+	require.Equal(t, uint64(3), histogramSampleCount(t, collector.bytesHistogram))
+	require.Equal(t, uint64(3), histogramSampleCount(t, collector.eventsHistogram))
+	require.Equal(t, uint64(3), histogramSampleCount(t, collector.ageHistogram))
+}
+
+func TestCollector_ReallocateHistograms_DoesNotAffectGaugesOrCounters(t *testing.T) {
+	collector := NewCollector(&mockScanner{}, testCollectorConfig(5), leader.NewStandaloneLeaderController())
+
+	collector.queueStreamsGauge.WithLabelValues("queue-a").Set(5)
+	collector.queueMemoryGauge.WithLabelValues("queue-a").Set(2048)
+	collector.queueEventsGauge.WithLabelValues("queue-a").Set(150)
+	collector.errorsTotal.Inc()
+	collector.errorsTotal.Inc()
+
+	collector.reallocateHistograms()
+
+	require.Equal(t, 5.0, testutil.ToFloat64(collector.queueStreamsGauge.WithLabelValues("queue-a")))
+	require.Equal(t, 2048.0, testutil.ToFloat64(collector.queueMemoryGauge.WithLabelValues("queue-a")))
+	require.Equal(t, 150.0, testutil.ToFloat64(collector.queueEventsGauge.WithLabelValues("queue-a")))
+	require.Equal(t, 2.0, testutil.ToFloat64(collector.errorsTotal))
+}
+
+func TestCollector_ReallocateHistograms_ConcurrentWithCollectOnce(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	scanner := &mockScanner{
+		streams: []StreamInfo{
+			{Queue: "q1", JobSetId: "js1", MemoryBytes: 1024, Length: 10, AgeSeconds: 60},
+			{Queue: "q2", JobSetId: "js2", MemoryBytes: 2048, Length: 20, AgeSeconds: 120},
+		},
+	}
+
+	collector := NewCollector(scanner, testCollectorConfig(5), leader.NewStandaloneLeaderController())
+
+	var collectCalls atomic.Int64
+	var collectSuccess atomic.Int64
+	var reallocCalls atomic.Int64
+
+	const workers = 8
+	const iterationsPerWorker = 200
+
+	var wg sync.WaitGroup
+	for i := 0; i < workers; i++ {
+		wg.Add(1)
+		go func(worker int) {
+			defer wg.Done()
+			for j := 0; j < iterationsPerWorker; j++ {
+				if worker%2 == 0 {
+					collectCalls.Add(1)
+					err := collector.collectOnce(ctx)
+					if err == nil {
+						collectSuccess.Add(1)
+						continue
+					}
+					require.ErrorContains(t, err, "previous collection still running, skipping")
+					continue
+				}
+
+				reallocCalls.Add(1)
+				collector.reallocateHistograms()
+			}
+		}(i)
+	}
+
+	wg.Wait()
+
+	require.Equal(t, int64(workers/2*iterationsPerWorker), collectCalls.Load())
+	require.Equal(t, int64(workers/2*iterationsPerWorker), reallocCalls.Load())
+	require.Greater(t, collectSuccess.Load(), int64(0))
+}
+
+func TestCollector_Run_ReacquiredLeadership_ReallocatesHistogramsBeforeCollect(t *testing.T) {
+	streams := []StreamInfo{{Queue: "q1", JobSetId: "js1", MemoryBytes: 1024, Length: 10, AgeSeconds: 60}}
+	scanner := newBlockingMockScanner(streams)
+
+	config := testCollectorConfig(5)
+	config.CollectionInterval = 200 * time.Millisecond
+
+	leaderController := leader.NewStandaloneLeaderController()
+	leaderController.SetToken(leader.NewLeaderToken())
+
+	collector := NewCollector(scanner, config, leaderController)
+
+	runCtx, cancel := armadacontext.WithCancel(armadacontext.Background())
+	defer cancel()
+
+	runErr := make(chan error, 1)
+	go func() {
+		runErr <- collector.Run(runCtx)
+	}()
+
+	waitForScanCall(t, scanner.startedCh, 1)
+	scanner.unblockCh <- struct{}{}
+	require.Eventually(t, func() bool {
+		return histogramSampleCount(t, collector.bytesHistogram) == 1
+	}, 2*time.Second, 10*time.Millisecond)
+
+	leaderController.SetToken(leader.InvalidLeaderToken())
+	time.Sleep(config.CollectionInterval + 50*time.Millisecond)
+
+	leaderController.SetToken(leader.NewLeaderToken())
+	waitForScanCall(t, scanner.startedCh, 2)
+	scanner.unblockCh <- struct{}{}
+
+	require.Eventually(t, func() bool {
+		return histogramSampleCount(t, collector.bytesHistogram) == 1
+	}, 2*time.Second, 10*time.Millisecond)
+
+	cancel()
+	require.NoError(t, <-runErr)
+}
+
+func TestCollector_Run_MultipleLeadershipFlaps_ReallocatesOnEachReacquisition(t *testing.T) {
+	streams := []StreamInfo{{Queue: "q1", JobSetId: "js1", MemoryBytes: 1024, Length: 10, AgeSeconds: 60}}
+	scanner := newBlockingMockScanner(streams)
+
+	config := testCollectorConfig(5)
+	config.CollectionInterval = 200 * time.Millisecond
+
+	leaderController := leader.NewStandaloneLeaderController()
+	leaderController.SetToken(leader.NewLeaderToken())
+
+	collector := NewCollector(scanner, config, leaderController)
+
+	runCtx, cancel := armadacontext.WithCancel(armadacontext.Background())
+	defer cancel()
+
+	runErr := make(chan error, 1)
+	go func() {
+		runErr <- collector.Run(runCtx)
+	}()
+
+	waitForScanCall(t, scanner.startedCh, 1)
+	scanner.unblockCh <- struct{}{}
+	require.Eventually(t, func() bool {
+		return histogramSampleCount(t, collector.bytesHistogram) == 1
+	}, 2*time.Second, 10*time.Millisecond)
+
+	leaderController.SetToken(leader.InvalidLeaderToken())
+	time.Sleep(config.CollectionInterval + 50*time.Millisecond)
+	leaderController.SetToken(leader.NewLeaderToken())
+
+	waitForScanCall(t, scanner.startedCh, 2)
+	scanner.unblockCh <- struct{}{}
+	require.Eventually(t, func() bool {
+		return histogramSampleCount(t, collector.bytesHistogram) == 1
+	}, 2*time.Second, 10*time.Millisecond)
+
+	leaderController.SetToken(leader.InvalidLeaderToken())
+	time.Sleep(config.CollectionInterval + 50*time.Millisecond)
+	leaderController.SetToken(leader.NewLeaderToken())
+
+	waitForScanCall(t, scanner.startedCh, 3)
+	scanner.unblockCh <- struct{}{}
+	require.Eventually(t, func() bool {
+		return histogramSampleCount(t, collector.bytesHistogram) == 1
+	}, 2*time.Second, 10*time.Millisecond)
+
+	cancel()
+	require.NoError(t, <-runErr)
+}
+
+func TestCollector_Run_StartsNonLeader_ThenBecomesLeader_ReallocatesBeforeFirstCollect(t *testing.T) {
+	streams := []StreamInfo{{Queue: "q1", JobSetId: "js1", MemoryBytes: 1024, Length: 10, AgeSeconds: 60}}
+	scanner := newBlockingMockScanner(streams)
+
+	config := testCollectorConfig(5)
+	config.CollectionInterval = 200 * time.Millisecond
+
+	leaderController := leader.NewStandaloneLeaderController()
+	leaderController.SetToken(leader.InvalidLeaderToken())
+
+	collector := NewCollector(scanner, config, leaderController)
+
+	runCtx, cancel := armadacontext.WithCancel(armadacontext.Background())
+	defer cancel()
+
+	runErr := make(chan error, 1)
+	go func() {
+		runErr <- collector.Run(runCtx)
+	}()
+
+	assertNoScanCall(t, scanner.startedCh, config.CollectionInterval+50*time.Millisecond)
+
+	leaderController.SetToken(leader.NewLeaderToken())
+	waitForScanCall(t, scanner.startedCh, 1)
+	scanner.unblockCh <- struct{}{}
+	require.Eventually(t, func() bool {
+		return histogramSampleCount(t, collector.bytesHistogram) == 1
+	}, 2*time.Second, 10*time.Millisecond)
+
+	cancel()
+	require.NoError(t, <-runErr)
 }
 
 func TestHistogramBuckets_BytesDistribution(t *testing.T) {
