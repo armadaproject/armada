@@ -407,7 +407,7 @@ func TestCollector_LeaderMode_EmitsMetrics(t *testing.T) {
 		hasRedisMetrics := false
 		for _, m := range metrics {
 			desc := m.Desc().String()
-			if strings.Contains(desc, "armada_redis_queue") || strings.Contains(desc, "armada_redis_stream") {
+			if strings.Contains(desc, ArmadaRedisMetricsPrefix+"queue") || strings.Contains(desc, ArmadaRedisMetricsPrefix+"stream") {
 				hasRedisMetrics = true
 				break
 			}
@@ -434,7 +434,7 @@ func TestCollector_NonLeaderMode_NoMetrics(t *testing.T) {
 		collector.ClearState()
 
 		for _, m := range collectMetrics(collector) {
-			require.False(t, strings.Contains(m.Desc().String(), "armada_redis_"))
+			require.False(t, strings.Contains(m.Desc().String(), ArmadaRedisMetricsPrefix))
 		}
 	})
 }
@@ -456,7 +456,7 @@ func TestCollector_LeadershipTransition(t *testing.T) {
 
 		hasQueueMetricsAsLeader := false
 		for _, m := range metricsAsLeader {
-			if strings.Contains(m.Desc().String(), "armada_redis_queue") || strings.Contains(m.Desc().String(), "armada_redis_stream") {
+			if strings.Contains(m.Desc().String(), ArmadaRedisMetricsPrefix+"queue") || strings.Contains(m.Desc().String(), ArmadaRedisMetricsPrefix+"stream") {
 				hasQueueMetricsAsLeader = true
 				break
 			}
@@ -466,8 +466,8 @@ func TestCollector_LeadershipTransition(t *testing.T) {
 		leaderController.SetToken(leader.InvalidLeaderToken())
 		collector.ClearState()
 		for _, m := range collectMetrics(collector) {
-			require.False(t, strings.Contains(m.Desc().String(), "armada_redis_queue"))
-			require.False(t, strings.Contains(m.Desc().String(), "armada_redis_stream"))
+			require.False(t, strings.Contains(m.Desc().String(), ArmadaRedisMetricsPrefix+"queue"))
+			require.False(t, strings.Contains(m.Desc().String(), ArmadaRedisMetricsPrefix+"stream"))
 		}
 
 		leaderController.SetToken(leader.NewLeaderToken())
@@ -476,7 +476,7 @@ func TestCollector_LeadershipTransition(t *testing.T) {
 
 		hasQueueMetricsAfterRegain := false
 		for _, m := range metricsAfterRegaining {
-			if strings.Contains(m.Desc().String(), "armada_redis_queue") || strings.Contains(m.Desc().String(), "armada_redis_stream") {
+			if strings.Contains(m.Desc().String(), ArmadaRedisMetricsPrefix+"queue") || strings.Contains(m.Desc().String(), ArmadaRedisMetricsPrefix+"stream") {
 				hasQueueMetricsAfterRegain = true
 				break
 			}
