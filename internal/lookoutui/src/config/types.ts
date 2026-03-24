@@ -1,3 +1,5 @@
+import { OidcStandardClaims } from "oidc-client-ts"
+
 import { LookoutThemeConfigOptions } from "../theme"
 
 export interface SentryConfig {
@@ -14,6 +16,7 @@ export interface OidcConfig {
   clientId: string
   scope: string
   loadUserInfo: boolean
+  displayNameClaim?: keyof OidcStandardClaims
 }
 
 export interface CommandSpec {

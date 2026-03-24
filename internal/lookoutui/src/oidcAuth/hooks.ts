@@ -2,8 +2,12 @@ import { useCallback, useContext, useEffect, useState } from "react"
 
 import { UserManager } from "oidc-client-ts"
 
+import { getConfig } from "../config"
+
 import { OidcAuthContext } from "./OidcAuthContext"
 import { appendAuthorizationHeaders } from "./utils"
+
+const config = getConfig()
 
 export const useUserManager = (): UserManager | undefined => useContext(OidcAuthContext)?.userManager
 
@@ -21,6 +25,13 @@ export const useUsername = (): string | null => {
         return
       }
 
+      if (config.oidc?.displayNameClaim) {
+        const displayName = user.profile[config.oidc.displayNameClaim]
+        if (typeof displayName === "string") {
+          setUsername(displayName)
+          return
+        }
+      }
       setUsername(user.profile.sub)
     })()
   }, [userManager])
