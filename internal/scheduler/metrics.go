@@ -7,6 +7,8 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/exp/maps"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 	"k8s.io/utils/clock"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -25,6 +27,9 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api"
 )
+
+// titleCaser is a reusable, concurrency-safe caser for title-casing strings.
+var titleCaser = cases.Title(language.English)
 
 // Metrics Recorders associated with a queue
 type queueState struct {
@@ -481,7 +486,7 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 						nodeType:    node.ReportingNodeType,
 						reservation: reservation,
 						// Convert to string with first letter capitalised
-						phase: strings.Title(strings.ToLower(phase)),
+						phase: titleCaser.String(strings.ToLower(phase)),
 					}
 					phaseCountByQueue[key]++
 
@@ -490,7 +495,7 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 						nodeJobsMetricCounts[nodeJobPhaseMetricKey{
 							node:    node.Name,
 							cluster: executor.Id,
-							phase:   strings.Title(strings.ToLower(phase)),
+							phase:   titleCaser.String(strings.ToLower(phase)),
 						}]++
 					}
 
