@@ -54,6 +54,12 @@ var (
 		80:  "ingress.example.com",
 		443: "ingress-backup.example.com",
 	}
+	testFailureInfo = map[string]any{
+		"condition":          "FAILURE_CONDITION_OOM_KILLED",
+		"exitCode":           float64(137),
+		"terminationMessage": "OOM killed",
+		"categories":         []interface{}{"RESOURCE_LIMIT"},
+	}
 )
 
 var (
@@ -110,6 +116,7 @@ type JobRunRow struct {
 	Debug            []byte
 	ExitCode         *int32
 	IngressAddresses map[int32]string
+	FailureInfo      map[string]any
 }
 
 type JobErrorRow struct {
@@ -145,6 +152,7 @@ func defaultInstructionSet() *model.InstructionSet {
 			JobRunState:      pointer.Int32(lookout.JobRunSucceededOrdinal),
 			ExitCode:         pointer.Int32(0),
 			IngressAddresses: cloneIngressAddresses(updatedIngressAddresses),
+			FailureInfo:      testFailureInfo,
 		}},
 		JobErrorsToCreate: []*model.CreateJobErrorInstruction{{
 			JobId: JobId,
@@ -222,6 +230,7 @@ var expectedJobRunAfterUpdate = JobRunRow{
 	ExitCode:         pointer.Int32(0),
 	Debug:            []byte(testfixtures.DebugMsg),
 	IngressAddresses: cloneIngressAddresses(updatedIngressAddresses),
+	FailureInfo:      testFailureInfo,
 }
 
 func TestCreateJobsBatch(t *testing.T) {
@@ -1064,10 +1073,12 @@ func getJobRun(t *testing.T, db *pgxpool.Pool, runId string) JobRunRow {
 			error,
 			exit_code,
 			debug,
-			ingress_addresses
+			ingress_addresses,
+			failure_info
 		FROM job_run WHERE run_id = $1`,
 		runId)
 	var ingressJSON []byte
+	var failureInfoJSON []byte
 	err := r.Scan(
 		&run.RunId,
 		&run.JobId,
@@ -1081,10 +1092,15 @@ func getJobRun(t *testing.T, db *pgxpool.Pool, runId string) JobRunRow {
 		&run.ExitCode,
 		&run.Debug,
 		&ingressJSON,
+		&failureInfoJSON,
 	)
 	assert.NoError(t, err)
 	if len(ingressJSON) > 0 {
 		err = json.Unmarshal(ingressJSON, &run.IngressAddresses)
+		assert.NoError(t, err)
+	}
+	if len(failureInfoJSON) > 0 {
+		err = json.Unmarshal(failureInfoJSON, &run.FailureInfo)
 		assert.NoError(t, err)
 	}
 	return run
