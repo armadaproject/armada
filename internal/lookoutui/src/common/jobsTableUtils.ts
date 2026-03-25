@@ -12,6 +12,7 @@ import {
   DEFAULT_COLUMN_MATCHES,
   fromAnnotationColId,
   isStandardColId,
+  CLIENT_SIDE_FILTER_COLUMNS,
   StandardColumnId,
   TIME_RANGE_FILTER_COLUMNS,
   VALID_COLUMN_MATCHES,
@@ -130,6 +131,10 @@ export function getFiltersForRow(
 ): JobFilter[] {
   const filterColumnsIndexes = new Map<string, number>()
   const jobFilters = filters.flatMap(({ id, value }, i) => {
+    // Skip client-side-only filters; they are applied in-browser, not via the API.
+    if (isStandardColId(id) && CLIENT_SIDE_FILTER_COLUMNS.has(id)) {
+      return []
+    }
     const isArray = _.isArray(value)
     const isAnnotation = !isStandardColId(id)
     let field = id
