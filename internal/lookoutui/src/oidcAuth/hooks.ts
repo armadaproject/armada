@@ -31,6 +31,10 @@ export const useUsername = (): string | null => {
           setUsername(displayName)
           return
         }
+        // eslint-disable-next-line no-console
+        console.warn(
+          `[useUsername] displayNameClaim "${config.oidc.displayNameClaim}" not found or not a string in OIDC profile; falling back to "sub"`,
+        )
       }
       setUsername(user.profile.sub)
     })()
