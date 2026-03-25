@@ -127,7 +127,7 @@ func cancelExecutorCmd() *cobra.Command {
 		"all-priority-classes",
 		"a",
 		false,
-		"Preempt jobs on executor for all priority classes.",
+		"Cancel jobs on executor for all priority classes.",
 	)
 	cmd.Flags().StringSlice(
 		"pools",
