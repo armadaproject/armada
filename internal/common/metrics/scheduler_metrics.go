@@ -154,7 +154,7 @@ var JobRunDurationDesc = prometheus.NewDesc(
 var QueueAllocatedDesc = prometheus.NewDesc(
 	MetricPrefix+"queue_resource_allocated",
 	"Resource allocated to running jobs of a queue",
-	[]string{"cluster", labelPool, labelPriorityClass, labelQueueName, labelQueue, labelPriceBand, labelResourceType, labelNodeType, labelReservation, labelPhysicalPool},
+	[]string{labelCluster, labelPool, labelPriorityClass, labelQueueName, labelQueue, labelPriceBand, labelResourceType, labelNodeType, labelReservation, labelPhysicalPool},
 	nil,
 )
 
@@ -182,14 +182,14 @@ var MedianQueueAllocatedDesc = prometheus.NewDesc(
 var QueueUsedDesc = prometheus.NewDesc(
 	MetricPrefix+"queue_resource_used",
 	"Resource actually being used by running jobs of a queue",
-	[]string{"cluster", labelPool, labelQueueName, labelQueue, labelResourceType, labelNodeType, labelReservation, labelPhysicalPool},
+	[]string{labelCluster, labelPool, labelQueueName, labelQueue, labelResourceType, labelNodeType, labelReservation, labelPhysicalPool},
 	nil,
 )
 
 var QueueLeasedPodCountDesc = prometheus.NewDesc(
 	MetricPrefix+"queue_leased_pod_count",
 	"Number of leased pods",
-	[]string{"cluster", labelPool, labelQueueName, labelQueue, labelPhase, labelNodeType, labelReservation},
+	[]string{labelCluster, labelPool, labelQueueName, labelQueue, labelPhase, labelNodeType, labelReservation},
 	nil,
 )
 
