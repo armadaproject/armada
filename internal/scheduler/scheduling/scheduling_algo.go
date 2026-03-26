@@ -445,7 +445,6 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 		jobSchedulingInfo.allocatedByQueueAndPriorityClass,
 		jobSchedulingInfo.awayAllocatedByQueueAndPriorityClass,
 		jobSchedulingInfo.shortJobPenaltyByQueue,
-		jobSchedulingInfo.awayShortJobPenaltyByQueue,
 		queueByName)
 	if err != nil {
 		return nil, err
@@ -467,7 +466,6 @@ type jobSchedulingInfo struct {
 	allocatedByQueueAndPriorityClass     map[string]map[string]internaltypes.ResourceList
 	awayAllocatedByQueueAndPriorityClass map[string]map[string]internaltypes.ResourceList
 	shortJobPenaltyByQueue               map[string]internaltypes.ResourceList
-	awayShortJobPenaltyByQueue           map[string]internaltypes.ResourceList
 }
 
 func (l *FairSchedulingAlgo) calculateJobSchedulingInfo(ctx *armadacontext.Context, activeExecutorsSet map[string]bool,
@@ -479,7 +477,6 @@ func (l *FairSchedulingAlgo) calculateJobSchedulingInfo(ctx *armadacontext.Conte
 	allocatedByQueueAndPriorityClass := make(map[string]map[string]internaltypes.ResourceList)
 	awayAllocatedByQueueAndPriorityClass := make(map[string]map[string]internaltypes.ResourceList)
 	shortJobPenaltyByQueue := make(map[string]internaltypes.ResourceList)
-	awayShortJobPenaltyByQueue := make(map[string]internaltypes.ResourceList)
 
 	for _, job := range jobs {
 		queue, present := queues[job.Queue()]
@@ -493,8 +490,6 @@ func (l *FairSchedulingAlgo) calculateJobSchedulingInfo(ctx *armadacontext.Conte
 			jobRequirements := job.AllResourceRequirements()
 			if jobPool == currentPool {
 				shortJobPenaltyByQueue[queue.Name] = shortJobPenaltyByQueue[queue.Name].Add(jobRequirements)
-			} else if slices.Contains(awayAllocationPools, jobPool) {
-				awayShortJobPenaltyByQueue[queue.Name] = awayShortJobPenaltyByQueue[queue.Name].Add(jobRequirements)
 			}
 		}
 
@@ -582,7 +577,6 @@ func (l *FairSchedulingAlgo) calculateJobSchedulingInfo(ctx *armadacontext.Conte
 		allocatedByQueueAndPriorityClass:     allocatedByQueueAndPriorityClass,
 		awayAllocatedByQueueAndPriorityClass: awayAllocatedByQueueAndPriorityClass,
 		shortJobPenaltyByQueue:               shortJobPenaltyByQueue,
-		awayShortJobPenaltyByQueue:           awayShortJobPenaltyByQueue,
 	}, nil
 }
 
@@ -612,7 +606,6 @@ func (l *FairSchedulingAlgo) constructSchedulingContext(
 	allocationByQueueAndPriorityClass map[string]map[string]internaltypes.ResourceList,
 	awayAllocationByQueueAndPriorityClass map[string]map[string]internaltypes.ResourceList,
 	shortJobPenaltyByQueue map[string]internaltypes.ResourceList,
-	awayShortJobPenaltyByQueue map[string]internaltypes.ResourceList,
 	queues map[string]*api.Queue,
 ) (*schedulercontext.SchedulingContext, error) {
 	fairnessCostProvider, err := fairness.NewDominantResourceFairness(totalCapacity, pool, l.schedulingConfig)
@@ -682,7 +675,7 @@ func (l *FairSchedulingAlgo) constructSchedulingContext(
 			weight = 1 / overridePriority
 		}
 
-		if err := sctx.AddQueueSchedulingContext(schedulercontext.CalculateAwayQueueName(queue.Name), weight, rawWeight, allocation, internaltypes.ResourceList{}, internaltypes.ResourceList{}, awayShortJobPenaltyByQueue[queue.Name], nil); err != nil {
+		if err := sctx.AddQueueSchedulingContext(schedulercontext.CalculateAwayQueueName(queue.Name), weight, rawWeight, allocation, internaltypes.ResourceList{}, internaltypes.ResourceList{}, internaltypes.ResourceList{}, nil); err != nil {
 			return nil, err
 		}
 	}
