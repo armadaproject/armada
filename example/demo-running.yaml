@@ -1,0 +1,26 @@
+# Demo: job that runs for 5 minutes — stays RUNNING long enough to demonstrate live introspection.
+# Use: armadactl native-describe pod <job-id>
+#      armadactl kubectl-cache-describe pod <job-id>
+queue: example
+jobSetId: demo-running
+jobs:
+  - namespace: default
+    priority: 0
+    podSpec:
+      terminationGracePeriodSeconds: 0
+      restartPolicy: Never
+      containers:
+        - name: running-job
+          image: alpine:latest
+          command:
+            - sh
+          args:
+            - -c
+            - sleep 300
+          resources:
+            limits:
+              memory: 128Mi
+              cpu: "0.2"
+            requests:
+              memory: 128Mi
+              cpu: "0.2"
