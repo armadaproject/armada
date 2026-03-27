@@ -16,6 +16,8 @@ import (
 	log "github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/eventingester/metrics"
+	"github.com/armadaproject/armada/internal/eventingester/model"
 )
 
 // HasPulsarMessageIds should be implemented by structs that can store a batch of pulsar message ids
@@ -207,6 +209,9 @@ func (i *IngestionPipeline[T, U]) Run(ctx *armadacontext.Context) error {
 			converted := i.converter.Convert(ctx, batch)
 			taken := time.Now().Sub(start)
 			log.Infof("%s - Processed %d pulsar messages in %dms", i.pulsarTopic, len(batch.MessageIds), taken.Milliseconds())
+
+			i.recordBatchMetrics(converted)
+
 			instructions <- converted
 		}
 		close(instructions)
@@ -301,4 +306,19 @@ func (i *IngestionPipeline[T, U]) subscribe() (pulsar.Client, pulsar.Consumer, f
 		consumer.Close()
 		pulsarClient.Close()
 	}, nil
+}
+
+func (i *IngestionPipeline[T, U]) recordBatchMetrics(converted T) {
+	batchUpdate, ok := any(converted).(*model.BatchUpdate)
+	if !ok {
+		return
+	}
+
+	for queue, compressedTotal := range batchUpdate.CompressedTotalByQueue {
+		uncompressedTotal := batchUpdate.UncompressedTotalByQueue[queue]
+
+		metrics.RecordBatchSize(queue, compressedTotal)
+		metrics.RecordBatchCompressionRatio(queue, compressedTotal, uncompressedTotal)
+		metrics.RecordBatchCount(queue)
+	}
 }

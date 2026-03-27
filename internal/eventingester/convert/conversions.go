@@ -1,6 +1,8 @@
 package convert
 
 import (
+	"fmt"
+
 	"github.com/gogo/protobuf/proto"
 	"github.com/pkg/errors"
 
@@ -11,6 +13,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/ingest/metrics"
 	"github.com/armadaproject/armada/internal/common/ingest/utils"
 	log "github.com/armadaproject/armada/internal/common/logging"
+	eventingestermetrics "github.com/armadaproject/armada/internal/eventingester/metrics"
 	"github.com/armadaproject/armada/internal/eventingester/model"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
@@ -42,16 +45,51 @@ func (ec *EventConverter) Convert(ctx *armadacontext.Context, eventsWithIds *uti
 		// This should never happen. We pass strict=false to theabove sequence
 		panic(errors.WithMessage(err, "Failed to limit sequence by size"))
 	}
+
+	// Batch-level aggregators for compression ratio calculation
+	var batchUncompressedTotal uint64
+	var batchCompressedTotal uint64
+
+	// Queue-scoped aggregators for batch metrics
+	uncompressedByQueue := make(map[string]uint64)
+	compressedByQueue := make(map[string]uint64)
+
+	// Store per-event metadata for deferred metric recording
+	type eventMetadata struct {
+		eventType        string
+		queue            string
+		uncompressedSize uint64
+	}
+	eventMetadataList := make([]eventMetadata, 0)
+
 	events := make([]*model.Event, 0)
 	for _, es := range sequences {
-		// Remove the jobset Name and the queue from the proto as this will be stored as the key
 		queue := es.Queue
 		jobset := es.JobSetName
 		es.JobSetName = ""
 		es.Queue = ""
 
-		// Remove cancellation reason as it's not needed for public event store
 		clearCancellationReason(es)
+
+		sequenceUncompressedTotal := uint64(0)
+		for _, event := range es.Events {
+			uncompressedSize := uint64(proto.Size(event))
+			batchUncompressedTotal += uncompressedSize
+			sequenceUncompressedTotal += uncompressedSize
+
+			eventType := fmt.Sprintf("%T", event.GetEvent())
+			if eventType == "" {
+				eventType = "unknown"
+			}
+
+			eventingestermetrics.RecordUncompressedEventSize(eventType, queue, uncompressedSize)
+
+			eventMetadataList = append(eventMetadataList, eventMetadata{
+				eventType:        eventType,
+				queue:            queue,
+				uncompressedSize: uncompressedSize,
+			})
+		}
 
 		bytes, err := proto.Marshal(es)
 		if err != nil {
@@ -66,6 +104,12 @@ func (ec *EventConverter) Convert(ctx *armadacontext.Context, eventsWithIds *uti
 			continue
 		}
 
+		sequenceCompressedSize := uint64(len(compressedBytes))
+		batchCompressedTotal += sequenceCompressedSize
+
+		uncompressedByQueue[queue] += sequenceUncompressedTotal
+		compressedByQueue[queue] += sequenceCompressedSize
+
 		events = append(events, &model.Event{
 			Queue:  queue,
 			Jobset: jobset,
@@ -73,9 +117,25 @@ func (ec *EventConverter) Convert(ctx *armadacontext.Context, eventsWithIds *uti
 		})
 	}
 
+	// Compute batch compression ratio with zero guard
+	var batchRatio float64
+	if batchUncompressedTotal == 0 {
+		batchRatio = 0
+	} else {
+		batchRatio = float64(batchCompressedTotal) / float64(batchUncompressedTotal)
+	}
+
+	// Record estimated compressed size for each event using batch ratio
+	for _, metadata := range eventMetadataList {
+		estimatedCompressed := float64(metadata.uncompressedSize) * batchRatio
+		eventingestermetrics.RecordEstimatedCompressedEventSize(metadata.eventType, metadata.queue, estimatedCompressed)
+	}
+
 	return &model.BatchUpdate{
-		MessageIds: eventsWithIds.MessageIds,
-		Events:     events,
+		MessageIds:               eventsWithIds.MessageIds,
+		Events:                   events,
+		UncompressedTotalByQueue: uncompressedByQueue,
+		CompressedTotalByQueue:   compressedByQueue,
 	}
 }
 

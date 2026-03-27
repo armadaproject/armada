@@ -109,3 +109,13 @@ func RecordBatchCompressionRatio(queue string, compressedBatchBytes, uncompresse
 func RecordBatchCount(queue string) {
 	batchCount.WithLabelValues(queue).Inc()
 }
+
+// UncompressedEventSizeMetric returns the uncompressed event size counter for testing.
+func UncompressedEventSizeMetric() *prometheus.CounterVec {
+	return uncompressedEventSize
+}
+
+// EstimatedCompressedEventSizeMetric returns the estimated compressed event size counter for testing.
+func EstimatedCompressedEventSizeMetric() *prometheus.CounterVec {
+	return estimatedCompressedEventSize
+}

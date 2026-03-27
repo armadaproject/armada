@@ -8,6 +8,9 @@ import (
 type BatchUpdate struct {
 	MessageIds []pulsar.MessageID
 	Events     []*Event
+	// Metric-only fields for batch-level instrumentation
+	UncompressedTotalByQueue map[string]uint64 // queue -> uncompressed batch total
+	CompressedTotalByQueue   map[string]uint64 // queue -> compressed batch total
 }
 
 func (b *BatchUpdate) GetMessageIDs() []pulsar.MessageID {
