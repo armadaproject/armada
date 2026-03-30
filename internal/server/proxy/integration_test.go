@@ -16,6 +16,7 @@ import (
 	"google.golang.org/grpc/test/bufconn"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/common/auth"
 	"github.com/armadaproject/armada/internal/common/auth/permission"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/client/queue"
@@ -41,6 +42,17 @@ func (a fakeAuthorizer) AuthorizeQueueAction(_ *armadacontext.Context, _ queue.Q
 	return nil
 }
 
+// queueDenyAuthorizer permits global actions but denies all queue actions.
+type queueDenyAuthorizer struct{}
+
+func (a *queueDenyAuthorizer) AuthorizeAction(_ *armadacontext.Context, _ permission.Permission) error {
+	return nil
+}
+
+func (a *queueDenyAuthorizer) AuthorizeQueueAction(_ *armadacontext.Context, _ queue.Queue, _ permission.Permission, _ queue.PermissionVerb) error {
+	return status.Error(codes.PermissionDenied, "no queue access")
+}
+
 // fakeJobResolver is a test double for jobResolver.
 type fakeJobResolver struct {
 	result *ResolvedJob
@@ -54,7 +66,18 @@ func (r *fakeJobResolver) ResolveRunningJob(_ context.Context, _ string) (*Resol
 	if r.result != nil {
 		return r.result, nil
 	}
-	return &ResolvedJob{ExecutorID: "e1", Namespace: "ns", RunID: "run1"}, nil
+	return &ResolvedJob{ExecutorID: "e1", Namespace: "ns", RunID: "run1", Queue: "test-queue"}, nil
+}
+
+// fakeQueueRepository always returns a queue with the given name.
+type fakeQueueRepository struct{}
+
+func (r *fakeQueueRepository) GetQueue(_ *armadacontext.Context, name string) (queue.Queue, error) {
+	return queue.Queue{Name: name}, nil
+}
+
+func (r *fakeQueueRepository) GetAllQueues(_ *armadacontext.Context) ([]queue.Queue, error) {
+	return nil, nil
 }
 
 // integrationTestServer holds an in-process gRPC server using bufconn.
@@ -65,11 +88,11 @@ type integrationTestServer struct {
 	proxyClient proxyapi.ExecutorProxyApiClient
 }
 
-func newIntegrationTestServer(t *testing.T, authorizer fakeAuthorizer, resolver jobResolver) *integrationTestServer {
+func newIntegrationTestServer(t *testing.T, authorizer auth.ActionAuthorizer, resolver jobResolver) *integrationTestServer {
 	t.Helper()
 
 	registry := NewExecutorRegistry(90*time.Second, 60*time.Second)
-	svc := NewProxyService(registry, resolver, authorizer)
+	svc := NewProxyService(registry, resolver, authorizer, &fakeQueueRepository{})
 
 	lis := bufconn.Listen(bufSize)
 	srv := grpc.NewServer()
@@ -294,6 +317,24 @@ func TestIntegration_ExecProxy_AuthRejection(t *testing.T) {
 	}))
 
 	_, err = execStream.Recv()
+	require.Error(t, err)
+	assert.Equal(t, codes.PermissionDenied, status.Code(err))
+}
+
+func TestIntegration_QueueOwnership_Rejection(t *testing.T) {
+	srv := newIntegrationTestServer(t, &queueDenyAuthorizer{}, &fakeJobResolver{})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	stream, err := srv.userClient.Exec(ctx)
+	require.NoError(t, err)
+
+	require.NoError(t, stream.Send(&api.ExecRequest{
+		Payload: &api.ExecRequest_Init{Init: &api.ExecInit{JobId: "job1", Command: []string{"/bin/sh"}}},
+	}))
+
+	_, err = stream.Recv()
 	require.Error(t, err)
 	assert.Equal(t, codes.PermissionDenied, status.Code(err))
 }

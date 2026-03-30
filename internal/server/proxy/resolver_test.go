@@ -53,6 +53,7 @@ func TestResolver_RunningJobFound(t *testing.T) {
 	assert.Equal(t, "executor-1", resolved.ExecutorID)
 	assert.Equal(t, "ns-1", resolved.Namespace)
 	assert.Equal(t, runID, resolved.RunID)
+	assert.Equal(t, "q", resolved.Queue)
 }
 
 func TestResolver_NonRunningJob(t *testing.T) {

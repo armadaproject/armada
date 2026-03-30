@@ -21,6 +21,7 @@ type ResolvedJob struct {
 	ExecutorID string
 	Namespace  string
 	RunID      string
+	Queue      string
 }
 
 // JobResolver looks up running jobs in the Lookout database.
@@ -39,7 +40,7 @@ func NewJobResolver(db *pgxpool.Pool) *JobResolver {
 // Uses lookout.JobRunRunningOrdinal (= 2) to identify running runs.
 func (r *JobResolver) ResolveRunningJob(ctx context.Context, jobID string) (*ResolvedJob, error) {
 	const query = `
-		SELECT jr.run_id, jr.cluster AS executor_id, j.namespace
+		SELECT jr.run_id, jr.cluster AS executor_id, j.namespace, j.queue
 		FROM job_run jr
 		JOIN job j ON jr.job_id = j.job_id
 		WHERE jr.job_id = $1
@@ -50,7 +51,7 @@ func (r *JobResolver) ResolveRunningJob(ctx context.Context, jobID string) (*Res
 	row := r.db.QueryRow(ctx, query, jobID, lookout.JobRunRunningOrdinal)
 
 	var res ResolvedJob
-	err := row.Scan(&res.RunID, &res.ExecutorID, &res.Namespace)
+	err := row.Scan(&res.RunID, &res.ExecutorID, &res.Namespace, &res.Queue)
 	if err != nil {
 		// Check if the job exists at all (to give a better error message).
 		var count int

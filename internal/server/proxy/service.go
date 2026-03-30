@@ -13,7 +13,9 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/auth"
 	"github.com/armadaproject/armada/internal/server/permissions"
+	serverqueue "github.com/armadaproject/armada/internal/server/queue"
 	"github.com/armadaproject/armada/pkg/api"
+	clientqueue "github.com/armadaproject/armada/pkg/client/queue"
 	"github.com/armadaproject/armada/pkg/proxyapi"
 )
 
@@ -39,9 +41,10 @@ type jobResolver interface {
 
 // ProxyService implements both ExecutorProxyApiServer and InteractiveServiceServer.
 type ProxyService struct {
-	registry   *ExecutorRegistry
-	resolver   jobResolver
-	authorizer auth.ActionAuthorizer
+	registry        *ExecutorRegistry
+	resolver        jobResolver
+	authorizer      auth.ActionAuthorizer
+	queueRepository serverqueue.ReadOnlyQueueRepository
 
 	mu      sync.Mutex
 	pending map[string]*pendingSession
@@ -52,12 +55,14 @@ func NewProxyService(
 	registry *ExecutorRegistry,
 	resolver jobResolver,
 	authorizer auth.ActionAuthorizer,
+	queueRepository serverqueue.ReadOnlyQueueRepository,
 ) *ProxyService {
 	return &ProxyService{
-		registry:   registry,
-		resolver:   resolver,
-		authorizer: authorizer,
-		pending:    make(map[string]*pendingSession),
+		registry:        registry,
+		resolver:        resolver,
+		authorizer:      authorizer,
+		queueRepository: queueRepository,
+		pending:         make(map[string]*pendingSession),
 	}
 }
 
@@ -180,6 +185,15 @@ func (s *ProxyService) Exec(stream api.InteractiveService_ExecServer) error {
 	resolved, err := s.resolver.ResolveRunningJob(ctx, init.Init.JobId)
 	if err != nil {
 		return status.Errorf(codes.NotFound, "cannot resolve job %s: %v", init.Init.JobId, err)
+	}
+
+	// Queue-level authorization: user must have watch permission on the job's queue.
+	q, err := s.queueRepository.GetQueue(ctx, resolved.Queue)
+	if err != nil {
+		return status.Errorf(codes.Internal, "failed to load queue")
+	}
+	if err := s.authorizer.AuthorizeQueueAction(ctx, q, permissions.ExecJob, clientqueue.PermissionVerbWatch); err != nil {
+		return status.Errorf(codes.PermissionDenied, "not authorized to exec into jobs in queue %s", resolved.Queue)
 	}
 
 	sessionID := uuid.New().String()
