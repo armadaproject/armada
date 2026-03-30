@@ -25,7 +25,7 @@ import (
 
 const bufSize = 1 << 20 // 1 MB
 
-const testJobUUID = "01234567-89ab-cdef-0123-456789abcdef"
+const testJobUUID = "01arz3ndektsv4rrffq69g5fav"
 
 // fakeAuthorizer permits or denies all actions.
 type fakeAuthorizer bool
@@ -94,7 +94,7 @@ func newIntegrationTestServer(t *testing.T, authorizer auth.ActionAuthorizer, re
 	t.Helper()
 
 	registry := NewExecutorRegistry(90*time.Second, 60*time.Second)
-	svc := NewProxyService(registry, resolver, authorizer, &fakeQueueRepository{})
+	svc := NewProxyService(registry, resolver, authorizer, &fakeQueueRepository{}, time.Hour)
 
 	lis := bufconn.Listen(bufSize)
 	srv := grpc.NewServer()
@@ -357,4 +357,52 @@ func TestIntegration_InvalidJobID(t *testing.T) {
 	_, err = stream.Recv()
 	require.Error(t, err)
 	assert.Equal(t, codes.InvalidArgument, status.Code(err))
+}
+
+func TestIntegration_SessionTimeout(t *testing.T) {
+	// Use a very short timeout so the session expires quickly.
+	registry := NewExecutorRegistry(90*time.Second, 60*time.Second)
+	svc := NewProxyService(registry, &fakeJobResolver{}, fakeAuthorizer(true), &fakeQueueRepository{}, 50*time.Millisecond)
+
+	lis := bufconn.Listen(bufSize)
+	srv := grpc.NewServer()
+	api.RegisterInteractiveServiceServer(srv, svc)
+	proxyapi.RegisterExecutorProxyApiServer(srv, svc)
+	go func() { _ = srv.Serve(lis) }()
+	t.Cleanup(srv.GracefulStop)
+
+	dialer := func(ctx context.Context, _ string) (net.Conn, error) { return lis.DialContext(ctx) }
+	conn, err := grpc.NewClient("passthrough:///bufnet",
+		grpc.WithContextDialer(dialer),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = conn.Close() })
+
+	userClient := api.NewInteractiveServiceClient(conn)
+	proxyClient := proxyapi.NewExecutorProxyApiClient(conn)
+
+	// Connect a fake executor.
+	ts := &integrationTestServer{service: svc, grpcServer: srv, userClient: userClient, proxyClient: proxyClient}
+	runFakeExecutor(t, ts, "e1")
+	waitForExecutor(t, ts, "e1")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	stream, err := userClient.Exec(ctx)
+	require.NoError(t, err)
+
+	require.NoError(t, stream.Send(&api.ExecRequest{
+		Payload: &api.ExecRequest_Init{Init: &api.ExecInit{
+			JobId:   testJobUUID,
+			Command: []string{"/bin/sh"},
+			Stdin:   true,
+		}},
+	}))
+
+	// The session should terminate due to timeout; we expect EOF or DeadlineExceeded.
+	_, err = stream.Recv()
+	// The bridge closes; either EOF or DeadlineExceeded is acceptable.
+	require.Error(t, err)
 }

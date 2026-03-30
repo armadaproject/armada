@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const testJobID = "01234567-89ab-cdef-0123-456789abcdef"
+const testJobID = "01arz3ndektsv4rrffq69g5fav"
 
 // noopRunE disables server calls so we can test argument parsing only.
 func noopExecCmd() *cobra.Command {
@@ -36,10 +36,10 @@ func TestExecCmd_NoCommand(t *testing.T) {
 
 func TestExecCmd_InvalidJobID(t *testing.T) {
 	cmd := noopExecCmd()
-	cmd.SetArgs([]string{"not-a-uuid,key=val", "--", "/bin/bash"})
+	cmd.SetArgs([]string{"not-a-valid-id,key=val", "--", "/bin/bash"})
 	err := cmd.Execute()
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "UUID")
+	assert.Contains(t, err.Error(), "invalid job ID")
 }
 
 func TestExecCmd_BasicFlags(t *testing.T) {

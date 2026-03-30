@@ -3,8 +3,9 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"strings"
 
-	"github.com/google/uuid"
+	"github.com/oklog/ulid"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 
@@ -45,8 +46,8 @@ Examples:
 			if len(args) < 1 {
 				return fmt.Errorf("job ID is required")
 			}
-			if _, err := uuid.Parse(args[0]); err != nil {
-				return fmt.Errorf("invalid job ID %q: must be a UUID", args[0])
+			if _, err := ulid.ParseStrict(strings.ToUpper(args[0])); err != nil {
+				return fmt.Errorf("invalid job ID %q: must be an Armada job ID", args[0])
 			}
 			if len(args) < 2 {
 				return fmt.Errorf("command is required; use -- to separate it (e.g. exec <job-id> -- /bin/bash)")

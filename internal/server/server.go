@@ -201,7 +201,7 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 
 	proxyRegistry := serverproxy.NewExecutorRegistry(90*time.Second, 60*time.Second)
 	proxyResolver := serverproxy.NewJobResolver(dbPool)
-	proxyService := serverproxy.NewProxyService(proxyRegistry, proxyResolver, authorizer, queueCache)
+	proxyService := serverproxy.NewProxyService(proxyRegistry, proxyResolver, authorizer, queueCache, time.Hour)
 	proxyapi.RegisterExecutorProxyApiServer(grpcServer, proxyService)
 	api.RegisterInteractiveServiceServer(grpcServer, proxyService)
 	done := make(chan struct{})

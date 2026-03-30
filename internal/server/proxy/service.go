@@ -3,10 +3,12 @@ package proxy
 import (
 	"context"
 	"io"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/oklog/ulid"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -41,10 +43,11 @@ type jobResolver interface {
 
 // ProxyService implements both ExecutorProxyApiServer and InteractiveServiceServer.
 type ProxyService struct {
-	registry        *ExecutorRegistry
-	resolver        jobResolver
-	authorizer      auth.ActionAuthorizer
-	queueRepository serverqueue.ReadOnlyQueueRepository
+	registry           *ExecutorRegistry
+	resolver           jobResolver
+	authorizer         auth.ActionAuthorizer
+	queueRepository    serverqueue.ReadOnlyQueueRepository
+	maxSessionDuration time.Duration
 
 	mu      sync.Mutex
 	pending map[string]*pendingSession
@@ -56,13 +59,15 @@ func NewProxyService(
 	resolver jobResolver,
 	authorizer auth.ActionAuthorizer,
 	queueRepository serverqueue.ReadOnlyQueueRepository,
+	maxSessionDuration time.Duration,
 ) *ProxyService {
 	return &ProxyService{
-		registry:        registry,
-		resolver:        resolver,
-		authorizer:      authorizer,
-		queueRepository: queueRepository,
-		pending:         make(map[string]*pendingSession),
+		registry:           registry,
+		resolver:           resolver,
+		authorizer:         authorizer,
+		queueRepository:    queueRepository,
+		maxSessionDuration: maxSessionDuration,
+		pending:            make(map[string]*pendingSession),
 	}
 }
 
@@ -182,8 +187,8 @@ func (s *ProxyService) Exec(stream api.InteractiveService_ExecServer) error {
 	}
 
 	// Validate job ID is a UUID to prevent label selector injection.
-	if _, err := uuid.Parse(init.Init.JobId); err != nil {
-		return status.Errorf(codes.InvalidArgument, "invalid job ID: must be a UUID")
+	if _, err := ulid.ParseStrict(strings.ToUpper(init.Init.JobId)); err != nil {
+		return status.Errorf(codes.InvalidArgument, "invalid job ID: must be a ULID")
 	}
 
 	// Resolve the running job to an executor.
@@ -244,7 +249,9 @@ func (s *ProxyService) Exec(stream api.InteractiveService_ExecServer) error {
 	case execStream = <-ps.ch:
 	}
 
-	// Bridge until done.
-	BridgeStreams(stream.Context(), stream, execStream)
+	// Bridge until done, enforcing the max session duration.
+	sessionCtx, sessionCancel := context.WithTimeout(stream.Context(), s.maxSessionDuration)
+	defer sessionCancel()
+	BridgeStreams(sessionCtx, stream, execStream)
 	return nil
 }
