@@ -198,6 +198,10 @@ func (s *ProxyService) Exec(stream api.InteractiveService_ExecServer) error {
 
 	sessionID := uuid.New().String()
 
+	ctx.Infof("exec session started: principal=%s job=%s queue=%s executor=%s session=%s",
+		auth.GetPrincipal(ctx).GetName(), init.Init.JobId, resolved.Queue, resolved.ExecutorID, sessionID)
+	defer ctx.Infof("exec session ended: session=%s", sessionID)
+
 	// Register a pending session so ExecProxy can find us.
 	ps := &pendingSession{ch: make(chan ExecutorExecStream, 1)}
 	s.mu.Lock()
