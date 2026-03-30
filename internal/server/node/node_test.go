@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"google.golang.org/grpc/codes"
-	grpcstatus "google.golang.org/grpc/status"
 	clocktesting "k8s.io/utils/clock/testing"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -19,6 +18,7 @@ import (
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	servermocks "github.com/armadaproject/armada/internal/server/mocks"
 	"github.com/armadaproject/armada/internal/server/permissions"
+	"github.com/armadaproject/armada/internal/server/servertest"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/controlplaneevents"
 )
@@ -39,13 +39,6 @@ func newTestServer(t *testing.T) (*Server, *testMocks) {
 	return s, m
 }
 
-func requireGrpcCode(t *testing.T, err error, code codes.Code) {
-	t.Helper()
-	st, ok := grpcstatus.FromError(err)
-	require.True(t, ok, "expected gRPC status error")
-	assert.Equal(t, code, st.Code())
-}
-
 func TestPreemptOnNode_PermissionDenied(t *testing.T) {
 	s, m := newTestServer(t)
 	ctx := armadacontext.Background()
@@ -58,7 +51,7 @@ func TestPreemptOnNode_PermissionDenied(t *testing.T) {
 
 	_, err := s.PreemptOnNode(ctx, &api.NodePreemptRequest{Name: "executor-1", Executor: "executor-id"})
 	require.Error(t, err)
-	requireGrpcCode(t, err, codes.PermissionDenied)
+	servertest.RequireGrpcCode(t, err, codes.PermissionDenied)
 }
 
 func TestPreemptOnNode_AuthorizeErrorUnavailable(t *testing.T) {
@@ -73,7 +66,7 @@ func TestPreemptOnNode_AuthorizeErrorUnavailable(t *testing.T) {
 
 	_, err := s.PreemptOnNode(ctx, &api.NodePreemptRequest{Name: "executor-1", Executor: "executor-id"})
 	require.Error(t, err)
-	requireGrpcCode(t, err, codes.Internal)
+	servertest.RequireGrpcCode(t, err, codes.Internal)
 }
 
 func TestPreemptOnNode_Validation(t *testing.T) {
@@ -109,7 +102,7 @@ func TestPreemptOnNode_PublishErrorInternal(t *testing.T) {
 
 	_, err := s.PreemptOnNode(ctx, &api.NodePreemptRequest{Name: "executor-1", Executor: "executor-id"})
 	require.Error(t, err)
-	requireGrpcCode(t, err, codes.Internal)
+	servertest.RequireGrpcCode(t, err, codes.Internal)
 }
 
 func TestPreemptOnNode_SuccessPublishesExpectedEvent(t *testing.T) {
@@ -168,7 +161,7 @@ func TestCancelOnNode_PermissionDenied(t *testing.T) {
 
 	_, err := s.CancelOnNode(ctx, &api.NodeCancelRequest{Name: "executor-1", Executor: "executor-id"})
 	require.Error(t, err)
-	requireGrpcCode(t, err, codes.PermissionDenied)
+	servertest.RequireGrpcCode(t, err, codes.PermissionDenied)
 }
 
 func TestCancelOnNode_AuthorizeErrorUnavailable(t *testing.T) {
@@ -183,7 +176,7 @@ func TestCancelOnNode_AuthorizeErrorUnavailable(t *testing.T) {
 
 	_, err := s.CancelOnNode(ctx, &api.NodeCancelRequest{Name: "executor-1", Executor: "executor-id"})
 	require.Error(t, err)
-	requireGrpcCode(t, err, codes.Internal)
+	servertest.RequireGrpcCode(t, err, codes.Internal)
 }
 
 func TestCancelOnNode_Validation(t *testing.T) {
@@ -219,7 +212,7 @@ func TestCancelOnNode_PublishErrorInternal(t *testing.T) {
 
 	_, err := s.CancelOnNode(ctx, &api.NodeCancelRequest{Name: "executor-1", Executor: "executor-id"})
 	require.Error(t, err)
-	requireGrpcCode(t, err, codes.Internal)
+	servertest.RequireGrpcCode(t, err, codes.Internal)
 }
 
 func TestCancelOnNode_SuccessPublishesExpectedEvent(t *testing.T) {
