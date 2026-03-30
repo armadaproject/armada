@@ -30,12 +30,13 @@ import (
 // Server is a service that accepts API calls according to the original Armada submit API and publishes messages
 // to Pulsar based on those calls.
 type Server struct {
-	queueService     api.QueueServiceServer
-	publisher        pulsarutils.Publisher[*armadaevents.EventSequence]
-	queueCache       armadaqueue.ReadOnlyQueueRepository
-	submissionConfig configuration.SubmissionConfig
-	deduplicator     Deduplicator
-	authorizer       auth.ActionAuthorizer
+	queueService       api.QueueServiceServer
+	retryPolicyService api.RetryPolicyServiceServer
+	publisher          pulsarutils.Publisher[*armadaevents.EventSequence]
+	queueCache         armadaqueue.ReadOnlyQueueRepository
+	submissionConfig   configuration.SubmissionConfig
+	deduplicator       Deduplicator
+	authorizer         auth.ActionAuthorizer
 	// Below are used only for testing
 	clock       clock.Clock
 	idGenerator func() string
@@ -43,6 +44,7 @@ type Server struct {
 
 func NewServer(
 	queueService api.QueueServiceServer,
+	retryPolicyService api.RetryPolicyServiceServer,
 	publisher pulsarutils.Publisher[*armadaevents.EventSequence],
 	queueCache armadaqueue.ReadOnlyQueueRepository,
 	submissionConfig configuration.SubmissionConfig,
@@ -50,14 +52,15 @@ func NewServer(
 	authorizer auth.ActionAuthorizer,
 ) *Server {
 	return &Server{
-		queueService:     queueService,
-		publisher:        publisher,
-		queueCache:       queueCache,
-		submissionConfig: submissionConfig,
-		deduplicator:     deduplicator,
-		authorizer:       authorizer,
-		clock:            clock.RealClock{},
-		idGenerator:      util.NewULID,
+		queueService:       queueService,
+		retryPolicyService: retryPolicyService,
+		publisher:          publisher,
+		queueCache:         queueCache,
+		submissionConfig:   submissionConfig,
+		deduplicator:       deduplicator,
+		authorizer:         authorizer,
+		clock:              clock.RealClock{},
+		idGenerator:        util.NewULID,
 	}
 }
 
@@ -463,4 +466,24 @@ func (s *Server) GetQueue(ctx context.Context, request *api.QueueGetRequest) (*a
 
 func (s *Server) GetQueues(request *api.StreamingQueueGetRequest, server api.Submit_GetQueuesServer) error {
 	return s.queueService.GetQueues(request, server)
+}
+
+func (s *Server) CreateRetryPolicy(ctx context.Context, policy *api.RetryPolicy) (*types.Empty, error) {
+	return s.retryPolicyService.CreateRetryPolicy(ctx, policy)
+}
+
+func (s *Server) UpdateRetryPolicy(ctx context.Context, policy *api.RetryPolicy) (*types.Empty, error) {
+	return s.retryPolicyService.UpdateRetryPolicy(ctx, policy)
+}
+
+func (s *Server) DeleteRetryPolicy(ctx context.Context, req *api.RetryPolicyDeleteRequest) (*types.Empty, error) {
+	return s.retryPolicyService.DeleteRetryPolicy(ctx, req)
+}
+
+func (s *Server) GetRetryPolicy(ctx context.Context, req *api.RetryPolicyGetRequest) (*api.RetryPolicy, error) {
+	return s.retryPolicyService.GetRetryPolicy(ctx, req)
+}
+
+func (s *Server) GetRetryPolicies(ctx context.Context, req *api.RetryPolicyListRequest) (*api.RetryPolicyList, error) {
+	return s.retryPolicyService.GetRetryPolicies(ctx, req)
 }
