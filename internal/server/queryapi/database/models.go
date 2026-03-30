@@ -71,3 +71,8 @@ type Queue struct {
 	Name       string `db:"name"`
 	Definition []byte `db:"definition"`
 }
+
+type RetryPolicy struct {
+	Name       string `db:"name"`
+	Definition []byte `db:"definition"`
+}

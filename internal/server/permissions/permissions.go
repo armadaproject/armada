@@ -17,4 +17,7 @@ const (
 	CordonNodes                                  = "cordon_nodes"
 	ExecuteJobs                                  = "execute_jobs"
 	UpdateExecutorSettings                       = "update_executor_settings"
+	CreateRetryPolicy                            = "create_retry_policy"
+	UpdateRetryPolicy                            = "update_retry_policy"
+	DeleteRetryPolicy                            = "delete_retry_policy"
 )
