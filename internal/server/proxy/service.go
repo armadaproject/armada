@@ -153,7 +153,7 @@ func (s *ProxyService) ExecProxy(stream proxyapi.ExecutorProxyApi_ExecProxyServe
 	s.mu.Unlock()
 
 	if !found {
-		return status.Errorf(codes.NotFound, "no pending session %s", sessionID.SessionId)
+		return status.Error(codes.NotFound, "session not found")
 	}
 
 	// Deliver this stream to the waiting Exec handler.
@@ -194,7 +194,8 @@ func (s *ProxyService) Exec(stream api.InteractiveService_ExecServer) error {
 	// Resolve the running job to an executor.
 	resolved, err := s.resolver.ResolveRunningJob(ctx, init.Init.JobId)
 	if err != nil {
-		return status.Errorf(codes.NotFound, "cannot resolve job %s: %v", init.Init.JobId, err)
+		ctx.Warnf("failed to resolve job %s: %v", init.Init.JobId, err)
+		return status.Errorf(codes.NotFound, "job %s is not currently running", init.Init.JobId)
 	}
 
 	// Queue-level authorization: user must have watch permission on the job's queue.
@@ -235,7 +236,8 @@ func (s *ProxyService) Exec(stream api.InteractiveService_ExecServer) error {
 		Container: init.Init.Container,
 		PodNumber: init.Init.PodNumber,
 	}); err != nil {
-		return status.Errorf(codes.Unavailable, "executor not connected: %v", err)
+		ctx.Warnf("executor not connected for job %s (executor=%s): %v", init.Init.JobId, resolved.ExecutorID, err)
+		return status.Errorf(codes.Unavailable, "executor not available")
 	}
 
 	// Wait for the executor to open its ExecProxy stream.
