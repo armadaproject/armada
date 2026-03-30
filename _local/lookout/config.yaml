@@ -15,6 +15,7 @@ postgres:
     password: psw
     dbname: lookout
     sslmode: disable
+execArmadaGrpcUrl: "localhost:50051"
 uiConfig:
   backend: "jsonb"
   armadaApiBaseUrl: "http://localhost:8081"

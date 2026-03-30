@@ -22,6 +22,10 @@ type LookoutConfig struct {
 
 	PrunerConfig PrunerConfig
 
+	// ExecArmadaGrpcUrl is the gRPC address of the Armada server to proxy exec sessions through.
+	// If empty, the exec WebSocket endpoint is disabled.
+	ExecArmadaGrpcUrl string
+
 	UIConfig
 }
 

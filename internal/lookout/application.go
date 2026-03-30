@@ -10,6 +10,8 @@ import (
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/jessevdk/go-flags"
 	"github.com/prometheus/client_golang/prometheus"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -22,6 +24,7 @@ import (
 	"github.com/armadaproject/armada/internal/lookout/conversions"
 	"github.com/armadaproject/armada/internal/lookout/gen/restapi"
 	"github.com/armadaproject/armada/internal/lookout/gen/restapi/operations"
+	"github.com/armadaproject/armada/internal/lookout/handler"
 	"github.com/armadaproject/armada/internal/lookout/repository"
 )
 
@@ -184,6 +187,16 @@ func Serve(configuration configuration.LookoutConfig) error {
 
 	restapi.SetAuthService(auth.NewMultiAuthService(authServices))
 	restapi.SetCorsAllowedOrigins(configuration.CorsAllowedOrigins) // This needs to happen before ConfigureAPI
+
+	if configuration.ExecArmadaGrpcUrl != "" {
+		grpcConn, err := grpc.NewClient(configuration.ExecArmadaGrpcUrl, grpc.WithTransportCredentials(insecure.NewCredentials()))
+		if err != nil {
+			return fmt.Errorf("creating exec gRPC client: %w", err)
+		}
+		defer grpcConn.Close()
+		restapi.SetExecHandler(handler.NewExecHandler(grpcConn))
+	}
+
 	server.ConfigureAPI()
 	if err := server.Serve(); err != nil {
 		return err

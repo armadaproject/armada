@@ -19,6 +19,7 @@ import { SidebarTabJobLogs } from "./SidebarTabJobLogs"
 import { SidebarTabJobResult } from "./SidebarTabJobResult"
 import { SidebarTabJobYaml } from "./SidebarTabJobYaml"
 import { SidebarTabScheduling } from "./SidebarTabScheduling"
+import { SidebarTabTerminal } from "./SidebarTabTerminal"
 
 enum SidebarTab {
   JobDetails = "JobDetails",
@@ -27,6 +28,7 @@ enum SidebarTab {
   Yaml = "YAML",
   Logs = "Logs",
   Commands = "Commands",
+  Terminal = "Terminal",
 }
 
 const SidebarContainer = styled("div")({
@@ -296,6 +298,12 @@ export const Sidebar = memo(({ job, sidebarWidth, onClose, onWidthChange, comman
                       eventName={ANALYTICS_EVENTS.SIDEBAR_TAB_CLICKED}
                       eventData={{ tab: "Commands", jobState: job.state }}
                     />
+                    <StyledSidebarTab
+                      label="Terminal"
+                      value={SidebarTab.Terminal}
+                      disabled={job.state !== JobState.Running}
+                      title={job.state !== JobState.Running ? "Terminal only available for running jobs" : undefined}
+                    />
                   </SidebarTabs>
                 </TabsContainer>
 
@@ -324,6 +332,10 @@ export const Sidebar = memo(({ job, sidebarWidth, onClose, onWidthChange, comman
                 <SidebarTabPanel value={SidebarTab.Commands}>
                   <SidebarTabJobCommands key={job.jobId} job={job} commandSpecs={commandSpecs} />
                 </SidebarTabPanel>
+
+                <TabPanel value={SidebarTab.Terminal} sx={{ p: 0, flex: "1 0 1px", overflow: "hidden", display: "flex", flexDirection: "column" }}>
+                  <SidebarTabTerminal key={job.jobId} job={job} />
+                </TabPanel>
               </TabContext>
             </ErrorBoundary>
           </SidebarTabContextContainer>

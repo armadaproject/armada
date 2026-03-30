@@ -37,6 +37,12 @@ func SetAuthService(s auth.AuthService) {
 	authService = s
 }
 
+var execHandler http.Handler
+
+func SetExecHandler(h http.Handler) {
+	execHandler = h
+}
+
 func configureFlags(api *operations.LookoutAPI) {
 	// api.CommandLineOptionsGroups = []swag.CommandLineOptionsGroup{ ... }
 }
@@ -150,6 +156,9 @@ func uiHandler(apiHandler http.Handler) http.Handler {
 		}
 	})
 
+	if execHandler != nil {
+		mux.Handle("/api/exec/ws", execHandler)
+	}
 	mux.Handle("/api/", apiHandler)
 	mux.Handle("/health", apiHandler)
 

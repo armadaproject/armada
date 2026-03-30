@@ -9,6 +9,7 @@ const PROXY_OPTIONS: Record<string, string | ProxyOptions> = PROXY_PATHS.reduce<
       target: process.env.PROXY_TARGET || "http://localhost:10000",
       changeOrigin: true,
       secure: false,
+      ws: true,
     },
   }),
   {},
