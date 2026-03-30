@@ -31,6 +31,7 @@ import (
 	"github.com/armadaproject/armada/internal/server/node"
 	"github.com/armadaproject/armada/internal/server/queryapi"
 	"github.com/armadaproject/armada/internal/server/queue"
+	"github.com/armadaproject/armada/internal/server/retrypolicy"
 	"github.com/armadaproject/armada/internal/server/submit"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/api/schedulerobjects"
@@ -166,8 +167,12 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 
 	queueServer := queue.NewServer(controlPlaneEventsPublisher, queueRepository, authorizer)
 
+	retryPolicyRepo := retrypolicy.NewPostgresRetryPolicyRepository(dbPool)
+	retryPolicyServer := retrypolicy.NewServer(retryPolicyRepo, authorizer)
+
 	submitServer := submit.NewServer(
 		queueServer,
+		retryPolicyServer,
 		jobSetEventsPublisher,
 		queueCache,
 		config.Submission,
@@ -194,6 +199,7 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 	api.RegisterSubmitServer(grpcServer, submitServer)
 	api.RegisterEventServer(grpcServer, eventServer)
 	api.RegisterQueueServiceServer(grpcServer, queueServer)
+	api.RegisterRetryPolicyServiceServer(grpcServer, retryPolicyServer)
 	api.RegisterExecutorServer(grpcServer, executorServer)
 	api.RegisterNodeServer(grpcServer, nodeServer)
 

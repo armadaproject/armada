@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestMarshalJsonIngressType(t *testing.T) {
@@ -132,4 +133,62 @@ func deserializeJobState(input []byte) error {
 	deserializer := deserializerStruct{x: JobState_QUEUED}
 
 	return deserializer.x.UnmarshalJSON(input)
+}
+
+func TestUnmarshalRetryAction_AcceptsCanonicalAliasAndNumeric(t *testing.T) {
+	tests := map[string]struct {
+		input    string
+		expected RetryAction
+	}{
+		"canonical FAIL":  {`"RETRY_ACTION_FAIL"`, RetryAction_RETRY_ACTION_FAIL},
+		"canonical RETRY": {`"RETRY_ACTION_RETRY"`, RetryAction_RETRY_ACTION_RETRY},
+		"alias Fail":      {`"Fail"`, RetryAction_RETRY_ACTION_FAIL},
+		"alias Retry":     {`"Retry"`, RetryAction_RETRY_ACTION_RETRY},
+		"alias FAIL":      {`"FAIL"`, RetryAction_RETRY_ACTION_FAIL},
+		"alias retry":     {`"retry"`, RetryAction_RETRY_ACTION_RETRY},
+		"numeric 1":       {`1`, RetryAction_RETRY_ACTION_FAIL},
+		"numeric 2":       {`2`, RetryAction_RETRY_ACTION_RETRY},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			var got RetryAction
+			require.NoError(t, got.UnmarshalJSON([]byte(tc.input)))
+			assert.Equal(t, tc.expected, got)
+		})
+	}
+}
+
+func TestUnmarshalRetryAction_RejectsInvalid(t *testing.T) {
+	tests := map[string]string{
+		"unknown name":        `"BANANAS"`,
+		"out-of-range number": `99`,
+		"non-string non-int":  `{}`,
+	}
+	for name, input := range tests {
+		t.Run(name, func(t *testing.T) {
+			var got RetryAction
+			assert.Error(t, got.UnmarshalJSON([]byte(input)))
+		})
+	}
+}
+
+func TestUnmarshalExitCodeOperator_AcceptsCanonicalAliasAndNumeric(t *testing.T) {
+	tests := map[string]struct {
+		input    string
+		expected ExitCodeOperator
+	}{
+		"canonical IN":     {`"EXIT_CODE_OPERATOR_IN"`, ExitCodeOperator_EXIT_CODE_OPERATOR_IN},
+		"canonical NOT_IN": {`"EXIT_CODE_OPERATOR_NOT_IN"`, ExitCodeOperator_EXIT_CODE_OPERATOR_NOT_IN},
+		"alias In":         {`"In"`, ExitCodeOperator_EXIT_CODE_OPERATOR_IN},
+		"alias NotIn":      {`"NotIn"`, ExitCodeOperator_EXIT_CODE_OPERATOR_NOT_IN},
+		"alias notin":      {`"notin"`, ExitCodeOperator_EXIT_CODE_OPERATOR_NOT_IN},
+		"numeric 1":        {`1`, ExitCodeOperator_EXIT_CODE_OPERATOR_IN},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			var got ExitCodeOperator
+			require.NoError(t, got.UnmarshalJSON([]byte(tc.input)))
+			assert.Equal(t, tc.expected, got)
+		})
+	}
 }
