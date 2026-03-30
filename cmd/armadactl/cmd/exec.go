@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 
@@ -43,6 +44,9 @@ Examples:
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) < 1 {
 				return fmt.Errorf("job ID is required")
+			}
+			if _, err := uuid.Parse(args[0]); err != nil {
+				return fmt.Errorf("invalid job ID %q: must be a UUID", args[0])
 			}
 			if len(args) < 2 {
 				return fmt.Errorf("command is required; use -- to separate it (e.g. exec <job-id> -- /bin/bash)")

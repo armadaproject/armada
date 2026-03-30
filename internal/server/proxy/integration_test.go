@@ -25,6 +25,8 @@ import (
 
 const bufSize = 1 << 20 // 1 MB
 
+const testJobUUID = "01234567-89ab-cdef-0123-456789abcdef"
+
 // fakeAuthorizer permits or denies all actions.
 type fakeAuthorizer bool
 
@@ -199,7 +201,7 @@ func TestIntegration_EndToEnd(t *testing.T) {
 
 	require.NoError(t, stream.Send(&api.ExecRequest{
 		Payload: &api.ExecRequest_Init{Init: &api.ExecInit{
-			JobId:   "job1",
+			JobId:   testJobUUID,
 			Command: []string{"/bin/echo"},
 			Stdin:   true,
 		}},
@@ -240,7 +242,7 @@ func TestIntegration_AuthRejection(t *testing.T) {
 	require.NoError(t, err)
 
 	require.NoError(t, stream.Send(&api.ExecRequest{
-		Payload: &api.ExecRequest_Init{Init: &api.ExecInit{JobId: "job1", Command: []string{"/bin/sh"}}},
+		Payload: &api.ExecRequest_Init{Init: &api.ExecInit{JobId: testJobUUID, Command: []string{"/bin/sh"}}},
 	}))
 
 	_, err = stream.Recv()
@@ -258,7 +260,7 @@ func TestIntegration_JobNotFound(t *testing.T) {
 	require.NoError(t, err)
 
 	require.NoError(t, stream.Send(&api.ExecRequest{
-		Payload: &api.ExecRequest_Init{Init: &api.ExecInit{JobId: "missing", Command: []string{"/bin/sh"}}},
+		Payload: &api.ExecRequest_Init{Init: &api.ExecInit{JobId: testJobUUID, Command: []string{"/bin/sh"}}},
 	}))
 
 	_, err = stream.Recv()
@@ -277,7 +279,7 @@ func TestIntegration_ExecutorNotConnected(t *testing.T) {
 	require.NoError(t, err)
 
 	require.NoError(t, stream.Send(&api.ExecRequest{
-		Payload: &api.ExecRequest_Init{Init: &api.ExecInit{JobId: "job1", Command: []string{"/bin/sh"}}},
+		Payload: &api.ExecRequest_Init{Init: &api.ExecInit{JobId: testJobUUID, Command: []string{"/bin/sh"}}},
 	}))
 
 	_, err = stream.Recv()
@@ -331,10 +333,28 @@ func TestIntegration_QueueOwnership_Rejection(t *testing.T) {
 	require.NoError(t, err)
 
 	require.NoError(t, stream.Send(&api.ExecRequest{
-		Payload: &api.ExecRequest_Init{Init: &api.ExecInit{JobId: "job1", Command: []string{"/bin/sh"}}},
+		Payload: &api.ExecRequest_Init{Init: &api.ExecInit{JobId: testJobUUID, Command: []string{"/bin/sh"}}},
 	}))
 
 	_, err = stream.Recv()
 	require.Error(t, err)
 	assert.Equal(t, codes.PermissionDenied, status.Code(err))
+}
+
+func TestIntegration_InvalidJobID(t *testing.T) {
+	srv := newIntegrationTestServer(t, fakeAuthorizer(true), &fakeJobResolver{})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	stream, err := srv.userClient.Exec(ctx)
+	require.NoError(t, err)
+
+	require.NoError(t, stream.Send(&api.ExecRequest{
+		Payload: &api.ExecRequest_Init{Init: &api.ExecInit{JobId: "not-a-uuid,key=val", Command: []string{"/bin/sh"}}},
+	}))
+
+	_, err = stream.Recv()
+	require.Error(t, err)
+	assert.Equal(t, codes.InvalidArgument, status.Code(err))
 }

@@ -8,6 +8,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const testJobID = "01234567-89ab-cdef-0123-456789abcdef"
+
 // noopRunE disables server calls so we can test argument parsing only.
 func noopExecCmd() *cobra.Command {
 	cmd := execCmd()
@@ -26,16 +28,24 @@ func TestExecCmd_NoJobID(t *testing.T) {
 
 func TestExecCmd_NoCommand(t *testing.T) {
 	cmd := noopExecCmd()
-	cmd.SetArgs([]string{"abc123"})
+	cmd.SetArgs([]string{testJobID})
 	err := cmd.Execute()
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "command")
 }
 
+func TestExecCmd_InvalidJobID(t *testing.T) {
+	cmd := noopExecCmd()
+	cmd.SetArgs([]string{"not-a-uuid,key=val", "--", "/bin/bash"})
+	err := cmd.Execute()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "UUID")
+}
+
 func TestExecCmd_BasicFlags(t *testing.T) {
 	var (
-		capturedJobID  string
-		capturedCmd    []string
+		capturedJobID string
+		capturedCmd   []string
 	)
 
 	cmd := execCmd()
@@ -45,10 +55,10 @@ func TestExecCmd_BasicFlags(t *testing.T) {
 		capturedCmd = args[1:]
 		return nil
 	}
-	cmd.SetArgs([]string{"abc123", "--", "/bin/bash"})
+	cmd.SetArgs([]string{testJobID, "--", "/bin/bash"})
 	require.NoError(t, cmd.Execute())
 
-	assert.Equal(t, "abc123", capturedJobID)
+	assert.Equal(t, testJobID, capturedJobID)
 	assert.Equal(t, []string{"/bin/bash"}, capturedCmd)
 }
 
@@ -61,7 +71,7 @@ func TestExecCmd_ContainerFlag(t *testing.T) {
 		container, _ = c.Flags().GetString("container")
 		return nil
 	}
-	cmd.SetArgs([]string{"abc123", "-c", "sidecar", "--", "cat", "/tmp/foo"})
+	cmd.SetArgs([]string{testJobID, "--container", "sidecar", "--", "cat", "/tmp/foo"})
 	require.NoError(t, cmd.Execute())
 
 	assert.Equal(t, "sidecar", container)
@@ -77,7 +87,7 @@ func TestExecCmd_PodFlag(t *testing.T) {
 		podNumber = p
 		return nil
 	}
-	cmd.SetArgs([]string{"abc123", "--pod", "2", "--", "sh"})
+	cmd.SetArgs([]string{testJobID, "--pod", "2", "--", "sh"})
 	require.NoError(t, cmd.Execute())
 
 	assert.Equal(t, int32(2), podNumber)

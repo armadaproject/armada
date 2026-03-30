@@ -181,6 +181,11 @@ func (s *ProxyService) Exec(stream api.InteractiveService_ExecServer) error {
 		return status.Errorf(codes.PermissionDenied, "not authorized to exec into jobs: %v", err)
 	}
 
+	// Validate job ID is a UUID to prevent label selector injection.
+	if _, err := uuid.Parse(init.Init.JobId); err != nil {
+		return status.Errorf(codes.InvalidArgument, "invalid job ID: must be a UUID")
+	}
+
 	// Resolve the running job to an executor.
 	resolved, err := s.resolver.ResolveRunningJob(ctx, init.Init.JobId)
 	if err != nil {
