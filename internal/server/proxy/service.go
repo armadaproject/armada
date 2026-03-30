@@ -74,6 +74,10 @@ func (s *ProxyService) ProxyControl(stream proxyapi.ExecutorProxyApi_ProxyContro
 		return status.Error(codes.InvalidArgument, "first ProxyControl message must be executor_id")
 	}
 
+	if err := s.authorizer.AuthorizeAction(armadacontext.FromGrpcCtx(stream.Context()), permissions.ExecuteJobs); err != nil {
+		return status.Errorf(codes.PermissionDenied, "not authorized: %v", err)
+	}
+
 	// Derive a context that outlives the stream handler: we tie the executor's
 	// session context to the gRPC stream context so that when the stream dies,
 	// all sessions deriving from this context are cancelled.
@@ -125,6 +129,10 @@ func (s *ProxyService) ExecProxy(stream proxyapi.ExecutorProxyApi_ExecProxyServe
 	sessionID, ok := first.Payload.(*proxyapi.ExecProxyMessage_SessionId)
 	if !ok {
 		return status.Error(codes.InvalidArgument, "first ExecProxy message must be session_id")
+	}
+
+	if err := s.authorizer.AuthorizeAction(armadacontext.FromGrpcCtx(stream.Context()), permissions.ExecuteJobs); err != nil {
+		return status.Errorf(codes.PermissionDenied, "not authorized: %v", err)
 	}
 
 	s.mu.Lock()

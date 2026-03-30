@@ -261,3 +261,39 @@ func TestIntegration_ExecutorNotConnected(t *testing.T) {
 	require.Error(t, err)
 	assert.Equal(t, codes.Unavailable, status.Code(err))
 }
+
+func TestIntegration_ProxyControl_AuthRejection(t *testing.T) {
+	srv := newIntegrationTestServer(t, fakeAuthorizer(false), &fakeJobResolver{})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	ctrlStream, err := srv.proxyClient.ProxyControl(ctx)
+	require.NoError(t, err)
+
+	require.NoError(t, ctrlStream.Send(&proxyapi.ProxyControlMessage{
+		Payload: &proxyapi.ProxyControlMessage_ExecutorId{ExecutorId: "e1"},
+	}))
+
+	_, err = ctrlStream.Recv()
+	require.Error(t, err)
+	assert.Equal(t, codes.PermissionDenied, status.Code(err))
+}
+
+func TestIntegration_ExecProxy_AuthRejection(t *testing.T) {
+	srv := newIntegrationTestServer(t, fakeAuthorizer(false), &fakeJobResolver{})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	execStream, err := srv.proxyClient.ExecProxy(ctx)
+	require.NoError(t, err)
+
+	require.NoError(t, execStream.Send(&proxyapi.ExecProxyMessage{
+		Payload: &proxyapi.ExecProxyMessage_SessionId{SessionId: "some-session"},
+	}))
+
+	_, err = execStream.Recv()
+	require.Error(t, err)
+	assert.Equal(t, codes.PermissionDenied, status.Code(err))
+}
