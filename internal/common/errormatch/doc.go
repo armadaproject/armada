@@ -8,6 +8,6 @@
 // Condition constants ([ConditionOOMKilled], [ConditionEvicted],
 // [ConditionDeadlineExceeded]) and the [KnownConditions] map are provided
 // for config validation. Non-pod conditions ([ConditionPreempted],
-// [ConditionLeaseReturned]) are also defined here for use by the retry
-// engine but are not included in [KnownConditions].
+// [ConditionLeaseReturned], [ConditionAppError]) are also defined here
+// for use by the retry engine but are not included in [KnownConditions].
 package errormatch
