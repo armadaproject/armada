@@ -30,10 +30,13 @@ const (
 
 // Condition constants for non-pod error types (used by the retry engine).
 // These are not observable from Kubernetes pod status, so the executor
-// categorizer cannot match them.
+// categorizer cannot match them. ConditionAppError is the catch-all for
+// a PodError whose KubernetesReason is AppError (i.e. container failed
+// without a recognised pod-level reason).
 const (
 	ConditionPreempted     = "Preempted"
 	ConditionLeaseReturned = "LeaseReturned"
+	ConditionAppError      = "AppError"
 )
 
 // KnownConditions is the set of condition strings accepted by the executor
