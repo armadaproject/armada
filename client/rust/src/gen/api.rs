@@ -320,6 +320,8 @@ pub struct Queue {
         ::prost::alloc::string::String,
         ::prost::alloc::string::String,
     >,
+    #[prost(string, tag = "11")]
+    pub retry_policy: ::prost::alloc::string::String,
 }
 /// Nested message and enum types in `Queue`.
 pub mod queue {
@@ -386,6 +388,56 @@ pub struct PreemptionResult {
         ::prost::alloc::string::String,
         ::prost::alloc::string::String,
     >,
+}
+/// RetryPolicy defines rules that determine whether failed jobs should be retried.
+/// Operators create policies and assign them to queues by name.
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct RetryPolicy {
+    #[prost(string, tag = "1")]
+    pub name: ::prost::alloc::string::String,
+    #[prost(uint32, tag = "2")]
+    pub retry_limit: u32,
+    #[prost(enumeration = "RetryAction", tag = "3")]
+    pub default_action: i32,
+    #[prost(message, repeated, tag = "4")]
+    pub rules: ::prost::alloc::vec::Vec<RetryRule>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct RetryRule {
+    #[prost(enumeration = "RetryAction", tag = "1")]
+    pub action: i32,
+    #[prost(string, repeated, tag = "2")]
+    pub on_conditions: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+    #[prost(message, optional, tag = "3")]
+    pub on_exit_codes: ::core::option::Option<RetryExitCodeMatcher>,
+    #[prost(string, tag = "4")]
+    pub on_termination_message_pattern: ::prost::alloc::string::String,
+    #[prost(string, repeated, tag = "5")]
+    pub on_categories: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct RetryExitCodeMatcher {
+    #[prost(enumeration = "ExitCodeOperator", tag = "1")]
+    pub operator: i32,
+    #[prost(int32, repeated, tag = "2")]
+    pub values: ::prost::alloc::vec::Vec<i32>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct RetryPolicyGetRequest {
+    #[prost(string, tag = "1")]
+    pub name: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct RetryPolicyDeleteRequest {
+    #[prost(string, tag = "1")]
+    pub name: ::prost::alloc::string::String,
+}
+#[derive(Clone, Copy, PartialEq, ::prost::Message)]
+pub struct RetryPolicyListRequest {}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct RetryPolicyList {
+    #[prost(message, repeated, tag = "1")]
+    pub retry_policies: ::prost::alloc::vec::Vec<RetryPolicy>,
 }
 /// swagger:model
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -591,6 +643,64 @@ impl JobState {
             "PREEMPTED" => Some(Self::Preempted),
             "CANCELLED" => Some(Self::Cancelled),
             "REJECTED" => Some(Self::Rejected),
+            _ => None,
+        }
+    }
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
+#[repr(i32)]
+pub enum RetryAction {
+    Unspecified = 0,
+    Fail = 1,
+    Retry = 2,
+}
+impl RetryAction {
+    /// String value of the enum field names used in the ProtoBuf definition.
+    ///
+    /// The values are not transformed in any way and thus are considered stable
+    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+    pub fn as_str_name(&self) -> &'static str {
+        match self {
+            Self::Unspecified => "RETRY_ACTION_UNSPECIFIED",
+            Self::Fail => "RETRY_ACTION_FAIL",
+            Self::Retry => "RETRY_ACTION_RETRY",
+        }
+    }
+    /// Creates an enum from field names used in the ProtoBuf definition.
+    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+        match value {
+            "RETRY_ACTION_UNSPECIFIED" => Some(Self::Unspecified),
+            "RETRY_ACTION_FAIL" => Some(Self::Fail),
+            "RETRY_ACTION_RETRY" => Some(Self::Retry),
+            _ => None,
+        }
+    }
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
+#[repr(i32)]
+pub enum ExitCodeOperator {
+    Unspecified = 0,
+    In = 1,
+    NotIn = 2,
+}
+impl ExitCodeOperator {
+    /// String value of the enum field names used in the ProtoBuf definition.
+    ///
+    /// The values are not transformed in any way and thus are considered stable
+    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+    pub fn as_str_name(&self) -> &'static str {
+        match self {
+            Self::Unspecified => "EXIT_CODE_OPERATOR_UNSPECIFIED",
+            Self::In => "EXIT_CODE_OPERATOR_IN",
+            Self::NotIn => "EXIT_CODE_OPERATOR_NOT_IN",
+        }
+    }
+    /// Creates an enum from field names used in the ProtoBuf definition.
+    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+        match value {
+            "EXIT_CODE_OPERATOR_UNSPECIFIED" => Some(Self::Unspecified),
+            "EXIT_CODE_OPERATOR_IN" => Some(Self::In),
+            "EXIT_CODE_OPERATOR_NOT_IN" => Some(Self::NotIn),
             _ => None,
         }
     }
@@ -928,6 +1038,207 @@ pub mod queue_service_client {
     }
 }
 /// Generated client implementations.
+pub mod retry_policy_service_client {
+    #![allow(
+        unused_variables,
+        dead_code,
+        missing_docs,
+        clippy::wildcard_imports,
+        clippy::let_unit_value,
+    )]
+    use tonic::codegen::*;
+    use tonic::codegen::http::Uri;
+    #[derive(Debug, Clone)]
+    pub struct RetryPolicyServiceClient<T> {
+        inner: tonic::client::Grpc<T>,
+    }
+    impl RetryPolicyServiceClient<tonic::transport::Channel> {
+        /// Attempt to create a new client by connecting to a given endpoint.
+        pub async fn connect<D>(dst: D) -> Result<Self, tonic::transport::Error>
+        where
+            D: TryInto<tonic::transport::Endpoint>,
+            D::Error: Into<StdError>,
+        {
+            let conn = tonic::transport::Endpoint::new(dst)?.connect().await?;
+            Ok(Self::new(conn))
+        }
+    }
+    impl<T> RetryPolicyServiceClient<T>
+    where
+        T: tonic::client::GrpcService<tonic::body::BoxBody>,
+        T::Error: Into<StdError>,
+        T::ResponseBody: Body<Data = Bytes> + std::marker::Send + 'static,
+        <T::ResponseBody as Body>::Error: Into<StdError> + std::marker::Send,
+    {
+        pub fn new(inner: T) -> Self {
+            let inner = tonic::client::Grpc::new(inner);
+            Self { inner }
+        }
+        pub fn with_origin(inner: T, origin: Uri) -> Self {
+            let inner = tonic::client::Grpc::with_origin(inner, origin);
+            Self { inner }
+        }
+        pub fn with_interceptor<F>(
+            inner: T,
+            interceptor: F,
+        ) -> RetryPolicyServiceClient<InterceptedService<T, F>>
+        where
+            F: tonic::service::Interceptor,
+            T::ResponseBody: Default,
+            T: tonic::codegen::Service<
+                http::Request<tonic::body::BoxBody>,
+                Response = http::Response<
+                    <T as tonic::client::GrpcService<tonic::body::BoxBody>>::ResponseBody,
+                >,
+            >,
+            <T as tonic::codegen::Service<
+                http::Request<tonic::body::BoxBody>,
+            >>::Error: Into<StdError> + std::marker::Send + std::marker::Sync,
+        {
+            RetryPolicyServiceClient::new(InterceptedService::new(inner, interceptor))
+        }
+        /// Compress requests with the given encoding.
+        ///
+        /// This requires the server to support it otherwise it might respond with an
+        /// error.
+        #[must_use]
+        pub fn send_compressed(mut self, encoding: CompressionEncoding) -> Self {
+            self.inner = self.inner.send_compressed(encoding);
+            self
+        }
+        /// Enable decompressing responses.
+        #[must_use]
+        pub fn accept_compressed(mut self, encoding: CompressionEncoding) -> Self {
+            self.inner = self.inner.accept_compressed(encoding);
+            self
+        }
+        /// Limits the maximum size of a decoded message.
+        ///
+        /// Default: `4MB`
+        #[must_use]
+        pub fn max_decoding_message_size(mut self, limit: usize) -> Self {
+            self.inner = self.inner.max_decoding_message_size(limit);
+            self
+        }
+        /// Limits the maximum size of an encoded message.
+        ///
+        /// Default: `usize::MAX`
+        #[must_use]
+        pub fn max_encoding_message_size(mut self, limit: usize) -> Self {
+            self.inner = self.inner.max_encoding_message_size(limit);
+            self
+        }
+        pub async fn create_retry_policy(
+            &mut self,
+            request: impl tonic::IntoRequest<super::RetryPolicy>,
+        ) -> std::result::Result<tonic::Response<()>, tonic::Status> {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/api.RetryPolicyService/CreateRetryPolicy",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("api.RetryPolicyService", "CreateRetryPolicy"));
+            self.inner.unary(req, path, codec).await
+        }
+        pub async fn update_retry_policy(
+            &mut self,
+            request: impl tonic::IntoRequest<super::RetryPolicy>,
+        ) -> std::result::Result<tonic::Response<()>, tonic::Status> {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/api.RetryPolicyService/UpdateRetryPolicy",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("api.RetryPolicyService", "UpdateRetryPolicy"));
+            self.inner.unary(req, path, codec).await
+        }
+        pub async fn delete_retry_policy(
+            &mut self,
+            request: impl tonic::IntoRequest<super::RetryPolicyDeleteRequest>,
+        ) -> std::result::Result<tonic::Response<()>, tonic::Status> {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/api.RetryPolicyService/DeleteRetryPolicy",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("api.RetryPolicyService", "DeleteRetryPolicy"));
+            self.inner.unary(req, path, codec).await
+        }
+        pub async fn get_retry_policy(
+            &mut self,
+            request: impl tonic::IntoRequest<super::RetryPolicyGetRequest>,
+        ) -> std::result::Result<tonic::Response<super::RetryPolicy>, tonic::Status> {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/api.RetryPolicyService/GetRetryPolicy",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("api.RetryPolicyService", "GetRetryPolicy"));
+            self.inner.unary(req, path, codec).await
+        }
+        pub async fn get_retry_policies(
+            &mut self,
+            request: impl tonic::IntoRequest<super::RetryPolicyListRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::RetryPolicyList>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/api.RetryPolicyService/GetRetryPolicies",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("api.RetryPolicyService", "GetRetryPolicies"));
+            self.inner.unary(req, path, codec).await
+        }
+    }
+}
+/// Generated client implementations.
 pub mod submit_client {
     #![allow(
         unused_variables,
@@ -1257,6 +1568,113 @@ pub mod submit_client {
             let mut req = request.into_request();
             req.extensions_mut().insert(GrpcMethod::new("api.Submit", "GetQueues"));
             self.inner.server_streaming(req, path, codec).await
+        }
+        pub async fn create_retry_policy(
+            &mut self,
+            request: impl tonic::IntoRequest<super::RetryPolicy>,
+        ) -> std::result::Result<tonic::Response<()>, tonic::Status> {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/api.Submit/CreateRetryPolicy",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("api.Submit", "CreateRetryPolicy"));
+            self.inner.unary(req, path, codec).await
+        }
+        pub async fn update_retry_policy(
+            &mut self,
+            request: impl tonic::IntoRequest<super::RetryPolicy>,
+        ) -> std::result::Result<tonic::Response<()>, tonic::Status> {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/api.Submit/UpdateRetryPolicy",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("api.Submit", "UpdateRetryPolicy"));
+            self.inner.unary(req, path, codec).await
+        }
+        pub async fn delete_retry_policy(
+            &mut self,
+            request: impl tonic::IntoRequest<super::RetryPolicyDeleteRequest>,
+        ) -> std::result::Result<tonic::Response<()>, tonic::Status> {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/api.Submit/DeleteRetryPolicy",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("api.Submit", "DeleteRetryPolicy"));
+            self.inner.unary(req, path, codec).await
+        }
+        pub async fn get_retry_policy(
+            &mut self,
+            request: impl tonic::IntoRequest<super::RetryPolicyGetRequest>,
+        ) -> std::result::Result<tonic::Response<super::RetryPolicy>, tonic::Status> {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/api.Submit/GetRetryPolicy",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut().insert(GrpcMethod::new("api.Submit", "GetRetryPolicy"));
+            self.inner.unary(req, path, codec).await
+        }
+        pub async fn get_retry_policies(
+            &mut self,
+            request: impl tonic::IntoRequest<super::RetryPolicyListRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::RetryPolicyList>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/api.Submit/GetRetryPolicies",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("api.Submit", "GetRetryPolicies"));
+            self.inner.unary(req, path, codec).await
         }
         pub async fn health(
             &mut self,

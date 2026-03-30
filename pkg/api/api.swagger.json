@@ -680,6 +680,148 @@
         }
       }
     },
+    "/v1/retry-policies": {
+      "get": {
+        "tags": [
+          "Submit"
+        ],
+        "operationId": "GetRetryPolicies",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/apiRetryPolicyList"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        }
+      }
+    },
+    "/v1/retry-policy": {
+      "post": {
+        "tags": [
+          "Submit"
+        ],
+        "operationId": "CreateRetryPolicy",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiRetryPolicy"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {}
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        }
+      }
+    },
+    "/v1/retry-policy/{name}": {
+      "get": {
+        "tags": [
+          "Submit"
+        ],
+        "operationId": "GetRetryPolicy",
+        "parameters": [
+          {
+            "type": "string",
+            "name": "name",
+            "in": "path",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/apiRetryPolicy"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Submit"
+        ],
+        "operationId": "UpdateRetryPolicy",
+        "parameters": [
+          {
+            "type": "string",
+            "name": "name",
+            "in": "path",
+            "required": true
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiRetryPolicy"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {}
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Submit"
+        ],
+        "operationId": "DeleteRetryPolicy",
+        "parameters": [
+          {
+            "type": "string",
+            "name": "name",
+            "in": "path",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {}
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        }
+      }
+    },
     "/v1/run/details": {
       "post": {
         "tags": [
@@ -890,6 +1032,15 @@
           "$ref": "#/definitions/apiEventMessage"
         }
       }
+    },
+    "apiExitCodeOperator": {
+      "type": "string",
+      "default": "EXIT_CODE_OPERATOR_UNSPECIFIED",
+      "enum": [
+        "EXIT_CODE_OPERATOR_UNSPECIFIED",
+        "EXIT_CODE_OPERATOR_IN",
+        "EXIT_CODE_OPERATOR_NOT_IN"
+      ]
     },
     "apiGetActiveQueuesRequest": {
       "type": "object"
@@ -2199,6 +2350,9 @@
             "$ref": "#/definitions/apiPriorityClassResourceLimits"
           }
         },
+        "retryPolicy": {
+          "type": "string"
+        },
         "userOwners": {
           "type": "array",
           "items": {
@@ -2238,6 +2392,89 @@
         },
         "queue": {
           "$ref": "#/definitions/apiQueue"
+        }
+      }
+    },
+    "apiRetryAction": {
+      "type": "string",
+      "default": "RETRY_ACTION_UNSPECIFIED",
+      "enum": [
+        "RETRY_ACTION_UNSPECIFIED",
+        "RETRY_ACTION_FAIL",
+        "RETRY_ACTION_RETRY"
+      ]
+    },
+    "apiRetryExitCodeMatcher": {
+      "type": "object",
+      "properties": {
+        "operator": {
+          "$ref": "#/definitions/apiExitCodeOperator"
+        },
+        "values": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      }
+    },
+    "apiRetryPolicy": {
+      "description": "RetryPolicy defines rules that determine whether failed jobs should be retried.\nOperators create policies and assign them to queues by name.",
+      "type": "object",
+      "properties": {
+        "defaultAction": {
+          "$ref": "#/definitions/apiRetryAction"
+        },
+        "name": {
+          "type": "string"
+        },
+        "retryLimit": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "rules": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/apiRetryRule"
+          }
+        }
+      }
+    },
+    "apiRetryPolicyList": {
+      "type": "object",
+      "properties": {
+        "retryPolicies": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/apiRetryPolicy"
+          }
+        }
+      }
+    },
+    "apiRetryRule": {
+      "type": "object",
+      "properties": {
+        "action": {
+          "$ref": "#/definitions/apiRetryAction"
+        },
+        "onCategories": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "onConditions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "onExitCodes": {
+          "$ref": "#/definitions/apiRetryExitCodeMatcher"
+        },
+        "onTerminationMessagePattern": {
+          "type": "string"
         }
       }
     },
