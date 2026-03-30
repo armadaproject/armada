@@ -55,6 +55,14 @@ func (a *App) CreateResource(fileName string, dryRun bool) error {
 		if !dryRun {
 			return a.Params.QueueAPI.Create(queue)
 		}
+	case client.ResourceKindRetryPolicy:
+		policy := &api.RetryPolicy{}
+		if err := util.BindJsonOrYaml(fileName, policy); err != nil {
+			return errors.Errorf("file %s error: %s", fileName, err)
+		}
+		if !dryRun {
+			return a.Params.RetryPolicyAPI.Create(policy)
+		}
 	default:
 		return errors.Errorf("invalid resource kind: %s", resource.Kind)
 	}
