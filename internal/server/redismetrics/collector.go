@@ -106,7 +106,7 @@ func newAgeHistogram() prometheus.Histogram {
 
 // NewCollector creates a new Collector instance.
 func NewCollector(scanner ScannerInterface, config Config, leaderController leader.LeaderController) *Collector {
-	return &Collector{
+	collector := &Collector{
 		scanner:          scanner,
 		config:           config,
 		leaderController: leaderController,
@@ -173,6 +173,10 @@ func NewCollector(scanner ScannerInterface, config Config, leaderController lead
 			Help: "Total number of streams found in last scan",
 		}),
 	}
+
+	collector.reallocateHistograms()
+
+	return collector
 }
 
 // Run starts the background collection loop.
@@ -194,10 +198,8 @@ func (c *Collector) Run(ctx *armadacontext.Context) error {
 			wasLeader = false
 		} else {
 			if !wasLeader {
-				c.reallocateHistograms()
+				wasLeader = true
 			}
-			wasLeader = true
-
 			err := c.collectOnce(ctx)
 			if err != nil {
 				ctx.Logger().WithError(err).Warnf("error collecting Redis metrics")
@@ -253,10 +255,30 @@ func (c *Collector) ClearState() {
 func (c *Collector) reallocateHistograms() {
 	c.collectMu.Lock()
 	defer c.collectMu.Unlock()
+	c.reallocateHistogramsLocked()
+}
 
+func (c *Collector) reallocateHistogramsLocked() {
 	c.bytesHistogram = newBytesHistogram()
 	c.eventsHistogram = newEventsHistogram()
 	c.ageHistogram = newAgeHistogram()
+}
+
+// resetMetricsForNewCycle resets all metrics (histograms and gauges) at the start of a collection cycle.
+// Assumes collectMu is already held by the caller.
+func (c *Collector) resetMetricsForNewCycle() {
+	// Reallocate histograms to get fresh objects (no accumulation across cycles)
+	c.bytesHistogram = newBytesHistogram()
+	c.eventsHistogram = newEventsHistogram()
+	c.ageHistogram = newAgeHistogram()
+
+	// Reset gauges to clear stale labels from previous cycle
+	c.topNMemoryGauge.Reset()
+	c.topNEventsGauge.Reset()
+	c.topNAgeGauge.Reset()
+	c.queueStreamsGauge.Reset()
+	c.queueMemoryGauge.Reset()
+	c.queueEventsGauge.Reset()
 }
 
 // collectOnce performs a single collection cycle.
@@ -267,13 +289,8 @@ func (c *Collector) collectOnce(ctx context.Context) error {
 	}
 	defer c.collectMu.Unlock()
 
-	// Reset gauges to clear stale labels
-	c.topNMemoryGauge.Reset()
-	c.topNEventsGauge.Reset()
-	c.topNAgeGauge.Reset()
-	c.queueStreamsGauge.Reset()
-	c.queueMemoryGauge.Reset()
-	c.queueEventsGauge.Reset()
+	// Reset all metrics for fresh collection cycle
+	c.resetMetricsForNewCycle()
 
 	start := time.Now()
 

@@ -752,7 +752,7 @@ func TestCollector_ReallocateHistograms_ConcurrentWithCollectOnce(t *testing.T) 
 	require.Greater(t, collectSuccess.Load(), int64(0))
 }
 
-func TestCollector_Run_ReacquiredLeadership_ReallocatesHistogramsBeforeCollect(t *testing.T) {
+func TestCollector_Run_ContinuousLeadership_ResetsHistogramsBeforeEachCollect(t *testing.T) {
 	streams := []StreamInfo{{Queue: "q1", JobSetId: "js1", MemoryBytes: 1024, Length: 10, AgeSeconds: 60}}
 	scanner := newBlockingMockScanner(streams)
 
@@ -778,10 +778,6 @@ func TestCollector_Run_ReacquiredLeadership_ReallocatesHistogramsBeforeCollect(t
 		return histogramSampleCount(t, collector.bytesHistogram) == 1
 	}, 2*time.Second, 10*time.Millisecond)
 
-	leaderController.SetToken(leader.InvalidLeaderToken())
-	time.Sleep(config.CollectionInterval + 50*time.Millisecond)
-
-	leaderController.SetToken(leader.NewLeaderToken())
 	waitForScanCall(t, scanner.startedCh, 2)
 	scanner.unblockCh <- struct{}{}
 
@@ -874,6 +870,32 @@ func TestCollector_Run_StartsNonLeader_ThenBecomesLeader_ReallocatesBeforeFirstC
 
 	cancel()
 	require.NoError(t, <-runErr)
+}
+
+func TestCollector_CollectOnce_ResetsHistogramsEveryCycle(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	scanner := &mockScanner{
+		streams: []StreamInfo{
+			{Queue: "q1", JobSetId: "js1", MemoryBytes: 1024, Length: 10, AgeSeconds: 60},
+			{Queue: "q2", JobSetId: "js2", MemoryBytes: 2048, Length: 20, AgeSeconds: 120},
+			{Queue: "q3", JobSetId: "js3", MemoryBytes: 4096, Length: 30, AgeSeconds: 240},
+		},
+	}
+
+	collector := NewCollector(scanner, testCollectorConfig(5), leader.NewStandaloneLeaderController())
+	require.NoError(t, collector.collectOnce(ctx))
+	require.Equal(t, uint64(3), histogramSampleCount(t, collector.bytesHistogram))
+	require.Equal(t, uint64(3), histogramSampleCount(t, collector.eventsHistogram))
+	require.Equal(t, uint64(3), histogramSampleCount(t, collector.ageHistogram))
+
+	scanner.streams = []StreamInfo{{Queue: "q4", JobSetId: "js4", MemoryBytes: 8192, Length: 40, AgeSeconds: 480}}
+
+	require.NoError(t, collector.collectOnce(ctx))
+	require.Equal(t, uint64(1), histogramSampleCount(t, collector.bytesHistogram))
+	require.Equal(t, uint64(1), histogramSampleCount(t, collector.eventsHistogram))
+	require.Equal(t, uint64(1), histogramSampleCount(t, collector.ageHistogram))
 }
 
 func TestHistogramBuckets_BytesDistribution(t *testing.T) {

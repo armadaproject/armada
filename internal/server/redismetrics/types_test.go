@@ -3,6 +3,7 @@ package redismetrics
 import (
 	"testing"
 
+	"github.com/armadaproject/armada/internal/common/constants"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -17,21 +18,21 @@ func TestParseStreamKey(t *testing.T) {
 	}{
 		{
 			name:       "standard queue and jobset",
-			key:        "Events:myqueue:myjobset",
+			key:        constants.EventStreamPrefix + "myqueue:myjobset",
 			wantQueue:  "myqueue",
 			wantJobSet: "myjobset",
 			wantErr:    false,
 		},
 		{
 			name:       "queue with colon separator",
-			key:        "Events:team:gpu:myjobset",
+			key:        constants.EventStreamPrefix + "team:gpu:myjobset",
 			wantQueue:  "team",
 			wantJobSet: "gpu:myjobset",
 			wantErr:    false,
 		},
 		{
 			name:       "empty queue",
-			key:        "Events::myjobset",
+			key:        constants.EventStreamPrefix + ":myjobset",
 			wantQueue:  "",
 			wantJobSet: "myjobset",
 			wantErr:    false,
