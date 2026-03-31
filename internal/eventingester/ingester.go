@@ -26,10 +26,10 @@ import (
 	"github.com/armadaproject/armada/internal/eventingester/convert"
 	"github.com/armadaproject/armada/internal/eventingester/metrics"
 	"github.com/armadaproject/armada/internal/eventingester/model"
+	"github.com/armadaproject/armada/internal/eventingester/redismetrics"
 	"github.com/armadaproject/armada/internal/eventingester/store"
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/leader"
-	"github.com/armadaproject/armada/internal/server/redismetrics"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 

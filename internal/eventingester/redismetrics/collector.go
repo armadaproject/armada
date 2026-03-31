@@ -181,11 +181,6 @@ func NewCollector(scanner ScannerInterface, config Config, leaderController lead
 
 // Run starts the background collection loop.
 func (c *Collector) Run(ctx *armadacontext.Context) error {
-	if !c.config.Enabled {
-		ctx.Infof("Redis memory metrics collection is disabled")
-		return nil
-	}
-
 	ticker := time.NewTicker(c.config.CollectionInterval)
 	defer ticker.Stop()
 

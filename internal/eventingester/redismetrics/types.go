@@ -13,7 +13,6 @@ import (
 
 // Config contains configuration for Redis memory metrics collection.
 type Config struct {
-	Enabled            bool
 	CollectionInterval time.Duration
 	TopN               int
 	ScanBatchSize      int64

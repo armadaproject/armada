@@ -22,7 +22,6 @@ import (
 
 func testCollectorConfig(topN int) Config {
 	return Config{
-		Enabled:            true,
 		CollectionInterval: 100 * time.Millisecond,
 		TopN:               topN,
 		ScanBatchSize:      100,
@@ -364,7 +363,6 @@ func TestCollect_NoMetricsWhenDisabled(t *testing.T) {
 		seedRedisStream(t, client, ctx, "queue-disabled", "jobset-1", 10)
 
 		config := testCollectorConfig(5)
-		config.Enabled = false
 		collector := newRedisBackedCollector(client, config, leader.NewStandaloneLeaderController())
 
 		require.Len(t, collectMetrics(collector), 0)

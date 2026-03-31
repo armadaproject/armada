@@ -39,7 +39,6 @@ type ArmadaConfig struct {
 
 	// Config relating to job submission.
 	Submission SubmissionConfig
-	Metrics    MetricsConfig
 }
 
 // SubmissionConfig contains config relating to job submission.
@@ -107,33 +106,4 @@ type PostgresConfig struct {
 
 type QueryApiConfig struct {
 	MaxQueryItems int
-}
-
-// MetricsConfig contains configuration for metrics collection.
-type MetricsConfig struct {
-	Redis RedisMemoryMetricsConfig
-}
-
-// RedisMemoryMetricsConfig contains configuration for Redis memory metrics collection.
-type RedisMemoryMetricsConfig struct {
-	Enabled            bool
-	CollectionInterval time.Duration
-	TopN               int
-	ScanBatchSize      int64
-	PipelineBatchSize  int
-	InterBatchDelay    time.Duration
-	MemoryUsageSamples int
-	ConnectionInfo     redis.UniversalOptions
-	Leader             LeaderConfig
-}
-
-// LeaderConfig contains configuration for leader election of redismetrics service.
-type LeaderConfig struct {
-	// Valid modes are "standalone" or "kubernetes"
-	Mode               string
-	LeaseLockName      string
-	LeaseLockNamespace string
-	LeaseDuration      time.Duration
-	RenewDeadline      time.Duration
-	RetryPeriod        time.Duration
 }
