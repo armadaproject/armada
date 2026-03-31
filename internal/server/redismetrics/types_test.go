@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/armadaproject/armada/internal/common/constants"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
