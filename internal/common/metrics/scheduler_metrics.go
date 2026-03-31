@@ -20,166 +20,183 @@ const (
 
 	AccountingRolePrimary   = "primary"
 	AccountingRoleSecondary = "secondary"
+
+	labelPool           = "pool"
+	labelQueue          = "queue"
+	labelQueueName      = "queueName"
+	labelPriorityClass  = "priorityClass"
+	labelPriceBand      = "priceBand"
+	labelResourceType   = "resourceType"
+	labelAccountingRole = "accounting_role"
+	labelNodeType       = "nodeType"
+	labelPhase          = "phase"
+	labelReservation    = "reservation"
+	labelPhysicalPool   = "physical_pool"
+	labelCapacityClass  = "capacity_class"
+	labelCluster        = "cluster"
+	labelNode           = "node"
+	labelReason         = "reason"
+	labelSetByUser      = "setByUser"
 )
 
 var PoolInfoDesc = prometheus.NewDesc(
 	MetricPrefix+"scheduler_pool_info",
 	"Information about the pools that are currently being scheduled",
-	[]string{"pool"},
+	[]string{labelPool},
 	nil,
 )
 
 var QueueSizeDesc = prometheus.NewDesc(
 	MetricPrefix+"queue_size",
 	"Number of jobs in a queue",
-	[]string{"queueName", "queue"},
+	[]string{labelQueueName, labelQueue},
 	nil,
 )
 
 var QueueDistinctSchedulingKeysDesc = prometheus.NewDesc(
 	MetricPrefix+"queue_distinct_scheduling_keys",
 	"Number of distinct scheduling keys requested by a queue",
-	[]string{"queueName", "queue"},
+	[]string{labelQueueName, labelQueue},
 	nil,
 )
 
 var QueueResourcesDesc = prometheus.NewDesc(
 	MetricPrefix+"queue_resource_queued",
 	"Resource required by queued jobs",
-	[]string{"pool", "priorityClass", "queueName", "queue", "priceBand", "resourceType", "accounting_role"},
+	[]string{labelPool, labelPriorityClass, labelQueueName, labelQueue, labelPriceBand, labelResourceType, labelAccountingRole},
 	nil,
 )
 
 var MinQueueResourcesDesc = prometheus.NewDesc(
 	MetricPrefix+"queue_resource_queued_min",
 	"Min resource required by queued job",
-	[]string{"pool", "priorityClass", "queueName", "queue", "priceBand", "resourceType", "accounting_role"},
+	[]string{labelPool, labelPriorityClass, labelQueueName, labelQueue, labelPriceBand, labelResourceType, labelAccountingRole},
 	nil,
 )
 
 var MaxQueueResourcesDesc = prometheus.NewDesc(
 	MetricPrefix+"queue_resource_queued_max",
 	"Max resource required by queued job",
-	[]string{"pool", "priorityClass", "queueName", "queue", "priceBand", "resourceType", "accounting_role"},
+	[]string{labelPool, labelPriorityClass, labelQueueName, labelQueue, labelPriceBand, labelResourceType, labelAccountingRole},
 	nil,
 )
 
 var MedianQueueResourcesDesc = prometheus.NewDesc(
 	MetricPrefix+"queue_resource_queued_median",
 	"Median resource required by queued jobs",
-	[]string{"pool", "priorityClass", "queueName", "queue", "priceBand", "resourceType", "accounting_role"},
+	[]string{labelPool, labelPriorityClass, labelQueueName, labelQueue, labelPriceBand, labelResourceType, labelAccountingRole},
 	nil,
 )
 
 var CountQueueResourcesDesc = prometheus.NewDesc(
 	MetricPrefix+"queue_resource_queued_count",
 	"Count of queued jobs requiring resource",
-	[]string{"pool", "priorityClass", "queueName", "queue", "priceBand", "resourceType", "accounting_role"},
+	[]string{labelPool, labelPriorityClass, labelQueueName, labelQueue, labelPriceBand, labelResourceType, labelAccountingRole},
 	nil,
 )
 
 var MinQueueDurationDesc = prometheus.NewDesc(
 	MetricPrefix+"job_queued_seconds_min",
 	"Min queue time for Armada jobs",
-	[]string{"pool", "priorityClass", "queueName", "queue", "accounting_role"},
+	[]string{labelPool, labelPriorityClass, labelQueueName, labelQueue, labelAccountingRole},
 	nil,
 )
 
 var MaxQueueDurationDesc = prometheus.NewDesc(
 	MetricPrefix+"job_queued_seconds_max",
 	"Max queue time for Armada jobs",
-	[]string{"pool", "priorityClass", "queueName", "queue", "accounting_role"},
+	[]string{labelPool, labelPriorityClass, labelQueueName, labelQueue, labelAccountingRole},
 	nil,
 )
 
 var MedianQueueDurationDesc = prometheus.NewDesc(
 	MetricPrefix+"job_queued_seconds_median",
 	"Median queue time for Armada jobs",
-	[]string{"pool", "priorityClass", "queueName", "queue", "accounting_role"},
+	[]string{labelPool, labelPriorityClass, labelQueueName, labelQueue, labelAccountingRole},
 	nil,
 )
 
 var QueueDurationDesc = prometheus.NewDesc(
 	MetricPrefix+"job_queued_seconds",
 	"Queued time for Armada jobs",
-	[]string{"pool", "priorityClass", "queueName", "queue", "accounting_role"},
+	[]string{labelPool, labelPriorityClass, labelQueueName, labelQueue, labelAccountingRole},
 	nil,
 )
 
 var MinJobRunDurationDesc = prometheus.NewDesc(
 	MetricPrefix+"job_run_time_seconds_min",
 	"Min run time for Armada jobs",
-	[]string{"pool", "priorityClass", "queueName", "queue"},
+	[]string{labelPool, labelPriorityClass, labelQueueName, labelQueue},
 	nil,
 )
 
 var MaxJobRunDurationDesc = prometheus.NewDesc(
 	MetricPrefix+"job_run_time_seconds_max",
 	"Max run time for Armada jobs",
-	[]string{"pool", "priorityClass", "queueName", "queue"},
+	[]string{labelPool, labelPriorityClass, labelQueueName, labelQueue},
 	nil,
 )
 
 var MedianJobRunDurationDesc = prometheus.NewDesc(
 	MetricPrefix+"job_run_time_seconds_median",
 	"Median run time for Armada jobs",
-	[]string{"pool", "priorityClass", "queueName", "queue"},
+	[]string{labelPool, labelPriorityClass, labelQueueName, labelQueue},
 	nil,
 )
 
 var JobRunDurationDesc = prometheus.NewDesc(
 	MetricPrefix+"job_run_time_seconds",
 	"Run time for Armada jobs",
-	[]string{"pool", "priorityClass", "queueName", "queue"},
+	[]string{labelPool, labelPriorityClass, labelQueueName, labelQueue},
 	nil,
 )
 
 var QueueAllocatedDesc = prometheus.NewDesc(
 	MetricPrefix+"queue_resource_allocated",
 	"Resource allocated to running jobs of a queue",
-	[]string{"cluster", "pool", "priorityClass", "queueName", "queue", "priceBand", "resourceType", "nodeType", "reservation", "physical_pool"},
+	[]string{labelCluster, labelPool, labelPriorityClass, labelQueueName, labelQueue, labelPriceBand, labelResourceType, labelNodeType, labelReservation, labelPhysicalPool},
 	nil,
 )
 
 var MinQueueAllocatedDesc = prometheus.NewDesc(
 	MetricPrefix+"queue_resource_allocated_min",
 	"Min resource allocated by a running job",
-	[]string{"pool", "priorityClass", "queueName", "queue", "priceBand", "resourceType"},
+	[]string{labelPool, labelPriorityClass, labelQueueName, labelQueue, labelPriceBand, labelResourceType},
 	nil,
 )
 
 var MaxQueueAllocatedDesc = prometheus.NewDesc(
 	MetricPrefix+"queue_resource_allocated_max",
 	"Max resource allocated by a running job",
-	[]string{"pool", "priorityClass", "queueName", "queue", "priceBand", "resourceType"},
+	[]string{labelPool, labelPriorityClass, labelQueueName, labelQueue, labelPriceBand, labelResourceType},
 	nil,
 )
 
 var MedianQueueAllocatedDesc = prometheus.NewDesc(
 	MetricPrefix+"queue_resource_allocated_median",
 	"Median resource allocated by a running job",
-	[]string{"pool", "priorityClass", "queueName", "queue", "priceBand", "resourceType"},
+	[]string{labelPool, labelPriorityClass, labelQueueName, labelQueue, labelPriceBand, labelResourceType},
 	nil,
 )
 
 var QueueUsedDesc = prometheus.NewDesc(
 	MetricPrefix+"queue_resource_used",
 	"Resource actually being used by running jobs of a queue",
-	[]string{"cluster", "pool", "queueName", "queue", "resourceType", "nodeType", "reservation", "physical_pool"},
+	[]string{labelCluster, labelPool, labelQueueName, labelQueue, labelResourceType, labelNodeType, labelReservation, labelPhysicalPool},
 	nil,
 )
 
 var QueueLeasedPodCountDesc = prometheus.NewDesc(
 	MetricPrefix+"queue_leased_pod_count",
 	"Number of leased pods",
-	[]string{"cluster", "pool", "queueName", "queue", "phase", "nodeType", "reservation"},
+	[]string{labelCluster, labelPool, labelQueueName, labelQueue, labelPhase, labelNodeType, labelReservation},
 	nil,
 )
 
 var NodeJobPhaseCounterDesc = prometheus.NewDesc(
 	MetricPrefix+"node_job_phase_count",
 	"Number of jobs in a given phase on a node",
-	[]string{"node", "cluster", "phase"},
+	[]string{labelNode, labelCluster, labelPhase},
 	nil,
 )
 
@@ -193,7 +210,7 @@ var NodeJobPhaseCounterDesc = prometheus.NewDesc(
 var ClusterCapacityDesc = prometheus.NewDesc(
 	MetricPrefix+"cluster_capacity",
 	"Cluster capacity",
-	[]string{"cluster", "pool", "resourceType", "nodeType", "reservation", "physical_pool", "capacity_class"},
+	[]string{labelCluster, labelPool, labelResourceType, labelNodeType, labelReservation, labelPhysicalPool, labelCapacityClass},
 	nil,
 )
 
@@ -207,7 +224,7 @@ var ClusterCapacityDesc = prometheus.NewDesc(
 var ClusterFarmCapacityDesc = prometheus.NewDesc(
 	MetricPrefix+"cluster_farm_capacity",
 	"Cluster capacity less usage from non-Armada pods",
-	[]string{"cluster", "pool", "resourceType", "nodeType", "reservation", "physical_pool", "capacity_class"},
+	[]string{labelCluster, labelPool, labelResourceType, labelNodeType, labelReservation, labelPhysicalPool, labelCapacityClass},
 	nil,
 )
 
@@ -221,70 +238,70 @@ var ClusterFarmCapacityDesc = prometheus.NewDesc(
 var ClusterAvailableCapacityDesc = prometheus.NewDesc(
 	MetricPrefix+"cluster_available_capacity",
 	"Cluster capacity available for Armada jobs",
-	[]string{"cluster", "pool", "resourceType", "nodeType", "reservation", "physical_pool", "capacity_class"},
+	[]string{labelCluster, labelPool, labelResourceType, labelNodeType, labelReservation, labelPhysicalPool, labelCapacityClass},
 	nil,
 )
 
 var ClusterCordonedStatusDesc = prometheus.NewDesc(
 	MetricPrefix+"cluster_cordoned_status",
 	"Cluster cordoned status",
-	[]string{"cluster", "reason", "setByUser"},
+	[]string{labelCluster, labelReason, labelSetByUser},
 	nil,
 )
 
 var QueuePriorityDesc = prometheus.NewDesc(
 	MetricPrefix+"queue_priority",
 	"Queue priority factor",
-	[]string{"queueName", "queue"},
+	[]string{labelQueueName, labelQueue},
 	nil,
 )
 
 var MinQueuePriceQueuedDesc = prometheus.NewDesc(
 	MetricPrefix+"queue_price_queued_min",
 	"Minimum price of queued jobs",
-	[]string{"pool", "priorityClass", "queue", "accounting_role"},
+	[]string{labelPool, labelPriorityClass, labelQueue, labelAccountingRole},
 	nil,
 )
 
 var MaxQueuePriceQueuedDesc = prometheus.NewDesc(
 	MetricPrefix+"queue_price_queued_max",
 	"Maximum price of queued jobs",
-	[]string{"pool", "priorityClass", "queue", "accounting_role"},
+	[]string{labelPool, labelPriorityClass, labelQueue, labelAccountingRole},
 	nil,
 )
 
 var MedianQueuePriceQueuedDesc = prometheus.NewDesc(
 	MetricPrefix+"queue_price_queued_median",
 	"Median price of queued jobs",
-	[]string{"pool", "priorityClass", "queue", "accounting_role"},
+	[]string{labelPool, labelPriorityClass, labelQueue, labelAccountingRole},
 	nil,
 )
 
 var MinQueuePriceRunningDesc = prometheus.NewDesc(
 	MetricPrefix+"queue_price_running_min",
 	"Minimum price of running jobs",
-	[]string{"pool", "priorityClass", "queue"},
+	[]string{labelPool, labelPriorityClass, labelQueue},
 	nil,
 )
 
 var MaxQueuePriceRunningDesc = prometheus.NewDesc(
 	MetricPrefix+"queue_price_running_max",
 	"Maximum price of running jobs",
-	[]string{"pool", "priorityClass", "queue"},
+	[]string{labelPool, labelPriorityClass, labelQueue},
 	nil,
 )
 
 var MedianQueuePriceRunningDesc = prometheus.NewDesc(
 	MetricPrefix+"queue_price_running_median",
 	"Median price of running jobs",
-	[]string{"pool", "priorityClass", "queue"},
+	[]string{labelPool, labelPriorityClass, labelQueue},
 	nil,
 )
 
 var QueuePriceBandPhaseBidDesc = prometheus.NewDesc(
 	MetricPrefix+"queue_price_band_phase_bid",
 	"Bid price for a queues price band",
-	[]string{"pool", "queueName", "queue", "phase", "priceBand"},
+	[]string{labelPool, labelQueueName, labelQueue, labelPhase, labelPriceBand},
 	nil,
 )
 
@@ -298,7 +315,7 @@ var JobDBCumulativeInternedStrings = prometheus.NewDesc(
 var (
 	queueLabelMetricName        = MetricPrefix + "queue_labels"
 	queueLabelMetricDescription = "Queue labels"
-	queueLabelDefaultLabels     = []string{"queueName", "queue"}
+	queueLabelDefaultLabels     = []string{labelQueueName, labelQueue}
 )
 
 // QueueLabelDesc so it can be added to AllDescs which makes Describe() work properly
