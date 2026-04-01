@@ -139,7 +139,7 @@ func withRedisClient(t *testing.T, action func(client redis.UniversalClient)) {
 func seedRedisStream(t *testing.T, client redis.UniversalClient, ctx context.Context, queue, jobSetId string, entryCount int) string {
 	t.Helper()
 
-	streamKey := fmt.Sprintf("%s:%s:%s", constants.EventStreamPrefix, queue, jobSetId)
+	streamKey := fmt.Sprintf("%s%s:%s", constants.EventStreamPrefix, queue, jobSetId)
 
 	for i := range entryCount {
 		_, err := client.XAdd(ctx, &redis.XAddArgs{

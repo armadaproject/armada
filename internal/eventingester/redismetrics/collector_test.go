@@ -203,7 +203,7 @@ func TestCollect_StaleLabelsCleared(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 
-		for i := 0; i < 10; i++ {
+		for i := range 10 {
 			seedRedisStream(t, client, ctx, "queue-stale-a", fmt.Sprintf("old-%d", i), (i+1)*10)
 		}
 
@@ -215,7 +215,7 @@ func TestCollect_StaleLabelsCleared(t *testing.T) {
 		require.Len(t, firstMetrics, 5)
 
 		require.NoError(t, client.FlushDB(ctx).Err())
-		for i := 0; i < 5; i++ {
+		for i := range 5 {
 			seedRedisStream(t, client, ctx, "queue-stale-b", fmt.Sprintf("new-%d", i), (i+1)*50)
 		}
 
@@ -223,7 +223,7 @@ func TestCollect_StaleLabelsCleared(t *testing.T) {
 
 		secondMetrics := metricKeys(gaugeMetricValues(t, collector.topNMemoryGauge))
 		expectedSecond := map[string]struct{}{}
-		for i := 0; i < 5; i++ {
+		for i := range 5 {
 			expectedSecond[fmt.Sprintf("jobset=new-%d,queue=queue-stale-b", i)] = struct{}{}
 		}
 
@@ -312,13 +312,11 @@ func TestCollect_ConcurrentCollect(t *testing.T) {
 		require.NoError(t, collector.collectOnce(ctx))
 
 		var wg sync.WaitGroup
-		for i := 0; i < 10; i++ {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+		for range 10 {
+			wg.Go(func() {
 				metrics := collectMetrics(collector)
 				require.Greater(t, len(metrics), 0)
-			}()
+			})
 		}
 		wg.Wait()
 	})
@@ -545,7 +543,7 @@ func TestCollector_ScrapetimeLeadershipCheck(t *testing.T) {
 		metricsAfterLeadershipLoss := collectMetrics(collector)
 		require.Len(t, metricsAfterLeadershipLoss, 0)
 
-		for i := 0; i < 2; i++ {
+		for range 2 {
 			require.Len(t, collectMetrics(collector), 0)
 		}
 	})
@@ -722,11 +720,11 @@ func TestCollector_ReallocateHistograms_ConcurrentWithCollectOnce(t *testing.T) 
 	const iterationsPerWorker = 200
 
 	var wg sync.WaitGroup
-	for i := 0; i < workers; i++ {
+	for i := range workers {
 		wg.Add(1)
 		go func(worker int) {
 			defer wg.Done()
-			for j := 0; j < iterationsPerWorker; j++ {
+			for range iterationsPerWorker {
 				if worker%2 == 0 {
 					collectCalls.Add(1)
 					err := collector.collectOnce(ctx)
