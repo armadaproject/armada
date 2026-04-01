@@ -23,12 +23,13 @@ import (
 
 func testCollectorConfig(topN int) Config {
 	return Config{
-		CollectionInterval: 100 * time.Millisecond,
-		TopN:               topN,
-		ScanBatchSize:      100,
-		PipelineBatchSize:  10,
-		InterBatchDelay:    0,
-		MemoryUsageSamples: 5,
+		CollectionInterval:         100 * time.Millisecond,
+		InitialCollectionDelayMax:  1 * time.Millisecond,
+		TopN:                       topN,
+		ScanBatchSize:              100,
+		PipelineBatchSize:          10,
+		InterBatchDelay:            0,
+		MemoryUsageSamples:         5,
 	}
 }
 

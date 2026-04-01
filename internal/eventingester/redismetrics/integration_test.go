@@ -22,7 +22,7 @@ import (
 )
 
 func createTestStream(t *testing.T, client redis.UniversalClient, ctx context.Context, queue, jobSetId string, eventCount int) string {
-	streamKey := fmt.Sprintf("%s:%s:%s", constants.EventStreamPrefix, queue, jobSetId)
+	streamKey := fmt.Sprintf("%s%s:%s", constants.EventStreamPrefix, queue, jobSetId)
 
 	compressor, err := compress.NewZlibCompressor(0)
 	require.NoError(t, err)

@@ -14,6 +14,9 @@ import (
 // Config contains configuration for Redis memory metrics collection.
 type Config struct {
 	CollectionInterval time.Duration
+	// InitialCollectionDelayMax controls startup jitter before first collection.
+	// If zero, a default of 1 minute is used.
+	InitialCollectionDelayMax time.Duration
 	TopN               int
 	ScanBatchSize      int64
 	PipelineBatchSize  int
