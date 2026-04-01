@@ -57,9 +57,12 @@ func (a *App) CancelJobSet(queue string, jobSetId string) (outerErr error) {
 }
 
 func (a *App) CancelOnExecutor(executor string, queues []string, priorityClasses []string, pools []string) error {
-	queueMsg := strings.Join(queues, ",")
 	priorityClassesMsg := strings.Join(priorityClasses, ",")
-	poolsMsg := strings.Join(pools, ",")
+	if len(priorityClasses) == 0 {
+		priorityClassesMsg = "all"
+	}
+
+	queueMsg := strings.Join(queues, ",")
 	// If the provided slice of queues is empty, jobs on all queues will be cancelled
 	if len(queues) == 0 {
 		apiQueues, err := a.getAllQueuesAsAPIQueue(&QueueQueryArgs{})
@@ -69,6 +72,8 @@ func (a *App) CancelOnExecutor(executor string, queues []string, priorityClasses
 		queues = armadaslices.Map(apiQueues, func(q *api.Queue) string { return q.Name })
 		queueMsg = "all"
 	}
+
+	poolsMsg := strings.Join(pools, ",")
 	if len(pools) == 0 {
 		poolsMsg = "all"
 	}
@@ -81,8 +86,12 @@ func (a *App) CancelOnExecutor(executor string, queues []string, priorityClasses
 }
 
 func (a *App) CancelOnNode(node string, executor string, queues []string, priorityClasses []string) error {
-	queueMsg := strings.Join(queues, ",")
 	priorityClassesMsg := strings.Join(priorityClasses, ",")
+	if len(priorityClasses) == 0 {
+		priorityClassesMsg = "all"
+	}
+
+	queueMsg := strings.Join(queues, ",")
 	// If the provided slice of queues is empty, jobs on all queues will be cancelled
 	if len(queues) == 0 {
 		apiQueues, err := a.getAllQueuesAsAPIQueue(&QueueQueryArgs{})
@@ -92,6 +101,7 @@ func (a *App) CancelOnNode(node string, executor string, queues []string, priori
 		queues = armadaslices.Map(apiQueues, func(q *api.Queue) string { return q.Name })
 		queueMsg = "all"
 	}
+
 	fmt.Fprintf(a.Out, "Requesting cancellation of jobs matching node: %s,  executor: %s, queues: %s, priority-classes: %s\n", node, executor, queueMsg, priorityClassesMsg)
 	if err := a.Params.NodeAPI.CancelOnNode(node, executor, queues, priorityClasses); err != nil {
 		return fmt.Errorf("error cancelling jobs on executor %s: %s", executor, err)
@@ -107,6 +117,9 @@ func (a *App) CancelOnQueues(args *QueueQueryArgs, priorityClasses []string, poo
 	}
 
 	priorityClassesMsg := strings.Join(priorityClasses, ",")
+	if len(priorityClasses) == 0 {
+		priorityClassesMsg = "all"
+	}
 	jobStatesMsg := strings.Join(armadaslices.Map(jobStates, func(s utils.ActiveJobState) string { return s.String() }), ",")
 	poolsMsg := strings.Join(pools, ",")
 	if len(pools) == 0 {

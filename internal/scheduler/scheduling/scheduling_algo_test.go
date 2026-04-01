@@ -1075,7 +1075,7 @@ func TestPopulateNodeDb(t *testing.T) {
 				tc.Jobs[i] = tc.Jobs[i].WithNewRun("executor-01", tc.Node.GetId(), tc.Node.GetName(), tc.Node.GetPool(), job.PriorityClass().Priority)
 			}
 
-			err = populateNodeDb(nodeDb, tc.Jobs, []*jobdb.Job{}, []*internaltypes.Node{tc.Node})
+			err = populateNodeDb(*schedulingConfig.GetPoolConfig(testfixtures.TestPool), nodeDb, tc.Jobs, []*jobdb.Job{}, []*internaltypes.Node{tc.Node})
 			require.NoError(t, err)
 
 			nodes, err := nodeDb.GetNodes()
@@ -1132,7 +1132,7 @@ func BenchmarkNodeDbConstruction(b *testing.B) {
 					dbNodes = append(dbNodes, node.DeepCopyNilKeys())
 				}
 
-				err = populateNodeDb(nodeDb, jobs, []*jobdb.Job{}, dbNodes)
+				err = populateNodeDb(*schedulingConfig.GetPoolConfig(testfixtures.TestPool), nodeDb, jobs, []*jobdb.Job{}, dbNodes)
 				require.NoError(b, err)
 			}
 		})

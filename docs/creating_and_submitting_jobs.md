@@ -7,7 +7,7 @@
 
 This document is meant to be a guide for new users of how to create and submit Jobs to Armada. Before you can create and submit jobs, make sure you have a basic understanding of Docker and Kubernetes. This is because Armada jobs are run as containers in Kubernetes. To learn more, see:
 
-* [Docker overiew](https://docs.docker.com/get-started/overview/)
+* [Docker overview](https://docs.docker.com/get-started/overview/)
 * [Kubernetes overview](https://kubernetes.io/docs/concepts/overview/)
 
 For more information about the design of Armada (for example, how jobs are prioritised), see [System overview](./system_overview.md).
