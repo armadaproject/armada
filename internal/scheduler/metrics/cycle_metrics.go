@@ -365,8 +365,8 @@ func newPerCycleMetrics() *perCycleMetrics {
 }
 
 type cycleMetrics struct {
-	leaderMetricsEnabled  bool
-	scalableUnitLabelKey  string
+	leaderMetricsEnabled bool
+	scalableUnitLabelKey string
 
 	scheduledJobs           *prometheus.CounterVec
 	preemptedJobs           *prometheus.CounterVec
