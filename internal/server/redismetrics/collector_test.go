@@ -301,6 +301,158 @@ func TestCollect_MetricDescriptions(t *testing.T) {
 	})
 }
 
+func TestCollector_MetricContract_RedisUsageCompatibility(t *testing.T) {
+	scanner := &mockScanner{
+		streams: []StreamInfo{
+			{Queue: "contract-queue", JobSetId: "contract-jobset", MemoryBytes: 2048, Length: 100, AgeSeconds: 120},
+		},
+	}
+
+	leaderController := leader.NewStandaloneLeaderController()
+	leaderController.SetToken(leader.NewLeaderToken())
+
+	collector := NewCollector(scanner, testCollectorConfig(5), leaderController)
+	require.NoError(t, collector.collectOnce(context.Background()))
+
+	registry := prometheus.NewPedanticRegistry()
+	require.NoError(t, registry.Register(collector))
+
+	metricFamilies, err := registry.Gather()
+	require.NoError(t, err)
+
+	actualByName := make(map[string]*dto.MetricFamily, len(metricFamilies))
+	for _, metricFamily := range metricFamilies {
+		actualByName[metricFamily.GetName()] = metricFamily
+	}
+
+	expectedContract := map[string]struct {
+		help   string
+		labels []string
+	}{
+		RedisStreamMemoryBytesMetricName: {
+			help:   "Memory usage of top-N Redis streams by bytes",
+			labels: []string{"jobset", "queue"},
+		},
+		RedisStreamEventCountMetricName: {
+			help:   "Event count of top-N Redis streams",
+			labels: []string{"jobset", "queue"},
+		},
+		RedisStreamAgeSecondsMetricName: {
+			help:   "Age of top-N oldest Redis streams in seconds",
+			labels: []string{"jobset", "queue"},
+		},
+		RedisStreamSizeBytesDistributionMetricName: {
+			help:   "Distribution of Redis stream sizes in bytes",
+			labels: []string{},
+		},
+		RedisStreamSizeEventsDistributionMetricName: {
+			help:   "Distribution of Redis stream event counts",
+			labels: []string{},
+		},
+		RedisStreamAgeSecondsDistributionMetricName: {
+			help:   "Distribution of Redis stream ages in seconds",
+			labels: []string{},
+		},
+		RedisQueueStreamsMetricName: {
+			help:   "Total number of streams per queue",
+			labels: []string{"queue"},
+		},
+		RedisQueueMemoryBytesMetricName: {
+			help:   "Total memory usage per queue in bytes",
+			labels: []string{"queue"},
+		},
+		RedisQueueEventsMetricName: {
+			help:   "Total event count per queue",
+			labels: []string{"queue"},
+		},
+		RedisMetricsCollectionDurationMetricName: {
+			help:   "Duration of Redis metrics collection cycles",
+			labels: []string{},
+		},
+		RedisMetricsErrorsTotalMetricName: {
+			help:   "Total number of Redis metrics collection errors",
+			labels: []string{},
+		},
+		RedisMetricsLastCollectionTimestampMetricName: {
+			help:   "Timestamp of last successful collection",
+			labels: []string{},
+		},
+		RedisMetricsStreamScannedMetricName: {
+			help:   "Total number of streams found in last scan",
+			labels: []string{},
+		},
+	}
+
+	actualNames := make([]string, 0, len(actualByName))
+	for name := range actualByName {
+		actualNames = append(actualNames, name)
+	}
+
+	expectedNames := make([]string, 0, len(expectedContract))
+	for name := range expectedContract {
+		expectedNames = append(expectedNames, name)
+	}
+
+	require.ElementsMatch(t, expectedNames, actualNames)
+
+	for name, expected := range expectedContract {
+		metricFamily, ok := actualByName[name]
+		require.Truef(t, ok, "expected metric family %q to be present", name)
+		require.Equal(t, expected.help, metricFamily.GetHelp())
+		require.Equal(t, expected.labels, metricFamilyLabelNames(metricFamily))
+		require.True(t, strings.HasPrefix(name, ArmadaRedisMetricsPrefix), "metric %q should keep redis prefix contract", name)
+	}
+}
+
+func metricFamilyLabelNames(metricFamily *dto.MetricFamily) []string {
+	seen := make(map[string]struct{})
+	for _, metric := range metricFamily.GetMetric() {
+		for _, labelPair := range metric.GetLabel() {
+			seen[labelPair.GetName()] = struct{}{}
+		}
+	}
+
+	labels := make([]string, 0, len(seen))
+	for name := range seen {
+		labels = append(labels, name)
+	}
+	sort.Strings(labels)
+
+	return labels
+}
+
+// TestCollector_Collect_EmptyResultProducesStableMetrics verifies that metric export
+// remains valid and stable when Redis has no streams (empty state).
+// This ensures the metrics endpoint does not panic and produces valid prometheus output.
+func TestCollector_Collect_EmptyResultProducesStableMetrics(t *testing.T) {
+	// Use a mock scanner that returns no streams
+	scanner := &mockScanner{
+		streams: []StreamInfo{},
+	}
+
+	leaderController := leader.NewStandaloneLeaderController()
+	leaderController.SetToken(leader.NewLeaderToken())
+
+	collector := NewCollector(scanner, testCollectorConfig(5), leaderController)
+	require.NoError(t, collector.collectOnce(context.Background()))
+
+	// Verify that metrics can be collected without error
+	registry := prometheus.NewPedanticRegistry()
+	require.NoError(t, registry.Register(collector))
+
+	metricFamilies, err := registry.Gather()
+	require.NoError(t, err, "metrics gather should not error on empty redis state")
+
+	// Verify we still get metric families (e.g., self-monitoring metrics)
+	require.GreaterOrEqual(t, len(metricFamilies), 1, "should have at least some metrics even with empty redis")
+
+	// Verify all metrics have valid names
+	for _, mf := range metricFamilies {
+		require.NotEmpty(t, mf.GetName(), "metric family name must not be empty")
+		require.True(t, strings.HasPrefix(mf.GetName(), ArmadaRedisMetricsPrefix), "metric %q must keep redis prefix", mf.GetName())
+	}
+}
+
 func TestCollect_ConcurrentCollect(t *testing.T) {
 	withRedisClient(t, func(client redis.UniversalClient) {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

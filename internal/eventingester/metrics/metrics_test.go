@@ -1,11 +1,17 @@
 package metrics
 
 import (
+	"sort"
+	"strings"
 	"testing"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
+	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/armadaproject/armada/internal/common/ingest/metrics"
 )
 
 func TestRecordUncompressedEventSize(t *testing.T) {
@@ -185,4 +191,98 @@ func TestQueueScopedCounterIsolation(t *testing.T) {
 	queueBCount := testutil.ToFloat64(batchCount.WithLabelValues("queue-b"))
 	assert.Equal(t, float64(2), queueACount, "queue-a should have 2 batches")
 	assert.Equal(t, float64(1), queueBCount, "queue-b should have 1 batch")
+}
+
+// TestEventIngesterMetrics_ContractStability verifies that eventingester metric names,
+// labels, and help text remain stable across versions to maintain consumer compatibility.
+func TestEventIngesterMetrics_ContractStability(t *testing.T) {
+	// Cleanup unregisters all metrics to avoid polluting global registry
+	t.Cleanup(func() {
+		prometheus.Unregister(uncompressedEventSize)
+		prometheus.Unregister(estimatedCompressedEventSize)
+		prometheus.Unregister(batchSize)
+		prometheus.Unregister(batchCompressionRatio)
+		prometheus.Unregister(batchCount)
+	})
+
+	// Record some sample data to generate metric families
+	RecordUncompressedEventSize("job_submitted", "test-queue", 1024)
+	RecordEstimatedCompressedEventSize("job_submitted", "test-queue", 512.0)
+	RecordBatchSize("test-queue", 2048)
+	RecordBatchCompressionRatio("test-queue", 1024, 2048)
+	RecordBatchCount("test-queue")
+
+	// Gather metrics and verify contracts
+	registry := prometheus.NewRegistry()
+	registry.MustRegister(uncompressedEventSize)
+	registry.MustRegister(estimatedCompressedEventSize)
+	registry.MustRegister(batchSize)
+	registry.MustRegister(batchCompressionRatio)
+	registry.MustRegister(batchCount)
+
+	metricFamilies, err := registry.Gather()
+	require.NoError(t, err, "metric gather must not error")
+
+	actualByName := make(map[string]*dto.MetricFamily, len(metricFamilies))
+	for _, mf := range metricFamilies {
+		actualByName[mf.GetName()] = mf
+	}
+
+	// Define expected contract for eventingester metrics
+	expectedContract := map[string]struct {
+		help   string
+		labels []string
+	}{
+		metrics.ArmadaEventIngesterMetricsPrefix + "uncompressed_event_size": {
+			help:   "Total uncompressed event size in bytes",
+			labels: []string{"event_type", "queue"},
+		},
+		metrics.ArmadaEventIngesterMetricsPrefix + "estimated_compressed_event_size": {
+			help:   "Total estimated compressed event size in bytes",
+			labels: []string{"event_type", "queue"},
+		},
+		metrics.ArmadaEventIngesterMetricsPrefix + "batch_size": {
+			help:   "Total compressed batch size in bytes",
+			labels: []string{"queue"},
+		},
+		metrics.ArmadaEventIngesterMetricsPrefix + "batch_compression_ratio": {
+			help:   "Sum of compression ratios (compressed/uncompressed) across batches; divide by batch_count for average ratio",
+			labels: []string{"queue"},
+		},
+		metrics.ArmadaEventIngesterMetricsPrefix + "batch_count": {
+			help:   "Number of logical batches written to Redis (counted once, not per sink retry)",
+			labels: []string{"queue"},
+		},
+	}
+
+	// Verify all expected metrics are present with correct names and help text
+	for name, expected := range expectedContract {
+		metricFamily, ok := actualByName[name]
+		require.Truef(t, ok, "expected metric family %q to be present", name)
+		require.Equal(t, expected.help, metricFamily.GetHelp(), "metric %q help text mismatch", name)
+
+		actualLabels := metricFamilyLabelNames(metricFamily)
+		require.Equal(t, expected.labels, actualLabels, "metric %q label keys mismatch", name)
+
+		require.True(t, strings.HasPrefix(name, metrics.ArmadaEventIngesterMetricsPrefix),
+			"metric %q should keep eventingester prefix contract", name)
+	}
+}
+
+// metricFamilyLabelNames extracts and sorts label names from a metric family
+func metricFamilyLabelNames(metricFamily *dto.MetricFamily) []string {
+	seen := make(map[string]struct{})
+	for _, metric := range metricFamily.GetMetric() {
+		for _, labelPair := range metric.GetLabel() {
+			seen[labelPair.GetName()] = struct{}{}
+		}
+	}
+
+	labels := make([]string, 0, len(seen))
+	for name := range seen {
+		labels = append(labels, name)
+	}
+	sort.Strings(labels)
+
+	return labels
 }

@@ -25,13 +25,25 @@ import (
 	"github.com/armadaproject/armada/internal/eventingester/configuration"
 	"github.com/armadaproject/armada/internal/eventingester/convert"
 	"github.com/armadaproject/armada/internal/eventingester/metrics"
-	"github.com/armadaproject/armada/internal/eventingester/model"
 	"github.com/armadaproject/armada/internal/eventingester/store"
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/leader"
 	"github.com/armadaproject/armada/internal/server/redismetrics"
-	"github.com/armadaproject/armada/pkg/armadaevents"
 )
+
+func registerCollector(collector prometheus.Collector, collectorName string) error {
+	err := prometheus.Register(collector)
+	if err == nil {
+		return nil
+	}
+
+	if _, ok := err.(prometheus.AlreadyRegisteredError); ok {
+		log.Infof("Prometheus collector %s already registered; skipping duplicate registration", collectorName)
+		return nil
+	}
+
+	return errors.WithMessagef(err, "failed to register collector %s", collectorName)
+}
 
 // Run will create a pipeline that will take Armada event messages from Pulsar and update the
 // Events database accordingly.  This pipeline will run until a SIGTERM is received
@@ -112,7 +124,9 @@ func Run(config *configuration.EventIngesterConfiguration) {
 		}
 
 		collector := redismetrics.NewCollector(scanner, metricsConfig, leaderController)
-		prometheus.MustRegister(collector)
+		if err := registerCollector(collector, "redis usage metrics"); err != nil {
+			log.Fatalf("%v", err)
+		}
 
 		g.Go(func() error {
 			return leaderController.Run(ctx)
@@ -135,7 +149,7 @@ func Run(config *configuration.EventIngesterConfiguration) {
 	shutdownMetricServer := common.ServeMetrics(config.MetricsPort)
 	defer shutdownMetricServer()
 
-	ingester := ingest.NewIngestionPipeline[*model.BatchUpdate, *armadaevents.EventSequence](
+	ingester := ingest.NewIngestionPipeline(
 		config.Pulsar,
 		config.Pulsar.JobsetEventsTopic,
 		config.SubscriptionName,
@@ -188,7 +202,9 @@ func createLeaderController(ctx *armadacontext.Context, config configuration.Lea
 		leaderController := leader.NewKubernetesLeaderController(schedulerLeaderConfig, clientSet.CoordinationV1())
 		leaderStatusMetrics := leader.NewLeaderStatusMetricsCollector(config.LeaseLockName)
 		leaderController.RegisterListener(leaderStatusMetrics)
-		prometheus.MustRegister(leaderStatusMetrics)
+		if err := registerCollector(leaderStatusMetrics, "redis metrics leader status"); err != nil {
+			return nil, err
+		}
 		return leaderController, nil
 	default:
 		return nil, errors.Errorf("%s is not a valid leader mode", config.Mode)
