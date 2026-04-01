@@ -17,6 +17,7 @@ import (
 	log "github.com/armadaproject/armada/internal/common/logging"
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/scheduler/floatingresources"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/fairness"
@@ -487,6 +488,31 @@ func (sctx *SchedulingContext) EvictJob(jctx *JobSchedulingContext) (bool, error
 	}
 	sctx.Allocated = sctx.Allocated.Subtract(jctx.Job.AllResourceRequirements())
 	return scheduledInThisRound, nil
+}
+
+func (sctx *SchedulingContext) IsWithinFloatingResourceLimits(gctx *GangSchedulingContext, resourceLimits *floatingresources.FloatingResourceTypes) (bool, string) {
+	if gctx == nil || !gctx.RequestsFloatingResources {
+		return true, ""
+	}
+
+	if resourceLimits == nil {
+		return false, fmt.Sprintf("floating resource limits not provided when checking for pool %s", sctx.Pool)
+	}
+
+	isAway := false
+	for _, jctx := range gctx.JobSchedulingContexts {
+		if !jctx.IsHomeJob(sctx.Pool) {
+			isAway = true
+			break
+		}
+	}
+	// If the gang is from another pool, then the floating resource limit check will have already been performed on that pool
+	// Gangs from another pool can only be re-scheduled so shouldn't breach any limits
+	if isAway {
+		return true, ""
+	}
+
+	return resourceLimits.WithinLimits(sctx.Pool, sctx.Allocated)
 }
 
 // ClearJobSpecs zeroes out job specs to reduce memory usage.
