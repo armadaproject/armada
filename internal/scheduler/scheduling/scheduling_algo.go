@@ -371,12 +371,20 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 	allPools = append(allPools, currentPool.AwayPools...)
 	allPools = append(allPools, awayAllocationPools...)
 
+	allJobs := txn.GetAllLeasedJobs()
+	allQueuedJobs := []*jobdb.Job{}
+	for _, pool := range allPools {
+		allQueuedJobs = append(allQueuedJobs, txn.GetQueuedJobsByPool(pool)...)
+	}
+	allUniqueQueuedJobs := armadaslices.UniqueBy(allQueuedJobs, func(job *jobdb.Job) string { return job.Id() })
+	allJobs = append(allJobs, allUniqueQueuedJobs...)
+
 	jobSchedulingInfo, err := l.calculateJobSchedulingInfo(ctx,
 		armadamaps.FromSlice(executors,
 			func(ex *schedulerobjects.Executor) string { return ex.Id },
 			func(_ *schedulerobjects.Executor) bool { return true }),
 		queueByName,
-		txn.GetAll(),
+		allJobs,
 		currentPool.Name,
 		awayAllocationPools,
 		allPools)
