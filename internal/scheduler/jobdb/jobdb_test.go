@@ -92,7 +92,7 @@ func TestJobDb_TestGetLeased(t *testing.T) {
 	assert.Equal(t, expected, actual)
 }
 
-func TestJobDb_Leased_Lifecycle(t *testing.T) {
+func TestJobDb_LeasedJobs_Lifecycle(t *testing.T) {
 	jobDb := NewTestJobDb()
 
 	upsert := func(jobDb *JobDb, job *Job) {
@@ -127,7 +127,7 @@ func TestJobDb_Leased_Lifecycle(t *testing.T) {
 	assert.Empty(t, jobDb.ReadTxn().GetAllLeasedJobs())
 }
 
-func TestJobDb_Leased_Deleted(t *testing.T) {
+func TestJobDb_LeasedJobs_Deleted(t *testing.T) {
 	jobDb := NewTestJobDb()
 	job1 := newJob().WithQueued(false).WithNewRun("executor", "nodeId", "nodeName", "pool", 5)
 	txn := jobDb.WriteTxn()
@@ -142,6 +142,68 @@ func TestJobDb_Leased_Deleted(t *testing.T) {
 	err = txn.BatchDelete([]string{job1.Id()})
 	require.NoError(t, err)
 	assert.Empty(t, txn.GetAllLeasedJobs())
+}
+
+func TestJobDb_TestGetTerminalJobs(t *testing.T) {
+	jobDb := NewTestJobDb()
+	job1 := newJob().WithQueued(false).WithNewRun("executor", "nodeId", "nodeName", "pool", 5)
+	job2 := newJob().WithQueued(true)
+	job3 := newJob().WithQueued(false).WithSucceeded(true)
+	job4 := newJob().WithQueued(false).WithCancelled(true)
+	job5 := newJob().WithQueued(false).WithFailed(true)
+	job6 := newJob().WithQueued(true).WithFailed(true)
+	txn := jobDb.WriteTxn()
+
+	err := txn.Upsert([]*Job{job1, job2, job3, job4, job5, job6})
+	require.NoError(t, err)
+
+	expected := []*Job{job3, job4, job5, job6}
+	actual := txn.GetAllTerminalJobs()
+	sort.SliceStable(actual, func(i, j int) bool { return actual[i].id < actual[j].id })
+	sort.SliceStable(expected, func(i, j int) bool { return expected[i].id < expected[j].id })
+	assert.Equal(t, expected, actual)
+}
+
+func TestJobDb_TerminalJobs_Lifecycle(t *testing.T) {
+	jobDb := NewTestJobDb()
+
+	upsert := func(jobDb *JobDb, job *Job) {
+		txn := jobDb.WriteTxn()
+		err := txn.Upsert([]*Job{job})
+		require.NoError(t, err)
+		txn.Commit()
+	}
+
+	job1 := newJob().WithQueued(true)
+	upsert(jobDb, job1)
+	assert.Empty(t, jobDb.ReadTxn().GetAllTerminalJobs())
+
+	// leased
+	job1 = job1.WithQueued(false).WithNewRun("executor", "nodeId", "nodeName", "pool", 5)
+	upsert(jobDb, job1)
+	assert.Empty(t, jobDb.ReadTxn().GetAllTerminalJobs())
+
+	// finished
+	job1 = job1.WithSucceeded(true)
+	upsert(jobDb, job1)
+	assert.NotEmpty(t, jobDb.ReadTxn().GetAllTerminalJobs())
+}
+
+func TestJobDb_TerminalJobs_Deleted(t *testing.T) {
+	jobDb := NewTestJobDb()
+	job1 := newJob().WithFailed(true)
+	txn := jobDb.WriteTxn()
+
+	err := txn.Upsert([]*Job{job1})
+	require.NoError(t, err)
+
+	expected := []*Job{job1}
+	actual := txn.GetAllTerminalJobs()
+	assert.Equal(t, expected, actual)
+
+	err = txn.BatchDelete([]string{job1.Id()})
+	require.NoError(t, err)
+	assert.Empty(t, txn.GetAllTerminalJobs())
 }
 
 func TestJobDb_TestGetUnvalidated(t *testing.T) {

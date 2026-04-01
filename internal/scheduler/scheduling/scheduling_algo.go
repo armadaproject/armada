@@ -372,6 +372,7 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 	allPools = append(allPools, awayAllocationPools...)
 
 	allJobs := txn.GetAllLeasedJobs()
+	allJobs = append(allJobs, txn.GetAllTerminalJobs()...)
 	allQueuedJobs := []*jobdb.Job{}
 	for _, pool := range allPools {
 		allQueuedJobs = append(allQueuedJobs, txn.GetQueuedJobsByPool(pool)...)
