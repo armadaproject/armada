@@ -31,7 +31,7 @@ var (
 	poolAndShapeAndReasonLabels            = []string{poolLabel, jobShapeLabel, unschedulableReasonLabel}
 	poolQueueAndResourceLabels             = []string{poolLabel, queueLabel, resourceLabel}
 	poolAndOutcomeLabels                   = []string{poolLabel, outcomeLabel, terminationReasonLabel}
-	nodeLabels                             = []string{poolLabel, nodeLabel, clusterLabel, nodeTypeLabel, resourceLabel, reservationLabel, schedulableLabel, overAllocatedLabel, physicalPoolLabel, capacityClassLabel}
+	nodeLabels                             = []string{poolLabel, nodeLabel, clusterLabel, nodeTypeLabel, resourceLabel, reservationLabel, schedulableLabel, overAllocatedLabel, physicalPoolLabel, capacityClassLabel, scalableUnitLabel}
 	defaultType                            = "unknown"
 	reconcilerFailureType                  = "reconciler"
 )
@@ -366,6 +366,7 @@ func newPerCycleMetrics() *perCycleMetrics {
 
 type cycleMetrics struct {
 	leaderMetricsEnabled bool
+	scalableUnitLabelKey string
 
 	scheduledJobs           *prometheus.CounterVec
 	preemptedJobs           *prometheus.CounterVec
@@ -379,7 +380,7 @@ type cycleMetrics struct {
 	metricsPublisher        pulsarutils.Publisher[*metricevents.Event]
 }
 
-func newCycleMetrics(publisher pulsarutils.Publisher[*metricevents.Event]) *cycleMetrics {
+func newCycleMetrics(publisher pulsarutils.Publisher[*metricevents.Event], scalableUnitLabelKey string) *cycleMetrics {
 	scheduledJobs := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: prefix + "scheduled_jobs",
@@ -447,6 +448,7 @@ func newCycleMetrics(publisher pulsarutils.Publisher[*metricevents.Event]) *cycl
 
 	cycleMetrics := &cycleMetrics{
 		leaderMetricsEnabled:    true,
+		scalableUnitLabelKey:    scalableUnitLabelKey,
 		scheduledJobs:           scheduledJobs,
 		preemptedJobs:           preemptedJobs,
 		failedJobs:              failedJobs,
@@ -614,16 +616,20 @@ func (m *cycleMetrics) ReportSchedulerResult(ctx *armadacontext.Context, result 
 						if pool != node.GetPool() {
 							nodeCapacityClass = CapacityClassShared
 						}
+						scalableUnit := ""
+						if m.scalableUnitLabelKey != "" {
+							scalableUnit = node.GetLabels()[m.scalableUnitLabelKey]
+						}
 						for _, resource := range node.GetAllocatableResources().GetAll() {
 							currentCycle.nodeAllocatableResource.WithLabelValues(pool, node.GetName(), node.GetExecutor(), node.GetReportingNodeType(), resource.Name, node.GetReservation(),
-								isSchedulable, isOverallocated, node.GetPool(), nodeCapacityClass).Set(resource.Value.AsApproximateFloat64())
+								isSchedulable, isOverallocated, node.GetPool(), nodeCapacityClass, scalableUnit).Set(resource.Value.AsApproximateFloat64())
 						}
 
 						allocated := node.GetAllocatableResources().Subtract(node.AllocatableByPriority[internaltypes.EvictedPriority])
 						for _, resource := range allocated.GetAll() {
 							allocatableValue := math.Max(resource.Value.AsApproximateFloat64(), 0)
 							currentCycle.nodeAllocatedResource.WithLabelValues(pool, node.GetName(), node.GetExecutor(), node.GetReportingNodeType(), resource.Name, node.GetReservation(),
-								isSchedulable, isOverallocated, node.GetPool(), nodeCapacityClass).Set(allocatableValue)
+								isSchedulable, isOverallocated, node.GetPool(), nodeCapacityClass, scalableUnit).Set(allocatableValue)
 						}
 					}
 				}
