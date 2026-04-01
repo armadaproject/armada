@@ -25,6 +25,7 @@ const (
 	overAllocatedLabel       = "overAllocated"
 	physicalPoolLabel        = "physical_pool"
 	capacityClassLabel       = "capacity_class"
+	scalableUnitLabel        = "scalable_unit"
 	jobShapeLabel            = "job_shape"
 	unschedulableReasonLabel = "unschedulable_reason"
 	outcomeLabel             = "outcome"
