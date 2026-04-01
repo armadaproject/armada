@@ -1,0 +1,49 @@
+syntax = "proto3";
+
+package api;
+option go_package = "github.com/armadaproject/armada/pkg/api";
+
+// InteractiveService exposes interactive shell/exec access to running jobs.
+service InteractiveService {
+  // Exec opens an interactive exec session to a running job's pod.
+  // The first message from the client must be an ExecInit; subsequent messages
+  // carry stdin data and terminal resize events.
+  rpc Exec(stream ExecRequest) returns (stream ExecResponse);
+}
+
+// ExecRequest is sent by armadactl to the server.
+message ExecRequest {
+  oneof payload {
+    ExecInit init = 1;
+    bytes stdin = 2;
+    ExecResize resize = 3;
+  }
+}
+
+// ExecInit is the first message sent by the client to initiate an exec session.
+message ExecInit {
+  string job_id = 1;
+  string run_id = 2;
+  int32 pod_number = 3;
+  // container is the target container name; empty means the default container.
+  string container = 4;
+  repeated string command = 5;
+  bool tty = 6;
+  bool stdin = 7;
+}
+
+// ExecResize carries terminal window size changes.
+message ExecResize {
+  uint32 width = 1;
+  uint32 height = 2;
+}
+
+// ExecResponse is sent by the server to armadactl.
+message ExecResponse {
+  oneof payload {
+    bytes stdout = 1;
+    bytes stderr = 2;
+    int32 exit_code = 3;
+    string error = 4;
+  }
+}

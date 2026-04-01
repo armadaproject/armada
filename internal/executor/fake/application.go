@@ -21,5 +21,6 @@ func StartUp(ctx *armadacontext.Context, config configuration.ExecutorConfigurat
 		nil,
 		task.NewBackgroundTaskManager(metrics.ArmadaExecutorMetricsPrefix),
 		wg,
+		nil, // no proxy in fake executor
 	)
 }

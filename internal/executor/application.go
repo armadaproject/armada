@@ -17,6 +17,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/cluster"
+	executorproxy "github.com/armadaproject/armada/internal/executor/proxy"
 	"github.com/armadaproject/armada/internal/common/etcdhealth"
 	"github.com/armadaproject/armada/internal/common/healthmonitor"
 	common_metrics "github.com/armadaproject/armada/internal/common/metrics"
@@ -37,6 +38,7 @@ import (
 	"github.com/armadaproject/armada/internal/executor/utilisation"
 	"github.com/armadaproject/armada/pkg/client"
 	"github.com/armadaproject/armada/pkg/executorapi"
+	"github.com/armadaproject/armada/pkg/proxyapi"
 )
 
 func StartUp(ctx *armadacontext.Context, config configuration.ExecutorConfiguration) (func(), *sync.WaitGroup) {
@@ -113,7 +115,7 @@ func StartUp(ctx *armadacontext.Context, config configuration.ExecutorConfigurat
 	taskManager := task.NewBackgroundTaskManager(metrics.ArmadaExecutorMetricsPrefix)
 	taskManager.Register(clusterContext.ProcessPodsToDelete, config.Task.PodDeletionInterval, "pod_deletion")
 
-	return StartUpWithContext(ctx, config, clusterContext, etcdClustersHealthMonitoring, taskManager, wg)
+	return StartUpWithContext(ctx, config, clusterContext, etcdClustersHealthMonitoring, taskManager, wg, kubernetesClientProvider)
 }
 
 func StartUpWithContext(
@@ -123,6 +125,7 @@ func StartUpWithContext(
 	clusterHealthMonitor healthmonitor.HealthMonitor,
 	taskManager *task.BackgroundTaskManager,
 	wg *sync.WaitGroup,
+	kubernetesClientProvider cluster.KubernetesClientProvider,
 ) (func(), *sync.WaitGroup) {
 	nodeInfoService := node.NewKubernetesNodeInfoService(
 		clusterContext,
@@ -145,7 +148,7 @@ func StartUpWithContext(
 		ctx.Fatalf("Config error in pending pod checks: %s", err)
 	}
 
-	stopExecutorApiComponents := setupExecutorApiComponents(ctx, config, clusterContext, clusterHealthMonitor, taskManager, pendingPodChecker, nodeInfoService, podUtilisationService)
+	stopExecutorApiComponents := setupExecutorApiComponents(ctx, config, clusterContext, clusterHealthMonitor, taskManager, pendingPodChecker, nodeInfoService, podUtilisationService, kubernetesClientProvider)
 
 	resourceCleanupService, err := service.NewResourceCleanupService(clusterContext, config.Kubernetes)
 	if err != nil {
@@ -177,6 +180,7 @@ func setupExecutorApiComponents(
 	pendingPodChecker *podchecks.PodChecks,
 	nodeInfoService node.NodeInfoService,
 	podUtilisationService utilisation.PodUtilisationService,
+	kubernetesClientProvider cluster.KubernetesClientProvider,
 ) func() {
 	conn, err := createConnectionToApi(config.ExecutorApiConnection, config.Client.MaxMessageSizeBytes, config.GRPC)
 	if err != nil {
@@ -283,8 +287,47 @@ func setupExecutorApiComponents(
 		)
 	}
 
+	var stopProxy func()
+	if config.Proxy.Enabled {
+		// Use CreateApiConnectionWithCallOptions directly to avoid re-registering
+		// Prometheus metrics (createConnectionToApi does that and panics on second call).
+		proxyConn, err := client.CreateApiConnectionWithCallOptions(
+			&config.Proxy.ApiConnection,
+			[]grpc.CallOption{grpc.MaxCallRecvMsgSize(config.Client.MaxMessageSizeBytes)},
+			grpc.WithKeepaliveParams(config.GRPC),
+		)
+		if err != nil {
+			ctx.Fatalf("Failed to connect to proxy API because: %s", err)
+		}
+		proxyClient := proxyapi.NewExecutorProxyApiClient(proxyConn)
+		execHandler := executorproxy.NewExecHandler(
+			kubernetesClientProvider.Client(),
+			kubernetesClientProvider.ClientConfig(),
+			proxyClient,
+			executorproxy.DefaultSPDYExecutorFactory,
+		)
+		proxyControl := executorproxy.NewProxyControlClient(
+			config.Application.ClusterId,
+			proxyConn,
+			execHandler,
+		)
+		proxyCtx, proxyCancel := armadacontext.WithCancel(ctx)
+		go func() {
+			if err := proxyControl.Run(proxyCtx); err != nil {
+				ctx.Warnf("ProxyControlClient stopped: %v", err)
+			}
+		}()
+		stopProxy = func() {
+			proxyCancel()
+			proxyConn.Close()
+		}
+	}
+
 	return func() {
 		stopReporter <- true
+		if stopProxy != nil {
+			stopProxy()
+		}
 		conn.Close()
 	}
 }

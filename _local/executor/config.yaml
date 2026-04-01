@@ -7,3 +7,8 @@ metric:
 application:
   clusterId: "local-cluster"
   pool: "default"
+proxy:
+  enabled: true
+  apiConnection:
+    armadaUrl: "localhost:50051"
+    forceNoTls: true

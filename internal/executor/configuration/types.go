@@ -169,6 +169,16 @@ const (
 	Mean               = "Mean"
 )
 
+// ProxyConfiguration controls the executor's participation in the exec proxy.
+type ProxyConfiguration struct {
+	// Enabled enables the ProxyControl stream. Disabled by default for safe rollout.
+	Enabled bool
+	// ApiConnection is the connection details for the Armada server that hosts
+	// the ExecutorProxyApi service. This is separate from ExecutorApiConnection
+	// (which points to the scheduler) because the proxy service lives on the server.
+	ApiConnection client.ApiConnectionDetails
+}
+
 type ExecutorConfiguration struct {
 	HttpPort uint16
 	// If non-nil, net/http/pprof endpoints are exposed on localhost on this port.
@@ -181,4 +191,5 @@ type ExecutorConfiguration struct {
 
 	Kubernetes KubernetesConfiguration
 	Task       TaskConfiguration
+	Proxy      ProxyConfiguration
 }

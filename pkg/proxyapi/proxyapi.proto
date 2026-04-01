@@ -1,0 +1,84 @@
+syntax = "proto3";
+
+package proxyapi;
+option go_package = "github.com/armadaproject/armada/pkg/proxyapi";
+
+// ExecutorProxyApi is the server-side API that executors connect to.
+// Executors open a persistent ProxyControl stream on startup, and open
+// ExecProxy streams on demand when instructed by the server.
+service ExecutorProxyApi {
+  // ProxyControl is a persistent bidirectional stream between an executor and
+  // the server. The executor sends its identity and periodic heartbeats; the
+  // server sends commands (e.g. StartExecSession) back.
+  rpc ProxyControl(stream ProxyControlMessage) returns (stream ProxyControlCommand);
+
+  // ExecProxy is opened by the executor for each exec session, after receiving
+  // a StartExecSession command on the ProxyControl stream.
+  rpc ExecProxy(stream ExecProxyMessage) returns (stream ExecProxyMessage);
+}
+
+// ProxyControlMessage is sent by the executor to the server on the
+// ProxyControl stream.
+message ProxyControlMessage {
+  oneof payload {
+    // executor_id is sent once, as the first message, to identify this executor.
+    string executor_id = 1;
+    // heartbeat is sent periodically (every 30s) to indicate the executor is alive.
+    Heartbeat heartbeat = 2;
+  }
+}
+
+// Heartbeat is an empty message sent periodically by the executor.
+message Heartbeat {}
+
+// ProxyControlCommand is sent by the server to the executor on the
+// ProxyControl stream.
+message ProxyControlCommand {
+  oneof command {
+    StartExecSession start_exec = 1;
+  }
+}
+
+// StartExecSession instructs the executor to open an ExecProxy stream and
+// begin a kubectl-exec-style session.
+message StartExecSession {
+  // session_id is a server-generated UUID used to correlate the ExecProxy
+  // stream back to this request.
+  string session_id = 1;
+  string job_id = 2;
+  string run_id = 3;
+  string namespace = 4;
+  repeated string command = 5;
+  bool tty = 6;
+  bool stdin = 7;
+  // container is the target container name; empty means the default container.
+  string container = 8;
+  // pod_number selects which pod of a multi-pod job (0 = first).
+  int32 pod_number = 9;
+}
+
+// ExecProxyMessage is used on the ExecProxy stream in both directions.
+message ExecProxyMessage {
+  oneof payload {
+    // session_id is sent as the first message by the executor to bind this
+    // stream to a pending session.
+    string session_id = 1;
+    bytes stdin = 2;
+    bytes stdout = 3;
+    bytes stderr = 4;
+    TerminalResize resize = 5;
+    ExecDone done = 6;
+  }
+}
+
+// TerminalResize carries terminal window size changes.
+message TerminalResize {
+  uint32 width = 1;
+  uint32 height = 2;
+}
+
+// ExecDone signals that the remote process has exited.
+message ExecDone {
+  int32 exit_code = 1;
+  string error = 2;
+}

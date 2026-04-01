@@ -17,4 +17,5 @@ const (
 	CordonNodes                                  = "cordon_nodes"
 	ExecuteJobs                                  = "execute_jobs"
 	UpdateExecutorSettings                       = "update_executor_settings"
+	ExecJob                                      = "exec_job"
 )

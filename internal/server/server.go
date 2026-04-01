@@ -29,11 +29,13 @@ import (
 	"github.com/armadaproject/armada/internal/server/event"
 	"github.com/armadaproject/armada/internal/server/executor"
 	"github.com/armadaproject/armada/internal/server/node"
+	serverproxy "github.com/armadaproject/armada/internal/server/proxy"
 	"github.com/armadaproject/armada/internal/server/queryapi"
 	"github.com/armadaproject/armada/internal/server/queue"
 	"github.com/armadaproject/armada/internal/server/submit"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/api/schedulerobjects"
+	"github.com/armadaproject/armada/pkg/proxyapi"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/client"
 	"github.com/armadaproject/armada/pkg/controlplaneevents"
@@ -196,6 +198,19 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 	api.RegisterQueueServiceServer(grpcServer, queueServer)
 	api.RegisterExecutorServer(grpcServer, executorServer)
 	api.RegisterNodeServer(grpcServer, nodeServer)
+
+	proxyRegistry := serverproxy.NewExecutorRegistry(90*time.Second, 60*time.Second)
+	proxyResolver := serverproxy.NewJobResolver(dbPool)
+	proxyService := serverproxy.NewProxyService(proxyRegistry, proxyResolver, authorizer)
+	proxyapi.RegisterExecutorProxyApiServer(grpcServer, proxyService)
+	api.RegisterInteractiveServiceServer(grpcServer, proxyService)
+	done := make(chan struct{})
+	services = append(services, func() error {
+		<-ctx.Done()
+		close(done)
+		return nil
+	})
+	go proxyRegistry.RunHeartbeatChecker(done)
 
 	schedulerobjects.RegisterSchedulerReportingServer(grpcServer, schedulingReportsServer)
 

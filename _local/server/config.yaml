@@ -1,6 +1,6 @@
 httpPort: 8081
 grpcPort: 50051
-metricsPort: 9000
+metricsPort: 9010
 corsAllowedOrigins:
   - "http://localhost:3000"
   - "http://localhost:8089"
@@ -16,6 +16,7 @@ auth:
     reprioritize_any_jobs: ["everyone"]
     preempt_any_jobs: ["everyone"]
     watch_all_events: ["everyone"]
+    exec_job: ["everyone"]
 eventsApiRedis:
   addrs:
     - localhost:6379
