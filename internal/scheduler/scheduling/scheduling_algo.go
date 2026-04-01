@@ -429,7 +429,7 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 
 	nodePools := append(currentPool.AwayPools, currentPool.Name)
 
-	nodeDb, err := l.constructNodeDb(currentPoolJobs, otherPoolsJobs,
+	nodeDb, err := l.constructNodeDb(currentPool, currentPoolJobs, otherPoolsJobs,
 		armadaslices.Filter(nodes, func(node *internaltypes.Node) bool { return slices.Contains(nodePools, node.GetPool()) }))
 	if err != nil {
 		return nil, err
@@ -445,7 +445,6 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 		jobSchedulingInfo.allocatedByQueueAndPriorityClass,
 		jobSchedulingInfo.awayAllocatedByQueueAndPriorityClass,
 		jobSchedulingInfo.shortJobPenaltyByQueue,
-		jobSchedulingInfo.awayShortJobPenaltyByQueue,
 		queueByName)
 	if err != nil {
 		return nil, err
@@ -467,7 +466,6 @@ type jobSchedulingInfo struct {
 	allocatedByQueueAndPriorityClass     map[string]map[string]internaltypes.ResourceList
 	awayAllocatedByQueueAndPriorityClass map[string]map[string]internaltypes.ResourceList
 	shortJobPenaltyByQueue               map[string]internaltypes.ResourceList
-	awayShortJobPenaltyByQueue           map[string]internaltypes.ResourceList
 }
 
 func (l *FairSchedulingAlgo) calculateJobSchedulingInfo(ctx *armadacontext.Context, activeExecutorsSet map[string]bool,
@@ -479,7 +477,6 @@ func (l *FairSchedulingAlgo) calculateJobSchedulingInfo(ctx *armadacontext.Conte
 	allocatedByQueueAndPriorityClass := make(map[string]map[string]internaltypes.ResourceList)
 	awayAllocatedByQueueAndPriorityClass := make(map[string]map[string]internaltypes.ResourceList)
 	shortJobPenaltyByQueue := make(map[string]internaltypes.ResourceList)
-	awayShortJobPenaltyByQueue := make(map[string]internaltypes.ResourceList)
 
 	for _, job := range jobs {
 		queue, present := queues[job.Queue()]
@@ -493,8 +490,6 @@ func (l *FairSchedulingAlgo) calculateJobSchedulingInfo(ctx *armadacontext.Conte
 			jobRequirements := job.AllResourceRequirements()
 			if jobPool == currentPool {
 				shortJobPenaltyByQueue[queue.Name] = shortJobPenaltyByQueue[queue.Name].Add(jobRequirements)
-			} else if slices.Contains(awayAllocationPools, jobPool) {
-				awayShortJobPenaltyByQueue[queue.Name] = awayShortJobPenaltyByQueue[queue.Name].Add(jobRequirements)
 			}
 		}
 
@@ -582,11 +577,10 @@ func (l *FairSchedulingAlgo) calculateJobSchedulingInfo(ctx *armadacontext.Conte
 		allocatedByQueueAndPriorityClass:     allocatedByQueueAndPriorityClass,
 		awayAllocatedByQueueAndPriorityClass: awayAllocatedByQueueAndPriorityClass,
 		shortJobPenaltyByQueue:               shortJobPenaltyByQueue,
-		awayShortJobPenaltyByQueue:           awayShortJobPenaltyByQueue,
 	}, nil
 }
 
-func (l *FairSchedulingAlgo) constructNodeDb(currentPoolJobs []*jobdb.Job, otherPoolsJobs []*jobdb.Job, nodes []*internaltypes.Node) (*nodedb.NodeDb, error) {
+func (l *FairSchedulingAlgo) constructNodeDb(poolConfig configuration.PoolConfig, currentPoolJobs []*jobdb.Job, otherPoolsJobs []*jobdb.Job, nodes []*internaltypes.Node) (*nodedb.NodeDb, error) {
 	nodeDb, err := nodedb.NewNodeDb(
 		l.schedulingConfig.PriorityClasses,
 		l.schedulingConfig.IndexedResources,
@@ -598,7 +592,7 @@ func (l *FairSchedulingAlgo) constructNodeDb(currentPoolJobs []*jobdb.Job, other
 	if err != nil {
 		return nil, err
 	}
-	if err := populateNodeDb(nodeDb, currentPoolJobs, otherPoolsJobs, nodes); err != nil {
+	if err := populateNodeDb(poolConfig, nodeDb, currentPoolJobs, otherPoolsJobs, nodes); err != nil {
 		return nil, err
 	}
 
@@ -612,7 +606,6 @@ func (l *FairSchedulingAlgo) constructSchedulingContext(
 	allocationByQueueAndPriorityClass map[string]map[string]internaltypes.ResourceList,
 	awayAllocationByQueueAndPriorityClass map[string]map[string]internaltypes.ResourceList,
 	shortJobPenaltyByQueue map[string]internaltypes.ResourceList,
-	awayShortJobPenaltyByQueue map[string]internaltypes.ResourceList,
 	queues map[string]*api.Queue,
 ) (*schedulercontext.SchedulingContext, error) {
 	fairnessCostProvider, err := fairness.NewDominantResourceFairness(totalCapacity, pool, l.schedulingConfig)
@@ -682,7 +675,7 @@ func (l *FairSchedulingAlgo) constructSchedulingContext(
 			weight = 1 / overridePriority
 		}
 
-		if err := sctx.AddQueueSchedulingContext(schedulercontext.CalculateAwayQueueName(queue.Name), weight, rawWeight, allocation, internaltypes.ResourceList{}, internaltypes.ResourceList{}, awayShortJobPenaltyByQueue[queue.Name], nil); err != nil {
+		if err := sctx.AddQueueSchedulingContext(schedulercontext.CalculateAwayQueueName(queue.Name), weight, rawWeight, allocation, internaltypes.ResourceList{}, internaltypes.ResourceList{}, internaltypes.ResourceList{}, nil); err != nil {
 			return nil, err
 		}
 	}
@@ -814,7 +807,7 @@ func (l *FairSchedulingAlgo) updateOptimiserLastRunTime(pool configuration.PoolC
 }
 
 // populateNodeDb adds all the nodes and jobs associated with a particular pool to the nodeDb.
-func populateNodeDb(nodeDb *nodedb.NodeDb, currentPoolJobs []*jobdb.Job, otherPoolsJobs []*jobdb.Job, nodes []*internaltypes.Node) error {
+func populateNodeDb(poolConfig configuration.PoolConfig, nodeDb *nodedb.NodeDb, currentPoolJobs []*jobdb.Job, otherPoolsJobs []*jobdb.Job, nodes []*internaltypes.Node) error {
 	txn := nodeDb.Txn(true)
 	defer txn.Abort()
 	nodesById := armadaslices.GroupByFuncUnique(
@@ -830,10 +823,15 @@ func populateNodeDb(nodeDb *nodedb.NodeDb, currentPoolJobs []*jobdb.Job, otherPo
 		}
 		nodeId := job.LatestRun().NodeId()
 		if _, ok := nodesById[nodeId]; !ok {
-			log.Errorf(
-				"job %s assigned to node %s on executor %s, but no such node found",
-				job.Id(), nodeId, job.LatestRun().Executor(),
-			)
+			// Don't log errors for away jobs, as by design they may be scheduled on nodes that don't exist in this pool
+			// TODO move this check to the reconciler
+			if job.LatestRun().Pool() == poolConfig.Name {
+				log.Errorf(
+					"job %s assigned to node %s on executor %s, but no such node found",
+					job.Id(), nodeId, job.LatestRun().Executor(),
+				)
+			}
+
 			continue
 		}
 		jobsByNodeId[nodeId] = append(jobsByNodeId[nodeId], job)
