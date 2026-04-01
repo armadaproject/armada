@@ -3,6 +3,7 @@ package redismetrics
 import (
 	"context"
 	"fmt"
+	"math/rand/v2"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -181,10 +182,22 @@ func NewCollector(scanner ScannerInterface, config Config, leaderController lead
 
 // Run starts the background collection loop.
 func (c *Collector) Run(ctx *armadacontext.Context) error {
+	ctx.Infof("Will update Redis metrics every %s", c.config.CollectionInterval)
+
+	// Delay to guard against crash loops during startup and to prevent thundering herd on leadership changes
+	// The delay is [0, 1 minute) to ensure that in the worst case, all collectors will be staggered by at least 1 minute.]
+	initialDelay := time.Duration(rand.Int64N(int64(1 * time.Minute)))
+	ctx.Infof("First collection will start in %s", time.Duration(initialDelay))
+	select {
+	case <-ctx.Done():
+		ctx.Debugf("Context cancelled during initial delay, returning")
+		return nil
+	case <-time.After(initialDelay):
+	}
+
 	ticker := time.NewTicker(c.config.CollectionInterval)
 	defer ticker.Stop()
 
-	ctx.Infof("Will update Redis metrics every %s", c.config.CollectionInterval)
 	wasLeader := false
 	for {
 		isLeader := c.leaderController.GetToken().Leader()
