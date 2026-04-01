@@ -924,7 +924,7 @@ func (txn *Txn) delete(jobId string) {
 			}
 		}
 		newLeasedJobs := txn.leasedJobs.Delete(job)
-		txn.unvalidatedJobs = &newLeasedJobs
+		txn.leasedJobs = &newLeasedJobs
 
 		newUnvalidatedJobs := txn.unvalidatedJobs.Delete(job)
 		txn.unvalidatedJobs = &newUnvalidatedJobs
