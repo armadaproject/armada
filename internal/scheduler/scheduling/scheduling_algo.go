@@ -378,7 +378,7 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 	//   - This may include nodes from other pools, especially if the nodes pool has changed
 	// - Terminal jobs of this pool
 	//   - For calculating short job penalty
-	// - Jobs queued against all pools
+	// - Jobs queued against home/away pools relevant to the pool being computed
 	//   - This is to calculate demand on both home and away pools
 	allJobs := txn.GetAllLeasedJobs()
 	allJobs = append(allJobs, txn.GetAllTerminalJobs()...)
