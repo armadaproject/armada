@@ -281,6 +281,8 @@ type SchedulingConfig struct {
 	MaximumPerQueueSchedulingBurst int `validate:"gt=0"`
 	// Maximum number of times a job is retried before considered failed.
 	MaxRetries uint
+	// RetryPolicy controls the policy-based retry engine (disabled by default).
+	RetryPolicy RetryPolicyConfig
 	// List of resource names, e.g., []string{"cpu", "memory"}, to consider when computing DominantResourceFairness costs.
 	// Dominant resource fairness is the algorithm used to assign a cost to jobs and queues.
 	DominantResourceFairnessResourcesToConsider []string
