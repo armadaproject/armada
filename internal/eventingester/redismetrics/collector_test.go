@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/common/constants"
 	"github.com/armadaproject/armada/internal/scheduler/leader"
 )
 
@@ -918,7 +919,7 @@ func TestHistogramBuckets_BytesDistribution(t *testing.T) {
 					{
 						Queue:       "test-queue",
 						JobSetId:    "test-jobset",
-						Key:         "Events:test-queue:test-jobset",
+						Key:         constants.EventStreamPrefix + "test-queue:test-jobset",
 						MemoryBytes: tc.memoryBytes,
 						Length:      100,
 						AgeSeconds:  300,
@@ -959,7 +960,7 @@ func TestHistogramBuckets_EventsDistribution(t *testing.T) {
 					{
 						Queue:       "test-queue",
 						JobSetId:    "test-jobset",
-						Key:         "Events:test-queue:test-jobset",
+						Key:         constants.EventStreamPrefix + "test-queue:test-jobset",
 						MemoryBytes: 10240,
 						Length:      tc.eventCount,
 						AgeSeconds:  300,
@@ -1000,7 +1001,7 @@ func TestHistogramBuckets_AgeDistribution(t *testing.T) {
 					{
 						Queue:       "test-queue",
 						JobSetId:    "test-jobset",
-						Key:         "Events:test-queue:test-jobset",
+						Key:         constants.EventStreamPrefix + "test-queue:test-jobset",
 						MemoryBytes: 10240,
 						Length:      100,
 						AgeSeconds:  tc.ageSeconds,

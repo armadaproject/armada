@@ -16,12 +16,13 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
+	"github.com/armadaproject/armada/internal/common/constants"
 	"github.com/armadaproject/armada/internal/scheduler/leader"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 func createTestStream(t *testing.T, client redis.UniversalClient, ctx context.Context, queue, jobSetId string, eventCount int) string {
-	streamKey := fmt.Sprintf("Events:%s:%s", queue, jobSetId)
+	streamKey := fmt.Sprintf("%s:%s:%s", constants.EventStreamPrefix, queue, jobSetId)
 
 	compressor, err := compress.NewZlibCompressor(0)
 	require.NoError(t, err)

@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/common/constants"
 )
 
 const testRedisDB = 10
@@ -138,9 +139,9 @@ func withRedisClient(t *testing.T, action func(client redis.UniversalClient)) {
 func seedRedisStream(t *testing.T, client redis.UniversalClient, ctx context.Context, queue, jobSetId string, entryCount int) string {
 	t.Helper()
 
-	streamKey := fmt.Sprintf("Events:%s:%s", queue, jobSetId)
+	streamKey := fmt.Sprintf("%s:%s:%s", constants.EventStreamPrefix, queue, jobSetId)
 
-	for i := 0; i < entryCount; i++ {
+	for i := range entryCount {
 		_, err := client.XAdd(ctx, &redis.XAddArgs{
 			Stream: streamKey,
 			Values: map[string]interface{}{"index": i},
