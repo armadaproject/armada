@@ -94,7 +94,7 @@ func TestBridge_UserToExecutor(t *testing.T) {
 	case msg := <-exec.sentCh:
 		got := msg.Payload.(*proxyapi.ExecProxyMessage_Stdin).Stdin
 		assert.Equal(t, payload, got)
-	default:
+	case <-time.After(time.Second):
 		t.Fatal("no message forwarded to executor")
 	}
 }

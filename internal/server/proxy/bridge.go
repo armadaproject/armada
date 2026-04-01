@@ -125,9 +125,10 @@ func BridgeStreams(sessionCtx context.Context, user UserExecStream, executor Exe
 	// Supervisor: wait for the first side to finish.
 	select {
 	case <-execDone:
-		// Executor sent Done — session is complete. Return so the Exec handler
-		// exits and gRPC closes the user stream, which unblocks the user goroutine.
+		// Executor sent Done — session is complete. Cancel and wait for the
+		// user goroutine to flush any buffered stdin before returning.
 		bridgeCancel()
+		<-userDone
 	case <-userDone:
 		// User disconnected first. Wait for the executor goroutine to finish.
 		bridgeCancel()

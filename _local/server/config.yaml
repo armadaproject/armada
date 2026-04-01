@@ -17,6 +17,7 @@ auth:
     preempt_any_jobs: ["everyone"]
     watch_all_events: ["everyone"]
     exec_job: ["everyone"]
+    execute_jobs: ["everyone"]
 eventsApiRedis:
   addrs:
     - localhost:6379
