@@ -382,11 +382,9 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 	//   - This is to calculate demand on both home and away pools
 	allJobs := txn.GetAllLeasedJobs()
 	allJobs = append(allJobs, txn.GetAllTerminalJobs()...)
-	allQueuedJobs := []*jobdb.Job{}
 	for _, pool := range allPools {
-		allQueuedJobs = append(allQueuedJobs, txn.GetQueuedJobsByPool(pool)...)
+		allJobs = append(allJobs, txn.GetQueuedJobsByPool(pool)...)
 	}
-	allJobs = append(allJobs, allQueuedJobs...)
 	allJobs = armadaslices.UniqueBy(allJobs, func(job *jobdb.Job) string { return job.Id() })
 
 	jobSchedulingInfo, err := l.calculateJobSchedulingInfo(ctx,
