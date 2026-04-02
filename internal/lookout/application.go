@@ -194,7 +194,7 @@ func Serve(configuration configuration.LookoutConfig) error {
 			return fmt.Errorf("creating exec gRPC client: %w", err)
 		}
 		defer grpcConn.Close()
-		restapi.SetExecHandler(handler.NewExecHandler(grpcConn))
+		restapi.SetExecHandler(handler.NewExecHandler(grpcConn, configuration.CorsAllowedOrigins))
 	}
 
 	server.ConfigureAPI()

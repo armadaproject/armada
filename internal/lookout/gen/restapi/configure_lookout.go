@@ -123,14 +123,25 @@ func authHandler(handler http.Handler) http.Handler {
 	mux.Handle("/health", handler)
 
 	authFunction := auth.CreateHttpMiddlewareAuthFunction(authService)
-	mux.Handle("/api/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	authenticated := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctxWithPrincipal, err := authFunction(w, r)
 		if err != nil {
 			return
 		}
-
 		handler.ServeHTTP(w, r.WithContext(ctxWithPrincipal))
-	}))
+	})
+	mux.Handle("/api/", authenticated)
+
+	// Exec WebSocket endpoint requires authentication — register alongside /api/
+	if execHandler != nil {
+		mux.Handle("/api/exec/ws", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ctxWithPrincipal, err := authFunction(w, r)
+			if err != nil {
+				return
+			}
+			execHandler.ServeHTTP(w, r.WithContext(ctxWithPrincipal))
+		}))
+	}
 
 	return mux
 }
@@ -156,9 +167,6 @@ func uiHandler(apiHandler http.Handler) http.Handler {
 		}
 	})
 
-	if execHandler != nil {
-		mux.Handle("/api/exec/ws", execHandler)
-	}
 	mux.Handle("/api/", apiHandler)
 	mux.Handle("/health", apiHandler)
 

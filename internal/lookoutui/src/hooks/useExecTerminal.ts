@@ -1,14 +1,20 @@
-import { RefObject, useEffect, useRef, useState } from "react"
+import { RefObject, useCallback, useEffect, useRef, useState } from "react"
 
+import { SerializeAddon } from "@xterm/addon-serialize"
 import { FitAddon } from "@xterm/addon-fit"
 import { Terminal } from "@xterm/xterm"
 
 export type ExecStatus = "idle" | "connecting" | "connected" | "disconnected"
 
+export interface ExecTerminalControls {
+  downloadTranscript: () => void
+}
+
 export interface ExecTerminalResult {
   status: ExecStatus
   exitCode: number | null
   error: string | null
+  controls: ExecTerminalControls
 }
 
 /**
@@ -17,6 +23,7 @@ export interface ExecTerminalResult {
  */
 export function useExecTerminal(
   jobId: string,
+  container: string,
   containerRef: RefObject<HTMLDivElement | null>,
   enabled: boolean,
 ): ExecTerminalResult {
@@ -28,6 +35,7 @@ export function useExecTerminal(
   const terminalRef = useRef<Terminal | null>(null)
   const wsRef = useRef<WebSocket | null>(null)
   const fitAddonRef = useRef<FitAddon | null>(null)
+  const serializeAddonRef = useRef<SerializeAddon | null>(null)
 
   useEffect(() => {
     if (!enabled || !containerRef.current) {
@@ -40,16 +48,27 @@ export function useExecTerminal(
 
     const terminal = new Terminal({ cursorBlink: true })
     const fitAddon = new FitAddon()
+    const serializeAddon = new SerializeAddon()
     terminal.loadAddon(fitAddon)
+    terminal.loadAddon(serializeAddon)
     terminal.open(containerRef.current)
-    fitAddon.fit()
+    try {
+      fitAddon.fit()
+    } catch {
+      // fitAddon.fit() throws if container is not visible yet; safe to ignore
+    }
 
     terminalRef.current = terminal
     fitAddonRef.current = fitAddon
+    serializeAddonRef.current = serializeAddon
 
     // Build WebSocket URL from current location
     const proto = window.location.protocol === "https:" ? "wss" : "ws"
-    const wsUrl = `${proto}://${window.location.host}/api/exec/ws?jobId=${encodeURIComponent(jobId)}`
+    const params = new URLSearchParams({ jobId })
+    if (container) {
+      params.set("container", container)
+    }
+    const wsUrl = `${proto}://${window.location.host}/api/exec/ws?${params.toString()}`
     const ws = new WebSocket(wsUrl)
     ws.binaryType = "arraybuffer"
     wsRef.current = ws
@@ -115,7 +134,11 @@ export function useExecTerminal(
 
     // ResizeObserver: refit terminal when the container changes size
     const resizeObserver = new ResizeObserver(() => {
-      fitAddon.fit()
+      try {
+        fitAddon.fit()
+      } catch {
+        // ignore if container is hidden
+      }
     })
     resizeObserver.observe(containerRef.current)
 
@@ -128,10 +151,34 @@ export function useExecTerminal(
       terminalRef.current = null
       wsRef.current = null
       fitAddonRef.current = null
+      serializeAddonRef.current = null
     }
-  }, [enabled, jobId]) // re-run when jobId changes or enabled toggles
+  }, [enabled, jobId, container]) // re-run when jobId/container changes or enabled toggles
 
-  return { status, exitCode, error }
+  const downloadTranscript = useCallback(() => {
+    const serialize = serializeAddonRef.current
+    if (!serialize) return
+    const content = serialize.serialize()
+    // Strip ANSI escape codes for a clean text file
+    const clean = content.replace(/\x1b\[[0-9;]*[mGKHF]/g, "")
+    const filename = container ? `${jobId}-${container}-transcript.txt` : `${jobId}-transcript.txt`
+    const blob = new Blob([clean], { type: "text/plain" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    URL.revokeObjectURL(url)
+    document.body.removeChild(a)
+  }, [jobId, container])
+
+  return {
+    status,
+    exitCode,
+    error,
+    controls: { downloadTranscript },
+  }
 }
 
 function sendResize(ws: WebSocket, cols: number, rows: number): void {

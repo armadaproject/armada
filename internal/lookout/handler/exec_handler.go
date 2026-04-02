@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"io"
 	"net/http"
+	"regexp"
 
 	"github.com/gorilla/websocket"
 	"google.golang.org/grpc"
@@ -12,19 +13,45 @@ import (
 	"github.com/armadaproject/armada/pkg/api"
 )
 
-var upgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool { return true },
-}
+// containerNameRE matches valid Kubernetes container names.
+var containerNameRE = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$`)
 
 // ExecHandler is an HTTP handler that upgrades connections to WebSocket and
 // bridges them to an InteractiveService.Exec gRPC stream on the Armada server.
 type ExecHandler struct {
-	grpcConn *grpc.ClientConn
+	grpcConn      *grpc.ClientConn
+	allowedOrigins []string
 }
 
 // NewExecHandler creates an ExecHandler using an existing gRPC connection.
-func NewExecHandler(grpcConn *grpc.ClientConn) *ExecHandler {
-	return &ExecHandler{grpcConn: grpcConn}
+// allowedOrigins is the list of CORS-allowed origins; an empty list means
+// same-origin requests only (Origin header must match the Host header).
+func NewExecHandler(grpcConn *grpc.ClientConn, allowedOrigins []string) *ExecHandler {
+	return &ExecHandler{grpcConn: grpcConn, allowedOrigins: allowedOrigins}
+}
+
+func (h *ExecHandler) upgrader() websocket.Upgrader {
+	allowed := h.allowedOrigins
+	return websocket.Upgrader{
+		CheckOrigin: func(r *http.Request) bool {
+			origin := r.Header.Get("Origin")
+			if origin == "" {
+				// No Origin header — same-origin request from non-browser client; allow.
+				return true
+			}
+			// If an explicit allow-list is configured, enforce it.
+			if len(allowed) > 0 {
+				for _, o := range allowed {
+					if o == origin {
+						return true
+					}
+				}
+				return false
+			}
+			// No explicit list: fall back to same-origin (Origin matches Host).
+			return origin == "http://"+r.Host || origin == "https://"+r.Host
+		},
+	}
 }
 
 func (h *ExecHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -36,25 +63,33 @@ func (h *ExecHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	container := r.URL.Query().Get("container")
+	if container != "" && !containerNameRE.MatchString(container) {
+		http.Error(w, "invalid container name", http.StatusBadRequest)
+		return
+	}
+
+	upgrader := h.upgrader()
 	ws, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.WithError(err).Warn("WebSocket upgrade failed")
 		return
 	}
 
-	if err := h.handleExec(r, ws, jobId); err != nil {
+	if err := h.handleExec(r, ws, jobId, container); err != nil {
 		log.WithError(err).Warn("exec session ended with error")
 	}
 }
 
-func (h *ExecHandler) handleExec(r *http.Request, ws *websocket.Conn, jobId string) error {
+func (h *ExecHandler) handleExec(r *http.Request, ws *websocket.Conn, jobId, container string) error {
 	log := logging.StdLogger()
 	defer ws.Close()
 
 	client := api.NewInteractiveServiceClient(h.grpcConn)
 	stream, err := client.Exec(r.Context())
 	if err != nil {
-		sendErrorFrame(ws, "failed to open exec stream: "+err.Error())
+		log.WithError(err).Warn("failed to open exec stream")
+		sendErrorFrame(ws, "failed to connect to exec service")
 		return err
 	}
 
@@ -62,15 +97,17 @@ func (h *ExecHandler) handleExec(r *http.Request, ws *websocket.Conn, jobId stri
 	initMsg := &api.ExecRequest{
 		Payload: &api.ExecRequest_Init{
 			Init: &api.ExecInit{
-				JobId:   jobId,
-				Command: []string{"/bin/sh"},
-				Tty:     true,
-				Stdin:   true,
+				JobId:     jobId,
+				Container: container,
+				Command:   []string{"/bin/sh"},
+				Tty:       true,
+				Stdin:     true,
 			},
 		},
 	}
 	if err := stream.Send(initMsg); err != nil {
-		sendErrorFrame(ws, "failed to send ExecInit: "+err.Error())
+		log.WithError(err).Warn("failed to send ExecInit")
+		sendErrorFrame(ws, "failed to start exec session")
 		return err
 	}
 

@@ -3,6 +3,7 @@ package proxy
 import (
 	"context"
 	"io"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -28,6 +29,9 @@ const (
 	// an ExecProxy stream after sending StartExecSession.
 	sessionWaitTimeout = 30 * time.Second
 )
+
+// containerNameRE matches valid Kubernetes container names.
+var containerNameRE = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$`)
 
 // pendingSession is created by the Exec handler while it waits for the executor
 // to open the matching ExecProxy stream.
@@ -189,6 +193,11 @@ func (s *ProxyService) Exec(stream api.InteractiveService_ExecServer) error {
 	// Validate job ID is a UUID to prevent label selector injection.
 	if _, err := ulid.ParseStrict(strings.ToUpper(init.Init.JobId)); err != nil {
 		return status.Errorf(codes.InvalidArgument, "invalid job ID: must be a ULID")
+	}
+
+	// Validate container name (defense in depth — Lookout handler validates first).
+	if c := init.Init.Container; c != "" && !containerNameRE.MatchString(c) {
+		return status.Errorf(codes.InvalidArgument, "invalid container name")
 	}
 
 	// Resolve the running job to an executor.
