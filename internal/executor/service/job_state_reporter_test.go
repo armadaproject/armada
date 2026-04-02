@@ -170,7 +170,7 @@ func setUpJobStateReporterTest(t *testing.T) (*JobStateReporter, *stubIssueHandl
 	fakeClusterContext := fakecontext.NewSyncFakeClusterContext()
 	eventReporter := mocks.NewFakeEventReporter()
 	issueHandler := &stubIssueHandler{detectAndRegisterFailedPodIssueResult: false, detectAndRegisterFailedPodIssueError: nil}
-	jobStateReporter, err := NewJobStateReporter(fakeClusterContext, eventReporter, issueHandler)
+	jobStateReporter, err := NewJobStateReporter(fakeClusterContext, eventReporter, issueHandler, nil)
 	require.NoError(t, err)
 	return jobStateReporter, issueHandler, eventReporter, fakeClusterContext
 }

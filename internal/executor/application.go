@@ -22,6 +22,7 @@ import (
 	common_metrics "github.com/armadaproject/armada/internal/common/metrics"
 	"github.com/armadaproject/armada/internal/common/task"
 	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/executor/categorizer"
 	"github.com/armadaproject/armada/internal/executor/configuration"
 	executor_context "github.com/armadaproject/armada/internal/executor/context"
 	"github.com/armadaproject/armada/internal/executor/job"
@@ -202,6 +203,11 @@ func setupExecutorApiComponents(
 		ctx.Fatalf("Config error in failed pod checks: %s", err)
 	}
 
+	classifier, err := categorizer.NewClassifier(config.Application.ErrorCategories)
+	if err != nil {
+		ctx.Fatalf("Config error in error categories: %s", err)
+	}
+
 	eventReporter, stopReporter := reporter.NewJobEventReporter(eventSender, clock.RealClock{}, 200)
 
 	submitter := job.NewSubmitter(
@@ -240,6 +246,7 @@ func setupExecutorApiComponents(
 		pendingPodChecker,
 		failedPodChecker,
 		config.Kubernetes.StuckTerminatingPodExpiry,
+		classifier,
 	)
 	if err != nil {
 		ctx.Fatalf("Failed to create pod issue service: %s", err)
@@ -249,6 +256,7 @@ func setupExecutorApiComponents(
 		clusterContext,
 		eventReporter,
 		podIssueService,
+		classifier,
 	)
 	if err != nil {
 		ctx.Fatalf("Failed to create job state reporter: %s", err)
