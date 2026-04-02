@@ -17,11 +17,11 @@ type Config struct {
 	// InitialCollectionDelayMax controls startup jitter before first collection.
 	// If zero, a default of 1 minute is used.
 	InitialCollectionDelayMax time.Duration
-	TopN               int
-	ScanBatchSize      int64
-	PipelineBatchSize  int
-	InterBatchDelay    time.Duration
-	MemoryUsageSamples int
+	TopN                      int
+	ScanBatchSize             int64
+	PipelineBatchSize         int
+	InterBatchDelay           time.Duration
+	MemoryUsageSamples        int
 }
 
 // StreamInfo contains information about a single Redis stream.
