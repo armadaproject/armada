@@ -58,7 +58,7 @@
         "tags": [
           "Introspection"
         ],
-        "operationId": "DescribeNodeByJobRun",
+        "operationId": "KubeDescribeNodeByJobRun",
         "parameters": [
           {
             "name": "body",
@@ -90,38 +90,6 @@
         "tags": [
           "Introspection"
         ],
-        "operationId": "DescribeNodeByJobId",
-        "parameters": [
-          {
-            "name": "body",
-            "in": "body",
-            "required": true,
-            "schema": {
-              "$ref": "#/definitions/introspectionDescribeNodeByJobIdRequest"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "A successful response.",
-            "schema": {
-              "$ref": "#/definitions/introspectionDescribeNodeResponse"
-            }
-          },
-          "default": {
-            "description": "An unexpected error response.",
-            "schema": {
-              "$ref": "#/definitions/runtimeError"
-            }
-          }
-        }
-      }
-    },
-    "/v1/job/node/describe-by-id-informer": {
-      "post": {
-        "tags": [
-          "Introspection"
-        ],
         "operationId": "KubeDescribeNodeByJobId",
         "parameters": [
           {
@@ -149,71 +117,7 @@
         }
       }
     },
-    "/v1/job/node/describe-informer": {
-      "post": {
-        "tags": [
-          "Introspection"
-        ],
-        "operationId": "KubeDescribeNodeByJobRun",
-        "parameters": [
-          {
-            "name": "body",
-            "in": "body",
-            "required": true,
-            "schema": {
-              "$ref": "#/definitions/introspectionDescribeNodeByJobRunRequest"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "A successful response.",
-            "schema": {
-              "$ref": "#/definitions/introspectionDescribeNodeResponse"
-            }
-          },
-          "default": {
-            "description": "An unexpected error response.",
-            "schema": {
-              "$ref": "#/definitions/runtimeError"
-            }
-          }
-        }
-      }
-    },
     "/v1/job/pod/describe": {
-      "post": {
-        "tags": [
-          "Introspection"
-        ],
-        "operationId": "DescribeJobPod",
-        "parameters": [
-          {
-            "name": "body",
-            "in": "body",
-            "required": true,
-            "schema": {
-              "$ref": "#/definitions/introspectionDescribeJobPodRequest"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "A successful response.",
-            "schema": {
-              "$ref": "#/definitions/introspectionDescribeJobPodResponse"
-            }
-          },
-          "default": {
-            "description": "An unexpected error response.",
-            "schema": {
-              "$ref": "#/definitions/runtimeError"
-            }
-          }
-        }
-      }
-    },
-    "/v1/job/pod/describe-informer": {
       "post": {
         "tags": [
           "Introspection"
@@ -245,71 +149,7 @@
         }
       }
     },
-    "/v1/job/pod/describe-kubectl-cache": {
-      "post": {
-        "tags": [
-          "Introspection"
-        ],
-        "operationId": "CachedKubectlDescribePod",
-        "parameters": [
-          {
-            "name": "body",
-            "in": "body",
-            "required": true,
-            "schema": {
-              "$ref": "#/definitions/introspectionCachedKubectlDescribeJobPodRequest"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "A successful response.",
-            "schema": {
-              "$ref": "#/definitions/introspectionCachedKubectlDescribeResponse"
-            }
-          },
-          "default": {
-            "description": "An unexpected error response.",
-            "schema": {
-              "$ref": "#/definitions/runtimeError"
-            }
-          }
-        }
-      }
-    },
     "/v1/node/describe": {
-      "post": {
-        "tags": [
-          "Introspection"
-        ],
-        "operationId": "DescribeNode",
-        "parameters": [
-          {
-            "name": "body",
-            "in": "body",
-            "required": true,
-            "schema": {
-              "$ref": "#/definitions/introspectionDescribeNodeRequest"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "A successful response.",
-            "schema": {
-              "$ref": "#/definitions/introspectionDescribeNodeResponse"
-            }
-          },
-          "default": {
-            "description": "An unexpected error response.",
-            "schema": {
-              "$ref": "#/definitions/runtimeError"
-            }
-          }
-        }
-      }
-    },
-    "/v1/node/describe-informer": {
       "post": {
         "tags": [
           "Introspection"
@@ -340,72 +180,9 @@
           }
         }
       }
-    },
-    "/v1/node/describe-kubectl-cache": {
-      "post": {
-        "tags": [
-          "Introspection"
-        ],
-        "operationId": "CachedKubectlDescribeNode",
-        "parameters": [
-          {
-            "name": "body",
-            "in": "body",
-            "required": true,
-            "schema": {
-              "$ref": "#/definitions/introspectionCachedKubectlDescribeNodeRequest"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "A successful response.",
-            "schema": {
-              "$ref": "#/definitions/introspectionCachedKubectlDescribeResponse"
-            }
-          },
-          "default": {
-            "description": "An unexpected error response.",
-            "schema": {
-              "$ref": "#/definitions/runtimeError"
-            }
-          }
-        }
-      }
     }
   },
   "definitions": {
-    "introspectionCachedKubectlDescribeJobPodRequest": {
-      "type": "object",
-      "properties": {
-        "jobId": {
-          "type": "string"
-        }
-      }
-    },
-    "introspectionCachedKubectlDescribeNodeRequest": {
-      "type": "object",
-      "properties": {
-        "jobId": {
-          "type": "string"
-        },
-        "runId": {
-          "type": "string"
-        }
-      }
-    },
-    "introspectionCachedKubectlDescribeResponse": {
-      "type": "object",
-      "properties": {
-        "cachedAt": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "output": {
-          "type": "string"
-        }
-      }
-    },
     "introspectionContainerStatus": {
       "type": "object",
       "properties": {

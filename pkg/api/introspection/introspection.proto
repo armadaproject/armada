@@ -5,7 +5,6 @@ package introspection;
 option go_package = "github.com/armadaproject/armada/pkg/api/introspection";
 
 import "google/api/annotations.proto";
-import "google/protobuf/timestamp.proto";
 
 service Introspection {
     // stream logs for the pod corresponding to a job
@@ -18,72 +17,30 @@ service Introspection {
         };
     }
 
-    rpc DescribeJobPod(DescribeJobPodRequest) returns (DescribeJobPodResponse) {
+    rpc KubeDescribeJobPod(DescribeJobPodRequest) returns (DescribeJobPodResponse) {
         option (google.api.http) = {
             post: "/v1/job/pod/describe"
             body: "*"
         };
     }
 
-    rpc DescribeNode(DescribeNodeRequest) returns (DescribeNodeResponse) {
+    rpc KubeDescribeNode(DescribeNodeRequest) returns (DescribeNodeResponse) {
         option (google.api.http) = {
             post: "/v1/node/describe"
             body: "*"
         };
     }
 
-    rpc DescribeNodeByJobRun(DescribeNodeByJobRunRequest) returns (DescribeNodeResponse) {
+    rpc KubeDescribeNodeByJobRun(DescribeNodeByJobRunRequest) returns (DescribeNodeResponse) {
         option (google.api.http) = {
             post: "/v1/job/node/describe"
             body: "*"
         };
     }
 
-    rpc DescribeNodeByJobId(DescribeNodeByJobIdRequest) returns (DescribeNodeResponse) {
-        option (google.api.http) = {
-        post: "/v1/job/node/describe-by-id"
-        body: "*"
-        };
-    }
-
-    rpc KubeDescribeJobPod(DescribeJobPodRequest) returns (DescribeJobPodResponse) {
-        option (google.api.http) = {
-            post: "/v1/job/pod/describe-informer"
-            body: "*"
-        };
-    }
-
-    rpc KubeDescribeNode(DescribeNodeRequest) returns (DescribeNodeResponse) {
-        option (google.api.http) = {
-            post: "/v1/node/describe-informer"
-            body: "*"
-        };
-    }
-
-    rpc KubeDescribeNodeByJobRun(DescribeNodeByJobRunRequest) returns (DescribeNodeResponse) {
-        option (google.api.http) = {
-            post: "/v1/job/node/describe-informer" 
-            body: "*"
-        };
-    }
-
     rpc KubeDescribeNodeByJobId(DescribeNodeByJobIdRequest) returns (DescribeNodeResponse) {
         option (google.api.http) = {
-            post: "/v1/job/node/describe-by-id-informer"
-            body: "*"
-        };
-    }
-
-    rpc CachedKubectlDescribeNode(CachedKubectlDescribeNodeRequest) returns (CachedKubectlDescribeResponse) {
-        option (google.api.http) = {
-            post: "/v1/node/describe-kubectl-cache"
-            body: "*"
-        };
-    }
-
-    rpc CachedKubectlDescribePod(CachedKubectlDescribeJobPodRequest) returns (CachedKubectlDescribeResponse) {
-        option (google.api.http) = {
-            post: "/v1/job/pod/describe-kubectl-cache"
+            post: "/v1/job/node/describe-by-id"
             body: "*"
         };
     }
@@ -128,20 +85,6 @@ message DescribeJobPodResponse {
     repeated PodCondition conditions = 8;
     repeated PodEvent events = 9;
     bytes raw_pod_json = 10;
-}
-
-message CachedKubectlDescribeNodeRequest {
-    string job_id = 1;
-    string run_id = 2; 
-  }
-
-message CachedKubectlDescribeJobPodRequest {
-    string job_id = 1;
-}
-
-message CachedKubectlDescribeResponse {
-    string output = 1;
-    google.protobuf.Timestamp cached_at = 2;
 }
 
 message ContainerStatus {

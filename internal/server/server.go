@@ -240,15 +240,8 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 	podLister := podInformer.Lister()
 	nodeLister := nodeInformer.Lister()
 
-	// cached kubectl
-	kubectlCache := introspectionserver.NewKubectlCache(kubeClient, 30*time.Second)
-	services = append(services, func() error {
-		return kubectlCache.Run(ctx)
-	})
-
 	introspectionServer := introspectionserver.NewIntrospectionServer(kubeFactory, queryApiServer, queryApiServer).
-		WithListers(podLister, nodeLister).
-		WithKubectlCache(kubectlCache)
+		WithListers(podLister, nodeLister)
 		
 	introspectionapi.RegisterIntrospectionServer(grpcServer, introspectionServer)
 	
