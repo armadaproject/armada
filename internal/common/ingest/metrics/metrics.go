@@ -33,16 +33,24 @@ const (
 )
 
 type Metrics struct {
-	dbErrorsCounter              *prometheus.CounterVec
-	pulsarConnectionError        prometheus.Counter
-	pulsarMessageError           *prometheus.CounterVec
-	pulsarMessagesProcessed      prometheus.Counter
-	pulsarMessagePublishTime     *prometheus.GaugeVec
-	pulsarMessageProcessingDelay *prometheus.GaugeVec
-	eventsProcessed              *prometheus.CounterVec
+	dbErrorsCounter                    *prometheus.CounterVec
+	pulsarConnectionError              prometheus.Counter
+	pulsarMessageError                 *prometheus.CounterVec
+	pulsarMessagesProcessed            prometheus.Counter
+	pulsarMessagePublishTime           *prometheus.GaugeVec
+	pulsarMessageProcessingDelay       *prometheus.GaugeVec
+	eventsProcessed                    *prometheus.CounterVec
+	uncompressedEventBytesTotal        *prometheus.CounterVec
+	estimatedCompressedEventBytesTotal *prometheus.CounterVec
+	batchEvents                        *prometheus.HistogramVec
+	batchesTotal                       *prometheus.CounterVec
 }
 
 func NewMetrics(prefix string) *Metrics {
+	return NewMetricsWithRegistry(prefix, prometheus.DefaultRegisterer)
+}
+
+func NewMetricsWithRegistry(prefix string, registerer prometheus.Registerer) *Metrics {
 	dbErrorsCounterOpts := prometheus.CounterOpts{
 		Name: prefix + "db_errors",
 		Help: "Number of database errors grouped by database operation",
@@ -71,15 +79,37 @@ func NewMetrics(prefix string) *Metrics {
 		Name: prefix + "events_processed",
 		Help: "Number of events processed",
 	}
+	uncompressedEventBytesTotalOpts := prometheus.CounterOpts{
+		Name: prefix + "uncompressed_event_bytes_total",
+		Help: "Total uncompressed event bytes processed",
+	}
+	estimatedCompressedEventBytesTotalOpts := prometheus.CounterOpts{
+		Name: prefix + "estimated_compressed_event_bytes_total",
+		Help: "Total estimated compressed event bytes processed",
+	}
+	batchEventsOpts := prometheus.HistogramOpts{
+		Name:    prefix + "batch_events",
+		Help:    "Number of events in a batch",
+		Buckets: []float64{1, 2, 5, 10, 20, 50, 100, 200, 500, 1000},
+	}
+	batchesTotalOpts := prometheus.CounterOpts{
+		Name: prefix + "batches_total",
+		Help: "Total number of batches processed",
+	}
 
+	factory := promauto.With(registerer)
 	return &Metrics{
-		dbErrorsCounter:              promauto.NewCounterVec(dbErrorsCounterOpts, []string{"operation"}),
-		pulsarMessageError:           promauto.NewCounterVec(pulsarMessageErrorOpts, []string{"error"}),
-		pulsarConnectionError:        promauto.NewCounter(pulsarConnectionErrorOpts),
-		pulsarMessageProcessingDelay: promauto.NewGaugeVec(pulsarMessageProcessingDelayOpts, []string{"subscription", "partition"}),
-		pulsarMessagePublishTime:     promauto.NewGaugeVec(pulsarMessagePublishTime, []string{"subscription", "partition"}),
-		pulsarMessagesProcessed:      promauto.NewCounter(pulsarMessagesProcessedOpts),
-		eventsProcessed:              promauto.NewCounterVec(eventsProcessedOpts, []string{"queue", "eventType", "msgType"}),
+		dbErrorsCounter:                    factory.NewCounterVec(dbErrorsCounterOpts, []string{"operation"}),
+		pulsarMessageError:                 factory.NewCounterVec(pulsarMessageErrorOpts, []string{"error"}),
+		pulsarConnectionError:              factory.NewCounter(pulsarConnectionErrorOpts),
+		pulsarMessageProcessingDelay:       factory.NewGaugeVec(pulsarMessageProcessingDelayOpts, []string{"subscription", "partition"}),
+		pulsarMessagePublishTime:           factory.NewGaugeVec(pulsarMessagePublishTime, []string{"subscription", "partition"}),
+		pulsarMessagesProcessed:            factory.NewCounter(pulsarMessagesProcessedOpts),
+		eventsProcessed:                    factory.NewCounterVec(eventsProcessedOpts, []string{"queue", "eventType", "msgType"}),
+		uncompressedEventBytesTotal:        factory.NewCounterVec(uncompressedEventBytesTotalOpts, []string{"queue", "event_type"}),
+		estimatedCompressedEventBytesTotal: factory.NewCounterVec(estimatedCompressedEventBytesTotalOpts, []string{"queue", "event_type"}),
+		batchEvents:                        factory.NewHistogramVec(batchEventsOpts, []string{"queue"}),
+		batchesTotal:                       factory.NewCounterVec(batchesTotalOpts, []string{"queue"}),
 	}
 }
 
@@ -115,4 +145,36 @@ func (m *Metrics) RecordEventSequenceProcessed(queue string, msgType string) {
 
 func (m *Metrics) RecordControlPlaneEventProcessed(msgType string) {
 	m.eventsProcessed.With(map[string]string{"queue": "N/A", "eventType": ControlPlaneEventsLabel, "msgType": msgType}).Inc()
+}
+
+func (m *Metrics) RecordEventUncompressedBytes(queue, eventType string, n int) {
+	m.uncompressedEventBytesTotal.With(map[string]string{"queue": queue, "event_type": eventType}).Add(float64(n))
+}
+
+func (m *Metrics) RecordEventEstimatedCompressedBytes(queue, eventType string, n int) {
+	m.estimatedCompressedEventBytesTotal.With(map[string]string{"queue": queue, "event_type": eventType}).Add(float64(n))
+}
+
+func (m *Metrics) RecordBatchEvents(queue string, batchEvents int) {
+	m.batchEvents.With(map[string]string{"queue": queue}).Observe(float64(batchEvents))
+}
+
+func (m *Metrics) RecordBatchCount(queue string) {
+	m.batchesTotal.With(map[string]string{"queue": queue}).Inc()
+}
+
+func (m *Metrics) GetUncompressedEventBytesTotal() *prometheus.CounterVec {
+	return m.uncompressedEventBytesTotal
+}
+
+func (m *Metrics) GetEstimatedCompressedEventBytesTotal() *prometheus.CounterVec {
+	return m.estimatedCompressedEventBytesTotal
+}
+
+func (m *Metrics) GetBatchEvents() *prometheus.HistogramVec {
+	return m.batchEvents
+}
+
+func (m *Metrics) GetBatchesTotal() *prometheus.CounterVec {
+	return m.batchesTotal
 }

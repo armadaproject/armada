@@ -1,6 +1,8 @@
 package convert
 
 import (
+	"math"
+
 	"github.com/gogo/protobuf/proto"
 	"github.com/pkg/errors"
 
@@ -65,6 +67,23 @@ func (ec *EventConverter) Convert(ctx *armadacontext.Context, eventsWithIds *uti
 			log.WithError(err).Warnf("Could not compress event")
 			continue
 		}
+
+		// Record per-event byte counters
+		ratio := 1.0
+		if len(bytes) > 0 {
+			ratio = float64(len(compressedBytes)) / float64(len(bytes))
+		}
+		for _, e := range es.Events {
+			eventType := e.GetEventName()
+			uncompressed := proto.Size(e)
+			estimatedCompressed := int(math.Round(float64(uncompressed) * ratio))
+			ec.metrics.RecordEventUncompressedBytes(queue, eventType, uncompressed)
+			ec.metrics.RecordEventEstimatedCompressedBytes(queue, eventType, estimatedCompressed)
+		}
+
+		// Record batch-level metrics
+		ec.metrics.RecordBatchEvents(queue, len(es.Events))
+		ec.metrics.RecordBatchCount(queue)
 
 		events = append(events, &model.Event{
 			Queue:  queue,
