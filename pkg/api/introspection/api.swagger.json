@@ -473,6 +473,9 @@
           "type": "integer",
           "format": "int32"
         },
+        "eventTime": {
+          "type": "string"
+        },
         "firstTimestamp": {
           "type": "string"
         },

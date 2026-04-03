@@ -111,6 +111,7 @@ message PodEvent {
     string first_timestamp = 4;
     string last_timestamp = 5;
     int32 count = 6;
+    string event_time = 7; // EventTime (MicroTime) for newer events that don't populate first/last_timestamp
 }
 
 message DescribeNodeRequest {

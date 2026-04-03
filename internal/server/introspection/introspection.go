@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -293,6 +294,10 @@ func (s *IntrospectionServer) KubeDescribeJobPod(ctx context.Context, req *intro
 			return nil, status.Errorf(codes.Unavailable, "failed to list events for pod %q: %v", podName, err)
 		}
 		for _, e := range events.Items {
+			var eventTime string
+			if !e.EventTime.IsZero() {
+				eventTime = e.EventTime.UTC().Format(time.RFC3339)
+			}
 			resp.Events = append(resp.Events, &introspectionapi.PodEvent{
 				Type:           e.Type,
 				Reason:         e.Reason,
@@ -300,6 +305,7 @@ func (s *IntrospectionServer) KubeDescribeJobPod(ctx context.Context, req *intro
 				FirstTimestamp: e.FirstTimestamp.String(),
 				LastTimestamp:  e.LastTimestamp.String(),
 				Count:          e.Count,
+				EventTime:      eventTime,
 			})
 		}
 	}

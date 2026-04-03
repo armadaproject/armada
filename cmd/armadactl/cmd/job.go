@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -12,6 +13,8 @@ import (
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"k8s.io/apimachinery/pkg/api/resource"
+	corev1 "k8s.io/api/core/v1"
 
 	"github.com/armadaproject/armada/pkg/api"
 	introspectionapi "github.com/armadaproject/armada/pkg/api/introspection"
@@ -78,8 +81,9 @@ func runJob(cmd *cobra.Command, args []string) error {
 	introspectionClient := introspectionapi.NewIntrospectionClient(conn)
 
 	jobDetailsResp, err := jobsClient.GetJobDetails(ctx, &api.JobDetailsRequest{
-		JobIds: []string{jobID},
-		ExpandJobRun: true,
+		JobIds:        []string{jobID},
+		ExpandJobRun:  true,
+		ExpandJobSpec: true,
 	})
 	if err != nil {
 		return fmt.Errorf("GetJobDetails: %w", err)
@@ -99,11 +103,17 @@ func runJob(cmd *cobra.Command, args []string) error {
 		err error
 	}
 
+	type errorsResult struct {
+		msg string
+		err error
+	}
+
 	var wg sync.WaitGroup
 	podCh := make(chan podResult, 1)
 	nodeCh := make(chan nodeResult, 1)
-	
-	wg.Add(2)
+	errorsCh := make(chan errorsResult, 1)
+
+	wg.Add(3)
 	go func() {
 		defer wg.Done()
 		resp, err := introspectionClient.KubeDescribeJobPod(ctx, &introspectionapi.DescribeJobPodRequest{
@@ -119,10 +129,22 @@ func runJob(cmd *cobra.Command, args []string) error {
 		})
 		nodeCh <- nodeResult{resp, err}
 	}()
+	go func() {
+		defer wg.Done()
+		resp, err := jobsClient.GetJobErrors(ctx, &api.JobErrorsRequest{
+			JobIds: []string{jobID},
+		})
+		if err != nil {
+			errorsCh <- errorsResult{err: err}
+			return
+		}
+		errorsCh <- errorsResult{msg: resp.GetJobErrors()[jobID]}
+	}()
 	wg.Wait()
 
 	podRes := <-podCh
 	nodeRes := <-nodeCh
+	errorsRes := <-errorsCh
 
 	pf := func(label, value string) {
 		fmt.Printf("  %-13s %s\n", label+":", value)
@@ -130,11 +152,14 @@ func runJob(cmd *cobra.Command, args []string) error {
 
 	// Job level info
 	pf("jobState", colorJobState(jobDetails.GetState(), jobStateString(jobDetails.GetState())))
-	if s := summarizeJob(jobDetails, podRes.resp, nodeRes.resp); s != "" {
+	if s := summarizeJob(jobDetails, podRes.resp, nodeRes.resp, errorsRes.msg); s != "" {
 		pf("summary", s)
 	}
 	pf("queue", jobDetails.GetQueue())
 	pf("namespace", jobDetails.GetNamespace())
+	if req := formatResourceRequests(jobDetails); req != "" {
+		pf("requested", req)
+	}
 
 	latestRun := latestJobRun(jobDetails)
 	if latestRun != nil {
@@ -143,72 +168,88 @@ func runJob(cmd *cobra.Command, args []string) error {
 		pf("node", latestRun.GetNode())
 	}
 
-	// Pod info
-	fmt.Println()
-	if podRes.err != nil {
-		pf("podStatus", fmt.Sprintf("(unavailable: %v)", podRes.err))
-	} else {
-		pod := podRes.resp
-		pf("podName", pod.GetPodName())
-		pf("podPhase", pod.GetPhase())
-	}
-
-	// Node info
-	if nodeRes.err != nil {
-		pf("nodeStatus", fmt.Sprintf("(unavailable: %v)", nodeRes.err))
-	} else {
-		pf("nodeStatus", colorNodeStatus(nodeReadyStatus(nodeRes.resp)))
-	}
-
-	// Errors
-	fmt.Println()
-	if podRes.err == nil {
-		errors := collectPodErrors(podRes.resp)
-		if len(errors) > 0 {
-			fmt.Printf("  %-13s\n", "podErrors:")
-			for _, e := range errors {
-				fmt.Printf("    %s\n", e)
-			}
-		}
-	}
-
-	// Container statuses
-	if podRes.err == nil && len(podRes.resp.GetContainers()) > 0 {
+	// Pod info, node info, errors, containers, events — omitted for rejected jobs (no run exists)
+	if jobDetails.GetState() != api.JobState_REJECTED {
 		fmt.Println()
-		fmt.Printf("  %-13s\n", "containers:")
-		for _, c := range podRes.resp.GetContainers() {
-			ready := "false"
-			if c.GetReady() {
-				ready = "true"
-			}
-			line := fmt.Sprintf("    [%s]  state=%-12s  ready=%s  restarts=%d",
-				c.GetName(), c.GetState(), ready, c.GetRestartCount())
-			if c.GetReason() != "" {
-				line += fmt.Sprintf("  reason=%s", c.GetReason())
-			}
-			if c.GetMessage() != "" {
-				line += fmt.Sprintf("  message=%s", c.GetMessage())
-			}
-			fmt.Println(line)
-		}
-	}
-
-	// Events
-	if jobIncludeEvents && podRes.err == nil {
-		events := podRes.resp.GetEvents()
-		fmt.Println()
-		if len(events) == 0 {
-			pf("events", "None")
+		if podRes.err != nil {
+			pf("podStatus", fmt.Sprintf("(unavailable: %v)", podRes.err))
 		} else {
-			fmt.Printf("  %-13s\n", "events:")
-			for _, ev := range events {
-				ts := ev.GetLastTimestamp()
-				if ts == "" {
-					ts = ev.GetFirstTimestamp()
+			pod := podRes.resp
+			pf("podName", pod.GetPodName())
+		}
+
+		// Node info
+		if nodeRes.err != nil {
+			pf("nodeStatus", fmt.Sprintf("(unavailable: %v)", nodeRes.err))
+		} else {
+			pf("nodeStatus", colorNodeStatus(nodeReadyStatus(nodeRes.resp)))
+		}
+
+		// Errors
+		fmt.Println()
+		if podRes.err == nil {
+			errors := collectPodErrors(podRes.resp)
+			if len(errors) > 0 {
+				fmt.Printf("  %-13s\n", "podErrors:")
+				for _, e := range errors {
+					fmt.Printf("    %s\n", e)
 				}
-				ago := formatAgo(ts)
-				fmt.Printf("    [%s] %s: %s %s%s\n",
-					ev.GetType(), ev.GetReason(), ev.GetMessage(), ts, ago)
+			}
+		}
+
+		// Container statuses — only shown when something is noteworthy
+		if podRes.err == nil {
+			var noteworthy []*introspectionapi.ContainerStatus
+			for _, c := range podRes.resp.GetContainers() {
+				if !strings.EqualFold(c.GetState(), "running") || c.GetRestartCount() > 0 || c.GetReason() != "" || c.GetMessage() != "" {
+					noteworthy = append(noteworthy, c)
+				}
+			}
+			if len(noteworthy) > 0 {
+				fmt.Println()
+				fmt.Printf("  %-13s\n", "containers:")
+				for _, c := range noteworthy {
+					ready := "false"
+					if c.GetReady() {
+						ready = "true"
+					}
+					line := fmt.Sprintf("    [%s]  state=%-12s  ready=%s  restarts=%d",
+						c.GetName(), c.GetState(), ready, c.GetRestartCount())
+					if c.GetReason() != "" {
+						line += fmt.Sprintf("  reason=%s", c.GetReason())
+					}
+					if c.GetMessage() != "" {
+						line += fmt.Sprintf("  message=%s", c.GetMessage())
+					}
+					fmt.Println(line)
+				}
+			}
+		}
+
+		// Events
+		if jobIncludeEvents && podRes.err == nil {
+			events := podRes.resp.GetEvents()
+			fmt.Println()
+			if len(events) == 0 {
+				pf("events", "None")
+			} else {
+				fmt.Printf("  %-13s\n", "events:")
+				for _, ev := range events {
+					ts := ev.GetEventTime()
+					if ts == "" {
+						ts = ev.GetLastTimestamp()
+					}
+					if ts == "" {
+						ts = ev.GetFirstTimestamp()
+					}
+					// Suppress zero-value timestamps from legacy fields
+					if strings.HasPrefix(ts, "0001-") {
+						ts = ""
+					}
+					ago := formatAgo(ts)
+					fmt.Printf("    [%s] %s: %s %s%s\n",
+						ev.GetType(), ev.GetReason(), ev.GetMessage(), ts, ago)
+				}
 			}
 		}
 	}
@@ -216,10 +257,13 @@ func runJob(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func summarizeJob(jobDetails *api.JobDetails, pod *introspectionapi.DescribeJobPodResponse, node *introspectionapi.DescribeNodeResponse) string {
+func summarizeJob(jobDetails *api.JobDetails, pod *introspectionapi.DescribeJobPodResponse, node *introspectionapi.DescribeNodeResponse, jobErrMsg string) string {
 	// Job-level terminal states that don't need pod/node info.
 	switch jobDetails.GetState() {
 	case api.JobState_REJECTED:
+		if jobErrMsg != "" {
+			return "Job was rejected: " + parseRejectionMsg(jobErrMsg)
+		}
 		if r := jobDetails.GetCancelReason(); r != "" {
 			return "Job was rejected: " + r
 		}
@@ -309,6 +353,52 @@ func summarizeJob(jobDetails *api.JobDetails, pod *introspectionapi.DescribeJobP
 	}
 
 	return ""
+}
+
+func formatResourceRequests(jd *api.JobDetails) string {
+	spec := jd.GetJobSpec()
+	if spec == nil {
+		return ""
+	}
+	podSpecs := spec.GetPodSpecs()
+	if len(podSpecs) == 0 {
+		if ps := spec.GetPodSpec(); ps != nil {
+			podSpecs = []*corev1.PodSpec{ps}
+		}
+	}
+	if len(podSpecs) == 0 {
+		return ""
+	}
+	totals := map[string]resource.Quantity{}
+	for _, podSpec := range podSpecs {
+		for _, c := range podSpec.Containers {
+			for name, qty := range c.Resources.Requests {
+				q := totals[string(name)]
+				q.Add(qty)
+				totals[string(name)] = q
+			}
+		}
+	}
+	if len(totals) == 0 {
+		return ""
+	}
+	var parts []string
+	for _, key := range []string{"cpu", "memory"} {
+		if qty, ok := totals[key]; ok {
+			parts = append(parts, fmt.Sprintf("%s=%s", key, qty.String()))
+			delete(totals, key)
+		}
+	}
+	var others []string
+	for k := range totals {
+		others = append(others, k)
+	}
+	sort.Strings(others)
+	for _, k := range others {
+		q := totals[k]
+		parts = append(parts, fmt.Sprintf("%s=%s", k, q.String()))
+	}
+	return strings.Join(parts, "  ")
 }
 
 func jobStateString(s api.JobState) string {
@@ -419,7 +509,7 @@ func colorJobState(s api.JobState, label string) string {
           return styleRunning.Render(label)
       case api.JobState_SUCCEEDED:
           return styleSuccess.Render(label)
-      case api.JobState_FAILED:
+      case api.JobState_FAILED, api.JobState_REJECTED:
           return styleFailed.Render(label)
       case api.JobState_CANCELLED, api.JobState_PREEMPTED:
           return styleWarning.Render(label)
@@ -430,12 +520,66 @@ func colorJobState(s api.JobState, label string) string {
       }
   }
 
-  func colorNodeStatus(status string) string {
-      if strings.HasPrefix(status, "Ready") {
-          return styleSuccess.Render(status)
-      }
-      if strings.HasPrefix(status, "NotReady") {
-          return styleFailed.Render(status)
-      }
-      return status
-  }
+func colorNodeStatus(status string) string {
+	if strings.HasPrefix(status, "Ready") {
+		return styleSuccess.Render(status)
+	}
+	if strings.HasPrefix(status, "NotReady") {
+		return styleFailed.Render(status)
+	}
+	return status
+}
+
+// parseRejectionMsg extracts unique human-readable reasons from the scheduler's
+// rejection message, which has the form:
+//
+//	ClusterName:
+//	Excluded nodes:
+//	 N: reason one
+//	 N: reason two
+//	---
+//
+// It returns the deduplicated reasons joined by "; ", falling back to the
+// trimmed raw message if the expected format is not found.
+func parseRejectionMsg(msg string) string {
+	const marker = "Excluded nodes:"
+	idx := strings.Index(msg, marker)
+	if idx == -1 {
+		return strings.TrimSpace(msg)
+	}
+
+	var reasons []string
+	seen := make(map[string]bool)
+	for _, line := range strings.Split(msg[idx+len(marker):], "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || line == "---" {
+			continue
+		}
+		// Strip leading count prefix "N: "
+		if i := strings.Index(line, ": "); i > 0 {
+			isCount := true
+			for _, c := range line[:i] {
+				if c < '0' || c > '9' {
+					isCount = false
+					break
+				}
+			}
+			if isCount {
+				line = line[i+2:]
+			}
+		}
+		// Skip system control-plane taint — always present, not user-actionable.
+		if strings.Contains(line, "node-role.kubernetes.io/") {
+			continue
+		}
+		if line != "" && !seen[line] {
+			seen[line] = true
+			reasons = append(reasons, line)
+		}
+	}
+
+	if len(reasons) == 0 {
+		return strings.TrimSpace(msg)
+	}
+	return strings.Join(reasons, "; ")
+}

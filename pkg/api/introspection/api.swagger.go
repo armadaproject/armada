@@ -484,6 +484,9 @@ func SwaggerJsonTemplate() string {
 		"          \"type\": \"integer\",\n" +
 		"          \"format\": \"int32\"\n" +
 		"        },\n" +
+		"        \"eventTime\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
 		"        \"firstTimestamp\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
