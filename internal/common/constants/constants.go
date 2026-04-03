@@ -33,6 +33,10 @@ const (
 	FailFastAnnotation  = "armadaproject.io/failFast"
 	PoolAnnotation      = "armadaproject.io/pool"
 	ReservationTaintKey = "armadaproject.io/reservation"
+
+	// EventStreamPrefix is the Redis stream key prefix for Armada event streams.
+	// Event stream keys follow the pattern: "Events:{queue}:{jobSetId}"
+	EventStreamPrefix = "Events:"
 )
 
 var schedulingAnnotations = map[string]bool{
