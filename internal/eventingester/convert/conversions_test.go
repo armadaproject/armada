@@ -11,7 +11,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
-	dto "github.com/prometheus/client_model/go"
+	promclientmodel "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -334,7 +334,7 @@ func TestConvert_RecordsBatchHistogramAndCountPerSuccessfulSequence(t *testing.T
 
 	var histogramFound bool
 	for m := range ch {
-		pb := &dto.Metric{}
+		pb := &promclientmodel.Metric{}
 		require.NoError(t, m.Write(pb))
 
 		if len(pb.Label) > 0 && pb.Label[0].GetValue() == queue && pb.Histogram != nil {
@@ -375,7 +375,7 @@ func TestConvert_DoesNotRecordBatchMetricsOnFailedSequence(t *testing.T) {
 	}()
 
 	for m := range ch {
-		pb := &dto.Metric{}
+		pb := &promclientmodel.Metric{}
 		require.NoError(t, m.Write(pb))
 
 		if len(pb.Label) > 0 && pb.Label[0].GetValue() == queue && pb.Histogram != nil {
