@@ -244,11 +244,8 @@ func (q *OptimisingQueueScheduler) checkIfWillBreachSchedulingLimits(
 		return false, unschedulableReason, err
 	}
 
-	if gctx.RequestsFloatingResources {
-		ok, unschedulableReason = q.floatingResourceTypes.WithinLimits(sctx.Pool, sctx.Allocated)
-		if !ok {
-			return ok, unschedulableReason, nil
-		}
+	if ok, unschedulableReason = sctx.IsWithinFloatingResourceLimits(gctx, q.floatingResourceTypes); !ok {
+		return ok, unschedulableReason, nil
 	}
 
 	if _, err := sctx.EvictGang(gctx); err != nil {

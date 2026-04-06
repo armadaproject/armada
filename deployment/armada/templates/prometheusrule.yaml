@@ -31,10 +31,10 @@ spec:
           expr: max(sum(armada_queue_resource_queued) by (instance, pool, queueName, resourceType, accounting_role)) by (pool, queueName, resourceType, accounting_role)
 
         - record: armada:queue:resource:allocated
-          expr: max(sum(armada_queue_resource_allocated) by (instance, pool, cluster, queueName, resourceType, nodeType, reservation, physical_pool)) by (pool, cluster, queueName, resourceType, nodeType, reservation, physical_pool)
+          expr: max(sum(armada_queue_resource_allocated) by (instance, pool, cluster, queueName, resourceType, nodeType, reservation, physical_pool, scalable_unit)) by (pool, cluster, queueName, resourceType, nodeType, reservation, physical_pool, scalable_unit)
 
         - record: armada:queue:resource:used
-          expr: max(sum(armada_queue_resource_used) by (instance, pool, cluster, queueName, resourceType, nodeType, reservation, physical_pool)) by (pool, cluster, queueName, resourceType, nodeType, reservation, physical_pool)
+          expr: max(sum(armada_queue_resource_used) by (instance, pool, cluster, queueName, resourceType, nodeType, reservation, physical_pool, scalable_unit)) by (pool, cluster, queueName, resourceType, nodeType, reservation, physical_pool, scalable_unit)
 
         - record: armada:grpc:server:histogram95
           expr: histogram_quantile(0.95, sum(rate(grpc_server_handling_seconds_bucket{grpc_type!="server_stream"}[2m])) by (grpc_method,grpc_service, le))
@@ -46,13 +46,13 @@ spec:
           expr: sum(rate(log_messages[2m])) by (level)
 
         - record: armada:resource:available_capacity
-          expr: max(armada_cluster_available_capacity) by (pool, cluster, resourceType, nodeType, reservation, physical_pool, capacity_class)
+          expr: max(armada_cluster_available_capacity) by (pool, cluster, resourceType, nodeType, reservation, physical_pool, capacity_class, scalable_unit)
 
         - record: armada:resource:farm_capacity
-          expr: max(armada_cluster_farm_capacity) by (pool, cluster, resourceType, nodeType, reservation, physical_pool, capacity_class)
+          expr: max(armada_cluster_farm_capacity) by (pool, cluster, resourceType, nodeType, reservation, physical_pool, capacity_class, scalable_unit)
 
         - record: armada:resource:capacity
-          expr: max(armada_cluster_capacity) by (pool, cluster, resourceType, nodeType, reservation, physical_pool, capacity_class)
+          expr: max(armada_cluster_capacity) by (pool, cluster, resourceType, nodeType, reservation, physical_pool, capacity_class, scalable_unit)
 
         - record: armada:queue:pod_phase:count
           expr: max(armada_queue_leased_pod_count) by (pool, cluster, queueName, phase, nodeType, reservation)
