@@ -1220,6 +1220,12 @@
     "apiJobFailedEvent": {
       "type": "object",
       "properties": {
+        "categories": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
         "cause": {
           "$ref": "#/definitions/apiCause"
         },

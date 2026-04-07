@@ -764,6 +764,29 @@ func init() {
           "format": "int32",
           "x-nullable": true
         },
+        "failureInfo": {
+          "type": "object",
+          "properties": {
+            "categories": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "x-omitempty": true
+            },
+            "containerName": {
+              "type": "string"
+            },
+            "exitCode": {
+              "type": "integer",
+              "format": "int32"
+            },
+            "terminationMessage": {
+              "type": "string"
+            }
+          },
+          "x-nullable": true
+        },
         "finished": {
           "type": "string",
           "format": "date-time",
@@ -1347,6 +1370,29 @@ func init() {
         }
       }
     },
+    "RunFailureInfo": {
+      "type": "object",
+      "properties": {
+        "categories": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "x-omitempty": true
+        },
+        "containerName": {
+          "type": "string"
+        },
+        "exitCode": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "terminationMessage": {
+          "type": "string"
+        }
+      },
+      "x-nullable": true
+    },
     "error": {
       "type": "object",
       "required": [
@@ -1622,6 +1668,29 @@ func init() {
         "exitCode": {
           "type": "integer",
           "format": "int32",
+          "x-nullable": true
+        },
+        "failureInfo": {
+          "type": "object",
+          "properties": {
+            "categories": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "x-omitempty": true
+            },
+            "containerName": {
+              "type": "string"
+            },
+            "exitCode": {
+              "type": "integer",
+              "format": "int32"
+            },
+            "terminationMessage": {
+              "type": "string"
+            }
+          },
           "x-nullable": true
         },
         "finished": {
