@@ -1231,6 +1231,12 @@ func SwaggerJsonTemplate() string {
 		"    \"apiJobFailedEvent\": {\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
+		"        \"categories\": {\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"type\": \"string\"\n" +
+		"          }\n" +
+		"        },\n" +
 		"        \"cause\": {\n" +
 		"          \"$ref\": \"#/definitions/apiCause\"\n" +
 		"        },\n" +
