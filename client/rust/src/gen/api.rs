@@ -84,6 +84,10 @@ pub struct JobSubmitRequestItem {
     /// If empty, the default scheduler is used.
     #[prost(string, tag = "11")]
     pub scheduler: ::prost::alloc::string::String,
+    /// URI identifying this job in an external system (e.g. Airflow).
+    /// If not set, the server falls back to the "armadaproject.io/externalJobUri" annotation.
+    #[prost(string, tag = "13")]
+    pub external_job_uri: ::prost::alloc::string::String,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct IngressConfig {
