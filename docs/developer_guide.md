@@ -144,7 +144,7 @@ go run cmd/testsuite/main.go test --tests "testsuite/testcases/basic/*" --junit 
 
 ### Running the UI
 
-In `LocalDev`, the UI is built seperately with `mage ui`. To access it, open http://localhost:8089 in your browser.
+In `LocalDev`, the UI is built separately with `mage ui`. To access it, open http://localhost:8089 in your browser.
 
 For more information, [see the UI Developer Guide](./developer/developing-locally.md).
 

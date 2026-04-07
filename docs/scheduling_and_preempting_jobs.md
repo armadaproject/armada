@@ -69,7 +69,7 @@ The cost of each queue is computed from the resource requests of running jobs or
 c_i = max(cpu_i/cpu_total, memory_i/memory_total, ...)
 ```
 
-where `cpu_i` is the total CPU allocated to jobs from the `i`-th queue and so on, and the totals is the total amount of resources available for scheduling. This fairness model has several desirable proprties; see
+where `cpu_i` is the total CPU allocated to jobs from the `i`-th queue and so on, and the totals is the total amount of resources available for scheduling. This fairness model has several desirable properties; see
 
 - [Dominant Resource Fairness: Fair Allocation of Multiple Resource Types](https://amplab.cs.berkeley.edu/wp-content/uploads/2011/06/Dominant-Resource-Fairness-Fair-Allocation-of-Multiple-Resource-Types.pdf)
 
