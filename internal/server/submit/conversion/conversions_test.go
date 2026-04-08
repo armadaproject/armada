@@ -5,10 +5,12 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	networking "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
+	"github.com/armadaproject/armada/internal/common/constants"
 	"github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/armadaproject/armada/internal/server/submit/testfixtures"
 	"github.com/armadaproject/armada/pkg/api"
@@ -905,6 +907,54 @@ func jobSubmitRequestItemWithClassicInitContainer() *api.JobSubmitRequestItem {
 	}
 
 	return req
+}
+
+func TestExternalJobUri(t *testing.T) {
+	tests := map[string]struct {
+		protoField  string
+		annotations map[string]string
+		expectedUri string
+	}{
+		"Proto field takes priority over annotation": {
+			protoField:  "airflow://dag/task/run/0",
+			annotations: map[string]string{constants.ExternalJobUriAnnotation: "old-annotation-value"},
+			expectedUri: "airflow://dag/task/run/0",
+		},
+		"Falls back to annotation when proto field empty": {
+			protoField:  "",
+			annotations: map[string]string{constants.ExternalJobUriAnnotation: "airflow://dag/task/run/0"},
+			expectedUri: "airflow://dag/task/run/0",
+		},
+		"Empty when neither set": {
+			protoField:  "",
+			annotations: map[string]string{},
+			expectedUri: "",
+		},
+		"Proto field with nil annotations": {
+			protoField:  "airflow://dag/task/run/0",
+			annotations: nil,
+			expectedUri: "airflow://dag/task/run/0",
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			jobReq := testfixtures.JobSubmitRequestItem(1)
+			jobReq.Annotations = tc.annotations
+			jobReq.ExternalJobUri = tc.protoField
+
+			msg := SubmitJobFromApiRequest(
+				jobReq,
+				testfixtures.DefaultSubmissionConfig(),
+				testfixtures.DefaultJobset,
+				testfixtures.DefaultQueue.Name,
+				testfixtures.DefaultOwner,
+				testfixtures.TestUlidGenerator(),
+			)
+
+			require.Equal(t, tc.expectedUri, msg.ExternalJobUri)
+		})
+	}
 }
 
 func SubmitJobMsgWithK8sObjects(objects []*armadaevents.KubernetesObject, initContainers ...v1.Container) *armadaevents.SubmitJob {

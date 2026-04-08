@@ -1881,6 +1881,10 @@ func SwaggerJsonTemplate() string {
 		"        \"clientId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
+		"        \"externalJobUri\": {\n" +
+		"          \"description\": \"URI identifying this job in an external system (e.g. Airflow).\\nIf not set, the server falls back to the \\\"armadaproject.io/externalJobUri\\\" annotation.\",\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
 		"        \"ingress\": {\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
