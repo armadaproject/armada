@@ -162,19 +162,24 @@ type AnalyticsConfig struct {
 	DataWrapper         string        `json:"dataWrapper,omitempty"`
 }
 
+type OidcConfig struct {
+	Authority    string `json:"authority"`
+	ClientId     string `json:"clientId"`
+	Scope        string `json:"scope"`
+	LoadUserInfo *bool  `json:"loadUserInfo"`
+	// DisplayNameClaim specifies which OIDC claim to use for the username display.
+	// Common values: "name", "preferred_username", "email", "given_name". Defaults to "sub".
+	DisplayNameClaim *string `json:"displayNameClaim,omitempty"`
+}
+
 // UIConfig must match the LookoutUiConfig TypeScript interface defined in internal/lookoutui/src/config/types.ts
 type UIConfig struct {
 	CustomTitle string `json:"customTitle"`
 
 	// We have a separate flag here (instead of making the Oidc field optional)
 	// so that clients can override the server's preference.
-	OidcEnabled bool `json:"oidcEnabled"`
-	Oidc        *struct {
-		Authority    string `json:"authority"`
-		ClientId     string `json:"clientId"`
-		Scope        string `json:"scope"`
-		LoadUserInfo *bool  `json:"loadUserInfo"`
-	} `json:"oidc,omitempty"`
+	OidcEnabled bool        `json:"oidcEnabled"`
+	Oidc        *OidcConfig `json:"oidc,omitempty"`
 
 	ArmadaApiBaseUrl         string `json:"armadaApiBaseUrl"`
 	UserAnnotationPrefix     string `json:"userAnnotationPrefix"`
