@@ -1,6 +1,8 @@
 package pod_metrics
 
 import (
+	"sync"
+
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	v1 "k8s.io/api/core/v1"
@@ -70,6 +72,7 @@ type ClusterContextMetrics struct {
 	utilisationService      utilisation.UtilisationService
 	queueUtilisationService utilisation.PodUtilisationService
 	nodeInfoService         node.NodeInfoService
+	knownQueuesMu           sync.Mutex
 	knownQueues             map[string]map[string]bool
 	podCountTotal           *prometheus.CounterVec
 }
@@ -199,6 +202,7 @@ func (m *ClusterContextMetrics) Collect(metrics chan<- prometheus.Metric) {
 		nodeTypeMetric[phase].resourceRequest.Add(request)
 		nodeTypeMetric[phase].resourceUsage.Add(usage.CurrentUsage)
 	}
+	m.knownQueuesMu.Lock()
 	m.setEmptyMetrics(podMetrics)
 
 	for queue, nodeTypeMetrics := range podMetrics {
@@ -218,6 +222,7 @@ func (m *ClusterContextMetrics) Collect(metrics chan<- prometheus.Metric) {
 			}
 		}
 	}
+	m.knownQueuesMu.Unlock()
 
 	for _, nodeGroup := range nodeGroupAllocationInfos {
 		metrics <- prometheus.MustNewConstMetric(nodeCountDesc, prometheus.GaugeValue, float64(len(nodeGroup.Nodes)), nodeGroup.NodeType)
@@ -236,9 +241,7 @@ func (m *ClusterContextMetrics) Collect(metrics chan<- prometheus.Metric) {
 func (m *ClusterContextMetrics) setKnownQueue(queue string, nodeType string) {
 	_, exists := m.knownQueues[queue]
 	if !exists {
-		m.knownQueues = map[string]map[string]bool{
-			queue: {},
-		}
+		m.knownQueues[queue] = map[string]bool{}
 	}
 	m.knownQueues[queue][nodeType] = true
 }
