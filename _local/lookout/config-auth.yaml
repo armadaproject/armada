@@ -20,6 +20,7 @@ auth:
   permissionGroupMapping:
     view_jobs: ["admins", "users"]
     cancel_jobs: ["admins"]
+execArmadaGrpcUrl: "localhost:50051"
 postgres:
   connection:
     host: localhost
