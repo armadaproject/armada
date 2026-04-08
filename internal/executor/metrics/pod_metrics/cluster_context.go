@@ -204,11 +204,15 @@ func (m *ClusterContextMetrics) Collect(metrics chan<- prometheus.Metric) {
 	}
 	m.knownQueuesMu.Lock()
 	m.setEmptyMetrics(podMetrics)
+	for queue, nodeTypeMetrics := range podMetrics {
+		for nodeType := range nodeTypeMetrics {
+			m.setKnownQueue(queue, nodeType)
+		}
+	}
+	m.knownQueuesMu.Unlock()
 
 	for queue, nodeTypeMetrics := range podMetrics {
 		for nodeType, phaseMetrics := range nodeTypeMetrics {
-			m.setKnownQueue(queue, nodeType)
-
 			for phase, phaseMetric := range phaseMetrics {
 				for resourceType, request := range phaseMetric.resourceRequest {
 					metrics <- prometheus.MustNewConstMetric(podResourceRequestDesc, prometheus.GaugeValue,
@@ -222,7 +226,6 @@ func (m *ClusterContextMetrics) Collect(metrics chan<- prometheus.Metric) {
 			}
 		}
 	}
-	m.knownQueuesMu.Unlock()
 
 	for _, nodeGroup := range nodeGroupAllocationInfos {
 		metrics <- prometheus.MustNewConstMetric(nodeCountDesc, prometheus.GaugeValue, float64(len(nodeGroup.Nodes)), nodeGroup.NodeType)
