@@ -2,15 +2,15 @@
 // collisions with plain string keys.
 package ctxkeys
 
-// ContextKey is a typed key for context values, preventing collisions with
-// string keys from other packages.
-type ContextKey string
+// contextKey is an unexported type for context value keys, preventing any
+// external package from constructing a colliding key.
+type contextKey string
 
 const (
 	// PrincipalKey stores the authenticated Principal in a context.
-	PrincipalKey ContextKey = "principal"
+	PrincipalKey contextKey = "principal"
 	// UserKey stores the authenticated username in a context for logging.
-	UserKey ContextKey = "user"
+	UserKey contextKey = "user"
 	// RequestIDKey stores the request ID in a context for logging.
-	RequestIDKey ContextKey = "requestId"
+	RequestIDKey contextKey = "requestId"
 )
