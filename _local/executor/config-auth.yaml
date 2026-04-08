@@ -12,3 +12,13 @@ metric:
 application:
   clusterId: "local-cluster"
   pool: "default"
+proxy:
+  enabled: true
+  apiConnection:
+    armadaUrl: "localhost:50051"
+    forceNoTls: true
+    openIdClientCredentialsAuth:
+      providerUrl: "http://localhost:8180/realms/armada"
+      clientId: "armada-executor"
+      clientSecret: "executor-secret"
+      scopes: ["profile", "email"]
