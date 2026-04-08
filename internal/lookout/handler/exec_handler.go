@@ -8,6 +8,7 @@ import (
 
 	"github.com/gorilla/websocket"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
 
 	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/pkg/api"
@@ -86,7 +87,18 @@ func (h *ExecHandler) handleExec(r *http.Request, ws *websocket.Conn, jobId, con
 	defer ws.Close()
 
 	client := api.NewInteractiveServiceClient(h.grpcConn)
-	stream, err := client.Exec(r.Context())
+
+	// Forward the user's Bearer token to the Armada gRPC server. The token
+	// arrives as an Authorization header (synthesized from ?token= for WebSocket
+	// upgrades in configure_lookout.go). gRPC interceptors read auth from
+	// outgoing metadata, not from the Go context value set by the HTTP middleware.
+	ctx := r.Context()
+	if authHeader := r.Header.Get("Authorization"); authHeader != "" {
+		md := metadata.Pairs("authorization", authHeader)
+		ctx = metadata.NewOutgoingContext(ctx, md)
+	}
+
+	stream, err := client.Exec(ctx)
 	if err != nil {
 		log.WithError(err).Warn("failed to open exec stream")
 		sendErrorFrame(ws, "failed to connect to exec service")

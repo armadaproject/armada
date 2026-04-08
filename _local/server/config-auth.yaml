@@ -19,6 +19,7 @@ auth:
     groupsClaim: "groups"
     skipClientIDCheck: true
   permissionGroupMapping:
+    exec_job: ["admins"]
     submit_any_jobs: ["admins"]
     create_queue: ["admins"]
     delete_queue: ["admins"]

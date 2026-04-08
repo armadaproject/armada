@@ -135,6 +135,14 @@ func authHandler(handler http.Handler) http.Handler {
 	// Exec WebSocket endpoint requires authentication — register alongside /api/
 	if execHandler != nil {
 		mux.Handle("/api/exec/ws", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Browsers cannot send custom headers on WebSocket upgrades. When the
+			// Authorization header is absent, synthesize it from the ?token= query
+			// parameter so that the auth middleware can validate the request.
+			if r.Header.Get("Authorization") == "" {
+				if token := r.URL.Query().Get("token"); token != "" {
+					r.Header.Set("Authorization", "Bearer "+token)
+				}
+			}
 			ctxWithPrincipal, err := authFunction(w, r)
 			if err != nil {
 				return

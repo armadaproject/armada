@@ -4,6 +4,8 @@ import { SerializeAddon } from "@xterm/addon-serialize"
 import { FitAddon } from "@xterm/addon-fit"
 import { Terminal } from "@xterm/xterm"
 
+import { useGetAccessToken } from "../oidcAuth"
+
 export type ExecStatus = "idle" | "connecting" | "connected" | "disconnected"
 
 export interface ExecTerminalControls {
@@ -36,6 +38,10 @@ export function useExecTerminal(
   const wsRef = useRef<WebSocket | null>(null)
   const fitAddonRef = useRef<FitAddon | null>(null)
   const serializeAddonRef = useRef<SerializeAddon | null>(null)
+  // Holds per-effect cleanup that must run before the next effect or on unmount
+  const innerCleanupRef = useRef<(() => void) | null>(null)
+
+  const getAccessToken = useGetAccessToken()
 
   useEffect(() => {
     if (!enabled || !containerRef.current) {
@@ -62,91 +68,106 @@ export function useExecTerminal(
     fitAddonRef.current = fitAddon
     serializeAddonRef.current = serializeAddon
 
-    // Build WebSocket URL from current location
-    const proto = window.location.protocol === "https:" ? "wss" : "ws"
-    const params = new URLSearchParams({ jobId })
-    if (container) {
-      params.set("container", container)
-    }
-    const wsUrl = `${proto}://${window.location.host}/api/exec/ws?${params.toString()}`
-    const ws = new WebSocket(wsUrl)
-    ws.binaryType = "arraybuffer"
-    wsRef.current = ws
+    // Resolve access token (undefined when auth is disabled / anonymous mode)
+    getAccessToken().then((accessToken) => {
+      if (!containerRef.current) return
 
-    ws.onopen = () => {
-      setStatus("connected")
-      // Send initial resize
-      sendResize(ws, terminal.cols, terminal.rows)
-    }
+      // Build WebSocket URL from current location
+      const proto = window.location.protocol === "https:" ? "wss" : "ws"
+      const params = new URLSearchParams({ jobId })
+      if (container) {
+        params.set("container", container)
+      }
+      // Browsers cannot set custom headers on WebSocket connections; pass the
+      // token as a query parameter so the server can synthesize the header.
+      if (accessToken) {
+        params.set("token", accessToken)
+      }
+      const wsUrl = `${proto}://${window.location.host}/api/exec/ws?${params.toString()}`
+      const ws = new WebSocket(wsUrl)
+      ws.binaryType = "arraybuffer"
+      wsRef.current = ws
 
-    ws.onmessage = (event: MessageEvent) => {
-      const data = new Uint8Array(event.data as ArrayBuffer)
-      if (data.length === 0) return
-      const msgType = data[0]
-      const payload = data.slice(1)
+      ws.onopen = () => {
+        setStatus("connected")
+        // Send initial resize
+        sendResize(ws, terminal.cols, terminal.rows)
+      }
 
-      if (msgType === 0x00) {
-        // stdout/stderr output
-        terminal.write(payload)
-      } else if (msgType === 0x01) {
-        // exit code: 4-byte int32 BE
-        if (payload.length >= 4) {
-          const view = new DataView(payload.buffer, payload.byteOffset, payload.byteLength)
-          const code = view.getInt32(0, false /* big-endian */)
-          setExitCode(code)
+      ws.onmessage = (event: MessageEvent) => {
+        const data = new Uint8Array(event.data as ArrayBuffer)
+        if (data.length === 0) return
+        const msgType = data[0]
+        const payload = data.slice(1)
+
+        if (msgType === 0x00) {
+          // stdout/stderr output
+          terminal.write(payload)
+        } else if (msgType === 0x01) {
+          // exit code: 4-byte int32 BE
+          if (payload.length >= 4) {
+            const view = new DataView(payload.buffer, payload.byteOffset, payload.byteLength)
+            const code = view.getInt32(0, false /* big-endian */)
+            setExitCode(code)
+          }
+          setStatus("disconnected")
+          ws.close()
+        } else if (msgType === 0x02) {
+          // error message
+          const errMsg = new TextDecoder().decode(payload)
+          setError(errMsg)
+          setStatus("disconnected")
+          ws.close()
         }
+      }
+
+      ws.onclose = () => {
+        setStatus((prev) => (prev === "connected" || prev === "connecting" ? "disconnected" : prev))
+      }
+
+      ws.onerror = () => {
+        setError("WebSocket connection error")
         setStatus("disconnected")
+      }
+
+      // Forward terminal input to server
+      const onDataDispose = terminal.onData((data) => {
+        if (ws.readyState !== WebSocket.OPEN) return
+        const encoded = new TextEncoder().encode(data)
+        const frame = new Uint8Array(1 + encoded.length)
+        frame[0] = 0x00
+        frame.set(encoded, 1)
+        ws.send(frame)
+      })
+
+      // Forward resize events to server
+      const onResizeDispose = terminal.onResize(({ cols, rows }) => {
+        if (ws.readyState === WebSocket.OPEN) {
+          sendResize(ws, cols, rows)
+        }
+      })
+
+      // ResizeObserver: refit terminal when the container changes size
+      const resizeObserver = new ResizeObserver(() => {
+        try {
+          fitAddon.fit()
+        } catch {
+          // ignore if container is hidden
+        }
+      })
+      resizeObserver.observe(containerRef.current!)
+
+      innerCleanupRef.current = () => {
+        onDataDispose.dispose()
+        onResizeDispose.dispose()
+        resizeObserver.disconnect()
         ws.close()
-      } else if (msgType === 0x02) {
-        // error message
-        const errMsg = new TextDecoder().decode(payload)
-        setError(errMsg)
-        setStatus("disconnected")
-        ws.close()
-      }
-    }
-
-    ws.onclose = () => {
-      setStatus((prev) => (prev === "connected" || prev === "connecting" ? "disconnected" : prev))
-    }
-
-    ws.onerror = () => {
-      setError("WebSocket connection error")
-      setStatus("disconnected")
-    }
-
-    // Forward terminal input to server
-    const onDataDispose = terminal.onData((data) => {
-      if (ws.readyState !== WebSocket.OPEN) return
-      const encoded = new TextEncoder().encode(data)
-      const frame = new Uint8Array(1 + encoded.length)
-      frame[0] = 0x00
-      frame.set(encoded, 1)
-      ws.send(frame)
-    })
-
-    // Forward resize events to server
-    const onResizeDispose = terminal.onResize(({ cols, rows }) => {
-      if (ws.readyState === WebSocket.OPEN) {
-        sendResize(ws, cols, rows)
       }
     })
-
-    // ResizeObserver: refit terminal when the container changes size
-    const resizeObserver = new ResizeObserver(() => {
-      try {
-        fitAddon.fit()
-      } catch {
-        // ignore if container is hidden
-      }
-    })
-    resizeObserver.observe(containerRef.current)
 
     return () => {
-      onDataDispose.dispose()
-      onResizeDispose.dispose()
-      resizeObserver.disconnect()
-      ws.close()
+      innerCleanupRef.current?.()
+      innerCleanupRef.current = null
       terminal.dispose()
       terminalRef.current = null
       wsRef.current = null
