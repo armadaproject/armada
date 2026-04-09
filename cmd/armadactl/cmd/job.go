@@ -3,7 +3,6 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"os"
 	"sort"
 	"strings"
 	"sync"
@@ -11,16 +10,14 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 	"k8s.io/apimachinery/pkg/api/resource"
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/client"
 	introspectionapi "github.com/armadaproject/armada/pkg/api/introspection"
 )
 
-var jobAddr string
 var jobTimeout int
 var jobIncludeEvents bool
 
@@ -34,13 +31,15 @@ var (
 
 func jobCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use: "job <job-id>",
+		Use:   "job <job-id>",
 		Short: "Show status summary for a job (pod, node, errors)",
-		Args: cobra.ExactArgs(1),
+		Args:  cobra.ExactArgs(1),
+		PreRunE: func(cmd *cobra.Command, args []string) error {
+			return client.LoadCommandlineArgs()
+		},
 		RunE: runJob,
 	}
 
-	cmd.Flags().StringVar(&jobAddr, "addr", "", "armada api address (env ARMADA_API_ADDR used if empty)")
 	cmd.Flags().IntVar(&jobTimeout, "timeout", 15, "rpc timeout seconds")
 	cmd.Flags().BoolVar(&jobIncludeEvents, "events", false, "incldue pod events in output")
 
@@ -49,31 +48,18 @@ func jobCmd() *cobra.Command {
 
 func runJob(cmd *cobra.Command, args []string) error {
 	jobID := args[0]
-	addr := jobAddr
 
-	if addr == "" {
-		addr = os.Getenv("ARMADA_API_ADDR")
-	}
-	if addr == "" {
-		if v, err := cmd.Flags().GetString("armadaUrl"); err == nil && v != "" {
-			addr = v
-		}
-		if addr == "" {
-			if v, err := cmd.InheritedFlags().GetString("armadaUrl"); err == nil && v != "" {
-				addr = v
-			}
-		}
-	}
-	if addr == "" {
-		addr = "localhost:50061"
+	connDetails, err := client.ExtractCommandlineArmadaApiConnectionDetails()
+	if err != nil {
+		return fmt.Errorf("loading connection details: %w", err)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(jobTimeout)*time.Second)
 	defer cancel()
 
-	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := client.CreateApiConnection(connDetails)
 	if err != nil {
-		return fmt.Errorf("dial %s: %w", addr, err)
+		return fmt.Errorf("dial %s: %w", connDetails.ArmadaUrl, err)
 	}
 	defer conn.Close()
 

@@ -15,11 +15,9 @@ import (
 	"google.golang.org/grpc"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
-	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/auth"
-	cluster "github.com/armadaproject/armada/internal/common/cluster"
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/database"
 	grpcCommon "github.com/armadaproject/armada/internal/common/grpc"
@@ -197,51 +195,44 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 
 	nodeServer := node.New(controlPlaneEventsPublisher, authorizer)
 
-
-	// hybrid A - live k8s call + Armada DB
-	// kube client for introspection plumbing
-	// impersonate users, qps, burst
-	provider, err := cluster.NewKubernetesClientProvider(false, 50, 100)
-	if err != nil { return err }
-
-	kubeFactory := introspectionserver.NewSingleClusterKubeFactory(provider)
-
-	kubeClient := provider.Client()
-
-	testNodes, err := kubeClient.CoreV1().Nodes().List(ctx, metaV1.ListOptions{})
+	// multi-cluster introspection — one kube client + informer cache per worker cluster
+	kubeFactory, err := introspectionserver.NewMultiClusterKubeFactory(config.Introspection.WorkerClusters)
 	if err != nil {
-		log.Warnf("kubernetes node list failed: %v", err)
-	} else {
-		log.Infof("kubernetes node list ok, found %d nodes", len(testNodes.Items))
+		return fmt.Errorf("building multicluster kube factory: %w", err)
 	}
 
+	listerRegistry := introspectionserver.NewClusterListerRegistry()
+	var hasSyncedFns []cache.InformerSynced
 
-	// hybrid B - in-memory cache + Armada DB
-	informerFactory := informers.NewSharedInformerFactory(kubeClient, 0)
-	podInformer := informerFactory.Core().V1().Pods()
-	nodeInformer := informerFactory.Core().V1().Nodes()
+	for _, wc := range config.Introspection.WorkerClusters {
+		kubeClient, err := kubeFactory.Client(wc.Name)
+		if err != nil {
+			return fmt.Errorf("getting kube client for cluster %q: %w", wc.Name, err)
+		}
+		factory := informers.NewSharedInformerFactory(kubeClient, 0)
+		podInformer := factory.Core().V1().Pods()
+		nodeInformer := factory.Core().V1().Nodes()
 
-	_ = podInformer.Informer()
-	_ = nodeInformer.Informer()
+		_ = podInformer.Informer()
+		_ = nodeInformer.Informer()
 
-	informerFactory.Start(ctx.Done())
+		factory.Start(ctx.Done())
+		listerRegistry.Register(wc.Name, podInformer.Lister(), nodeInformer.Lister())
+		hasSyncedFns = append(hasSyncedFns, podInformer.Informer().HasSynced, nodeInformer.Informer().HasSynced)
+		log.Infof("started informers for cluster %q", wc.Name)
+	}
 
-	go func() {
-      if !cache.WaitForCacheSync(ctx.Done(),
-          podInformer.Informer().HasSynced,
-          nodeInformer.Informer().HasSynced,
-      ) {
-          log.Warn("informer cache sync did not complete - kube-describe results may be empty until sync completes")
-      } else {
-          log.Info("informer cache synced")
-      }
-  	}()
+	if len(hasSyncedFns) > 0 {
+		go func() {
+			if !cache.WaitForCacheSync(ctx.Done(), hasSyncedFns...) {
+				log.Warn("informer cache sync did not complete - kube-describe resuls may be empty until sync completes")
+			} else {
+				log.Info("informer cache synced")
+			}
+		}()
+	}
 
-	podLister := podInformer.Lister()
-	nodeLister := nodeInformer.Lister()
-
-	introspectionServer := introspectionserver.NewIntrospectionServer(kubeFactory, queryApiServer, queryApiServer).
-		WithListers(podLister, nodeLister)
+	introspectionServer := introspectionserver.NewIntrospectionServer(kubeFactory, queryApiServer, queryApiServer, listerRegistry)
 		
 	introspectionapi.RegisterIntrospectionServer(grpcServer, introspectionServer)
 	

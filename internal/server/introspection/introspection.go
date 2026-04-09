@@ -10,7 +10,6 @@ import (
 	"google.golang.org/grpc/status"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	corev1listers "k8s.io/client-go/listers/core/v1"
 
 	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/pkg/api"
@@ -22,8 +21,7 @@ type IntrospectionServer struct {
 	kube       KubeClientFactory
 	runs       JobRunDetailsGetter
 	jobs       JobDetailsGetter
-	podLister  corev1listers.PodLister
-	nodeLister corev1listers.NodeLister
+	listers    *ClusterListerRegistry
 }
 
 type JobRunDetailsGetter interface {
@@ -35,18 +33,13 @@ type JobDetailsGetter interface {
 }
 
 func NewIntrospectionServer(
-	kube KubeClientFactory, runs JobRunDetailsGetter, jobs JobDetailsGetter) *IntrospectionServer {
+	kube KubeClientFactory, runs JobRunDetailsGetter, jobs JobDetailsGetter, listers *ClusterListerRegistry) *IntrospectionServer {
 	return &IntrospectionServer{
 		kube: kube,
 		runs: runs,
 		jobs: jobs,
+		listers: listers,
 	}
-}
-
-func (s *IntrospectionServer) WithListers(pods corev1listers.PodLister, nodes corev1listers.NodeLister) *IntrospectionServer {
-	s.podLister = pods
-	s.nodeLister = nodes
-	return s
 }
 
 func (s *IntrospectionServer) KubeDescribeNode(ctx context.Context, req *introspectionapi.DescribeNodeRequest) (*introspectionapi.DescribeNodeResponse, error) {
@@ -56,15 +49,13 @@ func (s *IntrospectionServer) KubeDescribeNode(ctx context.Context, req *introsp
 	if req.GetNodeId() == "" {
 		return nil, status.Error(codes.InvalidArgument, "node_id is required")
 	}
-	if s.nodeLister == nil {
-		return nil, status.Error(codes.FailedPrecondition, "node lister not configured")
-	}
 
-	node, err := s.nodeLister.Get(req.NodeId)
+	nodeLister, err := s.listers.NodeLister(req.Cluster)
 	if err != nil {
-		if apierrors.IsNotFound(err) {
-			return nil, status.Errorf(codes.NotFound, "node %q not found", req.NodeId)
-		}
+		return nil, status.Errorf(codes.NotFound, "cluster %q not found in lister registry: %v", req.Cluster, err)
+	}
+	node, err := nodeLister.Get(req.NodeId)
+	if err != nil {
 		return nil, status.Errorf(codes.Unavailable, "failed to get node %q: %v", req.NodeId, err)
 	}
 
@@ -191,10 +182,7 @@ func (s *IntrospectionServer) KubeDescribeJobPod(ctx context.Context, req *intro
 	if s.runs == nil {
 		return nil, status.Error(codes.FailedPrecondition, "run details getter is not configured")
 	}
-	if s.podLister == nil {
-		return nil, status.Error(codes.FailedPrecondition, "pod lister is not configured")
-	}
-
+	
 	jobResp, err := s.jobs.GetJobDetails(ctx, &api.JobDetailsRequest{
 		JobIds:       []string{req.JobId},
 		ExpandJobRun: false,
@@ -231,8 +219,14 @@ func (s *IntrospectionServer) KubeDescribeJobPod(ctx context.Context, req *intro
 		cluster = rd.Cluster
 	}
 
+
 	podName := common.PodName(req.JobId)
-	pod, err := s.podLister.Pods(jd.Namespace).Get(podName)
+	podLister, err := s.listers.PodLister(cluster)
+	if err != nil {
+		return nil, status.Errorf(codes.NotFound, "cluster %q not found in lister registry: %v", cluster, err)
+	}
+
+	pod, err := podLister.Pods(jd.Namespace).Get(podName)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			return nil, status.Errorf(codes.NotFound, "pod %q in namespace %q not found (may have been garbage collected)", podName, jd.Namespace)

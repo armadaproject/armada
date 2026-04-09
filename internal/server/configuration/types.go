@@ -39,6 +39,9 @@ type ArmadaConfig struct {
 
 	// Config relating to job submission.
 	Submission SubmissionConfig
+
+	// Config related to diagnostic job and and node info
+	Introspection IntrospectionConfig
 }
 
 // SubmissionConfig contains config relating to job submission.
@@ -99,6 +102,21 @@ type SubmissionConfig struct {
 	AllowCustomServiceNames bool
 }
 
+// IntrospectionConfig controls multi-cluster informer caches used by the introspectionAPI
+type IntrospectionConfig struct {
+	// WorkerClusters lists the worker clusters the server should watch
+	// each entry must supply the cluster name (matching executor's cluster ID) and the path to a kubeconfig file that can reach the cluster's API server
+	WorkerClusters []WorkerClusterConfig
+}
+
+// Identifies one worker cluster
+type WorkerClusterConfig struct {
+	Name string
+	//if empty, the default kubeconfig loading rules apply 
+	KubeconfigPath string
+	// if empty, current context is used
+	Context string
+}
 // TODO: we can probably just typedef this to map[string]string
 type PostgresConfig struct {
 	Connection map[string]string

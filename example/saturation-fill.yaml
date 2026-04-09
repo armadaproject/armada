@@ -1,0 +1,152 @@
+# fills all worker nodes to force subsequent jobs into QUEUED state
+# t3.large = 2 vCPU / 8GB. request 1 CPU/4Gi = 1 job per node
+# submit, then saturation-probe.yaml
+
+
+queue: cluster-tests
+jobSetId: saturation-fill2
+jobs:
+  - namespace: personal-anonymous
+    priority: 0
+    podSpec: 
+      terminationGracePeriodSeconds: 0
+      restartPolicy: Never
+      nodeSelector:                                                                                                                                                                                             
+        armadaproject.io/cluster: "worker-1"
+      containers:
+        - name: fill
+          image: alpine:latest
+          command: ["sleep", "3600"]
+          resources: 
+            requests:
+              cpu: "1"
+              memory: 4Gi
+            limits:
+              cpu: "1"
+              memory: 4Gi
+  - namespace: personal-anonymous
+    priority: 0
+    podSpec: 
+      terminationGracePeriodSeconds: 0
+      restartPolicy: Never
+      nodeSelector:                                                                                                                                                                                             
+        armadaproject.io/cluster: "worker-1"
+      containers:
+        - name: fill
+          image: alpine:latest
+          command: ["sleep", "3600"]
+          resources: 
+            requests:
+              cpu: "1"
+              memory: 4Gi
+            limits:
+              cpu: "1"
+              memory: 4Gi
+  - namespace: personal-anonymous
+    priority: 0
+    podSpec: 
+      terminationGracePeriodSeconds: 0
+      restartPolicy: Never
+      nodeSelector:                                                                                                                                                                                             
+        armadaproject.io/cluster: "worker-1"
+      containers:
+        - name: fill
+          image: alpine:latest
+          command: ["sleep", "3600"]
+          resources: 
+            requests:
+              cpu: "1"
+              memory: 4Gi
+            limits:
+              cpu: "1"
+              memory: 4Gi
+  - namespace: personal-anonymous
+    priority: 0
+    podSpec: 
+      terminationGracePeriodSeconds: 0
+      restartPolicy: Never
+      nodeSelector:                                                                                                                                                                                             
+        armadaproject.io/cluster: "worker-1"
+      containers:
+        - name: fill
+          image: alpine:latest
+          command: ["sleep", "3600"]
+          resources: 
+            requests:
+              cpu: "1"
+              memory: 4Gi
+            limits:
+              cpu: "1"
+              memory: 4Gi
+  - namespace: personal-anonymous
+    priority: 0
+    podSpec: 
+      terminationGracePeriodSeconds: 0
+      restartPolicy: Never
+      nodeSelector:                                                                                                                                                                                             
+        armadaproject.io/cluster: "worker-2"
+      containers:
+        - name: fill
+          image: alpine:latest
+          command: ["sleep", "3600"]
+          resources: 
+            requests:
+              cpu: "1"
+              memory: 4Gi
+            limits:
+              cpu: "1"
+              memory: 4Gi
+  - namespace: personal-anonymous
+    priority: 0
+    podSpec: 
+      terminationGracePeriodSeconds: 0
+      restartPolicy: Never
+      nodeSelector:                                                                                                                                                                                             
+        armadaproject.io/cluster: "worker-2"
+      containers:
+        - name: fill
+          image: alpine:latest
+          command: ["sleep", "3600"]
+          resources: 
+            requests:
+              cpu: "1"
+              memory: 4Gi
+            limits:
+              cpu: "1"
+              memory: 4Gi
+  - namespace: personal-anonymous
+    priority: 0
+    podSpec: 
+      terminationGracePeriodSeconds: 0
+      restartPolicy: Never
+      nodeSelector:                                                                                                                                                                                             
+        armadaproject.io/cluster: "worker-2"
+      containers:
+        - name: fill
+          image: alpine:latest
+          command: ["sleep", "3600"]
+          resources: 
+            requests:
+              cpu: "1"
+              memory: 4Gi
+            limits:
+              cpu: "1"
+              memory: 4Gi
+  - namespace: personal-anonymous
+    priority: 0
+    podSpec: 
+      terminationGracePeriodSeconds: 0
+      restartPolicy: Never
+      nodeSelector:                                                                                                                                                                                             
+        armadaproject.io/cluster: "worker-2"
+      containers:
+        - name: fill
+          image: alpine:latest
+          command: ["sleep", "3600"]
+          resources: 
+            requests:
+              cpu: "1"
+              memory: 4Gi
+            limits:
+              cpu: "1"
+              memory: 4Gi
