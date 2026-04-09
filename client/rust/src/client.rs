@@ -7,8 +7,8 @@ use tonic::transport::{Channel, ClientTlsConfig};
 use tracing::instrument;
 
 use crate::api::{
-    EventStreamMessage, JobSetRequest, JobSubmitRequest, JobSubmitResponse,
-    event_client::EventClient, submit_client::SubmitClient,
+    CancellationResult, EventStreamMessage, JobCancelRequest, JobSetCancelRequest, JobSetRequest,
+    JobSubmitRequest, JobSubmitResponse, event_client::EventClient, submit_client::SubmitClient,
 };
 use crate::auth::TokenProvider;
 use crate::error::Error;
@@ -212,6 +212,104 @@ impl ArmadaClient {
         // shared channel, not the underlying connection.
         let resp = self.submit_client.clone().submit_jobs(req).await?;
         Ok(resp.into_inner())
+    }
+
+    /// Cancel one or more jobs.
+    ///
+    /// # Arguments
+    ///
+    /// * `request.queue` — Armada queue name.
+    /// * `request.job_set_id` — Job set the jobs belong to.
+    /// * `request.job_id` — Single job ID to cancel (legacy, optional).
+    /// * `request.job_ids` — Multiple job IDs to cancel in one call.
+    /// * `request.reason` — Human-readable cancellation reason (optional).
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use armada_client::{ArmadaClient, JobCancelRequest, StaticTokenProvider};
+    ///
+    /// # async fn example() -> Result<(), armada_client::Error> {
+    /// # let client = ArmadaClient::connect("http://localhost:50051", StaticTokenProvider::new("")).await?;
+    /// let result = client
+    ///     .cancel_jobs(JobCancelRequest {
+    ///         queue: "my-queue".into(),
+    ///         job_set_id: "my-job-set".into(),
+    ///         job_ids: vec!["01abc".into(), "01def".into()],
+    ///         reason: "no longer needed".into(),
+    ///         ..Default::default()
+    ///     })
+    ///     .await?;
+    ///
+    /// println!("cancelled: {:?}", result.cancelled_ids);
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// - [`Error::Auth`] if the token provider fails.
+    /// - [`Error::InvalidMetadata`] if the token contains invalid header characters.
+    /// - [`Error::Grpc`] if the server returns a non-OK status.
+    #[instrument(skip(self, request), fields(queue = %request.queue, job_set_id = %request.job_set_id))]
+    pub async fn cancel_jobs(&self, request: JobCancelRequest) -> Result<CancellationResult, Error> {
+        let token = self.token_provider.token().await?;
+        let mut req = tonic::Request::new(request);
+        if !token.is_empty() {
+            req.metadata_mut().insert("authorization", token.parse()?);
+        }
+        self.apply_timeout(&mut req);
+        let resp = self.submit_client.clone().cancel_jobs(req).await?;
+        Ok(resp.into_inner())
+    }
+
+    /// Cancel all (or a filtered subset of) jobs in a job set.
+    ///
+    /// # Arguments
+    ///
+    /// * `request.queue` — Armada queue name.
+    /// * `request.job_set_id` — Job set to cancel.
+    /// * `request.filter` — Optional [`crate::JobSetFilter`] limiting cancellation to
+    ///   jobs in specific states (e.g. only `Queued` and `Running`). Pass
+    ///   `None` to cancel all non-terminal jobs.
+    /// * `request.reason` — Human-readable cancellation reason (optional).
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use armada_client::{ArmadaClient, JobSetCancelRequest, JobSetFilter, JobState, StaticTokenProvider};
+    ///
+    /// # async fn example() -> Result<(), armada_client::Error> {
+    /// # let client = ArmadaClient::connect("http://localhost:50051", StaticTokenProvider::new("")).await?;
+    /// client
+    ///     .cancel_job_set(JobSetCancelRequest {
+    ///         queue: "my-queue".into(),
+    ///         job_set_id: "my-job-set".into(),
+    ///         filter: Some(JobSetFilter {
+    ///             states: vec![JobState::Queued as i32, JobState::Running as i32],
+    ///         }),
+    ///         reason: "aborting experiment".into(),
+    ///     })
+    ///     .await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// - [`Error::Auth`] if the token provider fails.
+    /// - [`Error::InvalidMetadata`] if the token contains invalid header characters.
+    /// - [`Error::Grpc`] if the server returns a non-OK status.
+    #[instrument(skip(self, request), fields(queue = %request.queue, job_set_id = %request.job_set_id))]
+    pub async fn cancel_job_set(&self, request: JobSetCancelRequest) -> Result<(), Error> {
+        let token = self.token_provider.token().await?;
+        let mut req = tonic::Request::new(request);
+        if !token.is_empty() {
+            req.metadata_mut().insert("authorization", token.parse()?);
+        }
+        self.apply_timeout(&mut req);
+        self.submit_client.clone().cancel_job_set(req).await?;
+        Ok(())
     }
 
     /// Watch a job set, returning a stream of events.
