@@ -19,9 +19,7 @@
 #[path = "common/mod.rs"]
 mod common;
 
-use armada_client::{
-    ArmadaClient, JobCancelRequest, JobSetCancelRequest, JobSetFilter, JobState,
-};
+use armada_client::{ArmadaClient, JobCancelRequest, JobSetCancelRequest, JobSetFilter, JobState};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -48,12 +46,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 ..Default::default()
             })
             .await?;
-        println!("Cancelled {} job(s): {:?}", result.cancelled_ids.len(), result.cancelled_ids);
+        println!(
+            "Cancelled {} job(s): {:?}",
+            result.cancelled_ids.len(),
+            result.cancelled_ids
+        );
     } else {
         // Cancel all queued and running jobs in the job set.
-        println!(
-            "Cancelling queued/running jobs in queue '{queue}', job set '{job_set_id}'..."
-        );
+        println!("Cancelling queued/running jobs in queue '{queue}', job set '{job_set_id}'...");
         client
             .cancel_job_set(JobSetCancelRequest {
                 queue,

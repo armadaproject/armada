@@ -252,7 +252,10 @@ impl ArmadaClient {
     /// - [`Error::InvalidMetadata`] if the token contains invalid header characters.
     /// - [`Error::Grpc`] if the server returns a non-OK status.
     #[instrument(skip(self, request), fields(queue = %request.queue, job_set_id = %request.job_set_id))]
-    pub async fn cancel_jobs(&self, request: JobCancelRequest) -> Result<CancellationResult, Error> {
+    pub async fn cancel_jobs(
+        &self,
+        request: JobCancelRequest,
+    ) -> Result<CancellationResult, Error> {
         let token = self.token_provider.token().await?;
         let mut req = tonic::Request::new(request);
         if !token.is_empty() {
