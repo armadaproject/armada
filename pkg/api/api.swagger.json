@@ -1870,6 +1870,10 @@
         "clientId": {
           "type": "string"
         },
+        "externalJobUri": {
+          "description": "URI identifying this job in an external system (e.g. Airflow).\nIf not set, the server falls back to the \"armadaproject.io/externalJobUri\" annotation.",
+          "type": "string"
+        },
         "ingress": {
           "type": "array",
           "items": {

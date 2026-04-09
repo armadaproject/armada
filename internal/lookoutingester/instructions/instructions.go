@@ -10,6 +10,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
+	"github.com/armadaproject/armada/internal/common/constants"
 	"github.com/armadaproject/armada/internal/common/database/lookout"
 	"github.com/armadaproject/armada/internal/common/eventutil"
 	"github.com/armadaproject/armada/internal/common/ingest/metrics"
@@ -176,7 +177,12 @@ func (c *InstructionConverter) handleSubmitJob(
 
 	annotations := event.GetObjectMeta().GetAnnotations()
 	userAnnotations := extractUserAnnotations(c.userAnnotationPrefix, c.blocklistAnnotations, annotations)
-	externalJobUri := util.Truncate(annotations["armadaproject.io/externalJobUri"], maxAnnotationValLen)
+	// Prefer the proto field; fall back to annotation for events produced before the field existed.
+	externalJobUri := event.ExternalJobUri
+	if externalJobUri == "" {
+		externalJobUri = annotations[constants.ExternalJobUriAnnotation]
+	}
+	externalJobUri = util.Truncate(externalJobUri, maxAnnotationValLen)
 
 	job := model.CreateJobInstruction{
 		JobId:                     event.JobId,
