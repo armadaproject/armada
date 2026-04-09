@@ -207,12 +207,13 @@ func (s *ProxyService) Exec(stream api.InteractiveService_ExecServer) error {
 		return status.Errorf(codes.NotFound, "job %s is not currently running", init.Init.JobId)
 	}
 
-	// Queue-level authorization: user must have watch permission on the job's queue.
+	// Queue-level authorization: user must have watch permission on the job's queue,
+	// or hold the global exec_any_job permission (which bypasses per-queue checks).
 	q, err := s.queueRepository.GetQueue(ctx, resolved.Queue)
 	if err != nil {
 		return status.Errorf(codes.Internal, "failed to load queue")
 	}
-	if err := s.authorizer.AuthorizeQueueAction(ctx, q, permissions.ExecJob, clientqueue.PermissionVerbWatch); err != nil {
+	if err := s.authorizer.AuthorizeQueueAction(ctx, q, permissions.ExecAnyJob, clientqueue.PermissionVerbWatch); err != nil {
 		return status.Errorf(codes.PermissionDenied, "not authorized to exec into jobs in queue %s", resolved.Queue)
 	}
 

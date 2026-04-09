@@ -18,4 +18,5 @@ const (
 	ExecuteJobs                                  = "execute_jobs"
 	UpdateExecutorSettings                       = "update_executor_settings"
 	ExecJob                                      = "exec_job"
+	ExecAnyJob                                   = "exec_any_job"
 )
