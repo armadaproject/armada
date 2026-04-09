@@ -259,6 +259,27 @@
       ]
     },
     {
+      "username": "testuser",
+      "enabled": true,
+      "email": "testuser@example.com",
+      "firstName": "Test",
+      "lastName": "User",
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "test",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "default-roles-armada"
+      ],
+      "groups": [
+        "/users"
+      ]
+    },
+    {
       "username": "service-account-armada-executor",
       "enabled": true,
       "email": "executor@armada.local",

@@ -17,6 +17,9 @@ auth:
       admin:
         password: "admin"
         groups: ["admins"]
+      testuser:
+        password: "test"
+        groups: ["users"]
   permissionGroupMapping:
     view_jobs: ["admins", "users"]
     cancel_jobs: ["admins"]

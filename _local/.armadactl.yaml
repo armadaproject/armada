@@ -67,3 +67,19 @@ contexts:
       env:
         - name: "TOKEN_ENDPOINT"
           value: "http://localhost:5556/dex/token"
+
+  # Test user contexts for exec permission testing
+  auth-testuser:
+    armadaUrl: localhost:50051
+    openIdPasswordAuth:
+      providerUrl: "http://localhost:8180/realms/armada"
+      clientId: "armada-server"
+      username: "testuser"
+      password: "test"
+      scopes: ["openid", "profile", "email"]
+
+  auth-testuser-basic:
+    armadaUrl: localhost:50051
+    basicAuth:
+      username: "testuser"
+      password: "test"
