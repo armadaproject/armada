@@ -6,6 +6,7 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
+	"github.com/armadaproject/armada/internal/common/ctxkeys"
 	"github.com/armadaproject/armada/internal/common/logging"
 )
 
@@ -94,8 +95,8 @@ func FromGrpcCtx(ctx context.Context) *Context {
 		return armadaCtx
 	}
 	logger := logging.StdLogger().
-		WithField("user", ctx.Value("user")).
-		WithField("requestId", ctx.Value("requestId"))
+		WithField("user", ctx.Value(ctxkeys.UserKey)).
+		WithField("requestId", ctx.Value(ctxkeys.RequestIDKey))
 	return New(ctx, logger)
 }
 

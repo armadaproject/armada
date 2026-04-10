@@ -7,6 +7,8 @@ import (
 	"github.com/renstrom/shortuuid"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
+
+	"github.com/armadaproject/armada/internal/common/ctxkeys"
 )
 
 // MetadataKey is the HTTP header key using this key we use to store request ids.
@@ -43,7 +45,7 @@ func FromContextOrMissing(ctx context.Context) string {
 // The second return value is true if the operation was successful.
 func AddToIncomingContext(ctx context.Context, id string) (context.Context, bool) {
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
-		ctx = context.WithValue(ctx, "requestId", id)
+		ctx = context.WithValue(ctx, ctxkeys.RequestIDKey, id)
 		md.Set(MetadataKey, id)
 		return metadata.NewIncomingContext(ctx, md), true
 	}
