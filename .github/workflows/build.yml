@@ -19,9 +19,9 @@ jobs:
 
       - name: Set up Docker Buildx
         id: buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
-      - uses: goreleaser/goreleaser-action@v6
+      - uses: goreleaser/goreleaser-action@v7
         with:
           distribution: goreleaser
           version: v2.8.1
@@ -42,7 +42,7 @@ jobs:
 
       - name: Save Docker image tarballs as artifacts
         if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/heads/patch/v')) }}
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: armada-image-tarballs
           path: /tmp/imgs
@@ -84,7 +84,7 @@ jobs:
         run: go run github.com/magefile/mage@v1.15.0 -v packNuget
 
       - name: Save nupkg artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: nupkg-artifacts
           path: |
