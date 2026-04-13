@@ -101,6 +101,7 @@ type Run struct {
 	RunId            string
 	Started          *PostgreSQLTime
 	IngressAddresses map[int32]string
+	FailureInfo      map[string]any
 }
 
 type JobGroup struct {

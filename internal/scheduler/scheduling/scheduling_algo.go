@@ -370,13 +370,29 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 	allPools := []string{currentPool.Name}
 	allPools = append(allPools, currentPool.AwayPools...)
 	allPools = append(allPools, awayAllocationPools...)
+	allPools = armadaslices.Unique(allPools)
+
+	// We must include jobs in the following states:
+	// - Jobs active on the nodes of this pool
+	//   - These are used to populate the jobdb, calculate demand/fairshare
+	//   - This may include nodes from other pools, especially if the nodes pool has changed
+	// - Terminal jobs of this pool
+	//   - For calculating short job penalty
+	// - Jobs queued against home/away pools relevant to the pool being computed
+	//   - This is to calculate demand on both home and away pools
+	allJobs := txn.GetAllLeasedJobs()
+	allJobs = append(allJobs, txn.GetAllTerminalJobs()...)
+	for _, pool := range allPools {
+		allJobs = append(allJobs, txn.GetQueuedJobsByPool(pool)...)
+	}
+	allJobs = armadaslices.UniqueBy(allJobs, func(job *jobdb.Job) string { return job.Id() })
 
 	jobSchedulingInfo, err := l.calculateJobSchedulingInfo(ctx,
 		armadamaps.FromSlice(executors,
 			func(ex *schedulerobjects.Executor) string { return ex.Id },
 			func(_ *schedulerobjects.Executor) bool { return true }),
 		queueByName,
-		txn.GetAll(),
+		allJobs,
 		currentPool.Name,
 		awayAllocationPools,
 		allPools)

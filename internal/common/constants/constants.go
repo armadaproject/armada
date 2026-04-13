@@ -37,6 +37,10 @@ const (
 	// EventStreamPrefix is the Redis stream key prefix for Armada event streams.
 	// Event stream keys follow the pattern: "Events:{queue}:{jobSetId}"
 	EventStreamPrefix = "Events:"
+
+	// ExternalJobUriAnnotation is the legacy annotation key for setting an external job URI.
+	// Prefer the ExternalJobUri proto field on JobSubmitRequestItem / SubmitJob instead.
+	ExternalJobUriAnnotation = "armadaproject.io/externalJobUri"
 )
 
 var schedulingAnnotations = map[string]bool{
