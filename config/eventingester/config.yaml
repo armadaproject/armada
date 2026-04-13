@@ -25,6 +25,7 @@ metrics:
   redis:
     enabled: false
     collectionInterval: 15m
+    initialCollectionDelayMax: 5m
     topN: 100
     scanBatchSize: 1000
     pipelineBatchSize: 500
