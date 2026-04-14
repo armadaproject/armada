@@ -28,6 +28,10 @@ message QueueMetrics{
   double short_job_penalty = 6;
   // Resource that should be billed for this cycle
   map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> billable_allocation_by_resource_type = 7;
+  // Override price for the price-setting queue (second-price mechanics).
+  // When present, billing components should use this price instead of
+  // the pool spot price for billing this queue.
+  optional double billable_price_override = 8;
 }
 
 message CycleMetrics {
