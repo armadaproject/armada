@@ -53,42 +53,42 @@ func newJobStateMetrics(
 			Name: prefix + "job_state_counter_by_queue",
 			Help: "Job states at queue level",
 		},
-		[]string{queueLabel, poolLabel, stateLabel, priorStateLabel},
+		[]string{queueLabel, poolLabel, stateLabel, priorStateLabel, priorStateLabelSnake},
 	)
 	jobStateCounterByNode := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: prefix + "job_state_counter_by_node",
 			Help: "Job states at node level",
 		},
-		[]string{nodeLabel, poolLabel, clusterLabel, stateLabel, priorStateLabel},
+		[]string{nodeLabel, poolLabel, clusterLabel, stateLabel, priorStateLabel, priorStateLabelSnake},
 	)
 	jobStateSecondsByQueue := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: prefix + "job_state_seconds_by_queue",
 			Help: "time spent in different states at the queue level",
 		},
-		[]string{queueLabel, poolLabel, stateLabel, priorStateLabel},
+		[]string{queueLabel, poolLabel, stateLabel, priorStateLabel, priorStateLabelSnake},
 	)
 	jobStateSecondsByNode := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: prefix + "job_state_seconds_by_node",
 			Help: "time spent in different states at the node level",
 		},
-		[]string{nodeLabel, poolLabel, clusterLabel, stateLabel, priorStateLabel},
+		[]string{nodeLabel, poolLabel, clusterLabel, stateLabel, priorStateLabel, priorStateLabelSnake},
 	)
 	jobStateResourceSecondsByQueue := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: prefix + "job_state_resource_seconds_by_queue",
 			Help: "Resource-seconds spent in different states at the queue level",
 		},
-		[]string{queueLabel, poolLabel, stateLabel, priorStateLabel, resourceLabel},
+		[]string{queueLabel, poolLabel, stateLabel, priorStateLabel, priorStateLabelSnake, resourceLabel},
 	)
 	jobStateResourceSecondsByNode := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: prefix + "job_state_resource_seconds_by_node",
 			Help: "Resource-seconds spent in different states at the node level",
 		},
-		[]string{nodeLabel, poolLabel, clusterLabel, stateLabel, priorStateLabel, resourceLabel},
+		[]string{nodeLabel, poolLabel, clusterLabel, stateLabel, priorStateLabel, priorStateLabelSnake, resourceLabel},
 	)
 	jobErrorsByQueue := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
@@ -270,17 +270,17 @@ func (m *jobStateMetrics) updateStateDuration(job *jobdb.Job, state string, prio
 
 	// Counters
 	m.jobStateCounterByQueue.
-		WithLabelValues(queue, pool, state, priorState).Inc()
+		WithLabelValues(queue, pool, state, priorState, priorState).Inc()
 
 	m.jobStateCounterByNode.
-		WithLabelValues(node, pool, cluster, state, priorState).Inc()
+		WithLabelValues(node, pool, cluster, state, priorState, priorState).Inc()
 
 	// State seconds
 	m.jobStateSecondsByQueue.
-		WithLabelValues(queue, pool, state, priorState).Add(duration)
+		WithLabelValues(queue, pool, state, priorState, priorState).Add(duration)
 
 	m.jobStateSecondsByNode.
-		WithLabelValues(node, pool, cluster, state, priorState).Add(duration)
+		WithLabelValues(node, pool, cluster, state, priorState, priorState).Add(duration)
 
 	// Resource Seconds
 	for _, res := range m.trackedResourceNames {
@@ -288,9 +288,9 @@ func (m *jobStateMetrics) updateStateDuration(job *jobdb.Job, state string, prio
 		resSeconds := duration * float64(resQty.MilliValue()) / 1000
 		resSeconds = math.Max(resSeconds, 0)
 		m.jobStateResourceSecondsByQueue.
-			WithLabelValues(queue, pool, state, priorState, res.String()).Add(resSeconds)
+			WithLabelValues(queue, pool, state, priorState, priorState, res.String()).Add(resSeconds)
 		m.jobStateResourceSecondsByNode.
-			WithLabelValues(node, pool, cluster, state, priorState, res.String()).Add(resSeconds)
+			WithLabelValues(node, pool, cluster, state, priorState, priorState, res.String()).Add(resSeconds)
 	}
 }
 

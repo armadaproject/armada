@@ -17,11 +17,13 @@ import (
 )
 
 const (
-	leasedPhase       = "Leased"
-	queueLabel        = "queue"
-	phaseLabel        = "phase"
-	resourceTypeLabel = "resourceType"
-	nodeTypeLabel     = "nodeType"
+	leasedPhase            = "Leased"
+	queueLabel             = "queue"
+	phaseLabel             = "phase"
+	resourceTypeLabel      = "resourceType"
+	resourceTypeLabelSnake = "resource"
+	nodeTypeLabel          = "nodeType"
+	nodeTypeLabelSnake     = "node_type"
 )
 
 const (
@@ -32,37 +34,37 @@ const (
 var podCountDesc = prometheus.NewDesc(
 	metrics.ArmadaExecutorMetricsPrefix+"job_pod",
 	"Pods in different phases by queue",
-	[]string{queueLabel, phaseLabel, nodeTypeLabel}, nil,
+	[]string{queueLabel, phaseLabel, nodeTypeLabel, nodeTypeLabelSnake}, nil,
 )
 
 var podResourceRequestDesc = prometheus.NewDesc(
 	metrics.ArmadaExecutorMetricsPrefix+"job_pod_resource_request",
 	"Pod resource requests in different phases by queue",
-	[]string{queueLabel, phaseLabel, resourceTypeLabel, nodeTypeLabel}, nil,
+	[]string{queueLabel, phaseLabel, resourceTypeLabel, resourceTypeLabelSnake, nodeTypeLabel, nodeTypeLabelSnake}, nil,
 )
 
 var podResourceUsageDesc = prometheus.NewDesc(
 	metrics.ArmadaExecutorMetricsPrefix+"job_pod_resource_usage",
 	"Pod resource usage in different phases by queue",
-	[]string{queueLabel, phaseLabel, resourceTypeLabel, nodeTypeLabel}, nil,
+	[]string{queueLabel, phaseLabel, resourceTypeLabel, resourceTypeLabelSnake, nodeTypeLabel, nodeTypeLabelSnake}, nil,
 )
 
 var nodeCountDesc = prometheus.NewDesc(
 	metrics.ArmadaExecutorMetricsPrefix+"available_node_count",
 	"Number of nodes available for Armada jobs",
-	[]string{nodeTypeLabel}, nil,
+	[]string{nodeTypeLabel, nodeTypeLabelSnake}, nil,
 )
 
 var nodeAvailableResourceDesc = prometheus.NewDesc(
 	metrics.ArmadaExecutorMetricsPrefix+"available_node_resource_allocatable",
 	"Resource allocatable on nodes available for Armada jobs",
-	[]string{resourceTypeLabel, nodeTypeLabel}, nil,
+	[]string{resourceTypeLabel, resourceTypeLabelSnake, nodeTypeLabel, nodeTypeLabelSnake}, nil,
 )
 
 var nodeTotalResourceDesc = prometheus.NewDesc(
 	metrics.ArmadaExecutorMetricsPrefix+"available_node_resource_total",
 	"Total resource on nodes available for Armada jobs",
-	[]string{resourceTypeLabel, nodeTypeLabel}, nil,
+	[]string{resourceTypeLabel, resourceTypeLabelSnake, nodeTypeLabel, nodeTypeLabelSnake}, nil,
 )
 
 type ClusterContextMetrics struct {
@@ -208,27 +210,27 @@ func (m *ClusterContextMetrics) Collect(metrics chan<- prometheus.Metric) {
 			for phase, phaseMetric := range phaseMetrics {
 				for resourceType, request := range phaseMetric.resourceRequest {
 					metrics <- prometheus.MustNewConstMetric(podResourceRequestDesc, prometheus.GaugeValue,
-						request.AsApproximateFloat64(), queue, phase, resourceType, nodeType)
+						request.AsApproximateFloat64(), queue, phase, resourceType, resourceType, nodeType, nodeType)
 				}
 				for resourceType, usage := range phaseMetric.resourceUsage {
 					metrics <- prometheus.MustNewConstMetric(podResourceUsageDesc, prometheus.GaugeValue,
-						usage.AsApproximateFloat64(), queue, phase, resourceType, nodeType)
+						usage.AsApproximateFloat64(), queue, phase, resourceType, resourceType, nodeType, nodeType)
 				}
-				metrics <- prometheus.MustNewConstMetric(podCountDesc, prometheus.GaugeValue, phaseMetric.count, queue, phase, nodeType)
+				metrics <- prometheus.MustNewConstMetric(podCountDesc, prometheus.GaugeValue, phaseMetric.count, queue, phase, nodeType, nodeType)
 			}
 		}
 	}
 
 	for _, nodeGroup := range nodeGroupAllocationInfos {
-		metrics <- prometheus.MustNewConstMetric(nodeCountDesc, prometheus.GaugeValue, float64(len(nodeGroup.Nodes)), nodeGroup.NodeType)
+		metrics <- prometheus.MustNewConstMetric(nodeCountDesc, prometheus.GaugeValue, float64(len(nodeGroup.Nodes)), nodeGroup.NodeType, nodeGroup.NodeType)
 		for resourceType, allocatable := range nodeGroup.NodeGroupAllocatableCapacity {
 			metrics <- prometheus.MustNewConstMetric(nodeAvailableResourceDesc,
-				prometheus.GaugeValue, allocatable.AsApproximateFloat64(), resourceType,
-				nodeGroup.NodeType)
+				prometheus.GaugeValue, allocatable.AsApproximateFloat64(), resourceType, resourceType,
+				nodeGroup.NodeType, nodeGroup.NodeType)
 		}
 
 		for resourceType, total := range nodeGroup.NodeGroupCapacity {
-			metrics <- prometheus.MustNewConstMetric(nodeTotalResourceDesc, prometheus.GaugeValue, total.AsApproximateFloat64(), resourceType, nodeGroup.NodeType)
+			metrics <- prometheus.MustNewConstMetric(nodeTotalResourceDesc, prometheus.GaugeValue, total.AsApproximateFloat64(), resourceType, resourceType, nodeGroup.NodeType, nodeGroup.NodeType)
 		}
 	}
 }
