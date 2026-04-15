@@ -1,4 +1,4 @@
-package redismetrics
+package redis
 
 import (
 	"context"
