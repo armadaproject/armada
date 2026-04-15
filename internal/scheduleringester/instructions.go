@@ -1,7 +1,6 @@
 package scheduleringester
 
 import (
-	"fmt"
 	"strings"
 	"time"
 
@@ -330,7 +329,7 @@ func (c *JobSetEventsInstructionConverter) handleJobPreemptionRequested(preempti
 
 func buildPreemptionReason(reason, user string) string {
 	if user != "" && reason != "" {
-		return fmt.Sprintf("Preempted by %s - %s", user, reason)
+		return "Preempted by " + user + " - " + reason
 	}
 	if user != "" {
 		return "Preempted by " + user

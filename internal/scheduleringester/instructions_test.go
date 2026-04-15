@@ -583,3 +583,21 @@ func multipleEventsMultipleTimeStamps() []*armadaevents.EventSequence_Event {
 	anotherSucceeded.Created = created
 	return append(events, anotherCancelled, anotherSucceeded)
 }
+
+func TestBuildPreemptionReason(t *testing.T) {
+	tests := map[string]struct {
+		user     string
+		reason   string
+		expected string
+	}{
+		"user and reason": {user: "test-user", reason: "low priority", expected: "Preempted by test-user - low priority"},
+		"user only":       {user: "test-user", reason: "", expected: "Preempted by test-user"},
+		"reason only":     {user: "", reason: "low priority", expected: "low priority"},
+		"neither":         {user: "", reason: "", expected: ""},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, buildPreemptionReason(tc.reason, tc.user))
+		})
+	}
+}
