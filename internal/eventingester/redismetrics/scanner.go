@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/armadaproject/armada/internal/eventingester/configuration"
 	"github.com/redis/go-redis/v9"
 
 	"github.com/armadaproject/armada/internal/common/constants"
@@ -16,11 +17,11 @@ import (
 // Scanner scans Redis streams and collects memory usage metrics.
 type Scanner struct {
 	client RedisClient
-	config Config
+	config configuration.RedisMemoryMetricsConfig
 }
 
 // NewScanner creates a new Scanner instance.
-func NewScanner(client RedisClient, config Config) *Scanner {
+func NewScanner(client RedisClient, config configuration.RedisMemoryMetricsConfig) *Scanner {
 	return &Scanner{
 		client: client,
 		config: config,

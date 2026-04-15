@@ -9,7 +9,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/redis/go-redis/v9"
-	"golang.org/x/sync/errgroup"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -79,8 +78,7 @@ func Run(config *configuration.EventIngesterConfiguration) {
 
 	eventDb := store.NewRedisEventStore(dbs, dbNames, config.EventRetentionPolicy, fatalRegexes, 100*time.Millisecond, 60*time.Second)
 
-	ctx := app.CreateContextWithShutdown()
-	g, _ := errgroup.WithContext(ctx.Context)
+	g, ctx := armadacontext.ErrGroup(app.CreateContextWithShutdown())
 
 	if config.Metrics.Redis.Enabled {
 		var metricsRedisClient redis.UniversalClient
@@ -95,23 +93,14 @@ func Run(config *configuration.EventIngesterConfiguration) {
 			metricsRedisClient = db
 		}
 
-		metricsConfig := redismetrics.Config{
-			CollectionInterval: config.Metrics.Redis.CollectionInterval,
-			TopN:               config.Metrics.Redis.TopN,
-			ScanBatchSize:      config.Metrics.Redis.ScanBatchSize,
-			PipelineBatchSize:  config.Metrics.Redis.PipelineBatchSize,
-			InterBatchDelay:    config.Metrics.Redis.InterBatchDelay,
-			MemoryUsageSamples: config.Metrics.Redis.MemoryUsageSamples,
-		}
-
-		scanner := redismetrics.NewScanner(metricsRedisClient, metricsConfig)
+		scanner := redismetrics.NewScanner(metricsRedisClient, config.Metrics.Redis)
 
 		leaderController, err := createLeaderController(ctx, config.Metrics.Redis.Leader)
 		if err != nil {
 			log.Fatalf("failed to create leader controller for redis metrics: %v", err)
 		}
 
-		collector := redismetrics.NewCollector(scanner, metricsConfig, leaderController)
+		collector := redismetrics.NewCollector(scanner, config.Metrics.Redis, leaderController)
 		prometheus.MustRegister(collector)
 
 		g.Go(func() error {

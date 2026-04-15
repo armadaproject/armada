@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/armadaproject/armada/internal/eventingester/configuration"
 	"github.com/gogo/protobuf/proto"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/redis/go-redis/v9"
@@ -67,7 +68,7 @@ func TestIntegration_ScanAll_RealRedis(t *testing.T) {
 		createTestStream(t, client, ctx, "queue2", "jobset2", 40)
 		createTestStream(t, client, ctx, "queue3", "jobset1", 50)
 
-		config := Config{
+		config := configuration.RedisMemoryMetricsConfig{
 			ScanBatchSize:      1000,
 			PipelineBatchSize:  500,
 			InterBatchDelay:    0,
@@ -104,7 +105,7 @@ func TestIntegration_ScanAll_MemoryUsage(t *testing.T) {
 
 		createTestStream(t, client, ctx, "queue-memory", "jobset-memory", 100)
 
-		config := Config{
+		config := configuration.RedisMemoryMetricsConfig{
 			ScanBatchSize:      1000,
 			PipelineBatchSize:  500,
 			InterBatchDelay:    0,
@@ -129,7 +130,7 @@ func TestIntegration_ScanAll_AgeComputation(t *testing.T) {
 		streamKey := createTestStream(t, client, ctx, "queue-age", "jobset-age", 5)
 		time.Sleep(2 * time.Second)
 
-		config := Config{
+		config := configuration.RedisMemoryMetricsConfig{
 			ScanBatchSize:      1000,
 			PipelineBatchSize:  500,
 			InterBatchDelay:    0,
@@ -163,7 +164,7 @@ func TestIntegration_CollectorMetrics(t *testing.T) {
 		createTestStream(t, client, ctx, "queue-c", "jobset-3", 30)
 		createTestStream(t, client, ctx, "queue-c", "jobset-4", 40)
 
-		config := Config{
+		config := configuration.RedisMemoryMetricsConfig{
 			CollectionInterval: 5 * time.Minute,
 			TopN:               5,
 			ScanBatchSize:      1000,
@@ -226,7 +227,7 @@ func TestIntegration_EmptyRedis(t *testing.T) {
 		ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 30*time.Second)
 		defer cancel()
 
-		config := Config{
+		config := configuration.RedisMemoryMetricsConfig{
 			ScanBatchSize:      1000,
 			PipelineBatchSize:  500,
 			InterBatchDelay:    0,
@@ -259,7 +260,7 @@ func TestIntegration_KeyExpiryMidScan(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, int64(0), exists)
 
-		config := Config{
+		config := configuration.RedisMemoryMetricsConfig{
 			ScanBatchSize:      1000,
 			PipelineBatchSize:  500,
 			InterBatchDelay:    0,
@@ -292,7 +293,7 @@ func TestIntegration_LeaderMode_EmitsMetrics(t *testing.T) {
 		leaderController := leader.NewStandaloneLeaderController()
 		leaderController.SetToken(leader.NewLeaderToken())
 
-		config := Config{
+		config := configuration.RedisMemoryMetricsConfig{
 			CollectionInterval: 5 * time.Minute,
 			TopN:               5,
 			ScanBatchSize:      1000,
@@ -330,7 +331,7 @@ func TestIntegration_NonLeaderMode_NoMetrics(t *testing.T) {
 		leaderController := leader.NewStandaloneLeaderController()
 		leaderController.SetToken(leader.NewLeaderToken())
 
-		config := Config{
+		config := configuration.RedisMemoryMetricsConfig{
 			CollectionInterval: 5 * time.Minute,
 			TopN:               5,
 			ScanBatchSize:      1000,
@@ -365,7 +366,7 @@ func TestIntegration_LeadershipTransition(t *testing.T) {
 		createTestStream(t, client, ctx, "queue-b", "jobset-1", 50)
 
 		leaderController := leader.NewStandaloneLeaderController()
-		config := Config{
+		config := configuration.RedisMemoryMetricsConfig{
 			CollectionInterval: 5 * time.Minute,
 			TopN:               5,
 			ScanBatchSize:      1000,

@@ -4,25 +4,11 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/redis/go-redis/v9"
 
 	"github.com/armadaproject/armada/internal/common/constants"
 )
-
-// Config contains configuration for Redis memory metrics collection.
-type Config struct {
-	CollectionInterval time.Duration
-	// InitialCollectionDelayMax controls startup jitter before first collection.
-	// If zero, a default of 1 minute is used.
-	InitialCollectionDelayMax time.Duration
-	TopN                      int
-	ScanBatchSize             int64
-	PipelineBatchSize         int
-	InterBatchDelay           time.Duration
-	MemoryUsageSamples        int
-}
 
 // StreamInfo contains information about a single Redis stream.
 type StreamInfo struct {

@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/eventingester/configuration"
 )
 
 // TestScanAll_SingleKey tests scanning with a single stream key using real Redis.
@@ -21,7 +22,7 @@ func TestScanAll_SingleKey(t *testing.T) {
 
 		key := seedRedisStream(t, client, ctx, "myqueue", "myjobset", 100)
 
-		config := Config{
+		config := configuration.RedisMemoryMetricsConfig{
 			ScanBatchSize:     10,
 			PipelineBatchSize: 5,
 			InterBatchDelay:   0,
@@ -60,7 +61,7 @@ func TestScanAll_MultipleBatches(t *testing.T) {
 			seedRedisStream(t, client, ctx, queue, jobSetId, entryCount)
 		}
 
-		config := Config{
+		config := configuration.RedisMemoryMetricsConfig{
 			ScanBatchSize:     20,
 			PipelineBatchSize: 5,
 			InterBatchDelay:   0,
@@ -102,7 +103,7 @@ func TestScanAll_ContextCancelled(t *testing.T) {
 
 		seedRedisStream(t, client, seedCtx, "myqueue", "myjobset", 100)
 
-		config := Config{
+		config := configuration.RedisMemoryMetricsConfig{
 			ScanBatchSize:     10,
 			PipelineBatchSize: 5,
 			InterBatchDelay:   100 * time.Millisecond,

@@ -39,25 +39,25 @@ type EventIngesterConfiguration struct {
 	Profiling *profilingconfig.ProfilingConfig
 }
 
-// MetricsConfig contains configuration for metrics collection.
 type MetricsConfig struct {
 	Redis RedisMemoryMetricsConfig
 }
 
-// RedisMemoryMetricsConfig contains configuration for Redis memory metrics collection.
 type RedisMemoryMetricsConfig struct {
 	Enabled            bool
 	CollectionInterval time.Duration
-	TopN               int
-	ScanBatchSize      int64
-	PipelineBatchSize  int
-	InterBatchDelay    time.Duration
-	MemoryUsageSamples int
-	ConnectionInfo     redis.UniversalOptions
-	Leader             LeaderConfig
+	// InitialCollectionDelayMax controls startup jitter before first collection.
+	// If zero, a default of 1 minute is used.
+	InitialCollectionDelayMax time.Duration
+	TopN                      int
+	ScanBatchSize             int64
+	PipelineBatchSize         int
+	InterBatchDelay           time.Duration
+	MemoryUsageSamples        int
+	ConnectionInfo            redis.UniversalOptions
+	Leader                    LeaderConfig
 }
 
-// LeaderConfig contains configuration for leader election of redismetrics service.
 type LeaderConfig struct {
 	// Valid modes are "standalone" or "kubernetes"
 	Mode               string

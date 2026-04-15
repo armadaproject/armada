@@ -12,6 +12,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/eventingester/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/leader"
 )
 
@@ -48,7 +49,7 @@ type ScannerInterface interface {
 // It periodically scans Redis streams and caches metrics in an atomic snapshot.
 type Collector struct {
 	scanner ScannerInterface
-	config  Config
+	config  configuration.RedisMemoryMetricsConfig
 
 	// Leadership support for gating metric collection
 	leaderController leader.LeaderController
@@ -106,7 +107,7 @@ func newAgeHistogram() prometheus.Histogram {
 }
 
 // NewCollector creates a new Collector instance.
-func NewCollector(scanner ScannerInterface, config Config, leaderController leader.LeaderController) *Collector {
+func NewCollector(scanner ScannerInterface, config configuration.RedisMemoryMetricsConfig, leaderController leader.LeaderController) *Collector {
 	collector := &Collector{
 		scanner:          scanner,
 		config:           config,
@@ -175,8 +176,6 @@ func NewCollector(scanner ScannerInterface, config Config, leaderController lead
 		}),
 	}
 
-	collector.reallocateHistograms()
-
 	return collector
 }
 
@@ -195,7 +194,7 @@ func (c *Collector) Run(ctx *armadacontext.Context) error {
 	if initialDelayMax > 0 {
 		initialDelay = time.Duration(rand.Int64N(int64(initialDelayMax)))
 	}
-	ctx.Infof("First collection will start in %s", time.Duration(initialDelay))
+	ctx.Infof("First collection will start in %s", initialDelay)
 	select {
 	case <-ctx.Done():
 		ctx.Debugf("Context cancelled during initial delay, returning")
@@ -206,16 +205,11 @@ func (c *Collector) Run(ctx *armadacontext.Context) error {
 	ticker := time.NewTicker(c.config.CollectionInterval)
 	defer ticker.Stop()
 
-	wasLeader := false
 	for {
 		isLeader := c.leaderController.GetToken().Leader()
 		if !isLeader {
 			c.ClearState()
-			wasLeader = false
 		} else {
-			if !wasLeader {
-				wasLeader = true
-			}
 			err := c.collectOnce(ctx)
 			if err != nil {
 				ctx.Logger().WithError(err).Warnf("error collecting Redis metrics")
@@ -266,18 +260,6 @@ func (c *Collector) Collect(metrics chan<- prometheus.Metric) {
 
 func (c *Collector) ClearState() {
 	c.state.Store([]prometheus.Metric{})
-}
-
-func (c *Collector) reallocateHistograms() {
-	c.collectMu.Lock()
-	defer c.collectMu.Unlock()
-	c.reallocateHistogramsLocked()
-}
-
-func (c *Collector) reallocateHistogramsLocked() {
-	c.bytesHistogram = newBytesHistogram()
-	c.eventsHistogram = newEventsHistogram()
-	c.ageHistogram = newAgeHistogram()
 }
 
 // resetMetricsForNewCycle resets all metrics (histograms and gauges) at the start of a collection cycle.

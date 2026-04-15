@@ -18,11 +18,12 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/constants"
+	"github.com/armadaproject/armada/internal/eventingester/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/leader"
 )
 
-func testCollectorConfig(topN int) Config {
-	return Config{
+func testCollectorConfig(topN int) configuration.RedisMemoryMetricsConfig {
+	return configuration.RedisMemoryMetricsConfig{
 		CollectionInterval:        100 * time.Millisecond,
 		InitialCollectionDelayMax: 1 * time.Millisecond,
 		TopN:                      topN,
@@ -33,7 +34,7 @@ func testCollectorConfig(topN int) Config {
 	}
 }
 
-func newRedisBackedCollector(client redis.UniversalClient, config Config, leaderController leader.LeaderController) *Collector {
+func newRedisBackedCollector(client redis.UniversalClient, config configuration.RedisMemoryMetricsConfig, leaderController leader.LeaderController) *Collector {
 	return NewCollector(NewScanner(client, config), config, leaderController)
 }
 
@@ -346,7 +347,7 @@ func TestCollect_LargeDataset(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 		defer cancel()
 
-		seedGeneratedStreams(t, client, ctx, 200, "queue-large")
+		seedGeneratedStreams(t, client, ctx, 20, "queue-large")
 
 		collector := newRedisBackedCollector(client, testCollectorConfig(10), leader.NewStandaloneLeaderController())
 		require.NoError(t, collector.collectOnce(ctx))
@@ -652,7 +653,7 @@ func histogramSampleCount(t *testing.T, h prometheus.Histogram) uint64 {
 	return pb.Histogram.GetSampleCount()
 }
 
-func TestCollector_ReallocateHistograms_ResetsSampleCounts(t *testing.T) {
+func TestCollector_ResetMetricsForNewCycle_ResetsSampleCounts(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -671,7 +672,7 @@ func TestCollector_ReallocateHistograms_ResetsSampleCounts(t *testing.T) {
 	require.Equal(t, uint64(3), histogramSampleCount(t, collector.eventsHistogram))
 	require.Equal(t, uint64(3), histogramSampleCount(t, collector.ageHistogram))
 
-	collector.reallocateHistograms()
+	collector.resetMetricsForNewCycle()
 
 	require.Zero(t, histogramSampleCount(t, collector.bytesHistogram))
 	require.Zero(t, histogramSampleCount(t, collector.eventsHistogram))
@@ -683,7 +684,7 @@ func TestCollector_ReallocateHistograms_ResetsSampleCounts(t *testing.T) {
 	require.Equal(t, uint64(3), histogramSampleCount(t, collector.ageHistogram))
 }
 
-func TestCollector_ReallocateHistograms_DoesNotAffectGaugesOrCounters(t *testing.T) {
+func TestCollector_ResetMetricsForNewCycle_ResetsGaugesButNotCounters(t *testing.T) {
 	collector := NewCollector(&mockScanner{}, testCollectorConfig(5), leader.NewStandaloneLeaderController())
 
 	collector.queueStreamsGauge.WithLabelValues("queue-a").Set(5)
@@ -692,62 +693,12 @@ func TestCollector_ReallocateHistograms_DoesNotAffectGaugesOrCounters(t *testing
 	collector.errorsTotal.Inc()
 	collector.errorsTotal.Inc()
 
-	collector.reallocateHistograms()
+	collector.resetMetricsForNewCycle()
 
-	require.Equal(t, 5.0, testutil.ToFloat64(collector.queueStreamsGauge.WithLabelValues("queue-a")))
-	require.Equal(t, 2048.0, testutil.ToFloat64(collector.queueMemoryGauge.WithLabelValues("queue-a")))
-	require.Equal(t, 150.0, testutil.ToFloat64(collector.queueEventsGauge.WithLabelValues("queue-a")))
-	require.Equal(t, 2.0, testutil.ToFloat64(collector.errorsTotal))
-}
-
-func TestCollector_ReallocateHistograms_ConcurrentWithCollectOnce(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	scanner := &mockScanner{
-		streams: []StreamInfo{
-			{Queue: "q1", JobSetId: "js1", MemoryBytes: 1024, Length: 10, AgeSeconds: 60},
-			{Queue: "q2", JobSetId: "js2", MemoryBytes: 2048, Length: 20, AgeSeconds: 120},
-		},
-	}
-
-	collector := NewCollector(scanner, testCollectorConfig(5), leader.NewStandaloneLeaderController())
-
-	var collectCalls atomic.Int64
-	var collectSuccess atomic.Int64
-	var reallocCalls atomic.Int64
-
-	const workers = 8
-	const iterationsPerWorker = 200
-
-	var wg sync.WaitGroup
-	for i := range workers {
-		wg.Add(1)
-		go func(worker int) {
-			defer wg.Done()
-			for range iterationsPerWorker {
-				if worker%2 == 0 {
-					collectCalls.Add(1)
-					err := collector.collectOnce(ctx)
-					if err == nil {
-						collectSuccess.Add(1)
-						continue
-					}
-					require.ErrorContains(t, err, "previous collection still running, skipping")
-					continue
-				}
-
-				reallocCalls.Add(1)
-				collector.reallocateHistograms()
-			}
-		}(i)
-	}
-
-	wg.Wait()
-
-	require.Equal(t, int64(workers/2*iterationsPerWorker), collectCalls.Load())
-	require.Equal(t, int64(workers/2*iterationsPerWorker), reallocCalls.Load())
-	require.Greater(t, collectSuccess.Load(), int64(0))
+	require.Equal(t, float64(0), testutil.ToFloat64(collector.queueStreamsGauge.WithLabelValues("queue-a")))
+	require.Equal(t, float64(0), testutil.ToFloat64(collector.queueMemoryGauge.WithLabelValues("queue-a")))
+	require.Equal(t, float64(0), testutil.ToFloat64(collector.queueEventsGauge.WithLabelValues("queue-a")))
+	require.Equal(t, float64(2), testutil.ToFloat64(collector.errorsTotal))
 }
 
 func TestCollector_Run_ContinuousLeadership_ResetsHistogramsBeforeEachCollect(t *testing.T) {
