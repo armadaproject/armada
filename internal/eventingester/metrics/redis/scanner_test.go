@@ -16,10 +16,9 @@ import (
 
 // TestScanAll_SingleKey tests scanning with a single stream key using real Redis.
 func TestScanAll_SingleKey(t *testing.T) {
-	withRedisClient(t, func(client redis.UniversalClient) {
-		ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 30*time.Second)
-		defer cancel()
-
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 30*time.Second)
+	defer cancel()
+	withRedisClient(ctx, func(client redis.UniversalClient) {
 		key := seedRedisStream(t, client, ctx, "myqueue", "myjobset", 100)
 
 		config := configuration.RedisMemoryMetricsConfig{
@@ -48,10 +47,9 @@ func TestScanAll_SingleKey(t *testing.T) {
 
 // TestScanAll_MultipleBatches tests scanning with multiple pipeline batches.
 func TestScanAll_MultipleBatches(t *testing.T) {
-	withRedisClient(t, func(client redis.UniversalClient) {
-		ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 30*time.Second)
-		defer cancel()
-
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 30*time.Second)
+	defer cancel()
+	withRedisClient(ctx, func(client redis.UniversalClient) {
 		// Create 15 streams with varying entry counts to force multiple pipeline batches
 		// With PipelineBatchSize: 5, we'll have 3 batches (15 streams / 5 per batch)
 		for i := 0; i < 15; i++ {
@@ -97,10 +95,9 @@ func TestScanAll_MultipleBatches(t *testing.T) {
 
 // TestScanAll_ContextCancelled tests that scanning respects context cancellation.
 func TestScanAll_ContextCancelled(t *testing.T) {
-	withRedisClient(t, func(client redis.UniversalClient) {
-		seedCtx, seedCancel := armadacontext.WithTimeout(armadacontext.Background(), 30*time.Second)
-		defer seedCancel()
-
+	seedCtx, seedCancel := armadacontext.WithTimeout(armadacontext.Background(), 30*time.Second)
+	defer seedCancel()
+	withRedisClient(seedCtx, func(client redis.UniversalClient) {
 		seedRedisStream(t, client, seedCtx, "myqueue", "myjobset", 100)
 
 		config := configuration.RedisMemoryMetricsConfig{

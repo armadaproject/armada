@@ -58,10 +58,9 @@ func createTestStream(t *testing.T, client redis.UniversalClient, ctx context.Co
 }
 
 func TestIntegration_ScanAll_RealRedis(t *testing.T) {
-	withRedisClient(t, func(client redis.UniversalClient) {
-		ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 30*time.Second)
-		defer cancel()
-
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 30*time.Second)
+	defer cancel()
+	withRedisClient(ctx, func(client redis.UniversalClient) {
 		createTestStream(t, client, ctx, "queue1", "jobset1", 10)
 		createTestStream(t, client, ctx, "queue1", "jobset2", 20)
 		createTestStream(t, client, ctx, "queue2", "jobset1", 30)
@@ -99,10 +98,10 @@ func TestIntegration_ScanAll_RealRedis(t *testing.T) {
 }
 
 func TestIntegration_ScanAll_MemoryUsage(t *testing.T) {
-	withRedisClient(t, func(client redis.UniversalClient) {
-		ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 30*time.Second)
-		defer cancel()
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 30*time.Second)
+	defer cancel()
 
+	withRedisClient(ctx, func(client redis.UniversalClient) {
 		createTestStream(t, client, ctx, "queue-memory", "jobset-memory", 100)
 
 		config := configuration.RedisMemoryMetricsConfig{
@@ -123,10 +122,9 @@ func TestIntegration_ScanAll_MemoryUsage(t *testing.T) {
 }
 
 func TestIntegration_ScanAll_AgeComputation(t *testing.T) {
-	withRedisClient(t, func(client redis.UniversalClient) {
-		ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 30*time.Second)
-		defer cancel()
-
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 30*time.Second)
+	defer cancel()
+	withRedisClient(ctx, func(client redis.UniversalClient) {
 		streamKey := createTestStream(t, client, ctx, "queue-age", "jobset-age", 5)
 		time.Sleep(2 * time.Second)
 
@@ -149,10 +147,9 @@ func TestIntegration_ScanAll_AgeComputation(t *testing.T) {
 }
 
 func TestIntegration_CollectorMetrics(t *testing.T) {
-	withRedisClient(t, func(client redis.UniversalClient) {
-		ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 60*time.Second)
-		defer cancel()
-
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 60*time.Second)
+	defer cancel()
+	withRedisClient(ctx, func(client redis.UniversalClient) {
 		createTestStream(t, client, ctx, "queue-a", "jobset-1", 100)
 		createTestStream(t, client, ctx, "queue-a", "jobset-2", 200)
 		createTestStream(t, client, ctx, "queue-a", "jobset-3", 300)
@@ -223,10 +220,9 @@ func TestIntegration_CollectorMetrics(t *testing.T) {
 }
 
 func TestIntegration_EmptyRedis(t *testing.T) {
-	withRedisClient(t, func(client redis.UniversalClient) {
-		ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 30*time.Second)
-		defer cancel()
-
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 30*time.Second)
+	defer cancel()
+	withRedisClient(ctx, func(client redis.UniversalClient) {
 		config := configuration.RedisMemoryMetricsConfig{
 			ScanBatchSize:      1000,
 			PipelineBatchSize:  500,
@@ -242,10 +238,9 @@ func TestIntegration_EmptyRedis(t *testing.T) {
 }
 
 func TestIntegration_KeyExpiryMidScan(t *testing.T) {
-	withRedisClient(t, func(client redis.UniversalClient) {
-		ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 30*time.Second)
-		defer cancel()
-
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 30*time.Second)
+	defer cancel()
+	withRedisClient(ctx, func(client redis.UniversalClient) {
 		createTestStream(t, client, ctx, "queue-persist", "jobset-1", 10)
 		createTestStream(t, client, ctx, "queue-persist", "jobset-2", 20)
 
@@ -283,10 +278,9 @@ func TestIntegration_KeyExpiryMidScan(t *testing.T) {
 }
 
 func TestIntegration_LeaderMode_EmitsMetrics(t *testing.T) {
-	withRedisClient(t, func(client redis.UniversalClient) {
-		ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 60*time.Second)
-		defer cancel()
-
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 60*time.Second)
+	defer cancel()
+	withRedisClient(ctx, func(client redis.UniversalClient) {
 		createTestStream(t, client, ctx, "queue-a", "jobset-1", 100)
 		createTestStream(t, client, ctx, "queue-b", "jobset-1", 50)
 
@@ -321,10 +315,9 @@ func TestIntegration_LeaderMode_EmitsMetrics(t *testing.T) {
 }
 
 func TestIntegration_NonLeaderMode_NoMetrics(t *testing.T) {
-	withRedisClient(t, func(client redis.UniversalClient) {
-		ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 60*time.Second)
-		defer cancel()
-
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 60*time.Second)
+	defer cancel()
+	withRedisClient(ctx, func(client redis.UniversalClient) {
 		createTestStream(t, client, ctx, "queue-a", "jobset-1", 100)
 		createTestStream(t, client, ctx, "queue-b", "jobset-1", 50)
 
@@ -358,10 +351,9 @@ func TestIntegration_NonLeaderMode_NoMetrics(t *testing.T) {
 }
 
 func TestIntegration_LeadershipTransition(t *testing.T) {
-	withRedisClient(t, func(client redis.UniversalClient) {
-		ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 60*time.Second)
-		defer cancel()
-
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 60*time.Second)
+	defer cancel()
+	withRedisClient(ctx, func(client redis.UniversalClient) {
 		createTestStream(t, client, ctx, "queue-a", "jobset-1", 100)
 		createTestStream(t, client, ctx, "queue-b", "jobset-1", 50)
 

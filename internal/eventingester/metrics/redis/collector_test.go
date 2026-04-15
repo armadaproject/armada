@@ -116,11 +116,10 @@ func metricKeys(metrics map[string]float64) map[string]struct{} {
 }
 
 func TestCollect_EmptyStreams(t *testing.T) {
-	withRedisClient(t, func(client redis.UniversalClient) {
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
+	defer cancel()
+	withRedisClient(ctx, func(client redis.UniversalClient) {
 		collector := newRedisBackedCollector(client, testCollectorConfig(5), leader.NewStandaloneLeaderController())
-
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
 		require.NoError(t, collector.collectOnce(ctx))
 
 		require.Zero(t, testutil.CollectAndCount(collector.topNMemoryGauge))
@@ -130,10 +129,9 @@ func TestCollect_EmptyStreams(t *testing.T) {
 }
 
 func TestCollect_TopN_Memory(t *testing.T) {
-	withRedisClient(t, func(client redis.UniversalClient) {
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 30*time.Second)
+	defer cancel()
+	withRedisClient(ctx, func(client redis.UniversalClient) {
 		seedGeneratedStreams(t, client, ctx, 30, "queue-memory")
 
 		config := testCollectorConfig(5)
@@ -154,10 +152,9 @@ func TestCollect_TopN_Memory(t *testing.T) {
 }
 
 func TestCollect_TopN_Events(t *testing.T) {
-	withRedisClient(t, func(client redis.UniversalClient) {
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 30*time.Second)
+	defer cancel()
+	withRedisClient(ctx, func(client redis.UniversalClient) {
 		seedGeneratedStreams(t, client, ctx, 30, "queue-events")
 
 		config := testCollectorConfig(5)
@@ -178,10 +175,9 @@ func TestCollect_TopN_Events(t *testing.T) {
 }
 
 func TestCollect_PerQueueAggregation(t *testing.T) {
-	withRedisClient(t, func(client redis.UniversalClient) {
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 30*time.Second)
+	defer cancel()
+	withRedisClient(ctx, func(client redis.UniversalClient) {
 		for i := 1; i <= 5; i++ {
 			seedRedisStream(t, client, ctx, "queue1", fmt.Sprintf("jobset-%d", i), i*10)
 			seedRedisStream(t, client, ctx, "queue2", fmt.Sprintf("jobset-%d", i), i*10)
@@ -201,10 +197,9 @@ func TestCollect_PerQueueAggregation(t *testing.T) {
 }
 
 func TestCollect_StaleLabelsCleared(t *testing.T) {
-	withRedisClient(t, func(client redis.UniversalClient) {
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 30*time.Second)
+	defer cancel()
+	withRedisClient(ctx, func(client redis.UniversalClient) {
 		for i := range 10 {
 			seedRedisStream(t, client, ctx, "queue-stale-a", fmt.Sprintf("old-%d", i), (i+1)*10)
 		}
@@ -238,10 +233,9 @@ func TestCollect_StaleLabelsCleared(t *testing.T) {
 }
 
 func TestCollect_ScannerError(t *testing.T) {
-	withRedisClient(t, func(client redis.UniversalClient) {
-		ctx, cancel := context.WithCancel(context.Background())
-		cancel()
-
+	ctx, cancel := armadacontext.WithCancel(armadacontext.Background())
+	cancel()
+	withRedisClient(ctx, func(client redis.UniversalClient) {
 		collector := newRedisBackedCollector(client, testCollectorConfig(5), leader.NewStandaloneLeaderController())
 
 		err := collector.collectOnce(ctx)
@@ -252,10 +246,9 @@ func TestCollect_ScannerError(t *testing.T) {
 }
 
 func TestCollect_SkipIfBusy(t *testing.T) {
-	withRedisClient(t, func(client redis.UniversalClient) {
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 30*time.Second)
+	defer cancel()
+	withRedisClient(ctx, func(client redis.UniversalClient) {
 		seedGeneratedStreams(t, client, ctx, 40, "queue-busy")
 
 		config := testCollectorConfig(5)
@@ -279,10 +272,9 @@ func TestCollect_SkipIfBusy(t *testing.T) {
 }
 
 func TestCollect_MetricDescriptions(t *testing.T) {
-	withRedisClient(t, func(client redis.UniversalClient) {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
+	defer cancel()
+	withRedisClient(ctx, func(client redis.UniversalClient) {
 		seedRedisStream(t, client, ctx, "queue-desc", "jobset-1", 10)
 
 		collector := newRedisBackedCollector(client, testCollectorConfig(5), leader.NewStandaloneLeaderController())
@@ -304,10 +296,9 @@ func TestCollect_MetricDescriptions(t *testing.T) {
 }
 
 func TestCollect_ConcurrentCollect(t *testing.T) {
-	withRedisClient(t, func(client redis.UniversalClient) {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 10*time.Second)
+	defer cancel()
+	withRedisClient(ctx, func(client redis.UniversalClient) {
 		seedGeneratedStreams(t, client, ctx, 20, "queue-concurrent")
 
 		collector := newRedisBackedCollector(client, testCollectorConfig(5), leader.NewStandaloneLeaderController())
@@ -325,11 +316,11 @@ func TestCollect_ConcurrentCollect(t *testing.T) {
 }
 
 func TestCollect_ContextCancellation(t *testing.T) {
-	withRedisClient(t, func(client redis.UniversalClient) {
-		ctx, cancel := context.WithCancel(context.Background())
-		cancel()
+	ctx, cancel := armadacontext.WithCancel(armadacontext.Background())
+	cancel()
+	withRedisClient(ctx, func(client redis.UniversalClient) {
 
-		seedCtx, seedCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		seedCtx, seedCancel := armadacontext.WithTimeout(armadacontext.Background(), 10*time.Second)
 		defer seedCancel()
 		seedGeneratedStreams(t, client, seedCtx, 20, "queue-cancel")
 
@@ -343,10 +334,9 @@ func TestCollect_ContextCancellation(t *testing.T) {
 }
 
 func TestCollect_LargeDataset(t *testing.T) {
-	withRedisClient(t, func(client redis.UniversalClient) {
-		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-		defer cancel()
-
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 60*time.Second)
+	defer cancel()
+	withRedisClient(ctx, func(client redis.UniversalClient) {
 		seedGeneratedStreams(t, client, ctx, 20, "queue-large")
 
 		collector := newRedisBackedCollector(client, testCollectorConfig(10), leader.NewStandaloneLeaderController())
@@ -357,10 +347,9 @@ func TestCollect_LargeDataset(t *testing.T) {
 }
 
 func TestCollect_NoMetricsWhenDisabled(t *testing.T) {
-	withRedisClient(t, func(client redis.UniversalClient) {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
+	defer cancel()
+	withRedisClient(ctx, func(client redis.UniversalClient) {
 		seedRedisStream(t, client, ctx, "queue-disabled", "jobset-1", 10)
 
 		config := testCollectorConfig(5)
@@ -371,10 +360,9 @@ func TestCollect_NoMetricsWhenDisabled(t *testing.T) {
 }
 
 func TestCollect_MultipleQueues(t *testing.T) {
-	withRedisClient(t, func(client redis.UniversalClient) {
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 30*time.Second)
+	defer cancel()
+	withRedisClient(ctx, func(client redis.UniversalClient) {
 		seedRedisStream(t, client, ctx, "queue-a", "js1", 100)
 		seedRedisStream(t, client, ctx, "queue-a", "js2", 200)
 		seedRedisStream(t, client, ctx, "queue-b", "js1", 150)
@@ -390,10 +378,9 @@ func TestCollect_MultipleQueues(t *testing.T) {
 }
 
 func TestCollector_LeaderMode_EmitsMetrics(t *testing.T) {
-	withRedisClient(t, func(client redis.UniversalClient) {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 10*time.Second)
+	defer cancel()
+	withRedisClient(ctx, func(client redis.UniversalClient) {
 		seedGeneratedStreams(t, client, ctx, 10, "queue-leader")
 
 		leaderController := leader.NewStandaloneLeaderController()
@@ -419,10 +406,10 @@ func TestCollector_LeaderMode_EmitsMetrics(t *testing.T) {
 }
 
 func TestCollector_NonLeaderMode_NoMetrics(t *testing.T) {
-	withRedisClient(t, func(client redis.UniversalClient) {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 10*time.Second)
+	defer cancel()
 
+	withRedisClient(ctx, func(client redis.UniversalClient) {
 		seedGeneratedStreams(t, client, ctx, 10, "queue-nonleader")
 
 		leaderController := leader.NewStandaloneLeaderController()
@@ -441,10 +428,9 @@ func TestCollector_NonLeaderMode_NoMetrics(t *testing.T) {
 }
 
 func TestCollector_LeadershipTransition(t *testing.T) {
-	withRedisClient(t, func(client redis.UniversalClient) {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 10*time.Second)
+	defer cancel()
+	withRedisClient(ctx, func(client redis.UniversalClient) {
 		seedGeneratedStreams(t, client, ctx, 10, "queue-transition")
 
 		leaderController := leader.NewStandaloneLeaderController()
@@ -488,7 +474,9 @@ func TestCollector_LeadershipTransition(t *testing.T) {
 }
 
 func TestCollector_Describe_LeadershipIndependent(t *testing.T) {
-	withRedisClient(t, func(client redis.UniversalClient) {
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 10*time.Second)
+	defer cancel()
+	withRedisClient(ctx, func(client redis.UniversalClient) {
 		leaderController := leader.NewStandaloneLeaderController()
 		collector := newRedisBackedCollector(client, testCollectorConfig(5), leaderController)
 
@@ -526,10 +514,9 @@ func TestCollector_Describe_LeadershipIndependent(t *testing.T) {
 }
 
 func TestCollector_ScrapetimeLeadershipCheck(t *testing.T) {
-	withRedisClient(t, func(client redis.UniversalClient) {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 10*time.Second)
+	defer cancel()
+	withRedisClient(ctx, func(client redis.UniversalClient) {
 		seedGeneratedStreams(t, client, ctx, 10, "queue-scrapetime")
 
 		leaderController := leader.NewStandaloneLeaderController()
@@ -552,10 +539,9 @@ func TestCollector_ScrapetimeLeadershipCheck(t *testing.T) {
 }
 
 func TestCollector_ScrapetimeLeadershipCheck_RunsAfterRegain(t *testing.T) {
-	withRedisClient(t, func(client redis.UniversalClient) {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 10*time.Second)
+	defer cancel()
+	withRedisClient(ctx, func(client redis.UniversalClient) {
 		seedGeneratedStreams(t, client, ctx, 10, "queue-scrapetime-regain")
 
 		leaderController := leader.NewStandaloneLeaderController()
@@ -654,7 +640,7 @@ func histogramSampleCount(t *testing.T, h prometheus.Histogram) uint64 {
 }
 
 func TestCollector_ResetMetricsForNewCycle_ResetsSampleCounts(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 30*time.Second)
 	defer cancel()
 
 	scanner := &mockScanner{
@@ -822,7 +808,7 @@ func TestCollector_Run_StartsNonLeader_ThenBecomesLeader_ReallocatesBeforeFirstC
 }
 
 func TestCollector_CollectOnce_ResetsHistogramsEveryCycle(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 30*time.Second)
 	defer cancel()
 
 	scanner := &mockScanner{
@@ -848,7 +834,7 @@ func TestCollector_CollectOnce_ResetsHistogramsEveryCycle(t *testing.T) {
 }
 
 func TestHistogramBuckets_BytesDistribution(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 30*time.Second)
 	defer cancel()
 
 	testCases := []struct {
@@ -889,7 +875,7 @@ func TestHistogramBuckets_BytesDistribution(t *testing.T) {
 }
 
 func TestHistogramBuckets_EventsDistribution(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 30*time.Second)
 	defer cancel()
 
 	testCases := []struct {
@@ -930,7 +916,7 @@ func TestHistogramBuckets_EventsDistribution(t *testing.T) {
 }
 
 func TestHistogramBuckets_AgeDistribution(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 30*time.Second)
 	defer cancel()
 
 	testCases := []struct {
