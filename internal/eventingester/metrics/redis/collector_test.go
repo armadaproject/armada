@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/armadaproject/armada/internal/eventingester/repository"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	dto "github.com/prometheus/client_model/go"
@@ -35,7 +36,7 @@ func testCollectorConfig(topN int) configuration.RedisMemoryMetricsConfig {
 }
 
 func newRedisBackedCollector(client redis.UniversalClient, config configuration.RedisMemoryMetricsConfig, leaderController leader.LeaderController) *Collector {
-	return NewCollector(NewScanner(client, config), config, leaderController)
+	return NewCollector(repository.NewScanner(client, config), config, leaderController)
 }
 
 func seedGeneratedStreams(t *testing.T, client redis.UniversalClient, ctx context.Context, count int, queuePrefix string) {
@@ -88,8 +89,8 @@ func gaugeMetricValues(t *testing.T, collector prometheus.Collector) map[string]
 	return metrics
 }
 
-func topNLabelSet(streams []StreamInfo, topN int, less func(a, b StreamInfo) bool) map[string]struct{} {
-	sorted := make([]StreamInfo, len(streams))
+func topNLabelSet(streams []repository.StreamInfo, topN int, less func(a, b repository.StreamInfo) bool) map[string]struct{} {
+	sorted := make([]repository.StreamInfo, len(streams))
 	copy(sorted, streams)
 	sort.Slice(sorted, func(i, j int) bool {
 		return less(sorted[i], sorted[j])
@@ -135,14 +136,14 @@ func TestCollect_TopN_Memory(t *testing.T) {
 		seedGeneratedStreams(t, client, ctx, 30, "queue-memory")
 
 		config := testCollectorConfig(5)
-		scanner := NewScanner(client, config)
+		scanner := repository.NewScanner(client, config)
 		streams, err := scanner.ScanAll(ctx)
 		require.NoError(t, err)
 
 		collector := NewCollector(scanner, config, leader.NewStandaloneLeaderController())
 		require.NoError(t, collector.collectOnce(ctx))
 
-		expected := topNLabelSet(streams, config.TopN, func(a, b StreamInfo) bool {
+		expected := topNLabelSet(streams, config.TopN, func(a, b repository.StreamInfo) bool {
 			return a.MemoryBytes > b.MemoryBytes
 		})
 		actual := metricKeys(gaugeMetricValues(t, collector.topNMemoryGauge))
@@ -158,14 +159,14 @@ func TestCollect_TopN_Events(t *testing.T) {
 		seedGeneratedStreams(t, client, ctx, 30, "queue-events")
 
 		config := testCollectorConfig(5)
-		scanner := NewScanner(client, config)
+		scanner := repository.NewScanner(client, config)
 		streams, err := scanner.ScanAll(ctx)
 		require.NoError(t, err)
 
 		collector := NewCollector(scanner, config, leader.NewStandaloneLeaderController())
 		require.NoError(t, collector.collectOnce(ctx))
 
-		expected := topNLabelSet(streams, config.TopN, func(a, b StreamInfo) bool {
+		expected := topNLabelSet(streams, config.TopN, func(a, b repository.StreamInfo) bool {
 			return a.Length > b.Length
 		})
 		actual := metricKeys(gaugeMetricValues(t, collector.topNEventsGauge))
@@ -560,11 +561,11 @@ func TestCollector_ScrapetimeLeadershipCheck_RunsAfterRegain(t *testing.T) {
 }
 
 type mockScanner struct {
-	streams []StreamInfo
+	streams []repository.StreamInfo
 	err     error
 }
 
-func (m *mockScanner) ScanAll(ctx context.Context) ([]StreamInfo, error) {
+func (m *mockScanner) ScanAll(ctx context.Context) ([]repository.StreamInfo, error) {
 	if m.err != nil {
 		return nil, m.err
 	}
@@ -572,14 +573,14 @@ func (m *mockScanner) ScanAll(ctx context.Context) ([]StreamInfo, error) {
 }
 
 type blockingMockScanner struct {
-	streams   []StreamInfo
+	streams   []repository.StreamInfo
 	err       error
 	startedCh chan int
 	unblockCh chan struct{}
 	calls     atomic.Int64
 }
 
-func newBlockingMockScanner(streams []StreamInfo) *blockingMockScanner {
+func newBlockingMockScanner(streams []repository.StreamInfo) *blockingMockScanner {
 	return &blockingMockScanner{
 		streams:   streams,
 		startedCh: make(chan int, 10),
@@ -587,7 +588,7 @@ func newBlockingMockScanner(streams []StreamInfo) *blockingMockScanner {
 	}
 }
 
-func (m *blockingMockScanner) ScanAll(ctx context.Context) ([]StreamInfo, error) {
+func (m *blockingMockScanner) ScanAll(ctx context.Context) ([]repository.StreamInfo, error) {
 	call := int(m.calls.Add(1))
 	select {
 	case m.startedCh <- call:
@@ -644,7 +645,7 @@ func TestCollector_ResetMetricsForNewCycle_ResetsSampleCounts(t *testing.T) {
 	defer cancel()
 
 	scanner := &mockScanner{
-		streams: []StreamInfo{
+		streams: []repository.StreamInfo{
 			{Queue: "q1", JobSetId: "js1", MemoryBytes: 1024, Length: 10, AgeSeconds: 60},
 			{Queue: "q2", JobSetId: "js2", MemoryBytes: 2048, Length: 20, AgeSeconds: 120},
 			{Queue: "q3", JobSetId: "js3", MemoryBytes: 4096, Length: 30, AgeSeconds: 240},
@@ -688,7 +689,7 @@ func TestCollector_ResetMetricsForNewCycle_ResetsGaugesButNotCounters(t *testing
 }
 
 func TestCollector_Run_ContinuousLeadership_ResetsHistogramsBeforeEachCollect(t *testing.T) {
-	streams := []StreamInfo{{Queue: "q1", JobSetId: "js1", MemoryBytes: 1024, Length: 10, AgeSeconds: 60}}
+	streams := []repository.StreamInfo{{Queue: "q1", JobSetId: "js1", MemoryBytes: 1024, Length: 10, AgeSeconds: 60}}
 	scanner := newBlockingMockScanner(streams)
 
 	config := testCollectorConfig(5)
@@ -725,7 +726,7 @@ func TestCollector_Run_ContinuousLeadership_ResetsHistogramsBeforeEachCollect(t 
 }
 
 func TestCollector_Run_MultipleLeadershipFlaps_ReallocatesOnEachReacquisition(t *testing.T) {
-	streams := []StreamInfo{{Queue: "q1", JobSetId: "js1", MemoryBytes: 1024, Length: 10, AgeSeconds: 60}}
+	streams := []repository.StreamInfo{{Queue: "q1", JobSetId: "js1", MemoryBytes: 1024, Length: 10, AgeSeconds: 60}}
 	scanner := newBlockingMockScanner(streams)
 
 	config := testCollectorConfig(5)
@@ -775,7 +776,7 @@ func TestCollector_Run_MultipleLeadershipFlaps_ReallocatesOnEachReacquisition(t 
 }
 
 func TestCollector_Run_StartsNonLeader_ThenBecomesLeader_ReallocatesBeforeFirstCollect(t *testing.T) {
-	streams := []StreamInfo{{Queue: "q1", JobSetId: "js1", MemoryBytes: 1024, Length: 10, AgeSeconds: 60}}
+	streams := []repository.StreamInfo{{Queue: "q1", JobSetId: "js1", MemoryBytes: 1024, Length: 10, AgeSeconds: 60}}
 	scanner := newBlockingMockScanner(streams)
 
 	config := testCollectorConfig(5)
@@ -812,7 +813,7 @@ func TestCollector_CollectOnce_ResetsHistogramsEveryCycle(t *testing.T) {
 	defer cancel()
 
 	scanner := &mockScanner{
-		streams: []StreamInfo{
+		streams: []repository.StreamInfo{
 			{Queue: "q1", JobSetId: "js1", MemoryBytes: 1024, Length: 10, AgeSeconds: 60},
 			{Queue: "q2", JobSetId: "js2", MemoryBytes: 2048, Length: 20, AgeSeconds: 120},
 			{Queue: "q3", JobSetId: "js3", MemoryBytes: 4096, Length: 30, AgeSeconds: 240},
@@ -825,7 +826,7 @@ func TestCollector_CollectOnce_ResetsHistogramsEveryCycle(t *testing.T) {
 	require.Equal(t, uint64(3), histogramSampleCount(t, collector.eventsHistogram))
 	require.Equal(t, uint64(3), histogramSampleCount(t, collector.ageHistogram))
 
-	scanner.streams = []StreamInfo{{Queue: "q4", JobSetId: "js4", MemoryBytes: 8192, Length: 40, AgeSeconds: 480}}
+	scanner.streams = []repository.StreamInfo{{Queue: "q4", JobSetId: "js4", MemoryBytes: 8192, Length: 40, AgeSeconds: 480}}
 
 	require.NoError(t, collector.collectOnce(ctx))
 	require.Equal(t, uint64(1), histogramSampleCount(t, collector.bytesHistogram))
@@ -851,7 +852,7 @@ func TestHistogramBuckets_BytesDistribution(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			scanner := &mockScanner{
-				streams: []StreamInfo{
+				streams: []repository.StreamInfo{
 					{
 						Queue:       "test-queue",
 						JobSetId:    "test-jobset",
@@ -892,7 +893,7 @@ func TestHistogramBuckets_EventsDistribution(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			scanner := &mockScanner{
-				streams: []StreamInfo{
+				streams: []repository.StreamInfo{
 					{
 						Queue:       "test-queue",
 						JobSetId:    "test-jobset",
@@ -933,7 +934,7 @@ func TestHistogramBuckets_AgeDistribution(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			scanner := &mockScanner{
-				streams: []StreamInfo{
+				streams: []repository.StreamInfo{
 					{
 						Queue:       "test-queue",
 						JobSetId:    "test-jobset",
@@ -954,4 +955,28 @@ func TestHistogramBuckets_AgeDistribution(t *testing.T) {
 			require.Equal(t, tc.expectedCount, pb.Histogram.GetSampleCount())
 		})
 	}
+}
+
+func withRedisClient(ctx *armadacontext.Context, action func(client redis.UniversalClient)) {
+	client := redis.NewClient(&redis.Options{Addr: "localhost:6379", DB: 12})
+	defer client.FlushDB(ctx)
+	defer client.Close()
+
+	client.FlushDB(ctx)
+	action(client)
+}
+
+func seedRedisStream(t *testing.T, client redis.UniversalClient, ctx context.Context, queue, jobSetId string, entryCount int) string {
+	t.Helper()
+
+	streamKey := fmt.Sprintf("%s%s:%s", constants.EventStreamPrefix, queue, jobSetId)
+
+	for i := range entryCount {
+		_, err := client.XAdd(ctx, &redis.XAddArgs{
+			Stream: streamKey,
+			Values: map[string]interface{}{"index": i},
+		}).Result()
+		require.NoError(t, err)
+	}
+	return streamKey
 }

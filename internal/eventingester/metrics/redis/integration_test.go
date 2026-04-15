@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/armadaproject/armada/internal/eventingester/configuration"
+	"github.com/armadaproject/armada/internal/eventingester/repository"
 	"github.com/gogo/protobuf/proto"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/redis/go-redis/v9"
@@ -73,12 +74,12 @@ func TestIntegration_ScanAll_RealRedis(t *testing.T) {
 			InterBatchDelay:    0,
 			MemoryUsageSamples: 5,
 		}
-		scanner := NewScanner(client, config)
+		scanner := repository.NewScanner(client, config)
 		streams, err := scanner.ScanAll(ctx)
 		require.NoError(t, err)
 		require.Len(t, streams, 5)
 
-		streamMap := make(map[string]StreamInfo)
+		streamMap := make(map[string]repository.StreamInfo)
 		for _, s := range streams {
 			streamMap[s.Key] = s
 		}
@@ -110,7 +111,7 @@ func TestIntegration_ScanAll_MemoryUsage(t *testing.T) {
 			InterBatchDelay:    0,
 			MemoryUsageSamples: 5,
 		}
-		scanner := NewScanner(client, config)
+		scanner := repository.NewScanner(client, config)
 		streams, err := scanner.ScanAll(ctx)
 		require.NoError(t, err)
 		require.Len(t, streams, 1)
@@ -134,7 +135,7 @@ func TestIntegration_ScanAll_AgeComputation(t *testing.T) {
 			InterBatchDelay:    0,
 			MemoryUsageSamples: 5,
 		}
-		scanner := NewScanner(client, config)
+		scanner := repository.NewScanner(client, config)
 		streams, err := scanner.ScanAll(ctx)
 		require.NoError(t, err)
 		require.Len(t, streams, 1)
@@ -169,7 +170,7 @@ func TestIntegration_CollectorMetrics(t *testing.T) {
 			InterBatchDelay:    0,
 			MemoryUsageSamples: 5,
 		}
-		scanner := NewScanner(client, config)
+		scanner := repository.NewScanner(client, config)
 		collector := NewCollector(scanner, config, leader.NewStandaloneLeaderController())
 
 		streams, err := scanner.ScanAll(ctx)
@@ -230,7 +231,7 @@ func TestIntegration_EmptyRedis(t *testing.T) {
 			MemoryUsageSamples: 5,
 			TopN:               100,
 		}
-		scanner := NewScanner(client, config)
+		scanner := repository.NewScanner(client, config)
 		streams, err := scanner.ScanAll(ctx)
 		require.NoError(t, err)
 		require.Len(t, streams, 0)
@@ -261,7 +262,7 @@ func TestIntegration_KeyExpiryMidScan(t *testing.T) {
 			InterBatchDelay:    0,
 			MemoryUsageSamples: 5,
 		}
-		scanner := NewScanner(client, config)
+		scanner := repository.NewScanner(client, config)
 		streams, err := scanner.ScanAll(ctx)
 		require.NoError(t, err)
 		require.Len(t, streams, 3)
@@ -295,7 +296,7 @@ func TestIntegration_LeaderMode_EmitsMetrics(t *testing.T) {
 			InterBatchDelay:    0,
 			MemoryUsageSamples: 5,
 		}
-		scanner := NewScanner(client, config)
+		scanner := repository.NewScanner(client, config)
 		collector := NewCollector(scanner, config, leaderController)
 
 		err := collector.collectOnce(ctx)
@@ -332,7 +333,7 @@ func TestIntegration_NonLeaderMode_NoMetrics(t *testing.T) {
 			InterBatchDelay:    0,
 			MemoryUsageSamples: 5,
 		}
-		scanner := NewScanner(client, config)
+		scanner := repository.NewScanner(client, config)
 		collector := NewCollector(scanner, config, leaderController)
 
 		err := collector.collectOnce(ctx)
@@ -366,7 +367,7 @@ func TestIntegration_LeadershipTransition(t *testing.T) {
 			InterBatchDelay:    0,
 			MemoryUsageSamples: 5,
 		}
-		scanner := NewScanner(client, config)
+		scanner := repository.NewScanner(client, config)
 		collector := NewCollector(scanner, config, leaderController)
 
 		leaderController.SetToken(leader.NewLeaderToken())

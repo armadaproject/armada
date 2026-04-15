@@ -7,6 +7,7 @@ import (
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	redismetrics2 "github.com/armadaproject/armada/internal/eventingester/metrics/redis"
+	"github.com/armadaproject/armada/internal/eventingester/repository"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/redis/go-redis/v9"
@@ -93,7 +94,7 @@ func Run(config *configuration.EventIngesterConfiguration) {
 			metricsRedisClient = db
 		}
 
-		scanner := redismetrics2.NewScanner(metricsRedisClient, config.Metrics.Redis)
+		scanner := repository.NewScanner(metricsRedisClient, config.Metrics.Redis)
 
 		leaderController, err := createLeaderController(ctx, config.Metrics.Redis.Leader)
 		if err != nil {

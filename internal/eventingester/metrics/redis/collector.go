@@ -13,6 +13,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/eventingester/configuration"
+	"github.com/armadaproject/armada/internal/eventingester/repository"
 	"github.com/armadaproject/armada/internal/scheduler/leader"
 )
 
@@ -42,7 +43,7 @@ const (
 
 // ScannerInterface defines the interface for scanning Redis streams.
 type ScannerInterface interface {
-	ScanAll(ctx context.Context) ([]StreamInfo, error)
+	ScanAll(ctx context.Context) ([]repository.StreamInfo, error)
 }
 
 // Collector implements prometheus.Collector for Redis stream metrics.
@@ -306,19 +307,19 @@ func (c *Collector) collectOnce(ctx context.Context) error {
 	}
 
 	// Sort for top-N computations
-	byMemory := make([]StreamInfo, len(streams))
+	byMemory := make([]repository.StreamInfo, len(streams))
 	copy(byMemory, streams)
 	sort.Slice(byMemory, func(i, j int) bool {
 		return byMemory[i].MemoryBytes > byMemory[j].MemoryBytes
 	})
 
-	byEvents := make([]StreamInfo, len(streams))
+	byEvents := make([]repository.StreamInfo, len(streams))
 	copy(byEvents, streams)
 	sort.Slice(byEvents, func(i, j int) bool {
 		return byEvents[i].Length > byEvents[j].Length
 	})
 
-	byAge := make([]StreamInfo, len(streams))
+	byAge := make([]repository.StreamInfo, len(streams))
 	copy(byAge, streams)
 	sort.Slice(byAge, func(i, j int) bool {
 		return byAge[i].AgeSeconds > byAge[j].AgeSeconds
