@@ -22,6 +22,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/leader"
 	"github.com/armadaproject/armada/internal/scheduler/metrics"
 	"github.com/armadaproject/armada/internal/scheduler/pricing"
+	"github.com/armadaproject/armada/internal/scheduler/queue"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/scheduling/context"
@@ -89,6 +90,8 @@ type Scheduler struct {
 	// A list of the pools that are market driven
 	// Used to know which jobs need update when updating job prices
 	marketDrivenPools []string
+	// Used to look up queue state (e.g., cordoned status)
+	queueCache queue.QueueCache
 }
 
 func NewScheduler(
@@ -109,6 +112,7 @@ func NewScheduler(
 	metrics *metrics.Metrics,
 	bidPriceProvider pricing.BidPriceProvider,
 	marketDrivenPools []string,
+	queueCache queue.QueueCache,
 ) (*Scheduler, error) {
 	return &Scheduler{
 		jobRepository:      jobRepository,
@@ -131,6 +135,7 @@ func NewScheduler(
 		runsSerial:         -1,
 		metrics:            metrics,
 		marketDrivenPools:  marketDrivenPools,
+		queueCache:         queueCache,
 	}, nil
 }
 
@@ -1106,11 +1111,23 @@ func (s *Scheduler) expireJobsIfNecessary(ctx *armadacontext.Context, txn *jobdb
 func (s *Scheduler) submitCheck(ctx *armadacontext.Context, txn *jobdb.Txn) ([]*armadaevents.EventSequence, error) {
 	jobsToCheck := make([]*jobdb.Job, 0)
 
+	queues, err := s.queueCache.GetAll(ctx)
+	if err != nil {
+		ctx.Warnf("Failed to fetch queues for cordon check, proceeding without: %v", err)
+	}
+
+	cordonedQueues := make(map[string]bool)
+	for _, q := range queues {
+		if q.Cordoned {
+			cordonedQueues[q.Name] = true
+		}
+	}
+
 	it := txn.UnvalidatedJobs()
 
 	for job, _ := it.Next(); job != nil; job, _ = it.Next() {
-		// Don't check jobs that are terminal
-		if job.InTerminalState() {
+		// Don't check jobs that are terminal or in cordoned queues
+		if job.InTerminalState() || cordonedQueues[job.Queue()] {
 			continue
 		}
 		jobsToCheck = append(jobsToCheck, job)
