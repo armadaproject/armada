@@ -103,7 +103,21 @@ func TestConvertEventSequence(t *testing.T) {
 		},
 		"job preemption requested": {
 			events:   []*armadaevents.EventSequence_Event{f.JobPreemptionRequested},
-			expected: []DbOperation{MarkRunsForJobPreemptRequested{JobSetKey{queue: f.Queue, jobSet: f.JobsetName}: map[string]string{f.JobId: " | Preempted by " + f.UserId}}},
+			expected: []DbOperation{MarkRunsForJobPreemptRequested{JobSetKey{queue: f.Queue, jobSet: f.JobsetName}: map[string]string{f.JobId: "Preempted by " + f.UserId}}},
+		},
+		"job preemption requested with reason": {
+			events: []*armadaevents.EventSequence_Event{
+				{
+					Created: f.BaseTimeProto,
+					Event: &armadaevents.EventSequence_Event_JobPreemptionRequested{
+						JobPreemptionRequested: &armadaevents.JobPreemptionRequested{
+							JobId:  f.JobId,
+							Reason: "low priority",
+						},
+					},
+				},
+			},
+			expected: []DbOperation{MarkRunsForJobPreemptRequested{JobSetKey{queue: f.Queue, jobSet: f.JobsetName}: map[string]string{f.JobId: "Preempted by " + f.UserId + " - low priority"}}},
 		},
 		"job run preempted": {
 			events:   []*armadaevents.EventSequence_Event{f.JobRunPreempted},

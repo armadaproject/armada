@@ -1,6 +1,7 @@
 package scheduleringester
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
@@ -316,11 +317,7 @@ func (c *JobSetEventsInstructionConverter) handleJobErrors(jobErrors *armadaeven
 }
 
 func (c *JobSetEventsInstructionConverter) handleJobPreemptionRequested(preemptionRequested *armadaevents.JobPreemptionRequested, meta eventSequenceCommon) ([]DbOperation, error) {
-	// combine the preemption reason and user
-	reasonWithUser := preemptionRequested.Reason
-	if meta.user != "" {
-		reasonWithUser += " | Preempted by " + meta.user
-	}
+	reasonWithUser := buildPreemptionReason(preemptionRequested.Reason, meta.user)
 	return []DbOperation{MarkRunsForJobPreemptRequested{
 		JobSetKey{
 			queue:  meta.queue,
@@ -329,6 +326,16 @@ func (c *JobSetEventsInstructionConverter) handleJobPreemptionRequested(preempti
 			preemptionRequested.JobId: reasonWithUser,
 		},
 	}}, nil
+}
+
+func buildPreemptionReason(reason, user string) string {
+	if user != "" && reason != "" {
+		return fmt.Sprintf("Preempted by %s - %s", user, reason)
+	}
+	if user != "" {
+		return "Preempted by " + user
+	}
+	return reason
 }
 
 func (c *JobSetEventsInstructionConverter) handleReprioritiseJob(reprioritiseJob *armadaevents.ReprioritiseJob, meta eventSequenceCommon) ([]DbOperation, error) {
