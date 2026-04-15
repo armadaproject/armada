@@ -330,9 +330,10 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	// Validate that any new jobs can be scheduled
 	validationEvents, err := s.submitCheck(ctx, txn)
 	if err != nil {
-		return err
+		ctx.Warnf("Failed to validate jobs this cycle: %v", err)
+	} else {
+		events = append(events, validationEvents...)
 	}
-	events = append(events, validationEvents...)
 
 	// Expire any jobs running on clusters that haven't heartbeated within the configured deadline.
 	ctx.Info("Looking for jobs to expire")
@@ -1113,10 +1114,10 @@ func (s *Scheduler) submitCheck(ctx *armadacontext.Context, txn *jobdb.Txn) ([]*
 
 	queues, err := s.queueCache.GetAll(ctx)
 	if err != nil {
-		ctx.Warnf("Failed to fetch queues for cordon check, proceeding without: %v", err)
+		return nil, err
 	}
 
-	cordonedQueues := make(map[string]bool)
+	cordonedQueues := make(map[string]bool, len(queues))
 	for _, q := range queues {
 		if q.Cordoned {
 			cordonedQueues[q.Name] = true

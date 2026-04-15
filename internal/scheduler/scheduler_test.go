@@ -426,11 +426,10 @@ func TestScheduler_TestCycle(t *testing.T) {
 			expectedValidated:     []string{queuedJob.Id()},
 			expectedQueuedVersion: 0,
 		},
-		"Submit check proceeds when queue cache errors": {
+		"Submit check skipped when queue cache errors": {
 			initialJobs:           []*jobdb.Job{queuedJob.WithValidated(false)},
 			queueCacheError:       true,
 			expectedQueued:        []string{queuedJob.Id()},
-			expectedValidated:     []string{queuedJob.Id()},
 			expectedQueuedVersion: 0,
 		},
 		"Lease a single job from an update": {
