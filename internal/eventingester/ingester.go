@@ -6,8 +6,6 @@ import (
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
-	redismetrics2 "github.com/armadaproject/armada/internal/eventingester/metrics/redis"
-	"github.com/armadaproject/armada/internal/eventingester/repository"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/redis/go-redis/v9"
@@ -26,7 +24,9 @@ import (
 	"github.com/armadaproject/armada/internal/eventingester/configuration"
 	"github.com/armadaproject/armada/internal/eventingester/convert"
 	"github.com/armadaproject/armada/internal/eventingester/metrics"
+	redismetrics "github.com/armadaproject/armada/internal/eventingester/metrics/redis"
 	"github.com/armadaproject/armada/internal/eventingester/model"
+	"github.com/armadaproject/armada/internal/eventingester/repository"
 	"github.com/armadaproject/armada/internal/eventingester/store"
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/leader"
@@ -101,7 +101,7 @@ func Run(config *configuration.EventIngesterConfiguration) {
 			log.Fatalf("failed to create leader controller for redis metrics: %v", err)
 		}
 
-		collector := redismetrics2.NewCollector(scanner, config.Metrics.Redis, leaderController)
+		collector := redismetrics.NewCollector(scanner, config.Metrics.Redis, leaderController)
 		prometheus.MustRegister(collector)
 
 		g.Go(func() error {

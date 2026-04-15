@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/armadaproject/armada/internal/eventingester/repository"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	dto "github.com/prometheus/client_model/go"
@@ -20,6 +19,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/constants"
 	"github.com/armadaproject/armada/internal/eventingester/configuration"
+	"github.com/armadaproject/armada/internal/eventingester/repository"
 	"github.com/armadaproject/armada/internal/scheduler/leader"
 )
 
@@ -320,7 +320,6 @@ func TestCollect_ContextCancellation(t *testing.T) {
 	ctx, cancel := armadacontext.WithCancel(armadacontext.Background())
 	cancel()
 	withRedisClient(ctx, func(client redis.UniversalClient) {
-
 		seedCtx, seedCancel := armadacontext.WithTimeout(armadacontext.Background(), 10*time.Second)
 		defer seedCancel()
 		seedGeneratedStreams(t, client, seedCtx, 20, "queue-cancel")

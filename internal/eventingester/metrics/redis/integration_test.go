@@ -8,8 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/armadaproject/armada/internal/eventingester/configuration"
-	"github.com/armadaproject/armada/internal/eventingester/repository"
 	"github.com/gogo/protobuf/proto"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/redis/go-redis/v9"
@@ -19,6 +17,8 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/constants"
+	"github.com/armadaproject/armada/internal/eventingester/configuration"
+	"github.com/armadaproject/armada/internal/eventingester/repository"
 	"github.com/armadaproject/armada/internal/scheduler/leader"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )

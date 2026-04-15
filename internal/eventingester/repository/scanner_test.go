@@ -6,12 +6,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/armadaproject/armada/internal/common/constants"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/common/constants"
 	"github.com/armadaproject/armada/internal/eventingester/configuration"
 )
 

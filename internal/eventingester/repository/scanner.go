@@ -7,11 +7,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/armadaproject/armada/internal/eventingester/configuration"
 	"github.com/redis/go-redis/v9"
 
 	"github.com/armadaproject/armada/internal/common/constants"
 	armadaSlices "github.com/armadaproject/armada/internal/common/slices"
+	"github.com/armadaproject/armada/internal/eventingester/configuration"
 )
 
 // Scanner scans Redis streams and collects memory usage metrics.
