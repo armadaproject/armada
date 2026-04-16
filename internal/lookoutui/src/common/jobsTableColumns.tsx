@@ -190,7 +190,7 @@ export interface JobColumnsOptions {
   formatNumber: (n: number) => string
 }
 
-export const getLastRunCategories = (row: JobTableRow): string[] => row.runs?.at(-1)?.failureInfo?.categories ?? []
+export const getLastRunCategory = (row: JobTableRow): string => row.runs?.at(-1)?.failureCategory ?? ""
 
 // Columns will appear in this order by default
 export const GET_JOB_COLUMNS = ({
@@ -580,8 +580,8 @@ export const GET_JOB_COLUMNS = ({
   accessorColumn({
     id: StandardColumnId.ErrorCategories,
     accessor: (jobTableRow) => {
-      const cats = getLastRunCategories(jobTableRow)
-      return cats.length === 0 ? "" : cats.join(", ")
+      const cat = getLastRunCategory(jobTableRow)
+      return cat || ""
     },
     displayName: STANDARD_COLUMN_DISPLAY_NAMES[StandardColumnId.ErrorCategories],
     additionalOptions: {

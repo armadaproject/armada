@@ -199,22 +199,12 @@ definitions:
         type: object
         additionalProperties:
           type: string
-      failureInfo:
-        type: object
-        x-nullable: true
-        properties:
-          exitCode:
-            type: integer
-            format: int32
-          categories:
-            type: array
-            x-omitempty: true
-            items:
-              type: string
-          terminationMessage:
-            type: string
-          containerName:
-            type: string
+      failureCategory:
+        type: string
+        x-omitempty: true
+      failureSubcategory:
+        type: string
+        x-omitempty: true
   group:
     type: object
     required:

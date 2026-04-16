@@ -203,9 +203,12 @@ func setupExecutorApiComponents(
 		ctx.Fatalf("Config error in failed pod checks: %s", err)
 	}
 
-	classifier, err := categorizer.NewClassifier(config.Application.ErrorCategories)
-	if err != nil {
-		ctx.Fatalf("Config error in error categories: %s", err)
+	var classifier *categorizer.Classifier
+	if config.Application.EnableJobErrorCategorization {
+		classifier, err = categorizer.NewClassifier(config.Application.ErrorCategories)
+		if err != nil {
+			ctx.Fatalf("Config error in error categories: %s", err)
+		}
 	}
 
 	eventReporter, stopReporter := reporter.NewJobEventReporter(eventSender, clock.RealClock{}, 200)

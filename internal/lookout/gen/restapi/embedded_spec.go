@@ -764,28 +764,13 @@ func init() {
           "format": "int32",
           "x-nullable": true
         },
-        "failureInfo": {
-          "type": "object",
-          "properties": {
-            "categories": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              },
-              "x-omitempty": true
-            },
-            "containerName": {
-              "type": "string"
-            },
-            "exitCode": {
-              "type": "integer",
-              "format": "int32"
-            },
-            "terminationMessage": {
-              "type": "string"
-            }
-          },
-          "x-nullable": true
+        "failureCategory": {
+          "type": "string",
+          "x-omitempty": true
+        },
+        "failureSubcategory": {
+          "type": "string",
+          "x-omitempty": true
         },
         "finished": {
           "type": "string",
@@ -1370,29 +1355,6 @@ func init() {
         }
       }
     },
-    "RunFailureInfo": {
-      "type": "object",
-      "properties": {
-        "categories": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "x-omitempty": true
-        },
-        "containerName": {
-          "type": "string"
-        },
-        "exitCode": {
-          "type": "integer",
-          "format": "int32"
-        },
-        "terminationMessage": {
-          "type": "string"
-        }
-      },
-      "x-nullable": true
-    },
     "error": {
       "type": "object",
       "required": [
@@ -1670,28 +1632,13 @@ func init() {
           "format": "int32",
           "x-nullable": true
         },
-        "failureInfo": {
-          "type": "object",
-          "properties": {
-            "categories": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              },
-              "x-omitempty": true
-            },
-            "containerName": {
-              "type": "string"
-            },
-            "exitCode": {
-              "type": "integer",
-              "format": "int32"
-            },
-            "terminationMessage": {
-              "type": "string"
-            }
-          },
-          "x-nullable": true
+        "failureCategory": {
+          "type": "string",
+          "x-omitempty": true
+        },
+        "failureSubcategory": {
+          "type": "string",
+          "x-omitempty": true
         },
         "finished": {
           "type": "string",

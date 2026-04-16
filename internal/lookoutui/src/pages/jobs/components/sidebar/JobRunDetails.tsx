@@ -51,7 +51,8 @@ const makeKeyValuePairsData = (
     cluster,
     node,
     pool,
-    failureInfo,
+    failureCategory,
+    failureSubcategory,
   }: Pick<
     JobRun,
     | "runId"
@@ -64,7 +65,8 @@ const makeKeyValuePairsData = (
     | "cluster"
     | "node"
     | "pool"
-    | "failureInfo"
+    | "failureCategory"
+    | "failureSubcategory"
   >,
 ): KeyValuePairTable["data"] => {
   const d = [] as KeyValuePairTable["data"]
@@ -103,15 +105,11 @@ const makeKeyValuePairsData = (
   if (node) {
     d.push({ key: "Node", value: node, allowCopy: true })
   }
-  if (failureInfo?.containerName) {
-    d.push({ key: "Failed Container", value: failureInfo.containerName })
+  if (failureCategory) {
+    d.push({ key: "Failure Category", value: failureCategory })
   }
-  if (failureInfo?.terminationMessage) {
-    d.push({ key: "Termination Message", value: failureInfo.terminationMessage })
-  }
-  const categories = failureInfo?.categories
-  if (categories && categories.length > 0) {
-    d.push({ key: "Error Categories", value: categories.join(", ") })
+  if (failureSubcategory) {
+    d.push({ key: "Failure Subcategory", value: failureSubcategory })
   }
   return d
 }
