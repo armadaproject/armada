@@ -49,6 +49,9 @@ type LookoutIngesterConfiguration struct {
 	Profiling *profilingconfig.ProfilingConfig
 	// List of Regexes which will identify fatal errors when inserting into postgres
 	FatalInsertionErrors []string
+	// When true, populate FailureInfo on terminal job run errors from the proto FailureInfo field.
+	// When false, set FailureInfo to an empty map for terminal errors.
+	EnableJobRunFailureInfoMap bool
 }
 
 func (c *LookoutIngesterConfiguration) GetUserAnnotationPrefix() string {

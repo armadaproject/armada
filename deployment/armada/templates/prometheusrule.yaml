@@ -15,45 +15,71 @@ spec:
       interval: {{ .Values.prometheus.scrapeInterval }}
       rules:
         - record: armada:queue:size
-          expr: max(sum(armada_queue_size) by (queueName, instance)) by (queueName) > 0
+          labels:
+            namespace: "{{ .Release.Namespace }}"
+          expr: max(sum(armada_queue_size{namespace="{{ .Release.Namespace }}"}) by (queueName, instance)) by (queueName) > 0
 
         - record: armada:queue:priority
-          expr: max(sum(armada_queue_priority) by (pool, queueName, instance)) by (pool, queueName)
+          labels:
+            namespace: "{{ .Release.Namespace }}"
+          expr: max(sum(armada_queue_priority{namespace="{{ .Release.Namespace }}"}) by (pool, queueName, instance)) by (pool, queueName)
 
         - record: armada:queue:ideal_current_share
+          labels:
+            namespace: "{{ .Release.Namespace }}"
           expr: >
-            (sum(armada:queue:resource:queued{resourceType="cpu"} > bool 0) by (queueName, pool) * (1 / armada:queue:priority))
+            (sum(armada:queue:resource:queued{namespace="{{ .Release.Namespace }}", resourceType="cpu"} > bool 0) by (queueName, pool) * (1 / armada:queue:priority{namespace="{{ .Release.Namespace }}"}))
             / ignoring(queueName) group_left
-            sum(sum(armada:queue:resource:queued{resourceType="cpu"} > bool 0) by (queueName, pool) * (1 / armada:queue:priority)) by (pool)
+            sum(sum(armada:queue:resource:queued{namespace="{{ .Release.Namespace }}", resourceType="cpu"} > bool 0) by (queueName, pool) * (1 / armada:queue:priority{namespace="{{ .Release.Namespace }}"})) by (pool)
             * 100
 
         - record: armada:queue:resource:queued
-          expr: max(sum(armada_queue_resource_queued) by (instance, pool, queueName, resourceType, accounting_role)) by (pool, queueName, resourceType, accounting_role)
+          labels:
+            namespace: "{{ .Release.Namespace }}"
+          expr: max(sum(armada_queue_resource_queued{namespace="{{ .Release.Namespace }}"}) by (instance, pool, queueName, resourceType, accounting_role)) by (pool, queueName, resourceType, accounting_role)
 
         - record: armada:queue:resource:allocated
-          expr: max(sum(armada_queue_resource_allocated) by (instance, pool, cluster, queueName, resourceType, nodeType, reservation, physical_pool, scalable_unit)) by (pool, cluster, queueName, resourceType, nodeType, reservation, physical_pool, scalable_unit)
+          labels:
+            namespace: "{{ .Release.Namespace }}"
+          expr: max(sum(armada_queue_resource_allocated{namespace="{{ .Release.Namespace }}"}) by (instance, pool, cluster, queueName, resourceType, nodeType, reservation, physical_pool, scalable_unit)) by (pool, cluster, queueName, resourceType, nodeType, reservation, physical_pool, scalable_unit)
 
         - record: armada:queue:resource:used
-          expr: max(sum(armada_queue_resource_used) by (instance, pool, cluster, queueName, resourceType, nodeType, reservation, physical_pool, scalable_unit)) by (pool, cluster, queueName, resourceType, nodeType, reservation, physical_pool, scalable_unit)
+          labels:
+            namespace: "{{ .Release.Namespace }}"
+          expr: max(sum(armada_queue_resource_used{namespace="{{ .Release.Namespace }}"}) by (instance, pool, cluster, queueName, resourceType, nodeType, reservation, physical_pool, scalable_unit)) by (pool, cluster, queueName, resourceType, nodeType, reservation, physical_pool, scalable_unit)
 
         - record: armada:grpc:server:histogram95
-          expr: histogram_quantile(0.95, sum(rate(grpc_server_handling_seconds_bucket{grpc_type!="server_stream"}[2m])) by (grpc_method,grpc_service, le))
+          labels:
+            namespace: "{{ .Release.Namespace }}"
+          expr: histogram_quantile(0.95, sum(rate(grpc_server_handling_seconds_bucket{grpc_type!="server_stream",namespace="{{ .Release.Namespace }}"}[2m])) by (grpc_method,grpc_service, le))
 
         - record: armada:grpc:server:requestrate
-          expr: sum(rate(grpc_server_handled_total[2m])) by (grpc_method,grpc_service)
+          labels:
+            namespace: "{{ .Release.Namespace }}"
+          expr: sum(rate(grpc_server_handled_total{namespace="{{ .Release.Namespace }}"}[2m])) by (grpc_method,grpc_service)
 
         - record: armada:log:rate
-          expr: sum(rate(log_messages[2m])) by (level)
+          labels:
+            namespace: "{{ .Release.Namespace }}"
+          expr: sum(rate(log_messages{namespace="{{ .Release.Namespace }}"}[2m])) by (level)
 
         - record: armada:resource:available_capacity
-          expr: max(armada_cluster_available_capacity) by (pool, cluster, resourceType, nodeType, reservation, physical_pool, capacity_class, scalable_unit)
+          labels:
+            namespace: "{{ .Release.Namespace }}"
+          expr: max(armada_cluster_available_capacity{namespace="{{ .Release.Namespace }}"}) by (pool, cluster, resourceType, nodeType, reservation, physical_pool, capacity_class, scalable_unit)
 
         - record: armada:resource:farm_capacity
-          expr: max(armada_cluster_farm_capacity) by (pool, cluster, resourceType, nodeType, reservation, physical_pool, capacity_class, scalable_unit)
+          labels:
+            namespace: "{{ .Release.Namespace }}"
+          expr: max(armada_cluster_farm_capacity{namespace="{{ .Release.Namespace }}"}) by (pool, cluster, resourceType, nodeType, reservation, physical_pool, capacity_class, scalable_unit)
 
         - record: armada:resource:capacity
-          expr: max(armada_cluster_capacity) by (pool, cluster, resourceType, nodeType, reservation, physical_pool, capacity_class, scalable_unit)
+          labels:
+            namespace: "{{ .Release.Namespace }}"
+          expr: max(armada_cluster_capacity{namespace="{{ .Release.Namespace }}"}) by (pool, cluster, resourceType, nodeType, reservation, physical_pool, capacity_class, scalable_unit)
 
         - record: armada:queue:pod_phase:count
-          expr: max(armada_queue_leased_pod_count) by (pool, cluster, queueName, phase, nodeType, reservation)
+          labels:
+            namespace: "{{ .Release.Namespace }}"
+          expr: max(armada_queue_leased_pod_count{namespace="{{ .Release.Namespace }}"}) by (pool, cluster, queueName, phase, nodeType, reservation)
 {{- end }}

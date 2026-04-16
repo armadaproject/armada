@@ -157,6 +157,9 @@ message SubmitJob {
     bool isDuplicate = 12;
     // The job id
     string job_id = 14;
+    // URI identifying this job in an external system (e.g. Airflow).
+    // If not set, falls back to the "armadaproject.io/externalJobUri" annotation.
+    string external_job_uri = 16;
 }
 
 // Kubernetes objects that can serve as main objects for an Armada job.
