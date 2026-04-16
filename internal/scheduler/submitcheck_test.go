@@ -12,7 +12,7 @@ import (
 	"golang.org/x/exp/slices"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
-	clock "k8s.io/utils/clock/testing"
+	testclock "k8s.io/utils/clock/testing"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/pointer"
@@ -43,6 +43,8 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 	largeGangJob := testfixtures.
 		WithGangAnnotationsJobs(testfixtures.N1Cpu4GiJobs("queue", testfixtures.PriorityClass1, 4))
 
+	batchJobs := testfixtures.N1Cpu4GiJobs("queue", testfixtures.PriorityClass1, 20)
+
 	schedulingConfig := testfixtures.TestSchedulingConfig()
 	schedulingConfig.Pools = []configuration.PoolConfig{
 		{Name: "cpu"},
@@ -55,11 +57,15 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 	}
 
 	tests := map[string]struct {
-		executorTimeout time.Duration
-		executors       []*schedulerobjects.Executor
-		jobs            []*jobdb.Job
-		expectedResult  map[string]schedulingResult
-		queue           *api.Queue
+		executorTimeout   time.Duration
+		executors         []*schedulerobjects.Executor
+		jobs              []*jobdb.Job
+		expectedResult    map[string]schedulingResult
+		queue             *api.Queue
+		queues            []*api.Queue
+		schedulingConfig  *configuration.SchedulingConfig
+		submitCheckConfig *configuration.SubmitCheckConfig
+		clockStep         time.Duration
 	}{
 		"One job schedulable": {
 			executorTimeout: defaultTimeout,
@@ -287,22 +293,102 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 				smallJob1.Id(): {isSchedulable: false},
 			},
 		},
+		"Per-queue time limit stops checking jobs": {
+			executorTimeout: defaultTimeout,
+			executors:       []*schedulerobjects.Executor{Executor(SmallNode("cpu"))},
+			jobs:            batchJobs,
+			submitCheckConfig: &configuration.SubmitCheckConfig{
+				MaxDurationPerQueue: 5 * time.Second,
+			},
+			clockStep: time.Second,
+			expectedResult: map[string]schedulingResult{
+				batchJobs[0].Id(): {isSchedulable: true, pools: []string{"cpu"}},
+				batchJobs[1].Id(): {isSchedulable: true, pools: []string{"cpu"}},
+				batchJobs[2].Id(): {isSchedulable: true, pools: []string{"cpu"}},
+			},
+		},
+		"Global time limit stops checking jobs": {
+			executorTimeout: defaultTimeout,
+			executors:       []*schedulerobjects.Executor{Executor(SmallNode("cpu"))},
+			jobs:            batchJobs,
+			submitCheckConfig: &configuration.SubmitCheckConfig{
+				MaxDuration: 8 * time.Second,
+			},
+			clockStep: time.Second,
+			expectedResult: map[string]schedulingResult{
+				batchJobs[0].Id(): {isSchedulable: true, pools: []string{"cpu"}},
+				batchJobs[1].Id(): {isSchedulable: true, pools: []string{"cpu"}},
+				batchJobs[2].Id(): {isSchedulable: true, pools: []string{"cpu"}},
+			},
+		},
+		"Generous time limit checks all jobs": {
+			executorTimeout: defaultTimeout,
+			executors:       []*schedulerobjects.Executor{Executor(SmallNode("cpu"))},
+			jobs:            append([]*jobdb.Job{smallJob1, smallJob2}, largeGangJob...),
+			submitCheckConfig: &configuration.SubmitCheckConfig{
+				MaxDuration:         9 * time.Second,
+				MaxDurationPerQueue: 9 * time.Second,
+			},
+			expectedResult: map[string]schedulingResult{
+				smallJob1.Id(): {isSchedulable: true, pools: []string{"cpu"}},
+				smallJob2.Id(): {isSchedulable: true, pools: []string{"cpu"}},
+				largeGangJob[0].Id(): {isSchedulable: false, pools: []string(nil), reason: ""},
+				largeGangJob[1].Id(): {isSchedulable: false, pools: []string(nil), reason: ""},
+				largeGangJob[2].Id(): {isSchedulable: false, pools: []string(nil), reason: ""},
+				largeGangJob[3].Id(): {isSchedulable: false, pools: []string(nil), reason: ""},
+			},
+		},
+		"Zero limits mean no limit": {
+			executorTimeout: defaultTimeout,
+			executors:       []*schedulerobjects.Executor{Executor(SmallNode("cpu"))},
+			jobs:            []*jobdb.Job{smallJob1, smallJob2},
+			submitCheckConfig: &configuration.SubmitCheckConfig{
+				MaxDuration:         0,
+				MaxDurationPerQueue: 0,
+			},
+			expectedResult: map[string]schedulingResult{
+				smallJob1.Id(): {isSchedulable: true, pools: []string{"cpu"}},
+				smallJob2.Id(): {isSchedulable: true, pools: []string{"cpu"}},
+			},
+		},
+		"Partial gang deferred when time limit splits members": {
+			executorTimeout: defaultTimeout,
+			executors:       []*schedulerobjects.Executor{Executor(SmallNode("cpu"))},
+			jobs:            append([]*jobdb.Job{smallJob1, smallJob2}, largeGangJob...),
+			submitCheckConfig: &configuration.SubmitCheckConfig{
+				MaxDurationPerQueue: 3 * time.Second,
+			},
+			clockStep: time.Second,
+			expectedResult: map[string]schedulingResult{
+				smallJob1.Id(): {isSchedulable: true, pools: []string{"cpu"}},
+				smallJob2.Id(): {isSchedulable: true, pools: []string{"cpu"}},
+			},
+		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
 			defer cancel()
 
-			queue := tc.queue
-			if queue == nil {
-				queue = &api.Queue{Name: "queue"}
+			var allQueues []*api.Queue
+			if tc.queues != nil {
+				allQueues = tc.queues
+			} else if tc.queue != nil {
+				allQueues = []*api.Queue{tc.queue}
+			} else {
+				allQueues = []*api.Queue{{Name: "queue"}}
+			}
+
+			testConfig := schedulingConfig
+			if tc.schedulingConfig != nil {
+				testConfig = *tc.schedulingConfig
 			}
 
 			ctrl := gomock.NewController(t)
 			mockExecutorRepo := schedulermocks.NewMockExecutorRepository(ctrl)
 			mockExecutorRepo.EXPECT().GetExecutors(ctx).Return(tc.executors, nil).AnyTimes()
 			mockQueueCache := schedulermocks.NewMockQueueCache(ctrl)
-			mockQueueCache.EXPECT().GetAll(ctx).Return([]*api.Queue{queue}, nil).AnyTimes()
+			mockQueueCache.EXPECT().GetAll(ctx).Return(allQueues, nil).AnyTimes()
 			floatingResources, _ := floatingresources.NewFloatingResourceTypes(
 				[]configuration.FloatingResourceConfig{
 					{
@@ -316,24 +402,33 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 					},
 				},
 				testfixtures.TestResourceListFactory)
-			fakeClock := clock.NewFakeClock(baseTime)
-			submitCheck := NewSubmitChecker(schedulingConfig,
+			testSubmitCheckConfig := configuration.SubmitCheckConfig{}
+			if tc.submitCheckConfig != nil {
+				testSubmitCheckConfig = *tc.submitCheckConfig
+			}
+			fakeClock := testclock.NewFakeClock(baseTime)
+			submitCheck := NewSubmitChecker(testConfig,
+				testSubmitCheckConfig,
 				mockExecutorRepo,
 				mockQueueCache,
 				floatingResources,
 				testfixtures.TestResourceListFactory)
-			submitCheck.clock = fakeClock
+			if tc.clockStep > 0 {
+				submitCheck.clock = testfixtures.NewSteppingClock(baseTime, tc.clockStep)
+			} else {
+				submitCheck.clock = fakeClock
+			}
 			err := submitCheck.Initialise(ctx)
 			assert.NoError(t, err)
 			results, err := submitCheck.Check(ctx, tc.jobs)
 			require.NoError(t, err)
+
 			require.Equal(t, len(tc.expectedResult), len(results))
 			for id, expected := range tc.expectedResult {
 				actualResult, ok := results[id]
 				require.True(t, ok)
-				actualResult.reason = "" // clear reason as we don't test this
+				actualResult.reason = ""
 
-				// sort pools as we don't care about order
 				slices.Sort(actualResult.pools)
 				slices.Sort(expected.pools)
 				assert.Equal(t, expected, actualResult)
@@ -384,6 +479,7 @@ func TestSubmitChecker_Initialise(t *testing.T) {
 			}
 
 			submitCheck := NewSubmitChecker(testfixtures.TestSchedulingConfig(),
+				configuration.SubmitCheckConfig{},
 				mockExecutorRepo,
 				mockQueueCache,
 				testfixtures.TestFloatingResources,

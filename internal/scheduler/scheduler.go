@@ -1138,14 +1138,23 @@ func (s *Scheduler) submitCheck(ctx *armadacontext.Context, txn *jobdb.Txn) ([]*
 		return nil, err
 	}
 
+	// Only process jobs that Check() returned results for.
+	// Check() may return partial results when time limits are exceeded.
+	checkedJobs := make([]*jobdb.Job, 0, len(results))
 	for _, job := range jobsToCheck {
+		if _, ok := results[job.Id()]; ok {
+			checkedJobs = append(checkedJobs, job)
+		}
+	}
+
+	for _, job := range checkedJobs {
 		err := job.ValidateResourceRequests()
 		if err != nil {
 			results[job.Id()] = schedulingResult{isSchedulable: false, reason: "invalid resource request: " + err.Error()}
 		}
 	}
 
-	invalidGangJobs, err := s.gangValidator.Validate(txn, jobsToCheck)
+	invalidGangJobs, err := s.gangValidator.Validate(txn, checkedJobs)
 	if err != nil {
 		return nil, err
 	}
@@ -1155,7 +1164,7 @@ func (s *Scheduler) submitCheck(ctx *armadacontext.Context, txn *jobdb.Txn) ([]*
 
 	events := make([]*armadaevents.EventSequence, 0)
 	jobsToUpdate := make([]*jobdb.Job, 0)
-	for _, job := range jobsToCheck {
+	for _, job := range checkedJobs {
 		result := results[job.Id()]
 
 		es := &armadaevents.EventSequence{

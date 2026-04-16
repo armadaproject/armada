@@ -324,6 +324,7 @@ func Run(config schedulerconfig.Configuration) error {
 
 	submitChecker := NewSubmitChecker(
 		config.Scheduling,
+		config.SubmitCheck,
 		executorRepository,
 		queueCache,
 		floatingResourceTypes,
