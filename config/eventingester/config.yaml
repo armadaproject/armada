@@ -22,6 +22,7 @@ eventRetentionPolicy:
   retentionDuration: 336h
 metricsPort: 9001
 metrics:
+  eventSizeMetricsEnabled: true
   redis:
     enabled: false
     collectionInterval: 15m
