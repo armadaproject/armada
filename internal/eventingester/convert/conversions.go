@@ -19,16 +19,18 @@ import (
 
 // EventConverter converts event sequences into events that we can store in Redis
 type EventConverter struct {
-	Compressor          compress.Compressor
-	MaxMessageBatchSize uint
-	metrics             *metrics.Metrics
+	Compressor              compress.Compressor
+	MaxMessageBatchSize     uint
+	metrics                 *metrics.Metrics
+	eventSizeMetricsEnabled bool
 }
 
-func NewEventConverter(compressor compress.Compressor, maxMessageBatchSize uint, metrics *metrics.Metrics) ingest.InstructionConverter[*model.BatchUpdate, *armadaevents.EventSequence] {
+func NewEventConverter(compressor compress.Compressor, maxMessageBatchSize uint, metrics *metrics.Metrics, eventSizeMetricsEnabled bool) ingest.InstructionConverter[*model.BatchUpdate, *armadaevents.EventSequence] {
 	return &EventConverter{
-		Compressor:          compressor,
-		MaxMessageBatchSize: maxMessageBatchSize,
-		metrics:             metrics,
+		Compressor:              compressor,
+		MaxMessageBatchSize:     maxMessageBatchSize,
+		metrics:                 metrics,
+		eventSizeMetricsEnabled: eventSizeMetricsEnabled,
 	}
 }
 
@@ -68,22 +70,20 @@ func (ec *EventConverter) Convert(ctx *armadacontext.Context, eventsWithIds *uti
 			continue
 		}
 
-		// Record per-event byte counters
-		ratio := 1.0
-		if len(bytes) > 0 {
-			ratio = float64(len(compressedBytes)) / float64(len(bytes))
+		if ec.eventSizeMetricsEnabled {
+			// Record per-event byte counters
+			ratio := 1.0
+			if len(bytes) > 0 {
+				ratio = float64(len(compressedBytes)) / float64(len(bytes))
+			}
+			for _, e := range es.Events {
+				eventType := e.GetEventName()
+				uncompressed := proto.Size(e)
+				estimatedCompressed := int(math.Round(float64(uncompressed) * ratio))
+				ec.metrics.RecordEventUncompressedBytes(queue, eventType, uncompressed)
+				ec.metrics.RecordEventEstimatedCompressedBytes(queue, eventType, estimatedCompressed)
+			}
 		}
-		for _, e := range es.Events {
-			eventType := e.GetEventName()
-			uncompressed := proto.Size(e)
-			estimatedCompressed := int(math.Round(float64(uncompressed) * ratio))
-			ec.metrics.RecordEventUncompressedBytes(queue, eventType, uncompressed)
-			ec.metrics.RecordEventEstimatedCompressedBytes(queue, eventType, estimatedCompressed)
-		}
-
-		// Record batch-level metrics
-		ec.metrics.RecordBatchEvents(queue, len(es.Events))
-		ec.metrics.RecordBatchCount(queue)
 
 		events = append(events, &model.Event{
 			Queue:  queue,

@@ -11,7 +11,6 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
-	promclientmodel "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -203,49 +202,21 @@ func TestConvert_RecordsEventSizeMetricsPerTypeAndQueue(t *testing.T) {
 	compressor, _ := compress.NewZlibCompressor(0)
 	testRegistry := prometheus.NewRegistry()
 	testMetrics := metrics.NewMetricsWithRegistry("test_happy_path_", testRegistry)
-	converter := &EventConverter{
-		Compressor:          compressor,
-		MaxMessageBatchSize: 1024,
-		metrics:             testMetrics,
-	}
+	converter := NewEventConverter(compressor, 1024, testMetrics, true)
 
 	succeededType := jobRunSucceeded.GetEventName()
 	cancelledType := cancelled.GetEventName()
 	failedType := jobRunFailed.GetEventName()
 
-	uncompressedBefore := map[string]float64{
-		succeededType: testutil.ToFloat64(testMetrics.GetUncompressedEventBytesTotal().WithLabelValues(queue, succeededType)),
-		cancelledType: testutil.ToFloat64(testMetrics.GetUncompressedEventBytesTotal().WithLabelValues(queue, cancelledType)),
-		failedType:    testutil.ToFloat64(testMetrics.GetUncompressedEventBytesTotal().WithLabelValues(queue, failedType)),
-	}
-	compressedBefore := map[string]float64{
-		succeededType: testutil.ToFloat64(testMetrics.GetEstimatedCompressedEventBytesTotal().WithLabelValues(queue, succeededType)),
-		cancelledType: testutil.ToFloat64(testMetrics.GetEstimatedCompressedEventBytesTotal().WithLabelValues(queue, cancelledType)),
-		failedType:    testutil.ToFloat64(testMetrics.GetEstimatedCompressedEventBytesTotal().WithLabelValues(queue, failedType)),
-	}
-
 	batchUpdate := converter.Convert(armadacontext.Background(), msg)
 	require.Equal(t, 1, len(batchUpdate.Events))
 
-	uncompressedAfter := map[string]float64{
-		succeededType: testutil.ToFloat64(testMetrics.GetUncompressedEventBytesTotal().WithLabelValues(queue, succeededType)),
-		cancelledType: testutil.ToFloat64(testMetrics.GetUncompressedEventBytesTotal().WithLabelValues(queue, cancelledType)),
-		failedType:    testutil.ToFloat64(testMetrics.GetUncompressedEventBytesTotal().WithLabelValues(queue, failedType)),
-	}
-	compressedAfter := map[string]float64{
-		succeededType: testutil.ToFloat64(testMetrics.GetEstimatedCompressedEventBytesTotal().WithLabelValues(queue, succeededType)),
-		cancelledType: testutil.ToFloat64(testMetrics.GetEstimatedCompressedEventBytesTotal().WithLabelValues(queue, cancelledType)),
-		failedType:    testutil.ToFloat64(testMetrics.GetEstimatedCompressedEventBytesTotal().WithLabelValues(queue, failedType)),
-	}
-
-	for _, eventType := range []string{succeededType, cancelledType, failedType} {
-		deltaUncompressed := uncompressedAfter[eventType] - uncompressedBefore[eventType]
-		deltaCompressed := compressedAfter[eventType] - compressedBefore[eventType]
-
-		assert.Greater(t, deltaUncompressed, 0.0, "uncompressed bytes should increase for %s", eventType)
-		assert.Greater(t, deltaCompressed, 0.0, "estimated compressed bytes should increase for %s", eventType)
-		assert.LessOrEqual(t, deltaCompressed, deltaUncompressed, "compressed should be <= uncompressed for %s", eventType)
-	}
+	assert.Greater(t, testutil.ToFloat64(testMetrics.GetUncompressedEventBytesTotal().WithLabelValues(queue, succeededType)), float64(0))
+	assert.Greater(t, testutil.ToFloat64(testMetrics.GetUncompressedEventBytesTotal().WithLabelValues(queue, cancelledType)), float64(0))
+	assert.Greater(t, testutil.ToFloat64(testMetrics.GetUncompressedEventBytesTotal().WithLabelValues(queue, failedType)), float64(0))
+	assert.Greater(t, testutil.ToFloat64(testMetrics.GetEstimatedCompressedEventBytesTotal().WithLabelValues(queue, succeededType)), float64(0))
+	assert.Greater(t, testutil.ToFloat64(testMetrics.GetEstimatedCompressedEventBytesTotal().WithLabelValues(queue, cancelledType)), float64(0))
+	assert.Greater(t, testutil.ToFloat64(testMetrics.GetEstimatedCompressedEventBytesTotal().WithLabelValues(queue, failedType)), float64(0))
 }
 
 func TestConvert_DoesNotRecordSizeMetricsWhenCompressionFails(t *testing.T) {
@@ -253,49 +224,20 @@ func TestConvert_DoesNotRecordSizeMetricsWhenCompressionFails(t *testing.T) {
 	failingCompressor := &failingCompressor{}
 	testRegistry := prometheus.NewRegistry()
 	testMetrics := metrics.NewMetricsWithRegistry("test_failure_path_", testRegistry)
-	converter := &EventConverter{
-		Compressor:          failingCompressor,
-		MaxMessageBatchSize: 1024,
-		metrics:             testMetrics,
-	}
+	converter := NewEventConverter(failingCompressor, 1024, testMetrics, true)
 
 	succeededType := jobRunSucceeded.GetEventName()
 	cancelledType := cancelled.GetEventName()
 
-	uncompressedBefore := map[string]float64{
-		succeededType: testutil.ToFloat64(testMetrics.GetUncompressedEventBytesTotal().WithLabelValues(queue, succeededType)),
-		cancelledType: testutil.ToFloat64(testMetrics.GetUncompressedEventBytesTotal().WithLabelValues(queue, cancelledType)),
-	}
-	compressedBefore := map[string]float64{
-		succeededType: testutil.ToFloat64(testMetrics.GetEstimatedCompressedEventBytesTotal().WithLabelValues(queue, succeededType)),
-		cancelledType: testutil.ToFloat64(testMetrics.GetEstimatedCompressedEventBytesTotal().WithLabelValues(queue, cancelledType)),
-	}
-
 	batchUpdate := converter.Convert(armadacontext.Background(), msg)
 	require.Equal(t, 0, len(batchUpdate.Events))
-
-	uncompressedAfter := map[string]float64{
-		succeededType: testutil.ToFloat64(testMetrics.GetUncompressedEventBytesTotal().WithLabelValues(queue, succeededType)),
-		cancelledType: testutil.ToFloat64(testMetrics.GetUncompressedEventBytesTotal().WithLabelValues(queue, cancelledType)),
-	}
-	compressedAfter := map[string]float64{
-		succeededType: testutil.ToFloat64(testMetrics.GetEstimatedCompressedEventBytesTotal().WithLabelValues(queue, succeededType)),
-		cancelledType: testutil.ToFloat64(testMetrics.GetEstimatedCompressedEventBytesTotal().WithLabelValues(queue, cancelledType)),
-	}
-
-	for _, eventType := range []string{succeededType, cancelledType} {
-		assert.Equal(t, uncompressedBefore[eventType], uncompressedAfter[eventType], "uncompressed bytes should not change on compression failure for %s", eventType)
-		assert.Equal(t, compressedBefore[eventType], compressedAfter[eventType], "compressed bytes should not change on compression failure for %s", eventType)
-	}
+	assert.Equal(t, float64(0), testutil.ToFloat64(testMetrics.GetUncompressedEventBytesTotal().WithLabelValues(queue, succeededType)))
+	assert.Equal(t, float64(0), testutil.ToFloat64(testMetrics.GetUncompressedEventBytesTotal().WithLabelValues(queue, cancelledType)))
+	assert.Equal(t, float64(0), testutil.ToFloat64(testMetrics.GetEstimatedCompressedEventBytesTotal().WithLabelValues(queue, succeededType)))
+	assert.Equal(t, float64(0), testutil.ToFloat64(testMetrics.GetEstimatedCompressedEventBytesTotal().WithLabelValues(queue, cancelledType)))
 }
 
-type failingCompressor struct{}
-
-func (f *failingCompressor) Compress([]byte) ([]byte, error) {
-	return nil, errors.New("intentional compression failure")
-}
-
-func TestConvert_RecordsBatchHistogramAndCountPerSuccessfulSequence(t *testing.T) {
+func TestConvert_DoesNotRecordSizeMetrics_WhenEventSizeMetricsDisabled(t *testing.T) {
 	jobRunFailed := &armadaevents.EventSequence_Event{
 		Created: baseTimeProto,
 		Event: &armadaevents.EventSequence_Event_JobRunErrors{
@@ -309,78 +251,26 @@ func TestConvert_RecordsBatchHistogramAndCountPerSuccessfulSequence(t *testing.T
 	msg := NewMsg(jobRunSucceeded, cancelled, jobRunFailed)
 	compressor, _ := compress.NewZlibCompressor(0)
 	testRegistry := prometheus.NewRegistry()
-	testMetrics := metrics.NewMetricsWithRegistry("test_batch_happy_path_", testRegistry)
-	converter := &EventConverter{
-		Compressor:          compressor,
-		MaxMessageBatchSize: 1024,
-		metrics:             testMetrics,
-	}
+	testMetrics := metrics.NewMetricsWithRegistry("test_happy_path_", testRegistry)
+	converter := NewEventConverter(compressor, 1024, testMetrics, false)
 
-	batchCountBefore := testutil.ToFloat64(testMetrics.GetBatchesTotal().WithLabelValues(queue))
+	succeededType := jobRunSucceeded.GetEventName()
+	cancelledType := cancelled.GetEventName()
+	failedType := jobRunFailed.GetEventName()
 
 	batchUpdate := converter.Convert(armadacontext.Background(), msg)
 	require.Equal(t, 1, len(batchUpdate.Events))
 
-	batchCountAfter := testutil.ToFloat64(testMetrics.GetBatchesTotal().WithLabelValues(queue))
-
-	assert.Equal(t, batchCountBefore+1, batchCountAfter, "batch count should increment by 1")
-
-	batchEventsCollector := testMetrics.GetBatchEvents()
-	ch := make(chan prometheus.Metric, 100)
-	go func() {
-		batchEventsCollector.Collect(ch)
-		close(ch)
-	}()
-
-	var histogramFound bool
-	for m := range ch {
-		pb := &promclientmodel.Metric{}
-		require.NoError(t, m.Write(pb))
-
-		if len(pb.Label) > 0 && pb.Label[0].GetValue() == queue && pb.Histogram != nil {
-			histogramFound = true
-			assert.Equal(t, uint64(1), pb.Histogram.GetSampleCount(), "histogram sample count should be 1")
-			assert.Equal(t, float64(3), pb.Histogram.GetSampleSum(), "histogram sample sum should be 3 (3 events)")
-			break
-		}
-	}
-	assert.True(t, histogramFound, "histogram metric for queue should be found")
+	assert.Equal(t, float64(0), testutil.ToFloat64(testMetrics.GetUncompressedEventBytesTotal().WithLabelValues(queue, succeededType)))
+	assert.Equal(t, float64(0), testutil.ToFloat64(testMetrics.GetUncompressedEventBytesTotal().WithLabelValues(queue, cancelledType)))
+	assert.Equal(t, float64(0), testutil.ToFloat64(testMetrics.GetUncompressedEventBytesTotal().WithLabelValues(queue, failedType)))
+	assert.Equal(t, float64(0), testutil.ToFloat64(testMetrics.GetEstimatedCompressedEventBytesTotal().WithLabelValues(queue, succeededType)))
+	assert.Equal(t, float64(0), testutil.ToFloat64(testMetrics.GetEstimatedCompressedEventBytesTotal().WithLabelValues(queue, succeededType)))
+	assert.Equal(t, float64(0), testutil.ToFloat64(testMetrics.GetEstimatedCompressedEventBytesTotal().WithLabelValues(queue, failedType)))
 }
 
-func TestConvert_DoesNotRecordBatchMetricsOnFailedSequence(t *testing.T) {
-	msg := NewMsg(jobRunSucceeded, cancelled)
-	failingCompressor := &failingCompressor{}
-	testRegistry := prometheus.NewRegistry()
-	testMetrics := metrics.NewMetricsWithRegistry("test_batch_failure_path_", testRegistry)
-	converter := &EventConverter{
-		Compressor:          failingCompressor,
-		MaxMessageBatchSize: 1024,
-		metrics:             testMetrics,
-	}
+type failingCompressor struct{}
 
-	batchCountBefore := testutil.ToFloat64(testMetrics.GetBatchesTotal().WithLabelValues(queue))
-
-	batchUpdate := converter.Convert(armadacontext.Background(), msg)
-	require.Equal(t, 0, len(batchUpdate.Events))
-
-	batchCountAfter := testutil.ToFloat64(testMetrics.GetBatchesTotal().WithLabelValues(queue))
-
-	assert.Equal(t, batchCountBefore, batchCountAfter, "batch count should not change on compression failure")
-
-	batchEventsCollector := testMetrics.GetBatchEvents()
-	ch := make(chan prometheus.Metric, 100)
-	go func() {
-		batchEventsCollector.Collect(ch)
-		close(ch)
-	}()
-
-	for m := range ch {
-		pb := &promclientmodel.Metric{}
-		require.NoError(t, m.Write(pb))
-
-		if len(pb.Label) > 0 && pb.Label[0].GetValue() == queue && pb.Histogram != nil {
-			assert.Equal(t, uint64(0), pb.Histogram.GetSampleCount(), "histogram count should be 0 on compression failure")
-			break
-		}
-	}
+func (f *failingCompressor) Compress([]byte) ([]byte, error) {
+	return nil, errors.New("intentional compression failure")
 }

@@ -42,8 +42,6 @@ type Metrics struct {
 	eventsProcessed                    *prometheus.CounterVec
 	uncompressedEventBytesTotal        *prometheus.CounterVec
 	estimatedCompressedEventBytesTotal *prometheus.CounterVec
-	batchEvents                        *prometheus.HistogramVec
-	batchesTotal                       *prometheus.CounterVec
 }
 
 func NewMetrics(prefix string) *Metrics {
@@ -80,21 +78,12 @@ func NewMetricsWithRegistry(prefix string, registerer prometheus.Registerer) *Me
 		Help: "Number of events processed",
 	}
 	uncompressedEventBytesTotalOpts := prometheus.CounterOpts{
-		Name: prefix + "uncompressed_event_bytes_total",
+		Name: prefix + "events_uncompressed_bytes_total",
 		Help: "Total uncompressed event bytes processed",
 	}
 	estimatedCompressedEventBytesTotalOpts := prometheus.CounterOpts{
-		Name: prefix + "estimated_compressed_event_bytes_total",
+		Name: prefix + "events_estimated_compressed_bytes_total",
 		Help: "Total estimated compressed event bytes processed",
-	}
-	batchEventsOpts := prometheus.HistogramOpts{
-		Name:    prefix + "batch_events",
-		Help:    "Number of events in a batch",
-		Buckets: []float64{1, 2, 5, 10, 20, 50, 100, 200, 500, 1000},
-	}
-	batchesTotalOpts := prometheus.CounterOpts{
-		Name: prefix + "batches_total",
-		Help: "Total number of batches processed",
 	}
 
 	factory := promauto.With(registerer)
@@ -108,8 +97,6 @@ func NewMetricsWithRegistry(prefix string, registerer prometheus.Registerer) *Me
 		eventsProcessed:                    factory.NewCounterVec(eventsProcessedOpts, []string{"queue", "eventType", "msgType"}),
 		uncompressedEventBytesTotal:        factory.NewCounterVec(uncompressedEventBytesTotalOpts, []string{"queue", "event_type"}),
 		estimatedCompressedEventBytesTotal: factory.NewCounterVec(estimatedCompressedEventBytesTotalOpts, []string{"queue", "event_type"}),
-		batchEvents:                        factory.NewHistogramVec(batchEventsOpts, []string{"queue"}),
-		batchesTotal:                       factory.NewCounterVec(batchesTotalOpts, []string{"queue"}),
 	}
 }
 
@@ -155,26 +142,10 @@ func (m *Metrics) RecordEventEstimatedCompressedBytes(queue, eventType string, n
 	m.estimatedCompressedEventBytesTotal.With(map[string]string{"queue": queue, "event_type": eventType}).Add(float64(n))
 }
 
-func (m *Metrics) RecordBatchEvents(queue string, batchEvents int) {
-	m.batchEvents.With(map[string]string{"queue": queue}).Observe(float64(batchEvents))
-}
-
-func (m *Metrics) RecordBatchCount(queue string) {
-	m.batchesTotal.With(map[string]string{"queue": queue}).Inc()
-}
-
 func (m *Metrics) GetUncompressedEventBytesTotal() *prometheus.CounterVec {
 	return m.uncompressedEventBytesTotal
 }
 
 func (m *Metrics) GetEstimatedCompressedEventBytesTotal() *prometheus.CounterVec {
 	return m.estimatedCompressedEventBytesTotal
-}
-
-func (m *Metrics) GetBatchEvents() *prometheus.HistogramVec {
-	return m.batchEvents
-}
-
-func (m *Metrics) GetBatchesTotal() *prometheus.CounterVec {
-	return m.batchesTotal
 }

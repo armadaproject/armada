@@ -40,7 +40,8 @@ type EventIngesterConfiguration struct {
 }
 
 type MetricsConfig struct {
-	Redis RedisMemoryMetricsConfig
+	Redis                   RedisMemoryMetricsConfig
+	EventSizeMetricsEnabled bool
 }
 
 type RedisMemoryMetricsConfig struct {
