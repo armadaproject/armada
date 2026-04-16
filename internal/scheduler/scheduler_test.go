@@ -426,7 +426,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 			expectedValidated:     []string{queuedJob.Id()},
 			expectedQueuedVersion: 0,
 		},
-		"Submit check skipped when queue cache errors": {
+		"Submit check fails fast when queue cache errors": {
 			initialJobs:           []*jobdb.Job{queuedJob.WithValidated(false)},
 			queueCacheError:       true,
 			expectedQueued:        []string{queuedJob.Id()},
@@ -1010,7 +1010,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 			// run a scheduler cycle
 			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
 			err = sched.cycle(ctx, false, sched.leaderController.GetToken(), true, 1)
-			if tc.fetchError || tc.publishError || tc.scheduleError {
+			if tc.fetchError || tc.publishError || tc.scheduleError || tc.queueCacheError {
 				assert.Error(t, err)
 			} else {
 				require.NoError(t, err)

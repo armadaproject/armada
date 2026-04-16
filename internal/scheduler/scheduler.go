@@ -330,10 +330,9 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	// Validate that any new jobs can be scheduled
 	validationEvents, err := s.submitCheck(ctx, txn)
 	if err != nil {
-		ctx.Warnf("Failed to validate jobs this cycle: %v", err)
-	} else {
-		events = append(events, validationEvents...)
+		return err
 	}
+	events = append(events, validationEvents...)
 
 	// Expire any jobs running on clusters that haven't heartbeated within the configured deadline.
 	ctx.Info("Looking for jobs to expire")
