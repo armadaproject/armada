@@ -265,7 +265,7 @@ func TestConvert_DoesNotRecordSizeMetrics_WhenEventSizeMetricsDisabled(t *testin
 	assert.Equal(t, float64(0), testutil.ToFloat64(testMetrics.GetUncompressedEventBytesTotal().WithLabelValues(queue, cancelledType)))
 	assert.Equal(t, float64(0), testutil.ToFloat64(testMetrics.GetUncompressedEventBytesTotal().WithLabelValues(queue, failedType)))
 	assert.Equal(t, float64(0), testutil.ToFloat64(testMetrics.GetEstimatedCompressedEventBytesTotal().WithLabelValues(queue, succeededType)))
-	assert.Equal(t, float64(0), testutil.ToFloat64(testMetrics.GetEstimatedCompressedEventBytesTotal().WithLabelValues(queue, succeededType)))
+	assert.Equal(t, float64(0), testutil.ToFloat64(testMetrics.GetEstimatedCompressedEventBytesTotal().WithLabelValues(queue, cancelledType)))
 	assert.Equal(t, float64(0), testutil.ToFloat64(testMetrics.GetEstimatedCompressedEventBytesTotal().WithLabelValues(queue, failedType)))
 }
 
