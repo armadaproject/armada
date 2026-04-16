@@ -119,7 +119,7 @@ func Run(config *configuration.EventIngesterConfiguration) {
 		log.Errorf("Error creating compressor for consumer")
 		panic(err)
 	}
-	converter := convert.NewEventConverter(compressor, uint(config.MaxOutputMessageSizeBytes), metrics)
+	converter := convert.NewEventConverter(compressor, uint(config.MaxOutputMessageSizeBytes), metrics, config.Metrics.EventSizeMetricsEnabled)
 
 	// Start metric server
 	shutdownMetricServer := common.ServeMetrics(config.MetricsPort)
