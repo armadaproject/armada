@@ -119,7 +119,7 @@ func TestScanAll_ContextCancelled(t *testing.T) {
 }
 
 func withRedisClient(ctx *armadacontext.Context, action func(client redis.UniversalClient)) {
-	client := redis.NewClient(&redis.Options{Addr: "localhost:6379", DB: 11})
+	client := redis.NewClient(&redis.Options{Addr: "localhost:6379", DB: 8})
 	defer client.FlushDB(ctx)
 	defer client.Close()
 

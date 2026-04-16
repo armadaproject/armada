@@ -957,7 +957,7 @@ func TestHistogramBuckets_AgeDistribution(t *testing.T) {
 }
 
 func withRedisClient(ctx *armadacontext.Context, action func(client redis.UniversalClient)) {
-	client := redis.NewClient(&redis.Options{Addr: "localhost:6379", DB: 12})
+	client := redis.NewClient(&redis.Options{Addr: "localhost:6379", DB: 7})
 	defer client.FlushDB(ctx)
 	defer client.Close()
 
