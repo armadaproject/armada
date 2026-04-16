@@ -40,7 +40,7 @@ metrics:
     leader:
       mode: "kubernetes"
       leaseLockName: "armada-redis-metrics-leader"
-      leaseLockNamespace: "armada"
+      leaseLockNamespace: "armada" # This must be set so viper allows env vars to overwrite it
       leaseDuration: 15s
       renewDeadline: 10s
       retryPeriod: 2s
