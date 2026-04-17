@@ -33,16 +33,16 @@ jobs:
             cache-key: cargo
             extra-components: 'clippy,rustfmt'
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Install Rust (${{ matrix.toolchain }})
-        uses: dtolnay/rust-toolchain@master
+        uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9 # master
         with:
           toolchain: ${{ matrix.toolchain }}
           components: ${{ matrix.extra-components }}
 
       - name: Cache cargo registry and build
-        uses: actions/cache@v5
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
         with:
           path: |
             ~/.cargo/registry
@@ -58,7 +58,7 @@ jobs:
           cache-prefix: rust-client-${{ matrix.cache-key }}
 
       - name: Install protoc
-        uses: arduino/setup-protoc@v3
+        uses: arduino/setup-protoc@c65c819552d16ad3c9b72d9dfd5ba5237b9c906b # v3
         with:
           version: '23.3'
           repo-token: ${{ secrets.GITHUB_TOKEN }}
