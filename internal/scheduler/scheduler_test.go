@@ -400,6 +400,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 		expectedQueuedVersion              int32                          // expected queued version of jobs at the end of the cycle
 		cordonedQueues                     []string                       // queues that are cordoned
 		queueCacheError                    bool                           // if true then the queue cache will throw an error
+		expectedPreemptReasons             map[string]string              // map of job id to expected preempt reason on the latest run
 	}{
 		"Lease a single job already in the db": {
 			initialJobs:           []*jobdb.Job{queuedJob},
@@ -720,6 +721,35 @@ func TestScheduler_TestCycle(t *testing.T) {
 				{jobId: preemptibleGangJob2.Id(), runId: preemptibleGangJob2.LatestRun().Id()},
 			},
 			expectedTerminal:      []string{preemptibleGangJob1.Id(), preemptibleGangJob2.Id()},
+			expectedQueuedVersion: preemptibleGangJob1.QueuedVersion(),
+		},
+		"Gang Job Run preemption requested - preempt reason propagated to all gang members": {
+			initialJobs: []*jobdb.Job{preemptibleGangJob1, preemptibleGangJob2},
+			runUpdates: []database.Run{
+				{
+					RunID:            preemptibleGangJob1.LatestRun().Id(),
+					JobID:            preemptibleGangJob1.Id(),
+					JobSet:           "testJobSet",
+					Executor:         "testExecutor",
+					PreemptRequested: true,
+					PreemptReason:    pointer.String("Preempted by test-user"),
+					Serial:           1,
+				},
+			},
+			expectedJobRunPreempted: []jobRunId{
+				{jobId: preemptibleGangJob1.Id(), runId: preemptibleGangJob1.LatestRun().Id()},
+				{jobId: preemptibleGangJob2.Id(), runId: preemptibleGangJob2.LatestRun().Id()},
+			},
+			expectedJobErrors: []string{preemptibleGangJob1.Id(), preemptibleGangJob2.Id()},
+			expectedJobRunErrors: []jobRunId{
+				{jobId: preemptibleGangJob1.Id(), runId: preemptibleGangJob1.LatestRun().Id()},
+				{jobId: preemptibleGangJob2.Id(), runId: preemptibleGangJob2.LatestRun().Id()},
+			},
+			expectedTerminal: []string{preemptibleGangJob1.Id(), preemptibleGangJob2.Id()},
+			expectedPreemptReasons: map[string]string{
+				preemptibleGangJob1.Id(): "Preempted by test-user",
+				preemptibleGangJob2.Id(): "Preempted by test-user",
+			},
 			expectedQueuedVersion: preemptibleGangJob1.QueuedVersion(),
 		},
 		"Job Run preemption requested - job not pre-emptible - no action expected": {
@@ -1096,6 +1126,18 @@ func TestScheduler_TestCycle(t *testing.T) {
 			assert.Equal(t, 0, len(remainingLeased))
 			assert.Equal(t, 0, len(remainingQueued))
 			assert.Equal(t, 0, len(remainingTerminal))
+
+			// assert preempt reasons on latest runs
+			if len(tc.expectedPreemptReasons) > 0 {
+				for _, job := range sched.jobDb.ReadTxn().GetAll() {
+					if expectedReason, ok := tc.expectedPreemptReasons[job.Id()]; ok {
+						run := job.LatestRun()
+						require.NotNil(t, run)
+						require.NotNil(t, run.PreemptReason())
+						assert.Equal(t, expectedReason, *run.PreemptReason())
+					}
+				}
+			}
 			cancel()
 		})
 	}
