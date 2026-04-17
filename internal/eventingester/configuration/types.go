@@ -67,6 +67,7 @@ type LeaderConfig struct {
 	LeaseDuration      time.Duration
 	RenewDeadline      time.Duration
 	RetryPeriod        time.Duration
+	PodName            string
 }
 
 // TODO: unpack this into just EventExpirtation
