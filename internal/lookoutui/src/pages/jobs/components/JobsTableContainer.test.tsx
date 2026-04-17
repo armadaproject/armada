@@ -9,11 +9,6 @@ import { vi } from "vitest"
 import { Job, JobState, JobStateCategory, jobStateCategoryDisplayNames } from "../../../models/lookoutModels"
 import { JOBS, V2_REDIRECT } from "../../../pathnames"
 import { ApiClientsProvider } from "../../../services/apiClients"
-import { FakeServicesProvider } from "../../../services/fakeContext"
-import { IGetJobInfoService } from "../../../services/lookout/GetJobInfoService"
-import { IGroupJobsService } from "../../../services/lookout/GroupJobsService"
-import { UpdateJobSetsService } from "../../../services/lookout/UpdateJobSetsService"
-import FakeGroupJobsService from "../../../services/lookout/mocks/FakeGroupJobsService"
 import { MockServer } from "../../../services/lookout/mocks/mockServer"
 import {
   FORMAT_NUMBER_SHOULD_FORMAT_KEY,
@@ -78,8 +73,6 @@ function makeTestJobs(
 }
 
 describe("JobsTableContainer", () => {
-  let groupJobsService: IGroupJobsService
-
   beforeAll(() => {
     mockServer.listen()
     vi.stubGlobal("IntersectionObserver", IntersectionObserverMock)
@@ -101,17 +94,7 @@ describe("JobsTableContainer", () => {
     vi.unstubAllGlobals()
   })
 
-  const renderComponent = (
-    fakeJobs: Job[] = [],
-    search?: string,
-    fakeServices: {
-      v2GroupJobsService?: IGroupJobsService
-      v2JobSpecService?: IGetJobInfoService
-      v2UpdateJobSetsService?: UpdateJobSetsService
-    } = {},
-  ) => {
-    groupJobsService = new FakeGroupJobsService(fakeJobs, false)
-
+  const renderComponent = (_fakeJobs: Job[] = [], search?: string) => {
     // Create a fresh query client for each test to avoid cache pollution
     const testQueryClient = new QueryClient({
       defaultOptions: {
@@ -129,14 +112,7 @@ describe("JobsTableContainer", () => {
       <SnackbarProvider>
         <QueryClientProvider client={testQueryClient}>
           <ApiClientsProvider>
-            <FakeServicesProvider fakeJobs={fakeJobs} simulateApiWait={false} {...fakeServices}>
-              <JobsTableContainer
-                groupJobsService={fakeServices.v2GroupJobsService ?? groupJobsService}
-                debug={false}
-                autoRefreshMs={30000}
-                commandSpecs={[]}
-              />
-            </FakeServicesProvider>
+            <JobsTableContainer debug={false} autoRefreshMs={30000} commandSpecs={[]} />
           </ApiClientsProvider>
         </QueryClientProvider>
       </SnackbarProvider>
