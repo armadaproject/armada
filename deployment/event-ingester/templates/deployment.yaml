@@ -39,6 +39,10 @@ spec:
             - --config
             - /config/application_config.yaml
           env:
+            - name: ARMADA_METRICS_REDIS_LEADER_PODNAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
             - name: ARMADA_METRICS_REDIS_LEADER_LEASELOCKNAMESPACE
               valueFrom:
                 fieldRef:
