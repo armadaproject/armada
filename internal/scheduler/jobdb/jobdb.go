@@ -15,6 +15,7 @@ import (
 	"k8s.io/utils/clock"
 
 	log "github.com/armadaproject/armada/internal/common/logging"
+	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/adapters"
@@ -88,7 +89,8 @@ type JobDb struct {
 	// Used for generating job run ids.
 	uuidProvider IDProvider
 	// Used to make efficient ResourceList types.
-	resourceListFactory *internaltypes.ResourceListFactory
+	resourceListFactory  *internaltypes.ResourceListFactory
+	respectNodePodLimits bool
 }
 
 // IDProvider is an interface used to mock run id  generation for tests.
@@ -155,6 +157,10 @@ func (jobDb *JobDb) SetClock(clock clock.PassiveClock) {
 	jobDb.clock = clock
 }
 
+func (jobDb *JobDb) SetRespectNodePodLimits(respect bool) {
+	jobDb.respectNodePodLimits = respect
+}
+
 func (jobDb *JobDb) SetUUIDProvider(uuidProvider IDProvider) {
 	jobDb.uuidProvider = uuidProvider
 }
@@ -175,6 +181,7 @@ func (jobDb *JobDb) Clone() *JobDb {
 		schedulingKeyGenerator: jobDb.schedulingKeyGenerator,
 		stringInterner:         jobDb.stringInterner,
 		resourceListFactory:    jobDb.resourceListFactory,
+		respectNodePodLimits:   jobDb.respectNodePodLimits,
 	}
 }
 
@@ -247,7 +254,11 @@ func (jobDb *JobDb) NewJob(
 }
 
 func (jobDb *JobDb) getResourceRequirements(schedulingInfo *internaltypes.JobSchedulingInfo) internaltypes.ResourceList {
-	return jobDb.resourceListFactory.FromJobResourceListIgnoreUnknown(safeGetRequirements(schedulingInfo))
+	requirements := safeGetRequirements(schedulingInfo)
+	if jobDb.respectNodePodLimits {
+		requirements[armadaresource.PodsResourceName] = *resource.NewQuantity(1, resource.DecimalSI)
+	}
+	return jobDb.resourceListFactory.FromJobResourceListIgnoreUnknown(requirements)
 }
 
 func safeGetRequirements(schedulingInfo *internaltypes.JobSchedulingInfo) map[string]resource.Quantity {
