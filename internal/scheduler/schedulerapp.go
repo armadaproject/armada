@@ -80,6 +80,7 @@ func Run(config schedulerconfig.Configuration) error {
 	// ////////////////////////////////////////////////////////////////////////
 	// Resource list factory
 	// ////////////////////////////////////////////////////////////////////////
+	schedulerconfig.ApplyRespectNodePodLimits(&config.Scheduling)
 	resourceListFactory, err := internaltypes.NewResourceListFactory(
 		config.Scheduling.SupportedResourceTypes,
 		config.Scheduling.FloatingResources,
@@ -364,6 +365,7 @@ func Run(config schedulerconfig.Configuration) error {
 		stringInterner,
 		resourceListFactory,
 	)
+	jobDb.SetRespectNodePodLimits(config.Scheduling.RespectNodePodLimits)
 
 	schedulerMetrics, err := metrics.New(
 		config.Metrics.TrackedErrorRegexes,
