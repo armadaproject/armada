@@ -173,6 +173,7 @@ func createLeaderController(ctx *armadacontext.Context, config configuration.Lea
 			LeaseDuration:      config.LeaseDuration,
 			RenewDeadline:      config.RenewDeadline,
 			RetryPeriod:        config.RetryPeriod,
+			PodName:            config.PodName,
 		}
 
 		leaderController := leader.NewKubernetesLeaderController(schedulerLeaderConfig, clientSet.CoordinationV1())
