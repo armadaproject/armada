@@ -203,6 +203,9 @@ type SchedulingConfig struct {
 	MaxNewJobSchedulingDurationPerQueue time.Duration `validate:"omitempty,ltfield=MaxSchedulingDuration"`
 	// Set to true to enable scheduler assertions. This results in some performance loss.
 	EnableAssertions bool
+	// If true, the scheduler tracks per-node pod capacity and refuses to schedule
+	// jobs onto nodes that have exhausted their pod limit.
+	RespectNodePodLimits bool
 	// Experimental
 	// Set to true to enable larger job preferential ordering in the candidate gang iterator.
 	// This will result in larger jobs being ordered earlier in the job scheduling order
@@ -521,4 +524,36 @@ type PricingApiConfig struct {
 	// This is for local testing only
 	// It will stub the pricing api so it returns non-zero values but won't call and external service
 	DevModeEnabled bool
+}
+
+// ApplyRespectNodePodLimits registers "pods" as a supported and indexed resource
+// when RespectNodePodLimits is on. Must be called before constructing the
+// ResourceListFactory / NodeDb so every downstream consumer sees "pods" as tracked.
+// Returns true if config was modified.
+func ApplyRespectNodePodLimits(config *SchedulingConfig) bool {
+	if !config.RespectNodePodLimits {
+		return false
+	}
+	config.SupportedResourceTypes = ensurePodsResourceType(config.SupportedResourceTypes)
+	config.IndexedResources = ensurePodsResourceType(config.IndexedResources)
+	return true
+}
+
+// ensurePodsResourceType ensures a "pods" entry with resolution 1 is present.
+// If an entry already exists with a different resolution it is normalized.
+// Resolution must be 1: jobdb injects a pods=1 quantity per job, so any other
+// scale would break 1-to-1 pod accounting (e.g. resolution 10 would cause each
+// job to consume 10 pod slots). Idempotent.
+func ensurePodsResourceType(types []ResourceType) []ResourceType {
+	podsEntry := ResourceType{
+		Name:       armadaresource.PodsResourceName,
+		Resolution: resource.MustParse("1"),
+	}
+	for i, t := range types {
+		if t.Name == armadaresource.PodsResourceName {
+			types[i] = podsEntry
+			return types
+		}
+	}
+	return append(types, podsEntry)
 }

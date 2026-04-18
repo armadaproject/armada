@@ -4,10 +4,13 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
+	armadaresource "github.com/armadaproject/armada/internal/common/resource"
+	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
@@ -651,6 +654,42 @@ func BenchmarkInsufficientResourcesSum64(b *testing.B) {
 }
 
 func TestResourceRequirementsMet(t *testing.T) {
+}
+
+func TestResourceRequirementsMet_RespectNodePodLimits(t *testing.T) {
+	rlFactory, err := internaltypes.NewResourceListFactory(
+		[]schedulerconfig.ResourceType{
+			{Name: "cpu", Resolution: resource.MustParse("1m")},
+			{Name: "memory", Resolution: resource.MustParse("1")},
+			{Name: armadaresource.PodsResourceName, Resolution: resource.MustParse("1")},
+		},
+		nil,
+	)
+	require.NoError(t, err)
+
+	available := func(pods string) internaltypes.ResourceList {
+		return rlFactory.FromJobResourceListIgnoreUnknown(map[string]resource.Quantity{
+			"cpu":                           resource.MustParse("10"),
+			"memory":                        resource.MustParse("64Gi"),
+			armadaresource.PodsResourceName: resource.MustParse(pods),
+		})
+	}
+	required := rlFactory.FromJobResourceListIgnoreUnknown(map[string]resource.Quantity{
+		"cpu":                           resource.MustParse("1"),
+		armadaresource.PodsResourceName: resource.MustParse("1"),
+	})
+
+	// Node saturated: no pod slots left.
+	ok, reason := resourceRequirementsMet(available("0"), required)
+	assert.False(t, ok)
+	insuff, isInsufficient := reason.(*InsufficientResources)
+	require.True(t, isInsufficient, "expected InsufficientResources, got %T", reason)
+	assert.Equal(t, armadaresource.PodsResourceName, insuff.ResourceName)
+
+	// Node has a slot free.
+	ok, reason = resourceRequirementsMet(available("1"), required)
+	assert.True(t, ok)
+	assert.Nil(t, reason)
 }
 
 func makeTestNodeTaintsLabels(taints []v1.Taint, labels map[string]string) *internaltypes.Node {
