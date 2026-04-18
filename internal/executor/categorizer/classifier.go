@@ -3,10 +3,27 @@ package categorizer
 import (
 	"fmt"
 	"regexp"
+	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/armadaproject/armada/internal/common/errormatch"
+	"github.com/armadaproject/armada/internal/executor/domain"
+	"github.com/armadaproject/armada/internal/executor/metrics"
+)
+
+var classificationDuration = promauto.NewHistogramVec(
+	prometheus.HistogramOpts{
+		Name: metrics.ArmadaExecutorMetricsPrefix + "error_classification_duration_seconds",
+		Help: "Time taken to classify pod errors into categories",
+		Buckets: []float64{
+			0.0001, 0.0005, 0.001, // 100µs, 500µs, 1ms
+			0.005, 0.01, 0.05, 0.1, // 5ms, 10ms, 50ms, 100ms
+		},
+	},
+	[]string{"queue"},
 )
 
 type category struct {
@@ -118,6 +135,8 @@ func (c *Classifier) Classify(pod *v1.Pod) []string {
 	if c == nil || pod == nil {
 		return nil
 	}
+
+	start := time.Now()
 	containers := failedContainers(pod)
 	podReason := pod.Status.Reason
 
@@ -127,6 +146,9 @@ func (c *Classifier) Classify(pod *v1.Pod) []string {
 			matched = append(matched, cat.name)
 		}
 	}
+
+	classificationDuration.WithLabelValues(pod.Labels[domain.Queue]).Observe(time.Since(start).Seconds())
+
 	return matched
 }
 
