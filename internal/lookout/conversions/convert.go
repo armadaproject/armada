@@ -49,18 +49,19 @@ func ToSwaggerJob(job *model.Job) *models.Job {
 
 func ToSwaggerRun(run *model.Run) *models.Run {
 	return &models.Run{
-		Cluster:          run.Cluster,
-		ExitCode:         run.ExitCode,
-		Finished:         PostgreSQLTimeToSwaggerTime(run.Finished),
-		JobRunState:      string(lookout.JobRunStateMap[run.JobRunState]),
-		Node:             run.Node,
-		Leased:           PostgreSQLTimeToSwaggerTime(run.Leased),
-		Pending:          PostgreSQLTimeToSwaggerTime(run.Pending),
-		Pool:             run.Pool,
-		RunID:            run.RunId,
-		Started:          PostgreSQLTimeToSwaggerTime(run.Started),
-		IngressAddresses: ingressAddressesToSwagger(run.IngressAddresses),
-		FailureInfo:      failureInfoToSwagger(run.FailureInfo),
+		Cluster:            run.Cluster,
+		ExitCode:           run.ExitCode,
+		Finished:           PostgreSQLTimeToSwaggerTime(run.Finished),
+		JobRunState:        string(lookout.JobRunStateMap[run.JobRunState]),
+		Node:               run.Node,
+		Leased:             PostgreSQLTimeToSwaggerTime(run.Leased),
+		Pending:            PostgreSQLTimeToSwaggerTime(run.Pending),
+		Pool:               run.Pool,
+		RunID:              run.RunId,
+		Started:            PostgreSQLTimeToSwaggerTime(run.Started),
+		IngressAddresses:   ingressAddressesToSwagger(run.IngressAddresses),
+		FailureCategory:    run.FailureCategory,
+		FailureSubcategory: run.FailureSubcategory,
 	}
 }
 
@@ -121,42 +122,6 @@ func PostgreSQLTimeToSwaggerTime(t *model.PostgreSQLTime) *strfmt.DateTime {
 	}
 	s := strfmt.DateTime(t.Time)
 	return &s
-}
-
-func failureInfoToSwagger(failureInfo map[string]any) *models.RunFailureInfo {
-	if len(failureInfo) == 0 {
-		return nil
-	}
-
-	result := &models.RunFailureInfo{}
-	populated := false
-	// After JSON round-trip through PostgreSQL's json_agg, Go's json.Unmarshal
-	// produces float64 for numbers and []interface{} for arrays in map[string]any.
-	if v, ok := failureInfo["exitCode"].(float64); ok {
-		result.ExitCode = int32(v)
-		populated = true
-	}
-	if msg, ok := failureInfo["terminationMessage"].(string); ok {
-		result.TerminationMessage = msg
-		populated = true
-	}
-	if cats, ok := failureInfo["categories"].([]interface{}); ok {
-		result.Categories = make([]string, 0, len(cats))
-		populated = true
-		for _, c := range cats {
-			if s, ok := c.(string); ok {
-				result.Categories = append(result.Categories, s)
-			}
-		}
-	}
-	if name, ok := failureInfo["containerName"].(string); ok {
-		result.ContainerName = name
-		populated = true
-	}
-	if !populated {
-		return nil
-	}
-	return result
 }
 
 func ingressAddressesToSwagger(addresses map[int32]string) map[string]string {

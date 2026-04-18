@@ -65,7 +65,6 @@ func Run(config *configuration.LookoutIngesterConfiguration) {
 		config.GetUserAnnotationPrefix(),
 		config.Annotations.BlocklistAnnotations,
 		compressor,
-		config.EnableJobRunFailureInfoMap,
 	)
 
 	ingester := ingest.NewIngestionPipeline[*model.InstructionSet, *armadaevents.EventSequence](

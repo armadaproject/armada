@@ -9,6 +9,10 @@ import (
 	"github.com/armadaproject/armada/internal/common/errormatch"
 )
 
+// DefaultCategoryName is the category assigned when no classifier rule matches
+// and no custom defaultCategory is configured.
+const DefaultCategoryName = "uncategorized"
+
 type category struct {
 	name  string
 	rules []rule
@@ -19,21 +23,34 @@ type rule struct {
 	onExitCodes          *errormatch.ExitCodeMatcher
 	onTerminationMessage *regexp.Regexp
 	onConditions         []string
+	subcategory          string
+}
+
+// ClassifyResult holds the classification output for a failed pod.
+type ClassifyResult struct {
+	Category    string
+	Subcategory string
 }
 
 // Classifier evaluates pods against a set of category rules and returns
-// the names of all matching categories.
+// the first matching category and subcategory.
 type Classifier struct {
-	categories []category
+	defaultCategory string
+	categories      []category
 }
 
 // NewClassifier validates config and compiles regex patterns.
 // Returns an error if any regex is invalid, a condition is unknown,
 // or an exit code matcher has an invalid operator.
-func NewClassifier(configs []CategoryConfig) (*Classifier, error) {
-	categories := make([]category, 0, len(configs))
-	seen := make(map[string]bool, len(configs))
-	for _, cfg := range configs {
+func NewClassifier(config ErrorCategoriesConfig) (*Classifier, error) {
+	defaultCat := config.DefaultCategory
+	if defaultCat == "" {
+		defaultCat = DefaultCategoryName
+	}
+
+	categories := make([]category, 0, len(config.Categories))
+	seen := make(map[string]bool, len(config.Categories))
+	for _, cfg := range config.Categories {
 		if cfg.Name == "" {
 			return nil, fmt.Errorf("category config must have a name")
 		}
@@ -45,16 +62,16 @@ func NewClassifier(configs []CategoryConfig) (*Classifier, error) {
 			return nil, fmt.Errorf("category %q must have at least one rule", cfg.Name)
 		}
 		cat := category{name: cfg.Name}
-		for i, rule := range cfg.Rules {
-			r, err := buildRule(rule)
+		for i, r := range cfg.Rules {
+			built, err := buildRule(r)
 			if err != nil {
 				return nil, fmt.Errorf("category %q rule %d: %w", cfg.Name, i, err)
 			}
-			cat.rules = append(cat.rules, r)
+			cat.rules = append(cat.rules, built)
 		}
 		categories = append(categories, cat)
 	}
-	return &Classifier{categories: categories}, nil
+	return &Classifier{defaultCategory: defaultCat, categories: categories}, nil
 }
 
 func buildRule(cfg CategoryRule) (rule, error) {
@@ -109,34 +126,33 @@ func buildRule(cfg CategoryRule) (rule, error) {
 		onExitCodes:          cfg.OnExitCodes,
 		onConditions:         cfg.OnConditions,
 		onTerminationMessage: compiledRegex,
+		subcategory:          cfg.Subcategory,
 	}, nil
 }
 
-// Classify returns the names of all categories that match the given pod.
-// Returns nil if the receiver is nil, the pod is nil, or no categories match.
-func (c *Classifier) Classify(pod *v1.Pod) []string {
+// Classify returns the category and subcategory for the given pod.
+// Rules are evaluated in config order; the first matching rule wins.
+// Returns empty result if the receiver is nil or the pod is nil.
+// Returns (defaultCategory, "") if no rules match.
+func (c *Classifier) Classify(pod *v1.Pod) ClassifyResult {
 	if c == nil || pod == nil {
-		return nil
+		return ClassifyResult{}
 	}
 	containers := failedContainers(pod)
 	podReason := pod.Status.Reason
 
-	var matched []string
 	for _, cat := range c.categories {
-		if categoryMatches(cat, containers, podReason) {
-			matched = append(matched, cat.name)
+		for _, r := range cat.rules {
+			if ruleMatches(r, containers, podReason) {
+				return ClassifyResult{Category: cat.name, Subcategory: r.subcategory}
+			}
 		}
 	}
-	return matched
+	return ClassifyResult{Category: c.getDefaultCategory()}
 }
 
-func categoryMatches(cat category, containers []containerInfo, podReason string) bool {
-	for _, rule := range cat.rules {
-		if ruleMatches(rule, containers, podReason) {
-			return true
-		}
-	}
-	return false
+func (c *Classifier) getDefaultCategory() string {
+	return c.defaultCategory
 }
 
 // ruleMatches evaluates a single rule. When containerName is set, only that
@@ -173,14 +189,12 @@ func matchesCondition(conditions []string, containers []containerInfo, podReason
 	for _, cond := range conditions {
 		switch cond {
 		case errormatch.ConditionOOMKilled:
-			// Container-level: check the terminated reason on each failed container.
 			for _, c := range containers {
 				if c.reason == cond {
 					return true
 				}
 			}
 		case errormatch.ConditionEvicted, errormatch.ConditionDeadlineExceeded:
-			// Pod-level: these conditions appear on pod.Status.Reason, not on containers.
 			if podReason == cond {
 				return true
 			}
