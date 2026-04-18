@@ -794,6 +794,11 @@ func (m *cycleMetrics) publishCycleMetrics(ctx *armadacontext.Context, result sc
 				ShortJobPenalty:                  sc.FairnessCostProvider.UnweightedCostFromAllocation(qCtx.ShortJobPenalty),
 				BillableAllocationByResourceType: armadamaps.MapValues(qCtx.GetBillableResource().ToMap(), toQtyPtr),
 			}
+			if override := qCtx.GetBillablePriceOverride(); override != nil {
+				queueMetrics[qName].XBillablePriceOverride = &metricevents.QueueMetrics_BillablePriceOverride{
+					BillablePriceOverride: *override,
+				}
+			}
 		}
 		events = append(events, &metricevents.Event{
 			Created: protoutil.ToTimestamp(sc.Finished),

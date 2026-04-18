@@ -30,6 +30,10 @@ func main() {
 	vanity.ForEachFile(files, vanity.TurnOffGoSizecacheAll)
 
 	resp := command.Generate(req)
+	// Advertise support for proto3 optional fields (FEATURE_PROTO3_OPTIONAL = 1).
+	// The gogo protobuf CodeGeneratorResponse struct predates this field, so we
+	// inject it as unrecognized bytes: field 2, varint wire type, value 1.
+	resp.XXX_unrecognized = append(resp.XXX_unrecognized, 0x10, 0x01)
 	command.Write(resp)
 }
 
