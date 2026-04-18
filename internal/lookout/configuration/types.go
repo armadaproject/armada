@@ -23,6 +23,9 @@ type LookoutConfig struct {
 	PrunerConfig PrunerConfig
 
 	UIConfig
+
+	LookoutUIBaseUrl string
+	MCPEnabled       bool
 }
 
 type TlsConfig struct {
