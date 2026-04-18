@@ -1,6 +1,12 @@
 testDuration: 60s
 warmupDuration: 10s
 
+skipTearDown: false
+
+featureToggles:
+  partitionBySubmitted: false
+  hotColdSplit: false
+
 databaseConfig:
   postgres:
     host: localhost
