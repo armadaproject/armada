@@ -1,6 +1,7 @@
 import { useMutation } from "@tanstack/react-query"
 
 import { getErrorMessage } from "../../common/utils"
+import { getConfig } from "../../config"
 import { JobSet } from "../../models/lookoutModels"
 import { ApiJobState } from "../../openapi/armada"
 
@@ -22,10 +23,19 @@ export interface CancelJobSetsVariables {
 }
 
 export const useCancelJobSets = () => {
+  const config = getConfig()
   const { submitApi } = useApiClients()
 
   return useMutation<CancelJobSetsResponse, string, CancelJobSetsVariables>({
     mutationFn: async ({ queue, jobSets, states, reason }) => {
+      if (config.fakeDataEnabled) {
+        await new Promise((r) => setTimeout(r, 1_000))
+        return {
+          cancelledJobSets: jobSets,
+          failedJobSetCancellations: [],
+        }
+      }
+
       const response: CancelJobSetsResponse = {
         cancelledJobSets: [],
         failedJobSetCancellations: [],
