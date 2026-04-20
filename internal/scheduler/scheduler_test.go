@@ -139,13 +139,28 @@ var (
 	}
 	schedulingInfoWithUpdatedPriorityBytes = protoutil.MustMarshall(schedulingInfoWithUpdatedPriority)
 
-	schedulerMetrics, _ = metrics.New(nil, nil, []time.Duration{}, 12*time.Hour, pulsarutils.NoOpPublisher[*metricevents.Event]{})
+	schedulerMetrics, _ = metrics.New(nil, nil, []time.Duration{}, 12*time.Hour, pulsarutils.NoOpPublisher[*metricevents.Event]{}, "")
 )
 
 var queuedJob = testfixtures.NewJob(
 	util.NewULID(),
 	"testJobset",
 	"testQueue",
+	uint32(10),
+	toInternalSchedulingInfo(schedulingInfo),
+	true,
+	0,
+	false,
+	false,
+	false,
+	1,
+	true,
+)
+
+var queuedJobCordonedQueue = testfixtures.NewJob(
+	util.NewULID(),
+	"testJobset",
+	"cordonedQueue",
 	uint32(10),
 	toInternalSchedulingInfo(schedulingInfo),
 	true,
@@ -383,6 +398,8 @@ func TestScheduler_TestCycle(t *testing.T) {
 		expectedNodeAntiAffinities         []string                       // list of nodes there is expected to be anti affinities for on job scheduling info
 		expectedJobSchedulingInfoVersion   int                            // expected scheduling info version of jobs at the end of the cycle
 		expectedQueuedVersion              int32                          // expected queued version of jobs at the end of the cycle
+		cordonedQueues                     []string                       // queues that are cordoned
+		queueCacheError                    bool                           // if true then the queue cache will throw an error
 	}{
 		"Lease a single job already in the db": {
 			initialJobs:           []*jobdb.Job{queuedJob},
@@ -394,6 +411,25 @@ func TestScheduler_TestCycle(t *testing.T) {
 			initialJobs:           []*jobdb.Job{queuedJob.WithValidated(false)},
 			expectedQueued:        []string{queuedJob.Id()},
 			expectedValidated:     []string{queuedJob.Id()},
+			expectedQueuedVersion: 0,
+		},
+		"Submit check skips cordoned queue": {
+			initialJobs:           []*jobdb.Job{queuedJobCordonedQueue.WithValidated(false)},
+			cordonedQueues:        []string{"cordonedQueue"},
+			expectedQueued:        []string{queuedJobCordonedQueue.Id()},
+			expectedQueuedVersion: 0,
+		},
+		"Submit check validates non-cordoned queue but skips cordoned queue": {
+			initialJobs:           []*jobdb.Job{queuedJob.WithValidated(false), queuedJobCordonedQueue.WithValidated(false)},
+			cordonedQueues:        []string{"cordonedQueue"},
+			expectedQueued:        []string{queuedJob.Id(), queuedJobCordonedQueue.Id()},
+			expectedValidated:     []string{queuedJob.Id()},
+			expectedQueuedVersion: 0,
+		},
+		"Submit check fails fast when queue cache errors": {
+			initialJobs:           []*jobdb.Job{queuedJob.WithValidated(false)},
+			queueCacheError:       true,
+			expectedQueued:        []string{queuedJob.Id()},
 			expectedQueuedVersion: 0,
 		},
 		"Lease a single job from an update": {
@@ -935,6 +971,11 @@ func TestScheduler_TestCycle(t *testing.T) {
 			clusterRepo := &testExecutorRepository{
 				updateTimes: map[string]time.Time{"testExecutor": heartbeatTime},
 			}
+			var queues []*api.Queue
+			for _, name := range tc.cordonedQueues {
+				queues = append(queues, &api.Queue{Name: name, Cordoned: true})
+			}
+			queueCache := &testQueueCache{queues: queues, shouldError: tc.queueCacheError}
 			sched, err := NewScheduler(
 				testfixtures.NewJobDb(testfixtures.TestResourceListFactory),
 				jobRepo,
@@ -953,6 +994,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 				schedulerMetrics,
 				pricing.NoopBidPriceProvider{},
 				[]string{},
+				queueCache,
 			)
 			require.NoError(t, err)
 			sched.EnableAssertions()
@@ -968,7 +1010,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 			// run a scheduler cycle
 			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
 			err = sched.cycle(ctx, false, sched.leaderController.GetToken(), true, 1)
-			if tc.fetchError || tc.publishError || tc.scheduleError {
+			if tc.fetchError || tc.publishError || tc.scheduleError || tc.queueCacheError {
 				assert.Error(t, err)
 			} else {
 				require.NoError(t, err)
@@ -1145,6 +1187,7 @@ func TestRun(t *testing.T) {
 		schedulerMetrics,
 		pricing.NoopBidPriceProvider{},
 		[]string{},
+		&testQueueCache{},
 	)
 	require.NoError(t, err)
 	sched.EnableAssertions()
@@ -1336,6 +1379,7 @@ func TestJobPriceUpdates(t *testing.T) {
 				schedulerMetrics,
 				priceProvider,
 				tc.marketDrivenPools,
+				&testQueueCache{},
 			)
 			require.NoError(t, err)
 
@@ -1523,6 +1567,7 @@ func TestScheduler_TestSyncInitialState(t *testing.T) {
 				schedulerMetrics,
 				pricing.NoopBidPriceProvider{},
 				[]string{},
+				&testQueueCache{},
 			)
 			require.NoError(t, err)
 			sched.EnableAssertions()
@@ -1736,6 +1781,7 @@ func TestScheduler_TestSyncState(t *testing.T) {
 				schedulerMetrics,
 				pricing.NoopBidPriceProvider{},
 				[]string{},
+				&testQueueCache{},
 			)
 			require.NoError(t, err)
 			sched.EnableAssertions()
@@ -1797,6 +1843,18 @@ func (t *testSubmitChecker) Check(_ *armadacontext.Context, jobs []*jobdb.Job) (
 		}
 	}
 	return result, nil
+}
+
+type testQueueCache struct {
+	queues      []*api.Queue
+	shouldError bool
+}
+
+func (t *testQueueCache) GetAll(_ *armadacontext.Context) ([]*api.Queue, error) {
+	if t.shouldError {
+		return nil, fmt.Errorf("queue cache error")
+	}
+	return t.queues, nil
 }
 
 // Test implementations of the interfaces needed by the Scheduler
@@ -2983,6 +3041,7 @@ func TestCycleConsistency(t *testing.T) {
 					schedulerMetrics,
 					pricing.NoopBidPriceProvider{},
 					[]string{},
+					&testQueueCache{},
 				)
 				require.NoError(t, err)
 				scheduler.clock = testClock

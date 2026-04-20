@@ -67,9 +67,10 @@ type UpdateJobRunInstruction struct {
 	Debug            []byte
 	ExitCode         *int32
 	IngressAddresses map[int32]string
+	FailureInfo      map[string]any
 }
 
-// CreateJobErrorInstruction is an instruction to crearte a new row in the job_error table
+// CreateJobErrorInstruction is an instruction to create a new row in the job_error table
 type CreateJobErrorInstruction struct {
 	JobId string
 	Error []byte

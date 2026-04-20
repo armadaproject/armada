@@ -35,6 +35,7 @@ pub struct JobRequestItemBuilder<S> {
     labels: HashMap<String, String>,
     annotations: HashMap<String, String>,
     scheduler: String,
+    external_job_uri: String,
     ingress: Vec<IngressConfig>,
     services: Vec<ServiceConfig>,
     pod_specs: Vec<PodSpec>,
@@ -56,6 +57,7 @@ impl JobRequestItemBuilder<NoPodSpec> {
             labels: HashMap::new(),
             annotations: HashMap::new(),
             scheduler: String::new(),
+            external_job_uri: String::new(),
             ingress: Vec::new(),
             services: Vec::new(),
             pod_specs: Vec::new(),
@@ -137,6 +139,13 @@ impl<S> JobRequestItemBuilder<S> {
         self
     }
 
+    /// Set a URI identifying this job in an external system (e.g. Airflow).
+    #[must_use]
+    pub fn external_job_uri(mut self, uri: impl Into<String>) -> Self {
+        self.external_job_uri = uri.into();
+        self
+    }
+
     /// Replace the entire ingress config list.
     #[must_use]
     pub fn ingress(mut self, i: Vec<IngressConfig>) -> Self {
@@ -189,6 +198,7 @@ impl<S> JobRequestItemBuilder<S> {
             labels: self.labels,
             annotations: self.annotations,
             scheduler: self.scheduler,
+            external_job_uri: self.external_job_uri,
             ingress: self.ingress,
             services: self.services,
             pod_specs: specs,
@@ -219,6 +229,7 @@ impl JobRequestItemBuilder<HasPodSpec> {
             ingress: self.ingress,
             services: self.services,
             scheduler: self.scheduler,
+            external_job_uri: self.external_job_uri,
             // Deprecated singular fields — zeroed, not used by this builder
             pod_spec: None,
             required_node_labels: HashMap::new(),

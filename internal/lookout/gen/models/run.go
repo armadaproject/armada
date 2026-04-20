@@ -8,6 +8,7 @@ package models
 import (
 	"context"
 	"encoding/json"
+	stderrors "errors"
 
 	"github.com/go-openapi/errors"
 	"github.com/go-openapi/strfmt"
@@ -27,6 +28,9 @@ type Run struct {
 
 	// exit code
 	ExitCode *int32 `json:"exitCode,omitempty"`
+
+	// failure info
+	FailureInfo *RunFailureInfo `json:"failureInfo,omitempty"`
 
 	// finished
 	// Format: date-time
@@ -74,6 +78,10 @@ func (m *Run) Validate(formats strfmt.Registry) error {
 		res = append(res, err)
 	}
 
+	if err := m.validateFailureInfo(formats); err != nil {
+		res = append(res, err)
+	}
+
 	if err := m.validateFinished(formats); err != nil {
 		res = append(res, err)
 	}
@@ -112,6 +120,29 @@ func (m *Run) validateCluster(formats strfmt.Registry) error {
 
 	if err := validate.MinLength("cluster", "body", m.Cluster, 1); err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func (m *Run) validateFailureInfo(formats strfmt.Registry) error {
+	if swag.IsZero(m.FailureInfo) { // not required
+		return nil
+	}
+
+	if m.FailureInfo != nil {
+		if err := m.FailureInfo.Validate(formats); err != nil {
+			ve := new(errors.Validation)
+			if stderrors.As(err, &ve) {
+				return ve.ValidateName("failureInfo")
+			}
+			ce := new(errors.CompositeError)
+			if stderrors.As(err, &ce) {
+				return ce.ValidateName("failureInfo")
+			}
+
+			return err
+		}
 	}
 
 	return nil
@@ -259,8 +290,42 @@ func (m *Run) validateStarted(formats strfmt.Registry) error {
 	return nil
 }
 
-// ContextValidate validates this run based on context it is used
+// ContextValidate validate this run based on the context it is used
 func (m *Run) ContextValidate(ctx context.Context, formats strfmt.Registry) error {
+	var res []error
+
+	if err := m.contextValidateFailureInfo(ctx, formats); err != nil {
+		res = append(res, err)
+	}
+
+	if len(res) > 0 {
+		return errors.CompositeValidationError(res...)
+	}
+	return nil
+}
+
+func (m *Run) contextValidateFailureInfo(ctx context.Context, formats strfmt.Registry) error {
+
+	if m.FailureInfo != nil {
+
+		if swag.IsZero(m.FailureInfo) { // not required
+			return nil
+		}
+
+		if err := m.FailureInfo.ContextValidate(ctx, formats); err != nil {
+			ve := new(errors.Validation)
+			if stderrors.As(err, &ve) {
+				return ve.ValidateName("failureInfo")
+			}
+			ce := new(errors.CompositeError)
+			if stderrors.As(err, &ce) {
+				return ce.ValidateName("failureInfo")
+			}
+
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -275,6 +340,52 @@ func (m *Run) MarshalBinary() ([]byte, error) {
 // UnmarshalBinary interface implementation
 func (m *Run) UnmarshalBinary(b []byte) error {
 	var res Run
+	if err := swag.ReadJSON(b, &res); err != nil {
+		return err
+	}
+	*m = res
+	return nil
+}
+
+// RunFailureInfo run failure info
+//
+// swagger:model RunFailureInfo
+type RunFailureInfo struct {
+
+	// categories
+	Categories []string `json:"categories,omitempty"`
+
+	// container name
+	ContainerName string `json:"containerName,omitempty"`
+
+	// exit code
+	ExitCode int32 `json:"exitCode,omitempty"`
+
+	// termination message
+	TerminationMessage string `json:"terminationMessage,omitempty"`
+}
+
+// Validate validates this run failure info
+func (m *RunFailureInfo) Validate(formats strfmt.Registry) error {
+	return nil
+}
+
+// ContextValidate validates this run failure info based on context it is used
+func (m *RunFailureInfo) ContextValidate(ctx context.Context, formats strfmt.Registry) error {
+	return nil
+}
+
+// MarshalBinary interface implementation
+func (m *RunFailureInfo) MarshalBinary() ([]byte, error) {
+	if m == nil {
+		return nil, nil
+	}
+	return swag.WriteJSON(m)
+}
+
+// UnmarshalBinary interface implementation
+func (m *RunFailureInfo) UnmarshalBinary(b []byte) error {
+	var res RunFailureInfo
 	if err := swag.ReadJSON(b, &res); err != nil {
 		return err
 	}

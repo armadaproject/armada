@@ -1231,6 +1231,12 @@ func SwaggerJsonTemplate() string {
 		"    \"apiJobFailedEvent\": {\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
+		"        \"categories\": {\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"type\": \"string\"\n" +
+		"          }\n" +
+		"        },\n" +
 		"        \"cause\": {\n" +
 		"          \"$ref\": \"#/definitions/apiCause\"\n" +
 		"        },\n" +
@@ -1873,6 +1879,10 @@ func SwaggerJsonTemplate() string {
 		"          }\n" +
 		"        },\n" +
 		"        \"clientId\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"externalJobUri\": {\n" +
+		"          \"description\": \"URI identifying this job in an external system (e.g. Airflow).\\nIf not set, the server falls back to the \\\"armadaproject.io/externalJobUri\\\" annotation.\",\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
 		"        \"ingress\": {\n" +

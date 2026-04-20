@@ -370,6 +370,7 @@ func Run(config schedulerconfig.Configuration) error {
 		config.Metrics.JobCheckpointIntervals,
 		config.Metrics.JobStateMetricsResetInterval,
 		metricPublisher,
+		config.Metrics.ScalableUnitLabel,
 	)
 	if err != nil {
 		return err
@@ -396,6 +397,7 @@ func Run(config schedulerconfig.Configuration) error {
 		schedulerMetrics,
 		bidPriceProvider,
 		marketDrivenPools,
+		queueCache,
 	)
 	if err != nil {
 		return errors.WithMessage(err, "error creating scheduler")
@@ -417,6 +419,7 @@ func Run(config schedulerconfig.Configuration) error {
 		config.Metrics.QueuedJobPrimaryPoolOrder,
 		config.Metrics.RefreshInterval,
 		floatingResourceTypes,
+		config.Metrics.ScalableUnitLabel,
 	)
 	if err := prometheus.Register(metricsCollector); err != nil {
 		return errors.WithStack(err)

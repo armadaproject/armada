@@ -48,7 +48,7 @@ func generateEventMessages(t *testing.T, count int) []EventMessage {
 
 	for i := 0; i < count; i++ {
 		pod := makeTestPod(v1.PodRunning)
-		event, err := CreateEventForCurrentState(pod, "cluster-1")
+		event, err := CreateEventForCurrentState(pod, "cluster-1", nil)
 		require.NoError(t, err)
 		result = append(result, EventMessage{Event: event, JobRunId: uuid.New().String()})
 	}

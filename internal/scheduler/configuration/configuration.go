@@ -141,6 +141,9 @@ type MetricsConfig struct {
 	TrackedErrorRegexes []string
 	// Metrics are exported for these resources.
 	TrackedResourceNames []v1.ResourceName
+	// Node label key used to identify which scalable unit it belongs to.
+	// If empty, the scalableUnit label on metrics will be empty string.
+	ScalableUnitLabel string
 }
 
 type HistogramConfig struct {
