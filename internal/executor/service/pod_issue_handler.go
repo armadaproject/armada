@@ -17,6 +17,7 @@ import (
 	"github.com/armadaproject/armada/internal/executor/configuration"
 	executorContext "github.com/armadaproject/armada/internal/executor/context"
 	"github.com/armadaproject/armada/internal/executor/job"
+	"github.com/armadaproject/armada/internal/executor/metrics"
 	"github.com/armadaproject/armada/internal/executor/podchecks"
 	"github.com/armadaproject/armada/internal/executor/podchecks/failedpodchecks"
 	"github.com/armadaproject/armada/internal/executor/reporter"
@@ -445,6 +446,9 @@ func (p *PodIssueHandler) handleNonRetryableJobIssue(issue *issue) {
 			log.Errorf("Failed to report failed event for job %s because %s", issue.RunIssue.JobId, err)
 			return
 		}
+		// Increment only after successful Report so failed sends do not inflate the counter.
+		// RecordJobFailure is a no-op when classification didn't run (empty category).
+		metrics.RecordJobFailure(result.Category, result.Subcategory)
 		p.markIssueReported(issue.RunIssue)
 	}
 
