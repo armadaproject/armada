@@ -1220,12 +1220,6 @@
     "apiJobFailedEvent": {
       "type": "object",
       "properties": {
-        "categories": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
         "cause": {
           "$ref": "#/definitions/apiCause"
         },
@@ -1248,6 +1242,12 @@
             "type": "integer",
             "format": "int32"
           }
+        },
+        "failureCategory": {
+          "type": "string"
+        },
+        "failureSubcategory": {
+          "type": "string"
         },
         "jobId": {
           "type": "string"

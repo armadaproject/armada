@@ -9,7 +9,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/armadaproject/armada/internal/executor/categorizer"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
@@ -145,70 +144,6 @@ func TestExtractFailedPodContainerStatuses(t *testing.T) {
 	assert.Equal(t, len(containerStatuses), 1)
 	assert.Equal(t, containerStatuses[0].Message, customErrorPod.Status.ContainerStatuses[0].State.Terminated.Message)
 	assert.Equal(t, containerStatuses[0].KubernetesReason, armadaevents.KubernetesReason_AppError)
-}
-
-func TestExtractFailureInfo(t *testing.T) {
-	tests := map[string]struct {
-		pod                   *v1.Pod
-		result                categorizer.ClassifyResult
-		expectedExitCode      int32
-		expectedCategories    []string
-		expectedTermMsg       string
-		expectedContainerName string
-	}{
-		"OOM pod with category only": {
-			pod:                   oomPod,
-			result:                categorizer.ClassifyResult{Category: "oom"},
-			expectedExitCode:      137,
-			expectedCategories:    []string{"oom"},
-			expectedContainerName: "custom-error",
-		},
-		"OOM pod with category and subcategory": {
-			pod:                   oomPod,
-			result:                categorizer.ClassifyResult{Category: "infrastructure", Subcategory: "oom"},
-			expectedExitCode:      137,
-			expectedCategories:    []string{"infrastructure", "oom"},
-			expectedContainerName: "custom-error",
-		},
-		"subcategory without category is still included": {
-			pod:                   customErrorPod,
-			result:                categorizer.ClassifyResult{Subcategory: "orphan"},
-			expectedExitCode:      1,
-			expectedCategories:    []string{"orphan"},
-			expectedTermMsg:       "Custom error",
-			expectedContainerName: "custom-error",
-		},
-		"evicted pod": {
-			pod:              evictedPod,
-			expectedExitCode: 0,
-		},
-		"deadline exceeded pod": {
-			pod:              deadlineExceededPod,
-			expectedExitCode: 0,
-		},
-		"custom error pod": {
-			pod:                   customErrorPod,
-			expectedExitCode:      1,
-			expectedTermMsg:       "Custom error",
-			expectedContainerName: "custom-error",
-		},
-		"nil pod": {
-			pod:              nil,
-			expectedExitCode: 0,
-		},
-	}
-
-	for name, tc := range tests {
-		t.Run(name, func(t *testing.T) {
-			info := ExtractFailureInfo(tc.pod, tc.result)
-			assert.Equal(t, tc.expectedExitCode, info.ExitCode)
-			assert.Equal(t, tc.expectedCategories, info.Categories)
-			if tc.expectedTermMsg != "" {
-				assert.Equal(t, tc.expectedTermMsg, info.TerminationMessage)
-			}
-			assert.Equal(t, tc.expectedContainerName, info.ContainerName)
-		})
-	}
 }
 
 func createOomContainerStatus() v1.ContainerStatus {
