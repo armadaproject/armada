@@ -97,11 +97,13 @@ func TestPodIssueService_DeletesPodAndReportsFailed_IfStuckAndUnretryable(t *tes
 }
 
 func TestPodIssueService_FailureInfoIncludesCategories_WhenClassifierConfigured(t *testing.T) {
-	classifier, err := categorizer.NewClassifier([]categorizer.CategoryConfig{
-		{
-			Name: "oom-failure",
-			Rules: []categorizer.CategoryRule{
-				{OnConditions: []string{"OOMKilled"}},
+	classifier, err := categorizer.NewClassifier(categorizer.ErrorCategoriesConfig{
+		Categories: []categorizer.CategoryConfig{
+			{
+				Name: "oom-failure",
+				Rules: []categorizer.CategoryRule{
+					{OnConditions: []string{"OOMKilled"}},
+				},
 			},
 		},
 	})

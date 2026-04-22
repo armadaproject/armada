@@ -9,6 +9,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/armadaproject/armada/internal/executor/categorizer"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
@@ -149,15 +150,32 @@ func TestExtractFailedPodContainerStatuses(t *testing.T) {
 func TestExtractFailureInfo(t *testing.T) {
 	tests := map[string]struct {
 		pod                   *v1.Pod
-		categories            []string
+		result                categorizer.ClassifyResult
 		expectedExitCode      int32
+		expectedCategories    []string
 		expectedTermMsg       string
 		expectedContainerName string
 	}{
-		"OOM pod": {
+		"OOM pod with category only": {
 			pod:                   oomPod,
-			categories:            []string{"oom"},
+			result:                categorizer.ClassifyResult{Category: "oom"},
 			expectedExitCode:      137,
+			expectedCategories:    []string{"oom"},
+			expectedContainerName: "custom-error",
+		},
+		"OOM pod with category and subcategory": {
+			pod:                   oomPod,
+			result:                categorizer.ClassifyResult{Category: "infrastructure", Subcategory: "oom"},
+			expectedExitCode:      137,
+			expectedCategories:    []string{"infrastructure", "oom"},
+			expectedContainerName: "custom-error",
+		},
+		"subcategory without category is still included": {
+			pod:                   customErrorPod,
+			result:                categorizer.ClassifyResult{Subcategory: "orphan"},
+			expectedExitCode:      1,
+			expectedCategories:    []string{"orphan"},
+			expectedTermMsg:       "Custom error",
 			expectedContainerName: "custom-error",
 		},
 		"evicted pod": {
@@ -182,9 +200,9 @@ func TestExtractFailureInfo(t *testing.T) {
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			info := ExtractFailureInfo(tc.pod, tc.categories)
+			info := ExtractFailureInfo(tc.pod, tc.result)
 			assert.Equal(t, tc.expectedExitCode, info.ExitCode)
-			assert.Equal(t, tc.categories, info.Categories)
+			assert.Equal(t, tc.expectedCategories, info.Categories)
 			if tc.expectedTermMsg != "" {
 				assert.Equal(t, tc.expectedTermMsg, info.TerminationMessage)
 			}
