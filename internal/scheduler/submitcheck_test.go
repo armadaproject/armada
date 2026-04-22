@@ -330,8 +330,8 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 				MaxDurationPerQueue: 9 * time.Second,
 			},
 			expectedResult: map[string]schedulingResult{
-				smallJob1.Id(): {isSchedulable: true, pools: []string{"cpu"}},
-				smallJob2.Id(): {isSchedulable: true, pools: []string{"cpu"}},
+				smallJob1.Id():       {isSchedulable: true, pools: []string{"cpu"}},
+				smallJob2.Id():       {isSchedulable: true, pools: []string{"cpu"}},
 				largeGangJob[0].Id(): {isSchedulable: false, pools: []string(nil), reason: ""},
 				largeGangJob[1].Id(): {isSchedulable: false, pools: []string(nil), reason: ""},
 				largeGangJob[2].Id(): {isSchedulable: false, pools: []string(nil), reason: ""},

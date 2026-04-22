@@ -34,7 +34,7 @@ type Configuration struct {
 	// Configuration controlling metrics
 	Metrics MetricsConfig
 	// Scheduler configuration (this is shared with the old scheduler)
-	Scheduling SchedulingConfig
+	Scheduling  SchedulingConfig
 	Auth        authconfig.AuthConfig
 	Grpc        grpcconfig.GrpcConfig
 	Http        HttpConfig
