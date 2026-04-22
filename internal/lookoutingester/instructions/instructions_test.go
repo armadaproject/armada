@@ -154,19 +154,16 @@ var expectedPreempted = model.UpdateJobInstruction{
 	LastTransitionTimeSeconds: pointer.Int64(testfixtures.BaseTime.Unix()),
 }
 
-var expectedFailedRunWithFailureInfo = model.UpdateJobRunInstruction{
-	RunId:       testfixtures.RunId,
-	Node:        pointer.String(testfixtures.NodeName),
-	Finished:    &testfixtures.BaseTime,
-	JobRunState: pointer.Int32(lookout.JobRunFailedOrdinal),
-	Error:       []byte(testfixtures.ErrMsg),
-	Debug:       []byte(testfixtures.DebugMsg),
-	ExitCode:    pointer.Int32(testfixtures.ExitCode),
-	FailureInfo: map[string]any{
-		"exitCode":           int32(testfixtures.ExitCode),
-		"terminationMessage": "OOM killed by kernel",
-		"categories":         []string{"RESOURCE_LIMIT", "MEMORY"},
-	},
+var expectedFailedRunWithCategory = model.UpdateJobRunInstruction{
+	RunId:              testfixtures.RunId,
+	Node:               pointer.String(testfixtures.NodeName),
+	Finished:           &testfixtures.BaseTime,
+	JobRunState:        pointer.Int32(lookout.JobRunFailedOrdinal),
+	Error:              []byte(testfixtures.ErrMsg),
+	Debug:              []byte(testfixtures.DebugMsg),
+	ExitCode:           pointer.Int32(testfixtures.ExitCode),
+	FailureCategory:    pointer.String("infrastructure"),
+	FailureSubcategory: pointer.String("oom"),
 }
 
 var expectedReconciliationErrRun = model.UpdateJobRunInstruction{
@@ -397,13 +394,13 @@ func TestConvert(t *testing.T) {
 				MessageIds:      []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 		},
-		"job run failed with failure info": {
+		"job run failed with category": {
 			events: &utils.EventsWithIds[*armadaevents.EventSequence]{
-				Events:     []*armadaevents.EventSequence{testfixtures.NewEventSequence(testfixtures.JobRunFailedWithFailureInfo)},
+				Events:     []*armadaevents.EventSequence{testfixtures.NewEventSequence(testfixtures.JobRunFailedWithCategory)},
 				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 			expected: &model.InstructionSet{
-				JobRunsToUpdate: []*model.UpdateJobRunInstruction{&expectedFailedRunWithFailureInfo},
+				JobRunsToUpdate: []*model.UpdateJobRunInstruction{&expectedFailedRunWithCategory},
 				MessageIds:      []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 		},
@@ -507,7 +504,7 @@ func TestConvert(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			converter := NewInstructionConverter(metrics.Get().Metrics, userAnnotationPrefix, []string{}, &compress.NoOpCompressor{}, true)
+			converter := NewInstructionConverter(metrics.Get().Metrics, userAnnotationPrefix, []string{}, &compress.NoOpCompressor{})
 			decompressor := &compress.NoOpDecompressor{}
 			instructionSet := converter.Convert(armadacontext.TODO(), tc.events)
 			require.Equal(t, len(tc.expected.JobsToCreate), len(instructionSet.JobsToCreate))
@@ -580,7 +577,7 @@ func TestExternalJobUriProtoFieldPreferred(t *testing.T) {
 				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			}
 
-			converter := NewInstructionConverter(metrics.Get().Metrics, userAnnotationPrefix, []string{}, &compress.NoOpCompressor{}, true)
+			converter := NewInstructionConverter(metrics.Get().Metrics, userAnnotationPrefix, []string{}, &compress.NoOpCompressor{})
 			instructionSet := converter.Convert(armadacontext.TODO(), events)
 			require.Len(t, instructionSet.JobsToCreate, 1)
 			assert.Equal(t, tc.expected, instructionSet.JobsToCreate[0].ExternalJobUri)
@@ -627,7 +624,7 @@ func TestTruncatesStringsThatAreTooLong(t *testing.T) {
 		MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 	}
 
-	converter := NewInstructionConverter(metrics.Get().Metrics, userAnnotationPrefix, []string{}, &compress.NoOpCompressor{}, true)
+	converter := NewInstructionConverter(metrics.Get().Metrics, userAnnotationPrefix, []string{}, &compress.NoOpCompressor{})
 	actual := converter.Convert(armadacontext.TODO(), events)
 
 	// String lengths obtained from database schema
@@ -698,98 +695,4 @@ func TestSanitizeForJsonb(t *testing.T) {
 	assert.Equal(t, "ab", sanitizeForJsonb("a\x00b"))
 	assert.Equal(t, "", sanitizeForJsonb("\x00"))
 	assert.Equal(t, "", sanitizeForJsonb(""))
-}
-
-func TestFailureInfoToMap(t *testing.T) {
-	tests := map[string]struct {
-		fi       *armadaevents.FailureInfo
-		expected map[string]any
-	}{
-		"all fields populated": {
-			fi: &armadaevents.FailureInfo{
-				ExitCode:           137,
-				TerminationMessage: "OOM killed",
-				Categories:         []string{"RESOURCE_LIMIT"},
-				ContainerName:      "main",
-			},
-			expected: map[string]any{
-				"exitCode":           int32(137),
-				"terminationMessage": "OOM killed",
-				"categories":         []string{"RESOURCE_LIMIT"},
-				"containerName":      "main",
-			},
-		},
-		"only exit code": {
-			fi: &armadaevents.FailureInfo{
-				ExitCode: 1,
-			},
-			expected: map[string]any{
-				"exitCode": int32(1),
-			},
-		},
-		"zero exit code omitted": {
-			fi: &armadaevents.FailureInfo{
-				TerminationMessage: "something went wrong",
-			},
-			expected: map[string]any{
-				"terminationMessage": "something went wrong",
-			},
-		},
-		"all fields zero returns nil": {
-			fi:       &armadaevents.FailureInfo{},
-			expected: nil,
-		},
-		"termination message truncated": {
-			fi: &armadaevents.FailureInfo{
-				TerminationMessage: strings.Repeat("x", maxTerminationMessageLen+100),
-			},
-			expected: map[string]any{
-				"terminationMessage": strings.Repeat("x", maxTerminationMessageLen),
-			},
-		},
-		"termination message sanitized of null bytes": {
-			fi: &armadaevents.FailureInfo{
-				TerminationMessage: "OOM\x00killed",
-			},
-			expected: map[string]any{
-				"terminationMessage": "OOMkilled",
-			},
-		},
-		"multiple categories": {
-			fi: &armadaevents.FailureInfo{
-				Categories: []string{"RESOURCE_LIMIT", "MEMORY"},
-			},
-			expected: map[string]any{
-				"categories": []string{"RESOURCE_LIMIT", "MEMORY"},
-			},
-		},
-	}
-	for name, tc := range tests {
-		t.Run(name, func(t *testing.T) {
-			result := failureInfoToMap("test-job", tc.fi)
-			assert.Equal(t, tc.expected, result)
-		})
-	}
-}
-
-func TestJobRunFailedTerminalNilFailureInfoWhenFlagDisabled(t *testing.T) {
-	converter := NewInstructionConverter(metrics.Get().Metrics, userAnnotationPrefix, []string{}, &compress.NoOpCompressor{}, false)
-	events := &utils.EventsWithIds[*armadaevents.EventSequence]{
-		Events:     []*armadaevents.EventSequence{testfixtures.NewEventSequence(testfixtures.JobRunFailed)},
-		MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
-	}
-	instructionSet := converter.Convert(armadacontext.TODO(), events)
-	require.Len(t, instructionSet.JobRunsToUpdate, 1)
-	assert.Nil(t, instructionSet.JobRunsToUpdate[0].FailureInfo)
-}
-
-func TestJobRunFailedWithFailureInfoIgnoredWhenFlagDisabled(t *testing.T) {
-	converter := NewInstructionConverter(metrics.Get().Metrics, userAnnotationPrefix, []string{}, &compress.NoOpCompressor{}, false)
-	events := &utils.EventsWithIds[*armadaevents.EventSequence]{
-		Events:     []*armadaevents.EventSequence{testfixtures.NewEventSequence(testfixtures.JobRunFailedWithFailureInfo)},
-		MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
-	}
-	instructionSet := converter.Convert(armadacontext.TODO(), events)
-	require.Len(t, instructionSet.JobRunsToUpdate, 1)
-	assert.Equal(t, map[string]any{}, instructionSet.JobRunsToUpdate[0].FailureInfo)
 }
