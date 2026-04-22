@@ -1,6 +1,7 @@
 import { useMutation } from "@tanstack/react-query"
 
 import { getErrorMessage } from "../../common/utils"
+import { getConfig } from "../../config"
 import { JobSet } from "../../models/lookoutModels"
 
 import { useApiClients } from "../apiClients"
@@ -20,10 +21,19 @@ export interface ReprioritizeJobSetsVariables {
 }
 
 export const useReprioritizeJobSets = () => {
+  const config = getConfig()
   const { submitApi } = useApiClients()
 
   return useMutation<ReprioritizeJobSetsResponse, string, ReprioritizeJobSetsVariables>({
     mutationFn: async ({ queue, jobSets, newPriority }) => {
+      if (config.fakeDataEnabled) {
+        await new Promise((r) => setTimeout(r, 1_000))
+        return {
+          reprioritizedJobSets: jobSets,
+          failedJobSetReprioritizations: [],
+        }
+      }
+
       const response: ReprioritizeJobSetsResponse = {
         reprioritizedJobSets: [],
         failedJobSetReprioritizations: [],

@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query"
 
+import { makeFakeJobSpec } from "../../common/fakeJobsUtils"
 import { getErrorMessage } from "../../common/utils"
 import { getConfig } from "../../config"
 import { useAuthenticatedFetch } from "../../oidcAuth"
@@ -13,7 +14,7 @@ export const useGetJobSpec = (jobId: string, enabled = true) => {
     queryFn: async ({ signal }) => {
       try {
         if (config.fakeDataEnabled) {
-          return {}
+          return makeFakeJobSpec(jobId)
         }
 
         const response = await authenticatedFetch("/api/v1/jobSpec", {
