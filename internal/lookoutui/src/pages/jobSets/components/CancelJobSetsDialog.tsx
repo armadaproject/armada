@@ -5,10 +5,9 @@ import { ErrorBoundary } from "react-error-boundary"
 
 import { ApiResult, PlatformCancelReason, RequestStatus } from "../../../common/utils"
 import { AlertErrorFallback } from "../../../components/AlertErrorFallback"
-import { useGetAccessToken } from "../../../oidcAuth"
+import { JobSet } from "../../../models/lookoutModels"
 import { ApiJobState } from "../../../openapi/armada"
-import { JobSet } from "../../../services/JobService"
-import { CancelJobSetsResponse, UpdateJobSetsService } from "../../../services/lookout/UpdateJobSetsService"
+import { CancelJobSetsResponse, useCancelJobSets } from "../../../services/lookout/useCancelJobSets"
 
 import CancelJobSets from "./cancel-job-sets/CancelJobSets"
 import CancelJobSetsOutcome from "./cancel-job-sets/CancelJobSetsOutcome"
@@ -19,7 +18,6 @@ type CancelJobSetsDialogProps = {
   isOpen: boolean
   queue: string
   selectedJobSets: JobSet[]
-  updateJobSetsService: UpdateJobSetsService
   onResult: (result: ApiResult) => void
   onClose: () => void
 }
@@ -55,7 +53,7 @@ export default function CancelJobSetsDialog(props: CancelJobSetsDialogProps) {
 
   const statesToCancel = getStatesToCancel(includeQueued, includeRunning)
 
-  const getAccessToken = useGetAccessToken()
+  const cancelJobSetsMutation = useCancelJobSets()
 
   async function cancelJobSets() {
     if (requestStatus === "Loading") {
@@ -64,14 +62,12 @@ export default function CancelJobSetsDialog(props: CancelJobSetsDialogProps) {
 
     setRequestStatus("Loading")
     const reason = isPlatformCancel ? PlatformCancelReason : ""
-    const accessToken = await getAccessToken()
-    const cancelJobSetsResponse = await props.updateJobSetsService.cancelJobSets(
-      props.queue,
-      jobSetsToCancel,
-      statesToCancel,
+    const cancelJobSetsResponse = await cancelJobSetsMutation.mutateAsync({
+      queue: props.queue,
+      jobSets: jobSetsToCancel,
+      states: statesToCancel,
       reason,
-      accessToken,
-    )
+    })
     setRequestStatus("Idle")
 
     setResponse(cancelJobSetsResponse)

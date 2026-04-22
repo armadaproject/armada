@@ -103,7 +103,21 @@ func TestConvertEventSequence(t *testing.T) {
 		},
 		"job preemption requested": {
 			events:   []*armadaevents.EventSequence_Event{f.JobPreemptionRequested},
-			expected: []DbOperation{MarkRunsForJobPreemptRequested{JobSetKey{queue: f.Queue, jobSet: f.JobsetName}: map[string]string{f.JobId: " | Preempted by " + f.UserId}}},
+			expected: []DbOperation{MarkRunsForJobPreemptRequested{JobSetKey{queue: f.Queue, jobSet: f.JobsetName}: map[string]string{f.JobId: "Preempted by " + f.UserId}}},
+		},
+		"job preemption requested with reason": {
+			events: []*armadaevents.EventSequence_Event{
+				{
+					Created: f.BaseTimeProto,
+					Event: &armadaevents.EventSequence_Event_JobPreemptionRequested{
+						JobPreemptionRequested: &armadaevents.JobPreemptionRequested{
+							JobId:  f.JobId,
+							Reason: "low priority",
+						},
+					},
+				},
+			},
+			expected: []DbOperation{MarkRunsForJobPreemptRequested{JobSetKey{queue: f.Queue, jobSet: f.JobsetName}: map[string]string{f.JobId: "Preempted by " + f.UserId + " - low priority"}}},
 		},
 		"job run preempted": {
 			events:   []*armadaevents.EventSequence_Event{f.JobRunPreempted},
@@ -568,4 +582,22 @@ func multipleEventsMultipleTimeStamps() []*armadaevents.EventSequence_Event {
 	anotherCancelled.Created = created
 	anotherSucceeded.Created = created
 	return append(events, anotherCancelled, anotherSucceeded)
+}
+
+func TestBuildPreemptionReason(t *testing.T) {
+	tests := map[string]struct {
+		user     string
+		reason   string
+		expected string
+	}{
+		"user and reason": {user: "test-user", reason: "low priority", expected: "Preempted by test-user - low priority"},
+		"user only":       {user: "test-user", reason: "", expected: "Preempted by test-user"},
+		"reason only":     {user: "", reason: "low priority", expected: "low priority"},
+		"neither":         {user: "", reason: "", expected: ""},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, buildPreemptionReason(tc.reason, tc.user))
+		})
+	}
 }
