@@ -231,7 +231,8 @@ func (srv *SubmitChecker) Check(ctx *armadacontext.Context, jobs []*jobdb.Job) (
 
 		jobsByGang := map[string][]*jobdb.Job{}
 		for _, job := range jobsInQueue {
-			if gid := job.GetGangInfo().Id(); gid != "" {
+			if job.IsInGang() {
+				gid := job.GetGangInfo().Id()
 				jobsByGang[gid] = append(jobsByGang[gid], job)
 			}
 		}
@@ -241,19 +242,20 @@ func (srv *SubmitChecker) Check(ctx *armadacontext.Context, jobs []*jobdb.Job) (
 			if queueDeadline.exceeded(srv.clock.Now()) || globalDeadline.exceeded(srv.clock.Now()) {
 				break
 			}
-			gangId := job.GetGangInfo().Id()
-			if gangId == "" {
+
+			if !job.IsInGang() {
 				results[job.Id()] = srv.getIndividualSchedulingResult(job, state)
-				continue
+			} else {
+				gangId := job.GetGangInfo().Id()
+				if processedGangs[gangId] {
+					continue
+				}
+				gangResult := srv.getGangSchedulingResult(jobsByGang[gangId], state)
+				for _, gj := range jobsByGang[gangId] {
+					results[gj.Id()] = gangResult
+				}
+				processedGangs[gangId] = true
 			}
-			if processedGangs[gangId] {
-				continue
-			}
-			gangResult := srv.getGangSchedulingResult(jobsByGang[gangId], state)
-			for _, gj := range jobsByGang[gangId] {
-				results[gj.Id()] = gangResult
-			}
-			processedGangs[gangId] = true
 		}
 	}
 	ctx.Infof("Checked %d/%d jobs in %s", len(results), len(jobs), srv.clock.Since(start))
