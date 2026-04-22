@@ -66,11 +66,13 @@ func TestCreateEventForCurrentState_WhenPodFailed_WithClassifier(t *testing.T) {
 		},
 	}
 
-	classifier, err := categorizer.NewClassifier([]categorizer.CategoryConfig{
-		{
-			Name: "custom-error",
-			Rules: []categorizer.CategoryRule{
-				{OnExitCodes: &errormatch.ExitCodeMatcher{Operator: errormatch.ExitCodeOperatorIn, Values: []int32{74}}},
+	classifier, err := categorizer.NewClassifier(categorizer.ErrorCategoriesConfig{
+		Categories: []categorizer.CategoryConfig{
+			{
+				Name: "custom-error",
+				Rules: []categorizer.CategoryRule{
+					{OnExitCodes: &errormatch.ExitCodeMatcher{Operator: errormatch.ExitCodeOperatorIn, Values: []int32{74}}},
+				},
 			},
 		},
 	})
