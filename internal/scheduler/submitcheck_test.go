@@ -63,7 +63,6 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 		expectedResult    map[string]schedulingResult
 		queue             *api.Queue
 		queues            []*api.Queue
-		schedulingConfig  *configuration.SchedulingConfig
 		submitCheckConfig *configuration.SubmitCheckConfig
 		clockStep         time.Duration
 	}{
@@ -380,9 +379,6 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 			}
 
 			testConfig := schedulingConfig
-			if tc.schedulingConfig != nil {
-				testConfig = *tc.schedulingConfig
-			}
 
 			ctrl := gomock.NewController(t)
 			mockExecutorRepo := schedulermocks.NewMockExecutorRepository(ctrl)
