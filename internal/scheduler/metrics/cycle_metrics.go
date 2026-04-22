@@ -795,7 +795,7 @@ func (m *cycleMetrics) publishCycleMetrics(ctx *armadacontext.Context, result sc
 				BillableAllocationByResourceType: armadamaps.MapValues(qCtx.GetBillableResource().ToMap(), toQtyPtr),
 			}
 			if override := qCtx.GetBillablePriceOverride(); override != nil {
-				queueMetrics[qName].XBillablePriceOverride = &metricevents.QueueMetrics_BillablePriceOverride{
+				queueMetrics[qName].BillablePriceOverridePresence = &metricevents.QueueMetrics_BillablePriceOverride{
 					BillablePriceOverride: *override,
 				}
 			}

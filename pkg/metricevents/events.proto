@@ -31,7 +31,9 @@ message QueueMetrics{
   // Override price for the price-setting queue (second-price mechanics).
   // When present, billing components should use this price instead of
   // the pool spot price for billing this queue.
-  optional double billable_price_override = 8;
+  oneof billable_price_override_presence {
+    double billable_price_override = 8;
+  }
 }
 
 message CycleMetrics {
