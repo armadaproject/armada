@@ -1231,12 +1231,6 @@ func SwaggerJsonTemplate() string {
 		"    \"apiJobFailedEvent\": {\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
-		"        \"categories\": {\n" +
-		"          \"type\": \"array\",\n" +
-		"          \"items\": {\n" +
-		"            \"type\": \"string\"\n" +
-		"          }\n" +
-		"        },\n" +
 		"        \"cause\": {\n" +
 		"          \"$ref\": \"#/definitions/apiCause\"\n" +
 		"        },\n" +
@@ -1259,6 +1253,12 @@ func SwaggerJsonTemplate() string {
 		"            \"type\": \"integer\",\n" +
 		"            \"format\": \"int32\"\n" +
 		"          }\n" +
+		"        },\n" +
+		"        \"failureCategory\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"failureSubcategory\": {\n" +
+		"          \"type\": \"string\"\n" +
 		"        },\n" +
 		"        \"jobId\": {\n" +
 		"          \"type\": \"string\"\n" +
