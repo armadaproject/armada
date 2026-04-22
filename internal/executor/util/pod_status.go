@@ -7,7 +7,6 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/errormatch"
 	"github.com/armadaproject/armada/internal/common/util"
-	"github.com/armadaproject/armada/internal/executor/categorizer"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
@@ -108,37 +107,6 @@ func ExtractFailedPodContainerStatuses(pod *v1.Pod, clusterId string) []*armadae
 		returnStatuses = append(returnStatuses, containerInfo)
 	}
 	return returnStatuses
-}
-
-// ExtractFailureInfo builds a FailureInfo proto from pod status and a classifier result.
-// The category and subcategory are packed into Categories (category first) so downstream
-// readers that already consume the Categories list see the first-match-wins classification.
-// Empty values are filtered out, preserving the prior no-category-found behavior.
-// It also extracts the exit code and termination message from the first failed container.
-func ExtractFailureInfo(pod *v1.Pod, result categorizer.ClassifyResult) *armadaevents.FailureInfo {
-	var categories []string
-	if result.Category != "" {
-		categories = append(categories, result.Category)
-	}
-	if result.Subcategory != "" {
-		categories = append(categories, result.Subcategory)
-	}
-	info := &armadaevents.FailureInfo{
-		Categories: categories,
-	}
-
-	if pod != nil {
-		for _, cs := range GetPodContainerStatuses(pod) {
-			if cs.State.Terminated != nil && cs.State.Terminated.ExitCode != 0 {
-				info.ExitCode = cs.State.Terminated.ExitCode
-				info.TerminationMessage = cs.State.Terminated.Message
-				info.ContainerName = cs.Name
-				break
-			}
-		}
-	}
-
-	return info
 }
 
 func isOom(containerStatus v1.ContainerStatus) bool {

@@ -96,13 +96,13 @@ func TestPodIssueService_DeletesPodAndReportsFailed_IfStuckAndUnretryable(t *tes
 	assert.Contains(t, failedEvent.JobRunErrors.Errors[0].GetPodError().DebugMessage, "Image pull has failed")
 }
 
-func TestPodIssueService_FailureInfoIncludesCategories_WhenClassifierConfigured(t *testing.T) {
+func TestPodIssueService_FailureCategorySet_WhenClassifierConfigured(t *testing.T) {
 	classifier, err := categorizer.NewClassifier(categorizer.ErrorCategoriesConfig{
 		Categories: []categorizer.CategoryConfig{
 			{
 				Name: "oom-failure",
 				Rules: []categorizer.CategoryRule{
-					{OnConditions: []string{"OOMKilled"}},
+					{OnConditions: []string{"OOMKilled"}, Subcategory: "kernel-oom"},
 				},
 			},
 		},
@@ -147,9 +147,10 @@ func TestPodIssueService_FailureInfoIncludesCategories_WhenClassifierConfigured(
 	failedEvent, ok := eventReporter.ReceivedEvents[0].Event.Events[0].Event.(*armadaevents.EventSequence_Event_JobRunErrors)
 	require.True(t, ok)
 
-	failureInfo := failedEvent.JobRunErrors.Errors[0].GetFailureInfo()
-	require.NotNil(t, failureInfo, "FailureInfo should be set on failed events")
-	assert.Equal(t, []string{"oom-failure"}, failureInfo.Categories)
+	assert.Equal(t, "oom-failure", failedEvent.JobRunErrors.Errors[0].GetFailureCategory())
+	assert.Equal(t, "kernel-oom", failedEvent.JobRunErrors.Errors[0].GetFailureSubcategory())
+	// Verify ContainerErrors are populated (not empty) so retry engine has fallback data
+	assert.NotEmpty(t, failedEvent.JobRunErrors.Errors[0].GetPodError().ContainerErrors)
 }
 
 func TestPodIssueService_OnlyDeletesPod_IfStuckTerminatingButDeletedByExecutor(t *testing.T) {
