@@ -62,6 +62,7 @@ func TestJobIsPartitionedWithTwoPartitions(t *testing.T) {
 			require.NoError(t, rows.Scan(&name))
 			partitions = append(partitions, name)
 		}
+		require.NoError(t, rows.Err())
 		assert.Equal(t, []string{"job_active", "job_terminated"}, partitions)
 		return nil
 	})
@@ -158,6 +159,7 @@ func TestSelectFromParentReturnsAllPartitions(t *testing.T) {
 			require.NoError(t, rows.Scan(&id))
 			ids = append(ids, id)
 		}
+		require.NoError(t, rows.Err())
 		assert.Equal(t, []string{"jobActive1", "jobActive2", "jobTerm1", "jobTerm2"}, ids)
 		return nil
 	})
@@ -180,6 +182,7 @@ func TestPartitionPruningForActiveStates(t *testing.T) {
 			plan.WriteString(line)
 			plan.WriteString("\n")
 		}
+		require.NoError(t, rows.Err())
 		planText := plan.String()
 		assert.Contains(t, planText, "job_active")
 		assert.NotContains(t, planText, "job_terminated")
@@ -232,6 +235,7 @@ func TestExpectedIndexesExist(t *testing.T) {
 				require.NoError(t, rows.Scan(&name))
 				found[name] = true
 			}
+			require.NoError(t, rows.Err())
 			rows.Close()
 
 			for _, idx := range indexes {
@@ -239,25 +243,6 @@ func TestExpectedIndexesExist(t *testing.T) {
 					"expected index %q on table %q, found: %v", idx, table, found)
 			}
 		}
-		return nil
-	})
-	require.NoError(t, err)
-}
-
-func TestAnnotationsNotNullCheckConstraintExists(t *testing.T) {
-	err := withLookoutHCDb(func(db *pgxpool.Pool) error {
-		ctx := context.Background()
-
-		var count int
-		err := db.QueryRow(ctx, `
-			SELECT count(*) FROM pg_constraint c
-			JOIN pg_class t ON t.oid = c.conrelid
-			WHERE t.relname = 'job'
-			  AND c.conname = 'job_annotations_not_null'
-			  AND c.contype = 'c'
-		`).Scan(&count)
-		require.NoError(t, err)
-		assert.Equal(t, 1, count)
 		return nil
 	})
 	require.NoError(t, err)

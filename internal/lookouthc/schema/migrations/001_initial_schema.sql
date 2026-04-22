@@ -43,8 +43,7 @@ CREATE TABLE job (
     annotations                  jsonb         NOT NULL,
     external_job_uri             varchar(1024) NULL,
     cancel_user                  varchar(512)  NULL,
-    PRIMARY KEY (job_id, state),
-    CONSTRAINT job_annotations_not_null CHECK (annotations IS NOT NULL)
+    PRIMARY KEY (job_id, state)
 ) PARTITION BY LIST (state);
 
 CREATE TABLE job_active PARTITION OF job
