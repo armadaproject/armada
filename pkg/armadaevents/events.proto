@@ -422,7 +422,7 @@ message JobRunErrors {
 // This message may only be published to the log as part of a JobRunError message.
 // TODO: Check if the container status contained any useful info for non-failed containers.
 message Error {
-    reserved 5,10;
+    reserved 5, 10, 15;
     // If true, this error represents an unrecoverable failure and Armada has given up on this job or job run.
     bool terminal = 1;
     // Additional information for this particular combination of component and error. May be set to nil.
@@ -439,9 +439,11 @@ message Error {
         JobRejected jobRejected = 13;
         ReconciliationError reconciliationError = 14;
     }
-    // Structured failure metadata (exit code, condition, categories).
-    // Set by the executor for pod failures; nil for non-pod errors.
-    FailureInfo failure_info = 15;
+    // Mutually exclusive failure category from the first matching executor classifier rule.
+    // Suitable as a metric dimension that sums to 100%.
+    string failure_category = 16;
+    // Optional tag from the matching classifier rule for drill-down.
+    string failure_subcategory = 17;
 }
 
 // Represents an error associated with a particular Kubernetes resource.
@@ -536,19 +538,6 @@ message ReconciliationError {
   string message = 1;
 }
 
-// Structured failure metadata extracted from pod status at the executor.
-// Attached to Error messages to enable observability in Lookout and
-// category-based filtering.
-message FailureInfo {
-    // Exit code of the first failed container (0 if no container terminated with failure).
-    int32 exit_code = 1;
-    // Termination message from the first failed container.
-    string termination_message = 2;
-    // Executor-assigned category labels, matched from ErrorCategories config.
-    repeated string categories = 3;
-    // Name of the container that exit_code and termination_message were extracted from.
-    string container_name = 4;
-}
 
 // Message to indicate that a JobRun has been preempted.
 message JobRunPreempted{

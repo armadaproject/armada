@@ -492,7 +492,7 @@ var JobRunFailed = &armadaevents.EventSequence_Event{
 	},
 }
 
-var JobRunFailedWithFailureInfo = &armadaevents.EventSequence_Event{
+var JobRunFailedWithCategory = &armadaevents.EventSequence_Event{
 	Created: testfixtures.BasetimeProto,
 	Event: &armadaevents.EventSequence_Event_JobRunErrors{
 		JobRunErrors: &armadaevents.JobRunErrors{
@@ -511,11 +511,8 @@ var JobRunFailedWithFailureInfo = &armadaevents.EventSequence_Event{
 							},
 						},
 					},
-					FailureInfo: &armadaevents.FailureInfo{
-						ExitCode:           ExitCode,
-						TerminationMessage: "OOM killed by kernel",
-						Categories:         []string{"RESOURCE_LIMIT", "MEMORY"},
-					},
+					FailureCategory:    "infrastructure",
+					FailureSubcategory: "oom",
 				},
 			},
 		},

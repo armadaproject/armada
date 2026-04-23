@@ -24,15 +24,14 @@ import (
 )
 
 const (
-	maxQueueLen              = 512
-	maxOwnerLen              = 512
-	maxJobSetLen             = 1024
-	maxAnnotationKeyLen      = 1024
-	maxAnnotationValLen      = 1024
-	maxPriorityClassLen      = 63
-	maxClusterLen            = 512
-	maxNodeLen               = 512
-	maxTerminationMessageLen = 4096
+	maxQueueLen         = 512
+	maxOwnerLen         = 512
+	maxJobSetLen        = 1024
+	maxAnnotationKeyLen = 1024
+	maxAnnotationValLen = 1024
+	maxPriorityClassLen = 63
+	maxClusterLen       = 512
+	maxNodeLen          = 512
 )
 
 type HasNodeName interface {
@@ -40,11 +39,10 @@ type HasNodeName interface {
 }
 
 type InstructionConverter struct {
-	metrics                    *metrics.Metrics
-	userAnnotationPrefix       string
-	blocklistAnnotations       map[string]struct{}
-	compressor                 compress.Compressor
-	enableJobRunFailureInfoMap bool
+	metrics              *metrics.Metrics
+	userAnnotationPrefix string
+	blocklistAnnotations map[string]struct{}
+	compressor           compress.Compressor
 }
 
 type jobResources struct {
@@ -54,17 +52,16 @@ type jobResources struct {
 	Gpu              int64
 }
 
-func NewInstructionConverter(m *metrics.Metrics, userAnnotationPrefix string, blocklistAnnotations []string, compressor compress.Compressor, enableJobRunFailureInfoMap bool) *InstructionConverter {
+func NewInstructionConverter(m *metrics.Metrics, userAnnotationPrefix string, blocklistAnnotations []string, compressor compress.Compressor) *InstructionConverter {
 	blocked := make(map[string]struct{}, len(blocklistAnnotations))
 	for _, b := range blocklistAnnotations {
 		blocked[strings.ToLower(b)] = struct{}{}
 	}
 	return &InstructionConverter{
-		metrics:                    m,
-		userAnnotationPrefix:       userAnnotationPrefix,
-		blocklistAnnotations:       blocked,
-		compressor:                 compressor,
-		enableJobRunFailureInfoMap: enableJobRunFailureInfoMap,
+		metrics:              m,
+		userAnnotationPrefix: userAnnotationPrefix,
+		blocklistAnnotations: blocked,
+		compressor:           compressor,
 	}
 }
 
@@ -463,15 +460,13 @@ func (c *InstructionConverter) handleJobRunErrors(ts time.Time, event *armadaeve
 			jobRunUpdate.Error = tryCompressError(event.JobId, "Unknown error", c.compressor)
 			log.Debugf("Ignoring event %T", reason)
 		}
-		// Only persist FailureInfo for terminal errors - transient failures
-		// may be retried and the final FailureInfo is the one that matters.
+		// Only persist failure classification for terminal errors.
 		if e.Terminal {
-			if fi := e.GetFailureInfo(); fi != nil {
-				if c.enableJobRunFailureInfoMap {
-					jobRunUpdate.FailureInfo = failureInfoToMap(event.JobId, fi)
-				} else {
-					jobRunUpdate.FailureInfo = map[string]any{}
-				}
+			if cat := e.GetFailureCategory(); cat != "" {
+				jobRunUpdate.FailureCategory = pointer.String(cat)
+			}
+			if sub := e.GetFailureSubcategory(); sub != "" {
+				jobRunUpdate.FailureSubcategory = pointer.String(sub)
 			}
 		}
 		update.JobRunsToUpdate = append(update.JobRunsToUpdate, jobRunUpdate)
@@ -498,34 +493,6 @@ func (c *InstructionConverter) handleStandaloneIngressInfo(event *armadaevents.S
 	}
 	update.JobRunsToUpdate = append(update.JobRunsToUpdate, &jobRun)
 	return nil
-}
-
-// failureInfoToMap converts a FailureInfo proto to a JSON-friendly map for JSONB storage.
-// Only non-zero fields are included. After a JSON round-trip through PostgreSQL,
-// numeric fields arrive as float64 - see failureInfoToSwagger for the read side.
-func failureInfoToMap(jobId string, fi *armadaevents.FailureInfo) map[string]any {
-	m := make(map[string]any, 4)
-	if fi.GetExitCode() != 0 {
-		m["exitCode"] = fi.GetExitCode()
-	}
-	if fi.GetTerminationMessage() != "" {
-		terminationMessage := util.Truncate(fi.GetTerminationMessage(), maxTerminationMessageLen)
-		sanitizedTerminationMessage := sanitizeForJsonb(terminationMessage)
-		if sanitizedTerminationMessage != terminationMessage {
-			log.Warnf("Sanitized termination message for job %s: %q (was %q)", jobId, sanitizedTerminationMessage, terminationMessage)
-		}
-		m["terminationMessage"] = sanitizedTerminationMessage
-	}
-	if len(fi.GetCategories()) > 0 {
-		m["categories"] = fi.GetCategories()
-	}
-	if fi.GetContainerName() != "" {
-		m["containerName"] = fi.GetContainerName()
-	}
-	if len(m) == 0 {
-		return nil
-	}
-	return m
 }
 
 func tryCompressError(jobId string, errorString string, compressor compress.Compressor) []byte {
