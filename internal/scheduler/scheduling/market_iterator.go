@@ -2,6 +2,7 @@ package scheduling
 
 import (
 	"container/heap"
+	"strings"
 	"time"
 
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
@@ -126,6 +127,21 @@ func (it *MarketBasedCandidateGangIterator) updatePQItem(item *MarketIteratorPQI
 	item.submittedTime = job.SubmitTime().UnixNano()
 
 	return nil
+}
+
+// SecondPrice returns the highest remaining bid from a queue other than priceSettingQueue.
+// Away queues are ignored entirely because away jobs run for free under market scheduling.
+func (it *MarketBasedCandidateGangIterator) SecondPrice(priceSettingQueue string) float64 {
+	secondPrice := 0.0
+	for _, item := range it.pq.items {
+		if item.queue == priceSettingQueue || strings.HasSuffix(item.queue, "-away") {
+			continue
+		}
+		if item.price > secondPrice {
+			secondPrice = item.price
+		}
+	}
+	return secondPrice
 }
 
 func (it *MarketBasedCandidateGangIterator) OnlyYieldEvicted() error {

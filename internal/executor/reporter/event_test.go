@@ -48,7 +48,7 @@ func TestCreateEventForCurrentState_WhenPodFailed(t *testing.T) {
 	assert.True(t, ok)
 	assert.Len(t, event.JobRunErrors.Errors, 1)
 	assert.NotNil(t, event.JobRunErrors.Errors[0].GetPodError())
-	assert.NotNil(t, event.JobRunErrors.Errors[0].GetFailureInfo(), "FailureInfo should always be set on failed events")
+	assert.Empty(t, event.JobRunErrors.Errors[0].GetFailureCategory())
 }
 
 func TestCreateEventForCurrentState_WhenPodFailed_WithClassifier(t *testing.T) {
@@ -66,11 +66,16 @@ func TestCreateEventForCurrentState_WhenPodFailed_WithClassifier(t *testing.T) {
 		},
 	}
 
-	classifier, err := categorizer.NewClassifier([]categorizer.CategoryConfig{
-		{
-			Name: "custom-error",
-			Rules: []categorizer.CategoryRule{
-				{OnExitCodes: &errormatch.ExitCodeMatcher{Operator: errormatch.ExitCodeOperatorIn, Values: []int32{74}}},
+	classifier, err := categorizer.NewClassifier(categorizer.ErrorCategoriesConfig{
+		Categories: []categorizer.CategoryConfig{
+			{
+				Name: "custom-error",
+				Rules: []categorizer.CategoryRule{
+					{
+						OnExitCodes: &errormatch.ExitCodeMatcher{Operator: errormatch.ExitCodeOperatorIn, Values: []int32{74}},
+						Subcategory: "exit-74",
+					},
+				},
 			},
 		},
 	})
@@ -84,11 +89,8 @@ func TestCreateEventForCurrentState_WhenPodFailed_WithClassifier(t *testing.T) {
 	assert.True(t, ok)
 	assert.Len(t, event.JobRunErrors.Errors, 1)
 
-	failureInfo := event.JobRunErrors.Errors[0].GetFailureInfo()
-	require.NotNil(t, failureInfo)
-	assert.Equal(t, int32(74), failureInfo.ExitCode)
-	assert.Equal(t, "custom error", failureInfo.TerminationMessage)
-	assert.Equal(t, []string{"custom-error"}, failureInfo.Categories)
+	assert.Equal(t, "custom-error", event.JobRunErrors.Errors[0].GetFailureCategory())
+	assert.Equal(t, "exit-74", event.JobRunErrors.Errors[0].GetFailureSubcategory())
 }
 
 func TestCreateEventForCurrentState_WhenPodFailed_NilClassifier(t *testing.T) {
@@ -113,10 +115,8 @@ func TestCreateEventForCurrentState_WhenPodFailed_NilClassifier(t *testing.T) {
 	require.True(t, ok)
 	require.Len(t, event.JobRunErrors.Errors, 1)
 
-	failureInfo := event.JobRunErrors.Errors[0].GetFailureInfo()
-	require.NotNil(t, failureInfo)
-	assert.Equal(t, int32(1), failureInfo.ExitCode)
-	assert.Empty(t, failureInfo.Categories)
+	assert.Empty(t, event.JobRunErrors.Errors[0].GetFailureCategory())
+	assert.Empty(t, event.JobRunErrors.Errors[0].GetFailureSubcategory())
 }
 
 func TestCreateEventForCurrentState_WhenPodSucceeded(t *testing.T) {

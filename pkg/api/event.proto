@@ -110,7 +110,9 @@ message JobFailedEvent {
     string pod_namespace = 14;
     repeated ContainerStatus container_statuses = 11;
     Cause cause = 12;
-    repeated string categories = 15;
+    reserved 15;
+    string failure_category = 16;
+    string failure_subcategory = 17;
 }
 
 message JobPreemptingEvent {

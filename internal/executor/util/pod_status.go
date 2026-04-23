@@ -109,27 +109,6 @@ func ExtractFailedPodContainerStatuses(pod *v1.Pod, clusterId string) []*armadae
 	return returnStatuses
 }
 
-// ExtractFailureInfo builds a FailureInfo proto from pod status and category labels.
-// It extracts the exit code and termination message from the first failed container.
-func ExtractFailureInfo(pod *v1.Pod, categories []string) *armadaevents.FailureInfo {
-	info := &armadaevents.FailureInfo{
-		Categories: categories,
-	}
-
-	if pod != nil {
-		for _, cs := range GetPodContainerStatuses(pod) {
-			if cs.State.Terminated != nil && cs.State.Terminated.ExitCode != 0 {
-				info.ExitCode = cs.State.Terminated.ExitCode
-				info.TerminationMessage = cs.State.Terminated.Message
-				info.ContainerName = cs.Name
-				break
-			}
-		}
-	}
-
-	return info
-}
-
 func isOom(containerStatus v1.ContainerStatus) bool {
 	return containerStatus.State.Terminated != nil && containerStatus.State.Terminated.Reason == errormatch.ConditionOOMKilled
 }

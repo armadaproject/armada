@@ -424,9 +424,18 @@ func (p *PodIssueHandler) handleNonRetryableJobIssue(issue *issue) {
 		log.Infof("Handling non-retryable issue detected for job %s run %s", issue.RunIssue.JobId, issue.RunIssue.RunId)
 		podIssue := issue.RunIssue.PodIssue
 
-		failureInfo := util.ExtractFailureInfo(podIssue.OriginalPodState, p.classifier.Classify(podIssue.OriginalPodState))
+		result := p.classifier.Classify(podIssue.OriginalPodState)
+		clusterId := p.clusterContext.GetClusterId()
 
-		failedEvent, err := reporter.CreateSimpleJobFailedEvent(podIssue.OriginalPodState, podIssue.Message, podIssue.DebugMessage, p.clusterContext.GetClusterId(), podIssue.Cause, failureInfo)
+		failedEvent, err := reporter.CreateJobFailedEvent(
+			podIssue.OriginalPodState,
+			podIssue.Message,
+			podIssue.Cause,
+			podIssue.DebugMessage,
+			util.ExtractFailedPodContainerStatuses(podIssue.OriginalPodState, clusterId),
+			clusterId,
+			result.Category,
+			result.Subcategory)
 		if err != nil {
 			log.Errorf("Failed to create failed event for job %s because %s", issue.RunIssue.JobId, err)
 			return
