@@ -58,6 +58,7 @@ type perCycleMetrics struct {
 	evictedJobs                  *prometheus.GaugeVec
 	evictedResources             *prometheus.GaugeVec
 	spotPrice                    *prometheus.GaugeVec
+	spotPriceOverride            *prometheus.GaugeVec
 	indicativeShare              *prometheus.GaugeVec
 	nodePreemptibility           *prometheus.GaugeVec
 	protectedFractionOfFairShare *prometheus.GaugeVec
@@ -240,6 +241,14 @@ func newPerCycleMetrics() *perCycleMetrics {
 		poolLabels,
 	)
 
+	spotPriceOverride := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: prefix + "spot_price_override",
+			Help: "spot price override applied to the price-setting queue under second-price billing",
+		},
+		poolAndQueueLabels,
+	)
+
 	indicativeShare := prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: prefix + "indicative_share",
@@ -350,6 +359,7 @@ func newPerCycleMetrics() *perCycleMetrics {
 		evictedResources:             evictedResources,
 		billableResource:             billableResources,
 		spotPrice:                    spotPrice,
+		spotPriceOverride:            spotPriceOverride,
 		indicativeShare:              indicativeShare,
 		nodePreemptibility:           nodePreemptibility,
 		protectedFractionOfFairShare: protectedFractionOfFairShare,
@@ -557,6 +567,9 @@ func (m *cycleMetrics) ReportSchedulerResult(ctx *armadacontext.Context, result 
 					currentCycle.rawQueueWeight.WithLabelValues(pool, queue).Set(queueContext.RawWeight)
 					currentCycle.idealisedScheduledValue.WithLabelValues(pool, queue).Set(queueContext.IdealisedValue)
 					currentCycle.realisedScheduledValue.WithLabelValues(pool, queue).Set(queueContext.RealisedValue)
+					if override := queueContext.GetBillablePriceOverride(); override != nil {
+						currentCycle.spotPriceOverride.WithLabelValues(pool, queue).Set(*override)
+					}
 					for _, r := range queueContext.GetBillableResource().GetAll() {
 						currentCycle.billableResource.WithLabelValues(pool, queue, r.Name).Set(r.Value.AsApproximateFloat64())
 					}
@@ -706,6 +719,7 @@ func (m *cycleMetrics) describe(ch chan<- *prometheus.Desc) {
 		cycleMetrics.evictedResources.Describe(ch)
 		cycleMetrics.billableResource.Describe(ch)
 		cycleMetrics.spotPrice.Describe(ch)
+		cycleMetrics.spotPriceOverride.Describe(ch)
 		cycleMetrics.indicativeShare.Describe(ch)
 		cycleMetrics.nodePreemptibility.Describe(ch)
 		cycleMetrics.protectedFractionOfFairShare.Describe(ch)
@@ -754,6 +768,7 @@ func (m *cycleMetrics) collect(ch chan<- prometheus.Metric) {
 		currentCycle.evictedResources.Collect(ch)
 		currentCycle.billableResource.Collect(ch)
 		currentCycle.spotPrice.Collect(ch)
+		currentCycle.spotPriceOverride.Collect(ch)
 		currentCycle.indicativeShare.Collect(ch)
 		currentCycle.nodePreemptibility.Collect(ch)
 		currentCycle.protectedFractionOfFairShare.Collect(ch)
@@ -795,7 +810,7 @@ func (m *cycleMetrics) publishCycleMetrics(ctx *armadacontext.Context, result sc
 				BillableAllocationByResourceType: armadamaps.MapValues(qCtx.GetBillableResource().ToMap(), toQtyPtr),
 			}
 			if override := qCtx.GetBillablePriceOverride(); override != nil {
-				queueMetrics[qName].BillablePriceOverridePresence = &metricevents.QueueMetrics_BillablePriceOverride{
+				queueMetrics[qName].BillablePriceOverrideOptional = &metricevents.QueueMetrics_BillablePriceOverride{
 					BillablePriceOverride: *override,
 				}
 			}
