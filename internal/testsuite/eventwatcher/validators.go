@@ -2,8 +2,6 @@ package eventwatcher
 
 import (
 	"regexp"
-	"slices"
-	"strings"
 
 	"github.com/pkg/errors"
 
@@ -38,25 +36,19 @@ func assertEventFailed(expected *api.EventMessage_Failed, actual *api.EventMessa
 		}
 	}
 
-	if len(expected.Failed.GetCategories()) > 0 {
-		if err := assertCategories(expected.Failed.GetCategories(), actual.Failed.GetCategories()); err != nil {
-			return err
+	if expected.Failed.GetFailureCategory() != "" {
+		if expected.Failed.GetFailureCategory() != actual.Failed.GetFailureCategory() {
+			return errors.Errorf("expected failure_category %q but got %q",
+				expected.Failed.GetFailureCategory(), actual.Failed.GetFailureCategory())
 		}
 	}
 
-	return nil
-}
-
-func assertCategories(expected, actual []string) error {
-	exp := slices.Clone(expected)
-	slices.Sort(exp)
-
-	act := slices.Clone(actual)
-	slices.Sort(act)
-
-	if !slices.Equal(exp, act) {
-		return errors.Errorf("expected categories [%s] but got [%s]",
-			strings.Join(exp, ", "), strings.Join(act, ", "))
+	if expected.Failed.GetFailureSubcategory() != "" {
+		if expected.Failed.GetFailureSubcategory() != actual.Failed.GetFailureSubcategory() {
+			return errors.Errorf("expected failure_subcategory %q but got %q",
+				expected.Failed.GetFailureSubcategory(), actual.Failed.GetFailureSubcategory())
+		}
 	}
+
 	return nil
 }

@@ -1,9 +1,8 @@
 import queryString, { ParseOptions, StringifyOptions } from "query-string"
 
 import { Router } from "../common/utils"
+import { JobSetsOrderByColumn } from "../models/lookoutModels"
 import { JobSetsContainerState } from "../pages/jobSets/components/JobSetsContainer"
-
-import { JobSetsOrderByColumn } from "./JobService"
 
 const QUERY_STRING_OPTIONS: ParseOptions | StringifyOptions = {
   arrayFormat: "comma",

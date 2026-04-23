@@ -397,6 +397,7 @@ func Run(config schedulerconfig.Configuration) error {
 		schedulerMetrics,
 		bidPriceProvider,
 		marketDrivenPools,
+		queueCache,
 	)
 	if err != nil {
 		return errors.WithMessage(err, "error creating scheduler")

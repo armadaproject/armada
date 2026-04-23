@@ -380,12 +380,13 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 	//   - For calculating short job penalty
 	// - Jobs queued against home/away pools relevant to the pool being computed
 	//   - This is to calculate demand on both home and away pools
-	allJobs := txn.GetAllLeasedJobs()
-	allJobs = append(allJobs, txn.GetAllTerminalJobs()...)
-	for _, pool := range allPools {
-		allJobs = append(allJobs, txn.GetQueuedJobsByPool(pool)...)
-	}
-	allJobs = armadaslices.UniqueBy(allJobs, func(job *jobdb.Job) string { return job.Id() })
+	leasedJobs := txn.GetAllLeasedJobs()
+	terminalJobs := txn.GetAllTerminalJobs()
+	queuedJobs := getQueuedJobs(txn, allPools)
+	allJobs := make([]*jobdb.Job, 0, len(leasedJobs)+len(terminalJobs)+len(queuedJobs))
+	allJobs = append(allJobs, leasedJobs...)
+	allJobs = append(allJobs, terminalJobs...)
+	allJobs = append(allJobs, queuedJobs...)
 
 	jobSchedulingInfo, err := l.calculateJobSchedulingInfo(ctx,
 		armadamaps.FromSlice(executors,
@@ -473,6 +474,40 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 		schedulingContext: schedulingContext,
 		Txn:               txn,
 	}, nil
+}
+
+func getQueuedJobs(txn *jobdb.Txn, pools []string) []*jobdb.Job {
+	if len(pools) == 0 {
+		return []*jobdb.Job{}
+	}
+	// Shortcut if only one pool which is the most common case
+	if len(pools) == 1 {
+		return txn.GetQueuedJobsByPool(pools[0])
+	}
+
+	jobsCount := 0
+	jobsByPool := make([][]*jobdb.Job, len(pools))
+	for i, pool := range pools {
+		jobs := txn.GetQueuedJobsByPool(pool)
+		jobsByPool[i] = jobs
+		jobsCount += len(jobs)
+	}
+
+	queuedJobs := make([]*jobdb.Job, 0, jobsCount)
+	seen := make(map[string]struct{}, jobsCount)
+
+	for _, jobs := range jobsByPool {
+		for _, job := range jobs {
+			id := job.Id()
+			if _, ok := seen[id]; ok {
+				continue
+			}
+			seen[id] = struct{}{}
+			queuedJobs = append(queuedJobs, job)
+		}
+	}
+
+	return queuedJobs
 }
 
 type jobSchedulingInfo struct {
