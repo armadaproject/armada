@@ -1,6 +1,7 @@
 package categorizer
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -12,82 +13,124 @@ import (
 
 func TestClassify(t *testing.T) {
 	tests := map[string]struct {
-		configs    []CategoryConfig
-		pod        *v1.Pod
-		categories []string
+		config              ErrorCategoriesConfig
+		pod                 *v1.Pod
+		expectedCategory    string
+		expectedSubcategory string
 	}{
 		"OOM condition matches": {
-			configs: []CategoryConfig{
+			config: ErrorCategoriesConfig{Categories: []CategoryConfig{
 				{Name: "oom", Rules: []CategoryRule{
-					{OnConditions: []string{errormatch.ConditionOOMKilled}},
+					{OnConditions: []string{errormatch.ConditionOOMKilled}, Subcategory: "kernel"},
 				}},
-			},
-			pod:        podWithTerminatedContainer(137, errormatch.ConditionOOMKilled, ""),
-			categories: []string{"oom"},
+			}},
+			pod:                 podWithTerminatedContainer(137, errormatch.ConditionOOMKilled, ""),
+			expectedCategory:    "oom",
+			expectedSubcategory: "kernel",
 		},
 		"exit code In matches": {
-			configs: []CategoryConfig{
+			config: ErrorCategoriesConfig{Categories: []CategoryConfig{
 				{Name: "cuda_error", Rules: []CategoryRule{
 					{OnExitCodes: &errormatch.ExitCodeMatcher{Operator: errormatch.ExitCodeOperatorIn, Values: []int32{74, 75}}},
 				}},
-			},
-			pod:        podWithTerminatedContainer(74, "Error", ""),
-			categories: []string{"cuda_error"},
+			}},
+			pod:              podWithTerminatedContainer(74, "Error", ""),
+			expectedCategory: "cuda_error",
 		},
 		"exit code NotIn matches": {
-			configs: []CategoryConfig{
+			config: ErrorCategoriesConfig{Categories: []CategoryConfig{
 				{Name: "unexpected", Rules: []CategoryRule{
 					{OnExitCodes: &errormatch.ExitCodeMatcher{Operator: errormatch.ExitCodeOperatorNotIn, Values: []int32{1, 2}}},
 				}},
-			},
-			pod:        podWithTerminatedContainer(42, "Error", ""),
-			categories: []string{"unexpected"},
+			}},
+			pod:              podWithTerminatedContainer(42, "Error", ""),
+			expectedCategory: "unexpected",
 		},
 		"termination message regex matches": {
-			configs: []CategoryConfig{
+			config: ErrorCategoriesConfig{Categories: []CategoryConfig{
 				{Name: "gpu_error", Rules: []CategoryRule{
-					{OnTerminationMessage: &errormatch.RegexMatcher{Pattern: "(?i)cuda.*error"}},
+					{OnTerminationMessage: &errormatch.RegexMatcher{Pattern: "(?i)cuda.*error"}, Subcategory: "cuda"},
 				}},
-			},
-			pod:        podWithTerminatedContainer(1, "Error", "CUDA memory error on device 0"),
-			categories: []string{"gpu_error"},
+			}},
+			pod:                 podWithTerminatedContainer(1, "Error", "CUDA memory error on device 0"),
+			expectedCategory:    "gpu_error",
+			expectedSubcategory: "cuda",
 		},
-		"multiple categories can match": {
-			configs: []CategoryConfig{
+		"first match wins across categories": {
+			config: ErrorCategoriesConfig{Categories: []CategoryConfig{
 				{Name: "oom", Rules: []CategoryRule{
 					{OnConditions: []string{errormatch.ConditionOOMKilled}},
 				}},
 				{Name: "high_exit", Rules: []CategoryRule{
 					{OnExitCodes: &errormatch.ExitCodeMatcher{Operator: errormatch.ExitCodeOperatorIn, Values: []int32{137}}},
 				}},
-			},
-			pod:        podWithTerminatedContainer(137, errormatch.ConditionOOMKilled, ""),
-			categories: []string{"oom", "high_exit"},
+			}},
+			pod:              podWithTerminatedContainer(137, errormatch.ConditionOOMKilled, ""),
+			expectedCategory: "oom", // first match wins, not both
 		},
-		"no match returns nil": {
-			configs: []CategoryConfig{
+		"no match returns empty when no default set": {
+			config: ErrorCategoriesConfig{Categories: []CategoryConfig{
 				{Name: "oom", Rules: []CategoryRule{
 					{OnConditions: []string{errormatch.ConditionOOMKilled}},
 				}},
-			},
-			pod:        podWithTerminatedContainer(1, "Error", "normal failure"),
-			categories: nil,
+			}},
+			pod:              podWithTerminatedContainer(1, "Error", "normal failure"),
+			expectedCategory: "",
 		},
-		"nil pod returns nil": {
-			configs: []CategoryConfig{
+		"custom default category": {
+			config: ErrorCategoriesConfig{
+				DefaultCategory: "other",
+				Categories: []CategoryConfig{
+					{Name: "oom", Rules: []CategoryRule{
+						{OnConditions: []string{errormatch.ConditionOOMKilled}},
+					}},
+				},
+			},
+			pod:              podWithTerminatedContainer(1, "Error", "normal failure"),
+			expectedCategory: "other",
+		},
+		"custom default category and subcategory": {
+			config: ErrorCategoriesConfig{
+				DefaultCategory:    "uncategorized",
+				DefaultSubcategory: "unknown",
+				Categories: []CategoryConfig{
+					{Name: "oom", Rules: []CategoryRule{
+						{OnConditions: []string{errormatch.ConditionOOMKilled}},
+					}},
+				},
+			},
+			pod:                 podWithTerminatedContainer(1, "Error", "normal failure"),
+			expectedCategory:    "uncategorized",
+			expectedSubcategory: "unknown",
+		},
+		"matching rule subcategory wins over default subcategory": {
+			config: ErrorCategoriesConfig{
+				DefaultCategory:    "uncategorized",
+				DefaultSubcategory: "unknown",
+				Categories: []CategoryConfig{
+					{Name: "oom", Rules: []CategoryRule{
+						{OnConditions: []string{errormatch.ConditionOOMKilled}, Subcategory: "kernel"},
+					}},
+				},
+			},
+			pod:                 podWithTerminatedContainer(137, errormatch.ConditionOOMKilled, ""),
+			expectedCategory:    "oom",
+			expectedSubcategory: "kernel",
+		},
+		"nil pod returns empty": {
+			config: ErrorCategoriesConfig{Categories: []CategoryConfig{
 				{Name: "oom", Rules: []CategoryRule{
 					{OnConditions: []string{errormatch.ConditionOOMKilled}},
 				}},
-			},
-			pod:        nil,
-			categories: nil,
+			}},
+			pod: nil,
 		},
 		"init container is checked": {
-			configs: []CategoryConfig{
+			config: ErrorCategoriesConfig{Categories: []CategoryConfig{
 				{Name: "init_fail", Rules: []CategoryRule{
 					{OnExitCodes: &errormatch.ExitCodeMatcher{Operator: errormatch.ExitCodeOperatorIn, Values: []int32{1}}},
 				}},
-			},
+			}},
 			pod: &v1.Pod{
 				Status: v1.PodStatus{
 					Phase: v1.PodFailed,
@@ -101,52 +144,52 @@ func TestClassify(t *testing.T) {
 					},
 				},
 			},
-			categories: []string{"init_fail"},
+			expectedCategory: "init_fail",
 		},
 		"evicted condition matches": {
-			configs: []CategoryConfig{
+			config: ErrorCategoriesConfig{Categories: []CategoryConfig{
 				{Name: "evicted", Rules: []CategoryRule{
 					{OnConditions: []string{errormatch.ConditionEvicted}},
 				}},
-			},
+			}},
 			pod: &v1.Pod{
 				Status: v1.PodStatus{
 					Phase:  v1.PodFailed,
 					Reason: errormatch.ConditionEvicted,
 				},
 			},
-			categories: []string{"evicted"},
+			expectedCategory: "evicted",
 		},
 		"deadline exceeded condition matches": {
-			configs: []CategoryConfig{
+			config: ErrorCategoriesConfig{Categories: []CategoryConfig{
 				{Name: "timeout", Rules: []CategoryRule{
 					{OnConditions: []string{errormatch.ConditionDeadlineExceeded}},
 				}},
-			},
+			}},
 			pod: &v1.Pod{
 				Status: v1.PodStatus{
 					Phase:  v1.PodFailed,
 					Reason: errormatch.ConditionDeadlineExceeded,
 				},
 			},
-			categories: []string{"timeout"},
+			expectedCategory: "timeout",
 		},
 		"rules within category are ORed": {
-			configs: []CategoryConfig{
+			config: ErrorCategoriesConfig{Categories: []CategoryConfig{
 				{Name: "infra", Rules: []CategoryRule{
 					{OnConditions: []string{errormatch.ConditionOOMKilled}},
 					{OnExitCodes: &errormatch.ExitCodeMatcher{Operator: errormatch.ExitCodeOperatorIn, Values: []int32{137}}},
 				}},
-			},
-			pod:        podWithTerminatedContainer(137, "Error", ""),
-			categories: []string{"infra"},
+			}},
+			pod:              podWithTerminatedContainer(137, "Error", ""),
+			expectedCategory: "infra",
 		},
 		"exit code 0 container is skipped": {
-			configs: []CategoryConfig{
+			config: ErrorCategoriesConfig{Categories: []CategoryConfig{
 				{Name: "msg_match", Rules: []CategoryRule{
 					{OnTerminationMessage: &errormatch.RegexMatcher{Pattern: "success"}},
 				}},
-			},
+			}},
 			pod: &v1.Pod{
 				Status: v1.PodStatus{
 					Phase: v1.PodFailed,
@@ -174,14 +217,14 @@ func TestClassify(t *testing.T) {
 					},
 				},
 			},
-			categories: nil,
+			expectedCategory: "",
 		},
 		"containerName targets specific container": {
-			configs: []CategoryConfig{
+			config: ErrorCategoriesConfig{Categories: []CategoryConfig{
 				{Name: "main_oom", Rules: []CategoryRule{
 					{ContainerName: "main", OnConditions: []string{errormatch.ConditionOOMKilled}},
 				}},
-			},
+			}},
 			pod: &v1.Pod{
 				Status: v1.PodStatus{
 					Phase: v1.PodFailed,
@@ -195,14 +238,14 @@ func TestClassify(t *testing.T) {
 					},
 				},
 			},
-			categories: nil, // sidecar OOMs but main does not, rule targets main only
+			expectedCategory: "", // sidecar OOMs but main does not, rule targets main only
 		},
 		"containerName matches when container matches": {
-			configs: []CategoryConfig{
+			config: ErrorCategoriesConfig{Categories: []CategoryConfig{
 				{Name: "main_error", Rules: []CategoryRule{
 					{ContainerName: "main", OnExitCodes: &errormatch.ExitCodeMatcher{Operator: errormatch.ExitCodeOperatorIn, Values: []int32{42}}},
 				}},
-			},
+			}},
 			pod: &v1.Pod{
 				Status: v1.PodStatus{
 					Phase: v1.PodFailed,
@@ -213,14 +256,14 @@ func TestClassify(t *testing.T) {
 					},
 				},
 			},
-			categories: []string{"main_error"},
+			expectedCategory: "main_error",
 		},
 		"no containerName matches any container": {
-			configs: []CategoryConfig{
+			config: ErrorCategoriesConfig{Categories: []CategoryConfig{
 				{Name: "any_oom", Rules: []CategoryRule{
 					{OnConditions: []string{errormatch.ConditionOOMKilled}},
 				}},
-			},
+			}},
 			pod: &v1.Pod{
 				Status: v1.PodStatus{
 					Phase: v1.PodFailed,
@@ -231,105 +274,134 @@ func TestClassify(t *testing.T) {
 					},
 				},
 			},
-			categories: []string{"any_oom"}, // no containerName, matches sidecar
+			expectedCategory: "any_oom",
 		},
-		"empty config returns nil": {
-			configs:    nil,
-			pod:        podWithTerminatedContainer(1, "Error", ""),
-			categories: nil,
+		"empty config returns empty": {
+			config:           ErrorCategoriesConfig{},
+			pod:              podWithTerminatedContainer(1, "Error", ""),
+			expectedCategory: "",
 		},
 	}
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			classifier, err := NewClassifier(tc.configs)
+			classifier, err := NewClassifier(tc.config)
 			require.NoError(t, err)
 			result := classifier.Classify(tc.pod)
-			assert.Equal(t, tc.categories, result)
+			assert.Equal(t, tc.expectedCategory, result.Category)
+			assert.Equal(t, tc.expectedSubcategory, result.Subcategory)
 		})
 	}
 }
 
 func TestNewClassifier_ValidationErrors(t *testing.T) {
 	tests := map[string]struct {
-		configs     []CategoryConfig
+		config      ErrorCategoriesConfig
 		errContains string
 	}{
 		"empty name": {
-			configs: []CategoryConfig{
+			config: ErrorCategoriesConfig{Categories: []CategoryConfig{
 				{Name: "", Rules: []CategoryRule{
 					{OnConditions: []string{errormatch.ConditionOOMKilled}},
 				}},
-			},
+			}},
 			errContains: "must have a name",
 		},
 		"empty rule": {
-			configs:     []CategoryConfig{{Name: "bad", Rules: []CategoryRule{{}}}},
+			config:      ErrorCategoriesConfig{Categories: []CategoryConfig{{Name: "bad", Rules: []CategoryRule{{}}}}},
 			errContains: "must specify one of",
 		},
 		"multiple matchers in rule": {
-			configs: []CategoryConfig{
+			config: ErrorCategoriesConfig{Categories: []CategoryConfig{
 				{Name: "bad", Rules: []CategoryRule{
 					{
 						OnConditions: []string{errormatch.ConditionOOMKilled},
 						OnExitCodes:  &errormatch.ExitCodeMatcher{Operator: errormatch.ExitCodeOperatorIn, Values: []int32{137}},
 					},
 				}},
-			},
+			}},
 			errContains: "must specify only one of",
 		},
 		"unknown condition": {
-			configs: []CategoryConfig{
+			config: ErrorCategoriesConfig{Categories: []CategoryConfig{
 				{Name: "bad", Rules: []CategoryRule{
 					{OnConditions: []string{"NotARealCondition"}},
 				}},
-			},
+			}},
 			errContains: "unknown condition",
 		},
 		"invalid exit code operator": {
-			configs: []CategoryConfig{
+			config: ErrorCategoriesConfig{Categories: []CategoryConfig{
 				{Name: "bad", Rules: []CategoryRule{
 					{OnExitCodes: &errormatch.ExitCodeMatcher{Operator: "Equals", Values: []int32{1}}},
 				}},
-			},
+			}},
 			errContains: "invalid exit code operator",
 		},
 		"empty exit code values": {
-			configs: []CategoryConfig{
+			config: ErrorCategoriesConfig{Categories: []CategoryConfig{
 				{Name: "bad", Rules: []CategoryRule{
 					{OnExitCodes: &errormatch.ExitCodeMatcher{Operator: errormatch.ExitCodeOperatorIn, Values: nil}},
 				}},
-			},
+			}},
 			errContains: "requires at least one value",
 		},
 		"invalid regex": {
-			configs: []CategoryConfig{
+			config: ErrorCategoriesConfig{Categories: []CategoryConfig{
 				{Name: "bad", Rules: []CategoryRule{
 					{OnTerminationMessage: &errormatch.RegexMatcher{Pattern: "[invalid"}},
 				}},
-			},
+			}},
 			errContains: "invalid regex",
 		},
 		"empty rules": {
-			configs:     []CategoryConfig{{Name: "empty", Rules: nil}},
+			config:      ErrorCategoriesConfig{Categories: []CategoryConfig{{Name: "empty", Rules: nil}}},
 			errContains: "must have at least one rule",
 		},
 		"duplicate category name": {
-			configs: []CategoryConfig{
+			config: ErrorCategoriesConfig{Categories: []CategoryConfig{
 				{Name: "oom", Rules: []CategoryRule{
 					{OnConditions: []string{errormatch.ConditionOOMKilled}},
 				}},
 				{Name: "oom", Rules: []CategoryRule{
 					{OnExitCodes: &errormatch.ExitCodeMatcher{Operator: errormatch.ExitCodeOperatorIn, Values: []int32{137}}},
 				}},
-			},
+			}},
 			errContains: "duplicate category name",
+		},
+		"category name too long": {
+			config: ErrorCategoriesConfig{Categories: []CategoryConfig{
+				{Name: strings.Repeat("a", maxCategoryNameLen+1), Rules: []CategoryRule{
+					{OnConditions: []string{errormatch.ConditionOOMKilled}},
+				}},
+			}},
+			errContains: "category name",
+		},
+		"subcategory too long": {
+			config: ErrorCategoriesConfig{Categories: []CategoryConfig{
+				{Name: "oom", Rules: []CategoryRule{
+					{OnConditions: []string{errormatch.ConditionOOMKilled}, Subcategory: strings.Repeat("b", maxCategoryNameLen+1)},
+				}},
+			}},
+			errContains: "subcategory",
+		},
+		"default category too long": {
+			config: ErrorCategoriesConfig{
+				DefaultCategory: strings.Repeat("c", maxCategoryNameLen+1),
+			},
+			errContains: "defaultCategory",
+		},
+		"default subcategory too long": {
+			config: ErrorCategoriesConfig{
+				DefaultSubcategory: strings.Repeat("d", maxCategoryNameLen+1),
+			},
+			errContains: "defaultSubcategory",
 		},
 	}
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			_, err := NewClassifier(tc.configs)
+			_, err := NewClassifier(tc.config)
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), tc.errContains)
 		})

@@ -1462,8 +1462,10 @@ pub struct JobFailedEvent {
     pub container_statuses: ::prost::alloc::vec::Vec<ContainerStatus>,
     #[prost(enumeration = "Cause", tag = "12")]
     pub cause: i32,
-    #[prost(string, repeated, tag = "15")]
-    pub categories: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+    #[prost(string, tag = "16")]
+    pub failure_category: ::prost::alloc::string::String,
+    #[prost(string, tag = "17")]
+    pub failure_subcategory: ::prost::alloc::string::String,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct JobPreemptingEvent {
