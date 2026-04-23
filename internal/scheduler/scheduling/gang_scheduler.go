@@ -140,10 +140,8 @@ func (sch *GangScheduler) Schedule(ctx *armadacontext.Context, gctx *context.Gan
 		}
 	}
 
-	if gctx.RequestsFloatingResources {
-		if ok, unschedulableReason = sch.floatingResourceTypes.WithinLimits(sch.schedulingContext.Pool, sch.schedulingContext.Allocated); !ok {
-			return ok, unschedulableReason, err
-		}
+	if ok, unschedulableReason = sch.schedulingContext.IsWithinFloatingResourceLimits(gctx, sch.floatingResourceTypes); !ok {
+		return ok, unschedulableReason, err
 	}
 
 	return sch.trySchedule(ctx, gctx)

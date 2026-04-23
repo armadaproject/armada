@@ -1,6 +1,6 @@
 [package]
 name = "armada-client"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 rust-version = "1.85"
 description = "Rust client for the Armada batch job scheduler"
@@ -10,16 +10,16 @@ homepage = "https://armadaproject.io"
 documentation = "https://docs.rs/armada-client"
 keywords = ["armada", "kubernetes", "batch", "jobs", "grpc"]
 categories = ["api-bindings"]
-include = ["src/**/*", "build.rs", "proto/**/*", "examples/**/*", "README.md"]
+include = ["src/**/*", "build.rs", "examples/**/*", "README.md"]
 
 [lib]
 name = "armada_client"
 path = "src/lib.rs"
 doctest = false
 
-# examples/common/ is a shared helper module used by both examples below.
+# examples/common/ is a shared helper module used by submit, watch, and cancel.
 # It is not a standalone example binary; it is included in the tarball via
-# examples/**/* and compiled as part of the submit and watch example builds.
+# examples/**/* and compiled as part of those example builds.
 [[example]]
 name = "submit"
 path = "examples/submit.rs"
@@ -27,6 +27,10 @@ path = "examples/submit.rs"
 [[example]]
 name = "watch"
 path = "examples/watch.rs"
+
+[[example]]
+name = "cancel"
+path = "examples/cancel.rs"
 
 [dependencies]
 tonic = { version = "0.12", features = ["tls", "tls-roots"] }

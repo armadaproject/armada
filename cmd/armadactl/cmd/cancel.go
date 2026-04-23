@@ -74,8 +74,14 @@ func cancelExecutorCmd() *cobra.Command {
 		Long:  `Cancels jobs on executor with provided executor name, priority classes, queues, and pools.`,
 		Args:  cobra.ExactArgs(1),
 		PreRunE: func(cmd *cobra.Command, args []string) error {
-			if err := cmd.MarkFlagRequired("priority-classes"); err != nil {
-				return fmt.Errorf("error marking priority-class flag as required: %s", err)
+			all, err := cmd.Flags().GetBool("all-priority-classes")
+			if err != nil {
+				return fmt.Errorf("error reading all-priority-classes flag: %s", err)
+			}
+			if !all {
+				if err := cmd.MarkFlagRequired("priority-classes"); err != nil {
+					return fmt.Errorf("error marking priority-class flag as required: %s", err)
+				}
 			}
 			return initParams(cmd, a.Params)
 		},
@@ -85,6 +91,10 @@ func cancelExecutorCmd() *cobra.Command {
 			priorityClasses, err := cmd.Flags().GetStringSlice("priority-classes")
 			if err != nil {
 				return fmt.Errorf("error reading priority-class selection: %s", err)
+			}
+			allPriorityClasses, _ := cmd.Flags().GetBool("all-priority-classes")
+			if allPriorityClasses {
+				priorityClasses = nil
 			}
 
 			queues, err := cmd.Flags().GetStringSlice("queues")
@@ -107,8 +117,23 @@ func cancelExecutorCmd() *cobra.Command {
 		[]string{},
 		"Cancel jobs on executor matching the specified queue names. If no queues are provided, jobs across all queues will be cancelled. Provided queues should be comma separated, as in the following example: queueA,queueB,queueC.",
 	)
-	cmd.Flags().StringSliceP("priority-classes", "p", []string{}, "Cancel jobs on executor matching the specified priority classes. Provided priority classes should be comma separated, as in the following example: armada-default,armada-preemptible.")
-	cmd.Flags().StringSlice("pools", []string{}, "Cancel jobs on executor matching the specified pools. If no pools are provided, jobs across all pools will be cancelled. Provided pools should be comma separated, as in the following example: pool-a,pool-b.")
+	cmd.Flags().StringSliceP(
+		"priority-classes",
+		"p",
+		[]string{},
+		"Cancel jobs on executor matching the specified priority classes. Provided priority classes should be comma separated, as in the following example: armada-default,armada-preemptible.",
+	)
+	cmd.Flags().BoolP(
+		"all-priority-classes",
+		"a",
+		false,
+		"Cancel jobs on executor for all priority classes.",
+	)
+	cmd.Flags().StringSlice(
+		"pools",
+		[]string{},
+		"Cancel jobs on executor matching the specified pools. If no pools are provided, jobs across all pools will be cancelled. Provided pools should be comma separated, as in the following example: pool-a,pool-b.",
+	)
 	return cmd
 }
 
@@ -120,8 +145,14 @@ func cancelNodeCmd() *cobra.Command {
 		Long:  `Cancels jobs on node for executor with provided executor name, priority classes and queues.`,
 		Args:  cobra.ExactArgs(1),
 		PreRunE: func(cmd *cobra.Command, args []string) error {
-			if err := cmd.MarkFlagRequired("priority-classes"); err != nil {
-				return fmt.Errorf("error marking priority-class flag as required: %s", err)
+			all, err := cmd.Flags().GetBool("all-priority-classes")
+			if err != nil {
+				return fmt.Errorf("error reading all-priority-classes flag: %s", err)
+			}
+			if !all {
+				if err := cmd.MarkFlagRequired("priority-classes"); err != nil {
+					return fmt.Errorf("error marking priority-class flag as required: %s", err)
+				}
 			}
 			if err := cmd.MarkFlagRequired("executor"); err != nil {
 				return fmt.Errorf("error marking executor flag as required: %s", err)
@@ -134,6 +165,10 @@ func cancelNodeCmd() *cobra.Command {
 			priorityClasses, err := cmd.Flags().GetStringSlice("priority-classes")
 			if err != nil {
 				return fmt.Errorf("error reading priority-class selection: %s", err)
+			}
+			allPriorityClasses, _ := cmd.Flags().GetBool("all-priority-classes")
+			if allPriorityClasses {
+				priorityClasses = nil
 			}
 
 			queues, err := cmd.Flags().GetStringSlice("queues")
@@ -162,6 +197,12 @@ func cancelNodeCmd() *cobra.Command {
 		[]string{},
 		"Cancel jobs on node for specified executor matching the specified priority classes. Provided priority classes should be comma separated, as in the following example: armada-default,armada-preemptible.",
 	)
+	cmd.Flags().BoolP(
+		"all-priority-classes",
+		"a",
+		false,
+		"Preempt jobs on executor for all priority classes.",
+	)
 	cmd.Flags().StringP(
 		"executor",
 		"e",
@@ -182,8 +223,14 @@ func cancelQueueCmd() *cobra.Command {
 			if err := cmd.MarkFlagRequired("job-states"); err != nil {
 				return err
 			}
-			if err := cmd.MarkFlagRequired("priority-classes"); err != nil {
-				return err
+			all, err := cmd.Flags().GetBool("all-priority-classes")
+			if err != nil {
+				return fmt.Errorf("error reading all-priority-classes flag: %s", err)
+			}
+			if !all {
+				if err := cmd.MarkFlagRequired("priority-classes"); err != nil {
+					return fmt.Errorf("error marking priority-class flag as required: %s", err)
+				}
 			}
 			return initParams(cmd, a.Params)
 		},
@@ -226,6 +273,10 @@ func cancelQueueCmd() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("error reading priority-classes flag: %s", err)
 			}
+			allPriorityClasses, _ := cmd.Flags().GetBool("all-priority-classes")
+			if allPriorityClasses {
+				priorityClasses = nil
+			}
 
 			pools, err := cmd.Flags().GetStringSlice("pools")
 			if err != nil {
@@ -252,13 +303,50 @@ func cancelQueueCmd() *cobra.Command {
 			}, priorityClasses, pools, activeJobStates, dryRun)
 		},
 	}
-	cmd.Flags().StringSliceP("job-states", "s", []string{}, "Jobs in the provided job states will be cancelled. Allowed values: queued,leased,pending,running.")
-	cmd.Flags().StringSliceP("priority-classes", "p", []string{}, "Jobs matching the provided priority classes will be cancelled.")
-	cmd.Flags().StringSlice("pools", []string{}, "Cancel jobs matching the specified pools. If no pools are provided, jobs across all pools will be cancelled.")
-	cmd.Flags().StringSliceP("selector", "l", []string{}, "Select queues by label.")
-	cmd.Flags().Bool("inverse", false, "Inverts result to cancel all queues that don't match the specified criteria. Defaults to false.")
-	cmd.Flags().Bool("only-cordoned", false, "Only cancels queues that are cordoned. Defaults to false.")
-	cmd.Flags().Bool("dry-run", false, "Prints out queues on which jobs will be cancelled. Defaults to false.")
+	cmd.Flags().StringSliceP(
+		"job-states",
+		"s",
+		[]string{},
+		"Jobs in the provided job states will be cancelled. Allowed values: queued,leased,pending,running.",
+	)
+	cmd.Flags().StringSliceP(
+		"priority-classes",
+		"p",
+		[]string{},
+		"Jobs matching the provided priority classes will be cancelled.",
+	)
+	cmd.Flags().BoolP(
+		"all-priority-classes",
+		"a",
+		false,
+		"Preempt jobs on executor for all priority classes.",
+	)
+	cmd.Flags().StringSlice(
+		"pools",
+		[]string{},
+		"Cancel jobs matching the specified pools. If no pools are provided, jobs across all pools will be cancelled.",
+	)
+	cmd.Flags().StringSliceP(
+		"selector",
+		"l",
+		[]string{},
+		"Select queues by label.",
+	)
+	cmd.Flags().Bool(
+		"inverse",
+		false,
+		"Inverts result to cancel all queues that don't match the specified criteria. Defaults to false.",
+	)
+	cmd.Flags().Bool(
+		"only-cordoned",
+		false,
+		"Only cancels queues that are cordoned. Defaults to false.",
+	)
+	cmd.Flags().Bool(
+		"dry-run",
+		false,
+		"Prints out queues on which jobs will be cancelled. Defaults to false.",
+	)
 
 	return cmd
 }

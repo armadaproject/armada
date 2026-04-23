@@ -114,3 +114,5 @@ tmp/
 tmp.*
 *.tmp.*
 .aider*
+
+.claude/

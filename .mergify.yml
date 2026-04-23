@@ -26,5 +26,5 @@ pull_request_rules:
               - "#approved-reviews-by>=2"
               - and:
                   - "#approved-reviews-by>=1"
-                  - "author~=^(d80tb7|dave[-]gantenbein|dejanzele|eleanorpratt|geaere|JamesMurkin|mauriceyap|masipauskas|MustafaI|zuqq|richscott|robertdavidsmith|samclark|suprjinx|EnricoMi|nikola-jokic|j8169)$"
+                  - "author~=^(d80tb7|dave[-]gantenbein|dejanzele|eleanorpratt|geaere|JamesMurkin|mauriceyap|masipauskas|MustafaI|zuqq|richscott|robertdavidsmith|samclark|suprjinx|EnricoMi|nikola-jokic|j8169|sarhiri)$"
         title: Two approvals required, or one if author is a maintainer.
