@@ -13,6 +13,8 @@ export interface OidcConfig {
   authority: string
   clientId: string
   scope: string
+  loadUserInfo: boolean
+  displayNameClaim?: string
 }
 
 export interface CommandSpec {
@@ -39,6 +41,24 @@ export interface JobLinkConfig {
   linkTemplate: string
 }
 
+export interface ScriptTag {
+  content?: string
+  attributes?: Record<string, string>
+}
+
+export interface UserIdentify {
+  trackUsers: boolean
+  identifyParam?: string
+}
+
+export interface AnalyticsConfig {
+  scripts: ScriptTag[]
+  provider: string
+  userIdentify?: UserIdentify
+  customEventFunction?: string
+  dataWrapper?: string
+}
+
 // This must match the UIConfig Go struct defined in internal/lookout/configuration/types.go
 export interface LookoutUiConfig {
   armadaApiBaseUrl: string
@@ -55,6 +75,7 @@ export interface LookoutUiConfig {
   pinnedTimeZoneIdentifiers: string[]
   errorMonitoring: ErrorMonitoringConfig
   customThemeConfigs: CustomThemeConfigs | undefined
+  analytics: AnalyticsConfig | undefined
 }
 
 export interface Config extends LookoutUiConfig {

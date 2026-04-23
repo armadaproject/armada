@@ -893,6 +893,11 @@ func (job *Job) WithValidated(validated bool) *Job {
 	return j
 }
 
+// Leased returns true if the job is currently leased
+func (job *Job) Leased() bool {
+	return !job.queued && !job.InTerminalState() && job.LatestRun() != nil
+}
+
 // Validated returns true if the job has been validated
 func (job *Job) Validated() bool {
 	return job.validated

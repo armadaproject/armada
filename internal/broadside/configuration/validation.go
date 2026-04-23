@@ -3,6 +3,8 @@ package configuration
 import (
 	"fmt"
 	"math"
+
+	commonconfig "github.com/armadaproject/armada/internal/common/config"
 )
 
 const proportionTolerance = 0.001 // Tolerance for floating point comparison
@@ -33,6 +35,10 @@ func (t *TestConfig) Validate() error {
 	return nil
 }
 
+func (t *TestConfig) Mutate() (commonconfig.Config, error) {
+	return t, nil
+}
+
 func validateQueueConfigs(queueConfigs []QueueConfig) error {
 	if len(queueConfigs) == 0 {
 		return fmt.Errorf("queueConfig must contain at least one queue")
@@ -50,6 +56,10 @@ func validateQueueConfigs(queueConfigs []QueueConfig) error {
 	}
 
 	return nil
+}
+
+func (d *DatabaseConfig) Mutate() (commonconfig.Config, error) {
+	return d, nil
 }
 
 // Validate validates the DatabaseConfig configuration.
@@ -100,6 +110,10 @@ func validateDatabaseMap(dbMap map[string]string, dbType string) error {
 	return nil
 }
 
+func (i *IngestionConfig) Mutate() (commonconfig.Config, error) {
+	return i, nil
+}
+
 // Validate validates the IngestionConfig configuration.
 func (i *IngestionConfig) Validate() error {
 	if i.BatchSize <= 0 {
@@ -130,10 +144,23 @@ func (i *IngestionConfig) Validate() error {
 			return fmt.Errorf("backlogDropStrategy must be one of %v, got '%s'", validStrategies, i.BacklogDropStrategy)
 		}
 	}
+	if i.BatchTimeout < 0 {
+		return fmt.Errorf("batchTimeout must be non-negative, got %v", i.BatchTimeout)
+	}
+	if i.HistoricalJobChunkSize < 0 {
+		return fmt.Errorf("historicalJobChunkSize must be non-negative, got %d", i.HistoricalJobChunkSize)
+	}
+	if i.HistoricalJobWorkers < 0 {
+		return fmt.Errorf("historicalJobWorkers must be non-negative, got %d", i.HistoricalJobWorkers)
+	}
 	if err := i.JobStateTransitionConfig.Validate(); err != nil {
 		return fmt.Errorf("jobStateTransitionConfig validation failed: %w", err)
 	}
 	return nil
+}
+
+func (q *QueueConfig) Mutate() (commonconfig.Config, error) {
+	return q, nil
 }
 
 // Validate validates the QueueConfig configuration.
@@ -163,6 +190,10 @@ func (q *QueueConfig) Validate() error {
 	return nil
 }
 
+func (j *JobSetConfig) Mutate() (commonconfig.Config, error) {
+	return j, nil
+}
+
 // Validate validates the JobSetConfig configuration.
 func (j *JobSetConfig) Validate() error {
 	if j.Name == "" {
@@ -175,6 +206,10 @@ func (j *JobSetConfig) Validate() error {
 		return fmt.Errorf("jobSet '%s' historicalJobsConfig validation failed: %w", j.Name, err)
 	}
 	return nil
+}
+
+func (h *HistoricalJobsConfig) Mutate() (commonconfig.Config, error) {
+	return h, nil
 }
 
 // Validate validates the HistoricalJobsConfig configuration.
@@ -204,7 +239,22 @@ func (h *HistoricalJobsConfig) Validate() error {
 		return fmt.Errorf("sum of all proportions must not exceed 1.0, got %.6f", totalProportion)
 	}
 
+	if h.NumberOfJobs > 0 {
+		if len(h.JobAgeDays) == 0 {
+			return fmt.Errorf("jobAgeDays must contain at least one value when numberOfJobs > 0")
+		}
+		for i, d := range h.JobAgeDays {
+			if d < 0 {
+				return fmt.Errorf("jobAgeDays[%d] must be non-negative, got %d", i, d)
+			}
+		}
+	}
+
 	return nil
+}
+
+func (j *JobStateTransitionConfig) Mutate() (commonconfig.Config, error) {
+	return j, nil
 }
 
 // Validate validates the JobStateTransitionConfig configuration.
@@ -294,6 +344,10 @@ func (j *JobSetCancellation) Validate(testDurationNano int64) error {
 	return nil
 }
 
+func (q *QueryConfig) Mutate() (commonconfig.Config, error) {
+	return q, nil
+}
+
 // Validate validates the QueryConfig configuration.
 func (q *QueryConfig) Validate() error {
 	queries := []struct {
@@ -311,6 +365,10 @@ func (q *QueryConfig) Validate() error {
 		if qry.value < 0 {
 			return fmt.Errorf("%s must be non-negative, got %d", qry.name, qry.value)
 		}
+	}
+
+	if q.MaxConcurrentQueries < 0 {
+		return fmt.Errorf("maxConcurrentQueries must be non-negative, got %d", q.MaxConcurrentQueries)
 	}
 
 	if q.MaxErrorsToCollect < 0 {

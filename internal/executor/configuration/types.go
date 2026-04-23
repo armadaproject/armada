@@ -7,6 +7,7 @@ import (
 
 	profilingconfig "github.com/armadaproject/armada/internal/common/profiling/configuration"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
+	"github.com/armadaproject/armada/internal/executor/categorizer"
 	"github.com/armadaproject/armada/internal/executor/configuration/podchecks"
 	"github.com/armadaproject/armada/pkg/client"
 )
@@ -26,6 +27,12 @@ type ApplicationConfiguration struct {
 	// MaxLeasedJobs is the maximum jobs the executor should have in Leased state ay any one time (i.e jobs not submitted to kubernetes)
 	// It is largely used to calculate how many new jobs to request from the scheduler
 	MaxLeasedJobs int
+	// EnableJobErrorCategorization enables failure classification on pod errors.
+	// When false, no failure_category or failure_subcategory is set on error events.
+	EnableJobErrorCategorization bool `yaml:"enableJobErrorCategorization"`
+	// ErrorCategories defines category rules for classifying pod failures.
+	// Only used when EnableJobErrorCategorization is true.
+	ErrorCategories categorizer.ErrorCategoriesConfig `yaml:"errorCategories"`
 }
 
 type PodDefaults struct {
@@ -90,7 +97,8 @@ type KubernetesConfiguration struct {
 	// When adding a fictional allocation to ensure resources allocated to non-Armada pods is at least
 	// MinimumResourcesMarkedAllocatedToNonArmadaPodsPerNode, those resources are marked allocated at this priority.
 	MinimumResourcesMarkedAllocatedToNonArmadaPodsPerNodePriority int32
-	PodKillTimeout                                                time.Duration
+
+	PodKillTimeout time.Duration
 }
 
 type EtcdConfiguration struct {

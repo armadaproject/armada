@@ -3,6 +3,7 @@ package context
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -10,7 +11,10 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/pointer"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
+	"github.com/armadaproject/armada/internal/scheduler/floatingresources"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
+	"github.com/armadaproject/armada/internal/scheduler/jobdb"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/fairness"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 )
@@ -313,6 +317,65 @@ func TestCalculateTheoreticalShare(t *testing.T) {
 	}
 }
 
+func TestRecordNewJobSchedulingDuration(t *testing.T) {
+	tests := map[string]struct {
+		gctx                                *GangSchedulingContext
+		timeToRecord                        time.Duration
+		initialTotalSchedulingDuration      time.Duration
+		initialQueueTotalSchedulingDuration time.Duration
+		expectError                         bool
+	}{
+		" existing queue": {
+			gctx:         NewGangSchedulingContext([]*JobSchedulingContext{JobSchedulingContextFromJob(testfixtures.Test16Cpu128GiJob("A", testfixtures.TestDefaultPriorityClass))}),
+			timeToRecord: time.Second,
+		},
+		" adds to existing times": {
+			gctx:                                NewGangSchedulingContext([]*JobSchedulingContext{JobSchedulingContextFromJob(testfixtures.Test16Cpu128GiJob("A", testfixtures.TestDefaultPriorityClass))}),
+			timeToRecord:                        time.Second,
+			initialTotalSchedulingDuration:      time.Second * 5,
+			initialQueueTotalSchedulingDuration: time.Second * 3,
+		},
+		"unknown queue": {
+			gctx:         NewGangSchedulingContext([]*JobSchedulingContext{JobSchedulingContextFromJob(testfixtures.Test16Cpu128GiJob("C", testfixtures.TestDefaultPriorityClass))}),
+			timeToRecord: time.Second,
+			expectError:  true,
+		},
+		"nil gctx": {
+			gctx:         nil,
+			timeToRecord: time.Second,
+			expectError:  true,
+		},
+		"empty gctx": {
+			gctx:         &GangSchedulingContext{},
+			timeToRecord: time.Second,
+			expectError:  true,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			fairnessCostProvider, err := fairness.NewDominantResourceFairness(cpu(100), "pool", configuration.SchedulingConfig{DominantResourceFairnessResourcesToConsider: []string{"cpu"}})
+			require.NoError(t, err)
+			sctx := NewSchedulingContext("pool", fairnessCostProvider, nil, cpu(100))
+			if tc.initialTotalSchedulingDuration > 0 {
+				sctx.TotalNewJobSchedulingTime = tc.initialTotalSchedulingDuration
+			}
+			sctx.QueueSchedulingContexts = map[string]*QueueSchedulingContext{"A": {TotalNewJobSchedulingTime: tc.initialQueueTotalSchedulingDuration}, "B": {}}
+			err = sctx.RecordNewJobSchedulingDuration(tc.gctx, tc.timeToRecord)
+			if tc.expectError {
+				assert.Error(t, err)
+				assert.Equal(t, sctx.TotalNewJobSchedulingTime, tc.initialTotalSchedulingDuration)
+				assert.Equal(t, sctx.QueueSchedulingContexts["A"].TotalNewJobSchedulingTime, tc.initialQueueTotalSchedulingDuration)
+				assert.Equal(t, sctx.QueueSchedulingContexts["B"].TotalNewJobSchedulingTime, time.Duration(0))
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, sctx.TotalNewJobSchedulingTime, tc.timeToRecord+tc.initialTotalSchedulingDuration)
+				assert.Equal(t, sctx.QueueSchedulingContexts["A"].TotalNewJobSchedulingTime, tc.timeToRecord+tc.initialQueueTotalSchedulingDuration)
+				assert.Equal(t, sctx.QueueSchedulingContexts["B"].TotalNewJobSchedulingTime, time.Duration(0))
+			}
+		})
+	}
+}
+
 func TestCalculateFairnessError(t *testing.T) {
 	tests := map[string]struct {
 		availableResources internaltypes.ResourceList
@@ -399,6 +462,82 @@ func TestCalculateFairnessError(t *testing.T) {
 			assert.InDelta(t, tc.expected, sctx.FairnessError(), 0.00001)
 		})
 	}
+}
+
+func TestIsWithinFloatingResourceLimits(t *testing.T) {
+	homePool := "pool"
+	awayPool := "away"
+
+	job := testfixtures.Test1Cpu4GiJob(testfixtures.TestQueue, testfixtures.PriorityClass2)
+	jobWithFloatingResource := addFloatingResourceRequest("1", job)
+	homeJob := jobWithFloatingResource.WithNewRun("executor-1", "node-1", "node-1", homePool, 1)
+	awayJob := jobWithFloatingResource.WithNewRun("executor-1", "node-1", "node-1", awayPool, 1)
+
+	allocatedWithinLimits := testfixtures.TestResourceListFactory.FromJobResourceListIgnoreUnknown(map[string]resource.Quantity{"test-floating-resource": resource.MustParse("5")})
+	allocatedAboveLimits := testfixtures.TestResourceListFactory.FromJobResourceListIgnoreUnknown(map[string]resource.Quantity{"test-floating-resource": resource.MustParse("15")})
+
+	tests := map[string]struct {
+		gctx          *GangSchedulingContext
+		resources     *floatingresources.FloatingResourceTypes
+		allocated     internaltypes.ResourceList
+		expectSuccess bool
+	}{
+		"nil gctx": {
+			resources:     testfixtures.TestFloatingResources,
+			allocated:     allocatedWithinLimits,
+			expectSuccess: true,
+		},
+		"nil floating resources": {
+			gctx:          NewGangSchedulingContext([]*JobSchedulingContext{JobSchedulingContextFromJob(homeJob)}),
+			allocated:     allocatedWithinLimits,
+			expectSuccess: false,
+		},
+		"gctx - within limits": {
+			gctx:          NewGangSchedulingContext([]*JobSchedulingContext{JobSchedulingContextFromJob(homeJob)}),
+			resources:     testfixtures.TestFloatingResources,
+			allocated:     allocatedWithinLimits,
+			expectSuccess: true,
+		},
+		"gctx - not within limits": {
+			gctx:          NewGangSchedulingContext([]*JobSchedulingContext{JobSchedulingContextFromJob(homeJob)}),
+			resources:     testfixtures.TestFloatingResources,
+			allocated:     allocatedAboveLimits,
+			expectSuccess: false,
+		},
+		"gctx - away - within limits": {
+			gctx:          NewGangSchedulingContext([]*JobSchedulingContext{JobSchedulingContextFromJob(awayJob)}),
+			resources:     testfixtures.TestFloatingResources,
+			allocated:     allocatedWithinLimits,
+			expectSuccess: true,
+		},
+		"gctx - away - not within limits": {
+			gctx:          NewGangSchedulingContext([]*JobSchedulingContext{JobSchedulingContextFromJob(awayJob)}),
+			resources:     testfixtures.TestFloatingResources,
+			allocated:     allocatedAboveLimits,
+			expectSuccess: true,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			sctx := SchedulingContext{Pool: homePool, Allocated: tc.allocated}
+
+			ok, reason := sctx.IsWithinFloatingResourceLimits(tc.gctx, tc.resources)
+			assert.Equal(t, tc.expectSuccess, ok)
+			if !ok {
+				assert.NotEmpty(t, reason)
+			}
+		})
+	}
+}
+
+func addFloatingResourceRequest(request string, job *jobdb.Job) *jobdb.Job {
+	return testfixtures.WithRequestsJobs(
+		schedulerobjects.ResourceList{
+			Resources: map[string]*resource.Quantity{
+				"test-floating-resource": pointer.MustParseResource(request),
+			},
+		},
+		[]*jobdb.Job{job})[0]
 }
 
 func testNSmallCpuJobSchedulingContext(queue, priorityClassName string, n int) []*JobSchedulingContext {

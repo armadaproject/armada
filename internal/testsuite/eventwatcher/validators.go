@@ -19,23 +19,36 @@ func assertEvent(expected *api.EventMessage, actual *api.EventMessage) error {
 }
 
 func assertEventFailed(expected *api.EventMessage_Failed, actual *api.EventMessage_Failed) error {
-	if expected.Failed.GetReason() == "" {
-		return nil
-	}
 	if actual == nil {
 		return errors.Errorf("unexpected nil event 'actual'")
 	}
 
-	re, err := regexp.Compile(expected.Failed.GetReason())
-	if err != nil {
-		return errors.Errorf("failed to compile regex %q: %v", expected.Failed.GetReason(), err)
+	if reason := expected.Failed.GetReason(); reason != "" {
+		re, err := regexp.Compile(reason)
+		if err != nil {
+			return errors.Errorf("failed to compile regex %q: %v", reason, err)
+		}
+		if !re.MatchString(actual.Failed.GetReason()) {
+			return errors.Errorf(
+				"error asserting failure reason: expected %s, got %s",
+				reason, actual.Failed.GetReason(),
+			)
+		}
 	}
 
-	if re.MatchString(actual.Failed.GetReason()) {
-		return errors.Errorf(
-			"error asserting failure reason: expected %s, got %s",
-			expected.Failed.GetReason(), actual.Failed.GetReason(),
-		)
+	if expected.Failed.GetFailureCategory() != "" {
+		if expected.Failed.GetFailureCategory() != actual.Failed.GetFailureCategory() {
+			return errors.Errorf("expected failure_category %q but got %q",
+				expected.Failed.GetFailureCategory(), actual.Failed.GetFailureCategory())
+		}
 	}
+
+	if expected.Failed.GetFailureSubcategory() != "" {
+		if expected.Failed.GetFailureSubcategory() != actual.Failed.GetFailureSubcategory() {
+			return errors.Errorf("expected failure_subcategory %q but got %q",
+				expected.Failed.GetFailureSubcategory(), actual.Failed.GetFailureSubcategory())
+		}
+	}
+
 	return nil
 }

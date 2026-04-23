@@ -144,18 +144,42 @@ type JobLinkConfig struct {
 	LinkTemplate string `json:"linkTemplate"`
 }
 
-// UIConfig must match the LookoutUiConfig TypeScript interface defined in internal/lookoutui/src/lookoutUiConfig.d.ts
+type ScriptTag struct {
+	Content    string            `json:"content,omitempty"`
+	Attributes map[string]string `json:"attributes,omitempty"`
+}
+
+type UserIdentify struct {
+	TrackUsers    bool   `json:"trackUsers"`
+	IdentifyParam string `json:"identifyParam,omitempty"`
+}
+
+type AnalyticsConfig struct {
+	Scripts             []ScriptTag   `json:"scripts"`
+	Provider            string        `json:"provider"`
+	UserIdentify        *UserIdentify `json:"userIdentify,omitempty"`
+	CustomEventFunction string        `json:"customEventFunction,omitempty"`
+	DataWrapper         string        `json:"dataWrapper,omitempty"`
+}
+
+type OidcConfig struct {
+	Authority    string `json:"authority"`
+	ClientId     string `json:"clientId"`
+	Scope        string `json:"scope"`
+	LoadUserInfo *bool  `json:"loadUserInfo"`
+	// DisplayNameClaim specifies which OIDC claim to use for the username display.
+	// Common values: "name", "preferred_username", "email", "given_name". Defaults to "sub".
+	DisplayNameClaim *string `json:"displayNameClaim,omitempty"`
+}
+
+// UIConfig must match the LookoutUiConfig TypeScript interface defined in internal/lookoutui/src/config/types.ts
 type UIConfig struct {
 	CustomTitle string `json:"customTitle"`
 
 	// We have a separate flag here (instead of making the Oidc field optional)
 	// so that clients can override the server's preference.
-	OidcEnabled bool `json:"oidcEnabled"`
-	Oidc        *struct {
-		Authority string `json:"authority"`
-		ClientId  string `json:"clientId"`
-		Scope     string `json:"scope"`
-	} `json:"oidc,omitempty"`
+	OidcEnabled bool        `json:"oidcEnabled"`
+	Oidc        *OidcConfig `json:"oidc,omitempty"`
 
 	ArmadaApiBaseUrl         string `json:"armadaApiBaseUrl"`
 	UserAnnotationPrefix     string `json:"userAnnotationPrefix"`
@@ -176,4 +200,7 @@ type UIConfig struct {
 	JobLinks []JobLinkConfig `json:"jobLinks"`
 
 	CustomThemeConfigs *CustomThemeConfigs `json:"customThemeConfigs,omitempty"`
+
+	// Analytics is an optional analytics configuration
+	Analytics *AnalyticsConfig `json:"analytics,omitempty"`
 }

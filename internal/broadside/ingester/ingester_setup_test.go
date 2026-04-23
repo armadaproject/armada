@@ -31,6 +31,7 @@ func TestIngester_Setup_PopulatesExpectedJobCount(t *testing.T) {
 						ProportionErrored:   0.1,
 						ProportionCancelled: 0.05,
 						ProportionPreempted: 0.05,
+						JobAgeDays:          []int{0},
 					},
 				},
 				{
@@ -39,6 +40,7 @@ func TestIngester_Setup_PopulatesExpectedJobCount(t *testing.T) {
 					HistoricalJobsConfig: configuration.HistoricalJobsConfig{
 						NumberOfJobs:        30,
 						ProportionSucceeded: 1.0,
+						JobAgeDays:          []int{1},
 					},
 				},
 			},
@@ -54,6 +56,7 @@ func TestIngester_Setup_PopulatesExpectedJobCount(t *testing.T) {
 						NumberOfJobs:        20,
 						ProportionSucceeded: 0.5,
 						ProportionErrored:   0.5,
+						JobAgeDays:          []int{1},
 					},
 				},
 			},
@@ -76,4 +79,100 @@ func TestIngester_Setup_PopulatesExpectedJobCount(t *testing.T) {
 	require.NoError(t, err)
 	// Total: 50 + 30 + 20 = 100
 	assert.Len(t, jobs, 100)
+}
+
+func TestIngester_Setup_PassesChunkSizeToDatabase(t *testing.T) {
+	mem := db.NewMemoryDatabase()
+	require.NoError(t, mem.InitialiseSchema(context.Background()))
+
+	queueCfgs := []configuration.QueueConfig{
+		{
+			Name:       "q1",
+			Proportion: 1.0,
+			JobSetConfig: []configuration.JobSetConfig{
+				{
+					Name:       "js1",
+					Proportion: 1.0,
+					HistoricalJobsConfig: configuration.HistoricalJobsConfig{
+						NumberOfJobs:        100,
+						ProportionSucceeded: 1.0,
+						JobAgeDays:          []int{1},
+					},
+				},
+			},
+		},
+	}
+
+	cfg := configuration.IngestionConfig{
+		BatchSize:              100,
+		NumWorkers:             1,
+		HistoricalJobChunkSize: 50,
+		HistoricalJobWorkers:   2,
+	}
+
+	ing, err := ingester.NewIngester(cfg, queueCfgs, mem, metrics.NewIngesterMetrics())
+	require.NoError(t, err)
+
+	err = ing.Setup(context.Background())
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	jobs, err := mem.GetJobs(&ctx, nil, false, nil, 0, 1000)
+	require.NoError(t, err)
+	assert.Len(t, jobs, 100)
+}
+
+func TestIngester_Setup_MultipleQueuesParallel(t *testing.T) {
+	mem := db.NewMemoryDatabase()
+	require.NoError(t, mem.InitialiseSchema(context.Background()))
+
+	queueCfgs := []configuration.QueueConfig{
+		{
+			Name:       "q1",
+			Proportion: 0.5,
+			JobSetConfig: []configuration.JobSetConfig{
+				{
+					Name:       "js1",
+					Proportion: 1.0,
+					HistoricalJobsConfig: configuration.HistoricalJobsConfig{
+						NumberOfJobs:        50,
+						ProportionSucceeded: 1.0,
+						JobAgeDays:          []int{1},
+					},
+				},
+			},
+		},
+		{
+			Name:       "q2",
+			Proportion: 0.5,
+			JobSetConfig: []configuration.JobSetConfig{
+				{
+					Name:       "js1",
+					Proportion: 1.0,
+					HistoricalJobsConfig: configuration.HistoricalJobsConfig{
+						NumberOfJobs:        30,
+						ProportionSucceeded: 1.0,
+						JobAgeDays:          []int{0},
+					},
+				},
+			},
+		},
+	}
+
+	cfg := configuration.IngestionConfig{
+		BatchSize:            100,
+		NumWorkers:           1,
+		HistoricalJobWorkers: 4,
+	}
+
+	ing, err := ingester.NewIngester(cfg, queueCfgs, mem, metrics.NewIngesterMetrics())
+	require.NoError(t, err)
+
+	err = ing.Setup(context.Background())
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	jobs, err := mem.GetJobs(&ctx, nil, false, nil, 0, 1000)
+	require.NoError(t, err)
+	assert.Len(t, jobs, 80) // 50 + 30
 }

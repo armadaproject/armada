@@ -1243,6 +1243,12 @@
             "format": "int32"
           }
         },
+        "failureCategory": {
+          "type": "string"
+        },
+        "failureSubcategory": {
+          "type": "string"
+        },
         "jobId": {
           "type": "string"
         },
@@ -1862,6 +1868,10 @@
           }
         },
         "clientId": {
+          "type": "string"
+        },
+        "externalJobUri": {
+          "description": "URI identifying this job in an external system (e.g. Airflow).\nIf not set, the server falls back to the \"armadaproject.io/externalJobUri\" annotation.",
           "type": "string"
         },
         "ingress": {

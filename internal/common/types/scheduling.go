@@ -3,7 +3,36 @@ package types
 import (
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
+	"k8s.io/apimachinery/pkg/api/resource"
 )
+
+// AwayNodeTypeConditionOperator is the comparison operator for an AwayNodeTypeCondition.
+type AwayNodeTypeConditionOperator string
+
+const (
+	AwayNodeTypeConditionOpGreaterThan AwayNodeTypeConditionOperator = ">"
+	AwayNodeTypeConditionOpLessThan    AwayNodeTypeConditionOperator = "<"
+	AwayNodeTypeConditionOpEqual       AwayNodeTypeConditionOperator = "=="
+)
+
+// AwayNodeTypeCondition is a threshold on a single resource.
+// An AwayNodeType entry is only applied when ALL conditions are satisfied.
+type AwayNodeTypeCondition struct {
+	// Resource is the Kubernetes resource name, e.g. "cpu", "memory", "nvidia.com/gpu".
+	Resource string `validate:"required"`
+	// Operator is one of ">", "<", "==".
+	Operator AwayNodeTypeConditionOperator `validate:"required"`
+	// Value is a Kubernetes resource quantity string, e.g. "1", "4Gi".
+	Value resource.Quantity `validate:"required"`
+}
+
+type AwayTypeEntry struct {
+	// Name references a WellKnownNodeType defined in SchedulingConfig.WellKnownNodeTypes.
+	Name string `validate:"required"`
+	// Conditions which must be met for this entry to be applied for away scheduling
+	// If the conditions are not met, the tolerations for the referenced well known node type will not be added to the job
+	Conditions []AwayNodeTypeCondition `validate:"dive"`
+}
 
 type AwayNodeType struct {
 	// Priority is the priority class priority that the scheduler should use
@@ -12,7 +41,13 @@ type AwayNodeType struct {
 	// PriorityClass.
 	Priority int32 `validate:"gte=0"`
 	// WellKnownNodeTypeName is the Name of the WellKnownNodeType in question.
-	WellKnownNodeTypeName string `validate:"required"`
+	// Deprecated
+	// Use NodeTypes which provides the the same functionality with additional features
+	// For now this configuration will still be respected but will be removed in future
+	WellKnownNodeTypeName string
+	// NodeTypes
+	// A list of away type entries that define this away node type
+	NodeTypes []AwayTypeEntry
 }
 
 // PriorityClass represents an Armada-specific priority class used for scheduling and preemption.

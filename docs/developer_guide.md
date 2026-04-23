@@ -72,7 +72,7 @@ For more information about Armada's design, see the following pages:
 
 Before you can start using Armada, you first need to install the following items:
 
-- [`Go`](https://go.dev/doc/install) (version 1.25 or later)
+- [`Go`](https://go.dev/doc/install) (version 1.26 or later)
 - `gcc` (for Windows, [see `tdm-gcc`](https://jmeubank.github.io/tdm-gcc/))
 - [`mage`](https://magefile.org/)
 - [`docker`](https://docs.docker.com/get-docker/)
@@ -144,7 +144,7 @@ go run cmd/testsuite/main.go test --tests "testsuite/testcases/basic/*" --junit 
 
 ### Running the UI
 
-In `LocalDev`, the UI is built seperately with `mage ui`. To access it, open http://localhost:8089 in your browser.
+In `LocalDev`, the UI is built separately with `mage ui`. To access it, open http://localhost:8089 in your browser.
 
 For more information, [see the UI Developer Guide](./developer/developing-locally.md).
 
@@ -254,7 +254,7 @@ The following high-level configurations are provided, each composed of sub-confi
 * `Armada (Pulsar Scheduler)` - runs Armada with the Pulsar Scheduler (recommended)
 * `Lookout UI` - script that configures a local UI development setup
 
-A minimal local Armada setup using these configurations would be `Armada Infrastructure Services` and one of (`Armada (Legacy Scheduler)` or `Armada (Pulsar Scheduler)`). Running the `Lookout UI` script on top of this configuration enabsle you to develop the Lookout UI live from GoLand, and see the changes visible in your browser.
+A minimal local Armada setup using these configurations would be `Armada Infrastructure Services` and one of (`Armada (Legacy Scheduler)` or `Armada (Pulsar Scheduler)`). Running the `Lookout UI` script on top of this configuration enables you to develop the Lookout UI live from GoLand, and see the changes visible in your browser.
 
 **Note:** These configurations (executor specifically) require a kubernetes config in `$PROJECT_DIR$/.kube/internal/config`.
 
@@ -270,7 +270,7 @@ The `Armada` configuration performs all required setup (setting up the Kind clus
 
 Run `mage debug local` to only spin up the dependencies of Armada, and then run the individual components yourself.
 
-For required enviromental variables, [see the Enviromental Variables guide](https://github.com/armadaproject/armada/tree/master/developer/env/README.md).
+For required environmental variables, [see the Environmental Variables guide](https://github.com/armadaproject/armada/tree/master/developer/env/README.md).
 
 ## Finer-grain control
 

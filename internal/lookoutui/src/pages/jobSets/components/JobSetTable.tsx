@@ -22,8 +22,7 @@ import {
   useDisplayedTimeZoneWithUserSettings,
   useFormatIsoTimestampWithUserSettings,
 } from "../../../components/hooks/formatTimeWithUserSettings"
-import { JobState, jobStateColors, jobStateIcons } from "../../../models/lookoutModels"
-import { JobSet, JobSetsOrderByColumn } from "../../../services/JobService"
+import { JobSet, JobSetsOrderByColumn, JobState, jobStateColors, jobStateIcons } from "../../../models/lookoutModels"
 
 import { JobStateCountChip } from "../../jobs/components/JobStateCountChip"
 

@@ -1,6 +1,7 @@
 import { Button, List, ListItem, ListItemText, Paper, TextField } from "@mui/material"
 
-import { JobSet } from "../../../../services/JobService"
+import { Analytics, ANALYTICS_EVENTS } from "../../../../analytics"
+import { JobSet } from "../../../../models/lookoutModels"
 
 import "./ReprioritizeJobSets.css"
 import "../Dialog.css"
@@ -38,9 +39,15 @@ export default function ReprioritizeJobSets(props: ReprioritizeJobSetsProps) {
           />
         </div>
         <div>
-          <Button disabled={!props.isValid} loading={props.isLoading} onClick={props.onReprioritizeJobsSets}>
+          <Analytics
+            component={Button}
+            eventName={ANALYTICS_EVENTS.REPRIORITIZE_JOB_SETS_CLICKED}
+            disabled={!props.isValid}
+            loading={props.isLoading}
+            onClick={props.onReprioritizeJobsSets}
+          >
             Reprioritize Job Sets
-          </Button>
+          </Analytics>
         </div>
       </div>
     </div>

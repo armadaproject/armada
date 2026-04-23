@@ -23,7 +23,7 @@ import (
 func withGroupJobsSetup(f func(*instructions.InstructionConverter, *lookoutdb.LookoutDb, *SqlGroupJobsRepository) error) error {
 	return lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		converter := instructions.NewInstructionConverter(metrics.Get().Metrics, userAnnotationPrefix, []string{}, &compress.NoOpCompressor{})
-		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
+		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10, 10)
 		repo := NewSqlGroupJobsRepository(db)
 		return f(converter, store, repo)
 	})

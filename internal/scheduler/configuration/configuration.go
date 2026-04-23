@@ -48,6 +48,9 @@ type Configuration struct {
 	// This is expected to be a greater value than CyclePeriod as we don't need to schedule every cycle
 	// This keeps the system more responsive as other operations happen in each cycle - such as state changes
 	SchedulePeriod time.Duration `validate:"required"`
+	// Deprecated - replaced by Scheduling.MaxNewJobSchedulingDuration
+	// For now the scheduler will use this value if set and fall back to scheduling.MaxSchedulingDuration
+	//
 	// MaxSchedulingDuration is the hard timeout for a scheduling cycle.
 	// When exceeded, the scheduler aborts immediately and returns an error,
 	// discarding all uncommitted work from the current cycle.
@@ -55,8 +58,11 @@ type Configuration struct {
 	// This is a safety limit to prevent runaway scheduling cycles from blocking
 	// the system indefinitely.
 	//
-	// Must be greater than NewJobsSchedulingTimeout.
-	MaxSchedulingDuration time.Duration `validate:"required"`
+	// Must be greater than MaxNewJobSchedulingDuration.
+	MaxSchedulingDuration time.Duration
+	// Deprecated - replaced by Scheduling.MaxNewJobSchedulingDuration
+	// For now the scheduler will use this value if set and fall back to scheduling.MaxNewJobSchedulingDuration
+	//
 	// NewJobsSchedulingTimeout is the soft timeout for scheduling new jobs.
 	// When exceeded, the scheduler stops considering new jobs and only
 	// attempts to reschedule evicted jobs for the remainder of the cycle.
@@ -124,6 +130,7 @@ type HttpConfig struct {
 type MetricsConfig struct {
 	Port                         uint16
 	RefreshInterval              time.Duration
+	QueuedJobPrimaryPoolOrder    []string
 	JobStateMetricsResetInterval time.Duration
 	// Used to calculate job seconds lost to preemption
 	// Calculate as if the job checkpoints at these different intervals
@@ -134,6 +141,9 @@ type MetricsConfig struct {
 	TrackedErrorRegexes []string
 	// Metrics are exported for these resources.
 	TrackedResourceNames []v1.ResourceName
+	// Node label key used to identify which scalable unit it belongs to.
+	// If empty, the scalableUnit label on metrics will be empty string.
+	ScalableUnitLabel string
 }
 
 type HistogramConfig struct {
@@ -162,6 +172,35 @@ type SchedulingConfig struct {
 	// This only applies to certain types of known failures
 	//	- critical failures will still cause a total scheduling round failure
 	DisableIndependentPoolFailures bool
+	// MaxSchedulingDuration is the hard timeout for a scheduling cycle.
+	// When exceeded, the scheduler aborts immediately and returns an error,
+	// discarding all uncommitted work from the current cycle.
+	//
+	// This is a safety limit to prevent runaway scheduling cycles from blocking
+	// the system indefinitely.
+	//
+	// Must be greater than MaxNewJobSchedulingDuration and MaxNewJobSchedulingDurationPerQueue.
+	MaxSchedulingDuration time.Duration `validate:"required,gt=0"`
+	// MaxNewJobSchedulingDuration is the soft timeout for scheduling new jobs.
+	// When exceeded, the scheduler stops considering new jobs and only
+	// attempts to reschedule evicted jobs for the remainder of the cycle.
+	//
+	// This ensures evicted jobs (which were preempted mid-simulation) get
+	// rescheduled before the cycle commits, while still bounding total cycle time.
+	//
+	// Set to 0 to disable (scheduler will schedule new jobs until hard timeout).
+	// Must be less than MaxSchedulingDuration when non-zero.
+	MaxNewJobSchedulingDuration time.Duration `validate:"omitempty,ltfield=MaxSchedulingDuration"`
+	// MaxNewJobSchedulingDurationPerQueue is the soft timeout for scheduling new jobs for a queue.
+	// When exceeded, the scheduler stops considering new jobs for that queue and only
+	// attempts to reschedule evicted jobs for the remainder of the cycle.
+	//
+	// This ensures evicted jobs (which were preempted mid-simulation) get
+	// rescheduled before the cycle commits, while still bounding total cycle time.
+	//
+	// Set to 0 to disable (scheduler will schedule new jobs until hard timeout).
+	// Must be less than MaxSchedulingDuration when non-zero.
+	MaxNewJobSchedulingDurationPerQueue time.Duration `validate:"omitempty,ltfield=MaxSchedulingDuration"`
 	// Set to true to enable scheduler assertions. This results in some performance loss.
 	EnableAssertions bool
 	// Experimental
@@ -300,11 +339,11 @@ type SchedulingConfig struct {
 }
 
 const (
-	DuplicateWellKnownNodeTypeErrorMessage     = "duplicate well-known node type name"
-	AwayNodeTypesWithoutPreemptionErrorMessage = "priority class has away node types but is not preemptible"
-	UnknownWellKnownNodeTypeErrorMessage       = "priority class refers to unknown well-known node type"
-	InvalidSchedulingTimeoutErrorMessage       = "NewJobsSchedulingTimeout must be less than MaxSchedulingDuration"
-	WildCardWellKnownNodeTypeValue             = "*"
+	DuplicateWellKnownNodeTypeErrorMessage           = "duplicate well-known node type name"
+	AwayNodeTypesWithoutPreemptionErrorMessage       = "priority class has away node types but is not preemptible"
+	UnknownWellKnownNodeTypeErrorMessage             = "priority class refers to unknown well-known node type"
+	WildCardWellKnownNodeTypeValue                   = "*"
+	InvalidAwayNodeTypeConditionOperatorErrorMessage = "away node type condition has invalid operator; must be one of >, <, =="
 )
 
 // ResourceType represents a resource the scheduler indexes for efficient lookup.
@@ -349,9 +388,12 @@ type PoolConfig struct {
 	ExperimentalSubmissionGroup   string
 	ExperimentalMarketScheduling  *MarketSchedulingConfig
 	ExperimentalRunReconciliation *RunReconciliationConfig
-	DisableHomeScheduling         bool
-	DisableAwayScheduling         bool
-	DisableGangAwayScheduling     bool
+	// This prevents jobs being scheduled on this pool if they request one of the listed resources
+	// The list should be the name of the resource type. For example, "cpu", "memory", or "nvidia.com/gpu".
+	ExperimentalUnscheduledResources []string
+	DisableHomeScheduling            bool
+	DisableAwayScheduling            bool
+	DisableGangAwayScheduling        bool
 }
 
 func (p PoolConfig) GetSubmissionGroup() string {

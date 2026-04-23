@@ -105,6 +105,31 @@ func createConsoleLogger(logConfig Config) (*FilteredLevelWriter, error) {
 	return createWriter(os.Stdout, level, logConfig.Console.Format)
 }
 
+// NewFileWriter opens (or creates) a log file at path and returns both the
+// file handle and a zerolog.LevelWriter that writes Info-level logs to it.
+// The caller is responsible for closing the file when done.
+func NewFileWriter(path string) (*os.File, zerolog.LevelWriter, error) {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return nil, nil, fmt.Errorf("creating log file directory: %w", err)
+	}
+	f, err := os.Create(path)
+	if err != nil {
+		return nil, nil, fmt.Errorf("creating log file: %w", err)
+	}
+	w, err := createWriter(f, zerolog.InfoLevel, FormatText)
+	if err != nil {
+		f.Close()
+		return nil, nil, fmt.Errorf("creating log writer: %w", err)
+	}
+	return f, w, nil
+}
+
+// NewStdoutWriter returns a zerolog.LevelWriter that writes plain-text
+// Info-level logs to stdout, matching the Broadside console output format.
+func NewStdoutWriter() (zerolog.LevelWriter, error) {
+	return createWriter(os.Stdout, zerolog.InfoLevel, FormatText)
+}
+
 func createWriter(out io.Writer, level zerolog.Level, format LogFormat) (*FilteredLevelWriter, error) {
 	level = overrideLevelFromEnv(level)
 	format = overrideFormatFromEnv(format)

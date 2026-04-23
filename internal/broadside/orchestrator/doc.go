@@ -99,13 +99,16 @@ performance across multiple test runs.
 	    },
 	}
 
-	runner := orchestrator.NewRunner(config, "/path/to/results")
+	runner := orchestrator.NewRunner(config, "/path/to/results", time.Now().Format("20060102-150405"))
 	if err := runner.Run(ctx); err != nil {
 	    log.Fatal(err)
 	}
 
 NewDatabase is also exported for use by callers that need a database instance
-without running a full test (for example, the --teardown-only CLI flag):
+without running a full test (for example, the --teardown-only CLI flag). It
+passes the FeatureToggles from the configuration to the database backend so
+that optional behaviours such as the hot/cold split are applied consistently
+whether a full test or a standalone operation is performed:
 
 	database, err := orchestrator.NewDatabase(config)
 	if err != nil {
