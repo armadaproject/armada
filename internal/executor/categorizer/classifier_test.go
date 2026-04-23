@@ -1,6 +1,7 @@
 package categorizer
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -367,6 +368,34 @@ func TestNewClassifier_ValidationErrors(t *testing.T) {
 				}},
 			}},
 			errContains: "duplicate category name",
+		},
+		"category name too long": {
+			config: ErrorCategoriesConfig{Categories: []CategoryConfig{
+				{Name: strings.Repeat("a", maxCategoryNameLen+1), Rules: []CategoryRule{
+					{OnConditions: []string{errormatch.ConditionOOMKilled}},
+				}},
+			}},
+			errContains: "category name",
+		},
+		"subcategory too long": {
+			config: ErrorCategoriesConfig{Categories: []CategoryConfig{
+				{Name: "oom", Rules: []CategoryRule{
+					{OnConditions: []string{errormatch.ConditionOOMKilled}, Subcategory: strings.Repeat("b", maxCategoryNameLen+1)},
+				}},
+			}},
+			errContains: "subcategory",
+		},
+		"default category too long": {
+			config: ErrorCategoriesConfig{
+				DefaultCategory: strings.Repeat("c", maxCategoryNameLen+1),
+			},
+			errContains: "defaultCategory",
+		},
+		"default subcategory too long": {
+			config: ErrorCategoriesConfig{
+				DefaultSubcategory: strings.Repeat("d", maxCategoryNameLen+1),
+			},
+			errContains: "defaultSubcategory",
 		},
 	}
 

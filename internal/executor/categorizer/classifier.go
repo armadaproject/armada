@@ -9,6 +9,12 @@ import (
 	"github.com/armadaproject/armada/internal/common/errormatch"
 )
 
+// maxCategoryNameLen is the maximum length for category and subcategory strings.
+// Matches the varchar(63) constraint on the failure_category and failure_subcategory
+// columns in the lookout job_run table (migration 032). Validating at config load
+// time prevents the ingester from failing batch UPDATEs at runtime.
+const maxCategoryNameLen = 63
+
 type category struct {
 	name  string
 	rules []rule
@@ -40,11 +46,20 @@ type Classifier struct {
 // Returns an error if any regex is invalid, a condition is unknown,
 // or an exit code matcher has an invalid operator.
 func NewClassifier(config ErrorCategoriesConfig) (*Classifier, error) {
+	if len(config.DefaultCategory) > maxCategoryNameLen {
+		return nil, fmt.Errorf("defaultCategory %q exceeds maximum length %d", config.DefaultCategory, maxCategoryNameLen)
+	}
+	if len(config.DefaultSubcategory) > maxCategoryNameLen {
+		return nil, fmt.Errorf("defaultSubcategory %q exceeds maximum length %d", config.DefaultSubcategory, maxCategoryNameLen)
+	}
 	categories := make([]category, 0, len(config.Categories))
 	seen := make(map[string]bool, len(config.Categories))
 	for _, cfg := range config.Categories {
 		if cfg.Name == "" {
 			return nil, fmt.Errorf("category config must have a name")
+		}
+		if len(cfg.Name) > maxCategoryNameLen {
+			return nil, fmt.Errorf("category name %q exceeds maximum length %d", cfg.Name, maxCategoryNameLen)
 		}
 		if seen[cfg.Name] {
 			return nil, fmt.Errorf("duplicate category name %q", cfg.Name)
@@ -71,6 +86,9 @@ func NewClassifier(config ErrorCategoriesConfig) (*Classifier, error) {
 }
 
 func buildRule(cfg CategoryRule) (rule, error) {
+	if len(cfg.Subcategory) > maxCategoryNameLen {
+		return rule{}, fmt.Errorf("subcategory %q exceeds maximum length %d", cfg.Subcategory, maxCategoryNameLen)
+	}
 	matcherCount := 0
 	if len(cfg.OnConditions) > 0 {
 		matcherCount++
