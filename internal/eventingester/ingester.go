@@ -178,7 +178,7 @@ func createLeaderController(ctx *armadacontext.Context, config configuration.Lea
 		}
 
 		leaderController := leader.NewKubernetesLeaderController(schedulerLeaderConfig, clientSet.CoordinationV1())
-		leaderStatusMetrics := leader.NewLeaderStatusMetricsCollector(ingestermetrics.ArmadaEventIngesterMetricsPrefix, config.LeaseLockName)
+		leaderStatusMetrics := leader.NewLeaderStatusMetricsCollector(ingestermetrics.ArmadaEventIngesterMetricsPrefix, config.PodName)
 		leaderController.RegisterListener(leaderStatusMetrics)
 		prometheus.MustRegister(leaderStatusMetrics)
 		return leaderController, nil
