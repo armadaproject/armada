@@ -25,7 +25,8 @@ use crate::error::Error;
 /// implementation for dynamic auth.
 ///
 /// ```no_run
-/// # use armada_client::{ArmadaClient, Certificate, ClientTlsConfig, StaticTokenProvider};
+/// # use armada_client::{ArmadaClient, StaticTokenProvider};
+/// # use armada_client::tonic::transport::{Certificate, ClientTlsConfig};
 /// # async fn example() -> Result<(), armada_client::Error> {
 /// // Plaintext
 /// let client = ArmadaClient::connect("http://localhost:50051", StaticTokenProvider::new("tok"))
@@ -131,13 +132,14 @@ impl ArmadaClient {
     ///
     /// Use this when you need to supply a custom CA certificate (e.g. a private or
     /// self-signed CA), override the server domain name, or configure mutual TLS.
-    /// Build the config with [`ClientTlsConfig`]; it is re-exported as
-    /// [`armada_client::ClientTlsConfig`] so you do not need a direct tonic dependency.
+    /// Build the config with [`tonic::transport::ClientTlsConfig`], accessible via
+    /// `armada_client::tonic::transport::ClientTlsConfig` — no direct tonic dependency needed.
     ///
     /// # Example — custom CA
     ///
     /// ```no_run
-    /// use armada_client::{ArmadaClient, Certificate, ClientTlsConfig, StaticTokenProvider};
+    /// use armada_client::{ArmadaClient, StaticTokenProvider};
+    /// use armada_client::tonic::transport::{Certificate, ClientTlsConfig};
     ///
     /// # async fn example() -> Result<(), armada_client::Error> {
     /// let pem = std::fs::read("ca.pem")?;
