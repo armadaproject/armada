@@ -9,8 +9,10 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 )
 
-const testInstanceName = "instance-1"
-const testMetricsPrefix = "test_"
+const (
+	testInstanceName  = "instance-1"
+	testMetricsPrefix = "test_"
+)
 
 var (
 	isNotLeaderMetric = prometheus.MustNewConstMetric(createLeaderStatusDesc(testMetricsPrefix), prometheus.GaugeValue, float64(0), testInstanceName)
