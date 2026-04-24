@@ -243,7 +243,7 @@ func newPerCycleMetrics() *perCycleMetrics {
 
 	spotPriceOverride := prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: prefix + "spot_price_override",
+			Name: ArmadaSchedulerMetricsPrefix + "spot_price_override",
 			Help: "spot price override applied to the price-setting queue under second-price billing",
 		},
 		poolAndQueueLabels,
