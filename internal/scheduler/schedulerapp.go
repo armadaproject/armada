@@ -455,7 +455,7 @@ func createLeaderController(ctx *armadacontext.Context, config schedulerconfig.L
 			return nil, errors.Wrapf(err, "Error creating kubernetes client")
 		}
 		leaderController := leader.NewKubernetesLeaderController(config, clientSet.CoordinationV1())
-		leaderStatusMetrics := leader.NewLeaderStatusMetricsCollector(config.PodName)
+		leaderStatusMetrics := leader.NewLeaderStatusMetricsCollector(metrics.ArmadaSchedulerMetricsPrefix, config.PodName)
 		leaderController.RegisterListener(leaderStatusMetrics)
 		prometheus.MustRegister(leaderStatusMetrics)
 		return leaderController, nil
