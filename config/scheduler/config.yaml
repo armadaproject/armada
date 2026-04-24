@@ -129,3 +129,6 @@ scheduling:
     basePriority: 500.0
   experimentalIndicativeShare:
     basePriorities: []
+submitCheck:
+  maxDuration: 5s
+  maxDurationPerQueue: 1s
