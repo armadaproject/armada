@@ -67,6 +67,7 @@ func StartUp(ctx *armadacontext.Context, config configuration.ExecutorConfigurat
 		for _, metricsUrl := range etcdClusterHealthMonitoring.MetricUrls {
 			etcdReplicaHealthMonitorsByUrl[metricsUrl] = etcdhealth.NewEtcdReplicaHealthMonitor(
 				metricsUrl,
+				etcdClusterHealthMonitoring.Name,
 				etcdClusterHealthMonitoring.FractionOfStorageInUseLimit,
 				etcdClusterHealthMonitoring.FractionOfStorageLimit,
 				etcdClusterHealthMonitoring.ReplicaTimeout,
@@ -79,21 +80,19 @@ func StartUp(ctx *armadacontext.Context, config configuration.ExecutorConfigurat
 		}
 		etcdClusterHealthMonitoringByName[etcdClusterHealthMonitoring.Name] = healthmonitor.NewMultiHealthMonitor(
 			etcdClusterHealthMonitoring.Name,
+			metrics.ArmadaExecutorMetricsPrefix+"etcd_cluster",
 			etcdReplicaHealthMonitorsByUrl,
 		).WithMinimumReplicasAvailable(
 			etcdClusterHealthMonitoring.MinimumReplicasAvailable,
-		).WithMetricsPrefix(
-			metrics.ArmadaExecutorMetricsPrefix,
 		)
 	}
 	var etcdClustersHealthMonitoring healthmonitor.HealthMonitor
 	if len(etcdClusterHealthMonitoringByName) > 0 {
 		ctx.Info("etcd URLs provided; monitoring etcd health enabled")
 		etcdClustersHealthMonitoring = healthmonitor.NewMultiHealthMonitor(
-			"overall_etcd",
+			"overall",
+			metrics.ArmadaExecutorMetricsPrefix+"overall_etcd",
 			etcdClusterHealthMonitoringByName,
-		).WithMetricsPrefix(
-			metrics.ArmadaExecutorMetricsPrefix,
 		)
 		g.Go(func() error { return etcdClustersHealthMonitoring.Run(ctx) })
 		prometheus.MustRegister(etcdClustersHealthMonitoring)
