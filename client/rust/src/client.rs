@@ -17,13 +17,15 @@ use crate::error::Error;
 ///
 /// # Construction
 ///
-/// Use [`ArmadaClient::connect`] for plaintext (dev / in-cluster) connections
-/// and [`ArmadaClient::connect_tls`] for production clusters behind TLS.
-/// Both accept any [`TokenProvider`] — pass [`crate::StaticTokenProvider`] for
-/// a static bearer token or supply your own implementation for dynamic auth.
+/// Use [`ArmadaClient::connect`] for plaintext (dev / in-cluster) connections,
+/// [`ArmadaClient::connect_tls`] for production clusters using system root certificates,
+/// or [`ArmadaClient::connect_tls_with_config`] when you need a custom CA, domain
+/// override, or mutual TLS. All constructors accept any [`TokenProvider`] — pass
+/// [`crate::StaticTokenProvider`] for a static bearer token or supply your own
+/// implementation for dynamic auth.
 ///
 /// ```no_run
-/// # use armada_client::{ArmadaClient, StaticTokenProvider};
+/// # use armada_client::{ArmadaClient, Certificate, ClientTlsConfig, StaticTokenProvider};
 /// # async fn example() -> Result<(), armada_client::Error> {
 /// // Plaintext
 /// let client = ArmadaClient::connect("http://localhost:50051", StaticTokenProvider::new("tok"))
@@ -32,6 +34,14 @@ use crate::error::Error;
 /// // TLS (uses system root certificates)
 /// let client = ArmadaClient::connect_tls("https://armada.example.com:443", StaticTokenProvider::new("tok"))
 ///     .await?;
+///
+/// // TLS with a custom CA
+/// let pem = std::fs::read("ca.pem")?;
+/// let client = ArmadaClient::connect_tls_with_config(
+///     "https://armada.example.com:443",
+///     ClientTlsConfig::new().ca_certificate(Certificate::from_pem(pem)),
+///     StaticTokenProvider::new("tok"),
+/// ).await?;
 /// # Ok(())
 /// # }
 /// ```
