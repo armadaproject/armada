@@ -193,4 +193,5 @@ pub use builder::JobRequestItemBuilder;
 pub use client::ArmadaClient;
 pub use error::Error;
 pub use futures::stream::BoxStream;
-pub use tonic::transport::{Certificate, ClientTlsConfig};
+pub use prost;
+pub use tonic;
