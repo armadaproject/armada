@@ -5,7 +5,7 @@
 /// must also be in the same AWS zone as the kubelet. An AWS EBS disk
 /// can only be mounted as read/write once. AWS EBS volumes support
 /// ownership management and SELinux relabeling.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct AwsElasticBlockStoreVolumeSource {
     /// volumeID is unique ID of the persistent disk resource in AWS (Amazon EBS volume).
     /// More info: <https://kubernetes.io/docs/concepts/storage/volumes#awselasticblockstore>
@@ -50,13 +50,13 @@ pub struct Affinity {
 }
 /// AppArmorProfile defines a pod or container's AppArmor settings.
 /// +union
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct AppArmorProfile {
     /// type indicates which kind of AppArmor profile will be applied.
     /// Valid options are:
-    ///    Localhost - a profile pre-loaded on the node.
-    ///    RuntimeDefault - the container runtime's default profile.
-    ///    Unconfined - no AppArmor enforcement.
+    /// Localhost - a profile pre-loaded on the node.
+    /// RuntimeDefault - the container runtime's default profile.
+    /// Unconfined - no AppArmor enforcement.
     /// +unionDiscriminator
     #[prost(string, optional, tag = "1")]
     pub r#type: ::core::option::Option<::prost::alloc::string::String>,
@@ -69,7 +69,7 @@ pub struct AppArmorProfile {
     pub localhost_profile: ::core::option::Option<::prost::alloc::string::String>,
 }
 /// AttachedVolume describes a volume attached to a node
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct AttachedVolume {
     /// Name of the attached volume
     #[prost(string, optional, tag = "1")]
@@ -91,7 +91,7 @@ pub struct AvoidPods {
     pub prefer_avoid_pods: ::prost::alloc::vec::Vec<PreferAvoidPodsEntry>,
 }
 /// AzureDisk represents an Azure Data Disk mount on the host and bind mount to the pod.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct AzureDiskVolumeSource {
     /// diskName is the Name of the data disk in the blob storage
     #[prost(string, optional, tag = "1")]
@@ -123,7 +123,7 @@ pub struct AzureDiskVolumeSource {
     pub kind: ::core::option::Option<::prost::alloc::string::String>,
 }
 /// AzureFile represents an Azure File Service mount on the host and bind mount to the pod.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct AzureFilePersistentVolumeSource {
     /// secretName is the name of secret that contains Azure Storage Account Name and Key
     #[prost(string, optional, tag = "1")]
@@ -143,7 +143,7 @@ pub struct AzureFilePersistentVolumeSource {
     pub secret_namespace: ::core::option::Option<::prost::alloc::string::String>,
 }
 /// AzureFile represents an Azure File Service mount on the host and bind mount to the pod.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct AzureFileVolumeSource {
     /// secretName is the  name of secret that contains Azure Storage Account Name and Key
     #[prost(string, optional, tag = "1")]
@@ -277,7 +277,7 @@ pub struct CsiVolumeSource {
     pub node_publish_secret_ref: ::core::option::Option<LocalObjectReference>,
 }
 /// Adds and removes POSIX capabilities from running containers.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct Capabilities {
     /// Added capabilities
     /// +optional
@@ -292,7 +292,7 @@ pub struct Capabilities {
 }
 /// Represents a Ceph Filesystem mount that lasts the lifetime of a pod
 /// Cephfs volumes do not support ownership management or SELinux relabeling.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct CephFsPersistentVolumeSource {
     /// monitors is Required: Monitors is a collection of Ceph monitors
     /// More info: <https://examples.k8s.io/volumes/cephfs/README.md#how-to-use-it>
@@ -327,7 +327,7 @@ pub struct CephFsPersistentVolumeSource {
 }
 /// Represents a Ceph Filesystem mount that lasts the lifetime of a pod
 /// Cephfs volumes do not support ownership management or SELinux relabeling.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct CephFsVolumeSource {
     /// monitors is Required: Monitors is a collection of Ceph monitors
     /// More info: <https://examples.k8s.io/volumes/cephfs/README.md#how-to-use-it>
@@ -364,7 +364,7 @@ pub struct CephFsVolumeSource {
 /// A Cinder volume must exist before mounting to a container.
 /// The volume must also be in the same region as the kubelet.
 /// Cinder volumes support ownership management and SELinux relabeling.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct CinderPersistentVolumeSource {
     /// volumeID used to identify the volume in cinder.
     /// More info: <https://examples.k8s.io/mysql-cinder-pd/README.md>
@@ -393,7 +393,7 @@ pub struct CinderPersistentVolumeSource {
 /// A Cinder volume must exist before mounting to a container.
 /// The volume must also be in the same region as the kubelet.
 /// Cinder volumes support ownership management and SELinux relabeling.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct CinderVolumeSource {
     /// volumeID used to identify the volume in cinder.
     /// More info: <https://examples.k8s.io/mysql-cinder-pd/README.md>
@@ -419,10 +419,10 @@ pub struct CinderVolumeSource {
     pub secret_ref: ::core::option::Option<LocalObjectReference>,
 }
 /// ClientIPConfig represents the configurations of Client IP based session affinity.
-#[derive(Clone, Copy, PartialEq, ::prost::Message)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ClientIpConfig {
     /// timeoutSeconds specifies the seconds of ClientIP type session sticky time.
-    /// The value must be >0 && <=86400(for 1 day) if ServiceAffinity == "ClientIP".
+    /// The value must be >0 && \<=86400(for 1 day) if ServiceAffinity == "ClientIP".
     /// Default value is 10800(for 3 hours).
     /// +optional
     #[prost(int32, optional, tag = "1")]
@@ -466,7 +466,7 @@ pub struct ClusterTrustBundleProjection {
     pub path: ::core::option::Option<::prost::alloc::string::String>,
 }
 /// Information about the condition of a component.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ComponentCondition {
     /// Type of condition for a component.
     /// Valid value: "Healthy"
@@ -540,7 +540,7 @@ pub struct ConfigMap {
     #[prost(bool, optional, tag = "4")]
     pub immutable: ::core::option::Option<bool>,
     /// Data contains the configuration data.
-    /// Each key must consist of alphanumeric characters, '-', '_' or '.'.
+    /// Each key must consist of alphanumeric characters, '-', '\_' or '.'.
     /// Values with non-UTF-8 byte sequences must use the BinaryData field.
     /// The keys stored in Data must not overlap with the keys in
     /// the BinaryData field, this is enforced during validation process.
@@ -551,7 +551,7 @@ pub struct ConfigMap {
         ::prost::alloc::string::String,
     >,
     /// BinaryData contains the binary data.
-    /// Each key must consist of alphanumeric characters, '-', '_' or '.'.
+    /// Each key must consist of alphanumeric characters, '-', '\_' or '.'.
     /// BinaryData can contain byte sequences that are not in the UTF-8 range.
     /// The keys stored in BinaryData must not overlap with the ones in
     /// the Data field, this is enforced during validation process.
@@ -569,7 +569,7 @@ pub struct ConfigMap {
 ///
 /// The contents of the target ConfigMap's Data field will represent the
 /// key-value pairs as environment variables.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ConfigMapEnvSource {
     /// The ConfigMap to select from.
     #[prost(message, optional, tag = "1")]
@@ -581,7 +581,7 @@ pub struct ConfigMapEnvSource {
 }
 /// Selects a key from a ConfigMap.
 /// +structType=atomic
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ConfigMapKeySelector {
     /// The ConfigMap to select from.
     #[prost(message, optional, tag = "1")]
@@ -609,7 +609,7 @@ pub struct ConfigMapList {
 }
 /// ConfigMapNodeConfigSource contains the information to reference a ConfigMap as a config source for the Node.
 /// This API is deprecated since 1.22: <https://git.k8s.io/enhancements/keps/sig-node/281-dynamic-kubelet-configuration>
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ConfigMapNodeConfigSource {
     /// Namespace is the metadata.namespace of the referenced ConfigMap.
     /// This field is required in all cases.
@@ -913,7 +913,7 @@ pub struct Container {
     pub tty: ::core::option::Option<bool>,
 }
 /// Describe a container image
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ContainerImage {
     /// Names by which this image is known.
     /// e.g. \["kubernetes.example/hyperkube:v1.0.7", "cloud-vendor.registry.example/cloud-vendor/hyperkube:v1.0.7"\]
@@ -927,7 +927,7 @@ pub struct ContainerImage {
     pub size_bytes: ::core::option::Option<i64>,
 }
 /// ContainerPort represents a network port in a single container.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ContainerPort {
     /// If specified, this must be an IANA_SVC_NAME and unique within the pod. Each
     /// named port in a pod must have a unique name. Name for the port that can be
@@ -936,14 +936,14 @@ pub struct ContainerPort {
     #[prost(string, optional, tag = "1")]
     pub name: ::core::option::Option<::prost::alloc::string::String>,
     /// Number of port to expose on the host.
-    /// If specified, this must be a valid port number, 0 < x < 65536.
+    /// If specified, this must be a valid port number, 0 \< x \< 65536.
     /// If HostNetwork is specified, this must match ContainerPort.
     /// Most containers do not need this.
     /// +optional
     #[prost(int32, optional, tag = "2")]
     pub host_port: ::core::option::Option<i32>,
     /// Number of port to expose on the pod's IP address.
-    /// This must be a valid port number, 0 < x < 65536.
+    /// This must be a valid port number, 0 \< x \< 65536.
     #[prost(int32, optional, tag = "3")]
     pub container_port: ::core::option::Option<i32>,
     /// Protocol for port. Must be UDP, TCP, or SCTP.
@@ -958,7 +958,7 @@ pub struct ContainerPort {
     pub host_ip: ::core::option::Option<::prost::alloc::string::String>,
 }
 /// ContainerResizePolicy represents resource resize policy for the container.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ContainerResizePolicy {
     /// Name of the resource to which this resource resize policy applies.
     /// Supported values: cpu, memory.
@@ -972,7 +972,7 @@ pub struct ContainerResizePolicy {
 /// ContainerState holds a possible state of container.
 /// Only one of its members may be specified.
 /// If none of them is specified, the default one is ContainerStateWaiting.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ContainerState {
     /// Details about a waiting container
     /// +optional
@@ -988,7 +988,7 @@ pub struct ContainerState {
     pub terminated: ::core::option::Option<ContainerStateTerminated>,
 }
 /// ContainerStateRunning is a running state of a container.
-#[derive(Clone, Copy, PartialEq, ::prost::Message)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ContainerStateRunning {
     /// Time at which the container was last (re-)started
     /// +optional
@@ -998,7 +998,7 @@ pub struct ContainerStateRunning {
     >,
 }
 /// ContainerStateTerminated is a terminated state of a container.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ContainerStateTerminated {
     /// Exit status from the last termination of the container
     #[prost(int32, optional, tag = "1")]
@@ -1027,13 +1027,13 @@ pub struct ContainerStateTerminated {
     pub finished_at: ::core::option::Option<
         super::super::super::apimachinery::pkg::apis::meta::v1::Time,
     >,
-    /// Container's ID in the format '<type>://<container_id>'
+    /// Container's ID in the format '<type>://\<container_id>'
     /// +optional
     #[prost(string, optional, tag = "7")]
     pub container_id: ::core::option::Option<::prost::alloc::string::String>,
 }
 /// ContainerStateWaiting is a waiting state of a container.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ContainerStateWaiting {
     /// (brief) reason the container is not yet running.
     /// +optional
@@ -1088,7 +1088,7 @@ pub struct ContainerStatus {
     /// resolved by the runtime.
     #[prost(string, optional, tag = "7")]
     pub image_id: ::core::option::Option<::prost::alloc::string::String>,
-    /// ContainerID is the ID of the container in the format '<type>://<container_id>'.
+    /// ContainerID is the ID of the container in the format '<type>://\<container_id>'.
     /// Where type is a container runtime identifier, returned from Version call of CRI API
     /// (for example "containerd").
     /// +optional
@@ -1147,7 +1147,7 @@ pub struct ContainerStatus {
     pub allocated_resources_status: ::prost::alloc::vec::Vec<ResourceStatus>,
 }
 /// ContainerUser represents user identity information
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ContainerUser {
     /// Linux holds user identity information initially attached to the first process of the containers in Linux.
     /// Note that the actual running identity can be changed if the process has enough privilege to do so.
@@ -1156,7 +1156,7 @@ pub struct ContainerUser {
     pub linux: ::core::option::Option<LinuxContainerUser>,
 }
 /// DaemonEndpoint contains information about a single Daemon endpoint.
-#[derive(Clone, Copy, PartialEq, ::prost::Message)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct DaemonEndpoint {
     /// Port number of the given endpoint.
     #[prost(int32, optional, tag = "1")]
@@ -1174,7 +1174,7 @@ pub struct DownwardApiProjection {
     pub items: ::prost::alloc::vec::Vec<DownwardApiVolumeFile>,
 }
 /// DownwardAPIVolumeFile represents information to create the file containing the pod field
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct DownwardApiVolumeFile {
     /// Required: Path is  the relative path name of the file to be created. Must not be absolute or contain the '..' path. Must be utf-8 encoded. The first item of the relative path must not start with '..'
     #[prost(string, optional, tag = "1")]
@@ -1221,7 +1221,7 @@ pub struct DownwardApiVolumeSource {
 }
 /// Represents an empty directory for a pod.
 /// Empty directory volumes support ownership management and SELinux relabeling.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct EmptyDirVolumeSource {
     /// medium represents what type of storage medium should back this directory.
     /// The default is "" which means to use the node's default medium.
@@ -1244,7 +1244,7 @@ pub struct EmptyDirVolumeSource {
 }
 /// EndpointAddress is a tuple that describes single IP address.
 /// +structType=atomic
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct EndpointAddress {
     /// The IP of this endpoint.
     /// May not be loopback (127.0.0.0/8 or ::1), link-local (169.254.0.0/16 or fe80::/10),
@@ -1266,7 +1266,7 @@ pub struct EndpointAddress {
 }
 /// EndpointPort is a tuple that describes a single port.
 /// +structType=atomic
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct EndpointPort {
     /// The name of this port.  This must match the 'name' field in the
     /// corresponding ServicePort.
@@ -1290,16 +1290,16 @@ pub struct EndpointPort {
     /// Valid values are either:
     ///
     /// * Un-prefixed protocol names - reserved for IANA standard service names (as per
-    /// RFC-6335 and <https://www.iana.org/assignments/service-names>).
+    ///   RFC-6335 and <https://www.iana.org/assignments/service-names>).
     ///
     /// * Kubernetes-defined prefixed names:
-    ///    * 'kubernetes.io/h2c' - HTTP/2 prior knowledge over cleartext as described in <https://www.rfc-editor.org/rfc/rfc9113.html#name-starting-http-2-with-prior->
-    ///    * 'kubernetes.io/ws'  - WebSocket over cleartext as described in <https://www.rfc-editor.org/rfc/rfc6455>
-    ///    * 'kubernetes.io/wss' - WebSocket over TLS as described in <https://www.rfc-editor.org/rfc/rfc6455>
     ///
+    ///   * 'kubernetes.io/h2c' - HTTP/2 prior knowledge over cleartext as described in <https://www.rfc-editor.org/rfc/rfc9113.html#name-starting-http-2-with-prior->
+    ///   * 'kubernetes.io/ws'  - WebSocket over cleartext as described in <https://www.rfc-editor.org/rfc/rfc6455>
+    ///   * 'kubernetes.io/wss' - WebSocket over TLS as described in <https://www.rfc-editor.org/rfc/rfc6455>
     /// * Other protocols should use implementation-defined prefixed names such as
-    /// mycompany.com/my-custom-protocol.
-    /// +optional
+    ///   mycompany.com/my-custom-protocol.
+    ///   +optional
     #[prost(string, optional, tag = "4")]
     pub app_protocol: ::core::option::Option<::prost::alloc::string::String>,
 }
@@ -1307,15 +1307,19 @@ pub struct EndpointPort {
 /// expanded set of endpoints is the Cartesian product of Addresses x Ports.
 /// For example, given:
 ///
-/// 	{
-/// 	  Addresses: \[{"ip": "10.10.1.1"}, {"ip": "10.10.2.2"}\],
-/// 	  Ports:     \[{"name": "a", "port": 8675}, {"name": "b", "port": 309}\]
-/// 	}
+/// ```text
+/// {
+///   Addresses: \[{"ip": "10.10.1.1"}, {"ip": "10.10.2.2"}\],
+///   Ports:     \[{"name": "a", "port": 8675}, {"name": "b", "port": 309}\]
+/// }
+/// ```
 ///
 /// The resulting set of endpoints can be viewed as:
 ///
-/// 	a: \[ 10.10.1.1:8675, 10.10.2.2:8675 \],
-/// 	b: \[ 10.10.1.1:309, 10.10.2.2:309 \]
+/// ```text
+/// a: \[ 10.10.1.1:8675, 10.10.2.2:8675 \],
+/// b: \[ 10.10.1.1:309, 10.10.2.2:309 \]
+/// ```
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct EndpointSubset {
     /// IP addresses which offer the related ports that are marked as ready. These endpoints
@@ -1339,17 +1343,19 @@ pub struct EndpointSubset {
 }
 /// Endpoints is a collection of endpoints that implement the actual service. Example:
 ///
-/// 	 Name: "mysvc",
-/// 	 Subsets: [
-/// 	   {
-/// 	     Addresses: \[{"ip": "10.10.1.1"}, {"ip": "10.10.2.2"}\],
-/// 	     Ports: \[{"name": "a", "port": 8675}, {"name": "b", "port": 309}\]
-/// 	   },
-/// 	   {
-/// 	     Addresses: \[{"ip": "10.10.3.3"}\],
-/// 	     Ports: \[{"name": "a", "port": 93}, {"name": "b", "port": 76}\]
-/// 	   },
-/// 	]
+/// ```text
+/// Name: "mysvc",
+/// Subsets: [
+///    {
+///      Addresses: \[{"ip": "10.10.1.1"}, {"ip": "10.10.2.2"}\],
+///      Ports: \[{"name": "a", "port": 8675}, {"name": "b", "port": 309}\]
+///    },
+///    {
+///      Addresses: \[{"ip": "10.10.3.3"}\],
+///      Ports: \[{"name": "a", "port": 93}, {"name": "b", "port": 76}\]
+///    },
+/// ]
+/// ```
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Endpoints {
     /// Standard object's metadata.
@@ -1386,7 +1392,7 @@ pub struct EndpointsList {
     pub items: ::prost::alloc::vec::Vec<Endpoints>,
 }
 /// EnvFromSource represents the source of a set of ConfigMaps
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct EnvFromSource {
     /// An optional identifier to prepend to each key in the ConfigMap. Must be a C_IDENTIFIER.
     /// +optional
@@ -1402,7 +1408,7 @@ pub struct EnvFromSource {
     pub secret_ref: ::core::option::Option<SecretEnvSource>,
 }
 /// EnvVar represents an environment variable present in a Container.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct EnvVar {
     /// Name of the environment variable. Must be a C_IDENTIFIER.
     #[prost(string, optional, tag = "1")]
@@ -1425,7 +1431,7 @@ pub struct EnvVar {
     pub value_from: ::core::option::Option<EnvVarSource>,
 }
 /// EnvVarSource represents a source for the value of an EnvVar.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct EnvVarSource {
     /// Selects a field of the pod: supports metadata.name, metadata.namespace, `metadata.labels\['<KEY>'\]`, `metadata.annotations\['<KEY>'\]`,
     /// spec.nodeName, spec.serviceAccountName, status.hostIP, status.podIP, status.podIPs.
@@ -1776,7 +1782,7 @@ pub struct EventList {
 }
 /// EventSeries contain information on series of events, i.e. thing that was/is happening
 /// continuously for some time.
-#[derive(Clone, Copy, PartialEq, ::prost::Message)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct EventSeries {
     /// Number of occurrences in this series up to the last heartbeat time
     #[prost(int32, optional, tag = "1")]
@@ -1788,7 +1794,7 @@ pub struct EventSeries {
     >,
 }
 /// EventSource contains information for an event.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct EventSource {
     /// Component from which the event is generated.
     /// +optional
@@ -1800,7 +1806,7 @@ pub struct EventSource {
     pub host: ::core::option::Option<::prost::alloc::string::String>,
 }
 /// ExecAction describes a "run in container" action.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ExecAction {
     /// Command is the command line to execute inside the container, the working directory for the
     /// command  is root ('/') in the container's filesystem. The command is simply exec'd, it is
@@ -1815,7 +1821,7 @@ pub struct ExecAction {
 /// Represents a Fibre Channel volume.
 /// Fibre Channel volumes can only be mounted as read/write once.
 /// Fibre Channel volumes support ownership management and SELinux relabeling.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct FcVolumeSource {
     /// targetWWNs is Optional: FC target worldwide names (WWNs)
     /// +optional
@@ -1916,7 +1922,7 @@ pub struct FlexVolumeSource {
 /// Represents a Flocker volume mounted by the Flocker agent.
 /// One and only one of datasetName and datasetUUID should be set.
 /// Flocker volumes do not support ownership management or SELinux relabeling.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct FlockerVolumeSource {
     /// datasetName is Name of the dataset stored as metadata -> name on the dataset for Flocker
     /// should be considered as deprecated
@@ -1934,7 +1940,7 @@ pub struct FlockerVolumeSource {
 /// also be in the same GCE project and zone as the kubelet. A GCE PD
 /// can only be mounted as read/write once or read-only many times. GCE
 /// PDs support ownership management and SELinux relabeling.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct GcePersistentDiskVolumeSource {
     /// pdName is unique name of the PD resource in GCE. Used to identify the disk in GCE.
     /// More info: <https://kubernetes.io/docs/concepts/storage/volumes#gcepersistentdisk>
@@ -1964,7 +1970,7 @@ pub struct GcePersistentDiskVolumeSource {
     pub read_only: ::core::option::Option<bool>,
 }
 /// GRPCAction specifies an action involving a GRPC service.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct GrpcAction {
     /// Port number of the gRPC service. Number must be in the range 1 to 65535.
     #[prost(int32, optional, tag = "1")]
@@ -1985,7 +1991,7 @@ pub struct GrpcAction {
 /// DEPRECATED: GitRepo is deprecated. To provision a container with a git repo, mount an
 /// EmptyDir into an InitContainer that clones the repo using git, then mount the EmptyDir
 /// into the Pod's container.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct GitRepoVolumeSource {
     /// repository is the URL
     #[prost(string, optional, tag = "1")]
@@ -2004,7 +2010,7 @@ pub struct GitRepoVolumeSource {
 }
 /// Represents a Glusterfs mount that lasts the lifetime of a pod.
 /// Glusterfs volumes do not support ownership management or SELinux relabeling.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct GlusterfsPersistentVolumeSource {
     /// endpoints is the endpoint name that details Glusterfs topology.
     /// More info: <https://examples.k8s.io/volumes/glusterfs/README.md#create-a-pod>
@@ -2029,7 +2035,7 @@ pub struct GlusterfsPersistentVolumeSource {
 }
 /// Represents a Glusterfs mount that lasts the lifetime of a pod.
 /// Glusterfs volumes do not support ownership management or SELinux relabeling.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct GlusterfsVolumeSource {
     /// endpoints is the endpoint name that details Glusterfs topology.
     /// More info: <https://examples.k8s.io/volumes/glusterfs/README.md#create-a-pod>
@@ -2077,7 +2083,7 @@ pub struct HttpGetAction {
     pub http_headers: ::prost::alloc::vec::Vec<HttpHeader>,
 }
 /// HTTPHeader describes a custom header to be used in HTTP probes
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct HttpHeader {
     /// The header field name.
     /// This will be canonicalized upon output, so case-variant names will be understood as the same header.
@@ -2089,7 +2095,7 @@ pub struct HttpHeader {
 }
 /// HostAlias holds the mapping between IP and hostnames that will be injected as an entry in the
 /// pod's hosts file.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct HostAlias {
     /// IP address of the host file entry.
     /// +required
@@ -2101,7 +2107,7 @@ pub struct HostAlias {
     pub hostnames: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
 }
 /// HostIP represents a single IP address allocated to the host.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct HostIp {
     /// IP is the IP address assigned to the host
     /// +required
@@ -2110,7 +2116,7 @@ pub struct HostIp {
 }
 /// Represents a host path mapped into a pod.
 /// Host path volumes do not support ownership management or SELinux relabeling.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct HostPathVolumeSource {
     /// path of the directory on the host.
     /// If the path is a symlink, it will follow the link to the real path.
@@ -2127,7 +2133,7 @@ pub struct HostPathVolumeSource {
 /// ISCSIPersistentVolumeSource represents an ISCSI disk.
 /// ISCSI volumes can only be mounted as read/write once.
 /// ISCSI volumes support ownership management and SELinux relabeling.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct IscsiPersistentVolumeSource {
     /// targetPortal is iSCSI Target Portal. The Portal is either an IP or ip_addr:port if the port
     /// is other than default (typically TCP ports 860 and 3260).
@@ -2186,7 +2192,7 @@ pub struct IscsiPersistentVolumeSource {
 /// Represents an ISCSI disk.
 /// ISCSI volumes can only be mounted as read/write once.
 /// ISCSI volumes support ownership management and SELinux relabeling.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct IscsiVolumeSource {
     /// targetPortal is iSCSI Target Portal. The Portal is either an IP or ip_addr:port if the port
     /// is other than default (typically TCP ports 860 and 3260).
@@ -2243,10 +2249,10 @@ pub struct IscsiVolumeSource {
     pub initiator_name: ::core::option::Option<::prost::alloc::string::String>,
 }
 /// ImageVolumeSource represents a image volume resource.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ImageVolumeSource {
     /// Required: Image or artifact reference to be used.
-    /// Behaves in the same way as pod.spec.containers\[*\].image.
+    /// Behaves in the same way as pod.spec.containers\[\*\].image.
     /// Pull secrets will be assembled in the same way as for the container image by looking up node credentials, SA image pull secrets, and pod spec image pull secrets.
     /// More info: <https://kubernetes.io/docs/concepts/containers/images>
     /// This field is optional to allow higher level config management to default or override
@@ -2264,7 +2270,7 @@ pub struct ImageVolumeSource {
     pub pull_policy: ::core::option::Option<::prost::alloc::string::String>,
 }
 /// Maps a string key to a path within a volume.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct KeyToPath {
     /// key is the key to project.
     #[prost(string, optional, tag = "1")]
@@ -2416,7 +2422,7 @@ pub struct LimitRangeSpec {
     pub limits: ::prost::alloc::vec::Vec<LimitRangeItem>,
 }
 /// LinuxContainerUser represents user identity information in Linux containers
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct LinuxContainerUser {
     /// UID is the primary uid initially attached to the first process in the container
     #[prost(int64, optional, tag = "1")]
@@ -2486,21 +2492,22 @@ pub struct LoadBalancerStatus {
     #[prost(message, repeated, tag = "1")]
     pub ingress: ::prost::alloc::vec::Vec<LoadBalancerIngress>,
 }
-/// LocalObjectReference contains enough information to let you locate the
+/// ## LocalObjectReference contains enough information to let you locate the
 /// referenced object inside the same namespace.
-/// ---
+///
 /// New uses of this type are discouraged because of difficulty describing its usage when embedded in APIs.
-///   1. Invalid usage help.  It is impossible to add specific help for individual usage.  In most embedded usages, there are particular
-///      restrictions like, "must refer only to types A and B" or "UID not honored" or "name must be restricted".
-///      Those cannot be well described when embedded.
-///   2. Inconsistent validation.  Because the usages are different, the validation rules are different by usage, which makes it hard for users to predict what will happen.
-///   3. We cannot easily change it.  Because this type is embedded in many locations, updates to this type
-///      will affect numerous schemas.  Don't make new APIs embed an underspecified API type they do not control.
+///
+/// 1. Invalid usage help.  It is impossible to add specific help for individual usage.  In most embedded usages, there are particular
+///    restrictions like, "must refer only to types A and B" or "UID not honored" or "name must be restricted".
+///    Those cannot be well described when embedded.
+/// 1. Inconsistent validation.  Because the usages are different, the validation rules are different by usage, which makes it hard for users to predict what will happen.
+/// 1. We cannot easily change it.  Because this type is embedded in many locations, updates to this type
+///    will affect numerous schemas.  Don't make new APIs embed an underspecified API type they do not control.
 ///
 /// Instead of using this type, create a locally provided and used type that is well-focused on your reference.
 /// For example, ServiceReferences for admission registration: <https://github.com/kubernetes/api/blob/release-1.17/admissionregistration/v1/types.go#L533> .
 /// +structType=atomic
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct LocalObjectReference {
     /// Name of the referent.
     /// This field is effectively required, but due to backwards compatibility is
@@ -2515,7 +2522,7 @@ pub struct LocalObjectReference {
     pub name: ::core::option::Option<::prost::alloc::string::String>,
 }
 /// Local represents directly-attached storage with node affinity
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct LocalVolumeSource {
     /// path of the full path to the volume on the node.
     /// It can be either a directory or block device (disk, partition, ...).
@@ -2530,7 +2537,7 @@ pub struct LocalVolumeSource {
     pub fs_type: ::core::option::Option<::prost::alloc::string::String>,
 }
 /// ModifyVolumeStatus represents the status object of ControllerModifyVolume operation
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ModifyVolumeStatus {
     /// targetVolumeAttributesClassName is the name of the VolumeAttributesClass the PVC currently being reconciled
     #[prost(string, optional, tag = "1")]
@@ -2538,21 +2545,22 @@ pub struct ModifyVolumeStatus {
         ::prost::alloc::string::String,
     >,
     /// status is the status of the ControllerModifyVolume operation. It can be in any of following states:
-    ///   - Pending
-    ///     Pending indicates that the PersistentVolumeClaim cannot be modified due to unmet requirements, such as
-    ///     the specified VolumeAttributesClass not existing.
-    ///   - InProgress
-    ///     InProgress indicates that the volume is being modified.
-    ///   - Infeasible
-    ///    Infeasible indicates that the request has been rejected as invalid by the CSI driver. To
-    /// 	  resolve the error, a valid VolumeAttributesClass needs to be specified.
-    /// Note: New statuses can be added in the future. Consumers should check for unknown statuses and fail appropriately.
+    ///
+    /// * Pending
+    ///   Pending indicates that the PersistentVolumeClaim cannot be modified due to unmet requirements, such as
+    ///   the specified VolumeAttributesClass not existing.
+    /// * InProgress
+    ///   InProgress indicates that the volume is being modified.
+    /// * Infeasible
+    ///   Infeasible indicates that the request has been rejected as invalid by the CSI driver. To
+    ///   resolve the error, a valid VolumeAttributesClass needs to be specified.
+    ///   Note: New statuses can be added in the future. Consumers should check for unknown statuses and fail appropriately.
     #[prost(string, optional, tag = "2")]
     pub status: ::core::option::Option<::prost::alloc::string::String>,
 }
 /// Represents an NFS mount that lasts the lifetime of a pod.
 /// NFS volumes do not support ownership management or SELinux relabeling.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct NfsVolumeSource {
     /// server is the hostname or IP address of the NFS server.
     /// More info: <https://kubernetes.io/docs/concepts/storage/volumes#nfs>
@@ -2592,7 +2600,7 @@ pub struct Namespace {
     pub status: ::core::option::Option<NamespaceStatus>,
 }
 /// NamespaceCondition contains details about state of namespace.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct NamespaceCondition {
     /// Type of namespace controller condition.
     #[prost(string, optional, tag = "1")]
@@ -2631,7 +2639,7 @@ pub struct NamespaceList {
     pub items: ::prost::alloc::vec::Vec<Namespace>,
 }
 /// NamespaceSpec describes the attributes on a Namespace.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct NamespaceSpec {
     /// Finalizers is an opaque list of values that must be empty to permanently remove object from storage.
     /// More info: <https://kubernetes.io/docs/tasks/administer-cluster/namespaces/>
@@ -2682,7 +2690,7 @@ pub struct Node {
     pub status: ::core::option::Option<NodeStatus>,
 }
 /// NodeAddress contains information for the node's address.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct NodeAddress {
     /// Node address type, one of Hostname, ExternalIP or InternalIP.
     #[prost(string, optional, tag = "1")]
@@ -2721,7 +2729,7 @@ pub struct NodeAffinity {
     >,
 }
 /// NodeCondition contains condition information for a node.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct NodeCondition {
     /// Type of node condition.
     #[prost(string, optional, tag = "1")]
@@ -2752,14 +2760,14 @@ pub struct NodeCondition {
 }
 /// NodeConfigSource specifies a source of node configuration. Exactly one subfield (excluding metadata) must be non-nil.
 /// This API is deprecated since 1.22
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct NodeConfigSource {
     /// ConfigMap is a reference to a Node's ConfigMap
     #[prost(message, optional, tag = "2")]
     pub config_map: ::core::option::Option<ConfigMapNodeConfigSource>,
 }
 /// NodeConfigStatus describes the status of the config assigned by Node.Spec.ConfigSource.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct NodeConfigStatus {
     /// Assigned reports the checkpointed config the node will try to use.
     /// When Node.Spec.ConfigSource is updated, the node checkpoints the associated
@@ -2810,7 +2818,7 @@ pub struct NodeConfigStatus {
     pub error: ::core::option::Option<::prost::alloc::string::String>,
 }
 /// NodeDaemonEndpoints lists ports opened by daemons running on the Node.
-#[derive(Clone, Copy, PartialEq, ::prost::Message)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct NodeDaemonEndpoints {
     /// Endpoint on which Kubelet is listening.
     /// +optional
@@ -2820,7 +2828,7 @@ pub struct NodeDaemonEndpoints {
 /// NodeFeatures describes the set of features implemented by the CRI implementation.
 /// The features contained in the NodeFeatures should depend only on the cri implementation
 /// independent of runtime handlers.
-#[derive(Clone, Copy, PartialEq, ::prost::Message)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct NodeFeatures {
     /// SupplementalGroupsPolicy is set to true if the runtime supports SupplementalGroupsPolicy and ContainerUser.
     /// +optional
@@ -2842,7 +2850,7 @@ pub struct NodeList {
     pub items: ::prost::alloc::vec::Vec<Node>,
 }
 /// NodeProxyOptions is the query options to a Node's proxy call.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct NodeProxyOptions {
     /// Path is the URL path to use for the current proxy request to node.
     /// +optional
@@ -2850,7 +2858,7 @@ pub struct NodeProxyOptions {
     pub path: ::core::option::Option<::prost::alloc::string::String>,
 }
 /// NodeRuntimeHandler is a set of runtime handler information.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct NodeRuntimeHandler {
     /// Runtime handler name.
     /// Empty for the default runtime handler.
@@ -2863,7 +2871,7 @@ pub struct NodeRuntimeHandler {
     pub features: ::core::option::Option<NodeRuntimeHandlerFeatures>,
 }
 /// NodeRuntimeHandlerFeatures is a set of features implemented by the runtime handler.
-#[derive(Clone, Copy, PartialEq, ::prost::Message)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct NodeRuntimeHandlerFeatures {
     /// RecursiveReadOnlyMounts is set to true if the runtime handler supports RecursiveReadOnlyMounts.
     /// +featureGate=RecursiveReadOnlyMounts
@@ -2889,7 +2897,7 @@ pub struct NodeSelector {
 }
 /// A node selector requirement is a selector that contains values, a key, and an operator
 /// that relates the key and values.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct NodeSelectorRequirement {
     /// The label key that the selector applies to.
     #[prost(string, optional, tag = "1")]
@@ -3057,7 +3065,7 @@ pub struct NodeStatus {
     pub features: ::core::option::Option<NodeFeatures>,
 }
 /// NodeSystemInfo is a set of ids/uuids to uniquely identify the node.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct NodeSystemInfo {
     /// MachineID reported by the node. For unique machine identification
     /// in the cluster this field is preferred. Learn more from man(5)
@@ -3098,7 +3106,7 @@ pub struct NodeSystemInfo {
 }
 /// ObjectFieldSelector selects an APIVersioned field of an object.
 /// +structType=atomic
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ObjectFieldSelector {
     /// Version of the schema the FieldPath is written in terms of, defaults to "v1".
     /// +optional
@@ -3108,25 +3116,26 @@ pub struct ObjectFieldSelector {
     #[prost(string, optional, tag = "2")]
     pub field_path: ::core::option::Option<::prost::alloc::string::String>,
 }
-/// ObjectReference contains enough information to let you inspect or modify the referred object.
-/// ---
+/// ## ObjectReference contains enough information to let you inspect or modify the referred object.
+///
 /// New uses of this type are discouraged because of difficulty describing its usage when embedded in APIs.
-///   1. Ignored fields.  It includes many fields which are not generally honored.  For instance, ResourceVersion and FieldPath are both very rarely valid in actual usage.
-///   2. Invalid usage help.  It is impossible to add specific help for individual usage.  In most embedded usages, there are particular
-///      restrictions like, "must refer only to types A and B" or "UID not honored" or "name must be restricted".
-///      Those cannot be well described when embedded.
-///   3. Inconsistent validation.  Because the usages are different, the validation rules are different by usage, which makes it hard for users to predict what will happen.
-///   4. The fields are both imprecise and overly precise.  Kind is not a precise mapping to a URL. This can produce ambiguity
-///      during interpretation and require a REST mapping.  In most cases, the dependency is on the group,resource tuple
-///      and the version of the actual struct is irrelevant.
-///   5. We cannot easily change it.  Because this type is embedded in many locations, updates to this type
-///      will affect numerous schemas.  Don't make new APIs embed an underspecified API type they do not control.
+///
+/// 1. Ignored fields.  It includes many fields which are not generally honored.  For instance, ResourceVersion and FieldPath are both very rarely valid in actual usage.
+/// 1. Invalid usage help.  It is impossible to add specific help for individual usage.  In most embedded usages, there are particular
+///    restrictions like, "must refer only to types A and B" or "UID not honored" or "name must be restricted".
+///    Those cannot be well described when embedded.
+/// 1. Inconsistent validation.  Because the usages are different, the validation rules are different by usage, which makes it hard for users to predict what will happen.
+/// 1. The fields are both imprecise and overly precise.  Kind is not a precise mapping to a URL. This can produce ambiguity
+///    during interpretation and require a REST mapping.  In most cases, the dependency is on the group,resource tuple
+///    and the version of the actual struct is irrelevant.
+/// 1. We cannot easily change it.  Because this type is embedded in many locations, updates to this type
+///    will affect numerous schemas.  Don't make new APIs embed an underspecified API type they do not control.
 ///
 /// Instead of using this type, create a locally provided and used type that is well-focused on your reference.
 /// For example, ServiceReferences for admission registration: <https://github.com/kubernetes/api/blob/release-1.17/admissionregistration/v1/types.go#L533> .
 /// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 /// +structType=atomic
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ObjectReference {
     /// Kind of the referent.
     /// More info: <https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds>
@@ -3218,7 +3227,7 @@ pub struct PersistentVolumeClaim {
     pub status: ::core::option::Option<PersistentVolumeClaimStatus>,
 }
 /// PersistentVolumeClaimCondition contains details about state of pvc
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct PersistentVolumeClaimCondition {
     /// Type is the type of the condition.
     /// More info: <https://kubernetes.io/docs/reference/kubernetes-api/config-and-storage-resources/persistent-volume-claim-v1/#:~:text=set%20to%20%27ResizeStarted%27.-,PersistentVolumeClaimCondition,-contains%20details%20about>
@@ -3306,14 +3315,15 @@ pub struct PersistentVolumeClaimSpec {
     #[prost(string, optional, tag = "6")]
     pub volume_mode: ::core::option::Option<::prost::alloc::string::String>,
     /// dataSource field can be used to specify either:
+    ///
     /// * An existing VolumeSnapshot object (snapshot.storage.k8s.io/VolumeSnapshot)
     /// * An existing PVC (PersistentVolumeClaim)
-    /// If the provisioner or an external controller can support the specified data source,
-    /// it will create a new volume based on the contents of the specified data source.
-    /// When the AnyVolumeDataSource feature gate is enabled, dataSource contents will be copied to dataSourceRef,
-    /// and dataSourceRef contents will be copied to dataSource when dataSourceRef.namespace is not specified.
-    /// If the namespace is specified, then dataSourceRef will not be copied to dataSource.
-    /// +optional
+    ///   If the provisioner or an external controller can support the specified data source,
+    ///   it will create a new volume based on the contents of the specified data source.
+    ///   When the AnyVolumeDataSource feature gate is enabled, dataSource contents will be copied to dataSourceRef,
+    ///   and dataSourceRef contents will be copied to dataSource when dataSourceRef.namespace is not specified.
+    ///   If the namespace is specified, then dataSourceRef will not be copied to dataSource.
+    ///   +optional
     #[prost(message, optional, tag = "7")]
     pub data_source: ::core::option::Option<TypedLocalObjectReference>,
     /// dataSourceRef specifies the object from which to populate the volume with data, if a non-empty
@@ -3330,16 +3340,17 @@ pub struct PersistentVolumeClaimSpec {
     /// When namespace is specified in dataSourceRef,
     /// dataSource isn't set to the same value and must be empty.
     /// There are three important differences between dataSource and dataSourceRef:
+    ///
     /// * While dataSource only allows two specific types of objects, dataSourceRef
-    ///    allows any non-core object, as well as PersistentVolumeClaim objects.
+    ///   allows any non-core object, as well as PersistentVolumeClaim objects.
     /// * While dataSource ignores disallowed values (dropping them), dataSourceRef
-    ///    preserves all values, and generates an error if a disallowed value is
-    ///    specified.
+    ///   preserves all values, and generates an error if a disallowed value is
+    ///   specified.
     /// * While dataSource only allows local objects, dataSourceRef allows objects
-    ///    in any namespaces.
-    /// (Beta) Using this field requires the AnyVolumeDataSource feature gate to be enabled.
-    /// (Alpha) Using the namespace field of dataSourceRef requires the CrossNamespaceVolumeDataSource feature gate to be enabled.
-    /// +optional
+    ///   in any namespaces.
+    ///   (Beta) Using this field requires the AnyVolumeDataSource feature gate to be enabled.
+    ///   (Alpha) Using the namespace field of dataSourceRef requires the CrossNamespaceVolumeDataSource feature gate to be enabled.
+    ///   +optional
     #[prost(message, optional, tag = "8")]
     pub data_source_ref: ::core::option::Option<TypedObjectReference>,
     /// volumeAttributesClassName may be used to set the VolumeAttributesClass used by this claim.
@@ -3392,9 +3403,9 @@ pub struct PersistentVolumeClaimStatus {
     pub conditions: ::prost::alloc::vec::Vec<PersistentVolumeClaimCondition>,
     /// allocatedResources tracks the resources allocated to a PVC including its capacity.
     /// Key names follow standard Kubernetes label syntax. Valid values are either:
-    /// 	* Un-prefixed keys:
-    /// 		- storage - the capacity of the volume.
-    /// 	* Custom resources must use implementation-defined prefixed names such as "example.com/my-custom-resource"
+    /// \* Un-prefixed keys:
+    /// - storage - the capacity of the volume.
+    /// \* Custom resources must use implementation-defined prefixed names such as "example.com/my-custom-resource"
     /// Apart from above values - keys that are unprefixed or have kubernetes.io prefix are considered
     /// reserved and hence may not be used.
     ///
@@ -3421,31 +3432,31 @@ pub struct PersistentVolumeClaimStatus {
     >,
     /// allocatedResourceStatuses stores status of resource being resized for the given PVC.
     /// Key names follow standard Kubernetes label syntax. Valid values are either:
-    /// 	* Un-prefixed keys:
-    /// 		- storage - the capacity of the volume.
-    /// 	* Custom resources must use implementation-defined prefixed names such as "example.com/my-custom-resource"
+    /// \* Un-prefixed keys:
+    /// - storage - the capacity of the volume.
+    /// \* Custom resources must use implementation-defined prefixed names such as "example.com/my-custom-resource"
     /// Apart from above values - keys that are unprefixed or have kubernetes.io prefix are considered
     /// reserved and hence may not be used.
     ///
     /// ClaimResourceStatus can be in any of following states:
-    /// 	- ControllerResizeInProgress:
-    /// 		State set when resize controller starts resizing the volume in control-plane.
-    /// 	- ControllerResizeFailed:
-    /// 		State set when resize has failed in resize controller with a terminal error.
-    /// 	- NodeResizePending:
-    /// 		State set when resize controller has finished resizing the volume but further resizing of
-    /// 		volume is needed on the node.
-    /// 	- NodeResizeInProgress:
-    /// 		State set when kubelet starts resizing the volume.
-    /// 	- NodeResizeFailed:
-    /// 		State set when resizing has failed in kubelet with a terminal error. Transient errors don't set
-    /// 		NodeResizeFailed.
+    /// - ControllerResizeInProgress:
+    /// State set when resize controller starts resizing the volume in control-plane.
+    /// - ControllerResizeFailed:
+    /// State set when resize has failed in resize controller with a terminal error.
+    /// - NodeResizePending:
+    /// State set when resize controller has finished resizing the volume but further resizing of
+    /// volume is needed on the node.
+    /// - NodeResizeInProgress:
+    /// State set when kubelet starts resizing the volume.
+    /// - NodeResizeFailed:
+    /// State set when resizing has failed in kubelet with a terminal error. Transient errors don't set
+    /// NodeResizeFailed.
     /// For example: if expanding a PVC for more capacity - this field can be one of the following states:
-    /// 	- pvc.status.allocatedResourceStatus\['storage'\] = "ControllerResizeInProgress"
-    ///       - pvc.status.allocatedResourceStatus\['storage'\] = "ControllerResizeFailed"
-    ///       - pvc.status.allocatedResourceStatus\['storage'\] = "NodeResizePending"
-    ///       - pvc.status.allocatedResourceStatus\['storage'\] = "NodeResizeInProgress"
-    ///       - pvc.status.allocatedResourceStatus\['storage'\] = "NodeResizeFailed"
+    /// - pvc.status.allocatedResourceStatus\['storage'\] = "ControllerResizeInProgress"
+    /// - pvc.status.allocatedResourceStatus\['storage'\] = "ControllerResizeFailed"
+    /// - pvc.status.allocatedResourceStatus\['storage'\] = "NodeResizePending"
+    /// - pvc.status.allocatedResourceStatus\['storage'\] = "NodeResizeInProgress"
+    /// - pvc.status.allocatedResourceStatus\['storage'\] = "NodeResizeFailed"
     /// When this field is not set, it means that no resize operation is in progress for the given PVC.
     ///
     /// A controller that receives PVC update with previously unknown resourceName or ClaimResourceStatus
@@ -3503,7 +3514,7 @@ pub struct PersistentVolumeClaimTemplate {
 /// This volume finds the bound PV and mounts that volume for the pod. A
 /// PersistentVolumeClaimVolumeSource is, essentially, a wrapper around another
 /// type of volume that is owned by someone else (the system).
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct PersistentVolumeClaimVolumeSource {
     /// claimName is the name of a PersistentVolumeClaim in the same namespace as the pod using this volume.
     /// More info: <https://kubernetes.io/docs/concepts/storage/persistent-volumes#persistentvolumeclaims>
@@ -3739,7 +3750,7 @@ pub struct PersistentVolumeSpec {
     >,
 }
 /// PersistentVolumeStatus is the current status of a persistent volume.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct PersistentVolumeStatus {
     /// phase indicates if a volume is available, bound to a claim, or released by a claim.
     /// More info: <https://kubernetes.io/docs/concepts/storage/persistent-volumes#phase>
@@ -3764,7 +3775,7 @@ pub struct PersistentVolumeStatus {
     >,
 }
 /// Represents a Photon Controller persistent disk resource.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct PhotonPersistentDiskVolumeSource {
     /// pdID is the ID that identifies Photon Controller persistent disk
     #[prost(string, optional, tag = "1")]
@@ -3933,11 +3944,11 @@ pub struct PodAntiAffinity {
         WeightedPodAffinityTerm,
     >,
 }
-/// PodAttachOptions is the query options to a Pod's remote attach call.
-/// ---
+/// ## PodAttachOptions is the query options to a Pod's remote attach call.
+///
 /// TODO: merge w/ PodExecOptions below for stdin, stdout, etc
 /// and also when we cut V2, we should export a "StreamOptions" or somesuch that contains Stdin, Stdout, Stder and TTY
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct PodAttachOptions {
     /// Stdin if true, redirects the standard input stream of the pod for this call.
     /// Defaults to false.
@@ -3968,7 +3979,7 @@ pub struct PodAttachOptions {
     pub container: ::core::option::Option<::prost::alloc::string::String>,
 }
 /// PodCondition contains details for the current condition of this pod.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct PodCondition {
     /// Type is the type of the condition.
     /// More info: <https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle#pod-conditions>
@@ -4028,7 +4039,7 @@ pub struct PodDnsConfig {
     pub options: ::prost::alloc::vec::Vec<PodDnsConfigOption>,
 }
 /// PodDNSConfigOption defines DNS resolver options of a pod.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct PodDnsConfigOption {
     /// Name is this DNS resolver option's name.
     /// Required.
@@ -4039,11 +4050,11 @@ pub struct PodDnsConfigOption {
     #[prost(string, optional, tag = "2")]
     pub value: ::core::option::Option<::prost::alloc::string::String>,
 }
-/// PodExecOptions is the query options to a Pod's remote exec call.
-/// ---
+/// ## PodExecOptions is the query options to a Pod's remote exec call.
+///
 /// TODO: This is largely identical to PodAttachOptions above, make sure they stay in sync and see about merging
 /// and also when we cut V2, we should export a "StreamOptions" or somesuch that contains Stdin, Stdout, Stder and TTY
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct PodExecOptions {
     /// Redirect the standard input stream of the pod for this call.
     /// Defaults to false.
@@ -4074,7 +4085,7 @@ pub struct PodExecOptions {
     pub command: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
 }
 /// PodIP represents a single IP address allocated to the pod.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct PodIp {
     /// IP is the IP address assigned to the pod
     /// +required
@@ -4097,7 +4108,7 @@ pub struct PodList {
     pub items: ::prost::alloc::vec::Vec<Pod>,
 }
 /// PodLogOptions is the query options for a Pod's logs REST call.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct PodLogOptions {
     /// The container for which to stream logs. Defaults to only container if there is one container in the pod.
     /// +optional
@@ -4163,7 +4174,7 @@ pub struct PodLogOptions {
     pub stream: ::core::option::Option<::prost::alloc::string::String>,
 }
 /// PodOS defines the OS parameters of a pod.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct PodOs {
     /// Name is the name of the operating system. The currently supported values are linux and windows.
     /// Additional value may be defined in future and can be one of:
@@ -4178,7 +4189,7 @@ pub struct PodOs {
 /// ports (comma separated) to forward over.
 /// Port forwarding over SPDY does not use these options. It requires the port
 /// to be passed in the `port` header as part of request.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct PodPortForwardOptions {
     /// List of ports to forward
     /// Required when using WebSockets
@@ -4188,7 +4199,7 @@ pub struct PodPortForwardOptions {
     pub ports: ::prost::alloc::vec::Vec<i32>,
 }
 /// PodProxyOptions is the query options to a Pod's proxy call.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct PodProxyOptions {
     /// Path is the URL path to use for the current proxy request to pod.
     /// +optional
@@ -4196,7 +4207,7 @@ pub struct PodProxyOptions {
     pub path: ::core::option::Option<::prost::alloc::string::String>,
 }
 /// PodReadinessGate contains the reference to a pod condition
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct PodReadinessGate {
     /// ConditionType refers to a condition in the pod's condition list with matching type.
     #[prost(string, optional, tag = "1")]
@@ -4208,7 +4219,7 @@ pub struct PodReadinessGate {
 ///
 /// It adds a name to it that uniquely identifies the ResourceClaim inside the Pod.
 /// Containers that need access to the ResourceClaim reference it with this name.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct PodResourceClaim {
     /// Name uniquely identifies this resource claim inside the pod.
     /// This must be a DNS_LABEL.
@@ -4244,7 +4255,7 @@ pub struct PodResourceClaim {
 /// PodResourceClaimStatus is stored in the PodStatus for each PodResourceClaim
 /// which references a ResourceClaimTemplate. It stores the generated name for
 /// the corresponding ResourceClaim.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct PodResourceClaimStatus {
     /// Name uniquely identifies this resource claim inside the pod.
     /// This must match the name of an entry in pod.spec.resourceClaims,
@@ -4261,7 +4272,7 @@ pub struct PodResourceClaimStatus {
     pub resource_claim_name: ::core::option::Option<::prost::alloc::string::String>,
 }
 /// PodSchedulingGate is associated to a Pod to guard its scheduling.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct PodSchedulingGate {
     /// Name of the scheduling gate.
     /// Each scheduling gate must have a unique name field.
@@ -4346,8 +4357,8 @@ pub struct PodSecurityContext {
     /// to be owned by the pod:
     ///
     /// 1. The owning GID will be the FSGroup
-    /// 2. The setgid bit is set (new files created in the volume will be owned by FSGroup)
-    /// 3. The permission bits are OR'd with rw-rw----
+    /// 1. The setgid bit is set (new files created in the volume will be owned by FSGroup)
+    /// 1. The permission bits are OR'd with rw-rw----
     ///
     /// If unset, the Kubelet will not modify the ownership and permissions of any volume.
     /// Note that this field cannot be set when spec.os.name is windows.
@@ -4411,7 +4422,7 @@ pub struct PodSecurityContext {
 }
 /// Describes the class of pods that should avoid this node.
 /// Exactly one field should be set.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct PodSignature {
     /// Reference to controller whose pods should avoid this node.
     /// +optional
@@ -4704,31 +4715,32 @@ pub struct PodSpec {
     /// -securityContext.windowsOptions
     ///
     /// If the OS field is set to windows, following fields must be unset:
-    /// - spec.hostPID
-    /// - spec.hostIPC
-    /// - spec.hostUsers
-    /// - spec.securityContext.appArmorProfile
-    /// - spec.securityContext.seLinuxOptions
-    /// - spec.securityContext.seccompProfile
-    /// - spec.securityContext.fsGroup
-    /// - spec.securityContext.fsGroupChangePolicy
-    /// - spec.securityContext.sysctls
-    /// - spec.shareProcessNamespace
-    /// - spec.securityContext.runAsUser
-    /// - spec.securityContext.runAsGroup
-    /// - spec.securityContext.supplementalGroups
-    /// - spec.securityContext.supplementalGroupsPolicy
-    /// - spec.containers\[*\].securityContext.appArmorProfile
-    /// - spec.containers\[*\].securityContext.seLinuxOptions
-    /// - spec.containers\[*\].securityContext.seccompProfile
-    /// - spec.containers\[*\].securityContext.capabilities
-    /// - spec.containers\[*\].securityContext.readOnlyRootFilesystem
-    /// - spec.containers\[*\].securityContext.privileged
-    /// - spec.containers\[*\].securityContext.allowPrivilegeEscalation
-    /// - spec.containers\[*\].securityContext.procMount
-    /// - spec.containers\[*\].securityContext.runAsUser
-    /// - spec.containers\[*\].securityContext.runAsGroup
-    /// +optional
+    ///
+    /// * spec.hostPID
+    /// * spec.hostIPC
+    /// * spec.hostUsers
+    /// * spec.securityContext.appArmorProfile
+    /// * spec.securityContext.seLinuxOptions
+    /// * spec.securityContext.seccompProfile
+    /// * spec.securityContext.fsGroup
+    /// * spec.securityContext.fsGroupChangePolicy
+    /// * spec.securityContext.sysctls
+    /// * spec.shareProcessNamespace
+    /// * spec.securityContext.runAsUser
+    /// * spec.securityContext.runAsGroup
+    /// * spec.securityContext.supplementalGroups
+    /// * spec.securityContext.supplementalGroupsPolicy
+    /// * spec.containers\[\*\].securityContext.appArmorProfile
+    /// * spec.containers\[\*\].securityContext.seLinuxOptions
+    /// * spec.containers\[\*\].securityContext.seccompProfile
+    /// * spec.containers\[\*\].securityContext.capabilities
+    /// * spec.containers\[\*\].securityContext.readOnlyRootFilesystem
+    /// * spec.containers\[\*\].securityContext.privileged
+    /// * spec.containers\[\*\].securityContext.allowPrivilegeEscalation
+    /// * spec.containers\[\*\].securityContext.procMount
+    /// * spec.containers\[\*\].securityContext.runAsUser
+    /// * spec.containers\[\*\].securityContext.runAsGroup
+    ///   +optional
     #[prost(message, optional, tag = "36")]
     pub os: ::core::option::Option<PodOs>,
     /// Use the host's user namespace.
@@ -5009,7 +5021,7 @@ pub struct PodTemplateSpec {
     pub spec: ::core::option::Option<PodSpec>,
 }
 /// PortStatus represents the error condition of a service port
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct PortStatus {
     /// Port is the port number of the service port of which status is recorded here
     #[prost(int32, optional, tag = "1")]
@@ -5020,11 +5032,14 @@ pub struct PortStatus {
     pub protocol: ::core::option::Option<::prost::alloc::string::String>,
     /// Error is to record the problem with the service port
     /// The format of the error shall comply with the following rules:
-    /// - built-in error values shall be specified in this file and those shall use
-    ///    CamelCase names
-    /// - cloud provider specific error values must have names that comply with the
-    ///    format foo.example.com/CamelCase.
+    ///
+    /// * built-in error values shall be specified in this file and those shall use
+    ///   CamelCase names
+    /// * cloud provider specific error values must have names that comply with the
+    ///   format foo.example.com/CamelCase.
+    ///
     /// ---
+    ///
     /// The regex it matches is (dns1123SubdomainFmt/)?(qualifiedNameFmt)
     /// +optional
     /// +kubebuilder:validation:Required
@@ -5034,7 +5049,7 @@ pub struct PortStatus {
     pub error: ::core::option::Option<::prost::alloc::string::String>,
 }
 /// PortworxVolumeSource represents a Portworx volume resource.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct PortworxVolumeSource {
     /// volumeID uniquely identifies a Portworx volume
     #[prost(string, optional, tag = "1")]
@@ -5052,7 +5067,7 @@ pub struct PortworxVolumeSource {
 }
 /// Preconditions must be fulfilled before an operation (update, delete, etc.) is carried out.
 /// +k8s:openapi-gen=false
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct Preconditions {
     /// Specifies the target UID.
     /// +optional
@@ -5060,7 +5075,7 @@ pub struct Preconditions {
     pub uid: ::core::option::Option<::prost::alloc::string::String>,
 }
 /// Describes a class of pods that should avoid this node.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct PreferAvoidPodsEntry {
     /// The class of pods.
     #[prost(message, optional, tag = "1")]
@@ -5180,7 +5195,7 @@ pub struct ProjectedVolumeSource {
 }
 /// Represents a Quobyte mount that lasts the lifetime of a pod.
 /// Quobyte volumes do not support ownership management or SELinux relabeling.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct QuobyteVolumeSource {
     /// registry represents a single or multiple Quobyte Registry services
     /// specified as a string as host:port pair (multiple entries are separated with commas)
@@ -5213,7 +5228,7 @@ pub struct QuobyteVolumeSource {
 }
 /// Represents a Rados Block Device mount that lasts the lifetime of a pod.
 /// RBD volumes support ownership management and SELinux relabeling.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct RbdPersistentVolumeSource {
     /// monitors is a collection of Ceph monitors.
     /// More info: <https://examples.k8s.io/volumes/rbd/README.md#how-to-use-it>
@@ -5269,7 +5284,7 @@ pub struct RbdPersistentVolumeSource {
 }
 /// Represents a Rados Block Device mount that lasts the lifetime of a pod.
 /// RBD volumes support ownership management and SELinux relabeling.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct RbdVolumeSource {
     /// monitors is a collection of Ceph monitors.
     /// More info: <https://examples.k8s.io/volumes/rbd/README.md#how-to-use-it>
@@ -5366,7 +5381,7 @@ pub struct ReplicationController {
     pub status: ::core::option::Option<ReplicationControllerStatus>,
 }
 /// ReplicationControllerCondition describes the state of a replication controller at a certain point.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ReplicationControllerCondition {
     /// Type of replication controller condition.
     #[prost(string, optional, tag = "1")]
@@ -5474,7 +5489,7 @@ pub struct ReplicationControllerStatus {
     pub conditions: ::prost::alloc::vec::Vec<ReplicationControllerCondition>,
 }
 /// ResourceClaim references one entry in PodSpec.ResourceClaims.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ResourceClaim {
     /// Name must match the name of one entry in pod.spec.resourceClaims of
     /// the Pod where this field is used. It makes that resource available
@@ -5491,7 +5506,7 @@ pub struct ResourceClaim {
 }
 /// ResourceFieldSelector represents container resources (cpu, memory) and their output format
 /// +structType=atomic
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ResourceFieldSelector {
     /// Container name: required for volumes, optional for env vars
     /// +optional
@@ -5509,19 +5524,20 @@ pub struct ResourceFieldSelector {
 }
 /// ResourceHealth represents the health of a resource. It has the latest device health information.
 /// This is a part of KEP <https://kep.k8s.io/4680.>
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ResourceHealth {
     /// ResourceID is the unique identifier of the resource. See the ResourceID type for more information.
     #[prost(string, optional, tag = "1")]
     pub resource_id: ::core::option::Option<::prost::alloc::string::String>,
     /// Health of the resource.
     /// can be one of:
-    ///   - Healthy: operates as normal
-    ///   - Unhealthy: reported unhealthy. We consider this a temporary health issue
-    ///                since we do not have a mechanism today to distinguish
-    ///                temporary and permanent issues.
-    ///   - Unknown: The status cannot be determined.
-    ///              For example, Device Plugin got unregistered and hasn't been re-registered since.
+    ///
+    /// * Healthy: operates as normal
+    /// * Unhealthy: reported unhealthy. We consider this a temporary health issue
+    ///   since we do not have a mechanism today to distinguish
+    ///   temporary and permanent issues.
+    /// * Unknown: The status cannot be determined.
+    ///   For example, Device Plugin got unregistered and hasn't been re-registered since.
     ///
     /// In future we may want to introduce the PermanentlyUnhealthy Status.
     #[prost(string, optional, tag = "2")]
@@ -5646,7 +5662,7 @@ pub struct ResourceRequirements {
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ResourceStatus {
     /// Name of the resource. Must be unique within the pod and in case of non-DRA resource, match one of the resources from the pod spec.
-    /// For DRA resources, the value must be "claim:<claim_name>/<request>".
+    /// For DRA resources, the value must be "claim:\<claim_name>/<request>".
     /// When this status is reported about a container, the "claim_name" and "request" must match one of the claims of this container.
     /// +required
     #[prost(string, optional, tag = "1")]
@@ -5661,7 +5677,7 @@ pub struct ResourceStatus {
     pub resources: ::prost::alloc::vec::Vec<ResourceHealth>,
 }
 /// SELinuxOptions are the labels to be applied to the container
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct SeLinuxOptions {
     /// User is a SELinux user label that applies to the container.
     /// +optional
@@ -5681,7 +5697,7 @@ pub struct SeLinuxOptions {
     pub level: ::core::option::Option<::prost::alloc::string::String>,
 }
 /// ScaleIOPersistentVolumeSource represents a persistent ScaleIO volume
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ScaleIoPersistentVolumeSource {
     /// gateway is the host address of the ScaleIO API Gateway.
     #[prost(string, optional, tag = "1")]
@@ -5730,7 +5746,7 @@ pub struct ScaleIoPersistentVolumeSource {
     pub read_only: ::core::option::Option<bool>,
 }
 /// ScaleIOVolumeSource represents a persistent ScaleIO volume
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ScaleIoVolumeSource {
     /// gateway is the host address of the ScaleIO API Gateway.
     #[prost(string, optional, tag = "1")]
@@ -5791,7 +5807,7 @@ pub struct ScopeSelector {
 }
 /// A scoped-resource selector requirement is a selector that contains values, a scope name, and an operator
 /// that relates the scope name and values.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ScopedResourceSelectorRequirement {
     /// The name of the scope that the selector applies to.
     #[prost(string, optional, tag = "1")]
@@ -5812,7 +5828,7 @@ pub struct ScopedResourceSelectorRequirement {
 /// SeccompProfile defines a pod/container's seccomp profile settings.
 /// Only one profile source may be set.
 /// +union
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct SeccompProfile {
     /// type indicates which kind of seccomp profile will be applied.
     /// Valid options are:
@@ -5850,7 +5866,7 @@ pub struct Secret {
     #[prost(bool, optional, tag = "5")]
     pub immutable: ::core::option::Option<bool>,
     /// Data contains the secret data. Each key must consist of alphanumeric
-    /// characters, '-', '_' or '.'. The serialized form of the secret data is a
+    /// characters, '-', '\_' or '.'. The serialized form of the secret data is a
     /// base64 encoded string, representing the arbitrary (possibly non-string)
     /// data value here. Described in <https://tools.ietf.org/html/rfc4648#section-4>
     /// +optional
@@ -5881,7 +5897,7 @@ pub struct Secret {
 ///
 /// The contents of the target Secret's Data field will represent the
 /// key-value pairs as environment variables.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct SecretEnvSource {
     /// The Secret to select from.
     #[prost(message, optional, tag = "1")]
@@ -5893,7 +5909,7 @@ pub struct SecretEnvSource {
 }
 /// SecretKeySelector selects a key of a Secret.
 /// +structType=atomic
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct SecretKeySelector {
     /// The name of the secret in the pod's namespace to select from.
     #[prost(message, optional, tag = "1")]
@@ -5950,7 +5966,7 @@ pub struct SecretProjection {
 /// SecretReference represents a Secret Reference. It has enough information to retrieve secret
 /// in any namespace
 /// +structType=atomic
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct SecretReference {
     /// name is unique within a namespace to reference a secret resource.
     /// +optional
@@ -6002,7 +6018,7 @@ pub struct SecretVolumeSource {
 /// SecurityContext holds security configuration that will be applied to a container.
 /// Some fields are present in both SecurityContext and PodSecurityContext.  When both
 /// are set, the values in SecurityContext take precedence.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct SecurityContext {
     /// The capabilities to add/drop when running containers.
     /// Defaults to the default set of capabilities granted by the container runtime.
@@ -6067,10 +6083,11 @@ pub struct SecurityContext {
     /// privileges than its parent process. This bool directly controls if
     /// the no_new_privs flag will be set on the container process.
     /// AllowPrivilegeEscalation is true always when the container is:
-    /// 1) run as Privileged
-    /// 2) has CAP_SYS_ADMIN
-    /// Note that this field cannot be set when spec.os.name is windows.
-    /// +optional
+    ///
+    /// 1. run as Privileged
+    /// 1. has CAP_SYS_ADMIN
+    ///    Note that this field cannot be set when spec.os.name is windows.
+    ///    +optional
     #[prost(bool, optional, tag = "7")]
     pub allow_privilege_escalation: ::core::option::Option<bool>,
     /// procMount denotes the type of proc mount to use for the containers.
@@ -6096,7 +6113,7 @@ pub struct SecurityContext {
     pub app_armor_profile: ::core::option::Option<AppArmorProfile>,
 }
 /// SerializedReference is a reference to serialized object.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct SerializedReference {
     /// The reference to an object in the system.
     /// +optional
@@ -6129,6 +6146,7 @@ pub struct Service {
     pub status: ::core::option::Option<ServiceStatus>,
 }
 /// ServiceAccount binds together:
+///
 /// * a name, understood by users, and perhaps by peripheral systems, for an identity
 /// * a principal that can be authenticated and authorized
 /// * a set of secrets
@@ -6188,7 +6206,7 @@ pub struct ServiceAccountList {
 /// volume. This projection can be used to insert a service account token into
 /// the pods runtime filesystem for use against APIs (Kubernetes API Server or
 /// otherwise).
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ServiceAccountTokenProjection {
     /// audience is the intended audience of the token. A recipient of a token
     /// must identify itself with an identifier specified in the audience of the
@@ -6226,7 +6244,7 @@ pub struct ServiceList {
     pub items: ::prost::alloc::vec::Vec<Service>,
 }
 /// ServicePort contains information on service's port.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ServicePort {
     /// The name of this port within the service. This must be a DNS_LABEL.
     /// All ports within a ServiceSpec must have unique names. When considering
@@ -6248,16 +6266,16 @@ pub struct ServicePort {
     /// Valid values are either:
     ///
     /// * Un-prefixed protocol names - reserved for IANA standard service names (as per
-    /// RFC-6335 and <https://www.iana.org/assignments/service-names>).
+    ///   RFC-6335 and <https://www.iana.org/assignments/service-names>).
     ///
     /// * Kubernetes-defined prefixed names:
-    ///    * 'kubernetes.io/h2c' - HTTP/2 prior knowledge over cleartext as described in <https://www.rfc-editor.org/rfc/rfc9113.html#name-starting-http-2-with-prior->
-    ///    * 'kubernetes.io/ws'  - WebSocket over cleartext as described in <https://www.rfc-editor.org/rfc/rfc6455>
-    ///    * 'kubernetes.io/wss' - WebSocket over TLS as described in <https://www.rfc-editor.org/rfc/rfc6455>
     ///
+    ///   * 'kubernetes.io/h2c' - HTTP/2 prior knowledge over cleartext as described in <https://www.rfc-editor.org/rfc/rfc9113.html#name-starting-http-2-with-prior->
+    ///   * 'kubernetes.io/ws'  - WebSocket over cleartext as described in <https://www.rfc-editor.org/rfc/rfc6455>
+    ///   * 'kubernetes.io/wss' - WebSocket over TLS as described in <https://www.rfc-editor.org/rfc/rfc6455>
     /// * Other protocols should use implementation-defined prefixed names such as
-    /// mycompany.com/my-custom-protocol.
-    /// +optional
+    ///   mycompany.com/my-custom-protocol.
+    ///   +optional
     #[prost(string, optional, tag = "6")]
     pub app_protocol: ::core::option::Option<::prost::alloc::string::String>,
     /// The port that will be exposed by this service.
@@ -6290,13 +6308,13 @@ pub struct ServicePort {
     pub node_port: ::core::option::Option<i32>,
 }
 /// ServiceProxyOptions is the query options to a Service's proxy call.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ServiceProxyOptions {
     /// Path is the part of URLs that include service endpoints, suffixes,
     /// and parameters to use for the current proxy request to service.
     /// For example, the whole request URL is
-    /// <http://localhost/api/v1/namespaces/kube-system/services/elasticsearch-logging/_search?q=user:kimchy.>
-    /// Path is _search?q=user:kimchy.
+    /// <http://localhost/api/v1/namespaces/kube-system/services/elasticsearch-logging/\_search?q=user:kimchy.>
+    /// Path is \_search?q=user:kimchy.
     /// +optional
     #[prost(string, optional, tag = "1")]
     pub path: ::core::option::Option<::prost::alloc::string::String>,
@@ -6573,7 +6591,7 @@ pub struct ServiceStatus {
     >,
 }
 /// SessionAffinityConfig represents the configurations of session affinity.
-#[derive(Clone, Copy, PartialEq, ::prost::Message)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct SessionAffinityConfig {
     /// clientIP contains the configurations of Client IP based session affinity.
     /// +optional
@@ -6581,14 +6599,14 @@ pub struct SessionAffinityConfig {
     pub client_ip: ::core::option::Option<ClientIpConfig>,
 }
 /// SleepAction describes a "sleep" action.
-#[derive(Clone, Copy, PartialEq, ::prost::Message)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct SleepAction {
     /// Seconds is the number of seconds to sleep.
     #[prost(int64, optional, tag = "1")]
     pub seconds: ::core::option::Option<i64>,
 }
 /// Represents a StorageOS persistent volume resource.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct StorageOsPersistentVolumeSource {
     /// volumeName is the human-readable name of the StorageOS volume.  Volume
     /// names are only unique within a namespace.
@@ -6621,7 +6639,7 @@ pub struct StorageOsPersistentVolumeSource {
     pub secret_ref: ::core::option::Option<ObjectReference>,
 }
 /// Represents a StorageOS persistent volume resource.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct StorageOsVolumeSource {
     /// volumeName is the human-readable name of the StorageOS volume.  Volume
     /// names are only unique within a namespace.
@@ -6654,7 +6672,7 @@ pub struct StorageOsVolumeSource {
     pub secret_ref: ::core::option::Option<LocalObjectReference>,
 }
 /// Sysctl defines a kernel parameter to be set
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct Sysctl {
     /// Name of a property to set
     #[prost(string, optional, tag = "1")]
@@ -6664,7 +6682,7 @@ pub struct Sysctl {
     pub value: ::core::option::Option<::prost::alloc::string::String>,
 }
 /// TCPSocketAction describes an action based on opening a socket
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct TcpSocketAction {
     /// Number or name of the port to access on the container.
     /// Number must be in the range 1 to 65535.
@@ -6680,7 +6698,7 @@ pub struct TcpSocketAction {
 }
 /// The node this Taint is attached to has the "effect" on
 /// any pod that does not tolerate the Taint.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct Taint {
     /// Required. The taint key to be applied to a node.
     #[prost(string, optional, tag = "1")]
@@ -6703,8 +6721,8 @@ pub struct Taint {
     >,
 }
 /// The pod this Toleration is attached to tolerates any taint that matches
-/// the triple <key,value,effect> using the matching operator <operator>.
-#[derive(Clone, PartialEq, ::prost::Message)]
+/// the triple \<key,value,effect> using the matching operator <operator>.
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct Toleration {
     /// Key is the taint key that the toleration applies to. Empty means match all taint keys.
     /// If the key is empty, operator must be Exists; this combination means to match all values and all keys.
@@ -6738,7 +6756,7 @@ pub struct Toleration {
 }
 /// A topology selector requirement is a selector that matches given label.
 /// This is an alpha feature and may change in the future.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct TopologySelectorLabelRequirement {
     /// The label key that the selector applies to.
     #[prost(string, optional, tag = "1")]
@@ -6777,22 +6795,23 @@ pub struct TopologySpreadConstraint {
     /// labelSelector spread as 2/2/1:
     /// In this case, the global minimum is 1.
     /// +-------+-------+-------+
-    /// | zone1 | zone2 | zone3 |
+    /// \| zone1 | zone2 | zone3 |
     /// +-------+-------+-------+
-    /// |  P P  |  P P  |   P   |
+    /// \|  P P  |  P P  |   P   |
     /// +-------+-------+-------+
-    /// - if MaxSkew is 1, incoming pod can only be scheduled to zone3 to become 2/2/2;
-    /// scheduling it onto zone1(zone2) would make the ActualSkew(3-1) on zone1(zone2)
-    /// violate MaxSkew(1).
-    /// - if MaxSkew is 2, incoming pod can be scheduled onto any zone.
-    /// When `whenUnsatisfiable=ScheduleAnyway`, it is used to give higher precedence
-    /// to topologies that satisfy it.
-    /// It's a required field. Default value is 1 and 0 is not allowed.
+    ///
+    /// * if MaxSkew is 1, incoming pod can only be scheduled to zone3 to become 2/2/2;
+    ///   scheduling it onto zone1(zone2) would make the ActualSkew(3-1) on zone1(zone2)
+    ///   violate MaxSkew(1).
+    /// * if MaxSkew is 2, incoming pod can be scheduled onto any zone.
+    ///   When `whenUnsatisfiable=ScheduleAnyway`, it is used to give higher precedence
+    ///   to topologies that satisfy it.
+    ///   It's a required field. Default value is 1 and 0 is not allowed.
     #[prost(int32, optional, tag = "1")]
     pub max_skew: ::core::option::Option<i32>,
     /// TopologyKey is the key of node labels. Nodes that have a label with this key
     /// and identical values are considered to be in the same topology.
-    /// We consider each <key, value> as a "bucket", and try to put balanced number
+    /// We consider each \<key, value> as a "bucket", and try to put balanced number
     /// of pods into each bucket.
     /// We define a domain as a particular instance of a topology.
     /// Also, we define an eligible domain as a domain whose nodes meet the requirements of
@@ -6804,25 +6823,26 @@ pub struct TopologySpreadConstraint {
     pub topology_key: ::core::option::Option<::prost::alloc::string::String>,
     /// WhenUnsatisfiable indicates how to deal with a pod if it doesn't satisfy
     /// the spread constraint.
-    /// - DoNotSchedule (default) tells the scheduler not to schedule it.
-    /// - ScheduleAnyway tells the scheduler to schedule the pod in any location,
-    ///    but giving higher precedence to topologies that would help reduce the
-    ///    skew.
-    /// A constraint is considered "Unsatisfiable" for an incoming pod
-    /// if and only if every possible node assignment for that pod would violate
-    /// "MaxSkew" on some topology.
-    /// For example, in a 3-zone cluster, MaxSkew is set to 1, and pods with the same
-    /// labelSelector spread as 3/1/1:
-    /// +-------+-------+-------+
-    /// | zone1 | zone2 | zone3 |
-    /// +-------+-------+-------+
-    /// | P P P |   P   |   P   |
-    /// +-------+-------+-------+
-    /// If WhenUnsatisfiable is set to DoNotSchedule, incoming pod can only be scheduled
-    /// to zone2(zone3) to become 3/2/1(3/1/2) as ActualSkew(2-1) on zone2(zone3) satisfies
-    /// MaxSkew(1). In other words, the cluster can still be imbalanced, but scheduler
-    /// won't make it *more* imbalanced.
-    /// It's a required field.
+    ///
+    /// * DoNotSchedule (default) tells the scheduler not to schedule it.
+    /// * ScheduleAnyway tells the scheduler to schedule the pod in any location,
+    ///   but giving higher precedence to topologies that would help reduce the
+    ///   skew.
+    ///   A constraint is considered "Unsatisfiable" for an incoming pod
+    ///   if and only if every possible node assignment for that pod would violate
+    ///   "MaxSkew" on some topology.
+    ///   For example, in a 3-zone cluster, MaxSkew is set to 1, and pods with the same
+    ///   labelSelector spread as 3/1/1:
+    ///   +-------+-------+-------+
+    ///   \| zone1 | zone2 | zone3 |
+    ///   +-------+-------+-------+
+    ///   \| P P P |   P   |   P   |
+    ///   +-------+-------+-------+
+    ///   If WhenUnsatisfiable is set to DoNotSchedule, incoming pod can only be scheduled
+    ///   to zone2(zone3) to become 3/2/1(3/1/2) as ActualSkew(2-1) on zone2(zone3) satisfies
+    ///   MaxSkew(1). In other words, the cluster can still be imbalanced, but scheduler
+    ///   won't make it *more* imbalanced.
+    ///   It's a required field.
     #[prost(string, optional, tag = "3")]
     pub when_unsatisfiable: ::core::option::Option<::prost::alloc::string::String>,
     /// LabelSelector is used to find matching pods.
@@ -6847,9 +6867,9 @@ pub struct TopologySpreadConstraint {
     /// For example, in a 3-zone cluster, MaxSkew is set to 2, MinDomains is set to 5 and pods with the same
     /// labelSelector spread as 2/2/2:
     /// +-------+-------+-------+
-    /// | zone1 | zone2 | zone3 |
+    /// \| zone1 | zone2 | zone3 |
     /// +-------+-------+-------+
-    /// |  P P  |  P P  |  P P  |
+    /// \|  P P  |  P P  |  P P  |
     /// +-------+-------+-------+
     /// The number of domains is less than 5(MinDomains), so "global minimum" is treated as 0.
     /// In this situation, new pod with the same labelSelector cannot be scheduled,
@@ -6860,8 +6880,9 @@ pub struct TopologySpreadConstraint {
     pub min_domains: ::core::option::Option<i32>,
     /// NodeAffinityPolicy indicates how we will treat Pod's nodeAffinity/nodeSelector
     /// when calculating pod topology spread skew. Options are:
-    /// - Honor: only nodes matching nodeAffinity/nodeSelector are included in the calculations.
-    /// - Ignore: nodeAffinity/nodeSelector are ignored. All nodes are included in the calculations.
+    ///
+    /// * Honor: only nodes matching nodeAffinity/nodeSelector are included in the calculations.
+    /// * Ignore: nodeAffinity/nodeSelector are ignored. All nodes are included in the calculations.
     ///
     /// If this value is nil, the behavior is equivalent to the Honor policy.
     /// This is a beta-level feature default enabled by the NodeInclusionPolicyInPodTopologySpread feature flag.
@@ -6870,9 +6891,10 @@ pub struct TopologySpreadConstraint {
     pub node_affinity_policy: ::core::option::Option<::prost::alloc::string::String>,
     /// NodeTaintsPolicy indicates how we will treat node taints when calculating
     /// pod topology spread skew. Options are:
-    /// - Honor: nodes without taints, along with tainted nodes for which the incoming pod
-    /// has a toleration, are included.
-    /// - Ignore: node taints are ignored. All nodes are included.
+    ///
+    /// * Honor: nodes without taints, along with tainted nodes for which the incoming pod
+    ///   has a toleration, are included.
+    /// * Ignore: node taints are ignored. All nodes are included.
     ///
     /// If this value is nil, the behavior is equivalent to the Ignore policy.
     /// This is a beta-level feature default enabled by the NodeInclusionPolicyInPodTopologySpread feature flag.
@@ -6894,24 +6916,25 @@ pub struct TopologySpreadConstraint {
     #[prost(string, repeated, tag = "8")]
     pub match_label_keys: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
 }
-/// TypedLocalObjectReference contains enough information to let you locate the
+/// ## TypedLocalObjectReference contains enough information to let you locate the
 /// typed referenced object inside the same namespace.
-/// ---
+///
 /// New uses of this type are discouraged because of difficulty describing its usage when embedded in APIs.
-///   1. Invalid usage help.  It is impossible to add specific help for individual usage.  In most embedded usages, there are particular
-///      restrictions like, "must refer only to types A and B" or "UID not honored" or "name must be restricted".
-///      Those cannot be well described when embedded.
-///   2. Inconsistent validation.  Because the usages are different, the validation rules are different by usage, which makes it hard for users to predict what will happen.
-///   3. The fields are both imprecise and overly precise.  Kind is not a precise mapping to a URL. This can produce ambiguity
-///      during interpretation and require a REST mapping.  In most cases, the dependency is on the group,resource tuple
-///      and the version of the actual struct is irrelevant.
-///   4. We cannot easily change it.  Because this type is embedded in many locations, updates to this type
-///      will affect numerous schemas.  Don't make new APIs embed an underspecified API type they do not control.
+///
+/// 1. Invalid usage help.  It is impossible to add specific help for individual usage.  In most embedded usages, there are particular
+///    restrictions like, "must refer only to types A and B" or "UID not honored" or "name must be restricted".
+///    Those cannot be well described when embedded.
+/// 1. Inconsistent validation.  Because the usages are different, the validation rules are different by usage, which makes it hard for users to predict what will happen.
+/// 1. The fields are both imprecise and overly precise.  Kind is not a precise mapping to a URL. This can produce ambiguity
+///    during interpretation and require a REST mapping.  In most cases, the dependency is on the group,resource tuple
+///    and the version of the actual struct is irrelevant.
+/// 1. We cannot easily change it.  Because this type is embedded in many locations, updates to this type
+///    will affect numerous schemas.  Don't make new APIs embed an underspecified API type they do not control.
 ///
 /// Instead of using this type, create a locally provided and used type that is well-focused on your reference.
 /// For example, ServiceReferences for admission registration: <https://github.com/kubernetes/api/blob/release-1.17/admissionregistration/v1/types.go#L533> .
 /// +structType=atomic
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct TypedLocalObjectReference {
     /// APIGroup is the group for the resource being referenced.
     /// If APIGroup is not specified, the specified Kind must be in the core API group.
@@ -6927,7 +6950,7 @@ pub struct TypedLocalObjectReference {
     pub name: ::core::option::Option<::prost::alloc::string::String>,
 }
 /// TypedObjectReference contains enough information to let you locate the typed referenced object
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct TypedObjectReference {
     /// APIGroup is the group for the resource being referenced.
     /// If APIGroup is not specified, the specified Kind must be in the core API group.
@@ -6964,7 +6987,7 @@ pub struct Volume {
     pub volume_source: ::core::option::Option<VolumeSource>,
 }
 /// volumeDevice describes a mapping of a raw block device within a container.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct VolumeDevice {
     /// name must match the name of a persistentVolumeClaim in the pod
     #[prost(string, optional, tag = "1")]
@@ -6974,7 +6997,7 @@ pub struct VolumeDevice {
     pub device_path: ::core::option::Option<::prost::alloc::string::String>,
 }
 /// VolumeMount describes a mounting of a Volume within a container.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct VolumeMount {
     /// This must match the Name of a Volume.
     #[prost(string, optional, tag = "1")]
@@ -7032,7 +7055,7 @@ pub struct VolumeMount {
     pub sub_path_expr: ::core::option::Option<::prost::alloc::string::String>,
 }
 /// VolumeMountStatus shows status of volume mounts.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct VolumeMountStatus {
     /// Name corresponds to the name of the original VolumeMount.
     #[prost(string, optional, tag = "1")]
@@ -7124,12 +7147,12 @@ pub struct VolumeResourceRequirements {
 /// Only one of its members may be specified.
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct VolumeSource {
-    /// hostPath represents a pre-existing file or directory on the host
+    /// ## hostPath represents a pre-existing file or directory on the host
     /// machine that is directly exposed to the container. This is generally
     /// used for system agents or other privileged things that are allowed
     /// to see the host machine. Most containers will NOT need this.
     /// More info: <https://kubernetes.io/docs/concepts/storage/volumes#hostpath>
-    /// ---
+    ///
     /// TODO(jonesdl) We need to restrict who can use host directory mounts and who can/can not
     /// mount host directories as read/write.
     /// +optional
@@ -7294,12 +7317,12 @@ pub struct VolumeSource {
     /// Use this if:
     /// a) the volume is only needed while the pod runs,
     /// b) features of normal volumes like restoring from snapshot or capacity
-    ///     tracking are needed,
+    /// tracking are needed,
     /// c) the storage driver is specified through a storage class, and
     /// d) the storage driver supports dynamic volume provisioning through
-    ///     a PersistentVolumeClaim (see EphemeralVolumeSource for more
-    ///     information on the connection between this volume type
-    ///     and PersistentVolumeClaim).
+    /// a PersistentVolumeClaim (see EphemeralVolumeSource for more
+    /// information on the connection between this volume type
+    /// and PersistentVolumeClaim).
     ///
     /// Use PersistentVolumeClaim or one of the vendor-specific
     /// APIs for volumes that persist for longer than the lifecycle
@@ -7318,9 +7341,9 @@ pub struct VolumeSource {
     /// image represents an OCI object (a container image or artifact) pulled and mounted on the kubelet's host machine.
     /// The volume is resolved at pod startup depending on which PullPolicy value is provided:
     ///
-    /// - Always: the kubelet always attempts to pull the reference. Container creation will fail If the pull fails.
-    /// - Never: the kubelet never pulls the reference and only uses a local image or artifact. Container creation will fail if the reference isn't present.
-    /// - IfNotPresent: the kubelet pulls if the reference isn't already present on disk. Container creation will fail if the reference isn't present and the pull fails.
+    /// * Always: the kubelet always attempts to pull the reference. Container creation will fail If the pull fails.
+    /// * Never: the kubelet never pulls the reference and only uses a local image or artifact. Container creation will fail if the reference isn't present.
+    /// * IfNotPresent: the kubelet pulls if the reference isn't already present on disk. Container creation will fail if the reference isn't present and the pull fails.
     ///
     /// The volume gets re-resolved if the pod gets deleted and recreated, which means that new remote content will become available on pod recreation.
     /// A failure to resolve or pull the image during pod startup will block containers from starting and may add significant latency. Failures will be retried using normal volume backoff and will be reported on the pod reason and message.
@@ -7335,7 +7358,7 @@ pub struct VolumeSource {
     pub image: ::core::option::Option<ImageVolumeSource>,
 }
 /// Represents a vSphere volume resource.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct VsphereVirtualDiskVolumeSource {
     /// volumePath is the path that identifies vSphere volume vmdk
     #[prost(string, optional, tag = "1")]
@@ -7367,7 +7390,7 @@ pub struct WeightedPodAffinityTerm {
     pub pod_affinity_term: ::core::option::Option<PodAffinityTerm>,
 }
 /// WindowsSecurityContextOptions contain Windows-specific options and credentials.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct WindowsSecurityContextOptions {
     /// GMSACredentialSpecName is the name of the GMSA credential spec to use.
     /// +optional
