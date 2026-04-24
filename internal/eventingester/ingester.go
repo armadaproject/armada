@@ -19,6 +19,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/ingest"
 	"github.com/armadaproject/armada/internal/common/ingest/jobsetevents"
+	ingestermetrics "github.com/armadaproject/armada/internal/common/ingest/metrics"
 	log "github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/profiling"
 	"github.com/armadaproject/armada/internal/eventingester/configuration"
@@ -177,7 +178,7 @@ func createLeaderController(ctx *armadacontext.Context, config configuration.Lea
 		}
 
 		leaderController := leader.NewKubernetesLeaderController(schedulerLeaderConfig, clientSet.CoordinationV1())
-		leaderStatusMetrics := leader.NewLeaderStatusMetricsCollector(config.LeaseLockName)
+		leaderStatusMetrics := leader.NewLeaderStatusMetricsCollector(ingestermetrics.ArmadaEventIngesterMetricsPrefix, config.LeaseLockName)
 		leaderController.RegisterListener(leaderStatusMetrics)
 		prometheus.MustRegister(leaderStatusMetrics)
 		return leaderController, nil
