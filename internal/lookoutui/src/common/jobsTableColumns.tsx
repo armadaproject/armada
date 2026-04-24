@@ -70,7 +70,8 @@ export enum StandardColumnId {
   Pool = "pool",
   ExitCode = "exitCode",
   RuntimeSeconds = "runtimeSeconds",
-  ErrorCategories = "errorCategories",
+  FailureCategory = "failureCategory",
+  FailureSubcategory = "failureSubcategory",
 }
 
 export type LookoutColumnOrder = {
@@ -122,7 +123,8 @@ export const PREREQUISITE_FILTER_COLUMNS: Record<StandardColumnId, StandardColum
   [StandardColumnId.Pool]: [],
   [StandardColumnId.ExitCode]: [],
   [StandardColumnId.RuntimeSeconds]: [],
-  [StandardColumnId.ErrorCategories]: [],
+  [StandardColumnId.FailureCategory]: [],
+  [StandardColumnId.FailureSubcategory]: [],
 }
 
 export const STANDARD_COLUMN_DISPLAY_NAMES: Record<StandardColumnId, string> = {
@@ -149,7 +151,8 @@ export const STANDARD_COLUMN_DISPLAY_NAMES: Record<StandardColumnId, string> = {
   [StandardColumnId.Pool]: "Pool",
   [StandardColumnId.ExitCode]: "Exit Code",
   [StandardColumnId.RuntimeSeconds]: "Runtime",
-  [StandardColumnId.ErrorCategories]: "Error Categories",
+  [StandardColumnId.FailureCategory]: "Failure Category",
+  [StandardColumnId.FailureSubcategory]: "Failure Subcategory",
 }
 
 const columnHelper = createColumnHelper<JobTableRow>()
@@ -190,7 +193,8 @@ export interface JobColumnsOptions {
   formatNumber: (n: number) => string
 }
 
-export const getLastRunCategories = (row: JobTableRow): string[] => row.runs?.at(-1)?.failureInfo?.categories ?? []
+export const getLastRunFailureCategory = (row: JobTableRow): string => row.runs?.at(-1)?.failureCategory ?? ""
+export const getLastRunFailureSubcategory = (row: JobTableRow): string => row.runs?.at(-1)?.failureSubcategory ?? ""
 
 // Columns will appear in this order by default
 export const GET_JOB_COLUMNS = ({
@@ -578,12 +582,18 @@ export const GET_JOB_COLUMNS = ({
     },
   }),
   accessorColumn({
-    id: StandardColumnId.ErrorCategories,
-    accessor: (jobTableRow) => {
-      const cats = getLastRunCategories(jobTableRow)
-      return cats.length === 0 ? "" : cats.join(", ")
+    id: StandardColumnId.FailureCategory,
+    accessor: (jobTableRow) => getLastRunFailureCategory(jobTableRow),
+    displayName: STANDARD_COLUMN_DISPLAY_NAMES[StandardColumnId.FailureCategory],
+    additionalOptions: {
+      size: 200,
+      enableColumnFilter: false,
     },
-    displayName: STANDARD_COLUMN_DISPLAY_NAMES[StandardColumnId.ErrorCategories],
+  }),
+  accessorColumn({
+    id: StandardColumnId.FailureSubcategory,
+    accessor: (jobTableRow) => getLastRunFailureSubcategory(jobTableRow),
+    displayName: STANDARD_COLUMN_DISPLAY_NAMES[StandardColumnId.FailureSubcategory],
     additionalOptions: {
       size: 200,
       enableColumnFilter: false,
