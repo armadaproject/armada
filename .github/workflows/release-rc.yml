@@ -1,74 +1,74 @@
-# name: Release Armada components - RC
+name: Release Armada components - RC
 
-# on:
-#   workflow_run:
-#     types: [completed]
-#     workflows: [CI]
-#     branches:
-#       - master
-#       - patch/v*
+on:
+  workflow_run:
+    types: [completed]
+    workflows: [CI]
+    branches:
+      - master
+      - patch/v*
 
-# permissions:
-#   contents: write
+permissions:
+  contents: write
 
-# jobs:
-#   validate:
-#     if: github.event.workflow_run.event == 'push' && github.event.workflow_run.conclusion == 'success' && github.repository_owner == 'armadaproject'
-#     name: "Validate revision"
-#     runs-on: ubuntu-22.04
+jobs:
+  validate:
+    if: github.event.workflow_run.event == 'push' && github.event.workflow_run.conclusion == 'success' && github.repository_owner == 'armadaproject'
+    name: "Validate revision"
+    runs-on: ubuntu-22.04
 
-#     steps:
-#       - name: "Checkout"
-#         uses: "actions/checkout@v6"
-#         with:
-#           fetch-depth: 0
+    steps:
+      - name: "Checkout"
+        uses: "actions/checkout@v6"
+        with:
+          fetch-depth: 0
 
-#       # The given ref should belong to the master branch.
-#       # If it's master, it shouldn't be more than 2 commits away (in case another push happened in the meantime).
-#       # Anything else is invalid.
-#       - name: Validate ref
-#         run: |
-#           ref='${{ github.event.workflow_run.head_branch }}'
-#           sha='${{ github.event.workflow_run.head_sha }}'
+      # The given ref should belong to the master branch.
+      # If it's master, it shouldn't be more than 2 commits away (in case another push happened in the meantime).
+      # Anything else is invalid.
+      - name: Validate ref
+        run: |
+          ref='${{ github.event.workflow_run.head_branch }}'
+          sha='${{ github.event.workflow_run.head_sha }}'
 
-#           if [[ "$ref" == "master" ]]; then
-#             [ $(git branch --contains=$sha master | wc -l) -eq 1 ] &&
-#             [ $(git rev-list --count $sha..master) -le 2 ]
-#           elif [[ "$ref" =~ ^patch/v[0-9]+\.[0-9]+\.[0-9]+.*$ ]]; then
-#             [ $(git branch --contains=$sha "$ref" | wc -l) -eq 1 ] &&
-#             base_tag=${ref#patch/}
-#             base_tag=${base_tag%-*}
-#             [ $(git rev-list --count $sha..$base_tag) -le 5 ]
-#           else
-#             false
-#           fi
+          if [[ "$ref" == "master" ]]; then
+            [ $(git branch --contains=$sha master | wc -l) -eq 1 ] &&
+            [ $(git rev-list --count $sha..master) -le 2 ]
+          elif [[ "$ref" =~ ^patch/v[0-9]+\.[0-9]+\.[0-9]+.*$ ]]; then
+            [ $(git branch --contains=$sha "$ref" | wc -l) -eq 1 ] &&
+            base_tag=${ref#patch/}
+            base_tag=${base_tag%-*}
+            [ $(git rev-list --count $sha..$base_tag) -le 5 ]
+          else
+            false
+          fi
 
-#           if [ $? -ne 0 ]; then
-#             echo "::error ::Invalid ref $ref $sha: must be a merge to master branch (not more than 2 commits away) or a patch branch (not more than 5 commits away from base tag)"
-#             exit 1
-#           fi
-#   release:
-#     name: Release
-#     needs: validate
-#     runs-on: "ubuntu-22.04"
-#     environment: armada-dockerhub
+          if [ $? -ne 0 ]; then
+            echo "::error ::Invalid ref $ref $sha: must be a merge to master branch (not more than 2 commits away) or a patch branch (not more than 5 commits away from base tag)"
+            exit 1
+          fi
+  release:
+    name: Release
+    needs: validate
+    runs-on: "ubuntu-22.04"
+    environment: armada-dockerhub
 
-#     steps:
-#       - name: "Checkout"
-#         uses: "actions/checkout@v6"
-#         with:
-#           fetch-depth: 0
+    steps:
+      - name: "Checkout"
+        uses: "actions/checkout@v6"
+        with:
+          fetch-depth: 0
 
-#       - name: "Docker login"
-#         uses: "docker/login-action@v3"
-#         with:
-#           username: "${{ secrets.DOCKERHUB_USER }}"
-#           password: "${{ secrets.DOCKERHUB_PASS }}"
+      - name: "Docker login"
+        uses: "docker/login-action@v3"
+        with:
+          username: "${{ secrets.DOCKERHUB_USER }}"
+          password: "${{ secrets.DOCKERHUB_PASS }}"
 
-#       - name: Download Docker image tarballs artifact
-#         run: gh run download ${{ github.event.workflow_run.id }} --name armada-image-tarballs
-#         env:
-#           GH_TOKEN: ${{ github.token }}
+      - name: Download Docker image tarballs artifact
+        run: gh run download ${{ github.event.workflow_run.id }} --name armada-image-tarballs
+        env:
+          GH_TOKEN: ${{ github.token }}
 
-#       - name: Run Docker push script
-#         run: ./scripts/docker-push.sh --tag '${{ github.event.workflow_run.head_sha }}' --images-dir . --use-tarballs "true"
+      - name: Run Docker push script
+        run: ./scripts/docker-push.sh --tag '${{ github.event.workflow_run.head_sha }}' --images-dir . --use-tarballs "true"

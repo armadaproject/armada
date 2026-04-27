@@ -1,5 +1,5 @@
 import { forwardRef } from "react"
-
+import type React from "react"
 import { Settings } from "@mui/icons-material"
 import { AppBar, Button, IconButton, Stack, styled, Toolbar, Typography } from "@mui/material"
 import { Link, NavLink, NavLinkProps } from "react-router-dom"
@@ -11,7 +11,7 @@ import { JOB_SETS, JOBS, SETTINGS } from "../pathnames"
 import "./NavBar.css"
 
 const NavLinkButton = forwardRef<HTMLAnchorElement, NavLinkProps>((props, ref) => (
-  <NavLink {...props} style={({ isActive }) => (isActive ? undefined : { borderStyle: "none" })} ref={ref} />
+  <NavLink {...props} ref={ref} />
 ))
 
 const StyledAppBar = styled(AppBar)(({ theme }) => ({
@@ -19,6 +19,22 @@ const StyledAppBar = styled(AppBar)(({ theme }) => ({
   backgroundImage: "unset",
   color: theme.palette.appBar.contrastText,
 }))
+
+const NavButton = styled(Button)<{ component?: React.ElementType; to?: string }>({
+  '&[aria-current="page"]': {
+    backgroundColor: "rgba(255, 255, 255, 0.18)",
+    borderColor: "rgba(255, 255, 255, 0.8)",
+  },
+  '&:not([aria-current="page"])': {
+    borderStyle: "none",
+    opacity: 0.75,
+    fontSize: "0.8rem",
+    "&:hover": {
+      opacity: 1,
+      backgroundColor: "rgba(255, 255, 255, 0.08)",
+    },
+  },
+})
 
 interface Page {
   title: string
@@ -60,7 +76,7 @@ export const NavBar = ({ customTitle }: NavBarProps) => {
           </div>
           <Stack direction="row" alignItems="center" spacing={SPACING.sm}>
             {PAGES.map(({ location, title }) => (
-              <Button
+              <NavButton
                 key={location}
                 variant="outlined"
                 color="inherit"
@@ -69,7 +85,7 @@ export const NavBar = ({ customTitle }: NavBarProps) => {
                 to={location}
               >
                 {title}
-              </Button>
+              </NavButton>
             ))}
           </Stack>
           <div className="nav-end">
