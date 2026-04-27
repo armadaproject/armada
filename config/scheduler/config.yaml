@@ -107,6 +107,9 @@ scheduling:
   maximumPerQueueSchedulingBurst: 1000
   maxJobSchedulingContextsPerExecutor: 10000
   maxRetries: 3
+  retryPolicy:
+    enabled: false
+    globalMaxRetries: 5
   dominantResourceFairnessResourcesToConsider:
     - "cpu"
     - "memory"
