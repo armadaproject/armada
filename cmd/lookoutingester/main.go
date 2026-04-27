@@ -15,6 +15,7 @@ const (
 	CustomConfigLocation = "config"
 	Benchmark            = "bench"
 	BenchmarkIterations  = "bench-iterations"
+	BenchmarkOut         = "bench-out"
 )
 
 func init() {
@@ -25,6 +26,7 @@ func init() {
 	)
 	pflag.Bool(Benchmark, false, "Whether to run Lookout Ingester benchmarks instead of the application")
 	pflag.Int(BenchmarkIterations, 1, "Number of iterations to run for each benchmark (only used if --bench is set)")
+	pflag.String(BenchmarkOut, "bench/summary.json", "Path to write benchmark JSON summary (only used if --bench is set)")
 	pflag.Parse()
 }
 
@@ -39,10 +41,20 @@ func main() {
 
 	runBenchmarks := viper.GetBool(Benchmark)
 
+	if !runBenchmarks {
+		if pflag.Lookup(BenchmarkIterations).Changed {
+			log.Warnf("--%s has no effect without --%s", BenchmarkIterations, Benchmark)
+		}
+		if pflag.Lookup(BenchmarkOut).Changed {
+			log.Warnf("--%s has no effect without --%s", BenchmarkOut, Benchmark)
+		}
+	}
+
 	if runBenchmarks {
 		iterations := viper.GetInt(BenchmarkIterations)
+		outPath := viper.GetString(BenchmarkOut)
 		log.Info("Running Lookout Ingester benchmarks with iterations: ", iterations)
-		benchmark.RunBenchmark(config, iterations)
+		benchmark.RunBenchmark(config, iterations, outPath)
 		return
 	}
 

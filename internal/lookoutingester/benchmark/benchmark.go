@@ -1,14 +1,17 @@
 package benchmark
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
 	"math/rand"
+	"os"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"gonum.org/v1/gonum/stat"
 	"k8s.io/utils/pointer"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -20,6 +23,50 @@ import (
 	"github.com/armadaproject/armada/internal/lookoutingester/metrics"
 	"github.com/armadaproject/armada/internal/lookoutingester/model"
 )
+
+// BenchmarkSummary is the top-level JSON output written to outPath.
+type BenchmarkSummary struct {
+	Generated  string                      `json:"generated"`
+	Iterations int                         `json:"iterations"`
+	Benchmarks map[string]*BenchmarkResult `json:"benchmarks"`
+}
+
+// BenchmarkResult holds stats for a single benchmark across all iterations.
+type BenchmarkResult struct {
+	MeanMs    float64   `json:"mean_ms"`
+	StddevMs  float64   `json:"stddev_ms"`
+	Discarded int       `json:"discarded"`
+	Total     int       `json:"total"`
+	RawMs     []float64 `json:"raw_ms"`
+}
+
+func computeStats(rawMs []float64) BenchmarkResult {
+	mean := stat.Mean(rawMs, nil)
+	stddev := stat.StdDev(rawMs, nil)
+	lower := mean - 2*stddev
+	upper := mean + 2*stddev
+
+	var filtered []float64
+	var discarded int
+	for _, v := range rawMs {
+		if v >= lower && v <= upper {
+			filtered = append(filtered, v)
+		} else {
+			discarded++
+		}
+	}
+
+	filteredMean := stat.Mean(filtered, nil)
+	filteredStddev := stat.StdDev(filtered, nil)
+
+	return BenchmarkResult{
+		MeanMs:    math.Round(filteredMean*1000) / 1000,
+		StddevMs:  math.Round(filteredStddev*1000) / 1000,
+		Discarded: discarded,
+		Total:     len(rawMs),
+		RawMs:     rawMs,
+	}
+}
 
 func withDbBenchmark(b *testing.B, config configuration.LookoutIngesterConfiguration, action func(b *testing.B, db *pgxpool.Pool)) {
 	migrations, err := schema.LookoutMigrations()
@@ -37,7 +84,6 @@ func withDbBenchmark(b *testing.B, config configuration.LookoutIngesterConfigura
 		if err != nil {
 			panic(err)
 		}
-
 	}
 }
 
@@ -247,18 +293,8 @@ func updateJobRunInstructions(n int, jobRunIds []string, percentError float64) [
 	return instructions
 }
 
-func pointerTime(time time.Time) *time.Time {
-	return &time
-}
-
-func printBenchmarkResults(result testing.BenchmarkResult) {
-	fmt.Println(result)
-	fmt.Printf(
-		"total time: %v - total executions: %d - runtime per execution: %v\n",
-		result.T,
-		result.N,
-		result.T/time.Duration(result.N),
-	)
+func pointerTime(t time.Time) *time.Time {
+	return &t
 }
 
 func apply(f func(b *testing.B, config configuration.LookoutIngesterConfiguration), config configuration.LookoutIngesterConfiguration) func(b *testing.B) {
@@ -267,8 +303,9 @@ func apply(f func(b *testing.B, config configuration.LookoutIngesterConfiguratio
 	}
 }
 
-// RunBenchmark executes benchmarking functions defined above for LookoutIngester database saving logic
-func RunBenchmark(config configuration.LookoutIngesterConfiguration, iterations int) {
+// RunBenchmark executes each benchmark n-iterations times, computes summary statistics,
+// prints results to stdout, and writes a JSON summary to outPath.
+func RunBenchmark(config configuration.LookoutIngesterConfiguration, iterations int, outPath string) {
 	benchmarkFns := map[string]func(b *testing.B){
 		"benchmarkSubmissions1000":  apply(benchmarkSubmissions1000, config),
 		"benchmarkSubmissions10000": apply(benchmarkSubmissions10000, config),
@@ -276,9 +313,59 @@ func RunBenchmark(config configuration.LookoutIngesterConfiguration, iterations 
 		"benchmarkUpdates10000":     apply(benchmarkUpdates10000, config),
 	}
 
+	// Collect raw runtime-per-execution (ms) across iterations for each benchmark.
+	rawResults := make(map[string][]float64)
 	for benchmarkName, benchmarkFn := range benchmarkFns {
 		fmt.Println(benchmarkName)
-		res := testing.Benchmark(benchmarkFn)
-		printBenchmarkResults(res)
+		for i := 0; i < iterations; i++ {
+			res := testing.Benchmark(benchmarkFn)
+			msPerExec := float64(res.T.Milliseconds()) / float64(res.N)
+			rawResults[benchmarkName] = append(rawResults[benchmarkName], msPerExec)
+			printIterationResult(benchmarkName, i+1, iterations, msPerExec, res)
+		}
 	}
+
+	// Compute stats and build summary.
+	summary := BenchmarkSummary{
+		Generated:  time.Now().UTC().Format(time.RFC3339),
+		Iterations: iterations,
+		Benchmarks: make(map[string]*BenchmarkResult),
+	}
+	for name, raw := range rawResults {
+		result := computeStats(raw)
+		summary.Benchmarks[name] = &result
+		printBenchmarkResult(name, result)
+	}
+
+	// Write JSON output.
+	data, err := json.MarshalIndent(summary, "", "  ")
+	if err != nil {
+		panic(err)
+	}
+	if err := os.MkdirAll(getDirPath(outPath), 0755); err != nil {
+		panic(err)
+	}
+	if err := os.WriteFile(outPath, data, 0644); err != nil {
+		panic(err)
+	}
+	fmt.Printf("\nSummary written to %s\n", outPath)
+}
+
+func printIterationResult(benchmarkName string, iteration, iterations int, msPerExec float64, res testing.BenchmarkResult) {
+	fmt.Printf("  iteration %d/%d: %v (%d executions, %.3fms/exec)\n",
+		iteration, iterations, res.T, res.N, msPerExec)
+}
+
+func printBenchmarkResult(name string, result BenchmarkResult) {
+	fmt.Printf("\n# %s\n  mean: %.3fms  stddev: %.3fms  (discarded %d/%d)\n",
+		name, result.MeanMs, result.StddevMs, result.Discarded, result.Total)
+}
+
+func getDirPath(path string) string {
+	for i := len(path) - 1; i >= 0; i-- {
+		if path[i] == '/' {
+			return path[:i]
+		}
+	}
+	return "."
 }
