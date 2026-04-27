@@ -141,6 +141,7 @@ func (l *LookoutDb) UpdateJobs(ctx *armadacontext.Context, instructions []*model
 	taken := time.Since(start)
 	l.metrics.RecordAvRowChangeTimeByOperation("job", commonmetrics.DBOperationUpdate, len(instructions), taken)
 	l.metrics.RecordRowsChange("job", commonmetrics.DBOperationUpdate, len(instructions))
+	l.recordTerminalStateUpdates(instructions)
 	log.Infof("Updated %d jobs in %s", len(instructions), taken)
 }
 
@@ -174,6 +175,30 @@ func (l *LookoutDb) UpdateJobRuns(ctx *armadacontext.Context, instructions []*mo
 	l.metrics.RecordAvRowChangeTimeByOperation("job_run", commonmetrics.DBOperationUpdate, len(instructions), taken)
 	l.metrics.RecordRowsChange("job_run", commonmetrics.DBOperationUpdate, len(instructions))
 	log.Infof("Updated %d job runs in %s", len(instructions), taken)
+}
+
+func (l *LookoutDb) recordTerminalStateUpdates(instructions []*model.UpdateJobInstruction) {
+	counts := make(map[string]int)
+	for _, instruction := range instructions {
+		if instruction.State == nil {
+			continue
+		}
+		switch *instruction.State {
+		case lookout.JobSucceededOrdinal:
+			counts["succeeded"]++
+		case lookout.JobFailedOrdinal:
+			counts["failed"]++
+		case lookout.JobCancelledOrdinal:
+			counts["cancelled"]++
+		case lookout.JobPreemptedOrdinal:
+			counts["preempted"]++
+		case lookout.JobRejectedOrdinal:
+			counts["rejected"]++
+		}
+	}
+	for state, count := range counts {
+		l.metrics.RecordTerminalStateUpdates(state, count)
+	}
 }
 
 func (l *LookoutDb) CreateJobErrors(ctx *armadacontext.Context, instructions []*model.CreateJobErrorInstruction) {

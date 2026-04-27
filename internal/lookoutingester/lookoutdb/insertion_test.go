@@ -939,6 +939,30 @@ func TestStoreEventsForAlreadyTerminalJobs(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestRecordTerminalStateUpdates(t *testing.T) {
+	ldb := NewLookoutDb(nil, fatalErrors, m, 10, 10)
+
+	instructions := []*model.UpdateJobInstruction{
+		{JobId: "job1", State: pointer.Int32(lookout.JobSucceededOrdinal)},
+		{JobId: "job2", State: pointer.Int32(lookout.JobFailedOrdinal)},
+		{JobId: "job3", State: pointer.Int32(lookout.JobCancelledOrdinal)},
+		{JobId: "job4", State: pointer.Int32(lookout.JobRunningOrdinal)},
+		{JobId: "job5", State: pointer.Int32(lookout.JobPreemptedOrdinal)},
+		{JobId: "job6", State: pointer.Int32(lookout.JobRejectedOrdinal)},
+		{JobId: "job7"},
+	}
+
+	// Should not panic; counts 5 terminal (job4=running and job7=nil are skipped)
+	ldb.recordTerminalStateUpdates(instructions)
+}
+
+func TestRecordTerminalStateUpdates_Empty(t *testing.T) {
+	ldb := NewLookoutDb(nil, fatalErrors, m, 10, 10)
+	// Neither nil nor empty should panic
+	ldb.recordTerminalStateUpdates(nil)
+	ldb.recordTerminalStateUpdates([]*model.UpdateJobInstruction{})
+}
+
 func makeCreateJobInstruction(jobId string) *model.CreateJobInstruction {
 	return &model.CreateJobInstruction{
 		JobId:                     jobId,
