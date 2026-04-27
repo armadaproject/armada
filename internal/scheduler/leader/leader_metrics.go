@@ -6,24 +6,27 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
-	"github.com/armadaproject/armada/internal/common/metrics"
-)
-
-var leaderStatusDesc = prometheus.NewDesc(
-	metrics.MetricPrefix+"scheduler_leader_status",
-	"Gauge of if the reporting system is leader, 0 indicates hot replica, 1 indicates leader.",
-	[]string{"name"}, nil,
 )
 
 type LeaderStatusMetricsCollector struct {
+	leaderStatusDesc    *prometheus.Desc
 	currentInstanceName string
 	isCurrentlyLeader   bool
 	lock                sync.Mutex
 }
 
-func NewLeaderStatusMetricsCollector(currentInstanceName string) *LeaderStatusMetricsCollector {
+func createLeaderStatusDesc(metricsPrefix string) *prometheus.Desc {
+	return prometheus.NewDesc(
+		metricsPrefix+"leader_status",
+		"Gauge of if the reporting system is leader, 0 indicates hot replica, 1 indicates leader.",
+		[]string{"name"}, nil,
+	)
+}
+
+func NewLeaderStatusMetricsCollector(metricsPrefix string, currentInstanceName string) *LeaderStatusMetricsCollector {
 	return &LeaderStatusMetricsCollector{
 		isCurrentlyLeader:   false,
+		leaderStatusDesc:    createLeaderStatusDesc(metricsPrefix),
 		currentInstanceName: currentInstanceName,
 		lock:                sync.Mutex{},
 	}
@@ -51,7 +54,7 @@ func (l *LeaderStatusMetricsCollector) isLeading() bool {
 }
 
 func (l *LeaderStatusMetricsCollector) Describe(desc chan<- *prometheus.Desc) {
-	desc <- leaderStatusDesc
+	desc <- l.leaderStatusDesc
 }
 
 func (l *LeaderStatusMetricsCollector) Collect(metrics chan<- prometheus.Metric) {
@@ -59,5 +62,5 @@ func (l *LeaderStatusMetricsCollector) Collect(metrics chan<- prometheus.Metric)
 	if l.isLeading() {
 		value = 1
 	}
-	metrics <- prometheus.MustNewConstMetric(leaderStatusDesc, prometheus.GaugeValue, value, l.currentInstanceName)
+	metrics <- prometheus.MustNewConstMetric(l.leaderStatusDesc, prometheus.GaugeValue, value, l.currentInstanceName)
 }

@@ -34,10 +34,11 @@ type Configuration struct {
 	// Configuration controlling metrics
 	Metrics MetricsConfig
 	// Scheduler configuration (this is shared with the old scheduler)
-	Scheduling SchedulingConfig
-	Auth       authconfig.AuthConfig
-	Grpc       grpcconfig.GrpcConfig
-	Http       HttpConfig
+	Scheduling  SchedulingConfig
+	Auth        authconfig.AuthConfig
+	Grpc        grpcconfig.GrpcConfig
+	Http        HttpConfig
+	SubmitCheck SubmitCheckConfig
 	// If non-nil, configures pprof profiling
 	Profiling *profilingconfig.ProfilingConfig
 	// Maximum number of strings that should be cached at any one time
@@ -86,6 +87,24 @@ type Configuration struct {
 	PricingApi PricingApiConfig
 	// Whether to publish metrics To Pulsar.  This is currently experimental
 	PublishMetricsToPulsar bool
+}
+
+type SubmitCheckConfig struct {
+	// MaxDuration is the global time limit for the submit check phase
+	// of a scheduler cycle. The submit check validates whether newly submitted
+	// jobs can physically fit on any cluster. When this limit is exceeded,
+	// the checker stops processing additional queues and returns partial results.
+	// Unchecked jobs remain unvalidated and will be checked in the next cycle.
+	//
+	// Set to 0 to disable (no global time limit on submit check).
+	MaxDuration time.Duration `validate:"omitempty,gt=0"`
+	// MaxDurationPerQueue is the per-queue time limit for the submit
+	// check phase. When exceeded for a given queue, the checker stops processing
+	// additional jobs in that queue and moves on to the next. Unchecked jobs
+	// remain unvalidated and will be checked in the next cycle.
+	//
+	// Set to 0 to disable (no per-queue time limit on submit check).
+	MaxDurationPerQueue time.Duration `validate:"omitempty,gt=0"`
 }
 
 type LeaderConfig struct {
