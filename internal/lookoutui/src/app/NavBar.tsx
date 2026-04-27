@@ -20,22 +20,6 @@ const StyledAppBar = styled(AppBar)(({ theme }) => ({
   color: theme.palette.appBar.contrastText,
 }))
 
-const NavButton = styled(Button)<{ component?: React.ElementType; to?: string }>({
-  '&[aria-current="page"]': {
-    backgroundColor: "rgba(255, 255, 255, 0.18)",
-    borderColor: "rgba(255, 255, 255, 0.8)",
-  },
-  '&:not([aria-current="page"])': {
-    borderStyle: "none",
-    opacity: 0.75,
-    fontSize: "0.8rem",
-    "&:hover": {
-      opacity: 1,
-      backgroundColor: "rgba(255, 255, 255, 0.08)",
-    },
-  },
-})
-
 interface Page {
   title: string
   location: string
