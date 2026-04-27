@@ -103,21 +103,23 @@ CREATE INDEX idx_job_active_queue_jobset
 
 -- Job run table (unpartitioned).
 CREATE TABLE job_run (
-    run_id            varchar(36)  NOT NULL PRIMARY KEY,
-    job_id            varchar(32)  NOT NULL,
-    cluster           varchar(512) NOT NULL,
-    node              varchar(512) NULL,
-    pending           timestamp    NULL,
-    started           timestamp    NULL,
-    finished          timestamp    NULL,
-    job_run_state     smallint     NOT NULL,
-    error             bytea        NULL,
-    exit_code         int          NULL,
-    leased            timestamp    NULL,
-    debug             bytea        NULL,
-    pool              text         NULL,
-    ingress_addresses jsonb        NULL,
-    failure_info      jsonb        NULL
+    run_id              varchar(36)  NOT NULL PRIMARY KEY,
+    job_id              varchar(32)  NOT NULL,
+    cluster             varchar(512) NOT NULL,
+    node                varchar(512) NULL,
+    pending             timestamp    NULL,
+    started             timestamp    NULL,
+    finished            timestamp    NULL,
+    job_run_state       smallint     NOT NULL,
+    error               bytea        NULL,
+    exit_code           int          NULL,
+    leased              timestamp    NULL,
+    debug               bytea        NULL,
+    pool                text         NULL,
+    ingress_addresses   jsonb        NULL,
+    failure_info        jsonb        NULL,
+    failure_category    varchar(63)  NULL,
+    failure_subcategory varchar(63)  NULL
 ) WITH (fillfactor = 70);
 ALTER TABLE job_run ALTER COLUMN error SET STORAGE EXTERNAL;
 
