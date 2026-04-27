@@ -3245,34 +3245,10 @@ func testNodeWithTaints(node *internaltypes.Node, taints []v1.Taint) *internalty
 	)
 }
 
-// TestPreemptingQueueScheduler_NonPreemptibleOverPack reproduces a known
-// property of Armada's priority model: when non-preemptible jobs at a lower
-// priority hold all of a node's resources, the scheduler still places a
-// higher-priority job on that node, exceeding the node's total capacity.
-//
-// Mechanism (three pieces, each defensible alone, blind together):
-//
-//  1. internaltypes/resource_list_map_util.go:67 — MarkAllocated(p, rs) only
-//     deducts allocatable from priorities <= p. From a higher-priority view,
-//     resources held by lower-priority jobs look available, on the assumption
-//     that they could be evicted if needed.
-//
-//  2. preempting_queue_scheduler.go:118 — the rebalance eviction phase skips
-//     non-preemptible jobs.
-//
-//  3. eviction.go:164 — the OversubscribedEvictor (the safety net specifically
-//     designed to catch this kind of negative-allocatable situation) also skips
-//     non-preemptible jobs.
-//
-// Both safety nets share the blind spot. The scheduler reports success and the
-// node ends up over-allocated.
-//
-// This test asserts the CORRECT behavior (no over-pack) and FAILS against
-// current master. It will pass once the priority model accounts for non-
-// preemptible jobs as binding at all priority levels.
-//
-// Uses cpu (not pods) to make clear the issue is in the priority model itself
-// and is not specific to any pod-tracking feature.
+// TestPreemptingQueueScheduler_NonPreemptibleOverPack is a regression guard:
+// a higher-priority job must not over-pack a node held by non-preemptible
+// lower-priority incumbents. Uses cpu so the assertion is on the priority
+// model itself, not on any pod-tracking feature.
 func TestPreemptingQueueScheduler_NonPreemptibleOverPack(t *testing.T) {
 	config := testfixtures.TestSchedulingConfig()
 
@@ -3284,7 +3260,6 @@ func TestPreemptingQueueScheduler_NonPreemptibleOverPack(t *testing.T) {
 		"memory": pointer.MustParseResource("64Gi"),
 	})
 
-	// 5 non-preemptible incumbents at priority 2 fully occupy the node.
 	incumbents := testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass2NonPreemptible, 5)
 	for i, j := range incumbents {
 		incumbents[i] = j.WithQueued(false).
@@ -3342,9 +3317,6 @@ func TestPreemptingQueueScheduler_NonPreemptibleOverPack(t *testing.T) {
 	result, err := sch.Schedule(armadacontext.Background())
 	require.NoError(t, err)
 
-	// CORRECT behavior: the challenger cannot fit on a node fully occupied by
-	// non-preemptible incumbents, so it should not be scheduled. This assertion
-	// FAILS against current master because the scheduler over-packs the node.
 	assert.Empty(t, result.PreemptedJobs,
 		"no incumbent should be preempted (they are non-preemptible)")
 	assert.Empty(t, result.ScheduledJobs,
