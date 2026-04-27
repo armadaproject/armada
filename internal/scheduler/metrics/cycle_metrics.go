@@ -386,7 +386,7 @@ type cycleMetrics struct {
 	scheduleCycleOutcome    *prometheus.CounterVec
 	scheduleCycleTime       prometheus.Histogram
 	reconciliationCycleTime prometheus.Histogram
-	submitCheckDuration     *prometheus.GaugeVec
+	submitCheckDuration     *prometheus.HistogramVec
 	latestCycleMetrics      atomic.Pointer[perCycleMetrics]
 	metricsPublisher        pulsarutils.Publisher[*metricevents.Event]
 }
@@ -457,10 +457,11 @@ func newCycleMetrics(publisher pulsarutils.Publisher[*metricevents.Event], scala
 		poolLabels,
 	)
 
-	submitCheckDuration := prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: ArmadaSchedulerMetricsPrefix + "per_queue_submit_check_times",
-			Help: "Time spent in submit check per queue per scheduling cycle, in milliseconds.",
+	submitCheckDuration := prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    ArmadaSchedulerMetricsPrefix + "submit_check_times",
+			Help:    "Time spent in submit check per queue per scheduling cycle, in milliseconds.",
+			Buckets: prometheus.ExponentialBuckets(10.0, 1.1, 110),
 		},
 		[]string{queueLabel},
 	)
@@ -498,7 +499,6 @@ func (m *cycleMetrics) resetLeaderMetrics() {
 	m.scheduledJobs.Reset()
 	m.failedJobs.Reset()
 	m.poolSchedulingOutcome.Reset()
-	m.submitCheckDuration.Reset()
 	m.latestCycleMetrics.Store(newPerCycleMetrics())
 }
 
@@ -538,12 +538,10 @@ func (m *cycleMetrics) ReportPoolSchedulingCycleTime(pool string, cycleTime time
 	m.poolSchedulingCycleTime.WithLabelValues(pool).Observe(float64(cycleTime.Milliseconds()))
 }
 
-func (m *cycleMetrics) ReportSubmitCheckDuration(queue string, duration time.Duration) {
-	m.submitCheckDuration.WithLabelValues(queue).Set(float64(duration) / float64(time.Millisecond))
-}
-
-func (m *cycleMetrics) ResetSubmitCheckDurations() {
-	m.submitCheckDuration.Reset()
+func (m *cycleMetrics) ReportSubmitCheckDuration(durations map[string]time.Duration) {
+	for queue, duration := range durations {
+		m.submitCheckDuration.WithLabelValues(queue).Observe(float64(duration) / float64(time.Millisecond))
+	}
 }
 
 func (m *cycleMetrics) ReportSchedulerResult(ctx *armadacontext.Context, result scheduling.SchedulerResult) {

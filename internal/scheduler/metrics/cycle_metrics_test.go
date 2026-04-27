@@ -7,6 +7,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
+	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -135,54 +136,32 @@ func TestReportOutcomes(t *testing.T) {
 func TestReportSubmitCheckDuration(t *testing.T) {
 	m := newCycleMetrics(pulsarutils.NoOpPublisher[*metricevents.Event]{}, "")
 
-	m.ReportSubmitCheckDuration("queue1", 250*time.Millisecond)
-	val := testutil.ToFloat64(m.submitCheckDuration.WithLabelValues("queue1"))
-	assert.InDelta(t, 250.0, val, epsilon)
+	m.ReportSubmitCheckDuration(map[string]time.Duration{
+		"queue1": 250 * time.Millisecond,
+		"queue2": 50 * time.Millisecond,
+		"queue3": 723 * time.Microsecond,
+	})
 
-	// A second call overwrites, not accumulates.
-	m.ReportSubmitCheckDuration("queue1", 100*time.Millisecond)
-	val = testutil.ToFloat64(m.submitCheckDuration.WithLabelValues("queue1"))
-	assert.InDelta(t, 100.0, val, epsilon)
+	assertHistogramObservation(t, m.submitCheckDuration, "queue1", 1, 250.0)
+	assertHistogramObservation(t, m.submitCheckDuration, "queue2", 1, 50.0)
+	assertHistogramObservation(t, m.submitCheckDuration, "queue3", 1, 0.723)
 
-	// Independent label sets are tracked separately.
-	m.ReportSubmitCheckDuration("queue2", 50*time.Millisecond)
-	val2 := testutil.ToFloat64(m.submitCheckDuration.WithLabelValues("queue2"))
-	assert.InDelta(t, 50.0, val2, epsilon)
-	val = testutil.ToFloat64(m.submitCheckDuration.WithLabelValues("queue1"))
-	assert.InDelta(t, 100.0, val, epsilon)
-
-	// Sub-millisecond durations retain microsecond precision (reported as fractional milliseconds).
-	m.ReportSubmitCheckDuration("queue3", 723*time.Microsecond)
-	val3 := testutil.ToFloat64(m.submitCheckDuration.WithLabelValues("queue3"))
-	assert.InDelta(t, 0.723, val3, epsilon)
+	// A subsequent call accumulates (histogram semantics) rather than overwriting.
+	m.ReportSubmitCheckDuration(map[string]time.Duration{
+		"queue1": 100 * time.Millisecond,
+	})
+	assertHistogramObservation(t, m.submitCheckDuration, "queue1", 2, 350.0)
+	assertHistogramObservation(t, m.submitCheckDuration, "queue2", 1, 50.0)
 }
 
-func TestResetSubmitCheckDurations(t *testing.T) {
-	m := newCycleMetrics(pulsarutils.NoOpPublisher[*metricevents.Event]{}, "")
-
-	m.ReportSubmitCheckDuration("queue1", 250*time.Millisecond)
-	m.ReportSubmitCheckDuration("queue2", 100*time.Millisecond)
-
-	m.ResetSubmitCheckDurations()
-
-	// After reset both label sets should return zero (the zero-value Prometheus returns for unset gauges).
-	val1 := testutil.ToFloat64(m.submitCheckDuration.WithLabelValues("queue1"))
-	assert.InDelta(t, 0.0, val1, epsilon)
-	val2 := testutil.ToFloat64(m.submitCheckDuration.WithLabelValues("queue2"))
-	assert.InDelta(t, 0.0, val2, epsilon)
-}
-
-func TestResetLeaderMetrics_ResetsSubmitCheckDuration(t *testing.T) {
-	m := newCycleMetrics(pulsarutils.NoOpPublisher[*metricevents.Event]{}, "")
-
-	m.ReportSubmitCheckDuration("queue1", 500*time.Millisecond)
-	val := testutil.ToFloat64(m.submitCheckDuration.WithLabelValues("queue1"))
-	assert.InDelta(t, 500.0, val, epsilon)
-
-	m.resetLeaderMetrics()
-
-	val = testutil.ToFloat64(m.submitCheckDuration.WithLabelValues("queue1"))
-	assert.InDelta(t, 0.0, val, epsilon)
+func assertHistogramObservation(t *testing.T, vec *prometheus.HistogramVec, queue string, wantCount uint64, wantSumMillis float64) {
+	t.Helper()
+	obs, err := vec.GetMetricWithLabelValues(queue)
+	require.NoError(t, err)
+	metric := &dto.Metric{}
+	require.NoError(t, obs.(prometheus.Metric).Write(metric))
+	assert.Equal(t, wantCount, metric.Histogram.GetSampleCount())
+	assert.InDelta(t, wantSumMillis, metric.Histogram.GetSampleSum(), epsilon)
 }
 
 func TestResetLeaderMetrics_Counters(t *testing.T) {
