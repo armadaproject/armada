@@ -1875,7 +1875,7 @@ type testSubmitChecker struct {
 	checkSuccess bool
 }
 
-func (t *testSubmitChecker) Check(_ *armadacontext.Context, jobs []*jobdb.Job, _ func(queue string, duration time.Duration)) (map[string]schedulingResult, error) {
+func (t *testSubmitChecker) Check(_ *armadacontext.Context, jobs []*jobdb.Job) (map[string]schedulingResult, map[string]time.Duration, error) {
 	result := make(map[string]schedulingResult)
 	for _, job := range jobs {
 		if t.checkSuccess {
@@ -1884,7 +1884,7 @@ func (t *testSubmitChecker) Check(_ *armadacontext.Context, jobs []*jobdb.Job, _
 			result[job.Id()] = schedulingResult{isSchedulable: false, reason: "job not schedulable"}
 		}
 	}
-	return result, nil
+	return result, nil, nil
 }
 
 type testQueueCache struct {
