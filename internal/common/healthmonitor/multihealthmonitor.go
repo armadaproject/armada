@@ -1,14 +1,14 @@
 package healthmonitor
 
 import (
-	"fmt"
-
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/exp/maps"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 )
+
+const nameLabel = "name"
 
 // MultiHealthMonitor wraps multiple HealthMonitors and itself implements the HealthMonitor interface.
 type MultiHealthMonitor struct {
@@ -24,9 +24,10 @@ type MultiHealthMonitor struct {
 	healthPrometheusDesc *prometheus.Desc
 }
 
-func NewMultiHealthMonitor(name string, healthMonitorsByName map[string]HealthMonitor) *MultiHealthMonitor {
+func NewMultiHealthMonitor(name string, metricsPrefix string, healthMonitorsByName map[string]HealthMonitor) *MultiHealthMonitor {
 	srv := &MultiHealthMonitor{
 		name:                     name,
+		metricsPrefix:            metricsPrefix,
 		minimumReplicasAvailable: len(healthMonitorsByName),
 		healthMonitorsByName:     maps.Clone(healthMonitorsByName),
 	}
@@ -39,23 +40,11 @@ func (srv *MultiHealthMonitor) WithMinimumReplicasAvailable(v int) *MultiHealthM
 	return srv
 }
 
-// WithMetricsPrefix adds a prefix to exported Prometheus metrics.
-// Must be called before Describe or Collect.
-func (srv *MultiHealthMonitor) WithMetricsPrefix(v string) *MultiHealthMonitor {
-	srv.metricsPrefix = v
-	srv.initialiseMetrics()
-	return srv
-}
-
 func (srv *MultiHealthMonitor) initialiseMetrics() {
-	metricsPrefix := srv.name
-	if srv.metricsPrefix != "" {
-		metricsPrefix = srv.metricsPrefix + srv.name
-	}
 	srv.healthPrometheusDesc = prometheus.NewDesc(
-		metricsPrefix+"_health",
-		fmt.Sprintf("Shows whether %s is healthy.", srv.name),
-		nil,
+		srv.metricsPrefix+"_health",
+		"Shows whether this group of etcds is healthy.",
+		[]string{nameLabel},
 		nil,
 	)
 }
@@ -114,6 +103,7 @@ func (srv *MultiHealthMonitor) Collect(c chan<- prometheus.Metric) {
 		srv.healthPrometheusDesc,
 		prometheus.GaugeValue,
 		resultOfMostRecentHealthCheck,
+		srv.name,
 	)
 
 	for _, healthMonitor := range srv.healthMonitorsByName {
