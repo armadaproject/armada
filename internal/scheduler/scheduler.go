@@ -596,7 +596,7 @@ func (s *Scheduler) addNodeAntiAffinitiesForAttemptedRunsIfSchedulable(ctx *arma
 		// should never happen - requirements haven't changed
 		panic(err)
 	}
-	results, err := s.submitChecker.Check(ctx, []*jobdb.Job{job})
+	results, err := s.submitChecker.Check(ctx, []*jobdb.Job{job}, nil)
 	if err != nil {
 		return nil, false, err
 	}
@@ -1133,7 +1133,13 @@ func (s *Scheduler) submitCheck(ctx *armadacontext.Context, txn *jobdb.Txn) ([]*
 		jobsToCheck = append(jobsToCheck, job)
 	}
 
-	results, err := s.submitChecker.Check(ctx, jobsToCheck)
+	var reportDuration func(queue string, duration time.Duration)
+	if s.metrics.LeaderMetricsEnabled() {
+		s.metrics.ResetSubmitCheckDurations()
+		reportDuration = s.metrics.ReportSubmitCheckDuration
+	}
+
+	results, err := s.submitChecker.Check(ctx, jobsToCheck, reportDuration)
 	if err != nil {
 		return nil, err
 	}

@@ -132,6 +132,59 @@ func TestReportOutcomes(t *testing.T) {
 	assert.Equal(t, 1.0, errorOutcome)
 }
 
+func TestReportSubmitCheckDuration(t *testing.T) {
+	m := newCycleMetrics(pulsarutils.NoOpPublisher[*metricevents.Event]{}, "")
+
+	m.ReportSubmitCheckDuration("queue1", 250*time.Millisecond)
+	val := testutil.ToFloat64(m.submitCheckDuration.WithLabelValues("queue1"))
+	assert.InDelta(t, 250.0, val, epsilon)
+
+	// A second call overwrites, not accumulates.
+	m.ReportSubmitCheckDuration("queue1", 100*time.Millisecond)
+	val = testutil.ToFloat64(m.submitCheckDuration.WithLabelValues("queue1"))
+	assert.InDelta(t, 100.0, val, epsilon)
+
+	// Independent label sets are tracked separately.
+	m.ReportSubmitCheckDuration("queue2", 50*time.Millisecond)
+	val2 := testutil.ToFloat64(m.submitCheckDuration.WithLabelValues("queue2"))
+	assert.InDelta(t, 50.0, val2, epsilon)
+	val = testutil.ToFloat64(m.submitCheckDuration.WithLabelValues("queue1"))
+	assert.InDelta(t, 100.0, val, epsilon)
+
+	// Sub-millisecond durations retain microsecond precision (reported as fractional milliseconds).
+	m.ReportSubmitCheckDuration("queue3", 723*time.Microsecond)
+	val3 := testutil.ToFloat64(m.submitCheckDuration.WithLabelValues("queue3"))
+	assert.InDelta(t, 0.723, val3, epsilon)
+}
+
+func TestResetSubmitCheckDurations(t *testing.T) {
+	m := newCycleMetrics(pulsarutils.NoOpPublisher[*metricevents.Event]{}, "")
+
+	m.ReportSubmitCheckDuration("queue1", 250*time.Millisecond)
+	m.ReportSubmitCheckDuration("queue2", 100*time.Millisecond)
+
+	m.ResetSubmitCheckDurations()
+
+	// After reset both label sets should return zero (the zero-value Prometheus returns for unset gauges).
+	val1 := testutil.ToFloat64(m.submitCheckDuration.WithLabelValues("queue1"))
+	assert.InDelta(t, 0.0, val1, epsilon)
+	val2 := testutil.ToFloat64(m.submitCheckDuration.WithLabelValues("queue2"))
+	assert.InDelta(t, 0.0, val2, epsilon)
+}
+
+func TestResetLeaderMetrics_ResetsSubmitCheckDuration(t *testing.T) {
+	m := newCycleMetrics(pulsarutils.NoOpPublisher[*metricevents.Event]{}, "")
+
+	m.ReportSubmitCheckDuration("queue1", 500*time.Millisecond)
+	val := testutil.ToFloat64(m.submitCheckDuration.WithLabelValues("queue1"))
+	assert.InDelta(t, 500.0, val, epsilon)
+
+	m.resetLeaderMetrics()
+
+	val = testutil.ToFloat64(m.submitCheckDuration.WithLabelValues("queue1"))
+	assert.InDelta(t, 0.0, val, epsilon)
+}
+
 func TestResetLeaderMetrics_Counters(t *testing.T) {
 	m := newCycleMetrics(pulsarutils.NoOpPublisher[*metricevents.Event]{}, "")
 	poolAndQueueAndPriorityClassTypeLabels := []string{"pool1", "queue1", "priorityClass1", "type1"}

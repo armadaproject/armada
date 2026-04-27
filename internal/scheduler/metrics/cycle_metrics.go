@@ -386,6 +386,7 @@ type cycleMetrics struct {
 	scheduleCycleOutcome    *prometheus.CounterVec
 	scheduleCycleTime       prometheus.Histogram
 	reconciliationCycleTime prometheus.Histogram
+	submitCheckDuration     *prometheus.GaugeVec
 	latestCycleMetrics      atomic.Pointer[perCycleMetrics]
 	metricsPublisher        pulsarutils.Publisher[*metricevents.Event]
 }
@@ -456,6 +457,14 @@ func newCycleMetrics(publisher pulsarutils.Publisher[*metricevents.Event], scala
 		poolLabels,
 	)
 
+	submitCheckDuration := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: ArmadaSchedulerMetricsPrefix + "per_queue_submit_check_times",
+			Help: "Time spent in submit check per queue per scheduling cycle, in milliseconds.",
+		},
+		[]string{queueLabel},
+	)
+
 	cycleMetrics := &cycleMetrics{
 		leaderMetricsEnabled:    true,
 		scalableUnitLabelKey:    scalableUnitLabelKey,
@@ -467,6 +476,7 @@ func newCycleMetrics(publisher pulsarutils.Publisher[*metricevents.Event], scala
 		scheduleCycleTime:       scheduleCycleTime,
 		scheduleCycleOutcome:    scheduleCycleOutcome,
 		reconciliationCycleTime: reconciliationCycleTime,
+		submitCheckDuration:     submitCheckDuration,
 		latestCycleMetrics:      atomic.Pointer[perCycleMetrics]{},
 		metricsPublisher:        publisher,
 	}
@@ -488,6 +498,7 @@ func (m *cycleMetrics) resetLeaderMetrics() {
 	m.scheduledJobs.Reset()
 	m.failedJobs.Reset()
 	m.poolSchedulingOutcome.Reset()
+	m.submitCheckDuration.Reset()
 	m.latestCycleMetrics.Store(newPerCycleMetrics())
 }
 
@@ -525,6 +536,14 @@ func (m *cycleMetrics) ReportPoolSchedulingOutcome(pool string, outcome scheduli
 
 func (m *cycleMetrics) ReportPoolSchedulingCycleTime(pool string, cycleTime time.Duration) {
 	m.poolSchedulingCycleTime.WithLabelValues(pool).Observe(float64(cycleTime.Milliseconds()))
+}
+
+func (m *cycleMetrics) ReportSubmitCheckDuration(queue string, duration time.Duration) {
+	m.submitCheckDuration.WithLabelValues(queue).Set(float64(duration) / float64(time.Millisecond))
+}
+
+func (m *cycleMetrics) ResetSubmitCheckDurations() {
+	m.submitCheckDuration.Reset()
 }
 
 func (m *cycleMetrics) ReportSchedulerResult(ctx *armadacontext.Context, result scheduling.SchedulerResult) {
@@ -696,6 +715,7 @@ func (m *cycleMetrics) describe(ch chan<- *prometheus.Desc) {
 		m.poolSchedulingCycleTime.Describe(ch)
 		m.scheduleCycleTime.Describe(ch)
 		m.scheduleCycleOutcome.Describe(ch)
+		m.submitCheckDuration.Describe(ch)
 
 		cycleMetrics := newPerCycleMetrics()
 		cycleMetrics.consideredJobs.Describe(ch)
@@ -745,6 +765,7 @@ func (m *cycleMetrics) collect(ch chan<- prometheus.Metric) {
 		m.poolSchedulingCycleTime.Collect(ch)
 		m.scheduleCycleTime.Collect(ch)
 		m.scheduleCycleOutcome.Collect(ch)
+		m.submitCheckDuration.Collect(ch)
 
 		currentCycle := m.latestCycleMetrics.Load()
 		currentCycle.consideredJobs.Collect(ch)
