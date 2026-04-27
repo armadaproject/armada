@@ -49,7 +49,7 @@ export const DEFAULT_PREFERENCES: JobsTablePreferences = {
     .map(({ id }) => toColId(id)),
   filters: [],
   columnMatches: DEFAULT_COLUMN_MATCHES,
-  groupedColumns: [],
+  groupedColumns: [StandardColumnId.Queue],
   expandedState: {},
   pageIndex: 0,
   pageSize: 50,
