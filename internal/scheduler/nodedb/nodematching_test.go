@@ -4,10 +4,13 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
+	armadaresource "github.com/armadaproject/armada/internal/common/resource"
+	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
@@ -650,7 +653,61 @@ func BenchmarkInsufficientResourcesSum64(b *testing.B) {
 	}
 }
 
-func TestResourceRequirementsMet(t *testing.T) {
+func TestResourceRequirementsMet_RespectNodePodLimits(t *testing.T) {
+	rlFactory, err := internaltypes.NewResourceListFactory(
+		[]schedulerconfig.ResourceType{
+			{Name: "cpu", Resolution: resource.MustParse("1m")},
+			{Name: "memory", Resolution: resource.MustParse("1")},
+			{Name: armadaresource.PodsResourceName, Resolution: resource.MustParse("1")},
+		},
+		nil,
+	)
+	require.NoError(t, err)
+
+	required := rlFactory.FromJobResourceListIgnoreUnknown(map[string]resource.Quantity{
+		"cpu":                           resource.MustParse("1"),
+		armadaresource.PodsResourceName: resource.MustParse("1"),
+	})
+
+	tests := map[string]struct {
+		availableCpu, availablePods string
+		expectOk                    bool
+		expectReason                string
+	}{
+		"saturated by pods": {
+			availableCpu: "10", availablePods: "0",
+			expectOk: false, expectReason: armadaresource.PodsResourceName,
+		},
+		"slot available": {
+			availableCpu: "10", availablePods: "1",
+			expectOk: true,
+		},
+		"saturated by both cpu and pods": {
+			// Factory iterates resources in declared order (cpu, memory, pods),
+			// so cpu wins the tiebreak. Pins down operator-facing reason ordering.
+			availableCpu: "0", availablePods: "0",
+			expectOk: false, expectReason: "cpu",
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			available := rlFactory.FromJobResourceListIgnoreUnknown(map[string]resource.Quantity{
+				"cpu":                           resource.MustParse(tc.availableCpu),
+				"memory":                        resource.MustParse("64Gi"),
+				armadaresource.PodsResourceName: resource.MustParse(tc.availablePods),
+			})
+			ok, reason := resourceRequirementsMet(available, required)
+			assert.Equal(t, tc.expectOk, ok)
+			if tc.expectOk {
+				assert.Nil(t, reason)
+				return
+			}
+			insuff, isInsufficient := reason.(*InsufficientResources)
+			require.True(t, isInsufficient, "expected InsufficientResources, got %T", reason)
+			assert.Equal(t, tc.expectReason, insuff.ResourceName)
+		})
+	}
 }
 
 func makeTestNodeTaintsLabels(taints []v1.Taint, labels map[string]string) *internaltypes.Node {

@@ -18,6 +18,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/common/util"
+	schedulerconfiguration "github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/pkg/bidstore"
 )
@@ -604,6 +605,63 @@ func TestJobDb_GangInfoIsPopulated(t *testing.T) {
 				assert.Nil(t, err)
 				assert.Equal(t, tc.expectedGangInfo, job.GetGangInfo())
 			}
+		})
+	}
+}
+
+func TestJobDb_RespectNodePodLimits_InjectsPodsResource(t *testing.T) {
+	cpuMem := []schedulerconfiguration.ResourceType{
+		{Name: "cpu", Resolution: resource.MustParse("1m")},
+		{Name: "memory", Resolution: resource.MustParse("1")},
+	}
+	cpuMemPods := []schedulerconfiguration.ResourceType{
+		{Name: "cpu", Resolution: resource.MustParse("1m")},
+		{Name: "memory", Resolution: resource.MustParse("1")},
+		{Name: "pods", Resolution: resource.MustParse("1")},
+	}
+
+	withCpuMem := &internaltypes.JobSchedulingInfo{
+		PriorityClass: "foo",
+		PodRequirements: &internaltypes.PodRequirements{
+			ResourceRequirements: v1.ResourceRequirements{
+				Requests: map[v1.ResourceName]resource.Quantity{
+					"cpu":    resource.MustParse("1"),
+					"memory": resource.MustParse("1Gi"),
+				},
+			},
+		},
+	}
+	withNoRequests := &internaltypes.JobSchedulingInfo{
+		PriorityClass:   "foo",
+		PodRequirements: &internaltypes.PodRequirements{},
+	}
+
+	tests := map[string]struct {
+		resourceTypes  []schedulerconfiguration.ResourceType
+		respect        bool
+		schedulingInfo *internaltypes.JobSchedulingInfo
+		expectedPods   int64
+	}{
+		"flag off": {resourceTypes: cpuMemPods, respect: false, schedulingInfo: withCpuMem, expectedPods: 0},
+		"flag on":  {resourceTypes: cpuMemPods, respect: true, schedulingInfo: withCpuMem, expectedPods: 1},
+		"flag on but factory lacks pods resource": {resourceTypes: cpuMem, respect: true, schedulingInfo: withCpuMem, expectedPods: 0},
+		// A job with no resource requests must still get pods=1 so it occupies a slot.
+		"flag on with no requests still injects pods": {resourceTypes: cpuMemPods, respect: true, schedulingInfo: withNoRequests, expectedPods: 1},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			factory, err := internaltypes.NewResourceListFactory(tc.resourceTypes, nil)
+			require.NoError(t, err)
+
+			jobDb := NewJobDb(map[string]types.PriorityClass{"foo": {}}, "foo", stringinterner.New(1024), factory)
+			jobDb.SetRespectNodePodLimits(tc.respect)
+
+			job, err := jobDb.NewJob("jobId", "jobSet", "queue", 1, tc.schedulingInfo, false, 0, false, false, false, 2, false, []string{}, 0)
+			require.NoError(t, err)
+
+			podsQty := job.KubernetesResourceRequirements().GetByNameZeroIfMissing("pods")
+			assert.Equal(t, tc.expectedPods, podsQty.Value())
 		})
 	}
 }

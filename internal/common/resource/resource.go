@@ -7,6 +7,10 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 )
 
+// PodsResourceName is the Kubernetes resource key for per-node pod capacity
+// (node.Status.Allocatable["pods"]), used by the scheduler's RespectNodePodLimits feature.
+const PodsResourceName = "pods"
+
 // FromResourceList function takes a map with keys of type ResourceName and values of type
 // "resource.Quantity" as defined in the K8s API.
 //
