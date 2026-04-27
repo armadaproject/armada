@@ -17,6 +17,7 @@ const (
 	etcdSizeBytesMetricName      string = "etcd_mvcc_db_total_size_in_bytes"
 	etcdCapacityBytesMetricName  string = "etcd_server_quota_backend_bytes"
 	etcdMemberUrl                string = "url"
+	etcdClusterName              string = "cluster_name"
 
 	EtcdReplicaSizeInUseExceededReason string = "etcdReplicaSizeInUseExceeded"
 	EtcdReplicaSizeExceededReason      string = "etcdReplicaSizeExceeded"
@@ -27,6 +28,8 @@ type EtcdReplicaHealthMonitor struct {
 	// Name of the replica being scraped, e.g., its url.
 	// Included in exported Prometheus metrics.
 	name string
+	// Name of the cluster this replica belongs to
+	clusterName string
 	// Exported Prometheus metrics are prefixed with this.
 	metricsPrefix string
 
@@ -75,6 +78,7 @@ type EtcdReplicaHealthMonitor struct {
 
 func NewEtcdReplicaHealthMonitor(
 	name string,
+	clusterName string,
 	fractionOfStorageInUseLimit float64,
 	fractionOfStorageLimit float64,
 	replicaTimeout time.Duration,
@@ -86,6 +90,7 @@ func NewEtcdReplicaHealthMonitor(
 ) *EtcdReplicaHealthMonitor {
 	srv := &EtcdReplicaHealthMonitor{
 		name:                                name,
+		clusterName:                         clusterName,
 		fractionOfStorageInUseLimit:         fractionOfStorageInUseLimit,
 		fractionOfStorageLimit:              fractionOfStorageLimit,
 		replicaTimeout:                      replicaTimeout,
@@ -111,37 +116,37 @@ func (srv *EtcdReplicaHealthMonitor) initialiseMetrics() {
 	srv.healthPrometheusDesc = prometheus.NewDesc(
 		srv.metricsPrefix+"etcd_replica_health",
 		"Shows the health of an etcd replica",
-		[]string{etcdMemberUrl},
+		[]string{etcdMemberUrl, etcdClusterName},
 		nil,
 	)
 	srv.timeOfMostRecentCollectionAttemptPrometheusDesc = prometheus.NewDesc(
 		srv.metricsPrefix+"etcd_replica_time_of_most_recent_metrics_collection_attempt",
 		"Time of most recent metrics collection attempt.",
-		[]string{etcdMemberUrl},
+		[]string{etcdMemberUrl, etcdClusterName},
 		nil,
 	)
 	srv.timeOfMostRecentSuccessfulCollectionAttemptPrometheusDesc = prometheus.NewDesc(
 		srv.metricsPrefix+"etcd_replica_time_of_most_recent_successful_metrics_collection",
 		"Time of most recent successful metrics collection.",
-		[]string{etcdMemberUrl},
+		[]string{etcdMemberUrl, etcdClusterName},
 		nil,
 	)
 	srv.sizeInUseFractionPrometheusDesc = prometheus.NewDesc(
 		srv.metricsPrefix+"etcd_replica_size_in_use_fraction",
 		"etcd_mvcc_db_total_size_in_use_in_bytes / etcd_server_quota_backend_bytes.",
-		[]string{etcdMemberUrl},
+		[]string{etcdMemberUrl, etcdClusterName},
 		nil,
 	)
 	srv.sizeFractionPrometheusDesc = prometheus.NewDesc(
 		srv.metricsPrefix+"etcd_replica_size_fraction",
 		"etcd_mvcc_db_total_size_in_bytes / etcd_server_quota_backend_bytes.",
-		[]string{etcdMemberUrl},
+		[]string{etcdMemberUrl, etcdClusterName},
 		nil,
 	)
 	srv.metricsCollectionDelayHistogram = prometheus.NewHistogram(prometheus.HistogramOpts{
 		Name:        srv.metricsPrefix + "etcd_replica_metrics_collection_delay_seconds",
 		Help:        "Delay in seconds of collecting metrics from this etcd replica.",
-		ConstLabels: prometheus.Labels{etcdMemberUrl: srv.name},
+		ConstLabels: prometheus.Labels{etcdMemberUrl: srv.name, etcdClusterName: srv.clusterName},
 		Buckets: prometheus.ExponentialBuckets(
 			srv.metricsCollectionDelayBucketsStart,
 			srv.metricsCollectionDelayBucketsFactor,
@@ -309,18 +314,21 @@ func (srv *EtcdReplicaHealthMonitor) Collect(c chan<- prometheus.Metric) {
 		prometheus.GaugeValue,
 		resultOfMostRecentHealthCheck,
 		srv.name,
+		srv.clusterName,
 	)
 	c <- prometheus.MustNewConstMetric(
 		srv.timeOfMostRecentCollectionAttemptPrometheusDesc,
 		prometheus.CounterValue,
 		float64(timeOfMostRecentCollectionAttempt.Unix()),
 		srv.name,
+		srv.clusterName,
 	)
 	c <- prometheus.MustNewConstMetric(
 		srv.timeOfMostRecentSuccessfulCollectionAttemptPrometheusDesc,
 		prometheus.CounterValue,
 		float64(timeOfMostRecentSuccessfulCollectionAttempt.Unix()),
 		srv.name,
+		srv.clusterName,
 	)
 	if !srv.hasTimedOut() {
 		c <- prometheus.MustNewConstMetric(
@@ -328,12 +336,14 @@ func (srv *EtcdReplicaHealthMonitor) Collect(c chan<- prometheus.Metric) {
 			prometheus.GaugeValue,
 			sizeInUseFraction,
 			srv.name,
+			srv.clusterName,
 		)
 		c <- prometheus.MustNewConstMetric(
 			srv.sizeFractionPrometheusDesc,
 			prometheus.GaugeValue,
 			sizeFraction,
 			srv.name,
+			srv.clusterName,
 		)
 	}
 

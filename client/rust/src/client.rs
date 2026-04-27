@@ -17,13 +17,16 @@ use crate::error::Error;
 ///
 /// # Construction
 ///
-/// Use [`ArmadaClient::connect`] for plaintext (dev / in-cluster) connections
-/// and [`ArmadaClient::connect_tls`] for production clusters behind TLS.
-/// Both accept any [`TokenProvider`] — pass [`crate::StaticTokenProvider`] for
-/// a static bearer token or supply your own implementation for dynamic auth.
+/// Use [`ArmadaClient::connect`] for plaintext (dev / in-cluster) connections,
+/// [`ArmadaClient::connect_tls`] for production clusters using system root certificates,
+/// or [`ArmadaClient::connect_tls_with_config`] when you need a custom CA, domain
+/// override, or mutual TLS. All constructors accept any [`TokenProvider`] — pass
+/// [`crate::StaticTokenProvider`] for a static bearer token or supply your own
+/// implementation for dynamic auth.
 ///
 /// ```no_run
 /// # use armada_client::{ArmadaClient, StaticTokenProvider};
+/// # use armada_client::tonic::transport::{Certificate, ClientTlsConfig};
 /// # async fn example() -> Result<(), armada_client::Error> {
 /// // Plaintext
 /// let client = ArmadaClient::connect("http://localhost:50051", StaticTokenProvider::new("tok"))
@@ -32,6 +35,14 @@ use crate::error::Error;
 /// // TLS (uses system root certificates)
 /// let client = ArmadaClient::connect_tls("https://armada.example.com:443", StaticTokenProvider::new("tok"))
 ///     .await?;
+///
+/// // TLS with a custom CA
+/// let pem = std::fs::read("ca.pem")?;
+/// let client = ArmadaClient::connect_tls_with_config(
+///     "https://armada.example.com:443",
+///     ClientTlsConfig::new().ca_certificate(Certificate::from_pem(pem)),
+///     StaticTokenProvider::new("tok"),
+/// ).await?;
 /// # Ok(())
 /// # }
 /// ```
@@ -98,6 +109,9 @@ impl ArmadaClient {
     /// certificate. `endpoint` should use the `https://` scheme,
     /// e.g. `"https://armada.example.com:443"`.
     ///
+    /// For clusters with a private or self-signed CA, use
+    /// [`ArmadaClient::connect_tls_with_config`] instead.
+    ///
     /// # Errors
     ///
     /// Returns [`Error::InvalidUri`] if the URI is malformed, or
@@ -109,6 +123,48 @@ impl ArmadaClient {
         let channel = Channel::from_shared(endpoint.into())
             .map_err(|e| Error::InvalidUri(e.to_string()))?
             .tls_config(ClientTlsConfig::new())?
+            .connect()
+            .await?;
+        Ok(Self::from_parts(channel, token_provider))
+    }
+
+    /// Connect to an Armada server at `endpoint` using a caller-supplied TLS config.
+    ///
+    /// Use this when you need to supply a custom CA certificate (e.g. a private or
+    /// self-signed CA), override the server domain name, or configure mutual TLS.
+    /// Build the config with [`tonic::transport::ClientTlsConfig`], accessible via
+    /// `armada_client::tonic::transport::ClientTlsConfig` — no direct tonic dependency needed.
+    ///
+    /// # Example — custom CA
+    ///
+    /// ```no_run
+    /// use armada_client::{ArmadaClient, StaticTokenProvider};
+    /// use armada_client::tonic::transport::{Certificate, ClientTlsConfig};
+    ///
+    /// # async fn example() -> Result<(), armada_client::Error> {
+    /// let pem = std::fs::read("ca.pem")?;
+    /// let tls = ClientTlsConfig::new().ca_certificate(Certificate::from_pem(pem));
+    /// let client = ArmadaClient::connect_tls_with_config(
+    ///     "https://armada.example.com:443",
+    ///     tls,
+    ///     StaticTokenProvider::new("tok"),
+    /// ).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::InvalidUri`] if the URI is malformed, or
+    /// [`Error::Transport`] if TLS configuration or the connection fails.
+    pub async fn connect_tls_with_config(
+        endpoint: impl Into<String>,
+        tls_config: ClientTlsConfig,
+        token_provider: impl TokenProvider + 'static,
+    ) -> Result<Self, Error> {
+        let channel = Channel::from_shared(endpoint.into())
+            .map_err(|e| Error::InvalidUri(e.to_string()))?
+            .tls_config(tls_config)?
             .connect()
             .await?;
         Ok(Self::from_parts(channel, token_provider))
