@@ -268,7 +268,7 @@ func apply(f func(b *testing.B, config configuration.LookoutIngesterConfiguratio
 }
 
 // RunBenchmark executes benchmarking functions defined above for LookoutIngester database saving logic
-func RunBenchmark(config configuration.LookoutIngesterConfiguration) {
+func RunBenchmark(config configuration.LookoutIngesterConfiguration, iterations int) {
 	benchmarkFns := map[string]func(b *testing.B){
 		"benchmarkSubmissions1000":  apply(benchmarkSubmissions1000, config),
 		"benchmarkSubmissions10000": apply(benchmarkSubmissions10000, config),

@@ -14,6 +14,7 @@ import (
 const (
 	CustomConfigLocation = "config"
 	Benchmark            = "bench"
+	BenchmarkIterations  = "bench-iterations"
 )
 
 func init() {
@@ -23,6 +24,7 @@ func init() {
 		"Fully qualified path to application configuration file (for multiple config files repeat this arg or separate paths with commas)",
 	)
 	pflag.Bool(Benchmark, false, "Whether to run Lookout Ingester benchmarks instead of the application")
+	pflag.Int(BenchmarkIterations, 1, "Number of iterations to run for each benchmark (only used if --bench is set)")
 	pflag.Parse()
 }
 
@@ -36,9 +38,11 @@ func main() {
 	common.LoadConfig(&config, "./config/lookoutingester", userSpecifiedConfigs)
 
 	runBenchmarks := viper.GetBool(Benchmark)
+
 	if runBenchmarks {
-		log.Info("Running Lookout Ingester benchmarks")
-		benchmark.RunBenchmark(config)
+		iterations := viper.GetInt(BenchmarkIterations)
+		log.Info("Running Lookout Ingester benchmarks with iterations: ", iterations)
+		benchmark.RunBenchmark(config, iterations)
 		return
 	}
 
