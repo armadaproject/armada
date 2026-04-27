@@ -461,7 +461,7 @@ func newCycleMetrics(publisher pulsarutils.Publisher[*metricevents.Event], scala
 		prometheus.HistogramOpts{
 			Name:    ArmadaSchedulerMetricsPrefix + "submit_check_times",
 			Help:    "Time spent in submit check per queue per scheduling cycle, in milliseconds.",
-			Buckets: prometheus.ExponentialBuckets(10.0, 1.1, 110),
+			Buckets: prometheus.ExponentialBuckets(0.5, 1.5, 25),
 		},
 		[]string{queueLabel},
 	)
