@@ -3244,3 +3244,109 @@ func testNodeWithTaints(node *internaltypes.Node, taints []v1.Taint) *internalty
 		node.Keys,
 	)
 }
+
+// TestPreemptingQueueScheduler_NonPreemptibleOverPack reproduces a known
+// property of Armada's priority model: when non-preemptible jobs at a lower
+// priority hold all of a node's resources, the scheduler still places a
+// higher-priority job on that node, exceeding the node's total capacity.
+//
+// Mechanism (three pieces, each defensible alone, blind together):
+//
+//  1. internaltypes/resource_list_map_util.go:67 — MarkAllocated(p, rs) only
+//     deducts allocatable from priorities <= p. From a higher-priority view,
+//     resources held by lower-priority jobs look available, on the assumption
+//     that they could be evicted if needed.
+//
+//  2. preempting_queue_scheduler.go:118 — the rebalance eviction phase skips
+//     non-preemptible jobs.
+//
+//  3. eviction.go:164 — the OversubscribedEvictor (the safety net specifically
+//     designed to catch this kind of negative-allocatable situation) also skips
+//     non-preemptible jobs.
+//
+// Both safety nets share the blind spot. The scheduler reports success and the
+// node ends up over-allocated.
+//
+// This test asserts the CORRECT behavior (no over-pack) and FAILS against
+// current master. It will pass once the priority model accounts for non-
+// preemptible jobs as binding at all priority levels.
+//
+// Uses cpu (not pods) to make clear the issue is in the priority model itself
+// and is not specific to any pod-tracking feature.
+func TestPreemptingQueueScheduler_NonPreemptibleOverPack(t *testing.T) {
+	config := testfixtures.TestSchedulingConfig()
+
+	jobDb := jobdb.NewJobDb(config.PriorityClasses, config.DefaultPriorityClassName, stringinterner.New(1024), testfixtures.TestResourceListFactory)
+
+	// 5cpu node small enough that saturation by 5 incumbents is unambiguous.
+	node := testfixtures.TestNode(testfixtures.TestPriorities, map[string]*k8sResource.Quantity{
+		"cpu":    pointer.MustParseResource("5"),
+		"memory": pointer.MustParseResource("64Gi"),
+	})
+
+	// 5 non-preemptible incumbents at priority 2 fully occupy the node.
+	incumbents := testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass2NonPreemptible, 5)
+	for i, j := range incumbents {
+		incumbents[i] = j.WithQueued(false).
+			WithNewRun(node.GetExecutor(), node.GetId(), node.GetName(), node.GetPool(), j.PriorityClass().Priority)
+	}
+
+	// Higher-priority challenger (priority 3, also non-preemptible by default).
+	challenger := testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass3, 1)[0].WithQueued(true)
+
+	nodeDb, err := nodedb.NewNodeDb(
+		config.PriorityClasses,
+		config.IndexedResources,
+		config.IndexedTaints,
+		config.IndexedNodeLabels,
+		config.WellKnownNodeTypes,
+		testfixtures.TestResourceListFactory,
+	)
+	require.NoError(t, err)
+	nodeDbTxn := nodeDb.Txn(true)
+	require.NoError(t, nodeDb.CreateAndInsertWithJobDbJobsWithTxn(nodeDbTxn, incumbents, node))
+	nodeDbTxn.Commit()
+
+	jobDbTxn := jobDb.WriteTxn()
+	require.NoError(t, jobDbTxn.Upsert(incumbents))
+	require.NoError(t, jobDbTxn.Upsert([]*jobdb.Job{challenger}))
+
+	totalResources := nodeDb.TotalKubernetesResources()
+	fairnessCostProvider, err := fairness.NewDominantResourceFairness(totalResources, testfixtures.TestPool, config)
+	require.NoError(t, err)
+
+	// Seed allocated-by-priority-class so the scheduler's queue accounting
+	// reflects what's already running.
+	allocatedByPriorityClass := map[string]internaltypes.ResourceList{}
+	for _, j := range incumbents {
+		allocatedByPriorityClass[j.PriorityClassName()] = allocatedByPriorityClass[j.PriorityClassName()].Add(j.AllResourceRequirements())
+	}
+
+	sctx := schedulingcontext.NewSchedulingContext(testfixtures.TestPool, fairnessCostProvider, rate.NewLimiter(rate.Inf, 1000), totalResources)
+	require.NoError(t, sctx.AddQueueSchedulingContext(
+		"A", 1, 1,
+		allocatedByPriorityClass,
+		challenger.AllResourceRequirements(),
+		challenger.AllResourceRequirements(),
+		internaltypes.ResourceList{},
+		rate.NewLimiter(rate.Inf, 1000),
+	))
+	sctx.UpdateFairShares()
+
+	constraints := schedulerconstraints.NewSchedulingConstraints("pool", totalResources, config, []*api.Queue{{Name: "A"}})
+
+	sch := NewPreemptingQueueScheduler(
+		sctx, constraints, testfixtures.TestEmptyFloatingResources, config,
+		jobDbTxn, nodeDb, false, clock.RealClock{},
+	)
+	result, err := sch.Schedule(armadacontext.Background())
+	require.NoError(t, err)
+
+	// CORRECT behavior: the challenger cannot fit on a node fully occupied by
+	// non-preemptible incumbents, so it should not be scheduled. This assertion
+	// FAILS against current master because the scheduler over-packs the node.
+	assert.Empty(t, result.PreemptedJobs,
+		"no incumbent should be preempted (they are non-preemptible)")
+	assert.Empty(t, result.ScheduledJobs,
+		"challenger should not be placed on a node already saturated by non-preemptible incumbents")
+}
