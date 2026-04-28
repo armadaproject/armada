@@ -261,14 +261,21 @@ func (c *InstructionConverter) handleCancelledJob(ts time.Time, event *armadaeve
 	if event.CancelUser != "" {
 		cancelUser = &event.CancelUser
 	}
+
+	terminationReasonArgs := map[string]any{}
+	if event.CancelUser != "" {
+		terminationReasonArgs["requestor"] = event.CancelUser
+	}
+
 	jobUpdate := model.UpdateJobInstruction{
-		JobId:                     event.GetJobId(),
-		State:                     pointer.Int32(int32(lookout.JobCancelledOrdinal)),
-		Cancelled:                 &ts,
-		CancelReason:              reason,
-		CancelUser:                cancelUser,
-		LastTransitionTime:        &ts,
-		LastTransitionTimeSeconds: pointer.Int64(ts.Unix()),
+		JobId:                      event.GetJobId(),
+		State:                      pointer.Int32(int32(lookout.JobCancelledOrdinal)),
+		Cancelled:                  &ts,
+		CancelReason:               reason,
+		CancelUser:                 cancelUser,
+		LastTransitionTime:         &ts,
+		LastTransitionTimeSeconds:  pointer.Int64(ts.Unix()),
+		SchedulerTerminationReason: buildTerminationReason(event.Reason, terminationReasonArgs),
 	}
 	update.JobsToUpdate = append(update.JobsToUpdate, &jobUpdate)
 	return nil
@@ -476,11 +483,16 @@ func (c *InstructionConverter) handleJobRunErrors(ts time.Time, event *armadaeve
 }
 
 func (c *InstructionConverter) handleJobRunPreempted(ts time.Time, event *armadaevents.JobRunPreempted, update *model.InstructionSet) error {
+	terminationReasonArgs := map[string]any{}
+	if event.PreemptiveRunId != "" {
+		terminationReasonArgs["preemptingRunId"] = event.PreemptiveRunId
+	}
 	jobRun := model.UpdateJobRunInstruction{
-		RunId:       event.PreemptedRunId,
-		JobRunState: pointer.Int32(lookout.JobRunPreemptedOrdinal),
-		Finished:    &ts,
-		Error:       tryCompressError(event.PreemptedJobId, event.Reason, c.compressor),
+		RunId:                      event.PreemptedRunId,
+		JobRunState:                pointer.Int32(lookout.JobRunPreemptedOrdinal),
+		Finished:                   &ts,
+		Error:                      tryCompressError(event.PreemptedJobId, event.Reason, c.compressor),
+		SchedulerTerminationReason: buildTerminationReason(event.Reason, terminationReasonArgs),
 	}
 	update.JobRunsToUpdate = append(update.JobRunsToUpdate, &jobRun)
 	return nil
@@ -553,4 +565,14 @@ func getJobPriorityClass(job *api.Job) *string {
 		return pointer.String(podSpec.PriorityClassName)
 	}
 	return nil
+}
+
+func buildTerminationReason(reason string, args map[string]any) map[string]any {
+	result := map[string]any{
+		"reason": reason,
+	}
+	if len(args) > 0 {
+		result["args"] = args
+	}
+	return result
 }

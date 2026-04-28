@@ -47,6 +47,7 @@ func Serve(configuration configuration.LookoutConfig) error {
 	getJobRunErrorRepo := repository.NewSqlGetJobRunErrorRepository(db, decompressor)
 	getJobRunDebugMessageRepo := repository.NewSqlGetJobRunDebugMessageRepository(db, decompressor)
 	getJobSpecRepo := repository.NewSqlGetJobSpecRepository(db, decompressor)
+	getJobRunSchedulerTerminationReasonRepo := repository.NewSqlGetJobRunSchedulerTerminationReasonRepository(db)
 
 	// create new service API
 	api := operations.NewLookoutAPI(swaggerSpec)
@@ -153,6 +154,19 @@ func Serve(configuration configuration.LookoutConfig) error {
 			}
 			return operations.NewGetJobSpecOK().WithPayload(&operations.GetJobSpecOKBody{
 				Job: result,
+			})
+		},
+	)
+
+	api.GetJobRunSchedulerTerminationReasonHandler = operations.GetJobRunSchedulerTerminationReasonHandlerFunc(
+		func(params operations.GetJobRunSchedulerTerminationReasonParams) middleware.Responder {
+			ctx := armadacontext.New(params.HTTPRequest.Context(), logger)
+			result, err := getJobRunSchedulerTerminationReasonRepo.GetJobRunSchedulerTerminationReason(ctx, params.GetJobRunSchedulerTerminationReasonRequest.RunID)
+			if err != nil {
+				return operations.NewGetJobRunSchedulerTerminationReasonBadRequest().WithPayload(conversions.ToSwaggerError(err.Error()))
+			}
+			return operations.NewGetJobRunSchedulerTerminationReasonOK().WithPayload(&operations.GetJobRunSchedulerTerminationReasonOKBody{
+				SchedulerTerminationReason: result,
 			})
 		},
 	)
