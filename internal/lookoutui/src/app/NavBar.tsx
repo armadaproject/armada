@@ -1,5 +1,5 @@
 import { forwardRef } from "react"
-import type React from "react"
+
 import { Settings } from "@mui/icons-material"
 import { AppBar, Button, IconButton, Stack, styled, Toolbar, Typography } from "@mui/material"
 import { Link, NavLink, NavLinkProps } from "react-router-dom"
@@ -11,7 +11,7 @@ import { JOB_SETS, JOBS, SETTINGS } from "../pathnames"
 import "./NavBar.css"
 
 const NavLinkButton = forwardRef<HTMLAnchorElement, NavLinkProps>((props, ref) => (
-  <NavLink {...props} ref={ref} />
+  <NavLink {...props} style={({ isActive }) => (isActive ? undefined : { borderStyle: "none" })} ref={ref} />
 ))
 
 const StyledAppBar = styled(AppBar)(({ theme }) => ({
@@ -60,7 +60,7 @@ export const NavBar = ({ customTitle }: NavBarProps) => {
           </div>
           <Stack direction="row" alignItems="center" spacing={SPACING.sm}>
             {PAGES.map(({ location, title }) => (
-              <NavButton
+              <Button
                 key={location}
                 variant="outlined"
                 color="inherit"
@@ -69,7 +69,7 @@ export const NavBar = ({ customTitle }: NavBarProps) => {
                 to={location}
               >
                 {title}
-              </NavButton>
+              </Button>
             ))}
           </Stack>
           <div className="nav-end">
