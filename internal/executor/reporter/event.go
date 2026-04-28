@@ -15,7 +15,9 @@ import (
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
-func CreateEventForCurrentState(pod *v1.Pod, clusterId string, classifier *categorizer.Classifier) (*armadaevents.EventSequence, error) {
+// CreateEventForCurrentState builds the armada event for pod's current phase.
+// For failed pods the caller supplies the classification result to attach to the event.
+func CreateEventForCurrentState(pod *v1.Pod, clusterId string, classifyResult categorizer.ClassifyResult) (*armadaevents.EventSequence, error) {
 	phase := pod.Status.Phase
 	sequence := createEmptySequence(pod)
 	jobId, runId, err := extractIds(pod)
@@ -81,7 +83,6 @@ func CreateEventForCurrentState(pod *v1.Pod, clusterId string, classifier *categ
 		})
 		return sequence, nil
 	case v1.PodFailed:
-		result := classifier.Classify(pod)
 		return CreateJobFailedEvent(
 			pod,
 			util.ExtractPodFailedReason(pod),
@@ -89,8 +90,8 @@ func CreateEventForCurrentState(pod *v1.Pod, clusterId string, classifier *categ
 			"",
 			util.ExtractFailedPodContainerStatuses(pod, clusterId),
 			clusterId,
-			result.Category,
-			result.Subcategory)
+			classifyResult.Category,
+			classifyResult.Subcategory)
 	case v1.PodSucceeded:
 		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
 			Created: now,

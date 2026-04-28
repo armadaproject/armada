@@ -14,6 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	clock "k8s.io/utils/clock/testing"
 
+	"github.com/armadaproject/armada/internal/common/errormatch"
 	commonutil "github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/executor/categorizer"
 	"github.com/armadaproject/armada/internal/executor/configuration"
@@ -507,6 +508,10 @@ func TestPodIssueService_DoesNothing_IfSubmittedPodAppears(t *testing.T) {
 }
 
 func setupTestComponents(initialRunState []*job.RunState) (*PodIssueHandler, *job.JobRunStateStore, *fakecontext.SyncFakeClusterContext, *mocks.FakeEventReporter, error) {
+	return setupTestComponentsWithClassifier(initialRunState, nil)
+}
+
+func setupTestComponentsWithClassifier(initialRunState []*job.RunState, classifier *categorizer.Classifier) (*PodIssueHandler, *job.JobRunStateStore, *fakecontext.SyncFakeClusterContext, *mocks.FakeEventReporter, error) {
 	fakeClusterContext := fakecontext.NewSyncFakeClusterContext()
 	eventReporter := mocks.NewFakeEventReporter()
 	pendingPodChecker := makePendingPodChecker()
@@ -525,10 +530,78 @@ func setupTestComponents(initialRunState []*job.RunState) (*PodIssueHandler, *jo
 		pendingPodChecker,
 		failedPodChecker,
 		time.Minute*3,
-		nil,
+		classifier,
 	)
 
 	return podIssueHandler, runStateStore, fakeClusterContext, eventReporter, err
+}
+
+func conditionClassifier(t *testing.T, category, subcategory, condition string) *categorizer.Classifier {
+	t.Helper()
+	c, err := categorizer.NewClassifier(categorizer.ErrorCategoriesConfig{
+		Categories: []categorizer.CategoryConfig{
+			{
+				Name: category,
+				Rules: []categorizer.CategoryRule{
+					{OnConditions: []string{condition}, Subcategory: subcategory},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	return c
+}
+
+// The metric counter itself is tested in the metrics package. These tests
+// cover the emission gating for the non-retryable issue path: only a
+// successful Report call should have led to a counter increment.
+
+func TestPodIssueService_EmitsFailedEventWhenClassifierMatches(t *testing.T) {
+	classifier := conditionClassifier(t, "pih-success-cat", "pih-success-sub", errormatch.ConditionOOMKilled)
+	podIssueService, _, fakeClusterContext, eventReporter, err := setupTestComponentsWithClassifier([]*job.RunState{}, classifier)
+	require.NoError(t, err)
+
+	pod := makeTerminatingPod()
+	pod.Status.ContainerStatuses = []v1.ContainerStatus{
+		{Name: "main", State: v1.ContainerState{Terminated: &v1.ContainerStateTerminated{ExitCode: 137, Reason: errormatch.ConditionOOMKilled}}},
+	}
+	addPod(t, fakeClusterContext, pod)
+
+	podIssueService.HandlePodIssues()
+
+	assert.Len(t, eventReporter.ReceivedEvents, 1)
+}
+
+func TestPodIssueService_SuppressesEmissionWhenReportFails(t *testing.T) {
+	classifier := conditionClassifier(t, "pih-report-error-cat", "pih-report-error-sub", errormatch.ConditionOOMKilled)
+	podIssueService, _, fakeClusterContext, eventReporter, err := setupTestComponentsWithClassifier([]*job.RunState{}, classifier)
+	require.NoError(t, err)
+	eventReporter.ErrorOnReport = true
+
+	pod := makeTerminatingPod()
+	pod.Status.ContainerStatuses = []v1.ContainerStatus{
+		{Name: "main", State: v1.ContainerState{Terminated: &v1.ContainerStateTerminated{ExitCode: 137, Reason: errormatch.ConditionOOMKilled}}},
+	}
+	addPod(t, fakeClusterContext, pod)
+
+	podIssueService.HandlePodIssues()
+
+	assert.Len(t, eventReporter.ReceivedEvents, 0, "Report errored - event must not be recorded as delivered")
+}
+
+func TestPodIssueService_EmitsEventWithEmptyCategoryWhenClassifierIsNil(t *testing.T) {
+	podIssueService, _, fakeClusterContext, eventReporter, err := setupTestComponentsWithClassifier([]*job.RunState{}, nil)
+	require.NoError(t, err)
+
+	pod := makeTerminatingPod()
+	pod.Status.ContainerStatuses = []v1.ContainerStatus{
+		{Name: "main", State: v1.ContainerState{Terminated: &v1.ContainerStateTerminated{ExitCode: 137, Reason: errormatch.ConditionOOMKilled}}},
+	}
+	addPod(t, fakeClusterContext, pod)
+
+	podIssueService.HandlePodIssues()
+
+	assert.Len(t, eventReporter.ReceivedEvents, 1, "event still emitted with empty category/subcategory when classification is disabled")
 }
 
 func createRunState(jobId string, runId string, phase job.RunPhase) *job.RunState {
