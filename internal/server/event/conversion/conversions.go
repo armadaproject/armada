@@ -440,12 +440,13 @@ func FromInternalJobRunPreempted(queueName string, jobSetName string, time time.
 	}
 
 	apiEvent := &api.JobPreemptedEvent{
-		JobId:    e.PreemptedJobId,
-		JobSetId: jobSetName,
-		Queue:    queueName,
-		Created:  protoutil.ToTimestamp(time),
-		RunId:    e.PreemptedRunId,
-		Reason:   e.Reason,
+		JobId:           e.PreemptedJobId,
+		JobSetId:        jobSetName,
+		Queue:           queueName,
+		Created:         protoutil.ToTimestamp(time),
+		RunId:           e.PreemptedRunId,
+		Reason:          e.Reason,
+		PreemptiveRunId: e.PreemptiveRunId,
 	}
 
 	return []*api.EventMessage{
