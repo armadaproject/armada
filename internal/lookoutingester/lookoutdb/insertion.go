@@ -692,7 +692,8 @@ func (l *LookoutDb) UpdateJobRunsBatch(ctx *armadacontext.Context, instructions 
 				    exit_code            int,
 					ingress_addresses    jsonb,
 					failure_category     varchar(63),
-					failure_subcategory  varchar(63)
+					failure_subcategory  varchar(63),
+					scheduler_termination_reason jsonb
 				) ON COMMIT DROP;`, tmpTable))
 			if err != nil {
 				l.metrics.RecordDBError(commonmetrics.DBOperationCreateTempTable)
@@ -716,6 +717,7 @@ func (l *LookoutDb) UpdateJobRunsBatch(ctx *armadacontext.Context, instructions 
 					"ingress_addresses",
 					"failure_category",
 					"failure_subcategory",
+					"scheduler_termination_reason",
 				},
 				pgx.CopyFromSlice(len(instructions), func(i int) ([]interface{}, error) {
 					return []interface{}{
@@ -731,6 +733,7 @@ func (l *LookoutDb) UpdateJobRunsBatch(ctx *armadacontext.Context, instructions 
 						instructions[i].IngressAddresses,
 						instructions[i].FailureCategory,
 						instructions[i].FailureSubcategory,
+						instructions[i].SchedulerTerminationReason,
 					}, nil
 				}),
 			)
@@ -752,7 +755,8 @@ func (l *LookoutDb) UpdateJobRunsBatch(ctx *armadacontext.Context, instructions 
 						exit_code            = coalesce(tmp.exit_code, job_run.exit_code),
 						ingress_addresses    = coalesce(tmp.ingress_addresses, job_run.ingress_addresses),
 						failure_category     = coalesce(tmp.failure_category, job_run.failure_category),
-						failure_subcategory  = coalesce(tmp.failure_subcategory, job_run.failure_subcategory)
+						failure_subcategory  = coalesce(tmp.failure_subcategory, job_run.failure_subcategory),
+						scheduler_termination_reason = coalesce(tmp.scheduler_termination_reason, job_run.scheduler_termination_reason)
 					FROM %s as tmp where tmp.run_id = job_run.run_id`, tmpTable),
 			)
 			if err != nil {
@@ -778,7 +782,8 @@ func (l *LookoutDb) UpdateJobRunsScalar(ctx *armadacontext.Context, instructions
 			debug                = coalesce($9, debug),
 			ingress_addresses    = coalesce($10, ingress_addresses),
 			failure_category     = coalesce($11, failure_category),
-			failure_subcategory  = coalesce($12, failure_subcategory)
+			failure_subcategory  = coalesce($12, failure_subcategory),
+			scheduler_termination_reason = coalesce($13, scheduler_termination_reason)
 		WHERE run_id = $1`
 	for _, i := range instructions {
 		err := l.withDatabaseRetryInsert(ctx, func() error {
@@ -795,6 +800,7 @@ func (l *LookoutDb) UpdateJobRunsScalar(ctx *armadacontext.Context, instructions
 				i.IngressAddresses,
 				i.FailureCategory,
 				i.FailureSubcategory,
+				i.SchedulerTerminationReason,
 			)
 			if err != nil {
 				l.metrics.RecordDBError(commonmetrics.DBOperationUpdate)
@@ -1000,6 +1006,9 @@ func conflateJobRunUpdates(updates []*model.UpdateJobRunInstruction) []*model.Up
 			}
 			if update.FailureSubcategory != nil {
 				existing.FailureSubcategory = update.FailureSubcategory
+			}
+			if update.SchedulerTerminationReason != nil {
+				existing.SchedulerTerminationReason = update.SchedulerTerminationReason
 			}
 		} else {
 			updatesById[update.RunId] = update
