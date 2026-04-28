@@ -70,7 +70,7 @@ func migrate(ctx *armadacontext.Context, config configuration.LookoutConfig) {
 		panic(err)
 	}
 
-	if config.HotColdSplit {
+	if config.ExperimentalHotColdSplit {
 		migrations, err = lookouthcschema.LookoutHCMigrations()
 	} else {
 		migrations, err = lookoutschema.LookoutMigrations()
@@ -119,7 +119,7 @@ func prune(ctx *armadacontext.Context, config configuration.LookoutConfig) {
 		config.PrunerConfig.DeduplicationExpireAfter,
 		config.PrunerConfig.BatchSize,
 		clock.RealClock{},
-		config.HotColdSplit,
+		config.ExperimentalHotColdSplit,
 	)
 	if err != nil {
 		panic(err)
