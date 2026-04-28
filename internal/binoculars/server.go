@@ -1,7 +1,7 @@
 package binoculars
 
 import (
-	"os"
+	"fmt"
 	"sync"
 
 	"github.com/armadaproject/armada/internal/binoculars/configuration"
@@ -10,11 +10,10 @@ import (
 	"github.com/armadaproject/armada/internal/common/auth"
 	"github.com/armadaproject/armada/internal/common/cluster"
 	grpcCommon "github.com/armadaproject/armada/internal/common/grpc"
-	log "github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/pkg/api/binoculars"
 )
 
-func StartUp(config *configuration.BinocularsConfig) (func(), *sync.WaitGroup) {
+func StartUp(config *configuration.BinocularsConfig) (func(), *sync.WaitGroup, error) {
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
 
@@ -24,14 +23,12 @@ func StartUp(config *configuration.BinocularsConfig) (func(), *sync.WaitGroup) {
 		config.Kubernetes.Burst,
 	)
 	if err != nil {
-		log.Errorf("Failed to connect to kubernetes because %s", err)
-		os.Exit(-1)
+		return nil, nil, fmt.Errorf("failed to connect to kubernetes: %w", err)
 	}
 
 	authServices, err := auth.ConfigureAuth(config.Auth)
 	if err != nil {
-		log.Errorf("Failed to create auth services %s", err)
-		os.Exit(-1)
+		return nil, nil, fmt.Errorf("failed to create auth services: %w", err)
 	}
 
 	grpcServer := grpcCommon.CreateGrpcServer(config.Grpc.KeepaliveParams, config.Grpc.KeepaliveEnforcementPolicy, authServices, config.Grpc.Tls)
@@ -49,5 +46,5 @@ func StartUp(config *configuration.BinocularsConfig) (func(), *sync.WaitGroup) {
 
 	grpcCommon.Listen(config.GrpcPort, grpcServer, wg)
 
-	return grpcServer.GracefulStop, wg
+	return grpcServer.GracefulStop, wg, nil
 }
