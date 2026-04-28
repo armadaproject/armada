@@ -146,7 +146,6 @@ func TestReportSubmitCheckDuration(t *testing.T) {
 	assertHistogramObservation(t, m.submitCheckDuration, "queue2", 1, 50.0)
 	assertHistogramObservation(t, m.submitCheckDuration, "queue3", 1, 0.723)
 
-	// A subsequent call accumulates (histogram semantics) rather than overwriting.
 	m.ReportSubmitCheckDuration(map[string]time.Duration{
 		"queue1": 100 * time.Millisecond,
 	})
