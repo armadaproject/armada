@@ -150,6 +150,9 @@ export const CancelDialog = ({ onClose, selectedItemFilters }: CancelDialogProps
       </DialogTitle>
 
       <DialogContent>
+        <Alert severity="warning" sx={{ marginBottom: "1em" }}>
+          Cancelling jobs is destructive and cannot be undone.
+        </Alert>
         <ErrorBoundary FallbackComponent={AlertErrorFallback}>
           {isLoadingJobs && (
             <div className={dialogStyles.loadingInfo}>

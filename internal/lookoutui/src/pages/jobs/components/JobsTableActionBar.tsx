@@ -90,8 +90,6 @@ export const JobsTableActionBar = memo(
       }).length
     }, [allColumns, visibleColumns])
 
-    const numSelectedItems = selectedItemFilters.length
-
     const columnConfigurationDialogOpenOnClose = useCallback(() => setColumnConfigurationDialogOpen(false), [])
     const cancelDialogOnClose = useCallback(() => setCancelDialogOpen(false), [])
     const reprioritizeDialogOnClose = useCallback(() => setReprioritizeDialogOpen(false), [])
@@ -198,25 +196,6 @@ export const JobsTableActionBar = memo(
             />
           </div>
           <Divider orientation="vertical" />
-          <div>
-            <Button variant="contained" disabled={numSelectedItems === 0} onClick={() => setCancelDialogOpen(true)}>
-              Cancel selected
-            </Button>
-          </div>
-          <div>
-            <Button
-              variant="contained"
-              disabled={numSelectedItems === 0}
-              onClick={() => setReprioritizeDialogOpen(true)}
-            >
-              Reprioritize selected
-            </Button>
-          </div>
-          <div>
-            <Button variant="contained" disabled={numSelectedItems === 0} onClick={() => setPreemptDialogOpen(true)}>
-              Preempt selected
-            </Button>
-          </div>
         </div>
       </div>
     )
