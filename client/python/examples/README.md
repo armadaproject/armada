@@ -10,13 +10,13 @@ Currently there are five examples:
 
 There is also a section on [Using Basic Auth](#using-basic-auth)
 
-## Preqrequisites
+## Prerequisites
 
 Please see the [python client docs](https://github.com/armadaproject/armada/blob/master/client/python/README.md) for getting the client setup.
 
 ### Running the examples
 
-> Each example has three enviromental variables for setup
+> Each example has three environmental variables for setup
 > ```bash
 > export ARMADA_SERVER=localhost
 > export ARMADA_PORT=443
@@ -44,7 +44,7 @@ then watch for the job to succeed or fail.
 > def create_dummy_job(client: ArmadaClient):
 > ```
 
-> If you are using a remote server, secure_channel should be used to ensure that all infomation is encrypted.
+> If you are using a remote server, secure_channel should be used to ensure that all information is encrypted.
 > ```py
 > if DISABLE_SSL:
 >     channel = grpc.insecure_channel(f"{HOST}:{PORT}")
@@ -175,7 +175,7 @@ the job-set id.
 > )
 > ```
 >
-> You can set `ilter_states` to either \[JobState.Queued] or [JobState.PENDING, JobState.RUNNING]
+> You can set `filter_states` to either \[JobState.Queued] or [JobState.PENDING, JobState.RUNNING]
 
 ### monitor.py
 
