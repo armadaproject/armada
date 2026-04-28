@@ -15,6 +15,7 @@ import GroupBySelect from "./GroupBySelect"
 import styles from "./JobsTableActionBar.module.css"
 import { PreemptDialog } from "./PreemptDialog"
 import { ReprioritizeDialog } from "./ReprioritizeDialog"
+import { SelectedJobsActionsPopup } from "./SelectedJobsActionsPopup"
 
 export interface JobsTableActionBarProps {
   isLoading: boolean
@@ -119,6 +120,12 @@ export const JobsTableActionBar = memo(
         {preemptDialogOpen && (
           <PreemptDialog onClose={preemptDialogOnClose} selectedItemFilters={selectedItemFilters} />
         )}
+        <SelectedJobsActionsPopup
+          selectedItemFilters={selectedItemFilters}
+          onCancel={() => setCancelDialogOpen(true)}
+          onReprioritize={() => setReprioritizeDialogOpen(true)}
+          onPreempt={() => setPreemptDialogOpen(true)}
+        />
         <div className={styles.actionGroup}>
           <GroupBySelect columns={allColumns} groups={groupedColumns} onGroupsChanged={onGroupsChanged} />
         </div>
