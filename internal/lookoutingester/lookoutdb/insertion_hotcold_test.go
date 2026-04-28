@@ -298,6 +298,7 @@ func TestHotCold_TerminalStateQueryPrunesActivePartition(t *testing.T) {
 		}))
 
 		rows, err := db.Query(armadacontext.Background(),
+			// terminal: Succeeded=4, Failed=5, Cancelled=6, Preempted=7, Rejected=9
 			"EXPLAIN (ANALYZE false) SELECT * FROM job WHERE state IN (4,5,6,7,9)")
 		require.NoError(t, err)
 		defer rows.Close()
