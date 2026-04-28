@@ -102,6 +102,7 @@ func createJobIdsToDeleteTempTable(ctx *armadacontext.Context, db *pgx.Conn, cut
 		table = "job_terminated"
 	}
 
+	// Using interpolation for table name as parameterized queries do not allow it. The table name is controlled by us and not user input, so this is safe.
 	query := fmt.Sprintf(`
 		CREATE TEMP TABLE job_ids_to_delete AS (
 			SELECT job_id FROM %s
