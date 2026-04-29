@@ -26,12 +26,30 @@
 # Environment variables:
 # - POSTGRES_CONTAINER: Name of the PostgreSQL Docker container (default: postgres)
 # - GO_BIN: Path to Go binary (default: go)
+#
+# Flags:
+# - --hotCold: Also migrate the lookouthc database (default: false)
 
 set -euo pipefail # Exit on error, undefined variable, and pipe failure
 
 # Configuration
 POSTGRES_CONTAINER="${POSTGRES_CONTAINER:-postgres}"
 GO_BIN="${GO_BIN:-go}"
+HOT_COLD=false
+
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    --hotCold)
+      HOT_COLD=true
+      shift
+      ;;
+    *)
+      print_error "Unknown argument: $1"
+      exit 1
+      ;;
+  esac
+done
 
 # Colors for output
 RED='\033[0;31m'
@@ -72,6 +90,10 @@ run_migration() {
 
 run_migration Scheduler $GO_BIN run ./cmd/scheduler/main.go migrateDatabase --config ./_local/scheduler/config.yaml
 run_migration Lookout $GO_BIN run ./cmd/lookout/main.go --migrateDatabase --config ./_local/lookout/config.yaml
+
+if [ "${HOT_COLD}" = true ]; then
+  run_migration LookoutHC $GO_BIN run ./cmd/lookouthc/main.go --migrateDatabase --config ./_local/lookouthc/config.yaml
+fi
 
 print_success "All migrations completed successfully!"
 
