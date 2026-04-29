@@ -16,6 +16,7 @@ import (
 	"github.com/armadaproject/armada/internal/executor/categorizer"
 	"github.com/armadaproject/armada/internal/executor/configuration"
 	executorContext "github.com/armadaproject/armada/internal/executor/context"
+	"github.com/armadaproject/armada/internal/executor/diagnostics"
 	"github.com/armadaproject/armada/internal/executor/job"
 	"github.com/armadaproject/armada/internal/executor/metrics"
 	"github.com/armadaproject/armada/internal/executor/podchecks"
@@ -39,8 +40,16 @@ const (
 
 type podIssue struct {
 	// A copy of the pod when an issue was detected
-	OriginalPodState  *v1.Pod
-	Message           string
+	OriginalPodState *v1.Pod
+	// User-facing failure text. May include a curated diagnostic hint and a
+	// generic preface in addition to the raw kubelet/runtime error.
+	Message string
+	// Pod-level kubelet/runtime error captured before/around startup (image pull,
+	// missing volume, missing config, scheduler-rejected). Empty when the issue
+	// source is Armada-internal (e.g. stuck terminating, active deadline exceeded)
+	// or post-startup. Fed to the failure categorizer as the input for onPodError
+	// rules.
+	PodErrorMessage   string
 	DebugMessage      string
 	Retryable         bool
 	DeletionRequested bool
@@ -153,14 +162,19 @@ func (p *PodIssueHandler) DetectAndRegisterFailedPodIssue(pod *v1.Pod) (bool, er
 		return false, fmt.Errorf("Failed retrieving pod events for pod %s: %v", pod.Name, err)
 	}
 
-	isRetryable, message := p.failedPodChecker.IsRetryable(pod, podEvents)
+	isRetryable, podErrorMessage := p.failedPodChecker.IsRetryable(pod, podEvents)
 	if isRetryable {
+		message := podErrorMessage
+		if hint := diagnostics.LookupHint(podErrorMessage); hint != "" {
+			message = fmt.Sprintf("%s\n%s", hint, podErrorMessage)
+		}
 		return p.registerIssue(&runIssue{
 			JobId: jobId,
 			RunId: runId,
 			PodIssue: &podIssue{
 				OriginalPodState:  pod.DeepCopy(),
 				Message:           message,
+				PodErrorMessage:   podErrorMessage,
 				DebugMessage:      createDebugMessage(podEvents),
 				Retryable:         true,
 				DeletionRequested: false,
@@ -300,6 +314,7 @@ func (p *PodIssueHandler) detectPodIssues(allManagedPods []*v1.Pod) {
 				issue := &podIssue{
 					OriginalPodState: pod.DeepCopy(),
 					Message:          message,
+					PodErrorMessage:  podCheckMessage,
 					DebugMessage:     debugMessage,
 					Retryable:        retryable,
 					Type:             podIssueType,
@@ -425,7 +440,11 @@ func (p *PodIssueHandler) handleNonRetryableJobIssue(issue *issue) {
 		log.Infof("Handling non-retryable issue detected for job %s run %s", issue.RunIssue.JobId, issue.RunIssue.RunId)
 		podIssue := issue.RunIssue.PodIssue
 
-		result := p.classifier.Classify(podIssue.OriginalPodState)
+		// Pass podIssue.PodErrorMessage: kubelet rotates Waiting state from
+		// ErrImagePull to ImagePullBackOff during the detection window, so the raw
+		// containerd error survives only in this captured field. The categorizer's
+		// onPodError rules match against it.
+		result := p.classifier.Classify(podIssue.OriginalPodState, podIssue.PodErrorMessage)
 		clusterId := p.clusterContext.GetClusterId()
 
 		failedEvent, err := reporter.CreateJobFailedEvent(
@@ -546,6 +565,9 @@ func hasPodIssueSelfResolved(issue *issue) bool {
 }
 
 func createStuckPodMessage(retryable bool, originalMessage string) string {
+	if hint := diagnostics.LookupHint(originalMessage); hint != "" {
+		return fmt.Sprintf("%s\n%s", hint, originalMessage)
+	}
 	if retryable {
 		return fmt.Sprintf("Unable to start pod.\n%s", originalMessage)
 	}

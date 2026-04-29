@@ -93,7 +93,9 @@ func (stateReporter *JobStateReporter) reportCurrentStatus(pod *v1.Pod) {
 
 	var classifyResult categorizer.ClassifyResult
 	if pod.Status.Phase == v1.PodFailed {
-		classifyResult = stateReporter.classifier.Classify(pod)
+		// PodFailed implies a terminated container; the termination message
+		// lives in pod state, no extra message is needed.
+		classifyResult = stateReporter.classifier.Classify(pod, "")
 	}
 
 	event, err := reporter.CreateEventForCurrentState(pod, stateReporter.clusterContext.GetClusterId(), classifyResult)

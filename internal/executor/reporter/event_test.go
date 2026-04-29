@@ -81,7 +81,7 @@ func TestCreateEventForCurrentState_WhenPodFailed_WithClassifier(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	result, err := CreateEventForCurrentState(pod, "cluster1", classifier.Classify(pod))
+	result, err := CreateEventForCurrentState(pod, "cluster1", classifier.Classify(pod, ""))
 	assert.NoError(t, err)
 
 	assert.Len(t, result.Events, 1)

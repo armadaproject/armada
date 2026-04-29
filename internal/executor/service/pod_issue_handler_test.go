@@ -154,6 +154,104 @@ func TestPodIssueService_FailureCategorySet_WhenClassifierConfigured(t *testing.
 	assert.NotEmpty(t, failedEvent.JobRunErrors.Errors[0].GetPodError().ContainerErrors)
 }
 
+// TestPodIssueService_PlatformMismatchClassifiedAndPropagatedToErrorField is the
+// realistic end-to-end shape: an operator-defined onPodError rule matches the
+// kubelet error captured in podIssue.PodErrorMessage, the categorization flows
+// into the JobRunErrors event, and the user-facing PodError.Message (which the
+// lookout ingester stores verbatim into lookoutdb.job_run.error) contains both
+// the curated hint and the raw runtime error.
+func TestPodIssueService_PlatformMismatchClassifiedAndPropagatedToErrorField(t *testing.T) {
+	classifier, err := categorizer.NewClassifier(categorizer.ErrorCategoriesConfig{
+		Categories: []categorizer.CategoryConfig{
+			{
+				Name: "infrastructure",
+				Rules: []categorizer.CategoryRule{
+					{OnPodError: &errormatch.RegexMatcher{Pattern: "no match for platform in manifest"}, Subcategory: "platform_mismatch"},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	podIssueService, _, fakeClusterContext, eventReporter, err := setupTestComponentsWithClassifier([]*job.RunState{}, classifier)
+	require.NoError(t, err)
+
+	const rawKubeletError = `Failed to pull image "amd64/busybox:latest": no match for platform in manifest`
+	pod := makeUnretryableStuckPod()
+	pod.Status.ContainerStatuses[0].State.Waiting.Message = rawKubeletError
+	addPod(t, fakeClusterContext, pod)
+
+	podIssueService.HandlePodIssues()
+
+	require.Len(t, eventReporter.ReceivedEvents, 1)
+	failedEvent, ok := eventReporter.ReceivedEvents[0].Event.Events[0].Event.(*armadaevents.EventSequence_Event_JobRunErrors)
+	require.True(t, ok)
+
+	// Categorization: onPodError rule fired against PodErrorMessage (raw kubelet text).
+	assert.Equal(t, "infrastructure", failedEvent.JobRunErrors.Errors[0].GetFailureCategory())
+	assert.Equal(t, "platform_mismatch", failedEvent.JobRunErrors.Errors[0].GetFailureSubcategory())
+
+	// PodError.Message is propagated verbatim by the lookout ingester into
+	// lookoutdb.job_run.error (see internal/lookoutingester/instructions/instructions.go).
+	// The column users read in Lookout must contain BOTH the curated hint and the
+	// raw kubelet error, so platform-aware diagnosis works without losing fidelity.
+	podErrorMessage := failedEvent.JobRunErrors.Errors[0].GetPodError().Message
+	assert.Contains(t, podErrorMessage, "x64/arm64",
+		"lookoutdb error column must include the architecture-mismatch hint")
+	assert.Contains(t, podErrorMessage, "no match for platform in manifest",
+		"lookoutdb error column must preserve the raw kubelet error verbatim")
+}
+
+// TestPodIssueService_OnPodErrorIsolatedFromHintText enforces that podIssue.PodErrorMessage
+// (the input to onPodError matching) holds only the kubelet/runtime error, never the
+// hint-augmented user-facing Message. The rule below targets "x64/arm64", a phrase that
+// appears in the curated diagnostic hint but NOT in the raw kubelet error triggering it.
+// If a future regression piped Message into PodErrorMessage, this rule would fire spuriously.
+func TestPodIssueService_OnPodErrorIsolatedFromHintText(t *testing.T) {
+	classifier, err := categorizer.NewClassifier(categorizer.ErrorCategoriesConfig{
+		Categories: []categorizer.CategoryConfig{
+			{
+				Name: "leaked-from-hint",
+				Rules: []categorizer.CategoryRule{
+					{OnPodError: &errormatch.RegexMatcher{Pattern: "x64/arm64"}, Subcategory: "leak"},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	podIssueService, _, fakeClusterContext, eventReporter, err := setupTestComponentsWithClassifier([]*job.RunState{}, classifier)
+	require.NoError(t, err)
+
+	// Raw Waiting.Message: contains "no match for platform in manifest" (which triggers the
+	// platform-mismatch hint) but does NOT contain "x64/arm64" (which only appears in the hint text).
+	const rawKubeletError = `Failed to pull image "amd64/busybox:latest": no match for platform in manifest`
+	pod := makeUnretryableStuckPod()
+	pod.Status.ContainerStatuses[0].State.Waiting.Message = rawKubeletError
+	addPod(t, fakeClusterContext, pod)
+
+	podIssueService.HandlePodIssues()
+
+	require.Len(t, eventReporter.ReceivedEvents, 1)
+	failedEvent, ok := eventReporter.ReceivedEvents[0].Event.Events[0].Event.(*armadaevents.EventSequence_Event_JobRunErrors)
+	require.True(t, ok)
+
+	// PodError.Message is propagated verbatim by the lookout ingester into
+	// lookoutdb.job_run.error (see internal/lookoutingester/instructions/instructions.go),
+	// so asserting on it here equates to asserting on the column the user reads.
+	podErrorMessage := failedEvent.JobRunErrors.Errors[0].GetPodError().Message
+	assert.Contains(t, podErrorMessage, "x64/arm64",
+		"user-facing message must include the architecture-mismatch hint")
+	assert.Contains(t, podErrorMessage, "no match for platform in manifest",
+		"user-facing message must preserve the raw kubelet error verbatim")
+
+	// onPodError must have seen only the raw kubelet text via PodErrorMessage,
+	// so the "x64/arm64" rule (which only matches the hint phrase) must NOT fire.
+	assert.Equal(t, "", failedEvent.JobRunErrors.Errors[0].GetFailureCategory(),
+		"onPodError matched hint-augmented text instead of PodErrorMessage")
+	assert.Equal(t, "", failedEvent.JobRunErrors.Errors[0].GetFailureSubcategory())
+}
+
 func TestPodIssueService_OnlyDeletesPod_IfStuckTerminatingButDeletedByExecutor(t *testing.T) {
 	podIssueService, _, fakeClusterContext, eventsReporter, err := setupTestComponents([]*job.RunState{})
 	require.NoError(t, err)
@@ -792,6 +890,47 @@ func TestCreateDebugMessage(t *testing.T) {
 				assert.NotContains(t, result, "[truncated]")
 				assert.Contains(t, result, tt.events[0].Message)
 			}
+		})
+	}
+}
+
+func TestCreateStuckPodMessage(t *testing.T) {
+	platformMismatchOriginal := `Failed to pull image "amd64/busybox:latest": rpc error: code = NotFound desc = failed to pull and unpack image "docker.io/amd64/busybox:latest": no match for platform in manifest: not found`
+
+	tests := map[string]struct {
+		retryable       bool
+		originalMessage string
+		expectedPrefix  string
+	}{
+		"retryable with no matching hint uses generic preface": {
+			retryable:       true,
+			originalMessage: "some retryable failure",
+			expectedPrefix:  "Unable to start pod.",
+		},
+		"retryable platform mismatch surfaces targeted hint": {
+			retryable:       true,
+			originalMessage: platformMismatchOriginal,
+			expectedPrefix:  "No compatible image was found for the target farm node's architecture",
+		},
+		"non-retryable with no matching hint uses generic preface": {
+			retryable:       false,
+			originalMessage: "some other unrecoverable failure",
+			expectedPrefix:  "Unable to start pod - encountered an unrecoverable problem.",
+		},
+		"non-retryable platform mismatch surfaces targeted hint": {
+			retryable:       false,
+			originalMessage: platformMismatchOriginal,
+			expectedPrefix:  "No compatible image was found for the target farm node's architecture",
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			result := createStuckPodMessage(tc.retryable, tc.originalMessage)
+			assert.True(t, strings.HasPrefix(result, tc.expectedPrefix),
+				"expected message to start with %q, got %q", tc.expectedPrefix, result)
+			assert.Contains(t, result, tc.originalMessage,
+				"original kubelet error must always be preserved verbatim")
 		})
 	}
 }
