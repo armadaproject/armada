@@ -23,12 +23,22 @@ type CategoryConfig struct {
 
 // CategoryRule defines a single matching condition. Exactly one matcher must
 // be set per rule (validated by NewClassifier). Rules within a category are OR'd.
-// When ContainerName is set, only failures from that container are considered.
-// When empty, failures from any container can match (default).
+//
+// Container-level matchers (OnConditions, OnExitCodes, OnTerminationMessage)
+// inspect per-container state from pod.Status; ContainerName scopes them to a
+// specific container when set, otherwise any container can match.
+//
+// OnPodError is pod-level: it matches a regex against the failure message the
+// executor captured for the issue. Use it for failures where no container has
+// a useful terminationMessage, including kubelet/runtime errors (image pull,
+// missing volume, missing config) and Armada-detected conditions (stuck
+// terminating, active deadline exceeded, externally deleted). ContainerName
+// is ignored for OnPodError because the message has no container attribution.
 type CategoryRule struct {
 	ContainerName        string                      `yaml:"containerName,omitempty"`
 	OnExitCodes          *errormatch.ExitCodeMatcher `yaml:"onExitCodes,omitempty"`
 	OnTerminationMessage *errormatch.RegexMatcher    `yaml:"onTerminationMessage,omitempty"`
+	OnPodError           *errormatch.RegexMatcher    `yaml:"onPodError,omitempty"`
 	OnConditions         []string                    `yaml:"onConditions,omitempty"`
 	Subcategory          string                      `yaml:"subcategory,omitempty"`
 }
