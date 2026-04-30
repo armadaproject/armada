@@ -10,6 +10,7 @@ import (
 	networking "k8s.io/api/networking/v1"
 
 	"github.com/armadaproject/armada/internal/executor/categorizer"
+	"github.com/armadaproject/armada/internal/executor/diagnostics"
 	"github.com/armadaproject/armada/internal/executor/domain"
 	"github.com/armadaproject/armada/internal/executor/util"
 	"github.com/armadaproject/armada/pkg/armadaevents"
@@ -83,9 +84,13 @@ func CreateEventForCurrentState(pod *v1.Pod, clusterId string, classifyResult ca
 		})
 		return sequence, nil
 	case v1.PodFailed:
+		reason := util.ExtractPodFailedReason(pod)
+		if hint := diagnostics.LookupHint(reason); hint != "" {
+			reason = fmt.Sprintf("%s\n%s", hint, reason)
+		}
 		return CreateJobFailedEvent(
 			pod,
-			util.ExtractPodFailedReason(pod),
+			reason,
 			util.ExtractPodFailureCause(pod),
 			"",
 			util.ExtractFailedPodContainerStatuses(pod, clusterId),

@@ -16,6 +16,7 @@ import (
 	"github.com/armadaproject/armada/internal/executor/categorizer"
 	"github.com/armadaproject/armada/internal/executor/configuration"
 	executorContext "github.com/armadaproject/armada/internal/executor/context"
+	"github.com/armadaproject/armada/internal/executor/diagnostics"
 	"github.com/armadaproject/armada/internal/executor/job"
 	"github.com/armadaproject/armada/internal/executor/metrics"
 	"github.com/armadaproject/armada/internal/executor/podchecks"
@@ -155,6 +156,9 @@ func (p *PodIssueHandler) DetectAndRegisterFailedPodIssue(pod *v1.Pod) (bool, er
 
 	isRetryable, message := p.failedPodChecker.IsRetryable(pod, podEvents)
 	if isRetryable {
+		if hint := diagnostics.LookupHint(message); hint != "" {
+			message = fmt.Sprintf("%s\n%s", hint, message)
+		}
 		return p.registerIssue(&runIssue{
 			JobId: jobId,
 			RunId: runId,
@@ -546,10 +550,14 @@ func hasPodIssueSelfResolved(issue *issue) bool {
 }
 
 func createStuckPodMessage(retryable bool, originalMessage string) string {
+	preface := "Unable to start pod - encountered an unrecoverable problem."
 	if retryable {
-		return fmt.Sprintf("Unable to start pod.\n%s", originalMessage)
+		preface = "Unable to start pod."
 	}
-	return fmt.Sprintf("Unable to start pod - encountered an unrecoverable problem.\n%s", originalMessage)
+	if hint := diagnostics.LookupHint(originalMessage); hint != "" {
+		return fmt.Sprintf("%s\n%s\n%s", preface, hint, originalMessage)
+	}
+	return fmt.Sprintf("%s\n%s", preface, originalMessage)
 }
 
 func (p *PodIssueHandler) handleDeletedPod(pod *v1.Pod) {

@@ -795,3 +795,49 @@ func TestCreateDebugMessage(t *testing.T) {
 		})
 	}
 }
+
+func TestCreateStuckPodMessage(t *testing.T) {
+	platformMismatchOriginal := `Failed to pull image "amd64/busybox:latest": rpc error: code = NotFound desc = failed to pull and unpack image "docker.io/amd64/busybox:latest": no match for platform in manifest: not found`
+
+	tests := map[string]struct {
+		retryable          bool
+		originalMessage    string
+		expectedPrefix     string
+		expectHintContains string
+	}{
+		"retryable with no matching hint uses retryable preface": {
+			retryable:       true,
+			originalMessage: "some retryable failure",
+			expectedPrefix:  "Unable to start pod.",
+		},
+		"retryable platform mismatch carries retryable preface and hint": {
+			retryable:          true,
+			originalMessage:    platformMismatchOriginal,
+			expectedPrefix:     "Unable to start pod.",
+			expectHintContains: "x64/arm64",
+		},
+		"non-retryable with no matching hint uses unrecoverable preface": {
+			retryable:       false,
+			originalMessage: "some other unrecoverable failure",
+			expectedPrefix:  "Unable to start pod - encountered an unrecoverable problem.",
+		},
+		"non-retryable platform mismatch carries unrecoverable preface and hint": {
+			retryable:          false,
+			originalMessage:    platformMismatchOriginal,
+			expectedPrefix:     "Unable to start pod - encountered an unrecoverable problem.",
+			expectHintContains: "x64/arm64",
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			result := createStuckPodMessage(tc.retryable, tc.originalMessage)
+			assert.True(t, strings.HasPrefix(result, tc.expectedPrefix),
+				"expected prefix %q, got %q", tc.expectedPrefix, result)
+			if tc.expectHintContains != "" {
+				assert.Contains(t, result, tc.expectHintContains)
+			}
+			assert.Contains(t, result, tc.originalMessage)
+		})
+	}
+}
