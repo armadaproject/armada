@@ -425,7 +425,7 @@ func (p *PodIssueHandler) handleNonRetryableJobIssue(issue *issue) {
 		log.Infof("Handling non-retryable issue detected for job %s run %s", issue.RunIssue.JobId, issue.RunIssue.RunId)
 		podIssue := issue.RunIssue.PodIssue
 
-		result := p.classifier.Classify(podIssue.OriginalPodState)
+		result := p.classifier.ClassifyPodError(podIssue.OriginalPodState, podIssue.Message)
 		clusterId := p.clusterContext.GetClusterId()
 
 		failedEvent, err := reporter.CreateJobFailedEvent(

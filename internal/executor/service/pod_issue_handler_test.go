@@ -154,6 +154,55 @@ func TestPodIssueService_FailureCategorySet_WhenClassifierConfigured(t *testing.
 	assert.NotEmpty(t, failedEvent.JobRunErrors.Errors[0].GetPodError().ContainerErrors)
 }
 
+func TestPodIssueService_OnPodErrorClassifies(t *testing.T) {
+	tests := map[string]struct {
+		category              string
+		subcategory           string
+		pattern               string
+		pod                   func() *v1.Pod
+		expectMessageContains string
+	}{
+		"platform mismatch from kubelet error": {
+			category:    "infrastructure",
+			subcategory: "platform_mismatch",
+			pattern:     "no match for platform in manifest",
+			pod: func() *v1.Pod {
+				p := makeUnretryableStuckPod()
+				p.Status.ContainerStatuses[0].State.Waiting.Message = `Failed to pull image "amd64/busybox:latest": no match for platform in manifest`
+				return p
+			},
+			expectMessageContains: "no match for platform in manifest",
+		},
+		"active deadline exceeded from executor-side detection": {
+			category:    "user_error",
+			subcategory: "deadline_exceeded",
+			pattern:     "exceeded active deadline",
+			// 10 minutes old with 5 minute deadline -> exceeded.
+			pod:                   func() *v1.Pod { return makePodWithDeadline(time.Now().Add(-time.Minute*10), 300, 0) },
+			expectMessageContains: "exceeded active deadline",
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			classifier := podErrorClassifier(t, tc.category, tc.subcategory, tc.pattern)
+			podIssueService, _, fakeClusterContext, eventReporter, err := setupTestComponentsWithClassifier([]*job.RunState{}, classifier)
+			require.NoError(t, err)
+			addPod(t, fakeClusterContext, tc.pod())
+
+			podIssueService.HandlePodIssues()
+
+			require.Len(t, eventReporter.ReceivedEvents, 1)
+			failedEvent, ok := eventReporter.ReceivedEvents[0].Event.Events[0].Event.(*armadaevents.EventSequence_Event_JobRunErrors)
+			require.True(t, ok)
+
+			assert.Equal(t, tc.category, failedEvent.JobRunErrors.Errors[0].GetFailureCategory())
+			assert.Equal(t, tc.subcategory, failedEvent.JobRunErrors.Errors[0].GetFailureSubcategory())
+			assert.Contains(t, failedEvent.JobRunErrors.Errors[0].GetPodError().Message, tc.expectMessageContains)
+		})
+	}
+}
+
 func TestPodIssueService_OnlyDeletesPod_IfStuckTerminatingButDeletedByExecutor(t *testing.T) {
 	podIssueService, _, fakeClusterContext, eventsReporter, err := setupTestComponents([]*job.RunState{})
 	require.NoError(t, err)
@@ -544,6 +593,22 @@ func conditionClassifier(t *testing.T, category, subcategory, condition string) 
 				Name: category,
 				Rules: []categorizer.CategoryRule{
 					{OnConditions: []string{condition}, Subcategory: subcategory},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	return c
+}
+
+func podErrorClassifier(t *testing.T, category, subcategory, pattern string) *categorizer.Classifier {
+	t.Helper()
+	c, err := categorizer.NewClassifier(categorizer.ErrorCategoriesConfig{
+		Categories: []categorizer.CategoryConfig{
+			{
+				Name: category,
+				Rules: []categorizer.CategoryRule{
+					{OnPodError: &errormatch.RegexMatcher{Pattern: pattern}, Subcategory: subcategory},
 				},
 			},
 		},
