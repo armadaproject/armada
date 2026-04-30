@@ -953,14 +953,14 @@ func TestRecordTerminalStateUpdates(t *testing.T) {
 	}
 
 	// Should not panic; counts 5 terminal (job4=running and job7=nil are skipped)
-	ldb.recordTerminalStateUpdates(instructions)
+	ldb.recordStateUpdates(instructions)
 }
 
 func TestRecordTerminalStateUpdates_Empty(t *testing.T) {
 	ldb := NewLookoutDb(nil, fatalErrors, m, 10, 10)
 	// Neither nil nor empty should panic
-	ldb.recordTerminalStateUpdates(nil)
-	ldb.recordTerminalStateUpdates([]*model.UpdateJobInstruction{})
+	ldb.recordStateUpdates(nil)
+	ldb.recordStateUpdates([]*model.UpdateJobInstruction{})
 }
 
 func makeCreateJobInstruction(jobId string) *model.CreateJobInstruction {

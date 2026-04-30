@@ -35,12 +35,19 @@ var rowsChangedCounter = promauto.NewCounterVec(
 	[]string{"table", "operation"},
 )
 
-var terminalStateUpdatesCounter = promauto.NewCounterVec(
+var stateUpdatesCounter = promauto.NewCounterVec(
 	prometheus.CounterOpts{
-		Name: metrics.ArmadaLookoutIngesterMetricsPrefix + "terminal_state_updates",
-		Help: "Number of job updates that set a terminal state",
+		Name: metrics.ArmadaLookoutIngesterMetricsPrefix + "state_updates",
+		Help: "Number of job state updates, labelled by state",
 	},
 	[]string{"state"},
+)
+
+var terminalStateUpdatesTotalCounter = promauto.NewCounter(
+	prometheus.CounterOpts{
+		Name: metrics.ArmadaLookoutIngesterMetricsPrefix + "terminal_state_updates_total",
+		Help: "Total number of job updates that set a terminal state",
+	},
 )
 
 type Metrics struct {
@@ -73,8 +80,12 @@ func (m *Metrics) RecordRowsChange(table string, operation metrics.DBOperation, 
 		Add(float64(numRows))
 }
 
-func (m *Metrics) RecordTerminalStateUpdates(state string, count int) {
-	terminalStateUpdatesCounter.
+func (m *Metrics) RecordStateUpdates(state string, count int) {
+	stateUpdatesCounter.
 		With(map[string]string{"state": state}).
 		Add(float64(count))
+}
+
+func (m *Metrics) RecordTerminalStateUpdatesTotal(count int) {
+	terminalStateUpdatesTotalCounter.Add(float64(count))
 }

@@ -141,7 +141,7 @@ func (l *LookoutDb) UpdateJobs(ctx *armadacontext.Context, instructions []*model
 	taken := time.Since(start)
 	l.metrics.RecordAvRowChangeTimeByOperation("job", commonmetrics.DBOperationUpdate, len(instructions), taken)
 	l.metrics.RecordRowsChange("job", commonmetrics.DBOperationUpdate, len(instructions))
-	l.recordTerminalStateUpdates(instructions)
+	l.recordStateUpdates(instructions)
 	log.Infof("Updated %d jobs in %s", len(instructions), taken)
 }
 
@@ -177,27 +177,44 @@ func (l *LookoutDb) UpdateJobRuns(ctx *armadacontext.Context, instructions []*mo
 	log.Infof("Updated %d job runs in %s", len(instructions), taken)
 }
 
-func (l *LookoutDb) recordTerminalStateUpdates(instructions []*model.UpdateJobInstruction) {
+func (l *LookoutDb) recordStateUpdates(instructions []*model.UpdateJobInstruction) {
 	counts := make(map[string]int)
+	terminalCount := 0
 	for _, instruction := range instructions {
 		if instruction.State == nil {
 			continue
 		}
 		switch *instruction.State {
+		case lookout.JobQueuedOrdinal:
+			counts["queued"]++
+		case lookout.JobPendingOrdinal:
+			counts["pending"]++
+		case lookout.JobRunningOrdinal:
+			counts["running"]++
+		case lookout.JobLeasedOrdinal:
+			counts["leased"]++
 		case lookout.JobSucceededOrdinal:
 			counts["succeeded"]++
+			terminalCount++
 		case lookout.JobFailedOrdinal:
 			counts["failed"]++
+			terminalCount++
 		case lookout.JobCancelledOrdinal:
 			counts["cancelled"]++
+			terminalCount++
 		case lookout.JobPreemptedOrdinal:
 			counts["preempted"]++
+			terminalCount++
 		case lookout.JobRejectedOrdinal:
 			counts["rejected"]++
+			terminalCount++
 		}
 	}
 	for state, count := range counts {
-		l.metrics.RecordTerminalStateUpdates(state, count)
+		l.metrics.RecordStateUpdates(state, count)
+	}
+	if terminalCount > 0 {
+		l.metrics.RecordTerminalStateUpdatesTotal(terminalCount)
 	}
 }
 
