@@ -1,6 +1,7 @@
 package pruner
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/hashicorp/go-multierror"
@@ -19,10 +20,11 @@ func PruneDb(
 	deduplicationLifetime time.Duration,
 	batchLimit int,
 	clock clock.Clock,
+	hotColdSplit bool,
 ) error {
 	var result *multierror.Error
 
-	if err := deleteJobs(ctx, db, jobLifetime, batchLimit, clock); err != nil {
+	if err := deleteJobs(ctx, db, jobLifetime, batchLimit, clock, hotColdSplit); err != nil {
 		result = multierror.Append(result, err)
 	}
 
@@ -44,10 +46,10 @@ func deleteDeduplications(ctx *armadacontext.Context, db *pgx.Conn, deduplicatio
 	return nil
 }
 
-func deleteJobs(ctx *armadacontext.Context, db *pgx.Conn, jobLifetime time.Duration, batchLimit int, clock clock.Clock) error {
+func deleteJobs(ctx *armadacontext.Context, db *pgx.Conn, jobLifetime time.Duration, batchLimit int, clock clock.Clock, hotColdSplit bool) error {
 	now := clock.Now()
 	cutOffTime := now.Add(-jobLifetime)
-	totalJobsToDelete, err := createJobIdsToDeleteTempTable(ctx, db, cutOffTime)
+	totalJobsToDelete, err := createJobIdsToDeleteTempTable(ctx, db, cutOffTime, hotColdSplit)
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -94,10 +96,16 @@ func deleteJobs(ctx *armadacontext.Context, db *pgx.Conn, jobLifetime time.Durat
 }
 
 // Returns total number of jobs to delete
-func createJobIdsToDeleteTempTable(ctx *armadacontext.Context, db *pgx.Conn, cutOffTime time.Time) (int, error) {
-	_, err := db.Exec(ctx, `
+func createJobIdsToDeleteTempTable(ctx *armadacontext.Context, db *pgx.Conn, cutOffTime time.Time, hotColdSplit bool) (int, error) {
+	table := "job"
+	if hotColdSplit {
+		table = "job_terminated"
+	}
+
+	// Using interpolation for table name as parameterized queries do not allow it. The table name is controlled by us and not user input, so this is safe.
+	query := fmt.Sprintf(`
 		CREATE TEMP TABLE job_ids_to_delete AS (
-			SELECT job_id FROM job
+			SELECT job_id FROM %s
 			WHERE last_transition_time < $1
 			AND state in (
 				4, -- Succeeded
@@ -106,7 +114,9 @@ func createJobIdsToDeleteTempTable(ctx *armadacontext.Context, db *pgx.Conn, cut
 		   		7, -- Preempted
 		   		9  -- Rejected
 		    )
-		)`, cutOffTime)
+		)`, table)
+
+	_, err := db.Exec(ctx, query, cutOffTime)
 	if err != nil {
 		return -1, errors.WithStack(err)
 	}
@@ -135,6 +145,7 @@ func deleteBatch(ctx *armadacontext.Context, tx pgx.Tx, batchLimit int) (int, er
 		DELETE FROM job WHERE job_id in (SELECT job_id from batch);
 		DELETE FROM job_spec WHERE job_id in (SELECT job_id from batch);
 		DELETE FROM job_run WHERE job_id in (SELECT job_id from batch);
+		DELETE FROM job_error WHERE job_id in (SELECT job_id from batch);
 		DELETE FROM job_ids_to_delete WHERE job_id in (SELECT job_id from batch);
 		TRUNCATE TABLE batch;`)
 	if err != nil {
