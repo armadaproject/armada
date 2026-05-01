@@ -12,3 +12,15 @@ metric:
 application:
   clusterId: "local-cluster"
   pool: "default"
+  enableJobErrorCategorization: true
+  errorCategories:
+    defaultCategory: uncategorized
+    categories:
+      - name: oom
+        rules:
+          - onConditions: ["OOMKilled"]
+      - name: user_error
+        rules:
+          - onExitCodes:
+              operator: In
+              values: [1, 2, 126, 127]
