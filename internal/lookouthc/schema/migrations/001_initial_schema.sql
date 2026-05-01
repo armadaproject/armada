@@ -117,7 +117,6 @@ CREATE TABLE job_run (
     debug               bytea        NULL,
     pool                text         NULL,
     ingress_addresses   jsonb        NULL,
-    failure_info        jsonb        NULL,
     failure_category    varchar(63)  NULL,
     failure_subcategory varchar(63)  NULL
 ) WITH (fillfactor = 70);
