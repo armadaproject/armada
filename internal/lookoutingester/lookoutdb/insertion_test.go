@@ -952,7 +952,7 @@ func TestRecordTerminalStateUpdates(t *testing.T) {
 		{JobId: "job7"},
 	}
 
-	// Should not panic; counts 5 terminal (job4=running and job7=nil are skipped)
+	// Should not panic; counts 6 states (job7=nil state is skipped)
 	ldb.recordStateUpdates(instructions)
 }
 
