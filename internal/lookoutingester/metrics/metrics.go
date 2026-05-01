@@ -43,12 +43,6 @@ var stateUpdatesCounter = promauto.NewCounterVec(
 	[]string{"state"},
 )
 
-var terminalStateUpdatesTotalCounter = promauto.NewCounter(
-	prometheus.CounterOpts{
-		Name: metrics.ArmadaLookoutIngesterMetricsPrefix + "terminal_state_updates_total",
-		Help: "Total number of job updates that set a terminal state",
-	},
-)
 
 type Metrics struct {
 	*metrics.Metrics
@@ -84,8 +78,4 @@ func (m *Metrics) RecordStateUpdates(state string, count int) {
 	stateUpdatesCounter.
 		With(map[string]string{"state": state}).
 		Add(float64(count))
-}
-
-func (m *Metrics) RecordTerminalStateUpdatesTotal(count int) {
-	terminalStateUpdatesTotalCounter.Add(float64(count))
 }

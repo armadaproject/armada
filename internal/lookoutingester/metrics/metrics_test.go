@@ -20,12 +20,3 @@ func TestRecordStateUpdates(t *testing.T) {
 		})
 	}
 }
-
-func TestRecordTerminalStateUpdatesTotal(t *testing.T) {
-	m := Get()
-
-	before := testutil.ToFloat64(terminalStateUpdatesTotalCounter)
-	m.RecordTerminalStateUpdatesTotal(5)
-	after := testutil.ToFloat64(terminalStateUpdatesTotalCounter)
-	assert.Equal(t, float64(5), after-before)
-}

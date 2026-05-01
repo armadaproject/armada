@@ -179,7 +179,6 @@ func (l *LookoutDb) UpdateJobRuns(ctx *armadacontext.Context, instructions []*mo
 
 func (l *LookoutDb) recordStateUpdates(instructions []*model.UpdateJobInstruction) {
 	counts := make(map[string]int)
-	terminalCount := 0
 	for _, instruction := range instructions {
 		if instruction.State == nil {
 			continue
@@ -195,26 +194,18 @@ func (l *LookoutDb) recordStateUpdates(instructions []*model.UpdateJobInstructio
 			counts["leased"]++
 		case lookout.JobSucceededOrdinal:
 			counts["succeeded"]++
-			terminalCount++
 		case lookout.JobFailedOrdinal:
 			counts["failed"]++
-			terminalCount++
 		case lookout.JobCancelledOrdinal:
 			counts["cancelled"]++
-			terminalCount++
 		case lookout.JobPreemptedOrdinal:
 			counts["preempted"]++
-			terminalCount++
 		case lookout.JobRejectedOrdinal:
 			counts["rejected"]++
-			terminalCount++
 		}
 	}
 	for state, count := range counts {
 		l.metrics.RecordStateUpdates(state, count)
-	}
-	if terminalCount > 0 {
-		l.metrics.RecordTerminalStateUpdatesTotal(terminalCount)
 	}
 }
 
