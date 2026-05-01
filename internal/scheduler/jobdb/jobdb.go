@@ -321,6 +321,7 @@ func (jobDb *JobDb) ReadTxn() *Txn {
 	defer jobDb.copyMutex.Unlock()
 	return &Txn{
 		readOnly:           true,
+		snapshot:           true,
 		jobsById:           jobDb.jobsById,
 		jobsByRunId:        jobDb.jobsByRunId,
 		jobsByGangKey:      jobDb.jobsByGangKey,
@@ -343,6 +344,26 @@ func (jobDb *JobDb) WriteTxn() *Txn {
 	defer jobDb.copyMutex.Unlock()
 	return &Txn{
 		readOnly:           false,
+		snapshot:           false,
+		jobsById:           jobDb.jobsById,
+		jobsByRunId:        jobDb.jobsByRunId,
+		jobsByGangKey:      maps.Clone(jobDb.jobsByGangKey),
+		jobsByQueue:        maps.Clone(jobDb.jobsByQueue),
+		jobsByPoolAndQueue: deepClone(jobDb.jobsByPoolAndQueue),
+		leasedJobs:         jobDb.leasedJobs,
+		terminalJobs:       jobDb.terminalJobs,
+		unvalidatedJobs:    jobDb.unvalidatedJobs,
+		active:             true,
+		jobDb:              jobDb,
+	}
+}
+
+func (jobDb *JobDb) WritableSnapshot() *Txn {
+	jobDb.copyMutex.Lock()
+	defer jobDb.copyMutex.Unlock()
+	return &Txn{
+		readOnly:           false,
+		snapshot:           true,
 		jobsById:           jobDb.jobsById,
 		jobsByRunId:        jobDb.jobsByRunId,
 		jobsByGangKey:      maps.Clone(jobDb.jobsByGangKey),
@@ -375,6 +396,7 @@ func (jobDb *JobDb) CumulativeInternedStringsCount() uint64 {
 // until the transaction is committed.
 type Txn struct {
 	readOnly bool
+	snapshot bool
 	// Map from job ids to jobs.
 	jobsById *immutable.Map[string, *Job]
 	// Map from run ids to jobs.
@@ -401,7 +423,7 @@ type Txn struct {
 }
 
 func (txn *Txn) Commit() {
-	if txn.readOnly || !txn.active {
+	if txn.readOnly || txn.snapshot || !txn.active {
 		return
 	}
 	txn.jobDb.copyMutex.Lock()
@@ -506,7 +528,7 @@ func (txn *Txn) AssertEqual(otherTxn *Txn) error {
 }
 
 func (txn *Txn) Abort() {
-	if txn.readOnly || !txn.active {
+	if txn.readOnly || txn.snapshot || !txn.active {
 		return
 	}
 	txn.active = false
