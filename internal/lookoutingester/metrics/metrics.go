@@ -43,7 +43,6 @@ var stateUpdatesCounter = promauto.NewCounterVec(
 	[]string{"state"},
 )
 
-
 type Metrics struct {
 	*metrics.Metrics
 }
