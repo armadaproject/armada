@@ -30,7 +30,7 @@ jobs:
 
       - name: Upload Test Reports Artifacts
         if: always()
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ts-unit-test-reports
           path: ./internal/lookoutui/junit.xml
@@ -58,7 +58,7 @@ jobs:
 
       - name: Upload Test Reports Artifacts
         if: always()
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: go-unit-test-reports
           path: test-reports/
@@ -82,7 +82,7 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Setup Docker
-        uses: docker/setup-docker-action@1a6edb0ba9ac496f6850236981f15d8f9a82254d # v5
+        uses: docker/setup-docker-action@b2189fbf2a6592b51fee7cdd93ee2bfaeba733db # v5
         with:
           daemon-config: '{"features":{"containerd-snapshotter":false}}'
 
@@ -108,7 +108,7 @@ jobs:
         run: go run github.com/magefile/mage@v1.15.0 -v testsuite
 
       - name: Upload JUnit Report Artifact
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: go-integration-test-reports
           path: junit.xml
@@ -122,7 +122,7 @@ jobs:
           docker logs pulsar > ./logs/pulsar.log 2>&1
 
       - name: Upload Docker Compose Logs
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: docker-compose-logs
