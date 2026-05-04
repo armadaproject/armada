@@ -1,7 +1,7 @@
 import { forwardRef } from "react"
 
 import { Settings } from "@mui/icons-material"
-import { AppBar, Button, IconButton, Stack, styled, Toolbar, Typography } from "@mui/material"
+import { alpha, AppBar, Button, IconButton, Stack, styled, Toolbar, Typography } from "@mui/material"
 import { Link, NavLink, NavLinkProps } from "react-router-dom"
 
 import { SPACING } from "../common/spacing"
@@ -18,6 +18,7 @@ const StyledAppBar = styled(AppBar)(({ theme }) => ({
   backgroundColor: theme.palette.appBar.main,
   backgroundImage: "unset",
   color: theme.palette.appBar.contrastText,
+  "--nav-active-bg": alpha(theme.palette.appBar.contrastText, 0.33),
 }))
 
 interface Page {
