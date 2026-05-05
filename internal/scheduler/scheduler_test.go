@@ -3524,3 +3524,83 @@ func createPreemptibleGangJob() *jobdb.Job {
 		true,
 	).WithNewRun("testExecutor", "test-node", "node", "pool", 5)
 }
+
+func TestPreemptingJobRunId(t *testing.T) {
+	// nil job returns empty string
+	assert.Equal(t, "", preemptingJobRunId(nil))
+
+	// job with no runs returns empty string
+	jobNoRuns := testfixtures.NewJob(
+		util.NewULID(),
+		"testJobset",
+		"testQueue",
+		0,
+		toInternalSchedulingInfo(preemptibleGangSchedulingInfo),
+		false,
+		1,
+		false,
+		false,
+		false,
+		1,
+		true,
+	)
+	assert.Equal(t, "", preemptingJobRunId(jobNoRuns))
+
+	// job with a run returns that run's ID
+	jobWithRun := jobNoRuns.WithNewRun("testExecutor", "test-node", "node", "pool", 5)
+	runId := jobWithRun.LatestRun().Id()
+	assert.NotEmpty(t, runId)
+	assert.Equal(t, runId, preemptingJobRunId(jobWithRun))
+}
+
+func TestAppendEventSequencesFromPreemptedJobs_PopulatesPreemptiveRunId(t *testing.T) {
+	preemptingJob := testfixtures.NewJob(
+		util.NewULID(),
+		"testJobset",
+		"testQueue",
+		0,
+		toInternalSchedulingInfo(preemptibleGangSchedulingInfo),
+		false,
+		1,
+		false,
+		false,
+		false,
+		1,
+		true,
+	).WithNewRun("testExecutor", "test-node", "node", "pool", 5)
+	preemptingRunId := preemptingJob.LatestRun().Id()
+
+	preemptedJob := testfixtures.NewJob(
+		util.NewULID(),
+		"testJobset",
+		"testQueue",
+		0,
+		toInternalSchedulingInfo(preemptibleGangSchedulingInfo),
+		false,
+		1,
+		false,
+		false,
+		false,
+		1,
+		true,
+	).WithNewRun("testExecutor", "test-node", "node", "pool", 5)
+	preemptedRun := preemptedJob.LatestRun()
+
+	jctx := &schedulercontext.JobSchedulingContext{
+		Job:                   preemptedJob,
+		PreemptingJob:         preemptingJob,
+		PreemptionDescription: "preempted by fair-share",
+	}
+
+	sequences, err := AppendEventSequencesFromPreemptedJobs(nil, []*schedulercontext.JobSchedulingContext{jctx}, time.Now())
+	assert.NoError(t, err)
+	assert.Len(t, sequences, 1)
+
+	events := sequences[0].Events
+	assert.Len(t, events, 3) // JobRunPreempted + JobRunErrors + JobErrors
+
+	preemptedEvent := events[0].GetJobRunPreempted()
+	assert.NotNil(t, preemptedEvent)
+	assert.Equal(t, preemptedRun.Id(), preemptedEvent.PreemptedRunId)
+	assert.Equal(t, preemptingRunId, preemptedEvent.PreemptiveRunId)
+}

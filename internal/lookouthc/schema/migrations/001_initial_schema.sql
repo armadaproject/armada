@@ -119,7 +119,8 @@ CREATE TABLE job_run (
     ingress_addresses   jsonb        NULL,
     failure_info        jsonb        NULL,
     failure_category    varchar(63)  NULL,
-    failure_subcategory varchar(63)  NULL
+    failure_subcategory varchar(63)  NULL,
+    scheduler_termination_reason jsonb NULL
 ) WITH (fillfactor = 70);
 ALTER TABLE job_run ALTER COLUMN error SET STORAGE EXTERNAL;
 

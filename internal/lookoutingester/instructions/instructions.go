@@ -275,7 +275,7 @@ func (c *InstructionConverter) handleCancelledJob(ts time.Time, event *armadaeve
 		CancelUser:                 cancelUser,
 		LastTransitionTime:         &ts,
 		LastTransitionTimeSeconds:  pointer.Int64(ts.Unix()),
-		SchedulerTerminationReason: buildTerminationReason(event.Reason, terminationReasonArgs),
+		SchedulerTerminationReason: BuildTerminationReason(event.Reason, terminationReasonArgs),
 	}
 	update.JobsToUpdate = append(update.JobsToUpdate, &jobUpdate)
 	return nil
@@ -492,7 +492,7 @@ func (c *InstructionConverter) handleJobRunPreempted(ts time.Time, event *armada
 		JobRunState:                pointer.Int32(lookout.JobRunPreemptedOrdinal),
 		Finished:                   &ts,
 		Error:                      tryCompressError(event.PreemptedJobId, event.Reason, c.compressor),
-		SchedulerTerminationReason: buildTerminationReason(event.Reason, terminationReasonArgs),
+		SchedulerTerminationReason: BuildTerminationReason(event.Reason, terminationReasonArgs),
 	}
 	update.JobRunsToUpdate = append(update.JobRunsToUpdate, &jobRun)
 	return nil
@@ -567,7 +567,7 @@ func getJobPriorityClass(job *api.Job) *string {
 	return nil
 }
 
-func buildTerminationReason(reason string, args map[string]any) map[string]any {
+func BuildTerminationReason(reason string, args map[string]any) map[string]any {
 	result := map[string]any{
 		"reason": reason,
 	}
