@@ -1,6 +1,7 @@
 package instructions
 
 import (
+	"encoding/json"
 	"strings"
 	"time"
 
@@ -561,12 +562,18 @@ func getJobPriorityClass(job *api.Job) *string {
 	return nil
 }
 
-func BuildTerminationReason(reason string, args map[string]any) map[string]any {
-	result := map[string]any{
+func BuildTerminationReason(reason string, args map[string]any) *string {
+	m := map[string]any{
 		"reason": reason,
 	}
 	if len(args) > 0 {
-		result["args"] = args
+		m["args"] = args
 	}
-	return result
+	b, err := json.Marshal(m)
+	if err != nil {
+		log.WithError(err).Warnf("Couldn't marshal termination reason")
+		return nil
+	}
+	s := string(b)
+	return &s
 }

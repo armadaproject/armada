@@ -693,7 +693,7 @@ func (l *LookoutDb) UpdateJobRunsBatch(ctx *armadacontext.Context, instructions 
 					ingress_addresses    jsonb,
 					failure_category     varchar(63),
 					failure_subcategory  varchar(63),
-					scheduler_termination_reason jsonb
+					scheduler_termination_reason text
 				) ON COMMIT DROP;`, tmpTable))
 			if err != nil {
 				l.metrics.RecordDBError(commonmetrics.DBOperationCreateTempTable)

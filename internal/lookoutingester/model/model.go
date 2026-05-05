@@ -69,7 +69,7 @@ type UpdateJobRunInstruction struct {
 	IngressAddresses           map[int32]string
 	FailureCategory            *string
 	FailureSubcategory         *string
-	SchedulerTerminationReason map[string]any
+	SchedulerTerminationReason *string
 }
 
 // CreateJobErrorInstruction is an instruction to create a new row in the job_error table

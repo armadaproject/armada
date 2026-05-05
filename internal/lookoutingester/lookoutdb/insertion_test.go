@@ -116,7 +116,7 @@ type JobRunRow struct {
 	IngressAddresses           map[int32]string
 	FailureCategory            *string
 	FailureSubcategory         *string
-	SchedulerTerminationReason map[string]any
+	SchedulerTerminationReason *string
 }
 
 type JobErrorRow struct {
@@ -1123,7 +1123,6 @@ func getJobRun(t *testing.T, db *pgxpool.Pool, runId string) JobRunRow {
 		FROM job_run WHERE run_id = $1`,
 		runId)
 	var ingressJSON []byte
-	var schedulerTerminationReasonJSON []byte
 	err := r.Scan(
 		&run.RunId,
 		&run.JobId,
@@ -1139,15 +1138,11 @@ func getJobRun(t *testing.T, db *pgxpool.Pool, runId string) JobRunRow {
 		&ingressJSON,
 		&run.FailureCategory,
 		&run.FailureSubcategory,
-		&schedulerTerminationReasonJSON,
+		&run.SchedulerTerminationReason,
 	)
 	assert.NoError(t, err)
 	if len(ingressJSON) > 0 {
 		err = json.Unmarshal(ingressJSON, &run.IngressAddresses)
-		assert.NoError(t, err)
-	}
-	if len(schedulerTerminationReasonJSON) > 0 {
-		err = json.Unmarshal(schedulerTerminationReasonJSON, &run.SchedulerTerminationReason)
 		assert.NoError(t, err)
 	}
 	return run

@@ -1,7 +1,6 @@
 package instructions
 
 import (
-	"encoding/json"
 	"strings"
 	"testing"
 
@@ -747,9 +746,8 @@ func TestBuildTerminationReason_WireFormat(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			result := BuildTerminationReason(tc.reason, tc.args)
-			b, err := json.Marshal(result)
-			assert.NoError(t, err)
-			assert.Equal(t, tc.expectedJSON, string(b))
+			assert.NotNil(t, result)
+			assert.Equal(t, tc.expectedJSON, *result)
 		})
 	}
 }
