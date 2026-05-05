@@ -275,19 +275,28 @@ func updateJobRunInstructions(n int, jobRunIds []string, percentError float64) [
 	errorBytes := make([]byte, 10000, 10000)
 	rand.Read(errorBytes)
 	totalErrors := int(math.Floor(float64(n) * percentError))
+	totalPreemptions := int(math.Floor(float64(n) * 0.05))
 	for i := 0; i < n; i++ {
 		var jobRunErr []byte
 		if i > (n - totalErrors) {
 			jobRunErr = errorBytes
 		}
+		var schedulerTerminationReason map[string]any
+		if i < totalPreemptions {
+			schedulerTerminationReason = map[string]any{
+				"reason": "Preempted by scheduler using fair share preemption - preempting job some-long-job-id-string",
+				"args":   map[string]any{"preemptingRunId": uuid.NewString()},
+			}
+		}
 		instructions[i] = &model.UpdateJobRunInstruction{
-			RunId:       jobRunIds[i%len(jobRunIds)],
-			Node:        pointer.String(uuid.NewString()),
-			Started:     pointerTime(time.Now()),
-			Finished:    pointerTime(time.Now()),
-			JobRunState: pointer.Int32(int32(rand.Intn(10))),
-			Error:       jobRunErr,
-			ExitCode:    pointer.Int32(rand.Int31()),
+			RunId:                      jobRunIds[i%len(jobRunIds)],
+			Node:                       pointer.String(uuid.NewString()),
+			Started:                    pointerTime(time.Now()),
+			Finished:                   pointerTime(time.Now()),
+			JobRunState:                pointer.Int32(int32(rand.Intn(10))),
+			Error:                      jobRunErr,
+			ExitCode:                   pointer.Int32(rand.Int31()),
+			SchedulerTerminationReason: schedulerTerminationReason,
 		}
 	}
 	return instructions
