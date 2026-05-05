@@ -30,17 +30,16 @@ type CreateJobInstruction struct {
 
 // UpdateJobInstruction is an instruction to update an existing row in the jobs table
 type UpdateJobInstruction struct {
-	JobId                      string
-	Priority                   *int64
-	State                      *int32
-	Cancelled                  *time.Time
-	CancelReason               *string
-	CancelUser                 *string
-	LastTransitionTime         *time.Time
-	LastTransitionTimeSeconds  *int64
-	Duplicate                  *bool
-	LatestRunId                *string
-	SchedulerTerminationReason map[string]any
+	JobId                     string
+	Priority                  *int64
+	State                     *int32
+	Cancelled                 *time.Time
+	CancelReason              *string
+	CancelUser                *string
+	LastTransitionTime        *time.Time
+	LastTransitionTimeSeconds *int64
+	Duplicate                 *bool
+	LatestRunId               *string
 }
 
 // CreateJobRunInstruction is an instruction to update an existing row in the jobRuns table

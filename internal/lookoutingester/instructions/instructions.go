@@ -262,20 +262,14 @@ func (c *InstructionConverter) handleCancelledJob(ts time.Time, event *armadaeve
 		cancelUser = &event.CancelUser
 	}
 
-	terminationReasonArgs := map[string]any{}
-	if event.CancelUser != "" {
-		terminationReasonArgs["requestor"] = event.CancelUser
-	}
-
 	jobUpdate := model.UpdateJobInstruction{
-		JobId:                      event.GetJobId(),
-		State:                      pointer.Int32(int32(lookout.JobCancelledOrdinal)),
-		Cancelled:                  &ts,
-		CancelReason:               reason,
-		CancelUser:                 cancelUser,
-		LastTransitionTime:         &ts,
-		LastTransitionTimeSeconds:  pointer.Int64(ts.Unix()),
-		SchedulerTerminationReason: BuildTerminationReason(event.Reason, terminationReasonArgs),
+		JobId:                     event.GetJobId(),
+		State:                     pointer.Int32(int32(lookout.JobCancelledOrdinal)),
+		Cancelled:                 &ts,
+		CancelReason:              reason,
+		CancelUser:                cancelUser,
+		LastTransitionTime:        &ts,
+		LastTransitionTimeSeconds: pointer.Int64(ts.Unix()),
 	}
 	update.JobsToUpdate = append(update.JobsToUpdate, &jobUpdate)
 	return nil

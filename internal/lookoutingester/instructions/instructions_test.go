@@ -106,13 +106,12 @@ var expectedJobRequeued = model.UpdateJobInstruction{
 }
 
 var expectedJobCancelled = model.UpdateJobInstruction{
-	JobId:                      testfixtures.JobId,
-	State:                      pointer.Int32(lookout.JobCancelledOrdinal),
-	Cancelled:                  &testfixtures.BaseTime,
-	CancelUser:                 pointer.String(testfixtures.CancelUser),
-	LastTransitionTime:         &testfixtures.BaseTime,
-	LastTransitionTimeSeconds:  pointer.Int64(testfixtures.BaseTime.Unix()),
-	SchedulerTerminationReason: BuildTerminationReason("", map[string]any{"requestor": testfixtures.CancelUser}),
+	JobId:                     testfixtures.JobId,
+	State:                     pointer.Int32(lookout.JobCancelledOrdinal),
+	Cancelled:                 &testfixtures.BaseTime,
+	CancelUser:                pointer.String(testfixtures.CancelUser),
+	LastTransitionTime:        &testfixtures.BaseTime,
+	LastTransitionTimeSeconds: pointer.Int64(testfixtures.BaseTime.Unix()),
 }
 
 var expectedJobReprioritised = model.UpdateJobInstruction{
@@ -364,14 +363,13 @@ func TestConvert(t *testing.T) {
 			},
 			expected: &model.InstructionSet{
 				JobsToUpdate: []*model.UpdateJobInstruction{{
-					JobId:                      testfixtures.JobId,
-					State:                      pointer.Int32(lookout.JobCancelledOrdinal),
-					CancelReason:               pointer.String(testfixtures.CancelReason),
-					CancelUser:                 pointer.String(testfixtures.CancelUser),
-					Cancelled:                  &testfixtures.BaseTime,
-					LastTransitionTime:         &testfixtures.BaseTime,
-					LastTransitionTimeSeconds:  pointer.Int64(testfixtures.BaseTime.Unix()),
-					SchedulerTerminationReason: BuildTerminationReason(testfixtures.CancelReason, map[string]any{"requestor": testfixtures.CancelUser}),
+					JobId:                     testfixtures.JobId,
+					State:                     pointer.Int32(lookout.JobCancelledOrdinal),
+					CancelReason:              pointer.String(testfixtures.CancelReason),
+					CancelUser:                pointer.String(testfixtures.CancelUser),
+					Cancelled:                 &testfixtures.BaseTime,
+					LastTransitionTime:        &testfixtures.BaseTime,
+					LastTransitionTimeSeconds: pointer.Int64(testfixtures.BaseTime.Unix()),
 				}},
 				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
@@ -726,8 +724,6 @@ func TestSanitizeForJsonb(t *testing.T) {
 //
 //	Preemption (no preempting run):  {"reason": "..."}
 //	Preemption (fair-share):         {"args": {"preemptingRunId": "..."}, "reason": "..."}
-//	Cancellation (no message):       {"args": {"requestor": "..."}, "reason": ""}
-//	Cancellation (with message):     {"args": {"requestor": "..."}, "reason": "..."}
 func TestBuildTerminationReason_WireFormat(t *testing.T) {
 	tests := []struct {
 		name         string
@@ -746,18 +742,6 @@ func TestBuildTerminationReason_WireFormat(t *testing.T) {
 			reason:       testfixtures.PreemptionReason,
 			args:         map[string]any{"preemptingRunId": testfixtures.RunId},
 			expectedJSON: `{"args":{"preemptingRunId":"` + testfixtures.RunId + `"},"reason":"` + testfixtures.PreemptionReason + `"}`,
-		},
-		{
-			name:         "cancellation without message",
-			reason:       "",
-			args:         map[string]any{"requestor": testfixtures.CancelUser},
-			expectedJSON: `{"args":{"requestor":"` + testfixtures.CancelUser + `"},"reason":""}`,
-		},
-		{
-			name:         "cancellation with message",
-			reason:       testfixtures.CancelReason,
-			args:         map[string]any{"requestor": testfixtures.CancelUser},
-			expectedJSON: `{"args":{"requestor":"` + testfixtures.CancelUser + `"},"reason":"` + testfixtures.CancelReason + `"}`,
 		},
 	}
 	for _, tc := range tests {
