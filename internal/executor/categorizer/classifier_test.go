@@ -379,6 +379,35 @@ func TestClassify(t *testing.T) {
 	}
 }
 
+func TestClassifyResult_AppendHint(t *testing.T) {
+	tests := map[string]struct {
+		result   ClassifyResult
+		message  string
+		expected string
+	}{
+		"empty hint returns message unchanged": {
+			result:   ClassifyResult{Category: "x", Subcategory: "y"},
+			message:  "raw runtime error",
+			expected: "raw runtime error",
+		},
+		"non-empty hint is appended after a blank line": {
+			result:   ClassifyResult{Hint: "operator guidance"},
+			message:  "raw runtime error",
+			expected: "raw runtime error\n\noperator guidance",
+		},
+		"empty message with hint preserves separator": {
+			result:   ClassifyResult{Hint: "guidance"},
+			message:  "",
+			expected: "\n\nguidance",
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, tc.result.AppendHint(tc.message))
+		})
+	}
+}
+
 func TestNewClassifier_ValidationErrors(t *testing.T) {
 	tests := map[string]struct {
 		config      ErrorCategoriesConfig

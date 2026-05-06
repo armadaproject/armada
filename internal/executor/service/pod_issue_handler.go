@@ -428,9 +428,11 @@ func (p *PodIssueHandler) handleNonRetryableJobIssue(issue *issue) {
 		result := p.classifier.ClassifyPodError(podIssue.OriginalPodState, podIssue.Message)
 		clusterId := p.clusterContext.GetClusterId()
 
+		message := result.AppendHint(podIssue.Message)
+
 		failedEvent, err := reporter.CreateJobFailedEvent(
 			podIssue.OriginalPodState,
-			podIssue.Message,
+			message,
 			podIssue.Cause,
 			podIssue.DebugMessage,
 			util.ExtractFailedPodContainerStatuses(podIssue.OriginalPodState, clusterId),

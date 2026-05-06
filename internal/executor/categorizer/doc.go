@@ -21,6 +21,10 @@
 // Container-level matchers honor ContainerName scoping when set. OnPodError
 // ignores it because pod-level error text has no container attribution.
 //
+// Each rule may also set Hint, an optional user-facing string that the executor
+// appends to the failure message. Hints land in lookoutdb.job_run.error and
+// are surfaced to users in Lookout alongside the raw runtime error.
+//
 // Exit code 0 is always skipped. Both regular and init containers are checked.
 //
 // # Example
@@ -35,11 +39,13 @@
 //	        rules:
 //	          - onConditions: ["OOMKilled"]
 //	            subcategory: "oom"
+//	            hint: "Increase the memory request in your job spec"
 //	          - onConditions: ["Evicted"]
 //	            subcategory: "eviction"
 //	          - onPodError:
 //	              pattern: "no match for platform in manifest"
 //	            subcategory: "platform_mismatch"
+//	            hint: "Build the image for the cluster's CPU architecture (typically x64/arm64 mismatch)"
 //	      - name: user_code
 //	        rules:
 //	          - onExitCodes:

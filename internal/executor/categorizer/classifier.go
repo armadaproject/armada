@@ -29,12 +29,26 @@ type rule struct {
 	onPodError           *regexp.Regexp
 	onConditions         []string
 	subcategory          string
+	hint                 string
 }
 
 // ClassifyResult holds the classification output for a failed pod.
 type ClassifyResult struct {
 	Category    string
 	Subcategory string
+	// Hint is operator-supplied user-facing copy attached to the matching rule.
+	// Use AppendHint to attach it to the failure message before emitting events.
+	Hint string
+}
+
+// AppendHint returns the message with this result's hint appended after a blank
+// line. Returns the message unchanged when no hint is set. Centralizing the
+// format here keeps both event-reporting call sites consistent.
+func (r ClassifyResult) AppendHint(message string) string {
+	if r.Hint == "" {
+		return message
+	}
+	return fmt.Sprintf("%s\n\n%s", message, r.Hint)
 }
 
 // Classifier evaluates pods against a set of category rules and returns
@@ -157,6 +171,7 @@ func buildRule(cfg CategoryRule) (rule, error) {
 		onTerminationMessage: terminationRegex,
 		onPodError:           podErrorRegex,
 		subcategory:          cfg.Subcategory,
+		hint:                 cfg.Hint,
 	}, nil
 }
 
@@ -194,7 +209,7 @@ func (c *Classifier) classify(pod *v1.Pod, podErrorMessage string) ClassifyResul
 			matched := ruleMatches(r, containers, podReason, podErrorMessage)
 			metrics.RecordRuleEvaluationDuration(cat.name, r.subcategory, time.Since(start))
 			if matched {
-				return ClassifyResult{Category: cat.name, Subcategory: r.subcategory}
+				return ClassifyResult{Category: cat.name, Subcategory: r.subcategory, Hint: r.hint}
 			}
 		}
 	}

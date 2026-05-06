@@ -159,13 +159,15 @@ func TestPodIssueService_OnPodErrorClassifies(t *testing.T) {
 		category              string
 		subcategory           string
 		pattern               string
+		hint                  string
 		pod                   func() *v1.Pod
 		expectMessageContains string
 	}{
-		"platform mismatch from kubelet error": {
+		"platform mismatch from kubelet error with hint": {
 			category:    "infrastructure",
 			subcategory: "platform_mismatch",
 			pattern:     "no match for platform in manifest",
+			hint:        "Build for the cluster's CPU architecture (typically x64/arm64 mismatch)",
 			pod: func() *v1.Pod {
 				p := makeUnretryableStuckPod()
 				p.Status.ContainerStatuses[0].State.Waiting.Message = `Failed to pull image "amd64/busybox:latest": no match for platform in manifest`
@@ -185,7 +187,7 @@ func TestPodIssueService_OnPodErrorClassifies(t *testing.T) {
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			classifier := podErrorClassifier(t, tc.category, tc.subcategory, tc.pattern)
+			classifier := podErrorClassifier(t, tc.category, tc.subcategory, tc.pattern, tc.hint)
 			podIssueService, _, fakeClusterContext, eventReporter, err := setupTestComponentsWithClassifier([]*job.RunState{}, classifier)
 			require.NoError(t, err)
 			addPod(t, fakeClusterContext, tc.pod())
@@ -198,7 +200,15 @@ func TestPodIssueService_OnPodErrorClassifies(t *testing.T) {
 
 			assert.Equal(t, tc.category, failedEvent.JobRunErrors.Errors[0].GetFailureCategory())
 			assert.Equal(t, tc.subcategory, failedEvent.JobRunErrors.Errors[0].GetFailureSubcategory())
-			assert.Contains(t, failedEvent.JobRunErrors.Errors[0].GetPodError().Message, tc.expectMessageContains)
+			message := failedEvent.JobRunErrors.Errors[0].GetPodError().Message
+			assert.Contains(t, message, tc.expectMessageContains)
+			if tc.hint != "" {
+				rawIdx := strings.Index(message, tc.expectMessageContains)
+				hintIdx := strings.Index(message, tc.hint)
+				require.GreaterOrEqual(t, rawIdx, 0, "raw error must appear in message")
+				require.GreaterOrEqual(t, hintIdx, 0, "hint must appear in message")
+				assert.Greater(t, hintIdx, rawIdx, "hint must come after raw error, not before; defends against prepend regression")
+			}
 		})
 	}
 }
@@ -601,14 +611,14 @@ func conditionClassifier(t *testing.T, category, subcategory, condition string) 
 	return c
 }
 
-func podErrorClassifier(t *testing.T, category, subcategory, pattern string) *categorizer.Classifier {
+func podErrorClassifier(t *testing.T, category, subcategory, pattern, hint string) *categorizer.Classifier {
 	t.Helper()
 	c, err := categorizer.NewClassifier(categorizer.ErrorCategoriesConfig{
 		Categories: []categorizer.CategoryConfig{
 			{
 				Name: category,
 				Rules: []categorizer.CategoryRule{
-					{OnPodError: &errormatch.RegexMatcher{Pattern: pattern}, Subcategory: subcategory},
+					{OnPodError: &errormatch.RegexMatcher{Pattern: pattern}, Subcategory: subcategory, Hint: hint},
 				},
 			},
 		},

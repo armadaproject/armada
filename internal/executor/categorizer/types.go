@@ -44,4 +44,9 @@ type CategoryRule struct {
 	OnPodError           *errormatch.RegexMatcher    `yaml:"onPodError,omitempty"`
 	OnConditions         []string                    `yaml:"onConditions,omitempty"`
 	Subcategory          string                      `yaml:"subcategory,omitempty"`
+	// Hint is operator-supplied user-facing copy describing this failure mode.
+	// When set, it is appended to the failure message that lands in
+	// lookoutdb.job_run.error so end users see actionable guidance alongside the
+	// raw runtime error. Optional; empty means no hint is added.
+	Hint string `yaml:"hint,omitempty"`
 }
