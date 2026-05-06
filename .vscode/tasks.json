@@ -21,9 +21,26 @@
     },
     {
       "type": "shell",
+      "label": "Wait for Postgres",
+      "command": "until docker exec postgres pg_isready -U postgres; do echo 'Waiting for Postgres...'; sleep 2; done"
+    },
+    {
+      "type": "shell",
       "command": "go",
       "label": "Migrate Lookout database",
       "args": ["run", "${workspaceFolder}/cmd/lookout", "--migrateDatabase"]
+    },
+    {
+      "type": "shell",
+      "command": "go",
+      "label": "Migrate Lookout HC database",
+      "args": [
+        "run",
+        "${workspaceFolder}/cmd/lookouthc",
+        "--migrateDatabase",
+        "--config",
+        "${workspaceFolder}/_local/lookouthc/config.yaml"
+      ]
     },
     {
       "type": "shell",
@@ -37,7 +54,20 @@
       "dependsOn": [
         "Download Go modules",
         "Start dependencies",
+        "Wait for Postgres",
         "Migrate Lookout database",
+        "Migrate Scheduler database"
+      ]
+    },
+    {
+      "label": "Set up HC dependencies",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "Download Go modules",
+        "Start dependencies",
+        "Wait for Postgres",
+        "Migrate Lookout database",
+        "Migrate Lookout HC database",
         "Migrate Scheduler database"
       ]
     },

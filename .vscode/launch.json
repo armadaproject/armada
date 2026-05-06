@@ -75,6 +75,23 @@
       }
     },
     {
+      "name": "Lookout HC Ingester",
+      "type": "go",
+      "request": "launch",
+      "mode": "auto",
+      "program": "${workspaceFolder}/cmd/lookoutingester/main.go",
+      "cwd": "${workspaceFolder}",
+      "env": {
+          "ARMADA_METRICSPORT": "9008",
+          "ARMADA_EXPERIMENTALHOTCOLDSPLIT": "true",
+          "ARMADA_POSTGRES_CONNECTION_HOST": "localhost",
+          "ARMADA_POSTGRES_CONNECTION_PORT": "5432",
+          "ARMADA_POSTGRES_CONNECTION_DBNAME": "lookouthc",
+          "ARMADA_SUBSCRIPTIONNAME": "lookouthc-ingester",
+          "ARMADA_PULSAR_URL": "pulsar://localhost:6650"
+      }
+    },
+    {
       "name": "Lookout",
       "type": "go",
       "request": "launch",
@@ -88,6 +105,28 @@
         "ARMADA_ARMADAAPICONNECTION_ARMADAURL": "localhost:50051",
         "ARMADA_UICONFIG_ARMADAAPIBASEURL": "http://localhost:8080",
         "ARMADA_UICONFIG_BINOCULARSBASEURLPATTERN": "http://localhost:8082"
+      },
+      "preLaunchTask": "Build Lookout UI"
+    },
+    {
+      "name": "Lookout HC",
+      "type": "go",
+      "request": "launch",
+      "mode": "auto",
+      "program": "${workspaceFolder}/cmd/lookout/main.go",
+      "cwd": "${workspaceFolder}",
+      "env": {
+          "ARMADA_APIPORT": "8091",
+          "ARMADA_METRICSPORT": "9010",
+          "ARMADA_EXPERIMENTALHOTCOLDSPLIT": "true",
+          "ARMADA_CORSALLOWEDORIGINS": "\"http://localhost:3001,http://localhost:4173,http://localhost:8091,http://localhost:10000,http://example.com:10000,http://example.com:8089\"",
+          "ARMADA_POSTGRES_CONNECTION_HOST": "localhost",
+          "ARMADA_POSTGRES_CONNECTION_PORT": "5432",
+          "ARMADA_POSTGRES_CONNECTION_DBNAME": "lookouthc",
+          "ARMADA_ARMADAAPICONNECTION_ARMADAURL": "localhost:50051",
+          "ARMADA_UICONFIG_ARMADAAPIBASEURL": "http://localhost:8080",
+          "ARMADA_UICONFIG_BINOCULARSBASEURLPATTERN": "http://localhost:8082",
+          "ARMADA_UICONFIG_CUSTOMTITLE": "Local Dev (HC)"
       },
       "preLaunchTask": "Build Lookout UI"
     },
@@ -132,7 +171,7 @@
       "args": ["--config", "./developer/config/insecure-armada.yaml"],
       "cwd": "${workspaceFolder}",
       "env": {
-        "ARMADA_CORSALLOWEDORIGINS": "http://localhost:3000,http://localhost:4173,http://localhost:8089,http://localhost:10000,http://example.com:10000,http://example.com:8089",
+        "ARMADA_CORSALLOWEDORIGINS": "http://localhost:3000,http://localhost:3001,http://localhost:4173,http://localhost:8089,http://localhost:8091,http://localhost:10000,http://example.com:10000,http://example.com:8089",
         "ARMADA_QUERYAPI_POSTGRES_CONNECTION_HOST": "localhost",
         "ARMADA_EVENTSAPIREDIS_ADDRS": "localhost:6379",
         "ARMADA_METRICSPORT": "9005",
@@ -155,6 +194,22 @@
         "Server"
       ],
       "preLaunchTask": "Set up dependencies",
+      "stopAll": true
+    },
+    {
+      "name": "Armada HC",
+      "configurations": [
+        "Event Ingester",
+        "Executor",
+        "Lookout Ingester",
+        "Lookout HC Ingester",
+        "Lookout",
+        "Lookout HC",
+        "Scheduler",
+        "Scheduler Ingester",
+        "Server"
+      ],
+      "preLaunchTask": "Set up HC dependencies",
       "stopAll": true
     }
   ]
