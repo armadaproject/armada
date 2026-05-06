@@ -62,19 +62,12 @@ func makeContext() (*armadacontext.Context, func()) {
 }
 
 func migrate(ctx *armadacontext.Context, config configuration.LookoutConfig) {
-	var err error
-	var migrations []database.Migration
-
 	db, err := database.OpenPgxPool(config.Postgres)
 	if err != nil {
 		panic(err)
 	}
 
-	if config.ExperimentalHotColdSplit {
-		migrations, err = lookouthcschema.LookoutHCMigrations()
-	} else {
-		migrations, err = lookoutschema.LookoutMigrations()
-	}
+	migrations, err := lookoutschema.LookoutMigrations()
 	if err != nil {
 		panic(err)
 	}
@@ -82,6 +75,12 @@ func migrate(ctx *armadacontext.Context, config configuration.LookoutConfig) {
 	err = database.UpdateDatabase(ctx, db, migrations)
 	if err != nil {
 		panic(err)
+	}
+
+	if config.ExperimentalHotColdSplit {
+		if err := lookouthcschema.ApplyPartitioner(ctx, db); err != nil {
+			panic(err)
+		}
 	}
 }
 
