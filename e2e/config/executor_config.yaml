@@ -1,6 +1,6 @@
 application:
-  enableJobErrorCategorization: true
   errorCategories:
+    enabled: true
     defaultCategory: "uncategorized"
     categories:
       - name: oom
