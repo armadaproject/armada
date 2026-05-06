@@ -80,7 +80,7 @@ const (
 func detectJobTableState(ctx *armadacontext.Context, q pgx.Tx) (jobTableState, string, error) {
 	var exists bool
 	if err := q.QueryRow(ctx,
-		`SELECT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'job' AND relkind IN ('r', 'p'))`,
+		`SELECT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'job' AND relkind IN ('r', 'p') AND relnamespace = 'public'::regnamespace)`,
 	).Scan(&exists); err != nil {
 		return jobStateUnknown, "", err
 	}
@@ -92,7 +92,7 @@ func detectJobTableState(ctx *armadacontext.Context, q pgx.Tx) (jobTableState, s
 	if err := q.QueryRow(ctx,
 		`SELECT EXISTS (SELECT 1 FROM pg_partitioned_table pt
                         JOIN pg_class c ON c.oid = pt.partrelid
-                        WHERE c.relname = 'job')`,
+                        WHERE c.relname = 'job' AND c.relnamespace = 'public'::regnamespace)`,
 	).Scan(&isPartitioned); err != nil {
 		return jobStateUnknown, "", err
 	}
@@ -118,7 +118,7 @@ func findShapeMismatch(ctx *armadacontext.Context, q pgx.Tx) (string, error) {
 		SELECT c.relname FROM pg_inherits i
 		JOIN pg_class c ON c.oid = i.inhrelid
 		JOIN pg_class p ON p.oid = i.inhparent
-		WHERE p.relname = 'job'
+		WHERE p.relname = 'job' AND p.relnamespace = 'public'::regnamespace
 		ORDER BY c.relname
 	`)
 	if err != nil {
@@ -151,7 +151,7 @@ func findShapeMismatch(ctx *armadacontext.Context, q pgx.Tx) (string, error) {
 		if err := q.QueryRow(ctx, `
 			SELECT pg_get_expr(c.relpartbound, c.oid)
 			FROM pg_class c
-			WHERE c.relname = $1
+			WHERE c.relname = $1 AND c.relnamespace = 'public'::regnamespace
 		`, partition).Scan(&expr); err != nil {
 			return "", err
 		}
@@ -199,7 +199,7 @@ func findShapeMismatch(ctx *armadacontext.Context, q pgx.Tx) (string, error) {
 	rows, err = q.Query(ctx, `
 		SELECT column_name, data_type, is_nullable = 'NO'
 		FROM information_schema.columns
-		WHERE table_name = 'job'
+		WHERE table_name = 'job' AND table_schema = 'public'
 		ORDER BY ordinal_position
 	`)
 	if err != nil {
@@ -235,7 +235,7 @@ func findShapeMismatch(ctx *armadacontext.Context, q pgx.Tx) (string, error) {
 		JOIN pg_class t ON t.oid = c.conrelid
 		JOIN LATERAL unnest(c.conkey) WITH ORDINALITY AS x(attnum, ord) ON true
 		JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = x.attnum
-		WHERE t.relname = 'job' AND c.contype = 'p'
+		WHERE t.relname = 'job' AND t.relnamespace = 'public'::regnamespace AND c.contype = 'p'
 	`).Scan(&pkColumns); err != nil {
 		return "", err
 	}
@@ -257,7 +257,7 @@ func findShapeMismatch(ctx *armadacontext.Context, q pgx.Tx) (string, error) {
 	for _, idx := range expectedParentIndexes {
 		var exists bool
 		if err := q.QueryRow(ctx,
-			`SELECT EXISTS (SELECT 1 FROM pg_indexes WHERE tablename = 'job' AND indexname = $1)`,
+			`SELECT EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname = 'public' AND tablename = 'job' AND indexname = $1)`,
 			idx).Scan(&exists); err != nil {
 			return "", err
 		}
@@ -268,7 +268,7 @@ func findShapeMismatch(ctx *armadacontext.Context, q pgx.Tx) (string, error) {
 
 	var activeIdxExists bool
 	if err := q.QueryRow(ctx,
-		`SELECT EXISTS (SELECT 1 FROM pg_indexes WHERE tablename = 'job_active' AND indexname = 'idx_job_active_queue_jobset')`,
+		`SELECT EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname = 'public' AND tablename = 'job_active' AND indexname = 'idx_job_active_queue_jobset')`,
 	).Scan(&activeIdxExists); err != nil {
 		return "", err
 	}
