@@ -4,6 +4,9 @@ import "github.com/armadaproject/armada/internal/common/errormatch"
 
 // ErrorCategoriesConfig is the top-level config for failure classification.
 type ErrorCategoriesConfig struct {
+	// Enabled toggles failure classification on pod errors. When false, no
+	// failure_category or failure_subcategory is set on error events.
+	Enabled bool `yaml:"enabled"`
 	// DefaultCategory is the category assigned when no rule matches.
 	// If empty, no category is assigned when no rule matches.
 	DefaultCategory string `yaml:"defaultCategory"`

@@ -21,6 +21,7 @@
 //
 //	application:
 //	  errorCategories:
+//	    enabled: true
 //	    defaultCategory: "uncategorized"
 //	    defaultSubcategory: "unknown"
 //	    categories:
