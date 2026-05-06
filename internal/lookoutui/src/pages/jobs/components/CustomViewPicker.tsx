@@ -1,6 +1,7 @@
 import { useRef, useState } from "react"
 
 import { DashboardCustomize, Delete } from "@mui/icons-material"
+import { Analytics, ANALYTICS_EVENTS } from "../../../analytics"
 import {
   Button,
   Popover,
@@ -94,9 +95,15 @@ export const CustomViewPicker = ({
                   />
                   <div className={styles.addCustomViewActions}>
                     <div className={styles.addCustomViewAction}>
-                      <Button variant="contained" onClick={addCustomView}>
+                      <Analytics
+                        component={Button}
+                        eventName={ANALYTICS_EVENTS.CUSTOM_VIEW_CREATED}
+                        eventData={{ viewName: newCustomViewName }}
+                        variant="contained"
+                        onClick={addCustomView}
+                      >
                         Save
-                      </Button>
+                      </Analytics>
                     </div>
                     <div className={styles.addCustomViewAction}>
                       <Button variant="outlined" onClick={clearAddCustomView}>
@@ -122,14 +129,26 @@ export const CustomViewPicker = ({
                     disablePadding
                     key={name}
                     secondaryAction={
-                      <IconButton edge="end" aria-label="delete" onClick={() => onDeleteCustomView(name)}>
+                      <Analytics
+                        component={IconButton}
+                        eventName={ANALYTICS_EVENTS.CUSTOM_VIEW_DELETED}
+                        eventData={{ viewName: name }}
+                        edge="end"
+                        aria-label="delete"
+                        onClick={() => onDeleteCustomView(name)}
+                      >
                         <Delete />
-                      </IconButton>
+                      </Analytics>
                     }
                   >
-                    <ListItemButton onClick={() => onLoadCustomView(name)}>
+                    <Analytics
+                      component={ListItemButton}
+                      eventName={ANALYTICS_EVENTS.CUSTOM_VIEW_LOADED}
+                      eventData={{ viewName: name }}
+                      onClick={() => onLoadCustomView(name)}
+                    >
                       <ListItemText>{name}</ListItemText>
-                    </ListItemButton>
+                    </Analytics>
                   </ListItem>
                 ))}
             </List>
