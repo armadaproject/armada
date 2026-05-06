@@ -11,9 +11,9 @@
       <env name="ARMADA_POSTGRES_CONNECTION_PORT" value="5432" />
     </envs>
     <kind value="FILE" />
-    <package value="$PROJECT_DIR$/cmd/lookout/main.go" />
+    <package value="$PROJECT_DIR$/cmd/lookouthc/main.go" />
     <directory value="$PROJECT_DIR$" />
-    <filePath value="$PROJECT_DIR$/cmd/lookout/main.go" />
+    <filePath value="$PROJECT_DIR$/cmd/lookouthc/main.go" />
     <method v="2" />
   </configuration>
 </component>
