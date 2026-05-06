@@ -22,6 +22,8 @@ type LookoutConfig struct {
 
 	PrunerConfig PrunerConfig
 
+	ExperimentalHotColdSplit bool
+
 	UIConfig
 }
 
