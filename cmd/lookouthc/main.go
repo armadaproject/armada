@@ -110,7 +110,9 @@ func prune(ctx *armadacontext.Context, config configuration.LookoutConfig) {
 		config.PrunerConfig.ExpireAfter,
 		config.PrunerConfig.DeduplicationExpireAfter,
 		config.PrunerConfig.BatchSize,
-		clock.RealClock{})
+		clock.RealClock{},
+		true,
+	)
 	if err != nil {
 		panic(err)
 	}
