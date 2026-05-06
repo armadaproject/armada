@@ -154,6 +154,7 @@ func TestApplyPartitioner_RowInsertedDuringConversionIsNotLost(t *testing.T) {
 
 		insertDone := make(chan error, 1)
 		testHookAfterCopy = func() {
+			ready := make(chan struct{})
 			go func() {
 				conn, err := db.Acquire(ctx)
 				if err != nil {
@@ -161,6 +162,7 @@ func TestApplyPartitioner_RowInsertedDuringConversionIsNotLost(t *testing.T) {
 					return
 				}
 				defer conn.Release()
+				close(ready) // signal: goroutine is at the Exec call
 				_, err = conn.Exec(ctx, `
 					INSERT INTO job (
 						job_id, queue, owner, jobset, cpu, memory,
@@ -171,9 +173,7 @@ func TestApplyPartitioner_RowInsertedDuringConversionIsNotLost(t *testing.T) {
 				`)
 				insertDone <- err
 			}()
-			// Wait long enough for the INSERT to commit if no lock is held.
-			// With LOCK TABLE, the INSERT is still blocked when this returns.
-			time.Sleep(50 * time.Millisecond)
+			<-ready // return only after the goroutine has reached Exec
 		}
 		t.Cleanup(func() { testHookAfterCopy = nil })
 
