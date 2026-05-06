@@ -131,7 +131,7 @@ func main() {
 	config.PinnedTimeZoneIdentifiers = make([]string, 0)
 
 	userSpecifiedConfigs := viper.GetStringSlice(CustomConfigLocation)
-	common.LoadConfig(&config, "./config/lookout", userSpecifiedConfigs)
+	common.LoadConfig(&config, "./config/lookouthc", userSpecifiedConfigs)
 
 	// Expose profiling endpoints if enabled.
 	err := profiling.SetupPprof(config.Profiling, armadacontext.Background(), nil)
