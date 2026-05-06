@@ -18,6 +18,11 @@ import (
 //go:embed target_schema.sql
 var targetSchemaSQL string
 
+// testHookAfterCopy is called inside convertUnpartitionedToPartitioned after
+// the INSERT SELECT and before DROP TABLE. It is nil in production; tests set
+// it via the exported HookAfterCopy pointer in export_test.go.
+var testHookAfterCopy func()
+
 // ApplyPartitioner runs the experimental hot-cold partitioner against db.
 //
 // Behaviour:
@@ -303,6 +308,10 @@ func extractInts(s string) ([]int, error) {
 // to the correct partition), drops the old job, and renames job_new plus
 // its partitions and parent indexes to their final names.
 func convertUnpartitionedToPartitioned(ctx *armadacontext.Context, tx pgx.Tx) error {
+	if _, err := tx.Exec(ctx, `LOCK TABLE job IN ACCESS EXCLUSIVE MODE`); err != nil {
+		return errors.Wrap(err, "lock job table")
+	}
+
 	ddl := strings.ReplaceAll(targetSchemaSQL, "{{TABLE}}", "job_new")
 	if _, err := tx.Exec(ctx, ddl); err != nil {
 		return errors.Wrap(err, "create job_new partitioned table")
@@ -327,6 +336,10 @@ func convertUnpartitionedToPartitioned(ctx *armadacontext.Context, tx pgx.Tx) er
 		return errors.Wrap(err, "copy rows from job to job_new")
 	}
 
+	if testHookAfterCopy != nil {
+		testHookAfterCopy()
+	}
+
 	if _, err := tx.Exec(ctx, `DROP TABLE job`); err != nil {
 		return errors.Wrap(err, "drop old job table")
 	}
@@ -335,6 +348,7 @@ func convertUnpartitionedToPartitioned(ctx *armadacontext.Context, tx pgx.Tx) er
 		`ALTER TABLE job_new RENAME TO job`,
 		`ALTER TABLE job_new_active RENAME TO job_active`,
 		`ALTER TABLE job_new_terminated RENAME TO job_terminated`,
+		`ALTER INDEX job_new_pkey RENAME TO job_pkey`,
 		`ALTER INDEX idx_job_new_queue_last_transition_time_seconds RENAME TO idx_job_queue_last_transition_time_seconds`,
 		`ALTER INDEX idx_job_new_queue_jobset_state RENAME TO idx_job_queue_jobset_state`,
 		`ALTER INDEX idx_job_new_state RENAME TO idx_job_state`,

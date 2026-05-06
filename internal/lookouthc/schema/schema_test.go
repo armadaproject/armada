@@ -1,4 +1,4 @@
-package schema_test
+package schema
 
 import (
 	"testing"
@@ -11,7 +11,6 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/database"
 	lookoutschema "github.com/armadaproject/armada/internal/lookout/schema"
-	"github.com/armadaproject/armada/internal/lookouthc/schema"
 )
 
 func withLookoutChainAppliedDb(action func(db *pgxpool.Pool) error) error {
@@ -42,7 +41,7 @@ func TestApplyPartitioner_UnpartitionedIsConverted(t *testing.T) {
 		require.NoError(t, insertUnpartitionedJob(ctx, db, "jobC", 4))
 		require.NoError(t, insertUnpartitionedJob(ctx, db, "jobD", 5))
 
-		require.NoError(t, schema.ApplyPartitioner(ctx, db))
+		require.NoError(t, ApplyPartitioner(ctx, db))
 
 		var partstrat byte
 		require.NoError(t, db.QueryRow(ctx, `
@@ -79,11 +78,11 @@ func TestApplyPartitioner_AlreadyPartitionedIsNoOp(t *testing.T) {
 	err := withLookoutChainAppliedDb(func(db *pgxpool.Pool) error {
 		ctx := armadacontext.Background()
 
-		require.NoError(t, schema.ApplyPartitioner(ctx, db))
+		require.NoError(t, ApplyPartitioner(ctx, db))
 
 		require.NoError(t, insertUnpartitionedJob(ctx, db, "jobStable", 1))
 
-		require.NoError(t, schema.ApplyPartitioner(ctx, db))
+		require.NoError(t, ApplyPartitioner(ctx, db))
 
 		var n int
 		require.NoError(t, db.QueryRow(ctx,
@@ -99,12 +98,12 @@ func TestApplyPartitioner_WrongShapeRefuses(t *testing.T) {
 	err := withLookoutChainAppliedDb(func(db *pgxpool.Pool) error {
 		ctx := armadacontext.Background()
 
-		require.NoError(t, schema.ApplyPartitioner(ctx, db))
+		require.NoError(t, ApplyPartitioner(ctx, db))
 		_, err := db.Exec(ctx,
 			`ALTER TABLE job ADD COLUMN unexpected_column text`)
 		require.NoError(t, err)
 
-		err = schema.ApplyPartitioner(ctx, db)
+		err = ApplyPartitioner(ctx, db)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "shape")
 		return nil
@@ -115,9 +114,76 @@ func TestApplyPartitioner_WrongShapeRefuses(t *testing.T) {
 func TestApplyPartitioner_NoJobTableRefuses(t *testing.T) {
 	err := database.WithTestDb(nil, func(db *pgxpool.Pool) error {
 		ctx := armadacontext.Background()
-		err := schema.ApplyPartitioner(ctx, db)
+		err := ApplyPartitioner(ctx, db)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "job")
+		return nil
+	})
+	require.NoError(t, err)
+}
+
+// TestApplyPartitioner_PKConstraintRenamedAfterConversion verifies that the
+// primary key constraint on job is named job_pkey (not job_new_pkey) after
+// the unpartitioned-to-partitioned conversion.
+func TestApplyPartitioner_PKConstraintRenamedAfterConversion(t *testing.T) {
+	err := withLookoutChainAppliedDb(func(db *pgxpool.Pool) error {
+		ctx := armadacontext.Background()
+		require.NoError(t, ApplyPartitioner(ctx, db))
+
+		var constraintName string
+		require.NoError(t, db.QueryRow(ctx, `
+			SELECT conname
+			FROM pg_constraint
+			JOIN pg_class ON pg_class.oid = pg_constraint.conrelid
+			WHERE pg_class.relname = 'job' AND pg_constraint.contype = 'p'
+		`).Scan(&constraintName))
+		assert.Equal(t, "job_pkey", constraintName)
+		return nil
+	})
+	require.NoError(t, err)
+}
+
+// TestApplyPartitioner_RowInsertedDuringConversionIsNotLost verifies that a
+// concurrent INSERT into job that begins after the INSERT SELECT but before
+// the DROP TABLE is not silently dropped. With LOCK TABLE held for the
+// entire transaction, the concurrent INSERT blocks until after the rename
+// and commits into the new partitioned table.
+func TestApplyPartitioner_RowInsertedDuringConversionIsNotLost(t *testing.T) {
+	err := withLookoutChainAppliedDb(func(db *pgxpool.Pool) error {
+		ctx := armadacontext.Background()
+
+		insertDone := make(chan error, 1)
+		testHookAfterCopy = func() {
+			go func() {
+				conn, err := db.Acquire(ctx)
+				if err != nil {
+					insertDone <- err
+					return
+				}
+				defer conn.Release()
+				_, err = conn.Exec(ctx, `
+					INSERT INTO job (
+						job_id, queue, owner, jobset, cpu, memory,
+						ephemeral_storage, gpu, priority, submitted, state,
+						last_transition_time, last_transition_time_seconds, annotations
+					) VALUES ('concurrent', 'q', 'o', 'js', 1, 1, 1, 0, 0,
+						NOW(), 1, NOW(), 0, '{}'::jsonb)
+				`)
+				insertDone <- err
+			}()
+			// Wait long enough for the INSERT to commit if no lock is held.
+			// With LOCK TABLE, the INSERT is still blocked when this returns.
+			time.Sleep(50 * time.Millisecond)
+		}
+		t.Cleanup(func() { testHookAfterCopy = nil })
+
+		require.NoError(t, ApplyPartitioner(ctx, db))
+		require.NoError(t, <-insertDone, "concurrent insert should complete without error")
+
+		var n int
+		require.NoError(t, db.QueryRow(ctx,
+			`SELECT count(*) FROM job WHERE job_id = 'concurrent'`).Scan(&n))
+		assert.Equal(t, 1, n, "row inserted during conversion must not be lost")
 		return nil
 	})
 	require.NoError(t, err)
