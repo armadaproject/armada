@@ -1,0 +1,81 @@
+queue: queue-a
+jobSetId: gang-job-set-preemptible
+jobs:
+  - namespace: default
+    priority: 0
+    annotations:
+      armadaproject.io/gangId: "gang-preempt-123"
+      armadaproject.io/gangCardinality: "3"
+    podSpec:
+      terminationGracePeriodSeconds: 0
+      restartPolicy: Never
+      priorityClassName: armada-preemptible
+      containers:
+        - name: sleeper
+          image: alpine:latest
+          command:
+            - sh
+          args:
+            - -c
+            - |
+              echo "Gang preemptible job 1 starting"
+              sleep 600
+          resources:
+            limits:
+              memory: 256Mi
+              cpu: 0.5
+            requests:
+              memory: 256Mi
+              cpu: 0.5
+  - namespace: default
+    priority: 0
+    annotations:
+      armadaproject.io/gangId: "gang-preempt-123"
+      armadaproject.io/gangCardinality: "3"
+    podSpec:
+      terminationGracePeriodSeconds: 0
+      restartPolicy: Never
+      priorityClassName: armada-preemptible
+      containers:
+        - name: sleeper
+          image: alpine:latest
+          command:
+            - sh
+          args:
+            - -c
+            - |
+              echo "Gang preemptible job 2 starting"
+              sleep 600
+          resources:
+            limits:
+              memory: 256Mi
+              cpu: 0.5
+            requests:
+              memory: 256Mi
+              cpu: 0.5
+  - namespace: default
+    priority: 0
+    annotations:
+      armadaproject.io/gangId: "gang-preempt-123"
+      armadaproject.io/gangCardinality: "3"
+    podSpec:
+      terminationGracePeriodSeconds: 0
+      restartPolicy: Never
+      priorityClassName: armada-preemptible
+      containers:
+        - name: sleeper
+          image: alpine:latest
+          command:
+            - sh
+          args:
+            - -c
+            - |
+              echo "Gang preemptible job 3 starting"
+              sleep 600
+          resources:
+            limits:
+              memory: 256Mi
+              cpu: 0.5
+            requests:
+              memory: 256Mi
+              cpu: 0.5
