@@ -9,6 +9,7 @@
       <env name="ARMADA_POSTGRES_CONNECTION_DBNAME" value="lookouthc" />
       <env name="ARMADA_POSTGRES_CONNECTION_HOST" value="localhost" />
       <env name="ARMADA_POSTGRES_CONNECTION_PORT" value="5432" />
+      <env name="ARMADA_EXPERIMENTALHOTCOLDSPLIT" value="true" />
     </envs>
     <kind value="FILE" />
     <package value="$PROJECT_DIR$/cmd/lookouthc/main.go" />
