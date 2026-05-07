@@ -45,7 +45,7 @@ export interface JobsTableActionBarProps {
   onDeleteCustomView: (name: string) => void
   onLoadCustomView: (name: string) => void
   getViewEventData: (name: string) => Record<string, string>
-  getCurrentViewEventData: () => Record<string, string>
+  getCurrentViewEventData: (name?: string) => Record<string, string>
 }
 
 export const JobsTableActionBar = memo(

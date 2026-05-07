@@ -383,9 +383,9 @@ export const JobsTableContainer = ({ debug, autoRefreshMs, commandSpecs }: JobsT
     }
   }
 
-  const getCurrentViewEventData = (): Record<string, string> => {
+  const getCurrentViewEventData = (name?: string): Record<string, string> => {
     const prefs = prefsFromState()
-    return buildViewEventData("", prefs)
+    return buildViewEventData(name ?? "", prefs)
   }
 
   const onRefresh = () => {

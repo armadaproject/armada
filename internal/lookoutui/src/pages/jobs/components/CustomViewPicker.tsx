@@ -22,7 +22,7 @@ interface CustomViewPickerProps {
   onDeleteCustomView: (name: string) => void
   onLoadCustomView: (name: string) => void
   getViewEventData: (name: string) => Record<string, string>
-  getCurrentViewEventData: () => Record<string, string>
+  getCurrentViewEventData: (name?: string) => Record<string, string>
 }
 
 export const CustomViewPicker = ({
@@ -102,7 +102,7 @@ export const CustomViewPicker = ({
                       <Analytics
                         component={Button}
                         eventName={ANALYTICS_EVENTS.CUSTOM_VIEW_CREATED}
-                        eventData={() => getCurrentViewEventData()}
+                        eventData={() => getCurrentViewEventData(newCustomViewName)}
                         variant="contained"
                         onClick={addCustomView}
                       >
