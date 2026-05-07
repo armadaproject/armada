@@ -340,6 +340,7 @@ func convertUnpartitionedToPartitioned(ctx *armadacontext.Context, tx pgx.Tx) er
 		testHookAfterCopy()
 	}
 
+	// no CASCADE: dependent objects should fail loudly rather than be silently dropped
 	if _, err := tx.Exec(ctx, `DROP TABLE job`); err != nil {
 		return errors.Wrap(err, "drop old job table")
 	}
