@@ -57,8 +57,8 @@ describe("buildViewEventData", () => {
         annotationColumnKeys: ["team", "priority"],
       }),
     )
-    expect(result.columns).toContain("annotation:team")
-    expect(result.columns).toContain("annotation:priority")
+    expect(result.columns).toContain("annotation_team")
+    expect(result.columns).toContain("annotation_priority")
     expect(result.hasAnnotations).toBe("true")
     expect(result.annotationCount).toBe("2")
   })

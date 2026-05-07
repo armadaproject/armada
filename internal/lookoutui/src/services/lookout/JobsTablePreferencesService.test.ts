@@ -1059,7 +1059,7 @@ describe("ensurePreferencesAreConsistent", () => {
       visibleColumns: {
         [StandardColumnId.JobID]: true,
         [StandardColumnId.TimeInState]: true,
-        'annotation_"preferences.com/foo-bravo': true,
+        'annotation_"preferences.com/foo-bravo': true, // orphaned — not in annotationColumnKeys
       },
     }
 
@@ -1109,7 +1109,7 @@ describe("ensurePreferencesAreConsistent", () => {
       visibleColumns: {
         [StandardColumnId.JobID]: true,
         [StandardColumnId.TimeInState]: true,
-        'annotation_"preferences.com/foo-bravo': true,
+        // orphaned annotation_"preferences.com/foo-bravo is removed
         // Standard columns not in saved prefs default to hidden
         [StandardColumnId.Queue]: false,
         [StandardColumnId.Namespace]: false,

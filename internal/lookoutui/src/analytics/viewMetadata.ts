@@ -26,7 +26,7 @@ export function buildViewEventData(viewName: string, prefs: JobsTablePreferences
   // Annotation columns are always "added" (never in defaults)
   const annotationCols = prefs.annotationColumnKeys ?? []
   for (const key of annotationCols) {
-    const annotationColId = `annotation:${key}`
+    const annotationColId = `annotation_${key}`
     if (!added.includes(annotationColId)) {
       added.push(annotationColId)
     }

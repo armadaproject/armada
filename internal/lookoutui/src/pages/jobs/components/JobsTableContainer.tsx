@@ -468,6 +468,10 @@ export const JobsTableContainer = ({ debug, autoRefreshMs, commandSpecs }: JobsT
     }
     setColumnOrder((prev) => prev.filter((prevId) => prevId !== colId))
     setAllColumns(filtered)
+    setColumnVisibility((prev) => {
+      const { [colId]: _, ...rest } = prev
+      return rest
+    })
     onFilterChange((columnFilters) => {
       return columnFilters.filter((columnFilter) => columnFilter.id !== colId)
     })
