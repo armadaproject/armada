@@ -24,12 +24,14 @@ const StyledAppBar = styled(AppBar)(({ theme }) => ({
 interface Page {
   title: string
   location: string
+  end?: boolean
 }
 
 const PAGES: Page[] = [
   {
     title: "Jobs",
     location: JOBS,
+    end: true,
   },
   {
     title: "Job Sets",
@@ -60,7 +62,7 @@ export const NavBar = ({ customTitle }: NavBarProps) => {
             </a>
           </div>
           <Stack direction="row" alignItems="center" spacing={SPACING.sm}>
-            {PAGES.map(({ location, title }) => (
+            {PAGES.map(({ location, title, end }) => (
               <Button
                 key={location}
                 variant="outlined"
@@ -68,6 +70,7 @@ export const NavBar = ({ customTitle }: NavBarProps) => {
                 size="large"
                 component={NavLinkButton}
                 to={location}
+                end={end}
               >
                 {title}
               </Button>
