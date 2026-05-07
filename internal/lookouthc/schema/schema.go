@@ -312,6 +312,16 @@ func convertUnpartitionedToPartitioned(ctx *armadacontext.Context, tx pgx.Tx) er
 		return errors.Wrap(err, "lock job table")
 	}
 
+	// Re-check state under the lock: a concurrent partitioner run may have
+	// completed between our initial check and acquiring the lock.
+	recheck, _, err := detectJobTableState(ctx, tx)
+	if err != nil {
+		return errors.Wrap(err, "re-check job table state after lock")
+	}
+	if recheck == jobStateAlreadyPartitioned {
+		return nil
+	}
+
 	ddl := strings.ReplaceAll(targetSchemaSQL, "{{TABLE}}", "job_new")
 	if _, err := tx.Exec(ctx, ddl); err != nil {
 		return errors.Wrap(err, "create job_new partitioned table")
