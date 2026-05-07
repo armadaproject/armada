@@ -14,7 +14,9 @@ function getRelativeTime(date: Date): string {
   if (minutes < 1) return "just now"
   if (minutes < 60) return `${minutes} minute${minutes === 1 ? "" : "s"} ago`
   const hours = Math.floor(minutes / 60)
-  return `${hours} hour${hours === 1 ? "" : "s"} ago`
+  if (hours < 24) return `${hours} hour${hours === 1 ? "" : "s"} ago`
+  const days = Math.floor(hours / 24)
+  return `${days} day${days === 1 ? "" : "s"} ago`
 }
 
 export default function RefreshButton(props: RefreshButtonProps) {
@@ -24,7 +26,9 @@ export default function RefreshButton(props: RefreshButtonProps) {
 
   useEffect(() => {
     if (prevIsLoading.current && !props.isLoading) {
-      setLastUpdated(new Date())
+      const now = new Date()
+      setLastUpdated(now)
+      setRelativeTime(getRelativeTime(now))
     }
     prevIsLoading.current = props.isLoading
   }, [props.isLoading])
