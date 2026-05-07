@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/prometheus/client_golang/prometheus"
+	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
@@ -406,6 +408,69 @@ func TestNewClassifier_ValidationErrors(t *testing.T) {
 			assert.Contains(t, err.Error(), tc.errContains)
 		})
 	}
+}
+
+func TestClassify_RecordsRuleEvaluationDuration(t *testing.T) {
+	classifier, err := NewClassifier(ErrorCategoriesConfig{Categories: []CategoryConfig{
+		{Name: "infra", Rules: []CategoryRule{
+			{OnConditions: []string{errormatch.ConditionOOMKilled}, Subcategory: "oom"},
+		}},
+		{Name: "user_error", Rules: []CategoryRule{
+			{OnExitCodes: &errormatch.ExitCodeMatcher{Operator: errormatch.ExitCodeOperatorIn, Values: []int32{42}}, Subcategory: "bad_exit"},
+			{OnExitCodes: &errormatch.ExitCodeMatcher{Operator: errormatch.ExitCodeOperatorIn, Values: []int32{74}}, Subcategory: "other_exit"},
+		}},
+	}})
+	require.NoError(t, err)
+
+	before := ruleHistogramCounts(t)
+	pod := podWithTerminatedContainer(42, "Error", "")
+	result := classifier.Classify(pod)
+	require.Equal(t, "user_error", result.Category)
+	require.Equal(t, "bad_exit", result.Subcategory)
+	after := ruleHistogramCounts(t)
+
+	// First rule (infra/oom) does not match -> observed.
+	assert.Equal(t, uint64(1), after[labelKey{"infra", "oom"}]-before[labelKey{"infra", "oom"}],
+		"non-matching rule before the match should be observed")
+	// Second rule (user_error/bad_exit) matches -> observed.
+	assert.Equal(t, uint64(1), after[labelKey{"user_error", "bad_exit"}]-before[labelKey{"user_error", "bad_exit"}],
+		"matching rule should be observed")
+	// Third rule (user_error/other_exit) is after the match -> not reached, not observed.
+	assert.Equal(t, uint64(0), after[labelKey{"user_error", "other_exit"}]-before[labelKey{"user_error", "other_exit"}],
+		"rule after the match should not be observed")
+}
+
+type labelKey struct{ category, subcategory string }
+
+// ruleHistogramCounts gathers the rule-evaluation histogram from the default
+// registry and returns a map of (category, subcategory) -> sample count.
+func ruleHistogramCounts(t *testing.T) map[labelKey]uint64 {
+	t.Helper()
+	families, err := prometheus.DefaultGatherer.Gather()
+	require.NoError(t, err)
+	counts := map[labelKey]uint64{}
+	for _, mf := range families {
+		if mf.GetName() != "armada_executor_job_failure_rule_evaluation_duration_seconds" {
+			continue
+		}
+		for _, m := range mf.GetMetric() {
+			counts[labelKeyFromMetric(m)] = m.GetHistogram().GetSampleCount()
+		}
+	}
+	return counts
+}
+
+func labelKeyFromMetric(m *dto.Metric) labelKey {
+	var k labelKey
+	for _, lp := range m.GetLabel() {
+		switch lp.GetName() {
+		case "failure_category":
+			k.category = lp.GetValue()
+		case "failure_subcategory":
+			k.subcategory = lp.GetValue()
+		}
+	}
+	return k
 }
 
 func podWithTerminatedContainer(exitCode int32, reason, message string) *v1.Pod {
