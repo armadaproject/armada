@@ -3,10 +3,12 @@ package categorizer
 import (
 	"fmt"
 	"regexp"
+	"time"
 
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/armadaproject/armada/internal/common/errormatch"
+	"github.com/armadaproject/armada/internal/executor/metrics"
 )
 
 // maxCategoryNameLen is the maximum length for category and subcategory strings.
@@ -157,7 +159,10 @@ func (c *Classifier) Classify(pod *v1.Pod) ClassifyResult {
 
 	for _, cat := range c.categories {
 		for _, r := range cat.rules {
-			if ruleMatches(r, containers, podReason) {
+			start := time.Now()
+			matched := ruleMatches(r, containers, podReason)
+			metrics.RecordRuleEvaluationDuration(cat.name, r.subcategory, time.Since(start))
+			if matched {
 				return ClassifyResult{Category: cat.name, Subcategory: r.subcategory}
 			}
 		}
