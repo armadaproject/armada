@@ -1,7 +1,7 @@
 import { memo, useCallback, useMemo, useState } from "react"
 
 import { Clear, FilterAltOff, ViewColumn } from "@mui/icons-material"
-import { Divider, Button, Checkbox, FormControlLabel, FormGroup, Tooltip } from "@mui/material"
+import { Divider, Button, Checkbox, FormControlLabel, FormGroup, Tooltip, IconButton, Badge } from "@mui/material"
 
 import { ColumnId, JobTableColumn, PINNED_COLUMNS, toColId } from "../../../common/jobsTableColumns"
 import AutoRefreshToggle from "../../../components/AutoRefreshToggle"
@@ -147,20 +147,27 @@ export const JobsTableActionBar = memo(
             <RefreshButton isLoading={isLoading} onClick={onRefresh} />
           </div>
           <Divider orientation="vertical" />
-          <div>
-            <Button
-              variant="outlined"
+          <Tooltip title="Clear filters and sorting">
+          <span>
+            <IconButton
               onClick={() => {
                 onClearFilters()
                 onClearSorting()
               }}
               color="primary"
-              endIcon={<FilterAltOff />}
+              size="small"
               disabled={filterColumns.length === 0 && !customSortingApplied}
             >
-              Clear Filters and Sorting
-            </Button>
-          </div>
+              <Badge
+                color="warning"
+                variant="dot"
+                invisible={filterColumns.length === 0 && !customSortingApplied}
+              >
+                <FilterAltOff />
+              </Badge>
+            </IconButton>
+          </span>
+          </Tooltip>
           <div>
             <Button
               variant="outlined"
