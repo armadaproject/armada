@@ -78,6 +78,7 @@ import {
   JobsTablePreferences,
   JobsTablePreferencesService,
 } from "../../../services/lookout/JobsTablePreferencesService"
+import { buildViewEventData } from "../../../analytics/viewMetadata"
 import { useGroupJobs } from "../../../services/lookout/useGroupJobs"
 
 import { JobsTableActionBar } from "./JobsTableActionBar"
@@ -371,6 +372,20 @@ export const JobsTableContainer = ({ debug, autoRefreshMs, commandSpecs }: JobsT
       console.error(getErrorMessage(e))
       openSnackbar("Failed to load custom view", "error")
     }
+  }
+
+  const getViewEventData = (name: string): Record<string, string> => {
+    try {
+      const prefs = customViewsService.getView(name)
+      return buildViewEventData(name, prefs)
+    } catch {
+      return { viewName: name }
+    }
+  }
+
+  const getCurrentViewEventData = (): Record<string, string> => {
+    const prefs = prefsFromState()
+    return buildViewEventData("", prefs)
   }
 
   const onRefresh = () => {
@@ -840,6 +855,8 @@ export const JobsTableContainer = ({ debug, autoRefreshMs, commandSpecs }: JobsT
               onAddCustomView={addCustomView}
               onDeleteCustomView={deleteCustomView}
               onLoadCustomView={loadCustomView}
+              getViewEventData={getViewEventData}
+              getCurrentViewEventData={getCurrentViewEventData}
             />
           </ErrorBoundary>
           <ErrorBoundary FallbackComponent={AlertErrorFallback}>

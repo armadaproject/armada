@@ -21,6 +21,8 @@ interface CustomViewPickerProps {
   onAddCustomView: (name: string) => void
   onDeleteCustomView: (name: string) => void
   onLoadCustomView: (name: string) => void
+  getViewEventData: (name: string) => Record<string, string>
+  getCurrentViewEventData: () => Record<string, string>
 }
 
 export const CustomViewPicker = ({
@@ -28,6 +30,8 @@ export const CustomViewPicker = ({
   onAddCustomView,
   onDeleteCustomView,
   onLoadCustomView,
+  getViewEventData,
+  getCurrentViewEventData,
 }: CustomViewPickerProps) => {
   const anchorElRef = useRef<HTMLDivElement>(null)
   const [isOpen, setIsOpen] = useState<boolean>(false)
@@ -98,7 +102,7 @@ export const CustomViewPicker = ({
                       <Analytics
                         component={Button}
                         eventName={ANALYTICS_EVENTS.CUSTOM_VIEW_CREATED}
-                        eventData={{ viewName: newCustomViewName }}
+                        eventData={() => getCurrentViewEventData()}
                         variant="contained"
                         onClick={addCustomView}
                       >
@@ -132,7 +136,7 @@ export const CustomViewPicker = ({
                       <Analytics
                         component={IconButton}
                         eventName={ANALYTICS_EVENTS.CUSTOM_VIEW_DELETED}
-                        eventData={{ viewName: name }}
+                        eventData={() => getViewEventData(name)}
                         edge="end"
                         aria-label="delete"
                         onClick={() => onDeleteCustomView(name)}
@@ -144,7 +148,7 @@ export const CustomViewPicker = ({
                     <Analytics
                       component={ListItemButton}
                       eventName={ANALYTICS_EVENTS.CUSTOM_VIEW_LOADED}
-                      eventData={{ viewName: name }}
+                      eventData={() => getViewEventData(name)}
                       onClick={() => onLoadCustomView(name)}
                     >
                       <ListItemText>{name}</ListItemText>
