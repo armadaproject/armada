@@ -1,6 +1,6 @@
+import { useEffect, useRef, useState } from "react"
 import { Refresh } from "@mui/icons-material"
 import { CircularProgress, IconButton, Typography } from "@mui/material"
-import { useEffect, useRef, useState } from "react"
 
 import "./RefreshButton.css"
 
