@@ -93,4 +93,5 @@ type Run struct {
 	Pool                   string     `db:"pool"`
 	Terminated             bool       `db:"terminated"`
 	PreemptReason          *string    `db:"preempt_reason"`
+	RunIndex               int64      `db:"run_index"`
 }

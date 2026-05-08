@@ -769,10 +769,15 @@ func (job *Job) ValidateResourceRequests() error {
 }
 
 // WithNewRun creates a copy of the job with a new run on the given executor.
+// The new run's index is derived from the current number of runs on the job
+// (zero-based), so each retry attempt gets a unique, monotonically increasing
+// index.
 func (job *Job) WithNewRun(executor, nodeId, nodeName, pool string, scheduledAtPriority int32) *Job {
 	now := job.jobDb.clock.Now()
+	nextRunIndex := uint32(len(job.runsById))
 	return job.WithUpdatedRun(job.jobDb.CreateRun(
 		job.jobDb.uuidProvider.New(),
+		nextRunIndex,
 		job.Id(),
 		now.UnixNano(),
 		executor,

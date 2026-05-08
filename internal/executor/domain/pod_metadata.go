@@ -3,6 +3,7 @@ package domain
 const (
 	JobId                    = "armada_job_id"
 	JobRunId                 = "armada_job_run_id"
+	JobRunIndex              = "armada_job_run_index"
 	PodNumber                = "armada_pod_number"
 	PodCount                 = "armada_pod_count"
 	JobSetId                 = "armada_jobset_id"

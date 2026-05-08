@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/gogo/protobuf/types"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
@@ -133,6 +134,60 @@ func TestCreatePodFromExecutorApiJob(t *testing.T) {
 	result, err := CreatePodFromExecutorApiJob(validJobLease, &configuration.PodDefaults{SchedulerName: "scheduler-name"})
 	assert.NoError(t, err)
 	assert.Equal(t, expectedPod, result)
+}
+
+// TestCreatePodFromExecutorApiJob_WithRunIndex covers the new pod-name format
+// used when the scheduler populates the optional JobRunIndex field. The format
+// becomes armada-<jobid>-0-<runIndex> and an armada_job_run_index label is
+// added so downstream tooling can distinguish retry attempts.
+func TestCreatePodFromExecutorApiJob_WithRunIndex(t *testing.T) {
+	runId := uuid.NewString()
+	jobId := util.NewULID()
+
+	validJobLease := &executorapi.JobRunLease{
+		JobRunId:    runId,
+		JobRunIndex: &types.UInt32Value{Value: 2},
+		Queue:       "queue",
+		Jobset:      "job-set",
+		User:        "user",
+		Job: &armadaevents.SubmitJob{
+			ObjectMeta: &armadaevents.ObjectMeta{
+				Labels:      map[string]string{},
+				Annotations: map[string]string{},
+				Namespace:   "test-namespace",
+			},
+			JobId: jobId,
+			MainObject: &armadaevents.KubernetesMainObject{
+				Object: &armadaevents.KubernetesMainObject_PodSpec{
+					PodSpec: &armadaevents.PodSpecWithAvoidList{
+						PodSpec: &v1.PodSpec{
+							Containers: []v1.Container{{Name: "test", Image: "test"}},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	result, err := CreatePodFromExecutorApiJob(validJobLease, &configuration.PodDefaults{SchedulerName: "scheduler-name"})
+	assert.NoError(t, err)
+	assert.Equal(t, fmt.Sprintf("armada-%s-0-2", jobId), result.Name)
+	assert.Equal(t, "2", result.Labels[domain.JobRunIndex])
+}
+
+// TestCreatePodFromExecutorApiJob_NoRunIndex confirms the pre-retry pod-name
+// format is preserved exactly when the scheduler leaves JobRunIndex unset
+// (which is the case for the legacy scheduler, the feature flag off, or an
+// older scheduler talking to a newer executor).
+func TestCreatePodFromExecutorApiJob_NoRunIndex(t *testing.T) {
+	lease := createBasicJobRunLease()
+	jobId := lease.Job.JobId
+
+	result, err := CreatePodFromExecutorApiJob(lease, &configuration.PodDefaults{})
+	assert.NoError(t, err)
+	assert.Equal(t, fmt.Sprintf("armada-%s-0", jobId), result.Name)
+	_, hasRunIndexLabel := result.Labels[domain.JobRunIndex]
+	assert.False(t, hasRunIndexLabel, "armada_job_run_index label must not be set when JobRunIndex is nil")
 }
 
 func TestCreatePodFromExecutorApiJob_Invalid(t *testing.T) {

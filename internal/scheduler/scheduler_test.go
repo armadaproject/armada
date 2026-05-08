@@ -247,6 +247,7 @@ var returnedOnceLeasedJob = testfixtures.NewJob(
 	true,
 ).WithUpdatedRun(testfixtures.JobDb.CreateRun(
 	uuid.NewString(),
+	0,
 	"01h3w2wtdchtc80hgyp782shrv",
 	0,
 	"testExecutor",
@@ -333,6 +334,7 @@ var (
 		true,
 	).WithUpdatedRun(testfixtures.JobDb.CreateRun(
 		uuid.NewString(),
+		0,
 		requeuedJobId,
 		time.Now().Unix(),
 		"testExecutor",
@@ -1551,6 +1553,7 @@ func TestScheduler_TestSyncInitialState(t *testing.T) {
 				queuedJob.WithUpdatedRun(
 					testfixtures.JobDb.CreateRun(
 						leasedJob.LatestRun().Id(),
+						0,
 						queuedJob.Id(),
 						123,
 						"test-executor",
@@ -1713,6 +1716,7 @@ func TestScheduler_TestSyncState(t *testing.T) {
 				queuedJob.WithUpdatedRun(
 					testfixtures.JobDb.CreateRun(
 						leasedJob.LatestRun().Id(),
+						0,
 						queuedJob.Id(),
 						123,
 						"test-executor",

@@ -120,13 +120,25 @@ func CreatePodFromExecutorApiJob(job *executorapi.JobRunLease, defaults *configu
 		return nil, fmt.Errorf("job %s is invalid, runId is empty", jobId)
 	}
 
-	labels := util.MergeMaps(job.Job.ObjectMeta.Labels, map[string]string{
+	// When the scheduler populates JobRunIndex (retry policy is enabled), we
+	// disambiguate retry attempts by suffixing the pod name and adding an
+	// armada_job_run_index label. With the field unset (legacy / FF off), we
+	// preserve the pre-existing pod-name format byte-for-byte so that no
+	// downstream tooling that parses pod names breaks.
+	labels := map[string]string{
 		domain.JobId:     jobId,
 		domain.JobRunId:  runId,
 		domain.Queue:     job.Queue,
 		domain.PodNumber: strconv.Itoa(0),
 		domain.PodCount:  strconv.Itoa(1),
-	})
+	}
+	podName := common.PodNamePrefix + job.Job.JobId + "-" + strconv.Itoa(0)
+	if job.JobRunIndex != nil {
+		runIndex := strconv.FormatUint(uint64(job.JobRunIndex.GetValue()), 10)
+		labels[domain.JobRunIndex] = runIndex
+		podName = podName + "-" + runIndex
+	}
+	labels = util.MergeMaps(job.Job.ObjectMeta.Labels, labels)
 	annotation := util.MergeMaps(job.Job.ObjectMeta.Annotations, map[string]string{
 		domain.JobSetId: job.Jobset,
 		domain.Owner:    job.User,
@@ -139,7 +151,7 @@ func CreatePodFromExecutorApiJob(job *executorapi.JobRunLease, defaults *configu
 
 	pod := &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        common.PodNamePrefix + job.Job.JobId + "-" + strconv.Itoa(0),
+			Name:        podName,
 			Labels:      labels,
 			Annotations: annotation,
 			Namespace:   job.Job.ObjectMeta.Namespace,

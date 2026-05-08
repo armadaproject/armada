@@ -291,6 +291,7 @@ func Run(config schedulerconfig.Configuration) error {
 		config.Scheduling.NodeIdLabel,
 		config.Scheduling.PriorityClassNameOverride,
 		config.Scheduling.PriorityClasses,
+		config.Scheduling.RetryPolicy,
 		authorizer,
 	)
 	if err != nil {
