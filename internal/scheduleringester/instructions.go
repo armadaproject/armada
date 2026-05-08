@@ -219,6 +219,7 @@ func (c *JobSetEventsInstructionConverter) handleJobRunLeased(jobRunLeased *arma
 				ScheduledAtPriority:    scheduledAtPriority,
 				LeasedTimestamp:        &eventTime,
 				PodRequirementsOverlay: PodRequirementsOverlay,
+				RunIndex:               int64(jobRunLeased.GetRunIndex()),
 			},
 		}},
 		UpdateJobQueuedState{jobRunLeased.JobId: &JobQueuedStateUpdate{
