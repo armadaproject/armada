@@ -1,0 +1,62 @@
+numBatches: 1
+batchSize: 1
+queue: e2e-retry-queue
+jobs:
+  - priority: 0
+    namespace: default
+    podSpec:
+      terminationGracePeriodSeconds: 0
+      restartPolicy: Never
+      containers:
+        - name: fail-then-succeed
+          imagePullPolicy: IfNotPresent
+          image: alpine:3.20.0
+          command: ["sh", "-c"]
+          args:
+            # The pod reads the run-index label set by the executor (commit 3)
+            # via the downward API. Run 0 exits 1 to trigger the retry policy;
+            # run 1 exits 0. A succeeded terminal event is therefore only
+            # possible if (a) the engine decided to retry, (b) the run-index
+            # was correctly incremented, (c) the new pod name was unique, and
+            # (d) the label was set on the retry pod.
+            - |
+              run_index=$(cat /podinfo/run_index)
+              echo "run_index=$run_index"
+              if [ "$run_index" = "0" ]; then
+                echo "first attempt: failing intentionally to trigger retry"
+                exit 1
+              fi
+              echo "retry attempt: succeeding"
+              exit 0
+          volumeMounts:
+            - name: podinfo
+              mountPath: /podinfo
+          resources:
+            limits:
+              memory: 25Mi
+              cpu: 100m
+            requests:
+              memory: 25Mi
+              cpu: 100m
+      volumes:
+        - name: podinfo
+          downwardAPI:
+            items:
+              - path: run_index
+                fieldRef:
+                  fieldPath: "metadata.labels['armada_job_run_index']"
+---
+timeout: "300s"
+# `failed: retryable: true` proves the scheduler emitted a non-terminal
+# JobErrors event (translated to JobFailedEvent.retryable=true) because the
+# retry-policy engine matched a Retry rule. The watcher does not treat a
+# retryable failure as terminal, so it keeps consuming events until the
+# retried pod succeeds. `succeeded` is unreachable unless the second pod
+# observed run_index>0 via the downward API, which only happens if the
+# executor incremented the index for the new lease.
+expectedEvents:
+  - submitted:
+  - leased:
+  - failed:
+      retryable: true
+  - succeeded:

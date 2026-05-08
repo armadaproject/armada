@@ -16,6 +16,9 @@ auth:
     reprioritize_any_jobs: ["everyone"]
     preempt_any_jobs: ["everyone"]
     watch_all_events: ["everyone"]
+    create_retry_policy: ["everyone"]
+    update_retry_policy: ["everyone"]
+    delete_retry_policy: ["everyone"]
 eventsApiRedis:
   addrs:
     - localhost:6379
