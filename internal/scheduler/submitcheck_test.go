@@ -411,7 +411,7 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 			}
 			err := submitCheck.Initialise(ctx)
 			assert.NoError(t, err)
-			results, err := submitCheck.Check(ctx, tc.jobs)
+			results, _, err := submitCheck.Check(ctx, tc.jobs)
 			require.NoError(t, err)
 
 			require.Equal(t, len(tc.expectedResult), len(results))
