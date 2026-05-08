@@ -844,6 +844,21 @@ func (job *Job) NumAttempts() uint {
 	return attempts
 }
 
+// FailureCount returns the number of runs of this job that have ended in a
+// failed terminal state. The retry engine treats this value as the per-policy
+// failure counter for limit enforcement; we derive it from run history rather
+// than maintain a separate counter so it survives scheduler restarts (the
+// same is not true of in-memory-only counters).
+func (job *Job) FailureCount() uint32 {
+	count := uint32(0)
+	for _, run := range job.runsById {
+		if run.failed {
+			count++
+		}
+	}
+	return count
+}
+
 // AllRuns returns all runs associated with job.
 func (job *Job) AllRuns() []*JobRun {
 	return maps.Values(job.runsById)

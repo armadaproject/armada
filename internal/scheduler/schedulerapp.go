@@ -45,6 +45,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/priorityoverride"
 	"github.com/armadaproject/armada/internal/scheduler/queue"
 	"github.com/armadaproject/armada/internal/scheduler/reports"
+	"github.com/armadaproject/armada/internal/scheduler/retry"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/api/schedulerobjects"
@@ -137,6 +138,28 @@ func Run(config schedulerconfig.Configuration) error {
 		ctx.Errorf("error initialising queue cache - %v", err)
 	}
 	services = append(services, func() error { return queueCache.Run(ctx) })
+
+	// ////////////////////////////////////////////////////////////////////////
+	// Retry Policy Cache
+	// ////////////////////////////////////////////////////////////////////////
+	// We always wire the policy cache, but only run the refresher when the
+	// retry policy feature is enabled. With the flag off the scheduler
+	// receives a NoopPolicyCache so the failure path skips engine evaluation
+	// entirely and behaviour is byte-identical to the pre-feature build.
+	var retryPolicyCache retry.PolicyCache = retry.NoopPolicyCache{}
+	if config.Scheduling.RetryPolicy.Enabled {
+		retryPolicyClient := api.NewRetryPolicyServiceClient(conn)
+		// Reuse the queue refresh cadence; both caches answer scheduler
+		// failure-handling questions and stale data has the same impact.
+		apiCache := retry.NewApiPolicyCache(retryPolicyClient, config.QueueRefreshPeriod)
+		retryPolicyInitTimeout, cancelRetry := armadacontext.WithTimeout(ctx, time.Second*30)
+		defer cancelRetry()
+		if err := apiCache.Initialise(retryPolicyInitTimeout); err != nil {
+			ctx.Errorf("error initialising retry policy cache - %v", err)
+		}
+		services = append(services, func() error { return apiCache.Run(ctx) })
+		retryPolicyCache = apiCache
+	}
 
 	// ////////////////////////////////////////////////////////////////////////
 	// Priority override
@@ -402,6 +425,8 @@ func Run(config schedulerconfig.Configuration) error {
 		bidPriceProvider,
 		marketDrivenPools,
 		queueCache,
+		config.Scheduling.RetryPolicy,
+		retryPolicyCache,
 	)
 	if err != nil {
 		return errors.WithMessage(err, "error creating scheduler")
