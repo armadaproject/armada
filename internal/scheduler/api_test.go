@@ -341,6 +341,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 				"kubernetes.io/hostname",
 				nil,
 				priorityClasses,
+				schedulerconfig.RetryPolicyConfig{},
 				mockAuthorizer,
 			)
 			require.NoError(t, err)
@@ -398,6 +399,7 @@ func TestExecutorApi_LeaseJobRuns_Unauthorised(t *testing.T) {
 		"kubernetes.io/hostname",
 		nil,
 		priorityClasses,
+		schedulerconfig.RetryPolicyConfig{},
 		mockAuthorizer,
 	)
 
@@ -527,6 +529,7 @@ func TestExecutorApi_Publish(t *testing.T) {
 				"kubernetes.io/hostname",
 				nil,
 				priorityClasses,
+				schedulerconfig.RetryPolicyConfig{},
 				mockAuthorizer,
 			)
 
@@ -574,6 +577,7 @@ func TestExecutorApi_Publish_Unauthorised(t *testing.T) {
 		"kubernetes.io/hostname",
 		nil,
 		priorityClasses,
+		schedulerconfig.RetryPolicyConfig{},
 		mockAuthorizer,
 	)
 

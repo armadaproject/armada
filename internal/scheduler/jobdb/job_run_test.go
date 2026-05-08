@@ -49,6 +49,7 @@ func init() {
 
 var baseJobRun = jobDb.CreateRun(
 	uuid.New().String(),
+	0,
 	uuid.NewString(),
 	5,
 	"test-executor",
@@ -127,6 +128,7 @@ func TestJobRun_TestRunAttempted(t *testing.T) {
 func TestDeepCopy(t *testing.T) {
 	run := jobDb.CreateRun(
 		uuid.NewString(),
+		0,
 		"job id",
 		1,
 		"executor",
@@ -153,6 +155,7 @@ func TestDeepCopy(t *testing.T) {
 	)
 	expected := jobDb.CreateRun(
 		run.id,
+		run.index,
 		"job id",
 		1,
 		"executor",
