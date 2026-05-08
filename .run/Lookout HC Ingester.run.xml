@@ -3,7 +3,7 @@
     <module name="armada" />
     <working_directory value="$PROJECT_DIR$" />
     <envs>
-      <env name="ARMADA_METRICSPORT" value="9008" />
+      <env name="ARMADA_METRICSPORT" value="9009" />
       <env name="ARMADA_EXPERIMENTALHOTCOLDSPLIT" value="true" />
       <env name="ARMADA_LOG_CONFIG" value="config/logging-dev.yaml" />
       <env name="ARMADA_POSTGRES_CONNECTION_DBNAME" value="lookouthc" />

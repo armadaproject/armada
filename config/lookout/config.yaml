@@ -18,6 +18,7 @@ postgres:
     password: psw
     dbname: lookout
     sslmode: disable
+experimentalHotColdSplit: false
 prunerConfig:
   expireAfter: 1008h # 42 days / 6 weeks
   deduplicationExpireAfter: 168h # 7 days

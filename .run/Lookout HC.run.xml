@@ -12,9 +12,10 @@
       <env name="ARMADA_POSTGRES_CONNECTION_HOST" value="localhost" />
       <env name="ARMADA_POSTGRES_CONNECTION_PORT" value="5432" />
       <env name="ARMADA_UICONFIG_ARMADAAPIBASEURL" value="http://localhost:8080" />
+      <env name="ARMADA_UICONFIG_BACKEND" value="jsonb" />
       <env name="ARMADA_UICONFIG_BINOCULARSBASEURLPATTERN" value="http://localhost:8082" />
       <env name="ARMADA_UICONFIG_CUSTOMTITLE" value="Local Dev (HC)" />
-      <env name="ARMADA_SUBSCRIPTIONNAME" value="lookouthc-ingester" />
+      <env name="ARMADA_UICONFIG_USERANNOTATIONPREFIX" value="armadaproject.io/" />
     </envs>
     <kind value="FILE" />
     <package value="$PROJECT_DIR$/cmd/lookout/main.go" />
