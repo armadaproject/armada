@@ -13,3 +13,10 @@ auth:
     watch_all_events: ["everyone"]
     execute_jobs: ["everyone"]
     update_executor_settings: ["everyone"]
+    create_retry_policy: ["everyone"]
+    update_retry_policy: ["everyone"]
+    delete_retry_policy: ["everyone"]
+scheduling:
+  retryPolicy:
+    enabled: true
+    globalMaxRetries: 5
