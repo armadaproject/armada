@@ -9,4 +9,4 @@ binoculars: ${GO_BIN:-go} build -gcflags="all=-N -l" -o ./dist/armada-binoculars
 lookoutui: sh -c 'cd internal/lookoutui && yarn install && yarn run openapi && PORT=3000 PROXY_TARGET=http://localhost:8089 yarn dev'
 lookouthc: ${GO_BIN:-go} build -gcflags="all=-N -l" -o ./dist/armada-lookouthc ./cmd/lookout/main.go && ./dist/armada-lookouthc --config ./_local/lookouthc/config.yaml
 lookouthcingester: ${GO_BIN:-go} build -gcflags="all=-N -l" -o ./dist/armada-lookouthcingester ./cmd/lookoutingester/main.go && ./dist/armada-lookouthcingester --config ./_local/lookouthcingester/config.yaml
-lookouthcui: sh -c 'until [ -f internal/lookoutui/node_modules/.yarn-integrity ]; do echo "Waiting for lookoutui install..."; sleep 2; done && cd internal/lookoutui && PORT=3001 PROXY_TARGET=http://localhost:8091 yarn dev'
+lookouthcui: sh -c 'until [ -f internal/lookoutui/node_modules/.yarn-integrity ]; do echo "Waiting for lookoutui install..."; sleep 2; done && cd internal/lookoutui && PORT=3001 PROXY_TARGET=http://localhost:8091 VITE_CACHE_DIR=node_modules/.vite-hc yarn dev'
