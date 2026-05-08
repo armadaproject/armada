@@ -55,7 +55,7 @@ type schedulerState struct {
 }
 
 type SubmitScheduleChecker interface {
-	Check(ctx *armadacontext.Context, jobs []*jobdb.Job) (map[string]schedulingResult, error)
+	Check(ctx *armadacontext.Context, jobs []*jobdb.Job) (map[string]schedulingResult, map[string]time.Duration, error)
 }
 
 type SubmitChecker struct {
@@ -207,11 +207,11 @@ func (srv *SubmitChecker) getPoolsBySubmissionGroup(submissionGroup string) []st
 	return srv.poolsBySubmissionGroup[submissionGroup]
 }
 
-func (srv *SubmitChecker) Check(ctx *armadacontext.Context, jobs []*jobdb.Job) (map[string]schedulingResult, error) {
+func (srv *SubmitChecker) Check(ctx *armadacontext.Context, jobs []*jobdb.Job) (map[string]schedulingResult, map[string]time.Duration, error) {
 	start := srv.clock.Now()
 	state := srv.state.Load()
 	if state == nil {
-		return nil, fmt.Errorf("executor state not loaded")
+		return nil, nil, fmt.Errorf("executor state not loaded")
 	}
 
 	globalDeadline := newDeadline(srv.submitCheckConfig.MaxDuration, start)
@@ -221,13 +221,15 @@ func (srv *SubmitChecker) Check(ctx *armadacontext.Context, jobs []*jobdb.Job) (
 	})
 
 	results := make(map[string]schedulingResult, len(jobs))
+	queueDurations := make(map[string]time.Duration, len(jobsByQueue))
 
-	for _, jobsInQueue := range jobsByQueue {
+	for queue, jobsInQueue := range jobsByQueue {
 		if globalDeadline.exceeded(srv.clock.Now()) {
 			break
 		}
 
-		queueDeadline := newDeadline(srv.submitCheckConfig.MaxDurationPerQueue, srv.clock.Now())
+		queueStart := srv.clock.Now()
+		queueDeadline := newDeadline(srv.submitCheckConfig.MaxDurationPerQueue, queueStart)
 
 		jobsByGang := map[string][]*jobdb.Job{}
 		for _, job := range jobsInQueue {
@@ -257,9 +259,11 @@ func (srv *SubmitChecker) Check(ctx *armadacontext.Context, jobs []*jobdb.Job) (
 				processedGangs[gangId] = true
 			}
 		}
+
+		queueDurations[queue] = srv.clock.Since(queueStart)
 	}
 	ctx.Infof("Checked %d/%d jobs in %s", len(results), len(jobs), srv.clock.Since(start))
-	return results, nil
+	return results, queueDurations, nil
 }
 
 func (srv *SubmitChecker) getIndividualSchedulingResult(job *jobdb.Job, state *schedulerState) schedulingResult {
