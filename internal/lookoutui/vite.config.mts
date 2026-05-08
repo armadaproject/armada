@@ -15,6 +15,7 @@ const PROXY_OPTIONS: Record<string, string | ProxyOptions> = PROXY_PATHS.reduce<
 )
 
 export default defineConfig({
+  cacheDir: process.env.VITE_CACHE_DIR ?? "node_modules/.vite",
   plugins: [
     react({
       jsxImportSource: "@emotion/react",
