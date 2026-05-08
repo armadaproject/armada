@@ -281,14 +281,18 @@ func FromInternalJobRunErrors(queueName string, jobSetName string, time time.Tim
 func FromInternalJobErrors(queueName string, jobSetName string, time time.Time, e *armadaevents.JobErrors) ([]*api.EventMessage, error) {
 	events := make([]*api.EventMessage, 0)
 	for _, msgErr := range e.GetErrors() {
-		if !msgErr.Terminal {
-			continue
-		}
+		// Terminal=false means the scheduler will spin up another run for
+		// this job; only the retry-policy engine emits that flavour. Every
+		// other emitter keeps Terminal=true, so existing API consumers see
+		// the same event contract as before. On the way out the polarity
+		// flips: Terminal=false maps to Retryable=true on JobFailedEvent.
+		retryable := !msgErr.Terminal
 		switch reason := msgErr.Reason.(type) {
 		case *armadaevents.Error_PodError:
 			failed := makeJobFailed(e.JobId, queueName, jobSetName, time, reason)
 			failed.FailureCategory = msgErr.GetFailureCategory()
 			failed.FailureSubcategory = msgErr.GetFailureSubcategory()
+			failed.Retryable = retryable
 			event := &api.EventMessage{
 				Events: &api.EventMessage_Failed{
 					Failed: failed,
@@ -299,11 +303,12 @@ func FromInternalJobErrors(queueName string, jobSetName string, time time.Time, 
 			event := &api.EventMessage{
 				Events: &api.EventMessage_Failed{
 					Failed: &api.JobFailedEvent{
-						JobId:    e.JobId,
-						JobSetId: jobSetName,
-						Queue:    queueName,
-						Created:  protoutil.ToTimestamp(time),
-						Reason:   reason.JobRunPreemptedError.Reason,
+						JobId:     e.JobId,
+						JobSetId:  jobSetName,
+						Queue:     queueName,
+						Created:   protoutil.ToTimestamp(time),
+						Reason:    reason.JobRunPreemptedError.Reason,
+						Retryable: retryable,
 					},
 				},
 			}
@@ -312,11 +317,12 @@ func FromInternalJobErrors(queueName string, jobSetName string, time time.Time, 
 			event := &api.EventMessage{
 				Events: &api.EventMessage_Failed{
 					Failed: &api.JobFailedEvent{
-						JobId:    e.JobId,
-						JobSetId: jobSetName,
-						Queue:    queueName,
-						Created:  protoutil.ToTimestamp(time),
-						Reason:   reason.MaxRunsExceeded.Message,
+						JobId:     e.JobId,
+						JobSetId:  jobSetName,
+						Queue:     queueName,
+						Created:   protoutil.ToTimestamp(time),
+						Reason:    reason.MaxRunsExceeded.Message,
+						Retryable: retryable,
 					},
 				},
 			}
@@ -325,11 +331,12 @@ func FromInternalJobErrors(queueName string, jobSetName string, time time.Time, 
 			event := &api.EventMessage{
 				Events: &api.EventMessage_Failed{
 					Failed: &api.JobFailedEvent{
-						JobId:    e.JobId,
-						JobSetId: jobSetName,
-						Queue:    queueName,
-						Created:  protoutil.ToTimestamp(time),
-						Reason:   reason.GangJobUnschedulable.Message,
+						JobId:     e.JobId,
+						JobSetId:  jobSetName,
+						Queue:     queueName,
+						Created:   protoutil.ToTimestamp(time),
+						Reason:    reason.GangJobUnschedulable.Message,
+						Retryable: retryable,
 					},
 				},
 			}
@@ -338,12 +345,13 @@ func FromInternalJobErrors(queueName string, jobSetName string, time time.Time, 
 			event := &api.EventMessage{
 				Events: &api.EventMessage_Failed{
 					Failed: &api.JobFailedEvent{
-						JobId:    e.JobId,
-						JobSetId: jobSetName,
-						Queue:    queueName,
-						Created:  protoutil.ToTimestamp(time),
-						Reason:   reason.JobRejected.Message,
-						Cause:    api.Cause_Rejected,
+						JobId:     e.JobId,
+						JobSetId:  jobSetName,
+						Queue:     queueName,
+						Created:   protoutil.ToTimestamp(time),
+						Reason:    reason.JobRejected.Message,
+						Cause:     api.Cause_Rejected,
+						Retryable: retryable,
 					},
 				},
 			}
@@ -352,11 +360,12 @@ func FromInternalJobErrors(queueName string, jobSetName string, time time.Time, 
 			event := &api.EventMessage{
 				Events: &api.EventMessage_Failed{
 					Failed: &api.JobFailedEvent{
-						JobId:    e.JobId,
-						JobSetId: jobSetName,
-						Queue:    queueName,
-						Created:  protoutil.ToTimestamp(time),
-						Reason:   reason.ReconciliationError.Message,
+						JobId:     e.JobId,
+						JobSetId:  jobSetName,
+						Queue:     queueName,
+						Created:   protoutil.ToTimestamp(time),
+						Reason:    reason.ReconciliationError.Message,
+						Retryable: retryable,
 					},
 				},
 			}
@@ -366,10 +375,11 @@ func FromInternalJobErrors(queueName string, jobSetName string, time time.Time, 
 			event := &api.EventMessage{
 				Events: &api.EventMessage_Failed{
 					Failed: &api.JobFailedEvent{
-						JobId:    e.JobId,
-						JobSetId: jobSetName,
-						Queue:    queueName,
-						Created:  protoutil.ToTimestamp(time),
+						JobId:     e.JobId,
+						JobSetId:  jobSetName,
+						Queue:     queueName,
+						Created:   protoutil.ToTimestamp(time),
+						Retryable: retryable,
 					},
 				},
 			}

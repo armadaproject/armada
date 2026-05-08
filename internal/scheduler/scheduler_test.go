@@ -30,6 +30,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/leaderelection"
+	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
@@ -37,6 +38,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/kubernetesobjects/affinity"
 	"github.com/armadaproject/armada/internal/scheduler/metrics"
 	"github.com/armadaproject/armada/internal/scheduler/pricing"
+	"github.com/armadaproject/armada/internal/scheduler/retry"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/scheduling/context"
@@ -1150,6 +1152,8 @@ func TestScheduler_TestCycle(t *testing.T) {
 				pricing.NoopBidPriceProvider{},
 				[]string{},
 				queueCache,
+				schedulerconfig.RetryPolicyConfig{},
+				retry.NoopPolicyCache{},
 			)
 			require.NoError(t, err)
 			sched.EnableAssertions()
@@ -1327,6 +1331,8 @@ func TestScheduler_PublishFailureRepublishesOnNextCycle(t *testing.T) {
 		pricing.NoopBidPriceProvider{},
 		[]string{},
 		&testQueueCache{},
+		schedulerconfig.RetryPolicyConfig{},
+		retry.NoopPolicyCache{},
 	)
 	require.NoError(t, err)
 	sched.EnableAssertions()
@@ -1402,6 +1408,8 @@ func TestScheduler_NonLeaderAdvancesCursors(t *testing.T) {
 		pricing.NoopBidPriceProvider{},
 		[]string{},
 		&testQueueCache{},
+		schedulerconfig.RetryPolicyConfig{},
+		retry.NoopPolicyCache{},
 	)
 	require.NoError(t, err)
 	sched.clock = testClock
@@ -1489,6 +1497,8 @@ func TestScheduler_AsyncRunner(t *testing.T) {
 				pricing.NoopBidPriceProvider{},
 				[]string{},
 				&testQueueCache{},
+				schedulerconfig.RetryPolicyConfig{},
+				retry.NoopPolicyCache{},
 			)
 			require.NoError(t, err)
 			sched.clock = testClock
@@ -1635,6 +1645,8 @@ func TestRun(t *testing.T) {
 		pricing.NoopBidPriceProvider{},
 		[]string{},
 		&testQueueCache{},
+		schedulerconfig.RetryPolicyConfig{},
+		retry.NoopPolicyCache{},
 	)
 	require.NoError(t, err)
 	sched.EnableAssertions()
@@ -1744,6 +1756,8 @@ func TestRun_AsyncRunnerResetOnLeadershipChange(t *testing.T) {
 		pricing.NoopBidPriceProvider{},
 		[]string{},
 		&testQueueCache{},
+		schedulerconfig.RetryPolicyConfig{},
+		retry.NoopPolicyCache{},
 	)
 	require.NoError(t, err)
 	sched.clock = testClock
@@ -1922,6 +1936,8 @@ func TestJobPriceUpdates(t *testing.T) {
 				priceProvider,
 				tc.marketDrivenPools,
 				&testQueueCache{},
+				schedulerconfig.RetryPolicyConfig{},
+				retry.NoopPolicyCache{},
 			)
 			require.NoError(t, err)
 
@@ -2125,6 +2141,8 @@ func TestScheduler_TestSyncInitialState(t *testing.T) {
 				pricing.NoopBidPriceProvider{},
 				[]string{},
 				&testQueueCache{},
+				schedulerconfig.RetryPolicyConfig{},
+				retry.NoopPolicyCache{},
 			)
 			require.NoError(t, err)
 			sched.EnableAssertions()
@@ -2343,6 +2361,8 @@ func TestScheduler_TestSyncState(t *testing.T) {
 				pricing.NoopBidPriceProvider{},
 				[]string{},
 				&testQueueCache{},
+				schedulerconfig.RetryPolicyConfig{},
+				retry.NoopPolicyCache{},
 			)
 			require.NoError(t, err)
 			sched.EnableAssertions()
@@ -3592,6 +3612,8 @@ func TestCycleConsistency(t *testing.T) {
 					pricing.NoopBidPriceProvider{},
 					[]string{},
 					&testQueueCache{},
+					schedulerconfig.RetryPolicyConfig{},
+					retry.NoopPolicyCache{},
 				)
 				require.NoError(t, err)
 				scheduler.clock = testClock
@@ -4103,7 +4125,7 @@ func TestAppendEventSequencesFromPreemptedJobs_PopulatesPreemptingJobId(t *testi
 		PreemptionDescription: "preempted by fair-share",
 	}
 
-	sequences, err := AppendEventSequencesFromPreemptedJobs(nil, []*schedulercontext.JobSchedulingContext{jctx}, time.Now())
+	sequences, err := AppendEventSequencesFromPreemptedJobs(nil, []*schedulercontext.JobSchedulingContext{jctx}, nil, time.Now())
 	assert.NoError(t, err)
 	assert.Len(t, sequences, 1)
 
@@ -4139,7 +4161,7 @@ func TestAppendEventSequencesFromPreemptedJobs_NilPreemptingJob(t *testing.T) {
 		PreemptionDescription: "preempted due to node resource change",
 	}
 
-	sequences, err := AppendEventSequencesFromPreemptedJobs(nil, []*schedulercontext.JobSchedulingContext{jctx}, time.Now())
+	sequences, err := AppendEventSequencesFromPreemptedJobs(nil, []*schedulercontext.JobSchedulingContext{jctx}, nil, time.Now())
 	assert.NoError(t, err)
 	assert.Len(t, sequences, 1)
 
