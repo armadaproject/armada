@@ -117,7 +117,7 @@ fi
 
 if [ "${HOT_COLD}" = true ]; then
   print_info "Running lookouthc database migrations..."
-  if $GO_BIN run ./cmd/lookouthc/main.go --migrateDatabase --config ./_local/lookouthc/config.yaml; then
+  if $GO_BIN run ./cmd/lookout/main.go --migrateDatabase --config ./_local/lookouthc/config.yaml; then
     print_success "Lookouthc database migrations completed"
   else
     print_error "Lookouthc database migrations failed"
