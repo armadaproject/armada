@@ -7,6 +7,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
+	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -130,6 +131,36 @@ func TestReportOutcomes(t *testing.T) {
 
 	errorOutcome := testutil.ToFloat64(m.poolSchedulingOutcome.WithLabelValues("fail", SchedulingOutcomeFailure, "error"))
 	assert.Equal(t, 1.0, errorOutcome)
+}
+
+func TestReportSubmitCheckDuration(t *testing.T) {
+	m := newCycleMetrics(pulsarutils.NoOpPublisher[*metricevents.Event]{}, "")
+
+	m.ReportSubmitCheckDuration(map[string]time.Duration{
+		"queue1": 250 * time.Millisecond,
+		"queue2": 50 * time.Millisecond,
+		"queue3": 723 * time.Microsecond,
+	})
+
+	assertHistogramObservation(t, m.submitCheckDuration, "queue1", 1, 250.0)
+	assertHistogramObservation(t, m.submitCheckDuration, "queue2", 1, 50.0)
+	assertHistogramObservation(t, m.submitCheckDuration, "queue3", 1, 0.723)
+
+	m.ReportSubmitCheckDuration(map[string]time.Duration{
+		"queue1": 100 * time.Millisecond,
+	})
+	assertHistogramObservation(t, m.submitCheckDuration, "queue1", 2, 350.0)
+	assertHistogramObservation(t, m.submitCheckDuration, "queue2", 1, 50.0)
+}
+
+func assertHistogramObservation(t *testing.T, vec *prometheus.HistogramVec, queue string, wantCount uint64, wantSumMillis float64) {
+	t.Helper()
+	obs, err := vec.GetMetricWithLabelValues(queue)
+	require.NoError(t, err)
+	metric := &dto.Metric{}
+	require.NoError(t, obs.(prometheus.Metric).Write(metric))
+	assert.Equal(t, wantCount, metric.Histogram.GetSampleCount())
+	assert.InDelta(t, wantSumMillis, metric.Histogram.GetSampleSum(), epsilon)
 }
 
 func TestResetLeaderMetrics_Counters(t *testing.T) {

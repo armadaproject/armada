@@ -65,7 +65,9 @@ func (ec *eventChecks) getAction(podName string, podEvents []*v1.Event, timeInSt
 	for _, event := range podEvents {
 		action, message := ec.getEventAction(podName, event, timeInState)
 		resultAction = maxAction(resultAction, action)
-		resultMessages = append(resultMessages, message)
+		if message != "" {
+			resultMessages = append(resultMessages, message)
+		}
 	}
 	return resultAction, strings.Join(resultMessages, "\n")
 }

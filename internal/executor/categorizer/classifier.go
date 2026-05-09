@@ -26,14 +26,29 @@ type rule struct {
 	containerName        string
 	onExitCodes          *errormatch.ExitCodeMatcher
 	onTerminationMessage *regexp.Regexp
+	onPodError           *regexp.Regexp
 	onConditions         []string
 	subcategory          string
+	hint                 string
 }
 
 // ClassifyResult holds the classification output for a failed pod.
 type ClassifyResult struct {
 	Category    string
 	Subcategory string
+	// Hint is operator-supplied user-facing copy attached to the matching rule.
+	// Use AppendHint to attach it to the failure message before emitting events.
+	Hint string
+}
+
+// AppendHint returns the message with this result's hint appended after a blank
+// line. Returns the message unchanged when no hint is set. Centralizing the
+// format here keeps both event-reporting call sites consistent.
+func (r ClassifyResult) AppendHint(message string) string {
+	if r.Hint == "" {
+		return message
+	}
+	return fmt.Sprintf("%s\n\n%s", message, r.Hint)
 }
 
 // Classifier evaluates pods against a set of category rules and returns
@@ -101,11 +116,14 @@ func buildRule(cfg CategoryRule) (rule, error) {
 	if cfg.OnTerminationMessage != nil {
 		matcherCount++
 	}
+	if cfg.OnPodError != nil {
+		matcherCount++
+	}
 	if matcherCount == 0 {
-		return rule{}, fmt.Errorf("rule must specify one of onConditions, onExitCodes, or onTerminationMessage")
+		return rule{}, fmt.Errorf("rule must specify one of onConditions, onExitCodes, onTerminationMessage, or onPodError")
 	}
 	if matcherCount > 1 {
-		return rule{}, fmt.Errorf("rule must specify only one of onConditions, onExitCodes, or onTerminationMessage")
+		return rule{}, fmt.Errorf("rule must specify only one of onConditions, onExitCodes, onTerminationMessage, or onPodError")
 	}
 
 	for _, cond := range cfg.OnConditions {
@@ -128,29 +146,57 @@ func buildRule(cfg CategoryRule) (rule, error) {
 		}
 	}
 
-	var compiledRegex *regexp.Regexp
+	var terminationRegex *regexp.Regexp
 	if cfg.OnTerminationMessage != nil {
 		re, err := regexp.Compile(cfg.OnTerminationMessage.Pattern)
 		if err != nil {
-			return rule{}, fmt.Errorf("invalid regex %q: %w", cfg.OnTerminationMessage.Pattern, err)
+			return rule{}, fmt.Errorf("invalid onTerminationMessage regex %q: %w", cfg.OnTerminationMessage.Pattern, err)
 		}
-		compiledRegex = re
+		terminationRegex = re
+	}
+
+	var podErrorRegex *regexp.Regexp
+	if cfg.OnPodError != nil {
+		re, err := regexp.Compile(cfg.OnPodError.Pattern)
+		if err != nil {
+			return rule{}, fmt.Errorf("invalid onPodError regex %q: %w", cfg.OnPodError.Pattern, err)
+		}
+		podErrorRegex = re
 	}
 
 	return rule{
 		containerName:        cfg.ContainerName,
 		onExitCodes:          cfg.OnExitCodes,
 		onConditions:         cfg.OnConditions,
-		onTerminationMessage: compiledRegex,
+		onTerminationMessage: terminationRegex,
+		onPodError:           podErrorRegex,
 		subcategory:          cfg.Subcategory,
+		hint:                 cfg.Hint,
 	}, nil
 }
 
-// Classify returns the category and subcategory for the given pod.
-// Rules are evaluated in config order; the first matching rule wins.
+// ClassifyContainerError returns the category and subcategory for a pod whose
+// failure is described by its own state: terminated containers, exit codes,
+// and Kubernetes conditions. Use it for terminated pods (PodFailed phase).
 // Returns empty result if the receiver is nil or the pod is nil.
 // Returns (defaultCategory, defaultSubcategory) if no rules match.
-func (c *Classifier) Classify(pod *v1.Pod) ClassifyResult {
+func (c *Classifier) ClassifyContainerError(pod *v1.Pod) ClassifyResult {
+	return c.classify(pod, "")
+}
+
+// ClassifyPodError returns the category and subcategory for a pod-level failure
+// captured by the executor (image pull, missing volume, stuck terminating,
+// active deadline exceeded, etc.). It additionally matches podErrorMessage
+// against onPodError rules (see CategoryRule.OnPodError); all other rule types
+// are evaluated against pod state, preserving first-match-wins across config order.
+// Returns empty result if the receiver is nil or the pod is nil.
+// Returns (defaultCategory, defaultSubcategory) if no rules match.
+func (c *Classifier) ClassifyPodError(pod *v1.Pod, podErrorMessage string) ClassifyResult {
+	return c.classify(pod, podErrorMessage)
+}
+
+// Rules are evaluated in config order; the first matching rule wins.
+func (c *Classifier) classify(pod *v1.Pod, podErrorMessage string) ClassifyResult {
 	if c == nil || pod == nil {
 		return ClassifyResult{}
 	}
@@ -160,20 +206,21 @@ func (c *Classifier) Classify(pod *v1.Pod) ClassifyResult {
 	for _, cat := range c.categories {
 		for _, r := range cat.rules {
 			start := time.Now()
-			matched := ruleMatches(r, containers, podReason)
+			matched := ruleMatches(r, containers, podReason, podErrorMessage)
 			metrics.RecordRuleEvaluationDuration(cat.name, r.subcategory, time.Since(start))
 			if matched {
-				return ClassifyResult{Category: cat.name, Subcategory: r.subcategory}
+				return ClassifyResult{Category: cat.name, Subcategory: r.subcategory, Hint: r.hint}
 			}
 		}
 	}
 	return ClassifyResult{Category: c.defaultCategory, Subcategory: c.defaultSubcategory}
 }
 
-// ruleMatches evaluates a single rule. When containerName is set, only that
-// container is considered. It checks the first non-nil matcher:
-// conditions > exit codes > termination message.
-func ruleMatches(r rule, containers []containerInfo, podReason string) bool {
+// ruleMatches evaluates a single rule. Container-level matchers honor the
+// rule's containerName scope (when set); onPodError ignores it because the
+// pod-level error has no container attribution. Exactly one matcher is set
+// per rule (validated at NewClassifier).
+func ruleMatches(r rule, containers []containerInfo, podReason, podErrorMessage string) bool {
 	filtered := containers
 	if r.containerName != "" {
 		filtered = filterByName(containers, r.containerName)
@@ -186,6 +233,9 @@ func ruleMatches(r rule, containers []containerInfo, podReason string) bool {
 	}
 	if r.onTerminationMessage != nil {
 		return matchesTerminationMessage(r.onTerminationMessage, filtered)
+	}
+	if r.onPodError != nil {
+		return podErrorMessage != "" && errormatch.MatchPattern(r.onPodError, podErrorMessage)
 	}
 	return false
 }
