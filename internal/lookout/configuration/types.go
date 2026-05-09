@@ -25,6 +25,9 @@ type LookoutConfig struct {
 	ExperimentalHotColdSplit bool
 
 	UIConfig
+
+	LookoutUIBaseUrl string
+	MCPEnabled       bool
 }
 
 type TlsConfig struct {
