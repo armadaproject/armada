@@ -16,9 +16,8 @@ postgres:
     port: 5433
     user: postgres
     password: psw
-    dbname: lookout
+    dbname: lookouthc
     sslmode: disable
-experimentalHotColdSplit: false
 prunerConfig:
   expireAfter: 1008h # 42 days / 6 weeks
   deduplicationExpireAfter: 168h # 7 days
@@ -27,7 +26,7 @@ prunerConfig:
 uiConfig:
   backend: "jsonb"
   armadaApiBaseUrl: "http://armada-server:8080"
-  customTitle: "Local Dev"
+  customTitle: "Local Dev HC"
   userAnnotationPrefix: "armadaproject.io/"
   binocularsBaseUrlPattern: "http://armada-binoculars:8080"
   commandSpecs:

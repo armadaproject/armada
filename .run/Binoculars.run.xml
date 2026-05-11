@@ -1,0 +1,20 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Binoculars" type="GoApplicationRunConfiguration" factoryName="Go Application">
+    <module name="armada" />
+    <working_directory value="$PROJECT_DIR$" />
+    <envs>
+      <env name="ARMADA_HTTPPORT" value="8082" />
+      <env name="ARMADA_GRPCPORT" value="50053" />
+      <env name="ARMADA_METRICSPORT" value="9007" />
+      <env name="ARMADA_LOG_CONFIG" value="config/logging-dev.yaml" />
+      <env name="HOME" value="$USER_HOME$/" />
+      <env name="KUBECONFIG" value="$PROJECT_DIR$/.kube/external/config" />
+    </envs>
+    <pass_parent_env value="false" />
+    <kind value="FILE" />
+    <package value="github.com/armadaproject/armada" />
+    <directory value="$PROJECT_DIR$" />
+    <filePath value="$PROJECT_DIR$/cmd/binoculars/main.go" />
+    <method v="2" />
+  </configuration>
+</component>

@@ -24,12 +24,16 @@
 # Environment variables:
 # - POSTGRES_CONTAINER: Name of the PostgreSQL Docker container (default: postgres)
 # - GO_BIN: Path to Go binary (default: go)
+#
+# Flags:
+# - --hotCold: Also provision and migrate the lookouthc database (default: false)
 
 set -eu # Exit on error and undefined variable
 
 # Configuration
 POSTGRES_CONTAINER="${POSTGRES_CONTAINER:-postgres}"
 GO_BIN="${GO_BIN:-go}"
+HOT_COLD=false
 
 # Colors for output
 RED='\033[0;31m'
@@ -40,6 +44,20 @@ NC='\033[0m' # No Color
 print_success() { echo -e "${GREEN}✓${NC} $1"; }
 print_error() { echo -e "${RED}✗${NC} $1"; }
 print_info() { echo -e "${YELLOW}→${NC} $1"; }
+
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    --hotCold)
+      HOT_COLD=true
+      shift
+      ;;
+    *)
+      print_error "Unknown argument: $1"
+      exit 1
+      ;;
+  esac
+done
 
 print_info "Waiting for PostgreSQL container '${POSTGRES_CONTAINER}' to be ready..."
 for i in {1..30}; do
@@ -70,6 +88,15 @@ else
   print_info "Lookout database already exists"
 fi
 
+if [ "${HOT_COLD}" = true ]; then
+  if ! docker exec "${POSTGRES_CONTAINER}" psql -U postgres -tc "SELECT 1 FROM pg_database WHERE datname = 'lookouthc'" | grep -q 1; then
+    docker exec "${POSTGRES_CONTAINER}" psql -U postgres -c "CREATE DATABASE lookouthc;"
+    print_success "Created lookouthc database"
+  else
+    print_info "Lookouthc database already exists"
+  fi
+fi
+
 print_success "Databases ready!"
 
 print_info "Running scheduler database migrations..."
@@ -86,6 +113,16 @@ if $GO_BIN run ./cmd/lookout/main.go --migrateDatabase --config ./_local/lookout
 else
   print_error "Lookout database migrations failed"
   exit 1
+fi
+
+if [ "${HOT_COLD}" = true ]; then
+  print_info "Running lookouthc database migrations..."
+  if $GO_BIN run ./cmd/lookout/main.go --migrateDatabase --config ./_local/lookouthc/config.yaml; then
+    print_success "Lookouthc database migrations completed"
+  else
+    print_error "Lookouthc database migrations failed"
+    exit 1
+  fi
 fi
 
 print_success "All migrations completed successfully!"
