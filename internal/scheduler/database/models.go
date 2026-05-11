@@ -58,6 +58,12 @@ type JobRunError struct {
 	Error []byte `db:"error"`
 }
 
+type JobSpec struct {
+	JobID         string `db:"job_id"`
+	SubmitMessage []byte `db:"submit_message"`
+	Groups        []byte `db:"groups"`
+}
+
 type Marker struct {
 	GroupID     uuid.UUID `db:"group_id"`
 	PartitionID int32     `db:"partition_id"`

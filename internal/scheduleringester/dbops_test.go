@@ -161,6 +161,21 @@ func TestDbOperationOptimisation(t *testing.T) {
 			InsertJobs{jobIds[2]: &schedulerdb.Job{JobID: jobIds[2]}},                                                                // 2
 			InsertRuns{runIds[2]: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobIds[2], RunID: runIds[2]}}}, // 2
 		}},
+		"InsertJobs, InsertJobSpecs": {N: 2, Ops: []DbOperation{
+			InsertJobs{jobIds[0]: &schedulerdb.Job{JobID: jobIds[0], Queue: testQueueName, JobSet: "set1"}},  // 1
+			InsertJobSpecs{jobIds[0]: &schedulerdb.JobSpec{JobID: jobIds[0], SubmitMessage: []byte("sm-0")}}, // 2
+			InsertJobs{jobIds[1]: &schedulerdb.Job{JobID: jobIds[1], Queue: testQueueName, JobSet: "set2"}},  // 1
+			InsertJobSpecs{jobIds[1]: &schedulerdb.JobSpec{JobID: jobIds[1], SubmitMessage: []byte("sm-1")}}, // 2
+			InsertJobs{jobIds[2]: &schedulerdb.Job{JobID: jobIds[2], Queue: testQueueName, JobSet: "set1"}},  // 1
+			InsertJobSpecs{jobIds[2]: &schedulerdb.JobSpec{JobID: jobIds[2], SubmitMessage: []byte("sm-2")}}, // 2
+		}},
+		"InsertJobSpecs, MarkJobsSucceeded": {N: 3, Ops: []DbOperation{
+			InsertJobs{jobIds[0]: &schedulerdb.Job{JobID: jobIds[0], Queue: testQueueName, JobSet: "set1"}},  // 1
+			InsertJobSpecs{jobIds[0]: &schedulerdb.JobSpec{JobID: jobIds[0], SubmitMessage: []byte("sm-0")}}, // 2
+			MarkJobsSucceeded{jobIds[0]: true}, // 3
+			InsertJobs{jobIds[1]: &schedulerdb.Job{JobID: jobIds[1], Queue: testQueueName, JobSet: "set1"}},  // 1
+			InsertJobSpecs{jobIds[1]: &schedulerdb.JobSpec{JobID: jobIds[1], SubmitMessage: []byte("sm-1")}}, // 2
+		}},
 		"UpdateJobSetPriorities": {N: 3, Ops: []DbOperation{
 			InsertJobs{jobIds[0]: &schedulerdb.Job{JobID: jobIds[0], Queue: testQueueName, JobSet: "set1"}}, // 1
 			UpdateJobSetPriorities{JobSetKey{queue: testQueueName, jobSet: "set1"}: 1},                      // 2
@@ -422,19 +437,22 @@ func TestInsertJobRequestCancel(t *testing.T) {
 }
 
 type mockDb struct {
-	Jobs map[string]*schedulerdb.Job
-	Runs map[string]*schedulerdb.Run
+	Jobs     map[string]*schedulerdb.Job
+	JobSpecs map[string]*schedulerdb.JobSpec
+	Runs     map[string]*schedulerdb.Run
 }
 
 func newMockDb() *mockDb {
 	return &mockDb{
-		Jobs: make(map[string]*schedulerdb.Job),
-		Runs: make(map[string]*schedulerdb.Run),
+		Jobs:     make(map[string]*schedulerdb.Job),
+		JobSpecs: make(map[string]*schedulerdb.JobSpec),
+		Runs:     make(map[string]*schedulerdb.Run),
 	}
 }
 
 func assertDbEquals(t *testing.T, expected, actual *mockDb) {
 	assert.Equal(t, expected.Jobs, actual.Jobs)
+	assert.Equal(t, expected.JobSpecs, actual.JobSpecs)
 	assert.Equal(t, expected.Runs, actual.Runs)
 }
 
@@ -458,6 +476,11 @@ func (db *mockDb) apply(op DbOperation) error {
 		}
 		if len(db.Jobs) != n+len(o) {
 			return errors.New("duplicate job id")
+		}
+	case InsertJobSpecs:
+		for _, spec := range o {
+			spec := *spec // Copy primitive types
+			db.JobSpecs[spec.JobID] = &spec
 		}
 	case InsertRuns:
 		n := len(db.Runs)

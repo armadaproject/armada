@@ -110,6 +110,17 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 		if err != nil {
 			return err
 		}
+	case InsertJobSpecs:
+		records := make([]any, len(o))
+		i := 0
+		for _, v := range o {
+			records[i] = *v
+			i++
+		}
+		err := database.Upsert(ctx, tx, "job_specs", records)
+		if err != nil {
+			return err
+		}
 	case InsertRuns:
 		records := make([]any, len(o))
 		i := 0

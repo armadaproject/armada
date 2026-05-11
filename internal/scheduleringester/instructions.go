@@ -32,8 +32,9 @@ type eventSequenceCommon struct {
 }
 
 type JobSetEventsInstructionConverter struct {
-	metrics    *metrics.Metrics
-	compressor compress.Compressor
+	metrics        *metrics.Metrics
+	compressor     compress.Compressor
+	migrationPhase schedulerdb.JobSpecMigrationPhase
 }
 
 type ControlPlaneEventsInstructionConverter struct {
@@ -42,14 +43,16 @@ type ControlPlaneEventsInstructionConverter struct {
 
 func NewJobSetEventsInstructionConverter(
 	metrics *metrics.Metrics,
+	migrationPhase schedulerdb.JobSpecMigrationPhase,
 ) (*JobSetEventsInstructionConverter, error) {
 	compressor, err := compress.NewZlibCompressor(1024)
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to create compressor")
 	}
 	return &JobSetEventsInstructionConverter{
-		metrics:    metrics,
-		compressor: compressor,
+		metrics:        metrics,
+		compressor:     compressor,
+		migrationPhase: migrationPhase,
 	}, nil
 }
 
@@ -177,21 +180,33 @@ func (c *JobSetEventsInstructionConverter) handleSubmitJob(job *armadaevents.Sub
 		}
 	}
 
-	return []DbOperation{InsertJobs{jobId: &schedulerdb.Job{
+	jobRow := &schedulerdb.Job{
 		JobID:                 jobId,
 		JobSet:                meta.jobset,
 		UserID:                meta.user,
-		Groups:                compressedGroups,
 		Queue:                 meta.queue,
 		Queued:                true,
 		QueuedVersion:         0,
 		Submitted:             submitTime.UnixNano(),
 		Priority:              int64(job.Priority),
-		SubmitMessage:         compressedSubmitJobBytes,
 		SchedulingInfo:        schedulingInfoBytes,
 		SchedulingInfoVersion: int32(schedulingInfo.Version),
 		PriceBand:             pricingBand,
-	}}}, nil
+	}
+	if c.migrationPhase.WritesJobs() {
+		jobRow.SubmitMessage = compressedSubmitJobBytes
+		jobRow.Groups = compressedGroups
+	}
+
+	ops := []DbOperation{InsertJobs{jobId: jobRow}}
+	if c.migrationPhase.WritesJobSpecs() {
+		ops = append(ops, InsertJobSpecs{jobId: &schedulerdb.JobSpec{
+			JobID:         jobId,
+			SubmitMessage: compressedSubmitJobBytes,
+			Groups:        compressedGroups,
+		}})
+	}
+	return ops, nil
 }
 
 func (c *JobSetEventsInstructionConverter) handleJobRunLeased(jobRunLeased *armadaevents.JobRunLeased, eventTime time.Time, meta eventSequenceCommon) ([]DbOperation, error) {

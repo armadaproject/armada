@@ -70,15 +70,6 @@ UPDATE runs SET run_attempted = true WHERE run_id = ANY(sqlc.arg(run_ids)::text[
 -- name: MarkJobRunsRunningById :exec
 UPDATE runs SET running = true WHERE run_id = ANY(sqlc.arg(run_ids)::text[]);
 
--- name: SelectJobsForExecutor :many
-SELECT jr.run_id, j.queue, j.job_set, j.user_id, j.groups, j.submit_message
-FROM runs jr
-         JOIN jobs j
-              ON jr.job_id = j.job_id
-WHERE jr.executor = $1
-  AND jr.run_id NOT IN (sqlc.arg(run_ids)::text[])
-  AND jr.terminated = false;
-
 -- name: FindActiveRuns :many
 SELECT run_id FROM runs WHERE run_id = ANY(sqlc.arg(run_ids)::text[]) AND terminated = false;
 

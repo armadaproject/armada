@@ -667,57 +667,6 @@ func (q *Queries) SelectJobsByNodeAndExecutorAndQueues(ctx context.Context, arg 
 	return items, nil
 }
 
-const selectJobsForExecutor = `-- name: SelectJobsForExecutor :many
-SELECT jr.run_id, j.queue, j.job_set, j.user_id, j.groups, j.submit_message
-FROM runs jr
-         JOIN jobs j
-              ON jr.job_id = j.job_id
-WHERE jr.executor = $1
-  AND jr.run_id NOT IN ($2::text[])
-  AND jr.terminated = false
-`
-
-type SelectJobsForExecutorParams struct {
-	Executor string   `db:"executor"`
-	RunIds   []string `db:"run_ids"`
-}
-
-type SelectJobsForExecutorRow struct {
-	RunID         string `db:"run_id"`
-	Queue         string `db:"queue"`
-	JobSet        string `db:"job_set"`
-	UserID        string `db:"user_id"`
-	Groups        []byte `db:"groups"`
-	SubmitMessage []byte `db:"submit_message"`
-}
-
-func (q *Queries) SelectJobsForExecutor(ctx context.Context, arg SelectJobsForExecutorParams) ([]SelectJobsForExecutorRow, error) {
-	rows, err := q.db.Query(ctx, selectJobsForExecutor, arg.Executor, arg.RunIds)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []SelectJobsForExecutorRow
-	for rows.Next() {
-		var i SelectJobsForExecutorRow
-		if err := rows.Scan(
-			&i.RunID,
-			&i.Queue,
-			&i.JobSet,
-			&i.UserID,
-			&i.Groups,
-			&i.SubmitMessage,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const selectLatestJobRunSerial = `-- name: SelectLatestJobRunSerial :one
 SELECT serial FROM runs ORDER BY serial DESC LIMIT 1
 `

@@ -186,6 +186,7 @@ func discardNilOps(ops []DbOperation) []DbOperation {
 
 type (
 	InsertJobs                 map[string]*schedulerdb.Job
+	InsertJobSpecs             map[string]*schedulerdb.JobSpec
 	InsertRuns                 map[string]*JobRunDetails
 	UpdateJobSetPriorities     map[JobSetKey]int64
 	MarkJobSetsCancelRequested struct {
@@ -247,6 +248,10 @@ func (a MarkJobSetsCancelRequested) AffectsJobSet(queue string, jobSet string) b
 }
 
 func (a InsertJobs) Merge(b DbOperation) bool {
+	return mergeInMap(a, b)
+}
+
+func (a InsertJobSpecs) Merge(b DbOperation) bool {
 	return mergeInMap(a, b)
 }
 
@@ -460,6 +465,10 @@ func (a InsertJobs) CanBeAppliedBefore(b DbOperation) bool {
 		}
 	}
 	return true
+}
+
+func (a InsertJobSpecs) CanBeAppliedBefore(b DbOperation) bool {
+	return !definesJob(a, b)
 }
 
 func (a InsertRuns) CanBeAppliedBefore(b DbOperation) bool {
@@ -713,6 +722,10 @@ func definesRun[M ~map[string]V, V any](a M, b DbOperation) bool {
 }
 
 func (a InsertJobs) GetOperation() Operation {
+	return JobSetOperation
+}
+
+func (a InsertJobSpecs) GetOperation() Operation {
 	return JobSetOperation
 }
 

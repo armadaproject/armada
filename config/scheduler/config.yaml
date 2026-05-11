@@ -6,6 +6,7 @@ pulsarSendTimeout: 5s
 internedStringsCacheSize: 100000
 queueRefreshPeriod: 10s
 publishMetricsToPulsar: false
+jobSpecMigrationPhase: legacy
 metrics:
   port: 9000
   jobStateMetricsResetInterval: 12h

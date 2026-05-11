@@ -12,6 +12,7 @@ import (
 	profilingconfig "github.com/armadaproject/armada/internal/common/profiling/configuration"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/common/types"
+	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/armadaproject/armada/pkg/client"
 )
@@ -87,6 +88,14 @@ type Configuration struct {
 	PricingApi PricingApiConfig
 	// Whether to publish metrics To Pulsar.  This is currently experimental
 	PublishMetricsToPulsar bool
+	// JobSpecMigrationPhase controls whether submit_message and groups are
+	// read from the jobs table, the job_specs table, or both (coalesced),
+	// during the migration. Required; default ("legacy").
+	// Operators must coordinate this value with the scheduleringester's JobSpecMigrationPhase:
+	// a mismatch can cause new submissions to be unreadable
+	// (e.g. ingester=cutover with scheduler=legacy omits submit_message/groups from leases)
+	// or to fail entirely (e.g. scheduler=cutover while rows without a job_specs counterpart still exist).
+	JobSpecMigrationPhase schedulerdb.JobSpecMigrationPhase `validate:"required,oneof=legacy dualWrite cutover"`
 }
 
 type SubmitCheckConfig struct {

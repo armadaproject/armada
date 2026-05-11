@@ -3051,14 +3051,14 @@ func TestCycleConsistency(t *testing.T) {
 				queueByJobId[jobUpdate.JobID] = jobUpdate.Queue
 				jobSetByJobId[jobUpdate.JobID] = jobUpdate.JobSet
 			}
-			instructionConverter, err := scheduleringester.NewJobSetEventsInstructionConverter(nil)
+			instructionConverter, err := scheduleringester.NewJobSetEventsInstructionConverter(nil, schedulerdb.JobSpecMigrationPhaseDualWrite)
 			require.NoError(t, err)
 
 			// Helper function for creating new schedulers for use in tests.
 			newScheduler := func(db *pgxpool.Pool) *Scheduler {
 				scheduler, err := NewScheduler(
 					testfixtures.NewJobDb(resourceListFactory),
-					database.NewPostgresJobRepository(db, 1024),
+					database.NewPostgresJobRepository(db, 1024, schedulerdb.JobSpecMigrationPhaseDualWrite),
 					&testExecutorRepository{
 						updateTimes: map[string]time.Time{"test-executor": testClock.Now()},
 					},
@@ -3442,7 +3442,7 @@ func dbOpsFromDbObjects(
 		insertJobsDbOp[dbJob.JobID] = dbJob
 		// jobUpdatesByJobId[dbJob.JobID] = dbJob
 	}
-	dbOps = scheduleringester.AppendDbOperation(dbOps, fixInsertJobsDbOp(insertJobsDbOp))
+	dbOps = scheduleringester.AppendDbOperation(dbOps, insertJobsDbOp)
 
 	insertRunsDbOp := make(scheduleringester.InsertRuns, len(runUpdates))
 	for _, dbRun := range runUpdates {
@@ -3490,14 +3490,6 @@ func dbOpsFromDbObjects(
 	}
 
 	return dbOps, nil
-}
-
-func fixInsertJobsDbOp(dbOp scheduleringester.InsertJobs) scheduleringester.InsertJobs {
-	for _, job := range dbOp {
-		// This field must be non-null when written to postgres.
-		job.SubmitMessage = make([]byte, 0)
-	}
-	return dbOp
 }
 
 func toInternalSchedulingInfo(j *schedulerobjects.JobSchedulingInfo) *internaltypes.JobSchedulingInfo {

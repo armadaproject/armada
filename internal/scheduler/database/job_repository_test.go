@@ -1160,7 +1160,7 @@ func TestSelectRunningJobsByQueue(t *testing.T) {
 
 func withJobRepository(action func(repository *PostgresJobRepository) error) error {
 	return WithTestDb(func(_ *Queries, db *pgxpool.Pool) error {
-		repo := NewPostgresJobRepository(db, defaultBatchSize)
+		repo := NewPostgresJobRepository(db, defaultBatchSize, JobSpecMigrationPhaseLegacy)
 		return action(repo)
 	})
 }

@@ -35,37 +35,51 @@ func TestConvertEventSequence(t *testing.T) {
 	}{
 		"submit": {
 			events: []*armadaevents.EventSequence_Event{f.Submit},
-			expected: []DbOperation{InsertJobs{f.JobId: &schedulerdb.Job{
-				JobID:          f.JobId,
-				JobSet:         f.JobsetName,
-				UserID:         f.UserId,
-				Groups:         compress.MustCompressStringArray(f.Groups, compressor),
-				Queue:          f.Queue,
-				Queued:         true,
-				QueuedVersion:  0,
-				Priority:       int64(f.Priority),
-				Submitted:      f.BaseTime.UnixNano(),
-				SubmitMessage:  protoutil.MustMarshallAndCompress(f.Submit.GetSubmitJob(), compressor),
-				SchedulingInfo: protoutil.MustMarshall(getExpectedSubmitMessageSchedulingInfo(t)),
-				PriceBand:      1,
-			}}},
+			expected: []DbOperation{
+				InsertJobs{f.JobId: &schedulerdb.Job{
+					JobID:          f.JobId,
+					JobSet:         f.JobsetName,
+					UserID:         f.UserId,
+					Groups:         compress.MustCompressStringArray(f.Groups, compressor),
+					Queue:          f.Queue,
+					Queued:         true,
+					QueuedVersion:  0,
+					Priority:       int64(f.Priority),
+					Submitted:      f.BaseTime.UnixNano(),
+					SubmitMessage:  protoutil.MustMarshallAndCompress(f.Submit.GetSubmitJob(), compressor),
+					SchedulingInfo: protoutil.MustMarshall(getExpectedSubmitMessageSchedulingInfo(t)),
+					PriceBand:      1,
+				}},
+				InsertJobSpecs{f.JobId: &schedulerdb.JobSpec{
+					JobID:         f.JobId,
+					Groups:        compress.MustCompressStringArray(f.Groups, compressor),
+					SubmitMessage: protoutil.MustMarshallAndCompress(f.Submit.GetSubmitJob(), compressor),
+				}},
+			},
 		},
 		"submit with annotations we want to filter": {
 			events: []*armadaevents.EventSequence_Event{f.SubmitWithIrrelevantAnnotations},
-			expected: []DbOperation{InsertJobs{f.JobId: &schedulerdb.Job{
-				JobID:          f.JobId,
-				JobSet:         f.JobsetName,
-				UserID:         f.UserId,
-				Groups:         compress.MustCompressStringArray(f.Groups, compressor),
-				Queue:          f.Queue,
-				Queued:         true,
-				QueuedVersion:  0,
-				Priority:       int64(f.Priority),
-				Submitted:      f.BaseTime.UnixNano(),
-				SubmitMessage:  protoutil.MustMarshallAndCompress(f.SubmitWithIrrelevantAnnotations.GetSubmitJob(), compressor),
-				SchedulingInfo: protoutil.MustMarshall(getExpectedSubmitMessageSchedulingInfo(t)),
-				PriceBand:      1,
-			}}},
+			expected: []DbOperation{
+				InsertJobs{f.JobId: &schedulerdb.Job{
+					JobID:          f.JobId,
+					JobSet:         f.JobsetName,
+					UserID:         f.UserId,
+					Groups:         compress.MustCompressStringArray(f.Groups, compressor),
+					Queue:          f.Queue,
+					Queued:         true,
+					QueuedVersion:  0,
+					Priority:       int64(f.Priority),
+					Submitted:      f.BaseTime.UnixNano(),
+					SubmitMessage:  protoutil.MustMarshallAndCompress(f.SubmitWithIrrelevantAnnotations.GetSubmitJob(), compressor),
+					SchedulingInfo: protoutil.MustMarshall(getExpectedSubmitMessageSchedulingInfo(t)),
+					PriceBand:      1,
+				}},
+				InsertJobSpecs{f.JobId: &schedulerdb.JobSpec{
+					JobID:         f.JobId,
+					Groups:        compress.MustCompressStringArray(f.Groups, compressor),
+					SubmitMessage: protoutil.MustMarshallAndCompress(f.SubmitWithIrrelevantAnnotations.GetSubmitJob(), compressor),
+				}},
+			},
 		},
 		"job run leased": {
 			events: []*armadaevents.EventSequence_Event{f.Leased},
@@ -292,7 +306,7 @@ func TestConvertEventSequence(t *testing.T) {
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			converter := JobSetEventsInstructionConverter{m, compressor}
+			converter := JobSetEventsInstructionConverter{m, compressor, schedulerdb.JobSpecMigrationPhaseDualWrite}
 			es := f.NewEventSequence(tc.events...)
 			results := converter.dbOperationsFromEventSequence(es)
 			assertOperationsEqual(t, tc.expected, results)
@@ -490,6 +504,17 @@ func assertOperationsEqual(t *testing.T, expectedOps []DbOperation, actualOps []
 				expectedSubmit.SchedulingInfo = nil
 				expectedSubmit.SubmitMessage = nil
 				assert.Equal(t, expectedSubmit, actualSubmit)
+			}
+		case InsertJobSpecs:
+			actualSpecs := actualOp.(InsertJobSpecs)
+			for k, expectedSpec := range expectedOp.(InsertJobSpecs) {
+				actualSpec, ok := actualSpecs[k]
+				assert.True(t, ok)
+				assertSubmitMessagesEqual(t, expectedSpec.SubmitMessage, actualSpec.SubmitMessage)
+				// nil out byte arrays; Groups is deterministically compressed so direct compare is fine
+				actualSpec.SubmitMessage = nil
+				expectedSpec.SubmitMessage = nil
+				assert.Equal(t, expectedSpec, actualSpec)
 			}
 		case InsertJobRunErrors:
 			actualErrors := actualOp.(InsertJobRunErrors)
