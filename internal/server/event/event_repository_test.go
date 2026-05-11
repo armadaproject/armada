@@ -10,6 +10,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
+	"github.com/armadaproject/armada/internal/common/constants"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/server/event/sequence"
 	"github.com/armadaproject/armada/pkg/api"
@@ -252,7 +253,7 @@ func storeEvents(ctx *armadacontext.Context, r *RedisEventRepository, events ...
 	}
 
 	r.db.XAdd(ctx, &redis.XAddArgs{
-		Stream: eventStreamPrefix + testQueue + ":" + jobSetName,
+		Stream: constants.EventStreamPrefix + testQueue + ":" + jobSetName,
 		Values: map[string]interface{}{
 			dataKey: compressed,
 		},

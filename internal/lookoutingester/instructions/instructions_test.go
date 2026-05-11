@@ -14,6 +14,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
+	"github.com/armadaproject/armada/internal/common/constants"
 	"github.com/armadaproject/armada/internal/common/database/lookout"
 	"github.com/armadaproject/armada/internal/common/eventutil"
 	"github.com/armadaproject/armada/internal/common/ingest/testfixtures"
@@ -153,19 +154,16 @@ var expectedPreempted = model.UpdateJobInstruction{
 	LastTransitionTimeSeconds: pointer.Int64(testfixtures.BaseTime.Unix()),
 }
 
-var expectedFailedRunWithFailureInfo = model.UpdateJobRunInstruction{
-	RunId:       testfixtures.RunId,
-	Node:        pointer.String(testfixtures.NodeName),
-	Finished:    &testfixtures.BaseTime,
-	JobRunState: pointer.Int32(lookout.JobRunFailedOrdinal),
-	Error:       []byte(testfixtures.ErrMsg),
-	Debug:       []byte(testfixtures.DebugMsg),
-	ExitCode:    pointer.Int32(testfixtures.ExitCode),
-	FailureInfo: map[string]any{
-		"exitCode":           int32(testfixtures.ExitCode),
-		"terminationMessage": "OOM killed by kernel",
-		"categories":         []string{"RESOURCE_LIMIT", "MEMORY"},
-	},
+var expectedFailedRunWithCategory = model.UpdateJobRunInstruction{
+	RunId:              testfixtures.RunId,
+	Node:               pointer.String(testfixtures.NodeName),
+	Finished:           &testfixtures.BaseTime,
+	JobRunState:        pointer.Int32(lookout.JobRunFailedOrdinal),
+	Error:              []byte(testfixtures.ErrMsg),
+	Debug:              []byte(testfixtures.DebugMsg),
+	ExitCode:           pointer.Int32(testfixtures.ExitCode),
+	FailureCategory:    pointer.String("infrastructure"),
+	FailureSubcategory: pointer.String("oom"),
 }
 
 var expectedReconciliationErrRun = model.UpdateJobRunInstruction{
@@ -223,9 +221,9 @@ func TestConvert(t *testing.T) {
 	}
 	submit.GetSubmitJob().GetMainObject().GetPodSpec().GetPodSpec().PriorityClassName = priorityClass
 	submit.GetSubmitJob().GetObjectMeta().Annotations = map[string]string{
-		userAnnotationPrefix + "a":        "0",
-		"b":                               "1",
-		"armadaproject.io/externalJobUri": "external-job-uri",
+		userAnnotationPrefix + "a":         "0",
+		"b":                                "1",
+		constants.ExternalJobUriAnnotation: "external-job-uri",
 	}
 	job, err := eventutil.ApiJobFromLogSubmitJob(testfixtures.UserId, []string{}, testfixtures.Queue, testfixtures.JobsetName, testfixtures.BaseTime, submit.GetSubmitJob())
 	assert.NoError(t, err)
@@ -249,9 +247,9 @@ func TestConvert(t *testing.T) {
 		JobProto:                  jobProto,
 		PriorityClass:             pointer.String(priorityClass),
 		Annotations: map[string]string{
-			"a":                               "0",
-			"b":                               "1",
-			"armadaproject.io/externalJobUri": "external-job-uri",
+			"a":                                "0",
+			"b":                                "1",
+			constants.ExternalJobUriAnnotation: "external-job-uri",
 		},
 		ExternalJobUri: "external-job-uri",
 	}
@@ -396,13 +394,13 @@ func TestConvert(t *testing.T) {
 				MessageIds:      []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 		},
-		"job run failed with failure info": {
+		"job run failed with category": {
 			events: &utils.EventsWithIds[*armadaevents.EventSequence]{
-				Events:     []*armadaevents.EventSequence{testfixtures.NewEventSequence(testfixtures.JobRunFailedWithFailureInfo)},
+				Events:     []*armadaevents.EventSequence{testfixtures.NewEventSequence(testfixtures.JobRunFailedWithCategory)},
 				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 			expected: &model.InstructionSet{
-				JobRunsToUpdate: []*model.UpdateJobRunInstruction{&expectedFailedRunWithFailureInfo},
+				JobRunsToUpdate: []*model.UpdateJobRunInstruction{&expectedFailedRunWithCategory},
 				MessageIds:      []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 		},
@@ -538,6 +536,55 @@ func TestConvert(t *testing.T) {
 	}
 }
 
+func TestExternalJobUriProtoFieldPreferred(t *testing.T) {
+	tests := map[string]struct {
+		protoField  string
+		annotations map[string]string
+		expected    string
+	}{
+		"Proto field takes priority over annotation": {
+			protoField: "airflow://dag/task/run/0",
+			annotations: map[string]string{
+				constants.ExternalJobUriAnnotation: "old-value",
+			},
+			expected: "airflow://dag/task/run/0",
+		},
+		"Falls back to annotation when proto field empty": {
+			protoField: "",
+			annotations: map[string]string{
+				constants.ExternalJobUriAnnotation: "airflow://dag/task/run/0",
+			},
+			expected: "airflow://dag/task/run/0",
+		},
+		"Empty when neither set": {
+			protoField:  "",
+			annotations: map[string]string{},
+			expected:    "",
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			submit, err := testfixtures.DeepCopy(testfixtures.Submit)
+			require.NoError(t, err)
+			submit.GetSubmitJob().ExternalJobUri = tc.protoField
+			submit.GetSubmitJob().GetObjectMeta().Annotations = tc.annotations
+
+			events := &utils.EventsWithIds[*armadaevents.EventSequence]{
+				Events: []*armadaevents.EventSequence{
+					testfixtures.NewEventSequence(submit),
+				},
+				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			}
+
+			converter := NewInstructionConverter(metrics.Get().Metrics, userAnnotationPrefix, []string{}, &compress.NoOpCompressor{})
+			instructionSet := converter.Convert(armadacontext.TODO(), events)
+			require.Len(t, instructionSet.JobsToCreate, 1)
+			assert.Equal(t, tc.expected, instructionSet.JobsToCreate[0].ExternalJobUri)
+		})
+	}
+}
+
 func TestTruncatesStringsThatAreTooLong(t *testing.T) {
 	longString := strings.Repeat("x", 4000)
 
@@ -545,7 +592,7 @@ func TestTruncatesStringsThatAreTooLong(t *testing.T) {
 	assert.NoError(t, err)
 	submit.GetSubmitJob().GetMainObject().GetPodSpec().GetPodSpec().PriorityClassName = longString
 	submit.GetSubmitJob().GetObjectMeta().Annotations = map[string]string{
-		"armadaproject.io/externalJobUri": longString,
+		constants.ExternalJobUriAnnotation: longString,
 	}
 
 	leased, err := testfixtures.DeepCopy(testfixtures.Leased)
@@ -600,26 +647,52 @@ func TestExtractNodeName(t *testing.T) {
 
 func TestExtractUserAnnotations_NoPrefixNoBlocklist_SomeAnnotations(t *testing.T) {
 	annotations := map[string]string{"a": "1", "b": "2"}
-	result := extractUserAnnotations("", map[string]struct{}{}, annotations)
+	result := extractUserAnnotations("test-job", "", map[string]struct{}{}, annotations)
 	assert.Equal(t, annotations, result)
 }
 
 func TestExtractUserAnnotations_NoPrefixNoBlocklist_EmptyAnnotations(t *testing.T) {
-	result := extractUserAnnotations("", map[string]struct{}{}, map[string]string{})
+	result := extractUserAnnotations("test-job", "", map[string]struct{}{}, map[string]string{})
 	assert.Empty(t, result)
 }
 
 func TestExtractUserAnnotations_PrefixTrimming(t *testing.T) {
 	annotations := map[string]string{"prefix/key": "value", "other": "v2"}
 	expected := map[string]string{"key": "value", "other": "v2"}
-	result := extractUserAnnotations("prefix/", map[string]struct{}{}, annotations)
+	result := extractUserAnnotations("test-job", "prefix/", map[string]struct{}{}, annotations)
 	assert.Equal(t, expected, result)
 }
 
 func TestExtractUserAnnotations_Blocklist(t *testing.T) {
 	annotations := map[string]string{"Block": "v1", "block": "v2", "keep": "v3"}
 	blocklist := map[string]struct{}{"block": {}}
-	result := extractUserAnnotations("", blocklist, annotations)
+	result := extractUserAnnotations("test-job", "", blocklist, annotations)
 	expected := map[string]string{"keep": "v3"}
 	assert.Equal(t, expected, result)
+}
+
+func TestExtractUserAnnotations_SanitizesNullBytes(t *testing.T) {
+	annotations := map[string]string{
+		"clean":            "no nulls here",
+		"dirty\x00key":     "value",
+		"key":              "dirty\x00value",
+		"both\x00k":        "both\x00v",
+		"\x00\x00multiple": "\x00",
+	}
+	result := extractUserAnnotations("test-job", "", map[string]struct{}{}, annotations)
+	expected := map[string]string{
+		"clean":    "no nulls here",
+		"dirtykey": "value",
+		"key":      "dirtyvalue",
+		"bothk":    "bothv",
+		"multiple": "",
+	}
+	assert.Equal(t, expected, result)
+}
+
+func TestSanitizeForJsonb(t *testing.T) {
+	assert.Equal(t, "hello", sanitizeForJsonb("hello"))
+	assert.Equal(t, "ab", sanitizeForJsonb("a\x00b"))
+	assert.Equal(t, "", sanitizeForJsonb("\x00"))
+	assert.Equal(t, "", sanitizeForJsonb(""))
 }

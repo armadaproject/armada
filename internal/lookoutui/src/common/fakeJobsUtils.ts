@@ -246,6 +246,37 @@ export function makeManyTestJobs(numJobs: number, numFinishedJobs: number): Job[
   return jobs
 }
 
+export function makeFakeJobSpec(jobId: string): Record<string, any> {
+  return {
+    id: jobId,
+    // eslint-disable-next-line @cspell/spellchecker
+    clientId: "01gvgjbr0jrzvschp2f8jhk6n5",
+    jobSetId: "demo-project-0",
+    queue: "demo",
+    namespace: "default",
+    owner: "anonymous",
+    podSpec: {
+      containers: [
+        {
+          name: "cpu-burner",
+          image: "alpine-stress:latest",
+          command: ["sh"],
+          args: ["-c", "echo STARTED && sleep 60"],
+          resources: {
+            limits: { cpu: "200m", "ephemeral-storage": "8Gi", memory: "128Mi", "nvidia.com/gpu": "8" },
+            requests: { cpu: "200m", "ephemeral-storage": "8Gi", memory: "128Mi", "nvidia.com/gpu": "8" },
+          },
+          imagePullPolicy: "IfNotPresent",
+        },
+      ],
+      restartPolicy: "Never",
+      terminationGracePeriodSeconds: 1,
+      priorityClassName: "armada-default",
+    },
+    created: "2023-03-14T17:23:21.29874Z",
+  }
+}
+
 export function getActiveJobSets(jobs: Job[]): Record<string, string[]> {
   const result: Record<string, string[]> = {}
   for (const job of jobs) {

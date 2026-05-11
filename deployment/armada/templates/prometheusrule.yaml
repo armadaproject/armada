@@ -17,7 +17,7 @@ spec:
         - record: armada:queue:size
           labels:
             namespace: "{{ .Release.Namespace }}"
-          expr: max(sum(armada_queue_size{namespace="{{ .Release.Namespace }}"}) by (queueName, instance)) by (queueName) > 0
+          expr: max(sum(armada_queue_size{namespace="{{ .Release.Namespace }}"}) by (queueName, state, instance)) by (queueName, state) > 0
 
         - record: armada:queue:priority
           labels:

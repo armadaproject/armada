@@ -10,6 +10,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
+	"github.com/armadaproject/armada/internal/common/constants"
 	"github.com/armadaproject/armada/internal/common/database/lookout"
 	"github.com/armadaproject/armada/internal/common/eventutil"
 	"github.com/armadaproject/armada/internal/common/ingest/metrics"
@@ -23,15 +24,14 @@ import (
 )
 
 const (
-	maxQueueLen              = 512
-	maxOwnerLen              = 512
-	maxJobSetLen             = 1024
-	maxAnnotationKeyLen      = 1024
-	maxAnnotationValLen      = 1024
-	maxPriorityClassLen      = 63
-	maxClusterLen            = 512
-	maxNodeLen               = 512
-	maxTerminationMessageLen = 4096
+	maxQueueLen         = 512
+	maxOwnerLen         = 512
+	maxJobSetLen        = 1024
+	maxAnnotationKeyLen = 1024
+	maxAnnotationValLen = 1024
+	maxPriorityClassLen = 63
+	maxClusterLen       = 512
+	maxNodeLen          = 512
 )
 
 type HasNodeName interface {
@@ -175,8 +175,13 @@ func (c *InstructionConverter) handleSubmitJob(
 	}
 
 	annotations := event.GetObjectMeta().GetAnnotations()
-	userAnnotations := extractUserAnnotations(c.userAnnotationPrefix, c.blocklistAnnotations, annotations)
-	externalJobUri := util.Truncate(annotations["armadaproject.io/externalJobUri"], maxAnnotationValLen)
+	userAnnotations := extractUserAnnotations(event.JobId, c.userAnnotationPrefix, c.blocklistAnnotations, annotations)
+	// Prefer the proto field; fall back to annotation for events produced before the field existed.
+	externalJobUri := event.ExternalJobUri
+	if externalJobUri == "" {
+		externalJobUri = annotations[constants.ExternalJobUriAnnotation]
+	}
+	externalJobUri = util.Truncate(externalJobUri, maxAnnotationValLen)
 
 	job := model.CreateJobInstruction{
 		JobId:                     event.JobId,
@@ -209,7 +214,7 @@ filters out any keys in blocklistAnnotations (case-insensitive),
 and truncates keys and values to their maximal lengths as specified by
 maxAnnotationKeyLen and maxAnnotationValLen.
 */
-func extractUserAnnotations(userAnnotationPrefix string, blocklistAnnotations map[string]struct{}, jobAnnotations map[string]string) map[string]string {
+func extractUserAnnotations(jobId string, userAnnotationPrefix string, blocklistAnnotations map[string]struct{}, jobAnnotations map[string]string) map[string]string {
 	result := make(map[string]string, len(jobAnnotations))
 	n := len(userAnnotationPrefix)
 	for k, v := range jobAnnotations {
@@ -219,11 +224,22 @@ func extractUserAnnotations(userAnnotationPrefix string, blocklistAnnotations ma
 		if strings.HasPrefix(k, userAnnotationPrefix) {
 			k = k[n:]
 		}
-		key := util.Truncate(k, maxAnnotationKeyLen)
-		val := util.Truncate(v, maxAnnotationValLen)
+		key := sanitizeForJsonb(k)
+		val := sanitizeForJsonb(v)
+		if key != k || val != v {
+			log.Warnf("Sanitized annotation for job %s: key %q (was %q), value %q (was %q)", jobId, key, k, val, v)
+		}
+		key = util.Truncate(key, maxAnnotationKeyLen)
+		val = util.Truncate(val, maxAnnotationValLen)
 		result[key] = val
 	}
 	return result
+}
+
+// sanitizeForJsonb removes null bytes (\x00) from s.
+// PostgreSQL jsonb rejects strings containing \u0000 with SQLSTATE 22P05.
+func sanitizeForJsonb(s string) string {
+	return strings.ReplaceAll(s, "\x00", "")
 }
 
 func (c *InstructionConverter) handleReprioritiseJob(_ time.Time, event *armadaevents.ReprioritisedJob, update *model.InstructionSet) error {
@@ -444,11 +460,13 @@ func (c *InstructionConverter) handleJobRunErrors(ts time.Time, event *armadaeve
 			jobRunUpdate.Error = tryCompressError(event.JobId, "Unknown error", c.compressor)
 			log.Debugf("Ignoring event %T", reason)
 		}
-		// Only persist FailureInfo for terminal errors - transient failures
-		// may be retried and the final FailureInfo is the one that matters.
+		// Only persist failure classification for terminal errors.
 		if e.Terminal {
-			if fi := e.GetFailureInfo(); fi != nil {
-				jobRunUpdate.FailureInfo = failureInfoToMap(fi)
+			if cat := e.GetFailureCategory(); cat != "" {
+				jobRunUpdate.FailureCategory = pointer.String(cat)
+			}
+			if sub := e.GetFailureSubcategory(); sub != "" {
+				jobRunUpdate.FailureSubcategory = pointer.String(sub)
 			}
 		}
 		update.JobRunsToUpdate = append(update.JobRunsToUpdate, jobRunUpdate)
@@ -475,29 +493,6 @@ func (c *InstructionConverter) handleStandaloneIngressInfo(event *armadaevents.S
 	}
 	update.JobRunsToUpdate = append(update.JobRunsToUpdate, &jobRun)
 	return nil
-}
-
-// failureInfoToMap converts a FailureInfo proto to a JSON-friendly map for JSONB storage.
-// Only non-zero fields are included. After a JSON round-trip through PostgreSQL,
-// numeric fields arrive as float64 - see failureInfoToSwagger for the read side.
-func failureInfoToMap(fi *armadaevents.FailureInfo) map[string]any {
-	m := make(map[string]any, 4)
-	if fi.GetExitCode() != 0 {
-		m["exitCode"] = fi.GetExitCode()
-	}
-	if fi.GetTerminationMessage() != "" {
-		m["terminationMessage"] = util.Truncate(fi.GetTerminationMessage(), maxTerminationMessageLen)
-	}
-	if len(fi.GetCategories()) > 0 {
-		m["categories"] = fi.GetCategories()
-	}
-	if fi.GetContainerName() != "" {
-		m["containerName"] = fi.GetContainerName()
-	}
-	if len(m) == 0 {
-		return nil
-	}
-	return m
 }
 
 func tryCompressError(jobId string, errorString string, compressor compress.Compressor) []byte {

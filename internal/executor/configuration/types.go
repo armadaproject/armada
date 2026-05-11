@@ -28,9 +28,8 @@ type ApplicationConfiguration struct {
 	// It is largely used to calculate how many new jobs to request from the scheduler
 	MaxLeasedJobs int
 	// ErrorCategories defines category rules for classifying pod failures.
-	// Each category has a name and rules that match against exit codes,
-	// termination messages, or failure conditions. Empty means no categorization.
-	ErrorCategories []categorizer.CategoryConfig `yaml:"errorCategories"`
+	// Set ErrorCategories.Enabled to true to turn classification on.
+	ErrorCategories categorizer.ErrorCategoriesConfig `yaml:"errorCategories"`
 }
 
 type PodDefaults struct {

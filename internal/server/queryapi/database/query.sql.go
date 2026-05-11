@@ -126,7 +126,7 @@ func (q *Queries) GetJobErrorsByJobIds(ctx context.Context, jobIds []string) ([]
 }
 
 const getJobRunsByJobIds = `-- name: GetJobRunsByJobIds :many
-SELECT run_id, job_id, cluster, node, pending, started, finished, job_run_state, error, exit_code, leased, debug, pool, ingress_addresses, failure_info FROM job_run WHERE job_id = ANY($1::text[]) order by leased  desc
+SELECT run_id, job_id, cluster, node, pending, started, finished, job_run_state, error, exit_code, leased, debug, pool, ingress_addresses, failure_category, failure_subcategory FROM job_run WHERE job_id = ANY($1::text[]) order by leased  desc
 `
 
 func (q *Queries) GetJobRunsByJobIds(ctx context.Context, jobIds []string) ([]JobRun, error) {
@@ -153,7 +153,8 @@ func (q *Queries) GetJobRunsByJobIds(ctx context.Context, jobIds []string) ([]Jo
 			&i.Debug,
 			&i.Pool,
 			&i.IngressAddresses,
-			&i.FailureInfo,
+			&i.FailureCategory,
+			&i.FailureSubcategory,
 		); err != nil {
 			return nil, err
 		}
@@ -166,7 +167,7 @@ func (q *Queries) GetJobRunsByJobIds(ctx context.Context, jobIds []string) ([]Jo
 }
 
 const getJobRunsByRunIds = `-- name: GetJobRunsByRunIds :many
-SELECT run_id, job_id, cluster, node, pending, started, finished, job_run_state, error, exit_code, leased, debug, pool, ingress_addresses, failure_info FROM job_run WHERE run_id = ANY($1::text[])
+SELECT run_id, job_id, cluster, node, pending, started, finished, job_run_state, error, exit_code, leased, debug, pool, ingress_addresses, failure_category, failure_subcategory FROM job_run WHERE run_id = ANY($1::text[])
 `
 
 func (q *Queries) GetJobRunsByRunIds(ctx context.Context, runIds []string) ([]JobRun, error) {
@@ -193,7 +194,8 @@ func (q *Queries) GetJobRunsByRunIds(ctx context.Context, runIds []string) ([]Jo
 			&i.Debug,
 			&i.Pool,
 			&i.IngressAddresses,
-			&i.FailureInfo,
+			&i.FailureCategory,
+			&i.FailureSubcategory,
 		); err != nil {
 			return nil, err
 		}

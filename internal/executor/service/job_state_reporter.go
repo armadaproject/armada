@@ -10,6 +10,7 @@ import (
 	"github.com/armadaproject/armada/internal/executor/categorizer"
 	clusterContext "github.com/armadaproject/armada/internal/executor/context"
 	domain2 "github.com/armadaproject/armada/internal/executor/domain"
+	"github.com/armadaproject/armada/internal/executor/metrics"
 	"github.com/armadaproject/armada/internal/executor/reporter"
 	"github.com/armadaproject/armada/internal/executor/util"
 )
@@ -90,7 +91,12 @@ func (stateReporter *JobStateReporter) reportCurrentStatus(pod *v1.Pod) {
 		return
 	}
 
-	event, err := reporter.CreateEventForCurrentState(pod, stateReporter.clusterContext.GetClusterId(), stateReporter.classifier)
+	var classifyResult categorizer.ClassifyResult
+	if pod.Status.Phase == v1.PodFailed {
+		classifyResult = stateReporter.classifier.ClassifyContainerError(pod)
+	}
+
+	event, err := reporter.CreateEventForCurrentState(pod, stateReporter.clusterContext.GetClusterId(), classifyResult)
 	if err != nil {
 		log.Errorf("Failed to report event: %v", err)
 		return
@@ -118,6 +124,9 @@ func (stateReporter *JobStateReporter) reportCurrentStatus(pod *v1.Pod) {
 			log.Errorf("Failed to report event: %s", err)
 			return
 		}
+		// Increment only after successful emission so failed sends do not inflate the counter.
+		// RecordJobFailure is a no-op for non-failure phases and for nil classifiers (empty category).
+		metrics.RecordJobFailure(classifyResult.Category, classifyResult.Subcategory)
 
 		if util.IsReportingPhaseRequired(pod.Status.Phase) {
 			err = stateReporter.addAnnotationToMarkStateReported(pod)

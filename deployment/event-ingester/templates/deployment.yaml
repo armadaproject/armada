@@ -38,8 +38,16 @@ spec:
           args:
             - --config
             - /config/application_config.yaml
-          {{- if .Values.env }}
           env:
+            - name: ARMADA_METRICS_REDIS_LEADER_PODNAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: ARMADA_METRICS_REDIS_LEADER_LEASELOCKNAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          {{- if .Values.env }}
             {{- toYaml .Values.env | nindent 12 -}}
           {{- end }}
           resources:

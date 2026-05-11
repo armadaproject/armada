@@ -14,6 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	clock "k8s.io/utils/clock/testing"
 
+	"github.com/armadaproject/armada/internal/common/errormatch"
 	commonutil "github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/executor/categorizer"
 	"github.com/armadaproject/armada/internal/executor/configuration"
@@ -96,12 +97,14 @@ func TestPodIssueService_DeletesPodAndReportsFailed_IfStuckAndUnretryable(t *tes
 	assert.Contains(t, failedEvent.JobRunErrors.Errors[0].GetPodError().DebugMessage, "Image pull has failed")
 }
 
-func TestPodIssueService_FailureInfoIncludesCategories_WhenClassifierConfigured(t *testing.T) {
-	classifier, err := categorizer.NewClassifier([]categorizer.CategoryConfig{
-		{
-			Name: "oom-failure",
-			Rules: []categorizer.CategoryRule{
-				{OnConditions: []string{"OOMKilled"}},
+func TestPodIssueService_FailureCategorySet_WhenClassifierConfigured(t *testing.T) {
+	classifier, err := categorizer.NewClassifier(categorizer.ErrorCategoriesConfig{
+		Categories: []categorizer.CategoryConfig{
+			{
+				Name: "oom-failure",
+				Rules: []categorizer.CategoryRule{
+					{OnConditions: []string{"OOMKilled"}, Subcategory: "kernel-oom"},
+				},
 			},
 		},
 	})
@@ -145,9 +148,69 @@ func TestPodIssueService_FailureInfoIncludesCategories_WhenClassifierConfigured(
 	failedEvent, ok := eventReporter.ReceivedEvents[0].Event.Events[0].Event.(*armadaevents.EventSequence_Event_JobRunErrors)
 	require.True(t, ok)
 
-	failureInfo := failedEvent.JobRunErrors.Errors[0].GetFailureInfo()
-	require.NotNil(t, failureInfo, "FailureInfo should be set on failed events")
-	assert.Equal(t, []string{"oom-failure"}, failureInfo.Categories)
+	assert.Equal(t, "oom-failure", failedEvent.JobRunErrors.Errors[0].GetFailureCategory())
+	assert.Equal(t, "kernel-oom", failedEvent.JobRunErrors.Errors[0].GetFailureSubcategory())
+	// Verify ContainerErrors are populated (not empty) so retry engine has fallback data
+	assert.NotEmpty(t, failedEvent.JobRunErrors.Errors[0].GetPodError().ContainerErrors)
+}
+
+func TestPodIssueService_OnPodErrorClassifies(t *testing.T) {
+	tests := map[string]struct {
+		category              string
+		subcategory           string
+		pattern               string
+		hint                  string
+		pod                   func() *v1.Pod
+		expectMessageContains string
+	}{
+		"platform mismatch from kubelet error with hint": {
+			category:    "infrastructure",
+			subcategory: "platform_mismatch",
+			pattern:     "no match for platform in manifest",
+			hint:        "Build for the cluster's CPU architecture (typically x64/arm64 mismatch)",
+			pod: func() *v1.Pod {
+				p := makeUnretryableStuckPod()
+				p.Status.ContainerStatuses[0].State.Waiting.Message = `Failed to pull image "amd64/busybox:latest": no match for platform in manifest`
+				return p
+			},
+			expectMessageContains: "no match for platform in manifest",
+		},
+		"active deadline exceeded from executor-side detection": {
+			category:    "user_error",
+			subcategory: "deadline_exceeded",
+			pattern:     "exceeded active deadline",
+			// 10 minutes old with 5 minute deadline -> exceeded.
+			pod:                   func() *v1.Pod { return makePodWithDeadline(time.Now().Add(-time.Minute*10), 300, 0) },
+			expectMessageContains: "exceeded active deadline",
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			classifier := podErrorClassifier(t, tc.category, tc.subcategory, tc.pattern, tc.hint)
+			podIssueService, _, fakeClusterContext, eventReporter, err := setupTestComponentsWithClassifier([]*job.RunState{}, classifier)
+			require.NoError(t, err)
+			addPod(t, fakeClusterContext, tc.pod())
+
+			podIssueService.HandlePodIssues()
+
+			require.Len(t, eventReporter.ReceivedEvents, 1)
+			failedEvent, ok := eventReporter.ReceivedEvents[0].Event.Events[0].Event.(*armadaevents.EventSequence_Event_JobRunErrors)
+			require.True(t, ok)
+
+			assert.Equal(t, tc.category, failedEvent.JobRunErrors.Errors[0].GetFailureCategory())
+			assert.Equal(t, tc.subcategory, failedEvent.JobRunErrors.Errors[0].GetFailureSubcategory())
+			message := failedEvent.JobRunErrors.Errors[0].GetPodError().Message
+			assert.Contains(t, message, tc.expectMessageContains)
+			if tc.hint != "" {
+				rawIdx := strings.Index(message, tc.expectMessageContains)
+				hintIdx := strings.Index(message, tc.hint)
+				require.GreaterOrEqual(t, rawIdx, 0, "raw error must appear in message")
+				require.GreaterOrEqual(t, hintIdx, 0, "hint must appear in message")
+				assert.Greater(t, hintIdx, rawIdx, "hint must come after raw error, not before; defends against prepend regression")
+			}
+		})
+	}
 }
 
 func TestPodIssueService_OnlyDeletesPod_IfStuckTerminatingButDeletedByExecutor(t *testing.T) {
@@ -504,6 +567,10 @@ func TestPodIssueService_DoesNothing_IfSubmittedPodAppears(t *testing.T) {
 }
 
 func setupTestComponents(initialRunState []*job.RunState) (*PodIssueHandler, *job.JobRunStateStore, *fakecontext.SyncFakeClusterContext, *mocks.FakeEventReporter, error) {
+	return setupTestComponentsWithClassifier(initialRunState, nil)
+}
+
+func setupTestComponentsWithClassifier(initialRunState []*job.RunState, classifier *categorizer.Classifier) (*PodIssueHandler, *job.JobRunStateStore, *fakecontext.SyncFakeClusterContext, *mocks.FakeEventReporter, error) {
 	fakeClusterContext := fakecontext.NewSyncFakeClusterContext()
 	eventReporter := mocks.NewFakeEventReporter()
 	pendingPodChecker := makePendingPodChecker()
@@ -522,10 +589,94 @@ func setupTestComponents(initialRunState []*job.RunState) (*PodIssueHandler, *jo
 		pendingPodChecker,
 		failedPodChecker,
 		time.Minute*3,
-		nil,
+		classifier,
 	)
 
 	return podIssueHandler, runStateStore, fakeClusterContext, eventReporter, err
+}
+
+func conditionClassifier(t *testing.T, category, subcategory, condition string) *categorizer.Classifier {
+	t.Helper()
+	c, err := categorizer.NewClassifier(categorizer.ErrorCategoriesConfig{
+		Categories: []categorizer.CategoryConfig{
+			{
+				Name: category,
+				Rules: []categorizer.CategoryRule{
+					{OnConditions: []string{condition}, Subcategory: subcategory},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	return c
+}
+
+func podErrorClassifier(t *testing.T, category, subcategory, pattern, hint string) *categorizer.Classifier {
+	t.Helper()
+	c, err := categorizer.NewClassifier(categorizer.ErrorCategoriesConfig{
+		Categories: []categorizer.CategoryConfig{
+			{
+				Name: category,
+				Rules: []categorizer.CategoryRule{
+					{OnPodError: &errormatch.RegexMatcher{Pattern: pattern}, Subcategory: subcategory, Hint: hint},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	return c
+}
+
+// The metric counter itself is tested in the metrics package. These tests
+// cover the emission gating for the non-retryable issue path: only a
+// successful Report call should have led to a counter increment.
+
+func TestPodIssueService_EmitsFailedEventWhenClassifierMatches(t *testing.T) {
+	classifier := conditionClassifier(t, "pih-success-cat", "pih-success-sub", errormatch.ConditionOOMKilled)
+	podIssueService, _, fakeClusterContext, eventReporter, err := setupTestComponentsWithClassifier([]*job.RunState{}, classifier)
+	require.NoError(t, err)
+
+	pod := makeTerminatingPod()
+	pod.Status.ContainerStatuses = []v1.ContainerStatus{
+		{Name: "main", State: v1.ContainerState{Terminated: &v1.ContainerStateTerminated{ExitCode: 137, Reason: errormatch.ConditionOOMKilled}}},
+	}
+	addPod(t, fakeClusterContext, pod)
+
+	podIssueService.HandlePodIssues()
+
+	assert.Len(t, eventReporter.ReceivedEvents, 1)
+}
+
+func TestPodIssueService_SuppressesEmissionWhenReportFails(t *testing.T) {
+	classifier := conditionClassifier(t, "pih-report-error-cat", "pih-report-error-sub", errormatch.ConditionOOMKilled)
+	podIssueService, _, fakeClusterContext, eventReporter, err := setupTestComponentsWithClassifier([]*job.RunState{}, classifier)
+	require.NoError(t, err)
+	eventReporter.ErrorOnReport = true
+
+	pod := makeTerminatingPod()
+	pod.Status.ContainerStatuses = []v1.ContainerStatus{
+		{Name: "main", State: v1.ContainerState{Terminated: &v1.ContainerStateTerminated{ExitCode: 137, Reason: errormatch.ConditionOOMKilled}}},
+	}
+	addPod(t, fakeClusterContext, pod)
+
+	podIssueService.HandlePodIssues()
+
+	assert.Len(t, eventReporter.ReceivedEvents, 0, "Report errored - event must not be recorded as delivered")
+}
+
+func TestPodIssueService_EmitsEventWithEmptyCategoryWhenClassifierIsNil(t *testing.T) {
+	podIssueService, _, fakeClusterContext, eventReporter, err := setupTestComponentsWithClassifier([]*job.RunState{}, nil)
+	require.NoError(t, err)
+
+	pod := makeTerminatingPod()
+	pod.Status.ContainerStatuses = []v1.ContainerStatus{
+		{Name: "main", State: v1.ContainerState{Terminated: &v1.ContainerStateTerminated{ExitCode: 137, Reason: errormatch.ConditionOOMKilled}}},
+	}
+	addPod(t, fakeClusterContext, pod)
+
+	podIssueService.HandlePodIssues()
+
+	assert.Len(t, eventReporter.ReceivedEvents, 1, "event still emitted with empty category/subcategory when classification is disabled")
 }
 
 func createRunState(jobId string, runId string, phase job.RunPhase) *job.RunState {

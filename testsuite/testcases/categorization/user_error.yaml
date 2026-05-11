@@ -24,5 +24,4 @@ timeout: "300s"
 expectedEvents:
   - submitted:
   - failed:
-      categories:
-        - "user_error"
+      failureCategory: "user_error"

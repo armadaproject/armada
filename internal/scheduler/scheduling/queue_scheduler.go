@@ -25,6 +25,7 @@ type CandidateGangIterator interface {
 	GetAllocationForQueue(queue string) (internaltypes.ResourceList, bool)
 	OnlyYieldEvicted() error
 	OnlyYieldEvictedForQueue(queue string) error
+	SecondPrice(priceSettingQueue string) float64
 }
 
 // QueueScheduler is responsible for choosing the order in which to attempt scheduling queued gangs.
@@ -158,6 +159,14 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulingResu
 					sctx.SpotPrice = &price
 					for _, qctx := range sctx.QueueSchedulingContexts {
 						qctx.SetBillableResource()
+					}
+
+					// Vickrey-style billing: the queue that set the spot price pays the highest
+					// competing price from a different queue rather than its own bid.
+					priceSettingQueue := gctx.Queue
+					secondPrice := sch.candidateGangIterator.SecondPrice(priceSettingQueue)
+					if qctx, ok := sctx.QueueSchedulingContexts[priceSettingQueue]; ok {
+						qctx.BillablePriceOverride = &secondPrice
 					}
 				}
 			}
@@ -388,6 +397,10 @@ type CostBasedCandidateGangIterator struct {
 	// Priority queue containing per-queue iterators.
 	// Determines the order in which queues are processed.
 	pq QueueCandidateGangIteratorPQ
+}
+
+func (it *CostBasedCandidateGangIterator) SecondPrice(priceSettingQueue string) float64 {
+	return 0
 }
 
 func (it *CostBasedCandidateGangIterator) GetAllocationForQueue(queue string) (internaltypes.ResourceList, bool) {

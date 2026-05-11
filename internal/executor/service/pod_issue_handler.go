@@ -17,6 +17,7 @@ import (
 	"github.com/armadaproject/armada/internal/executor/configuration"
 	executorContext "github.com/armadaproject/armada/internal/executor/context"
 	"github.com/armadaproject/armada/internal/executor/job"
+	"github.com/armadaproject/armada/internal/executor/metrics"
 	"github.com/armadaproject/armada/internal/executor/podchecks"
 	"github.com/armadaproject/armada/internal/executor/podchecks/failedpodchecks"
 	"github.com/armadaproject/armada/internal/executor/reporter"
@@ -424,9 +425,20 @@ func (p *PodIssueHandler) handleNonRetryableJobIssue(issue *issue) {
 		log.Infof("Handling non-retryable issue detected for job %s run %s", issue.RunIssue.JobId, issue.RunIssue.RunId)
 		podIssue := issue.RunIssue.PodIssue
 
-		failureInfo := util.ExtractFailureInfo(podIssue.OriginalPodState, p.classifier.Classify(podIssue.OriginalPodState))
+		result := p.classifier.ClassifyPodError(podIssue.OriginalPodState, podIssue.Message)
+		clusterId := p.clusterContext.GetClusterId()
 
-		failedEvent, err := reporter.CreateSimpleJobFailedEvent(podIssue.OriginalPodState, podIssue.Message, podIssue.DebugMessage, p.clusterContext.GetClusterId(), podIssue.Cause, failureInfo)
+		message := result.AppendHint(podIssue.Message)
+
+		failedEvent, err := reporter.CreateJobFailedEvent(
+			podIssue.OriginalPodState,
+			message,
+			podIssue.Cause,
+			podIssue.DebugMessage,
+			util.ExtractFailedPodContainerStatuses(podIssue.OriginalPodState, clusterId),
+			clusterId,
+			result.Category,
+			result.Subcategory)
 		if err != nil {
 			log.Errorf("Failed to create failed event for job %s because %s", issue.RunIssue.JobId, err)
 			return
@@ -436,6 +448,9 @@ func (p *PodIssueHandler) handleNonRetryableJobIssue(issue *issue) {
 			log.Errorf("Failed to report failed event for job %s because %s", issue.RunIssue.JobId, err)
 			return
 		}
+		// Increment only after successful Report so failed sends do not inflate the counter.
+		// RecordJobFailure is a no-op when classification didn't run (empty category).
+		metrics.RecordJobFailure(result.Category, result.Subcategory)
 		p.markIssueReported(issue.RunIssue)
 	}
 

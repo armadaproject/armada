@@ -287,7 +287,8 @@ func FromInternalJobErrors(queueName string, jobSetName string, time time.Time, 
 		switch reason := msgErr.Reason.(type) {
 		case *armadaevents.Error_PodError:
 			failed := makeJobFailed(e.JobId, queueName, jobSetName, time, reason)
-			failed.Categories = msgErr.GetFailureInfo().GetCategories()
+			failed.FailureCategory = msgErr.GetFailureCategory()
+			failed.FailureSubcategory = msgErr.GetFailureSubcategory()
 			event := &api.EventMessage{
 				Events: &api.EventMessage_Failed{
 					Failed: failed,

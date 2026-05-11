@@ -42,7 +42,7 @@ func newJobStateMetrics(
 ) *jobStateMetrics {
 	completedRunDurations := prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Name:    prefix + "job_run_completed_duration_seconds",
+			Name:    ArmadaSchedulerMetricsPrefix + "job_run_completed_duration_seconds",
 			Help:    "Time",
 			Buckets: prometheus.ExponentialBuckets(2, 2, 20),
 		},
@@ -50,63 +50,63 @@ func newJobStateMetrics(
 	)
 	jobStateCounterByQueue := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: prefix + "job_state_counter_by_queue",
+			Name: ArmadaSchedulerMetricsPrefix + "job_state_counter_by_queue",
 			Help: "Job states at queue level",
 		},
 		[]string{queueLabel, poolLabel, stateLabel, priorStateLabel},
 	)
 	jobStateCounterByNode := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: prefix + "job_state_counter_by_node",
+			Name: ArmadaSchedulerMetricsPrefix + "job_state_counter_by_node",
 			Help: "Job states at node level",
 		},
 		[]string{nodeLabel, poolLabel, clusterLabel, stateLabel, priorStateLabel},
 	)
 	jobStateSecondsByQueue := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: prefix + "job_state_seconds_by_queue",
+			Name: ArmadaSchedulerMetricsPrefix + "job_state_seconds_by_queue",
 			Help: "time spent in different states at the queue level",
 		},
 		[]string{queueLabel, poolLabel, stateLabel, priorStateLabel},
 	)
 	jobStateSecondsByNode := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: prefix + "job_state_seconds_by_node",
+			Name: ArmadaSchedulerMetricsPrefix + "job_state_seconds_by_node",
 			Help: "time spent in different states at the node level",
 		},
 		[]string{nodeLabel, poolLabel, clusterLabel, stateLabel, priorStateLabel},
 	)
 	jobStateResourceSecondsByQueue := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: prefix + "job_state_resource_seconds_by_queue",
+			Name: ArmadaSchedulerMetricsPrefix + "job_state_resource_seconds_by_queue",
 			Help: "Resource-seconds spent in different states at the queue level",
 		},
 		[]string{queueLabel, poolLabel, stateLabel, priorStateLabel, resourceLabel},
 	)
 	jobStateResourceSecondsByNode := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: prefix + "job_state_resource_seconds_by_node",
+			Name: ArmadaSchedulerMetricsPrefix + "job_state_resource_seconds_by_node",
 			Help: "Resource-seconds spent in different states at the node level",
 		},
 		[]string{nodeLabel, poolLabel, clusterLabel, stateLabel, priorStateLabel, resourceLabel},
 	)
 	jobErrorsByQueue := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: prefix + "job_error_classification_by_queue",
+			Name: ArmadaSchedulerMetricsPrefix + "job_error_classification_by_queue",
 			Help: "Failed jobs by error classification at the queue level",
 		},
 		[]string{queueLabel, poolLabel, errorCategoryLabel, errorSubcategoryLabel},
 	)
 	jobErrorsByNode := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: prefix + "job_error_classification_by_node",
+			Name: ArmadaSchedulerMetricsPrefix + "job_error_classification_by_node",
 			Help: "Failed jobs ey error classification at the node level",
 		},
 		[]string{nodeLabel, poolLabel, clusterLabel, errorCategoryLabel, errorSubcategoryLabel},
 	)
 	jobResourceSecondsLostToPreemptionByQueue := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: prefix + "job_resource_seconds_lost_to_preemption",
+			Name: ArmadaSchedulerMetricsPrefix + "job_resource_seconds_lost_to_preemption",
 			Help: "Resource seconds lost to preemption",
 		},
 		[]string{queueLabel, poolLabel, checkpointLabel, resourceLabel},
