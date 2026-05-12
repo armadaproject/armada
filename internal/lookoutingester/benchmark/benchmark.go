@@ -285,7 +285,7 @@ func updateJobRunInstructions(n int, jobRunIds []string, percentError float64) [
 		if i < totalPreemptions {
 			schedulerTerminationReason = map[string]any{
 				"reason": "Preempted by scheduler using fair share preemption - preempting job some-long-job-id-string",
-				"args":   map[string]any{"preemptingRunId": uuid.NewString()},
+				"args":   map[string]any{"preemptingJobId": uuid.NewString()},
 			}
 		}
 		instructions[i] = &model.UpdateJobRunInstruction{

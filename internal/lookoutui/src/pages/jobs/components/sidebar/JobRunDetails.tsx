@@ -187,6 +187,14 @@ export const JobRunDetails = ({
   const { data: schedulerTerminationReason, status: schedulerTerminationReasonStatus } =
     useGetJobRunSchedulerTerminationReason(runId)
 
+  const prettyTerminationReason = useMemo(() => {
+    try {
+      return JSON.stringify(JSON.parse(schedulerTerminationReason ?? ""), undefined, 2)
+    } catch {
+      return schedulerTerminationReason ?? ""
+    }
+  }, [schedulerTerminationReason])
+
   const headingTextParts = ["Run", (runIndex + 1).toString()]
   const runIndicativeTimestamp = started || pending || leased || ""
   if (runIndicativeTimestamp) {
@@ -342,7 +350,7 @@ export const JobRunDetails = ({
               <AccordionSummary>Scheduler Termination Reason</AccordionSummary>
               <AccordionDetails>
                 <CodeBlock
-                  code={schedulerTerminationReason}
+                  code={prettyTerminationReason}
                   language="json"
                   downloadable={false}
                   showLineNumbers={false}

@@ -446,7 +446,7 @@ func FromInternalJobRunPreempted(queueName string, jobSetName string, time time.
 		Created:         protoutil.ToTimestamp(time),
 		RunId:           e.PreemptedRunId,
 		Reason:          e.Reason,
-		PreemptiveRunId: e.PreemptiveRunId,
+		PreemptiveJobId: e.PreemptiveJobId,
 	}
 
 	return []*api.EventMessage{

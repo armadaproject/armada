@@ -872,7 +872,7 @@ func TestConvertJobPreemptionRequested(t *testing.T) {
 }
 
 func TestConvertJobRunPreempted(t *testing.T) {
-	preemptiveRunId := "456e7890-e89b-12d3-a456-426614174001"
+	preemptiveJobId := "456e7890-e89b-12d3-a456-426614174001"
 
 	preempted := &armadaevents.EventSequence_Event{
 		Created: baseTimeProto,
@@ -880,7 +880,7 @@ func TestConvertJobRunPreempted(t *testing.T) {
 			JobRunPreempted: &armadaevents.JobRunPreempted{
 				PreemptedJobId:  jobId,
 				PreemptedRunId:  runId,
-				PreemptiveRunId: preemptiveRunId,
+				PreemptiveJobId: preemptiveJobId,
 				Reason:          "Preempted reason",
 			},
 		},
@@ -896,7 +896,7 @@ func TestConvertJobRunPreempted(t *testing.T) {
 					Created:         protoutil.ToTimestamp(baseTime),
 					RunId:           runId,
 					Reason:          "Preempted reason",
-					PreemptiveRunId: preemptiveRunId,
+					PreemptiveJobId: preemptiveJobId,
 				},
 			},
 		},

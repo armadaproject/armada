@@ -21,7 +21,7 @@ import (
 const (
 	JobId                      = "01f3j0g1md4qx7z5qb148qnh4r"
 	RunId                      = "123e4567-e89b-12d3-a456-426614174000"
-	PreemptingRunId            = "456e7890-e89b-12d3-a456-426614174001"
+	PreemptingJobId            = "456e7890-e89b-12d3-a456-426614174001"
 	PartitionMarkerGroupId     = "223e4567-e89b-12d3-a456-426614174000"
 	JobsetName                 = "testJobset"
 	ExecutorId                 = "testCluster"
@@ -476,7 +476,7 @@ var JobRunPreemptedFairShare = &armadaevents.EventSequence_Event{
 		JobRunPreempted: &armadaevents.JobRunPreempted{
 			PreemptedJobId:  JobId,
 			PreemptedRunId:  RunId,
-			PreemptiveRunId: PreemptingRunId,
+			PreemptiveJobId: PreemptingJobId,
 			Reason:          PreemptionReason,
 		},
 	},

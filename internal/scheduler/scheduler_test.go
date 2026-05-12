@@ -3525,12 +3525,12 @@ func createPreemptibleGangJob() *jobdb.Job {
 	).WithNewRun("testExecutor", "test-node", "node", "pool", 5)
 }
 
-func TestPreemptingJobRunId(t *testing.T) {
+func TestPreemptingJobId(t *testing.T) {
 	// nil job returns empty string
-	assert.Equal(t, "", preemptingJobRunId(nil))
+	assert.Equal(t, "", preemptingJobId(nil))
 
-	// job with no runs returns empty string
-	jobNoRuns := testfixtures.NewJob(
+	// job returns its ID
+	job := testfixtures.NewJob(
 		util.NewULID(),
 		"testJobset",
 		"testQueue",
@@ -3544,16 +3544,10 @@ func TestPreemptingJobRunId(t *testing.T) {
 		1,
 		true,
 	)
-	assert.Equal(t, "", preemptingJobRunId(jobNoRuns))
-
-	// job with a run returns that run's ID
-	jobWithRun := jobNoRuns.WithNewRun("testExecutor", "test-node", "node", "pool", 5)
-	runId := jobWithRun.LatestRun().Id()
-	assert.NotEmpty(t, runId)
-	assert.Equal(t, runId, preemptingJobRunId(jobWithRun))
+	assert.Equal(t, job.Id(), preemptingJobId(job))
 }
 
-func TestAppendEventSequencesFromPreemptedJobs_PopulatesPreemptiveRunId(t *testing.T) {
+func TestAppendEventSequencesFromPreemptedJobs_PopulatesPreemptiveJobId(t *testing.T) {
 	preemptingJob := testfixtures.NewJob(
 		util.NewULID(),
 		"testJobset",
@@ -3567,8 +3561,8 @@ func TestAppendEventSequencesFromPreemptedJobs_PopulatesPreemptiveRunId(t *testi
 		false,
 		1,
 		true,
-	).WithNewRun("testExecutor", "test-node", "node", "pool", 5)
-	preemptingRunId := preemptingJob.LatestRun().Id()
+	)
+	preemptingJobId := preemptingJob.Id()
 
 	preemptedJob := testfixtures.NewJob(
 		util.NewULID(),
@@ -3602,5 +3596,5 @@ func TestAppendEventSequencesFromPreemptedJobs_PopulatesPreemptiveRunId(t *testi
 	preemptedEvent := events[0].GetJobRunPreempted()
 	assert.NotNil(t, preemptedEvent)
 	assert.Equal(t, preemptedRun.Id(), preemptedEvent.PreemptedRunId)
-	assert.Equal(t, preemptingRunId, preemptedEvent.PreemptiveRunId)
+	assert.Equal(t, preemptingJobId, preemptedEvent.PreemptiveJobId)
 }

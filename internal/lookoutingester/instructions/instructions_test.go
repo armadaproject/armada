@@ -187,7 +187,7 @@ var expectedFairSharePreemptedRun = model.UpdateJobRunInstruction{
 	Finished:                   &testfixtures.BaseTime,
 	JobRunState:                pointer.Int32(lookout.JobRunPreemptedOrdinal),
 	Error:                      []byte(testfixtures.PreemptionReason),
-	SchedulerTerminationReason: BuildTerminationReason(testfixtures.PreemptionReason, map[string]any{"preemptingRunId": testfixtures.PreemptingRunId}),
+	SchedulerTerminationReason: BuildTerminationReason(testfixtures.PreemptionReason, map[string]any{"preemptingJobId": testfixtures.PreemptingJobId}),
 }
 
 var expectedCancelledRun = model.UpdateJobRunInstruction{
@@ -722,8 +722,8 @@ func TestSanitizeForJsonb(t *testing.T) {
 // format changes, this test breaks and the author knows they are changing the
 // wire format stored in the database.
 //
-//	Preemption (no preempting run):  {"reason": "..."}
-//	Preemption (fair-share):         {"args": {"preemptingRunId": "..."}, "reason": "..."}
+//	Preemption (no preempting job):  {"reason": "..."}
+//	Preemption (fair-share):         {"args": {"preemptingJobId": "..."}, "reason": "..."}
 func TestBuildTerminationReason_WireFormat(t *testing.T) {
 	tests := []struct {
 		name         string
@@ -738,10 +738,10 @@ func TestBuildTerminationReason_WireFormat(t *testing.T) {
 			expectedJSON: `{"reason":"` + testfixtures.PreemptionReason + `"}`,
 		},
 		{
-			name:         "preemption with preempting run (fair-share)",
+			name:         "preemption with preempting job (fair-share)",
 			reason:       testfixtures.PreemptionReason,
-			args:         map[string]any{"preemptingRunId": testfixtures.RunId},
-			expectedJSON: `{"args":{"preemptingRunId":"` + testfixtures.RunId + `"},"reason":"` + testfixtures.PreemptionReason + `"}`,
+			args:         map[string]any{"preemptingJobId": testfixtures.PreemptingJobId},
+			expectedJSON: `{"args":{"preemptingJobId":"` + testfixtures.PreemptingJobId + `"},"reason":"` + testfixtures.PreemptionReason + `"}`,
 		},
 	}
 	for _, tc := range tests {
