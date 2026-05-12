@@ -27,6 +27,7 @@ func createCmd(a *armadactl.App) *cobra.Command {
 	}
 	cmd.Flags().Bool("dry-run", false, "Validate the input file and exit without making any changes.")
 	cmd.AddCommand(queueCreateCmd())
+	cmd.AddCommand(retryPolicyCreateCmd())
 	return cmd
 }
 
@@ -37,6 +38,7 @@ func deleteCmd() *cobra.Command {
 		Long:  "Delete Armada resource. Supported: queue",
 	}
 	cmd.AddCommand(queueDeleteCmd())
+	cmd.AddCommand(retryPolicyDeleteCmd())
 	return cmd
 }
 
@@ -47,6 +49,7 @@ func updateCmd() *cobra.Command {
 		Long:  "Update Armada resource. Supported: queue",
 	}
 	cmd.AddCommand(queueUpdateCmd())
+	cmd.AddCommand(retryPolicyUpdateCmd())
 	return cmd
 }
 
@@ -59,6 +62,8 @@ func getCmd() *cobra.Command {
 	cmd.AddCommand(
 		queueGetCmd(),
 		queuesGetCmd(),
+		retryPolicyGetCmd(),
+		retryPolicyGetAllCmd(),
 		getSchedulingReportCmd(armadactl.New()),
 		getQueueSchedulingReportCmd(armadactl.New()),
 		getJobSchedulingReportCmd(armadactl.New()),

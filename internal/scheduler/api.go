@@ -22,6 +22,7 @@ import (
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	priorityTypes "github.com/armadaproject/armada/internal/common/types"
+	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/server/permissions"
@@ -49,8 +50,12 @@ type ExecutorApi struct {
 	nodeIdLabel      string
 	// See scheduling schedulingConfig.
 	priorityClassNameOverride *string
-	clock                     clock.Clock
-	authorizer                auth.ActionAuthorizer
+	// Retry policy config; when Enabled is true, the executor api populates the
+	// optional JobRunIndex field on outgoing JobRunLease messages so the
+	// executor can disambiguate retry attempts by pod name.
+	retryPolicy configuration.RetryPolicyConfig
+	clock       clock.Clock
+	authorizer  auth.ActionAuthorizer
 }
 
 func NewExecutorApi(publisher pulsarutils.Publisher[*armadaevents.EventSequence],
@@ -61,6 +66,7 @@ func NewExecutorApi(publisher pulsarutils.Publisher[*armadaevents.EventSequence]
 	nodeIdLabel string,
 	priorityClassNameOverride *string,
 	priorityClasses map[string]priorityTypes.PriorityClass,
+	retryPolicy configuration.RetryPolicyConfig,
 	authorizer auth.ActionAuthorizer,
 ) (*ExecutorApi, error) {
 	if len(allowedPriorities) == 0 {
@@ -75,6 +81,7 @@ func NewExecutorApi(publisher pulsarutils.Publisher[*armadaevents.EventSequence]
 		nodeIdLabel:               nodeIdLabel,
 		priorityClassNameOverride: priorityClassNameOverride,
 		priorityClasses:           priorityClasses,
+		retryPolicy:               retryPolicy,
 		clock:                     clock.RealClock{},
 		authorizer:                authorizer,
 	}, nil
@@ -169,16 +176,23 @@ func (srv *ExecutorApi) LeaseJobRuns(stream executorapi.ExecutorApi_LeaseJobRuns
 			}
 		}
 
+		jobRunLease := &executorapi.JobRunLease{
+			JobRunId: lease.RunID,
+			Queue:    lease.Queue,
+			Jobset:   lease.JobSet,
+			User:     lease.UserID,
+			Groups:   groups,
+			Job:      submitMsg,
+		}
+		// Only populate JobRunIndex when the retry policy engine is enabled,
+		// otherwise the executor falls back to the legacy pod-name format. The
+		// optional field uses explicit presence so a value of 0 is meaningful.
+		if srv.retryPolicy.Enabled {
+			jobRunLease.JobRunIndex = &types.UInt32Value{Value: lease.RunIndex}
+		}
 		err := stream.Send(&executorapi.LeaseStreamMessage{
 			Event: &executorapi.LeaseStreamMessage_Lease{
-				Lease: &executorapi.JobRunLease{
-					JobRunId: lease.RunID,
-					Queue:    lease.Queue,
-					Jobset:   lease.JobSet,
-					User:     lease.UserID,
-					Groups:   groups,
-					Job:      submitMsg,
-				},
+				Lease: jobRunLease,
 			},
 		})
 		if err != nil {
