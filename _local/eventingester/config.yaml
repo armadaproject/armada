@@ -18,6 +18,10 @@ metrics:
     pipelineBatchSize: 500
     interBatchDelay: 0ms
     memoryUsageSamples: 5
+    connectionInfo:
+      addrs:
+        - localhost:6379
+      db: 1
     leader:
       mode: "standalone"
       leaseLockName: ""

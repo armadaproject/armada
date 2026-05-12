@@ -29,6 +29,20 @@ applicationConfig:
   batchSize: 1048576  #1MB
   batchMessages: 10000
   metricsPort: 9000
+  # Configuration for metrics collection.
+  # If metrics.redis.enabled=true, a separate client will be used for scanning keys.
+  # Sentinel mode is triggered if connectionInfo.masterName is set.
+  metrics:
+    redis:
+      enabled: true
+      connectionInfo:
+        # For Sentinel mode, provide sentinel addresses and masterName.
+        # readOnly must be true for metrics collection from replicas.
+        # masterName: "mymaster"
+        # readOnly: true
+        addrs:
+          - localhost:6379
+        db: 1
 
 prometheus:
   enabled: false

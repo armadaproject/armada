@@ -34,6 +34,85 @@ import (
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
+func createMetricsRedisClient(ctx *armadacontext.Context, connectionInfo *redis.UniversalOptions) (redis.UniversalClient, error) {
+	if len(connectionInfo.Addrs) == 0 {
+		return nil, errors.New("metrics.redis.connectionInfo.addrs must be set when metrics.redis.enabled is true")
+	}
+
+	isSentinelMode := connectionInfo.MasterName != ""
+	var client redis.UniversalClient
+
+	if isSentinelMode {
+		client = redis.NewFailoverClient(&redis.FailoverOptions{
+			MasterName:       connectionInfo.MasterName,
+			SentinelAddrs:    connectionInfo.Addrs,
+			ReplicaOnly:      true,
+			SentinelPassword: connectionInfo.SentinelPassword,
+			Username:         connectionInfo.Username,
+			Password:         connectionInfo.Password,
+			DB:               connectionInfo.DB,
+			MaxRetries:       connectionInfo.MaxRetries,
+			MinRetryBackoff:  connectionInfo.MinRetryBackoff,
+			MaxRetryBackoff:  connectionInfo.MaxRetryBackoff,
+			DialTimeout:      connectionInfo.DialTimeout,
+			ReadTimeout:      connectionInfo.ReadTimeout,
+			WriteTimeout:     connectionInfo.WriteTimeout,
+			PoolSize:         connectionInfo.PoolSize,
+			MinIdleConns:     connectionInfo.MinIdleConns,
+			MaxIdleConns:     connectionInfo.MaxIdleConns,
+			ConnMaxIdleTime:  connectionInfo.ConnMaxIdleTime,
+			ConnMaxLifetime:  connectionInfo.ConnMaxLifetime,
+		})
+
+		roleCtx, roleCancel := armadacontext.WithTimeout(ctx, 5*time.Second)
+		defer roleCancel()
+
+		result := client.Do(roleCtx, "ROLE")
+		if result.Err() != nil {
+			if closeErr := client.Close(); closeErr != nil {
+				log.WithError(closeErr).Error("failed to close metrics Redis client after role check failure")
+			}
+			return nil, errors.Wrapf(result.Err(), "failed to verify metrics Redis client role (expected replica)")
+		}
+
+		role, err := result.Slice()
+		if err != nil {
+			if closeErr := client.Close(); closeErr != nil {
+				log.WithError(closeErr).Error("failed to close metrics Redis client after role check failure")
+			}
+			return nil, errors.Wrapf(err, "failed to parse ROLE command response")
+		}
+
+		if len(role) == 0 {
+			if closeErr := client.Close(); closeErr != nil {
+				log.WithError(closeErr).Error("failed to close metrics Redis client after role check failure")
+			}
+			return nil, errors.Errorf("ROLE command returned empty response")
+		}
+
+		roleStr, ok := role[0].(string)
+		if !ok {
+			if closeErr := client.Close(); closeErr != nil {
+				log.WithError(closeErr).Error("failed to close metrics Redis client after role check failure")
+			}
+			return nil, errors.Errorf("ROLE command returned unexpected type: %T", role[0])
+		}
+
+		if roleStr != "slave" && roleStr != "replica" {
+			if closeErr := client.Close(); closeErr != nil {
+				log.WithError(closeErr).Error("failed to close metrics Redis client after role check failure")
+			}
+			return nil, errors.Errorf("metrics Redis client must connect to replica role, got role: %v", roleStr)
+		}
+
+		log.Infof("metrics Redis client successfully connected to replica role: %v", roleStr)
+	} else {
+		client = redis.NewUniversalClient(connectionInfo)
+	}
+
+	return client, nil
+}
+
 // Run will create a pipeline that will take Armada event messages from Pulsar and update the
 // Events database accordingly.  This pipeline will run until a SIGTERM is received
 func Run(config *configuration.EventIngesterConfiguration) {
@@ -83,17 +162,15 @@ func Run(config *configuration.EventIngesterConfiguration) {
 	g, ctx := armadacontext.ErrGroup(app.CreateContextWithShutdown())
 
 	if config.Metrics.Redis.Enabled {
-		var metricsRedisClient redis.UniversalClient
-		if config.Metrics.Redis.ConnectionInfo.Addrs != nil {
-			metricsRedisClient = redis.NewUniversalClient(&config.Metrics.Redis.ConnectionInfo)
-			defer func() {
-				if err := metricsRedisClient.Close(); err != nil {
-					log.WithError(err).Error("failed to close metrics Redis client")
-				}
-			}()
-		} else {
-			metricsRedisClient = db
+		metricsRedisClient, err := createMetricsRedisClient(ctx, &config.Metrics.Redis.ConnectionInfo)
+		if err != nil {
+			log.Fatalf("failed to create metrics Redis client: %v", err)
 		}
+		defer func() {
+			if err := metricsRedisClient.Close(); err != nil {
+				log.WithError(err).Error("failed to close metrics Redis client")
+			}
+		}()
 
 		scanner := repository.NewScanner(metricsRedisClient, config.Metrics.Redis)
 

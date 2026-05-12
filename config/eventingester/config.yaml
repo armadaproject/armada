@@ -33,10 +33,16 @@ metrics:
     interBatchDelay: 100ms
     memoryUsageSamples: 25
     ## Optional: separate Redis for metrics collection.
-    ## If unspecified, event db connection will be used
+    ## Sentinel mode is triggered if masterName is non-empty.
+    ## If sentinel mode is enabled, addrs must be sentinel endpoints and readOnly must be true.
+    ## The application will fail-fast if the metrics configuration is invalid.
     # connectionInfo:
     #   addrs:
-    #     - redis-replica:6379
+    #     - sentinel-1:26379
+    #     - sentinel-2:26379
+    #     - sentinel-3:26379
+    #   masterName: "mymaster"
+    #   readOnly: true
     #   db: 1
     leader:
       mode: "kubernetes"
