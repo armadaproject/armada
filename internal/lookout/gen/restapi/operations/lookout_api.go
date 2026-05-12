@@ -67,6 +67,12 @@ func NewLookoutAPI(spec *loads.Document) *LookoutAPI {
 			return middleware.NotImplemented("operation GetJobRunError has not yet been implemented")
 		}),
 
+		GetJobRunSchedulerTerminationReasonHandler: GetJobRunSchedulerTerminationReasonHandlerFunc(func(params GetJobRunSchedulerTerminationReasonParams) middleware.Responder {
+			_ = params
+
+			return middleware.NotImplemented("operation GetJobRunSchedulerTerminationReason has not yet been implemented")
+		}),
+
 		GetJobSpecHandler: GetJobSpecHandlerFunc(func(params GetJobSpecParams) middleware.Responder {
 			_ = params
 
@@ -131,6 +137,8 @@ type LookoutAPI struct {
 	GetJobRunDebugMessageHandler GetJobRunDebugMessageHandler
 	// GetJobRunErrorHandler sets the operation handler for the get job run error operation
 	GetJobRunErrorHandler GetJobRunErrorHandler
+	// GetJobRunSchedulerTerminationReasonHandler sets the operation handler for the get job run scheduler termination reason operation
+	GetJobRunSchedulerTerminationReasonHandler GetJobRunSchedulerTerminationReasonHandler
 	// GetJobSpecHandler sets the operation handler for the get job spec operation
 	GetJobSpecHandler GetJobSpecHandler
 	// GetJobsHandler sets the operation handler for the get jobs operation
@@ -228,6 +236,9 @@ func (o *LookoutAPI) Validate() error {
 	}
 	if o.GetJobRunErrorHandler == nil {
 		unregistered = append(unregistered, "GetJobRunErrorHandler")
+	}
+	if o.GetJobRunSchedulerTerminationReasonHandler == nil {
+		unregistered = append(unregistered, "GetJobRunSchedulerTerminationReasonHandler")
 	}
 	if o.GetJobSpecHandler == nil {
 		unregistered = append(unregistered, "GetJobSpecHandler")
@@ -347,6 +358,10 @@ func (o *LookoutAPI) initHandlerCache() {
 		o.handlers["POST"] = make(map[string]http.Handler)
 	}
 	o.handlers["POST"]["/api/v1/jobRunError"] = NewGetJobRunError(o.context, o.GetJobRunErrorHandler)
+	if o.handlers["POST"] == nil {
+		o.handlers["POST"] = make(map[string]http.Handler)
+	}
+	o.handlers["POST"]["/api/v1/jobRunSchedulerTerminationReason"] = NewGetJobRunSchedulerTerminationReason(o.context, o.GetJobRunSchedulerTerminationReasonHandler)
 	if o.handlers["POST"] == nil {
 		o.handlers["POST"] = make(map[string]http.Handler)
 	}
