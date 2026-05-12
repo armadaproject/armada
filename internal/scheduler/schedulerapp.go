@@ -446,7 +446,13 @@ func createLeaderController(ctx *armadacontext.Context, config schedulerconfig.L
 	switch mode := strings.ToLower(config.Mode); mode {
 	case "standalone":
 		ctx.Infof("Scheduler will run in standalone mode")
-		return leader.NewStandaloneLeaderController(), nil
+		leaderController := leader.NewStandaloneLeaderController()
+		// Register leader status metric so recording rules work consistently.
+		// In standalone mode, this always reports 1 (always leader).
+		leaderStatusMetrics := leader.NewLeaderStatusMetricsCollector(metrics.ArmadaSchedulerMetricsPrefix, config.PodName)
+		leaderStatusMetrics.MarkAsLeading()
+		prometheus.MustRegister(leaderStatusMetrics)
+		return leaderController, nil
 	case "kubernetes":
 		ctx.Infof("Scheduler will run kubernetes mode")
 		clusterConfig, err := loadClusterConfig(ctx)
