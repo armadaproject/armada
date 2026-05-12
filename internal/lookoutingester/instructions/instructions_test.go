@@ -1,6 +1,7 @@
 package instructions
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -174,10 +175,19 @@ var expectedReconciliationErrRun = model.UpdateJobRunInstruction{
 }
 
 var expectedPreemptedRun = model.UpdateJobRunInstruction{
-	RunId:       testfixtures.RunId,
-	Finished:    &testfixtures.BaseTime,
-	JobRunState: pointer.Int32(lookout.JobRunPreemptedOrdinal),
-	Error:       []byte(testfixtures.PreemptionReason),
+	RunId:                      testfixtures.RunId,
+	Finished:                   &testfixtures.BaseTime,
+	JobRunState:                pointer.Int32(lookout.JobRunPreemptedOrdinal),
+	Error:                      []byte(testfixtures.PreemptionReason),
+	SchedulerTerminationReason: BuildTerminationReason(testfixtures.PreemptionReason, nil),
+}
+
+var expectedFairSharePreemptedRun = model.UpdateJobRunInstruction{
+	RunId:                      testfixtures.RunId,
+	Finished:                   &testfixtures.BaseTime,
+	JobRunState:                pointer.Int32(lookout.JobRunPreemptedOrdinal),
+	Error:                      []byte(testfixtures.PreemptionReason),
+	SchedulerTerminationReason: BuildTerminationReason(testfixtures.PreemptionReason, map[string]any{"preemptingJobId": testfixtures.PreemptingJobId}),
 }
 
 var expectedCancelledRun = model.UpdateJobRunInstruction{
@@ -256,7 +266,7 @@ func TestConvert(t *testing.T) {
 
 	cancelledWithReason, err := testfixtures.DeepCopy(testfixtures.JobCancelled)
 	assert.NoError(t, err)
-	cancelledWithReason.GetCancelledJob().Reason = "some reason"
+	cancelledWithReason.GetCancelledJob().Reason = testfixtures.CancelReason
 
 	tests := map[string]struct {
 		events   *utils.EventsWithIds[*armadaevents.EventSequence]
@@ -355,7 +365,7 @@ func TestConvert(t *testing.T) {
 				JobsToUpdate: []*model.UpdateJobInstruction{{
 					JobId:                     testfixtures.JobId,
 					State:                     pointer.Int32(lookout.JobCancelledOrdinal),
-					CancelReason:              pointer.String("some reason"),
+					CancelReason:              pointer.String(testfixtures.CancelReason),
 					CancelUser:                pointer.String(testfixtures.CancelUser),
 					Cancelled:                 &testfixtures.BaseTime,
 					LastTransitionTime:        &testfixtures.BaseTime,
@@ -462,6 +472,16 @@ func TestConvert(t *testing.T) {
 			},
 			expected: &model.InstructionSet{
 				JobRunsToUpdate: []*model.UpdateJobRunInstruction{&expectedPreemptedRun},
+				MessageIds:      []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+		},
+		"job run preempted (fair-share)": {
+			events: &utils.EventsWithIds[*armadaevents.EventSequence]{
+				Events:     []*armadaevents.EventSequence{testfixtures.NewEventSequence(testfixtures.JobRunPreemptedFairShare)},
+				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+			expected: &model.InstructionSet{
+				JobRunsToUpdate: []*model.UpdateJobRunInstruction{&expectedFairSharePreemptedRun},
 				MessageIds:      []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 		},
@@ -695,4 +715,41 @@ func TestSanitizeForJsonb(t *testing.T) {
 	assert.Equal(t, "ab", sanitizeForJsonb("a\x00b"))
 	assert.Equal(t, "", sanitizeForJsonb("\x00"))
 	assert.Equal(t, "", sanitizeForJsonb(""))
+}
+
+// TestBuildTerminationReason_WireFormat pins the exact JSON shape written to the
+// scheduler_termination_reason column. This is a contract test: if the output
+// format changes, this test breaks and the author knows they are changing the
+// wire format stored in the database.
+//
+//	Preemption (no preempting job):  {"reason": "..."}
+//	Preemption (fair-share):         {"args": {"preemptingJobId": "..."}, "reason": "..."}
+func TestBuildTerminationReason_WireFormat(t *testing.T) {
+	tests := []struct {
+		name         string
+		reason       string
+		args         map[string]any
+		expectedJSON string
+	}{
+		{
+			name:         "preemption without preempting run",
+			reason:       testfixtures.PreemptionReason,
+			args:         nil,
+			expectedJSON: `{"reason":"` + testfixtures.PreemptionReason + `"}`,
+		},
+		{
+			name:         "preemption with preempting job (fair-share)",
+			reason:       testfixtures.PreemptionReason,
+			args:         map[string]any{"preemptingJobId": testfixtures.PreemptingJobId},
+			expectedJSON: `{"args":{"preemptingJobId":"` + testfixtures.PreemptingJobId + `"},"reason":"` + testfixtures.PreemptionReason + `"}`,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result := BuildTerminationReason(tc.reason, tc.args)
+			b, err := json.Marshal(result)
+			assert.NoError(t, err)
+			assert.Equal(t, tc.expectedJSON, string(b))
+		})
+	}
 }

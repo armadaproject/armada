@@ -21,6 +21,7 @@ import (
 const (
 	JobId                      = "01f3j0g1md4qx7z5qb148qnh4r"
 	RunId                      = "123e4567-e89b-12d3-a456-426614174000"
+	PreemptingJobId            = "456e7890-e89b-12d3-a456-426614174001"
 	PartitionMarkerGroupId     = "223e4567-e89b-12d3-a456-426614174000"
 	JobsetName                 = "testJobset"
 	ExecutorId                 = "testCluster"
@@ -43,6 +44,7 @@ const (
 	LeaseReturnedMsg           = "lease returned error message"
 	UnschedulableMsg           = "test pod is unschedulable"
 	PreemptionReason           = "job preempted"
+	CancelReason               = "sample cancel reason"
 	PartitionMarkerPartitionId = 456
 
 	ExecutorCordonReason = "bad executor"
@@ -463,6 +465,19 @@ var JobRunPreempted = &armadaevents.EventSequence_Event{
 			PreemptedJobId: JobId,
 			PreemptedRunId: RunId,
 			Reason:         PreemptionReason,
+		},
+	},
+}
+
+// JobRunPreemptedFairShare represents a fair-share preemption where the preempting job is known.
+var JobRunPreemptedFairShare = &armadaevents.EventSequence_Event{
+	Created: testfixtures.BasetimeProto,
+	Event: &armadaevents.EventSequence_Event_JobRunPreempted{
+		JobRunPreempted: &armadaevents.JobRunPreempted{
+			PreemptedJobId:  JobId,
+			PreemptedRunId:  RunId,
+			PreemptiveJobId: PreemptingJobId,
+			Reason:          PreemptionReason,
 		},
 	},
 }
