@@ -21,6 +21,15 @@
   margin-bottom: 0;
 }
 
+.toolbar a.MuiButton-root {
+  transition: background-color 0.15s ease;
+}
+
+.toolbar a.MuiButton-root.active {
+  background-color: var(--nav-active-bg);
+  font-weight: bold;
+}
+
 .toolbar .nav-end {
   display: flex;
   flex-direction: row;
