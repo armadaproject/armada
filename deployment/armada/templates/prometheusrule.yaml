@@ -33,20 +33,37 @@ spec:
             sum(sum(armada:queue:resource:queued{namespace="{{ .Release.Namespace }}", resourceType="cpu"} > bool 0) by (queueName, pool) * (1 / armada:queue:priority{namespace="{{ .Release.Namespace }}"})) by (pool)
             * 100
 
+        # Filter to leader instance only to prevent stale series from non-leader replicas.
+        # Deduplicate by instance first (handles multiple scrapers), then filter by leader status.
         - record: armada:queue:resource:queued
           labels:
             namespace: "{{ .Release.Namespace }}"
-          expr: max(sum(armada_queue_resource_queued{namespace="{{ .Release.Namespace }}"}) by (instance, pool, queueName, resourceType, accounting_role)) by (pool, queueName, resourceType, accounting_role)
+          expr: >
+            max(
+              max(armada_queue_resource_queued{namespace="{{ .Release.Namespace }}"}) by (instance, pool, queueName, priceBand, resourceType, accounting_role)
+              * on (instance) group_left()
+              (max by (instance) (armada_scheduler_leader_status{namespace="{{ .Release.Namespace }}"} == 1))
+            ) by (pool, queueName, priceBand, resourceType, accounting_role)
 
         - record: armada:queue:resource:allocated
           labels:
             namespace: "{{ .Release.Namespace }}"
-          expr: max(sum(armada_queue_resource_allocated{namespace="{{ .Release.Namespace }}"}) by (instance, pool, cluster, queueName, resourceType, nodeType, reservation, physical_pool, scalable_unit)) by (pool, cluster, queueName, resourceType, nodeType, reservation, physical_pool, scalable_unit)
+          expr: >
+            max(
+              max(armada_queue_resource_allocated{namespace="{{ .Release.Namespace }}"}) by (instance, pool, cluster, queueName, priceBand, resourceType, nodeType, reservation, physical_pool, scalable_unit)
+              * on (instance) group_left()
+              (max by (instance) (armada_scheduler_leader_status{namespace="{{ .Release.Namespace }}"} == 1))
+            ) by (pool, cluster, queueName, priceBand, resourceType, nodeType, reservation, physical_pool, scalable_unit)
 
         - record: armada:queue:resource:used
           labels:
             namespace: "{{ .Release.Namespace }}"
-          expr: max(sum(armada_queue_resource_used{namespace="{{ .Release.Namespace }}"}) by (instance, pool, cluster, queueName, resourceType, nodeType, reservation, physical_pool, scalable_unit)) by (pool, cluster, queueName, resourceType, nodeType, reservation, physical_pool, scalable_unit)
+          expr: >
+            max(
+              max(armada_queue_resource_used{namespace="{{ .Release.Namespace }}"}) by (instance, pool, cluster, queueName, resourceType, nodeType, reservation, physical_pool, scalable_unit)
+              * on (instance) group_left()
+              (max by (instance) (armada_scheduler_leader_status{namespace="{{ .Release.Namespace }}"} == 1))
+            ) by (pool, cluster, queueName, resourceType, nodeType, reservation, physical_pool, scalable_unit)
 
         - record: armada:grpc:server:histogram95
           labels:
@@ -66,20 +83,40 @@ spec:
         - record: armada:resource:available_capacity
           labels:
             namespace: "{{ .Release.Namespace }}"
-          expr: max(armada_cluster_available_capacity{namespace="{{ .Release.Namespace }}"}) by (pool, cluster, resourceType, nodeType, reservation, physical_pool, capacity_class, scalable_unit)
+          expr: >
+            max(
+              max(armada_cluster_available_capacity{namespace="{{ .Release.Namespace }}"}) by (instance, pool, cluster, resourceType, nodeType, reservation, physical_pool, capacity_class, scalable_unit)
+              * on (instance) group_left()
+              (max by (instance) (armada_scheduler_leader_status{namespace="{{ .Release.Namespace }}"} == 1))
+            ) by (pool, cluster, resourceType, nodeType, reservation, physical_pool, capacity_class, scalable_unit)
 
         - record: armada:resource:farm_capacity
           labels:
             namespace: "{{ .Release.Namespace }}"
-          expr: max(armada_cluster_farm_capacity{namespace="{{ .Release.Namespace }}"}) by (pool, cluster, resourceType, nodeType, reservation, physical_pool, capacity_class, scalable_unit)
+          expr: >
+            max(
+              max(armada_cluster_farm_capacity{namespace="{{ .Release.Namespace }}"}) by (instance, pool, cluster, resourceType, nodeType, reservation, physical_pool, capacity_class, scalable_unit)
+              * on (instance) group_left()
+              (max by (instance) (armada_scheduler_leader_status{namespace="{{ .Release.Namespace }}"} == 1))
+            ) by (pool, cluster, resourceType, nodeType, reservation, physical_pool, capacity_class, scalable_unit)
 
         - record: armada:resource:capacity
           labels:
             namespace: "{{ .Release.Namespace }}"
-          expr: max(armada_cluster_capacity{namespace="{{ .Release.Namespace }}"}) by (pool, cluster, resourceType, nodeType, reservation, physical_pool, capacity_class, scalable_unit)
+          expr: >
+            max(
+              max(armada_cluster_capacity{namespace="{{ .Release.Namespace }}"}) by (instance, pool, cluster, resourceType, nodeType, reservation, physical_pool, capacity_class, scalable_unit)
+              * on (instance) group_left()
+              (max by (instance) (armada_scheduler_leader_status{namespace="{{ .Release.Namespace }}"} == 1))
+            ) by (pool, cluster, resourceType, nodeType, reservation, physical_pool, capacity_class, scalable_unit)
 
         - record: armada:queue:pod_phase:count
           labels:
             namespace: "{{ .Release.Namespace }}"
-          expr: max(armada_queue_leased_pod_count{namespace="{{ .Release.Namespace }}"}) by (pool, cluster, queueName, phase, nodeType, reservation)
+          expr: >
+            max(
+              max(armada_queue_leased_pod_count{namespace="{{ .Release.Namespace }}"}) by (instance, pool, cluster, queueName, phase, nodeType, reservation)
+              * on (instance) group_left()
+              (max by (instance) (armada_scheduler_leader_status{namespace="{{ .Release.Namespace }}"} == 1))
+            ) by (pool, cluster, queueName, phase, nodeType, reservation)
 {{- end }}
