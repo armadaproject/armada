@@ -36,9 +36,9 @@ func Run(config Configuration) error {
 	if err != nil {
 		panic(errors.WithMessage(err, "Error opening connection to postgres"))
 	}
-	schedulerDb := NewSchedulerDb(db, svcMetrics, 100*time.Millisecond, 60*time.Second, 5*time.Second)
+	schedulerDb := NewSchedulerDb(db, svcMetrics, 100*time.Millisecond, 60*time.Second, 5*time.Second, config.JobSpecMigrationPhase)
 
-	jobSetEventsConverter, err := NewJobSetEventsInstructionConverter(svcMetrics, config.JobSpecMigrationPhase)
+	jobSetEventsConverter, err := NewJobSetEventsInstructionConverter(svcMetrics)
 	if err != nil {
 		return err
 	}

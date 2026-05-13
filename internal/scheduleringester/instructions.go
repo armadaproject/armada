@@ -32,9 +32,8 @@ type eventSequenceCommon struct {
 }
 
 type JobSetEventsInstructionConverter struct {
-	metrics        *metrics.Metrics
-	compressor     compress.Compressor
-	migrationPhase schedulerdb.JobSpecMigrationPhase
+	metrics    *metrics.Metrics
+	compressor compress.Compressor
 }
 
 type ControlPlaneEventsInstructionConverter struct {
@@ -43,16 +42,14 @@ type ControlPlaneEventsInstructionConverter struct {
 
 func NewJobSetEventsInstructionConverter(
 	metrics *metrics.Metrics,
-	migrationPhase schedulerdb.JobSpecMigrationPhase,
 ) (*JobSetEventsInstructionConverter, error) {
 	compressor, err := compress.NewZlibCompressor(1024)
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to create compressor")
 	}
 	return &JobSetEventsInstructionConverter{
-		metrics:        metrics,
-		compressor:     compressor,
-		migrationPhase: migrationPhase,
+		metrics:    metrics,
+		compressor: compressor,
 	}, nil
 }
 
@@ -189,24 +186,14 @@ func (c *JobSetEventsInstructionConverter) handleSubmitJob(job *armadaevents.Sub
 		QueuedVersion:         0,
 		Submitted:             submitTime.UnixNano(),
 		Priority:              int64(job.Priority),
+		SubmitMessage:         compressedSubmitJobBytes,
+		Groups:                compressedGroups,
 		SchedulingInfo:        schedulingInfoBytes,
 		SchedulingInfoVersion: int32(schedulingInfo.Version),
 		PriceBand:             pricingBand,
 	}
-	if c.migrationPhase.WritesJobs() {
-		jobRow.SubmitMessage = compressedSubmitJobBytes
-		jobRow.Groups = compressedGroups
-	}
 
-	ops := []DbOperation{InsertJobs{jobId: jobRow}}
-	if c.migrationPhase.WritesJobSpecs() {
-		ops = append(ops, InsertJobSpecs{jobId: &schedulerdb.JobSpec{
-			JobID:         jobId,
-			SubmitMessage: compressedSubmitJobBytes,
-			Groups:        compressedGroups,
-		}})
-	}
-	return ops, nil
+	return []DbOperation{InsertJobs{jobId: jobRow}}, nil
 }
 
 func (c *JobSetEventsInstructionConverter) handleJobRunLeased(jobRunLeased *armadaevents.JobRunLeased, eventTime time.Time, meta eventSequenceCommon) ([]DbOperation, error) {

@@ -50,11 +50,6 @@ func TestConvertEventSequence(t *testing.T) {
 					SchedulingInfo: protoutil.MustMarshall(getExpectedSubmitMessageSchedulingInfo(t)),
 					PriceBand:      1,
 				}},
-				InsertJobSpecs{f.JobId: &schedulerdb.JobSpec{
-					JobID:         f.JobId,
-					Groups:        compress.MustCompressStringArray(f.Groups, compressor),
-					SubmitMessage: protoutil.MustMarshallAndCompress(f.Submit.GetSubmitJob(), compressor),
-				}},
 			},
 		},
 		"submit with annotations we want to filter": {
@@ -73,11 +68,6 @@ func TestConvertEventSequence(t *testing.T) {
 					SubmitMessage:  protoutil.MustMarshallAndCompress(f.SubmitWithIrrelevantAnnotations.GetSubmitJob(), compressor),
 					SchedulingInfo: protoutil.MustMarshall(getExpectedSubmitMessageSchedulingInfo(t)),
 					PriceBand:      1,
-				}},
-				InsertJobSpecs{f.JobId: &schedulerdb.JobSpec{
-					JobID:         f.JobId,
-					Groups:        compress.MustCompressStringArray(f.Groups, compressor),
-					SubmitMessage: protoutil.MustMarshallAndCompress(f.SubmitWithIrrelevantAnnotations.GetSubmitJob(), compressor),
 				}},
 			},
 		},
@@ -306,7 +296,7 @@ func TestConvertEventSequence(t *testing.T) {
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			converter := JobSetEventsInstructionConverter{m, compressor, schedulerdb.JobSpecMigrationPhaseDualWrite}
+			converter := JobSetEventsInstructionConverter{m, compressor}
 			es := f.NewEventSequence(tc.events...)
 			results := converter.dbOperationsFromEventSequence(es)
 			assertOperationsEqual(t, tc.expected, results)
@@ -504,17 +494,6 @@ func assertOperationsEqual(t *testing.T, expectedOps []DbOperation, actualOps []
 				expectedSubmit.SchedulingInfo = nil
 				expectedSubmit.SubmitMessage = nil
 				assert.Equal(t, expectedSubmit, actualSubmit)
-			}
-		case InsertJobSpecs:
-			actualSpecs := actualOp.(InsertJobSpecs)
-			for k, expectedSpec := range expectedOp.(InsertJobSpecs) {
-				actualSpec, ok := actualSpecs[k]
-				assert.True(t, ok)
-				assertSubmitMessagesEqual(t, expectedSpec.SubmitMessage, actualSpec.SubmitMessage)
-				// nil out byte arrays; Groups is deterministically compressed so direct compare is fine
-				actualSpec.SubmitMessage = nil
-				expectedSpec.SubmitMessage = nil
-				assert.Equal(t, expectedSpec, actualSpec)
 			}
 		case InsertJobRunErrors:
 			actualErrors := actualOp.(InsertJobRunErrors)

@@ -51,28 +51,6 @@ func TestWriteOps(t *testing.T) {
 				jobIds[3]: &schedulerdb.Job{JobID: jobIds[3], JobSet: "set2"},
 			},
 		}},
-		"InsertJobSpecs": {Ops: []DbOperation{
-			InsertJobSpecs{
-				jobIds[0]: &schedulerdb.JobSpec{JobID: jobIds[0], SubmitMessage: []byte("sm-0"), Groups: []byte("g-0")},
-				jobIds[1]: &schedulerdb.JobSpec{JobID: jobIds[1], SubmitMessage: []byte("sm-1"), Groups: []byte("g-1")},
-			},
-			InsertJobSpecs{
-				jobIds[2]: &schedulerdb.JobSpec{JobID: jobIds[2], SubmitMessage: []byte("sm-2"), Groups: []byte("g-2")},
-			},
-		}},
-		"InsertJobSpecs nil groups": {Ops: []DbOperation{
-			InsertJobSpecs{
-				jobIds[0]: &schedulerdb.JobSpec{JobID: jobIds[0], SubmitMessage: []byte("sm-0"), Groups: nil},
-			},
-		}},
-		"InsertJobSpecs upsert is idempotent": {Ops: []DbOperation{
-			InsertJobSpecs{
-				jobIds[0]: &schedulerdb.JobSpec{JobID: jobIds[0], SubmitMessage: []byte("sm-v1"), Groups: []byte("g-v1")},
-			},
-			InsertJobSpecs{
-				jobIds[0]: &schedulerdb.JobSpec{JobID: jobIds[0], SubmitMessage: []byte("sm-v2"), Groups: []byte("g-v2")},
-			},
-		}},
 		"Submit Check": {Ops: []DbOperation{
 			InsertJobs{
 				jobIds[0]: &schedulerdb.Job{JobID: jobIds[0], JobSet: "set1"},
@@ -484,7 +462,7 @@ func TestWriteOps(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			err := schedulerdb.WithTestDb(func(_ *schedulerdb.Queries, db *pgxpool.Pool) error {
-				schedulerDb := &SchedulerDb{db: db}
+				schedulerDb := &SchedulerDb{db: db, migrationPhase: schedulerdb.JobSpecMigrationPhaseLegacy}
 				serials := make(map[string]int64)
 				for _, op := range tc.Ops {
 					err := assertOpSuccess(t, schedulerDb, serials, addDefaultValues(op))
@@ -662,19 +640,6 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 			v.Terminated = &terminated
 			assert.Equal(t, v, actual[k])
 		}
-	case InsertJobSpecs:
-		actual := make(InsertJobSpecs)
-		for jobId := range expected {
-			spec := &schedulerdb.JobSpec{JobID: jobId}
-			err := schedulerDb.db.QueryRow(ctx,
-				"SELECT submit_message, groups FROM job_specs WHERE job_id = $1", jobId,
-			).Scan(&spec.SubmitMessage, &spec.Groups)
-			if err != nil {
-				return errors.WithStack(err)
-			}
-			actual[jobId] = spec
-		}
-		assert.Equal(t, expected, actual)
 	case InsertRuns:
 		jobs, err := selectNewJobs(ctx, 0)
 		if err != nil {
@@ -1204,7 +1169,7 @@ func TestStore(t *testing.T) {
 	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
 	defer cancel()
 	err := schedulerdb.WithTestDb(func(q *schedulerdb.Queries, db *pgxpool.Pool) error {
-		schedulerDb := NewSchedulerDb(db, metrics.NewMetrics("test"), time.Second, time.Second, 10*time.Second)
+		schedulerDb := NewSchedulerDb(db, metrics.NewMetrics("test"), time.Second, time.Second, 10*time.Second, schedulerdb.JobSpecMigrationPhaseLegacy)
 		err := schedulerDb.Store(ctx, &DbOperationsWithMessageIds{Ops: ops})
 		require.NoError(t, err)
 
