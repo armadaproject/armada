@@ -177,23 +177,21 @@ func (c *JobSetEventsInstructionConverter) handleSubmitJob(job *armadaevents.Sub
 		}
 	}
 
-	jobRow := &schedulerdb.Job{
+	return []DbOperation{InsertJobs{jobId: &schedulerdb.Job{
 		JobID:                 jobId,
 		JobSet:                meta.jobset,
 		UserID:                meta.user,
+		Groups:                compressedGroups,
 		Queue:                 meta.queue,
 		Queued:                true,
 		QueuedVersion:         0,
 		Submitted:             submitTime.UnixNano(),
 		Priority:              int64(job.Priority),
 		SubmitMessage:         compressedSubmitJobBytes,
-		Groups:                compressedGroups,
 		SchedulingInfo:        schedulingInfoBytes,
 		SchedulingInfoVersion: int32(schedulingInfo.Version),
 		PriceBand:             pricingBand,
-	}
-
-	return []DbOperation{InsertJobs{jobId: jobRow}}, nil
+	}}}, nil
 }
 
 func (c *JobSetEventsInstructionConverter) handleJobRunLeased(jobRunLeased *armadaevents.JobRunLeased, eventTime time.Time, meta eventSequenceCommon) ([]DbOperation, error) {

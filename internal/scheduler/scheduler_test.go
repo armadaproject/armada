@@ -3495,7 +3495,7 @@ func dbOpsFromDbObjects(
 
 func fixInsertJobsDbOp(dbOp scheduleringester.InsertJobs) scheduleringester.InsertJobs {
 	for _, job := range dbOp {
-		// This field must be non-null when written to postgres
+		// This field must be non-null when written to postgres.
 		job.SubmitMessage = make([]byte, 0)
 	}
 	return dbOp
