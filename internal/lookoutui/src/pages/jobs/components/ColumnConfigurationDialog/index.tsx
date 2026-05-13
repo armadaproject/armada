@@ -175,7 +175,7 @@ export const ColumnConfigurationDialog = ({
 
   const handleClose = useCallback(() => {
     trackAnalyticsEvent(ANALYTICS_EVENTS.COLUMN_CONFIGURATION_DIALOG_CLOSED, {
-      selectedColumns: visibleColumnIds.join(","),
+      visibleColumnIds: visibleColumnIds.join(","),
     })
     onClose()
   }, [onClose, visibleColumnIds, visibleColumnsSet])
