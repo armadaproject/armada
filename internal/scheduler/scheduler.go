@@ -681,7 +681,7 @@ func preemptingJobId(preemptingJob *jobdb.Job) string {
 	return preemptingJob.Id()
 }
 
-func createEventsForPreemptedJob(jobId string, runId string, preemptiveJobId string, reason string, time time.Time) []*armadaevents.EventSequence_Event {
+func createEventsForPreemptedJob(jobId string, runId string, preemptingJobId string, reason string, time time.Time) []*armadaevents.EventSequence_Event {
 	return []*armadaevents.EventSequence_Event{
 		{
 			Created: protoutil.ToTimestamp(time),
@@ -690,7 +690,7 @@ func createEventsForPreemptedJob(jobId string, runId string, preemptiveJobId str
 					PreemptedRunId:  runId,
 					PreemptedJobId:  jobId,
 					Reason:          reason,
-					PreemptiveJobId: preemptiveJobId,
+					PreemptingJobId: preemptingJobId,
 				},
 			},
 		},

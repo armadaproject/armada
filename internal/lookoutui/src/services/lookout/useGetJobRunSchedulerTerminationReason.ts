@@ -1,6 +1,6 @@
 import { useMemo } from "react"
 
-import { QueryFunction, QueryKey, useQueries, useQuery } from "@tanstack/react-query"
+import { QueryFunction, QueryKey, useQuery } from "@tanstack/react-query"
 
 import { getErrorMessage } from "../../common/utils"
 import { getConfig } from "../../config"
@@ -43,20 +43,5 @@ export const useGetJobRunSchedulerTerminationReason = (runId: string, enabled = 
     enabled,
     refetchOnMount: false,
     staleTime: 30_000,
-  })
-}
-
-export const useBatchGetJobRunSchedulerTerminationReasons = (runIds: string[], enabled = true) => {
-  const config = getConfig()
-  const authenticatedFetch = useAuthenticatedFetch()
-
-  return useQueries({
-    queries: runIds.map((runId) => ({
-      queryKey: ["getJobRunSchedulerTerminationReason", runId],
-      queryFn: getQueryFn(runId, authenticatedFetch, config.fakeDataEnabled),
-      enabled,
-      refetchOnMount: false,
-      staleTime: 30_000,
-    })),
   })
 }

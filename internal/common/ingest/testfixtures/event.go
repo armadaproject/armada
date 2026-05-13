@@ -476,7 +476,7 @@ var JobRunPreemptedFairShare = &armadaevents.EventSequence_Event{
 		JobRunPreempted: &armadaevents.JobRunPreempted{
 			PreemptedJobId:  JobId,
 			PreemptedRunId:  RunId,
-			PreemptiveJobId: PreemptingJobId,
+			PreemptingJobId: PreemptingJobId,
 			Reason:          PreemptionReason,
 		},
 	},
