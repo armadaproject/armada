@@ -39,6 +39,11 @@ Please try and make sure that this is linked to an [issue](https://github.com/ar
 
 **Please keep all pull requests on a separate branch with proper name!**
 
+### Testing
+
+All new functionality must include tests. CI runs the full
+test suite automatically on every pull request.
+
 ### Branches
 
 #### Squashing fix-ups
@@ -108,6 +113,11 @@ You can view the list of [good first issues](https://github.com/armadaproject/ar
 ## Security
 
 Armada developers appreciate and encourage coordinated disclosure of security vulnerabilities. If you believe you have a vulnerability to report, please contact the security team at [security@gr-oss.io](mailto:security@gr-oss.io) for triage.
+
+## Code of Conduct
+
+This project follows the
+[Armada Code of Conduct](https://github.com/armadaproject/armada/blob/master/CODE_OF_CONDUCT.md).
 
 ## License
 
