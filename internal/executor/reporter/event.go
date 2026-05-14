@@ -83,9 +83,10 @@ func CreateEventForCurrentState(pod *v1.Pod, clusterId string, classifyResult ca
 		})
 		return sequence, nil
 	case v1.PodFailed:
+		reason := classifyResult.AppendHint(util.ExtractPodFailedReason(pod))
 		return CreateJobFailedEvent(
 			pod,
-			util.ExtractPodFailedReason(pod),
+			reason,
 			util.ExtractPodFailureCause(pod),
 			"",
 			util.ExtractFailedPodContainerStatuses(pod, clusterId),
