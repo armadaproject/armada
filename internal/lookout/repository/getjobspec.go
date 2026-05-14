@@ -1,10 +1,12 @@
 package repository
 
 import (
+	"errors"
+	"fmt"
+
 	"github.com/gogo/protobuf/proto"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/pkg/errors"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
@@ -39,8 +41,8 @@ func (r *SqlGetJobSpecRepository) GetJobSpec(ctx *armadacontext.Context, jobId s
 				ON job.job_id = job_spec.job_id
 			WHERE job.job_id = $1`, jobId).Scan(&rawBytes)
 	if err != nil {
-		if err == pgx.ErrNoRows {
-			return nil, errors.Errorf("job_spec with job id %s not found", jobId)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, fmt.Errorf("job_spec with job id %s not found: %w", jobId, ErrNotFound)
 		}
 		return nil, err
 	}
