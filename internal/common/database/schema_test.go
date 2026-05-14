@@ -1,9 +1,11 @@
 package database
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -46,14 +48,16 @@ func TestPrepareSchema_ValidatesConfig(t *testing.T) {
 func TestPrepareSchema_SingleRole_CreatesAndSetsSearchPath(t *testing.T) {
 	err := WithTestDb(nil, func(db *pgxpool.Pool) error {
 		ctx := armadacontext.Background()
+		conn := acquireConn(t, ctx, db)
+		defer conn.Close(ctx)
 		cfg := MigrationConfig{Schema: "armada_test", CreateSchema: true}
 
-		require.NoError(t, PrepareSchema(ctx, db, cfg))
+		require.NoError(t, PrepareSchema(ctx, conn, cfg))
 		assertSchemaExists(t, db, "armada_test")
-		assertSearchPath(t, db, "armada_test")
+		assertSearchPath(t, conn, "armada_test")
 
 		// Idempotent.
-		require.NoError(t, PrepareSchema(ctx, db, cfg))
+		require.NoError(t, PrepareSchema(ctx, conn, cfg))
 		assertSchemaExists(t, db, "armada_test")
 		return nil
 	})
@@ -63,11 +67,13 @@ func TestPrepareSchema_SingleRole_CreatesAndSetsSearchPath(t *testing.T) {
 func TestPrepareSchema_SchemaSetButNotCreated(t *testing.T) {
 	err := WithTestDb(nil, func(db *pgxpool.Pool) error {
 		ctx := armadacontext.Background()
-		_, err := db.Exec(ctx, `CREATE SCHEMA armada_test`)
+		conn := acquireConn(t, ctx, db)
+		defer conn.Close(ctx)
+		_, err := conn.Exec(ctx, `CREATE SCHEMA armada_test`)
 		require.NoError(t, err)
 
-		require.NoError(t, PrepareSchema(ctx, db, MigrationConfig{Schema: "armada_test"}))
-		assertSearchPath(t, db, "armada_test")
+		require.NoError(t, PrepareSchema(ctx, conn, MigrationConfig{Schema: "armada_test"}))
+		assertSearchPath(t, conn, "armada_test")
 		return nil
 	})
 	require.NoError(t, err)
@@ -76,13 +82,15 @@ func TestPrepareSchema_SchemaSetButNotCreated(t *testing.T) {
 func TestPrepareSchema_QuotesNamesNeedingQuoting(t *testing.T) {
 	err := WithTestDb(nil, func(db *pgxpool.Pool) error {
 		ctx := armadacontext.Background()
+		conn := acquireConn(t, ctx, db)
+		defer conn.Close(ctx)
 		schema := "Armada-Mixed"
 		cfg := MigrationConfig{Schema: schema, CreateSchema: true}
 
-		require.NoError(t, PrepareSchema(ctx, db, cfg))
+		require.NoError(t, PrepareSchema(ctx, conn, cfg))
 		assertSchemaExists(t, db, schema)
 		// Idempotent for quoted names.
-		require.NoError(t, PrepareSchema(ctx, db, cfg))
+		require.NoError(t, PrepareSchema(ctx, conn, cfg))
 		return nil
 	})
 	require.NoError(t, err)
@@ -91,14 +99,16 @@ func TestPrepareSchema_QuotesNamesNeedingQuoting(t *testing.T) {
 func TestPrepareSchema_NoSchema_LeavesSearchPathAlone(t *testing.T) {
 	err := WithTestDb(nil, func(db *pgxpool.Pool) error {
 		ctx := armadacontext.Background()
+		conn := acquireConn(t, ctx, db)
+		defer conn.Close(ctx)
 
 		var before string
-		require.NoError(t, db.QueryRow(ctx, `SHOW search_path`).Scan(&before))
+		require.NoError(t, conn.QueryRow(ctx, `SHOW search_path`).Scan(&before))
 
-		require.NoError(t, PrepareSchema(ctx, db, MigrationConfig{}))
+		require.NoError(t, PrepareSchema(ctx, conn, MigrationConfig{}))
 
 		var after string
-		require.NoError(t, db.QueryRow(ctx, `SHOW search_path`).Scan(&after))
+		require.NoError(t, conn.QueryRow(ctx, `SHOW search_path`).Scan(&after))
 		assert.Equal(t, before, after)
 		return nil
 	})
@@ -113,15 +123,16 @@ func TestPrepareSchema_TwoRole_CreatesAndGrants(t *testing.T) {
 		const migratorRole = "armada_migrator_test"
 		const migratorPassword = "psw"
 		dbName := databaseName(t, ctx, db)
+		migratorRoleIdent := pgx.Identifier{migratorRole}.Sanitize()
 
-		_, err := db.Exec(ctx, `DROP ROLE IF EXISTS `+migratorRole)
+		_, err := db.Exec(ctx, fmt.Sprintf(`DROP ROLE IF EXISTS %s`, migratorRoleIdent))
 		require.NoError(t, err)
-		_, err = db.Exec(ctx, `CREATE ROLE `+migratorRole+` LOGIN PASSWORD '`+migratorPassword+`'`)
+		_, err = db.Exec(ctx, fmt.Sprintf(`CREATE ROLE %s LOGIN PASSWORD '%s'`, migratorRoleIdent, migratorPassword))
 		require.NoError(t, err)
 		t.Cleanup(func() {
 			cleanupCtx := armadacontext.Background()
-			_, _ = db.Exec(cleanupCtx, `REVOKE ALL ON SCHEMA armada_test FROM `+migratorRole)
-			_, _ = db.Exec(cleanupCtx, `DROP ROLE IF EXISTS `+migratorRole)
+			_, _ = db.Exec(cleanupCtx, fmt.Sprintf(`REVOKE ALL ON SCHEMA armada_test FROM %s`, migratorRoleIdent))
+			_, _ = db.Exec(cleanupCtx, fmt.Sprintf(`DROP ROLE IF EXISTS %s`, migratorRoleIdent))
 		})
 
 		// Open a connection as the migrator role.
@@ -171,6 +182,14 @@ func TestPrepareSchema_TwoRole_CreatesAndGrants(t *testing.T) {
 		return nil
 	})
 	require.NoError(t, err)
+}
+
+func acquireConn(t *testing.T, ctx *armadacontext.Context, pool *pgxpool.Pool) *pgx.Conn {
+	t.Helper()
+	acquired, err := pool.Acquire(ctx)
+	require.NoError(t, err)
+	conn := acquired.Hijack()
+	return conn
 }
 
 func assertSchemaExists(t *testing.T, db Querier, schema string) {

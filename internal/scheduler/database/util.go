@@ -5,6 +5,7 @@ import (
 	_ "embed"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -14,7 +15,7 @@ import (
 //go:embed migrations/*.sql
 var fs embed.FS
 
-func Migrate(ctx *armadacontext.Context, db database.Querier, migrationCfg database.MigrationConfig) error {
+func Migrate(ctx *armadacontext.Context, db *pgx.Conn, migrationCfg database.MigrationConfig) error {
 	start := time.Now()
 	if err := database.PrepareSchema(ctx, db, migrationCfg); err != nil {
 		return err

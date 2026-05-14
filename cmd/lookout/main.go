@@ -62,10 +62,11 @@ func makeContext() (*armadacontext.Context, func()) {
 }
 
 func migrate(ctx *armadacontext.Context, config configuration.LookoutConfig) {
-	db, err := database.OpenPgxPool(config.Postgres)
+	db, err := database.OpenPgxConn(config.Postgres)
 	if err != nil {
 		panic(err)
 	}
+	defer db.Close(ctx)
 
 	if err := database.PrepareSchema(ctx, db, config.Migration); err != nil {
 		panic(err)

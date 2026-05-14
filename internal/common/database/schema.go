@@ -51,7 +51,11 @@ func validateIdentifier(name string) error {
 // subsequent unqualified DDL lands in the configured schema.
 //
 // PrepareSchema must be called before UpdateDatabase. It is idempotent.
-func PrepareSchema(ctx *armadacontext.Context, migratorDB Querier, cfg MigrationConfig) error {
+//
+// migratorDB must be a single connection (not a pool): SET search_path is
+// session-local, so any subsequent migration query must run on the same
+// connection or the search_path will not be in effect.
+func PrepareSchema(ctx *armadacontext.Context, migratorDB *pgx.Conn, cfg MigrationConfig) error {
 	if cfg.CreateSchema && cfg.Schema == "" {
 		return errors.New("CreateSchema requires Schema to be set")
 	}
@@ -75,7 +79,7 @@ func PrepareSchema(ctx *armadacontext.Context, migratorDB Querier, cfg Migration
 	return nil
 }
 
-func createSchema(ctx *armadacontext.Context, migratorDB Querier, cfg MigrationConfig) error {
+func createSchema(ctx *armadacontext.Context, migratorDB *pgx.Conn, cfg MigrationConfig) error {
 	schemaIdent := pgx.Identifier{cfg.Schema}.Sanitize()
 
 	if cfg.SchemaCreator == nil {
@@ -109,7 +113,7 @@ func createSchema(ctx *armadacontext.Context, migratorDB Querier, cfg MigrationC
 	return nil
 }
 
-func currentUser(ctx *armadacontext.Context, db Querier) (string, error) {
+func currentUser(ctx *armadacontext.Context, db *pgx.Conn) (string, error) {
 	var user string
 	if err := db.QueryRow(ctx, `SELECT current_user`).Scan(&user); err != nil {
 		return "", err
