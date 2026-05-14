@@ -476,16 +476,20 @@ func (c *InstructionConverter) handleJobRunErrors(ts time.Time, event *armadaeve
 }
 
 func (c *InstructionConverter) handleJobRunPreempted(ts time.Time, event *armadaevents.JobRunPreempted, update *model.InstructionSet) error {
-	terminationReasonArgs := map[string]any{}
+	var terminationReasonArgs map[string]any
 	if event.PreemptingJobId != "" {
-		terminationReasonArgs["preemptingJobId"] = event.PreemptingJobId
+		terminationReasonArgs = map[string]any{"preemptingJobId": event.PreemptingJobId}
+	}
+	var terminationReason map[string]any
+	if event.Reason != "" || terminationReasonArgs != nil {
+		terminationReason = BuildTerminationReason(event.Reason, terminationReasonArgs)
 	}
 	jobRun := model.UpdateJobRunInstruction{
 		RunId:                      event.PreemptedRunId,
 		JobRunState:                pointer.Int32(lookout.JobRunPreemptedOrdinal),
 		Finished:                   &ts,
 		Error:                      tryCompressError(event.PreemptedJobId, event.Reason, c.compressor),
-		SchedulerTerminationReason: BuildTerminationReason(event.Reason, terminationReasonArgs),
+		SchedulerTerminationReason: terminationReason,
 	}
 	update.JobRunsToUpdate = append(update.JobRunsToUpdate, &jobRun)
 	return nil
