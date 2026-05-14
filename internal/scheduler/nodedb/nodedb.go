@@ -938,7 +938,7 @@ func (nodeDb *NodeDb) bindJobToNodeInPlace(node *internaltypes.Node, job *jobdb.
 	}
 
 	allocatable := node.AllocatableByPriority
-	markAllocated(allocatable, priority, requests)
+	markAllocated(allocatable, priorityCutoffFor(job, priority), requests)
 	if isEvicted {
 		markAllocatable(allocatable, internaltypes.EvictedPriority, requests)
 	}
@@ -996,7 +996,7 @@ func (nodeDb *NodeDb) evictJobFromNodeInPlace(job *jobdb.Job, node *internaltype
 		return errors.Errorf("job %s not mapped to a priority", jobId)
 	}
 	jobRequests := job.KubernetesResourceRequirements()
-	markAllocatable(allocatableByPriority, priority, jobRequests)
+	markAllocatable(allocatableByPriority, priorityCutoffFor(job, priority), jobRequests)
 	markAllocated(allocatableByPriority, internaltypes.EvictedPriority, jobRequests)
 
 	return nil
@@ -1016,6 +1016,23 @@ func markAllocatable(allocatableByPriority map[int32]internaltypes.ResourceList,
 	for _, priority := range priorities {
 		allocatableByPriority[priority] = allocatableByPriority[priority].Add(rs)
 	}
+}
+
+// nonPreemptibleCutoff is a sentinel value (not a real priority) passed to
+// markAllocated/markAllocatable to deduct at every priority bucket.
+const nonPreemptibleCutoff = math.MaxInt32
+
+// priorityCutoffFor returns the priorityCutoff to use when updating
+// AllocatableByPriority for a job. Preemptible jobs use their scheduled priority;
+// non-preemptible jobs use nonPreemptibleCutoff so their resources are deducted at
+// every real priority. Without this, a higher-priority job could over-pack a node
+// already saturated by non-preemptible incumbents, since both the rebalance and
+// oversubscribed evictors refuse to evict non-preemptible jobs.
+func priorityCutoffFor(job *jobdb.Job, scheduledPriority int32) int32 {
+	if job.PriorityClass().Preemptible {
+		return scheduledPriority
+	}
+	return nonPreemptibleCutoff
 }
 
 // UnbindJobsFromNode returns a node with all elements of jobs unbound from it.
@@ -1066,17 +1083,16 @@ func (nodeDb *NodeDb) unbindJobFromNodeInPlace(job *jobdb.Job, node *internaltyp
 	}
 
 	allocatable := node.AllocatableByPriority
-	var priority int32
 	if isEvicted {
-		priority = internaltypes.EvictedPriority
+		// Evicted jobs are always tracked at EvictedPriority regardless of preemptibility.
+		markAllocatable(allocatable, internaltypes.EvictedPriority, requests)
 	} else {
-		var ok bool
-		priority, ok = nodeDb.GetScheduledAtPriority(jobId)
+		priority, ok := nodeDb.GetScheduledAtPriority(jobId)
 		if !ok {
 			return errors.Errorf("job %s not mapped to a priority", jobId)
 		}
+		markAllocatable(allocatable, priorityCutoffFor(job, priority), requests)
 	}
-	markAllocatable(allocatable, priority, requests)
 
 	return nil
 }
