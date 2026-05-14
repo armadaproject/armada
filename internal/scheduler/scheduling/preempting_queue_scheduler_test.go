@@ -13,11 +13,14 @@ import (
 	"golang.org/x/exp/slices"
 	"golang.org/x/time/rate"
 	v1 "k8s.io/api/core/v1"
+	k8sResource "k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/utils/clock"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/logging"
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
+	"github.com/armadaproject/armada/internal/common/pointer"
+	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/types"
@@ -3005,6 +3008,219 @@ func TestEvictionAssertions_MixedStateGangWithRequeuedMember(t *testing.T) {
 
 	err := f.scheduler.evictionAssertions(evictorResult)
 	assert.NoError(t, err, "requeued member not on a node should be excluded from eviction count")
+}
+
+// TestPreemptingQueueScheduler_RespectNodePodLimits verifies that with the
+// respectNodePodLimits flag enabled and pods registered as a tracked resource,
+// the preempting queue scheduler treats per-node pod capacity as a binding
+// constraint: single jobs and gangs honour the pod cap, gangs reject atomically
+// when they don't fit, and preemption can free slots for a higher-priority gang.
+func TestPreemptingQueueScheduler_RespectNodePodLimits(t *testing.T) {
+	tests := map[string]struct {
+		incumbentPriorityClass string
+		challengerCount        int
+		challengerIsGang       bool
+		nodePodCapacity        int64
+		extraNodePodCapacities []int64
+		incumbentCount         int
+		expectedPreemptions    int
+		expectedNewlyScheduled int
+	}{
+		"saturated with preemptible incumbents, higher-priority challenger arrives": {
+			incumbentPriorityClass: testfixtures.PriorityClass0,
+			challengerCount:        1,
+			nodePodCapacity:        5,
+			incumbentCount:         5,
+			expectedPreemptions:    1,
+			expectedNewlyScheduled: 1,
+		},
+		"node has free pod slot, higher-priority challenger arrives": {
+			incumbentPriorityClass: testfixtures.PriorityClass0,
+			challengerCount:        1,
+			nodePodCapacity:        5,
+			incumbentCount:         4,
+			expectedPreemptions:    0,
+			expectedNewlyScheduled: 1,
+		},
+		"gang challenger exceeds node pod cap, atomic rejection": {
+			// Gang must reject as a unit; no partial schedule for the executor to clean up.
+			challengerCount:        5,
+			challengerIsGang:       true,
+			nodePodCapacity:        3,
+			incumbentCount:         0,
+			expectedPreemptions:    0,
+			expectedNewlyScheduled: 0,
+		},
+		"gang challenger fits exactly after preempting all incumbents": {
+			incumbentPriorityClass: testfixtures.PriorityClass0,
+			challengerCount:        5,
+			challengerIsGang:       true,
+			nodePodCapacity:        5,
+			incumbentCount:         5,
+			expectedPreemptions:    5,
+			expectedNewlyScheduled: 5,
+		},
+		"saturated node + free node, challenger picks free node": {
+			// Proves the per-node pod predicate is consulted during cross-node
+			// candidate iteration: landing on the empty node instead of preempting
+			// on the full one is only correct if pods is part of node fitness, not
+			// just within-node accounting.
+			incumbentPriorityClass: testfixtures.PriorityClass0,
+			challengerCount:        1,
+			nodePodCapacity:        5,
+			extraNodePodCapacities: []int64{5},
+			incumbentCount:         5,
+			expectedPreemptions:    0,
+			expectedNewlyScheduled: 1,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			config := testfixtures.TestSchedulingConfig()
+			config.RespectNodePodLimits = true
+			require.True(t, configuration.ApplyRespectNodePodLimits(&config))
+
+			// The global testfixtures.TestResourceListFactory does not track pods, so
+			// we build a local pods-aware factory and thread it through both the jobDb
+			// and the nodeDb. Without this, assertSameResourceListFactory panics when
+			// the scheduler compares job and node resource lists.
+			podsAwareFactory, err := internaltypes.NewResourceListFactory(config.SupportedResourceTypes, nil)
+			require.NoError(t, err)
+
+			jobDb := jobdb.NewJobDb(config.PriorityClasses, config.DefaultPriorityClassName, stringinterner.New(1024), podsAwareFactory)
+			jobDb.SetRespectNodePodLimits(true)
+
+			nodeFactory := internaltypes.NewNodeFactory(
+				config.IndexedTaints,
+				config.IndexedNodeLabels,
+				config.PriorityClasses,
+				podsAwareFactory,
+			)
+			buildNode := func(podCap int64) *internaltypes.Node {
+				return nodeFactory.FromSchedulerObjectsNode(testfixtures.TestSchedulerObjectsNode(testfixtures.TestPriorities, map[string]*k8sResource.Quantity{
+					"cpu":                           pointer.MustParseResource("10"),
+					"memory":                        pointer.MustParseResource("64Gi"),
+					armadaresource.PodsResourceName: pointer.MustParseResource(fmt.Sprintf("%d", podCap)),
+				}))
+			}
+			node := buildNode(tc.nodePodCapacity)
+			extraNodes := make([]*internaltypes.Node, len(tc.extraNodePodCapacities))
+			for i, capacity := range tc.extraNodePodCapacities {
+				extraNodes[i] = buildNode(capacity)
+			}
+
+			makeJob := func(priorityClass string, queued bool) *jobdb.Job {
+				jobId := util.ULID()
+				now := time.Now()
+				job, err := jobDb.NewJob(
+					jobId.String(),
+					testfixtures.TestJobset,
+					"A",
+					1000,
+					&internaltypes.JobSchedulingInfo{
+						PriorityClass:   priorityClass,
+						SubmitTime:      now,
+						PodRequirements: testfixtures.Test1Cpu4GiPodReqs("A", jobId, 0),
+					},
+					queued,
+					0,
+					false,
+					false,
+					false,
+					now.UnixNano(),
+					false,
+					[]string{testfixtures.TestPool},
+					0,
+				)
+				require.NoError(t, err)
+				return job
+			}
+
+			incumbents := make([]*jobdb.Job, tc.incumbentCount)
+			for i := 0; i < tc.incumbentCount; i++ {
+				j := makeJob(tc.incumbentPriorityClass, false)
+				incumbents[i] = j.WithNewRun(node.GetExecutor(), node.GetId(), node.GetName(), node.GetPool(), j.PriorityClass().Priority)
+			}
+			challengers := make([]*jobdb.Job, tc.challengerCount)
+			for i := 0; i < tc.challengerCount; i++ {
+				challengers[i] = makeJob(testfixtures.PriorityClass3, true)
+			}
+			if tc.challengerIsGang {
+				challengers = testfixtures.WithGangJobDetails(challengers, "gang-1", tc.challengerCount, "")
+			}
+
+			nodeDb, err := nodedb.NewNodeDb(
+				config.PriorityClasses,
+				config.IndexedResources,
+				config.IndexedTaints,
+				config.IndexedNodeLabels,
+				config.WellKnownNodeTypes,
+				podsAwareFactory,
+			)
+			require.NoError(t, err)
+			nodeDbTxn := nodeDb.Txn(true)
+			require.NoError(t, nodeDb.CreateAndInsertWithJobDbJobsWithTxn(nodeDbTxn, incumbents, node))
+			for _, n := range extraNodes {
+				require.NoError(t, nodeDb.CreateAndInsertWithJobDbJobsWithTxn(nodeDbTxn, nil, n))
+			}
+			nodeDbTxn.Commit()
+
+			jobDbTxn := jobDb.WriteTxn()
+			require.NoError(t, jobDbTxn.Upsert(incumbents))
+			require.NoError(t, jobDbTxn.Upsert(challengers))
+
+			totalResources := nodeDb.TotalKubernetesResources()
+			fairnessCostProvider, err := fairness.NewDominantResourceFairness(totalResources, testfixtures.TestPool, config)
+			require.NoError(t, err)
+
+			demand := internaltypes.ResourceList{}
+			for _, j := range challengers {
+				demand = demand.Add(j.AllResourceRequirements())
+			}
+			// Seed allocated-by-priority-class so eviction bookkeeping can subtract
+			// the incumbents without underflowing the queue allocation to negative.
+			allocatedByPriorityClass := map[string]internaltypes.ResourceList{}
+			for _, j := range incumbents {
+				allocatedByPriorityClass[j.PriorityClassName()] = allocatedByPriorityClass[j.PriorityClassName()].Add(j.AllResourceRequirements())
+			}
+
+			sctx := schedulingcontext.NewSchedulingContext(testfixtures.TestPool, fairnessCostProvider, rate.NewLimiter(rate.Inf, 1000), totalResources)
+			require.NoError(t, sctx.AddQueueSchedulingContext(
+				"A", 1, 1,
+				allocatedByPriorityClass,
+				demand,
+				demand,
+				internaltypes.ResourceList{},
+				rate.NewLimiter(rate.Inf, 1000),
+			))
+			sctx.UpdateFairShares()
+
+			constraints := schedulerconstraints.NewSchedulingConstraints("pool", totalResources, config, []*api.Queue{{Name: "A"}})
+
+			sch := NewPreemptingQueueScheduler(
+				sctx, constraints, testfixtures.TestEmptyFloatingResources, config,
+				jobDbTxn, nodeDb, false, clock.RealClock{},
+			)
+			result, err := sch.Schedule(armadacontext.Background())
+			require.NoError(t, err)
+
+			assert.Len(t, result.PreemptedJobs, tc.expectedPreemptions, "unexpected preemption count")
+			assert.Len(t, result.ScheduledJobs, tc.expectedNewlyScheduled, "unexpected scheduling count")
+			for _, jctx := range result.PreemptedJobs {
+				assert.Equal(t, tc.incumbentPriorityClass, jctx.Job.PriorityClassName(),
+					"preempted job should be from the incumbent priority class")
+			}
+			for _, jctx := range result.ScheduledJobs {
+				assert.Equal(t, testfixtures.PriorityClass3, jctx.Job.PriorityClassName(),
+					"scheduled job should be the higher-priority challenger")
+				if len(extraNodes) > 0 {
+					assert.NotEqual(t, node.GetId(), jctx.PodSchedulingContext.NodeId,
+						"challenger should land on an extra node, not the saturated one")
+				}
+			}
+		})
+	}
 }
 
 func testNodeWithTaints(node *internaltypes.Node, taints []v1.Taint) *internaltypes.Node {

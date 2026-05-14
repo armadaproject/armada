@@ -1265,6 +1265,67 @@ func TestPoolFiltering(t *testing.T) {
 			}},
 			wantCancelled: []string{"j1", "j3"},
 		},
+		"executor cancel empty priority classes matches all": {
+			jobs: []*schedulerdb.Job{job("j1", false, nil), job("j2", false, nil)},
+			runs: []*schedulerdb.Run{run("r1", "j1", poolA), run("r2", "j2", poolB)},
+			op: CancelExecutor{exec: &CancelOnExecutor{
+				Name: exec, Queues: []string{q}, PriorityClasses: []string{}, Pools: []string{},
+			}},
+			wantCancelled: []string{"j1", "j2"},
+		},
+		"executor preempt empty priority classes matches all": {
+			jobs: []*schedulerdb.Job{job("j1", false, nil), job("j2", false, nil)},
+			runs: []*schedulerdb.Run{run("r1", "j1", poolA), run("r2", "j2", poolB)},
+			op: PreemptExecutor{exec: &PreemptOnExecutor{
+				Name: exec, Queues: []string{q}, PriorityClasses: []string{}, Pools: []string{},
+			}},
+			wantPreempted: []string{"r1", "r2"},
+		},
+		"node cancel empty priority classes matches all": {
+			jobs: []*schedulerdb.Job{job("j1", false, nil), job("j2", false, nil)},
+			runs: []*schedulerdb.Run{
+				{RunID: "r1", JobID: "j1", Executor: exec, Queue: q, JobSet: js, Pool: poolA, Node: "node-1"},
+				{RunID: "r2", JobID: "j2", Executor: exec, Queue: q, JobSet: js, Pool: poolB, Node: "node-1"},
+			},
+			op: CancelNode{
+				NodeOnExecutor{Node: "node-1", Executor: exec}: &CancelOnNode{
+					Name: "node-1", Executor: exec, Queues: []string{q}, PriorityClasses: []string{},
+				},
+			},
+			wantCancelled: []string{"j1", "j2"},
+		},
+		"node preempt empty priority classes matches all": {
+			jobs: []*schedulerdb.Job{job("j1", false, nil), job("j2", false, nil)},
+			runs: []*schedulerdb.Run{
+				{RunID: "r1", JobID: "j1", Executor: exec, Queue: q, JobSet: js, Pool: poolA, Node: "node-1"},
+				{RunID: "r2", JobID: "j2", Executor: exec, Queue: q, JobSet: js, Pool: poolB, Node: "node-1"},
+			},
+			op: PreemptNode{
+				NodeOnExecutor{Node: "node-1", Executor: exec}: &PreemptOnNode{
+					Name: "node-1", Executor: exec, Queues: []string{q}, PriorityClasses: []string{},
+				},
+			},
+			wantPreempted: []string{"r1", "r2"},
+		},
+		"queue cancel empty priority classes matches all": {
+			jobs: []*schedulerdb.Job{
+				job("j1", true, []string{poolA}),
+				job("j2", true, []string{poolB}),
+			},
+			op: CancelQueue{q: &CancelOnQueue{
+				Name: q, PriorityClasses: []string{}, Pools: []string{},
+				JobStates: []controlplaneevents.ActiveJobState{controlplaneevents.ActiveJobState_QUEUED},
+			}},
+			wantCancelled: []string{"j1", "j2"},
+		},
+		"queue preempt empty priority classes matches all": {
+			jobs: []*schedulerdb.Job{job("j1", false, nil), job("j2", false, nil)},
+			runs: []*schedulerdb.Run{run("r1", "j1", poolA), run("r2", "j2", poolB)},
+			op: PreemptQueue{q: &PreemptOnQueue{
+				Name: q, PriorityClasses: []string{}, Pools: []string{},
+			}},
+			wantPreempted: []string{"r1", "r2"},
+		},
 	}
 
 	for name, tc := range tests {

@@ -1,19 +1,23 @@
 package reporter
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	networking "k8s.io/api/networking/v1"
 
+	"github.com/armadaproject/armada/internal/common/errormatch"
+	"github.com/armadaproject/armada/internal/executor/categorizer"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 func TestCreateEventForCurrentState_WhenPodPending(t *testing.T) {
 	pod := makeTestPod(v1.PodPending)
 
-	result, err := CreateEventForCurrentState(pod, "cluster1")
+	result, err := CreateEventForCurrentState(pod, "cluster1", categorizer.ClassifyResult{})
 	assert.Nil(t, err)
 
 	assert.Len(t, result.Events, 1)
@@ -25,7 +29,7 @@ func TestCreateEventForCurrentState_WhenPodPending(t *testing.T) {
 func TestCreateEventForCurrentState_WhenPodRunning(t *testing.T) {
 	pod := makeTestPod(v1.PodRunning)
 
-	result, err := CreateEventForCurrentState(pod, "cluster1")
+	result, err := CreateEventForCurrentState(pod, "cluster1", categorizer.ClassifyResult{})
 	assert.Nil(t, err)
 
 	assert.Len(t, result.Events, 1)
@@ -37,20 +41,136 @@ func TestCreateEventForCurrentState_WhenPodRunning(t *testing.T) {
 func TestCreateEventForCurrentState_WhenPodFailed(t *testing.T) {
 	pod := makeTestPod(v1.PodFailed)
 
-	result, err := CreateEventForCurrentState(pod, "cluster1")
+	result, err := CreateEventForCurrentState(pod, "cluster1", categorizer.ClassifyResult{})
 	assert.Nil(t, err)
 
 	assert.Len(t, result.Events, 1)
 	event, ok := result.Events[0].Event.(*armadaevents.EventSequence_Event_JobRunErrors)
 	assert.True(t, ok)
 	assert.Len(t, event.JobRunErrors.Errors, 1)
-	assert.True(t, event.JobRunErrors.Errors[0].GetPodError() != nil)
+	assert.NotNil(t, event.JobRunErrors.Errors[0].GetPodError())
+	assert.Empty(t, event.JobRunErrors.Errors[0].GetFailureCategory())
+}
+
+func TestCreateEventForCurrentState_WhenPodFailed_WithClassifier(t *testing.T) {
+	pod := makeTestPod(v1.PodFailed)
+	pod.Status.ContainerStatuses = []v1.ContainerStatus{
+		{
+			Name: "main",
+			State: v1.ContainerState{
+				Terminated: &v1.ContainerStateTerminated{
+					ExitCode: 74,
+					Reason:   "Error",
+					Message:  "custom error",
+				},
+			},
+		},
+	}
+
+	classifier, err := categorizer.NewClassifier(categorizer.ErrorCategoriesConfig{
+		Categories: []categorizer.CategoryConfig{
+			{
+				Name: "custom-error",
+				Rules: []categorizer.CategoryRule{
+					{
+						OnExitCodes: &errormatch.ExitCodeMatcher{Operator: errormatch.ExitCodeOperatorIn, Values: []int32{74}},
+						Subcategory: "exit-74",
+					},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	result, err := CreateEventForCurrentState(pod, "cluster1", classifier.ClassifyContainerError(pod))
+	assert.NoError(t, err)
+
+	assert.Len(t, result.Events, 1)
+	event, ok := result.Events[0].Event.(*armadaevents.EventSequence_Event_JobRunErrors)
+	assert.True(t, ok)
+	assert.Len(t, event.JobRunErrors.Errors, 1)
+
+	assert.Equal(t, "custom-error", event.JobRunErrors.Errors[0].GetFailureCategory())
+	assert.Equal(t, "exit-74", event.JobRunErrors.Errors[0].GetFailureSubcategory())
+}
+
+func TestCreateEventForCurrentState_WhenPodFailed_HintAppendedAfterReason(t *testing.T) {
+	pod := makeTestPod(v1.PodFailed)
+	pod.Status.ContainerStatuses = []v1.ContainerStatus{
+		{
+			Name: "main",
+			State: v1.ContainerState{
+				Terminated: &v1.ContainerStateTerminated{
+					ExitCode: 74,
+					Reason:   "Error",
+					Message:  "raw runtime error from container",
+				},
+			},
+		},
+	}
+	hint := "Operator-supplied actionable guidance"
+
+	classifier, err := categorizer.NewClassifier(categorizer.ErrorCategoriesConfig{
+		Categories: []categorizer.CategoryConfig{
+			{
+				Name: "custom-error",
+				Rules: []categorizer.CategoryRule{
+					{
+						OnExitCodes: &errormatch.ExitCodeMatcher{Operator: errormatch.ExitCodeOperatorIn, Values: []int32{74}},
+						Subcategory: "exit-74",
+						Hint:        hint,
+					},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	result, err := CreateEventForCurrentState(pod, "cluster1", classifier.ClassifyContainerError(pod))
+	require.NoError(t, err)
+	require.Len(t, result.Events, 1)
+	event, ok := result.Events[0].Event.(*armadaevents.EventSequence_Event_JobRunErrors)
+	require.True(t, ok)
+	require.Len(t, event.JobRunErrors.Errors, 1)
+
+	message := event.JobRunErrors.Errors[0].GetPodError().Message
+	rawErrorIdx := strings.Index(message, "raw runtime error from container")
+	hintIdx := strings.Index(message, hint)
+	require.GreaterOrEqual(t, rawErrorIdx, 0, "raw container error must appear in message")
+	require.GreaterOrEqual(t, hintIdx, 0, "hint must appear in message")
+	assert.Greater(t, hintIdx, rawErrorIdx, "hint must come after the raw error, not before; defends against prepend regression")
+}
+
+func TestCreateEventForCurrentState_WhenPodFailed_NilClassifier(t *testing.T) {
+	pod := makeTestPod(v1.PodFailed)
+	pod.Status.ContainerStatuses = []v1.ContainerStatus{
+		{
+			Name: "main",
+			State: v1.ContainerState{
+				Terminated: &v1.ContainerStateTerminated{
+					ExitCode: 1,
+					Reason:   "Error",
+				},
+			},
+		},
+	}
+
+	result, err := CreateEventForCurrentState(pod, "cluster1", categorizer.ClassifyResult{})
+	assert.NoError(t, err)
+	require.Len(t, result.Events, 1)
+
+	event, ok := result.Events[0].Event.(*armadaevents.EventSequence_Event_JobRunErrors)
+	require.True(t, ok)
+	require.Len(t, event.JobRunErrors.Errors, 1)
+
+	assert.Empty(t, event.JobRunErrors.Errors[0].GetFailureCategory())
+	assert.Empty(t, event.JobRunErrors.Errors[0].GetFailureSubcategory())
 }
 
 func TestCreateEventForCurrentState_WhenPodSucceeded(t *testing.T) {
 	pod := makeTestPod(v1.PodSucceeded)
 
-	result, err := CreateEventForCurrentState(pod, "cluster1")
+	result, err := CreateEventForCurrentState(pod, "cluster1", categorizer.ClassifyResult{})
 	assert.Nil(t, err)
 
 	assert.Len(t, result.Events, 1)
@@ -61,7 +181,7 @@ func TestCreateEventForCurrentState_WhenPodSucceeded(t *testing.T) {
 func TestCreateEventForCurrentState_ShouldError_WhenPodPhaseUnknown(t *testing.T) {
 	pod := makeTestPod(v1.PodUnknown)
 
-	_, err := CreateEventForCurrentState(pod, "cluster1")
+	_, err := CreateEventForCurrentState(pod, "cluster1", categorizer.ClassifyResult{})
 	assert.Error(t, err)
 }
 

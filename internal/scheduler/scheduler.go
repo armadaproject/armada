@@ -22,6 +22,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/leader"
 	"github.com/armadaproject/armada/internal/scheduler/metrics"
 	"github.com/armadaproject/armada/internal/scheduler/pricing"
+	"github.com/armadaproject/armada/internal/scheduler/queue"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/scheduling/context"
@@ -89,6 +90,8 @@ type Scheduler struct {
 	// A list of the pools that are market driven
 	// Used to know which jobs need update when updating job prices
 	marketDrivenPools []string
+	// Used to look up queue state (e.g., cordoned status)
+	queueCache queue.QueueCache
 }
 
 func NewScheduler(
@@ -109,6 +112,7 @@ func NewScheduler(
 	metrics *metrics.Metrics,
 	bidPriceProvider pricing.BidPriceProvider,
 	marketDrivenPools []string,
+	queueCache queue.QueueCache,
 ) (*Scheduler, error) {
 	return &Scheduler{
 		jobRepository:      jobRepository,
@@ -131,6 +135,7 @@ func NewScheduler(
 		runsSerial:         -1,
 		metrics:            metrics,
 		marketDrivenPools:  marketDrivenPools,
+		queueCache:         queueCache,
 	}, nil
 }
 
@@ -591,7 +596,7 @@ func (s *Scheduler) addNodeAntiAffinitiesForAttemptedRunsIfSchedulable(ctx *arma
 		// should never happen - requirements haven't changed
 		panic(err)
 	}
-	results, err := s.submitChecker.Check(ctx, []*jobdb.Job{job})
+	results, _, err := s.submitChecker.Check(ctx, []*jobdb.Job{job})
 	if err != nil {
 		return nil, false, err
 	}
@@ -1106,29 +1111,53 @@ func (s *Scheduler) expireJobsIfNecessary(ctx *armadacontext.Context, txn *jobdb
 func (s *Scheduler) submitCheck(ctx *armadacontext.Context, txn *jobdb.Txn) ([]*armadaevents.EventSequence, error) {
 	jobsToCheck := make([]*jobdb.Job, 0)
 
+	queues, err := s.queueCache.GetAll(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	cordonedQueues := make(map[string]bool, len(queues))
+	for _, q := range queues {
+		if q.Cordoned {
+			cordonedQueues[q.Name] = true
+		}
+	}
+
 	it := txn.UnvalidatedJobs()
 
 	for job, _ := it.Next(); job != nil; job, _ = it.Next() {
-		// Don't check jobs that are terminal
-		if job.InTerminalState() {
+		// Don't check jobs that are terminal or in cordoned queues
+		if job.InTerminalState() || cordonedQueues[job.Queue()] {
 			continue
 		}
 		jobsToCheck = append(jobsToCheck, job)
 	}
 
-	results, err := s.submitChecker.Check(ctx, jobsToCheck)
+	results, queueDurations, err := s.submitChecker.Check(ctx, jobsToCheck)
 	if err != nil {
 		return nil, err
 	}
+	if s.metrics.LeaderMetricsEnabled() {
+		s.metrics.ReportSubmitCheckDuration(queueDurations)
+	}
 
+	// Only process jobs that Check() returned results for.
+	// Check() may return partial results when time limits are exceeded.
+	checkedJobs := make([]*jobdb.Job, 0, len(results))
 	for _, job := range jobsToCheck {
+		if _, ok := results[job.Id()]; ok {
+			checkedJobs = append(checkedJobs, job)
+		}
+	}
+
+	for _, job := range checkedJobs {
 		err := job.ValidateResourceRequests()
 		if err != nil {
 			results[job.Id()] = schedulingResult{isSchedulable: false, reason: "invalid resource request: " + err.Error()}
 		}
 	}
 
-	invalidGangJobs, err := s.gangValidator.Validate(txn, jobsToCheck)
+	invalidGangJobs, err := s.gangValidator.Validate(txn, checkedJobs)
 	if err != nil {
 		return nil, err
 	}
@@ -1138,7 +1167,7 @@ func (s *Scheduler) submitCheck(ctx *armadacontext.Context, txn *jobdb.Txn) ([]*
 
 	events := make([]*armadaevents.EventSequence, 0)
 	jobsToUpdate := make([]*jobdb.Job, 0)
-	for _, job := range jobsToCheck {
+	for _, job := range checkedJobs {
 		result := results[job.Id()]
 
 		es := &armadaevents.EventSequence{

@@ -82,7 +82,12 @@ func (jobDb *JobDb) ReconcileDifferences(txn *Txn, jobRepoJobs []database.Job, j
 	)
 
 	jsts := make(map[string]JobStateTransitions, len(jobRepoJobsById))
-	jobIdsToMarkAsPreemptionRequested := []string{}
+
+	type gangPreemptionRequest struct {
+		jobIds []string
+		reason *string
+	}
+	var gangPreemptionRequests []gangPreemptionRequest
 
 	for jobId, jobRepoJob := range jobRepoJobsById {
 		job := txn.GetById(jobId)
@@ -96,7 +101,11 @@ func (jobDb *JobDb) ReconcileDifferences(txn *Txn, jobRepoJobs []database.Job, j
 		}
 		if jst.PreemptionRequested && job.IsInGang() {
 			jobsInGang := txn.GetGangJobsIdsByGangId(job.Queue(), job.GetGangInfo().Id())
-			jobIdsToMarkAsPreemptionRequested = append(jobIdsToMarkAsPreemptionRequested, jobsInGang...)
+			var reason *string
+			if run := jst.Job.LatestRun(); run != nil {
+				reason = run.PreemptReason()
+			}
+			gangPreemptionRequests = append(gangPreemptionRequests, gangPreemptionRequest{jobIds: jobsInGang, reason: reason})
 		}
 
 		// We receive nil jobs from jobDb.ReconcileDifferences if a run is updated after the associated job is deleted.
@@ -106,11 +115,13 @@ func (jobDb *JobDb) ReconcileDifferences(txn *Txn, jobRepoJobs []database.Job, j
 			jsts[jobId] = jst
 		}
 	}
-	markJobsAsPreemptionRequested(txn, jobIdsToMarkAsPreemptionRequested, jsts)
+	for _, req := range gangPreemptionRequests {
+		markJobsAsPreemptionRequested(txn, req.jobIds, req.reason, jsts)
+	}
 	return maps.Values(jsts), nil
 }
 
-func markJobsAsPreemptionRequested(txn *Txn, jobIds []string, jsts map[string]JobStateTransitions) {
+func markJobsAsPreemptionRequested(txn *Txn, jobIds []string, reason *string, jsts map[string]JobStateTransitions) {
 	for _, jobId := range jobIds {
 		jst, exists := jsts[jobId]
 		if !exists {
@@ -127,7 +138,7 @@ func markJobsAsPreemptionRequested(txn *Txn, jobIds []string, jsts map[string]Jo
 		} else {
 			jobRun := jst.Job.LatestRun()
 			if jobRun != nil {
-				jobRun = jobRun.WithPreemptRequested(true)
+				jobRun = jobRun.WithPreemptRequested(true).WithPreemptReason(reason)
 			}
 			jst.Job = jst.Job.WithUpdatedRun(jobRun)
 			jst.PreemptionRequested = true

@@ -54,6 +54,8 @@ var (
 		80:  "ingress.example.com",
 		443: "ingress-backup.example.com",
 	}
+	testFailureCategory    = "infrastructure"
+	testFailureSubcategory = "oom"
 )
 
 var (
@@ -98,18 +100,20 @@ type JobSpecRow struct {
 }
 
 type JobRunRow struct {
-	RunId            string
-	JobId            string
-	Cluster          string
-	Node             *string
-	Pending          time.Time
-	Started          *time.Time
-	Finished         *time.Time
-	JobRunState      int32
-	Error            []byte
-	Debug            []byte
-	ExitCode         *int32
-	IngressAddresses map[int32]string
+	RunId              string
+	JobId              string
+	Cluster            string
+	Node               *string
+	Pending            time.Time
+	Started            *time.Time
+	Finished           *time.Time
+	JobRunState        int32
+	Error              []byte
+	Debug              []byte
+	ExitCode           *int32
+	IngressAddresses   map[int32]string
+	FailureCategory    *string
+	FailureSubcategory *string
 }
 
 type JobErrorRow struct {
@@ -137,14 +141,16 @@ func defaultInstructionSet() *model.InstructionSet {
 			IngressAddresses: cloneIngressAddresses(initialIngressAddresses),
 		}},
 		JobRunsToUpdate: []*model.UpdateJobRunInstruction{{
-			RunId:            RunId,
-			Node:             pointer.String(nodeName),
-			Started:          &startTime,
-			Finished:         &finishedTime,
-			Debug:            []byte(testfixtures.DebugMsg),
-			JobRunState:      pointer.Int32(lookout.JobRunSucceededOrdinal),
-			ExitCode:         pointer.Int32(0),
-			IngressAddresses: cloneIngressAddresses(updatedIngressAddresses),
+			RunId:              RunId,
+			Node:               pointer.String(nodeName),
+			Started:            &startTime,
+			Finished:           &finishedTime,
+			Debug:              []byte(testfixtures.DebugMsg),
+			JobRunState:        pointer.Int32(lookout.JobRunSucceededOrdinal),
+			ExitCode:           pointer.Int32(0),
+			IngressAddresses:   cloneIngressAddresses(updatedIngressAddresses),
+			FailureCategory:    pointer.String(testFailureCategory),
+			FailureSubcategory: pointer.String(testFailureSubcategory),
 		}},
 		JobErrorsToCreate: []*model.CreateJobErrorInstruction{{
 			JobId: JobId,
@@ -211,17 +217,19 @@ var expectedJobError = JobErrorRow{
 }
 
 var expectedJobRunAfterUpdate = JobRunRow{
-	RunId:            RunId,
-	JobId:            JobId,
-	Cluster:          executorId,
-	Node:             pointer.String(nodeName),
-	Pending:          updateTime,
-	Started:          &startTime,
-	Finished:         &finishedTime,
-	JobRunState:      lookout.JobRunSucceededOrdinal,
-	ExitCode:         pointer.Int32(0),
-	Debug:            []byte(testfixtures.DebugMsg),
-	IngressAddresses: cloneIngressAddresses(updatedIngressAddresses),
+	RunId:              RunId,
+	JobId:              JobId,
+	Cluster:            executorId,
+	Node:               pointer.String(nodeName),
+	Pending:            updateTime,
+	Started:            &startTime,
+	Finished:           &finishedTime,
+	JobRunState:        lookout.JobRunSucceededOrdinal,
+	ExitCode:           pointer.Int32(0),
+	Debug:              []byte(testfixtures.DebugMsg),
+	IngressAddresses:   cloneIngressAddresses(updatedIngressAddresses),
+	FailureCategory:    pointer.String(testFailureCategory),
+	FailureSubcategory: pointer.String(testFailureSubcategory),
 }
 
 func TestCreateJobsBatch(t *testing.T) {
@@ -931,6 +939,30 @@ func TestStoreEventsForAlreadyTerminalJobs(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestRecordTerminalStateUpdates(t *testing.T) {
+	ldb := NewLookoutDb(nil, fatalErrors, m, 10, 10)
+
+	instructions := []*model.UpdateJobInstruction{
+		{JobId: "job1", State: pointer.Int32(lookout.JobSucceededOrdinal)},
+		{JobId: "job2", State: pointer.Int32(lookout.JobFailedOrdinal)},
+		{JobId: "job3", State: pointer.Int32(lookout.JobCancelledOrdinal)},
+		{JobId: "job4", State: pointer.Int32(lookout.JobRunningOrdinal)},
+		{JobId: "job5", State: pointer.Int32(lookout.JobPreemptedOrdinal)},
+		{JobId: "job6", State: pointer.Int32(lookout.JobRejectedOrdinal)},
+		{JobId: "job7"},
+	}
+
+	// Should not panic; counts 6 states (job7=nil state is skipped)
+	ldb.recordStateUpdates(instructions)
+}
+
+func TestRecordTerminalStateUpdates_Empty(t *testing.T) {
+	ldb := NewLookoutDb(nil, fatalErrors, m, 10, 10)
+	// Neither nil nor empty should panic
+	ldb.recordStateUpdates(nil)
+	ldb.recordStateUpdates([]*model.UpdateJobInstruction{})
+}
+
 func makeCreateJobInstruction(jobId string) *model.CreateJobInstruction {
 	return &model.CreateJobInstruction{
 		JobId:                     jobId,
@@ -1064,7 +1096,9 @@ func getJobRun(t *testing.T, db *pgxpool.Pool, runId string) JobRunRow {
 			error,
 			exit_code,
 			debug,
-			ingress_addresses
+			ingress_addresses,
+			failure_category,
+			failure_subcategory
 		FROM job_run WHERE run_id = $1`,
 		runId)
 	var ingressJSON []byte
@@ -1081,6 +1115,8 @@ func getJobRun(t *testing.T, db *pgxpool.Pool, runId string) JobRunRow {
 		&run.ExitCode,
 		&run.Debug,
 		&ingressJSON,
+		&run.FailureCategory,
+		&run.FailureSubcategory,
 	)
 	assert.NoError(t, err)
 	if len(ingressJSON) > 0 {

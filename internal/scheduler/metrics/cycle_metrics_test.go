@@ -7,6 +7,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
+	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -72,7 +73,7 @@ func TestReportStateTransitions(t *testing.T) {
 		},
 	}
 
-	m := newCycleMetrics(pulsarutils.NoOpPublisher[*metricevents.Event]{})
+	m := newCycleMetrics(pulsarutils.NoOpPublisher[*metricevents.Event]{}, "")
 	m.ReportSchedulerResult(ctx, result)
 
 	poolQueue := []string{"pool1", "queue1"}
@@ -122,7 +123,7 @@ func TestReportOutcomes(t *testing.T) {
 		},
 	}
 
-	m := newCycleMetrics(pulsarutils.NoOpPublisher[*metricevents.Event]{})
+	m := newCycleMetrics(pulsarutils.NoOpPublisher[*metricevents.Event]{}, "")
 	m.ReportSchedulerResult(ctx, result)
 
 	successOutcome := testutil.ToFloat64(m.poolSchedulingOutcome.WithLabelValues("success", SchedulingOutcomeSuccess, "success-reason"))
@@ -132,8 +133,38 @@ func TestReportOutcomes(t *testing.T) {
 	assert.Equal(t, 1.0, errorOutcome)
 }
 
+func TestReportSubmitCheckDuration(t *testing.T) {
+	m := newCycleMetrics(pulsarutils.NoOpPublisher[*metricevents.Event]{}, "")
+
+	m.ReportSubmitCheckDuration(map[string]time.Duration{
+		"queue1": 250 * time.Millisecond,
+		"queue2": 50 * time.Millisecond,
+		"queue3": 723 * time.Microsecond,
+	})
+
+	assertHistogramObservation(t, m.submitCheckDuration, "queue1", 1, 250.0)
+	assertHistogramObservation(t, m.submitCheckDuration, "queue2", 1, 50.0)
+	assertHistogramObservation(t, m.submitCheckDuration, "queue3", 1, 0.723)
+
+	m.ReportSubmitCheckDuration(map[string]time.Duration{
+		"queue1": 100 * time.Millisecond,
+	})
+	assertHistogramObservation(t, m.submitCheckDuration, "queue1", 2, 350.0)
+	assertHistogramObservation(t, m.submitCheckDuration, "queue2", 1, 50.0)
+}
+
+func assertHistogramObservation(t *testing.T, vec *prometheus.HistogramVec, queue string, wantCount uint64, wantSumMillis float64) {
+	t.Helper()
+	obs, err := vec.GetMetricWithLabelValues(queue)
+	require.NoError(t, err)
+	metric := &dto.Metric{}
+	require.NoError(t, obs.(prometheus.Metric).Write(metric))
+	assert.Equal(t, wantCount, metric.Histogram.GetSampleCount())
+	assert.InDelta(t, wantSumMillis, metric.Histogram.GetSampleSum(), epsilon)
+}
+
 func TestResetLeaderMetrics_Counters(t *testing.T) {
-	m := newCycleMetrics(pulsarutils.NoOpPublisher[*metricevents.Event]{})
+	m := newCycleMetrics(pulsarutils.NoOpPublisher[*metricevents.Event]{}, "")
 	poolAndQueueAndPriorityClassTypeLabels := []string{"pool1", "queue1", "priorityClass1", "type1"}
 
 	testResetCounter := func(vec *prometheus.CounterVec, labelValues []string) {
@@ -151,11 +182,11 @@ func TestResetLeaderMetrics_Counters(t *testing.T) {
 }
 
 func TestResetLeaderMetrics_ResetsLatestCycleMetrics(t *testing.T) {
-	m := newCycleMetrics(pulsarutils.NoOpPublisher[*metricevents.Event]{})
+	m := newCycleMetrics(pulsarutils.NoOpPublisher[*metricevents.Event]{}, "")
 	poolLabelValues := []string{"pool1"}
 	poolQueueLabelValues := []string{"pool1", "queue1"}
 	poolQueueResourceLabelValues := []string{"pool1", "queue1", "cpu"}
-	nodeResourceLabelValues := []string{"pool1", "node1", "cluster1", "type1", "cpu", "", "true", "false", "pool1", CapacityClassDedicated}
+	nodeResourceLabelValues := []string{"pool1", "node1", "cluster1", "type1", "cpu", "", "true", "false", "pool1", CapacityClassDedicated, ""}
 
 	testResetGauge := func(getVec func(metrics *cycleMetrics) *prometheus.GaugeVec, labelValues []string) {
 		vec := getVec(m)
@@ -198,7 +229,7 @@ func TestResetLeaderMetrics_ResetsLatestCycleMetrics(t *testing.T) {
 }
 
 func TestDisableLeaderMetrics(t *testing.T) {
-	m := newCycleMetrics(pulsarutils.NoOpPublisher[*metricevents.Event]{})
+	m := newCycleMetrics(pulsarutils.NoOpPublisher[*metricevents.Event]{}, "")
 	poolQueueLabelValues := []string{"pool1", "queue1"}
 	poolAndQueueAndPriorityClassTypeLabels := []string{"pool1", "queue1", "priorityClass1", "type1"}
 
@@ -227,8 +258,8 @@ func TestDisableLeaderMetrics(t *testing.T) {
 		m.latestCycleMetrics.Load().loopNumber.WithLabelValues("pool1").Inc()
 		m.latestCycleMetrics.Load().evictedJobs.WithLabelValues("pool1", "queue1").Inc()
 		m.latestCycleMetrics.Load().evictedResources.WithLabelValues("pool1", "queue1", "cpu").Inc()
-		m.latestCycleMetrics.Load().nodeAllocatableResource.WithLabelValues("pool1", "node1", "cluster1", "type1", "cpu", "", "true", "false", "pool1", CapacityClassDedicated).Inc()
-		m.latestCycleMetrics.Load().nodeAllocatedResource.WithLabelValues("pool1", "node1", "cluster1", "type1", "cpu", "", "true", "false", "pool1", CapacityClassDedicated).Inc()
+		m.latestCycleMetrics.Load().nodeAllocatableResource.WithLabelValues("pool1", "node1", "cluster1", "type1", "cpu", "", "true", "false", "pool1", CapacityClassDedicated, "").Inc()
+		m.latestCycleMetrics.Load().nodeAllocatedResource.WithLabelValues("pool1", "node1", "cluster1", "type1", "cpu", "", "true", "false", "pool1", CapacityClassDedicated, "").Inc()
 		m.latestCycleMetrics.Load().nodePoolSize.WithLabelValues("pool1").Inc()
 
 		ch := make(chan prometheus.Metric, 1000)
@@ -258,7 +289,7 @@ func TestPublishCycleMetrics(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	mockPublisher := mocks.NewMockPublisher[*metricevents.Event](ctrl)
-	m := newCycleMetrics(mockPublisher)
+	m := newCycleMetrics(mockPublisher, "")
 
 	fairnessCostProvider, err := fairness.NewDominantResourceFairness(
 		cpu(100),
@@ -364,7 +395,7 @@ func TestPublishCycleMetrics(t *testing.T) {
 }
 
 func TestReportPoolSchedulingOutcomes(t *testing.T) {
-	m := newCycleMetrics(pulsarutils.NoOpPublisher[*metricevents.Event]{})
+	m := newCycleMetrics(pulsarutils.NoOpPublisher[*metricevents.Event]{}, "")
 
 	type outcome struct {
 		pool              string

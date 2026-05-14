@@ -7,7 +7,7 @@
 
 This document is meant to be a guide for new users of how to create and submit Jobs to Armada. Before you can create and submit jobs, make sure you have a basic understanding of Docker and Kubernetes. This is because Armada jobs are run as containers in Kubernetes. To learn more, see:
 
-* [Docker overiew](https://docs.docker.com/get-started/overview/)
+* [Docker overview](https://docs.docker.com/get-started/overview/)
 * [Kubernetes overview](https://kubernetes.io/docs/concepts/overview/)
 
 For more information about the design of Armada (for example, how jobs are prioritised), see [System overview](./system_overview.md).
@@ -164,7 +164,7 @@ Using this format, you can submit a job set composed of several jobs. The meanin
 * `priority`: the relative priority of the job
 * `namespace`: the namespace that the pod's part of this job will be created in (the `default` namespace, if not specified)
 * `clientId`: an optional ID that can be set to ensure that jobs are not duplicated, for example, in case of certain network failures. Armada automatically discards any jobs submitted with a `clientId` equal to that of an existing job.
-* `labels`: the ;ist of labels that are added to all pods created as part of this job
+* `labels`: the list of labels that are added to all pods created as part of this job
 * `annotations`: the list of annotations that are added to all pods created as part of this job
 * `ingress`: the list of ports that are exposed with the specified ingress type. The ingress only exposes ports for pods that also expose the corresponding port via the `containerPort` setting.
-* `podSpecs`: the list of podspecs that make up the job; for an overview of the available parameters, [see the Kubernetes documentation](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.19/).
+* `podSpecs`: the list of podspecs that make up the job; for an overview of the available parameters, [see the Kubernetes documentation](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.35/).

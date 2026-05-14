@@ -168,7 +168,9 @@ CROSS JOIN LATERAL (
 						'exitCode', exit_code,
 						'pool', pool,
 						-- 'pool', NULLIF(pool, ''),
-						'ingressAddresses', ingress_addresses
+						'ingressAddresses', ingress_addresses,
+						'failureCategory', failure_category,
+						'failureSubcategory', failure_subcategory
 					)
 				)
 				ORDER BY COALESCE(leased, pending)

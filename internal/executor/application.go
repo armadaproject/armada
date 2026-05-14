@@ -22,6 +22,7 @@ import (
 	common_metrics "github.com/armadaproject/armada/internal/common/metrics"
 	"github.com/armadaproject/armada/internal/common/task"
 	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/executor/categorizer"
 	"github.com/armadaproject/armada/internal/executor/configuration"
 	executor_context "github.com/armadaproject/armada/internal/executor/context"
 	"github.com/armadaproject/armada/internal/executor/job"
@@ -66,6 +67,7 @@ func StartUp(ctx *armadacontext.Context, config configuration.ExecutorConfigurat
 		for _, metricsUrl := range etcdClusterHealthMonitoring.MetricUrls {
 			etcdReplicaHealthMonitorsByUrl[metricsUrl] = etcdhealth.NewEtcdReplicaHealthMonitor(
 				metricsUrl,
+				etcdClusterHealthMonitoring.Name,
 				etcdClusterHealthMonitoring.FractionOfStorageInUseLimit,
 				etcdClusterHealthMonitoring.FractionOfStorageLimit,
 				etcdClusterHealthMonitoring.ReplicaTimeout,
@@ -78,21 +80,19 @@ func StartUp(ctx *armadacontext.Context, config configuration.ExecutorConfigurat
 		}
 		etcdClusterHealthMonitoringByName[etcdClusterHealthMonitoring.Name] = healthmonitor.NewMultiHealthMonitor(
 			etcdClusterHealthMonitoring.Name,
+			metrics.ArmadaExecutorMetricsPrefix+"etcd_cluster",
 			etcdReplicaHealthMonitorsByUrl,
 		).WithMinimumReplicasAvailable(
 			etcdClusterHealthMonitoring.MinimumReplicasAvailable,
-		).WithMetricsPrefix(
-			metrics.ArmadaExecutorMetricsPrefix,
 		)
 	}
 	var etcdClustersHealthMonitoring healthmonitor.HealthMonitor
 	if len(etcdClusterHealthMonitoringByName) > 0 {
 		ctx.Info("etcd URLs provided; monitoring etcd health enabled")
 		etcdClustersHealthMonitoring = healthmonitor.NewMultiHealthMonitor(
-			"overall_etcd",
+			"overall",
+			metrics.ArmadaExecutorMetricsPrefix+"overall_etcd",
 			etcdClusterHealthMonitoringByName,
-		).WithMetricsPrefix(
-			metrics.ArmadaExecutorMetricsPrefix,
 		)
 		g.Go(func() error { return etcdClustersHealthMonitoring.Run(ctx) })
 		prometheus.MustRegister(etcdClustersHealthMonitoring)
@@ -202,6 +202,14 @@ func setupExecutorApiComponents(
 		ctx.Fatalf("Config error in failed pod checks: %s", err)
 	}
 
+	var classifier *categorizer.Classifier
+	if config.Application.ErrorCategories.Enabled {
+		classifier, err = categorizer.NewClassifier(config.Application.ErrorCategories)
+		if err != nil {
+			ctx.Fatalf("Config error in error categories: %s", err)
+		}
+	}
+
 	eventReporter, stopReporter := reporter.NewJobEventReporter(eventSender, clock.RealClock{}, 200)
 
 	submitter := job.NewSubmitter(
@@ -240,6 +248,7 @@ func setupExecutorApiComponents(
 		pendingPodChecker,
 		failedPodChecker,
 		config.Kubernetes.StuckTerminatingPodExpiry,
+		classifier,
 	)
 	if err != nil {
 		ctx.Fatalf("Failed to create pod issue service: %s", err)
@@ -249,6 +258,7 @@ func setupExecutorApiComponents(
 		clusterContext,
 		eventReporter,
 		podIssueService,
+		classifier,
 	)
 	if err != nil {
 		ctx.Fatalf("Failed to create job state reporter: %s", err)

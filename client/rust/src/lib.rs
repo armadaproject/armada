@@ -61,8 +61,11 @@
 //! |---|---|
 //! | Plaintext connection | [`ArmadaClient::connect`] |
 //! | TLS connection (system roots) | [`ArmadaClient::connect_tls`] |
+//! | TLS with custom CA / mTLS    | [`ArmadaClient::connect_tls_with_config`] |
 //! | Per-call timeout | [`ArmadaClient::with_timeout`] |
 //! | Job submission | [`ArmadaClient::submit`] |
+//! | Cancel jobs by ID | [`ArmadaClient::cancel_jobs`] |
+//! | Cancel a job set | [`ArmadaClient::cancel_job_set`] |
 //! | Event streaming | [`ArmadaClient::watch`] |
 //! | Static bearer token | [`StaticTokenProvider`] |
 //! | Custom auth (OIDC, OAuth2…) | Implement [`TokenProvider`] |
@@ -182,10 +185,13 @@ pub mod error;
 
 // Convenience re-exports for the public API surface
 pub use api::{
-    EventMessage, EventStreamMessage, JobSubmitRequest, JobSubmitRequestItem, JobSubmitResponse,
+    CancellationResult, EventMessage, EventStreamMessage, JobCancelRequest, JobSetCancelRequest,
+    JobSetFilter, JobState, JobSubmitRequest, JobSubmitRequestItem, JobSubmitResponse,
 };
 pub use auth::{BasicAuthProvider, StaticTokenProvider, TokenProvider};
 pub use builder::JobRequestItemBuilder;
 pub use client::ArmadaClient;
 pub use error::Error;
 pub use futures::stream::BoxStream;
+pub use prost;
+pub use tonic;
