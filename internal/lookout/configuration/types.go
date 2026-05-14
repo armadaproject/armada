@@ -4,6 +4,7 @@ import (
 	"time"
 
 	authconfig "github.com/armadaproject/armada/internal/common/auth/configuration"
+	"github.com/armadaproject/armada/internal/common/database"
 	profilingconfig "github.com/armadaproject/armada/internal/common/profiling/configuration"
 	"github.com/armadaproject/armada/internal/server/configuration"
 )
@@ -19,6 +20,8 @@ type LookoutConfig struct {
 	Tls                TlsConfig
 
 	Postgres configuration.PostgresConfig
+
+	Migration database.MigrationConfig
 
 	PrunerConfig PrunerConfig
 

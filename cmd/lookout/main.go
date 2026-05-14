@@ -67,6 +67,10 @@ func migrate(ctx *armadacontext.Context, config configuration.LookoutConfig) {
 		panic(err)
 	}
 
+	if err := database.PrepareSchema(ctx, db, config.Migration); err != nil {
+		panic(err)
+	}
+
 	migrations, err := lookoutschema.LookoutMigrations()
 	if err != nil {
 		panic(err)
