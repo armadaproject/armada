@@ -19,6 +19,7 @@ import {
 } from "@mui/material"
 import { ErrorBoundary } from "react-error-boundary"
 
+import { ANALYTICS_EVENTS, trackAnalyticsEvent } from "../../../../analytics"
 import {
   AnnotationColumnId,
   ColumnId,
@@ -172,8 +173,15 @@ export const ColumnConfigurationDialog = ({
     }
   }, [])
 
+  const handleClose = useCallback(() => {
+    trackAnalyticsEvent(ANALYTICS_EVENTS.COLUMN_CONFIGURATION_DIALOG_CLOSED, {
+      visibleColumnIds: visibleColumnIds.join(","),
+    })
+    onClose()
+  }, [onClose, visibleColumnIds, visibleColumnsSet])
+
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
+    <Dialog open={open} onClose={handleClose} fullWidth maxWidth="sm">
       {!isAddAnnotationColumnContainerVisible && (
         <ScrollToAddAnnotationColumnChip
           label="Add an annotation column"
@@ -183,7 +191,7 @@ export const ColumnConfigurationDialog = ({
         />
       )}
       <StyledDialogTitle>Column configuration</StyledDialogTitle>
-      <CloseIconButton aria-label="close" onClick={onClose} title="Close">
+      <CloseIconButton aria-label="close" onClick={handleClose} title="Close">
         <Close />
       </CloseIconButton>
       <DialogContent>
