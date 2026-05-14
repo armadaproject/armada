@@ -90,7 +90,7 @@ type Configuration struct {
 	PublishMetricsToPulsar bool
 	// JobSpecMigrationPhase controls whether submit_message and groups are
 	// read from the jobs table, the job_specs table, or both (coalesced),
-	// during the migration. Required; default ("legacy").
+	// during the migration. Required; default ("cutover").
 	// Operators must coordinate this value with the scheduleringester's JobSpecMigrationPhase:
 	// a mismatch can cause new submissions to be unreadable
 	// (e.g. ingester=cutover with scheduler=legacy omits submit_message/groups from leases)

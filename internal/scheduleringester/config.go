@@ -28,7 +28,7 @@ type Configuration struct {
 	Profiling *profilingconfig.ProfilingConfig
 	// JobSpecMigrationPhase controls whether submit_message and groups are
 	// written to the jobs table, the job_specs table, or both, during the
-	// migration. Required; default ("legacy")
+	// migration. Required; default ("cutover")
 	JobSpecMigrationPhase schedulerdb.JobSpecMigrationPhase `validate:"required,oneof=legacy dualWrite cutover"`
 }
 
