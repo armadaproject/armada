@@ -164,9 +164,9 @@ func TestPrepareSchema_TwoRole_CreatesAndGrants(t *testing.T) {
 		}}
 
 		cfg := MigrationConfig{
-			Schema:        "armada_test",
-			CreateSchema:  true,
-			SchemaCreator: &bootstrapCfg,
+			Schema:                      "armada_test",
+			CreateSchema:                true,
+			SchemaCreatorPostgresConfig: &bootstrapCfg,
 		}
 		require.NoError(t, PrepareSchema(ctx, migratorConn, cfg))
 

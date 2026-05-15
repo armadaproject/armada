@@ -23,11 +23,11 @@ type MigrationConfig struct {
 	// migrations. Requires Schema to be set.
 	CreateSchema bool
 
-	// SchemaCreator optionally configures a separate "bootstrap" connection
-	// used only to CREATE SCHEMA and GRANT privileges to the migrator role.
-	// If nil and CreateSchema is true, the migrator's own connection is used
-	// (single-role pattern).
-	SchemaCreator *configuration.PostgresConfig
+	// SchemaCreatorPostgresConfig optionally configures a separate "bootstrap"
+	// connection used only to CREATE SCHEMA and GRANT privileges to the
+	// migrator role. If nil and CreateSchema is true, the migrator's own
+	// connection is used (single-role pattern).
+	SchemaCreatorPostgresConfig *configuration.PostgresConfig
 }
 
 // maxIdentifierLength is the Postgres limit (NAMEDATALEN-1) for unquoted and
@@ -47,8 +47,9 @@ func validateIdentifier(name string) error {
 
 // PrepareSchema prepares the migrator session according to cfg. It optionally
 // creates the configured schema (using a separate bootstrap connection if
-// SchemaCreator is set) and sets the migrator session's search_path so that
-// subsequent unqualified DDL lands in the configured schema.
+// SchemaCreatorPostgresConfig is set) and sets the migrator session's
+// search_path so that subsequent unqualified DDL lands in the configured
+// schema.
 //
 // PrepareSchema must be called before UpdateDatabase. It is idempotent.
 //
@@ -82,7 +83,11 @@ func PrepareSchema(ctx *armadacontext.Context, migratorDB *pgx.Conn, cfg Migrati
 func createSchema(ctx *armadacontext.Context, migratorDB *pgx.Conn, cfg MigrationConfig) error {
 	schemaIdent := pgx.Identifier{cfg.Schema}.Sanitize()
 
-	if cfg.SchemaCreator == nil {
+	if cfg.SchemaCreatorPostgresConfig == nil {
+		// Single-role pattern: no separate bootstrap role configured, so the
+		// migrator role itself runs CREATE SCHEMA. The migrator must therefore
+		// have CREATE on the database. No GRANT is needed because the
+		// migrator owns the schema it just created.
 		if _, err := migratorDB.Exec(ctx, fmt.Sprintf(`CREATE SCHEMA IF NOT EXISTS %s`, schemaIdent)); err != nil {
 			return errors.WithMessagef(err, "failed to create schema %q", cfg.Schema)
 		}
@@ -98,7 +103,7 @@ func createSchema(ctx *armadacontext.Context, migratorDB *pgx.Conn, cfg Migratio
 	}
 	roleIdent := pgx.Identifier{migratorRole}.Sanitize()
 
-	bootstrapDB, err := OpenPgxConn(*cfg.SchemaCreator)
+	bootstrapDB, err := OpenPgxConn(*cfg.SchemaCreatorPostgresConfig)
 	if err != nil {
 		return errors.WithMessage(err, "failed to connect as schema-creator role")
 	}
