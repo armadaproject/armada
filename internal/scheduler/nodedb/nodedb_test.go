@@ -379,15 +379,17 @@ func TestEviction(t *testing.T) {
 	node, err = nodeDb.GetNode(node.GetId())
 	require.NoError(t, err)
 	assert.Equal(t, 0, len(node.EvictedJobRunIds))
+	// PriorityClass3 is non-preemptible, so its 1cpu/4Gi is deducted at every
+	// priority including 28000+, not just <= 3.
 	assert.Equal(t, map[int32]internaltypes.ResourceList{
 		-1:    testfixtures.CpuMem("30", "248Gi"),
 		0:     testfixtures.CpuMem("30", "248Gi"),
 		1:     testfixtures.CpuMem("31", "252Gi"),
 		2:     testfixtures.CpuMem("31", "252Gi"),
 		3:     testfixtures.CpuMem("31", "252Gi"),
-		28000: testfixtures.CpuMem("32", "256Gi"),
-		29000: testfixtures.CpuMem("32", "256Gi"),
-		30000: testfixtures.CpuMem("32", "256Gi"),
+		28000: testfixtures.CpuMem("31", "252Gi"),
+		29000: testfixtures.CpuMem("31", "252Gi"),
+		30000: testfixtures.CpuMem("31", "252Gi"),
 	}, node.AllocatableByPriority)
 
 	returnedNode, err := nodeDb.EvictJobsFromNode(jobs, node)
@@ -395,15 +397,16 @@ func TestEviction(t *testing.T) {
 	assert.Equal(t, 0, len(node.EvictedJobRunIds))
 	assert.Equal(t, len(jobs), len(returnedNode.EvictedJobRunIds))
 
+	// EvictJobsFromNode returns a copy; the original node is unchanged.
 	assert.Equal(t, map[int32]internaltypes.ResourceList{
 		-1:    testfixtures.CpuMem("30", "248Gi"),
 		0:     testfixtures.CpuMem("30", "248Gi"),
 		1:     testfixtures.CpuMem("31", "252Gi"),
 		2:     testfixtures.CpuMem("31", "252Gi"),
 		3:     testfixtures.CpuMem("31", "252Gi"),
-		28000: testfixtures.CpuMem("32", "256Gi"),
-		29000: testfixtures.CpuMem("32", "256Gi"),
-		30000: testfixtures.CpuMem("32", "256Gi"),
+		28000: testfixtures.CpuMem("31", "252Gi"),
+		29000: testfixtures.CpuMem("31", "252Gi"),
+		30000: testfixtures.CpuMem("31", "252Gi"),
 	}, node.AllocatableByPriority)
 
 	assert.Equal(t, map[int32]internaltypes.ResourceList{
