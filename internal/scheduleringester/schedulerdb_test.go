@@ -462,7 +462,7 @@ func TestWriteOps(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			err := schedulerdb.WithTestDb(func(_ *schedulerdb.Queries, db *pgxpool.Pool) error {
-				schedulerDb := &SchedulerDb{db: db}
+				schedulerDb := &SchedulerDb{db: db, migrationPhase: schedulerdb.JobSpecMigrationPhaseLegacy}
 				serials := make(map[string]int64)
 				for _, op := range tc.Ops {
 					err := assertOpSuccess(t, schedulerDb, serials, addDefaultValues(op))
@@ -1169,7 +1169,7 @@ func TestStore(t *testing.T) {
 	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
 	defer cancel()
 	err := schedulerdb.WithTestDb(func(q *schedulerdb.Queries, db *pgxpool.Pool) error {
-		schedulerDb := NewSchedulerDb(db, metrics.NewMetrics("test"), time.Second, time.Second, 10*time.Second)
+		schedulerDb := NewSchedulerDb(db, metrics.NewMetrics("test"), time.Second, time.Second, 10*time.Second, schedulerdb.JobSpecMigrationPhaseLegacy)
 		err := schedulerDb.Store(ctx, &DbOperationsWithMessageIds{Ops: ops})
 		require.NoError(t, err)
 

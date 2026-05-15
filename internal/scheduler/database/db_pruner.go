@@ -81,6 +81,7 @@ func PruneDb(ctx *armadacontext.Context, db *pgx.Conn, batchLimit int, keepAfter
 			// Do this all in one call so as to be more terse with the syntax
 			_, err = tx.Exec(ctx, `
 						DELETE FROM runs WHERE job_id in (SELECT job_id from batch);
+						DELETE FROM job_specs WHERE job_id in (SELECT job_id from batch);
 						DELETE FROM jobs WHERE job_id in (SELECT job_id from batch);
 						DELETE FROM job_run_errors WHERE job_id in (SELECT job_id from batch);
 						DELETE FROM rows_to_delete WHERE job_id in (SELECT job_id from batch);

@@ -21,5 +21,6 @@ pulsar:
 subscriptionName: "scheduler-ingester"
 batchSize: 10000
 batchDuration: 500ms
+jobSpecMigrationPhase: legacy
 
 

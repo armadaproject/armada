@@ -33,6 +33,7 @@ type SchedulerDb struct {
 	initialBackOff time.Duration
 	maxBackOff     time.Duration
 	lockTimeout    time.Duration
+	migrationPhase schedulerdb.JobSpecMigrationPhase
 }
 
 func NewSchedulerDb(
@@ -41,6 +42,7 @@ func NewSchedulerDb(
 	initialBackOff time.Duration,
 	maxBackOff time.Duration,
 	lockTimeout time.Duration,
+	migrationPhase schedulerdb.JobSpecMigrationPhase,
 ) *SchedulerDb {
 	return &SchedulerDb{
 		db:             db,
@@ -48,6 +50,7 @@ func NewSchedulerDb(
 		initialBackOff: initialBackOff,
 		maxBackOff:     maxBackOff,
 		lockTimeout:    lockTimeout,
+		migrationPhase: migrationPhase,
 	}
 }
 
@@ -100,13 +103,34 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 	queries := schedulerdb.New(tx)
 	switch o := op.(type) {
 	case InsertJobs:
-		records := make([]any, len(o))
-		i := 0
-		for _, v := range o {
-			records[i] = *v
-			i++
+		if s.migrationPhase.WritesJobSpecs() {
+			specs := make([]any, 0, len(o))
+			for _, v := range o {
+				specs = append(specs, schedulerdb.JobSpec{
+					JobID:         v.JobID,
+					SubmitMessage: v.SubmitMessage,
+					Groups:        v.Groups,
+				})
+			}
+			if err := database.Upsert(ctx, tx, "job_specs", specs); err != nil {
+				return err
+			}
 		}
-		err := database.Upsert(ctx, tx, "jobs", records, database.WithExcludeColumns("terminated"))
+		records := make([]any, 0, len(o))
+		for _, v := range o {
+			job := *v
+			if !s.migrationPhase.WritesJobs() {
+				// Cutover phase: submit_message and groups live only in job_specs.
+				job.SubmitMessage = nil
+				job.Groups = nil
+			}
+			records = append(records, job)
+		}
+		excluded := []string{"terminated"}
+		if !s.migrationPhase.WritesJobs() {
+			excluded = append(excluded, "submit_message", "groups")
+		}
+		err := database.Upsert(ctx, tx, "jobs", records, database.WithExcludeColumns(excluded...))
 		if err != nil {
 			return err
 		}
