@@ -278,6 +278,25 @@ definitions:
         type: string
         minLength: 1
         x-nullable: false
+  versionInfo:
+    type: object
+    required:
+      - version
+      - commit
+      - buildTime
+    properties:
+      version:
+        type: string
+        minLength: 1
+        x-nullable: false
+      commit:
+        type: string
+        minLength: 1
+        x-nullable: false
+      buildTime:
+        type: string
+        minLength: 1
+        x-nullable: false
 
 parameters:
   backend:
@@ -303,6 +322,21 @@ paths:
           description: Error response
           schema:
             type: string
+
+  /api/v1/version:
+    get:
+      operationId: getVersion
+      produces:
+        - application/json
+      responses:
+        200:
+          description: Returns the Lookout backend's release version, commit, and build time.
+          schema:
+            $ref: "#/definitions/versionInfo"
+        default:
+          description: Error response
+          schema:
+            $ref: "#/definitions/error"
 
   /api/v1/jobs:
     post:

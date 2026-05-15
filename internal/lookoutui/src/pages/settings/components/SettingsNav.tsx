@@ -1,14 +1,15 @@
 import { forwardRef } from "react"
 
-import { AccountCircle, DisplaySettings, Numbers, Palette } from "@mui/icons-material"
+import { AccountCircle, DisplaySettings, Info, Numbers, Palette } from "@mui/icons-material"
 import { alpha, List, ListItemButton, ListItemIcon, ListItemText, useTheme } from "@mui/material"
 import { NavLink, NavLinkProps } from "react-router-dom"
 
 import {
-  SETTINGS_VISUAL_THEME,
-  SETTINGS_VALUE_DISPLAY,
-  SETTINGS_APPEARANCE,
+  SETTINGS_ABOUT,
   SETTINGS_ACCOUNT,
+  SETTINGS_APPEARANCE,
+  SETTINGS_VALUE_DISPLAY,
+  SETTINGS_VISUAL_THEME,
 } from "../../../pathnames"
 
 const ListItemButtonComponent = forwardRef<HTMLAnchorElement, NavLinkProps>((props, ref) => {
@@ -53,6 +54,12 @@ export const SettingsNav = () => (
         <AccountCircle />
       </ListItemIcon>
       <ListItemText primary="Account" />
+    </ListItemButton>
+    <ListItemButton component={ListItemButtonComponent} to={SETTINGS_ABOUT}>
+      <ListItemIcon>
+        <Info />
+      </ListItemIcon>
+      <ListItemText primary="About" />
     </ListItemButton>
   </List>
 )

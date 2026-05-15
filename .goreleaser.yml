@@ -72,6 +72,10 @@ builds:
     binary: lookout
     main: ./cmd/lookout/main.go
     mod_timestamp: '{{ .CommitTimestamp }}'
+    ldflags:
+      - -X github.com/armadaproject/armada/internal/lookout/version.Version={{.Version}}
+      - -X github.com/armadaproject/armada/internal/lookout/version.Commit={{.FullCommit}}
+      - -X github.com/armadaproject/armada/internal/lookout/version.BuildTime={{.Date}}
     goos:
       - linux
     goarch:
@@ -232,7 +236,18 @@ dockers:
     image_templates:
       - "{{ .Env.DOCKER_REPO }}armada-full-bundle:latest"
       - "{{ .Env.DOCKER_REPO }}armada-full-bundle:{{ .Version }}"
-    build_flag_templates: *BUILD_FLAG_TEMPLATES
+    build_flag_templates:
+      - --builder={{ .Env.DOCKER_BUILDX_BUILDER }}
+      - --label=org.opencontainers.image.source=https://github.com/armadaproject/armada
+      - --label=org.opencontainers.image.version={{ .Version }}
+      - --label=org.opencontainers.image.created={{ time "2006-01-02T15:04:05Z07:00" }}
+      - --label=org.opencontainers.image.revision={{ .FullCommit }}
+      - --label=org.opencontainers.image.base.name=alpine:3.21.3
+      - --label=org.opencontainers.image.licenses=Apache-2.0
+      - --label=org.opencontainers.image.vendor=G-Research
+      - --build-arg=VITE_APP_VERSION={{ .Version }}
+      - --build-arg=VITE_APP_COMMIT={{ .FullCommit }}
+      - --build-arg=VITE_APP_BUILD_TIME={{ time "2006-01-02T15:04:05Z07:00" }}
     ids:
       - server
       - executor
@@ -351,7 +366,18 @@ dockers:
     image_templates:
       - "{{ .Env.DOCKER_REPO }}armada-lookout:latest"
       - "{{ .Env.DOCKER_REPO }}armada-lookout:{{ .Version }}"
-    build_flag_templates: *BUILD_FLAG_TEMPLATES
+    build_flag_templates:
+      - --builder={{ .Env.DOCKER_BUILDX_BUILDER }}
+      - --label=org.opencontainers.image.source=https://github.com/armadaproject/armada
+      - --label=org.opencontainers.image.version={{ .Version }}
+      - --label=org.opencontainers.image.created={{ time "2006-01-02T15:04:05Z07:00" }}
+      - --label=org.opencontainers.image.revision={{ .FullCommit }}
+      - --label=org.opencontainers.image.base.name=alpine:3.21.3
+      - --label=org.opencontainers.image.licenses=Apache-2.0
+      - --label=org.opencontainers.image.vendor=G-Research
+      - --build-arg=VITE_APP_VERSION={{ .Version }}
+      - --build-arg=VITE_APP_COMMIT={{ .FullCommit }}
+      - --build-arg=VITE_APP_BUILD_TIME={{ time "2006-01-02T15:04:05Z07:00" }}
     ids:
       - lookout
       - lookoutingester

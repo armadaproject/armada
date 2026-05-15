@@ -19,6 +19,7 @@ import { OidcAuthProvider } from "../oidcAuth"
 import { JobSetsPage } from "../pages/jobSets/JobSetsPage"
 import { JobsPage } from "../pages/jobs/JobsPage"
 import { SettingsPage } from "../pages/settings/SettingsPage"
+import { AboutPage } from "../pages/settings/about/AboutPage"
 import { AccountPage } from "../pages/settings/account/AccountPage"
 import { AppearancePage } from "../pages/settings/appearance/AppearancePage"
 import { ValueDisplayPage } from "../pages/settings/valueDisplay/ValueDisplayPage"
@@ -28,6 +29,7 @@ import {
   JOB_SETS,
   JOBS,
   SETTINGS,
+  SETTINGS_ABOUT,
   SETTINGS_ACCOUNT,
   SETTINGS_APPEARANCE,
   SETTINGS_VALUE_DISPLAY,
@@ -168,6 +170,14 @@ export function App() {
                                 element={
                                   <ErrorBoundary FallbackComponent={AlertInPageContainerErrorFallback}>
                                     <AccountPage />
+                                  </ErrorBoundary>
+                                }
+                              />
+                              <Route
+                                path={SETTINGS_ABOUT}
+                                element={
+                                  <ErrorBoundary FallbackComponent={AlertInPageContainerErrorFallback}>
+                                    <AboutPage />
                                   </ErrorBoundary>
                                 }
                               />

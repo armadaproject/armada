@@ -464,6 +464,28 @@ func init() {
         }
       }
     },
+    "/api/v1/version": {
+      "get": {
+        "produces": [
+          "application/json"
+        ],
+        "operationId": "getVersion",
+        "responses": {
+          "200": {
+            "description": "Returns the Lookout backend's release version, commit, and build time.",
+            "schema": {
+              "$ref": "#/definitions/versionInfo"
+            }
+          },
+          "default": {
+            "description": "Error response",
+            "schema": {
+              "$ref": "#/definitions/error"
+            }
+          }
+        }
+      }
+    },
     "/health": {
       "get": {
         "produces": [
@@ -830,6 +852,31 @@ func init() {
           "type": "string",
           "format": "date-time",
           "x-nullable": true
+        }
+      }
+    },
+    "versionInfo": {
+      "type": "object",
+      "required": [
+        "version",
+        "commit",
+        "buildTime"
+      ],
+      "properties": {
+        "buildTime": {
+          "type": "string",
+          "minLength": 1,
+          "x-nullable": false
+        },
+        "commit": {
+          "type": "string",
+          "minLength": 1,
+          "x-nullable": false
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1,
+          "x-nullable": false
         }
       }
     }
@@ -1305,6 +1352,28 @@ func init() {
         }
       }
     },
+    "/api/v1/version": {
+      "get": {
+        "produces": [
+          "application/json"
+        ],
+        "operationId": "getVersion",
+        "responses": {
+          "200": {
+            "description": "Returns the Lookout backend's release version, commit, and build time.",
+            "schema": {
+              "$ref": "#/definitions/versionInfo"
+            }
+          },
+          "default": {
+            "description": "Error response",
+            "schema": {
+              "$ref": "#/definitions/error"
+            }
+          }
+        }
+      }
+    },
     "/health": {
       "get": {
         "produces": [
@@ -1698,6 +1767,31 @@ func init() {
           "type": "string",
           "format": "date-time",
           "x-nullable": true
+        }
+      }
+    },
+    "versionInfo": {
+      "type": "object",
+      "required": [
+        "version",
+        "commit",
+        "buildTime"
+      ],
+      "properties": {
+        "buildTime": {
+          "type": "string",
+          "minLength": 1,
+          "x-nullable": false
+        },
+        "commit": {
+          "type": "string",
+          "minLength": 1,
+          "x-nullable": false
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1,
+          "x-nullable": false
         }
       }
     }
