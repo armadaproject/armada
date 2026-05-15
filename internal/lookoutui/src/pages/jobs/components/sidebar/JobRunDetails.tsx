@@ -28,6 +28,7 @@ import { JobRun } from "../../../../models/lookoutModels"
 import { useCordonNode } from "../../../../services/lookout/useCordonNode"
 import { useGetJobRunDebugMessage } from "../../../../services/lookout/useGetJobRunDebugMessage"
 import { useGetJobRunError } from "../../../../services/lookout/useGetJobRunError"
+import { useGetJobRunSchedulerTerminationReason } from "../../../../services/lookout/useGetJobRunSchedulerTerminationReason"
 
 import { KeyValuePairTable } from "./KeyValuePairTable"
 import { SidebarTabSubheading } from "./sidebarTabContentComponents"
@@ -182,6 +183,17 @@ export const JobRunDetails = ({
   // Ignore any errors from this call - the API returns an error if there is no debug message, which is happy-path
   const { data: debugMessage, status: debugMessageStatus } = useGetJobRunDebugMessage(runId)
 
+  // Ignore any errors from this call - the API returns an error if there is no scheduler termination reason, which is happy-path
+  const { data: schedulerTerminationReason, status: schedulerTerminationReasonStatus } =
+    useGetJobRunSchedulerTerminationReason(runId)
+  const prettyTerminationReason = useMemo(() => {
+    try {
+      return JSON.stringify(JSON.parse(schedulerTerminationReason ?? ""), undefined, 2)
+    } catch {
+      return schedulerTerminationReason ?? ""
+    }
+  }, [schedulerTerminationReason])
+
   const headingTextParts = ["Run", (runIndex + 1).toString()]
   const runIndicativeTimestamp = started || pending || leased || ""
   if (runIndicativeTimestamp) {
@@ -318,6 +330,27 @@ export const JobRunDetails = ({
                 <CodeBlock
                   code={debugMessage}
                   language="text"
+                  downloadable={false}
+                  showLineNumbers={false}
+                  loading={false}
+                />
+              </AccordionDetails>
+            </Accordion>
+          )}
+          {schedulerTerminationReasonStatus === "pending" && (
+            <Accordion variant="elevation" square>
+              <AccordionSummary disabled>
+                <Skeleton width="5ch" />
+              </AccordionSummary>
+            </Accordion>
+          )}
+          {schedulerTerminationReasonStatus === "success" && schedulerTerminationReason && (
+            <Accordion variant="elevation" square>
+              <AccordionSummary>Scheduler Termination Reason</AccordionSummary>
+              <AccordionDetails>
+                <CodeBlock
+                  code={prettyTerminationReason}
+                  language="json"
                   downloadable={false}
                   showLineNumbers={false}
                   loading={false}

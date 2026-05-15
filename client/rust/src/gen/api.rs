@@ -1499,7 +1499,7 @@ pub struct JobPreemptedEvent {
     #[prost(string, tag = "6")]
     pub run_id: ::prost::alloc::string::String,
     #[prost(string, tag = "7")]
-    pub preemptive_job_id: ::prost::alloc::string::String,
+    pub preempting_job_id: ::prost::alloc::string::String,
     #[prost(string, tag = "8")]
     pub preemptive_run_id: ::prost::alloc::string::String,
     #[prost(string, tag = "9")]

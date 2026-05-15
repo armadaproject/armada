@@ -3524,3 +3524,113 @@ func createPreemptibleGangJob() *jobdb.Job {
 		true,
 	).WithNewRun("testExecutor", "test-node", "node", "pool", 5)
 }
+
+func TestPreemptingJobId(t *testing.T) {
+	// nil job returns empty string
+	assert.Equal(t, "", preemptingJobId(nil))
+
+	// job returns its ID
+	job := testfixtures.NewJob(
+		util.NewULID(),
+		"testJobset",
+		"testQueue",
+		0,
+		toInternalSchedulingInfo(preemptibleGangSchedulingInfo),
+		false,
+		1,
+		false,
+		false,
+		false,
+		1,
+		true,
+	)
+	assert.Equal(t, job.Id(), preemptingJobId(job))
+}
+
+func TestAppendEventSequencesFromPreemptedJobs_PopulatesPreemptingJobId(t *testing.T) {
+	preemptingJob := testfixtures.NewJob(
+		util.NewULID(),
+		"testJobset",
+		"testQueue",
+		0,
+		toInternalSchedulingInfo(preemptibleGangSchedulingInfo),
+		false,
+		1,
+		false,
+		false,
+		false,
+		1,
+		true,
+	)
+	preemptingJobId := preemptingJob.Id()
+
+	preemptedJob := testfixtures.NewJob(
+		util.NewULID(),
+		"testJobset",
+		"testQueue",
+		0,
+		toInternalSchedulingInfo(preemptibleGangSchedulingInfo),
+		false,
+		1,
+		false,
+		false,
+		false,
+		1,
+		true,
+	).WithNewRun("testExecutor", "test-node", "node", "pool", 5)
+	preemptedRun := preemptedJob.LatestRun()
+
+	jctx := &schedulercontext.JobSchedulingContext{
+		Job:                   preemptedJob,
+		PreemptingJob:         preemptingJob,
+		PreemptionDescription: "preempted by fair-share",
+	}
+
+	sequences, err := AppendEventSequencesFromPreemptedJobs(nil, []*schedulercontext.JobSchedulingContext{jctx}, time.Now())
+	assert.NoError(t, err)
+	assert.Len(t, sequences, 1)
+
+	events := sequences[0].Events
+	assert.Len(t, events, 3) // JobRunPreempted + JobRunErrors + JobErrors
+
+	preemptedEvent := events[0].GetJobRunPreempted()
+	assert.NotNil(t, preemptedEvent)
+	assert.Equal(t, preemptedRun.Id(), preemptedEvent.PreemptedRunId)
+	assert.Equal(t, preemptingJobId, preemptedEvent.PreemptingJobId)
+}
+
+func TestAppendEventSequencesFromPreemptedJobs_NilPreemptingJob(t *testing.T) {
+	preemptedJob := testfixtures.NewJob(
+		util.NewULID(),
+		"testJobset",
+		"testQueue",
+		0,
+		toInternalSchedulingInfo(preemptibleGangSchedulingInfo),
+		false,
+		1,
+		false,
+		false,
+		false,
+		1,
+		true,
+	).WithNewRun("testExecutor", "test-node", "node", "pool", 5)
+	preemptedRun := preemptedJob.LatestRun()
+
+	jctx := &schedulercontext.JobSchedulingContext{
+		Job:                   preemptedJob,
+		PreemptingJob:         nil,
+		PreemptionDescription: "preempted due to node resource change",
+	}
+
+	sequences, err := AppendEventSequencesFromPreemptedJobs(nil, []*schedulercontext.JobSchedulingContext{jctx}, time.Now())
+	assert.NoError(t, err)
+	assert.Len(t, sequences, 1)
+
+	events := sequences[0].Events
+	assert.Len(t, events, 3) // JobRunPreempted + JobRunErrors + JobErrors
+
+	preemptedEvent := events[0].GetJobRunPreempted()
+	assert.NotNil(t, preemptedEvent)
+	assert.Equal(t, preemptedRun.Id(), preemptedEvent.PreemptedRunId)
+	assert.Equal(t, "", preemptedEvent.PreemptingJobId)
+}

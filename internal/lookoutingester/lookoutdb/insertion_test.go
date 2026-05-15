@@ -17,6 +17,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/database/lookout"
 	"github.com/armadaproject/armada/internal/common/ingest/testfixtures"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
+	"github.com/armadaproject/armada/internal/lookoutingester/instructions"
 	"github.com/armadaproject/armada/internal/lookoutingester/metrics"
 	"github.com/armadaproject/armada/internal/lookoutingester/model"
 )
@@ -56,6 +57,7 @@ var (
 	}
 	testFailureCategory    = "infrastructure"
 	testFailureSubcategory = "oom"
+	testTerminationReason  = "test termination reason"
 )
 
 var (
@@ -100,20 +102,21 @@ type JobSpecRow struct {
 }
 
 type JobRunRow struct {
-	RunId              string
-	JobId              string
-	Cluster            string
-	Node               *string
-	Pending            time.Time
-	Started            *time.Time
-	Finished           *time.Time
-	JobRunState        int32
-	Error              []byte
-	Debug              []byte
-	ExitCode           *int32
-	IngressAddresses   map[int32]string
-	FailureCategory    *string
-	FailureSubcategory *string
+	RunId                      string
+	JobId                      string
+	Cluster                    string
+	Node                       *string
+	Pending                    time.Time
+	Started                    *time.Time
+	Finished                   *time.Time
+	JobRunState                int32
+	Error                      []byte
+	Debug                      []byte
+	ExitCode                   *int32
+	IngressAddresses           map[int32]string
+	FailureCategory            *string
+	FailureSubcategory         *string
+	SchedulerTerminationReason map[string]any
 }
 
 type JobErrorRow struct {
@@ -141,16 +144,17 @@ func defaultInstructionSet() *model.InstructionSet {
 			IngressAddresses: cloneIngressAddresses(initialIngressAddresses),
 		}},
 		JobRunsToUpdate: []*model.UpdateJobRunInstruction{{
-			RunId:              RunId,
-			Node:               pointer.String(nodeName),
-			Started:            &startTime,
-			Finished:           &finishedTime,
-			Debug:              []byte(testfixtures.DebugMsg),
-			JobRunState:        pointer.Int32(lookout.JobRunSucceededOrdinal),
-			ExitCode:           pointer.Int32(0),
-			IngressAddresses:   cloneIngressAddresses(updatedIngressAddresses),
-			FailureCategory:    pointer.String(testFailureCategory),
-			FailureSubcategory: pointer.String(testFailureSubcategory),
+			RunId:                      RunId,
+			Node:                       pointer.String(nodeName),
+			Started:                    &startTime,
+			Finished:                   &finishedTime,
+			Debug:                      []byte(testfixtures.DebugMsg),
+			JobRunState:                pointer.Int32(lookout.JobRunSucceededOrdinal),
+			ExitCode:                   pointer.Int32(0),
+			IngressAddresses:           cloneIngressAddresses(updatedIngressAddresses),
+			FailureCategory:            pointer.String(testFailureCategory),
+			FailureSubcategory:         pointer.String(testFailureSubcategory),
+			SchedulerTerminationReason: instructions.BuildTerminationReason(testTerminationReason, nil),
 		}},
 		JobErrorsToCreate: []*model.CreateJobErrorInstruction{{
 			JobId: JobId,
@@ -217,19 +221,20 @@ var expectedJobError = JobErrorRow{
 }
 
 var expectedJobRunAfterUpdate = JobRunRow{
-	RunId:              RunId,
-	JobId:              JobId,
-	Cluster:            executorId,
-	Node:               pointer.String(nodeName),
-	Pending:            updateTime,
-	Started:            &startTime,
-	Finished:           &finishedTime,
-	JobRunState:        lookout.JobRunSucceededOrdinal,
-	ExitCode:           pointer.Int32(0),
-	Debug:              []byte(testfixtures.DebugMsg),
-	IngressAddresses:   cloneIngressAddresses(updatedIngressAddresses),
-	FailureCategory:    pointer.String(testFailureCategory),
-	FailureSubcategory: pointer.String(testFailureSubcategory),
+	RunId:                      RunId,
+	JobId:                      JobId,
+	Cluster:                    executorId,
+	Node:                       pointer.String(nodeName),
+	Pending:                    updateTime,
+	Started:                    &startTime,
+	Finished:                   &finishedTime,
+	JobRunState:                lookout.JobRunSucceededOrdinal,
+	ExitCode:                   pointer.Int32(0),
+	Debug:                      []byte(testfixtures.DebugMsg),
+	IngressAddresses:           cloneIngressAddresses(updatedIngressAddresses),
+	FailureCategory:            pointer.String(testFailureCategory),
+	FailureSubcategory:         pointer.String(testFailureSubcategory),
+	SchedulerTerminationReason: instructions.BuildTerminationReason(testTerminationReason, nil),
 }
 
 func TestCreateJobsBatch(t *testing.T) {
@@ -393,7 +398,7 @@ func TestUpdateJobsWithTerminal(t *testing.T) {
 				JobId:                     JobId,
 				State:                     pointer.Int32(lookout.JobCancelledOrdinal),
 				Cancelled:                 &baseTime,
-				CancelReason:              pointer.String("some reason"),
+				CancelReason:              pointer.String(testfixtures.CancelReason),
 				CancelUser:                pointer.String(userId),
 				LastTransitionTime:        &baseTime,
 				LastTransitionTimeSeconds: pointer.Int64(baseTime.Unix()),
@@ -448,7 +453,7 @@ func TestUpdateJobsWithTerminal(t *testing.T) {
 		// Assert the states are still terminal
 		job := getJob(t, db, JobId)
 		assert.Equal(t, lookout.JobCancelledOrdinal, int(job.State))
-		assert.Equal(t, "some reason", *job.CancelReason)
+		assert.Equal(t, testfixtures.CancelReason, *job.CancelReason)
 		assert.Equal(t, testfixtures.UserId, *job.CancelUser)
 
 		job2 := getJob(t, db, "job2")
@@ -712,6 +717,45 @@ func TestStore(t *testing.T) {
 
 		assert.Equal(t, expectedJobAfterUpdate, job)
 		assert.Equal(t, expectedJobRunAfterUpdate, jobRun)
+		return nil
+	})
+	assert.NoError(t, err)
+}
+
+// ensure executor update doesn't write over scheduler termination reason update
+func TestSchedulerTerminationReasonNotOverwritten(t *testing.T) {
+	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
+		ldb := NewLookoutDb(db, fatalErrors, m, 10, 10)
+
+		err := ldb.CreateJobsBatch(armadacontext.Background(), defaultInstructionSet().JobsToCreate)
+		assert.Nil(t, err)
+		err = ldb.CreateJobRunsBatch(armadacontext.Background(), defaultInstructionSet().JobRunsToCreate)
+		assert.Nil(t, err)
+
+		// scheduler writes the preemption reason
+		schedulerUpdate := []*model.UpdateJobRunInstruction{{
+			RunId:                      RunId,
+			JobRunState:                pointer.Int32(lookout.JobRunPreemptedOrdinal),
+			SchedulerTerminationReason: instructions.BuildTerminationReason(testfixtures.PreemptionReason, nil),
+		}}
+		err = ldb.UpdateJobRunsBatch(armadacontext.Background(), schedulerUpdate)
+		assert.Nil(t, err)
+
+		run := getJobRun(t, db, RunId)
+		assert.Equal(t, instructions.BuildTerminationReason(testfixtures.PreemptionReason, nil), run.SchedulerTerminationReason)
+
+		// executor writes run errors without a termination reason (nil)
+		executorUpdate := []*model.UpdateJobRunInstruction{{
+			RunId:                      RunId,
+			JobRunState:                pointer.Int32(lookout.JobRunFailedOrdinal),
+			SchedulerTerminationReason: nil,
+		}}
+		err = ldb.UpdateJobRunsBatch(armadacontext.Background(), executorUpdate)
+		assert.Nil(t, err)
+
+		// scheduler termination reason must be unchanged
+		run = getJobRun(t, db, RunId)
+		assert.Equal(t, instructions.BuildTerminationReason(testfixtures.PreemptionReason, nil), run.SchedulerTerminationReason)
 		return nil
 	})
 	assert.NoError(t, err)
@@ -1098,10 +1142,12 @@ func getJobRun(t *testing.T, db *pgxpool.Pool, runId string) JobRunRow {
 			debug,
 			ingress_addresses,
 			failure_category,
-			failure_subcategory
+			failure_subcategory,
+			scheduler_termination_reason
 		FROM job_run WHERE run_id = $1`,
 		runId)
 	var ingressJSON []byte
+	var schedulerTerminationReasonJSON []byte
 	err := r.Scan(
 		&run.RunId,
 		&run.JobId,
@@ -1117,10 +1163,15 @@ func getJobRun(t *testing.T, db *pgxpool.Pool, runId string) JobRunRow {
 		&ingressJSON,
 		&run.FailureCategory,
 		&run.FailureSubcategory,
+		&schedulerTerminationReasonJSON,
 	)
 	assert.NoError(t, err)
 	if len(ingressJSON) > 0 {
 		err = json.Unmarshal(ingressJSON, &run.IngressAddresses)
+		assert.NoError(t, err)
+	}
+	if len(schedulerTerminationReasonJSON) > 0 {
+		err = json.Unmarshal(schedulerTerminationReasonJSON, &run.SchedulerTerminationReason)
 		assert.NoError(t, err)
 	}
 	return run
