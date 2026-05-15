@@ -139,22 +139,22 @@ jobs:
           - 5050
     podSpecs:                             
       - containers:
-        name: app
-        imagePullPolicy: IfNotPresent
-        image: vad1mo/hello-world-rest:latest
-        securityContext:
-          runAsUser: 1000
-        resources:
-          limits:
-            memory: 1Gi
-            cpu: 1
-          requests:
-            memory: 1Gi
-            cpu: 1
-        ports:
-          - containerPort: 5050
-            protocol: TCP
-            name: http
+        - name: app
+          imagePullPolicy: IfNotPresent
+          image: vad1mo/hello-world-rest:latest
+          securityContext:
+            runAsUser: 1000
+          resources:
+            limits:
+              memory: 1Gi
+              cpu: 1
+            requests:
+              memory: 1Gi
+              cpu: 1
+          ports:
+            - containerPort: 5050
+              protocol: TCP
+              name: http
 ```
 
 Using this format, you can submit a job set composed of several jobs. The meaning of each field is as follows.
