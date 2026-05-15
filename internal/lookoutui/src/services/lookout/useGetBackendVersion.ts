@@ -23,6 +23,9 @@ export const useGetBackendVersion = () => {
     queryFn: async ({ signal }) => {
       try {
         const response = await authenticatedFetch("/api/v1/version", { signal })
+        if (!response.ok) {
+          throw new Error(`Request for version failed with status ${response.status}`)
+        }
         const json = (await response.json()) as Partial<VersionInfo>
         return {
           version: json.version ?? "unknown",

@@ -80,6 +80,24 @@ describe("AboutPage", () => {
     expect(screen.queryByLabelText("Frontend and backend versions differ")).not.toBeInTheDocument()
   })
 
+  it("shows an error alert when the backend returns a non-OK HTTP status", async () => {
+    vi.stubEnv("VITE_APP_VERSION", "v1.2.3")
+    vi.stubEnv("VITE_APP_COMMIT", "abc1234")
+    vi.stubEnv("VITE_APP_BUILD_TIME", "2026-05-14T10:30:00Z")
+
+    server.use(
+      http.get("/api/v1/version", () => HttpResponse.json({ title: "internal server error" }, { status: 500 })),
+    )
+
+    renderAboutPage()
+
+    await waitFor(() => {
+      expect(screen.getByText(/Could not load the backend version/)).toBeInTheDocument()
+    })
+
+    expect(screen.getAllByText(/commit unknown/).length).toBeGreaterThan(0)
+  })
+
   it("renders 'dev' as plain text without a release link", async () => {
     vi.stubEnv("VITE_APP_VERSION", "dev")
     vi.stubEnv("VITE_APP_COMMIT", "unknown")

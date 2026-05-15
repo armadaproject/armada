@@ -247,7 +247,7 @@ dockers:
       - --label=org.opencontainers.image.vendor=G-Research
       - --build-arg=VITE_APP_VERSION={{ .Version }}
       - --build-arg=VITE_APP_COMMIT={{ .FullCommit }}
-      - --build-arg=VITE_APP_BUILD_TIME={{ time "2006-01-02T15:04:05Z07:00" }}
+      - --build-arg=VITE_APP_BUILD_TIME={{ .Date }}
     ids:
       - server
       - executor
@@ -377,7 +377,7 @@ dockers:
       - --label=org.opencontainers.image.vendor=G-Research
       - --build-arg=VITE_APP_VERSION={{ .Version }}
       - --build-arg=VITE_APP_COMMIT={{ .FullCommit }}
-      - --build-arg=VITE_APP_BUILD_TIME={{ time "2006-01-02T15:04:05Z07:00" }}
+      - --build-arg=VITE_APP_BUILD_TIME={{ .Date }}
     ids:
       - lookout
       - lookoutingester
