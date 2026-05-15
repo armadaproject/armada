@@ -5,7 +5,6 @@ import (
 	"net"
 	"net/http"
 	_ "net/http/pprof"
-	"strings"
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
@@ -15,9 +14,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/grpc/codes"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/internal/common/app"
@@ -34,6 +30,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/types"
+	"github.com/armadaproject/armada/internal/leaderelection"
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/floatingresources"
@@ -231,10 +228,28 @@ func Run(config schedulerconfig.Configuration) error {
 			return errors.WithMessage(err, "error creating metric event pulsar publisher")
 		}
 	}
+
 	// ////////////////////////////////////////////////////////////////////////
 	// Leader Election
 	// ////////////////////////////////////////////////////////////////////////
-	leaderController, err := createLeaderController(ctx, config.Leader)
+	mode, err := leaderelection.ParseMode(config.Leader.Mode)
+	if err != nil {
+		return errors.WithMessage(err, "error parsing leader mode from config")
+	}
+	leaderConfig := leaderelection.Config{
+		Mode:               mode,
+		LeaseLockName:      config.Leader.LeaseLockName,
+		LeaseLockNamespace: config.Leader.LeaseLockNamespace,
+		LeaseDuration:      config.Leader.LeaseDuration,
+		RenewDeadline:      config.Leader.RenewDeadline,
+		RetryPeriod:        config.Leader.RetryPeriod,
+		PodName:            config.Leader.PodName,
+	}
+	leaderOptions := leaderelection.MetricsOptions{
+		MetricsPrefix:               metrics.ArmadaSchedulerMetricsPrefix,
+		MarkLeadingInStandaloneMode: true,
+	}
+	leaderController, err := leaderelection.CreateLeaderController(ctx, leaderConfig, &leaderOptions)
 	if err != nil {
 		return errors.WithMessage(err, "error creating leader controller")
 	}
@@ -440,49 +455,6 @@ func Run(config schedulerconfig.Configuration) error {
 	startupCompleteCheck.MarkComplete()
 
 	return g.Wait()
-}
-
-func createLeaderController(ctx *armadacontext.Context, config schedulerconfig.LeaderConfig) (leader.LeaderController, error) {
-	switch mode := strings.ToLower(config.Mode); mode {
-	case "standalone":
-		ctx.Infof("Scheduler will run in standalone mode")
-		leaderController := leader.NewStandaloneLeaderController()
-		// Register leader status metric so recording rules work consistently.
-		// In standalone mode, this always reports 1 (always leader).
-		leaderStatusMetrics := leader.NewLeaderStatusMetricsCollector(metrics.ArmadaSchedulerMetricsPrefix, config.PodName)
-		leaderStatusMetrics.MarkAsLeading()
-		prometheus.MustRegister(leaderStatusMetrics)
-		return leaderController, nil
-	case "kubernetes":
-		ctx.Infof("Scheduler will run kubernetes mode")
-		clusterConfig, err := loadClusterConfig(ctx)
-		if err != nil {
-			return nil, errors.Wrapf(err, "Error creating kubernetes client")
-		}
-		clientSet, err := kubernetes.NewForConfig(clusterConfig)
-		if err != nil {
-			return nil, errors.Wrapf(err, "Error creating kubernetes client")
-		}
-		leaderController := leader.NewKubernetesLeaderController(config, clientSet.CoordinationV1())
-		leaderStatusMetrics := leader.NewLeaderStatusMetricsCollector(metrics.ArmadaSchedulerMetricsPrefix, config.PodName)
-		leaderController.RegisterListener(leaderStatusMetrics)
-		prometheus.MustRegister(leaderStatusMetrics)
-		return leaderController, nil
-	default:
-		return nil, errors.Errorf("%s is not a value leader mode", config.Mode)
-	}
-}
-
-func loadClusterConfig(ctx *armadacontext.Context) (*rest.Config, error) {
-	config, err := rest.InClusterConfig()
-	if errors.Is(err, rest.ErrNotInCluster) {
-		ctx.Info("Running with default client configuration")
-		rules := clientcmd.NewDefaultClientConfigLoadingRules()
-		overrides := &clientcmd.ConfigOverrides{}
-		return clientcmd.NewNonInteractiveDeferredLoadingClientConfig(rules, overrides).ClientConfig()
-	}
-	ctx.Info("Running with in cluster client configuration")
-	return config, err
 }
 
 // This changes the default grpc logging to log OK messages at trace level

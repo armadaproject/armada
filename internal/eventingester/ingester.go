@@ -2,16 +2,12 @@ package eventingester
 
 import (
 	"regexp"
-	"strings"
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/redis/go-redis/v9"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/internal/common/app"
@@ -29,8 +25,7 @@ import (
 	"github.com/armadaproject/armada/internal/eventingester/model"
 	"github.com/armadaproject/armada/internal/eventingester/repository"
 	"github.com/armadaproject/armada/internal/eventingester/store"
-	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
-	"github.com/armadaproject/armada/internal/scheduler/leader"
+	"github.com/armadaproject/armada/internal/leaderelection"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
@@ -97,7 +92,24 @@ func Run(config *configuration.EventIngesterConfiguration) {
 
 		scanner := repository.NewScanner(metricsRedisClient, config.Metrics.Redis)
 
-		leaderController, err := createLeaderController(ctx, config.Metrics.Redis.Leader)
+		mode, err := leaderelection.ParseMode(config.Metrics.Redis.Leader.Mode)
+		if err != nil {
+			log.Fatalf("invalid leader election mode for redis metrics: %v", err)
+		}
+		leaderConfig := leaderelection.Config{
+			Mode:               mode,
+			LeaseLockName:      config.Metrics.Redis.Leader.LeaseLockName,
+			LeaseLockNamespace: config.Metrics.Redis.Leader.LeaseLockNamespace,
+			LeaseDuration:      config.Metrics.Redis.Leader.LeaseDuration,
+			RenewDeadline:      config.Metrics.Redis.Leader.RenewDeadline,
+			RetryPeriod:        config.Metrics.Redis.Leader.RetryPeriod,
+			PodName:            config.Metrics.Redis.Leader.PodName,
+		}
+		leaderOptions := leaderelection.MetricsOptions{
+			MetricsPrefix:               ingestermetrics.ArmadaEventIngesterMetricsPrefix,
+			MarkLeadingInStandaloneMode: false,
+		}
+		leaderController, err := leaderelection.CreateLeaderController(ctx, leaderConfig, &leaderOptions)
 		if err != nil {
 			log.Fatalf("failed to create leader controller for redis metrics: %v", err)
 		}
@@ -149,52 +161,4 @@ func Run(config *configuration.EventIngesterConfiguration) {
 	if err := g.Wait(); err != nil {
 		panic(errors.WithMessage(err, "Error running event ingester services"))
 	}
-}
-
-func createLeaderController(ctx *armadacontext.Context, config configuration.LeaderConfig) (leader.LeaderController, error) {
-	switch mode := strings.ToLower(config.Mode); mode {
-	case "standalone":
-		ctx.Infof("Redis metrics will run in standalone mode")
-		return leader.NewStandaloneLeaderController(), nil
-	case "kubernetes":
-		ctx.Infof("Redis metrics will run kubernetes mode")
-		clusterConfig, err := loadClusterConfig(ctx)
-		if err != nil {
-			return nil, errors.Wrapf(err, "error creating kubernetes client")
-		}
-		clientSet, err := kubernetes.NewForConfig(clusterConfig)
-		if err != nil {
-			return nil, errors.Wrapf(err, "error creating kubernetes client")
-		}
-
-		schedulerLeaderConfig := schedulerconfig.LeaderConfig{
-			Mode:               config.Mode,
-			LeaseLockName:      config.LeaseLockName,
-			LeaseLockNamespace: config.LeaseLockNamespace,
-			LeaseDuration:      config.LeaseDuration,
-			RenewDeadline:      config.RenewDeadline,
-			RetryPeriod:        config.RetryPeriod,
-			PodName:            config.PodName,
-		}
-
-		leaderController := leader.NewKubernetesLeaderController(schedulerLeaderConfig, clientSet.CoordinationV1())
-		leaderStatusMetrics := leader.NewLeaderStatusMetricsCollector(ingestermetrics.ArmadaEventIngesterMetricsPrefix, config.PodName)
-		leaderController.RegisterListener(leaderStatusMetrics)
-		prometheus.MustRegister(leaderStatusMetrics)
-		return leaderController, nil
-	default:
-		return nil, errors.Errorf("%s is not a valid leader mode", config.Mode)
-	}
-}
-
-func loadClusterConfig(ctx *armadacontext.Context) (*rest.Config, error) {
-	config, err := rest.InClusterConfig()
-	if errors.Is(err, rest.ErrNotInCluster) {
-		ctx.Info("Running with default client configuration")
-		rules := clientcmd.NewDefaultClientConfigLoadingRules()
-		overrides := &clientcmd.ConfigOverrides{}
-		return clientcmd.NewNonInteractiveDeferredLoadingClientConfig(rules, overrides).ClientConfig()
-	}
-	ctx.Info("Running with in cluster client configuration")
-	return config, err
 }
