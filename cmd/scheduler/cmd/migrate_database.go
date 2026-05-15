@@ -46,5 +46,5 @@ func migrateDatabase(cmd *cobra.Command, _ []string) error {
 
 	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), timeout)
 	defer cancel()
-	return schedulerdb.Migrate(ctx, db)
+	return schedulerdb.Migrate(ctx, db, config.Migration)
 }
