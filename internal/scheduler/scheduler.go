@@ -270,7 +270,7 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	}(ctx)
 	// Update job state.
 	ctx.Info("Syncing internal state with database")
-	updatedJobs, jsts, err := s.syncState(ctx, false, cycleNumber%10 == 0)
+	updatedJobs, jsts, newJobsSerial, newRunsSerial, err := s.syncState(ctx, false, cycleNumber%10 == 0)
 	if err != nil {
 		return err
 	}
@@ -379,6 +379,13 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	}
 	ctx.Infof("Published %d eventSequences to pulsar in %s", len(events), s.clock.Since(start))
 
+	// Now that the events have been published, advance the in-memory cursors so that the next
+	// cycle will not re-fetch the same updates. If publishing had failed, the cursors would not
+	// have been advanced and the next cycle would re-fetch the same updates and regenerate the
+	// corresponding events.
+	s.jobsSerial = newJobsSerial
+	s.runsSerial = newRunsSerial
+
 	// Optionally assert that the jobDb is in a valid state and then commit.
 	if s.enableAssertions {
 		ctx.Infof("Performing assertions on current state")
@@ -408,8 +415,10 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	return nil
 }
 
-// syncState updates jobs in jobDb to match state in postgres and returns all updated jobs.
-func (s *Scheduler) syncState(ctx *armadacontext.Context, initial, fullJobGc bool) ([]*jobdb.Job, []jobdb.JobStateTransitions, error) {
+// syncState updates jobs in jobDb to match state in postgres and returns all updated jobs along with
+// the new jobsSerial and runsSerial cursor values that should be applied once the resulting events
+// have been published successfully.
+func (s *Scheduler) syncState(ctx *armadacontext.Context, initial, fullJobGc bool) ([]*jobdb.Job, []jobdb.JobStateTransitions, int64, int64, error) {
 	txn := s.jobDb.WriteTxn()
 	defer txn.Abort()
 
@@ -417,48 +426,48 @@ func (s *Scheduler) syncState(ctx *armadacontext.Context, initial, fullJobGc boo
 	var updatedRuns []database.Run
 	var err error
 
+	newJobsSerial := s.jobsSerial
+	newRunsSerial := s.runsSerial
+
 	if initial {
 		// Load initial jobs from the jobRepo.
 		initialJobs, initialRuns, maxJobSerial, maxRunSerial, fetchErr := s.jobRepository.FetchInitialJobs(ctx)
 		if fetchErr != nil {
-			return nil, nil, fmt.Errorf("fetching initial jobs: %w", fetchErr)
+			return nil, nil, 0, 0, fmt.Errorf("fetching initial jobs: %w", fetchErr)
 		}
 
 		if len(initialJobs) > 0 {
 			updatedJobs = initialJobs
 		} else if maxJobSerial != nil {
-			s.jobsSerial = *maxJobSerial // Allow the next sync to start from the highest serial possible.
+			newJobsSerial = *maxJobSerial // Allow the next sync to start from the highest serial possible.
 		}
 
 		if len(initialRuns) > 0 {
 			updatedRuns = initialRuns
 		} else if maxRunSerial != nil {
-			s.runsSerial = *maxRunSerial // Allow the next sync to start from the highest serial possible.
+			newRunsSerial = *maxRunSerial // Allow the next sync to start from the highest serial possible.
 		}
 
 	} else {
 		// Load new and updated jobs from the jobRepo.
 		updatedJobs, updatedRuns, err = s.jobRepository.FetchJobUpdates(ctx, s.jobsSerial, s.runsSerial)
 		if err != nil {
-			return nil, nil, fmt.Errorf("fetching job updates: %w", err)
+			return nil, nil, 0, 0, fmt.Errorf("fetching job updates: %w", err)
 		}
 	}
 
-	latestJobSerial := s.jobsSerial
-	latestRunsSerial := s.runsSerial
-
 	// Update serial to include these updates.
 	if len(updatedJobs) > 0 {
-		latestJobSerial = updatedJobs[len(updatedJobs)-1].Serial
+		newJobsSerial = updatedJobs[len(updatedJobs)-1].Serial
 	}
 	if len(updatedRuns) > 0 {
-		latestRunsSerial = updatedRuns[len(updatedRuns)-1].Serial
+		newRunsSerial = updatedRuns[len(updatedRuns)-1].Serial
 	}
 
 	// Reconcile any differences between the updated jobs and runs.
 	jsts, err := s.jobDb.ReconcileDifferences(txn, updatedJobs, updatedRuns)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, 0, 0, err
 	}
 
 	// Upsert updated jobs (including associated runs).
@@ -467,7 +476,7 @@ func (s *Scheduler) syncState(ctx *armadacontext.Context, initial, fullJobGc boo
 		jobDbJobs = append(jobDbJobs, jst.Job)
 	}
 	if err := txn.Upsert(jobDbJobs); err != nil {
-		return nil, nil, err
+		return nil, nil, 0, 0, err
 	}
 
 	// Delete jobs in a terminal state.
@@ -492,15 +501,17 @@ func (s *Scheduler) syncState(ctx *armadacontext.Context, initial, fullJobGc boo
 	}
 	ctx.Logger().Infof("Deleting %d jobs out of %d considered for deletion (%d short jobs, full job gc=%t)", len(idsOfJobsToDelete), len(deletionCandidates), shortJobCount, fullJobGc)
 	if err := txn.BatchDelete(idsOfJobsToDelete); err != nil {
-		return nil, nil, err
+		return nil, nil, 0, 0, err
 	}
 
 	txn.Commit()
 
-	s.jobsSerial = latestJobSerial
-	s.runsSerial = latestRunsSerial
-
-	return jobDbJobs, jsts, nil
+	// The cursor advance is deliberately not applied to s.jobsSerial / s.runsSerial here.
+	// The caller must only apply the returned values once the events generated for these
+	// updates have been published to Pulsar successfully; otherwise a transient publish
+	// failure would advance the cursor past events that were never delivered, leaving
+	// affected jobs as zombies until the next scheduler restart.
+	return jobDbJobs, jsts, newJobsSerial, newRunsSerial, nil
 }
 
 // TODO - This is highly inefficient and will only work if market driven pools are small
@@ -1233,12 +1244,14 @@ func (s *Scheduler) initialise(ctx *armadacontext.Context) error {
 		case <-ctx.Done():
 			return nil
 		default:
-			if _, _, err := s.syncState(ctx, true, false); err != nil {
+			if _, _, newJobsSerial, newRunsSerial, err := s.syncState(ctx, true, false); err != nil {
 				ctx.Logger().
 					WithStacktrace(err).
 					Error("failed to initialise; trying again in 1 second")
 				time.Sleep(1 * time.Second)
 			} else {
+				s.jobsSerial = newJobsSerial
+				s.runsSerial = newRunsSerial
 				ctx.Info("initialisation succeeded")
 				return nil
 			}
