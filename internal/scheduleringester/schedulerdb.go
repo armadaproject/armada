@@ -106,7 +106,7 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 		if s.migrationPhase.WritesJobMetadata() {
 			specs := make([]any, 0, len(o))
 			for _, v := range o {
-				specs = append(specs, schedulerdb.JobMetadata{
+				specs = append(specs, schedulerdb.JobMetadatum{
 					JobID:         v.JobID,
 					SubmitMessage: v.SubmitMessage,
 					Groups:        v.Groups,
