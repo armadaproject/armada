@@ -33,7 +33,7 @@ type SchedulerDb struct {
 	initialBackOff time.Duration
 	maxBackOff     time.Duration
 	lockTimeout    time.Duration
-	migrationPhase schedulerdb.JobSpecMigrationPhase
+	migrationPhase schedulerdb.JobMetadataMigrationPhase
 }
 
 func NewSchedulerDb(
@@ -42,7 +42,7 @@ func NewSchedulerDb(
 	initialBackOff time.Duration,
 	maxBackOff time.Duration,
 	lockTimeout time.Duration,
-	migrationPhase schedulerdb.JobSpecMigrationPhase,
+	migrationPhase schedulerdb.JobMetadataMigrationPhase,
 ) *SchedulerDb {
 	return &SchedulerDb{
 		db:             db,
@@ -103,16 +103,16 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 	queries := schedulerdb.New(tx)
 	switch o := op.(type) {
 	case InsertJobs:
-		if s.migrationPhase.WritesJobSpecs() {
+		if s.migrationPhase.WritesJobMetadata() {
 			specs := make([]any, 0, len(o))
 			for _, v := range o {
-				specs = append(specs, schedulerdb.JobSpec{
+				specs = append(specs, schedulerdb.JobMetadata{
 					JobID:         v.JobID,
 					SubmitMessage: v.SubmitMessage,
 					Groups:        v.Groups,
 				})
 			}
-			if err := database.Upsert(ctx, tx, "job_specs", specs); err != nil {
+			if err := database.Upsert(ctx, tx, "job_metadata", specs); err != nil {
 				return err
 			}
 		}
@@ -120,7 +120,7 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 		for _, v := range o {
 			job := *v
 			if !s.migrationPhase.WritesJobs() {
-				// Cutover phase: submit_message and groups live only in job_specs.
+				// Cutover phase: submit_message and groups live only in job_metadata.
 				job.SubmitMessage = nil
 				job.Groups = nil
 			}

@@ -3058,7 +3058,7 @@ func TestCycleConsistency(t *testing.T) {
 			newScheduler := func(db *pgxpool.Pool) *Scheduler {
 				scheduler, err := NewScheduler(
 					testfixtures.NewJobDb(resourceListFactory),
-					database.NewPostgresJobRepository(db, 1024, schedulerdb.JobSpecMigrationPhaseDualWrite),
+					database.NewPostgresJobRepository(db, 1024, schedulerdb.JobMetadataMigrationPhaseDualWrite),
 					&testExecutorRepository{
 						updateTimes: map[string]time.Time{"test-executor": testClock.Now()},
 					},
@@ -3100,7 +3100,7 @@ func TestCycleConsistency(t *testing.T) {
 						time.Second,
 						time.Second,
 						10*time.Second,
-						schedulerdb.JobSpecMigrationPhaseDualWrite,
+						schedulerdb.JobMetadataMigrationPhaseDualWrite,
 					)
 
 					// Create two scheduler using the same db connection.

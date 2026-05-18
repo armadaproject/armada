@@ -69,15 +69,15 @@ type PostgresJobRepository struct {
 	// maximum number of rows to fetch from postgres in a single query
 	batchSize int32
 	// migrationPhase controls how FetchJobRunLeases resolves the submit_message
-	// and groups columns during the job_specs lazy migration.
-	migrationPhase JobSpecMigrationPhase
+	// and groups columns during the job_metadata lazy migration.
+	migrationPhase JobMetadataMigrationPhase
 	// Pre-built expressions computed from migrationPhase, used by FetchJobRunLeases
 	leaseGroupsExpr        string
 	leaseSubmitMessageExpr string
 	leaseJoinClause        string
 }
 
-func NewPostgresJobRepository(db *pgxpool.Pool, batchSize int32, migrationPhase JobSpecMigrationPhase) *PostgresJobRepository {
+func NewPostgresJobRepository(db *pgxpool.Pool, batchSize int32, migrationPhase JobMetadataMigrationPhase) *PostgresJobRepository {
 	r := &PostgresJobRepository{
 		db:             db,
 		batchSize:      batchSize,
@@ -85,18 +85,18 @@ func NewPostgresJobRepository(db *pgxpool.Pool, batchSize int32, migrationPhase 
 	}
 
 	switch migrationPhase {
-	case JobSpecMigrationPhaseLegacy:
+	case JobMetadataMigrationPhaseLegacy:
 		r.leaseGroupsExpr = "j.groups"
 		r.leaseSubmitMessageExpr = "j.submit_message"
 		r.leaseJoinClause = ""
-	case JobSpecMigrationPhaseCutover:
-		r.leaseGroupsExpr = "js.groups"
-		r.leaseSubmitMessageExpr = "js.submit_message"
-		r.leaseJoinClause = "JOIN job_specs js ON j.job_id = js.job_id"
+	case JobMetadataMigrationPhaseCutover:
+		r.leaseGroupsExpr = "jm.groups"
+		r.leaseSubmitMessageExpr = "jm.submit_message"
+		r.leaseJoinClause = "JOIN job_metadata jm ON j.job_id = jm.job_id"
 	default:
-		r.leaseGroupsExpr = "COALESCE(js.groups, j.groups)"
-		r.leaseSubmitMessageExpr = "COALESCE(js.submit_message, j.submit_message)"
-		r.leaseJoinClause = "LEFT JOIN job_specs js ON j.job_id = js.job_id"
+		r.leaseGroupsExpr = "COALESCE(jm.groups, j.groups)"
+		r.leaseSubmitMessageExpr = "COALESCE(jm.submit_message, j.submit_message)"
+		r.leaseJoinClause = "LEFT JOIN job_metadata jm ON j.job_id = jm.job_id"
 	}
 
 	return r

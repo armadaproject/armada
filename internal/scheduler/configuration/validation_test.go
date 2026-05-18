@@ -160,7 +160,7 @@ func createValidMinimalConfig() Configuration {
 		Pulsar: commonconfig.PulsarConfig{
 			URL: "pulsar",
 		},
-		JobSpecMigrationPhase: schedulerdb.JobSpecMigrationPhaseLegacy,
+		JobMetadataMigrationPhase: schedulerdb.JobMetadataMigrationPhaseLegacy,
 	}
 }
 

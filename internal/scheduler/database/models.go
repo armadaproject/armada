@@ -58,7 +58,7 @@ type JobRunError struct {
 	Error []byte `db:"error"`
 }
 
-type JobSpec struct {
+type JobMetadata struct {
 	JobID         string `db:"job_id"`
 	SubmitMessage []byte `db:"submit_message"`
 	Groups        []byte `db:"groups"`

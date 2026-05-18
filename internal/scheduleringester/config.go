@@ -26,10 +26,10 @@ type Configuration struct {
 	BatchDuration time.Duration
 	// If non-nil, configures pprof profiling
 	Profiling *profilingconfig.ProfilingConfig
-	// JobSpecMigrationPhase controls whether submit_message and groups are
-	// written to the jobs table, the job_specs table, or both, during the
+	// JobMetadataMigrationPhase controls whether submit_message and groups are
+	// written to the jobs table, the job_metadata table, or both, during the
 	// migration. Required; default ("legacy")
-	JobSpecMigrationPhase schedulerdb.JobSpecMigrationPhase `validate:"required,oneof=legacy dualWrite cutover"`
+	JobMetadataMigrationPhase schedulerdb.JobMetadataMigrationPhase `validate:"required,oneof=legacy dualWrite cutover"`
 }
 
 func (c Configuration) Mutate() (commonconfig.Config, error) {

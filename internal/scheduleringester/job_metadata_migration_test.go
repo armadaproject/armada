@@ -18,14 +18,14 @@ import (
 // migration phase of the SchedulerDb.
 func TestInsertJobs_MigrationPhases(t *testing.T) {
 	cases := []struct {
-		name              string
-		phase             schedulerdb.JobSpecMigrationPhase
-		wantJobsHasBlobs  bool
-		wantSpecsRowWrote bool
+		name                 string
+		phase                schedulerdb.JobMetadataMigrationPhase
+		wantJobsHasBlobs     bool
+		wantMetadataRowWrote bool
 	}{
-		{"legacy", schedulerdb.JobSpecMigrationPhaseLegacy, true, false},
-		{"dualWrite", schedulerdb.JobSpecMigrationPhaseDualWrite, true, true},
-		{"cutover", schedulerdb.JobSpecMigrationPhaseCutover, false, true},
+		{"legacy", schedulerdb.JobMetadataMigrationPhaseLegacy, true, false},
+		{"dualWrite", schedulerdb.JobMetadataMigrationPhaseDualWrite, true, true},
+		{"cutover", schedulerdb.JobMetadataMigrationPhaseCutover, false, true},
 	}
 
 	for _, tc := range cases {
@@ -66,21 +66,21 @@ func TestInsertJobs_MigrationPhases(t *testing.T) {
 					assert.Nil(t, jobGroups)
 				}
 
-				var specCount int
+				var metadataCount int
 				require.NoError(t, db.QueryRow(ctx,
-					"SELECT COUNT(*) FROM job_specs WHERE job_id = $1", jobID,
-				).Scan(&specCount))
+					"SELECT COUNT(*) FROM job_metadata WHERE job_id = $1", jobID,
+				).Scan(&metadataCount))
 
-				if tc.wantSpecsRowWrote {
-					require.Equal(t, 1, specCount)
-					var specSubmitMessage, specGroups []byte
+				if tc.wantMetadataRowWrote {
+					require.Equal(t, 1, metadataCount)
+					var metadataSubmitMessage, metadataGroups []byte
 					require.NoError(t, db.QueryRow(ctx,
-						"SELECT submit_message, groups FROM job_specs WHERE job_id = $1", jobID,
-					).Scan(&specSubmitMessage, &specGroups))
-					assert.Equal(t, submitMessage, specSubmitMessage)
-					assert.Equal(t, groups, specGroups)
+						"SELECT submit_message, groups FROM job_metadata WHERE job_id = $1", jobID,
+					).Scan(&metadataSubmitMessage, &metadataGroups))
+					assert.Equal(t, submitMessage, metadataSubmitMessage)
+					assert.Equal(t, groups, metadataGroups)
 				} else {
-					assert.Equal(t, 0, specCount)
+					assert.Equal(t, 0, metadataCount)
 				}
 
 				return nil
@@ -98,8 +98,8 @@ func TestInsertJobs_CutoverPreservesLegacyColumns(t *testing.T) {
 		ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 10*time.Second)
 		defer cancel()
 
-		legacySdb := &SchedulerDb{db: db, migrationPhase: schedulerdb.JobSpecMigrationPhaseLegacy}
-		cutoverSdb := &SchedulerDb{db: db, migrationPhase: schedulerdb.JobSpecMigrationPhaseCutover}
+		legacySdb := &SchedulerDb{db: db, migrationPhase: schedulerdb.JobMetadataMigrationPhaseLegacy}
+		cutoverSdb := &SchedulerDb{db: db, migrationPhase: schedulerdb.JobMetadataMigrationPhaseCutover}
 
 		jobID := "job-preserve"
 		legacySubmitMessage := []byte("legacy-sm")

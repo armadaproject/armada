@@ -27,8 +27,8 @@ func TestFetchJobRunLeases_MigrationPhases(t *testing.T) {
 	migratedSubmit := []byte("migrated-submit")
 	bothGroupsOnJobs := []byte("both-jobs-groups")
 	bothSubmitOnJobs := []byte("both-jobs-submit")
-	bothGroupsOnSpec := []byte("both-spec-groups")
-	bothSubmitOnSpec := []byte("both-spec-submit")
+	bothGroupsOnMetadata := []byte("both-metadata-groups")
+	bothSubmitOnMetadata := []byte("both-metadata-submit")
 
 	seed := func(ctx *armadacontext.Context, db *pgxpool.Pool) ([]Run, error) {
 		legacyJob := Job{JobID: legacyJobID, JobSet: "js", Queue: "q", Groups: legacyGroups, SubmitMessage: legacySubmit, SchedulingInfo: []byte{}}
@@ -37,15 +37,15 @@ func TestFetchJobRunLeases_MigrationPhases(t *testing.T) {
 		if err := upsertJobs(ctx, db, []Job{legacyJob, migratedJob, bothJob}); err != nil {
 			return nil, err
 		}
-		// Seed job_specs for migrated + both
+		// Seed job_metadata for migrated + both
 		for _, r := range []struct {
 			jobID, groups, submit []byte
 		}{
 			{[]byte(migratedJobID), migratedGroups, migratedSubmit},
-			{[]byte(bothJobID), bothGroupsOnSpec, bothSubmitOnSpec},
+			{[]byte(bothJobID), bothGroupsOnMetadata, bothSubmitOnMetadata},
 		} {
 			if _, err := db.Exec(ctx,
-				"INSERT INTO job_specs (job_id, groups, submit_message) VALUES ($1, $2, $3)",
+				"INSERT INTO job_metadata (job_id, groups, submit_message) VALUES ($1, $2, $3)",
 				string(r.jobID), r.groups, r.submit,
 			); err != nil {
 				return nil, err
@@ -73,21 +73,21 @@ func TestFetchJobRunLeases_MigrationPhases(t *testing.T) {
 
 	cases := []struct {
 		name  string
-		phase JobSpecMigrationPhase
+		phase JobMetadataMigrationPhase
 		want  map[string]expected
 	}{
 		{
-			name:  "dualWrite prefers job_specs when present",
-			phase: JobSpecMigrationPhaseDualWrite,
+			name:  "dualWrite prefers job_metadata when present",
+			phase: JobMetadataMigrationPhaseDualWrite,
 			want: map[string]expected{
-				legacyJobID:   {legacyGroups, legacySubmit},         // falls back to jobs
-				migratedJobID: {migratedGroups, migratedSubmit},     // from job_specs
-				bothJobID:     {bothGroupsOnSpec, bothSubmitOnSpec}, // job_specs wins
+				legacyJobID:   {legacyGroups, legacySubmit},                 // falls back to jobs
+				migratedJobID: {migratedGroups, migratedSubmit},             // from job_metadata
+				bothJobID:     {bothGroupsOnMetadata, bothSubmitOnMetadata}, // job_metadata wins
 			},
 		},
 		{
 			name:  "legacy phase reads only the jobs columns",
-			phase: JobSpecMigrationPhaseLegacy,
+			phase: JobMetadataMigrationPhaseLegacy,
 			want: map[string]expected{
 				legacyJobID:   {legacyGroups, legacySubmit},
 				migratedJobID: {nil, nil},
@@ -95,12 +95,12 @@ func TestFetchJobRunLeases_MigrationPhases(t *testing.T) {
 			},
 		},
 		{
-			name:  "cutover phase reads only the job_specs columns",
-			phase: JobSpecMigrationPhaseCutover,
+			name:  "cutover phase reads only the job_metadata columns",
+			phase: JobMetadataMigrationPhaseCutover,
 			want: map[string]expected{
 				legacyJobID:   {nil, nil},
 				migratedJobID: {migratedGroups, migratedSubmit},
-				bothJobID:     {bothGroupsOnSpec, bothSubmitOnSpec},
+				bothJobID:     {bothGroupsOnMetadata, bothSubmitOnMetadata},
 			},
 		},
 	}
@@ -141,7 +141,7 @@ func TestFetchJobRunLeases_MigrationPhases(t *testing.T) {
 	}
 }
 
-func TestPruner_DeletesJobSpecsRows(t *testing.T) {
+func TestPruner_DeletesJobMetadataRows(t *testing.T) {
 	err := WithTestDb(func(_ *Queries, db *pgxpool.Pool) error {
 		ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 30*time.Second)
 		defer cancel()
@@ -153,7 +153,7 @@ func TestPruner_DeletesJobSpecsRows(t *testing.T) {
 		}
 		require.NoError(t, upsertJobs(ctx, db, []Job{terminatedJob}))
 		_, err := db.Exec(ctx,
-			"INSERT INTO job_specs (job_id, submit_message, groups) VALUES ($1, $2, $3)",
+			"INSERT INTO job_metadata (job_id, submit_message, groups) VALUES ($1, $2, $3)",
 			jobID, []byte("submit"), []byte("groups"),
 		)
 		require.NoError(t, err)
@@ -168,9 +168,9 @@ func TestPruner_DeletesJobSpecsRows(t *testing.T) {
 		defer conn.Release()
 		require.NoError(t, PruneDb(ctx, conn.Conn(), 100, time.Minute, clocktesting.NewFakeClock(time.Now().Add(time.Hour))))
 
-		var specCount int
-		require.NoError(t, db.QueryRow(ctx, "SELECT count(*) FROM job_specs WHERE job_id = $1", jobID).Scan(&specCount))
-		assert.Equal(t, 0, specCount, "pruner should delete the job_specs row")
+		var metadataCount int
+		require.NoError(t, db.QueryRow(ctx, "SELECT count(*) FROM job_metadata WHERE job_id = $1", jobID).Scan(&metadataCount))
+		assert.Equal(t, 0, metadataCount, "pruner should delete the job_metadata row")
 
 		var jobCount int
 		require.NoError(t, db.QueryRow(ctx, "SELECT count(*) FROM jobs WHERE job_id = $1", jobID).Scan(&jobCount))
