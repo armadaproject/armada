@@ -91,6 +91,7 @@ message EventSequence {
             JobPreemptionRequested jobPreemptionRequested = 23;
             JobRunCancelled jobRunCancelled = 24;
             JobValidated jobValidated = 25;
+            JobRunTerminated jobRunTerminated = 26;
         }
     }
     // The system is namespaced by queue, and all events are associated with a job set.
@@ -585,4 +586,14 @@ message JobRunCancelled {
     reserved 1,2;
     string job_id = 3;
     string run_id= 4;
+}
+
+// JobRunTerminated is emitted by the executor when it observes that the pod
+// for a run has reached a terminal phase in Kubernetes. Only the executor
+// produces this event. The timestamp on the enclosing sequence is the moment
+// the executor saw the pod terminal, which is after the kubelet has stopped
+// the containers.
+message JobRunTerminated{
+    string job_id = 1;
+    string run_id = 2;
 }

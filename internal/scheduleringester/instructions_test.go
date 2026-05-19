@@ -123,6 +123,10 @@ func TestConvertEventSequence(t *testing.T) {
 			events:   []*armadaevents.EventSequence_Event{f.JobRunPreempted},
 			expected: []DbOperation{MarkRunsPreempted{f.RunId: f.BaseTime}},
 		},
+		"job run terminated": {
+			events:   []*armadaevents.EventSequence_Event{f.JobRunTerminated},
+			expected: []DbOperation{MarkRunsTerminated{f.RunId: f.BaseTime}},
+		},
 		"lease returned": {
 			events: []*armadaevents.EventSequence_Event{f.LeaseReturned},
 			expected: []DbOperation{

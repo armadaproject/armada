@@ -190,6 +190,28 @@ func CreateJobIngressInfoEvent(pod *v1.Pod, clusterId string, associatedServices
 	return sequence, nil
 }
 
+func CreateJobRunTerminatedEvent(pod *v1.Pod) (*armadaevents.EventSequence, error) {
+	sequence := createEmptySequence(pod)
+	jobId, runId, err := extractIds(pod)
+	if err != nil {
+		return nil, err
+	}
+	finishedAt, err := types.TimestampProto(util.LatestContainerFinishedAt(pod))
+	if err != nil {
+		return nil, err
+	}
+	sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
+		Created: finishedAt,
+		Event: &armadaevents.EventSequence_Event_JobRunTerminated{
+			JobRunTerminated: &armadaevents.JobRunTerminated{
+				JobId: jobId,
+				RunId: runId,
+			},
+		},
+	})
+	return sequence, nil
+}
+
 func CreateSimpleJobPreemptedEvent(pod *v1.Pod) (*armadaevents.EventSequence, error) {
 	sequence := createEmptySequence(pod)
 	preemptedJobId, preemptedRunId, err := extractIds(pod)

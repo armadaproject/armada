@@ -60,6 +60,10 @@ type JobRun struct {
 	cancelled bool
 	// The time at which the job was reported as cancelled, failed or succeeded by the executor.
 	terminatedTime *time.Time
+	// The time at which Armada concluded the run failed.
+	// Set by MarkRunsFailed at JobRunErrors event time. Distinct from terminatedTime,
+	// which is the kubelet-observed pod stop time (NULL when no observation).
+	failedTime *time.Time
 	// True if the job has been returned by the executor.
 	returned bool
 	// True if the job has been returned and the job was given a chance to run.
@@ -236,6 +240,7 @@ func (jobDb *JobDb) CreateRun(
 	runningTime *time.Time,
 	preemptedTime *time.Time,
 	terminatedTime *time.Time,
+	failedTime *time.Time,
 	returned bool,
 	runAttempted bool,
 ) *JobRun {
@@ -262,6 +267,7 @@ func (jobDb *JobDb) CreateRun(
 		runningTime:         runningTime,
 		preemptedTime:       preemptedTime,
 		terminatedTime:      terminatedTime,
+		failedTime:          failedTime,
 		returned:            returned,
 		runAttempted:        runAttempted,
 	}
@@ -361,6 +367,12 @@ func (run *JobRun) WithCancelled(cancelled bool) *JobRun {
 func (run *JobRun) WithTerminatedTime(terminatedTime *time.Time) *JobRun {
 	run = run.DeepCopy()
 	run.terminatedTime = terminatedTime
+	return run
+}
+
+func (run *JobRun) WithFailedTime(failedTime *time.Time) *JobRun {
+	run = run.DeepCopy()
+	run.failedTime = failedTime
 	return run
 }
 
@@ -485,6 +497,10 @@ func (run *JobRun) WithReturned(returned bool) *JobRun {
 
 func (run *JobRun) TerminatedTime() *time.Time {
 	return run.terminatedTime
+}
+
+func (run *JobRun) FailedTime() *time.Time {
+	return run.failedTime
 }
 
 // RunAttempted Returns true if the executor has attempted to run the job.

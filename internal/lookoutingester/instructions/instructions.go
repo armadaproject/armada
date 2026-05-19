@@ -127,7 +127,8 @@ func (c *InstructionConverter) convertSequence(
 			*armadaevents.EventSequence_Event_ResourceUtilisation,
 			*armadaevents.EventSequence_Event_PartitionMarker,
 			*armadaevents.EventSequence_Event_JobValidated,
-			*armadaevents.EventSequence_Event_JobRunPreemptionRequested:
+			*armadaevents.EventSequence_Event_JobRunPreemptionRequested,
+			*armadaevents.EventSequence_Event_JobRunTerminated:
 			log.Debugf("Ignoring event type %T", event.GetEvent())
 		default:
 			log.Warnf("Ignoring unknown event type %T", event.GetEvent())

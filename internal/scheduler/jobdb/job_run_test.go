@@ -70,6 +70,7 @@ var baseJobRun = jobDb.CreateRun(
 	nil,
 	nil,
 	nil,
+	nil,
 	false,
 	false,
 )
@@ -148,6 +149,7 @@ func TestDeepCopy(t *testing.T) {
 		nil,
 		nil,
 		nil,
+		nil,
 		true,
 		true,
 	)
@@ -169,6 +171,7 @@ func TestDeepCopy(t *testing.T) {
 		true,
 		true,
 		true,
+		nil,
 		nil,
 		nil,
 		nil,

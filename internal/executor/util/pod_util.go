@@ -262,6 +262,42 @@ func IsReportedPreempted(pod *v1.Pod) bool {
 	return exists
 }
 
+func HasJobRunTerminatedBeenReported(pod *v1.Pod) bool {
+	_, exists := pod.Annotations[domain.JobRunTerminatedReported]
+	return exists
+}
+
+// LatestContainerFinishedAt returns the latest FinishedAt across all container terminated states
+// (init and main), which is when the kubelet observed the last container exit. Regular init
+// containers always finish before main containers, so the max naturally lands on a main container
+// when one ran; for init-container failures (main never started) it lands on the failing init
+// container. Sidecar init containers (restartPolicy: Always) can outlive main containers, but
+// the max still picks the correct latest exit.
+//
+// Falls back to time.Now() when the pod reached terminal phase without any container reporting a
+// terminated state. The case this covers is the NodeController force-marking pods as Failed
+// after node loss: the kubelet on the lost node never reported container exits. The actual stop
+// time is unknowable here; time.Now() is the executor's observation moment, so the returned
+// value is bounded above by reconciliation lag and never earlier than the real stop time.
+// Callers that need stronger accuracy guarantees (e.g., a retry-gate deciding when to safely
+// requeue) should combine this with a deadline.
+func LatestContainerFinishedAt(pod *v1.Pod) time.Time {
+	var latest time.Time
+	consider := func(statuses []v1.ContainerStatus) {
+		for _, cs := range statuses {
+			if cs.State.Terminated != nil && cs.State.Terminated.FinishedAt.Time.After(latest) {
+				latest = cs.State.Terminated.FinishedAt.Time
+			}
+		}
+	}
+	consider(pod.Status.ContainerStatuses)
+	consider(pod.Status.InitContainerStatuses)
+	if latest.IsZero() {
+		return time.Now()
+	}
+	return latest
+}
+
 func IsPodFinishedAndReported(pod *v1.Pod) bool {
 	if !IsInTerminalState(pod) ||
 		!HasCurrentStateBeenReported(pod) {
