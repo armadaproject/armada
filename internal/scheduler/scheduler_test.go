@@ -1240,6 +1240,66 @@ func TestScheduler_PublishFailureRepublishesOnNextCycle(t *testing.T) {
 	assert.Empty(t, outstanding[jobSucceededEventType], "expected JobSucceeded event for job %s to be republished after the failed cycle", leasedJob.Id())
 }
 
+// TestScheduler_NonLeaderAdvancesCursors verifies that non-leader cycles advance the DB
+// serial cursors. Non-leaders generate no events to publish, so they must still progress
+// through the cursor; otherwise every cycle re-fetches the same growing window of DB rows.
+func TestScheduler_NonLeaderAdvancesCursors(t *testing.T) {
+	jobRepo := &testJobRepository{
+		updatedRuns: []database.Run{
+			{
+				RunID:     leasedJob.LatestRun().Id(),
+				JobID:     leasedJob.Id(),
+				JobSet:    "testJobSet",
+				Executor:  "testExecutor",
+				Succeeded: true,
+				Serial:    1,
+			},
+		},
+	}
+	testClock := clock.NewFakeClock(time.Now())
+	publisher := &testPublisher{}
+	clusterRepo := &testExecutorRepository{
+		updateTimes: map[string]time.Time{"testExecutor": testClock.Now()},
+	}
+	leaderController := leader.NewStandaloneLeaderController()
+	sched, err := NewScheduler(
+		testfixtures.NewJobDb(testfixtures.TestResourceListFactory),
+		jobRepo,
+		clusterRepo,
+		&testSchedulingAlgo{},
+		leaderController,
+		publisher,
+		&testSubmitChecker{checkSuccess: true},
+		&testGangValidator{validateSuccess: true},
+		1*time.Second,
+		5*time.Second,
+		1*time.Hour,
+		nil,
+		maxNumberOfAttempts,
+		nodeIdLabel,
+		schedulerMetrics,
+		pricing.NoopBidPriceProvider{},
+		[]string{},
+		&testQueueCache{},
+	)
+	require.NoError(t, err)
+	sched.clock = testClock
+
+	txn := sched.jobDb.WriteTxn()
+	require.NoError(t, txn.Upsert([]*jobdb.Job{leasedJob}))
+	txn.Commit()
+
+	leaderController.SetToken(leader.InvalidLeaderToken())
+
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
+	defer cancel()
+
+	require.NoError(t, sched.cycle(ctx, false, leaderController.GetToken(), true, 1))
+
+	assert.Equal(t, int64(1), sched.runsSerial, "non-leader cycle must advance runsSerial to consume the run update")
+	assert.Empty(t, publisher.eventSequences, "non-leader must not publish any events")
+}
+
 func createAntiAffinity(t *testing.T, key string, values []string) *v1.Affinity {
 	newAffinity := &v1.Affinity{}
 	for _, value := range values {

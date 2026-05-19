@@ -281,6 +281,11 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	if !s.leaderController.ValidateToken(leaderToken) {
 		ctx.Info("Not the leader so will not attempt to schedule")
 		s.metrics.DisableLeaderMetrics()
+		// Non-leaders generate no events to publish, so the at-least-once-publish concern
+		// that gates the cursor advance on the leader path does not apply here. Advance the
+		// cursors so that the next cycle does not re-fetch the same window of DB rows.
+		s.jobsSerial = newJobsSerial
+		s.runsSerial = newRunsSerial
 		return nil
 	} else {
 		s.metrics.EnableLeaderMetrics()
