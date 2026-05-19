@@ -266,7 +266,7 @@ func (jobDb *JobDb) reconcileRunDifferences(jobRun *JobRun, jobRepoRun *database
 			rst.Cancelled = true
 		}
 		if jobRepoRun.Failed && !jobRun.Failed() {
-			jobRun = jobRun.WithFailed(true).WithRunning(false).WithTerminatedTime(jobRepoRun.TerminatedTimestamp)
+			jobRun = jobRun.WithFailed(true).WithRunning(false).WithTerminatedTime(jobRepoRun.TerminatedTimestamp).WithFailedTime(jobRepoRun.FailedTimestamp)
 			rst.Failed = true
 		}
 		if jobRepoRun.Succeeded && !jobRun.Succeeded() {
@@ -380,6 +380,7 @@ func (jobDb *JobDb) schedulerRunFromDatabaseRun(dbRun *database.Run) *JobRun {
 		dbRun.RunningTimestamp,
 		dbRun.PreemptedTimestamp,
 		dbRun.TerminatedTimestamp,
+		dbRun.FailedTimestamp,
 		dbRun.Returned,
 		dbRun.RunAttempted,
 	)

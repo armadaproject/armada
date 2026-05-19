@@ -887,7 +887,8 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 				assert.True(t, run.Failed)
 				assert.Equal(t, expectedRun.LeaseReturned, run.Returned)
 				assert.Equal(t, expectedRun.RunAttempted, run.RunAttempted)
-				assert.Equal(t, expectedRun.FailureTime, run.TerminatedTimestamp.UTC())
+				require.NotNil(t, run.FailedTimestamp)
+				assert.Equal(t, expectedRun.FailureTime, run.FailedTimestamp.UTC())
 				numChanged++
 			}
 		}
@@ -1184,6 +1185,71 @@ func TestStore(t *testing.T) {
 		return nil
 	})
 	require.NoError(t, err)
+}
+
+func TestMarkRunsTerminated(t *testing.T) {
+	// Verifies the MarkRunsTerminated SQL guard `WHERE terminated_timestamp IS NULL`
+	// against each writer that may have already set the column.
+	jobId := util.ULID().String()
+	preemptedAt := time.Date(2026, 5, 14, 10, 0, 0, 0, time.UTC)
+	succeededAt := time.Date(2026, 5, 14, 10, 0, 5, 0, time.UTC)
+	failedAt := time.Date(2026, 5, 14, 10, 0, 5, 0, time.UTC)
+	jobRunTerminatedAt := time.Date(2026, 5, 14, 10, 0, 30, 0, time.UTC)
+
+	tests := map[string]struct {
+		seed func(runId string) []DbOperation
+		want time.Time
+	}{
+		// MarkRunsPreempted leaves terminated_timestamp NULL; the guard lets the write through.
+		"preempted run gets kubelet time": {
+			seed: func(runId string) []DbOperation { return []DbOperation{MarkRunsPreempted{runId: preemptedAt}} },
+			want: jobRunTerminatedAt,
+		},
+		// MarkRunsSucceeded filled terminated_timestamp; the guard blocks the overwrite.
+		"succeeded run keeps its event-time value": {
+			seed: func(runId string) []DbOperation { return []DbOperation{MarkRunsSucceeded{runId: succeededAt}} },
+			want: succeededAt,
+		},
+		// MarkRunsFailed writes failed_timestamp (not terminated_timestamp); column is NULL
+		// so the guard lets the kubelet observation through.
+		"failed run with no kubelet observation gets filled by JobRunTerminated": {
+			seed: func(runId string) []DbOperation {
+				return []DbOperation{MarkRunsFailed{runId: &JobRunFailed{FailureTime: failedAt}}}
+			},
+			want: jobRunTerminatedAt,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			runId := uuid.NewString()
+			ops := []DbOperation{
+				InsertJobs{jobId: &schedulerdb.Job{
+					JobID: jobId, JobSet: "set1", Groups: []byte{}, SubmitMessage: []byte{}, SchedulingInfo: []byte{},
+				}},
+				InsertRuns{runId: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{
+					JobID: jobId, RunID: runId, Queue: testQueueName,
+				}}},
+			}
+			ops = append(ops, tc.seed(runId)...)
+
+			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 10*time.Second)
+			defer cancel()
+			require.NoError(t, schedulerdb.WithTestDb(func(q *schedulerdb.Queries, db *pgxpool.Pool) error {
+				schedulerDb := NewSchedulerDb(db, metrics.NewMetrics("test_mark_runs_terminated_"+util.NewULID()), time.Second, time.Second, 10*time.Second, schedulerdb.JobMetadataMigrationPhaseLegacy)
+				require.NoError(t, schedulerDb.Store(ctx, &DbOperationsWithMessageIds{Ops: ops}))
+				require.NoError(t, schedulerDb.Store(ctx, &DbOperationsWithMessageIds{Ops: []DbOperation{
+					MarkRunsTerminated{runId: jobRunTerminatedAt},
+				}}))
+
+				runs, err := q.SelectNewRunsForJobs(ctx, schedulerdb.SelectNewRunsForJobsParams{Serial: 0, JobIds: []string{jobId}})
+				require.NoError(t, err)
+				require.Len(t, runs, 1)
+				require.NotNil(t, runs[0].TerminatedTimestamp)
+				assert.Equal(t, tc.want, runs[0].TerminatedTimestamp.UTC())
+				return nil
+			}))
+		})
+	}
 }
 
 func max[E constraints.Ordered](a, b E) E {

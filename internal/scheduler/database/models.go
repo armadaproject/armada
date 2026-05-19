@@ -99,4 +99,5 @@ type Run struct {
 	Pool                   string     `db:"pool"`
 	Terminated             bool       `db:"terminated"`
 	PreemptReason          *string    `db:"preempt_reason"`
+	FailedTimestamp        *time.Time `db:"failed_timestamp"`
 }

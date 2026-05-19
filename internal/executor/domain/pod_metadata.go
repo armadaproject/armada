@@ -14,4 +14,5 @@ const (
 	IngressReported          = "ingress_reported"
 	MarkedForDeletion        = "deletion_requested"
 	JobPreemptedAnnotation   = "reported_preempted"
+	JobRunTerminatedReported = "reported_terminated"
 )

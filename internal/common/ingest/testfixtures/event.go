@@ -467,6 +467,16 @@ var JobRunPreempted = &armadaevents.EventSequence_Event{
 	},
 }
 
+var JobRunTerminated = &armadaevents.EventSequence_Event{
+	Created: testfixtures.BasetimeProto,
+	Event: &armadaevents.EventSequence_Event_JobRunTerminated{
+		JobRunTerminated: &armadaevents.JobRunTerminated{
+			JobId: JobId,
+			RunId: RunId,
+		},
+	},
+}
+
 var JobRunFailed = &armadaevents.EventSequence_Event{
 	Created: testfixtures.BasetimeProto,
 	Event: &armadaevents.EventSequence_Event_JobRunErrors{

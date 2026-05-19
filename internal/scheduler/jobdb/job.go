@@ -794,6 +794,7 @@ func (job *Job) WithNewRun(executor, nodeId, nodeName, pool string, scheduledAtP
 		nil,
 		nil,
 		nil,
+		nil,
 		false,
 		false,
 	))
