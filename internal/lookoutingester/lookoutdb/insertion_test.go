@@ -700,6 +700,24 @@ func TestStoreWithEmptyInstructionSet(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+// TestStoreReturnsErrorOnContextCancellation guards against the silent-message-loss bug where
+// a context cancellation during Store (e.g. ingester shutdown) caused per-row SQL failures
+// to be logged-and-ignored, while Store itself returned nil. The pipeline would then ack the
+// Pulsar messages despite no DB writes having succeeded, leaving jobs as zombies in Lookout.
+// Store must propagate the cancellation error so the pipeline does not ack the affected
+// messages and they are re-processed on the next run.
+func TestStoreReturnsErrorOnContextCancellation(t *testing.T) {
+	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
+		ldb := NewLookoutDb(db, fatalErrors, m, 10, 10)
+		ctx, cancel := armadacontext.WithCancel(armadacontext.Background())
+		cancel()
+		err := ldb.Store(ctx, defaultInstructionSet())
+		assert.Error(t, err)
+		return nil
+	})
+	assert.NoError(t, err)
+}
+
 func TestStore(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		ldb := NewLookoutDb(db, fatalErrors, m, 10, 10)
