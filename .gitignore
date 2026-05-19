@@ -60,6 +60,7 @@ test-reports
 *.suo
 *.user
 *.userosscache
+*.lscache
 *.sln.docstates
 [Dd]ebug/
 [Dd]ebugPublic/
