@@ -8,6 +8,7 @@ import (
 
 	authconfig "github.com/armadaproject/armada/internal/common/auth/configuration"
 	commonconfig "github.com/armadaproject/armada/internal/common/config"
+	"github.com/armadaproject/armada/internal/common/database"
 	grpcconfig "github.com/armadaproject/armada/internal/common/grpc/configuration"
 	profilingconfig "github.com/armadaproject/armada/internal/common/profiling/configuration"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
@@ -25,6 +26,8 @@ const (
 type Configuration struct {
 	// Database configuration
 	Postgres configuration.PostgresConfig
+	// Migration configuration controlling optional schema creation
+	Migration database.MigrationConfig
 	// Armada Api Connection.  Used to fetch queues.
 	ArmadaApi client.ApiConnectionDetails
 	// General Pulsar configuration

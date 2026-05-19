@@ -1,6 +1,7 @@
 package schema
 
 import (
+	"context"
 	_ "embed"
 	"fmt"
 	"regexp"
@@ -9,7 +10,6 @@ import (
 	"strings"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pkg/errors"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -22,6 +22,12 @@ var targetSchemaSQL string
 // the INSERT SELECT and before DROP TABLE. It is nil in production; tests set
 // it via the exported HookAfterCopy pointer in export_test.go.
 var testHookAfterCopy func()
+
+// TxBeginner is the minimal interface needed by ApplyPartitioner. Both
+// *pgx.Conn and *pgxpool.Pool satisfy it.
+type TxBeginner interface {
+	BeginTx(ctx context.Context, txOptions pgx.TxOptions) (pgx.Tx, error)
+}
 
 // ApplyPartitioner runs the experimental hot-cold partitioner against db.
 //
@@ -38,7 +44,7 @@ var testHookAfterCopy func()
 // The partitioner assumes the caller has already applied the lookout
 // migration chain, so the job table either exists as an unpartitioned table
 // (fresh chain) or as the partitioned result of a previous partitioner run.
-func ApplyPartitioner(ctx *armadacontext.Context, db *pgxpool.Pool) error {
+func ApplyPartitioner(ctx *armadacontext.Context, db TxBeginner) error {
 	return pgx.BeginTxFunc(ctx, db, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		state, detail, err := detectJobTableState(ctx, tx)
 		if err != nil {
