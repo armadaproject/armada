@@ -1498,12 +1498,12 @@ pub struct JobPreemptedEvent {
     pub cluster_id: ::prost::alloc::string::String,
     #[prost(string, tag = "6")]
     pub run_id: ::prost::alloc::string::String,
-    #[prost(string, tag = "7")]
-    pub preempting_job_id: ::prost::alloc::string::String,
     #[prost(string, tag = "8")]
     pub preemptive_run_id: ::prost::alloc::string::String,
     #[prost(string, tag = "9")]
     pub reason: ::prost::alloc::string::String,
+    #[prost(string, tag = "10")]
+    pub preempting_job_id: ::prost::alloc::string::String,
 }
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct JobSucceededEvent {
