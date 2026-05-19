@@ -178,7 +178,7 @@ export const ColumnConfigurationDialog = ({
       visibleColumnIds: visibleColumnIds.join(","),
     })
     onClose()
-  }, [onClose, visibleColumnIds, visibleColumnsSet])
+  }, [onClose, visibleColumnIds])
 
   return (
     <Dialog open={open} onClose={handleClose} fullWidth maxWidth="sm">
