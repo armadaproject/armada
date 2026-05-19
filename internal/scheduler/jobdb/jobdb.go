@@ -368,6 +368,28 @@ func (jobDb *JobDb) WriteTxn() *Txn {
 	}
 }
 
+// SnapshotTxn returns a writable transaction over an isolated snapshot of the current db state.
+// Mutations are local to the snapshot and are never committed back to the db.
+// This is useful for processes that need to speculatively modify state without affecting the real db.
+func (jobDb *JobDb) SnapshotTxn() *Txn {
+	jobDb.copyMutex.Lock()
+	defer jobDb.copyMutex.Unlock()
+	return &Txn{
+		readOnly:           false,
+		snapshotOnly:       true,
+		jobsById:           jobDb.jobsById,
+		jobsByRunId:        jobDb.jobsByRunId,
+		jobsByGangKey:      maps.Clone(jobDb.jobsByGangKey),
+		jobsByQueue:        maps.Clone(jobDb.jobsByQueue),
+		jobsByPoolAndQueue: deepClone(jobDb.jobsByPoolAndQueue),
+		leasedJobs:         jobDb.leasedJobs,
+		terminalJobs:       jobDb.terminalJobs,
+		unvalidatedJobs:    jobDb.unvalidatedJobs,
+		active:             true,
+		jobDb:              jobDb,
+	}
+}
+
 func deepClone(original map[string]map[string]immutable.SortedSet[*Job]) map[string]map[string]immutable.SortedSet[*Job] {
 	clone := make(map[string]map[string]immutable.SortedSet[*Job])
 	for key, innerMap := range original {
@@ -387,6 +409,9 @@ func (jobDb *JobDb) CumulativeInternedStringsCount() uint64 {
 // until the transaction is committed.
 type Txn struct {
 	readOnly bool
+	// snapshotOnly transactions allow mutations but Commit is a no-op — changes are never written back to the db.
+	// Created via SnapshotTxn(); useful for speculative state manipulation without affecting the real db.
+	snapshotOnly bool
 	// Map from job ids to jobs.
 	jobsById *immutable.Map[string, *Job]
 	// Map from run ids to jobs.
@@ -413,7 +438,8 @@ type Txn struct {
 }
 
 func (txn *Txn) Commit() {
-	if txn.readOnly || !txn.active {
+	if txn.readOnly || txn.snapshotOnly || !txn.active {
+		txn.active = false
 		return
 	}
 	txn.jobDb.copyMutex.Lock()
@@ -518,7 +544,8 @@ func (txn *Txn) AssertEqual(otherTxn *Txn) error {
 }
 
 func (txn *Txn) Abort() {
-	if txn.readOnly || !txn.active {
+	if txn.readOnly || txn.snapshotOnly || !txn.active {
+		txn.active = false
 		return
 	}
 	txn.active = false
