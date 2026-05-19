@@ -43,7 +43,7 @@
 Armada Python GRPC Client
 
 For the API definitions:
-[https://armadaproject.io/armada_api](https://armadaproject.io/armada_api)
+[https://armadaproject.io/armada-api](https://armadaproject.io/armada-api)
 
 
 ### _class_ armada_client.client.ArmadaClient(channel, event_timeout=datetime.timedelta(seconds=900))
@@ -774,7 +774,7 @@ Client for retrieving logs for a given job.
 * **Parameters**
 
     
-    * **url** (*str*) – The url to use for retreiving logs.
+    * **url** (*str*) – The url to use for retrieving logs.
 
 
     * **job_id** (*str*) – The ID of the job.

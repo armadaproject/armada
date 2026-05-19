@@ -5,9 +5,8 @@ import { ErrorBoundary } from "react-error-boundary"
 
 import { ApiResult, priorityIsValid, RequestStatus } from "../../../common/utils"
 import { AlertErrorFallback } from "../../../components/AlertErrorFallback"
-import { useGetAccessToken } from "../../../oidcAuth"
-import { JobSet } from "../../../services/JobService"
-import { ReprioritizeJobSetsResponse, UpdateJobSetsService } from "../../../services/lookout/UpdateJobSetsService"
+import { JobSet } from "../../../models/lookoutModels"
+import { ReprioritizeJobSetsResponse, useReprioritizeJobSets } from "../../../services/lookout/useReprioritizeJobSets"
 
 import ReprioritizeJobSets from "./reprioritize-job-sets/ReprioritizeJobSets"
 import ReprioritizeJobSetsOutcome from "./reprioritize-job-sets/ReprioritizeJobSetsOutcome"
@@ -20,7 +19,6 @@ type ReprioritizeJobSetsDialogProps = {
   isOpen: boolean
   queue: string
   selectedJobSets: JobSet[]
-  updateJobSetsService: UpdateJobSetsService
   onResult: (result: ApiResult) => void
   onClose: () => void
 }
@@ -40,7 +38,7 @@ export default function ReprioritizeJobSetsDialog(props: ReprioritizeJobSetsDial
 
   const jobSetsToReprioritize = getReprioritizableJobSets(props.selectedJobSets)
 
-  const getAccessToken = useGetAccessToken()
+  const reprioritizeJobSetsMutation = useReprioritizeJobSets()
 
   async function reprioritizeJobSets() {
     if (requestStatus == "Loading" || !priorityIsValid(priority)) {
@@ -48,13 +46,11 @@ export default function ReprioritizeJobSetsDialog(props: ReprioritizeJobSetsDial
     }
 
     setRequestStatus("Loading")
-    const accessToken = await getAccessToken()
-    const reprioritizeJobSetsResponse = await props.updateJobSetsService.reprioritizeJobSets(
-      props.queue,
-      jobSetsToReprioritize,
-      Number(priority),
-      accessToken,
-    )
+    const reprioritizeJobSetsResponse = await reprioritizeJobSetsMutation.mutateAsync({
+      queue: props.queue,
+      jobSets: jobSetsToReprioritize,
+      newPriority: Number(priority),
+    })
     setRequestStatus("Idle")
 
     setResponse(reprioritizeJobSetsResponse)

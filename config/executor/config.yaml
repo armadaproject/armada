@@ -8,6 +8,8 @@ application:
   deleteConcurrencyLimit: 2
   jobLeaseRequestTimeout: "30s"
   maxLeasedJobs: 100
+  errorCategories:
+    enabled: false
 task:
   utilisationReportingInterval: 1s
   missingJobEventReconciliationInterval: 15s

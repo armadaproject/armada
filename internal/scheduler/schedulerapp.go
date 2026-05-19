@@ -80,6 +80,7 @@ func Run(config schedulerconfig.Configuration) error {
 	// ////////////////////////////////////////////////////////////////////////
 	// Resource list factory
 	// ////////////////////////////////////////////////////////////////////////
+	schedulerconfig.ApplyRespectNodePodLimits(&config.Scheduling)
 	resourceListFactory, err := internaltypes.NewResourceListFactory(
 		config.Scheduling.SupportedResourceTypes,
 		config.Scheduling.FloatingResources,
@@ -324,6 +325,7 @@ func Run(config schedulerconfig.Configuration) error {
 
 	submitChecker := NewSubmitChecker(
 		config.Scheduling,
+		config.SubmitCheck,
 		executorRepository,
 		queueCache,
 		floatingResourceTypes,
@@ -363,6 +365,7 @@ func Run(config schedulerconfig.Configuration) error {
 		stringInterner,
 		resourceListFactory,
 	)
+	jobDb.SetRespectNodePodLimits(config.Scheduling.RespectNodePodLimits)
 
 	schedulerMetrics, err := metrics.New(
 		config.Metrics.TrackedErrorRegexes,
@@ -370,6 +373,7 @@ func Run(config schedulerconfig.Configuration) error {
 		config.Metrics.JobCheckpointIntervals,
 		config.Metrics.JobStateMetricsResetInterval,
 		metricPublisher,
+		config.Metrics.ScalableUnitLabel,
 	)
 	if err != nil {
 		return err
@@ -396,6 +400,7 @@ func Run(config schedulerconfig.Configuration) error {
 		schedulerMetrics,
 		bidPriceProvider,
 		marketDrivenPools,
+		queueCache,
 	)
 	if err != nil {
 		return errors.WithMessage(err, "error creating scheduler")
@@ -417,6 +422,7 @@ func Run(config schedulerconfig.Configuration) error {
 		config.Metrics.QueuedJobPrimaryPoolOrder,
 		config.Metrics.RefreshInterval,
 		floatingResourceTypes,
+		config.Metrics.ScalableUnitLabel,
 	)
 	if err := prometheus.Register(metricsCollector); err != nil {
 		return errors.WithStack(err)
@@ -440,7 +446,13 @@ func createLeaderController(ctx *armadacontext.Context, config schedulerconfig.L
 	switch mode := strings.ToLower(config.Mode); mode {
 	case "standalone":
 		ctx.Infof("Scheduler will run in standalone mode")
-		return leader.NewStandaloneLeaderController(), nil
+		leaderController := leader.NewStandaloneLeaderController()
+		// Register leader status metric so recording rules work consistently.
+		// In standalone mode, this always reports 1 (always leader).
+		leaderStatusMetrics := leader.NewLeaderStatusMetricsCollector(metrics.ArmadaSchedulerMetricsPrefix, config.PodName)
+		leaderStatusMetrics.MarkAsLeading()
+		prometheus.MustRegister(leaderStatusMetrics)
+		return leaderController, nil
 	case "kubernetes":
 		ctx.Infof("Scheduler will run kubernetes mode")
 		clusterConfig, err := loadClusterConfig(ctx)
@@ -452,7 +464,7 @@ func createLeaderController(ctx *armadacontext.Context, config schedulerconfig.L
 			return nil, errors.Wrapf(err, "Error creating kubernetes client")
 		}
 		leaderController := leader.NewKubernetesLeaderController(config, clientSet.CoordinationV1())
-		leaderStatusMetrics := leader.NewLeaderStatusMetricsCollector(config.PodName)
+		leaderStatusMetrics := leader.NewLeaderStatusMetricsCollector(metrics.ArmadaSchedulerMetricsPrefix, config.PodName)
 		leaderController.RegisterListener(leaderStatusMetrics)
 		prometheus.MustRegister(leaderStatusMetrics)
 		return leaderController, nil

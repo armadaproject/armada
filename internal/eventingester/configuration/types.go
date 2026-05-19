@@ -17,6 +17,8 @@ type EventIngesterConfiguration struct {
 	RedisReplica redis.UniversalOptions
 	// Metrics configuration
 	MetricsPort uint16
+	// Metrics configuration for Redis memory metrics collection
+	Metrics MetricsConfig
 	// General Pulsar configuration
 	Pulsar commonconfig.PulsarConfig
 	// Pulsar subscription name
@@ -35,6 +37,37 @@ type EventIngesterConfiguration struct {
 	FatalInsertionErrors []string
 	// If non-nil, configures pprof profiling
 	Profiling *profilingconfig.ProfilingConfig
+}
+
+type MetricsConfig struct {
+	Redis                   RedisMemoryMetricsConfig
+	EventSizeMetricsEnabled bool
+}
+
+type RedisMemoryMetricsConfig struct {
+	Enabled            bool
+	CollectionInterval time.Duration
+	// InitialCollectionDelayMax controls startup jitter before first collection.
+	// If zero, a default of 1 minute is used.
+	InitialCollectionDelayMax time.Duration
+	TopN                      int
+	ScanBatchSize             int64
+	PipelineBatchSize         int
+	InterBatchDelay           time.Duration
+	MemoryUsageSamples        int
+	ConnectionInfo            redis.UniversalOptions
+	Leader                    LeaderConfig
+}
+
+type LeaderConfig struct {
+	// Valid modes are "standalone" or "kubernetes"
+	Mode               string
+	LeaseLockName      string
+	LeaseLockNamespace string
+	LeaseDuration      time.Duration
+	RenewDeadline      time.Duration
+	RetryPeriod        time.Duration
+	PodName            string
 }
 
 // TODO: unpack this into just EventExpirtation

@@ -13,6 +13,7 @@ import {
 } from "@mui/material"
 import { ErrorBoundary } from "react-error-boundary"
 
+import { Analytics, ANALYTICS_EVENTS } from "../../../analytics"
 import { formatJobState } from "../../../common/jobsTableFormatters"
 import { waitMs } from "../../../common/utils"
 import { AlertErrorFallback } from "../../../components/AlertErrorFallback"
@@ -241,7 +242,10 @@ export const PreemptDialog = ({ onClose, selectedItemFilters }: PreemptDialogPro
         >
           Refetch jobs
         </Button>
-        <Button
+        <Analytics
+          component={Button}
+          eventName={ANALYTICS_EVENTS.PREEMPT_JOBS_CLICKED}
+          eventData={{ preemptReason: preemptReason ?? "" }}
           onClick={handlePreemptJobs}
           loading={isPreempting}
           disabled={isLoadingJobs || hasAttemptedPreempt || preemptibleJobs.length === 0 || preemptReason === undefined}
@@ -249,7 +253,7 @@ export const PreemptDialog = ({ onClose, selectedItemFilters }: PreemptDialogPro
           endIcon={<Dangerous />}
         >
           Preempt {formatNumber(preemptibleJobsCount)} {preemptibleJobsCount === 1 ? "job" : "jobs"}
-        </Button>
+        </Analytics>
       </DialogActions>
     </Dialog>
   )

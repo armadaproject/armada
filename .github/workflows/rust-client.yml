@@ -1,0 +1,88 @@
+name: Rust Client
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - 'client/rust/**'
+      - 'pkg/api/*.proto'
+      - '.github/workflows/rust-client.yml'
+      - 'magefiles/proto.go'
+      - 'magefiles/main.go'
+
+  pull_request:
+    branches-ignore:
+      - gh-pages
+    paths:
+      - 'client/rust/**'
+      - 'pkg/api/*.proto'
+      - '.github/workflows/rust-client.yml'
+      - 'magefiles/proto.go'
+      - 'magefiles/main.go'
+
+jobs:
+  rust-client:
+    runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        include:
+          - toolchain: '1.85'
+            cache-key: cargo-msrv
+          - toolchain: stable
+            cache-key: cargo
+            extra-components: 'clippy,rustfmt'
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Install Rust (${{ matrix.toolchain }})
+        uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9 # master
+        with:
+          toolchain: ${{ matrix.toolchain }}
+          components: ${{ matrix.extra-components }}
+
+      - name: Cache cargo registry and build
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            client/rust/target
+          key: ${{ runner.os }}-${{ matrix.cache-key }}-${{ hashFiles('client/rust/Cargo.toml', 'client/rust/Cargo.lock', '.github/workflows/rust-client.yml') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.cache-key }}-
+
+      - name: Setup Go
+        uses: ./.github/actions/setup-go-cache
+        with:
+          cache-prefix: rust-client-${{ matrix.cache-key }}
+
+      - name: Install protoc
+        uses: arduino/setup-protoc@c65c819552d16ad3c9b72d9dfd5ba5237b9c906b # v3
+        with:
+          version: '23.3'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Bootstrap proto dependencies
+        run: go run github.com/magefile/mage@v1.15.0 -v BootstrapProto
+
+      - name: Check formatting
+        if: matrix.toolchain == 'stable'
+        run: cargo fmt --manifest-path client/rust/Cargo.toml -- --check
+
+      - name: Build
+        run: cargo build --manifest-path client/rust/Cargo.toml
+
+      - name: Verify generated code is up to date
+        if: matrix.toolchain == 'stable'
+        run: |
+          ARMADA_GENERATE=1 cargo build --manifest-path client/rust/Cargo.toml
+          git diff --exit-code client/rust/src/gen/
+
+      - name: Test
+        run: cargo test --manifest-path client/rust/Cargo.toml
+
+      - name: Clippy
+        if: matrix.toolchain == 'stable'
+        run: cargo clippy --manifest-path client/rust/Cargo.toml --all-targets -- -D warnings
+

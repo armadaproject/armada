@@ -235,6 +235,7 @@ func (i *Ingester) Setup(ctx context.Context) error {
 					SucceededThreshold: succeededThreshold,
 					ErroredThreshold:   erroredThreshold,
 					CancelledThreshold: cancelledThreshold,
+					JobAgeDays:         historicalCfg.JobAgeDays,
 					JobSpecBytes:       []byte(defaultJobSpec),
 					ErrorBytes:         simulatedError,
 					DebugBytes:         simulatedDebugMsg,
@@ -397,18 +398,8 @@ func (i *Ingester) runBatchExecutor(
 }
 
 func (i *Ingester) executeBatch(ctx context.Context, batch []db.IngestionQuery) {
-	// Create a detached context with timeout for this batch operation
-	// This allows the batch to complete even if the parent context is cancelled,
-	// preventing partial writes and ensuring clean shutdown
-	batchTimeout := i.config.BatchTimeout
-	if batchTimeout == 0 {
-		batchTimeout = 30 * time.Second
-	}
-	batchCtx, cancel := context.WithTimeout(context.Background(), batchTimeout)
-	defer cancel()
-
 	start := time.Now()
-	err := i.database.ExecuteIngestionQueryBatch(batchCtx, batch)
+	err := i.database.ExecuteIngestionQueryBatch(ctx, batch)
 	duration := time.Since(start)
 
 	i.metrics.RecordBatchExecution(len(batch), duration, err)
@@ -452,15 +443,8 @@ func (i *Ingester) submitJob(
 
 	i.routerSend(router, timestampedQuery{
 		query: db.InsertJob{
-			Job: newJob,
-		},
-		enqueuedAt: now,
-	}, ctx)
-
-	i.routerSend(router, timestampedQuery{
-		query: db.InsertJobSpec{
-			JobID:   newJob.JobID,
-			JobSpec: defaultJobSpec,
+			Job:     newJob,
+			JobSpec: []byte(defaultJobSpec),
 		},
 		enqueuedAt: now,
 	}, ctx)

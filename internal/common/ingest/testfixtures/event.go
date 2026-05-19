@@ -492,6 +492,33 @@ var JobRunFailed = &armadaevents.EventSequence_Event{
 	},
 }
 
+var JobRunFailedWithCategory = &armadaevents.EventSequence_Event{
+	Created: testfixtures.BasetimeProto,
+	Event: &armadaevents.EventSequence_Event_JobRunErrors{
+		JobRunErrors: &armadaevents.JobRunErrors{
+			JobId: JobId,
+			RunId: RunId,
+			Errors: []*armadaevents.Error{
+				{
+					Terminal: true,
+					Reason: &armadaevents.Error_PodError{
+						PodError: &armadaevents.PodError{
+							Message:      ErrMsg,
+							DebugMessage: DebugMsg,
+							NodeName:     NodeName,
+							ContainerErrors: []*armadaevents.ContainerError{
+								{ExitCode: ExitCode},
+							},
+						},
+					},
+					FailureCategory:    "infrastructure",
+					FailureSubcategory: "oom",
+				},
+			},
+		},
+	},
+}
+
 var JobPreempted = &armadaevents.EventSequence_Event{
 	Created: testfixtures.BasetimeProto,
 	Event: &armadaevents.EventSequence_Event_JobErrors{

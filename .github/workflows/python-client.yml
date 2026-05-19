@@ -50,9 +50,9 @@ jobs:
           - tox-env: 'py312'
             python-version: '3.12'
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       - name: Setup Docker
-        uses: docker/setup-docker-action@v4
+        uses: docker/setup-docker-action@1a6edb0ba9ac496f6850236981f15d8f9a82254d # v5
         with:
           daemon-config: '{"features":{"containerd-snapshotter":false}}'
       - name: Setup Go
@@ -75,9 +75,9 @@ jobs:
       # This variable is picked up by the goreleaser config.
       DOCKER_BUILDX_BUILDER: "builder"
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       - name: Setup Docker
-        uses: docker/setup-docker-action@v4
+        uses: docker/setup-docker-action@1a6edb0ba9ac496f6850236981f15d8f9a82254d # v5
         with:
           daemon-config: '{"features":{"containerd-snapshotter":false}}'
       - run: docker buildx create --name ${DOCKER_BUILDX_BUILDER} --driver docker-container --use
@@ -96,7 +96,7 @@ jobs:
           mkdir -p .kube/external
           go run github.com/magefile/mage@v1.15.0 -v localdev minimal
       - name: Install Protoc
-        uses: arduino/setup-protoc@v3
+        uses: arduino/setup-protoc@c65c819552d16ad3c9b72d9dfd5ba5237b9c906b # v3
         with:
           version: '23.3'
           repo-token: ${{ secrets.GITHUB_TOKEN }}

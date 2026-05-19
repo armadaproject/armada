@@ -18,7 +18,8 @@ import (
 	"github.com/armadaproject/armada/internal/lookout/configuration"
 	"github.com/armadaproject/armada/internal/lookout/gen/restapi"
 	"github.com/armadaproject/armada/internal/lookout/pruner"
-	"github.com/armadaproject/armada/internal/lookout/schema"
+	lookoutschema "github.com/armadaproject/armada/internal/lookout/schema"
+	lookouthcschema "github.com/armadaproject/armada/internal/lookouthc/schema"
 	armada_config "github.com/armadaproject/armada/internal/server/configuration"
 )
 
@@ -61,12 +62,17 @@ func makeContext() (*armadacontext.Context, func()) {
 }
 
 func migrate(ctx *armadacontext.Context, config configuration.LookoutConfig) {
-	db, err := database.OpenPgxPool(config.Postgres)
+	db, err := database.OpenPgxConn(config.Postgres)
 	if err != nil {
 		panic(err)
 	}
+	defer db.Close(ctx)
 
-	migrations, err := schema.LookoutMigrations()
+	if err := database.PrepareSchema(ctx, db, config.Migration); err != nil {
+		panic(err)
+	}
+
+	migrations, err := lookoutschema.LookoutMigrations()
 	if err != nil {
 		panic(err)
 	}
@@ -74,6 +80,12 @@ func migrate(ctx *armadacontext.Context, config configuration.LookoutConfig) {
 	err = database.UpdateDatabase(ctx, db, migrations)
 	if err != nil {
 		panic(err)
+	}
+
+	if config.ExperimentalHotColdSplit {
+		if err := lookouthcschema.ApplyPartitioner(ctx, db); err != nil {
+			panic(err)
+		}
 	}
 }
 
@@ -110,7 +122,9 @@ func prune(ctx *armadacontext.Context, config configuration.LookoutConfig) {
 		config.PrunerConfig.ExpireAfter,
 		config.PrunerConfig.DeduplicationExpireAfter,
 		config.PrunerConfig.BatchSize,
-		clock.RealClock{})
+		clock.RealClock{},
+		config.ExperimentalHotColdSplit,
+	)
 	if err != nil {
 		panic(err)
 	}

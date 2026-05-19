@@ -83,6 +83,7 @@ scheduling:
   maxSchedulingDuration: 5s
   enableAssertions: false
   enablePreferLargeJobOrdering: false
+  respectNodePodLimits: false
   protectedFractionOfFairShare: 1.0
   nodeIdLabel: "kubernetes.io/hostname"
   priorityClasses:
@@ -129,3 +130,6 @@ scheduling:
     basePriority: 500.0
   experimentalIndicativeShare:
     basePriorities: []
+submitCheck:
+  maxDuration: 5s
+  maxDurationPerQueue: 1s

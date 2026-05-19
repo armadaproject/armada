@@ -119,3 +119,159 @@ func TestCancelQueue(t *testing.T) {
 		})
 	}
 }
+
+func TestCancelExecutorAllPriorityClasses(t *testing.T) {
+	tests := map[string]struct {
+		flags       []flag
+		expectError bool
+	}{
+		"with all-priority-classes flag set": {
+			flags:       []flag{{"all-priority-classes", "true"}},
+			expectError: false,
+		},
+		"without all-priority-classes and without priority-classes": {
+			flags:       nil,
+			expectError: true,
+		},
+		"without all-priority-classes but with priority-classes": {
+			flags:       []flag{{"priority-classes", "armada-default"}},
+			expectError: false,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			cmd := cancelExecutorCmd()
+			cmd.PreRunE = func(cmd *cobra.Command, args []string) error {
+				all, err := cmd.Flags().GetBool("all-priority-classes")
+				if err != nil {
+					return err
+				}
+				if !all {
+					if err := cmd.MarkFlagRequired("priority-classes"); err != nil {
+						return err
+					}
+				}
+				return nil
+			}
+			cmd.RunE = func(cmd *cobra.Command, args []string) error {
+				return nil
+			}
+			cmd.SetArgs([]string{"test-executor"})
+			for _, f := range tc.flags {
+				require.NoError(t, cmd.Flags().Set(f.name, f.value))
+			}
+			err := cmd.Execute()
+			if tc.expectError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestCancelNodeAllPriorityClasses(t *testing.T) {
+	tests := map[string]struct {
+		flags       []flag
+		expectError bool
+	}{
+		"with all-priority-classes flag set": {
+			flags:       []flag{{"all-priority-classes", "true"}, {"executor", "test-exec"}},
+			expectError: false,
+		},
+		"without all-priority-classes and without priority-classes": {
+			flags:       []flag{{"executor", "test-exec"}},
+			expectError: true,
+		},
+		"without all-priority-classes but with priority-classes": {
+			flags:       []flag{{"priority-classes", "armada-default"}, {"executor", "test-exec"}},
+			expectError: false,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			cmd := cancelNodeCmd()
+			cmd.PreRunE = func(cmd *cobra.Command, args []string) error {
+				all, err := cmd.Flags().GetBool("all-priority-classes")
+				if err != nil {
+					return err
+				}
+				if !all {
+					if err := cmd.MarkFlagRequired("priority-classes"); err != nil {
+						return err
+					}
+				}
+				if err := cmd.MarkFlagRequired("executor"); err != nil {
+					return err
+				}
+				return nil
+			}
+			cmd.RunE = func(cmd *cobra.Command, args []string) error {
+				return nil
+			}
+			cmd.SetArgs([]string{"test-node"})
+			for _, f := range tc.flags {
+				require.NoError(t, cmd.Flags().Set(f.name, f.value))
+			}
+			err := cmd.Execute()
+			if tc.expectError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestCancelQueueAllPriorityClasses(t *testing.T) {
+	tests := map[string]struct {
+		flags       []flag
+		expectError bool
+	}{
+		"with all-priority-classes flag set": {
+			flags:       []flag{{"all-priority-classes", "true"}, {"job-states", "queued"}},
+			expectError: false,
+		},
+		"without all-priority-classes and without priority-classes": {
+			flags:       []flag{{"job-states", "queued"}},
+			expectError: true,
+		},
+		"without all-priority-classes but with priority-classes": {
+			flags:       []flag{{"priority-classes", "armada-default"}, {"job-states", "queued"}},
+			expectError: false,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			cmd := cancelQueueCmd()
+			cmd.PreRunE = func(cmd *cobra.Command, args []string) error {
+				if err := cmd.MarkFlagRequired("job-states"); err != nil {
+					return err
+				}
+				all, err := cmd.Flags().GetBool("all-priority-classes")
+				if err != nil {
+					return err
+				}
+				if !all {
+					if err := cmd.MarkFlagRequired("priority-classes"); err != nil {
+						return err
+					}
+				}
+				return nil
+			}
+			cmd.RunE = func(cmd *cobra.Command, args []string) error {
+				return nil
+			}
+			cmd.SetArgs([]string{"test-queue"})
+			for _, f := range tc.flags {
+				require.NoError(t, cmd.Flags().Set(f.name, f.value))
+			}
+			err := cmd.Execute()
+			if tc.expectError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}

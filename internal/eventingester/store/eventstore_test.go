@@ -47,11 +47,11 @@ func TestReportEvents(t *testing.T) {
 }
 
 func withRedisEventStore(ctx *armadacontext.Context, action func(es *RedisEventStore)) {
-	client := redis.NewClient(&redis.Options{Addr: "localhost:6379", DB: 10})
+	client := redis.NewClient(&redis.Options{Addr: "localhost:6379", DB: 5})
 	defer client.FlushDB(ctx)
 	defer client.Close()
 
-	client2 := redis.NewClient(&redis.Options{Addr: "localhost:6379", DB: 11})
+	client2 := redis.NewClient(&redis.Options{Addr: "localhost:6379", DB: 6})
 	defer client2.FlushDB(ctx)
 	defer client2.Close()
 

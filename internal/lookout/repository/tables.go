@@ -75,6 +75,16 @@ type LookoutTables struct {
 }
 
 func NewTables() *LookoutTables {
+	return newTablesWithJobTable(jobTable)
+}
+
+// NewTablesWithJobTable creates a LookoutTables that routes job column lookups
+// to the given table name instead of the default "job".
+func NewTablesWithJobTable(table string) *LookoutTables {
+	return newTablesWithJobTable(table)
+}
+
+func newTablesWithJobTable(table string) *LookoutTables {
 	return &LookoutTables{
 		fieldColumnMap: map[string]string{
 			"jobId":              jobIdCol,
@@ -97,20 +107,20 @@ func NewTables() *LookoutTables {
 			"pool":    poolCol,
 		},
 		columnTableMap: map[string]string{
-			jobIdCol:              jobTable,
-			queueCol:              jobTable,
-			jobSetCol:             jobTable,
-			ownerCol:              jobTable,
-			namespaceCol:          jobTable,
-			stateCol:              jobTable,
-			cpuCol:                jobTable,
-			memoryCol:             jobTable,
-			ephemeralStorageCol:   jobTable,
-			gpuCol:                jobTable,
-			priorityCol:           jobTable,
-			submittedCol:          jobTable,
-			lastTransitionTimeCol: jobTable,
-			priorityClassCol:      jobTable,
+			jobIdCol:              table,
+			queueCol:              table,
+			jobSetCol:             table,
+			ownerCol:              table,
+			namespaceCol:          table,
+			stateCol:              table,
+			cpuCol:                table,
+			memoryCol:             table,
+			ephemeralStorageCol:   table,
+			gpuCol:                table,
+			priorityCol:           table,
+			submittedCol:          table,
+			lastTransitionTimeCol: table,
+			priorityClassCol:      table,
 
 			clusterCol: jobRunTable,
 			nodeCol:    jobRunTable,
@@ -144,7 +154,7 @@ func NewTables() *LookoutTables {
 			poolCol:    util.StringListToSet([]string{model.MatchExact, model.MatchAnyOf}),
 		},
 		tableAbbrevs: map[string]string{
-			jobTable:    jobTableAbbrev,
+			table:       jobTableAbbrev,
 			jobRunTable: jobRunTableAbbrev,
 		},
 		groupableColumns: util.StringListToSet([]string{

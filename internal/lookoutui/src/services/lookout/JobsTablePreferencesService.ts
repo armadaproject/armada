@@ -288,6 +288,14 @@ export const ensurePreferencesAreConsistent = (preferences: JobsTablePreferences
     (id) => annotationKeyColumnIdsSet.has(id as AnnotationColumnId) || unpinnedStandardColumnIdsSet.has(id),
   )
 
+  // Ensure new standard columns that aren't in saved preferences default to hidden
+  // (TanStack Table treats missing keys as visible, which causes new columns to appear unexpectedly)
+  for (const colId of unpinnedStandardColumnIds) {
+    if (!(colId in preferences.visibleColumns)) {
+      preferences.visibleColumns[colId] = false
+    }
+  }
+
   // Make sure grouped columns, order columns, and filtered columns are visible
   ensureVisible(preferences.visibleColumns, preferences.groupedColumns ?? [])
   ensureVisible(preferences.visibleColumns, preferences.order === undefined ? [] : [preferences.order.id])
@@ -314,6 +322,9 @@ export class JobsTablePreferencesService {
     const prefs = {
       ...DEFAULT_PREFERENCES,
       ...merged,
+      // Merge saved visibleColumns into defaults so new columns get their default visibility
+      // instead of being implicitly visible (TanStack Table treats missing keys as visible)
+      visibleColumns: { ...DEFAULT_COLUMN_VISIBILITY, ...merged.visibleColumns },
     }
     ensurePreferencesAreConsistent(prefs)
     return prefs

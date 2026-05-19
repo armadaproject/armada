@@ -28,6 +28,12 @@ type Run struct {
 	// exit code
 	ExitCode *int32 `json:"exitCode,omitempty"`
 
+	// failure category
+	FailureCategory string `json:"failureCategory,omitempty"`
+
+	// failure subcategory
+	FailureSubcategory string `json:"failureSubcategory,omitempty"`
+
 	// finished
 	// Format: date-time
 	Finished *strfmt.DateTime `json:"finished,omitempty"`

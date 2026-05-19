@@ -3,6 +3,7 @@ package configuration
 import "time"
 
 type TestConfig struct {
+	FeatureToggles  FeatureToggles  `yaml:"featureToggles,omitempty"`
 	TestDuration    time.Duration   `yaml:"testDuration"`
 	WarmupDuration  time.Duration   `yaml:"warmupDuration"`
 	SkipTearDown    bool            `yaml:"skipTearDown,omitempty"`
@@ -11,6 +12,10 @@ type TestConfig struct {
 	IngestionConfig IngestionConfig `yaml:"ingestionConfig"`
 	QueryConfig     QueryConfig     `yaml:"queryConfig"`
 	ActionsConfig   ActionsConfig   `yaml:"actionsConfig"`
+}
+
+type FeatureToggles struct {
+	HotColdSplit bool `yaml:"hotColdSplit,omitempty"`
 }
 
 type DatabaseConfig struct {
@@ -52,6 +57,7 @@ type HistoricalJobsConfig struct {
 	ProportionErrored   float64 `yaml:"proportionErrored"`
 	ProportionCancelled float64 `yaml:"proportionCancelled"`
 	ProportionPreempted float64 `yaml:"proportionPreempted"`
+	JobAgeDays          []int   `yaml:"jobAgeDays"`
 }
 
 type JobStateTransitionConfig struct {
@@ -89,5 +95,6 @@ type QueryConfig struct {
 	GetJobsPageSize                     int `yaml:"getJobsPageSize"`
 	GetJobGroupsQueriesPerHour          int `yaml:"getJobGroupsQueriesPerHour"`
 	GetJobGroupsPageSize                int `yaml:"getJobGroupsPageSize"`
+	MaxConcurrentQueries                int `yaml:"maxConcurrentQueries,omitempty"`
 	MaxErrorsToCollect                  int `yaml:"maxErrorsToCollect,omitempty"`
 }

@@ -19,6 +19,7 @@ export const DEFAULT_LOOKOUT_UI_CONFIG: LookoutUiConfig = {
     sentry: undefined,
   },
   customThemeConfigs: undefined,
+  analytics: undefined,
 }
 
 export const getConfig = (): Config => {

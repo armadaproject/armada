@@ -39,9 +39,13 @@ type SqlGroupJobsRepository struct {
 const stateAggregatePrefix = "state_"
 
 func NewSqlGroupJobsRepository(db *pgxpool.Pool) *SqlGroupJobsRepository {
+	return NewSqlGroupJobsRepositoryWithTables(db, NewTables())
+}
+
+func NewSqlGroupJobsRepositoryWithTables(db *pgxpool.Pool, tables *LookoutTables) *SqlGroupJobsRepository {
 	return &SqlGroupJobsRepository{
 		db:            db,
-		lookoutTables: NewTables(),
+		lookoutTables: tables,
 	}
 }
 

@@ -2,9 +2,10 @@ import { useMemo } from "react"
 
 import { QueryFunction, QueryKey, useQuery } from "@tanstack/react-query"
 
+import { compareValues, makeRandomJobs, mergeFilters } from "../../common/fakeJobsUtils"
 import { getErrorMessage } from "../../common/utils"
 import { getConfig } from "../../config"
-import { Job, JobFilter, JobOrder } from "../../models/lookoutModels"
+import { Job, JobFilter, JobKey, JobOrder } from "../../models/lookoutModels"
 import { useAuthenticatedFetch } from "../../oidcAuth"
 
 export interface GetJobsParams {
@@ -19,6 +20,15 @@ export interface GetJobsResponse {
   jobs: Job[]
 }
 
+let fakeJobsCache: Job[] | undefined
+
+function getFakeJobs(): Job[] {
+  if (fakeJobsCache === undefined) {
+    fakeJobsCache = makeRandomJobs(10_000, 42)
+  }
+  return fakeJobsCache
+}
+
 const getQueryFn =
   (
     params: GetJobsParams,
@@ -29,7 +39,15 @@ const getQueryFn =
   async ({ signal }) => {
     try {
       if (fakeDataEnabled) {
-        return { jobs: [] }
+        const filtered = getFakeJobs().filter(mergeFilters(params.filters))
+        const sorted = [...filtered].sort((a, b) =>
+          compareValues(
+            (a as Record<string, unknown>)[params.order.field as JobKey],
+            (b as Record<string, unknown>)[params.order.field as JobKey],
+            params.order.direction,
+          ),
+        )
+        return { jobs: sorted.slice(params.skip, params.skip + params.take) }
       }
 
       let path = "/api/v1/jobs"

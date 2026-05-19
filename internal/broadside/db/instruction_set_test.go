@@ -6,20 +6,17 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/armadaproject/armada/internal/common/database/lookout"
 )
 
-func TestQueriesToInstructionSet_InsertJobAndSpecMerged(t *testing.T) {
+func TestQueriesToInstructionSet_InsertJobWithSpec(t *testing.T) {
 	now := time.Now()
-	job := &NewJob{
-		JobID:     "job001",
-		Queue:     "q1",
-		JobSet:    "js1",
-		Owner:     "owner",
-		Submitted: now,
-	}
 	queries := []IngestionQuery{
-		InsertJob{Job: job},
-		InsertJobSpec{JobID: "job001", JobSpec: "specbytes"},
+		InsertJob{
+			Job:     &NewJob{JobID: "job001", Queue: "q1", JobSet: "js1", Owner: "owner", Submitted: now},
+			JobSpec: []byte("specbytes"),
+		},
 	}
 
 	set, err := queriesToInstructionSet(queries)
@@ -61,7 +58,7 @@ func TestQueriesToInstructionSet_JobUpdateProducesUpdate(t *testing.T) {
 	require.Len(t, set.JobsToUpdate, 1)
 	assert.Equal(t, "job001", set.JobsToUpdate[0].JobId)
 	require.NotNil(t, set.JobsToUpdate[0].State)
-	assert.Equal(t, int32(1), *set.JobsToUpdate[0].State)
+	assert.Equal(t, int32(lookout.JobLeasedOrdinal), *set.JobsToUpdate[0].State)
 }
 
 func TestQueriesToInstructionSet_JobRunUpdateProducesUpdate(t *testing.T) {

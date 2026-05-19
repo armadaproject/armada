@@ -8,6 +8,7 @@ import (
 	networking "k8s.io/api/networking/v1"
 
 	"github.com/armadaproject/armada/internal/common"
+	"github.com/armadaproject/armada/internal/common/constants"
 	log "github.com/armadaproject/armada/internal/common/logging"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/util"
@@ -29,6 +30,12 @@ func SubmitJobFromApiRequest(
 	priority := PriorityAsInt32(jobReq.GetPriority())
 	ingressesAndServices := convertIngressesAndServices(config, jobReq, jobId, jobSetId, queue, owner)
 
+	// Resolve externalJobUri: prefer the proto field, fall back to annotation.
+	externalJobUri := jobReq.GetExternalJobUri()
+	if externalJobUri == "" {
+		externalJobUri = jobReq.GetAnnotations()[constants.ExternalJobUriAnnotation]
+	}
+
 	msg := &armadaevents.SubmitJob{
 		JobId:           jobId,
 		DeduplicationId: jobReq.GetClientId(),
@@ -45,8 +52,9 @@ func SubmitJobFromApiRequest(
 				},
 			},
 		},
-		Objects:   ingressesAndServices,
-		Scheduler: jobReq.Scheduler,
+		Objects:        ingressesAndServices,
+		Scheduler:      jobReq.Scheduler,
+		ExternalJobUri: externalJobUri,
 	}
 
 	postProcess(msg, config)

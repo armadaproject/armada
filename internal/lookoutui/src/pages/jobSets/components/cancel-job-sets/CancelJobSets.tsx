@@ -1,6 +1,7 @@
 import { Button, Checkbox, List, ListItem, ListItemText, Paper } from "@mui/material"
 
-import { JobSet } from "../../../../services/JobService"
+import { Analytics, ANALYTICS_EVENTS } from "../../../../analytics"
+import { JobSet } from "../../../../models/lookoutModels"
 
 import "./CancelJobSets.css"
 import "../Dialog.css"
@@ -53,9 +54,19 @@ export default function CancelJobSets(props: CancelJobSetsProps) {
         />
       </div>
       <div className="lookout-dialog-centred lookout-dialog-fixed">
-        <Button loading={props.isLoading} onClick={props.onCancelJobSets}>
+        <Analytics
+          component={Button}
+          eventName={ANALYTICS_EVENTS.CANCEL_JOB_SETS_CLICKED}
+          eventData={{
+            queued: String(props.queuedSelected),
+            pendingAndRunning: String(props.runningSelected),
+            isPlatformError: String(props.isPlatformCancel),
+          }}
+          loading={props.isLoading}
+          onClick={props.onCancelJobSets}
+        >
           Cancel Job Sets
-        </Button>
+        </Analytics>
       </div>
     </div>
   )

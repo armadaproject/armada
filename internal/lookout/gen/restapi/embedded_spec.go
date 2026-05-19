@@ -764,6 +764,14 @@ func init() {
           "format": "int32",
           "x-nullable": true
         },
+        "failureCategory": {
+          "type": "string",
+          "x-omitempty": true
+        },
+        "failureSubcategory": {
+          "type": "string",
+          "x-omitempty": true
+        },
         "finished": {
           "type": "string",
           "format": "date-time",
@@ -1623,6 +1631,14 @@ func init() {
           "type": "integer",
           "format": "int32",
           "x-nullable": true
+        },
+        "failureCategory": {
+          "type": "string",
+          "x-omitempty": true
+        },
+        "failureSubcategory": {
+          "type": "string",
+          "x-omitempty": true
         },
         "finished": {
           "type": "string",

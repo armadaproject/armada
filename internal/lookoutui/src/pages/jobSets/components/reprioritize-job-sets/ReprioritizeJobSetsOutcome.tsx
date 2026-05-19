@@ -12,7 +12,7 @@ import {
   TableRow,
 } from "@mui/material"
 
-import { ReprioritizeJobSetsResponse } from "../../../../services/lookout/UpdateJobSetsService"
+import { ReprioritizeJobSetsResponse } from "../../../../services/lookout/useReprioritizeJobSets"
 
 import "./ReprioritizeJobSets.css"
 import "../Dialog.css"

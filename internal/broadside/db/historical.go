@@ -8,7 +8,6 @@ import (
 )
 
 const (
-	historicalJobAge           = 24 * time.Hour
 	historicalLeasedOffset     = time.Second
 	historicalPendingOffset    = 2 * time.Second
 	historicalRunningOffset    = 3 * time.Second
@@ -33,8 +32,16 @@ func historicalState(jobNum int, p HistoricalJobsParams) jobspec.JobState {
 	}
 }
 
+// historicalBaseTime returns the submission base time for a given job number,
+// distributing jobs evenly across the ages in params.JobAgeDays. Job i is
+// assigned to bucket i%len(JobAgeDays), giving an even spread.
+func historicalBaseTime(jobNum int, params HistoricalJobsParams) time.Time {
+	days := params.JobAgeDays[jobNum%len(params.JobAgeDays)]
+	return time.Now().AddDate(0, 0, -days)
+}
+
 func buildHistoricalJobQueries(jobNum int, params HistoricalJobsParams) []IngestionQuery {
-	baseTime := time.Now().Add(-historicalJobAge)
+	baseTime := historicalBaseTime(jobNum, params)
 	jobID := historicalJobID(params.QueueIdx, params.JobSetIdx, jobNum)
 	runID := jobspec.EncodeRunID(jobID, 0)
 	cluster, node := jobspec.GetClusterNodeForJobNumber(jobNum)
@@ -61,8 +68,7 @@ func buildHistoricalJobQueries(jobNum int, params HistoricalJobsParams) []Ingest
 	}
 
 	queries := []IngestionQuery{
-		InsertJob{Job: newJob},
-		InsertJobSpec{JobID: jobID, JobSpec: string(params.JobSpecBytes)},
+		InsertJob{Job: newJob, JobSpec: params.JobSpecBytes},
 		SetJobLeased{JobID: jobID, Time: leasedTime, RunID: runID},
 		InsertJobRun{JobRunID: runID, JobID: jobID, Cluster: cluster, Node: node, Pool: jobspec.GetPool(jobNum), Time: leasedTime},
 		SetJobPending{JobID: jobID, Time: pendingTime, RunID: runID},

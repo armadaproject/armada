@@ -9,6 +9,7 @@ import {
   useMediaQuery,
 } from "@mui/material"
 
+import { Analytics, ANALYTICS_EVENTS } from "../../../../analytics"
 import { SPACING } from "../../../../common/spacing"
 
 const ColourModeSelectorContainer = styled("div")(({ theme }) => ({
@@ -27,7 +28,10 @@ export const ColourModeSelector = () => {
       <div>
         <FormControlLabel
           control={
-            <Switch
+            <Analytics
+              component={Switch}
+              eventName={ANALYTICS_EVENTS.SYSTEM_COLOR_MODE_TOGGLED}
+              eventData={{ enabled: String(!(mode === "system")) }}
               checked={mode === "system"}
               onChange={(_, checked) => {
                 if (checked) {
@@ -50,12 +54,22 @@ export const ColourModeSelector = () => {
           aria-label="colour mode"
           onChange={(_, colorMode) => setMode(colorMode)}
         >
-          <ToggleButton value="light">
+          <Analytics
+            component={ToggleButton}
+            eventName={ANALYTICS_EVENTS.LIGHT_MODE_SELECTED}
+            eventData={{ action: mode === "light" ? "deselect" : "select" }}
+            value="light"
+          >
             Light mode{mode === "system" && systemMode === "light" && <> (synced with system)</>}
-          </ToggleButton>
-          <ToggleButton value="dark">
+          </Analytics>
+          <Analytics
+            component={ToggleButton}
+            eventName={ANALYTICS_EVENTS.DARK_MODE_SELECTED}
+            eventData={{ action: mode === "dark" ? "deselect" : "select" }}
+            value="dark"
+          >
             Dark mode{mode === "system" && systemMode === "dark" && <> (synced with system)</>}
-          </ToggleButton>
+          </Analytics>
         </ToggleButtonGroup>
       </div>
     </ColourModeSelectorContainer>

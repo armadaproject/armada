@@ -52,9 +52,13 @@ type jobRow struct {
 }
 
 func NewSqlGetJobsRepository(db *pgxpool.Pool) *SqlGetJobsRepository {
+	return NewSqlGetJobsRepositoryWithTables(db, NewTables())
+}
+
+func NewSqlGetJobsRepositoryWithTables(db *pgxpool.Pool, tables *LookoutTables) *SqlGetJobsRepository {
 	return &SqlGetJobsRepository{
 		db:            db,
-		lookoutTables: NewTables(),
+		lookoutTables: tables,
 		clock:         clock.RealClock{},
 	}
 }
