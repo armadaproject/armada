@@ -718,6 +718,28 @@ func TestStoreReturnsErrorOnContextCancellation(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+// TestScalarMethodsReturnErrorOnContextCancellation verifies that each scalar method propagates
+// context cancellation rather than swallowing it. Targets the specific edge case where the
+// cancellation lands on the last (or only) iteration of the per-row loop: without the post-call
+// ctx.Err() recheck the loop simply exits and the function returns nil, silently losing the
+// cancellation and allowing the pipeline to ack messages whose DB writes never succeeded.
+func TestScalarMethodsReturnErrorOnContextCancellation(t *testing.T) {
+	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
+		ldb := NewLookoutDb(db, fatalErrors, m, 10, 10)
+		ctx, cancel := armadacontext.WithCancel(armadacontext.Background())
+		cancel()
+
+		assert.Error(t, ldb.CreateJobsScalar(ctx, defaultInstructionSet().JobsToCreate))
+		assert.Error(t, ldb.CreateJobSpecsScalar(ctx, defaultInstructionSet().JobsToCreate))
+		assert.Error(t, ldb.UpdateJobsScalar(ctx, defaultInstructionSet().JobsToUpdate))
+		assert.Error(t, ldb.CreateJobRunsScalar(ctx, defaultInstructionSet().JobRunsToCreate))
+		assert.Error(t, ldb.UpdateJobRunsScalar(ctx, defaultInstructionSet().JobRunsToUpdate))
+		assert.Error(t, ldb.CreateJobErrorsScalar(ctx, defaultInstructionSet().JobErrorsToCreate))
+		return nil
+	})
+	assert.NoError(t, err)
+}
+
 func TestStore(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		ldb := NewLookoutDb(db, fatalErrors, m, 10, 10)

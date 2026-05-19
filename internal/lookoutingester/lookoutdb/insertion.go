@@ -426,6 +426,9 @@ func (l *LookoutDb) CreateJobsScalar(ctx *armadacontext.Context, instructions []
 		})
 		if err != nil {
 			log.WithError(err).Warnf("Create job for job %s, jobset %s failed", i.JobId, i.JobSet)
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
 		}
 	}
 	return nil
@@ -550,6 +553,9 @@ func (l *LookoutDb) UpdateJobsScalar(ctx *armadacontext.Context, instructions []
 		})
 		if err != nil {
 			log.WithError(err).Warnf("Updating job %s failed", i.JobId)
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
 		}
 	}
 	return nil
@@ -631,6 +637,9 @@ func (l *LookoutDb) CreateJobSpecsScalar(ctx *armadacontext.Context, instruction
 		})
 		if err != nil {
 			log.WithError(err).Warnf("Create job spec for job %s, jobset %s failed", i.JobId, i.JobSet)
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
 		}
 	}
 	return nil
@@ -751,6 +760,9 @@ func (l *LookoutDb) CreateJobRunsScalar(ctx *armadacontext.Context, instructions
 		})
 		if err != nil {
 			log.WithError(err).Warnf("Create job run for job %s, run %s failed", i.JobId, i.RunId)
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
 		}
 	}
 	return nil
@@ -888,6 +900,9 @@ func (l *LookoutDb) UpdateJobRunsScalar(ctx *armadacontext.Context, instructions
 		})
 		if err != nil {
 			log.WithError(err).Warnf("Updating job run %s failed", i.RunId)
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
 		}
 	}
 	return nil
@@ -962,6 +977,9 @@ func (l *LookoutDb) CreateJobErrorsScalar(ctx *armadacontext.Context, instructio
 		})
 		if err != nil {
 			log.WithError(err).Warnf("Create job error for job %s, failed", i.JobId)
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
 		}
 	}
 	return nil
