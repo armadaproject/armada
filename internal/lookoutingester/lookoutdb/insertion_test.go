@@ -861,6 +861,256 @@ func TestConflateJobRunUpdates(t *testing.T) {
 	assert.Equal(t, expected, updates)
 }
 
+func TestConflateJobRunUpdates_PreemptionPrecedence(t *testing.T) {
+	preemptedError := []byte("preempted due to higher priority job")
+	preemptedDebug := []byte("preemption debug info")
+	podError := []byte("pod terminated with error")
+	podDebug := []byte("pod error debug info")
+
+	t.Run("preempted then failed - preempted wins", func(t *testing.T) {
+		updates := conflateJobRunUpdates([]*model.UpdateJobRunInstruction{
+			{
+				RunId:       RunId,
+				JobRunState: pointer.Int32(lookout.JobRunPreemptedOrdinal),
+				Error:       preemptedError,
+				Debug:       preemptedDebug,
+			},
+			{
+				RunId:       RunId,
+				JobRunState: pointer.Int32(lookout.JobRunFailedOrdinal),
+				Error:       podError,
+				Debug:       podDebug,
+			},
+		})
+
+		assert.Equal(t, 1, len(updates))
+		assert.Equal(t, int32(lookout.JobRunPreemptedOrdinal), *updates[0].JobRunState)
+		assert.Equal(t, preemptedError, updates[0].Error)
+		assert.Equal(t, preemptedDebug, updates[0].Debug)
+	})
+
+	t.Run("failed then preempted - preempted wins", func(t *testing.T) {
+		updates := conflateJobRunUpdates([]*model.UpdateJobRunInstruction{
+			{
+				RunId:       RunId,
+				JobRunState: pointer.Int32(lookout.JobRunFailedOrdinal),
+				Error:       podError,
+				Debug:       podDebug,
+			},
+			{
+				RunId:       RunId,
+				JobRunState: pointer.Int32(lookout.JobRunPreemptedOrdinal),
+				Error:       preemptedError,
+				Debug:       preemptedDebug,
+			},
+		})
+
+		assert.Equal(t, 1, len(updates))
+		assert.Equal(t, int32(lookout.JobRunPreemptedOrdinal), *updates[0].JobRunState)
+		assert.Equal(t, preemptedError, updates[0].Error)
+		assert.Equal(t, preemptedDebug, updates[0].Debug)
+	})
+
+	t.Run("preempted with non-conflicting field merge", func(t *testing.T) {
+		nodeName := "test-node"
+		ingresses := map[int32]string{0: "10.0.0.1", 1: "10.0.0.2"}
+		updates := conflateJobRunUpdates([]*model.UpdateJobRunInstruction{
+			{
+				RunId:       RunId,
+				JobRunState: pointer.Int32(lookout.JobRunPreemptedOrdinal),
+				Error:       preemptedError,
+				Debug:       preemptedDebug,
+			},
+			{
+				RunId:              RunId,
+				JobRunState:        pointer.Int32(lookout.JobRunFailedOrdinal),
+				Error:              podError,
+				Node:               pointer.String(nodeName),
+				IngressAddresses:   ingresses,
+				FailureCategory:    pointer.String("Infrastructure"),
+				FailureSubcategory: pointer.String("NodeFailure"),
+			},
+		})
+
+		assert.Equal(t, 1, len(updates))
+		assert.Equal(t, int32(lookout.JobRunPreemptedOrdinal), *updates[0].JobRunState)
+		assert.Equal(t, preemptedError, updates[0].Error)
+		assert.Equal(t, preemptedDebug, updates[0].Debug)
+		assert.Equal(t, nodeName, *updates[0].Node)
+		assert.Equal(t, ingresses, updates[0].IngressAddresses)
+		assert.Equal(t, "Infrastructure", *updates[0].FailureCategory)
+		assert.Equal(t, "NodeFailure", *updates[0].FailureSubcategory)
+	})
+
+	t.Run("multiple updates after preemption - preemption sticks", func(t *testing.T) {
+		updates := conflateJobRunUpdates([]*model.UpdateJobRunInstruction{
+			{
+				RunId:       RunId,
+				JobRunState: pointer.Int32(lookout.JobRunRunningOrdinal),
+			},
+			{
+				RunId:       RunId,
+				JobRunState: pointer.Int32(lookout.JobRunPreemptedOrdinal),
+				Error:       preemptedError,
+				Debug:       preemptedDebug,
+			},
+			{
+				RunId:       RunId,
+				JobRunState: pointer.Int32(lookout.JobRunFailedOrdinal),
+				Error:       []byte("pod error 1"),
+				Debug:       []byte("pod debug 1"),
+			},
+			{
+				RunId:       RunId,
+				JobRunState: pointer.Int32(lookout.JobRunFailedOrdinal),
+				Error:       []byte("pod error 2"),
+				Debug:       []byte("pod debug 2"),
+			},
+		})
+
+		assert.Equal(t, 1, len(updates))
+		assert.Equal(t, int32(lookout.JobRunPreemptedOrdinal), *updates[0].JobRunState)
+		assert.Equal(t, preemptedError, updates[0].Error)
+		assert.Equal(t, preemptedDebug, updates[0].Debug)
+	})
+
+	t.Run("preemption at end of sequence wins", func(t *testing.T) {
+		updates := conflateJobRunUpdates([]*model.UpdateJobRunInstruction{
+			{
+				RunId:       RunId,
+				JobRunState: pointer.Int32(lookout.JobRunRunningOrdinal),
+			},
+			{
+				RunId:       RunId,
+				JobRunState: pointer.Int32(lookout.JobRunFailedOrdinal),
+				Error:       []byte("pod error 1"),
+				Debug:       []byte("pod debug 1"),
+			},
+			{
+				RunId:       RunId,
+				JobRunState: pointer.Int32(lookout.JobRunFailedOrdinal),
+				Error:       []byte("pod error 2"),
+				Debug:       []byte("pod debug 2"),
+			},
+			{
+				RunId:       RunId,
+				JobRunState: pointer.Int32(lookout.JobRunPreemptedOrdinal),
+				Error:       preemptedError,
+				Debug:       preemptedDebug,
+			},
+		})
+
+		assert.Equal(t, 1, len(updates))
+		assert.Equal(t, int32(lookout.JobRunPreemptedOrdinal), *updates[0].JobRunState)
+		assert.Equal(t, preemptedError, updates[0].Error)
+		assert.Equal(t, preemptedDebug, updates[0].Debug)
+	})
+
+	t.Run("preemption with nil error and debug fields", func(t *testing.T) {
+		podError2 := []byte("subsequent pod error")
+		podDebug2 := []byte("subsequent pod debug")
+		updates := conflateJobRunUpdates([]*model.UpdateJobRunInstruction{
+			{
+				RunId:       RunId,
+				JobRunState: pointer.Int32(lookout.JobRunPreemptedOrdinal),
+				Error:       nil,
+				Debug:       nil,
+			},
+			{
+				RunId:       RunId,
+				JobRunState: pointer.Int32(lookout.JobRunFailedOrdinal),
+				Error:       podError2,
+				Debug:       podDebug2,
+			},
+		})
+
+		assert.Equal(t, 1, len(updates))
+		assert.Equal(t, int32(lookout.JobRunPreemptedOrdinal), *updates[0].JobRunState)
+		assert.Nil(t, updates[0].Error)
+		assert.Nil(t, updates[0].Debug)
+	})
+
+	t.Run("preemption against multiple different states", func(t *testing.T) {
+		updates := conflateJobRunUpdates([]*model.UpdateJobRunInstruction{
+			{
+				RunId:       RunId,
+				JobRunState: pointer.Int32(lookout.JobRunPreemptedOrdinal),
+				Error:       preemptedError,
+				Debug:       preemptedDebug,
+			},
+			{
+				RunId:       RunId,
+				JobRunState: pointer.Int32(lookout.JobRunFailedOrdinal),
+				Error:       []byte("failed error"),
+			},
+			{
+				RunId:       RunId,
+				JobRunState: pointer.Int32(lookout.JobRunSucceededOrdinal),
+			},
+			{
+				RunId:       RunId,
+				JobRunState: pointer.Int32(lookout.JobRunCancelledOrdinal),
+				Error:       []byte("cancelled error"),
+			},
+		})
+
+		assert.Equal(t, 1, len(updates))
+		assert.Equal(t, int32(lookout.JobRunPreemptedOrdinal), *updates[0].JobRunState)
+		assert.Equal(t, preemptedError, updates[0].Error)
+		assert.Equal(t, preemptedDebug, updates[0].Debug)
+	})
+
+	t.Run("multiple runs with mixed preemption states", func(t *testing.T) {
+		preemptedRun := "preempted-run-id"
+		failedRun := "failed-run-id"
+		updates := conflateJobRunUpdates([]*model.UpdateJobRunInstruction{
+			{
+				RunId:       preemptedRun,
+				JobRunState: pointer.Int32(lookout.JobRunPreemptedOrdinal),
+				Error:       preemptedError,
+			},
+			{
+				RunId:       failedRun,
+				JobRunState: pointer.Int32(lookout.JobRunFailedOrdinal),
+				Error:       podError,
+			},
+			{
+				RunId:       preemptedRun,
+				JobRunState: pointer.Int32(lookout.JobRunFailedOrdinal),
+				Error:       []byte("should not overwrite preemption"),
+			},
+			{
+				RunId:       failedRun,
+				JobRunState: pointer.Int32(lookout.JobRunFailedOrdinal),
+				Error:       []byte("second failed error"),
+			},
+		})
+
+		sort.Slice(updates, func(i, j int) bool {
+			return updates[i].RunId < updates[j].RunId
+		})
+
+		assert.Equal(t, 2, len(updates))
+		
+		var preemptedUpdate, failedUpdate *model.UpdateJobRunInstruction
+		for _, u := range updates {
+			if u.RunId == preemptedRun {
+				preemptedUpdate = u
+			} else if u.RunId == failedRun {
+				failedUpdate = u
+			}
+		}
+
+		assert.NotNil(t, preemptedUpdate)
+		assert.Equal(t, int32(lookout.JobRunPreemptedOrdinal), *preemptedUpdate.JobRunState)
+		assert.Equal(t, preemptedError, preemptedUpdate.Error)
+
+		assert.NotNil(t, failedUpdate)
+		assert.Equal(t, int32(lookout.JobRunFailedOrdinal), *failedUpdate.JobRunState)
+		assert.Equal(t, []byte("second failed error"), failedUpdate.Error)
+	})
+}
+
 func TestStoreNullValue(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		jobProto := []byte("hello \000 world \000")

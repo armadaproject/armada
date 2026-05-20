@@ -12,6 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/utils/pointer"
 
+	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/constants"
@@ -465,6 +466,107 @@ func TestConvert(t *testing.T) {
 				MessageIds:      []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 		},
+		"job run preempted with scheduler reason": {
+			events: &utils.EventsWithIds[*armadaevents.EventSequence]{
+				Events: []*armadaevents.EventSequence{testfixtures.NewEventSequence(&armadaevents.EventSequence_Event{
+					Created: testfixtures.BaseTimeProto,
+					Event: &armadaevents.EventSequence_Event_JobRunPreempted{
+						JobRunPreempted: &armadaevents.JobRunPreempted{
+							PreemptedJobId: testfixtures.JobId,
+							PreemptedRunId: testfixtures.RunId,
+							Reason:         "Preempted by queue policy",
+						},
+					},
+				})},
+				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+			expected: &model.InstructionSet{
+				JobRunsToUpdate: []*model.UpdateJobRunInstruction{
+					{
+						RunId:       testfixtures.RunId,
+						Finished:    &testfixtures.BaseTime,
+						JobRunState: pointer.Int32(lookout.JobRunPreemptedOrdinal),
+						Error:       []byte("Preempted by queue policy"),
+					},
+				},
+				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+		},
+		"job run preempted with empty reason": {
+			events: &utils.EventsWithIds[*armadaevents.EventSequence]{
+				Events: []*armadaevents.EventSequence{testfixtures.NewEventSequence(&armadaevents.EventSequence_Event{
+					Created: testfixtures.BaseTimeProto,
+					Event: &armadaevents.EventSequence_Event_JobRunPreempted{
+						JobRunPreempted: &armadaevents.JobRunPreempted{
+							PreemptedJobId: testfixtures.JobId,
+							PreemptedRunId: testfixtures.RunId,
+							Reason:         "",
+						},
+					},
+				})},
+				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+			expected: &model.InstructionSet{
+				JobRunsToUpdate: []*model.UpdateJobRunInstruction{
+					{
+						RunId:       testfixtures.RunId,
+						Finished:    &testfixtures.BaseTime,
+						JobRunState: pointer.Int32(lookout.JobRunPreemptedOrdinal),
+						Error:       []byte(common.RunPreemptedFallback),
+					},
+				},
+				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+		},
+		"job run preempted with whitespace-only reason": {
+			events: &utils.EventsWithIds[*armadaevents.EventSequence]{
+				Events: []*armadaevents.EventSequence{testfixtures.NewEventSequence(&armadaevents.EventSequence_Event{
+					Created: testfixtures.BaseTimeProto,
+					Event: &armadaevents.EventSequence_Event_JobRunPreempted{
+						JobRunPreempted: &armadaevents.JobRunPreempted{
+							PreemptedJobId: testfixtures.JobId,
+							PreemptedRunId: testfixtures.RunId,
+							Reason:         "   ",
+						},
+					},
+				})},
+				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+			expected: &model.InstructionSet{
+				JobRunsToUpdate: []*model.UpdateJobRunInstruction{
+					{
+						RunId:       testfixtures.RunId,
+						Finished:    &testfixtures.BaseTime,
+						JobRunState: pointer.Int32(lookout.JobRunPreemptedOrdinal),
+						Error:       []byte(common.RunPreemptedFallback),
+					},
+				},
+				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+		},
+		"preemption wins over pod error": {
+			events: &utils.EventsWithIds[*armadaevents.EventSequence]{
+				Events: []*armadaevents.EventSequence{testfixtures.NewEventSequence(
+					testfixtures.JobRunPreempted,
+					testfixtures.JobRunFailed,
+				)},
+				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+			expected: &model.InstructionSet{
+				JobRunsToUpdate: []*model.UpdateJobRunInstruction{&expectedPreemptedRun},
+				MessageIds:      []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+		},
+		"pod error processed normally when not preempted": {
+			events: &utils.EventsWithIds[*armadaevents.EventSequence]{
+				Events:     []*armadaevents.EventSequence{testfixtures.NewEventSequence(testfixtures.JobRunFailed)},
+				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+			expected: &model.InstructionSet{
+				JobRunsToUpdate: []*model.UpdateJobRunInstruction{&expectedFailedRun},
+				MessageIds:      []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+		},
 		"invalid event without created time": {
 			events: &utils.EventsWithIds[*armadaevents.EventSequence]{
 				Events: []*armadaevents.EventSequence{
@@ -695,4 +797,166 @@ func TestSanitizeForJsonb(t *testing.T) {
 	assert.Equal(t, "ab", sanitizeForJsonb("a\x00b"))
 	assert.Equal(t, "", sanitizeForJsonb("\x00"))
 	assert.Equal(t, "", sanitizeForJsonb(""))
+}
+
+func TestPreemptionPrecedenceMatrix(t *testing.T) {
+	preemptedWithReason := &armadaevents.EventSequence_Event{
+		Created: testfixtures.BaseTimeProto,
+		Event: &armadaevents.EventSequence_Event_JobRunPreempted{
+			JobRunPreempted: &armadaevents.JobRunPreempted{
+				PreemptedJobId: testfixtures.JobId,
+				PreemptedRunId: testfixtures.RunId,
+				Reason:         "scheduler requested preemption",
+			},
+		},
+	}
+
+	preemptedEmptyReason := &armadaevents.EventSequence_Event{
+		Created: testfixtures.BaseTimeProto,
+		Event: &armadaevents.EventSequence_Event_JobRunPreempted{
+			JobRunPreempted: &armadaevents.JobRunPreempted{
+				PreemptedJobId: testfixtures.JobId,
+				PreemptedRunId: testfixtures.RunId,
+				Reason:         "",
+			},
+		},
+	}
+
+	podErrorEvent := &armadaevents.EventSequence_Event{
+		Created: testfixtures.BaseTimeProto,
+		Event: &armadaevents.EventSequence_Event_JobRunErrors{
+			JobRunErrors: &armadaevents.JobRunErrors{
+				JobId: testfixtures.JobId,
+				RunId: testfixtures.RunId,
+				Errors: []*armadaevents.Error{
+					{
+						Terminal: true,
+						Reason: &armadaevents.Error_PodError{
+							PodError: &armadaevents.PodError{
+								Message:      testfixtures.ErrMsg,
+								DebugMessage: testfixtures.DebugMsg,
+								NodeName:     testfixtures.NodeName,
+								ContainerErrors: []*armadaevents.ContainerError{
+									{ExitCode: testfixtures.ExitCode},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	tests := map[string]struct {
+		events               *utils.EventsWithIds[*armadaevents.EventSequence]
+		expectedRunUpdates   int
+		expectedFirstError   string
+		expectedSecondError  string
+		description          string
+	}{
+		"preempted with explicit reason": {
+			events: &utils.EventsWithIds[*armadaevents.EventSequence]{
+				Events:     []*armadaevents.EventSequence{testfixtures.NewEventSequence(preemptedWithReason)},
+				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+			expectedRunUpdates:  1,
+			expectedFirstError:  "scheduler requested preemption",
+			description:         "Single preemption event with explicit reason should preserve the reason",
+		},
+		"preempted with empty reason": {
+			events: &utils.EventsWithIds[*armadaevents.EventSequence]{
+				Events:     []*armadaevents.EventSequence{testfixtures.NewEventSequence(preemptedEmptyReason)},
+				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+			expectedRunUpdates:  1,
+			expectedFirstError:  common.RunPreemptedFallback,
+			description:         "Single preemption event with empty reason should use canonical fallback message",
+		},
+		"pod error alone": {
+			events: &utils.EventsWithIds[*armadaevents.EventSequence]{
+				Events:     []*armadaevents.EventSequence{testfixtures.NewEventSequence(podErrorEvent)},
+				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+			expectedRunUpdates:  1,
+			expectedFirstError:  testfixtures.ErrMsg,
+			description:         "Non-preempted pod error should preserve error message (regression guard)",
+		},
+		"preempted explicit then pod error": {
+			events: &utils.EventsWithIds[*armadaevents.EventSequence]{
+				Events: []*armadaevents.EventSequence{
+					testfixtures.NewEventSequence(preemptedWithReason, podErrorEvent),
+				},
+				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+			expectedRunUpdates:  1,
+			expectedFirstError:  "scheduler requested preemption",
+			description:         "Preemption before pod error: pod error should be skipped (precedence enforcement)",
+		},
+		"preempted empty then pod error": {
+			events: &utils.EventsWithIds[*armadaevents.EventSequence]{
+				Events: []*armadaevents.EventSequence{
+					testfixtures.NewEventSequence(preemptedEmptyReason, podErrorEvent),
+				},
+				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+			expectedRunUpdates:  1,
+			expectedFirstError:  common.RunPreemptedFallback,
+			description:         "Preemption before pod error: pod error should be skipped even with empty reason",
+		},
+		"pod error then preempted explicit": {
+			events: &utils.EventsWithIds[*armadaevents.EventSequence]{
+				Events: []*armadaevents.EventSequence{
+					testfixtures.NewEventSequence(podErrorEvent, preemptedWithReason),
+				},
+				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+			expectedRunUpdates:  2,
+			expectedFirstError:  testfixtures.ErrMsg,
+			expectedSecondError: "scheduler requested preemption",
+			description:         "Pod error followed by preemption with explicit reason should generate both instructions",
+		},
+		"pod error then preempted empty": {
+			events: &utils.EventsWithIds[*armadaevents.EventSequence]{
+				Events: []*armadaevents.EventSequence{
+					testfixtures.NewEventSequence(podErrorEvent, preemptedEmptyReason),
+				},
+				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+			expectedRunUpdates:  2,
+			expectedFirstError:  testfixtures.ErrMsg,
+			expectedSecondError: common.RunPreemptedFallback,
+			description:         "Pod error followed by preemption with empty reason should use canonical fallback",
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			converter := NewInstructionConverter(metrics.Get().Metrics, userAnnotationPrefix, []string{}, &compress.NoOpCompressor{})
+			decompressor := &compress.NoOpDecompressor{}
+			
+			instructionSet := converter.Convert(armadacontext.TODO(), tc.events)
+			
+			require.Len(t, instructionSet.JobRunsToUpdate, tc.expectedRunUpdates, tc.description)
+			
+			if tc.expectedRunUpdates >= 1 {
+				firstUpdate := instructionSet.JobRunsToUpdate[0]
+				require.NotNil(t, firstUpdate.Error, "First update should have Error field")
+				
+				decompressedError, err := decompressor.Decompress(firstUpdate.Error)
+				require.NoError(t, err)
+				assert.Equal(t, tc.expectedFirstError, string(decompressedError), 
+					"First instruction error message mismatch")
+			}
+			
+			if tc.expectedRunUpdates >= 2 {
+				secondUpdate := instructionSet.JobRunsToUpdate[1]
+				require.NotNil(t, secondUpdate.Error, "Second update should have Error field")
+				
+				decompressedError, err := decompressor.Decompress(secondUpdate.Error)
+				require.NoError(t, err)
+				assert.Equal(t, tc.expectedSecondError, string(decompressedError),
+					"Second instruction error message mismatch")
+			}
+		})
+	}
 }

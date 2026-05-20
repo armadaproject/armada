@@ -190,7 +190,7 @@ func CreateJobIngressInfoEvent(pod *v1.Pod, clusterId string, associatedServices
 	return sequence, nil
 }
 
-func CreateSimpleJobPreemptedEvent(pod *v1.Pod) (*armadaevents.EventSequence, error) {
+func CreateSimpleJobPreemptedEvent(pod *v1.Pod, reason string) (*armadaevents.EventSequence, error) {
 	sequence := createEmptySequence(pod)
 	preemptedJobId, preemptedRunId, err := extractIds(pod)
 	if err != nil {
@@ -203,6 +203,7 @@ func CreateSimpleJobPreemptedEvent(pod *v1.Pod) (*armadaevents.EventSequence, er
 			JobRunPreempted: &armadaevents.JobRunPreempted{
 				PreemptedJobId: preemptedJobId,
 				PreemptedRunId: preemptedRunId,
+				Reason:         reason,
 			},
 		},
 	})

@@ -8,6 +8,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/utils/pointer"
 
+	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/constants"
@@ -429,6 +430,10 @@ func (c *InstructionConverter) handleJobRunErrors(ts time.Time, event *armadaeve
 
 		switch reason := e.Reason.(type) {
 		case *armadaevents.Error_PodError:
+			if isRunAlreadyPreempted(event.RunId, update) {
+				log.Debugf("Skipping PodError for run %s - run already marked as preempted", event.RunId)
+				continue
+			}
 			jobRunUpdate.Node = extractNodeName(reason.PodError)
 			jobRunUpdate.JobRunState = pointer.Int32(lookout.JobRunFailedOrdinal)
 			jobRunUpdate.Error = tryCompressError(event.JobId, reason.PodError.GetMessage(), c.compressor)
@@ -475,15 +480,35 @@ func (c *InstructionConverter) handleJobRunErrors(ts time.Time, event *armadaeve
 	return nil
 }
 
+func normalizePreemptionReason(reason string) string {
+	trimmed := strings.TrimSpace(reason)
+	if trimmed == "" {
+		return common.RunPreemptedFallback
+	}
+	return reason
+}
+
 func (c *InstructionConverter) handleJobRunPreempted(ts time.Time, event *armadaevents.JobRunPreempted, update *model.InstructionSet) error {
+	normalizedReason := normalizePreemptionReason(event.Reason)
 	jobRun := model.UpdateJobRunInstruction{
 		RunId:       event.PreemptedRunId,
 		JobRunState: pointer.Int32(lookout.JobRunPreemptedOrdinal),
 		Finished:    &ts,
-		Error:       tryCompressError(event.PreemptedJobId, event.Reason, c.compressor),
+		Error:       tryCompressError(event.PreemptedJobId, normalizedReason, c.compressor),
 	}
 	update.JobRunsToUpdate = append(update.JobRunsToUpdate, &jobRun)
 	return nil
+}
+
+func isRunAlreadyPreempted(runId string, update *model.InstructionSet) bool {
+	for _, runUpdate := range update.JobRunsToUpdate {
+		if runUpdate.RunId == runId &&
+			runUpdate.JobRunState != nil &&
+			*runUpdate.JobRunState == lookout.JobRunPreemptedOrdinal {
+			return true
+		}
+	}
+	return false
 }
 
 func (c *InstructionConverter) handleStandaloneIngressInfo(event *armadaevents.StandaloneIngressInfo, update *model.InstructionSet) error {

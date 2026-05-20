@@ -1004,6 +1004,9 @@ func conflateJobRunUpdates(updates []*model.UpdateJobRunInstruction) []*model.Up
 	for _, update := range updates {
 		existing, ok := updatesById[update.RunId]
 		if ok {
+			existingIsPreempted := existing.JobRunState != nil && *existing.JobRunState == lookout.JobRunPreemptedOrdinal
+			incomingIsPreempted := update.JobRunState != nil && *update.JobRunState == lookout.JobRunPreemptedOrdinal
+
 			if update.Node != nil {
 				existing.Node = update.Node
 			}
@@ -1013,13 +1016,13 @@ func conflateJobRunUpdates(updates []*model.UpdateJobRunInstruction) []*model.Up
 			if update.Finished != nil {
 				existing.Finished = update.Finished
 			}
-			if update.Error != nil {
+			if update.Error != nil && (!existingIsPreempted || incomingIsPreempted) {
 				existing.Error = update.Error
 			}
-			if update.Debug != nil {
+			if update.Debug != nil && (!existingIsPreempted || incomingIsPreempted) {
 				existing.Debug = update.Debug
 			}
-			if update.JobRunState != nil {
+			if update.JobRunState != nil && (!existingIsPreempted || incomingIsPreempted) {
 				existing.JobRunState = update.JobRunState
 			}
 			if update.ExitCode != nil {

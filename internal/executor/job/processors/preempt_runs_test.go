@@ -11,6 +11,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
+	"github.com/armadaproject/armada/internal/common"
 	util2 "github.com/armadaproject/armada/internal/common/util"
 	fakecontext "github.com/armadaproject/armada/internal/executor/context/fake"
 	"github.com/armadaproject/armada/internal/executor/domain"
@@ -96,18 +97,19 @@ func TestRun_PreemptedRunProcessor(t *testing.T) {
 				assert.Len(t, executorContext.AnnotationsAdded, 0)
 			}
 
-			if tc.expectEvents {
-				events := eventReporter.ReceivedEvents
-				assert.Len(t, events, 2)
-				assert.Len(t, eventReporter.ReceivedEvents[0].Event.Events, 1)
-				_, ok := eventReporter.ReceivedEvents[0].Event.Events[0].Event.(*armadaevents.EventSequence_Event_JobRunPreempted)
-				assert.True(t, ok)
-				assert.Len(t, eventReporter.ReceivedEvents[1].Event.Events, 1)
-				_, ok = eventReporter.ReceivedEvents[1].Event.Events[0].Event.(*armadaevents.EventSequence_Event_JobRunErrors)
-				assert.True(t, ok)
-			} else {
-				assert.Len(t, eventReporter.ReceivedEvents, 0)
-			}
+		if tc.expectEvents {
+			events := eventReporter.ReceivedEvents
+			assert.Len(t, events, 2)
+			assert.Len(t, eventReporter.ReceivedEvents[0].Event.Events, 1)
+			preemptedEvent, ok := eventReporter.ReceivedEvents[0].Event.Events[0].Event.(*armadaevents.EventSequence_Event_JobRunPreempted)
+			assert.True(t, ok)
+			assert.Equal(t, common.RunPreemptedFallback, preemptedEvent.JobRunPreempted.Reason)
+			assert.Len(t, eventReporter.ReceivedEvents[1].Event.Events, 1)
+			_, ok = eventReporter.ReceivedEvents[1].Event.Events[0].Event.(*armadaevents.EventSequence_Event_JobRunErrors)
+			assert.True(t, ok)
+		} else {
+			assert.Len(t, eventReporter.ReceivedEvents, 0)
+		}
 		})
 	}
 }
