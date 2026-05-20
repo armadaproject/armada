@@ -45,7 +45,6 @@ services:
     networks:
       - kind
 
-  # Keycloak OIDC provider - only for auth profile
   keycloak:
     container_name: keycloak
     image: ${KEYCLOAK_IMAGE:-quay.io/keycloak/keycloak:25.0}
