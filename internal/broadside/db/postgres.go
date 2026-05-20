@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -35,6 +36,7 @@ type PostgresDatabase struct {
 	features                  broadsideconfiguration.FeatureToggles
 	tuningSQLStatements       []string
 	tuningRevertSQLStatements []string
+	jobAgeDays                []int
 	pool                      *pgxpool.Pool
 	lookoutDb                 *lookoutdb.LookoutDb
 	jobsRepository            *repository.SqlGetJobsRepository
@@ -52,12 +54,13 @@ type PostgresDatabase struct {
 //   - password: database password
 //   - dbname: database name (e.g., "broadside_test")
 //   - sslmode: SSL mode (e.g., "disable")
-func NewPostgresDatabase(config map[string]string, features broadsideconfiguration.FeatureToggles, tuningSQLStatements []string, tuningRevertSQLStatements []string) *PostgresDatabase {
+func NewPostgresDatabase(config map[string]string, features broadsideconfiguration.FeatureToggles, tuningSQLStatements []string, tuningRevertSQLStatements []string, jobAgeDays []int) *PostgresDatabase {
 	return &PostgresDatabase{
 		config:                    config,
 		features:                  features,
 		tuningSQLStatements:       tuningSQLStatements,
 		tuningRevertSQLStatements: tuningRevertSQLStatements,
+		jobAgeDays:                jobAgeDays,
 	}
 }
 
@@ -87,17 +90,30 @@ func (p *PostgresDatabase) InitialiseSchema(ctx context.Context) error {
 		return fmt.Errorf("applying migrations: %w", err)
 	}
 
-	if err := p.applyTuningSQL(ctx); err != nil {
-		pool.Close()
-		return fmt.Errorf("applying tuning SQL: %w", err)
-	}
-
 	if p.features.HotColdSplit {
 		if _, err := p.pool.Exec(ctx, hotColdMigrationSQL); err != nil {
 			pool.Close()
 			return fmt.Errorf("applying hot/cold split migration: %w", err)
 		}
 		logging.Info("Hot/cold split migration applied")
+	} else if p.features.PartitionBySubmitted {
+		if err := p.applyPartitionMigration(ctx, p.jobAgeDays); err != nil {
+			pool.Close()
+			return fmt.Errorf("applying partition-by-submitted migration: %w", err)
+		}
+		logging.Info("Partition-by-submitted migration applied")
+	}
+
+	if p.features.PartitionBySubmitted {
+		if err := p.applyTuningSQLToPartitions(ctx); err != nil {
+			pool.Close()
+			return fmt.Errorf("applying tuning SQL to partitions: %w", err)
+		}
+	} else {
+		if err := p.applyTuningSQL(ctx); err != nil {
+			pool.Close()
+			return fmt.Errorf("applying tuning SQL: %w", err)
+		}
 	}
 
 	decompressor := &compress.NoOpDecompressor{}
@@ -137,6 +153,119 @@ func (p *PostgresDatabase) revertTuningSQL(ctx context.Context) error {
 	return nil
 }
 
+// applyTuningSQLToPartitions applies tuning SQL to leaf partitions of the
+// job table rather than the partitioned parent (which doesn't support storage
+// parameters). Statements targeting other tables are applied as-is.
+func (p *PostgresDatabase) applyTuningSQLToPartitions(ctx context.Context) error {
+	return p.execTuningSQLOnPartitions(ctx, p.tuningSQLStatements, "applying")
+}
+
+// revertTuningSQLFromPartitions mirrors applyTuningSQLToPartitions for the
+// revert path.
+func (p *PostgresDatabase) revertTuningSQLFromPartitions(ctx context.Context) error {
+	return p.execTuningSQLOnPartitions(ctx, p.tuningRevertSQLStatements, "reverting")
+}
+
+// execTuningSQLOnPartitions executes tuning SQL statements, rewriting any that
+// target "ALTER TABLE job " to run against each leaf partition instead of the
+// partitioned parent (which doesn't support storage parameters).
+func (p *PostgresDatabase) execTuningSQLOnPartitions(ctx context.Context, stmts []string, verb string) error {
+	partitions, err := p.listJobPartitions(ctx)
+	if err != nil {
+		return err
+	}
+
+	for i, stmt := range stmts {
+		if targetsJobTable(stmt) {
+			for _, part := range partitions {
+				partStmt := replaceJobTable(stmt, part)
+				if _, err := p.pool.Exec(ctx, partStmt); err != nil {
+					return fmt.Errorf("%s tuning SQL statement %d on partition %s: %w", verb, i+1, part, err)
+				}
+			}
+			logging.Infof("%s tuning SQL statement %d: applied to %d partitions", capitalize(verb), i+1, len(partitions))
+		} else {
+			if _, err := p.pool.Exec(ctx, stmt); err != nil {
+				return fmt.Errorf("%s tuning SQL statement %d: %w", verb, i+1, err)
+			}
+			logging.Infof("%s tuning SQL statement %d", capitalize(verb), i+1)
+		}
+	}
+	return nil
+}
+
+// listJobPartitions returns the names of all leaf partitions of the job table.
+func (p *PostgresDatabase) listJobPartitions(ctx context.Context) ([]string, error) {
+	rows, err := p.pool.Query(ctx, `
+		SELECT c.relname FROM pg_inherits i
+		JOIN pg_class c ON c.oid = i.inhrelid
+		JOIN pg_class p ON p.oid = i.inhparent
+		WHERE p.relname = 'job'
+		ORDER BY c.relname`)
+	if err != nil {
+		return nil, fmt.Errorf("querying job partitions: %w", err)
+	}
+	defer rows.Close()
+
+	var partitions []string
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, fmt.Errorf("scanning partition name: %w", err)
+		}
+		partitions = append(partitions, name)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterating job partitions: %w", err)
+	}
+	return partitions, nil
+}
+
+// targetsJobTable returns true if the SQL statement is an ALTER TABLE targeting
+// the "job" table specifically (not job_run, job_spec, etc.).
+// Line comments (-- ...) are stripped before matching to avoid false positives
+// from table names mentioned in comments.
+func targetsJobTable(stmt string) bool {
+	lower := stripLineComments(strings.ToLower(stmt))
+	idx := strings.Index(lower, "alter table ")
+	if idx == -1 {
+		return false
+	}
+	after := lower[idx+len("alter table "):]
+	return strings.HasPrefix(after, "job ") || strings.HasPrefix(after, "job\n") || strings.HasPrefix(after, "job\t")
+}
+
+// stripLineComments removes SQL line comments (-- to end of line) from s.
+func stripLineComments(s string) string {
+	var b strings.Builder
+	for {
+		i := strings.Index(s, "--")
+		if i == -1 {
+			b.WriteString(s)
+			break
+		}
+		b.WriteString(s[:i])
+		rest := s[i:]
+		if j := strings.Index(rest, "\n"); j != -1 {
+			s = rest[j:] // keep the newline so line structure is preserved
+		} else {
+			break
+		}
+	}
+	return b.String()
+}
+
+// alterTableJobRe matches "ALTER TABLE job " case-insensitively so that the
+// table name can be rewritten to a specific partition name without accidentally
+// matching "job" inside SQL comments or in unrelated table names.
+var alterTableJobRe = regexp.MustCompile(`(?i)ALTER TABLE job `)
+
+// replaceJobTable rewrites the "ALTER TABLE job " phrase in stmt to target the
+// named partition instead, handling any casing of the original keyword.
+func replaceJobTable(stmt, partition string) string {
+	return alterTableJobRe.ReplaceAllLiteralString(stmt, "ALTER TABLE "+partition+" ")
+}
+
 // ExecuteIngestionQueryBatch executes a batch of ingestion queries using the
 // same sequential phase ordering as the production Lookout ingester:
 //
@@ -155,6 +284,10 @@ func (p *PostgresDatabase) revertTuningSQL(ctx context.Context) error {
 // wins) before being sent, preventing undefined behaviour when duplicate IDs
 // appear in the UPDATE … FROM temp-table pattern.
 func (p *PostgresDatabase) ExecuteIngestionQueryBatch(ctx context.Context, queries []IngestionQuery) error {
+	if p.features.PartitionBySubmitted {
+		return p.executePartitionedBatch(ctx, queries)
+	}
+
 	set, err := queriesToInstructionSet(queries)
 	if err != nil {
 		return err
@@ -262,8 +395,14 @@ func (p *PostgresDatabase) GetJobGroups(ctx *context.Context, filters []*model.F
 // truncated and the hot/cold migration is reverted so the schema is left
 // in its original state.
 func (p *PostgresDatabase) TearDown(ctx context.Context) error {
-	if err := p.revertTuningSQL(ctx); err != nil {
-		return fmt.Errorf("reverting tuning SQL: %w", err)
+	if p.features.PartitionBySubmitted {
+		if err := p.revertTuningSQLFromPartitions(ctx); err != nil {
+			return fmt.Errorf("reverting tuning SQL from partitions: %w", err)
+		}
+	} else {
+		if err := p.revertTuningSQL(ctx); err != nil {
+			return fmt.Errorf("reverting tuning SQL: %w", err)
+		}
 	}
 
 	tables := []string{
@@ -289,6 +428,11 @@ func (p *PostgresDatabase) TearDown(ctx context.Context) error {
 			return fmt.Errorf("reverting hot/cold split migration: %w", err)
 		}
 		logging.Info("Hot/cold split migration reverted")
+	} else if p.features.PartitionBySubmitted {
+		if _, err := p.pool.Exec(ctx, partitionRevertSQL); err != nil {
+			return fmt.Errorf("reverting partition migration: %w", err)
+		}
+		logging.Info("Partition-by-submitted migration reverted")
 	}
 
 	return nil
@@ -420,6 +564,12 @@ func (p *PostgresDatabase) insertHistoricalJobChunkWithRetry(ctx context.Context
 // insertHistoricalJobChunk inserts a single chunk [startIdx, lastIdx] of
 // historical jobs in one transaction using server-side generate_series.
 func (p *PostgresDatabase) insertHistoricalJobChunk(ctx context.Context, params HistoricalJobsParams, startIdx, lastIdx int) error {
+	if p.features.PartitionBySubmitted {
+		return p.insertHistoricalJobChunkPartitioned(ctx, params, startIdx, lastIdx)
+	}
+	if len(params.JobAgeDays) == 0 {
+		return nil
+	}
 	prefix := fmt.Sprintf("%04d%04d", params.QueueIdx, params.JobSetIdx)
 	succeeded := params.SucceededThreshold
 	errored := params.ErroredThreshold
@@ -432,12 +582,18 @@ func (p *PostgresDatabase) insertHistoricalJobChunk(ctx context.Context, params 
 	poolArr := stringSliceToSQL(jobspec.PoolOptions)
 	nsArr := stringSliceToSQL(jobspec.NamespaceOptions)
 	pcArr := stringSliceToSQL(jobspec.PriorityClassOptions)
+	ageArr := intSliceToSQL(params.JobAgeDays)
+	ageLen := len(params.JobAgeDays)
 
 	jobTable := "job"
 	if p.features.HotColdSplit {
 		jobTable = "job_historical"
 	}
 
+	// The LATERAL subquery computes a per-row base_time from the jobAgeDays
+	// array, distributing jobs evenly across age buckets (job i → bucket
+	// i%%len(jobAgeDays)). This replaces the previous hardcoded
+	// NOW() - INTERVAL '24 hours'.
 	jobSQL := fmt.Sprintf(`
 INSERT INTO %s (
     job_id, queue, owner, namespace, jobset,
@@ -457,23 +613,24 @@ SELECT
     (%s)[i%%%d+1],
     (%s)[i%%%d+1],
     (i%%2000)+1,
-    NOW() - INTERVAL '24 hours',
+    t.base_time,
     CASE WHEN i%%1000 < %d THEN %d
          WHEN i%%1000 < %d THEN %d
          WHEN i%%1000 < %d THEN %d
          ELSE %d END,
-    NOW() - INTERVAL '24 hours' + INTERVAL '10 seconds',
-    EXTRACT(EPOCH FROM NOW() - INTERVAL '24 hours' + INTERVAL '10 seconds')::bigint,
+    t.base_time + INTERVAL '10 seconds',
+    EXTRACT(EPOCH FROM t.base_time + INTERVAL '10 seconds')::bigint,
     (%s)[i%%%d+1],
     %s,
     '%s' || lpad(i::text, 10, '0') || '00',
     CASE WHEN i%%1000 >= %d AND i%%1000 < %d
-         THEN NOW() - INTERVAL '24 hours' + INTERVAL '10 seconds' END,
+         THEN t.base_time + INTERVAL '10 seconds' END,
     CASE WHEN i%%1000 >= %d AND i%%1000 < %d
          THEN 'user requested' END,
     CASE WHEN i%%1000 >= %d AND i%%1000 < %d
          THEN '%s' END
-FROM generate_series(%d, %d) AS i`,
+FROM generate_series(%d, %d) AS i,
+LATERAL (SELECT NOW() - (%s)[i%%%d+1] * INTERVAL '1 day' AS base_time) AS t`,
 		jobTable,
 		prefix,
 		params.QueueName, params.QueueName,
@@ -494,6 +651,7 @@ FROM generate_series(%d, %d) AS i`,
 		errored, cancelled,
 		errored, cancelled, params.QueueName,
 		startIdx, lastIdx,
+		ageArr, ageLen,
 	)
 
 	jobSpecSQL := fmt.Sprintf(`
@@ -513,10 +671,10 @@ SELECT
     '%s' || lpad(i::text, 10, '0'),
     'broadside-cluster-' || (i%%40+1),
     'broadside-cluster-' || (i%%40+1) || '-node-' || (i%%80+1),
-    NOW() - INTERVAL '24 hours' + INTERVAL '1 second',
-    NOW() - INTERVAL '24 hours' + INTERVAL '2 seconds',
-    NOW() - INTERVAL '24 hours' + INTERVAL '3 seconds',
-    NOW() - INTERVAL '24 hours' + INTERVAL '10 seconds',
+    t.base_time + INTERVAL '1 second',
+    t.base_time + INTERVAL '2 seconds',
+    t.base_time + INTERVAL '3 seconds',
+    t.base_time + INTERVAL '10 seconds',
     (%s)[i%%%d+1],
     CASE WHEN i%%1000 < %d THEN 3
          WHEN i%%1000 < %d THEN 4
@@ -527,7 +685,8 @@ SELECT
     END,
     CASE WHEN i%%1000 >= %d AND i%%1000 < %d THEN $2::bytea END,
     CASE WHEN i%%1000 < %d THEN 0 END
-FROM generate_series(%d, %d) AS i`,
+FROM generate_series(%d, %d) AS i,
+LATERAL (SELECT NOW() - (%s)[i%%%d+1] * INTERVAL '1 day' AS base_time) AS t`,
 		prefix, prefix,
 		poolArr, len(jobspec.PoolOptions),
 		succeeded, errored, cancelled,
@@ -536,6 +695,7 @@ FROM generate_series(%d, %d) AS i`,
 		succeeded, errored,
 		errored,
 		startIdx, lastIdx,
+		ageArr, ageLen,
 	)
 
 	jobErrorSQL := fmt.Sprintf(`
@@ -574,6 +734,14 @@ WHERE i%%1000 >= %d AND i%%1000 < %d`,
 	return nil
 }
 
+func intSliceToSQL(vals []int) string {
+	parts := make([]string, len(vals))
+	for i, v := range vals {
+		parts[i] = fmt.Sprintf("%d", v)
+	}
+	return "ARRAY[" + strings.Join(parts, ",") + "]"
+}
+
 func int64SliceToSQL(vals []int64) string {
 	parts := make([]string, len(vals))
 	for i, v := range vals {
@@ -588,6 +756,13 @@ func stringSliceToSQL(vals []string) string {
 		parts[i] = "'" + v + "'"
 	}
 	return "ARRAY[" + strings.Join(parts, ",") + "]"
+}
+
+func capitalize(s string) string {
+	if s == "" {
+		return s
+	}
+	return strings.ToUpper(s[:1]) + s[1:]
 }
 
 func buildAnnotationSQL() string {
