@@ -15,7 +15,8 @@ type TestConfig struct {
 }
 
 type FeatureToggles struct {
-	HotColdSplit bool `yaml:"hotColdSplit,omitempty"`
+	HotColdSplit         bool `yaml:"hotColdSplit,omitempty"`
+	PartitionBySubmitted bool `yaml:"partitionBySubmitted,omitempty"`
 }
 
 type DatabaseConfig struct {
