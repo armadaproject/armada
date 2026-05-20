@@ -255,17 +255,15 @@ func TestReconcileZombieJobsCountsNullFinishedZombies(t *testing.T) {
 		dbConn, err := db.Acquire(ctx)
 		require.NoError(t, err)
 
-		before := testutil.ToFloat64(zombiesSkippedNullFinished)
 		repaired, err := ReconcileZombieJobs(ctx, dbConn.Conn(), 1*time.Hour, 10, clock.NewFakeClock(baseTime))
 		require.NoError(t, err)
-		after := testutil.ToFloat64(zombiesSkippedNullFinished)
 
 		// Not repaired: the reconciler refuses to touch a row with NULL finished.
 		assert.Equal(t, 0, repaired)
 		assert.Equal(t, lookout.JobRunning, readJobState(t, ctx, db, jobId))
 
-		// But the diagnostic counter incremented, proving the gap is observable.
-		assert.GreaterOrEqual(t, after-before, 1.0)
+		// Gauge reflects the current count of NULL-finished zombies.
+		assert.Equal(t, 1.0, testutil.ToFloat64(zombiesSkippedNullFinished))
 		return nil
 	})
 	assert.NoError(t, err)

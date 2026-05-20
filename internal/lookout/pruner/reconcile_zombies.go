@@ -131,7 +131,7 @@ func observeZombiesWithNullFinished(ctx *armadacontext.Context, db *pgx.Conn) er
 	if err := db.QueryRow(ctx, countZombiesWithNullFinishedQuery).Scan(&count); err != nil {
 		return errors.WithStack(err)
 	}
-	zombiesSkippedNullFinished.Add(float64(count))
+	zombiesSkippedNullFinished.Set(float64(count))
 	if count > 0 {
 		log.Warnf(
 			"Found %d zombie job(s) with no finished timestamp on their latest run -- these were not repaired and should be investigated",
