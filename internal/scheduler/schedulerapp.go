@@ -110,7 +110,11 @@ func Run(config schedulerconfig.Configuration) error {
 		return errors.WithMessage(err, "Error opening connection to postgres")
 	}
 	defer db.Close()
-	jobRepository := database.NewPostgresJobRepository(db, int32(config.DatabaseFetchSize))
+	if err := config.JobMetadataMigrationPhase.Validate(); err != nil {
+		return errors.WithMessage(err, "invalid JobMetadataMigrationPhase")
+	}
+	ctx.Infof("Scheduler JobMetadataMigrationPhase: %q", config.JobMetadataMigrationPhase)
+	jobRepository := database.NewPostgresJobRepository(db, int32(config.DatabaseFetchSize), config.JobMetadataMigrationPhase)
 	executorRepository := database.NewPostgresExecutorRepository(db)
 
 	// ////////////////////////////////////////////////////////////////////////

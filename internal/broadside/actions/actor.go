@@ -170,8 +170,9 @@ func (a *Actor) executeReprioritisation(ctx context.Context, queue string, jobSe
 	queries := make([]db.IngestionQuery, 0, len(jobs))
 	for _, job := range jobs {
 		queries = append(queries, db.UpdateJobPriority{
-			JobID:    job.JobID,
-			Priority: jobspec.PriorityValues,
+			JobID:     job.JobID,
+			Priority:  jobspec.PriorityValues,
+			Submitted: job.Submitted,
 		})
 	}
 
@@ -230,6 +231,7 @@ func (a *Actor) executeCancellation(ctx context.Context, queue string, jobSet st
 			Time:         now,
 			CancelReason: "Bulk cancellation via Broadside test",
 			CancelUser:   "broadside-test",
+			Submitted:    job.Submitted,
 		})
 	}
 
@@ -257,8 +259,9 @@ func (a *Actor) executeCancellation(ctx context.Context, queue string, jobSet st
 
 // jobInfo holds minimal information about a job needed for actions.
 type jobInfo struct {
-	JobID string
-	State string
+	JobID     string
+	State     string
+	Submitted time.Time
 }
 
 // getActiveJobs queries the database for active jobs in the specified queue and job set.
@@ -302,8 +305,9 @@ func (a *Actor) getActiveJobs(ctx context.Context, queue string, jobSet string) 
 	result := make([]jobInfo, 0, len(jobs))
 	for _, job := range jobs {
 		result = append(result, jobInfo{
-			JobID: job.JobId,
-			State: job.State,
+			JobID:     job.JobId,
+			State:     job.State,
+			Submitted: job.Submitted,
 		})
 	}
 
