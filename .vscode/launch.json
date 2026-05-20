@@ -200,7 +200,10 @@
       "request": "launch",
       "mode": "auto",
       "program": "${workspaceFolder}/cmd/server/main.go",
-      "args": ["--config", "${workspaceFolder}/config/insecure-armada.yaml"],
+      "args": [
+        "--config",
+        "${workspaceFolder}/developer/config/insecure-armada.yaml"
+      ],
       "cwd": "${workspaceFolder}",
       "env": {
         "ARMADA_CORSALLOWEDORIGINS": "http://localhost:3000,http://localhost:4173,http://localhost:8089,http://localhost:10000,http://example.com:10000,http://example.com:8089",
