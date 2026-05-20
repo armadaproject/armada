@@ -47,7 +47,36 @@
         "ARMADA_APICONNECTION_FORCENOTLS": "true",
         "ARMADA_EXECUTORAPICONNECTION_ARMADAURL": "localhost:50052",
         "ARMADA_EXECUTORAPICONNECTION_FORCENOTLS": "true",
-        "ARMADA_HTTPPORT": "8085",
+        "ARMADA_HTTPPORT": "8086",
+        "HOME": "${userHome}",
+        "KUBECONFIG": "${workspaceFolder}/.kube/external/config",
+        "KUBERNETES_SERVICE_PORT_HTTPS": "",
+        "KUBERNETES_SERVICE_PORT": "",
+        "KUBERNETES_PORT_443_TCP": "",
+        "KUBERNETES_PORT_443_TCP_PROTO": "",
+        "KUBERNETES_PORT_443_TCP_ADDR": "",
+        "KUBERNETES_SERVICE_HOST": "",
+        "KUBERNETES_PORT": "",
+        "KUBERNETES_PORT_443_TCP_PORT": ""
+      }
+    },
+    {
+      "name": "Executor Auth",
+      "type": "go",
+      "request": "launch",
+      "mode": "auto",
+      "program": "${workspaceFolder}/cmd/executor/main.go",
+      "cwd": "${workspaceFolder}",
+      "args": [
+        "run",
+        "--config",
+        "${workspaceFolder}/developer/config/executor/config-auth.yaml"
+      ],
+      "env": {
+        "ARMADA_APICONNECTION_FORCENOTLS": "true",
+        "ARMADA_EXECUTORAPICONNECTION_ARMADAURL": "localhost:50052",
+        "ARMADA_EXECUTORAPICONNECTION_FORCENOTLS": "true",
+        "ARMADA_HTTPPORT": "8086",
         "HOME": "${userHome}",
         "KUBECONFIG": "${workspaceFolder}/.kube/external/config",
         "KUBERNETES_SERVICE_PORT_HTTPS": "",
@@ -92,6 +121,28 @@
       "preLaunchTask": "Build Lookout UI"
     },
     {
+      "name": "Lookout Auth",
+      "type": "go",
+      "request": "launch",
+      "mode": "auto",
+      "program": "${workspaceFolder}/cmd/lookout/main.go",
+      "cwd": "${workspaceFolder}",
+      "args": [
+        "run",
+        "--config",
+        "${workspaceFolder}/developer/config/lookout/config-auth.yaml"
+      ],
+      "env": {
+        "ARMADA_CORSALLOWEDORIGINS": "\"http://localhost:3000,http://localhost:4173,http://localhost:8089,http://localhost:10000,http://example.com:10000,http://example.com:8089\"",
+        "ARMADA_POSTGRES_CONNECTION_HOST": "localhost",
+        "ARMADA_POSTGRES_CONNECTION_PORT": "5432",
+        "ARMADA_ARMADAAPICONNECTION_ARMADAURL": "localhost:50051",
+        "ARMADA_UICONFIG_ARMADAAPIBASEURL": "http://localhost:8080",
+        "ARMADA_UICONFIG_BINOCULARSBASEURLPATTERN": "http://localhost:8082"
+      },
+      "preLaunchTask": "Build Lookout UI"
+    },
+    {
       "name": "Scheduler",
       "type": "go",
       "request": "launch",
@@ -99,6 +150,26 @@
         "run",
         "--config",
         "${workspaceFolder}/developer/config/insecure-armada.yaml"
+      ],
+      "mode": "auto",
+      "program": "${workspaceFolder}/cmd/scheduler/main.go",
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "ARMADA_ARMADAAPI_ARMADAURL": "localhost:50051",
+        "ARMADA_HTTP_PORT": "8084",
+        "ARMADA_METRICS_PORT": "9004",
+        "ARMADA_POSTGRES_CONNECTION_HOST": "localhost",
+        "ARMADA_PULSAR_URL": "pulsar://localhost:6650"
+      }
+    },
+    {
+      "name": "Scheduler Auth",
+      "type": "go",
+      "request": "launch",
+      "args": [
+        "run",
+        "--config",
+        "${workspaceFolder}/developer/config/scheduler/config-auth.yaml"
       ],
       "mode": "auto",
       "program": "${workspaceFolder}/cmd/scheduler/main.go",
@@ -129,7 +200,28 @@
       "request": "launch",
       "mode": "auto",
       "program": "${workspaceFolder}/cmd/server/main.go",
-      "args": ["--config", "./developer/config/insecure-armada.yaml"],
+      "args": ["--config", "${workspaceFolder}/config/insecure-armada.yaml"],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "ARMADA_CORSALLOWEDORIGINS": "http://localhost:3000,http://localhost:4173,http://localhost:8089,http://localhost:10000,http://example.com:10000,http://example.com:8089",
+        "ARMADA_QUERYAPI_POSTGRES_CONNECTION_HOST": "localhost",
+        "ARMADA_EVENTSAPIREDIS_ADDRS": "localhost:6379",
+        "ARMADA_METRICSPORT": "9005",
+        "ARMADA_POSTGRES_CONNECTION_HOST": "localhost",
+        "ARMADA_PULSAR_URL": "pulsar://localhost:6650",
+        "EXECUTOR_UPDATE_INTERVAL": "\"1s\""
+      }
+    },
+    {
+      "name": "Server Auth",
+      "type": "go",
+      "request": "launch",
+      "mode": "auto",
+      "program": "${workspaceFolder}/cmd/server/main.go",
+      "args": [
+        "--config",
+        "${workspaceFolder}/developer/config/server/config-auth.yaml"
+      ],
       "cwd": "${workspaceFolder}",
       "env": {
         "ARMADA_CORSALLOWEDORIGINS": "http://localhost:3000,http://localhost:4173,http://localhost:8089,http://localhost:10000,http://example.com:10000,http://example.com:8089",
@@ -155,6 +247,48 @@
         "Server"
       ],
       "preLaunchTask": "Set up dependencies",
+      "stopAll": true
+    },
+    {
+      "name": "Armada with Prometheus",
+      "configurations": [
+        "Event Ingester",
+        "Executor",
+        "Lookout Ingester",
+        "Lookout",
+        "Scheduler",
+        "Scheduler Ingester",
+        "Server"
+      ],
+      "preLaunchTask": "Set up dependencies with Prometheus",
+      "stopAll": true
+    },
+    {
+      "name": "Armada with Auth",
+      "configurations": [
+        "Event Ingester",
+        "Executor Auth",
+        "Lookout Ingester",
+        "Lookout Auth",
+        "Scheduler Auth",
+        "Scheduler Ingester",
+        "Server Auth"
+      ],
+      "preLaunchTask": "Set up dependencies with Auth",
+      "stopAll": true
+    },
+    {
+      "name": "Armada with Prometheus and Auth",
+      "configurations": [
+        "Event Ingester",
+        "Executor Auth",
+        "Lookout Ingester",
+        "Lookout Auth",
+        "Scheduler Auth",
+        "Scheduler Ingester",
+        "Server Auth"
+      ],
+      "preLaunchTask": "Set up dependencies with Prometheus and Auth",
       "stopAll": true
     }
   ]

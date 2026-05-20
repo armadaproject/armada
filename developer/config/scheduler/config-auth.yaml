@@ -1,0 +1,12 @@
+auth:
+  anonymousAuth: true
+  permissionGroupMapping:
+    execute_jobs: ["everyone"]
+armadaApi:
+  armadaUrl: "localhost:50051"
+  forceNoTls: true
+  openIdClientCredentialsAuth:
+    providerUrl: "http://localhost:8180/realms/armada"
+    clientId: "armada-executor"
+    clientSecret: "executor-secret"
+    scopes: ["profile", "email"]

@@ -49,6 +49,13 @@ func getComponentsList() []string {
 	return strings.Split(os.Getenv("ARMADA_COMPONENTS"), ",")
 }
 
+func getExtraDeps() []string {
+	if os.Getenv("ARMADA_EXTRA_DEPS") == "" {
+		return []string{}
+	}
+	return strings.Split(os.Getenv("ARMADA_EXTRA_DEPS"), ",")
+}
+
 // Runs scheduler and lookout migrations
 func RunMigrations() error {
 	migrations := []string{
@@ -61,18 +68,20 @@ func RunMigrations() error {
 
 // Starts armada infrastructure dependencies
 func StartDependencies() error {
-	command := append([]string{"compose", "up", "-d"}, dependencies...)
+	services := append(slices.Clone(dependencies), getExtraDeps()...)
+	command := append([]string{"compose", "up", "-d"}, services...)
 	return dockerRun(command...)
 }
 
 // Stops the dependencies.
 func StopDependencies() error {
-	command := append([]string{"compose", "stop"}, dependencies...)
+	services := append(slices.Clone(dependencies), getExtraDeps()...)
+	command := append([]string{"compose", "stop"}, services...)
 	if err := dockerRun(command...); err != nil {
 		return err
 	}
 
-	command = append([]string{"compose", "rm", "-f"}, dependencies...)
+	command = append([]string{"compose", "rm", "-f"}, services...)
 	return dockerRun(command...)
 }
 

@@ -21,6 +21,21 @@
     },
     {
       "type": "shell",
+      "command": "mage kind && ARMADA_EXTRA_DEPS=prometheus mage startDependencies",
+      "label": "Start dependencies with Prometheus"
+    },
+    {
+      "type": "shell",
+      "command": "mage kind && ARMADA_EXTRA_DEPS=keycloak mage startDependencies",
+      "label": "Start dependencies with Auth"
+    },
+    {
+      "type": "shell",
+      "command": "mage kind && ARMADA_EXTRA_DEPS=prometheus,keycloak mage startDependencies",
+      "label": "Start dependencies with Prometheus and Auth"
+    },
+    {
+      "type": "shell",
       "command": "go",
       "label": "Migrate Lookout database",
       "args": ["run", "${workspaceFolder}/cmd/lookout", "--migrateDatabase"]
@@ -37,6 +52,36 @@
       "dependsOn": [
         "Download Go modules",
         "Start dependencies",
+        "Migrate Lookout database",
+        "Migrate Scheduler database"
+      ]
+    },
+    {
+      "label": "Set up dependencies with Auth",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "Download Go modules",
+        "Start dependencies with Auth",
+        "Migrate Lookout database",
+        "Migrate Scheduler database"
+      ]
+    },
+    {
+      "label": "Set up dependencies with Prometheus",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "Download Go modules",
+        "Start dependencies with Prometheus",
+        "Migrate Lookout database",
+        "Migrate Scheduler database"
+      ]
+    },
+    {
+      "label": "Set up dependencies with Prometheus and Auth",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "Download Go modules",
+        "Start dependencies with Prometheus and Auth",
         "Migrate Lookout database",
         "Migrate Scheduler database"
       ]

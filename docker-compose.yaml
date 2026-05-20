@@ -45,6 +45,42 @@ services:
     networks:
       - kind
 
+  # Keycloak OIDC provider - only for auth profile
+  keycloak:
+    container_name: keycloak
+    image: ${KEYCLOAK_IMAGE:-quay.io/keycloak/keycloak:25.0}
+    environment:
+      - KEYCLOAK_ADMIN=admin
+      - KEYCLOAK_ADMIN_PASSWORD=admin
+      - KC_HTTP_PORT=8180
+      - KC_HEALTH_ENABLED=true
+    ports:
+      - "8180:8180"
+    command: start-dev --import-realm
+    volumes:
+      - "./_local/keycloak/import:/opt/keycloak/data/import:ro"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8180/health/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  prometheus:
+    container_name: prometheus
+    image: prom/prometheus:latest
+    networks:
+      - kind
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "9090:9090"
+    volumes:
+      - "./developer/dependencies/prometheus.yml:/etc/prometheus/prometheus.yml"
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+
   #
   # Armada services.
   #
@@ -99,7 +135,7 @@ services:
       - "go-cache:/root/.cache/go-build:rw"
       - "gomod-cache:/go/pkg/mod:rw"
     working_dir: /app
-    command:  ./scheduler migrateDatabase
+    command: ./scheduler migrateDatabase
 
   scheduleringester:
     container_name: scheduleringester

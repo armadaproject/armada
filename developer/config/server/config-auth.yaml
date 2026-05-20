@@ -1,0 +1,20 @@
+auth:
+  anonymousAuth: false
+  basicAuth:
+    users:
+      admin:
+        password: "admin"
+        groups: ["admins"]
+  openIdAuth:
+    providerUrl: "http://localhost:8180/realms/armada"
+    clientId: "armada-server"
+    groupsClaim: "groups"
+    skipClientIDCheck: true
+  permissionGroupMapping:
+    submit_any_jobs: ["admins"]
+    create_queue: ["admins"]
+    delete_queue: ["admins"]
+    cancel_any_jobs: ["admins"]
+    reprioritize_any_jobs: ["admins"]
+    watch_all_events: ["admins"]
+    execute_jobs: ["admins", "executors"]
