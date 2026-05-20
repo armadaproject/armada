@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	clock "k8s.io/utils/clock/testing"
@@ -220,6 +221,51 @@ func TestReconcileZombieJobsLeavesNonZombiesAlone(t *testing.T) {
 		assert.Equal(t, lookout.JobRunning, readJobState(t, ctx, db, runningJobId))
 		assert.Equal(t, lookout.JobSucceeded, readJobState(t, ctx, db, healthyTerminalJobId))
 
+		return nil
+	})
+	assert.NoError(t, err)
+}
+
+// TestReconcileZombieJobsCountsNullFinishedZombies verifies that zombie jobs
+// whose latest run has no finished timestamp are observed via the
+// zombiesSkippedNullFinished metric (and are NOT silently repaired with bogus
+// data, since the reconciler relies on finished to populate
+// last_transition_time).
+func TestReconcileZombieJobsCountsNullFinishedZombies(t *testing.T) {
+	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
+		converter := instructions.NewInstructionConverter(metrics.Get().Metrics, "armadaproject.io/", []string{}, &compress.NoOpCompressor{})
+		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10, 10)
+
+		ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Minute)
+		defer cancel()
+
+		// Build a normal terminal job, then NULL out the run's finished
+		// timestamp and rewind the job state so it looks like a zombie whose
+		// run never recorded a finish time.
+		jobId := util.NewULID()
+		seedTerminalJob(t, ctx, db, store, converter, zombieScenario{
+			jobId:            jobId,
+			runFinishedAt:    baseTime.Add(-2 * time.Hour),
+			terminalJobState: lookout.JobSucceeded,
+		})
+		_, err := db.Exec(ctx, `UPDATE job_run SET finished = NULL WHERE job_id = $1`, jobId)
+		require.NoError(t, err)
+		rewindJobState(t, ctx, db, jobId, lookout.JobRunning)
+
+		dbConn, err := db.Acquire(ctx)
+		require.NoError(t, err)
+
+		before := testutil.ToFloat64(zombiesSkippedNullFinished)
+		repaired, err := ReconcileZombieJobs(ctx, dbConn.Conn(), 1*time.Hour, 10, clock.NewFakeClock(baseTime))
+		require.NoError(t, err)
+		after := testutil.ToFloat64(zombiesSkippedNullFinished)
+
+		// Not repaired: the reconciler refuses to touch a row with NULL finished.
+		assert.Equal(t, 0, repaired)
+		assert.Equal(t, lookout.JobRunning, readJobState(t, ctx, db, jobId))
+
+		// But the diagnostic counter incremented, proving the gap is observable.
+		assert.GreaterOrEqual(t, after-before, 1.0)
 		return nil
 	})
 	assert.NoError(t, err)

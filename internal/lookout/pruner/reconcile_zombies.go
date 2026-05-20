@@ -36,6 +36,12 @@ var reconcileZombiesQuery = fmt.Sprintf(`
 		           WHEN %[3]d THEN %[4]d -- run failed    -> job failed
 		           WHEN %[5]d THEN %[6]d -- run cancelled -> job cancelled
 		           WHEN %[7]d THEN %[8]d -- run preempted -> job preempted
+		           ELSE j.state          -- defensive: a job_run_state that
+		                                 -- passes the IN filter but is not
+		                                 -- listed above (e.g. after a future
+		                                 -- refactor that lets the lists drift)
+		                                 -- becomes a harmless no-op instead
+		                                 -- of writing NULL to job.state.
 		       END             AS new_state,
 		       r.finished      AS finished
 		FROM job j
@@ -52,6 +58,27 @@ var reconcileZombiesQuery = fmt.Sprintf(`
 	lookout.JobRunFailedOrdinal, lookout.JobFailedOrdinal,
 	lookout.JobRunCancelledOrdinal, lookout.JobCancelledOrdinal,
 	lookout.JobRunPreemptedOrdinal, lookout.JobPreemptedOrdinal,
+	lookout.JobQueuedOrdinal,
+	lookout.JobLeasedOrdinal,
+	lookout.JobPendingOrdinal,
+	lookout.JobRunningOrdinal,
+)
+
+// countZombiesWithNullFinishedQuery counts jobs that match the zombie shape
+// (non-terminal job.state, latest run in a terminal job_run_state) but whose
+// run has no finished timestamp. The reconciler cannot repair these, but they
+// should not exist in steady state and so are worth surfacing.
+var countZombiesWithNullFinishedQuery = fmt.Sprintf(`
+	SELECT COUNT(*)
+	FROM job j
+	JOIN job_run r ON r.run_id = j.latest_run_id
+	WHERE j.state IN (%[5]d, %[6]d, %[7]d, %[8]d)
+	  AND r.job_run_state IN (%[1]d, %[2]d, %[3]d, %[4]d)
+	  AND r.finished IS NULL`,
+	lookout.JobRunSucceededOrdinal,
+	lookout.JobRunFailedOrdinal,
+	lookout.JobRunCancelledOrdinal,
+	lookout.JobRunPreemptedOrdinal,
 	lookout.JobQueuedOrdinal,
 	lookout.JobLeasedOrdinal,
 	lookout.JobPendingOrdinal,
@@ -88,7 +115,30 @@ func ReconcileZombieJobs(
 		log.Warnf("Reconciled %d zombie job(s) -- this should not happen and indicates an upstream bug", totalRepaired)
 	}
 	zombiesRepaired.Add(float64(totalRepaired))
+
+	if err := observeZombiesWithNullFinished(ctx, db); err != nil {
+		// Diagnostic counting failure: log but do not fail the pruner run.
+		log.WithError(err).Warn("failed to count zombie jobs with null run-finished timestamp")
+	}
+
 	return totalRepaired, nil
+}
+
+// observeZombiesWithNullFinished counts and surfaces zombie jobs that the
+// reconciler cannot repair because their latest run has no finished timestamp.
+func observeZombiesWithNullFinished(ctx *armadacontext.Context, db *pgx.Conn) error {
+	var count int
+	if err := db.QueryRow(ctx, countZombiesWithNullFinishedQuery).Scan(&count); err != nil {
+		return errors.WithStack(err)
+	}
+	zombiesSkippedNullFinished.Add(float64(count))
+	if count > 0 {
+		log.Warnf(
+			"Found %d zombie job(s) with no finished timestamp on their latest run -- these were not repaired and should be investigated",
+			count,
+		)
+	}
+	return nil
 }
 
 // reconcileZombieBatch repairs up to batchLimit zombie jobs in a single
