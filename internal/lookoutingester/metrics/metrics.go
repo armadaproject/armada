@@ -35,6 +35,14 @@ var rowsChangedCounter = promauto.NewCounterVec(
 	[]string{"table", "operation"},
 )
 
+var stateUpdatesCounter = promauto.NewCounterVec(
+	prometheus.CounterOpts{
+		Name: metrics.ArmadaLookoutIngesterMetricsPrefix + "state_updates",
+		Help: "Number of job state updates, labelled by state",
+	},
+	[]string{"state"},
+)
+
 type Metrics struct {
 	*metrics.Metrics
 }
@@ -63,4 +71,10 @@ func (m *Metrics) RecordRowsChange(table string, operation metrics.DBOperation, 
 	rowsChangedCounter.
 		With(map[string]string{"table": table, "operation": string(operation)}).
 		Add(float64(numRows))
+}
+
+func (m *Metrics) RecordStateUpdates(state string, count int) {
+	stateUpdatesCounter.
+		With(map[string]string{"state": state}).
+		Add(float64(count))
 }

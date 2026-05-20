@@ -14,6 +14,8 @@ import (
 	"golang.org/x/exp/maps"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	"k8s.io/utils/clock"
+	testclock "k8s.io/utils/clock/testing"
 
 	"github.com/armadaproject/armada/internal/common/constants"
 	"github.com/armadaproject/armada/internal/common/pointer"
@@ -1186,6 +1188,52 @@ func (p *MockPassiveClock) Now() time.Time {
 
 func (p *MockPassiveClock) Since(time.Time) time.Duration {
 	panic("Not implemented")
+}
+
+// SteppingClock advances time by a fixed step on each Now() call.
+// This is used to test timeout behavior: since code under test calls Now()
+// during iteration, the stepping clock ensures elapsed time deterministically
+// exceeds timeout thresholds.
+type SteppingClock struct {
+	fakeClock *testclock.FakeClock
+	step      time.Duration
+}
+
+func NewSteppingClock(start time.Time, step time.Duration) *SteppingClock {
+	return &SteppingClock{
+		fakeClock: testclock.NewFakeClock(start),
+		step:      step,
+	}
+}
+
+func (c *SteppingClock) Now() time.Time {
+	now := c.fakeClock.Now()
+	c.fakeClock.Step(c.step)
+	return now
+}
+
+func (c *SteppingClock) Since(t time.Time) time.Duration {
+	return c.fakeClock.Now().Sub(t)
+}
+
+func (c *SteppingClock) NewTimer(d time.Duration) clock.Timer {
+	return c.fakeClock.NewTimer(d)
+}
+
+func (c *SteppingClock) NewTicker(d time.Duration) clock.Ticker {
+	return c.fakeClock.NewTicker(d)
+}
+
+func (c *SteppingClock) Sleep(d time.Duration) {
+	c.fakeClock.Sleep(d)
+}
+
+func (c *SteppingClock) After(d time.Duration) <-chan time.Time {
+	return c.fakeClock.After(d)
+}
+
+func (c *SteppingClock) Tick(d time.Duration) <-chan time.Time {
+	return c.fakeClock.Tick(d)
 }
 
 func MakeTestResourceListFactory() *internaltypes.ResourceListFactory {

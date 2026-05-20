@@ -1,7 +1,7 @@
 import { Button, List, ListItem, ListItemText, Paper, TextField } from "@mui/material"
 
 import { Analytics, ANALYTICS_EVENTS } from "../../../../analytics"
-import { JobSet } from "../../../../services/JobService"
+import { JobSet } from "../../../../models/lookoutModels"
 
 import "./ReprioritizeJobSets.css"
 import "../Dialog.css"

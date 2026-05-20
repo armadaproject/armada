@@ -9,12 +9,15 @@ import (
 	v1 "k8s.io/api/core/v1"
 	networking "k8s.io/api/networking/v1"
 
+	"github.com/armadaproject/armada/internal/executor/categorizer"
 	"github.com/armadaproject/armada/internal/executor/domain"
 	"github.com/armadaproject/armada/internal/executor/util"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
-func CreateEventForCurrentState(pod *v1.Pod, clusterId string) (*armadaevents.EventSequence, error) {
+// CreateEventForCurrentState builds the armada event for pod's current phase.
+// For failed pods the caller supplies the classification result to attach to the event.
+func CreateEventForCurrentState(pod *v1.Pod, clusterId string, classifyResult categorizer.ClassifyResult) (*armadaevents.EventSequence, error) {
 	phase := pod.Status.Phase
 	sequence := createEmptySequence(pod)
 	jobId, runId, err := extractIds(pod)
@@ -80,13 +83,16 @@ func CreateEventForCurrentState(pod *v1.Pod, clusterId string) (*armadaevents.Ev
 		})
 		return sequence, nil
 	case v1.PodFailed:
+		reason := classifyResult.AppendHint(util.ExtractPodFailedReason(pod))
 		return CreateJobFailedEvent(
 			pod,
-			util.ExtractPodFailedReason(pod),
+			reason,
 			util.ExtractPodFailureCause(pod),
 			"",
 			util.ExtractFailedPodContainerStatuses(pod, clusterId),
-			clusterId)
+			clusterId,
+			classifyResult.Category,
+			classifyResult.Subcategory)
 	case v1.PodSucceeded:
 		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
 			Created: now,
@@ -203,12 +209,16 @@ func CreateSimpleJobPreemptedEvent(pod *v1.Pod) (*armadaevents.EventSequence, er
 	return sequence, nil
 }
 
-func CreateSimpleJobFailedEvent(pod *v1.Pod, reason string, debugMessage string, clusterId string, cause armadaevents.KubernetesReason) (*armadaevents.EventSequence, error) {
-	return CreateJobFailedEvent(pod, reason, cause, debugMessage, []*armadaevents.ContainerError{}, clusterId)
+// CreateSimpleJobFailedEvent creates a failed event with no container details and no classification.
+// Use for failures where pod container statuses are unavailable (preemption, submit failures).
+// failure_category/failure_subcategory are left empty, resulting in NULL in the DB.
+// This is intentional: these failures are not classifiable pod errors.
+func CreateSimpleJobFailedEvent(pod *v1.Pod, reason string, clusterId string, cause armadaevents.KubernetesReason) (*armadaevents.EventSequence, error) {
+	return CreateJobFailedEvent(pod, reason, cause, "", []*armadaevents.ContainerError{}, clusterId, "", "")
 }
 
 func CreateJobFailedEvent(pod *v1.Pod, reason string, cause armadaevents.KubernetesReason, debugMessage string,
-	containerStatuses []*armadaevents.ContainerError, clusterId string,
+	containerStatuses []*armadaevents.ContainerError, clusterId string, failureCategory string, failureSubcategory string,
 ) (*armadaevents.EventSequence, error) {
 	sequence := createEmptySequence(pod)
 	jobId, runId, err := extractIds(pod)
@@ -224,7 +234,9 @@ func CreateJobFailedEvent(pod *v1.Pod, reason string, cause armadaevents.Kuberne
 				JobId: jobId,
 				Errors: []*armadaevents.Error{
 					{
-						Terminal: true,
+						Terminal:           true,
+						FailureCategory:    failureCategory,
+						FailureSubcategory: failureSubcategory,
 						Reason: &armadaevents.Error_PodError{
 							PodError: &armadaevents.PodError{
 								ObjectMeta: &armadaevents.ObjectMeta{

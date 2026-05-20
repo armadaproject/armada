@@ -38,6 +38,10 @@ type QueueSchedulingContext struct {
 	Allocated internaltypes.ResourceList
 	// Resource which should be charged for when using market driven scheduling
 	BillableResource internaltypes.ResourceList
+	// Override price for the price-setting queue (second-price mechanics).
+	// When present, billing components should use this price instead of
+	// the pool spot price for billing this queue.
+	BillablePriceOverride *float64
 	// Used to penalize short jobs by pretending they are still running
 	// if they started recently but then exited.
 	ShortJobPenalty internaltypes.ResourceList
@@ -116,6 +120,10 @@ func (qctx *QueueSchedulingContext) SetBillableResource() {
 
 func (qctx *QueueSchedulingContext) GetBillableResource() internaltypes.ResourceList {
 	return qctx.BillableResource.FloorAtZero()
+}
+
+func (qctx *QueueSchedulingContext) GetBillablePriceOverride() *float64 {
+	return qctx.BillablePriceOverride
 }
 
 // GetWeight is necessary to implement the fairness.Queue interface.

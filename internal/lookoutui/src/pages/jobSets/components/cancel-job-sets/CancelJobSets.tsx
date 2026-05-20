@@ -1,7 +1,7 @@
 import { Button, Checkbox, List, ListItem, ListItemText, Paper } from "@mui/material"
 
 import { Analytics, ANALYTICS_EVENTS } from "../../../../analytics"
-import { JobSet } from "../../../../services/JobService"
+import { JobSet } from "../../../../models/lookoutModels"
 
 import "./CancelJobSets.css"
 import "../Dialog.css"

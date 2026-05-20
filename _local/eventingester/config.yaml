@@ -9,3 +9,19 @@ pulsar:
   jobsetEventsTopic: "events"
 subscriptionName: "events-ingester"
 metricsPort: 9004
+metrics:
+  redis:
+    enabled: true
+    collectionInterval: 30s
+    topN: 100
+    scanBatchSize: 1000
+    pipelineBatchSize: 500
+    interBatchDelay: 0ms
+    memoryUsageSamples: 5
+    leader:
+      mode: "standalone"
+      leaseLockName: ""
+      leaseLockNamespace: ""
+      leaseDuration: 15s
+      renewDeadline: 10s
+      retryPeriod: 2s

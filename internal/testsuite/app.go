@@ -88,11 +88,19 @@ func (a *App) TestPattern(ctx context.Context, pattern string) (*TestSuiteReport
 }
 
 func TestSpecsFromPattern(pattern string) ([]*api.TestSpec, error) {
-	filePaths, err := zglob.Glob(pattern)
-	if err != nil {
-		return nil, errors.Wrapf(err, "failed to glob test specs with pattern %s", pattern)
+	var allPaths []string
+	for _, p := range strings.Split(pattern, ",") {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+		paths, err := zglob.Glob(p)
+		if err != nil {
+			return nil, errors.Wrapf(err, "failed to glob test specs with pattern %s", p)
+		}
+		allPaths = append(allPaths, paths...)
 	}
-	return TestSpecsFromFilePaths(filePaths)
+	return TestSpecsFromFilePaths(allPaths)
 }
 
 func TestSpecsFromFilePaths(filePaths []string) ([]*api.TestSpec, error) {
@@ -231,7 +239,7 @@ func (r *TestCaseReport) Collect(c chan<- prometheus.Metric) {
 	// Test failures always contain either "unexpected event for job" or "error asserting failure reason".
 	// TODO(albin): Improve this.
 	testFailure := 0.0
-	if strings.Contains(r.FailureReason, "unexpected event for job") || strings.Contains(r.FailureReason, "error asserting failure reason") {
+	if strings.Contains(r.FailureReason, "unexpected event for job") || strings.Contains(r.FailureReason, "error asserting failure reason") || strings.Contains(r.FailureReason, "expected categories") {
 		testFailure = 1.0
 	}
 	c <- prometheus.MustNewConstMetric(

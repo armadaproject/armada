@@ -7,8 +7,8 @@ use tonic::transport::{Channel, ClientTlsConfig};
 use tracing::instrument;
 
 use crate::api::{
-    EventStreamMessage, JobSetRequest, JobSubmitRequest, JobSubmitResponse,
-    event_client::EventClient, submit_client::SubmitClient,
+    CancellationResult, EventStreamMessage, JobCancelRequest, JobSetCancelRequest, JobSetRequest,
+    JobSubmitRequest, JobSubmitResponse, event_client::EventClient, submit_client::SubmitClient,
 };
 use crate::auth::TokenProvider;
 use crate::error::Error;
@@ -17,13 +17,16 @@ use crate::error::Error;
 ///
 /// # Construction
 ///
-/// Use [`ArmadaClient::connect`] for plaintext (dev / in-cluster) connections
-/// and [`ArmadaClient::connect_tls`] for production clusters behind TLS.
-/// Both accept any [`TokenProvider`] — pass [`crate::StaticTokenProvider`] for
-/// a static bearer token or supply your own implementation for dynamic auth.
+/// Use [`ArmadaClient::connect`] for plaintext (dev / in-cluster) connections,
+/// [`ArmadaClient::connect_tls`] for production clusters using system root certificates,
+/// or [`ArmadaClient::connect_tls_with_config`] when you need a custom CA, domain
+/// override, or mutual TLS. All constructors accept any [`TokenProvider`] — pass
+/// [`crate::StaticTokenProvider`] for a static bearer token or supply your own
+/// implementation for dynamic auth.
 ///
 /// ```no_run
 /// # use armada_client::{ArmadaClient, StaticTokenProvider};
+/// # use armada_client::tonic::transport::{Certificate, ClientTlsConfig};
 /// # async fn example() -> Result<(), armada_client::Error> {
 /// // Plaintext
 /// let client = ArmadaClient::connect("http://localhost:50051", StaticTokenProvider::new("tok"))
@@ -32,6 +35,14 @@ use crate::error::Error;
 /// // TLS (uses system root certificates)
 /// let client = ArmadaClient::connect_tls("https://armada.example.com:443", StaticTokenProvider::new("tok"))
 ///     .await?;
+///
+/// // TLS with a custom CA
+/// let pem = std::fs::read("ca.pem")?;
+/// let client = ArmadaClient::connect_tls_with_config(
+///     "https://armada.example.com:443",
+///     ClientTlsConfig::new().ca_certificate(Certificate::from_pem(pem)),
+///     StaticTokenProvider::new("tok"),
+/// ).await?;
 /// # Ok(())
 /// # }
 /// ```
@@ -98,6 +109,9 @@ impl ArmadaClient {
     /// certificate. `endpoint` should use the `https://` scheme,
     /// e.g. `"https://armada.example.com:443"`.
     ///
+    /// For clusters with a private or self-signed CA, use
+    /// [`ArmadaClient::connect_tls_with_config`] instead.
+    ///
     /// # Errors
     ///
     /// Returns [`Error::InvalidUri`] if the URI is malformed, or
@@ -109,6 +123,48 @@ impl ArmadaClient {
         let channel = Channel::from_shared(endpoint.into())
             .map_err(|e| Error::InvalidUri(e.to_string()))?
             .tls_config(ClientTlsConfig::new())?
+            .connect()
+            .await?;
+        Ok(Self::from_parts(channel, token_provider))
+    }
+
+    /// Connect to an Armada server at `endpoint` using a caller-supplied TLS config.
+    ///
+    /// Use this when you need to supply a custom CA certificate (e.g. a private or
+    /// self-signed CA), override the server domain name, or configure mutual TLS.
+    /// Build the config with [`tonic::transport::ClientTlsConfig`], accessible via
+    /// `armada_client::tonic::transport::ClientTlsConfig` — no direct tonic dependency needed.
+    ///
+    /// # Example — custom CA
+    ///
+    /// ```no_run
+    /// use armada_client::{ArmadaClient, StaticTokenProvider};
+    /// use armada_client::tonic::transport::{Certificate, ClientTlsConfig};
+    ///
+    /// # async fn example() -> Result<(), armada_client::Error> {
+    /// let pem = std::fs::read("ca.pem")?;
+    /// let tls = ClientTlsConfig::new().ca_certificate(Certificate::from_pem(pem));
+    /// let client = ArmadaClient::connect_tls_with_config(
+    ///     "https://armada.example.com:443",
+    ///     tls,
+    ///     StaticTokenProvider::new("tok"),
+    /// ).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::InvalidUri`] if the URI is malformed, or
+    /// [`Error::Transport`] if TLS configuration or the connection fails.
+    pub async fn connect_tls_with_config(
+        endpoint: impl Into<String>,
+        tls_config: ClientTlsConfig,
+        token_provider: impl TokenProvider + 'static,
+    ) -> Result<Self, Error> {
+        let channel = Channel::from_shared(endpoint.into())
+            .map_err(|e| Error::InvalidUri(e.to_string()))?
+            .tls_config(tls_config)?
             .connect()
             .await?;
         Ok(Self::from_parts(channel, token_provider))
@@ -212,6 +268,107 @@ impl ArmadaClient {
         // shared channel, not the underlying connection.
         let resp = self.submit_client.clone().submit_jobs(req).await?;
         Ok(resp.into_inner())
+    }
+
+    /// Cancel one or more jobs.
+    ///
+    /// # Arguments
+    ///
+    /// * `request.queue` — Armada queue name.
+    /// * `request.job_set_id` — Job set the jobs belong to.
+    /// * `request.job_id` — Single job ID to cancel (legacy, optional).
+    /// * `request.job_ids` — Multiple job IDs to cancel in one call.
+    /// * `request.reason` — Human-readable cancellation reason (optional).
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use armada_client::{ArmadaClient, JobCancelRequest, StaticTokenProvider};
+    ///
+    /// # async fn example() -> Result<(), armada_client::Error> {
+    /// # let client = ArmadaClient::connect("http://localhost:50051", StaticTokenProvider::new("")).await?;
+    /// let result = client
+    ///     .cancel_jobs(JobCancelRequest {
+    ///         queue: "my-queue".into(),
+    ///         job_set_id: "my-job-set".into(),
+    ///         job_ids: vec!["01abc".into(), "01def".into()],
+    ///         reason: "no longer needed".into(),
+    ///         ..Default::default()
+    ///     })
+    ///     .await?;
+    ///
+    /// println!("cancelled: {:?}", result.cancelled_ids);
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// - [`Error::Auth`] if the token provider fails.
+    /// - [`Error::InvalidMetadata`] if the token contains invalid header characters.
+    /// - [`Error::Grpc`] if the server returns a non-OK status.
+    #[instrument(skip(self, request), fields(queue = %request.queue, job_set_id = %request.job_set_id))]
+    pub async fn cancel_jobs(
+        &self,
+        request: JobCancelRequest,
+    ) -> Result<CancellationResult, Error> {
+        let token = self.token_provider.token().await?;
+        let mut req = tonic::Request::new(request);
+        if !token.is_empty() {
+            req.metadata_mut().insert("authorization", token.parse()?);
+        }
+        self.apply_timeout(&mut req);
+        let resp = self.submit_client.clone().cancel_jobs(req).await?;
+        Ok(resp.into_inner())
+    }
+
+    /// Cancel all (or a filtered subset of) jobs in a job set.
+    ///
+    /// # Arguments
+    ///
+    /// * `request.queue` — Armada queue name.
+    /// * `request.job_set_id` — Job set to cancel.
+    /// * `request.filter` — Optional [`crate::JobSetFilter`] limiting cancellation to
+    ///   jobs in specific states (e.g. only `Queued` and `Running`). Pass
+    ///   `None` to cancel all non-terminal jobs.
+    /// * `request.reason` — Human-readable cancellation reason (optional).
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use armada_client::{ArmadaClient, JobSetCancelRequest, JobSetFilter, JobState, StaticTokenProvider};
+    ///
+    /// # async fn example() -> Result<(), armada_client::Error> {
+    /// # let client = ArmadaClient::connect("http://localhost:50051", StaticTokenProvider::new("")).await?;
+    /// client
+    ///     .cancel_job_set(JobSetCancelRequest {
+    ///         queue: "my-queue".into(),
+    ///         job_set_id: "my-job-set".into(),
+    ///         filter: Some(JobSetFilter {
+    ///             states: vec![JobState::Queued as i32, JobState::Running as i32],
+    ///         }),
+    ///         reason: "aborting experiment".into(),
+    ///     })
+    ///     .await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// - [`Error::Auth`] if the token provider fails.
+    /// - [`Error::InvalidMetadata`] if the token contains invalid header characters.
+    /// - [`Error::Grpc`] if the server returns a non-OK status.
+    #[instrument(skip(self, request), fields(queue = %request.queue, job_set_id = %request.job_set_id))]
+    pub async fn cancel_job_set(&self, request: JobSetCancelRequest) -> Result<(), Error> {
+        let token = self.token_provider.token().await?;
+        let mut req = tonic::Request::new(request);
+        if !token.is_empty() {
+            req.metadata_mut().insert("authorization", token.parse()?);
+        }
+        self.apply_timeout(&mut req);
+        self.submit_client.clone().cancel_job_set(req).await?;
+        Ok(())
     }
 
     /// Watch a job set, returning a stream of events.

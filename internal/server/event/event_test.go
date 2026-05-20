@@ -19,6 +19,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/auth"
 	"github.com/armadaproject/armada/internal/common/auth/permission"
 	"github.com/armadaproject/armada/internal/common/compress"
+	"github.com/armadaproject/armada/internal/common/constants"
 	"github.com/armadaproject/armada/internal/common/database/lookout"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/server/permissions"
@@ -398,7 +399,7 @@ func reportPulsarEvent(ctx *armadacontext.Context, es *armadaevents.EventSequenc
 	client := redis.NewClient(&redis.Options{Addr: "localhost:6379", DB: 11})
 
 	client.XAdd(ctx, &redis.XAddArgs{
-		Stream: "Events:" + es.Queue + ":" + es.JobSetName,
+		Stream: constants.EventStreamPrefix + es.Queue + ":" + es.JobSetName,
 		Values: map[string]interface{}{
 			"message": compressed,
 		},

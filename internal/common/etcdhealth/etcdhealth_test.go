@@ -13,7 +13,7 @@ import (
 
 func TestEtcdReplicaHealthMonitor(t *testing.T) {
 	mp := &metrics.ManualMetricsProvider{}
-	hm := NewEtcdReplicaHealthMonitor("foo", 0.2, 0.3, time.Second, time.Microsecond, 1e-3, 1.1, 10, mp)
+	hm := NewEtcdReplicaHealthMonitor("foo", "cluster", 0.2, 0.3, time.Second, time.Microsecond, 1e-3, 1.1, 10, mp)
 
 	// Initial call results in unavailable.
 	ok, reason, err := hm.IsHealthy()

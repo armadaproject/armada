@@ -14,6 +14,7 @@ export interface OidcConfig {
   clientId: string
   scope: string
   loadUserInfo: boolean
+  displayNameClaim?: string
 }
 
 export interface CommandSpec {

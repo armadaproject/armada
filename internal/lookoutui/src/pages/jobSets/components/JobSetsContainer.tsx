@@ -13,31 +13,25 @@ import {
   withRouter,
 } from "../../../common/utils"
 import { AlertErrorFallback } from "../../../components/AlertErrorFallback"
-import { JobState, Match } from "../../../models/lookoutModels"
-import { useAuthenticatedFetch } from "../../../oidcAuth"
+import { GetJobSetsRequest, JobSet, JobSetsOrderByColumn, JobState, Match } from "../../../models/lookoutModels"
 import { JOBS } from "../../../pathnames"
-import IntervalService from "../../../services/IntervalService"
-import { GetJobSetsRequest, JobSet, JobSetsOrderByColumn } from "../../../services/JobService"
 import JobSetsLocalStorageService from "../../../services/JobSetsLocalStorageService"
 import JobSetsQueryParamsService from "../../../services/JobSetsQueryParamsService"
-import { IGroupJobsService } from "../../../services/lookout/GroupJobsService"
 import {
   DEFAULT_PREFERENCES,
   JobsTablePreferences,
   stringifyQueryParams,
   toQueryStringSafe,
 } from "../../../services/lookout/JobsTablePreferencesService"
-import { UpdateJobSetsService } from "../../../services/lookout/UpdateJobSetsService"
+import { useGroupJobs } from "../../../services/lookout/useGroupJobs"
 
 import CancelJobSetsDialog, { getCancellableJobSets } from "./CancelJobSetsDialog"
 import JobSets from "./JobSets"
 import ReprioritizeJobSetsDialog, { getReprioritizableJobSets } from "./ReprioritizeJobSetsDialog"
 
 interface JobSetsContainerProps extends PropsWithRouter {
-  v2GroupJobsService: IGroupJobsService
-  v2UpdateJobSetsService: UpdateJobSetsService
+  groupJobs: ReturnType<typeof useGroupJobs>
   jobSetsAutoRefreshMs: number | undefined
-  fetchFunc: GlobalFetch["fetch"]
 }
 
 type JobSetsContainerParams = {
@@ -58,15 +52,15 @@ export type JobSetsContainerState = {
 } & JobSetsContainerParams
 
 class JobSetsContainer extends Component<JobSetsContainerProps, JobSetsContainerState> {
-  autoRefreshService: IntervalService | undefined
+  autoRefreshInterval: NodeJS.Timeout | undefined
+  autoRefreshMs: number | undefined
   localStorageService: JobSetsLocalStorageService
   queryParamsService: JobSetsQueryParamsService
 
   constructor(props: JobSetsContainerProps) {
     super(props)
 
-    this.autoRefreshService =
-      props.jobSetsAutoRefreshMs === undefined ? undefined : new IntervalService(props.jobSetsAutoRefreshMs)
+    this.autoRefreshMs = props.jobSetsAutoRefreshMs
     this.localStorageService = new JobSetsLocalStorageService()
     this.queryParamsService = new JobSetsQueryParamsService(this.props.router)
 
@@ -119,12 +113,11 @@ class JobSetsContainer extends Component<JobSetsContainerProps, JobSetsContainer
 
     await this.loadJobSets()
 
-    this.autoRefreshService?.registerCallback(this.loadJobSets)
-    this.tryStartAutoRefreshService()
+    this.tryStartAutoRefresh()
   }
 
   componentWillUnmount() {
-    this.autoRefreshService?.stop()
+    this.stopAutoRefresh()
   }
 
   async setQueue(queue: string) {
@@ -238,14 +231,20 @@ class JobSetsContainer extends Component<JobSetsContainerProps, JobSetsContainer
       ...this.state,
       autoRefresh: autoRefresh,
     })
-    this.tryStartAutoRefreshService()
+    this.tryStartAutoRefresh()
   }
 
-  tryStartAutoRefreshService() {
-    if (this.state.autoRefresh) {
-      this.autoRefreshService?.start()
-    } else {
-      this.autoRefreshService?.stop()
+  tryStartAutoRefresh() {
+    this.stopAutoRefresh()
+    if (this.state.autoRefresh && this.autoRefreshMs !== undefined) {
+      this.autoRefreshInterval = setInterval(this.loadJobSets, this.autoRefreshMs)
+    }
+  }
+
+  stopAutoRefresh() {
+    if (this.autoRefreshInterval) {
+      clearInterval(this.autoRefreshInterval)
+      this.autoRefreshInterval = undefined
     }
   }
 
@@ -304,8 +303,7 @@ class JobSetsContainer extends Component<JobSetsContainerProps, JobSetsContainer
   }
 
   private async fetchJobSets(getJobSetsRequest: GetJobSetsRequest): Promise<JobSet[]> {
-    const response = await this.props.v2GroupJobsService.groupJobs(
-      this.props.fetchFunc,
+    const response = await this.props.groupJobs(
       [
         {
           isAnnotation: false,
@@ -352,7 +350,6 @@ class JobSetsContainer extends Component<JobSetsContainerProps, JobSetsContainer
           isOpen={this.state.cancelJobSetsIsOpen}
           queue={this.state.queue}
           selectedJobSets={selectedJobSets}
-          updateJobSetsService={this.props.v2UpdateJobSetsService}
           onResult={this.handleApiResult}
           onClose={() => this.openCancelJobSets(false)}
         />
@@ -360,7 +357,6 @@ class JobSetsContainer extends Component<JobSetsContainerProps, JobSetsContainer
           isOpen={this.state.reprioritizeJobSetsIsOpen}
           queue={this.state.queue}
           selectedJobSets={selectedJobSets}
-          updateJobSetsService={this.props.v2UpdateJobSetsService}
           onResult={this.handleApiResult}
           onClose={() => this.openReprioritizeJobSets(false)}
         />
@@ -385,7 +381,7 @@ class JobSetsContainer extends Component<JobSetsContainerProps, JobSetsContainer
             onDeselectAllClick={this.deselectAll}
             onSelectAllClick={this.selectAll}
             onCancelJobSetsClick={() => this.openCancelJobSets(true)}
-            onToggleAutoRefresh={this.autoRefreshService && this.toggleAutoRefresh}
+            onToggleAutoRefresh={this.autoRefreshMs !== undefined ? this.toggleAutoRefresh : undefined}
             onReprioritizeJobSetsClick={() => this.openReprioritizeJobSets(true)}
             onJobSetStateClick={this.onJobSetStateClick}
           />
@@ -395,16 +391,14 @@ class JobSetsContainer extends Component<JobSetsContainerProps, JobSetsContainer
   }
 }
 
-interface PropsWithFetchFunc {
-  fetchFunc: GlobalFetch["fetch"]
-}
-
-const withAuthenticatedFetch = <T extends PropsWithFetchFunc>(Component: FC<T>): FC<Omit<T, "fetchFunc">> => {
-  function ComponentWithFetchFuncProp(props: T) {
-    const authenticatedFetch = useAuthenticatedFetch()
-    return <Component {...props} fetchFunc={authenticatedFetch} />
+const withGroupJobs = <T extends { groupJobs: ReturnType<typeof useGroupJobs> }>(
+  Component: FC<T>,
+): FC<Omit<T, "groupJobs">> => {
+  function ComponentWithGroupJobs(props: T) {
+    const groupJobs = useGroupJobs()
+    return <Component {...props} groupJobs={groupJobs} />
   }
-  return ComponentWithFetchFuncProp as FC<Omit<T, "fetchFunc">>
+  return ComponentWithGroupJobs as FC<Omit<T, "groupJobs">>
 }
 
-export default withAuthenticatedFetch(withRouter((props: JobSetsContainerProps) => <JobSetsContainer {...props} />))
+export default withGroupJobs(withRouter((props: JobSetsContainerProps) => <JobSetsContainer {...props} />))

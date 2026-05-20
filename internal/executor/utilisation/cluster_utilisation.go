@@ -5,6 +5,7 @@ import (
 
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
+	k8sResource "k8s.io/apimachinery/pkg/api/resource"
 
 	log "github.com/armadaproject/armada/internal/common/logging"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
@@ -217,6 +218,9 @@ func allocatedByPriorityAndResourceTypeFromPods(pods []*v1.Pod) (map[int32]armad
 			priority = *(pod.Spec.Priority)
 		}
 		request := armadaresource.TotalPodResourceRequest(&pod.Spec)
+		// Always reported so the scheduler can track non-Armada pods against per-node pod capacity
+		// when RespectNodePodLimits is enabled; dropped by the scheduler's resource list factory otherwise.
+		request[armadaresource.PodsResourceName] = *k8sResource.NewQuantity(1, k8sResource.DecimalSI)
 		_, ok := resourcesByPc[priority]
 		if ok {
 			resourcesByPc[priority].Add(request)

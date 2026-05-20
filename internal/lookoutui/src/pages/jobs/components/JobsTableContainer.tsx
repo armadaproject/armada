@@ -74,11 +74,11 @@ import { CommandSpec } from "../../../config"
 import { isJobGroupRow, JobRow, JobTableRow } from "../../../models/jobsTableModels"
 import { AggregateType, Job, JobFiltersWithExcludes, JobId, Match } from "../../../models/lookoutModels"
 import { CustomViewsService } from "../../../services/lookout/CustomViewsService"
-import { IGroupJobsService } from "../../../services/lookout/GroupJobsService"
 import {
   JobsTablePreferences,
   JobsTablePreferencesService,
 } from "../../../services/lookout/JobsTablePreferencesService"
+import { useGroupJobs } from "../../../services/lookout/useGroupJobs"
 
 import { JobsTableActionBar } from "./JobsTableActionBar"
 import { HeaderCell } from "./JobsTableCell"
@@ -89,7 +89,6 @@ import { Sidebar } from "./sidebar/Sidebar"
 const PAGE_SIZE_OPTIONS = [5, 25, 50, 100]
 
 interface JobsTableContainerProps {
-  groupJobsService: IGroupJobsService
   debug: boolean
   autoRefreshMs: number | undefined
   commandSpecs: CommandSpec[]
@@ -117,13 +116,9 @@ function fromLookoutOrder(lookoutOrder: LookoutColumnOrder): SortingState {
   ]
 }
 
-export const JobsTableContainer = ({
-  groupJobsService,
-  debug,
-  autoRefreshMs,
-  commandSpecs,
-}: JobsTableContainerProps) => {
+export const JobsTableContainer = ({ debug, autoRefreshMs, commandSpecs }: JobsTableContainerProps) => {
   const openSnackbar = useCustomSnackbar()
+  const groupJobs = useGroupJobs()
 
   const location = useLocation()
   const navigate = useNavigate()
@@ -222,7 +217,7 @@ export const JobsTableContainer = ({
     allColumns,
     selectedRows,
     updateSelectedRows: setSelectedRows,
-    groupJobsService,
+    groupJobs,
     openSnackbar,
     lastTransitionTimeAggregate,
   })
@@ -670,13 +665,15 @@ export const JobsTableContainer = ({
   }
   const sideBarClose = () => setSidebarJobId(undefined)
 
+  const filteredData = data ?? []
+
   const selectedItemsFilters: JobFiltersWithExcludes[] = useMemo(
-    () => getFiltersForRowsSelection(data, selectedRows, lookoutFilters, columnMatches),
-    [data, selectedRows, columnFilterState, lookoutFilters, allColumns],
+    () => getFiltersForRowsSelection(filteredData, selectedRows, lookoutFilters, columnMatches),
+    [filteredData, selectedRows, lookoutFilters, columnMatches],
   )
 
   const table = useReactTable({
-    data: data ?? [],
+    data: filteredData,
     columns: allColumns,
     state: {
       grouping,

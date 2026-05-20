@@ -5,17 +5,12 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 
+	"github.com/armadaproject/armada/internal/common/errormatch"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 var imagePullBackOffStatesSet = util.StringListToSet([]string{"ImagePullBackOff", "ErrImagePull"})
-
-const (
-	oomKilledReason  = "OOMKilled"
-	evictedReason    = "Evicted"
-	deadlineExceeded = "DeadlineExceeded"
-)
 
 // TODO: Need to detect pod preemption. So that job failed events can include a string indicating a pod was preempted.
 // We need this so that whatever system submitted the job knows the job was preempted.
@@ -46,10 +41,10 @@ func ExtractPodFailedReason(pod *v1.Pod) string {
 }
 
 func ExtractPodFailureCause(pod *v1.Pod) armadaevents.KubernetesReason {
-	if pod.Status.Reason == evictedReason {
+	if pod.Status.Reason == errormatch.ConditionEvicted {
 		return armadaevents.KubernetesReason_Evicted
 	}
-	if pod.Status.Reason == deadlineExceeded {
+	if pod.Status.Reason == errormatch.ConditionDeadlineExceeded {
 		return armadaevents.KubernetesReason_DeadlineExceeded
 	}
 
@@ -115,7 +110,7 @@ func ExtractFailedPodContainerStatuses(pod *v1.Pod, clusterId string) []*armadae
 }
 
 func isOom(containerStatus v1.ContainerStatus) bool {
-	return containerStatus.State.Terminated != nil && containerStatus.State.Terminated.Reason == oomKilledReason
+	return containerStatus.State.Terminated != nil && containerStatus.State.Terminated.Reason == errormatch.ConditionOOMKilled
 }
 
 type PodStartupStatus int

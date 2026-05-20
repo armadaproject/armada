@@ -9,11 +9,6 @@ import { vi } from "vitest"
 import { Job, JobState, JobStateCategory, jobStateCategoryDisplayNames } from "../../../models/lookoutModels"
 import { JOBS, V2_REDIRECT } from "../../../pathnames"
 import { ApiClientsProvider } from "../../../services/apiClients"
-import { FakeServicesProvider } from "../../../services/fakeContext"
-import { IGetJobInfoService } from "../../../services/lookout/GetJobInfoService"
-import { IGroupJobsService } from "../../../services/lookout/GroupJobsService"
-import { UpdateJobSetsService } from "../../../services/lookout/UpdateJobSetsService"
-import FakeGroupJobsService from "../../../services/lookout/mocks/FakeGroupJobsService"
 import { MockServer } from "../../../services/lookout/mocks/mockServer"
 import {
   FORMAT_NUMBER_SHOULD_FORMAT_KEY,
@@ -78,8 +73,6 @@ function makeTestJobs(
 }
 
 describe("JobsTableContainer", () => {
-  let groupJobsService: IGroupJobsService
-
   beforeAll(() => {
     mockServer.listen()
     vi.stubGlobal("IntersectionObserver", IntersectionObserverMock)
@@ -101,17 +94,7 @@ describe("JobsTableContainer", () => {
     vi.unstubAllGlobals()
   })
 
-  const renderComponent = (
-    fakeJobs: Job[] = [],
-    search?: string,
-    fakeServices: {
-      v2GroupJobsService?: IGroupJobsService
-      v2JobSpecService?: IGetJobInfoService
-      v2UpdateJobSetsService?: UpdateJobSetsService
-    } = {},
-  ) => {
-    groupJobsService = new FakeGroupJobsService(fakeJobs, false)
-
+  const renderComponent = (search?: string) => {
     // Create a fresh query client for each test to avoid cache pollution
     const testQueryClient = new QueryClient({
       defaultOptions: {
@@ -129,14 +112,7 @@ describe("JobsTableContainer", () => {
       <SnackbarProvider>
         <QueryClientProvider client={testQueryClient}>
           <ApiClientsProvider>
-            <FakeServicesProvider fakeJobs={fakeJobs} simulateApiWait={false} {...fakeServices}>
-              <JobsTableContainer
-                groupJobsService={fakeServices.v2GroupJobsService ?? groupJobsService}
-                debug={false}
-                autoRefreshMs={30000}
-                commandSpecs={[]}
-              />
-            </FakeServicesProvider>
+            <JobsTableContainer debug={false} autoRefreshMs={30000} commandSpecs={[]} />
           </ApiClientsProvider>
         </QueryClientProvider>
       </SnackbarProvider>
@@ -169,7 +145,7 @@ describe("JobsTableContainer", () => {
   it("should render a spinner while loading initially", async () => {
     // Mock the jobs endpoint to never resolve to test loading state
     mockServer.setPostJobsResponse([])
-    const { findAllByRole } = renderComponent([])
+    const { findAllByRole } = renderComponent()
     await findAllByRole("progressbar")
   })
 
@@ -187,7 +163,7 @@ describe("JobsTableContainer", () => {
 
     mockServer.setPostJobsResponse(jobs)
 
-    const { findByText } = renderComponent(jobs, `?page=0&sort[id]=jobId&sort[desc]=false`)
+    const { findByText } = renderComponent(`?page=0&sort[id]=jobId&sort[desc]=false`)
     await waitForFinishedLoading()
     await findByText("1–50 of more than 50")
   })
@@ -197,7 +173,7 @@ describe("JobsTableContainer", () => {
 
     mockServer.setPostJobsResponse(jobs)
 
-    const { findByText } = renderComponent(jobs, `?page=1&sort[id]=jobId&sort[desc]=false`)
+    const { findByText } = renderComponent(`?page=1&sort[id]=jobId&sort[desc]=false`)
     await waitForFinishedLoading()
     await findByText("51–60 of 60")
   })
@@ -217,7 +193,7 @@ describe("JobsTableContainer", () => {
 
       mockServer.setPostJobsResponse(jobs)
 
-      renderComponent(jobs)
+      renderComponent()
       await waitForFinishedLoading()
 
       await groupByColumn(displayString)
@@ -244,7 +220,7 @@ describe("JobsTableContainer", () => {
 
       mockServer.setPostJobsResponse(jobs)
 
-      renderComponent(jobs)
+      renderComponent()
 
       // Group to 3 levels
       await groupByColumn("Queue")
@@ -276,7 +252,7 @@ describe("JobsTableContainer", () => {
 
       mockServer.setPostJobsResponse(jobs)
 
-      const { getByRole, queryAllByRole } = renderComponent(jobs)
+      const { getByRole, queryAllByRole } = renderComponent()
       await waitForFinishedLoading()
 
       await groupByColumn("Queue")
@@ -309,7 +285,7 @@ describe("JobsTableContainer", () => {
 
       mockServer.setPostJobsResponse(jobs)
 
-      const { findByRole } = renderComponent(jobs)
+      const { findByRole } = renderComponent()
       await waitForFinishedLoading()
       await groupByColumn("Queue")
 
@@ -344,7 +320,7 @@ describe("JobsTableContainer", () => {
 
       mockServer.setPostJobsResponse(jobs)
 
-      const { findByRole } = renderComponent(jobs)
+      const { findByRole } = renderComponent()
       await waitForFinishedLoading()
 
       await toggleSelectedRow("jobId", jobs[0].jobId)
@@ -362,7 +338,7 @@ describe("JobsTableContainer", () => {
 
       mockServer.setPostJobsResponse(jobs)
 
-      const { findByRole } = renderComponent(jobs)
+      const { findByRole } = renderComponent()
       await waitForFinishedLoading()
       await groupByColumn("Queue")
 
@@ -392,7 +368,7 @@ describe("JobsTableContainer", () => {
       mockServer.setGetQueuesResponse(["queue-1", "queue-2"])
       mockServer.setPostJobsResponse(jobs)
 
-      const { baseElement } = renderComponent(jobs)
+      const { baseElement } = renderComponent()
       await waitForFinishedLoading()
       await assertNumDataRowsShown(30)
 
@@ -412,7 +388,7 @@ describe("JobsTableContainer", () => {
       ]
 
       mockServer.setPostJobsResponse(jobs)
-      renderComponent(jobs)
+      renderComponent()
       await clearAllGroupings()
       await waitForFinishedLoading()
 
@@ -432,7 +408,7 @@ describe("JobsTableContainer", () => {
         ...makeTestJobs(5, "queue-3", "job-set-2", JobState.Cancelled),
       ]
       mockServer.setPostJobsResponse(jobs)
-      renderComponent(jobs)
+      renderComponent()
       await clearAllGroupings()
       await waitForFinishedLoading()
 
@@ -456,7 +432,7 @@ describe("JobsTableContainer", () => {
 
       mockServer.setPostJobsResponse(jobs)
 
-      const { findAllByRole } = renderComponent(jobs)
+      const { findAllByRole } = renderComponent()
       await clearAllGroupings()
       await waitForFinishedLoading()
 
@@ -487,7 +463,7 @@ describe("JobsTableContainer", () => {
 
       mockServer.setPostJobsResponse(jobs)
 
-      const { getAllByRole } = renderComponent(jobs)
+      const { getAllByRole } = renderComponent()
       await waitForFinishedLoading()
 
       await toggleSorting("Job ID")
@@ -518,7 +494,7 @@ describe("JobsTableContainer", () => {
 
       mockServer.setPostJobsResponse(jobs)
 
-      const { findByRole } = renderComponent(jobs)
+      const { findByRole } = renderComponent()
       await waitForFinishedLoading()
       await assertNumDataRowsShown(30)
 
@@ -548,7 +524,7 @@ describe("JobsTableContainer", () => {
       mockServer.setGetQueuesResponse(["queue-1", "queue-2", "queue-3"])
       mockServer.setPostJobsResponse(jobs)
 
-      const { findByText, baseElement } = renderComponent(jobs)
+      const { findByText, baseElement } = renderComponent()
       await waitForFinishedLoading()
 
       // Applying grouping and filtering
@@ -579,7 +555,7 @@ describe("JobsTableContainer", () => {
 
       mockServer.setPostJobsResponse(jobs)
 
-      const { getByRole } = renderComponent(jobs)
+      const { getByRole } = renderComponent()
       await waitForFinishedLoading()
 
       const firstJob = jobs[0]
@@ -599,7 +575,7 @@ describe("JobsTableContainer", () => {
 
       mockServer.setPostJobsResponse(jobs)
 
-      const { findByRole, queryByRole } = renderComponent(jobs)
+      const { findByRole, queryByRole } = renderComponent()
       await waitForFinishedLoading()
 
       await groupByColumn("Queue")
@@ -634,7 +610,7 @@ describe("JobsTableContainer", () => {
 
       mockServer.setPostJobsResponse(jobs)
 
-      const { router, baseElement, findByText } = renderComponent(jobs)
+      const { router, baseElement, findByText } = renderComponent()
       await waitForFinishedLoading()
 
       await findByText(targetJobId, undefined, { timeout: 3_000 })
@@ -679,7 +655,6 @@ describe("JobsTableContainer", () => {
       mockServer.setPostJobsResponse(jobs)
 
       renderComponent(
-        jobs,
         // eslint-disable-next-line @cspell/spellchecker
         `?page=0&g[0]=jobSet&sort[id]=jobId&sort[desc]=true&pS=50&f[0][id]=jobSet&f[0][value]=job-set-1&f[0][match]=startsWith&e[0]=jobSet%3Ajob-set-1`,
       )
@@ -698,7 +673,7 @@ describe("JobsTableContainer", () => {
 
       mockServer.setPostJobsResponse(jobs)
 
-      const { getAllByRole } = renderComponent(jobs, `?page=1&sort[id]=jobId&sort[desc]=false`)
+      const { getAllByRole } = renderComponent(`?page=1&sort[id]=jobId&sort[desc]=false`)
       await waitForFinishedLoading()
       await waitFor(() => {
         const rows = getAllByRole("row")

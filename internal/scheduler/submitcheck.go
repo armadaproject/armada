@@ -30,6 +30,19 @@ type schedulingResult struct {
 	reason        string
 }
 
+type deadline time.Time
+
+func newDeadline(limit time.Duration, now time.Time) deadline {
+	if limit <= 0 {
+		return deadline{}
+	}
+	return deadline(now.Add(limit))
+}
+
+func (d deadline) exceeded(now time.Time) bool {
+	return !time.Time(d).IsZero() && now.After(time.Time(d))
+}
+
 type executor struct {
 	id     string
 	nodeDb *nodedb.NodeDb
@@ -42,11 +55,12 @@ type schedulerState struct {
 }
 
 type SubmitScheduleChecker interface {
-	Check(ctx *armadacontext.Context, jobs []*jobdb.Job) (map[string]schedulingResult, error)
+	Check(ctx *armadacontext.Context, jobs []*jobdb.Job) (map[string]schedulingResult, map[string]time.Duration, error)
 }
 
 type SubmitChecker struct {
 	schedulingConfig       configuration.SchedulingConfig
+	submitCheckConfig      configuration.SubmitCheckConfig
 	poolsBySubmissionGroup map[string][]string
 	executorRepository     database.ExecutorRepository
 	queueCache             queue.QueueCache
@@ -58,6 +72,7 @@ type SubmitChecker struct {
 
 func NewSubmitChecker(
 	schedulingConfig configuration.SchedulingConfig,
+	submitCheckConfig configuration.SubmitCheckConfig,
 	executorRepository database.ExecutorRepository,
 	queueCache queue.QueueCache,
 	floatingResourceTypes *floatingresources.FloatingResourceTypes,
@@ -72,6 +87,7 @@ func NewSubmitChecker(
 	}
 	return &SubmitChecker{
 		schedulingConfig:       schedulingConfig,
+		submitCheckConfig:      submitCheckConfig,
 		poolsBySubmissionGroup: poolsBySubmissionGroup,
 		executorRepository:     executorRepository,
 		queueCache:             queueCache,
@@ -191,40 +207,63 @@ func (srv *SubmitChecker) getPoolsBySubmissionGroup(submissionGroup string) []st
 	return srv.poolsBySubmissionGroup[submissionGroup]
 }
 
-func (srv *SubmitChecker) Check(ctx *armadacontext.Context, jobs []*jobdb.Job) (map[string]schedulingResult, error) {
-	start := time.Now()
+func (srv *SubmitChecker) Check(ctx *armadacontext.Context, jobs []*jobdb.Job) (map[string]schedulingResult, map[string]time.Duration, error) {
+	start := srv.clock.Now()
 	state := srv.state.Load()
 	if state == nil {
-		return nil, fmt.Errorf("executor state not loaded")
+		return nil, nil, fmt.Errorf("executor state not loaded")
 	}
 
-	jobContexts := context.JobSchedulingContextsFromJobs(jobs)
+	globalDeadline := newDeadline(srv.submitCheckConfig.MaxDuration, start)
+
+	jobsByQueue := armadaslices.GroupByFunc(jobs, func(job *jobdb.Job) string {
+		return job.Queue()
+	})
+
 	results := make(map[string]schedulingResult, len(jobs))
+	queueDurations := make(map[string]time.Duration, len(jobsByQueue))
 
-	// First, check if all jobs can be scheduled individually.
-	for _, job := range jobs {
-		results[job.Id()] = srv.getIndividualSchedulingResult(job, state)
-	}
-
-	// Then, check if all gangs can be scheduled.
-	for gangId, jctxs := range armadaslices.GroupByFunc(
-		jobContexts,
-		func(jctx *context.JobSchedulingContext) string {
-			return jctx.Job.GetGangInfo().Id()
-		},
-	) {
-		if gangId == "" {
-			continue
+	for queue, jobsInQueue := range jobsByQueue {
+		if globalDeadline.exceeded(srv.clock.Now()) {
+			break
 		}
-		gctx := context.NewGangSchedulingContext(jctxs)
-		if result := srv.getSchedulingResult(gctx, state); !result.isSchedulable {
-			for _, jctx := range gctx.JobSchedulingContexts {
-				results[jctx.JobId] = result
+
+		queueStart := srv.clock.Now()
+		queueDeadline := newDeadline(srv.submitCheckConfig.MaxDurationPerQueue, queueStart)
+
+		jobsByGang := map[string][]*jobdb.Job{}
+		for _, job := range jobsInQueue {
+			if job.IsInGang() {
+				gid := job.GetGangInfo().Id()
+				jobsByGang[gid] = append(jobsByGang[gid], job)
 			}
 		}
+		processedGangs := map[string]bool{}
+
+		for _, job := range jobsInQueue {
+			if queueDeadline.exceeded(srv.clock.Now()) || globalDeadline.exceeded(srv.clock.Now()) {
+				break
+			}
+
+			if !job.IsInGang() {
+				results[job.Id()] = srv.getIndividualSchedulingResult(job, state)
+			} else {
+				gangId := job.GetGangInfo().Id()
+				if processedGangs[gangId] {
+					continue
+				}
+				gangResult := srv.getGangSchedulingResult(jobsByGang[gangId], state)
+				for _, gj := range jobsByGang[gangId] {
+					results[gj.Id()] = gangResult
+				}
+				processedGangs[gangId] = true
+			}
+		}
+
+		queueDurations[queue] = srv.clock.Since(queueStart)
 	}
-	ctx.Infof("Checked %d jobs in %s", len(jobs), time.Since(start))
-	return results, nil
+	ctx.Infof("Checked %d/%d jobs in %s", len(results), len(jobs), srv.clock.Since(start))
+	return results, queueDurations, nil
 }
 
 func (srv *SubmitChecker) getIndividualSchedulingResult(job *jobdb.Job, state *schedulerState) schedulingResult {
@@ -243,6 +282,17 @@ func (srv *SubmitChecker) getIndividualSchedulingResult(job *jobdb.Job, state *s
 	state.jobSchedulingResultsCache.Add(schedulingKey, result)
 
 	return result
+}
+
+func (srv *SubmitChecker) getGangSchedulingResult(gangJobs []*jobdb.Job, state *schedulerState) schedulingResult {
+	for _, job := range gangJobs {
+		if result := srv.getIndividualSchedulingResult(job, state); !result.isSchedulable {
+			return result
+		}
+	}
+	jctxs := context.JobSchedulingContextsFromJobs(gangJobs)
+	gctx := context.NewGangSchedulingContext(jctxs)
+	return srv.getSchedulingResult(gctx, state)
 }
 
 // Check if a set of jobs can be scheduled onto some cluster.

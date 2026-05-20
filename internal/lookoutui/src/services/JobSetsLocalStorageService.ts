@@ -1,7 +1,6 @@
 import { tryParseJson } from "../common/utils"
+import { isJobSetsOrderByColumn, JobSetsOrderByColumn } from "../models/lookoutModels"
 import { JobSetsContainerState } from "../pages/jobSets/components/JobSetsContainer"
-
-import { isJobSetsOrderByColumn, JobSetsOrderByColumn } from "./JobService"
 
 const LOCAL_STORAGE_KEY = "armada_lookout_job_sets_user_settings"
 

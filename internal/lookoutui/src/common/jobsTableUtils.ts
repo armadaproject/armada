@@ -3,7 +3,7 @@ import _ from "lodash"
 
 import { isJobGroupRow, JobGroupRow, JobRow, JobTableRow } from "../models/jobsTableModels"
 import { Job, JobFilter, JobFiltersWithExcludes, JobGroup, Match } from "../models/lookoutModels"
-import { GroupedField } from "../services/lookout/GroupJobsService"
+import { GroupedField } from "../services/lookout/useGroupJobs"
 
 import { validDateFromNullableIsoString } from "./dates"
 import {

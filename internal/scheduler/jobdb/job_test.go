@@ -288,6 +288,22 @@ func TestJob_TestWithNewRun(t *testing.T) {
 	)
 }
 
+func TestJob_Leased(t *testing.T) {
+	leasedJob := baseJob.WithQueued(false).WithUpdatedRun(baseRun)
+	assert.True(t, leasedJob.Leased())
+
+	queuedJob := leasedJob.WithQueued(true)
+	assert.False(t, queuedJob.Leased())
+
+	// Terminal jobs
+	assert.False(t, leasedJob.WithSucceeded(true).Leased())
+	assert.False(t, leasedJob.WithFailed(true).Leased())
+	assert.False(t, leasedJob.WithCancelled(true).Leased())
+
+	jobWithoutRun := baseJob.WithQueued(false)
+	assert.False(t, jobWithoutRun.Leased())
+}
+
 func TestJob_TestWithUpdatedRun_NewRun(t *testing.T) {
 	jobWithRun := baseJob.WithUpdatedRun(baseRun)
 	assert.Equal(t, true, jobWithRun.HasRuns())

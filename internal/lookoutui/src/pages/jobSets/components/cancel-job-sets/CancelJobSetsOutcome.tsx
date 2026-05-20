@@ -13,7 +13,7 @@ import {
   TableRow,
 } from "@mui/material"
 
-import { CancelJobSetsResponse } from "../../../../services/lookout/UpdateJobSetsService"
+import { CancelJobSetsResponse } from "../../../../services/lookout/useCancelJobSets"
 
 import "./CancelJobSets.css"
 import "../Dialog.css"

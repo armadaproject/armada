@@ -31,7 +31,7 @@ var (
 	poolAndShapeAndReasonLabels            = []string{poolLabel, jobShapeLabel, unschedulableReasonLabel}
 	poolQueueAndResourceLabels             = []string{poolLabel, queueLabel, resourceLabel}
 	poolAndOutcomeLabels                   = []string{poolLabel, outcomeLabel, terminationReasonLabel}
-	nodeLabels                             = []string{poolLabel, nodeLabel, clusterLabel, nodeTypeLabel, resourceLabel, reservationLabel, schedulableLabel, overAllocatedLabel, physicalPoolLabel, capacityClassLabel}
+	nodeLabels                             = []string{poolLabel, nodeLabel, clusterLabel, nodeTypeLabel, resourceLabel, reservationLabel, schedulableLabel, overAllocatedLabel, physicalPoolLabel, capacityClassLabel, scalableUnitLabel}
 	defaultType                            = "unknown"
 	reconcilerFailureType                  = "reconciler"
 )
@@ -58,6 +58,7 @@ type perCycleMetrics struct {
 	evictedJobs                  *prometheus.GaugeVec
 	evictedResources             *prometheus.GaugeVec
 	spotPrice                    *prometheus.GaugeVec
+	spotPriceOverride            *prometheus.GaugeVec
 	indicativeShare              *prometheus.GaugeVec
 	nodePreemptibility           *prometheus.GaugeVec
 	protectedFractionOfFairShare *prometheus.GaugeVec
@@ -74,7 +75,7 @@ type perCycleMetrics struct {
 func newPerCycleMetrics() *perCycleMetrics {
 	consideredJobs := prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: prefix + "considered_jobs",
+			Name: ArmadaSchedulerMetricsPrefix + "considered_jobs",
 			Help: "Number of jobs considered",
 		},
 		poolAndQueueLabels,
@@ -82,7 +83,7 @@ func newPerCycleMetrics() *perCycleMetrics {
 
 	fairShare := prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: prefix + "fair_share",
+			Name: ArmadaSchedulerMetricsPrefix + "fair_share",
 			Help: "Fair share of each queue",
 		},
 		poolAndQueueLabels,
@@ -90,7 +91,7 @@ func newPerCycleMetrics() *perCycleMetrics {
 
 	adjustedFairShare := prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: prefix + "adjusted_fair_share",
+			Name: ArmadaSchedulerMetricsPrefix + "adjusted_fair_share",
 			Help: "Adjusted Fair share of each queue",
 		},
 		poolAndQueueLabels,
@@ -98,7 +99,7 @@ func newPerCycleMetrics() *perCycleMetrics {
 
 	uncappedAdjustedFairShare := prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: prefix + "uncapped_adjusted_fair_share",
+			Name: ArmadaSchedulerMetricsPrefix + "uncapped_adjusted_fair_share",
 			Help: "Adjusted Fair share of each queue, not capped by demand",
 		},
 		poolAndQueueLabels,
@@ -106,7 +107,7 @@ func newPerCycleMetrics() *perCycleMetrics {
 
 	actualShare := prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: prefix + "actual_share",
+			Name: ArmadaSchedulerMetricsPrefix + "actual_share",
 			Help: "Actual Fair share of each queue",
 		},
 		poolAndQueueLabels,
@@ -114,7 +115,7 @@ func newPerCycleMetrics() *perCycleMetrics {
 
 	demand := prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: prefix + "demand",
+			Name: ArmadaSchedulerMetricsPrefix + "demand",
 			Help: "Demand of each queue",
 		},
 		poolAndQueueLabels,
@@ -122,7 +123,7 @@ func newPerCycleMetrics() *perCycleMetrics {
 
 	constrainedDemand := prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: prefix + "constrained_demand",
+			Name: ArmadaSchedulerMetricsPrefix + "constrained_demand",
 			Help: "Constrained demand of each queue and pool.  This differs from demand in that it limits demand by scheduling constraints",
 		},
 		poolAndQueueLabels,
@@ -130,7 +131,7 @@ func newPerCycleMetrics() *perCycleMetrics {
 
 	shortJobPenalty := prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: prefix + "short_job_penalty",
+			Name: ArmadaSchedulerMetricsPrefix + "short_job_penalty",
 			Help: "Short job penalty for each queue. This is the resource used by jobs that started recently and exited soon after they started.",
 		},
 		poolAndQueueLabels,
@@ -138,7 +139,7 @@ func newPerCycleMetrics() *perCycleMetrics {
 
 	queueWeight := prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: prefix + "queue_weight",
+			Name: ArmadaSchedulerMetricsPrefix + "queue_weight",
 			Help: "Weight of the queue after multipliers have been applied",
 		},
 		poolAndQueueLabels,
@@ -146,7 +147,7 @@ func newPerCycleMetrics() *perCycleMetrics {
 
 	rawQueueWeight := prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: prefix + "raw_queue_weight",
+			Name: ArmadaSchedulerMetricsPrefix + "raw_queue_weight",
 			Help: "Weight of the queue before multipliers have been applied",
 		},
 		poolAndQueueLabels,
@@ -154,7 +155,7 @@ func newPerCycleMetrics() *perCycleMetrics {
 
 	fairnessError := prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: prefix + "fairness_error",
+			Name: ArmadaSchedulerMetricsPrefix + "fairness_error",
 			Help: "Cumulative delta between adjusted fair share and actual share for all users who are below their fair share",
 		},
 		[]string{poolLabel},
@@ -162,7 +163,7 @@ func newPerCycleMetrics() *perCycleMetrics {
 
 	gangsConsidered := prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: prefix + "gangs_considered",
+			Name: ArmadaSchedulerMetricsPrefix + "gangs_considered",
 			Help: "Number of gangs considered in this scheduling cycle",
 		},
 		poolAndQueueLabels,
@@ -170,7 +171,7 @@ func newPerCycleMetrics() *perCycleMetrics {
 
 	gangsScheduled := prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: prefix + "gangs_scheduled",
+			Name: ArmadaSchedulerMetricsPrefix + "gangs_scheduled",
 			Help: "Number of gangs scheduled in this scheduling cycle",
 		},
 		poolAndQueueLabels,
@@ -178,7 +179,7 @@ func newPerCycleMetrics() *perCycleMetrics {
 
 	firstGangQueuePosition := prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: prefix + "first_gang_queue_position",
+			Name: ArmadaSchedulerMetricsPrefix + "first_gang_queue_position",
 			Help: "First position in the scheduling loop where a gang was considered",
 		},
 		poolAndQueueLabels,
@@ -186,7 +187,7 @@ func newPerCycleMetrics() *perCycleMetrics {
 
 	lastGangQueuePosition := prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: prefix + "last_gang_queue_position",
+			Name: ArmadaSchedulerMetricsPrefix + "last_gang_queue_position",
 			Help: "Last position in the scheduling loop where a gang was considered",
 		},
 		poolAndQueueLabels,
@@ -194,7 +195,7 @@ func newPerCycleMetrics() *perCycleMetrics {
 
 	perQueueCycleTime := prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: prefix + "per_queue_schedule_cycle_times",
+			Name: ArmadaSchedulerMetricsPrefix + "per_queue_schedule_cycle_times",
 			Help: "Per queue cycle time when in a scheduling round.",
 		},
 		poolAndQueueLabels,
@@ -202,7 +203,7 @@ func newPerCycleMetrics() *perCycleMetrics {
 
 	loopNumber := prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: prefix + "loop_number",
+			Name: ArmadaSchedulerMetricsPrefix + "loop_number",
 			Help: "Number of scheduling loops in this cycle",
 		},
 		poolLabels,
@@ -210,7 +211,7 @@ func newPerCycleMetrics() *perCycleMetrics {
 
 	evictedJobs := prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: prefix + "evicted_jobs",
+			Name: ArmadaSchedulerMetricsPrefix + "evicted_jobs",
 			Help: "Number of jobs evicted in this cycle",
 		},
 		poolAndQueueLabels,
@@ -218,7 +219,7 @@ func newPerCycleMetrics() *perCycleMetrics {
 
 	evictedResources := prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: prefix + "evicted_resources",
+			Name: ArmadaSchedulerMetricsPrefix + "evicted_resources",
 			Help: "Resources evicted in this cycle",
 		},
 		poolQueueAndResourceLabels,
@@ -226,7 +227,7 @@ func newPerCycleMetrics() *perCycleMetrics {
 
 	billableResources := prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: prefix + "billable_resources",
+			Name: ArmadaSchedulerMetricsPrefix + "billable_resources",
 			Help: "Resources billable for in this cycle",
 		},
 		poolQueueAndResourceLabels,
@@ -234,15 +235,23 @@ func newPerCycleMetrics() *perCycleMetrics {
 
 	spotPrice := prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: prefix + "spot_price",
+			Name: ArmadaSchedulerMetricsPrefix + "spot_price",
 			Help: "spot price for given pool",
 		},
 		poolLabels,
 	)
 
+	spotPriceOverride := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: ArmadaSchedulerMetricsPrefix + "spot_price_override",
+			Help: "spot price override applied to the price-setting queue under second-price billing",
+		},
+		poolAndQueueLabels,
+	)
+
 	indicativeShare := prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: prefix + "indicative_share",
+			Name: ArmadaSchedulerMetricsPrefix + "indicative_share",
 			Help: "indicative share for some priority in the given pool",
 		},
 		poolAndPriorityLabels,
@@ -250,7 +259,7 @@ func newPerCycleMetrics() *perCycleMetrics {
 
 	nodePreemptibility := prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: prefix + "node_preemptibility",
+			Name: ArmadaSchedulerMetricsPrefix + "node_preemptibility",
 			Help: "is it possible to clear this node by preempting any jobs on it?",
 		},
 		[]string{poolLabel, nodeLabel, clusterLabel, nodeTypeLabel, "isPreemptible", "reason"},
@@ -258,7 +267,7 @@ func newPerCycleMetrics() *perCycleMetrics {
 
 	protectedFractionOfFairShare := prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: prefix + "protected_fraction_of_fair_share",
+			Name: ArmadaSchedulerMetricsPrefix + "protected_fraction_of_fair_share",
 			Help: "config value protectedFractionOfFairShare - will evict preemptible jobs if actual_share / max(fair_share, adjusted_fair_share) is greater than this",
 		},
 		[]string{poolLabel},
@@ -266,7 +275,7 @@ func newPerCycleMetrics() *perCycleMetrics {
 
 	nodeAllocatableResource := prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: prefix + "node_allocatable_resource",
+			Name: ArmadaSchedulerMetricsPrefix + "node_allocatable_resource",
 			Help: "Resource that can be allocated to Armada jobs on this node",
 		},
 		nodeLabels,
@@ -274,7 +283,7 @@ func newPerCycleMetrics() *perCycleMetrics {
 
 	nodeAllocatedResource := prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: prefix + "node_allocated_resource",
+			Name: ArmadaSchedulerMetricsPrefix + "node_allocated_resource",
 			Help: "Resource allocated by Armada jobs on this node",
 		},
 		nodeLabels,
@@ -282,7 +291,7 @@ func newPerCycleMetrics() *perCycleMetrics {
 
 	indicativePrice := prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: prefix + "indicative_price",
+			Name: ArmadaSchedulerMetricsPrefix + "indicative_price",
 			Help: "indicative price for configured job in pool",
 		},
 		poolAndShapeLabels,
@@ -290,7 +299,7 @@ func newPerCycleMetrics() *perCycleMetrics {
 
 	indicativePriceSchedulable := prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: prefix + "indicative_price_is_schedulable",
+			Name: ArmadaSchedulerMetricsPrefix + "indicative_price_is_schedulable",
 			Help: "determines whether defined job is at all schedulable",
 		},
 		poolAndShapeAndReasonLabels,
@@ -298,7 +307,7 @@ func newPerCycleMetrics() *perCycleMetrics {
 
 	idealisedScheduledValue := prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: prefix + "idealised_scheduled_value",
+			Name: ArmadaSchedulerMetricsPrefix + "idealised_scheduled_value",
 			Help: "Idealised value scheduled per queue",
 		},
 		poolAndQueueLabels,
@@ -306,7 +315,7 @@ func newPerCycleMetrics() *perCycleMetrics {
 
 	idealisedAllocatedResource := prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: prefix + "idealised_allocated_resource",
+			Name: ArmadaSchedulerMetricsPrefix + "idealised_allocated_resource",
 			Help: "Idealised value scheduled per queue",
 		},
 		[]string{poolLabel, queueLabel, resourceLabel},
@@ -314,7 +323,7 @@ func newPerCycleMetrics() *perCycleMetrics {
 
 	realisedScheduledValue := prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: prefix + "realised_scheduled_value",
+			Name: ArmadaSchedulerMetricsPrefix + "realised_scheduled_value",
 			Help: "Realised value scheduled per queue",
 		},
 		poolAndQueueLabels,
@@ -322,7 +331,7 @@ func newPerCycleMetrics() *perCycleMetrics {
 
 	nodePoolSize := prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: prefix + "node_pool_size",
+			Name: ArmadaSchedulerMetricsPrefix + "node_pool_size",
 			Help: "Number of nodes in each pool",
 		},
 		poolLabels,
@@ -350,6 +359,7 @@ func newPerCycleMetrics() *perCycleMetrics {
 		evictedResources:             evictedResources,
 		billableResource:             billableResources,
 		spotPrice:                    spotPrice,
+		spotPriceOverride:            spotPriceOverride,
 		indicativeShare:              indicativeShare,
 		nodePreemptibility:           nodePreemptibility,
 		protectedFractionOfFairShare: protectedFractionOfFairShare,
@@ -366,6 +376,7 @@ func newPerCycleMetrics() *perCycleMetrics {
 
 type cycleMetrics struct {
 	leaderMetricsEnabled bool
+	scalableUnitLabelKey string
 
 	scheduledJobs           *prometheus.CounterVec
 	preemptedJobs           *prometheus.CounterVec
@@ -375,14 +386,15 @@ type cycleMetrics struct {
 	scheduleCycleOutcome    *prometheus.CounterVec
 	scheduleCycleTime       prometheus.Histogram
 	reconciliationCycleTime prometheus.Histogram
+	submitCheckDuration     *prometheus.HistogramVec
 	latestCycleMetrics      atomic.Pointer[perCycleMetrics]
 	metricsPublisher        pulsarutils.Publisher[*metricevents.Event]
 }
 
-func newCycleMetrics(publisher pulsarutils.Publisher[*metricevents.Event]) *cycleMetrics {
+func newCycleMetrics(publisher pulsarutils.Publisher[*metricevents.Event], scalableUnitLabelKey string) *cycleMetrics {
 	scheduledJobs := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: prefix + "scheduled_jobs",
+			Name: ArmadaSchedulerMetricsPrefix + "scheduled_jobs",
 			Help: "Number of events scheduled",
 		},
 		poolAndQueueAndPriorityClassTypeLabels,
@@ -390,7 +402,7 @@ func newCycleMetrics(publisher pulsarutils.Publisher[*metricevents.Event]) *cycl
 
 	preemptedJobs := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: prefix + "preempted_jobs",
+			Name: ArmadaSchedulerMetricsPrefix + "preempted_jobs",
 			Help: "Number of jobs preempted",
 		},
 		poolAndQueueAndPriorityClassTypeLabels,
@@ -398,7 +410,7 @@ func newCycleMetrics(publisher pulsarutils.Publisher[*metricevents.Event]) *cycl
 
 	failedJobs := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: prefix + "failed_jobs",
+			Name: ArmadaSchedulerMetricsPrefix + "failed_jobs",
 			Help: "Number of jobs failed",
 		},
 		poolAndQueueAndPriorityClassTypeLabels,
@@ -406,7 +418,7 @@ func newCycleMetrics(publisher pulsarutils.Publisher[*metricevents.Event]) *cycl
 
 	scheduleCycleTime := prometheus.NewHistogram(
 		prometheus.HistogramOpts{
-			Name:    prefix + "schedule_cycle_times",
+			Name:    ArmadaSchedulerMetricsPrefix + "schedule_cycle_times",
 			Help:    "Cycle time when in a scheduling round.",
 			Buckets: prometheus.ExponentialBuckets(10.0, 1.1, 110),
 		},
@@ -414,7 +426,7 @@ func newCycleMetrics(publisher pulsarutils.Publisher[*metricevents.Event]) *cycl
 
 	scheduleCycleOutcome := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: prefix + "schedule_outcome",
+			Name: ArmadaSchedulerMetricsPrefix + "schedule_outcome",
 			Help: "Count of scheduling cycles completed by outcome",
 		},
 		[]string{outcomeLabel},
@@ -422,7 +434,7 @@ func newCycleMetrics(publisher pulsarutils.Publisher[*metricevents.Event]) *cycl
 
 	reconciliationCycleTime := prometheus.NewHistogram(
 		prometheus.HistogramOpts{
-			Name:    prefix + "reconciliation_cycle_times",
+			Name:    ArmadaSchedulerMetricsPrefix + "reconciliation_cycle_times",
 			Help:    "Cycle time when in a scheduling round.",
 			Buckets: prometheus.ExponentialBuckets(10.0, 1.1, 110),
 		},
@@ -430,7 +442,7 @@ func newCycleMetrics(publisher pulsarutils.Publisher[*metricevents.Event]) *cycl
 
 	poolSchedulingOutcome := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: prefix + "pool_scheduling_outcome",
+			Name: ArmadaSchedulerMetricsPrefix + "pool_scheduling_outcome",
 			Help: "Number of scheduling attempts per pool by outcome",
 		},
 		poolAndOutcomeLabels,
@@ -438,15 +450,25 @@ func newCycleMetrics(publisher pulsarutils.Publisher[*metricevents.Event]) *cycl
 
 	poolSchedulingCycleTime := prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Name:    prefix + "pool_scheduling_cycle_times",
+			Name:    ArmadaSchedulerMetricsPrefix + "pool_scheduling_cycle_times",
 			Help:    "Time taken to schedule on a given pool.",
 			Buckets: prometheus.ExponentialBuckets(10.0, 1.1, 110),
 		},
 		poolLabels,
 	)
 
+	submitCheckDuration := prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    ArmadaSchedulerMetricsPrefix + "submit_check_times",
+			Help:    "Time spent in submit check per queue per scheduling cycle, in milliseconds.",
+			Buckets: prometheus.ExponentialBuckets(0.5, 1.5, 25),
+		},
+		[]string{queueLabel},
+	)
+
 	cycleMetrics := &cycleMetrics{
 		leaderMetricsEnabled:    true,
+		scalableUnitLabelKey:    scalableUnitLabelKey,
 		scheduledJobs:           scheduledJobs,
 		preemptedJobs:           preemptedJobs,
 		failedJobs:              failedJobs,
@@ -455,6 +477,7 @@ func newCycleMetrics(publisher pulsarutils.Publisher[*metricevents.Event]) *cycl
 		scheduleCycleTime:       scheduleCycleTime,
 		scheduleCycleOutcome:    scheduleCycleOutcome,
 		reconciliationCycleTime: reconciliationCycleTime,
+		submitCheckDuration:     submitCheckDuration,
 		latestCycleMetrics:      atomic.Pointer[perCycleMetrics]{},
 		metricsPublisher:        publisher,
 	}
@@ -515,6 +538,12 @@ func (m *cycleMetrics) ReportPoolSchedulingCycleTime(pool string, cycleTime time
 	m.poolSchedulingCycleTime.WithLabelValues(pool).Observe(float64(cycleTime.Milliseconds()))
 }
 
+func (m *cycleMetrics) ReportSubmitCheckDuration(durations map[string]time.Duration) {
+	for queue, duration := range durations {
+		m.submitCheckDuration.WithLabelValues(queue).Observe(float64(duration) / float64(time.Millisecond))
+	}
+}
+
 func (m *cycleMetrics) ReportSchedulerResult(ctx *armadacontext.Context, result scheduling.SchedulerResult) {
 	currentCycle := newPerCycleMetrics()
 
@@ -555,6 +584,9 @@ func (m *cycleMetrics) ReportSchedulerResult(ctx *armadacontext.Context, result 
 					currentCycle.rawQueueWeight.WithLabelValues(pool, queue).Set(queueContext.RawWeight)
 					currentCycle.idealisedScheduledValue.WithLabelValues(pool, queue).Set(queueContext.IdealisedValue)
 					currentCycle.realisedScheduledValue.WithLabelValues(pool, queue).Set(queueContext.RealisedValue)
+					if override := queueContext.GetBillablePriceOverride(); override != nil {
+						currentCycle.spotPriceOverride.WithLabelValues(pool, queue).Set(*override)
+					}
 					for _, r := range queueContext.GetBillableResource().GetAll() {
 						currentCycle.billableResource.WithLabelValues(pool, queue, r.Name).Set(r.Value.AsApproximateFloat64())
 					}
@@ -614,16 +646,20 @@ func (m *cycleMetrics) ReportSchedulerResult(ctx *armadacontext.Context, result 
 						if pool != node.GetPool() {
 							nodeCapacityClass = CapacityClassShared
 						}
+						scalableUnit := ""
+						if m.scalableUnitLabelKey != "" {
+							scalableUnit = node.GetLabels()[m.scalableUnitLabelKey]
+						}
 						for _, resource := range node.GetAllocatableResources().GetAll() {
 							currentCycle.nodeAllocatableResource.WithLabelValues(pool, node.GetName(), node.GetExecutor(), node.GetReportingNodeType(), resource.Name, node.GetReservation(),
-								isSchedulable, isOverallocated, node.GetPool(), nodeCapacityClass).Set(resource.Value.AsApproximateFloat64())
+								isSchedulable, isOverallocated, node.GetPool(), nodeCapacityClass, scalableUnit).Set(resource.Value.AsApproximateFloat64())
 						}
 
 						allocated := node.GetAllocatableResources().Subtract(node.AllocatableByPriority[internaltypes.EvictedPriority])
 						for _, resource := range allocated.GetAll() {
 							allocatableValue := math.Max(resource.Value.AsApproximateFloat64(), 0)
 							currentCycle.nodeAllocatedResource.WithLabelValues(pool, node.GetName(), node.GetExecutor(), node.GetReportingNodeType(), resource.Name, node.GetReservation(),
-								isSchedulable, isOverallocated, node.GetPool(), nodeCapacityClass).Set(allocatableValue)
+								isSchedulable, isOverallocated, node.GetPool(), nodeCapacityClass, scalableUnit).Set(allocatableValue)
 						}
 					}
 				}
@@ -677,6 +713,7 @@ func (m *cycleMetrics) describe(ch chan<- *prometheus.Desc) {
 		m.poolSchedulingCycleTime.Describe(ch)
 		m.scheduleCycleTime.Describe(ch)
 		m.scheduleCycleOutcome.Describe(ch)
+		m.submitCheckDuration.Describe(ch)
 
 		cycleMetrics := newPerCycleMetrics()
 		cycleMetrics.consideredJobs.Describe(ch)
@@ -700,6 +737,7 @@ func (m *cycleMetrics) describe(ch chan<- *prometheus.Desc) {
 		cycleMetrics.evictedResources.Describe(ch)
 		cycleMetrics.billableResource.Describe(ch)
 		cycleMetrics.spotPrice.Describe(ch)
+		cycleMetrics.spotPriceOverride.Describe(ch)
 		cycleMetrics.indicativeShare.Describe(ch)
 		cycleMetrics.nodePreemptibility.Describe(ch)
 		cycleMetrics.protectedFractionOfFairShare.Describe(ch)
@@ -725,6 +763,7 @@ func (m *cycleMetrics) collect(ch chan<- prometheus.Metric) {
 		m.poolSchedulingCycleTime.Collect(ch)
 		m.scheduleCycleTime.Collect(ch)
 		m.scheduleCycleOutcome.Collect(ch)
+		m.submitCheckDuration.Collect(ch)
 
 		currentCycle := m.latestCycleMetrics.Load()
 		currentCycle.consideredJobs.Collect(ch)
@@ -748,6 +787,7 @@ func (m *cycleMetrics) collect(ch chan<- prometheus.Metric) {
 		currentCycle.evictedResources.Collect(ch)
 		currentCycle.billableResource.Collect(ch)
 		currentCycle.spotPrice.Collect(ch)
+		currentCycle.spotPriceOverride.Collect(ch)
 		currentCycle.indicativeShare.Collect(ch)
 		currentCycle.nodePreemptibility.Collect(ch)
 		currentCycle.protectedFractionOfFairShare.Collect(ch)
@@ -787,6 +827,11 @@ func (m *cycleMetrics) publishCycleMetrics(ctx *armadacontext.Context, result sc
 				ConstrainedDemandByResourceType:  armadamaps.MapValues(qCtx.ConstrainedDemand.ToMap(), toQtyPtr),
 				ShortJobPenalty:                  sc.FairnessCostProvider.UnweightedCostFromAllocation(qCtx.ShortJobPenalty),
 				BillableAllocationByResourceType: armadamaps.MapValues(qCtx.GetBillableResource().ToMap(), toQtyPtr),
+			}
+			if override := qCtx.GetBillablePriceOverride(); override != nil {
+				queueMetrics[qName].BillablePriceOverrideOptional = &metricevents.QueueMetrics_BillablePriceOverride{
+					BillablePriceOverride: *override,
+				}
 			}
 		}
 		events = append(events, &metricevents.Event{

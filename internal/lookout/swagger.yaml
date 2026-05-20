@@ -199,6 +199,12 @@ definitions:
         type: object
         additionalProperties:
           type: string
+      failureCategory:
+        type: string
+        x-omitempty: true
+      failureSubcategory:
+        type: string
+        x-omitempty: true
   group:
     type: object
     required:

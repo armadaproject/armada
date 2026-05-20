@@ -39,3 +39,5 @@ uiConfig:
     authority: "http://localhost:8180/realms/armada"
     clientId: "armada-server"
     scope: "openid profile email"
+    # Keycloak defines a "name" claim which is more human readable than the default "sub"
+    displayNameClaim: "name"

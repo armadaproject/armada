@@ -31,10 +31,13 @@ type testJob struct {
 
 func TestPruneDb(t *testing.T) {
 	type testCase struct {
-		testName    string
-		expireAfter time.Duration
-		jobs        []testJob
-		jobIdsLeft  []string
+		testName             string
+		expireAfter          time.Duration
+		jobs                 []testJob
+		jobIdsLeft           []string
+		activeJobIdsLeft     []string // HC only: when non-nil, assert job_active contains exactly these
+		terminatedJobIdsLeft []string // HC only: when non-nil, assert job_terminated contains exactly these
+		jobErrorIdsLeft      []string // when non-nil, assert job_error contains exactly these
 	}
 
 	nIds := 100
@@ -129,6 +132,79 @@ func TestPruneDb(t *testing.T) {
 			),
 			jobIdsLeft: sampleJobIds[50:],
 		},
+		{
+			testName:    "delete from job_terminated when hot cold split enabled",
+			expireAfter: 10 * time.Hour,
+			jobs: []testJob{
+				{
+					jobId: sampleJobIds[0],
+					ts:    baseTime.Add(-(10*time.Hour + 1*time.Minute)),
+					state: lookout.JobSucceeded,
+				},
+			},
+			jobIdsLeft:           []string{},
+			terminatedJobIdsLeft: []string{},
+		},
+		{
+			testName:    "active jobs in job_active are never touched by the pruner",
+			expireAfter: 10 * time.Hour,
+			jobs: []testJob{
+				{
+					jobId: sampleJobIds[0],
+					ts:    baseTime.Add(-11 * time.Hour),
+					state: lookout.JobRunning, // active, old — must NOT be pruned
+				},
+				{
+					jobId: sampleJobIds[1],
+					ts:    baseTime.Add(-11 * time.Hour),
+					state: lookout.JobSucceeded, // terminal, old — must be pruned
+				},
+			},
+			jobIdsLeft:           []string{sampleJobIds[0]},
+			activeJobIdsLeft:     []string{sampleJobIds[0]},
+			terminatedJobIdsLeft: []string{},
+		},
+		{
+			testName:    "terminal jobs in job_terminated older than the cutoff are deleted",
+			expireAfter: 10 * time.Hour,
+			jobs: []testJob{
+				{
+					jobId: sampleJobIds[0],
+					ts:    baseTime.Add(-(10*time.Hour + 1*time.Minute)),
+					state: lookout.JobSucceeded,
+				},
+				{
+					jobId: sampleJobIds[1],
+					ts:    baseTime.Add(-(10*time.Hour + 1*time.Minute)),
+					state: lookout.JobFailed,
+				},
+				{
+					jobId: sampleJobIds[2],
+					ts:    baseTime.Add(-(10*time.Hour + 1*time.Minute)),
+					state: lookout.JobCancelled,
+				},
+				{
+					jobId: sampleJobIds[3],
+					ts:    baseTime.Add(-(10*time.Hour + 1*time.Minute)),
+					state: lookout.JobPreempted,
+				},
+			},
+			jobIdsLeft:           []string{},
+			terminatedJobIdsLeft: []string{},
+		},
+		{
+			testName:    "related job_run, job_spec, job_error rows are also deleted",
+			expireAfter: 10 * time.Hour,
+			jobs: []testJob{
+				{
+					jobId: sampleJobIds[0],
+					ts:    baseTime.Add(-(10*time.Hour + 1*time.Minute)),
+					state: lookout.JobRejected,
+				},
+			},
+			jobIdsLeft:      []string{},
+			jobErrorIdsLeft: []string{},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -145,7 +221,8 @@ func TestPruneDb(t *testing.T) {
 
 				dbConn, err := db.Acquire(ctx)
 				assert.NoError(t, err)
-				err = PruneDb(ctx, dbConn.Conn(), tc.expireAfter, 0, 10, clock.NewFakeClock(baseTime))
+				isHC := isHotColdSchema(ctx, db)
+				err = PruneDb(ctx, dbConn.Conn(), tc.expireAfter, 0, 10, clock.NewFakeClock(baseTime), isHC)
 				assert.NoError(t, err)
 
 				queriedJobIdsPerTable := []map[string]bool{
@@ -160,6 +237,19 @@ func TestPruneDb(t *testing.T) {
 						assert.True(t, ok)
 					}
 				}
+
+				if isHC {
+					if tc.activeJobIdsLeft != nil {
+						assertJobIds(t, db, "SELECT job_id FROM job_active", tc.activeJobIdsLeft)
+					}
+					if tc.terminatedJobIdsLeft != nil {
+						assertJobIds(t, db, "SELECT job_id FROM job_terminated", tc.terminatedJobIdsLeft)
+					}
+				}
+				if tc.jobErrorIdsLeft != nil {
+					assertJobIds(t, db, "SELECT job_id FROM job_error", tc.jobErrorIdsLeft)
+				}
+
 				return nil
 			})
 			assert.NoError(t, err)
@@ -202,12 +292,33 @@ func storeJob(job testJob, db *lookoutdb.LookoutDb, converter *instructions.Inst
 			Build()
 	case lookout.JobRejected:
 		simulator.
-			Rejected("invalid", job.ts)
+			Rejected("invalid", job.ts).
+			Build()
 	case lookout.JobRunning:
 		simulator.
 			Build()
 	default:
 		panic(fmt.Sprintf("job state %s not supported", job.state))
+	}
+}
+
+func isHotColdSchema(ctx *armadacontext.Context, db *pgxpool.Pool) bool {
+	var exists bool
+	err := db.QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1 FROM information_schema.tables
+			WHERE table_name = 'job_active'
+		)`).Scan(&exists)
+	return err == nil && exists
+}
+
+func assertJobIds(t *testing.T, db *pgxpool.Pool, query string, expected []string) {
+	t.Helper()
+	got := selectStringSet(t, db, query)
+	assert.Equal(t, len(expected), len(got))
+	for _, id := range expected {
+		_, ok := got[id]
+		assert.True(t, ok)
 	}
 }
 

@@ -15,6 +15,7 @@ import (
 	"k8s.io/utils/clock"
 
 	log "github.com/armadaproject/armada/internal/common/logging"
+	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/adapters"
@@ -69,6 +70,8 @@ type JobDb struct {
 	jobsByGangKey      map[gangKey]immutable.Set[string]
 	jobsByQueue        map[string]immutable.SortedSet[*Job]
 	jobsByPoolAndQueue map[string]map[string]immutable.SortedSet[*Job]
+	leasedJobs         *immutable.Set[*Job]
+	terminalJobs       *immutable.Set[*Job]
 	unvalidatedJobs    *immutable.Set[*Job]
 	// Configured priority classes.
 	priorityClasses map[string]types.PriorityClass
@@ -86,7 +89,8 @@ type JobDb struct {
 	// Used for generating job run ids.
 	uuidProvider IDProvider
 	// Used to make efficient ResourceList types.
-	resourceListFactory *internaltypes.ResourceListFactory
+	resourceListFactory  *internaltypes.ResourceListFactory
+	respectNodePodLimits bool
 }
 
 // IDProvider is an interface used to mock run id  generation for tests.
@@ -128,12 +132,16 @@ func NewJobDbWithSchedulingKeyGenerator(
 		panic(fmt.Sprintf("unknown default priority class %s", defaultPriorityClassName))
 	}
 	unvalidatedJobs := immutable.NewSet[*Job](JobHasher{})
+	leasedJobs := immutable.NewSet[*Job](JobHasher{})
+	terminalJobs := immutable.NewSet[*Job](JobHasher{})
 	return &JobDb{
 		jobsById:               immutable.NewMap[string, *Job](nil),
 		jobsByRunId:            immutable.NewMap[string, string](nil),
 		jobsByGangKey:          map[gangKey]immutable.Set[string]{},
 		jobsByQueue:            map[string]immutable.SortedSet[*Job]{},
 		jobsByPoolAndQueue:     map[string]map[string]immutable.SortedSet[*Job]{},
+		leasedJobs:             &leasedJobs,
+		terminalJobs:           &terminalJobs,
 		unvalidatedJobs:        &unvalidatedJobs,
 		priorityClasses:        priorityClasses,
 		defaultPriorityClass:   defaultPriorityClass,
@@ -149,6 +157,10 @@ func (jobDb *JobDb) SetClock(clock clock.PassiveClock) {
 	jobDb.clock = clock
 }
 
+func (jobDb *JobDb) SetRespectNodePodLimits(enabled bool) {
+	jobDb.respectNodePodLimits = enabled
+}
+
 func (jobDb *JobDb) SetUUIDProvider(uuidProvider IDProvider) {
 	jobDb.uuidProvider = uuidProvider
 }
@@ -161,12 +173,15 @@ func (jobDb *JobDb) Clone() *JobDb {
 		jobsByGangKey:          maps.Clone(jobDb.jobsByGangKey),
 		jobsByQueue:            maps.Clone(jobDb.jobsByQueue),
 		jobsByPoolAndQueue:     deepClone(jobDb.jobsByPoolAndQueue),
+		leasedJobs:             jobDb.leasedJobs,
+		terminalJobs:           jobDb.terminalJobs,
 		unvalidatedJobs:        jobDb.unvalidatedJobs,
 		priorityClasses:        jobDb.priorityClasses,
 		defaultPriorityClass:   jobDb.defaultPriorityClass,
 		schedulingKeyGenerator: jobDb.schedulingKeyGenerator,
 		stringInterner:         jobDb.stringInterner,
 		resourceListFactory:    jobDb.resourceListFactory,
+		respectNodePodLimits:   jobDb.respectNodePodLimits,
 	}
 }
 
@@ -239,7 +254,12 @@ func (jobDb *JobDb) NewJob(
 }
 
 func (jobDb *JobDb) getResourceRequirements(schedulingInfo *internaltypes.JobSchedulingInfo) internaltypes.ResourceList {
-	return jobDb.resourceListFactory.FromJobResourceListIgnoreUnknown(safeGetRequirements(schedulingInfo))
+	requirements := safeGetRequirements(schedulingInfo)
+	if jobDb.respectNodePodLimits {
+		// Each Armada job is exactly one pod; consume one pod slot from the node's allocatable.
+		requirements[armadaresource.PodsResourceName] = *resource.NewQuantity(1, resource.DecimalSI)
+	}
+	return jobDb.resourceListFactory.FromJobResourceListIgnoreUnknown(requirements)
 }
 
 func safeGetRequirements(schedulingInfo *internaltypes.JobSchedulingInfo) map[string]resource.Quantity {
@@ -318,6 +338,8 @@ func (jobDb *JobDb) ReadTxn() *Txn {
 		jobsByGangKey:      jobDb.jobsByGangKey,
 		jobsByQueue:        jobDb.jobsByQueue,
 		jobsByPoolAndQueue: jobDb.jobsByPoolAndQueue,
+		leasedJobs:         jobDb.leasedJobs,
+		terminalJobs:       jobDb.terminalJobs,
 		unvalidatedJobs:    jobDb.unvalidatedJobs,
 		active:             true,
 		jobDb:              jobDb,
@@ -338,6 +360,8 @@ func (jobDb *JobDb) WriteTxn() *Txn {
 		jobsByGangKey:      maps.Clone(jobDb.jobsByGangKey),
 		jobsByQueue:        maps.Clone(jobDb.jobsByQueue),
 		jobsByPoolAndQueue: deepClone(jobDb.jobsByPoolAndQueue),
+		leasedJobs:         jobDb.leasedJobs,
+		terminalJobs:       jobDb.terminalJobs,
 		unvalidatedJobs:    jobDb.unvalidatedJobs,
 		active:             true,
 		jobDb:              jobDb,
@@ -376,6 +400,10 @@ type Txn struct {
 	// Queued jobs for each queue and pool.
 	// Stored as a set and needs sorting to determine the order they should be scheduled in.
 	jobsByPoolAndQueue map[string]map[string]immutable.SortedSet[*Job]
+	// Jobs that are currently leased
+	leasedJobs *immutable.Set[*Job]
+	// Jobs that are currently in a terminal state
+	terminalJobs *immutable.Set[*Job]
 	// Jobs that require submit checking
 	unvalidatedJobs *immutable.Set[*Job]
 	// The jobDb from which this transaction was created.
@@ -396,6 +424,8 @@ func (txn *Txn) Commit() {
 	txn.jobDb.jobsByGangKey = txn.jobsByGangKey
 	txn.jobDb.jobsByQueue = txn.jobsByQueue
 	txn.jobDb.jobsByPoolAndQueue = txn.jobsByPoolAndQueue
+	txn.jobDb.leasedJobs = txn.leasedJobs
+	txn.jobDb.terminalJobs = txn.terminalJobs
 	txn.jobDb.unvalidatedJobs = txn.unvalidatedJobs
 
 	txn.active = false
@@ -526,6 +556,16 @@ func (txn *Txn) Upsert(jobs []*Job) error {
 					txn.jobsByPoolAndQueue[pool][job.queue] = existingJobs.Delete(existingJob)
 				}
 
+				if existingJob.Leased() {
+					newLeasedJobs := txn.leasedJobs.Delete(existingJob)
+					txn.leasedJobs = &newLeasedJobs
+				}
+
+				if existingJob.InTerminalState() {
+					newTerminalJobs := txn.terminalJobs.Delete(existingJob)
+					txn.terminalJobs = &newTerminalJobs
+				}
+
 				if !existingJob.Validated() {
 					newUnvalidatedJobs := txn.unvalidatedJobs.Delete(existingJob)
 					txn.unvalidatedJobs = &newUnvalidatedJobs
@@ -536,7 +576,7 @@ func (txn *Txn) Upsert(jobs []*Job) error {
 
 	// Now need to insert jobs, runs and queuedJobs. This can be done in parallel.
 	wg := sync.WaitGroup{}
-	wg.Add(5)
+	wg.Add(7)
 
 	// jobs
 	go func() {
@@ -672,6 +712,54 @@ func (txn *Txn) Upsert(jobs []*Job) error {
 					}
 				}
 			}
+		}
+	}()
+
+	// Leased jobs
+	go func() {
+		defer wg.Done()
+		if hasJobs {
+			for _, job := range jobs {
+				if job.Leased() {
+					leasedJobs := txn.leasedJobs.Add(job)
+					txn.leasedJobs = &leasedJobs
+				}
+			}
+		} else {
+			leasedJobs := map[*Job]bool{}
+
+			for _, job := range jobs {
+				if job.Leased() {
+					leasedJobs[job] = true
+				}
+			}
+
+			leasedJobsImmutable := immutable.NewSet[*Job](JobHasher{}, maps.Keys(leasedJobs)...)
+			txn.leasedJobs = &leasedJobsImmutable
+		}
+	}()
+
+	// Terminal jobs
+	go func() {
+		defer wg.Done()
+		if hasJobs {
+			for _, job := range jobs {
+				if job.InTerminalState() {
+					terminalJobs := txn.terminalJobs.Add(job)
+					txn.terminalJobs = &terminalJobs
+				}
+			}
+		} else {
+			terminalJobs := map[*Job]bool{}
+
+			for _, job := range jobs {
+				if job.InTerminalState() {
+					terminalJobs[job] = true
+				}
+			}
+
+			terminalJobsImmutable := immutable.NewSet[*Job](JobHasher{}, maps.Keys(terminalJobs)...)
+			txn.terminalJobs = &terminalJobsImmutable
 		}
 	}()
 
@@ -811,6 +899,16 @@ func (txn *Txn) UnvalidatedJobs() *immutable.SetIterator[*Job] {
 	return txn.unvalidatedJobs.Iterator()
 }
 
+// GetAllLeasedJobs returns all leased jobs in the database
+func (txn *Txn) GetAllLeasedJobs() []*Job {
+	return txn.leasedJobs.Items()
+}
+
+// GetAllTerminalJobs returns all terminal jobs in the database
+func (txn *Txn) GetAllTerminalJobs() []*Job {
+	return txn.terminalJobs.Items()
+}
+
 // GetAll returns all jobs in the database.
 func (txn *Txn) GetAll() []*Job {
 	allJobs := make([]*Job, 0, txn.jobsById.Len())
@@ -818,6 +916,15 @@ func (txn *Txn) GetAll() []*Job {
 	for !iter.Done() {
 		_, job, _ := iter.Next()
 		allJobs = append(allJobs, job)
+	}
+	return allJobs
+}
+
+// GetQueuedJobsByPool returns all queued jobs against a given pool
+func (txn *Txn) GetQueuedJobsByPool(pool string) []*Job {
+	allJobs := make([]*Job, 0)
+	for _, jobs := range txn.jobsByPoolAndQueue[pool] {
+		allJobs = append(allJobs, jobs.Items()...)
 	}
 	return allJobs
 }
@@ -871,6 +978,12 @@ func (txn *Txn) delete(jobId string) {
 				}
 			}
 		}
+		newLeasedJobs := txn.leasedJobs.Delete(job)
+		txn.leasedJobs = &newLeasedJobs
+
+		newTerminalJobs := txn.terminalJobs.Delete(job)
+		txn.terminalJobs = &newTerminalJobs
+
 		newUnvalidatedJobs := txn.unvalidatedJobs.Delete(job)
 		txn.unvalidatedJobs = &newUnvalidatedJobs
 	}

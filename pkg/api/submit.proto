@@ -26,6 +26,9 @@ message JobSubmitRequestItem {
     // Indicates which scheduler should manage this job.
     // If empty, the default scheduler is used.
     string scheduler = 11;
+    // URI identifying this job in an external system (e.g. Airflow).
+    // If not set, the server falls back to the "armadaproject.io/externalJobUri" annotation.
+    string external_job_uri = 13;
 }
 
 message IngressConfig {

@@ -39,7 +39,7 @@ pub struct ApiGroupList {
     pub groups: ::prost::alloc::vec::Vec<ApiGroup>,
 }
 /// APIResource specifies the name of a resource and whether it is namespaced.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ApiResource {
     /// name is the plural name of the resource.
     #[prost(string, optional, tag = "1")]
@@ -127,15 +127,16 @@ pub struct ApiVersions {
 /// FieldManager is required for apply requests.
 /// ApplyOptions is equivalent to PatchOptions. It is provided as a convenience with documentation
 /// that speaks specifically to how the options fields relate to apply.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ApplyOptions {
     /// When present, indicates that modifications should not be
     /// persisted. An invalid or unrecognized dryRun directive will
     /// result in an error response and no further processing of the
     /// request. Valid values are:
-    /// - All: all dry run stages will be processed
-    /// +optional
-    /// +listType=atomic
+    ///
+    /// * All: all dry run stages will be processed
+    ///   +optional
+    ///   +listType=atomic
     #[prost(string, repeated, tag = "1")]
     pub dry_run: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
     /// Force is going to "force" Apply requests. It means user will
@@ -150,25 +151,27 @@ pub struct ApplyOptions {
     #[prost(string, optional, tag = "3")]
     pub field_manager: ::core::option::Option<::prost::alloc::string::String>,
 }
-/// Condition contains details for one aspect of the current state of this API Resource.
-/// ---
+/// ## Condition contains details for one aspect of the current state of this API Resource.
+///
 /// This struct is intended for direct use as an array at the field path .status.conditions.  For example,
 ///
-/// 	type FooStatus struct{
-/// 	    // Represents the observations of a foo's current state.
-/// 	    // Known .status.conditions.type are: "Available", "Progressing", and "Degraded"
-/// 	    // +patchMergeKey=type
-/// 	    // +patchStrategy=merge
-/// 	    // +listType=map
-/// 	    // +listMapKey=type
-/// 	    Conditions \[\]metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type" protobuf:"bytes,1,rep,name=conditions"`
+/// ```text
+/// type FooStatus struct{
+///     // Represents the observations of a foo's current state.
+///     // Known .status.conditions.type are: "Available", "Progressing", and "Degraded"
+///     // +patchMergeKey=type
+///     // +patchStrategy=merge
+///     // +listType=map
+///     // +listMapKey=type
+///     Conditions \[\]metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type" protobuf:"bytes,1,rep,name=conditions"`
 ///
-/// 	    // other fields
-/// 	}
-#[derive(Clone, PartialEq, ::prost::Message)]
+///     // other fields
+/// }
+/// ```
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct Condition {
-    /// type of condition in CamelCase or in foo.example.com/CamelCase.
-    /// ---
+    /// ## type of condition in CamelCase or in foo.example.com/CamelCase.
+    ///
     /// Many .condition.type values are consistent across resources like Available, but because arbitrary conditions can be
     /// useful (see .node.status.conditions), the ability to deconflict is important.
     /// The regex it matches is (dns1123SubdomainFmt/)?(qualifiedNameFmt)
@@ -220,15 +223,16 @@ pub struct Condition {
     pub message: ::core::option::Option<::prost::alloc::string::String>,
 }
 /// CreateOptions may be provided when creating an API object.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct CreateOptions {
     /// When present, indicates that modifications should not be
     /// persisted. An invalid or unrecognized dryRun directive will
     /// result in an error response and no further processing of the
     /// request. Valid values are:
-    /// - All: all dry run stages will be processed
-    /// +optional
-    /// +listType=atomic
+    ///
+    /// * All: all dry run stages will be processed
+    ///   +optional
+    ///   +listType=atomic
     #[prost(string, repeated, tag = "1")]
     pub dry_run: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
     /// fieldManager is a name associated with the actor or entity
@@ -241,25 +245,26 @@ pub struct CreateOptions {
     /// fieldValidation instructs the server on how to handle
     /// objects in the request (POST/PUT/PATCH) containing unknown
     /// or duplicate fields. Valid values are:
-    /// - Ignore: This will ignore any unknown fields that are silently
-    /// dropped from the object, and will ignore all but the last duplicate
-    /// field that the decoder encounters. This is the default behavior
-    /// prior to v1.23.
-    /// - Warn: This will send a warning via the standard warning response
-    /// header for each unknown field that is dropped from the object, and
-    /// for each duplicate field that is encountered. The request will
-    /// still succeed if there are no other errors, and will only persist
-    /// the last of any duplicate fields. This is the default in v1.23+
-    /// - Strict: This will fail the request with a BadRequest error if
-    /// any unknown fields would be dropped from the object, or if any
-    /// duplicate fields are present. The error returned from the server
-    /// will contain all unknown and duplicate fields encountered.
-    /// +optional
+    ///
+    /// * Ignore: This will ignore any unknown fields that are silently
+    ///   dropped from the object, and will ignore all but the last duplicate
+    ///   field that the decoder encounters. This is the default behavior
+    ///   prior to v1.23.
+    /// * Warn: This will send a warning via the standard warning response
+    ///   header for each unknown field that is dropped from the object, and
+    ///   for each duplicate field that is encountered. The request will
+    ///   still succeed if there are no other errors, and will only persist
+    ///   the last of any duplicate fields. This is the default in v1.23+
+    /// * Strict: This will fail the request with a BadRequest error if
+    ///   any unknown fields would be dropped from the object, or if any
+    ///   duplicate fields are present. The error returned from the server
+    ///   will contain all unknown and duplicate fields encountered.
+    ///   +optional
     #[prost(string, optional, tag = "4")]
     pub field_validation: ::core::option::Option<::prost::alloc::string::String>,
 }
 /// DeleteOptions may be provided when deleting an API object.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct DeleteOptions {
     /// The duration in seconds before the object should be deleted. Value must be non-negative integer.
     /// The value zero indicates delete immediately. If this value is nil, the default grace period for the
@@ -296,9 +301,10 @@ pub struct DeleteOptions {
     /// persisted. An invalid or unrecognized dryRun directive will
     /// result in an error response and no further processing of the
     /// request. Valid values are:
-    /// - All: all dry run stages will be processed
-    /// +optional
-    /// +listType=atomic
+    ///
+    /// * All: all dry run stages will be processed
+    ///   +optional
+    ///   +listType=atomic
     #[prost(string, repeated, tag = "5")]
     pub dry_run: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
     /// if set to true, it will trigger an unsafe deletion of the resource in
@@ -322,14 +328,14 @@ pub struct DeleteOptions {
 /// Duration is a wrapper around time.Duration which supports correct
 /// marshaling to YAML and JSON. In particular, it marshals into strings, which
 /// can be used as map keys in json.
-#[derive(Clone, Copy, PartialEq, ::prost::Message)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct Duration {
     #[prost(int64, optional, tag = "1")]
     pub duration: ::core::option::Option<i64>,
 }
 /// FieldSelectorRequirement is a selector that contains values, a key, and an operator that
 /// relates the key and values.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct FieldSelectorRequirement {
     /// key is the field selector key that the requirement applies to.
     #[prost(string, optional, tag = "1")]
@@ -359,14 +365,14 @@ pub struct FieldSelectorRequirement {
 ///
 /// The exact format is defined in sigs.k8s.io/structured-merge-diff
 /// +protobuf.options.(gogoproto.goproto_stringer)=false
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct FieldsV1 {
     /// Raw is the underlying serialization of this object.
     #[prost(bytes = "vec", optional, tag = "1")]
     pub raw: ::core::option::Option<::prost::alloc::vec::Vec<u8>>,
 }
 /// GetOptions is the standard query options to the standard REST get call.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct GetOptions {
     /// resourceVersion sets a constraint on what resource versions a request may be served from.
     /// See <https://kubernetes.io/docs/reference/using-api/api-concepts/#resource-versions> for
@@ -381,7 +387,7 @@ pub struct GetOptions {
 /// concepts during lookup stages without having partially valid types
 ///
 /// +protobuf.options.(gogoproto.goproto_stringer)=false
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct GroupKind {
     #[prost(string, optional, tag = "1")]
     pub group: ::core::option::Option<::prost::alloc::string::String>,
@@ -392,7 +398,7 @@ pub struct GroupKind {
 /// concepts during lookup stages without having partially valid types
 ///
 /// +protobuf.options.(gogoproto.goproto_stringer)=false
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct GroupResource {
     #[prost(string, optional, tag = "1")]
     pub group: ::core::option::Option<::prost::alloc::string::String>,
@@ -402,7 +408,7 @@ pub struct GroupResource {
 /// GroupVersion contains the "group" and the "version", which uniquely identifies the API.
 ///
 /// +protobuf.options.(gogoproto.goproto_stringer)=false
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct GroupVersion {
     #[prost(string, optional, tag = "1")]
     pub group: ::core::option::Option<::prost::alloc::string::String>,
@@ -411,7 +417,7 @@ pub struct GroupVersion {
 }
 /// GroupVersion contains the "group/version" and "version" string of a version.
 /// It is made a struct to keep extensibility.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct GroupVersionForDiscovery {
     /// groupVersion specifies the API group and version in the form "group/version"
     #[prost(string, optional, tag = "1")]
@@ -425,7 +431,7 @@ pub struct GroupVersionForDiscovery {
 /// to avoid automatic coercion.  It doesn't use a GroupVersion to avoid custom marshalling
 ///
 /// +protobuf.options.(gogoproto.goproto_stringer)=false
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct GroupVersionKind {
     #[prost(string, optional, tag = "1")]
     pub group: ::core::option::Option<::prost::alloc::string::String>,
@@ -438,7 +444,7 @@ pub struct GroupVersionKind {
 /// to avoid automatic coercion.  It doesn't use a GroupVersion to avoid custom marshalling
 ///
 /// +protobuf.options.(gogoproto.goproto_stringer)=false
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct GroupVersionResource {
     #[prost(string, optional, tag = "1")]
     pub group: ::core::option::Option<::prost::alloc::string::String>,
@@ -470,7 +476,7 @@ pub struct LabelSelector {
 }
 /// A label selector requirement is a selector that contains values, a key, and an operator that
 /// relates the key and values.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct LabelSelectorRequirement {
     /// key is the label key that the selector applies to.
     #[prost(string, optional, tag = "1")]
@@ -502,7 +508,7 @@ pub struct List {
 }
 /// ListMeta describes metadata that synthetic resources must have, including lists and
 /// various status objects. A resource may have only one of {ObjectMeta, ListMeta}.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ListMeta {
     /// Deprecated: selfLink is a legacy read-only field that is no longer populated by the system.
     /// +optional
@@ -540,7 +546,7 @@ pub struct ListMeta {
     pub remaining_item_count: ::core::option::Option<i64>,
 }
 /// ListOptions is the query options to a standard REST list call.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ListOptions {
     /// A selector to restrict the list of returned objects by their labels.
     /// Defaults to everything.
@@ -634,15 +640,16 @@ pub struct ListOptions {
     ///
     /// When `sendInitialEvents` option is set, we require `resourceVersionMatch`
     /// option to also be set. The semantic of the watch request is as following:
-    /// - `resourceVersionMatch` = NotOlderThan
-    ///    is interpreted as "data at least as new as the provided `resourceVersion`"
-    ///    and the bookmark event is send when the state is synced
-    ///    to a `resourceVersion` at least as fresh as the one provided by the ListOptions.
-    ///    If `resourceVersion` is unset, this is interpreted as "consistent read" and the
-    ///    bookmark event is send when the state is synced at least to the moment
-    ///    when request started being processed.
-    /// - `resourceVersionMatch` set to any other value or unset
-    ///    Invalid error is returned.
+    ///
+    /// * `resourceVersionMatch` = NotOlderThan
+    ///   is interpreted as "data at least as new as the provided `resourceVersion`"
+    ///   and the bookmark event is send when the state is synced
+    ///   to a `resourceVersion` at least as fresh as the one provided by the ListOptions.
+    ///   If `resourceVersion` is unset, this is interpreted as "consistent read" and the
+    ///   bookmark event is send when the state is synced at least to the moment
+    ///   when request started being processed.
+    /// * `resourceVersionMatch` set to any other value or unset
+    ///   Invalid error is returned.
     ///
     /// Defaults to true if `resourceVersion=""` or `resourceVersion="0"` (for backward
     /// compatibility reasons) and to false otherwise.
@@ -652,7 +659,7 @@ pub struct ListOptions {
 }
 /// ManagedFieldsEntry is a workflow-id, a FieldSet and the group version of the resource
 /// that the fieldset applies to.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ManagedFieldsEntry {
     /// Manager is an identifier of the workflow managing these fields.
     #[prost(string, optional, tag = "1")]
@@ -698,7 +705,7 @@ pub struct ManagedFieldsEntry {
 /// +protobuf.options.marshal=false
 /// +protobuf.as=Timestamp
 /// +protobuf.options.(gogoproto.goproto_stringer)=false
-#[derive(Clone, Copy, PartialEq, ::prost::Message)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct MicroTime {
     /// Represents seconds of UTC time since Unix epoch
     /// 1970-01-01T00:00:00Z. Must be from 0001-01-01T00:00:00Z to
@@ -888,7 +895,7 @@ pub struct ObjectMeta {
 /// object. An owning object must be in the same namespace as the dependent, or
 /// be cluster-scoped, so there is no namespace field.
 /// +structType=atomic
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct OwnerReference {
     /// API version of the referent.
     #[prost(string, optional, tag = "5")]
@@ -946,19 +953,20 @@ pub struct PartialObjectMetadataList {
     pub items: ::prost::alloc::vec::Vec<PartialObjectMetadata>,
 }
 /// Patch is provided to give a concrete name and type to the Kubernetes PATCH request body.
-#[derive(Clone, Copy, PartialEq, ::prost::Message)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct Patch {}
 /// PatchOptions may be provided when patching an API object.
 /// PatchOptions is meant to be a superset of UpdateOptions.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct PatchOptions {
     /// When present, indicates that modifications should not be
     /// persisted. An invalid or unrecognized dryRun directive will
     /// result in an error response and no further processing of the
     /// request. Valid values are:
-    /// - All: all dry run stages will be processed
-    /// +optional
-    /// +listType=atomic
+    ///
+    /// * All: all dry run stages will be processed
+    ///   +optional
+    ///   +listType=atomic
     #[prost(string, repeated, tag = "1")]
     pub dry_run: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
     /// Force is going to "force" Apply requests. It means user will
@@ -980,25 +988,26 @@ pub struct PatchOptions {
     /// fieldValidation instructs the server on how to handle
     /// objects in the request (POST/PUT/PATCH) containing unknown
     /// or duplicate fields. Valid values are:
-    /// - Ignore: This will ignore any unknown fields that are silently
-    /// dropped from the object, and will ignore all but the last duplicate
-    /// field that the decoder encounters. This is the default behavior
-    /// prior to v1.23.
-    /// - Warn: This will send a warning via the standard warning response
-    /// header for each unknown field that is dropped from the object, and
-    /// for each duplicate field that is encountered. The request will
-    /// still succeed if there are no other errors, and will only persist
-    /// the last of any duplicate fields. This is the default in v1.23+
-    /// - Strict: This will fail the request with a BadRequest error if
-    /// any unknown fields would be dropped from the object, or if any
-    /// duplicate fields are present. The error returned from the server
-    /// will contain all unknown and duplicate fields encountered.
-    /// +optional
+    ///
+    /// * Ignore: This will ignore any unknown fields that are silently
+    ///   dropped from the object, and will ignore all but the last duplicate
+    ///   field that the decoder encounters. This is the default behavior
+    ///   prior to v1.23.
+    /// * Warn: This will send a warning via the standard warning response
+    ///   header for each unknown field that is dropped from the object, and
+    ///   for each duplicate field that is encountered. The request will
+    ///   still succeed if there are no other errors, and will only persist
+    ///   the last of any duplicate fields. This is the default in v1.23+
+    /// * Strict: This will fail the request with a BadRequest error if
+    ///   any unknown fields would be dropped from the object, or if any
+    ///   duplicate fields are present. The error returned from the server
+    ///   will contain all unknown and duplicate fields encountered.
+    ///   +optional
     #[prost(string, optional, tag = "4")]
     pub field_validation: ::core::option::Option<::prost::alloc::string::String>,
 }
 /// Preconditions must be fulfilled before an operation (update, delete, etc.) is carried out.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct Preconditions {
     /// Specifies the target UID.
     /// +optional
@@ -1011,7 +1020,7 @@ pub struct Preconditions {
 }
 /// RootPaths lists the paths available at root.
 /// For example: "/healthz", "/apis".
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct RootPaths {
     /// paths are the paths available at root.
     /// +listType=atomic
@@ -1019,7 +1028,7 @@ pub struct RootPaths {
     pub paths: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
 }
 /// ServerAddressByClientCIDR helps the client to determine the server address that they should use, depending on the clientCIDR that they match.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ServerAddressByClientCidr {
     /// The CIDR with which clients can match their IP to figure out the server address that they should use.
     #[prost(string, optional, tag = "1")]
@@ -1069,7 +1078,7 @@ pub struct Status {
 }
 /// StatusCause provides more information about an api.Status failure, including
 /// cases when multiple errors are encountered.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct StatusCause {
     /// A machine-readable description of the cause of the error. If this value is
     /// empty there is no information available.
@@ -1088,8 +1097,8 @@ pub struct StatusCause {
     /// Optional.
     ///
     /// Examples:
-    ///    "name" - the field "name" on the current resource
-    ///    "items\[0\].name" - the field "name" on the first array entry in "items"
+    /// "name" - the field "name" on the current resource
+    /// "items\[0\].name" - the field "name" on the first array entry in "items"
     /// +optional
     #[prost(string, optional, tag = "3")]
     pub field: ::core::option::Option<::prost::alloc::string::String>,
@@ -1138,7 +1147,7 @@ pub struct StatusDetails {
 }
 /// TableOptions are used when a Table is requested by the caller.
 /// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct TableOptions {
     /// includeObject decides whether to include each object along with its columnar information.
     /// Specifying "None" will return no object, specifying "Object" will return the full object contents, and
@@ -1154,7 +1163,7 @@ pub struct TableOptions {
 /// +protobuf.options.marshal=false
 /// +protobuf.as=Timestamp
 /// +protobuf.options.(gogoproto.goproto_stringer)=false
-#[derive(Clone, Copy, PartialEq, ::prost::Message)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct Time {
     /// Represents seconds of UTC time since Unix epoch
     /// 1970-01-01T00:00:00Z. Must be from 0001-01-01T00:00:00Z to
@@ -1171,7 +1180,7 @@ pub struct Time {
 /// Timestamp is a struct that is equivalent to Time, but intended for
 /// protobuf marshalling/unmarshalling. It is generated into a serialization
 /// that matches Time. Do not use in Go structs.
-#[derive(Clone, Copy, PartialEq, ::prost::Message)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct Timestamp {
     /// Represents seconds of UTC time since Unix epoch
     /// 1970-01-01T00:00:00Z. Must be from 0001-01-01T00:00:00Z to
@@ -1190,7 +1199,7 @@ pub struct Timestamp {
 /// Structures that are versioned or persisted should inline TypeMeta.
 ///
 /// +k8s:deepcopy-gen=false
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct TypeMeta {
     /// Kind is a string value representing the REST resource this object represents.
     /// Servers may infer this from the endpoint the client submits requests to.
@@ -1210,15 +1219,16 @@ pub struct TypeMeta {
 }
 /// UpdateOptions may be provided when updating an API object.
 /// All fields in UpdateOptions should also be present in PatchOptions.
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct UpdateOptions {
     /// When present, indicates that modifications should not be
     /// persisted. An invalid or unrecognized dryRun directive will
     /// result in an error response and no further processing of the
     /// request. Valid values are:
-    /// - All: all dry run stages will be processed
-    /// +optional
-    /// +listType=atomic
+    ///
+    /// * All: all dry run stages will be processed
+    ///   +optional
+    ///   +listType=atomic
     #[prost(string, repeated, tag = "1")]
     pub dry_run: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
     /// fieldManager is a name associated with the actor or entity
@@ -1231,20 +1241,21 @@ pub struct UpdateOptions {
     /// fieldValidation instructs the server on how to handle
     /// objects in the request (POST/PUT/PATCH) containing unknown
     /// or duplicate fields. Valid values are:
-    /// - Ignore: This will ignore any unknown fields that are silently
-    /// dropped from the object, and will ignore all but the last duplicate
-    /// field that the decoder encounters. This is the default behavior
-    /// prior to v1.23.
-    /// - Warn: This will send a warning via the standard warning response
-    /// header for each unknown field that is dropped from the object, and
-    /// for each duplicate field that is encountered. The request will
-    /// still succeed if there are no other errors, and will only persist
-    /// the last of any duplicate fields. This is the default in v1.23+
-    /// - Strict: This will fail the request with a BadRequest error if
-    /// any unknown fields would be dropped from the object, or if any
-    /// duplicate fields are present. The error returned from the server
-    /// will contain all unknown and duplicate fields encountered.
-    /// +optional
+    ///
+    /// * Ignore: This will ignore any unknown fields that are silently
+    ///   dropped from the object, and will ignore all but the last duplicate
+    ///   field that the decoder encounters. This is the default behavior
+    ///   prior to v1.23.
+    /// * Warn: This will send a warning via the standard warning response
+    ///   header for each unknown field that is dropped from the object, and
+    ///   for each duplicate field that is encountered. The request will
+    ///   still succeed if there are no other errors, and will only persist
+    ///   the last of any duplicate fields. This is the default in v1.23+
+    /// * Strict: This will fail the request with a BadRequest error if
+    ///   any unknown fields would be dropped from the object, or if any
+    ///   duplicate fields are present. The error returned from the server
+    ///   will contain all unknown and duplicate fields encountered.
+    ///   +optional
     #[prost(string, optional, tag = "3")]
     pub field_validation: ::core::option::Option<::prost::alloc::string::String>,
 }
@@ -1254,7 +1265,7 @@ pub struct UpdateOptions {
 /// +protobuf.options.(gogoproto.goproto_stringer)=false
 ///
 /// items, if empty, will result in an empty slice
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct Verbs {
     #[prost(string, repeated, tag = "1")]
     pub items: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
@@ -1264,15 +1275,16 @@ pub struct Verbs {
 /// +protobuf=true
 /// +k8s:deepcopy-gen=true
 /// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct WatchEvent {
     #[prost(string, optional, tag = "1")]
     pub r#type: ::core::option::Option<::prost::alloc::string::String>,
     /// Object is:
-    ///   * If Type is Added or Modified: the new state of the object.
-    ///   * If Type is Deleted: the state of the object immediately before deletion.
-    ///   * If Type is Error: *Status is recommended; other types may make sense
-    ///     depending on context.
+    ///
+    /// * If Type is Added or Modified: the new state of the object.
+    /// * If Type is Deleted: the state of the object immediately before deletion.
+    /// * If Type is Error: \*Status is recommended; other types may make sense
+    ///   depending on context.
     #[prost(message, optional, tag = "2")]
     pub object: ::core::option::Option<super::super::super::runtime::RawExtension>,
 }

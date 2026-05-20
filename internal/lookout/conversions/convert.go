@@ -49,17 +49,19 @@ func ToSwaggerJob(job *model.Job) *models.Job {
 
 func ToSwaggerRun(run *model.Run) *models.Run {
 	return &models.Run{
-		Cluster:          run.Cluster,
-		ExitCode:         run.ExitCode,
-		Finished:         PostgreSQLTimeToSwaggerTime(run.Finished),
-		JobRunState:      string(lookout.JobRunStateMap[run.JobRunState]),
-		Node:             run.Node,
-		Leased:           PostgreSQLTimeToSwaggerTime(run.Leased),
-		Pending:          PostgreSQLTimeToSwaggerTime(run.Pending),
-		Pool:             run.Pool,
-		RunID:            run.RunId,
-		Started:          PostgreSQLTimeToSwaggerTime(run.Started),
-		IngressAddresses: ingressAddressesToSwagger(run.IngressAddresses),
+		Cluster:            run.Cluster,
+		ExitCode:           run.ExitCode,
+		Finished:           PostgreSQLTimeToSwaggerTime(run.Finished),
+		JobRunState:        string(lookout.JobRunStateMap[run.JobRunState]),
+		Node:               run.Node,
+		Leased:             PostgreSQLTimeToSwaggerTime(run.Leased),
+		Pending:            PostgreSQLTimeToSwaggerTime(run.Pending),
+		Pool:               run.Pool,
+		RunID:              run.RunId,
+		Started:            PostgreSQLTimeToSwaggerTime(run.Started),
+		IngressAddresses:   ingressAddressesToSwagger(run.IngressAddresses),
+		FailureCategory:    run.FailureCategory,
+		FailureSubcategory: run.FailureSubcategory,
 	}
 }
 

@@ -157,6 +157,9 @@ message SubmitJob {
     bool isDuplicate = 12;
     // The job id
     string job_id = 14;
+    // URI identifying this job in an external system (e.g. Airflow).
+    // If not set, falls back to the "armadaproject.io/externalJobUri" annotation.
+    string external_job_uri = 16;
 }
 
 // Kubernetes objects that can serve as main objects for an Armada job.
@@ -419,7 +422,7 @@ message JobRunErrors {
 // This message may only be published to the log as part of a JobRunError message.
 // TODO: Check if the container status contained any useful info for non-failed containers.
 message Error {
-    reserved 5,10;
+    reserved 5, 10, 15;
     // If true, this error represents an unrecoverable failure and Armada has given up on this job or job run.
     bool terminal = 1;
     // Additional information for this particular combination of component and error. May be set to nil.
@@ -436,6 +439,11 @@ message Error {
         JobRejected jobRejected = 13;
         ReconciliationError reconciliationError = 14;
     }
+    // Mutually exclusive failure category from the first matching executor classifier rule.
+    // Suitable as a metric dimension that sums to 100%.
+    string failure_category = 16;
+    // Optional tag from the matching classifier rule for drill-down.
+    string failure_subcategory = 17;
 }
 
 // Represents an error associated with a particular Kubernetes resource.
@@ -529,6 +537,7 @@ message JobRejected {
 message ReconciliationError {
   string message = 1;
 }
+
 
 // Message to indicate that a JobRun has been preempted.
 message JobRunPreempted{

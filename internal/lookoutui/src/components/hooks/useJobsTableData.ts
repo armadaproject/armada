@@ -24,10 +24,10 @@ import { fromRowId, mergeSubRows } from "../../common/reactTableUtils"
 import { getErrorMessage } from "../../common/utils"
 import { getConfig } from "../../config"
 import { JobGroupRow, JobRow, JobTableRow } from "../../models/jobsTableModels"
-import { AggregateType, Job, JobFilter, JobId, JobOrder, Match } from "../../models/lookoutModels"
+import { AggregateType, Job, JobFilter, JobGroup, JobId, JobOrder, Match } from "../../models/lookoutModels"
 import { useAuthenticatedFetch } from "../../oidcAuth"
-import { GroupedField, IGroupJobsService } from "../../services/lookout/GroupJobsService"
 import { GetJobsResponse } from "../../services/lookout/useGetJobs"
+import { GroupedField } from "../../services/lookout/useGroupJobs"
 
 export interface UseFetchJobsTableDataArgs {
   groupedColumns: ColumnId[]
@@ -41,7 +41,16 @@ export interface UseFetchJobsTableDataArgs {
   allColumns: JobTableColumn[]
   selectedRows: RowSelectionState
   updateSelectedRows: (newState: RowSelectionState) => void
-  groupJobsService: IGroupJobsService
+  groupJobs: (
+    filters: JobFilter[],
+    activeJobSets: boolean,
+    order: JobOrder,
+    groupedField: GroupedField,
+    aggregates: string[],
+    skip: number,
+    take: number,
+    abortSignal?: AbortSignal,
+  ) => Promise<{ groups: JobGroup[] }>
   openSnackbar: (message: string, variant: VariantType) => void
   lastTransitionTimeAggregate?: AggregateType
 }
@@ -136,7 +145,7 @@ export const useFetchJobsTableData = ({
   allColumns,
   selectedRows,
   updateSelectedRows,
-  groupJobsService,
+  groupJobs,
   openSnackbar,
   lastTransitionTimeAggregate,
 }: UseFetchJobsTableDataArgs): UseFetchJobsTableDataResult => {
@@ -195,12 +204,14 @@ export const useFetchJobsTableData = ({
           rowRequest.filters.push(...getFiltersForGroupedAnnotations(groupedColumns.slice(expandedLevel + 1)))
 
           const colsToAggregate = getColsToAggregate(visibleColumns, rowRequest.filters)
-          const { groups } = await fetchJobGroups(
-            authenticatedFetch,
-            rowRequest,
-            groupJobsService,
+          const { groups } = await groupJobs(
+            rowRequest.filters,
+            rowRequest.activeJobSets,
+            rowRequest.order,
             groupedField,
             colsToAggregate,
+            rowRequest.skip,
+            rowRequest.take,
             abortController.signal,
           )
           newData = groupsToRows(groups, parentRowInfo?.rowId, groupedField)
@@ -340,25 +351,4 @@ export interface FetchRowRequest {
   skip: number
   take: number
   order: JobOrder
-}
-export const fetchJobGroups = async (
-  fetchFunc: GlobalFetch["fetch"],
-  rowRequest: FetchRowRequest,
-  groupJobsService: IGroupJobsService,
-  groupedColumn: GroupedField,
-  columnsToAggregate: string[],
-  abortSignal: AbortSignal,
-) => {
-  const { filters, activeJobSets, skip, take, order } = rowRequest
-  return await groupJobsService.groupJobs(
-    fetchFunc,
-    filters,
-    activeJobSets,
-    order,
-    groupedColumn,
-    columnsToAggregate,
-    skip,
-    take,
-    abortSignal,
-  )
 }

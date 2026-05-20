@@ -67,6 +67,7 @@ require (
 	github.com/magefile/mage v1.15.0
 	github.com/minio/highwayhash v1.0.3
 	github.com/openconfig/goyang v1.6.3
+	github.com/prometheus/client_model v0.6.2
 	github.com/prometheus/common v0.67.5
 	github.com/redis/go-redis/extra/redisprometheus/v9 v9.17.3
 	github.com/redis/go-redis/v9 v9.17.3
@@ -213,7 +214,6 @@ require (
 	github.com/pierrec/lz4/v4 v4.1.25 // indirect
 	github.com/pjbgf/sha1cd v0.5.0 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
-	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/procfs v0.19.2 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/sagikazarmark/locafero v0.12.0 // indirect

@@ -9,6 +9,7 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/common/constants"
 	"github.com/armadaproject/armada/internal/common/ingest"
 	log "github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/eventingester/configuration"
@@ -17,8 +18,7 @@ import (
 )
 
 const (
-	eventStreamPrefix = "Events:"
-	dataKey           = "message"
+	dataKey = "message"
 )
 
 type RedisEventStore struct {
@@ -175,5 +175,5 @@ func (repo *RedisEventStore) isRetryableRedisError(err error) bool {
 }
 
 func getJobSetEventsKey(queue, jobSetId string) string {
-	return eventStreamPrefix + queue + ":" + jobSetId
+	return constants.EventStreamPrefix + queue + ":" + jobSetId
 }

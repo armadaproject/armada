@@ -11,6 +11,8 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/armadaproject/armada/internal/common/errormatch"
+	"github.com/armadaproject/armada/internal/executor/categorizer"
 	fakecontext "github.com/armadaproject/armada/internal/executor/context/fake"
 	"github.com/armadaproject/armada/internal/executor/domain"
 	"github.com/armadaproject/armada/internal/executor/reporter"
@@ -167,12 +169,127 @@ func TestJobStateReporter_HandlesFailedPod_WithRetryableError(t *testing.T) {
 }
 
 func setUpJobStateReporterTest(t *testing.T) (*JobStateReporter, *stubIssueHandler, *mocks.FakeEventReporter, *fakecontext.SyncFakeClusterContext) {
+	return setUpJobStateReporterTestWithClassifier(t, nil, &stubIssueHandler{})
+}
+
+func setUpJobStateReporterTestWithClassifier(
+	t *testing.T,
+	classifier *categorizer.Classifier,
+	issueHandler *stubIssueHandler,
+) (*JobStateReporter, *stubIssueHandler, *mocks.FakeEventReporter, *fakecontext.SyncFakeClusterContext) {
 	fakeClusterContext := fakecontext.NewSyncFakeClusterContext()
 	eventReporter := mocks.NewFakeEventReporter()
-	issueHandler := &stubIssueHandler{detectAndRegisterFailedPodIssueResult: false, detectAndRegisterFailedPodIssueError: nil}
-	jobStateReporter, err := NewJobStateReporter(fakeClusterContext, eventReporter, issueHandler)
+	jobStateReporter, err := NewJobStateReporter(fakeClusterContext, eventReporter, issueHandler, classifier)
 	require.NoError(t, err)
 	return jobStateReporter, issueHandler, eventReporter, fakeClusterContext
+}
+
+func makeFailedPodWithExitCode(t *testing.T, exitCode int32) *v1.Pod {
+	t.Helper()
+	pod := makeTestPod(v1.PodStatus{
+		Phase: v1.PodFailed,
+		ContainerStatuses: []v1.ContainerStatus{
+			{
+				Name: "main",
+				State: v1.ContainerState{
+					Terminated: &v1.ContainerStateTerminated{ExitCode: exitCode, Reason: "Error"},
+				},
+			},
+		},
+	})
+	return pod
+}
+
+func classifierForExitCode(t *testing.T, category, subcategory string, exitCode int32) *categorizer.Classifier {
+	t.Helper()
+	c, err := categorizer.NewClassifier(categorizer.ErrorCategoriesConfig{
+		Categories: []categorizer.CategoryConfig{
+			{
+				Name: category,
+				Rules: []categorizer.CategoryRule{
+					{
+						OnExitCodes: &errormatch.ExitCodeMatcher{
+							Operator: errormatch.ExitCodeOperatorIn,
+							Values:   []int32{exitCode},
+						},
+						Subcategory: subcategory,
+					},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	return c
+}
+
+// The metric counter itself is tested in the metrics package.
+// These tests cover the emission gating that governs when the counter is
+// advanced: a JobFailedEvent must be emitted (not a ReturnLease or a no-op).
+
+func TestJobStateReporter_PodFailed_EmitsJobFailedEventWhenClassifierMatches(t *testing.T) {
+	classifier := classifierForExitCode(t, "jsr-emit-cat", "jsr-emit-sub", 42)
+	_, _, eventReporter, fakeClusterContext := setUpJobStateReporterTestWithClassifier(t, classifier, &stubIssueHandler{})
+
+	pod := makeFailedPodWithExitCode(t, 42)
+	addPod(t, fakeClusterContext, pod)
+	fakeClusterContext.SimulatePodAddEvent(pod)
+	time.Sleep(time.Millisecond * 100)
+
+	assert.Len(t, eventReporter.ReceivedEvents, 1)
+}
+
+func TestJobStateReporter_PodFailed_SuppressesEmissionWhenRetryableIssueRegistered(t *testing.T) {
+	classifier := classifierForExitCode(t, "jsr-retryable-cat", "jsr-retryable-sub", 42)
+	_, _, eventReporter, fakeClusterContext := setUpJobStateReporterTestWithClassifier(
+		t, classifier,
+		&stubIssueHandler{detectAndRegisterFailedPodIssueResult: true},
+	)
+
+	pod := makeFailedPodWithExitCode(t, 42)
+	addPod(t, fakeClusterContext, pod)
+	fakeClusterContext.SimulatePodAddEvent(pod)
+	time.Sleep(time.Millisecond * 100)
+
+	assert.Len(t, eventReporter.ReceivedEvents, 0, "retryable issue path emits ReturnLease, not JobFailed")
+}
+
+func TestJobStateReporter_PodFailed_SuppressesEmissionWhenIssueAlreadyExists(t *testing.T) {
+	classifier := classifierForExitCode(t, "jsr-existing-cat", "jsr-existing-sub", 42)
+	pod := makeFailedPodWithExitCode(t, 42)
+	_, _, eventReporter, fakeClusterContext := setUpJobStateReporterTestWithClassifier(
+		t, classifier,
+		&stubIssueHandler{runIdsWithIssues: map[string]bool{util.ExtractJobRunId(pod): true}},
+	)
+
+	addPod(t, fakeClusterContext, pod)
+	fakeClusterContext.SimulatePodAddEvent(pod)
+	time.Sleep(time.Millisecond * 100)
+
+	assert.Len(t, eventReporter.ReceivedEvents, 0, "run already owned by issue handler - no direct emission from this path")
+}
+
+func TestJobStateReporter_PodFailed_DropsEventWhenReporterErrors(t *testing.T) {
+	classifier := classifierForExitCode(t, "jsr-report-error-cat", "jsr-report-error-sub", 42)
+	_, _, eventReporter, fakeClusterContext := setUpJobStateReporterTestWithClassifier(t, classifier, &stubIssueHandler{})
+	eventReporter.ErrorOnReport = true
+
+	pod := makeFailedPodWithExitCode(t, 42)
+	addPod(t, fakeClusterContext, pod)
+	fakeClusterContext.SimulatePodAddEvent(pod)
+	time.Sleep(time.Millisecond * 100)
+
+	assert.Len(t, eventReporter.ReceivedEvents, 0, "event is dropped when reporter errors - counter increment is gated behind successful emission")
+}
+
+func TestJobStateReporter_PodFailed_EmitsEventWithEmptyCategoryWhenClassifierIsNil(t *testing.T) {
+	_, _, eventReporter, fakeClusterContext := setUpJobStateReporterTestWithClassifier(t, nil, &stubIssueHandler{})
+
+	pod := makeFailedPodWithExitCode(t, 42)
+	addPod(t, fakeClusterContext, pod)
+	fakeClusterContext.SimulatePodAddEvent(pod)
+	time.Sleep(time.Millisecond * 100)
+
+	assert.Len(t, eventReporter.ReceivedEvents, 1, "event still emitted with empty category/subcategory when classification is disabled")
 }
 
 func assertExpectedEvents(t *testing.T, pod *v1.Pod, messages []reporter.EventMessage, expectedType reflect.Type) {

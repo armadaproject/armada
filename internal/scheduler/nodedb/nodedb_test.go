@@ -13,6 +13,8 @@ import (
 
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	"github.com/armadaproject/armada/internal/common/pointer"
+	armadaresource "github.com/armadaproject/armada/internal/common/resource"
+	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/common/util"
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
@@ -231,6 +233,93 @@ func TestNodeBindingEvictionUnbinding(t *testing.T) {
 	assert.Empty(t, unboundNode.EvictedJobRunIds)
 }
 
+// Covers the pods resource path, which TestNodeBindingEvictionUnbinding does not exercise.
+// Bind, evict, and unbind flow resource requirements through KubernetesResourceRequirements,
+// so a regression in pod-slot accounting would surface here even though the cpu/memory/GPU
+// cases look green.
+func TestNodeBindingEvictionUnbinding_ReleasesPodSlot(t *testing.T) {
+	resourceTypes := []schedulerconfig.ResourceType{
+		{Name: "cpu", Resolution: resource.MustParse("1m")},
+		{Name: "memory", Resolution: resource.MustParse("1")},
+		{Name: armadaresource.PodsResourceName, Resolution: resource.MustParse("1")},
+	}
+	rlFactory, err := internaltypes.NewResourceListFactory(resourceTypes, nil)
+	require.NoError(t, err)
+
+	jobDb := jobdb.NewJobDbWithSchedulingKeyGenerator(
+		testfixtures.TestPriorityClasses,
+		testfixtures.TestDefaultPriorityClass,
+		testfixtures.SchedulingKeyGenerator,
+		stringinterner.New(1024),
+		rlFactory,
+	)
+	jobDb.SetRespectNodePodLimits(true)
+
+	nodeDb, err := NewNodeDb(
+		testfixtures.TestPriorityClasses,
+		resourceTypes,
+		testfixtures.TestIndexedTaints,
+		testfixtures.TestIndexedNodeLabels,
+		testfixtures.TestWellKnownNodeTypes,
+		rlFactory,
+	)
+	require.NoError(t, err)
+
+	nodeProto := testfixtures.TestSchedulerObjectsNode(testfixtures.TestPriorities, map[string]*resource.Quantity{
+		"cpu":                           pointer.MustParseResource("10"),
+		"memory":                        pointer.MustParseResource("64Gi"),
+		armadaresource.PodsResourceName: pointer.MustParseResource("1"),
+	})
+	nodeFactory := internaltypes.NewNodeFactory(
+		testfixtures.TestIndexedTaints,
+		testfixtures.TestIndexedNodeLabels,
+		testfixtures.TestPriorityClasses,
+		rlFactory,
+	)
+	node := nodeFactory.FromSchedulerObjectsNode(nodeProto)
+
+	txn := nodeDb.Txn(true)
+	require.NoError(t, nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, node))
+	txn.Commit()
+
+	job := newPodsJob(t, jobDb, "jobA")
+	priority := job.PriorityClass().Priority
+	entry, err := nodeDb.GetNode(node.GetId())
+	require.NoError(t, err)
+
+	boundNode, err := nodeDb.BindJobToNode(entry, job, priority)
+	require.NoError(t, err)
+	boundPods := boundNode.AllocatableByPriority[priority].GetByNameZeroIfMissing(armadaresource.PodsResourceName)
+	assert.Equal(t, int64(0), boundPods.Value(), "bind should consume the pod slot")
+
+	evictedNode, err := nodeDb.EvictJobsFromNode([]*jobdb.Job{job}, boundNode)
+	require.NoError(t, err)
+	unboundNode, err := nodeDb.UnbindJobFromNode(job, evictedNode)
+	require.NoError(t, err)
+	releasedPods := unboundNode.AllocatableByPriority[priority].GetByNameZeroIfMissing(armadaresource.PodsResourceName)
+	assert.Equal(t, int64(1), releasedPods.Value(), "evict+unbind should free the pod slot")
+
+	followUp := newPodsJob(t, jobDb, "jobB")
+	rebindNode, err := nodeDb.BindJobToNode(unboundNode, followUp, followUp.PriorityClass().Priority)
+	require.NoError(t, err, "second job should bind after the slot is freed")
+	rebindPods := rebindNode.AllocatableByPriority[priority].GetByNameZeroIfMissing(armadaresource.PodsResourceName)
+	assert.Equal(t, int64(0), rebindPods.Value(), "second bind should also consume the pod slot")
+}
+
+func newPodsJob(t *testing.T, db *jobdb.JobDb, jobId string) *jobdb.Job {
+	t.Helper()
+	info := &internaltypes.JobSchedulingInfo{
+		PriorityClass: testfixtures.PriorityClass0,
+		PodRequirements: testfixtures.TestPodReqs(v1.ResourceList{
+			"cpu":    resource.MustParse("1"),
+			"memory": resource.MustParse("1Gi"),
+		}),
+	}
+	job, err := db.NewJob(jobId, "jobSet", "queue", 1, info, false, 0, false, false, false, 0, false, []string{testfixtures.TestPool}, 0)
+	require.NoError(t, err)
+	return job
+}
+
 func assertNodeAccountingEqual(t *testing.T, node1, node2 *internaltypes.Node) {
 	assert.True(
 		t,
@@ -290,15 +379,17 @@ func TestEviction(t *testing.T) {
 	node, err = nodeDb.GetNode(node.GetId())
 	require.NoError(t, err)
 	assert.Equal(t, 0, len(node.EvictedJobRunIds))
+	// PriorityClass3 is non-preemptible, so its 1cpu/4Gi is deducted at every
+	// priority including 28000+, not just <= 3.
 	assert.Equal(t, map[int32]internaltypes.ResourceList{
 		-1:    testfixtures.CpuMem("30", "248Gi"),
 		0:     testfixtures.CpuMem("30", "248Gi"),
 		1:     testfixtures.CpuMem("31", "252Gi"),
 		2:     testfixtures.CpuMem("31", "252Gi"),
 		3:     testfixtures.CpuMem("31", "252Gi"),
-		28000: testfixtures.CpuMem("32", "256Gi"),
-		29000: testfixtures.CpuMem("32", "256Gi"),
-		30000: testfixtures.CpuMem("32", "256Gi"),
+		28000: testfixtures.CpuMem("31", "252Gi"),
+		29000: testfixtures.CpuMem("31", "252Gi"),
+		30000: testfixtures.CpuMem("31", "252Gi"),
 	}, node.AllocatableByPriority)
 
 	returnedNode, err := nodeDb.EvictJobsFromNode(jobs, node)
@@ -306,15 +397,16 @@ func TestEviction(t *testing.T) {
 	assert.Equal(t, 0, len(node.EvictedJobRunIds))
 	assert.Equal(t, len(jobs), len(returnedNode.EvictedJobRunIds))
 
+	// EvictJobsFromNode returns a copy; the original node is unchanged.
 	assert.Equal(t, map[int32]internaltypes.ResourceList{
 		-1:    testfixtures.CpuMem("30", "248Gi"),
 		0:     testfixtures.CpuMem("30", "248Gi"),
 		1:     testfixtures.CpuMem("31", "252Gi"),
 		2:     testfixtures.CpuMem("31", "252Gi"),
 		3:     testfixtures.CpuMem("31", "252Gi"),
-		28000: testfixtures.CpuMem("32", "256Gi"),
-		29000: testfixtures.CpuMem("32", "256Gi"),
-		30000: testfixtures.CpuMem("32", "256Gi"),
+		28000: testfixtures.CpuMem("31", "252Gi"),
+		29000: testfixtures.CpuMem("31", "252Gi"),
+		30000: testfixtures.CpuMem("31", "252Gi"),
 	}, node.AllocatableByPriority)
 
 	assert.Equal(t, map[int32]internaltypes.ResourceList{

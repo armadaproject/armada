@@ -51,9 +51,22 @@ const makeKeyValuePairsData = (
     cluster,
     node,
     pool,
+    failureCategory,
+    failureSubcategory,
   }: Pick<
     JobRun,
-    "runId" | "jobRunState" | "leased" | "pending" | "started" | "finished" | "exitCode" | "cluster" | "node" | "pool"
+    | "runId"
+    | "jobRunState"
+    | "leased"
+    | "pending"
+    | "started"
+    | "finished"
+    | "exitCode"
+    | "cluster"
+    | "node"
+    | "pool"
+    | "failureCategory"
+    | "failureSubcategory"
   >,
 ): KeyValuePairTable["data"] => {
   const d = [] as KeyValuePairTable["data"]
@@ -92,6 +105,12 @@ const makeKeyValuePairsData = (
   if (node) {
     d.push({ key: "Node", value: node, allowCopy: true })
   }
+  if (failureCategory) {
+    d.push({ key: "Failure Category", value: failureCategory })
+  }
+  if (failureSubcategory) {
+    d.push({ key: "Failure Subcategory", value: failureSubcategory })
+  }
   return d
 }
 
@@ -117,7 +136,21 @@ export interface JobRunDetailsProps {
 }
 
 export const JobRunDetails = ({
-  run: { node, cluster, pool, started, pending, leased, finished, jobRunState, runId, exitCode, ingressAddresses },
+  run: {
+    node,
+    cluster,
+    pool,
+    started,
+    pending,
+    leased,
+    finished,
+    jobRunState,
+    runId,
+    exitCode,
+    ingressAddresses,
+    failureCategory,
+    failureSubcategory,
+  },
   runIndex,
   defaultExpanded,
   setRunError,
@@ -171,11 +204,9 @@ export const JobRunDetails = ({
       cluster,
       node,
       pool,
+      failureCategory,
+      failureSubcategory,
     })
-
-    if (ingressAddressEntries.length === 0) {
-      return baseRows
-    }
 
     const ingressRows = ingressAddressEntries.map(({ address }, index) => ({
       key: ingressAddressEntries.length === 1 ? "Ingress address" : `Ingress address ${index + 1}`,
@@ -197,6 +228,8 @@ export const JobRunDetails = ({
     node,
     pool,
     ingressAddressEntries,
+    failureCategory,
+    failureSubcategory,
   ])
 
   return (

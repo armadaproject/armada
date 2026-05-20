@@ -49,6 +49,9 @@ func (a *App) PreemptOnExecutor(executor string, queues []string, priorityClasse
 		queues = armadaslices.Map(apiQueues, func(q *api.Queue) string { return q.Name })
 		queueMsg = "all"
 	}
+	if len(priorityClasses) == 0 {
+		priorityClassesMsg = "all"
+	}
 	if len(pools) == 0 {
 		poolsMsg = "all"
 	}
