@@ -52,6 +52,12 @@ type Job struct {
 	Terminated              *bool     `db:"terminated"`
 }
 
+type JobMetadatum struct {
+	JobID         string `db:"job_id"`
+	SubmitMessage []byte `db:"submit_message"`
+	Groups        []byte `db:"groups"`
+}
+
 type JobRunError struct {
 	RunID string `db:"run_id"`
 	JobID string `db:"job_id"`
