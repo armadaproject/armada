@@ -451,15 +451,15 @@ func TestDryRunTxn_LocalChangesVisible(t *testing.T) {
 
 	dryRunTxn := jobDb.DryRunTxn()
 
-	// The original job should be visible in the snapshot.
+	// The original job should be visible in the txn.
 	assert.NotNil(t, dryRunTxn.GetById(job.Id()))
 
-	// Upsert a new job into the snapshot — it should be visible within the snapshot.
+	// Upsert a new job into the txn — it should be visible within the txn.
 	newSnapJob := newJob().WithQueued(true)
 	require.NoError(t, dryRunTxn.Upsert([]*Job{newSnapJob}))
 	assert.NotNil(t, dryRunTxn.GetById(newSnapJob.Id()))
 
-	// Delete the original job from the snapshot — it should be gone within the snapshot.
+	// Delete the original job from the txn — it should be gone within the txn.
 	require.NoError(t, dryRunTxn.BatchDelete([]string{job.Id()}))
 	assert.Nil(t, dryRunTxn.GetById(job.Id()))
 }
@@ -475,18 +475,18 @@ func TestDryRunTxn_CommitDoesNotModifyDb(t *testing.T) {
 
 	dryRunTxn := jobDb.DryRunTxn()
 
-	// Mutate the snapshot: add a new job and delete the seeded one.
-	newSnapJob := newJob().WithQueued(true)
-	require.NoError(t, dryRunTxn.Upsert([]*Job{newSnapJob}))
+	// Mutate the txn: add a new job and delete the original one.
+	newJob := newJob().WithQueued(true)
+	require.NoError(t, dryRunTxn.Upsert([]*Job{newJob}))
 	require.NoError(t, dryRunTxn.BatchDelete([]string{job.Id()}))
 	dryRunTxn.Commit()
 
-	// The real db must be unchanged after committing the snapshot.
+	// The real db must be unchanged after committing the txn.
 	realTxn := jobDb.ReadTxn()
 	assert.NotNil(t, realTxn.GetById(job.Id()),
-		"original job should still exist in the real db after snapshot commit")
-	assert.Nil(t, realTxn.GetById(newSnapJob.Id()),
-		"snapshot-only job must not appear in the real db after snapshot commit")
+		"original job should still exist in the real db after dry run commit")
+	assert.Nil(t, realTxn.GetById(newJob.Id()),
+		"dry run only job must not appear in the real db after dry run commit")
 
 	// A subsequent WriteTxn must not be blocked (writerMutex was never held).
 	secondWrite := jobDb.WriteTxn()
