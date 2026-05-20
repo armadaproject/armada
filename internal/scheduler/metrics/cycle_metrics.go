@@ -31,9 +31,12 @@ var (
 	poolAndShapeAndReasonLabels            = []string{poolLabel, jobShapeLabel, unschedulableReasonLabel}
 	poolQueueAndResourceLabels             = []string{poolLabel, queueLabel, resourceLabel}
 	poolAndOutcomeLabels                   = []string{poolLabel, outcomeLabel, terminationReasonLabel}
-	nodeLabels                             = []string{poolLabel, nodeLabel, clusterLabel, nodeTypeLabel, nodeTypeLabelSnake, resourceLabel, reservationLabel, schedulableLabel, overAllocatedLabel, overAllocatedLabelSnake, physicalPoolLabel, capacityClassLabel, scalableUnitLabel}
-	defaultType                            = "unknown"
-	reconcilerFailureType                  = "reconciler"
+	nodeLabels                             = []string{
+		poolLabel, nodeLabel, clusterLabel, nodeTypeLabel, nodeTypeLabelSnake, resourceLabel, reservationLabel,
+		schedulableLabel, overAllocatedLabel, overAllocatedLabelSnake, physicalPoolLabel, capacityClassLabel, scalableUnitLabel,
+	}
+	defaultType           = "unknown"
+	reconcilerFailureType = "reconciler"
 )
 
 type perCycleMetrics struct {

@@ -268,27 +268,27 @@ func TestReportJobStateTransitions(t *testing.T) {
 				},
 			},
 			expectedJobStateCounterByQueue: map[[5]string]float64{
-				{testQueue, testPool, "pending", "leased", "leased"}:    1,
+				{testQueue, testPool, "pending", "leased", "leased"}:     1,
 				{testQueue, testPool, "running", "pending", "pending"}:   1,
 				{testQueue, testPool, "succeeded", "running", "running"}: 1,
 			},
 			expectedJobStateCounterByNode: map[[6]string]float64{
-				{testNode, testPool, testCluster, "pending", "leased", "leased"}:    1,
+				{testNode, testPool, testCluster, "pending", "leased", "leased"}:     1,
 				{testNode, testPool, testCluster, "running", "pending", "pending"}:   1,
 				{testNode, testPool, testCluster, "succeeded", "running", "running"}: 1,
 			},
 			expectedJobStateSecondsByQueue: map[[5]string]float64{
-				{testQueue, testPool, "pending", "leased", "leased"}:    2,
+				{testQueue, testPool, "pending", "leased", "leased"}:     2,
 				{testQueue, testPool, "running", "pending", "pending"}:   3,
 				{testQueue, testPool, "succeeded", "running", "running"}: 4,
 			},
 			expectedJobStateSecondsByNode: map[[6]string]float64{
-				{testNode, testPool, testCluster, "pending", "leased", "leased"}:    2,
+				{testNode, testPool, testCluster, "pending", "leased", "leased"}:     2,
 				{testNode, testPool, testCluster, "running", "pending", "pending"}:   3,
 				{testNode, testPool, testCluster, "succeeded", "running", "running"}: 4,
 			},
 			expectedJobStateResourceSecondsByNode: map[[7]string]float64{
-				{testNode, testPool, testCluster, "pending", "leased", "leased", "cpu"}:    32,
+				{testNode, testPool, testCluster, "pending", "leased", "leased", "cpu"}:     32,
 				{testNode, testPool, testCluster, "running", "pending", "pending", "cpu"}:   48,
 				{testNode, testPool, testCluster, "succeeded", "running", "running", "cpu"}: 64,
 			},
