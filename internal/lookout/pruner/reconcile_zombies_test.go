@@ -24,12 +24,12 @@ import (
 // state in the database, and the non-terminal state we will then forcibly
 // rewind job.state to in order to simulate the historical ingester bug.
 type zombieScenario struct {
-	jobId             string
-	runFinishedAt     time.Time
-	terminalJobState  lookout.JobState
-	rewindToJobState  lookout.JobState
-	expectRepair      bool
-	expectedJobState  lookout.JobState // only checked when expectRepair is true
+	jobId            string
+	runFinishedAt    time.Time
+	terminalJobState lookout.JobState
+	rewindToJobState lookout.JobState
+	expectRepair     bool
+	expectedJobState lookout.JobState // only checked when expectRepair is true
 }
 
 func TestReconcileZombieJobs(t *testing.T) {
