@@ -440,7 +440,7 @@ func TestJobDb_TestTransactions(t *testing.T) {
 	assert.Error(t, txn1.Upsert([]*Job{job})) // should be error as you can't insert after committing
 }
 
-func TestSnapshotTxn_LocalChangesVisible(t *testing.T) {
+func TestDryRunTxn_LocalChangesVisible(t *testing.T) {
 	jobDb := NewTestJobDb()
 
 	// Seed the real db with one job.
@@ -449,22 +449,22 @@ func TestSnapshotTxn_LocalChangesVisible(t *testing.T) {
 	require.NoError(t, writeTxn.Upsert([]*Job{job}))
 	writeTxn.Commit()
 
-	snapshotTxn := jobDb.SnapshotTxn()
+	dryRunTxn := jobDb.DryRunTxn()
 
 	// The original job should be visible in the snapshot.
-	assert.NotNil(t, snapshotTxn.GetById(job.Id()))
+	assert.NotNil(t, dryRunTxn.GetById(job.Id()))
 
 	// Upsert a new job into the snapshot — it should be visible within the snapshot.
 	newSnapJob := newJob().WithQueued(true)
-	require.NoError(t, snapshotTxn.Upsert([]*Job{newSnapJob}))
-	assert.NotNil(t, snapshotTxn.GetById(newSnapJob.Id()))
+	require.NoError(t, dryRunTxn.Upsert([]*Job{newSnapJob}))
+	assert.NotNil(t, dryRunTxn.GetById(newSnapJob.Id()))
 
 	// Delete the original job from the snapshot — it should be gone within the snapshot.
-	require.NoError(t, snapshotTxn.BatchDelete([]string{job.Id()}))
-	assert.Nil(t, snapshotTxn.GetById(job.Id()))
+	require.NoError(t, dryRunTxn.BatchDelete([]string{job.Id()}))
+	assert.Nil(t, dryRunTxn.GetById(job.Id()))
 }
 
-func TestSnapshotTxn_CommitDoesNotModifyDb(t *testing.T) {
+func TestDryRunTxn_CommitDoesNotModifyDb(t *testing.T) {
 	jobDb := NewTestJobDb()
 
 	// Seed the real db with one job.
@@ -473,13 +473,13 @@ func TestSnapshotTxn_CommitDoesNotModifyDb(t *testing.T) {
 	require.NoError(t, writeTxn.Upsert([]*Job{job}))
 	writeTxn.Commit()
 
-	snapshotTxn := jobDb.SnapshotTxn()
+	dryRunTxn := jobDb.DryRunTxn()
 
 	// Mutate the snapshot: add a new job and delete the seeded one.
 	newSnapJob := newJob().WithQueued(true)
-	require.NoError(t, snapshotTxn.Upsert([]*Job{newSnapJob}))
-	require.NoError(t, snapshotTxn.BatchDelete([]string{job.Id()}))
-	snapshotTxn.Commit()
+	require.NoError(t, dryRunTxn.Upsert([]*Job{newSnapJob}))
+	require.NoError(t, dryRunTxn.BatchDelete([]string{job.Id()}))
+	dryRunTxn.Commit()
 
 	// The real db must be unchanged after committing the snapshot.
 	realTxn := jobDb.ReadTxn()
@@ -489,6 +489,29 @@ func TestSnapshotTxn_CommitDoesNotModifyDb(t *testing.T) {
 		"snapshot-only job must not appear in the real db after snapshot commit")
 
 	// A subsequent WriteTxn must not be blocked (writerMutex was never held).
+	secondWrite := jobDb.WriteTxn()
+	secondWrite.Abort()
+}
+
+func TestDryRunTxn_AbortDoesNotModifyDb(t *testing.T) {
+	jobDb := NewTestJobDb()
+
+	job := newJob().WithQueued(true)
+	writeTxn := jobDb.WriteTxn()
+	require.NoError(t, writeTxn.Upsert([]*Job{job}))
+	writeTxn.Commit()
+
+	dryRunTxn := jobDb.DryRunTxn()
+	newJob := newJob().WithQueued(true)
+	require.NoError(t, dryRunTxn.Upsert([]*Job{newJob}))
+	dryRunTxn.Abort() // must not panic (writerMutex was never acquired)
+
+	// Real db must be unchanged after abort.
+	realTxn := jobDb.ReadTxn()
+	assert.NotNil(t, realTxn.GetById(job.Id()))
+	assert.Nil(t, realTxn.GetById(newJob.Id()))
+
+	// writerMutex must not be held.
 	secondWrite := jobDb.WriteTxn()
 	secondWrite.Abort()
 }
