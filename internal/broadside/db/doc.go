@@ -96,6 +96,18 @@ Three implementations are provided:
     in a single statement — ensuring no terminal state is ever written to job.
     Historical job population writes directly to job_historical when the toggle is
     enabled.
+    When the PartitionBySubmitted feature toggle is enabled (mutually exclusive
+    with HotColdSplit), InitialiseSchema converts the job table into a
+    range-partitioned table on the submitted column (sql/partition_up.sql),
+    creates daily partitions covering all configured jobAgeDays plus a forward
+    buffer, and adds a DEFAULT partition. Child tables (job_run, job_spec,
+    job_error) gain a NOT NULL submitted column. During ingestion,
+    ExecuteIngestionQueryBatch bypasses LookoutDb entirely, using direct SQL that
+    includes submitted in INSERT columns and UPDATE WHERE clauses for partition
+    pruning. Historical job population splits per age bucket per chunk so that
+    each INSERT targets a single partition. TearDown drops the partitioned table,
+    recreates the original unpartitioned schema (sql/partition_down.sql), and
+    removes the submitted column from child tables.
   - ClickHouseDatabase: ClickHouse adapter (placeholder implementation)
   - MemoryDatabase: In-memory adapter for smoke-testing Broadside
 
@@ -138,7 +150,7 @@ Create a database instance using the appropriate constructor:
 	    "host":     "localhost",
 	    "port":     "5432",
 	    "database": "lookout",
-	}, nil, nil)
+	}, configuration.FeatureToggles{}, nil, nil, nil)
 
 	// For ClickHouse
 	db := db.NewClickHouseDatabase(map[string]string{
