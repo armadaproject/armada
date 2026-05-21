@@ -53,6 +53,10 @@ var reconcileZombiesQuery = fmt.Sprintf(`
 		LIMIT $2
 	) AS mapping
 	WHERE job.job_id = mapping.job_id
+	  -- Filter out ELSE-branch rows so they don't (a) get last_transition_time
+	  -- rewritten unnecessarily, and (b) re-appear in RETURNING and starve the
+	  -- outer batch loop's termination condition.
+	  AND mapping.new_state != mapping.old_state
 	RETURNING job.job_id, mapping.queue, mapping.jobset, mapping.old_state, mapping.new_state, mapping.run_id, mapping.finished`,
 	lookout.JobRunSucceededOrdinal, lookout.JobSucceededOrdinal,
 	lookout.JobRunFailedOrdinal, lookout.JobFailedOrdinal,
