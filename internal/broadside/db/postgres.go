@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"golang.org/x/sync/errgroup"
 
 	broadsideconfiguration "github.com/armadaproject/armada/internal/broadside/configuration"
 	"github.com/armadaproject/armada/internal/broadside/jobspec"
@@ -308,21 +308,27 @@ func (p *PostgresDatabase) ExecuteIngestionQueryBatch(ctx context.Context, queri
 	}
 
 	// Phase 1: job rows must be committed before job_run FK references them.
-	var wg sync.WaitGroup
-	wg.Go(func() { p.lookoutDb.CreateJobs(armadaCtx, set.JobsToCreate) })
-	wg.Go(func() { p.lookoutDb.CreateJobSpecs(armadaCtx, set.JobsToCreate) })
-	wg.Wait()
+	var g errgroup.Group
+	g.Go(func() error { return p.lookoutDb.CreateJobs(armadaCtx, set.JobsToCreate) })
+	g.Go(func() error { return p.lookoutDb.CreateJobSpecs(armadaCtx, set.JobsToCreate) })
+	if err := g.Wait(); err != nil {
+		return err
+	}
 
 	// Phase 2: job runs, errors and job-state updates can proceed in parallel.
 	// When HotColdSplit is enabled, jobUpdates contains only non-terminal updates,
 	// so no terminal state is ever written to job (which has chk_job_active_state).
-	wg.Go(func() { p.lookoutDb.UpdateJobs(armadaCtx, jobUpdates) })
-	wg.Go(func() { p.lookoutDb.CreateJobRuns(armadaCtx, set.JobRunsToCreate) })
-	wg.Go(func() { p.lookoutDb.CreateJobErrors(armadaCtx, set.JobErrorsToCreate) })
-	wg.Wait()
+	g.Go(func() error { return p.lookoutDb.UpdateJobs(armadaCtx, jobUpdates) })
+	g.Go(func() error { return p.lookoutDb.CreateJobRuns(armadaCtx, set.JobRunsToCreate) })
+	g.Go(func() error { return p.lookoutDb.CreateJobErrors(armadaCtx, set.JobErrorsToCreate) })
+	if err := g.Wait(); err != nil {
+		return err
+	}
 
 	// Phase 3: job-run updates depend on job-run rows existing.
-	p.lookoutDb.UpdateJobRuns(armadaCtx, set.JobRunsToUpdate)
+	if err := p.lookoutDb.UpdateJobRuns(armadaCtx, set.JobRunsToUpdate); err != nil {
+		return err
+	}
 
 	// Phase 4 (hot/cold split only): atomically apply terminal state updates and
 	// move those jobs from job to job_historical in a single SQL statement.
