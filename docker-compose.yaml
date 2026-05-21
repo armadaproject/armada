@@ -13,7 +13,7 @@ services:
   #
   redis:
     container_name: redis
-    image: redis
+    image: redis:8.6.3
     ports:
       - 6379:6379
     networks:
@@ -68,7 +68,7 @@ services:
 
   prometheus:
     container_name: prometheus
-    image: prom/prometheus:latest
+    image: prom/prometheus:v3.11.3
     networks:
       - kind
     extra_hosts:

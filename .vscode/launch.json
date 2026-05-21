@@ -68,7 +68,6 @@
       "program": "${workspaceFolder}/cmd/executor/main.go",
       "cwd": "${workspaceFolder}",
       "args": [
-        "run",
         "--config",
         "${workspaceFolder}/developer/config/executor/config-auth.yaml"
       ],
@@ -128,7 +127,6 @@
       "program": "${workspaceFolder}/cmd/lookout/main.go",
       "cwd": "${workspaceFolder}",
       "args": [
-        "run",
         "--config",
         "${workspaceFolder}/developer/config/lookout/config-auth.yaml"
       ],
