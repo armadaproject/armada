@@ -105,6 +105,7 @@ export const CustomViewPicker = ({
                         eventName={ANALYTICS_EVENTS.CUSTOM_VIEW_CREATED}
                         eventData={() => getCurrentViewEventData(newCustomViewName)}
                         variant="contained"
+                        disabled={newCustomViewName === ""}
                         onClick={addCustomView}
                       >
                         Save
