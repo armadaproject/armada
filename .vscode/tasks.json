@@ -36,6 +36,17 @@
     },
     {
       "type": "shell",
+      "command": "mage kindTeardown && docker compose -f ${workspaceFolder}/docker-compose.yaml down -v",
+      "label": "Full teardown",
+      "problemMatcher": []
+    },
+    {
+      "type": "shell",
+      "command": "until pg_isready -h localhost -p 5432 -U postgres; do sleep 1; done",
+      "label": "Wait for Postgres"
+    },
+    {
+      "type": "shell",
       "command": "go",
       "label": "Migrate Lookout database",
       "args": ["run", "${workspaceFolder}/cmd/lookout", "--migrateDatabase"]
@@ -52,6 +63,7 @@
       "dependsOn": [
         "Download Go modules",
         "Start dependencies",
+        "Wait for Postgres",
         "Migrate Lookout database",
         "Migrate Scheduler database"
       ]
@@ -62,6 +74,7 @@
       "dependsOn": [
         "Download Go modules",
         "Start dependencies with Auth",
+        "Wait for Postgres",
         "Migrate Lookout database",
         "Migrate Scheduler database"
       ]
@@ -72,6 +85,7 @@
       "dependsOn": [
         "Download Go modules",
         "Start dependencies with Prometheus",
+        "Wait for Postgres",
         "Migrate Lookout database",
         "Migrate Scheduler database"
       ]
@@ -82,6 +96,7 @@
       "dependsOn": [
         "Download Go modules",
         "Start dependencies with Prometheus and Auth",
+        "Wait for Postgres",
         "Migrate Lookout database",
         "Migrate Scheduler database"
       ]
