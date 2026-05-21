@@ -1060,7 +1060,7 @@ func TestAwayNodeScheduling(t *testing.T) {
 			job := testfixtures.TestJob(
 				testfixtures.TestQueue, jobId,
 				"armada-preemptible-away",
-				testfixtures.Test1Cpu4GiPodReqs(testfixtures.TestQueue, jobId, 30000),
+				testfixtures.Test1Cpu4GiPodReqs(),
 			)
 			if tc.shouldSubmitGang {
 				job = testfixtures.WithGangAnnotationsJobs([]*jobdb.Job{job.DeepCopy(), job.DeepCopy()})[0]

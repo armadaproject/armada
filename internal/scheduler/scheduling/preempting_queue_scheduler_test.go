@@ -1727,7 +1727,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 							var jobs []*jobdb.Job
 							for i := 0; i < 96; i++ {
 								jobId := util.ULID()
-								jobs = append(jobs, testfixtures.TestJob("A", jobId, "armada-preemptible-away", testfixtures.Test1Cpu4GiPodReqs("A", jobId, 30000)))
+								jobs = append(jobs, testfixtures.TestJob("A", jobId, "armada-preemptible-away", testfixtures.Test1Cpu4GiPodReqs()))
 							}
 							return jobs
 						}(),
@@ -1741,7 +1741,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 							var jobs []*jobdb.Job
 							for i := 0; i < 12; i++ {
 								jobId := util.ULID()
-								req := testfixtures.Test1GpuPodReqs("B", jobId, 30000)
+								req := testfixtures.Test1GpuPodReqs()
 								req.Tolerations = append(req.Tolerations, v1.Toleration{Key: "gpu", Value: "true", Effect: v1.TaintEffectNoSchedule})
 								jobs = append(jobs, testfixtures.TestJob("B", jobId, "armada-preemptible", req))
 							}
@@ -1786,7 +1786,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 							var jobs []*jobdb.Job
 							for i := 0; i < 12; i++ {
 								jobId := util.ULID()
-								req := testfixtures.Test1GpuPodReqs("B", jobId, 30000)
+								req := testfixtures.Test1GpuPodReqs()
 								req.Tolerations = append(req.Tolerations, v1.Toleration{Key: "gpu", Value: "true", Effect: v1.TaintEffectNoSchedule})
 								jobs = append(jobs, testfixtures.TestJob("B", jobId, "armada-preemptible", req))
 							}
@@ -1802,7 +1802,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 							var jobs []*jobdb.Job
 							for i := 0; i < 96; i++ {
 								jobId := util.ULID()
-								jobs = append(jobs, testfixtures.TestJob("A", jobId, "armada-preemptible-away", testfixtures.Test1Cpu4GiPodReqs("A", jobId, 30000)))
+								jobs = append(jobs, testfixtures.TestJob("A", jobId, "armada-preemptible-away", testfixtures.Test1Cpu4GiPodReqs()))
 							}
 							return jobs
 						}(),
@@ -1855,7 +1855,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 							var jobs []*jobdb.Job
 							for i := 0; i < 96; i++ {
 								jobId := util.ULID()
-								jobs = append(jobs, testfixtures.TestJob("A", jobId, "armada-preemptible-away", testfixtures.Test1Cpu4GiPodReqs("A", jobId, 30000)))
+								jobs = append(jobs, testfixtures.TestJob("A", jobId, "armada-preemptible-away", testfixtures.Test1Cpu4GiPodReqs()))
 							}
 							return jobs
 						}(),
@@ -1869,7 +1869,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 							var jobs []*jobdb.Job
 							for i := 0; i < 12; i++ {
 								jobId := util.ULID()
-								req := testfixtures.Test1GpuPodReqs("B", jobId, 30000)
+								req := testfixtures.Test1GpuPodReqs()
 								req.Tolerations = append(req.Tolerations, v1.Toleration{Key: "gpu", Value: "true", Effect: v1.TaintEffectNoSchedule})
 								jobs = append(jobs, testfixtures.TestJob("B", jobId, "armada-preemptible", req))
 							}
@@ -1918,7 +1918,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 							var jobs []*jobdb.Job
 							for i := 0; i < 12; i++ {
 								jobId := util.ULID()
-								req := testfixtures.Test1GpuPodReqs("B", jobId, 30000)
+								req := testfixtures.Test1GpuPodReqs()
 								req.Tolerations = append(req.Tolerations, v1.Toleration{Key: "gpu", Value: "true", Effect: v1.TaintEffectNoSchedule})
 								jobs = append(jobs, testfixtures.TestJob("B", jobId, "armada-preemptible", req))
 							}
@@ -1934,7 +1934,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 							var jobs []*jobdb.Job
 							for i := 0; i < 96; i++ {
 								jobId := util.ULID()
-								jobs = append(jobs, testfixtures.TestJob("A", jobId, "armada-preemptible-away", testfixtures.Test1Cpu4GiPodReqs("A", jobId, 30000)))
+								jobs = append(jobs, testfixtures.TestJob("A", jobId, "armada-preemptible-away", testfixtures.Test1Cpu4GiPodReqs()))
 							}
 							return jobs
 						}(),
@@ -1990,7 +1990,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 							var jobs []*jobdb.Job
 							for i := 0; i < 16; i++ {
 								jobId := util.ULID()
-								req := testfixtures.Test1Cpu4GiPodReqs("A", jobId, 30000)
+								req := testfixtures.Test1Cpu4GiPodReqs()
 								jobs = append(jobs, testfixtures.TestJob("A", jobId, "armada-preemptible-away-lower", req))
 							}
 							return jobs
@@ -1999,7 +1999,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 							var jobs []*jobdb.Job
 							for i := 0; i < 16; i++ {
 								jobId := util.ULID()
-								req := testfixtures.Test1Cpu4GiPodReqs("B", jobId, 30000)
+								req := testfixtures.Test1Cpu4GiPodReqs()
 								jobs = append(jobs, testfixtures.TestJob("B", jobId, "armada-preemptible-away", req))
 							}
 							return jobs
@@ -2016,7 +2016,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 							var jobs []*jobdb.Job
 							for i := 0; i < 17; i++ {
 								jobId := util.ULID()
-								req := testfixtures.Test1Cpu4GiPodReqs("C", jobId, 30000)
+								req := testfixtures.Test1Cpu4GiPodReqs()
 								req.Tolerations = append(req.Tolerations, v1.Toleration{Key: "gpu", Value: "true", Effect: v1.TaintEffectNoSchedule})
 								jobs = append(jobs, testfixtures.TestJob("C", jobId, "armada-preemptible", req))
 							}
@@ -3121,7 +3121,7 @@ func TestPreemptingQueueScheduler_RespectNodePodLimits(t *testing.T) {
 					&internaltypes.JobSchedulingInfo{
 						PriorityClass:   priorityClass,
 						SubmitTime:      now,
-						PodRequirements: testfixtures.Test1Cpu4GiPodReqs("A", jobId, 0),
+						PodRequirements: testfixtures.Test1Cpu4GiPodReqs(),
 					},
 					queued,
 					0,
