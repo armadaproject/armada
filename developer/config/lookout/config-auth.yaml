@@ -20,8 +20,8 @@ auth:
     cancel_jobs: ["admins"]
 uiConfig:
   backend: "jsonb"
-  armadaApiBaseUrl: "http://localhost:8081"
-  binocularsBaseUrlPattern: "http://localhost:8084"
+  armadaApiBaseUrl: "http://localhost:8080"
+  binocularsBaseUrlPattern: "http://localhost:8082"
   customTitle: "Armada Local Dev (Auth Enabled)"
   userAnnotationPrefix: "armadaproject.io/"
   oidcEnabled: true
