@@ -41,7 +41,6 @@ const (
 	TestQueue2                               = "testQueue2"
 	TestPool                                 = "testPool"
 	TestPool2                                = "testPool2"
-	TestCancelUser                           = "canceluser"
 	AwayPool                                 = "awayPool"
 	TestHostnameLabel                        = "kubernetes.io/hostname"
 	ClusterNameLabel                         = "cluster"
@@ -676,14 +675,6 @@ func N1GpuJobs(queue string, priorityClassName string, n int) []*jobdb.Job {
 	return rv
 }
 
-func extractPriority(priorityClassName string) int32 {
-	priorityClass, ok := TestPriorityClasses[priorityClassName]
-	if !ok {
-		panic(fmt.Sprintf("no priority class with name %s", priorityClassName))
-	}
-	return priorityClass.Priority
-}
-
 func TestJob(queue string, jobId ulid.ULID, priorityClassName string, req *internaltypes.PodRequirements) *jobdb.Job {
 	created := jobTimestamp.Add(1)
 	submitTime := time.Time{}.Add(time.Millisecond * time.Duration(created))
@@ -766,7 +757,7 @@ func Test8Cpu64GiJobQueuedWithPrice(queue string, priorityClassName string, pric
 
 func Test16Cpu128GiJobWithLargeJobToleration(queue string, priorityClassName string) *jobdb.Job {
 	jobId := util.ULID()
-	return TestJob(queue, jobId, priorityClassName, Test16Cpu128GiPodReqsWithLargeJobToleration(queue, jobId, extractPriority(priorityClassName)))
+	return TestJob(queue, jobId, priorityClassName, Test16Cpu128GiPodReqsWithLargeJobToleration())
 }
 
 func Test16Cpu128GiJob(queue string, priorityClassName string) *jobdb.Job {
@@ -776,7 +767,7 @@ func Test16Cpu128GiJob(queue string, priorityClassName string) *jobdb.Job {
 
 func Test16Cpu128GiJobQueuedWithPrice(queue string, priorityClassName string, price float64) *jobdb.Job {
 	jobId := util.ULID()
-	return TestJobQueuedWithPrice(queue, jobId, priorityClassName, price, Test16Cpu128GiPodReqsWithLargeJobToleration(queue, jobId, extractPriority(priorityClassName)))
+	return TestJobQueuedWithPrice(queue, jobId, priorityClassName, price, Test16Cpu128GiPodReqsWithLargeJobToleration())
 }
 
 func Test32Cpu256GiJob(queue string, priorityClassName string) *jobdb.Job {
@@ -799,7 +790,7 @@ func Test1GpuJob(queue string, priorityClassName string) *jobdb.Job {
 	return TestJob(queue, jobId, priorityClassName, Test1GpuPodReqs())
 }
 
-func N1CpuPodReqs(queue string, priority int32, n int) []*internaltypes.PodRequirements {
+func N1CpuPodReqs(n int) []*internaltypes.PodRequirements {
 	rv := make([]*internaltypes.PodRequirements, n)
 	for i := 0; i < n; i++ {
 		rv[i] = Test1Cpu4GiPodReqs()
@@ -844,7 +835,7 @@ func Test16Cpu128GiPodReqs() *internaltypes.PodRequirements {
 	return req
 }
 
-func Test16Cpu128GiPodReqsWithLargeJobToleration(queue string, jobId ulid.ULID, priority int32) *internaltypes.PodRequirements {
+func Test16Cpu128GiPodReqsWithLargeJobToleration() *internaltypes.PodRequirements {
 	req := Test16Cpu128GiPodReqs()
 	req.Tolerations = []v1.Toleration{
 		{
