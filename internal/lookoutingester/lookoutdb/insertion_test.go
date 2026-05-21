@@ -304,12 +304,14 @@ func TestUpdateJobsScalar(t *testing.T) {
 		assert.Nil(t, err)
 
 		// Update
-		ldb.UpdateJobsScalar(armadacontext.Background(), defaultInstructionSet().JobsToUpdate)
+		err = ldb.UpdateJobsScalar(armadacontext.Background(), defaultInstructionSet().JobsToUpdate)
+		assert.NoError(t, err)
 		job := getJob(t, db, JobId)
 		assert.Equal(t, expectedJobAfterUpdate, job)
 
 		// Insert again and test that it's idempotent
-		ldb.UpdateJobsScalar(armadacontext.Background(), defaultInstructionSet().JobsToUpdate)
+		err = ldb.UpdateJobsScalar(armadacontext.Background(), defaultInstructionSet().JobsToUpdate)
+		assert.NoError(t, err)
 		job = getJob(t, db, JobId)
 		assert.Equal(t, expectedJobAfterUpdate, job)
 
@@ -321,7 +323,8 @@ func TestUpdateJobsScalar(t *testing.T) {
 		invalidUpdate := &model.UpdateJobInstruction{
 			JobId: invalidId,
 		}
-		ldb.UpdateJobsScalar(armadacontext.Background(), append(defaultInstructionSet().JobsToUpdate, invalidUpdate))
+		err = ldb.UpdateJobsScalar(armadacontext.Background(), append(defaultInstructionSet().JobsToUpdate, invalidUpdate))
+		assert.NoError(t, err)
 		job = getJob(t, db, JobId)
 		assert.Equal(t, expectedJobAfterUpdate, job)
 		return nil
@@ -437,13 +440,16 @@ func TestUpdateJobsWithTerminal(t *testing.T) {
 		ldb := NewLookoutDb(db, fatalErrors, m, 10, 10)
 
 		// Insert
-		ldb.CreateJobs(armadacontext.Background(), initial)
+		err := ldb.CreateJobs(armadacontext.Background(), initial)
+		assert.NoError(t, err)
 
 		// Mark the jobs terminal
-		ldb.UpdateJobs(armadacontext.Background(), update1)
+		err = ldb.UpdateJobs(armadacontext.Background(), update1)
+		assert.NoError(t, err)
 
 		// Update the jobs - these should be discarded
-		ldb.UpdateJobs(armadacontext.Background(), update2)
+		err = ldb.UpdateJobs(armadacontext.Background(), update2)
+		assert.NoError(t, err)
 
 		// Assert the states are still terminal
 		job := getJob(t, db, JobId)
@@ -466,22 +472,25 @@ func TestCreateJobsScalar(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		ldb := NewLookoutDb(db, fatalErrors, m, 10, 10)
 		// Simple create
-		ldb.CreateJobsScalar(armadacontext.Background(), defaultInstructionSet().JobsToCreate)
+		err := ldb.CreateJobsScalar(armadacontext.Background(), defaultInstructionSet().JobsToCreate)
+		assert.NoError(t, err)
 		job := getJob(t, db, JobId)
 		assert.Equal(t, expectedJobAfterSubmit, job)
 
 		// Insert again and check for idempotency
-		ldb.CreateJobsScalar(armadacontext.Background(), defaultInstructionSet().JobsToCreate)
+		err = ldb.CreateJobsScalar(armadacontext.Background(), defaultInstructionSet().JobsToCreate)
+		assert.NoError(t, err)
 		job = getJob(t, db, JobId)
 		assert.Equal(t, expectedJobAfterSubmit, job)
 
 		// If a row is bad then we should update only the good rows
-		_, err := ldb.db.Exec(armadacontext.Background(), "DELETE FROM job")
+		_, err = ldb.db.Exec(armadacontext.Background(), "DELETE FROM job")
 		assert.NoError(t, err)
 		invalidJob := &model.CreateJobInstruction{
 			JobId: invalidId,
 		}
-		ldb.CreateJobsScalar(armadacontext.Background(), append(defaultInstructionSet().JobsToCreate, invalidJob))
+		err = ldb.CreateJobsScalar(armadacontext.Background(), append(defaultInstructionSet().JobsToCreate, invalidJob))
+		assert.NoError(t, err)
 		job = getJob(t, db, JobId)
 		assert.Equal(t, expectedJobAfterSubmit, job)
 		return nil
@@ -530,12 +539,14 @@ func TestCreateJobRunsScalar(t *testing.T) {
 		assert.Nil(t, err)
 
 		// Insert
-		ldb.CreateJobRunsScalar(armadacontext.Background(), defaultInstructionSet().JobRunsToCreate)
+		err = ldb.CreateJobRunsScalar(armadacontext.Background(), defaultInstructionSet().JobRunsToCreate)
+		assert.NoError(t, err)
 		job := getJobRun(t, db, RunId)
 		assert.Equal(t, expectedJobRun, job)
 
 		// Insert again and test that it's idempotent
-		ldb.CreateJobRunsScalar(armadacontext.Background(), defaultInstructionSet().JobRunsToCreate)
+		err = ldb.CreateJobRunsScalar(armadacontext.Background(), defaultInstructionSet().JobRunsToCreate)
+		assert.NoError(t, err)
 		job = getJobRun(t, db, RunId)
 		assert.Equal(t, expectedJobRun, job)
 
@@ -545,7 +556,8 @@ func TestCreateJobRunsScalar(t *testing.T) {
 		invalidRun := &model.CreateJobRunInstruction{
 			RunId: invalidId,
 		}
-		ldb.CreateJobRunsScalar(armadacontext.Background(), append(defaultInstructionSet().JobRunsToCreate, invalidRun))
+		err = ldb.CreateJobRunsScalar(armadacontext.Background(), append(defaultInstructionSet().JobRunsToCreate, invalidRun))
+		assert.NoError(t, err)
 		job = getJobRun(t, db, RunId)
 		assert.Equal(t, expectedJobRun, job)
 		return nil
@@ -603,14 +615,14 @@ func TestUpdateJobRunsScalar(t *testing.T) {
 		assert.Nil(t, err)
 
 		// Update
-		ldb.UpdateJobRunsScalar(armadacontext.Background(), defaultInstructionSet().JobRunsToUpdate)
-		assert.Nil(t, err)
+		err = ldb.UpdateJobRunsScalar(armadacontext.Background(), defaultInstructionSet().JobRunsToUpdate)
+		assert.NoError(t, err)
 		run := getJobRun(t, db, RunId)
 		assert.Equal(t, expectedJobRunAfterUpdate, run)
 
 		// Update again and test that it's idempotent
-		ldb.UpdateJobRunsScalar(armadacontext.Background(), defaultInstructionSet().JobRunsToUpdate)
-		assert.Nil(t, err)
+		err = ldb.UpdateJobRunsScalar(armadacontext.Background(), defaultInstructionSet().JobRunsToUpdate)
+		assert.NoError(t, err)
 		run = getJobRun(t, db, RunId)
 		assert.Equal(t, expectedJobRunAfterUpdate, run)
 
@@ -622,7 +634,8 @@ func TestUpdateJobRunsScalar(t *testing.T) {
 		}
 		err = ldb.CreateJobRunsBatch(armadacontext.Background(), defaultInstructionSet().JobRunsToCreate)
 		assert.Nil(t, err)
-		ldb.UpdateJobRunsScalar(armadacontext.Background(), append(defaultInstructionSet().JobRunsToUpdate, invalidRun))
+		err = ldb.UpdateJobRunsScalar(armadacontext.Background(), append(defaultInstructionSet().JobRunsToUpdate, invalidRun))
+		assert.NoError(t, err)
 		run = getJobRun(t, ldb.db, RunId)
 		assert.Equal(t, expectedJobRunAfterUpdate, run)
 		return nil
@@ -673,12 +686,14 @@ func TestCreateJobErrorsScalar(t *testing.T) {
 		ldb := NewLookoutDb(db, fatalErrors, m, 10, 10)
 
 		// Insert
-		ldb.CreateJobErrorsScalar(armadacontext.Background(), defaultInstructionSet().JobErrorsToCreate)
+		err := ldb.CreateJobErrorsScalar(armadacontext.Background(), defaultInstructionSet().JobErrorsToCreate)
+		assert.NoError(t, err)
 		jobError := getJobError(t, db, JobId)
 		assert.Equal(t, expectedJobError, jobError)
 
 		// Insert again and test that it's idempotent
-		ldb.CreateJobErrorsScalar(armadacontext.Background(), defaultInstructionSet().JobErrorsToCreate)
+		err = ldb.CreateJobErrorsScalar(armadacontext.Background(), defaultInstructionSet().JobErrorsToCreate)
+		assert.NoError(t, err)
 		jobError = getJobError(t, db, JobId)
 		assert.Equal(t, expectedJobError, jobError)
 		return nil
