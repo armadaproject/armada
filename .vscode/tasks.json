@@ -42,12 +42,12 @@
     },
     {
       "type": "shell",
-      "command": "until pg_isready -h localhost -p 5432 -U postgres; do sleep 1; done",
+      "command": "timeout 60 bash -c 'until pg_isready -h localhost -p 5432 -U postgres; do sleep 1; done'",
       "label": "Wait for Postgres"
     },
     {
       "type": "shell",
-      "command": "until [ \"$(docker inspect --format='{{.State.Health.Status}}' keycloak)\" = 'healthy' ]; do sleep 1; done",
+      "command": "timeout 60 bash -c 'until [ $(docker inspect -f \"{{.State.Health.Status}}\" keycloak) = healthy ]; do sleep 1; done'",
       "label": "Wait for Keycloak"
     },
     {
