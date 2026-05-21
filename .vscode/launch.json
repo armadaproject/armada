@@ -212,7 +212,7 @@
         "ARMADA_METRICSPORT": "9005",
         "ARMADA_POSTGRES_CONNECTION_HOST": "localhost",
         "ARMADA_PULSAR_URL": "pulsar://localhost:6650",
-        "EXECUTOR_UPDATE_INTERVAL": "\"1s\""
+        "EXECUTOR_UPDATE_INTERVAL": "1s"
       }
     },
     {
@@ -233,7 +233,7 @@
         "ARMADA_METRICSPORT": "9005",
         "ARMADA_POSTGRES_CONNECTION_HOST": "localhost",
         "ARMADA_PULSAR_URL": "pulsar://localhost:6650",
-        "EXECUTOR_UPDATE_INTERVAL": "\"1s\""
+        "EXECUTOR_UPDATE_INTERVAL": "1s"
       }
     }
   ],
