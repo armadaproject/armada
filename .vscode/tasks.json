@@ -47,6 +47,11 @@
     },
     {
       "type": "shell",
+      "command": "until [ \"$(docker inspect --format='{{.State.Health.Status}}' keycloak)\" = 'healthy' ]; do sleep 1; done",
+      "label": "Wait for Keycloak"
+    },
+    {
+      "type": "shell",
       "command": "go",
       "label": "Migrate Lookout database",
       "args": ["run", "${workspaceFolder}/cmd/lookout", "--migrateDatabase"]
@@ -76,7 +81,8 @@
         "Start dependencies with Auth",
         "Wait for Postgres",
         "Migrate Lookout database",
-        "Migrate Scheduler database"
+        "Migrate Scheduler database",
+        "Wait for Keycloak"
       ]
     },
     {
@@ -98,7 +104,8 @@
         "Start dependencies with Prometheus and Auth",
         "Wait for Postgres",
         "Migrate Lookout database",
-        "Migrate Scheduler database"
+        "Migrate Scheduler database",
+        "Wait for Keycloak"
       ]
     },
     {
