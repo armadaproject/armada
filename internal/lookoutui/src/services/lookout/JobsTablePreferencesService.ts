@@ -290,7 +290,11 @@ export const ensurePreferencesAreConsistent = (preferences: JobsTablePreferences
 
   // Remove orphaned annotation entries from visibleColumns
   for (const colId of Object.keys(preferences.visibleColumns)) {
-    if (!isStandardColId(colId) && colId.startsWith("annotation_") && !annotationKeyColumnIdsSet.has(colId as AnnotationColumnId)) {
+    if (
+      !isStandardColId(colId) &&
+      colId.startsWith("annotation_") &&
+      !annotationKeyColumnIdsSet.has(colId as AnnotationColumnId)
+    ) {
       delete preferences.visibleColumns[colId]
     }
   }

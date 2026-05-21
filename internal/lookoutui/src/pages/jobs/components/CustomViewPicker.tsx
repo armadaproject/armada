@@ -1,7 +1,6 @@
 import { useRef, useState } from "react"
 
 import { DashboardCustomize, Delete } from "@mui/icons-material"
-import { Analytics, ANALYTICS_EVENTS } from "../../../analytics"
 import {
   Button,
   Popover,
@@ -13,6 +12,8 @@ import {
   ListItemText,
   ListItemButton,
 } from "@mui/material"
+
+import { Analytics, ANALYTICS_EVENTS } from "../../../analytics"
 
 import styles from "./CustomViewPicker.module.css"
 

@@ -36,6 +36,7 @@ import _ from "lodash"
 import { ErrorBoundary } from "react-error-boundary"
 import { useLocation, useNavigate, useParams } from "react-router-dom"
 
+import { buildViewEventData } from "../../../analytics/viewMetadata"
 import {
   COLUMN_PARSE_TYPES,
   ColumnId,
@@ -78,7 +79,6 @@ import {
   JobsTablePreferences,
   JobsTablePreferencesService,
 } from "../../../services/lookout/JobsTablePreferencesService"
-import { buildViewEventData } from "../../../analytics/viewMetadata"
 import { useGroupJobs } from "../../../services/lookout/useGroupJobs"
 
 import { JobsTableActionBar } from "./JobsTableActionBar"

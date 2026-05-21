@@ -31,7 +31,9 @@ export const trackAnalyticsEvent = (
   const analyticsProvider = (window as any)[provider]
   const resolvedEventData = typeof eventData === "function" ? eventData() : eventData
   const dataToSend =
-    analyticsConfig.dataWrapper && resolvedEventData ? { [analyticsConfig.dataWrapper]: resolvedEventData } : resolvedEventData
+    analyticsConfig.dataWrapper && resolvedEventData
+      ? { [analyticsConfig.dataWrapper]: resolvedEventData }
+      : resolvedEventData
 
   try {
     if (typeof analyticsProvider === "function") {

@@ -78,7 +78,10 @@ describe("buildViewEventData", () => {
   })
 
   it("reports grouped columns", () => {
-    const result = buildViewEventData("test", makePrefs({ groupedColumns: [StandardColumnId.Queue, StandardColumnId.State] }))
+    const result = buildViewEventData(
+      "test",
+      makePrefs({ groupedColumns: [StandardColumnId.Queue, StandardColumnId.State] }),
+    )
     expect(result.groupedColumns).toBe("queue,state")
     expect(result.groupCount).toBe("2")
   })
