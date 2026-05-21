@@ -42,26 +42,26 @@ func (p *PostgresDatabase) executePartitionedBatch(ctx context.Context, queries 
 	}
 
 	// Phase 2: Update jobs, create job_runs, create job_errors (parallel).
-	var wg errgroup.Group
-	wg.Go(func() error {
+	var g errgroup.Group
+	g.Go(func() error {
 		if err := p.updateJobsPartitioned(ctx, set.JobsToUpdate, submittedMap); err != nil {
 			return fmt.Errorf("updating jobs (partitioned): %w", err)
 		}
 		return nil
 	})
-	wg.Go(func() error {
+	g.Go(func() error {
 		if err := p.createJobRunsPartitioned(ctx, set.JobRunsToCreate, submittedMap); err != nil {
 			return fmt.Errorf("creating job runs (partitioned): %w", err)
 		}
 		return nil
 	})
-	wg.Go(func() error {
+	g.Go(func() error {
 		if err := p.createJobErrorsPartitioned(ctx, set.JobErrorsToCreate, submittedMap); err != nil {
 			return fmt.Errorf("creating job errors (partitioned): %w", err)
 		}
 		return nil
 	})
-	if err := wg.Wait(); err != nil {
+	if err := g.Wait(); err != nil {
 		return err
 	}
 
