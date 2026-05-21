@@ -10,12 +10,14 @@ import (
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/database"
+	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -31,7 +33,6 @@ func TestFetchInitialJobs(t *testing.T) {
 		Queue:          "test-queue",
 		QueuedVersion:  1,
 		SchedulingInfo: []byte{byte(0)},
-		SubmitMessage:  []byte{},
 	}
 
 	expectedLeasedJob := Job{
@@ -69,7 +70,6 @@ func TestFetchInitialJobs(t *testing.T) {
 		Queued:         true,
 		QueuedVersion:  1,
 		SchedulingInfo: []byte{byte(0)},
-		SubmitMessage:  []byte{},
 	}
 
 	expectedQueuedJob := Job{
@@ -89,7 +89,6 @@ func TestFetchInitialJobs(t *testing.T) {
 		QueuedVersion:  1,
 		Cancelled:      true,
 		SchedulingInfo: []byte{byte(0)},
-		SubmitMessage:  []byte{},
 	}
 
 	cancelledJobRun := Run{
@@ -108,7 +107,6 @@ func TestFetchInitialJobs(t *testing.T) {
 		QueuedVersion:  1,
 		Failed:         true,
 		SchedulingInfo: []byte{byte(0)},
-		SubmitMessage:  []byte{},
 	}
 
 	failedJobRun := Run{
@@ -128,7 +126,6 @@ func TestFetchInitialJobs(t *testing.T) {
 		QueuedVersion:  1,
 		Succeeded:      true,
 		SchedulingInfo: []byte{byte(0)},
-		SubmitMessage:  []byte{},
 	}
 
 	succeededJobRun := Run{
@@ -476,7 +473,6 @@ func createTestJobs(numJobs int) ([]Job, []Job) {
 			Succeeded:               true,
 			Failed:                  true,
 			SchedulingInfo:          []byte{byte(i)},
-			SubmitMessage:           []byte{},
 		}
 	}
 
@@ -500,6 +496,20 @@ func createTestJobs(numJobs int) ([]Job, []Job) {
 		}
 	}
 	return dbJobs, expectedJobs
+}
+
+func createTestJobMetadata(jobs []Job) map[string]JobMetadatum {
+	return armadamaps.FromSlice(
+		jobs,
+		func(job Job) string { return job.JobID },
+		func(job Job) JobMetadatum {
+			return JobMetadatum{
+				JobID:         job.JobID,
+				SubmitMessage: []byte("submit-" + job.JobID),
+				Groups:        []byte("groups-" + job.JobID),
+			}
+		},
+	)
 }
 
 func TestFindInactiveRuns(t *testing.T) {
@@ -569,6 +579,7 @@ func TestFindInactiveRuns(t *testing.T) {
 func TestFetchJobRunLeases(t *testing.T) {
 	const executorName = "testExecutor"
 	dbJobs, _ := createTestJobs(5)
+	jobMetadata := createTestJobMetadata(dbJobs)
 
 	// first three runs can be picked up by executor
 	// last three runs are not available
@@ -623,14 +634,15 @@ func TestFetchJobRunLeases(t *testing.T) {
 	}
 	expectedLeases := make([]*JobRunLease, 4)
 	for i := range expectedLeases {
+		jobID := dbRuns[i].JobID
 		expectedLeases[i] = &JobRunLease{
 			RunID:                  dbRuns[i].RunID,
 			Queue:                  dbJobs[i].Queue,
 			Pool:                   dbRuns[i].Pool,
 			JobSet:                 dbJobs[i].JobSet,
 			UserID:                 dbJobs[i].UserID,
-			Groups:                 dbJobs[i].Groups,
-			SubmitMessage:          dbJobs[i].SubmitMessage,
+			SubmitMessage:          jobMetadata[jobID].SubmitMessage,
+			Groups:                 jobMetadata[jobID].Groups,
 			PodRequirementsOverlay: dbRuns[i].PodRequirementsOverlay,
 		}
 	}
@@ -690,6 +702,8 @@ func TestFetchJobRunLeases(t *testing.T) {
 
 				// Set up db
 				err := upsertJobs(ctx, repo.db, tc.dbJobs)
+				require.NoError(t, err)
+				err = upsertJobMetadata(ctx, repo.db, maps.Values(jobMetadata))
 				require.NoError(t, err)
 				err = upsertRuns(ctx, repo.db, tc.dbRuns)
 				require.NoError(t, err)
@@ -761,7 +775,6 @@ func TestSelectJobsByExecutorAndQueues(t *testing.T) {
 		Queue:          "test-queue",
 		QueuedVersion:  1,
 		SchedulingInfo: []byte{byte(0)},
-		SubmitMessage:  []byte{},
 	}
 	otherQueueJob := Job{
 		JobID:          util.NewULID(),
@@ -769,7 +782,6 @@ func TestSelectJobsByExecutorAndQueues(t *testing.T) {
 		Queue:          "other-queue",
 		QueuedVersion:  1,
 		SchedulingInfo: []byte{byte(0)},
-		SubmitMessage:  []byte{},
 	}
 
 	activeRun := Run{
@@ -884,7 +896,6 @@ func TestSelectLeasedJobsByQueue(t *testing.T) {
 		Queue:          "test-queue",
 		QueuedVersion:  1,
 		SchedulingInfo: []byte{byte(0)},
-		SubmitMessage:  []byte{},
 	}
 
 	leasedRun := Run{
@@ -980,7 +991,6 @@ func TestSelectPendingJobsByQueue(t *testing.T) {
 		Queue:          "test-queue",
 		QueuedVersion:  1,
 		SchedulingInfo: []byte{byte(0)},
-		SubmitMessage:  []byte{},
 	}
 
 	pendingRun := Run{
@@ -1066,7 +1076,6 @@ func TestSelectRunningJobsByQueue(t *testing.T) {
 		Queue:          "test-queue",
 		QueuedVersion:  1,
 		SchedulingInfo: []byte{byte(0)},
-		SubmitMessage:  []byte{},
 	}
 
 	runningRun := Run{
@@ -1160,13 +1169,17 @@ func TestSelectRunningJobsByQueue(t *testing.T) {
 
 func withJobRepository(action func(repository *PostgresJobRepository) error) error {
 	return WithTestDb(func(_ *Queries, db *pgxpool.Pool) error {
-		repo := NewPostgresJobRepository(db, defaultBatchSize, JobMetadataMigrationPhaseLegacy)
+		repo := NewPostgresJobRepository(db, defaultBatchSize)
 		return action(repo)
 	})
 }
 
 func upsertJobs(ctx *armadacontext.Context, db *pgxpool.Pool, jobs []Job) error {
 	return database.UpsertWithTransaction(ctx, db, "jobs", jobs, database.WithExcludeColumns("terminated"))
+}
+
+func upsertJobMetadata(ctx *armadacontext.Context, db *pgxpool.Pool, metadata []JobMetadatum) error {
+	return database.UpsertWithTransaction(ctx, db, "job_metadata", metadata)
 }
 
 func upsertRuns(ctx *armadacontext.Context, db *pgxpool.Pool, runs []Run) error {
