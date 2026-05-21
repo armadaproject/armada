@@ -62,7 +62,7 @@ jobs:
         uses: golangci/golangci-lint-action@v9
         with:
           version: v2.9.0
-          # Do not enable only-new-only-new-issues
+          # Do not enable only-new-issues
           # While it provides a small performance improvement on PRs,
           # it can mean releases which do a full lint fail resulting in a failed release.
           # The performance improvement on PR is negligible considering the other much longer checks we run
