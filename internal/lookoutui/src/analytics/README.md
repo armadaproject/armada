@@ -198,7 +198,7 @@ Custom view actions emit enriched metadata describing the view's configuration a
 The `columns` field shows how the view differs from defaults:
 - Columns visible in the view but hidden by default appear as-is (e.g. `Node`)
 - Default columns hidden in the view appear prefixed with `-` (e.g. `-State`)
-- Annotation columns (never in defaults) always appear (e.g. `annotation:team`)
+- Annotation columns (never in defaults) always appear (e.g. `annotation_team`)
 - An empty string means no column customization from defaults
 
 ## Notes
