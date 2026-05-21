@@ -17,4 +17,4 @@ auth:
     cancel_any_jobs: ["admins"]
     reprioritize_any_jobs: ["admins"]
     watch_all_events: ["admins"]
-    execute_jobs: ["admins", "executors"]
+    execute_jobs: ["admins"]
