@@ -23,6 +23,7 @@ import (
 	"github.com/armadaproject/armada/internal/lookout/gen/restapi"
 	"github.com/armadaproject/armada/internal/lookout/gen/restapi/operations"
 	"github.com/armadaproject/armada/internal/lookout/repository"
+	"github.com/armadaproject/armada/internal/lookout/version"
 )
 
 func Serve(configuration configuration.LookoutConfig) error {
@@ -60,6 +61,8 @@ func Serve(configuration configuration.LookoutConfig) error {
 			return operations.NewGetHealthOK().WithPayload("Health check passed")
 		},
 	)
+
+	api.GetVersionHandler = versionHandler(version.Version, version.Commit, version.BuildTime)
 
 	api.GetJobsHandler = operations.GetJobsHandlerFunc(
 		func(params operations.GetJobsParams) middleware.Responder {
