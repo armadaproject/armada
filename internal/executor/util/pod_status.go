@@ -59,21 +59,6 @@ func ExtractPodFailureCause(pod *v1.Pod) armadaevents.KubernetesReason {
 	return armadaevents.KubernetesReason_AppError
 }
 
-func ExtractPodExitCodes(pod *v1.Pod) map[string]int32 {
-	containerStatuses := pod.Status.ContainerStatuses
-	containerStatuses = append(containerStatuses, pod.Status.InitContainerStatuses...)
-
-	exitCodes := map[string]int32{}
-
-	for _, containerStatus := range containerStatuses {
-		if containerStatus.State.Terminated != nil {
-			exitCodes[containerStatus.Name] = containerStatus.State.Terminated.ExitCode
-		}
-	}
-
-	return exitCodes
-}
-
 func ExtractFailedPodContainerStatuses(pod *v1.Pod, clusterId string) []*armadaevents.ContainerError {
 	containerStatuses := pod.Status.ContainerStatuses
 	containerStatuses = append(containerStatuses, pod.Status.InitContainerStatuses...)
