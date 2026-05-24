@@ -340,6 +340,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 				testResourceNames(),
 				"kubernetes.io/hostname",
 				nil,
+				nil,
 				priorityClasses,
 				mockAuthorizer,
 			)
@@ -396,6 +397,7 @@ func TestExecutorApi_LeaseJobRuns_Unauthorised(t *testing.T) {
 		[]int32{1000, 2000},
 		testResourceNames(),
 		"kubernetes.io/hostname",
+		nil,
 		nil,
 		priorityClasses,
 		mockAuthorizer,
@@ -526,6 +528,7 @@ func TestExecutorApi_Publish(t *testing.T) {
 				testResourceNames(),
 				"kubernetes.io/hostname",
 				nil,
+				nil,
 				priorityClasses,
 				mockAuthorizer,
 			)
@@ -572,6 +575,7 @@ func TestExecutorApi_Publish_Unauthorised(t *testing.T) {
 		[]int32{1000, 2000},
 		testResourceNames(),
 		"kubernetes.io/hostname",
+		nil,
 		nil,
 		priorityClasses,
 		mockAuthorizer,

@@ -288,6 +288,7 @@ func Run(config schedulerconfig.Configuration) error {
 		types.AllowedPriorities(config.Scheduling.PriorityClasses),
 		slices.Map(config.Scheduling.SupportedResourceTypes, func(rt schedulerconfig.ResourceType) string { return rt.Name }),
 		config.Scheduling.NodeIdLabel,
+		config.Scheduling.Pools,
 		config.Scheduling.PriorityClassNameOverride,
 		config.Scheduling.PriorityClasses,
 		authorizer,

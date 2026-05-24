@@ -22,6 +22,7 @@ import (
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	priorityTypes "github.com/armadaproject/armada/internal/common/types"
+	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/server/permissions"
@@ -47,6 +48,8 @@ type ExecutorApi struct {
 	// This is needed to ensure floating resources are not passed to k8s.
 	allowedResources map[string]bool
 	nodeIdLabel      string
+	// Pools where node binding should be skipped (e.g. slurm-bridge pools).
+	skipNodeBindingPools map[string]bool
 	// See scheduling schedulingConfig.
 	priorityClassNameOverride *string
 	clock                     clock.Clock
@@ -59,12 +62,19 @@ func NewExecutorApi(publisher pulsarutils.Publisher[*armadaevents.EventSequence]
 	allowedPriorities []int32,
 	allowedResources []string,
 	nodeIdLabel string,
+	poolConfigs []schedulerconfig.PoolConfig,
 	priorityClassNameOverride *string,
 	priorityClasses map[string]priorityTypes.PriorityClass,
 	authorizer auth.ActionAuthorizer,
 ) (*ExecutorApi, error) {
 	if len(allowedPriorities) == 0 {
 		return nil, errors.New("allowedPriorities cannot be empty")
+	}
+	skipNodeBindingPools := make(map[string]bool, len(poolConfigs))
+	for _, p := range poolConfigs {
+		if p.SkipNodeBinding {
+			skipNodeBindingPools[p.Name] = true
+		}
 	}
 	return &ExecutorApi{
 		publisher:                 publisher,
@@ -73,6 +83,7 @@ func NewExecutorApi(publisher pulsarutils.Publisher[*armadaevents.EventSequence]
 		allowedPriorities:         allowedPriorities,
 		allowedResources:          maps.FromSlice(allowedResources, func(name string) string { return name }, func(name string) bool { return true }),
 		nodeIdLabel:               nodeIdLabel,
+		skipNodeBindingPools:      skipNodeBindingPools,
 		priorityClassNameOverride: priorityClassNameOverride,
 		priorityClasses:           priorityClasses,
 		clock:                     clock.RealClock{},
@@ -140,7 +151,9 @@ func (srv *ExecutorApi) LeaseJobRuns(stream executorapi.ExecutorApi_LeaseJobRuns
 			return err
 		}
 
-		srv.addNodeIdSelector(submitMsg, lease.Node)
+		if !srv.skipNodeBindingPools[lease.Pool] {
+			srv.addNodeIdSelector(submitMsg, lease.Node)
+		}
 		addAnnotations(submitMsg, map[string]string{constants.PoolAnnotation: lease.Pool})
 
 		if len(lease.PodRequirementsOverlay) > 0 {

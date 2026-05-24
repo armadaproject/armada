@@ -394,6 +394,11 @@ type PoolConfig struct {
 	DisableHomeScheduling            bool
 	DisableAwayScheduling            bool
 	DisableGangAwayScheduling        bool
+	// SkipNodeBinding disables injection of the per-node nodeSelector into pod specs
+	// leased to executors in this pool. The executor's in-cluster scheduler (e.g.
+	// slurm-bridge) is then responsible for final node placement. Armada still uses
+	// its NodeDB for cluster-level capacity accounting and multi-cluster routing.
+	SkipNodeBinding bool
 }
 
 func (p PoolConfig) GetSubmissionGroup() string {
