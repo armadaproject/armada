@@ -21,6 +21,7 @@ type LeaseRequest struct {
 	Nodes               []*executorapi.NodeInfo
 	UnassignedJobRunIds []string
 	MaxJobsToLease      uint32
+	SkipNodeBinding     bool
 }
 
 type LeaseResponse struct {
@@ -60,6 +61,7 @@ func (requester *JobLeaseRequester) LeaseJobRuns(ctx *armadacontext.Context, req
 		Nodes:               request.Nodes,
 		UnassignedJobRunIds: request.UnassignedJobRunIds,
 		MaxJobsToLease:      request.MaxJobsToLease,
+		SkipNodeBinding:     request.SkipNodeBinding,
 	}
 	if err := stream.Send(leaseRequest); err != nil {
 		return nil, errors.WithStack(err)

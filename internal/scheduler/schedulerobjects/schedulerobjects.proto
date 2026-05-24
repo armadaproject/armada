@@ -19,6 +19,9 @@ message Executor {
     google.protobuf.Timestamp lastUpdateTime = 5;
     // Jobs that are owned by the cluster but are not assigned to any node.
     repeated string unassigned_job_runs = 9;
+    // If true, the scheduler will not inject a nodeId nodeSelector into pod specs leased to
+    // this executor. The executor's in-cluster scheduler is responsible for node placement.
+    bool skip_node_binding = 10;
 }
 
 // Node represents a node in a worker cluster.

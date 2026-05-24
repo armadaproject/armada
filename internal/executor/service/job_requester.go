@@ -26,6 +26,7 @@ type JobRequester struct {
 	jobRunStateStore   job.RunStateStore
 	maxLeasedJobs      int
 	maxRequestDuration time.Duration
+	skipNodeBinding    bool
 }
 
 func NewJobRequester(
@@ -37,6 +38,7 @@ func NewJobRequester(
 	podDefaults *configuration.PodDefaults,
 	maxLeasedJobs int,
 	maxRequestDuration time.Duration,
+	skipNodeBinding bool,
 ) *JobRequester {
 	return &JobRequester{
 		leaseRequester:     leaseRequester,
@@ -47,6 +49,7 @@ func NewJobRequester(
 		podDefaults:        podDefaults,
 		maxLeasedJobs:      maxLeasedJobs,
 		maxRequestDuration: maxRequestDuration,
+		skipNodeBinding:    skipNodeBinding,
 	}
 }
 
@@ -96,6 +99,7 @@ func (r *JobRequester) createLeaseRequest() (*LeaseRequest, error) {
 		Nodes:               nodes,
 		UnassignedJobRunIds: unassignedRunIds,
 		MaxJobsToLease:      uint32(maxJobsToLease),
+		SkipNodeBinding:     r.skipNodeBinding,
 	}, nil
 }
 

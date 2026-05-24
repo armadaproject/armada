@@ -50,6 +50,9 @@ type ExecutorApi struct {
 	nodeIdLabel      string
 	// Pools where node binding should be skipped (e.g. slurm-bridge pools).
 	skipNodeBindingPools map[string]bool
+	// Executors that have declared they handle their own node placement.
+	// Populated from the executor's LeaseRequest.SkipNodeBinding field each heartbeat.
+	skipNodeBindingExecutors map[string]bool
 	// See scheduling schedulingConfig.
 	priorityClassNameOverride *string
 	clock                     clock.Clock
@@ -84,6 +87,7 @@ func NewExecutorApi(publisher pulsarutils.Publisher[*armadaevents.EventSequence]
 		allowedResources:          maps.FromSlice(allowedResources, func(name string) string { return name }, func(name string) bool { return true }),
 		nodeIdLabel:               nodeIdLabel,
 		skipNodeBindingPools:      skipNodeBindingPools,
+		skipNodeBindingExecutors:  make(map[string]bool),
 		priorityClassNameOverride: priorityClassNameOverride,
 		priorityClasses:           priorityClasses,
 		clock:                     clock.RealClock{},
@@ -112,6 +116,7 @@ func (srv *ExecutorApi) LeaseJobRuns(stream executorapi.ExecutorApi_LeaseJobRuns
 	if err := srv.executorRepository.StoreExecutor(ctx, executor); err != nil {
 		return err
 	}
+	srv.skipNodeBindingExecutors[req.ExecutorId] = req.SkipNodeBinding
 
 	requestRuns, err := runIdsFromLeaseRequest(req)
 	if err != nil {
@@ -151,7 +156,7 @@ func (srv *ExecutorApi) LeaseJobRuns(stream executorapi.ExecutorApi_LeaseJobRuns
 			return err
 		}
 
-		if !srv.skipNodeBindingPools[lease.Pool] {
+		if !srv.skipNodeBindingPools[lease.Pool] && !srv.skipNodeBindingExecutors[req.ExecutorId] {
 			srv.addNodeIdSelector(submitMsg, lease.Node)
 		}
 		addAnnotations(submitMsg, map[string]string{constants.PoolAnnotation: lease.Pool})
@@ -399,6 +404,7 @@ func (srv *ExecutorApi) executorFromLeaseRequest(ctx *armadacontext.Context, req
 		Nodes:             nodes,
 		LastUpdateTime:    protoutil.ToTimestamp(now),
 		UnassignedJobRuns: req.UnassignedJobRunIds,
+		SkipNodeBinding:   req.SkipNodeBinding,
 	}
 }
 

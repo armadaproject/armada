@@ -27,6 +27,10 @@ type ApplicationConfiguration struct {
 	// MaxLeasedJobs is the maximum jobs the executor should have in Leased state ay any one time (i.e jobs not submitted to kubernetes)
 	// It is largely used to calculate how many new jobs to request from the scheduler
 	MaxLeasedJobs int
+	// SkipNodeBinding instructs the scheduler not to inject the armadaproject.io/nodeId nodeSelector
+	// into pod specs leased to this executor. Set this when the executor cluster uses an alternative
+	// in-cluster scheduler (e.g. slurm-bridge) that handles final node placement itself.
+	SkipNodeBinding bool
 	// ErrorCategories defines category rules for classifying pod failures.
 	// Each category has a name and rules that match against exit codes,
 	// termination messages, or failure conditions. Empty means no categorization.

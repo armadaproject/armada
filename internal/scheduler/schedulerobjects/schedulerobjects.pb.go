@@ -72,6 +72,7 @@ type Executor struct {
 	LastUpdateTime *types.Timestamp `protobuf:"bytes,5,opt,name=lastUpdateTime,proto3" json:"lastUpdateTime,omitempty"`
 	// Jobs that are owned by the cluster but are not assigned to any node.
 	UnassignedJobRuns []string `protobuf:"bytes,9,rep,name=unassigned_job_runs,json=unassignedJobRuns,proto3" json:"unassignedJobRuns,omitempty"`
+	SkipNodeBinding   bool     `protobuf:"varint,10,opt,name=skip_node_binding,json=skipNodeBinding,proto3" json:"skipNodeBinding,omitempty"`
 }
 
 func (m *Executor) Reset()         { *m = Executor{} }
@@ -140,6 +141,13 @@ func (m *Executor) GetUnassignedJobRuns() []string {
 		return m.UnassignedJobRuns
 	}
 	return nil
+}
+
+func (m *Executor) GetSkipNodeBinding() bool {
+	if m != nil {
+		return m.SkipNodeBinding
+	}
+	return false
 }
 
 // Node represents a node in a worker cluster.
@@ -916,6 +924,16 @@ func (m *Executor) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	_ = i
 	var l int
 	_ = l
+	if m.SkipNodeBinding {
+		i--
+		if m.SkipNodeBinding {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i--
+		dAtA[i] = 0x50
+	}
 	if len(m.UnassignedJobRuns) > 0 {
 		for iNdEx := len(m.UnassignedJobRuns) - 1; iNdEx >= 0; iNdEx-- {
 			i -= len(m.UnassignedJobRuns[iNdEx])
@@ -1630,6 +1648,9 @@ func (m *Executor) Size() (n int) {
 			n += 1 + l + sovSchedulerobjects(uint64(l))
 		}
 	}
+	if m.SkipNodeBinding {
+		n += 2
+	}
 	return n
 }
 
@@ -2098,6 +2119,26 @@ func (m *Executor) Unmarshal(dAtA []byte) error {
 			}
 			m.UnassignedJobRuns = append(m.UnassignedJobRuns, string(dAtA[iNdEx:postIndex]))
 			iNdEx = postIndex
+		case 10:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field SkipNodeBinding", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowSchedulerobjects
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.SkipNodeBinding = bool(v != 0)
 		default:
 			iNdEx = preIndex
 			skippy, err := skipSchedulerobjects(dAtA[iNdEx:])

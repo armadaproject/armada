@@ -342,6 +342,7 @@ type LeaseRequest struct {
 	MaxJobsToLease uint32 `protobuf:"varint,7,opt,name=max_jobs_to_lease,json=maxJobsToLease,proto3" json:"maxJobsToLease,omitempty"`
 	// Run Ids of jobs owned by the executor but not currently assigned to a node.
 	UnassignedJobRunIds []string `protobuf:"bytes,8,rep,name=unassigned_job_run_ids,json=unassignedJobRunIds,proto3" json:"unassignedJobRunIds,omitempty"`
+	SkipNodeBinding     bool     `protobuf:"varint,9,opt,name=skip_node_binding,json=skipNodeBinding,proto3" json:"skipNodeBinding,omitempty"`
 }
 
 func (m *LeaseRequest) Reset()         { *m = LeaseRequest{} }
@@ -424,6 +425,13 @@ func (m *LeaseRequest) GetUnassignedJobRunIds() []string {
 		return m.UnassignedJobRunIds
 	}
 	return nil
+}
+
+func (m *LeaseRequest) GetSkipNodeBinding() bool {
+	if m != nil {
+		return m.SkipNodeBinding
+	}
+	return false
 }
 
 // Indicates that a job run is now leased.
@@ -1426,6 +1434,16 @@ func (m *LeaseRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	_ = i
 	var l int
 	_ = l
+	if m.SkipNodeBinding {
+		i--
+		if m.SkipNodeBinding {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i--
+		dAtA[i] = 0x48
+	}
 	if len(m.UnassignedJobRunIds) > 0 {
 		for iNdEx := len(m.UnassignedJobRunIds) - 1; iNdEx >= 0; iNdEx-- {
 			i -= len(m.UnassignedJobRunIds[iNdEx])
@@ -2034,6 +2052,9 @@ func (m *LeaseRequest) Size() (n int) {
 			l = len(s)
 			n += 1 + l + sovExecutorapi(uint64(l))
 		}
+	}
+	if m.SkipNodeBinding {
+		n += 2
 	}
 	return n
 }
@@ -4097,6 +4118,26 @@ func (m *LeaseRequest) Unmarshal(dAtA []byte) error {
 			}
 			m.UnassignedJobRunIds = append(m.UnassignedJobRunIds, string(dAtA[iNdEx:postIndex]))
 			iNdEx = postIndex
+		case 9:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field SkipNodeBinding", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowExecutorapi
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.SkipNodeBinding = bool(v != 0)
 		default:
 			iNdEx = preIndex
 			skippy, err := skipExecutorapi(dAtA[iNdEx:])
