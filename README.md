@@ -3,6 +3,7 @@
  <p>
   <a href="https://circleci.com/gh/armadaproject/armada"><img src="https://circleci.com/gh/helm/helm.svg?style=shield" alt="CircleCI"></a>
   <a href="https://goreportcard.com/report/github.com/armadaproject/armada"><img src="https://goreportcard.com/badge/github.com/armadaproject/armada" alt="Go Report Card"></a>
+<a href="https://app.fossa.com/projects/git%2Bgithub.com%2Farmadaproject%2Farmada?ref=badge_shield" alt="FOSSA Status"><img src="https://app.fossa.com/api/projects/git%2Bgithub.com%2Farmadaproject%2Farmada.svg?type=shield"/></a>
   <a href="https://artifacthub.io/packages/helm/gresearch/armada" title="Go to Artifact Hub"><img src="https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/armada" alt="Artifact Hub"></a>
   <a href="https://insights.linuxfoundation.org/project/armada" title="Click to view project insights and health checks"><img src="https://insights.linuxfoundation.org/api/badge/health-score?project=armada" alt="LFX Health Score"></a>
  </p>
@@ -239,3 +240,7 @@ For more information about contributing to Armada see [CONTRIBUTING.md](https://
 ## Discussion
 
 If you are interested in discussing Armada you can find us on [![slack](https://img.shields.io/badge/slack-armada-brightgreen.svg?logo=slack)](https://cloud-native.slack.com/?redir=%2Farchives%2FC03T9CBCEMC)
+
+
+## License
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Farmadaproject%2Farmada.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2Farmadaproject%2Farmada?ref=badge_large)
