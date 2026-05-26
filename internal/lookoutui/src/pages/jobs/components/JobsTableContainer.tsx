@@ -36,6 +36,7 @@ import _ from "lodash"
 import { ErrorBoundary } from "react-error-boundary"
 import { useLocation, useNavigate, useParams } from "react-router-dom"
 
+import { buildViewEventData } from "../../../analytics/viewMetadata"
 import {
   COLUMN_PARSE_TYPES,
   ColumnId,
@@ -373,6 +374,20 @@ export const JobsTableContainer = ({ debug, autoRefreshMs, commandSpecs }: JobsT
     }
   }
 
+  const getViewEventData = (name: string): Record<string, string> => {
+    try {
+      const prefs = customViewsService.getView(name)
+      return buildViewEventData(name, prefs)
+    } catch {
+      return { viewName: name }
+    }
+  }
+
+  const getCurrentViewEventData = (name?: string): Record<string, string> => {
+    const prefs = prefsFromState()
+    return buildViewEventData(name ?? "", prefs)
+  }
+
   const onRefresh = () => {
     setSelectedRows({})
     setRowsToFetch(pendingDataForAllVisibleData(expanded, data, pageSize, pageIndex * pageSize))
@@ -453,6 +468,10 @@ export const JobsTableContainer = ({ debug, autoRefreshMs, commandSpecs }: JobsT
     }
     setColumnOrder((prev) => prev.filter((prevId) => prevId !== colId))
     setAllColumns(filtered)
+    setColumnVisibility((prev) => {
+      const { [colId]: _, ...rest } = prev
+      return rest
+    })
     onFilterChange((columnFilters) => {
       return columnFilters.filter((columnFilter) => columnFilter.id !== colId)
     })
@@ -840,6 +859,8 @@ export const JobsTableContainer = ({ debug, autoRefreshMs, commandSpecs }: JobsT
               onAddCustomView={addCustomView}
               onDeleteCustomView={deleteCustomView}
               onLoadCustomView={loadCustomView}
+              getViewEventData={getViewEventData}
+              getCurrentViewEventData={getCurrentViewEventData}
             />
           </ErrorBoundary>
           <ErrorBoundary FallbackComponent={AlertErrorFallback}>
