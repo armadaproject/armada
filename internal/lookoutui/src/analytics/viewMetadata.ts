@@ -1,4 +1,4 @@
-import { DEFAULT_COLUMN_VISIBILITY } from "../common/jobsTableColumns"
+import { DEFAULT_COLUMN_VISIBILITY, toAnnotationColId } from "../common/jobsTableColumns"
 import { JobsTablePreferences } from "../services/lookout/JobsTablePreferencesService"
 
 /**
@@ -26,7 +26,7 @@ export function buildViewEventData(viewName: string, prefs: JobsTablePreferences
   // Annotation columns are always "added" (never in defaults)
   const annotationCols = prefs.annotationColumnKeys ?? []
   for (const key of annotationCols) {
-    const annotationColId = `annotation_${key}`
+    const annotationColId = toAnnotationColId(key)
     if (!added.includes(annotationColId)) {
       added.push(annotationColId)
     }
