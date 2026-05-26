@@ -10,6 +10,7 @@ export const ANALYTICS_EVENTS = {
   SYSTEM_COLOR_MODE_TOGGLED: "System Color Mode Toggled",
   LIGHT_MODE_SELECTED: "Light Mode Selected",
   DARK_MODE_SELECTED: "Dark Mode Selected",
+  COLUMN_CONFIGURATION_DIALOG_CLOSED: "Column Configuration Dialog Closed",
 } as const
 
 export type AnalyticsEventName = (typeof ANALYTICS_EVENTS)[keyof typeof ANALYTICS_EVENTS]

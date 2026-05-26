@@ -1,6 +1,7 @@
 package schema
 
 import (
+	"context"
 	_ "embed"
 	"fmt"
 	"regexp"
@@ -9,7 +10,6 @@ import (
 	"strings"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pkg/errors"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -22,6 +22,12 @@ var targetSchemaSQL string
 // the INSERT SELECT and before DROP TABLE. It is nil in production; tests set
 // it via the exported HookAfterCopy pointer in export_test.go.
 var testHookAfterCopy func()
+
+// TxBeginner is the minimal interface needed by ApplyPartitioner. Both
+// *pgx.Conn and *pgxpool.Pool satisfy it.
+type TxBeginner interface {
+	BeginTx(ctx context.Context, txOptions pgx.TxOptions) (pgx.Tx, error)
+}
 
 // ApplyPartitioner runs the experimental hot-cold partitioner against db.
 //
@@ -38,7 +44,7 @@ var testHookAfterCopy func()
 // The partitioner assumes the caller has already applied the lookout
 // migration chain, so the job table either exists as an unpartitioned table
 // (fresh chain) or as the partitioned result of a previous partitioner run.
-func ApplyPartitioner(ctx *armadacontext.Context, db *pgxpool.Pool) error {
+func ApplyPartitioner(ctx *armadacontext.Context, db TxBeginner) error {
 	return pgx.BeginTxFunc(ctx, db, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		state, detail, err := detectJobTableState(ctx, tx)
 		if err != nil {
@@ -80,7 +86,7 @@ const (
 func detectJobTableState(ctx *armadacontext.Context, q pgx.Tx) (jobTableState, string, error) {
 	var exists bool
 	if err := q.QueryRow(ctx,
-		`SELECT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'job' AND relkind IN ('r', 'p') AND relnamespace = 'public'::regnamespace)`,
+		`SELECT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'job' AND relkind IN ('r', 'p') AND relnamespace = current_schema()::regnamespace)`,
 	).Scan(&exists); err != nil {
 		return jobStateUnknown, "", err
 	}
@@ -92,7 +98,7 @@ func detectJobTableState(ctx *armadacontext.Context, q pgx.Tx) (jobTableState, s
 	if err := q.QueryRow(ctx,
 		`SELECT EXISTS (SELECT 1 FROM pg_partitioned_table pt
                         JOIN pg_class c ON c.oid = pt.partrelid
-                        WHERE c.relname = 'job' AND c.relnamespace = 'public'::regnamespace)`,
+                        WHERE c.relname = 'job' AND c.relnamespace = current_schema()::regnamespace)`,
 	).Scan(&isPartitioned); err != nil {
 		return jobStateUnknown, "", err
 	}
@@ -118,7 +124,7 @@ func findShapeMismatch(ctx *armadacontext.Context, q pgx.Tx) (string, error) {
 		SELECT c.relname FROM pg_inherits i
 		JOIN pg_class c ON c.oid = i.inhrelid
 		JOIN pg_class p ON p.oid = i.inhparent
-		WHERE p.relname = 'job' AND p.relnamespace = 'public'::regnamespace
+		WHERE p.relname = 'job' AND p.relnamespace = current_schema()::regnamespace
 		ORDER BY c.relname
 	`)
 	if err != nil {
@@ -151,7 +157,7 @@ func findShapeMismatch(ctx *armadacontext.Context, q pgx.Tx) (string, error) {
 		if err := q.QueryRow(ctx, `
 			SELECT pg_get_expr(c.relpartbound, c.oid)
 			FROM pg_class c
-			WHERE c.relname = $1 AND c.relnamespace = 'public'::regnamespace
+			WHERE c.relname = $1 AND c.relnamespace = current_schema()::regnamespace
 		`, partition).Scan(&expr); err != nil {
 			return "", err
 		}
@@ -199,7 +205,7 @@ func findShapeMismatch(ctx *armadacontext.Context, q pgx.Tx) (string, error) {
 	rows, err = q.Query(ctx, `
 		SELECT column_name, data_type, is_nullable = 'NO'
 		FROM information_schema.columns
-		WHERE table_name = 'job' AND table_schema = 'public'
+		WHERE table_name = 'job' AND table_schema = current_schema()
 		ORDER BY ordinal_position
 	`)
 	if err != nil {
@@ -235,7 +241,7 @@ func findShapeMismatch(ctx *armadacontext.Context, q pgx.Tx) (string, error) {
 		JOIN pg_class t ON t.oid = c.conrelid
 		JOIN LATERAL unnest(c.conkey) WITH ORDINALITY AS x(attnum, ord) ON true
 		JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = x.attnum
-		WHERE t.relname = 'job' AND t.relnamespace = 'public'::regnamespace AND c.contype = 'p'
+		WHERE t.relname = 'job' AND t.relnamespace = current_schema()::regnamespace AND c.contype = 'p'
 	`).Scan(&pkColumns); err != nil {
 		return "", err
 	}
@@ -257,7 +263,7 @@ func findShapeMismatch(ctx *armadacontext.Context, q pgx.Tx) (string, error) {
 	for _, idx := range expectedParentIndexes {
 		var exists bool
 		if err := q.QueryRow(ctx,
-			`SELECT EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname = 'public' AND tablename = 'job' AND indexname = $1)`,
+			`SELECT EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname = current_schema() AND tablename = 'job' AND indexname = $1)`,
 			idx).Scan(&exists); err != nil {
 			return "", err
 		}
@@ -268,7 +274,7 @@ func findShapeMismatch(ctx *armadacontext.Context, q pgx.Tx) (string, error) {
 
 	var activeIdxExists bool
 	if err := q.QueryRow(ctx,
-		`SELECT EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname = 'public' AND tablename = 'job_active' AND indexname = 'idx_job_active_queue_jobset')`,
+		`SELECT EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname = current_schema() AND tablename = 'job_active' AND indexname = 'idx_job_active_queue_jobset')`,
 	).Scan(&activeIdxExists); err != nil {
 		return "", err
 	}

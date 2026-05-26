@@ -79,6 +79,12 @@ func NewLookoutAPI(spec *loads.Document) *LookoutAPI {
 			return middleware.NotImplemented("operation GetJobs has not yet been implemented")
 		}),
 
+		GetVersionHandler: GetVersionHandlerFunc(func(params GetVersionParams) middleware.Responder {
+			_ = params
+
+			return middleware.NotImplemented("operation GetVersion has not yet been implemented")
+		}),
+
 		GroupJobsHandler: GroupJobsHandlerFunc(func(params GroupJobsParams) middleware.Responder {
 			_ = params
 
@@ -135,6 +141,8 @@ type LookoutAPI struct {
 	GetJobSpecHandler GetJobSpecHandler
 	// GetJobsHandler sets the operation handler for the get jobs operation
 	GetJobsHandler GetJobsHandler
+	// GetVersionHandler sets the operation handler for the get version operation
+	GetVersionHandler GetVersionHandler
 	// GroupJobsHandler sets the operation handler for the group jobs operation
 	GroupJobsHandler GroupJobsHandler
 
@@ -234,6 +242,9 @@ func (o *LookoutAPI) Validate() error {
 	}
 	if o.GetJobsHandler == nil {
 		unregistered = append(unregistered, "GetJobsHandler")
+	}
+	if o.GetVersionHandler == nil {
+		unregistered = append(unregistered, "GetVersionHandler")
 	}
 	if o.GroupJobsHandler == nil {
 		unregistered = append(unregistered, "GroupJobsHandler")
@@ -355,6 +366,10 @@ func (o *LookoutAPI) initHandlerCache() {
 		o.handlers["POST"] = make(map[string]http.Handler)
 	}
 	o.handlers["POST"]["/api/v1/jobs"] = NewGetJobs(o.context, o.GetJobsHandler)
+	if o.handlers["GET"] == nil {
+		o.handlers["GET"] = make(map[string]http.Handler)
+	}
+	o.handlers["GET"]["/api/v1/version"] = NewGetVersion(o.context, o.GetVersionHandler)
 	if o.handlers["POST"] == nil {
 		o.handlers["POST"] = make(map[string]http.Handler)
 	}

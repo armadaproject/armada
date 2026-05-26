@@ -39,6 +39,15 @@ func (l *LeaderStatusMetricsCollector) onStartedLeading(*armadacontext.Context) 
 	l.isCurrentlyLeader = true
 }
 
+// MarkAsLeading sets the leader status to true. Used in standalone mode where
+// the instance is always the leader.
+func (l *LeaderStatusMetricsCollector) MarkAsLeading() {
+	l.lock.Lock()
+	defer l.lock.Unlock()
+
+	l.isCurrentlyLeader = true
+}
+
 func (l *LeaderStatusMetricsCollector) onStoppedLeading() {
 	l.lock.Lock()
 	defer l.lock.Unlock()

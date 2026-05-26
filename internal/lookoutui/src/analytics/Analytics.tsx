@@ -2,6 +2,7 @@ import { ComponentPropsWithRef, ElementType, forwardRef, ReactNode, JSX } from "
 
 import { getConfig } from "../config"
 
+import { trackAnalyticsEvent } from "./trackAnalyticsEvent"
 import { AnalyticsEventName } from "./types"
 
 const config = getConfig()
@@ -42,33 +43,9 @@ export const Analytics = forwardRef(
       )
     }
 
-    // Wrap the existing onClick handler to also send analytics events, ensuring that any existing onClick functionality is preserved. When implementing an analytics solution refer to src/analytics/README.md#event-analytics to see how configuration options change the function call
     const { onClick: existingOnClick, ...restProps } = props as any
     const handleClick = (event: any) => {
-      const provider = analyticsConfig.provider
-      let trackFunction = "track"
-      if (analyticsConfig.customEventFunction) {
-        trackFunction = analyticsConfig.customEventFunction
-      }
-
-      if (typeof window !== "undefined" && provider in window) {
-        const analyticsProvider = (window as any)[provider]
-        let dataToSend: unknown = eventData
-        if (analyticsConfig.dataWrapper && eventData) {
-          dataToSend = { [analyticsConfig.dataWrapper]: eventData }
-        }
-
-        try {
-          if (typeof analyticsProvider === "function") {
-            analyticsProvider(eventName, dataToSend)
-          } else if (typeof analyticsProvider === "object" && typeof analyticsProvider[trackFunction] === "function") {
-            analyticsProvider[trackFunction](eventName, dataToSend)
-          }
-        } catch (e) {
-          // eslint-disable-next-line no-console
-          console.error("Analytics provider error:", e)
-        }
-      }
+      trackAnalyticsEvent(eventName, eventData)
 
       if (existingOnClick) {
         existingOnClick(event)

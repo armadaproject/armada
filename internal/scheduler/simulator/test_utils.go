@@ -2,7 +2,6 @@ package simulator
 
 import (
 	"fmt"
-	"math"
 	"strings"
 	"time"
 
@@ -12,82 +11,9 @@ import (
 	"github.com/armadaproject/armada/internal/common/pointer"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
-	"github.com/armadaproject/armada/internal/common/types"
-	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
-
-func GetOneQueue10JobWorkload() *WorkloadSpec {
-	ws := &WorkloadSpec{
-		Name: "Basic Workload",
-		Queues: []*Queue{
-			WithJobTemplatesQueue(
-				&Queue{Name: "A", Weight: 1},
-				JobTemplate1Cpu(10, "job-set", "armada-default"),
-			),
-		},
-	}
-	initialiseWorkloadSpec(ws)
-	return ws
-}
-
-func GetBasicSchedulingConfig() configuration.SchedulingConfig {
-	return configuration.SchedulingConfig{
-		PriorityClasses: map[string]types.PriorityClass{
-			"armada-default": {
-				Priority:    30000,
-				Preemptible: false,
-			},
-			"armada-preemptible": {
-				Priority:    30000,
-				Preemptible: true,
-			},
-		},
-		DefaultPriorityClassName: "armada-default",
-		MaximumResourceFractionToSchedule: map[string]float64{
-			"memory": 0.025,
-			"cpu":    0.025,
-		},
-		DominantResourceFairnessResourcesToConsider: []string{"cpu", "memory", "nvidia.com/gpu", "ephemeral-storage"},
-		IndexedResources: []configuration.ResourceType{
-			{
-				Name:       "cpu",
-				Resolution: resource.MustParse("1"),
-			},
-			{
-				Name:       "memory",
-				Resolution: resource.MustParse("1Mi"),
-			},
-			{
-				Name:       "nvidia.com/gpu",
-				Resolution: resource.MustParse("1"),
-			},
-		},
-		SupportedResourceTypes: []configuration.ResourceType{
-			{
-				Name:       "memory",
-				Resolution: resource.MustParse("1"),
-			},
-			{
-				Name:       "cpu",
-				Resolution: resource.MustParse("1m"),
-			},
-			{
-				Name:       "ephemeral-storage",
-				Resolution: resource.MustParse("1"),
-			},
-			{
-				Name:       "nvidia.com/gpu",
-				Resolution: resource.MustParse("1"),
-			},
-		},
-		MaximumSchedulingRate:          math.Inf(1),
-		MaximumSchedulingBurst:         math.MaxInt,
-		MaximumPerQueueSchedulingRate:  math.Inf(1),
-		MaximumPerQueueSchedulingBurst: math.MaxInt,
-	}
-}
 
 func NodeTemplate32Cpu(n int64) *NodeTemplate {
 	return &NodeTemplate{
