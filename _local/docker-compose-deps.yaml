@@ -43,7 +43,12 @@ services:
     restart: unless-stopped
     healthcheck:
       test:
-        ["CMD", "curl", "-f", "http://localhost:8080/admin/v2/brokers/health"]
+        [
+          "CMD",
+          "curl",
+          "-f",
+          "http://localhost:8080/admin/v2/namespaces/public/default",
+        ]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -52,7 +57,7 @@ services:
   # Prometheus - only for prometheus profile
   prometheus:
     container_name: prometheus
-    image: prom/prometheus:v3.11.3
+    image: ${PROMETHEUS_IMAGE:-prom/prometheus:v3.11.3}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
@@ -62,7 +67,15 @@ services:
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      test:
+        [
+          "CMD",
+          "wget",
+          "--quiet",
+          "--tries=1",
+          "--spider",
+          "http://localhost:9090/-/healthy",
+        ]
       interval: 10s
       timeout: 5s
       retries: 5

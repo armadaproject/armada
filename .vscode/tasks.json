@@ -16,39 +16,9 @@
     },
     {
       "type": "shell",
-      "command": "mage kind && mage startDependencies",
-      "label": "Start dependencies"
-    },
-    {
-      "type": "shell",
-      "command": "mage kind && ARMADA_EXTRA_DEPS=prometheus mage startDependencies",
-      "label": "Start dependencies with Prometheus"
-    },
-    {
-      "type": "shell",
-      "command": "mage kind && ARMADA_EXTRA_DEPS=keycloak mage startDependencies",
-      "label": "Start dependencies with Auth"
-    },
-    {
-      "type": "shell",
-      "command": "mage kind && ARMADA_EXTRA_DEPS=prometheus,keycloak mage startDependencies",
-      "label": "Start dependencies with Prometheus and Auth"
-    },
-    {
-      "type": "shell",
-      "command": "mage kindTeardown && docker compose -f ${workspaceFolder}/docker-compose.yaml down -v",
+      "command": "mage kindTeardown && docker compose -f ${workspaceFolder}/_local/docker-compose-deps.yaml down -v",
       "label": "Full teardown",
       "problemMatcher": []
-    },
-    {
-      "type": "shell",
-      "command": "timeout 60 bash -c 'until pg_isready -h localhost -p 5432 -U postgres; do sleep 1; done'",
-      "label": "Wait for Postgres"
-    },
-    {
-      "type": "shell",
-      "command": "timeout 60 bash -c 'until [ $(docker inspect -f \"{{.State.Health.Status}}\" keycloak) = healthy ]; do sleep 1; done'",
-      "label": "Wait for Keycloak"
     },
     {
       "type": "shell",
@@ -63,52 +33,6 @@
       "args": ["run", "${workspaceFolder}/cmd/scheduler", "migrateDatabase"]
     },
     {
-      "label": "Set up dependencies",
-      "dependsOrder": "sequence",
-      "dependsOn": [
-        "Download Go modules",
-        "Start dependencies",
-        "Wait for Postgres",
-        "Migrate Lookout database",
-        "Migrate Scheduler database"
-      ]
-    },
-    {
-      "label": "Set up dependencies with Auth",
-      "dependsOrder": "sequence",
-      "dependsOn": [
-        "Download Go modules",
-        "Start dependencies with Auth",
-        "Wait for Postgres",
-        "Migrate Lookout database",
-        "Migrate Scheduler database",
-        "Wait for Keycloak"
-      ]
-    },
-    {
-      "label": "Set up dependencies with Prometheus",
-      "dependsOrder": "sequence",
-      "dependsOn": [
-        "Download Go modules",
-        "Start dependencies with Prometheus",
-        "Wait for Postgres",
-        "Migrate Lookout database",
-        "Migrate Scheduler database"
-      ]
-    },
-    {
-      "label": "Set up dependencies with Prometheus and Auth",
-      "dependsOrder": "sequence",
-      "dependsOn": [
-        "Download Go modules",
-        "Start dependencies with Prometheus and Auth",
-        "Wait for Postgres",
-        "Migrate Lookout database",
-        "Migrate Scheduler database",
-        "Wait for Keycloak"
-      ]
-    },
-    {
       "type": "shell",
       "command": [
         "scripts/yarn-registry-mirror.sh --cwd ${workspaceFolder}/internal/lookoutui &&",
@@ -118,39 +42,39 @@
       "label": "Build Lookout UI"
     },
     {
+      "label": "Start dependencies",
       "type": "shell",
-      "command": "mage kind && docker-compose -f ${workspaceFolder}/_local/docker-compose-deps.yaml up -d --wait",
-      "label": "Goreman: Start dependencies",
+      "command": "mage kind && COMPOSE_FILE=${workspaceFolder}/_local/docker-compose-deps.yaml mage startDependencies",
+      "problemMatcher": []
+    },
+    {
+      "label": "Start dependencies with Prometheus",
+      "type": "shell",
+      "command": "mage kind && COMPOSE_FILE=${workspaceFolder}/_local/docker-compose-deps.yaml ARMADA_EXTRA_DEPS=prometheus mage startDependencies",
+      "problemMatcher": []
+    },
+    {
+      "label": "Start dependencies with Auth",
+      "type": "shell",
+      "command": "mage kind && COMPOSE_FILE=${workspaceFolder}/_local/docker-compose-deps.yaml ARMADA_EXTRA_DEPS=keycloak mage startDependencies",
+      "problemMatcher": []
+    },
+    {
+      "label": "Start dependencies with Prometheus and Auth",
+      "type": "shell",
+      "command": "mage kind && COMPOSE_FILE=${workspaceFolder}/_local/docker-compose-deps.yaml ARMADA_EXTRA_DEPS=prometheus,keycloak mage startDependencies",
       "problemMatcher": []
     },
     {
       "type": "shell",
-      "command": "mage kind && docker-compose -f ${workspaceFolder}/_local/docker-compose-deps.yaml --profile prometheus up -d --wait",
-      "label": "Goreman: Start dependencies with Prometheus",
-      "problemMatcher": []
-    },
-    {
-      "type": "shell",
-      "command": "mage kind && docker-compose -f ${workspaceFolder}/_local/docker-compose-deps.yaml --profile auth up -d --wait",
-      "label": "Goreman: Start dependencies with Auth",
-      "problemMatcher": []
-    },
-    {
-      "type": "shell",
-      "command": "docker-compose -f ${workspaceFolder}/_local/docker-compose-deps.yaml down -v",
-      "label": "Goreman: Stop dependencies",
+      "command": "COMPOSE_FILE=${workspaceFolder}/_local/docker-compose-deps.yaml ARMADA_EXTRA_DEPS=prometheus,keycloak mage stopDependencies",
+      "label": "Stop dependencies",
       "problemMatcher": []
     },
     {
       "type": "shell",
       "command": "${workspaceFolder}/scripts/localdev-init.sh",
-      "label": "Goreman: Init databases",
-      "problemMatcher": []
-    },
-    {
-      "type": "shell",
-      "command": "lsof -ti :8081,8082,8083,8084,8089,50051,50052,50053,9000,9001,9002,9003,9004,9005,9006,9007,9008,2345,2346,2347,2348,2349,2350,2351,2352,2353 | xargs -r kill -9; true",
-      "label": "Goreman: Kill stale dlv ports",
+      "label": "Init databases",
       "problemMatcher": []
     },
     {
@@ -192,7 +116,7 @@
     {
       "type": "shell",
       "command": "sleep 5",
-      "label": "Goreman: Sleep after start",
+      "label": "Sleep after start",
       "problemMatcher": []
     },
     {
@@ -217,55 +141,60 @@
       "label": "Goreman: Set up and start (no-auth debug)",
       "dependsOrder": "sequence",
       "dependsOn": [
-        "Goreman: Start dependencies",
-        "Goreman: Init databases",
-        "Goreman: Kill stale dlv ports",
+        "Start dependencies",
+        "Init databases",
         "Goreman: Start (no-auth debug)",
-        "Goreman: Sleep after start"
+        "Sleep after start"
       ]
     },
     {
       "label": "Goreman: Set up and start (auth debug)",
       "dependsOrder": "sequence",
       "dependsOn": [
-        "Goreman: Start dependencies with Auth",
-        "Goreman: Init databases",
-        "Goreman: Kill stale dlv ports",
+        "Start dependencies with Auth",
+        "Init databases",
         "Goreman: Start (auth debug)",
-        "Goreman: Sleep after start"
+        "Sleep after start"
       ]
     },
     {
       "label": "Goreman: Set up and start (fake-executor debug)",
       "dependsOrder": "sequence",
       "dependsOn": [
-        "Goreman: Start dependencies",
-        "Goreman: Init databases",
-        "Goreman: Kill stale dlv ports",
+        "Start dependencies",
+        "Init databases",
         "Goreman: Start (fake-executor debug)",
-        "Goreman: Sleep after start"
+        "Sleep after start"
       ]
     },
     {
       "label": "Goreman: Set up and start (no-auth debug with prometheus)",
       "dependsOrder": "sequence",
       "dependsOn": [
-        "Goreman: Start dependencies with Prometheus",
-        "Goreman: Init databases",
-        "Goreman: Kill stale dlv ports",
+        "Start dependencies with Prometheus",
+        "Init databases",
         "Goreman: Start (no-auth debug)",
-        "Goreman: Sleep after start"
+        "Sleep after start"
       ]
     },
     {
       "label": "Goreman: Set up and start (fake-executor debug with prometheus)",
       "dependsOrder": "sequence",
       "dependsOn": [
-        "Goreman: Start dependencies with Prometheus",
-        "Goreman: Init databases",
-        "Goreman: Kill stale dlv ports",
+        "Start dependencies with Prometheus",
+        "Init databases",
         "Goreman: Start (fake-executor debug)",
-        "Goreman: Sleep after start"
+        "Sleep after start"
+      ]
+    },
+    {
+      "label": "Goreman: Set up and start (auth debug with prometheus)",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "Start dependencies with Prometheus and Auth",
+        "Init databases",
+        "Goreman: Start (auth debug)",
+        "Sleep after start"
       ]
     }
   ]
