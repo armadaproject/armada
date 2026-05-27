@@ -7,4 +7,3 @@ lookout: ${GO_BIN:-go} build -gcflags="all=-N -l" -o ./dist/armada-lookout ./cmd
 lookoutingester: ${GO_BIN:-go} build -gcflags="all=-N -l" -o ./dist/armada-lookoutingester ./cmd/lookoutingester/main.go && ./dist/armada-lookoutingester --config ./_local/lookoutingester/config.yaml
 binoculars: ${GO_BIN:-go} build -gcflags="all=-N -l" -o ./dist/armada-binoculars ./cmd/binoculars/main.go && ./dist/armada-binoculars --config ./_local/binoculars/config-auth.yaml
 lookoutui: sh -c 'cd internal/lookoutui && yarn install && yarn run openapi && PROXY_TARGET=http://localhost:8089 yarn dev'
-
