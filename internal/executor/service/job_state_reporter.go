@@ -51,7 +51,10 @@ func (stateReporter *JobStateReporter) podEventHandler() cache.ResourceEventHand
 				log.Errorf("Failed to process pod event due to it being an unexpected type. Failed to process %+v", obj)
 				return
 			}
-			go stateReporter.reportCurrentStatus(pod)
+			go func() {
+				stateReporter.reportCurrentStatus(pod)
+				stateReporter.attemptToReportJobRunTerminatedEvent(pod)
+			}()
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			oldPod, ok := oldObj.(*v1.Pod)
@@ -64,7 +67,10 @@ func (stateReporter *JobStateReporter) podEventHandler() cache.ResourceEventHand
 				log.Errorf("Failed to process pod event due to it being an unexpected type. Failed to process %+v", newObj)
 				return
 			}
-			go stateReporter.reportStatusUpdate(oldPod, newPod)
+			go func() {
+				stateReporter.reportStatusUpdate(oldPod, newPod)
+				stateReporter.attemptToReportJobRunTerminatedEvent(newPod)
+			}()
 		},
 	}
 }
@@ -142,6 +148,57 @@ func (stateReporter *JobStateReporter) reportCurrentStatus(pod *v1.Pod) {
 	}
 }
 
+// attemptToReportJobRunTerminatedEvent emits JobRunTerminated once per pod when the
+// pod reaches a terminal phase (PodSucceeded or PodFailed). Called from two
+// places:
+//
+//  1. Inline, from the pod-event handler, so we observe the terminal-phase
+//     transition the moment the informer reports it. This is required for
+//     pods armada itself deleted (cancel/preempt): once the containers exit,
+//     the Kubernetes API removes the pod object within a couple of seconds,
+//     and the executor's informer cache loses it. The reconciliation interval
+//     (default 15s) is wider than that window, so a reconcile-only design
+//     would race against pod deletion and never see the terminal phase -
+//     terminated_timestamp would stay NULL.
+//
+//  2. From the periodic reconciliation pass in ReportMissingJobEvents, as a
+//     safety net for inline emissions that did not happen (executor restart
+//     between phase transition and emission, informer watch hiccup).
+//
+// Idempotent: a successful emission annotates the pod with reported_terminated,
+// and subsequent calls (inline or reconciliation) skip annotated pods.
+func (stateReporter *JobStateReporter) attemptToReportJobRunTerminatedEvent(pod *v1.Pod) {
+	if !util.IsManagedPod(pod) {
+		return
+	}
+	if !util.IsInTerminalState(pod) {
+		return
+	}
+	if util.HasJobRunTerminatedBeenReported(pod) {
+		return
+	}
+	event, err := reporter.CreateJobRunTerminatedEvent(pod)
+	if err != nil {
+		log.Errorf("Failed to build JobRunTerminated event for pod %s: %v", pod.Name, err)
+		return
+	}
+	stateReporter.eventReporter.QueueEvent(reporter.EventMessage{Event: event, JobRunId: util.ExtractJobRunId(pod)}, func(err error) {
+		if err != nil {
+			log.Errorf("Failed to report JobRunTerminated for pod %s: %v", pod.Name, err)
+			return
+		}
+		if err := stateReporter.addAnnotationToMarkJobRunTerminatedReported(pod); err != nil {
+			log.Errorf("Failed to annotate pod %s as JobRunTerminated-reported: %v", pod.Name, err)
+		}
+	})
+}
+
+func (stateReporter *JobStateReporter) addAnnotationToMarkJobRunTerminatedReported(pod *v1.Pod) error {
+	return stateReporter.clusterContext.AddAnnotation(pod, map[string]string{
+		domain2.JobRunTerminatedReported: time.Now().String(),
+	})
+}
+
 func (stateReporter *JobStateReporter) addAnnotationToMarkStateReported(pod *v1.Pod) error {
 	annotations := make(map[string]string)
 	annotationName := string(pod.Status.Phase)
@@ -181,6 +238,21 @@ func (stateReporter *JobStateReporter) ReportMissingJobEvents() {
 	for _, pod := range podWithIngressNotReported {
 		if !stateReporter.eventReporter.HasPendingEvents(pod) {
 			stateReporter.attemptToReportIngressInfoEvent(pod)
+		}
+	}
+
+	// The pod-event handler normally emits JobRunTerminated inline the moment the
+	// informer reports terminal phase. This loop catches pods where that inline
+	// emission did not happen: the executor restarted after the pod went terminal
+	// but before the handler ran, or the informer dropped the watch event.
+	// Idempotent via the reported_terminated annotation set on successful emission.
+	podsWithTerminatedNotReported := util.FilterPods(allBatchPods, func(pod *v1.Pod) bool {
+		return util.IsInTerminalState(pod) && !util.HasJobRunTerminatedBeenReported(pod)
+	})
+
+	for _, pod := range podsWithTerminatedNotReported {
+		if !stateReporter.eventReporter.HasPendingEvents(pod) {
+			stateReporter.attemptToReportJobRunTerminatedEvent(pod)
 		}
 	}
 }

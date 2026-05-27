@@ -268,9 +268,9 @@ var returnedOnceLeasedJob = testfixtures.NewJob(
 	nil,
 	nil,
 	nil,
+	nil,
 	true,
-	true,
-)).WithNewRun("testExecutor", "test-node", "node", "pool", 5)
+	true)).WithNewRun("testExecutor", "test-node", "node", "pool", 5)
 
 var defaultJobError = &armadaevents.Error{
 	Terminal: true,
@@ -354,9 +354,9 @@ var (
 		nil,
 		nil,
 		nil,
+		nil,
 		true,
-		true,
-	))
+		true))
 )
 
 type jobRunId struct {
@@ -1572,9 +1572,9 @@ func TestScheduler_TestSyncInitialState(t *testing.T) {
 						nil,
 						nil,
 						nil,
+						nil,
 						false,
-						false,
-					)).WithQueued(false).WithQueuedVersion(1).WithPriceBand(bidstore.PriceBand_PRICE_BAND_C),
+						false)).WithQueued(false).WithQueuedVersion(1).WithPriceBand(bidstore.PriceBand_PRICE_BAND_C),
 			},
 			expectedInitialJobDbIds: []string{queuedJob.Id()},
 			expectedJobsSerial:      1,
@@ -1734,9 +1734,9 @@ func TestScheduler_TestSyncState(t *testing.T) {
 						nil,
 						nil,
 						nil,
+						nil,
 						false,
-						false,
-					)).WithQueued(false).WithQueuedVersion(2),
+						false)).WithQueued(false).WithQueuedVersion(2),
 			},
 			expectedJobDbIds: []string{queuedJob.Id()},
 		},

@@ -799,3 +799,81 @@ func TestGroupByQueue_EmptyList(t *testing.T) {
 	result := GroupByQueue([]*v1.Pod{})
 	assert.Len(t, result, 0)
 }
+
+func TestHasJobRunTerminatedBeenReported(t *testing.T) {
+	tests := map[string]struct {
+		annotations map[string]string
+		want        bool
+	}{
+		"annotation present": {
+			annotations: map[string]string{domain.JobRunTerminatedReported: time.Now().String()},
+			want:        true,
+		},
+		"annotation missing": {
+			annotations: map[string]string{domain.IngressReported: time.Now().String()},
+			want:        false,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			pod := &v1.Pod{ObjectMeta: metav1.ObjectMeta{Annotations: tc.annotations}}
+			assert.Equal(t, tc.want, HasJobRunTerminatedBeenReported(pod))
+		})
+	}
+}
+
+func TestLatestContainerFinishedAt(t *testing.T) {
+	earlier := metav1.NewTime(time.Date(2026, 5, 1, 10, 0, 0, 0, time.UTC))
+	later := metav1.NewTime(time.Date(2026, 5, 1, 10, 0, 30, 0, time.UTC))
+	terminated := func(at metav1.Time) v1.ContainerStatus {
+		return v1.ContainerStatus{State: v1.ContainerState{Terminated: &v1.ContainerStateTerminated{FinishedAt: at}}}
+	}
+	tests := map[string]struct {
+		containerStatuses     []v1.ContainerStatus
+		initContainerStatuses []v1.ContainerStatus
+		want                  time.Time
+		wantFallback          bool
+	}{
+		"picks latest across multiple terminated containers": {
+			containerStatuses: []v1.ContainerStatus{terminated(earlier), terminated(later)},
+			want:              later.Time,
+		},
+		"ignores running and waiting states": {
+			containerStatuses: []v1.ContainerStatus{
+				{State: v1.ContainerState{Running: &v1.ContainerStateRunning{}}},
+				terminated(earlier),
+				{State: v1.ContainerState{Waiting: &v1.ContainerStateWaiting{}}},
+			},
+			want: earlier.Time,
+		},
+		"uses init container finish time when main never started": {
+			initContainerStatuses: []v1.ContainerStatus{terminated(earlier)},
+			want:                  earlier.Time,
+		},
+		"prefers main container over init container when both terminated": {
+			containerStatuses:     []v1.ContainerStatus{terminated(later)},
+			initContainerStatuses: []v1.ContainerStatus{terminated(earlier)},
+			want:                  later.Time,
+		},
+		"falls back to time.Now() when no container reported terminated": {
+			containerStatuses: []v1.ContainerStatus{
+				{State: v1.ContainerState{Running: &v1.ContainerStateRunning{}}},
+			},
+			wantFallback: true,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			pod := &v1.Pod{Status: v1.PodStatus{
+				ContainerStatuses:     tc.containerStatuses,
+				InitContainerStatuses: tc.initContainerStatuses,
+			}}
+			got := LatestContainerFinishedAt(pod)
+			if tc.wantFallback {
+				assert.WithinDuration(t, time.Now(), got, 5*time.Second)
+			} else {
+				assert.Equal(t, tc.want, got)
+			}
+		})
+	}
+}

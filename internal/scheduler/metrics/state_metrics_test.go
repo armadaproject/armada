@@ -194,6 +194,42 @@ func TestReportJobStateTransitions(t *testing.T) {
 								WithLeasedTime(baseTimePlusSeconds(60)).
 								WithPendingTime(baseTimePlusSeconds(62)).
 								WithRunningTime(baseTimePlusSeconds(72)).
+								WithFailedTime(baseTimePlusSeconds(80))),
+					Failed: true,
+				},
+			},
+			expectedJobStateCounterByQueue: map[[4]string]float64{
+				{testQueue, testPool, "failed", "running"}: 1,
+			},
+			expectedJobStateCounterByNode: map[[5]string]float64{
+				{testNode, testPool, testCluster, "failed", "running"}: 1,
+			},
+			expectedJobStateSecondsByQueue: map[[4]string]float64{
+				{testQueue, testPool, "failed", "running"}: 8,
+			},
+			expectedJobStateSecondsByNode: map[[5]string]float64{
+				{testNode, testPool, testCluster, "failed", "running"}: 8,
+			},
+			expectedJobStateResourceSecondsByQueue: map[[5]string]float64{
+				{testQueue, testPool, "failed", "running", "cpu"}: 8 * 16,
+			},
+			expectedJobStateResourceSecondsByNode: map[[6]string]float64{
+				{testNode, testPool, testCluster, "failed", "running", "cpu"}: 8 * 16,
+			},
+		},
+		// Pre-migration failed run: failed_timestamp was added in migration 039, so any
+		// run that failed before that has it NULL but carries the failure time in
+		// terminated_timestamp under the pre-PR semantics. The metric branch falls back.
+		"Failed (pre-migration, FailedTime nil)": {
+			trackedResourceNames: []v1.ResourceName{"cpu"},
+			jsts: []jobdb.JobStateTransitions{
+				{
+					Job: baseJob.
+						WithUpdatedRun(
+							baseRun.
+								WithLeasedTime(baseTimePlusSeconds(60)).
+								WithPendingTime(baseTimePlusSeconds(62)).
+								WithRunningTime(baseTimePlusSeconds(72)).
 								WithTerminatedTime(baseTimePlusSeconds(80))),
 					Failed: true,
 				},

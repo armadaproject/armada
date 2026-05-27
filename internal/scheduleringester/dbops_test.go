@@ -280,6 +280,15 @@ func TestDbOperationOptimisation(t *testing.T) {
 			MarkRunsRunning{runIds[1]: time.Time{}},                                                                                  // 3
 			InsertJobs{jobIds[2]: &schedulerdb.Job{JobID: jobIds[2]}},                                                                // 3
 		}},
+		"MarkRunsTerminated": {N: 3, Ops: []DbOperation{
+			InsertJobs{jobIds[0]: &schedulerdb.Job{JobID: jobIds[0]}},                                                                // 1
+			InsertRuns{runIds[0]: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobIds[0], RunID: runIds[0]}}}, // 2
+			MarkRunsTerminated{runIds[0]: time.Time{}},                                                                               // 3
+			InsertJobs{jobIds[1]: &schedulerdb.Job{JobID: jobIds[1]}},                                                                // 3
+			InsertRuns{runIds[1]: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobIds[0], RunID: runIds[1]}}}, // 3
+			MarkRunsTerminated{runIds[1]: time.Time{}},                                                                               // 3
+			InsertJobs{jobIds[2]: &schedulerdb.Job{JobID: jobIds[2]}},                                                                // 3
+		}},
 		"InsertPartitionMarker": {N: 2, Ops: []DbOperation{
 			InsertJobs{jobIds[0]: &schedulerdb.Job{JobID: jobIds[0]}}, // 1
 			&InsertPartitionMarker{markers: []*schedulerdb.Marker{}},  // 2
