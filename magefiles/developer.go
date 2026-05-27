@@ -87,6 +87,13 @@ func StopDependencies() error {
 	return dockerRun(command...)
 }
 
+func TearDownDependencies() error {
+	composeFile := getComposeFile()
+	services := append(slices.Clone(dependencies), getExtraDeps()...)
+	command := append([]string{"compose", "-f", composeFile, "down", "-v"}, services...)
+	return dockerRun(command...)
+}
+
 // Starts the Armada Components. (Based on the ARMADA_COMPONENTS environment variable)
 func StartComponents() error {
 	composeFile := getComposeFile()
