@@ -9,37 +9,10 @@
   },
   "tasks": [
     {
+      "label": "Download Go modules",
       "type": "shell",
       "command": "go",
-      "args": ["mod", "download"],
-      "label": "Download Go modules"
-    },
-    {
-      "type": "shell",
-      "command": "mage kindTeardown && docker compose -f ${workspaceFolder}/_local/docker-compose-deps.yaml down -v",
-      "label": "Full teardown",
-      "problemMatcher": []
-    },
-    {
-      "type": "shell",
-      "command": "go",
-      "label": "Migrate Lookout database",
-      "args": ["run", "${workspaceFolder}/cmd/lookout", "--migrateDatabase"]
-    },
-    {
-      "type": "shell",
-      "command": "go",
-      "label": "Migrate Scheduler database",
-      "args": ["run", "${workspaceFolder}/cmd/scheduler", "migrateDatabase"]
-    },
-    {
-      "type": "shell",
-      "command": [
-        "scripts/yarn-registry-mirror.sh --cwd ${workspaceFolder}/internal/lookoutui &&",
-        "scripts/yarn-registry-mirror.sh --cwd ${workspaceFolder}/internal/lookoutui openapi &&",
-        "scripts/yarn-registry-mirror.sh --cwd ${workspaceFolder}/internal/lookoutui build"
-      ],
-      "label": "Build Lookout UI"
+      "args": ["mod", "download"]
     },
     {
       "label": "Start dependencies",
@@ -66,21 +39,24 @@
       "problemMatcher": []
     },
     {
-      "type": "shell",
-      "command": "COMPOSE_FILE=${workspaceFolder}/_local/docker-compose-deps.yaml ARMADA_EXTRA_DEPS=prometheus,keycloak mage stopDependencies",
-      "label": "Stop dependencies",
-      "problemMatcher": []
-    },
-    {
+      "label": "Init databases",
       "type": "shell",
       "command": "${workspaceFolder}/scripts/localdev-init.sh",
-      "label": "Init databases",
       "problemMatcher": []
     },
     {
+      "label": "Build Lookout UI",
+      "type": "shell",
+      "command": [
+        "scripts/yarn-registry-mirror.sh --cwd ${workspaceFolder}/internal/lookoutui &&",
+        "scripts/yarn-registry-mirror.sh --cwd ${workspaceFolder}/internal/lookoutui openapi &&",
+        "scripts/yarn-registry-mirror.sh --cwd ${workspaceFolder}/internal/lookoutui build"
+      ]
+    },
+    {
+      "label": "Goreman: Start (no-auth debug)",
       "type": "shell",
       "command": "goreman -f ${workspaceFolder}/_local/procfiles/no-auth-debug.Procfile start",
-      "label": "Goreman: Start (no-auth debug)",
       "isBackground": true,
       "problemMatcher": [
         {
@@ -96,9 +72,9 @@
       ]
     },
     {
+      "label": "Goreman: Start (auth debug)",
       "type": "shell",
       "command": "goreman -f ${workspaceFolder}/_local/procfiles/auth-debug.Procfile start",
-      "label": "Goreman: Start (auth debug)",
       "isBackground": true,
       "problemMatcher": [
         {
@@ -114,28 +90,40 @@
       ]
     },
     {
+      "label": "Goreman: Start (fake-executor debug)",
+      "type": "shell",
+      "command": "goreman -f ${workspaceFolder}/_local/procfiles/fake-executor-debug.Procfile start",
+      "isBackground": true,
+      "problemMatcher": [
+        {
+          "pattern": [
+            { "regexp": ".", "file": 1, "location": 2, "message": 3 }
+          ],
+          "background": {
+            "activeOnStart": true,
+            "beginsPattern": ".",
+            "endsPattern": "DAP server listening at:"
+          }
+        }
+      ]
+    },
+    {
+      "label": "Sleep after start",
       "type": "shell",
       "command": "sleep 5",
-      "label": "Sleep after start",
       "problemMatcher": []
     },
     {
+      "label": "Stop dependencies",
       "type": "shell",
-      "command": "goreman -f ${workspaceFolder}/_local/procfiles/fake-executor-debug.Procfile start",
-      "label": "Goreman: Start (fake-executor debug)",
-      "isBackground": true,
-      "problemMatcher": [
-        {
-          "pattern": [
-            { "regexp": ".", "file": 1, "location": 2, "message": 3 }
-          ],
-          "background": {
-            "activeOnStart": true,
-            "beginsPattern": ".",
-            "endsPattern": "DAP server listening at:"
-          }
-        }
-      ]
+      "command": "COMPOSE_FILE=${workspaceFolder}/_local/docker-compose-deps.yaml ARMADA_EXTRA_DEPS=prometheus,keycloak mage stopDependencies",
+      "problemMatcher": []
+    },
+    {
+      "label": "Full teardown",
+      "type": "shell",
+      "command": "mage kindTeardown && COMPOSE_FILE=${workspaceFolder}/_local/docker-compose-deps.yaml ARMADA_EXTRA_DEPS=prometheus,keycloak mage tearDownDependencies",
+      "problemMatcher": []
     },
     {
       "label": "Goreman: Set up and start (no-auth debug)",
