@@ -55,7 +55,7 @@ export default defineConfig({
     proxy: PROXY_OPTIONS,
   },
   server: {
-    port: parseInt(process.env.VITE_PORT || "3000"),
+    port: parseInt(process.env.VITE_PORT || "3000", 10),
     proxy: PROXY_OPTIONS,
   },
   build: {
