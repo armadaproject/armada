@@ -7,6 +7,11 @@ services:
     ports:
       - "6379:6379"
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   postgres:
     container_name: postgres
@@ -43,6 +48,26 @@ services:
       timeout: 10s
       retries: 5
       start_period: 30s
+
+  # Prometheus - only for prometheus profile
+  prometheus:
+    container_name: prometheus
+    image: prom/prometheus:v3.11.3
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "9090:9090"
+    volumes:
+      - "./prometheus.yml:/etc/prometheus/prometheus.yml"
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    profiles:
+      - prometheus
 
   # Keycloak OIDC provider - only for auth profile
   keycloak:

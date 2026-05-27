@@ -547,6 +547,36 @@
       ],
       "preLaunchTask": "Goreman: Set up and start (fake-executor debug)",
       "stopAll": true
+    },
+    {
+      "name": "Goreman: Armada (no-auth with prometheus)",
+      "configurations": [
+        "Goreman: Attach Server",
+        "Goreman: Attach Scheduler",
+        "Goreman: Attach Scheduler Ingester",
+        "Goreman: Attach Event Ingester",
+        "Goreman: Attach Executor",
+        "Goreman: Attach Lookout",
+        "Goreman: Attach Lookout Ingester",
+        "Goreman: Attach Binoculars"
+      ],
+      "preLaunchTask": "Goreman: Set up and start (no-auth debug with prometheus)",
+      "stopAll": true
+    },
+    {
+      "name": "Goreman: Armada (fake-executor with prometheus)",
+      "configurations": [
+        "Goreman: Attach Server",
+        "Goreman: Attach Scheduler",
+        "Goreman: Attach Scheduler Ingester",
+        "Goreman: Attach Event Ingester",
+        "Goreman: Attach Fake Executor",
+        "Goreman: Attach Lookout",
+        "Goreman: Attach Lookout Ingester",
+        "Goreman: Attach Binoculars"
+      ],
+      "preLaunchTask": "Goreman: Set up and start (fake-executor debug with prometheus)",
+      "stopAll": true
     }
   ]
 }

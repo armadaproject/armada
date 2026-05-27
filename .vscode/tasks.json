@@ -125,6 +125,12 @@
     },
     {
       "type": "shell",
+      "command": "mage kind && docker-compose -f ${workspaceFolder}/_local/docker-compose-deps.yaml --profile prometheus up -d --wait",
+      "label": "Goreman: Start dependencies with Prometheus",
+      "problemMatcher": []
+    },
+    {
+      "type": "shell",
       "command": "mage kind && docker-compose -f ${workspaceFolder}/_local/docker-compose-deps.yaml --profile auth up -d --wait",
       "label": "Goreman: Start dependencies with Auth",
       "problemMatcher": []
@@ -234,6 +240,28 @@
       "dependsOrder": "sequence",
       "dependsOn": [
         "Goreman: Start dependencies",
+        "Goreman: Init databases",
+        "Goreman: Kill stale dlv ports",
+        "Goreman: Start (fake-executor debug)",
+        "Goreman: Sleep after start"
+      ]
+    },
+    {
+      "label": "Goreman: Set up and start (no-auth debug with prometheus)",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "Goreman: Start dependencies with Prometheus",
+        "Goreman: Init databases",
+        "Goreman: Kill stale dlv ports",
+        "Goreman: Start (no-auth debug)",
+        "Goreman: Sleep after start"
+      ]
+    },
+    {
+      "label": "Goreman: Set up and start (fake-executor debug with prometheus)",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "Goreman: Start dependencies with Prometheus",
         "Goreman: Init databases",
         "Goreman: Kill stale dlv ports",
         "Goreman: Start (fake-executor debug)",
