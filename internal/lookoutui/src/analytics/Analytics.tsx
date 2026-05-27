@@ -10,7 +10,7 @@ const config = getConfig()
 type AnalyticsProps<C extends ElementType> = {
   component: C
   eventName: AnalyticsEventName
-  eventData?: Record<string, string>
+  eventData?: Record<string, string> | (() => Record<string, string>)
   children?: ReactNode
 } & ComponentPropsWithRef<C>
 
