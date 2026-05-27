@@ -116,6 +116,129 @@
         "scripts/yarn-registry-mirror.sh --cwd ${workspaceFolder}/internal/lookoutui build"
       ],
       "label": "Build Lookout UI"
+    },
+    {
+      "type": "shell",
+      "command": "mage kind && docker-compose -f ${workspaceFolder}/_local/docker-compose-deps.yaml up -d --wait",
+      "label": "Goreman: Start dependencies",
+      "problemMatcher": []
+    },
+    {
+      "type": "shell",
+      "command": "mage kind && docker-compose -f ${workspaceFolder}/_local/docker-compose-deps.yaml --profile auth up -d --wait",
+      "label": "Goreman: Start dependencies with Auth",
+      "problemMatcher": []
+    },
+    {
+      "type": "shell",
+      "command": "docker-compose -f ${workspaceFolder}/_local/docker-compose-deps.yaml down -v",
+      "label": "Goreman: Stop dependencies",
+      "problemMatcher": []
+    },
+    {
+      "type": "shell",
+      "command": "${workspaceFolder}/scripts/localdev-init.sh",
+      "label": "Goreman: Init databases",
+      "problemMatcher": []
+    },
+    {
+      "type": "shell",
+      "command": "lsof -ti :8081,8082,8083,8084,8089,50051,50052,50053,9000,9001,9002,9003,9004,9005,9006,9007,9008,2345,2346,2347,2348,2349,2350,2351,2352,2353 | xargs -r kill -9; true",
+      "label": "Goreman: Kill stale dlv ports",
+      "problemMatcher": []
+    },
+    {
+      "type": "shell",
+      "command": "goreman -f ${workspaceFolder}/_local/procfiles/no-auth-debug.Procfile start",
+      "label": "Goreman: Start (no-auth debug)",
+      "isBackground": true,
+      "problemMatcher": [
+        {
+          "pattern": [
+            { "regexp": ".", "file": 1, "location": 2, "message": 3 }
+          ],
+          "background": {
+            "activeOnStart": true,
+            "beginsPattern": ".",
+            "endsPattern": "DAP server listening at:"
+          }
+        }
+      ]
+    },
+    {
+      "type": "shell",
+      "command": "goreman -f ${workspaceFolder}/_local/procfiles/auth-debug.Procfile start",
+      "label": "Goreman: Start (auth debug)",
+      "isBackground": true,
+      "problemMatcher": [
+        {
+          "pattern": [
+            { "regexp": ".", "file": 1, "location": 2, "message": 3 }
+          ],
+          "background": {
+            "activeOnStart": true,
+            "beginsPattern": ".",
+            "endsPattern": "DAP server listening at:"
+          }
+        }
+      ]
+    },
+    {
+      "type": "shell",
+      "command": "sleep 5",
+      "label": "Goreman: Sleep after start",
+      "problemMatcher": []
+    },
+    {
+      "type": "shell",
+      "command": "goreman -f ${workspaceFolder}/_local/procfiles/fake-executor-debug.Procfile start",
+      "label": "Goreman: Start (fake-executor debug)",
+      "isBackground": true,
+      "problemMatcher": [
+        {
+          "pattern": [
+            { "regexp": ".", "file": 1, "location": 2, "message": 3 }
+          ],
+          "background": {
+            "activeOnStart": true,
+            "beginsPattern": ".",
+            "endsPattern": "DAP server listening at:"
+          }
+        }
+      ]
+    },
+    {
+      "label": "Goreman: Set up and start (no-auth debug)",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "Goreman: Start dependencies",
+        "Goreman: Init databases",
+        "Goreman: Kill stale dlv ports",
+        "Goreman: Start (no-auth debug)",
+        "Goreman: Sleep after start"
+      ]
+    },
+    {
+      "label": "Goreman: Set up and start (auth debug)",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "Goreman: Start dependencies with Auth",
+        "Goreman: Init databases",
+        "Goreman: Kill stale dlv ports",
+        "Goreman: Start (auth debug)",
+        "Goreman: Sleep after start"
+      ]
+    },
+    {
+      "label": "Goreman: Set up and start (fake-executor debug)",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "Goreman: Start dependencies",
+        "Goreman: Init databases",
+        "Goreman: Kill stale dlv ports",
+        "Goreman: Start (fake-executor debug)",
+        "Goreman: Sleep after start"
+      ]
     }
   ]
 }

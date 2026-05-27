@@ -233,6 +233,217 @@
         "ARMADA_PULSAR_URL": "pulsar://localhost:6650",
         "EXECUTOR_UPDATE_INTERVAL": "1s"
       }
+    },
+    {
+      "name": "Goreman: Attach Server",
+      "type": "go",
+      "request": "launch",
+      "mode": "exec",
+      "debugAdapter": "dlv-dap",
+      "outputMode": "remote",
+      "port": 2345,
+      "host": "127.0.0.1",
+      "program": "${workspaceFolder}/dist/armada-server",
+      "args": ["--config", "${workspaceFolder}/_local/server/config.yaml"],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "Goreman: Attach Scheduler",
+      "type": "go",
+      "request": "launch",
+      "mode": "exec",
+      "debugAdapter": "dlv-dap",
+      "outputMode": "remote",
+      "port": 2346,
+      "host": "127.0.0.1",
+      "program": "${workspaceFolder}/dist/armada-scheduler",
+      "args": [
+        "run",
+        "--config",
+        "${workspaceFolder}/_local/scheduler/config.yaml"
+      ],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "Goreman: Attach Scheduler Ingester",
+      "type": "go",
+      "request": "launch",
+      "mode": "exec",
+      "debugAdapter": "dlv-dap",
+      "outputMode": "remote",
+      "port": 2347,
+      "host": "127.0.0.1",
+      "program": "${workspaceFolder}/dist/armada-scheduleringester",
+      "args": [
+        "--config",
+        "${workspaceFolder}/_local/scheduleringester/config.yaml"
+      ],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "Goreman: Attach Event Ingester",
+      "type": "go",
+      "request": "launch",
+      "mode": "exec",
+      "debugAdapter": "dlv-dap",
+      "outputMode": "remote",
+      "port": 2348,
+      "host": "127.0.0.1",
+      "program": "${workspaceFolder}/dist/armada-eventingester",
+      "args": [
+        "--config",
+        "${workspaceFolder}/_local/eventingester/config.yaml"
+      ],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "Goreman: Attach Executor",
+      "type": "go",
+      "request": "launch",
+      "mode": "exec",
+      "debugAdapter": "dlv-dap",
+      "outputMode": "remote",
+      "port": 2349,
+      "host": "127.0.0.1",
+      "program": "${workspaceFolder}/dist/armada-executor",
+      "args": ["--config", "${workspaceFolder}/_local/executor/config.yaml"],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "Goreman: Attach Lookout",
+      "type": "go",
+      "request": "launch",
+      "mode": "exec",
+      "debugAdapter": "dlv-dap",
+      "outputMode": "remote",
+      "port": 2350,
+      "host": "127.0.0.1",
+      "program": "${workspaceFolder}/dist/armada-lookout",
+      "args": ["--config", "${workspaceFolder}/_local/lookout/config.yaml"],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "Goreman: Attach Lookout Ingester",
+      "type": "go",
+      "request": "launch",
+      "mode": "exec",
+      "debugAdapter": "dlv-dap",
+      "outputMode": "remote",
+      "port": 2351,
+      "host": "127.0.0.1",
+      "program": "${workspaceFolder}/dist/armada-lookoutingester",
+      "args": [
+        "--config",
+        "${workspaceFolder}/_local/lookoutingester/config.yaml"
+      ],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "Goreman: Attach Binoculars",
+      "type": "go",
+      "request": "launch",
+      "mode": "exec",
+      "debugAdapter": "dlv-dap",
+      "outputMode": "remote",
+      "port": 2352,
+      "host": "127.0.0.1",
+      "program": "${workspaceFolder}/dist/armada-binoculars",
+      "args": ["--config", "${workspaceFolder}/_local/binoculars/config.yaml"],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "Goreman: Attach Binoculars (auth)",
+      "type": "go",
+      "request": "launch",
+      "mode": "exec",
+      "debugAdapter": "dlv-dap",
+      "outputMode": "remote",
+      "port": 2352,
+      "host": "127.0.0.1",
+      "program": "${workspaceFolder}/dist/armada-binoculars",
+      "args": [
+        "--config",
+        "${workspaceFolder}/_local/binoculars/config-auth.yaml"
+      ],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "Goreman: Attach Fake Executor",
+      "type": "go",
+      "request": "launch",
+      "mode": "exec",
+      "debugAdapter": "dlv-dap",
+      "outputMode": "remote",
+      "port": 2353,
+      "host": "127.0.0.1",
+      "program": "${workspaceFolder}/dist/armada-fakeexecutor",
+      "args": [
+        "--config",
+        "${workspaceFolder}/_local/fakeexecutor/config.yaml"
+      ],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "Goreman: Attach Server (auth)",
+      "type": "go",
+      "request": "launch",
+      "mode": "exec",
+      "debugAdapter": "dlv-dap",
+      "outputMode": "remote",
+      "port": 2345,
+      "host": "127.0.0.1",
+      "program": "${workspaceFolder}/dist/armada-server",
+      "args": ["--config", "${workspaceFolder}/_local/server/config-auth.yaml"],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "Goreman: Attach Scheduler (auth)",
+      "type": "go",
+      "request": "launch",
+      "mode": "exec",
+      "debugAdapter": "dlv-dap",
+      "outputMode": "remote",
+      "port": 2346,
+      "host": "127.0.0.1",
+      "program": "${workspaceFolder}/dist/armada-scheduler",
+      "args": [
+        "run",
+        "--config",
+        "${workspaceFolder}/_local/scheduler/config-auth.yaml"
+      ],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "Goreman: Attach Executor (auth)",
+      "type": "go",
+      "request": "launch",
+      "mode": "exec",
+      "debugAdapter": "dlv-dap",
+      "outputMode": "remote",
+      "port": 2349,
+      "host": "127.0.0.1",
+      "program": "${workspaceFolder}/dist/armada-executor",
+      "args": [
+        "--config",
+        "${workspaceFolder}/_local/executor/config-auth.yaml"
+      ],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "Goreman: Attach Lookout (auth)",
+      "type": "go",
+      "request": "launch",
+      "mode": "exec",
+      "debugAdapter": "dlv-dap",
+      "outputMode": "remote",
+      "port": 2350,
+      "host": "127.0.0.1",
+      "program": "${workspaceFolder}/dist/armada-lookout",
+      "args": [
+        "--config",
+        "${workspaceFolder}/_local/lookout/config-auth.yaml"
+      ],
+      "cwd": "${workspaceFolder}"
     }
   ],
   "compounds": [
@@ -290,6 +501,51 @@
         "Server Auth"
       ],
       "preLaunchTask": "Set up dependencies with Prometheus and Auth",
+      "stopAll": true
+    },
+    {
+      "name": "Goreman: Armada (no-auth)",
+      "configurations": [
+        "Goreman: Attach Server",
+        "Goreman: Attach Scheduler",
+        "Goreman: Attach Scheduler Ingester",
+        "Goreman: Attach Event Ingester",
+        "Goreman: Attach Executor",
+        "Goreman: Attach Lookout",
+        "Goreman: Attach Lookout Ingester",
+        "Goreman: Attach Binoculars"
+      ],
+      "preLaunchTask": "Goreman: Set up and start (no-auth debug)",
+      "stopAll": true
+    },
+    {
+      "name": "Goreman: Armada (auth)",
+      "configurations": [
+        "Goreman: Attach Server (auth)",
+        "Goreman: Attach Scheduler (auth)",
+        "Goreman: Attach Scheduler Ingester",
+        "Goreman: Attach Event Ingester",
+        "Goreman: Attach Executor (auth)",
+        "Goreman: Attach Lookout (auth)",
+        "Goreman: Attach Lookout Ingester",
+        "Goreman: Attach Binoculars (auth)"
+      ],
+      "preLaunchTask": "Goreman: Set up and start (auth debug)",
+      "stopAll": true
+    },
+    {
+      "name": "Goreman: Armada (fake-executor)",
+      "configurations": [
+        "Goreman: Attach Server",
+        "Goreman: Attach Scheduler",
+        "Goreman: Attach Scheduler Ingester",
+        "Goreman: Attach Event Ingester",
+        "Goreman: Attach Fake Executor",
+        "Goreman: Attach Lookout",
+        "Goreman: Attach Lookout Ingester",
+        "Goreman: Attach Binoculars"
+      ],
+      "preLaunchTask": "Goreman: Set up and start (fake-executor debug)",
       "stopAll": true
     }
   ]
