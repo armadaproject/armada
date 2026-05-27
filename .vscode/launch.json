@@ -119,7 +119,7 @@
           "ARMADA_APIPORT": "8091",
           "ARMADA_METRICSPORT": "9010",
           "ARMADA_EXPERIMENTALHOTCOLDSPLIT": "true",
-          "ARMADA_CORSALLOWEDORIGINS": "\"http://localhost:3001,http://localhost:4173,http://localhost:8091,http://localhost:10000,http://example.com:10000,http://example.com:8089\"",
+          "ARMADA_CORSALLOWEDORIGINS": "http://localhost:3001,http://localhost:4173,http://localhost:8091,http://localhost:10000,http://example.com:10000,http://example.com:8089",
           "ARMADA_POSTGRES_CONNECTION_HOST": "localhost",
           "ARMADA_POSTGRES_CONNECTION_PORT": "5432",
           "ARMADA_POSTGRES_CONNECTION_DBNAME": "lookouthc",

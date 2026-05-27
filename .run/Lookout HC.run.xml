@@ -4,7 +4,7 @@
     <working_directory value="$PROJECT_DIR$" />
     <envs>
       <env name="ARMADA_APIPORT" value="8091" />
-      <env name="ARMADA_CORSALLOWEDORIGINS" value="&quot;http://localhost:3001,http://localhost:4173,http://localhost:8091,http://localhost:10000,http://example.com:10000,http://example.com:8089&quot;" />
+      <env name="ARMADA_CORSALLOWEDORIGINS" value="http://localhost:3001,http://localhost:4173,http://localhost:8091,http://localhost:10000,http://example.com:10000,http://example.com:8089" />
       <env name="ARMADA_LOG_CONFIG" value="config/logging-dev.yaml" />
       <env name="ARMADA_METRICSPORT" value="9010" />
       <env name="ARMADA_EXPERIMENTALHOTCOLDSPLIT" value="true" />
