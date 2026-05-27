@@ -20,6 +20,11 @@ import api.submit.{
   QueueDeleteRequest,
   QueueGetRequest,
   QueueList,
+  RetryPolicy,
+  RetryPolicyDeleteRequest,
+  RetryPolicyGetRequest,
+  RetryPolicyList,
+  RetryPolicyListRequest,
   StreamingQueueGetRequest,
   StreamingQueueMessage,
   SubmitGrpc
@@ -316,6 +321,36 @@ private class SubmitMockServer(
       request: QueueList
   ): scala.concurrent.Future[BatchQueueUpdateResponse] = {
     Future.successful(new BatchQueueUpdateResponse)
+  }
+
+  def createRetryPolicy(
+      request: RetryPolicy
+  ): scala.concurrent.Future[com.google.protobuf.empty.Empty] = {
+    Future.successful(new Empty)
+  }
+
+  def updateRetryPolicy(
+      request: RetryPolicy
+  ): scala.concurrent.Future[com.google.protobuf.empty.Empty] = {
+    Future.successful(new Empty)
+  }
+
+  def deleteRetryPolicy(
+      request: RetryPolicyDeleteRequest
+  ): scala.concurrent.Future[com.google.protobuf.empty.Empty] = {
+    Future.successful(new Empty)
+  }
+
+  def getRetryPolicy(
+      request: RetryPolicyGetRequest
+  ): scala.concurrent.Future[RetryPolicy] = {
+    Future.failed(new StatusRuntimeException(Status.NOT_FOUND))
+  }
+
+  def getRetryPolicies(
+      request: RetryPolicyListRequest
+  ): scala.concurrent.Future[RetryPolicyList] = {
+    Future.successful(new RetryPolicyList)
   }
 }
 

@@ -124,7 +124,7 @@ func convertIngressesAndServices(
 				useClusterIp = true
 			}
 
-			serviceName := fmt.Sprintf("%s-service-%d", common.PodName(jobId), serviceIdx)
+			serviceName := fmt.Sprintf("%s-service-%d", common.PodName(jobId, nil), serviceIdx)
 			serviceNameCustomized := false
 
 			if len(serviceConfig.Name) > 0 {
@@ -177,7 +177,7 @@ func convertIngressesAndServices(
 			ingressIdx++
 		} else {
 			// No suitable service exists - create both service and ingress
-			serviceName := fmt.Sprintf("%s-service-%d", common.PodName(jobId), serviceIdx)
+			serviceName := fmt.Sprintf("%s-service-%d", common.PodName(jobId, nil), serviceIdx)
 			serviceObject := createService(serviceName, jobId, ingressPorts, v1.ServiceTypeClusterIP, ingressConfig.UseClusterIP)
 			serviceIdx++
 			ingressObject := createIngressFromService(
@@ -260,7 +260,7 @@ func createIngressFromService(
 
 	// Create ingress rules only for the specified ingress ports
 	for _, servicePort := range ingressPorts {
-		host := fmt.Sprintf("%s-%s.%s.", servicePort.Name, common.PodName(jobId), namespace)
+		host := fmt.Sprintf("%s-%s.%s.", servicePort.Name, common.PodName(jobId, nil), namespace)
 		tlsHosts = append(tlsHosts, host)
 
 		// Workaround to get constant's address
@@ -304,7 +304,7 @@ func createIngressFromService(
 
 	return &armadaevents.KubernetesObject{
 		ObjectMeta: &armadaevents.ObjectMeta{
-			Name:        fmt.Sprintf("%s-ingress-%d", common.PodName(jobId), serviceIdx),
+			Name:        fmt.Sprintf("%s-ingress-%d", common.PodName(jobId, nil), serviceIdx),
 			Annotations: util.MergeMaps(map[string]string{}, ingressConfig.Annotations),
 			Labels:      map[string]string{},
 		},

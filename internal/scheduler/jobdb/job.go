@@ -769,10 +769,15 @@ func (job *Job) ValidateResourceRequests() error {
 }
 
 // WithNewRun creates a copy of the job with a new run on the given executor.
+// The new run's index is derived from the current number of runs on the job
+// (zero-based), so each retry attempt gets a unique, monotonically increasing
+// index.
 func (job *Job) WithNewRun(executor, nodeId, nodeName, pool string, scheduledAtPriority int32) *Job {
 	now := job.jobDb.clock.Now()
+	nextRunIndex := uint32(len(job.runsById))
 	return job.WithUpdatedRun(job.jobDb.CreateRun(
 		job.jobDb.uuidProvider.New(),
+		nextRunIndex,
 		job.Id(),
 		now.UnixNano(),
 		executor,
@@ -837,6 +842,21 @@ func (job *Job) NumAttempts() uint {
 		}
 	}
 	return attempts
+}
+
+// FailureCount returns the number of runs of this job that have ended in a
+// failed terminal state. The retry engine treats this value as the per-policy
+// failure counter for limit enforcement; we derive it from run history rather
+// than maintain a separate counter so it survives scheduler restarts (the
+// same is not true of in-memory-only counters).
+func (job *Job) FailureCount() uint32 {
+	count := uint32(0)
+	for _, run := range job.runsById {
+		if run.failed {
+			count++
+		}
+	}
+	return count
 }
 
 // AllRuns returns all runs associated with job.

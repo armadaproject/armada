@@ -6,6 +6,7 @@ option go_package = "github.com/armadaproject/armada/pkg/executorapi";
 import "pkg/armadaevents/events.proto";
 import "pkg/api/submit.proto";
 import "google/protobuf/empty.proto";
+import "google/protobuf/wrappers.proto";
 import "k8s.io/api/core/v1/generated.proto";
 import "k8s.io/apimachinery/pkg/api/resource/generated.proto";
 
@@ -79,6 +80,12 @@ message JobRunLease{
   repeated string groups = 5;
   armadaevents.SubmitJob job  = 6;
   string job_run_id = 7;
+  // job_run_index is the zero-based attempt counter for this run within its job.
+  // Wrapped to give explicit presence: nil means the scheduler did not populate
+  // the field (legacy scheduler or feature flag off), so the executor must use
+  // the legacy pod-name format. Non-nil means the executor must include the
+  // index as a suffix in the pod name to disambiguate retry attempts.
+  google.protobuf.UInt32Value job_run_index = 8;
 }
 
 // Indicates that the job runs with the given ids should be cancelled.
