@@ -126,9 +126,15 @@ func (l *FairSchedulingAlgo) Schedule(
 		return nil, fmt.Errorf("queue overrides is not ready")
 	}
 
+	executors, err := l.executorRepository.GetExecutors(ctx)
+	if err != nil {
+		return nil, err
+	}
+	invalidJobsByPool := l.reconcileLeasedJobs(txn, executors)
+
 	for _, pool := range l.schedulingConfig.Pools {
 		startTime := l.clock.Now()
-		outcome, reconcileResult, schedulingResult, err := l.reconcileAndSchedulePool(ctx, pool, resourceUnits, txn)
+		outcome, reconcileResult, schedulingResult, err := l.reconcileAndSchedulePool(ctx, pool, resourceUnits, txn, executors, invalidJobsByPool[pool.Name])
 		if err != nil {
 			return nil, err
 		}
@@ -166,6 +172,8 @@ func (l *FairSchedulingAlgo) reconcileAndSchedulePool(
 	pool configuration.PoolConfig,
 	resourceUnits map[string]internaltypes.ResourceList,
 	txn *jobdb.Txn,
+	executors []*schedulerobjects.Executor,
+	invalidJobs []*FailedReconciliationResult,
 ) (*PoolSchedulingOutcome, *ReconciliationResult, *SchedulingResult, error) {
 	select {
 	case <-ctx.Done():
@@ -179,12 +187,7 @@ func (l *FairSchedulingAlgo) reconcileAndSchedulePool(
 		return NewPoolSchedulingOutcome(PoolSchedulingTerminationReasonSchedulingDisabled, nil), nil, nil, nil
 	}
 
-	executors, err := l.executorRepository.GetExecutors(ctx)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	reconciliationResult, err := l.validateJobAndNodeState(pool, txn, executors)
+	reconciliationResult, err := l.validateJobAndNodeState(pool, txn, invalidJobs)
 	if err != nil {
 		return NewPoolSchedulingOutcome(PoolSchedulingTerminationReasonError, err), nil, nil, nil
 	}
@@ -284,7 +287,16 @@ type gangKey struct {
 	gangId string
 }
 
-func (l *FairSchedulingAlgo) validateJobAndNodeState(config configuration.PoolConfig, txn *jobdb.Txn, executors []*schedulerobjects.Executor) (*ReconciliationResult, error) {
+func (l *FairSchedulingAlgo) reconcileLeasedJobs(txn *jobdb.Txn, executors []*schedulerobjects.Executor) map[string][]*FailedReconciliationResult {
+	invalid := l.stateValidator.ReconcileJobRuns(txn, executors)
+	byPool := make(map[string][]*FailedReconciliationResult, len(l.schedulingConfig.Pools))
+	for _, r := range invalid {
+		byPool[r.Pool] = append(byPool[r.Pool], r)
+	}
+	return byPool
+}
+
+func (l *FairSchedulingAlgo) validateJobAndNodeState(config configuration.PoolConfig, txn *jobdb.Txn, invalidJobs []*FailedReconciliationResult) (*ReconciliationResult, error) {
 	result := &ReconciliationResult{
 		FailedJobs:    []*FailedReconciliationResult{},
 		PreemptedJobs: []*FailedReconciliationResult{},
@@ -294,7 +306,6 @@ func (l *FairSchedulingAlgo) validateJobAndNodeState(config configuration.PoolCo
 		return result, nil
 	}
 
-	invalidJobs := l.stateValidator.ReconcileJobRuns(txn, executors)
 	jobsUpdated := make(map[string]*jobdb.Job, len(invalidJobs))
 	gangsPreempted := map[gangKey][]string{}
 	for _, invalidJobInfo := range invalidJobs {

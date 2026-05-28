@@ -77,11 +77,16 @@ func TestSchedule_PoolFailureIsolation(t *testing.T) {
 			ctrl := gomock.NewController(t)
 
 			mockExecutorRepo := schedulermocks.NewMockExecutorRepository(ctrl)
-			executorRepoCallCount := 0
+			anyUnrecoverable := false
+			for _, p := range tc.pools {
+				if p.unrecoverableError {
+					anyUnrecoverable = true
+					break
+				}
+			}
 			mockExecutorRepo.EXPECT().GetExecutors(ctx).DoAndReturn(
 				func(ctx *armadacontext.Context) ([]*schedulerobjects.Executor, error) {
-					executorRepoCallCount++
-					if tc.pools[executorRepoCallCount-1].unrecoverableError {
+					if anyUnrecoverable {
 						return nil, fmt.Errorf("simulated critical failure for pool")
 					}
 					return []*schedulerobjects.Executor{}, nil
@@ -1224,9 +1229,18 @@ func (t *testRunReconciler) ReconcileJobRuns(txn *jobdb.Txn, _ []*schedulerobjec
 	jobs := txn.GetAll()
 	result := make([]*FailedReconciliationResult, 0, len(jobs))
 	for _, job := range jobs {
-		if slices.Contains(t.jobIdsToFailReconciliation, job.Id()) {
-			result = append(result, &FailedReconciliationResult{Job: job, Reason: "reconciling this run with the node failed"})
+		if !slices.Contains(t.jobIdsToFailReconciliation, job.Id()) {
+			continue
 		}
+		pool := ""
+		if run := job.LatestRun(); run != nil {
+			pool = run.Pool()
+		}
+		result = append(result, &FailedReconciliationResult{
+			Job:    job,
+			Pool:   pool,
+			Reason: "reconciling this run with the node failed",
+		})
 	}
 	return result
 }

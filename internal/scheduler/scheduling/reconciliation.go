@@ -68,6 +68,7 @@ func (r *RunNodeReconciler) checkJobsOnDeletedNodes(jobsToReconcileByNodeId map[
 				failedReconciliationResult := &FailedReconciliationResult{
 					Job:    job,
 					Reason: reason,
+					Pool:   run.Pool(),
 				}
 				result = append(result, failedReconciliationResult)
 			} else {
@@ -109,7 +110,8 @@ func (r *RunNodeReconciler) checkJobNodeMatch(job *jobdb.Job, node *schedulerobj
 
 	if !slices.Contains(runPools, node.GetPool()) {
 		return &FailedReconciliationResult{
-			Job: job,
+			Job:  job,
+			Pool: run.Pool(),
 			Reason: fmt.Sprintf("The pool of node %s has been changed from %s to %s - this job's placement is now invalid",
 				node.GetName(), run.Pool(), node.GetPool()),
 		}
@@ -117,7 +119,8 @@ func (r *RunNodeReconciler) checkJobNodeMatch(job *jobdb.Job, node *schedulerobj
 
 	if config.ExperimentalRunReconciliation.EnsureReservationMatch && !job.MatchesReservation(node.GetReservation()) {
 		return &FailedReconciliationResult{
-			Job: job,
+			Job:  job,
+			Pool: run.Pool(),
 			Reason: fmt.Sprintf("The reservation of node %s has been changed and is now %s - this job no longer matches the node reservation",
 				node.GetName(), node.GetReservation()),
 		}
@@ -125,7 +128,8 @@ func (r *RunNodeReconciler) checkJobNodeMatch(job *jobdb.Job, node *schedulerobj
 
 	if config.ExperimentalRunReconciliation.EnsureReservationDoesNotMatch && job.MatchesReservation(node.GetReservation()) {
 		return &FailedReconciliationResult{
-			Job: job,
+			Job:  job,
+			Pool: run.Pool(),
 			Reason: fmt.Sprintf("The reservation of node %s has been changed and is now %s - this job is now incorrectly running away on a node with a matching reservation",
 				node.GetName(), node.GetReservation()),
 		}
@@ -171,10 +175,6 @@ func (r *RunNodeReconciler) getJobsToReconcileByNodeId(txn *jobdb.Txn) map[strin
 	activeJobByNodeId := map[string][]*jobdb.Job{}
 	jobs := txn.GetAllLeasedJobs()
 	for _, job := range jobs {
-		if job.InTerminalState() || job.Queued() || job.LatestRun() == nil {
-			continue
-		}
-
 		run := job.LatestRun()
 		// We only want to validate jobs for specific pools
 		// This should be the scheduling pool and not the pool the node is now on
