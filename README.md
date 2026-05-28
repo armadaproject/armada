@@ -78,7 +78,7 @@ Goreman will build the components from source and run them locally, making it ea
 2. Start dependencies:
 
     ```shell
-    docker-compose -f _local/docker-compose-deps.yaml up -d
+    docker compose -f _local/compose/stack.yaml up -d
     ```
 
     - **Note**: Images can be overridden using environment variables:
@@ -87,7 +87,7 @@ Goreman will build the components from source and run them locally, making it ea
 3. Initialize databases and Kubernetes resources:
 
     ```shell
-    scripts/localdev-init.sh
+    _local/scripts/init.sh
     ```
 
 4. Start Armada components:
@@ -103,7 +103,7 @@ To run Armada with OIDC authentication enabled using Keycloak:
 1. Start dependencies with the auth profile:
 
     ```shell
-    docker-compose -f _local/docker-compose-deps.yaml --profile auth up -d
+    docker compose -f _local/compose/stack.yaml --profile auth up -d
     ```
 
     This starts Redis, PostgreSQL, Pulsar, and Keycloak with a pre-configured realm.
@@ -111,7 +111,7 @@ To run Armada with OIDC authentication enabled using Keycloak:
 2. Initialize databases and Kubernetes resources:
 
     ```shell
-    scripts/localdev-init.sh
+    _local/scripts/init.sh
     ```
 
 3. Start Armada components with auth configuration:
@@ -158,6 +158,21 @@ This is useful for:
 - Testing Armada's scheduling logic
 - Development when Kubernetes is not available
 - Integration testing of job flows
+
+### Available Compose Profiles
+
+The single compose file `_local/compose/stack.yaml` supports several profiles:
+
+| Profile         | Brings up                                              |
+| --------------- | ------------------------------------------------------ |
+| (none)          | Dependencies only: redis, postgres, pulsar             |
+| `auth`          | Adds keycloak (OIDC provider)                          |
+| `full`          | Adds full Armada stack in containers (needs built images + Kind) |
+| `fake-executor` | Adds Armada stack with fakeexecutor instead of executor (no Kind needed) |
+
+Profiles compose: `--profile full --profile auth` brings up everything plus keycloak.
+
+For Apache Airflow, use the separate compose file: `docker compose -f _local/airflow/docker-compose.yaml up -d`.
 
 ### Available Procfiles
 

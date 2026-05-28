@@ -1,0 +1,50 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: job-submitter
+rules:
+  - apiGroups: [""]
+    resources: 
+      - configmaps
+      - endpoints
+      - events
+      - namespaces
+      - nodes
+      - persistentvolumeclaims
+      - pods
+      - services
+      - ingresses
+      - serviceaccounts
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+---
+# namespace for anonymous user - when using no auth, this is the name of the user
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: personal-anonymous
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: job-submitter-anonymous
+  namespace: personal-anonymous
+subjects:
+  - kind: User
+    name: anonymous
+    apiGroup: rbac.authorization.k8s.io
+    namespace: personal-anonymous
+  - kind: ServiceAccount
+    name: default
+    namespace: personal-anonymous
+  - kind: ServiceAccount
+    name: ingress-nginx
+    namespace: ingress-nginx
+roleRef:
+  kind: ClusterRole
+  name: job-submitter
+  apiGroup: rbac.authorization.k8s.io
+
