@@ -161,16 +161,12 @@ This is useful for:
 
 ### Available Compose Profiles
 
-The single compose file `_local/compose/stack.yaml` supports several profiles:
+The compose file `_local/compose/stack.yaml` supports two profiles:
 
-| Profile         | Brings up                                              |
-| --------------- | ------------------------------------------------------ |
-| (none)          | Dependencies only: redis, postgres, pulsar             |
-| `auth`          | Adds keycloak (OIDC provider)                          |
-| `full`          | Adds full Armada stack in containers (needs built images + Kind) |
-| `fake-executor` | Adds Armada stack with fakeexecutor instead of executor (no Kind needed) |
-
-Profiles compose: `--profile full --profile auth` brings up everything plus keycloak.
+| Profile  | Brings up                                  |
+| -------- | ------------------------------------------ |
+| (none)   | Dependencies only: redis, postgres, pulsar |
+| `auth`   | Adds keycloak (OIDC provider)              |
 
 For Apache Airflow, use the separate compose file: `docker compose -f _local/airflow/docker-compose.yaml up -d`.
 
