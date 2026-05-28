@@ -90,12 +90,16 @@ fi
 
 print_success "All migrations completed successfully!"
 
-print_info "Applying Kubernetes priority class..."
-if kubectl apply -f _local/priority-class.yaml; then
-  print_success "Priority class 'armada-preemptible' applied"
+if kubectl cluster-info >/dev/null 2>&1; then
+  print_info "Applying Kubernetes priority classes..."
+  if kubectl apply -f _local/kind/priorityclasses.yaml; then
+    print_success "Priority classes applied (armada-default, armada-preemptible)"
+  else
+    print_error "Failed to apply priority classes"
+    exit 1
+  fi
 else
-  print_error "Failed to apply priority class"
-  exit 1
+  print_info "No Kubernetes cluster reachable, skipping priority classes (fine for fake-executor or pure dependency setup)"
 fi
 
 print_success "Armada local development environment initialized successfully!"
