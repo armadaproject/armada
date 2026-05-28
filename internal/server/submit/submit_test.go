@@ -13,6 +13,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/auth/permission"
+	"github.com/armadaproject/armada/internal/common/ctxkeys"
 	commonMocks "github.com/armadaproject/armada/internal/common/mocks"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/server/mocks"
@@ -75,7 +76,7 @@ func TestSubmit_Success(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
-			ctx = armadacontext.WithValue(ctx, "principal", testfixtures.DefaultPrincipal)
+			ctx = armadacontext.WithValue(ctx, ctxkeys.PrincipalKey, testfixtures.DefaultPrincipal)
 
 			server, mockedObjects := createTestServer(t)
 
@@ -221,7 +222,7 @@ func TestCancelJobs(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
-			ctx = armadacontext.WithValue(ctx, "principal", testfixtures.DefaultPrincipal)
+			ctx = armadacontext.WithValue(ctx, ctxkeys.PrincipalKey, testfixtures.DefaultPrincipal)
 
 			server, mockedObjects := createTestServer(t)
 
@@ -305,7 +306,7 @@ func TestPreemptJobs(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
-			ctx = armadacontext.WithValue(ctx, "principal", testfixtures.DefaultPrincipal)
+			ctx = armadacontext.WithValue(ctx, ctxkeys.PrincipalKey, testfixtures.DefaultPrincipal)
 
 			server, mockedObjects := createTestServer(t)
 
@@ -401,7 +402,7 @@ func TestReprioritizeJobs(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
-			ctx = armadacontext.WithValue(ctx, "principal", testfixtures.DefaultPrincipal)
+			ctx = armadacontext.WithValue(ctx, ctxkeys.PrincipalKey, testfixtures.DefaultPrincipal)
 
 			server, mockedObjects := createTestServer(t)
 
