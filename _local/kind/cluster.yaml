@@ -1,0 +1,35 @@
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: armada-test
+featureGates:
+  "KubeletInUserNamespace": true
+networking:
+  apiServerAddress: 0.0.0.0
+nodes:
+- role: worker
+  image: kindest/node:v1.28.15
+- role: control-plane
+  image: kindest/node:v1.28.15
+  labels:
+    armadaproject.io/pool: control-plane
+  kubeadmConfigPatches:
+  - |
+    kind: InitConfiguration
+    nodeRegistration:
+      kubeletExtraArgs:
+        node-labels: "ingress-ready=true"
+  - |
+    kind: KubeletConfiguration
+    # To speed up tests, reduce request timeout from the default 2m.
+    runtimeRequestTimeout: "30s"
+  extraPortMappings:
+  - containerPort: 80 # port of the nginx ingress controller
+    hostPort: 5001 # expose ingresses on localhost:5001
+    protocol: TCP
+  - containerPort: 11000 # arbitrary port used to test "node port services"
+    hostPort: 11000 # expose service on localhost:3000
+    protocol: TCP
+  - containerPort: 6443 # control plane
+    hostPort: 6443  # exposes control plane on localhost:6443
+    protocol: TCP
+
