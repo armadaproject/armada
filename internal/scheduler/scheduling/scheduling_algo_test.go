@@ -1229,18 +1229,9 @@ func (t *testRunReconciler) ReconcileJobRuns(txn *jobdb.Txn, _ []*schedulerobjec
 	jobs := txn.GetAll()
 	result := make([]*FailedReconciliationResult, 0, len(jobs))
 	for _, job := range jobs {
-		if !slices.Contains(t.jobIdsToFailReconciliation, job.Id()) {
-			continue
+		if slices.Contains(t.jobIdsToFailReconciliation, job.Id()) {
+			result = append(result, &FailedReconciliationResult{Job: job, Reason: "reconciling this run with the node failed"})
 		}
-		pool := ""
-		if run := job.LatestRun(); run != nil {
-			pool = run.Pool()
-		}
-		result = append(result, &FailedReconciliationResult{
-			Job:    job,
-			Pool:   pool,
-			Reason: "reconciling this run with the node failed",
-		})
 	}
 	return result
 }

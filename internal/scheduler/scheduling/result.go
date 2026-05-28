@@ -257,5 +257,4 @@ func ScheduledJobsFromSchedulerResult(sr *SchedulerResult) []*jobdb.Job {
 type FailedReconciliationResult struct {
 	Job    *jobdb.Job
 	Reason string
-	Pool   string
 }
