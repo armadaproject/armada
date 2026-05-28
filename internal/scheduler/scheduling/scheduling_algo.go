@@ -117,26 +117,45 @@ func (l *FairSchedulingAlgo) Schedule(
 		defer cancel()
 	}
 
+	// Error immediately if priority overrides are not ready
+	if !l.queueOverrideProvider.Ready() {
+		return nil, fmt.Errorf("queue overrides is not ready")
+	}
+
 	schedulerResult := &SchedulerResult{
 		PoolResults: make([]*PoolSchedulingResult, 0, len(l.schedulingConfig.Pools)),
 	}
 
-	// Error immediately if priority overrides are not ready
-	if !l.queueOverrideProvider.Ready() {
-		return nil, fmt.Errorf("queue overrides is not ready")
+	// Exit immediately if scheduling is disabled.
+	if l.schedulingConfig.DisableScheduling {
+		l.appendSchedulingDisabledResults(ctx, schedulerResult)
+		return schedulerResult, nil
 	}
 
 	executors, err := l.executorRepository.GetExecutors(ctx)
 	if err != nil {
 		return nil, err
 	}
+
 	invalidJobsByPool := l.reconcileLeasedJobs(txn, executors)
+	reconciliationResultsByPool, reconciliationOutcomesByPool, err := l.validateJobAndNodeState(ctx, txn, invalidJobsByPool)
+	if err != nil {
+		return nil, err
+	}
 
 	for _, pool := range l.schedulingConfig.Pools {
 		startTime := l.clock.Now()
-		outcome, reconcileResult, schedulingResult, err := l.reconcileAndSchedulePool(ctx, pool, resourceUnits, txn, executors, invalidJobsByPool[pool.Name])
-		if err != nil {
-			return nil, err
+		reconcileResult := reconciliationResultsByPool[pool.Name]
+		if reconcileResult == nil {
+			reconcileResult = emptyReconciliationResult()
+		}
+		outcome := reconciliationOutcomesByPool[pool.Name]
+		var schedulingResult *SchedulingResult
+		if outcome == nil {
+			outcome, schedulingResult, err = l.runPoolSchedulingRound(ctx, pool, resourceUnits, txn, executors)
+			if err != nil {
+				return nil, err
+			}
 		}
 		endTime := l.clock.Now()
 
@@ -167,40 +186,38 @@ func (l *FairSchedulingAlgo) Schedule(
 	return schedulerResult, nil
 }
 
-func (l *FairSchedulingAlgo) reconcileAndSchedulePool(
+func emptyReconciliationResult() *ReconciliationResult {
+	return &ReconciliationResult{
+		FailedJobs:    []*FailedReconciliationResult{},
+		PreemptedJobs: []*FailedReconciliationResult{},
+	}
+}
+
+func (l *FairSchedulingAlgo) appendSchedulingDisabledResults(ctx *armadacontext.Context, schedulerResult *SchedulerResult) {
+	for _, pool := range l.schedulingConfig.Pools {
+		startTime := l.clock.Now()
+		ctx.Infof("not scheduling on pool %s as scheduling is disabled", pool.Name)
+		schedulerResult.PoolResults = append(schedulerResult.PoolResults, &PoolSchedulingResult{
+			Name:                 pool.Name,
+			ReconciliationResult: emptyReconciliationResult(),
+			StartTime:            startTime,
+			EndTime:              l.clock.Now(),
+			Outcome:              *NewPoolSchedulingOutcome(PoolSchedulingTerminationReasonSchedulingDisabled, nil),
+		})
+	}
+}
+
+func (l *FairSchedulingAlgo) runPoolSchedulingRound(
 	ctx *armadacontext.Context,
 	pool configuration.PoolConfig,
 	resourceUnits map[string]internaltypes.ResourceList,
 	txn *jobdb.Txn,
 	executors []*schedulerobjects.Executor,
-	invalidJobs []*FailedReconciliationResult,
-) (*PoolSchedulingOutcome, *ReconciliationResult, *SchedulingResult, error) {
+) (*PoolSchedulingOutcome, *SchedulingResult, error) {
 	select {
 	case <-ctx.Done():
-		return NewPoolSchedulingOutcome(PoolSchedulingTerminationReasonTimeout, fmt.Errorf("scheduling round hit global maximum scheduling duration")), nil, nil, nil
+		return NewPoolSchedulingOutcome(PoolSchedulingTerminationReasonTimeout, fmt.Errorf("scheduling round hit global maximum scheduling duration")), nil, nil
 	default:
-	}
-
-	// Exit immediately if scheduling is disabled.
-	if l.schedulingConfig.DisableScheduling {
-		ctx.Infof("not scheduling on pool %s as scheduling is disabled", pool.Name)
-		return NewPoolSchedulingOutcome(PoolSchedulingTerminationReasonSchedulingDisabled, nil), nil, nil, nil
-	}
-
-	reconciliationResult, err := l.validateJobAndNodeState(pool, txn, invalidJobs)
-	if err != nil {
-		return NewPoolSchedulingOutcome(PoolSchedulingTerminationReasonError, err), nil, nil, nil
-	}
-	ctx.Infof("Finished reconciling runs with nodes for pool %s, preempting %d jobs and failing %d jobs", pool.Name, len(reconciliationResult.PreemptedJobs), len(reconciliationResult.FailedJobs))
-
-	preemptedDueToReconciliationJobs := JobsFromFailedReconciliationResults(reconciliationResult.PreemptedJobs)
-	if err := txn.Upsert(preemptedDueToReconciliationJobs); err != nil {
-		return nil, nil, nil, err
-	}
-
-	failedDueToReconciliationJobs := JobsFromFailedReconciliationResults(reconciliationResult.PreemptedJobs)
-	if err := txn.Upsert(failedDueToReconciliationJobs); err != nil {
-		return nil, nil, nil, err
 	}
 
 	// It is important to pass the validated executors here
@@ -208,13 +225,12 @@ func (l *FairSchedulingAlgo) reconcileAndSchedulePool(
 	// If we use a different copy of nodes (possibly more to date copy) it may no longer align with the jobs/runs
 	fsctx, err := l.newFairSchedulingAlgoContext(ctx, txn, executors, pool)
 	if err != nil {
-		return NewPoolSchedulingOutcome(PoolSchedulingTerminationReasonSchedulingDisabled, errors.WithMessagef(err, "failed to create scheduling algo context")), nil, nil, nil
+		return NewPoolSchedulingOutcome(PoolSchedulingTerminationReasonSchedulingDisabled, errors.WithMessagef(err, "failed to create scheduling algo context")), nil, nil
 	}
 
 	if fsctx.nodeDb.NumNodes() <= 0 {
 		ctx.Infof("Skipping pool %s as it has no active nodes", pool.Name)
 		return NewPoolSchedulingOutcome(PoolSchedulingTerminationReasonCompleted, nil),
-			reconciliationResult,
 			&SchedulingResult{
 				SchedulingContext: fsctx.schedulingContext,
 				ScheduledJobs:     []*schedulercontext.JobSchedulingContext{},
@@ -249,9 +265,9 @@ func (l *FairSchedulingAlgo) reconcileAndSchedulePool(
 	if err != nil {
 		ctx.Infof("Scheduled on pool %s in %v - failed with error %s", pool.Name, time.Now().Sub(start), err)
 		if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
-			return NewPoolSchedulingOutcome(PoolSchedulingTerminationReasonTimeout, err), nil, nil, nil
+			return NewPoolSchedulingOutcome(PoolSchedulingTerminationReasonTimeout, err), nil, nil
 		} else if err != nil {
-			return NewPoolSchedulingOutcome(PoolSchedulingTerminationReasonError, errors.WithMessagef(err, "failed scheduling on pool %s", pool.Name)), nil, nil, nil
+			return NewPoolSchedulingOutcome(PoolSchedulingTerminationReasonError, errors.WithMessagef(err, "failed scheduling on pool %s", pool.Name)), nil, nil
 		}
 	}
 
@@ -265,13 +281,13 @@ func (l *FairSchedulingAlgo) reconcileAndSchedulePool(
 
 	terminationReason := terminationReasonFromString(sctx.TerminationReason)
 	if err := txn.Upsert(preemptedJobs); err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 	if err := txn.Upsert(scheduledJobs); err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 
-	return NewPoolSchedulingOutcome(terminationReason, nil), reconciliationResult, schedulingResult, nil
+	return NewPoolSchedulingOutcome(terminationReason, nil), schedulingResult, nil
 }
 
 type FairSchedulingAlgoContext struct {
@@ -297,7 +313,40 @@ func (l *FairSchedulingAlgo) reconcileLeasedJobs(txn *jobdb.Txn, executors []*sc
 	return byPool
 }
 
-func (l *FairSchedulingAlgo) validateJobAndNodeState(config configuration.PoolConfig, txn *jobdb.Txn, invalidJobs []*FailedReconciliationResult) (*ReconciliationResult, error) {
+func (l *FairSchedulingAlgo) validateJobAndNodeState(ctx *armadacontext.Context, txn *jobdb.Txn, invalidJobsByPool map[string][]*FailedReconciliationResult) (map[string]*ReconciliationResult, map[string]*PoolSchedulingOutcome, error) {
+	results := make(map[string]*ReconciliationResult, len(invalidJobsByPool))
+	outcomes := make(map[string]*PoolSchedulingOutcome)
+	configByPool := poolConfigSliceToMap(l.schedulingConfig.Pools)
+	var allPreempted, allFailed []*FailedReconciliationResult
+	for pool, invalidJobs := range invalidJobsByPool {
+		config, present := configByPool[pool]
+		if !present {
+			continue
+		}
+
+		reconciliationResult, err := l.reconcilePoolJobs(config, txn, invalidJobs)
+		if err != nil {
+			outcomes[pool] = NewPoolSchedulingOutcome(PoolSchedulingTerminationReasonError, err)
+			continue
+		}
+
+		ctx.Infof("Finished reconciling runs with nodes for pool %s, preempting %d jobs and failing %d jobs", pool, len(reconciliationResult.PreemptedJobs), len(reconciliationResult.FailedJobs))
+		allPreempted = append(allPreempted, reconciliationResult.PreemptedJobs...)
+		allFailed = append(allFailed, reconciliationResult.FailedJobs...)
+		results[pool] = reconciliationResult
+	}
+
+	if err := txn.Upsert(JobsFromFailedReconciliationResults(allPreempted)); err != nil {
+		return nil, nil, err
+	}
+	if err := txn.Upsert(JobsFromFailedReconciliationResults(allFailed)); err != nil {
+		return nil, nil, err
+	}
+
+	return results, outcomes, nil
+}
+
+func (l *FairSchedulingAlgo) reconcilePoolJobs(config configuration.PoolConfig, txn *jobdb.Txn, invalidJobs []*FailedReconciliationResult) (*ReconciliationResult, error) {
 	result := &ReconciliationResult{
 		FailedJobs:    []*FailedReconciliationResult{},
 		PreemptedJobs: []*FailedReconciliationResult{},
