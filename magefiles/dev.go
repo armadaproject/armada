@@ -47,7 +47,7 @@ func (Dev) Up(profile string) error {
 	}
 
 	mg.Deps(installGoreman)
-	if err := devDepsUp(); err != nil {
+	if err := devDepsUp(profile); err != nil {
 		return err
 	}
 	if err := sh.RunV(initScript); err != nil {
@@ -59,7 +59,7 @@ func (Dev) Up(profile string) error {
 // Deps brings up only the docker-compose dependencies (redis, postgres, pulsar).
 // Useful when running goreman manually in another terminal.
 func (Dev) Deps() error {
-	return devDepsUp()
+	return devDepsUp("")
 }
 
 // Down stops docker-compose dependencies. If a `dev:up` goreman is running, Ctrl+C it first.
@@ -72,7 +72,7 @@ func (Dev) Down() error {
 func (Dev) Testsuite() error {
 	mg.Deps(installGoreman)
 	mg.Deps(Kind)
-	if err := devDepsUp(); err != nil {
+	if err := devDepsUp(""); err != nil {
 		return err
 	}
 	if err := sh.RunV(initScript); err != nil {
@@ -97,8 +97,15 @@ func (Dev) Testsuite() error {
 	return runTestsuite()
 }
 
-func devDepsUp() error {
-	return sh.RunV("docker", "compose", "-f", stackComposeFile, "up", "-d", "--wait")
+// devDepsUp brings the dependency stack up. If profile == "auth", keycloak is brought up
+// alongside redis/postgres/pulsar.
+func devDepsUp(profile string) error {
+	args := []string{"compose", "-f", stackComposeFile}
+	if profile == "auth" {
+		args = append(args, "--profile", "auth")
+	}
+	args = append(args, "up", "-d", "--wait")
+	return sh.RunV("docker", args...)
 }
 
 func goremanBin() string {
