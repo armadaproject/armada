@@ -5,20 +5,24 @@ name: armada
 # Profiles:
 #   (none)         deps only: redis, postgres, pulsar
 #   auth           adds keycloak (OIDC provider)
-#   full           adds full Armada stack (server, scheduler, executor, lookout, ...)
-#   fake-executor  adds Armada stack with fakeexecutor instead of real executor (no Kind needed)
 #
 # Usage:
 #   docker compose -f _local/compose/stack.yaml up -d
 #   docker compose -f _local/compose/stack.yaml --profile auth up -d
-#   docker compose -f _local/compose/stack.yaml --profile full --profile auth up -d
+#
+# Container-mode profiles for the Armada components themselves (full Armada stack,
+# fakeexecutor variant) are intentionally not in this PR. The component configs
+# under _local/<component>/config.yaml use localhost for inter-service hosts
+# because they're tuned for the goreman host-network flow; mounting them into
+# containers would crash-loop. A follow-up PR will add those profiles with the
+# right env-var host overrides or a generated container-mode config.
 #
 # Airflow is a separate ecosystem with its own postgres + redis. Bring it up via:
 #   docker compose -f _local/airflow/docker-compose.yaml up -d
 # (this is what `mage Teste2eAirflow` does internally.)
 #
 # Image versions are overridable via env vars (REDIS_IMAGE, POSTGRES_IMAGE, PULSAR_IMAGE,
-# KEYCLOAK_IMAGE, ARMADA_IMAGE, ARMADA_IMAGE_TAG).
+# KEYCLOAK_IMAGE).
 
 services:
   # =========================================================
@@ -90,145 +94,3 @@ services:
       timeout: 5s
       retries: 10
       start_period: 30s
-
-  # =========================================================
-  # Armada stack (profile: full)
-  # Requires: armada-bundle + armada-lookout-bundle images
-  #           (build via `mage buildDockers bundle,lookout-bundle`)
-  #           Kind cluster (for real executor)
-  # =========================================================
-  scheduler-migration:
-    container_name: scheduler-migration
-    image: ${ARMADA_IMAGE:-gresearch/armada-bundle}:${ARMADA_IMAGE_TAG:-latest}
-    profiles: [full, fake-executor]
-    depends_on:
-      postgres: { condition: service_healthy }
-    command: ./scheduler migrateDatabase
-
-  lookout-migration:
-    container_name: lookout-migration
-    image: ${ARMADA_IMAGE:-gresearch/armada-lookout-bundle}:${ARMADA_IMAGE_TAG:-latest}
-    profiles: [full, fake-executor]
-    depends_on:
-      postgres: { condition: service_healthy }
-    entrypoint: ./lookout --migrateDatabase
-
-  server:
-    container_name: server
-    image: ${ARMADA_IMAGE:-gresearch/armada-bundle}:${ARMADA_IMAGE_TAG:-latest}
-    profiles: [full, fake-executor]
-    depends_on:
-      postgres: { condition: service_healthy }
-      pulsar:   { condition: service_healthy }
-      lookout-migration: { condition: service_completed_successfully }
-    ports:
-      - "50051:50051"
-      - "8081:8081"
-      - "9000:9000"
-    volumes:
-      - ../server/config.yaml:/config/config.yaml:ro
-    command: ./server --config /config/config.yaml
-
-  scheduler:
-    container_name: scheduler
-    image: ${ARMADA_IMAGE:-gresearch/armada-bundle}:${ARMADA_IMAGE_TAG:-latest}
-    profiles: [full, fake-executor]
-    depends_on:
-      scheduler-migration: { condition: service_completed_successfully }
-    ports:
-      - "50052:50052"
-      - "8085:8085"
-      - "9001:9001"
-    volumes:
-      - ../scheduler/config.yaml:/config/config.yaml:ro
-    command: ./scheduler run --config /config/config.yaml
-
-  scheduleringester:
-    container_name: scheduleringester
-    image: ${ARMADA_IMAGE:-gresearch/armada-bundle}:${ARMADA_IMAGE_TAG:-latest}
-    profiles: [full, fake-executor]
-    depends_on:
-      scheduler-migration: { condition: service_completed_successfully }
-    volumes:
-      - ../scheduleringester/config.yaml:/config/config.yaml:ro
-    command: ./scheduleringester --config /config/config.yaml
-
-  eventingester:
-    container_name: eventingester
-    image: ${ARMADA_IMAGE:-gresearch/armada-bundle}:${ARMADA_IMAGE_TAG:-latest}
-    profiles: [full, fake-executor]
-    depends_on:
-      pulsar: { condition: service_healthy }
-      redis:  { condition: service_started }
-    volumes:
-      - ../eventingester/config.yaml:/config/config.yaml:ro
-    command: ./eventingester --config /config/config.yaml
-
-  executor:
-    container_name: executor
-    image: ${ARMADA_IMAGE:-gresearch/armada-bundle}:${ARMADA_IMAGE_TAG:-latest}
-    profiles: [full]
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    depends_on:
-      scheduler: { condition: service_started }
-    ports:
-      - "8082:8082"
-      - "9002:9002"
-    volumes:
-      - ../executor/config.yaml:/config/config.yaml:ro
-      - ./.kube/internal:/.kube:ro
-    environment:
-      KUBECONFIG: /.kube/config
-    command: ./executor --config /config/config.yaml
-
-  fakeexecutor:
-    container_name: fakeexecutor
-    image: ${ARMADA_IMAGE:-gresearch/armada-bundle}:${ARMADA_IMAGE_TAG:-latest}
-    profiles: [fake-executor]
-    depends_on:
-      scheduler: { condition: service_started }
-    ports:
-      - "8083:8083"
-    volumes:
-      - ../fakeexecutor/config.yaml:/config/config.yaml:ro
-    command: ./fakeexecutor --config /config/config.yaml
-
-  binoculars:
-    container_name: binoculars
-    image: ${ARMADA_IMAGE:-gresearch/armada-bundle}:${ARMADA_IMAGE_TAG:-latest}
-    profiles: [full]
-    ports:
-      - "8084:8084"
-      - "50053:50053"
-      - "9007:9007"
-    volumes:
-      - ../binoculars/config.yaml:/config/config.yaml:ro
-      - ./.kube/internal:/.kube:ro
-    environment:
-      KUBECONFIG: /.kube/config
-    command: ./binoculars --config /config/config.yaml
-
-  lookoutingester:
-    container_name: lookoutingester
-    image: ${ARMADA_IMAGE:-gresearch/armada-lookout-bundle}:${ARMADA_IMAGE_TAG:-latest}
-    profiles: [full, fake-executor]
-    depends_on:
-      lookout-migration: { condition: service_completed_successfully }
-      pulsar:            { condition: service_healthy }
-    volumes:
-      - ../lookoutingester/config.yaml:/config/config.yaml:ro
-    command: ./lookoutingester --config /config/config.yaml
-
-  lookout:
-    container_name: lookout
-    image: ${ARMADA_IMAGE:-gresearch/armada-lookout-bundle}:${ARMADA_IMAGE_TAG:-latest}
-    profiles: [full, fake-executor]
-    depends_on:
-      lookout-migration: { condition: service_completed_successfully }
-    ports:
-      - "8089:8089"
-      - "9003:9003"
-    volumes:
-      - ../lookout/config.yaml:/config/config.yaml:ro
-    entrypoint: ./lookout --config /config/config.yaml
