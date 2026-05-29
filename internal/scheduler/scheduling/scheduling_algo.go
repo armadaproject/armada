@@ -307,6 +307,9 @@ func (l *FairSchedulingAlgo) reconcileLeasedJobs(txn *jobdb.Txn, executors []*sc
 	invalid := l.stateValidator.ReconcileJobRuns(txn, executors)
 	byPool := make(map[string][]*FailedReconciliationResult, len(l.schedulingConfig.Pools))
 	for _, r := range invalid {
+		if r.Job.LatestRun() == nil {
+			continue
+		}
 		pool := r.Job.LatestRun().Pool()
 		byPool[pool] = append(byPool[pool], r)
 	}
