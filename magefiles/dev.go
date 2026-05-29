@@ -88,20 +88,16 @@ func (Dev) Down() error {
 	return sh.RunV("docker", "compose", "-f", stackComposeFile, "down")
 }
 
-// devDepsUp brings the dependency stack up. We always wait for redis/postgres/pulsar to
-// become healthy (server can otherwise dial pulsar mid-startup and crash with TopicNotFound).
-// Keycloak is brought up separately without --wait because its healthcheck has a long
-// warmup; waitForKeycloak handles the readiness wait before goreman starts.
+// devDepsUp brings the dependency stack up and waits for healthchecks. redis/postgres/pulsar
+// have healthchecks so --wait blocks until they're ready. Keycloak (auth profile) has no
+// healthcheck on purpose; waitForKeycloak handles its readiness before goreman starts.
 func devDepsUp(profile string) error {
-	if err := sh.RunV("docker", "compose", "-f", stackComposeFile,
-		"up", "-d", "--wait", "redis", "postgres", "pulsar"); err != nil {
-		return err
-	}
+	args := []string{"compose", "-f", stackComposeFile}
 	if profile == "auth" {
-		return sh.RunV("docker", "compose", "-f", stackComposeFile,
-			"--profile", "auth", "up", "-d", "keycloak")
+		args = append(args, "--profile", "auth")
 	}
-	return nil
+	args = append(args, "up", "-d", "--wait")
+	return sh.RunV("docker", args...)
 }
 
 func goremanBin() string {

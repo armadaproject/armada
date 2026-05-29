@@ -88,9 +88,6 @@ services:
       - ../keycloak/import:/opt/keycloak/data/import:ro
     restart: unless-stopped
     profiles: [auth]
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8180/health/ready"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 30s
+    # No healthcheck on purpose: keycloak's realm import + warmup is slower than
+    # `docker compose up --wait` is willing to block for. `mage dev:up auth` polls the
+    # realm endpoint via waitForKeycloak before starting goreman.
