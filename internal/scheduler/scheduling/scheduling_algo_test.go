@@ -79,9 +79,9 @@ func TestSchedule_DisableSchedulingSkipsReconciliation(t *testing.T) {
 
 func TestSchedule_PoolFailureIsolation(t *testing.T) {
 	type poolSchedulingInfo struct {
-		name               string
-		recoverableError   bool
-		unrecoverableError bool
+		name                            string
+		recoverableError                bool
+		unrecoverableError              bool
 		runningJobFailingReconciliation bool
 	}
 	tests := map[string]struct {
