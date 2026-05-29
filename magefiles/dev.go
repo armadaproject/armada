@@ -2,9 +2,11 @@ package main
 
 import (
 	"fmt"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"time"
 
 	"github.com/magefile/mage/mg"
 	"github.com/magefile/mage/sh"
@@ -47,7 +49,32 @@ func (Dev) Up(profile string) error {
 	if err := sh.RunV(initScript); err != nil {
 		return err
 	}
+	if profile == "auth" {
+		if err := waitForKeycloak(2 * time.Minute); err != nil {
+			return err
+		}
+	}
 	return sh.RunV(goremanBin(), "-f", procfile, "start")
+}
+
+// waitForKeycloak polls keycloak's armada realm endpoint until it serves a 200, so that
+// components that initialise their OIDC client at startup don't crash on first dial.
+func waitForKeycloak(timeout time.Duration) error {
+	fmt.Println("Waiting for keycloak to become ready...")
+	deadline := time.Now().Add(timeout)
+	client := &http.Client{Timeout: 3 * time.Second}
+	for time.Now().Before(deadline) {
+		resp, err := client.Get("http://localhost:8180/realms/armada")
+		if err == nil {
+			resp.Body.Close()
+			if resp.StatusCode == http.StatusOK {
+				fmt.Println("Keycloak ready.")
+				return nil
+			}
+		}
+		time.Sleep(2 * time.Second)
+	}
+	return fmt.Errorf("keycloak did not become ready within %s", timeout)
 }
 
 // Deps brings up only the docker-compose dependencies (redis, postgres, pulsar).
@@ -61,15 +88,20 @@ func (Dev) Down() error {
 	return sh.RunV("docker", "compose", "-f", stackComposeFile, "down")
 }
 
-// devDepsUp brings the dependency stack up. If profile == "auth", keycloak is brought up
-// alongside redis/postgres/pulsar.
+// devDepsUp brings the dependency stack up. We always wait for redis/postgres/pulsar to
+// become healthy (server can otherwise dial pulsar mid-startup and crash with TopicNotFound).
+// Keycloak is brought up separately without --wait because its healthcheck has a long
+// warmup; waitForKeycloak handles the readiness wait before goreman starts.
 func devDepsUp(profile string) error {
-	args := []string{"compose", "-f", stackComposeFile}
-	if profile == "auth" {
-		args = append(args, "--profile", "auth")
+	if err := sh.RunV("docker", "compose", "-f", stackComposeFile,
+		"up", "-d", "--wait", "redis", "postgres", "pulsar"); err != nil {
+		return err
 	}
-	args = append(args, "up", "-d", "--wait")
-	return sh.RunV("docker", args...)
+	if profile == "auth" {
+		return sh.RunV("docker", "compose", "-f", stackComposeFile,
+			"--profile", "auth", "up", "-d", "keycloak")
+	}
+	return nil
 }
 
 func goremanBin() string {
