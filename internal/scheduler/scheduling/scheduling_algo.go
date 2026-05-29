@@ -137,19 +137,15 @@ func (l *FairSchedulingAlgo) Schedule(
 		return nil, err
 	}
 
-	invalidJobsByPool := l.reconcileLeasedJobs(txn, executors)
-	reconciliationResultsByPool, reconciliationOutcomesByPool, err := l.validateJobAndNodeState(ctx, txn, invalidJobsByPool)
+	reconciliationByPool, err := l.reconcilePools(ctx, txn, executors)
 	if err != nil {
 		return nil, err
 	}
 
 	for _, pool := range l.schedulingConfig.Pools {
 		startTime := l.clock.Now()
-		reconcileResult := reconciliationResultsByPool[pool.Name]
-		if reconcileResult == nil {
-			reconcileResult = emptyReconciliationResult()
-		}
-		outcome := reconciliationOutcomesByPool[pool.Name]
+		reconciliation := reconciliationByPool[pool.Name]
+		outcome := reconciliation.Outcome()
 		var schedulingResult *SchedulingResult
 		if outcome == nil {
 			outcome, schedulingResult, err = l.runPoolSchedulingRound(ctx, pool, resourceUnits, txn, executors)
@@ -174,7 +170,7 @@ func (l *FairSchedulingAlgo) Schedule(
 
 		poolResult := &PoolSchedulingResult{
 			Name:                 pool.Name,
-			ReconciliationResult: reconcileResult,
+			ReconciliationResult: reconciliation.Result(),
 			SchedulingResult:     schedulingResult,
 			StartTime:            startTime,
 			EndTime:              endTime,
@@ -184,13 +180,6 @@ func (l *FairSchedulingAlgo) Schedule(
 		schedulerResult.PoolResults = append(schedulerResult.PoolResults, poolResult)
 	}
 	return schedulerResult, nil
-}
-
-func emptyReconciliationResult() *ReconciliationResult {
-	return &ReconciliationResult{
-		FailedJobs:    []*FailedReconciliationResult{},
-		PreemptedJobs: []*FailedReconciliationResult{},
-	}
 }
 
 func (l *FairSchedulingAlgo) appendSchedulingDisabledResults(ctx *armadacontext.Context, schedulerResult *SchedulerResult) {
@@ -303,23 +292,12 @@ type gangKey struct {
 	gangId string
 }
 
-func (l *FairSchedulingAlgo) reconcileLeasedJobs(txn *jobdb.Txn, executors []*schedulerobjects.Executor) map[string][]*FailedReconciliationResult {
-	invalid := l.stateValidator.ReconcileJobRuns(txn, executors)
-	byPool := make(map[string][]*FailedReconciliationResult, len(l.schedulingConfig.Pools))
-	for _, r := range invalid {
-		if r.Job.LatestRun() == nil {
-			continue
-		}
-		pool := r.Job.LatestRun().Pool()
-		byPool[pool] = append(byPool[pool], r)
-	}
-	return byPool
-}
-
-func (l *FairSchedulingAlgo) validateJobAndNodeState(ctx *armadacontext.Context, txn *jobdb.Txn, invalidJobsByPool map[string][]*FailedReconciliationResult) (map[string]*ReconciliationResult, map[string]*PoolSchedulingOutcome, error) {
-	results := make(map[string]*ReconciliationResult, len(invalidJobsByPool))
-	outcomes := make(map[string]*PoolSchedulingOutcome)
+func (l *FairSchedulingAlgo) reconcilePools(ctx *armadacontext.Context, txn *jobdb.Txn, executors []*schedulerobjects.Executor) (map[string]*PoolReconciliationResult, error) {
+	invalidJobsByPool := l.reconcileLeasedJobs(txn, executors)
 	configByPool := poolConfigSliceToMap(l.schedulingConfig.Pools)
+
+	results := make(map[string]*ReconciliationResult, len(l.schedulingConfig.Pools))
+	outcomes := make(map[string]*PoolSchedulingOutcome)
 	var allPreempted, allFailed []*FailedReconciliationResult
 	for pool, invalidJobs := range invalidJobsByPool {
 		config, present := configByPool[pool]
@@ -340,13 +318,30 @@ func (l *FairSchedulingAlgo) validateJobAndNodeState(ctx *armadacontext.Context,
 	}
 
 	if err := txn.Upsert(JobsFromFailedReconciliationResults(allPreempted)); err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	if err := txn.Upsert(JobsFromFailedReconciliationResults(allFailed)); err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	return results, outcomes, nil
+	poolResults := make(map[string]*PoolReconciliationResult, len(l.schedulingConfig.Pools))
+	for _, pool := range l.schedulingConfig.Pools {
+		poolResults[pool.Name] = NewPoolReconciliationResult(results[pool.Name], outcomes[pool.Name])
+	}
+	return poolResults, nil
+}
+
+func (l *FairSchedulingAlgo) reconcileLeasedJobs(txn *jobdb.Txn, executors []*schedulerobjects.Executor) map[string][]*FailedReconciliationResult {
+	invalid := l.stateValidator.ReconcileJobRuns(txn, executors)
+	byPool := make(map[string][]*FailedReconciliationResult, len(l.schedulingConfig.Pools))
+	for _, r := range invalid {
+		if r.Job.LatestRun() == nil {
+			continue
+		}
+		pool := r.Job.LatestRun().Pool()
+		byPool[pool] = append(byPool[pool], r)
+	}
+	return byPool
 }
 
 func (l *FairSchedulingAlgo) reconcilePoolJobs(config configuration.PoolConfig, txn *jobdb.Txn, invalidJobs []*FailedReconciliationResult) (*ReconciliationResult, error) {

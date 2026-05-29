@@ -205,9 +205,39 @@ func (s *SchedulerResult) GetCombinedReconciliationResult() *ReconciliationResul
 	return result
 }
 
+type PoolReconciliationResult struct {
+	result  *ReconciliationResult
+	outcome *PoolSchedulingOutcome
+}
+
+func NewPoolReconciliationResult(result *ReconciliationResult, outcome *PoolSchedulingOutcome) *PoolReconciliationResult {
+	if result == nil {
+		result = emptyReconciliationResult()
+	}
+	return &PoolReconciliationResult{
+		result:  result,
+		outcome: outcome,
+	}
+}
+
+func (p *PoolReconciliationResult) Result() *ReconciliationResult {
+	return p.result
+}
+
+func (p *PoolReconciliationResult) Outcome() *PoolSchedulingOutcome {
+	return p.outcome
+}
+
 type ReconciliationResult struct {
 	PreemptedJobs []*FailedReconciliationResult
 	FailedJobs    []*FailedReconciliationResult
+}
+
+func emptyReconciliationResult() *ReconciliationResult {
+	return &ReconciliationResult{
+		FailedJobs:    []*FailedReconciliationResult{},
+		PreemptedJobs: []*FailedReconciliationResult{},
+	}
 }
 
 func JobsFromFailedReconciliationResults(results []*FailedReconciliationResult) []*jobdb.Job {
