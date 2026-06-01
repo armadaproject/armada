@@ -152,7 +152,7 @@ func CheckDockerContainerRunning(containerName string, expectedLogRegex string) 
 		case <-timeout:
 			return fmt.Errorf("timed out waiting for %s to start", containerName)
 		case <-tick:
-			out, err := dockerOutput("compose", "logs", containerName)
+			out, err := dockerOutput("compose", "-f", "_local/compose/full.yaml", "logs", containerName)
 			if err != nil {
 				return err
 			}
