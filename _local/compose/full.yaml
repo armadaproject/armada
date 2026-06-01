@@ -130,6 +130,9 @@ services:
       ARMADA_PULSAR_URL: pulsar://pulsar:6650
       ARMADA_POSTGRES_CONNECTION_HOST: postgres
       ARMADA_ARMADAAPI_ARMADAURL: server:50051
+      # Refresh the executor list every 1s (default 60s) so newly-started executors are
+      # picked up quickly; the integration test readiness check waits on this.
+      ARMADA_SCHEDULING_EXECUTORUPDATEFREQUENCY: 1s
     command: ./scheduler run --config /config/config.yaml
 
   scheduleringester:
