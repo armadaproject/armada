@@ -157,7 +157,7 @@ func CheckDockerContainerRunning(containerName string, expectedLogRegex string, 
 				return err
 			}
 			if len(logMatchRegex.FindStringSubmatch(out)) > 0 {
-				// if seconds is less than 1, it means that pulsar had already started
+				// if seconds is less than 1, it means that the container had already started
 				if seconds < 1 {
 					fmt.Printf("\n%s had already started!\n\n", containerName)
 					return nil
