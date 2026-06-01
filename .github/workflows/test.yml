@@ -102,53 +102,6 @@ jobs:
           cache-tools: true
 
       - name: Setup Integration Tests
-        run: go run github.com/magefile/mage@v1.15.0 -v localdev minimal
-
-      - name: Run Integration Tests
-        run: go run github.com/magefile/mage@v1.15.0 -v testsuite
-
-      - name: Upload JUnit Report Artifact
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
-        with:
-          name: go-integration-test-reports
-          path: junit.xml
-          if-no-files-found: error
-
-      - name: Store Docker Logs
-        if: always()
-        run: |
-          mkdir -p ./logs
-          docker compose logs --no-color > ./logs/docker-compose.log
-          docker logs pulsar > ./logs/pulsar.log 2>&1
-
-      - name: Upload Docker Compose Logs
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
-        if: always()
-        with:
-          name: docker-compose-logs
-          path: |
-            ./logs/
-          if-no-files-found: error
-
-  go-integration-tests-full:
-    # Proves the containerized full stack (_local/compose/full.yaml) end-to-end:
-    # every Armada component runs as a container with a real executor on Kind, and the
-    # integration testsuite is run against it. This is the candidate replacement for the
-    # `mage localdev minimal` flow above.
-    name: Golang Integration Tests (full stack)
-    runs-on: ubuntu-22.04
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-
-      - name: Setup Go
-        uses: ./.github/actions/setup-go-cache
-        with:
-          cache-prefix: go-integration-tests-full
-          cache-tools: true
-
-      - name: Bring up full stack
         run: go run github.com/magefile/mage@v1.15.0 -v dev:full
 
       - name: Wait for Armada to accept jobs
@@ -173,7 +126,7 @@ jobs:
       - name: Upload JUnit Report Artifact
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
-          name: go-integration-test-full-reports
+          name: go-integration-test-reports
           path: junit.xml
           if-no-files-found: error
 
@@ -181,14 +134,14 @@ jobs:
         if: always()
         run: |
           mkdir -p ./logs
-          docker compose -f _local/compose/full.yaml logs --no-color > ./logs/full-stack.log
+          docker compose -f _local/compose/full.yaml logs --no-color > ./logs/docker-compose.log
           docker logs pulsar > ./logs/pulsar.log 2>&1
 
-      - name: Upload Full Stack Logs
+      - name: Upload Docker Compose Logs
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         if: always()
         with:
-          name: full-stack-logs
+          name: docker-compose-logs
           path: |
             ./logs/
           if-no-files-found: error
