@@ -57,6 +57,11 @@ func Tests() error {
 		return err
 	}
 
+	// Pre-cleanup: Remove existing redis and postgres containers if they exist.
+	// Ignore errors since containers may not exist.
+	_ = dockerRun("rm", "-f", "redis")
+	_ = dockerRun("rm", "-f", "postgres")
+
 	redisArgs := []string{"run", "-d", "--name=redis", "-p=6379:6379"}
 	if len(docker_Net) > 0 {
 		redisArgs = append(redisArgs, docker_Net)

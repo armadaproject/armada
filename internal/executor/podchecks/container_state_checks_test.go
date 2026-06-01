@@ -37,6 +37,29 @@ func Test_getAction_WhenOneFailedContainer_WithMatchingFailCheck_ReturnsFail(t *
 	assert.NotEmpty(t, message)
 }
 
+func Test_getAction_WhenMatchingCheckHasMessageTemplate_UsesRenderedMessage(t *testing.T) {
+	csc, err := newContainerStateChecks(
+		[]config.ContainerStatusCheck{
+			{
+				Action:       config.ActionFail,
+				State:        config.ContainerStateWaiting,
+				GracePeriod:  time.Minute,
+				ReasonRegexp: "InvalidImageName",
+				Name:         "bad-image-name",
+				Message:      `Container {{.MatchedContainerStatus.Name}} in pod {{.Pod.Name}} has invalid image name`,
+			},
+		},
+	)
+	assert.Nil(t, err)
+
+	pod := basicPod()
+	pod.Status.ContainerStatuses[0].State.Waiting = &v1.ContainerStateWaiting{Reason: "InvalidImageName", Message: "Image name is wrong"}
+
+	action, message := csc.getAction(pod, time.Minute*2)
+	assert.Equal(t, ActionFail, action)
+	assert.Equal(t, `Check "bad-image-name" failed: Container my-container in pod my-pod has invalid image name`, message)
+}
+
 func Test_getAction_WhenOneFailedContainer_ButNotHitTimeout_ReturnsWait(t *testing.T) {
 	csc, err := newContainerStateChecks(
 		[]config.ContainerStatusCheck{

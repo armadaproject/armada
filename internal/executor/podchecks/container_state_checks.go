@@ -1,9 +1,11 @@
 package podchecks
 
 import (
+	"bytes"
 	"fmt"
 	"regexp"
 	"strings"
+	"text/template"
 	"time"
 
 	v1 "k8s.io/api/core/v1"
@@ -22,11 +24,13 @@ type containerStateChecks struct {
 }
 
 type containerStatusCheck struct {
-	state        config.ContainerState
-	reasonRegexp *regexp.Regexp
-	inverse      bool
-	gracePeriod  time.Duration
-	action       Action
+	state           config.ContainerState
+	reasonRegexp    *regexp.Regexp
+	inverse         bool
+	gracePeriod     time.Duration
+	action          Action
+	name            string
+	messageTemplate *template.Template
 }
 
 func newContainerStateChecks(configs []config.ContainerStatusCheck) (*containerStateChecks, error) {
@@ -47,7 +51,23 @@ func newContainerStateChecks(configs []config.ContainerStatusCheck) (*containerS
 			return nil, fmt.Errorf("Invalid container state: \"%s\"", cfg.State)
 		}
 
-		check := containerStatusCheck{reasonRegexp: re, inverse: cfg.Inverse, action: action, gracePeriod: cfg.GracePeriod, state: cfg.State}
+		var msgTmpl *template.Template
+		if cfg.Message != "" {
+			msgTmpl, err = template.New("message").Parse(cfg.Message)
+			if err != nil {
+				return nil, fmt.Errorf("Cannot parse message template \"%s\": %+v", cfg.Message, err)
+			}
+		}
+
+		check := containerStatusCheck{
+			reasonRegexp:    re,
+			inverse:         cfg.Inverse,
+			action:          action,
+			gracePeriod:     cfg.GracePeriod,
+			state:           cfg.State,
+			name:            cfg.Name,
+			messageTemplate: msgTmpl,
+		}
 		containerStateChecks.checks = append(containerStateChecks.checks, check)
 		log.Infof(
 			"   Created container state check %s %s\"%s\" %s %s",
@@ -69,7 +89,9 @@ func (csc *containerStateChecks) getAction(pod *v1.Pod, timeInState time.Duratio
 		action, message := csc.getContainerAction(pod, &containerStatus, timeInState)
 
 		resultAction = maxAction(resultAction, action)
-		resultMessages = append(resultMessages, message)
+		if message != "" {
+			resultMessages = append(resultMessages, message)
+		}
 
 	}
 	return resultAction, strings.Join(resultMessages, "\n")
@@ -77,7 +99,6 @@ func (csc *containerStateChecks) getAction(pod *v1.Pod, timeInState time.Duratio
 
 func (csc *containerStateChecks) getContainerAction(pod *v1.Pod, containerStatus *v1.ContainerStatus, timeInState time.Duration) (Action, string) {
 	for _, check := range csc.checks {
-		// For now we only support checks on containers in the Waiting state
 		if containerStatus.State.Waiting != nil {
 			reason := containerStatus.State.Waiting.Reason
 			message := containerStatus.State.Waiting.Message
@@ -85,6 +106,38 @@ func (csc *containerStateChecks) getContainerAction(pod *v1.Pod, containerStatus
 
 			if check.inverse != check.reasonRegexp.MatchString(reason) && state == check.state {
 				if timeInState >= check.gracePeriod {
+					templateContext := map[string]interface{}{
+						"Pod":                    pod,
+						"MatchedContainerStatus": containerStatus,
+					}
+
+					checkName := "unnamed"
+					if check.name != "" {
+						checkName = check.name
+					}
+
+					checkMessage := ""
+					if check.messageTemplate != nil {
+						var buf bytes.Buffer
+						if err := check.messageTemplate.Execute(&buf, templateContext); err == nil {
+							rendered := buf.String()
+							if rendered != "" && rendered != "<no value>" {
+								checkMessage = rendered
+							}
+						}
+					}
+
+					if checkMessage == "" {
+						checkMessage = fmt.Sprintf(
+							"Container %s has been in state %s for reason %s (%s) for more than timeout %v",
+							containerStatus.Name,
+							state,
+							reason,
+							message,
+							check.gracePeriod,
+						)
+					}
+
 					log.Warnf(
 						"Container %s in Pod %s in namespace %s has been in state %s with reason %s (%s) for more than %v (matched regexp was %s%s), required action is %s",
 						containerStatus.Name,
@@ -99,12 +152,9 @@ func (csc *containerStateChecks) getContainerAction(pod *v1.Pod, containerStatus
 						check.action,
 					)
 					return check.action, fmt.Sprintf(
-						"Container %s has been in state %s for reason %s (%s) for more than timeout %v",
-						containerStatus.Name,
-						state,
-						reason,
-						message,
-						check.gracePeriod,
+						"Check %q failed: %s",
+						checkName,
+						checkMessage,
 					)
 				} else {
 					return ActionWait, ""

@@ -30,6 +30,7 @@ type Checks struct {
 	ContainerStatuses         []ContainerStatusCheck
 	DeadlineForUpdates        time.Duration
 	DeadlineForNodeAssignment time.Duration
+	DeadlineForInitContainers time.Duration
 }
 
 type EventCheck struct {
@@ -38,6 +39,8 @@ type EventCheck struct {
 	Type        EventType
 	GracePeriod time.Duration
 	Action      Action
+	Name        string
+	Message     string
 }
 
 type ContainerStatusCheck struct {
@@ -46,6 +49,8 @@ type ContainerStatusCheck struct {
 	Inverse      bool
 	GracePeriod  time.Duration
 	Action       Action
+	Name         string
+	Message      string
 }
 
 type FailedChecks struct {

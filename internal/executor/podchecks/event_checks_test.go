@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	config "github.com/armadaproject/armada/internal/executor/configuration/podchecks"
 )
@@ -15,7 +16,7 @@ func Test_getAction_WhenNoEvents_AndNoChecks_ReturnsWait(t *testing.T) {
 	ec, err := newEventChecks([]config.EventCheck{})
 	assert.Nil(t, err)
 
-	action, message := ec.getAction("my-pod", []*v1.Event{}, time.Minute)
+	action, message := ec.getAction(basicPodForEventTests().Name, []*v1.Event{}, time.Minute)
 	assert.Equal(t, ActionWait, action)
 	assert.Empty(t, message)
 }
@@ -24,7 +25,7 @@ func Test_getAction_WhenOneEvent_WithMatchingFailCheck_ReturnsFail(t *testing.T)
 	ec, err := newEventChecks([]config.EventCheck{{Action: config.ActionFail, Regexp: "pvc", Type: "Warning", GracePeriod: time.Minute}})
 	assert.Nil(t, err)
 
-	action, message := ec.getAction("my-pod", []*v1.Event{{Message: "Failed to mount pvc!", Type: "Warning"}}, time.Minute*2)
+	action, message := ec.getAction(basicPodForEventTests().Name, []*v1.Event{{Message: "Failed to mount pvc!", Type: "Warning"}}, time.Minute*2)
 	assert.Equal(t, ActionFail, action)
 	assert.NotEmpty(t, message)
 }
@@ -33,7 +34,7 @@ func Test_getAction_WhenOneEvent_MatchFailsDueToRegexp_ReturnsWait(t *testing.T)
 	ec, err := newEventChecks([]config.EventCheck{{Action: config.ActionFail, Regexp: "something else", Type: "Warning", GracePeriod: time.Minute}})
 	assert.Nil(t, err)
 
-	action, message := ec.getAction("my-pod", []*v1.Event{{Message: "Failed to mount pvc!", Type: "Warning"}}, time.Minute*2)
+	action, message := ec.getAction(basicPodForEventTests().Name, []*v1.Event{{Message: "Failed to mount pvc!", Type: "Warning"}}, time.Minute*2)
 	assert.Equal(t, ActionWait, action)
 	assert.Empty(t, message)
 }
@@ -42,7 +43,7 @@ func Test_getAction_WhenOneEvent_MatchFailsDueToType_ReturnsWait(t *testing.T) {
 	ec, err := newEventChecks([]config.EventCheck{{Action: config.ActionFail, Regexp: "pvc", Type: "Warning", GracePeriod: time.Minute}})
 	assert.Nil(t, err)
 
-	action, message := ec.getAction("my-pod", []*v1.Event{{Message: "Failed to mount pvc!", Type: "Normal"}}, time.Minute*2)
+	action, message := ec.getAction(basicPodForEventTests().Name, []*v1.Event{{Message: "Failed to mount pvc!", Type: "Normal"}}, time.Minute*2)
 	assert.Equal(t, ActionWait, action)
 	assert.Empty(t, message)
 }
@@ -51,7 +52,7 @@ func Test_getAction_WhenOneEvent_MatchFailsDueToGracePeriod_ReturnsWait(t *testi
 	ec, err := newEventChecks([]config.EventCheck{{Action: config.ActionFail, Regexp: "pvc", Type: "Warning", GracePeriod: time.Minute}})
 	assert.Nil(t, err)
 
-	action, message := ec.getAction("my-pod", []*v1.Event{{Message: "Failed to mount pvc!", Type: "Warning"}}, time.Minute/2)
+	action, message := ec.getAction(basicPodForEventTests().Name, []*v1.Event{{Message: "Failed to mount pvc!", Type: "Warning"}}, time.Minute/2)
 	assert.Equal(t, ActionWait, action)
 	assert.Empty(t, message)
 }
@@ -63,7 +64,7 @@ func Test_getAction_WhenTwoEvents_AndTwoChecks_MostDrasticActionWins(t *testing.
 	})
 	assert.Nil(t, err)
 
-	action, message := ec.getAction("my-pod", []*v1.Event{
+	action, message := ec.getAction(basicPodForEventTests().Name, []*v1.Event{
 		{Message: "Failed to mount pvc!", Type: "Warning"},
 		{Message: "Failed to pull image!", Type: "Warning"},
 	}, time.Minute*2)
@@ -80,7 +81,7 @@ func Test_getAction_WhenEventMatchesTwoRules_AndFirstRuleStillInGracePeriod_ButS
 	})
 	assert.Nil(t, err)
 
-	action, message := ec.getAction("my-pod", []*v1.Event{{Message: "Failed to pull image", Type: "Warning"}}, time.Minute)
+	action, message := ec.getAction(basicPodForEventTests().Name, []*v1.Event{{Message: "Failed to pull image", Type: "Warning"}}, time.Minute)
 	assert.Equal(t, ActionWait, action)
 	assert.Empty(t, message)
 }
@@ -92,7 +93,7 @@ func Test_getAction_WhenTwoRules_AndFirstRuleRegexDoesNotMatch_AppliesSecondRule
 	})
 	assert.Nil(t, err)
 
-	action, message := ec.getAction("my-pod", []*v1.Event{{Message: "Secret missing", Type: "Warning"}}, time.Minute*2)
+	action, message := ec.getAction(basicPodForEventTests().Name, []*v1.Event{{Message: "Secret missing", Type: "Warning"}}, time.Minute*2)
 	assert.Equal(t, ActionFail, action)
 	assert.NotEmpty(t, message)
 }
@@ -104,7 +105,7 @@ func Test_getAction_WhenOneEvent_NegativeRegex_Works(t *testing.T) {
 	assert.Nil(t, err)
 
 	action, message := ec.getAction(
-		"my-pod",
+		basicPodForEventTests().Name,
 		[]*v1.Event{
 			{
 				Message: "0/3 nodes are available: 1 node(s) had taint {node-role.kubernetes.io/master: }, that the pod didn't tolerate, 2 Insufficient cpu.",
@@ -116,7 +117,7 @@ func Test_getAction_WhenOneEvent_NegativeRegex_Works(t *testing.T) {
 	assert.Equal(t, ActionWait, action)
 	assert.Empty(t, message)
 
-	action, message = ec.getAction("my-pod", []*v1.Event{{Message: "Some other error message", Type: "Warning"}}, time.Minute*2)
+	action, message = ec.getAction(basicPodForEventTests().Name, []*v1.Event{{Message: "Some other error message", Type: "Warning"}}, time.Minute*2)
 	assert.Equal(t, ActionRetry, action)
 	assert.NotEmpty(t, message)
 }
@@ -128,7 +129,7 @@ func Test_getAction_WhenSomeEventsMatch_OnlyMatchedMessagesAreIncluded(t *testin
 	assert.Nil(t, err)
 
 	matchedMessage := `Failed to pull image "amd64/busybox:latest": no match for platform in manifest`
-	action, message := ec.getAction("my-pod", []*v1.Event{
+	action, message := ec.getAction(basicPodForEventTests().Name, []*v1.Event{
 		{Message: "Successfully assigned default/my-pod to node-1", Type: "Normal"},
 		{Message: "Pulling image \"amd64/busybox:latest\"", Type: "Normal"},
 		{Message: matchedMessage, Type: "Warning"},
@@ -136,7 +137,7 @@ func Test_getAction_WhenSomeEventsMatch_OnlyMatchedMessagesAreIncluded(t *testin
 	}, time.Minute*2)
 
 	assert.Equal(t, ActionFail, action)
-	assert.Equal(t, matchedMessage, message)
+	assert.Contains(t, message, matchedMessage)
 	assert.NotContains(t, message, "\n\n", "consecutive newlines indicate non-matching events were joined into the result instead of being skipped")
 }
 
@@ -156,4 +157,13 @@ func Test_newEventChecks_InvalidAction_ReturnsError(t *testing.T) {
 	ec, err := newEventChecks([]config.EventCheck{{Action: "wrong", Regexp: ".*", Type: config.EventTypeNormal}})
 	assert.Nil(t, ec)
 	assert.NotNil(t, err)
+}
+
+func basicPodForEventTests() *v1.Pod {
+	return &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "my-pod",
+			Namespace: "my-namespace",
+		},
+	}
 }

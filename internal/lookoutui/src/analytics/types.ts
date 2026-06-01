@@ -11,6 +11,9 @@ export const ANALYTICS_EVENTS = {
   LIGHT_MODE_SELECTED: "Light Mode Selected",
   DARK_MODE_SELECTED: "Dark Mode Selected",
   COLUMN_CONFIGURATION_DIALOG_CLOSED: "Column Configuration Dialog Closed",
+  CUSTOM_VIEW_CREATED: "Custom View Created",
+  CUSTOM_VIEW_LOADED: "Custom View Loaded",
+  CUSTOM_VIEW_DELETED: "Custom View Deleted",
 } as const
 
 export type AnalyticsEventName = (typeof ANALYTICS_EVENTS)[keyof typeof ANALYTICS_EVENTS]

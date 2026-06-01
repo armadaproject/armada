@@ -9,9 +9,12 @@ const config = getConfig()
  * Use  this helper only when the event isn't tied to a DOM click (e.g. dialog close)
  *
  * @param eventName - The event name to track
- * @param eventData - Optional key-value pairs to include with the event
+ * @param eventData - Optional key-value pairs to include with the event, or a lazy function returning them
  */
-export const trackAnalyticsEvent = (eventName: AnalyticsEventName, eventData?: Record<string, string>) => {
+export const trackAnalyticsEvent = (
+  eventName: AnalyticsEventName,
+  eventData?: Record<string, string> | (() => Record<string, string>),
+) => {
   const analyticsConfig = config.analytics
 
   if (!analyticsConfig) {
@@ -26,7 +29,11 @@ export const trackAnalyticsEvent = (eventName: AnalyticsEventName, eventData?: R
   }
 
   const analyticsProvider = (window as any)[provider]
-  const dataToSend = analyticsConfig.dataWrapper && eventData ? { [analyticsConfig.dataWrapper]: eventData } : eventData
+  const resolvedEventData = typeof eventData === "function" ? eventData() : eventData
+  const dataToSend =
+    analyticsConfig.dataWrapper && resolvedEventData
+      ? { [analyticsConfig.dataWrapper]: resolvedEventData }
+      : resolvedEventData
 
   try {
     if (typeof analyticsProvider === "function") {

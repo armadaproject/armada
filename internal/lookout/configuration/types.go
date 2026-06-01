@@ -52,6 +52,13 @@ type PrunerConfig struct {
 	Timeout               time.Duration
 	BatchSize             int
 	Postgres              configuration.PostgresConfig
+	// PushgatewayUrl is the URL of a Prometheus Pushgateway (or compatible
+	// endpoint) to push pruner metrics to after each run. If empty, no metrics
+	// are pushed.
+	PushgatewayUrl string
+	// PushgatewayJobName is the job label attached to pushed metrics.
+	// Defaults to "lookout-pruner" if empty.
+	PushgatewayJobName string
 }
 
 // Alert level enum values correspond to the severity levels of the MUI Alert

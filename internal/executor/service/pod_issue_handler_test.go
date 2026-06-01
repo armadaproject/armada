@@ -870,3 +870,163 @@ func TestCreateDebugMessage(t *testing.T) {
 		})
 	}
 }
+
+// TestHandlePendingPodIssue_NonRetryable_PreservesFormattedMessage verifies that
+// formatted podcheck messages propagate unchanged through the non-retryable path
+// to CreateJobFailedEvent.
+func TestHandlePendingPodIssue_NonRetryable_PreservesFormattedMessage(t *testing.T) {
+	podIssueService, _, fakeClusterContext, eventsReporter, err := setupTestComponents([]*job.RunState{})
+	require.NoError(t, err)
+
+	unretryableStuckPod := makeUnretryableStuckPod()
+	addPod(t, fakeClusterContext, unretryableStuckPod)
+	addPodEvents(fakeClusterContext, unretryableStuckPod, []*v1.Event{
+		{Message: "Image pull has failed", Type: "Warning"},
+	})
+
+	podIssueService.HandlePodIssues()
+
+	require.Len(t, eventsReporter.ReceivedEvents, 1)
+	require.Len(t, eventsReporter.ReceivedEvents[0].Event.Events, 1)
+
+	failedEvent, ok := eventsReporter.ReceivedEvents[0].Event.Events[0].Event.(*armadaevents.EventSequence_Event_JobRunErrors)
+	require.True(t, ok)
+	require.Len(t, failedEvent.JobRunErrors.Errors, 1)
+
+	message := failedEvent.JobRunErrors.Errors[0].GetPodError().Message
+
+	assert.Contains(t, message, "Unable to start pod - encountered an unrecoverable problem")
+	assert.Contains(t, message, "Check")
+	assert.Contains(t, message, "failed:")
+}
+
+// TestHandlePendingPodIssue_Retryable_PreservesFormattedMessage verifies that
+// formatted podcheck messages propagate unchanged through the retryable path
+// to CreateReturnLeaseEvent.
+func TestHandlePendingPodIssue_Retryable_PreservesFormattedMessage(t *testing.T) {
+	podIssueService, _, fakeClusterContext, eventsReporter, err := setupTestComponents([]*job.RunState{})
+	require.NoError(t, err)
+
+	retryableStuckPod := makeRetryableStuckPod()
+	addPod(t, fakeClusterContext, retryableStuckPod)
+	addPodEvents(fakeClusterContext, retryableStuckPod, []*v1.Event{
+		{Message: "Some other message", Type: "Warning"},
+	})
+
+	podIssueService.HandlePodIssues()
+
+	deletedPod := retryableStuckPod.DeepCopy()
+	deletedPod.DeletionTimestamp = &metav1.Time{Time: time.Now()}
+	fakeClusterContext.DeletePods([]*v1.Pod{deletedPod})
+
+	podIssueService.HandlePodIssues()
+
+	require.Len(t, eventsReporter.ReceivedEvents, 1)
+	require.Len(t, eventsReporter.ReceivedEvents[0].Event.Events, 1)
+
+	leaseEvent, ok := eventsReporter.ReceivedEvents[0].Event.Events[0].Event.(*armadaevents.EventSequence_Event_JobRunErrors)
+	require.True(t, ok)
+	require.Len(t, leaseEvent.JobRunErrors.Errors, 1)
+
+	message := leaseEvent.JobRunErrors.Errors[0].GetPodLeaseReturned().Message
+
+	assert.Contains(t, message, "Unable to start pod")
+	assert.Contains(t, message, "Check")
+	assert.Contains(t, message, "failed:")
+}
+
+// TestHandlePendingPodIssue_BothPathsIdenticalFormat verifies that
+// the same check produces identical formatted message structure in both
+// fail and retry paths (only wrapper differs).
+func TestHandlePendingPodIssue_BothPathsIdenticalFormat(t *testing.T) {
+	podIssueService1, _, fakeClusterContext1, eventsReporter1, err := setupTestComponents([]*job.RunState{})
+	require.NoError(t, err)
+
+	unretryableStuckPod := makeUnretryableStuckPod()
+	addPod(t, fakeClusterContext1, unretryableStuckPod)
+	addPodEvents(fakeClusterContext1, unretryableStuckPod, []*v1.Event{
+		{Message: "Image pull has failed", Type: "Warning"},
+	})
+
+	podIssueService1.HandlePodIssues()
+
+	require.Len(t, eventsReporter1.ReceivedEvents, 1)
+	failedEvent, ok := eventsReporter1.ReceivedEvents[0].Event.Events[0].Event.(*armadaevents.EventSequence_Event_JobRunErrors)
+	require.True(t, ok)
+	failMessage := failedEvent.JobRunErrors.Errors[0].GetPodError().Message
+
+	podIssueService2, _, fakeClusterContext2, eventsReporter2, err := setupTestComponents([]*job.RunState{})
+	require.NoError(t, err)
+
+	retryableStuckPod := makeRetryableStuckPod()
+	addPod(t, fakeClusterContext2, retryableStuckPod)
+	addPodEvents(fakeClusterContext2, retryableStuckPod, []*v1.Event{
+		{Message: "Some other message", Type: "Warning"},
+	})
+
+	podIssueService2.HandlePodIssues()
+
+	deletedPod := retryableStuckPod.DeepCopy()
+	deletedPod.DeletionTimestamp = &metav1.Time{Time: time.Now()}
+	fakeClusterContext2.DeletePods([]*v1.Pod{deletedPod})
+
+	podIssueService2.HandlePodIssues()
+
+	require.Len(t, eventsReporter2.ReceivedEvents, 1)
+	leaseEvent, ok := eventsReporter2.ReceivedEvents[0].Event.Events[0].Event.(*armadaevents.EventSequence_Event_JobRunErrors)
+	require.True(t, ok)
+	retryMessage := leaseEvent.JobRunErrors.Errors[0].GetPodLeaseReturned().Message
+
+	assert.Contains(t, failMessage, "Check")
+	assert.Contains(t, retryMessage, "Check")
+
+	failLines := strings.Split(failMessage, "\n")
+	retryLines := strings.Split(retryMessage, "\n")
+
+	assert.GreaterOrEqual(t, len(failLines), 2)
+	assert.GreaterOrEqual(t, len(retryLines), 2)
+
+	var failCheckLine, retryCheckLine string
+	for _, line := range failLines {
+		if strings.Contains(line, "Check") {
+			failCheckLine = line
+			break
+		}
+	}
+	for _, line := range retryLines {
+		if strings.Contains(line, "Check") {
+			retryCheckLine = line
+			break
+		}
+	}
+
+	assert.NotEmpty(t, failCheckLine)
+	assert.NotEmpty(t, retryCheckLine)
+
+	assert.Regexp(t, `Check ".*" failed:`, failCheckLine)
+	assert.Regexp(t, `Check ".*" failed:`, retryCheckLine)
+}
+
+// TestHandlePendingPodIssue_DebugMessagePreserved verifies that
+// debug messages are still aggregated and propagated alongside formatted check messages.
+func TestHandlePendingPodIssue_DebugMessagePreserved(t *testing.T) {
+	podIssueService, _, fakeClusterContext, eventsReporter, err := setupTestComponents([]*job.RunState{})
+	require.NoError(t, err)
+
+	unretryableStuckPod := makeUnretryableStuckPod()
+	addPod(t, fakeClusterContext, unretryableStuckPod)
+	addPodEvents(fakeClusterContext, unretryableStuckPod, []*v1.Event{
+		{Message: "Image pull has failed", Type: "Warning"},
+		{Message: "Additional debug info", Type: "Normal"},
+	})
+
+	podIssueService.HandlePodIssues()
+
+	require.Len(t, eventsReporter.ReceivedEvents, 1)
+	failedEvent, ok := eventsReporter.ReceivedEvents[0].Event.Events[0].Event.(*armadaevents.EventSequence_Event_JobRunErrors)
+	require.True(t, ok)
+
+	debugMessage := failedEvent.JobRunErrors.Errors[0].GetPodError().DebugMessage
+
+	assert.Contains(t, debugMessage, "Image pull has failed")
+}

@@ -54,7 +54,7 @@ func (o *GroupJobs) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	if rCtx != nil {
 		*r = *rCtx
 	}
-	var Params = NewGroupJobsParams()
+	Params := NewGroupJobsParams()
 	if err := o.Context.BindValidRequest(r, route, &Params); err != nil { // bind params
 		o.Context.Respond(rw, r, route.Produces, route, err)
 		return
@@ -63,14 +63,12 @@ func (o *GroupJobs) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	res := o.Handler.Handle(Params) // actually handle the request
 
 	o.Context.Respond(rw, r, route.Produces, route, res)
-
 }
 
 // GroupJobsBody group jobs body
 //
 // swagger:model GroupJobsBody
 type GroupJobsBody struct {
-
 	// Only include jobs in active job sets
 	ActiveJobSets bool `json:"activeJobSets,omitempty"`
 
@@ -124,7 +122,6 @@ func (o *GroupJobsBody) Validate(formats strfmt.Registry) error {
 }
 
 func (o *GroupJobsBody) validateAggregates(formats strfmt.Registry) error {
-
 	if err := validate.Required("groupJobsRequest"+"."+"aggregates", "body", o.Aggregates); err != nil {
 		return err
 	}
@@ -133,7 +130,6 @@ func (o *GroupJobsBody) validateAggregates(formats strfmt.Registry) error {
 }
 
 func (o *GroupJobsBody) validateFilters(formats strfmt.Registry) error {
-
 	if err := validate.Required("groupJobsRequest"+"."+"filters", "body", o.Filters); err != nil {
 		return err
 	}
@@ -164,7 +160,6 @@ func (o *GroupJobsBody) validateFilters(formats strfmt.Registry) error {
 }
 
 func (o *GroupJobsBody) validateGroupedField(formats strfmt.Registry) error {
-
 	if err := validate.Required("groupJobsRequest"+"."+"groupedField", "body", o.GroupedField); err != nil {
 		return err
 	}
@@ -188,7 +183,6 @@ func (o *GroupJobsBody) validateGroupedField(formats strfmt.Registry) error {
 }
 
 func (o *GroupJobsBody) validateOrder(formats strfmt.Registry) error {
-
 	if err := validate.Required("groupJobsRequest"+"."+"order", "body", o.Order); err != nil {
 		return err
 	}
@@ -234,9 +228,7 @@ func (o *GroupJobsBody) ContextValidate(ctx context.Context, formats strfmt.Regi
 }
 
 func (o *GroupJobsBody) contextValidateFilters(ctx context.Context, formats strfmt.Registry) error {
-
 	for i := 0; i < len(o.Filters); i++ {
-
 		if o.Filters[i] != nil {
 
 			if swag.IsZero(o.Filters[i]) { // not required
@@ -256,16 +248,13 @@ func (o *GroupJobsBody) contextValidateFilters(ctx context.Context, formats strf
 				return err
 			}
 		}
-
 	}
 
 	return nil
 }
 
 func (o *GroupJobsBody) contextValidateGroupedField(ctx context.Context, formats strfmt.Registry) error {
-
 	if o.GroupedField != nil {
-
 		if err := o.GroupedField.ContextValidate(ctx, formats); err != nil {
 			ve := new(errors.Validation)
 			if stderrors.As(err, &ve) {
@@ -284,9 +273,7 @@ func (o *GroupJobsBody) contextValidateGroupedField(ctx context.Context, formats
 }
 
 func (o *GroupJobsBody) contextValidateOrder(ctx context.Context, formats strfmt.Registry) error {
-
 	if o.Order != nil {
-
 		if err := o.Order.ContextValidate(ctx, formats); err != nil {
 			ve := new(errors.Validation)
 			if stderrors.As(err, &ve) {
@@ -326,7 +313,6 @@ func (o *GroupJobsBody) UnmarshalBinary(b []byte) error {
 //
 // swagger:model GroupJobsOKBody
 type GroupJobsOKBody struct {
-
 	// List of Job groups
 	// Required: true
 	Groups []*models.Group `json:"groups"`
@@ -347,7 +333,6 @@ func (o *GroupJobsOKBody) Validate(formats strfmt.Registry) error {
 }
 
 func (o *GroupJobsOKBody) validateGroups(formats strfmt.Registry) error {
-
 	if err := validate.Required("groupJobsOK"+"."+"groups", "body", o.Groups); err != nil {
 		return err
 	}
@@ -392,9 +377,7 @@ func (o *GroupJobsOKBody) ContextValidate(ctx context.Context, formats strfmt.Re
 }
 
 func (o *GroupJobsOKBody) contextValidateGroups(ctx context.Context, formats strfmt.Registry) error {
-
 	for i := 0; i < len(o.Groups); i++ {
-
 		if o.Groups[i] != nil {
 
 			if swag.IsZero(o.Groups[i]) { // not required
@@ -414,7 +397,6 @@ func (o *GroupJobsOKBody) contextValidateGroups(ctx context.Context, formats str
 				return err
 			}
 		}
-
 	}
 
 	return nil
@@ -442,7 +424,6 @@ func (o *GroupJobsOKBody) UnmarshalBinary(b []byte) error {
 //
 // swagger:model GroupJobsParamsBodyGroupedField
 type GroupJobsParamsBodyGroupedField struct {
-
 	// Field or annotation key to group by
 	// Required: true
 	Field string `json:"field"`
@@ -474,7 +455,6 @@ func (o *GroupJobsParamsBodyGroupedField) Validate(formats strfmt.Registry) erro
 }
 
 func (o *GroupJobsParamsBodyGroupedField) validateField(formats strfmt.Registry) error {
-
 	if err := validate.RequiredString("groupJobsRequest"+"."+"groupedField"+"."+"field", "body", o.Field); err != nil {
 		return err
 	}

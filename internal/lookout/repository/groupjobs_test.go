@@ -20,6 +20,16 @@ import (
 	"github.com/armadaproject/armada/internal/lookoutingester/metrics"
 )
 
+// parseRFC3339 parses an RFC3339 timestamp string and returns the time.Time in UTC.
+// This handles timezone-agnostic comparisons by converting to UTC.
+func parseRFC3339(ts string) (time.Time, error) {
+	t, err := time.Parse(time.RFC3339, ts)
+	if err != nil {
+		return time.Time{}, err
+	}
+	return t.UTC(), nil
+}
+
 func withGroupJobsSetup(f func(*instructions.InstructionConverter, *lookoutdb.LookoutDb, *SqlGroupJobsRepository) error) error {
 	return lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		converter := instructions.NewInstructionConverter(metrics.Get().Metrics, userAnnotationPrefix, []string{}, &compress.NoOpCompressor{})
@@ -549,29 +559,23 @@ func TestGroupJobsWithAvgLastTransitionTime(t *testing.T) {
 		)
 		require.NoError(t, err)
 		require.Len(t, result.Groups, 3)
-		assert.Equal(t, []*model.JobGroup{
-			{
-				Name:  "queue-3",
-				Count: 18,
-				Aggregates: map[string]interface{}{
-					"lastTransitionTime": baseTime.Add(-8 * time.Minute).Format(time.RFC3339),
-				},
-			},
-			{
-				Name:  "queue-2",
-				Count: 12,
-				Aggregates: map[string]interface{}{
-					"lastTransitionTime": baseTime.Add(-5 * time.Minute).Format(time.RFC3339),
-				},
-			},
-			{
-				Name:  "queue-1",
-				Count: 15,
-				Aggregates: map[string]interface{}{
-					"lastTransitionTime": baseTime.Add(-1 * time.Minute).Format(time.RFC3339),
-				},
-			},
-		}, result.Groups)
+
+		expectedTimes := map[string]time.Time{
+			"queue-3": baseTime.Add(-8 * time.Minute),
+			"queue-2": baseTime.Add(-5 * time.Minute),
+			"queue-1": baseTime.Add(-1 * time.Minute),
+		}
+
+		for i, group := range result.Groups {
+			require.NotNil(t, group.Aggregates["lastTransitionTime"])
+			actualStr := group.Aggregates["lastTransitionTime"].(string)
+			expectedTime := expectedTimes[group.Name]
+
+			actualTime, err := parseRFC3339(actualStr)
+			require.NoError(t, err, "failed to parse timestamp for group %s", group.Name)
+
+			require.True(t, actualTime.Equal(expectedTime), "group %d (%s): expected %v, got %v", i, group.Name, expectedTime, actualTime)
+		}
 		return nil
 	})
 	require.NoError(t, err)
@@ -913,24 +917,38 @@ func TestGroupJobsComplex(t *testing.T) {
 		)
 		require.NoError(t, err)
 		require.Len(t, result.Groups, 2)
-		assert.Equal(t, result.Groups, []*model.JobGroup{
-			{
-				Name:  "job-set-2",
-				Count: 2,
-				Aggregates: map[string]interface{}{
-					"submitted":          baseTime.Add(20 * time.Minute).Format(time.RFC3339),
-					"lastTransitionTime": baseTime.Add(50 * time.Minute).Format(time.RFC3339),
-				},
+
+		expectedData := map[string]struct {
+			count      int64
+			submitted  time.Time
+			lastTransitionTime time.Time
+		}{
+			"job-set-2": {
+				count:      2,
+				submitted:  baseTime.Add(20 * time.Minute),
+				lastTransitionTime: baseTime.Add(50 * time.Minute),
 			},
-			{
-				Name:  "job-set-1",
-				Count: 15,
-				Aggregates: map[string]interface{}{
-					"submitted":          baseTime.Format(time.RFC3339),
-					"lastTransitionTime": baseTime.Add(5 * time.Minute).Format(time.RFC3339),
-				},
+			"job-set-1": {
+				count:      15,
+				submitted:  baseTime,
+				lastTransitionTime: baseTime.Add(5 * time.Minute),
 			},
-		})
+		}
+
+		for i, group := range result.Groups {
+			expected := expectedData[group.Name]
+			assert.Equal(t, expected.count, group.Count, "group %d: count mismatch for %s", i, group.Name)
+
+			submittedStr := group.Aggregates["submitted"].(string)
+			submittedTime, err := parseRFC3339(submittedStr)
+			require.NoError(t, err)
+			require.True(t, submittedTime.Equal(expected.submitted), "group %d (%s): submitted time mismatch", i, group.Name)
+
+			lastTransitionStr := group.Aggregates["lastTransitionTime"].(string)
+			lastTransitionTime, err := parseRFC3339(lastTransitionStr)
+			require.NoError(t, err)
+			require.True(t, lastTransitionTime.Equal(expected.lastTransitionTime), "group %d (%s): lastTransitionTime mismatch", i, group.Name)
+		}
 		return nil
 	})
 	require.NoError(t, err)
@@ -1431,40 +1449,48 @@ func TestGroupByAnnotationWithFiltersAndAggregates(t *testing.T) {
 		)
 		require.NoError(t, err)
 		require.Len(t, result.Groups, 4)
-		assert.Equal(t, result.Groups, []*model.JobGroup{
-			{
-				Name:  "4",
-				Count: 2,
-				Aggregates: map[string]interface{}{
-					"submitted":          baseTime.Add(20 * time.Minute).Format(time.RFC3339),
-					"lastTransitionTime": baseTime.Add(50 * time.Minute).Format(time.RFC3339),
-				},
+
+		expectedData := map[string]struct {
+			count      int64
+			submitted  time.Time
+			lastTransitionTime time.Time
+		}{
+			"4": {
+				count:      2,
+				submitted:  baseTime.Add(20 * time.Minute),
+				lastTransitionTime: baseTime.Add(50 * time.Minute),
 			},
-			{
-				Name:  "2",
-				Count: 5,
-				Aggregates: map[string]interface{}{
-					"submitted":          baseTime.Add(1 * time.Minute).Format(time.RFC3339),
-					"lastTransitionTime": baseTime.Add(10 * time.Minute).Format(time.RFC3339),
-				},
+			"2": {
+				count:      5,
+				submitted:  baseTime.Add(1 * time.Minute),
+				lastTransitionTime: baseTime.Add(10 * time.Minute),
 			},
-			{
-				Name:  "3",
-				Count: 5,
-				Aggregates: map[string]interface{}{
-					"submitted":          baseTime.Add(3 * time.Minute).Format(time.RFC3339),
-					"lastTransitionTime": baseTime.Add(5 * time.Minute).Format(time.RFC3339),
-				},
+			"3": {
+				count:      5,
+				submitted:  baseTime.Add(3 * time.Minute),
+				lastTransitionTime: baseTime.Add(5 * time.Minute),
 			},
-			{
-				Name:  "1",
-				Count: 5,
-				Aggregates: map[string]interface{}{
-					"submitted":          baseTime.Format(time.RFC3339),
-					"lastTransitionTime": baseTime.Format(time.RFC3339),
-				},
+			"1": {
+				count:      5,
+				submitted:  baseTime,
+				lastTransitionTime: baseTime,
 			},
-		})
+		}
+
+		for i, group := range result.Groups {
+			expected := expectedData[group.Name]
+			assert.Equal(t, expected.count, group.Count, "group %d: count mismatch for %s", i, group.Name)
+
+			submittedStr := group.Aggregates["submitted"].(string)
+			submittedTime, err := parseRFC3339(submittedStr)
+			require.NoError(t, err)
+			require.True(t, submittedTime.Equal(expected.submitted), "group %d (%s): submitted time mismatch", i, group.Name)
+
+			lastTransitionStr := group.Aggregates["lastTransitionTime"].(string)
+			lastTransitionTime, err := parseRFC3339(lastTransitionStr)
+			require.NoError(t, err)
+			require.True(t, lastTransitionTime.Equal(expected.lastTransitionTime), "group %d (%s): lastTransitionTime mismatch", i, group.Name)
+		}
 		return nil
 	})
 	require.NoError(t, err)

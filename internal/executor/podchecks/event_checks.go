@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"text/template"
 	"time"
 
 	v1 "k8s.io/api/core/v1"
@@ -17,11 +18,13 @@ type eventChecker interface {
 }
 
 type eventCheck struct {
-	regexp      *regexp.Regexp
-	inverse     bool
-	eventType   config.EventType
-	gracePeriod time.Duration
-	action      Action
+	regexp          *regexp.Regexp
+	inverse         bool
+	eventType       config.EventType
+	gracePeriod     time.Duration
+	action          Action
+	name            string
+	messageTemplate *template.Template
 }
 
 type eventChecks struct {
@@ -45,7 +48,24 @@ func newEventChecks(configs []config.EventCheck) (*eventChecks, error) {
 			return nil, fmt.Errorf("invalid event type: \"%s\"", config.Type)
 		}
 
-		check := eventCheck{regexp: re, inverse: config.Inverse, eventType: config.Type, gracePeriod: config.GracePeriod, action: action}
+		var msgTmpl *template.Template
+		if config.Message != "" {
+			var tmplErr error
+			msgTmpl, tmplErr = template.New("message").Parse(config.Message)
+			if tmplErr != nil {
+				return nil, fmt.Errorf("cannot parse message template %q: %+v", config.Message, tmplErr)
+			}
+		}
+
+		check := eventCheck{
+			regexp:          re,
+			inverse:         config.Inverse,
+			eventType:       config.Type,
+			gracePeriod:     config.GracePeriod,
+			action:          action,
+			name:            config.Name,
+			messageTemplate: msgTmpl,
+		}
 		eventChecks.checks = append(eventChecks.checks, check)
 		log.Infof(
 			"created event check %s %s\"%s\" %s %s",
