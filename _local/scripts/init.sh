@@ -77,27 +77,27 @@ create_db_if_missing() {
   fi
 }
 
+# run_migration runs a migration command, logging a labelled result and aborting on failure.
+run_migration() {
+  local label="$1"
+  shift
+  print_info "Running ${label} database migrations..."
+  if "$@"; then
+    print_success "${label} database migrations completed"
+  else
+    print_error "${label} database migrations failed"
+    exit 1
+  fi
+}
+
 print_info "Creating databases if needed..."
 create_db_if_missing scheduler
 create_db_if_missing lookout
 
 print_success "Databases ready!"
 
-print_info "Running scheduler database migrations..."
-if $GO_BIN run ./cmd/scheduler/main.go migrateDatabase --config ./_local/scheduler/config.yaml; then
-  print_success "Scheduler database migrations completed"
-else
-  print_error "Scheduler database migrations failed"
-  exit 1
-fi
-
-print_info "Running lookout database migrations..."
-if $GO_BIN run ./cmd/lookout/main.go --migrateDatabase --config ./_local/lookout/config.yaml; then
-  print_success "Lookout database migrations completed"
-else
-  print_error "Lookout database migrations failed"
-  exit 1
-fi
+run_migration Scheduler $GO_BIN run ./cmd/scheduler/main.go migrateDatabase --config ./_local/scheduler/config.yaml
+run_migration Lookout $GO_BIN run ./cmd/lookout/main.go --migrateDatabase --config ./_local/lookout/config.yaml
 
 print_success "All migrations completed successfully!"
 
