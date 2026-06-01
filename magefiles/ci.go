@@ -68,7 +68,7 @@ func CheckForArmadaRunning() error {
 		case <-timeout:
 			return fmt.Errorf("timed out waiting for Armada to start")
 		case <-tick:
-			out, _ := runArmadaCtl("submit", "./example/readiness-probe.yaml")
+			out, _ := runArmadaCtl("submit", "./_local/readiness-job.yaml")
 			if strings.Contains(out, "Submitted job with id") {
 				// Sleep for 1 second to allow Armada to fully start
 				time.Sleep(1 * time.Second)
