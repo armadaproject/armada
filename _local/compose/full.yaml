@@ -113,7 +113,7 @@ services:
       - ../lookout/config.yaml:/config/config.yaml:ro
     environment:
       ARMADA_POSTGRES_CONNECTION_HOST: postgres
-    entrypoint: ./lookout --migrateDatabase --config /config/config.yaml
+    command: ./lookout --migrateDatabase --config /config/config.yaml
 
   # =========================================================
   # Armada components
@@ -234,7 +234,7 @@ services:
       - ../lookout/config.yaml:/config/config.yaml:ro
     environment:
       ARMADA_POSTGRES_CONNECTION_HOST: postgres
-    entrypoint: ./lookout --config /config/config.yaml
+    command: ./lookout --config /config/config.yaml
 
   binoculars:
     <<: *component
