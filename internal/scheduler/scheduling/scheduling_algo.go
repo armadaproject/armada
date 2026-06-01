@@ -144,10 +144,15 @@ func (l *FairSchedulingAlgo) Schedule(
 
 	for _, pool := range l.schedulingConfig.Pools {
 		startTime := l.clock.Now()
-		reconciliation := reconciliationByPool[pool.Name]
-		outcome := reconciliation.Outcome()
+		reconciliation, ok := reconciliationByPool[pool.Name]
+		if !ok {
+			return nil, fmt.Errorf("no reconciliation result for pool %s", pool.Name)
+		}
+		var outcome *PoolSchedulingOutcome
 		var schedulingResult *SchedulingResult
-		if outcome == nil {
+		if reconciliation.Err() != nil {
+			outcome = reconciliation.Outcome()
+		} else {
 			outcome, schedulingResult, err = l.runPoolSchedulingRound(ctx, pool, resourceUnits, txn, executors)
 			if err != nil {
 				return nil, err

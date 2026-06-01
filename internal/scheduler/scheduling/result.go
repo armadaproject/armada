@@ -228,6 +228,13 @@ func (p *PoolReconciliationResult) Outcome() *PoolSchedulingOutcome {
 	return p.outcome
 }
 
+func (p *PoolReconciliationResult) Err() error {
+	if p.outcome == nil {
+		return nil
+	}
+	return p.outcome.Error()
+}
+
 type ReconciliationResult struct {
 	PreemptedJobs []*FailedReconciliationResult
 	FailedJobs    []*FailedReconciliationResult
