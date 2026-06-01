@@ -134,6 +134,18 @@ func prune(ctx *armadacontext.Context, config configuration.LookoutConfig) {
 	if err != nil {
 		panic(err)
 	}
+
+	if config.PrunerConfig.PushgatewayUrl != "" {
+		jobName := config.PrunerConfig.PushgatewayJobName
+		if jobName == "" {
+			jobName = "lookout-pruner"
+		}
+		pushCtx, pushCancel := armadacontext.WithTimeout(ctx, 30*time.Second)
+		defer pushCancel()
+		if err := pruner.PushMetrics(pushCtx, config.PrunerConfig.PushgatewayUrl, jobName); err != nil {
+			log.WithError(err).Warn("failed to push pruner metrics to Pushgateway")
+		}
+	}
 }
 
 func main() {

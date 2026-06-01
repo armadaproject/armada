@@ -288,6 +288,17 @@ export const ensurePreferencesAreConsistent = (preferences: JobsTablePreferences
     (id) => annotationKeyColumnIdsSet.has(id as AnnotationColumnId) || unpinnedStandardColumnIdsSet.has(id),
   )
 
+  // Remove orphaned annotation entries from visibleColumns
+  for (const colId of Object.keys(preferences.visibleColumns)) {
+    if (
+      !isStandardColId(colId) &&
+      colId.startsWith("annotation_") &&
+      !annotationKeyColumnIdsSet.has(colId as AnnotationColumnId)
+    ) {
+      delete preferences.visibleColumns[colId]
+    }
+  }
+
   // Ensure new standard columns that aren't in saved preferences default to hidden
   // (TanStack Table treats missing keys as visible, which causes new columns to appear unexpectedly)
   for (const colId of unpinnedStandardColumnIds) {
