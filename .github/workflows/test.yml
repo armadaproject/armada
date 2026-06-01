@@ -104,26 +104,8 @@ jobs:
       - name: Setup Integration Tests
         run: go run github.com/magefile/mage@v1.15.0 -v dev:full
 
-      - name: Wait for Armada to accept jobs
-        run: |
-          # Probe readiness with example/example-job.yaml, which carries its own queue
-          # (queue-a) and jobSetId. armadactl submit requires a jobSetId, so the testsuite
-          # testcases (which omit it and have it injected at runtime) can't be used here.
-          for i in $(seq 1 60); do
-            go run cmd/armadactl/main.go --config e2e/config/armadactl_config.yaml create queue queue-a 2>&1 | grep -qiE "Created queue|already exists" || true
-            if go run cmd/armadactl/main.go --config e2e/config/armadactl_config.yaml submit example/example-job.yaml 2>&1 | grep -q "Submitted job with id"; then
-              echo "Armada is ready"; exit 0
-            fi
-            echo "waiting for armada... ($i)"; sleep 5
-          done
-          echo "Armada did not become ready"; exit 1
-
       - name: Run Integration Tests
-        run: |
-          go run cmd/testsuite/main.go test \
-            --tests "testsuite/testcases/basic/*,testsuite/testcases/categorization/*" \
-            --junit junit.xml \
-            --config e2e/config/armadactl_config.yaml
+        run: go run github.com/magefile/mage@v1.15.0 -v testsuite
 
       - name: Upload JUnit Report Artifact
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
