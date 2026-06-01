@@ -14,7 +14,7 @@ import (
 // monotonically increasing total across multiple invocations of the process.
 var zombiesRepaired = prometheus.NewGauge(
 	prometheus.GaugeOpts{
-		Name: "lookout_pruner_zombie_jobs_repaired_total",
+		Name: "lookout_pruner_zombie_jobs_repaired",
 		Help: "Number of zombie jobs (non-terminal job.state but terminal latest run) repaired by the lookout pruner in the most recent run.",
 	},
 )
