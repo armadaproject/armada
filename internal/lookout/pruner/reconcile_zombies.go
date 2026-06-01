@@ -118,7 +118,7 @@ func ReconcileZombieJobs(
 		// Surface this loudly so it gets noticed and investigated.
 		log.Warnf("Reconciled %d zombie job(s) -- this should not happen and indicates an upstream bug", totalRepaired)
 	}
-	zombiesRepaired.Add(float64(totalRepaired))
+	zombiesRepaired.Set(float64(totalRepaired))
 
 	if err := observeZombiesWithNullFinished(ctx, db); err != nil {
 		// Diagnostic counting failure: log but do not fail the pruner run.
