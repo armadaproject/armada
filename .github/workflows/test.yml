@@ -130,6 +130,69 @@ jobs:
             ./logs/
           if-no-files-found: error
 
+  go-integration-tests-full:
+    # Proves the containerized full stack (_local/compose/full.yaml) end-to-end:
+    # every Armada component runs as a container with a real executor on Kind, and the
+    # integration testsuite is run against it. This is the candidate replacement for the
+    # `mage localdev minimal` flow above.
+    name: Golang Integration Tests (full stack)
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Setup Go
+        uses: ./.github/actions/setup-go-cache
+        with:
+          cache-prefix: go-integration-tests-full
+          cache-tools: true
+
+      - name: Bring up full stack
+        run: go run github.com/magefile/mage@v1.15.0 -v dev:full
+
+      - name: Wait for Armada to accept jobs
+        run: |
+          for i in $(seq 1 60); do
+            if go run cmd/armadactl/main.go --config e2e/config/armadactl_config.yaml create queue e2e-test-queue 2>&1 | grep -qiE "Created queue|already exists"; then
+              if go run cmd/armadactl/main.go --config e2e/config/armadactl_config.yaml submit testsuite/testcases/basic/submit_1x1.yaml 2>&1 | grep -q "Submitted job with id"; then
+                echo "Armada is ready"; exit 0
+              fi
+            fi
+            echo "waiting for armada... ($i)"; sleep 5
+          done
+          echo "Armada did not become ready"; exit 1
+
+      - name: Run Integration Tests
+        run: |
+          go run cmd/testsuite/main.go test \
+            --tests "testsuite/testcases/basic/*,testsuite/testcases/categorization/*" \
+            --junit junit.xml \
+            --config e2e/config/armadactl_config.yaml
+
+      - name: Upload JUnit Report Artifact
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: go-integration-test-full-reports
+          path: junit.xml
+          if-no-files-found: error
+
+      - name: Store Docker Logs
+        if: always()
+        run: |
+          mkdir -p ./logs
+          docker compose -f _local/compose/full.yaml logs --no-color > ./logs/full-stack.log
+          docker logs pulsar > ./logs/pulsar.log 2>&1
+
+      - name: Upload Full Stack Logs
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        if: always()
+        with:
+          name: full-stack-logs
+          path: |
+            ./logs/
+          if-no-files-found: error
+
   go-mod-up-to-date:
     name: Golang Mod Up To Date
     runs-on: ubuntu-22.04

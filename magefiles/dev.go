@@ -22,6 +22,7 @@ type Dev mg.Namespace
 const (
 	goremanPackage   = "github.com/mattn/goreman@v0.3.15"
 	stackComposeFile = "_local/compose/stack.yaml"
+	fullComposeFile  = "_local/compose/full.yaml"
 	initScript       = "_local/scripts/init.sh"
 )
 
@@ -86,6 +87,26 @@ func (Dev) Deps() error {
 // Down stops docker-compose dependencies. If a `dev:up` goreman is running, Ctrl+C it first.
 func (Dev) Down() error {
 	return sh.RunV("docker", "compose", "-f", stackComposeFile, "down")
+}
+
+// Full brings up the entire Armada stack in containers via _local/compose/full.yaml.
+// Unlike dev:up (host-process goreman flow), every component runs as a container, with a
+// real executor against a Kind cluster. This is what CI uses for integration tests.
+//
+// It builds the bundle images, sets up Kind (which writes the executor's kubeconfig to
+// .kube/internal/config), then brings the stack up. Migrations run as compose services
+// ordered ahead of the components, so no separate init step is needed.
+func (Dev) Full() error {
+	mg.Deps(mg.F(goreleaserMinimalRelease, "bundle", "lookout-bundle"), Kind)
+	return sh.RunV("docker", "compose", "-f", fullComposeFile, "up", "-d", "--wait")
+}
+
+// FullDown stops the containerized full stack and tears down the Kind cluster.
+func (Dev) FullDown() error {
+	if err := sh.RunV("docker", "compose", "-f", fullComposeFile, "down", "-v"); err != nil {
+		return err
+	}
+	return kindTeardown()
 }
 
 // devDepsUp brings the dependency stack up and waits for healthchecks. redis/postgres/pulsar
