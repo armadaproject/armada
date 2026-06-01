@@ -229,20 +229,6 @@ func LastStatusChange(pod *v1.Pod) (time.Time, error) {
 	return maxStatusChange, nil
 }
 
-func FindLastContainerStartTime(pod *v1.Pod) time.Time {
-	// Fallback to pod creation if there is no container
-	startTime := pod.CreationTimestamp.Time
-	for _, c := range pod.Status.ContainerStatuses {
-		if s := c.State.Running; s != nil {
-			startTime = maxTime(startTime, s.StartedAt.Time)
-		}
-		if s := c.State.Terminated; s != nil {
-			startTime = maxTime(startTime, s.StartedAt.Time)
-		}
-	}
-	return startTime
-}
-
 func HasPodBeenInStateForLongerThanGivenDuration(pod *v1.Pod, duration time.Duration) bool {
 	deadline := time.Now().Add(-duration)
 	lastStatusChange, err := LastStatusChange(pod)
@@ -274,17 +260,6 @@ func IsMarkedForDeletion(pod *v1.Pod) bool {
 func IsReportedPreempted(pod *v1.Pod) bool {
 	_, exists := pod.Annotations[domain.JobPreemptedAnnotation]
 	return exists
-}
-
-// GetDeletionGracePeriodOrDefault returns the pod's DeletionGracePeriodSeconds seconds (if populated) or the K8s
-// default value of 30 seconds (if it isn't)
-func GetDeletionGracePeriodOrDefault(pod *v1.Pod) time.Duration {
-	podGracePeriodSeconds := pod.GetDeletionGracePeriodSeconds()
-	if podGracePeriodSeconds == nil {
-		return 30 * time.Second
-	} else {
-		return time.Duration(*podGracePeriodSeconds) * time.Second
-	}
 }
 
 func IsPodFinishedAndReported(pod *v1.Pod) bool {
