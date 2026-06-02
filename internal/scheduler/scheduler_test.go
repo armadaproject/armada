@@ -970,6 +970,22 @@ func TestScheduler_TestCycle(t *testing.T) {
 			expectedLeased:        []string{leasedJob.Id()}, // job should still be leased as error was thrown and transaction rolled back
 			expectedQueuedVersion: leasedJob.QueuedVersion(),
 		},
+		"Publish fails with pending updates does not advance the serial cursor": {
+			initialJobs: []*jobdb.Job{leasedJob},
+			runUpdates: []database.Run{
+				{
+					RunID:     leasedJob.LatestRun().Id(),
+					JobID:     leasedJob.Id(),
+					JobSet:    "testJobSet",
+					Executor:  "testExecutor",
+					Succeeded: true,
+					Serial:    1,
+				},
+			},
+			publishError:          true,
+			expectedLeased:        []string{leasedJob.Id()},
+			expectedQueuedVersion: leasedJob.QueuedVersion(),
+		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -1066,16 +1082,24 @@ func TestScheduler_TestCycle(t *testing.T) {
 				assert.Empty(t, m, "%d outstanding eventSequences of type %s", len(m), eventType)
 			}
 
-			// assert that the serials are where we expect them to be
-			if len(tc.jobUpdates) > 0 {
-				assert.Equal(t, tc.jobUpdates[len(tc.jobUpdates)-1].Serial, sched.jobsSerial)
-			} else {
+			// assert that the serials are where we expect them to be.
+			// On publish failure the cursor must not advance, so that the next cycle re-fetches
+			// and re-publishes the same updates. This is what guarantees at-least-once delivery
+			// across transient Pulsar outages.
+			if tc.publishError {
 				assert.Equal(t, int64(-1), sched.jobsSerial)
-			}
-			if len(tc.runUpdates) > 0 {
-				assert.Equal(t, tc.runUpdates[len(tc.runUpdates)-1].Serial, sched.runsSerial)
-			} else {
 				assert.Equal(t, int64(-1), sched.runsSerial)
+			} else {
+				if len(tc.jobUpdates) > 0 {
+					assert.Equal(t, tc.jobUpdates[len(tc.jobUpdates)-1].Serial, sched.jobsSerial)
+				} else {
+					assert.Equal(t, int64(-1), sched.jobsSerial)
+				}
+				if len(tc.runUpdates) > 0 {
+					assert.Equal(t, tc.runUpdates[len(tc.runUpdates)-1].Serial, sched.runsSerial)
+				} else {
+					assert.Equal(t, int64(-1), sched.runsSerial)
+				}
 			}
 
 			// assert that the job db is in the state we expect
@@ -1141,6 +1165,139 @@ func TestScheduler_TestCycle(t *testing.T) {
 			cancel()
 		})
 	}
+}
+
+// TestScheduler_PublishFailureRepublishesOnNextCycle directly verifies the at-least-once
+// publish property: when publishing fails on one cycle, the same state-transition events
+// must be regenerated and published on the next successful cycle. The TestCycle table-driven
+// test only asserts that the cursor does not advance, which is a proxy for this property.
+func TestScheduler_PublishFailureRepublishesOnNextCycle(t *testing.T) {
+	jobRepo := &testJobRepository{
+		updatedRuns: []database.Run{
+			{
+				RunID:     leasedJob.LatestRun().Id(),
+				JobID:     leasedJob.Id(),
+				JobSet:    "testJobSet",
+				Executor:  "testExecutor",
+				Succeeded: true,
+				Serial:    1,
+			},
+		},
+	}
+	testClock := clock.NewFakeClock(time.Now())
+	publisher := &testPublisher{shouldError: true}
+	clusterRepo := &testExecutorRepository{
+		updateTimes: map[string]time.Time{"testExecutor": testClock.Now()},
+	}
+	sched, err := NewScheduler(
+		testfixtures.NewJobDb(testfixtures.TestResourceListFactory),
+		jobRepo,
+		clusterRepo,
+		&testSchedulingAlgo{},
+		leader.NewStandaloneLeaderController(),
+		publisher,
+		&testSubmitChecker{checkSuccess: true},
+		&testGangValidator{validateSuccess: true},
+		1*time.Second,
+		5*time.Second,
+		1*time.Hour,
+		nil,
+		maxNumberOfAttempts,
+		nodeIdLabel,
+		schedulerMetrics,
+		pricing.NoopBidPriceProvider{},
+		[]string{},
+		&testQueueCache{},
+	)
+	require.NoError(t, err)
+	sched.EnableAssertions()
+	sched.clock = testClock
+
+	txn := sched.jobDb.WriteTxn()
+	require.NoError(t, txn.Upsert([]*jobdb.Job{leasedJob}))
+	txn.Commit()
+
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
+	defer cancel()
+
+	// First cycle: publishing fails, no events should reach the publisher and the cursor
+	// must not advance.
+	require.Error(t, sched.cycle(ctx, false, sched.leaderController.GetToken(), true, 1))
+	assert.Empty(t, publisher.eventSequences)
+	assert.Equal(t, int64(-1), sched.runsSerial)
+
+	// Second cycle: publishing succeeds. The same run update is still pending (cursor did
+	// not advance), so a JobSucceeded event must be regenerated and published.
+	publisher.shouldError = false
+	require.NoError(t, sched.cycle(ctx, false, sched.leaderController.GetToken(), true, 2))
+	assert.Equal(t, int64(1), sched.runsSerial)
+
+	jobSucceededEventType := fmt.Sprintf("%T", &armadaevents.EventSequence_Event_JobSucceeded{})
+	outstanding := map[string]map[string]eventDetails{
+		jobSucceededEventType: stringsToSetWithEventDetails([]string{leasedJob.Id()}),
+	}
+	require.NoError(t, subtractEventsFromOutstandingEventsByType(publisher.eventSequences, outstanding))
+	assert.Empty(t, outstanding[jobSucceededEventType], "expected JobSucceeded event for job %s to be republished after the failed cycle", leasedJob.Id())
+}
+
+// TestScheduler_NonLeaderAdvancesCursors verifies that non-leader cycles advance the DB
+// serial cursors. Non-leaders generate no events to publish, so they must still progress
+// through the cursor; otherwise every cycle re-fetches the same growing window of DB rows.
+func TestScheduler_NonLeaderAdvancesCursors(t *testing.T) {
+	jobRepo := &testJobRepository{
+		updatedRuns: []database.Run{
+			{
+				RunID:     leasedJob.LatestRun().Id(),
+				JobID:     leasedJob.Id(),
+				JobSet:    "testJobSet",
+				Executor:  "testExecutor",
+				Succeeded: true,
+				Serial:    1,
+			},
+		},
+	}
+	testClock := clock.NewFakeClock(time.Now())
+	publisher := &testPublisher{}
+	clusterRepo := &testExecutorRepository{
+		updateTimes: map[string]time.Time{"testExecutor": testClock.Now()},
+	}
+	leaderController := leader.NewStandaloneLeaderController()
+	sched, err := NewScheduler(
+		testfixtures.NewJobDb(testfixtures.TestResourceListFactory),
+		jobRepo,
+		clusterRepo,
+		&testSchedulingAlgo{},
+		leaderController,
+		publisher,
+		&testSubmitChecker{checkSuccess: true},
+		&testGangValidator{validateSuccess: true},
+		1*time.Second,
+		5*time.Second,
+		1*time.Hour,
+		nil,
+		maxNumberOfAttempts,
+		nodeIdLabel,
+		schedulerMetrics,
+		pricing.NoopBidPriceProvider{},
+		[]string{},
+		&testQueueCache{},
+	)
+	require.NoError(t, err)
+	sched.clock = testClock
+
+	txn := sched.jobDb.WriteTxn()
+	require.NoError(t, txn.Upsert([]*jobdb.Job{leasedJob}))
+	txn.Commit()
+
+	leaderController.SetToken(leader.InvalidLeaderToken())
+
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
+	defer cancel()
+
+	require.NoError(t, sched.cycle(ctx, false, leaderController.GetToken(), true, 1))
+
+	assert.Equal(t, int64(1), sched.runsSerial, "non-leader cycle must advance runsSerial to consume the run update")
+	assert.Empty(t, publisher.eventSequences, "non-leader must not publish any events")
 }
 
 func createAntiAffinity(t *testing.T, key string, values []string) *v1.Affinity {
@@ -1618,8 +1775,10 @@ func TestScheduler_TestSyncInitialState(t *testing.T) {
 			// which must be consistent within tests.
 			sched.jobDb = testfixtures.NewJobDb(testfixtures.TestResourceListFactory)
 
-			initialJobs, _, err := sched.syncState(ctx, true, false)
+			initialJobs, _, newJobsSerial, newRunsSerial, err := sched.syncState(ctx, true, false)
 			require.NoError(t, err)
+			sched.jobsSerial = newJobsSerial
+			sched.runsSerial = newRunsSerial
 
 			expectedJobDb := testfixtures.NewJobDbWithJobs(tc.expectedInitialJobs)
 			actualJobDb := testfixtures.NewJobDbWithJobs(initialJobs)
@@ -1838,7 +1997,7 @@ func TestScheduler_TestSyncState(t *testing.T) {
 			require.NoError(t, err)
 			txn.Commit()
 
-			updatedJobs, _, err := sched.syncState(ctx, false, false)
+			updatedJobs, _, _, _, err := sched.syncState(ctx, false, false)
 			require.NoError(t, err)
 
 			expectedJobDb := testfixtures.NewJobDbWithJobs(tc.expectedUpdatedJobs)

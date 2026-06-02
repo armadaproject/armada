@@ -24,6 +24,8 @@ prunerConfig:
   zombieRepairThreshold: 15m # grace period before repairing jobs whose latest run is terminal but state is non-terminal
   timeout: 1h
   batchSize: 1000
+  pushgatewayUrl: ""
+  pushgatewayJobName: "lookout-pruner"
 uiConfig:
   backend: "jsonb"
   armadaApiBaseUrl: "http://armada-server:8080"
