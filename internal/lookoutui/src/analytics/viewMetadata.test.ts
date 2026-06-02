@@ -139,4 +139,3 @@ describe("buildViewEventData", () => {
     ])
   })
 })
-
