@@ -1,6 +1,5 @@
-import { Match } from "models/lookoutModels"
-
 import { DEFAULT_COLUMN_VISIBILITY, toAnnotationColId } from "../common/jobsTableColumns"
+import { Match } from "../models/lookoutModels"
 import { JobsTablePreferences } from "../services/lookout/JobsTablePreferencesService"
 
 /**

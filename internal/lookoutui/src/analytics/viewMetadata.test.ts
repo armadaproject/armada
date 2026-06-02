@@ -1,8 +1,8 @@
 import { VisibilityState } from "@tanstack/react-table"
-import { Match } from "models/lookoutModels"
 import { describe, expect, it } from "vitest"
 
 import { DEFAULT_COLUMN_VISIBILITY, StandardColumnId } from "../common/jobsTableColumns"
+import { Match } from "../models/lookoutModels"
 import { JobsTablePreferences } from "../services/lookout/JobsTablePreferencesService"
 
 import { buildViewEventData } from "./viewMetadata"
