@@ -5,6 +5,7 @@ import { DEFAULT_COLUMN_VISIBILITY, StandardColumnId } from "../common/jobsTable
 import { JobsTablePreferences } from "../services/lookout/JobsTablePreferencesService"
 
 import { buildViewEventData } from "./viewMetadata"
+import { Match } from "models/lookoutModels"
 
 function makePrefs(overrides: Partial<JobsTablePreferences> = {}): JobsTablePreferences {
   return {
@@ -119,4 +120,25 @@ describe("buildViewEventData", () => {
     const expectedCount = Object.values(visibleColumns).filter(Boolean).length
     expect(result.columnCount).toBe(String(expectedCount))
   })
+
+  it("includes filter details in event data", () => {
+    const result = buildViewEventData(
+      "test",
+      makePrefs({
+        filters: [
+          { id: "Queue", value: "test-queue" },
+          { id: "State", value: "Running" },
+        ],
+        columnMatches: { Queue: Match.StartsWith },
+      }),
+    )
+    const details = JSON.parse(result.filterDetails)
+    expect(details).toEqual([
+      { column: "Queue", matchType: "startsWith", value: "test-queue" },
+      { column: "State", matchType: "exact", value: "Running" },
+    ])
+  })
+
+
 })
+
