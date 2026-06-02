@@ -70,7 +70,7 @@ func RunMigrations() error {
 func StartDependencies() error {
 	composeFile := getComposeFile()
 	services := append(slices.Clone(dependencies), getExtraDeps()...)
-	command := append([]string{"compose", "-f", composeFile, "up", "-d"}, services...)
+	command := append([]string{"compose", "-f", composeFile, "up", "-d", "--wait"}, services...)
 	return dockerRun(command...)
 }
 

@@ -114,9 +114,27 @@
       "problemMatcher": []
     },
     {
+      "label": "Kill port conflicts",
+      "type": "shell",
+      "command": "for port in 3000 8081 8082 8083 8084 8089 9000 9001 9002 9003 9004 9005 9006 9007 9008 50051 50052 50053; do pids=$(lsof -i :$port -sTCP:LISTEN -t 2>/dev/null); if [ -n \"$pids\" ]; then proc=$(lsof -i :$port -sTCP:LISTEN 2>/dev/null | awk 'NR>1{print $1}' | sort -u); echo \"Killing port $port ($proc)\"; kill $pids; fi; done; true",
+      "problemMatcher": []
+    },
+    {
       "label": "Sleep after start",
       "type": "shell",
-      "command": "sleep 5",
+      "command": "sleep 15",
+      "problemMatcher": []
+    },
+    {
+      "label": "Wait for dlv (standard)",
+      "type": "shell",
+      "command": "for entry in 2345:server 2346:scheduler 2347:scheduleringester 2348:eventingester 2349:executor 2350:lookout 2351:lookoutingester 2352:binoculars; do port=${entry%%:*}; name=${entry##*:}; until lsof -i :$port -sTCP:LISTEN -t >/dev/null 2>&1; do echo \"Waiting for $name (dlv :$port)...\"; sleep 1; done; echo \"✓ $name ready\"; done; echo \"All dlv servers ready\"",
+      "problemMatcher": []
+    },
+    {
+      "label": "Wait for dlv (fake-executor)",
+      "type": "shell",
+      "command": "for entry in 2345:server 2346:scheduler 2347:scheduleringester 2348:eventingester 2353:fakeexecutor 2350:lookout 2351:lookoutingester 2352:binoculars; do port=${entry%%:*}; name=${entry##*:}; until lsof -i :$port -sTCP:LISTEN -t >/dev/null 2>&1; do echo \"Waiting for $name (dlv :$port)...\"; sleep 1; done; echo \"✓ $name ready\"; done; echo \"All dlv servers ready\"",
       "problemMatcher": []
     },
     {
@@ -139,7 +157,7 @@
         "Start dependencies",
         "Init databases",
         "Goreman: Start (no-auth debug)",
-        "Sleep after start"
+        "Wait for dlv (standard)"
       ]
     },
     {
@@ -150,7 +168,7 @@
         "Start dependencies with Auth",
         "Init databases",
         "Goreman: Start (auth debug)",
-        "Sleep after start"
+        "Wait for dlv (standard)"
       ]
     },
     {
@@ -161,7 +179,7 @@
         "Start dependencies",
         "Init databases",
         "Goreman: Start (fake-executor debug)",
-        "Sleep after start"
+        "Wait for dlv (fake-executor)"
       ]
     },
     {
@@ -172,7 +190,7 @@
         "Start dependencies with Prometheus",
         "Init databases",
         "Goreman: Start (no-auth debug)",
-        "Sleep after start"
+        "Wait for dlv (standard)"
       ]
     },
     {
@@ -183,7 +201,7 @@
         "Start dependencies with Prometheus",
         "Init databases",
         "Goreman: Start (fake-executor debug)",
-        "Sleep after start"
+        "Wait for dlv (fake-executor)"
       ]
     },
     {
@@ -194,7 +212,7 @@
         "Start dependencies with Prometheus and Auth",
         "Init databases",
         "Goreman: Start (auth debug)",
-        "Sleep after start"
+        "Wait for dlv (standard)"
       ]
     }
   ]
