@@ -1,11 +1,11 @@
 import { VisibilityState } from "@tanstack/react-table"
+import { Match } from "models/lookoutModels"
 import { describe, expect, it } from "vitest"
 
 import { DEFAULT_COLUMN_VISIBILITY, StandardColumnId } from "../common/jobsTableColumns"
 import { JobsTablePreferences } from "../services/lookout/JobsTablePreferencesService"
 
 import { buildViewEventData } from "./viewMetadata"
-import { Match } from "models/lookoutModels"
 
 function makePrefs(overrides: Partial<JobsTablePreferences> = {}): JobsTablePreferences {
   return {
@@ -138,7 +138,5 @@ describe("buildViewEventData", () => {
       { column: "State", matchType: "exact", value: "Running" },
     ])
   })
-
-
 })
 
