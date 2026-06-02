@@ -1472,7 +1472,7 @@
         "jobSetId": {
           "type": "string"
         },
-        "preemptiveJobId": {
+        "preemptingJobId": {
           "type": "string"
         },
         "preemptiveRunId": {
