@@ -181,6 +181,9 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulingResu
 		} else if schedulerconstraints.IsTerminalQueueUnschedulableReason(unschedulableReason) {
 			// If unschedulableReason indicates no more new jobs can be scheduled for this queue,
 			// instruct the underlying iterator to only yield evicted jobs for this queue from now on.
+			if sctx.TerminationReason == "" {
+				sctx.TerminationReason = unschedulableReason
+			}
 			err := sch.candidateGangIterator.OnlyYieldEvictedForQueue(gctx.Queue)
 			if err != nil {
 				return nil, err

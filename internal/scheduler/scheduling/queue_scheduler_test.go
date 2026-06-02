@@ -46,6 +46,8 @@ func TestQueueScheduler(t *testing.T) {
 		ExpectedScheduledIndices []int
 		// Indices of jobs the scheduler should never have tried to schedule.
 		ExpectedNeverAttemptedIndices []int
+		// Expected scheduling context termination reason.
+		ExpectedTerminationReason string
 	}{
 		"simple success": {
 			SchedulingConfig:         testfixtures.TestSchedulingConfig(),
@@ -117,6 +119,7 @@ func TestQueueScheduler(t *testing.T) {
 			Queues:                        []*api.Queue{{Name: "A", PriorityFactor: 1.0}, {Name: "B", PriorityFactor: 1.0}},
 			ExpectedScheduledIndices:      []int{0, 11, 14},
 			ExpectedNeverAttemptedIndices: []int{13},
+			ExpectedTerminationReason:     schedulerconstraints.QueueRateLimitExceededUnschedulableReason,
 		},
 		"MaximumSchedulingBurst is not exceeded by gangs": {
 			SchedulingConfig: testfixtures.WithGlobalSchedulingRateLimiterConfig(10, 2, testfixtures.TestSchedulingConfig()),
@@ -677,6 +680,9 @@ func TestQueueScheduler(t *testing.T) {
 
 			// Check that we were given a termination reason.
 			assert.NotEmpty(t, sch.schedulingContext.TerminationReason)
+			if tc.ExpectedTerminationReason != "" {
+				assert.Equal(t, tc.ExpectedTerminationReason, sch.schedulingContext.TerminationReason)
+			}
 		})
 	}
 }

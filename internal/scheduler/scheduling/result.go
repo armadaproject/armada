@@ -43,9 +43,12 @@ func terminationReasonFromString(reason string) PoolSchedulingTerminationReason 
 	switch reason {
 	case context.Canceled.Error(), context.DeadlineExceeded.Error():
 		return PoolSchedulingTerminationReasonTimeout
-	case constraints.GlobalNewJobSchedulingDurationExceededUnschedulableReason:
+	case constraints.GlobalNewJobSchedulingDurationExceededUnschedulableReason,
+		constraints.QueueNewJobSchedulingDurationExceededUnschedulableReason:
 		return PoolSchedulingTerminationReasonSoftTimeout
-	case constraints.GlobalRateLimitExceededUnschedulableReason:
+	case constraints.GlobalRateLimitExceededUnschedulableReason,
+		constraints.QueueRateLimitExceededUnschedulableReason,
+		constraints.QueueRateLimitExceededByGangUnschedulableReason:
 		return PoolSchedulingTerminationReasonRateLimit
 	case constraints.MaximumResourcesScheduledUnschedulableReason:
 		return PoolSchedulingTerminationReasonMaxResources
