@@ -108,6 +108,12 @@
       ]
     },
     {
+      "label": "Check for port conflicts",
+      "type": "shell",
+      "command": "for port in 3000 8081 8082 8083 8084 8089 9000 9001 9002 9003 9004 9005 9006 9007 9008 50051 50052 50053; do proc=$(lsof -i :$port -sTCP:LISTEN 2>/dev/null | awk 'NR>1{print $1}' | sort -u); [ -n \"$proc\" ] && echo \"WARNING: port $port already in use by $proc\"; done; true",
+      "problemMatcher": []
+    },
+    {
       "label": "Sleep after start",
       "type": "shell",
       "command": "sleep 5",
@@ -129,6 +135,7 @@
       "label": "Goreman: Set up and start (no-auth debug)",
       "dependsOrder": "sequence",
       "dependsOn": [
+        "Check for port conflicts",
         "Start dependencies",
         "Init databases",
         "Goreman: Start (no-auth debug)",
@@ -139,6 +146,7 @@
       "label": "Goreman: Set up and start (auth debug)",
       "dependsOrder": "sequence",
       "dependsOn": [
+        "Check for port conflicts",
         "Start dependencies with Auth",
         "Init databases",
         "Goreman: Start (auth debug)",
@@ -149,6 +157,7 @@
       "label": "Goreman: Set up and start (fake-executor debug)",
       "dependsOrder": "sequence",
       "dependsOn": [
+        "Check for port conflicts",
         "Start dependencies",
         "Init databases",
         "Goreman: Start (fake-executor debug)",
@@ -159,6 +168,7 @@
       "label": "Goreman: Set up and start (no-auth debug with prometheus)",
       "dependsOrder": "sequence",
       "dependsOn": [
+        "Check for port conflicts",
         "Start dependencies with Prometheus",
         "Init databases",
         "Goreman: Start (no-auth debug)",
@@ -169,6 +179,7 @@
       "label": "Goreman: Set up and start (fake-executor debug with prometheus)",
       "dependsOrder": "sequence",
       "dependsOn": [
+        "Check for port conflicts",
         "Start dependencies with Prometheus",
         "Init databases",
         "Goreman: Start (fake-executor debug)",
@@ -179,6 +190,7 @@
       "label": "Goreman: Set up and start (auth debug with prometheus)",
       "dependsOrder": "sequence",
       "dependsOn": [
+        "Check for port conflicts",
         "Start dependencies with Prometheus and Auth",
         "Init databases",
         "Goreman: Start (auth debug)",
