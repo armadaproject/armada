@@ -107,7 +107,7 @@ func Run(config *configuration.EventIngesterConfiguration) {
 		}
 		leaderOptions := leaderelection.MetricsOptions{
 			MetricsPrefix:               ingestermetrics.ArmadaEventIngesterMetricsPrefix,
-			MarkLeadingInStandaloneMode: false,
+			MarkLeadingInStandaloneMode: true,
 		}
 		leaderController, err := leaderelection.CreateLeaderController(ctx, leaderConfig, &leaderOptions)
 		if err != nil {
