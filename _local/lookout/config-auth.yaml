@@ -1,14 +1,14 @@
-apiPort: 8089
-metricsPort: 9003
+apiPort: 18089
+metricsPort: 19003
 corsAllowedOrigins:
   - "http://localhost:3000"
-  - "http://localhost:8089"
+  - "http://localhost:18089"
   - "http://localhost:10000"
-  - "http://localhost:8081"
+  - "http://localhost:18081"
 auth:
   anonymousAuth: false
   openIdAuth:
-    providerUrl: "http://localhost:8180/realms/armada"
+    providerUrl: "http://localhost:18180/realms/armada"
     clientId: "armada-server"
     groupsClaim: "groups"
     skipClientIDCheck: true
@@ -30,13 +30,13 @@ postgres:
     sslmode: disable
 uiConfig:
   backend: "jsonb"
-  armadaApiBaseUrl: "http://localhost:8081"
-  binocularsBaseUrlPattern: "http://localhost:8084"
+  armadaApiBaseUrl: "http://localhost:18081"
+  binocularsBaseUrlPattern: "http://localhost:18084"
   customTitle: "Armada Local Dev (Auth Enabled)"
   userAnnotationPrefix: "armadaproject.io/"
   oidcEnabled: true
   oidc:
-    authority: "http://localhost:8180/realms/armada"
+    authority: "http://localhost:18180/realms/armada"
     clientId: "armada-server"
     scope: "openid profile email"
     # Keycloak defines a "name" claim which is more human readable than the default "sub"

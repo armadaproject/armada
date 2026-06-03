@@ -40,7 +40,7 @@ services:
     entrypoint: sh -c "bin/apply-config-from-env.py conf/standalone.conf && bin/pulsar standalone"
     ports:
       - "6650:6650"
-      - "8090:8080"
+      - "18090:8080"
     restart: unless-stopped
     healthcheck:
       test:
@@ -62,7 +62,7 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
-      - "9090:9090"
+      - "19090:9090"
     volumes:
       - "./prometheus.yml:/etc/prometheus/prometheus.yml"
     command:
@@ -90,10 +90,10 @@ services:
     environment:
       - KEYCLOAK_ADMIN=admin
       - KEYCLOAK_ADMIN_PASSWORD=admin
-      - KC_HTTP_PORT=8180
+      - KC_HTTP_PORT=18180
       - KC_HEALTH_ENABLED=true
     ports:
-      - "8180:8180"
+      - "18180:18180"
     command: start-dev --import-realm
     volumes:
       - ./keycloak/import:/opt/keycloak/data/import:ro

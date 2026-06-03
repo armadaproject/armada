@@ -1,11 +1,11 @@
-httpPort: 8081
+httpPort: 18081
 grpcPort: 50051
-metricsPort: 9000
+metricsPort: 19000
 corsAllowedOrigins:
   - "http://localhost:3000"
-  - "http://localhost:8089"
+  - "http://localhost:18089"
   - "http://localhost:10000"
-  - "http://localhost:8081"
+  - "http://localhost:18081"
 auth:
   anonymousAuth: false
   basicAuth:
@@ -14,7 +14,7 @@ auth:
         password: "admin"
         groups: ["admins"]
   openIdAuth:
-    providerUrl: "http://localhost:8180/realms/armada"
+    providerUrl: "http://localhost:18180/realms/armada"
     clientId: "armada-server"
     groupsClaim: "groups"
     skipClientIDCheck: true

@@ -1,6 +1,6 @@
-httpPort: 8084
+httpPort: 18084
 grpcPort: 50053
-metricsPort: 9007
+metricsPort: 19007
 application:
   clusterId: local-cluster
 kubernetes:

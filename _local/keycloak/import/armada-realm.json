@@ -40,10 +40,10 @@
       "consentRequired": false,
       "clientAuthenticatorType": "client-secret",
       "redirectUris": [
-        "http://localhost:8085/*",
+        "http://localhost:18085/*",
         "http://localhost:3000/*",
         "http://localhost:3001/*",
-        "http://127.0.0.1:8085/*",
+        "http://127.0.0.1:18085/*",
         "http://127.0.0.1:3000/*"
       ],
       "webOrigins": [

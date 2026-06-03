@@ -21,7 +21,7 @@ The imported configuration includes:
 - Type: Public client (no secret required)
 - PKCE enabled (S256 challenge method)
 - Redirect URIs configured for:
-  - armadactl: `http://localhost:8085/*`
+  - armadactl: `http://localhost:18085/*`
   - Lookout UI: `http://localhost:3000/*`, `http://localhost:3001/*`
 
 #### `armada-executor`
@@ -47,8 +47,8 @@ The imported configuration includes:
 
 ## Access Details
 
-- Keycloak Admin Console: http://localhost:8180 (admin/admin)
-- OIDC Provider URL: http://localhost:8180/realms/armada
+- Keycloak Admin Console: http://localhost:18180 (admin/admin)
+- OIDC Provider URL: http://localhost:18180/realms/armada
 
 ## Configuration Files
 
