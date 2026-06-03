@@ -147,6 +147,7 @@ func NewSimulator(
 		schedulingConfig.DefaultPriorityClassName,
 		stringinterner.New(1024),
 		resourceListFactory,
+		nil,
 	)
 	jobDb.SetRespectNodePodLimits(schedulingConfig.RespectNodePodLimits)
 	randomSeed := workloadSpec.RandomSeed

@@ -252,6 +252,7 @@ func TestNodeBindingEvictionUnbinding_ReleasesPodSlot(t *testing.T) {
 		testfixtures.SchedulingKeyGenerator,
 		stringinterner.New(1024),
 		rlFactory,
+		nil,
 	)
 	jobDb.SetRespectNodePodLimits(true)
 

@@ -11,6 +11,8 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/utils/clock"
 
+	"github.com/armadaproject/armada/internal/scheduler/pricing"
+
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/constants"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
@@ -21,7 +23,6 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/kubernetesobjects/affinity"
 	"github.com/armadaproject/armada/internal/scheduler/leader"
 	"github.com/armadaproject/armada/internal/scheduler/metrics"
-	"github.com/armadaproject/armada/internal/scheduler/pricing"
 	"github.com/armadaproject/armada/internal/scheduler/queue"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling"
@@ -85,8 +86,9 @@ type Scheduler struct {
 	// If true, enable scheduler assertions.
 	// In particular, assert that the jobDb is in a valid state at the end of each cycle.
 	enableAssertions bool
-	// The service which provides up-to-date prices for price bands / jobs
-	bidPriceProvider pricing.BidPriceProvider
+	// Caches the latest bid prices fetched from bidPriceProvider each cycle.
+	// Also implements jobdb.PriceProvider so new jobs get prices at creation time.
+	priceCache *pricing.PriceCache
 	// A list of the pools that are market driven
 	// Used to know which jobs need update when updating job prices
 	marketDrivenPools []string
@@ -110,7 +112,7 @@ func NewScheduler(
 	maxAttemptedRuns uint,
 	nodeIdLabel string,
 	metrics *metrics.Metrics,
-	bidPriceProvider pricing.BidPriceProvider,
+	priceCache *pricing.PriceCache,
 	marketDrivenPools []string,
 	queueCache queue.QueueCache,
 ) (*Scheduler, error) {
@@ -127,7 +129,7 @@ func NewScheduler(
 		cyclePeriod:        cyclePeriod,
 		schedulePeriod:     schedulePeriod,
 		executorTimeout:    executorTimeout,
-		bidPriceProvider:   bidPriceProvider,
+		priceCache:         priceCache,
 		shortJobPenalty:    shortJobPenalty,
 		maxAttemptedRuns:   maxAttemptedRuns,
 		nodeIdLabel:        nodeIdLabel,
@@ -526,12 +528,16 @@ func (s *Scheduler) updateJobPrices(ctx *armadacontext.Context, txn *jobdb.Txn) 
 		return nil, nil
 	}
 
-	jobs := txn.GetAll()
-	jobsByQueue := map[string]map[bidstore.PriceBand][]*jobdb.Job{}
-	updatedBids, err := s.bidPriceProvider.GetBidPrices(ctx)
-	if err != nil {
+	if err := s.priceCache.UpdatePrices(ctx); err != nil {
 		return nil, err
 	}
+	snapshot := s.priceCache.CurrentSnapshot()
+	if snapshot == nil {
+		return nil, nil
+	}
+
+	jobs := txn.GetAll()
+	jobsByQueue := map[string]map[bidstore.PriceBand][]*jobdb.Job{}
 
 	hasMarketDrivenPool := func(j *jobdb.Job) bool {
 		for _, pool := range j.Pools() {
@@ -557,12 +563,10 @@ func (s *Scheduler) updateJobPrices(ctx *armadacontext.Context, txn *jobdb.Txn) 
 	updatedJobs := make([]*jobdb.Job, 0, len(jobs))
 	for queue := range jobsByQueue {
 		for priceBand, jobs := range jobsByQueue[queue] {
-			updatedPrice, present := updatedBids.GetPrice(queue, priceBand)
+			updatedPrice, present := snapshot.GetPrice(queue, priceBand)
 			if !present {
 				continue
 			}
-
-			// For now always update all jobs, as the jobDb isn't setting them as they come in
 			for _, job := range jobs {
 				job = job.WithBidPrices(updatedPrice)
 				updatedJobs = append(updatedJobs, job)
@@ -570,11 +574,11 @@ func (s *Scheduler) updateJobPrices(ctx *armadacontext.Context, txn *jobdb.Txn) 
 		}
 	}
 	ctx.Logger().Infof("updating the prices of %d jobs", len(updatedJobs))
-	err = txn.Upsert(updatedJobs)
+	err := txn.Upsert(updatedJobs)
 	if err != nil {
 		return nil, err
 	}
-	return updatedBids.ResourceUnits, nil
+	return snapshot.ResourceUnits, nil
 }
 
 func (s *Scheduler) createSchedulingInfoWithNodeAntiAffinityForAttemptedRuns(job *jobdb.Job) (*internaltypes.JobSchedulingInfo, error) {

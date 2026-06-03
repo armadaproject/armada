@@ -363,11 +363,18 @@ func Run(config schedulerconfig.Configuration) error {
 	if err != nil {
 		return errors.WithMessage(err, "error creating scheduling algo")
 	}
+	priceCache := pricing.NewPriceCache(bidPriceProvider)
+	if len(marketDrivenPools) > 0 {
+		if err := priceCache.UpdatePrices(ctx); err != nil {
+			return errors.WithMessage(err, "error initialising price cache")
+		}
+	}
 	jobDb := jobdb.NewJobDb(
 		config.Scheduling.PriorityClasses,
 		config.Scheduling.DefaultPriorityClassName,
 		stringInterner,
 		resourceListFactory,
+		priceCache,
 	)
 	jobDb.SetRespectNodePodLimits(config.Scheduling.RespectNodePodLimits)
 
@@ -402,7 +409,7 @@ func Run(config schedulerconfig.Configuration) error {
 		config.Scheduling.MaxRetries+1,
 		config.Scheduling.NodeIdLabel,
 		schedulerMetrics,
-		bidPriceProvider,
+		priceCache,
 		marketDrivenPools,
 		queueCache,
 	)

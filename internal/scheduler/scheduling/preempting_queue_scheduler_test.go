@@ -66,7 +66,7 @@ func TestEvictOversubscribed(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	jobDb := jobdb.NewJobDb(config.PriorityClasses, config.DefaultPriorityClassName, stringInterner, testfixtures.TestResourceListFactory)
+	jobDb := jobdb.NewJobDb(config.PriorityClasses, config.DefaultPriorityClassName, stringInterner, testfixtures.TestResourceListFactory, nil)
 	jobDbTxn := jobDb.WriteTxn()
 	err = jobDbTxn.Upsert(jobs)
 	require.NoError(t, err)
@@ -2046,7 +2046,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			priorities := types.AllowedPriorities(tc.SchedulingConfig.PriorityClasses)
 
-			jobDb := jobdb.NewJobDb(tc.SchedulingConfig.PriorityClasses, tc.SchedulingConfig.DefaultPriorityClassName, stringinterner.New(1024), testfixtures.TestResourceListFactory)
+			jobDb := jobdb.NewJobDb(tc.SchedulingConfig.PriorityClasses, tc.SchedulingConfig.DefaultPriorityClassName, stringinterner.New(1024), testfixtures.TestResourceListFactory, nil)
 			jobDbTxn := jobDb.WriteTxn()
 
 			// Add all the initial jobs, creating runs for them
@@ -2488,7 +2488,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 			}
 			txn.Commit()
 
-			jobDb := jobdb.NewJobDb(tc.SchedulingConfig.PriorityClasses, tc.SchedulingConfig.DefaultPriorityClassName, stringinterner.New(1024), testfixtures.TestResourceListFactory)
+			jobDb := jobdb.NewJobDb(tc.SchedulingConfig.PriorityClasses, tc.SchedulingConfig.DefaultPriorityClassName, stringinterner.New(1024), testfixtures.TestResourceListFactory, nil)
 			jobDbTxn := jobDb.WriteTxn()
 			var queuedJobs []*jobdb.Job
 			for _, jobs := range jobsByQueue {
@@ -2635,7 +2635,7 @@ func TestPreemptingQueueSchedulerTimeouts(t *testing.T) {
 
 		// Queue A: 32 jobs already running on the node
 		runningJobs := testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 32)
-		jobDb := jobdb.NewJobDb(config.PriorityClasses, config.DefaultPriorityClassName, stringInterner, testfixtures.TestResourceListFactory)
+		jobDb := jobdb.NewJobDb(config.PriorityClasses, config.DefaultPriorityClassName, stringInterner, testfixtures.TestResourceListFactory, nil)
 		jobDbTxn := jobDb.WriteTxn()
 		for _, job := range runningJobs {
 			err := jobDbTxn.Upsert([]*jobdb.Job{
@@ -2732,7 +2732,7 @@ func TestPreemptingQueueSchedulerTimeouts(t *testing.T) {
 		require.NoError(t, err)
 
 		jobs := testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 10)
-		jobDb := jobdb.NewJobDb(config.PriorityClasses, config.DefaultPriorityClassName, stringInterner, testfixtures.TestResourceListFactory)
+		jobDb := jobdb.NewJobDb(config.PriorityClasses, config.DefaultPriorityClassName, stringInterner, testfixtures.TestResourceListFactory, nil)
 		jobDbTxn := jobDb.WriteTxn()
 		require.NoError(t, jobDbTxn.Upsert(jobs))
 
@@ -2801,7 +2801,7 @@ func setupGangEvictionTest(t *testing.T, numNodes int) *gangEvictionTestFixture 
 	fairnessCostProvider, err := fairness.NewDominantResourceFairness(totalResources, testfixtures.TestPool, config)
 	require.NoError(t, err)
 
-	jdb := jobdb.NewJobDb(config.PriorityClasses, config.DefaultPriorityClassName, stringInterner, testfixtures.TestResourceListFactory)
+	jdb := jobdb.NewJobDb(config.PriorityClasses, config.DefaultPriorityClassName, stringInterner, testfixtures.TestResourceListFactory, nil)
 	jobDbTxn := jdb.WriteTxn()
 
 	sctx := schedulingcontext.NewSchedulingContext(
@@ -3088,7 +3088,7 @@ func TestPreemptingQueueScheduler_RespectNodePodLimits(t *testing.T) {
 			podsAwareFactory, err := internaltypes.NewResourceListFactory(config.SupportedResourceTypes, nil)
 			require.NoError(t, err)
 
-			jobDb := jobdb.NewJobDb(config.PriorityClasses, config.DefaultPriorityClassName, stringinterner.New(1024), podsAwareFactory)
+			jobDb := jobdb.NewJobDb(config.PriorityClasses, config.DefaultPriorityClassName, stringinterner.New(1024), podsAwareFactory, nil)
 			jobDb.SetRespectNodePodLimits(true)
 
 			nodeFactory := internaltypes.NewNodeFactory(
@@ -3252,7 +3252,7 @@ func testNodeWithTaints(node *internaltypes.Node, taints []v1.Taint) *internalty
 func TestPreemptingQueueScheduler_NonPreemptibleOverPack(t *testing.T) {
 	config := testfixtures.TestSchedulingConfig()
 
-	jobDb := jobdb.NewJobDb(config.PriorityClasses, config.DefaultPriorityClassName, stringinterner.New(1024), testfixtures.TestResourceListFactory)
+	jobDb := jobdb.NewJobDb(config.PriorityClasses, config.DefaultPriorityClassName, stringinterner.New(1024), testfixtures.TestResourceListFactory, nil)
 
 	// 5cpu node small enough that saturation by 5 incumbents is unambiguous.
 	node := testfixtures.TestNode(testfixtures.TestPriorities, map[string]*k8sResource.Quantity{

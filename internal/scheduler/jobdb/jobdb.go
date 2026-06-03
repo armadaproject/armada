@@ -14,6 +14,8 @@ import (
 	resource "k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/utils/clock"
 
+	"github.com/armadaproject/armada/internal/scheduler/pricing"
+
 	log "github.com/armadaproject/armada/internal/common/logging"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/common/stringinterner"
@@ -91,6 +93,8 @@ type JobDb struct {
 	// Used to make efficient ResourceList types.
 	resourceListFactory  *internaltypes.ResourceListFactory
 	respectNodePodLimits bool
+	// Provides bid prices allowing bid prices to be set at job creation time. Optional; if nil, prices are not set at creation.
+	priceProvider pricing.PriceProvider
 }
 
 // IDProvider is an interface used to mock run id  generation for tests.
@@ -109,6 +113,7 @@ func NewJobDb(priorityClasses map[string]types.PriorityClass,
 	defaultPriorityClassName string,
 	stringInterner *stringinterner.StringInterner,
 	resourceListFactory *internaltypes.ResourceListFactory,
+	priceProvider pricing.PriceProvider,
 ) *JobDb {
 	return NewJobDbWithSchedulingKeyGenerator(
 		priorityClasses,
@@ -116,6 +121,7 @@ func NewJobDb(priorityClasses map[string]types.PriorityClass,
 		internaltypes.NewSchedulingKeyGenerator(),
 		stringInterner,
 		resourceListFactory,
+		priceProvider,
 	)
 }
 
@@ -125,6 +131,7 @@ func NewJobDbWithSchedulingKeyGenerator(
 	skg *internaltypes.SchedulingKeyGenerator,
 	stringInterner *stringinterner.StringInterner,
 	resourceListFactory *internaltypes.ResourceListFactory,
+	priceProvider pricing.PriceProvider,
 ) *JobDb {
 	defaultPriorityClass, ok := priorityClasses[defaultPriorityClassName]
 	if !ok {
@@ -150,6 +157,7 @@ func NewJobDbWithSchedulingKeyGenerator(
 		clock:                  clock.RealClock{},
 		uuidProvider:           RealUUIDProvider{},
 		resourceListFactory:    resourceListFactory,
+		priceProvider:          priceProvider,
 	}
 }
 
@@ -182,6 +190,7 @@ func (jobDb *JobDb) Clone() *JobDb {
 		stringInterner:         jobDb.stringInterner,
 		resourceListFactory:    jobDb.resourceListFactory,
 		respectNodePodLimits:   jobDb.respectNodePodLimits,
+		priceProvider:          jobDb.priceProvider,
 	}
 }
 
@@ -217,6 +226,11 @@ func (jobDb *JobDb) NewJob(
 		pb = bidstore.PriceBand(priceBand)
 	}
 
+	prices := map[string]pricing.Bid{}
+	if jobDb.priceProvider != nil {
+		prices, _ = jobDb.priceProvider.GetPrice(queue, pb)
+	}
+
 	gangInfo, err := GangInfoFromMinimalJob(schedulingInfo)
 	if err != nil {
 		log.Errorf("failed creating gang info for job %s", jobId)
@@ -246,6 +260,7 @@ func (jobDb *JobDb) NewJob(
 		pools:                          jobDb.internPools(pools),
 		priceBand:                      pb,
 		gangInfo:                       *gangInfo,
+		bidPricesPool:                  prices,
 	}
 	job.ensureJobSchedulingInfoFieldsInitialised()
 	job.updateReservations()

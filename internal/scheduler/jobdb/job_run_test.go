@@ -38,6 +38,7 @@ var (
 		SchedulingKeyGenerator,
 		stringinterner.New(1024),
 		makeTestResourceListFactory(),
+		nil,
 	)
 	scheduledAtPriority = int32(5)
 	testPreemptReason   = "test preempt reason"

@@ -20,8 +20,18 @@ import (
 	"github.com/armadaproject/armada/internal/common/util"
 	schedulerconfiguration "github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
+	"github.com/armadaproject/armada/internal/scheduler/pricing"
 	"github.com/armadaproject/armada/pkg/bidstore"
 )
+
+type stubPriceProvider struct {
+	prices map[pricing.PriceKey]map[string]pricing.Bid
+}
+
+func (s *stubPriceProvider) GetPrice(queue string, band bidstore.PriceBand) (map[string]pricing.Bid, bool) {
+	p, ok := s.prices[pricing.PriceKey{Queue: queue, Band: band}]
+	return p, ok
+}
 
 func NewTestJobDb() *JobDb {
 	return NewJobDb(
@@ -32,6 +42,7 @@ func NewTestJobDb() *JobDb {
 		"foo",
 		stringinterner.New(1024),
 		testResourceListFactory,
+		nil,
 	)
 }
 
@@ -685,6 +696,90 @@ func TestJobDb_GangInfoIsPopulated(t *testing.T) {
 	}
 }
 
+func TestJobDb_NewJob_NilPriceProvider_LeavesBidPricesEmpty(t *testing.T) {
+	jobDb := NewJobDb(
+		map[string]types.PriorityClass{"foo": {}},
+		"foo",
+		stringinterner.New(1024),
+		testResourceListFactory,
+		nil,
+	)
+
+	job, err := jobDb.NewJob(
+		"jobId", "jobSet", "queue-a", 1, jobSchedulingInfo,
+		false, 0, false, false, false, 0, false, []string{"pool-1"},
+		int32(bidstore.PriceBand_PRICE_BAND_A),
+	)
+	require.NoError(t, err)
+	assert.Empty(t, job.GetAllBidPrices())
+}
+
+func TestJobDb_NewJob_PriceProviderPopulatesBidPrices(t *testing.T) {
+	bidsForA := map[string]pricing.Bid{
+		"pool-1": {RunningBid: 10, QueuedBid: 5},
+		"pool-2": {RunningBid: 20, QueuedBid: 8},
+	}
+	bidsForB := map[string]pricing.Bid{
+		"pool-1": {RunningBid: 100, QueuedBid: 50},
+	}
+	provider := &stubPriceProvider{
+		prices: map[pricing.PriceKey]map[string]pricing.Bid{
+			{Queue: "queue-a", Band: bidstore.PriceBand_PRICE_BAND_A}: bidsForA,
+			{Queue: "queue-a", Band: bidstore.PriceBand_PRICE_BAND_B}: bidsForB,
+		},
+	}
+	jobDb := NewJobDb(
+		map[string]types.PriorityClass{"foo": {}},
+		"foo",
+		stringinterner.New(1024),
+		testResourceListFactory,
+		provider,
+	)
+
+	tests := map[string]struct {
+		queue     string
+		priceBand bidstore.PriceBand
+		expected  map[string]pricing.Bid
+	}{
+		"matching queue + band A": {
+			queue:     "queue-a",
+			priceBand: bidstore.PriceBand_PRICE_BAND_A,
+			expected:  bidsForA,
+		},
+		"matching queue + band B": {
+			queue:     "queue-a",
+			priceBand: bidstore.PriceBand_PRICE_BAND_B,
+			expected:  bidsForB,
+		},
+		"unknown queue": {
+			queue:     "queue-other",
+			priceBand: bidstore.PriceBand_PRICE_BAND_A,
+			expected:  nil,
+		},
+		"unknown band for known queue": {
+			queue:     "queue-a",
+			priceBand: bidstore.PriceBand_PRICE_BAND_C,
+			expected:  nil,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			job, err := jobDb.NewJob(
+				util.NewULID(), "jobSet", tc.queue, 1, jobSchedulingInfo,
+				false, 0, false, false, false, 0, false, []string{"pool-1"},
+				int32(tc.priceBand),
+			)
+			require.NoError(t, err)
+			if tc.expected == nil {
+				assert.Empty(t, job.GetAllBidPrices())
+			} else {
+				assert.Equal(t, tc.expected, job.GetAllBidPrices())
+			}
+		})
+	}
+}
+
 func TestJobDb_RespectNodePodLimits_InjectsPodsResource(t *testing.T) {
 	cpuMem := []schedulerconfiguration.ResourceType{
 		{Name: "cpu", Resolution: resource.MustParse("1m")},
@@ -730,7 +825,7 @@ func TestJobDb_RespectNodePodLimits_InjectsPodsResource(t *testing.T) {
 			factory, err := internaltypes.NewResourceListFactory(tc.resourceTypes, nil)
 			require.NoError(t, err)
 
-			jobDb := NewJobDb(map[string]types.PriorityClass{"foo": {}}, "foo", stringinterner.New(1024), factory)
+			jobDb := NewJobDb(map[string]types.PriorityClass{"foo": {}}, "foo", stringinterner.New(1024), factory, nil)
 			jobDb.SetRespectNodePodLimits(tc.respect)
 
 			job, err := jobDb.NewJob("jobId", "jobSet", "queue", 1, tc.schedulingInfo, false, 0, false, false, false, 2, false, []string{}, 0)
