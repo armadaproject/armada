@@ -86,8 +86,8 @@ type Scheduler struct {
 	// If true, enable scheduler assertions.
 	// In particular, assert that the jobDb is in a valid state at the end of each cycle.
 	enableAssertions bool
-	// Caches the latest bid prices fetched from bidPriceProvider each cycle.
-	// Also implements jobdb.PriceProvider so new jobs get prices at creation time.
+	// Provides bid prices for pricebands / jobs
+	// It is a cache over the actual price provider so calling UpdatePrices is needed for up-to-date prices
 	priceCache *pricing.PriceCache
 	// A list of the pools that are market driven
 	// Used to know which jobs need update when updating job prices
