@@ -131,32 +131,32 @@ func StopComponents() error {
 }
 
 func CheckPulsarRunning() error {
-	return CheckDockerContainerRunning("pulsar", "alive")
+	return CheckDockerContainerRunning("pulsar", "alive", 2*time.Minute)
 }
 
 func CheckPostgresRunning() error {
-	return CheckDockerContainerRunning("pulsar", "alive")
+	return CheckDockerContainerRunning("postgres", "database system is ready to accept connections", 1*time.Minute)
 }
 
 func CheckServerRunning() error {
-	return CheckDockerContainerRunning("server", "Starting http server listening on")
+	return CheckDockerContainerRunning("server", "Starting http server listening on", 1*time.Minute)
 }
 
 func CheckSchedulerRunning() error {
-	return CheckDockerContainerRunning("scheduler", "Starting http server listening on")
+	return CheckDockerContainerRunning("scheduler", "Starting http server listening on", 1*time.Minute)
 }
 
 func CheckExecutorRunning() error {
-	return CheckDockerContainerRunning("executor", "Starting http server listening on")
+	return CheckDockerContainerRunning("executor", "Starting http server listening on", 1*time.Minute)
 }
 
 func CheckSchedulerReady() error {
-	return CheckDockerContainerRunning("scheduler", "Retrieved [1-9]+ executors")
+	return CheckDockerContainerRunning("scheduler", "Retrieved [1-9]+ executors", 1*time.Minute)
 }
 
 // Repeatedly check logs until container is ready.
-func CheckDockerContainerRunning(containerName string, expectedLogRegex string) error {
-	timeout := time.After(1 * time.Minute)
+func CheckDockerContainerRunning(containerName string, expectedLogRegex string, timeout time.Duration) error {
+	timeoutCh := time.After(timeout)
 	tick := time.Tick(1 * time.Second)
 	seconds := 0
 
@@ -167,7 +167,7 @@ func CheckDockerContainerRunning(containerName string, expectedLogRegex string) 
 
 	for {
 		select {
-		case <-timeout:
+		case <-timeoutCh:
 			return fmt.Errorf("timed out waiting for %s to start", containerName)
 		case <-tick:
 			out, err := dockerOutput("compose", "logs", containerName)
@@ -175,7 +175,7 @@ func CheckDockerContainerRunning(containerName string, expectedLogRegex string) 
 				return err
 			}
 			if len(logMatchRegex.FindStringSubmatch(out)) > 0 {
-				// if seconds is less than 1, it means that pulsar had already started
+				// if seconds is less than 1, it means that the container had already started
 				if seconds < 1 {
 					fmt.Printf("\n%s had already started!\n\n", containerName)
 					return nil

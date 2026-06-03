@@ -44,6 +44,8 @@ export interface JobsTableActionBarProps {
   onAddCustomView: (name: string) => void
   onDeleteCustomView: (name: string) => void
   onLoadCustomView: (name: string) => void
+  getViewEventData: (name: string) => Record<string, string>
+  getCurrentViewEventData: (name?: string) => Record<string, string>
 }
 
 export const JobsTableActionBar = memo(
@@ -75,6 +77,8 @@ export const JobsTableActionBar = memo(
     onAddCustomView,
     onDeleteCustomView,
     onLoadCustomView,
+    getViewEventData,
+    getCurrentViewEventData,
   }: JobsTableActionBarProps) => {
     const [columnConfigurationDialogOpen, setColumnConfigurationDialogOpen] = useState(false)
     const [cancelDialogOpen, setCancelDialogOpen] = useState(false)
@@ -188,6 +192,8 @@ export const JobsTableActionBar = memo(
               onAddCustomView={onAddCustomView}
               onDeleteCustomView={onDeleteCustomView}
               onLoadCustomView={onLoadCustomView}
+              getViewEventData={getViewEventData}
+              getCurrentViewEventData={getCurrentViewEventData}
             />
           </div>
           <Divider orientation="vertical" />

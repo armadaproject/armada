@@ -3,10 +3,10 @@ package db
 import (
 	"context"
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/armadaproject/armada/internal/broadside/jobspec"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -42,26 +42,35 @@ func (p *PostgresDatabase) executePartitionedBatch(ctx context.Context, queries 
 	}
 
 	// Phase 2: Update jobs, create job_runs, create job_errors (parallel).
-	var wg sync.WaitGroup
-	var updateErr, runErr, errErr error
-	wg.Go(func() { updateErr = p.updateJobsPartitioned(ctx, set.JobsToUpdate, submittedMap) })
-	wg.Go(func() { runErr = p.createJobRunsPartitioned(ctx, set.JobRunsToCreate, submittedMap) })
-	wg.Go(func() { errErr = p.createJobErrorsPartitioned(ctx, set.JobErrorsToCreate, submittedMap) })
-	wg.Wait()
-	if updateErr != nil {
-		return fmt.Errorf("updating jobs (partitioned): %w", updateErr)
-	}
-	if runErr != nil {
-		return fmt.Errorf("creating job runs (partitioned): %w", runErr)
-	}
-	if errErr != nil {
-		return fmt.Errorf("creating job errors (partitioned): %w", errErr)
+	var g errgroup.Group
+	g.Go(func() error {
+		if err := p.updateJobsPartitioned(ctx, set.JobsToUpdate, submittedMap); err != nil {
+			return fmt.Errorf("updating jobs (partitioned): %w", err)
+		}
+		return nil
+	})
+	g.Go(func() error {
+		if err := p.createJobRunsPartitioned(ctx, set.JobRunsToCreate, submittedMap); err != nil {
+			return fmt.Errorf("creating job runs (partitioned): %w", err)
+		}
+		return nil
+	})
+	g.Go(func() error {
+		if err := p.createJobErrorsPartitioned(ctx, set.JobErrorsToCreate, submittedMap); err != nil {
+			return fmt.Errorf("creating job errors (partitioned): %w", err)
+		}
+		return nil
+	})
+	if err := g.Wait(); err != nil {
+		return err
 	}
 
 	// Phase 3: Update job_runs. The job_run table is not partitioned and the
 	// UPDATE WHERE clause uses run_id only, so LookoutDb works here.
 	armadaCtx := armadacontext.FromGrpcCtx(ctx)
-	p.lookoutDb.UpdateJobRuns(armadaCtx, set.JobRunsToUpdate)
+	if err := p.lookoutDb.UpdateJobRuns(armadaCtx, set.JobRunsToUpdate); err != nil {
+		return fmt.Errorf("updating job runs: %w", err)
+	}
 
 	return nil
 }
