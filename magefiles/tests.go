@@ -7,9 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"strings"
-	"time"
 
 	"github.com/magefile/mage/mg"
 	"github.com/magefile/mage/sh"
@@ -45,32 +43,6 @@ func cleanupTestContainers() error {
 	}
 
 	return nil
-}
-
-func waitForContainerLog(containerName, expectedLogRegex string, timeout time.Duration) error {
-	timeoutCh := time.After(timeout)
-	ticker := time.NewTicker(1 * time.Second)
-	defer ticker.Stop()
-
-	logMatchRegex, err := regexp.Compile(expectedLogRegex)
-	if err != nil {
-		return fmt.Errorf("invalid log regex %s - %w", expectedLogRegex, err)
-	}
-
-	for {
-		select {
-		case <-timeoutCh:
-			return fmt.Errorf("timed out waiting for %s to start", containerName)
-		case <-ticker.C:
-			out, err := dockerOutput("logs", containerName)
-			if err != nil {
-				return err
-			}
-			if logMatchRegex.MatchString(out) {
-				return nil
-			}
-		}
-	}
 }
 
 func makeLocalBin() error {
@@ -135,10 +107,6 @@ func Tests() error {
 	postgresArgs = append(postgresArgs, postgresImage)
 	err = dockerRun(postgresArgs...)
 	if err != nil {
-		return err
-	}
-
-	if err := waitForContainerLog("postgres", "database system is ready to accept connections", 1*time.Minute); err != nil {
 		return err
 	}
 
