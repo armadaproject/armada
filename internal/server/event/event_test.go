@@ -45,12 +45,9 @@ func (c *FakeActionAuthorizer) AuthorizeQueueAction(
 }
 
 func TestEventServer_Health(t *testing.T) {
-	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
-	defer cancel()
 	withEventServer(
-		ctx,
 		t,
-		func(s *EventServer) {
+		func(ctx *armadacontext.Context, s *EventServer) {
 			health, err := s.Health(armadacontext.Background(), &types.Empty{})
 			assert.Equal(t, health.Status, api.HealthCheckResponse_SERVING)
 			require.NoError(t, err)
@@ -59,12 +56,9 @@ func TestEventServer_Health(t *testing.T) {
 }
 
 func TestEventServer_ForceNew(t *testing.T) {
-	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
-	defer cancel()
 	withEventServer(
-		ctx,
 		t,
-		func(s *EventServer) {
+		func(ctx *armadacontext.Context, s *EventServer) {
 			jobSetId := "set1"
 			q := queue.Queue{
 				Name:           "test-queue",
@@ -112,12 +106,9 @@ func TestEventServer_ForceNew(t *testing.T) {
 }
 
 func TestEventServer_GetJobSetEvents_EmptyStreamShouldNotFail(t *testing.T) {
-	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
-	defer cancel()
 	withEventServer(
-		ctx,
 		t,
-		func(s *EventServer) {
+		func(ctx *armadacontext.Context, s *EventServer) {
 			q := queue.Queue{
 				Name:           "test-queue",
 				PriorityFactor: 1,
@@ -133,12 +124,9 @@ func TestEventServer_GetJobSetEvents_EmptyStreamShouldNotFail(t *testing.T) {
 }
 
 func TestEventServer_GetJobSetEvents_QueueDoNotExist(t *testing.T) {
-	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
-	defer cancel()
 	withEventServer(
-		ctx,
 		t,
-		func(s *EventServer) {
+		func(_ *armadacontext.Context, s *EventServer) {
 			stream := &eventStreamMock{}
 
 			err := s.GetJobSetEvents(&api.JobSetRequest{
@@ -182,9 +170,7 @@ func TestEventServer_GetJobSetEvents_ErrorIfMissing(t *testing.T) {
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
-			defer cancel()
-			withEventServer(ctx, t, func(s *EventServer) {
+			withEventServer(t, func(ctx *armadacontext.Context, s *EventServer) {
 				err := s.queueRepository.(armadaqueue.QueueRepository).CreateQueue(ctx, q)
 				require.NoError(t, err)
 
@@ -247,9 +233,7 @@ func TestEventServer_GetJobSetEvents_Permissions(t *testing.T) {
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
-			defer cancel()
-			withEventServer(ctx, t, func(s *EventServer) {
+			withEventServer(t, func(ctx *armadacontext.Context, s *EventServer) {
 				s.authorizer = auth.NewAuthorizer(auth.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms))
 				err := s.queueRepository.(armadaqueue.QueueRepository).CreateQueue(ctx, q)
 				require.NoError(t, err)
@@ -309,9 +293,12 @@ func reportPulsarEvent(ctx *armadacontext.Context, es *armadaevents.EventSequenc
 	return nil
 }
 
-func withEventServer(ctx *armadacontext.Context, t *testing.T, action func(s *EventServer)) {
+func withEventServer(t *testing.T, action func(ctx *armadacontext.Context, s *EventServer)) {
 	t.Helper()
 	_ = lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
+		ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 30*time.Second)
+		defer cancel()
+
 		client := redis.NewClient(&redis.Options{Addr: "localhost:6379", DB: 11})
 
 		eventRepo := NewEventRepository(client)
@@ -319,7 +306,7 @@ func withEventServer(ctx *armadacontext.Context, t *testing.T, action func(s *Ev
 		server := NewEventServer(&FakeActionAuthorizer{}, eventRepo, queueRepo)
 		client.FlushDB(ctx)
 
-		action(server)
+		action(ctx, server)
 
 		client.FlushDB(ctx)
 		return nil

@@ -7,7 +7,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
+	"time"
 
 	"github.com/magefile/mage/mg"
 	"github.com/magefile/mage/sh"
@@ -21,6 +23,55 @@ var (
 	redisImage    = "redis:6.2.6"
 	postgresImage = "postgres:14.2"
 )
+
+func removeContainerIfExists(name string) error {
+	output, err := dockerOutput("ps", "-aq", "-f", fmt.Sprintf("name=^%s$", name))
+	if err != nil {
+		return err
+	}
+
+	if strings.TrimSpace(output) == "" {
+		return nil
+	}
+
+	return dockerRun("rm", "-f", name)
+}
+
+func cleanupTestContainers() error {
+	for _, containerName := range []string{"redis", "postgres"} {
+		if err := removeContainerIfExists(containerName); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func waitForContainerLog(containerName, expectedLogRegex string, timeout time.Duration) error {
+	timeoutCh := time.After(timeout)
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+
+	logMatchRegex, err := regexp.Compile(expectedLogRegex)
+	if err != nil {
+		return fmt.Errorf("invalid log regex %s - %w", expectedLogRegex, err)
+	}
+
+	for {
+		select {
+		case <-timeoutCh:
+			return fmt.Errorf("timed out waiting for %s to start", containerName)
+		case <-ticker.C:
+			out, err := dockerOutput("logs", containerName)
+			if err != nil {
+				return err
+			}
+			if logMatchRegex.MatchString(out) {
+				return nil
+			}
+		}
+	}
+}
 
 func makeLocalBin() error {
 	if _, err := os.Stat(LocalBin); os.IsNotExist(err) {
@@ -52,6 +103,16 @@ func Tests() error {
 	mg.Deps(gotestsum)
 	var err error
 
+	if err := cleanupTestContainers(); err != nil {
+		return err
+	}
+
+	defer func() {
+		if err := cleanupTestContainers(); err != nil {
+			fmt.Println(err)
+		}
+	}()
+
 	docker_Net, err := dockerNet()
 	if err != nil {
 		return err
@@ -77,11 +138,9 @@ func Tests() error {
 		return err
 	}
 
-	defer func() {
-		if err := dockerRun("rm", "-f", "redis", "postgres"); err != nil {
-			fmt.Println(err)
-		}
-	}()
+	if err := waitForContainerLog("postgres", "database system is ready to accept connections", 1*time.Minute); err != nil {
+		return err
+	}
 
 	err = sh.Run("sleep", "3")
 	if err != nil {
@@ -97,13 +156,14 @@ func Tests() error {
 		"--junitfile", "test-reports/unit-tests.xml",
 		"--jsonfile", "test-reports/unit-tests.json",
 		"--no-color=false",
-		"--", "-coverprofile=test-reports/coverage.out",
+		"--", "-p=1", "-coverprofile=test-reports/coverage.out",
 		"-covermode=atomic", "./cmd/...",
 		"./pkg/...",
 	}
 	cmd = append(cmd, strings.Fields(packages)...)
 
 	testCmd := exec.Command(Gotestsum, cmd...)
+	testCmd.Env = append(os.Environ(), "TZ=UTC")
 
 	// If -verbose was set, we let os.Stdout handles the output.
 	// Otherwise, we need to capture the tests output and print it in the case of failures.

@@ -1,6 +1,7 @@
 package leaderelection
 
 import (
+	"strings"
 	"time"
 
 	"github.com/pkg/errors"
@@ -19,6 +20,14 @@ const (
 	ModeStandalone Mode = "standalone"
 	ModeKubernetes Mode = "kubernetes"
 )
+
+func ParseMode(mode string) (Mode, error) {
+	parsedMode := Mode(strings.ToLower(mode))
+	if err := parsedMode.Validate(); err != nil {
+		return "", err
+	}
+	return parsedMode, nil
+}
 
 func (m Mode) Validate() error {
 	switch m {
