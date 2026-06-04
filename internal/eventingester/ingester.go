@@ -83,19 +83,7 @@ func Run(config *configuration.EventIngesterConfiguration) {
 	g, ctx := armadacontext.ErrGroup(app.CreateContextWithShutdown())
 
 	if config.Metrics.Redis.Enabled {
-		var metricsRedisClient redis.UniversalClient
-		if config.Metrics.Redis.ConnectionInfo.Addrs != nil {
-			metricsRedisClient = redis.NewUniversalClient(&config.Metrics.Redis.ConnectionInfo)
-			defer func() {
-				if err := metricsRedisClient.Close(); err != nil {
-					log.WithError(err).Error("failed to close metrics Redis client")
-				}
-			}()
-		} else {
-			metricsRedisClient = db
-		}
-
-		scanner := repository.NewScanner(metricsRedisClient, config.Metrics.Redis)
+		scanner := repository.NewScanner(db, config.Metrics.Redis)
 
 		leaderController, err := createLeaderController(ctx, config.Metrics.Redis.Leader)
 		if err != nil {

@@ -1483,7 +1483,7 @@ func SwaggerJsonTemplate() string {
 		"        \"jobSetId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
-		"        \"preemptiveJobId\": {\n" +
+		"        \"preemptingJobId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
 		"        \"preemptiveRunId\": {\n" +

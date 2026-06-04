@@ -192,6 +192,7 @@ Custom view actions emit enriched metadata describing the view's configuration a
 | `annotationCount` | string | Number of annotation columns |
 | `autoRefresh` | string | `"true"`, `"false"`, or `"unset"` |
 | `activeJobSets` | string | `"true"`, `"false"`, or `"unset"` |
+| `filterDetails` | string | JSON-stringified array of active filter objects. Each entry: `{ column, matchType, value }`. `matchType` is one of `"exact"` (default), `"startsWith"`, `"contains"`, `"greaterThan"`, `"lessThan"`, `"greaterThanOrEqualTo"`, `"lessThanOrEqualTo"`, `"anyOf"`, `"exists"`. Empty array `[]` when no filters are active. |
 
 ### Columns Delta Format
 
