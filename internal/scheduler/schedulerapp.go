@@ -36,7 +36,6 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/floatingresources"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
-	"github.com/armadaproject/armada/internal/scheduler/leader"
 	"github.com/armadaproject/armada/internal/scheduler/metrics"
 	"github.com/armadaproject/armada/internal/scheduler/pricing"
 	"github.com/armadaproject/armada/internal/scheduler/priorityoverride"
@@ -236,24 +235,11 @@ func Run(config schedulerconfig.Configuration) error {
 	// ////////////////////////////////////////////////////////////////////////
 	// Leader Election
 	// ////////////////////////////////////////////////////////////////////////
-	mode, err := leaderelection.ParseMode(config.Leader.Mode)
-	if err != nil {
-		return errors.WithMessage(err, "error parsing leader mode from config")
-	}
-	leaderConfig := leaderelection.Config{
-		Mode:               mode,
-		LeaseLockName:      config.Leader.LeaseLockName,
-		LeaseLockNamespace: config.Leader.LeaseLockNamespace,
-		LeaseDuration:      config.Leader.LeaseDuration,
-		RenewDeadline:      config.Leader.RenewDeadline,
-		RetryPeriod:        config.Leader.RetryPeriod,
-		PodName:            config.Leader.PodName,
-	}
 	leaderOptions := leaderelection.MetricsOptions{
 		MetricsPrefix:               metrics.ArmadaSchedulerMetricsPrefix,
 		MarkLeadingInStandaloneMode: true,
 	}
-	leaderController, err := leaderelection.CreateLeaderController(ctx, leaderConfig, &leaderOptions)
+	leaderController, err := leaderelection.CreateLeaderController(ctx, config.Leader, &leaderOptions)
 	if err != nil {
 		return errors.WithMessage(err, "error creating leader controller")
 	}
@@ -333,7 +319,7 @@ func Run(config schedulerconfig.Configuration) error {
 	)
 	prometheus.MustRegister(clientMetrics)
 
-	leaderClientConnectionProvider := leader.NewLeaderConnectionProvider(leaderController, config.Leader, clientMetrics)
+	leaderClientConnectionProvider := leaderelection.NewLeaderConnectionProvider(leaderController, config.Leader, clientMetrics)
 	schedulingSchedulerReportingServer := reports.NewLeaderProxyingSchedulingReportsServer(reportServer, leaderClientConnectionProvider)
 	schedulerobjects.RegisterSchedulerReportingServer(grpcServer, schedulingSchedulerReportingServer)
 

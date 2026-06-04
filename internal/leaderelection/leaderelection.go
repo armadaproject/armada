@@ -1,7 +1,6 @@
 package leaderelection
 
 import (
-	"strings"
 	"time"
 
 	"github.com/pkg/errors"
@@ -11,39 +10,15 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
-	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
-	"github.com/armadaproject/armada/internal/scheduler/leader"
+	"github.com/armadaproject/armada/pkg/client"
 )
 
-type Mode int
+type Mode string
 
 const (
-	_ Mode = iota
-	ModeStandalone
-	ModeKubernetes
+	ModeStandalone Mode = "standalone"
+	ModeKubernetes Mode = "kubernetes"
 )
-
-func ParseMode(mode string) (Mode, error) {
-	switch strings.ToLower(mode) {
-	case "standalone":
-		return ModeStandalone, nil
-	case "kubernetes":
-		return ModeKubernetes, nil
-	default:
-		return 0, errors.Errorf("%s is not a valid leader mode", mode)
-	}
-}
-
-func (m Mode) String() string {
-	switch m {
-	case ModeStandalone:
-		return "standalone"
-	case ModeKubernetes:
-		return "kubernetes"
-	default:
-		return "unknown"
-	}
-}
 
 func (m Mode) Validate() error {
 	switch m {
@@ -57,7 +32,7 @@ func (m Mode) Validate() error {
 // Config holds the leader election configuration parameters.
 type Config struct {
 	// Mode specifies the leader election mode. Valid modes are "standalone" or "kubernetes".
-	Mode Mode
+	Mode Mode `validate:"required"`
 	// LeaseLockName is the name of the Kubernetes Lock Object.
 	LeaseLockName string
 	// LeaseLockNamespace is the namespace of the Kubernetes Lock Object.
@@ -71,6 +46,8 @@ type Config struct {
 	RetryPeriod time.Duration
 	// PodName is the name of the pod.
 	PodName string
+	// Connection details to the leader
+	LeaderConnection client.ApiConnectionDetails
 }
 
 // MetricsOptions holds configuration options for leader election behavior.
@@ -82,18 +59,18 @@ type MetricsOptions struct {
 }
 
 // CreateLeaderController creates a leader controller based on the provided config and options.
-// It returns a leader.LeaderController interface for managing leader election.
-func CreateLeaderController(ctx *armadacontext.Context, config Config, metricsOptions *MetricsOptions) (leader.LeaderController, error) {
+// It returns a LeaderController interface for managing leader election.
+func CreateLeaderController(ctx *armadacontext.Context, config Config, metricsOptions *MetricsOptions) (LeaderController, error) {
 	if err := config.Mode.Validate(); err != nil {
 		return nil, err
 	}
 	switch config.Mode {
 	case ModeStandalone:
 		ctx.Infof("Running in standalone leader election mode")
-		leaderController := leader.NewStandaloneLeaderController()
+		leaderController := NewStandaloneLeaderController()
 
 		if metricsOptions != nil {
-			leaderStatusMetrics := leader.NewLeaderStatusMetricsCollector(metricsOptions.MetricsPrefix, config.PodName)
+			leaderStatusMetrics := NewLeaderStatusMetricsCollector(metricsOptions.MetricsPrefix, config.PodName)
 			if metricsOptions.MarkLeadingInStandaloneMode {
 				leaderStatusMetrics.MarkAsLeading()
 			}
@@ -114,11 +91,10 @@ func CreateLeaderController(ctx *armadacontext.Context, config Config, metricsOp
 			return nil, errors.Wrapf(err, "error creating kubernetes client")
 		}
 
-		schedulerConfig := toSchedulerLeaderConfig(config)
-		leaderController := leader.NewKubernetesLeaderController(schedulerConfig, clientSet.CoordinationV1())
+		leaderController := NewKubernetesLeaderController(config, clientSet.CoordinationV1())
 
 		if metricsOptions != nil {
-			leaderStatusMetrics := leader.NewLeaderStatusMetricsCollector(metricsOptions.MetricsPrefix, config.PodName)
+			leaderStatusMetrics := NewLeaderStatusMetricsCollector(metricsOptions.MetricsPrefix, config.PodName)
 			leaderController.RegisterListener(leaderStatusMetrics)
 			prometheus.MustRegister(leaderStatusMetrics)
 		}
@@ -143,16 +119,4 @@ func LoadClusterConfig(ctx *armadacontext.Context) (*rest.Config, error) {
 	}
 	ctx.Info("Running with in cluster client configuration")
 	return config, err
-}
-
-func toSchedulerLeaderConfig(config Config) schedulerconfig.LeaderConfig {
-	return schedulerconfig.LeaderConfig{
-		Mode:               config.Mode.String(),
-		LeaseLockName:      config.LeaseLockName,
-		LeaseLockNamespace: config.LeaseLockNamespace,
-		LeaseDuration:      config.LeaseDuration,
-		RenewDeadline:      config.RenewDeadline,
-		RetryPeriod:        config.RetryPeriod,
-		PodName:            config.PodName,
-	}
 }

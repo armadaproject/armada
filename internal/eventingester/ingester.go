@@ -80,24 +80,11 @@ func Run(config *configuration.EventIngesterConfiguration) {
 	if config.Metrics.Redis.Enabled {
 		scanner := repository.NewScanner(db, config.Metrics.Redis)
 
-		mode, err := leaderelection.ParseMode(config.Metrics.Redis.Leader.Mode)
-		if err != nil {
-			log.Fatalf("invalid leader election mode for redis metrics: %v", err)
-		}
-		leaderConfig := leaderelection.Config{
-			Mode:               mode,
-			LeaseLockName:      config.Metrics.Redis.Leader.LeaseLockName,
-			LeaseLockNamespace: config.Metrics.Redis.Leader.LeaseLockNamespace,
-			LeaseDuration:      config.Metrics.Redis.Leader.LeaseDuration,
-			RenewDeadline:      config.Metrics.Redis.Leader.RenewDeadline,
-			RetryPeriod:        config.Metrics.Redis.Leader.RetryPeriod,
-			PodName:            config.Metrics.Redis.Leader.PodName,
-		}
 		leaderOptions := leaderelection.MetricsOptions{
 			MetricsPrefix:               ingestermetrics.ArmadaEventIngesterMetricsPrefix,
 			MarkLeadingInStandaloneMode: true,
 		}
-		leaderController, err := leaderelection.CreateLeaderController(ctx, leaderConfig, &leaderOptions)
+		leaderController, err := leaderelection.CreateLeaderController(ctx, config.Metrics.Redis.Leader, &leaderOptions)
 		if err != nil {
 			log.Fatalf("failed to create leader controller for redis metrics: %v", err)
 		}

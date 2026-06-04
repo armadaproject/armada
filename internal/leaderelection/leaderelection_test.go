@@ -122,7 +122,10 @@ func TestCreateLeaderController_EventingesterStandaloneParity(t *testing.T) {
 		PodName:            "test-pod-eventingester-parity",
 	}
 
-	options := &MetricsOptions{MetricsPrefix: "test_eventingester_parity_", MarkLeadingInStandaloneMode: false}
+	options := &MetricsOptions{
+		MetricsPrefix:               "test_eventingester_parity_",
+		MarkLeadingInStandaloneMode: true,
+	}
 
 	ctx := armadacontext.Background()
 	controller, err := CreateLeaderController(ctx, config, options)
@@ -273,86 +276,4 @@ func TestCreateLeaderController_OptionsIndependence(t *testing.T) {
 
 	token2 := controller2.GetToken()
 	assert.True(t, controller2.ValidateToken(token2))
-}
-
-func TestToSchedulerLeaderConfig_PreservesValidTimingValues(t *testing.T) {
-	config := Config{
-		Mode:               ModeKubernetes,
-		LeaseLockName:      "test-lock",
-		LeaseLockNamespace: "test-namespace",
-		LeaseDuration:      15 * time.Second,
-		RenewDeadline:      10 * time.Second,
-		RetryPeriod:        2 * time.Second,
-		PodName:            "test-pod-valid-timing",
-	}
-
-	schedulerConfig := toSchedulerLeaderConfig(config)
-
-	assert.Equal(t, config.Mode.String(), schedulerConfig.Mode)
-	assert.Equal(t, config.LeaseLockName, schedulerConfig.LeaseLockName)
-	assert.Equal(t, config.LeaseLockNamespace, schedulerConfig.LeaseLockNamespace)
-	assert.Equal(t, config.LeaseDuration, schedulerConfig.LeaseDuration)
-	assert.Equal(t, config.RenewDeadline, schedulerConfig.RenewDeadline)
-	assert.Equal(t, config.RetryPeriod, schedulerConfig.RetryPeriod)
-	assert.Equal(t, config.PodName, schedulerConfig.PodName)
-
-	assert.Greater(t, schedulerConfig.LeaseDuration, schedulerConfig.RenewDeadline)
-	assert.Greater(t, schedulerConfig.RenewDeadline, time.Duration(float64(schedulerConfig.RetryPeriod)*1.2))
-}
-
-func TestToSchedulerLeaderConfig_PreservesInvalidTimingRelationships(t *testing.T) {
-	tests := map[string]struct {
-		leaseDuration time.Duration
-		renewDeadline time.Duration
-		retryPeriod   time.Duration
-	}{
-		"lease duration equal renew deadline": {
-			leaseDuration: 10 * time.Second,
-			renewDeadline: 10 * time.Second,
-			retryPeriod:   2 * time.Second,
-		},
-		"lease duration below renew deadline": {
-			leaseDuration: 9 * time.Second,
-			renewDeadline: 10 * time.Second,
-			retryPeriod:   2 * time.Second,
-		},
-		"renew deadline equal retry period times jitter factor": {
-			leaseDuration: 20 * time.Second,
-			renewDeadline: 12 * time.Second,
-			retryPeriod:   10 * time.Second,
-		},
-		"renew deadline below retry period times jitter factor": {
-			leaseDuration: 20 * time.Second,
-			renewDeadline: 11 * time.Second,
-			retryPeriod:   10 * time.Second,
-		},
-	}
-
-	for name, tc := range tests {
-		t.Run(name, func(t *testing.T) {
-			config := Config{
-				Mode:               ModeKubernetes,
-				LeaseLockName:      "test-lock",
-				LeaseLockNamespace: "test-namespace",
-				LeaseDuration:      tc.leaseDuration,
-				RenewDeadline:      tc.renewDeadline,
-				RetryPeriod:        tc.retryPeriod,
-				PodName:            "test-pod-invalid-timing",
-			}
-
-			schedulerConfig := toSchedulerLeaderConfig(config)
-
-			assert.Equal(t, config.LeaseDuration, schedulerConfig.LeaseDuration)
-			assert.Equal(t, config.RenewDeadline, schedulerConfig.RenewDeadline)
-			assert.Equal(t, config.RetryPeriod, schedulerConfig.RetryPeriod)
-
-			if tc.leaseDuration <= tc.renewDeadline {
-				assert.LessOrEqual(t, schedulerConfig.LeaseDuration, schedulerConfig.RenewDeadline)
-			}
-
-			if float64(tc.renewDeadline) <= float64(tc.retryPeriod)*1.2 {
-				assert.LessOrEqual(t, float64(schedulerConfig.RenewDeadline), float64(schedulerConfig.RetryPeriod)*1.2)
-			}
-		})
-	}
 }

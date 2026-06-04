@@ -1,4 +1,4 @@
-package leader
+package leaderelection
 
 import (
 	"testing"
