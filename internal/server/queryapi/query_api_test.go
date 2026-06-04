@@ -122,9 +122,9 @@ func TestGetJobDetails(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-				err := dbcommon.UpsertWithTransaction(ctx, db, "job", testJobs)
+				err := dbcommon.UpsertPartitionedWithTransaction(ctx, db, "job", []string{"job_id"}, testJobs)
 				require.NoError(t, err)
-				err = dbcommon.UpsertWithTransaction(ctx, db, "job_run", testJobRuns)
+				err = dbcommon.UpsertPartitionedWithTransaction(ctx, db, "job_run", []string{"run_id"}, testJobRuns)
 				require.NoError(t, err)
 				queryApi := New(db, defaultMaxQueryItems, testDecompressor)
 				resp, err := queryApi.GetJobDetails(ctx, tc.request)
@@ -196,9 +196,9 @@ func TestGetJobRunDetails(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-				err := dbcommon.UpsertWithTransaction(ctx, db, "job", testJobs)
+				err := dbcommon.UpsertPartitionedWithTransaction(ctx, db, "job", []string{"job_id"}, testJobs)
 				require.NoError(t, err)
-				err = dbcommon.UpsertWithTransaction(ctx, db, "job_run", testJobRuns)
+				err = dbcommon.UpsertPartitionedWithTransaction(ctx, db, "job_run", []string{"run_id"}, testJobRuns)
 				require.NoError(t, err)
 				queryApi := New(db, defaultMaxQueryItems, testDecompressor)
 				resp, err := queryApi.GetJobRunDetails(ctx, tc.request)
@@ -276,7 +276,7 @@ func TestGetJobStatus(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-				err := dbcommon.UpsertWithTransaction(ctx, db, "job", testdata)
+				err := dbcommon.UpsertPartitionedWithTransaction(ctx, db, "job", []string{"job_id"}, testdata)
 				require.NoError(t, err)
 				queryApi := New(db, defaultMaxQueryItems, testDecompressor)
 				resp, err := queryApi.GetJobStatus(ctx, &api.JobStatusRequest{JobIds: tc.jobIds})
@@ -319,7 +319,7 @@ func TestGetJobStatusUsingExternalJobUri(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-				err := dbcommon.UpsertWithTransaction(ctx, db, "job", testdata)
+				err := dbcommon.UpsertPartitionedWithTransaction(ctx, db, "job", []string{"job_id"}, testdata)
 				require.NoError(t, err)
 				queryApi := New(db, defaultMaxQueryItems, testDecompressor)
 				resp, err := queryApi.GetJobStatusUsingExternalJobUri(ctx, &api.JobStatusUsingExternalJobUriRequest{
@@ -395,11 +395,11 @@ func TestGetJobErrors(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-				err := dbcommon.UpsertWithTransaction(ctx, db, "job", testJobs)
+				err := dbcommon.UpsertPartitionedWithTransaction(ctx, db, "job", []string{"job_id"}, testJobs)
 				require.NoError(t, err)
-				err = dbcommon.UpsertWithTransaction(ctx, db, "job_run", testJobRuns)
+				err = dbcommon.UpsertPartitionedWithTransaction(ctx, db, "job_run", []string{"run_id"}, testJobRuns)
 				require.NoError(t, err)
-				err = dbcommon.UpsertWithTransaction(ctx, db, "job_error", testJobErrors)
+				err = dbcommon.UpsertPartitionedWithTransaction(ctx, db, "job_error", []string{"job_id"}, testJobErrors)
 				require.NoError(t, err)
 				queryApi := New(db, defaultMaxQueryItems, testDecompressor)
 				resp, err := queryApi.GetJobErrors(ctx, tc.request)

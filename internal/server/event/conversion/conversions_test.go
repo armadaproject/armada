@@ -872,13 +872,16 @@ func TestConvertJobPreemptionRequested(t *testing.T) {
 }
 
 func TestConvertJobRunPreempted(t *testing.T) {
+	preemptingJobId := "456e7890-e89b-12d3-a456-426614174001"
+
 	preempted := &armadaevents.EventSequence_Event{
 		Created: baseTimeProto,
 		Event: &armadaevents.EventSequence_Event_JobRunPreempted{
 			JobRunPreempted: &armadaevents.JobRunPreempted{
-				PreemptedJobId: jobId,
-				PreemptedRunId: runId,
-				Reason:         "Preempted reason",
+				PreemptedJobId:  jobId,
+				PreemptedRunId:  runId,
+				PreemptingJobId: preemptingJobId,
+				Reason:          "Preempted reason",
 			},
 		},
 	}
@@ -887,18 +890,18 @@ func TestConvertJobRunPreempted(t *testing.T) {
 		{
 			Events: &api.EventMessage_Preempted{
 				Preempted: &api.JobPreemptedEvent{
-					JobId:    jobId,
-					JobSetId: jobSetName,
-					Queue:    queue,
-					Created:  protoutil.ToTimestamp(baseTime),
-					RunId:    runId,
-					Reason:   "Preempted reason",
+					JobId:           jobId,
+					JobSetId:        jobSetName,
+					Queue:           queue,
+					Created:         protoutil.ToTimestamp(baseTime),
+					RunId:           runId,
+					Reason:          "Preempted reason",
+					PreemptingJobId: preemptingJobId,
 				},
 			},
 		},
 	}
 
-	// both PreemptiveJobId and PreemptiveRunId not nil
 	apiEvents, err := FromEventSequence(toEventSeq(preempted))
 	assert.NoError(t, err)
 	assert.Equal(t, expected, apiEvents)

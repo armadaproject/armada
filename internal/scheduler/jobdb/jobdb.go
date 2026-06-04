@@ -15,6 +15,7 @@ import (
 	"k8s.io/utils/clock"
 
 	log "github.com/armadaproject/armada/internal/common/logging"
+	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/adapters"
@@ -88,7 +89,8 @@ type JobDb struct {
 	// Used for generating job run ids.
 	uuidProvider IDProvider
 	// Used to make efficient ResourceList types.
-	resourceListFactory *internaltypes.ResourceListFactory
+	resourceListFactory  *internaltypes.ResourceListFactory
+	respectNodePodLimits bool
 }
 
 // IDProvider is an interface used to mock run id  generation for tests.
@@ -155,6 +157,10 @@ func (jobDb *JobDb) SetClock(clock clock.PassiveClock) {
 	jobDb.clock = clock
 }
 
+func (jobDb *JobDb) SetRespectNodePodLimits(enabled bool) {
+	jobDb.respectNodePodLimits = enabled
+}
+
 func (jobDb *JobDb) SetUUIDProvider(uuidProvider IDProvider) {
 	jobDb.uuidProvider = uuidProvider
 }
@@ -175,6 +181,7 @@ func (jobDb *JobDb) Clone() *JobDb {
 		schedulingKeyGenerator: jobDb.schedulingKeyGenerator,
 		stringInterner:         jobDb.stringInterner,
 		resourceListFactory:    jobDb.resourceListFactory,
+		respectNodePodLimits:   jobDb.respectNodePodLimits,
 	}
 }
 
@@ -247,7 +254,12 @@ func (jobDb *JobDb) NewJob(
 }
 
 func (jobDb *JobDb) getResourceRequirements(schedulingInfo *internaltypes.JobSchedulingInfo) internaltypes.ResourceList {
-	return jobDb.resourceListFactory.FromJobResourceListIgnoreUnknown(safeGetRequirements(schedulingInfo))
+	requirements := safeGetRequirements(schedulingInfo)
+	if jobDb.respectNodePodLimits {
+		// Each Armada job is exactly one pod; consume one pod slot from the node's allocatable.
+		requirements[armadaresource.PodsResourceName] = *resource.NewQuantity(1, resource.DecimalSI)
+	}
+	return jobDb.resourceListFactory.FromJobResourceListIgnoreUnknown(requirements)
 }
 
 func safeGetRequirements(schedulingInfo *internaltypes.JobSchedulingInfo) map[string]resource.Quantity {
@@ -321,7 +333,6 @@ func (jobDb *JobDb) ReadTxn() *Txn {
 	defer jobDb.copyMutex.Unlock()
 	return &Txn{
 		readOnly:           true,
-		snapshot:           true,
 		jobsById:           jobDb.jobsById,
 		jobsByRunId:        jobDb.jobsByRunId,
 		jobsByGangKey:      jobDb.jobsByGangKey,
@@ -344,7 +355,6 @@ func (jobDb *JobDb) WriteTxn() *Txn {
 	defer jobDb.copyMutex.Unlock()
 	return &Txn{
 		readOnly:           false,
-		snapshot:           false,
 		jobsById:           jobDb.jobsById,
 		jobsByRunId:        jobDb.jobsByRunId,
 		jobsByGangKey:      maps.Clone(jobDb.jobsByGangKey),
@@ -358,12 +368,15 @@ func (jobDb *JobDb) WriteTxn() *Txn {
 	}
 }
 
-func (jobDb *JobDb) WritableSnapshot() *Txn {
+// DryRunTxn returns a writable transaction over an isolated snapshot of the current db state.
+// Mutations are local to the snapshot and are never committed back to the db.
+// This is useful for processes that need to speculatively modify state without affecting the real db.
+func (jobDb *JobDb) DryRunTxn() *Txn {
 	jobDb.copyMutex.Lock()
 	defer jobDb.copyMutex.Unlock()
 	return &Txn{
 		readOnly:           false,
-		snapshot:           true,
+		dryRun:             true,
 		jobsById:           jobDb.jobsById,
 		jobsByRunId:        jobDb.jobsByRunId,
 		jobsByGangKey:      maps.Clone(jobDb.jobsByGangKey),
@@ -396,7 +409,9 @@ func (jobDb *JobDb) CumulativeInternedStringsCount() uint64 {
 // until the transaction is committed.
 type Txn struct {
 	readOnly bool
-	snapshot bool
+	// dryRun transactions allow mutations but Commit is a no-op — changes are never written back to the db.
+	// Created via DryRunTxn(); useful for speculative state manipulation without affecting the real db.
+	dryRun bool
 	// Map from job ids to jobs.
 	jobsById *immutable.Map[string, *Job]
 	// Map from run ids to jobs.
@@ -423,7 +438,11 @@ type Txn struct {
 }
 
 func (txn *Txn) Commit() {
-	if txn.readOnly || txn.snapshot || !txn.active {
+	if txn.readOnly || !txn.active {
+		return
+	}
+	if txn.dryRun {
+		txn.active = false
 		return
 	}
 	txn.jobDb.copyMutex.Lock()
@@ -528,7 +547,11 @@ func (txn *Txn) AssertEqual(otherTxn *Txn) error {
 }
 
 func (txn *Txn) Abort() {
-	if txn.readOnly || txn.snapshot || !txn.active {
+	if txn.readOnly || !txn.active {
+		return
+	}
+	if txn.dryRun {
+		txn.active = false
 		return
 	}
 	txn.active = false

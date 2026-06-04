@@ -1,9 +1,7 @@
 package metrics
 
 const (
-
-	// common prefix for all metric names
-	prefix = "armada_scheduler_"
+	ArmadaSchedulerMetricsPrefix = "armada_scheduler_"
 
 	// Prometheus Labels
 	checkpointLabel          = "checkpoint_interval"

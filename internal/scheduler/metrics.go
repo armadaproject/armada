@@ -177,7 +177,7 @@ func (c *MetricsCollector) updateQueueMetrics(ctx *armadacontext.Context) ([]pro
 	}
 
 	provider := metricProvider{queueStates: make(map[string]*queueState, len(queues))}
-	queuedJobsCount := make(map[string]int, len(queues))
+	queuedJobsCount := make(map[string]commonmetrics.QueueSizeCounts, len(queues))
 	schedulingKeysByQueue := make(map[string]map[internaltypes.SchedulingKey]bool, len(queues))
 
 	for _, queue := range queues {
@@ -186,7 +186,7 @@ func (c *MetricsCollector) updateQueueMetrics(ctx *armadacontext.Context) ([]pro
 			runningJobRecorder: commonmetrics.NewJobMetricsRecorder(),
 			queue:              queue,
 		}
-		queuedJobsCount[queue.Name] = 0
+		queuedJobsCount[queue.Name] = commonmetrics.QueueSizeCounts{}
 		schedulingKeysByQueue[queue.Name] = map[internaltypes.SchedulingKey]bool{}
 	}
 
@@ -230,7 +230,13 @@ func (c *MetricsCollector) updateQueueMetrics(ctx *armadacontext.Context) ([]pro
 				}
 			}
 			timeInState = currentTime.Sub(queuedTime)
-			queuedJobsCount[job.Queue()]++
+			counts := queuedJobsCount[job.Queue()]
+			if job.Validated() {
+				counts.Validated++
+			} else {
+				counts.Unvalidated++
+			}
+			queuedJobsCount[job.Queue()] = counts
 			schedulingKeysByQueue[job.Queue()][job.SchedulingKey()] = true
 		} else {
 			run := job.LatestRun()

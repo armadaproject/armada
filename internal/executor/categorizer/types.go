@@ -4,6 +4,9 @@ import "github.com/armadaproject/armada/internal/common/errormatch"
 
 // ErrorCategoriesConfig is the top-level config for failure classification.
 type ErrorCategoriesConfig struct {
+	// Enabled toggles failure classification on pod errors. When false, no
+	// failure_category or failure_subcategory is set on error events.
+	Enabled bool `yaml:"enabled"`
 	// DefaultCategory is the category assigned when no rule matches.
 	// If empty, no category is assigned when no rule matches.
 	DefaultCategory string `yaml:"defaultCategory"`
@@ -23,12 +26,27 @@ type CategoryConfig struct {
 
 // CategoryRule defines a single matching condition. Exactly one matcher must
 // be set per rule (validated by NewClassifier). Rules within a category are OR'd.
-// When ContainerName is set, only failures from that container are considered.
-// When empty, failures from any container can match (default).
+//
+// Container-level matchers (OnConditions, OnExitCodes, OnTerminationMessage)
+// inspect per-container state from pod.Status; ContainerName scopes them to a
+// specific container when set, otherwise any container can match.
+//
+// OnPodError is pod-level: it matches a regex against the failure message the
+// executor captured for the issue. Use it for failures where no container has
+// a useful terminationMessage, including kubelet/runtime errors (image pull,
+// missing volume, missing config) and Armada-detected conditions (stuck
+// terminating, active deadline exceeded, externally deleted). ContainerName
+// is ignored for OnPodError because the message has no container attribution.
 type CategoryRule struct {
 	ContainerName        string                      `yaml:"containerName,omitempty"`
 	OnExitCodes          *errormatch.ExitCodeMatcher `yaml:"onExitCodes,omitempty"`
 	OnTerminationMessage *errormatch.RegexMatcher    `yaml:"onTerminationMessage,omitempty"`
+	OnPodError           *errormatch.RegexMatcher    `yaml:"onPodError,omitempty"`
 	OnConditions         []string                    `yaml:"onConditions,omitempty"`
 	Subcategory          string                      `yaml:"subcategory,omitempty"`
+	// Hint is operator-supplied user-facing copy describing this failure mode.
+	// When set, it is appended to the failure message that lands in
+	// lookoutdb.job_run.error so end users see actionable guidance alongside the
+	// raw runtime error. Optional; empty means no hint is added.
+	Hint string `yaml:"hint,omitempty"`
 }

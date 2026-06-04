@@ -120,6 +120,7 @@ func NewSimulator(
 	schedulerCyclePeriodSeconds int,
 	sink sink.Sink,
 ) (*Simulator, error) {
+	configuration.ApplyRespectNodePodLimits(&schedulingConfig)
 	resourceListFactory, err := internaltypes.NewResourceListFactory(
 		schedulingConfig.SupportedResourceTypes,
 		schedulingConfig.FloatingResources,
@@ -147,6 +148,7 @@ func NewSimulator(
 		stringinterner.New(1024),
 		resourceListFactory,
 	)
+	jobDb.SetRespectNodePodLimits(schedulingConfig.RespectNodePodLimits)
 	randomSeed := workloadSpec.RandomSeed
 	if randomSeed == 0 {
 		// Seed the RNG using the local time if no explicit random seed is provided.

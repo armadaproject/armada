@@ -19,6 +19,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/ingest"
 	"github.com/armadaproject/armada/internal/common/ingest/jobsetevents"
+	ingestermetrics "github.com/armadaproject/armada/internal/common/ingest/metrics"
 	log "github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/profiling"
 	"github.com/armadaproject/armada/internal/eventingester/configuration"
@@ -82,19 +83,7 @@ func Run(config *configuration.EventIngesterConfiguration) {
 	g, ctx := armadacontext.ErrGroup(app.CreateContextWithShutdown())
 
 	if config.Metrics.Redis.Enabled {
-		var metricsRedisClient redis.UniversalClient
-		if config.Metrics.Redis.ConnectionInfo.Addrs != nil {
-			metricsRedisClient = redis.NewUniversalClient(&config.Metrics.Redis.ConnectionInfo)
-			defer func() {
-				if err := metricsRedisClient.Close(); err != nil {
-					log.WithError(err).Error("failed to close metrics Redis client")
-				}
-			}()
-		} else {
-			metricsRedisClient = db
-		}
-
-		scanner := repository.NewScanner(metricsRedisClient, config.Metrics.Redis)
+		scanner := repository.NewScanner(db, config.Metrics.Redis)
 
 		leaderController, err := createLeaderController(ctx, config.Metrics.Redis.Leader)
 		if err != nil {
@@ -177,7 +166,7 @@ func createLeaderController(ctx *armadacontext.Context, config configuration.Lea
 		}
 
 		leaderController := leader.NewKubernetesLeaderController(schedulerLeaderConfig, clientSet.CoordinationV1())
-		leaderStatusMetrics := leader.NewLeaderStatusMetricsCollector(config.LeaseLockName)
+		leaderStatusMetrics := leader.NewLeaderStatusMetricsCollector(ingestermetrics.ArmadaEventIngesterMetricsPrefix, config.PodName)
 		leaderController.RegisterListener(leaderStatusMetrics)
 		prometheus.MustRegister(leaderStatusMetrics)
 		return leaderController, nil

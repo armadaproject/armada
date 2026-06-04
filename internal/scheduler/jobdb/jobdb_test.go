@@ -18,6 +18,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/common/util"
+	schedulerconfiguration "github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/pkg/bidstore"
 )
@@ -439,6 +440,82 @@ func TestJobDb_TestTransactions(t *testing.T) {
 	assert.Error(t, txn1.Upsert([]*Job{job})) // should be error as you can't insert after committing
 }
 
+func TestDryRunTxn_LocalChangesVisible(t *testing.T) {
+	jobDb := NewTestJobDb()
+
+	// Seed the real db with one job.
+	job := newJob().WithQueued(true)
+	writeTxn := jobDb.WriteTxn()
+	require.NoError(t, writeTxn.Upsert([]*Job{job}))
+	writeTxn.Commit()
+
+	dryRunTxn := jobDb.DryRunTxn()
+
+	// The original job should be visible in the txn.
+	assert.NotNil(t, dryRunTxn.GetById(job.Id()))
+
+	// Upsert a new job into the txn — it should be visible within the txn.
+	newSnapJob := newJob().WithQueued(true)
+	require.NoError(t, dryRunTxn.Upsert([]*Job{newSnapJob}))
+	assert.NotNil(t, dryRunTxn.GetById(newSnapJob.Id()))
+
+	// Delete the original job from the txn — it should be gone within the txn.
+	require.NoError(t, dryRunTxn.BatchDelete([]string{job.Id()}))
+	assert.Nil(t, dryRunTxn.GetById(job.Id()))
+}
+
+func TestDryRunTxn_CommitDoesNotModifyDb(t *testing.T) {
+	jobDb := NewTestJobDb()
+
+	// Seed the real db with one job.
+	job := newJob().WithQueued(true)
+	writeTxn := jobDb.WriteTxn()
+	require.NoError(t, writeTxn.Upsert([]*Job{job}))
+	writeTxn.Commit()
+
+	dryRunTxn := jobDb.DryRunTxn()
+
+	// Mutate the txn: add a new job and delete the original one.
+	newJob := newJob().WithQueued(true)
+	require.NoError(t, dryRunTxn.Upsert([]*Job{newJob}))
+	require.NoError(t, dryRunTxn.BatchDelete([]string{job.Id()}))
+	dryRunTxn.Commit()
+
+	// The real db must be unchanged after committing the txn.
+	realTxn := jobDb.ReadTxn()
+	assert.NotNil(t, realTxn.GetById(job.Id()),
+		"original job should still exist in the real db after dry run commit")
+	assert.Nil(t, realTxn.GetById(newJob.Id()),
+		"dry run only job must not appear in the real db after dry run commit")
+
+	// A subsequent WriteTxn must not be blocked (writerMutex was never held).
+	secondWrite := jobDb.WriteTxn()
+	secondWrite.Abort()
+}
+
+func TestDryRunTxn_AbortDoesNotModifyDb(t *testing.T) {
+	jobDb := NewTestJobDb()
+
+	job := newJob().WithQueued(true)
+	writeTxn := jobDb.WriteTxn()
+	require.NoError(t, writeTxn.Upsert([]*Job{job}))
+	writeTxn.Commit()
+
+	dryRunTxn := jobDb.DryRunTxn()
+	newJob := newJob().WithQueued(true)
+	require.NoError(t, dryRunTxn.Upsert([]*Job{newJob}))
+	dryRunTxn.Abort() // must not panic (writerMutex was never acquired)
+
+	// Real db must be unchanged after abort.
+	realTxn := jobDb.ReadTxn()
+	assert.NotNil(t, realTxn.GetById(job.Id()))
+	assert.Nil(t, realTxn.GetById(newJob.Id()))
+
+	// writerMutex must not be held.
+	secondWrite := jobDb.WriteTxn()
+	secondWrite.Abort()
+}
+
 func TestJobDb_TestBatchDelete(t *testing.T) {
 	jobDb := NewTestJobDb()
 	job1 := newJob().WithQueued(true).WithNewRun("executor", "nodeId", "nodeName", "pool", 5)
@@ -604,6 +681,63 @@ func TestJobDb_GangInfoIsPopulated(t *testing.T) {
 				assert.Nil(t, err)
 				assert.Equal(t, tc.expectedGangInfo, job.GetGangInfo())
 			}
+		})
+	}
+}
+
+func TestJobDb_RespectNodePodLimits_InjectsPodsResource(t *testing.T) {
+	cpuMem := []schedulerconfiguration.ResourceType{
+		{Name: "cpu", Resolution: resource.MustParse("1m")},
+		{Name: "memory", Resolution: resource.MustParse("1")},
+	}
+	cpuMemPods := []schedulerconfiguration.ResourceType{
+		{Name: "cpu", Resolution: resource.MustParse("1m")},
+		{Name: "memory", Resolution: resource.MustParse("1")},
+		{Name: "pods", Resolution: resource.MustParse("1")},
+	}
+
+	withCpuMem := &internaltypes.JobSchedulingInfo{
+		PriorityClass: "foo",
+		PodRequirements: &internaltypes.PodRequirements{
+			ResourceRequirements: v1.ResourceRequirements{
+				Requests: map[v1.ResourceName]resource.Quantity{
+					"cpu":    resource.MustParse("1"),
+					"memory": resource.MustParse("1Gi"),
+				},
+			},
+		},
+	}
+	withNoRequests := &internaltypes.JobSchedulingInfo{
+		PriorityClass:   "foo",
+		PodRequirements: &internaltypes.PodRequirements{},
+	}
+
+	tests := map[string]struct {
+		resourceTypes  []schedulerconfiguration.ResourceType
+		respect        bool
+		schedulingInfo *internaltypes.JobSchedulingInfo
+		expectedPods   int64
+	}{
+		"flag off": {resourceTypes: cpuMemPods, respect: false, schedulingInfo: withCpuMem, expectedPods: 0},
+		"flag on":  {resourceTypes: cpuMemPods, respect: true, schedulingInfo: withCpuMem, expectedPods: 1},
+		"flag on but factory lacks pods resource": {resourceTypes: cpuMem, respect: true, schedulingInfo: withCpuMem, expectedPods: 0},
+		// A job with no resource requests must still get pods=1 so it occupies a slot.
+		"flag on with no requests still injects pods": {resourceTypes: cpuMemPods, respect: true, schedulingInfo: withNoRequests, expectedPods: 1},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			factory, err := internaltypes.NewResourceListFactory(tc.resourceTypes, nil)
+			require.NoError(t, err)
+
+			jobDb := NewJobDb(map[string]types.PriorityClass{"foo": {}}, "foo", stringinterner.New(1024), factory)
+			jobDb.SetRespectNodePodLimits(tc.respect)
+
+			job, err := jobDb.NewJob("jobId", "jobSet", "queue", 1, tc.schedulingInfo, false, 0, false, false, false, 2, false, []string{}, 0)
+			require.NoError(t, err)
+
+			podsQty := job.KubernetesResourceRequirements().GetByNameZeroIfMissing("pods")
+			assert.Equal(t, tc.expectedPods, podsQty.Value())
 		})
 	}
 }

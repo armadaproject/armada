@@ -61,6 +61,7 @@
 //! |---|---|
 //! | Plaintext connection | [`ArmadaClient::connect`] |
 //! | TLS connection (system roots) | [`ArmadaClient::connect_tls`] |
+//! | TLS with custom CA / mTLS    | [`ArmadaClient::connect_tls_with_config`] |
 //! | Per-call timeout | [`ArmadaClient::with_timeout`] |
 //! | Job submission | [`ArmadaClient::submit`] |
 //! | Cancel jobs by ID | [`ArmadaClient::cancel_jobs`] |
@@ -192,3 +193,5 @@ pub use builder::JobRequestItemBuilder;
 pub use client::ArmadaClient;
 pub use error::Error;
 pub use futures::stream::BoxStream;
+pub use prost;
+pub use tonic;

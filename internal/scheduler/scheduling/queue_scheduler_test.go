@@ -13,7 +13,6 @@ import (
 	"golang.org/x/time/rate"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/utils/clock"
-	testclock "k8s.io/utils/clock/testing"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	armadaconfiguration "github.com/armadaproject/armada/internal/common/constants"
@@ -827,51 +826,6 @@ func TestQueueCandidateGangIteratorPQ_Fallback(t *testing.T) {
 	assert.Equal(t, expectedOrder, pq.items)
 }
 
-// steppingClock advances time by a fixed step on each Now() call.
-// This is used to test soft timeout: since the scheduler calls Now() during iteration,
-// the stepping clock ensures elapsed time exceeds the soft timeout threshold.
-type steppingClock struct {
-	fakeClock *testclock.FakeClock
-	step      time.Duration
-}
-
-func newSteppingClock(start time.Time, step time.Duration) *steppingClock {
-	return &steppingClock{
-		fakeClock: testclock.NewFakeClock(start),
-		step:      step,
-	}
-}
-
-func (c *steppingClock) Now() time.Time {
-	now := c.fakeClock.Now()
-	c.fakeClock.Step(c.step)
-	return now
-}
-
-func (c *steppingClock) Since(t time.Time) time.Duration {
-	return c.fakeClock.Now().Sub(t)
-}
-
-func (c *steppingClock) NewTimer(d time.Duration) clock.Timer {
-	return c.fakeClock.NewTimer(d)
-}
-
-func (c *steppingClock) NewTicker(d time.Duration) clock.Ticker {
-	return c.fakeClock.NewTicker(d)
-}
-
-func (c *steppingClock) Sleep(d time.Duration) {
-	c.fakeClock.Sleep(d)
-}
-
-func (c *steppingClock) After(d time.Duration) <-chan time.Time {
-	return c.fakeClock.After(d)
-}
-
-func (c *steppingClock) Tick(d time.Duration) <-chan time.Time {
-	return c.fakeClock.Tick(d)
-}
-
 type timeoutTestSetup struct {
 	config      configuration.SchedulingConfig
 	nodeDb      *nodedb.NodeDb
@@ -1155,7 +1109,7 @@ func TestQueueSchedulerTimeouts(t *testing.T) {
 			var clk clock.Clock = clock.RealClock{}
 			if tc.globalSoftTimeout > 0 {
 				// Step 10s per Now() call ensures soft timeout (1ns) is exceeded immediately
-				clk = newSteppingClock(time.Now(), 10*time.Second)
+				clk = testfixtures.NewSteppingClock(time.Now(), 10*time.Second)
 			}
 
 			setup := setupTimeoutTest(t, tc.queues, jobsPerQueue, 10, tc.globalSoftTimeout, tc.queueSoftTimeout)

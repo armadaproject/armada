@@ -369,6 +369,8 @@ func TestCalculateNonArmadaResource(t *testing.T) {
 	oneGi := resource.MustParse("1Gi")
 	twoGi := resource.MustParse("2Gi")
 	threeGi := resource.MustParse("3Gi")
+	onePod := resource.MustParse("1")
+	twoPods := resource.MustParse("2")
 
 	defaultMinToAllocatePriority := int32(3)
 	defaultMinToAllocate := armadaresource.ComputeResources{
@@ -404,6 +406,7 @@ func TestCalculateNonArmadaResource(t *testing.T) {
 					Resources: map[string]*resource.Quantity{
 						"cpu":    &oneCpu,
 						"memory": &oneGi,
+						"pods":   &onePod,
 					},
 				},
 				defaultMinToAllocatePriority: {
@@ -423,6 +426,7 @@ func TestCalculateNonArmadaResource(t *testing.T) {
 					Resources: map[string]*resource.Quantity{
 						"cpu":    &threeCpu,
 						"memory": &threeGi,
+						"pods":   &onePod,
 					},
 				},
 			},
@@ -439,6 +443,7 @@ func TestCalculateNonArmadaResource(t *testing.T) {
 					Resources: map[string]*resource.Quantity{
 						"cpu":    &threeCpu,
 						"memory": &threeGi,
+						"pods":   &twoPods,
 					},
 				},
 			},
@@ -455,12 +460,14 @@ func TestCalculateNonArmadaResource(t *testing.T) {
 					Resources: map[string]*resource.Quantity{
 						"cpu":    &oneCpu,
 						"memory": &oneGi,
+						"pods":   &onePod,
 					},
 				},
 				defaultMinToAllocatePriority: {
 					Resources: map[string]*resource.Quantity{
 						"cpu":    &oneCpu,
 						"memory": &oneGi,
+						"pods":   &onePod,
 					},
 				},
 			},

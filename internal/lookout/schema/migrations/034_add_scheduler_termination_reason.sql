@@ -1,0 +1,1 @@
+ALTER TABLE job_run ADD COLUMN scheduler_termination_reason JSONB;

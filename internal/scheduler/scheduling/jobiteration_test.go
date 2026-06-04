@@ -69,12 +69,12 @@ func TestInMemoryJobRepository_OnlyYieldEvicted(t *testing.T) {
 func TestMultiJobsIterator_TwoQueues(t *testing.T) {
 	repo := newMockJobRepository()
 	expected := make([]string, 0)
-	for _, req := range testfixtures.N1CpuPodReqs("A", 0, 5) {
+	for _, req := range testfixtures.N1CpuPodReqs(5) {
 		job := jobFromPodSpec("A", req)
 		repo.Enqueue(job)
 		expected = append(expected, job.Id())
 	}
-	for _, req := range testfixtures.N1CpuPodReqs("B", 0, 5) {
+	for _, req := range testfixtures.N1CpuPodReqs(5) {
 		job := jobFromPodSpec("B", req)
 		repo.Enqueue(job)
 		expected = append(expected, job.Id())
@@ -105,7 +105,7 @@ func TestMultiJobsIterator_OnlyYieldEvicted(t *testing.T) {
 	inMemoryRepo.EnqueueMany(jctxs)
 
 	repo := newMockJobRepository()
-	for _, req := range testfixtures.N1CpuPodReqs("A", 0, 5) {
+	for _, req := range testfixtures.N1CpuPodReqs(5) {
 		job := jobFromPodSpec("A", req)
 		repo.Enqueue(job)
 	}
@@ -208,7 +208,7 @@ func TestMarketDrivenMultiJobsIterator_OnlyYieldEvicted_CalledMidIteration(t *te
 func TestQueuedJobsIterator_OneQueue(t *testing.T) {
 	repo := newMockJobRepository()
 	expected := make([]string, 0)
-	for _, req := range testfixtures.N1CpuPodReqs("A", 0, 10) {
+	for _, req := range testfixtures.N1CpuPodReqs(10) {
 		job := jobFromPodSpec("A", req)
 		repo.Enqueue(job)
 		expected = append(expected, job.Id())
@@ -220,7 +220,7 @@ func TestQueuedJobsIterator_OneQueue(t *testing.T) {
 
 func TestQueuedJobsIterator_OnlyYieldEvicted(t *testing.T) {
 	repo := newMockJobRepository()
-	for _, req := range testfixtures.N1CpuPodReqs("A", 0, 10) {
+	for _, req := range testfixtures.N1CpuPodReqs(10) {
 		job := jobFromPodSpec("A", req)
 		repo.Enqueue(job)
 	}
@@ -234,7 +234,7 @@ func TestQueuedJobsIterator_OnlyYieldEvicted(t *testing.T) {
 func TestQueuedJobsIterator_ExceedsBufferSize(t *testing.T) {
 	repo := newMockJobRepository()
 	expected := make([]string, 0)
-	for _, req := range testfixtures.N1CpuPodReqs("A", 0, 17) {
+	for _, req := range testfixtures.N1CpuPodReqs(17) {
 		job := jobFromPodSpec("A", req)
 		repo.Enqueue(job)
 		expected = append(expected, job.Id())
@@ -247,7 +247,7 @@ func TestQueuedJobsIterator_ExceedsBufferSize(t *testing.T) {
 func TestQueuedJobsIterator_ManyJobs(t *testing.T) {
 	repo := newMockJobRepository()
 	expected := make([]string, 0)
-	for _, req := range testfixtures.N1CpuPodReqs("A", 0, 113) {
+	for _, req := range testfixtures.N1CpuPodReqs(113) {
 		job := jobFromPodSpec("A", req)
 		repo.Enqueue(job)
 		expected = append(expected, job.Id())
@@ -260,13 +260,13 @@ func TestQueuedJobsIterator_ManyJobs(t *testing.T) {
 func TestCreateQueuedJobsIterator_TwoQueues(t *testing.T) {
 	repo := newMockJobRepository()
 	expected := make([]string, 0)
-	for _, req := range testfixtures.N1CpuPodReqs("A", 0, 10) {
+	for _, req := range testfixtures.N1CpuPodReqs(10) {
 		job := jobFromPodSpec("A", req)
 		repo.Enqueue(job)
 		expected = append(expected, job.Id())
 	}
 
-	for _, req := range testfixtures.N1CpuPodReqs("B", 0, 10) {
+	for _, req := range testfixtures.N1CpuPodReqs(10) {
 		job := jobFromPodSpec("B", req)
 		repo.Enqueue(job)
 	}
@@ -277,7 +277,7 @@ func TestCreateQueuedJobsIterator_TwoQueues(t *testing.T) {
 
 func TestCreateQueuedJobsIterator_NilOnEmpty(t *testing.T) {
 	repo := newMockJobRepository()
-	for _, req := range testfixtures.N1CpuPodReqs("A", 0, 10) {
+	for _, req := range testfixtures.N1CpuPodReqs(10) {
 		job := jobFromPodSpec("A", req)
 		repo.Enqueue(job)
 	}
