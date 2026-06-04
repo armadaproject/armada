@@ -7,6 +7,11 @@ services:
     ports:
       - "6379:6379"
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   postgres:
     container_name: postgres
@@ -31,18 +36,52 @@ services:
       - PULSAR_PREFIX_allowAutoTopicCreation=true
       - PULSAR_PREFIX_allowAutoTopicCreationType=non-partitioned
       - PULSAR_PREFIX_autoSkipNonRecoverableData=true
+      - PULSAR_PREFIX_advertisedAddress=localhost
     entrypoint: sh -c "bin/apply-config-from-env.py conf/standalone.conf && bin/pulsar standalone"
     ports:
       - "6650:6650"
-      - "8090:8080"
+      - "18090:8080"
     restart: unless-stopped
     healthcheck:
       test:
-        ["CMD", "curl", "-f", "http://localhost:8080/admin/v2/brokers/health"]
+        [
+          "CMD",
+          "curl",
+          "-f",
+          "http://localhost:8080/admin/v2/namespaces/public/default",
+        ]
       interval: 30s
       timeout: 10s
       retries: 5
       start_period: 30s
+
+  # Prometheus - only for prometheus profile
+  prometheus:
+    container_name: prometheus
+    image: ${PROMETHEUS_IMAGE:-prom/prometheus:v3.11.3}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "19090:9090"
+    volumes:
+      - "./prometheus.yml:/etc/prometheus/prometheus.yml"
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "--quiet",
+          "--tries=1",
+          "--spider",
+          "http://localhost:9090/-/healthy",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    profiles:
+      - prometheus
 
   # Keycloak OIDC provider - only for auth profile
   keycloak:
@@ -51,10 +90,10 @@ services:
     environment:
       - KEYCLOAK_ADMIN=admin
       - KEYCLOAK_ADMIN_PASSWORD=admin
-      - KC_HTTP_PORT=8180
+      - KC_HTTP_PORT=18180
       - KC_HEALTH_ENABLED=true
     ports:
-      - "8180:8180"
+      - "18180:18180"
     command: start-dev --import-realm
     volumes:
       - ./keycloak/import:/opt/keycloak/data/import:ro
@@ -62,7 +101,11 @@ services:
     profiles:
       - auth
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8180/health/ready"]
+      test:
+        [
+          "CMD-SHELL",
+          "exec 3<>/dev/tcp/localhost/9000 && echo -e 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && grep -q 'UP' <&3",
+        ]
       interval: 10s
       timeout: 5s
       retries: 10

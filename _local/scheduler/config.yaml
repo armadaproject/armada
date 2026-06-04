@@ -2,6 +2,8 @@ grpc:
   port: 50052
   tls:
     enabled: false
+http:
+  port: 18080
 auth:
   anonymousAuth: true
   permissionGroupMapping:
@@ -23,4 +25,4 @@ scheduling:
   indexedNodeLabels:
     - "kubernetes.io/hostname"
 metrics:
-  port: 9001
+  port: 19001

@@ -9,46 +9,211 @@
   },
   "tasks": [
     {
+      "label": "Download Go modules",
       "type": "shell",
       "command": "go",
-      "args": ["mod", "download"],
-      "label": "Download Go modules"
+      "args": ["mod", "download"]
     },
     {
+      "label": "Start dependencies",
       "type": "shell",
-      "command": "mage kind && mage startDependencies",
-      "label": "Start dependencies"
+      "command": "mage kind && COMPOSE_FILE=${workspaceFolder}/_local/docker-compose-deps.yaml mage startDependencies",
+      "problemMatcher": []
     },
     {
+      "label": "Start dependencies with Prometheus",
       "type": "shell",
-      "command": "go",
-      "label": "Migrate Lookout database",
-      "args": ["run", "${workspaceFolder}/cmd/lookout", "--migrateDatabase"]
+      "command": "mage kind && COMPOSE_FILE=${workspaceFolder}/_local/docker-compose-deps.yaml ARMADA_EXTRA_DEPS=prometheus mage startDependencies",
+      "problemMatcher": []
     },
     {
+      "label": "Start dependencies with Auth",
       "type": "shell",
-      "command": "go",
-      "label": "Migrate Scheduler database",
-      "args": ["run", "${workspaceFolder}/cmd/scheduler", "migrateDatabase"]
+      "command": "mage kind && COMPOSE_FILE=${workspaceFolder}/_local/docker-compose-deps.yaml ARMADA_EXTRA_DEPS=keycloak mage startDependencies",
+      "problemMatcher": []
     },
     {
-      "label": "Set up dependencies",
-      "dependsOrder": "sequence",
-      "dependsOn": [
-        "Download Go modules",
-        "Start dependencies",
-        "Migrate Lookout database",
-        "Migrate Scheduler database"
-      ]
+      "label": "Start dependencies with Prometheus and Auth",
+      "type": "shell",
+      "command": "mage kind && COMPOSE_FILE=${workspaceFolder}/_local/docker-compose-deps.yaml ARMADA_EXTRA_DEPS=prometheus,keycloak mage startDependencies",
+      "problemMatcher": []
     },
     {
+      "label": "Init databases",
+      "type": "shell",
+      "command": "${workspaceFolder}/scripts/localdev-init.sh",
+      "problemMatcher": []
+    },
+    {
+      "label": "Build Lookout UI",
       "type": "shell",
       "command": [
         "scripts/yarn-registry-mirror.sh --cwd ${workspaceFolder}/internal/lookoutui &&",
         "scripts/yarn-registry-mirror.sh --cwd ${workspaceFolder}/internal/lookoutui openapi &&",
         "scripts/yarn-registry-mirror.sh --cwd ${workspaceFolder}/internal/lookoutui build"
-      ],
-      "label": "Build Lookout UI"
+      ]
+    },
+    {
+      "label": "Goreman: Start (no-auth debug)",
+      "type": "shell",
+      "command": "goreman -f ${workspaceFolder}/_local/procfiles/no-auth-debug.Procfile start",
+      "isBackground": true,
+      "problemMatcher": [
+        {
+          "pattern": [
+            { "regexp": ".", "file": 1, "location": 2, "message": 3 }
+          ],
+          "background": {
+            "activeOnStart": true,
+            "beginsPattern": ".",
+            "endsPattern": "DAP server listening at:"
+          }
+        }
+      ]
+    },
+    {
+      "label": "Goreman: Start (auth debug)",
+      "type": "shell",
+      "command": "goreman -f ${workspaceFolder}/_local/procfiles/auth-debug.Procfile start",
+      "isBackground": true,
+      "problemMatcher": [
+        {
+          "pattern": [
+            { "regexp": ".", "file": 1, "location": 2, "message": 3 }
+          ],
+          "background": {
+            "activeOnStart": true,
+            "beginsPattern": ".",
+            "endsPattern": "DAP server listening at:"
+          }
+        }
+      ]
+    },
+    {
+      "label": "Goreman: Start (fake-executor debug)",
+      "type": "shell",
+      "command": "goreman -f ${workspaceFolder}/_local/procfiles/fake-executor-debug.Procfile start",
+      "isBackground": true,
+      "problemMatcher": [
+        {
+          "pattern": [
+            { "regexp": ".", "file": 1, "location": 2, "message": 3 }
+          ],
+          "background": {
+            "activeOnStart": true,
+            "beginsPattern": ".",
+            "endsPattern": "DAP server listening at:"
+          }
+        }
+      ]
+    },
+    {
+      "label": "Check for port conflicts",
+      "type": "shell",
+      "command": "for port in 2345 2346 2347 2348 2349 2350 2351 2352 2353 3000 18080 18081 18082 18083 18084 18089 19000 19001 19002 19003 19004 19005 19006 19007 19008 50051 50052 50053; do proc=$(lsof -i :$port -sTCP:LISTEN 2>/dev/null | awk 'NR>1{print $1}' | sort -u); [ -n \"$proc\" ] && echo \"WARNING: port $port already in use by $proc\"; done; true",
+      "problemMatcher": []
+    },
+    {
+      "label": "Kill port conflicts",
+      "type": "shell",
+      "command": "for port in 2345 2346 2347 2348 2349 2350 2351 2352 2353 3000 18080 18081 18082 18083 18084 18089 19000 19001 19002 19003 19004 19005 19006 19007 19008 50051 50052 50053; do pids=$(lsof -i :$port -sTCP:LISTEN -t 2>/dev/null); if [ -n \"$pids\" ]; then proc=$(lsof -i :$port -sTCP:LISTEN 2>/dev/null | awk 'NR>1{print $1}' | sort -u); echo \"Killing port $port ($proc)\"; kill $pids; fi; done; true",
+      "problemMatcher": []
+    },
+    {
+      "label": "Sleep after start",
+      "type": "shell",
+      "command": "sleep 15",
+      "problemMatcher": []
+    },
+    {
+      "label": "Wait for dlv (standard)",
+      "type": "shell",
+      "command": "for entry in 2345:server 2346:scheduler 2347:scheduleringester 2348:eventingester 2349:executor 2350:lookout 2351:lookoutingester 2352:binoculars; do port=${entry%%:*}; name=${entry##*:}; elapsed=0; until lsof -i :$port -sTCP:LISTEN -t >/dev/null 2>&1; do if [ $elapsed -ge 60 ]; then echo \"✗ $name timed out after 60s\"; exit 1; fi; echo \"Waiting for $name (dlv :$port)...\"; sleep 1; elapsed=$((elapsed+1)); done; echo \"✓ $name ready\"; done; echo \"All dlv servers ready\"",
+      "problemMatcher": []
+    },
+    {
+      "label": "Wait for dlv (fake-executor)",
+      "type": "shell",
+      "command": "for entry in 2345:server 2346:scheduler 2347:scheduleringester 2348:eventingester 2353:fakeexecutor 2350:lookout 2351:lookoutingester 2352:binoculars; do port=${entry%%:*}; name=${entry##*:}; elapsed=0; until lsof -i :$port -sTCP:LISTEN -t >/dev/null 2>&1; do if [ $elapsed -ge 60 ]; then echo \"✗ $name timed out after 60s\"; exit 1; fi; echo \"Waiting for $name (dlv :$port)...\"; sleep 1; elapsed=$((elapsed+1)); done; echo \"✓ $name ready\"; done; echo \"All dlv servers ready\"",
+      "problemMatcher": []
+    },
+    {
+      "label": "Stop dependencies",
+      "type": "shell",
+      "command": "COMPOSE_FILE=${workspaceFolder}/_local/docker-compose-deps.yaml ARMADA_EXTRA_DEPS=prometheus,keycloak mage stopDependencies",
+      "problemMatcher": []
+    },
+    {
+      "label": "Full teardown",
+      "type": "shell",
+      "command": "mage kindTeardown && COMPOSE_FILE=${workspaceFolder}/_local/docker-compose-deps.yaml ARMADA_EXTRA_DEPS=prometheus,keycloak mage tearDownDependencies",
+      "problemMatcher": []
+    },
+    {
+      "label": "Goreman: Set up and start (no-auth debug)",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "Check for port conflicts",
+        "Start dependencies",
+        "Init databases",
+        "Goreman: Start (no-auth debug)",
+        "Wait for dlv (standard)"
+      ]
+    },
+    {
+      "label": "Goreman: Set up and start (auth debug)",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "Check for port conflicts",
+        "Start dependencies with Auth",
+        "Init databases",
+        "Goreman: Start (auth debug)",
+        "Wait for dlv (standard)"
+      ]
+    },
+    {
+      "label": "Goreman: Set up and start (fake-executor debug)",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "Check for port conflicts",
+        "Start dependencies",
+        "Init databases",
+        "Goreman: Start (fake-executor debug)",
+        "Wait for dlv (fake-executor)"
+      ]
+    },
+    {
+      "label": "Goreman: Set up and start (no-auth debug with prometheus)",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "Check for port conflicts",
+        "Start dependencies with Prometheus",
+        "Init databases",
+        "Goreman: Start (no-auth debug)",
+        "Wait for dlv (standard)"
+      ]
+    },
+    {
+      "label": "Goreman: Set up and start (fake-executor debug with prometheus)",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "Check for port conflicts",
+        "Start dependencies with Prometheus",
+        "Init databases",
+        "Goreman: Start (fake-executor debug)",
+        "Wait for dlv (fake-executor)"
+      ]
+    },
+    {
+      "label": "Goreman: Set up and start (auth debug with prometheus)",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "Check for port conflicts",
+        "Start dependencies with Prometheus and Auth",
+        "Init databases",
+        "Goreman: Start (auth debug)",
+        "Wait for dlv (standard)"
+      ]
     }
   ]
 }

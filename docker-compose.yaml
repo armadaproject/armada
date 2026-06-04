@@ -13,7 +13,7 @@ services:
   #
   redis:
     container_name: redis
-    image: redis
+    image: redis:8.6.3
     ports:
       - 6379:6379
     networks:
@@ -99,7 +99,7 @@ services:
       - "go-cache:/root/.cache/go-build:rw"
       - "gomod-cache:/go/pkg/mod:rw"
     working_dir: /app
-    command:  ./scheduler migrateDatabase
+    command: ./scheduler migrateDatabase
 
   scheduleringester:
     container_name: scheduleringester

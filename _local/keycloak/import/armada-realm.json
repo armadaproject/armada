@@ -21,13 +21,8 @@
   "accessCodeLifespanLogin": 1800,
   "actionTokenGeneratedByAdminLifespan": 43200,
   "actionTokenGeneratedByUserLifespan": 300,
-  "requiredCredentials": [
-    "password"
-  ],
-  "defaultRoles": [
-    "offline_access",
-    "uma_authorization"
-  ],
+  "requiredCredentials": ["password"],
+  "defaultRoles": ["offline_access", "uma_authorization"],
   "clients": [
     {
       "clientId": "armada-server",
@@ -45,10 +40,10 @@
       "consentRequired": false,
       "clientAuthenticatorType": "client-secret",
       "redirectUris": [
-        "http://localhost:8085/*",
+        "http://localhost:18085/*",
         "http://localhost:3000/*",
         "http://localhost:3001/*",
-        "http://127.0.0.1:8085/*",
+        "http://127.0.0.1:18085/*",
         "http://127.0.0.1:3000/*"
       ],
       "webOrigins": [
@@ -67,12 +62,7 @@
       },
       "fullScopeAllowed": true,
       "nodeReRegistrationTimeout": -1,
-      "defaultClientScopes": [
-        "web-origins",
-        "profile",
-        "roles",
-        "email"
-      ],
+      "defaultClientScopes": ["web-origins", "profile", "roles", "email"],
       "optionalClientScopes": [
         "address",
         "phone",
@@ -105,12 +95,7 @@
       },
       "fullScopeAllowed": true,
       "nodeReRegistrationTimeout": -1,
-      "defaultClientScopes": [
-        "web-origins",
-        "profile",
-        "roles",
-        "email"
-      ],
+      "defaultClientScopes": ["web-origins", "profile", "roles", "email"],
       "optionalClientScopes": [
         "address",
         "phone",
@@ -251,12 +236,8 @@
           "temporary": false
         }
       ],
-      "realmRoles": [
-        "default-roles-armada"
-      ],
-      "groups": [
-        "/admins"
-      ]
+      "realmRoles": ["default-roles-armada"],
+      "groups": ["/admins"]
     },
     {
       "username": "service-account-armada-executor",
@@ -266,9 +247,7 @@
       "lastName": "Executor",
       "emailVerified": true,
       "serviceAccountClientId": "armada-executor",
-      "groups": [
-        "/admins"
-      ]
+      "groups": ["/admins"]
     }
   ],
   "browserSecurityHeaders": {
@@ -281,10 +260,7 @@
         "description": "${role_default-roles}",
         "composite": true,
         "composites": {
-          "realm": [
-            "offline_access",
-            "uma_authorization"
-          ]
+          "realm": ["offline_access", "uma_authorization"]
         },
         "clientRole": false,
         "containerId": "armada",
@@ -308,12 +284,7 @@
       }
     ]
   },
-  "defaultDefaultClientScopes": [
-    "profile",
-    "email",
-    "roles",
-    "web-origins"
-  ],
+  "defaultDefaultClientScopes": ["profile", "email", "roles", "web-origins"],
   "defaultOptionalClientScopes": [
     "offline_access",
     "address",

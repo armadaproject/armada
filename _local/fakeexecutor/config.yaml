@@ -1,9 +1,9 @@
-httpPort: 8083
+httpPort: 18083
 executorApiConnection:
   armadaUrl: "localhost:50052"
   forceNoTls: true
 metric:
-  port: 9008
+  port: 19008
 application:
   clusterId: "fake-cluster"
   pool: "default"

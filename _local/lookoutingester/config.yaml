@@ -1,4 +1,4 @@
-metricsPort: 9005
+metricsPort: 19005
 postgres:
   connection:
     host: localhost
@@ -9,4 +9,4 @@ postgres:
     sslmode: disable
 pulsar:
   URL: "pulsar://localhost:6650"
-  restURL: "http://localhost:8090"
+  restURL: "http://localhost:18090"

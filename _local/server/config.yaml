@@ -1,11 +1,11 @@
-httpPort: 8081
+httpPort: 18081
 grpcPort: 50051
-metricsPort: 9000
+metricsPort: 19000
 corsAllowedOrigins:
   - "http://localhost:3000"
-  - "http://localhost:8089"
+  - "http://localhost:18089"
   - "http://localhost:10000"
-  - "http://localhost:8081"
+  - "http://localhost:18081"
 auth:
   anonymousAuth: true
   permissionGroupMapping:
