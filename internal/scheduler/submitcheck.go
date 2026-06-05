@@ -154,6 +154,8 @@ func (srv *SubmitChecker) updateExecutors(ctx *armadacontext.Context) error {
 		nodes := nodeFactory.FromSchedulerObjectsExecutors(
 			[]*schedulerobjects.Executor{ex},
 			func(s string) { ctx.Error(s) })
+		// Treat cordoned nodes as available.
+		nodes = nodeFactory.RemoveCordonTaint(nodes)
 		nodesByPool := armadaslices.GroupByFunc(nodes, func(n *internaltypes.Node) string {
 			return n.GetPool()
 		})

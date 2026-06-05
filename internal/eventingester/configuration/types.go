@@ -55,7 +55,6 @@ type RedisMemoryMetricsConfig struct {
 	PipelineBatchSize         int
 	InterBatchDelay           time.Duration
 	MemoryUsageSamples        int
-	ConnectionInfo            redis.UniversalOptions
 	Leader                    LeaderConfig
 }
 
