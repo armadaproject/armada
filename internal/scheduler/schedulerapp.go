@@ -386,11 +386,18 @@ func Run(config schedulerconfig.Configuration) error {
 		return errors.WithStack(err)
 	}
 
+	var schedulingRunner scheduling.SchedulingRunner
+	if config.Scheduling.AsyncSchedulingEnabled {
+		schedulingRunner = scheduling.NewAsyncSchedulingRunner(ctx, schedulingAlgo, jobDb)
+	} else {
+		schedulingRunner = scheduling.NewSyncSchedulingRunner(schedulingAlgo)
+	}
+
 	scheduler, err := NewScheduler(
 		jobDb,
 		jobRepository,
 		executorRepository,
-		schedulingAlgo,
+		schedulingRunner,
 		leaderController,
 		jobsetEventPublisher,
 		submitChecker,

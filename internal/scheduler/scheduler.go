@@ -43,9 +43,10 @@ type Scheduler struct {
 	jobRepository database.JobRepository
 	// Used to determine whether a cluster is active.
 	executorRepository database.ExecutorRepository
-	// Responsible for assigning jobs to nodes.
-	// TODO: Confusing name. Change.
-	schedulingAlgo scheduling.SchedulingAlgo
+	// Drives scheduling. Wraps the underlying SchedulingAlgo and may
+	// optionally run it asynchronously on a background goroutine.
+	// TODO: Confusing legacy name on the inner algo. Change.
+	runner scheduling.SchedulingRunner
 	// Tells us if we are leader. Only the leader may schedule jobs.
 	leaderController leader.LeaderController
 	// This is used to check if jobs are still schedulable.
@@ -98,7 +99,7 @@ func NewScheduler(
 	jobDb *jobdb.JobDb,
 	jobRepository database.JobRepository,
 	executorRepository database.ExecutorRepository,
-	schedulingAlgo scheduling.SchedulingAlgo,
+	runner scheduling.SchedulingRunner,
 	leaderController leader.LeaderController,
 	publisher Publisher,
 	submitChecker SubmitScheduleChecker,
@@ -117,7 +118,7 @@ func NewScheduler(
 	return &Scheduler{
 		jobRepository:      jobRepository,
 		executorRepository: executorRepository,
-		schedulingAlgo:     schedulingAlgo,
+		runner:             runner,
 		leaderController:   leaderController,
 		publisher:          publisher,
 		submitChecker:      submitChecker,
@@ -351,6 +352,11 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	schedulerResult := scheduling.SchedulerResult{}
 	// Schedule jobs.
 	if shouldSchedule {
+		// Trigger the next async run after this cycle returns (success or error)
+		// so the background goroutine sees committed state — or, on error, retries
+		// against the unchanged state. In sync mode Trigger is a no-op.
+		defer s.runner.Trigger()
+
 		start := time.Now()
 		resourceUnits, err := s.updateJobPrices(ctx, txn)
 		if err != nil {
@@ -359,7 +365,7 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 		ctx.Logger().Infof("updating job prices in %s", time.Now().Sub(start))
 
 		var result *scheduling.SchedulerResult
-		result, err = s.schedulingAlgo.Schedule(ctx, resourceUnits, txn)
+		result, err = s.runner.GetSchedulerResult(ctx, resourceUnits, txn)
 		if err != nil {
 			return err
 		}

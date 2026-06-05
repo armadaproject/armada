@@ -1026,7 +1026,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 				testfixtures.NewJobDb(testfixtures.TestResourceListFactory),
 				jobRepo,
 				clusterRepo,
-				schedulingAlgo,
+				scheduling.NewSyncSchedulingRunner(schedulingAlgo),
 				leader.NewStandaloneLeaderController(),
 				publisher,
 				submitChecker,
@@ -1193,7 +1193,7 @@ func TestScheduler_PublishFailureRepublishesOnNextCycle(t *testing.T) {
 		testfixtures.NewJobDb(testfixtures.TestResourceListFactory),
 		jobRepo,
 		clusterRepo,
-		&testSchedulingAlgo{},
+		scheduling.NewSyncSchedulingRunner(&testSchedulingAlgo{}),
 		leader.NewStandaloneLeaderController(),
 		publisher,
 		&testSubmitChecker{checkSuccess: true},
@@ -1266,7 +1266,7 @@ func TestScheduler_NonLeaderAdvancesCursors(t *testing.T) {
 		testfixtures.NewJobDb(testfixtures.TestResourceListFactory),
 		jobRepo,
 		clusterRepo,
-		&testSchedulingAlgo{},
+		scheduling.NewSyncSchedulingRunner(&testSchedulingAlgo{}),
 		leaderController,
 		publisher,
 		&testSubmitChecker{checkSuccess: true},
@@ -1372,7 +1372,7 @@ func TestRun(t *testing.T) {
 		testfixtures.NewJobDb(testfixtures.TestResourceListFactory),
 		&jobRepo,
 		clusterRepo,
-		schedulingAlgo,
+		scheduling.NewSyncSchedulingRunner(schedulingAlgo),
 		leaderController,
 		publisher,
 		submitChecker,
@@ -1564,7 +1564,7 @@ func TestJobPriceUpdates(t *testing.T) {
 				jobDb,
 				&jobRepo,
 				clusterRepo,
-				schedulingAlgo,
+				scheduling.NewSyncSchedulingRunner(schedulingAlgo),
 				leaderController,
 				publisher,
 				submitChecker,
@@ -1752,7 +1752,7 @@ func TestScheduler_TestSyncInitialState(t *testing.T) {
 				testfixtures.NewJobDb(testfixtures.TestResourceListFactory),
 				tc.jobRepo,
 				clusterRepo,
-				schedulingAlgo,
+				scheduling.NewSyncSchedulingRunner(schedulingAlgo),
 				leaderController,
 				publisher,
 				nil,
@@ -1968,7 +1968,7 @@ func TestScheduler_TestSyncState(t *testing.T) {
 				testfixtures.NewJobDb(testfixtures.TestResourceListFactory),
 				jobRepo,
 				clusterRepo,
-				schedulingAlgo,
+				scheduling.NewSyncSchedulingRunner(schedulingAlgo),
 				leaderController,
 				publisher,
 				nil,
@@ -3213,6 +3213,15 @@ func TestCycleConsistency(t *testing.T) {
 			instructionConverter, err := scheduleringester.NewJobSetEventsInstructionConverter(nil)
 			require.NoError(t, err)
 
+			// Single shared algo + runner so both schedulers below make the
+			// same scheduling decisions and so the persist closure can reach
+			// the algo directly without going through the runner.
+			testAlgo := &testSchedulingAlgo{
+				jobsToSchedule: tc.idsOfJobsToSchedule,
+				jobsToPreempt:  tc.idsOfJobsToPreempt,
+			}
+			sharedRunner := scheduling.NewSyncSchedulingRunner(testAlgo)
+
 			// Helper function for creating new schedulers for use in tests.
 			newScheduler := func(db *pgxpool.Pool) *Scheduler {
 				scheduler, err := NewScheduler(
@@ -3221,10 +3230,7 @@ func TestCycleConsistency(t *testing.T) {
 					&testExecutorRepository{
 						updateTimes: map[string]time.Time{"test-executor": testClock.Now()},
 					},
-					&testSchedulingAlgo{
-						jobsToSchedule: tc.idsOfJobsToSchedule,
-						jobsToPreempt:  tc.idsOfJobsToPreempt,
-					},
+					sharedRunner,
 					leader.NewStandaloneLeaderController(),
 					newTestPublisher(),
 					&testSubmitChecker{
@@ -3262,12 +3268,11 @@ func TestCycleConsistency(t *testing.T) {
 						schedulerdb.JobMetadataMigrationPhaseDualWrite,
 					)
 
-					// Create two scheduler using the same db connection.
+					// Create two scheduler using the same db connection. Both share
+					// `sharedRunner` (constructed at the test-case scope) so they make the
+					// same scheduling decisions.
 					a := newScheduler(db)
 					b := newScheduler(db)
-
-					// Share the schedulingAlgo to ensure both schedulers make the same scheduling decisions.
-					b.schedulingAlgo = a.schedulingAlgo
 
 					// Initially, "a" is leader and "b" follower.
 					(b.leaderController.(*leader.StandaloneLeaderController)).SetToken(leader.InvalidLeaderToken())
@@ -3338,7 +3343,7 @@ func TestCycleConsistency(t *testing.T) {
 
 				// Mark scheduling decisions as persisted.
 				// If not persisted, the same jobs are scheduled again on subsequent calls to schedule.
-				s.schedulingAlgo.(*testSchedulingAlgo).Persist()
+				testAlgo.Persist()
 
 				// Logging
 				numEvents := 0
