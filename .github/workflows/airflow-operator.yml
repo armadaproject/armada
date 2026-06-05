@@ -38,6 +38,40 @@ on:
       - 'third_party/airflow/**'
 
 jobs:
+  # Verifies the operator against every supported (Airflow, Python) combination.
+  # The airflow-tox job below only resolves Airflow to the top of the range (newest 3.x),
+  # so without this grid the 2.x serde / get_current_context paths and the 3.2 airflow.sdk
+  # serde path would never be exercised in CI. Each supported Airflow (2.10, 3.1, 3.2) runs
+  # against each supported Python (3.10, 3.11, 3.12); all are valid per upstream metadata.
+  # The versions are in the matrix so they appear in the check name (e.g.
+  # "airflow-compat (2.10.5, 3.12)").
+  airflow-compat:
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        airflow: ['2.10.5', '3.1.8', '3.2.1']
+        python: ['3.10', '3.11', '3.12']
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Setup Go
+        uses: ./.github/actions/setup-go-cache
+        with:
+          cache-prefix: airflow-compat
+      - name: Install Protoc
+        uses: arduino/setup-protoc@c65c819552d16ad3c9b72d9dfd5ba5237b9c906b # v3
+        with:
+          version: '23.3'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      # Generates the armada_client proto code (typings, *_pb2) that the operator imports.
+      # Without this the local client install is incomplete and the tests fail to collect.
+      - run: go run github.com/magefile/mage@v1.15.0 -v buildPython
+      - name: Run operator tests against Airflow ${{ matrix.airflow }}
+        run: third_party/airflow/scripts/run-tests.sh ${{ matrix.airflow }} ${{ matrix.python }}
+
   airflow-tox:
     runs-on: ubuntu-22.04
     strategy:

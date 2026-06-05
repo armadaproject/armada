@@ -32,7 +32,6 @@ from airflow.configuration import conf
 from airflow.exceptions import AirflowFailException
 from airflow.models import BaseOperator
 from airflow.models.taskinstance import TaskInstance, TaskInstanceKey
-from airflow.serialization.serde import deserialize
 from airflow.utils.context import Context
 from airflow.utils.log.logging_mixin import LoggingMixin
 from armada.auth import TokenRetriever
@@ -44,6 +43,7 @@ from google.protobuf.json_format import MessageToDict, ParseDict
 from pendulum import DateTime
 
 from .errors import ArmadaOperatorJobFailedError
+from .._compat import deserialize, get_current_context
 from ..hooks import ArmadaHook
 from ..model import RunningJobContext
 from ..policies.reattach import external_job_uri, policy
@@ -56,15 +56,6 @@ from ..links import (
     UrlFromLogsExtractor,
     get_link_value,
 )
-
-# The `airflow.operators.python.get_current_context` import is deprecated,
-# we want to maintain compatibility with multiple Airflow versions,
-# so try to import from the new location first
-# and fall back to the old one if it's not available.
-try:
-    from airflow.sdk import get_current_context
-except ImportError:
-    from airflow.operators.python import get_current_context
 
 
 class ArmadaOperator(BaseOperator, LoggingMixin):

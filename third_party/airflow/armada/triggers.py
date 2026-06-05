@@ -3,11 +3,11 @@ from __future__ import annotations
 import asyncio
 from typing import Any, AsyncIterator, ClassVar, Dict
 
-from airflow.serialization.serde import deserialize, serialize
 from airflow.triggers.base import BaseTrigger, TriggerEvent
 from airflow.utils.state import TaskInstanceState
 from pendulum import DateTime
 
+from ._compat import deserialize, serialize
 from .hooks import ArmadaHook
 from .model import GrpcChannelArgs, RunningJobContext
 from .utils import log_exceptions
