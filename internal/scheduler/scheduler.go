@@ -366,6 +366,26 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 		}
 		events = append(events, resultEvents...)
 		schedulerResult = *result
+
+		for _, poolResult := range schedulerResult.PoolResults {
+			if poolResult == nil {
+				continue
+			}
+			if poolResult.Outcome.Success() {
+				ctx.Infof(
+					"pool scheduling outcome: pool=%s success=true termination_reason=%s",
+					poolResult.Name,
+					poolResult.Outcome.TerminationReason(),
+				)
+			} else {
+				ctx.Infof(
+					"pool scheduling outcome: pool=%s success=false termination_reason=%s error=%v",
+					poolResult.Name,
+					poolResult.Outcome.TerminationReason(),
+					poolResult.Outcome.Error(),
+				)
+			}
+		}
 	}
 
 	// Publish to Pulsar.
