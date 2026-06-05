@@ -28,6 +28,18 @@
     {
       "type": "shell",
       "command": "go",
+      "label": "Migrate Lookout HC database",
+      "args": [
+        "run",
+        "${workspaceFolder}/cmd/lookout",
+        "--migrateDatabase",
+        "--config",
+        "${workspaceFolder}/_local/lookouthc/config.yaml"
+      ]
+    },
+    {
+      "type": "shell",
+      "command": "go",
       "label": "Migrate Scheduler database",
       "args": ["run", "${workspaceFolder}/cmd/scheduler", "migrateDatabase"]
     },
@@ -38,6 +50,17 @@
         "Download Go modules",
         "Start dependencies",
         "Migrate Lookout database",
+        "Migrate Scheduler database"
+      ]
+    },
+    {
+      "label": "Set up HC dependencies",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "Download Go modules",
+        "Start dependencies",
+        "Migrate Lookout database",
+        "Migrate Lookout HC database",
         "Migrate Scheduler database"
       ]
     },
