@@ -47,6 +47,25 @@ func (f *fakeSchedulingAlgo) calls() int {
 	return f.callCount
 }
 
+// blockingSchedulingAlgo blocks inside Schedule until ctx is cancelled, then
+// sleeps briefly before returning so the test can detect whether the caller
+// of Reset waited for the in-flight run to actually return.
+type blockingSchedulingAlgo struct {
+	started  chan struct{} // closed once Schedule has been entered
+	finished chan struct{} // closed after Schedule returns
+	result   *SchedulerResult
+}
+
+func (b *blockingSchedulingAlgo) Schedule(ctx *armadacontext.Context, _ map[string]internaltypes.ResourceList, _ *jobdb.Txn) (*SchedulerResult, error) {
+	close(b.started)
+	<-ctx.Done()
+	// Simulate non-trivial cleanup work after cancellation. Reset must
+	// wait for Schedule to return, not just observe ctx cancellation.
+	time.Sleep(50 * time.Millisecond)
+	close(b.finished)
+	return nil, ctx.Err()
+}
+
 // --- syncSchedulingRunner --------------------------------------------------
 
 func TestSyncSchedulingRunner_TriggerIsNoOp(t *testing.T) {
@@ -93,11 +112,19 @@ func TestSyncSchedulingRunner_IsAsyncFalse(t *testing.T) {
 	assert.False(t, runner.IsAsync())
 }
 
+func TestSyncSchedulingRunner_ResetIsNoOp(t *testing.T) {
+	algo := &fakeSchedulingAlgo{resultToReturn: &SchedulerResult{}}
+	runner := NewSyncSchedulingRunner(algo)
+	// Should not panic, should not invoke the algo.
+	runner.Reset()
+	assert.Equal(t, 0, algo.calls())
+}
+
 // --- asyncSchedulingRunner -------------------------------------------------
 
 // waitForCalls polls until the algo has been called at least n times, or
 // fails the test. Used because the algo runs on a background goroutine.
-func waitForCalls(t *testing.T, algo *fakeSchedulingAlgo, n int) {
+func waitForCalls(t *testing.T, _ SchedulingRunner, algo *fakeSchedulingAlgo, n int) {
 	t.Helper()
 	require.Eventually(t, func() bool {
 		return algo.calls() >= n
@@ -133,7 +160,7 @@ func TestAsyncSchedulingRunner_TriggerProducesResultThatGetSchedulerResultReturn
 	runner := NewAsyncSchedulingRunner(ctx, algo, jobDb)
 
 	runner.Trigger()
-	waitForCalls(t, algo, 1)
+	waitForCalls(t, runner, algo, 1)
 
 	txn := jobDb.WriteTxn()
 	defer txn.Abort()
@@ -152,7 +179,7 @@ func TestAsyncSchedulingRunner_GetSchedulerResultClearsPendingResult(t *testing.
 	runner := NewAsyncSchedulingRunner(ctx, algo, jobDb)
 
 	runner.Trigger()
-	waitForCalls(t, algo, 1)
+	waitForCalls(t, runner, algo, 1)
 
 	txn := jobDb.WriteTxn()
 	defer txn.Abort()
@@ -177,7 +204,7 @@ func TestAsyncSchedulingRunner_BackPressureDropsTriggersWhileResultPending(t *te
 
 	// First Trigger produces a result.
 	runner.Trigger()
-	waitForCalls(t, algo, 1)
+	waitForCalls(t, runner, algo, 1)
 
 	// Subsequent Triggers should be dropped while the result is still pending —
 	// the goroutine refuses to overwrite an unread result.
@@ -195,7 +222,7 @@ func TestAsyncSchedulingRunner_BackPressureDropsTriggersWhileResultPending(t *te
 	require.NoError(t, err)
 
 	runner.Trigger()
-	waitForCalls(t, algo, 2)
+	waitForCalls(t, runner, algo, 2)
 }
 
 func TestAsyncSchedulingRunner_AlgoErrorPropagatedAndCleared(t *testing.T) {
@@ -208,7 +235,7 @@ func TestAsyncSchedulingRunner_AlgoErrorPropagatedAndCleared(t *testing.T) {
 	runner := NewAsyncSchedulingRunner(ctx, algo, jobDb)
 
 	runner.Trigger()
-	waitForCalls(t, algo, 1)
+	waitForCalls(t, runner, algo, 1)
 
 	txn := jobDb.WriteTxn()
 	defer txn.Abort()
@@ -231,7 +258,7 @@ func TestAsyncSchedulingRunner_AlgoReceivesDryRunTxnNotCallerTxn(t *testing.T) {
 	runner := NewAsyncSchedulingRunner(ctx, algo, jobDb)
 
 	runner.Trigger()
-	waitForCalls(t, algo, 1)
+	waitForCalls(t, runner, algo, 1)
 
 	callerTxn := jobDb.WriteTxn()
 	defer callerTxn.Abort()
@@ -251,7 +278,7 @@ func TestAsyncSchedulingRunner_ContextCancellationStopsGoroutine(t *testing.T) {
 
 	// Run once to confirm the goroutine is alive.
 	runner.Trigger()
-	waitForCalls(t, algo, 1)
+	waitForCalls(t, runner, algo, 1)
 
 	// Drain so a subsequent Trigger isn't dropped by back-pressure.
 	txn := jobDb.WriteTxn()
@@ -280,4 +307,84 @@ func TestAsyncSchedulingRunner_IsAsyncTrue(t *testing.T) {
 	defer cancel()
 	runner := NewAsyncSchedulingRunner(ctx, &fakeSchedulingAlgo{}, jobDb)
 	assert.True(t, runner.IsAsync())
+}
+
+func TestAsyncSchedulingRunner_ResetClearsPendingResult(t *testing.T) {
+	algo := &fakeSchedulingAlgo{resultToReturn: &SchedulerResult{}}
+	jobDb := testfixtures.NewJobDb(testfixtures.TestResourceListFactory)
+
+	ctx, cancel := armadacontext.WithCancel(armadacontext.Background())
+	defer cancel()
+	runner := NewAsyncSchedulingRunner(ctx, algo, jobDb)
+
+	// Produce a result and leave it pending.
+	runner.Trigger()
+	waitForCalls(t, runner, algo, 1)
+
+	runner.Reset()
+
+	// Result should have been discarded — GetSchedulerResult returns empty.
+	txn := jobDb.WriteTxn()
+	defer txn.Abort()
+	got, err := runner.GetSchedulerResult(armadacontext.Background(), nil, txn)
+	require.NoError(t, err)
+	assert.Equal(t, &SchedulerResult{}, got)
+}
+
+func TestAsyncSchedulingRunner_ResetCancelsInflightAndBlocks(t *testing.T) {
+	algo := &blockingSchedulingAlgo{
+		started:  make(chan struct{}),
+		finished: make(chan struct{}),
+		result:   &SchedulerResult{},
+	}
+	jobDb := testfixtures.NewJobDb(testfixtures.TestResourceListFactory)
+
+	ctx, cancel := armadacontext.WithCancel(armadacontext.Background())
+	defer cancel()
+	runner := NewAsyncSchedulingRunner(ctx, algo, jobDb)
+
+	runner.Trigger()
+	// Wait for the goroutine to actually be inside Schedule.
+	<-algo.started
+
+	// Reset should cancel the in-flight Schedule and block until it has
+	// returned (the algo sleeps 50ms after observing cancellation, so a
+	// non-blocking Reset would race ahead of `finished`).
+	runner.Reset()
+
+	select {
+	case <-algo.finished:
+	default:
+		t.Fatal("Reset returned before in-flight Schedule had finished")
+	}
+
+	// Result from the cancelled run must NOT be available.
+	txn := jobDb.WriteTxn()
+	defer txn.Abort()
+	got, err := runner.GetSchedulerResult(armadacontext.Background(), nil, txn)
+	require.NoError(t, err)
+	assert.Equal(t, &SchedulerResult{}, got)
+}
+
+func TestAsyncSchedulingRunner_FunctionalAfterReset(t *testing.T) {
+	algo := &fakeSchedulingAlgo{resultToReturn: &SchedulerResult{}}
+	jobDb := testfixtures.NewJobDb(testfixtures.TestResourceListFactory)
+
+	ctx, cancel := armadacontext.WithCancel(armadacontext.Background())
+	defer cancel()
+	runner := NewAsyncSchedulingRunner(ctx, algo, jobDb)
+
+	runner.Trigger()
+	waitForCalls(t, runner, algo, 1)
+	runner.Reset()
+
+	// Trigger again post-Reset and confirm the runner still works.
+	runner.Trigger()
+	waitForCalls(t, runner, algo, 2)
+
+	txn := jobDb.WriteTxn()
+	defer txn.Abort()
+	got, err := runner.GetSchedulerResult(armadacontext.Background(), nil, txn)
+	require.NoError(t, err)
+	assert.NotNil(t, got)
 }

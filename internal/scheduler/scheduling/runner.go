@@ -1,6 +1,7 @@
 package scheduling
 
 import (
+	"context"
 	"sync"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -26,8 +27,8 @@ import (
 // includes committed decisions.
 type SchedulingRunner interface {
 	// Trigger requests the next scheduling run.
-	// Async: non-blocking send on the trigger channel; dropped if a run is in
-	// flight or a result is pending. Call AFTER committing the reconciled txn.
+	// Async: dropped if a run is in flight, requested, or a result is
+	// pending. Call AFTER committing the reconciled txn.
 	// Sync: no-op.
 	Trigger()
 
@@ -43,6 +44,14 @@ type SchedulingRunner interface {
 	// skipping pre-computation that the async impl ignores, or routing
 	// timing metrics differently.
 	IsAsync() bool
+
+	// Reset cancels any in-flight scheduling and discards any pending
+	// result. Blocks until the in-flight run (if any) has actually
+	// returned. Intended to be called on leader-takeover so the new leader
+	// can be sure no result it later consumes was started under the
+	// previous leader's tenure.
+	// Sync: no-op.
+	Reset()
 }
 
 // syncSchedulingRunner runs the underlying algorithm inline against the
@@ -65,14 +74,36 @@ func (r *syncSchedulingRunner) GetSchedulerResult(ctx *armadacontext.Context, re
 
 func (r *syncSchedulingRunner) IsAsync() bool { return false }
 
+func (r *syncSchedulingRunner) Reset() {}
+
+// runState tracks the lifecycle of a scheduling run.
+//
+//	stateIdle      → no work pending or in flight
+//	stateRequested → Trigger has been called; goroutine has not yet picked it up
+//	stateRunning   → goroutine is inside schedulingAlgo.Schedule
+type runState int
+
+const (
+	stateIdle runState = iota
+	stateRequested
+	stateRunning
+)
+
 // asyncSchedulingRunner runs the algorithm on a background goroutine
 // following the "combined runner" pattern (see experiment/combined_runner.go):
 // the goroutine schedules against an isolated dry-run jobDb txn, and the
 // caller pulls + reconciles the pending result via GetSchedulerResult and
 // kicks the next run via Trigger.
 //
+// Concurrency model: all lifecycle state (state, result, cancelFn, runDone)
+// lives under mu. The wake channel is a pure signal — it carries no meaning;
+// the goroutine reads state under mu after each wake. This makes Trigger and
+// Reset atomic with respect to the goroutine's own transitions, eliminating
+// any race window between "goroutine has consumed a trigger" and "goroutine
+// has registered as in-flight".
+//
 // Rules:
-//   - Trigger is dropped if the goroutine is busy or a result is pending.
+//   - Trigger is dropped if state != idle or a result is pending.
 //   - A new run will not start until the previous result has been taken.
 //   - Trigger must be called after the caller commits its txn so the next
 //     run's dry-run txn includes the reconciled decisions.
@@ -103,11 +134,22 @@ type asyncSchedulingRunner struct {
 	schedulingAlgo SchedulingAlgo
 	jobDb          *jobdb.JobDb
 
-	trigger chan struct{}
-	ready   chan struct{}
+	// wake is a size-1 buffered channel used purely to nudge the goroutine
+	// out of its wait. State is in mu; the channel carries no meaning.
+	wake chan struct{}
 
-	mu     sync.Mutex
+	mu sync.Mutex
+	// state is the lifecycle position of the runner.
+	state runState
+	// result of the last completed background run, awaiting consumption.
 	result *scheduleResult
+	// cancelFn cancels the ctx of the in-flight Schedule call. Non-nil
+	// only while state == stateRunning.
+	cancelFn context.CancelFunc
+	// runDone is closed by the goroutine when the in-flight run has
+	// returned (either normally or due to cancellation). Non-nil only
+	// while state == stateRunning.
+	runDone chan struct{}
 }
 
 type scheduleResult struct {
@@ -117,25 +159,31 @@ type scheduleResult struct {
 
 // NewAsyncSchedulingRunner returns a runner that schedules on a background
 // goroutine bound to ctx. The goroutine exits when ctx is cancelled.
-//
-// The constructor blocks until the goroutine has signalled it is ready to
-// receive triggers, so the first Trigger() never drops to a startup race.
 func NewAsyncSchedulingRunner(ctx *armadacontext.Context, schedulingAlgo SchedulingAlgo, jobDb *jobdb.JobDb) SchedulingRunner {
 	r := &asyncSchedulingRunner{
 		schedulingAlgo: schedulingAlgo,
 		jobDb:          jobDb,
-		trigger:        make(chan struct{}), // unbuffered — triggers don't queue
-		ready:          make(chan struct{}),
+		wake:           make(chan struct{}, 1),
 	}
 	go r.run(ctx)
-	<-r.ready
 	return r
 }
 
 func (r *asyncSchedulingRunner) Trigger() {
+	r.mu.Lock()
+	busy := r.state != stateIdle || r.result != nil
+	if !busy {
+		r.state = stateRequested
+	}
+	r.mu.Unlock()
+	if busy {
+		return
+	}
 	select {
-	case r.trigger <- struct{}{}:
+	case r.wake <- struct{}{}:
 	default:
+		// wake already buffered; the goroutine will see state on its next
+		// read regardless.
 	}
 }
 
@@ -156,28 +204,71 @@ func (r *asyncSchedulingRunner) GetSchedulerResult(_ *armadacontext.Context, _ m
 
 func (r *asyncSchedulingRunner) IsAsync() bool { return true }
 
+// Reset discards any pending result, cancels any in-flight Schedule call,
+// and blocks until that call has returned. After Reset returns, the next
+// Trigger starts a fresh run.
+//
+// Because state lives under mu, there is no window between "goroutine
+// consumed a trigger" and "goroutine registered as in-flight" — those
+// happen under the same lock. Reset's view of the runner is consistent.
+func (r *asyncSchedulingRunner) Reset() {
+	r.mu.Lock()
+	cancel := r.cancelFn
+	done := r.runDone
+	r.cancelFn = nil
+	r.runDone = nil
+	r.result = nil
+	r.state = stateIdle
+	r.mu.Unlock()
+
+	if cancel != nil {
+		cancel()
+		<-done
+	}
+}
+
 func (r *asyncSchedulingRunner) run(ctx *armadacontext.Context) {
-	close(r.ready)
 	for {
-		select {
-		case <-r.trigger:
-		case <-ctx.Done():
-			return
+		// Wait for state == stateRequested. State changes only happen under
+		// mu, so the goroutine is guaranteed to see Trigger / Reset
+		// transitions atomically.
+		r.mu.Lock()
+		for r.state != stateRequested {
+			r.mu.Unlock()
+			select {
+			case <-r.wake:
+			case <-ctx.Done():
+				return
+			}
+			r.mu.Lock()
 		}
 
-		r.mu.Lock()
-		skip := r.result != nil
+		// Transition stateRequested → stateRunning under the same lock that
+		// observed stateRequested, so Reset cannot observe an "in between" state.
+		r.state = stateRunning
+		runCtx, cancel := armadacontext.WithCancel(ctx)
+		done := make(chan struct{})
+		r.cancelFn = cancel
+		r.runDone = done
 		r.mu.Unlock()
-		if skip {
-			continue
-		}
 
 		txn := r.jobDb.DryRunTxn()
-		result, err := r.schedulingAlgo.Schedule(ctx, nil, txn)
+		result, err := r.schedulingAlgo.Schedule(runCtx, nil, txn)
 
 		r.mu.Lock()
-		r.result = &scheduleResult{schedulerResult: result, err: err}
+		// If r.cancelFn is still our cancel, Reset hasn't fired and this is
+		// a normal completion — store the result and return to idle.
+		// Otherwise, Reset has cleared the fields and forced state to idle;
+		// drop the result and don't touch state.
+		if r.cancelFn != nil {
+			r.result = &scheduleResult{schedulerResult: result, err: err}
+			r.cancelFn = nil
+			r.runDone = nil
+			r.state = stateIdle
+		}
 		r.mu.Unlock()
+		cancel()
+		close(done)
 	}
 }
 
