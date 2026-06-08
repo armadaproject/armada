@@ -183,7 +183,7 @@ func Run(config schedulerconfig.Configuration) error {
 			defer cancel()
 			err = bidPriceCache.Initialise(bidPriceProviderInitTimeout)
 			if err != nil {
-				ctx.Errorf("error initialising queue cache - %v", err)
+				return errors.WithMessage(err, "error initialising queue cache")
 			}
 			services = append(services, func() error { return bidPriceCache.Run(ctx) })
 			bidPriceProvider = bidPriceCache
