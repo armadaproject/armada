@@ -111,55 +111,6 @@ func TestCreateLeaderController_StandaloneMode(t *testing.T) {
 	}
 }
 
-func TestCreateLeaderController_EventingesterStandaloneParity(t *testing.T) {
-	config := Config{
-		Mode:               ModeStandalone,
-		LeaseLockName:      "test-lock",
-		LeaseLockNamespace: "test-namespace",
-		LeaseDuration:      15 * time.Second,
-		RenewDeadline:      10 * time.Second,
-		RetryPeriod:        2 * time.Second,
-		PodName:            "test-pod-eventingester-parity",
-	}
-
-	options := &MetricsOptions{
-		MetricsPrefix:               "test_eventingester_parity_",
-		MarkLeadingInStandaloneMode: true,
-	}
-
-	ctx := armadacontext.Background()
-	controller, err := CreateLeaderController(ctx, config, options)
-
-	require.NoError(t, err)
-	require.NotNil(t, controller)
-
-	token := controller.GetToken()
-	assert.True(t, controller.ValidateToken(token))
-}
-
-func TestCreateLeaderController_SchedulerStandaloneParity(t *testing.T) {
-	config := Config{
-		Mode:               ModeStandalone,
-		LeaseLockName:      "test-lock",
-		LeaseLockNamespace: "test-namespace",
-		LeaseDuration:      15 * time.Second,
-		RenewDeadline:      10 * time.Second,
-		RetryPeriod:        2 * time.Second,
-		PodName:            "test-pod-scheduler-parity",
-	}
-
-	options := &MetricsOptions{MetricsPrefix: "test_scheduler_parity_", MarkLeadingInStandaloneMode: true}
-
-	ctx := armadacontext.Background()
-	controller, err := CreateLeaderController(ctx, config, options)
-
-	require.NoError(t, err)
-	require.NotNil(t, controller)
-
-	token := controller.GetToken()
-	assert.True(t, controller.ValidateToken(token))
-}
-
 func TestCreateLeaderController_StandaloneModeIsCaseInsensitive(t *testing.T) {
 	modes := []string{"standalone", "Standalone", "STANDALONE", "StandAlone"}
 
