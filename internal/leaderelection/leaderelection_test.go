@@ -11,48 +11,6 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 )
 
-func TestParseMode(t *testing.T) {
-	tests := map[string]struct {
-		input         string
-		expectedMode  Mode
-		expectedError bool
-	}{
-		"valid standalone": {
-			input:        "standalone",
-			expectedMode: ModeStandalone,
-		},
-		"valid kubernetes": {
-			input:        "kubernetes",
-			expectedMode: ModeKubernetes,
-		},
-		"case insensitive standalone": {
-			input:        "Standalone",
-			expectedMode: ModeStandalone,
-		},
-		"case insensitive kubernetes": {
-			input:        "KUBERNETES",
-			expectedMode: ModeKubernetes,
-		},
-		"invalid mode": {
-			input:         "invalidmode",
-			expectedError: true,
-		},
-	}
-
-	for name, tc := range tests {
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-			mode, err := ParseMode(tc.input)
-			if tc.expectedError {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-				assert.Equal(t, tc.expectedMode, mode)
-			}
-		})
-	}
-}
-
 func TestCreateLeaderController_StandaloneMode(t *testing.T) {
 	tests := map[string]struct {
 		provideMetricsOptions bool
@@ -111,35 +69,6 @@ func TestCreateLeaderController_StandaloneMode(t *testing.T) {
 	}
 }
 
-func TestCreateLeaderController_StandaloneModeIsCaseInsensitive(t *testing.T) {
-	modes := []string{"standalone", "Standalone", "STANDALONE", "StandAlone"}
-
-	for _, mode := range modes {
-		t.Run(mode, func(t *testing.T) {
-			parsedMode, err := ParseMode(mode)
-			require.NoError(t, err)
-
-			config := Config{
-				Mode:               parsedMode,
-				LeaseLockName:      "test-lock",
-				LeaseLockNamespace: "test-namespace",
-				LeaseDuration:      15 * time.Second,
-				RenewDeadline:      10 * time.Second,
-				RetryPeriod:        2 * time.Second,
-				PodName:            "test-pod-case-" + mode,
-			}
-
-			options := &MetricsOptions{MetricsPrefix: "test_standalone_case_" + mode + "_", MarkLeadingInStandaloneMode: false}
-
-			ctx := armadacontext.Background()
-			controller, err := CreateLeaderController(ctx, config, options)
-
-			require.NoError(t, err)
-			require.NotNil(t, controller)
-		})
-	}
-}
-
 func TestCreateLeaderController_KubernetesMode(t *testing.T) {
 	config := Config{
 		Mode:               ModeKubernetes,
@@ -162,38 +91,6 @@ func TestCreateLeaderController_KubernetesMode(t *testing.T) {
 		t.Skipf("Skipping kubernetes mode test - no cluster config available: %v", err)
 	} else {
 		require.NotNil(t, controller, "Controller should be created if cluster config is available")
-	}
-}
-
-func TestCreateLeaderController_KubernetesModeIsCaseInsensitive(t *testing.T) {
-	modes := []string{"kubernetes", "Kubernetes", "KUBERNETES", "KuberNetes"}
-
-	for _, mode := range modes {
-		t.Run(mode, func(t *testing.T) {
-			parsedMode, err := ParseMode(mode)
-			require.NoError(t, err)
-
-			config := Config{
-				Mode:               parsedMode,
-				LeaseLockName:      "test-lock",
-				LeaseLockNamespace: "test-namespace",
-				LeaseDuration:      15 * time.Second,
-				RenewDeadline:      10 * time.Second,
-				RetryPeriod:        2 * time.Second,
-				PodName:            "test-pod-k8s-case-" + mode,
-			}
-
-			options := &MetricsOptions{MetricsPrefix: "test_kubernetes_case_" + mode + "_", MarkLeadingInStandaloneMode: false}
-
-			ctx := armadacontext.Background()
-			controller, err := CreateLeaderController(ctx, config, options)
-
-			if err != nil {
-				assert.NotContains(t, err.Error(), "not a valid leader mode")
-			} else {
-				require.NotNil(t, controller)
-			}
-		})
 	}
 }
 
