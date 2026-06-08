@@ -448,8 +448,7 @@ type Txn struct {
 	terminalJobs *immutable.Set[*Job]
 	// Jobs that require submit checking
 	unvalidatedJobs *immutable.Set[*Job]
-	// The bid price snapshot captured when the txn was opened. Reads return this value (or whatever was
-	// staged via SetBidPriceSnapshot). On Commit, this value is written back to the JobDb.
+	// The current snapshot of bid prices - allowing look up of bidding prices on job creation
 	bidPriceSnapshot *pricing.BidPriceSnapshot
 	// The jobDb from which this transaction was created.
 	jobDb *JobDb
