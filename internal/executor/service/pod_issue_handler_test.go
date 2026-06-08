@@ -871,9 +871,6 @@ func TestCreateDebugMessage(t *testing.T) {
 	}
 }
 
-// TestHandlePendingPodIssue_NonRetryable_PreservesFormattedMessage verifies that
-// formatted podcheck messages propagate unchanged through the non-retryable path
-// to CreateJobFailedEvent.
 func TestHandlePendingPodIssue_NonRetryable_PreservesFormattedMessage(t *testing.T) {
 	podIssueService, _, fakeClusterContext, eventsReporter, err := setupTestComponents([]*job.RunState{})
 	require.NoError(t, err)
