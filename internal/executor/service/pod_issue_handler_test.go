@@ -897,9 +897,6 @@ func TestHandlePendingPodIssue_NonRetryable_PreservesFormattedMessage(t *testing
 	assert.Contains(t, message, "failed:")
 }
 
-// TestHandlePendingPodIssue_Retryable_PreservesFormattedMessage verifies that
-// formatted podcheck messages propagate unchanged through the retryable path
-// to CreateReturnLeaseEvent.
 func TestHandlePendingPodIssue_Retryable_PreservesFormattedMessage(t *testing.T) {
 	podIssueService, _, fakeClusterContext, eventsReporter, err := setupTestComponents([]*job.RunState{})
 	require.NoError(t, err)
