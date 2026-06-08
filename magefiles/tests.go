@@ -22,29 +22,6 @@ var (
 	postgresImage = "postgres:14.2"
 )
 
-func removeContainerIfExists(name string) error {
-	output, err := dockerOutput("ps", "-aq", "-f", fmt.Sprintf("name=^%s$", name))
-	if err != nil {
-		return err
-	}
-
-	if strings.TrimSpace(output) == "" {
-		return nil
-	}
-
-	return dockerRun("rm", "-f", name)
-}
-
-func cleanupTestContainers() error {
-	for _, containerName := range []string{"redis", "postgres"} {
-		if err := removeContainerIfExists(containerName); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
 func makeLocalBin() error {
 	if _, err := os.Stat(LocalBin); os.IsNotExist(err) {
 		err = os.MkdirAll(LocalBin, os.ModePerm)
@@ -75,16 +52,6 @@ func Tests() error {
 	mg.Deps(gotestsum)
 	var err error
 
-	if err := cleanupTestContainers(); err != nil {
-		return err
-	}
-
-	defer func() {
-		if err := cleanupTestContainers(); err != nil {
-			fmt.Println(err)
-		}
-	}()
-
 	docker_Net, err := dockerNet()
 	if err != nil {
 		return err
@@ -110,6 +77,12 @@ func Tests() error {
 		return err
 	}
 
+	defer func() {
+		if err := dockerRun("rm", "-f", "redis", "postgres"); err != nil {
+			fmt.Println(err)
+		}
+	}()
+
 	err = sh.Run("sleep", "3")
 	if err != nil {
 		return err
@@ -124,14 +97,13 @@ func Tests() error {
 		"--junitfile", "test-reports/unit-tests.xml",
 		"--jsonfile", "test-reports/unit-tests.json",
 		"--no-color=false",
-		"--", "-p=1", "-coverprofile=test-reports/coverage.out",
+		"--", "-coverprofile=test-reports/coverage.out",
 		"-covermode=atomic", "./cmd/...",
 		"./pkg/...",
 	}
 	cmd = append(cmd, strings.Fields(packages)...)
 
 	testCmd := exec.Command(Gotestsum, cmd...)
-	testCmd.Env = append(os.Environ(), "TZ=UTC")
 
 	// If -verbose was set, we let os.Stdout handles the output.
 	// Otherwise, we need to capture the tests output and print it in the case of failures.
