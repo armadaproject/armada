@@ -226,7 +226,7 @@ func (jobDb *JobDb) NewJob(
 	if jobDb.bidPriceSnapshot != nil {
 		prices, ok := jobDb.bidPriceSnapshot.GetPrice(queue, pb)
 		if ok {
-			bidPrices = prices
+			bidPrices = maps.Clone(prices)
 		}
 	}
 
