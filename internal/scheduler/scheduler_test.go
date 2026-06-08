@@ -3360,7 +3360,7 @@ func TestCycleConsistency(t *testing.T) {
 				return schedulerDb.Store(ctx, dbOpsWithMessageIds)
 			}
 
-			// failover swaps the leader tokens between a and b, thus swapping which scheduler is leaderelection.
+			// failover swaps the leader tokens between a and b, thus swapping which scheduler is leader.
 			failover := func(a, b *Scheduler) error {
 				t.Logf("failover schedulers %p, %p", a, b)
 				lca := a.leaderController.(*leaderelection.StandaloneLeaderController)
@@ -3434,7 +3434,7 @@ func TestCycleConsistency(t *testing.T) {
 				require.Equal(t, tc.expectedEventSequencesCycleThree, eventsCycleThree, "unexpected cycle three events")
 			}
 
-			// Test that the follower stays in sync with the leaderelection.
+			// Test that the follower stays in sync with the leader.
 			// TODO(albin): We need to cycle "a" again after each persist for now.
 			//              The jobDb of the leader is supposed to be updated immediately to reflect published events.
 			//              However, the jobDb is only updated immediately for schedule/preempt/fail decisions.

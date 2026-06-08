@@ -46,7 +46,7 @@ type Scheduler struct {
 	// Responsible for assigning jobs to nodes.
 	// TODO: Confusing name. Change.
 	schedulingAlgo scheduling.SchedulingAlgo
-	// Tells us if we are leaderelection. Only the leader may schedule jobs.
+	// Tells us if we are leader. Only the leader may schedule jobs.
 	leaderController leaderelection.LeaderController
 	// This is used to check if jobs are still schedulable.
 	// Useful when we are adding node anti-affinities.
@@ -276,8 +276,8 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	}
 	ctx.Info("Finished syncing state")
 
-	// Only the leader may make decisions; exit if not leaderelection.
-	// Only export metrics if leaderelection.
+	// Only the leader may make decisions; exit if not leader.
+	// Only export metrics if leader.
 	if !s.leaderController.ValidateToken(leaderToken) {
 		ctx.Info("Not the leader so will not attempt to schedule")
 		s.metrics.DisableLeaderMetrics()
