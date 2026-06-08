@@ -545,6 +545,7 @@ message JobRunPreempted{
     string preempted_job_id = 5;
     string preempted_run_id = 6;
     string reason = 7;
+    string preempting_job_id = 8;
 }
 
 // Message used internally by Armada to see if messages can be propagated through a pulsar partition

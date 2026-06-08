@@ -7,6 +7,18 @@ import grpc
 from armada_client.typings import JobState
 from pendulum import DateTime
 
+from ._compat import _extra_allowed
+
+# Register Armada's serializable context types with serde's deserialization
+# allow-list: serde refuses to deserialize unknown classes, so these must be
+# allowed before a deferred trigger or operator deserializes them. This lives
+# here (where the types are defined), not in armada/__init__.py: in Airflow 3.2
+# importing serde triggers provider discovery, which re-imports the armada
+# provider entry point, so registering at package-import time would deadlock on
+# a circular import. model.py is never imported during provider discovery.
+_extra_allowed.add("armada.model.RunningJobContext")
+_extra_allowed.add("armada.model.GrpcChannelArgs")
+
 """ This class exists so that we can retain our connection to the Armada Query API
     when using the deferrable Armada Airflow Operator. Airflow requires any state
     within deferrable operators be serialisable, unfortunately grpc.Channel isn't
