@@ -37,6 +37,21 @@ PYTHON_VERSION="$2"
 OPERATOR_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CLIENT_DIR="$(cd "${OPERATOR_DIR}/../.." && pwd)/client/python"
 
+# Some (airflow, python) pairs need overrides because Airflow doesn't publish a
+# constraints file for that python version:
+#   airflow 3.1.x has no constraints-3.14.txt — keep python 3.14 but pin transitive
+#     deps using constraints-3.13.txt.
+#   airflow 2.10.5 has no constraints-3.14.txt — keep python 3.14 but pin transitive
+#     deps using constraints-3.12.txt.
+CONSTRAINTS_PYTHON="${PYTHON_VERSION}"
+if [[ "${AIRFLOW_VERSION}" == 3.1.* && "${PYTHON_VERSION}" == "3.14" ]]; then
+  echo "==> airflow ${AIRFLOW_VERSION} has no constraints-3.14: using constraints-3.13"
+  CONSTRAINTS_PYTHON="3.13"
+elif [[ "${AIRFLOW_VERSION}" == "2.10.5" && "${PYTHON_VERSION}" == "3.14" ]]; then
+  echo "==> airflow ${AIRFLOW_VERSION} has no constraints-3.14: using constraints-3.12"
+  CONSTRAINTS_PYTHON="3.12"
+fi
+
 PYTHON_BIN="${PYTHON_BIN:-python${PYTHON_VERSION}}"
 if ! command -v "${PYTHON_BIN}" >/dev/null 2>&1; then
   echo "error: ${PYTHON_BIN} not found on PATH; set PYTHON_BIN to a Python ${PYTHON_VERSION} interpreter" >&2
@@ -45,7 +60,7 @@ fi
 
 # Airflow publishes one constraints file per (airflow version, python version); it pins the
 # exact transitive deps that version was released and tested against.
-CONSTRAINTS_URL="https://raw.githubusercontent.com/apache/airflow/constraints-${AIRFLOW_VERSION}/constraints-${PYTHON_VERSION}.txt"
+CONSTRAINTS_URL="https://raw.githubusercontent.com/apache/airflow/constraints-${AIRFLOW_VERSION}/constraints-${CONSTRAINTS_PYTHON}.txt"
 
 # If the caller did not supply VENV_DIR, create the venv inside our own temp dir and remove
 # that whole temp dir on exit. If the caller did supply VENV_DIR, only remove the venv
