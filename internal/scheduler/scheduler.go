@@ -194,6 +194,7 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 					} else {
 						fullUpdate = true
 					}
+					s.runner.Reset()
 					cancel()
 				}
 
@@ -215,7 +216,7 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 				}
 
 				cycleTime := s.clock.Since(start)
-				if shouldSchedule && leaderToken.Leader() {
+				if !s.runner.IsAsync() && shouldSchedule && leaderToken.Leader() {
 					// Only the leader does real scheduling rounds.
 					s.metrics.ReportScheduleCycleTime(cycleTime)
 					s.metrics.ReportScheduleCycleOutcome(err == nil)
@@ -349,7 +350,7 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	ctx.Infof("Finished looking for jobs to expire, generating %d events", len(expirationEvents))
 	events = append(events, expirationEvents...)
 
-	schedulerResult := scheduling.SchedulerResult{}
+	var schedulerResult *scheduling.SchedulerResult
 	// Schedule jobs.
 	if shouldSchedule {
 		// Trigger the next async run after this cycle returns (success or error)
@@ -376,7 +377,7 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 			return err
 		}
 		events = append(events, resultEvents...)
-		schedulerResult = *result
+		schedulerResult = result
 	}
 
 	// Publish to Pulsar.
@@ -408,10 +409,9 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	txn.Commit()
 	ctx.Info("Completed committing cycle transaction")
 
-	if s.metrics.LeaderMetricsEnabled() {
-		if shouldSchedule {
-			s.metrics.ReportSchedulerResult(ctx, schedulerResult)
-		}
+	if s.metrics.LeaderMetricsEnabled() && schedulerResult != nil {
+		s.metrics.ReportSchedulerResult(ctx, *schedulerResult)
+
 		for _, jctx := range schedulerResult.GetAllScheduledJobs() {
 			s.metrics.ReportJobLeased(jctx.Job)
 		}
@@ -420,6 +420,11 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 		}
 		for _, jctx := range schedulerResult.GetCombinedReconciliationResult().PreemptedJobs {
 			s.metrics.ReportJobPreempted(jctx.Job)
+		}
+
+		if s.runner.IsAsync() {
+			s.metrics.ReportScheduleCycleTime(schedulerResult.GetDuration())
+			s.metrics.ReportScheduleCycleOutcome(err == nil)
 		}
 	}
 

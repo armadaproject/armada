@@ -119,6 +119,7 @@ func (l *FairSchedulingAlgo) Schedule(
 
 	schedulerResult := &SchedulerResult{
 		PoolResults: make([]*PoolSchedulingResult, 0, len(l.schedulingConfig.Pools)),
+		StartTime:   l.clock.Now(),
 	}
 
 	// Error immediately if priority overrides are not ready
@@ -158,6 +159,7 @@ func (l *FairSchedulingAlgo) Schedule(
 
 		schedulerResult.PoolResults = append(schedulerResult.PoolResults, poolResult)
 	}
+	schedulerResult.EndTime = l.clock.Now()
 	return schedulerResult, nil
 }
 

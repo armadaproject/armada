@@ -5,8 +5,10 @@ import (
 	"sync"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
+	schedulercontext "github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 )
 
 // SchedulingRunner drives a SchedulingAlgo through its sync or async lifecycle.
@@ -108,28 +110,7 @@ const (
 //   - Trigger must be called after the caller commits its txn so the next
 //     run's dry-run txn includes the reconciled decisions.
 //
-// TODO: resourceUnits is passed as nil to schedulingAlgo.Schedule below.
-// In sync mode the caller computes resourceUnits via updateJobPrices against
-// the real txn immediately before scheduling — the background goroutine
-// cannot reproduce this. Market-driven scheduling will misprice (or fail)
-// until this is solved. Options:
-//   - Let pricing be updated async (possibly exclude jobs with no pricing info).
-//   - Sort out the jobdb to set price info as jobs come in (how to handle
-//     startup pricing?).
-//
-// This is a blocker for async mode being functionally complete; reconcile
-// alone is not sufficient.
-//
-// TODO: metrics. The scheduler's ReportScheduleCycleTime currently measures
-// the consume-and-reconcile cycle, not the actual scheduling work running on
-// this goroutine. Needs reworking when async is enabled — likely time
-// schedulingAlgo.Schedule inside run() and report from there, or add a
-// separate async-scheduling-duration metric.
-//
-// # Open questions
-//
-// Errors
-//   - Should we immediately retry on error or wait for the error to be consumed?
+
 type asyncSchedulingRunner struct {
 	schedulingAlgo SchedulingAlgo
 	jobDb          *jobdb.JobDb
@@ -187,19 +168,55 @@ func (r *asyncSchedulingRunner) Trigger() {
 	}
 }
 
-func (r *asyncSchedulingRunner) GetSchedulerResult(_ *armadacontext.Context, _ map[string]internaltypes.ResourceList, txn *jobdb.Txn) (*SchedulerResult, error) {
+func (r *asyncSchedulingRunner) GetSchedulerResult(ctx *armadacontext.Context, _ map[string]internaltypes.ResourceList, txn *jobdb.Txn) (*SchedulerResult, error) {
 	r.mu.Lock()
 	res := r.result
 	r.result = nil
 	r.mu.Unlock()
 
 	if res == nil {
-		return &SchedulerResult{}, nil
+		return nil, nil
 	}
+
 	if res.err != nil {
 		return nil, res.err
 	}
-	return r.reconcile(txn, res.schedulerResult)
+
+	result, err := r.reconcile(ctx, txn, res.schedulerResult)
+	if err != nil {
+		return nil, err
+	}
+
+	err = upsertSchedulerResult(txn, result)
+	if err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
+func upsertSchedulerResult(txn *jobdb.Txn, result *SchedulerResult) error {
+	err := txn.Upsert(ScheduledJobsFromSchedulerResult(result))
+	if err != nil {
+		return err
+	}
+
+	err = txn.Upsert(PreemptedJobsFromSchedulerResult(result))
+	if err != nil {
+		return err
+	}
+
+	err = txn.Upsert(JobsFromFailedReconciliationResults(result.GetCombinedReconciliationResult().FailedJobs))
+	if err != nil {
+		return err
+	}
+
+	err = txn.Upsert(JobsFromFailedReconciliationResults(result.GetCombinedReconciliationResult().PreemptedJobs))
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (r *asyncSchedulingRunner) IsAsync() bool { return true }
@@ -253,6 +270,7 @@ func (r *asyncSchedulingRunner) run(ctx *armadacontext.Context) {
 		r.mu.Unlock()
 
 		txn := r.jobDb.DryRunTxn()
+		// TODO pass resource units from jobdb
 		result, err := r.schedulingAlgo.Schedule(runCtx, nil, txn)
 
 		r.mu.Lock()
@@ -273,13 +291,150 @@ func (r *asyncSchedulingRunner) run(ctx *armadacontext.Context) {
 }
 
 // reconcile validates an async scheduling result against the current txn,
-// dropping decisions that are no longer valid (e.g. job no longer pending,
-// node no longer available, job no longer running for preemptions).
-//
-// TODO: implement. For each pool result, walk the SchedulingContext decisions
-// and filter out stale ones (call MarkUnscheduled on entries that no longer
-// hold) before returning.
-func (r *asyncSchedulingRunner) reconcile(txn *jobdb.Txn, result *SchedulerResult) (*SchedulerResult, error) {
-	_ = txn
+// dropping decisions that are no longer valid (e.g. job no longer queued, preempted job was cancelled etc)
+func (r *asyncSchedulingRunner) reconcile(ctx *armadacontext.Context, txn *jobdb.Txn, result *SchedulerResult) (*SchedulerResult, error) {
+	for _, poolResult := range result.PoolResults {
+		if !poolResult.Outcome.Success() {
+			continue
+		}
+
+		err := r.updateScheduledJobs(ctx, txn, poolResult)
+		if err != nil {
+			return nil, err
+		}
+
+		err = r.updatePreemptedJobs(txn, poolResult)
+		if err != nil {
+			return nil, err
+		}
+
+		// The demand will have changed if jobs were removed, recalculate shares
+		poolResult.SchedulingResult.SchedulingContext.UpdateFairShares()
+
+		r.updateReconciliationResult(txn, poolResult)
+	}
+
 	return result, nil
+}
+
+func (r *asyncSchedulingRunner) updateScheduledJobs(ctx *armadacontext.Context, txn *jobdb.Txn, poolResult *PoolSchedulingResult) error {
+	scheduledJobs := make([]*schedulercontext.JobSchedulingContext, 0, len(poolResult.SchedulingResult.ScheduledJobs))
+
+	gangJobs := slices.Filter(poolResult.SchedulingResult.ScheduledJobs, func(jctx *schedulercontext.JobSchedulingContext) bool { return jctx.Job.IsInGang() })
+	nonGangJobs := slices.Filter(poolResult.SchedulingResult.ScheduledJobs, func(jctx *schedulercontext.JobSchedulingContext) bool { return !jctx.Job.IsInGang() })
+
+	// Process non-gang jobs
+	for _, scheduledJob := range nonGangJobs {
+		currentJob := txn.GetById(scheduledJob.JobId)
+		if isQueuedJobActionable(currentJob) {
+			scheduledJobs = append(scheduledJobs, scheduledJob)
+		} else {
+			_, err := poolResult.SchedulingResult.SchedulingContext.RemoveJob(scheduledJob)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	// Process gang jobs
+	// We must unschedule the whole gang if any are not actionable
+
+	type gangJobInfo struct {
+		scheduledJctx *schedulercontext.JobSchedulingContext
+		isActionable  bool
+	}
+
+	gangs := make(map[gangKey][]*gangJobInfo, len(gangJobs))
+	for _, scheduledJob := range gangJobs {
+		currentJob := txn.GetById(scheduledJob.JobId)
+		key := gangKey{scheduledJob.Job.Queue(), scheduledJob.Job.GetGangInfo().Id()}
+		if _, exists := gangs[key]; !exists {
+			gangs[key] = make([]*gangJobInfo, 0, scheduledJob.Job.GetGangInfo().Cardinality())
+		}
+		gangs[key] = append(gangs[key], &gangJobInfo{scheduledJctx: scheduledJob, isActionable: isQueuedJobActionable(currentJob)})
+	}
+
+	for key, gang := range gangs {
+		if len(gang) == 0 {
+			continue
+		}
+
+		if len(gang) != gang[0].scheduledJctx.Job.GetGangInfo().Cardinality() {
+			ctx.Logger().Errorf("partial scheduled found for gang %s/%s - expected %d scheduled jobs got %d",
+				key.queue, key.gangId, gang[0].scheduledJctx.Job.GetGangInfo().Cardinality(), len(gang))
+		}
+
+		allActionable := slices.AllFunc(gang, func(jobInfo *gangJobInfo) bool { return jobInfo.isActionable })
+		if allActionable {
+			for _, jobInfo := range gang {
+				scheduledJobs = append(scheduledJobs, jobInfo.scheduledJctx)
+			}
+		} else {
+			for _, jobInfo := range gang {
+				if jobInfo.isActionable {
+					// This job is still actionable so simply unschedule it rather than remove it entirely,
+					//  as it still causes demand for the queue
+					err := poolResult.SchedulingResult.SchedulingContext.UnscheduleJob(jobInfo.scheduledJctx)
+					if err != nil {
+						return err
+					}
+				} else {
+					_, err := poolResult.SchedulingResult.SchedulingContext.RemoveJob(jobInfo.scheduledJctx)
+					if err != nil {
+						return err
+					}
+				}
+
+			}
+		}
+	}
+
+	poolResult.SchedulingResult.ScheduledJobs = scheduledJobs
+	return nil
+}
+
+func (r *asyncSchedulingRunner) updatePreemptedJobs(txn *jobdb.Txn, poolResult *PoolSchedulingResult) error {
+	preemptedJobs := make([]*schedulercontext.JobSchedulingContext, 0, len(poolResult.SchedulingResult.PreemptedJobs))
+	for _, preemptedJob := range poolResult.SchedulingResult.PreemptedJobs {
+		currentJob := txn.GetById(preemptedJob.JobId)
+		if isJobActionable(currentJob) {
+			preemptedJobs = append(preemptedJobs, preemptedJob)
+		} else {
+			_, err := poolResult.SchedulingResult.SchedulingContext.RemoveJob(preemptedJob)
+			if err != nil {
+				return err
+			}
+			delete(poolResult.SchedulingResult.AdditionalSchedulingInfo.EvictorResult.EvictedJctxsByJobId, preemptedJob.JobId)
+		}
+	}
+	poolResult.SchedulingResult.PreemptedJobs = preemptedJobs
+	return nil
+}
+
+func (r *asyncSchedulingRunner) updateReconciliationResult(txn *jobdb.Txn, poolResult *PoolSchedulingResult) {
+	preemptedJobs := make([]*FailedReconciliationResult, 0, len(poolResult.ReconciliationResult.PreemptedJobs))
+	for _, preemptedJob := range poolResult.ReconciliationResult.PreemptedJobs {
+		currentJob := txn.GetById(preemptedJob.Job.Id())
+		if isJobActionable(currentJob) {
+			preemptedJobs = append(preemptedJobs, preemptedJob)
+		}
+	}
+	poolResult.ReconciliationResult.PreemptedJobs = preemptedJobs
+
+	failedJobs := make([]*FailedReconciliationResult, 0, len(poolResult.ReconciliationResult.FailedJobs))
+	for _, failedJob := range poolResult.ReconciliationResult.FailedJobs {
+		currentJob := txn.GetById(failedJob.Job.Id())
+		if isJobActionable(currentJob) {
+			failedJobs = append(failedJobs, failedJob)
+		}
+	}
+	poolResult.ReconciliationResult.FailedJobs = failedJobs
+}
+
+func isQueuedJobActionable(job *jobdb.Job) bool {
+	return isJobActionable(job) && job.Queued()
+}
+
+func isJobActionable(job *jobdb.Job) bool {
+	return job != nil && !job.InTerminalState()
 }

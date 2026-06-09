@@ -158,6 +158,16 @@ func (p *PoolSchedulingResult) GetSchedulingContext() *schedulercontext.Scheduli
 
 type SchedulerResult struct {
 	PoolResults []*PoolSchedulingResult
+	StartTime   time.Time
+	EndTime     time.Time
+}
+
+func (s *SchedulerResult) GetDuration() time.Duration {
+	duration := s.EndTime.Sub(s.StartTime)
+	if duration < 0 {
+		duration = time.Duration(0)
+	}
+	return duration
 }
 
 func (s *SchedulerResult) GetAllScheduledJobs() []*schedulercontext.JobSchedulingContext {
