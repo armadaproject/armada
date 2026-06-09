@@ -1,4 +1,4 @@
-package leader
+package leaderelection
 
 import (
 	"context"
@@ -12,7 +12,6 @@ import (
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
-	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 )
 
 // LeaderController is an interface to be implemented by structs that control which scheduler is leader
@@ -112,13 +111,13 @@ type LeaseListener interface {
 type KubernetesLeaderController struct {
 	client            coordinationv1client.LeasesGetter
 	token             atomic.Value
-	config            schedulerconfig.LeaderConfig // TODO: Move necessary config into this struct.
+	config            Config // TODO: Move necessary config into this struct.
 	currentLeaderLock sync.Mutex
 	currentLeader     string
 	listeners         []LeaseListener
 }
 
-func NewKubernetesLeaderController(config schedulerconfig.LeaderConfig, client coordinationv1client.LeasesGetter) *KubernetesLeaderController {
+func NewKubernetesLeaderController(config Config, client coordinationv1client.LeasesGetter) *KubernetesLeaderController {
 	controller := &KubernetesLeaderController{
 		client:            client,
 		token:             atomic.Value{},

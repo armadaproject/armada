@@ -1,4 +1,4 @@
-package leader
+package leaderelection
 
 import (
 	"fmt"
@@ -9,7 +9,6 @@ import (
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 
-	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/pkg/client"
 )
 
@@ -21,13 +20,13 @@ type LeaderClientConnectionProvider interface {
 
 type LeaderConnectionProvider struct {
 	leaderController LeaderController
-	leaderConfig     configuration.LeaderConfig
+	leaderConfig     Config
 	connectionLock   sync.Mutex
 	connectionByName map[string]*grpc.ClientConn
 	metrics          *grpc_prometheus.ClientMetrics
 }
 
-func NewLeaderConnectionProvider(leaderController LeaderController, leaderConfig configuration.LeaderConfig, metrics *grpc_prometheus.ClientMetrics) *LeaderConnectionProvider {
+func NewLeaderConnectionProvider(leaderController LeaderController, leaderConfig Config, metrics *grpc_prometheus.ClientMetrics) *LeaderConnectionProvider {
 	return &LeaderConnectionProvider{
 		leaderController: leaderController,
 		leaderConfig:     leaderConfig,

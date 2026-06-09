@@ -24,12 +24,12 @@ import (
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/leaderelection"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/kubernetesobjects/affinity"
-	"github.com/armadaproject/armada/internal/scheduler/leader"
 	"github.com/armadaproject/armada/internal/scheduler/metrics"
 	"github.com/armadaproject/armada/internal/scheduler/pricing"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -1027,7 +1027,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 				jobRepo,
 				clusterRepo,
 				scheduling.NewSyncSchedulingRunner(schedulingAlgo),
-				leader.NewStandaloneLeaderController(),
+				leaderelection.NewStandaloneLeaderController(),
 				publisher,
 				submitChecker,
 				gangValidator,
@@ -1194,7 +1194,7 @@ func TestScheduler_PublishFailureRepublishesOnNextCycle(t *testing.T) {
 		jobRepo,
 		clusterRepo,
 		scheduling.NewSyncSchedulingRunner(&testSchedulingAlgo{}),
-		leader.NewStandaloneLeaderController(),
+		leaderelection.NewStandaloneLeaderController(),
 		publisher,
 		&testSubmitChecker{checkSuccess: true},
 		&testGangValidator{validateSuccess: true},
@@ -1261,7 +1261,7 @@ func TestScheduler_NonLeaderAdvancesCursors(t *testing.T) {
 	clusterRepo := &testExecutorRepository{
 		updateTimes: map[string]time.Time{"testExecutor": testClock.Now()},
 	}
-	leaderController := leader.NewStandaloneLeaderController()
+	leaderController := leaderelection.NewStandaloneLeaderController()
 	sched, err := NewScheduler(
 		testfixtures.NewJobDb(testfixtures.TestResourceListFactory),
 		jobRepo,
@@ -1289,7 +1289,7 @@ func TestScheduler_NonLeaderAdvancesCursors(t *testing.T) {
 	require.NoError(t, txn.Upsert([]*jobdb.Job{leasedJob}))
 	txn.Commit()
 
-	leaderController.SetToken(leader.InvalidLeaderToken())
+	leaderController.SetToken(leaderelection.InvalidLeaderToken())
 
 	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
 	defer cancel()
@@ -1365,7 +1365,7 @@ func TestRun(t *testing.T) {
 	schedulingAlgo := &testSchedulingAlgo{}
 	publisher := &testPublisher{}
 	clusterRepo := &testExecutorRepository{}
-	leaderController := leader.NewStandaloneLeaderController()
+	leaderController := leaderelection.NewStandaloneLeaderController()
 	submitChecker := &testSubmitChecker{checkSuccess: true}
 	gangValidator := &testGangValidator{validateSuccess: true}
 	sched, err := NewScheduler(
@@ -1419,13 +1419,13 @@ func TestRun(t *testing.T) {
 	assert.Equal(t, schedulingAlgo.numberOfScheduleCalls, 1)
 
 	// invalidate our leadership: we should not publish
-	leaderController.SetToken(leader.InvalidLeaderToken())
+	leaderController.SetToken(leaderelection.InvalidLeaderToken())
 	fireCycle()
 	assert.Equal(t, 0, len(publisher.eventSequences))
 	assert.Equal(t, schedulingAlgo.numberOfScheduleCalls, 1)
 
 	// become master again: we should publish
-	leaderController.SetToken(leader.NewLeaderToken())
+	leaderController.SetToken(leaderelection.NewLeaderToken())
 	fireCycle()
 	assert.Equal(t, 1, len(publisher.eventSequences))
 	assert.Equal(t, schedulingAlgo.numberOfScheduleCalls, 2)
@@ -1557,7 +1557,7 @@ func TestJobPriceUpdates(t *testing.T) {
 				},
 			}
 			clusterRepo := &testExecutorRepository{}
-			leaderController := leader.NewStandaloneLeaderController()
+			leaderController := leaderelection.NewStandaloneLeaderController()
 			submitChecker := &testSubmitChecker{checkSuccess: true}
 			gangValidator := &testGangValidator{validateSuccess: true}
 			sched, err := NewScheduler(
@@ -1611,7 +1611,7 @@ func TestJobPriceUpdates(t *testing.T) {
 			assert.Equal(t, priceProvider.numberOfCalls, tc.expectedNumberOfProviderCalls[0])
 
 			// invalidate our leadership: we shouldn't update prices
-			leaderController.SetToken(leader.InvalidLeaderToken())
+			leaderController.SetToken(leaderelection.InvalidLeaderToken())
 			priceProvider.priceFunc = func(band bidstore.PriceBand) float64 {
 				return float64(band) + 1
 			}
@@ -1623,7 +1623,7 @@ func TestJobPriceUpdates(t *testing.T) {
 			assert.Equal(t, priceProvider.numberOfCalls, tc.expectedNumberOfProviderCalls[1])
 
 			// become master again: we shouldn't update prices
-			leaderController.SetToken(leader.NewLeaderToken())
+			leaderController.SetToken(leaderelection.NewLeaderToken())
 			fireCycle()
 			currentJob = jobDb.ReadTxn().GetById(tc.initialJob.JobID)
 			assert.NotNil(t, currentJob)
@@ -1731,7 +1731,8 @@ func TestScheduler_TestSyncInitialState(t *testing.T) {
 						nil,
 						false,
 						false,
-					)).WithQueued(false).WithQueuedVersion(1).WithPriceBand(bidstore.PriceBand_PRICE_BAND_C),
+					),
+				).WithQueued(false).WithQueuedVersion(1).WithPriceBand(bidstore.PriceBand_PRICE_BAND_C),
 			},
 			expectedInitialJobDbIds: []string{queuedJob.Id()},
 			expectedJobsSerial:      1,
@@ -1747,7 +1748,7 @@ func TestScheduler_TestSyncInitialState(t *testing.T) {
 			schedulingAlgo := &testSchedulingAlgo{}
 			publisher := &testPublisher{}
 			clusterRepo := &testExecutorRepository{}
-			leaderController := leader.NewStandaloneLeaderController()
+			leaderController := leaderelection.NewStandaloneLeaderController()
 			sched, err := NewScheduler(
 				testfixtures.NewJobDb(testfixtures.TestResourceListFactory),
 				tc.jobRepo,
@@ -1895,7 +1896,8 @@ func TestScheduler_TestSyncState(t *testing.T) {
 						nil,
 						false,
 						false,
-					)).WithQueued(false).WithQueuedVersion(2),
+					),
+				).WithQueued(false).WithQueuedVersion(2),
 			},
 			expectedJobDbIds: []string{queuedJob.Id()},
 		},
@@ -1963,7 +1965,7 @@ func TestScheduler_TestSyncState(t *testing.T) {
 			schedulingAlgo := &testSchedulingAlgo{}
 			publisher := &testPublisher{}
 			clusterRepo := &testExecutorRepository{}
-			leaderController := leader.NewStandaloneLeaderController()
+			leaderController := leaderelection.NewStandaloneLeaderController()
 			sched, err := NewScheduler(
 				testfixtures.NewJobDb(testfixtures.TestResourceListFactory),
 				jobRepo,
@@ -3231,7 +3233,7 @@ func TestCycleConsistency(t *testing.T) {
 						updateTimes: map[string]time.Time{"test-executor": testClock.Now()},
 					},
 					sharedRunner,
-					leader.NewStandaloneLeaderController(),
+					leaderelection.NewStandaloneLeaderController(),
 					newTestPublisher(),
 					&testSubmitChecker{
 						checkSuccess: !tc.failSubmitCheck,
@@ -3275,7 +3277,7 @@ func TestCycleConsistency(t *testing.T) {
 					b := newScheduler(db)
 
 					// Initially, "a" is leader and "b" follower.
-					(b.leaderController.(*leader.StandaloneLeaderController)).SetToken(leader.InvalidLeaderToken())
+					b.leaderController.(*leaderelection.StandaloneLeaderController).SetToken(leaderelection.InvalidLeaderToken())
 
 					return f(a, b, schedulerDb)
 				})
@@ -3366,8 +3368,8 @@ func TestCycleConsistency(t *testing.T) {
 			// failover swaps the leader tokens between a and b, thus swapping which scheduler is leader.
 			failover := func(a, b *Scheduler) error {
 				t.Logf("failover schedulers %p, %p", a, b)
-				lca := a.leaderController.(*leader.StandaloneLeaderController)
-				lcb := b.leaderController.(*leader.StandaloneLeaderController)
+				lca := a.leaderController.(*leaderelection.StandaloneLeaderController)
+				lcb := b.leaderController.(*leaderelection.StandaloneLeaderController)
 				lta := lca.GetToken()
 				ltb := lcb.GetToken()
 				lca.SetToken(ltb)

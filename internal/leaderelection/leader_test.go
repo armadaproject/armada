@@ -1,4 +1,4 @@
-package leader
+package leaderelection
 
 import (
 	"context"
@@ -13,7 +13,6 @@ import (
 	"k8s.io/utils/pointer"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
-	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 	schedulermocks "github.com/armadaproject/armada/internal/scheduler/mocks"
 )
 
@@ -154,8 +153,8 @@ func TestK8sLeaderController_BecomingLeader(t *testing.T) {
 	}
 }
 
-func testLeaderConfig() schedulerconfig.LeaderConfig {
-	return schedulerconfig.LeaderConfig{
+func testLeaderConfig() Config {
+	return Config{
 		LeaseLockName:      lockName,
 		LeaseLockNamespace: lockNamespace,
 		LeaseDuration:      100 * time.Millisecond,
