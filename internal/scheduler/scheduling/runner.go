@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	log "github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
@@ -271,6 +272,7 @@ func (r *asyncSchedulingRunner) run(ctx *armadacontext.Context) {
 
 		txn := r.jobDb.DryRunTxn()
 		// TODO pass resource units from jobdb
+		log.Info("async scheduling cycle started")
 		result, err := r.schedulingAlgo.Schedule(runCtx, nil, txn)
 
 		r.mu.Lock()
@@ -283,6 +285,9 @@ func (r *asyncSchedulingRunner) run(ctx *armadacontext.Context) {
 			r.cancelFn = nil
 			r.runDone = nil
 			r.state = stateIdle
+			log.Info("async scheduling cycle completed")
+		} else {
+			log.Info("async scheduling cycle cancelled")
 		}
 		r.mu.Unlock()
 		cancel()
@@ -299,7 +304,7 @@ func (r *asyncSchedulingRunner) reconcile(ctx *armadacontext.Context, txn *jobdb
 			return nil, err
 		}
 
-		err = r.updatePreemptedJobs(txn, poolResult)
+		err = r.updatePreemptedJobs(ctx, txn, poolResult)
 		if err != nil {
 			return nil, err
 		}
@@ -307,7 +312,7 @@ func (r *asyncSchedulingRunner) reconcile(ctx *armadacontext.Context, txn *jobdb
 		// The demand will have changed if jobs were removed, recalculate shares
 		poolResult.SchedulingResult.SchedulingContext.UpdateFairShares()
 
-		r.updateReconciliationResult(txn, poolResult)
+		r.updateReconciliationResult(ctx, txn, poolResult)
 	}
 
 	return result, nil
@@ -384,12 +389,12 @@ func (r *asyncSchedulingRunner) updateScheduledJobs(ctx *armadacontext.Context, 
 			}
 		}
 	}
-
+	ctx.Infof("scheduler result reconciler removed %d jobs that would have been scheduled", len(poolResult.SchedulingResult.ScheduledJobs)-len(scheduledJobs))
 	poolResult.SchedulingResult.ScheduledJobs = scheduledJobs
 	return nil
 }
 
-func (r *asyncSchedulingRunner) updatePreemptedJobs(txn *jobdb.Txn, poolResult *PoolSchedulingResult) error {
+func (r *asyncSchedulingRunner) updatePreemptedJobs(ctx *armadacontext.Context, txn *jobdb.Txn, poolResult *PoolSchedulingResult) error {
 	preemptedJobs := make([]*schedulercontext.JobSchedulingContext, 0, len(poolResult.SchedulingResult.PreemptedJobs))
 	for _, preemptedJob := range poolResult.SchedulingResult.PreemptedJobs {
 		currentJob := txn.GetById(preemptedJob.JobId)
@@ -403,11 +408,12 @@ func (r *asyncSchedulingRunner) updatePreemptedJobs(txn *jobdb.Txn, poolResult *
 			delete(poolResult.SchedulingResult.AdditionalSchedulingInfo.EvictorResult.EvictedJctxsByJobId, preemptedJob.JobId)
 		}
 	}
+	ctx.Infof("scheduler result reconciler removed %d jobs that would have been preempted", len(poolResult.SchedulingResult.PreemptedJobs)-len(preemptedJobs))
 	poolResult.SchedulingResult.PreemptedJobs = preemptedJobs
 	return nil
 }
 
-func (r *asyncSchedulingRunner) updateReconciliationResult(txn *jobdb.Txn, poolResult *PoolSchedulingResult) {
+func (r *asyncSchedulingRunner) updateReconciliationResult(ctx *armadacontext.Context, txn *jobdb.Txn, poolResult *PoolSchedulingResult) {
 	preemptedJobs := make([]*FailedReconciliationResult, 0, len(poolResult.ReconciliationResult.PreemptedJobs))
 	for _, preemptedJob := range poolResult.ReconciliationResult.PreemptedJobs {
 		currentJob := txn.GetById(preemptedJob.Job.Id())
@@ -415,6 +421,8 @@ func (r *asyncSchedulingRunner) updateReconciliationResult(txn *jobdb.Txn, poolR
 			preemptedJobs = append(preemptedJobs, preemptedJob)
 		}
 	}
+	ctx.Infof("scheduler result reconciler removed %d jobs that would have been preempted by reconciler",
+		len(poolResult.ReconciliationResult.PreemptedJobs)-len(preemptedJobs))
 	poolResult.ReconciliationResult.PreemptedJobs = preemptedJobs
 
 	failedJobs := make([]*FailedReconciliationResult, 0, len(poolResult.ReconciliationResult.FailedJobs))
@@ -424,6 +432,8 @@ func (r *asyncSchedulingRunner) updateReconciliationResult(txn *jobdb.Txn, poolR
 			failedJobs = append(failedJobs, failedJob)
 		}
 	}
+	ctx.Infof("scheduler result reconciler removed %d jobs that would have been failed by reconciler",
+		len(poolResult.ReconciliationResult.FailedJobs)-len(failedJobs))
 	poolResult.ReconciliationResult.FailedJobs = failedJobs
 }
 

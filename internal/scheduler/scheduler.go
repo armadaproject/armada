@@ -370,14 +370,15 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 		if err != nil {
 			return err
 		}
-
-		var resultEvents []*armadaevents.EventSequence
-		resultEvents, err = s.eventsFromSchedulerResult(result)
-		if err != nil {
-			return err
+		if result != nil {
+			var resultEvents []*armadaevents.EventSequence
+			resultEvents, err = s.eventsFromSchedulerResult(result)
+			if err != nil {
+				return err
+			}
+			events = append(events, resultEvents...)
+			schedulerResult = result
 		}
-		events = append(events, resultEvents...)
-		schedulerResult = result
 	}
 
 	// Publish to Pulsar.
@@ -423,6 +424,7 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 		}
 
 		if s.runner.IsAsync() {
+			ctx.Infof("async scheduling completed in %s", schedulerResult.GetDuration())
 			s.metrics.ReportScheduleCycleTime(schedulerResult.GetDuration())
 			s.metrics.ReportScheduleCycleOutcome(err == nil)
 		}
