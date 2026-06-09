@@ -1,6 +1,12 @@
 import pendulum
 from airflow import DAG
-from airflow.operators.bash import BashOperator
+
+# BashOperator lives in the standard provider on Airflow 3.x, the builtin on 2.x.
+try:
+    from airflow.providers.standard.operators.bash import BashOperator
+except ImportError:
+    from airflow.operators.bash import BashOperator
+
 from armada.model import GrpcChannelArgs
 from armada.operators.armada import ArmadaOperator
 from armada_client.armada import submit_pb2
