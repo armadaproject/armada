@@ -294,10 +294,6 @@ func (r *asyncSchedulingRunner) run(ctx *armadacontext.Context) {
 // dropping decisions that are no longer valid (e.g. job no longer queued, preempted job was cancelled etc)
 func (r *asyncSchedulingRunner) reconcile(ctx *armadacontext.Context, txn *jobdb.Txn, result *SchedulerResult) (*SchedulerResult, error) {
 	for _, poolResult := range result.PoolResults {
-		if !poolResult.Outcome.Success() {
-			continue
-		}
-
 		err := r.updateScheduledJobs(ctx, txn, poolResult)
 		if err != nil {
 			return nil, err
