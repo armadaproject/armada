@@ -10,8 +10,7 @@ authors = [{ name = "G-Research Open Source Software", email = "armada@armadapro
 
 [project.optional-dependencies]
 format = ["black>=23.7.0", "flake8>=7.0.0", "pylint>=2.17.5"]
-# note(JayF): sphinx-jekyll-builder was broken by sphinx-markdown-builder 0.6 -- so pin to 0.5.5
-docs = ["sphinx==7.1.2", "sphinx-jekyll-builder==0.3.0", "sphinx-toolbox==3.2.0b1", "sphinx-markdown-builder==0.5.5"]
+docs = ["sphinx==9.1.0", "sphinx-toolbox==4.2.0", "sphinx-markdown-builder==0.6.10"]
 test = ["pytest==9.0.3", "coverage==7.14.1", "pytest-asyncio==1.4.0"]
 
 [build-system]
