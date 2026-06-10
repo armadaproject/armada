@@ -15,11 +15,11 @@ import (
 	"github.com/armadaproject/armada/internal/common/constants"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
+	"github.com/armadaproject/armada/internal/leaderelection"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/kubernetesobjects/affinity"
-	"github.com/armadaproject/armada/internal/scheduler/leader"
 	"github.com/armadaproject/armada/internal/scheduler/metrics"
 	"github.com/armadaproject/armada/internal/scheduler/pricing"
 	"github.com/armadaproject/armada/internal/scheduler/queue"
@@ -47,7 +47,7 @@ type Scheduler struct {
 	// TODO: Confusing name. Change.
 	schedulingAlgo scheduling.SchedulingAlgo
 	// Tells us if we are leader. Only the leader may schedule jobs.
-	leaderController leader.LeaderController
+	leaderController leaderelection.LeaderController
 	// This is used to check if jobs are still schedulable.
 	// Useful when we are adding node anti-affinities.
 	submitChecker SubmitScheduleChecker
@@ -99,7 +99,7 @@ func NewScheduler(
 	jobRepository database.JobRepository,
 	executorRepository database.ExecutorRepository,
 	schedulingAlgo scheduling.SchedulingAlgo,
-	leaderController leader.LeaderController,
+	leaderController leaderelection.LeaderController,
 	publisher Publisher,
 	submitChecker SubmitScheduleChecker,
 	gangValidator SubmitGangValidator,
@@ -157,7 +157,7 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 	ctx.Infof("JobDb initialised in %s", s.clock.Since(start))
 
 	ticker := s.clock.NewTicker(s.cyclePeriod)
-	prevLeaderToken := leader.InvalidLeaderToken()
+	prevLeaderToken := leaderelection.InvalidLeaderToken()
 
 	previousSchedulingRoundEnd := time.Time{}
 	cycleNumber := 0
@@ -189,7 +189,7 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 					err := s.ensureDbUpToDate(syncContext, 1*time.Second)
 					if err != nil {
 						ctx.Logger().WithStacktrace(err).Error("could not become leader")
-						leaderToken = leader.InvalidLeaderToken()
+						leaderToken = leaderelection.InvalidLeaderToken()
 					} else {
 						fullUpdate = true
 					}
@@ -226,7 +226,7 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 
 				if err != nil {
 					ctx.Logger().WithStacktrace(err).Error("cycle failure")
-					leaderToken = leader.InvalidLeaderToken()
+					leaderToken = leaderelection.InvalidLeaderToken()
 				}
 
 				prevLeaderToken = leaderToken
@@ -263,7 +263,7 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 //     This means we can start the next cycle immediately after one cycle finishes.
 //     As state transitions are persisted and read back from the schedulerDb over later cycles,
 //     there is no change to the jobDb, since the correct changes have already been made.
-func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToken leader.LeaderToken, shouldSchedule bool, cycleNumber int) error {
+func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToken leaderelection.LeaderToken, shouldSchedule bool, cycleNumber int) error {
 	ctx.Logger().Infof("starting cycle")
 	defer func(ctx *armadacontext.Context) {
 		ctx.Logger().Infof("finished cycle")
