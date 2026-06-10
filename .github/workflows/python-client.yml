@@ -74,6 +74,15 @@ jobs:
       DOCKER_BUILDX_BUILDER: "builder"
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      # Some ubuntu-22.04 runners only have ~17GB free on the root disk, which is
+      # less than this job's ~19.5GB peak usage. Remove unused preinstalled
+      # toolchains to make room.
+      - name: Free Disk Space (Ubuntu)
+        uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be # v1.3.1
+        with:
+          tool-cache: false
+          large-packages: false
+          swap-storage: false
       - name: Setup Docker
         uses: docker/setup-docker-action@1a6edb0ba9ac496f6850236981f15d8f9a82254d # v5
         with:
@@ -99,3 +108,8 @@ jobs:
           version: '23.3'
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - run: go run github.com/magefile/mage@v1.15.0 -v teste2epython
+      - name: Disk usage report
+        if: always()
+        run: |
+          df -h /
+          docker system df || true
