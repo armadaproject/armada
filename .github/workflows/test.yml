@@ -81,6 +81,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
+      # Some ubuntu-22.04 runners only have ~17GB free on the root disk, which is
+      # less than this job's ~19.5GB peak usage. Remove unused preinstalled
+      # toolchains to make room.
+      - name: Free Disk Space (Ubuntu)
+        uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be # v1.3.1
+        with:
+          tool-cache: false
+          large-packages: false
+          swap-storage: false
+
       - name: Setup Docker
         uses: docker/setup-docker-action@1a6edb0ba9ac496f6850236981f15d8f9a82254d # v5
         with:
@@ -91,9 +101,6 @@ jobs:
 
       - name: Install Docker Buildx
         run: docker buildx install
-
-      - name: Free some disk space
-        run: docker image prune -af
 
       - name: Setup Go
         uses: ./.github/actions/setup-go-cache
@@ -129,6 +136,12 @@ jobs:
           path: |
             ./logs/
           if-no-files-found: error
+
+      - name: Disk usage report
+        if: always()
+        run: |
+          df -h /
+          docker system df || true
 
   go-mod-up-to-date:
     name: Golang Mod Up To Date
