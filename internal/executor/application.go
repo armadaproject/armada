@@ -140,7 +140,7 @@ func StartUpWithContext(
 	if config.Kubernetes.PendingPodChecks == nil {
 		ctx.Fatalf("Config error: Missing pending pod checks")
 	}
-	pendingPodChecker, err := podchecks.NewPodChecks(*config.Kubernetes.PendingPodChecks)
+	pendingPodChecker, err := podchecks.NewPodChecks(*config.Kubernetes.PendingPodChecks, clock.RealClock{})
 	if err != nil {
 		ctx.Fatalf("Config error in pending pod checks: %s", err)
 	}
