@@ -22,6 +22,7 @@ type eventCheck struct {
 	eventType   config.EventType
 	gracePeriod time.Duration
 	action      Action
+	name        string
 }
 
 type eventChecks struct {
@@ -30,7 +31,7 @@ type eventChecks struct {
 
 func newEventChecks(configs []config.EventCheck) (*eventChecks, error) {
 	eventChecks := &eventChecks{}
-	for _, config := range configs {
+	for i, config := range configs {
 		re, err := regexp.Compile(config.Regexp)
 		if err != nil {
 			return nil, fmt.Errorf("cannot parse regexp \"%s\": %+v", config.Regexp, err)
@@ -45,7 +46,19 @@ func newEventChecks(configs []config.EventCheck) (*eventChecks, error) {
 			return nil, fmt.Errorf("invalid event type: \"%s\"", config.Type)
 		}
 
-		check := eventCheck{regexp: re, inverse: config.Inverse, eventType: config.Type, gracePeriod: config.GracePeriod, action: action}
+		name := config.Name
+		if name == "" {
+			name = fmt.Sprintf("check-%d", i)
+		}
+
+		check := eventCheck{
+			regexp:      re,
+			inverse:     config.Inverse,
+			eventType:   config.Type,
+			gracePeriod: config.GracePeriod,
+			action:      action,
+			name:        name,
+		}
 		eventChecks.checks = append(eventChecks.checks, check)
 		log.Infof(
 			"created event check %s %s\"%s\" %s %s",
@@ -77,14 +90,15 @@ func (ec *eventChecks) getEventAction(podName string, podEvent *v1.Event, timeIn
 		if podEvent.Type == string(check.eventType) && (check.inverse != check.regexp.MatchString(podEvent.Message)) {
 			if timeInState > check.gracePeriod {
 				log.Warnf(
-					"Pod %s needs action %s because event \"%s\" matches regexp %s\"%v\"",
+					"Check %q: Pod %s needs action %s because event \"%s\" matches regexp %s\"%v\"",
+					check.name,
 					podName,
 					check.action,
 					podEvent.Message,
 					inverseString(check.inverse),
 					check.regexp,
 				)
-				return check.action, podEvent.Message
+				return check.action, fmt.Sprintf("Check %q: %s", check.name, podEvent.Message)
 			} else {
 				return ActionWait, ""
 			}

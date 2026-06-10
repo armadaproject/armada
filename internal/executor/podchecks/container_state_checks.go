@@ -27,12 +27,12 @@ type containerStatusCheck struct {
 	inverse      bool
 	gracePeriod  time.Duration
 	action       Action
+	name         string
 }
 
 func newContainerStateChecks(configs []config.ContainerStatusCheck) (*containerStateChecks, error) {
 	containerStateChecks := &containerStateChecks{}
-	for _, cfg := range configs {
-
+	for i, cfg := range configs {
 		re, err := regexp.Compile(cfg.ReasonRegexp)
 		if err != nil {
 			return nil, fmt.Errorf("Cannot parse regexp \"%s\": %+v", cfg.ReasonRegexp, err)
@@ -47,10 +47,23 @@ func newContainerStateChecks(configs []config.ContainerStatusCheck) (*containerS
 			return nil, fmt.Errorf("Invalid container state: \"%s\"", cfg.State)
 		}
 
-		check := containerStatusCheck{reasonRegexp: re, inverse: cfg.Inverse, action: action, gracePeriod: cfg.GracePeriod, state: cfg.State}
+		name := cfg.Name
+		if name == "" {
+			name = fmt.Sprintf("check-%d", i)
+		}
+
+		check := containerStatusCheck{
+			reasonRegexp: re,
+			inverse:      cfg.Inverse,
+			action:       action,
+			gracePeriod:  cfg.GracePeriod,
+			state:        cfg.State,
+			name:         name,
+		}
 		containerStateChecks.checks = append(containerStateChecks.checks, check)
 		log.Infof(
-			"   Created container state check %s %s\"%s\" %s %s",
+			"   Created container state check (%s) %s %s\"%s\" %s %s",
+			check.name,
 			check.state,
 			inverseString(check.inverse),
 			check.reasonRegexp,
@@ -86,8 +99,8 @@ func (csc *containerStateChecks) getContainerAction(pod *v1.Pod, containerStatus
 			if check.inverse != check.reasonRegexp.MatchString(reason) && state == check.state {
 				if timeInState >= check.gracePeriod {
 					log.Warnf(
-						"Container %s in Pod %s in namespace %s has been in state %s with reason %s (%s) for more than %v (matched regexp was %s%s), required action is %s",
-						containerStatus.Name,
+						"Check %q: Container %s in Pod %s in namespace %s has been in state %s with reason %s (%s) for more than %v (matched regexp was %s%s), required action is %s",
+						check.name, containerStatus.Name,
 						pod.Name,
 						pod.Namespace,
 						state,
@@ -99,7 +112,8 @@ func (csc *containerStateChecks) getContainerAction(pod *v1.Pod, containerStatus
 						check.action,
 					)
 					return check.action, fmt.Sprintf(
-						"Container %s has been in state %s for reason %s (%s) for more than timeout %v",
+						"Check %q: Container %s has been in state %s for reason %s (%s) for more than timeout %v",
+						check.name,
 						containerStatus.Name,
 						state,
 						reason,

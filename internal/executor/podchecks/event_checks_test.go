@@ -21,12 +21,12 @@ func Test_getAction_WhenNoEvents_AndNoChecks_ReturnsWait(t *testing.T) {
 }
 
 func Test_getAction_WhenOneEvent_WithMatchingFailCheck_ReturnsFail(t *testing.T) {
-	ec, err := newEventChecks([]config.EventCheck{{Action: config.ActionFail, Regexp: "pvc", Type: "Warning", GracePeriod: time.Minute}})
+	ec, err := newEventChecks([]config.EventCheck{{Name: "pvc-check", Action: config.ActionFail, Regexp: "pvc", Type: "Warning", GracePeriod: time.Minute}})
 	assert.Nil(t, err)
 
 	action, message := ec.getAction("my-pod", []*v1.Event{{Message: "Failed to mount pvc!", Type: "Warning"}}, time.Minute*2)
 	assert.Equal(t, ActionFail, action)
-	assert.NotEmpty(t, message)
+	assert.Equal(t, `Check "pvc-check": Failed to mount pvc!`, message)
 }
 
 func Test_getAction_WhenOneEvent_MatchFailsDueToRegexp_ReturnsWait(t *testing.T) {
@@ -136,7 +136,7 @@ func Test_getAction_WhenSomeEventsMatch_OnlyMatchedMessagesAreIncluded(t *testin
 	}, time.Minute*2)
 
 	assert.Equal(t, ActionFail, action)
-	assert.Equal(t, matchedMessage, message)
+	assert.Equal(t, `Check "check-0": `+matchedMessage, message)
 	assert.NotContains(t, message, "\n\n", "consecutive newlines indicate non-matching events were joined into the result instead of being skipped")
 }
 
