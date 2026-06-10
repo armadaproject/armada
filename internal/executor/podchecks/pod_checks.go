@@ -6,6 +6,7 @@ import (
 	"time"
 
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/utils/clock"
 
 	log "github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/slices"
@@ -14,17 +15,19 @@ import (
 )
 
 type PodChecker interface {
-	GetAction(pod *v1.Pod, podEvents []*v1.Event, timeInState time.Duration) (Action, Cause, string)
+	GetAction(pod *v1.Pod, podEvents []*v1.Event) (Action, Cause, string)
 }
 
 type PodChecks struct {
+	clock                     clock.Clock
 	eventChecks               eventChecker
 	containerStateChecks      containerStateChecker
 	deadlineForUpdates        time.Duration
 	deadlineForNodeAssignment time.Duration
+	deadlineForInitContainers time.Duration
 }
 
-func NewPodChecks(cfg config.Checks) (*PodChecks, error) {
+func NewPodChecks(cfg config.Checks, clk clock.Clock) (*PodChecks, error) {
 	log.Info("Creating pod checks...")
 	ec, err := newEventChecks(cfg.Events)
 	if err != nil {
@@ -37,15 +40,33 @@ func NewPodChecks(cfg config.Checks) (*PodChecks, error) {
 	}
 
 	return &PodChecks{
+		clock:                     clk,
 		eventChecks:               ec,
 		containerStateChecks:      csc,
 		deadlineForUpdates:        cfg.DeadlineForUpdates,
 		deadlineForNodeAssignment: cfg.DeadlineForNodeAssignment,
+		deadlineForInitContainers: cfg.DeadlineForInitContainers,
 	}, nil
 }
 
-func (pc *PodChecks) GetAction(pod *v1.Pod, podEvents []*v1.Event, timeInState time.Duration) (Action, Cause, string) {
+func (pc *PodChecks) GetAction(pod *v1.Pod, podEvents []*v1.Event) (Action, Cause, string) {
+	lastStateChange, err := util.LastStatusChange(pod)
+	if err != nil {
+		log.Errorf("Unable to get lastStateChange for pod %s: %v", pod.Name, err)
+		return ActionWait, None, ""
+	}
+
+	currentTime := pc.clock.Now()
 	messages := []string{}
+
+	if pc.deadlineForInitContainers > 0 {
+		initContainerState := getInitContainerState(pod)
+		if initContainerState.startedAt != nil && initContainerState.completedAt == nil && currentTime.Sub(*initContainerState.startedAt) > pc.deadlineForInitContainers {
+			return ActionFail, PodStartupIssue, fmt.Sprintf("init containers did not complete within deadline of %s", pc.deadlineForInitContainers)
+		}
+	}
+
+	timeInState := currentTime.Sub(lastStateChange)
 
 	isAssignedToNode := pod.Spec.NodeName != ""
 	if timeInState > pc.deadlineForNodeAssignment && !isAssignedToNode {
@@ -77,6 +98,70 @@ func (pc *PodChecks) GetAction(pod *v1.Pod, podEvents []*v1.Event, timeInState t
 	}
 	log.Infof("Pod checks for pod %s returned %s %s\n", pod.Name, resultAction, resultMessage)
 	return resultAction, cause, resultMessage
+}
+
+type initContainerState struct {
+	startedAt   *time.Time
+	completedAt *time.Time
+}
+
+func getInitContainerState(pod *v1.Pod) initContainerState {
+	state := initContainerState{}
+	statusByName := make(map[string]v1.ContainerStatus)
+	for _, initStatus := range pod.Status.InitContainerStatuses {
+		statusByName[initStatus.Name] = initStatus
+	}
+
+	nonSidecarInitContainerCount := 0
+	successfulInitContainerCount := 0
+	for _, container := range pod.Spec.InitContainers {
+		if policy := container.RestartPolicy; policy != nil && *policy == v1.ContainerRestartPolicyAlways {
+			continue
+		}
+		nonSidecarInitContainerCount++
+
+		initStatus, ok := statusByName[container.Name]
+		if !ok {
+			continue
+		}
+		if running := initStatus.State.Running; running != nil {
+			state.startedAt = earliestTime(state.startedAt, running.StartedAt.Time)
+		}
+		if terminated := initStatus.State.Terminated; terminated != nil {
+			state.startedAt = earliestTime(state.startedAt, terminated.StartedAt.Time)
+			if terminated.ExitCode != 0 {
+				continue
+			}
+			successfulInitContainerCount++
+			state.completedAt = latestTime(state.completedAt, terminated.FinishedAt.Time)
+		}
+	}
+
+	if nonSidecarInitContainerCount == 0 || successfulInitContainerCount != nonSidecarInitContainerCount {
+		state.completedAt = nil
+	}
+
+	return state
+}
+
+func earliestTime(current *time.Time, candidate time.Time) *time.Time {
+	if candidate.IsZero() {
+		return current
+	}
+	if current == nil || candidate.Before(*current) {
+		return &candidate
+	}
+	return current
+}
+
+func latestTime(current *time.Time, candidate time.Time) *time.Time {
+	if candidate.IsZero() {
+		return current
+	}
+	if current == nil || candidate.After(*current) {
+		return &candidate
+	}
+	return current
 }
 
 // This func is trying to determine if the node is bad based on the kubelet not updating the pod at all
