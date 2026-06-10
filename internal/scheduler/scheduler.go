@@ -574,6 +574,10 @@ func (s *Scheduler) updateJobPrices(ctx *armadacontext.Context, txn *jobdb.Txn) 
 	if err != nil {
 		return nil, err
 	}
+	err = txn.SetBidPriceSnapshot(&updatedBids)
+	if err != nil {
+		return nil, err
+	}
 	return updatedBids.ResourceUnits, nil
 }
 
