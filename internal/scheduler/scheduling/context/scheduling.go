@@ -479,7 +479,7 @@ func (sctx *SchedulingContext) RemoveJob(jctx *JobSchedulingContext) (bool, erro
 	}
 
 	if evictedInRound {
-		sctx.EvictedResources = sctx.EvictedResources.Add(jctx.Job.AllResourceRequirements())
+		sctx.EvictedResources = sctx.EvictedResources.Subtract(jctx.Job.AllResourceRequirements())
 		sctx.NumEvictedJobs--
 	}
 
