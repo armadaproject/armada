@@ -29,4 +29,19 @@ try:
 except ImportError:
     from airflow.operators.python import get_current_context  # Airflow 2.x
 
-__all__ = ["serialize", "deserialize", "_extra_allowed", "get_current_context"]
+# Context moved to airflow.sdk.definitions.context in Airflow 3.0. The shim at
+# airflow.utils.context.Context still resolves on 3.x, but it is exposed via a
+# module-level __getattr__ that returns the *module*, not the class - which
+# breaks Sphinx autodoc rendering. Import the real class directly.
+try:
+    from airflow.sdk.definitions.context import Context  # Airflow >= 3.0
+except ImportError:
+    from airflow.utils.context import Context  # Airflow 2.x
+
+__all__ = [
+    "serialize",
+    "deserialize",
+    "_extra_allowed",
+    "get_current_context",
+    "Context",
+]

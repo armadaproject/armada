@@ -38,6 +38,25 @@ on:
       - 'third_party/airflow/**'
 
 jobs:
+  # Formatting, linting and docs only need to run once. They are pinned to
+  # Python 3.12 here rather than repeated across every version in the
+  # airflow-tox matrix. The operator pulls armada-client from PyPI, so these
+  # checks need no proto build, Go or Docker.
+  airflow-lint:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install 'tox>=4,<5'
+      - name: Check formatting and lint
+        run: tox -e format-check
+        working-directory: third_party/airflow
+      - name: Verify docs updated if needed
+        run: tox -e docs-check
+        working-directory: third_party/airflow
+
   # Verifies the operator against every supported (Airflow, Python) combination.
   # The airflow-tox job below only resolves Airflow to the top of the range (newest 3.x),
   # so without this grid the 2.x serde / get_current_context paths and the 3.2 airflow.sdk
