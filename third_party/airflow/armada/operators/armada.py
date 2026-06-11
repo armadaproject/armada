@@ -32,7 +32,6 @@ from airflow.configuration import conf
 from airflow.exceptions import AirflowFailException
 from airflow.models import BaseOperator
 from airflow.models.taskinstance import TaskInstance, TaskInstanceKey
-from airflow.utils.context import Context
 from airflow.utils.log.logging_mixin import LoggingMixin
 from armada.auth import TokenRetriever
 from armada.log_manager import KubernetesPodLogManager
@@ -43,7 +42,7 @@ from google.protobuf.json_format import MessageToDict, ParseDict
 from pendulum import DateTime
 
 from .errors import ArmadaOperatorJobFailedError
-from .._compat import deserialize, get_current_context
+from .._compat import Context, deserialize, get_current_context
 from ..hooks import ArmadaHook
 from ..model import RunningJobContext
 from ..policies.reattach import external_job_uri, policy
@@ -68,47 +67,6 @@ class ArmadaOperator(BaseOperator, LoggingMixin):
 
     template_fields: Sequence[str] = ("job_request", "job_set_prefix")
     template_fields_renderers: Dict[str, str] = {"job_request": "py"}
-
-    """
-Initializes a new ArmadaOperator.
-
-:param name: The name of the job to be submitted.
-:type name: str
-:param channel_args: The gRPC channel arguments for connecting to the Armada server.
-:type channel_args: GrpcChannelArgs
-:param armada_queue: The name of the Armada queue to which the job will be submitted.
-:type armada_queue: str
-:param job_request: The job to be submitted to Armada.
-:type job_request: JobSubmitRequestItem | \
-Callable[[Context, jinja2.Environment], JobSubmitRequestItem]
-:param job_set_prefix: A string to prepend to the jobSet name.
-:type job_set_prefix: Optional[str]
-:param lookout_url_template: Template for creating lookout links. If not specified
-then no tracking information will be logged.
-:type lookout_url_template: Optional[str]
-:param poll_interval: The interval in seconds between polling for job status updates.
-:type poll_interval: int
-:param container_logs: Name of container whose logs will be published to stdout.
-:type container_logs: Optional[str]
-:param k8s_token_retriever: A serialisable Kubernetes token retriever object. We use
-this to read logs from Kubernetes pods.
-:type k8s_token_retriever: Optional[TokenRetriever]
-:param deferrable: Whether the operator should run in a deferrable mode, allowing
-for asynchronous execution.
-:type deferrable: bool
-:param job_acknowledgement_timeout: The timeout in seconds to wait for a job to be
-acknowledged by Armada.
-:type job_acknowledgement_timeout: int
-:param dry_run: Run Operator in dry-run mode - render Armada request and terminate.
-:type dry_run: bool
-:param reattach_policy: Operator reattach policy to use (defaults to: never)
-:type reattach_policy: Optional[str] | Callable[[JobState, str], bool]
-:param kwargs: Additional keyword arguments to pass to the BaseOperator.
-:param extra_links: Extra links to be shown in addition to Lookout URL. \
-Regex patterns will be extracted from container logs (taking first match).
-:type extra_links: Optional[Dict[str, Union[str, re.Pattern]]]
-:param kwargs: Additional keyword arguments to pass to the BaseOperator.
-"""
 
     def __init__(
         self,
@@ -139,6 +97,37 @@ Regex patterns will be extracted from container logs (taking first match).
         extra_links: Optional[Dict[str, Union[str, re.Pattern]]] = None,
         **kwargs,
     ) -> None:
+        """
+        Initializes a new ArmadaOperator.
+
+        :param name: The name of the job to be submitted.
+        :param channel_args: The gRPC channel arguments for connecting to the
+            Armada server.
+        :param armada_queue: The name of the Armada queue to which the job will
+            be submitted.
+        :param job_request: The job to be submitted to Armada.
+        :param job_set_prefix: A string to prepend to the jobSet name.
+        :param lookout_url_template: Template for creating lookout links. If not
+            specified, no tracking information will be logged.
+        :param poll_interval: The interval in seconds between polling for job
+            status updates.
+        :param container_logs: Name of container whose logs will be published to
+            stdout.
+        :param k8s_token_retriever: A serialisable Kubernetes token retriever
+            object. We use this to read logs from Kubernetes pods.
+        :param deferrable: Whether the operator should run in a deferrable mode,
+            allowing for asynchronous execution.
+        :param job_acknowledgement_timeout: The timeout in seconds to wait for a
+            job to be acknowledged by Armada.
+        :param dry_run: Run Operator in dry-run mode - render Armada request and
+            terminate.
+        :param reattach_policy: Operator reattach policy to use (defaults to
+            ``never``).
+        :param extra_links: Extra links to be shown in addition to the Lookout
+            URL. Regex patterns will be extracted from container logs (taking
+            the first match).
+        :param kwargs: Additional keyword arguments to pass to the BaseOperator.
+        """
         super().__init__(**kwargs)
         self.name = name
         self.channel_args = channel_args
@@ -248,10 +237,8 @@ Regex patterns will be extracted from container logs (taking first match).
         Template all attributes listed in self.template_fields.
         This mutates the attributes in-place and is irreversible.
 
-        Args:
-            context (Context): The execution context provided by Airflow.
-        :param context: Airflow Context dict wi1th values to apply on content
-        :param jinja_env: jinja’s environment to use for rendering.
+        :param context: Airflow Context dict with values to apply on content.
+        :param jinja_env: Jinja environment to use for rendering.
         """
 
         xcom_job_request = xcom_pull_for_ti(context["ti"], key="job_request")
@@ -295,10 +282,8 @@ Regex patterns will be extracted from container logs (taking first match).
         Template all URLs listed in self.extra_links.
         This pushes all URL values to xcom for values to be picked up by UI.
 
-        Args:
-            context (Context): The execution context provided by Airflow.
-        :param context: Airflow Context dict wi1th values to apply on content
-        :param jinja_env: jinja’s environment to use for rendering.
+        :param context: Airflow Context dict with values to apply on content.
+        :param jinja_env: Jinja environment to use for rendering.
         """
         if jinja_env is None:
             jinja_env = jinja2.Environment()
