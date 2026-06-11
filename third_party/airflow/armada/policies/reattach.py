@@ -1,7 +1,8 @@
 from typing import Literal
-from airflow.utils.context import Context
 
 from armada_client.typings import JobState
+
+from .._compat import Context
 
 
 def external_job_uri(context: Context) -> str:
