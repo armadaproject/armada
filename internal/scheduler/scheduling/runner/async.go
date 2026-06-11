@@ -24,25 +24,10 @@ const (
 )
 
 // asyncSchedulingRunner runs the algorithm on a background goroutine
-// following the "combined runner" pattern (see experiment/combined_runner.go):
-// the goroutine schedules against an isolated dry-run jobDb txn, and the
-// caller pulls + reconciles the pending result via GetSchedulerResult and
-// kicks the next run via Trigger.
-//
-// Concurrency model: all lifecycle state (state, result, cancelFn, runDone)
-// lives under mu. The wake channel is a pure signal — it carries no meaning;
-// the goroutine reads state under mu after each wake. This makes Trigger and
-// Reset atomic with respect to the goroutine's own transitions, eliminating
-// any race window between "goroutine has consumed a trigger" and "goroutine
-// has registered as in-flight".
-//
-// Rules:
-//   - Trigger is dropped if state != idle or a result is pending.
-//   - A new run will not start until the previous result has been taken.
-//   - Trigger must be called after the caller commits its txn so the next
-//     run's dry-run txn includes the reconciled decisions.
-//
-
+//   - The goroutine schedules against an isolated dry-run jobDb txn
+//   - The caller must call trigger to kick off scheduling, otherwise no result will ever be presented via GetSchedulerResult
+//   - Trigger must be called after the caller commits its txn so the next run's dry-run txn includes the reconciled decisions
+//   - The runner is not thread-safe and must be used with a single goroutine
 type asyncSchedulingRunner struct {
 	schedulingAlgo scheduling.SchedulingAlgo
 	jobDb          *jobdb.JobDb
@@ -381,4 +366,9 @@ func isQueuedJobActionable(job *jobdb.Job) bool {
 
 func isJobActionable(job *jobdb.Job) bool {
 	return job != nil && !job.InTerminalState()
+}
+
+type gangKey struct {
+	queue  string
+	gangId string
 }
