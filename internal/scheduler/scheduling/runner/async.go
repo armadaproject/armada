@@ -87,6 +87,14 @@ func (r *asyncSchedulingRunner) Trigger() {
 	}
 }
 
+func (r *asyncSchedulingRunner) resetResult() {
+	if r.state != resultReady {
+		return
+	}
+	r.state = idle
+	r.result = nil
+}
+
 // Reset discards any pending result, cancels any in-flight Schedule call,
 // and blocks until that call has returned. After Reset returns, the next
 // Trigger starts a fresh run.
@@ -98,8 +106,7 @@ func (r *asyncSchedulingRunner) Reset() {
 	}
 
 	if r.state == resultReady {
-		r.result = nil
-		r.state = idle
+		r.resetResult()
 		r.mu.Unlock()
 		return
 	}
@@ -118,16 +125,12 @@ func (r *asyncSchedulingRunner) Reset() {
 func (r *asyncSchedulingRunner) GetSchedulerResult(ctx *armadacontext.Context, txn *jobdb.Txn) (*scheduling.SchedulerResult, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if r.state == disabled {
+	if r.state != resultReady {
 		return nil, nil
 	}
 
 	res := r.result
-	r.result = nil
-	if res == nil {
-		return nil, nil
-	}
-	r.state = idle
+	r.resetResult()
 
 	if res.err != nil {
 		return nil, res.err
