@@ -352,14 +352,14 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	// Schedule jobs.
 	if shouldSchedule {
 		start := time.Now()
-		resourceUnits, err := s.updateJobPrices(ctx, txn)
+		err := s.updateJobPrices(ctx, txn)
 		if err != nil {
 			return err
 		}
 		ctx.Logger().Infof("updating job prices in %s", time.Now().Sub(start))
 
 		var result *scheduling.SchedulerResult
-		result, err = s.schedulingAlgo.Schedule(ctx, resourceUnits, txn)
+		result, err = s.schedulingAlgo.Schedule(ctx, txn)
 		if err != nil {
 			return err
 		}
@@ -521,16 +521,16 @@ func (s *Scheduler) syncState(ctx *armadacontext.Context, initial, fullJobGc boo
 
 // TODO - This is highly inefficient and will only work if market driven pools are small
 // We should rewrite how bids are stored in an efficient manner
-func (s *Scheduler) updateJobPrices(ctx *armadacontext.Context, txn *jobdb.Txn) (map[string]internaltypes.ResourceList, error) {
+func (s *Scheduler) updateJobPrices(ctx *armadacontext.Context, txn *jobdb.Txn) error {
 	if len(s.marketDrivenPools) == 0 {
-		return nil, nil
+		return nil
 	}
 
 	jobs := txn.GetAll()
 	jobsByQueue := map[string]map[bidstore.PriceBand][]*jobdb.Job{}
 	updatedBids, err := s.bidPriceProvider.GetBidPrices(ctx)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	hasMarketDrivenPool := func(j *jobdb.Job) bool {
@@ -572,13 +572,13 @@ func (s *Scheduler) updateJobPrices(ctx *armadacontext.Context, txn *jobdb.Txn) 
 	ctx.Logger().Infof("updating the prices of %d jobs", len(updatedJobs))
 	err = txn.Upsert(updatedJobs)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	err = txn.SetBidPriceSnapshot(&updatedBids)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	return updatedBids.ResourceUnits, nil
+	return nil
 }
 
 func (s *Scheduler) createSchedulingInfoWithNodeAntiAffinityForAttemptedRuns(job *jobdb.Job) (*internaltypes.JobSchedulingInfo, error) {
