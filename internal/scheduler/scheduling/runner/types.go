@@ -2,7 +2,6 @@ package runner
 
 import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
-	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling"
 )
@@ -18,7 +17,7 @@ type SchedulingRunner interface {
 	// GetSchedulerResult
 	// Applies the result of the current scheduling cycle to the provided txn.
 	// If no scheduling result is ready (for async runners), nil will be returned.
-	GetSchedulerResult(ctx *armadacontext.Context, resourceUnits map[string]internaltypes.ResourceList, txn *jobdb.Txn) (*scheduling.SchedulerResult, error)
+	GetSchedulerResult(ctx *armadacontext.Context, txn *jobdb.Txn) (*scheduling.SchedulerResult, error)
 
 	// IsAsync reports whether scheduling runs on a background goroutine.
 	IsAsync() bool

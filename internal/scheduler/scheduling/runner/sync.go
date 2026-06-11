@@ -2,7 +2,6 @@ package runner
 
 import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
-	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling"
 )
@@ -17,8 +16,8 @@ func NewSyncSchedulingRunner(schedulingAlgo scheduling.SchedulingAlgo) Schedulin
 
 func (r *syncSchedulingRunner) Trigger() {}
 
-func (r *syncSchedulingRunner) GetSchedulerResult(ctx *armadacontext.Context, resourceUnits map[string]internaltypes.ResourceList, txn *jobdb.Txn) (*scheduling.SchedulerResult, error) {
-	return r.schedulingAlgo.Schedule(ctx, resourceUnits, txn)
+func (r *syncSchedulingRunner) GetSchedulerResult(ctx *armadacontext.Context, txn *jobdb.Txn) (*scheduling.SchedulerResult, error) {
+	return r.schedulingAlgo.Schedule(ctx, txn)
 }
 
 func (r *syncSchedulingRunner) IsAsync() bool { return false }

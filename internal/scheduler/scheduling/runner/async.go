@@ -9,7 +9,6 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	log "github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/slices"
-	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/scheduling/context"
@@ -88,7 +87,7 @@ func (r *asyncSchedulingRunner) Trigger() {
 	}
 }
 
-func (r *asyncSchedulingRunner) GetSchedulerResult(ctx *armadacontext.Context, _ map[string]internaltypes.ResourceList, txn *jobdb.Txn) (*scheduling.SchedulerResult, error) {
+func (r *asyncSchedulingRunner) GetSchedulerResult(ctx *armadacontext.Context, txn *jobdb.Txn) (*scheduling.SchedulerResult, error) {
 	r.mu.Lock()
 	res := r.result
 	r.result = nil
@@ -190,9 +189,8 @@ func (r *asyncSchedulingRunner) run(ctx *armadacontext.Context) {
 		r.mu.Unlock()
 
 		txn := r.jobDb.DryRunTxn()
-		// TODO pass resource units from jobdb
 		log.Info("async scheduling cycle started")
-		result, err := r.schedulingAlgo.Schedule(runCtx, nil, txn)
+		result, err := r.schedulingAlgo.Schedule(runCtx, txn)
 
 		r.mu.Lock()
 		// If r.cancelFn is still our cancel, Reset hasn't fired and this is
