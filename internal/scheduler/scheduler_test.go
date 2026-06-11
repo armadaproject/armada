@@ -1389,7 +1389,7 @@ func (a *asyncTestSchedulingAlgo) calls() int {
 	return a.callCount
 }
 
-func (a *asyncTestSchedulingAlgo) Schedule(_ *armadacontext.Context, _ map[string]internaltypes.ResourceList, txn *jobdb.Txn) (*scheduling.SchedulerResult, error) {
+func (a *asyncTestSchedulingAlgo) Schedule(_ *armadacontext.Context, txn *jobdb.Txn) (*scheduling.SchedulerResult, error) {
 	a.mu.Lock()
 	a.callCount++
 	a.mu.Unlock()
