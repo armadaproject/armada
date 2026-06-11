@@ -425,7 +425,12 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 
 		if s.runner.IsAsync() {
 			ctx.Infof("async scheduling completed in %s", schedulerResult.GetDuration())
+			// TODO on error, duration will be empty
 			s.metrics.ReportScheduleCycleTime(schedulerResult.GetDuration())
+			// TODO: `err` here reflects the consume/reconcile/publish cycle, not the
+			// async scheduling run itself — a failed run is surfaced earlier via
+			// GetSchedulerResult returning an error (early return), so this only ever
+			// sees success. Report the actual scheduling outcome once metrics are reworked.
 			s.metrics.ReportScheduleCycleOutcome(err == nil)
 		}
 	}

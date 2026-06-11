@@ -299,20 +299,24 @@ func (r *asyncSchedulingRunner) run(ctx *armadacontext.Context) {
 // dropping decisions that are no longer valid (e.g. job no longer queued, preempted job was cancelled etc)
 func (r *asyncSchedulingRunner) reconcile(ctx *armadacontext.Context, txn *jobdb.Txn, result *SchedulerResult) (*SchedulerResult, error) {
 	for _, poolResult := range result.PoolResults {
-		err := r.updateScheduledJobs(ctx, txn, poolResult)
-		if err != nil {
-			return nil, err
+		if poolResult.SchedulingResult != nil {
+			err := r.updateScheduledJobs(ctx, txn, poolResult)
+			if err != nil {
+				return nil, err
+			}
+
+			err = r.updatePreemptedJobs(ctx, txn, poolResult)
+			if err != nil {
+				return nil, err
+			}
+
+			// The demand will have changed if jobs were removed, recalculate shares
+			poolResult.SchedulingResult.SchedulingContext.UpdateFairShares()
 		}
 
-		err = r.updatePreemptedJobs(ctx, txn, poolResult)
-		if err != nil {
-			return nil, err
+		if poolResult.ReconciliationResult != nil {
+			r.updateReconciliationResult(ctx, txn, poolResult)
 		}
-
-		// The demand will have changed if jobs were removed, recalculate shares
-		poolResult.SchedulingResult.SchedulingContext.UpdateFairShares()
-
-		r.updateReconciliationResult(ctx, txn, poolResult)
 	}
 
 	return result, nil
@@ -387,6 +391,7 @@ func (r *asyncSchedulingRunner) updateScheduledJobs(ctx *armadacontext.Context, 
 				}
 
 			}
+			poolResult.SchedulingResult.SchedulingContext.NumScheduledGangs--
 		}
 	}
 	ctx.Infof("scheduler result reconciler removed %d jobs that would have been scheduled", len(poolResult.SchedulingResult.ScheduledJobs)-len(scheduledJobs))

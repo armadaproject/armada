@@ -12,6 +12,8 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
+	schedulercontext "github.com/armadaproject/armada/internal/scheduler/scheduling/context"
+	"github.com/armadaproject/armada/internal/scheduler/scheduling/fairness"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 )
 
@@ -145,8 +147,7 @@ func TestAsyncSchedulingRunner_GetSchedulerResultBeforeAnyRunReturnsEmpty(t *tes
 
 	got, err := runner.GetSchedulerResult(armadacontext.Background(), nil, txn)
 	require.NoError(t, err)
-	assert.NotNil(t, got)
-	assert.Equal(t, &SchedulerResult{}, got)
+	assert.Nil(t, got, "no run has completed, so no result should be returned")
 	assert.Equal(t, 0, algo.calls(), "algo should not be invoked from GetSchedulerResult in async mode")
 }
 
@@ -191,7 +192,7 @@ func TestAsyncSchedulingRunner_GetSchedulerResultClearsPendingResult(t *testing.
 	// Second call (without another Trigger) sees no pending result.
 	got, err := runner.GetSchedulerResult(armadacontext.Background(), nil, txn)
 	require.NoError(t, err)
-	assert.Equal(t, &SchedulerResult{}, got)
+	assert.Nil(t, got)
 }
 
 func TestAsyncSchedulingRunner_BackPressureDropsTriggersWhileResultPending(t *testing.T) {
@@ -246,7 +247,7 @@ func TestAsyncSchedulingRunner_AlgoErrorPropagatedAndCleared(t *testing.T) {
 	// Error result is cleared — second call returns empty / no error.
 	got, err := runner.GetSchedulerResult(armadacontext.Background(), nil, txn)
 	require.NoError(t, err)
-	assert.Equal(t, &SchedulerResult{}, got)
+	assert.Nil(t, got)
 }
 
 func TestAsyncSchedulingRunner_AlgoReceivesDryRunTxnNotCallerTxn(t *testing.T) {
@@ -323,12 +324,12 @@ func TestAsyncSchedulingRunner_ResetClearsPendingResult(t *testing.T) {
 
 	runner.Reset()
 
-	// Result should have been discarded — GetSchedulerResult returns empty.
+	// Result should have been discarded — GetSchedulerResult returns nothing.
 	txn := jobDb.WriteTxn()
 	defer txn.Abort()
 	got, err := runner.GetSchedulerResult(armadacontext.Background(), nil, txn)
 	require.NoError(t, err)
-	assert.Equal(t, &SchedulerResult{}, got)
+	assert.Nil(t, got)
 }
 
 func TestAsyncSchedulingRunner_ResetCancelsInflightAndBlocks(t *testing.T) {
@@ -363,7 +364,7 @@ func TestAsyncSchedulingRunner_ResetCancelsInflightAndBlocks(t *testing.T) {
 	defer txn.Abort()
 	got, err := runner.GetSchedulerResult(armadacontext.Background(), nil, txn)
 	require.NoError(t, err)
-	assert.Equal(t, &SchedulerResult{}, got)
+	assert.Nil(t, got)
 }
 
 func TestAsyncSchedulingRunner_FunctionalAfterReset(t *testing.T) {
@@ -387,4 +388,239 @@ func TestAsyncSchedulingRunner_FunctionalAfterReset(t *testing.T) {
 	got, err := runner.GetSchedulerResult(armadacontext.Background(), nil, txn)
 	require.NoError(t, err)
 	assert.NotNil(t, got)
+}
+
+// --- reconcile -------------------------------------------------------------
+//
+// The reconcile helpers re-validate an async scheduling result against the
+// current jobDb state, dropping decisions that have gone stale since the
+// background run produced them. The helpers are independent of the runner's
+// lifecycle state, so they're exercised against a bare runner.
+
+const reconcileTestPool = "testPool"
+
+// jobState describes the state a job should be in within the "current" txn
+// that reconcile validates against.
+type jobState int
+
+const (
+	// queued: still queued, not terminal — a scheduled decision is still valid.
+	jobStateQueued jobState = iota
+	// leased: no longer queued (already running) — a scheduled decision is stale.
+	jobStateLeased
+	// terminal: succeeded — any decision is stale.
+	jobStateTerminal
+)
+
+// inState returns a copy of job transitioned into the requested state. It
+// represents how the job looks in the "current" txn that reconcile validates
+// against. The id is preserved so the txn lookup inside reconcile resolves to it.
+func inState(job *jobdb.Job, state jobState) *jobdb.Job {
+	switch state {
+	case jobStateQueued:
+		return job.WithQueued(true)
+	case jobStateLeased:
+		return job.WithQueued(false).WithNewRun("executor", "node", "node", reconcileTestPool, 0)
+	case jobStateTerminal:
+		return job.WithQueued(false).WithSucceeded(true)
+	default:
+		panic("unknown job state")
+	}
+}
+
+// reconcileSctx builds a SchedulingContext for the test queue with the
+// supplied jobs added as successfully scheduled.
+func reconcileSctx(t *testing.T, scheduledJobs ...*jobdb.Job) *schedulercontext.SchedulingContext {
+	t.Helper()
+	totalResources := testfixtures.TestResourceListFactory.MakeAllZero()
+	fairnessCostProvider, err := fairness.NewDominantResourceFairness(totalResources, reconcileTestPool, testfixtures.TestSchedulingConfig())
+	require.NoError(t, err)
+	sctx := schedulercontext.NewSchedulingContext(reconcileTestPool, fairnessCostProvider, nil, totalResources)
+	err = sctx.AddQueueSchedulingContext(testfixtures.TestQueue, 1.0, 1.0, nil, internaltypes.ResourceList{}, internaltypes.ResourceList{}, internaltypes.ResourceList{}, nil)
+	require.NoError(t, err)
+	for _, job := range scheduledJobs {
+		_, err := sctx.AddJobSchedulingContext(schedulercontext.JobSchedulingContextFromJob(job))
+		require.NoError(t, err)
+	}
+	return sctx
+}
+
+// scheduledPoolResult builds a PoolSchedulingResult with the given jobs marked
+// as scheduled, backed by a fresh SchedulingContext containing them.
+func scheduledPoolResult(t *testing.T, scheduledJobs ...*jobdb.Job) *PoolSchedulingResult {
+	t.Helper()
+	return &PoolSchedulingResult{
+		SchedulingResult: &SchedulingResult{
+			ScheduledJobs:     jctxsFor(scheduledJobs...),
+			SchedulingContext: reconcileSctx(t, scheduledJobs...),
+		},
+	}
+}
+
+// txnWithJobs returns a jobDb txn containing the given jobs.
+func txnWithJobs(jobs ...*jobdb.Job) *jobdb.Txn {
+	return testfixtures.NewJobDbWithJobs(jobs).WriteTxn()
+}
+
+func jctxsFor(jobs ...*jobdb.Job) []*schedulercontext.JobSchedulingContext {
+	return schedulercontext.JobSchedulingContextsFromJobs(jobs)
+}
+
+// queuedJobs returns n queued jobs in the test queue, optionally bound together
+// as a single gang.
+func queuedJobs(n int, gang bool) []*jobdb.Job {
+	jobs := make([]*jobdb.Job, n)
+	for i := range jobs {
+		jobs[i] = testfixtures.Test1Cpu4GiJob(testfixtures.TestQueue, testfixtures.TestDefaultPriorityClass).WithQueued(true)
+	}
+	if gang {
+		jobs = testfixtures.WithGangJobDetails(jobs, "gang-1", n, "")
+	}
+	return jobs
+}
+
+func TestReconcile_UpdateScheduledJobs(t *testing.T) {
+	tests := map[string]struct {
+		gang bool
+		// currentStates is the state of each scheduled job in the "current"
+		// txn, in order. Its length is the number of jobs scheduled.
+		currentStates []jobState
+		expectKept    int
+	}{
+		"non-gang still queued is kept":    {currentStates: []jobState{jobStateQueued}, expectKept: 1},
+		"non-gang now leased is dropped":   {currentStates: []jobState{jobStateLeased}, expectKept: 0},
+		"non-gang now terminal is dropped": {currentStates: []jobState{jobStateTerminal}, expectKept: 0},
+		"gang all still queued keeps whole gang": {
+			gang: true, currentStates: []jobState{jobStateQueued, jobStateQueued}, expectKept: 2,
+		},
+		"gang one member not actionable drops whole gang": {
+			gang: true, currentStates: []jobState{jobStateQueued, jobStateTerminal}, expectKept: 0,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			scheduledJobs := queuedJobs(len(tc.currentStates), tc.gang)
+			poolResult := scheduledPoolResult(t, scheduledJobs...)
+
+			currentJobs := make([]*jobdb.Job, len(scheduledJobs))
+			for i, job := range scheduledJobs {
+				currentJobs[i] = inState(job, tc.currentStates[i])
+			}
+			txn := txnWithJobs(currentJobs...)
+
+			r := &asyncSchedulingRunner{}
+			require.NoError(t, r.updateScheduledJobs(armadacontext.Background(), txn, poolResult))
+
+			assert.Len(t, poolResult.SchedulingResult.ScheduledJobs, tc.expectKept)
+		})
+	}
+}
+
+func TestReconcile_UpdatePreemptedJobs(t *testing.T) {
+	tests := map[string]struct {
+		currentState         jobState
+		expectStillPreempted bool
+	}{
+		"still leased is kept":    {currentState: jobStateLeased, expectStillPreempted: true},
+		"now terminal is dropped": {currentState: jobStateTerminal, expectStillPreempted: false},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			// A preempted job is one that was running; model it as leased in the result's sctx.
+			preemptedJob := testfixtures.Test1Cpu4GiJob(testfixtures.TestQueue, testfixtures.TestDefaultPriorityClass).
+				WithQueued(false).WithNewRun("executor", "node", "node", reconcileTestPool, 0)
+			jctx := schedulercontext.JobSchedulingContextFromJob(preemptedJob)
+			poolResult := &PoolSchedulingResult{
+				SchedulingResult: &SchedulingResult{
+					PreemptedJobs:     []*schedulercontext.JobSchedulingContext{jctx},
+					SchedulingContext: reconcileSctx(t, preemptedJob),
+					AdditionalSchedulingInfo: &SchedulingInformation{
+						EvictorResult: &EvictorResult{
+							EvictedJctxsByJobId: map[string]*schedulercontext.JobSchedulingContext{preemptedJob.Id(): jctx},
+						},
+					},
+				},
+			}
+			txn := txnWithJobs(inState(preemptedJob, tc.currentState))
+
+			r := &asyncSchedulingRunner{}
+			err := r.updatePreemptedJobs(armadacontext.Background(), txn, poolResult)
+			require.NoError(t, err)
+
+			if tc.expectStillPreempted {
+				assert.Len(t, poolResult.SchedulingResult.PreemptedJobs, 1)
+			} else {
+				assert.Empty(t, poolResult.SchedulingResult.PreemptedJobs)
+				_, stillEvicted := poolResult.SchedulingResult.AdditionalSchedulingInfo.EvictorResult.EvictedJctxsByJobId[preemptedJob.Id()]
+				assert.False(t, stillEvicted, "stale preemption must be removed from the evictor result")
+			}
+		})
+	}
+}
+
+func TestReconcile_UpdateReconciliationResult(t *testing.T) {
+	tests := map[string]struct {
+		currentState jobState
+		expectKept   bool
+	}{
+		"actionable job is kept":  {currentState: jobStateLeased, expectKept: true},
+		"terminal job is dropped": {currentState: jobStateTerminal, expectKept: false},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			failedJob := testfixtures.Test1Cpu4GiJob(testfixtures.TestQueue, testfixtures.TestDefaultPriorityClass)
+			preemptedJob := testfixtures.Test1Cpu4GiJob(testfixtures.TestQueue, testfixtures.TestDefaultPriorityClass)
+			poolResult := &PoolSchedulingResult{
+				ReconciliationResult: &ReconciliationResult{
+					FailedJobs:    []*FailedReconciliationResult{{Job: failedJob, Reason: "failed"}},
+					PreemptedJobs: []*FailedReconciliationResult{{Job: preemptedJob, Reason: "preempted"}},
+				},
+			}
+			txn := txnWithJobs(
+				inState(failedJob, tc.currentState),
+				inState(preemptedJob, tc.currentState),
+			)
+
+			r := &asyncSchedulingRunner{}
+			r.updateReconciliationResult(armadacontext.Background(), txn, poolResult)
+
+			if tc.expectKept {
+				assert.Len(t, poolResult.ReconciliationResult.FailedJobs, 1)
+				assert.Len(t, poolResult.ReconciliationResult.PreemptedJobs, 1)
+			} else {
+				assert.Empty(t, poolResult.ReconciliationResult.FailedJobs)
+				assert.Empty(t, poolResult.ReconciliationResult.PreemptedJobs)
+			}
+		})
+	}
+}
+
+// TestReconcile_PoolWithNilSchedulingResult covers errored or scheduling-disabled
+// pools: runPoolSchedulingRound leaves SchedulingResult nil for those, but their
+// ReconciliationResult is still populated and must be reconciled. reconcile must
+// skip the scheduling-decision steps (which dereference SchedulingResult) without
+// panicking, while still filtering the reconciliation decisions.
+func TestReconcile_PoolWithNilSchedulingResult(t *testing.T) {
+	failedJob := testfixtures.Test1Cpu4GiJob(testfixtures.TestQueue, testfixtures.TestDefaultPriorityClass)
+	result := &SchedulerResult{
+		PoolResults: []*PoolSchedulingResult{
+			{
+				Name:             reconcileTestPool,
+				SchedulingResult: nil, // errored / disabled pool
+				ReconciliationResult: &ReconciliationResult{
+					FailedJobs:    []*FailedReconciliationResult{{Job: failedJob, Reason: "failed"}},
+					PreemptedJobs: []*FailedReconciliationResult{},
+				},
+			},
+		},
+	}
+	// Job is terminal in the current txn, so the reconciliation decision is stale.
+	txn := txnWithJobs(inState(failedJob, jobStateTerminal))
+
+	r := &asyncSchedulingRunner{}
+	got, err := r.reconcile(armadacontext.Background(), txn, result)
+	require.NoError(t, err)
+	require.Same(t, result, got)
+	assert.Empty(t, result.PoolResults[0].ReconciliationResult.FailedJobs,
+		"stale reconciliation decision should be dropped even on a pool with no SchedulingResult")
 }

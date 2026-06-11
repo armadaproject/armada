@@ -35,6 +35,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/scheduling/context"
+	"github.com/armadaproject/armada/internal/scheduler/scheduling/fairness"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 	"github.com/armadaproject/armada/internal/scheduleringester"
 	"github.com/armadaproject/armada/pkg/api"
@@ -1298,6 +1299,120 @@ func TestScheduler_NonLeaderAdvancesCursors(t *testing.T) {
 
 	assert.Equal(t, int64(1), sched.runsSerial, "non-leader cycle must advance runsSerial to consume the run update")
 	assert.Empty(t, publisher.eventSequences, "non-leader must not publish any events")
+}
+
+// TestScheduler_AsyncRunnerSchedulesAJob is a minimal end-to-end check that the
+// async runner is wired into the scheduler correctly. With async scheduling the
+// result is produced on a background goroutine, so the first cycle only triggers
+// a run (no decisions yet); a later cycle consumes the result and leases the job.
+func TestScheduler_AsyncRunnerSchedulesAJob(t *testing.T) {
+	jobRepo := &testJobRepository{}
+	testClock := clock.NewFakeClock(time.Now())
+	clusterRepo := &testExecutorRepository{
+		updateTimes: map[string]time.Time{"testExecutor": testClock.Now()},
+	}
+	publisher := newTestPublisher()
+	algo := &asyncTestSchedulingAlgo{jobToLease: queuedJob.Id()}
+
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
+	defer cancel()
+
+	jobDb := testfixtures.NewJobDb(testfixtures.TestResourceListFactory)
+	sched, err := NewScheduler(
+		jobDb,
+		jobRepo,
+		clusterRepo,
+		scheduling.NewAsyncSchedulingRunner(ctx, algo, jobDb),
+		leaderelection.NewStandaloneLeaderController(),
+		publisher,
+		&testSubmitChecker{checkSuccess: true},
+		&testGangValidator{validateSuccess: true},
+		1*time.Second,
+		5*time.Second,
+		1*time.Hour,
+		nil,
+		maxNumberOfAttempts,
+		nodeIdLabel,
+		schedulerMetrics,
+		pricing.NoopBidPriceProvider{},
+		[]string{},
+		&testQueueCache{},
+	)
+	require.NoError(t, err)
+	sched.clock = testClock
+
+	txn := sched.jobDb.WriteTxn()
+	require.NoError(t, txn.Upsert([]*jobdb.Job{queuedJob}))
+	txn.Commit()
+
+	leasedEventType := fmt.Sprintf("%T", &armadaevents.EventSequence_Event_JobRunLeased{})
+
+	// First cycle: kicks off the background run. No result is ready yet, so no
+	// lease should be published.
+	require.NoError(t, sched.cycle(ctx, false, sched.leaderController.GetToken(), true, 1))
+	assert.Empty(t, publisher.eventSequences, "no decisions should be published before the background run completes")
+
+	// Wait for the background run triggered by the first cycle to produce a result.
+	require.Eventually(t, func() bool {
+		return algo.calls() > 0
+	}, 2*time.Second, 5*time.Millisecond, "expected the async runner to invoke the scheduling algo")
+
+	// Second cycle: consumes the pending result and leases the job.
+	require.NoError(t, sched.cycle(ctx, false, sched.leaderController.GetToken(), true, 2))
+
+	outstanding := map[string]map[string]eventDetails{
+		leasedEventType: stringsToSetWithEventDetails([]string{queuedJob.Id()}),
+	}
+	require.NoError(t, subtractEventsFromOutstandingEventsByType(publisher.eventSequences, outstanding))
+	assert.Empty(t, outstanding[leasedEventType], "expected a JobRunLeased event for job %s after the async result was consumed", queuedJob.Id())
+}
+
+// asyncTestSchedulingAlgo leases a single queued job and returns a result with a
+// fully-populated SchedulingContext, which the async reconcile path requires
+// (it calls UpdateFairShares on the context).
+type asyncTestSchedulingAlgo struct {
+	mu         sync.Mutex
+	callCount  int
+	jobToLease string
+}
+
+func (a *asyncTestSchedulingAlgo) calls() int {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.callCount
+}
+
+func (a *asyncTestSchedulingAlgo) Schedule(_ *armadacontext.Context, _ map[string]internaltypes.ResourceList, txn *jobdb.Txn) (*scheduling.SchedulerResult, error) {
+	a.mu.Lock()
+	a.callCount++
+	a.mu.Unlock()
+
+	job := txn.GetById(a.jobToLease)
+	if job == nil || !job.Queued() {
+		// Nothing to do (e.g. the decision has already been applied).
+		return &scheduling.SchedulerResult{}, nil
+	}
+	leased := job.WithQueuedVersion(job.QueuedVersion()+1).WithQueued(false).WithNewRun(
+		testExecutor, testNodeId, testNode, testPool, job.PriorityClass().Priority,
+	)
+	if err := txn.Upsert([]*jobdb.Job{leased}); err != nil {
+		return nil, err
+	}
+
+	totalResources := testfixtures.TestResourceListFactory.MakeAllZero()
+	fairnessCostProvider, err := fairness.NewDominantResourceFairness(totalResources, testPool, testfixtures.TestSchedulingConfig())
+	if err != nil {
+		return nil, err
+	}
+	sctx := schedulercontext.NewSchedulingContext(testPool, fairnessCostProvider, nil, totalResources)
+	if err := sctx.AddQueueSchedulingContext(leased.Queue(), 1.0, 1.0, nil, internaltypes.ResourceList{}, internaltypes.ResourceList{}, internaltypes.ResourceList{}, nil); err != nil {
+		return nil, err
+	}
+
+	// reconcile calls UpdateFairShares on the SchedulingContext, so it must be populated.
+	result := NewSchedulerResultForTest[[]*jobdb.Job](nil, []*jobdb.Job{leased}, nil, nil)
+	result.PoolResults[0].SchedulingResult.SchedulingContext = sctx
+	return result, nil
 }
 
 func createAntiAffinity(t *testing.T, key string, values []string) *v1.Affinity {
