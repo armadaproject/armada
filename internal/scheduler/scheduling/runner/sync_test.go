@@ -8,7 +8,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
-	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
@@ -20,7 +19,7 @@ type fakeSchedulingAlgo struct {
 	err       error
 }
 
-func (f *fakeSchedulingAlgo) Schedule(_ *armadacontext.Context, _ map[string]internaltypes.ResourceList, txn *jobdb.Txn) (*scheduling.SchedulerResult, error) {
+func (f *fakeSchedulingAlgo) Schedule(_ *armadacontext.Context, txn *jobdb.Txn) (*scheduling.SchedulerResult, error) {
 	f.callCount++
 	return f.result, f.err
 }
@@ -38,7 +37,7 @@ func TestSyncSchedulingRunner_GetSchedulerResultDelegatesToAlgo(t *testing.T) {
 	txn := jobDb.WriteTxn()
 	defer txn.Abort()
 
-	result, err := runner.GetSchedulerResult(armadacontext.Background(), nil, txn)
+	result, err := runner.GetSchedulerResult(armadacontext.Background(), txn)
 	require.NoError(t, err)
 	assert.Same(t, expectedResult, result)
 	assert.Equal(t, 1, algo.calls())
@@ -53,7 +52,7 @@ func TestSyncSchedulingRunner_GetSchedulerResultPropagatesError(t *testing.T) {
 	txn := jobDb.WriteTxn()
 	defer txn.Abort()
 
-	_, err := runner.GetSchedulerResult(armadacontext.Background(), nil, txn)
+	_, err := runner.GetSchedulerResult(armadacontext.Background(), txn)
 	assert.ErrorIs(t, err, expectedError)
 }
 

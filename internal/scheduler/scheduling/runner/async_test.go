@@ -31,7 +31,7 @@ func waitForResult(t *testing.T, runner SchedulingRunner, txn *jobdb.Txn) (*sche
 
 	// Wait for max of 5 seconds, sleeping 50ms between checks
 	for i := 0; i < 100; i++ {
-		result, err := runner.GetSchedulerResult(armadacontext.Background(), nil, txn)
+		result, err := runner.GetSchedulerResult(armadacontext.Background(), txn)
 		if result != nil || err != nil {
 			return result, err, false
 		}
@@ -53,7 +53,7 @@ func TestAsyncSchedulingRunner_GetSchedulerResult_ReturnsEmptyIfNoResultReady(t 
 	txn := jobDb.WriteTxn()
 	defer txn.Abort()
 
-	result, err := runner.GetSchedulerResult(armadacontext.Background(), nil, txn)
+	result, err := runner.GetSchedulerResult(armadacontext.Background(), txn)
 	require.NoError(t, err)
 	assert.Nil(t, result)
 	assert.Equal(t, 0, algo.calls())
@@ -96,12 +96,12 @@ func TestAsyncSchedulingRunner_GetSchedulerResult_ClearsPendingResult(t *testing
 	defer txn.Abort()
 
 	// First call drains the result.
-	result, err := runner.GetSchedulerResult(armadacontext.Background(), nil, txn)
+	result, err := runner.GetSchedulerResult(armadacontext.Background(), txn)
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
 
 	// Second call (without another Trigger) sees no pending result.
-	result, err = runner.GetSchedulerResult(armadacontext.Background(), nil, txn)
+	result, err = runner.GetSchedulerResult(armadacontext.Background(), txn)
 	assert.NoError(t, err)
 	assert.Nil(t, result)
 }
@@ -127,7 +127,7 @@ func TestAsyncSchedulingRunner_BackPressureDropsTriggersWhileResultPending(t *te
 
 	// Drain the result and trigger again — now a fresh run should happen.
 	txn := jobDb.WriteTxn()
-	_, err := runner.GetSchedulerResult(armadacontext.Background(), nil, txn)
+	_, err := runner.GetSchedulerResult(armadacontext.Background(), txn)
 	require.NoError(t, err)
 
 	runner.Trigger()
@@ -150,11 +150,11 @@ func TestAsyncSchedulingRunner_AlgoErrorPropagatedAndCleared(t *testing.T) {
 	txn := jobDb.WriteTxn()
 	defer txn.Abort()
 
-	_, err := runner.GetSchedulerResult(armadacontext.Background(), nil, txn)
+	_, err := runner.GetSchedulerResult(armadacontext.Background(), txn)
 	assert.ErrorIs(t, err, wantErr)
 
 	// Error result is cleared — second call returns empty / no error.
-	got, err := runner.GetSchedulerResult(armadacontext.Background(), nil, txn)
+	got, err := runner.GetSchedulerResult(armadacontext.Background(), txn)
 	require.NoError(t, err)
 	assert.Nil(t, got)
 }
@@ -173,7 +173,7 @@ func TestAsyncSchedulingRunner_ContextCancellation_StopsGoroutine(t *testing.T) 
 	// Drain so a subsequent Trigger isn't dropped by back-pressure.
 	txn := jobDb.WriteTxn()
 	defer txn.Abort()
-	_, err := runner.GetSchedulerResult(armadacontext.Background(), nil, txn)
+	_, err := runner.GetSchedulerResult(armadacontext.Background(), txn)
 	require.NoError(t, err)
 
 	cancel()
@@ -214,7 +214,7 @@ func TestAsyncSchedulingRunner_Reset_ClearsPendingResult(t *testing.T) {
 	// Result should have been discarded — GetSchedulerResult returns nothing.
 	txn := jobDb.WriteTxn()
 
-	result, err := runner.GetSchedulerResult(armadacontext.Background(), nil, txn)
+	result, err := runner.GetSchedulerResult(armadacontext.Background(), txn)
 	require.NoError(t, err)
 	assert.Nil(t, result)
 }
@@ -245,7 +245,7 @@ func TestAsyncSchedulingRunner_Reset_CancelsInflightAndBlocks(t *testing.T) {
 	// Result from the cancelled run must NOT be available.
 	txn := jobDb.WriteTxn()
 	defer txn.Abort()
-	got, err := runner.GetSchedulerResult(armadacontext.Background(), nil, txn)
+	got, err := runner.GetSchedulerResult(armadacontext.Background(), txn)
 	require.NoError(t, err)
 	assert.Nil(t, got)
 }
@@ -268,7 +268,7 @@ func TestAsyncSchedulingRunner_FunctionalAfterReset(t *testing.T) {
 
 	txn := jobDb.WriteTxn()
 	defer txn.Abort()
-	got, err := runner.GetSchedulerResult(armadacontext.Background(), nil, txn)
+	got, err := runner.GetSchedulerResult(armadacontext.Background(), txn)
 	require.NoError(t, err)
 	assert.NotNil(t, got)
 }
@@ -513,7 +513,7 @@ type blockingSchedulingAlgo struct {
 	finished chan struct{} // closed after Schedule returns
 }
 
-func (b *blockingSchedulingAlgo) Schedule(ctx *armadacontext.Context, _ map[string]internaltypes.ResourceList, _ *jobdb.Txn) (*scheduling.SchedulerResult, error) {
+func (b *blockingSchedulingAlgo) Schedule(ctx *armadacontext.Context, _ *jobdb.Txn) (*scheduling.SchedulerResult, error) {
 	close(b.started)
 	<-ctx.Done()
 	close(b.finished)
