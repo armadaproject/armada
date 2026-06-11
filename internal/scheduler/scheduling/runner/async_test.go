@@ -1,8 +1,7 @@
-package scheduling
+package runner
 
 import (
 	"errors"
-	"sync"
 	"testing"
 	"time"
 
@@ -12,115 +11,11 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
+	"github.com/armadaproject/armada/internal/scheduler/scheduling"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/fairness"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 )
-
-// fakeSchedulingAlgo records the arguments it was called with and returns
-// configured result/error. An optional onSchedule hook lets tests block or
-// signal mid-call.
-type fakeSchedulingAlgo struct {
-	mu             sync.Mutex
-	callCount      int
-	lastTxn        *jobdb.Txn
-	resultToReturn *SchedulerResult
-	errToReturn    error
-	onSchedule     func()
-}
-
-func (f *fakeSchedulingAlgo) Schedule(_ *armadacontext.Context, _ map[string]internaltypes.ResourceList, txn *jobdb.Txn) (*SchedulerResult, error) {
-	f.mu.Lock()
-	f.callCount++
-	f.lastTxn = txn
-	cb := f.onSchedule
-	res := f.resultToReturn
-	err := f.errToReturn
-	f.mu.Unlock()
-	if cb != nil {
-		cb()
-	}
-	return res, err
-}
-
-func (f *fakeSchedulingAlgo) calls() int {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	return f.callCount
-}
-
-// blockingSchedulingAlgo blocks inside Schedule until ctx is cancelled, then
-// sleeps briefly before returning so the test can detect whether the caller
-// of Reset waited for the in-flight run to actually return.
-type blockingSchedulingAlgo struct {
-	started  chan struct{} // closed once Schedule has been entered
-	finished chan struct{} // closed after Schedule returns
-	result   *SchedulerResult
-}
-
-func (b *blockingSchedulingAlgo) Schedule(ctx *armadacontext.Context, _ map[string]internaltypes.ResourceList, _ *jobdb.Txn) (*SchedulerResult, error) {
-	close(b.started)
-	<-ctx.Done()
-	// Simulate non-trivial cleanup work after cancellation. Reset must
-	// wait for Schedule to return, not just observe ctx cancellation.
-	time.Sleep(50 * time.Millisecond)
-	close(b.finished)
-	return nil, ctx.Err()
-}
-
-// --- syncSchedulingRunner --------------------------------------------------
-
-func TestSyncSchedulingRunner_TriggerIsNoOp(t *testing.T) {
-	algo := &fakeSchedulingAlgo{resultToReturn: &SchedulerResult{}}
-	runner := NewSyncSchedulingRunner(algo)
-
-	// Should not panic, should not invoke the algo.
-	runner.Trigger()
-	runner.Trigger()
-	assert.Equal(t, 0, algo.calls())
-}
-
-func TestSyncSchedulingRunner_GetSchedulerResultDelegatesToAlgo(t *testing.T) {
-	want := &SchedulerResult{}
-	algo := &fakeSchedulingAlgo{resultToReturn: want}
-	runner := NewSyncSchedulingRunner(algo)
-
-	jobDb := testfixtures.NewJobDb(testfixtures.TestResourceListFactory)
-	txn := jobDb.WriteTxn()
-	defer txn.Abort()
-
-	got, err := runner.GetSchedulerResult(armadacontext.Background(), nil, txn)
-	require.NoError(t, err)
-	assert.Same(t, want, got)
-	assert.Equal(t, 1, algo.calls())
-	assert.Same(t, txn, algo.lastTxn, "sync runner should pass caller's txn through to the algo")
-}
-
-func TestSyncSchedulingRunner_GetSchedulerResultPropagatesError(t *testing.T) {
-	wantErr := errors.New("boom")
-	algo := &fakeSchedulingAlgo{errToReturn: wantErr}
-	runner := NewSyncSchedulingRunner(algo)
-
-	jobDb := testfixtures.NewJobDb(testfixtures.TestResourceListFactory)
-	txn := jobDb.WriteTxn()
-	defer txn.Abort()
-
-	_, err := runner.GetSchedulerResult(armadacontext.Background(), nil, txn)
-	assert.ErrorIs(t, err, wantErr)
-}
-
-func TestSyncSchedulingRunner_IsAsyncFalse(t *testing.T) {
-	runner := NewSyncSchedulingRunner(&fakeSchedulingAlgo{})
-	assert.False(t, runner.IsAsync())
-}
-
-func TestSyncSchedulingRunner_ResetIsNoOp(t *testing.T) {
-	algo := &fakeSchedulingAlgo{resultToReturn: &SchedulerResult{}}
-	runner := NewSyncSchedulingRunner(algo)
-	// Should not panic, should not invoke the algo.
-	runner.Reset()
-	assert.Equal(t, 0, algo.calls())
-}
 
 // --- asyncSchedulingRunner -------------------------------------------------
 
@@ -134,7 +29,7 @@ func waitForCalls(t *testing.T, _ SchedulingRunner, algo *fakeSchedulingAlgo, n 
 }
 
 func TestAsyncSchedulingRunner_GetSchedulerResultBeforeAnyRunReturnsEmpty(t *testing.T) {
-	algo := &fakeSchedulingAlgo{resultToReturn: &SchedulerResult{}}
+	algo := &fakeSchedulingAlgo{resultToReturn: &scheduling.SchedulerResult{}}
 	jobDb := testfixtures.NewJobDb(testfixtures.TestResourceListFactory)
 
 	ctx, cancel := armadacontext.WithCancel(armadacontext.Background())
@@ -152,7 +47,7 @@ func TestAsyncSchedulingRunner_GetSchedulerResultBeforeAnyRunReturnsEmpty(t *tes
 }
 
 func TestAsyncSchedulingRunner_TriggerProducesResultThatGetSchedulerResultReturns(t *testing.T) {
-	want := &SchedulerResult{}
+	want := &scheduling.SchedulerResult{}
 	algo := &fakeSchedulingAlgo{resultToReturn: want}
 	jobDb := testfixtures.NewJobDb(testfixtures.TestResourceListFactory)
 
@@ -172,7 +67,7 @@ func TestAsyncSchedulingRunner_TriggerProducesResultThatGetSchedulerResultReturn
 }
 
 func TestAsyncSchedulingRunner_GetSchedulerResultClearsPendingResult(t *testing.T) {
-	algo := &fakeSchedulingAlgo{resultToReturn: &SchedulerResult{}}
+	algo := &fakeSchedulingAlgo{resultToReturn: &scheduling.SchedulerResult{}}
 	jobDb := testfixtures.NewJobDb(testfixtures.TestResourceListFactory)
 
 	ctx, cancel := armadacontext.WithCancel(armadacontext.Background())
@@ -196,7 +91,7 @@ func TestAsyncSchedulingRunner_GetSchedulerResultClearsPendingResult(t *testing.
 }
 
 func TestAsyncSchedulingRunner_BackPressureDropsTriggersWhileResultPending(t *testing.T) {
-	algo := &fakeSchedulingAlgo{resultToReturn: &SchedulerResult{}}
+	algo := &fakeSchedulingAlgo{resultToReturn: &scheduling.SchedulerResult{}}
 	jobDb := testfixtures.NewJobDb(testfixtures.TestResourceListFactory)
 
 	ctx, cancel := armadacontext.WithCancel(armadacontext.Background())
@@ -251,7 +146,7 @@ func TestAsyncSchedulingRunner_AlgoErrorPropagatedAndCleared(t *testing.T) {
 }
 
 func TestAsyncSchedulingRunner_AlgoReceivesDryRunTxnNotCallerTxn(t *testing.T) {
-	algo := &fakeSchedulingAlgo{resultToReturn: &SchedulerResult{}}
+	algo := &fakeSchedulingAlgo{resultToReturn: &scheduling.SchedulerResult{}}
 	jobDb := testfixtures.NewJobDb(testfixtures.TestResourceListFactory)
 
 	ctx, cancel := armadacontext.WithCancel(armadacontext.Background())
@@ -271,7 +166,7 @@ func TestAsyncSchedulingRunner_AlgoReceivesDryRunTxnNotCallerTxn(t *testing.T) {
 }
 
 func TestAsyncSchedulingRunner_ContextCancellationStopsGoroutine(t *testing.T) {
-	algo := &fakeSchedulingAlgo{resultToReturn: &SchedulerResult{}}
+	algo := &fakeSchedulingAlgo{resultToReturn: &scheduling.SchedulerResult{}}
 	jobDb := testfixtures.NewJobDb(testfixtures.TestResourceListFactory)
 
 	ctx, cancel := armadacontext.WithCancel(armadacontext.Background())
@@ -311,7 +206,7 @@ func TestAsyncSchedulingRunner_IsAsyncTrue(t *testing.T) {
 }
 
 func TestAsyncSchedulingRunner_ResetClearsPendingResult(t *testing.T) {
-	algo := &fakeSchedulingAlgo{resultToReturn: &SchedulerResult{}}
+	algo := &fakeSchedulingAlgo{resultToReturn: &scheduling.SchedulerResult{}}
 	jobDb := testfixtures.NewJobDb(testfixtures.TestResourceListFactory)
 
 	ctx, cancel := armadacontext.WithCancel(armadacontext.Background())
@@ -336,7 +231,7 @@ func TestAsyncSchedulingRunner_ResetCancelsInflightAndBlocks(t *testing.T) {
 	algo := &blockingSchedulingAlgo{
 		started:  make(chan struct{}),
 		finished: make(chan struct{}),
-		result:   &SchedulerResult{},
+		result:   &scheduling.SchedulerResult{},
 	}
 	jobDb := testfixtures.NewJobDb(testfixtures.TestResourceListFactory)
 
@@ -368,7 +263,7 @@ func TestAsyncSchedulingRunner_ResetCancelsInflightAndBlocks(t *testing.T) {
 }
 
 func TestAsyncSchedulingRunner_FunctionalAfterReset(t *testing.T) {
-	algo := &fakeSchedulingAlgo{resultToReturn: &SchedulerResult{}}
+	algo := &fakeSchedulingAlgo{resultToReturn: &scheduling.SchedulerResult{}}
 	jobDb := testfixtures.NewJobDb(testfixtures.TestResourceListFactory)
 
 	ctx, cancel := armadacontext.WithCancel(armadacontext.Background())
@@ -447,10 +342,10 @@ func reconcileSctx(t *testing.T, scheduledJobs ...*jobdb.Job) *schedulercontext.
 
 // scheduledPoolResult builds a PoolSchedulingResult with the given jobs marked
 // as scheduled, backed by a fresh SchedulingContext containing them.
-func scheduledPoolResult(t *testing.T, scheduledJobs ...*jobdb.Job) *PoolSchedulingResult {
+func scheduledPoolResult(t *testing.T, scheduledJobs ...*jobdb.Job) *scheduling.PoolSchedulingResult {
 	t.Helper()
-	return &PoolSchedulingResult{
-		SchedulingResult: &SchedulingResult{
+	return &scheduling.PoolSchedulingResult{
+		SchedulingResult: &scheduling.SchedulingResult{
 			ScheduledJobs:     jctxsFor(scheduledJobs...),
 			SchedulingContext: reconcileSctx(t, scheduledJobs...),
 		},
@@ -530,12 +425,12 @@ func TestReconcile_UpdatePreemptedJobs(t *testing.T) {
 			preemptedJob := testfixtures.Test1Cpu4GiJob(testfixtures.TestQueue, testfixtures.TestDefaultPriorityClass).
 				WithQueued(false).WithNewRun("executor", "node", "node", reconcileTestPool, 0)
 			jctx := schedulercontext.JobSchedulingContextFromJob(preemptedJob)
-			poolResult := &PoolSchedulingResult{
-				SchedulingResult: &SchedulingResult{
+			poolResult := &scheduling.PoolSchedulingResult{
+				SchedulingResult: &scheduling.SchedulingResult{
 					PreemptedJobs:     []*schedulercontext.JobSchedulingContext{jctx},
 					SchedulingContext: reconcileSctx(t, preemptedJob),
-					AdditionalSchedulingInfo: &SchedulingInformation{
-						EvictorResult: &EvictorResult{
+					AdditionalSchedulingInfo: &scheduling.SchedulingInformation{
+						EvictorResult: &scheduling.EvictorResult{
 							EvictedJctxsByJobId: map[string]*schedulercontext.JobSchedulingContext{preemptedJob.Id(): jctx},
 						},
 					},
@@ -570,10 +465,10 @@ func TestReconcile_UpdateReconciliationResult(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			failedJob := testfixtures.Test1Cpu4GiJob(testfixtures.TestQueue, testfixtures.TestDefaultPriorityClass)
 			preemptedJob := testfixtures.Test1Cpu4GiJob(testfixtures.TestQueue, testfixtures.TestDefaultPriorityClass)
-			poolResult := &PoolSchedulingResult{
-				ReconciliationResult: &ReconciliationResult{
-					FailedJobs:    []*FailedReconciliationResult{{Job: failedJob, Reason: "failed"}},
-					PreemptedJobs: []*FailedReconciliationResult{{Job: preemptedJob, Reason: "preempted"}},
+			poolResult := &scheduling.PoolSchedulingResult{
+				ReconciliationResult: &scheduling.ReconciliationResult{
+					FailedJobs:    []*scheduling.FailedReconciliationResult{{Job: failedJob, Reason: "failed"}},
+					PreemptedJobs: []*scheduling.FailedReconciliationResult{{Job: preemptedJob, Reason: "preempted"}},
 				},
 			}
 			txn := txnWithJobs(
@@ -602,14 +497,14 @@ func TestReconcile_UpdateReconciliationResult(t *testing.T) {
 // panicking, while still filtering the reconciliation decisions.
 func TestReconcile_PoolWithNilSchedulingResult(t *testing.T) {
 	failedJob := testfixtures.Test1Cpu4GiJob(testfixtures.TestQueue, testfixtures.TestDefaultPriorityClass)
-	result := &SchedulerResult{
-		PoolResults: []*PoolSchedulingResult{
+	result := &scheduling.SchedulerResult{
+		PoolResults: []*scheduling.PoolSchedulingResult{
 			{
 				Name:             reconcileTestPool,
 				SchedulingResult: nil, // errored / disabled pool
-				ReconciliationResult: &ReconciliationResult{
-					FailedJobs:    []*FailedReconciliationResult{{Job: failedJob, Reason: "failed"}},
-					PreemptedJobs: []*FailedReconciliationResult{},
+				ReconciliationResult: &scheduling.ReconciliationResult{
+					FailedJobs:    []*scheduling.FailedReconciliationResult{{Job: failedJob, Reason: "failed"}},
+					PreemptedJobs: []*scheduling.FailedReconciliationResult{},
 				},
 			},
 		},

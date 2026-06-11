@@ -17,6 +17,8 @@ import (
 	clock "k8s.io/utils/clock/testing"
 	"k8s.io/utils/pointer"
 
+	"github.com/armadaproject/armada/internal/scheduler/scheduling/runner"
+
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	apiconfig "github.com/armadaproject/armada/internal/common/constants"
@@ -1027,7 +1029,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 				testfixtures.NewJobDb(testfixtures.TestResourceListFactory),
 				jobRepo,
 				clusterRepo,
-				scheduling.NewSyncSchedulingRunner(schedulingAlgo),
+				runner.NewSyncSchedulingRunner(schedulingAlgo),
 				leaderelection.NewStandaloneLeaderController(),
 				publisher,
 				submitChecker,
@@ -1056,7 +1058,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 
 			// run a scheduler cycle
 			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
-			err = sched.cycle(ctx, false, sched.leaderController.GetToken(), true, 1)
+			_, err = sched.cycle(ctx, false, sched.leaderController.GetToken(), true, 1)
 			if tc.fetchError || tc.publishError || tc.scheduleError || tc.queueCacheError {
 				assert.Error(t, err)
 			} else {
@@ -1194,7 +1196,7 @@ func TestScheduler_PublishFailureRepublishesOnNextCycle(t *testing.T) {
 		testfixtures.NewJobDb(testfixtures.TestResourceListFactory),
 		jobRepo,
 		clusterRepo,
-		scheduling.NewSyncSchedulingRunner(&testSchedulingAlgo{}),
+		runner.NewSyncSchedulingRunner(&testSchedulingAlgo{}),
 		leaderelection.NewStandaloneLeaderController(),
 		publisher,
 		&testSubmitChecker{checkSuccess: true},
@@ -1223,14 +1225,16 @@ func TestScheduler_PublishFailureRepublishesOnNextCycle(t *testing.T) {
 
 	// First cycle: publishing fails, no events should reach the publisher and the cursor
 	// must not advance.
-	require.Error(t, sched.cycle(ctx, false, sched.leaderController.GetToken(), true, 1))
+	_, err = sched.cycle(ctx, false, sched.leaderController.GetToken(), true, 1)
+	require.Error(t, err, true)
 	assert.Empty(t, publisher.eventSequences)
 	assert.Equal(t, int64(-1), sched.runsSerial)
 
 	// Second cycle: publishing succeeds. The same run update is still pending (cursor did
 	// not advance), so a JobSucceeded event must be regenerated and published.
 	publisher.shouldError = false
-	require.NoError(t, sched.cycle(ctx, false, sched.leaderController.GetToken(), true, 2))
+	_, err = sched.cycle(ctx, false, sched.leaderController.GetToken(), true, 2)
+	require.NoError(t, err)
 	assert.Equal(t, int64(1), sched.runsSerial)
 
 	jobSucceededEventType := fmt.Sprintf("%T", &armadaevents.EventSequence_Event_JobSucceeded{})
@@ -1267,7 +1271,7 @@ func TestScheduler_NonLeaderAdvancesCursors(t *testing.T) {
 		testfixtures.NewJobDb(testfixtures.TestResourceListFactory),
 		jobRepo,
 		clusterRepo,
-		scheduling.NewSyncSchedulingRunner(&testSchedulingAlgo{}),
+		runner.NewSyncSchedulingRunner(&testSchedulingAlgo{}),
 		leaderController,
 		publisher,
 		&testSubmitChecker{checkSuccess: true},
@@ -1295,7 +1299,8 @@ func TestScheduler_NonLeaderAdvancesCursors(t *testing.T) {
 	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
 	defer cancel()
 
-	require.NoError(t, sched.cycle(ctx, false, leaderController.GetToken(), true, 1))
+	_, err = sched.cycle(ctx, false, leaderController.GetToken(), true, 1)
+	require.NoError(t, err)
 
 	assert.Equal(t, int64(1), sched.runsSerial, "non-leader cycle must advance runsSerial to consume the run update")
 	assert.Empty(t, publisher.eventSequences, "non-leader must not publish any events")
@@ -1322,7 +1327,7 @@ func TestScheduler_AsyncRunnerSchedulesAJob(t *testing.T) {
 		jobDb,
 		jobRepo,
 		clusterRepo,
-		scheduling.NewAsyncSchedulingRunner(ctx, algo, jobDb),
+		runner.NewAsyncSchedulingRunner(ctx, algo, jobDb),
 		leaderelection.NewStandaloneLeaderController(),
 		publisher,
 		&testSubmitChecker{checkSuccess: true},
@@ -1349,7 +1354,8 @@ func TestScheduler_AsyncRunnerSchedulesAJob(t *testing.T) {
 
 	// First cycle: kicks off the background run. No result is ready yet, so no
 	// lease should be published.
-	require.NoError(t, sched.cycle(ctx, false, sched.leaderController.GetToken(), true, 1))
+	_, err = sched.cycle(ctx, false, sched.leaderController.GetToken(), true, 1)
+	require.NoError(t, err)
 	assert.Empty(t, publisher.eventSequences, "no decisions should be published before the background run completes")
 
 	// Wait for the background run triggered by the first cycle to produce a result.
@@ -1358,7 +1364,8 @@ func TestScheduler_AsyncRunnerSchedulesAJob(t *testing.T) {
 	}, 2*time.Second, 5*time.Millisecond, "expected the async runner to invoke the scheduling algo")
 
 	// Second cycle: consumes the pending result and leases the job.
-	require.NoError(t, sched.cycle(ctx, false, sched.leaderController.GetToken(), true, 2))
+	_, err = sched.cycle(ctx, false, sched.leaderController.GetToken(), true, 2)
+	require.NoError(t, err)
 
 	outstanding := map[string]map[string]eventDetails{
 		leasedEventType: stringsToSetWithEventDetails([]string{queuedJob.Id()}),
@@ -1487,7 +1494,7 @@ func TestRun(t *testing.T) {
 		testfixtures.NewJobDb(testfixtures.TestResourceListFactory),
 		&jobRepo,
 		clusterRepo,
-		scheduling.NewSyncSchedulingRunner(schedulingAlgo),
+		runner.NewSyncSchedulingRunner(schedulingAlgo),
 		leaderController,
 		publisher,
 		submitChecker,
@@ -1679,7 +1686,7 @@ func TestJobPriceUpdates(t *testing.T) {
 				jobDb,
 				&jobRepo,
 				clusterRepo,
-				scheduling.NewSyncSchedulingRunner(schedulingAlgo),
+				runner.NewSyncSchedulingRunner(schedulingAlgo),
 				leaderController,
 				publisher,
 				submitChecker,
@@ -1868,7 +1875,7 @@ func TestScheduler_TestSyncInitialState(t *testing.T) {
 				testfixtures.NewJobDb(testfixtures.TestResourceListFactory),
 				tc.jobRepo,
 				clusterRepo,
-				scheduling.NewSyncSchedulingRunner(schedulingAlgo),
+				runner.NewSyncSchedulingRunner(schedulingAlgo),
 				leaderController,
 				publisher,
 				nil,
@@ -2085,7 +2092,7 @@ func TestScheduler_TestSyncState(t *testing.T) {
 				testfixtures.NewJobDb(testfixtures.TestResourceListFactory),
 				jobRepo,
 				clusterRepo,
-				scheduling.NewSyncSchedulingRunner(schedulingAlgo),
+				runner.NewSyncSchedulingRunner(schedulingAlgo),
 				leaderController,
 				publisher,
 				nil,
@@ -3337,7 +3344,7 @@ func TestCycleConsistency(t *testing.T) {
 				jobsToSchedule: tc.idsOfJobsToSchedule,
 				jobsToPreempt:  tc.idsOfJobsToPreempt,
 			}
-			sharedRunner := scheduling.NewSyncSchedulingRunner(testAlgo)
+			sharedRunner := runner.NewSyncSchedulingRunner(testAlgo)
 
 			// Helper function for creating new schedulers for use in tests.
 			newScheduler := func(db *pgxpool.Pool) *Scheduler {
@@ -3445,7 +3452,7 @@ func TestCycleConsistency(t *testing.T) {
 			// cycle runs one cycle.
 			cycle := func(s *Scheduler, updateAll, shouldSchedule bool) error {
 				t.Logf("cycle scheduler %p", s)
-				err := s.cycle(ctx, updateAll, s.leaderController.GetToken(), shouldSchedule, 1)
+				_, err := s.cycle(ctx, updateAll, s.leaderController.GetToken(), shouldSchedule, 1)
 				return err
 			}
 

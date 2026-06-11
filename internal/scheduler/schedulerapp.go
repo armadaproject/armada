@@ -15,6 +15,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/grpc/codes"
 
+	"github.com/armadaproject/armada/internal/scheduler/scheduling/runner"
+
 	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/internal/common/app"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -387,11 +389,11 @@ func Run(config schedulerconfig.Configuration) error {
 		return errors.WithStack(err)
 	}
 
-	var schedulingRunner scheduling.SchedulingRunner
+	var schedulingRunner runner.SchedulingRunner
 	if config.Scheduling.AsyncSchedulingEnabled {
-		schedulingRunner = scheduling.NewAsyncSchedulingRunner(ctx, schedulingAlgo, jobDb)
+		schedulingRunner = runner.NewAsyncSchedulingRunner(ctx, schedulingAlgo, jobDb)
 	} else {
-		schedulingRunner = scheduling.NewSyncSchedulingRunner(schedulingAlgo)
+		schedulingRunner = runner.NewSyncSchedulingRunner(schedulingAlgo)
 	}
 
 	scheduler, err := NewScheduler(
