@@ -181,7 +181,7 @@ func Run(config schedulerconfig.Configuration) error {
 			defer cancel()
 			err = bidPriceCache.Initialise(bidPriceProviderInitTimeout)
 			if err != nil {
-				ctx.Errorf("error initialising queue cache - %v", err)
+				return errors.WithMessage(err, "error initialising bid price cache")
 			}
 			services = append(services, func() error { return bidPriceCache.Run(ctx) })
 			bidPriceProvider = bidPriceCache
@@ -374,6 +374,11 @@ func Run(config schedulerconfig.Configuration) error {
 	)
 	jobDb.SetRespectNodePodLimits(config.Scheduling.RespectNodePodLimits)
 
+	err = populateInitialBidPrices(ctx, bidPriceProvider, jobDb)
+	if err != nil {
+		return err
+	}
+
 	schedulerMetrics, err := metrics.New(
 		config.Metrics.TrackedErrorRegexes,
 		config.Metrics.TrackedResourceNames,
@@ -454,6 +459,23 @@ func Run(config schedulerconfig.Configuration) error {
 	startupCompleteCheck.MarkComplete()
 
 	return g.Wait()
+}
+
+func populateInitialBidPrices(ctx *armadacontext.Context, priceProvider pricing.BidPriceProvider, jobdb *jobdb.JobDb) error {
+	timeout, cancel := armadacontext.WithTimeout(ctx, time.Second*30)
+	defer cancel()
+	initialBidPriceSnapshot, err := priceProvider.GetBidPrices(timeout)
+	if err != nil {
+		return errors.WithMessage(err, "error retrieving initial bid price snapshot")
+	}
+	txn := jobdb.WriteTxn()
+	if err := txn.SetBidPriceSnapshot(&initialBidPriceSnapshot); err != nil {
+		txn.Abort()
+		return errors.WithMessage(err, "error setting initial bid price snapshot on jobDb")
+	}
+	txn.Commit()
+
+	return nil
 }
 
 // This changes the default grpc logging to log OK messages at trace level

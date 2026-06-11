@@ -1586,7 +1586,7 @@ func TestJobPriceUpdates(t *testing.T) {
 			marketDrivenPools:             []string{},
 			initialJob:                    queuedJob,
 			expectedNumberOfProviderCalls: []int{0, 0, 0},
-			expectedJobBid:                []map[string]pricing.Bid{nil, nil, nil},
+			expectedJobBid:                []map[string]pricing.Bid{{}, {}, {}},
 			expectedJobBidPrice:           []float64{0, 0, 0},
 		},
 		"job with no market driven pools": {
@@ -1594,7 +1594,7 @@ func TestJobPriceUpdates(t *testing.T) {
 			marketDrivenPools:             []string{testfixtures.TestPool},
 			initialJob:                    jobWithoutMarketDrivenPools,
 			expectedNumberOfProviderCalls: []int{1, 1, 2},
-			expectedJobBid:                []map[string]pricing.Bid{nil, nil, nil},
+			expectedJobBid:                []map[string]pricing.Bid{{}, {}, {}},
 			expectedJobBidPrice:           []float64{0, 0, 0},
 		},
 		"non-preemptible queued job": {
@@ -1618,7 +1618,7 @@ func TestJobPriceUpdates(t *testing.T) {
 			marketDrivenPools:             []string{testfixtures.TestPool},
 			initialJob:                    queuedJobNoPricingInfo,
 			expectedNumberOfProviderCalls: []int{1, 1, 2},
-			expectedJobBid:                []map[string]pricing.Bid{nil, nil, nil},
+			expectedJobBid:                []map[string]pricing.Bid{{}, {}, {}},
 			expectedJobBidPrice:           []float64{0, 0, 0},
 		},
 		"non-preemptible running job with no pricing info": {
@@ -1626,7 +1626,7 @@ func TestJobPriceUpdates(t *testing.T) {
 			marketDrivenPools:             []string{testfixtures.TestPool},
 			initialJob:                    runningJobNoPricingInfo,
 			expectedNumberOfProviderCalls: []int{1, 1, 2},
-			expectedJobBid:                []map[string]pricing.Bid{nil, nil, nil},
+			expectedJobBid:                []map[string]pricing.Bid{{}, {}, {}},
 			expectedJobBidPrice:           []float64{pricing.NonPreemptibleRunningPrice, pricing.NonPreemptibleRunningPrice, pricing.NonPreemptibleRunningPrice},
 		},
 		"preemptible queued job": {
@@ -1650,7 +1650,7 @@ func TestJobPriceUpdates(t *testing.T) {
 			marketDrivenPools:             []string{testfixtures.TestPool},
 			initialJob:                    queuedPreemptibleJobNoPricingInfo,
 			expectedNumberOfProviderCalls: []int{1, 1, 2},
-			expectedJobBid:                []map[string]pricing.Bid{nil, nil, nil},
+			expectedJobBid:                []map[string]pricing.Bid{{}, {}, {}},
 			expectedJobBidPrice:           []float64{0, 0, 0},
 		},
 		"preemptible running job - no pricing info": {
@@ -1658,7 +1658,7 @@ func TestJobPriceUpdates(t *testing.T) {
 			marketDrivenPools:             []string{testfixtures.TestPool},
 			initialJob:                    runningPreemptibleJobNoPricingInfo,
 			expectedNumberOfProviderCalls: []int{1, 1, 2},
-			expectedJobBid:                []map[string]pricing.Bid{nil, nil, nil},
+			expectedJobBid:                []map[string]pricing.Bid{{}, {}, {}},
 			expectedJobBidPrice:           []float64{0, 0, 0},
 		},
 	}
@@ -2269,7 +2269,7 @@ type testSchedulingAlgo struct {
 	persisted bool
 }
 
-func (t *testSchedulingAlgo) Schedule(_ *armadacontext.Context, _ map[string]internaltypes.ResourceList, txn *jobdb.Txn) (*scheduling.SchedulerResult, error) {
+func (t *testSchedulingAlgo) Schedule(_ *armadacontext.Context, txn *jobdb.Txn) (*scheduling.SchedulerResult, error) {
 	t.numberOfScheduleCalls++
 	if t.shouldError {
 		return &scheduling.SchedulerResult{}, errors.New("error scheduling jobs")

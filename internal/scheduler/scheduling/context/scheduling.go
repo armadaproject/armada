@@ -464,11 +464,7 @@ func (sctx *SchedulingContext) RemoveJob(jctx *JobSchedulingContext) (bool, erro
 		return false, errors.Errorf("failed removing job %s from scheduling context: no context for queue %s", jctx.JobId, queue)
 	}
 
-	scheduledInThisRound, rescheduledInThisRound, evictedInRound, err := qctx.RemoveJob(jctx)
-	if err != nil {
-		return false, err
-	}
-
+	scheduledInThisRound, rescheduledInThisRound, evictedInRound := qctx.RemoveJob(jctx)
 	if scheduledInThisRound {
 		sctx.ScheduledResources = sctx.ScheduledResources.Subtract(jctx.Job.AllResourceRequirements())
 		sctx.NumScheduledJobs--

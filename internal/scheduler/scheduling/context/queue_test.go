@@ -113,8 +113,7 @@ func TestQueueSchedulingContext_RemoveJob(t *testing.T) {
 			tc.setup(t, sctx, jctx)
 
 			assert.False(t, qctx.Demand.AllZero())
-			scheduled, rescheduled, evicted, err := qctx.RemoveJob(jctx)
-			require.NoError(t, err)
+			scheduled, rescheduled, evicted := qctx.RemoveJob(jctx)
 
 			assert.Equal(t, tc.expectedScheduled, scheduled)
 			assert.Equal(t, tc.expectedRescheduled, rescheduled)
