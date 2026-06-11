@@ -1,6 +1,7 @@
 package podchecks
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -61,8 +62,16 @@ func (pc *PodChecks) GetAction(pod *v1.Pod, podEvents []*v1.Event) (Action, Caus
 
 	if pc.deadlineForInitContainers > 0 {
 		initContainerState := getInitContainerState(pod)
-		if initContainerState.startedAt != nil && initContainerState.completedAt == nil && currentTime.Sub(*initContainerState.startedAt) > pc.deadlineForInitContainers {
-			return ActionFail, PodStartupIssue, fmt.Sprintf("init containers did not complete within deadline of %s", pc.deadlineForInitContainers)
+		if initContainerState.first != nil && initContainerState.last == nil && currentTime.Sub(*initContainerState.firstStartedAt) > pc.deadlineForInitContainers {
+			var sb strings.Builder
+			fmt.Fprintf(&sb, "Init containers did not complete within deadline of %s", pc.deadlineForInitContainers)
+			if initContainerState.err != nil {
+				fmt.Fprintf(&sb, "\nErrors from init containers: %s", initContainerState.err.Error())
+			}
+			if initContainerState.current != nil {
+				fmt.Fprintf(&sb, "\nInit container %s is still running and has been running for %s", initContainerState.current.Name, currentTime.Sub(*initContainerState.currentStartedAt))
+			}
+			return ActionFail, PodStartupIssue, sb.String()
 		}
 	}
 
@@ -101,8 +110,13 @@ func (pc *PodChecks) GetAction(pod *v1.Pod, podEvents []*v1.Event) (Action, Caus
 }
 
 type initContainerState struct {
-	startedAt   *time.Time
-	completedAt *time.Time
+	first            *v1.Container
+	firstStartedAt   *time.Time
+	current          *v1.Container
+	currentStartedAt *time.Time
+	last             *v1.Container
+	lastCompletedAt  *time.Time
+	err              error
 }
 
 func getInitContainerState(pod *v1.Pod) initContainerState {
@@ -114,8 +128,10 @@ func getInitContainerState(pod *v1.Pod) initContainerState {
 
 	nonSidecarInitContainerCount := 0
 	successfulInitContainerCount := 0
+	var errs []error
 	for _, container := range pod.Spec.InitContainers {
 		if policy := container.RestartPolicy; policy != nil && *policy == v1.ContainerRestartPolicyAlways {
+			// Skip side-cars
 			continue
 		}
 		nonSidecarInitContainerCount++
@@ -124,44 +140,66 @@ func getInitContainerState(pod *v1.Pod) initContainerState {
 		if !ok {
 			continue
 		}
-		if running := initStatus.State.Running; running != nil {
-			state.startedAt = earliestTime(state.startedAt, running.StartedAt.Time)
+		running := initStatus.State.Running
+		if running != nil {
+			if startedAt, replaced := earliestTime(state.firstStartedAt, running.StartedAt.Time); replaced {
+				state.firstStartedAt = startedAt
+				state.first = &container
+			}
 		}
-		if terminated := initStatus.State.Terminated; terminated != nil {
-			state.startedAt = earliestTime(state.startedAt, terminated.StartedAt.Time)
+		terminated := initStatus.State.Terminated
+		if terminated != nil {
+			if startedAt, replaced := earliestTime(state.firstStartedAt, terminated.StartedAt.Time); replaced {
+				state.firstStartedAt = startedAt
+				state.first = &container
+			}
 			if terminated.ExitCode != 0 {
+				errs = append(errs, fmt.Errorf("init container %q terminated with non-zero exit code %d", container.Name, terminated.ExitCode))
 				continue
 			}
 			successfulInitContainerCount++
-			state.completedAt = latestTime(state.completedAt, terminated.FinishedAt.Time)
+			if completedAt, replaced := latestTime(state.lastCompletedAt, terminated.FinishedAt.Time); replaced {
+				state.lastCompletedAt = completedAt
+				state.last = &container
+			}
+		}
+
+		if running != nil && terminated == nil {
+			if startedAt, replaced := latestTime(state.currentStartedAt, running.StartedAt.Time); replaced {
+				state.currentStartedAt = startedAt
+				state.current = &container
+			}
 		}
 	}
 
 	if nonSidecarInitContainerCount == 0 || successfulInitContainerCount != nonSidecarInitContainerCount {
-		state.completedAt = nil
+		state.last = nil
+		state.lastCompletedAt = nil
 	}
+
+	state.err = errors.Join(errs...)
 
 	return state
 }
 
-func earliestTime(current *time.Time, candidate time.Time) *time.Time {
+func earliestTime(current *time.Time, candidate time.Time) (*time.Time, bool) {
 	if candidate.IsZero() {
-		return current
+		return current, false
 	}
 	if current == nil || candidate.Before(*current) {
-		return &candidate
+		return &candidate, true
 	}
-	return current
+	return current, false
 }
 
-func latestTime(current *time.Time, candidate time.Time) *time.Time {
+func latestTime(current *time.Time, candidate time.Time) (*time.Time, bool) {
 	if candidate.IsZero() {
-		return current
+		return current, false
 	}
 	if current == nil || candidate.After(*current) {
-		return &candidate
+		return &candidate, true
 	}
-	return current
+	return current, false
 }
 
 // This func is trying to determine if the node is bad based on the kubelet not updating the pod at all

@@ -116,7 +116,9 @@ func Test_GetAction_InitContainerDeadlineUsesFirstInitStart(t *testing.T) {
 
 	assert.Equal(t, ActionFail, result)
 	assert.Equal(t, PodStartupIssue, cause)
-	assert.Equal(t, "init containers did not complete within deadline of 1m0s", message)
+	assert.Contains(t, message, "Init containers did not complete within deadline of 1m0s")
+	assert.NotContains(t, message, "Errors from init containers")
+	assert.Contains(t, message, "Init container init is still running and has been running for 2m0s")
 }
 
 func Test_GetAction_InitContainerDeadlineWaitsUntilFirstInitStarts(t *testing.T) {
@@ -157,7 +159,9 @@ func Test_GetAction_InitContainerDeadlineRequiresAllRegularInitContainersToCompl
 
 	assert.Equal(t, ActionFail, result)
 	assert.Equal(t, PodStartupIssue, cause)
-	assert.Equal(t, "init containers did not complete within deadline of 1m0s", message)
+	assert.Contains(t, message, "Init containers did not complete within deadline of 1m0s")
+	assert.NotContains(t, message, "Errors from init containers")
+	assert.Contains(t, message, "Init container second-init is still running and has been running for 30s")
 }
 
 func createBasicPod(scheduled bool) *v1.Pod {
