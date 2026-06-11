@@ -1102,8 +1102,7 @@ func (s *Scheduler) expireJobsIfNecessary(ctx *armadacontext.Context, txn *jobdb
 
 	events := make([]*armadaevents.EventSequence, 0)
 
-	// TODO: this is inefficient. We should create a iterator of the jobs running on the affected executors
-	jobs := txn.GetAll()
+	jobs := txn.GetAllLeasedJobs()
 
 	for _, job := range jobs {
 
