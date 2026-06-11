@@ -99,8 +99,8 @@ func (csc *containerStateChecks) getContainerAction(pod *v1.Pod, containerStatus
 			if check.inverse != check.reasonRegexp.MatchString(reason) && state == check.state {
 				if timeInState >= check.gracePeriod {
 					log.Warnf(
-						"Check %q: Container %s in Pod %s in namespace %s has been in state %s with reason %s (%s) for more than %v (matched regexp was %s%s), required action is %s",
-						check.name, containerStatus.Name,
+						"Container %s in Pod %s in namespace %s has been in state %s with reason %s (%s) for more than %v (matched regexp was %s%s - check %s), required action is %s",
+						containerStatus.Name,
 						pod.Name,
 						pod.Namespace,
 						state,
@@ -109,15 +109,16 @@ func (csc *containerStateChecks) getContainerAction(pod *v1.Pod, containerStatus
 						check.gracePeriod,
 						inverseString(check.inverse),
 						check.reasonRegexp,
+						check.name,
 						check.action,
 					)
 					return check.action, fmt.Sprintf(
-						"Check %q: Container %s has been in state %s for reason %s (%s) for more than timeout %v",
-						check.name,
+						"Container %s has been in state %s for reason %s (%s - check %s) for more than timeout %v",
 						containerStatus.Name,
 						state,
 						reason,
 						message,
+						check.name,
 						check.gracePeriod,
 					)
 				} else {

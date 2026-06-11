@@ -90,7 +90,7 @@ func (ec *eventChecks) getEventAction(podName string, podEvent *v1.Event, timeIn
 		if podEvent.Type == string(check.eventType) && (check.inverse != check.regexp.MatchString(podEvent.Message)) {
 			if timeInState > check.gracePeriod {
 				log.Warnf(
-					"Check %q: Pod %s needs action %s because event \"%s\" matches regexp %s\"%v\"",
+					"Matched check %q: Pod %s needs action %s because event \"%s\" matches regexp %s\"%v\"",
 					check.name,
 					podName,
 					check.action,
@@ -98,7 +98,11 @@ func (ec *eventChecks) getEventAction(podName string, podEvent *v1.Event, timeIn
 					inverseString(check.inverse),
 					check.regexp,
 				)
-				return check.action, fmt.Sprintf("Check %q: %s", check.name, podEvent.Message)
+				return check.action, fmt.Sprintf(
+					"Matched check: %q\n%s",
+					check.name,
+					podEvent.Message,
+				)
 			} else {
 				return ActionWait, ""
 			}
