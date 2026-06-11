@@ -17,6 +17,14 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 )
 
+// GetCurrentState returns the runner's current lifecycle state, read under mu
+// so it is safe to call while the background goroutine is running. Test-only.
+func (r *asyncSchedulingRunner) GetCurrentState() runState {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.state
+}
+
 // waitForCalls polls until the algo has been called at least n times, or
 // fails the test. Used because the algo runs on a background goroutine.
 func waitForCalls(t *testing.T, _ SchedulingRunner, algo *fakeSchedulingAlgo, n int) {
@@ -271,6 +279,30 @@ func TestAsyncSchedulingRunner_FunctionalAfterReset(t *testing.T) {
 	got, err := runner.GetSchedulerResult(armadacontext.Background(), txn)
 	require.NoError(t, err)
 	assert.NotNil(t, got)
+}
+
+// Reset arriving while a run has been requested but not yet picked up by the
+// goroutine must un-request it: state returns to idle and no run happens. We
+// build the runner without starting its goroutine so runRequested is held
+// deterministically (the live goroutine would consume it near-instantly).
+func TestAsyncSchedulingRunner_Reset_DropsPendingRequest(t *testing.T) {
+	algo := &fakeSchedulingAlgo{result: &scheduling.SchedulerResult{}}
+	r := &asyncSchedulingRunner{
+		schedulingAlgo: algo,
+		jobDb:          testfixtures.NewJobDb(testfixtures.TestResourceListFactory),
+		wake:           make(chan struct{}, 1),
+	}
+
+	r.Trigger()
+	require.Equal(t, runRequested, r.GetCurrentState(), "Trigger should request a run")
+
+	r.Reset()
+	assert.Equal(t, idle, r.GetCurrentState(), "Reset must drop the pending request")
+	assert.Equal(t, 0, algo.calls(), "no run should have started")
+
+	// The runner is still usable: a fresh Trigger re-requests.
+	r.Trigger()
+	assert.Equal(t, runRequested, r.GetCurrentState())
 }
 
 // --- reconcile -------------------------------------------------------------

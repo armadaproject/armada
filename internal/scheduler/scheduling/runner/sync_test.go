@@ -2,6 +2,7 @@ package runner
 
 import (
 	"fmt"
+	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -14,18 +15,20 @@ import (
 )
 
 type fakeSchedulingAlgo struct {
-	callCount int
+	// callCount is read from the test goroutine while the runner's background
+	// goroutine writes it, so it must be accessed atomically.
+	callCount atomic.Int64
 	result    *scheduling.SchedulerResult
 	err       error
 }
 
 func (f *fakeSchedulingAlgo) Schedule(_ *armadacontext.Context, txn *jobdb.Txn) (*scheduling.SchedulerResult, error) {
-	f.callCount++
+	f.callCount.Add(1)
 	return f.result, f.err
 }
 
 func (f *fakeSchedulingAlgo) calls() int {
-	return f.callCount
+	return int(f.callCount.Load())
 }
 
 func TestSyncSchedulingRunner_GetSchedulerResultDelegatesToAlgo(t *testing.T) {
