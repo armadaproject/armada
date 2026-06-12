@@ -4,6 +4,7 @@ import (
 	"math/rand"
 	"sort"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -20,6 +21,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/util"
 	schedulerconfiguration "github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
+	"github.com/armadaproject/armada/internal/scheduler/pricing"
 	"github.com/armadaproject/armada/pkg/bidstore"
 )
 
@@ -438,6 +440,82 @@ func TestJobDb_TestTransactions(t *testing.T) {
 	assert.NotNil(t, txn3.GetById(job.id))
 
 	assert.Error(t, txn1.Upsert([]*Job{job})) // should be error as you can't insert after committing
+}
+
+func TestDryRunTxn_LocalChangesVisible(t *testing.T) {
+	jobDb := NewTestJobDb()
+
+	// Seed the real db with one job.
+	job := newJob().WithQueued(true)
+	writeTxn := jobDb.WriteTxn()
+	require.NoError(t, writeTxn.Upsert([]*Job{job}))
+	writeTxn.Commit()
+
+	dryRunTxn := jobDb.DryRunTxn()
+
+	// The original job should be visible in the txn.
+	assert.NotNil(t, dryRunTxn.GetById(job.Id()))
+
+	// Upsert a new job into the txn — it should be visible within the txn.
+	newSnapJob := newJob().WithQueued(true)
+	require.NoError(t, dryRunTxn.Upsert([]*Job{newSnapJob}))
+	assert.NotNil(t, dryRunTxn.GetById(newSnapJob.Id()))
+
+	// Delete the original job from the txn — it should be gone within the txn.
+	require.NoError(t, dryRunTxn.BatchDelete([]string{job.Id()}))
+	assert.Nil(t, dryRunTxn.GetById(job.Id()))
+}
+
+func TestDryRunTxn_CommitDoesNotModifyDb(t *testing.T) {
+	jobDb := NewTestJobDb()
+
+	// Seed the real db with one job.
+	job := newJob().WithQueued(true)
+	writeTxn := jobDb.WriteTxn()
+	require.NoError(t, writeTxn.Upsert([]*Job{job}))
+	writeTxn.Commit()
+
+	dryRunTxn := jobDb.DryRunTxn()
+
+	// Mutate the txn: add a new job and delete the original one.
+	newJob := newJob().WithQueued(true)
+	require.NoError(t, dryRunTxn.Upsert([]*Job{newJob}))
+	require.NoError(t, dryRunTxn.BatchDelete([]string{job.Id()}))
+	dryRunTxn.Commit()
+
+	// The real db must be unchanged after committing the txn.
+	realTxn := jobDb.ReadTxn()
+	assert.NotNil(t, realTxn.GetById(job.Id()),
+		"original job should still exist in the real db after dry run commit")
+	assert.Nil(t, realTxn.GetById(newJob.Id()),
+		"dry run only job must not appear in the real db after dry run commit")
+
+	// A subsequent WriteTxn must not be blocked (writerMutex was never held).
+	secondWrite := jobDb.WriteTxn()
+	secondWrite.Abort()
+}
+
+func TestDryRunTxn_AbortDoesNotModifyDb(t *testing.T) {
+	jobDb := NewTestJobDb()
+
+	job := newJob().WithQueued(true)
+	writeTxn := jobDb.WriteTxn()
+	require.NoError(t, writeTxn.Upsert([]*Job{job}))
+	writeTxn.Commit()
+
+	dryRunTxn := jobDb.DryRunTxn()
+	newJob := newJob().WithQueued(true)
+	require.NoError(t, dryRunTxn.Upsert([]*Job{newJob}))
+	dryRunTxn.Abort() // must not panic (writerMutex was never acquired)
+
+	// Real db must be unchanged after abort.
+	realTxn := jobDb.ReadTxn()
+	assert.NotNil(t, realTxn.GetById(job.Id()))
+	assert.Nil(t, realTxn.GetById(newJob.Id()))
+
+	// writerMutex must not be held.
+	secondWrite := jobDb.WriteTxn()
+	secondWrite.Abort()
 }
 
 func TestJobDb_TestBatchDelete(t *testing.T) {
@@ -1634,5 +1712,139 @@ func newGangJob() *Job {
 		jobSchedulingInfo: gangJobSchedulingInfo,
 		pools:             []string{"pool"},
 		gangInfo:          *gangInfo,
+	}
+}
+
+func TestJobDb_SetBidPriceSnapshot_UpdatedOnCommit(t *testing.T) {
+	jobDb := NewTestJobDb()
+
+	initialReadTxn := jobDb.ReadTxn()
+	assert.Nil(t, initialReadTxn.GetBidPriceSnapshot())
+
+	snapshot := &pricing.BidPriceSnapshot{
+		Timestamp: time.Unix(0, 0),
+		Bids: map[pricing.PriceKey]map[string]pricing.Bid{
+			{Queue: "queue", Band: bidstore.PriceBand_PRICE_BAND_UNSPECIFIED}: {
+				"pool": {QueuedBid: 1, RunningBid: 2},
+			},
+		},
+	}
+
+	writeTxn := jobDb.WriteTxn()
+	require.NoError(t, writeTxn.SetBidPriceSnapshot(snapshot))
+	writeTxn.Commit()
+
+	readTxn := jobDb.ReadTxn()
+	assert.Equal(t, snapshot, readTxn.GetBidPriceSnapshot())
+}
+
+func TestJobDb_SetBidPriceSnapshot_NotUpdatedOnAbort(t *testing.T) {
+	jobDb := NewTestJobDb()
+
+	snapshot := &pricing.BidPriceSnapshot{
+		Bids: map[pricing.PriceKey]map[string]pricing.Bid{
+			{Queue: "queue", Band: bidstore.PriceBand_PRICE_BAND_UNSPECIFIED}: {
+				"pool": {QueuedBid: 1, RunningBid: 2},
+			},
+		},
+	}
+
+	writeTxn := jobDb.WriteTxn()
+	require.NoError(t, writeTxn.SetBidPriceSnapshot(snapshot))
+	writeTxn.Abort()
+
+	readTxn := jobDb.ReadTxn()
+	assert.Nil(t, readTxn.GetBidPriceSnapshot())
+}
+
+func TestJobDb_SetBidPriceSnapshot_ErrOnReadTxn(t *testing.T) {
+	jobDb := NewTestJobDb()
+	readTxn := jobDb.ReadTxn()
+	err := readTxn.SetBidPriceSnapshot(&pricing.BidPriceSnapshot{})
+	assert.Error(t, err)
+}
+
+func TestJobDb_NewJob_PriceProviderPopulatesBidPrices(t *testing.T) {
+	bidsForA := map[string]pricing.Bid{
+		"pool-1": {RunningBid: 10, QueuedBid: 5},
+		"pool-2": {RunningBid: 20, QueuedBid: 8},
+	}
+	bidsForB := map[string]pricing.Bid{
+		"pool-1": {RunningBid: 100, QueuedBid: 50},
+	}
+	snapshot := &pricing.BidPriceSnapshot{
+		Bids: map[pricing.PriceKey]map[string]pricing.Bid{
+			{Queue: "queue-a", Band: bidstore.PriceBand_PRICE_BAND_A}: bidsForA,
+			{Queue: "queue-b", Band: bidstore.PriceBand_PRICE_BAND_B}: bidsForB,
+		},
+	}
+
+	tests := map[string]struct {
+		queue     string
+		priceBand bidstore.PriceBand
+		snapshot  *pricing.BidPriceSnapshot
+		expected  map[string]pricing.Bid
+	}{
+		"matching queue + band A": {
+			queue:     "queue-a",
+			priceBand: bidstore.PriceBand_PRICE_BAND_A,
+			snapshot:  snapshot,
+			expected:  bidsForA,
+		},
+		"matching queue + band B": {
+			queue:     "queue-b",
+			priceBand: bidstore.PriceBand_PRICE_BAND_B,
+			snapshot:  snapshot,
+			expected:  bidsForB,
+		},
+		"unknown queue": {
+			queue:     "queue-other",
+			priceBand: bidstore.PriceBand_PRICE_BAND_A,
+			snapshot:  snapshot,
+			expected:  map[string]pricing.Bid{},
+		},
+		"unknown band for known queue": {
+			queue:     "queue-a",
+			priceBand: bidstore.PriceBand_PRICE_BAND_C,
+			snapshot:  snapshot,
+			expected:  map[string]pricing.Bid{},
+		},
+		"no snapshot set": {
+			queue:     "queue-a",
+			priceBand: bidstore.PriceBand_PRICE_BAND_A,
+			snapshot:  nil,
+			expected:  map[string]pricing.Bid{},
+		},
+		"empty snapshot set": {
+			queue:     "queue-a",
+			priceBand: bidstore.PriceBand_PRICE_BAND_A,
+			snapshot:  &pricing.BidPriceSnapshot{},
+			expected:  map[string]pricing.Bid{},
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			jobDb := NewJobDb(
+				map[string]types.PriorityClass{"foo": {}},
+				"foo",
+				stringinterner.New(1024),
+				testResourceListFactory,
+			)
+
+			if tc.snapshot != nil {
+				writeTxn := jobDb.WriteTxn()
+				require.NoError(t, writeTxn.SetBidPriceSnapshot(tc.snapshot))
+				writeTxn.Commit()
+			}
+
+			job, err := jobDb.NewJob(
+				util.NewULID(), "jobSet", tc.queue, 1, jobSchedulingInfo,
+				false, 0, false, false, false, 0, false, []string{"pool-1"},
+				int32(tc.priceBand),
+			)
+			require.NoError(t, err)
+			assert.Equal(t, tc.expected, job.GetAllBidPrices())
+		})
 	}
 }

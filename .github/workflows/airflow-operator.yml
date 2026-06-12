@@ -38,18 +38,76 @@ on:
       - 'third_party/airflow/**'
 
 jobs:
+  # Formatting, linting and docs only need to run once. They are pinned to
+  # Python 3.12 here rather than repeated across every version in the
+  # airflow-tox matrix. The operator pulls armada-client from PyPI, so these
+  # checks need no proto build, Go or Docker.
+  airflow-lint:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install 'tox>=4,<5'
+      - name: Check formatting and lint
+        run: tox -e format-check
+        working-directory: third_party/airflow
+      - name: Verify docs updated if needed
+        run: tox -e docs-check
+        working-directory: third_party/airflow
+
+  # Verifies the operator against every supported (Airflow, Python) combination.
+  # The airflow-tox job below only resolves Airflow to the top of the range (newest 3.x),
+  # so without this grid the 2.x serde / get_current_context paths and the 3.2 airflow.sdk
+  # serde path would never be exercised in CI. Python 3.14 is only supported upstream by
+  # Airflow 3.2+ (Airflow 2.10.x and 3.1.x cap at Python 3.12), so those (airflow, 3.14)
+  # cells are excluded — they would otherwise fail at dependency install. The versions are
+  # in the matrix so they appear in the check name (e.g. "airflow-compat (2.10.5, 3.12)").
+  airflow-compat:
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        airflow: ['2.10.5', '3.1.8', '3.2.1']
+        python: ['3.10', '3.12', '3.14']
+        exclude:
+          - airflow: '2.10.5'
+            python: '3.14'
+          - airflow: '3.1.8'
+            python: '3.14'
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Setup Go
+        uses: ./.github/actions/setup-go-cache
+        with:
+          cache-prefix: airflow-compat
+      - name: Install Protoc
+        uses: arduino/setup-protoc@c65c819552d16ad3c9b72d9dfd5ba5237b9c906b # v3
+        with:
+          version: '23.3'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      # Generates the armada_client proto code (typings, *_pb2) that the operator imports.
+      # Without this the local client install is incomplete and the tests fail to collect.
+      - run: go run github.com/magefile/mage@v1.15.0 -v buildPython
+      - name: Run operator tests against Airflow ${{ matrix.airflow }}
+        run: third_party/airflow/scripts/run-tests.sh ${{ matrix.airflow }} ${{ matrix.python }}
+
   airflow-tox:
     runs-on: ubuntu-22.04
     strategy:
       matrix:
-        python: [ '3.10', '3.11', '3.12' ]
+        python: [ '3.10', '3.12', '3.14' ]
         include:
           - tox-env: 'py310'
             python: '3.10'
-          - tox-env: 'py311'
-            python: '3.11'
           - tox-env: 'py312'
             python: '3.12'
+          - tox-env: 'py314'
+            python: '3.14'
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       - name: Setup Go
@@ -78,6 +136,15 @@ jobs:
       DOCKER_BUILDX_BUILDER: "builder"
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      # Some ubuntu-22.04 runners only have ~17GB free on the root disk, which is
+      # less than this job's ~19.5GB peak usage. Remove unused preinstalled
+      # toolchains to make room.
+      - name: Free Disk Space (Ubuntu)
+        uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be # v1.3.1
+        with:
+          tool-cache: false
+          large-packages: false
+          swap-storage: false
       - name: Setup Docker
         uses: docker/setup-docker-action@1a6edb0ba9ac496f6850236981f15d8f9a82254d # v5
         with:
@@ -103,3 +170,8 @@ jobs:
           version: '23.3'
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - run: go run github.com/magefile/mage@v1.15.0 -v teste2eAirflow
+      - name: Disk usage report
+        if: always()
+        run: |
+          df -h /
+          docker system df || true

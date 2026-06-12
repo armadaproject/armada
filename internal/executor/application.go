@@ -203,7 +203,7 @@ func setupExecutorApiComponents(
 	}
 
 	var classifier *categorizer.Classifier
-	if config.Application.EnableJobErrorCategorization {
+	if config.Application.ErrorCategories.Enabled {
 		classifier, err = categorizer.NewClassifier(config.Application.ErrorCategories)
 		if err != nil {
 			ctx.Fatalf("Config error in error categories: %s", err)

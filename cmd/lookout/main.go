@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
@@ -62,19 +63,17 @@ func makeContext() (*armadacontext.Context, func()) {
 }
 
 func migrate(ctx *armadacontext.Context, config configuration.LookoutConfig) {
-	var err error
-	var migrations []database.Migration
-
-	db, err := database.OpenPgxPool(config.Postgres)
+	db, err := database.OpenPgxConn(config.Postgres)
 	if err != nil {
 		panic(err)
 	}
+	defer db.Close(ctx)
 
-	if config.ExperimentalHotColdSplit {
-		migrations, err = lookouthcschema.LookoutHCMigrations()
-	} else {
-		migrations, err = lookoutschema.LookoutMigrations()
+	if err := database.PrepareSchema(ctx, db, config.Migration); err != nil {
+		panic(err)
 	}
+
+	migrations, err := lookoutschema.LookoutMigrations()
 	if err != nil {
 		panic(err)
 	}
@@ -82,6 +81,12 @@ func migrate(ctx *armadacontext.Context, config configuration.LookoutConfig) {
 	err = database.UpdateDatabase(ctx, db, migrations)
 	if err != nil {
 		panic(err)
+	}
+
+	if config.ExperimentalHotColdSplit {
+		if err := lookouthcschema.ApplyPartitioner(ctx, db); err != nil {
+			panic(err)
+		}
 	}
 }
 
@@ -107,8 +112,12 @@ func prune(ctx *armadacontext.Context, config configuration.LookoutConfig) {
 	if config.PrunerConfig.BatchSize <= 0 {
 		panic("batchSize must be greater than 0")
 	}
-	log.Infof("expireAfter: %v, batchSize: %v, timeout: %v",
-		config.PrunerConfig.ExpireAfter, config.PrunerConfig.BatchSize, config.PrunerConfig.Timeout)
+	zombieRepairThreshold := 15 * time.Minute
+	if config.PrunerConfig.ZombieRepairThreshold != nil {
+		zombieRepairThreshold = *config.PrunerConfig.ZombieRepairThreshold
+	}
+	log.Infof("expireAfter: %v, batchSize: %v, timeout: %v, zombieRepairThreshold: %v",
+		config.PrunerConfig.ExpireAfter, config.PrunerConfig.BatchSize, config.PrunerConfig.Timeout, zombieRepairThreshold)
 
 	ctxTimeout, cancel := armadacontext.WithTimeout(ctx, config.PrunerConfig.Timeout)
 	defer cancel()
@@ -117,12 +126,25 @@ func prune(ctx *armadacontext.Context, config configuration.LookoutConfig) {
 		db,
 		config.PrunerConfig.ExpireAfter,
 		config.PrunerConfig.DeduplicationExpireAfter,
+		zombieRepairThreshold,
 		config.PrunerConfig.BatchSize,
 		clock.RealClock{},
 		config.ExperimentalHotColdSplit,
 	)
 	if err != nil {
 		panic(err)
+	}
+
+	if config.PrunerConfig.PushgatewayUrl != "" {
+		jobName := config.PrunerConfig.PushgatewayJobName
+		if jobName == "" {
+			jobName = "lookout-pruner"
+		}
+		pushCtx, pushCancel := armadacontext.WithTimeout(ctx, 30*time.Second)
+		defer pushCancel()
+		if err := pruner.PushMetrics(pushCtx, config.PrunerConfig.PushgatewayUrl, jobName); err != nil {
+			log.WithError(err).Warn("failed to push pruner metrics to Pushgateway")
+		}
 	}
 }
 

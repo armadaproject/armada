@@ -93,7 +93,7 @@ func (stateReporter *JobStateReporter) reportCurrentStatus(pod *v1.Pod) {
 
 	var classifyResult categorizer.ClassifyResult
 	if pod.Status.Phase == v1.PodFailed {
-		classifyResult = stateReporter.classifier.Classify(pod)
+		classifyResult = stateReporter.classifier.ClassifyContainerError(pod)
 	}
 
 	event, err := reporter.CreateEventForCurrentState(pod, stateReporter.clusterContext.GetClusterId(), classifyResult)

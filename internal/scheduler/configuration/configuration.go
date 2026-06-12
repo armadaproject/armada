@@ -8,10 +8,13 @@ import (
 
 	authconfig "github.com/armadaproject/armada/internal/common/auth/configuration"
 	commonconfig "github.com/armadaproject/armada/internal/common/config"
+	"github.com/armadaproject/armada/internal/common/database"
 	grpcconfig "github.com/armadaproject/armada/internal/common/grpc/configuration"
 	profilingconfig "github.com/armadaproject/armada/internal/common/profiling/configuration"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/common/types"
+	"github.com/armadaproject/armada/internal/leaderelection"
+	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/armadaproject/armada/pkg/client"
 )
@@ -25,12 +28,14 @@ const (
 type Configuration struct {
 	// Database configuration
 	Postgres configuration.PostgresConfig
+	// Migration configuration controlling optional schema creation
+	Migration database.MigrationConfig
 	// Armada Api Connection.  Used to fetch queues.
 	ArmadaApi client.ApiConnectionDetails
 	// General Pulsar configuration
 	Pulsar commonconfig.PulsarConfig
 	// Configuration controlling leader election
-	Leader LeaderConfig
+	Leader leaderelection.Config
 	// Configuration controlling metrics
 	Metrics MetricsConfig
 	// Scheduler configuration (this is shared with the old scheduler)
@@ -87,6 +92,14 @@ type Configuration struct {
 	PricingApi PricingApiConfig
 	// Whether to publish metrics To Pulsar.  This is currently experimental
 	PublishMetricsToPulsar bool
+	// JobMetadataMigrationPhase controls whether submit_message and groups are
+	// read from the jobs table, the job_metadata table, or both (coalesced),
+	// during the migration. Required; default ("legacy").
+	// Operators must coordinate this value with the scheduleringester's JobMetadataMigrationPhase:
+	// a mismatch can cause new submissions to be unreadable
+	// (e.g. ingester=cutover with scheduler=legacy omits submit_message/groups from leases)
+	// or to fail entirely (e.g. scheduler=cutover while rows without a job_metadata counterpart still exist).
+	JobMetadataMigrationPhase schedulerdb.JobMetadataMigrationPhase `validate:"required,oneof=legacy dualWrite cutover"`
 }
 
 type SubmitCheckConfig struct {
@@ -105,26 +118,6 @@ type SubmitCheckConfig struct {
 	//
 	// Set to 0 to disable (no per-queue time limit on submit check).
 	MaxDurationPerQueue time.Duration `validate:"omitempty,gt=0"`
-}
-
-type LeaderConfig struct {
-	// Valid modes are "standalone" or "kubernetes"
-	Mode string `validate:"required"`
-	// Name of the K8s Lock Object
-	LeaseLockName string
-	// Namespace of the K8s Lock Object
-	LeaseLockNamespace string
-	// The name of the pod
-	PodName string
-	// How long the lease is held for.
-	// Non leaders much wait this long before trying to acquire the lease
-	LeaseDuration time.Duration
-	// RenewDeadline is the duration that the acting leader will retry refreshing leadership before giving up.
-	RenewDeadline time.Duration
-	// RetryPeriod is the duration the LeaderElector clients should waite between tries of actions.
-	RetryPeriod time.Duration
-	// Connection details to the leader
-	LeaderConnection client.ApiConnectionDetails
 }
 
 type FloatingResourceConfig struct {

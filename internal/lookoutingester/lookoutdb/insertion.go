@@ -3,7 +3,6 @@ package lookoutdb
 import (
 	"fmt"
 	"regexp"
-	"sync"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -41,8 +40,13 @@ func NewLookoutDb(db *pgxpool.Pool, fatalErrors []*regexp.Regexp, metrics *metri
 // * New Job Creations
 // * Job Updates, New Job Creations, New User Annotations
 // * Job Run Updates
-// In each case we first try to bach insert the rows using the postgres copy protocol.  If this fails then we try a
-// slower, serial insert and discard any rows that cannot be inserted.
+// In each case we first try to batch insert the rows using the postgres copy protocol. If this
+// fails then we try a slower, serial insert and discard any rows that cannot be inserted.
+//
+// If the context is cancelled (e.g. ingester shutdown) Store returns the cancellation error
+// rather than silently dropping the remaining work. Callers must rely on this to decide
+// whether to ack the underlying Pulsar messages: ack only on a nil return, otherwise the
+// affected messages must be left for redelivery to avoid jobs becoming zombies in Lookout.
 func (l *LookoutDb) Store(ctx *armadacontext.Context, instructions *model.InstructionSet) error {
 	// We might have multiple updates for the same job or job run
 	// These can be conflated to help performance
@@ -54,39 +58,36 @@ func (l *LookoutDb) Store(ctx *armadacontext.Context, instructions *model.Instru
 
 	start := time.Now()
 	// Jobs need to be ingested first as other updates may reference these
-	wgJobIngestion := sync.WaitGroup{}
-	wgJobIngestion.Add(2)
-	go func() {
-		defer wgJobIngestion.Done()
-		l.CreateJobs(ctx, instructions.JobsToCreate)
-	}()
-	go func() {
-		defer wgJobIngestion.Done()
-		l.CreateJobSpecs(ctx, instructions.JobsToCreate)
-	}()
+	jobIngestionGroup, jobIngestionCtx := armadacontext.ErrGroup(ctx)
+	jobIngestionGroup.Go(func() error {
+		return l.CreateJobs(jobIngestionCtx, instructions.JobsToCreate)
+	})
+	jobIngestionGroup.Go(func() error {
+		return l.CreateJobSpecs(jobIngestionCtx, instructions.JobsToCreate)
+	})
+	if err := jobIngestionGroup.Wait(); err != nil {
+		return err
+	}
 
-	wgJobIngestion.Wait()
-
-	// Now we can job updates, annotations and new job runs
-	wg := sync.WaitGroup{}
-	wg.Add(3)
-	go func() {
-		defer wg.Done()
-		l.UpdateJobs(ctx, jobsToUpdate)
-	}()
-	go func() {
-		defer wg.Done()
-		l.CreateJobRuns(ctx, instructions.JobRunsToCreate)
-	}()
-	go func() {
-		defer wg.Done()
-		l.CreateJobErrors(ctx, instructions.JobErrorsToCreate)
-	}()
-
-	wg.Wait()
+	// Now we can do job updates, annotations and new job runs
+	jobUpdateGroup, jobUpdateCtx := armadacontext.ErrGroup(ctx)
+	jobUpdateGroup.Go(func() error {
+		return l.UpdateJobs(jobUpdateCtx, jobsToUpdate)
+	})
+	jobUpdateGroup.Go(func() error {
+		return l.CreateJobRuns(jobUpdateCtx, instructions.JobRunsToCreate)
+	})
+	jobUpdateGroup.Go(func() error {
+		return l.CreateJobErrors(jobUpdateCtx, instructions.JobErrorsToCreate)
+	})
+	if err := jobUpdateGroup.Wait(); err != nil {
+		return err
+	}
 
 	// Finally, we can update the job runs
-	l.UpdateJobRuns(ctx, jobRunsToUpdate)
+	if err := l.UpdateJobRuns(ctx, jobRunsToUpdate); err != nil {
+		return err
+	}
 
 	taken := time.Since(start)
 	if numRowsToChange != 0 && taken != 0 {
@@ -95,86 +96,101 @@ func (l *LookoutDb) Store(ctx *armadacontext.Context, instructions *model.Instru
 	return nil
 }
 
-func (l *LookoutDb) CreateJobs(ctx *armadacontext.Context, instructions []*model.CreateJobInstruction) {
+func (l *LookoutDb) CreateJobs(ctx *armadacontext.Context, instructions []*model.CreateJobInstruction) error {
 	if len(instructions) == 0 {
-		return
+		return nil
 	}
 	start := time.Now()
 	err := l.CreateJobsBatch(ctx, instructions)
 	if err != nil {
 		log.WithError(err).Warn("Creating jobs via batch failed, will attempt to insert serially (this might be slow).")
-		l.CreateJobsScalar(ctx, instructions)
+		if scalarErr := l.CreateJobsScalar(ctx, instructions); scalarErr != nil {
+			return scalarErr
+		}
 	}
 	taken := time.Since(start)
 	l.metrics.RecordAvRowChangeTimeByOperation("job", commonmetrics.DBOperationInsert, len(instructions), taken)
 	l.metrics.RecordRowsChange("job", commonmetrics.DBOperationInsert, len(instructions))
 	log.Infof("Inserted %d jobs in %s", len(instructions), taken)
+	return nil
 }
 
-func (l *LookoutDb) CreateJobSpecs(ctx *armadacontext.Context, instructions []*model.CreateJobInstruction) {
+func (l *LookoutDb) CreateJobSpecs(ctx *armadacontext.Context, instructions []*model.CreateJobInstruction) error {
 	if len(instructions) == 0 {
-		return
+		return nil
 	}
 	start := time.Now()
 	err := l.CreateJobSpecsBatch(ctx, instructions)
 	if err != nil {
 		log.WithError(err).Warn("Creating job specs via batch failed, will attempt to insert serially (this might be slow).")
-		l.CreateJobSpecsScalar(ctx, instructions)
+		if scalarErr := l.CreateJobSpecsScalar(ctx, instructions); scalarErr != nil {
+			return scalarErr
+		}
 	}
 	taken := time.Since(start)
 	l.metrics.RecordAvRowChangeTimeByOperation("job_spec", commonmetrics.DBOperationInsert, len(instructions), taken)
 	l.metrics.RecordRowsChange("job_spec", commonmetrics.DBOperationInsert, len(instructions))
 	log.Infof("Inserted %d job specs in %s", len(instructions), taken)
+	return nil
 }
 
-func (l *LookoutDb) UpdateJobs(ctx *armadacontext.Context, instructions []*model.UpdateJobInstruction) {
+func (l *LookoutDb) UpdateJobs(ctx *armadacontext.Context, instructions []*model.UpdateJobInstruction) error {
 	if len(instructions) == 0 {
-		return
+		return nil
 	}
 	start := time.Now()
 	instructions = l.filterEventsForTerminalJobs(ctx, l.db, instructions, l.metrics)
 	err := l.UpdateJobsBatch(ctx, instructions)
 	if err != nil {
 		log.WithError(err).Warn("Updating jobs via batch failed, will attempt to insert serially (this might be slow).")
-		l.UpdateJobsScalar(ctx, instructions)
+		if scalarErr := l.UpdateJobsScalar(ctx, instructions); scalarErr != nil {
+			return scalarErr
+		}
 	}
 	taken := time.Since(start)
 	l.metrics.RecordAvRowChangeTimeByOperation("job", commonmetrics.DBOperationUpdate, len(instructions), taken)
 	l.metrics.RecordRowsChange("job", commonmetrics.DBOperationUpdate, len(instructions))
 	l.recordStateUpdates(instructions)
 	log.Infof("Updated %d jobs in %s", len(instructions), taken)
+	return nil
 }
 
-func (l *LookoutDb) CreateJobRuns(ctx *armadacontext.Context, instructions []*model.CreateJobRunInstruction) {
+func (l *LookoutDb) CreateJobRuns(ctx *armadacontext.Context, instructions []*model.CreateJobRunInstruction) error {
 	if len(instructions) == 0 {
-		return
+		return nil
 	}
 	start := time.Now()
 	err := l.CreateJobRunsBatch(ctx, instructions)
 	if err != nil {
 		log.WithError(err).Warn("Creating job runs via batch failed, will attempt to insert serially (this might be slow).")
-		l.CreateJobRunsScalar(ctx, instructions)
+		if scalarErr := l.CreateJobRunsScalar(ctx, instructions); scalarErr != nil {
+			return scalarErr
+		}
 	}
 	taken := time.Since(start)
 	l.metrics.RecordAvRowChangeTimeByOperation("job_run", commonmetrics.DBOperationInsert, len(instructions), taken)
 	l.metrics.RecordRowsChange("job_run", commonmetrics.DBOperationInsert, len(instructions))
 	log.Infof("Inserted %d job runs in %s", len(instructions), taken)
+	return nil
 }
 
-func (l *LookoutDb) UpdateJobRuns(ctx *armadacontext.Context, instructions []*model.UpdateJobRunInstruction) {
+func (l *LookoutDb) UpdateJobRuns(ctx *armadacontext.Context, instructions []*model.UpdateJobRunInstruction) error {
 	if len(instructions) == 0 {
-		return
+		return nil
 	}
 	start := time.Now()
 	err := l.UpdateJobRunsBatch(ctx, instructions)
 	if err != nil {
 		log.WithError(err).Warn("Updating job runs via batch failed, will attempt to insert serially (this might be slow).")
-		l.UpdateJobRunsScalar(ctx, instructions)
+		if scalarErr := l.UpdateJobRunsScalar(ctx, instructions); scalarErr != nil {
+			return scalarErr
+		}
 	}
 	taken := time.Since(start)
 	l.metrics.RecordAvRowChangeTimeByOperation("job_run", commonmetrics.DBOperationUpdate, len(instructions), taken)
 	l.metrics.RecordRowsChange("job_run", commonmetrics.DBOperationUpdate, len(instructions))
 	log.Infof("Updated %d job runs in %s", len(instructions), taken)
+	return nil
 }
 
 func (l *LookoutDb) recordStateUpdates(instructions []*model.UpdateJobInstruction) {
@@ -209,20 +225,23 @@ func (l *LookoutDb) recordStateUpdates(instructions []*model.UpdateJobInstructio
 	}
 }
 
-func (l *LookoutDb) CreateJobErrors(ctx *armadacontext.Context, instructions []*model.CreateJobErrorInstruction) {
+func (l *LookoutDb) CreateJobErrors(ctx *armadacontext.Context, instructions []*model.CreateJobErrorInstruction) error {
 	if len(instructions) == 0 {
-		return
+		return nil
 	}
 	start := time.Now()
 	err := l.CreateJobErrorsBatch(ctx, instructions)
 	if err != nil {
 		log.WithError(err).Warn("Creating job errors via batch failed, will attempt to insert serially (this might be slow).")
-		l.CreateJobErrorsScalar(ctx, instructions)
+		if scalarErr := l.CreateJobErrorsScalar(ctx, instructions); scalarErr != nil {
+			return scalarErr
+		}
 	}
 	taken := time.Since(start)
 	l.metrics.RecordAvRowChangeTimeByOperation("job_error", commonmetrics.DBOperationInsert, len(instructions), taken)
 	l.metrics.RecordRowsChange("job_error", commonmetrics.DBOperationInsert, len(instructions))
 	log.Infof("Inserted %d job errors in %s", len(instructions), taken)
+	return nil
 }
 
 func (l *LookoutDb) CreateJobsBatch(ctx *armadacontext.Context, instructions []*model.CreateJobInstruction) error {
@@ -339,8 +358,22 @@ func (l *LookoutDb) CreateJobsBatch(ctx *armadacontext.Context, instructions []*
 	})
 }
 
-// CreateJobsScalar will insert jobs one by one into the database
-func (l *LookoutDb) CreateJobsScalar(ctx *armadacontext.Context, instructions []*model.CreateJobInstruction) {
+// CreateJobsScalar will insert jobs one by one into the database.
+//
+// The Scalar* methods in this file all share the following error-handling policy:
+//
+//   - On context cancellation (e.g. ingester shutdown), bail out immediately and return
+//     ctx.Err(). This propagates up through Store so the ingestion pipeline does not ack
+//     the affected Pulsar messages, and they are re-processed on the next consumer start.
+//     Without this, mid-batch shutdowns silently drop DB writes while the pipeline acks
+//     the messages, leaving jobs as zombies in Lookout.
+//
+//   - On any other per-row error, log a warning and continue with the next row. This
+//     prevents one poisoned row (e.g. malformed data the DB rejects as non-retryable)
+//     from blocking the whole batch from being acked and stalling the ingester. Genuinely
+//     fatal errors should be expressed via the fatalErrors regex list rather than handled
+//     here.
+func (l *LookoutDb) CreateJobsScalar(ctx *armadacontext.Context, instructions []*model.CreateJobInstruction) error {
 	sqlStatement := `INSERT INTO job (
 			job_id,
 			queue,
@@ -363,6 +396,9 @@ func (l *LookoutDb) CreateJobsScalar(ctx *armadacontext.Context, instructions []
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
 		ON CONFLICT DO NOTHING`
 	for _, i := range instructions {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
 		err := l.withDatabaseRetryInsert(ctx, func() error {
 			_, err := l.db.Exec(ctx, sqlStatement,
 				i.JobId,
@@ -390,8 +426,12 @@ func (l *LookoutDb) CreateJobsScalar(ctx *armadacontext.Context, instructions []
 		})
 		if err != nil {
 			log.WithError(err).Warnf("Create job for job %s, jobset %s failed", i.JobId, i.JobSet)
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
 		}
 	}
+	return nil
 }
 
 func (l *LookoutDb) UpdateJobsBatch(ctx *armadacontext.Context, instructions []*model.UpdateJobInstruction) error {
@@ -477,7 +517,7 @@ func (l *LookoutDb) UpdateJobsBatch(ctx *armadacontext.Context, instructions []*
 	})
 }
 
-func (l *LookoutDb) UpdateJobsScalar(ctx *armadacontext.Context, instructions []*model.UpdateJobInstruction) {
+func (l *LookoutDb) UpdateJobsScalar(ctx *armadacontext.Context, instructions []*model.UpdateJobInstruction) error {
 	sqlStatement := `UPDATE job
 		SET
 			priority                     = coalesce($2, priority),
@@ -491,6 +531,9 @@ func (l *LookoutDb) UpdateJobsScalar(ctx *armadacontext.Context, instructions []
 			cancel_user                  = coalesce($10, job.cancel_user)
 		WHERE job_id = $1`
 	for _, i := range instructions {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
 		err := l.withDatabaseRetryInsert(ctx, func() error {
 			_, err := l.db.Exec(ctx, sqlStatement,
 				i.JobId,
@@ -510,8 +553,12 @@ func (l *LookoutDb) UpdateJobsScalar(ctx *armadacontext.Context, instructions []
 		})
 		if err != nil {
 			log.WithError(err).Warnf("Updating job %s failed", i.JobId)
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
 		}
 	}
+	return nil
 }
 
 func (l *LookoutDb) CreateJobSpecsBatch(ctx *armadacontext.Context, instructions []*model.CreateJobInstruction) error {
@@ -567,7 +614,7 @@ func (l *LookoutDb) CreateJobSpecsBatch(ctx *armadacontext.Context, instructions
 	})
 }
 
-func (l *LookoutDb) CreateJobSpecsScalar(ctx *armadacontext.Context, instructions []*model.CreateJobInstruction) {
+func (l *LookoutDb) CreateJobSpecsScalar(ctx *armadacontext.Context, instructions []*model.CreateJobInstruction) error {
 	sqlStatement := `INSERT INTO job_spec (
 			job_id,
 			job_spec
@@ -575,6 +622,9 @@ func (l *LookoutDb) CreateJobSpecsScalar(ctx *armadacontext.Context, instruction
 		VALUES ($1, $2)
 		ON CONFLICT DO NOTHING`
 	for _, i := range instructions {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
 		err := l.withDatabaseRetryInsert(ctx, func() error {
 			_, err := l.db.Exec(ctx, sqlStatement,
 				i.JobId,
@@ -587,8 +637,12 @@ func (l *LookoutDb) CreateJobSpecsScalar(ctx *armadacontext.Context, instruction
 		})
 		if err != nil {
 			log.WithError(err).Warnf("Create job spec for job %s, jobset %s failed", i.JobId, i.JobSet)
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
 		}
 	}
+	return nil
 }
 
 func (l *LookoutDb) CreateJobRunsBatch(ctx *armadacontext.Context, instructions []*model.CreateJobRunInstruction) error {
@@ -670,7 +724,7 @@ func (l *LookoutDb) CreateJobRunsBatch(ctx *armadacontext.Context, instructions 
 	})
 }
 
-func (l *LookoutDb) CreateJobRunsScalar(ctx *armadacontext.Context, instructions []*model.CreateJobRunInstruction) {
+func (l *LookoutDb) CreateJobRunsScalar(ctx *armadacontext.Context, instructions []*model.CreateJobRunInstruction) error {
 	sqlStatement := `INSERT INTO job_run (
 			run_id,
 			job_id,
@@ -684,6 +738,9 @@ func (l *LookoutDb) CreateJobRunsScalar(ctx *armadacontext.Context, instructions
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 		ON CONFLICT DO NOTHING`
 	for _, i := range instructions {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
 		err := l.withDatabaseRetryInsert(ctx, func() error {
 			_, err := l.db.Exec(ctx, sqlStatement,
 				i.RunId,
@@ -703,8 +760,12 @@ func (l *LookoutDb) CreateJobRunsScalar(ctx *armadacontext.Context, instructions
 		})
 		if err != nil {
 			log.WithError(err).Warnf("Create job run for job %s, run %s failed", i.JobId, i.RunId)
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
 		}
 	}
+	return nil
 }
 
 func (l *LookoutDb) UpdateJobRunsBatch(ctx *armadacontext.Context, instructions []*model.UpdateJobRunInstruction) error {
@@ -725,7 +786,8 @@ func (l *LookoutDb) UpdateJobRunsBatch(ctx *armadacontext.Context, instructions 
 				    exit_code            int,
 					ingress_addresses    jsonb,
 					failure_category     varchar(63),
-					failure_subcategory  varchar(63)
+					failure_subcategory  varchar(63),
+					scheduler_termination_reason jsonb
 				) ON COMMIT DROP;`, tmpTable))
 			if err != nil {
 				l.metrics.RecordDBError(commonmetrics.DBOperationCreateTempTable)
@@ -749,6 +811,7 @@ func (l *LookoutDb) UpdateJobRunsBatch(ctx *armadacontext.Context, instructions 
 					"ingress_addresses",
 					"failure_category",
 					"failure_subcategory",
+					"scheduler_termination_reason",
 				},
 				pgx.CopyFromSlice(len(instructions), func(i int) ([]interface{}, error) {
 					return []interface{}{
@@ -764,6 +827,7 @@ func (l *LookoutDb) UpdateJobRunsBatch(ctx *armadacontext.Context, instructions 
 						instructions[i].IngressAddresses,
 						instructions[i].FailureCategory,
 						instructions[i].FailureSubcategory,
+						instructions[i].SchedulerTerminationReason,
 					}, nil
 				}),
 			)
@@ -785,7 +849,8 @@ func (l *LookoutDb) UpdateJobRunsBatch(ctx *armadacontext.Context, instructions 
 						exit_code            = coalesce(tmp.exit_code, job_run.exit_code),
 						ingress_addresses    = coalesce(tmp.ingress_addresses, job_run.ingress_addresses),
 						failure_category     = coalesce(tmp.failure_category, job_run.failure_category),
-						failure_subcategory  = coalesce(tmp.failure_subcategory, job_run.failure_subcategory)
+						failure_subcategory  = coalesce(tmp.failure_subcategory, job_run.failure_subcategory),
+						scheduler_termination_reason = coalesce(tmp.scheduler_termination_reason, job_run.scheduler_termination_reason)
 					FROM %s as tmp where tmp.run_id = job_run.run_id`, tmpTable),
 			)
 			if err != nil {
@@ -798,7 +863,7 @@ func (l *LookoutDb) UpdateJobRunsBatch(ctx *armadacontext.Context, instructions 
 	})
 }
 
-func (l *LookoutDb) UpdateJobRunsScalar(ctx *armadacontext.Context, instructions []*model.UpdateJobRunInstruction) {
+func (l *LookoutDb) UpdateJobRunsScalar(ctx *armadacontext.Context, instructions []*model.UpdateJobRunInstruction) error {
 	sqlStatement := `UPDATE job_run
 		SET
 			node                 = coalesce($2, node),
@@ -811,9 +876,13 @@ func (l *LookoutDb) UpdateJobRunsScalar(ctx *armadacontext.Context, instructions
 			debug                = coalesce($9, debug),
 			ingress_addresses    = coalesce($10, ingress_addresses),
 			failure_category     = coalesce($11, failure_category),
-			failure_subcategory  = coalesce($12, failure_subcategory)
+			failure_subcategory  = coalesce($12, failure_subcategory),
+			scheduler_termination_reason = coalesce($13, scheduler_termination_reason)
 		WHERE run_id = $1`
 	for _, i := range instructions {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
 		err := l.withDatabaseRetryInsert(ctx, func() error {
 			_, err := l.db.Exec(ctx, sqlStatement,
 				i.RunId,
@@ -828,6 +897,7 @@ func (l *LookoutDb) UpdateJobRunsScalar(ctx *armadacontext.Context, instructions
 				i.IngressAddresses,
 				i.FailureCategory,
 				i.FailureSubcategory,
+				i.SchedulerTerminationReason,
 			)
 			if err != nil {
 				l.metrics.RecordDBError(commonmetrics.DBOperationUpdate)
@@ -836,8 +906,12 @@ func (l *LookoutDb) UpdateJobRunsScalar(ctx *armadacontext.Context, instructions
 		})
 		if err != nil {
 			log.WithError(err).Warnf("Updating job run %s failed", i.RunId)
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
 		}
 	}
+	return nil
 }
 
 func (l *LookoutDb) CreateJobErrorsBatch(ctx *armadacontext.Context, instructions []*model.CreateJobErrorInstruction) error {
@@ -890,11 +964,14 @@ func (l *LookoutDb) CreateJobErrorsBatch(ctx *armadacontext.Context, instruction
 	})
 }
 
-func (l *LookoutDb) CreateJobErrorsScalar(ctx *armadacontext.Context, instructions []*model.CreateJobErrorInstruction) {
+func (l *LookoutDb) CreateJobErrorsScalar(ctx *armadacontext.Context, instructions []*model.CreateJobErrorInstruction) error {
 	sqlStatement := `INSERT INTO job_error (job_id, error)
 		VALUES ($1, $2)
 		ON CONFLICT DO NOTHING`
 	for _, i := range instructions {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
 		err := l.withDatabaseRetryInsert(ctx, func() error {
 			_, err := l.db.Exec(ctx, sqlStatement,
 				i.JobId,
@@ -906,8 +983,12 @@ func (l *LookoutDb) CreateJobErrorsScalar(ctx *armadacontext.Context, instructio
 		})
 		if err != nil {
 			log.WithError(err).Warnf("Create job error for job %s, failed", i.JobId)
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
 		}
 	}
+	return nil
 }
 
 func batchInsert(ctx *armadacontext.Context, db *pgxpool.Pool, createTmp func(pgx.Tx) error,
@@ -1033,6 +1114,9 @@ func conflateJobRunUpdates(updates []*model.UpdateJobRunInstruction) []*model.Up
 			}
 			if update.FailureSubcategory != nil {
 				existing.FailureSubcategory = update.FailureSubcategory
+			}
+			if update.SchedulerTerminationReason != nil {
+				existing.SchedulerTerminationReason = update.SchedulerTerminationReason
 			}
 		} else {
 			updatesById[update.RunId] = update

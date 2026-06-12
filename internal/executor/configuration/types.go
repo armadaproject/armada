@@ -27,11 +27,8 @@ type ApplicationConfiguration struct {
 	// MaxLeasedJobs is the maximum jobs the executor should have in Leased state ay any one time (i.e jobs not submitted to kubernetes)
 	// It is largely used to calculate how many new jobs to request from the scheduler
 	MaxLeasedJobs int
-	// EnableJobErrorCategorization enables failure classification on pod errors.
-	// When false, no failure_category or failure_subcategory is set on error events.
-	EnableJobErrorCategorization bool `yaml:"enableJobErrorCategorization"`
 	// ErrorCategories defines category rules for classifying pod failures.
-	// Only used when EnableJobErrorCategorization is true.
+	// Set ErrorCategories.Enabled to true to turn classification on.
 	ErrorCategories categorizer.ErrorCategoriesConfig `yaml:"errorCategories"`
 }
 

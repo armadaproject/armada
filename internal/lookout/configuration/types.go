@@ -4,6 +4,7 @@ import (
 	"time"
 
 	authconfig "github.com/armadaproject/armada/internal/common/auth/configuration"
+	"github.com/armadaproject/armada/internal/common/database"
 	profilingconfig "github.com/armadaproject/armada/internal/common/profiling/configuration"
 	"github.com/armadaproject/armada/internal/server/configuration"
 )
@@ -19,6 +20,8 @@ type LookoutConfig struct {
 	Tls                TlsConfig
 
 	Postgres configuration.PostgresConfig
+
+	Migration database.MigrationConfig
 
 	PrunerConfig PrunerConfig
 
@@ -36,9 +39,26 @@ type TlsConfig struct {
 type PrunerConfig struct {
 	ExpireAfter              time.Duration
 	DeduplicationExpireAfter time.Duration
-	Timeout                  time.Duration
-	BatchSize                int
-	Postgres                 configuration.PostgresConfig
+	// ZombieRepairThreshold is the minimum age of a terminal latest run before
+	// a zombie job (one whose state column is non-terminal but whose latest
+	// run is in a terminal state) will be repaired by the pruner. This acts as
+	// a grace period to avoid racing legitimately in-flight state transitions
+	// or repairing jobs whose state-update events the lookout ingester has not
+	// yet caught up on.
+	//
+	// If nil, defaults to 15 minutes. Set to 0 explicitly to disable zombie
+	// reconciliation entirely.
+	ZombieRepairThreshold *time.Duration
+	Timeout               time.Duration
+	BatchSize             int
+	Postgres              configuration.PostgresConfig
+	// PushgatewayUrl is the URL of a Prometheus Pushgateway (or compatible
+	// endpoint) to push pruner metrics to after each run. If empty, no metrics
+	// are pushed.
+	PushgatewayUrl string
+	// PushgatewayJobName is the job label attached to pushed metrics.
+	// Defaults to "lookout-pruner" if empty.
+	PushgatewayJobName string
 }
 
 // Alert level enum values correspond to the severity levels of the MUI Alert

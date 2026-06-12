@@ -67,6 +67,12 @@ func NewLookoutAPI(spec *loads.Document) *LookoutAPI {
 			return middleware.NotImplemented("operation GetJobRunError has not yet been implemented")
 		}),
 
+		GetJobRunSchedulerTerminationReasonHandler: GetJobRunSchedulerTerminationReasonHandlerFunc(func(params GetJobRunSchedulerTerminationReasonParams) middleware.Responder {
+			_ = params
+
+			return middleware.NotImplemented("operation GetJobRunSchedulerTerminationReason has not yet been implemented")
+		}),
+
 		GetJobSpecHandler: GetJobSpecHandlerFunc(func(params GetJobSpecParams) middleware.Responder {
 			_ = params
 
@@ -77,6 +83,12 @@ func NewLookoutAPI(spec *loads.Document) *LookoutAPI {
 			_ = params
 
 			return middleware.NotImplemented("operation GetJobs has not yet been implemented")
+		}),
+
+		GetVersionHandler: GetVersionHandlerFunc(func(params GetVersionParams) middleware.Responder {
+			_ = params
+
+			return middleware.NotImplemented("operation GetVersion has not yet been implemented")
 		}),
 
 		GroupJobsHandler: GroupJobsHandlerFunc(func(params GroupJobsParams) middleware.Responder {
@@ -131,10 +143,14 @@ type LookoutAPI struct {
 	GetJobRunDebugMessageHandler GetJobRunDebugMessageHandler
 	// GetJobRunErrorHandler sets the operation handler for the get job run error operation
 	GetJobRunErrorHandler GetJobRunErrorHandler
+	// GetJobRunSchedulerTerminationReasonHandler sets the operation handler for the get job run scheduler termination reason operation
+	GetJobRunSchedulerTerminationReasonHandler GetJobRunSchedulerTerminationReasonHandler
 	// GetJobSpecHandler sets the operation handler for the get job spec operation
 	GetJobSpecHandler GetJobSpecHandler
 	// GetJobsHandler sets the operation handler for the get jobs operation
 	GetJobsHandler GetJobsHandler
+	// GetVersionHandler sets the operation handler for the get version operation
+	GetVersionHandler GetVersionHandler
 	// GroupJobsHandler sets the operation handler for the group jobs operation
 	GroupJobsHandler GroupJobsHandler
 
@@ -229,11 +245,17 @@ func (o *LookoutAPI) Validate() error {
 	if o.GetJobRunErrorHandler == nil {
 		unregistered = append(unregistered, "GetJobRunErrorHandler")
 	}
+	if o.GetJobRunSchedulerTerminationReasonHandler == nil {
+		unregistered = append(unregistered, "GetJobRunSchedulerTerminationReasonHandler")
+	}
 	if o.GetJobSpecHandler == nil {
 		unregistered = append(unregistered, "GetJobSpecHandler")
 	}
 	if o.GetJobsHandler == nil {
 		unregistered = append(unregistered, "GetJobsHandler")
+	}
+	if o.GetVersionHandler == nil {
+		unregistered = append(unregistered, "GetVersionHandler")
 	}
 	if o.GroupJobsHandler == nil {
 		unregistered = append(unregistered, "GroupJobsHandler")
@@ -350,11 +372,19 @@ func (o *LookoutAPI) initHandlerCache() {
 	if o.handlers["POST"] == nil {
 		o.handlers["POST"] = make(map[string]http.Handler)
 	}
+	o.handlers["POST"]["/api/v1/jobRunSchedulerTerminationReason"] = NewGetJobRunSchedulerTerminationReason(o.context, o.GetJobRunSchedulerTerminationReasonHandler)
+	if o.handlers["POST"] == nil {
+		o.handlers["POST"] = make(map[string]http.Handler)
+	}
 	o.handlers["POST"]["/api/v1/jobSpec"] = NewGetJobSpec(o.context, o.GetJobSpecHandler)
 	if o.handlers["POST"] == nil {
 		o.handlers["POST"] = make(map[string]http.Handler)
 	}
 	o.handlers["POST"]["/api/v1/jobs"] = NewGetJobs(o.context, o.GetJobsHandler)
+	if o.handlers["GET"] == nil {
+		o.handlers["GET"] = make(map[string]http.Handler)
+	}
+	o.handlers["GET"]["/api/v1/version"] = NewGetVersion(o.context, o.GetVersionHandler)
 	if o.handlers["POST"] == nil {
 		o.handlers["POST"] = make(map[string]http.Handler)
 	}

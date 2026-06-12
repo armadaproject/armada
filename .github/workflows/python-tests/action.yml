@@ -1,5 +1,5 @@
-name: "Python tox tests and linting"
-description: "Sets up go environment and runs python tests in tox"
+name: "Python tox tests"
+description: "Sets up go environment and runs python unit tests in tox"
 
 inputs:
   path:
@@ -21,7 +21,7 @@ runs:
       with:
         python-version: ${{ inputs.python-version }}
     # Tox to run tests; build to build the wheel after tests pass
-    - run: pip install tox==3.27.1 build twine
+    - run: pip install 'tox>=4,<5' build twine
       shell: bash
     - name: Install Protoc
       uses: arduino/setup-protoc@v3
@@ -31,14 +31,9 @@ runs:
     # Generate the proto files for python, required for later steps
     - run: go run github.com/magefile/mage@v1.15.0 -v buildPython
       shell: bash
-    - name: Run tox format environment
-      run: tox -e format
-      shell: bash
-      working-directory: ${{ inputs.path }}
-    - name: Verify docs updated if needed
-      run: tox -e docs-check
-      shell: bash
-      working-directory: ${{ inputs.path }}
+    # Formatting, linting and docs are checked once on Python 3.12 by the
+    # dedicated *-lint jobs, not per matrix version. This action only runs the
+    # version-specific unit tests and wheel build.
     - name: Run tox python ${{ inputs.python-version }} unit tests
       run: tox -e ${{ inputs.tox-env }}
       shell: bash

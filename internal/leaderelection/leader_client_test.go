@@ -1,4 +1,4 @@
-package leader
+package leaderelection
 
 import (
 	"testing"
@@ -7,20 +7,19 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
-	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/pkg/client"
 )
 
 const currentProcessPodName = "current-process-name"
 
-var defaultLeaderConfig = configuration.LeaderConfig{
+var defaultLeaderConfig = Config{
 	PodName: currentProcessPodName,
 	LeaderConnection: client.ApiConnectionDetails{
 		ArmadaUrl: "localhost:50052",
 	},
 }
 
-var templatedLeader = configuration.LeaderConfig{
+var templatedLeader = Config{
 	PodName: currentProcessPodName,
 	LeaderConnection: client.ApiConnectionDetails{
 		ArmadaUrl: "<name>.localhost:50052",

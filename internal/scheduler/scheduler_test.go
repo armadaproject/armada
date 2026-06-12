@@ -24,12 +24,12 @@ import (
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/leaderelection"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/kubernetesobjects/affinity"
-	"github.com/armadaproject/armada/internal/scheduler/leader"
 	"github.com/armadaproject/armada/internal/scheduler/metrics"
 	"github.com/armadaproject/armada/internal/scheduler/pricing"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -970,6 +970,22 @@ func TestScheduler_TestCycle(t *testing.T) {
 			expectedLeased:        []string{leasedJob.Id()}, // job should still be leased as error was thrown and transaction rolled back
 			expectedQueuedVersion: leasedJob.QueuedVersion(),
 		},
+		"Publish fails with pending updates does not advance the serial cursor": {
+			initialJobs: []*jobdb.Job{leasedJob},
+			runUpdates: []database.Run{
+				{
+					RunID:     leasedJob.LatestRun().Id(),
+					JobID:     leasedJob.Id(),
+					JobSet:    "testJobSet",
+					Executor:  "testExecutor",
+					Succeeded: true,
+					Serial:    1,
+				},
+			},
+			publishError:          true,
+			expectedLeased:        []string{leasedJob.Id()},
+			expectedQueuedVersion: leasedJob.QueuedVersion(),
+		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -1011,7 +1027,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 				jobRepo,
 				clusterRepo,
 				schedulingAlgo,
-				leader.NewStandaloneLeaderController(),
+				leaderelection.NewStandaloneLeaderController(),
 				publisher,
 				submitChecker,
 				gangValidator,
@@ -1066,16 +1082,24 @@ func TestScheduler_TestCycle(t *testing.T) {
 				assert.Empty(t, m, "%d outstanding eventSequences of type %s", len(m), eventType)
 			}
 
-			// assert that the serials are where we expect them to be
-			if len(tc.jobUpdates) > 0 {
-				assert.Equal(t, tc.jobUpdates[len(tc.jobUpdates)-1].Serial, sched.jobsSerial)
-			} else {
+			// assert that the serials are where we expect them to be.
+			// On publish failure the cursor must not advance, so that the next cycle re-fetches
+			// and re-publishes the same updates. This is what guarantees at-least-once delivery
+			// across transient Pulsar outages.
+			if tc.publishError {
 				assert.Equal(t, int64(-1), sched.jobsSerial)
-			}
-			if len(tc.runUpdates) > 0 {
-				assert.Equal(t, tc.runUpdates[len(tc.runUpdates)-1].Serial, sched.runsSerial)
-			} else {
 				assert.Equal(t, int64(-1), sched.runsSerial)
+			} else {
+				if len(tc.jobUpdates) > 0 {
+					assert.Equal(t, tc.jobUpdates[len(tc.jobUpdates)-1].Serial, sched.jobsSerial)
+				} else {
+					assert.Equal(t, int64(-1), sched.jobsSerial)
+				}
+				if len(tc.runUpdates) > 0 {
+					assert.Equal(t, tc.runUpdates[len(tc.runUpdates)-1].Serial, sched.runsSerial)
+				} else {
+					assert.Equal(t, int64(-1), sched.runsSerial)
+				}
 			}
 
 			// assert that the job db is in the state we expect
@@ -1143,6 +1167,139 @@ func TestScheduler_TestCycle(t *testing.T) {
 	}
 }
 
+// TestScheduler_PublishFailureRepublishesOnNextCycle directly verifies the at-least-once
+// publish property: when publishing fails on one cycle, the same state-transition events
+// must be regenerated and published on the next successful cycle. The TestCycle table-driven
+// test only asserts that the cursor does not advance, which is a proxy for this property.
+func TestScheduler_PublishFailureRepublishesOnNextCycle(t *testing.T) {
+	jobRepo := &testJobRepository{
+		updatedRuns: []database.Run{
+			{
+				RunID:     leasedJob.LatestRun().Id(),
+				JobID:     leasedJob.Id(),
+				JobSet:    "testJobSet",
+				Executor:  "testExecutor",
+				Succeeded: true,
+				Serial:    1,
+			},
+		},
+	}
+	testClock := clock.NewFakeClock(time.Now())
+	publisher := &testPublisher{shouldError: true}
+	clusterRepo := &testExecutorRepository{
+		updateTimes: map[string]time.Time{"testExecutor": testClock.Now()},
+	}
+	sched, err := NewScheduler(
+		testfixtures.NewJobDb(testfixtures.TestResourceListFactory),
+		jobRepo,
+		clusterRepo,
+		&testSchedulingAlgo{},
+		leaderelection.NewStandaloneLeaderController(),
+		publisher,
+		&testSubmitChecker{checkSuccess: true},
+		&testGangValidator{validateSuccess: true},
+		1*time.Second,
+		5*time.Second,
+		1*time.Hour,
+		nil,
+		maxNumberOfAttempts,
+		nodeIdLabel,
+		schedulerMetrics,
+		pricing.NoopBidPriceProvider{},
+		[]string{},
+		&testQueueCache{},
+	)
+	require.NoError(t, err)
+	sched.EnableAssertions()
+	sched.clock = testClock
+
+	txn := sched.jobDb.WriteTxn()
+	require.NoError(t, txn.Upsert([]*jobdb.Job{leasedJob}))
+	txn.Commit()
+
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
+	defer cancel()
+
+	// First cycle: publishing fails, no events should reach the publisher and the cursor
+	// must not advance.
+	require.Error(t, sched.cycle(ctx, false, sched.leaderController.GetToken(), true, 1))
+	assert.Empty(t, publisher.eventSequences)
+	assert.Equal(t, int64(-1), sched.runsSerial)
+
+	// Second cycle: publishing succeeds. The same run update is still pending (cursor did
+	// not advance), so a JobSucceeded event must be regenerated and published.
+	publisher.shouldError = false
+	require.NoError(t, sched.cycle(ctx, false, sched.leaderController.GetToken(), true, 2))
+	assert.Equal(t, int64(1), sched.runsSerial)
+
+	jobSucceededEventType := fmt.Sprintf("%T", &armadaevents.EventSequence_Event_JobSucceeded{})
+	outstanding := map[string]map[string]eventDetails{
+		jobSucceededEventType: stringsToSetWithEventDetails([]string{leasedJob.Id()}),
+	}
+	require.NoError(t, subtractEventsFromOutstandingEventsByType(publisher.eventSequences, outstanding))
+	assert.Empty(t, outstanding[jobSucceededEventType], "expected JobSucceeded event for job %s to be republished after the failed cycle", leasedJob.Id())
+}
+
+// TestScheduler_NonLeaderAdvancesCursors verifies that non-leader cycles advance the DB
+// serial cursors. Non-leaders generate no events to publish, so they must still progress
+// through the cursor; otherwise every cycle re-fetches the same growing window of DB rows.
+func TestScheduler_NonLeaderAdvancesCursors(t *testing.T) {
+	jobRepo := &testJobRepository{
+		updatedRuns: []database.Run{
+			{
+				RunID:     leasedJob.LatestRun().Id(),
+				JobID:     leasedJob.Id(),
+				JobSet:    "testJobSet",
+				Executor:  "testExecutor",
+				Succeeded: true,
+				Serial:    1,
+			},
+		},
+	}
+	testClock := clock.NewFakeClock(time.Now())
+	publisher := &testPublisher{}
+	clusterRepo := &testExecutorRepository{
+		updateTimes: map[string]time.Time{"testExecutor": testClock.Now()},
+	}
+	leaderController := leaderelection.NewStandaloneLeaderController()
+	sched, err := NewScheduler(
+		testfixtures.NewJobDb(testfixtures.TestResourceListFactory),
+		jobRepo,
+		clusterRepo,
+		&testSchedulingAlgo{},
+		leaderController,
+		publisher,
+		&testSubmitChecker{checkSuccess: true},
+		&testGangValidator{validateSuccess: true},
+		1*time.Second,
+		5*time.Second,
+		1*time.Hour,
+		nil,
+		maxNumberOfAttempts,
+		nodeIdLabel,
+		schedulerMetrics,
+		pricing.NoopBidPriceProvider{},
+		[]string{},
+		&testQueueCache{},
+	)
+	require.NoError(t, err)
+	sched.clock = testClock
+
+	txn := sched.jobDb.WriteTxn()
+	require.NoError(t, txn.Upsert([]*jobdb.Job{leasedJob}))
+	txn.Commit()
+
+	leaderController.SetToken(leaderelection.InvalidLeaderToken())
+
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
+	defer cancel()
+
+	require.NoError(t, sched.cycle(ctx, false, leaderController.GetToken(), true, 1))
+
+	assert.Equal(t, int64(1), sched.runsSerial, "non-leader cycle must advance runsSerial to consume the run update")
+	assert.Empty(t, publisher.eventSequences, "non-leader must not publish any events")
+}
+
 func createAntiAffinity(t *testing.T, key string, values []string) *v1.Affinity {
 	newAffinity := &v1.Affinity{}
 	for _, value := range values {
@@ -1208,7 +1365,7 @@ func TestRun(t *testing.T) {
 	schedulingAlgo := &testSchedulingAlgo{}
 	publisher := &testPublisher{}
 	clusterRepo := &testExecutorRepository{}
-	leaderController := leader.NewStandaloneLeaderController()
+	leaderController := leaderelection.NewStandaloneLeaderController()
 	submitChecker := &testSubmitChecker{checkSuccess: true}
 	gangValidator := &testGangValidator{validateSuccess: true}
 	sched, err := NewScheduler(
@@ -1262,13 +1419,13 @@ func TestRun(t *testing.T) {
 	assert.Equal(t, schedulingAlgo.numberOfScheduleCalls, 1)
 
 	// invalidate our leadership: we should not publish
-	leaderController.SetToken(leader.InvalidLeaderToken())
+	leaderController.SetToken(leaderelection.InvalidLeaderToken())
 	fireCycle()
 	assert.Equal(t, 0, len(publisher.eventSequences))
 	assert.Equal(t, schedulingAlgo.numberOfScheduleCalls, 1)
 
 	// become master again: we should publish
-	leaderController.SetToken(leader.NewLeaderToken())
+	leaderController.SetToken(leaderelection.NewLeaderToken())
 	fireCycle()
 	assert.Equal(t, 1, len(publisher.eventSequences))
 	assert.Equal(t, schedulingAlgo.numberOfScheduleCalls, 2)
@@ -1307,7 +1464,7 @@ func TestJobPriceUpdates(t *testing.T) {
 			marketDrivenPools:             []string{},
 			initialJob:                    queuedJob,
 			expectedNumberOfProviderCalls: []int{0, 0, 0},
-			expectedJobBid:                []map[string]pricing.Bid{nil, nil, nil},
+			expectedJobBid:                []map[string]pricing.Bid{{}, {}, {}},
 			expectedJobBidPrice:           []float64{0, 0, 0},
 		},
 		"job with no market driven pools": {
@@ -1315,7 +1472,7 @@ func TestJobPriceUpdates(t *testing.T) {
 			marketDrivenPools:             []string{testfixtures.TestPool},
 			initialJob:                    jobWithoutMarketDrivenPools,
 			expectedNumberOfProviderCalls: []int{1, 1, 2},
-			expectedJobBid:                []map[string]pricing.Bid{nil, nil, nil},
+			expectedJobBid:                []map[string]pricing.Bid{{}, {}, {}},
 			expectedJobBidPrice:           []float64{0, 0, 0},
 		},
 		"non-preemptible queued job": {
@@ -1339,7 +1496,7 @@ func TestJobPriceUpdates(t *testing.T) {
 			marketDrivenPools:             []string{testfixtures.TestPool},
 			initialJob:                    queuedJobNoPricingInfo,
 			expectedNumberOfProviderCalls: []int{1, 1, 2},
-			expectedJobBid:                []map[string]pricing.Bid{nil, nil, nil},
+			expectedJobBid:                []map[string]pricing.Bid{{}, {}, {}},
 			expectedJobBidPrice:           []float64{0, 0, 0},
 		},
 		"non-preemptible running job with no pricing info": {
@@ -1347,7 +1504,7 @@ func TestJobPriceUpdates(t *testing.T) {
 			marketDrivenPools:             []string{testfixtures.TestPool},
 			initialJob:                    runningJobNoPricingInfo,
 			expectedNumberOfProviderCalls: []int{1, 1, 2},
-			expectedJobBid:                []map[string]pricing.Bid{nil, nil, nil},
+			expectedJobBid:                []map[string]pricing.Bid{{}, {}, {}},
 			expectedJobBidPrice:           []float64{pricing.NonPreemptibleRunningPrice, pricing.NonPreemptibleRunningPrice, pricing.NonPreemptibleRunningPrice},
 		},
 		"preemptible queued job": {
@@ -1371,7 +1528,7 @@ func TestJobPriceUpdates(t *testing.T) {
 			marketDrivenPools:             []string{testfixtures.TestPool},
 			initialJob:                    queuedPreemptibleJobNoPricingInfo,
 			expectedNumberOfProviderCalls: []int{1, 1, 2},
-			expectedJobBid:                []map[string]pricing.Bid{nil, nil, nil},
+			expectedJobBid:                []map[string]pricing.Bid{{}, {}, {}},
 			expectedJobBidPrice:           []float64{0, 0, 0},
 		},
 		"preemptible running job - no pricing info": {
@@ -1379,7 +1536,7 @@ func TestJobPriceUpdates(t *testing.T) {
 			marketDrivenPools:             []string{testfixtures.TestPool},
 			initialJob:                    runningPreemptibleJobNoPricingInfo,
 			expectedNumberOfProviderCalls: []int{1, 1, 2},
-			expectedJobBid:                []map[string]pricing.Bid{nil, nil, nil},
+			expectedJobBid:                []map[string]pricing.Bid{{}, {}, {}},
 			expectedJobBidPrice:           []float64{0, 0, 0},
 		},
 	}
@@ -1400,7 +1557,7 @@ func TestJobPriceUpdates(t *testing.T) {
 				},
 			}
 			clusterRepo := &testExecutorRepository{}
-			leaderController := leader.NewStandaloneLeaderController()
+			leaderController := leaderelection.NewStandaloneLeaderController()
 			submitChecker := &testSubmitChecker{checkSuccess: true}
 			gangValidator := &testGangValidator{validateSuccess: true}
 			sched, err := NewScheduler(
@@ -1454,7 +1611,7 @@ func TestJobPriceUpdates(t *testing.T) {
 			assert.Equal(t, priceProvider.numberOfCalls, tc.expectedNumberOfProviderCalls[0])
 
 			// invalidate our leadership: we shouldn't update prices
-			leaderController.SetToken(leader.InvalidLeaderToken())
+			leaderController.SetToken(leaderelection.InvalidLeaderToken())
 			priceProvider.priceFunc = func(band bidstore.PriceBand) float64 {
 				return float64(band) + 1
 			}
@@ -1466,7 +1623,7 @@ func TestJobPriceUpdates(t *testing.T) {
 			assert.Equal(t, priceProvider.numberOfCalls, tc.expectedNumberOfProviderCalls[1])
 
 			// become master again: we shouldn't update prices
-			leaderController.SetToken(leader.NewLeaderToken())
+			leaderController.SetToken(leaderelection.NewLeaderToken())
 			fireCycle()
 			currentJob = jobDb.ReadTxn().GetById(tc.initialJob.JobID)
 			assert.NotNil(t, currentJob)
@@ -1574,7 +1731,8 @@ func TestScheduler_TestSyncInitialState(t *testing.T) {
 						nil,
 						false,
 						false,
-					)).WithQueued(false).WithQueuedVersion(1).WithPriceBand(bidstore.PriceBand_PRICE_BAND_C),
+					),
+				).WithQueued(false).WithQueuedVersion(1).WithPriceBand(bidstore.PriceBand_PRICE_BAND_C),
 			},
 			expectedInitialJobDbIds: []string{queuedJob.Id()},
 			expectedJobsSerial:      1,
@@ -1590,7 +1748,7 @@ func TestScheduler_TestSyncInitialState(t *testing.T) {
 			schedulingAlgo := &testSchedulingAlgo{}
 			publisher := &testPublisher{}
 			clusterRepo := &testExecutorRepository{}
-			leaderController := leader.NewStandaloneLeaderController()
+			leaderController := leaderelection.NewStandaloneLeaderController()
 			sched, err := NewScheduler(
 				testfixtures.NewJobDb(testfixtures.TestResourceListFactory),
 				tc.jobRepo,
@@ -1618,8 +1776,10 @@ func TestScheduler_TestSyncInitialState(t *testing.T) {
 			// which must be consistent within tests.
 			sched.jobDb = testfixtures.NewJobDb(testfixtures.TestResourceListFactory)
 
-			initialJobs, _, err := sched.syncState(ctx, true, false)
+			initialJobs, _, newJobsSerial, newRunsSerial, err := sched.syncState(ctx, true, false)
 			require.NoError(t, err)
+			sched.jobsSerial = newJobsSerial
+			sched.runsSerial = newRunsSerial
 
 			expectedJobDb := testfixtures.NewJobDbWithJobs(tc.expectedInitialJobs)
 			actualJobDb := testfixtures.NewJobDbWithJobs(initialJobs)
@@ -1736,7 +1896,8 @@ func TestScheduler_TestSyncState(t *testing.T) {
 						nil,
 						false,
 						false,
-					)).WithQueued(false).WithQueuedVersion(2),
+					),
+				).WithQueued(false).WithQueuedVersion(2),
 			},
 			expectedJobDbIds: []string{queuedJob.Id()},
 		},
@@ -1804,7 +1965,7 @@ func TestScheduler_TestSyncState(t *testing.T) {
 			schedulingAlgo := &testSchedulingAlgo{}
 			publisher := &testPublisher{}
 			clusterRepo := &testExecutorRepository{}
-			leaderController := leader.NewStandaloneLeaderController()
+			leaderController := leaderelection.NewStandaloneLeaderController()
 			sched, err := NewScheduler(
 				testfixtures.NewJobDb(testfixtures.TestResourceListFactory),
 				jobRepo,
@@ -1838,7 +1999,7 @@ func TestScheduler_TestSyncState(t *testing.T) {
 			require.NoError(t, err)
 			txn.Commit()
 
-			updatedJobs, _, err := sched.syncState(ctx, false, false)
+			updatedJobs, _, _, _, err := sched.syncState(ctx, false, false)
 			require.NoError(t, err)
 
 			expectedJobDb := testfixtures.NewJobDbWithJobs(tc.expectedUpdatedJobs)
@@ -1875,7 +2036,7 @@ type testSubmitChecker struct {
 	checkSuccess bool
 }
 
-func (t *testSubmitChecker) Check(_ *armadacontext.Context, jobs []*jobdb.Job) (map[string]schedulingResult, error) {
+func (t *testSubmitChecker) Check(_ *armadacontext.Context, jobs []*jobdb.Job) (map[string]schedulingResult, map[string]time.Duration, error) {
 	result := make(map[string]schedulingResult)
 	for _, job := range jobs {
 		if t.checkSuccess {
@@ -1884,7 +2045,7 @@ func (t *testSubmitChecker) Check(_ *armadacontext.Context, jobs []*jobdb.Job) (
 			result[job.Id()] = schedulingResult{isSchedulable: false, reason: "job not schedulable"}
 		}
 	}
-	return result, nil
+	return result, nil, nil
 }
 
 type testQueueCache struct {
@@ -1986,7 +2147,7 @@ type testSchedulingAlgo struct {
 	persisted bool
 }
 
-func (t *testSchedulingAlgo) Schedule(_ *armadacontext.Context, _ map[string]internaltypes.ResourceList, txn *jobdb.Txn) (*scheduling.SchedulerResult, error) {
+func (t *testSchedulingAlgo) Schedule(_ *armadacontext.Context, txn *jobdb.Txn) (*scheduling.SchedulerResult, error) {
 	t.numberOfScheduleCalls++
 	if t.shouldError {
 		return &scheduling.SchedulerResult{}, errors.New("error scheduling jobs")
@@ -3058,7 +3219,7 @@ func TestCycleConsistency(t *testing.T) {
 			newScheduler := func(db *pgxpool.Pool) *Scheduler {
 				scheduler, err := NewScheduler(
 					testfixtures.NewJobDb(resourceListFactory),
-					database.NewPostgresJobRepository(db, 1024),
+					database.NewPostgresJobRepository(db, 1024, schedulerdb.JobMetadataMigrationPhaseDualWrite),
 					&testExecutorRepository{
 						updateTimes: map[string]time.Time{"test-executor": testClock.Now()},
 					},
@@ -3066,7 +3227,7 @@ func TestCycleConsistency(t *testing.T) {
 						jobsToSchedule: tc.idsOfJobsToSchedule,
 						jobsToPreempt:  tc.idsOfJobsToPreempt,
 					},
-					leader.NewStandaloneLeaderController(),
+					leaderelection.NewStandaloneLeaderController(),
 					newTestPublisher(),
 					&testSubmitChecker{
 						checkSuccess: !tc.failSubmitCheck,
@@ -3100,6 +3261,7 @@ func TestCycleConsistency(t *testing.T) {
 						time.Second,
 						time.Second,
 						10*time.Second,
+						schedulerdb.JobMetadataMigrationPhaseDualWrite,
 					)
 
 					// Create two scheduler using the same db connection.
@@ -3110,7 +3272,7 @@ func TestCycleConsistency(t *testing.T) {
 					b.schedulingAlgo = a.schedulingAlgo
 
 					// Initially, "a" is leader and "b" follower.
-					(b.leaderController.(*leader.StandaloneLeaderController)).SetToken(leader.InvalidLeaderToken())
+					b.leaderController.(*leaderelection.StandaloneLeaderController).SetToken(leaderelection.InvalidLeaderToken())
 
 					return f(a, b, schedulerDb)
 				})
@@ -3201,8 +3363,8 @@ func TestCycleConsistency(t *testing.T) {
 			// failover swaps the leader tokens between a and b, thus swapping which scheduler is leader.
 			failover := func(a, b *Scheduler) error {
 				t.Logf("failover schedulers %p, %p", a, b)
-				lca := a.leaderController.(*leader.StandaloneLeaderController)
-				lcb := b.leaderController.(*leader.StandaloneLeaderController)
+				lca := a.leaderController.(*leaderelection.StandaloneLeaderController)
+				lcb := b.leaderController.(*leaderelection.StandaloneLeaderController)
 				lta := lca.GetToken()
 				ltb := lcb.GetToken()
 				lca.SetToken(ltb)
@@ -3523,4 +3685,114 @@ func createPreemptibleGangJob() *jobdb.Job {
 		1,
 		true,
 	).WithNewRun("testExecutor", "test-node", "node", "pool", 5)
+}
+
+func TestPreemptingJobId(t *testing.T) {
+	// nil job returns empty string
+	assert.Equal(t, "", preemptingJobId(nil))
+
+	// job returns its ID
+	job := testfixtures.NewJob(
+		util.NewULID(),
+		"testJobset",
+		"testQueue",
+		0,
+		toInternalSchedulingInfo(preemptibleGangSchedulingInfo),
+		false,
+		1,
+		false,
+		false,
+		false,
+		1,
+		true,
+	)
+	assert.Equal(t, job.Id(), preemptingJobId(job))
+}
+
+func TestAppendEventSequencesFromPreemptedJobs_PopulatesPreemptingJobId(t *testing.T) {
+	preemptingJob := testfixtures.NewJob(
+		util.NewULID(),
+		"testJobset",
+		"testQueue",
+		0,
+		toInternalSchedulingInfo(preemptibleGangSchedulingInfo),
+		false,
+		1,
+		false,
+		false,
+		false,
+		1,
+		true,
+	)
+	preemptingJobId := preemptingJob.Id()
+
+	preemptedJob := testfixtures.NewJob(
+		util.NewULID(),
+		"testJobset",
+		"testQueue",
+		0,
+		toInternalSchedulingInfo(preemptibleGangSchedulingInfo),
+		false,
+		1,
+		false,
+		false,
+		false,
+		1,
+		true,
+	).WithNewRun("testExecutor", "test-node", "node", "pool", 5)
+	preemptedRun := preemptedJob.LatestRun()
+
+	jctx := &schedulercontext.JobSchedulingContext{
+		Job:                   preemptedJob,
+		PreemptingJob:         preemptingJob,
+		PreemptionDescription: "preempted by fair-share",
+	}
+
+	sequences, err := AppendEventSequencesFromPreemptedJobs(nil, []*schedulercontext.JobSchedulingContext{jctx}, time.Now())
+	assert.NoError(t, err)
+	assert.Len(t, sequences, 1)
+
+	events := sequences[0].Events
+	assert.Len(t, events, 3) // JobRunPreempted + JobRunErrors + JobErrors
+
+	preemptedEvent := events[0].GetJobRunPreempted()
+	assert.NotNil(t, preemptedEvent)
+	assert.Equal(t, preemptedRun.Id(), preemptedEvent.PreemptedRunId)
+	assert.Equal(t, preemptingJobId, preemptedEvent.PreemptingJobId)
+}
+
+func TestAppendEventSequencesFromPreemptedJobs_NilPreemptingJob(t *testing.T) {
+	preemptedJob := testfixtures.NewJob(
+		util.NewULID(),
+		"testJobset",
+		"testQueue",
+		0,
+		toInternalSchedulingInfo(preemptibleGangSchedulingInfo),
+		false,
+		1,
+		false,
+		false,
+		false,
+		1,
+		true,
+	).WithNewRun("testExecutor", "test-node", "node", "pool", 5)
+	preemptedRun := preemptedJob.LatestRun()
+
+	jctx := &schedulercontext.JobSchedulingContext{
+		Job:                   preemptedJob,
+		PreemptingJob:         nil,
+		PreemptionDescription: "preempted due to node resource change",
+	}
+
+	sequences, err := AppendEventSequencesFromPreemptedJobs(nil, []*schedulercontext.JobSchedulingContext{jctx}, time.Now())
+	assert.NoError(t, err)
+	assert.Len(t, sequences, 1)
+
+	events := sequences[0].Events
+	assert.Len(t, events, 3) // JobRunPreempted + JobRunErrors + JobErrors
+
+	preemptedEvent := events[0].GetJobRunPreempted()
+	assert.NotNil(t, preemptedEvent)
+	assert.Equal(t, preemptedRun.Id(), preemptedEvent.PreemptedRunId)
+	assert.Equal(t, "", preemptedEvent.PreemptingJobId)
 }

@@ -20,6 +20,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/adapters"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
+	"github.com/armadaproject/armada/internal/scheduler/pricing"
 	"github.com/armadaproject/armada/pkg/bidstore"
 )
 
@@ -91,6 +92,9 @@ type JobDb struct {
 	// Used to make efficient ResourceList types.
 	resourceListFactory  *internaltypes.ResourceListFactory
 	respectNodePodLimits bool
+	// The current bid price snapshot. Used by NewJob to apply prices to newly created jobs.
+	// Updated through the same WriteTxn → SetBidPriceSnapshot → Commit flow as the rest of the JobDb state.
+	bidPriceSnapshot *pricing.BidPriceSnapshot
 }
 
 // IDProvider is an interface used to mock run id  generation for tests.
@@ -182,6 +186,7 @@ func (jobDb *JobDb) Clone() *JobDb {
 		stringInterner:         jobDb.stringInterner,
 		resourceListFactory:    jobDb.resourceListFactory,
 		respectNodePodLimits:   jobDb.respectNodePodLimits,
+		bidPriceSnapshot:       jobDb.bidPriceSnapshot,
 	}
 }
 
@@ -217,6 +222,14 @@ func (jobDb *JobDb) NewJob(
 		pb = bidstore.PriceBand(priceBand)
 	}
 
+	bidPrices := map[string]pricing.Bid{}
+	if jobDb.bidPriceSnapshot != nil {
+		prices, ok := jobDb.bidPriceSnapshot.GetPrice(queue, pb)
+		if ok {
+			bidPrices = maps.Clone(prices)
+		}
+	}
+
 	gangInfo, err := GangInfoFromMinimalJob(schedulingInfo)
 	if err != nil {
 		log.Errorf("failed creating gang info for job %s", jobId)
@@ -245,6 +258,7 @@ func (jobDb *JobDb) NewJob(
 		runsById:                       map[string]*JobRun{},
 		pools:                          jobDb.internPools(pools),
 		priceBand:                      pb,
+		bidPricesPool:                  bidPrices,
 		gangInfo:                       *gangInfo,
 	}
 	job.ensureJobSchedulingInfoFieldsInitialised()
@@ -341,6 +355,7 @@ func (jobDb *JobDb) ReadTxn() *Txn {
 		leasedJobs:         jobDb.leasedJobs,
 		terminalJobs:       jobDb.terminalJobs,
 		unvalidatedJobs:    jobDb.unvalidatedJobs,
+		bidPriceSnapshot:   jobDb.bidPriceSnapshot,
 		active:             true,
 		jobDb:              jobDb,
 	}
@@ -363,6 +378,30 @@ func (jobDb *JobDb) WriteTxn() *Txn {
 		leasedJobs:         jobDb.leasedJobs,
 		terminalJobs:       jobDb.terminalJobs,
 		unvalidatedJobs:    jobDb.unvalidatedJobs,
+		bidPriceSnapshot:   jobDb.bidPriceSnapshot,
+		active:             true,
+		jobDb:              jobDb,
+	}
+}
+
+// DryRunTxn returns a writable transaction over an isolated snapshot of the current db state.
+// Mutations are local to the snapshot and are never committed back to the db.
+// This is useful for processes that need to speculatively modify state without affecting the real db.
+func (jobDb *JobDb) DryRunTxn() *Txn {
+	jobDb.copyMutex.Lock()
+	defer jobDb.copyMutex.Unlock()
+	return &Txn{
+		readOnly:           false,
+		dryRun:             true,
+		jobsById:           jobDb.jobsById,
+		jobsByRunId:        jobDb.jobsByRunId,
+		jobsByGangKey:      maps.Clone(jobDb.jobsByGangKey),
+		jobsByQueue:        maps.Clone(jobDb.jobsByQueue),
+		jobsByPoolAndQueue: deepClone(jobDb.jobsByPoolAndQueue),
+		leasedJobs:         jobDb.leasedJobs,
+		terminalJobs:       jobDb.terminalJobs,
+		unvalidatedJobs:    jobDb.unvalidatedJobs,
+		bidPriceSnapshot:   jobDb.bidPriceSnapshot,
 		active:             true,
 		jobDb:              jobDb,
 	}
@@ -387,6 +426,9 @@ func (jobDb *JobDb) CumulativeInternedStringsCount() uint64 {
 // until the transaction is committed.
 type Txn struct {
 	readOnly bool
+	// dryRun transactions allow mutations but Commit is a no-op — changes are never written back to the db.
+	// Created via DryRunTxn(); useful for speculative state manipulation without affecting the real db.
+	dryRun bool
 	// Map from job ids to jobs.
 	jobsById *immutable.Map[string, *Job]
 	// Map from run ids to jobs.
@@ -406,6 +448,8 @@ type Txn struct {
 	terminalJobs *immutable.Set[*Job]
 	// Jobs that require submit checking
 	unvalidatedJobs *immutable.Set[*Job]
+	// The current snapshot of bid prices - allowing look up of bidding prices on job creation
+	bidPriceSnapshot *pricing.BidPriceSnapshot
 	// The jobDb from which this transaction was created.
 	jobDb *JobDb
 	// Set to false when this transaction is either committed or aborted.
@@ -414,6 +458,10 @@ type Txn struct {
 
 func (txn *Txn) Commit() {
 	if txn.readOnly || !txn.active {
+		return
+	}
+	if txn.dryRun {
+		txn.active = false
 		return
 	}
 	txn.jobDb.copyMutex.Lock()
@@ -427,6 +475,7 @@ func (txn *Txn) Commit() {
 	txn.jobDb.leasedJobs = txn.leasedJobs
 	txn.jobDb.terminalJobs = txn.terminalJobs
 	txn.jobDb.unvalidatedJobs = txn.unvalidatedJobs
+	txn.jobDb.bidPriceSnapshot = txn.bidPriceSnapshot
 
 	txn.active = false
 }
@@ -519,6 +568,10 @@ func (txn *Txn) AssertEqual(otherTxn *Txn) error {
 
 func (txn *Txn) Abort() {
 	if txn.readOnly || !txn.active {
+		return
+	}
+	if txn.dryRun {
+		txn.active = false
 		return
 	}
 	txn.active = false
@@ -996,5 +1049,17 @@ func (txn *Txn) checkWritableTransaction() error {
 	if !txn.active {
 		return errors.New("Cannot write using an inactive transaction")
 	}
+	return nil
+}
+
+func (txn *Txn) GetBidPriceSnapshot() *pricing.BidPriceSnapshot {
+	return txn.bidPriceSnapshot
+}
+
+func (txn *Txn) SetBidPriceSnapshot(snapshot *pricing.BidPriceSnapshot) error {
+	if err := txn.checkWritableTransaction(); err != nil {
+		return err
+	}
+	txn.bidPriceSnapshot = snapshot
 	return nil
 }

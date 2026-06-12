@@ -16,6 +16,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/auth"
 	"github.com/armadaproject/armada/internal/common/auth/permission"
 	"github.com/armadaproject/armada/internal/common/cluster"
+	log "github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/server/permissions"
 	"github.com/armadaproject/armada/pkg/api/binoculars"
 )
@@ -50,13 +51,21 @@ func (c *KubernetesCordonService) CordonNode(ctx *armadacontext.Context, request
 		return status.Error(codes.PermissionDenied, err.Error())
 	}
 
-	additionalLabels := templateLabels(c.config.AdditionalLabels, auth.GetPrincipal(ctx).GetName())
+	user := auth.GetPrincipal(ctx).GetName()
+	additionalLabels := templateLabels(c.config.AdditionalLabels, user)
 	patch := createCordonPatch(additionalLabels)
 	patchBytes, err := GetPatchBytes(patch)
+	if err != nil {
+		return fmt.Errorf("failed to build cordon patch for node %s: %w", request.NodeName, err)
+	}
 
 	client := c.clientProvider.Client()
 	_, err = client.CoreV1().Nodes().Patch(ctx, request.NodeName, types.StrategicMergePatchType, patchBytes, metav1.PatchOptions{})
-	return err
+	if err != nil {
+		return fmt.Errorf("failed to cordon node %s: %w", request.NodeName, err)
+	}
+	log.WithFields(map[string]any{"node": request.NodeName, "user": user}).Info("cordoned node")
+	return nil
 }
 
 func templateLabels(labels map[string]string, user string) map[string]string {

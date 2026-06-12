@@ -133,7 +133,7 @@ func TestGetJobSpecError(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		repo := NewSqlGetJobSpecRepository(db, &compress.NoOpDecompressor{})
 		_, err := repo.GetJobSpec(armadacontext.TODO(), jobId)
-		assert.Error(t, err)
+		assert.ErrorIs(t, err, ErrNotFound)
 		return nil
 	})
 	assert.NoError(t, err)
