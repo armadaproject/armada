@@ -444,7 +444,7 @@ func newCycleMetrics(publisher pulsarutils.Publisher[*metricevents.Event], scala
 	schedulingDuration := prometheus.NewHistogram(
 		prometheus.HistogramOpts{
 			Name:    ArmadaSchedulerMetricsPrefix + "scheduling_cycle_times",
-			Help:    "Time taken to scheduling on all pools, in milliseconds.",
+			Help:    "Time taken for the scheduling algo to schedule on all pools, in milliseconds.",
 			Buckets: prometheus.ExponentialBuckets(10.0, 1.1, 110),
 		},
 	)
