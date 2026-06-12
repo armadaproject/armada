@@ -34,7 +34,7 @@ func Test_getAction_WhenOneFailedContainer_WithMatchingFailCheck_ReturnsFail(t *
 
 	action, message := csc.getAction(pod, time.Minute*2)
 	assert.Equal(t, ActionFail, action)
-	assert.Equal(t, `Check "invalid-image-name": Container my-container has been in state Waiting for reason InvalidImageName (Image name is wrong) for more than timeout 1m0s`, message)
+	assert.Equal(t, `Container my-container has been in state Waiting for reason InvalidImageName (Image name is wrong - check "invalid-image-name") for more than timeout 1m0s`, message)
 }
 
 func Test_getAction_WhenOneFailedContainer_WithUnnamedCheck_UsesIndexName(t *testing.T) {
@@ -50,7 +50,7 @@ func Test_getAction_WhenOneFailedContainer_WithUnnamedCheck_UsesIndexName(t *tes
 
 	action, message := csc.getAction(pod, time.Minute*2)
 	assert.Equal(t, ActionFail, action)
-	assert.Equal(t, `Check "check-0": Container my-container has been in state Waiting for reason InvalidImageName (Image name is wrong) for more than timeout 1m0s`, message)
+	assert.Equal(t, `Container my-container has been in state Waiting for reason InvalidImageName (Image name is wrong - check "check-0") for more than timeout 1m0s`, message)
 }
 
 func Test_getAction_WhenOneFailedContainer_ButNotHitTimeout_ReturnsWait(t *testing.T) {
