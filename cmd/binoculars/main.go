@@ -71,7 +71,10 @@ func main() {
 	)
 	defer shutdownGateway()
 
-	shutdown, wg := binoculars.StartUp(&config)
+	shutdown, wg, err := binoculars.StartUp(&config)
+	if err != nil {
+		log.Fatalf("Failed to startup binoculars: %v", err)
+	}
 	go func() {
 		<-stopSignal
 		shutdown()
