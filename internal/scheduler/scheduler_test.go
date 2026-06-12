@@ -1518,19 +1518,19 @@ func TestRun(t *testing.T) {
 	// fire a cycle and assert that we became leader and published
 	fireCycle()
 	assert.Equal(t, 1, len(publisher.eventSequences))
-	assert.Equal(t, schedulingAlgo.numberOfScheduleCalls, 1)
+	assert.Equal(t, schedulingAlgo.NumberOfScheduleCalls(), 1)
 
 	// invalidate our leadership: we should not publish
 	leaderController.SetToken(leaderelection.InvalidLeaderToken())
 	fireCycle()
 	assert.Equal(t, 0, len(publisher.eventSequences))
-	assert.Equal(t, schedulingAlgo.numberOfScheduleCalls, 1)
+	assert.Equal(t, schedulingAlgo.NumberOfScheduleCalls(), 1)
 
 	// become master again: we should publish
 	leaderController.SetToken(leaderelection.NewLeaderToken())
 	fireCycle()
 	assert.Equal(t, 1, len(publisher.eventSequences))
-	assert.Equal(t, schedulingAlgo.numberOfScheduleCalls, 2)
+	assert.Equal(t, schedulingAlgo.NumberOfScheduleCalls(), 2)
 
 	cancel()
 }
@@ -3423,14 +3423,14 @@ func TestCycleConsistency(t *testing.T) {
 			instructionConverter, err := scheduleringester.NewJobSetEventsInstructionConverter(nil)
 			require.NoError(t, err)
 
-			// Single shared algo + runner so both schedulers below make the
-			// same scheduling decisions and so the persist closure can reach
-			// the algo directly without going through the runner.
-			testAlgo := &testSchedulingAlgo{
-				jobsToSchedule: tc.idsOfJobsToSchedule,
-				jobsToPreempt:  tc.idsOfJobsToPreempt,
-			}
-			sharedRunner := runner.NewSyncSchedulingRunner(testAlgo)
+			// Declared here so the cycle/persist closures can reach the current
+			// algo, but (re)assigned per withTestSetup invocation below. The algo's
+			// `persisted` latch must start clear for each scenario; otherwise the
+			// scheduling decisions of one scenario leak into the next.
+			var (
+				testAlgo     *testSchedulingAlgo
+				sharedRunner runner.SchedulingRunner
+			)
 
 			// Helper function for creating new schedulers for use in tests.
 			newScheduler := func(db *pgxpool.Pool) *Scheduler {
@@ -3478,9 +3478,18 @@ func TestCycleConsistency(t *testing.T) {
 						schedulerdb.JobMetadataMigrationPhaseDualWrite,
 					)
 
+					// Fresh algo + runner per scenario. Both schedulers below share this
+					// single instance so they make the same scheduling decisions, but a new
+					// instance per scenario keeps the algo's `persisted` latch from leaking
+					// decisions across scenarios.
+					testAlgo = &testSchedulingAlgo{
+						jobsToSchedule: tc.idsOfJobsToSchedule,
+						jobsToPreempt:  tc.idsOfJobsToPreempt,
+					}
+					sharedRunner = runner.NewSyncSchedulingRunner(testAlgo)
+
 					// Create two scheduler using the same db connection. Both share
-					// `sharedRunner` (constructed at the test-case scope) so they make the
-					// same scheduling decisions.
+					// `sharedRunner` so they make the same scheduling decisions.
 					a := newScheduler(db)
 					b := newScheduler(db)
 
