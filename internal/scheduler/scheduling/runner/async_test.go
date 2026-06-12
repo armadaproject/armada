@@ -166,8 +166,6 @@ func TestAsyncSchedulingRunner_ContextCancellation_StopsGoroutine(t *testing.T) 
 		runner.Trigger()
 	}
 
-	// The goroutine runs concurrently, so wait for it to observe cancellation
-	// and stop before asserting no further runs were started.
 	waitForState(t, runner, Stopped)
 	assert.Equal(t, 1, algo.calls())
 }
@@ -246,10 +244,6 @@ func TestAsyncSchedulingRunner_FunctionalAfterReset(t *testing.T) {
 	assert.NotNil(t, got)
 }
 
-// Reset arriving while a run has been requested but not yet picked up by the
-// goroutine must un-request it: state returns to idle and no run happens. We
-// build the runner without starting its goroutine so runRequested is held
-// deterministically (the live goroutine would consume it near-instantly).
 func TestAsyncSchedulingRunner_Reset_DropsPendingRequest(t *testing.T) {
 	algo := &fakeSchedulingAlgo{result: &scheduling.SchedulerResult{}}
 	r := &AsyncSchedulingRunner{
@@ -265,16 +259,14 @@ func TestAsyncSchedulingRunner_Reset_DropsPendingRequest(t *testing.T) {
 	assert.Equal(t, Idle, r.GetCurrentState(), "Reset must drop the pending request")
 	assert.Equal(t, 0, algo.calls(), "no run should have started")
 
-	// The runner is still usable: a fresh Trigger re-requests.
+	// Confirm runner is still usable: a fresh Trigger re-requests.
 	r.Trigger()
 	assert.Equal(t, RunRequested, r.GetCurrentState())
 }
 
 func TestReconcile_UpdateScheduledJobs(t *testing.T) {
 	tests := map[string]struct {
-		gang bool
-		// currentStates is the state of each scheduled job in the "current"
-		// txn, in order. Its length is the number of jobs scheduled.
+		gang          bool
 		currentStates []jobState
 		expectKept    bool
 	}{

@@ -15,8 +15,6 @@ import (
 )
 
 type fakeSchedulingAlgo struct {
-	// callCount is read from the test goroutine while the runner's background
-	// goroutine writes it, so it must be accessed atomically.
 	callCount atomic.Int64
 	result    *scheduling.SchedulerResult
 	err       error

@@ -45,15 +45,14 @@ type AsyncSchedulingRunner struct {
 	state RunState
 	// result of the last completed background run, awaiting consumption.
 	result *scheduleResult
-	// cancelFn cancels the ctx of the in-flight Schedule call. Non-nil
-	// only while state == running.
+	// cancelFn cancels the ctx of the in-flight Schedule call.
+	// Non-nil only while state == running.
 	cancelFn context.CancelFunc
 	// cancelRequested is set by Reset to tell the goroutine to discard the
 	// in-flight run's result rather than publish it.
 	cancelRequested bool
-	// runDone is closed by the goroutine when the in-flight run has
-	// returned (either normally or due to cancellation). Non-nil only
-	// while state == running.
+	// runDone is closed by the goroutine when the in-flight run has returned
+	// Non-nil only while state == running.
 	runDone chan struct{}
 }
 
@@ -62,8 +61,8 @@ type scheduleResult struct {
 	err             error
 }
 
-// NewAsyncSchedulingRunner returns a runner that schedules on a background
-// goroutine bound to ctx. The goroutine exits when ctx is cancelled.
+// NewAsyncSchedulingRunner returns a runner that schedules on a background goroutine bound to ctx.
+// The goroutine exits when ctx is cancelled.
 func NewAsyncSchedulingRunner(ctx *armadacontext.Context, schedulingAlgo scheduling.SchedulingAlgo, jobDb *jobdb.JobDb) *AsyncSchedulingRunner {
 	r := &AsyncSchedulingRunner{
 		schedulingAlgo: schedulingAlgo,
@@ -79,8 +78,8 @@ func (r *AsyncSchedulingRunner) Trigger() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.state != Idle {
-		// Back-pressure: a run is requested, in flight, or holding an unread
-		// result. Drop this Trigger rather than overwrite pending work.
+		// A run is requested, in flight, or holding an unread result.
+		// Drop this Trigger rather than overwrite pending work.
 		return
 	}
 
@@ -100,8 +99,6 @@ func (r *AsyncSchedulingRunner) resetResult() {
 	r.result = nil
 }
 
-// GetCurrentState returns the runner's current lifecycle state. It reads under
-// mu so it is safe to call concurrently with the background run goroutine.
 func (r *AsyncSchedulingRunner) GetCurrentState() RunState {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -109,11 +106,8 @@ func (r *AsyncSchedulingRunner) GetCurrentState() RunState {
 }
 
 // Reset discards any pending result, cancels any in-flight Schedule call,
-// and blocks until that call has returned. After Reset returns, the next
-// Trigger starts a fresh run.
-//
-// Reset is only called from the single main scheduler loop, so it cannot
-// race another Reset or Trigger; the only concurrent actor is the run goroutine.
+// and blocks until that call has returned.
+// After Reset returns, the next Trigger starts a fresh run.
 func (r *AsyncSchedulingRunner) Reset() {
 	r.mu.Lock()
 	switch r.state {
@@ -186,10 +180,7 @@ func (r *AsyncSchedulingRunner) run(ctx *armadacontext.Context) {
 	}
 }
 
-// awaitRun blocks until a run is requested or ctx is cancelled. On a request it
-// transitions to running, registers the cancel/done handles, and returns
-// ok=true. On cancellation it transitions to stopped and returns ok=false —
-// the sole shutdown transition.
+// awaitRun blocks until a run is requested or ctx is cancelled
 func (r *AsyncSchedulingRunner) awaitRun(ctx *armadacontext.Context) (*armadacontext.Context, context.CancelFunc, chan struct{}, bool) {
 	r.mu.Lock()
 	for r.state != RunRequested {
@@ -205,10 +196,8 @@ func (r *AsyncSchedulingRunner) awaitRun(ctx *armadacontext.Context) (*armadacon
 		r.mu.Lock()
 	}
 
-	// A Trigger can land after ctx is cancelled (state was Idle), or the wake
-	// token can win the select coin-flip over ctx.Done(). Re-check ctx here, under
-	// the lock and immediately before committing to a run, so a cancelled runner
-	// never starts one more cycle.
+	// A Trigger can land after ctx is cancelled (state was Idle) and it becomes a race which causes the wake first
+	// Recheck the ctx isn't cancelled before continuing
 	select {
 	case <-ctx.Done():
 		r.state = Stopped
@@ -226,9 +215,7 @@ func (r *AsyncSchedulingRunner) awaitRun(ctx *armadacontext.Context) (*armadacon
 	return runCtx, cancel, done, true
 }
 
-// finishRun publishes the completed run's result (or drops it if Reset asked
-// for cancellation), then always cancels the run ctx and closes done so a
-// waiting Reset unblocks.
+// finishRun publishes the completed run's result (or drops it if Reset asked for cancellation)
 func (r *AsyncSchedulingRunner) finishRun(result *scheduling.SchedulerResult, err error, cancel context.CancelFunc, done chan struct{}) {
 	r.mu.Lock()
 	r.cancelFn = nil
@@ -323,7 +310,6 @@ func (r *AsyncSchedulingRunner) updateScheduledJobs(ctx *armadacontext.Context, 
 
 	// Process gang jobs
 	// We must unschedule the whole gang if any are not actionable
-
 	type gangJobInfo struct {
 		scheduledJctx *schedulercontext.JobSchedulingContext
 		isActionable  bool

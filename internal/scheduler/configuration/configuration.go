@@ -179,9 +179,9 @@ type HistogramConfig struct {
 type SchedulingConfig struct {
 	// Set to true to disable scheduling
 	DisableScheduling bool
-	// Set to true to run scheduling on a background goroutine; the main loop
-	// then consumes the previous run's result and triggers the next run after
-	// committing. Default false runs scheduling inline in the cycle.
+	// Set to true to run scheduling on a background goroutine;
+	// The purpose of this is to keep the main loop free allowing it to send job state updates in a timely manner
+	// The main loop will consume and reconcile the scheduling result when it exists
 	AsyncSchedulingEnabled bool
 	// Set to true to make scheduling all or nothing
 	// By default pools the scheduler will attempt fail scheduling independently, not causing other pools to also fail

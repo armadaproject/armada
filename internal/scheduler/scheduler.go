@@ -44,9 +44,7 @@ type Scheduler struct {
 	jobRepository database.JobRepository
 	// Used to determine whether a cluster is active.
 	executorRepository database.ExecutorRepository
-	// Drives scheduling. Wraps the underlying SchedulingAlgo and may
-	// optionally run it asynchronously on a background goroutine.
-	// TODO: Confusing legacy name on the inner algo. Change.
+	// Is used to schedule new jobs
 	runner runner.SchedulingRunner
 	// Tells us if we are leader. Only the leader may schedule jobs.
 	leaderController leaderelection.LeaderController
