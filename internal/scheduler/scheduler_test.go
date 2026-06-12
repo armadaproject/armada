@@ -1376,6 +1376,10 @@ func TestScheduler_AsyncRunner(t *testing.T) {
 			assert.False(t, schedulingAttempted)
 			assert.Empty(t, publisher.eventSequences)
 
+			// The Run loop triggers the next async run after a clean leader cycle;
+			// this test drives cycle() directly, so trigger explicitly to model that.
+			sched.runner.Trigger()
+
 			// Wait for the background run triggered after the first cycle to produce a result.
 			require.Eventually(t, func() bool {
 				return asyncRunner.GetCurrentState() == runner.ResultReady

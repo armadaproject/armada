@@ -236,6 +236,14 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 					leaderToken = leaderelection.InvalidLeaderToken()
 				}
 
+				// Kick off the next async run only after a clean cycle as leader,
+				// so the background run schedules against committed state. On error
+				// leaderToken was invalidated above, so a failed cycle won't trigger
+				// a run that would be discarded. In sync mode Trigger is a no-op.
+				if shouldSchedule && err == nil && leaderToken.Leader() {
+					s.runner.Trigger()
+				}
+
 				prevLeaderToken = leaderToken
 				if s.onCycleCompleted != nil {
 					s.onCycleCompleted()
@@ -358,12 +366,6 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	var schedulerResult *scheduling.SchedulerResult
 	// Schedule jobs.
 	if shouldSchedule {
-		defer func() {
-			if err == nil && leaderToken.Leader() {
-				s.runner.Trigger()
-			}
-		}()
-
 		start := time.Now()
 		err = s.updateJobPrices(ctx, txn)
 		if err != nil {
