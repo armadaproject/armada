@@ -24,6 +24,22 @@ func Test_getAction_WhenNoContainers_AndNoChecks_ReturnsWait(t *testing.T) {
 func Test_getAction_WhenOneFailedContainer_WithMatchingFailCheck_ReturnsFail(t *testing.T) {
 	csc, err := newContainerStateChecks(
 		[]config.ContainerStatusCheck{
+			{Name: "invalid-image-name", Action: config.ActionFail, State: config.ContainerStateWaiting, GracePeriod: time.Minute, ReasonRegexp: "InvalidImageName"},
+		},
+	)
+	assert.Nil(t, err)
+
+	pod := basicPod()
+	pod.Status.ContainerStatuses[0].State.Waiting = &v1.ContainerStateWaiting{Reason: "InvalidImageName", Message: "Image name is wrong"}
+
+	action, message := csc.getAction(pod, time.Minute*2)
+	assert.Equal(t, ActionFail, action)
+	assert.Equal(t, `Container my-container has been in state Waiting for reason InvalidImageName (Image name is wrong - check "invalid-image-name") for more than timeout 1m0s`, message)
+}
+
+func Test_getAction_WhenOneFailedContainer_WithUnnamedCheck_UsesIndexName(t *testing.T) {
+	csc, err := newContainerStateChecks(
+		[]config.ContainerStatusCheck{
 			{Action: config.ActionFail, State: config.ContainerStateWaiting, GracePeriod: time.Minute, ReasonRegexp: "InvalidImageName"},
 		},
 	)
@@ -34,7 +50,7 @@ func Test_getAction_WhenOneFailedContainer_WithMatchingFailCheck_ReturnsFail(t *
 
 	action, message := csc.getAction(pod, time.Minute*2)
 	assert.Equal(t, ActionFail, action)
-	assert.NotEmpty(t, message)
+	assert.Equal(t, `Container my-container has been in state Waiting for reason InvalidImageName (Image name is wrong - check "check-0") for more than timeout 1m0s`, message)
 }
 
 func Test_getAction_WhenOneFailedContainer_ButNotHitTimeout_ReturnsWait(t *testing.T) {
