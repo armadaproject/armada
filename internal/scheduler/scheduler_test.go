@@ -1226,7 +1226,7 @@ func TestScheduler_PublishFailureRepublishesOnNextCycle(t *testing.T) {
 	// First cycle: publishing fails, no events should reach the publisher and the cursor
 	// must not advance.
 	_, err = sched.cycle(ctx, false, sched.leaderController.GetToken(), true, 1)
-	require.Error(t, err, true)
+	require.Error(t, err)
 	assert.Empty(t, publisher.eventSequences)
 	assert.Equal(t, int64(-1), sched.runsSerial)
 

@@ -365,7 +365,7 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 		}()
 
 		start := time.Now()
-		err := s.updateJobPrices(ctx, txn)
+		err = s.updateJobPrices(ctx, txn)
 		if err != nil {
 			return false, err
 		}
