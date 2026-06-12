@@ -14,22 +14,22 @@ import (
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 )
 
-type runState int
+type RunState int
 
 const (
-	idle         runState = iota // no work pending or in flight
-	runRequested                 // Trigger has been called; goroutine has not yet picked it up
-	running                      // goroutine is inside schedulingAlgo.Schedule
-	resultReady                  // run completed; result awaiting GetSchedulerResult
-	stopped                      // ctx cancelled; goroutine has exited
+	Idle         RunState = iota // no work pending or in flight
+	RunRequested                 // Trigger has been called; goroutine has not yet picked it up
+	Running                      // goroutine is inside schedulingAlgo.Schedule
+	ResultReady                  // run completed; result awaiting GetSchedulerResult
+	Stopped                      // ctx cancelled; goroutine has exited
 )
 
-// asyncSchedulingRunner runs the algorithm on a background goroutine
+// AsyncSchedulingRunner runs the algorithm on a background goroutine
 //   - The goroutine schedules against an isolated dry-run jobDb txn
 //   - The caller must call trigger to kick off scheduling, otherwise no result will ever be presented via GetSchedulerResult
 //   - Trigger must be called after the caller commits its txn so the next run's dry-run txn includes the reconciled decisions
 //   - The runner is not thread-safe and must be used with a single goroutine
-type asyncSchedulingRunner struct {
+type AsyncSchedulingRunner struct {
 	schedulingAlgo scheduling.SchedulingAlgo
 	jobDb          *jobdb.JobDb
 
@@ -42,7 +42,7 @@ type asyncSchedulingRunner struct {
 
 	mu sync.Mutex
 	// state is the lifecycle position of the runner.
-	state runState
+	state RunState
 	// result of the last completed background run, awaiting consumption.
 	result *scheduleResult
 	// cancelFn cancels the ctx of the in-flight Schedule call. Non-nil
@@ -64,8 +64,8 @@ type scheduleResult struct {
 
 // NewAsyncSchedulingRunner returns a runner that schedules on a background
 // goroutine bound to ctx. The goroutine exits when ctx is cancelled.
-func NewAsyncSchedulingRunner(ctx *armadacontext.Context, schedulingAlgo scheduling.SchedulingAlgo, jobDb *jobdb.JobDb) SchedulingRunner {
-	r := &asyncSchedulingRunner{
+func NewAsyncSchedulingRunner(ctx *armadacontext.Context, schedulingAlgo scheduling.SchedulingAlgo, jobDb *jobdb.JobDb) *AsyncSchedulingRunner {
+	r := &AsyncSchedulingRunner{
 		schedulingAlgo: schedulingAlgo,
 		jobDb:          jobDb,
 		clock:          clock.RealClock{},
@@ -75,16 +75,16 @@ func NewAsyncSchedulingRunner(ctx *armadacontext.Context, schedulingAlgo schedul
 	return r
 }
 
-func (r *asyncSchedulingRunner) Trigger() {
+func (r *AsyncSchedulingRunner) Trigger() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if r.state != idle {
+	if r.state != Idle {
 		// Back-pressure: a run is requested, in flight, or holding an unread
 		// result. Drop this Trigger rather than overwrite pending work.
 		return
 	}
 
-	r.state = runRequested
+	r.state = RunRequested
 	select {
 	case r.wake <- struct{}{}:
 	default:
@@ -92,12 +92,20 @@ func (r *asyncSchedulingRunner) Trigger() {
 	}
 }
 
-func (r *asyncSchedulingRunner) resetResult() {
-	if r.state != resultReady {
+func (r *AsyncSchedulingRunner) resetResult() {
+	if r.state != ResultReady {
 		return
 	}
-	r.state = idle
+	r.state = Idle
 	r.result = nil
+}
+
+// GetCurrentState returns the runner's current lifecycle state. It reads under
+// mu so it is safe to call concurrently with the background run goroutine.
+func (r *AsyncSchedulingRunner) GetCurrentState() RunState {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.state
 }
 
 // Reset discards any pending result, cancels any in-flight Schedule call,
@@ -106,21 +114,21 @@ func (r *asyncSchedulingRunner) resetResult() {
 //
 // Reset is only called from the single main scheduler loop, so it cannot
 // race another Reset or Trigger; the only concurrent actor is the run goroutine.
-func (r *asyncSchedulingRunner) Reset() {
+func (r *AsyncSchedulingRunner) Reset() {
 	r.mu.Lock()
 	switch r.state {
-	case idle, stopped:
+	case Idle, Stopped:
 		// Nothing in flight and nothing pending.
 		r.mu.Unlock()
-	case runRequested:
+	case RunRequested:
 		// Requested but not yet picked up: un-request it. The goroutine
 		// will observe idle and keep waiting.
-		r.state = idle
+		r.state = Idle
 		r.mu.Unlock()
-	case resultReady:
+	case ResultReady:
 		r.resetResult()
 		r.mu.Unlock()
-	case running:
+	case Running:
 		cancel := r.cancelFn
 		done := r.runDone
 		r.cancelRequested = true
@@ -132,9 +140,9 @@ func (r *asyncSchedulingRunner) Reset() {
 	}
 }
 
-func (r *asyncSchedulingRunner) GetSchedulerResult(ctx *armadacontext.Context, txn *jobdb.Txn) (*scheduling.SchedulerResult, error) {
+func (r *AsyncSchedulingRunner) GetSchedulerResult(ctx *armadacontext.Context, txn *jobdb.Txn) (*scheduling.SchedulerResult, error) {
 	r.mu.Lock()
-	if r.state != resultReady {
+	if r.state != ResultReady {
 		r.mu.Unlock()
 		return nil, nil
 	}
@@ -162,7 +170,7 @@ func (r *asyncSchedulingRunner) GetSchedulerResult(ctx *armadacontext.Context, t
 	return result, nil
 }
 
-func (r *asyncSchedulingRunner) run(ctx *armadacontext.Context) {
+func (r *AsyncSchedulingRunner) run(ctx *armadacontext.Context) {
 	for {
 		runCtx, cancel, done, ok := r.awaitRun(ctx)
 		if !ok {
@@ -182,22 +190,34 @@ func (r *asyncSchedulingRunner) run(ctx *armadacontext.Context) {
 // transitions to running, registers the cancel/done handles, and returns
 // ok=true. On cancellation it transitions to stopped and returns ok=false —
 // the sole shutdown transition.
-func (r *asyncSchedulingRunner) awaitRun(ctx *armadacontext.Context) (*armadacontext.Context, context.CancelFunc, chan struct{}, bool) {
+func (r *AsyncSchedulingRunner) awaitRun(ctx *armadacontext.Context) (*armadacontext.Context, context.CancelFunc, chan struct{}, bool) {
 	r.mu.Lock()
-	for r.state != runRequested {
+	for r.state != RunRequested {
 		r.mu.Unlock()
 		select {
 		case <-r.wake:
 		case <-ctx.Done():
 			r.mu.Lock()
-			r.state = stopped
+			r.state = Stopped
 			r.mu.Unlock()
 			return nil, nil, nil, false
 		}
 		r.mu.Lock()
 	}
 
-	r.state = running
+	// A Trigger can land after ctx is cancelled (state was Idle), or the wake
+	// token can win the select coin-flip over ctx.Done(). Re-check ctx here, under
+	// the lock and immediately before committing to a run, so a cancelled runner
+	// never starts one more cycle.
+	select {
+	case <-ctx.Done():
+		r.state = Stopped
+		r.mu.Unlock()
+		return nil, nil, nil, false
+	default:
+	}
+
+	r.state = Running
 	runCtx, cancel := armadacontext.WithCancel(ctx)
 	done := make(chan struct{})
 	r.cancelFn = cancel
@@ -209,18 +229,18 @@ func (r *asyncSchedulingRunner) awaitRun(ctx *armadacontext.Context) (*armadacon
 // finishRun publishes the completed run's result (or drops it if Reset asked
 // for cancellation), then always cancels the run ctx and closes done so a
 // waiting Reset unblocks.
-func (r *asyncSchedulingRunner) finishRun(result *scheduling.SchedulerResult, err error, cancel context.CancelFunc, done chan struct{}) {
+func (r *AsyncSchedulingRunner) finishRun(result *scheduling.SchedulerResult, err error, cancel context.CancelFunc, done chan struct{}) {
 	r.mu.Lock()
 	r.cancelFn = nil
 	r.runDone = nil
 
 	if r.cancelRequested {
 		r.cancelRequested = false
-		r.state = idle
+		r.state = Idle
 		log.Info("async scheduling cycle cancelled")
 	} else {
 		r.result = &scheduleResult{schedulerResult: result, err: err}
-		r.state = resultReady
+		r.state = ResultReady
 		log.Info("async scheduling cycle completed")
 	}
 	r.mu.Unlock()
@@ -253,11 +273,11 @@ func upsertSchedulerResult(txn *jobdb.Txn, result *scheduling.SchedulerResult) e
 	return nil
 }
 
-func (r *asyncSchedulingRunner) IsAsync() bool { return true }
+func (r *AsyncSchedulingRunner) IsAsync() bool { return true }
 
 // reconcile validates an async scheduling result against the current txn,
 // dropping decisions that are no longer valid (e.g. job no longer queued, preempted job was cancelled etc)
-func (r *asyncSchedulingRunner) reconcile(ctx *armadacontext.Context, txn *jobdb.Txn, result *scheduling.SchedulerResult) (*scheduling.SchedulerResult, error) {
+func (r *AsyncSchedulingRunner) reconcile(ctx *armadacontext.Context, txn *jobdb.Txn, result *scheduling.SchedulerResult) (*scheduling.SchedulerResult, error) {
 	for _, poolResult := range result.PoolResults {
 		if poolResult.SchedulingResult != nil {
 			err := r.updateScheduledJobs(ctx, txn, poolResult)
@@ -282,7 +302,7 @@ func (r *asyncSchedulingRunner) reconcile(ctx *armadacontext.Context, txn *jobdb
 	return result, nil
 }
 
-func (r *asyncSchedulingRunner) updateScheduledJobs(ctx *armadacontext.Context, txn *jobdb.Txn, poolResult *scheduling.PoolSchedulingResult) error {
+func (r *AsyncSchedulingRunner) updateScheduledJobs(ctx *armadacontext.Context, txn *jobdb.Txn, poolResult *scheduling.PoolSchedulingResult) error {
 	scheduledJobs := make([]*schedulercontext.JobSchedulingContext, 0, len(poolResult.SchedulingResult.ScheduledJobs))
 
 	gangJobs := slices.Filter(poolResult.SchedulingResult.ScheduledJobs, func(jctx *schedulercontext.JobSchedulingContext) bool { return jctx.Job.IsInGang() })
@@ -358,7 +378,7 @@ func (r *asyncSchedulingRunner) updateScheduledJobs(ctx *armadacontext.Context, 
 	return nil
 }
 
-func (r *asyncSchedulingRunner) updatePreemptedJobs(ctx *armadacontext.Context, txn *jobdb.Txn, poolResult *scheduling.PoolSchedulingResult) error {
+func (r *AsyncSchedulingRunner) updatePreemptedJobs(ctx *armadacontext.Context, txn *jobdb.Txn, poolResult *scheduling.PoolSchedulingResult) error {
 	preemptedJobs := make([]*schedulercontext.JobSchedulingContext, 0, len(poolResult.SchedulingResult.PreemptedJobs))
 	for _, preemptedJob := range poolResult.SchedulingResult.PreemptedJobs {
 		currentJob := txn.GetById(preemptedJob.JobId)
@@ -377,7 +397,7 @@ func (r *asyncSchedulingRunner) updatePreemptedJobs(ctx *armadacontext.Context, 
 	return nil
 }
 
-func (r *asyncSchedulingRunner) updateReconciliationResult(ctx *armadacontext.Context, txn *jobdb.Txn, poolResult *scheduling.PoolSchedulingResult) {
+func (r *AsyncSchedulingRunner) updateReconciliationResult(ctx *armadacontext.Context, txn *jobdb.Txn, poolResult *scheduling.PoolSchedulingResult) {
 	preemptedJobs := make([]*scheduling.FailedReconciliationResult, 0, len(poolResult.ReconciliationResult.PreemptedJobs))
 	for _, preemptedJob := range poolResult.ReconciliationResult.PreemptedJobs {
 		currentJob := txn.GetById(preemptedJob.Job.Id())

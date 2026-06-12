@@ -3,6 +3,7 @@ package scheduler
 import (
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -37,7 +38,6 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/scheduling/context"
-	"github.com/armadaproject/armada/internal/scheduler/scheduling/fairness"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 	"github.com/armadaproject/armada/internal/scheduleringester"
 	"github.com/armadaproject/armada/pkg/api"
@@ -376,7 +376,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 		jobRunErrors                       map[string]*armadaevents.Error // job run errors in the database
 		staleExecutor                      bool                           // if true then the executorRepository will report the executor as stale
 		fetchError                         bool                           // if true then the jobRepository will throw an error
-		scheduleError                      bool                           // if true then the scheduling algo will throw an error
+		scheduleError                      error                          // if true then the scheduling algo will throw an error
 		publishError                       bool                           // if true the publisher will throw an error
 		submitCheckerFailure               bool                           // if true the submit checker will say the job is unschedulable
 		submitGangValidateFailure          bool                           // if true the gang validator will say the gang job is invalid
@@ -963,7 +963,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 		},
 		"Schedule fails": {
 			initialJobs:           []*jobdb.Job{leasedJob},
-			scheduleError:         true,
+			scheduleError:         fmt.Errorf("schedule error"),
 			expectedLeased:        []string{leasedJob.Id()}, // job should still be leased as error was thrown and transaction rolled back
 			expectedQueuedVersion: leasedJob.QueuedVersion(),
 		},
@@ -1007,7 +1007,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 				jobsToPreempt:                    tc.expectedJobsRunsToPreempt,
 				jobsToFailDueToReconciliation:    tc.jobIdsToFailDueToReconciliation,
 				jobsToPreemptDueToReconciliation: tc.jobIdsToPreemptDueToReconciliation,
-				shouldError:                      tc.scheduleError,
+				err:                              tc.scheduleError,
 			}
 			publisher := &testPublisher{shouldError: tc.publishError}
 			submitChecker := &testSubmitChecker{checkSuccess: !tc.submitCheckerFailure}
@@ -1059,7 +1059,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 			// run a scheduler cycle
 			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
 			_, err = sched.cycle(ctx, false, sched.leaderController.GetToken(), true, 1)
-			if tc.fetchError || tc.publishError || tc.scheduleError || tc.queueCacheError {
+			if tc.fetchError || tc.publishError || tc.scheduleError != nil || tc.queueCacheError {
 				assert.Error(t, err)
 			} else {
 				require.NoError(t, err)
@@ -1306,120 +1306,100 @@ func TestScheduler_NonLeaderAdvancesCursors(t *testing.T) {
 	assert.Empty(t, publisher.eventSequences, "non-leader must not publish any events")
 }
 
-// TestScheduler_AsyncRunnerSchedulesAJob is a minimal end-to-end check that the
-// async runner is wired into the scheduler correctly. With async scheduling the
-// result is produced on a background goroutine, so the first cycle only triggers
-// a run (no decisions yet); a later cycle consumes the result and leases the job.
-func TestScheduler_AsyncRunnerSchedulesAJob(t *testing.T) {
-	jobRepo := &testJobRepository{}
-	testClock := clock.NewFakeClock(time.Now())
-	clusterRepo := &testExecutorRepository{
-		updateTimes: map[string]time.Time{"testExecutor": testClock.Now()},
-	}
-	publisher := newTestPublisher()
-	algo := &asyncTestSchedulingAlgo{jobToLease: queuedJob.Id()}
-
-	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
-	defer cancel()
-
-	jobDb := testfixtures.NewJobDb(testfixtures.TestResourceListFactory)
-	sched, err := NewScheduler(
-		jobDb,
-		jobRepo,
-		clusterRepo,
-		runner.NewAsyncSchedulingRunner(ctx, algo, jobDb),
-		leaderelection.NewStandaloneLeaderController(),
-		publisher,
-		&testSubmitChecker{checkSuccess: true},
-		&testGangValidator{validateSuccess: true},
-		1*time.Second,
-		5*time.Second,
-		1*time.Hour,
-		nil,
-		maxNumberOfAttempts,
-		nodeIdLabel,
-		schedulerMetrics,
-		pricing.NoopBidPriceProvider{},
-		[]string{},
-		&testQueueCache{},
-	)
-	require.NoError(t, err)
-	sched.clock = testClock
-
-	txn := sched.jobDb.WriteTxn()
-	require.NoError(t, txn.Upsert([]*jobdb.Job{queuedJob}))
-	txn.Commit()
-
-	leasedEventType := fmt.Sprintf("%T", &armadaevents.EventSequence_Event_JobRunLeased{})
-
-	// First cycle: kicks off the background run. No result is ready yet, so no
-	// lease should be published.
-	_, err = sched.cycle(ctx, false, sched.leaderController.GetToken(), true, 1)
-	require.NoError(t, err)
-	assert.Empty(t, publisher.eventSequences, "no decisions should be published before the background run completes")
-
-	// Wait for the background run triggered by the first cycle to produce a result.
-	require.Eventually(t, func() bool {
-		return algo.calls() > 0
-	}, 2*time.Second, 5*time.Millisecond, "expected the async runner to invoke the scheduling algo")
-
-	// Second cycle: consumes the pending result and leases the job.
-	_, err = sched.cycle(ctx, false, sched.leaderController.GetToken(), true, 2)
-	require.NoError(t, err)
-
-	outstanding := map[string]map[string]eventDetails{
-		leasedEventType: stringsToSetWithEventDetails([]string{queuedJob.Id()}),
-	}
-	require.NoError(t, subtractEventsFromOutstandingEventsByType(publisher.eventSequences, outstanding))
-	assert.Empty(t, outstanding[leasedEventType], "expected a JobRunLeased event for job %s after the async result was consumed", queuedJob.Id())
-}
-
-// asyncTestSchedulingAlgo leases a single queued job and returns a result with a
-// fully-populated SchedulingContext, which the async reconcile path requires
-// (it calls UpdateFairShares on the context).
-type asyncTestSchedulingAlgo struct {
-	mu         sync.Mutex
-	callCount  int
-	jobToLease string
-}
-
-func (a *asyncTestSchedulingAlgo) calls() int {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	return a.callCount
-}
-
-func (a *asyncTestSchedulingAlgo) Schedule(_ *armadacontext.Context, txn *jobdb.Txn) (*scheduling.SchedulerResult, error) {
-	a.mu.Lock()
-	a.callCount++
-	a.mu.Unlock()
-
-	job := txn.GetById(a.jobToLease)
-	if job == nil || !job.Queued() {
-		// Nothing to do (e.g. the decision has already been applied).
-		return &scheduling.SchedulerResult{}, nil
-	}
-	leased := job.WithQueuedVersion(job.QueuedVersion()+1).WithQueued(false).WithNewRun(
-		testExecutor, testNodeId, testNode, testPool, job.PriorityClass().Priority,
-	)
-	if err := txn.Upsert([]*jobdb.Job{leased}); err != nil {
-		return nil, err
+func TestScheduler_AsyncRunner(t *testing.T) {
+	tests := map[string]struct {
+		initialJob    *jobdb.Job
+		jobToSchedule string
+		scheduleErr   error
+	}{
+		"schedules a job": {
+			initialJob:    queuedJob,
+			jobToSchedule: queuedJob.Id(),
+		},
+		"handles error": {
+			initialJob:    queuedJob,
+			jobToSchedule: queuedJob.Id(),
+			scheduleErr:   errors.New("scheduling error"),
+		},
 	}
 
-	totalResources := testfixtures.TestResourceListFactory.MakeAllZero()
-	fairnessCostProvider, err := fairness.NewDominantResourceFairness(totalResources, testPool, testfixtures.TestSchedulingConfig())
-	if err != nil {
-		return nil, err
-	}
-	sctx := schedulercontext.NewSchedulingContext(testPool, fairnessCostProvider, nil, totalResources)
-	if err := sctx.AddQueueSchedulingContext(leased.Queue(), 1.0, 1.0, nil, internaltypes.ResourceList{}, internaltypes.ResourceList{}, internaltypes.ResourceList{}, nil); err != nil {
-		return nil, err
-	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			jobRepo := &testJobRepository{}
+			testClock := clock.NewFakeClock(time.Now())
+			clusterRepo := &testExecutorRepository{
+				updateTimes: map[string]time.Time{"testExecutor": testClock.Now()},
+			}
+			publisher := newTestPublisher()
+			algo := &testSchedulingAlgo{
+				jobsToSchedule: []string{tc.jobToSchedule},
+				err:            tc.scheduleErr,
+			}
 
-	// reconcile calls UpdateFairShares on the SchedulingContext, so it must be populated.
-	result := NewSchedulerResultForTest[[]*jobdb.Job](nil, []*jobdb.Job{leased}, nil, nil)
-	result.PoolResults[0].SchedulingResult.SchedulingContext = sctx
-	return result, nil
+			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
+			defer cancel()
+
+			jobDb := testfixtures.NewJobDb(testfixtures.TestResourceListFactory)
+			asyncRunner := runner.NewAsyncSchedulingRunner(ctx, algo, jobDb)
+			sched, err := NewScheduler(
+				jobDb,
+				jobRepo,
+				clusterRepo,
+				asyncRunner,
+				leaderelection.NewStandaloneLeaderController(),
+				publisher,
+				&testSubmitChecker{checkSuccess: true},
+				&testGangValidator{validateSuccess: true},
+				1*time.Second,
+				5*time.Second,
+				1*time.Hour,
+				nil,
+				maxNumberOfAttempts,
+				nodeIdLabel,
+				schedulerMetrics,
+				pricing.NoopBidPriceProvider{},
+				[]string{},
+				&testQueueCache{},
+			)
+			require.NoError(t, err)
+			sched.clock = testClock
+
+			txn := sched.jobDb.WriteTxn()
+			require.NoError(t, txn.Upsert([]*jobdb.Job{tc.initialJob}))
+			txn.Commit()
+
+			leasedEventType := fmt.Sprintf("%T", &armadaevents.EventSequence_Event_JobRunLeased{})
+
+			// First cycle: no result is ready yet, should trigger scheduler to run
+			schedulingAttempted, err := sched.cycle(ctx, false, sched.leaderController.GetToken(), true, 1)
+			require.NoError(t, err)
+			assert.False(t, schedulingAttempted)
+			assert.Empty(t, publisher.eventSequences)
+
+			// Wait for the background run triggered after the first cycle to produce a result.
+			require.Eventually(t, func() bool {
+				return asyncRunner.GetCurrentState() == runner.ResultReady
+			}, 2*time.Second, 5*time.Millisecond, "expected the async runner to have result")
+
+			// Second cycle: consumes the pending result
+			schedulingAttempted, err = sched.cycle(ctx, false, sched.leaderController.GetToken(), true, 2)
+			assert.True(t, schedulingAttempted)
+
+			if tc.scheduleErr != nil {
+				assert.Error(t, err)
+				assert.Empty(t, publisher.eventSequences)
+				assert.True(t, sched.jobDb.ReadTxn().GetById(tc.initialJob.Id()).Queued())
+			} else {
+				assert.NoError(t, err)
+				outstanding := map[string]map[string]eventDetails{
+					leasedEventType: stringsToSetWithEventDetails([]string{tc.initialJob.Id()}),
+				}
+				require.NoError(t, subtractEventsFromOutstandingEventsByType(publisher.eventSequences, outstanding))
+				assert.Empty(t, outstanding[leasedEventType], tc.initialJob.Id())
+				assert.False(t, sched.jobDb.ReadTxn().GetById(tc.initialJob.Id()).Queued())
+			}
+		})
+	}
 }
 
 func createAntiAffinity(t *testing.T, key string, values []string) *v1.Affinity {
@@ -1553,6 +1533,107 @@ func TestRun(t *testing.T) {
 	assert.Equal(t, schedulingAlgo.numberOfScheduleCalls, 2)
 
 	cancel()
+}
+
+// recordingRunner is a SchedulingRunner double that reports as async and counts
+// Reset/Trigger calls, so tests can assert the scheduler drives the async
+// lifecycle correctly. It never produces a result.
+type recordingRunner struct {
+	mu           sync.Mutex
+	resetCalls   int
+	triggerCalls int
+}
+
+func (r *recordingRunner) Trigger() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.triggerCalls++
+}
+
+func (r *recordingRunner) GetSchedulerResult(_ *armadacontext.Context, _ *jobdb.Txn) (*scheduling.SchedulerResult, error) {
+	return nil, nil
+}
+
+func (r *recordingRunner) IsAsync() bool { return true }
+
+func (r *recordingRunner) Reset() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.resetCalls++
+}
+
+func (r *recordingRunner) resets() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.resetCalls
+}
+
+// TestRun_AsyncRunnerResetOnLeadershipChange verifies that the scheduler calls
+// Reset() on the async runner every time it (re)acquires leadership. This is the
+// mechanism that discards any run/result computed against pre-failover state, so
+// it must fire on each become-leader transition — not just the first.
+func TestRun_AsyncRunnerResetOnLeadershipChange(t *testing.T) {
+	jobRepo := testJobRepository{numReceivedPartitions: 100}
+	testClock := clock.NewFakeClock(time.Now())
+	publisher := &testPublisher{}
+	clusterRepo := &testExecutorRepository{}
+	leaderController := leaderelection.NewStandaloneLeaderController()
+	asyncRunner := &recordingRunner{}
+	sched, err := NewScheduler(
+		testfixtures.NewJobDb(testfixtures.TestResourceListFactory),
+		&jobRepo,
+		clusterRepo,
+		asyncRunner,
+		leaderController,
+		publisher,
+		&testSubmitChecker{checkSuccess: true},
+		&testGangValidator{validateSuccess: true},
+		1*time.Second,
+		15*time.Second,
+		1*time.Hour,
+		nil,
+		maxNumberOfAttempts,
+		nodeIdLabel,
+		schedulerMetrics,
+		pricing.NoopBidPriceProvider{},
+		[]string{},
+		&testQueueCache{},
+	)
+	require.NoError(t, err)
+	sched.clock = testClock
+
+	ctx, cancel := armadacontext.WithCancel(armadacontext.Background())
+	defer cancel()
+
+	//nolint:errcheck
+	go sched.Run(ctx)
+	time.Sleep(1 * time.Second)
+
+	fireCycle := func() {
+		wg := sync.WaitGroup{}
+		wg.Add(1)
+		sched.onCycleCompleted = func() { wg.Done() }
+		testClock.Step(10 * time.Second)
+		wg.Wait()
+	}
+
+	// First cycle: we start as leader, so this is a become-leader transition.
+	fireCycle()
+	assert.Equal(t, 1, asyncRunner.resets(), "Reset should fire on the initial become-leader transition")
+
+	// Lose leadership: no further Reset while we remain a non-leader.
+	leaderController.SetToken(leaderelection.InvalidLeaderToken())
+	fireCycle()
+	assert.Equal(t, 1, asyncRunner.resets(), "Reset must not fire while not leader")
+
+	// Regain leadership: Reset must fire again to discard pre-failover state.
+	leaderController.SetToken(leaderelection.NewLeaderToken())
+	fireCycle()
+	assert.Equal(t, 2, asyncRunner.resets(), "Reset should fire again on re-acquiring leadership")
+
+	// Staying leader across cycles must not Reset repeatedly.
+	fireCycle()
+	assert.Equal(t, 2, asyncRunner.resets(), "Reset must not fire while leadership is unchanged")
 }
 
 // Test job pricing data is updated through subsequent scheduling rounds
@@ -2258,21 +2339,21 @@ func (t testExecutorRepository) StoreExecutor(ctx *armadacontext.Context, execut
 }
 
 type testSchedulingAlgo struct {
-	numberOfScheduleCalls            int
+	numberOfScheduleCalls            atomic.Int64
 	jobsToPreempt                    []string
 	jobsToSchedule                   []string
 	jobsToFailDueToReconciliation    []string
 	jobsToPreemptDueToReconciliation []string
-	shouldError                      bool
+	err                              error
 	// Set to true to indicate that preemption/scheduling/failure decisions have been persisted.
 	// Until persisted is set to true, the same jobs are preempted/scheduled/failed on every call.
 	persisted bool
 }
 
 func (t *testSchedulingAlgo) Schedule(_ *armadacontext.Context, txn *jobdb.Txn) (*scheduling.SchedulerResult, error) {
-	t.numberOfScheduleCalls++
-	if t.shouldError {
-		return &scheduling.SchedulerResult{}, errors.New("error scheduling jobs")
+	t.numberOfScheduleCalls.Add(1)
+	if t.err != nil {
+		return nil, t.err
 	}
 	if t.persisted {
 		// Exit right away if decisions have already been persisted.
@@ -2374,8 +2455,12 @@ func (t *testSchedulingAlgo) Schedule(_ *armadacontext.Context, txn *jobdb.Txn) 
 	return NewSchedulerResultForTest(preemptedJobs, scheduledJobs, failedDueToReconciliation, preemptedDueToReconciliation), nil
 }
 
+func (t *testSchedulingAlgo) NumberOfScheduleCalls() int {
+	return int(t.numberOfScheduleCalls.Load())
+}
+
 func (t *testSchedulingAlgo) Persist() {
-	if t.numberOfScheduleCalls == 0 {
+	if t.NumberOfScheduleCalls() == 0 {
 		// Nothing to persist if there have been no calls to schedule.
 		return
 	}
@@ -2393,8 +2478,9 @@ func NewSchedulerResultForTest[S ~[]T, T *jobdb.Job](
 		PoolResults: []*scheduling.PoolSchedulingResult{
 			{
 				SchedulingResult: &scheduling.SchedulingResult{
-					PreemptedJobs: schedulercontext.JobSchedulingContextsFromJobs(preemptedJobs),
-					ScheduledJobs: schedulercontext.JobSchedulingContextsFromJobs(scheduledJobs),
+					PreemptedJobs:     schedulercontext.JobSchedulingContextsFromJobs(preemptedJobs),
+					ScheduledJobs:     schedulercontext.JobSchedulingContextsFromJobs(scheduledJobs),
+					SchedulingContext: &schedulercontext.SchedulingContext{},
 				},
 				ReconciliationResult: &scheduling.ReconciliationResult{
 					FailedJobs:    FailedReconciliationResultFromJobs(failedReconciliationJobs, "reconciliation failure"),

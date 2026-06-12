@@ -360,10 +360,11 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	var schedulerResult *scheduling.SchedulerResult
 	// Schedule jobs.
 	if shouldSchedule {
-		// Trigger the next async run after this cycle returns (success or error)
-		// so the background goroutine sees committed state — or, on error, retries
-		// against the unchanged state. In sync mode Trigger is a no-op.
-		defer s.runner.Trigger()
+		defer func() {
+			if err == nil && leaderToken.Leader() {
+				s.runner.Trigger()
+			}
+		}()
 
 		start := time.Now()
 		err := s.updateJobPrices(ctx, txn)
