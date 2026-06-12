@@ -26,13 +26,15 @@ author = "jay@gr-oss.io"
 # -- General configuration ---------------------------------------------------
 
 # Jekyll is the style of markdown used by github pages; using
-# sphinx_jekyll_builder here allows us to generate docs as
+# sphinx_markdown_builder here allows us to generate docs as
 # markdown files.
 extensions = [
     "sphinx.ext.autodoc",
-    "sphinx_jekyll_builder",
+    "sphinx_markdown_builder",
     "sphinx_toolbox.more_autodoc.autonamedtuple",
 ]
+
+markdown_flavor = "github"
 
 # This setting puts information about typing in the description section instead
 # of in the function signature directly. This makes rendered content look much

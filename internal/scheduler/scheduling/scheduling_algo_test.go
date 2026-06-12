@@ -70,7 +70,7 @@ func TestSchedule_DisableSchedulingSkipsReconciliation(t *testing.T) {
 	txn := jobDb.WriteTxn()
 	require.NoError(t, txn.Upsert([]*jobdb.Job{job}))
 
-	schedulerResult, err := sch.Schedule(ctx, nil, txn)
+	schedulerResult, err := sch.Schedule(ctx, txn)
 	require.NoError(t, err)
 	require.Len(t, schedulerResult.PoolResults, 1)
 	require.Equal(t, PoolSchedulingTerminationReasonSchedulingDisabled, schedulerResult.PoolResults[0].Outcome.TerminationReason())
@@ -213,7 +213,7 @@ func TestSchedule_PoolFailureIsolation(t *testing.T) {
 				require.NoError(t, txn.Upsert([]*jobdb.Job{job}))
 			}
 
-			schedulerResult, err := sch.Schedule(ctx, nil, txn)
+			schedulerResult, err := sch.Schedule(ctx, txn)
 			if tc.expectError {
 				assert.Error(t, err)
 				assert.Nil(t, schedulerResult)
@@ -977,7 +977,7 @@ func TestSchedule(t *testing.T) {
 			require.NoError(t, err)
 
 			// Run a scheduling round.
-			schedulerResult, err := sch.Schedule(ctx, nil, txn)
+			schedulerResult, err := sch.Schedule(ctx, txn)
 			require.NoError(t, err)
 
 			// Check that the expected preemptions took place.
