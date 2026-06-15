@@ -7,6 +7,7 @@ import (
 
 	commonconfig "github.com/armadaproject/armada/internal/common/config"
 	profilingconfig "github.com/armadaproject/armada/internal/common/profiling/configuration"
+	"github.com/armadaproject/armada/internal/leaderelection"
 )
 
 type EventIngesterConfiguration struct {
@@ -55,18 +56,7 @@ type RedisMemoryMetricsConfig struct {
 	PipelineBatchSize         int
 	InterBatchDelay           time.Duration
 	MemoryUsageSamples        int
-	Leader                    LeaderConfig
-}
-
-type LeaderConfig struct {
-	// Valid modes are "standalone" or "kubernetes"
-	Mode               string
-	LeaseLockName      string
-	LeaseLockNamespace string
-	LeaseDuration      time.Duration
-	RenewDeadline      time.Duration
-	RetryPeriod        time.Duration
-	PodName            string
+	Leader                    leaderelection.Config
 }
 
 // TODO: unpack this into just EventExpirtation

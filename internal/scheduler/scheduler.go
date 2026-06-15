@@ -15,11 +15,11 @@ import (
 	"github.com/armadaproject/armada/internal/common/constants"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
+	"github.com/armadaproject/armada/internal/leaderelection"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/kubernetesobjects/affinity"
-	"github.com/armadaproject/armada/internal/scheduler/leader"
 	"github.com/armadaproject/armada/internal/scheduler/metrics"
 	"github.com/armadaproject/armada/internal/scheduler/pricing"
 	"github.com/armadaproject/armada/internal/scheduler/queue"
@@ -47,7 +47,7 @@ type Scheduler struct {
 	// TODO: Confusing name. Change.
 	schedulingAlgo scheduling.SchedulingAlgo
 	// Tells us if we are leader. Only the leader may schedule jobs.
-	leaderController leader.LeaderController
+	leaderController leaderelection.LeaderController
 	// This is used to check if jobs are still schedulable.
 	// Useful when we are adding node anti-affinities.
 	submitChecker SubmitScheduleChecker
@@ -99,7 +99,7 @@ func NewScheduler(
 	jobRepository database.JobRepository,
 	executorRepository database.ExecutorRepository,
 	schedulingAlgo scheduling.SchedulingAlgo,
-	leaderController leader.LeaderController,
+	leaderController leaderelection.LeaderController,
 	publisher Publisher,
 	submitChecker SubmitScheduleChecker,
 	gangValidator SubmitGangValidator,
@@ -157,7 +157,7 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 	ctx.Infof("JobDb initialised in %s", s.clock.Since(start))
 
 	ticker := s.clock.NewTicker(s.cyclePeriod)
-	prevLeaderToken := leader.InvalidLeaderToken()
+	prevLeaderToken := leaderelection.InvalidLeaderToken()
 
 	previousSchedulingRoundEnd := time.Time{}
 	cycleNumber := 0
@@ -189,7 +189,7 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 					err := s.ensureDbUpToDate(syncContext, 1*time.Second)
 					if err != nil {
 						ctx.Logger().WithStacktrace(err).Error("could not become leader")
-						leaderToken = leader.InvalidLeaderToken()
+						leaderToken = leaderelection.InvalidLeaderToken()
 					} else {
 						fullUpdate = true
 					}
@@ -226,7 +226,7 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 
 				if err != nil {
 					ctx.Logger().WithStacktrace(err).Error("cycle failure")
-					leaderToken = leader.InvalidLeaderToken()
+					leaderToken = leaderelection.InvalidLeaderToken()
 				}
 
 				prevLeaderToken = leaderToken
@@ -263,7 +263,7 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 //     This means we can start the next cycle immediately after one cycle finishes.
 //     As state transitions are persisted and read back from the schedulerDb over later cycles,
 //     there is no change to the jobDb, since the correct changes have already been made.
-func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToken leader.LeaderToken, shouldSchedule bool, cycleNumber int) error {
+func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToken leaderelection.LeaderToken, shouldSchedule bool, cycleNumber int) error {
 	ctx.Logger().Infof("starting cycle")
 	defer func(ctx *armadacontext.Context) {
 		ctx.Logger().Infof("finished cycle")
@@ -352,14 +352,14 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	// Schedule jobs.
 	if shouldSchedule {
 		start := time.Now()
-		resourceUnits, err := s.updateJobPrices(ctx, txn)
+		err := s.updateJobPrices(ctx, txn)
 		if err != nil {
 			return err
 		}
 		ctx.Logger().Infof("updating job prices in %s", time.Now().Sub(start))
 
 		var result *scheduling.SchedulerResult
-		result, err = s.schedulingAlgo.Schedule(ctx, resourceUnits, txn)
+		result, err = s.schedulingAlgo.Schedule(ctx, txn)
 		if err != nil {
 			return err
 		}
@@ -521,16 +521,16 @@ func (s *Scheduler) syncState(ctx *armadacontext.Context, initial, fullJobGc boo
 
 // TODO - This is highly inefficient and will only work if market driven pools are small
 // We should rewrite how bids are stored in an efficient manner
-func (s *Scheduler) updateJobPrices(ctx *armadacontext.Context, txn *jobdb.Txn) (map[string]internaltypes.ResourceList, error) {
+func (s *Scheduler) updateJobPrices(ctx *armadacontext.Context, txn *jobdb.Txn) error {
 	if len(s.marketDrivenPools) == 0 {
-		return nil, nil
+		return nil
 	}
 
 	jobs := txn.GetAll()
 	jobsByQueue := map[string]map[bidstore.PriceBand][]*jobdb.Job{}
 	updatedBids, err := s.bidPriceProvider.GetBidPrices(ctx)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	hasMarketDrivenPool := func(j *jobdb.Job) bool {
@@ -572,9 +572,13 @@ func (s *Scheduler) updateJobPrices(ctx *armadacontext.Context, txn *jobdb.Txn) 
 	ctx.Logger().Infof("updating the prices of %d jobs", len(updatedJobs))
 	err = txn.Upsert(updatedJobs)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	return updatedBids.ResourceUnits, nil
+	err = txn.SetBidPriceSnapshot(&updatedBids)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (s *Scheduler) createSchedulingInfoWithNodeAntiAffinityForAttemptedRuns(job *jobdb.Job) (*internaltypes.JobSchedulingInfo, error) {
@@ -1098,8 +1102,7 @@ func (s *Scheduler) expireJobsIfNecessary(ctx *armadacontext.Context, txn *jobdb
 
 	events := make([]*armadaevents.EventSequence, 0)
 
-	// TODO: this is inefficient. We should create a iterator of the jobs running on the affected executors
-	jobs := txn.GetAll()
+	jobs := txn.GetAllLeasedJobs()
 
 	for _, job := range jobs {
 
