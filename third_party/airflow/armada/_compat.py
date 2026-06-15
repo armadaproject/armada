@@ -38,10 +38,25 @@ try:
 except ImportError:
     from airflow.utils.context import Context  # Airflow 2.x
 
+
+# Airflow major-version flag. Used where the runtime API differs between 2.x
+# and 3.x (e.g. how a trigger reads a task instance's current state).
+def _airflow_version_tuple() -> tuple[int, int, int]:
+    from packaging.version import Version
+
+    from airflow import __version__
+
+    v = Version(__version__)
+    return v.major, v.minor, v.micro
+
+
+AIRFLOW_V_3_0_PLUS = _airflow_version_tuple() >= (3, 0, 0)
+
 __all__ = [
     "serialize",
     "deserialize",
     "_extra_allowed",
     "get_current_context",
     "Context",
+    "AIRFLOW_V_3_0_PLUS",
 ]
