@@ -63,8 +63,8 @@ class ArmadaHook(LoggingMixin):
                 self.log.warning(f"Failed to cancel job with id {job_context.job_id}")
         except Exception as e:
             self.log.warning(f"Failed to cancel job with id {job_context.job_id}: {e}")
-        finally:
-            return dataclasses.replace(job_context, job_state=JobState.CANCELLED.name)
+
+        return dataclasses.replace(job_context, job_state=JobState.CANCELLED.name)
 
     @tenacity.retry(
         wait=tenacity.wait_random_exponential(max=3),

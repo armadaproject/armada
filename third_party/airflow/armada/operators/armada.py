@@ -243,8 +243,20 @@ class ArmadaOperator(BaseOperator, LoggingMixin):
 
         xcom_job_request = xcom_pull_for_ti(context["ti"], key="job_request")
         if xcom_job_request:
+            # job_request was already rendered before being pushed to xcom
+            # on the original try; re-running render_template_fields over
+            # the restored dict trips a recursion edge case in Airflow
+            # 2.10's templater ("unhashable type: 'dict'" on nested dict
+            # values). Render the remaining template fields only.
             self.job_request = xcom_job_request
-            super().render_template_fields(context, jinja_env)
+            original_template_fields = self.template_fields
+            try:
+                self.template_fields = tuple(
+                    f for f in self.template_fields if f != "job_request"
+                )
+                super().render_template_fields(context, jinja_env)
+            finally:
+                self.template_fields = original_template_fields
         else:
             self.log.info("Rendering job_request")
             if callable(self.job_request):
