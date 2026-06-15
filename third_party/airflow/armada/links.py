@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import attrs
 
 from typing import Dict, Optional, Union
 from airflow.models import XCom, TaskInstance
@@ -33,26 +34,16 @@ def persist_link_value(ti: TaskInstance, name: str, value: str):
     ti.xcom_push(key=f"armada_{name.lower()}_url", value=value)
 
 
+@attrs.define(init=True)
 class DynamicLink(BaseOperatorLink):
-    def __init__(self, name: str):
-        self._name = name
-        self._xcom_key = f"armada_{name.lower()}_url"
-
-    @property
-    def name(self) -> str:
-        return self._name
+    name: str
 
     @property
     def xcom_key(self) -> str:
-        return self._xcom_key
+        return f"armada_{self.name.lower()}_url"
 
     def get_link(self, operator: BaseOperator, *, ti_key: TaskInstanceKey):
         return get_link_value(ti_key, self.name)
-
-
-class LookoutLink(DynamicLink):
-    def __init__(self):
-        super().__init__("Lookout")
 
 
 class UrlFromLogsExtractor:

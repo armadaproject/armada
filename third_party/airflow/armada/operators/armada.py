@@ -29,7 +29,12 @@ import tenacity
 import re
 
 from airflow.configuration import conf
-from airflow.exceptions import AirflowFailException
+
+try:
+    from airflow.sdk.exceptions import AirflowFailException
+except ImportError:
+    from airflow.exceptions import AirflowFailException
+
 from airflow.models import BaseOperator
 from airflow.models.taskinstance import TaskInstance, TaskInstanceKey
 from airflow.utils.log.logging_mixin import LoggingMixin
@@ -49,7 +54,6 @@ from ..policies.reattach import external_job_uri, policy
 from ..triggers import ArmadaPollJobTrigger
 from ..utils import log_exceptions, xcom_pull_for_ti, resolve_parameter_value
 from ..links import (
-    LookoutLink,
     DynamicLink,
     persist_link_value,
     UrlFromLogsExtractor,
@@ -146,7 +150,7 @@ class ArmadaOperator(BaseOperator, LoggingMixin):
 
         operator_links = []
         if self.lookout_url_template:
-            operator_links.append(LookoutLink())
+            operator_links.append(DynamicLink("Lookout"))
 
         operator_links.extend([DynamicLink(name) for name in self.extra_links])
         self.operator_extra_links = operator_links
