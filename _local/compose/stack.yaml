@@ -1,0 +1,93 @@
+name: armada
+
+# Armada local development & CI compose stack.
+#
+# Profiles:
+#   (none)         deps only: redis, postgres, pulsar
+#   auth           adds keycloak (OIDC provider)
+#
+# Usage:
+#   docker compose -f _local/compose/stack.yaml up -d
+#   docker compose -f _local/compose/stack.yaml --profile auth up -d
+#
+# Container-mode profiles for the Armada components themselves (full Armada stack,
+# fakeexecutor variant) are intentionally not in this PR. The component configs
+# under _local/<component>/config.yaml use localhost for inter-service hosts
+# because they're tuned for the goreman host-network flow; mounting them into
+# containers would crash-loop. A follow-up PR will add those profiles with the
+# right env-var host overrides or a generated container-mode config.
+#
+# Airflow is a separate ecosystem with its own postgres + redis. Bring it up via:
+#   docker compose -f _local/airflow/docker-compose.yaml up -d
+# (this is what `mage Teste2eAirflow` does internally.)
+#
+# Image versions are overridable via env vars (REDIS_IMAGE, POSTGRES_IMAGE, PULSAR_IMAGE,
+# KEYCLOAK_IMAGE).
+
+services:
+  # =========================================================
+  # Dependencies (always on)
+  # =========================================================
+  redis:
+    container_name: redis
+    image: ${REDIS_IMAGE:-redis:7.4-alpine}
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+
+  postgres:
+    container_name: postgres
+    image: ${POSTGRES_IMAGE:-postgres:17-alpine}
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: psw
+      POSTGRES_DB: postgres
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  pulsar:
+    container_name: pulsar
+    image: ${PULSAR_IMAGE:-apachepulsar/pulsar:4.1.0}
+    environment:
+      PULSAR_PREFIX_allowAutoTopicCreation: "true"
+      PULSAR_PREFIX_allowAutoTopicCreationType: non-partitioned
+      PULSAR_PREFIX_autoSkipNonRecoverableData: "true"
+    entrypoint: sh -c "bin/apply-config-from-env.py conf/standalone.conf && bin/pulsar standalone"
+    ports:
+      - "6650:6650"
+      - "8090:8080"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/admin/v2/brokers/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  # =========================================================
+  # OIDC provider (profile: auth)
+  # =========================================================
+  keycloak:
+    container_name: keycloak
+    image: ${KEYCLOAK_IMAGE:-quay.io/keycloak/keycloak:25.0}
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_HTTP_PORT: 8180
+      KC_HEALTH_ENABLED: "true"
+    ports:
+      - "8180:8180"
+    command: start-dev --import-realm
+    volumes:
+      - ../keycloak/import:/opt/keycloak/data/import:ro
+    restart: unless-stopped
+    profiles: [auth]
+    # No healthcheck on purpose: keycloak's realm import + warmup is slower than
+    # `docker compose up --wait` is willing to block for. `mage dev:up auth` polls the
+    # realm endpoint via waitForKeycloak before starting goreman.
