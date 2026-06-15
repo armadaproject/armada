@@ -73,7 +73,7 @@ func kindInitCluster() error {
 	if strings.Contains(out, KIND_NAME) {
 		return nil
 	}
-	err = kindRun("create", "cluster", "--config", "e2e/setup/kind.yaml")
+	err = kindRun("create", "cluster", "--config", "_local/kind/cluster.yaml")
 	if err != nil {
 		return err
 	}
@@ -181,9 +181,9 @@ func kindSetup() error {
 	}
 
 	resources := []string{
-		"e2e/setup/ingress-nginx.yaml",
-		"e2e/setup/priorityclasses.yaml",
-		"e2e/setup/namespace-with-anonymous-user.yaml",
+		"_local/kind/ingress-nginx.yaml",
+		"_local/kind/priorityclasses.yaml",
+		"_local/kind/namespace.yaml",
 	}
 	for _, f := range resources {
 		images, err := imagesFromFile(f)
