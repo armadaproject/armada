@@ -170,6 +170,27 @@ func TestAsyncSchedulingRunner_ContextCancellation_StopsGoroutine(t *testing.T) 
 	assert.Equal(t, 1, algo.calls())
 }
 
+func TestAsyncSchedulingRunner_TrySetupRun_CancelledWhileRequestedStartsNoRun(t *testing.T) {
+	algo := &fakeSchedulingAlgo{result: &scheduling.SchedulerResult{}}
+	// Don't start the background go-routine, so we can ensure it sticks in RunRequested
+	r := &AsyncSchedulingRunner{
+		schedulingAlgo: algo,
+		jobDb:          testfixtures.NewJobDb(testfixtures.TestResourceListFactory),
+		wake:           make(chan struct{}, 1),
+	}
+
+	r.Trigger()
+	require.Equal(t, RunRequested, r.GetCurrentState())
+
+	ctx, cancel := armadacontext.WithCancel(armadacontext.Background())
+	cancel()
+
+	run := r.trySetupRun(ctx)
+	assert.Nil(t, run, "no run should be set up when ctx is already cancelled")
+	assert.Equal(t, Stopped, r.GetCurrentState())
+	assert.Equal(t, 0, algo.calls())
+}
+
 func TestAsyncSchedulingRunner_IsAsyncTrue(t *testing.T) {
 	ctx, cancel := armadacontext.WithCancel(armadacontext.Background())
 	defer cancel()
