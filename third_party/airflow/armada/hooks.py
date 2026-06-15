@@ -198,9 +198,7 @@ class ArmadaHook(LoggingMixin):
         reraise=True,
     )
     @log_exceptions
-    def context_to_xcom(
-        self, ti: TaskInstance, ctx: RunningJobContext, lookout_url: str = None
-    ):
+    def context_to_xcom(self, ti: TaskInstance, ctx: RunningJobContext):
         ti.xcom_push(
             key="job_context",
             value={
@@ -210,7 +208,6 @@ class ArmadaHook(LoggingMixin):
                 "armada_job_submit_time": ctx.submit_time,
                 "armada_job_state": ctx.job_state,
                 "armada_job_last_log_time": ctx.last_log_time,
-                "armada_lookout_url": lookout_url,
             },
         )
 

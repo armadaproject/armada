@@ -458,7 +458,8 @@ class ArmadaOperator(BaseOperator, LoggingMixin):
             f"Submitted job to Armada with job-id {ctx.job_id}. {tracking_msg}"
         )
 
-        self.hook.context_to_xcom(context["ti"], ctx, self.lookout_url(ctx.job_id))
+        persist_link_value(context["ti"], "lookout", self.lookout_url(ctx.job_id))
+        self.hook.context_to_xcom(context["ti"], ctx)
 
         return ctx
 
@@ -588,9 +589,7 @@ class ArmadaOperator(BaseOperator, LoggingMixin):
             except Exception as e:
                 self.log.warning(f"Error fetching logs {e}")
 
-        self.hook.context_to_xcom(
-            context["ti"], job_context, self.lookout_url(job_context.job_id)
-        )
+        self.hook.context_to_xcom(context["ti"], job_context)
 
         return job_context
 
