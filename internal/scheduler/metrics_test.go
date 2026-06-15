@@ -839,6 +839,51 @@ func createNodeWithLabels(nodeType string, reservation string, labels map[string
 	return node
 }
 
+type stubBidPriceProvider struct {
+	snapshot pricing.BidPriceSnapshot
+}
+
+func (s stubBidPriceProvider) GetBidPrices(_ *armadacontext.Context) (pricing.BidPriceSnapshot, error) {
+	return s.snapshot, nil
+}
+
+func TestMetricsCollector_BidPriceCacheLastRefresh(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
+	defer cancel()
+
+	queueCache := schedulermocks.NewMockQueueCache(ctrl)
+	queueCache.EXPECT().GetAll(ctx).Return([]*api.Queue{}, nil).Times(1)
+
+	executorRepository := schedulermocks.NewMockExecutorRepository(ctrl)
+	executorRepository.EXPECT().GetExecutors(ctx).Return([]*schedulerobjects.Executor{}, nil)
+	executorRepository.EXPECT().GetExecutorSettings(ctx).Return([]*schedulerobjects.ExecutorSettings{}, nil)
+
+	snapshotTime := testfixtures.BaseTime
+	collector := NewMetricsCollector(
+		testfixtures.NewJobDb(testfixtures.TestResourceListFactory),
+		queueCache,
+		stubBidPriceProvider{snapshot: pricing.BidPriceSnapshot{Timestamp: snapshotTime}},
+		executorRepository,
+		testfixtures.TestSchedulingConfig().Pools,
+		[]string{testfixtures.TestPool},
+		2*time.Second,
+		testfixtures.TestEmptyFloatingResources,
+		"",
+	)
+	require.NoError(t, collector.refresh(ctx))
+
+	metricChan := make(chan prometheus.Metric, 1000)
+	collector.Collect(metricChan)
+	close(metricChan)
+	var actual []prometheus.Metric
+	for m := range metricChan {
+		actual = append(actual, m)
+	}
+
+	assert.Contains(t, actual, commonmetrics.NewBidPriceCacheLastRefreshMetric(snapshotTime))
+}
+
 func createNode(nodeType string, reservation string) *schedulerobjects.Node {
 	node := testfixtures.TestSchedulerObjectsNode(
 		[]int32{},
