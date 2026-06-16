@@ -65,66 +65,31 @@ Or download it from the [GitHub Release](https://github.com/armadaproject/armada
 ### Local Development with Goreman
 
 [Goreman](https://github.com/mattn/goreman) is a Go-based clone of [Foreman](https://github.com/ddollar/foreman) that manages Procfile-based applications,
-allowing you to run multiple processes with a single command.
+allowing you to run multiple processes with a single command. Components are built from source and run on the host, so iteration is fast and debuggers attach directly.
 
-Goreman will build the components from source and run them locally, making it easy to test changes quickly.
+Start Armada with one command:
 
-1. Install `goreman`:
+```shell
+mage dev:up                 # no-auth
+mage dev:up auth            # OIDC via keycloak
+mage dev:up fake-executor   # no Kubernetes cluster needed
+```
 
-    ```shell
-    go install github.com/mattn/goreman@latest
-    ```
+`mage dev:up` installs `goreman` to `./bin/` if missing, brings up redis/postgres/pulsar via `_local/compose/stack.yaml`, runs `_local/scripts/init.sh` to create databases and apply migrations, then runs `goreman` with the chosen procfile in the foreground. Ctrl+C stops everything cleanly. Image versions for the dependencies can be overridden via `REDIS_IMAGE`, `POSTGRES_IMAGE`, `PULSAR_IMAGE`, `KEYCLOAK_IMAGE`.
 
-2. Start dependencies:
+To stop the dependency containers afterwards:
 
-    ```shell
-    docker-compose -f _local/docker-compose-deps.yaml up -d
-    ```
-
-    - **Note**: Images can be overridden using environment variables:
-      `REDIS_IMAGE`, `POSTGRES_IMAGE`, `PULSAR_IMAGE`, `KEYCLOAK_IMAGE`
-
-3. Initialize databases and Kubernetes resources:
-
-    ```shell
-    scripts/localdev-init.sh
-    ```
-
-4. Start Armada components:
-
-    ```shell
-    goreman -f _local/procfiles/no-auth.Procfile start
-    ```
+```shell
+mage dev:down
+```
 
 ### Local Development with Authentication
 
-To run Armada with OIDC authentication enabled using Keycloak:
+`mage dev:up auth` brings up the auth flow: Keycloak is added to the dependency containers, the auth-flavoured procfile starts the components, and you can talk to Armada with OIDC:
 
-1. Start dependencies with the auth profile:
-
-    ```shell
-    docker-compose -f _local/docker-compose-deps.yaml --profile auth up -d
-    ```
-
-    This starts Redis, PostgreSQL, Pulsar, and Keycloak with a pre-configured realm.
-
-2. Initialize databases and Kubernetes resources:
-
-    ```shell
-    scripts/localdev-init.sh
-    ```
-
-3. Start Armada components with auth configuration:
-
-    ```shell
-    goreman -f _local/procfiles/auth.Procfile start
-    ```
-
-4. Use armadactl with OIDC authentication:
-
-    ```shell
-    armadactl --config _local/.armadactl.yaml --context auth-oidc get queues
-    ```
+```shell
+armadactl --config _local/.armadactl.yaml --context auth-oidc get queues
+```
 
 #### Authentication Configuration
 
@@ -141,10 +106,10 @@ All components support both OIDC and basic auth for convenience.
 
 ### Local Development with Fake Executor
 
-For testing Armada without a real Kubernetes cluster, you can use the fake executor that simulates a Kubernetes environment:
+For testing Armada without a real Kubernetes cluster, use the fake executor that simulates a Kubernetes environment:
 
 ```shell
-goreman -f _local/procfiles/fake-executor.Procfile start
+mage dev:up fake-executor
 ```
 
 The fake executor simulates:
@@ -158,6 +123,17 @@ This is useful for:
 - Testing Armada's scheduling logic
 - Development when Kubernetes is not available
 - Integration testing of job flows
+
+### Available Compose Profiles
+
+The compose file `_local/compose/stack.yaml` supports two profiles:
+
+| Profile  | Brings up                                  |
+| -------- | ------------------------------------------ |
+| (none)   | Dependencies only: redis, postgres, pulsar |
+| `auth`   | Adds keycloak (OIDC provider)              |
+
+For Apache Airflow, use the separate compose file: `docker compose -f _local/airflow/docker-compose.yaml up -d`.
 
 ### Available Procfiles
 

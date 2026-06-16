@@ -25,7 +25,7 @@
 # - POSTGRES_CONTAINER: Name of the PostgreSQL Docker container (default: postgres)
 # - GO_BIN: Path to Go binary (default: go)
 
-set -eu # Exit on error and undefined variable
+set -euo pipefail # Exit on error, undefined variable, and pipe failure
 
 # Configuration
 POSTGRES_CONTAINER="${POSTGRES_CONTAINER:-postgres}"
@@ -47,7 +47,7 @@ for i in {1..30}; do
     print_success "PostgreSQL is ready!"
     break
   fi
-  if [ $i -eq 30 ]; then
+  if [ "$i" -eq 30 ]; then
     print_error "PostgreSQL failed to start after 30 attempts"
     exit 1
   fi
@@ -55,47 +55,62 @@ for i in {1..30}; do
   sleep 2
 done
 
-print_info "Creating databases if needed..."
-if ! docker exec "${POSTGRES_CONTAINER}" psql -U postgres -tc "SELECT 1 FROM pg_database WHERE datname = 'scheduler'" | grep -q 1; then
-  docker exec "${POSTGRES_CONTAINER}" psql -U postgres -c "CREATE DATABASE scheduler;"
-  print_success "Created scheduler database"
-else
-  print_info "Scheduler database already exists"
-fi
+# db_exists returns 0 if the named database exists, 1 if not. If psql itself fails
+# (auth error, connection hiccup after pg_isready passed), it exits the script rather
+# than letting an empty result be misread as "database missing" and triggering a
+# CREATE DATABASE against an unhealthy server. -tA gives a bare "1" or empty output.
+db_exists() {
+  local name="$1" out
+  out=$(docker exec "${POSTGRES_CONTAINER}" psql -U postgres -tAc \
+    "SELECT 1 FROM pg_database WHERE datname = '${name}'") \
+    || { print_error "psql failed while checking for database '${name}'"; exit 1; }
+  [ "${out}" = "1" ]
+}
 
-if ! docker exec "${POSTGRES_CONTAINER}" psql -U postgres -tc "SELECT 1 FROM pg_database WHERE datname = 'lookout'" | grep -q 1; then
-  docker exec "${POSTGRES_CONTAINER}" psql -U postgres -c "CREATE DATABASE lookout;"
-  print_success "Created lookout database"
-else
-  print_info "Lookout database already exists"
-fi
+create_db_if_missing() {
+  local name="$1"
+  if db_exists "${name}"; then
+    print_info "${name} database already exists"
+  else
+    docker exec "${POSTGRES_CONTAINER}" psql -U postgres -c "CREATE DATABASE ${name};"
+    print_success "Created ${name} database"
+  fi
+}
+
+# run_migration runs a migration command, logging a labelled result and aborting on failure.
+run_migration() {
+  local label="$1"
+  shift
+  print_info "Running ${label} database migrations..."
+  if "$@"; then
+    print_success "${label} database migrations completed"
+  else
+    print_error "${label} database migrations failed"
+    exit 1
+  fi
+}
+
+print_info "Creating databases if needed..."
+create_db_if_missing scheduler
+create_db_if_missing lookout
 
 print_success "Databases ready!"
 
-print_info "Running scheduler database migrations..."
-if $GO_BIN run ./cmd/scheduler/main.go migrateDatabase --config ./_local/scheduler/config.yaml; then
-  print_success "Scheduler database migrations completed"
-else
-  print_error "Scheduler database migrations failed"
-  exit 1
-fi
-
-print_info "Running lookout database migrations..."
-if $GO_BIN run ./cmd/lookout/main.go --migrateDatabase --config ./_local/lookout/config.yaml; then
-  print_success "Lookout database migrations completed"
-else
-  print_error "Lookout database migrations failed"
-  exit 1
-fi
+run_migration Scheduler $GO_BIN run ./cmd/scheduler/main.go migrateDatabase --config ./_local/scheduler/config.yaml
+run_migration Lookout $GO_BIN run ./cmd/lookout/main.go --migrateDatabase --config ./_local/lookout/config.yaml
 
 print_success "All migrations completed successfully!"
 
-print_info "Applying Kubernetes priority class..."
-if kubectl apply -f _local/priority-class.yaml; then
-  print_success "Priority class 'armada-preemptible' applied"
+if kubectl cluster-info >/dev/null 2>&1; then
+  print_info "Applying Kubernetes priority class..."
+  if kubectl apply -f _local/priority-class.yaml; then
+    print_success "Priority class 'armada-default' applied"
+  else
+    print_error "Failed to apply priority class"
+    exit 1
+  fi
 else
-  print_error "Failed to apply priority class"
-  exit 1
+  print_info "No Kubernetes cluster reachable, skipping priority class (fine for fake-executor or pure dependency setup)"
 fi
 
 print_success "Armada local development environment initialized successfully!"

@@ -29,7 +29,12 @@ import tenacity
 import re
 
 from airflow.configuration import conf
-from airflow.exceptions import AirflowFailException
+
+try:
+    from airflow.sdk.exceptions import AirflowFailException
+except ImportError:
+    from airflow.exceptions import AirflowFailException
+
 from airflow.models import BaseOperator
 from airflow.models.taskinstance import TaskInstance, TaskInstanceKey
 from airflow.utils.log.logging_mixin import LoggingMixin
@@ -49,7 +54,6 @@ from ..policies.reattach import external_job_uri, policy
 from ..triggers import ArmadaPollJobTrigger
 from ..utils import log_exceptions, xcom_pull_for_ti, resolve_parameter_value
 from ..links import (
-    LookoutLink,
     DynamicLink,
     persist_link_value,
     UrlFromLogsExtractor,
@@ -146,7 +150,7 @@ class ArmadaOperator(BaseOperator, LoggingMixin):
 
         operator_links = []
         if self.lookout_url_template:
-            operator_links.append(LookoutLink())
+            operator_links.append(DynamicLink("Lookout"))
 
         operator_links.extend([DynamicLink(name) for name in self.extra_links])
         self.operator_extra_links = operator_links
@@ -243,8 +247,20 @@ class ArmadaOperator(BaseOperator, LoggingMixin):
 
         xcom_job_request = xcom_pull_for_ti(context["ti"], key="job_request")
         if xcom_job_request:
+            # job_request was already rendered before being pushed to xcom
+            # on the original try; re-running render_template_fields over
+            # the restored dict trips a recursion edge case in Airflow
+            # 2.10's templater ("unhashable type: 'dict'" on nested dict
+            # values). Render the remaining template fields only.
             self.job_request = xcom_job_request
-            super().render_template_fields(context, jinja_env)
+            original_template_fields = self.template_fields
+            try:
+                self.template_fields = tuple(
+                    f for f in self.template_fields if f != "job_request"
+                )
+                super().render_template_fields(context, jinja_env)
+            finally:
+                self.template_fields = original_template_fields
         else:
             self.log.info("Rendering job_request")
             if callable(self.job_request):
@@ -446,7 +462,8 @@ class ArmadaOperator(BaseOperator, LoggingMixin):
             f"Submitted job to Armada with job-id {ctx.job_id}. {tracking_msg}"
         )
 
-        self.hook.context_to_xcom(context["ti"], ctx, self.lookout_url(ctx.job_id))
+        persist_link_value(context["ti"], "lookout", self.lookout_url(ctx.job_id))
+        self.hook.context_to_xcom(context["ti"], ctx)
 
         return ctx
 
@@ -576,9 +593,7 @@ class ArmadaOperator(BaseOperator, LoggingMixin):
             except Exception as e:
                 self.log.warning(f"Error fetching logs {e}")
 
-        self.hook.context_to_xcom(
-            context["ti"], job_context, self.lookout_url(job_context.job_id)
-        )
+        self.hook.context_to_xcom(context["ti"], job_context)
 
         return job_context
 

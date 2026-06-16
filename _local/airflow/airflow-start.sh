@@ -1,3 +1,4 @@
+#!/bin/bash
 # download the needful
 pip3 install "./third_party/airflow/" "kubernetes"
 
