@@ -702,7 +702,7 @@ func (m *cycleMetrics) ReportSchedulerResult(ctx *armadacontext.Context, result 
 			}
 
 			for _, jobCtx := range schedulingResult.PreemptedJobs {
-				if jobCtx.Job == nil && jobCtx.Job.LatestRun() == nil {
+				if jobCtx.Job == nil || jobCtx.Job.LatestRun() == nil {
 					log.Errorf("could not report preempted job metrics for job %s as it was missing run information", jobCtx.JobId)
 					continue
 				}
