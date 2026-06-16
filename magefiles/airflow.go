@@ -39,36 +39,36 @@ func Airflow(arg string) error {
 func startAirflow() error {
 	fmt.Println("Starting airflow...")
 
-	err := sh.Run("mkdir", "-p", "developer/airflow/opt")
+	err := sh.Run("mkdir", "-p", "_local/airflow/opt")
 	if err != nil {
 		return err
 	}
 
 	// Copy aramda python packages to be used within airflow docker image.
-	err = sh.Run("cp", "-r", "client/python", "developer/airflow/opt/client")
+	err = sh.Run("cp", "-r", "client/python", "_local/airflow/opt/client")
 	if err != nil {
 		return err
 	}
 
-	err = sh.Run("cp", "-r", "third_party/airflow", "developer/airflow/opt/airflow")
+	err = sh.Run("cp", "-r", "third_party/airflow", "_local/airflow/opt/airflow")
 	if err != nil {
 		return err
 	}
 
 	// Arise
-	return dockerRun("compose", "--project-directory", "./developer/airflow/",
+	return dockerRun("compose", "--project-directory", "./_local/airflow/",
 		"up", "--build", "--always-recreate-deps", "-d")
 }
 
 func stopAirflow() error {
 	fmt.Println("Stopping airflow...")
 
-	err := dockerRun("compose", "-f", "developer/airflow/docker-compose.yaml", "down")
+	err := dockerRun("compose", "-f", "_local/airflow/docker-compose.yaml", "down")
 	if err != nil {
 		return err
 	}
 
-	return sh.Run("rm", "-rf", "developer/airflow/opt/")
+	return sh.Run("rm", "-rf", "_local/airflow/opt/")
 }
 
 // AirflowOperator builds the Airflow Operator
