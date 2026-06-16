@@ -17,7 +17,7 @@
     {
       "label": "Start dependencies",
       "type": "shell",
-      "command": "mage kind && COMPOSE_FILE=${workspaceFolder}/_local/compose/stack.yaml mage dev:up debug",
+      "command": "mage kind && mage dev:up debug",
       "isBackground": true,
       "problemMatcher": {
         "owner": "armada-deps",
@@ -32,7 +32,7 @@
     {
       "label": "Start dependencies with Fake Executor",
       "type": "shell",
-      "command": "mage kind && COMPOSE_FILE=${workspaceFolder}/_local/compose/stack.yaml mage dev:up debug,fake-executor",
+      "command": "mage kind && mage dev:up debug,fake-executor",
       "isBackground": true,
       "problemMatcher": {
         "owner": "armada-deps",
@@ -47,7 +47,7 @@
     {
       "label": "Start dependencies with Prometheus",
       "type": "shell",
-      "command": "mage kind && COMPOSE_FILE=${workspaceFolder}/_local/compose/stack.yaml mage dev:up debug,prometheus",
+      "command": "mage kind && mage dev:up debug,prometheus",
       "isBackground": true,
       "problemMatcher": {
         "owner": "armada-deps",
@@ -62,7 +62,7 @@
     {
       "label": "Start dependencies with Auth",
       "type": "shell",
-      "command": "mage kind && COMPOSE_FILE=${workspaceFolder}/_local/compose/stack.yaml mage dev:up debug,auth",
+      "command": "mage kind && mage dev:up debug,auth",
       "isBackground": true,
       "problemMatcher": {
         "owner": "armada-deps",
@@ -77,7 +77,7 @@
     {
       "label": "Start dependencies with Fake Executor and Prometheus",
       "type": "shell",
-      "command": "mage kind && COMPOSE_FILE=${workspaceFolder}/_local/compose/stack.yaml mage dev:up debug,fake-executor,prometheus",
+      "command": "mage kind && mage dev:up debug,fake-executor,prometheus",
       "isBackground": true,
       "problemMatcher": {
         "owner": "armada-deps",
@@ -92,7 +92,7 @@
     {
       "label": "Start dependencies with Auth and Prometheus",
       "type": "shell",
-      "command": "mage kind && COMPOSE_FILE=${workspaceFolder}/_local/compose/stack.yaml mage dev:up debug,auth,prometheus",
+      "command": "mage kind && mage dev:up debug,auth,prometheus",
       "isBackground": true,
       "problemMatcher": {
         "owner": "armada-deps",
@@ -140,13 +140,13 @@
     {
       "label": "Stop dependencies",
       "type": "shell",
-      "command": "COMPOSE_FILE=${workspaceFolder}/_local/compose/stack.yaml mage dev:down",
+      "command": " mage dev:down",
       "problemMatcher": []
     },
     {
       "label": "Full teardown",
       "type": "shell",
-      "command": "COMPOSE_FILE=${workspaceFolder}/_local/compose/stack.yaml mage dev:fullDown",
+      "command": " mage dev:fullDown",
       "problemMatcher": []
     },
     {
