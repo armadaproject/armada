@@ -84,9 +84,23 @@ func (Dev) Deps() error {
 	return devDepsUp("")
 }
 
+// Migrate runs the database init step on its own: it applies the scheduler and lookout
+// migrations and (when a cluster is reachable) applies the Armada priority classes. The
+// databases themselves are created by _local/compose/postgres-init.sql when the postgres
+// container first initialises. This is the same _local/scripts/init.sh that dev:up runs,
+// minus starting goreman, so you can (re)apply schema changes against already-running
+// dependencies. Bring the dependencies up first with `mage dev:deps` if they are not already
+// running.
+func (Dev) Migrate() error {
+	return sh.RunV(initScript)
+}
+
 // Down stops docker-compose dependencies. If a `dev:up` goreman is running, Ctrl+C it first.
+//
+// --profile auth brings the keycloak container into scope so `dev:up auth` doesn't leave it
+// orphaned, and --remove-orphans clears containers from any profile that is no longer active.
 func (Dev) Down() error {
-	return sh.RunV("docker", "compose", "-f", stackComposeFile, "down")
+	return sh.RunV("docker", "compose", "-f", stackComposeFile, "--profile", "auth", "down", "--remove-orphans")
 }
 
 // Full brings up the entire Armada stack in containers via _local/compose/full.yaml.

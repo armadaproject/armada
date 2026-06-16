@@ -16,20 +16,13 @@
     },
     {
       "type": "shell",
-      "command": "mage kind && mage startDependencies",
+      "command": "mage kind && mage dev:deps",
       "label": "Start dependencies"
     },
     {
       "type": "shell",
-      "command": "go",
-      "label": "Migrate Lookout database",
-      "args": ["run", "${workspaceFolder}/cmd/lookout", "--migrateDatabase"]
-    },
-    {
-      "type": "shell",
-      "command": "go",
-      "label": "Migrate Scheduler database",
-      "args": ["run", "${workspaceFolder}/cmd/scheduler", "migrateDatabase"]
+      "command": "mage dev:migrate",
+      "label": "Run migrations"
     },
     {
       "label": "Set up dependencies",
@@ -37,8 +30,7 @@
       "dependsOn": [
         "Download Go modules",
         "Start dependencies",
-        "Migrate Lookout database",
-        "Migrate Scheduler database"
+        "Run migrations"
       ]
     },
     {

@@ -23,38 +23,33 @@ Install the following tools before you begin. These are verified requirements fr
 
 Armada provides two main ways to run components locally for development. Choose the method that best fits your workflow.
 
-### Using `mage` LocalDev (Recommended)
+### Using `mage dev` (Recommended)
 
-`LocalDev` automates the setup process and is the recommended way to get started:
+The `mage dev` targets automate the setup process and are the recommended way to get started:
 
 - Bootstraps required tools from [`tools.yaml`](https://github.com/armadaproject/armada/blob/master/tools.yaml)
-- Creates a local Kubernetes cluster using [kind](https://kind.sigs.k8s.io/)
-- Starts dependencies (Pulsar, Redis, PostgreSQL)
-- Builds and starts Armada components
+- Starts dependencies (Pulsar, Redis, PostgreSQL) in containers
+- Builds and starts Armada components (`mage dev:up` runs them via goreman; `mage dev:full` runs them in containers against a [kind](https://kind.sigs.k8s.io/) cluster)
 
 **Note:** If you edit a proto file, run `mage proto` to regenerate the Go code.
 
-LocalDev has several modes:
+The `mage dev` targets:
 
 ```bash
-# Minimal setup - runs only core components (server, executor, scheduler)
-# This is what CI uses for testing
-mage localdev minimal
+# Run dependencies in containers and Armada components via goreman (fast iteration)
+mage dev:up
 
-# Full setup - runs all components including Lookout UI
-mage localdev full
-
-# Skip build step - use existing Docker images
-# Set ARMADA_IMAGE and ARMADA_TAG to choose the image
-mage localdev no-build
+# Run the entire stack in containers against a Kind cluster (what CI uses)
+mage dev:full
 ```
 
-We use `mage localdev minimal` to test the CI pipeline. Use it to test changes to core components.
+We use `mage dev:full` to test the CI pipeline. Use it to test changes to core components.
 
 To stop the local development environment:
 
 ```bash
-mage LocalDevStop
+mage dev:down       # stop the dependency containers (after `mage dev:up`)
+mage dev:fullDown   # stop the containerized stack and tear down Kind (after `mage dev:full`)
 ```
 
 ### Using Goreman
@@ -70,7 +65,7 @@ mage LocalDevStop
 2. Start dependencies:
 
    ```bash
-   docker-compose -f _local/docker-compose-deps.yaml up -d
+   docker compose -f _local/compose/stack.yaml up -d
    ```
 
    **Note:** Images can be overridden using environment variables: `REDIS_IMAGE`, `POSTGRES_IMAGE`, `PULSAR_IMAGE`, `KEYCLOAK_IMAGE`
@@ -78,7 +73,7 @@ mage LocalDevStop
 3. Initialize databases and Kubernetes resources:
 
    ```bash
-   scripts/localdev-init.sh
+   _local/scripts/init.sh
    ```
 
 4. Start Armada components:
@@ -93,7 +88,7 @@ To run Armada with OIDC authentication enabled using Keycloak:
 1. Start dependencies with the auth profile:
 
    ```bash
-   docker-compose -f _local/docker-compose-deps.yaml --profile auth up -d
+   docker compose -f _local/compose/stack.yaml --profile auth up -d
    ```
 
    This starts Redis, PostgreSQL, Pulsar, and Keycloak with a pre-configured realm.
@@ -101,7 +96,7 @@ To run Armada with OIDC authentication enabled using Keycloak:
 2. Initialize databases and Kubernetes resources:
 
    ```bash
-   scripts/localdev-init.sh
+   _local/scripts/init.sh
    ```
 
 3. Start Armada components with auth configuration:
@@ -208,8 +203,8 @@ mage -l
 
 Common mage targets:
 
-- `mage localdev minimal` - Start minimal local development environment
-- `mage localdev full` - Start full local development environment
+- `mage dev:up` - Run dependencies in containers and Armada components via goreman
+- `mage dev:full` - Run the entire stack in containers against a Kind cluster (what CI uses)
 - `mage buildDockers` - Build Docker images
 - `mage proto` - Generate Go code from proto files
 - `mage testsuite` - Run the test suite
@@ -233,37 +228,14 @@ profiling:
       pprof: ['everyone']
 ```
 
-### Debugging with VS Code
+### Debugging components
 
-Run server and executor in debug mode and get a launch.json for VS Code:
+`mage dev:up` builds each component with debug flags (`-gcflags="all=-N -l"`) and runs them as host
+processes, so you can attach a debugger (Delve, VS Code, or GoLand) to any running process directly.
+Each component reads `_local/<component>/config.yaml`.
 
-```bash
-mage debug vscode
-```
-
-After running this, attach to the running processes using VS Code. See the [VS Code Debugging Guide](https://code.visualstudio.com/docs/editor/debugging) for details.
-
-### Debugging with Delve
-
-Run components in debug mode with Delve:
-
-```bash
-mage debug delve
-```
-
-This creates a `docker-compose.dev.yaml` file. You can also manually create it:
-
-```bash
-mage createDelveCompose
-docker compose -f docker-compose.dev.yaml up -d server executor
-```
-
-Then attach to the running processes:
-
-```bash
-docker compose exec -it server bash
-dlv connect :4000
-```
+For VS Code, use the launch configurations in `.vscode/launch.json`. See the
+[VS Code Debugging Guide](https://code.visualstudio.com/docs/editor/debugging) for details.
 
 ### Debug Port Mappings
 
@@ -285,9 +257,7 @@ Run configurations are available in the `.run` directory. When opening the proje
 
 ### Other Debugging Methods
 
-Run `mage debug local` to only spin up the dependencies, then run individual components yourself.
-
-For required environmental variables, see the [Environmental Variables guide](https://github.com/armadaproject/armada/tree/master/developer/env/README.md).
+Run `mage dev:deps` to only spin up the dependencies (redis, postgres, pulsar), then run individual components yourself. Each component reads its config from `_local/<component>/config.yaml`.
 
 ## Extending Armada
 
@@ -357,7 +327,7 @@ This builds the UI and makes it available at http://localhost:8089.
 
 ### Port 6443 Already in Use
 
-If port 6443 is already in use, modify `e2e/setup/kind.yaml` to use a different port:
+If port 6443 is already in use, modify `_local/kind/cluster.yaml` to use a different port:
 
 ```yaml
 - containerPort: 6443
