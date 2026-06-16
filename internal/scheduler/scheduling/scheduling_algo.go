@@ -435,16 +435,12 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 	// - Jobs active on the nodes of this pool
 	//   - These are used to populate the jobdb, calculate demand/fairshare
 	//   - This may include nodes from other pools, especially if the nodes pool has changed
-	// - Terminal jobs of this pool
-	//   - For calculating short job penalty
 	// - Jobs queued against home/away pools relevant to the pool being computed
 	//   - This is to calculate demand on both home and away pools
 	leasedJobs := txn.GetAllLeasedJobs()
-	terminalJobs := txn.GetAllTerminalJobs()
 	queuedJobs := getQueuedJobs(txn, allPools)
-	allJobs := make([]*jobdb.Job, 0, len(leasedJobs)+len(terminalJobs)+len(queuedJobs))
+	allJobs := make([]*jobdb.Job, 0, len(leasedJobs)+len(queuedJobs))
 	allJobs = append(allJobs, leasedJobs...)
-	allJobs = append(allJobs, terminalJobs...)
 	allJobs = append(allJobs, queuedJobs...)
 
 	jobSchedulingInfo, err := l.calculateJobSchedulingInfo(ctx,
@@ -586,21 +582,12 @@ func (l *FairSchedulingAlgo) calculateJobSchedulingInfo(ctx *armadacontext.Conte
 	demandByQueueAndPriorityClass := make(map[string]map[string]internaltypes.ResourceList)
 	allocatedByQueueAndPriorityClass := make(map[string]map[string]internaltypes.ResourceList)
 	awayAllocatedByQueueAndPriorityClass := make(map[string]map[string]internaltypes.ResourceList)
-	shortJobPenaltyByQueue := make(map[string]internaltypes.ResourceList)
 
 	for _, job := range jobs {
 		queue, present := queues[job.Queue()]
 		if !present {
 			ctx.Errorf("job %s has queue %s, this queue does not exist", job.Id(), job.Queue())
 			continue
-		}
-
-		if l.shortJobPenalty.ShouldApplyPenalty(job) {
-			jobPool := job.LatestRun().Pool()
-			jobRequirements := job.AllResourceRequirements()
-			if jobPool == currentPool {
-				shortJobPenaltyByQueue[queue.Name] = shortJobPenaltyByQueue[queue.Name].Add(jobRequirements)
-			}
 		}
 
 		if job.InTerminalState() {
@@ -680,6 +667,7 @@ func (l *FairSchedulingAlgo) calculateJobSchedulingInfo(ctx *armadacontext.Conte
 		jobsByExecutorId[executorId] = append(jobsByExecutorId[executorId], job)
 	}
 
+	shortJobPenaltyByQueue := l.shortJobPenalty.GetPenaltiesForPool(currentPool)
 	return &jobSchedulingInfo{
 		jobsByExecutorId:                     jobsByExecutorId,
 		jobsByPool:                           jobsByPool,

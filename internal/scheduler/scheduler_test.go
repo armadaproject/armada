@@ -2009,7 +2009,7 @@ func TestScheduler_TestSyncInitialState(t *testing.T) {
 			// which must be consistent within tests.
 			sched.jobDb = testfixtures.NewJobDb(testfixtures.TestResourceListFactory)
 
-			initialJobs, _, newJobsSerial, newRunsSerial, err := sched.syncState(ctx, true, false)
+			initialJobs, _, newJobsSerial, newRunsSerial, err := sched.syncState(ctx, true)
 			require.NoError(t, err)
 			sched.jobsSerial = newJobsSerial
 			sched.runsSerial = newRunsSerial
@@ -2232,7 +2232,7 @@ func TestScheduler_TestSyncState(t *testing.T) {
 			require.NoError(t, err)
 			txn.Commit()
 
-			updatedJobs, _, _, _, err := sched.syncState(ctx, false, false)
+			updatedJobs, _, _, _, err := sched.syncState(ctx, false)
 			require.NoError(t, err)
 
 			expectedJobDb := testfixtures.NewJobDbWithJobs(tc.expectedUpdatedJobs)
