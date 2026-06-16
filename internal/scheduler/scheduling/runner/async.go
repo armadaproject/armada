@@ -253,7 +253,11 @@ func (r *AsyncSchedulingRunner) finishRun(result *scheduling.SchedulerResult, er
 	} else {
 		r.result = &scheduleResult{schedulerResult: result, err: err}
 		r.state = ResultReady
-		log.Info("async scheduling cycle completed")
+		if err != nil {
+			log.Info("async scheduling cycle completed with err %s", err)
+		} else {
+			log.Info("async scheduling cycle completed with success in %s", result.GetDuration())
+		}
 	}
 
 	run.cancel()
@@ -383,7 +387,8 @@ func (r *AsyncSchedulingRunner) updateScheduledJobs(ctx *armadacontext.Context, 
 			poolResult.SchedulingResult.SchedulingContext.NumScheduledGangs--
 		}
 	}
-	ctx.Infof("scheduler result reconciler removed %d jobs that would have been scheduled", len(poolResult.SchedulingResult.ScheduledJobs)-len(scheduledJobs))
+	ctx.Infof("scheduler result reconciler removed %d jobs that would have been scheduled on pool %s",
+		len(poolResult.SchedulingResult.ScheduledJobs)-len(scheduledJobs), poolResult.Name)
 	poolResult.SchedulingResult.ScheduledJobs = scheduledJobs
 	return nil
 }
@@ -402,7 +407,8 @@ func (r *AsyncSchedulingRunner) updatePreemptedJobs(ctx *armadacontext.Context, 
 			delete(poolResult.SchedulingResult.AdditionalSchedulingInfo.EvictorResult.EvictedJctxsByJobId, preemptedJob.JobId)
 		}
 	}
-	ctx.Infof("scheduler result reconciler removed %d jobs that would have been preempted", len(poolResult.SchedulingResult.PreemptedJobs)-len(preemptedJobs))
+	ctx.Infof("scheduler result reconciler removed %d jobs that would have been preempted on pool %s",
+		len(poolResult.SchedulingResult.PreemptedJobs)-len(preemptedJobs), poolResult.Name)
 	poolResult.SchedulingResult.PreemptedJobs = preemptedJobs
 	return nil
 }
@@ -415,8 +421,8 @@ func (r *AsyncSchedulingRunner) updateReconciliationResult(ctx *armadacontext.Co
 			preemptedJobs = append(preemptedJobs, preemptedJob)
 		}
 	}
-	ctx.Infof("scheduler result reconciler removed %d jobs that would have been preempted by reconciler",
-		len(poolResult.ReconciliationResult.PreemptedJobs)-len(preemptedJobs))
+	ctx.Infof("scheduler result reconciler removed %d jobs that would have been preempted by reconciler on pool %s",
+		len(poolResult.ReconciliationResult.PreemptedJobs)-len(preemptedJobs), poolResult.Name)
 	poolResult.ReconciliationResult.PreemptedJobs = preemptedJobs
 
 	failedJobs := make([]*scheduling.FailedReconciliationResult, 0, len(poolResult.ReconciliationResult.FailedJobs))
@@ -426,8 +432,8 @@ func (r *AsyncSchedulingRunner) updateReconciliationResult(ctx *armadacontext.Co
 			failedJobs = append(failedJobs, failedJob)
 		}
 	}
-	ctx.Infof("scheduler result reconciler removed %d jobs that would have been failed by reconciler",
-		len(poolResult.ReconciliationResult.FailedJobs)-len(failedJobs))
+	ctx.Infof("scheduler result reconciler removed %d jobs that would have been failed by reconciler on pool %s",
+		len(poolResult.ReconciliationResult.FailedJobs)-len(failedJobs), poolResult.Name)
 	poolResult.ReconciliationResult.FailedJobs = failedJobs
 }
 
