@@ -702,11 +702,16 @@ func (m *cycleMetrics) ReportSchedulerResult(ctx *armadacontext.Context, result 
 			}
 
 			for _, jobCtx := range schedulingResult.PreemptedJobs {
+				if jobCtx.Job == nil && jobCtx.Job.LatestRun() == nil {
+					log.Errorf("could not report preempted job metrics for job %s as it was missing run information", jobCtx.JobId)
+					continue
+				}
 				preemptionType := defaultType
 				if jobCtx.PreemptionType != "" {
 					preemptionType = string(jobCtx.PreemptionType)
 				}
-				m.preemptedJobs.WithLabelValues(pool, jobCtx.Job.Queue(), jobCtx.Job.PriorityClassName(), preemptionType).Inc()
+				runPool := jobCtx.Job.LatestRun().Pool()
+				m.preemptedJobs.WithLabelValues(runPool, jobCtx.Job.Queue(), jobCtx.Job.PriorityClassName(), preemptionType).Inc()
 			}
 		}
 	}
