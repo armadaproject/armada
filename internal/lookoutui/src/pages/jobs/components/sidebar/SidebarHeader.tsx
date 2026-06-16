@@ -59,7 +59,7 @@ export const SidebarHeader = memo(({ job, onClose }: SidebarHeaderProps) => (
         <div>
           <JobStateChip state={job.state} /> for {formatTimestampRelative(job.lastTransitionTime, false)}
           {job.state === JobState.Cancelled && job.cancelUser && (
-            <Typography variant="body2" component="span" marginTop={SPACING.xs}>
+            <Typography variant="body2" component="span" display="block" marginTop={SPACING.xs}>
               Cancelled by <strong>{job.cancelUser}</strong>.
             </Typography>
           )}
