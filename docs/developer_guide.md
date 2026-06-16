@@ -178,60 +178,6 @@ The goreman-based flow (`mage dev:up`) builds each component with debug flags (`
 and runs them as host processes, so you can attach a debugger to any component directly. Bring up the
 dependencies and components with `mage dev:up`, then attach your debugger (Delve, VS Code, or GoLand) to
 the running process you want to inspect. Each component reads `_local/<component>/config.yaml`.
-The mage target `mage debug` supports multiple methods for debugging, and runs the appropriate parts of `LocalDev` as required.
-
-To use VS Code debugging, [see the VSCode Debugging Guide](https://code.visualstudio.com/docs/editor/debugging).
-
-### Delve Debugging
-
-The Delve target creates a new `docker-compose` file: `./docker-compose.dev.yaml` with the correct volumes, commands and images for debugging.
-
-To manually create the compose file and run it yourself, run the following commands:
-
-```bash
-mage createDelveCompose
-
-# You can then start components manually
-docker compose -f docker-compose.dev.yaml up -d server executor
-```
-
-After running `mage debug delve`, you can attach to the running processes using Delve.
-
-```bash
-$ docker compose exec -it server bash
-root@3b5e4089edbb:/app# dlv connect :4000
-Type 'help' for list of commands.
-(dlv) b (*SubmitServer).CreateQueue
-Breakpoint 3 set at 0x1fb3800 for github.com/armadaproject/armada/internal/armada/server.(*SubmitServer).CreateQueue() ./internal/armada/server/submit.go:137
-(dlv) c
-> github.com/armadaproject/armada/internal/armada/server.(*SubmitServer).CreateQueue() ./internal/armada/server/submit.go:140 (PC: 0x1fb38a0)
-   135: }
-   136:
-=> 137: func (server *SubmitServer) CreateQueue(ctx context.Context, request *api.Queue) (*types.Empty, error) {
-   138:         err := checkPermission(server.permissions, ctx, permissions.CreateQueue)
-   139:         var ep *ErrUnauthorized
-   140:         if errors.As(err, &ep) {
-   141:                 return nil, status.Errorf(codes.PermissionDenied, "[CreateQueue] error creating queue %s: %s", request.Name, ep)
-   142:         } else if err != nil {
-   143:                 return nil, status.Errorf(codes.Unavailable, "[CreateQueue] error checking permissions: %s", err)
-   144:         }
-   145:
-(dlv)
-```
-
-You can find all outputs of delve in the `./delve` directory.
-
-#### External debug port mappings
-
-| Armada service    | Debug host       |
-| ----------------- | ---------------- |
-| `server`          | `localhost:4000` |
-| `executor`        | `localhost:4001` |
-| `binoculars`      | `localhost:4002` |
-| `eventingester`   | `localhost:4003` |
-| `lookoutui`       | `localhost:4004` |
-| `lookout`         | `localhost:4005` |
-| `lookoutingester` | `localhost:4007` |
 
 ## GoLand run configurations
 

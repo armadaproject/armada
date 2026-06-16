@@ -55,7 +55,11 @@ func (Dev) Up(args string) error {
 		}
 		switch token {
 		case "auth", "fake-executor":
-			profile = token
+			if profile != "no-auth" {
+				fmt.Printf("warning: ignoring %q — profile already set to %q; only one of auth/fake-executor may be used\n", token, profile)
+			} else {
+				profile = token
+			}
 		case "debug":
 			debug = true
 		default:
