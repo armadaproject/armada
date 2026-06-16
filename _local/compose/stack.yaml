@@ -64,7 +64,8 @@ services:
       - "8090:8080"
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/admin/v2/brokers/health"]
+      test:
+        ["CMD", "curl", "-f", "http://localhost:8080/admin/v2/brokers/health"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -91,3 +92,29 @@ services:
     # No healthcheck on purpose: keycloak's realm import + warmup is slower than
     # `docker compose up --wait` is willing to block for. `mage dev:up auth` polls the
     # realm endpoint via waitForKeycloak before starting goreman.
+
+  prometheus:
+    container_name: prometheus
+    image: ${PROMETHEUS_IMAGE:-prom/prometheus:v3.11.3}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "9090:9090"
+    volumes:
+      - "../prometheus.yml:/etc/prometheus/prometheus.yml"
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "--quiet",
+          "--tries=1",
+          "--spider",
+          "http://localhost:9090/-/healthy",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    profiles: [prometheus]

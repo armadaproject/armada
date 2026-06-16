@@ -14,9 +14,9 @@ contexts:
   auth-oidc:
     armadaUrl: localhost:50051
     openIdAuth:
-      providerUrl: "http://localhost:18180/realms/armada"
+      providerUrl: "http://localhost:8180/realms/armada"
       clientId: "armada-server"
-      localPort: 18085
+      localPort: 8085
       scopes: ["openid", "profile", "email"]
 
   # Context with OIDC Device Flow authentication
@@ -24,7 +24,7 @@ contexts:
   auth-device:
     armadaUrl: localhost:50051
     openIdDeviceAuth:
-      providerUrl: "http://localhost:18180/realms/armada"
+      providerUrl: "http://localhost:8180/realms/armada"
       clientId: "armada-server"
       scopes: ["openid", "profile", "email"]
 
@@ -33,7 +33,7 @@ contexts:
   auth-client-creds:
     armadaUrl: localhost:50051
     openIdClientCredentialsAuth:
-      providerUrl: "http://localhost:18180/realms/armada"
+      providerUrl: "http://localhost:8180/realms/armada"
       clientId: "armada-executor"
       clientSecret: "executor-secret"
       scopes: ["openid", "profile", "email"]
@@ -42,7 +42,7 @@ contexts:
   auth-password:
     armadaUrl: localhost:50051
     openIdPasswordAuth:
-      providerUrl: "http://localhost:18180/realms/armada"
+      providerUrl: "http://localhost:8180/realms/armada"
       clientId: "armada-server"
       username: "admin"
       password: "admin"
@@ -61,7 +61,7 @@ contexts:
   auth-exec:
     armadaUrl: localhost:50051
     execAuth:
-      cmd: "/path/to/token-helper"  # Note: field is 'cmd' not 'command'
+      cmd: "/path/to/token-helper" # Note: field is 'cmd' not 'command'
       args: ["--get-token"]
       # Optional: environment variables to pass to the command
       env:

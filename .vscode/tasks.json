@@ -17,32 +17,92 @@
     {
       "label": "Start dependencies",
       "type": "shell",
-      "command": "mage kind && COMPOSE_FILE=${workspaceFolder}/_local/docker-compose-deps.yaml mage startDependencies",
-      "problemMatcher": []
+      "command": "mage kind && COMPOSE_FILE=${workspaceFolder}/_local/compose/stack.yaml mage dev:up debug",
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "armada-deps",
+        "pattern": { "regexp": "^$" },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "\\| Starting .* on port",
+          "endsPattern": "initialized successfully"
+        }
+      }
+    },
+    {
+      "label": "Start dependencies with Fake Executor",
+      "type": "shell",
+      "command": "mage kind && COMPOSE_FILE=${workspaceFolder}/_local/compose/stack.yaml mage dev:up debug,fake-executor",
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "armada-deps",
+        "pattern": { "regexp": "^$" },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "\\| Starting .* on port",
+          "endsPattern": "initialized successfully"
+        }
+      }
     },
     {
       "label": "Start dependencies with Prometheus",
       "type": "shell",
-      "command": "mage kind && COMPOSE_FILE=${workspaceFolder}/_local/docker-compose-deps.yaml ARMADA_EXTRA_DEPS=prometheus mage startDependencies",
-      "problemMatcher": []
+      "command": "mage kind && COMPOSE_FILE=${workspaceFolder}/_local/compose/stack.yaml mage dev:up debug,prometheus",
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "armada-deps",
+        "pattern": { "regexp": "^$" },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "\\| Starting .* on port",
+          "endsPattern": "initialized successfully"
+        }
+      }
     },
     {
       "label": "Start dependencies with Auth",
       "type": "shell",
-      "command": "mage kind && COMPOSE_FILE=${workspaceFolder}/_local/docker-compose-deps.yaml ARMADA_EXTRA_DEPS=keycloak mage startDependencies",
-      "problemMatcher": []
+      "command": "mage kind && COMPOSE_FILE=${workspaceFolder}/_local/compose/stack.yaml mage dev:up debug,auth",
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "armada-deps",
+        "pattern": { "regexp": "^$" },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "\\| Starting .* on port",
+          "endsPattern": "Keycloak ready"
+        }
+      }
     },
     {
-      "label": "Start dependencies with Prometheus and Auth",
+      "label": "Start dependencies with Fake Executor and Prometheus",
       "type": "shell",
-      "command": "mage kind && COMPOSE_FILE=${workspaceFolder}/_local/docker-compose-deps.yaml ARMADA_EXTRA_DEPS=prometheus,keycloak mage startDependencies",
-      "problemMatcher": []
+      "command": "mage kind && COMPOSE_FILE=${workspaceFolder}/_local/compose/stack.yaml mage dev:up debug,fake-executor,prometheus",
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "armada-deps",
+        "pattern": { "regexp": "^$" },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "\\| Starting .* on port",
+          "endsPattern": "initialized successfully"
+        }
+      }
     },
     {
-      "label": "Init databases",
+      "label": "Start dependencies with Auth and Prometheus",
       "type": "shell",
-      "command": "${workspaceFolder}/scripts/localdev-init.sh",
-      "problemMatcher": []
+      "command": "mage kind && COMPOSE_FILE=${workspaceFolder}/_local/compose/stack.yaml mage dev:up debug,auth,prometheus",
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "armada-deps",
+        "pattern": { "regexp": "^$" },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "\\| Starting .* on port",
+          "endsPattern": "Keycloak ready"
+        }
+      }
     },
     {
       "label": "Build Lookout UI",
@@ -54,75 +114,15 @@
       ]
     },
     {
-      "label": "Goreman: Start (no-auth debug)",
-      "type": "shell",
-      "command": "goreman -f ${workspaceFolder}/_local/procfiles/no-auth-debug.Procfile start",
-      "isBackground": true,
-      "problemMatcher": [
-        {
-          "pattern": [
-            { "regexp": ".", "file": 1, "location": 2, "message": 3 }
-          ],
-          "background": {
-            "activeOnStart": true,
-            "beginsPattern": ".",
-            "endsPattern": "DAP server listening at:"
-          }
-        }
-      ]
-    },
-    {
-      "label": "Goreman: Start (auth debug)",
-      "type": "shell",
-      "command": "goreman -f ${workspaceFolder}/_local/procfiles/auth-debug.Procfile start",
-      "isBackground": true,
-      "problemMatcher": [
-        {
-          "pattern": [
-            { "regexp": ".", "file": 1, "location": 2, "message": 3 }
-          ],
-          "background": {
-            "activeOnStart": true,
-            "beginsPattern": ".",
-            "endsPattern": "DAP server listening at:"
-          }
-        }
-      ]
-    },
-    {
-      "label": "Goreman: Start (fake-executor debug)",
-      "type": "shell",
-      "command": "goreman -f ${workspaceFolder}/_local/procfiles/fake-executor-debug.Procfile start",
-      "isBackground": true,
-      "problemMatcher": [
-        {
-          "pattern": [
-            { "regexp": ".", "file": 1, "location": 2, "message": 3 }
-          ],
-          "background": {
-            "activeOnStart": true,
-            "beginsPattern": ".",
-            "endsPattern": "DAP server listening at:"
-          }
-        }
-      ]
-    },
-    {
       "label": "Check for port conflicts",
       "type": "shell",
-      "command": "for port in 2345 2346 2347 2348 2349 2350 2351 2352 2353 3000 18080 18081 18082 18083 18084 18089 19000 19001 19002 19003 19004 19005 19006 19007 19008 50051 50052 50053; do proc=$(lsof -i :$port -sTCP:LISTEN 2>/dev/null | awk 'NR>1{print $1}' | sort -u); [ -n \"$proc\" ] && echo \"WARNING: port $port already in use by $proc\"; done; true",
+      "command": "for port in 2345 2346 2347 2348 2349 2350 2351 2352 2353 3000 8080 8081 8082 8083 8084 8089 9000 9001 9002 9003 9004 9005 9006 9007 9008 50051 50052 50053; do proc=$(lsof -i :$port -sTCP:LISTEN 2>/dev/null | awk 'NR>1{print $1}' | sort -u); [ -n \"$proc\" ] && echo \"WARNING: port $port already in use by $proc\"; done; true",
       "problemMatcher": []
     },
     {
       "label": "Kill port conflicts",
       "type": "shell",
-      "command": "for port in 2345 2346 2347 2348 2349 2350 2351 2352 2353 3000 18080 18081 18082 18083 18084 18089 19000 19001 19002 19003 19004 19005 19006 19007 19008 50051 50052 50053; do pids=$(lsof -i :$port -sTCP:LISTEN -t 2>/dev/null); if [ -n \"$pids\" ]; then proc=$(lsof -i :$port -sTCP:LISTEN 2>/dev/null | awk 'NR>1{print $1}' | sort -u); echo \"Killing port $port ($proc)\"; kill $pids; fi; done; true",
-      "problemMatcher": []
-    },
-    {
-      "label": "Sleep after start",
-      "type": "shell",
-      "command": "sleep 15",
+      "command": "for port in 2345 2346 2347 2348 2349 2350 2351 2352 2353 3000 8080 8081 8082 8083 8084 8089 9000 9001 9002 9003 9004 9005 9006 9007 9008 50051 50052 50053; do pids=$(lsof -i :$port -sTCP:LISTEN -t 2>/dev/null); if [ -n \"$pids\" ]; then proc=$(lsof -i :$port -sTCP:LISTEN 2>/dev/null | awk 'NR>1{print $1}' | sort -u); echo \"Killing port $port ($proc)\"; kill $pids; fi; done; true",
       "problemMatcher": []
     },
     {
@@ -140,78 +140,66 @@
     {
       "label": "Stop dependencies",
       "type": "shell",
-      "command": "COMPOSE_FILE=${workspaceFolder}/_local/docker-compose-deps.yaml ARMADA_EXTRA_DEPS=prometheus,keycloak mage stopDependencies",
+      "command": "COMPOSE_FILE=${workspaceFolder}/_local/compose/stack.yaml mage dev:down",
       "problemMatcher": []
     },
     {
       "label": "Full teardown",
       "type": "shell",
-      "command": "mage kindTeardown && COMPOSE_FILE=${workspaceFolder}/_local/docker-compose-deps.yaml ARMADA_EXTRA_DEPS=prometheus,keycloak mage tearDownDependencies",
+      "command": "COMPOSE_FILE=${workspaceFolder}/_local/compose/stack.yaml mage dev:fullDown",
       "problemMatcher": []
     },
     {
-      "label": "Goreman: Set up and start (no-auth debug)",
+      "label": "Set up and start (no-auth)",
       "dependsOrder": "sequence",
       "dependsOn": [
         "Check for port conflicts",
         "Start dependencies",
-        "Init databases",
-        "Goreman: Start (no-auth debug)",
         "Wait for dlv (standard)"
       ]
     },
     {
-      "label": "Goreman: Set up and start (auth debug)",
+      "label": "Set up and start (auth)",
       "dependsOrder": "sequence",
       "dependsOn": [
         "Check for port conflicts",
         "Start dependencies with Auth",
-        "Init databases",
-        "Goreman: Start (auth debug)",
         "Wait for dlv (standard)"
       ]
     },
     {
-      "label": "Goreman: Set up and start (fake-executor debug)",
+      "label": "Set up and start (fake-executor)",
       "dependsOrder": "sequence",
       "dependsOn": [
         "Check for port conflicts",
-        "Start dependencies",
-        "Init databases",
-        "Goreman: Start (fake-executor debug)",
+        "Start dependencies with Fake Executor",
         "Wait for dlv (fake-executor)"
       ]
     },
     {
-      "label": "Goreman: Set up and start (no-auth debug with prometheus)",
+      "label": "Set up and start (no-auth with prometheus)",
       "dependsOrder": "sequence",
       "dependsOn": [
         "Check for port conflicts",
         "Start dependencies with Prometheus",
-        "Init databases",
-        "Goreman: Start (no-auth debug)",
         "Wait for dlv (standard)"
       ]
     },
     {
-      "label": "Goreman: Set up and start (fake-executor debug with prometheus)",
+      "label": "Set up and start (fake-executor with prometheus)",
       "dependsOrder": "sequence",
       "dependsOn": [
         "Check for port conflicts",
-        "Start dependencies with Prometheus",
-        "Init databases",
-        "Goreman: Start (fake-executor debug)",
+        "Start dependencies with Fake Executor and Prometheus",
         "Wait for dlv (fake-executor)"
       ]
     },
     {
-      "label": "Goreman: Set up and start (auth debug with prometheus)",
+      "label": "Set up and start (auth with prometheus)",
       "dependsOrder": "sequence",
       "dependsOn": [
         "Check for port conflicts",
-        "Start dependencies with Prometheus and Auth",
-        "Init databases",
-        "Goreman: Start (auth debug)",
+        "Start dependencies with Auth and Prometheus",
         "Wait for dlv (standard)"
       ]
     }

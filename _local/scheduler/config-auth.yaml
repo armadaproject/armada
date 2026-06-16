@@ -3,7 +3,7 @@ grpc:
   tls:
     enabled: false
 http:
-  port: 18080
+  port: 8080
 auth:
   anonymousAuth: true
   permissionGroupMapping:
@@ -14,7 +14,7 @@ armadaApi:
   armadaUrl: "localhost:50051"
   forceNoTls: true
   openIdClientCredentialsAuth:
-    providerUrl: "http://localhost:18180/realms/armada"
+    providerUrl: "http://localhost:8180/realms/armada"
     clientId: "armada-executor"
     clientSecret: "executor-secret"
     scopes: ["profile", "email"]
@@ -27,4 +27,4 @@ postgres:
     dbname: scheduler
     sslmode: disable
 metrics:
-  port: 19001
+  port: 9001

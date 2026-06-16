@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/magefile/mage/mg"
@@ -27,24 +28,56 @@ const (
 )
 
 // Up brings up dependencies and runs Armada components via goreman with the chosen profile.
-// Profile: no-auth (default), auth, or fake-executor.
+//
+// args is a comma-separated list of tokens:
+//   - "auth"          – enables OIDC (Keycloak); sets goreman profile to "auth" and uses the auth compose profile
+//   - "fake-executor" – no Kubernetes needed; sets goreman profile to "fake-executor"
+//   - "debug"         – appends "-debug" to the procfile name
+//   - anything else   – forwarded as a docker-compose --profile flag for extra services
 //
 // Examples:
 //
-//	mage dev:up                # no-auth
-//	mage dev:up auth           # OIDC
-//	mage dev:up fake-executor  # no Kubernetes needed
-func (Dev) Up(profile string) error {
-	if profile == "" {
-		profile = "no-auth"
+//	mage dev:up                        # no-auth
+//	mage dev:up auth                   # OIDC
+//	mage dev:up fake-executor,debug    # fake executor + debug procfile
+//	mage dev:up auth,myservice         # auth + extra compose profile "myservice"
+func (Dev) Up(args string) error {
+	var (
+		profile         = "no-auth"
+		debug           = false
+		composeProfiles []string
+	)
+
+	for _, token := range strings.Split(args, ",") {
+		token = strings.TrimSpace(token)
+		if token == "" {
+			continue
+		}
+		switch token {
+		case "auth", "fake-executor":
+			profile = token
+		case "debug":
+			debug = true
+		default:
+			composeProfiles = append(composeProfiles, token)
+		}
 	}
-	procfile := "_local/procfiles/" + profile + ".Procfile"
+
+	debugSuffix := ""
+	if debug {
+		debugSuffix = "-debug"
+	}
+	procfile := "_local/procfiles/" + profile + debugSuffix + ".Procfile"
 	if _, err := os.Stat(procfile); err != nil {
-		return fmt.Errorf("unknown profile %q: %s not found", profile, procfile)
+		return fmt.Errorf("unknown profile %q: %s not found", profile+debugSuffix, procfile)
+	}
+
+	if profile == "auth" {
+		composeProfiles = append([]string{"auth"}, composeProfiles...)
 	}
 
 	mg.Deps(installGoreman)
-	if err := devDepsUp(profile); err != nil {
+	if err := devDepsUp(strings.Join(composeProfiles, ",")); err != nil {
 		return err
 	}
 	if err := sh.RunV(initScript); err != nil {
@@ -112,10 +145,13 @@ func (Dev) FullDown() error {
 // devDepsUp brings the dependency stack up and waits for healthchecks. redis/postgres/pulsar
 // have healthchecks so --wait blocks until they're ready. Keycloak (auth profile) has no
 // healthcheck on purpose; waitForKeycloak handles its readiness before goreman starts.
-func devDepsUp(profile string) error {
+func devDepsUp(profiles string) error {
 	args := []string{"compose", "-f", stackComposeFile}
-	if profile == "auth" {
-		args = append(args, "--profile", "auth")
+	for _, p := range strings.Split(profiles, ",") {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			args = append(args, "--profile", p)
+		}
 	}
 	args = append(args, "up", "-d", "--wait")
 	return sh.RunV("docker", args...)

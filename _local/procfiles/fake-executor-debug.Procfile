@@ -6,4 +6,4 @@ fakeexecutor: ${GO_BIN:-go} build -gcflags="all=-N -l" -o ./dist/armada-fakeexec
 lookout: ${GO_BIN:-go} build -gcflags="all=-N -l" -o ./dist/armada-lookout ./cmd/lookout/main.go && dlv dap --listen=:2350
 lookoutingester: ${GO_BIN:-go} build -gcflags="all=-N -l" -o ./dist/armada-lookoutingester ./cmd/lookoutingester/main.go && dlv dap --listen=:2351
 binoculars: ${GO_BIN:-go} build -gcflags="all=-N -l" -o ./dist/armada-binoculars ./cmd/binoculars/main.go && dlv dap --listen=:2352
-lookoutui: sh -c 'cd internal/lookoutui && yarn install && yarn run openapi && PROXY_TARGET=http://localhost:18089 yarn dev'
+lookoutui: sh -c 'cd internal/lookoutui && yarn install && yarn run openapi && PROXY_TARGET=http://localhost:8089 yarn dev'

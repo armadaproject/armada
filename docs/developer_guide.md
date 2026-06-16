@@ -279,7 +279,7 @@ Each compound configuration attaches to already-running processes via Delve remo
 | `binoculars`        | `2352`     |
 | `fakeexecutor`      | `2353`     |
 
-Each compound configuration has a `preLaunchTask` that sets up and starts the relevant services via Goreman before attaching the debuggers. For example, `Armada (no-auth)` uses the task `Goreman: Set up and start (no-auth debug)`.
+Each compound configuration has a `preLaunchTask` that sets up and starts the relevant services via Goreman before attaching the debuggers. For example, `Armada (no-auth)` uses the task `Goreman: Set up and start (no-auth)`.
 
 ### Other debugging methods
 

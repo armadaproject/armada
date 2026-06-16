@@ -4,36 +4,36 @@ global:
 scrape_configs:
   - job_name: "armada-server"
     static_configs:
-      - targets: ["host.docker.internal:19000"]
+      - targets: ["host.docker.internal:9000"]
 
   - job_name: "armada-scheduler"
     static_configs:
-      - targets: ["host.docker.internal:19001"]
+      - targets: ["host.docker.internal:9001"]
 
   - job_name: "armada-executor"
     static_configs:
-      - targets: ["host.docker.internal:19002"]
+      - targets: ["host.docker.internal:9002"]
 
   - job_name: "armada-lookout"
     static_configs:
-      - targets: ["host.docker.internal:19003"]
+      - targets: ["host.docker.internal:9003"]
 
   - job_name: "armada-event-ingester"
     static_configs:
-      - targets: ["host.docker.internal:19004"]
+      - targets: ["host.docker.internal:9004"]
 
   - job_name: "armada-lookout-ingester"
     static_configs:
-      - targets: ["host.docker.internal:19005"]
+      - targets: ["host.docker.internal:9005"]
 
   - job_name: "armada-scheduler-ingester"
     static_configs:
-      - targets: ["host.docker.internal:19006"]
+      - targets: ["host.docker.internal:9006"]
 
   - job_name: "armada-binoculars"
     static_configs:
-      - targets: ["host.docker.internal:19007"]
+      - targets: ["host.docker.internal:9007"]
 
   - job_name: "armada-fake-executor"
     static_configs:
-      - targets: ["host.docker.internal:19008"]
+      - targets: ["host.docker.internal:9008"]

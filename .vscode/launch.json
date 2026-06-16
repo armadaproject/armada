@@ -2,7 +2,7 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Goreman: Attach Server",
+      "name": "Attach Server",
       "type": "go",
       "request": "launch",
       "mode": "exec",
@@ -16,7 +16,7 @@
       "presentation": { "order": 10 }
     },
     {
-      "name": "Goreman: Attach Scheduler",
+      "name": "Attach Scheduler",
       "type": "go",
       "request": "launch",
       "mode": "exec",
@@ -34,7 +34,7 @@
       "presentation": { "order": 11 }
     },
     {
-      "name": "Goreman: Attach Scheduler Ingester",
+      "name": "Attach Scheduler Ingester",
       "type": "go",
       "request": "launch",
       "mode": "exec",
@@ -51,7 +51,7 @@
       "presentation": { "order": 12 }
     },
     {
-      "name": "Goreman: Attach Event Ingester",
+      "name": "Attach Event Ingester",
       "type": "go",
       "request": "launch",
       "mode": "exec",
@@ -68,7 +68,7 @@
       "presentation": { "order": 13 }
     },
     {
-      "name": "Goreman: Attach Executor",
+      "name": "Attach Executor",
       "type": "go",
       "request": "launch",
       "mode": "exec",
@@ -82,7 +82,7 @@
       "presentation": { "order": 14 }
     },
     {
-      "name": "Goreman: Attach Lookout",
+      "name": "Attach Lookout",
       "type": "go",
       "request": "launch",
       "mode": "exec",
@@ -96,7 +96,7 @@
       "presentation": { "order": 15 }
     },
     {
-      "name": "Goreman: Attach Lookout Ingester",
+      "name": "Attach Lookout Ingester",
       "type": "go",
       "request": "launch",
       "mode": "exec",
@@ -113,7 +113,7 @@
       "presentation": { "order": 16 }
     },
     {
-      "name": "Goreman: Attach Binoculars",
+      "name": "Attach Binoculars",
       "type": "go",
       "request": "launch",
       "mode": "exec",
@@ -127,7 +127,7 @@
       "presentation": { "order": 17 }
     },
     {
-      "name": "Goreman: Attach Binoculars (auth)",
+      "name": "Attach Binoculars (auth)",
       "type": "go",
       "request": "launch",
       "mode": "exec",
@@ -144,7 +144,7 @@
       "presentation": { "order": 18 }
     },
     {
-      "name": "Goreman: Attach Fake Executor",
+      "name": "Attach Fake Executor",
       "type": "go",
       "request": "launch",
       "mode": "exec",
@@ -161,7 +161,7 @@
       "presentation": { "order": 19 }
     },
     {
-      "name": "Goreman: Attach Server (auth)",
+      "name": "Attach Server (auth)",
       "type": "go",
       "request": "launch",
       "mode": "exec",
@@ -175,7 +175,7 @@
       "presentation": { "order": 20 }
     },
     {
-      "name": "Goreman: Attach Scheduler (auth)",
+      "name": "Attach Scheduler (auth)",
       "type": "go",
       "request": "launch",
       "mode": "exec",
@@ -193,7 +193,7 @@
       "presentation": { "order": 21 }
     },
     {
-      "name": "Goreman: Attach Executor (auth)",
+      "name": "Attach Executor (auth)",
       "type": "go",
       "request": "launch",
       "mode": "exec",
@@ -210,7 +210,7 @@
       "presentation": { "order": 22 }
     },
     {
-      "name": "Goreman: Attach Lookout (auth)",
+      "name": "Attach Lookout (auth)",
       "type": "go",
       "request": "launch",
       "mode": "exec",
@@ -231,96 +231,96 @@
     {
       "name": "Armada (no-auth)",
       "configurations": [
-        "Goreman: Attach Server",
-        "Goreman: Attach Scheduler",
-        "Goreman: Attach Scheduler Ingester",
-        "Goreman: Attach Event Ingester",
-        "Goreman: Attach Executor",
-        "Goreman: Attach Lookout",
-        "Goreman: Attach Lookout Ingester",
-        "Goreman: Attach Binoculars"
+        "Attach Server",
+        "Attach Scheduler",
+        "Attach Scheduler Ingester",
+        "Attach Event Ingester",
+        "Attach Executor",
+        "Attach Lookout",
+        "Attach Lookout Ingester",
+        "Attach Binoculars"
       ],
-      "preLaunchTask": "Goreman: Set up and start (no-auth debug)",
+      "preLaunchTask": "Set up and start (no-auth)",
       "stopAll": true,
       "presentation": { "order": 1 }
     },
     {
       "name": "Armada (auth)",
       "configurations": [
-        "Goreman: Attach Server (auth)",
-        "Goreman: Attach Scheduler (auth)",
-        "Goreman: Attach Scheduler Ingester",
-        "Goreman: Attach Event Ingester",
-        "Goreman: Attach Executor (auth)",
-        "Goreman: Attach Lookout (auth)",
-        "Goreman: Attach Lookout Ingester",
-        "Goreman: Attach Binoculars (auth)"
+        "Attach Server (auth)",
+        "Attach Scheduler (auth)",
+        "Attach Scheduler Ingester",
+        "Attach Event Ingester",
+        "Attach Executor (auth)",
+        "Attach Lookout (auth)",
+        "Attach Lookout Ingester",
+        "Attach Binoculars (auth)"
       ],
-      "preLaunchTask": "Goreman: Set up and start (auth debug)",
+      "preLaunchTask": "Set up and start (auth)",
       "stopAll": true,
       "presentation": { "order": 2 }
     },
     {
       "name": "Armada (fake-executor)",
       "configurations": [
-        "Goreman: Attach Server",
-        "Goreman: Attach Scheduler",
-        "Goreman: Attach Scheduler Ingester",
-        "Goreman: Attach Event Ingester",
-        "Goreman: Attach Fake Executor",
-        "Goreman: Attach Lookout",
-        "Goreman: Attach Lookout Ingester",
-        "Goreman: Attach Binoculars"
+        "Attach Server",
+        "Attach Scheduler",
+        "Attach Scheduler Ingester",
+        "Attach Event Ingester",
+        "Attach Fake Executor",
+        "Attach Lookout",
+        "Attach Lookout Ingester",
+        "Attach Binoculars"
       ],
-      "preLaunchTask": "Goreman: Set up and start (fake-executor debug)",
+      "preLaunchTask": "Set up and start (fake-executor)",
       "stopAll": true,
       "presentation": { "order": 3 }
     },
     {
       "name": "Armada (no-auth with prometheus)",
       "configurations": [
-        "Goreman: Attach Server",
-        "Goreman: Attach Scheduler",
-        "Goreman: Attach Scheduler Ingester",
-        "Goreman: Attach Event Ingester",
-        "Goreman: Attach Executor",
-        "Goreman: Attach Lookout",
-        "Goreman: Attach Lookout Ingester",
-        "Goreman: Attach Binoculars"
+        "Attach Server",
+        "Attach Scheduler",
+        "Attach Scheduler Ingester",
+        "Attach Event Ingester",
+        "Attach Executor",
+        "Attach Lookout",
+        "Attach Lookout Ingester",
+        "Attach Binoculars"
       ],
-      "preLaunchTask": "Goreman: Set up and start (no-auth debug with prometheus)",
+      "preLaunchTask": "Set up and start (no-auth with prometheus)",
       "stopAll": true,
       "presentation": { "order": 4 }
     },
     {
       "name": "Armada (auth with prometheus)",
       "configurations": [
-        "Goreman: Attach Server (auth)",
-        "Goreman: Attach Scheduler (auth)",
-        "Goreman: Attach Scheduler Ingester",
-        "Goreman: Attach Event Ingester",
-        "Goreman: Attach Executor (auth)",
-        "Goreman: Attach Lookout (auth)",
-        "Goreman: Attach Lookout Ingester",
-        "Goreman: Attach Binoculars (auth)"
+        "Attach Server (auth)",
+        "Attach Scheduler (auth)",
+        "Attach Scheduler Ingester",
+        "Attach Event Ingester",
+        "Attach Executor (auth)",
+        "Attach Lookout (auth)",
+        "Attach Lookout Ingester",
+        "Attach Binoculars (auth)"
       ],
-      "preLaunchTask": "Goreman: Set up and start (auth debug with prometheus)",
+      "preLaunchTask": "Set up and start (auth with prometheus)",
       "stopAll": true,
       "presentation": { "order": 5 }
     },
     {
       "name": "Armada (fake-executor with prometheus)",
       "configurations": [
-        "Goreman: Attach Server",
-        "Goreman: Attach Scheduler",
-        "Goreman: Attach Scheduler Ingester",
-        "Goreman: Attach Event Ingester",
-        "Goreman: Attach Fake Executor",
-        "Goreman: Attach Lookout",
-        "Goreman: Attach Lookout Ingester",
-        "Goreman: Attach Binoculars"
+        "Attach Server",
+        "Attach Scheduler",
+        "Attach Scheduler Ingester",
+        "Attach Event Ingester",
+        "Attach Fake Executor",
+        "Attach Lookout",
+        "Attach Lookout Ingester",
+        "Attach Binoculars"
       ],
-      "preLaunchTask": "Goreman: Set up and start (fake-executor debug with prometheus)",
+      "preLaunchTask": "Set up and start (fake-executor with prometheus)",
       "stopAll": true,
       "presentation": { "order": 6 }
     }

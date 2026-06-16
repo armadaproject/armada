@@ -5,10 +5,10 @@ redis:
   poolSize: 1000
 pulsar:
   URL: "pulsar://localhost:6650"
-  restURL: "http://localhost:18090"
+  restURL: "http://localhost:8090"
   jobsetEventsTopic: "events"
 subscriptionName: "events-ingester"
-metricsPort: 19004
+metricsPort: 9004
 metrics:
   redis:
     enabled: true

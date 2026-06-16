@@ -11,6 +11,7 @@ When Keycloak starts with the `auth` Docker Compose profile, it automatically im
 The imported configuration includes:
 
 ### Realm: `armada`
+
 - Display Name: Armada
 - Login with email allowed
 - SSL required for external requests
@@ -18,37 +19,42 @@ The imported configuration includes:
 ### Clients
 
 #### `armada-server`
+
 - Type: Public client (no secret required)
 - PKCE enabled (S256 challenge method)
 - Redirect URIs configured for:
-  - armadactl: `http://localhost:18085/*`
-  - Lookout UI: `http://localhost:3000/*`, `http://localhost:3001/*`
+    - armadactl: `http://localhost:8085/*`
+    - Lookout UI: `http://localhost:3000/*`, `http://localhost:3001/*`
 
 #### `armada-executor`
+
 - Type: Confidential client (service account)
 - Client secret: `executor-secret`
 - Used for service-to-service authentication (executor, scheduler)
 
 ### User: `admin`
+
 - Username: `admin`
 - Password: `admin`
 - Email: `admin@example.com`
 - Group membership: `admins`
 
 ### Groups
+
 - `admins` - Administrative users
 - `executors` - Service accounts for executors
 - `users` - Regular users
 
 ### Token Configuration
+
 - Access token lifespan: 5 minutes
 - SSO session idle: 30 minutes
 - SSO session max: 10 hours
 
 ## Access Details
 
-- Keycloak Admin Console: http://localhost:18180 (admin/admin)
-- OIDC Provider URL: http://localhost:18180/realms/armada
+- Keycloak Admin Console: http://localhost:8180 (admin/admin)
+- OIDC Provider URL: http://localhost:8180/realms/armada
 
 ## Configuration Files
 
