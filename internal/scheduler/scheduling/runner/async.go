@@ -255,8 +255,10 @@ func (r *AsyncSchedulingRunner) finishRun(result *scheduling.SchedulerResult, er
 		r.state = ResultReady
 		if err != nil {
 			log.Warnf("async scheduling cycle completed with err %s", err)
-		} else {
+		} else if result != nil {
 			log.Infof("async scheduling cycle completed with success in %s", result.GetDuration())
+		} else {
+			log.Info("async scheduling cycle completed with no result")
 		}
 	}
 
