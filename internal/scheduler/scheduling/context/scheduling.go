@@ -60,7 +60,7 @@ type SchedulingContext struct {
 	// Used to efficiently generate scheduling keys.
 	SchedulingKeyGenerator *internaltypes.SchedulingKeyGenerator
 	// Record of job scheduling requirements known to be unfeasible.
-	// Used to immediately reject new jobs with identical reqirements.
+	// Used to immediately reject new jobs with identical requirements.
 	// Maps to the JobSchedulingContext of a previous job attempted to schedule with the same key.
 	UnfeasibleSchedulingKeys     map[internaltypes.SchedulingKey]*JobSchedulingContext
 	ExperimentalIndicativeShares map[int]float64
@@ -436,6 +436,50 @@ func (sctx *SchedulingContext) EvictGang(gctx *GangSchedulingContext) (bool, err
 		sctx.NumScheduledGangs--
 	}
 	return allJobsScheduledInThisRound, nil
+}
+
+func (sctx *SchedulingContext) UnscheduleJob(jctx *JobSchedulingContext) error {
+	queue := sctx.resolveQueueName(jctx.Job)
+	qctx, ok := sctx.QueueSchedulingContexts[queue]
+	if !ok {
+		return errors.Errorf("failed unscheduling job %s: no context for queue %s", jctx.JobId, queue)
+	}
+
+	scheduledInThisRound := qctx.UnscheduleJob(jctx)
+	if !scheduledInThisRound {
+		return errors.Errorf("failed unscheduling job %s: job is not marked as scheduled", jctx.JobId)
+	}
+
+	sctx.ScheduledResources = sctx.ScheduledResources.Subtract(jctx.Job.AllResourceRequirements())
+	sctx.NumScheduledJobs--
+	sctx.Allocated = sctx.Allocated.Subtract(jctx.Job.AllResourceRequirements())
+
+	return nil
+}
+
+func (sctx *SchedulingContext) RemoveJob(jctx *JobSchedulingContext) (bool, error) {
+	queue := sctx.resolveQueueName(jctx.Job)
+	qctx, ok := sctx.QueueSchedulingContexts[queue]
+	if !ok {
+		return false, errors.Errorf("failed removing job %s from scheduling context: no context for queue %s", jctx.JobId, queue)
+	}
+
+	scheduledInThisRound, rescheduledInThisRound, evictedInRound := qctx.RemoveJob(jctx)
+	if scheduledInThisRound {
+		sctx.ScheduledResources = sctx.ScheduledResources.Subtract(jctx.Job.AllResourceRequirements())
+		sctx.NumScheduledJobs--
+	}
+
+	if scheduledInThisRound || rescheduledInThisRound {
+		sctx.Allocated = sctx.Allocated.Subtract(jctx.Job.AllResourceRequirements())
+	}
+
+	if evictedInRound {
+		sctx.EvictedResources = sctx.EvictedResources.Subtract(jctx.Job.AllResourceRequirements())
+		sctx.NumEvictedJobs--
+	}
+
+	return scheduledInThisRound, nil
 }
 
 // QueueContextExists returns true if we know about the queue associated with the job. An example of when this can

@@ -13,6 +13,7 @@ import (
 	profilingconfig "github.com/armadaproject/armada/internal/common/profiling/configuration"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/common/types"
+	"github.com/armadaproject/armada/internal/leaderelection"
 	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/armadaproject/armada/pkg/client"
@@ -34,7 +35,7 @@ type Configuration struct {
 	// General Pulsar configuration
 	Pulsar commonconfig.PulsarConfig
 	// Configuration controlling leader election
-	Leader LeaderConfig
+	Leader leaderelection.Config
 	// Configuration controlling metrics
 	Metrics MetricsConfig
 	// Scheduler configuration (this is shared with the old scheduler)
@@ -119,26 +120,6 @@ type SubmitCheckConfig struct {
 	MaxDurationPerQueue time.Duration `validate:"omitempty,gt=0"`
 }
 
-type LeaderConfig struct {
-	// Valid modes are "standalone" or "kubernetes"
-	Mode string `validate:"required"`
-	// Name of the K8s Lock Object
-	LeaseLockName string
-	// Namespace of the K8s Lock Object
-	LeaseLockNamespace string
-	// The name of the pod
-	PodName string
-	// How long the lease is held for.
-	// Non leaders much wait this long before trying to acquire the lease
-	LeaseDuration time.Duration
-	// RenewDeadline is the duration that the acting leader will retry refreshing leadership before giving up.
-	RenewDeadline time.Duration
-	// RetryPeriod is the duration the LeaderElector clients should waite between tries of actions.
-	RetryPeriod time.Duration
-	// Connection details to the leader
-	LeaderConnection client.ApiConnectionDetails
-}
-
 type FloatingResourceConfig struct {
 	// Resource name, e.g. "storage-connections"
 	Name string
@@ -198,6 +179,10 @@ type HistogramConfig struct {
 type SchedulingConfig struct {
 	// Set to true to disable scheduling
 	DisableScheduling bool
+	// Set to true to run scheduling on a background goroutine;
+	// The purpose of this is to keep the main loop free allowing it to send job state updates in a timely manner
+	// The main loop will consume and reconcile the scheduling result when it exists
+	AsyncSchedulingEnabled bool
 	// Set to true to make scheduling all or nothing
 	// By default pools the scheduler will attempt fail scheduling independently, not causing other pools to also fail
 	// This only applies to certain types of known failures

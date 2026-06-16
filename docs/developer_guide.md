@@ -15,13 +15,9 @@
         - [Choosing components to run](#choosing-components-to-run)
         - [Running Pulsar-backed scheduler with `LocalDev`](#running-pulsar-backed-scheduler-with-localdev)
     - [Debugging](#debugging)
-        - [VS Code debugging](#vs-code-debugging)
-        - [Delve Debugging](#delve-debugging)
-            - [External debug port mappings](#external-debug-port-mappings)
     - [GoLand run configurations](#goland-run-configurations)
     - [VS Code debug configurations](#vs-code-debug-configurations)
         - [Other debugging methods](#other-debugging-methods)
-    - [Finer-grain control](#finer-grain-control)
 
 This document is intended for developers who want to contribute to the project. It contains information about the project structure, how to build the project and how to run the tests.
 
@@ -30,7 +26,7 @@ This document is intended for developers who want to contribute to the project. 
 Want to quickly get Armada running and test it? Install the [prerequisites](#pre-requisites) and then run:
 
 ```bash
-mage localdev minimal testsuite
+mage dev:full && mage testsuite
 ```
 
 To get the UI running, run:
@@ -97,11 +93,11 @@ Before you can start using Armada, you first need to install the following items
 
 It has the following options to customise further steps:
 
-- `mage localdev full` - runs all components of Armada, including the Lookout UI
-- `mage localdev minimal` - runs only the core components of Armada (such as the API server and an executor)
-- `mage localdev no-build` - skips the build step; set `ARMADA_IMAGE` and `ARMADA_TAG` to choose the Docker image to use
+- `mage dev:full` - runs the full Armada stack in containers (deps + all components) against a Kind cluster
+- `mage dev:up [profile]` - runs deps in containers and Armada components as host processes via goreman; profile is `no-auth` (default), `auth`, or `fake-executor`
+- `mage dev:deps` - runs only the dependency containers (redis, postgres, pulsar)
 
-We use `mage localdev minimal` to test the CI pipeline. You should therefore use it to test changes to the core components of Armada.
+We use `mage dev:full` to test the CI pipeline. You should therefore use it to test changes to the core components of Armada.
 
 ## Debugging error: port 6443 is already in use after running `mage localdev full`
 
@@ -109,7 +105,7 @@ We use `mage localdev minimal` to test the CI pipeline. You should therefore use
 
 Before making any changes, identify which port is causing the conflict. Port 6443 is a common source of conflicts. You can check for existing bindings to this port using commands like `netstat` or `lsof`.
 
-1. The `kind.yaml` file is where you define the configuration for your Kind clusters. To resolve port conflicts, open your [`kind.yaml`](https://github.com/armadaproject/armada/blob/master/e2e/setup/kind.yaml) file.
+1. The Kind cluster config is where you define port mappings. To resolve port conflicts, open your [`_local/kind/cluster.yaml`](https://github.com/armadaproject/armada/blob/master/_local/kind/cluster.yaml) file.
 2. Locate the relevant section where the `hostPort` is set. It may look something like this:
 
     ```
@@ -178,18 +174,11 @@ If the eventsingester or the scheduleringester don't come up then just manually 
 
 ## Debugging
 
+The goreman-based flow (`mage dev:up`) builds each component with debug flags (`-gcflags="all=-N -l"`)
+and runs them as host processes, so you can attach a debugger to any component directly. Bring up the
+dependencies and components with `mage dev:up`, then attach your debugger (Delve, VS Code, or GoLand) to
+the running process you want to inspect. Each component reads `_local/<component>/config.yaml`.
 The mage target `mage debug` supports multiple methods for debugging, and runs the appropriate parts of `LocalDev` as required.
-
-It supports the following commands:
-
-- `mage debug vscode` - runs the server and executor in debug mode, and provides a launch.json file for VS Code
-- `mage debug delve` - runs the server and executor in debug mode, and starts the Delve debugger
-
-**Note** We are actively accepting contributions for more debugging guides.
-
-### VS Code debugging
-
-After running `mage debug vscode`, you can attach to the running processes using VS Code.
 
 To use VS Code debugging, [see the VSCode Debugging Guide](https://code.visualstudio.com/docs/editor/debugging).
 
@@ -294,10 +283,7 @@ Each compound configuration has a `preLaunchTask` that sets up and starts the re
 
 ### Other debugging methods
 
-Run `mage debug local` to only spin up the dependencies of Armada, and then run the individual components yourself.
-
-For required environmental variables, [see the Environmental Variables guide](https://github.com/armadaproject/armada/tree/master/developer/env/README.md).
-
-## Finer-grain control
-
-To run the individual `mage` targets yourself, [see the Manually running LocalDev guide](./developer/manual-localdev.md).
+Run `mage dev:deps` to spin up only the dependencies (redis, postgres, pulsar), then run individual
+Armada components yourself (for example under a debugger). Each component reads its config from
+`_local/<component>/config.yaml`. See the [README](../README.md#local-development) for the goreman-based
+workflow and available profiles.

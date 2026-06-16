@@ -7,8 +7,8 @@ metric:
 application:
   clusterId: "local-cluster"
   pool: "default"
-  enableJobErrorCategorization: true
   errorCategories:
+    enabled: true
     defaultCategory: uncategorized
     categories:
       - name: oom

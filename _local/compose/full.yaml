@@ -1,0 +1,248 @@
+name: armada-full
+
+# Full Armada stack in containers, for CI and full-system local runs.
+#
+# Unlike stack.yaml (deps only, for the goreman host-process flow), this runs every
+# Armada component as a container. Components mount their _local/<component>/config.yaml
+# unchanged and override only the inter-service hostnames (localhost -> compose service
+# name) via ARMADA_* environment variables, so there is a single source of truth for
+# config and no duplicated per-topology config files.
+#
+# Requires:
+#   - armada-bundle and armada-lookout-bundle images
+#       mage buildDockers bundle,lookout-bundle
+#   - a Kind cluster for the real executor, with its kubeconfig at .kube/internal/config
+#       mage kind
+#
+# Usage:
+#   docker compose -f _local/compose/full.yaml up -d
+#
+# The external "kind" network is created by `mage kind`; components join it so the
+# executor can reach the Kind API server.
+
+networks:
+  kind:
+    external: true
+
+# Shared fragment for every Armada component: join the kind network and run from the
+# image's /app workdir. Merged into each service via `<<`. (x-* keys are ignored by
+# docker compose and stripped from `docker compose config` output.)
+x-component: &component
+  networks: [kind]
+  working_dir: /app
+
+services:
+  # =========================================================
+  # Dependencies
+  # =========================================================
+  redis:
+    container_name: redis
+    image: ${REDIS_IMAGE:-redis:7.4-alpine}
+    ports:
+      - "6379:6379"
+    networks: [kind]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  postgres:
+    container_name: postgres
+    image: ${POSTGRES_IMAGE:-postgres:17-alpine}
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: psw
+      POSTGRES_DB: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      # Creates the scheduler and lookout databases the migration services expect.
+      - ./postgres-init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks: [kind]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  pulsar:
+    container_name: pulsar
+    image: ${PULSAR_IMAGE:-apachepulsar/pulsar:4.1.0}
+    environment:
+      PULSAR_PREFIX_allowAutoTopicCreation: "true"
+      PULSAR_PREFIX_allowAutoTopicCreationType: non-partitioned
+      PULSAR_PREFIX_autoSkipNonRecoverableData: "true"
+    entrypoint: sh -c "bin/apply-config-from-env.py conf/standalone.conf && bin/pulsar standalone"
+    ports:
+      - "6650:6650"
+      - "8090:8080"
+    networks: [kind]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/admin/v2/brokers/health"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+  # =========================================================
+  # Database migrations (run once, then exit)
+  # =========================================================
+  scheduler-migration:
+    <<: *component
+    container_name: scheduler-migration
+    image: ${ARMADA_IMAGE:-gresearch/armada-bundle}:${ARMADA_IMAGE_TAG:-latest}
+    depends_on:
+      postgres: { condition: service_healthy }
+    volumes:
+      - ../scheduler/config.yaml:/config/config.yaml:ro
+    environment:
+      ARMADA_POSTGRES_CONNECTION_HOST: postgres
+    command: ./scheduler migrateDatabase --config /config/config.yaml
+
+  lookout-migration:
+    <<: *component
+    container_name: lookout-migration
+    image: ${ARMADA_IMAGE:-gresearch/armada-lookout-bundle}:${ARMADA_IMAGE_TAG:-latest}
+    depends_on:
+      postgres: { condition: service_healthy }
+    volumes:
+      - ../lookout/config.yaml:/config/config.yaml:ro
+    environment:
+      ARMADA_POSTGRES_CONNECTION_HOST: postgres
+    command: ./lookout --migrateDatabase --config /config/config.yaml
+
+  # =========================================================
+  # Armada components
+  # =========================================================
+  scheduler:
+    <<: *component
+    container_name: scheduler
+    image: ${ARMADA_IMAGE:-gresearch/armada-bundle}:${ARMADA_IMAGE_TAG:-latest}
+    depends_on:
+      scheduler-migration: { condition: service_completed_successfully }
+    volumes:
+      - ../scheduler/config.yaml:/config/config.yaml:ro
+    environment:
+      ARMADA_PULSAR_URL: pulsar://pulsar:6650
+      ARMADA_POSTGRES_CONNECTION_HOST: postgres
+      ARMADA_ARMADAAPI_ARMADAURL: server:50051
+      # Refresh the executor list every 1s (default 60s) so newly-started executors are
+      # picked up quickly; the integration test readiness check waits on this.
+      ARMADA_SCHEDULING_EXECUTORUPDATEFREQUENCY: 1s
+    command: ./scheduler run --config /config/config.yaml
+
+  scheduleringester:
+    <<: *component
+    container_name: scheduleringester
+    image: ${ARMADA_IMAGE:-gresearch/armada-bundle}:${ARMADA_IMAGE_TAG:-latest}
+    depends_on:
+      scheduler-migration: { condition: service_completed_successfully }
+      pulsar: { condition: service_healthy }
+    volumes:
+      - ../scheduleringester/config.yaml:/config/config.yaml:ro
+    environment:
+      ARMADA_POSTGRES_CONNECTION_HOST: postgres
+      ARMADA_PULSAR_URL: pulsar://pulsar:6650
+      ARMADA_PULSAR_RESTURL: http://pulsar:8080
+    command: ./scheduleringester --config /config/config.yaml
+
+  server:
+    <<: *component
+    container_name: server
+    image: ${ARMADA_IMAGE:-gresearch/armada-bundle}:${ARMADA_IMAGE_TAG:-latest}
+    # Only the server's gRPC + HTTP ports are published to the host; that's all the test
+    # harness and armadactl need. Every other component talks over the kind network by
+    # service name, so they don't publish host ports (avoids host-port bind conflicts).
+    ports:
+      - "50051:50051"
+      - "8081:8081"
+    depends_on:
+      lookout-migration: { condition: service_completed_successfully }
+      pulsar: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    volumes:
+      - ../server/config.yaml:/config/config.yaml:ro
+    environment:
+      ARMADA_EVENTSAPIREDIS_ADDRS: redis:6379
+      ARMADA_REDIS_ADDRS: redis:6379
+      ARMADA_POSTGRES_CONNECTION_HOST: postgres
+      ARMADA_QUERYAPI_POSTGRES_CONNECTION_HOST: postgres
+      ARMADA_PULSAR_URL: pulsar://pulsar:6650
+      ARMADA_SCHEDULERAPICONNECTION_ARMADAURL: scheduler:50052
+    command: ./server --config /config/config.yaml
+
+  executor:
+    <<: *component
+    container_name: executor
+    image: ${ARMADA_IMAGE:-gresearch/armada-bundle}:${ARMADA_IMAGE_TAG:-latest}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      scheduler: { condition: service_started }
+    volumes:
+      - ../executor/config.yaml:/config/config.yaml:ro
+      - ../../.kube/internal:/.kube:ro
+    environment:
+      KUBECONFIG: /.kube/config
+      ARMADA_EXECUTORAPICONNECTION_ARMADAURL: scheduler:50052
+    command: ./executor --config /config/config.yaml
+
+  eventingester:
+    <<: *component
+    container_name: eventingester
+    image: ${ARMADA_IMAGE:-gresearch/armada-bundle}:${ARMADA_IMAGE_TAG:-latest}
+    depends_on:
+      pulsar: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    volumes:
+      - ../eventingester/config.yaml:/config/config.yaml:ro
+    environment:
+      ARMADA_REDIS_ADDRS: redis:6379
+      ARMADA_PULSAR_URL: pulsar://pulsar:6650
+      ARMADA_PULSAR_RESTURL: http://pulsar:8080
+    command: ./eventingester --config /config/config.yaml
+
+  lookoutingester:
+    <<: *component
+    container_name: lookoutingester
+    image: ${ARMADA_IMAGE:-gresearch/armada-lookout-bundle}:${ARMADA_IMAGE_TAG:-latest}
+    depends_on:
+      lookout-migration: { condition: service_completed_successfully }
+      pulsar: { condition: service_healthy }
+    volumes:
+      - ../lookoutingester/config.yaml:/config/config.yaml:ro
+    environment:
+      ARMADA_POSTGRES_CONNECTION_HOST: postgres
+      ARMADA_PULSAR_URL: pulsar://pulsar:6650
+      ARMADA_PULSAR_RESTURL: http://pulsar:8080
+    command: ./lookoutingester --config /config/config.yaml
+
+  lookout:
+    <<: *component
+    container_name: lookout
+    image: ${ARMADA_IMAGE:-gresearch/armada-lookout-bundle}:${ARMADA_IMAGE_TAG:-latest}
+    # Lookout UI/API published for humans inspecting jobs locally; not needed by CI.
+    ports:
+      - "8089:8089"
+    depends_on:
+      lookout-migration: { condition: service_completed_successfully }
+    volumes:
+      - ../lookout/config.yaml:/config/config.yaml:ro
+    environment:
+      ARMADA_POSTGRES_CONNECTION_HOST: postgres
+    command: ./lookout --config /config/config.yaml
+
+  binoculars:
+    <<: *component
+    container_name: binoculars
+    image: ${ARMADA_IMAGE:-gresearch/armada-bundle}:${ARMADA_IMAGE_TAG:-latest}
+    volumes:
+      - ../binoculars/config.yaml:/config/config.yaml:ro
+      - ../../.kube/internal:/.kube:ro
+    environment:
+      KUBECONFIG: /.kube/config
+    command: ./binoculars --config /config/config.yaml

@@ -5,7 +5,6 @@ import (
 	"net"
 	"net/http"
 	_ "net/http/pprof"
-	"strings"
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
@@ -15,9 +14,8 @@ import (
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/grpc/codes"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/clientcmd"
+
+	"github.com/armadaproject/armada/internal/scheduler/scheduling/runner"
 
 	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/internal/common/app"
@@ -34,12 +32,12 @@ import (
 	"github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/types"
+	"github.com/armadaproject/armada/internal/leaderelection"
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/floatingresources"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
-	"github.com/armadaproject/armada/internal/scheduler/leader"
 	"github.com/armadaproject/armada/internal/scheduler/metrics"
 	"github.com/armadaproject/armada/internal/scheduler/pricing"
 	"github.com/armadaproject/armada/internal/scheduler/priorityoverride"
@@ -183,7 +181,7 @@ func Run(config schedulerconfig.Configuration) error {
 			defer cancel()
 			err = bidPriceCache.Initialise(bidPriceProviderInitTimeout)
 			if err != nil {
-				ctx.Errorf("error initialising queue cache - %v", err)
+				return errors.WithMessage(err, "error initialising bid price cache")
 			}
 			services = append(services, func() error { return bidPriceCache.Run(ctx) })
 			bidPriceProvider = bidPriceCache
@@ -235,10 +233,15 @@ func Run(config schedulerconfig.Configuration) error {
 			return errors.WithMessage(err, "error creating metric event pulsar publisher")
 		}
 	}
+
 	// ////////////////////////////////////////////////////////////////////////
 	// Leader Election
 	// ////////////////////////////////////////////////////////////////////////
-	leaderController, err := createLeaderController(ctx, config.Leader)
+	leaderOptions := leaderelection.MetricsOptions{
+		MetricsPrefix:               metrics.ArmadaSchedulerMetricsPrefix,
+		MarkLeadingInStandaloneMode: true,
+	}
+	leaderController, err := leaderelection.CreateLeaderController(ctx, config.Leader, &leaderOptions)
 	if err != nil {
 		return errors.WithMessage(err, "error creating leader controller")
 	}
@@ -318,7 +321,7 @@ func Run(config schedulerconfig.Configuration) error {
 	)
 	prometheus.MustRegister(clientMetrics)
 
-	leaderClientConnectionProvider := leader.NewLeaderConnectionProvider(leaderController, config.Leader, clientMetrics)
+	leaderClientConnectionProvider := leaderelection.NewLeaderConnectionProvider(leaderController, config.Leader, clientMetrics)
 	schedulingSchedulerReportingServer := reports.NewLeaderProxyingSchedulingReportsServer(reportServer, leaderClientConnectionProvider)
 	schedulerobjects.RegisterSchedulerReportingServer(grpcServer, schedulingSchedulerReportingServer)
 
@@ -371,6 +374,11 @@ func Run(config schedulerconfig.Configuration) error {
 	)
 	jobDb.SetRespectNodePodLimits(config.Scheduling.RespectNodePodLimits)
 
+	err = populateInitialBidPrices(ctx, bidPriceProvider, jobDb)
+	if err != nil {
+		return err
+	}
+
 	schedulerMetrics, err := metrics.New(
 		config.Metrics.TrackedErrorRegexes,
 		config.Metrics.TrackedResourceNames,
@@ -386,11 +394,18 @@ func Run(config schedulerconfig.Configuration) error {
 		return errors.WithStack(err)
 	}
 
+	var schedulingRunner runner.SchedulingRunner
+	if config.Scheduling.AsyncSchedulingEnabled {
+		schedulingRunner = runner.NewAsyncSchedulingRunner(ctx, schedulingAlgo, jobDb)
+	} else {
+		schedulingRunner = runner.NewSyncSchedulingRunner(schedulingAlgo)
+	}
+
 	scheduler, err := NewScheduler(
 		jobDb,
 		jobRepository,
 		executorRepository,
-		schedulingAlgo,
+		schedulingRunner,
 		leaderController,
 		jobsetEventPublisher,
 		submitChecker,
@@ -446,47 +461,21 @@ func Run(config schedulerconfig.Configuration) error {
 	return g.Wait()
 }
 
-func createLeaderController(ctx *armadacontext.Context, config schedulerconfig.LeaderConfig) (leader.LeaderController, error) {
-	switch mode := strings.ToLower(config.Mode); mode {
-	case "standalone":
-		ctx.Infof("Scheduler will run in standalone mode")
-		leaderController := leader.NewStandaloneLeaderController()
-		// Register leader status metric so recording rules work consistently.
-		// In standalone mode, this always reports 1 (always leader).
-		leaderStatusMetrics := leader.NewLeaderStatusMetricsCollector(metrics.ArmadaSchedulerMetricsPrefix, config.PodName)
-		leaderStatusMetrics.MarkAsLeading()
-		prometheus.MustRegister(leaderStatusMetrics)
-		return leaderController, nil
-	case "kubernetes":
-		ctx.Infof("Scheduler will run kubernetes mode")
-		clusterConfig, err := loadClusterConfig(ctx)
-		if err != nil {
-			return nil, errors.Wrapf(err, "Error creating kubernetes client")
-		}
-		clientSet, err := kubernetes.NewForConfig(clusterConfig)
-		if err != nil {
-			return nil, errors.Wrapf(err, "Error creating kubernetes client")
-		}
-		leaderController := leader.NewKubernetesLeaderController(config, clientSet.CoordinationV1())
-		leaderStatusMetrics := leader.NewLeaderStatusMetricsCollector(metrics.ArmadaSchedulerMetricsPrefix, config.PodName)
-		leaderController.RegisterListener(leaderStatusMetrics)
-		prometheus.MustRegister(leaderStatusMetrics)
-		return leaderController, nil
-	default:
-		return nil, errors.Errorf("%s is not a value leader mode", config.Mode)
+func populateInitialBidPrices(ctx *armadacontext.Context, priceProvider pricing.BidPriceProvider, jobdb *jobdb.JobDb) error {
+	timeout, cancel := armadacontext.WithTimeout(ctx, time.Second*30)
+	defer cancel()
+	initialBidPriceSnapshot, err := priceProvider.GetBidPrices(timeout)
+	if err != nil {
+		return errors.WithMessage(err, "error retrieving initial bid price snapshot")
 	}
-}
+	txn := jobdb.WriteTxn()
+	if err := txn.SetBidPriceSnapshot(&initialBidPriceSnapshot); err != nil {
+		txn.Abort()
+		return errors.WithMessage(err, "error setting initial bid price snapshot on jobDb")
+	}
+	txn.Commit()
 
-func loadClusterConfig(ctx *armadacontext.Context) (*rest.Config, error) {
-	config, err := rest.InClusterConfig()
-	if errors.Is(err, rest.ErrNotInCluster) {
-		ctx.Info("Running with default client configuration")
-		rules := clientcmd.NewDefaultClientConfigLoadingRules()
-		overrides := &clientcmd.ConfigOverrides{}
-		return clientcmd.NewNonInteractiveDeferredLoadingClientConfig(rules, overrides).ClientConfig()
-	}
-	ctx.Info("Running with in cluster client configuration")
-	return config, err
+	return nil
 }
 
 // This changes the default grpc logging to log OK messages at trace level

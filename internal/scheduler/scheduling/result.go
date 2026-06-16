@@ -158,6 +158,16 @@ func (p *PoolSchedulingResult) GetSchedulingContext() *schedulercontext.Scheduli
 
 type SchedulerResult struct {
 	PoolResults []*PoolSchedulingResult
+	StartTime   time.Time
+	EndTime     time.Time
+}
+
+func (s *SchedulerResult) GetDuration() time.Duration {
+	duration := s.EndTime.Sub(s.StartTime)
+	if duration < 0 {
+		duration = time.Duration(0)
+	}
+	return duration
 }
 
 func (s *SchedulerResult) GetAllScheduledJobs() []*schedulercontext.JobSchedulingContext {
@@ -205,9 +215,46 @@ func (s *SchedulerResult) GetCombinedReconciliationResult() *ReconciliationResul
 	return result
 }
 
+type PoolReconciliationResult struct {
+	result  *ReconciliationResult
+	outcome *PoolSchedulingOutcome
+}
+
+func NewPoolReconciliationResult(result *ReconciliationResult, outcome *PoolSchedulingOutcome) *PoolReconciliationResult {
+	if result == nil {
+		result = emptyReconciliationResult()
+	}
+	return &PoolReconciliationResult{
+		result:  result,
+		outcome: outcome,
+	}
+}
+
+func (p *PoolReconciliationResult) Result() *ReconciliationResult {
+	return p.result
+}
+
+func (p *PoolReconciliationResult) Outcome() *PoolSchedulingOutcome {
+	return p.outcome
+}
+
+func (p *PoolReconciliationResult) Err() error {
+	if p.outcome == nil {
+		return nil
+	}
+	return p.outcome.Error()
+}
+
 type ReconciliationResult struct {
 	PreemptedJobs []*FailedReconciliationResult
 	FailedJobs    []*FailedReconciliationResult
+}
+
+func emptyReconciliationResult() *ReconciliationResult {
+	return &ReconciliationResult{
+		FailedJobs:    []*FailedReconciliationResult{},
+		PreemptedJobs: []*FailedReconciliationResult{},
+	}
 }
 
 func JobsFromFailedReconciliationResults(results []*FailedReconciliationResult) []*jobdb.Job {

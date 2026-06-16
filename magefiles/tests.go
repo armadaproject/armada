@@ -139,16 +139,10 @@ func runTest(name, outputFileName string) error {
 // Teste2eAirflow runs e2e tests for airflow
 func Teste2eAirflow() error {
 	mg.Deps(AirflowOperator)
-	cmd, err := go_CMD()
-	if err != nil {
-		return err
-	}
-	cmd = append(cmd, "go", "run", "cmd/armadactl/main.go", "create", "queue", "e2e-test-queue")
-	if err := dockerRun(cmd...); err != nil {
-		fmt.Println(err)
-	}
+	// Waits for Armada to be ready and creates the e2e-test-queue the tests submit to.
+	mg.Deps(CheckForArmadaRunning)
 
-	err = dockerRun("run", "-v", "${PWD}/e2e:/e2e", "-v", "${PWD}/third_party/airflow:/code",
+	err := dockerRun("run", "-v", "${PWD}/e2e:/e2e", "-v", "${PWD}/third_party/airflow:/code",
 		"--workdir", "/code", "-e", "ARMADA_SERVER=server", "-e", "ARMADA_PORT=50051", "--entrypoint",
 		"python3", "--network=kind", "armada-airflow-operator-builder:latest",
 		"-m", "pytest", "-v", "-s", "/code/test/integration/test_airflow_operator_logic.py")
