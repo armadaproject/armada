@@ -411,8 +411,10 @@ func TestGetSchedulerResult_Reconciliation_ReconciliationResult(t *testing.T) {
 	}
 }
 
-const updatedBid = 42.5
-const updatedPriority = uint32(1150)
+const (
+	updatedBid      = 42.5
+	updatedPriority = uint32(1150)
+)
 
 func setKnownJobUpdates(job *jobdb.Job) *jobdb.Job {
 	return job.
