@@ -3,7 +3,6 @@ package runner
 import (
 	"context"
 	"sync"
-	"sync/atomic"
 
 	"k8s.io/utils/clock"
 
@@ -53,7 +52,7 @@ type AsyncSchedulingRunner struct {
 	cancelRequested bool
 	// cycleNumber is incremented every time a new run is started
 	// it's added as a field to logs to make it easy to see logs for a specific cycle
-	cycleNumber atomic.Int64
+	cycleNumber int
 	// runDone is closed by the goroutine when the in-flight run has returned
 	// Non-nil only while state == running.
 	runDone chan struct{}
@@ -215,7 +214,8 @@ func (r *AsyncSchedulingRunner) trySetupRun(ctx *armadacontext.Context) *runDeta
 
 	r.state = Running
 	runCtx, cancel := armadacontext.WithCancel(ctx)
-	currentCycleNumber := r.cycleNumber.Add(1)
+	r.cycleNumber++
+	currentCycleNumber := r.cycleNumber
 	runCtx = armadacontext.WithLogField(runCtx, "schedulingCycleNumber", currentCycleNumber)
 	done := make(chan struct{})
 	r.cancelFn = cancel
