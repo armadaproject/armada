@@ -11,6 +11,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
+	"github.com/armadaproject/armada/internal/scheduler/pricing"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/fairness"
@@ -410,6 +411,124 @@ func TestGetSchedulerResult_Reconciliation_ReconciliationResult(t *testing.T) {
 	}
 }
 
+const updatedBid = 42.5
+const updatedPriority = uint32(1150)
+
+func setKnownJobUpdates(job *jobdb.Job) *jobdb.Job {
+	return job.
+		WithPriority(updatedPriority).
+		WithBidPrices(map[string]pricing.Bid{
+			reconcileTestPool: {RunningBid: updatedBid, QueuedBid: updatedBid},
+		})
+}
+
+func assertJobHasKnownUpdates(t *testing.T, job *jobdb.Job) {
+	bidPrices := job.GetAllBidPrices()
+	require.Equal(t, updatedBid, bidPrices[reconcileTestPool].RunningBid)
+	require.Equal(t, updatedBid, bidPrices[reconcileTestPool].QueuedBid)
+	require.Equal(t, updatedPriority, job.Priority())
+}
+
+func TestReconcile_ScheduledJob_PreservesCurrentJobUpdates(t *testing.T) {
+	scheduledJob := testfixtures.Test1Cpu4GiJob(testfixtures.TestQueue, testfixtures.TestDefaultPriorityClass).WithQueued(true)
+	poolResult := scheduledPoolResult(t, []*jobdb.Job{scheduledJob})
+	originalResultJob := poolResult.SchedulingResult.ScheduledJobs[0].Job
+
+	// The current version of the job is still queued but has newer data.
+	currentJob := setKnownJobUpdates(scheduledJob)
+	txn := txnWithJobs(currentJob)
+
+	result := getSchedulerResultFromAsyncRunner(t, poolResult, txn)
+
+	require.Len(t, result.PoolResults, 1)
+	require.Len(t, result.PoolResults[0].SchedulingResult.ScheduledJobs, 1)
+	resultScheduledJob := result.PoolResults[0].SchedulingResult.ScheduledJobs[0].Job
+
+	// Current-version updates are preserved.
+	assertJobHasKnownUpdates(t, resultScheduledJob)
+
+	// Scheduling decision is applied.
+	assert.False(t, resultScheduledJob.Queued(), "scheduled job should be dequeued")
+	assert.Equal(t, scheduledJob.QueuedVersion()+1, resultScheduledJob.QueuedVersion(), "queued version should be bumped")
+	require.NotNil(t, resultScheduledJob.LatestRun())
+	assert.Equal(t, resultScheduledJob.LatestRun().Executor(), originalResultJob.LatestRun().Executor())
+	assert.Equal(t, resultScheduledJob.LatestRun().NodeId(), originalResultJob.LatestRun().NodeId())
+	assert.Equal(t, resultScheduledJob.LatestRun().NodeName(), originalResultJob.LatestRun().NodeName())
+	assert.Equal(t, resultScheduledJob.LatestRun().ScheduledAtPriority(), originalResultJob.LatestRun().ScheduledAtPriority())
+}
+
+func TestReconcile_PreemptedJob_PreservesCurrentJobUpdates(t *testing.T) {
+	preemptedJob := testfixtures.Test1Cpu4GiJob(testfixtures.TestQueue, testfixtures.TestDefaultPriorityClass).
+		WithQueued(false).WithNewRun("executor", "node", "node", reconcileTestPool, 0)
+	jctx := schedulercontext.JobSchedulingContextFromJob(preemptedJob)
+	poolResult := &scheduling.PoolSchedulingResult{
+		SchedulingResult: &scheduling.SchedulingResult{
+			PreemptedJobs:     []*schedulercontext.JobSchedulingContext{jctx},
+			SchedulingContext: createSctx(t, nil, []*jobdb.Job{preemptedJob}),
+			AdditionalSchedulingInfo: &scheduling.SchedulingInformation{
+				EvictorResult: &scheduling.EvictorResult{
+					EvictedJctxsByJobId: map[string]*schedulercontext.JobSchedulingContext{preemptedJob.Id(): jctx},
+				},
+			},
+		},
+	}
+
+	// The current version of the job is still leased but has newer data.
+	currentJob := setKnownJobUpdates(preemptedJob)
+	txn := txnWithJobs(currentJob)
+
+	result := getSchedulerResultFromAsyncRunner(t, poolResult, txn)
+
+	require.Len(t, result.PoolResults, 1)
+	require.Len(t, result.PoolResults[0].SchedulingResult.PreemptedJobs, 1)
+	resultPreemptedJob := result.PoolResults[0].SchedulingResult.PreemptedJobs[0].Job
+
+	// Current-version updates are preserved.
+	assertJobHasKnownUpdates(t, resultPreemptedJob)
+
+	// Preemption decision is applied.
+	assert.True(t, resultPreemptedJob.Failed())
+	require.NotNil(t, resultPreemptedJob.LatestRun())
+	assert.True(t, resultPreemptedJob.LatestRun().Failed())
+	assert.NotNil(t, resultPreemptedJob.LatestRun().PreemptedTime())
+}
+
+func TestReconcile_ReconciliationJob_PreservesCurrentJobUpdates(t *testing.T) {
+	failedJob := testfixtures.Test1Cpu4GiJob(testfixtures.TestQueue, testfixtures.TestDefaultPriorityClass).
+		WithQueued(false).WithNewRun("executor", "node", "node", reconcileTestPool, 0)
+	preemptedJob := testfixtures.Test1Cpu4GiJob(testfixtures.TestQueue, testfixtures.PriorityClass6Preemptible).
+		WithQueued(false).WithNewRun("executor", "node", "node", reconcileTestPool, 0)
+	poolResult := &scheduling.PoolSchedulingResult{
+		ReconciliationResult: &scheduling.ReconciliationResult{
+			FailedJobs:    []*scheduling.FailedReconciliationResult{{Job: failedJob, Reason: "failed"}},
+			PreemptedJobs: []*scheduling.FailedReconciliationResult{{Job: preemptedJob, Reason: "preempted"}},
+		},
+	}
+
+	currentFailed := setKnownJobUpdates(failedJob)
+	currentPreempted := setKnownJobUpdates(preemptedJob)
+	txn := txnWithJobs(currentFailed, currentPreempted)
+
+	result := getSchedulerResultFromAsyncRunner(t, poolResult, txn)
+
+	require.Len(t, result.PoolResults, 1)
+	require.Len(t, result.PoolResults[0].ReconciliationResult.FailedJobs, 1)
+	require.Len(t, result.PoolResults[0].ReconciliationResult.PreemptedJobs, 1)
+
+	for _, returnedJob := range []*jobdb.Job{
+		result.PoolResults[0].ReconciliationResult.FailedJobs[0].Job,
+		result.PoolResults[0].ReconciliationResult.PreemptedJobs[0].Job,
+	} {
+		assertJobHasKnownUpdates(t, returnedJob)
+		assert.True(t, returnedJob.Failed())
+		require.NotNil(t, returnedJob.LatestRun())
+		assert.True(t, returnedJob.LatestRun().Failed())
+		if returnedJob.Id() == preemptedJob.Id() {
+			assert.NotNil(t, returnedJob.LatestRun().PreemptedTime())
+		}
+	}
+}
+
 func TestReconcile_PoolWithNilSchedulingResult(t *testing.T) {
 	failedJob := testfixtures.Test1Cpu4GiJob(testfixtures.TestQueue, testfixtures.TestDefaultPriorityClass)
 	algoResult := &scheduling.PoolSchedulingResult{
@@ -511,15 +630,30 @@ func createSctx(t *testing.T, scheduledJobs []*jobdb.Job, preemptedJobs []*jobdb
 }
 
 // scheduledPoolResult builds a PoolSchedulingResult with the given jobs marked
-// as scheduled, backed by a fresh SchedulingContext containing them.
+// as scheduled, backed by a fresh SchedulingContext containing them. The jobs in
+// the result carry a new run and are dequeued, mirroring how scheduling_algo
+// mutates jobs it schedules.
 func scheduledPoolResult(t *testing.T, scheduledJobs []*jobdb.Job) *scheduling.PoolSchedulingResult {
 	t.Helper()
+	resultJobs := make([]*jobdb.Job, len(scheduledJobs))
+	for i, job := range scheduledJobs {
+		resultJobs[i] = asScheduled(job)
+	}
 	return &scheduling.PoolSchedulingResult{
 		SchedulingResult: &scheduling.SchedulingResult{
-			ScheduledJobs:     jctxsFor(scheduledJobs...),
+			ScheduledJobs:     jctxsFor(resultJobs...),
 			SchedulingContext: createSctx(t, scheduledJobs, nil),
 		},
 	}
+}
+
+// asScheduled returns a copy of job as it would look after being scheduled:
+// dequeued, queued-version bumped, with a new run attached.
+func asScheduled(job *jobdb.Job) *jobdb.Job {
+	return job.
+		WithQueuedVersion(job.QueuedVersion()+1).
+		WithQueued(false).
+		WithNewRun("executor", "nodeId", "node", reconcileTestPool, 0)
 }
 
 // txnWithJobs returns a jobDb txn containing the given jobs.
