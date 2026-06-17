@@ -499,12 +499,6 @@ func (s *Scheduler) syncState(ctx *armadacontext.Context, initial bool) ([]*jobd
 		return nil, nil, 0, 0, err
 	}
 
-	for _, jst := range jsts {
-		if jst.Job.InTerminalState() {
-			s.shortJobPenalty.ReportFinishedJob(jst.Job)
-		}
-	}
-
 	// Delete jobs in a terminal state.
 	idsOfJobsToDelete := make([]string, 0)
 	for _, j := range jobDbJobs {
