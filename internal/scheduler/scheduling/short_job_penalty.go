@@ -3,38 +3,11 @@ package scheduling
 import (
 	"container/heap"
 	"maps"
-	"sync"
 	"time"
 
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 )
-
-// penaltyEntry is one reported terminal short job: the minimal record needed to
-// apply the penalty, subtract it, and recognize a re-report.
-type penaltyEntry struct {
-	jobId     string
-	pool      string
-	queue     string
-	resources internaltypes.ResourceList
-	// deadline is runStart + cutoff[pool], fixed at insert time
-	deadline time.Time
-}
-
-// ShortJobPenalty owns short-job-penalty state keyed by (pool, queue).
-// It is fed terminal short jobs once each via ReportFinishedJob and read via
-// GetPenaltiesForPool.
-type ShortJobPenalty struct {
-	mu      sync.Mutex
-	cutoffs map[string]time.Duration
-	now     time.Time
-
-	byId   map[string]*penaltyEntry
-	expiry *entryHeap
-	// Derived cache of the per-(pool,queue) running total; the entries are the
-	// source of truth.
-	sums map[string]map[string]internaltypes.ResourceList
-}
 
 func NewShortJobPenalty(cutoffs map[string]time.Duration) *ShortJobPenalty {
 	return &ShortJobPenalty{
@@ -79,34 +52,6 @@ func (sjp *ShortJobPenalty) shouldApplyPenalty(job *jobdb.Job) bool {
 
 	return sjp.now.Sub(*jobStart) < sjp.cutoffs[jobRun.Pool()]
 }
-
-// entryHeap is a min-heap of penaltyEntry ordered by deadline.
-type entryHeap []*penaltyEntry
-
-func (h entryHeap) Len() int           { return len(h) }
-func (h entryHeap) Less(i, j int) bool { return h[i].deadline.Before(h[j].deadline) }
-func (h entryHeap) Swap(i, j int) {
-	h[i], h[j] = h[j], h[i]
-}
-
-func (h *entryHeap) Push(x any) {
-	*h = append(*h, x.(*penaltyEntry))
-}
-
-func (h *entryHeap) Pop() any {
-	old := *h
-	n := len(old)
-	e := old[n-1]
-	old[n-1] = nil
-	*h = old[:n-1]
-	return e
-}
-
-func (h entryHeap) peek() *penaltyEntry {
-	return h[0]
-}
-
-var _ heap.Interface = (*entryHeap)(nil)
 
 // ReportFinishedJob applies a terminal short job's resources to its (pool, queue),
 // once. Non-terminal and duplicate jobs are ignored.
