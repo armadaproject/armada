@@ -26,6 +26,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	"github.com/armadaproject/armada/internal/common/auth"
 	"github.com/armadaproject/armada/internal/common/certs"
+	"github.com/armadaproject/armada/internal/common/ctxkeys"
 	"github.com/armadaproject/armada/internal/common/grpc/configuration"
 	log "github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/requestid"
@@ -156,8 +157,8 @@ func panicRecoveryHandler(p interface{}) (err error) {
 func InterceptorLogger() grpc_logging.Logger {
 	return grpc_logging.LoggerFunc(func(ctx context.Context, lvl grpc_logging.Level, msg string, fields ...any) {
 		logFields := make(map[string]any, len(fields)/2+2)
-		logFields["user"] = ctx.Value("user")
-		logFields["requestId"] = ctx.Value("requestId")
+		logFields["user"] = ctx.Value(ctxkeys.UserKey)
+		logFields["requestId"] = ctx.Value(ctxkeys.RequestIDKey)
 		i := grpc_logging.Fields(fields).Iterator()
 		for i.Next() {
 			k, v := i.At()

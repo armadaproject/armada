@@ -7,11 +7,12 @@ import (
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/metadata"
 	"golang.org/x/exp/slices"
 
+	"github.com/armadaproject/armada/internal/common/ctxkeys"
 	"github.com/armadaproject/armada/internal/common/util"
 )
 
-// Name of the key used to store principals in contexts.
-const principalKey = "principal"
+// principalKey is the typed context key for storing the authenticated Principal.
+const principalKey = ctxkeys.PrincipalKey
 
 // All users are implicitly part of this group.
 const EveryoneGroup = "everyone"
@@ -124,7 +125,7 @@ func CreateGrpcMiddlewareAuthFunction(authService AuthService) func(ctx context.
 			return nil, err
 		}
 		// record username for request logging
-		ctx = context.WithValue(ctx, "user", principal.GetName())
+		ctx = context.WithValue(ctx, ctxkeys.UserKey, principal.GetName())
 		return WithPrincipal(ctx, principal), nil
 	}
 }
