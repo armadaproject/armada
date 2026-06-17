@@ -7,9 +7,11 @@
 # It performs the following operations:
 #
 # 1. Waits for PostgreSQL container to be ready (up to 30 attempts)
-# 2. Creates required databases (scheduler, lookout) if they don't exist
-# 3. Runs database migrations for scheduler and lookout components
-# 4. Applies Kubernetes priority class for Armada workloads
+# 2. Runs database migrations for scheduler and lookout components
+# 3. Applies Kubernetes priority classes for Armada workloads
+#
+# The scheduler and lookout databases are created by _local/compose/postgres-init.sql
+# when the postgres container first initialises.
 #
 # Prerequisites:
 # - Docker must be running with PostgreSQL container named 'postgres'
@@ -19,7 +21,7 @@
 # Configuration files are loaded from:
 # - _local/scheduler/config.yaml - Scheduler configuration
 # - _local/lookout/config.yaml - Lookout configuration
-# - _local/priority-class.yaml - Kubernetes priority class definition
+# - _local/kind/priorityclasses.yaml - Kubernetes priority class definitions
 #
 # Environment variables:
 # - POSTGRES_CONTAINER: Name of the PostgreSQL Docker container (default: postgres)
@@ -55,28 +57,6 @@ for i in {1..30}; do
   sleep 2
 done
 
-# db_exists returns 0 if the named database exists, 1 if not. If psql itself fails
-# (auth error, connection hiccup after pg_isready passed), it exits the script rather
-# than letting an empty result be misread as "database missing" and triggering a
-# CREATE DATABASE against an unhealthy server. -tA gives a bare "1" or empty output.
-db_exists() {
-  local name="$1" out
-  out=$(docker exec "${POSTGRES_CONTAINER}" psql -U postgres -tAc \
-    "SELECT 1 FROM pg_database WHERE datname = '${name}'") \
-    || { print_error "psql failed while checking for database '${name}'"; exit 1; }
-  [ "${out}" = "1" ]
-}
-
-create_db_if_missing() {
-  local name="$1"
-  if db_exists "${name}"; then
-    print_info "${name} database already exists"
-  else
-    docker exec "${POSTGRES_CONTAINER}" psql -U postgres -c "CREATE DATABASE ${name};"
-    print_success "Created ${name} database"
-  fi
-}
-
 # run_migration runs a migration command, logging a labelled result and aborting on failure.
 run_migration() {
   local label="$1"
@@ -90,27 +70,22 @@ run_migration() {
   fi
 }
 
-print_info "Creating databases if needed..."
-create_db_if_missing scheduler
-create_db_if_missing lookout
-
-print_success "Databases ready!"
-
 run_migration Scheduler $GO_BIN run ./cmd/scheduler/main.go migrateDatabase --config ./_local/scheduler/config.yaml
 run_migration Lookout $GO_BIN run ./cmd/lookout/main.go --migrateDatabase --config ./_local/lookout/config.yaml
 
 print_success "All migrations completed successfully!"
 
 if kubectl cluster-info >/dev/null 2>&1; then
-  print_info "Applying Kubernetes priority class..."
-  if kubectl apply -f _local/priority-class.yaml; then
-    print_success "Priority class 'armada-default' applied"
+  print_info "Applying Kubernetes priority classes..."
+  if kubectl apply -f _local/kind/priorityclasses.yaml; then
+    print_success "Priority classes applied"
   else
-    print_error "Failed to apply priority class"
-    exit 1
+    # A PriorityClass's value is immutable, so re-applying with a different value fails. When that
+    # happens the classes already exist, which is all the dev setup needs, so this is not fatal.
+    print_info "Could not update priority classes (they already exist) - leaving them as-is"
   fi
 else
-  print_info "No Kubernetes cluster reachable, skipping priority class (fine for fake-executor or pure dependency setup)"
+  print_info "No Kubernetes cluster reachable, skipping priority classes (fine for fake-executor or pure dependency setup)"
 fi
 
 print_success "Armada local development environment initialized successfully!"

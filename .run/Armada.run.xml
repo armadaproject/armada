@@ -6,8 +6,7 @@
     <toRun name="Scheduler" type="GoApplicationRunConfiguration" />
     <toRun name="Scheduler Ingester" type="GoApplicationRunConfiguration" />
     <toRun name="Server" type="GoApplicationRunConfiguration" />
-    <toRun name="lookoutPostgresMigration" type="GoApplicationRunConfiguration" />
-    <toRun name="schedulerPostgresMigration" type="GoApplicationRunConfiguration" />
+    <toRun name="Run Migrations" type="ShConfigurationType" />
     <method v="2" />
   </configuration>
 </component>

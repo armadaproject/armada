@@ -7,13 +7,12 @@
     - [Other developer docs](#other-developer-docs)
     - [Pre-requisites](#pre-requisites)
     - [Using `mage`](#using-mage)
-    - [Setting up `LocalDev`](#setting-up-localdev)
-    - [Debugging error: port 6443 is already in use after running `mage localdev full`](#debugging-error-port-6443-is-already-in-use-after-running-mage-localdev-full)
+    - [Setting up the local dev stack](#setting-up-the-local-dev-stack)
+    - [Debugging error: port 6443 is already in use after running `mage dev:full`](#debugging-error-port-6443-is-already-in-use-after-running-mage-devfull)
         - [Identifying the conflict](#identifying-the-conflict)
-        - [Testing if `LocalDev` is working](#testing-if-localdev-is-working)
+        - [Testing if the local dev stack is working](#testing-if-the-local-dev-stack-is-working)
         - [Running the UI](#running-the-ui)
         - [Choosing components to run](#choosing-components-to-run)
-        - [Running Pulsar-backed scheduler with `LocalDev`](#running-pulsar-backed-scheduler-with-localdev)
     - [Debugging](#debugging)
     - [GoLand run configurations](#goland-run-configurations)
     - [VS Code debug configurations](#vs-code-debug-configurations)
@@ -48,22 +47,20 @@ If you encounter any problems, you can create a ticket and link it to the releva
 
 For more information about Armada's design, see the following pages:
 
-- [Armada Components Diagram](./design/relationships_diagram.md)
-- [Armada Architecture](./design/architecture.md)
-- [Armada Design](./design/index.md)
-- [How Priority Functions](./design/priority.md)
-- [Armada Scheduler Design](./design/scheduling_and_preempting_jobs.md)
+- [Armada Components Diagram](https://armadaproject.io/design/relationships_diagram)
+- [Armada Architecture](https://armadaproject.io/design/architecture)
+- [Armada Design](https://armadaproject.io/design)
+- [How Priority Functions](https://armadaproject.io/design/priority)
+- [Armada Scheduler Design](https://armadaproject.io/design/scheduler)
 
 ## Other developer docs
 
-- [Armada API](./developer/api.md)
-- [Running Armada in an EC2 instance](./developer/aws-ec2.md)
-- [Armada UI](./developer/ui.md)
+- [Armada API](./developer/armada-api.md)
+- [Running Armada in an EC2 instance](https://armadaproject.io/developer/aws-ec2)
+- [Armada UI](https://armadaproject.io/developer/ui)
 - [Usage metrics](./developer/usage_metrics.md)
-- [Using OIDC with Armada](./developer/oidc.md)
+- [Using OIDC with Armada](./developer/setting-up-oidc.md)
 - [Building the website](./developer/website.md)
-- [Using `LocalDev` manually](./developer/manual-localdev.md)
-- [Inspecting and debugging etcd in `LocalDev` setup](./developer/etc-localdev.md)
 
 ## Pre-requisites
 
@@ -81,9 +78,9 @@ Before you can start using Armada, you first need to install the following items
 
 `mage` is a build tool that we use to build Armada. It is similar to Make, but written in Go. It is used to build Armada, run tests and run other useful commands. To see a list of available commands, run `mage -l`.
 
-## Setting up `LocalDev`
+## Setting up the local dev stack
 
-`LocalDev`provides a reliable and extendable way to install Armada as a developer. It runs the following steps:
+The local dev stack provides a reliable and extendable way to install Armada as a developer. It runs the following steps:
 
 - bootstrap the required tools from [tools.yaml](https://github.com/armadaproject/armada/blob/master/tools.yaml)
 - create a local Kubernetes cluster using [kind](https://kind.sigs.k8s.io/)
@@ -99,7 +96,7 @@ It has the following options to customise further steps:
 
 We use `mage dev:full` to test the CI pipeline. You should therefore use it to test changes to the core components of Armada.
 
-## Debugging error: port 6443 is already in use after running `mage localdev full`
+## Debugging error: port 6443 is already in use after running `mage dev:full`
 
 ### Identifying the conflict
 
@@ -124,9 +121,9 @@ Before making any changes, identify which port is causing the conflict. Port 644
 
     You are not limited to using port 6444. You can choose any available port that doesn't conflict with other services on your system. Select a port that suits your system configuration.
 
-### Testing if `LocalDev` is working
+### Testing if the local dev stack is working
 
-Running `mage testsuite` runs the full test suite against the `LocalDev` cluster. You should therefore use this to test changes to the core components of Armada.
+Running `mage testsuite` runs the full test suite against the local dev stack. You should therefore use this to test changes to the core components of Armada.
 
 You can also run the same commands yourself:
 
@@ -142,7 +139,7 @@ go run cmd/testsuite/main.go test --tests "testsuite/testcases/basic/*" --junit 
 
 ### Running the UI
 
-In `LocalDev`, the UI is built separately with `mage ui`. To access it, open http://localhost:8089 in your browser.
+In the local dev stack, the UI is built separately with `mage ui`. To access it, open http://localhost:8089 in your browser.
 
 For more information, [see the UI Developer Guide](./developer/developing-locally.md).
 
@@ -153,24 +150,6 @@ You can set the `ARMADA_COMPONENTS` environment variable to choose which compone
 ```bash
 export ARMADA_COMPONENTS="server,executor"
 ```
-
-### Running Pulsar-backed scheduler with `LocalDev`
-
-Ensure your local environment is completely torn down with:
-
-```bash
-mage LocalDevStop
-```
-
-And then run:
-
-```bash
-mage LocalDev minimal
-```
-
-Ensure your `LocalDev` environment is completely torn down when switching between Pulsar-backed and legacy setups.
-
-If the eventsingester or the scheduleringester don't come up then just manually spin them up with `docker-compose up`.
 
 ## Debugging
 
@@ -185,16 +164,15 @@ We provide a number of run configurations within the `.run` directory of this pr
 
 The following high-level configurations are provided, each composed of sub-configurations:
 
-- `Armada Infrastructure Services` - runs infrastructure services required to run Armada, irrespective of scheduler type
-- `Armada (Legacy Scheduler)` - runs Armada with the Legacy Scheduler
-- `Armada (Pulsar Scheduler)` - runs Armada with the Pulsar Scheduler (recommended)
+- `Start Dependencies` - creates the Kind cluster and brings up the dependency containers (redis, postgres, pulsar)
+- `Armada` - runs the full Armada stack (migrations and components)
 - `Lookout UI` - script that configures a local UI development setup
 
-A minimal local Armada setup using these configurations would be `Armada Infrastructure Services` and one of (`Armada (Legacy Scheduler)` or `Armada (Pulsar Scheduler)`). Running the `Lookout UI` script on top of this configuration enables you to develop the Lookout UI live from GoLand, and see the changes visible in your browser.
+A minimal local Armada setup using these configurations would be `Start Dependencies` and `Armada`. If you already have a Kind cluster running, use `Infrastructure Services` instead of `Start Dependencies` to bring up just the dependency containers. Running the `Lookout UI` script on top of this configuration enables you to develop the Lookout UI live from GoLand, and see the changes visible in your browser.
 
-**Note:** These configurations (executor specifically) require a kubernetes config in `$PROJECT_DIR$/.kube/internal/config`.
+**Note:** These configurations (executor specifically) require a kubernetes config in `$PROJECT_DIR$/.kube/external/config`, which `Start Dependencies` writes via `mage kind`.
 
-GoLand does not allow us to specify an ordering for services within docker compose configurations. As a result, some database migration services may require rerunning.
+GoLand runs the configurations in a compound in parallel, so `Run Migrations` starts alongside the components. The components retry their database and Pulsar connections until the migrations finish, so a short burst of connection errors at startup is expected.
 
 ## VS Code Run and Debug configurations
 
