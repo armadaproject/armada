@@ -137,7 +137,7 @@ func (Dev) Migrate() error {
 // --profile auth brings the keycloak container into scope so `dev:up auth` doesn't leave it
 // orphaned, and --remove-orphans clears containers from any profile that is no longer active.
 func (Dev) Down() error {
-	return sh.RunV("docker", "compose", "-f", stackComposeFile, "--profile", "auth", "down", "--remove-orphans")
+	return sh.RunV("docker", "compose", "-f", stackComposeFile, "--profile", "auth", "--profile", "prometheus", "down", "--remove-orphans")
 }
 
 // Full brings up the entire Armada stack in containers via _local/compose/full.yaml.
