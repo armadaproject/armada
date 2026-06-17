@@ -3,7 +3,9 @@ package runner
 import (
 	"context"
 	"sync"
+	"time"
 
+	"github.com/pkg/errors"
 	"k8s.io/utils/clock"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -316,7 +318,10 @@ func (r *AsyncSchedulingRunner) reconcile(ctx *armadacontext.Context, txn *jobdb
 		}
 
 		if poolResult.ReconciliationResult != nil {
-			r.updateReconciliationResult(ctx, txn, poolResult)
+			err := r.updateReconciliationResult(ctx, txn, poolResult)
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 
@@ -333,6 +338,11 @@ func (r *AsyncSchedulingRunner) updateScheduledJobs(ctx *armadacontext.Context, 
 	for _, scheduledJob := range nonGangJobs {
 		currentJob := txn.GetById(scheduledJob.JobId)
 		if isQueuedJobActionable(currentJob) {
+			updatedCurrentJob, err := markJobScheduled(currentJob, scheduledJob)
+			if err != nil {
+				return err
+			}
+			scheduledJob.Job = updatedCurrentJob
 			scheduledJobs = append(scheduledJobs, scheduledJob)
 		} else {
 			_, err := poolResult.SchedulingResult.SchedulingContext.RemoveJob(scheduledJob)
@@ -346,6 +356,7 @@ func (r *AsyncSchedulingRunner) updateScheduledJobs(ctx *armadacontext.Context, 
 	// We must unschedule the whole gang if any are not actionable
 	type gangJobInfo struct {
 		scheduledJctx *schedulercontext.JobSchedulingContext
+		currentJob    *jobdb.Job
 		isActionable  bool
 	}
 
@@ -356,7 +367,7 @@ func (r *AsyncSchedulingRunner) updateScheduledJobs(ctx *armadacontext.Context, 
 		if _, exists := gangs[key]; !exists {
 			gangs[key] = make([]*gangJobInfo, 0, scheduledJob.Job.GetGangInfo().Cardinality())
 		}
-		gangs[key] = append(gangs[key], &gangJobInfo{scheduledJctx: scheduledJob, isActionable: isQueuedJobActionable(currentJob)})
+		gangs[key] = append(gangs[key], &gangJobInfo{scheduledJctx: scheduledJob, currentJob: currentJob, isActionable: isQueuedJobActionable(currentJob)})
 	}
 
 	for key, gang := range gangs {
@@ -372,6 +383,11 @@ func (r *AsyncSchedulingRunner) updateScheduledJobs(ctx *armadacontext.Context, 
 		allActionable := slices.AllFunc(gang, func(jobInfo *gangJobInfo) bool { return jobInfo.isActionable })
 		if allActionable {
 			for _, jobInfo := range gang {
+				updatedCurrentJob, err := markJobScheduled(jobInfo.currentJob, jobInfo.scheduledJctx)
+				if err != nil {
+					return err
+				}
+				jobInfo.scheduledJctx.Job = updatedCurrentJob
 				scheduledJobs = append(scheduledJobs, jobInfo.scheduledJctx)
 			}
 		} else {
@@ -404,6 +420,11 @@ func (r *AsyncSchedulingRunner) updatePreemptedJobs(ctx *armadacontext.Context, 
 	for _, preemptedJob := range poolResult.SchedulingResult.PreemptedJobs {
 		currentJob := txn.GetById(preemptedJob.JobId)
 		if isJobActionable(currentJob) {
+			updatedCurrentJob, err := markJobPreempted(currentJob, r.clock.Now())
+			if err != nil {
+				return err
+			}
+			preemptedJob.Job = updatedCurrentJob
 			preemptedJobs = append(preemptedJobs, preemptedJob)
 		} else {
 			_, err := poolResult.SchedulingResult.SchedulingContext.RemoveJob(preemptedJob)
@@ -419,11 +440,16 @@ func (r *AsyncSchedulingRunner) updatePreemptedJobs(ctx *armadacontext.Context, 
 	return nil
 }
 
-func (r *AsyncSchedulingRunner) updateReconciliationResult(ctx *armadacontext.Context, txn *jobdb.Txn, poolResult *scheduling.PoolSchedulingResult) {
+func (r *AsyncSchedulingRunner) updateReconciliationResult(ctx *armadacontext.Context, txn *jobdb.Txn, poolResult *scheduling.PoolSchedulingResult) error {
 	preemptedJobs := make([]*scheduling.FailedReconciliationResult, 0, len(poolResult.ReconciliationResult.PreemptedJobs))
 	for _, preemptedJob := range poolResult.ReconciliationResult.PreemptedJobs {
 		currentJob := txn.GetById(preemptedJob.Job.Id())
 		if isJobActionable(currentJob) {
+			updatedJob, err := markJobFailedReconciliation(currentJob, r.clock.Now())
+			if err != nil {
+				return err
+			}
+			preemptedJob.Job = updatedJob
 			preemptedJobs = append(preemptedJobs, preemptedJob)
 		}
 	}
@@ -435,12 +461,18 @@ func (r *AsyncSchedulingRunner) updateReconciliationResult(ctx *armadacontext.Co
 	for _, failedJob := range poolResult.ReconciliationResult.FailedJobs {
 		currentJob := txn.GetById(failedJob.Job.Id())
 		if isJobActionable(currentJob) {
+			updatedJob, err := markJobFailedReconciliation(currentJob, r.clock.Now())
+			if err != nil {
+				return err
+			}
+			failedJob.Job = updatedJob
 			failedJobs = append(failedJobs, failedJob)
 		}
 	}
 	ctx.Infof("scheduler result reconciler removed %d jobs that would have been failed by reconciler on pool %s",
 		len(poolResult.ReconciliationResult.FailedJobs)-len(failedJobs), poolResult.Name)
 	poolResult.ReconciliationResult.FailedJobs = failedJobs
+	return nil
 }
 
 func isQueuedJobActionable(job *jobdb.Job) bool {
@@ -449,6 +481,47 @@ func isQueuedJobActionable(job *jobdb.Job) bool {
 
 func isJobActionable(job *jobdb.Job) bool {
 	return job != nil && !job.InTerminalState()
+}
+
+func markJobScheduled(currentJob *jobdb.Job, jctx *schedulercontext.JobSchedulingContext) (*jobdb.Job, error) {
+	newRun := jctx.Job.LatestRun()
+	if newRun == nil {
+		return nil, errors.Errorf("scheduled job %s has no associated run", jctx.JobId)
+	}
+	scheduledAtPriority := newRun.ScheduledAtPriority()
+	if scheduledAtPriority == nil {
+		return nil, errors.Errorf("scheduled job %s run has no associated scheduled priority", jctx.JobId)
+	}
+
+	currentJob = currentJob.
+		WithQueuedVersion(currentJob.QueuedVersion()+1).
+		WithQueued(false).
+		WithNewRun(newRun.Executor(), newRun.NodeId(), newRun.NodeName(), newRun.Pool(), *scheduledAtPriority)
+	return currentJob, nil
+}
+
+func markJobPreempted(currentJob *jobdb.Job, now time.Time) (*jobdb.Job, error) {
+	currentRun := currentJob.LatestRun()
+	if currentRun == nil {
+		return nil, errors.Errorf("attempting to preempt job %s with no associated runs", currentJob.Id())
+	}
+	currentRun = currentRun.WithFailed(true).WithPreemptedTime(&now)
+	currentJob = currentJob.WithUpdatedRun(currentRun).WithQueued(false).WithFailed(true)
+	return currentJob, nil
+}
+
+func markJobFailedReconciliation(currentJob *jobdb.Job, now time.Time) (*jobdb.Job, error) {
+	currentRun := currentJob.LatestRun()
+	if currentRun == nil {
+		return nil, errors.Errorf("attempting to fail reconciliation for job %s with no associated runs", currentJob.Id())
+	}
+
+	if currentJob.PriorityClass().Preemptible {
+		currentRun = currentRun.WithPreemptedTime(&now)
+	}
+	currentJob = currentJob.WithQueued(false).WithFailed(true)
+	currentJob = currentJob.WithUpdatedRun(currentRun.WithFailed(true))
+	return currentJob, nil
 }
 
 type gangKey struct {

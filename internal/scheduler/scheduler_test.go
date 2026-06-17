@@ -1308,23 +1308,36 @@ func TestScheduler_NonLeaderAdvancesCursors(t *testing.T) {
 
 func TestScheduler_AsyncRunner(t *testing.T) {
 	tests := map[string]struct {
-		initialJob    *jobdb.Job
-		jobToSchedule string
-		scheduleErr   error
+		initialJob             *jobdb.Job
+		jobToSchedule          string
+		shouldUpdateInitialJob bool
+		scheduleErr            error
 	}{
 		"schedules a job": {
 			initialJob:    queuedJob,
 			jobToSchedule: queuedJob.Id(),
+		},
+		"schedules a job - job updated during scheduling": {
+			initialJob:             queuedJob,
+			jobToSchedule:          queuedJob.Id(),
+			shouldUpdateInitialJob: true,
 		},
 		"handles error": {
 			initialJob:    queuedJob,
 			jobToSchedule: queuedJob.Id(),
 			scheduleErr:   errors.New("scheduling error"),
 		},
+		"handles error - job updated during scheduling": {
+			initialJob:             queuedJob,
+			jobToSchedule:          queuedJob.Id(),
+			shouldUpdateInitialJob: true,
+			scheduleErr:            errors.New("scheduling error"),
+		},
 	}
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
+			updatedPriority := queuedJob.Priority() + 100
 			jobRepo := &testJobRepository{}
 			testClock := clock.NewFakeClock(time.Now())
 			clusterRepo := &testExecutorRepository{
@@ -1385,9 +1398,22 @@ func TestScheduler_AsyncRunner(t *testing.T) {
 				return asyncRunner.GetCurrentState() == runner.ResultReady
 			}, 2*time.Second, 5*time.Millisecond, "expected the async runner to have result")
 
+			// Update the job before we merge in the async result,
+			//  so we can validate these updates are still present after the async state merging
+			if tc.shouldUpdateInitialJob {
+				updateTxn := sched.jobDb.WriteTxn()
+				require.NoError(t, updateTxn.Upsert([]*jobdb.Job{updateTxn.GetById(queuedJob.Id()).WithPriority(updatedPriority)}))
+				updateTxn.Commit()
+			}
+
 			// Second cycle: consumes the pending result
 			schedulingAttempted, err = sched.cycle(ctx, false, sched.leaderController.GetToken(), true, 2)
 			assert.True(t, schedulingAttempted)
+
+			if tc.shouldUpdateInitialJob {
+				updatedJob := jobDb.ReadTxn().GetById(queuedJob.Id())
+				assert.Equal(t, updatedPriority, updatedJob.Priority())
+			}
 
 			if tc.scheduleErr != nil {
 				assert.Error(t, err)
