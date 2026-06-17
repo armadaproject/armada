@@ -363,10 +363,6 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	ctx.Infof("Finished looking for jobs to expire, generating %d events", len(expirationEvents))
 	events = append(events, expirationEvents...)
 
-	for _, job := range txn.GetAllTerminalJobs() {
-		s.shortJobPenalty.ReportFinishedJob(job)
-	}
-
 	var schedulerResult *scheduling.SchedulerResult
 	// Schedule jobs.
 	if shouldSchedule {
@@ -1067,6 +1063,9 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 	}
 
 	if !origJob.Equal(job) {
+		if job.InTerminalState() {
+			s.shortJobPenalty.ReportFinishedJob(job)
+		}
 		if err := txn.Upsert([]*jobdb.Job{job}); err != nil {
 			return nil, err
 		}
@@ -1125,7 +1124,9 @@ func (s *Scheduler) expireJobsIfNecessary(ctx *armadacontext.Context, txn *jobdb
 		run := job.LatestRun()
 		if run != nil && !job.Queued() && staleExecutors[run.Executor()] {
 			ctx.Warnf("Cancelling job %s as it is running on lost executor %s", job.Id(), run.Executor())
-			jobsToUpdate = append(jobsToUpdate, job.WithQueued(false).WithFailed(true).WithUpdatedRun(run.WithFailed(true)))
+			expiredJob := job.WithQueued(false).WithFailed(true).WithUpdatedRun(run.WithFailed(true))
+			s.shortJobPenalty.ReportFinishedJob(expiredJob)
+			jobsToUpdate = append(jobsToUpdate, expiredJob)
 
 			leaseExpiredError := &armadaevents.Error{
 				Terminal: true,
@@ -1231,6 +1232,7 @@ func (s *Scheduler) submitCheck(ctx *armadacontext.Context, txn *jobdb.Txn) ([]*
 			}
 		} else {
 			job = job.WithFailed(true).WithQueued(false)
+			s.shortJobPenalty.ReportFinishedJob(job)
 			jobsToUpdate = append(jobsToUpdate, job)
 
 			es.Events[0].Event = &armadaevents.EventSequence_Event_JobErrors{

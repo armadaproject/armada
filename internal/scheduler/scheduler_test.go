@@ -4048,3 +4048,103 @@ func TestAppendEventSequencesFromPreemptedJobs_NilPreemptingJob(t *testing.T) {
 	assert.Equal(t, preemptedRun.Id(), preemptedEvent.PreemptedRunId)
 	assert.Equal(t, "", preemptedEvent.PreemptingJobId)
 }
+
+func TestScheduler_ReportsShortJobPenaltyAtTerminalisationSites(t *testing.T) {
+	const cutoff = time.Minute
+	now := time.Now()
+	runningTime := now.Add(-30 * time.Second) // within cutoff, so the job qualifies for a penalty
+
+	newSchedulerWithPenalty := func(t *testing.T, submitCheckSuccess bool, staleExecutor bool) (*Scheduler, *scheduling.ShortJobPenalty) {
+		penalty := scheduling.NewShortJobPenalty(map[string]time.Duration{testfixtures.TestPool: cutoff})
+		penalty.SetNow(now)
+
+		clusterTimeout := 1 * time.Hour
+		testClock := clock.NewFakeClock(now)
+		heartbeat := testClock.Now()
+		if staleExecutor {
+			heartbeat = heartbeat.Add(-2 * clusterTimeout)
+		}
+
+		sched, err := NewScheduler(
+			testfixtures.NewJobDb(testfixtures.TestResourceListFactory),
+			&testJobRepository{},
+			&testExecutorRepository{updateTimes: map[string]time.Time{"testExecutor": heartbeat}},
+			runner.NewSyncSchedulingRunner(&testSchedulingAlgo{}),
+			leaderelection.NewStandaloneLeaderController(),
+			&testPublisher{},
+			&testSubmitChecker{checkSuccess: submitCheckSuccess},
+			&testGangValidator{validateSuccess: true},
+			1*time.Second,
+			5*time.Second,
+			clusterTimeout,
+			penalty,
+			maxNumberOfAttempts,
+			nodeIdLabel,
+			schedulerMetrics,
+			pricing.NoopBidPriceProvider{},
+			[]string{},
+			&testQueueCache{},
+		)
+		require.NoError(t, err)
+		sched.clock = testClock
+		return sched, penalty
+	}
+
+	seed := func(t *testing.T, sched *Scheduler, job *jobdb.Job) {
+		txn := sched.jobDb.WriteTxn()
+		require.NoError(t, txn.Upsert([]*jobdb.Job{job}))
+		txn.Commit()
+	}
+
+	runCycle := func(t *testing.T, sched *Scheduler, updateAll bool) {
+		ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
+		defer cancel()
+		_, err := sched.cycle(ctx, updateAll, sched.leaderController.GetToken(), false, 1)
+		require.NoError(t, err)
+	}
+
+	shortJob := func(validated bool) *jobdb.Job {
+		job := testfixtures.Test32Cpu256GiJob(testfixtures.TestQueue, testfixtures.PriorityClass2).
+			WithQueued(false).
+			WithValidated(validated).
+			WithNewRun("testExecutor", "test-node", "node", testfixtures.TestPool, 5)
+		return job.WithUpdatedRun(job.LatestRun().WithRunningTime(&runningTime))
+	}
+
+	assertPenalised := func(t *testing.T, penalty *scheduling.ShortJobPenalty, job *jobdb.Job) {
+		penalties := penalty.GetPenaltiesForPool(testfixtures.TestPool)
+		require.True(t, penalties[testfixtures.TestQueue].Equal(job.AllResourceRequirements()),
+			"expected penalty for queue %s to equal the job's resources", testfixtures.TestQueue)
+	}
+
+	t.Run("succeeded job via generateUpdateMessages", func(t *testing.T) {
+		sched, penalty := newSchedulerWithPenalty(t, true, false)
+		job := shortJob(true)
+		job = job.WithUpdatedRun(job.LatestRun().WithSucceeded(true))
+		seed(t, sched, job)
+
+		runCycle(t, sched, true)
+
+		assertPenalised(t, penalty, job)
+	})
+
+	t.Run("expired job via expireJobsIfNecessary", func(t *testing.T) {
+		sched, penalty := newSchedulerWithPenalty(t, true, true)
+		job := shortJob(true)
+		seed(t, sched, job)
+
+		runCycle(t, sched, false)
+
+		assertPenalised(t, penalty, job)
+	})
+
+	t.Run("rejected job via submitCheck", func(t *testing.T) {
+		sched, penalty := newSchedulerWithPenalty(t, false, false)
+		job := shortJob(false)
+		seed(t, sched, job)
+
+		runCycle(t, sched, false)
+
+		assertPenalised(t, penalty, job)
+	})
+}
