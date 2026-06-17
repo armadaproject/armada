@@ -42,6 +42,9 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: psw
       POSTGRES_DB: postgres
+    volumes:
+      # Creates the scheduler and lookout databases on first container init.
+      - ./postgres-init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     ports:
       - "5432:5432"
     restart: unless-stopped
