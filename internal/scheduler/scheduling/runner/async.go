@@ -484,11 +484,15 @@ func markJobScheduled(currentJob *jobdb.Job, jctx *schedulercontext.JobSchedulin
 	if newRun == nil {
 		return nil, errors.Errorf("scheduled job %s has no associated run", jctx.JobId)
 	}
+	scheduledAtPriority := newRun.ScheduledAtPriority()
+	if scheduledAtPriority == nil {
+		return nil, errors.Errorf("scheduled job %s run has no associated scheduled priority", jctx.JobId)
+	}
 
 	currentJob = currentJob.
 		WithQueuedVersion(currentJob.QueuedVersion()+1).
 		WithQueued(false).
-		WithNewRun(newRun.Executor(), newRun.NodeId(), newRun.NodeName(), newRun.Pool(), *newRun.ScheduledAtPriority())
+		WithNewRun(newRun.Executor(), newRun.NodeId(), newRun.NodeName(), newRun.Pool(), *scheduledAtPriority)
 	return currentJob, nil
 }
 
