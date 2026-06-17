@@ -5,9 +5,11 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 
 	commonconfig "github.com/armadaproject/armada/internal/common/config"
+	"github.com/armadaproject/armada/internal/common/observability"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/leaderelection"
 	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
@@ -74,9 +76,27 @@ func TestMutate(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			result, err := tc.input.Mutate()
 			assert.NoError(t, err)
+
+			resultConfig, ok := result.(*Configuration)
+			require.True(t, ok)
+			assertSchedulerObservabilityConfig(t, resultConfig.Observability)
+			tc.expected.Observability = resultConfig.Observability
+
 			assert.Equal(t, tc.expected, result)
 		})
 	}
+}
+
+func assertSchedulerObservabilityConfig(t *testing.T, config observability.ObservabilityConfig) {
+	t.Helper()
+	assert.False(t, config.Enabled)
+	assert.Equal(t, observability.DefaultOtlpHTTPEndpoint, config.Exporter.Endpoint)
+	assert.Equal(t, observability.DefaultOtlpHTTPProtocol, config.Exporter.Protocol)
+	assert.Equal(t, observability.SamplerParentBasedTraceRatio, config.Traces.Sampler)
+	assert.Equal(t, 1.0, config.Traces.SamplerArg)
+	assert.Equal(t, "scheduler", config.Resource.ServiceName)
+	assert.Equal(t, "dev", config.Resource.ServiceVersion)
+	assert.NotEmpty(t, config.Resource.ServiceInstance)
 }
 
 func TestValidate_SchedulingTimeoutConfig(t *testing.T) {

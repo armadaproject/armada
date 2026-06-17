@@ -2,6 +2,14 @@ grpc:
   port: 50052
   tls:
     enabled: false
+observability:
+  enabled: true
+  exporter:
+    endpoint: "http://localhost:4318"
+    protocol: "http/protobuf"
+  traces:
+    sampler: "parent_based_trace_id_ratio"
+    samplerArg: 1.0
 auth:
   anonymousAuth: true
   permissionGroupMapping:

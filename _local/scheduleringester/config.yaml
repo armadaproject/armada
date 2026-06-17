@@ -1,5 +1,13 @@
 metrics:
   port: 9006
+observability:
+  enabled: true
+  exporter:
+    endpoint: "http://localhost:4318"
+    protocol: "http/protobuf"
+  traces:
+    sampler: "parent_based_trace_id_ratio"
+    samplerArg: 1.0
 postgres:
   connection:
     host: localhost

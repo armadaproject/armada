@@ -1,6 +1,7 @@
 package scheduler
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"net/http"
@@ -25,6 +26,7 @@ import (
 	grpcCommon "github.com/armadaproject/armada/internal/common/grpc"
 	"github.com/armadaproject/armada/internal/common/health"
 	log "github.com/armadaproject/armada/internal/common/logging"
+	"github.com/armadaproject/armada/internal/common/observability"
 	"github.com/armadaproject/armada/internal/common/profiling"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/common/pulsarutils/jobsetevents"
@@ -55,6 +57,20 @@ import (
 // Run sets up a Scheduler application and runs it until a SIGTERM is received
 func Run(config schedulerconfig.Configuration) error {
 	g, ctx := armadacontext.ErrGroup(app.CreateContextWithShutdown())
+
+	// ////////////////////////////////////////////////////////////////////////
+	// OpenTelemetry
+	// ////////////////////////////////////////////////////////////////////////
+	if err := observability.InitOTel(config.Observability); err != nil {
+		log.Warnf("Failed to initialize OTel: %v", err)
+	}
+	defer func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := observability.ShutdownOTel(ctx); err != nil {
+			log.Warnf("Failed to shutdown OTel: %v", err)
+		}
+	}()
 
 	// ////////////////////////////////////////////////////////////////////////
 	// Expose profiling endpoints if enabled.

@@ -61,7 +61,8 @@ services:
       PULSAR_PREFIX_allowAutoTopicCreation: "true"
       PULSAR_PREFIX_allowAutoTopicCreationType: non-partitioned
       PULSAR_PREFIX_autoSkipNonRecoverableData: "true"
-    entrypoint: sh -c "bin/apply-config-from-env.py conf/standalone.conf && bin/pulsar standalone"
+    entrypoint: sh -c "bin/apply-config-from-env.py conf/standalone.conf &&
+      bin/pulsar standalone"
     ports:
       - "6650:6650"
       - "8090:8080"
@@ -94,3 +95,25 @@ services:
     # No healthcheck on purpose: keycloak's realm import + warmup is slower than
     # `docker compose up --wait` is willing to block for. `mage dev:up auth` polls the
     # realm endpoint via waitForKeycloak before starting goreman.
+
+  jaeger:
+    container_name: jaeger
+    image: ${JAEGER_IMAGE:-jaegertracing/all-in-one:1.76.0}
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    ports:
+      - "16686:16686" # Jaeger UI
+    restart: unless-stopped
+
+  otel-collector:
+    container_name: otel-collector
+    image: ${OTEL_IMAGE:-otel/opentelemetry-collector-contrib:0.154.0}
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    volumes:
+      - ../otel/collector-config.yaml:/etc/otelcol-contrib/config.yaml:ro
+    ports:
+      - "4317:4317" # OTLP gRPC
+      - "4318:4318" # OTLP HTTP
+    restart: unless-stopped
+    depends_on:
+      - jaeger
