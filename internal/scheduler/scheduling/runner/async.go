@@ -3,11 +3,11 @@ package runner
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 
 	"k8s.io/utils/clock"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
-	log "github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling"
@@ -51,6 +51,9 @@ type AsyncSchedulingRunner struct {
 	// cancelRequested is set by Reset to tell the goroutine to discard the
 	// in-flight run's result rather than publish it.
 	cancelRequested bool
+	// cycleNumber is incremented every time a new run is started
+	// it's added as a field to logs to make it easy to see logs for a specific cycle
+	cycleNumber atomic.Int64
 	// runDone is closed by the goroutine when the in-flight run has returned
 	// Non-nil only while state == running.
 	runDone chan struct{}
@@ -188,7 +191,7 @@ func (r *AsyncSchedulingRunner) run(ctx *armadacontext.Context) {
 		}
 
 		txn := r.jobDb.DryRunTxn()
-		log.Info("async scheduling cycle started")
+		run.ctx.Info("async scheduling cycle started")
 		result, err := r.schedulingAlgo.Schedule(run.ctx, txn)
 
 		r.finishRun(result, err, run)
@@ -212,6 +215,8 @@ func (r *AsyncSchedulingRunner) trySetupRun(ctx *armadacontext.Context) *runDeta
 
 	r.state = Running
 	runCtx, cancel := armadacontext.WithCancel(ctx)
+	currentCycleNumber := r.cycleNumber.Add(1)
+	runCtx = armadacontext.WithLogField(runCtx, "schedulingCycleNumber", currentCycleNumber)
 	done := make(chan struct{})
 	r.cancelFn = cancel
 	r.runDone = done
@@ -249,16 +254,16 @@ func (r *AsyncSchedulingRunner) finishRun(result *scheduling.SchedulerResult, er
 	if r.cancelRequested {
 		r.cancelRequested = false
 		r.state = Idle
-		log.Info("async scheduling cycle cancelled")
+		run.ctx.Info("async scheduling cycle cancelled")
 	} else {
 		r.result = &scheduleResult{schedulerResult: result, err: err}
 		r.state = ResultReady
 		if err != nil {
-			log.Warnf("async scheduling cycle completed with err %s", err)
+			run.ctx.Warnf("async scheduling cycle completed with err %s", err)
 		} else if result != nil {
-			log.Infof("async scheduling cycle completed with success in %s", result.GetDuration())
+			run.ctx.Infof("async scheduling cycle completed with success in %s", result.GetDuration())
 		} else {
-			log.Info("async scheduling cycle completed with no result")
+			run.ctx.Info("async scheduling cycle completed with no result")
 		}
 	}
 
