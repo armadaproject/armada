@@ -29,26 +29,27 @@ const (
 
 // Up brings up dependencies and runs Armada components via goreman with the chosen profile.
 //
-// args is a comma-separated list of tokens:
+// profiles is a comma-separated list of tokens:
 //   - "auth"          – enables OIDC (Keycloak); sets goreman profile to "auth" and uses the auth compose profile
 //   - "fake-executor" – no Kubernetes needed; sets goreman profile to "fake-executor"
-//   - "debug"         – appends "-debug" to the procfile name
 //   - anything else   – forwarded as a docker-compose --profile flag for extra services
+//
+// debug may be "--debug" to append "-debug" to the procfile name, or omitted.
 //
 // Examples:
 //
-//	mage dev:up                        # no-auth
-//	mage dev:up auth                   # OIDC
-//	mage dev:up fake-executor,debug    # fake executor + debug procfile
-//	mage dev:up auth,myservice         # auth + extra compose profile "myservice"
-func (Dev) Up(args string) error {
+//	mage dev:up ""                        # no-auth
+//	mage dev:up auth                      # OIDC
+//	mage dev:up fake-executor -debug      # fake executor + debug procfile
+//	mage dev:up auth,myservice            # auth + extra compose profile "myservice"
+//	mage dev:up "" -debug                 # no-auth + debug procfile
+func (Dev) Up(profiles string, debug *bool) error {
 	var (
 		profile         = "no-auth"
-		debug           = false
 		composeProfiles []string
 	)
 
-	for _, token := range strings.Split(args, ",") {
+	for _, token := range strings.Split(profiles, ",") {
 		token = strings.TrimSpace(token)
 		if token == "" {
 			continue
@@ -60,15 +61,15 @@ func (Dev) Up(args string) error {
 			} else {
 				profile = token
 			}
-		case "debug":
-			debug = true
 		default:
 			composeProfiles = append(composeProfiles, token)
 		}
 	}
 
+	isDebug := debug != nil
+
 	debugSuffix := ""
-	if debug {
+	if isDebug {
 		debugSuffix = "-debug"
 	}
 	procfile := "_local/procfiles/" + profile + debugSuffix + ".Procfile"

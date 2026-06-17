@@ -11,7 +11,7 @@
     {
       "label": "Start dependencies",
       "type": "shell",
-      "command": "mage kind && mage dev:up debug",
+      "command": "mage kind && mage dev:up no-auth -debug",
       "isBackground": true,
       "problemMatcher": {
         "owner": "armada-deps",
@@ -26,7 +26,7 @@
     {
       "label": "Start dependencies with Fake Executor",
       "type": "shell",
-      "command": "mage dev:up debug,fake-executor",
+      "command": "mage dev:up fake-executor -debug",
       "isBackground": true,
       "problemMatcher": {
         "owner": "armada-deps",
@@ -41,7 +41,7 @@
     {
       "label": "Start dependencies with Prometheus",
       "type": "shell",
-      "command": "mage kind && mage dev:up debug,prometheus",
+      "command": "mage kind && mage dev:up prometheus -debug",
       "isBackground": true,
       "problemMatcher": {
         "owner": "armada-deps",
@@ -56,7 +56,7 @@
     {
       "label": "Start dependencies with Auth",
       "type": "shell",
-      "command": "mage kind && mage dev:up debug,auth",
+      "command": "mage kind && mage dev:up auth -debug",
       "isBackground": true,
       "problemMatcher": {
         "owner": "armada-deps",
@@ -71,7 +71,7 @@
     {
       "label": "Start dependencies with Fake Executor and Prometheus",
       "type": "shell",
-      "command": "mage dev:up debug,fake-executor,prometheus",
+      "command": "mage dev:up fake-executor,prometheus -debug",
       "isBackground": true,
       "problemMatcher": {
         "owner": "armada-deps",
@@ -86,7 +86,7 @@
     {
       "label": "Start dependencies with Auth and Prometheus",
       "type": "shell",
-      "command": "mage kind && mage dev:up debug,auth,prometheus",
+      "command": "mage kind && mage dev:up auth,prometheus -debug",
       "isBackground": true,
       "problemMatcher": {
         "owner": "armada-deps",
