@@ -215,8 +215,7 @@ func (r *AsyncSchedulingRunner) trySetupRun(ctx *armadacontext.Context) *runDeta
 	r.state = Running
 	runCtx, cancel := armadacontext.WithCancel(ctx)
 	r.cycleNumber++
-	currentCycleNumber := r.cycleNumber
-	runCtx = armadacontext.WithLogField(runCtx, "schedulingCycleNumber", currentCycleNumber)
+	runCtx = armadacontext.WithLogField(runCtx, "schedulingCycleNumber", r.cycleNumber)
 	done := make(chan struct{})
 	r.cancelFn = cancel
 	r.runDone = done
