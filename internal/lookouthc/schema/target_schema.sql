@@ -56,6 +56,9 @@ CREATE TABLE {{TABLE}}_terminated PARTITION OF {{TABLE}}
 ALTER TABLE {{TABLE}}_active ALTER COLUMN job_spec SET STORAGE EXTERNAL;
 ALTER TABLE {{TABLE}}_terminated ALTER COLUMN job_spec SET STORAGE EXTERNAL;
 
+ALTER TABLE {{TABLE}}_active ADD CONSTRAINT {{TABLE}}_active_job_id_unique UNIQUE (job_id);
+ALTER TABLE {{TABLE}}_terminated ADD CONSTRAINT {{TABLE}}_terminated_job_id_unique UNIQUE (job_id);
+
 CREATE INDEX idx_{{TABLE}}_queue_last_transition_time_seconds
     ON {{TABLE}} (queue, last_transition_time_seconds)
     WITH (fillfactor = 80);
