@@ -30,6 +30,19 @@ type ShortJobPenalty struct {
 	sums map[string]map[string]internaltypes.ResourceList
 }
 
+// ShortJobPenaltySnapshot is an immutable, point-in-time view of the
+// per-(pool,queue) penalties
+type ShortJobPenaltySnapshot struct {
+	sums map[string]map[string]internaltypes.ResourceList
+}
+
+func (s *ShortJobPenaltySnapshot) GetPenaltiesForPool(pool string) map[string]internaltypes.ResourceList {
+	if s == nil {
+		return nil
+	}
+	return s.sums[pool]
+}
+
 // entryHeap is a min-heap of penaltyEntry ordered by deadline.
 type entryHeap []*penaltyEntry
 

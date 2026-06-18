@@ -137,6 +137,8 @@ func (l *FairSchedulingAlgo) Schedule(
 		return nil, err
 	}
 
+	shortJobPenalty := l.shortJobPenalty.Snapshot()
+
 	reconciliationByPool, err := l.reconcilePools(ctx, txn, executors)
 	if err != nil {
 		return nil, err
@@ -153,7 +155,7 @@ func (l *FairSchedulingAlgo) Schedule(
 		if reconciliation.Err() != nil {
 			outcome = reconciliation.Outcome()
 		} else {
-			outcome, schedulingResult, err = l.runPoolSchedulingRound(ctx, pool, txn, executors)
+			outcome, schedulingResult, err = l.runPoolSchedulingRound(ctx, pool, txn, executors, shortJobPenalty)
 			if err != nil {
 				return nil, err
 			}
@@ -207,6 +209,7 @@ func (l *FairSchedulingAlgo) runPoolSchedulingRound(
 	pool configuration.PoolConfig,
 	txn *jobdb.Txn,
 	executors []*schedulerobjects.Executor,
+	shortJobPenalty *ShortJobPenaltySnapshot,
 ) (*PoolSchedulingOutcome, *SchedulingResult, error) {
 	select {
 	case <-ctx.Done():
@@ -217,7 +220,7 @@ func (l *FairSchedulingAlgo) runPoolSchedulingRound(
 	// It is important to pass the validated executors here
 	// This is because the validation ensures those nodes are inline with the jobs
 	// If we use a different copy of nodes (possibly more to date copy) it may no longer align with the jobs/runs
-	fsctx, err := l.newFairSchedulingAlgoContext(ctx, txn, executors, pool)
+	fsctx, err := l.newFairSchedulingAlgoContext(ctx, txn, executors, pool, shortJobPenalty)
 	if err != nil {
 		return NewPoolSchedulingOutcome(PoolSchedulingTerminationReasonSchedulingDisabled, errors.WithMessagef(err, "failed to create scheduling algo context")), nil, nil
 	}
@@ -410,7 +413,7 @@ func markAsFailedReconciliation(clock clock.Clock, job *jobdb.Job) *jobdb.Job {
 	return job
 }
 
-func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Context, txn *jobdb.Txn, executors []*schedulerobjects.Executor, currentPool configuration.PoolConfig) (*FairSchedulingAlgoContext, error) {
+func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Context, txn *jobdb.Txn, executors []*schedulerobjects.Executor, currentPool configuration.PoolConfig, shortJobPenalty *ShortJobPenaltySnapshot) (*FairSchedulingAlgoContext, error) {
 	queues, err := l.queueCache.GetAll(ctx)
 	if err != nil {
 		return nil, err
@@ -451,7 +454,8 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 		allJobs,
 		currentPool.Name,
 		awayAllocationPools,
-		allPools)
+		allPools,
+		shortJobPenalty)
 	if err != nil {
 		return nil, err
 	}
@@ -576,6 +580,7 @@ type jobSchedulingInfo struct {
 
 func (l *FairSchedulingAlgo) calculateJobSchedulingInfo(ctx *armadacontext.Context, activeExecutorsSet map[string]bool,
 	queues map[string]*api.Queue, jobs []*jobdb.Job, currentPool string, awayAllocationPools []string, allPools []string,
+	shortJobPenalty *ShortJobPenaltySnapshot,
 ) (*jobSchedulingInfo, error) {
 	jobsByExecutorId := make(map[string][]*jobdb.Job)
 	jobsByPool := make(map[string][]*jobdb.Job)
@@ -667,7 +672,7 @@ func (l *FairSchedulingAlgo) calculateJobSchedulingInfo(ctx *armadacontext.Conte
 		jobsByExecutorId[executorId] = append(jobsByExecutorId[executorId], job)
 	}
 
-	shortJobPenaltyByQueue := l.shortJobPenalty.GetPenaltiesForPool(currentPool)
+	shortJobPenaltyByQueue := shortJobPenalty.GetPenaltiesForPool(currentPool)
 	return &jobSchedulingInfo{
 		jobsByExecutorId:                     jobsByExecutorId,
 		jobsByPool:                           jobsByPool,

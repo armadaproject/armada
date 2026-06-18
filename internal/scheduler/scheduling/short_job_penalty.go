@@ -88,21 +88,23 @@ func (sjp *ShortJobPenalty) ReportFinishedJob(job *jobdb.Job) {
 	sjp.addToSums(pool, queue, resources)
 }
 
-func (sjp *ShortJobPenalty) GetPenaltiesForPool(pool string) map[string]internaltypes.ResourceList {
+// Snapshot expires entries up to the current now and returns an immutable,
+// deep-copied view of the per-(pool,queue) penalties.
+func (sjp *ShortJobPenalty) Snapshot() *ShortJobPenaltySnapshot {
 	if sjp == nil {
-		return nil
+		return &ShortJobPenaltySnapshot{}
 	}
 	sjp.mu.Lock()
 	defer sjp.mu.Unlock()
 	sjp.expireUpTo(sjp.now)
 
-	poolSums := sjp.sums[pool]
-	if len(poolSums) == 0 {
-		return nil
+	sums := make(map[string]map[string]internaltypes.ResourceList, len(sjp.sums))
+	for pool, queueSums := range sjp.sums {
+		inner := make(map[string]internaltypes.ResourceList, len(queueSums))
+		maps.Copy(inner, queueSums)
+		sums[pool] = inner
 	}
-	out := make(map[string]internaltypes.ResourceList, len(poolSums))
-	maps.Copy(out, poolSums)
-	return out
+	return &ShortJobPenaltySnapshot{sums: sums}
 }
 
 // expireUpTo pops every entry whose deadline is at or before now,

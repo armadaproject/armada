@@ -4112,7 +4112,7 @@ func TestScheduler_ReportsShortJobPenaltyAtTerminalisationSites(t *testing.T) {
 	}
 
 	assertPenalised := func(t *testing.T, penalty *scheduling.ShortJobPenalty, job *jobdb.Job) {
-		penalties := penalty.GetPenaltiesForPool(testfixtures.TestPool)
+		penalties := penalty.Snapshot().GetPenaltiesForPool(testfixtures.TestPool)
 		require.True(t, penalties[testfixtures.TestQueue].Equal(job.AllResourceRequirements()),
 			"expected penalty for queue %s to equal the job's resources", testfixtures.TestQueue)
 	}

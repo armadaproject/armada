@@ -25,7 +25,7 @@ func TestNilSjpIsSafeToCall(t *testing.T) {
 		nilSjp.SetNow(time.Now())
 		nilSjp.ReportFinishedJob(job)
 	})
-	assert.Nil(t, nilSjp.GetPenaltiesForPool(testfixtures.TestPool))
+	assert.Nil(t, nilSjp.Snapshot().GetPenaltiesForPool(testfixtures.TestPool))
 }
 
 func TestTimeNotSetReturnsFalse(t *testing.T) {
@@ -160,7 +160,7 @@ func TestAccumulatesPerQueue(t *testing.T) {
 	sut.ReportFinishedJob(jobB)
 	sut.ReportFinishedJob(jobC)
 
-	penalties := sut.GetPenaltiesForPool(testfixtures.TestPool)
+	penalties := sut.Snapshot().GetPenaltiesForPool(testfixtures.TestPool)
 	expectedTwoJobs := jobA.AllResourceRequirements().Add(jobB.AllResourceRequirements())
 	assert.True(t, penalties["q1"].Equal(expectedTwoJobs))
 	assert.True(t, penalties["q2"].Equal(jobC.AllResourceRequirements()))
@@ -174,7 +174,7 @@ func TestNonQualifyingJobIsNotCharged(t *testing.T) {
 	longJob := longTestJob(now).WithSucceeded(true)
 	sut.ReportFinishedJob(longJob)
 
-	penalties := sut.GetPenaltiesForPool(testfixtures.TestPool)
+	penalties := sut.Snapshot().GetPenaltiesForPool(testfixtures.TestPool)
 	assert.Empty(t, penalties)
 }
 
@@ -187,7 +187,7 @@ func TestDedupSameJobReportedTwice(t *testing.T) {
 	sut.ReportFinishedJob(job)
 	sut.ReportFinishedJob(job)
 
-	penalties := sut.GetPenaltiesForPool(testfixtures.TestPool)
+	penalties := sut.Snapshot().GetPenaltiesForPool(testfixtures.TestPool)
 	assert.True(t, penalties["q1"].Equal(job.AllResourceRequirements()))
 }
 
@@ -199,11 +199,11 @@ func TestEntryExpiresExactlyAtDeadline(t *testing.T) {
 	reportNow := start.Add(30 * time.Second)
 	sut.SetNow(reportNow)
 	sut.ReportFinishedJob(job)
-	assert.True(t, sut.GetPenaltiesForPool(testfixtures.TestPool)["q1"].Equal(job.AllResourceRequirements()))
+	assert.True(t, sut.Snapshot().GetPenaltiesForPool(testfixtures.TestPool)["q1"].Equal(job.AllResourceRequirements()))
 
 	atDeadline := start.Add(time.Minute)
 	sut.SetNow(atDeadline)
-	assert.Empty(t, sut.GetPenaltiesForPool(testfixtures.TestPool))
+	assert.Empty(t, sut.Snapshot().GetPenaltiesForPool(testfixtures.TestPool))
 }
 
 func TestPartialExpiryLeavesRemainder(t *testing.T) {
@@ -217,7 +217,7 @@ func TestPartialExpiryLeavesRemainder(t *testing.T) {
 	sut.ReportFinishedJob(late)
 
 	sut.SetNow(start.Add(20 * time.Second))
-	penalties := sut.GetPenaltiesForPool(testfixtures.TestPool)
+	penalties := sut.Snapshot().GetPenaltiesForPool(testfixtures.TestPool)
 	assert.True(t, penalties["q1"].Equal(late.AllResourceRequirements()))
 }
 
@@ -229,9 +229,9 @@ func TestPostExpiryReReportNeverReQualifies(t *testing.T) {
 	sut.SetNow(start.Add(10 * time.Second))
 	sut.ReportFinishedJob(job)
 	sut.SetNow(start.Add(2 * time.Minute))
-	assert.Empty(t, sut.GetPenaltiesForPool(testfixtures.TestPool))
+	assert.Empty(t, sut.Snapshot().GetPenaltiesForPool(testfixtures.TestPool))
 	sut.ReportFinishedJob(job)
-	assert.Empty(t, sut.GetPenaltiesForPool(testfixtures.TestPool))
+	assert.Empty(t, sut.Snapshot().GetPenaltiesForPool(testfixtures.TestPool))
 }
 
 func TestPerPoolCutoffAndPoolIsolation(t *testing.T) {
@@ -250,19 +250,19 @@ func TestPerPoolCutoffAndPoolIsolation(t *testing.T) {
 	sut.ReportFinishedJob(jobB)
 	sut.ReportFinishedJob(jobC)
 
-	assert.Empty(t, sut.GetPenaltiesForPool("poolA"))
-	assert.True(t, sut.GetPenaltiesForPool("poolB")["q1"].Equal(jobB.AllResourceRequirements()))
-	assert.Empty(t, sut.GetPenaltiesForPool("poolC"))
+	assert.Empty(t, sut.Snapshot().GetPenaltiesForPool("poolA"))
+	assert.True(t, sut.Snapshot().GetPenaltiesForPool("poolB")["q1"].Equal(jobB.AllResourceRequirements()))
+	assert.Empty(t, sut.Snapshot().GetPenaltiesForPool("poolC"))
 }
 
 func TestGetPenaltiesForUnknownPoolIsEmpty(t *testing.T) {
 	now := time.Now()
 	sut := makeSut()
 	sut.SetNow(now)
-	assert.Empty(t, sut.GetPenaltiesForPool("does-not-exist"))
+	assert.Empty(t, sut.Snapshot().GetPenaltiesForPool("does-not-exist"))
 }
 
-func TestShortJobPenalty_ConcurrentReportsAreCorrectAndRaceFree(t *testing.T) {
+func TestShortJobPenalty_ConcurrentReportsAreCorrect(t *testing.T) {
 	now := time.Now()
 	sut := makeSut()
 	sut.SetNow(now)
@@ -293,7 +293,7 @@ func TestShortJobPenalty_ConcurrentReportsAreCorrectAndRaceFree(t *testing.T) {
 			case <-done:
 				return
 			default:
-				sut.GetPenaltiesForPool(testfixtures.TestPool)
+				sut.Snapshot().GetPenaltiesForPool(testfixtures.TestPool)
 			}
 		}
 	}()
@@ -312,7 +312,7 @@ func TestShortJobPenalty_ConcurrentReportsAreCorrectAndRaceFree(t *testing.T) {
 	close(done)
 	readers.Wait()
 
-	penalties := sut.GetPenaltiesForPool(testfixtures.TestPool)
+	penalties := sut.Snapshot().GetPenaltiesForPool(testfixtures.TestPool)
 	assert.True(t, penalties["q1"].Equal(expected))
 }
 
