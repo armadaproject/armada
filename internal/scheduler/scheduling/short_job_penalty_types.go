@@ -8,30 +8,27 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 )
 
-// penaltyEntry is one reported terminal short job
 type penaltyEntry struct {
-	jobId     string
+	jobID     string
 	pool      string
 	queue     string
 	resources internaltypes.ResourceList
-	// deadline is runStart + cutoff[pool], fixed at insert time
+	// deadline is runStart + cutoffDurationByPool[pool], fixed at insert time
 	deadline time.Time
 }
 
 // ShortJobPenalty owns job penalty state keyed by (pool, queue).
 type ShortJobPenalty struct {
-	mu      sync.Mutex
-	cutoffs map[string]time.Duration
-	now     time.Time
+	mu                   sync.Mutex
+	cutoffDurationByPool map[string]time.Duration
+	now                  time.Time
 
-	byId   map[string]*penaltyEntry
-	expiry *entryHeap
+	penaltyByJobID map[string]*penaltyEntry
+	expiry         *entryHeap
 	// Derived cache of the per-(pool,queue) running total
 	sums map[string]map[string]internaltypes.ResourceList
 }
 
-// ShortJobPenaltySnapshot is an immutable, point-in-time view of the
-// per-(pool,queue) penalties
 type ShortJobPenaltySnapshot struct {
 	sums map[string]map[string]internaltypes.ResourceList
 }

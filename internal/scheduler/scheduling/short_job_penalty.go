@@ -9,12 +9,12 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 )
 
-func NewShortJobPenalty(cutoffs map[string]time.Duration) *ShortJobPenalty {
+func NewShortJobPenalty(cutoffDurationByPool map[string]time.Duration) *ShortJobPenalty {
 	return &ShortJobPenalty{
-		cutoffs: cutoffs,
-		byId:    map[string]*penaltyEntry{},
-		expiry:  &entryHeap{},
-		sums:    map[string]map[string]internaltypes.ResourceList{},
+		cutoffDurationByPool: cutoffDurationByPool,
+		penaltyByJobID:       map[string]*penaltyEntry{},
+		expiry:               &entryHeap{},
+		sums:                 map[string]map[string]internaltypes.ResourceList{},
 	}
 }
 
@@ -50,11 +50,11 @@ func (sjp *ShortJobPenalty) shouldApplyPenalty(job *jobdb.Job) bool {
 		return false
 	}
 
-	return sjp.now.Sub(*jobStart) < sjp.cutoffs[jobRun.Pool()]
+	return sjp.now.Sub(*jobStart) < sjp.cutoffDurationByPool[jobRun.Pool()]
 }
 
-// ReportFinishedJob applies a terminal short job's resources to its (pool, queue),
-// once. Non-terminal and duplicate jobs are ignored.
+// ReportFinishedJob applies a terminal short job's resources to its (pool, queue) sums once.
+// Non-terminal and duplicate jobs are ignored.
 func (sjp *ShortJobPenalty) ReportFinishedJob(job *jobdb.Job) {
 	if sjp == nil {
 		return
@@ -63,7 +63,7 @@ func (sjp *ShortJobPenalty) ReportFinishedJob(job *jobdb.Job) {
 	defer sjp.mu.Unlock()
 	sjp.expireUpTo(sjp.now)
 
-	if _, alreadyCounted := sjp.byId[job.Id()]; alreadyCounted {
+	if _, alreadyCounted := sjp.penaltyByJobID[job.Id()]; alreadyCounted {
 		return
 	}
 	if !sjp.shouldApplyPenalty(job) {
@@ -74,22 +74,22 @@ func (sjp *ShortJobPenalty) ReportFinishedJob(job *jobdb.Job) {
 	pool := run.Pool()
 	queue := job.Queue()
 	resources := job.AllResourceRequirements()
-	deadline := run.RunningTime().Add(sjp.cutoffs[pool])
+	deadline := run.RunningTime().Add(sjp.cutoffDurationByPool[pool])
 
 	e := &penaltyEntry{
-		jobId:     job.Id(),
+		jobID:     job.Id(),
 		pool:      pool,
 		queue:     queue,
 		resources: resources,
 		deadline:  deadline,
 	}
-	sjp.byId[job.Id()] = e
+	sjp.penaltyByJobID[job.Id()] = e
 	heap.Push(sjp.expiry, e)
 	sjp.addToSums(pool, queue, resources)
 }
 
 // Snapshot expires entries up to the current now and returns an immutable,
-// deep-copied view of the per-(pool,queue) penalties.
+// deep-copied view of the per-(pool,queue) penalty sums.
 func (sjp *ShortJobPenalty) Snapshot() *ShortJobPenaltySnapshot {
 	if sjp == nil {
 		return &ShortJobPenaltySnapshot{}
@@ -113,7 +113,7 @@ func (sjp *ShortJobPenalty) expireUpTo(now time.Time) {
 	for sjp.expiry.Len() > 0 && !sjp.expiry.peek().deadline.After(now) {
 		e := heap.Pop(sjp.expiry).(*penaltyEntry)
 		sjp.subtractFromSums(e.pool, e.queue, e.resources)
-		delete(sjp.byId, e.jobId)
+		delete(sjp.penaltyByJobID, e.jobID)
 	}
 }
 
