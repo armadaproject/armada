@@ -34,7 +34,7 @@ const (
 //   - "fake-executor" – no Kubernetes needed; sets goreman profile to "fake-executor"
 //   - anything else   – forwarded as a docker-compose --profile flag for extra services
 //
-// debug may be "--debug" to append "-debug" to the procfile name, or omitted.
+// dap may be "-dap" to append "-dap" to the procfile name, or omitted.
 //
 // Examples:
 //
@@ -42,8 +42,8 @@ const (
 //	mage dev:up auth                      # OIDC
 //	mage dev:up fake-executor -debug      # fake executor + debug procfile
 //	mage dev:up auth,myservice            # auth + extra compose profile "myservice"
-//	mage dev:up "" -debug                 # no-auth + debug procfile
-func (Dev) Up(profiles string, debug *bool) error {
+//	mage dev:up "" -dap                 # no-auth + dap procfile
+func (Dev) Up(profiles string, dap *bool) error {
 	var (
 		profile         = "no-auth"
 		composeProfiles []string
@@ -66,11 +66,11 @@ func (Dev) Up(profiles string, debug *bool) error {
 		}
 	}
 
-	isDebug := debug != nil
+	isDAP := dap != nil
 
 	debugSuffix := ""
-	if isDebug {
-		debugSuffix = "-debug"
+	if isDAP {
+		debugSuffix = "-dap"
 	}
 	procfile := "_local/procfiles/" + profile + debugSuffix + ".Procfile"
 	if _, err := os.Stat(procfile); err != nil {
