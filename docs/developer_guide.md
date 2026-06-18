@@ -34,15 +34,6 @@ To get the UI running, run:
 mage ui
 ```
 
-## Dealing with Arm and Windows problems
-
-There is limited information on problems that appear on Arm/Windows Machines when running this setup.
-
-If you encounter any problems, you can create a ticket and link it to the relevant issue, for example:
-
-- [Arm issue](https://github.com/armadaproject/armada/issues/2493)
-- [Windows issue](https://github.com/armadaproject/armada/issues/2492)
-
 ## Armada design docs
 
 For more information about Armada's design, see the following pages:
