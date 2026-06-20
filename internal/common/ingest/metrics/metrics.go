@@ -94,7 +94,7 @@ func NewMetricsWithRegistry(prefix string, registerer prometheus.Registerer) *Me
 		pulsarMessageProcessingDelay:       factory.NewGaugeVec(pulsarMessageProcessingDelayOpts, []string{"subscription", "partition"}),
 		pulsarMessagePublishTime:           factory.NewGaugeVec(pulsarMessagePublishTime, []string{"subscription", "partition"}),
 		pulsarMessagesProcessed:            factory.NewCounter(pulsarMessagesProcessedOpts),
-		eventsProcessed:                    factory.NewCounterVec(eventsProcessedOpts, []string{"queue", "eventType", "msgType"}),
+		eventsProcessed:                    factory.NewCounterVec(eventsProcessedOpts, []string{"queue", "eventType", "event_type", "msgType", "msg_type"}),
 		uncompressedEventBytesTotal:        factory.NewCounterVec(uncompressedEventBytesTotalOpts, []string{"queue", "event_type"}),
 		estimatedCompressedEventBytesTotal: factory.NewCounterVec(estimatedCompressedEventBytesTotalOpts, []string{"queue", "event_type"}),
 	}
@@ -127,11 +127,11 @@ func (m *Metrics) RecordPulsarProcessingDelay(subscriptionName string, partition
 }
 
 func (m *Metrics) RecordEventSequenceProcessed(queue string, msgType string) {
-	m.eventsProcessed.With(map[string]string{"queue": queue, "eventType": JobSetEventsLabel, "msgType": msgType}).Inc()
+	m.eventsProcessed.With(map[string]string{"queue": queue, "eventType": JobSetEventsLabel, "event_type": JobSetEventsLabel, "msgType": msgType, "msg_type": msgType}).Inc()
 }
 
 func (m *Metrics) RecordControlPlaneEventProcessed(msgType string) {
-	m.eventsProcessed.With(map[string]string{"queue": "N/A", "eventType": ControlPlaneEventsLabel, "msgType": msgType}).Inc()
+	m.eventsProcessed.With(map[string]string{"queue": "N/A", "eventType": ControlPlaneEventsLabel, "event_type": ControlPlaneEventsLabel, "msgType": msgType, "msg_type": msgType}).Inc()
 }
 
 func (m *Metrics) RecordEventUncompressedBytes(queue, eventType string, n int) {

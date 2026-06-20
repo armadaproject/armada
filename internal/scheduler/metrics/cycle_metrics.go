@@ -31,9 +31,12 @@ var (
 	poolAndShapeAndReasonLabels            = []string{poolLabel, jobShapeLabel, unschedulableReasonLabel}
 	poolQueueAndResourceLabels             = []string{poolLabel, queueLabel, resourceLabel}
 	poolAndOutcomeLabels                   = []string{poolLabel, outcomeLabel, terminationReasonLabel}
-	nodeLabels                             = []string{poolLabel, nodeLabel, clusterLabel, nodeTypeLabel, resourceLabel, reservationLabel, schedulableLabel, overAllocatedLabel, physicalPoolLabel, capacityClassLabel, scalableUnitLabel}
-	defaultType                            = "unknown"
-	reconcilerFailureType                  = "reconciler"
+	nodeLabels                             = []string{
+		poolLabel, nodeLabel, clusterLabel, nodeTypeLabel, nodeTypeLabelSnake, resourceLabel, reservationLabel,
+		schedulableLabel, overAllocatedLabel, overAllocatedLabelSnake, physicalPoolLabel, capacityClassLabel, scalableUnitLabel,
+	}
+	defaultType           = "unknown"
+	reconcilerFailureType = "reconciler"
 )
 
 type perCycleMetrics struct {
@@ -262,7 +265,7 @@ func newPerCycleMetrics() *perCycleMetrics {
 			Name: ArmadaSchedulerMetricsPrefix + "node_preemptibility",
 			Help: "is it possible to clear this node by preempting any jobs on it?",
 		},
-		[]string{poolLabel, nodeLabel, clusterLabel, nodeTypeLabel, "isPreemptible", "reason"},
+		[]string{poolLabel, nodeLabel, clusterLabel, nodeTypeLabel, nodeTypeLabelSnake, "isPreemptible", "is_preemptible", "reason"},
 	)
 
 	protectedFractionOfFairShare := prometheus.NewGaugeVec(
@@ -641,6 +644,8 @@ func (m *cycleMetrics) ReportSchedulerResult(ctx *armadacontext.Context, result 
 							nodePreemptiblityStats.NodeName,
 							nodePreemptiblityStats.Cluster,
 							nodePreemptiblityStats.NodeType,
+							nodePreemptiblityStats.NodeType,
+							fmt.Sprintf("%t", nodePreemptiblityStats.Preemptible),
 							fmt.Sprintf("%t", nodePreemptiblityStats.Preemptible),
 							nodePreemptiblityStats.Reason).Set(1.0)
 					}
@@ -663,15 +668,15 @@ func (m *cycleMetrics) ReportSchedulerResult(ctx *armadacontext.Context, result 
 							scalableUnit = node.GetLabels()[m.scalableUnitLabelKey]
 						}
 						for _, resource := range node.GetAllocatableResources().GetAll() {
-							currentCycle.nodeAllocatableResource.WithLabelValues(pool, node.GetName(), node.GetExecutor(), node.GetReportingNodeType(), resource.Name, node.GetReservation(),
-								isSchedulable, isOverallocated, node.GetPool(), nodeCapacityClass, scalableUnit).Set(resource.Value.AsApproximateFloat64())
+							currentCycle.nodeAllocatableResource.WithLabelValues(pool, node.GetName(), node.GetExecutor(), node.GetReportingNodeType(), node.GetReportingNodeType(), resource.Name, node.GetReservation(),
+								isSchedulable, isOverallocated, isOverallocated, node.GetPool(), nodeCapacityClass, scalableUnit).Set(resource.Value.AsApproximateFloat64())
 						}
 
 						allocated := node.GetAllocatableResources().Subtract(node.AllocatableByPriority[internaltypes.EvictedPriority])
 						for _, resource := range allocated.GetAll() {
 							allocatableValue := math.Max(resource.Value.AsApproximateFloat64(), 0)
-							currentCycle.nodeAllocatedResource.WithLabelValues(pool, node.GetName(), node.GetExecutor(), node.GetReportingNodeType(), resource.Name, node.GetReservation(),
-								isSchedulable, isOverallocated, node.GetPool(), nodeCapacityClass, scalableUnit).Set(allocatableValue)
+							currentCycle.nodeAllocatedResource.WithLabelValues(pool, node.GetName(), node.GetExecutor(), node.GetReportingNodeType(), node.GetReportingNodeType(), resource.Name, node.GetReservation(),
+								isSchedulable, isOverallocated, isOverallocated, node.GetPool(), nodeCapacityClass, scalableUnit).Set(allocatableValue)
 						}
 					}
 				}
