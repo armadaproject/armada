@@ -205,55 +205,6 @@ func BuildDockers(arg string) error {
 	return nil
 }
 
-// Create a Local Armada Cluster.
-func LocalDev(arg string) error {
-	timeTaken := time.Now()
-	mg.Deps(BootstrapTools)
-	fmt.Println("Time to bootstrap tools:", time.Since(timeTaken))
-
-	switch arg {
-	case "minimal":
-		mg.Deps(mg.F(goreleaserMinimalRelease, "bundle", "lookout-bundle"), Kind, downloadDependencyImages)
-	case "full":
-		mg.Deps(BuildPython, BuildScala, BuildJava, mg.F(BuildDockers, "bundle, lookout-bundle"), Kind, downloadDependencyImages)
-	case "no-build", "debug":
-		mg.Deps(Kind, downloadDependencyImages)
-	default:
-		return fmt.Errorf("invalid localdev mode: %s; valid modes are: minimal, full, no-build, debug", arg)
-	}
-
-	mg.Deps(StartDependencies)
-	fmt.Println("Waiting for dependencies to start...")
-	mg.Deps(CheckPulsarRunning)
-	mg.Deps(CheckPostgresRunning)
-
-	switch arg {
-	case "minimal":
-		os.Setenv("ARMADA_COMPONENTS", "executor,server,scheduler")
-		mg.Deps(StartComponents)
-		// This is a naive check to confirm the containers are running, it doesn't check they are ready
-		// TODO Make a good check to confirm the system is ready, such as seeing armadactl get executors return a value
-		mg.Deps(CheckServerRunning)
-		mg.Deps(CheckSchedulerRunning)
-		mg.Deps(CheckExecutorRunning)
-	case "debug", "no-build":
-		fmt.Println("Dependencies started, ending localdev...")
-		return nil
-	default:
-		mg.Deps(StartComponents)
-	}
-
-	fmt.Println("Run: `docker compose logs -f` to see logs")
-	return nil
-}
-
-// Stop Local Armada Cluster
-func LocalDevStop() {
-	mg.Deps(StopComponents)
-	mg.Deps(StopDependencies)
-	mg.Deps(KindTeardown)
-}
-
 // Build the lookout UI from internal/lookoutui
 func UI() error {
 	timeTaken := time.Now()

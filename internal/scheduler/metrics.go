@@ -274,6 +274,9 @@ func (c *MetricsCollector) updateQueueMetrics(ctx *armadacontext.Context) ([]pro
 	})
 
 	queueMetrics := commonmetrics.CollectQueueMetrics(c.pools, queuedJobsCount, bidPrices, queuedDistinctSchedulingKeysCount, provider)
+	if !bidPrices.Timestamp.IsZero() {
+		queueMetrics = append(queueMetrics, commonmetrics.NewBidPriceCacheLastRefreshMetric(bidPrices.Timestamp))
+	}
 	return queueMetrics, nil
 }
 

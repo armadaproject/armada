@@ -26,6 +26,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/scheduling/context"
+	"github.com/armadaproject/armada/internal/scheduler/scheduling/runner"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/bidstore"
 )
@@ -43,9 +44,8 @@ type Scheduler struct {
 	jobRepository database.JobRepository
 	// Used to determine whether a cluster is active.
 	executorRepository database.ExecutorRepository
-	// Responsible for assigning jobs to nodes.
-	// TODO: Confusing name. Change.
-	schedulingAlgo scheduling.SchedulingAlgo
+	// Is used to schedule new jobs
+	runner runner.SchedulingRunner
 	// Tells us if we are leader. Only the leader may schedule jobs.
 	leaderController leaderelection.LeaderController
 	// This is used to check if jobs are still schedulable.
@@ -98,7 +98,7 @@ func NewScheduler(
 	jobDb *jobdb.JobDb,
 	jobRepository database.JobRepository,
 	executorRepository database.ExecutorRepository,
-	schedulingAlgo scheduling.SchedulingAlgo,
+	runner runner.SchedulingRunner,
 	leaderController leaderelection.LeaderController,
 	publisher Publisher,
 	submitChecker SubmitScheduleChecker,
@@ -117,7 +117,7 @@ func NewScheduler(
 	return &Scheduler{
 		jobRepository:      jobRepository,
 		executorRepository: executorRepository,
-		schedulingAlgo:     schedulingAlgo,
+		runner:             runner,
 		leaderController:   leaderController,
 		publisher:          publisher,
 		submitChecker:      submitChecker,
@@ -193,6 +193,7 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 					} else {
 						fullUpdate = true
 					}
+					s.runner.Reset()
 					cancel()
 				}
 
@@ -208,13 +209,19 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 					ctx.Info("Won't schedule this cycle as still within schedulePeriod")
 				}
 
-				err := s.cycle(ctx, fullUpdate, leaderToken, shouldSchedule, cycleNumber)
+				schedulingAttempted, err := s.cycle(ctx, fullUpdate, leaderToken, shouldSchedule, cycleNumber)
 				if shouldSchedule {
 					previousSchedulingRoundEnd = s.clock.Now()
 				}
 
 				cycleTime := s.clock.Since(start)
-				if shouldSchedule && leaderToken.Leader() {
+
+				isSchedulingCycle := shouldSchedule && leaderToken.Leader()
+				if s.runner.IsAsync() {
+					isSchedulingCycle = leaderToken.Leader() && schedulingAttempted
+				}
+
+				if isSchedulingCycle {
 					// Only the leader does real scheduling rounds.
 					s.metrics.ReportScheduleCycleTime(cycleTime)
 					s.metrics.ReportScheduleCycleOutcome(err == nil)
@@ -227,6 +234,14 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 				if err != nil {
 					ctx.Logger().WithStacktrace(err).Error("cycle failure")
 					leaderToken = leaderelection.InvalidLeaderToken()
+				}
+
+				// Kick off the next async run only after a clean cycle as leader,
+				// so the background run schedules against committed state. On error
+				// leaderToken was invalidated above, so a failed cycle won't trigger
+				// a run that would be discarded. In sync mode Trigger is a no-op.
+				if shouldSchedule && err == nil && leaderToken.Leader() {
+					s.runner.Trigger()
 				}
 
 				prevLeaderToken = leaderToken
@@ -263,7 +278,7 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 //     This means we can start the next cycle immediately after one cycle finishes.
 //     As state transitions are persisted and read back from the schedulerDb over later cycles,
 //     there is no change to the jobDb, since the correct changes have already been made.
-func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToken leaderelection.LeaderToken, shouldSchedule bool, cycleNumber int) error {
+func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToken leaderelection.LeaderToken, shouldSchedule bool, cycleNumber int) (bool, error) {
 	ctx.Logger().Infof("starting cycle")
 	defer func(ctx *armadacontext.Context) {
 		ctx.Logger().Infof("finished cycle")
@@ -272,7 +287,7 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	ctx.Info("Syncing internal state with database")
 	updatedJobs, jsts, newJobsSerial, newRunsSerial, err := s.syncState(ctx, false, cycleNumber%10 == 0)
 	if err != nil {
-		return err
+		return false, err
 	}
 	ctx.Info("Finished syncing state")
 
@@ -286,7 +301,7 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 		// cursors so that the next cycle does not re-fetch the same window of DB rows.
 		s.jobsSerial = newJobsSerial
 		s.runsSerial = newRunsSerial
-		return nil
+		return false, nil
 	} else {
 		s.metrics.EnableLeaderMetrics()
 	}
@@ -315,7 +330,7 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	ctx.Info("Fetching job run errors")
 	jobRepoRunErrorsByRunId, err := s.jobRepository.FetchJobRunErrors(ctx, failedRunIds)
 	if err != nil {
-		return err
+		return false, err
 	}
 	ctx.Infof("Fetched %d job run errors", len(jobRepoRunErrorsByRunId))
 
@@ -328,14 +343,14 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	ctx.Info("Generating update messages based on reconciliation changes")
 	events, err := s.generateUpdateMessages(ctx, txn, updatedJobs, jobRepoRunErrorsByRunId)
 	if err != nil {
-		return err
+		return false, err
 	}
 	ctx.Infof("Finished generating updates messages, generating %d events", len(events))
 
 	// Validate that any new jobs can be scheduled
 	validationEvents, err := s.submitCheck(ctx, txn)
 	if err != nil {
-		return err
+		return false, err
 	}
 	events = append(events, validationEvents...)
 
@@ -343,34 +358,35 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	ctx.Info("Looking for jobs to expire")
 	expirationEvents, err := s.expireJobsIfNecessary(ctx, txn)
 	if err != nil {
-		return err
+		return false, err
 	}
 	ctx.Infof("Finished looking for jobs to expire, generating %d events", len(expirationEvents))
 	events = append(events, expirationEvents...)
 
-	schedulerResult := scheduling.SchedulerResult{}
+	var schedulerResult *scheduling.SchedulerResult
 	// Schedule jobs.
 	if shouldSchedule {
 		start := time.Now()
-		resourceUnits, err := s.updateJobPrices(ctx, txn)
+		err = s.updateJobPrices(ctx, txn)
 		if err != nil {
-			return err
+			return false, err
 		}
 		ctx.Logger().Infof("updating job prices in %s", time.Now().Sub(start))
 
 		var result *scheduling.SchedulerResult
-		result, err = s.schedulingAlgo.Schedule(ctx, resourceUnits, txn)
+		result, err = s.runner.GetSchedulerResult(ctx, txn)
 		if err != nil {
-			return err
+			return true, err
 		}
-
-		var resultEvents []*armadaevents.EventSequence
-		resultEvents, err = s.eventsFromSchedulerResult(result)
-		if err != nil {
-			return err
+		if result != nil {
+			var resultEvents []*armadaevents.EventSequence
+			resultEvents, err = s.eventsFromSchedulerResult(result)
+			if err != nil {
+				return true, err
+			}
+			events = append(events, resultEvents...)
+			schedulerResult = result
 		}
-		events = append(events, resultEvents...)
-		schedulerResult = *result
 	}
 
 	// Publish to Pulsar.
@@ -380,7 +396,7 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	start := s.clock.Now()
 	ctx.Infof("Starting to publish %d eventSequences to pulsar", len(events))
 	if err = s.publisher.PublishMessages(ctx, events, isLeader); err != nil {
-		return err
+		return schedulerResult != nil, err
 	}
 	ctx.Infof("Published %d eventSequences to pulsar in %s", len(events), s.clock.Since(start))
 
@@ -395,17 +411,16 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	if s.enableAssertions {
 		ctx.Infof("Performing assertions on current state")
 		if err := txn.Assert(false); err != nil {
-			return err
+			return schedulerResult != nil, err
 		}
 	}
 	ctx.Info("Committing cycle transaction")
 	txn.Commit()
 	ctx.Info("Completed committing cycle transaction")
 
-	if s.metrics.LeaderMetricsEnabled() {
-		if shouldSchedule {
-			s.metrics.ReportSchedulerResult(ctx, schedulerResult)
-		}
+	if s.metrics.LeaderMetricsEnabled() && schedulerResult != nil {
+		s.metrics.ReportSchedulerResult(ctx, *schedulerResult)
+
 		for _, jctx := range schedulerResult.GetAllScheduledJobs() {
 			s.metrics.ReportJobLeased(jctx.Job)
 		}
@@ -417,7 +432,7 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 		}
 	}
 
-	return nil
+	return schedulerResult != nil, nil
 }
 
 // syncState updates jobs in jobDb to match state in postgres and returns all updated jobs along with
@@ -521,16 +536,16 @@ func (s *Scheduler) syncState(ctx *armadacontext.Context, initial, fullJobGc boo
 
 // TODO - This is highly inefficient and will only work if market driven pools are small
 // We should rewrite how bids are stored in an efficient manner
-func (s *Scheduler) updateJobPrices(ctx *armadacontext.Context, txn *jobdb.Txn) (map[string]internaltypes.ResourceList, error) {
+func (s *Scheduler) updateJobPrices(ctx *armadacontext.Context, txn *jobdb.Txn) error {
 	if len(s.marketDrivenPools) == 0 {
-		return nil, nil
+		return nil
 	}
 
 	jobs := txn.GetAll()
 	jobsByQueue := map[string]map[bidstore.PriceBand][]*jobdb.Job{}
 	updatedBids, err := s.bidPriceProvider.GetBidPrices(ctx)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	hasMarketDrivenPool := func(j *jobdb.Job) bool {
@@ -572,9 +587,13 @@ func (s *Scheduler) updateJobPrices(ctx *armadacontext.Context, txn *jobdb.Txn) 
 	ctx.Logger().Infof("updating the prices of %d jobs", len(updatedJobs))
 	err = txn.Upsert(updatedJobs)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	return updatedBids.ResourceUnits, nil
+	err = txn.SetBidPriceSnapshot(&updatedBids)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (s *Scheduler) createSchedulingInfoWithNodeAntiAffinityForAttemptedRuns(job *jobdb.Job) (*internaltypes.JobSchedulingInfo, error) {
@@ -1098,8 +1117,7 @@ func (s *Scheduler) expireJobsIfNecessary(ctx *armadacontext.Context, txn *jobdb
 
 	events := make([]*armadaevents.EventSequence, 0)
 
-	// TODO: this is inefficient. We should create a iterator of the jobs running on the affected executors
-	jobs := txn.GetAll()
+	jobs := txn.GetAllLeasedJobs()
 
 	for _, job := range jobs {
 
