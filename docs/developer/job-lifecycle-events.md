@@ -154,7 +154,7 @@ stateDiagram-v2
 | Pending                    | LeaseReturned | `JobRunErrors` (`PodLeaseReturned`)                                                                 |
 | Leased / Pending / Running | LeaseExpired  | `JobRunErrors` (`LeaseExpired`, emitted on stale executor)                                          |
 
-`MaxRunsExceeded`, `UnableToSchedule`, and `Terminated` exist as enum values in the Lookout run-state enum but are not driven by any current emission path. When the scheduler caps retries with a `MaxRunsExceeded` reason, lookout's `JobRunErrors` handler falls into the default case and records the run as `Failed`.
+`MaxRunsExceeded`, `UnableToSchedule`, and `Terminated` exist as enum values in the Lookout run-state enum but are not driven by any current emission path. When the scheduler caps retries it emits `MaxRunsExceeded` only as a job-level `JobErrors`, which reaches lookout's job-level handler (recording the job as `Failed`), never the run-level `JobRunErrors` handler. The run itself was already recorded as `Failed` or `LeaseReturned` by the earlier run-level error that triggered the final retry.
 
 ## Event vocabulary
 
@@ -188,7 +188,7 @@ The `Error.reason` oneof inside `JobRunErrors` has eleven variants: `KubernetesE
 | Internal event             | External event                                    | Notes                                                                                                       |
 | -------------------------- | ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
 | `JobSucceeded` (job-level) | `JobSucceededEvent`                               |                                                                                                             |
-| `JobErrors` (job-level)    | `JobFailedEvent` (for terminal)                   | Carries reason, category, subcategory.                                                                      |
+| `JobErrors` (job-level)    | `JobFailedEvent` (for terminal)                   | Reason-discriminated conversion. Carries reason, category, subcategory.                                      |
 | `CancelledJob`             | `JobCancelledEvent`                               |                                                                                                             |
 | `JobRunPreempted`          | `JobPreemptedEvent`                               |                                                                                                             |
 | `JobRunErrors`             | `JobLeaseReturnedEvent` or `JobLeaseExpiredEvent` | Only for `PodLeaseReturned` and `LeaseExpired` reasons. All other reasons ignored at the conversion layer.  |
@@ -296,7 +296,7 @@ The conversion layer converts the scheduler's job-level `JobErrors` to `JobFaile
 
 ### Path B: executor's issue handler detects a problem first
 
-The issue handler watches managed pods for failure modes that surface before the pod's terminal phase. Its `podIssueType` enum has seven values: `UnableToSchedule`, `StuckStartingUp`, `FailedStartingUp`, `StuckTerminating`, `ActiveDeadlineExceeded`, `ExternallyDeleted`, and `ErrorDuringIssueHandling`. When it decides a pod is broken, it emits the failure event at detection time and then deletes the pod.
+The issue handler watches managed pods for failure modes that surface before the pod's terminal phase. Its `podIssueType` enum has seven values: `UnableToSchedule`, `StuckStartingUp`, `StuckTerminating`, `ActiveDeadlineExceeded`, `ExternallyDeleted`, `ErrorDuringIssueHandling`, and `FailedStartingUp`. When it decides a pod is broken, it emits the failure event at detection time and then deletes the pod.
 
 Events fired in this flow:
 
