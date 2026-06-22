@@ -138,12 +138,6 @@
       "problemMatcher": []
     },
     {
-      "label": "Full teardown",
-      "type": "shell",
-      "command": "mage dev:fullDown",
-      "problemMatcher": []
-    },
-    {
       "label": "Set up and start (no-auth)",
       "dependsOrder": "sequence",
       "dependsOn": [
