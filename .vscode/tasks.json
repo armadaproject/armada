@@ -99,36 +99,41 @@
       }
     },
     {
-      "label": "Build Lookout UI",
+      "label": "Prepare LookoutUI",
       "type": "shell",
       "command": [
-        "scripts/yarn-registry-mirror.sh --cwd ${workspaceFolder}/internal/lookoutui &&",
-        "scripts/yarn-registry-mirror.sh --cwd ${workspaceFolder}/internal/lookoutui openapi &&",
-        "scripts/yarn-registry-mirror.sh --cwd ${workspaceFolder}/internal/lookoutui build"
+        "scripts/yarn-registry-mirror.sh --cwd ${workspaceFolder}/internal/lookoutui install &&",
+        "scripts/yarn-registry-mirror.sh --cwd ${workspaceFolder}/internal/lookoutui openapi"
       ]
     },
     {
       "label": "Check for port conflicts",
       "type": "shell",
-      "command": "for port in 2345 2346 2347 2348 2349 2350 2351 2352 2353 3000 8080 8081 8082 8083 8084 8089 9000 9001 9002 9003 9004 9005 9006 9007 9008 50051 50052 50053; do proc=$(lsof -i :$port -sTCP:LISTEN 2>/dev/null | awk 'NR>1{print $1}' | sort -u); [ -n \"$proc\" ] && echo \"WARNING: port $port already in use by $proc\"; done; true",
+      "command": "_local/scripts/check-port-conflicts.sh",
       "problemMatcher": []
     },
     {
       "label": "Kill port conflicts",
       "type": "shell",
-      "command": "for port in 2345 2346 2347 2348 2349 2350 2351 2352 2353 3000 8080 8081 8082 8083 8084 8089 9000 9001 9002 9003 9004 9005 9006 9007 9008 50051 50052 50053; do pids=$(lsof -i :$port -sTCP:LISTEN -t 2>/dev/null); if [ -n \"$pids\" ]; then proc=$(lsof -i :$port -sTCP:LISTEN 2>/dev/null | awk 'NR>1{print $1}' | sort -u); echo \"Killing port $port ($proc)\"; kill $pids; fi; done; true",
+      "command": "_local/scripts/kill-port-conflicts.sh",
       "problemMatcher": []
     },
     {
       "label": "Wait for dlv (standard)",
       "type": "shell",
-      "command": "for entry in 2345:server 2346:scheduler 2347:scheduleringester 2348:eventingester 2349:executor 2350:lookout 2351:lookoutingester 2352:binoculars; do port=${entry%%:*}; name=${entry##*:}; elapsed=0; until lsof -i :$port -sTCP:LISTEN -t >/dev/null 2>&1; do if [ $elapsed -ge 60 ]; then echo \"✗ $name timed out after 60s\"; exit 1; fi; echo \"Waiting for $name (dlv :$port)...\"; sleep 1; elapsed=$((elapsed+1)); done; echo \"✓ $name ready\"; done; echo \"All dlv servers ready\"",
+      "command": "_local/scripts/wait-for-dlv.sh standard",
       "problemMatcher": []
     },
     {
       "label": "Wait for dlv (fake-executor)",
       "type": "shell",
-      "command": "for entry in 2345:server 2346:scheduler 2347:scheduleringester 2348:eventingester 2353:fakeexecutor 2350:lookout 2351:lookoutingester 2352:binoculars; do port=${entry%%:*}; name=${entry##*:}; elapsed=0; until lsof -i :$port -sTCP:LISTEN -t >/dev/null 2>&1; do if [ $elapsed -ge 60 ]; then echo \"✗ $name timed out after 60s\"; exit 1; fi; echo \"Waiting for $name (dlv :$port)...\"; sleep 1; elapsed=$((elapsed+1)); done; echo \"✓ $name ready\"; done; echo \"All dlv servers ready\"",
+      "command": "_local/scripts/wait-for-dlv.sh fake-executor",
+      "problemMatcher": []
+    },
+    {
+      "label": "Pre-build Go services",
+      "type": "shell",
+      "command": "_local/scripts/prebuild-services.sh",
       "problemMatcher": []
     },
     {
@@ -141,6 +146,7 @@
       "label": "Set up and start (no-auth)",
       "dependsOrder": "sequence",
       "dependsOn": [
+        "Pre-build Go services",
         "Check for port conflicts",
         "Start dependencies",
         "Wait for dlv (standard)"
@@ -150,6 +156,7 @@
       "label": "Set up and start (auth)",
       "dependsOrder": "sequence",
       "dependsOn": [
+        "Pre-build Go services",
         "Check for port conflicts",
         "Start dependencies with Auth",
         "Wait for dlv (standard)"
@@ -159,6 +166,7 @@
       "label": "Set up and start (fake-executor)",
       "dependsOrder": "sequence",
       "dependsOn": [
+        "Pre-build Go services",
         "Check for port conflicts",
         "Start dependencies with Fake Executor",
         "Wait for dlv (fake-executor)"
@@ -168,6 +176,7 @@
       "label": "Set up and start (no-auth with prometheus)",
       "dependsOrder": "sequence",
       "dependsOn": [
+        "Pre-build Go services",
         "Check for port conflicts",
         "Start dependencies with Prometheus",
         "Wait for dlv (standard)"
@@ -177,6 +186,7 @@
       "label": "Set up and start (fake-executor with prometheus)",
       "dependsOrder": "sequence",
       "dependsOn": [
+        "Pre-build Go services",
         "Check for port conflicts",
         "Start dependencies with Fake Executor and Prometheus",
         "Wait for dlv (fake-executor)"
@@ -186,6 +196,7 @@
       "label": "Set up and start (auth with prometheus)",
       "dependsOrder": "sequence",
       "dependsOn": [
+        "Pre-build Go services",
         "Check for port conflicts",
         "Start dependencies with Auth and Prometheus",
         "Wait for dlv (standard)"

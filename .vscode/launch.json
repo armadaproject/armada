@@ -12,8 +12,7 @@
       "host": "127.0.0.1",
       "program": "${workspaceFolder}/dist/armada-server",
       "args": ["--config", "${workspaceFolder}/_local/server/config.yaml"],
-      "cwd": "${workspaceFolder}",
-      "presentation": { "order": 10 }
+      "cwd": "${workspaceFolder}"
     },
     {
       "name": "Attach Scheduler",
@@ -30,8 +29,7 @@
         "--config",
         "${workspaceFolder}/_local/scheduler/config.yaml"
       ],
-      "cwd": "${workspaceFolder}",
-      "presentation": { "order": 11 }
+      "cwd": "${workspaceFolder}"
     },
     {
       "name": "Attach Scheduler Ingester",
@@ -47,8 +45,7 @@
         "--config",
         "${workspaceFolder}/_local/scheduleringester/config.yaml"
       ],
-      "cwd": "${workspaceFolder}",
-      "presentation": { "order": 12 }
+      "cwd": "${workspaceFolder}"
     },
     {
       "name": "Attach Event Ingester",
@@ -64,8 +61,7 @@
         "--config",
         "${workspaceFolder}/_local/eventingester/config.yaml"
       ],
-      "cwd": "${workspaceFolder}",
-      "presentation": { "order": 13 }
+      "cwd": "${workspaceFolder}"
     },
     {
       "name": "Attach Executor",
@@ -78,8 +74,7 @@
       "host": "127.0.0.1",
       "program": "${workspaceFolder}/dist/armada-executor",
       "args": ["--config", "${workspaceFolder}/_local/executor/config.yaml"],
-      "cwd": "${workspaceFolder}",
-      "presentation": { "order": 14 }
+      "cwd": "${workspaceFolder}"
     },
     {
       "name": "Attach Lookout",
@@ -92,8 +87,7 @@
       "host": "127.0.0.1",
       "program": "${workspaceFolder}/dist/armada-lookout",
       "args": ["--config", "${workspaceFolder}/_local/lookout/config.yaml"],
-      "cwd": "${workspaceFolder}",
-      "presentation": { "order": 15 }
+      "cwd": "${workspaceFolder}"
     },
     {
       "name": "Attach Lookout Ingester",
@@ -109,8 +103,22 @@
         "--config",
         "${workspaceFolder}/_local/lookoutingester/config.yaml"
       ],
-      "cwd": "${workspaceFolder}",
-      "presentation": { "order": 16 }
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "LookoutUI",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "yarn",
+      "runtimeArgs": ["dev"],
+      "cwd": "${workspaceFolder}/internal/lookoutui",
+      "env": { "PROXY_TARGET": "http://localhost:8089" },
+      "serverReadyAction": {
+        "pattern": "Local:.*http://localhost:([0-9]+)",
+        "uriFormat": "http://localhost:%s",
+        "action": "openExternally"
+      },
+      "preLaunchTask": "Prepare LookoutUI"
     },
     {
       "name": "Attach Binoculars",
@@ -123,8 +131,7 @@
       "host": "127.0.0.1",
       "program": "${workspaceFolder}/dist/armada-binoculars",
       "args": ["--config", "${workspaceFolder}/_local/binoculars/config.yaml"],
-      "cwd": "${workspaceFolder}",
-      "presentation": { "order": 17 }
+      "cwd": "${workspaceFolder}"
     },
     {
       "name": "Attach Binoculars (auth)",
@@ -140,8 +147,7 @@
         "--config",
         "${workspaceFolder}/_local/binoculars/config-auth.yaml"
       ],
-      "cwd": "${workspaceFolder}",
-      "presentation": { "order": 18 }
+      "cwd": "${workspaceFolder}"
     },
     {
       "name": "Attach Fake Executor",
@@ -157,8 +163,7 @@
         "--config",
         "${workspaceFolder}/_local/fakeexecutor/config.yaml"
       ],
-      "cwd": "${workspaceFolder}",
-      "presentation": { "order": 19 }
+      "cwd": "${workspaceFolder}"
     },
     {
       "name": "Attach Server (auth)",
@@ -171,8 +176,7 @@
       "host": "127.0.0.1",
       "program": "${workspaceFolder}/dist/armada-server",
       "args": ["--config", "${workspaceFolder}/_local/server/config-auth.yaml"],
-      "cwd": "${workspaceFolder}",
-      "presentation": { "order": 20 }
+      "cwd": "${workspaceFolder}"
     },
     {
       "name": "Attach Scheduler (auth)",
@@ -189,8 +193,7 @@
         "--config",
         "${workspaceFolder}/_local/scheduler/config-auth.yaml"
       ],
-      "cwd": "${workspaceFolder}",
-      "presentation": { "order": 21 }
+      "cwd": "${workspaceFolder}"
     },
     {
       "name": "Attach Executor (auth)",
@@ -206,8 +209,7 @@
         "--config",
         "${workspaceFolder}/_local/executor/config-auth.yaml"
       ],
-      "cwd": "${workspaceFolder}",
-      "presentation": { "order": 22 }
+      "cwd": "${workspaceFolder}"
     },
     {
       "name": "Attach Lookout (auth)",
@@ -223,8 +225,7 @@
         "--config",
         "${workspaceFolder}/_local/lookout/config-auth.yaml"
       ],
-      "cwd": "${workspaceFolder}",
-      "presentation": { "order": 23 }
+      "cwd": "${workspaceFolder}"
     }
   ],
   "compounds": [
@@ -238,7 +239,8 @@
         "Attach Executor",
         "Attach Lookout",
         "Attach Lookout Ingester",
-        "Attach Binoculars"
+        "Attach Binoculars",
+        "LookoutUI"
       ],
       "preLaunchTask": "Set up and start (no-auth)",
       "stopAll": true,
@@ -254,7 +256,8 @@
         "Attach Executor (auth)",
         "Attach Lookout (auth)",
         "Attach Lookout Ingester",
-        "Attach Binoculars (auth)"
+        "Attach Binoculars (auth)",
+        "LookoutUI"
       ],
       "preLaunchTask": "Set up and start (auth)",
       "stopAll": true,
@@ -270,7 +273,8 @@
         "Attach Fake Executor",
         "Attach Lookout",
         "Attach Lookout Ingester",
-        "Attach Binoculars"
+        "Attach Binoculars",
+        "LookoutUI"
       ],
       "preLaunchTask": "Set up and start (fake-executor)",
       "stopAll": true,
@@ -286,7 +290,8 @@
         "Attach Executor",
         "Attach Lookout",
         "Attach Lookout Ingester",
-        "Attach Binoculars"
+        "Attach Binoculars",
+        "LookoutUI"
       ],
       "preLaunchTask": "Set up and start (no-auth with prometheus)",
       "stopAll": true,
@@ -302,7 +307,8 @@
         "Attach Executor (auth)",
         "Attach Lookout (auth)",
         "Attach Lookout Ingester",
-        "Attach Binoculars (auth)"
+        "Attach Binoculars (auth)",
+        "LookoutUI"
       ],
       "preLaunchTask": "Set up and start (auth with prometheus)",
       "stopAll": true,
@@ -318,7 +324,8 @@
         "Attach Fake Executor",
         "Attach Lookout",
         "Attach Lookout Ingester",
-        "Attach Binoculars"
+        "Attach Binoculars",
+        "LookoutUI"
       ],
       "preLaunchTask": "Set up and start (fake-executor with prometheus)",
       "stopAll": true,
