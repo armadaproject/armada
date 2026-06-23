@@ -7,8 +7,7 @@
   <a href="https://insights.linuxfoundation.org/project/armada" title="Click to view project insights and health checks"><img src="https://insights.linuxfoundation.org/api/badge/health-score?project=armada" alt="LFX Health Score"></a>
  </p>
  <p>
- 
- 
+  <a href="https://www.bestpractices.dev/projects/11485"><img src="https://www.bestpractices.dev/projects/11485/badge" alt="OpenSSF Best Practices"></a>
  </p>
 </div>
 
