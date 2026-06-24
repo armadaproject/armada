@@ -13,7 +13,8 @@
     - [Path A: pod reaches terminal phase](#path-a-pod-reaches-terminal-phase)
     - [Path B: executor's issue handler detects a problem first](#path-b-executors-issue-handler-detects-a-problem-first)
   - [Job preempted](#job-preempted)
-    - [Known issues](#known-issues)
+    - [Scheduler-initiated preemption](#scheduler-initiated-preemption)
+    - [Run reconciliation and the executor/scheduler double emission](#run-reconciliation-and-the-executorscheduler-double-emission)
   - [Job cancelled](#job-cancelled)
 
 Armada's job and run lifecycle is event-driven. This doc covers the architecture, the state machines, the events that drive transitions, and the four terminal flows: succeeded, failed, preempted, cancelled.
@@ -67,19 +68,19 @@ Control-plane components:
 
 Worker-cluster components:
 
-- **Executor.** One per worker cluster, running inside that cluster. Holds an open `LeaseJobRuns` stream and uses `ReportEvents` to send run events back. Creates and watches pods via the local Kubernetes API. Produces `JobRunAssigned`, `JobRunRunning`, `JobRunSucceeded`, and `JobRunErrors` from observed pod state, plus `JobRunPreempted` and `JobRunErrors` from the preempt processor and issue handler when acting on scheduler instructions.
+- **Executor.** One per worker cluster, running inside that cluster. Holds an open `LeaseJobRuns` stream and uses `ReportEvents` to send run events back. Creates and watches pods via the local Kubernetes API. Produces `JobRunAssigned`, `JobRunRunning`, `JobRunSucceeded`, and `JobRunErrors` from observed pod state, plus `JobRunErrors` from its issue handler when a pod fails or disappears. It also has a preempt processor that would emit `JobRunPreempted`, but the scheduler never triggers it (see [Job preempted](#job-preempted)).
 
-Before deleting a pod it owns (cancel, preempt, or detected issue), the executor writes the `deletion_requested` annotation (`domain.MarkedForDeletion`). The state reporter's informer path then skips terminal-phase reporting for annotated pods, preventing a duplicate terminal event for pods the executor is itself killing.
+Before deleting a pod it owns (cancel or detected issue), the executor writes the `deletion_requested` annotation (`domain.MarkedForDeletion`). The state reporter's informer path then skips terminal-phase reporting for annotated pods, preventing a duplicate terminal event for pods the executor is itself killing.
 
 ## Transport and edge cases
 
 A few transport-level behaviours affect how the flows below behave under failure.
 
-**Executor event reporting is buffered, batched, and not retried at the reporter level.** The job-event reporter buffers events in a 1M-slot channel, drains every two seconds or when the batch fills, and sends each batch through one `ReportEvents` call. On failure, per-event callbacks see the error but the reporter itself does not retry. Retries happen one layer up. The state reporter's reconciliation pass re-emits terminal-phase events for pods whose current phase has not been marked reported. The issue handler retries via its in-process `Reported` marker, which is lost on executor restart. The preempt processor retries via the `JobPreemptedAnnotation` pod annotation, which survives restart. Both handlers only set their marker after a successful `Report`, so a failed call gets retried on the next handler tick.
+**Executor event reporting is buffered, batched, and not retried at the reporter level.** The job-event reporter buffers events in a 1M-slot channel, drains every two seconds or when the batch fills, and sends each batch through one `ReportEvents` call. On failure, per-event callbacks see the error but the reporter itself does not retry. Retries happen one layer up. The state reporter's reconciliation pass re-emits terminal-phase events for pods whose current phase has not been marked reported. The issue handler retries via its in-process `Reported` marker, which is lost on executor restart. It sets the marker only after a successful `Report`, so a failed call is retried on the next handler tick. The preempt processor uses a `JobPreemptedAnnotation` pod annotation for the same purpose, but it is dead code in current deployments (see [Job preempted](#job-preempted)).
 
 **Lease expiry is detected by the scheduler from executor heartbeat staleness.** Executors send `LeaseRequest` messages over the `LeaseJobRuns` stream as their heartbeat. The scheduler tracks the last time it heard from each executor. When an executor goes stale (no heartbeat within the scheduler's `executorTimeout`), the next scheduling cycle iterates jobs whose latest run belongs to that executor and emits `JobRunErrors` with a `LeaseExpired` reason for each one. The scheduler cannot distinguish "executor went away" from "stream momentarily lost". It acts on the heartbeat absence either way.
 
-**Pulsar redelivery is effectively idempotent at the ingesters' terminal-state writes.** `MarkRunsSucceeded`, `MarkRunsFailed`, and `MarkRunsPreempted` write timestamps taken from each event's `Created` field. A redelivered event carries the same `Created` value as the original, so a duplicate write produces the same column value. The `job_run_errors` table is upserted on `run_id`, so a redelivered `JobRunErrors` overwrites with identical bytes. `JobRunCancelled` is not written to the runs table at all by the scheduler ingester (it is in the explicit ignore list). Job-level cancellation is tracked separately via `CancelledJob` and `MarkJobsCancelled`. The exception to this idempotence is the preempt flow's double emission described in [Preempted known issues](#known-issues): there the second emission is a different event with different content, not a redelivery.
+**Pulsar redelivery is effectively idempotent at the ingesters' terminal-state writes.** `MarkRunsSucceeded`, `MarkRunsFailed`, and `MarkRunsPreempted` write timestamps taken from each event's `Created` field. A redelivered event carries the same `Created` value as the original, so a duplicate write produces the same column value. The `job_run_errors` table is upserted on `run_id`, so a redelivered `JobRunErrors` overwrites with identical bytes. `JobRunCancelled` is not written to the runs table at all by the scheduler ingester (it is in the explicit ignore list). Job-level cancellation is tracked separately via `CancelledJob` and `MarkJobsCancelled`. The exception to this idempotence is the reconciliation double emission described in [Run reconciliation and the executor/scheduler double emission](#run-reconciliation-and-the-executorscheduler-double-emission), where a separate producer writes a different event with different content, not a redelivery.
 
 ## State machines
 
@@ -332,17 +333,19 @@ This path differs from path A in timing only. `JobRunErrors` is emitted at detec
 - **Run state:** `Pending` or `Running` to `Preempted`.
 - **Job state:** to `Preempted`, once the scheduler emits the job-level `JobErrors` with `JobRunPreemptedError` reason.
 
-Known emission issues are detailed in [Known issues](#known-issues) below.
+Two distinct mechanisms drive a run to `Preempted`. The common one is scheduler-initiated preemption (fair share or priority), described first. A second, experimental one is run reconciliation, which can produce a genuine executor-and-scheduler double emission; see [Run reconciliation and the executor/scheduler double emission](#run-reconciliation-and-the-executorscheduler-double-emission).
 
-Events fired in this flow:
+### Scheduler-initiated preemption
+
+When the scheduling algorithm decides to preempt a run, the scheduler generates all of the preemption events itself, in the same cycle, at decision time (`createEventsForPreemptedJob`). The executor is **not** asked to preempt. The scheduler marks the run failed (which makes it terminal via the generated `runs.terminated` column), and on the next lease request the scheduler finds the run inactive and tells the executor to **cancel** it. The executor's remove-runs processor deletes the pod and emits nothing.
+
+Events fired in this flow (all from the scheduler):
 
 | Event             | Phase | Emitted by | Payload                                                                   |
 | ----------------- | ----- | ---------- | ------------------------------------------------------------------------- |
 | `JobRunPreempted` | 1     | scheduler  | preempted run ID, scheduler's preemption reason                           |
 | `JobRunErrors`    | 1     | scheduler  | Terminal=true, `JobRunPreemptedError`, scheduler's reason                 |
 | `JobErrors`       | 1     | scheduler  | Terminal=true, `JobRunPreemptedError` reason (drives Preempted job state) |
-| `JobRunPreempted` | 2     | executor   | (duplicate of the scheduler's, no extra context)                          |
-| `JobRunErrors`    | 2     | executor   | Terminal=true, generic `PodError` with message "Run preempted"            |
 
 ```mermaid
 sequenceDiagram
@@ -350,16 +353,13 @@ sequenceDiagram
     participant P as Pulsar
     participant E as Executor
     participant K as Kubelet
-    Note over Sc: decides to preempt a run
+    Note over Sc: scheduling cycle decides to preempt a run
     Sc->>P: publishes JobRunPreempted (with scheduler's reason)
     Sc->>P: publishes JobRunErrors (Terminal=true,<br/>JobRunPreemptedError, scheduler's reason)
     Sc->>P: publishes JobErrors (job-level)
-    Sc->>E: PreemptRuns via lease stream
-    Note over E: preempt processor fires
-    E->>Sc: ReportEvents (JobRunPreempted)
-    Sc->>P: publishes JobRunPreempted (duplicate)
-    E->>Sc: ReportEvents (JobRunErrors,<br/>generic "Run preempted" PodError,<br/>KubernetesReason=AppError)
-    Sc->>P: publishes JobRunErrors (duplicate, generic)
+    Note over Sc: marks run failed, run becomes terminal
+    Sc->>E: CancelRuns via lease stream (run is now inactive)
+    Note over E: remove-runs processor (emits nothing)
     E-->>K: writes deletion annotation, deletes pod
     Note over K: pod drains over<br/>terminationGracePeriodSeconds
     K-->>K: sets PodFailed
@@ -367,19 +367,23 @@ sequenceDiagram
     Note over E: phase-report skipped<br/>(deletion annotation)
 ```
 
-Each `JobRunPreempted` becomes a `JobPreemptedEvent` on the external API, so watchers see two preempted events per preemption. The executor's `JobRunErrors` is silently dropped by the conversion layer (`PodError` reason is not in the run-level handler's whitelist). The scheduler's `JobErrors` becomes the single `JobFailedEvent`, with the `JobRunPreemptedError` reason driving the Lookout job state to Preempted rather than Failed.
+The single `JobRunPreempted` becomes one `JobPreemptedEvent` on the external API. The scheduler's run-level `JobRunErrors` (`JobRunPreemptedError` reason) is dropped at the conversion layer. The scheduler's job-level `JobErrors` becomes the single `JobFailedEvent`, with the `JobRunPreemptedError` reason driving the Lookout job state to Preempted rather than Failed.
 
-### Known issues
+The executor does have a preempt processor (`preempt_runs.go`) that would emit its own `JobRunPreempted` and a generic `PodError` ("Run preempted") `JobRunErrors`. It fires only for runs flagged `PreemptionRequested`, which is set only when the scheduler sends a `PreemptRuns` instruction over the lease stream. The scheduler never constructs that message (the lease stream only ever carries `Lease`, `CancelRuns`, and `End`), so this processor is currently dead code. Scheduler-initiated preemption is therefore scheduler-only: no duplicate `JobPreemptedEvent`, no `job_run_errors` overwrite.
 
-The root cause for both: the scheduler and the executor each emit run-level events for a preemption.
+### Run reconciliation and the executor/scheduler double emission
 
-`JobRunPreempted` and `JobRunErrors` are each emitted twice, once by the scheduler at decision time and once by the executor when it processes the preempt instruction. External API watchers see two `JobPreemptedEvent` messages per preemption. They do not see two `JobFailedEvent`, because run-level `JobRunErrors` with `PodError` and `JobRunPreemptedError` reasons are both dropped at the conversion layer. Only the scheduler's job-level `JobErrors` becomes a `JobFailedEvent`.
+A real executor-and-scheduler double emission exists, but it is gated behind the experimental per-pool `ExperimentalRunReconciliation` feature (a `*RunReconciliationConfig` pointer, `nil`/off by default and not set in any shipped config), and it is triggered by node invalidation, not by fair-share preemption.
 
-The scheduler ingester upserts `job_run_errors` keyed on `run_id`, so whichever `JobRunErrors` emission lands second overwrites the first. The executor's emission typically arrives second because of the indirection described in [Topology](#topology). The scheduler publishes its `JobRunErrors` to Pulsar at decision time. It also sends a `PreemptRuns` instruction over the lease stream. The executor receives the instruction, runs its preempt processor, produces its own `JobRunErrors`, and sends it back to the scheduler via `ReportEvents`. The scheduler's handler then publishes that to Pulsar. The lease-stream round trip plus the executor's processing plus the `ReportEvents` call plus the second Pulsar publish all happen in series, so the executor's event reaches Pulsar strictly after the scheduler's in typical operation. Pulsar gives ordering only within a single partition for a single producer, so the "typically second" claim is timing not guarantee.
+When enabled, the scheduler's run-vs-node reconciler (`RunNodeReconciler`) flags a leased run as invalid when its node is no longer reported by any executor (a deleted node; gang jobs only), its node's pool has changed, or its node's reservation has changed. For a preemptible job it then emits the full preemption set (`JobRunPreempted` + run-level `JobRunErrors` with `JobRunPreemptedError` + job-level `JobErrors`); for a non-preemptible job it emits `JobRunErrors`/`JobErrors` with the `ReconciliationError` reason instead.
 
-The executor's `JobRunErrors` is built from a generic helper that produces a `PodError` with the literal text "Run preempted" and a misleading `KubernetesReason: AppError`. When this overwrites the scheduler's row, the specific preemption description (which job caused the eviction, which pool, what fairness violation) is replaced with the generic content. The `MarkRunsFailed` update statement has no `IS NULL` guard, so the second emission also overwrites `runs.terminated_timestamp`.
+The double emission specifically arises in the deleted-node case, where the pod genuinely disappears. The executor's issue handler independently detects that the pod was removed without Armada's deletion annotation, registers an `ExternallyDeleted` issue, and emits its own run-level `JobRunErrors` with a `PodError` reason ("Pod was unexpectedly deleted"). So two producers emit a run-level error for the same run. (Pool-change and reservation-change reconciliation leave the pod healthy, so the executor stays silent and those cases remain scheduler-only.)
 
-The lookout ingester is more defensive: it has an explicit `continue` for `JobRunErrors` with `JobRunPreemptedError` reason, with a comment noting that case is handled by `JobRunPreempted`. So the lookout DB does not develop duplicate rows from that specific reason combo, although it does store the executor's later `PodError`-reason emission.
+- The executor's `PodError` and the scheduler's `JobRunPreemptedError` both upsert `job_run_errors` keyed on `run_id`, so whichever lands second overwrites the first. `MarkRunsFailed` has no `IS NULL` guard, so `runs.terminated_timestamp` is overwritten as well.
+- The executor usually reports first, since it observes the pod loss before the next scheduling cycle runs, so the ordering is executor-then-scheduler. This is timing, not a guarantee.
+- It is a race. If the executor's failure is applied to the scheduler database before the reconciliation cycle runs, the run is already terminal and the reconciler skips it (it only acts on non-terminal leased runs), so no preemption event is produced and the run simply ends up `Failed`.
+
+On the external API this still yields a single `JobPreemptedEvent`, because only the scheduler emits `JobRunPreempted`; the executor's run-level `JobRunErrors` is dropped at the conversion layer. The lookout ingester has an explicit `continue` for `JobRunErrors` with `JobRunPreemptedError` reason (commented as handled by `JobRunPreempted`), but it does store the executor's `PodError`-reason emission.
 
 ## Job cancelled
 
