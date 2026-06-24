@@ -46,9 +46,7 @@ func setNoopOTel() {
 	setNoopOTelLocked()
 	globalTracerProviderMu.Unlock()
 
-	if err := shutdownTracerProvider(context.Background(), tp); err != nil {
-		logging.WithError(err).Warn("Failed to shutdown previous OTel tracer provider")
-	}
+	shutdownTracerProvider(context.Background(), tp)
 }
 
 func init() {
@@ -114,9 +112,6 @@ func InitOTel(cfg ObservabilityConfig) error {
 	case "always_off":
 		sampler = sdktrace.NeverSample()
 	default:
-		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), shutdownTimeout)
-		defer shutdownCancel()
-		_ = exporter.Shutdown(shutdownCtx)
 		return fmt.Errorf("unsupported sampler: %s", cfg.Traces.Sampler)
 	}
 
@@ -159,16 +154,9 @@ func InitOTel(cfg ObservabilityConfig) error {
 	return nil
 }
 
-// ShutdownWithDefaultTimeout gracefully shuts down the global tracer provider with a default timeout.
-// The default timeout is 5s.
-func ShutdownWithDefaultTimeout() error {
-	ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
-	defer cancel()
-	return ShutdownOTel(ctx)
-}
-
 // ShutdownOTel gracefully shuts down the global tracer provider, flushing any
 // pending spans to the collector.
+// or the shutdown timeout (5s) is reached. Returns an error if shutdown fails or times out.
 func ShutdownOTel(ctx context.Context) error {
 	globalTracerProviderMu.Lock()
 	tp := globalTracerProvider
