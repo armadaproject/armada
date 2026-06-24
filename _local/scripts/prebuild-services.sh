@@ -15,15 +15,35 @@ SERVICES=(
   ./cmd/fakeexecutor
 )
 
+CACHE_DIR="$(go env GOCACHE)/armada-prebuild"
+mkdir -p "$CACHE_DIR"
+
 build_service() {
+  local pkg="$1"
   local name
-  name=$(basename "$1")
+  name=$(basename "$pkg")
+  local stamp="$CACHE_DIR/$name.stamp"
   local start=$SECONDS
+
+  local search_paths=("$pkg")
+  [[ -d "./internal/$name" ]] && search_paths+=("./internal/$name")
+  [[ -d "./internal/common" ]] && search_paths+=("./internal/common")
+
+  local newest
+  newest=$(find "${search_paths[@]}" -name '*.go' -newer "$stamp" 2>/dev/null | head -1) || true
+
+  if [[ -z "$newest" && -f "$stamp" ]]; then
+    echo "  ↷ $name (cached)"
+    return 0
+  fi
+
   local output
-  if output=$(go build -gcflags="all=-N -l" -o /dev/null "$1/main.go" 2>&1); then
+  if output=$(go build -gcflags="all=-N -l" -o /dev/null "$pkg/main.go" 2>&1); then
+    touch "$stamp"
     echo "  ✓ $name ($((SECONDS - start))s)"
   else
-    echo "  ✗ $name failed: $output"
+    echo "  ✗ $name failed:"
+    echo "$output"
     return 1
   fi
 }

@@ -18,8 +18,8 @@
         "pattern": { "regexp": "^$" },
         "background": {
           "activeOnStart": true,
-          "beginsPattern": "\\| Starting .* on port",
-          "endsPattern": "initialized successfully"
+          "beginsPattern": "initialized successfully",
+          "endsPattern": "DAP server listening at"
         }
       }
     },
@@ -33,8 +33,8 @@
         "pattern": { "regexp": "^$" },
         "background": {
           "activeOnStart": true,
-          "beginsPattern": "\\| Starting .* on port",
-          "endsPattern": "initialized successfully"
+          "beginsPattern": "initialized successfully",
+          "endsPattern": "DAP server listening at"
         }
       }
     },
@@ -48,8 +48,8 @@
         "pattern": { "regexp": "^$" },
         "background": {
           "activeOnStart": true,
-          "beginsPattern": "\\| Starting .* on port",
-          "endsPattern": "initialized successfully"
+          "beginsPattern": "initialized successfully",
+          "endsPattern": "DAP server listening at"
         }
       }
     },
@@ -63,7 +63,7 @@
         "pattern": { "regexp": "^$" },
         "background": {
           "activeOnStart": true,
-          "beginsPattern": "\\| Starting .* on port",
+          "beginsPattern": "initialized successfully",
           "endsPattern": "Keycloak ready"
         }
       }
@@ -78,8 +78,8 @@
         "pattern": { "regexp": "^$" },
         "background": {
           "activeOnStart": true,
-          "beginsPattern": "\\| Starting .* on port",
-          "endsPattern": "initialized successfully"
+          "beginsPattern": "initialized successfully",
+          "endsPattern": "DAP server listening at"
         }
       }
     },
@@ -93,7 +93,7 @@
         "pattern": { "regexp": "^$" },
         "background": {
           "activeOnStart": true,
-          "beginsPattern": "\\| Starting .* on port",
+          "beginsPattern": "initialized successfully",
           "endsPattern": "Keycloak ready"
         }
       }
