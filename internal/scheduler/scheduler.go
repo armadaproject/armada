@@ -577,7 +577,7 @@ func (s *Scheduler) updateJobPrices(ctx *armadacontext.Context, txn *jobdb.Txn) 
 			updatedPrice, present := updatedBids.GetPrice(job.Queue(), job.GetPriceBand())
 			if !present {
 				// The key changed but has no price in the new snapshot - for now leave the stale price in place
-				// TODO Decide if we to clear the price for these jobs
+				// TODO Decide if we want to clear the price for these jobs
 				continue
 			}
 			updatedJobs = append(updatedJobs, job.WithBidPrices(updatedPrice))
