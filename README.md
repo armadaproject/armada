@@ -186,6 +186,9 @@ Goreman exposes services on the following ports:
 | Redis                      | 6379  | Cache & events      |
 | PostgreSQL                 | 5432  | Database            |
 | Pulsar                     | 6650  | Message broker      |
+| OTEL Collector gRPC        | 4317  | OTLP ingest         |
+| OTEL Collector HTTP        | 4318  | OTLP ingest         |
+| Jaeger UI                  | 16686 | Trace visualization |
 
 ## Documentation
 
