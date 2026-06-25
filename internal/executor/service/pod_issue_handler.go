@@ -12,6 +12,7 @@ import (
 	"k8s.io/utils/clock"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/common/errormatch"
 	log "github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/executor/categorizer"
 	"github.com/armadaproject/armada/internal/executor/configuration"
@@ -418,11 +419,17 @@ func (p *PodIssueHandler) handleNonRetryableJobIssue(issue *issue) {
 	if !issue.RunIssue.Reported {
 		log.Infof("Handling non-retryable issue detected for job %s run %s", issue.RunIssue.JobId, issue.RunIssue.RunId)
 		podIssue := issue.RunIssue.PodIssue
-
-		result := p.classifier.ClassifyPodError(podIssue.OriginalPodState, podIssue.Message)
 		clusterId := p.clusterContext.GetClusterId()
 
-		message := result.AppendHint(podIssue.Message)
+		var failureCategory, failureSubcategory, message string
+		if sub := internalSubcategoryForPodIssueType(podIssue.Type); sub != "" {
+			failureCategory, failureSubcategory = errormatch.CategoryInternal, sub
+			message = podIssue.Message
+		} else {
+			result := p.classifier.ClassifyPodError(podIssue.OriginalPodState, podIssue.Message)
+			failureCategory, failureSubcategory = result.Category, result.Subcategory
+			message = result.AppendHint(podIssue.Message)
+		}
 
 		failedEvent, err := reporter.CreateJobFailedEvent(
 			podIssue.OriginalPodState,
@@ -431,8 +438,8 @@ func (p *PodIssueHandler) handleNonRetryableJobIssue(issue *issue) {
 			podIssue.DebugMessage,
 			util.ExtractFailedPodContainerStatuses(podIssue.OriginalPodState, clusterId),
 			clusterId,
-			result.Category,
-			result.Subcategory,
+			failureCategory,
+			failureSubcategory,
 		)
 		if err != nil {
 			log.Errorf("Failed to create failed event for job %s because %s", issue.RunIssue.JobId, err)
@@ -445,7 +452,7 @@ func (p *PodIssueHandler) handleNonRetryableJobIssue(issue *issue) {
 		}
 		// Increment only after successful Report so failed sends do not inflate the counter.
 		// RecordJobFailure is a no-op when classification didn't run (empty category).
-		metrics.RecordJobFailure(result.Category, result.Subcategory)
+		metrics.RecordJobFailure(failureCategory, failureSubcategory)
 		p.markIssueReported(issue.RunIssue)
 	}
 
@@ -454,6 +461,25 @@ func (p *PodIssueHandler) handleNonRetryableJobIssue(issue *issue) {
 		issue.RunIssue.PodIssue.DeletionRequested = true
 	} else {
 		p.markIssuesResolved(issue.RunIssue)
+	}
+}
+
+// internalSubcategoryForPodIssueType returns the internal failure subcategory
+// for Armada-detected structural pod issues. It returns "" for StuckStartingUp,
+// UnableToSchedule, and FailedStartingUp, whose cause (e.g. image pull, scheduling)
+// the operator categorizer should attribute instead.
+func internalSubcategoryForPodIssueType(t podIssueType) string {
+	switch t {
+	case StuckTerminating:
+		return errormatch.SubcategoryStuckTerminating
+	case ExternallyDeleted:
+		return errormatch.SubcategoryExternallyDeleted
+	case ErrorDuringIssueHandling:
+		return errormatch.SubcategoryIssueHandlerError
+	case ActiveDeadlineExceeded:
+		return errormatch.SubcategoryActiveDeadline
+	default:
+		return ""
 	}
 }
 
@@ -606,7 +632,9 @@ func (p *PodIssueHandler) handleReconciliationIssue(issue *issue) {
 			currentRunState.Meta.JobSet,
 			currentRunState.Meta.Queue,
 			p.clusterContext.GetClusterId(),
-			fmt.Sprintf("Pod is unexpectedly missing in Kubernetes"),
+			"Pod is unexpectedly missing in Kubernetes",
+			errormatch.CategoryInternal,
+			errormatch.SubcategoryPodMissing,
 		)
 		if err != nil {
 			log.Errorf("failed to create job failed event because %s", err)
