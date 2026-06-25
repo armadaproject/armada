@@ -202,7 +202,8 @@ type shutdownObservingSpanProcessor struct {
 	shutdown chan struct{}
 }
 
-func (p *shutdownObservingSpanProcessor) OnStart(parent context.Context, span sdktrace.ReadWriteSpan) {}
+func (p *shutdownObservingSpanProcessor) OnStart(parent context.Context, span sdktrace.ReadWriteSpan) {
+}
 
 func (p *shutdownObservingSpanProcessor) OnEnd(span sdktrace.ReadOnlySpan) {}
 
