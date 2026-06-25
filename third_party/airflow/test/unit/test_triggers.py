@@ -5,7 +5,7 @@ import pytest
 from airflow.utils.state import TaskInstanceState
 from armada._compat import deserialize, serialize
 from armada.model import GrpcChannelArgs, RunningJobContext
-from armada.triggers import ArmadaPollJobTrigger
+from armada.triggers import CANCEL_JOBS_WHEN_TASK_IN_STATE, ArmadaPollJobTrigger
 from armada_client.typings import JobState
 from pendulum import DateTime
 
@@ -58,8 +58,9 @@ def _make_trigger_with_task_state(state: TaskInstanceState) -> ArmadaPollJobTrig
 
 
 @pytest.mark.asyncio
-async def test_cancels_running_job_when_task_is_cancelled():
-    trigger = _make_trigger_with_task_state(TaskInstanceState.SUCCESS)
+@pytest.mark.parametrize("state", sorted(CANCEL_JOBS_WHEN_TASK_IN_STATE))
+async def test_cancels_running_job_when_task_in_terminal_state(state):
+    trigger = _make_trigger_with_task_state(state)
     job_ctx = RunningJobContext(
         "queue", "job-1", "job-set", DateTime.utcnow(), "cluster"
     )
@@ -68,22 +69,16 @@ async def test_cancels_running_job_when_task_is_cancelled():
     hook.context_from_xcom.return_value = job_ctx
 
     with (
-        patch.object(
-            ArmadaPollJobTrigger,
-            "_get_task_state",
-            return_value=TaskInstanceState.SUCCESS,
-        ),
+        patch.object(ArmadaPollJobTrigger, "_get_task_state", return_value=state),
         patch.object(
             ArmadaPollJobTrigger,
             "hook",
             new_callable=lambda: property(lambda self: hook),
         ),
     ):
-        await trigger.on_kill()
         await trigger.cleanup()
 
-    assert hook.cancel_job.call_count == 2
-    hook.cancel_job.assert_called_with(job_ctx)
+    hook.cancel_job.assert_called_once_with(job_ctx)
 
 
 @pytest.mark.asyncio
