@@ -11,6 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/common/errormatch"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/executor/configuration"
@@ -225,6 +226,8 @@ func TestRequestJobsRuns_HandlesPartiallyInvalidLeasedJobs(t *testing.T) {
 	assert.Len(t, failedEvent.JobRunErrors.Errors, 1)
 	assert.NotNil(t, failedEvent.JobRunErrors.Errors[0].GetPodError())
 	assert.Equal(t, failedEvent.JobRunErrors.JobId, jobId)
+	assert.Equal(t, errormatch.CategoryInternal, failedEvent.JobRunErrors.Errors[0].GetFailureCategory())
+	assert.Equal(t, errormatch.SubcategoryJobCreationFailed, failedEvent.JobRunErrors.Errors[0].GetFailureSubcategory())
 
 	allJobRuns := stateStore.GetAll()
 	assert.Len(t, allJobRuns, 1)

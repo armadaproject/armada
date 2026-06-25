@@ -13,6 +13,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/constants"
+	"github.com/armadaproject/armada/internal/common/errormatch"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/leaderelection"
@@ -1040,7 +1041,9 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 					}
 
 					runError = &armadaevents.Error{
-						Terminal: true,
+						Terminal:           true,
+						FailureCategory:    errormatch.CategoryInternal,
+						FailureSubcategory: errormatch.SubcategoryMaxRunsExceeded,
 						Reason: &armadaevents.Error_MaxRunsExceeded{
 							MaxRunsExceeded: &armadaevents.MaxRunsExceeded{
 								Message: errorMessage,
@@ -1133,7 +1136,9 @@ func (s *Scheduler) expireJobsIfNecessary(ctx *armadacontext.Context, txn *jobdb
 			jobsToUpdate = append(jobsToUpdate, job.WithQueued(false).WithFailed(true).WithUpdatedRun(run.WithFailed(true)))
 
 			leaseExpiredError := &armadaevents.Error{
-				Terminal: true,
+				Terminal:           true,
+				FailureCategory:    errormatch.CategoryInternal,
+				FailureSubcategory: errormatch.SubcategoryLeaseExpired,
 				Reason: &armadaevents.Error_LeaseExpired{
 					LeaseExpired: &armadaevents.LeaseExpired{},
 				},
@@ -1243,7 +1248,9 @@ func (s *Scheduler) submitCheck(ctx *armadacontext.Context, txn *jobdb.Txn) ([]*
 					JobId: job.Id(),
 					Errors: []*armadaevents.Error{
 						{
-							Terminal: true,
+							Terminal:           true,
+							FailureCategory:    errormatch.CategoryInternal,
+							FailureSubcategory: errormatch.SubcategoryJobRejected,
 							Reason: &armadaevents.Error_JobRejected{
 								JobRejected: &armadaevents.JobRejected{
 									Message: result.reason,

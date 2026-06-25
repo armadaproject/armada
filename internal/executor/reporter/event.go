@@ -209,10 +209,9 @@ func CreateSimpleJobPreemptedEvent(pod *v1.Pod) (*armadaevents.EventSequence, er
 	return sequence, nil
 }
 
-// CreateSimpleJobFailedEvent creates a failed event with no container details and no classification.
-// Use for failures where pod container statuses are unavailable (preemption, submit failures).
-// failure_category/failure_subcategory are left empty, resulting in NULL in the DB.
-// This is intentional: these failures are not classifiable pod errors.
+// CreateSimpleJobFailedEvent creates a failed event with no container details
+// or failure category, for failures where pod container statuses are unavailable
+// (preemption, submit failures).
 func CreateSimpleJobFailedEvent(pod *v1.Pod, reason string, clusterId string, cause armadaevents.KubernetesReason) (*armadaevents.EventSequence, error) {
 	return CreateJobFailedEvent(pod, reason, cause, "", []*armadaevents.ContainerError{}, clusterId, "", "")
 }
@@ -261,7 +260,7 @@ func CreateJobFailedEvent(pod *v1.Pod, reason string, cause armadaevents.Kuberne
 	return sequence, nil
 }
 
-func CreateMinimalJobFailedEvent(jobId string, runId string, jobSet string, queue string, clusterId string, message string) (*armadaevents.EventSequence, error) {
+func CreateMinimalJobFailedEvent(jobId string, runId string, jobSet string, queue string, clusterId string, message string, failureCategory string, failureSubcategory string) (*armadaevents.EventSequence, error) {
 	sequence := &armadaevents.EventSequence{}
 	sequence.Queue = queue
 	sequence.JobSetName = jobSet
@@ -274,7 +273,9 @@ func CreateMinimalJobFailedEvent(jobId string, runId string, jobSet string, queu
 				JobId: jobId,
 				Errors: []*armadaevents.Error{
 					{
-						Terminal: true,
+						Terminal:           true,
+						FailureCategory:    failureCategory,
+						FailureSubcategory: failureSubcategory,
 						Reason: &armadaevents.Error_PodError{
 							PodError: &armadaevents.PodError{
 								ObjectMeta: &armadaevents.ObjectMeta{

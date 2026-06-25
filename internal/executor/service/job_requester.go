@@ -7,6 +7,7 @@ import (
 	"golang.org/x/exp/maps"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/common/errormatch"
 	log "github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/executor/configuration"
@@ -187,6 +188,8 @@ func (r *JobRequester) sendFailedEvent(details *failedJobCreationDetails) error 
 		details.JobRunMeta.Queue,
 		r.clusterId.GetClusterId(),
 		details.Error.Error(),
+		errormatch.CategoryInternal,
+		errormatch.SubcategoryJobCreationFailed,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create job failed events because %s", err)
