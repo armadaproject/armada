@@ -184,7 +184,14 @@ func (p *PodIssueHandler) registerIssue(issue *runIssue) (bool, error) {
 	}
 	_, exists := p.knownPodIssues[issue.RunId]
 	if !exists {
-		log.Infof("Issue for job %s run %s is registered", issue.JobId, issue.RunId)
+		description := "unknown issue type"
+		if issue.PodIssue != nil {
+			description = fmt.Sprintf("pod issue - type %d - %s", issue.PodIssue.Type, issue.PodIssue.Message)
+		} else if issue.ReconciliationIssue != nil {
+			description = "reconciliation issue"
+		}
+
+		log.Infof("Issue for job %s run %s is registered - %s", issue.JobId, issue.RunId, description)
 		p.knownPodIssues[issue.RunId] = issue
 		return true, nil
 	} else {
@@ -290,7 +297,7 @@ func (p *PodIssueHandler) detectPodIssues(allManagedPods []*v1.Pod) {
 					podIssueType = UnableToSchedule
 				}
 
-				log.Warnf("Found issue with pod %s in namespace %s: %s", pod.Name, pod.Namespace, message)
+				log.Infof("Found issue with pod %s in namespace %s: %s", pod.Name, pod.Namespace, message)
 
 				issue := &podIssue{
 					OriginalPodState: pod.DeepCopy(),
