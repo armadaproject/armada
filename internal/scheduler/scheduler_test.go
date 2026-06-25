@@ -23,6 +23,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	apiconfig "github.com/armadaproject/armada/internal/common/constants"
+	"github.com/armadaproject/armada/internal/common/errormatch"
 	"github.com/armadaproject/armada/internal/common/ingest/utils"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
@@ -1084,6 +1085,8 @@ func TestScheduler_TestCycle(t *testing.T) {
 			for eventType, m := range outstandingJobEventsByType {
 				assert.Empty(t, m, "%d outstanding eventSequences of type %s", len(m), eventType)
 			}
+
+			assertInternalFailureCategories(t, publisher.eventSequences)
 
 			// assert that the serials are where we expect them to be.
 			// On publish failure the cursor must not advance, so that the next cycle re-fetches
@@ -4032,4 +4035,42 @@ func TestAppendEventSequencesFromPreemptedJobs_NilPreemptingJob(t *testing.T) {
 	assert.NotNil(t, preemptedEvent)
 	assert.Equal(t, preemptedRun.Id(), preemptedEvent.PreemptedRunId)
 	assert.Equal(t, "", preemptedEvent.PreemptingJobId)
+}
+
+// assertInternalFailureCategories checks that each published lease-expired,
+// max-runs-exceeded, and job-rejected error carries the internal category
+// and its matching subcategory.
+func assertInternalFailureCategories(t *testing.T, sequences []*armadaevents.EventSequence) {
+	t.Helper()
+	for _, es := range sequences {
+		for _, event := range es.Events {
+			var runError *armadaevents.Error
+			switch e := event.Event.(type) {
+			case *armadaevents.EventSequence_Event_JobRunErrors:
+				if len(e.JobRunErrors.Errors) > 0 {
+					runError = e.JobRunErrors.Errors[0]
+				}
+			case *armadaevents.EventSequence_Event_JobErrors:
+				if len(e.JobErrors.Errors) > 0 {
+					runError = e.JobErrors.Errors[0]
+				}
+			}
+			if runError == nil {
+				continue
+			}
+			var wantSubcategory string
+			switch runError.Reason.(type) {
+			case *armadaevents.Error_LeaseExpired:
+				wantSubcategory = errormatch.SubcategoryLeaseExpired
+			case *armadaevents.Error_MaxRunsExceeded:
+				wantSubcategory = errormatch.SubcategoryMaxRunsExceeded
+			case *armadaevents.Error_JobRejected:
+				wantSubcategory = errormatch.SubcategoryJobRejected
+			default:
+				continue
+			}
+			assert.Equal(t, errormatch.CategoryInternal, runError.GetFailureCategory())
+			assert.Equal(t, wantSubcategory, runError.GetFailureSubcategory())
+		}
+	}
 }
