@@ -6,21 +6,16 @@
   - [Other developer docs](#other-developer-docs)
   - [Pre-requisites](#pre-requisites)
   - [Using `mage`](#using-mage)
-  - [Setting up `LocalDev`](#setting-up-localdev)
-  - [Debugging error: port 6443 is already in use after running `mage localdev full`](#debugging-error-port-6443-is-already-in-use-after-running-mage-localdev-full)
+  - [Setting up the local dev stack](#setting-up-the-local-dev-stack)
+  - [Debugging error: port 6443 is already in use after running `mage dev:full`](#debugging-error-port-6443-is-already-in-use-after-running-mage-devfull)
     - [Identifying the conflict](#identifying-the-conflict)
-    - [Testing if `LocalDev` is working](#testing-if-localdev-is-working)
+    - [Testing if the local dev stack is working](#testing-if-the-local-dev-stack-is-working)
     - [Running the UI](#running-the-ui)
     - [Choosing components to run](#choosing-components-to-run)
-    - [Running Pulsar-backed scheduler with `LocalDev`](#running-pulsar-backed-scheduler-with-localdev)
   - [Debugging](#debugging)
-    - [VS Code debugging](#vs-code-debugging)
-    - [Delve Debugging](#delve-debugging)
-      - [External debug port mappings](#external-debug-port-mappings)
   - [GoLand run configurations](#goland-run-configurations)
   - [VS Code debug configurations](#vs-code-debug-configurations)
     - [Other debugging methods](#other-debugging-methods)
-  - [Finer-grain control](#finer-grain-control)
 
 This document is intended for developers who want to contribute to the project. It contains information about the project structure, how to build the project and how to run the tests.
 
@@ -29,7 +24,7 @@ This document is intended for developers who want to contribute to the project. 
 Want to quickly get Armada running and test it? Install the [prerequisites](#pre-requisites) and then run:
 
 ```bash
-mage localdev minimal testsuite
+mage dev:full && mage testsuite
 ```
 
 To get the UI running, run:
@@ -51,22 +46,20 @@ If you encounter any problems, you can create a ticket and link it to the releva
 
 For more information about Armada's design, see the following pages:
 
-* [Armada Components Diagram](./design/relationships_diagram.md)
-* [Armada Architecture](./design/architecture.md)
-* [Armada Design](./design/index.md)
-* [How Priority Functions](./design/priority.md)
-* [Armada Scheduler Design](./design/scheduling_and_preempting_jobs.md)
+* [Armada Components Diagram](https://armadaproject.io/design/relationships_diagram)
+* [Armada Architecture](https://armadaproject.io/design/architecture)
+* [Armada Design](https://armadaproject.io/design)
+* [How Priority Functions](https://armadaproject.io/design/priority)
+* [Armada Scheduler Design](https://armadaproject.io/design/scheduler)
 
 ## Other developer docs
 
-* [Armada API](./developer/api.md)
-* [Running Armada in an EC2 instance](./developer/aws-ec2.md)
-* [Armada UI](./developer/ui.md)
+* [Armada API](./developer/armada-api.md)
+* [Running Armada in an EC2 instance](https://armadaproject.io/developer/aws-ec2)
+* [Armada UI](https://armadaproject.io/developer/ui)
 * [Usage metrics](./developer/usage_metrics.md)
-* [Using OIDC with Armada](./developer/oidc.md)
+* [Using OIDC with Armada](./developer/setting-up-oidc.md)
 * [Building the website](./developer/website.md)
-* [Using `LocalDev` manually](./developer/manual-localdev.md)
-* [Inspecting and debugging etcd in `LocalDev` setup](./developer/etc-localdev.md)
 
 ## Pre-requisites
 
@@ -84,9 +77,9 @@ Before you can start using Armada, you first need to install the following items
 
 `mage` is a build tool that we use to build Armada. It is similar to Make, but written in Go. It is used to build Armada, run tests and run other useful commands. To see a list of available commands, run `mage -l`.
 
-## Setting up `LocalDev`
+## Setting up the local dev stack
 
-`LocalDev`provides a reliable and extendable way to install Armada as a developer. It runs the following steps:
+The local dev stack provides a reliable and extendable way to install Armada as a developer. It runs the following steps:
 
 * bootstrap the required tools from [tools.yaml](https://github.com/armadaproject/armada/blob/master/tools.yaml)
 * create a local Kubernetes cluster using [kind](https://kind.sigs.k8s.io/)
@@ -96,19 +89,19 @@ Before you can start using Armada, you first need to install the following items
 
 It has the following options to customise further steps:
 
-* `mage localdev full` - runs all components of Armada, including the Lookout UI
-* `mage localdev minimal` - runs only the core components of Armada (such as the API server and an executor)
-* `mage localdev no-build` - skips the build step; set `ARMADA_IMAGE` and `ARMADA_TAG` to choose the Docker image to use
+* `mage dev:full` - runs the full Armada stack in containers (deps + all components) against a Kind cluster
+* `mage dev:up [profile]` - runs deps in containers and Armada components as host processes via goreman; profile is `no-auth` (default), `auth`, or `fake-executor`
+* `mage dev:deps` - runs only the dependency containers (redis, postgres, pulsar)
 
-We use `mage localdev minimal` to test the CI pipeline. You should therefore use it to test changes to the core components of Armada.
+We use `mage dev:full` to test the CI pipeline. You should therefore use it to test changes to the core components of Armada.
 
-## Debugging error: port 6443 is already in use after running `mage localdev full`
+## Debugging error: port 6443 is already in use after running `mage dev:full`
 
 ### Identifying the conflict
 
 Before making any changes, identify which port is causing the conflict. Port 6443 is a common source of conflicts. You can check for existing bindings to this port using commands like `netstat` or `lsof`.
 
-1. The `kind.yaml` file is where you define the configuration for your Kind clusters. To resolve port conflicts, open your [`kind.yaml`](https://github.com/armadaproject/armada/blob/master/e2e/setup/kind.yaml) file.
+1. The Kind cluster config is where you define port mappings. To resolve port conflicts, open your [`_local/kind/cluster.yaml`](https://github.com/armadaproject/armada/blob/master/_local/kind/cluster.yaml) file.
 2. Locate the relevant section where the `hostPort` is set. It may look something like this:
    
    ```
@@ -126,9 +119,9 @@ Before making any changes, identify which port is causing the conflict. Port 644
    ```
    You are not limited to using port 6444. You can choose any available port that doesn't conflict with other services on your system. Select a port that suits your system configuration.
 
-### Testing if `LocalDev` is working
+### Testing if the local dev stack is working
 
-Running `mage testsuite` runs the full test suite against the `LocalDev` cluster. You should therefore use this to test changes to the core components of Armada.
+Running `mage testsuite` runs the full test suite against the local dev stack. You should therefore use this to test changes to the core components of Armada.
 
 You can also run the same commands yourself:
 
@@ -144,7 +137,7 @@ go run cmd/testsuite/main.go test --tests "testsuite/testcases/basic/*" --junit 
 
 ### Running the UI
 
-In `LocalDev`, the UI is built separately with `mage ui`. To access it, open http://localhost:8089 in your browser.
+In the local dev stack, the UI is built separately with `mage ui`. To access it, open http://localhost:8089 in your browser.
 
 For more information, [see the UI Developer Guide](./developer/developing-locally.md).
 
@@ -157,91 +150,14 @@ You can set the `ARMADA_COMPONENTS` environment variable to choose which compone
 export ARMADA_COMPONENTS="server,executor"
 ```
 
-### Running Pulsar-backed scheduler with `LocalDev`
-
-Ensure your local environment is completely torn down with:
-
-```bash
-mage LocalDevStop
-```
-
-And then run:
-
-```bash
-mage LocalDev minimal
-```
-
-Ensure your `LocalDev` environment is completely torn down when switching between Pulsar-backed and legacy setups.
-
-If the eventsingester or the scheduleringester don't come up then just manually spin them up with `docker-compose up`.
-
 ## Debugging
 
-The mage target `mage debug` supports multiple methods for debugging, and runs the appropriate parts of `LocalDev` as required.
-
-It supports the following commands:
-
-* `mage debug vscode` - runs the server and executor in debug mode, and provides a launch.json file for VS Code
-* `mage debug delve` - runs the server and executor in debug mode, and starts the Delve debugger
-
-**Note** We are actively accepting contributions for more debugging guides.
-
-### VS Code debugging
-
-After running `mage debug vscode`, you can attach to the running processes using VS Code.
+The goreman-based flow (`mage dev:up`) builds each component with debug flags (`-gcflags="all=-N -l"`)
+and runs them as host processes, so you can attach a debugger to any component directly. Bring up the
+dependencies and components with `mage dev:up`, then attach your debugger (Delve, VS Code, or GoLand) to
+the running process you want to inspect. Each component reads `_local/<component>/config.yaml`.
 
 To use VS Code debugging, [see the VSCode Debugging Guide](https://code.visualstudio.com/docs/editor/debugging).
-
-### Delve Debugging
-
-The Delve target creates a new `docker-compose` file: `./docker-compose.dev.yaml` with the correct volumes, commands and images for debugging.
-
-To manually create the compose file and run it yourself, run the following commands:
-
-```bash
-mage createDelveCompose
-
-# You can then start components manually
-docker compose -f docker-compose.dev.yaml up -d server executor
-```
-
-After running `mage debug delve`, you can attach to the running processes using Delve.
-
-```bash
-$ docker compose exec -it server bash
-root@3b5e4089edbb:/app# dlv connect :4000
-Type 'help' for list of commands.
-(dlv) b (*SubmitServer).CreateQueue
-Breakpoint 3 set at 0x1fb3800 for github.com/armadaproject/armada/internal/armada/server.(*SubmitServer).CreateQueue() ./internal/armada/server/submit.go:137
-(dlv) c
-> github.com/armadaproject/armada/internal/armada/server.(*SubmitServer).CreateQueue() ./internal/armada/server/submit.go:140 (PC: 0x1fb38a0)
-   135: }
-   136:
-=> 137: func (server *SubmitServer) CreateQueue(ctx context.Context, request *api.Queue) (*types.Empty, error) {
-   138:         err := checkPermission(server.permissions, ctx, permissions.CreateQueue)
-   139:         var ep *ErrUnauthorized
-   140:         if errors.As(err, &ep) {
-   141:                 return nil, status.Errorf(codes.PermissionDenied, "[CreateQueue] error creating queue %s: %s", request.Name, ep)
-   142:         } else if err != nil {
-   143:                 return nil, status.Errorf(codes.Unavailable, "[CreateQueue] error checking permissions: %s", err)
-   144:         }
-   145:
-(dlv)
-```
-
-You can find all outputs of delve in the `./delve` directory.
-
-#### External debug port mappings
-
-| Armada service  | Debug host     |
-|-----------------|----------------|
-| `server`          | `localhost:4000` |
-| `executor`        | `localhost:4001` |
-| `binoculars`      | `localhost:4002` |
-| `eventingester`   | `localhost:4003` |
-| `lookoutui`       | `localhost:4004` |
-| `lookout`         | `localhost:4005` |
-| `lookoutingester` | `localhost:4007` |
 
 ## GoLand run configurations
 
@@ -249,16 +165,15 @@ We provide a number of run configurations within the `.run` directory of this pr
 
 The following high-level configurations are provided, each composed of sub-configurations:
 
-* `Armada Infrastructure Services` - runs infrastructure services required to run Armada, irrespective of scheduler type
-* `Armada (Legacy Scheduler)` - runs Armada with the Legacy Scheduler
-* `Armada (Pulsar Scheduler)` - runs Armada with the Pulsar Scheduler (recommended)
+* `Start Dependencies` - creates the Kind cluster and brings up the dependency containers (redis, postgres, pulsar)
+* `Armada` - runs the full Armada stack (migrations and components)
 * `Lookout UI` - script that configures a local UI development setup
 
-A minimal local Armada setup using these configurations would be `Armada Infrastructure Services` and one of (`Armada (Legacy Scheduler)` or `Armada (Pulsar Scheduler)`). Running the `Lookout UI` script on top of this configuration enables you to develop the Lookout UI live from GoLand, and see the changes visible in your browser.
+A minimal local Armada setup using these configurations would be `Start Dependencies` and `Armada`. If you already have a Kind cluster running, use `Infrastructure Services` instead of `Start Dependencies` to bring up just the dependency containers. Running the `Lookout UI` script on top of this configuration enables you to develop the Lookout UI live from GoLand, and see the changes visible in your browser.
 
-**Note:** These configurations (executor specifically) require a kubernetes config in `$PROJECT_DIR$/.kube/internal/config`.
+**Note:** These configurations (executor specifically) require a kubernetes config in `$PROJECT_DIR$/.kube/external/config`, which `Start Dependencies` writes via `mage kind`.
 
-GoLand does not allow us to specify an ordering for services within docker compose configurations. As a result, some database migration services may require rerunning.
+GoLand runs the configurations in a compound in parallel, so `Run Migrations` starts alongside the components. The components retry their database and Pulsar connections until the migrations finish, so a short burst of connection errors at startup is expected.
 
 ## VS Code debug configurations
 
@@ -268,10 +183,7 @@ The `Armada` configuration performs all required setup (setting up the Kind clus
 
 ### Other debugging methods
 
-Run `mage debug local` to only spin up the dependencies of Armada, and then run the individual components yourself.
-
-For required environmental variables, [see the Environmental Variables guide](https://github.com/armadaproject/armada/tree/master/developer/env/README.md).
-
-## Finer-grain control
-
-To run the individual `mage` targets yourself, [see the Manually running LocalDev guide](./developer/manual-localdev.md).
+Run `mage dev:deps` to spin up only the dependencies (redis, postgres, pulsar), then run individual
+Armada components yourself (for example under a debugger). Each component reads its config from
+`_local/<component>/config.yaml`. See the [README](../README.md#local-development) for the goreman-based
+workflow and available profiles.

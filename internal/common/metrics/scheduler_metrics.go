@@ -2,6 +2,7 @@ package metrics
 
 import (
 	"regexp"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/exp/maps"
@@ -298,6 +299,13 @@ var JobDBCumulativeInternedStrings = prometheus.NewDesc(
 	nil,
 )
 
+var BidPriceCacheLastRefreshDesc = prometheus.NewDesc(
+	MetricPrefix+"scheduler_bid_price_cache_last_refresh_timestamp_seconds",
+	"Unix timestamp of the most recent bid price snapshot held by the scheduler",
+	nil,
+	nil,
+)
+
 var (
 	queueLabelMetricName        = MetricPrefix + "queue_labels"
 	queueLabelMetricDescription = "Queue labels"
@@ -345,6 +353,7 @@ var AllDescs = []*prometheus.Desc{
 	QueueLabelDesc,
 	QueuePriceBandPhaseBidDesc,
 	JobDBCumulativeInternedStrings,
+	BidPriceCacheLastRefreshDesc,
 }
 
 func Describe(out chan<- *prometheus.Desc) {
@@ -464,6 +473,10 @@ func CollectQueueMetrics(pools []configuration.PoolConfig, queueCounts map[strin
 
 func NewPoolInfoMetric(pool string) prometheus.Metric {
 	return prometheus.MustNewConstMetric(PoolInfoDesc, prometheus.GaugeValue, float64(1), pool)
+}
+
+func NewBidPriceCacheLastRefreshMetric(t time.Time) prometheus.Metric {
+	return prometheus.MustNewConstMetric(BidPriceCacheLastRefreshDesc, prometheus.GaugeValue, float64(t.Unix()))
 }
 
 func NewQueueSizeMetric(value int, queue string, state string) prometheus.Metric {

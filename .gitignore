@@ -10,7 +10,6 @@ test_reports
 code_reports
 /armadactl
 junit.xml
-docker-compose.dev.yaml
 delve
 
 # VS Code
@@ -96,14 +95,9 @@ typings.py
 third_party/airflow/docs/build/
 third_party/airflow/build/
 build/ssl/certs/ca-certificates.crt
-developer/volumes/go/pkg/
 .coverage
 coverage.xml
 .venv
-
-# Yarn
-developer/yarn.lock
-developer/node_modules/
 
 # Vim
 .*.sw*

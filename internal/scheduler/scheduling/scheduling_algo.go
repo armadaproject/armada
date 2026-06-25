@@ -38,7 +38,7 @@ import (
 type SchedulingAlgo interface {
 	// Schedule should assign jobs to nodes.
 	// Any jobs that are scheduled should be marked as such in the JobDb using the transaction provided.
-	Schedule(*armadacontext.Context, map[string]internaltypes.ResourceList, *jobdb.Txn) (*SchedulerResult, error)
+	Schedule(*armadacontext.Context, *jobdb.Txn) (*SchedulerResult, error)
 }
 
 // FairSchedulingAlgo is a SchedulingAlgo based on PreemptingQueueScheduler.
@@ -108,7 +108,6 @@ func NewFairSchedulingAlgo(
 // and callers depend on this for metrics reporting.
 func (l *FairSchedulingAlgo) Schedule(
 	ctx *armadacontext.Context,
-	resourceUnits map[string]internaltypes.ResourceList,
 	txn *jobdb.Txn,
 ) (*SchedulerResult, error) {
 	var cancel context.CancelFunc
@@ -124,6 +123,7 @@ func (l *FairSchedulingAlgo) Schedule(
 
 	schedulerResult := &SchedulerResult{
 		PoolResults: make([]*PoolSchedulingResult, 0, len(l.schedulingConfig.Pools)),
+		StartTime:   l.clock.Now(),
 	}
 
 	// Exit immediately if scheduling is disabled.
@@ -153,7 +153,7 @@ func (l *FairSchedulingAlgo) Schedule(
 		if reconciliation.Err() != nil {
 			outcome = reconciliation.Outcome()
 		} else {
-			outcome, schedulingResult, err = l.runPoolSchedulingRound(ctx, pool, resourceUnits, txn, executors)
+			outcome, schedulingResult, err = l.runPoolSchedulingRound(ctx, pool, txn, executors)
 			if err != nil {
 				return nil, err
 			}
@@ -184,6 +184,7 @@ func (l *FairSchedulingAlgo) Schedule(
 
 		schedulerResult.PoolResults = append(schedulerResult.PoolResults, poolResult)
 	}
+	schedulerResult.EndTime = l.clock.Now()
 	return schedulerResult, nil
 }
 
@@ -204,7 +205,6 @@ func (l *FairSchedulingAlgo) appendSchedulingDisabledResults(ctx *armadacontext.
 func (l *FairSchedulingAlgo) runPoolSchedulingRound(
 	ctx *armadacontext.Context,
 	pool configuration.PoolConfig,
-	resourceUnits map[string]internaltypes.ResourceList,
 	txn *jobdb.Txn,
 	executors []*schedulerobjects.Executor,
 ) (*PoolSchedulingOutcome, *SchedulingResult, error) {
@@ -250,12 +250,7 @@ func (l *FairSchedulingAlgo) runPoolSchedulingRound(
 	fsctx.nodeDb.SetDisallowedJobResources(pool.ExperimentalUnscheduledResources)
 
 	start := time.Now()
-	resourceUnit, ok := resourceUnits[pool.Name]
-	if !ok {
-		ctx.Warnf("Pool %s has no resource unit defined", pool.Name)
-		resourceUnit = l.resourceListFactory.MakeAllZero()
-	}
-	schedulingResult, sctx, err := l.SchedulePool(ctx, fsctx, pool, resourceUnit)
+	schedulingResult, sctx, err := l.SchedulePool(ctx, fsctx, pool)
 	if err != nil {
 		ctx.Infof("Scheduled on pool %s in %v - failed with error %s", pool.Name, time.Now().Sub(start), err)
 		if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
@@ -805,7 +800,6 @@ func (l *FairSchedulingAlgo) SchedulePool(
 	ctx *armadacontext.Context,
 	fsctx *FairSchedulingAlgoContext,
 	pool configuration.PoolConfig,
-	resourceUnit internaltypes.ResourceList,
 ) (*SchedulingResult, *schedulercontext.SchedulingContext, error) {
 	totalResources := fsctx.nodeDb.TotalKubernetesResources()
 	totalResources = totalResources.Add(l.floatingResourceTypes.GetTotalAvailableForPool(pool.Name))
@@ -814,6 +808,20 @@ func (l *FairSchedulingAlgo) SchedulePool(
 
 	if shouldRunOptimiser {
 		defer l.updateOptimiserLastRunTime(pool)
+	}
+
+	resourceUnits := l.resourceListFactory.MakeAllZero()
+	if pool.ExperimentalMarketScheduling != nil && pool.ExperimentalMarketScheduling.Enabled {
+		snapshot := fsctx.Txn.GetBidPriceSnapshot()
+		if snapshot != nil {
+			if poolResourceUnits, ok := snapshot.ResourceUnits[pool.Name]; ok {
+				resourceUnits = poolResourceUnits
+			} else {
+				ctx.Warnf("Pool %s has no resource unit defined", pool.Name)
+			}
+		} else {
+			ctx.Warnf("No price snapshot found when processing pool %s", pool.Name)
+		}
 	}
 
 	// Calculate "Idealised value" on every queue.  This is a metric that is useful on market-driven pools in order
@@ -831,7 +839,7 @@ func (l *FairSchedulingAlgo) SchedulePool(
 		l.floatingResourceTypes,
 		l.schedulingConfig,
 		l.resourceListFactory,
-		resourceUnit,
+		resourceUnits,
 	)
 	if idealisedShareErr != nil {
 		log.WithStacktrace(idealisedShareErr).Warnf("failed to calculated idealised share for pool %s - %s", fsctx.pool, idealisedShareErr)
@@ -893,7 +901,7 @@ func (l *FairSchedulingAlgo) SchedulePool(
 	// We only calculate value for market driven pools
 	marketConfig := l.schedulingConfig.GetMarketConfig(pool.Name)
 	if marketConfig != nil && marketConfig.Enabled {
-		realisedValueByQueue := valueFromSchedulingResult(fsctx.schedulingContext, resourceUnit)
+		realisedValueByQueue := valueFromSchedulingResult(fsctx.schedulingContext, resourceUnits)
 		for qName, qCtx := range fsctx.schedulingContext.QueueSchedulingContexts {
 			qCtx.RealisedValue = realisedValueByQueue[qName]
 		}

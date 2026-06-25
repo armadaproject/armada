@@ -39,6 +39,7 @@ type EventCheck struct {
 	Type        EventType
 	GracePeriod time.Duration
 	Action      Action
+	Name        string
 }
 
 type ContainerStatusCheck struct {
@@ -47,6 +48,7 @@ type ContainerStatusCheck struct {
 	Inverse      bool
 	GracePeriod  time.Duration
 	Action       Action
+	Name         string
 }
 
 type FailedChecks struct {

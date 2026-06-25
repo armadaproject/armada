@@ -98,7 +98,7 @@
       "args": [
         "run",
         "--config",
-        "${workspaceFolder}/developer/config/insecure-armada.yaml"
+        "${workspaceFolder}/_local/scheduler/config.yaml"
       ],
       "mode": "auto",
       "program": "${workspaceFolder}/cmd/scheduler/main.go",
@@ -129,7 +129,7 @@
       "request": "launch",
       "mode": "auto",
       "program": "${workspaceFolder}/cmd/server/main.go",
-      "args": ["--config", "./developer/config/insecure-armada.yaml"],
+      "args": ["--config", "./_local/server/config.yaml"],
       "cwd": "${workspaceFolder}",
       "env": {
         "ARMADA_CORSALLOWEDORIGINS": "http://localhost:3000,http://localhost:4173,http://localhost:8089,http://localhost:10000,http://example.com:10000,http://example.com:8089",
