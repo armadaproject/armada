@@ -4,6 +4,8 @@ import (
 	"maps"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/pkg/bidstore"
@@ -22,9 +24,9 @@ type PriceKey struct {
 
 type BidPriceSnapshot struct {
 	// Id uniquely identifies this snapshot.
-	// Two snapshots with the same non-empty Id are guaranteed to hold identical Bids and ResourceUnits.
-	// An empty Id means "unidentified" and should never be treated as equal to another.
-	Id            string
+	// Two snapshots with the same non-nil Id are guaranteed to hold identical Bids and ResourceUnits.
+	// A nil Id (uuid.Nil) means "unidentified" and should never be treated as equal to another.
+	Id            uuid.UUID
 	Timestamp     time.Time
 	Bids          map[PriceKey]map[string]Bid
 	ResourceUnits map[string]internaltypes.ResourceList
