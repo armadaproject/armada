@@ -278,13 +278,7 @@ func (p *PodIssueHandler) detectPodIssues(allManagedPods []*v1.Pod) {
 				log.Errorf("Unable to get pod events for pod %s: %v", pod.Name, err)
 			}
 
-			lastStateChange, err := util.LastStatusChange(pod)
-			if err != nil {
-				log.Errorf("Unable to get lastStateChange for pod %s: %v", pod.Name, err)
-				continue
-			}
-
-			action, cause, podCheckMessage := p.pendingPodChecker.GetAction(pod, podEvents, p.clock.Now().Sub(lastStateChange))
+			action, cause, podCheckMessage := p.pendingPodChecker.GetAction(pod, podEvents)
 
 			if action != podchecks.ActionWait {
 				retryable := action == podchecks.ActionRetry
@@ -438,7 +432,8 @@ func (p *PodIssueHandler) handleNonRetryableJobIssue(issue *issue) {
 			util.ExtractFailedPodContainerStatuses(podIssue.OriginalPodState, clusterId),
 			clusterId,
 			result.Category,
-			result.Subcategory)
+			result.Subcategory,
+		)
 		if err != nil {
 			log.Errorf("Failed to create failed event for job %s because %s", issue.RunIssue.JobId, err)
 			return

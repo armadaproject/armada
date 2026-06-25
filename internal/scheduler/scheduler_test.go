@@ -1701,7 +1701,6 @@ func TestJobPriceUpdates(t *testing.T) {
 			expectedJobBidPrice:           []float64{0, 0, 0},
 		},
 		"job with no market driven pools": {
-			// No need to set price on job that doesn't belong to market driven pools
 			marketDrivenPools:             []string{testfixtures.TestPool},
 			initialJob:                    jobWithoutMarketDrivenPools,
 			expectedNumberOfProviderCalls: []int{1, 1, 2},
@@ -1709,7 +1708,6 @@ func TestJobPriceUpdates(t *testing.T) {
 			expectedJobBidPrice:           []float64{0, 0, 0},
 		},
 		"non-preemptible queued job": {
-			// No market driven pools, so prices shouldn't be getting updated
 			marketDrivenPools:             []string{testfixtures.TestPool},
 			initialJob:                    queuedJob,
 			expectedNumberOfProviderCalls: []int{1, 1, 2},
@@ -1717,7 +1715,6 @@ func TestJobPriceUpdates(t *testing.T) {
 			expectedJobBidPrice:           []float64{2, 2, 3},
 		},
 		"non-preemptible running job": {
-			// No market driven pools, so prices shouldn't be getting updated
 			marketDrivenPools:             []string{testfixtures.TestPool},
 			initialJob:                    runningJob,
 			expectedNumberOfProviderCalls: []int{1, 1, 2},
@@ -1725,7 +1722,6 @@ func TestJobPriceUpdates(t *testing.T) {
 			expectedJobBidPrice:           []float64{pricing.NonPreemptibleRunningPrice, pricing.NonPreemptibleRunningPrice, pricing.NonPreemptibleRunningPrice},
 		},
 		"non-preemptible queued job with no pricing info": {
-			// No market driven pools, so prices shouldn't be getting updated
 			marketDrivenPools:             []string{testfixtures.TestPool},
 			initialJob:                    queuedJobNoPricingInfo,
 			expectedNumberOfProviderCalls: []int{1, 1, 2},
@@ -1733,7 +1729,6 @@ func TestJobPriceUpdates(t *testing.T) {
 			expectedJobBidPrice:           []float64{0, 0, 0},
 		},
 		"non-preemptible running job with no pricing info": {
-			// No market driven pools, so prices shouldn't be getting updated
 			marketDrivenPools:             []string{testfixtures.TestPool},
 			initialJob:                    runningJobNoPricingInfo,
 			expectedNumberOfProviderCalls: []int{1, 1, 2},
@@ -1741,7 +1736,6 @@ func TestJobPriceUpdates(t *testing.T) {
 			expectedJobBidPrice:           []float64{pricing.NonPreemptibleRunningPrice, pricing.NonPreemptibleRunningPrice, pricing.NonPreemptibleRunningPrice},
 		},
 		"preemptible queued job": {
-			// No market driven pools, so prices shouldn't be getting updated
 			marketDrivenPools:             []string{testfixtures.TestPool},
 			initialJob:                    queuedPreemptibleJob,
 			expectedNumberOfProviderCalls: []int{1, 1, 2},
@@ -1749,7 +1743,6 @@ func TestJobPriceUpdates(t *testing.T) {
 			expectedJobBidPrice:           []float64{2, 2, 3},
 		},
 		"preemptible running job": {
-			// No market driven pools, so prices shouldn't be getting updated
 			marketDrivenPools:             []string{testfixtures.TestPool},
 			initialJob:                    runningPreemptibleJob,
 			expectedNumberOfProviderCalls: []int{1, 1, 2},
@@ -1757,7 +1750,6 @@ func TestJobPriceUpdates(t *testing.T) {
 			expectedJobBidPrice:           []float64{2, 2, 3},
 		},
 		"preemptible queued job - no pricing info": {
-			// No market driven pools, so prices shouldn't be getting updated
 			marketDrivenPools:             []string{testfixtures.TestPool},
 			initialJob:                    queuedPreemptibleJobNoPricingInfo,
 			expectedNumberOfProviderCalls: []int{1, 1, 2},
@@ -1765,7 +1757,6 @@ func TestJobPriceUpdates(t *testing.T) {
 			expectedJobBidPrice:           []float64{0, 0, 0},
 		},
 		"preemptible running job - no pricing info": {
-			// No market driven pools, so prices shouldn't be getting updated
 			marketDrivenPools:             []string{testfixtures.TestPool},
 			initialJob:                    runningPreemptibleJobNoPricingInfo,
 			expectedNumberOfProviderCalls: []int{1, 1, 2},
@@ -1777,17 +1768,20 @@ func TestJobPriceUpdates(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			// Test objects
+			key := pricing.PriceKey{Queue: "testQueue", Band: bidstore.PriceBand_PRICE_BAND_B}
+			bid := func(q, r float64) map[string]pricing.Bid {
+				return map[string]pricing.Bid{"testPool": {QueuedBid: q, RunningBid: r}}
+			}
+			snapshot1 := pricing.BidPriceSnapshot{Id: "1", Bids: map[pricing.PriceKey]map[string]pricing.Bid{key: bid(2, 2)}}
+			snapshot2 := pricing.BidPriceSnapshot{Id: "2", Bids: map[pricing.PriceKey]map[string]pricing.Bid{key: bid(3, 3)}}
+
 			jobDb := testfixtures.NewJobDb(testfixtures.TestResourceListFactory)
 			jobRepo := testJobRepository{numReceivedPartitions: 100}
 			testClock := clock.NewFakeClock(time.Now())
 			schedulingAlgo := &testSchedulingAlgo{}
 			publisher := &testPublisher{}
 			priceProvider := &testBidPriceProvider{
-				pools:  tc.marketDrivenPools,
-				queues: []string{"testQueue"},
-				priceFunc: func(band bidstore.PriceBand) float64 {
-					return float64(band)
-				},
+				currentSnapshot: snapshot1,
 			}
 			clusterRepo := &testExecutorRepository{}
 			leaderController := leaderelection.NewStandaloneLeaderController()
@@ -1842,20 +1836,28 @@ func TestJobPriceUpdates(t *testing.T) {
 			assert.Equal(t, tc.expectedJobBid[0], currentJob.GetAllBidPrices())
 			assert.Equal(t, tc.expectedJobBidPrice[0], currentJob.GetBidPrice(testfixtures.TestPool))
 			assert.Equal(t, priceProvider.numberOfCalls, tc.expectedNumberOfProviderCalls[0])
+			if len(tc.marketDrivenPools) > 0 {
+				assert.Equal(t, jobDb.ReadTxn().GetBidPriceSnapshot().Id, snapshot1.Id)
+			} else {
+				assert.Nil(t, jobDb.ReadTxn().GetBidPriceSnapshot())
+			}
 
 			// invalidate our leadership: we shouldn't update prices
 			leaderController.SetToken(leaderelection.InvalidLeaderToken())
-			priceProvider.priceFunc = func(band bidstore.PriceBand) float64 {
-				return float64(band) + 1
-			}
+			priceProvider.currentSnapshot = snapshot2
 			fireCycle()
 			currentJob = jobDb.ReadTxn().GetById(tc.initialJob.JobID)
 			assert.NotNil(t, currentJob)
 			assert.Equal(t, tc.expectedJobBid[1], currentJob.GetAllBidPrices())
 			assert.Equal(t, tc.expectedJobBidPrice[1], currentJob.GetBidPrice(testfixtures.TestPool))
 			assert.Equal(t, priceProvider.numberOfCalls, tc.expectedNumberOfProviderCalls[1])
+			if len(tc.marketDrivenPools) > 0 {
+				assert.Equal(t, jobDb.ReadTxn().GetBidPriceSnapshot().Id, snapshot1.Id)
+			} else {
+				assert.Nil(t, jobDb.ReadTxn().GetBidPriceSnapshot())
+			}
 
-			// become master again: we shouldn't update prices
+			// become master again: we should update prices
 			leaderController.SetToken(leaderelection.NewLeaderToken())
 			fireCycle()
 			currentJob = jobDb.ReadTxn().GetById(tc.initialJob.JobID)
@@ -1863,6 +1865,11 @@ func TestJobPriceUpdates(t *testing.T) {
 			assert.Equal(t, tc.expectedJobBid[2], currentJob.GetAllBidPrices())
 			assert.Equal(t, tc.expectedJobBidPrice[2], currentJob.GetBidPrice(testfixtures.TestPool))
 			assert.Equal(t, priceProvider.numberOfCalls, tc.expectedNumberOfProviderCalls[2])
+			if len(tc.marketDrivenPools) > 0 {
+				assert.Equal(t, jobDb.ReadTxn().GetBidPriceSnapshot().Id, snapshot2.Id)
+			} else {
+				assert.Nil(t, jobDb.ReadTxn().GetBidPriceSnapshot())
+			}
 
 			cancel()
 		})
@@ -2533,35 +2540,13 @@ func FailedReconciliationResultFromJobs[J *jobdb.Job](jobs []J, reason string) [
 }
 
 type testBidPriceProvider struct {
-	numberOfCalls int
-	pools         []string
-	queues        []string
-	priceFunc     func(band bidstore.PriceBand) float64
+	numberOfCalls   int
+	currentSnapshot pricing.BidPriceSnapshot
 }
 
 func (t *testBidPriceProvider) GetBidPrices(ctx *armadacontext.Context) (pricing.BidPriceSnapshot, error) {
 	t.numberOfCalls++
-	snapshot := pricing.BidPriceSnapshot{
-		Timestamp: time.Now(),
-		Bids:      make(map[pricing.PriceKey]map[string]pricing.Bid),
-	}
-
-	for _, q := range t.queues {
-		for _, band := range bidstore.PriceBandFromShortName {
-			key := pricing.PriceKey{Queue: q, Band: band}
-			bids := make(map[string]pricing.Bid)
-
-			for _, pool := range t.pools {
-				bids[pool] = pricing.Bid{
-					QueuedBid:  t.priceFunc(band),
-					RunningBid: t.priceFunc(band),
-				}
-			}
-
-			snapshot.Bids[key] = bids
-		}
-	}
-	return snapshot, nil
+	return t.currentSnapshot, nil
 }
 
 type testPublisher struct {
