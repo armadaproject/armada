@@ -3,6 +3,8 @@ package pricing
 import (
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/queue"
@@ -31,6 +33,7 @@ func NewLocalBidPriceService(pools []string, queueCache queue.QueueCache) *Local
 
 func (b *LocalBidPriceService) GetBidPrices(ctx *armadacontext.Context) (BidPriceSnapshot, error) {
 	snapshot := BidPriceSnapshot{
+		Id:        uuid.NewString(),
 		Timestamp: time.Now(),
 		Bids:      make(map[PriceKey]map[string]Bid),
 	}
@@ -80,6 +83,7 @@ func (b *ExternalBidPriceService) GetBidPrices(ctx *armadacontext.Context) (BidP
 
 func convert(resp *bidstore.RetrieveBidsResponse, rlf *internaltypes.ResourceListFactory) BidPriceSnapshot {
 	snapshot := BidPriceSnapshot{
+		Id:            uuid.NewString(),
 		Timestamp:     time.Now(),
 		Bids:          make(map[PriceKey]map[string]Bid),
 		ResourceUnits: make(map[string]internaltypes.ResourceList),
