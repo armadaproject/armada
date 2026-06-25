@@ -12,6 +12,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	realclock "k8s.io/utils/clock"
 	clock "k8s.io/utils/clock/testing"
 
 	"github.com/armadaproject/armada/internal/common/errormatch"
@@ -785,7 +786,7 @@ func makePendingPodChecker() podchecks.PodChecker {
 		{State: podchecksConfig.ContainerStateWaiting, ReasonRegexp: "Some reason", GracePeriod: time.Nanosecond, Action: podchecksConfig.ActionRetry},
 	}
 
-	checker, err := podchecks.NewPodChecks(cfg)
+	checker, err := podchecks.NewPodChecks(cfg, realclock.RealClock{})
 	if err != nil {
 		panic(fmt.Sprintf("Failed to make pod checker: %v", err))
 	}

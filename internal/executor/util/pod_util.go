@@ -210,7 +210,7 @@ func FilterPods(pods []*v1.Pod, filter func(*v1.Pod) bool) []*v1.Pod {
 
 func LastStatusChange(pod *v1.Pod) (time.Time, error) {
 	maxStatusChange := pod.CreationTimestamp.Time
-	for _, containerStatus := range pod.Status.ContainerStatuses {
+	for _, containerStatus := range append(pod.Status.InitContainerStatuses, pod.Status.ContainerStatuses...) {
 		if s := containerStatus.State.Running; s != nil {
 			maxStatusChange = maxTime(maxStatusChange, s.StartedAt.Time)
 		}
