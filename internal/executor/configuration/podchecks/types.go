@@ -30,6 +30,7 @@ type Checks struct {
 	ContainerStatuses         []ContainerStatusCheck
 	DeadlineForUpdates        time.Duration
 	DeadlineForNodeAssignment time.Duration
+	DeadlineForInitContainers time.Duration
 }
 
 type EventCheck struct {
