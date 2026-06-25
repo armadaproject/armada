@@ -247,7 +247,7 @@ Two emission paths reach this flow, depending on who detected the failure.
 
 ### Path A: pod reaches terminal phase
 
-- **Run state:** `Running` to `Failed`.
+- **Run state:** `Running` to `Failed` (a pod that exits before it is observed `Running`, for example an immediate non-zero exit, goes `Pending` to `Failed`).
 - **Job state:** to `Failed` if terminal, or stays non-terminal if requeued.
 
 Events fired in this flow:
@@ -421,4 +421,4 @@ sequenceDiagram
     Note over E: phase-report skipped<br/>(deletion annotation)
 ```
 
-The executor's cancel path emits no events. Cancellation is a clean teardown driven entirely by the scheduler. The scheduler ingester ignores `JobRunCancelled` (it is in the explicit ignore list) and writes job-level cancellation via `MarkJobsCancelled` from `CancelledJob`. The lookout ingester writes both the run and job state. The conversion layer ignores `JobRunCancelled` and converts `CancelledJob` to `JobCancelledEvent` for the API stream.
+The executor's cancel path emits no events. Cancellation is a clean teardown driven entirely by the scheduler. The scheduler ingester ignores `JobRunCancelled` (it is in the explicit ignore list) and writes cancellation via `MarkJobsCancelled` from `CancelledJob`. `MarkJobsCancelled` also stamps the runs table (`cancelled=true`, `terminated_timestamp`) keyed on `job_id`, so the run's cancelled state in the scheduler database comes from this job-level cascade rather than from the ignored `JobRunCancelled`. The lookout ingester writes both the run and job state. The conversion layer ignores `JobRunCancelled` and converts `CancelledJob` to `JobCancelledEvent` for the API stream.
