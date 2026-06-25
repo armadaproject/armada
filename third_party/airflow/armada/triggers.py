@@ -12,6 +12,13 @@ from ._compat import AIRFLOW_V_3_0_PLUS, deserialize
 from .hooks import ArmadaHook
 from .utils import log_exceptions, xcom_pull_for_ti
 
+# Terminal task states in which a lingering Armada job must be cancelled on
+# trigger cleanup. Any other state (notably DEFERRED) means the triggerer is
+# handing off the trigger, not that the task finished, so the job is left alone.
+CANCEL_JOBS_WHEN_TASK_IN_STATE: frozenset[TaskInstanceState] = frozenset(
+    {TaskInstanceState.SUCCESS, TaskInstanceState.FAILED}
+)
+
 
 class ArmadaPollJobTrigger(BaseTrigger):
     __version__: ClassVar[int] = 1
@@ -73,15 +80,17 @@ class ArmadaPollJobTrigger(BaseTrigger):
 
     async def _should_cancel_job(self) -> bool:
         """
-        Cancel the Armada job only when the task is no longer DEFERRED.
+        Cancel the Armada job only when the task has reached a terminal state.
 
-        A task that is still DEFERRED on trigger exit means the triggerer
-        is restarting / handing off the trigger, not that the user killed
-        the task — cancelling in that case would kill a perfectly healthy
-        job. Morally equivalent to KubernetesPodTrigger.safe_to_cancel().
+        A task that is not in a terminal state on trigger exit (most importantly
+        DEFERRED) means the triggerer is restarting / handing off the trigger,
+        not that the task has finished — cancelling in that case would kill a
+        perfectly healthy job. Morally equivalent to
+        KubernetesPodTrigger.safe_to_cancel().
         """
         try:
             state = await self._get_task_state()
+            self.log.info("Task state during cleanup: %s", state)
         except Exception:
             self.log.warning(
                 "Could not determine task state during cleanup; "
@@ -89,7 +98,7 @@ class ArmadaPollJobTrigger(BaseTrigger):
                 exc_info=True,
             )
             raise
-        return state != TaskInstanceState.DEFERRED
+        return state in CANCEL_JOBS_WHEN_TASK_IN_STATE
 
     async def _get_task_state(self) -> Any:
         if not AIRFLOW_V_3_0_PLUS:

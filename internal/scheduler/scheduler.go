@@ -13,6 +13,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/constants"
+	"github.com/armadaproject/armada/internal/common/errormatch"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/leaderelection"
@@ -28,7 +29,6 @@ import (
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/runner"
 	"github.com/armadaproject/armada/pkg/armadaevents"
-	"github.com/armadaproject/armada/pkg/bidstore"
 )
 
 // Scheduler is the main Armada scheduler.
@@ -521,61 +521,64 @@ func (s *Scheduler) syncState(ctx *armadacontext.Context, initial bool) ([]*jobd
 	return jobDbJobs, jsts, newJobsSerial, newRunsSerial, nil
 }
 
-// TODO - This is highly inefficient and will only work if market driven pools are small
-// We should rewrite how bids are stored in an efficient manner
 func (s *Scheduler) updateJobPrices(ctx *armadacontext.Context, txn *jobdb.Txn) error {
 	if len(s.marketDrivenPools) == 0 {
 		return nil
 	}
 
-	jobs := txn.GetAll()
-	jobsByQueue := map[string]map[bidstore.PriceBand][]*jobdb.Job{}
 	updatedBids, err := s.bidPriceProvider.GetBidPrices(ctx)
 	if err != nil {
 		return err
 	}
 
-	hasMarketDrivenPool := func(j *jobdb.Job) bool {
-		for _, pool := range j.Pools() {
-			if slices.Contains(s.marketDrivenPools, pool) {
-				return true
+	// The provider caches the snapshot between refreshes, so most cycles see the same one.
+	// A matching, non-empty Id guarantees identical content, so we can skip all the work.
+	previousSnapshot := txn.GetBidPriceSnapshot()
+	if previousSnapshot != nil && previousSnapshot.Id != "" && previousSnapshot.Id == updatedBids.Id {
+		ctx.Logger().Infof("bid price snapshot %s unchanged, skipping job price update", updatedBids.Id)
+		return nil
+	}
+
+	// Only jobs whose (queue, band) price actually changed need re-pricing.
+	changedKeys := updatedBids.ChangedPriceKeys(previousSnapshot)
+	if len(changedKeys) == 0 {
+		ctx.Logger().Infof("no bid price changes, skipping job price update")
+	} else {
+		hasMarketDrivenPool := func(j *jobdb.Job) bool {
+			for _, pool := range j.Pools() {
+				if slices.Contains(s.marketDrivenPools, pool) {
+					return true
+				}
 			}
+			return false
 		}
-		return false
-	}
 
-	for _, job := range jobs {
-		if _, present := jobsByQueue[job.Queue()]; !present {
-			jobsByQueue[job.Queue()] = map[bidstore.PriceBand][]*jobdb.Job{}
-		}
-		if _, present := jobsByQueue[job.Queue()][job.GetPriceBand()]; !present {
-			jobsByQueue[job.Queue()][job.GetPriceBand()] = []*jobdb.Job{}
-		}
-		if hasMarketDrivenPool(job) {
-			jobsByQueue[job.Queue()][job.GetPriceBand()] = append(jobsByQueue[job.Queue()][job.GetPriceBand()], job)
-		}
-	}
-
-	updatedJobs := make([]*jobdb.Job, 0, len(jobs))
-	for queue := range jobsByQueue {
-		for priceBand, jobs := range jobsByQueue[queue] {
-			updatedPrice, present := updatedBids.GetPrice(queue, priceBand)
-			if !present {
+		jobs := txn.GetAll()
+		updatedJobs := make([]*jobdb.Job, 0)
+		for _, job := range jobs {
+			if !hasMarketDrivenPool(job) {
 				continue
 			}
-
-			// For now always update all jobs, as the jobDb isn't setting them as they come in
-			for _, job := range jobs {
-				job = job.WithBidPrices(updatedPrice)
-				updatedJobs = append(updatedJobs, job)
+			if !changedKeys[pricing.PriceKey{Queue: job.Queue(), Band: job.GetPriceBand()}] {
+				continue
 			}
+			updatedPrice, present := updatedBids.GetPrice(job.Queue(), job.GetPriceBand())
+			if !present {
+				// The key changed but has no price in the new snapshot - for now leave the stale price in place
+				// TODO Decide if we want to clear the price for these jobs
+				continue
+			}
+			updatedJobs = append(updatedJobs, job.WithBidPrices(updatedPrice))
+		}
+
+		ctx.Logger().Infof("updating the prices of %d jobs", len(updatedJobs))
+		err = txn.Upsert(updatedJobs)
+		if err != nil {
+			return err
 		}
 	}
-	ctx.Logger().Infof("updating the prices of %d jobs", len(updatedJobs))
-	err = txn.Upsert(updatedJobs)
-	if err != nil {
-		return err
-	}
+
+	ctx.Logger().Infof("updating bid price snapshot (id=%s)", updatedBids.Id)
 	err = txn.SetBidPriceSnapshot(&updatedBids)
 	if err != nil {
 		return err
@@ -1025,7 +1028,9 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 					}
 
 					runError = &armadaevents.Error{
-						Terminal: true,
+						Terminal:           true,
+						FailureCategory:    errormatch.CategoryInternal,
+						FailureSubcategory: errormatch.SubcategoryMaxRunsExceeded,
 						Reason: &armadaevents.Error_MaxRunsExceeded{
 							MaxRunsExceeded: &armadaevents.MaxRunsExceeded{
 								Message: errorMessage,
@@ -1123,7 +1128,9 @@ func (s *Scheduler) expireJobsIfNecessary(ctx *armadacontext.Context, txn *jobdb
 			jobsToUpdate = append(jobsToUpdate, expiredJob)
 
 			leaseExpiredError := &armadaevents.Error{
-				Terminal: true,
+				Terminal:           true,
+				FailureCategory:    errormatch.CategoryInternal,
+				FailureSubcategory: errormatch.SubcategoryLeaseExpired,
 				Reason: &armadaevents.Error_LeaseExpired{
 					LeaseExpired: &armadaevents.LeaseExpired{},
 				},
@@ -1234,7 +1241,9 @@ func (s *Scheduler) submitCheck(ctx *armadacontext.Context, txn *jobdb.Txn) ([]*
 					JobId: job.Id(),
 					Errors: []*armadaevents.Error{
 						{
-							Terminal: true,
+							Terminal:           true,
+							FailureCategory:    errormatch.CategoryInternal,
+							FailureSubcategory: errormatch.SubcategoryJobRejected,
 							Reason: &armadaevents.Error_JobRejected{
 								JobRejected: &armadaevents.JobRejected{
 									Message: result.reason,
