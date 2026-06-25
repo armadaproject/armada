@@ -1,10 +1,8 @@
 package metrics
 
 import (
-	"regexp"
 	"time"
 
-	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	v1 "k8s.io/api/core/v1"
 
@@ -24,19 +22,11 @@ type resettableMetric interface {
 	Reset()
 }
 
-func New(errorRegexes []string, trackedResourceNames []v1.ResourceName, jobCheckpointIntervals []time.Duration, jobStateMetricsResetInterval time.Duration, publisher pulsarutils.Publisher[*metricevents.Event], scalableUnitLabelKey string) (*Metrics, error) {
-	compiledErrorRegexes := make([]*regexp.Regexp, len(errorRegexes))
-	for i, errorRegex := range errorRegexes {
-		if r, err := regexp.Compile(errorRegex); err != nil {
-			return nil, errors.WithStack(err)
-		} else {
-			compiledErrorRegexes[i] = r
-		}
-	}
+func New(trackedResourceNames []v1.ResourceName, jobCheckpointIntervals []time.Duration, jobStateMetricsResetInterval time.Duration, publisher pulsarutils.Publisher[*metricevents.Event], scalableUnitLabelKey string) *Metrics {
 	return &Metrics{
 		cycleMetrics:    newCycleMetrics(publisher, scalableUnitLabelKey),
-		jobStateMetrics: newJobStateMetrics(compiledErrorRegexes, trackedResourceNames, jobCheckpointIntervals, jobStateMetricsResetInterval),
-	}, nil
+		jobStateMetrics: newJobStateMetrics(trackedResourceNames, jobCheckpointIntervals, jobStateMetricsResetInterval),
+	}
 }
 
 // DisableLeaderMetrics stops leader metrics from being produced.  This is necessary because we only produce
