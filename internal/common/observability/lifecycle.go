@@ -46,7 +46,9 @@ func setNoopOTel() {
 	setNoopOTelLocked()
 	globalTracerProviderMu.Unlock()
 
-	shutdownTracerProvider(context.Background(), tp)
+	if err := shutdownTracerProvider(context.Background(), tp); err != nil {
+		logging.WithError(err).Warn("Failed to shutdown previous OTel tracer provider")
+	}
 }
 
 func init() {
