@@ -379,17 +379,13 @@ func Run(config schedulerconfig.Configuration) error {
 		return err
 	}
 
-	schedulerMetrics, err := metrics.New(
-		config.Metrics.TrackedErrorRegexes,
+	schedulerMetrics := metrics.New(
 		config.Metrics.TrackedResourceNames,
 		config.Metrics.JobCheckpointIntervals,
 		config.Metrics.JobStateMetricsResetInterval,
 		metricPublisher,
 		config.Metrics.ScalableUnitLabel,
 	)
-	if err != nil {
-		return err
-	}
 	if err := prometheus.Register(schedulerMetrics); err != nil {
 		return errors.WithStack(err)
 	}
