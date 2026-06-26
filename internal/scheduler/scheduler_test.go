@@ -1775,8 +1775,8 @@ func TestJobPriceUpdates(t *testing.T) {
 			bid := func(q, r float64) map[string]pricing.Bid {
 				return map[string]pricing.Bid{"testPool": {QueuedBid: q, RunningBid: r}}
 			}
-			snapshot1 := pricing.BidPriceSnapshot{Id: "1", Bids: map[pricing.PriceKey]map[string]pricing.Bid{key: bid(2, 2)}}
-			snapshot2 := pricing.BidPriceSnapshot{Id: "2", Bids: map[pricing.PriceKey]map[string]pricing.Bid{key: bid(3, 3)}}
+			snapshot1 := pricing.BidPriceSnapshot{Id: uuid.New(), Bids: map[pricing.PriceKey]map[string]pricing.Bid{key: bid(2, 2)}}
+			snapshot2 := pricing.BidPriceSnapshot{Id: uuid.New(), Bids: map[pricing.PriceKey]map[string]pricing.Bid{key: bid(3, 3)}}
 
 			jobDb := testfixtures.NewJobDb(testfixtures.TestResourceListFactory)
 			jobRepo := testJobRepository{numReceivedPartitions: 100}
