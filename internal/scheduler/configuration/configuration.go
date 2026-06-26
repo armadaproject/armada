@@ -138,10 +138,6 @@ type MetricsConfig struct {
 	// Used to calculate job seconds lost to preemption
 	// Calculate as if the job checkpoints at these different intervals
 	JobCheckpointIntervals []time.Duration
-	// Regexes used for job error categorisation.
-	// Specifically, the subCategory label for job failure counters is the first regex that matches the job error.
-	// If no regex matches, the subCategory label is the empty string.
-	TrackedErrorRegexes []string
 	// Metrics are exported for these resources.
 	TrackedResourceNames []v1.ResourceName
 	// Node label key used to identify which scalable unit it belongs to.
