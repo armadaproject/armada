@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"os"
@@ -48,12 +47,10 @@ func main() {
 
 	// Initialize OpenTelemetry
 	if err := observability.InitOTel(config.Observability); err != nil {
-		log.Warnf("Failed to initialize OTel: %v", err)
+		log.Fatalf("Failed to initialize OTel: %v", err)
 	}
 	defer func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		if err := observability.ShutdownOTel(ctx); err != nil {
+		if err := observability.ShutdownWithDefaultTimeout(); err != nil {
 			log.Warnf("Failed to shutdown OTel: %v", err)
 		}
 	}()

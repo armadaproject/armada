@@ -1,12 +1,10 @@
 package main
 
 import (
-	"context"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/pflag"
@@ -42,12 +40,10 @@ func main() {
 	common.LoadConfig(&config, "./config/executor", userSpecifiedConfigs)
 
 	if err := observability.InitOTel(config.Observability); err != nil {
-		log.Warnf("Failed to initialize OTel: %v", err)
+		log.Fatalf("Failed to initialize OTel: %v", err)
 	}
 	defer func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		if err := observability.ShutdownOTel(ctx); err != nil {
+		if err := observability.ShutdownWithDefaultTimeout(); err != nil {
 			log.Warnf("Failed to shutdown OTel: %v", err)
 		}
 	}()

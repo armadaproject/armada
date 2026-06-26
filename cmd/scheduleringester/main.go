@@ -1,10 +1,8 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"os"
-	"time"
 
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
@@ -37,12 +35,10 @@ func main() {
 
 	// Initialize OpenTelemetry
 	if err := observability.InitOTel(config.Observability); err != nil {
-		logging.Warnf("Failed to initialize OTel: %v", err)
+		logging.Fatalf("Failed to initialize OTel: %v", err)
 	}
 	defer func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		if err := observability.ShutdownOTel(ctx); err != nil {
+		if err := observability.ShutdownWithDefaultTimeout(); err != nil {
 			logging.Warnf("Failed to shutdown OTel: %v", err)
 		}
 	}()

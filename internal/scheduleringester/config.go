@@ -1,16 +1,13 @@
 package scheduleringester
 
 import (
-	"os"
 	"time"
 
 	"github.com/go-playground/validator/v10"
-	"github.com/google/uuid"
 
 	commonconfig "github.com/armadaproject/armada/internal/common/config"
 	"github.com/armadaproject/armada/internal/common/observability"
 	profilingconfig "github.com/armadaproject/armada/internal/common/profiling/configuration"
-	"github.com/armadaproject/armada/internal/lookout/version"
 	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/server/configuration"
 )
@@ -39,19 +36,6 @@ type Configuration struct {
 }
 
 func (c *Configuration) Mutate() (commonconfig.Config, error) {
-	serviceInstance, err := os.Hostname()
-	if err != nil {
-		serviceInstance = uuid.New().String()
-	}
-	observabilityConfig, err := c.Observability.WithDefaults(observability.ResourceAttributes{
-		ServiceName:     "scheduleringester",
-		ServiceVersion:  version.Version,
-		ServiceInstance: serviceInstance,
-	})
-	if err != nil {
-		return nil, err
-	}
-	c.Observability = observabilityConfig
 	return c, nil
 }
 

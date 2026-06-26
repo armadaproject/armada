@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 
 	commonconfig "github.com/armadaproject/armada/internal/common/config"
@@ -70,6 +69,44 @@ func TestMutate(t *testing.T) {
 				},
 			},
 		},
+		"Observability - preserves configured value": {
+			input: &Configuration{
+				Observability: observability.ObservabilityConfig{
+					Enabled: true,
+					Exporter: observability.OTLPExporterConfig{
+						Endpoint: "http://otel-collector:4318",
+						Protocol: "http/protobuf",
+					},
+					Traces: observability.TracesConfig{
+						Sampler:    "parent_based_trace_id_ratio",
+						SamplerArg: 0.25,
+					},
+					Resource: observability.ResourceAttributes{
+						ServiceName:     "scheduler",
+						ServiceVersion:  "configured-version",
+						ServiceInstance: "configured-instance",
+					},
+				},
+			},
+			expected: &Configuration{
+				Observability: observability.ObservabilityConfig{
+					Enabled: true,
+					Exporter: observability.OTLPExporterConfig{
+						Endpoint: "http://otel-collector:4318",
+						Protocol: "http/protobuf",
+					},
+					Traces: observability.TracesConfig{
+						Sampler:    "parent_based_trace_id_ratio",
+						SamplerArg: 0.25,
+					},
+					Resource: observability.ResourceAttributes{
+						ServiceName:     "scheduler",
+						ServiceVersion:  "configured-version",
+						ServiceInstance: "configured-instance",
+					},
+				},
+			},
+		},
 	}
 
 	for name, tc := range tests {
@@ -77,26 +114,9 @@ func TestMutate(t *testing.T) {
 			result, err := tc.input.Mutate()
 			assert.NoError(t, err)
 
-			resultConfig, ok := result.(*Configuration)
-			require.True(t, ok)
-			assertSchedulerObservabilityConfig(t, resultConfig.Observability)
-			tc.expected.Observability = resultConfig.Observability
-
 			assert.Equal(t, tc.expected, result)
 		})
 	}
-}
-
-func assertSchedulerObservabilityConfig(t *testing.T, config observability.ObservabilityConfig) {
-	t.Helper()
-	assert.False(t, config.Enabled)
-	assert.Equal(t, observability.DefaultOtlpHTTPEndpoint, config.Exporter.Endpoint)
-	assert.Equal(t, observability.DefaultOtlpHTTPProtocol, config.Exporter.Protocol)
-	assert.Equal(t, observability.SamplerParentBasedTraceRatio, config.Traces.Sampler)
-	assert.Equal(t, 1.0, config.Traces.SamplerArg)
-	assert.Equal(t, "scheduler", config.Resource.ServiceName)
-	assert.Equal(t, "dev", config.Resource.ServiceVersion)
-	assert.NotEmpty(t, config.Resource.ServiceInstance)
 }
 
 func TestValidate_SchedulingTimeoutConfig(t *testing.T) {
