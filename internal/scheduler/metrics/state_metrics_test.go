@@ -1,7 +1,6 @@
 package metrics
 
 import (
-	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -10,7 +9,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
@@ -44,7 +42,6 @@ func TestReportJobStateTransitions(t *testing.T) {
 	}
 
 	tests := map[string]struct {
-		errorRegexes                           []*regexp.Regexp
 		trackedResourceNames                   []v1.ResourceName
 		jsts                                   []jobdb.JobStateTransitions
 		jobRunErrorsByRunId                    map[string]*armadaevents.Error
@@ -296,7 +293,7 @@ func TestReportJobStateTransitions(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			metrics := newJobStateMetrics(tc.errorRegexes, tc.trackedResourceNames, []time.Duration{}, 12*time.Hour)
+			metrics := newJobStateMetrics(tc.trackedResourceNames, []time.Duration{}, 12*time.Hour)
 			metrics.ReportStateTransitions(tc.jsts, tc.jobRunErrorsByRunId)
 
 			// jobStateCounterByQueue
@@ -361,7 +358,7 @@ func TestReportJobPreempted(t *testing.T) {
 
 	jobCheckpointIntervals := []time.Duration{time.Second * 5, time.Second * 30, time.Minute * 5}
 
-	metrics := newJobStateMetrics(nil, []v1.ResourceName{"cpu"}, jobCheckpointIntervals, 12*time.Hour)
+	metrics := newJobStateMetrics([]v1.ResourceName{"cpu"}, jobCheckpointIntervals, 12*time.Hour)
 	metrics.ReportJobPreempted(job)
 
 	expectedJobResourceSecondsLostToPreemptionByQueue := map[[4]string]float64{
@@ -384,12 +381,11 @@ func TestCategoriseErrors(t *testing.T) {
 
 	job := baseJob.WithUpdatedRun(run)
 
-	r, err := regexp.Compile("generic pod error")
-	require.NoError(t, err)
-
 	jobRunErrorsByRunId := map[string]*armadaevents.Error{
 		run.Id(): {
-			Terminal: true,
+			Terminal:           true,
+			FailureCategory:    "infrastructure",
+			FailureSubcategory: "oom",
 			Reason: &armadaevents.Error_PodError{
 				PodError: &armadaevents.PodError{
 					Message: "generic pod error",
@@ -405,13 +401,13 @@ func TestCategoriseErrors(t *testing.T) {
 		},
 	}
 
-	metrics := newJobStateMetrics([]*regexp.Regexp{r}, []v1.ResourceName{"cpu"}, []time.Duration{}, 12*time.Hour)
+	metrics := newJobStateMetrics([]v1.ResourceName{"cpu"}, []time.Duration{}, 12*time.Hour)
 	metrics.ReportStateTransitions(jsts, jobRunErrorsByRunId)
 
-	actualjobErrorsByQueue := testutil.ToFloat64(metrics.jobErrorsByQueue.WithLabelValues(testQueue, testPool, "podError", "generic pod error"))
+	actualjobErrorsByQueue := testutil.ToFloat64(metrics.jobErrorsByQueue.WithLabelValues(testQueue, testPool, "infrastructure", "oom"))
 	assert.InDelta(t, 1, actualjobErrorsByQueue, epsilon)
 
-	actualjobErrorsByNode := testutil.ToFloat64(metrics.jobErrorsByNode.WithLabelValues(testNode, testPool, testCluster, "podError", "generic pod error"))
+	actualjobErrorsByNode := testutil.ToFloat64(metrics.jobErrorsByNode.WithLabelValues(testNode, testPool, testCluster, "infrastructure", "oom"))
 	assert.InDelta(t, 1, actualjobErrorsByNode, epsilon)
 }
 
@@ -422,7 +418,7 @@ func TestReset(t *testing.T) {
 	byQueueResourceLabels := append(byQueueAndStateLabels, "cpu")
 	byNodeResourceLabels := append(byNodeLabels, "cpu")
 	resourceSecondsLostToPreemptionLabels := append(byQueueLabels, "none", "cpu")
-	m := newJobStateMetrics(nil, nil, []time.Duration{}, 12*time.Hour)
+	m := newJobStateMetrics(nil, []time.Duration{}, 12*time.Hour)
 
 	testReset := func(vec *prometheus.CounterVec, labels []string) {
 		vec.WithLabelValues(labels...).Inc()
@@ -472,7 +468,7 @@ func TestDisable(t *testing.T) {
 		return collected
 	}
 
-	m := newJobStateMetrics(nil, nil, []time.Duration{}, 12*time.Hour)
+	m := newJobStateMetrics(nil, []time.Duration{}, 12*time.Hour)
 
 	// Enabled
 	assert.NotZero(t, len(collect(m)))
