@@ -75,7 +75,8 @@ services:
       PULSAR_PREFIX_allowAutoTopicCreation: "true"
       PULSAR_PREFIX_allowAutoTopicCreationType: non-partitioned
       PULSAR_PREFIX_autoSkipNonRecoverableData: "true"
-    entrypoint: sh -c "bin/apply-config-from-env.py conf/standalone.conf && bin/pulsar standalone"
+    entrypoint: sh -c "bin/apply-config-from-env.py conf/standalone.conf &&
+      bin/pulsar standalone"
     ports:
       - "6650:6650"
       - "8090:8080"
@@ -88,6 +89,28 @@ services:
       retries: 10
       start_period: 30s
 
+  jaeger:
+    container_name: jaeger
+    image: ${JAEGER_IMAGE:-jaegertracing/all-in-one:1.76.0}
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    ports:
+      - "16686:16686" # Jaeger UI
+    restart: unless-stopped
+
+  otel-collector:
+    container_name: otel-collector
+    image: ${OTEL_IMAGE:-otel/opentelemetry-collector-contrib:0.154.0}
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    volumes:
+      - ../otel/collector-config.yaml:/etc/otelcol-contrib/config.yaml:ro
+    ports:
+      - "4317:4317" # OTLP gRPC
+      - "4318:4318" # OTLP HTTP
+    restart: unless-stopped
+    depends_on:
+      - jaeger
+
   # =========================================================
   # Database migrations (run once, then exit)
   # =========================================================
@@ -96,7 +119,7 @@ services:
     container_name: scheduler-migration
     image: ${ARMADA_IMAGE:-gresearch/armada-bundle}:${ARMADA_IMAGE_TAG:-latest}
     depends_on:
-      postgres: { condition: service_healthy }
+      postgres: {condition: service_healthy}
     volumes:
       - ../scheduler/config.yaml:/config/config.yaml:ro
     environment:
@@ -108,7 +131,7 @@ services:
     container_name: lookout-migration
     image: ${ARMADA_IMAGE:-gresearch/armada-lookout-bundle}:${ARMADA_IMAGE_TAG:-latest}
     depends_on:
-      postgres: { condition: service_healthy }
+      postgres: {condition: service_healthy}
     volumes:
       - ../lookout/config.yaml:/config/config.yaml:ro
     environment:
@@ -123,7 +146,7 @@ services:
     container_name: scheduler
     image: ${ARMADA_IMAGE:-gresearch/armada-bundle}:${ARMADA_IMAGE_TAG:-latest}
     depends_on:
-      scheduler-migration: { condition: service_completed_successfully }
+      scheduler-migration: {condition: service_completed_successfully}
     volumes:
       - ../scheduler/config.yaml:/config/config.yaml:ro
     environment:
@@ -140,8 +163,8 @@ services:
     container_name: scheduleringester
     image: ${ARMADA_IMAGE:-gresearch/armada-bundle}:${ARMADA_IMAGE_TAG:-latest}
     depends_on:
-      scheduler-migration: { condition: service_completed_successfully }
-      pulsar: { condition: service_healthy }
+      scheduler-migration: {condition: service_completed_successfully}
+      pulsar: {condition: service_healthy}
     volumes:
       - ../scheduleringester/config.yaml:/config/config.yaml:ro
     environment:
@@ -161,9 +184,9 @@ services:
       - "50051:50051"
       - "8081:8081"
     depends_on:
-      lookout-migration: { condition: service_completed_successfully }
-      pulsar: { condition: service_healthy }
-      redis: { condition: service_healthy }
+      lookout-migration: {condition: service_completed_successfully}
+      pulsar: {condition: service_healthy}
+      redis: {condition: service_healthy}
     volumes:
       - ../server/config.yaml:/config/config.yaml:ro
     environment:
@@ -182,7 +205,7 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
-      scheduler: { condition: service_started }
+      scheduler: {condition: service_started}
     volumes:
       - ../executor/config.yaml:/config/config.yaml:ro
       - ../../.kube/internal:/.kube:ro
@@ -196,8 +219,8 @@ services:
     container_name: eventingester
     image: ${ARMADA_IMAGE:-gresearch/armada-bundle}:${ARMADA_IMAGE_TAG:-latest}
     depends_on:
-      pulsar: { condition: service_healthy }
-      redis: { condition: service_healthy }
+      pulsar: {condition: service_healthy}
+      redis: {condition: service_healthy}
     volumes:
       - ../eventingester/config.yaml:/config/config.yaml:ro
     environment:
@@ -211,8 +234,8 @@ services:
     container_name: lookoutingester
     image: ${ARMADA_IMAGE:-gresearch/armada-lookout-bundle}:${ARMADA_IMAGE_TAG:-latest}
     depends_on:
-      lookout-migration: { condition: service_completed_successfully }
-      pulsar: { condition: service_healthy }
+      lookout-migration: {condition: service_completed_successfully}
+      pulsar: {condition: service_healthy}
     volumes:
       - ../lookoutingester/config.yaml:/config/config.yaml:ro
     environment:
@@ -229,7 +252,7 @@ services:
     ports:
       - "8089:8089"
     depends_on:
-      lookout-migration: { condition: service_completed_successfully }
+      lookout-migration: {condition: service_completed_successfully}
     volumes:
       - ../lookout/config.yaml:/config/config.yaml:ro
     environment:

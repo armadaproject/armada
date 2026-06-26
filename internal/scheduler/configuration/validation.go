@@ -2,11 +2,15 @@ package configuration
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/go-playground/validator/v10"
+	"github.com/google/uuid"
 
 	"github.com/armadaproject/armada/internal/common/config"
 	log "github.com/armadaproject/armada/internal/common/logging"
+	"github.com/armadaproject/armada/internal/common/observability"
+	"github.com/armadaproject/armada/internal/lookout/version"
 )
 
 func (c *Configuration) Mutate() (config.Config, error) {
@@ -19,6 +23,20 @@ func (c *Configuration) Mutate() (config.Config, error) {
 		log.Warnf("use of top level NewJobsSchedulingTimeout has been deprecated - please use scheduling.MaxNewJobSchedulingDuration. Applying NewJobsSchedulingTimeout to scheduling.MaxNewJobSchedulingDuration")
 		c.Scheduling.MaxNewJobSchedulingDuration = c.NewJobsSchedulingTimeout
 	}
+
+	serviceInstance, err := os.Hostname()
+	if err != nil {
+		serviceInstance = uuid.New().String()
+	}
+	observabilityConfig, err := c.Observability.WithDefaults(observability.ResourceAttributes{
+		ServiceName:     "scheduler",
+		ServiceVersion:  version.Version,
+		ServiceInstance: serviceInstance,
+	})
+	if err != nil {
+		return nil, err
+	}
+	c.Observability = observabilityConfig
 
 	return c, nil
 }

@@ -1,12 +1,16 @@
 package scheduleringester
 
 import (
+	"os"
 	"time"
 
 	"github.com/go-playground/validator/v10"
+	"github.com/google/uuid"
 
 	commonconfig "github.com/armadaproject/armada/internal/common/config"
+	"github.com/armadaproject/armada/internal/common/observability"
 	profilingconfig "github.com/armadaproject/armada/internal/common/profiling/configuration"
+	"github.com/armadaproject/armada/internal/lookout/version"
 	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/server/configuration"
 )
@@ -16,6 +20,8 @@ type Configuration struct {
 	Postgres configuration.PostgresConfig
 	// Metrics Port
 	MetricsPort uint16
+	// Configuration controlling OpenTelemetry observability
+	Observability observability.ObservabilityConfig
 	// General Pulsar configuration
 	Pulsar commonconfig.PulsarConfig
 	// Pulsar subscription name
@@ -32,7 +38,20 @@ type Configuration struct {
 	JobMetadataMigrationPhase schedulerdb.JobMetadataMigrationPhase `validate:"required,oneof=legacy dualWrite cutover"`
 }
 
-func (c Configuration) Mutate() (commonconfig.Config, error) {
+func (c *Configuration) Mutate() (commonconfig.Config, error) {
+	serviceInstance, err := os.Hostname()
+	if err != nil {
+		serviceInstance = uuid.New().String()
+	}
+	observabilityConfig, err := c.Observability.WithDefaults(observability.ResourceAttributes{
+		ServiceName:     "scheduleringester",
+		ServiceVersion:  version.Version,
+		ServiceInstance: serviceInstance,
+	})
+	if err != nil {
+		return nil, err
+	}
+	c.Observability = observabilityConfig
 	return c, nil
 }
 
