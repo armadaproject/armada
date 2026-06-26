@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -225,8 +226,8 @@ func TestConvert(t *testing.T) {
 			// Remove non-deterministic fields before comparison
 			require.False(t, actual.Timestamp.IsZero(), "timestamp should be set")
 			actual.Timestamp = time.Time{}
-			require.NotEmpty(t, actual.Id, "id should be set")
-			actual.Id = ""
+			require.NotEqual(t, uuid.Nil, actual.Id, "id should be set")
+			actual.Id = uuid.Nil
 
 			assert.Equal(t, tc.expected, actual)
 		})
@@ -263,14 +264,14 @@ func TestGetBidPrices_SetsId(t *testing.T) {
 		svc := NewLocalBidPriceService([]string{"pool1"}, &fakeQueueCache{queues: []*api.Queue{{Name: "queue1"}}})
 		snapshot, err := svc.GetBidPrices(ctx)
 		require.NoError(t, err)
-		assert.NotEmpty(t, snapshot.Id)
+		assert.NotEqual(t, uuid.Nil, snapshot.Id)
 	})
 
 	t.Run("ExternalBidPriceService", func(t *testing.T) {
 		svc := NewExternalBidPriceService(&fakeBidRetrieverClient{resp: &bidstore.RetrieveBidsResponse{}}, testResourceListFactory)
 		snapshot, err := svc.GetBidPrices(ctx)
 		require.NoError(t, err)
-		assert.NotEmpty(t, snapshot.Id)
+		assert.NotEqual(t, uuid.Nil, snapshot.Id)
 	})
 }
 

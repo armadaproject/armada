@@ -547,7 +547,7 @@ func (s *Scheduler) updateJobPrices(ctx *armadacontext.Context, txn *jobdb.Txn) 
 	// The provider caches the snapshot between refreshes, so most cycles see the same one.
 	// A matching, non-empty Id guarantees identical content, so we can skip all the work.
 	previousSnapshot := txn.GetBidPriceSnapshot()
-	if previousSnapshot != nil && previousSnapshot.Id != "" && previousSnapshot.Id == updatedBids.Id {
+	if previousSnapshot != nil && previousSnapshot.Id != uuid.Nil && previousSnapshot.Id == updatedBids.Id {
 		ctx.Logger().Infof("bid price snapshot %s unchanged, skipping job price update", updatedBids.Id)
 		return nil
 	}
