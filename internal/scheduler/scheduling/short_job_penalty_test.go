@@ -1,6 +1,8 @@
 package scheduling
 
 import (
+	"container/heap"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -12,10 +14,56 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 )
 
-func TestNilSjpReturnsFalse(t *testing.T) {
-	var nilSjp *ShortJobPenalty = nil
-	job := shortTestJob(time.Now()).WithSucceeded(true)
-	assert.False(t, nilSjp.shouldApplyPenalty(job))
+func TestEntryHeapLess(t *testing.T) {
+	base := time.Now()
+	earlier := &penaltyEntry{deadline: base}
+	later := &penaltyEntry{deadline: base.Add(time.Second)}
+
+	tests := map[string]struct {
+		h        entryHeap
+		expected bool
+	}{
+		"earlier deadline is less than later":     {h: entryHeap{earlier, later}, expected: true},
+		"later deadline is not less than earlier": {h: entryHeap{later, earlier}, expected: false},
+		"equal deadlines are not less":            {h: entryHeap{earlier, earlier}, expected: false},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, tc.h.Less(0, 1))
+		})
+	}
+}
+
+func TestEntryHeapPopsInDeadlineOrder(t *testing.T) {
+	base := time.Now()
+	offsets := []time.Duration{
+		40 * time.Second,
+		-10 * time.Second,
+		0,
+		90 * time.Second,
+		10 * time.Second,
+		-10 * time.Second,
+		30 * time.Second,
+	}
+
+	h := &entryHeap{}
+	for _, off := range offsets {
+		heap.Push(h, &penaltyEntry{deadline: base.Add(off)})
+	}
+
+	sortedOffsets := slices.Clone(offsets)
+	slices.Sort(sortedOffsets)
+
+	var popped []time.Duration
+	for h.Len() > 0 {
+		assert.Equal(t, base.Add(sortedOffsets[len(popped)]), h.peek().deadline,
+			"peek must always expose the earliest remaining deadline")
+		e := heap.Pop(h).(*penaltyEntry)
+		popped = append(popped, e.deadline.Sub(base))
+	}
+
+	assert.Equal(t, sortedOffsets, popped, "entries must pop in ascending deadline order")
 }
 
 func TestNilSjpIsSafeToCall(t *testing.T) {
@@ -28,105 +76,96 @@ func TestNilSjpIsSafeToCall(t *testing.T) {
 	assert.Nil(t, nilSjp.Snapshot().GetPenaltiesForPool(testfixtures.TestPool))
 }
 
-func TestTimeNotSetReturnsFalse(t *testing.T) {
-	job := shortTestJob(time.Now()).WithSucceeded(true)
-	assert.False(t, makeSut().shouldApplyPenalty(job))
-}
-
-func TestJobWithNoRunReturnsFalse(t *testing.T) {
+func TestShouldApplyPenalty(t *testing.T) {
 	now := time.Now()
-	sut := makeSut()
-	sut.SetNow(now)
 
-	job := testfixtures.Test32Cpu256GiJob("q", testfixtures.PriorityClass2).WithSucceeded(true)
-	assert.False(t, sut.shouldApplyPenalty(job))
-}
+	withNow := func() *ShortJobPenalty {
+		sut := makeSut()
+		sut.SetNow(now)
+		return sut
+	}
 
-func TestJobWithNoRunningTimeReturnsFalse(t *testing.T) {
-	now := time.Now()
-	sut := makeSut()
-	sut.SetNow(now)
+	shortPreemptedJob := shortTestJob(now).WithSucceeded(true)
+	shortPreemptedJob = shortPreemptedJob.WithUpdatedRun(shortPreemptedJob.LatestRun().WithPreempted(true))
 
-	job := testfixtures.Test32Cpu256GiJob("q", testfixtures.PriorityClass2).
-		WithNewRun("testExecutor", "test-node", "node", testfixtures.TestPool, 5).
-		WithSucceeded(true)
-	assert.Nil(t, job.LatestRun().RunningTime())
-	assert.False(t, sut.shouldApplyPenalty(job))
-}
+	shortPreemptRequestedJob := shortTestJob(now).WithSucceeded(true)
+	shortPreemptRequestedJob = shortPreemptRequestedJob.WithUpdatedRun(shortPreemptRequestedJob.LatestRun().WithPreemptRequested(true))
 
-func TestLongSucceededJobReturnsFalse(t *testing.T) {
-	now := time.Now()
-	sut := makeSut()
-	sut.SetNow(now)
+	shortPreemptedTimeJob := shortTestJob(now).WithSucceeded(true)
+	shortPreemptedTimeJob = shortPreemptedTimeJob.WithUpdatedRun(shortPreemptedTimeJob.LatestRun().WithPreemptedTime(&now))
 
-	job := longTestJob(now).WithSucceeded(true)
-	assert.False(t, sut.shouldApplyPenalty(job))
-}
+	tests := map[string]struct {
+		sut      *ShortJobPenalty
+		job      *jobdb.Job
+		expected bool
+	}{
+		"nil penalty returns false": {
+			sut:      nil,
+			job:      shortTestJob(now).WithSucceeded(true),
+			expected: false,
+		},
+		"now not set returns false": {
+			sut:      makeSut(),
+			job:      shortTestJob(now).WithSucceeded(true),
+			expected: false,
+		},
+		"job with no run returns false": {
+			sut:      withNow(),
+			job:      testfixtures.Test32Cpu256GiJob("q", testfixtures.PriorityClass2).WithSucceeded(true),
+			expected: false,
+		},
+		"job with no running time returns false": {
+			sut:      withNow(),
+			job:      testfixtures.Test32Cpu256GiJob("q", testfixtures.PriorityClass2).WithNewRun("testExecutor", "test-node", "node", testfixtures.TestPool, 5).WithSucceeded(true),
+			expected: false,
+		},
+		"long succeeded job returns false": {
+			sut:      withNow(),
+			job:      longTestJob(now).WithSucceeded(true),
+			expected: false,
+		},
+		"short running (non-terminal) job returns false": {
+			sut:      withNow(),
+			job:      shortTestJob(now),
+			expected: false,
+		},
+		"short succeeded job returns true": {
+			sut:      withNow(),
+			job:      shortTestJob(now).WithSucceeded(true),
+			expected: true,
+		},
+		"short cancelled job returns true": {
+			sut:      withNow(),
+			job:      shortTestJob(now).WithCancelled(true),
+			expected: true,
+		},
+		"short failed job returns true": {
+			sut:      withNow(),
+			job:      shortTestJob(now).WithFailed(true),
+			expected: true,
+		},
+		"short preempted job returns false": {
+			sut:      withNow(),
+			job:      shortPreemptedJob,
+			expected: false,
+		},
+		"short job with preempt requested returns false": {
+			sut:      withNow(),
+			job:      shortPreemptRequestedJob,
+			expected: false,
+		},
+		"short job with preempted time set returns false": {
+			sut:      withNow(),
+			job:      shortPreemptedTimeJob,
+			expected: false,
+		},
+	}
 
-func TestShortRunningJobReturnsFalse(t *testing.T) {
-	sut := makeSut()
-	now := time.Now()
-	sut.SetNow(now)
-
-	job := shortTestJob(now)
-	assert.False(t, sut.shouldApplyPenalty(job))
-}
-
-func TestShortSucceededJobReturnsTrue(t *testing.T) {
-	sut := makeSut()
-	now := time.Now()
-	sut.SetNow(now)
-
-	job := shortTestJob(now).WithSucceeded(true)
-	assert.True(t, sut.shouldApplyPenalty(job))
-}
-
-func TestShortCancelledJobReturnsTrue(t *testing.T) {
-	now := time.Now()
-	sut := makeSut()
-	sut.SetNow(now)
-
-	job := shortTestJob(now).WithCancelled(true)
-	assert.True(t, sut.shouldApplyPenalty(job))
-}
-
-func TestShortFailedJobReturnsTrue(t *testing.T) {
-	now := time.Now()
-	sut := makeSut()
-	sut.SetNow(now)
-
-	job := shortTestJob(now).WithFailed(true)
-	assert.True(t, sut.shouldApplyPenalty(job))
-}
-
-func TestShortPreemptedJobReturnsFalse(t *testing.T) {
-	sut := makeSut()
-	now := time.Now()
-	sut.SetNow(now)
-
-	job := shortTestJob(now).WithSucceeded(true)
-	job = job.WithUpdatedRun(job.LatestRun().WithPreempted(true))
-	assert.False(t, sut.shouldApplyPenalty(job))
-}
-
-func TestShortJobWithPreemptRequestedReturnsFalse(t *testing.T) {
-	sut := makeSut()
-	now := time.Now()
-	sut.SetNow(now)
-
-	job := shortTestJob(now).WithSucceeded(true)
-	job = job.WithUpdatedRun(job.LatestRun().WithPreemptRequested(true))
-	assert.False(t, sut.shouldApplyPenalty(job))
-}
-
-func TestShortJobWithPreemptedTimeSetReturnsFalse(t *testing.T) {
-	sut := makeSut()
-	now := time.Now()
-	sut.SetNow(now)
-
-	job := shortTestJob(now).WithSucceeded(true)
-	job = job.WithUpdatedRun(job.LatestRun().WithPreemptedTime(&now))
-	assert.False(t, sut.shouldApplyPenalty(job))
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, tc.sut.shouldApplyPenalty(tc.job))
+		})
+	}
 }
 
 func makeSut() *ShortJobPenalty {
@@ -147,119 +186,142 @@ func testJob(runningTime time.Time) *jobdb.Job {
 	return job.WithUpdatedRun(run.WithRunningTime(&runningTime))
 }
 
-func TestAccumulatesPerQueue(t *testing.T) {
+type sjpStep func(t *testing.T, sut *ShortJobPenalty)
+
+func setNow(now time.Time) sjpStep {
+	return func(_ *testing.T, sut *ShortJobPenalty) { sut.SetNow(now) }
+}
+
+func report(job *jobdb.Job) sjpStep {
+	return func(_ *testing.T, sut *ShortJobPenalty) { sut.ReportFinishedJob(job) }
+}
+
+func expectPenalty(pool, queue string, resources internaltypes.ResourceList) sjpStep {
+	return func(t *testing.T, sut *ShortJobPenalty) {
+		assert.True(t, sut.Snapshot().GetPenaltiesForPool(pool)[queue].Equal(resources))
+	}
+}
+
+func expectPoolEmpty(pool string) sjpStep {
+	return func(t *testing.T, sut *ShortJobPenalty) {
+		assert.Empty(t, sut.Snapshot().GetPenaltiesForPool(pool))
+	}
+}
+
+func TestPenaltyAccounting(t *testing.T) {
 	now := time.Now()
-	sut := makeSut()
-	sut.SetNow(now)
 
-	jobA := testJobForQueue("q1", now.Add(-30*time.Second)).WithSucceeded(true)
-	jobB := testJobForQueue("q1", now.Add(-20*time.Second)).WithSucceeded(true)
-	jobC := testJobForQueue("q2", now.Add(-20*time.Second)).WithSucceeded(true)
+	accumA := testJobForQueue("q1", now.Add(-30*time.Second)).WithSucceeded(true)
+	accumB := testJobForQueue("q1", now.Add(-20*time.Second)).WithSucceeded(true)
+	accumC := testJobForQueue("q2", now.Add(-20*time.Second)).WithSucceeded(true)
 
-	sut.ReportFinishedJob(jobA)
-	sut.ReportFinishedJob(jobB)
-	sut.ReportFinishedJob(jobC)
+	dedupJob := testJobForQueue("q1", now.Add(-30*time.Second)).WithSucceeded(true)
 
-	penalties := sut.Snapshot().GetPenaltiesForPool(testfixtures.TestPool)
-	expectedTwoJobs := jobA.AllResourceRequirements().Add(jobB.AllResourceRequirements())
-	assert.True(t, penalties["q1"].Equal(expectedTwoJobs))
-	assert.True(t, penalties["q2"].Equal(jobC.AllResourceRequirements()))
-}
+	expiringJob := testJobForQueue("q1", now).WithSucceeded(true)
 
-func TestNonQualifyingJobIsNotCharged(t *testing.T) {
-	now := time.Now()
-	sut := makeSut()
-	sut.SetNow(now)
+	early := testJobForQueue("q1", now.Add(-50*time.Second)).WithSucceeded(true)
+	late := testJobForQueue("q1", now.Add(-20*time.Second)).WithSucceeded(true)
 
-	longJob := longTestJob(now).WithSucceeded(true)
-	sut.ReportFinishedJob(longJob)
+	reReportJob := testJobForQueue("q1", now).WithSucceeded(true)
 
-	penalties := sut.Snapshot().GetPenaltiesForPool(testfixtures.TestPool)
-	assert.Empty(t, penalties)
-}
+	poolAJob := testJobForPool("q1", "poolA", now.Add(-30*time.Minute)).WithSucceeded(true)
+	poolBJob := testJobForPool("q1", "poolB", now.Add(-30*time.Minute)).WithSucceeded(true)
+	poolCJob := testJobForPool("q1", "poolC", now.Add(-1*time.Second)).WithSucceeded(true)
 
-func TestDedupSameJobReportedTwice(t *testing.T) {
-	now := time.Now()
-	sut := makeSut()
-	sut.SetNow(now)
+	tests := map[string]struct {
+		newSut func() *ShortJobPenalty
+		steps  []sjpStep
+	}{
+		"accumulates per queue": {
+			steps: []sjpStep{
+				setNow(now),
+				report(accumA),
+				report(accumB),
+				report(accumC),
+				expectPenalty(testfixtures.TestPool, "q1", accumA.AllResourceRequirements().Add(accumB.AllResourceRequirements())),
+				expectPenalty(testfixtures.TestPool, "q2", accumC.AllResourceRequirements()),
+			},
+		},
+		"non-qualifying job is not charged": {
+			steps: []sjpStep{
+				setNow(now),
+				report(longTestJob(now).WithSucceeded(true)),
+				expectPoolEmpty(testfixtures.TestPool),
+			},
+		},
+		"dedup same job reported twice": {
+			steps: []sjpStep{
+				setNow(now),
+				report(dedupJob),
+				report(dedupJob),
+				expectPenalty(testfixtures.TestPool, "q1", dedupJob.AllResourceRequirements()),
+			},
+		},
+		"entry expires exactly at deadline": {
+			steps: []sjpStep{
+				setNow(now.Add(30 * time.Second)),
+				report(expiringJob),
+				expectPenalty(testfixtures.TestPool, "q1", expiringJob.AllResourceRequirements()),
+				setNow(now.Add(time.Minute)),
+				expectPoolEmpty(testfixtures.TestPool),
+			},
+		},
+		"partial expiry leaves remainder": {
+			steps: []sjpStep{
+				setNow(now),
+				report(early),
+				report(late),
+				setNow(now.Add(20 * time.Second)),
+				expectPenalty(testfixtures.TestPool, "q1", late.AllResourceRequirements()),
+			},
+		},
+		"post expiry re-report never re-qualifies": {
+			steps: []sjpStep{
+				setNow(now.Add(10 * time.Second)),
+				report(reReportJob),
+				setNow(now.Add(2 * time.Minute)),
+				expectPoolEmpty(testfixtures.TestPool),
+				report(reReportJob),
+				expectPoolEmpty(testfixtures.TestPool),
+			},
+		},
+		"per-pool cutoff and pool isolation": {
+			newSut: func() *ShortJobPenalty {
+				return NewShortJobPenalty(map[string]time.Duration{
+					"poolA": time.Minute,
+					"poolB": time.Hour,
+				})
+			},
+			steps: []sjpStep{
+				setNow(now),
+				report(poolAJob),
+				report(poolBJob),
+				report(poolCJob),
+				expectPoolEmpty("poolA"),
+				expectPenalty("poolB", "q1", poolBJob.AllResourceRequirements()),
+				expectPoolEmpty("poolC"),
+			},
+		},
+		"penalties for unknown pool is empty": {
+			steps: []sjpStep{
+				setNow(now),
+				expectPoolEmpty("does-not-exist"),
+			},
+		},
+	}
 
-	job := testJobForQueue("q1", now.Add(-30*time.Second)).WithSucceeded(true)
-	sut.ReportFinishedJob(job)
-	sut.ReportFinishedJob(job)
-
-	penalties := sut.Snapshot().GetPenaltiesForPool(testfixtures.TestPool)
-	assert.True(t, penalties["q1"].Equal(job.AllResourceRequirements()))
-}
-
-func TestEntryExpiresExactlyAtDeadline(t *testing.T) {
-	start := time.Now()
-	sut := makeSut()
-	job := testJobForQueue("q1", start).WithSucceeded(true)
-
-	reportNow := start.Add(30 * time.Second)
-	sut.SetNow(reportNow)
-	sut.ReportFinishedJob(job)
-	assert.True(t, sut.Snapshot().GetPenaltiesForPool(testfixtures.TestPool)["q1"].Equal(job.AllResourceRequirements()))
-
-	atDeadline := start.Add(time.Minute)
-	sut.SetNow(atDeadline)
-	assert.Empty(t, sut.Snapshot().GetPenaltiesForPool(testfixtures.TestPool))
-}
-
-func TestPartialExpiryLeavesRemainder(t *testing.T) {
-	start := time.Now()
-	sut := makeSut()
-	sut.SetNow(start)
-
-	early := testJobForQueue("q1", start.Add(-50*time.Second)).WithSucceeded(true)
-	late := testJobForQueue("q1", start.Add(-20*time.Second)).WithSucceeded(true)
-	sut.ReportFinishedJob(early)
-	sut.ReportFinishedJob(late)
-
-	sut.SetNow(start.Add(20 * time.Second))
-	penalties := sut.Snapshot().GetPenaltiesForPool(testfixtures.TestPool)
-	assert.True(t, penalties["q1"].Equal(late.AllResourceRequirements()))
-}
-
-func TestPostExpiryReReportNeverReQualifies(t *testing.T) {
-	start := time.Now()
-	sut := makeSut()
-	job := testJobForQueue("q1", start).WithSucceeded(true)
-
-	sut.SetNow(start.Add(10 * time.Second))
-	sut.ReportFinishedJob(job)
-	sut.SetNow(start.Add(2 * time.Minute))
-	assert.Empty(t, sut.Snapshot().GetPenaltiesForPool(testfixtures.TestPool))
-	sut.ReportFinishedJob(job)
-	assert.Empty(t, sut.Snapshot().GetPenaltiesForPool(testfixtures.TestPool))
-}
-
-func TestPerPoolCutoffAndPoolIsolation(t *testing.T) {
-	now := time.Now()
-	sut := NewShortJobPenalty(map[string]time.Duration{
-		"poolA": time.Minute,
-		"poolB": time.Hour,
-	})
-	sut.SetNow(now)
-
-	jobA := testJobForPool("q1", "poolA", now.Add(-30*time.Minute)).WithSucceeded(true)
-	jobB := testJobForPool("q1", "poolB", now.Add(-30*time.Minute)).WithSucceeded(true)
-	jobC := testJobForPool("q1", "poolC", now.Add(-1*time.Second)).WithSucceeded(true)
-
-	sut.ReportFinishedJob(jobA)
-	sut.ReportFinishedJob(jobB)
-	sut.ReportFinishedJob(jobC)
-
-	assert.Empty(t, sut.Snapshot().GetPenaltiesForPool("poolA"))
-	assert.True(t, sut.Snapshot().GetPenaltiesForPool("poolB")["q1"].Equal(jobB.AllResourceRequirements()))
-	assert.Empty(t, sut.Snapshot().GetPenaltiesForPool("poolC"))
-}
-
-func TestGetPenaltiesForUnknownPoolIsEmpty(t *testing.T) {
-	now := time.Now()
-	sut := makeSut()
-	sut.SetNow(now)
-	assert.Empty(t, sut.Snapshot().GetPenaltiesForPool("does-not-exist"))
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			newSut := tc.newSut
+			if newSut == nil {
+				newSut = makeSut
+			}
+			sut := newSut()
+			for _, step := range tc.steps {
+				step(t, sut)
+			}
+		})
+	}
 }
 
 func TestShortJobPenalty_ConcurrentReportsAreCorrect(t *testing.T) {
@@ -283,21 +345,6 @@ func TestShortJobPenalty_ConcurrentReportsAreCorrect(t *testing.T) {
 		batches[w] = batch
 	}
 
-	done := make(chan struct{})
-	var readers sync.WaitGroup
-	readers.Add(1)
-	go func() {
-		defer readers.Done()
-		for {
-			select {
-			case <-done:
-				return
-			default:
-				sut.Snapshot().GetPenaltiesForPool(testfixtures.TestPool)
-			}
-		}
-	}()
-
 	var writers sync.WaitGroup
 	for _, batch := range batches {
 		writers.Add(1)
@@ -309,8 +356,6 @@ func TestShortJobPenalty_ConcurrentReportsAreCorrect(t *testing.T) {
 		}(batch)
 	}
 	writers.Wait()
-	close(done)
-	readers.Wait()
 
 	penalties := sut.Snapshot().GetPenaltiesForPool(testfixtures.TestPool)
 	assert.True(t, penalties["q1"].Equal(expected))
