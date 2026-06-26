@@ -2,6 +2,7 @@ package logging
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"testing"
@@ -10,6 +11,10 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/sdk/trace"
+	"google.golang.org/grpc/metadata"
+
+	"github.com/armadaproject/armada/internal/common/requestid"
 )
 
 type testLogEntry struct {
@@ -19,6 +24,9 @@ type testLogEntry struct {
 	CustomField2 string `json:"customField2,omitempty"`
 	Error        string `json:"error,omitempty"`
 	Stacktrace   string `json:"stacktrace,omitempty"`
+	TraceID      string `json:"trace_id,omitempty"`
+	SpanID       string `json:"span_id,omitempty"`
+	RequestID    string `json:"x-request-id,omitempty"`
 }
 
 func TestWithField(t *testing.T) {
@@ -246,4 +254,141 @@ func assertLogLineExpected(t *testing.T, expected *testLogEntry, logOutput *byte
 	assert.Equal(t, expected.CustomField2, entry.CustomField2)
 	assert.Equal(t, expected.Error, entry.Error)
 	assert.Equal(t, expected.Stacktrace, entry.Stacktrace)
+	assert.Equal(t, expected.TraceID, entry.TraceID)
+	assert.Equal(t, expected.SpanID, entry.SpanID)
+	assert.Equal(t, expected.RequestID, entry.RequestID)
+}
+
+// TestLogIncludesTraceAndSpanIds verifies that when logging from a traced request context,
+// the log includes trace_id and span_id fields.
+func TestLogIncludesTraceAndSpanIds(t *testing.T) {
+	logger, buf := testLogger()
+
+	// Create a test tracer and span
+	tp := trace.NewTracerProvider()
+	tracer := tp.Tracer("test")
+	ctx, span := tracer.Start(context.Background(), "test-operation")
+	defer span.End()
+
+	// Extract trace and span IDs
+	spanCtx := span.SpanContext()
+	expectedTraceID := spanCtx.TraceID().String()
+	expectedSpanID := spanCtx.SpanID().String()
+
+	// Log from the traced context
+	contextLogger := logger.WithContext(ctx)
+	contextLogger.Info("Request processed")
+
+	assertLogLineExpected(
+		t,
+		&testLogEntry{
+			Level:     "info",
+			Message:   "Request processed",
+			TraceID:   expectedTraceID,
+			SpanID:    expectedSpanID,
+			RequestID: "",
+		},
+		buf,
+	)
+}
+
+// TestLogRetainsRequestId verifies that x-request-id is preserved alongside trace fields.
+func TestLogRetainsRequestId(t *testing.T) {
+	logger, buf := testLogger()
+
+	// Create a context with trace span and request ID
+	tp := trace.NewTracerProvider()
+	tracer := tp.Tracer("test")
+	ctx, span := tracer.Start(context.Background(), "test-operation")
+	defer span.End()
+
+	// Add gRPC metadata and request ID to context
+	ctx = metadata.NewIncomingContext(ctx, metadata.New(map[string]string{}))
+	ctx, _ = requestid.AddToIncomingContext(ctx, "test-request-123")
+
+	// Extract expected values
+	spanCtx := span.SpanContext()
+	expectedTraceID := spanCtx.TraceID().String()
+	expectedSpanID := spanCtx.SpanID().String()
+
+	// Log from the context
+	contextLogger := logger.WithContext(ctx)
+	contextLogger.Info("Request with ID")
+
+	assertLogLineExpected(
+		t,
+		&testLogEntry{
+			Level:     "info",
+			Message:   "Request with ID",
+			TraceID:   expectedTraceID,
+			SpanID:    expectedSpanID,
+			RequestID: "test-request-123",
+		},
+		buf,
+	)
+}
+
+// TestBackgroundLogsWithoutSpanContext verifies that logging without trace context
+// doesn't panic and works normally.
+func TestBackgroundLogsWithoutSpanContext(t *testing.T) {
+	logger, buf := testLogger()
+
+	// Log without any trace context
+	backgroundLogger := logger.WithContext(context.Background())
+	backgroundLogger.Info("Background operation")
+
+	assertLogLineExpected(
+		t,
+		&testLogEntry{
+			Level:   "info",
+			Message: "Background operation",
+			TraceID: "",
+			SpanID:  "",
+		},
+		buf,
+	)
+}
+
+// TestLogWithNilContext verifies that WithContext handles nil context gracefully.
+func TestLogWithNilContext(t *testing.T) {
+	logger, buf := testLogger()
+
+	// Log with nil context
+	nilContextLogger := logger.WithContext(nil)
+	nilContextLogger.Info("Nil context log")
+
+	assertLogLineExpected(
+		t,
+		&testLogEntry{
+			Level:   "info",
+			Message: "Nil context log",
+			TraceID: "",
+			SpanID:  "",
+		},
+		buf,
+	)
+}
+
+// TestLogWithOnlyRequestIdNoTrace verifies that request ID alone is logged without trace fields.
+func TestLogWithOnlyRequestIdNoTrace(t *testing.T) {
+	logger, buf := testLogger()
+
+	ctx := context.Background()
+	ctx = metadata.NewIncomingContext(ctx, metadata.New(map[string]string{}))
+	ctx, _ = requestid.AddToIncomingContext(ctx, "request-only-456")
+
+	contextLogger := logger.WithContext(ctx)
+	contextLogger.Info("Request ID only")
+
+	assertLogLineExpected(
+		t,
+		&testLogEntry{
+			Level:     "info",
+			Message:   "Request ID only",
+			TraceID:   "",
+			SpanID:    "",
+			RequestID: "request-only-456",
+		},
+		buf,
+	)
 }

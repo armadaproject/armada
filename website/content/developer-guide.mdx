@@ -68,7 +68,7 @@ mage dev:fullDown   # stop the containerized stack and tear down Kind (after `ma
    docker compose -f _local/compose/stack.yaml up -d
    ```
 
-   **Note:** Images can be overridden using environment variables: `REDIS_IMAGE`, `POSTGRES_IMAGE`, `PULSAR_IMAGE`, `KEYCLOAK_IMAGE`
+   **Note:** Images can be overridden using environment variables: `REDIS_IMAGE`, `POSTGRES_IMAGE`, `PULSAR_IMAGE`, `KEYCLOAK_IMAGE`, `OTEL_IMAGE`, `JAEGER_IMAGE`, `GRAFANA_IMAGE`
 
 3. Initialize databases and Kubernetes resources:
 

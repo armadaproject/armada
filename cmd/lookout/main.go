@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"os"
 	"os/signal"
 	"syscall"
@@ -14,6 +15,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/database"
 	log "github.com/armadaproject/armada/internal/common/logging"
+	"github.com/armadaproject/armada/internal/common/observability"
 	"github.com/armadaproject/armada/internal/common/profiling"
 	"github.com/armadaproject/armada/internal/lookout"
 	"github.com/armadaproject/armada/internal/lookout/configuration"
@@ -162,6 +164,18 @@ func main() {
 
 	userSpecifiedConfigs := viper.GetStringSlice(CustomConfigLocation)
 	common.LoadConfig(&config, "./config/lookout", userSpecifiedConfigs)
+
+	// Initialize OpenTelemetry
+	if err := observability.InitOTel(config.Observability); err != nil {
+		log.Warnf("Failed to initialize OTel: %v", err)
+	}
+	defer func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := observability.ShutdownOTel(ctx); err != nil {
+			log.Warnf("Failed to shutdown OTel: %v", err)
+		}
+	}()
 
 	// Expose profiling endpoints if enabled.
 	err := profiling.SetupPprof(config.Profiling, armadacontext.Background(), nil)

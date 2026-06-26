@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
 	"github.com/spf13/pflag"
@@ -19,6 +20,7 @@ import (
 	gateway "github.com/armadaproject/armada/internal/common/grpc"
 	"github.com/armadaproject/armada/internal/common/health"
 	log "github.com/armadaproject/armada/internal/common/logging"
+	"github.com/armadaproject/armada/internal/common/observability"
 	"github.com/armadaproject/armada/internal/common/profiling"
 	api "github.com/armadaproject/armada/pkg/api/binoculars"
 )
@@ -43,6 +45,18 @@ func main() {
 	common.LoadConfig(&config, "./config/binoculars", userSpecifiedConfigs)
 
 	log.Info("Starting...")
+
+	// Initialize OpenTelemetry
+	if err := observability.InitOTel(config.Observability); err != nil {
+		log.Warnf("Failed to initialize OTel: %v", err)
+	}
+	defer func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := observability.ShutdownOTel(ctx); err != nil {
+			log.Warnf("Failed to shutdown OTel: %v", err)
+		}
+	}()
 
 	// Expose profiling endpoints if enabled.
 	err := profiling.SetupPprof(config.Profiling, armadacontext.Background(), nil)
