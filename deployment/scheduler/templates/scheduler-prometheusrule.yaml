@@ -23,7 +23,7 @@ spec:
         - record: cluster_category_subCategory:armada_scheduler_failed_jobs
           labels:
             namespace: "{{ .Release.Namespace }}"
-          expr: sum by (cluster, category, subCategory) (armada_scheduler_error_classification_by_node{namespace="{{ .Release.Namespace }}"})
+          expr: sum by (cluster, category, subCategory) (armada_scheduler_job_error_classification_by_node{namespace="{{ .Release.Namespace }}"})
         # Per-queue failures.
         - record: queue_category_subCategory:armada_scheduler_failed_jobs
           labels:
@@ -49,15 +49,15 @@ spec:
         - record: node:armada_scheduler_failed_jobs:increase1m
           labels:
             namespace: "{{ .Release.Namespace }}"
-          expr: increase(node:armada_scheduler_job_state_counter_by_queue{state="failed",namespace="{{ .Release.Namespace }}"}[1m:])
+          expr: increase(node:armada_scheduler_failed_jobs{namespace="{{ .Release.Namespace }}"}[1m:])
         - record: node:armada_scheduler_failed_jobs:increase10m
           labels:
             namespace: "{{ .Release.Namespace }}"
-          expr: increase(node:armada_scheduler_job_state_counter_by_queue{state="failed",namespace="{{ .Release.Namespace }}"}[10m:])
+          expr: increase(node:armada_scheduler_failed_jobs{namespace="{{ .Release.Namespace }}"}[10m:])
         - record: node:armada_scheduler_failed_jobs:increase1h
           labels:
             namespace: "{{ .Release.Namespace }}"
-          expr: increase(node:armada_scheduler_job_state_counter_by_queue{state="failed",namespace="{{ .Release.Namespace }}"}[10m:])
+          expr: increase(node:armada_scheduler_failed_jobs{namespace="{{ .Release.Namespace }}"}[1h:])
         # Per-cluster failures increase.
         - record: cluster_category_subCategory:armada_scheduler_failed_jobs:increase1m
           labels:
@@ -118,11 +118,11 @@ spec:
         - record: queue_category_subCategory:armada_scheduler_succeeded_jobs:increase10m
           labels:
             namespace: "{{ .Release.Namespace }}"
-          expr: increase(queue_category_subCategory:armada_scheduler_succeeded_jobs{namespace="{{ .Release.Namespace }}"}[1m:])
+          expr: increase(queue_category_subCategory:armada_scheduler_succeeded_jobs{namespace="{{ .Release.Namespace }}"}[10m:])
         - record: queue_category_subCategory:armada_scheduler_succeeded_jobs:increase1h
           labels:
             namespace: "{{ .Release.Namespace }}"
-          expr: increase(queue_category_subCategory:armada_scheduler_succeeded_jobs{namespace="{{ .Release.Namespace }}"}[1m:])
+          expr: increase(queue_category_subCategory:armada_scheduler_succeeded_jobs{namespace="{{ .Release.Namespace }}"}[1h:])
         # Per-node failure rates.
         - record: node:armada_scheduler_failed_rate_jobs:increase1m
           labels:
