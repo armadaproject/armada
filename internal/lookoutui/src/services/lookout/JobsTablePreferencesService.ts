@@ -143,7 +143,13 @@ const columnMatchesFromQueryStringFilters = (f: QueryStringJobFilter[]): Record<
 }
 
 const fromQueryStringSafe = (serializedPrefs: Partial<QueryStringPrefs>): Partial<JobsTablePreferences> => {
-  const { g, e, page, ps, sort, f, sb, active, refresh, ltta } = serializedPrefs
+  const { g, page, ps, sort, sb, active, refresh, ltta } = serializedPrefs
+
+  // The qs library does not guarantee that these fields parse to arrays: a scalar value (e.g. `?e=foo`) parses to a
+  // string, and more entries than qs's default array limit (e.g. more than 20 expanded rows) parse to an object. Both
+  // cases would otherwise cause array methods below to throw, so we discard anything that is not an array.
+  const e = Array.isArray(serializedPrefs.e) ? serializedPrefs.e : undefined
+  const f = Array.isArray(serializedPrefs.f) ? serializedPrefs.f : undefined
 
   if (f) {
     // The queue filter was a single-value filter, but changed to an any-of filter. If the queue column match is exact,
@@ -250,8 +256,20 @@ const ensureFiltersAreConsistent = (filters: ColumnFiltersState, columnMatches: 
 // - make sure columns referenced in objects are visible
 // - the column order includes exactly all unpinned standard columns and annotations
 export const ensurePreferencesAreConsistent = (preferences: JobsTablePreferences) => {
+  // Guard against corrupted or legacy persisted preferences in which array fields are not actually arrays. Without
+  // this, the array operations below would throw (e.g. "filters.map is not a function") and crash the page.
+  if (!Array.isArray(preferences.filters)) {
+    preferences.filters = []
+  }
+  if (!Array.isArray(preferences.groupedColumns)) {
+    preferences.groupedColumns = []
+  }
+  if (!Array.isArray(preferences.columnOrder)) {
+    preferences.columnOrder = []
+  }
+
   // Make sure annotation columns referenced in filters exist
-  if (preferences.annotationColumnKeys === undefined) {
+  if (!Array.isArray(preferences.annotationColumnKeys)) {
     preferences.annotationColumnKeys = []
   }
   const annotationKeysSet = new Set<string>(preferences.annotationColumnKeys)
@@ -406,7 +424,7 @@ export class JobsTablePreferencesService {
     if (!obj.columnMatches) {
       obj.columnMatches = {}
     }
-    if (!obj.filters) {
+    if (!Array.isArray(obj.filters)) {
       obj.filters = []
     }
 

@@ -73,6 +73,16 @@ describe("JobsTablePreferencesService", () => {
         order: { id: StandardColumnId.JobID, direction: "ASC" },
       })
     })
+
+    it("falls back to defaults when local storage prefs have non-array fields", () => {
+      localStorage.setItem(PREFERENCES_KEY, JSON.stringify({ filters: "FAILED", groupedColumns: { queue: true } }))
+
+      expect(() => service.getUserPrefs()).not.toThrow()
+      expect(service.getUserPrefs().filters).toStrictEqual([])
+      expect(service.getUserPrefs().groupedColumns).toStrictEqual([])
+
+      localStorage.clear()
+    })
   })
 
   describe("saveNewPrefs", () => {
@@ -183,6 +193,17 @@ describe("JobsTablePreferencesService", () => {
       savePartialPrefs({ filters: [] })
       expect(service.getUserPrefs().filters).toStrictEqual([])
     })
+
+    it("ignores a scalar filters query param", () => {
+      router.navigate({ search: "?f=jobId" })
+      expect(service.getUserPrefs().filters).toStrictEqual(DEFAULT_PREFERENCES.filters)
+    })
+
+    it("ignores filters beyond the qs array limit", () => {
+      const search = Array.from({ length: 22 }, (_, i) => `f[${i}][id]=jobId&f[${i}][value]=v${i}`).join("&")
+      router.navigate({ search: `?${search}` })
+      expect(service.getUserPrefs().filters).toStrictEqual(DEFAULT_PREFERENCES.filters)
+    })
   })
 
   describe("Sort order", () => {
@@ -238,6 +259,17 @@ describe("JobsTablePreferencesService", () => {
       savePartialPrefs({ expandedState: {} })
       expect(router.location.search).not.toContain("e[0]=")
       expect(service.getUserPrefs().expandedState).toMatchObject({})
+    })
+
+    it("ignores a scalar expanded rows query param", () => {
+      router.navigate({ search: "?e=myRowId" })
+      expect(service.getUserPrefs().expandedState).toStrictEqual(DEFAULT_PREFERENCES.expandedState)
+    })
+
+    it("ignores expanded rows beyond the qs array limit", () => {
+      const search = Array.from({ length: 22 }, (_, i) => `e[${i}]=row${i}`).join("&")
+      router.navigate({ search: `?${search}` })
+      expect(service.getUserPrefs().expandedState).toStrictEqual(DEFAULT_PREFERENCES.expandedState)
     })
   })
 
@@ -1137,5 +1169,21 @@ describe("ensurePreferencesAreConsistent", () => {
     }
 
     expect(validPreferences).toEqual(expected)
+  })
+
+  it("coerces non-array fields from corrupted preferences instead of throwing", () => {
+    const corruptedPreferences = {
+      ...DEFAULT_PREFERENCES,
+      filters: undefined,
+      groupedColumns: "queue",
+      columnOrder: {},
+      annotationColumnKeys: null,
+    } as unknown as JobsTablePreferences
+
+    expect(() => ensurePreferencesAreConsistent(corruptedPreferences)).not.toThrow()
+    expect(corruptedPreferences.filters).toStrictEqual([])
+    expect(corruptedPreferences.groupedColumns).toStrictEqual([])
+    expect(corruptedPreferences.annotationColumnKeys).toStrictEqual([])
+    expect(Array.isArray(corruptedPreferences.columnOrder)).toBe(true)
   })
 })
