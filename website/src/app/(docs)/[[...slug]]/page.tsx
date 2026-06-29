@@ -16,6 +16,8 @@ export default async function Page(props: {
 }) {
   const params = await props.params;
   const page = source.getPage(params.slug);
+  const isHome = !params.slug || params.slug.length === 0;
+  
   if (!page) notFound();
 
   const MDXContent = page.data.body;
@@ -41,8 +43,10 @@ export default async function Page(props: {
       editOnGithub={editOnGithub}
       lastUpdate={lastModified}
     >
-      <DocsTitle>{page.data.title}</DocsTitle>
-      <DocsDescription>{page.data.description}</DocsDescription>
+      {/* <DocsTitle>{page.data.title}</DocsTitle>
+      <DocsDescription>{page.data.description}</DocsDescription> */}
+      {!isHome && <DocsTitle>{page.data.title}</DocsTitle>}
+      {!isHome && <DocsDescription>{page.data.description}</DocsDescription>}
       <DocsBody>
         <MDXContent
           components={getMDXComponents({
