@@ -267,6 +267,11 @@ export const ensurePreferencesAreConsistent = (preferences: JobsTablePreferences
   if (!Array.isArray(preferences.columnOrder)) {
     preferences.columnOrder = []
   }
+  // expandedState is an object rather than an array, but is similarly vulnerable: a non-object value would make the
+  // Object.entries call in toQueryStringSafe throw and silently drop URL persistence on every save.
+  if (typeof preferences.expandedState !== "object" || preferences.expandedState === null) {
+    preferences.expandedState = {}
+  }
 
   // Make sure annotation columns referenced in filters exist
   if (!Array.isArray(preferences.annotationColumnKeys)) {

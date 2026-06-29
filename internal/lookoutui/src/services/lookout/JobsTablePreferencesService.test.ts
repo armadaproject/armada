@@ -77,11 +77,13 @@ describe("JobsTablePreferencesService", () => {
     it("falls back to defaults when local storage prefs have non-array fields", () => {
       localStorage.setItem(PREFERENCES_KEY, JSON.stringify({ filters: "FAILED", groupedColumns: { queue: true } }))
 
-      expect(() => service.getUserPrefs()).not.toThrow()
-      expect(service.getUserPrefs().filters).toStrictEqual([])
-      expect(service.getUserPrefs().groupedColumns).toStrictEqual([])
-
-      localStorage.clear()
+      try {
+        expect(() => service.getUserPrefs()).not.toThrow()
+        expect(service.getUserPrefs().filters).toStrictEqual([])
+        expect(service.getUserPrefs().groupedColumns).toStrictEqual([])
+      } finally {
+        localStorage.clear()
+      }
     })
   })
 
@@ -1178,12 +1180,14 @@ describe("ensurePreferencesAreConsistent", () => {
       groupedColumns: "queue",
       columnOrder: {},
       annotationColumnKeys: null,
+      expandedState: null,
     } as unknown as JobsTablePreferences
 
     expect(() => ensurePreferencesAreConsistent(corruptedPreferences)).not.toThrow()
     expect(corruptedPreferences.filters).toStrictEqual([])
     expect(corruptedPreferences.groupedColumns).toStrictEqual([])
     expect(corruptedPreferences.annotationColumnKeys).toStrictEqual([])
+    expect(corruptedPreferences.expandedState).toStrictEqual({})
     expect(Array.isArray(corruptedPreferences.columnOrder)).toBe(true)
   })
 })
