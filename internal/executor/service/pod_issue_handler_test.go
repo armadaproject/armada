@@ -12,6 +12,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	realclock "k8s.io/utils/clock"
 	clock "k8s.io/utils/clock/testing"
 
 	"github.com/armadaproject/armada/internal/common/errormatch"
@@ -95,9 +96,10 @@ func TestPodIssueService_DeletesPodAndReportsFailed_IfStuckAndUnretryable(t *tes
 	assert.Len(t, failedEvent.JobRunErrors.Errors, 1)
 	assert.Contains(t, failedEvent.JobRunErrors.Errors[0].GetPodError().Message, "unrecoverable problem")
 	assert.Contains(t, failedEvent.JobRunErrors.Errors[0].GetPodError().DebugMessage, "Image pull has failed")
+	assert.NotEqual(t, errormatch.CategoryInternal, failedEvent.JobRunErrors.Errors[0].GetFailureCategory())
 }
 
-func TestPodIssueService_FailureCategorySet_WhenClassifierConfigured(t *testing.T) {
+func TestPodIssueService_StructuralIssueIsInternal_RegardlessOfClassifier(t *testing.T) {
 	classifier, err := categorizer.NewClassifier(categorizer.ErrorCategoriesConfig{
 		Categories: []categorizer.CategoryConfig{
 			{
@@ -110,35 +112,12 @@ func TestPodIssueService_FailureCategorySet_WhenClassifierConfigured(t *testing.
 	})
 	require.NoError(t, err)
 
-	fakeClusterContext := fakecontext.NewSyncFakeClusterContext()
-	eventReporter := mocks.NewFakeEventReporter()
-	runStateStore := job.NewJobRunStateStoreWithInitialState([]*job.RunState{})
-	stateChecksConfig := configuration.StateChecksConfiguration{
-		DeadlineForSubmittedPodConsideredMissing: time.Minute * 15,
-		DeadlineForActivePodConsideredMissing:    time.Minute * 5,
-	}
-
-	podIssueService, err := NewPodIssuerHandler(
-		runStateStore,
-		fakeClusterContext,
-		eventReporter,
-		stateChecksConfig,
-		makePendingPodChecker(),
-		makeFailedPodChecker(),
-		time.Minute*3,
-		classifier,
-	)
+	podIssueService, _, fakeClusterContext, eventReporter, err := setupTestComponentsWithClassifier([]*job.RunState{}, classifier)
 	require.NoError(t, err)
 
-	// Stuck terminating pod with an OOMKilled container - the classifier should match
 	pod := makeTerminatingPod()
 	pod.Status.ContainerStatuses = []v1.ContainerStatus{
-		{
-			Name: "main",
-			State: v1.ContainerState{
-				Terminated: &v1.ContainerStateTerminated{ExitCode: 137, Reason: "OOMKilled"},
-			},
-		},
+		{Name: "main", State: v1.ContainerState{Terminated: &v1.ContainerStateTerminated{ExitCode: 137, Reason: "OOMKilled"}}},
 	}
 	addPod(t, fakeClusterContext, pod)
 
@@ -147,11 +126,8 @@ func TestPodIssueService_FailureCategorySet_WhenClassifierConfigured(t *testing.
 	require.Len(t, eventReporter.ReceivedEvents, 1)
 	failedEvent, ok := eventReporter.ReceivedEvents[0].Event.Events[0].Event.(*armadaevents.EventSequence_Event_JobRunErrors)
 	require.True(t, ok)
-
-	assert.Equal(t, "oom-failure", failedEvent.JobRunErrors.Errors[0].GetFailureCategory())
-	assert.Equal(t, "kernel-oom", failedEvent.JobRunErrors.Errors[0].GetFailureSubcategory())
-	// Verify ContainerErrors are populated (not empty) so retry engine has fallback data
-	assert.NotEmpty(t, failedEvent.JobRunErrors.Errors[0].GetPodError().ContainerErrors)
+	assert.Equal(t, errormatch.CategoryInternal, failedEvent.JobRunErrors.Errors[0].GetFailureCategory())
+	assert.Equal(t, errormatch.SubcategoryStuckTerminating, failedEvent.JobRunErrors.Errors[0].GetFailureSubcategory())
 }
 
 func TestPodIssueService_OnPodErrorClassifies(t *testing.T) {
@@ -174,14 +150,6 @@ func TestPodIssueService_OnPodErrorClassifies(t *testing.T) {
 				return p
 			},
 			expectMessageContains: "no match for platform in manifest",
-		},
-		"active deadline exceeded from executor-side detection": {
-			category:    "user_error",
-			subcategory: "deadline_exceeded",
-			pattern:     "exceeded active deadline",
-			// 10 minutes old with 5 minute deadline -> exceeded.
-			pod:                   func() *v1.Pod { return makePodWithDeadline(time.Now().Add(-time.Minute*10), 300, 0) },
-			expectMessageContains: "exceeded active deadline",
 		},
 	}
 
@@ -401,6 +369,8 @@ func TestPodIssueService_DeletesPodAndReportsFailed_IfExceedsActiveDeadline(t *t
 				assert.True(t, ok)
 				assert.Len(t, failedEvent.JobRunErrors.Errors, 1)
 				assert.Contains(t, failedEvent.JobRunErrors.Errors[0].GetPodError().Message, "exceeded active deadline")
+				assert.Equal(t, errormatch.CategoryInternal, failedEvent.JobRunErrors.Errors[0].GetFailureCategory())
+				assert.Equal(t, errormatch.SubcategoryActiveDeadline, failedEvent.JobRunErrors.Errors[0].GetFailureSubcategory())
 			} else {
 				assert.Equal(t, []*v1.Pod{tc.pod}, remainingActivePods)
 				assert.Len(t, eventsReporter.ReceivedEvents, 0)
@@ -481,6 +451,8 @@ func TestPodIssueService_ReportsFailed_IfDeletedExternally(t *testing.T) {
 	assert.Len(t, failedEvent.JobRunErrors.Errors, 1)
 	assert.True(t, failedEvent.JobRunErrors.Errors[0].GetPodError() != nil)
 	assert.Equal(t, jobId, failedEvent.JobRunErrors.JobId)
+	assert.Equal(t, errormatch.CategoryInternal, failedEvent.JobRunErrors.Errors[0].GetFailureCategory())
+	assert.Equal(t, errormatch.SubcategoryExternallyDeleted, failedEvent.JobRunErrors.Errors[0].GetFailureSubcategory())
 }
 
 func TestPodIssueService_ReportsFailed_IfPodOfActiveRunGoesMissing(t *testing.T) {
@@ -506,6 +478,8 @@ func TestPodIssueService_ReportsFailed_IfPodOfActiveRunGoesMissing(t *testing.T)
 	assert.Len(t, failedEvent.JobRunErrors.Errors, 1)
 	assert.True(t, failedEvent.JobRunErrors.Errors[0].GetPodError() != nil)
 	assert.Equal(t, jobId, failedEvent.JobRunErrors.JobId)
+	assert.Equal(t, errormatch.CategoryInternal, failedEvent.JobRunErrors.Errors[0].GetFailureCategory())
+	assert.Equal(t, errormatch.SubcategoryPodMissing, failedEvent.JobRunErrors.Errors[0].GetFailureSubcategory())
 }
 
 func TestPodIssueService_DoesNothing_IfMissingPodOfActiveRunReturns(t *testing.T) {
@@ -785,7 +759,7 @@ func makePendingPodChecker() podchecks.PodChecker {
 		{State: podchecksConfig.ContainerStateWaiting, ReasonRegexp: "Some reason", GracePeriod: time.Nanosecond, Action: podchecksConfig.ActionRetry},
 	}
 
-	checker, err := podchecks.NewPodChecks(cfg)
+	checker, err := podchecks.NewPodChecks(cfg, realclock.RealClock{})
 	if err != nil {
 		panic(fmt.Sprintf("Failed to make pod checker: %v", err))
 	}
@@ -868,5 +842,20 @@ func TestCreateDebugMessage(t *testing.T) {
 				assert.Contains(t, result, tt.events[0].Message)
 			}
 		})
+	}
+}
+
+func TestInternalSubcategoryForPodIssueType(t *testing.T) {
+	tests := map[podIssueType]string{
+		StuckTerminating:         errormatch.SubcategoryStuckTerminating,
+		ExternallyDeleted:        errormatch.SubcategoryExternallyDeleted,
+		ErrorDuringIssueHandling: errormatch.SubcategoryIssueHandlerError,
+		ActiveDeadlineExceeded:   errormatch.SubcategoryActiveDeadline,
+		StuckStartingUp:          "",
+		UnableToSchedule:         "",
+		FailedStartingUp:         "",
+	}
+	for issueType, want := range tests {
+		assert.Equal(t, want, internalSubcategoryForPodIssueType(issueType))
 	}
 }

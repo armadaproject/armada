@@ -1,10 +1,13 @@
 <div align="center">
  <img src="./logo.svg" alt="Armada logo" width="200"/>
  <p>
-  <a href="https://circleci.com/gh/armadaproject/armada"><img src="https://circleci.com/gh/helm/helm.svg?style=shield" alt="CircleCI"></a>
+  <a href="https://circleci.com/gh/armadaproject/armada"><img src="https://circleci.com/gh/armadaproject/armada.svg?style=shield" alt="CircleCI"></a>
   <a href="https://goreportcard.com/report/github.com/armadaproject/armada"><img src="https://goreportcard.com/badge/github.com/armadaproject/armada" alt="Go Report Card"></a>
   <a href="https://artifacthub.io/packages/helm/gresearch/armada" title="Go to Artifact Hub"><img src="https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/armada" alt="Artifact Hub"></a>
   <a href="https://insights.linuxfoundation.org/project/armada" title="Click to view project insights and health checks"><img src="https://insights.linuxfoundation.org/api/badge/health-score?project=armada" alt="LFX Health Score"></a>
+ </p>
+ <p>
+  <a href="https://www.bestpractices.dev/projects/11485"><img src="https://www.bestpractices.dev/projects/11485/badge" alt="OpenSSF Best Practices"></a>
  </p>
 </div>
 
