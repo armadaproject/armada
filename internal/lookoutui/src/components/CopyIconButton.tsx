@@ -47,7 +47,10 @@ export const CopyIconButton = ({
             await navigator.clipboard.writeText(content)
             setTooltipOpen(true)
           } catch (error) {
-            openSnackbar(`Failed to copy to clipboard: ${error}`, "error")
+            openSnackbar(
+              `Failed to copy to clipboard: ${error instanceof Error ? error.message : String(error)}`,
+              "error",
+            )
           }
         }}
         aria-label="copy"
