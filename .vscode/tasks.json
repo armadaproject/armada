@@ -9,38 +9,198 @@
   },
   "tasks": [
     {
+      "label": "Start dependencies",
       "type": "shell",
-      "command": "go",
-      "args": ["mod", "download"],
-      "label": "Download Go modules"
+      "command": "mage kind && mage dev:up no-auth -dap",
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "armada-deps",
+        "pattern": { "regexp": "^$" },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "initialized successfully",
+          "endsPattern": "DAP server listening at"
+        }
+      }
     },
     {
+      "label": "Start dependencies with Fake Executor",
       "type": "shell",
-      "command": "mage kind && mage dev:deps",
-      "label": "Start dependencies"
+      "command": "mage dev:up fake-executor -dap",
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "armada-deps",
+        "pattern": { "regexp": "^$" },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "initialized successfully",
+          "endsPattern": "DAP server listening at"
+        }
+      }
     },
     {
+      "label": "Start dependencies with Prometheus",
       "type": "shell",
-      "command": "mage dev:migrate",
-      "label": "Run migrations"
+      "command": "mage kind && mage dev:up prometheus -dap",
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "armada-deps",
+        "pattern": { "regexp": "^$" },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "initialized successfully",
+          "endsPattern": "DAP server listening at"
+        }
+      }
     },
     {
-      "label": "Set up dependencies",
-      "dependsOrder": "sequence",
-      "dependsOn": [
-        "Download Go modules",
-        "Start dependencies",
-        "Run migrations"
+      "label": "Start dependencies with Auth",
+      "type": "shell",
+      "command": "mage kind && mage dev:up auth -dap",
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "armada-deps",
+        "pattern": { "regexp": "^$" },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "initialized successfully",
+          "endsPattern": "Keycloak ready"
+        }
+      }
+    },
+    {
+      "label": "Start dependencies with Fake Executor and Prometheus",
+      "type": "shell",
+      "command": "mage dev:up fake-executor,prometheus -dap",
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "armada-deps",
+        "pattern": { "regexp": "^$" },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "initialized successfully",
+          "endsPattern": "DAP server listening at"
+        }
+      }
+    },
+    {
+      "label": "Start dependencies with Auth and Prometheus",
+      "type": "shell",
+      "command": "mage kind && mage dev:up auth,prometheus -dap",
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "armada-deps",
+        "pattern": { "regexp": "^$" },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "initialized successfully",
+          "endsPattern": "Keycloak ready"
+        }
+      }
+    },
+    {
+      "label": "Prepare LookoutUI",
+      "type": "shell",
+      "command": [
+        "scripts/yarn-registry-mirror.sh --cwd ${workspaceFolder}/internal/lookoutui install &&",
+        "scripts/yarn-registry-mirror.sh --cwd ${workspaceFolder}/internal/lookoutui openapi"
       ]
     },
     {
+      "label": "Check for port conflicts",
       "type": "shell",
-      "command": [
-        "scripts/yarn-registry-mirror.sh --cwd ${workspaceFolder}/internal/lookoutui &&",
-        "scripts/yarn-registry-mirror.sh --cwd ${workspaceFolder}/internal/lookoutui openapi &&",
-        "scripts/yarn-registry-mirror.sh --cwd ${workspaceFolder}/internal/lookoutui build"
-      ],
-      "label": "Build Lookout UI"
+      "command": "_local/scripts/check-port-conflicts.sh",
+      "problemMatcher": []
+    },
+    {
+      "label": "Kill port conflicts",
+      "type": "shell",
+      "command": "_local/scripts/kill-port-conflicts.sh",
+      "problemMatcher": []
+    },
+    {
+      "label": "Wait for dlv (standard)",
+      "type": "shell",
+      "command": "_local/scripts/wait-for-dlv.sh standard",
+      "problemMatcher": []
+    },
+    {
+      "label": "Wait for dlv (fake-executor)",
+      "type": "shell",
+      "command": "_local/scripts/wait-for-dlv.sh fake-executor",
+      "problemMatcher": []
+    },
+    {
+      "label": "Pre-build Go services",
+      "type": "shell",
+      "command": "_local/scripts/prebuild-services.sh",
+      "problemMatcher": []
+    },
+    {
+      "label": "Stop dependencies",
+      "type": "shell",
+      "command": "mage dev:down",
+      "problemMatcher": []
+    },
+    {
+      "label": "Set up and start (no-auth)",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "Pre-build Go services",
+        "Check for port conflicts",
+        "Start dependencies",
+        "Wait for dlv (standard)"
+      ]
+    },
+    {
+      "label": "Set up and start (auth)",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "Pre-build Go services",
+        "Check for port conflicts",
+        "Start dependencies with Auth",
+        "Wait for dlv (standard)"
+      ]
+    },
+    {
+      "label": "Set up and start (fake-executor)",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "Pre-build Go services",
+        "Check for port conflicts",
+        "Start dependencies with Fake Executor",
+        "Wait for dlv (fake-executor)"
+      ]
+    },
+    {
+      "label": "Set up and start (no-auth with prometheus)",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "Pre-build Go services",
+        "Check for port conflicts",
+        "Start dependencies with Prometheus",
+        "Wait for dlv (standard)"
+      ]
+    },
+    {
+      "label": "Set up and start (fake-executor with prometheus)",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "Pre-build Go services",
+        "Check for port conflicts",
+        "Start dependencies with Fake Executor and Prometheus",
+        "Wait for dlv (fake-executor)"
+      ]
+    },
+    {
+      "label": "Set up and start (auth with prometheus)",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "Pre-build Go services",
+        "Check for port conflicts",
+        "Start dependencies with Auth and Prometheus",
+        "Wait for dlv (standard)"
+      ]
     }
   ]
 }

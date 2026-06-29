@@ -1,5 +1,4 @@
-metrics:
-  port: 9006
+metricsPort: 9006
 postgres:
   connection:
     host: localhost
