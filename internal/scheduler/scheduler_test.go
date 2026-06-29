@@ -352,7 +352,7 @@ var shortLeasedJob = shortJobRun(testfixtures.NewJob(
 	true,
 ))
 
-var shortRejectedJob = func() *jobdb.Job {
+var shortUnschedulableJob = func() *jobdb.Job {
 	job := shortJobRun(testfixtures.NewJob(
 		util.NewULID(),
 		"testJobset",
@@ -1081,14 +1081,14 @@ func TestScheduler_TestCycle(t *testing.T) {
 				"testQueue": shortLeasedJob.AllResourceRequirements(),
 			},
 		},
-		"Short job rejected reports a penalty": {
-			initialJobs:           []*jobdb.Job{shortRejectedJob},
+		"Short job failing submit check reports a penalty": {
+			initialJobs:           []*jobdb.Job{shortUnschedulableJob},
 			submitCheckerFailure:  true,
-			expectedJobErrors:     []string{shortRejectedJob.Id()},
-			expectedTerminal:      []string{shortRejectedJob.Id()},
-			expectedQueuedVersion: shortRejectedJob.QueuedVersion(),
+			expectedJobErrors:     []string{shortUnschedulableJob.Id()},
+			expectedTerminal:      []string{shortUnschedulableJob.Id()},
+			expectedQueuedVersion: shortUnschedulableJob.QueuedVersion(),
 			expectedShortJobPenalties: map[string]internaltypes.ResourceList{
-				"testQueue": shortRejectedJob.AllResourceRequirements(),
+				"testQueue": shortUnschedulableJob.AllResourceRequirements(),
 			},
 		},
 	}
