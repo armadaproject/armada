@@ -3,8 +3,9 @@ import { useState } from "react"
 import { Dialog, DialogContent, DialogTitle } from "@mui/material"
 import { ErrorBoundary } from "react-error-boundary"
 
-import { ApiResult, PlatformCancelReason, RequestStatus } from "../../../common/utils"
+import { ApiResult, getErrorMessage, PlatformCancelReason, RequestStatus } from "../../../common/utils"
 import { AlertErrorFallback } from "../../../components/AlertErrorFallback"
+import { useCustomSnackbar } from "../../../components/hooks/useCustomSnackbar"
 import { JobSet } from "../../../models/lookoutModels"
 import { ApiJobState } from "../../../openapi/armada"
 import { CancelJobSetsResponse, useCancelJobSets } from "../../../services/lookout/useCancelJobSets"
@@ -54,6 +55,7 @@ export default function CancelJobSetsDialog(props: CancelJobSetsDialogProps) {
   const statesToCancel = getStatesToCancel(includeQueued, includeRunning)
 
   const cancelJobSetsMutation = useCancelJobSets()
+  const openSnackbar = useCustomSnackbar()
 
   async function cancelJobSets() {
     if (requestStatus === "Loading") {
@@ -62,22 +64,27 @@ export default function CancelJobSetsDialog(props: CancelJobSetsDialogProps) {
 
     setRequestStatus("Loading")
     const reason = isPlatformCancel ? PlatformCancelReason : ""
-    const cancelJobSetsResponse = await cancelJobSetsMutation.mutateAsync({
-      queue: props.queue,
-      jobSets: jobSetsToCancel,
-      states: statesToCancel,
-      reason,
-    })
-    setRequestStatus("Idle")
+    try {
+      const cancelJobSetsResponse = await cancelJobSetsMutation.mutateAsync({
+        queue: props.queue,
+        jobSets: jobSetsToCancel,
+        states: statesToCancel,
+        reason,
+      })
 
-    setResponse(cancelJobSetsResponse)
-    setState("CancelJobSetsResult")
-    if (cancelJobSetsResponse.failedJobSetCancellations.length === 0) {
-      props.onResult("Success")
-    } else if (cancelJobSetsResponse.cancelledJobSets.length === 0) {
-      props.onResult("Failure")
-    } else {
-      props.onResult("Partial success")
+      setResponse(cancelJobSetsResponse)
+      setState("CancelJobSetsResult")
+      if (cancelJobSetsResponse.failedJobSetCancellations.length === 0) {
+        props.onResult("Success")
+      } else if (cancelJobSetsResponse.cancelledJobSets.length === 0) {
+        props.onResult("Failure")
+      } else {
+        props.onResult("Partial success")
+      }
+    } catch (e) {
+      openSnackbar(`Failed to cancel job sets: ${await getErrorMessage(e)}`, "error")
+    } finally {
+      setRequestStatus("Idle")
     }
   }
 
