@@ -1,61 +1,134 @@
 ---
-title: Overview
+title: Armada
 ---
 
 import { ArmadaIcon, ArmadaText } from '@/components/logo';
+import Link from 'next/link';
 
-<div className='ms-3 flex flex-col items-center justify-center gap-3 md:my-3'>
-  <ArmadaIcon className='w-30 md:w-35' />
-  <ArmadaText className='w-30 text-[#00aae1] md:w-35' />
-  <div className='flex gap-3'>
-    <a href='https://circleci.com/gh/armadaproject/armada' target='_blank'>
-      <img
-        src='https://circleci.com/gh/helm/helm.svg?style=shield'
-        alt='CircleCI'
-      />
-    </a>
-    <a
-      href='https://goreportcard.com/report/github.com/armadaproject/armada'
+
+<div className='relative not-prose'>
+
+  <div className='ms-3 flex flex-col items-center justify-center gap-3 md:my-3 pt-6'>
+    <ArmadaIcon className='w-30 md:w-35' />
+    <ArmadaText className='w-30 text-[#00aae1] md:w-35' />
+
+    {/* blue glow behind the logo */}
+    <div
+      className='pointer-events-none absolute left-1/2 top-0 -z-0 h-64 w-96 -translate-x-1/2'
+      style={{ background: 'radial-gradient(ellipse at 50% 25%, rgba(0, 169, 225, 0.24) 0%, transparent 70%)' }}
+    />
+
+
+    {/* Armada descriptor line  */}
+    <span className='text-sm tracking-wide text-fd-muted-foreground pb-6'>
+    Multi-cluster batch scheduler for Kubernetes
+    </span>
+
+    {/* Badges  */}
+    <div className='flex gap-3'>
+      <a href='https://github.com/armadaproject/armada/releases' target='_blank' rel='noreferrer'>
+        <img src='https://img.shields.io/github/v/release/armadaproject/armada' alt='Latest release' />
+      </a>
+      <a
+        href='https://goreportcard.com/report/github.com/armadaproject/armada'
+        target='_blank'
+      >
+        <img
+          src='https://goreportcard.com/badge/github.com/armadaproject/armada'
+          alt='Go Report Card'
+        />
+      </a>
+      <a
+        href='https://artifacthub.io/packages/helm/gresearch/armada'
+        title='Go to Artifact Hub'
+        target='_blank'
+      >
+        <img
+          src='https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/armada'
+          alt='Artifact Hub'
+        />
+      </a>
+      <a
+        href='https://insights.linuxfoundation.org/project/armada'
+        target='_blank'
+        title='Click to view project insights and health checks'
+      >
+        <img
+          src='https://insights.linuxfoundation.org/api/badge/health-score?project=armada'
+          alt='LFX Health Score'
+        />
+      </a>
+    </div>
+    {/* Badges row 2 */}
+    <div>
+      <div className='flex flex-wrap justify-center gap-3'>
+        <a href='https://www.cncf.io/sandbox-projects/' target='_blank' rel='noreferrer'>
+          <img src='https://img.shields.io/badge/CNCF-Sandbox-blue?logo=cncf' alt='CNCF Sandbox' />
+        </a>
+
+        <a href='https://www.bestpractices.dev/projects/11485' target='_blank' rel='noreferrer'>
+          <img src='https://www.bestpractices.dev/projects/11485/badge' alt='OpenSSF Best Practices' />
+        </a>
+
+        <a href='https://github.com/armadaproject/armada/blob/master/LICENSE' target='_blank' rel='noreferrer'>
+          <img src='https://img.shields.io/github/license/armadaproject/armada' alt='License' />
+        </a>
+      </div>
+      </div>
+    </div>
+
+  {/* Hero Section/What is Armada? */}
+
+  <div className='not-prose mt-4 flex flex-col items-center gap-6 text-center'>
+    <span className='not-prose flex flex-col items-center mt-8 text-sm tracking-wide text-fd-muted-foreground'>
+      ## What is Armada?
+    </span>
+
+    {/* headline */}
+    <span className='max-w-3xl text-4xl font-bold tracking-tight md:text-5xl'>
+    One API. <br />
+    Any number of clusters. <br />
+    Millions of jobs. 
+    </span>
+
+    {/* Armada description */}
+    <span className='max-w-xl text-lg text-fd-muted-foreground'>
+    Armada is the open-source batch job meta-scheduler that makes Kubernetes
+    handle massive-scale workloads, with fair queuing, gang scheduling, and multi-cluster
+    orchestration built in.
+    </span>
+
+    {/* buttons */}
+    <div className='mt-4 flex flex-wrap items-center justify-center gap-6'>
+      <Link href='/getting-started'
+      className='rounded-lg bg-fd-primary px-3.5 py-2 font-medium text-base text-white no-underline transition-all hover:opacity-90 hover:shadow-lg hover:shadow-black/20 dark:hover:shadow-white/20'>
+      Get started &rarr;
+      </Link>
+      <a href='https://github.com/armadaproject/armada'
       target='_blank'
-    >
-      <img
-        src='https://goreportcard.com/badge/github.com/armadaproject/armada'
-        alt='Go Report Card'
-      />
-    </a>
-    <a
-      href='https://artifacthub.io/packages/helm/gresearch/armada'
-      title='Go to Artifact Hub'
-      target='_blank'
-    >
-      <img
-        src='https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/armada'
-        alt='Artifact Hub'
-      />
-    </a>
-    <a
-      href='https://insights.linuxfoundation.org/project/armada'
-      target='_blank'
-      title='Click to view project insights and health checks'
-    >
-      <img
-        src='https://insights.linuxfoundation.org/api/badge/health-score?project=armada'
-        alt='LFX Health Score'
-      />
-    </a>
+      rel='noreferrer'
+      className='rounded-lg border border-fd-border px-3.5 py-2 font-medium text-base no-underline transition-all hover:bg-fd-muted hover:shadow-lg hover:shadow-black/20 dark:hover:shadow-white/20'
+      >
+        View on GitHub
+      </a>
+    </div>
+
+      {/* divider */}
+      <hr className='my-6 h-px w-full border-0 bg-fd-border' />
   </div>
+
 </div>
 
-## What is Armada?
+{/* ## What is Armada? */}
 
-Armada is a multi-Kubernetes cluster batch job meta-scheduler designed to handle massive-scale workloads. Built on top of Kubernetes, Armada enables organizations to distribute millions of batch jobs per day across tens of thousands of nodes spanning multiple clusters, making it an ideal solution for high-throughput computational workloads.
+{/* Armada is a multi-Kubernetes cluster batch job meta-scheduler designed to handle massive-scale workloads. Built on top of Kubernetes, Armada enables organizations to distribute millions of batch jobs per day across tens of thousands of nodes spanning multiple clusters, making it an ideal solution for high-throughput computational workloads.
 
 Armada serves as middleware that transforms Kubernetes into a powerful batch processing platform while maintaining compatibility with service workloads. It addresses the fundamental limitations of running batch workloads at scale on Kubernetes by providing:
 
 - **Multi-cluster orchestration**: Schedule jobs across many Kubernetes clusters seamlessly
 - **High-throughput queueing**: Handle millions of queued jobs
 - **Advanced batch scheduling**: Fair queuing, gang scheduling, preemption, and resource limits
-- **Enterprise-grade reliability**: Secure, highly available components designed for production use
+- **Enterprise-grade reliability**: Secure, highly available components designed for production use */}
 
 As a [CNCF Sandbox project](https://www.cncf.io/), Armada is actively maintained and used in production environments, including at [G-Research](https://www.gresearch.com/) where it processes millions of jobs daily.
 
