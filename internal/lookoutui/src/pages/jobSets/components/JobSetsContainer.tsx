@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 
 import { ErrorBoundary } from "react-error-boundary"
-import { useLocation, useNavigate, useParams } from "react-router-dom"
 
 import { StandardColumnId } from "../../../common/jobsTableColumns"
-import { ApiResult, RequestStatus, selectItem } from "../../../common/utils"
+import { ApiResult, RequestStatus, selectItem, useStableRouter } from "../../../common/utils"
 import { AlertErrorFallback } from "../../../components/AlertErrorFallback"
 import { useCustomSnackbar } from "../../../components/hooks/useCustomSnackbar"
 import { JobSet, JobSetsOrderByColumn } from "../../../models/lookoutModels"
@@ -36,13 +35,11 @@ const DEFAULT_PREFS: JobSetsPrefs = {
 }
 
 export default function JobSetsContainer({ jobSetsAutoRefreshMs }: JobSetsContainerProps) {
-  const location = useLocation()
-  const navigate = useNavigate()
-  const params = useParams()
+  const router = useStableRouter()
   const openSnackbar = useCustomSnackbar()
 
   const localStorageService = useMemo(() => new JobSetsLocalStorageService(), [])
-  const queryParamsService = useMemo(() => new JobSetsQueryParamsService({ location, navigate, params }), [])
+  const queryParamsService = useMemo(() => new JobSetsQueryParamsService(router), [router])
 
   const [prefs] = useState<JobSetsPrefs>(() => {
     const initial = { ...DEFAULT_PREFS }
@@ -152,9 +149,9 @@ export default function JobSetsContainer({ jobSetsAutoRefreshMs }: JobSetsContai
           { id: StandardColumnId.JobSet, value: jobSet.jobSetId },
         ],
       }
-      navigate({ pathname: JOBS, search: stringifyQueryParams(toQueryStringSafe(prefs)) })
+      router.navigate({ pathname: JOBS, search: stringifyQueryParams(toQueryStringSafe(prefs)) })
     },
-    [jobSets, navigate],
+    [jobSets, router],
   )
 
   const selectedJobSetsArray = Array.from(selectedJobSets.values())
