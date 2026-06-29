@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/magefile/mage/mg"
@@ -27,24 +28,61 @@ const (
 )
 
 // Up brings up dependencies and runs Armada components via goreman with the chosen profile.
-// Profile: no-auth (default), auth, or fake-executor.
+//
+// profiles is a comma-separated list of tokens:
+//   - "auth"          – enables OIDC (Keycloak); sets goreman profile to "auth" and uses the auth compose profile
+//   - "fake-executor" – no Kubernetes needed; sets goreman profile to "fake-executor"
+//   - anything else   – forwarded as a docker-compose --profile flag for extra services
+//
+// dap may be "-dap" to append "-dap" to the procfile name, or omitted.
 //
 // Examples:
 //
-//	mage dev:up                # no-auth
-//	mage dev:up auth           # OIDC
-//	mage dev:up fake-executor  # no Kubernetes needed
-func (Dev) Up(profile string) error {
-	if profile == "" {
-		profile = "no-auth"
+//	mage dev:up ""                        # no-auth
+//	mage dev:up auth                      # OIDC
+//	mage dev:up fake-executor -debug      # fake executor + debug procfile
+//	mage dev:up auth,myservice            # auth + extra compose profile "myservice"
+//	mage dev:up "" -dap                 # no-auth + dap procfile
+func (Dev) Up(profiles string, dap *bool) error {
+	var (
+		profile         = "no-auth"
+		composeProfiles []string
+	)
+
+	for _, token := range strings.Split(profiles, ",") {
+		token = strings.TrimSpace(token)
+		if token == "" {
+			continue
+		}
+		switch token {
+		case "auth", "fake-executor":
+			if profile != "no-auth" {
+				fmt.Printf("warning: ignoring %q — profile already set to %q; only one of auth/fake-executor may be used\n", token, profile)
+			} else {
+				profile = token
+			}
+		default:
+			composeProfiles = append(composeProfiles, token)
+		}
 	}
-	procfile := "_local/procfiles/" + profile + ".Procfile"
+
+	isDAP := dap != nil
+
+	debugSuffix := ""
+	if isDAP {
+		debugSuffix = "-dap"
+	}
+	procfile := "_local/procfiles/" + profile + debugSuffix + ".Procfile"
 	if _, err := os.Stat(procfile); err != nil {
-		return fmt.Errorf("unknown profile %q: %s not found", profile, procfile)
+		return fmt.Errorf("unknown profile %q: %s not found", profile+debugSuffix, procfile)
+	}
+
+	if profile == "auth" {
+		composeProfiles = append([]string{"auth"}, composeProfiles...)
 	}
 
 	mg.Deps(installGoreman)
-	if err := devDepsUp(profile); err != nil {
+	if err := devDepsUp(strings.Join(composeProfiles, ",")); err != nil {
 		return err
 	}
 	if err := sh.RunV(initScript); err != nil {
@@ -100,7 +138,7 @@ func (Dev) Migrate() error {
 // --profile auth brings the keycloak container into scope so `dev:up auth` doesn't leave it
 // orphaned, and --remove-orphans clears containers from any profile that is no longer active.
 func (Dev) Down() error {
-	return sh.RunV("docker", "compose", "-f", stackComposeFile, "--profile", "auth", "down", "--remove-orphans")
+	return sh.RunV("docker", "compose", "-f", stackComposeFile, "--profile", "auth", "--profile", "prometheus", "down", "--remove-orphans")
 }
 
 // Full brings up the entire Armada stack in containers via _local/compose/full.yaml.
@@ -126,10 +164,13 @@ func (Dev) FullDown() error {
 // devDepsUp brings the dependency stack up and waits for healthchecks. redis/postgres/pulsar
 // have healthchecks so --wait blocks until they're ready. Keycloak (auth profile) has no
 // healthcheck on purpose; waitForKeycloak handles its readiness before goreman starts.
-func devDepsUp(profile string) error {
+func devDepsUp(profiles string) error {
 	args := []string{"compose", "-f", stackComposeFile}
-	if profile == "auth" {
-		args = append(args, "--profile", "auth")
+	for _, p := range strings.Split(profiles, ",") {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			args = append(args, "--profile", p)
+		}
 	}
 	args = append(args, "up", "-d", "--wait")
 	return sh.RunV("docker", args...)

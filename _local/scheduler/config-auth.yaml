@@ -2,6 +2,8 @@ grpc:
   port: 50052
   tls:
     enabled: false
+http:
+  port: 8080
 auth:
   anonymousAuth: true
   permissionGroupMapping:

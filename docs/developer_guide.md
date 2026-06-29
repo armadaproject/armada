@@ -1,21 +1,22 @@
 # Developer guide
+
 - [Developer guide](#developer-guide)
-  - [Quickstart](#quickstart)
-  - [Dealing with Arm and Windows problems](#dealing-with-arm-and-windows-problems)
-  - [Armada design docs](#armada-design-docs)
-  - [Other developer docs](#other-developer-docs)
-  - [Pre-requisites](#pre-requisites)
-  - [Using `mage`](#using-mage)
-  - [Setting up the local dev stack](#setting-up-the-local-dev-stack)
-  - [Debugging error: port 6443 is already in use after running `mage dev:full`](#debugging-error-port-6443-is-already-in-use-after-running-mage-devfull)
-    - [Identifying the conflict](#identifying-the-conflict)
-    - [Testing if the local dev stack is working](#testing-if-the-local-dev-stack-is-working)
-    - [Running the UI](#running-the-ui)
-    - [Choosing components to run](#choosing-components-to-run)
-  - [Debugging](#debugging)
-  - [GoLand run configurations](#goland-run-configurations)
-  - [VS Code debug configurations](#vs-code-debug-configurations)
-    - [Other debugging methods](#other-debugging-methods)
+    - [Quickstart](#quickstart)
+    - [Dealing with Arm and Windows problems](#dealing-with-arm-and-windows-problems)
+    - [Armada design docs](#armada-design-docs)
+    - [Other developer docs](#other-developer-docs)
+    - [Pre-requisites](#pre-requisites)
+    - [Using `mage`](#using-mage)
+    - [Setting up the local dev stack](#setting-up-the-local-dev-stack)
+    - [Debugging error: port 6443 is already in use after running `mage dev:full`](#debugging-error-port-6443-is-already-in-use-after-running-mage-devfull)
+        - [Identifying the conflict](#identifying-the-conflict)
+        - [Testing if the local dev stack is working](#testing-if-the-local-dev-stack-is-working)
+        - [Running the UI](#running-the-ui)
+        - [Choosing components to run](#choosing-components-to-run)
+    - [Debugging](#debugging)
+    - [GoLand run configurations](#goland-run-configurations)
+    - [VS Code debug configurations](#vs-code-debug-configurations)
+        - [Other debugging methods](#other-debugging-methods)
 
 This document is intended for developers who want to contribute to the project. It contains information about the project structure, how to build the project and how to run the tests.
 
@@ -33,33 +34,24 @@ To get the UI running, run:
 mage ui
 ```
 
-## Dealing with Arm and Windows problems
-
-There is limited information on problems that appear on Arm/Windows Machines when running this setup.
-
-If you encounter any problems, you can create a ticket and link it to the relevant issue, for example:
-
-* [Arm issue](https://github.com/armadaproject/armada/issues/2493)
-* [Windows issue](https://github.com/armadaproject/armada/issues/2492)
-
 ## Armada design docs
 
 For more information about Armada's design, see the following pages:
 
-* [Armada Components Diagram](https://armadaproject.io/design/relationships_diagram)
-* [Armada Architecture](https://armadaproject.io/design/architecture)
-* [Armada Design](https://armadaproject.io/design)
-* [How Priority Functions](https://armadaproject.io/design/priority)
-* [Armada Scheduler Design](https://armadaproject.io/design/scheduler)
+- [Armada Components Diagram](https://armadaproject.io/design/relationships_diagram)
+- [Armada Architecture](https://armadaproject.io/design/architecture)
+- [Armada Design](https://armadaproject.io/design)
+- [How Priority Functions](https://armadaproject.io/design/priority)
+- [Armada Scheduler Design](https://armadaproject.io/design/scheduler)
 
 ## Other developer docs
 
-* [Armada API](./developer/armada-api.md)
-* [Running Armada in an EC2 instance](https://armadaproject.io/developer/aws-ec2)
-* [Armada UI](https://armadaproject.io/developer/ui)
-* [Usage metrics](./developer/usage_metrics.md)
-* [Using OIDC with Armada](./developer/setting-up-oidc.md)
-* [Building the website](./developer/website.md)
+- [Armada API](./developer/armada-api.md)
+- [Running Armada in an EC2 instance](https://armadaproject.io/developer/aws-ec2)
+- [Armada UI](https://armadaproject.io/developer/ui)
+- [Usage metrics](./developer/usage_metrics.md)
+- [Using OIDC with Armada](./developer/setting-up-oidc.md)
+- [Building the website](./developer/website.md)
 
 ## Pre-requisites
 
@@ -81,17 +73,17 @@ Before you can start using Armada, you first need to install the following items
 
 The local dev stack provides a reliable and extendable way to install Armada as a developer. It runs the following steps:
 
-* bootstrap the required tools from [tools.yaml](https://github.com/armadaproject/armada/blob/master/tools.yaml)
-* create a local Kubernetes cluster using [kind](https://kind.sigs.k8s.io/)
-* start the dependencies of Armada, including Pulsar, Redis, and Postgres.
+- bootstrap the required tools from [tools.yaml](https://github.com/armadaproject/armada/blob/master/tools.yaml)
+- create a local Kubernetes cluster using [kind](https://kind.sigs.k8s.io/)
+- start the dependencies of Armada, including Pulsar, Redis, and Postgres.
 
 **Note:** If you edit a proto file, you also need to run `mage proto` to regenerate the Go code.
 
 It has the following options to customise further steps:
 
-* `mage dev:full` - runs the full Armada stack in containers (deps + all components) against a Kind cluster
-* `mage dev:up [profile]` - runs deps in containers and Armada components as host processes via goreman; profile is `no-auth` (default), `auth`, or `fake-executor`
-* `mage dev:deps` - runs only the dependency containers (redis, postgres, pulsar)
+- `mage dev:full` - runs the full Armada stack in containers (deps + all components) against a Kind cluster
+- `mage dev:up [profile]` - runs deps in containers and Armada components as host processes via goreman; profile is `no-auth` (default), `auth`, or `fake-executor`
+- `mage dev:deps` - runs only the dependency containers (redis, postgres, pulsar)
 
 We use `mage dev:full` to test the CI pipeline. You should therefore use it to test changes to the core components of Armada.
 
@@ -103,21 +95,22 @@ Before making any changes, identify which port is causing the conflict. Port 644
 
 1. The Kind cluster config is where you define port mappings. To resolve port conflicts, open your [`_local/kind/cluster.yaml`](https://github.com/armadaproject/armada/blob/master/_local/kind/cluster.yaml) file.
 2. Locate the relevant section where the `hostPort` is set. It may look something like this:
-   
-   ```
-   - containerPort: 6443 # control plane
-     hostPort: 6443  # exposes control plane on localhost:6443
-     protocol: TCP
-   ```
 
-   * Modify the hostPort value to a port that is not in use on your system. For example:
-   
-   ```
-   - containerPort: 6443 # control plane
-     hostPort: 6444  # exposes control plane on localhost:6444
-     protocol: TCP
-   ```
-   You are not limited to using port 6444. You can choose any available port that doesn't conflict with other services on your system. Select a port that suits your system configuration.
+    ```
+    - containerPort: 6443 # control plane
+      hostPort: 6443  # exposes control plane on localhost:6443
+      protocol: TCP
+    ```
+
+    - Modify the hostPort value to a port that is not in use on your system. For example:
+
+    ```
+    - containerPort: 6443 # control plane
+      hostPort: 6444  # exposes control plane on localhost:6444
+      protocol: TCP
+    ```
+
+    You are not limited to using port 6444. You can choose any available port that doesn't conflict with other services on your system. Select a port that suits your system configuration.
 
 ### Testing if the local dev stack is working
 
@@ -141,7 +134,6 @@ In the local dev stack, the UI is built separately with `mage ui`. To access it,
 
 For more information, [see the UI Developer Guide](./developer/developing-locally.md).
 
-
 ### Choosing components to run
 
 You can set the `ARMADA_COMPONENTS` environment variable to choose which components to run. It is a comma-separated list of components to run. For example, to run only the server and executor, run:
@@ -157,17 +149,15 @@ and runs them as host processes, so you can attach a debugger to any component d
 dependencies and components with `mage dev:up`, then attach your debugger (Delve, VS Code, or GoLand) to
 the running process you want to inspect. Each component reads `_local/<component>/config.yaml`.
 
-To use VS Code debugging, [see the VSCode Debugging Guide](https://code.visualstudio.com/docs/editor/debugging).
-
 ## GoLand run configurations
 
 We provide a number of run configurations within the `.run` directory of this project. These will be accessible when opening the project in GoLand, enabling you to run Armada in both standard and debug mode.
 
 The following high-level configurations are provided, each composed of sub-configurations:
 
-* `Start Dependencies` - creates the Kind cluster and brings up the dependency containers (redis, postgres, pulsar)
-* `Armada` - runs the full Armada stack (migrations and components)
-* `Lookout UI` - script that configures a local UI development setup
+- `Start Dependencies` - creates the Kind cluster and brings up the dependency containers (redis, postgres, pulsar)
+- `Armada` - runs the full Armada stack (migrations and components)
+- `Lookout UI` - script that configures a local UI development setup
 
 A minimal local Armada setup using these configurations would be `Start Dependencies` and `Armada`. If you already have a Kind cluster running, use `Infrastructure Services` instead of `Start Dependencies` to bring up just the dependency containers. Running the `Lookout UI` script on top of this configuration enables you to develop the Lookout UI live from GoLand, and see the changes visible in your browser.
 
@@ -175,11 +165,36 @@ A minimal local Armada setup using these configurations would be `Start Dependen
 
 GoLand runs the configurations in a compound in parallel, so `Run Migrations` starts alongside the components. The components retry their database and Pulsar connections until the migrations finish, so a short burst of connection errors at startup is expected.
 
-## VS Code debug configurations
+## VS Code Run and Debug configurations
 
 We similarly provide run and debug configurations for VS Code users to run each Armada service and use the debugger (provided with VS Code).
 
-The `Armada` configuration performs all required setup (setting up the Kind cluster, spinning up infrastructure services, performing database migrations) and then runs all services.
+The following compound configurations are provided, each launching all relevant service debuggers at once:
+
+| Configuration                            | Description                                                                 |
+| ---------------------------------------- | --------------------------------------------------------------------------- |
+| `Armada (no-auth)`                       | Runs all core services without authentication                               |
+| `Armada (auth)`                          | Runs all core services with authentication enabled                          |
+| `Armada (fake-executor)`                 | Runs core services with a fake executor (no real Kubernetes cluster needed) |
+| `Armada (no-auth with prometheus)`       | Same as `no-auth`, but also starts Prometheus                               |
+| `Armada (auth with prometheus)`          | Same as `auth`, but also starts Prometheus                                  |
+| `Armada (fake-executor with prometheus)` | Same as `fake-executor`, but also starts Prometheus                         |
+
+Each compound configuration attaches to already-running processes via Delve remote debugging. The individual service configurations and their debug ports are:
+
+| Service             | Debug port |
+| ------------------- | ---------- |
+| `server`            | `2345`     |
+| `scheduler`         | `2346`     |
+| `scheduleringester` | `2347`     |
+| `eventingester`     | `2348`     |
+| `executor`          | `2349`     |
+| `lookout`           | `2350`     |
+| `lookoutingester`   | `2351`     |
+| `binoculars`        | `2352`     |
+| `fakeexecutor`      | `2353`     |
+
+Each compound configuration has a `preLaunchTask` that sets up and starts the relevant services via Goreman before attaching the debuggers. For example, `Armada (no-auth)` uses the task `Set up and start (no-auth)`.
 
 ### Other debugging methods
 
