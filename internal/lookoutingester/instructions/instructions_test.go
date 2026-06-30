@@ -196,6 +196,20 @@ var expectedCancelledRun = model.UpdateJobRunInstruction{
 	JobRunState: pointer.Int32(lookout.JobRunCancelledOrdinal),
 }
 
+var expectedCancelledRunWithReason = model.UpdateJobRunInstruction{
+	RunId:                      testfixtures.RunId,
+	Finished:                   &testfixtures.BaseTime,
+	JobRunState:                pointer.Int32(lookout.JobRunCancelledOrdinal),
+	SchedulerTerminationReason: BuildTerminationReason(testfixtures.CancelReason, map[string]any{"requestor": testfixtures.CancelUser}),
+}
+
+var expectedCancelledRunWithReasonOnly = model.UpdateJobRunInstruction{
+	RunId:                      testfixtures.RunId,
+	Finished:                   &testfixtures.BaseTime,
+	JobRunState:                pointer.Int32(lookout.JobRunCancelledOrdinal),
+	SchedulerTerminationReason: BuildTerminationReason(testfixtures.CancelReason, nil),
+}
+
 var standaloneIngressAddresses = map[int32]string{
 	80: "ingress.example.com",
 }
@@ -381,6 +395,26 @@ func TestConvert(t *testing.T) {
 			},
 			expected: &model.InstructionSet{
 				JobRunsToUpdate: []*model.UpdateJobRunInstruction{&expectedCancelledRun},
+				MessageIds:      []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+		},
+		"job run cancelled with reason and requestor": {
+			events: &utils.EventsWithIds[*armadaevents.EventSequence]{
+				Events:     []*armadaevents.EventSequence{testfixtures.NewEventSequence(testfixtures.JobRunCancelledWithReason)},
+				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+			expected: &model.InstructionSet{
+				JobRunsToUpdate: []*model.UpdateJobRunInstruction{&expectedCancelledRunWithReason},
+				MessageIds:      []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+		},
+		"job run cancelled with reason only": {
+			events: &utils.EventsWithIds[*armadaevents.EventSequence]{
+				Events:     []*armadaevents.EventSequence{testfixtures.NewEventSequence(testfixtures.JobRunCancelledWithReasonOnly)},
+				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+			expected: &model.InstructionSet{
+				JobRunsToUpdate: []*model.UpdateJobRunInstruction{&expectedCancelledRunWithReasonOnly},
 				MessageIds:      []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 		},
@@ -724,6 +758,8 @@ func TestSanitizeForJsonb(t *testing.T) {
 //
 //	Preemption (no preempting job):  {"reason": "..."}
 //	Preemption (fair-share):         {"args": {"preemptingJobId": "..."}, "reason": "..."}
+//	Cancellation (reason+requestor): {"args": {"requestor": "..."}, "reason": "..."}
+//	Cancellation (reason only):      {"reason": "..."}
 func TestBuildTerminationReason_WireFormat(t *testing.T) {
 	tests := []struct {
 		name         string
@@ -742,6 +778,18 @@ func TestBuildTerminationReason_WireFormat(t *testing.T) {
 			reason:       testfixtures.PreemptionReason,
 			args:         map[string]any{"preemptingJobId": testfixtures.PreemptingJobId},
 			expectedJSON: `{"args":{"preemptingJobId":"` + testfixtures.PreemptingJobId + `"},"reason":"` + testfixtures.PreemptionReason + `"}`,
+		},
+		{
+			name:         "cancellation with reason and requestor",
+			reason:       testfixtures.CancelReason,
+			args:         map[string]any{"requestor": testfixtures.CancelUser},
+			expectedJSON: `{"args":{"requestor":"` + testfixtures.CancelUser + `"},"reason":"` + testfixtures.CancelReason + `"}`,
+		},
+		{
+			name:         "cancellation with reason only",
+			reason:       testfixtures.CancelReason,
+			args:         nil,
+			expectedJSON: `{"reason":"` + testfixtures.CancelReason + `"}`,
 		},
 	}
 	for _, tc := range tests {
