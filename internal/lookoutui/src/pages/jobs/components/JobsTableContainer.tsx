@@ -34,7 +34,6 @@ import {
 } from "@tanstack/react-table"
 import _ from "lodash"
 import { ErrorBoundary } from "react-error-boundary"
-import { useLocation, useNavigate, useParams } from "react-router-dom"
 
 import { buildViewEventData } from "../../../analytics/viewMetadata"
 import {
@@ -62,7 +61,7 @@ import {
 } from "../../../common/jobsTableUtils"
 import { fromRowId, RowId } from "../../../common/reactTableUtils"
 import { EmptyInputError, ParseError } from "../../../common/resourceUtils"
-import { getErrorMessage, waitMs } from "../../../common/utils"
+import { getErrorMessage, useStableRouter, waitMs } from "../../../common/utils"
 import { AlertErrorFallback } from "../../../components/AlertErrorFallback"
 import { useFormatNumberWithUserSettings } from "../../../components/hooks/formatNumberWithUserSettings"
 import {
@@ -121,10 +120,8 @@ export const JobsTableContainer = ({ debug, autoRefreshMs, commandSpecs }: JobsT
   const openSnackbar = useCustomSnackbar()
   const groupJobs = useGroupJobs()
 
-  const location = useLocation()
-  const navigate = useNavigate()
-  const params = useParams()
-  const jobsTablePreferencesService = useMemo(() => new JobsTablePreferencesService({ location, navigate, params }), [])
+  const router = useStableRouter()
+  const jobsTablePreferencesService = useMemo(() => new JobsTablePreferencesService(router), [router])
   const customViewsService = useMemo(() => new CustomViewsService(), [])
   const initialPrefs = useMemo(() => jobsTablePreferencesService.getUserPrefs(), [])
 
