@@ -1,8 +1,15 @@
 import { tryParseJson } from "../common/utils"
 import { isJobSetsOrderByColumn, JobSetsOrderByColumn } from "../models/lookoutModels"
-import { JobSetsContainerState } from "../pages/jobSets/components/JobSetsContainer"
 
 const LOCAL_STORAGE_KEY = "armada_lookout_job_sets_user_settings"
+
+export interface JobSetsPrefs {
+  queue: string
+  autoRefresh: boolean
+  orderByColumn: JobSetsOrderByColumn
+  orderByDesc: boolean
+  activeOnly: boolean
+}
 
 export type JobSetsLocalStorageState = {
   autoRefresh?: boolean
@@ -36,7 +43,7 @@ function convertToLocalStorageState(loadedData: Record<string, unknown>): JobSet
 }
 
 export default class JobSetsLocalStorageService {
-  saveState(state: JobSetsContainerState) {
+  saveState(state: JobSetsPrefs) {
     const localStorageState = {
       autoRefresh: state.autoRefresh,
       queue: state.queue,
@@ -47,7 +54,7 @@ export default class JobSetsLocalStorageService {
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(localStorageState))
   }
 
-  updateState(state: JobSetsContainerState) {
+  updateState(state: JobSetsPrefs) {
     const stateJson = localStorage.getItem(LOCAL_STORAGE_KEY)
     if (stateJson == undefined) {
       return
