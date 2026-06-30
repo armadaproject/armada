@@ -640,10 +640,10 @@ func (nodeDb *NodeDb) selectNodeForJobWithTxnAtPriority(
 			pctx.SchedulingMethod = context.ScheduledWithFairSharePreemption
 			return node, nil
 		}
-
-		pctx.NodeId = ""
-		pctx.PreemptedAtPriority = internaltypes.MinPriority
 	}
+
+	pctx.NodeId = ""
+	pctx.PreemptedAtPriority = internaltypes.MinPriority
 
 	// Schedule by kicking off jobs currently bound to a node.
 	// This method does not respect fairness when choosing on which node to schedule the job.
