@@ -358,7 +358,8 @@ func (c *JobSetEventsInstructionConverter) handleReprioritiseJobSet(reprioritise
 
 func (c *JobSetEventsInstructionConverter) handleCancelJob(cancelJob *armadaevents.CancelJob, meta eventSequenceCommon) ([]DbOperation, error) {
 	return []DbOperation{MarkJobsCancelRequested{
-		cancelUser: meta.user,
+		cancelUser:   meta.user,
+		cancelReason: cancelJob.Reason,
 		jobIds: map[JobSetKey][]string{
 			{
 				queue:  meta.queue,
@@ -373,7 +374,8 @@ func (c *JobSetEventsInstructionConverter) handleCancelJobSet(cancelJobSet *arma
 	cancelLeased := len(cancelJobSet.States) == 0 || slices.Contains(cancelJobSet.States, armadaevents.JobState_PENDING) || slices.Contains(cancelJobSet.States, armadaevents.JobState_RUNNING)
 
 	return []DbOperation{MarkJobSetsCancelRequested{
-		cancelUser: meta.user,
+		cancelUser:   meta.user,
+		cancelReason: cancelJobSet.Reason,
 		jobSets: map[JobSetKey]*JobSetCancelAction{
 			{
 				queue:  meta.queue,

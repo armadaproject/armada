@@ -189,12 +189,14 @@ type (
 	InsertRuns                 map[string]*JobRunDetails
 	UpdateJobSetPriorities     map[JobSetKey]int64
 	MarkJobSetsCancelRequested struct {
-		cancelUser string
-		jobSets    map[JobSetKey]*JobSetCancelAction
+		cancelUser   string
+		cancelReason string
+		jobSets      map[JobSetKey]*JobSetCancelAction
 	}
 	MarkJobsCancelRequested struct {
-		cancelUser string
-		jobIds     map[JobSetKey][]string
+		cancelUser   string
+		cancelReason string
+		jobIds       map[JobSetKey][]string
 	}
 	MarkJobsCancelled              map[string]time.Time
 	MarkJobsSucceeded              map[string]bool
@@ -261,7 +263,7 @@ func (a UpdateJobSetPriorities) Merge(b DbOperation) bool {
 func (a MarkJobSetsCancelRequested) Merge(b DbOperation) bool {
 	switch op := b.(type) {
 	case MarkJobSetsCancelRequested:
-		if a.cancelUser != op.cancelUser {
+		if a.cancelUser != op.cancelUser || a.cancelReason != op.cancelReason {
 			return false
 		}
 		maps.Copy(a.jobSets, op.jobSets)
@@ -273,7 +275,7 @@ func (a MarkJobSetsCancelRequested) Merge(b DbOperation) bool {
 func (a MarkJobsCancelRequested) Merge(b DbOperation) bool {
 	switch op := b.(type) {
 	case MarkJobsCancelRequested:
-		if a.cancelUser != op.cancelUser {
+		if a.cancelUser != op.cancelUser || a.cancelReason != op.cancelReason {
 			return false
 		}
 		for k, v := range op.jobIds {
