@@ -82,9 +82,9 @@ import { Boxes, Scale, Zap, MoveUpRight, Activity, LayoutGrid } from 'lucide-rea
   {/* Hero Section/What is Armada? */}
 
   <div className='not-prose mt-4 flex flex-col items-center gap-6 text-center'>
-    {/* <span className='not-prose flex flex-col items-center mt-8 text-sm tracking-wide text-fd-muted-foreground'>
+    <span className='not-prose hidden flex flex-col items-center mt-8 text-sm tracking-wide text-fd-muted-foreground'>
       ## Armada
-    </span> */}
+    </span>
 
     {/* headline */}
     <span className='max-w-3xl text-4xl font-bold tracking-tight md:text-5xl'>
@@ -252,7 +252,102 @@ Armada overcomes these limitations by:
 - High availability architecture
 - Automatic node failure handling */}
 
-## Use Cases and Success Stories
+
+{/* ## Use cases */}
+<div className='not-prose mx-auto mt-10 max-w-3xl px-8'>
+  <span className='not-prose flex flex-col items-center mt-8 text-sm tracking-wide text-fd-muted-foreground'>
+      ## Use Cases
+    </span>
+
+  {/* heading */}
+  <span className='mt-4 block text-center text-3xl font-bold tracking-tight md:text-4xl'>
+    Is Armada Right for you?
+  </span>
+
+  {/* description */}
+  <span className='mx-auto mt-4 block max-w-xl text-center text-lg text-fd-muted-foreground'>
+  </span>
+
+  {/* numbered list — divide-y draws the lines between rows;
+    font-mono primary number on the left, content on the right */}
+    <div className='not-prose mt-8 flex flex-col divide-y divide-fd-border'>
+
+      {/* 01 */}
+      <div className='flex gap-6 py-6'>
+        <span className='font-mono text-sm text-fd-primary'>01</span>
+        <div>
+          <span className='block font-semibold'>Machine learning training at scale</span>
+          <span className='mt-1 block text-sm text-fd-muted-foreground'>
+          Your workers need to start together or not at all. Armada&apos;s gang scheduling makes sure they do — across however many clusters have the GPU capacity you need.
+          </span>
+        </div>
+      </div>
+
+      {/* 02 */}
+      <div className='flex gap-6 py-6'>
+        <span className='font-mono text-sm text-fd-primary'>02</span>
+        <div>
+          <span className='block font-semibold'>Quantitative research and financial modelling</span>
+          <span className='mt-1 block text-sm text-fd-muted-foreground'>
+          Millions of short-lived jobs, every day. Armada keeps them moving fairly and fast, with priority controls for the calculations that can&apos;t wait.
+          </span>
+        </div>
+      </div>
+
+      {/* 03 */}
+      <div className='flex gap-6 py-6'>
+        <span className='font-mono text-sm text-fd-primary'>03</span>
+        <div>
+          <span className='block font-semibold'>High-performance computing</span>
+          <span className='mt-1 block text-sm text-fd-muted-foreground'>
+          MPI workloads in containers, scheduled across clusters, with hardware-aware placement. Cloud-native tooling without giving up the reproducibility HPC teams depend on.        
+          </span>
+        </div>
+      </div>
+
+      {/* 04 */}
+      <div className='flex gap-6 py-6'>
+        <span className='font-mono text-sm text-fd-primary'>04</span>
+        <div>
+          <span className='block font-semibold'>Multi-tenant compute environments</span>
+          <span className='mt-1 block text-sm text-fd-muted-foreground'>
+          Multiple teams, one infrastructure. Fair-share scheduling means no single team can quietly consume everything while others wait.     
+          </span>
+        </div>
+      </div>
+
+      {/* 05 */}
+      <div className='flex gap-6 py-6'>
+        <span className='font-mono text-sm text-fd-primary'>05</span>
+        <div>
+          <span className='block font-semibold'>CI/CD build and test</span>
+          <span className='mt-1 block text-sm text-fd-muted-foreground'>
+          Critical merges go first. Large test suites don&apos;t block urgent builds. Priority and fairness built in, no manual queue management.      
+          </span>
+        </div>
+      </div>
+
+      <div className='not-prose mt-8'>
+  <span className='block max-w-2xl text-fd-muted-foreground'>
+    Armada's niche is multi-cluster. If you're not there yet, another project may be a better fit.
+  </span>
+  <a
+    href='https://tag-runtime.cncf.io/wgs/bsi/landscape/'
+    target='_blank'
+    rel='noreferrer'
+    className='mt-4 inline-flex items-center gap-2 font-medium text-fd-primary no-underline hover:underline'
+  >
+    See how Armada compares &rarr;
+  </a>
+</div>
+
+    </div>
+    </div>
+{/* divider */}
+      <hr className='my-6 h-px w-full border-0 bg-fd-border' />
+
+
+{/* ## Use Cases and Success Stories
 
 ### High-Performance Computing (HPC)
 
@@ -290,13 +385,13 @@ G-Research, a leading quantitative research company, uses Armada in production t
 - **Batch Features**: Purpose-built for batch vs. service-oriented design
 - **Fair Scheduling**: Advanced fair-use policies vs. basic priority classes
 
-### vs. Traditional HPC Schedulers (SLURM, PBS)
+### vs. Traditional HPC Schedulers (SLURM, PBS) */}
 
-- **Container Native**: Built for containerized workloads vs. traditional HPC
+{/* - **Container Native**: Built for containerized workloads vs. traditional HPC
 - **Kubernetes Integration**: Leverages Kubernetes ecosystem vs. isolated systems
 - **Cloud Ready**: Designed for cloud and hybrid environments
 - **Modern APIs**: REST/gRPC APIs vs. command-line interfaces
-- **Rich Client Support**: Client libraries available for multiple languages (Go, Java, Scala, Python and .NET)
+- **Rich Client Support**: Client libraries available for multiple languages (Go, Java, Scala, Python and .NET) */}
 
 ## Next Steps
 
