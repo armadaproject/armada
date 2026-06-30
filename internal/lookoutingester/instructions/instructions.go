@@ -398,10 +398,19 @@ func (c *InstructionConverter) handleJobRunAssigned(ts time.Time, event *armadae
 }
 
 func (c *InstructionConverter) handleJobRunCancelled(ts time.Time, event *armadaevents.JobRunCancelled, update *model.InstructionSet) error {
+	var args map[string]any
+	if event.Requestor != "" {
+		args = map[string]any{"requestor": event.Requestor}
+	}
+	var terminationReason map[string]any
+	if event.Reason != "" || args != nil {
+		terminationReason = BuildTerminationReason(event.Reason, args)
+	}
 	jobRun := model.UpdateJobRunInstruction{
-		RunId:       event.RunId,
-		Finished:    &ts,
-		JobRunState: pointer.Int32(lookout.JobRunCancelledOrdinal),
+		RunId:                      event.RunId,
+		Finished:                   &ts,
+		JobRunState:                pointer.Int32(lookout.JobRunCancelledOrdinal),
+		SchedulerTerminationReason: terminationReason,
 	}
 	update.JobRunsToUpdate = append(update.JobRunsToUpdate, &jobRun)
 	return nil
