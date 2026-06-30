@@ -236,12 +236,12 @@ func (l *FairSchedulingAlgo) runPoolSchedulingRound(
 	}
 
 	fsctx.nodeDb.ConfigureScheduling(nodedb.SchedulingOptions{
-		DisableHomeScheduling:         pool.DisableHomeScheduling,
-		DisableAwayScheduling:         pool.DisableAwayScheduling,
-		DisableGangAwayScheduling:     pool.DisableGangAwayScheduling,
-		DisableFairSharePreemption:    pool.DisableFairSharePreemption,
-		DisableUrgencyBasedPreemption: pool.DisableUrgencyBasedPreemption,
-		DisallowedJobResources:        pool.ExperimentalUnscheduledResources,
+		DisableHomeScheduling:      pool.DisableHomeScheduling,
+		DisableAwayScheduling:      pool.DisableAwayScheduling,
+		DisableGangAwayScheduling:  pool.DisableGangAwayScheduling,
+		DisableFairshareScheduling: pool.DisableFairshareScheduling,
+		DisableUrgencyScheduling:   pool.DisableUrgencyScheduling,
+		DisallowedJobResources:     pool.ExperimentalUnscheduledResources,
 	})
 
 	start := time.Now()

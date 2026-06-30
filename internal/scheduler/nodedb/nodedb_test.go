@@ -822,19 +822,19 @@ func TestHomeNodeScheduling(t *testing.T) {
 
 func TestPreemptionScheduling(t *testing.T) {
 	tests := map[string]struct {
-		registerEvictedJobs           bool
-		disableFairSharePreemption    bool
-		disableUrgencyBasedPreemption bool
-		expectSuccess                 bool
-		expectedSchedulingMethod      context.SchedulingType
+		registerEvictedJobs        bool
+		disableFairshareScheduling bool
+		disableUrgencyScheduling   bool
+		expectSuccess              bool
+		expectedSchedulingMethod   context.SchedulingType
 	}{
 		"urgency-based preemption by default": {
 			expectSuccess:            true,
 			expectedSchedulingMethod: context.ScheduledWithUrgencyBasedPreemption,
 		},
 		"no urgency-based preemption when disabled": {
-			disableUrgencyBasedPreemption: true,
-			expectSuccess:                 false,
+			disableUrgencyScheduling: true,
+			expectSuccess:            false,
 		},
 		"fair-share preemption by default": {
 			registerEvictedJobs:      true,
@@ -843,21 +843,21 @@ func TestPreemptionScheduling(t *testing.T) {
 		},
 		"falls through to urgency-based preemption when fair-share disabled": {
 			registerEvictedJobs:        true,
-			disableFairSharePreemption: true,
+			disableFairshareScheduling: true,
 			expectSuccess:              true,
 			expectedSchedulingMethod:   context.ScheduledWithUrgencyBasedPreemption,
 		},
 		"fair-share preemption when urgency disabled": {
-			registerEvictedJobs:           true,
-			disableUrgencyBasedPreemption: true,
-			expectSuccess:                 true,
-			expectedSchedulingMethod:      context.ScheduledWithFairSharePreemption,
+			registerEvictedJobs:      true,
+			disableUrgencyScheduling: true,
+			expectSuccess:            true,
+			expectedSchedulingMethod: context.ScheduledWithFairSharePreemption,
 		},
 		"no preemption when both strategies disabled": {
-			registerEvictedJobs:           true,
-			disableFairSharePreemption:    true,
-			disableUrgencyBasedPreemption: true,
-			expectSuccess:                 false,
+			registerEvictedJobs:        true,
+			disableFairshareScheduling: true,
+			disableUrgencyScheduling:   true,
+			expectSuccess:              false,
 		},
 	}
 
@@ -866,8 +866,8 @@ func TestPreemptionScheduling(t *testing.T) {
 			nodeDb, err := newNodeDbWithNodes(nil)
 			require.NoError(t, err)
 			nodeDb.ConfigureScheduling(SchedulingOptions{
-				DisableFairSharePreemption:    tc.disableFairSharePreemption,
-				DisableUrgencyBasedPreemption: tc.disableUrgencyBasedPreemption,
+				DisableFairshareScheduling: tc.disableFairshareScheduling,
+				DisableUrgencyScheduling:   tc.disableUrgencyScheduling,
 			})
 
 			// Fully allocate the node with low-priority jobs.

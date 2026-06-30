@@ -285,10 +285,10 @@ func WithGangAwaySchedulingDisabled(config schedulerconfiguration.SchedulingConf
 	return config
 }
 
-func WithPreemptionDisabled(disableFairSharePreemption bool, disableUrgencyBasedPreemption bool, config schedulerconfiguration.SchedulingConfig) schedulerconfiguration.SchedulingConfig {
+func WithPreemptionDisabled(disableFairshareScheduling bool, disableUrgencyScheduling bool, config schedulerconfiguration.SchedulingConfig) schedulerconfiguration.SchedulingConfig {
 	for i, pool := range config.Pools {
-		pool.DisableFairSharePreemption = disableFairSharePreemption
-		pool.DisableUrgencyBasedPreemption = disableUrgencyBasedPreemption
+		pool.DisableFairshareScheduling = disableFairshareScheduling
+		pool.DisableUrgencyScheduling = disableUrgencyScheduling
 		config.Pools[i] = pool
 	}
 	return config

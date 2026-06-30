@@ -351,12 +351,12 @@ poolStart:
 
 			// TODO construct nodedb per synthetic pool to avoid needing to set this dynamically
 			ex.nodeDb.ConfigureScheduling(nodedb.SchedulingOptions{
-				DisableHomeScheduling:         pool.DisableHomeScheduling,
-				DisableAwayScheduling:         pool.DisableAwayScheduling,
-				DisableGangAwayScheduling:     pool.DisableGangAwayScheduling,
-				DisableFairSharePreemption:    pool.DisableFairSharePreemption,
-				DisableUrgencyBasedPreemption: pool.DisableUrgencyBasedPreemption,
-				DisallowedJobResources:        pool.ExperimentalUnscheduledResources,
+				DisableHomeScheduling:      pool.DisableHomeScheduling,
+				DisableAwayScheduling:      pool.DisableAwayScheduling,
+				DisableGangAwayScheduling:  pool.DisableGangAwayScheduling,
+				DisableFairshareScheduling: pool.DisableFairshareScheduling,
+				DisableUrgencyScheduling:   pool.DisableUrgencyScheduling,
+				DisallowedJobResources:     pool.ExperimentalUnscheduledResources,
 			})
 
 			txn := ex.nodeDb.Txn(true)

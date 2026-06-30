@@ -154,11 +154,11 @@ type NodeDb struct {
 	// it will not be scheduled onto any node regardless of if the nodes have enough resource
 	disallowedJobResources []string
 
-	disableHomeScheduling         bool
-	disableAwayScheduling         bool
-	disableGangAwayScheduling     bool
-	disableFairSharePreemption    bool
-	disableUrgencyBasedPreemption bool
+	disableHomeScheduling      bool
+	disableAwayScheduling      bool
+	disableGangAwayScheduling  bool
+	disableFairshareScheduling bool
+	disableUrgencyScheduling   bool
 }
 
 func NewNodeDb(
@@ -337,20 +337,20 @@ func (nodeDb *NodeDb) GetNodeWithTxn(txn *memdb.Txn, id string) (*internaltypes.
 }
 
 type SchedulingOptions struct {
-	DisableHomeScheduling         bool
-	DisableAwayScheduling         bool
-	DisableGangAwayScheduling     bool
-	DisableFairSharePreemption    bool
-	DisableUrgencyBasedPreemption bool
-	DisallowedJobResources        []string
+	DisableHomeScheduling      bool
+	DisableAwayScheduling      bool
+	DisableGangAwayScheduling  bool
+	DisableFairshareScheduling bool
+	DisableUrgencyScheduling   bool
+	DisallowedJobResources     []string
 }
 
 func (nodeDb *NodeDb) ConfigureScheduling(opts SchedulingOptions) {
 	nodeDb.disableHomeScheduling = opts.DisableHomeScheduling
 	nodeDb.disableAwayScheduling = opts.DisableAwayScheduling
 	nodeDb.disableGangAwayScheduling = opts.DisableGangAwayScheduling
-	nodeDb.disableFairSharePreemption = opts.DisableFairSharePreemption
-	nodeDb.disableUrgencyBasedPreemption = opts.DisableUrgencyBasedPreemption
+	nodeDb.disableFairshareScheduling = opts.DisableFairshareScheduling
+	nodeDb.disableUrgencyScheduling = opts.DisableUrgencyScheduling
 	nodeDb.disallowedJobResources = opts.DisallowedJobResources
 }
 
@@ -631,7 +631,7 @@ func (nodeDb *NodeDb) selectNodeForJobWithTxnAtPriority(
 
 	// Schedule by preventing evicted jobs from being re-scheduled.
 	// This method respect fairness by preventing from re-scheduling jobs that appear as far back in the total order as possible.
-	if !nodeDb.disableFairSharePreemption {
+	if !nodeDb.disableFairshareScheduling {
 		if node, err := nodeDb.selectNodeForJobWithFairPreemption(txn, jctx); err != nil {
 			return nil, err
 		} else if err := assertPodSchedulingContextNode(pctx, node); err != nil {
@@ -647,7 +647,7 @@ func (nodeDb *NodeDb) selectNodeForJobWithTxnAtPriority(
 
 	// Schedule by kicking off jobs currently bound to a node.
 	// This method does not respect fairness when choosing on which node to schedule the job.
-	if !nodeDb.disableUrgencyBasedPreemption {
+	if !nodeDb.disableUrgencyScheduling {
 		if node, err := nodeDb.selectNodeForJobWithUrgencyPreemption(txn, jctx, matchingNodeTypeIds); err != nil {
 			return nil, err
 		} else if err := assertPodSchedulingContextNode(pctx, node); err != nil {
