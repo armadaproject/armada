@@ -5,7 +5,7 @@ title: Armada
 import { ArmadaIcon, ArmadaText } from '@/components/logo';
 import Link from 'next/link';
 import { Cards, Card } from 'fumadocs-ui/components/card';
-import { Boxes, Scale, Zap, MoveUpRight, } from 'lucide-react';
+import { Boxes, Scale, Zap, MoveUpRight, Activity, LayoutGrid } from 'lucide-react';
 
 
 <div className='relative not-prose'>
@@ -138,9 +138,9 @@ As a [CNCF Sandbox project](https://www.cncf.io/), Armada is actively maintained
 
 
 {/* ## Why use Armada? */}
-<div className='not-prose mx-auto mt-10 max-w-3xl px-6'>
+<div className='not-prose mx-auto mt-10 max-w-3xl px-8'>
   <span className='not-prose flex flex-col items-center mt-8 text-sm tracking-wide text-fd-muted-foreground'>
-      ## Why use Armada?
+      ## What is Armada?
     </span>
 
   {/* heading */}
@@ -156,17 +156,23 @@ As a [CNCF Sandbox project](https://www.cncf.io/), Armada is actively maintained
   {/* cards — left-accent, content stays left-aligned */}
   <Cards className='my-12 '>
     <Card icon={<Boxes className='text-fd-primary' />} title='Multi-cluster native' className='border-0 border-l-2 border-fd-primary rounded-sm shadow-md shadow-black/20 dark:shadow-white/10'>
-      One API across unlimited clusters. Add or remove capacity without downtime or disrupting running jobs.
-    </Card>
-    <Card icon={<Scale className='text-fd-primary' />} title='Fair-share queuing' className='border-0 border-l-2 border-fd-primary rounded-sm shadow-md shadow-black/20 dark:shadow-white/10'>
-      Every team gets a proportional share of resources over time. Heavy users don&apos;t permanently crowd out everyone else.
-    </Card>
-    <Card icon={<Zap className='text-fd-primary' />} title='Gang scheduling' className='border-0 border-l-2 border-fd-primary rounded-sm shadow-md shadow-black/20 dark:shadow-white/10'>
-      All workers in a job start together or not at all. Essential for MPI, PyTorch, and Spark.
-    </Card>
-    <Card icon={<MoveUpRight className='text-fd-primary' />} title='Preemption' className='border-0 border-l-2 border-fd-primary rounded-sm shadow-md shadow-black/20 dark:shadow-white/10'>
-      Urgent jobs preempt lower-priority work automatically. Configurable per queue.
-    </Card>
+    Run jobs across many clusters through one API, and add or remove capacity without disrupting what&apos;s already running.
+  </Card>
+  <Card icon={<Scale className='text-fd-primary' />} title='Fair-share scheduling' className='border-0 border-l-2 border-fd-primary rounded-sm shadow-md shadow-black/20 dark:shadow-white/10'>
+    Every team gets a fair share of resources over time, so heavy users can&apos;t crowd everyone else out.
+  </Card>
+  <Card icon={<Zap className='text-fd-primary' />} title='Gang scheduling' className='border-0 border-l-2 border-fd-primary rounded-sm shadow-md shadow-black/20 dark:shadow-white/10'>
+    All the workers in a job start together or not at all, which is what frameworks like MPI, PyTorch, and Spark need.
+  </Card>
+  <Card icon={<MoveUpRight className='text-fd-primary' />} title='Intelligent preemption' className='border-0 border-l-2 border-fd-primary rounded-sm shadow-md shadow-black/20 dark:shadow-white/10'>
+    Urgent work can preempt lower-priority jobs to run in time, and you decide how that works per queue.
+  </Card>
+  <Card icon={<Activity className='text-fd-primary' />} title='High throughput' className='border-0 border-l-2 border-fd-primary rounded-sm shadow-md shadow-black/20 dark:shadow-white/10'>
+    Handle millions of queued jobs by moving queueing onto PostgreSQL and Redis instead of leaning on etcd.
+  </Card>
+  <Card icon={<LayoutGrid className='text-fd-primary' />} title='Built for production' className='border-0 border-l-2 border-fd-primary rounded-sm shadow-md shadow-black/20 dark:shadow-white/10'>
+    Prometheus metrics, Lookout web UI, secure auth, and automatic handling of failed nodes, all come built in.
+  </Card>
   </Cards>
 </div>
 {/* divider */}
@@ -193,7 +199,7 @@ Armada overcomes these limitations by:
 - **Partial Out-of-cluster scheduling**: Leverage external storage backends (e.g., PostgreSQL and Redis) for high-throughput batch job queueing and scheduling
 - **Purpose-built batch scheduler**: Include advanced scheduling features designed specifically for batch workloads */}
 
-## Key Features and Benefits
+{/* ## Key Features and Benefits
 
 ### Core Scheduling Features
 
@@ -244,7 +250,7 @@ Armada overcomes these limitations by:
 
 - Secure authentication and authorization
 - High availability architecture
-- Automatic node failure handling
+- Automatic node failure handling */}
 
 ## Use Cases and Success Stories
 
