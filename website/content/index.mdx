@@ -4,6 +4,8 @@ title: Armada
 
 import { ArmadaIcon, ArmadaText } from '@/components/logo';
 import Link from 'next/link';
+import { Cards, Card } from 'fumadocs-ui/components/card';
+import { Boxes, Scale, Zap, MoveUpRight, } from 'lucide-react';
 
 
 <div className='relative not-prose'>
@@ -14,7 +16,7 @@ import Link from 'next/link';
 
     {/* blue glow behind the logo */}
     <div
-      className='pointer-events-none absolute left-1/2 top-0 -z-0 h-64 w-96 -translate-x-1/2'
+      className='pointer-events-none absolute left-1/2 top-0 -z-10 h-64 w-96 -translate-x-1/2'
       style={{ background: 'radial-gradient(ellipse at 50% 25%, rgba(0, 169, 225, 0.24) 0%, transparent 70%)' }}
     />
 
@@ -61,7 +63,7 @@ import Link from 'next/link';
     </div>
     {/* Badges row 2 */}
     <div>
-      <div className='flex flex-wrap justify-center gap-3'>
+      <div className='flex flex-wrap justify-center gap-3 pb-6'>
         <a href='https://www.cncf.io/sandbox-projects/' target='_blank' rel='noreferrer'>
           <img src='https://img.shields.io/badge/CNCF-Sandbox-blue?logo=cncf' alt='CNCF Sandbox' />
         </a>
@@ -80,9 +82,9 @@ import Link from 'next/link';
   {/* Hero Section/What is Armada? */}
 
   <div className='not-prose mt-4 flex flex-col items-center gap-6 text-center'>
-    <span className='not-prose flex flex-col items-center mt-8 text-sm tracking-wide text-fd-muted-foreground'>
-      ## What is Armada?
-    </span>
+    {/* <span className='not-prose flex flex-col items-center mt-8 text-sm tracking-wide text-fd-muted-foreground'>
+      ## Armada
+    </span> */}
 
     {/* headline */}
     <span className='max-w-3xl text-4xl font-bold tracking-tight md:text-5xl'>
@@ -119,7 +121,7 @@ import Link from 'next/link';
 
 </div>
 
-{/* ## What is Armada? */}
+{/* ## What is Armada? - OLD */}
 
 {/* Armada is a multi-Kubernetes cluster batch job meta-scheduler designed to handle massive-scale workloads. Built on top of Kubernetes, Armada enables organizations to distribute millions of batch jobs per day across tens of thousands of nodes spanning multiple clusters, making it an ideal solution for high-throughput computational workloads.
 
@@ -131,10 +133,49 @@ Armada serves as middleware that transforms Kubernetes into a powerful batch pro
 - **Enterprise-grade reliability**: Secure, highly available components designed for production use */}
 
 As a [CNCF Sandbox project](https://www.cncf.io/), Armada is actively maintained and used in production environments, including at [G-Research](https://www.gresearch.com/) where it processes millions of jobs daily.
+{/* divider */}
+      <hr className='my-6 h-px w-full border-0 bg-fd-border' />
 
-## Why Use Armada?
 
-### Kubernetes Limitations for Batch Workloads
+{/* ## Why use Armada? */}
+<div className='not-prose mx-auto mt-10 max-w-3xl px-6'>
+  <span className='not-prose flex flex-col items-center mt-8 text-sm tracking-wide text-fd-muted-foreground'>
+      ## Why use Armada?
+    </span>
+
+  {/* heading */}
+  <span className='mt-4 block text-center text-3xl font-bold tracking-tight md:text-4xl'>
+    The batch scheduler Kubernetes was missing.
+  </span>
+
+  {/* description */}
+  <span className='mx-auto mt-4 block max-w-xl text-center text-lg text-fd-muted-foreground'>
+    Armada sits above your Kubernetes clusters as a control plane. It doesn&apos;t replace Kubernetes, it allows Kubernetes to handle millions of jobs a day across tens of thousands of nodes.
+  </span>
+
+  {/* cards — left-accent, content stays left-aligned */}
+  <Cards className='my-12 '>
+    <Card icon={<Boxes className='text-fd-primary' />} title='Multi-cluster native' className='border-0 border-l-2 border-fd-primary rounded-sm shadow-md shadow-black/20 dark:shadow-white/10'>
+      One API across unlimited clusters. Add or remove capacity without downtime or disrupting running jobs.
+    </Card>
+    <Card icon={<Scale className='text-fd-primary' />} title='Fair-share queuing' className='border-0 border-l-2 border-fd-primary rounded-sm shadow-md shadow-black/20 dark:shadow-white/10'>
+      Every team gets a proportional share of resources over time. Heavy users don&apos;t permanently crowd out everyone else.
+    </Card>
+    <Card icon={<Zap className='text-fd-primary' />} title='Gang scheduling' className='border-0 border-l-2 border-fd-primary rounded-sm shadow-md shadow-black/20 dark:shadow-white/10'>
+      All workers in a job start together or not at all. Essential for MPI, PyTorch, and Spark.
+    </Card>
+    <Card icon={<MoveUpRight className='text-fd-primary' />} title='Preemption' className='border-0 border-l-2 border-fd-primary rounded-sm shadow-md shadow-black/20 dark:shadow-white/10'>
+      Urgent jobs preempt lower-priority work automatically. Configurable per queue.
+    </Card>
+  </Cards>
+</div>
+{/* divider */}
+      <hr className='my-6 h-px w-full border-0 bg-fd-border' />
+
+
+{/* ## Why use Armada? - OLD */}
+
+{/* ### Kubernetes Limitations for Batch Workloads
 
 Traditional Kubernetes faces several challenges when running batch workloads at scale:
 
@@ -150,7 +191,7 @@ Armada overcomes these limitations by:
 
 - **Distributing across multiple clusters**: Manage thousands of nodes across many Kubernetes clusters
 - **Partial Out-of-cluster scheduling**: Leverage external storage backends (e.g., PostgreSQL and Redis) for high-throughput batch job queueing and scheduling
-- **Purpose-built batch scheduler**: Include advanced scheduling features designed specifically for batch workloads
+- **Purpose-built batch scheduler**: Include advanced scheduling features designed specifically for batch workloads */}
 
 ## Key Features and Benefits
 
@@ -254,8 +295,6 @@ G-Research, a leading quantitative research company, uses Armada in production t
 ## Next Steps
 
 Ready to explore Armada? Here are your next steps:
-
-import { Cards, Card } from 'fumadocs-ui/components/card';
 
 <Cards>
   <Card
