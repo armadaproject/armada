@@ -409,6 +409,8 @@ type PoolConfig struct {
 	DisableHomeScheduling            bool
 	DisableAwayScheduling            bool
 	DisableGangAwayScheduling        bool
+	DisableFairSharePreemption       bool
+	DisableUrgencyBasedPreemption    bool
 }
 
 func (p PoolConfig) GetSubmissionGroup() string {
