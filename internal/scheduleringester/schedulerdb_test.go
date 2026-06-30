@@ -1393,3 +1393,61 @@ func TestPoolFiltering(t *testing.T) {
 		})
 	}
 }
+
+// TestMarkJobsCancelRequestedById_CoalescePreservesExistingReason verifies that calling
+// MarkJobsCancelRequestedById with nil CancelReason (the system-cancel path via
+// createMarkJobsCancelRequestedByIdParams) does NOT overwrite a cancel_reason already set
+// on the job row (i.e. the COALESCE in the SQL is exercised correctly).
+func TestMarkJobsCancelRequestedById_CoalescePreservesExistingReason(t *testing.T) {
+	jobId := util.NewULID()
+	userReason := testfixtures.CancelReason
+	cancelUser := testfixtures.CancelUser
+
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 10*time.Second)
+	defer cancel()
+
+	err := schedulerdb.WithTestDb(func(q *schedulerdb.Queries, db *pgxpool.Pool) error {
+		schedulerDb := &SchedulerDb{db: db, migrationPhase: schedulerdb.JobMetadataMigrationPhaseLegacy}
+
+		// Insert a job with cancel_user and cancel_reason already set (user-cancel path).
+		job := &schedulerdb.Job{
+			JobID:           jobId,
+			JobSet:          "set1",
+			Queue:           testQueueName,
+			CancelRequested: true,
+			CancelUser:      &cancelUser,
+			CancelReason:    &userReason,
+		}
+		insertOp := addDefaultValues(InsertJobs{jobId: job}).(InsertJobs)
+		err := pgx.BeginTxFunc(ctx, db, pgx.TxOptions{IsoLevel: pgx.ReadCommitted, AccessMode: pgx.ReadWrite}, func(tx pgx.Tx) error {
+			return schedulerDb.WriteDbOp(ctx, tx, insertOp)
+		})
+		if err != nil {
+			return err
+		}
+
+		// Simulate the system-cancel path: CancelUser and CancelReason are nil (no reason provided).
+		params := schedulerdb.MarkJobsCancelRequestedByIdParams{
+			Queue:  testQueueName,
+			JobSet: "set1",
+			JobIds: []string{jobId},
+			// CancelUser and CancelReason intentionally zero-value (nil) — system cancel path.
+		}
+		if err := q.MarkJobsCancelRequestedById(ctx, params); err != nil {
+			return err
+		}
+
+		// Verify cancel_reason was NOT overwritten by the system cancel.
+		jobs, err := q.SelectNewJobs(ctx, schedulerdb.SelectNewJobsParams{Serial: 0, Limit: 10})
+		if err != nil {
+			return err
+		}
+		require.Len(t, jobs, 1)
+		require.NotNil(t, jobs[0].CancelReason, "cancel_reason should still be set after system cancel")
+		assert.Equal(t, userReason, *jobs[0].CancelReason)
+		require.NotNil(t, jobs[0].CancelUser)
+		assert.Equal(t, cancelUser, *jobs[0].CancelUser)
+		return nil
+	})
+	require.NoError(t, err)
+}

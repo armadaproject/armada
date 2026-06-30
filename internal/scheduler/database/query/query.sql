@@ -29,7 +29,7 @@ UPDATE jobs SET cancel_by_jobset_requested = true, cancel_user = sqlc.arg(cancel
 UPDATE jobs SET succeeded = true WHERE job_id = ANY(sqlc.arg(job_ids)::text[]);
 
 -- name: MarkJobsCancelRequestedById :exec
-UPDATE jobs SET cancel_requested = true, cancel_user = sqlc.arg(cancel_user), cancel_reason = sqlc.arg(cancel_reason) WHERE queue = sqlc.arg(queue) and job_set = sqlc.arg(job_set) and job_id = ANY(sqlc.arg(job_ids)::text[]) and terminated = false;
+UPDATE jobs SET cancel_requested = true, cancel_user = COALESCE(cancel_user, sqlc.arg(cancel_user)), cancel_reason = COALESCE(cancel_reason, sqlc.arg(cancel_reason)) WHERE queue = sqlc.arg(queue) and job_set = sqlc.arg(job_set) and job_id = ANY(sqlc.arg(job_ids)::text[]) and terminated = false;
 
 -- name: MarkJobsCancelledById :exec
 UPDATE jobs SET cancelled = true WHERE job_id = ANY(sqlc.arg(job_ids)::text[]);

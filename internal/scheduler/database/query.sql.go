@@ -147,7 +147,7 @@ func (q *Queries) MarkJobRunsSucceededById(ctx context.Context, runIds []string)
 }
 
 const markJobsCancelRequestedById = `-- name: MarkJobsCancelRequestedById :exec
-UPDATE jobs SET cancel_requested = true, cancel_user = $1, cancel_reason = $2 WHERE queue = $3 and job_set = $4 and job_id = ANY($5::text[]) and terminated = false
+UPDATE jobs SET cancel_requested = true, cancel_user = COALESCE(cancel_user, $1), cancel_reason = COALESCE(cancel_reason, $2) WHERE queue = $3 and job_set = $4 and job_id = ANY($5::text[]) and terminated = false
 `
 
 type MarkJobsCancelRequestedByIdParams struct {
