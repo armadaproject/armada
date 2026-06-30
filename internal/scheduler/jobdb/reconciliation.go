@@ -179,6 +179,9 @@ func (jobDb *JobDb) reconcileJobDifferences(job *Job, jobRepoJob *database.Job, 
 		if jobRepoJob.CancelUser != nil && jobRepoJob.CancelUser != job.CancelUser() {
 			job = job.WithCancelUser(jobRepoJob.CancelUser)
 		}
+		if jobRepoJob.CancelReason != nil && jobRepoJob.CancelReason != job.CancelReason() {
+			job = job.WithCancelReason(jobRepoJob.CancelReason)
+		}
 		if jobRepoJob.Cancelled && !job.Cancelled() {
 			job = job.WithCancelled(true)
 		}
