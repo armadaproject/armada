@@ -158,22 +158,22 @@ As a [CNCF Sandbox project](https://www.cncf.io/), Armada is actively maintained
 
   {/* cards — left-accent, content stays left-aligned */}
   <Cards className='my-12 '>
-    <Card icon={<Boxes className='text-fd-primary' />} title='Multi-cluster native' className='border-0 border-l-2 border-fd-primary rounded-sm shadow-md shadow-black/20 dark:shadow-white/10'>
+    <Card icon={<Boxes className='text-fd-primary' />} title='Multi-cluster native' className='border-0 border-l-2 border-fd-primary rounded-sm shadow-md shadow-black/20 dark:shadow-white/10 transition-colors hover:bg-fd-muted'>
     Run jobs across many clusters through one API, and add or remove capacity without disrupting what&apos;s already running.
   </Card>
-  <Card icon={<Scale className='text-fd-primary' />} title='Fair-share scheduling' className='border-0 border-l-2 border-fd-primary rounded-sm shadow-md shadow-black/20 dark:shadow-white/10'>
+  <Card icon={<Scale className='text-fd-primary' />} title='Fair-share scheduling' className='border-0 border-l-2 border-fd-primary rounded-sm shadow-md shadow-black/20 dark:shadow-white/10 transition-colors hover:bg-fd-muted'>
     Every team gets a fair share of resources over time, so heavy users can&apos;t crowd everyone else out.
   </Card>
-  <Card icon={<Zap className='text-fd-primary' />} title='Gang scheduling' className='border-0 border-l-2 border-fd-primary rounded-sm shadow-md shadow-black/20 dark:shadow-white/10'>
+  <Card icon={<Zap className='text-fd-primary' />} title='Gang scheduling' className='border-0 border-l-2 border-fd-primary rounded-sm shadow-md shadow-black/20 dark:shadow-white/10 transition-colors hover:bg-fd-muted'>
     All the workers in a job start together or not at all, which is what frameworks like MPI, PyTorch, and Spark need.
   </Card>
-  <Card icon={<MoveUpRight className='text-fd-primary' />} title='Intelligent preemption' className='border-0 border-l-2 border-fd-primary rounded-sm shadow-md shadow-black/20 dark:shadow-white/10'>
+  <Card icon={<MoveUpRight className='text-fd-primary' />} title='Intelligent preemption' className='border-0 border-l-2 border-fd-primary rounded-sm shadow-md shadow-black/20 dark:shadow-white/10 transition-colors hover:bg-fd-muted'>
     Urgent work can preempt lower-priority jobs to run in time, and you decide how that works per queue.
   </Card>
-  <Card icon={<Activity className='text-fd-primary' />} title='High throughput' className='border-0 border-l-2 border-fd-primary rounded-sm shadow-md shadow-black/20 dark:shadow-white/10'>
+  <Card icon={<Activity className='text-fd-primary' />} title='High throughput' className='border-0 border-l-2 border-fd-primary rounded-sm shadow-md shadow-black/20 dark:shadow-white/10 transition-colors hover:bg-fd-muted'>
     Handle millions of queued jobs by moving queueing onto PostgreSQL and Redis instead of leaning on etcd.
   </Card>
-  <Card icon={<LayoutGrid className='text-fd-primary' />} title='Built for production' className='border-0 border-l-2 border-fd-primary rounded-sm shadow-md shadow-black/20 dark:shadow-white/10'>
+  <Card icon={<LayoutGrid className='text-fd-primary' />} title='Built for production' className='border-0 border-l-2 border-fd-primary rounded-sm shadow-md shadow-black/20 dark:shadow-white/10 transition-colors hover:bg-fd-muted'>
     Prometheus metrics, Lookout web UI, secure auth, and automatic handling of failed nodes, all come built in.
   </Card>
   </Cards>
