@@ -15,6 +15,11 @@ SERVICES=(
   ./cmd/fakeexecutor
 )
 
+HC_SERVICES=(
+  ./cmd/lookout:lookouthc
+  ./cmd/lookoutingester:lookouthcingester
+)
+
 CACHE_DIR="$(go env GOCACHE)/armada-prebuild"
 mkdir -p "$CACHE_DIR"
 
@@ -48,6 +53,35 @@ build_service() {
   fi
 }
 
+build_hc_service() {
+  local spec="$1"
+  local pkg="${spec%%:*}"
+  local outname="${spec##*:}"
+  local stamp="$CACHE_DIR/$outname.stamp"
+  local start=$SECONDS
+
+  local search_paths=("$pkg")
+  [[ -d "./internal/common" ]] && search_paths+=("./internal/common")
+
+  local newest
+  newest=$(find "${search_paths[@]}" -name '*.go' -newer "$stamp" 2>/dev/null | head -1) || true
+
+  if [[ -z "$newest" && -f "$stamp" && -f "./dist/armada-$outname" ]]; then
+    echo "  ↷ $outname (cached)"
+    return 0
+  fi
+
+  local output
+  if output=$(go build -gcflags="all=-N -l" -o "./dist/armada-$outname" "$pkg/main.go" 2>&1); then
+    touch "$stamp"
+    echo "  ✓ $outname ($((SECONDS - start))s)"
+  else
+    echo "  ✗ $outname failed:"
+    echo "$output"
+    return 1
+  fi
+}
+
 heartbeat() {
   local start=$SECONDS
   while true; do
@@ -65,6 +99,10 @@ for pkg in "${SERVICES[@]}"; do
   build_service "$pkg" &
   pids+=($!)
 done
+for spec in "${HC_SERVICES[@]}"; do
+  build_hc_service "$spec" &
+  pids+=($!)
+done
 
 trap 'kill "${pids[@]}" "$heartbeat_pid" 2>/dev/null' EXIT
 failed=0
@@ -79,4 +117,4 @@ if [ "$failed" -gt 0 ]; then
   exit 1
 fi
 
-echo "Pre-build complete (all ${#SERVICES[@]} services)."
+echo "Pre-build complete (all $((${#SERVICES[@]} + ${#HC_SERVICES[@]})) services)."

@@ -201,6 +201,37 @@
         "Start dependencies with Auth and Prometheus",
         "Wait for dlv (standard)"
       ]
+    },
+    {
+      "label": "Start dependencies (hot-cold)",
+      "type": "shell",
+      "command": "mage kind && mage dev:up hot-cold -dap",
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "armada-deps",
+        "pattern": { "regexp": "^$" },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "initialized successfully",
+          "endsPattern": "DAP server listening at"
+        }
+      }
+    },
+    {
+      "label": "Wait for dlv (hot-cold)",
+      "type": "shell",
+      "command": "_local/scripts/wait-for-dlv.sh hot-cold",
+      "problemMatcher": []
+    },
+    {
+      "label": "Set up and start (hot-cold)",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "Pre-build Go services",
+        "Check for port conflicts",
+        "Start dependencies (hot-cold)",
+        "Wait for dlv (hot-cold)"
+      ]
     }
   ]
 }

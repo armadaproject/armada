@@ -92,7 +92,7 @@ run_migration Scheduler $GO_BIN run ./cmd/scheduler/main.go migrateDatabase --co
 run_migration Lookout $GO_BIN run ./cmd/lookout/main.go --migrateDatabase --config ./_local/lookout/config.yaml
 
 if [ "${HOT_COLD}" = true ]; then
-  run_migration LookoutHC $GO_BIN run ./cmd/lookouthc/main.go --migrateDatabase --config ./_local/lookouthc/config.yaml
+  run_migration LookoutHC $GO_BIN run ./cmd/lookout/main.go --migrateDatabase --config ./_local/lookouthc/config.yaml
 fi
 
 print_success "All migrations completed successfully!"
