@@ -24,14 +24,15 @@ import (
 )
 
 const (
-	maxQueueLen         = 512
-	maxOwnerLen         = 512
-	maxJobSetLen        = 1024
-	maxAnnotationKeyLen = 1024
-	maxAnnotationValLen = 1024
-	maxPriorityClassLen = 63
-	maxClusterLen       = 512
-	maxNodeLen          = 512
+	maxQueueLen          = 512
+	maxOwnerLen          = 512
+	maxJobSetLen         = 1024
+	maxAnnotationKeyLen  = 1024
+	maxAnnotationValLen  = 1024
+	maxPriorityClassLen  = 63
+	maxClusterLen        = 512
+	maxNodeLen           = 512
+	cancelReasonFallback = "no reason provided"
 )
 
 type HasNodeName interface {
@@ -402,10 +403,12 @@ func (c *InstructionConverter) handleJobRunCancelled(ts time.Time, event *armada
 	if event.Requestor != "" {
 		args = map[string]any{"requestor": event.Requestor}
 	}
-	var terminationReason map[string]any
-	if event.Reason != "" || args != nil {
-		terminationReason = BuildTerminationReason(event.Reason, args)
+	// fallback for events that arrive without a reason; event should set one otherwise.
+	reason := event.Reason
+	if reason == "" {
+		reason = cancelReasonFallback
 	}
+	terminationReason := BuildTerminationReason(reason, args)
 	jobRun := model.UpdateJobRunInstruction{
 		RunId:                      event.RunId,
 		Finished:                   &ts,

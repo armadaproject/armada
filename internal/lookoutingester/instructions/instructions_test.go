@@ -191,9 +191,10 @@ var expectedFairSharePreemptedRun = model.UpdateJobRunInstruction{
 }
 
 var expectedCancelledRun = model.UpdateJobRunInstruction{
-	RunId:       testfixtures.RunId,
-	Finished:    &testfixtures.BaseTime,
-	JobRunState: pointer.Int32(lookout.JobRunCancelledOrdinal),
+	RunId:                      testfixtures.RunId,
+	Finished:                   &testfixtures.BaseTime,
+	JobRunState:                pointer.Int32(lookout.JobRunCancelledOrdinal),
+	SchedulerTerminationReason: BuildTerminationReason("no reason provided", nil),
 }
 
 var expectedCancelledRunWithReason = model.UpdateJobRunInstruction{
