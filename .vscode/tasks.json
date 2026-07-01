@@ -137,6 +137,12 @@
       "problemMatcher": []
     },
     {
+      "label": "Pre-build Go services (hot-cold)",
+      "type": "shell",
+      "command": "_local/scripts/prebuild-services.sh --hotCold",
+      "problemMatcher": []
+    },
+    {
       "label": "Stop dependencies",
       "type": "shell",
       "command": "mage dev:down",
@@ -227,7 +233,7 @@
       "label": "Set up and start (hot-cold)",
       "dependsOrder": "sequence",
       "dependsOn": [
-        "Pre-build Go services",
+        "Pre-build Go services (hot-cold)",
         "Check for port conflicts",
         "Start dependencies (hot-cold)",
         "Wait for dlv (hot-cold)"

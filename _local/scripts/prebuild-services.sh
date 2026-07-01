@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Pre-build Go services in parallel with debug flags 
+# Pre-build Go services in parallel with debug flags
 # Inital build can take several minutes so report progress to user
 set -euo pipefail
 
@@ -19,6 +19,14 @@ HC_SERVICES=(
   ./cmd/lookout:lookouthc
   ./cmd/lookoutingester:lookouthcingester
 )
+
+HOT_COLD=false
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    --hotCold) HOT_COLD=true; shift ;;
+    *) echo "Unknown argument: $1"; exit 1 ;;
+  esac
+done
 
 CACHE_DIR="$(go env GOCACHE)/armada-prebuild"
 mkdir -p "$CACHE_DIR"
@@ -99,10 +107,12 @@ for pkg in "${SERVICES[@]}"; do
   build_service "$pkg" &
   pids+=($!)
 done
-for spec in "${HC_SERVICES[@]}"; do
-  build_hc_service "$spec" &
-  pids+=($!)
-done
+if [ "$HOT_COLD" = true ]; then
+  for spec in "${HC_SERVICES[@]}"; do
+    build_hc_service "$spec" &
+    pids+=($!)
+  done
+fi
 
 trap 'kill "${pids[@]}" "$heartbeat_pid" 2>/dev/null' EXIT
 failed=0
@@ -117,4 +127,6 @@ if [ "$failed" -gt 0 ]; then
   exit 1
 fi
 
-echo "Pre-build complete (all $((${#SERVICES[@]} + ${#HC_SERVICES[@]})) services)."
+total=${#SERVICES[@]}
+[ "$HOT_COLD" = true ] && total=$((total + ${#HC_SERVICES[@]}))
+echo "Pre-build complete (all $total services)."
