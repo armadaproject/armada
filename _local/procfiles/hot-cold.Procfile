@@ -6,7 +6,7 @@ executor: ${GO_BIN:-go} build -gcflags="all=-N -l" -o ./dist/armada-executor ./c
 lookout: ${GO_BIN:-go} build -gcflags="all=-N -l" -o ./dist/armada-lookout ./cmd/lookout/main.go && ./dist/armada-lookout --config ./_local/lookout/config.yaml
 lookoutingester: ${GO_BIN:-go} build -gcflags="all=-N -l" -o ./dist/armada-lookoutingester ./cmd/lookoutingester/main.go && ./dist/armada-lookoutingester --config ./_local/lookoutingester/config.yaml
 binoculars: ${GO_BIN:-go} build -gcflags="all=-N -l" -o ./dist/armada-binoculars ./cmd/binoculars/main.go && ./dist/armada-binoculars --config ./_local/binoculars/config.yaml
-lookoutui: sh -c 'cd internal/lookoutui && yarn install && yarn run openapi && touch .openapi-ready && VITE_PORT=3000 PROXY_TARGET=http://localhost:8089 yarn dev'
+lookoutui: sh -c 'cd internal/lookoutui && rm -f .openapi-ready && yarn install && yarn run openapi && touch .openapi-ready && VITE_PORT=3000 PROXY_TARGET=http://localhost:8089 yarn dev'
 lookouthc: ${GO_BIN:-go} build -gcflags="all=-N -l" -o ./dist/armada-lookouthc ./cmd/lookout/main.go && ./dist/armada-lookouthc --config ./_local/lookouthc/config.yaml
 lookouthcingester: ${GO_BIN:-go} build -gcflags="all=-N -l" -o ./dist/armada-lookouthcingester ./cmd/lookoutingester/main.go && ./dist/armada-lookouthcingester --config ./_local/lookouthcingester/config.yaml
 lookouthcui: sh -c 'until [ -f internal/lookoutui/.openapi-ready ]; do echo "Waiting for openapi generation..."; sleep 2; done && cd internal/lookoutui && VITE_PORT=3001 PROXY_TARGET=http://localhost:8091 VITE_CACHE_DIR=node_modules/.vite-hc yarn dev'
