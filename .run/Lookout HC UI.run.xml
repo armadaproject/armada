@@ -1,6 +1,6 @@
 <component name="ProjectRunConfigurationManager">
   <configuration default="false" name="Lookout HC UI" type="ShConfigurationType">
-    <option name="SCRIPT_TEXT" value="until [ -f $PROJECT_DIR$/internal/lookoutui/node_modules/.yarn-integrity ]; do sleep 2; done &amp;&amp; VITE_PORT=3001 PROXY_TARGET=http://localhost:8091 VITE_CACHE_DIR=node_modules/.vite-hc $PROJECT_DIR$/scripts/yarn-registry-mirror.sh --cwd $PROJECT_DIR$/internal/lookoutui dev" />
+    <option name="SCRIPT_TEXT" value="until [ -f $PROJECT_DIR$/internal/lookoutui/src/openapi/armada/index.ts ]; do echo 'Waiting for openapi generation...'; sleep 2; done &amp;&amp; VITE_PORT=3001 PROXY_TARGET=http://localhost:8091 VITE_CACHE_DIR=node_modules/.vite-hc $PROJECT_DIR$/scripts/yarn-registry-mirror.sh --cwd $PROJECT_DIR$/internal/lookoutui dev" />
     <option name="INDEPENDENT_SCRIPT_PATH" value="true" />
     <option name="SCRIPT_PATH" value="" />
     <option name="SCRIPT_OPTIONS" value="" />
