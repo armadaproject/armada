@@ -59,6 +59,16 @@ type JobRunDetails struct {
 	DbRun *schedulerdb.Run
 }
 
+type JobInsertion struct {
+	Job      *schedulerdb.Job
+	Metadata JobInsertionMetadata
+}
+
+type JobInsertionMetadata struct {
+	SubmitMessage []byte
+	Groups        []byte
+}
+
 type JobQueuedStateUpdate struct {
 	Queued             bool
 	QueuedStateVersion int32
@@ -185,7 +195,7 @@ func discardNilOps(ops []DbOperation) []DbOperation {
 }
 
 type (
-	InsertJobs                 map[string]*schedulerdb.Job
+	InsertJobs                 map[string]*JobInsertion
 	InsertRuns                 map[string]*JobRunDetails
 	UpdateJobSetPriorities     map[JobSetKey]int64
 	MarkJobSetsCancelRequested struct {
@@ -454,7 +464,7 @@ func (a InsertJobs) CanBeAppliedBefore(b DbOperation) bool {
 	switch op := b.(type) {
 	case jobSetOperation:
 		for _, job := range a {
-			if op.AffectsJobSet(job.Queue, job.JobSet) {
+			if op.AffectsJobSet(job.Job.Queue, job.Job.JobSet) {
 				return false
 			}
 		}
@@ -666,7 +676,7 @@ func (cq CancelQueue) CanBeAppliedBefore(b DbOperation) bool {
 func definesJobInSet[M ~map[JobSetKey]V, V any](a M, b DbOperation) bool {
 	if op, ok := b.(InsertJobs); ok {
 		for _, job := range op {
-			if _, ok := a[JobSetKey{queue: job.Queue, jobSet: job.JobSet}]; ok {
+			if _, ok := a[JobSetKey{queue: job.Job.Queue, jobSet: job.Job.JobSet}]; ok {
 				return true
 			}
 		}
@@ -691,7 +701,7 @@ func definesRunInSet[M ~map[JobSetKey]V, V any](a M, b DbOperation) bool {
 func definesJob[M ~map[string]V, V any](a M, b DbOperation) bool {
 	if op, ok := b.(InsertJobs); ok {
 		for _, job := range op {
-			if _, ok := a[job.JobID]; ok {
+			if _, ok := a[job.Job.JobID]; ok {
 				return true
 			}
 		}

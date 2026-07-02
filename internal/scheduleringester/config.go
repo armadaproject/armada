@@ -7,7 +7,6 @@ import (
 
 	commonconfig "github.com/armadaproject/armada/internal/common/config"
 	profilingconfig "github.com/armadaproject/armada/internal/common/profiling/configuration"
-	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/server/configuration"
 )
 
@@ -26,10 +25,6 @@ type Configuration struct {
 	BatchDuration time.Duration
 	// If non-nil, configures pprof profiling
 	Profiling *profilingconfig.ProfilingConfig
-	// JobMetadataMigrationPhase controls whether submit_message and groups are
-	// written to the jobs table, the job_metadata table, or both, during the
-	// migration. Required; default ("legacy")
-	JobMetadataMigrationPhase schedulerdb.JobMetadataMigrationPhase `validate:"required,oneof=legacy dualWrite cutover"`
 }
 
 func (c Configuration) Mutate() (commonconfig.Config, error) {

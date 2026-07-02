@@ -10,7 +10,6 @@ import (
 	commonconfig "github.com/armadaproject/armada/internal/common/config"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/leaderelection"
-	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
 )
 
 func TestMutate(t *testing.T) {
@@ -161,7 +160,6 @@ func createValidMinimalConfig() Configuration {
 		Pulsar: commonconfig.PulsarConfig{
 			URL: "pulsar",
 		},
-		JobMetadataMigrationPhase: schedulerdb.JobMetadataMigrationPhaseLegacy,
 	}
 }
 
