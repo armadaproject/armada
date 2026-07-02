@@ -335,6 +335,7 @@ func (a *App) RunTests(ctx context.Context, testSpecs []*api.TestSpec) (*TestSui
 		return nil, err
 	}
 
+	// Optionally push metrics.
 	if a.Params.PrometheusPushGatewayUrl != "" {
 		if err := pushTestSuiteReportMetrics(rv, a.Params.PrometheusPushGatewayUrl, a.Params.PrometheusPushGatewayJobName); err != nil {
 			return nil, err
