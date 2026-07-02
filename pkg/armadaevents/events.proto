@@ -584,5 +584,7 @@ message JobValidated {
 message JobRunCancelled {
     reserved 1,2;
     string job_id = 3;
-    string run_id= 4;
+    string run_id = 4;
+    string reason = 5;
+    string requestor = 6;
 }

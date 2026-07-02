@@ -900,6 +900,14 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 
 	// Has the job been requested cancelled. If so, cancel the job
 	if job.CancelRequested() {
+		var cancelUser string
+		if cancelUserPtr := job.CancelUser(); cancelUserPtr != nil {
+			cancelUser = *cancelUserPtr
+		}
+		var cancelReason string
+		if cancelReasonPtr := job.CancelReason(); cancelReasonPtr != nil {
+			cancelReason = *cancelReasonPtr
+		}
 		if job.HasRuns() {
 			lastRun := job.LatestRun()
 			job = job.WithUpdatedRun(lastRun.WithoutTerminal().WithCancelled(true))
@@ -908,17 +916,15 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 				Created: s.now(),
 				Event: &armadaevents.EventSequence_Event_JobRunCancelled{
 					JobRunCancelled: &armadaevents.JobRunCancelled{
-						RunId: lastRun.Id(),
-						JobId: job.Id(),
+						RunId:     lastRun.Id(),
+						JobId:     job.Id(),
+						Requestor: cancelUser,
+						Reason:    cancelReason,
 					},
 				},
 			})
 		}
 		job = job.WithQueued(false).WithoutTerminal().WithCancelled(true)
-		var cancelUser string
-		if cancelUserPtr := job.CancelUser(); cancelUserPtr != nil {
-			cancelUser = *cancelUserPtr
-		}
 		cancel := &armadaevents.EventSequence_Event{
 			Created: s.now(),
 			Event: &armadaevents.EventSequence_Event_CancelledJob{
@@ -934,6 +940,10 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 		var cancelUser string
 		if cancelUserPtr := job.CancelUser(); cancelUserPtr != nil {
 			cancelUser = *cancelUserPtr
+		}
+		var cancelReason string
+		if cancelReasonPtr := job.CancelReason(); cancelReasonPtr != nil {
+			cancelReason = *cancelReasonPtr
 		}
 		cancelRequest := &armadaevents.EventSequence_Event{
 			Created: s.now(),
@@ -951,8 +961,10 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 				Created: s.now(),
 				Event: &armadaevents.EventSequence_Event_JobRunCancelled{
 					JobRunCancelled: &armadaevents.JobRunCancelled{
-						RunId: lastRun.Id(),
-						JobId: job.Id(),
+						RunId:     lastRun.Id(),
+						JobId:     job.Id(),
+						Requestor: cancelUser,
+						Reason:    cancelReason,
 					},
 				},
 			})
