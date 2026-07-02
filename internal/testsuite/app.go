@@ -20,12 +20,10 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/push"
 	"github.com/renstrom/shortuuid"
-	"go.opentelemetry.io/otel"
 	"golang.org/x/sync/errgroup"
 	apimachineryYaml "k8s.io/apimachinery/pkg/util/yaml"
 	"sigs.k8s.io/yaml"
 
-	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/testsuite/build"
 	"github.com/armadaproject/armada/internal/testsuite/eventbenchmark"
 	"github.com/armadaproject/armada/internal/testsuite/eventlogger"
@@ -304,13 +302,6 @@ func (a *App) RunTests(ctx context.Context, testSpecs []*api.TestSpec) (*TestSui
 		rv.Finish = time.Now()
 	}()
 
-	traceCollector := NewInMemoryTraceCollector()
-	defer func(ctx context.Context) {
-		_ = traceCollector.Shutdown(ctx)
-	}(ctx)
-
-	otel.SetTracerProvider(traceCollector.TracerProvider())
-
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	g, ctx := errgroup.WithContext(ctx)
@@ -342,27 +333,6 @@ func (a *App) RunTests(ctx context.Context, testSpecs []*api.TestSpec) (*TestSui
 	cancel()
 	if err := g.Wait(); err != nil {
 		return nil, err
-	}
-
-	evidence, err := traceCollector.CollectEvidence()
-	if err != nil {
-		logging.WithError(err).Warn("Failed to collect trace evidence")
-	} else {
-		evidencePath := filepath.Join(DefaultEvidenceDir, "testsuite-traces.json")
-		if err := WriteTraceEvidenceFile(evidence, evidencePath); err != nil {
-			logging.WithError(err).Warnf("Failed to write trace evidence file: %s", evidencePath)
-		} else {
-			fmt.Fprintf(a.Out, "Trace evidence written to: %s\n", evidencePath)
-			fmt.Fprintf(a.Out, "Collected %d spans across %d traces from %d services\n",
-				evidence.TotalSpans, len(evidence.TraceIDs), len(evidence.ServiceNames))
-		}
-
-		if IsStrictModeEnabled() {
-			if err := ValidateTraceEvidence(evidence); err != nil {
-				return nil, fmt.Errorf("strict mode enabled: %w", err)
-			}
-			fmt.Fprintf(a.Out, "Strict mode: trace evidence validation passed\n")
-		}
 	}
 
 	if a.Params.PrometheusPushGatewayUrl != "" {
