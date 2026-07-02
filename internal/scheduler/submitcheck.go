@@ -350,25 +350,14 @@ poolStart:
 			gctx := copyGangContext(originalGangCtx)
 
 			// TODO construct nodedb per synthetic pool to avoid needing to set this dynamically
-			if pool.DisableAwayScheduling {
-				ex.nodeDb.DisableAwayScheduling()
-			} else {
-				ex.nodeDb.EnableAwayScheduling()
-			}
-
-			if pool.DisableHomeScheduling {
-				ex.nodeDb.DisableHomeScheduling()
-			} else {
-				ex.nodeDb.EnableHomeScheduling()
-			}
-
-			if pool.DisableGangAwayScheduling {
-				ex.nodeDb.DisableGangAwayScheduling()
-			} else {
-				ex.nodeDb.EnableGangAwayScheduling()
-			}
-
-			ex.nodeDb.SetDisallowedJobResources(pool.ExperimentalUnscheduledResources)
+			ex.nodeDb.ConfigureScheduling(nodedb.SchedulingOptions{
+				DisableHomeScheduling:      pool.DisableHomeScheduling,
+				DisableAwayScheduling:      pool.DisableAwayScheduling,
+				DisableGangAwayScheduling:  pool.DisableGangAwayScheduling,
+				DisableFairshareScheduling: pool.DisableFairshareScheduling,
+				DisableUrgencyScheduling:   pool.DisableUrgencyScheduling,
+				DisallowedJobResources:     pool.ExperimentalUnscheduledResources,
+			})
 
 			txn := ex.nodeDb.Txn(true)
 			ok, err := ex.nodeDb.ScheduleManyWithTxn(txn, gctx)
