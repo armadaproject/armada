@@ -1,7 +1,10 @@
 package pricing
 
 import (
+	"maps"
 	"time"
+
+	"github.com/google/uuid"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
@@ -20,6 +23,10 @@ type PriceKey struct {
 }
 
 type BidPriceSnapshot struct {
+	// Id uniquely identifies this snapshot.
+	// Two snapshots with the same non-nil Id are guaranteed to hold identical Bids and ResourceUnits.
+	// A nil Id (uuid.Nil) means "unidentified" and should never be treated as equal to another.
+	Id            uuid.UUID
 	Timestamp     time.Time
 	Bids          map[PriceKey]map[string]Bid
 	ResourceUnits map[string]internaltypes.ResourceList
@@ -37,4 +44,26 @@ func (s *BidPriceSnapshot) GetPrice(queue string, band bidstore.PriceBand) (map[
 	}
 	price, ok := s.Bids[key]
 	return price, ok
+}
+
+// ChangedPriceKeys returns the set of PriceKeys whose bids differ between the two snapshots.
+// A key is considered changed if it was added, removed, or if its per-pool bids differ.
+func (s *BidPriceSnapshot) ChangedPriceKeys(comparisonSnapshot *BidPriceSnapshot) map[PriceKey]bool {
+	changed := make(map[PriceKey]bool)
+	var comparisonBids map[PriceKey]map[string]Bid
+	if comparisonSnapshot != nil {
+		comparisonBids = comparisonSnapshot.Bids
+	}
+	for key, bids := range s.Bids {
+		if !maps.Equal(comparisonBids[key], bids) {
+			changed[key] = true
+		}
+	}
+	// Report keys that were removed entirely (present previously, gone now).
+	for key := range comparisonBids {
+		if _, ok := s.Bids[key]; !ok {
+			changed[key] = true
+		}
+	}
+	return changed
 }
