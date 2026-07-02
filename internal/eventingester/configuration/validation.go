@@ -12,5 +12,6 @@ func (c EventIngesterConfiguration) Validate() error {
 }
 
 func (c *EventIngesterConfiguration) Mutate() (commonconfig.Config, error) {
+	c.Observability.ApplyResourceDefaults("eventingester")
 	return c, nil
 }

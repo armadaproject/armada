@@ -12,5 +12,6 @@ func (c ArmadaConfig) Validate() error {
 }
 
 func (c *ArmadaConfig) Mutate() (commonconfig.Config, error) {
+	c.Observability.ApplyResourceDefaults("server")
 	return c, nil
 }

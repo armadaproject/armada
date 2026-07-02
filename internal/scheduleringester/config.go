@@ -36,6 +36,7 @@ type Configuration struct {
 }
 
 func (c *Configuration) Mutate() (commonconfig.Config, error) {
+	c.Observability.ApplyResourceDefaults("scheduleringester")
 	return c, nil
 }
 

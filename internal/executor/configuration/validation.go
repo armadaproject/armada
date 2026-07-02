@@ -12,5 +12,6 @@ func (c ExecutorConfiguration) Validate() error {
 }
 
 func (c *ExecutorConfiguration) Mutate() (commonconfig.Config, error) {
+	c.Observability.ApplyResourceDefaults("executor")
 	return c, nil
 }

@@ -119,6 +119,20 @@ func TestMutate(t *testing.T) {
 	}
 }
 
+func TestMutateAppliesObservabilityResourceDefaults(t *testing.T) {
+	config := &Configuration{
+		Observability: observability.ObservabilityConfig{Enabled: true},
+	}
+
+	result, err := config.Mutate()
+	assert.NoError(t, err)
+
+	mutated := result.(*Configuration)
+	assert.Equal(t, "armada-scheduler", mutated.Observability.Resource.ServiceName)
+	assert.NotEmpty(t, mutated.Observability.Resource.ServiceVersion)
+	assert.NotEmpty(t, mutated.Observability.Resource.ServiceInstance)
+}
+
 func TestValidate_SchedulingTimeoutConfig(t *testing.T) {
 	tests := map[string]struct {
 		config        func(c Configuration) Configuration

@@ -12,5 +12,6 @@ func (c BinocularsConfig) Validate() error {
 }
 
 func (c *BinocularsConfig) Mutate() (commonconfig.Config, error) {
+	c.Observability.ApplyResourceDefaults("binoculars")
 	return c, nil
 }

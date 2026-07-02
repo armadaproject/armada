@@ -12,5 +12,6 @@ func (c LookoutIngesterConfiguration) Validate() error {
 }
 
 func (c *LookoutIngesterConfiguration) Mutate() (commonconfig.Config, error) {
+	c.Observability.ApplyResourceDefaults("lookoutingester")
 	return c, nil
 }
