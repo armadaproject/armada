@@ -11,6 +11,6 @@ func (c BinocularsConfig) Validate() error {
 	return validate.Struct(c)
 }
 
-func (c BinocularsConfig) Mutate() (commonconfig.Config, error) {
+func (c *BinocularsConfig) Mutate() (commonconfig.Config, error) {
 	return c, nil
 }

@@ -12,6 +12,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/redis/go-redis/extra/redisprometheus/v9"
 	"github.com/redis/go-redis/v9"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -245,6 +246,7 @@ func createApiConnection(connectionDetails client.ApiConnectionDetails) (*grpc.C
 	return client.CreateApiConnectionWithCallOptions(
 		&connectionDetails,
 		[]grpc.CallOption{},
+		grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
 		grpc.WithChainUnaryInterceptor(clientMetrics.UnaryClientInterceptor()),
 		grpc.WithChainStreamInterceptor(clientMetrics.StreamClientInterceptor()),
 	)

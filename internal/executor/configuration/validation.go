@@ -11,6 +11,6 @@ func (c ExecutorConfiguration) Validate() error {
 	return validate.Struct(c)
 }
 
-func (c ExecutorConfiguration) Mutate() (commonconfig.Config, error) {
+func (c *ExecutorConfiguration) Mutate() (commonconfig.Config, error) {
 	return c, nil
 }

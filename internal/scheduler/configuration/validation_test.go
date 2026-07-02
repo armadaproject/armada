@@ -8,6 +8,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 
 	commonconfig "github.com/armadaproject/armada/internal/common/config"
+	"github.com/armadaproject/armada/internal/common/observability"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/leaderelection"
 	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
@@ -68,12 +69,51 @@ func TestMutate(t *testing.T) {
 				},
 			},
 		},
+		"Observability - preserves configured value": {
+			input: &Configuration{
+				Observability: observability.ObservabilityConfig{
+					Enabled: true,
+					Exporter: observability.OTLPExporterConfig{
+						Endpoint: "http://otel-collector:4318",
+						Protocol: "http/protobuf",
+					},
+					Traces: observability.TracesConfig{
+						Sampler:    "parent_based_trace_id_ratio",
+						SamplerArg: 0.25,
+					},
+					Resource: observability.ResourceAttributes{
+						ServiceName:     "scheduler",
+						ServiceVersion:  "configured-version",
+						ServiceInstance: "configured-instance",
+					},
+				},
+			},
+			expected: &Configuration{
+				Observability: observability.ObservabilityConfig{
+					Enabled: true,
+					Exporter: observability.OTLPExporterConfig{
+						Endpoint: "http://otel-collector:4318",
+						Protocol: "http/protobuf",
+					},
+					Traces: observability.TracesConfig{
+						Sampler:    "parent_based_trace_id_ratio",
+						SamplerArg: 0.25,
+					},
+					Resource: observability.ResourceAttributes{
+						ServiceName:     "scheduler",
+						ServiceVersion:  "configured-version",
+						ServiceInstance: "configured-instance",
+					},
+				},
+			},
+		},
 	}
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			result, err := tc.input.Mutate()
 			assert.NoError(t, err)
+
 			assert.Equal(t, tc.expected, result)
 		})
 	}

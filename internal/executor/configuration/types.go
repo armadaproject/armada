@@ -5,6 +5,7 @@ import (
 
 	"google.golang.org/grpc/keepalive"
 
+	"github.com/armadaproject/armada/internal/common/observability"
 	profilingconfig "github.com/armadaproject/armada/internal/common/profiling/configuration"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/executor/categorizer"
@@ -178,6 +179,7 @@ type ExecutorConfiguration struct {
 	HttpPort uint16
 	// If non-nil, net/http/pprof endpoints are exposed on localhost on this port.
 	Profiling             *profilingconfig.ProfilingConfig
+	Observability         observability.ObservabilityConfig
 	Metric                MetricConfiguration
 	Application           ApplicationConfiguration
 	ExecutorApiConnection client.ApiConnectionDetails

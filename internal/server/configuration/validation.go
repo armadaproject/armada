@@ -11,6 +11,6 @@ func (c ArmadaConfig) Validate() error {
 	return validate.Struct(c)
 }
 
-func (c ArmadaConfig) Mutate() (commonconfig.Config, error) {
+func (c *ArmadaConfig) Mutate() (commonconfig.Config, error) {
 	return c, nil
 }

@@ -11,6 +11,6 @@ func (c LookoutConfig) Validate() error {
 	return validate.Struct(c)
 }
 
-func (c LookoutConfig) Mutate() (commonconfig.Config, error) {
+func (c *LookoutConfig) Mutate() (commonconfig.Config, error) {
 	return c, nil
 }

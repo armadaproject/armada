@@ -11,6 +11,6 @@ func (c EventIngesterConfiguration) Validate() error {
 	return validate.Struct(c)
 }
 
-func (c EventIngesterConfiguration) Mutate() (commonconfig.Config, error) {
+func (c *EventIngesterConfiguration) Mutate() (commonconfig.Config, error) {
 	return c, nil
 }
