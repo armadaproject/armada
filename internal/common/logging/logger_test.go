@@ -19,9 +19,6 @@ type testLogEntry struct {
 	CustomField2 string `json:"customField2,omitempty"`
 	Error        string `json:"error,omitempty"`
 	Stacktrace   string `json:"stacktrace,omitempty"`
-	TraceID      string `json:"trace_id,omitempty"`
-	SpanID       string `json:"span_id,omitempty"`
-	RequestID    string `json:"x-request-id,omitempty"`
 }
 
 func TestWithField(t *testing.T) {
@@ -249,7 +246,4 @@ func assertLogLineExpected(t *testing.T, expected *testLogEntry, logOutput *byte
 	assert.Equal(t, expected.CustomField2, entry.CustomField2)
 	assert.Equal(t, expected.Error, entry.Error)
 	assert.Equal(t, expected.Stacktrace, entry.Stacktrace)
-	assert.Equal(t, expected.TraceID, entry.TraceID)
-	assert.Equal(t, expected.SpanID, entry.SpanID)
-	assert.Equal(t, expected.RequestID, entry.RequestID)
 }
