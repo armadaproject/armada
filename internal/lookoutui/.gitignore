@@ -24,3 +24,4 @@ yarn-error.log*
 
 /src/openapi/*
 !/src/openapi/workarounds.d.ts
+.openapi-ready
