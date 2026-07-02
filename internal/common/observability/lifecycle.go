@@ -114,6 +114,9 @@ func InitOTel(cfg ObservabilityConfig) error {
 	case "always_off":
 		sampler = sdktrace.NeverSample()
 	default:
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), shutdownTimeout)
+		defer shutdownCancel()
+		_ = exporter.Shutdown(shutdownCtx)
 		return fmt.Errorf("unsupported sampler: %s", cfg.Traces.Sampler)
 	}
 
