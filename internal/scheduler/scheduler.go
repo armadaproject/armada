@@ -285,7 +285,7 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	}(ctx)
 	// Update job state.
 	ctx.Info("Syncing internal state with database")
-	updatedJobs, jsts, newJobsSerial, newRunsSerial, err := s.syncState(ctx, false, cycleNumber%10 == 0)
+	updatedJobs, jsts, newJobsSerial, newRunsSerial, err := s.syncState(ctx, false)
 	if err != nil {
 		return false, err
 	}
@@ -438,7 +438,7 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 // syncState updates jobs in jobDb to match state in postgres and returns all updated jobs along with
 // the new jobsSerial and runsSerial cursor values that should be applied once the resulting events
 // have been published successfully.
-func (s *Scheduler) syncState(ctx *armadacontext.Context, initial, fullJobGc bool) ([]*jobdb.Job, []jobdb.JobStateTransitions, int64, int64, error) {
+func (s *Scheduler) syncState(ctx *armadacontext.Context, initial bool) ([]*jobdb.Job, []jobdb.JobStateTransitions, int64, int64, error) {
 	txn := s.jobDb.WriteTxn()
 	defer txn.Abort()
 
@@ -501,25 +501,12 @@ func (s *Scheduler) syncState(ctx *armadacontext.Context, initial, fullJobGc boo
 
 	// Delete jobs in a terminal state.
 	idsOfJobsToDelete := make([]string, 0)
-	deletionCandidates := jobDbJobs
-	if fullJobGc {
-		// Occasional full gc so jobs that were not deleted
-		// earlier as ShortJobPenalty was being applied
-		// eventually get deleted.
-		deletionCandidates = txn.GetAll()
-	}
-	shortJobCount := 0
-	for _, j := range deletionCandidates {
-		if !j.InTerminalState() {
-			continue
+	for _, j := range jobDbJobs {
+		if j.InTerminalState() {
+			idsOfJobsToDelete = append(idsOfJobsToDelete, j.Id())
 		}
-		if s.shortJobPenalty.ShouldApplyPenalty(j) {
-			shortJobCount++
-			continue
-		}
-		idsOfJobsToDelete = append(idsOfJobsToDelete, j.Id())
 	}
-	ctx.Logger().Infof("Deleting %d jobs out of %d considered for deletion (%d short jobs, full job gc=%t)", len(idsOfJobsToDelete), len(deletionCandidates), shortJobCount, fullJobGc)
+	ctx.Logger().Infof("Deleting %d terminal jobs out of %d updated jobs", len(idsOfJobsToDelete), len(jobDbJobs))
 	if err := txn.BatchDelete(idsOfJobsToDelete); err != nil {
 		return nil, nil, 0, 0, err
 	}
@@ -1075,6 +1062,9 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 	}
 
 	if !origJob.Equal(job) {
+		if job.InTerminalState() {
+			s.shortJobPenalty.ReportFinishedJob(job)
+		}
 		if err := txn.Upsert([]*jobdb.Job{job}); err != nil {
 			return nil, err
 		}
@@ -1133,7 +1123,9 @@ func (s *Scheduler) expireJobsIfNecessary(ctx *armadacontext.Context, txn *jobdb
 		run := job.LatestRun()
 		if run != nil && !job.Queued() && staleExecutors[run.Executor()] {
 			ctx.Warnf("Cancelling job %s as it is running on lost executor %s", job.Id(), run.Executor())
-			jobsToUpdate = append(jobsToUpdate, job.WithQueued(false).WithFailed(true).WithUpdatedRun(run.WithFailed(true)))
+			expiredJob := job.WithQueued(false).WithFailed(true).WithUpdatedRun(run.WithFailed(true))
+			s.shortJobPenalty.ReportFinishedJob(expiredJob)
+			jobsToUpdate = append(jobsToUpdate, expiredJob)
 
 			leaseExpiredError := &armadaevents.Error{
 				Terminal:           true,
@@ -1241,6 +1233,7 @@ func (s *Scheduler) submitCheck(ctx *armadacontext.Context, txn *jobdb.Txn) ([]*
 			}
 		} else {
 			job = job.WithFailed(true).WithQueued(false)
+			s.shortJobPenalty.ReportFinishedJob(job)
 			jobsToUpdate = append(jobsToUpdate, job)
 
 			es.Events[0].Event = &armadaevents.EventSequence_Event_JobErrors{
@@ -1284,7 +1277,7 @@ func (s *Scheduler) initialise(ctx *armadacontext.Context) error {
 		case <-ctx.Done():
 			return nil
 		default:
-			if _, _, newJobsSerial, newRunsSerial, err := s.syncState(ctx, true, false); err != nil {
+			if _, _, newJobsSerial, newRunsSerial, err := s.syncState(ctx, true); err != nil {
 				ctx.Logger().
 					WithStacktrace(err).
 					Error("failed to initialise; trying again in 1 second")
