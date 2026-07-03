@@ -1577,10 +1577,11 @@ type recordingRunner struct {
 	triggerCalls int
 }
 
-func (r *recordingRunner) Trigger() {
+func (r *recordingRunner) Trigger() bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.triggerCalls++
+	return true
 }
 
 func (r *recordingRunner) GetSchedulerResult(_ *armadacontext.Context, _ *jobdb.Txn) (*scheduling.SchedulerResult, error) {

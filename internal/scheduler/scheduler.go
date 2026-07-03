@@ -159,7 +159,7 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 	ticker := s.clock.NewTicker(s.cyclePeriod)
 	prevLeaderToken := leaderelection.InvalidLeaderToken()
 
-	previousSchedulingRoundEnd := time.Time{}
+	lastScheduleStart := time.Time{}
 	cycleNumber := 0
 	for {
 		select {
@@ -204,24 +204,20 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 				// and we must invalidate the held leader token to trigger flushing Pulsar at the next cycle.
 				//
 				// TODO: Once the Pulsar client supports transactions, we can guarantee consistency even in case of errors.
-				shouldSchedule := s.clock.Now().Sub(previousSchedulingRoundEnd) > s.schedulePeriod
-				if !shouldSchedule {
-					ctx.Info("Won't schedule this cycle as still within schedulePeriod")
-				}
 
-				schedulingAttempted, err := s.cycle(ctx, fullUpdate, leaderToken, shouldSchedule, cycleNumber)
-				if shouldSchedule {
-					previousSchedulingRoundEnd = s.clock.Now()
+				// We trigger a new cycle when the elapsed time since last cycle start is > schedulePeriod
+				// The reason we measure since start time, is so when the scheduling cycles are long,
+				//  we retrigger a new cycle immediately without gap
+				shouldTriggerScheduling := s.clock.Now().Sub(lastScheduleStart) >= s.schedulePeriod
+				if !shouldTriggerScheduling {
+					ctx.Info("Won't start scheduling this cycle; still within schedulePeriod")
 				}
+				shouldGetSchedulerResult := s.runner.IsAsync() || shouldTriggerScheduling
+				schedulingAttempted, err := s.cycle(ctx, fullUpdate, leaderToken, shouldGetSchedulerResult, cycleNumber)
 
 				cycleTime := s.clock.Since(start)
 
-				isSchedulingCycle := shouldSchedule && leaderToken.Leader()
-				if s.runner.IsAsync() {
-					isSchedulingCycle = leaderToken.Leader() && schedulingAttempted
-				}
-
-				if isSchedulingCycle {
+				if schedulingAttempted {
 					// Only the leader does real scheduling rounds.
 					s.metrics.ReportScheduleCycleTime(cycleTime)
 					s.metrics.ReportScheduleCycleOutcome(err == nil)
@@ -236,12 +232,17 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 					leaderToken = leaderelection.InvalidLeaderToken()
 				}
 
-				// Kick off the next async run only after a clean cycle as leader,
-				// so the background run schedules against committed state. On error
-				// leaderToken was invalidated above, so a failed cycle won't trigger
-				// a run that would be discarded. In sync mode Trigger is a no-op.
-				if shouldSchedule && err == nil && leaderToken.Leader() {
-					s.runner.Trigger()
+				if !s.runner.IsAsync() {
+					if schedulingAttempted {
+						lastScheduleStart = start
+					}
+				} else {
+					if shouldTriggerScheduling && s.leaderController.ValidateToken(leaderToken) {
+						triggered := s.runner.Trigger()
+						if triggered {
+							lastScheduleStart = start
+						}
+					}
 				}
 
 				prevLeaderToken = leaderToken
@@ -278,7 +279,7 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 //     This means we can start the next cycle immediately after one cycle finishes.
 //     As state transitions are persisted and read back from the schedulerDb over later cycles,
 //     there is no change to the jobDb, since the correct changes have already been made.
-func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToken leaderelection.LeaderToken, shouldSchedule bool, cycleNumber int) (bool, error) {
+func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToken leaderelection.LeaderToken, shouldGetSchedulingResult bool, cycleNumber int) (bool, error) {
 	ctx.Logger().Infof("starting cycle")
 	defer func(ctx *armadacontext.Context) {
 		ctx.Logger().Infof("finished cycle")
@@ -363,16 +364,15 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	ctx.Infof("Finished looking for jobs to expire, generating %d events", len(expirationEvents))
 	events = append(events, expirationEvents...)
 
-	var schedulerResult *scheduling.SchedulerResult
-	// Schedule jobs.
-	if shouldSchedule {
-		start := time.Now()
-		err = s.updateJobPrices(ctx, txn)
-		if err != nil {
-			return false, err
-		}
-		ctx.Logger().Infof("updating job prices in %s", time.Now().Sub(start))
+	start := time.Now()
+	err = s.updateJobPrices(ctx, txn)
+	if err != nil {
+		return false, err
+	}
+	ctx.Logger().Infof("updating job prices in %s", time.Now().Sub(start))
 
+	var schedulerResult *scheduling.SchedulerResult
+	if shouldGetSchedulingResult {
 		var result *scheduling.SchedulerResult
 		result, err = s.runner.GetSchedulerResult(ctx, txn)
 		if err != nil {
@@ -393,7 +393,7 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	isLeader := func() bool {
 		return s.leaderController.ValidateToken(leaderToken)
 	}
-	start := s.clock.Now()
+	start = s.clock.Now()
 	ctx.Infof("Starting to publish %d eventSequences to pulsar", len(events))
 	if err = s.publisher.PublishMessages(ctx, events, isLeader); err != nil {
 		return schedulerResult != nil, err
