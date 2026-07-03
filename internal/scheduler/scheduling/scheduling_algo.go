@@ -238,19 +238,14 @@ func (l *FairSchedulingAlgo) runPoolSchedulingRound(
 			}, nil
 	}
 
-	if pool.DisableAwayScheduling {
-		fsctx.nodeDb.DisableAwayScheduling()
-	}
-
-	if pool.DisableHomeScheduling {
-		fsctx.nodeDb.DisableHomeScheduling()
-	}
-
-	if pool.DisableGangAwayScheduling {
-		fsctx.nodeDb.DisableGangAwayScheduling()
-	}
-
-	fsctx.nodeDb.SetDisallowedJobResources(pool.ExperimentalUnscheduledResources)
+	fsctx.nodeDb.ConfigureScheduling(nodedb.SchedulingOptions{
+		DisableHomeScheduling:      pool.DisableHomeScheduling,
+		DisableAwayScheduling:      pool.DisableAwayScheduling,
+		DisableGangAwayScheduling:  pool.DisableGangAwayScheduling,
+		DisableFairshareScheduling: pool.DisableFairshareScheduling,
+		DisableUrgencyScheduling:   pool.DisableUrgencyScheduling,
+		DisallowedJobResources:     pool.ExperimentalUnscheduledResources,
+	})
 
 	start := time.Now()
 	schedulingResult, sctx, err := l.SchedulePool(ctx, fsctx, pool)

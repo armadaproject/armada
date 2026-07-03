@@ -285,6 +285,15 @@ func WithGangAwaySchedulingDisabled(config schedulerconfiguration.SchedulingConf
 	return config
 }
 
+func WithPreemptionDisabled(disableFairshareScheduling bool, disableUrgencyScheduling bool, config schedulerconfiguration.SchedulingConfig) schedulerconfiguration.SchedulingConfig {
+	for i, pool := range config.Pools {
+		pool.DisableFairshareScheduling = disableFairshareScheduling
+		pool.DisableUrgencyScheduling = disableUrgencyScheduling
+		config.Pools[i] = pool
+	}
+	return config
+}
+
 func WithMarketBasedSchedulingEnabled(config schedulerconfiguration.SchedulingConfig) schedulerconfiguration.SchedulingConfig {
 	for i, pool := range config.Pools {
 		pool.ExperimentalMarketScheduling = &schedulerconfiguration.MarketSchedulingConfig{
