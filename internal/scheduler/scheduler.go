@@ -199,12 +199,6 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 
 				// Run a scheduler cycle.
 				//
-				// If there is an error, we can't guarantee that the scheduler-internal state is consistent with what was published
-				// (scheduling decisions may have been partially published)
-				// and we must invalidate the held leader token to trigger flushing Pulsar at the next cycle.
-				//
-				// TODO: Once the Pulsar client supports transactions, we can guarantee consistency even in case of errors.
-
 				// We trigger a new cycle when the elapsed time since last cycle start is > schedulePeriod
 				// The reason we measure since start time, is so when the scheduling cycles are long,
 				//  we retrigger a new cycle immediately without gap
@@ -228,6 +222,11 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 				}
 
 				if err != nil {
+					// If there is an error, we can't guarantee that the scheduler-internal state is consistent
+					// with what was published (scheduling decisions may have been partially published) and we
+					// must invalidate the held leader token to trigger flushing Pulsar at the next cycle.
+					//
+					// TODO: Once the Pulsar client supports transactions, we can guarantee consistency even in case of errors.
 					ctx.Logger().WithStacktrace(err).Error("cycle failure")
 					leaderToken = leaderelection.InvalidLeaderToken()
 				}
