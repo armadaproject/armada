@@ -363,12 +363,12 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	ctx.Infof("Finished looking for jobs to expire, generating %d events", len(expirationEvents))
 	events = append(events, expirationEvents...)
 
-	start := time.Now()
+	start := s.clock.Now()
 	err = s.updateJobPrices(ctx, txn)
 	if err != nil {
 		return false, err
 	}
-	ctx.Logger().Infof("updating job prices in %s", time.Now().Sub(start))
+	ctx.Logger().Infof("updating job prices in %s", s.clock.Now().Sub(start))
 
 	var schedulerResult *scheduling.SchedulerResult
 	if shouldGetSchedulingResult {
