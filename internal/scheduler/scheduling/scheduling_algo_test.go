@@ -27,6 +27,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/priorityoverride"
 	"github.com/armadaproject/armada/internal/scheduler/reports"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	schedulercontext "github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 	"github.com/armadaproject/armada/pkg/api"
 )
@@ -299,6 +300,8 @@ func TestSchedule(t *testing.T) {
 		expectedScheduledIndices []int
 		// Number of jobs expected to be scheduled by pool
 		expectedScheduledByPool map[string]int
+		// If set, at least one scheduled job is expected to have been placed using this scheduling method.
+		expectedSchedulingMethod schedulercontext.SchedulingType
 	}{
 		"scheduling": {
 			schedulingConfig: testfixtures.TestSchedulingConfig(),
@@ -748,6 +751,64 @@ func TestSchedule(t *testing.T) {
 			},
 			expectedScheduledIndices: []int{0},
 		},
+		"fair-share preemption still applies when only urgency-based preemption disabled": {
+			schedulingConfig: testfixtures.WithPreemptionDisabled(false, true, testfixtures.TestSchedulingConfig()),
+			executors:        []*schedulerobjects.Executor{test1Node32CoreExecutor("executor1")},
+			queues:           []*api.Queue{{Name: "A", PriorityFactor: 0.01}, {Name: "B", PriorityFactor: 0.01}},
+			queuedJobs:       testfixtures.N16Cpu128GiJobs("A", testfixtures.PriorityClass0, 2),
+			scheduledJobsByExecutorIndexAndNodeIndex: map[int]map[int]scheduledJobs{
+				0: {
+					0: scheduledJobs{
+						jobs:         testfixtures.N16Cpu128GiJobs("B", testfixtures.PriorityClass0, 2),
+						acknowledged: true,
+					},
+				},
+			},
+			expectedPreemptedJobIndicesByExecutorIndexAndNodeIndex: map[int]map[int][]int{
+				0: {
+					0: {1},
+				},
+			},
+			expectedScheduledIndices: []int{0},
+			expectedSchedulingMethod: schedulercontext.ScheduledWithFairSharePreemption,
+		},
+		"urgency-based preemption still applies when only fair-share preemption disabled": {
+			schedulingConfig: testfixtures.WithPreemptionDisabled(true, false, testfixtures.TestSchedulingConfig()),
+			executors:        []*schedulerobjects.Executor{test1Node32CoreExecutor("executor1")},
+			queues:           []*api.Queue{{Name: "A"}},
+			queuedJobs:       testfixtures.N16Cpu128GiJobs("A", testfixtures.PriorityClass1, 2),
+			scheduledJobsByExecutorIndexAndNodeIndex: map[int]map[int]scheduledJobs{
+				0: {
+					0: scheduledJobs{
+						jobs:         testfixtures.N16Cpu128GiJobs("A", testfixtures.PriorityClass0, 1),
+						acknowledged: true,
+					},
+				},
+			},
+			expectedPreemptedJobIndicesByExecutorIndexAndNodeIndex: map[int]map[int][]int{
+				0: {
+					0: {0},
+				},
+			},
+			expectedScheduledIndices: []int{0, 1},
+			expectedSchedulingMethod: schedulercontext.ScheduledWithUrgencyBasedPreemption,
+		},
+		"no preemption when both strategies disabled": {
+			schedulingConfig: testfixtures.WithPreemptionDisabled(true, true, testfixtures.TestSchedulingConfig()),
+			executors:        []*schedulerobjects.Executor{test1Node32CoreExecutor("executor1")},
+			queues:           []*api.Queue{{Name: "A", PriorityFactor: 0.01}, {Name: "B", PriorityFactor: 0.01}},
+			queuedJobs:       testfixtures.N16Cpu128GiJobs("A", testfixtures.PriorityClass0, 2),
+			scheduledJobsByExecutorIndexAndNodeIndex: map[int]map[int]scheduledJobs{
+				0: {
+					0: scheduledJobs{
+						jobs:         testfixtures.N16Cpu128GiJobs("B", testfixtures.PriorityClass0, 2),
+						acknowledged: true,
+					},
+				},
+			},
+			expectedPreemptedJobIndicesByExecutorIndexAndNodeIndex: map[int]map[int][]int{},
+			expectedScheduledIndices:                               []int{},
+		},
 		"gang scheduling successful": {
 			schedulingConfig:         testfixtures.TestSchedulingConfig(),
 			executors:                []*schedulerobjects.Executor{test1Node32CoreExecutor("executor1")},
@@ -1046,6 +1107,15 @@ func TestSchedule(t *testing.T) {
 				jobsSchedulerOnPool, present := scheduledJobsPerPool[pool]
 				assert.True(t, present)
 				assert.Len(t, jobsSchedulerOnPool, expectedScheduledCount)
+			}
+
+			if tc.expectedSchedulingMethod != "" {
+				actualSchedulingMethods := make([]schedulercontext.SchedulingType, 0)
+				for _, jctx := range schedulerResult.GetAllScheduledJobs() {
+					require.NotNil(t, jctx.PodSchedulingContext)
+					actualSchedulingMethods = append(actualSchedulingMethods, jctx.PodSchedulingContext.SchedulingMethod)
+				}
+				assert.Contains(t, actualSchedulingMethods, tc.expectedSchedulingMethod)
 			}
 
 			// Check that preempted jobs are marked as such consistently.
