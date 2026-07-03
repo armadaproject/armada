@@ -232,7 +232,7 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 				}
 
 				if !s.runner.IsAsync() {
-					if schedulingAttempted {
+					if shouldTriggerScheduling {
 						lastScheduleStart = start
 					}
 				} else {
