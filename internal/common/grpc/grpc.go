@@ -15,6 +15,7 @@ import (
 	grpc_recovery "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/recovery"
 	"github.com/prometheus/client_golang/prometheus"
 
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
@@ -51,6 +52,7 @@ func CreateGrpcServer(
 		grpc.KeepaliveParams(keepaliveParams),
 		grpc.KeepaliveEnforcementPolicy(keepaliveEnforcementPolicy),
 		setupTls(tlsConfig),
+		grpc.StatsHandler(otelgrpc.NewServerHandler()),
 		grpc.ChainUnaryInterceptor(
 			requestid.UnaryServerInterceptor(false),
 			grpc_auth.UnaryServerInterceptor(authFunction),
@@ -81,7 +83,7 @@ func setupPromMetrics() *grpc_prometheus.ServerMetrics {
 		),
 		grpc_prometheus.WithContextLabels("user"),
 	)
-	prometheus.MustRegister(srvMetrics)
+	prometheus.DefaultRegisterer.MustRegister(srvMetrics)
 	return srvMetrics
 }
 

@@ -5,6 +5,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/armadaproject/armada/internal/common/build"
 )
 
 const (
@@ -71,6 +73,49 @@ func TestObservabilityConfig(t *testing.T) {
 		require.NoError(t, cfg.Validate())
 
 		assert.Equal(t, map[string]string{"deployment.environment": "prod"}, cfg.Resource.Extra)
+	})
+}
+
+func TestObservabilityConfigApplyResourceDefaults(t *testing.T) {
+	t.Run("defaults missing resource attributes when enabled", func(t *testing.T) {
+		previousReleaseVersion := build.ReleaseVersion
+		build.ReleaseVersion = "test-version"
+		defer func() { build.ReleaseVersion = previousReleaseVersion }()
+
+		cfg := ObservabilityConfig{Enabled: true}
+
+		cfg.ApplyResourceDefaults("server")
+
+		assert.Equal(t, "armada-server", cfg.Resource.ServiceName)
+		assert.Equal(t, "test-version", cfg.Resource.ServiceVersion)
+		assert.NotEmpty(t, cfg.Resource.ServiceInstance)
+	})
+
+	t.Run("preserves configured resource attributes", func(t *testing.T) {
+		cfg := ObservabilityConfig{
+			Enabled: true,
+			Resource: ResourceAttributes{
+				ServiceName:     "custom-service",
+				ServiceVersion:  "custom-version",
+				ServiceInstance: "custom-instance",
+			},
+		}
+
+		cfg.ApplyResourceDefaults("server")
+
+		assert.Equal(t, "custom-service", cfg.Resource.ServiceName)
+		assert.Equal(t, "custom-version", cfg.Resource.ServiceVersion)
+		assert.Equal(t, "custom-instance", cfg.Resource.ServiceInstance)
+	})
+
+	t.Run("leaves disabled config untouched", func(t *testing.T) {
+		cfg := ObservabilityConfig{}
+
+		cfg.ApplyResourceDefaults("server")
+
+		assert.Empty(t, cfg.Resource.ServiceName)
+		assert.Empty(t, cfg.Resource.ServiceVersion)
+		assert.Empty(t, cfg.Resource.ServiceInstance)
 	})
 }
 

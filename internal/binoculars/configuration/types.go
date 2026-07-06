@@ -3,6 +3,7 @@ package configuration
 import (
 	"github.com/armadaproject/armada/internal/common/auth/configuration"
 	grpcconfig "github.com/armadaproject/armada/internal/common/grpc/configuration"
+	"github.com/armadaproject/armada/internal/common/observability"
 	profilingconfig "github.com/armadaproject/armada/internal/common/profiling/configuration"
 )
 
@@ -10,10 +11,11 @@ type BinocularsConfig struct {
 	Cordon CordonConfiguration
 	Auth   configuration.AuthConfig
 
-	GrpcPort    uint16
-	HttpPort    uint16
-	MetricsPort uint16
-	Profiling   *profilingconfig.ProfilingConfig
+	GrpcPort      uint16
+	HttpPort      uint16
+	MetricsPort   uint16
+	Profiling     *profilingconfig.ProfilingConfig
+	Observability observability.ObservabilityConfig
 
 	CorsAllowedOrigins []string
 
