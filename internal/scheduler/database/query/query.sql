@@ -20,10 +20,10 @@ SELECT job_id, job_set, queue, priority, submitted, queued, queued_version, vali
 UPDATE jobs SET priority = $1 WHERE job_set = $2 and queue = $3 and terminated = false;
 
 -- name: MarkJobsCancelRequestedBySetAndQueuedState :exec
-UPDATE jobs SET cancel_by_jobset_requested = true, cancel_user = sqlc.arg(cancel_user), cancel_reason = sqlc.arg(cancel_reason) WHERE job_set = sqlc.arg(job_set) and queue = sqlc.arg(queue) and queued = ANY(sqlc.arg(queued_states)::bool[]) and terminated = false;
+UPDATE jobs SET cancel_by_jobset_requested = true, cancel_user = COALESCE(cancel_user, sqlc.arg(cancel_user)), cancel_reason = COALESCE(cancel_reason, sqlc.arg(cancel_reason)) WHERE job_set = sqlc.arg(job_set) and queue = sqlc.arg(queue) and queued = ANY(sqlc.arg(queued_states)::bool[]) and terminated = false;
 
 -- name: MarkJobsCancelRequestedBySet :exec
-UPDATE jobs SET cancel_by_jobset_requested = true, cancel_user = sqlc.arg(cancel_user), cancel_reason = sqlc.arg(cancel_reason) WHERE job_set = sqlc.arg(job_set) and queue = sqlc.arg(queue) and terminated = false;
+UPDATE jobs SET cancel_by_jobset_requested = true, cancel_user = COALESCE(cancel_user, sqlc.arg(cancel_user)), cancel_reason = COALESCE(cancel_reason, sqlc.arg(cancel_reason)) WHERE job_set = sqlc.arg(job_set) and queue = sqlc.arg(queue) and terminated = false;
 
 -- name: MarkJobsSucceededById :exec
 UPDATE jobs SET succeeded = true WHERE job_id = ANY(sqlc.arg(job_ids)::text[]);

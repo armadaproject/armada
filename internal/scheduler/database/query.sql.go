@@ -170,7 +170,7 @@ func (q *Queries) MarkJobsCancelRequestedById(ctx context.Context, arg MarkJobsC
 }
 
 const markJobsCancelRequestedBySet = `-- name: MarkJobsCancelRequestedBySet :exec
-UPDATE jobs SET cancel_by_jobset_requested = true, cancel_user = $1, cancel_reason = $2 WHERE job_set = $3 and queue = $4 and terminated = false
+UPDATE jobs SET cancel_by_jobset_requested = true, cancel_user = COALESCE(cancel_user, $1), cancel_reason = COALESCE(cancel_reason, $2) WHERE job_set = $3 and queue = $4 and terminated = false
 `
 
 type MarkJobsCancelRequestedBySetParams struct {
@@ -191,7 +191,7 @@ func (q *Queries) MarkJobsCancelRequestedBySet(ctx context.Context, arg MarkJobs
 }
 
 const markJobsCancelRequestedBySetAndQueuedState = `-- name: MarkJobsCancelRequestedBySetAndQueuedState :exec
-UPDATE jobs SET cancel_by_jobset_requested = true, cancel_user = $1, cancel_reason = $2 WHERE job_set = $3 and queue = $4 and queued = ANY($5::bool[]) and terminated = false
+UPDATE jobs SET cancel_by_jobset_requested = true, cancel_user = COALESCE(cancel_user, $1), cancel_reason = COALESCE(cancel_reason, $2) WHERE job_set = $3 and queue = $4 and queued = ANY($5::bool[]) and terminated = false
 `
 
 type MarkJobsCancelRequestedBySetAndQueuedStateParams struct {
