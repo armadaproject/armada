@@ -137,6 +137,8 @@ func (l *FairSchedulingAlgo) Schedule(
 		return nil, err
 	}
 
+	shortJobPenalty := l.shortJobPenalty.Snapshot()
+
 	reconciliationByPool, err := l.reconcilePools(ctx, txn, executors)
 	if err != nil {
 		return nil, err
@@ -153,7 +155,7 @@ func (l *FairSchedulingAlgo) Schedule(
 		if reconciliation.Err() != nil {
 			outcome = reconciliation.Outcome()
 		} else {
-			outcome, schedulingResult, err = l.runPoolSchedulingRound(ctx, pool, txn, executors)
+			outcome, schedulingResult, err = l.runPoolSchedulingRound(ctx, pool, txn, executors, shortJobPenalty)
 			if err != nil {
 				return nil, err
 			}
@@ -207,6 +209,7 @@ func (l *FairSchedulingAlgo) runPoolSchedulingRound(
 	pool configuration.PoolConfig,
 	txn *jobdb.Txn,
 	executors []*schedulerobjects.Executor,
+	shortJobPenalty *ShortJobPenaltySnapshot,
 ) (*PoolSchedulingOutcome, *SchedulingResult, error) {
 	select {
 	case <-ctx.Done():
@@ -217,7 +220,7 @@ func (l *FairSchedulingAlgo) runPoolSchedulingRound(
 	// It is important to pass the validated executors here
 	// This is because the validation ensures those nodes are inline with the jobs
 	// If we use a different copy of nodes (possibly more to date copy) it may no longer align with the jobs/runs
-	fsctx, err := l.newFairSchedulingAlgoContext(ctx, txn, executors, pool)
+	fsctx, err := l.newFairSchedulingAlgoContext(ctx, txn, executors, pool, shortJobPenalty)
 	if err != nil {
 		return NewPoolSchedulingOutcome(PoolSchedulingTerminationReasonSchedulingDisabled, errors.WithMessagef(err, "failed to create scheduling algo context")), nil, nil
 	}
@@ -235,19 +238,14 @@ func (l *FairSchedulingAlgo) runPoolSchedulingRound(
 			}, nil
 	}
 
-	if pool.DisableAwayScheduling {
-		fsctx.nodeDb.DisableAwayScheduling()
-	}
-
-	if pool.DisableHomeScheduling {
-		fsctx.nodeDb.DisableHomeScheduling()
-	}
-
-	if pool.DisableGangAwayScheduling {
-		fsctx.nodeDb.DisableGangAwayScheduling()
-	}
-
-	fsctx.nodeDb.SetDisallowedJobResources(pool.ExperimentalUnscheduledResources)
+	fsctx.nodeDb.ConfigureScheduling(nodedb.SchedulingOptions{
+		DisableHomeScheduling:      pool.DisableHomeScheduling,
+		DisableAwayScheduling:      pool.DisableAwayScheduling,
+		DisableGangAwayScheduling:  pool.DisableGangAwayScheduling,
+		DisableFairshareScheduling: pool.DisableFairshareScheduling,
+		DisableUrgencyScheduling:   pool.DisableUrgencyScheduling,
+		DisallowedJobResources:     pool.ExperimentalUnscheduledResources,
+	})
 
 	start := time.Now()
 	schedulingResult, sctx, err := l.SchedulePool(ctx, fsctx, pool)
@@ -410,7 +408,7 @@ func markAsFailedReconciliation(clock clock.Clock, job *jobdb.Job) *jobdb.Job {
 	return job
 }
 
-func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Context, txn *jobdb.Txn, executors []*schedulerobjects.Executor, currentPool configuration.PoolConfig) (*FairSchedulingAlgoContext, error) {
+func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Context, txn *jobdb.Txn, executors []*schedulerobjects.Executor, currentPool configuration.PoolConfig, shortJobPenalty *ShortJobPenaltySnapshot) (*FairSchedulingAlgoContext, error) {
 	queues, err := l.queueCache.GetAll(ctx)
 	if err != nil {
 		return nil, err
@@ -435,16 +433,12 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 	// - Jobs active on the nodes of this pool
 	//   - These are used to populate the jobdb, calculate demand/fairshare
 	//   - This may include nodes from other pools, especially if the nodes pool has changed
-	// - Terminal jobs of this pool
-	//   - For calculating short job penalty
 	// - Jobs queued against home/away pools relevant to the pool being computed
 	//   - This is to calculate demand on both home and away pools
 	leasedJobs := txn.GetAllLeasedJobs()
-	terminalJobs := txn.GetAllTerminalJobs()
 	queuedJobs := getQueuedJobs(txn, allPools)
-	allJobs := make([]*jobdb.Job, 0, len(leasedJobs)+len(terminalJobs)+len(queuedJobs))
+	allJobs := make([]*jobdb.Job, 0, len(leasedJobs)+len(queuedJobs))
 	allJobs = append(allJobs, leasedJobs...)
-	allJobs = append(allJobs, terminalJobs...)
 	allJobs = append(allJobs, queuedJobs...)
 
 	jobSchedulingInfo, err := l.calculateJobSchedulingInfo(ctx,
@@ -455,7 +449,8 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 		allJobs,
 		currentPool.Name,
 		awayAllocationPools,
-		allPools)
+		allPools,
+		shortJobPenalty)
 	if err != nil {
 		return nil, err
 	}
@@ -580,27 +575,19 @@ type jobSchedulingInfo struct {
 
 func (l *FairSchedulingAlgo) calculateJobSchedulingInfo(ctx *armadacontext.Context, activeExecutorsSet map[string]bool,
 	queues map[string]*api.Queue, jobs []*jobdb.Job, currentPool string, awayAllocationPools []string, allPools []string,
+	shortJobPenalty *ShortJobPenaltySnapshot,
 ) (*jobSchedulingInfo, error) {
 	jobsByExecutorId := make(map[string][]*jobdb.Job)
 	jobsByPool := make(map[string][]*jobdb.Job)
 	demandByQueueAndPriorityClass := make(map[string]map[string]internaltypes.ResourceList)
 	allocatedByQueueAndPriorityClass := make(map[string]map[string]internaltypes.ResourceList)
 	awayAllocatedByQueueAndPriorityClass := make(map[string]map[string]internaltypes.ResourceList)
-	shortJobPenaltyByQueue := make(map[string]internaltypes.ResourceList)
 
 	for _, job := range jobs {
 		queue, present := queues[job.Queue()]
 		if !present {
 			ctx.Errorf("job %s has queue %s, this queue does not exist", job.Id(), job.Queue())
 			continue
-		}
-
-		if l.shortJobPenalty.ShouldApplyPenalty(job) {
-			jobPool := job.LatestRun().Pool()
-			jobRequirements := job.AllResourceRequirements()
-			if jobPool == currentPool {
-				shortJobPenaltyByQueue[queue.Name] = shortJobPenaltyByQueue[queue.Name].Add(jobRequirements)
-			}
 		}
 
 		if job.InTerminalState() {
@@ -680,6 +667,7 @@ func (l *FairSchedulingAlgo) calculateJobSchedulingInfo(ctx *armadacontext.Conte
 		jobsByExecutorId[executorId] = append(jobsByExecutorId[executorId], job)
 	}
 
+	shortJobPenaltyByQueue := shortJobPenalty.GetPenaltiesForPool(currentPool)
 	return &jobSchedulingInfo{
 		jobsByExecutorId:                     jobsByExecutorId,
 		jobsByPool:                           jobsByPool,

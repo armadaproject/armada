@@ -72,7 +72,6 @@ type JobDb struct {
 	jobsByQueue        map[string]immutable.SortedSet[*Job]
 	jobsByPoolAndQueue map[string]map[string]immutable.SortedSet[*Job]
 	leasedJobs         *immutable.Set[*Job]
-	terminalJobs       *immutable.Set[*Job]
 	unvalidatedJobs    *immutable.Set[*Job]
 	// Configured priority classes.
 	priorityClasses map[string]types.PriorityClass
@@ -137,7 +136,6 @@ func NewJobDbWithSchedulingKeyGenerator(
 	}
 	unvalidatedJobs := immutable.NewSet[*Job](JobHasher{})
 	leasedJobs := immutable.NewSet[*Job](JobHasher{})
-	terminalJobs := immutable.NewSet[*Job](JobHasher{})
 	return &JobDb{
 		jobsById:               immutable.NewMap[string, *Job](nil),
 		jobsByRunId:            immutable.NewMap[string, string](nil),
@@ -145,7 +143,6 @@ func NewJobDbWithSchedulingKeyGenerator(
 		jobsByQueue:            map[string]immutable.SortedSet[*Job]{},
 		jobsByPoolAndQueue:     map[string]map[string]immutable.SortedSet[*Job]{},
 		leasedJobs:             &leasedJobs,
-		terminalJobs:           &terminalJobs,
 		unvalidatedJobs:        &unvalidatedJobs,
 		priorityClasses:        priorityClasses,
 		defaultPriorityClass:   defaultPriorityClass,
@@ -178,7 +175,6 @@ func (jobDb *JobDb) Clone() *JobDb {
 		jobsByQueue:            maps.Clone(jobDb.jobsByQueue),
 		jobsByPoolAndQueue:     deepClone(jobDb.jobsByPoolAndQueue),
 		leasedJobs:             jobDb.leasedJobs,
-		terminalJobs:           jobDb.terminalJobs,
 		unvalidatedJobs:        jobDb.unvalidatedJobs,
 		priorityClasses:        jobDb.priorityClasses,
 		defaultPriorityClass:   jobDb.defaultPriorityClass,
@@ -353,7 +349,6 @@ func (jobDb *JobDb) ReadTxn() *Txn {
 		jobsByQueue:        jobDb.jobsByQueue,
 		jobsByPoolAndQueue: jobDb.jobsByPoolAndQueue,
 		leasedJobs:         jobDb.leasedJobs,
-		terminalJobs:       jobDb.terminalJobs,
 		unvalidatedJobs:    jobDb.unvalidatedJobs,
 		bidPriceSnapshot:   jobDb.bidPriceSnapshot,
 		active:             true,
@@ -376,7 +371,6 @@ func (jobDb *JobDb) WriteTxn() *Txn {
 		jobsByQueue:        maps.Clone(jobDb.jobsByQueue),
 		jobsByPoolAndQueue: deepClone(jobDb.jobsByPoolAndQueue),
 		leasedJobs:         jobDb.leasedJobs,
-		terminalJobs:       jobDb.terminalJobs,
 		unvalidatedJobs:    jobDb.unvalidatedJobs,
 		bidPriceSnapshot:   jobDb.bidPriceSnapshot,
 		active:             true,
@@ -399,7 +393,6 @@ func (jobDb *JobDb) DryRunTxn() *Txn {
 		jobsByQueue:        maps.Clone(jobDb.jobsByQueue),
 		jobsByPoolAndQueue: deepClone(jobDb.jobsByPoolAndQueue),
 		leasedJobs:         jobDb.leasedJobs,
-		terminalJobs:       jobDb.terminalJobs,
 		unvalidatedJobs:    jobDb.unvalidatedJobs,
 		bidPriceSnapshot:   jobDb.bidPriceSnapshot,
 		active:             true,
@@ -444,8 +437,6 @@ type Txn struct {
 	jobsByPoolAndQueue map[string]map[string]immutable.SortedSet[*Job]
 	// Jobs that are currently leased
 	leasedJobs *immutable.Set[*Job]
-	// Jobs that are currently in a terminal state
-	terminalJobs *immutable.Set[*Job]
 	// Jobs that require submit checking
 	unvalidatedJobs *immutable.Set[*Job]
 	// The current snapshot of bid prices - allowing look up of bidding prices on job creation
@@ -473,7 +464,6 @@ func (txn *Txn) Commit() {
 	txn.jobDb.jobsByQueue = txn.jobsByQueue
 	txn.jobDb.jobsByPoolAndQueue = txn.jobsByPoolAndQueue
 	txn.jobDb.leasedJobs = txn.leasedJobs
-	txn.jobDb.terminalJobs = txn.terminalJobs
 	txn.jobDb.unvalidatedJobs = txn.unvalidatedJobs
 	txn.jobDb.bidPriceSnapshot = txn.bidPriceSnapshot
 
@@ -614,11 +604,6 @@ func (txn *Txn) Upsert(jobs []*Job) error {
 					txn.leasedJobs = &newLeasedJobs
 				}
 
-				if existingJob.InTerminalState() {
-					newTerminalJobs := txn.terminalJobs.Delete(existingJob)
-					txn.terminalJobs = &newTerminalJobs
-				}
-
 				if !existingJob.Validated() {
 					newUnvalidatedJobs := txn.unvalidatedJobs.Delete(existingJob)
 					txn.unvalidatedJobs = &newUnvalidatedJobs
@@ -629,7 +614,7 @@ func (txn *Txn) Upsert(jobs []*Job) error {
 
 	// Now need to insert jobs, runs and queuedJobs. This can be done in parallel.
 	wg := sync.WaitGroup{}
-	wg.Add(7)
+	wg.Add(6)
 
 	// jobs
 	go func() {
@@ -792,30 +777,6 @@ func (txn *Txn) Upsert(jobs []*Job) error {
 		}
 	}()
 
-	// Terminal jobs
-	go func() {
-		defer wg.Done()
-		if hasJobs {
-			for _, job := range jobs {
-				if job.InTerminalState() {
-					terminalJobs := txn.terminalJobs.Add(job)
-					txn.terminalJobs = &terminalJobs
-				}
-			}
-		} else {
-			terminalJobs := map[*Job]bool{}
-
-			for _, job := range jobs {
-				if job.InTerminalState() {
-					terminalJobs[job] = true
-				}
-			}
-
-			terminalJobsImmutable := immutable.NewSet[*Job](JobHasher{}, maps.Keys(terminalJobs)...)
-			txn.terminalJobs = &terminalJobsImmutable
-		}
-	}()
-
 	// Unvalidated jobs
 	go func() {
 		defer wg.Done()
@@ -957,11 +918,6 @@ func (txn *Txn) GetAllLeasedJobs() []*Job {
 	return txn.leasedJobs.Items()
 }
 
-// GetAllTerminalJobs returns all terminal jobs in the database
-func (txn *Txn) GetAllTerminalJobs() []*Job {
-	return txn.terminalJobs.Items()
-}
-
 // GetAll returns all jobs in the database.
 func (txn *Txn) GetAll() []*Job {
 	allJobs := make([]*Job, 0, txn.jobsById.Len())
@@ -1033,9 +989,6 @@ func (txn *Txn) delete(jobId string) {
 		}
 		newLeasedJobs := txn.leasedJobs.Delete(job)
 		txn.leasedJobs = &newLeasedJobs
-
-		newTerminalJobs := txn.terminalJobs.Delete(job)
-		txn.terminalJobs = &newTerminalJobs
 
 		newUnvalidatedJobs := txn.unvalidatedJobs.Delete(job)
 		txn.unvalidatedJobs = &newUnvalidatedJobs
