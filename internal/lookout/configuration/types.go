@@ -5,6 +5,7 @@ import (
 
 	authconfig "github.com/armadaproject/armada/internal/common/auth/configuration"
 	"github.com/armadaproject/armada/internal/common/database"
+	"github.com/armadaproject/armada/internal/common/observability"
 	profilingconfig "github.com/armadaproject/armada/internal/common/profiling/configuration"
 	"github.com/armadaproject/armada/internal/server/configuration"
 )
@@ -12,9 +13,10 @@ import (
 type LookoutConfig struct {
 	Auth authconfig.AuthConfig
 
-	ApiPort     int
-	Profiling   *profilingconfig.ProfilingConfig
-	MetricsPort int
+	ApiPort       int
+	Profiling     *profilingconfig.ProfilingConfig
+	MetricsPort   int
+	Observability observability.ObservabilityConfig
 
 	CorsAllowedOrigins []string
 	Tls                TlsConfig

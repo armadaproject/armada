@@ -2,6 +2,14 @@ httpPort: 8082
 executorApiConnection:
   armadaUrl: "localhost:50052"
   forceNoTls: true
+observability:
+  enabled: true
+  exporter:
+    endpoint: "http://localhost:4318"
+    protocol: "http/protobuf"
+  traces:
+    sampler: "parent_based_trace_id_ratio"
+    samplerArg: 1.0
 metric:
   port: 9002
 application:

@@ -27,6 +27,8 @@ builds:
     binary: server
     main: ./cmd/server/main.go
     mod_timestamp: '{{ .CommitTimestamp }}'
+    ldflags:
+      - -X github.com/armadaproject/armada/internal/common/build.ReleaseVersion={{.Version}}
     goos:
       - linux
     goarch:
@@ -36,6 +38,8 @@ builds:
     binary: executor
     main: ./cmd/executor/main.go
     mod_timestamp: '{{ .CommitTimestamp }}'
+    ldflags:
+      - -X github.com/armadaproject/armada/internal/common/build.ReleaseVersion={{.Version}}
     goos:
       - linux
     goarch:
@@ -63,6 +67,8 @@ builds:
     binary: binoculars
     main: ./cmd/binoculars/main.go
     mod_timestamp: '{{ .CommitTimestamp }}'
+    ldflags:
+      - -X github.com/armadaproject/armada/internal/common/build.ReleaseVersion={{.Version}}
     goos:
       - linux
     goarch:
@@ -76,6 +82,7 @@ builds:
       - -X github.com/armadaproject/armada/internal/lookout/version.Version={{.Version}}
       - -X github.com/armadaproject/armada/internal/lookout/version.Commit={{.FullCommit}}
       - -X github.com/armadaproject/armada/internal/lookout/version.BuildTime={{.Date}}
+      - -X github.com/armadaproject/armada/internal/common/build.ReleaseVersion={{.Version}}
     goos:
       - linux
     goarch:
@@ -85,6 +92,8 @@ builds:
     binary: lookoutingester
     main: ./cmd/lookoutingester/main.go
     mod_timestamp: '{{ .CommitTimestamp }}'
+    ldflags:
+      - -X github.com/armadaproject/armada/internal/common/build.ReleaseVersion={{.Version}}
     goos:
       - linux
     goarch:
@@ -94,6 +103,8 @@ builds:
     binary: eventingester
     main: ./cmd/eventingester/main.go
     mod_timestamp: '{{ .CommitTimestamp }}'
+    ldflags:
+      - -X github.com/armadaproject/armada/internal/common/build.ReleaseVersion={{.Version}}
     goos:
       - linux
     goarch:
@@ -103,6 +114,8 @@ builds:
     binary: scheduler
     main: ./cmd/scheduler/main.go
     mod_timestamp: '{{ .CommitTimestamp }}'
+    ldflags:
+      - -X github.com/armadaproject/armada/internal/common/build.ReleaseVersion={{.Version}}
     goos:
       - linux
     goarch:
@@ -112,6 +125,8 @@ builds:
     binary: scheduleringester
     main: ./cmd/scheduleringester/main.go
     mod_timestamp: '{{ .CommitTimestamp }}'
+    ldflags:
+      - -X github.com/armadaproject/armada/internal/common/build.ReleaseVersion={{.Version}}
     goos:
       - linux
     goarch:

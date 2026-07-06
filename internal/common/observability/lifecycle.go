@@ -68,6 +68,10 @@ func InitOTel(cfg ObservabilityConfig) error {
 		return nil
 	}
 
+	if err := cfg.Validate(); err != nil {
+		return err
+	}
+
 	attrs := []attribute.KeyValue{
 		attribute.String(ResourceAttributeServiceName, cfg.Resource.ServiceName),
 		attribute.String(ResourceAttributeServiceVersion, cfg.Resource.ServiceVersion),

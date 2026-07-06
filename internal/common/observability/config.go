@@ -4,7 +4,10 @@ import (
 	"fmt"
 	"maps"
 	"net/url"
+	"os"
 	"strings"
+
+	"github.com/armadaproject/armada/internal/common/build"
 )
 
 const (
@@ -32,6 +35,8 @@ var validOTLPProtocols = map[string]struct{}{
 	"http/protobuf": {},
 	"grpc":          {},
 }
+
+const unknownResourceValue = "unknown"
 
 // ResourceAttributes define the required OpenTelemetry service identity contract.
 type ResourceAttributes struct {
@@ -72,6 +77,39 @@ type ObservabilityConfig struct {
 	Exporter OTLPExporterConfig
 	Traces   TracesConfig
 	Resource ResourceAttributes
+}
+
+func (c *ObservabilityConfig) ApplyResourceDefaults(serviceName string) {
+	if !c.Enabled {
+		return
+	}
+
+	serviceName = strings.TrimSpace(serviceName)
+	if strings.TrimSpace(c.Resource.ServiceName) == "" && serviceName != "" {
+		c.Resource.ServiceName = "armada-" + strings.TrimPrefix(serviceName, "armada-")
+	}
+	if strings.TrimSpace(c.Resource.ServiceVersion) == "" {
+		c.Resource.ServiceVersion = defaultServiceVersion()
+	}
+	if strings.TrimSpace(c.Resource.ServiceInstance) == "" {
+		c.Resource.ServiceInstance = defaultServiceInstance()
+	}
+}
+
+func defaultServiceVersion() string {
+	version := strings.TrimSpace(build.ReleaseVersion)
+	if version != "" {
+		return version
+	}
+	return unknownResourceValue
+}
+
+func defaultServiceInstance() string {
+	hostname, err := os.Hostname()
+	if err == nil && strings.TrimSpace(hostname) != "" {
+		return hostname
+	}
+	return unknownResourceValue
 }
 
 func (c ObservabilityConfig) Validate() error {

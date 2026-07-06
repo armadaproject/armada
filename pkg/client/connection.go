@@ -8,6 +8,7 @@ import (
 
 	grpc_retry "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/retry"
 	"github.com/pkg/errors"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
@@ -69,6 +70,7 @@ func CreateApiConnectionWithCallOptions(
 	unuaryInterceptors := grpc.WithChainUnaryInterceptor(grpc_retry.UnaryClientInterceptor(retryOpts...))
 	streamInterceptors := grpc.WithChainStreamInterceptor(grpc_retry.StreamClientInterceptor(retryOpts...))
 	dialOpts := append(additionalDialOptions,
+		grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
 		defaultCallOptions,
 		unuaryInterceptors,
 		streamInterceptors,
