@@ -93,6 +93,14 @@ run_migration Lookout $GO_BIN run ./cmd/lookout/main.go --migrateDatabase --conf
 
 if [ "${HOT_COLD}" = true ]; then
   run_migration LookoutHC $GO_BIN run ./cmd/lookout/main.go --migrateDatabase --config ./_local/lookouthc/config.yaml
+  print_info "Generating Lookout UI OpenAPI clients..."
+  if (cd internal/lookoutui && touch .openapi-in-progress && rm -f .openapi-ready && yarn install --frozen-lockfile && yarn run openapi && rm -rf node_modules/.vite node_modules/.vite-hc && rm -f .openapi-in-progress && touch .openapi-ready); then
+    print_success "Lookout UI OpenAPI clients generated"
+  else
+    rm -f internal/lookoutui/.openapi-in-progress
+    print_error "Lookout UI OpenAPI generation failed"
+    exit 1
+  fi
 fi
 
 print_success "All migrations completed successfully!"
