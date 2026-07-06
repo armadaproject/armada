@@ -78,13 +78,13 @@ func NewAsyncSchedulingRunner(ctx *armadacontext.Context, schedulingAlgo schedul
 	return r
 }
 
-func (r *AsyncSchedulingRunner) Trigger() {
+func (r *AsyncSchedulingRunner) Trigger() bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.state != Idle {
 		// A run is requested, in flight, or holding an unread result.
 		// Drop this Trigger rather than overwrite pending work.
-		return
+		return false
 	}
 
 	r.state = RunRequested
@@ -93,6 +93,7 @@ func (r *AsyncSchedulingRunner) Trigger() {
 	default:
 		// wake already buffered; the goroutine will see state on its next read.
 	}
+	return true
 }
 
 func (r *AsyncSchedulingRunner) resetResult() {

@@ -14,7 +14,7 @@ func NewSyncSchedulingRunner(schedulingAlgo scheduling.SchedulingAlgo) Schedulin
 	return &syncSchedulingRunner{schedulingAlgo: schedulingAlgo}
 }
 
-func (r *syncSchedulingRunner) Trigger() {}
+func (r *syncSchedulingRunner) Trigger() bool { return false }
 
 func (r *syncSchedulingRunner) GetSchedulerResult(ctx *armadacontext.Context, txn *jobdb.Txn) (*scheduling.SchedulerResult, error) {
 	return r.schedulingAlgo.Schedule(ctx, txn)
