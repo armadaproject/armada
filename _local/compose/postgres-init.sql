@@ -3,3 +3,4 @@
 -- The goreman flow does the equivalent in _local/scripts/init.sh.
 CREATE DATABASE scheduler;
 CREATE DATABASE lookout;
+CREATE DATABASE lookouthc;
