@@ -704,7 +704,7 @@ func TestDisallowedJobResources(t *testing.T) {
 			}
 
 			nodeDbTxn := nodeDb.Txn(true)
-			nodeDb.SetDisallowedJobResources(tc.disallowedJobResources)
+			nodeDb.ConfigureScheduling(SchedulingOptions{DisallowedJobResources: tc.disallowedJobResources})
 			node, err := nodeDb.SelectNodeForJobWithTxn(nodeDbTxn, jctx)
 			require.NoError(t, err)
 
@@ -767,7 +767,7 @@ func TestHomeNodeScheduling(t *testing.T) {
 			)
 			require.NoError(t, err)
 			if tc.disableHomeScheduling {
-				nodeDb.DisableHomeScheduling()
+				nodeDb.ConfigureScheduling(SchedulingOptions{DisableHomeScheduling: true})
 			}
 
 			nodeDbTxn := nodeDb.Txn(true)
@@ -815,6 +815,101 @@ func TestHomeNodeScheduling(t *testing.T) {
 				assert.False(t, jctx.PodSchedulingContext.IsSuccessful())
 				assert.Empty(t, jctx.PodSchedulingContext.NodeId)
 				assert.Empty(t, jctx.AdditionalTolerations)
+			}
+		})
+	}
+}
+
+func TestPreemptionScheduling(t *testing.T) {
+	tests := map[string]struct {
+		registerEvictedJobs        bool
+		disableFairshareScheduling bool
+		disableUrgencyScheduling   bool
+		expectSuccess              bool
+		expectedSchedulingMethod   context.SchedulingType
+	}{
+		"urgency-based preemption by default": {
+			expectSuccess:            true,
+			expectedSchedulingMethod: context.ScheduledWithUrgencyBasedPreemption,
+		},
+		"no urgency-based preemption when disabled": {
+			disableUrgencyScheduling: true,
+			expectSuccess:            false,
+		},
+		"fair-share preemption by default": {
+			registerEvictedJobs:      true,
+			expectSuccess:            true,
+			expectedSchedulingMethod: context.ScheduledWithFairSharePreemption,
+		},
+		"falls through to urgency-based preemption when fair-share disabled": {
+			registerEvictedJobs:        true,
+			disableFairshareScheduling: true,
+			expectSuccess:              true,
+			expectedSchedulingMethod:   context.ScheduledWithUrgencyBasedPreemption,
+		},
+		"fair-share preemption when urgency disabled": {
+			registerEvictedJobs:      true,
+			disableUrgencyScheduling: true,
+			expectSuccess:            true,
+			expectedSchedulingMethod: context.ScheduledWithFairSharePreemption,
+		},
+		"no preemption when both strategies disabled": {
+			registerEvictedJobs:        true,
+			disableFairshareScheduling: true,
+			disableUrgencyScheduling:   true,
+			expectSuccess:              false,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			nodeDb, err := newNodeDbWithNodes(nil)
+			require.NoError(t, err)
+			nodeDb.ConfigureScheduling(SchedulingOptions{
+				DisableFairshareScheduling: tc.disableFairshareScheduling,
+				DisableUrgencyScheduling:   tc.disableUrgencyScheduling,
+			})
+
+			// Fully allocate the node with low-priority jobs.
+			txn := nodeDb.Txn(true)
+			node := testfixtures.Test32CpuNode(testfixtures.TestPriorities)
+			boundJobs := testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 32)
+			require.NoError(t, nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, boundJobs, node))
+			txn.Commit()
+
+			if tc.registerEvictedJobs {
+				node, err = nodeDb.GetNode(node.GetId())
+				require.NoError(t, err)
+				evictedNode, err := nodeDb.EvictJobsFromNode(boundJobs, node)
+				require.NoError(t, err)
+
+				txn = nodeDb.Txn(true)
+				require.NoError(t, nodeDb.UpsertWithTxn(txn, evictedNode))
+				for i, job := range boundJobs {
+					evictedJctx := context.JobSchedulingContextFromJob(job)
+					evictedJctx.SetAssignedNode(evictedNode)
+					require.NoError(t, nodeDb.AddEvictedJobSchedulingContextWithTxn(txn, i, evictedJctx))
+				}
+				txn.Commit()
+			}
+
+			incoming := testfixtures.N1Cpu4GiJobs("B", testfixtures.PriorityClass1, 1)[0]
+			jctx := context.JobSchedulingContextFromJob(incoming)
+			gctx := context.NewGangSchedulingContext([]*context.JobSchedulingContext{jctx})
+
+			txn = nodeDb.Txn(true)
+			ok, err := nodeDb.ScheduleManyWithTxn(txn, gctx)
+			require.NoError(t, err)
+
+			require.Equal(t, tc.expectSuccess, ok)
+			require.NotNil(t, jctx.PodSchedulingContext)
+			if tc.expectSuccess {
+				assert.True(t, jctx.PodSchedulingContext.IsSuccessful())
+				assert.Equal(t, node.GetId(), jctx.PodSchedulingContext.NodeId)
+				assert.Equal(t, tc.expectedSchedulingMethod, jctx.PodSchedulingContext.SchedulingMethod)
+			} else {
+				assert.False(t, jctx.PodSchedulingContext.IsSuccessful())
+				assert.Empty(t, jctx.PodSchedulingContext.NodeId)
 			}
 		})
 	}
@@ -1041,13 +1136,10 @@ func TestAwayNodeScheduling(t *testing.T) {
 				testfixtures.TestResourceListFactory,
 			)
 			require.NoError(t, err)
-			if tc.disableAwayScheduling {
-				nodeDb.DisableAwayScheduling()
-			}
-
-			if tc.disableGangAwayScheduling {
-				nodeDb.DisableGangAwayScheduling()
-			}
+			nodeDb.ConfigureScheduling(SchedulingOptions{
+				DisableAwayScheduling:     tc.disableAwayScheduling,
+				DisableGangAwayScheduling: tc.disableGangAwayScheduling,
+			})
 
 			nodeDbTxn := nodeDb.Txn(true)
 			node := testfixtures.Test32CpuNode([]int32{29000, 30000})
