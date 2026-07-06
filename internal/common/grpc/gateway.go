@@ -10,6 +10,7 @@ import (
 
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"golang.org/x/exp/slices"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -59,12 +60,15 @@ func CreateGatewayHandler(
 		}
 	}
 
+	handler := otelhttp.NewHandler(
+		logRestRequests(allowCORS(gw, corsAllowedOrigins)),
+		"grpc-gateway",
+	)
+
 	if stripPrefix {
-		prefixToStrip := strings.TrimSuffix(apiBasePath, "/")
-		mux.Handle(apiBasePath, http.StripPrefix(prefixToStrip, logRestRequests(allowCORS(gw, corsAllowedOrigins))))
-	} else {
-		mux.Handle(apiBasePath, logRestRequests(allowCORS(gw, corsAllowedOrigins)))
+		handler = http.StripPrefix(strings.TrimSuffix(apiBasePath, "/"), handler)
 	}
+	mux.Handle(apiBasePath, handler)
 	mux.Handle(path.Join(apiBasePath, "swagger.json"), middleware.Spec(apiBasePath, []byte(spec), nil))
 
 	return func() {

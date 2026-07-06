@@ -6,6 +6,7 @@ import (
 	"github.com/go-playground/validator/v10"
 
 	commonconfig "github.com/armadaproject/armada/internal/common/config"
+	"github.com/armadaproject/armada/internal/common/observability"
 	profilingconfig "github.com/armadaproject/armada/internal/common/profiling/configuration"
 	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/server/configuration"
@@ -16,6 +17,8 @@ type Configuration struct {
 	Postgres configuration.PostgresConfig
 	// Metrics Port
 	MetricsPort uint16
+	// Configuration controlling OpenTelemetry observability
+	Observability observability.ObservabilityConfig
 	// General Pulsar configuration
 	Pulsar commonconfig.PulsarConfig
 	// Pulsar subscription name
@@ -32,7 +35,8 @@ type Configuration struct {
 	JobMetadataMigrationPhase schedulerdb.JobMetadataMigrationPhase `validate:"required,oneof=legacy dualWrite cutover"`
 }
 
-func (c Configuration) Mutate() (commonconfig.Config, error) {
+func (c *Configuration) Mutate() (commonconfig.Config, error) {
+	c.Observability.ApplyResourceDefaults("scheduleringester")
 	return c, nil
 }
 

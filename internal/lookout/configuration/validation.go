@@ -11,6 +11,7 @@ func (c LookoutConfig) Validate() error {
 	return validate.Struct(c)
 }
 
-func (c LookoutConfig) Mutate() (commonconfig.Config, error) {
+func (c *LookoutConfig) Mutate() (commonconfig.Config, error) {
+	c.Observability.ApplyResourceDefaults("lookout")
 	return c, nil
 }
