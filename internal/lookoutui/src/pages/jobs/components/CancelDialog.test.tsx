@@ -130,7 +130,10 @@ describe("CancelDialog", () => {
     },
     {
       method: "pressing Enter",
-      action: async () => {
+      action: async (getByRole: ReturnType<typeof render>["getByRole"]) => {
+        // The dialog ignores Enter while jobs are still loading, so wait for
+        // the loaded state (button label includes the job count) first.
+        await waitFor(() => getByRole("button", { name: /Cancel 1 job/i }))
         await userEvent.keyboard("{Enter}")
       },
     },
