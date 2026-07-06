@@ -6,6 +6,7 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	commonconfig "github.com/armadaproject/armada/internal/common/config"
+	"github.com/armadaproject/armada/internal/common/observability"
 	profilingconfig "github.com/armadaproject/armada/internal/common/profiling/configuration"
 	"github.com/armadaproject/armada/internal/leaderelection"
 )
@@ -20,6 +21,8 @@ type EventIngesterConfiguration struct {
 	MetricsPort uint16
 	// Metrics configuration for Redis memory metrics collection
 	Metrics MetricsConfig
+	// Configuration controlling OpenTelemetry observability
+	Observability observability.ObservabilityConfig
 	// General Pulsar configuration
 	Pulsar commonconfig.PulsarConfig
 	// Pulsar subscription name

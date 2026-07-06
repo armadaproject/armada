@@ -17,6 +17,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/health"
 	"github.com/armadaproject/armada/internal/common/logging"
 	log "github.com/armadaproject/armada/internal/common/logging"
+	"github.com/armadaproject/armada/internal/common/observability"
 	"github.com/armadaproject/armada/internal/common/profiling"
 	"github.com/armadaproject/armada/internal/server"
 	"github.com/armadaproject/armada/internal/server/configuration"
@@ -43,6 +44,16 @@ func main() {
 	var config configuration.ArmadaConfig
 	userSpecifiedConfigs := viper.GetStringSlice(CustomConfigLocation)
 	common.LoadConfig(&config, "./config/server", userSpecifiedConfigs)
+
+	// Initialize OpenTelemetry
+	if err := observability.InitOTel(config.Observability); err != nil {
+		log.Fatalf("Failed to initialize OTel: %v", err)
+	}
+	defer func() {
+		if err := observability.ShutdownWithDefaultTimeout(); err != nil {
+			log.Warnf("Failed to shutdown OTel: %v", err)
+		}
+	}()
 
 	log.Info("Starting...")
 

@@ -7,25 +7,25 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
-
-	"github.com/armadaproject/armada/internal/lookout/version"
 )
 
+const ServiceVersion = "0.1.0"
+
 func TestServiceBootstrapPatternServerConfig(t *testing.T) {
-	cfg := testBootstrapConfig("server", version.Version, uuid.New().String())
+	cfg := testBootstrapConfig("server", ServiceVersion, uuid.New().String())
 	require.NoError(t, cfg.Validate())
 	require.Equal(t, "server", cfg.Resource.ServiceName)
 	require.NotEmpty(t, cfg.Resource.ServiceInstance)
 }
 
 func TestServiceBootstrapPatternExecutorConfig(t *testing.T) {
-	cfg := testBootstrapConfig("executor", version.Version, uuid.New().String())
+	cfg := testBootstrapConfig("executor", ServiceVersion, uuid.New().String())
 	require.NoError(t, cfg.Validate())
 	require.Equal(t, "executor", cfg.Resource.ServiceName)
 }
 
 func TestServiceBootstrapPatternSchedulerConfig(t *testing.T) {
-	cfg := testBootstrapConfig("scheduler", version.Version, uuid.New().String())
+	cfg := testBootstrapConfig("scheduler", ServiceVersion, uuid.New().String())
 	require.NoError(t, cfg.Validate())
 	require.Equal(t, "scheduler", cfg.Resource.ServiceName)
 }
@@ -98,7 +98,7 @@ func TestBootstrapResourceAttributesFromConfig(t *testing.T) {
 }
 
 func TestBootstrapInitShutdownMultipleTimes(t *testing.T) {
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		cfg := ObservabilityConfig{
 			Enabled: true,
 			Exporter: OTLPExporterConfig{
@@ -131,7 +131,7 @@ func TestBootstrapInitShutdownMultipleTimes(t *testing.T) {
 	}
 }
 
-func testBootstrapConfig(serviceName, serviceVersion, serviceInstance string) ObservabilityConfig {
+func testBootstrapConfig(serviceName, serviceServiceVersion, serviceInstance string) ObservabilityConfig {
 	return ObservabilityConfig{
 		Exporter: OTLPExporterConfig{
 			Endpoint: "http://otel-collector:4318",
@@ -143,7 +143,7 @@ func testBootstrapConfig(serviceName, serviceVersion, serviceInstance string) Ob
 		},
 		Resource: ResourceAttributes{
 			ServiceName:     serviceName,
-			ServiceVersion:  serviceVersion,
+			ServiceVersion:  serviceServiceVersion,
 			ServiceInstance: serviceInstance,
 		},
 	}

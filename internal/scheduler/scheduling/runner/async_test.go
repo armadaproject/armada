@@ -120,6 +120,28 @@ func TestAsyncSchedulingRunner_DropsTriggersWhileResultPending(t *testing.T) {
 	assert.Equal(t, 2, algo.calls())
 }
 
+func TestAsyncSchedulingRunner_TriggerReportsWhetherRunStarted(t *testing.T) {
+	algo := &fakeSchedulingAlgo{result: &scheduling.SchedulerResult{}}
+	runner, jobDb := newTestRunner(t, algo)
+
+	assert.True(t, runner.Trigger(), "Trigger should return true when starting a run from Idle")
+	waitForResultReady(t, runner)
+
+	// A result is now pending and unread: further Triggers are dropped.
+	assert.False(t, runner.Trigger(), "Trigger should return false while a result is pending")
+
+	// Draining the result returns the runner to Idle.
+	txn := jobDb.WriteTxn()
+	_, err := runner.GetSchedulerResult(armadacontext.Background(), txn)
+	require.NoError(t, err)
+	txn.Abort()
+
+	// Idle again: the next Trigger starts a fresh run.
+	assert.True(t, runner.Trigger(), "Trigger should return true again once the result is drained")
+	waitForResultReady(t, runner)
+	assert.Equal(t, 2, algo.calls())
+}
+
 func TestAsyncSchedulingRunner_AlgoErrorPropagated(t *testing.T) {
 	schedulingErr := fmt.Errorf("scheduling failed")
 	algo := &fakeSchedulingAlgo{err: schedulingErr}
