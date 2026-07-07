@@ -1,42 +1,45 @@
-# Armada - documentation website
+# Armada Website Readme
 
-This is a [Next.js](https://nextjs.org) project, based on the [Fumadocs](https://fumadocs.dev) framework, bootstrapped
-using:
-
-- [`npx create-next-app@latest`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
-- [`yarn create fumadocs-app`](https://github.com/fuma-nama/fumadocs).
+The Armada documentation site is built with [Next.js](https://nextjs.org) and [Fumadocs](https://fumadocs.dev). All content is written in MDX, Markdown that can include React components. 
 
 ## Requirements
 
-- Node.js >= 20.x
-- Yarn ~1.22.22
+Before you start, make sure you have the following installed:
 
-## Installation
+- **Node.js** >= 20.x — [Download](https://nodejs.org)
+- **Yarn** ~1.22.22 — install with `npm install -g yarn` if you don't have it
 
-```shell
+## Getting started
+
+All commands should be run from inside the `website/` folder. If you are at the root of the `armada` repository, navigate there first:
+
+```bash
+cd website
+```
+
+
+### Install dependencies
+
+```bash
 yarn install
 ```
 
-## Local Development
+### Start the local dev server
 
 ```bash
 yarn dev
 ```
 
-Open http://localhost:3000 on your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) in your browser. The page will hot-reload as you edit files — you do not need to restart the server after making changes to content or components.
 
-## Build and Preview
+### GitHub Pages base path
 
-To build the project for production and preview it, run:
+The live site is deployed to GitHub Pages under a base path. If your changes involve links, images, or assets and you want to make sure they resolve correctly in that environment, copy `.env.example` to `.env.local` and set the base path before running the preview:
 
 ```bash
-yarn build
-# then
-yarn preview
+cp .env.example .env.local
 ```
-
-The preview server will start on http://localhost:3000 by default. It also supports base path configuration to mimic
-the GitHub Pages environment. Check the `.env.example` file to see how to set it up.
+Then open `.env.local` and follow the instructions inside. You do not need this for most content changes: only if you are working on routing, assets, or the Next.js config itself.
 
 ## Format, Lint Content, Lint Code and Spell Check
 
