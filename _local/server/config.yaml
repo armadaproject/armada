@@ -1,6 +1,6 @@
 httpPort: 8081
 grpcPort: 50051
-metricsPort: 9000
+metricsPort: 9009
 observability:
   enabled: true
   exporter:

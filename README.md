@@ -76,6 +76,7 @@ Start Armada with one command:
 mage dev:up                 # no-auth
 mage dev:up auth            # OIDC via keycloak
 mage dev:up fake-executor   # no Kubernetes cluster needed
+mage dev:up hot-cold        # parallel Hot/Cold Lookout stack
 ```
 
 `mage dev:up` installs `goreman` to `./bin/` if missing, brings up redis/postgres/pulsar via `_local/compose/stack.yaml`, runs `_local/scripts/init.sh` to create databases and apply migrations, then runs `goreman` with the chosen procfile in the foreground. Ctrl+C stops everything cleanly. Image versions for the dependencies can be overridden via `REDIS_IMAGE`, `POSTGRES_IMAGE`, `PULSAR_IMAGE`, `KEYCLOAK_IMAGE`.
