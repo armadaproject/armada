@@ -380,3 +380,75 @@ func TestHotCold_ConflatedTerminalUpdatesProduceSingleTerminatedRow(t *testing.T
 	})
 	require.NoError(t, err)
 }
+
+// TestHotCold_CreateSuppressedWhenJobExistsInOtherPartition guards against the
+// cross-partition duplicate that caused job_terminated_pkey violations: a
+// create must not add a second row when a row for the same job_id already
+// exists in a different partition. Without the WHERE NOT EXISTS guard in
+// CreateJobs, the untargeted ON CONFLICT DO NOTHING only checks the destination
+// (active) partition and would insert a duplicate routed there.
+func TestHotCold_CreateSuppressedWhenJobExistsInOtherPartition(t *testing.T) {
+	err := withLookoutHCDb(func(db *pgxpool.Pool) error {
+		ldb := NewLookoutDb(db, fatalErrors, m, 10, 10)
+
+		// A row for the job already exists in job_terminated (e.g. from an
+		// out-of-order or replayed terminal event).
+		_, err := db.Exec(armadacontext.Background(),
+			`INSERT INTO job (job_id, queue, owner, jobset, cpu, memory, ephemeral_storage, gpu,
+				priority, submitted, state, last_transition_time, last_transition_time_seconds,
+				duplicate, annotations)
+			 VALUES ($1, 'q', 'o', 'js', 1, 1, 1, 0, 0, $2, $3, $2, $4, false, '{}'::jsonb)`,
+			JobId, finishedTime, lookout.JobSucceededOrdinal, finishedTime.Unix())
+		require.NoError(t, err)
+		assert.Equal(t, 1, countInPartition(t, db, "job_terminated", JobId))
+
+		// Creating the job (active initial state) must be suppressed rather than
+		// routed into job_active as a second row for the same job_id.
+		require.NoError(t, ldb.CreateJobs(armadacontext.Background(),
+			[]*model.CreateJobInstruction{makeCreateJobInstruction(JobId)}))
+
+		assert.Equal(t, 0, countInPartition(t, db, "job_active", JobId))
+		var totalInParent int
+		require.NoError(t, db.QueryRow(armadacontext.Background(),
+			"SELECT count(*) FROM job WHERE job_id = $1", JobId).Scan(&totalInParent))
+		assert.Equal(t, 1, totalInParent, "create must not add a duplicate row across partitions")
+		return nil
+	})
+	require.NoError(t, err)
+}
+
+// TestHotCold_CreateSuppressedWhenJobExistsInSamePartition covers the
+// same-partition variant of the duplicate bug: a create routed to job_active
+// must be suppressed when another active-state row for the same job_id already
+// exists there (e.g. a Queued create arriving after a Leased row is present).
+func TestHotCold_CreateSuppressedWhenJobExistsInSamePartition(t *testing.T) {
+	err := withLookoutHCDb(func(db *pgxpool.Pool) error {
+		ldb := NewLookoutDb(db, fatalErrors, m, 10, 10)
+
+		// An active-state row (Leased) already exists in job_active.
+		_, err := db.Exec(armadacontext.Background(),
+			`INSERT INTO job (job_id, queue, owner, jobset, cpu, memory, ephemeral_storage, gpu,
+				priority, submitted, state, last_transition_time, last_transition_time_seconds,
+				duplicate, annotations)
+			 VALUES ($1, 'q', 'o', 'js', 1, 1, 1, 0, 0, $2, $3, $2, $4, false, '{}'::jsonb)`,
+			JobId, updateTime, lookout.JobLeasedOrdinal, updateTime.Unix())
+		require.NoError(t, err)
+		assert.Equal(t, 1, countInPartition(t, db, "job_active", JobId))
+
+		// Creating the job (Queued) must not add a second active-partition row.
+		require.NoError(t, ldb.CreateJobs(armadacontext.Background(),
+			[]*model.CreateJobInstruction{makeCreateJobInstruction(JobId)}))
+
+		var totalInParent int
+		require.NoError(t, db.QueryRow(armadacontext.Background(),
+			"SELECT count(*) FROM job WHERE job_id = $1", JobId).Scan(&totalInParent))
+		assert.Equal(t, 1, totalInParent, "create must not add a duplicate row in the same partition")
+
+		var state int32
+		require.NoError(t, db.QueryRow(armadacontext.Background(),
+			"SELECT state FROM job WHERE job_id = $1", JobId).Scan(&state))
+		assert.Equal(t, int32(lookout.JobLeasedOrdinal), state, "existing row must be preserved unchanged")
+		return nil
+	})
+	require.NoError(t, err)
+}
