@@ -82,7 +82,7 @@ The local dev stack provides a reliable and extendable way to install Armada as 
 It has the following options to customise further steps:
 
 - `mage dev:full` - runs the full Armada stack in containers (deps + all components) against a Kind cluster
-- `mage dev:up [profile]` - runs deps in containers and Armada components as host processes via goreman; profile is `no-auth` (default), `auth`, or `fake-executor`
+- `mage dev:up [profile]` - runs deps in containers and Armada components as host processes via goreman; profile is `no-auth` (default), `auth`, `hot-cold`, or `fake-executor`
 - `mage dev:deps` - runs only the dependency containers (redis, postgres, pulsar)
 
 We use `mage dev:full` to test the CI pipeline. You should therefore use it to test changes to the core components of Armada.
@@ -158,6 +158,8 @@ The following high-level configurations are provided, each composed of sub-confi
 - `Start Dependencies` - creates the Kind cluster and brings up the dependency containers (redis, postgres, pulsar)
 - `Armada` - runs the full Armada stack (migrations and components)
 - `Lookout UI` - script that configures a local UI development setup
+- `Armada HC` - runs the full Armada stack plus a parallel Lookout Hot/Cold stack (for testing the Lookout Hot/Cold partitioned, to be removed once graduated)
+- `Lookout HC UI` - similarly, a script that configures a local UI with hot/cold configs
 
 A minimal local Armada setup using these configurations would be `Start Dependencies` and `Armada`. If you already have a Kind cluster running, use `Infrastructure Services` instead of `Start Dependencies` to bring up just the dependency containers. Running the `Lookout UI` script on top of this configuration enables you to develop the Lookout UI live from GoLand, and see the changes visible in your browser.
 
@@ -179,6 +181,7 @@ The following compound configurations are provided, each launching all relevant 
 | `Armada (no-auth with prometheus)`       | Same as `no-auth`, but also starts Prometheus                               |
 | `Armada (auth with prometheus)`          | Same as `auth`, but also starts Prometheus                                  |
 | `Armada (fake-executor with prometheus)` | Same as `fake-executor`, but also starts Prometheus                         |
+| `Armada (hot-cold)`                      | Same as `no-auth` but also starts a parallel hot/cold Lookout stack         |
 
 Each compound configuration attaches to already-running processes via Delve remote debugging. The individual service configurations and their debug ports are:
 
@@ -193,6 +196,8 @@ Each compound configuration attaches to already-running processes via Delve remo
 | `lookoutingester`   | `2351`     |
 | `binoculars`        | `2352`     |
 | `fakeexecutor`      | `2353`     |
+| `lookouthc`         | `2354`     |
+| `lookouthcingester` | `2355`     |
 
 Each compound configuration has a `preLaunchTask` that sets up and starts the relevant services via Goreman before attaching the debuggers. For example, `Armada (no-auth)` uses the task `Set up and start (no-auth)`.
 

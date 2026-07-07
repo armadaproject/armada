@@ -42,6 +42,7 @@ const (
 //	mage dev:up auth                      # OIDC
 //	mage dev:up fake-executor -debug      # fake executor + debug procfile
 //	mage dev:up auth,myservice            # auth + extra compose profile "myservice"
+//	mage dev:up hot-cold                  # hot-cold
 //	mage dev:up "" -dap                 # no-auth + dap procfile
 func (Dev) Up(profiles string, dap *bool) error {
 	var (
@@ -55,9 +56,9 @@ func (Dev) Up(profiles string, dap *bool) error {
 			continue
 		}
 		switch token {
-		case "auth", "fake-executor":
+		case "auth", "fake-executor", "hot-cold":
 			if profile != "no-auth" {
-				fmt.Printf("warning: ignoring %q — profile already set to %q; only one of auth/fake-executor may be used\n", token, profile)
+				fmt.Printf("warning: ignoring %q — profile already set to %q; only one of auth/fake-executor/hot-cold may be used\n", token, profile)
 			} else {
 				profile = token
 			}
@@ -85,7 +86,11 @@ func (Dev) Up(profiles string, dap *bool) error {
 	if err := devDepsUp(strings.Join(composeProfiles, ",")); err != nil {
 		return err
 	}
-	if err := sh.RunV(initScript); err != nil {
+	initArgs := []string{initScript}
+	if profile == "hot-cold" {
+		initArgs = append(initArgs, "--hotCold")
+	}
+	if err := sh.RunV(initArgs[0], initArgs[1:]...); err != nil {
 		return err
 	}
 	if profile == "auth" {
