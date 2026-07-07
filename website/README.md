@@ -41,6 +41,80 @@ cp .env.example .env.local
 ```
 Then open `.env.local` and follow the instructions inside. You do not need this for most content changes: only if you are working on routing, assets, or the Next.js config itself.
 
+## How the site works
+
+Every page on the site is an `.mdx` file under `content/`. MDX is Markdown that can also use React components. You write normal Markdown and drop in components (cards, callouts, custom JSX) where you need them.
+
+### Content structure
+
+content/
+├── index.mdx           # Homepage / landing page
+├── getting-started.mdx # Quickstart guide
+├── meta.json           # Root nav configuration
+├── docs/               # All documentation pages
+│   ├── meta.json
+│   ├── core-concepts.mdx
+│   ├── developer-guide.mdx
+│   └── ...
+└── contribute/         # Contributing section
+├── meta.json
+└── ...
+
+### How the left sidebar nav works
+
+The left sidebar is driven entirely by `meta.json` files — Fumadocs reads them at build time and constructs the page tree from them.
+
+**Root nav — `content/meta.json`**
+
+
+**Section nav — `content/docs/meta.json`**
+
+A `meta.json` inside a folder controls that section's title, page order, and which pages appear.
+
+**To add a page to the nav:**
+1. Create the `.mdx` file in the right folder
+2. Add the filename (without `.mdx`) to the relevant `meta.json` pages array
+
+**To remove a page from the nav:**
+Remove it from `meta.json`. 
+
+**To reorder pages:**
+Change the order in the `meta.json` pages array. Top to bottom = top to bottom in the sidebar.
+
+
+**Important:** A folder with no `meta.json` is completely invisible to the nav. The pages exist and are routable URLs but won't appear in the sidebar. If a page you created isn't showing up, check whether its folder has a `meta.json` and whether that file is listed in it.
+
+### Right TOC
+
+Generated automatically from `##` and `###` Markdown headings only. JSX elements and styled `<div>`/`<span>` tags do not appear in the TOC regardless of how they look visually.
+
+### The homepage
+
+The homepage is `content/index.mdx` — a content page like any other, served by the `[[...slug]]` catch-all route. The `_(home)` route group in `src/app/` handles the root `/` path and renders `index.mdx` directly.
+
+### The `not-prose` rule
+
+Fumadocs applies typography styles to all MDX content by default. Any custom JSX layout block — a hero section, a card grid, a CTA — needs the `not-prose` class on its outermost element, otherwise Fumadocs' prose styles will override your custom styles:
+
+```mdx
+<div className='not-prose flex flex-col items-center'>
+  {/* your custom layout here */}
+</div>
+```
+
+### Markdown links inside JSX
+
+Markdown link syntax (`[text](url)`) does not render inside JSX elements. Use anchor tags instead:
+
+```mdx
+{/* This won't work inside a JSX div */}
+[CNCF](https://cncf.io)
+
+{/* Use this instead */}
+<a href='https://cncf.io'>CNCF</a>
+```
+
+
 ## Format, Lint Content, Lint Code and Spell Check
 
 Please make sure to format and lint your code before committing:
@@ -51,44 +125,6 @@ yarn spell:check
 yarn format:fix
 yarn lint:fix
 ```
-
-## How the site works
-
-Every page on the site is an `.mdx` file under `content/`. MDX is Markdown that
-can also use React components. You write normal Markdown, and you can drop in
-components (cards, callouts, custom JSX) where you need them.
-
-The homepage is `content/index.mdx`. It is a content page like any other — there
-is no separate "landing page" route. See "The homepage is a docs page" below for
-the one way it is treated specially.
-
-### The left sidebar nav comes from `meta.json`
-
-The left-hand navigation is the **page tree**, built by the Fumadocs source
-loader from `meta.json` files inside `content/`.
-
-- The root `content/meta.json` defines the top-level nav and has `"root": true`.
-- A `meta.json` inside a folder controls that folder's title, order, and which
-  pages appear.
-- A folder with **no** `meta.json` is invisible to the nav — the pages exist but
-  are not listed. (Handy to know if a page you created isn't showing up: check
-  whether its folder is declared in a `meta.json`.)
-
-So to change what appears in the sidebar — order, grouping, labels — you edit
-`meta.json`, not the page files.
-
-### The right "On this page" TOC comes from Markdown headings
-
-The table of contents on the right is generated automatically from the Markdown
-headings in each page — the `##` and `###` lines. Nothing else feeds it.
-
-This has one important consequence when you write custom layouts:
-
-- A real Markdown heading (`## Features` on its own line) **becomes a TOC entry.**
-- A heading-looking `<span>` or `<p>` you styled to look like a heading does
-  **not** appear in the TOC; it's just text to Fumadocs.
-
-
 
 ## Learn More
 
