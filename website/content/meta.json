@@ -3,10 +3,7 @@
   "pages": [
     "index",
     "getting-started",
-    "understanding-armada",
-    "operator-guide",
-    "user-guide",
-    "developer-guide",
+    "docs",
     "contribute",
     "community"
   ]
