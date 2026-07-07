@@ -64,7 +64,7 @@ require (
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.3
 	github.com/jackc/pgx/v5 v5.8.0
 	github.com/jessevdk/go-flags v1.6.1
-	github.com/magefile/mage v1.15.0
+	github.com/magefile/mage v1.17.2
 	github.com/minio/highwayhash v1.0.3
 	github.com/openconfig/goyang v1.6.3
 	github.com/prometheus/client_model v0.6.2

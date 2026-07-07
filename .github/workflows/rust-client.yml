@@ -64,7 +64,7 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Bootstrap proto dependencies
-        run: go run github.com/magefile/mage@v1.15.0 -v BootstrapProto
+        run: go run github.com/magefile/mage@v1.17.2 -v BootstrapProto
 
       - name: Check formatting
         if: matrix.toolchain == 'stable'

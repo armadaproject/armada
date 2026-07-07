@@ -5,24 +5,24 @@ name: armada
 # Profiles:
 #   (none)         deps only: redis, postgres, pulsar
 #   auth           adds keycloak (OIDC provider)
+#   prometheus     adds prometheus (scrapes the host-run components)
 #
 # Usage:
 #   docker compose -f _local/compose/stack.yaml up -d
 #   docker compose -f _local/compose/stack.yaml --profile auth up -d
 #
-# Container-mode profiles for the Armada components themselves (full Armada stack,
-# fakeexecutor variant) are intentionally not in this PR. The component configs
-# under _local/<component>/config.yaml use localhost for inter-service hosts
-# because they're tuned for the goreman host-network flow; mounting them into
-# containers would crash-loop. A follow-up PR will add those profiles with the
-# right env-var host overrides or a generated container-mode config.
+# This file runs only the dependencies. The component configs under
+# _local/<component>/config.yaml use localhost for inter-service hosts because
+# they're tuned for the goreman host-process flow; mounting them into containers
+# would crash-loop. The fully containerized stack lives in _local/compose/full.yaml
+# and is started with `mage dev:full`.
 #
 # Airflow is a separate ecosystem with its own postgres + redis. Bring it up via:
 #   docker compose -f _local/airflow/docker-compose.yaml up -d
 # (this is what `mage Teste2eAirflow` does internally.)
 #
 # Image versions are overridable via env vars (REDIS_IMAGE, POSTGRES_IMAGE, PULSAR_IMAGE,
-# KEYCLOAK_IMAGE).
+# KEYCLOAK_IMAGE, PROMETHEUS_IMAGE).
 
 services:
   # =========================================================
