@@ -345,7 +345,27 @@ func (l *LookoutDb) CreateJobsBatch(ctx *armadacontext.Context, instructions []*
 						priority_class,
 						annotations,
 					    external_job_uri
-					) SELECT * from %s
+					)
+					SELECT
+						tmp.job_id,
+						tmp.queue,
+						tmp.owner,
+						tmp.namespace,
+						tmp.jobset,
+						tmp.cpu,
+						tmp.memory,
+						tmp.ephemeral_storage,
+						tmp.gpu,
+						tmp.priority,
+						tmp.submitted,
+						tmp.state,
+						tmp.last_transition_time,
+						tmp.last_transition_time_seconds,
+						tmp.priority_class,
+						tmp.annotations,
+						tmp.external_job_uri
+					FROM %s AS tmp
+					WHERE NOT EXISTS (SELECT 1 FROM job j WHERE j.job_id = tmp.job_id)
 					ON CONFLICT DO NOTHING`, tmpTable),
 			)
 			if err != nil {
@@ -393,7 +413,8 @@ func (l *LookoutDb) CreateJobsScalar(ctx *armadacontext.Context, instructions []
 			annotations,
             external_job_uri
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+		SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17
+		WHERE NOT EXISTS (SELECT 1 FROM job j WHERE j.job_id = $1::varchar)
 		ON CONFLICT DO NOTHING`
 	for _, i := range instructions {
 		if ctx.Err() != nil {
