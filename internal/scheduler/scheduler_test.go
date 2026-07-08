@@ -3566,7 +3566,7 @@ func TestCycleConsistency(t *testing.T) {
 			newScheduler := func(db *pgxpool.Pool) *Scheduler {
 				scheduler, err := NewScheduler(
 					testfixtures.NewJobDb(resourceListFactory),
-					database.NewPostgresJobRepository(db, 1024, schedulerdb.JobMetadataMigrationPhaseDualWrite),
+					database.NewPostgresJobRepository(db, 1024),
 					&testExecutorRepository{
 						updateTimes: map[string]time.Time{"test-executor": testClock.Now()},
 					},
@@ -3605,7 +3605,6 @@ func TestCycleConsistency(t *testing.T) {
 						time.Second,
 						time.Second,
 						10*time.Second,
-						schedulerdb.JobMetadataMigrationPhaseDualWrite,
 					)
 
 					// Fresh algo + runner per scenario. Both schedulers below share this
@@ -3953,7 +3952,7 @@ func dbOpsFromDbObjects(
 	// jobUpdatesByJobId := make(map[string]*database.Job)
 	insertJobsDbOp := make(scheduleringester.InsertJobs, len(jobUpdates))
 	for _, dbJob := range jobUpdates {
-		insertJobsDbOp[dbJob.JobID] = dbJob
+		insertJobsDbOp[dbJob.JobID] = &scheduleringester.JobInsertion{Job: dbJob}
 		// jobUpdatesByJobId[dbJob.JobID] = dbJob
 	}
 	dbOps = scheduleringester.AppendDbOperation(dbOps, fixInsertJobsDbOp(insertJobsDbOp))
@@ -4009,7 +4008,7 @@ func dbOpsFromDbObjects(
 func fixInsertJobsDbOp(dbOp scheduleringester.InsertJobs) scheduleringester.InsertJobs {
 	for _, job := range dbOp {
 		// This field must be non-null when written to postgres.
-		job.SubmitMessage = make([]byte, 0)
+		job.Metadata.SubmitMessage = make([]byte, 0)
 	}
 	return dbOp
 }
