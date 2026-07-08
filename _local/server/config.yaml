@@ -1,6 +1,14 @@
 httpPort: 8081
 grpcPort: 50051
 metricsPort: 9009
+observability:
+  enabled: true
+  exporter:
+    endpoint: "http://localhost:4318"
+    protocol: "http/protobuf"
+  traces:
+    sampler: "parent_based_trace_id_ratio"
+    samplerArg: 1.0
 corsAllowedOrigins:
   - "http://localhost:3000"
   - "http://localhost:8089"

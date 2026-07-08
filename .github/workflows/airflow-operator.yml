@@ -92,7 +92,7 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       # Generates the armada_client proto code (typings, *_pb2) that the operator imports.
       # Without this the local client install is incomplete and the tests fail to collect.
-      - run: go run github.com/magefile/mage@v1.15.0 -v buildPython
+      - run: go run github.com/magefile/mage@v1.17.2 -v buildPython
       - name: Run operator tests against Airflow ${{ matrix.airflow }}
         run: third_party/airflow/scripts/run-tests.sh ${{ matrix.airflow }} ${{ matrix.python }}
 
@@ -119,7 +119,7 @@ jobs:
         with:
           version: '23.3'
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - run: go run github.com/magefile/mage@v1.15.0 -v airflowOperator
+      - run: go run github.com/magefile/mage@v1.17.2 -v airflowOperator
       - uses: ./.github/workflows/python-tests
         with:
           python-version: ${{ matrix.python }}
@@ -163,13 +163,13 @@ jobs:
           # Manually create folders to ensure perms are correct.
           mkdir -p .kube/internal
           mkdir -p .kube/external
-          go run github.com/magefile/mage@v1.15.0 -v dev:full
+          go run github.com/magefile/mage@v1.17.2 -v dev:full
       - name: Install Protoc
         uses: arduino/setup-protoc@c65c819552d16ad3c9b72d9dfd5ba5237b9c906b # v3
         with:
           version: '23.3'
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - run: go run github.com/magefile/mage@v1.15.0 -v teste2eAirflow
+      - run: go run github.com/magefile/mage@v1.17.2 -v teste2eAirflow
       - name: Disk usage report
         if: always()
         run: |

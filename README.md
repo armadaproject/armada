@@ -65,130 +65,20 @@ Or download it from the [GitHub Release](https://github.com/armadaproject/armada
 
 ## Local Development
 
-### Local Development with Goreman
-
-[Goreman](https://github.com/mattn/goreman) is a Go-based clone of [Foreman](https://github.com/ddollar/foreman) that manages Procfile-based applications,
-allowing you to run multiple processes with a single command. Components are built from source and run on the host, so iteration is fast and debuggers attach directly.
-
-Start Armada with one command:
+Armada runs locally via [goreman](https://github.com/mattn/goreman): the dependencies (redis, postgres, pulsar) run in containers, and the Armada components run as host processes built from source, so iteration is fast and debuggers attach directly.
 
 ```shell
-mage dev:up                 # no-auth
-mage dev:up auth            # OIDC via keycloak
-mage dev:up fake-executor   # no Kubernetes cluster needed
+mage kind                     # one-time: local Kubernetes cluster for the executor (skip for fake-executor)
+export KUBECONFIG=.kube/external/config
+
+mage dev:up no-auth           # default
+mage dev:up auth              # OIDC via keycloak
+mage dev:up fake-executor     # no Kubernetes cluster needed
+mage dev:up hot-cold          # parallel Hot/Cold Lookout stack
+mage dev:down                 # stop the dependency containers
 ```
 
-`mage dev:up` installs `goreman` to `./bin/` if missing, brings up redis/postgres/pulsar via `_local/compose/stack.yaml`, runs `_local/scripts/init.sh` to create databases and apply migrations, then runs `goreman` with the chosen procfile in the foreground. Ctrl+C stops everything cleanly. Image versions for the dependencies can be overridden via `REDIS_IMAGE`, `POSTGRES_IMAGE`, `PULSAR_IMAGE`, `KEYCLOAK_IMAGE`.
-
-To stop the dependency containers afterwards:
-
-```shell
-mage dev:down
-```
-
-### Local Development with Authentication
-
-`mage dev:up auth` brings up the auth flow: Keycloak is added to the dependency containers, the auth-flavoured procfile starts the components, and you can talk to Armada with OIDC:
-
-```shell
-armadactl --config _local/.armadactl.yaml --context auth-oidc get queues
-```
-
-#### Authentication Configuration
-
-The auth profile configures:
-
-- **Keycloak**: OIDC provider running on <http://localhost:8180> with pre-configured realm, users, and clients
-- **Users**: `admin/admin` (admin group), `user/password` (users group) for both OIDC and basic auth
-- **Service accounts**: Executor and Scheduler use OIDC Client Credentials flow for service-to-service authentication
-- **APIs**: Server, Lookout, and Binoculars APIs are secured with OIDC and basic auth
-- **Web UIs**: Lookout UI uses OIDC for user authentication
-- **armadactl**: Supports multiple authentication flows - OIDC PKCE flow (`auth-oidc`), OIDC Device flow (`auth-oidc-device`), OIDC Password flow (`auth-oidc-password`), and basic auth (`auth-basic`)
-
-All components support both OIDC and basic auth for convenience.
-
-### Local Development with Fake Executor
-
-For testing Armada without a real Kubernetes cluster, use the fake executor that simulates a Kubernetes environment:
-
-```shell
-mage dev:up fake-executor
-```
-
-The fake executor simulates:
-
-- 2 virtual nodes with 8 CPUs and 32Gi memory each
-- Pod lifecycle management without actual container execution
-- Resource allocation and job state transitions
-
-This is useful for:
-
-- Testing Armada's scheduling logic
-- Development when Kubernetes is not available
-- Integration testing of job flows
-
-### Available Compose Profiles
-
-The compose file `_local/compose/stack.yaml` supports two profiles:
-
-| Profile  | Brings up                                  |
-| -------- | ------------------------------------------ |
-| (none)   | Dependencies only: redis, postgres, pulsar |
-| `auth`   | Adds keycloak (OIDC provider)              |
-
-For Apache Airflow, use the separate compose file: `docker compose -f _local/airflow/docker-compose.yaml up -d`.
-
-### Available Procfiles
-
-All Procfiles are located in `_local/procfiles/`:
-
-| Procfile                 | Description                                       |
-| ------------------------ | ------------------------------------------------- |
-| `no-auth.Procfile`       | Standard setup without authentication             |
-| `auth.Procfile`          | Standard setup with OIDC authentication           |
-| `fake-executor.Procfile` | Uses fake executor for testing without Kubernetes |
-
-Restart individual processes with `goreman restart <component>` (e.g., `goreman restart server`).
-
-### Service Ports
-
-Run `goreman run status` to check the status of the processes (running processes are prefixed with `*`):
-
-```shell
-$ goreman run status
-*server
-*scheduler
-*scheduleringester
-*eventingester
-*executor
-*lookout
-*lookoutingester
-*binoculars
-*lookoutui
-```
-
-Goreman exposes services on the following ports:
-
-| Service                    | Port  | Description         |
-| -------------------------- | ----- | ------------------- |
-| Server gRPC                | 50051 | Armada gRPC API     |
-| Server HTTP                | 8081  | REST API & Health   |
-| Server Metrics             | 9000  | Prometheus metrics  |
-| Scheduler gRPC             | 50052 | Scheduler API       |
-| Scheduler Metrics          | 9001  | Prometheus metrics  |
-| Scheduler Ingester Metrics | 9006  | Prometheus metrics  |
-| Lookout UI                 | 3000  | Frontend dev server |
-| Lookout Metrics            | 9003  | Prometheus metrics  |
-| Lookout Ingester Metrics   | 9005  | Prometheus metrics  |
-| Executor Metrics           | 9002  | Prometheus metrics  |
-| Event Ingester Metrics     | 9004  | Prometheus metrics  |
-| Executor HTTP              | 8082  | Executor HTTP       |
-| Binoculars HTTP            | 8084  | Binoculars HTTP     |
-| Binoculars gRPC            | 50053 | Binoculars gRPC     |
-| Binoculars Metrics         | 9007  | Prometheus metrics  |
-| Redis                      | 6379  | Cache & events      |
-| PostgreSQL                 | 5432  | Database            |
-| Pulsar                     | 6650  | Message broker      |
+See the [developer guide](docs/developer_guide.md) for the full localdev reference (profiles, procfiles, service ports, authentication, debugging) and [_local/README.md](_local/README.md) for the directory layout.
 
 ## Documentation
 

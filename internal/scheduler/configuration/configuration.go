@@ -10,6 +10,7 @@ import (
 	commonconfig "github.com/armadaproject/armada/internal/common/config"
 	"github.com/armadaproject/armada/internal/common/database"
 	grpcconfig "github.com/armadaproject/armada/internal/common/grpc/configuration"
+	"github.com/armadaproject/armada/internal/common/observability"
 	profilingconfig "github.com/armadaproject/armada/internal/common/profiling/configuration"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/common/types"
@@ -37,6 +38,8 @@ type Configuration struct {
 	Leader leaderelection.Config
 	// Configuration controlling metrics
 	Metrics MetricsConfig
+	// Configuration controlling OpenTelemetry observability
+	Observability observability.ObservabilityConfig
 	// Scheduler configuration (this is shared with the old scheduler)
 	Scheduling  SchedulingConfig
 	Auth        authconfig.AuthConfig
@@ -400,6 +403,8 @@ type PoolConfig struct {
 	DisableHomeScheduling            bool
 	DisableAwayScheduling            bool
 	DisableGangAwayScheduling        bool
+	DisableFairshareScheduling       bool
+	DisableUrgencyScheduling         bool
 }
 
 func (p PoolConfig) GetSubmissionGroup() string {

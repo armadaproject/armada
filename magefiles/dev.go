@@ -30,19 +30,26 @@ const (
 // Up brings up dependencies and runs Armada components via goreman with the chosen profile.
 //
 // profiles is a comma-separated list of tokens:
-//   - "auth"          – enables OIDC (Keycloak); sets goreman profile to "auth" and uses the auth compose profile
-//   - "fake-executor" – no Kubernetes needed; sets goreman profile to "fake-executor"
-//   - anything else   – forwarded as a docker-compose --profile flag for extra services
+//   - "no-auth"       - the default profile
+//   - "auth"          - enables OIDC (Keycloak); sets goreman profile to "auth" and uses the auth compose profile
+//   - "fake-executor" - no Kubernetes needed; sets goreman profile to "fake-executor"
+//   - "hot-cold"      - runs the hot-cold scheduler setup
+//   - anything else   - forwarded as a docker-compose --profile flag for extra services
 //
-// dap may be "-dap" to append "-dap" to the procfile name, or omitted.
+// The optional -dap flag selects the "-dap" procfile variant, which starts each component
+// under dlv in headless DAP mode so an editor debugger can attach.
+//
+// Optional flags need mage 1.16+ and older mage versions silently hide this target.
+// `go run github.com/magefile/mage@v1.17.2 dev:up ...` runs a known-good version
+// (the same pin the CI workflows use).
 //
 // Examples:
 //
-//	mage dev:up ""                        # no-auth
+//	mage dev:up no-auth                   # default
 //	mage dev:up auth                      # OIDC
-//	mage dev:up fake-executor -debug      # fake executor + debug procfile
+//	mage dev:up fake-executor -dap        # fake executor + dap procfile
 //	mage dev:up auth,myservice            # auth + extra compose profile "myservice"
-//	mage dev:up "" -dap                 # no-auth + dap procfile
+//	mage dev:up hot-cold                  # hot-cold scheduler setup
 func (Dev) Up(profiles string, dap *bool) error {
 	var (
 		profile         = "no-auth"
@@ -51,13 +58,13 @@ func (Dev) Up(profiles string, dap *bool) error {
 
 	for _, token := range strings.Split(profiles, ",") {
 		token = strings.TrimSpace(token)
-		if token == "" {
+		if token == "" || token == "no-auth" {
 			continue
 		}
 		switch token {
-		case "auth", "fake-executor":
+		case "auth", "fake-executor", "hot-cold":
 			if profile != "no-auth" {
-				fmt.Printf("warning: ignoring %q — profile already set to %q; only one of auth/fake-executor may be used\n", token, profile)
+				fmt.Printf("warning: ignoring %q - profile already set to %q; only one of auth/fake-executor/hot-cold may be used\n", token, profile)
 			} else {
 				profile = token
 			}
@@ -85,7 +92,11 @@ func (Dev) Up(profiles string, dap *bool) error {
 	if err := devDepsUp(strings.Join(composeProfiles, ",")); err != nil {
 		return err
 	}
-	if err := sh.RunV(initScript); err != nil {
+	initArgs := []string{initScript}
+	if profile == "hot-cold" {
+		initArgs = append(initArgs, "--hotCold")
+	}
+	if err := sh.RunV(initArgs[0], initArgs[1:]...); err != nil {
 		return err
 	}
 	if profile == "auth" {
