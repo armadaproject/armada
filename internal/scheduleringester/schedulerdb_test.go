@@ -1419,7 +1419,7 @@ func TestMarkJobsCancelRequestedById_FirstWriterWins(t *testing.T) {
 	defer cancel()
 
 	err := schedulerdb.WithTestDb(func(q *schedulerdb.Queries, db *pgxpool.Pool) error {
-		schedulerDb := &SchedulerDb{db: db, migrationPhase: schedulerdb.JobMetadataMigrationPhaseLegacy}
+		schedulerDb := &SchedulerDb{db: db}
 
 		// Insert a job with cancel_user and cancel_reason already set (user-cancel path).
 		job := &schedulerdb.Job{
@@ -1430,7 +1430,7 @@ func TestMarkJobsCancelRequestedById_FirstWriterWins(t *testing.T) {
 			CancelUser:      &cancelUser,
 			CancelReason:    &userReason,
 		}
-		insertOp := addDefaultValues(InsertJobs{jobId: job}).(InsertJobs)
+		insertOp := addDefaultValues(InsertJobs{jobId: &JobInsertion{Job: job}}).(InsertJobs)
 		err := pgx.BeginTxFunc(ctx, db, pgx.TxOptions{IsoLevel: pgx.ReadCommitted, AccessMode: pgx.ReadWrite}, func(tx pgx.Tx) error {
 			return schedulerDb.WriteDbOp(ctx, tx, insertOp)
 		})
@@ -1470,10 +1470,10 @@ func TestMarkJobsCancelRequestedById_ControlPlaneReasonStamped(t *testing.T) {
 	defer cancel()
 
 	err := schedulerdb.WithTestDb(func(q *schedulerdb.Queries, db *pgxpool.Pool) error {
-		schedulerDb := &SchedulerDb{db: db, migrationPhase: schedulerdb.JobMetadataMigrationPhaseLegacy}
+		schedulerDb := &SchedulerDb{db: db}
 
 		job := &schedulerdb.Job{JobID: jobId, JobSet: "set1", Queue: testQueueName}
-		insertOp := addDefaultValues(InsertJobs{jobId: job}).(InsertJobs)
+		insertOp := addDefaultValues(InsertJobs{jobId: &JobInsertion{Job: job}}).(InsertJobs)
 		err := pgx.BeginTxFunc(ctx, db, pgx.TxOptions{IsoLevel: pgx.ReadCommitted, AccessMode: pgx.ReadWrite}, func(tx pgx.Tx) error {
 			return schedulerDb.WriteDbOp(ctx, tx, insertOp)
 		})
@@ -1509,10 +1509,10 @@ func TestMarkJobsCancelRequested_EmptyReasonThenReal(t *testing.T) {
 	defer cancel()
 
 	err := schedulerdb.WithTestDb(func(q *schedulerdb.Queries, db *pgxpool.Pool) error {
-		schedulerDb := &SchedulerDb{db: db, migrationPhase: schedulerdb.JobMetadataMigrationPhaseLegacy}
+		schedulerDb := &SchedulerDb{db: db}
 
 		job := &schedulerdb.Job{JobID: jobId, JobSet: "set1", Queue: testQueueName}
-		insertOp := addDefaultValues(InsertJobs{jobId: job}).(InsertJobs)
+		insertOp := addDefaultValues(InsertJobs{jobId: &JobInsertion{Job: job}}).(InsertJobs)
 		if err := pgx.BeginTxFunc(ctx, db, pgx.TxOptions{IsoLevel: pgx.ReadCommitted, AccessMode: pgx.ReadWrite}, func(tx pgx.Tx) error {
 			return schedulerDb.WriteDbOp(ctx, tx, insertOp)
 		}); err != nil {
