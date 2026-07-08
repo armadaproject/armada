@@ -24,11 +24,6 @@ import (
 // Run will create a pipeline that will take Armada event messages from Pulsar and update the schedulerDb.
 // This pipeline will run until a SIGTERM is received.
 func Run(config Configuration) error {
-	if err := config.JobMetadataMigrationPhase.Validate(); err != nil {
-		return errors.WithMessage(err, "invalid JobMetadataMigrationPhase")
-	}
-	log.Infof("SchedulerIngester JobMetadataMigrationPhase: %q", config.JobMetadataMigrationPhase)
-
 	svcMetrics := metrics.NewMetrics(metrics.ArmadaEventIngesterMetricsPrefix + "armada_scheduler_ingester_")
 
 	log.Infof("opening connection pool to postgres")
@@ -36,7 +31,7 @@ func Run(config Configuration) error {
 	if err != nil {
 		panic(errors.WithMessage(err, "Error opening connection to postgres"))
 	}
-	schedulerDb := NewSchedulerDb(db, svcMetrics, 100*time.Millisecond, 60*time.Second, 5*time.Second, config.JobMetadataMigrationPhase)
+	schedulerDb := NewSchedulerDb(db, svcMetrics, 100*time.Millisecond, 60*time.Second, 5*time.Second)
 
 	jobSetEventsConverter, err := NewJobSetEventsInstructionConverter(svcMetrics)
 	if err != nil {

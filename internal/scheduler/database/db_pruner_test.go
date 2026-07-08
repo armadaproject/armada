@@ -241,7 +241,6 @@ func populateRequiredJobFields(job Job) Job {
 	job.Queue = "test-queue"
 	job.UserID = ""
 	job.Submitted = 0
-	job.SubmitMessage = []byte{}
 	job.SchedulingInfo = []byte{}
 	return job
 }
