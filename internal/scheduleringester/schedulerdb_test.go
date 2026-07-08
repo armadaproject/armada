@@ -43,18 +43,18 @@ func TestWriteOps(t *testing.T) {
 	}{
 		"InsertJobs": {Ops: []DbOperation{
 			InsertJobs{
-				jobIds[0]: &schedulerdb.Job{JobID: jobIds[0], JobSet: "set1"},
-				jobIds[1]: &schedulerdb.Job{JobID: jobIds[1], JobSet: "set2"},
+				jobIds[0]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[0], JobSet: "set1"}},
+				jobIds[1]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[1], JobSet: "set2"}},
 			},
 			InsertJobs{
-				jobIds[2]: &schedulerdb.Job{JobID: jobIds[2], JobSet: "set1"},
-				jobIds[3]: &schedulerdb.Job{JobID: jobIds[3], JobSet: "set2"},
+				jobIds[2]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[2], JobSet: "set1"}},
+				jobIds[3]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[3], JobSet: "set2"}},
 			},
 		}},
 		"Submit Check": {Ops: []DbOperation{
 			InsertJobs{
-				jobIds[0]: &schedulerdb.Job{JobID: jobIds[0], JobSet: "set1"},
-				jobIds[1]: &schedulerdb.Job{JobID: jobIds[1], JobSet: "set2"},
+				jobIds[0]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[0], JobSet: "set1"}},
+				jobIds[1]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[1], JobSet: "set2"}},
 			},
 			MarkJobsValidated{
 				jobIds[0]: []string{"cpu"},
@@ -63,10 +63,10 @@ func TestWriteOps(t *testing.T) {
 		}},
 		"InsertRuns": {Ops: []DbOperation{
 			InsertJobs{
-				jobIds[0]: &schedulerdb.Job{JobID: jobIds[0], Queue: testQueueName, JobSet: "set1"},
-				jobIds[1]: &schedulerdb.Job{JobID: jobIds[1], Queue: testQueueName, JobSet: "set2"},
-				jobIds[2]: &schedulerdb.Job{JobID: jobIds[2], Queue: testQueueName, JobSet: "set1"},
-				jobIds[3]: &schedulerdb.Job{JobID: jobIds[3], Queue: testQueueName, JobSet: "set2"},
+				jobIds[0]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[0], Queue: testQueueName, JobSet: "set1"}},
+				jobIds[1]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[1], Queue: testQueueName, JobSet: "set2"}},
+				jobIds[2]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[2], Queue: testQueueName, JobSet: "set1"}},
+				jobIds[3]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[3], Queue: testQueueName, JobSet: "set2"}},
 			},
 			InsertRuns{
 				runIds[0]: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobIds[0], RunID: runIds[0]}},
@@ -85,20 +85,20 @@ func TestWriteOps(t *testing.T) {
 		}},
 		"UpdateJobSetPriorities": {Ops: []DbOperation{
 			InsertJobs{
-				jobIds[0]: &schedulerdb.Job{JobID: jobIds[0], Queue: testQueueName, JobSet: "set1"},
-				jobIds[1]: &schedulerdb.Job{JobID: jobIds[1], Queue: testQueueName, JobSet: "set2"},
-				jobIds[2]: &schedulerdb.Job{JobID: jobIds[2], Queue: testQueueName, JobSet: "set1"},
-				jobIds[3]: &schedulerdb.Job{JobID: jobIds[3], Queue: testQueueName, JobSet: "set2"},
-				jobIds[4]: &schedulerdb.Job{JobID: jobIds[4], Queue: "queue-2", JobSet: "set1"},
+				jobIds[0]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[0], Queue: testQueueName, JobSet: "set1"}},
+				jobIds[1]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[1], Queue: testQueueName, JobSet: "set2"}},
+				jobIds[2]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[2], Queue: testQueueName, JobSet: "set1"}},
+				jobIds[3]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[3], Queue: testQueueName, JobSet: "set2"}},
+				jobIds[4]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[4], Queue: "queue-2", JobSet: "set1"}},
 			},
 			UpdateJobSetPriorities{JobSetKey{queue: testQueueName, jobSet: "set1"}: 1},
 		}},
 		"UpdateJobPriorities": {Ops: []DbOperation{
 			InsertJobs{
-				jobIds[0]: &schedulerdb.Job{JobID: jobIds[0], Queue: testQueueName, JobSet: "set1"},
-				jobIds[1]: &schedulerdb.Job{JobID: jobIds[1], Queue: testQueueName, JobSet: "set2"},
-				jobIds[2]: &schedulerdb.Job{JobID: jobIds[2], Queue: testQueueName, JobSet: "set1"},
-				jobIds[3]: &schedulerdb.Job{JobID: jobIds[3], Queue: testQueueName, JobSet: "set2"},
+				jobIds[0]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[0], Queue: testQueueName, JobSet: "set1"}},
+				jobIds[1]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[1], Queue: testQueueName, JobSet: "set2"}},
+				jobIds[2]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[2], Queue: testQueueName, JobSet: "set1"}},
+				jobIds[3]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[3], Queue: testQueueName, JobSet: "set2"}},
 			},
 			&UpdateJobPriorities{
 				key: JobReprioritiseKey{
@@ -113,11 +113,11 @@ func TestWriteOps(t *testing.T) {
 		}},
 		"MarkRunsForJobPreemptRequested": {Ops: []DbOperation{
 			InsertJobs{
-				jobIds[0]: &schedulerdb.Job{JobID: jobIds[0], Queue: testQueueName, JobSet: "set1"},
-				jobIds[1]: &schedulerdb.Job{JobID: jobIds[1], Queue: testQueueName, JobSet: "set1"},
-				jobIds[2]: &schedulerdb.Job{JobID: jobIds[2], Queue: testQueueName, JobSet: "set2"},
-				jobIds[3]: &schedulerdb.Job{JobID: jobIds[3], Queue: "queue-2", JobSet: "set1"},
-				jobIds[4]: &schedulerdb.Job{JobID: jobIds[4], Queue: "queue-2", JobSet: "set2"},
+				jobIds[0]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[0], Queue: testQueueName, JobSet: "set1"}},
+				jobIds[1]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[1], Queue: testQueueName, JobSet: "set1"}},
+				jobIds[2]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[2], Queue: testQueueName, JobSet: "set2"}},
+				jobIds[3]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[3], Queue: "queue-2", JobSet: "set1"}},
+				jobIds[4]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[4], Queue: "queue-2", JobSet: "set2"}},
 			},
 			InsertRuns{
 				runIds[0]: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobIds[0], RunID: runIds[0], Queue: testQueueName, JobSet: "set1"}},
@@ -130,10 +130,10 @@ func TestWriteOps(t *testing.T) {
 		}},
 		"PreemptNode": {Ops: []DbOperation{
 			InsertJobs{
-				jobIds[0]: &schedulerdb.Job{JobID: jobIds[0], Queue: testQueueName, JobSet: "set1"},
-				jobIds[1]: &schedulerdb.Job{JobID: jobIds[1], Queue: testQueueName, JobSet: "set1"},
-				jobIds[2]: &schedulerdb.Job{JobID: jobIds[2], Queue: "queue-2", JobSet: "set1"},
-				jobIds[3]: &schedulerdb.Job{JobID: jobIds[3], Queue: testQueueName, JobSet: "set2"},
+				jobIds[0]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[0], Queue: testQueueName, JobSet: "set1"}},
+				jobIds[1]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[1], Queue: testQueueName, JobSet: "set1"}},
+				jobIds[2]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[2], Queue: "queue-2", JobSet: "set1"}},
+				jobIds[3]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[3], Queue: testQueueName, JobSet: "set2"}},
 			},
 			InsertRuns{
 				runIds[0]: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobIds[0], RunID: runIds[0], Queue: testQueueName, JobSet: "set1", Executor: "executor-1", Node: "node-1"}},
@@ -147,8 +147,8 @@ func TestWriteOps(t *testing.T) {
 		}},
 		"PreemptNode - PriorityClass": {Ops: []DbOperation{
 			InsertJobs{
-				jobIds[0]: &schedulerdb.Job{JobID: jobIds[0], Queue: testQueueName, JobSet: "set1", SchedulingInfo: mustMarshalSchedulingInfo(t, "pc-1")},
-				jobIds[1]: &schedulerdb.Job{JobID: jobIds[1], Queue: testQueueName, JobSet: "set1", SchedulingInfo: mustMarshalSchedulingInfo(t, "pc-2")},
+				jobIds[0]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[0], Queue: testQueueName, JobSet: "set1", SchedulingInfo: mustMarshalSchedulingInfo(t, "pc-1")}},
+				jobIds[1]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[1], Queue: testQueueName, JobSet: "set1", SchedulingInfo: mustMarshalSchedulingInfo(t, "pc-2")}},
 			},
 			InsertRuns{
 				runIds[0]: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobIds[0], RunID: runIds[0], Queue: testQueueName, JobSet: "set1", Executor: "executor-1", Node: "node-1"}},
@@ -165,11 +165,11 @@ func TestWriteOps(t *testing.T) {
 		}},
 		"MarkJobSetsCancelRequested": {Ops: []DbOperation{
 			InsertJobs{
-				jobIds[0]: &schedulerdb.Job{JobID: jobIds[0], Queue: testQueueName, JobSet: "set1"},
-				jobIds[1]: &schedulerdb.Job{JobID: jobIds[1], Queue: testQueueName, JobSet: "set2"},
-				jobIds[2]: &schedulerdb.Job{JobID: jobIds[2], Queue: testQueueName, JobSet: "set1"},
-				jobIds[3]: &schedulerdb.Job{JobID: jobIds[3], Queue: testQueueName, JobSet: "set2"},
-				jobIds[4]: &schedulerdb.Job{JobID: jobIds[4], Queue: "queue-2", JobSet: "set1"},
+				jobIds[0]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[0], Queue: testQueueName, JobSet: "set1"}},
+				jobIds[1]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[1], Queue: testQueueName, JobSet: "set2"}},
+				jobIds[2]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[2], Queue: testQueueName, JobSet: "set1"}},
+				jobIds[3]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[3], Queue: testQueueName, JobSet: "set2"}},
+				jobIds[4]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[4], Queue: "queue-2", JobSet: "set1"}},
 			},
 			MarkJobSetsCancelRequested{
 				cancelUser: testfixtures.CancelUser,
@@ -180,10 +180,10 @@ func TestWriteOps(t *testing.T) {
 		}},
 		"MarkJobSetsCancelRequested - Queued only": {Ops: []DbOperation{
 			InsertJobs{
-				jobIds[0]: &schedulerdb.Job{JobID: jobIds[0], Queue: testQueueName, JobSet: "set1", Queued: true},
-				jobIds[1]: &schedulerdb.Job{JobID: jobIds[1], Queue: testQueueName, JobSet: "set2", Queued: true},
-				jobIds[2]: &schedulerdb.Job{JobID: jobIds[2], Queue: testQueueName, JobSet: "set1", Queued: false},
-				jobIds[3]: &schedulerdb.Job{JobID: jobIds[3], Queue: testQueueName, JobSet: "set2", Queued: false},
+				jobIds[0]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[0], Queue: testQueueName, JobSet: "set1", Queued: true}},
+				jobIds[1]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[1], Queue: testQueueName, JobSet: "set2", Queued: true}},
+				jobIds[2]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[2], Queue: testQueueName, JobSet: "set1", Queued: false}},
+				jobIds[3]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[3], Queue: testQueueName, JobSet: "set2", Queued: false}},
 			},
 			MarkJobSetsCancelRequested{
 				cancelUser: testfixtures.CancelUser,
@@ -194,10 +194,10 @@ func TestWriteOps(t *testing.T) {
 		}},
 		"MarkJobSetsCancelRequested - Leased only": {Ops: []DbOperation{
 			InsertJobs{
-				jobIds[0]: &schedulerdb.Job{JobID: jobIds[0], Queue: testQueueName, JobSet: "set1", Queued: true},
-				jobIds[1]: &schedulerdb.Job{JobID: jobIds[1], Queue: testQueueName, JobSet: "set2", Queued: true},
-				jobIds[2]: &schedulerdb.Job{JobID: jobIds[2], Queue: testQueueName, JobSet: "set1", Queued: false},
-				jobIds[3]: &schedulerdb.Job{JobID: jobIds[3], Queue: testQueueName, JobSet: "set2", Queued: false},
+				jobIds[0]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[0], Queue: testQueueName, JobSet: "set1", Queued: true}},
+				jobIds[1]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[1], Queue: testQueueName, JobSet: "set2", Queued: true}},
+				jobIds[2]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[2], Queue: testQueueName, JobSet: "set1", Queued: false}},
+				jobIds[3]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[3], Queue: testQueueName, JobSet: "set2", Queued: false}},
 			},
 			MarkJobSetsCancelRequested{
 				cancelUser: testfixtures.CancelUser,
@@ -208,10 +208,10 @@ func TestWriteOps(t *testing.T) {
 		}},
 		"MarkJobsCancelRequested": {Ops: []DbOperation{
 			InsertJobs{
-				jobIds[0]: &schedulerdb.Job{JobID: jobIds[0], Queue: testQueueName, JobSet: "set1"},
-				jobIds[1]: &schedulerdb.Job{JobID: jobIds[1], Queue: testQueueName, JobSet: "set2"},
-				jobIds[2]: &schedulerdb.Job{JobID: jobIds[2], Queue: testQueueName, JobSet: "set1"},
-				jobIds[3]: &schedulerdb.Job{JobID: jobIds[3], Queue: testQueueName, JobSet: "set2"},
+				jobIds[0]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[0], Queue: testQueueName, JobSet: "set1"}},
+				jobIds[1]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[1], Queue: testQueueName, JobSet: "set2"}},
+				jobIds[2]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[2], Queue: testQueueName, JobSet: "set1"}},
+				jobIds[3]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[3], Queue: testQueueName, JobSet: "set2"}},
 			},
 			MarkJobsCancelRequested{
 				cancelUser: testfixtures.CancelUser,
@@ -223,10 +223,10 @@ func TestWriteOps(t *testing.T) {
 		}},
 		"MarkJobsCancelled": {Ops: []DbOperation{
 			InsertJobs{
-				jobIds[0]: &schedulerdb.Job{JobID: jobIds[0], JobSet: "set1"},
-				jobIds[1]: &schedulerdb.Job{JobID: jobIds[1], JobSet: "set2"},
-				jobIds[2]: &schedulerdb.Job{JobID: jobIds[2], JobSet: "set1"},
-				jobIds[3]: &schedulerdb.Job{JobID: jobIds[3], JobSet: "set2"},
+				jobIds[0]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[0], JobSet: "set1"}},
+				jobIds[1]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[1], JobSet: "set2"}},
+				jobIds[2]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[2], JobSet: "set1"}},
+				jobIds[3]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[3], JobSet: "set2"}},
 			},
 			InsertRuns{
 				runIds[0]: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobIds[0], RunID: runIds[0]}},
@@ -241,10 +241,10 @@ func TestWriteOps(t *testing.T) {
 		}},
 		"MarkJobsSucceeded": {Ops: []DbOperation{
 			InsertJobs{
-				jobIds[0]: &schedulerdb.Job{JobID: jobIds[0], JobSet: "set1"},
-				jobIds[1]: &schedulerdb.Job{JobID: jobIds[1], JobSet: "set2"},
-				jobIds[2]: &schedulerdb.Job{JobID: jobIds[2], JobSet: "set1"},
-				jobIds[3]: &schedulerdb.Job{JobID: jobIds[3], JobSet: "set2"},
+				jobIds[0]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[0], JobSet: "set1"}},
+				jobIds[1]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[1], JobSet: "set2"}},
+				jobIds[2]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[2], JobSet: "set1"}},
+				jobIds[3]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[3], JobSet: "set2"}},
 			},
 			MarkJobsSucceeded{
 				jobIds[0]: true,
@@ -253,8 +253,8 @@ func TestWriteOps(t *testing.T) {
 		}},
 		"MarkRunsPending": {Ops: []DbOperation{
 			InsertJobs{
-				jobIds[0]: &schedulerdb.Job{JobID: jobIds[0]},
-				jobIds[1]: &schedulerdb.Job{JobID: jobIds[1]},
+				jobIds[0]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[0]}},
+				jobIds[1]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[1]}},
 			},
 			InsertRuns{
 				runIds[0]: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobIds[0], RunID: runIds[0]}},
@@ -267,8 +267,8 @@ func TestWriteOps(t *testing.T) {
 		}},
 		"MarkRunsPreempted": {Ops: []DbOperation{
 			InsertJobs{
-				jobIds[0]: &schedulerdb.Job{JobID: jobIds[0]},
-				jobIds[1]: &schedulerdb.Job{JobID: jobIds[1]},
+				jobIds[0]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[0]}},
+				jobIds[1]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[1]}},
 			},
 			InsertRuns{
 				runIds[0]: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobIds[0], RunID: runIds[0]}},
@@ -280,10 +280,10 @@ func TestWriteOps(t *testing.T) {
 		}},
 		"MarkJobsFailed": {Ops: []DbOperation{
 			InsertJobs{
-				jobIds[0]: &schedulerdb.Job{JobID: jobIds[0], JobSet: "set1"},
-				jobIds[1]: &schedulerdb.Job{JobID: jobIds[1], JobSet: "set2"},
-				jobIds[2]: &schedulerdb.Job{JobID: jobIds[2], JobSet: "set1"},
-				jobIds[3]: &schedulerdb.Job{JobID: jobIds[3], JobSet: "set2"},
+				jobIds[0]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[0], JobSet: "set1"}},
+				jobIds[1]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[1], JobSet: "set2"}},
+				jobIds[2]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[2], JobSet: "set1"}},
+				jobIds[3]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[3], JobSet: "set2"}},
 			},
 			MarkJobsFailed{
 				jobIds[0]: true,
@@ -292,10 +292,10 @@ func TestWriteOps(t *testing.T) {
 		}},
 		"MarkRunsSucceeded": {Ops: []DbOperation{
 			InsertJobs{
-				jobIds[0]: &schedulerdb.Job{JobID: jobIds[0], JobSet: "set1"},
-				jobIds[1]: &schedulerdb.Job{JobID: jobIds[1], JobSet: "set2"},
-				jobIds[2]: &schedulerdb.Job{JobID: jobIds[2], JobSet: "set1"},
-				jobIds[3]: &schedulerdb.Job{JobID: jobIds[3], JobSet: "set2"},
+				jobIds[0]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[0], JobSet: "set1"}},
+				jobIds[1]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[1], JobSet: "set2"}},
+				jobIds[2]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[2], JobSet: "set1"}},
+				jobIds[3]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[3], JobSet: "set2"}},
 			},
 			InsertRuns{
 				runIds[0]: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobIds[0], RunID: runIds[0]}},
@@ -310,8 +310,8 @@ func TestWriteOps(t *testing.T) {
 		}},
 		"UpdateJobSchedulingInfo": {Ops: []DbOperation{
 			InsertJobs{
-				jobIds[0]: &schedulerdb.Job{JobID: jobIds[0], JobSet: "set1"},
-				jobIds[1]: &schedulerdb.Job{JobID: jobIds[1], JobSet: "set2"},
+				jobIds[0]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[0], JobSet: "set1"}},
+				jobIds[1]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[1], JobSet: "set2"}},
 			},
 			UpdateJobSchedulingInfo{
 				jobIds[0]: &JobSchedulingInfoUpdate{
@@ -340,10 +340,10 @@ func TestWriteOps(t *testing.T) {
 		}},
 		"MarkRunsFailed": {Ops: []DbOperation{
 			InsertJobs{
-				jobIds[0]: &schedulerdb.Job{JobID: jobIds[0], JobSet: "set1"},
-				jobIds[1]: &schedulerdb.Job{JobID: jobIds[1], JobSet: "set2"},
-				jobIds[2]: &schedulerdb.Job{JobID: jobIds[2], JobSet: "set1"},
-				jobIds[3]: &schedulerdb.Job{JobID: jobIds[3], JobSet: "set2"},
+				jobIds[0]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[0], JobSet: "set1"}},
+				jobIds[1]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[1], JobSet: "set2"}},
+				jobIds[2]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[2], JobSet: "set1"}},
+				jobIds[3]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[3], JobSet: "set2"}},
 			},
 			InsertRuns{
 				runIds[0]: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobIds[0], RunID: runIds[0]}},
@@ -359,10 +359,10 @@ func TestWriteOps(t *testing.T) {
 		}},
 		"MarkRunsRunning": {Ops: []DbOperation{
 			InsertJobs{
-				jobIds[0]: &schedulerdb.Job{JobID: jobIds[0], JobSet: "set1"},
-				jobIds[1]: &schedulerdb.Job{JobID: jobIds[1], JobSet: "set2"},
-				jobIds[2]: &schedulerdb.Job{JobID: jobIds[2], JobSet: "set1"},
-				jobIds[3]: &schedulerdb.Job{JobID: jobIds[3], JobSet: "set2"},
+				jobIds[0]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[0], JobSet: "set1"}},
+				jobIds[1]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[1], JobSet: "set2"}},
+				jobIds[2]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[2], JobSet: "set1"}},
+				jobIds[3]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[3], JobSet: "set2"}},
 			},
 			InsertRuns{
 				runIds[0]: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobIds[0], RunID: runIds[0]}},
@@ -462,7 +462,7 @@ func TestWriteOps(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			err := schedulerdb.WithTestDb(func(_ *schedulerdb.Queries, db *pgxpool.Pool) error {
-				schedulerDb := &SchedulerDb{db: db, migrationPhase: schedulerdb.JobMetadataMigrationPhaseLegacy}
+				schedulerDb := &SchedulerDb{db: db}
 				serials := make(map[string]int64)
 				for _, op := range tc.Ops {
 					err := assertOpSuccess(t, schedulerDb, serials, addDefaultValues(op))
@@ -490,28 +490,28 @@ func TestScoping(t *testing.T) {
 	}{
 		"Single DbOp jobSet scope": {
 			Ops: []DbOperation{
-				InsertJobs{jobIds[0]: &schedulerdb.Job{JobID: jobIds[0], Queue: testQueueName, JobSet: "set1"}},
+				InsertJobs{jobIds[0]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[0], Queue: testQueueName, JobSet: "set1"}}},
 			},
 			Scope: JobSetEventsLockKey,
 			Error: false,
 		},
 		"Multiple DbOp jobSet scope": {
 			Ops: []DbOperation{
-				InsertJobs{jobIds[0]: &schedulerdb.Job{JobID: jobIds[0], Queue: testQueueName, JobSet: "set1"}}, // 1
+				InsertJobs{jobIds[0]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[0], Queue: testQueueName, JobSet: "set1"}}}, // 1
 				MarkJobSetsCancelRequested{
 					cancelUser: testfixtures.CancelUser,
 					jobSets: map[JobSetKey]*JobSetCancelAction{
 						{queue: testQueueName, jobSet: "set1"}: {cancelQueued: true, cancelLeased: true},
 					},
 				}, // 2
-				InsertJobs{jobIds[1]: &schedulerdb.Job{JobID: jobIds[1], Queue: testQueueName, JobSet: "set1"}}, // 3
+				InsertJobs{jobIds[1]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[1], Queue: testQueueName, JobSet: "set1"}}}, // 3
 				MarkJobSetsCancelRequested{
 					cancelUser: testfixtures.CancelUser,
 					jobSets: map[JobSetKey]*JobSetCancelAction{
 						{queue: testQueueName, jobSet: "set2"}: {cancelQueued: true, cancelLeased: true},
 					}, // 3
 				},
-				InsertJobs{jobIds[2]: &schedulerdb.Job{JobID: jobIds[2], Queue: testQueueName, JobSet: "set1"}}, // 3
+				InsertJobs{jobIds[2]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[2], Queue: testQueueName, JobSet: "set1"}}}, // 3
 			},
 			Scope: JobSetEventsLockKey,
 			Error: false,
@@ -552,7 +552,7 @@ func TestScoping(t *testing.T) {
 				DeleteExecutorSettings{executorIds[0]: &ExecutorSettingsDelete{
 					ExecutorID: testfixtures.ExecutorId,
 				}},
-				InsertJobs{jobIds[0]: &schedulerdb.Job{JobID: jobIds[0], Queue: testQueueName, JobSet: "set1"}},
+				InsertJobs{jobIds[0]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[0], Queue: testQueueName, JobSet: "set1"}}},
 			},
 			Scope: JobSetEventsLockKey,
 			Error: false,
@@ -573,14 +573,14 @@ func addDefaultValues(op DbOperation) DbOperation {
 	switch o := op.(type) {
 	case InsertJobs:
 		for _, job := range o {
-			if job.Groups == nil {
-				job.Groups = make([]byte, 0)
+			if job.Metadata.Groups == nil {
+				job.Metadata.Groups = make([]byte, 0)
 			}
-			if job.SubmitMessage == nil {
-				job.SubmitMessage = make([]byte, 0)
+			if job.Metadata.SubmitMessage == nil {
+				job.Metadata.SubmitMessage = make([]byte, 0)
 			}
-			if job.SchedulingInfo == nil {
-				job.SchedulingInfo = make([]byte, 0)
+			if job.Job.SchedulingInfo == nil {
+				job.Job.SchedulingInfo = make([]byte, 0)
 			}
 		}
 	case InsertRuns:
@@ -627,17 +627,19 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 		actual := make(InsertJobs)
 		for _, job := range jobs {
 			job := job
-			actual[job.JobID] = &job
+			actual[job.JobID] = &JobInsertion{Job: &job}
 			serials["jobs"] = max(serials["jobs"], job.Serial)
 			if v, ok := expected[job.JobID]; ok {
-				v.Serial = job.Serial
-				v.LastModified = job.LastModified
+				v.Job.Serial = job.Serial
+				v.Job.LastModified = job.LastModified
 			}
 		}
 		for k, v := range expected {
 			// Compute Terminated field to match database GENERATED column: terminated = cancelled OR succeeded OR failed
-			terminated := v.Cancelled || v.Succeeded || v.Failed
-			v.Terminated = &terminated
+			terminated := v.Job.Cancelled || v.Job.Succeeded || v.Job.Failed
+			v.Job.Terminated = &terminated
+			v.Metadata.SubmitMessage = nil
+			v.Metadata.Groups = nil
 			assert.Equal(t, v, actual[k])
 		}
 	case InsertRuns:
@@ -1152,24 +1154,31 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 func TestStore(t *testing.T) {
 	jobId := util.ULID().String()
 	runId := uuid.NewString()
+	groups := []byte("groups")
+	submitMessage := []byte("submit-message")
 	ops := []DbOperation{
 		InsertJobs{
-			jobId: &schedulerdb.Job{
-				JobID:          jobId,
-				JobSet:         "set1",
-				Groups:         make([]byte, 0),
-				SubmitMessage:  make([]byte, 0),
-				SchedulingInfo: make([]byte, 0),
+			jobId: &JobInsertion{
+				Job: &schedulerdb.Job{
+					JobID:          jobId,
+					Queue:          testQueueName,
+					JobSet:         "set1",
+					SchedulingInfo: make([]byte, 0),
+				},
+				Metadata: JobInsertionMetadata{
+					Groups:        groups,
+					SubmitMessage: submitMessage,
+				},
 			},
 		},
 		InsertRuns{
-			runId: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobId, RunID: runId}},
+			runId: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobId, RunID: runId, Executor: "executor", Pool: "pool"}},
 		},
 	}
 	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
 	defer cancel()
 	err := schedulerdb.WithTestDb(func(q *schedulerdb.Queries, db *pgxpool.Pool) error {
-		schedulerDb := NewSchedulerDb(db, metrics.NewMetrics("test"), time.Second, time.Second, 10*time.Second, schedulerdb.JobMetadataMigrationPhaseLegacy)
+		schedulerDb := NewSchedulerDb(db, metrics.NewMetrics("test"), time.Second, time.Second, 10*time.Second)
 		err := schedulerDb.Store(ctx, &DbOperationsWithMessageIds{Ops: ops})
 		require.NoError(t, err)
 
@@ -1180,6 +1189,10 @@ func TestStore(t *testing.T) {
 		runIds, err := q.SelectAllRunIds(ctx)
 		require.NoError(t, err)
 		require.Equal(t, []string{runId}, runIds)
+
+		metadata, err := q.SelectJobMetadata(ctx, []string{jobId})
+		require.NoError(t, err)
+		require.Equal(t, []schedulerdb.JobMetadatum{{JobID: jobId, SubmitMessage: submitMessage, Groups: groups}}, metadata)
 
 		return nil
 	})
@@ -1215,7 +1228,7 @@ func TestPoolFiltering(t *testing.T) {
 	job := func(id string, queued bool, pools []string) *schedulerdb.Job {
 		return &schedulerdb.Job{
 			JobID: id, Queue: q, JobSet: js, Queued: queued, Pools: pools,
-			SchedulingInfo: info, Groups: []byte{}, SubmitMessage: []byte{},
+			SchedulingInfo: info,
 		}
 	}
 	run := func(id, jobID, pool string) *schedulerdb.Run {
@@ -1343,7 +1356,7 @@ func TestPoolFiltering(t *testing.T) {
 
 				insertJobs := InsertJobs{}
 				for _, j := range tc.jobs {
-					insertJobs[j.JobID] = j
+					insertJobs[j.JobID] = &JobInsertion{Job: j, Metadata: JobInsertionMetadata{SubmitMessage: []byte{}, Groups: []byte{}}}
 				}
 				execTx(insertJobs)
 

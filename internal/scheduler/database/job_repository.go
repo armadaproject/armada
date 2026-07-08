@@ -68,38 +68,13 @@ type PostgresJobRepository struct {
 	db *pgxpool.Pool
 	// maximum number of rows to fetch from postgres in a single query
 	batchSize int32
-	// migrationPhase controls how FetchJobRunLeases resolves the submit_message
-	// and groups columns during the job_metadata lazy migration.
-	migrationPhase JobMetadataMigrationPhase
-	// Pre-built expressions computed from migrationPhase, used by FetchJobRunLeases
-	leaseGroupsExpr        string
-	leaseSubmitMessageExpr string
-	leaseJoinClause        string
 }
 
-func NewPostgresJobRepository(db *pgxpool.Pool, batchSize int32, migrationPhase JobMetadataMigrationPhase) *PostgresJobRepository {
-	r := &PostgresJobRepository{
-		db:             db,
-		batchSize:      batchSize,
-		migrationPhase: migrationPhase,
+func NewPostgresJobRepository(db *pgxpool.Pool, batchSize int32) *PostgresJobRepository {
+	return &PostgresJobRepository{
+		db:        db,
+		batchSize: batchSize,
 	}
-
-	switch migrationPhase {
-	case JobMetadataMigrationPhaseLegacy:
-		r.leaseGroupsExpr = "j.groups"
-		r.leaseSubmitMessageExpr = "j.submit_message"
-		r.leaseJoinClause = ""
-	case JobMetadataMigrationPhaseCutover:
-		r.leaseGroupsExpr = "jm.groups"
-		r.leaseSubmitMessageExpr = "jm.submit_message"
-		r.leaseJoinClause = "JOIN job_metadata jm ON j.job_id = jm.job_id"
-	default:
-		r.leaseGroupsExpr = "COALESCE(jm.groups, j.groups)"
-		r.leaseSubmitMessageExpr = "COALESCE(jm.submit_message, j.submit_message)"
-		r.leaseJoinClause = "LEFT JOIN job_metadata jm ON j.job_id = jm.job_id"
-	}
-
-	return r
 }
 
 func (r *PostgresJobRepository) FetchInitialJobs(ctx *armadacontext.Context) ([]Job, []Run, *int64, *int64, error) {
@@ -382,18 +357,18 @@ func (r *PostgresJobRepository) FetchJobRunLeases(ctx *armadacontext.Context, ex
 		}
 
 		query := fmt.Sprintf(`
-				SELECT jr.run_id, jr.node, j.queue, j.job_set, jr.pool, j.user_id, %s, %s, jr.pod_requirements_overlay
+				SELECT jr.run_id, jr.node, j.queue, j.job_set, jr.pool, j.user_id, jm.groups, jm.submit_message, jr.pod_requirements_overlay
 				FROM runs jr
 				LEFT JOIN %s as tmp ON (tmp.run_id = jr.run_id)
 			    JOIN jobs j
 			    ON jr.job_id = j.job_id
-			    %s
+			    JOIN job_metadata jm ON j.job_id = jm.job_id
 				WHERE jr.executor = $1
 			    AND tmp.run_id IS NULL
 				AND jr.terminated = false
 				ORDER BY jr.serial
 				LIMIT %d;
-		`, r.leaseGroupsExpr, r.leaseSubmitMessageExpr, tmpTable, r.leaseJoinClause, maxResults)
+		`, tmpTable, maxResults)
 
 		rows, err := tx.Query(ctx, query, executor)
 		if err != nil {

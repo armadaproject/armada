@@ -551,6 +551,30 @@ func (q *Queries) SelectInitialRuns(ctx context.Context, arg SelectInitialRunsPa
 	return items, nil
 }
 
+const selectJobMetadata = `-- name: SelectJobMetadata :many
+SELECT job_id, submit_message, groups FROM job_metadata WHERE job_id = ANY($1::text[])
+`
+
+func (q *Queries) SelectJobMetadata(ctx context.Context, jobIds []string) ([]JobMetadatum, error) {
+	rows, err := q.db.Query(ctx, selectJobMetadata, jobIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []JobMetadatum
+	for rows.Next() {
+		var i JobMetadatum
+		if err := rows.Scan(&i.JobID, &i.SubmitMessage, &i.Groups); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const selectJobsByExecutorAndQueues = `-- name: SelectJobsByExecutorAndQueues :many
 SELECT j.job_id, j.job_set, j.queue, j.user_id, j.submitted, j.groups, j.priority, j.queued, j.queued_version, j.cancel_requested, j.cancelled, j.cancel_by_jobset_requested, j.succeeded, j.failed, j.submit_message, j.scheduling_info, j.scheduling_info_version, j.serial, j.last_modified, j.validated, j.pools, j.bid_price, j.cancel_user, j.price_band, j.terminated, j.cancel_reason
 FROM runs jr
@@ -584,7 +608,6 @@ func (q *Queries) SelectJobsByExecutorAndQueues(ctx context.Context, arg SelectJ
 			&i.Queue,
 			&i.UserID,
 			&i.Submitted,
-			&i.Groups,
 			&i.Priority,
 			&i.Queued,
 			&i.QueuedVersion,
@@ -593,7 +616,6 @@ func (q *Queries) SelectJobsByExecutorAndQueues(ctx context.Context, arg SelectJ
 			&i.CancelByJobsetRequested,
 			&i.Succeeded,
 			&i.Failed,
-			&i.SubmitMessage,
 			&i.SchedulingInfo,
 			&i.SchedulingInfoVersion,
 			&i.Serial,
@@ -649,7 +671,6 @@ func (q *Queries) SelectJobsByNodeAndExecutorAndQueues(ctx context.Context, arg 
 			&i.Queue,
 			&i.UserID,
 			&i.Submitted,
-			&i.Groups,
 			&i.Priority,
 			&i.Queued,
 			&i.QueuedVersion,
@@ -658,7 +679,6 @@ func (q *Queries) SelectJobsByNodeAndExecutorAndQueues(ctx context.Context, arg 
 			&i.CancelByJobsetRequested,
 			&i.Succeeded,
 			&i.Failed,
-			&i.SubmitMessage,
 			&i.SchedulingInfo,
 			&i.SchedulingInfoVersion,
 			&i.Serial,
@@ -736,7 +756,6 @@ func (q *Queries) SelectLeasedJobsByQueue(ctx context.Context, arg SelectLeasedJ
 			&i.Queue,
 			&i.UserID,
 			&i.Submitted,
-			&i.Groups,
 			&i.Priority,
 			&i.Queued,
 			&i.QueuedVersion,
@@ -745,7 +764,6 @@ func (q *Queries) SelectLeasedJobsByQueue(ctx context.Context, arg SelectLeasedJ
 			&i.CancelByJobsetRequested,
 			&i.Succeeded,
 			&i.Failed,
-			&i.SubmitMessage,
 			&i.SchedulingInfo,
 			&i.SchedulingInfoVersion,
 			&i.Serial,
@@ -814,7 +832,6 @@ func (q *Queries) SelectNewJobs(ctx context.Context, arg SelectNewJobsParams) ([
 			&i.Queue,
 			&i.UserID,
 			&i.Submitted,
-			&i.Groups,
 			&i.Priority,
 			&i.Queued,
 			&i.QueuedVersion,
@@ -823,7 +840,6 @@ func (q *Queries) SelectNewJobs(ctx context.Context, arg SelectNewJobsParams) ([
 			&i.CancelByJobsetRequested,
 			&i.Succeeded,
 			&i.Failed,
-			&i.SubmitMessage,
 			&i.SchedulingInfo,
 			&i.SchedulingInfoVersion,
 			&i.Serial,
@@ -995,7 +1011,6 @@ func (q *Queries) SelectPendingJobsByQueue(ctx context.Context, arg SelectPendin
 			&i.Queue,
 			&i.UserID,
 			&i.Submitted,
-			&i.Groups,
 			&i.Priority,
 			&i.Queued,
 			&i.QueuedVersion,
@@ -1004,7 +1019,6 @@ func (q *Queries) SelectPendingJobsByQueue(ctx context.Context, arg SelectPendin
 			&i.CancelByJobsetRequested,
 			&i.Succeeded,
 			&i.Failed,
-			&i.SubmitMessage,
 			&i.SchedulingInfo,
 			&i.SchedulingInfoVersion,
 			&i.Serial,
@@ -1055,7 +1069,6 @@ func (q *Queries) SelectQueuedJobsByQueue(ctx context.Context, arg SelectQueuedJ
 			&i.Queue,
 			&i.UserID,
 			&i.Submitted,
-			&i.Groups,
 			&i.Priority,
 			&i.Queued,
 			&i.QueuedVersion,
@@ -1064,7 +1077,6 @@ func (q *Queries) SelectQueuedJobsByQueue(ctx context.Context, arg SelectQueuedJ
 			&i.CancelByJobsetRequested,
 			&i.Succeeded,
 			&i.Failed,
-			&i.SubmitMessage,
 			&i.SchedulingInfo,
 			&i.SchedulingInfoVersion,
 			&i.Serial,
@@ -1145,7 +1157,6 @@ func (q *Queries) SelectRunningJobsByQueue(ctx context.Context, arg SelectRunnin
 			&i.Queue,
 			&i.UserID,
 			&i.Submitted,
-			&i.Groups,
 			&i.Priority,
 			&i.Queued,
 			&i.QueuedVersion,
@@ -1154,7 +1165,6 @@ func (q *Queries) SelectRunningJobsByQueue(ctx context.Context, arg SelectRunnin
 			&i.CancelByJobsetRequested,
 			&i.Succeeded,
 			&i.Failed,
-			&i.SubmitMessage,
 			&i.SchedulingInfo,
 			&i.SchedulingInfoVersion,
 			&i.Serial,

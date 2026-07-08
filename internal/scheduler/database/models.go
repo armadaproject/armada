@@ -30,7 +30,6 @@ type Job struct {
 	Queue                   string    `db:"queue"`
 	UserID                  string    `db:"user_id"`
 	Submitted               int64     `db:"submitted"`
-	Groups                  []byte    `db:"groups"`
 	Priority                int64     `db:"priority"`
 	Queued                  bool      `db:"queued"`
 	QueuedVersion           int32     `db:"queued_version"`
@@ -39,7 +38,6 @@ type Job struct {
 	CancelByJobsetRequested bool      `db:"cancel_by_jobset_requested"`
 	Succeeded               bool      `db:"succeeded"`
 	Failed                  bool      `db:"failed"`
-	SubmitMessage           []byte    `db:"submit_message"`
 	SchedulingInfo          []byte    `db:"scheduling_info"`
 	SchedulingInfoVersion   int32     `db:"scheduling_info_version"`
 	Serial                  int64     `db:"serial"`

@@ -4,6 +4,9 @@ SELECT * FROM jobs WHERE serial > $1 ORDER BY serial LIMIT $2;
 -- name: SelectAllJobIds :many
 SELECT job_id FROM jobs;
 
+-- name: SelectJobMetadata :many
+SELECT * FROM job_metadata WHERE job_id = ANY(sqlc.arg(job_ids)::text[]);
+
 -- name: SelectMaxJobSerial :one
 SELECT serial FROM jobs ORDER BY serial DESC LIMIT 1;
 
