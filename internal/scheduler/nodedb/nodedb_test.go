@@ -233,6 +233,54 @@ func TestNodeBindingEvictionUnbinding(t *testing.T) {
 	assert.Empty(t, unboundNode.EvictedJobRunIds)
 }
 
+func setupNodeDbNodeAndBoundJob(t *testing.T) (*NodeDb, *internaltypes.Node, *jobdb.Job) {
+	t.Helper()
+	node := testfixtures.Test8GpuNode(testfixtures.TestPriorities)
+	nodeDb, err := newNodeDbWithNodes([]*internaltypes.Node{node})
+	require.NoError(t, err)
+	entry, err := nodeDb.GetNode(node.GetId())
+	require.NoError(t, err)
+
+	job := testfixtures.Test1GpuJob("A", testfixtures.PriorityClass0)
+	boundNode, err := nodeDb.BindJobToNode(entry, job, job.PriorityClass().Priority)
+	require.NoError(t, err)
+
+	return nodeDb, boundNode, job
+}
+
+func TestUrgencyMapUnaffectedByEviction(t *testing.T) {
+	nodeDb, node, job := setupNodeDbNodeAndBoundJob(t)
+	priority, ok := nodeDb.GetScheduledAtPriority(job.Id())
+	require.True(t, ok)
+
+	boundUrgency := maps.Clone(node.UrgencyPreemptableByPriority)
+	boundAllocatable := maps.Clone(node.AllocatableByPriority)
+	require.True(t, boundAllocatable[priority].Equal(boundUrgency[priority]),
+		"genuine bind should deduct both maps identically")
+
+	// Evict: real map gives resources back at the job priority; urgency map must NOT.
+	evicted, err := nodeDb.EvictJobsFromNode([]*jobdb.Job{job}, node)
+	require.NoError(t, err)
+	require.True(t, boundUrgency[priority].Equal(evicted.UrgencyPreemptableByPriority[priority]),
+		"urgency map changed on eviction")
+	require.False(t, boundAllocatable[priority].Equal(evicted.AllocatableByPriority[priority]),
+		"allocatable map should give resources back on eviction")
+
+	// Re-bind the evicted job: real map deducts again; urgency map still unchanged.
+	rebound, err := nodeDb.BindJobToNode(evicted, job, priority)
+	require.NoError(t, err)
+	require.True(t, boundUrgency[priority].Equal(rebound.UrgencyPreemptableByPriority[priority]),
+		"urgency map changed on evicted re-bind")
+	require.True(t, boundAllocatable[priority].Equal(rebound.AllocatableByPriority[priority]),
+		"allocatable map should return to bound state on re-bind")
+
+	// Unbind for real: both maps return to the fully-free state.
+	unbound, err := nodeDb.UnbindJobFromNode(job, rebound)
+	require.NoError(t, err)
+	require.True(t, unbound.AllocatableByPriority[priority].Equal(unbound.UrgencyPreemptableByPriority[priority]),
+		"both maps should agree once the node is empty")
+}
+
 // Covers the pods resource path, which TestNodeBindingEvictionUnbinding does not exercise.
 // Bind, evict, and unbind flow resource requirements through KubernetesResourceRequirements,
 // so a regression in pod-slot accounting would surface here even though the cpu/memory/GPU
