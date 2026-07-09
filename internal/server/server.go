@@ -31,6 +31,7 @@ import (
 	"github.com/armadaproject/armada/internal/server/node"
 	"github.com/armadaproject/armada/internal/server/queryapi"
 	"github.com/armadaproject/armada/internal/server/queue"
+	"github.com/armadaproject/armada/internal/server/retrypolicy"
 	"github.com/armadaproject/armada/internal/server/submit"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/api/schedulerobjects"
@@ -179,7 +180,14 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 	}
 	defer controlPlaneEventsPublisher.Close()
 
-	queueServer := queue.NewServer(controlPlaneEventsPublisher, queueRepository, authorizer)
+	retryPolicyRepo := retrypolicy.NewPostgresRetryPolicyRepository(dbPool)
+
+	// The queue server validates that an attached retry policy exists; the
+	// retry-policy server's delete-time referential check reads queues straight
+	// from postgres rather than the cache, so a queue attached moments earlier
+	// still blocks deletion of its policy.
+	queueServer := queue.NewServer(controlPlaneEventsPublisher, queueRepository, retryPolicyRepo, authorizer)
+	retryPolicyServer := retrypolicy.NewServer(retryPolicyRepo, queueRepository, authorizer)
 
 	submitServer := submit.NewServer(
 		queueServer,
@@ -209,6 +217,7 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 	api.RegisterSubmitServer(grpcServer, submitServer)
 	api.RegisterEventServer(grpcServer, eventServer)
 	api.RegisterQueueServiceServer(grpcServer, queueServer)
+	api.RegisterRetryPolicyServiceServer(grpcServer, retryPolicyServer)
 	api.RegisterExecutorServer(grpcServer, executorServer)
 	api.RegisterNodeServer(grpcServer, nodeServer)
 
