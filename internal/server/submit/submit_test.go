@@ -386,9 +386,9 @@ func TestPreemptJobs_FailedValidation(t *testing.T) {
 }
 
 // tooLongReason is one byte over the server-enforced limit.
-var tooLongReason = strings.Repeat("a", validation.MaxReasonLength+1)
+var tooLongReason = strings.Repeat("a", validation.MaxReasonBytes+1)
 
-// A reason longer than MaxReasonLength must be rejected at the API and map to a
+// A reason longer than MaxReasonBytes must be rejected at the API and map to a
 // gRPC InvalidArgument code end-to-end (the code the error interceptor returns to clients).
 func TestCancelJobs_ReasonTooLong(t *testing.T) {
 	jobId1 := util.ULID().String()

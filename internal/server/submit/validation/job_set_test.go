@@ -43,11 +43,11 @@ func TestValidateReason(t *testing.T) {
 			expectError: false,
 		},
 		"reason at max length": {
-			reason:      strings.Repeat("a", MaxReasonLength),
+			reason:      strings.Repeat("a", MaxReasonBytes),
 			expectError: false,
 		},
 		"reason over max length": {
-			reason:      strings.Repeat("a", MaxReasonLength+1),
+			reason:      strings.Repeat("a", MaxReasonBytes+1),
 			expectError: true,
 		},
 	}
