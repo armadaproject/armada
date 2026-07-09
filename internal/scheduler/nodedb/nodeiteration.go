@@ -50,6 +50,7 @@ func (it *NodesIterator) Next() interface{} {
 // NodeIndex is an index for internaltypes.Node that returns node.NodeDbKeys[KeyIndex].
 type NodeIndex struct {
 	KeyIndex int
+	Urgency  bool
 }
 
 // FromArgs computes the index key from a set of arguments.
@@ -64,6 +65,9 @@ func (index *NodeIndex) FromArgs(args ...interface{}) ([]byte, error) {
 // FromObject extracts the index key from a *Node.
 func (index *NodeIndex) FromObject(raw interface{}) (bool, []byte, error) {
 	node := raw.(*internaltypes.Node)
+	if index.Urgency && !node.HasUrgencyPreemptableResources() {
+		return false, nil, nil
+	}
 	return true, node.Keys[index.KeyIndex], nil
 }
 
