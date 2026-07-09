@@ -34,6 +34,25 @@ func ValidateJobSetFilter(filter *api.JobSetFilter) error {
 	return nil
 }
 
+const MaxReasonLength = 50
+
+type ReasonRequest interface {
+	GetReason() string
+}
+
+// ValidateReason rejects reasons longer than MaxReasonLength. Length is measured in
+// bytes, consistent with util.Truncate which slices reasons by byte.
+func ValidateReason(req ReasonRequest) error {
+	if len(req.GetReason()) > MaxReasonLength {
+		return &armadaerrors.ErrInvalidArgument{
+			Name:    "Reason",
+			Value:   req.GetReason(),
+			Message: fmt.Sprintf("reason cannot be longer than %d characters", MaxReasonLength),
+		}
+	}
+	return nil
+}
+
 type JobSetRequest interface {
 	GetJobSetId() string
 	GetQueue() string

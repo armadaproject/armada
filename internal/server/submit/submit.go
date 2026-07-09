@@ -154,6 +154,11 @@ func (s *Server) SubmitJobs(grpcCtx context.Context, req *api.JobSubmitRequest) 
 
 func (s *Server) CancelJobs(grpcCtx context.Context, req *api.JobCancelRequest) (*api.CancellationResult, error) {
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
+
+	if err := validation.ValidateReason(req); err != nil {
+		return nil, err
+	}
+
 	jobIds := []string{}
 	jobIds = append(jobIds, req.JobIds...)
 	if req.JobId != "" {
@@ -203,6 +208,10 @@ func (s *Server) PreemptJobs(grpcCtx context.Context, req *api.JobPreemptRequest
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
 	err := validation.ValidateQueueAndJobSet(req)
 	if err != nil {
+		return nil, err
+	}
+
+	if err := validation.ValidateReason(req); err != nil {
 		return nil, err
 	}
 
@@ -326,6 +335,10 @@ func (s *Server) CancelJobSet(grpcCtx context.Context, req *api.JobSetCancelRequ
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
 	err := validation.ValidateQueueAndJobSet(req)
 	if err != nil {
+		return nil, err
+	}
+
+	if err := validation.ValidateReason(req); err != nil {
 		return nil, err
 	}
 
