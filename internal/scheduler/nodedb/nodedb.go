@@ -1017,7 +1017,8 @@ func markAllocatable(allocatableByPriority map[int32]internaltypes.ResourceList,
 }
 
 func (nodeDb *NodeDb) markAllocatedBoth(node *internaltypes.Node, cutoff int32, rs internaltypes.ResourceList) {
-	nodeDb.markAllocatableBoth(node, cutoff, rs.Negate())
+	markAllocated(node.AllocatableByPriority, cutoff, rs)
+	markAllocated(node.UrgencyPreemptableByPriority, cutoff, rs)
 }
 
 func (nodeDb *NodeDb) markAllocatableBoth(node *internaltypes.Node, cutoff int32, rs internaltypes.ResourceList) {
@@ -1026,7 +1027,7 @@ func (nodeDb *NodeDb) markAllocatableBoth(node *internaltypes.Node, cutoff int32
 }
 
 func (nodeDb *NodeDb) markAllocatedRealOnly(node *internaltypes.Node, cutoff int32, rs internaltypes.ResourceList) {
-	markAllocatable(node.AllocatableByPriority, cutoff, rs.Negate())
+	markAllocated(node.AllocatableByPriority, cutoff, rs)
 }
 
 func (nodeDb *NodeDb) markAllocatableRealOnly(node *internaltypes.Node, cutoff int32, rs internaltypes.ResourceList) {
