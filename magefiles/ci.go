@@ -23,6 +23,54 @@ func createQueue() error {
 	return nil
 }
 
+// createRetryPolicyAndQueue smoke-tests retry-policy creation and queue
+// attachment against a live server: it creates a policy and a queue bound to
+// it. Driving a retry end to end additionally needs the executor to delete the
+// failed pod so the retry can reuse its name, so no testcase submits to this
+// queue yet.
+func createRetryPolicyAndQueue() error {
+	policyPath, err := writeRetryPolicyFile()
+	if err != nil {
+		return fmt.Errorf("failed to stage retry policy file: %w", err)
+	}
+	defer os.Remove(policyPath)
+
+	out, err := runArmadaCtl("create", "retry-policy", "-f", policyPath)
+	if err != nil && !strings.Contains(out, "already exists") {
+		fmt.Println(out)
+		return err
+	}
+
+	out, err = runArmadaCtl("create", "queue", "e2e-retry-queue", "--retry-policy", "e2e-retry-policy")
+	if err != nil && !strings.Contains(out, "already exists") {
+		fmt.Println(out)
+		return err
+	}
+
+	return nil
+}
+
+func writeRetryPolicyFile() (string, error) {
+	const policy = `apiVersion: armadaproject.io/v1beta1
+kind: RetryPolicy
+name: e2e-retry-policy
+retryLimit: 2
+defaultAction: Fail
+rules:
+  - action: Retry
+    onCategory: "user_error"
+`
+	f, err := os.CreateTemp("", "retry-policy-*.yaml")
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+	if _, err := f.WriteString(policy); err != nil {
+		return "", err
+	}
+	return f.Name(), nil
+}
+
 // Build images, spin up a test environment, and run the integration tests against it.
 func TestSuite() error {
 	mg.Deps(CheckForArmadaRunning)
@@ -58,6 +106,7 @@ func CheckForArmadaRunning() error {
 	// TODO Make a good check to confirm the system is ready, such as seeing armadactl get executors return a value
 	mg.Deps(CheckSchedulerReady)
 	mg.Deps(createQueue)
+	mg.Deps(createRetryPolicyAndQueue)
 
 	// Set high to take compile time into account
 	timeout := time.After(2 * time.Minute)

@@ -1745,6 +1745,13 @@ pub struct JobFailedEvent {
     pub failure_category: ::prost::alloc::string::String,
     #[prost(string, tag = "17")]
     pub failure_subcategory: ::prost::alloc::string::String,
+    /// retryable indicates the scheduler emitted this failure for an
+    /// intermediate (non-terminal) run that will be retried. When true,
+    /// a subsequent leased/succeeded/failed event for the same job is
+    /// expected. Default false preserves the prior behavior where every
+    /// emitted JobFailedEvent was terminal.
+    #[prost(bool, tag = "18")]
+    pub retryable: bool,
 }
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct JobPreemptingEvent {

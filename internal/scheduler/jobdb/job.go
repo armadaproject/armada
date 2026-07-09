@@ -786,6 +786,9 @@ func (job *Job) ValidateResourceRequests() error {
 }
 
 // WithNewRun creates a copy of the job with a new run on the given executor.
+// The new run's index is derived from the current number of runs on the job
+// (zero-based), so each retry attempt gets a unique, monotonically increasing
+// index.
 func (job *Job) WithNewRun(executor, nodeId, nodeName, pool string, scheduledAtPriority int32) *Job {
 	now := job.jobDb.clock.Now()
 	return job.WithUpdatedRun(job.jobDb.CreateRun(
@@ -859,6 +862,21 @@ func (job *Job) NumAttempts() uint {
 // AllRuns returns all runs associated with job.
 func (job *Job) AllRuns() []*JobRun {
 	return maps.Values(job.runsById)
+}
+
+// FailureCount returns the number of runs of this job that genuinely failed,
+// which is what the retry engine charges against a policy's retry budgets. A
+// preempted or lease-returned run is marked failed but never ran to a genuine
+// failure, so it is excluded: neither is something the job did. Deriving this
+// from run history keeps it correct across scheduler restarts.
+func (job *Job) FailureCount() uint32 {
+	count := uint32(0)
+	for _, run := range job.runsById {
+		if run.failed && !run.everPreempted && !run.returned {
+			count++
+		}
+	}
+	return count
 }
 
 // LatestRun returns the currently active job run or nil if there are no runs yet.

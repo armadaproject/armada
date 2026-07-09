@@ -1429,6 +1429,10 @@ func SwaggerJsonTemplate() string {
 		"        },\n" +
 		"        \"reason\": {\n" +
 		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"retryable\": {\n" +
+		"          \"description\": \"retryable indicates the scheduler emitted this failure for an\\nintermediate (non-terminal) run that will be retried. When true,\\na subsequent leased/succeeded/failed event for the same job is\\nexpected. Default false preserves the prior behavior where every\\nemitted JobFailedEvent was terminal.\",\n" +
+		"          \"type\": \"boolean\"\n" +
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +
