@@ -65,6 +65,11 @@ type ResourceBump struct {
 	Factor float64
 }
 
+// IsZero reports whether the bump applies no change.
+func (b ResourceBump) IsZero() bool {
+	return b.Static == nil && b.Factor == 0
+}
+
 // Decision identifies which gate produced an engine verdict. It is used as
 // a prometheus label value, so it must stay low-cardinality.
 type Decision string
