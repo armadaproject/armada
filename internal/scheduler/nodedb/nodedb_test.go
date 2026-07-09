@@ -26,8 +26,28 @@ import (
 )
 
 func TestNodeDbSchema(t *testing.T) {
-	schema, _, _ := nodeDbSchema(testfixtures.TestPriorities, testfixtures.TestResourceNames)
+	schema, _, _, _, _ := nodeDbSchema(testfixtures.TestPriorities, testfixtures.TestResourceNames)
 	assert.NoError(t, schema.Validate())
+}
+
+func TestUrgencyIndexOmitsNodesWithNothingPreemptable(t *testing.T) {
+	nodeDb, err := newNodeDbWithNodes(nil)
+	require.NoError(t, err)
+	node := testfixtures.Test32CpuNode(testfixtures.TestPriorities)
+	require.NoError(t, nodeDb.Upsert(node))
+
+	txn := nodeDb.Txn(false)
+	defer txn.Abort()
+
+	for _, p := range nodeDb.RealPrioritiesForTest() {
+		it, err := txn.Get("nodes", nodeDb.UrgencyIndexNameForTest(p))
+		require.NoError(t, err)
+		require.Nil(t, it.Next(), "urgency index for priority %d should be empty", p)
+	}
+
+	it, err := txn.Get("nodes", nodeDb.AllocatableIndexNameForTest(nodeDb.RealPrioritiesForTest()[0]))
+	require.NoError(t, err)
+	require.NotNil(t, it.Next())
 }
 
 // Test the accounting of total resources across all nodes.

@@ -104,6 +104,14 @@ type NodeDb struct {
 	indexNameByPriority map[int32]string
 	// Map from priority class priority to the index of node.keys corresponding to that priority.
 	keyIndexByPriority map[int32]int
+	// Like indexNameByPriority, but for the sparse urgency-preemptable resource view.
+	urgencyIndexNameByPriority map[int32]string
+	// Like keyIndexByPriority, but for the sparse urgency-preemptable resource view.
+	urgencyKeyIndexByPriority map[int32]int
+	// Number of priorities in nodeDbPriorities; also the size of each key block in node.Keys.
+	numPriorities int
+	// Priority class priorities, ascending, excluding EvictedPriority.
+	realPriorities []int32
 	// Taint keys that to create indexes for.
 	// Should include taints frequently used for scheduling.
 	// Since the NodeDb can efficiently sort out nodes with taints not tolerated
@@ -173,7 +181,7 @@ func NewNodeDb(
 	nodeDbPriorities = append(nodeDbPriorities, types.AllowedPriorities(priorityClasses)...)
 
 	indexedResourceNames := slices.Map(indexedResources, func(v configuration.ResourceType) string { return v.Name })
-	schema, indexNameByPriority, keyIndexByPriority := nodeDbSchema(nodeDbPriorities, indexedResourceNames)
+	schema, indexNameByPriority, keyIndexByPriority, urgencyIndexNameByPriority, urgencyKeyIndexByPriority := nodeDbSchema(nodeDbPriorities, indexedResourceNames)
 	db, err := memdb.NewMemDB(schema)
 	if err != nil {
 		return nil, errors.WithStack(err)
@@ -204,21 +212,25 @@ func NewNodeDb(
 	}
 
 	nodeDb := NodeDb{
-		priorityClasses:           priorityClasses,
-		nodeDbPriorities:          nodeDbPriorities,
-		indexedResources:          indexedResourceNames,
-		indexedResourcesSet:       util.StringListToSet(indexedResourceNames),
-		indexedResourceResolution: indexedResourceResolution,
-		indexNameByPriority:       indexNameByPriority,
-		keyIndexByPriority:        keyIndexByPriority,
-		indexedTaints:             util.StringListToSet(indexedTaints),
-		indexedNodeLabels:         util.StringListToSet(indexedNodeLabels),
-		indexedNodeLabelValues:    indexedNodeLabelValues,
-		nodeTypes:                 make(map[uint64]*internaltypes.NodeType),
-		wellKnownNodeTypes:        make(map[string]*configuration.WellKnownNodeType),
-		numNodesByNodeType:        make(map[uint64]int),
-		totalAllocatableResources: resourceListFactory.MakeAllZero(),
-		db:                        db,
+		priorityClasses:            priorityClasses,
+		nodeDbPriorities:           nodeDbPriorities,
+		indexedResources:           indexedResourceNames,
+		indexedResourcesSet:        util.StringListToSet(indexedResourceNames),
+		indexedResourceResolution:  indexedResourceResolution,
+		indexNameByPriority:        indexNameByPriority,
+		keyIndexByPriority:         keyIndexByPriority,
+		urgencyIndexNameByPriority: urgencyIndexNameByPriority,
+		urgencyKeyIndexByPriority:  urgencyKeyIndexByPriority,
+		numPriorities:              len(nodeDbPriorities),
+		realPriorities:             types.AllowedPriorities(priorityClasses),
+		indexedTaints:              util.StringListToSet(indexedTaints),
+		indexedNodeLabels:          util.StringListToSet(indexedNodeLabels),
+		indexedNodeLabelValues:     indexedNodeLabelValues,
+		nodeTypes:                  make(map[uint64]*internaltypes.NodeType),
+		wellKnownNodeTypes:         make(map[string]*configuration.WellKnownNodeType),
+		numNodesByNodeType:         make(map[uint64]int),
+		totalAllocatableResources:  resourceListFactory.MakeAllZero(),
+		db:                         db,
 		// Set the initial capacity (somewhat arbitrarily) to 128 reasons.
 		podRequirementsNotMetReasonStringCache: make(map[uint64]string, 128),
 
@@ -307,6 +319,18 @@ func (nodeDb *NodeDb) IndexedNodeLabelValues(label string) (map[string]struct{},
 
 func (nodeDb *NodeDb) NumNodes() int {
 	return int(nodeDb.numNodes)
+}
+
+func (nodeDb *NodeDb) RealPrioritiesForTest() []int32 {
+	return nodeDb.realPriorities
+}
+
+func (nodeDb *NodeDb) UrgencyIndexNameForTest(p int32) string {
+	return nodeDb.urgencyIndexNameByPriority[p]
+}
+
+func (nodeDb *NodeDb) AllocatableIndexNameForTest(p int32) string {
+	return nodeDb.indexNameByPriority[p]
 }
 
 func (nodeDb *NodeDb) TotalKubernetesResources() internaltypes.ResourceList {
@@ -1163,9 +1187,13 @@ func (nodeDb *NodeDb) Upsert(node *internaltypes.Node) error {
 }
 
 func (nodeDb *NodeDb) UpsertWithTxn(txn *memdb.Txn, node *internaltypes.Node) error {
-	keys := make([][]byte, len(nodeDb.nodeDbPriorities))
+	node.RecomputeUrgencyPreemptableFlag(nodeDb.realPriorities)
+
+	keys := make([][]byte, 2*nodeDb.numPriorities)
 	for i, p := range nodeDb.nodeDbPriorities {
 		keys[i] = nodeDb.nodeDbKey(keys[i], node.GetNodeTypeId(), node.AllocatableByPriority[p], node.GetIndex())
+		urgencyKeyIndex := nodeDb.numPriorities + i
+		keys[urgencyKeyIndex] = nodeDb.nodeDbKey(keys[urgencyKeyIndex], node.GetNodeTypeId(), node.UrgencyPreemptableByPriority[p], node.GetIndex())
 	}
 	node.Keys = keys
 
@@ -1187,6 +1215,10 @@ func (nodeDb *NodeDb) ClearAllocated() error {
 	for node := it.NextNode(); node != nil; node = it.NextNode() {
 		node = node.DeepCopyNilKeys()
 		node.AllocatableByPriority = newAllocatableByPriorityAndResourceType(
+			nodeDb.nodeDbPriorities,
+			node.GetAllocatableResources(),
+		)
+		node.UrgencyPreemptableByPriority = newAllocatableByPriorityAndResourceType(
 			nodeDb.nodeDbPriorities,
 			node.GetAllocatableResources(),
 		)
@@ -1219,26 +1251,31 @@ func (nodeDb *NodeDb) AddEvictedJobSchedulingContextWithTxn(txn *memdb.Txn, inde
 	return nil
 }
 
-func nodeDbSchema(priorities []int32, resources []string) (*memdb.DBSchema, map[int32]string, map[int32]int) {
-	nodesTable, indexNameByPriority, keyIndexByPriority := nodesTableSchema(priorities)
+func nodeDbSchema(priorities []int32, resources []string) (*memdb.DBSchema, map[int32]string, map[int32]int, map[int32]string, map[int32]int) {
+	nodesTable, indexNameByPriority, keyIndexByPriority, urgencyIndexNameByPriority, urgencyKeyIndexByPriority := nodesTableSchema(priorities)
 	evictionsTable := evictionsTableSchema()
 	return &memdb.DBSchema{
 		Tables: map[string]*memdb.TableSchema{
 			nodesTable.Name:     nodesTable,
 			evictionsTable.Name: evictionsTable,
 		},
-	}, indexNameByPriority, keyIndexByPriority
+	}, indexNameByPriority, keyIndexByPriority, urgencyIndexNameByPriority, urgencyKeyIndexByPriority
 }
 
-func nodesTableSchema(priorities []int32) (*memdb.TableSchema, map[int32]string, map[int32]int) {
-	indexes := make(map[string]*memdb.IndexSchema, len(priorities)+1)
+func nodesTableSchema(priorities []int32) (*memdb.TableSchema, map[int32]string, map[int32]int, map[int32]string, map[int32]int) {
+	n := len(priorities)
+	indexes := make(map[string]*memdb.IndexSchema, 2*n+1)
 	indexes["id"] = &memdb.IndexSchema{
 		Name:    "id",
 		Unique:  true,
 		Indexer: createNodeIdIndex(),
 	}
-	indexNameByPriority := make(map[int32]string, len(priorities))
-	keyIndexByPriority := make(map[int32]int, len(priorities))
+
+	indexNameByPriority := make(map[int32]string, n)
+	keyIndexByPriority := make(map[int32]int, n)
+	urgencyIndexNameByPriority := make(map[int32]string, n)
+	urgencyKeyIndexByPriority := make(map[int32]int, n)
+
 	for i, priority := range priorities {
 		name := nodeIndexName(i)
 		indexNameByPriority[priority] = name
@@ -1248,11 +1285,22 @@ func nodesTableSchema(priorities []int32) (*memdb.TableSchema, map[int32]string,
 			Unique:  true,
 			Indexer: &NodeIndex{KeyIndex: i},
 		}
+
+		urgencyKeyIndex := n + i
+		urgencyName := nodeIndexName(urgencyKeyIndex)
+		urgencyIndexNameByPriority[priority] = urgencyName
+		urgencyKeyIndexByPriority[priority] = urgencyKeyIndex
+		indexes[urgencyName] = &memdb.IndexSchema{
+			Name:         urgencyName,
+			Unique:       true,
+			AllowMissing: true,
+			Indexer:      &NodeIndex{KeyIndex: urgencyKeyIndex, Urgency: true},
+		}
 	}
 	return &memdb.TableSchema{
 		Name:    "nodes",
 		Indexes: indexes,
-	}, indexNameByPriority, keyIndexByPriority
+	}, indexNameByPriority, keyIndexByPriority, urgencyIndexNameByPriority, urgencyKeyIndexByPriority
 }
 
 func evictionsTableSchema() *memdb.TableSchema {
