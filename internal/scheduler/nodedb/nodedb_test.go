@@ -281,6 +281,35 @@ func TestUrgencyMapUnaffectedByEviction(t *testing.T) {
 		"both maps should agree once the node is empty")
 }
 
+// TestUrgencyMapReconciledOnUnbindWhileEvicted covers the unbind-while-evicted branch of
+// unbindJobFromNodeInPlace: unbinding an evicted job must still return its resources to the
+// urgency map, even though the real map already gave them back on eviction.
+func TestUrgencyMapReconciledOnUnbindWhileEvicted(t *testing.T) {
+	rawNode := testfixtures.Test8GpuNode(testfixtures.TestPriorities)
+	nodeDb, err := newNodeDbWithNodes([]*internaltypes.Node{rawNode})
+	require.NoError(t, err)
+	entry, err := nodeDb.GetNode(rawNode.GetId())
+	require.NoError(t, err)
+
+	job := testfixtures.Test1GpuJob("A", testfixtures.PriorityClass0)
+	priority := job.PriorityClass().Priority
+	freeAllocatable := maps.Clone(entry.AllocatableByPriority)
+
+	bound, err := nodeDb.BindJobToNode(entry, job, priority)
+	require.NoError(t, err)
+
+	evicted, err := nodeDb.EvictJobsFromNode([]*jobdb.Job{job}, bound)
+	require.NoError(t, err)
+
+	unbound, err := nodeDb.UnbindJobFromNode(job, evicted)
+	require.NoError(t, err)
+
+	require.True(t, unbound.UrgencyPreemptableByPriority[priority].Equal(unbound.AllocatableByPriority[priority]),
+		"urgency map should reconcile with allocatable map once the evicted job is unbound")
+	require.True(t, unbound.UrgencyPreemptableByPriority[priority].Equal(freeAllocatable[priority]),
+		"urgency map should return to the fully-free state once the evicted job is unbound")
+}
+
 // Covers the pods resource path, which TestNodeBindingEvictionUnbinding does not exercise.
 // Bind, evict, and unbind flow resource requirements through KubernetesResourceRequirements,
 // so a regression in pod-slot accounting would surface here even though the cpu/memory/GPU
