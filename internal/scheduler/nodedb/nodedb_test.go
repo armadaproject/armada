@@ -1053,6 +1053,60 @@ func TestUrgencySelectionIgnoresFairShareGiveBack(t *testing.T) {
 		"must not match at PriorityClass0's priority, where the fair-share give-back has freed AllocatableByPriority but not UrgencyPreemptableByPriority")
 }
 
+func TestUrgencyFitCheckUsesUrgencyView(t *testing.T) {
+	nodeDb, err := newNodeDbWithNodes(nil)
+	require.NoError(t, err)
+
+	txn := nodeDb.Txn(true)
+	node := testfixtures.Test32CpuNode(testfixtures.TestPriorities)
+	boundJobs := testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 32)
+	require.NoError(t, nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, boundJobs, node))
+	txn.Commit()
+
+	node, err = nodeDb.GetNode(node.GetId())
+	require.NoError(t, err)
+
+	evictedNode, err := nodeDb.EvictJobsFromNode(boundJobs, node)
+	require.NoError(t, err)
+
+	txn = nodeDb.Txn(true)
+	require.NoError(t, nodeDb.UpsertWithTxn(txn, evictedNode))
+	txn.Commit()
+
+	p0 := testfixtures.TestPriorityClasses[testfixtures.PriorityClass0].Priority
+	p1 := testfixtures.TestPriorityClasses[testfixtures.PriorityClass1].Priority
+
+	incoming := testfixtures.N1Cpu4GiJobs("B", testfixtures.PriorityClass1, 1)[0]
+	jctx := context.JobSchedulingContextFromJob(incoming)
+	jctx.PodSchedulingContext = &context.PodSchedulingContext{
+		ScheduledAtPriority:      incoming.PriorityClass().Priority,
+		PreemptedAtPriority:      internaltypes.MinPriority,
+		NumExcludedNodesByReason: make(map[string]int),
+	}
+
+	readTxn := nodeDb.Txn(false)
+	defer readTxn.Abort()
+
+	it, err := readTxn.Get("nodes", "id", evictedNode.GetId())
+	require.NoError(t, err)
+	selected, err := nodeDb.selectNodeForPodWithItAtPriority(it, jctx, p0, false, true)
+	require.NoError(t, err)
+	assert.Nil(t, selected, "at p0 the urgency view still counts the 32 evicted jobs, so the node must not fit")
+
+	it2, err := readTxn.Get("nodes", "id", evictedNode.GetId())
+	require.NoError(t, err)
+	selected2, err := nodeDb.selectNodeForPodWithItAtPriority(it2, jctx, p1, false, true)
+	require.NoError(t, err)
+	require.NotNil(t, selected2, "at p1 the urgency view frees the evicted p0 jobs, so the node must fit")
+	assert.Equal(t, evictedNode.GetId(), selected2.GetId())
+
+	it3, err := readTxn.Get("nodes", "id", evictedNode.GetId())
+	require.NoError(t, err)
+	selected3, err := nodeDb.selectNodeForPodWithItAtPriority(it3, jctx, p0, false, false)
+	require.NoError(t, err)
+	require.NotNil(t, selected3, "with urgency=false the fit-check reads AllocatableByPriority, which the give-back already freed at p0")
+}
+
 func TestMatchesConditions(t *testing.T) {
 	cpu0 := resource.MustParse("0")
 	cpu2 := resource.MustParse("2")
