@@ -482,7 +482,7 @@ func (nodeDb *NodeDb) SelectNodeForJobWithTxn(txn *memdb.Txn, jctx *context.JobS
 		if it, err := txn.Get("nodes", "id", nodeId); err != nil {
 			return nil, errors.WithStack(err)
 		} else {
-			if node, err := nodeDb.selectNodeForPodWithItAtPriority(it, jctx, priority, true); err != nil {
+			if node, err := nodeDb.selectNodeForPodWithItAtPriority(it, jctx, priority, true, false); err != nil {
 				return nil, err
 			} else {
 				jctx.PodSchedulingContext.SchedulingMethod = context.Rescheduled
@@ -631,7 +631,7 @@ func (nodeDb *NodeDb) selectNodeForJobWithTxnAtPriority(
 
 	// Try scheduling at evictedPriority. If this succeeds, no preemption is necessary.
 	pctx.NumExcludedNodesByReason = maps.Clone(numExcludedNodesByReason)
-	if node, err := nodeDb.selectNodeForPodAtPriority(txn, jctx, matchingNodeTypeIds, internaltypes.EvictedPriority); err != nil {
+	if node, err := nodeDb.selectNodeForPodAtPriority(txn, jctx, matchingNodeTypeIds, internaltypes.EvictedPriority, false); err != nil {
 		return nil, err
 	} else if err := assertPodSchedulingContextNode(pctx, node); err != nil {
 		return nil, err
@@ -643,7 +643,7 @@ func (nodeDb *NodeDb) selectNodeForJobWithTxnAtPriority(
 	// Try scheduling at the job priority. If this fails, scheduling is impossible and we return.
 	// This is an optimisation to avoid looking for preemption targets for unschedulable jobs.
 	pctx.NumExcludedNodesByReason = maps.Clone(numExcludedNodesByReason)
-	if node, err := nodeDb.selectNodeForPodAtPriority(txn, jctx, matchingNodeTypeIds, pctx.ScheduledAtPriority); err != nil {
+	if node, err := nodeDb.selectNodeForPodAtPriority(txn, jctx, matchingNodeTypeIds, pctx.ScheduledAtPriority, false); err != nil {
 		return nil, err
 	} else if err := assertPodSchedulingContextNode(pctx, node); err != nil {
 		return nil, err
@@ -723,7 +723,7 @@ func (nodeDb *NodeDb) selectNodeForJobWithUrgencyPreemption(
 		pctx.NumExcludedNodesByReason = maps.Clone(numExcludedNodesByReason)
 
 		// Try to find a node at this priority.
-		if node, err := nodeDb.selectNodeForPodAtPriority(txn, jctx, matchingNodeTypeIds, priority); err != nil {
+		if node, err := nodeDb.selectNodeForPodAtPriority(txn, jctx, matchingNodeTypeIds, priority, true); err != nil {
 			return nil, err
 		} else if err := assertPodSchedulingContextNode(pctx, node); err != nil {
 			return nil, err
@@ -739,18 +739,27 @@ func (nodeDb *NodeDb) selectNodeForPodAtPriority(
 	jctx *context.JobSchedulingContext,
 	matchingNodeTypeIds []uint64,
 	priority int32,
+	urgency bool,
 ) (*internaltypes.Node, error) {
 	indexResourceRequests := make([]int64, len(nodeDb.indexedResources))
 	for i, t := range nodeDb.indexedResources {
 		indexResourceRequests[i] = jctx.KubernetesResourceRequirements.GetRawByNameZeroIfMissing(t)
 	}
-	indexName, ok := nodeDb.indexNameByPriority[priority]
-	if !ok {
-		return nil, errors.Errorf("no index for priority %d; must be in %v", priority, nodeDb.indexNameByPriority)
+
+	indexNameByPriority := nodeDb.indexNameByPriority
+	keyIndexByPriority := nodeDb.keyIndexByPriority
+	if urgency {
+		indexNameByPriority = nodeDb.urgencyIndexNameByPriority
+		keyIndexByPriority = nodeDb.urgencyKeyIndexByPriority
 	}
-	keyIndex, ok := nodeDb.keyIndexByPriority[priority]
+
+	indexName, ok := indexNameByPriority[priority]
 	if !ok {
-		return nil, errors.Errorf("no key index for priority %d; must be in %v", priority, nodeDb.keyIndexByPriority)
+		return nil, errors.Errorf("no index for priority %d; must be in %v", priority, indexNameByPriority)
+	}
+	keyIndex, ok := keyIndexByPriority[priority]
+	if !ok {
+		return nil, errors.Errorf("no key index for priority %d; must be in %v", priority, keyIndexByPriority)
 	}
 	it, err := NewNodeTypesIterator(
 		txn,
@@ -766,7 +775,7 @@ func (nodeDb *NodeDb) selectNodeForPodAtPriority(
 		return nil, err
 	}
 
-	if node, err := nodeDb.selectNodeForPodWithItAtPriority(it, jctx, priority, false); err != nil {
+	if node, err := nodeDb.selectNodeForPodWithItAtPriority(it, jctx, priority, false, urgency); err != nil {
 		return nil, err
 	} else if node != nil {
 		return node, nil
@@ -780,6 +789,7 @@ func (nodeDb *NodeDb) selectNodeForPodWithItAtPriority(
 	jctx *context.JobSchedulingContext,
 	priority int32,
 	onlyCheckDynamicRequirements bool,
+	urgency bool,
 ) (*internaltypes.Node, error) {
 	var selectedNode *internaltypes.Node
 	for obj := it.Next(); obj != nil; obj = it.Next() {
@@ -798,9 +808,13 @@ func (nodeDb *NodeDb) selectNodeForPodWithItAtPriority(
 			// It should be safe as the nodes are also unschedulable, so no new resource should get scheduled there
 			if node.IsUnschedulable() && node.IsOverAllocated() {
 				matches = true
+			} else if urgency {
+				matches, reason = DynamicJobRequirementsMet(node.UrgencyPreemptableByPriority[priority], jctx)
 			} else {
 				matches, reason = DynamicJobRequirementsMet(node.AllocatableByPriority[priority], jctx)
 			}
+		} else if urgency {
+			matches, reason, err = JobRequirementsMetForView(node, node.UrgencyPreemptableByPriority[priority], jctx)
 		} else {
 			matches, reason, err = JobRequirementsMet(node, priority, jctx)
 		}

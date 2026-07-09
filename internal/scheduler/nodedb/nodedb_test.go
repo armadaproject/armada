@@ -1012,6 +1012,47 @@ func TestPreemptionScheduling(t *testing.T) {
 	}
 }
 
+func TestUrgencySelectionIgnoresFairShareGiveBack(t *testing.T) {
+	nodeDb, err := newNodeDbWithNodes(nil)
+	require.NoError(t, err)
+
+	txn := nodeDb.Txn(true)
+	node := testfixtures.Test32CpuNode(testfixtures.TestPriorities)
+	boundJobs := testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 32)
+	require.NoError(t, nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, boundJobs, node))
+	txn.Commit()
+
+	node, err = nodeDb.GetNode(node.GetId())
+	require.NoError(t, err)
+
+	evictedNode, err := nodeDb.EvictJobsFromNode(boundJobs, node)
+	require.NoError(t, err)
+
+	txn = nodeDb.Txn(true)
+	require.NoError(t, nodeDb.UpsertWithTxn(txn, evictedNode))
+	txn.Commit()
+
+	incoming := testfixtures.N1Cpu4GiJobs("B", testfixtures.PriorityClass1, 1)[0]
+	jctx := context.JobSchedulingContextFromJob(incoming)
+	jctx.PodSchedulingContext = &context.PodSchedulingContext{
+		ScheduledAtPriority:      incoming.PriorityClass().Priority,
+		PreemptedAtPriority:      internaltypes.MinPriority,
+		NumExcludedNodesByReason: make(map[string]int),
+	}
+
+	txn = nodeDb.Txn(false)
+	defer txn.Abort()
+	matchingNodeTypeIds, _, err := nodeDb.NodeTypesMatchingJob(jctx)
+	require.NoError(t, err)
+
+	selectedNode, err := nodeDb.selectNodeForJobWithUrgencyPreemption(txn, jctx, matchingNodeTypeIds)
+	require.NoError(t, err)
+	require.NotNil(t, selectedNode, "urgency preemption should find the evicted node by reading the urgency-preemptable view")
+	assert.Equal(t, node.GetId(), selectedNode.GetId())
+	assert.Equal(t, testfixtures.TestPriorityClasses[testfixtures.PriorityClass1].Priority, jctx.PodSchedulingContext.PreemptedAtPriority,
+		"must not match at PriorityClass0's priority, where the fair-share give-back has freed AllocatableByPriority but not UrgencyPreemptableByPriority")
+}
+
 func TestMatchesConditions(t *testing.T) {
 	cpu0 := resource.MustParse("0")
 	cpu2 := resource.MustParse("2")
