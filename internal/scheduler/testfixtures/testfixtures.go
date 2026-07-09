@@ -392,6 +392,7 @@ func WithMaxQueueLookbackConfig(maxQueueLookback uint, config schedulerconfigura
 func WithUsedResourcesNodes(p int32, rl internaltypes.ResourceList, nodes []*internaltypes.Node) []*internaltypes.Node {
 	for _, node := range nodes {
 		internaltypes.MarkAllocated(node.AllocatableByPriority, p, rl)
+		internaltypes.MarkAllocated(node.UrgencyPreemptableByPriority, p, rl)
 	}
 	return nodes
 }
