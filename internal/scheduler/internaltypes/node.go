@@ -55,10 +55,13 @@ type Node struct {
 	// This field is set when inserting the Node into a NodeDb.
 	Keys [][]byte
 
-	AllocatableByPriority map[int32]ResourceList
-	AllocatedByQueue      map[string]ResourceList
-	AllocatedByJobId      map[string]ResourceList
-	EvictedJobRunIds      map[string]bool
+	AllocatableByPriority        map[int32]ResourceList
+	UrgencyPreemptableByPriority map[int32]ResourceList
+	AllocatedByQueue             map[string]ResourceList
+	AllocatedByJobId             map[string]ResourceList
+	EvictedJobRunIds             map[string]bool
+
+	hasUrgencyPreemptableResources bool
 }
 
 func FromSchedulerObjectsNode(node *schedulerobjects.Node,
@@ -176,24 +179,25 @@ func CreateNode(
 ) *Node {
 	reservation := util.GetReservationName(taints)
 	return &Node{
-		id:                    id,
-		nodeType:              nodeType,
-		index:                 index,
-		executor:              executor,
-		name:                  name,
-		pool:                  pool,
-		reportingNodeType:     reportingNodeType,
-		taints:                koTaint.DeepCopyTaints(taints),
-		reservation:           reservation,
-		labels:                deepCopyLabels(labels),
-		unschedulable:         unschedulable,
-		totalResources:        totalResources,
-		allocatableResources:  allocatableResources,
-		AllocatableByPriority: maps.Clone(allocatableByPriority),
-		AllocatedByQueue:      maps.Clone(allocatedByQueue),
-		AllocatedByJobId:      maps.Clone(allocatedByJobId),
-		EvictedJobRunIds:      evictedJobRunIds,
-		Keys:                  keys,
+		id:                           id,
+		nodeType:                     nodeType,
+		index:                        index,
+		executor:                     executor,
+		name:                         name,
+		pool:                         pool,
+		reportingNodeType:            reportingNodeType,
+		taints:                       koTaint.DeepCopyTaints(taints),
+		reservation:                  reservation,
+		labels:                       deepCopyLabels(labels),
+		unschedulable:                unschedulable,
+		totalResources:               totalResources,
+		allocatableResources:         allocatableResources,
+		AllocatableByPriority:        maps.Clone(allocatableByPriority),
+		UrgencyPreemptableByPriority: maps.Clone(allocatableByPriority),
+		AllocatedByQueue:             maps.Clone(allocatedByQueue),
+		AllocatedByJobId:             maps.Clone(allocatedByJobId),
+		EvictedJobRunIds:             evictedJobRunIds,
+		Keys:                         keys,
 	}
 }
 
@@ -282,6 +286,23 @@ func (node *Node) GetAllocatableResources() ResourceList {
 	return node.allocatableResources
 }
 
+func (node *Node) HasUrgencyPreemptableResources() bool {
+	return node.hasUrgencyPreemptableResources
+}
+
+// RecomputeUrgencyPreemptableFlag sets hasUrgencyPreemptableResources to true iff the
+// urgency-preemptable view has more resource available at the highest real priority than
+// at the lowest, i.e. at least one lower-priority job could be urgency-preempted.
+func (node *Node) RecomputeUrgencyPreemptableFlag(realPriorities []int32) {
+	if len(realPriorities) == 0 {
+		node.hasUrgencyPreemptableResources = false
+		return
+	}
+	lowest := node.UrgencyPreemptableByPriority[realPriorities[0]]
+	highest := node.UrgencyPreemptableByPriority[realPriorities[len(realPriorities)-1]]
+	node.hasUrgencyPreemptableResources = !lowest.Equal(highest)
+}
+
 func (node *Node) MarkResourceUnallocatable(unallocatable ResourceList) *Node {
 	result := node.DeepCopyNilKeys()
 
@@ -341,10 +362,13 @@ func (node *Node) DeepCopyNilKeys() *Node {
 		Keys: nil,
 
 		// these maps are mutable but their keys and values are immutable
-		AllocatableByPriority: maps.Clone(node.AllocatableByPriority),
-		AllocatedByQueue:      maps.Clone(node.AllocatedByQueue),
-		AllocatedByJobId:      maps.Clone(node.AllocatedByJobId),
-		EvictedJobRunIds:      maps.Clone(node.EvictedJobRunIds),
+		AllocatableByPriority:        maps.Clone(node.AllocatableByPriority),
+		UrgencyPreemptableByPriority: maps.Clone(node.UrgencyPreemptableByPriority),
+		AllocatedByQueue:             maps.Clone(node.AllocatedByQueue),
+		AllocatedByJobId:             maps.Clone(node.AllocatedByJobId),
+		EvictedJobRunIds:             maps.Clone(node.EvictedJobRunIds),
+
+		hasUrgencyPreemptableResources: node.hasUrgencyPreemptableResources,
 	}
 }
 
