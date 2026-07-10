@@ -18,6 +18,7 @@ var CustomHooks = []viper.DecoderConfigOption{
 	addDecodeHook(PulsarCompressionTypeHookFunc()),
 	addDecodeHook(PulsarCompressionLevelHookFunc()),
 	addDecodeHook(QuantityDecodeHook()),
+	addDecodeHook(mapstructure.TextUnmarshallerHookFunc()),
 }
 
 func PulsarCompressionTypeHookFunc() mapstructure.DecodeHookFuncType {

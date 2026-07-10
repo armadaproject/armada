@@ -265,7 +265,7 @@ func TestSchedule(t *testing.T) {
 		{Name: testfixtures.TestPool2},
 		{
 			Name:      testfixtures.AwayPool,
-			AwayPools: []string{testfixtures.TestPool2},
+			AwayPools: []configuration.AwayPoolConfig{{Name: testfixtures.TestPool2}},
 		},
 	}
 	tests := map[string]struct {

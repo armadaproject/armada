@@ -417,12 +417,12 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 
 	awayAllocationPools := []string{}
 	for _, otherPool := range l.schedulingConfig.Pools {
-		if slices.Contains(otherPool.AwayPools, currentPool.Name) {
+		if slices.Contains(otherPool.AwayPoolNames(), currentPool.Name) {
 			awayAllocationPools = append(awayAllocationPools, otherPool.Name)
 		}
 	}
 	allPools := []string{currentPool.Name}
-	allPools = append(allPools, currentPool.AwayPools...)
+	allPools = append(allPools, currentPool.AwayPoolNames()...)
 	allPools = append(allPools, awayAllocationPools...)
 	allPools = armadaslices.Unique(allPools)
 
@@ -483,7 +483,7 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 		if currentPool.Name == pool.Name {
 			continue
 		}
-		if slices.Contains(pool.AwayPools, currentPool.Name) {
+		if slices.Contains(pool.AwayPoolNames(), currentPool.Name) {
 			// Jobs from away pools need to be considered in the current scheduling round, so should be added here
 			// This is so the jobs are available for eviction, if a home job needs to take their place
 			currentPoolJobs = append(currentPoolJobs, jobSchedulingInfo.jobsByPool[pool.Name]...)
@@ -498,7 +498,7 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 		}
 	}
 
-	nodePools := append(currentPool.AwayPools, currentPool.Name)
+	nodePools := append(currentPool.AwayPoolNames(), currentPool.Name)
 
 	nodeDb, err := l.constructNodeDb(currentPool, currentPoolJobs, otherPoolsJobs,
 		armadaslices.Filter(nodes, func(node *internaltypes.Node) bool { return slices.Contains(nodePools, node.GetPool()) }))
