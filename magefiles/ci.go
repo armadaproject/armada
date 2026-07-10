@@ -23,11 +23,11 @@ func createQueue() error {
 	return nil
 }
 
-// createRetryPolicyAndQueue smoke-tests retry-policy creation and queue
-// attachment against a live server: it creates a policy and a queue bound to
-// it. Driving a retry end to end additionally needs the executor to delete the
-// failed pod so the retry can reuse its name, so no testcase submits to this
-// queue yet.
+// createRetryPolicyAndQueue creates a retry policy and a queue bound to it for
+// the e2e suite. The retry/ testcase submits to this queue and asserts the
+// scheduler emits a retryable failure event. Driving a retry to completion
+// additionally needs the executor to delete the failed pod so the retry can
+// reuse its name, which lands with the executor failed-pod-deletion change.
 func createRetryPolicyAndQueue() error {
 	policyPath, err := writeRetryPolicyFile()
 	if err != nil {
@@ -85,7 +85,7 @@ func TestSuite() error {
 
 	timeTaken := time.Now()
 	out, err2 := goOutput("run", "cmd/testsuite/main.go", "test",
-		"--tests", "testsuite/testcases/basic/*,testsuite/testcases/categorization/*",
+		"--tests", "testsuite/testcases/basic/*,testsuite/testcases/categorization/*,testsuite/testcases/retry/*",
 		"--junit", "junit.xml",
 		"--config", "_local/.armadactl.yaml",
 	)
