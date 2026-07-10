@@ -24,10 +24,14 @@ application:
     enabled: true
     defaultCategory: uncategorized
     categories:
+      # The action Delete makes the executor remove the failed pod. A retry
+      # then reuses the name of the pod. The retry/ testcases need this.
       - name: oom
+        action: Delete
         rules:
           - onConditions: ["OOMKilled"]
       - name: user_error
+        action: Delete
         rules:
           - onExitCodes:
               operator: In
