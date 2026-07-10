@@ -428,12 +428,12 @@ type AwayPoolConfig struct {
 	Name string `validate:"required"`
 }
 
-// UnmarshalText allows an away pool to be specified in config as a plain string
-// (e.g. "awayPools: [poolA, poolB]"), decoding it into AwayPoolConfig{Name: "poolA"}.
+// UnmarshalConfigString allows an away pool to be specified in config as a plain
+// string (e.g. "awayPools: [poolA, poolB]"), decoding it into AwayPoolConfig{Name: "poolA"}.
 // This preserves backwards compatibility with the deprecated []string form.
-// It is relied upon by mapstructure's TextUnmarshallerHookFunc during config decode.
-func (a *AwayPoolConfig) UnmarshalText(text []byte) error {
-	a.Name = string(text)
+// It opts AwayPoolConfig in to commonconfig.StringConfigUnmarshalerHook during config decode.
+func (a *AwayPoolConfig) UnmarshalConfigString(text string) error {
+	a.Name = text
 	return nil
 }
 
