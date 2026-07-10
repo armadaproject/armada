@@ -9,6 +9,7 @@ import (
 	authconfig "github.com/armadaproject/armada/internal/common/auth/configuration"
 	commonconfig "github.com/armadaproject/armada/internal/common/config"
 	grpcconfig "github.com/armadaproject/armada/internal/common/grpc/configuration"
+	"github.com/armadaproject/armada/internal/common/observability"
 	profilingconfig "github.com/armadaproject/armada/internal/common/profiling/configuration"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/pkg/client"
@@ -17,10 +18,11 @@ import (
 type ArmadaConfig struct {
 	Auth authconfig.AuthConfig
 
-	GrpcPort    uint16
-	HttpPort    uint16
-	MetricsPort uint16
-	Profiling   *profilingconfig.ProfilingConfig
+	GrpcPort      uint16
+	HttpPort      uint16
+	MetricsPort   uint16
+	Profiling     *profilingconfig.ProfilingConfig
+	Observability observability.ObservabilityConfig
 
 	CorsAllowedOrigins []string
 	GrpcGatewayPath    string

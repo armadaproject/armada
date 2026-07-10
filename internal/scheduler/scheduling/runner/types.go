@@ -11,8 +11,10 @@ import (
 // It is expected the jobdb is updated with the latest result of GetSchedulerResult before calling Trigger again
 // - Failing to do so will result in scheduling on stale data.
 type SchedulingRunner interface {
-	// Trigger starts the next scheduling run in async runners.
-	Trigger()
+	// Trigger requests the next scheduling run in async runners.
+	// Returns true if a new run was actually started, false if a run was already
+	// in flight (async) or the runner never starts background runs (sync).
+	Trigger() bool
 
 	// GetSchedulerResult
 	// Applies the result of the current scheduling cycle to the provided txn.
