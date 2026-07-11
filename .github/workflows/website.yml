@@ -35,7 +35,7 @@ jobs:
     outputs:
       HAS_PAGES: ${{ steps.has-pages.outputs.HAS_PAGES }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0 # Fetch full git history (not shallow), required for lastModified on content pages
 
@@ -56,11 +56,11 @@ jobs:
           cache-dependency-path: website/yarn.lock
 
       - name: Setup Pages
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@v6
         if: github.ref == 'refs/heads/master' && steps.has-pages.outputs.HAS_PAGES == 'true'
 
       - name: Restore cache
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: |
             website/.next/cache
@@ -94,7 +94,7 @@ jobs:
           NEXT_PUBLIC_GOOGLE_ANALYTICS_ID: ${{ vars.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID }}
 
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v4
+        uses: actions/upload-pages-artifact@v5
         if: github.ref == 'refs/heads/master' && steps.has-pages.outputs.HAS_PAGES == 'true'
         with:
           path: website/out
@@ -110,4 +110,4 @@ jobs:
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
