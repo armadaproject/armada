@@ -81,6 +81,21 @@ Category and subcategory matching is exact and case-sensitive, so the values her
 
 Matching on failure signals directly (exit codes, Kubernetes conditions, termination-message patterns) is planned for a later version. For now, express those by defining a category for them in the executor's categorizer config and matching the category here.
 
+### Mutating the job on retry
+
+A `Retry` rule can carry a `mutate` block describing changes to apply to the job when that rule retries it:
+
+```yaml
+rules:
+  - action: Retry
+    onCategory: internal
+    onSubcategory: node-failure
+    mutate:
+      nodeAntiAffinity: true
+```
+
+* `nodeAntiAffinity`: when `true`, the retry is given a node anti-affinity that steers it away from the node the run failed on. This matches the legacy lease-return retry behaviour, including failing the job if the anti-affinity makes it unschedulable. It runs a per-job scheduling check, so leave it off (the default) for categories where the node is not the cause (for example a plain application error), and turn it on for node-specific failures. `mutate` is only meaningful on `Retry` rules.
+
 ## Retry budgets
 
 Two limits bound how often a job is retried: the per-policy `retryLimit` and the scheduler-wide `globalMaxRetries`.

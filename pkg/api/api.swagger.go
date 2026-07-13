@@ -2418,6 +2418,16 @@ func SwaggerJsonTemplate() string {
 		"        \"RETRY_ACTION_RETRY\"\n" +
 		"      ]\n" +
 		"    },\n" +
+		"    \"apiRetryMutation\": {\n" +
+		"      \"description\": \"RetryMutation groups the changes applied to a job on a policy-driven retry.\\nFields are additive: new mutation kinds get new fields over time.\",\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"nodeAntiAffinity\": {\n" +
+		"          \"description\": \"node_anti_affinity, when true, steers the retry away from the node the run\\nfailed on, matching the legacy lease-return retry behaviour (including\\nfailing the job if that makes it unschedulable). Default false: the retry\\nrequeues without the extra per-job scheduling probe.\",\n" +
+		"          \"type\": \"boolean\"\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
 		"    \"apiRetryPolicy\": {\n" +
 		"      \"description\": \"RetryPolicy defines rules that determine whether failed jobs should be retried.\\nOperators create policies and assign them to queues by name.\",\n" +
 		"      \"type\": \"object\",\n" +
@@ -2457,6 +2467,10 @@ func SwaggerJsonTemplate() string {
 		"      \"properties\": {\n" +
 		"        \"action\": {\n" +
 		"          \"$ref\": \"#/definitions/apiRetryAction\"\n" +
+		"        },\n" +
+		"        \"mutate\": {\n" +
+		"          \"description\": \"mutate describes changes applied to the job when this rule retries it.\\nOnly meaningful when action is Retry.\",\n" +
+		"          \"$ref\": \"#/definitions/apiRetryMutation\"\n" +
 		"        },\n" +
 		"        \"onCategory\": {\n" +
 		"          \"description\": \"on_category matches against Error.failure_category. When set with on_subcategory,\\nboth must match.\",\n" +

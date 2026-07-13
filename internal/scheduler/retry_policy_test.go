@@ -256,7 +256,7 @@ func TestRetryPolicy_FFOn_DefaultPolicyNameFallback(t *testing.T) {
 
 	// An empty queue map means the queue has no attached policy, so resolution
 	// must fall back to the default.
-	shouldRetry, _, policyName, decided := sched.evaluateRetryPolicy(
+	shouldRetry, _, policyName, decided, _ := sched.evaluateRetryPolicy(
 		armadacontext.Background(), job, categorizedError("app-error"), map[string]string{})
 	assert.True(t, decided, "default policy must produce a decision for an unattached queue")
 	assert.Equal(t, "default-policy", policyName, "the decision must be attributed to the default policy")
@@ -269,7 +269,7 @@ func TestRetryPolicy_FFOn_UnattachedQueueWithoutDefaultIsUndecided(t *testing.T)
 
 	// No attached queue policy and no configured default means the name resolves
 	// to empty, so the engine must leave the decision to the legacy path.
-	_, _, _, decided := sched.evaluateRetryPolicy(
+	_, _, _, decided, _ := sched.evaluateRetryPolicy(
 		armadacontext.Background(), job, categorizedError("app-error"), map[string]string{})
 	assert.False(t, decided, "an unattached queue with no default policy must not be decided by the engine")
 }
@@ -284,7 +284,7 @@ func TestRetryPolicy_FFOn_NilRunErrorIsUndecided(t *testing.T) {
 
 	// A nil runError is the ingester-race branch: the engine has nothing to match
 	// on and must defer rather than fabricate a retry from a resolvable policy.
-	_, _, _, decided := sched.evaluateRetryPolicy(
+	_, _, _, decided, _ := sched.evaluateRetryPolicy(
 		armadacontext.Background(), job, nil, map[string]string{"testQueue": "test-policy"})
 	assert.False(t, decided, "a nil runError must leave the decision to the legacy path even with a resolvable policy")
 }
@@ -306,7 +306,7 @@ func TestRetryPolicy_FFOn_LeaseReturnDefersToLegacy(t *testing.T) {
 			PodLeaseReturned: &armadaevents.PodLeaseReturned{Message: "node drained"},
 		},
 	}
-	shouldRetry, reason, _, decided := sched.evaluateRetryPolicy(
+	shouldRetry, reason, _, decided, _ := sched.evaluateRetryPolicy(
 		armadacontext.Background(), job, leaseReturned, map[string]string{"testQueue": "test-policy"})
 	assert.False(t, decided, "lease returns must not be decided by the engine, even under a Fail-default policy")
 	assert.False(t, shouldRetry, "undecided verdict must not signal retry")
@@ -656,10 +656,11 @@ func nodeAntiAffinityValues(si *schedulerobjects.JobSchedulingInfo) []string {
 	return nil
 }
 
-func TestRetryPolicy_FFOn_EngineRetryAddsNodeAntiAffinity(t *testing.T) {
+func TestRetryPolicy_FFOn_EngineRetryOptInAddsNodeAntiAffinity(t *testing.T) {
 	policy := mkPolicy(t, 3, api.RetryAction_RETRY_ACTION_FAIL, &api.RetryRule{
 		Action:     api.RetryAction_RETRY_ACTION_RETRY,
 		OnCategory: "app-error",
+		Mutate:     &api.RetryMutation{NodeAntiAffinity: true},
 	})
 
 	sched := makeRetryTestScheduler(t, true, fakePolicyCache{"test-policy": policy})
@@ -670,16 +671,14 @@ func TestRetryPolicy_FFOn_EngineRetryAddsNodeAntiAffinity(t *testing.T) {
 
 	si := requeuedSchedulingInfo(t, events.Events)
 	assert.Equal(t, []string{"testNode"}, nodeAntiAffinityValues(si),
-		"the requeued scheduling info must carry a NotIn anti-affinity for the node the run failed on")
+		"a rule opting into mutate.nodeAntiAffinity must add a NotIn anti-affinity for the node the run failed on")
 }
 
-// When adding the anti-affinity would make the job unschedulable (e.g. a
-// single-node cluster), the retry still happens without it. The legacy path
-// fails the job instead.
-func TestRetryPolicy_FFOn_EngineRetryRequeuesWithoutAntiAffinityWhenUnschedulable(t *testing.T) {
+func TestRetryPolicy_FFOn_EngineRetryOptInFailsWhenUnschedulable(t *testing.T) {
 	policy := mkPolicy(t, 3, api.RetryAction_RETRY_ACTION_FAIL, &api.RetryRule{
 		Action:     api.RetryAction_RETRY_ACTION_RETRY,
 		OnCategory: "app-error",
+		Mutate:     &api.RetryMutation{NodeAntiAffinity: true},
 	})
 
 	sched := makeRetryTestScheduler(t, true, fakePolicyCache{"test-policy": policy})
@@ -689,11 +688,39 @@ func TestRetryPolicy_FFOn_EngineRetryRequeuesWithoutAntiAffinityWhenUnschedulabl
 	events, txn := runFailurePath(t, sched, job, categorizedError("app-error"))
 	defer txn.Abort()
 
+	// Opt-in matches the legacy path: if the anti-affinity makes the job
+	// unschedulable, it is failed terminally rather than requeued.
 	hasRequeue, _ := classifyEvents(events.Events)
-	assert.True(t, hasRequeue, "engine retry must still requeue when the anti-affinity is unschedulable")
+	assert.False(t, hasRequeue, "opt-in anti-affinity must fail the job when it becomes unschedulable")
+	updated := txn.GetById(job.Id())
+	require.NotNil(t, updated)
+	assert.True(t, updated.Failed())
+}
+
+// When adding the anti-affinity would make the job unschedulable (e.g. a
+// single-node cluster), the retry still happens without it. The legacy path
+// fails the job instead.
+func TestRetryPolicy_FFOn_EngineRetryWithoutOptInSkipsAntiAffinity(t *testing.T) {
+	policy := mkPolicy(t, 3, api.RetryAction_RETRY_ACTION_FAIL, &api.RetryRule{
+		Action:     api.RetryAction_RETRY_ACTION_RETRY,
+		OnCategory: "app-error",
+	})
+
+	sched := makeRetryTestScheduler(t, true, fakePolicyCache{"test-policy": policy})
+	// The checker would report unschedulable, but a rule that does not opt into
+	// mutate.nodeAntiAffinity skips the probe entirely, so the job requeues
+	// without anti-affinity and is never failed by it.
+	sched.submitChecker = &testSubmitChecker{checkSuccess: false}
+	job := makeAttemptedFailedJobForRetry(t, sched)
+
+	events, txn := runFailurePath(t, sched, job, categorizedError("app-error"))
+	defer txn.Abort()
+
+	hasRequeue, _ := classifyEvents(events.Events)
+	assert.True(t, hasRequeue, "an engine retry without opt-in must requeue without consulting the scheduling probe")
 	si := requeuedSchedulingInfo(t, events.Events)
 	assert.Empty(t, nodeAntiAffinityValues(si),
-		"the fallback requeue must not carry the unschedulable anti-affinity")
+		"an engine retry without opt-in must not carry any node anti-affinity")
 }
 
 // The flag-off identity tests below prove, event by event, that with

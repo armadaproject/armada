@@ -944,7 +944,7 @@ func (s *Scheduler) evaluateRetryPolicy(
 	job *jobdb.Job,
 	runError *armadaevents.Error,
 	queueRetryPolicies map[string]string,
-) (shouldRetry bool, reason string, policyName string, decided bool) {
+) (shouldRetry bool, reason string, policyName string, decided bool, mutation retry.Mutation) {
 	// A queue's attached policy wins; otherwise fall back to the fleet-wide
 	// default policy, if one is configured.
 	policyName = queueRetryPolicies[job.Queue()]
@@ -952,7 +952,7 @@ func (s *Scheduler) evaluateRetryPolicy(
 		policyName = s.retryPolicyConfig.DefaultPolicyName
 	}
 	if policyName == "" {
-		return false, "", "", false
+		return false, "", "", false, retry.Mutation{}
 	}
 
 	// Gangs are excluded from policy-based retry: gang-aware retry needs to
@@ -962,25 +962,25 @@ func (s *Scheduler) evaluateRetryPolicy(
 	if job.IsInGang() {
 		retryPolicyGangSkippedCounter.WithLabelValues(policyName).Inc()
 		ctx.Debugf("retry policy %q skipped for gang job %s on queue %s: gang-aware retry is not yet supported", policyName, job.Id(), job.Queue())
-		return false, "", "", false
+		return false, "", "", false, retry.Mutation{}
 	}
 
 	// Fail-fast jobs opt out of policy retries entirely, on both the failure
 	// path and the lease-expiry path (which has no call-site guard). They fail
 	// terminally on their first failure regardless of the queue's policy.
 	if job.Annotations()[constants.FailFastAnnotation] == "true" {
-		return false, "", "", false
+		return false, "", "", false, retry.Mutation{}
 	}
 
 	policy, ok := s.retryPolicyCache.Get(policyName)
 	if !ok {
 		ctx.Warnf("retry policy %q referenced by queue %q not found in cache; falling back to legacy behaviour", policyName, job.Queue())
-		return false, "", "", false
+		return false, "", "", false, retry.Mutation{}
 	}
 	if runError == nil {
 		// Rare race with the ingester; let the legacy path surface its
 		// "out of sync" error if applicable.
-		return false, "", "", false
+		return false, "", "", false, retry.Mutation{}
 	}
 
 	// Lease returns are not categorized pod failures: a run whose lease is
@@ -990,14 +990,14 @@ func (s *Scheduler) evaluateRetryPolicy(
 	// path rather than letting them match no rule and take the policy's
 	// defaultAction.
 	if _, ok := runError.Reason.(*armadaevents.Error_PodLeaseReturned); ok {
-		return false, "", "", false
+		return false, "", "", false, retry.Mutation{}
 	}
 
 	result := s.retryEngine.Evaluate(policy, runError, retry.Counts{Failures: job.FailureCount()})
 	retryPolicyDecisionsCounter.WithLabelValues(policyName, string(result.Decision)).Inc()
 	ctx.Debugf("retry decision for job %s queue=%s policy=%s: ShouldRetry=%v Reason=%q",
 		job.Id(), job.Queue(), policyName, result.ShouldRetry, result.Reason)
-	return result.ShouldRetry, result.Reason, policyName, true
+	return result.ShouldRetry, result.Reason, policyName, true, result.Mutation
 }
 
 // runErrorDetail renders the human-readable detail of a run error (the pod
@@ -1197,6 +1197,7 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 			requeueJob := !failFast && lastRun.Returned() && job.NumAttempts() < s.maxAttemptedRuns
 			retryDecisionReason := ""
 			policyEngineDecided := false
+			addNodeAntiAffinity := false
 			runError := jobRunErrors[lastRun.Id()]
 
 			// When the engine returns decided=true its verdict overrides the
@@ -1206,33 +1207,35 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 			// sites reach it and the gang-skip metric is consistent across them.
 			var decidedPolicyName string
 			if s.retryPolicyConfig.Enabled {
-				if shouldRetry, reason, policyName, decided := s.evaluateRetryPolicy(ctx, job, runError, queueRetryPolicies); decided {
+				if shouldRetry, reason, policyName, decided, mutation := s.evaluateRetryPolicy(ctx, job, runError, queueRetryPolicies); decided {
 					requeueJob = shouldRetry
 					retryDecisionReason = reason
 					policyEngineDecided = true
+					addNodeAntiAffinity = mutation.NodeAntiAffinity
 					// The policy that governed this decision, recorded on the
 					// emitted event so the decision is attributable downstream.
 					decidedPolicyName = policyName
 				}
 			}
 
-			// Anti-affinity steers the retry away from nodes the job already
-			// failed on. The legacy path fails the job when the anti-affinity
-			// makes it unschedulable; engine-driven retries instead fall back
-			// to requeueing without the anti-affinity, because a semantic
-			// retry (e.g. on exit code 42) must still be possible on
-			// single-node clusters where every node has been attempted.
-			if requeueJob && lastRun.RunAttempted() {
+			// Node anti-affinity steers a retry away from the node it failed on.
+			// The legacy lease-return path always applies it and fails the job if
+			// that makes it unschedulable. Engine retries apply it only when the
+			// matched rule opts in via mutate.nodeAntiAffinity; otherwise they skip
+			// the probe entirely (addNodeAntiAffinitiesForAttemptedRunsIfSchedulable
+			// runs a per-job SubmitChecker.Check that is expensive under mass
+			// failure). When a rule does opt in, the behaviour matches legacy,
+			// including failing the job if the anti-affinity makes it unschedulable.
+			if requeueJob && lastRun.RunAttempted() && (!policyEngineDecided || addNodeAntiAffinity) {
 				jobWithAntiAffinity, schedulable, err := s.addNodeAntiAffinitiesForAttemptedRunsIfSchedulable(ctx, job)
 				if err != nil {
 					return nil, errors.Errorf("unable to set node anti-affinity for job %s because %s", job.Id(), err)
+				}
+				if schedulable {
+					job = jobWithAntiAffinity
 				} else {
-					if schedulable {
-						job = jobWithAntiAffinity
-					} else if !policyEngineDecided {
-						// If job is not schedulable with anti-affinity added. Do not requeue it and let it fail.
-						requeueJob = false
-					}
+					// Not schedulable with the anti-affinity added: do not requeue, let it fail.
+					requeueJob = false
 				}
 			}
 
@@ -1432,7 +1435,7 @@ func (s *Scheduler) expireJobsIfNecessary(ctx *armadacontext.Context, txn *jobdb
 				// skips gang jobs internally, so gangs always take the
 				// terminal path below.
 				jobWithFailedRun := job.WithUpdatedRun(run.WithFailed(true))
-				shouldRetry, reason, policyName, decided := s.evaluateRetryPolicy(ctx, jobWithFailedRun, leaseExpiredError, queueRetryPolicies)
+				shouldRetry, reason, policyName, decided, _ := s.evaluateRetryPolicy(ctx, jobWithFailedRun, leaseExpiredError, queueRetryPolicies)
 				if decided && shouldRetry {
 					ctx.Debugf("Requeueing job %s from lost executor %s per retry policy", job.Id(), run.Executor())
 					retriedJob := jobWithFailedRun.WithQueued(true).WithQueuedVersion(job.QueuedVersion() + 1)
