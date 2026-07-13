@@ -290,9 +290,6 @@ func (node *Node) HasUrgencyPreemptableResources() bool {
 	return node.hasUrgencyPreemptableResources
 }
 
-// RecomputeUrgencyPreemptableFlag sets hasUrgencyPreemptableResources to true iff the
-// urgency-preemptable view has more resource available at the highest real priority than
-// at the lowest, i.e. at least one lower-priority job could be urgency-preempted.
 func (node *Node) RecomputeUrgencyPreemptableFlag(realPriorities []int32) {
 	if len(realPriorities) == 0 {
 		node.hasUrgencyPreemptableResources = false

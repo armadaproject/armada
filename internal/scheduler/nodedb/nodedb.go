@@ -972,8 +972,6 @@ func (nodeDb *NodeDb) bindJobToNodeInPlace(node *internaltypes.Node, job *jobdb.
 	}
 
 	if isEvicted {
-		// Evicted job re-binding: to the urgency view the job never left, so only the
-		// real allocatable view moves - deduct at EvictedPriority and give back at cutoff.
 		nodeDb.markAllocatedRealOnly(node, priorityCutoffFor(job, priority), requests)
 		nodeDb.markAllocatableRealOnly(node, internaltypes.EvictedPriority, requests)
 	} else {
@@ -1141,8 +1139,6 @@ func (nodeDb *NodeDb) unbindJobFromNodeInPlace(job *jobdb.Job, node *internaltyp
 		return errors.Errorf("job %s not mapped to a priority", jobId)
 	}
 	if isEvicted {
-		// Real view tracks evicted jobs at EvictedPriority; the urgency view never gave
-		// the resource back, so it returns at the job's real priority cutoff.
 		nodeDb.markAllocatableRealOnly(node, internaltypes.EvictedPriority, requests)
 		markAllocatable(node.UrgencyPreemptableByPriority, priorityCutoffFor(job, priority), requests)
 	} else {
