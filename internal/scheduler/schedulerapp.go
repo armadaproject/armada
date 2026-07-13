@@ -15,8 +15,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/grpc/codes"
 
-	"github.com/armadaproject/armada/internal/scheduler/scheduling/runner"
-
 	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/internal/common/app"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -25,6 +23,7 @@ import (
 	grpcCommon "github.com/armadaproject/armada/internal/common/grpc"
 	"github.com/armadaproject/armada/internal/common/health"
 	log "github.com/armadaproject/armada/internal/common/logging"
+	"github.com/armadaproject/armada/internal/common/observability"
 	"github.com/armadaproject/armada/internal/common/profiling"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/common/pulsarutils/jobsetevents"
@@ -41,9 +40,11 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/metrics"
 	"github.com/armadaproject/armada/internal/scheduler/pricing"
 	"github.com/armadaproject/armada/internal/scheduler/priorityoverride"
+	"github.com/armadaproject/armada/internal/scheduler/publisher"
 	"github.com/armadaproject/armada/internal/scheduler/queue"
 	"github.com/armadaproject/armada/internal/scheduler/reports"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling"
+	"github.com/armadaproject/armada/internal/scheduler/scheduling/runner"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/api/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/armadaevents"
@@ -55,6 +56,18 @@ import (
 // Run sets up a Scheduler application and runs it until a SIGTERM is received
 func Run(config schedulerconfig.Configuration) error {
 	g, ctx := armadacontext.ErrGroup(app.CreateContextWithShutdown())
+
+	// ////////////////////////////////////////////////////////////////////////
+	// OpenTelemetry
+	// ////////////////////////////////////////////////////////////////////////
+	if err := observability.InitOTel(config.Observability); err != nil {
+		log.Fatalf("Failed to initialize OTel: %v", err)
+	}
+	defer func() {
+		if err := observability.ShutdownWithDefaultTimeout(); err != nil {
+			log.Warnf("Failed to shutdown OTel: %v", err)
+		}
+	}()
 
 	// ////////////////////////////////////////////////////////////////////////
 	// Expose profiling endpoints if enabled.
@@ -108,11 +121,7 @@ func Run(config schedulerconfig.Configuration) error {
 		return errors.WithMessage(err, "Error opening connection to postgres")
 	}
 	defer db.Close()
-	if err := config.JobMetadataMigrationPhase.Validate(); err != nil {
-		return errors.WithMessage(err, "invalid JobMetadataMigrationPhase")
-	}
-	ctx.Infof("Scheduler JobMetadataMigrationPhase: %q", config.JobMetadataMigrationPhase)
-	jobRepository := database.NewPostgresJobRepository(db, int32(config.DatabaseFetchSize), config.JobMetadataMigrationPhase)
+	jobRepository := database.NewPostgresJobRepository(db, int32(config.DatabaseFetchSize))
 	executorRepository := database.NewPostgresExecutorRepository(db)
 
 	// ////////////////////////////////////////////////////////////////////////
@@ -191,47 +200,74 @@ func Run(config schedulerconfig.Configuration) error {
 	// ////////////////////////////////////////////////////////////////////////
 	// Pulsar
 	// ////////////////////////////////////////////////////////////////////////
-	ctx.Infof("Setting up Pulsar connectivity")
-	pulsarClient, err := pulsarutils.NewPulsarClient(&config.Pulsar)
-	if err != nil {
-		return errors.WithMessage(err, "Error creating pulsar client")
-	}
-	defer pulsarClient.Close()
 
-	jobsetEventPublisher, err := NewPulsarPublisher(pulsarClient, pulsar.ProducerOptions{
-		Name:             fmt.Sprintf("armada-scheduler-%s", uuid.NewString()),
-		CompressionType:  config.Pulsar.CompressionType,
-		CompressionLevel: config.Pulsar.CompressionLevel,
-		BatchingMaxSize:  config.Pulsar.MaxAllowedMessageSize,
-		Topic:            config.Pulsar.JobsetEventsTopic,
-	}, config.Pulsar.MaxAllowedEventsPerMessage, config.Pulsar.MaxAllowedMessageSize, config.Pulsar.SendTimeout)
-	if err != nil {
-		return errors.WithMessage(err, "error creating jobset event pulsar publisher")
-	}
-
-	// Publishing metrics to pulsar is experimental.  We default to a no-op publisher and only enable a pulsar publisher
-	// if the feature flag is set in config
+	var jobSetEventPublisher publisher.Publisher
 	var metricPublisher pulsarutils.Publisher[*metricevents.Event] = pulsarutils.NoOpPublisher[*metricevents.Event]{}
-	if config.PublishMetricsToPulsar {
-		metricPublisher, err = pulsarutils.NewPulsarPublisher[*metricevents.Event](
+	var apiPublisher pulsarutils.Publisher[*armadaevents.EventSequence] = pulsarutils.NoOpPublisher[*armadaevents.EventSequence]{}
+
+	if config.Pulsar.URL == "" {
+		ctx.Warn("Pulsar URL not configured so won't publish to pulsar, this can be useful for testing but has no legitimate production use")
+		jobSetEventPublisher = publisher.NewDummyPublisher()
+	} else {
+		ctx.Infof("Setting up Pulsar connectivity")
+		pulsarClient, err := pulsarutils.NewPulsarClient(&config.Pulsar)
+		if err != nil {
+			return errors.WithMessage(err, "Error creating pulsar client")
+		}
+		defer pulsarClient.Close()
+
+		jobSetEventPublisher, err = publisher.NewPulsarPublisher(pulsarClient, pulsar.ProducerOptions{
+			Name:             fmt.Sprintf("armada-scheduler-%s", uuid.NewString()),
+			CompressionType:  config.Pulsar.CompressionType,
+			CompressionLevel: config.Pulsar.CompressionLevel,
+			BatchingMaxSize:  config.Pulsar.MaxAllowedMessageSize,
+			Topic:            config.Pulsar.JobsetEventsTopic,
+		}, config.Pulsar.MaxAllowedEventsPerMessage, config.Pulsar.MaxAllowedMessageSize, config.Pulsar.SendTimeout)
+		if err != nil {
+			return errors.WithMessage(err, "error creating jobset event pulsar publisher")
+		}
+
+		// Publishing metrics to pulsar is experimental.  We default to a no-op publisher and only enable a pulsar publisher
+		// if the feature flag is set in config
+		if config.PublishMetricsToPulsar {
+			metricPublisher, err = pulsarutils.NewPulsarPublisher[*metricevents.Event](
+				pulsarClient,
+				pulsar.ProducerOptions{
+					Name:             fmt.Sprintf("armada-scheduler-metrics-%s", uuid.NewString()),
+					CompressionType:  config.Pulsar.CompressionType,
+					CompressionLevel: config.Pulsar.CompressionLevel,
+					BatchingMaxSize:  config.Pulsar.MaxAllowedMessageSize,
+					Topic:            config.Pulsar.MetricEventsTopic,
+				},
+				utils.NoOpPreProcessor,
+				// Metrics are sent to an unpartitioned pulsar topic so there is no key needed
+				func(event *metricevents.Event) string {
+					return ""
+				},
+				config.Pulsar.SendTimeout,
+			)
+			if err != nil {
+				return errors.WithMessage(err, "error creating metric event pulsar publisher")
+			}
+		}
+		preProcessor := jobsetevents.NewPreProcessor(config.Pulsar.MaxAllowedEventsPerMessage, config.Pulsar.MaxAllowedMessageSize)
+		apiPublisher, err = pulsarutils.NewPulsarPublisher[*armadaevents.EventSequence](
 			pulsarClient,
 			pulsar.ProducerOptions{
-				Name:             fmt.Sprintf("armada-scheduler-metrics-%s", uuid.NewString()),
+				Name:             fmt.Sprintf("armada-executor-api-%s", uuid.NewString()),
 				CompressionType:  config.Pulsar.CompressionType,
 				CompressionLevel: config.Pulsar.CompressionLevel,
 				BatchingMaxSize:  config.Pulsar.MaxAllowedMessageSize,
-				Topic:            config.Pulsar.MetricEventsTopic,
+				Topic:            config.Pulsar.JobsetEventsTopic,
 			},
-			utils.NoOpPreProcessor,
-			// Metrics are sent to an unpartitioned pulsar topic so there is no key needed
-			func(event *metricevents.Event) string {
-				return ""
-			},
+			preProcessor,
+			jobsetevents.RetrieveKey,
 			config.Pulsar.SendTimeout,
 		)
 		if err != nil {
-			return errors.WithMessage(err, "error creating metric event pulsar publisher")
+			return errors.Wrapf(err, "error creating pulsar publisher for executor api")
 		}
+		defer apiPublisher.Close()
 	}
 
 	// ////////////////////////////////////////////////////////////////////////
@@ -251,24 +287,6 @@ func Run(config schedulerconfig.Configuration) error {
 	// Executor Api
 	// ////////////////////////////////////////////////////////////////////////
 	ctx.Infof("Setting up executor api")
-	preProcessor := jobsetevents.NewPreProcessor(config.Pulsar.MaxAllowedEventsPerMessage, config.Pulsar.MaxAllowedMessageSize)
-	apiPublisher, err := pulsarutils.NewPulsarPublisher[*armadaevents.EventSequence](
-		pulsarClient,
-		pulsar.ProducerOptions{
-			Name:             fmt.Sprintf("armada-executor-api-%s", uuid.NewString()),
-			CompressionType:  config.Pulsar.CompressionType,
-			CompressionLevel: config.Pulsar.CompressionLevel,
-			BatchingMaxSize:  config.Pulsar.MaxAllowedMessageSize,
-			Topic:            config.Pulsar.JobsetEventsTopic,
-		},
-		preProcessor,
-		jobsetevents.RetrieveKey,
-		config.Pulsar.SendTimeout,
-	)
-	if err != nil {
-		return errors.Wrapf(err, "error creating pulsar publisher for executor api")
-	}
-	defer apiPublisher.Close()
 
 	authServices, err := auth.ConfigureAuth(config.Auth)
 	if err != nil {
@@ -403,7 +421,7 @@ func Run(config schedulerconfig.Configuration) error {
 		executorRepository,
 		schedulingRunner,
 		leaderController,
-		jobsetEventPublisher,
+		jobSetEventPublisher,
 		submitChecker,
 		NewGangValidator(),
 		config.CyclePeriod,

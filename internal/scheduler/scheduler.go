@@ -23,6 +23,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/kubernetesobjects/affinity"
 	"github.com/armadaproject/armada/internal/scheduler/metrics"
 	"github.com/armadaproject/armada/internal/scheduler/pricing"
+	"github.com/armadaproject/armada/internal/scheduler/publisher"
 	"github.com/armadaproject/armada/internal/scheduler/queue"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling"
@@ -54,7 +55,7 @@ type Scheduler struct {
 	// This is used to check if gangs jobs are valid before considering their jobs validated
 	gangValidator SubmitGangValidator
 	// Responsible for publishing messages to Pulsar. Only the leader publishes.
-	publisher Publisher
+	publisher publisher.Publisher
 	// Minimum duration between scheduler cycles.
 	cyclePeriod time.Duration
 	// Minimum duration between Schedule() calls - calls that actually schedule new jobs.
@@ -100,7 +101,7 @@ func NewScheduler(
 	executorRepository database.ExecutorRepository,
 	runner runner.SchedulingRunner,
 	leaderController leaderelection.LeaderController,
-	publisher Publisher,
+	publisher publisher.Publisher,
 	submitChecker SubmitScheduleChecker,
 	gangValidator SubmitGangValidator,
 	cyclePeriod time.Duration,
@@ -159,7 +160,7 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 	ticker := s.clock.NewTicker(s.cyclePeriod)
 	prevLeaderToken := leaderelection.InvalidLeaderToken()
 
-	previousSchedulingRoundEnd := time.Time{}
+	lastScheduleStart := time.Time{}
 	cycleNumber := 0
 	for {
 		select {
@@ -199,29 +200,19 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 
 				// Run a scheduler cycle.
 				//
-				// If there is an error, we can't guarantee that the scheduler-internal state is consistent with what was published
-				// (scheduling decisions may have been partially published)
-				// and we must invalidate the held leader token to trigger flushing Pulsar at the next cycle.
-				//
-				// TODO: Once the Pulsar client supports transactions, we can guarantee consistency even in case of errors.
-				shouldSchedule := s.clock.Now().Sub(previousSchedulingRoundEnd) > s.schedulePeriod
-				if !shouldSchedule {
-					ctx.Info("Won't schedule this cycle as still within schedulePeriod")
+				// We trigger a new cycle when the elapsed time since last cycle start is > schedulePeriod
+				// The reason we measure since start time, is so when the scheduling cycles are long,
+				//  we retrigger a new cycle immediately without gap
+				shouldTriggerScheduling := s.clock.Now().Sub(lastScheduleStart) >= s.schedulePeriod
+				if !shouldTriggerScheduling {
+					ctx.Info("Won't start scheduling this cycle; still within schedulePeriod")
 				}
-
-				schedulingAttempted, err := s.cycle(ctx, fullUpdate, leaderToken, shouldSchedule, cycleNumber)
-				if shouldSchedule {
-					previousSchedulingRoundEnd = s.clock.Now()
-				}
+				shouldGetSchedulerResult := s.runner.IsAsync() || shouldTriggerScheduling
+				schedulingAttempted, err := s.cycle(ctx, fullUpdate, leaderToken, shouldGetSchedulerResult, cycleNumber)
 
 				cycleTime := s.clock.Since(start)
 
-				isSchedulingCycle := shouldSchedule && leaderToken.Leader()
-				if s.runner.IsAsync() {
-					isSchedulingCycle = leaderToken.Leader() && schedulingAttempted
-				}
-
-				if isSchedulingCycle {
+				if schedulingAttempted {
 					// Only the leader does real scheduling rounds.
 					s.metrics.ReportScheduleCycleTime(cycleTime)
 					s.metrics.ReportScheduleCycleOutcome(err == nil)
@@ -232,16 +223,26 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 				}
 
 				if err != nil {
+					// If there is an error, we can't guarantee that the scheduler-internal state is consistent
+					// with what was published (scheduling decisions may have been partially published) and we
+					// must invalidate the held leader token to trigger flushing Pulsar at the next cycle.
+					//
+					// TODO: Once the Pulsar client supports transactions, we can guarantee consistency even in case of errors.
 					ctx.Logger().WithStacktrace(err).Error("cycle failure")
 					leaderToken = leaderelection.InvalidLeaderToken()
 				}
 
-				// Kick off the next async run only after a clean cycle as leader,
-				// so the background run schedules against committed state. On error
-				// leaderToken was invalidated above, so a failed cycle won't trigger
-				// a run that would be discarded. In sync mode Trigger is a no-op.
-				if shouldSchedule && err == nil && leaderToken.Leader() {
-					s.runner.Trigger()
+				if !s.runner.IsAsync() {
+					if shouldTriggerScheduling {
+						lastScheduleStart = start
+					}
+				} else {
+					if shouldTriggerScheduling && s.leaderController.ValidateToken(leaderToken) {
+						triggered := s.runner.Trigger()
+						if triggered {
+							lastScheduleStart = start
+						}
+					}
 				}
 
 				prevLeaderToken = leaderToken
@@ -278,14 +279,14 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 //     This means we can start the next cycle immediately after one cycle finishes.
 //     As state transitions are persisted and read back from the schedulerDb over later cycles,
 //     there is no change to the jobDb, since the correct changes have already been made.
-func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToken leaderelection.LeaderToken, shouldSchedule bool, cycleNumber int) (bool, error) {
+func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToken leaderelection.LeaderToken, shouldGetSchedulingResult bool, cycleNumber int) (bool, error) {
 	ctx.Logger().Infof("starting cycle")
 	defer func(ctx *armadacontext.Context) {
 		ctx.Logger().Infof("finished cycle")
 	}(ctx)
 	// Update job state.
 	ctx.Info("Syncing internal state with database")
-	updatedJobs, jsts, newJobsSerial, newRunsSerial, err := s.syncState(ctx, false, cycleNumber%10 == 0)
+	updatedJobs, jsts, newJobsSerial, newRunsSerial, err := s.syncState(ctx, false)
 	if err != nil {
 		return false, err
 	}
@@ -363,16 +364,15 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	ctx.Infof("Finished looking for jobs to expire, generating %d events", len(expirationEvents))
 	events = append(events, expirationEvents...)
 
-	var schedulerResult *scheduling.SchedulerResult
-	// Schedule jobs.
-	if shouldSchedule {
-		start := time.Now()
-		err = s.updateJobPrices(ctx, txn)
-		if err != nil {
-			return false, err
-		}
-		ctx.Logger().Infof("updating job prices in %s", time.Now().Sub(start))
+	start := s.clock.Now()
+	err = s.updateJobPrices(ctx, txn)
+	if err != nil {
+		return false, err
+	}
+	ctx.Logger().Infof("updating job prices in %s", s.clock.Now().Sub(start))
 
+	var schedulerResult *scheduling.SchedulerResult
+	if shouldGetSchedulingResult {
 		var result *scheduling.SchedulerResult
 		result, err = s.runner.GetSchedulerResult(ctx, txn)
 		if err != nil {
@@ -393,7 +393,7 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	isLeader := func() bool {
 		return s.leaderController.ValidateToken(leaderToken)
 	}
-	start := s.clock.Now()
+	start = s.clock.Now()
 	ctx.Infof("Starting to publish %d eventSequences to pulsar", len(events))
 	if err = s.publisher.PublishMessages(ctx, events, isLeader); err != nil {
 		return schedulerResult != nil, err
@@ -438,7 +438,7 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 // syncState updates jobs in jobDb to match state in postgres and returns all updated jobs along with
 // the new jobsSerial and runsSerial cursor values that should be applied once the resulting events
 // have been published successfully.
-func (s *Scheduler) syncState(ctx *armadacontext.Context, initial, fullJobGc bool) ([]*jobdb.Job, []jobdb.JobStateTransitions, int64, int64, error) {
+func (s *Scheduler) syncState(ctx *armadacontext.Context, initial bool) ([]*jobdb.Job, []jobdb.JobStateTransitions, int64, int64, error) {
 	txn := s.jobDb.WriteTxn()
 	defer txn.Abort()
 
@@ -501,25 +501,12 @@ func (s *Scheduler) syncState(ctx *armadacontext.Context, initial, fullJobGc boo
 
 	// Delete jobs in a terminal state.
 	idsOfJobsToDelete := make([]string, 0)
-	deletionCandidates := jobDbJobs
-	if fullJobGc {
-		// Occasional full gc so jobs that were not deleted
-		// earlier as ShortJobPenalty was being applied
-		// eventually get deleted.
-		deletionCandidates = txn.GetAll()
-	}
-	shortJobCount := 0
-	for _, j := range deletionCandidates {
-		if !j.InTerminalState() {
-			continue
+	for _, j := range jobDbJobs {
+		if j.InTerminalState() {
+			idsOfJobsToDelete = append(idsOfJobsToDelete, j.Id())
 		}
-		if s.shortJobPenalty.ShouldApplyPenalty(j) {
-			shortJobCount++
-			continue
-		}
-		idsOfJobsToDelete = append(idsOfJobsToDelete, j.Id())
 	}
-	ctx.Logger().Infof("Deleting %d jobs out of %d considered for deletion (%d short jobs, full job gc=%t)", len(idsOfJobsToDelete), len(deletionCandidates), shortJobCount, fullJobGc)
+	ctx.Logger().Infof("Deleting %d terminal jobs out of %d updated jobs", len(idsOfJobsToDelete), len(jobDbJobs))
 	if err := txn.BatchDelete(idsOfJobsToDelete); err != nil {
 		return nil, nil, 0, 0, err
 	}
@@ -1075,6 +1062,9 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 	}
 
 	if !origJob.Equal(job) {
+		if job.InTerminalState() {
+			s.shortJobPenalty.ReportFinishedJob(job)
+		}
 		if err := txn.Upsert([]*jobdb.Job{job}); err != nil {
 			return nil, err
 		}
@@ -1133,7 +1123,9 @@ func (s *Scheduler) expireJobsIfNecessary(ctx *armadacontext.Context, txn *jobdb
 		run := job.LatestRun()
 		if run != nil && !job.Queued() && staleExecutors[run.Executor()] {
 			ctx.Warnf("Cancelling job %s as it is running on lost executor %s", job.Id(), run.Executor())
-			jobsToUpdate = append(jobsToUpdate, job.WithQueued(false).WithFailed(true).WithUpdatedRun(run.WithFailed(true)))
+			expiredJob := job.WithQueued(false).WithFailed(true).WithUpdatedRun(run.WithFailed(true))
+			s.shortJobPenalty.ReportFinishedJob(expiredJob)
+			jobsToUpdate = append(jobsToUpdate, expiredJob)
 
 			leaseExpiredError := &armadaevents.Error{
 				Terminal:           true,
@@ -1241,6 +1233,7 @@ func (s *Scheduler) submitCheck(ctx *armadacontext.Context, txn *jobdb.Txn) ([]*
 			}
 		} else {
 			job = job.WithFailed(true).WithQueued(false)
+			s.shortJobPenalty.ReportFinishedJob(job)
 			jobsToUpdate = append(jobsToUpdate, job)
 
 			es.Events[0].Event = &armadaevents.EventSequence_Event_JobErrors{
@@ -1284,7 +1277,7 @@ func (s *Scheduler) initialise(ctx *armadacontext.Context) error {
 		case <-ctx.Done():
 			return nil
 		default:
-			if _, _, newJobsSerial, newRunsSerial, err := s.syncState(ctx, true, false); err != nil {
+			if _, _, newJobsSerial, newRunsSerial, err := s.syncState(ctx, true); err != nil {
 				ctx.Logger().
 					WithStacktrace(err).
 					Error("failed to initialise; trying again in 1 second")
@@ -1324,6 +1317,12 @@ func (s *Scheduler) ensureDbUpToDate(ctx *armadacontext.Context, pollInterval ti
 				messagesSent = true
 			}
 		}
+	}
+
+	// We're using a dummy publisher for testing
+	if numSent == 0 {
+		ctx.Infof("No pulsar partitions configured, skipping checking for database up to date")
+		return nil
 	}
 
 	// Try to read these messages back from postgres.

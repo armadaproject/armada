@@ -29,7 +29,7 @@ runs:
         version: '23.3'
         repo-token: ${{ inputs.github-token }}
     # Generate the proto files for python, required for later steps
-    - run: go run github.com/magefile/mage@v1.15.0 -v buildPython
+    - run: go run github.com/magefile/mage@v1.17.2 -v buildPython
       shell: bash
     # Formatting, linting and docs are checked once on Python 3.12 by the
     # dedicated *-lint jobs, not per matrix version. This action only runs the

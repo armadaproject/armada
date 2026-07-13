@@ -154,9 +154,11 @@ type NodeDb struct {
 	// it will not be scheduled onto any node regardless of if the nodes have enough resource
 	disallowedJobResources []string
 
-	disableHomeScheduling     bool
-	disableAwayScheduling     bool
-	disableGangAwayScheduling bool
+	disableHomeScheduling      bool
+	disableAwayScheduling      bool
+	disableGangAwayScheduling  bool
+	disableFairshareScheduling bool
+	disableUrgencyScheduling   bool
 }
 
 func NewNodeDb(
@@ -334,32 +336,22 @@ func (nodeDb *NodeDb) GetNodeWithTxn(txn *memdb.Txn, id string) (*internaltypes.
 	return obj.(*internaltypes.Node), nil
 }
 
-func (nodeDb *NodeDb) DisableAwayScheduling() {
-	nodeDb.disableAwayScheduling = true
+type SchedulingOptions struct {
+	DisableHomeScheduling      bool
+	DisableAwayScheduling      bool
+	DisableGangAwayScheduling  bool
+	DisableFairshareScheduling bool
+	DisableUrgencyScheduling   bool
+	DisallowedJobResources     []string
 }
 
-func (nodeDb *NodeDb) EnableAwayScheduling() {
-	nodeDb.disableAwayScheduling = false
-}
-
-func (nodeDb *NodeDb) DisableHomeScheduling() {
-	nodeDb.disableHomeScheduling = true
-}
-
-func (nodeDb *NodeDb) EnableHomeScheduling() {
-	nodeDb.disableHomeScheduling = false
-}
-
-func (nodeDb *NodeDb) DisableGangAwayScheduling() {
-	nodeDb.disableGangAwayScheduling = true
-}
-
-func (nodeDb *NodeDb) EnableGangAwayScheduling() {
-	nodeDb.disableGangAwayScheduling = false
-}
-
-func (nodeDb *NodeDb) SetDisallowedJobResources(resources []string) {
-	nodeDb.disallowedJobResources = resources
+func (nodeDb *NodeDb) ConfigureScheduling(opts SchedulingOptions) {
+	nodeDb.disableHomeScheduling = opts.DisableHomeScheduling
+	nodeDb.disableAwayScheduling = opts.DisableAwayScheduling
+	nodeDb.disableGangAwayScheduling = opts.DisableGangAwayScheduling
+	nodeDb.disableFairshareScheduling = opts.DisableFairshareScheduling
+	nodeDb.disableUrgencyScheduling = opts.DisableUrgencyScheduling
+	nodeDb.disallowedJobResources = opts.DisallowedJobResources
 }
 
 func (nodeDb *NodeDb) GetNodes() ([]*internaltypes.Node, error) {
@@ -639,13 +631,15 @@ func (nodeDb *NodeDb) selectNodeForJobWithTxnAtPriority(
 
 	// Schedule by preventing evicted jobs from being re-scheduled.
 	// This method respect fairness by preventing from re-scheduling jobs that appear as far back in the total order as possible.
-	if node, err := nodeDb.selectNodeForJobWithFairPreemption(txn, jctx); err != nil {
-		return nil, err
-	} else if err := assertPodSchedulingContextNode(pctx, node); err != nil {
-		return nil, err
-	} else if node != nil {
-		pctx.SchedulingMethod = context.ScheduledWithFairSharePreemption
-		return node, nil
+	if !nodeDb.disableFairshareScheduling {
+		if node, err := nodeDb.selectNodeForJobWithFairPreemption(txn, jctx); err != nil {
+			return nil, err
+		} else if err := assertPodSchedulingContextNode(pctx, node); err != nil {
+			return nil, err
+		} else if node != nil {
+			pctx.SchedulingMethod = context.ScheduledWithFairSharePreemption
+			return node, nil
+		}
 	}
 
 	pctx.NodeId = ""
@@ -653,13 +647,15 @@ func (nodeDb *NodeDb) selectNodeForJobWithTxnAtPriority(
 
 	// Schedule by kicking off jobs currently bound to a node.
 	// This method does not respect fairness when choosing on which node to schedule the job.
-	if node, err := nodeDb.selectNodeForJobWithUrgencyPreemption(txn, jctx, matchingNodeTypeIds); err != nil {
-		return nil, err
-	} else if err := assertPodSchedulingContextNode(pctx, node); err != nil {
-		return nil, err
-	} else if node != nil {
-		pctx.SchedulingMethod = context.ScheduledWithUrgencyBasedPreemption
-		return node, nil
+	if !nodeDb.disableUrgencyScheduling {
+		if node, err := nodeDb.selectNodeForJobWithUrgencyPreemption(txn, jctx, matchingNodeTypeIds); err != nil {
+			return nil, err
+		} else if err := assertPodSchedulingContextNode(pctx, node); err != nil {
+			return nil, err
+		} else if node != nil {
+			pctx.SchedulingMethod = context.ScheduledWithUrgencyBasedPreemption
+			return node, nil
+		}
 	}
 
 	return nil, nil

@@ -15,10 +15,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	clock "k8s.io/utils/clock/testing"
 	"k8s.io/utils/pointer"
-
-	"github.com/armadaproject/armada/internal/scheduler/scheduling/runner"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
@@ -36,9 +35,11 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/kubernetesobjects/affinity"
 	"github.com/armadaproject/armada/internal/scheduler/metrics"
 	"github.com/armadaproject/armada/internal/scheduler/pricing"
+	"github.com/armadaproject/armada/internal/scheduler/publisher"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/scheduling/context"
+	"github.com/armadaproject/armada/internal/scheduler/scheduling/runner"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 	"github.com/armadaproject/armada/internal/scheduleringester"
 	"github.com/armadaproject/armada/pkg/api"
@@ -116,7 +117,26 @@ var (
 		},
 		Version: 1,
 	}
-	schedulingInfoBytes   = protoutil.MustMarshall(schedulingInfo)
+	schedulingInfoBytes    = protoutil.MustMarshall(schedulingInfo)
+	shortJobSchedulingInfo = &schedulerobjects.JobSchedulingInfo{
+		AtMostOnce:        true,
+		PriorityClassName: testfixtures.PriorityClass2NonPreemptible,
+		ObjectRequirements: []*schedulerobjects.ObjectRequirements{
+			{
+				Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
+					PodRequirements: &schedulerobjects.PodRequirements{
+						ResourceRequirements: &v1.ResourceRequirements{
+							Requests: v1.ResourceList{
+								"cpu":    resource.MustParse("1"),
+								"memory": resource.MustParse("1Gi"),
+							},
+						},
+					},
+				},
+			},
+		},
+		Version: 1,
+	}
 	updatedSchedulingInfo = &schedulerobjects.JobSchedulingInfo{
 		AtMostOnce: true,
 		ObjectRequirements: []*schedulerobjects.ObjectRequirements{
@@ -310,6 +330,46 @@ var leasedFailFastJob = testfixtures.NewJob(
 	true,
 ).WithNewRun("testExecutor", "test-node", "node", "pool", 5)
 
+var shortJobRunningTime = time.Now()
+
+func shortJobRun(job *jobdb.Job) *jobdb.Job {
+	job = job.WithNewRun("testExecutor", "test-node", "node", "pool", 5)
+	return job.WithUpdatedRun(job.LatestRun().WithRunningTime(&shortJobRunningTime))
+}
+
+var shortLeasedJob = shortJobRun(testfixtures.NewJob(
+	util.NewULID(),
+	"testJobset",
+	"testQueue",
+	uint32(10),
+	toInternalSchedulingInfo(shortJobSchedulingInfo),
+	false,
+	1,
+	false,
+	false,
+	false,
+	1,
+	true,
+))
+
+var shortUnschedulableJob = func() *jobdb.Job {
+	job := shortJobRun(testfixtures.NewJob(
+		util.NewULID(),
+		"testJobset",
+		"testQueue",
+		uint32(10),
+		toInternalSchedulingInfo(shortJobSchedulingInfo),
+		false,
+		1,
+		false,
+		false,
+		false,
+		1,
+		false,
+	))
+	return job.WithUpdatedRun(job.LatestRun().WithFailed(true).WithReturned(true))
+}()
+
 var (
 	preemptibleGangJob1 = createPreemptibleGangJob()
 	preemptibleGangJob2 = createPreemptibleGangJob()
@@ -371,40 +431,41 @@ type jobRunId struct {
 // Test a single scheduler cycle
 func TestScheduler_TestCycle(t *testing.T) {
 	tests := map[string]struct {
-		initialJobs                        []*jobdb.Job                   // jobs in the jobDb at the start of the cycle
-		jobUpdates                         []database.Job                 // job updates from the database
-		runUpdates                         []database.Run                 // run updates from the database
-		jobRunErrors                       map[string]*armadaevents.Error // job run errors in the database
-		staleExecutor                      bool                           // if true then the executorRepository will report the executor as stale
-		fetchError                         bool                           // if true then the jobRepository will throw an error
-		scheduleError                      error                          // if true then the scheduling algo will throw an error
-		publishError                       bool                           // if true the publisher will throw an error
-		submitCheckerFailure               bool                           // if true the submit checker will say the job is unschedulable
-		submitGangValidateFailure          bool                           // if true the gang validator will say the gang job is invalid
-		jobIdsToFailDueToReconciliation    []string                       // job ids that will be failed by the scheduler due to reconciliation issues
-		jobIdsToPreemptDueToReconciliation []string                       // job ids that will be preempted by the scheduler due to reconciliation issues
-		expectedJobRunLeased               []string                       // ids of jobs we expect to have produced leased messages
-		expectedJobRunErrors               []jobRunId                     // ids of jobs we expect to have produced jobRunErrors messages
-		expectedJobErrors                  []string                       // ids of jobs we expect to have produced jobErrors messages
-		expectedJobsRunsToPreempt          []string                       // ids of jobs we expect to be preempted by the scheduler
-		expectedJobRunPreempted            []jobRunId                     // ids of jobs we expect to have produced jobRunPreempted messages
-		expectedJobRunCancelled            []jobRunId                     // ids of jobs we expect to have produced jobRunPreempted messages
-		expectedJobCancelled               []string                       // ids of jobs we expect to have  produced cancelled messages
-		expectedJobRequestCancel           []string                       // ids of jobs we expect to have produced request cancel
-		expectedJobReprioritised           []string                       // ids of jobs we expect to have  produced reprioritised messages
-		expectedQueued                     []string                       // ids of jobs we expect to have  produced requeued messages
-		expectedJobSucceeded               []string                       // ids of jobs we expect to have  produced succeeded messages
-		expectedLeased                     []string                       // ids of jobs we expected to be leased in jobdb at the end of the cycle
-		expectedRequeued                   []string                       // ids of jobs we expected to be requeued in jobdb at the end of the cycle
-		expectedValidated                  []string                       // ids of jobs we expected to have produced submit checked messages
-		expectedTerminal                   []string                       // ids of jobs we expected to be terminal in jobdb at the end of the cycle
-		expectedJobPriority                map[string]uint32              // expected priority of jobs at the end of the cycle
-		expectedNodeAntiAffinities         []string                       // list of nodes there is expected to be anti affinities for on job scheduling info
-		expectedJobSchedulingInfoVersion   int                            // expected scheduling info version of jobs at the end of the cycle
-		expectedQueuedVersion              int32                          // expected queued version of jobs at the end of the cycle
-		cordonedQueues                     []string                       // queues that are cordoned
-		queueCacheError                    bool                           // if true then the queue cache will throw an error
-		expectedPreemptReasons             map[string]string              // map of job id to expected preempt reason on the latest run
+		initialJobs                        []*jobdb.Job                          // jobs in the jobDb at the start of the cycle
+		jobUpdates                         []database.Job                        // job updates from the database
+		runUpdates                         []database.Run                        // run updates from the database
+		jobRunErrors                       map[string]*armadaevents.Error        // job run errors in the database
+		staleExecutor                      bool                                  // if true then the executorRepository will report the executor as stale
+		fetchError                         bool                                  // if true then the jobRepository will throw an error
+		scheduleError                      error                                 // if true then the scheduling algo will throw an error
+		publishError                       bool                                  // if true the publisher will throw an error
+		submitCheckerFailure               bool                                  // if true the submit checker will say the job is unschedulable
+		submitGangValidateFailure          bool                                  // if true the gang validator will say the gang job is invalid
+		jobIdsToFailDueToReconciliation    []string                              // job ids that will be failed by the scheduler due to reconciliation issues
+		jobIdsToPreemptDueToReconciliation []string                              // job ids that will be preempted by the scheduler due to reconciliation issues
+		expectedJobRunLeased               []string                              // ids of jobs we expect to have produced leased messages
+		expectedJobRunErrors               []jobRunId                            // ids of jobs we expect to have produced jobRunErrors messages
+		expectedJobErrors                  []string                              // ids of jobs we expect to have produced jobErrors messages
+		expectedJobsRunsToPreempt          []string                              // ids of jobs we expect to be preempted by the scheduler
+		expectedJobRunPreempted            []jobRunId                            // ids of jobs we expect to have produced jobRunPreempted messages
+		expectedJobRunCancelled            []jobRunId                            // ids of jobs we expect to have produced jobRunPreempted messages
+		expectedJobCancelled               []string                              // ids of jobs we expect to have  produced cancelled messages
+		expectedJobRequestCancel           []string                              // ids of jobs we expect to have produced request cancel
+		expectedJobReprioritised           []string                              // ids of jobs we expect to have  produced reprioritised messages
+		expectedQueued                     []string                              // ids of jobs we expect to have  produced requeued messages
+		expectedJobSucceeded               []string                              // ids of jobs we expect to have  produced succeeded messages
+		expectedLeased                     []string                              // ids of jobs we expected to be leased in jobdb at the end of the cycle
+		expectedRequeued                   []string                              // ids of jobs we expected to be requeued in jobdb at the end of the cycle
+		expectedValidated                  []string                              // ids of jobs we expected to have produced submit checked messages
+		expectedTerminal                   []string                              // ids of jobs we expected to be terminal in jobdb at the end of the cycle
+		expectedJobPriority                map[string]uint32                     // expected priority of jobs at the end of the cycle
+		expectedNodeAntiAffinities         []string                              // list of nodes there is expected to be anti affinities for on job scheduling info
+		expectedJobSchedulingInfoVersion   int                                   // expected scheduling info version of jobs at the end of the cycle
+		expectedQueuedVersion              int32                                 // expected queued version of jobs at the end of the cycle
+		cordonedQueues                     []string                              // queues that are cordoned
+		queueCacheError                    bool                                  // if true then the queue cache will throw an error
+		expectedPreemptReasons             map[string]string                     // map of job id to expected preempt reason on the latest run
+		expectedShortJobPenalties          map[string]internaltypes.ResourceList // map of queue to the short-job penalty resources expected for testPool
 	}{
 		"Lease a single job already in the db": {
 			initialJobs:           []*jobdb.Job{queuedJob},
@@ -990,6 +1051,46 @@ func TestScheduler_TestCycle(t *testing.T) {
 			expectedLeased:        []string{leasedJob.Id()},
 			expectedQueuedVersion: leasedJob.QueuedVersion(),
 		},
+		"Short job succeeded reports a penalty": {
+			initialJobs: []*jobdb.Job{shortLeasedJob},
+			runUpdates: []database.Run{
+				{
+					RunID:     shortLeasedJob.LatestRun().Id(),
+					JobID:     shortLeasedJob.Id(),
+					JobSet:    "testJobSet",
+					Executor:  "testExecutor",
+					Succeeded: true,
+					Serial:    1,
+				},
+			},
+			expectedJobSucceeded:  []string{shortLeasedJob.Id()},
+			expectedTerminal:      []string{shortLeasedJob.Id()},
+			expectedQueuedVersion: shortLeasedJob.QueuedVersion(),
+			expectedShortJobPenalties: map[string]internaltypes.ResourceList{
+				"testQueue": shortLeasedJob.AllResourceRequirements(),
+			},
+		},
+		"Short job expired reports a penalty": {
+			initialJobs:           []*jobdb.Job{shortLeasedJob},
+			staleExecutor:         true,
+			expectedJobRunErrors:  []jobRunId{{jobId: shortLeasedJob.Id(), runId: shortLeasedJob.LatestRun().Id()}},
+			expectedJobErrors:     []string{shortLeasedJob.Id()},
+			expectedTerminal:      []string{shortLeasedJob.Id()},
+			expectedQueuedVersion: shortLeasedJob.QueuedVersion(),
+			expectedShortJobPenalties: map[string]internaltypes.ResourceList{
+				"testQueue": shortLeasedJob.AllResourceRequirements(),
+			},
+		},
+		"Short job failing submit check reports a penalty": {
+			initialJobs:           []*jobdb.Job{shortUnschedulableJob},
+			submitCheckerFailure:  true,
+			expectedJobErrors:     []string{shortUnschedulableJob.Id()},
+			expectedTerminal:      []string{shortUnschedulableJob.Id()},
+			expectedQueuedVersion: shortUnschedulableJob.QueuedVersion(),
+			expectedShortJobPenalties: map[string]internaltypes.ResourceList{
+				"testQueue": shortUnschedulableJob.AllResourceRequirements(),
+			},
+		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -1026,6 +1127,8 @@ func TestScheduler_TestCycle(t *testing.T) {
 				queues = append(queues, &api.Queue{Name: name, Cordoned: true})
 			}
 			queueCache := &testQueueCache{queues: queues, shouldError: tc.queueCacheError}
+			shortJobPenalty := scheduling.NewShortJobPenalty(map[string]time.Duration{"pool": time.Minute})
+			shortJobPenalty.SetNow(shortJobRunningTime.Add(time.Second))
 			sched, err := NewScheduler(
 				testfixtures.NewJobDb(testfixtures.TestResourceListFactory),
 				jobRepo,
@@ -1038,7 +1141,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 				1*time.Second,
 				5*time.Second,
 				clusterTimeout,
-				nil,
+				shortJobPenalty,
 				maxNumberOfAttempts,
 				nodeIdLabel,
 				schedulerMetrics,
@@ -1168,6 +1271,14 @@ func TestScheduler_TestCycle(t *testing.T) {
 					}
 				}
 			}
+
+			// assert short-job penalties reported during terminalisation
+			penalties := shortJobPenalty.Snapshot().GetPenaltiesForPool("pool")
+			for queue, expectedResources := range tc.expectedShortJobPenalties {
+				assert.True(t, penalties[queue].Equal(expectedResources),
+					"expected short-job penalty for queue %s to equal %s, got %s", queue, expectedResources, penalties[queue])
+			}
+			assert.Len(t, penalties, len(tc.expectedShortJobPenalties))
 			cancel()
 		})
 	}
@@ -1577,10 +1688,11 @@ type recordingRunner struct {
 	triggerCalls int
 }
 
-func (r *recordingRunner) Trigger() {
+func (r *recordingRunner) Trigger() bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.triggerCalls++
+	return true
 }
 
 func (r *recordingRunner) GetSchedulerResult(_ *armadacontext.Context, _ *jobdb.Txn) (*scheduling.SchedulerResult, error) {
@@ -2019,7 +2131,7 @@ func TestScheduler_TestSyncInitialState(t *testing.T) {
 			// which must be consistent within tests.
 			sched.jobDb = testfixtures.NewJobDb(testfixtures.TestResourceListFactory)
 
-			initialJobs, _, newJobsSerial, newRunsSerial, err := sched.syncState(ctx, true, false)
+			initialJobs, _, newJobsSerial, newRunsSerial, err := sched.syncState(ctx, true)
 			require.NoError(t, err)
 			sched.jobsSerial = newJobsSerial
 			sched.runsSerial = newRunsSerial
@@ -2242,7 +2354,7 @@ func TestScheduler_TestSyncState(t *testing.T) {
 			require.NoError(t, err)
 			txn.Commit()
 
-			updatedJobs, _, _, _, err := sched.syncState(ctx, false, false)
+			updatedJobs, _, _, _, err := sched.syncState(ctx, false)
 			require.NoError(t, err)
 
 			expectedJobDb := testfixtures.NewJobDbWithJobs(tc.expectedUpdatedJobs)
@@ -3454,7 +3566,7 @@ func TestCycleConsistency(t *testing.T) {
 			newScheduler := func(db *pgxpool.Pool) *Scheduler {
 				scheduler, err := NewScheduler(
 					testfixtures.NewJobDb(resourceListFactory),
-					database.NewPostgresJobRepository(db, 1024, schedulerdb.JobMetadataMigrationPhaseDualWrite),
+					database.NewPostgresJobRepository(db, 1024),
 					&testExecutorRepository{
 						updateTimes: map[string]time.Time{"test-executor": testClock.Now()},
 					},
@@ -3493,7 +3605,6 @@ func TestCycleConsistency(t *testing.T) {
 						time.Second,
 						time.Second,
 						10*time.Second,
-						schedulerdb.JobMetadataMigrationPhaseDualWrite,
 					)
 
 					// Fresh algo + runner per scenario. Both schedulers below share this
@@ -3612,7 +3723,7 @@ func TestCycleConsistency(t *testing.T) {
 				return nil
 			}
 
-			eventsFromTestPublisher := func(p Publisher) []*armadaevents.EventSequence {
+			eventsFromTestPublisher := func(p publisher.Publisher) []*armadaevents.EventSequence {
 				return p.(*testPublisher).eventSequences
 			}
 
@@ -3841,7 +3952,7 @@ func dbOpsFromDbObjects(
 	// jobUpdatesByJobId := make(map[string]*database.Job)
 	insertJobsDbOp := make(scheduleringester.InsertJobs, len(jobUpdates))
 	for _, dbJob := range jobUpdates {
-		insertJobsDbOp[dbJob.JobID] = dbJob
+		insertJobsDbOp[dbJob.JobID] = &scheduleringester.JobInsertion{Job: dbJob}
 		// jobUpdatesByJobId[dbJob.JobID] = dbJob
 	}
 	dbOps = scheduleringester.AppendDbOperation(dbOps, fixInsertJobsDbOp(insertJobsDbOp))
@@ -3897,7 +4008,7 @@ func dbOpsFromDbObjects(
 func fixInsertJobsDbOp(dbOp scheduleringester.InsertJobs) scheduleringester.InsertJobs {
 	for _, job := range dbOp {
 		// This field must be non-null when written to postgres.
-		job.SubmitMessage = make([]byte, 0)
+		job.Metadata.SubmitMessage = make([]byte, 0)
 	}
 	return dbOp
 }

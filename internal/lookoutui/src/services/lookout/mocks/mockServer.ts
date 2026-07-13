@@ -1,4 +1,4 @@
-import { http, HttpResponse, PathParams } from "msw"
+import { http, HttpResponse, PathParams, RequestHandler } from "msw"
 import { setupServer, SetupServerApi } from "msw/node"
 
 import { compareValues, getActiveJobSets, mergeFilters } from "../../../common/fakeJobsUtils"
@@ -128,6 +128,10 @@ export class MockServer {
 
   close() {
     return this.server.close()
+  }
+
+  use(...handlers: RequestHandler[]) {
+    return this.server.use(...handlers)
   }
 
   setGetQueuesResponse(queueNames: string[]) {
