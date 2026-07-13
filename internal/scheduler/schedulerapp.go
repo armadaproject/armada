@@ -251,7 +251,7 @@ func Run(config schedulerconfig.Configuration) error {
 			}
 		}
 		preProcessor := jobsetevents.NewPreProcessor(config.Pulsar.MaxAllowedEventsPerMessage, config.Pulsar.MaxAllowedMessageSize)
-		apiPublisher, err := pulsarutils.NewPulsarPublisher[*armadaevents.EventSequence](
+		apiPublisher, err = pulsarutils.NewPulsarPublisher[*armadaevents.EventSequence](
 			pulsarClient,
 			pulsar.ProducerOptions{
 				Name:             fmt.Sprintf("armada-executor-api-%s", uuid.NewString()),
