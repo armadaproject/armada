@@ -3,7 +3,7 @@ import { useCallback, useContext, useEffect, useState } from "react"
 import { UserManager } from "oidc-client-ts"
 
 import { getConfig } from "../config"
-import { mirrorRequest } from "../requestMirror"
+import { mirrorLookoutApiRequest } from "../lookoutApiRequestMirror"
 
 import { OidcAuthContext } from "./OidcAuthContext"
 import { appendAuthorizationHeaders } from "./utils"
@@ -62,7 +62,11 @@ export const useGetAccessToken = () => {
   }, [userManager])
 }
 
-export const useAuthenticatedFetch = () => {
+// useAuthenticatedFetchInternal returns a fetch function that attaches the
+// current access token, and additionally invokes onRequest (if given) with the
+// final input and token-bearing init just before the request is sent. This is
+// the shared core of useAuthenticatedFetch and useMirroredLookoutApiFetch.
+const useAuthenticatedFetchInternal = (onRequest?: (input: RequestInfo | URL, init: RequestInit) => void) => {
   const getAccessToken = useGetAccessToken()
   return useCallback<GlobalFetch["fetch"]>(
     (input, init) =>
@@ -71,9 +75,19 @@ export const useAuthenticatedFetch = () => {
         if (accessToken) {
           appendAuthorizationHeaders(headers, accessToken)
         }
-        mirrorRequest(input, { ...init, headers })
-        return fetch(input, { ...init, headers })
+        const authenticatedInit = { ...init, headers }
+        onRequest?.(input, authenticatedInit)
+        return fetch(input, authenticatedInit)
       }),
-    [getAccessToken],
+    [getAccessToken, onRequest],
   )
 }
+
+export const useAuthenticatedFetch = () => useAuthenticatedFetchInternal()
+
+// useMirroredLookoutApiFetch behaves like useAuthenticatedFetch but also mirrors
+// each Lookout API request to the configured mirror backend. Use it in place of
+// useAuthenticatedFetch for calls to the Lookout server's own REST API, so that
+// only Lookout API load is mirrored; requests to the Armada server or
+// Binoculars should continue to use useAuthenticatedFetch directly.
+export const useMirroredLookoutApiFetch = () => useAuthenticatedFetchInternal(mirrorLookoutApiRequest)

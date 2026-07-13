@@ -198,7 +198,9 @@ type OidcConfig struct {
 
 // RequestMirrorConfig configures client-side mirroring of Lookout UI API
 // requests to a secondary backend, e.g. for comparing performance against an
-// experimental deployment under real traffic patterns.
+// experimental deployment under real traffic patterns. TargetUrl must be an
+// HTTPS origin: mirrored requests carry the user's Authorization header, so it
+// must never be sent to a plaintext or untrusted origin.
 type RequestMirrorConfig struct {
 	Enabled   bool   `json:"enabled"`
 	TargetUrl string `json:"targetUrl,omitempty"`

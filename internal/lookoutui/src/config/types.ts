@@ -61,7 +61,9 @@ export interface AnalyticsConfig {
 
 // RequestMirrorConfig configures client-side mirroring of Lookout UI API
 // requests to a secondary backend, e.g. for comparing performance against an
-// experimental deployment under real traffic patterns.
+// experimental deployment under real traffic patterns. targetUrl must be an
+// HTTPS origin: mirrored requests carry the user's Authorization header, so it
+// must never be sent to a plaintext or untrusted origin.
 export interface RequestMirrorConfig {
   enabled: boolean
   targetUrl: string
