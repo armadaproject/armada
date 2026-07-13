@@ -19,8 +19,6 @@ import (
 	clock "k8s.io/utils/clock/testing"
 	"k8s.io/utils/pointer"
 
-	"github.com/armadaproject/armada/internal/scheduler/scheduling/runner"
-
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	apiconfig "github.com/armadaproject/armada/internal/common/constants"
@@ -37,9 +35,11 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/kubernetesobjects/affinity"
 	"github.com/armadaproject/armada/internal/scheduler/metrics"
 	"github.com/armadaproject/armada/internal/scheduler/pricing"
+	"github.com/armadaproject/armada/internal/scheduler/publisher"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/scheduling/context"
+	"github.com/armadaproject/armada/internal/scheduler/scheduling/runner"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 	"github.com/armadaproject/armada/internal/scheduleringester"
 	"github.com/armadaproject/armada/pkg/api"
@@ -3723,7 +3723,7 @@ func TestCycleConsistency(t *testing.T) {
 				return nil
 			}
 
-			eventsFromTestPublisher := func(p Publisher) []*armadaevents.EventSequence {
+			eventsFromTestPublisher := func(p publisher.Publisher) []*armadaevents.EventSequence {
 				return p.(*testPublisher).eventSequences
 			}
 
