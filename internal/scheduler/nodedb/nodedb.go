@@ -321,18 +321,6 @@ func (nodeDb *NodeDb) NumNodes() int {
 	return int(nodeDb.numNodes)
 }
 
-func (nodeDb *NodeDb) RealPrioritiesForTest() []int32 {
-	return nodeDb.realPriorities
-}
-
-func (nodeDb *NodeDb) UrgencyIndexNameForTest(p int32) string {
-	return nodeDb.urgencyIndexNameByPriority[p]
-}
-
-func (nodeDb *NodeDb) AllocatableIndexNameForTest(p int32) string {
-	return nodeDb.indexNameByPriority[p]
-}
-
 func (nodeDb *NodeDb) TotalKubernetesResources() internaltypes.ResourceList {
 	return nodeDb.totalAllocatableResources
 }

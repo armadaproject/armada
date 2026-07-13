@@ -39,13 +39,13 @@ func TestUrgencyIndexOmitsNodesWithNothingPreemptable(t *testing.T) {
 	txn := nodeDb.Txn(false)
 	defer txn.Abort()
 
-	for _, p := range nodeDb.RealPrioritiesForTest() {
-		it, err := txn.Get("nodes", nodeDb.UrgencyIndexNameForTest(p))
+	for _, p := range nodeDb.realPriorities {
+		it, err := txn.Get("nodes", nodeDb.urgencyIndexNameByPriority[p])
 		require.NoError(t, err)
 		require.Nil(t, it.Next(), "urgency index for priority %d should be empty", p)
 	}
 
-	it, err := txn.Get("nodes", nodeDb.AllocatableIndexNameForTest(nodeDb.RealPrioritiesForTest()[0]))
+	it, err := txn.Get("nodes", nodeDb.indexNameByPriority[nodeDb.realPriorities[0]])
 	require.NoError(t, err)
 	require.NotNil(t, it.Next())
 }
