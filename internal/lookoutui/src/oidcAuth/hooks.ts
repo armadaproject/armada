@@ -3,6 +3,7 @@ import { useCallback, useContext, useEffect, useState } from "react"
 import { UserManager } from "oidc-client-ts"
 
 import { getConfig } from "../config"
+import { mirrorRequest } from "../requestMirror"
 
 import { OidcAuthContext } from "./OidcAuthContext"
 import { appendAuthorizationHeaders } from "./utils"
@@ -70,6 +71,7 @@ export const useAuthenticatedFetch = () => {
         if (accessToken) {
           appendAuthorizationHeaders(headers, accessToken)
         }
+        mirrorRequest(input, { ...init, headers })
         return fetch(input, { ...init, headers })
       }),
     [getAccessToken],

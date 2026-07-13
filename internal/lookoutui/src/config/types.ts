@@ -59,6 +59,14 @@ export interface AnalyticsConfig {
   dataWrapper?: string
 }
 
+// RequestMirrorConfig configures client-side mirroring of Lookout UI API
+// requests to a secondary backend, e.g. for comparing performance against an
+// experimental deployment under real traffic patterns.
+export interface RequestMirrorConfig {
+  enabled: boolean
+  targetUrl: string
+}
+
 // This must match the UIConfig Go struct defined in internal/lookout/configuration/types.go
 export interface LookoutUiConfig {
   armadaApiBaseUrl: string
@@ -76,6 +84,7 @@ export interface LookoutUiConfig {
   errorMonitoring: ErrorMonitoringConfig
   customThemeConfigs: CustomThemeConfigs | undefined
   analytics: AnalyticsConfig | undefined
+  requestMirror: RequestMirrorConfig | undefined
 }
 
 export interface Config extends LookoutUiConfig {
