@@ -9,7 +9,7 @@ jobs:
       terminationGracePeriodSeconds: 0
       restartPolicy: Never
       nodeSelector:
-        armadaproject.io/test-pool: node-ops
+        armadaproject.io/node-pool: node-ops
       tolerations:
         - key: node-tests
           operator: Equal

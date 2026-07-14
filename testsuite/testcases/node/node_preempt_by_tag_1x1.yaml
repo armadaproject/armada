@@ -10,7 +10,7 @@ jobs:
       restartPolicy: Never
       priorityClassName: armada-preemptible
       nodeSelector:
-        armadaproject.io/test-pool: node-ops
+        armadaproject.io/node-pool: node-ops
       tolerations:
         - key: node-tests
           operator: Equal
