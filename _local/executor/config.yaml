@@ -16,7 +16,7 @@ kubernetes:
   toleratedTaints:
     - node-tests
   trackedNodeLabels:
-    - armadaproject.io/test-pool
+    - armadaproject.io/node-pool
 application:
   clusterId: "local-cluster"
   pool: "default"

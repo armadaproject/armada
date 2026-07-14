@@ -11,7 +11,7 @@ nodes:
 - role: worker
   image: kindest/node:v1.28.15
   labels:
-    armadaproject.io/test-pool: node-ops
+    armadaproject.io/node-pool: node-ops
   kubeadmConfigPatches:
     - |
       kind: JoinConfiguration
