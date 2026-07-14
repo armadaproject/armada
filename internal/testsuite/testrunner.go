@@ -347,5 +347,8 @@ func resolveNodeByPoolTag(ctx context.Context, tag string) (string, error) {
 	if len(nodes.Items) == 0 {
 		return "", errors.Errorf("no node found with label %s", labelSelector)
 	}
+	if len(nodes.Items) > 1 {
+		fmt.Printf("warn: multiple nodes match label %s; using %s\n", labelSelector, nodes.Items[0].Name)
+	}
 	return nodes.Items[0].Name, nil
 }
