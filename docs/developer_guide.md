@@ -232,7 +232,7 @@ If `mage dev:full` fails during the image build step with an error like:
   │ Learn more at https://goreleaser.com/errors/docker-build
 ```
 
-this is a goreleaser/buildx requirement, not a sign that Docker itself is broken. `mage dev:full` builds images via goreleaser, whose docker builder requires the context named `default` to be the active one. If you use a Docker runtime other than Docker Desktop (Rancher Desktop, Colima, OrbStack, Lima, Podman, etc.), that runtime typically registers its own context name instead of `default`, so this check fails even though Docker itself is running fine.
+This is a goreleaser/buildx requirement, not a sign that Docker itself is broken. `mage dev:full` builds images via goreleaser, whose docker builder requires the context named `default` to be the active one. If you use a Docker runtime other than Docker Desktop (Rancher Desktop, Colima, OrbStack, Lima, Podman, etc.), that runtime typically registers its own context name instead of `default`, so this check fails even though Docker itself is running fine.
 
 Find your runtime's socket and point `default` at it via `DOCKER_HOST`, then switch to it:
 
