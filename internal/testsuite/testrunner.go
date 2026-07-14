@@ -145,10 +145,16 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 	)
 	g.Go(func() error { return splitter.Run(ctx) })
 
-	// If configured, cancel or preempt jobs once all are running.
+	// If configured, cancel or preempt jobs once all reach the appropriate trigger state.
+	// - Node-scoped operations require Running (SQL query constraint).
+	// - Preempt requires Running (preemption acts on the job run, which only exists once running).
+	// - Cancel via submit API can fire as soon as Queued.
 	if srv.testSpec.Action == api.TestSpec_ACTION_CANCEL || srv.testSpec.Action == api.TestSpec_ACTION_PREEMPT {
 		g.Go(func() error {
-			return cancelOrPreemptWhenRunning(ctx, actionCh, srv.testSpec, srv.apiConnectionDetails, jobIds, nodeName)
+			if srv.testSpec.Selection == api.TestSpec_SELECTION_BY_NODE || srv.testSpec.Action == api.TestSpec_ACTION_PREEMPT {
+				return cancelOrPreemptWhenRunning(ctx, actionCh, srv.testSpec, srv.apiConnectionDetails, jobIds, nodeName)
+			}
+			return cancelOrPreemptWhenQueued(ctx, actionCh, srv.testSpec, srv.apiConnectionDetails, jobIds, nodeName)
 		})
 	}
 
@@ -181,10 +187,24 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 }
 
 // cancelOrPreemptWhenRunning waits for all jobs to reach the Running state, then issues the configured cancel or preempt action.
+// Required for node-scoped operations: CancelOnNode/PreemptOnNode only match jobs currently running on the node.
 func cancelOrPreemptWhenRunning(ctx context.Context, eventCh chan *api.EventMessage, testSpec *api.TestSpec, conn *client.ApiConnectionDetails, jobIds []string, nodeName string) error {
 	return cancelOrPreemptOnState(ctx, eventCh, testSpec, conn, jobIds, nodeName,
 		func(msg *api.EventMessage) string {
 			if e := msg.GetRunning(); e != nil {
+				return e.JobId
+			}
+			return ""
+		},
+	)
+}
+
+// cancelOrPreemptWhenQueued waits for all jobs to reach the Queued state, then issues the configured cancel or preempt action.
+// Suitable for submit-API cancel/preempt (BY_ID, BY_IDS, BY_SET) which work from any state.
+func cancelOrPreemptWhenQueued(ctx context.Context, eventCh chan *api.EventMessage, testSpec *api.TestSpec, conn *client.ApiConnectionDetails, jobIds []string, nodeName string) error {
+	return cancelOrPreemptOnState(ctx, eventCh, testSpec, conn, jobIds, nodeName,
+		func(msg *api.EventMessage) string {
+			if e := msg.GetQueued(); e != nil {
 				return e.JobId
 			}
 			return ""
