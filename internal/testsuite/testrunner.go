@@ -123,24 +123,6 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 	watcher.Out = out
 	g.Go(func() error { return watcher.Run(ctx) })
 
-	// TODO: Get job logs.
-	// jobLogger, err := a.createJobLogger(testSpec)
-	// if err != nil {
-	// 	return errors.WithMessage(err, "error creating job logger")
-	// }
-	// executorClustersDefined := len(a.Params.ApiConnectionDetails.ExecutorClusters) > 0
-	// if testSpec.GetLogs {
-	// 	if executorClustersDefined {
-	// 		g.Go(func() error { return jobLogger.Run(ctx) })
-	// 	} else {
-	// 		_, _ = fmt.Fprintf(
-	// 			a.Out,
-	// 			"cannot get logs for test %s, no executor clusters specified in executorClusters config\n",
-	// 			testSpec.Name,
-	// 		)
-	// 	}
-	// }
-
 	// Build list of event channels based on test configuration.
 	eventChannels := []chan *api.EventMessage{assertCh, ingressCh, noActiveCh, benchmarkCh, srv.eventLogger.In}
 
