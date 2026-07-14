@@ -307,6 +307,8 @@ func runActionOnState(ctx context.Context, eventCh chan *api.EventMessage, testS
 							})
 							return errors.WithStack(err)
 						})
+					default:
+						return errors.Errorf("action/selection combination invalid or not yet implemented: %v/%v", testSpec.Action, testSpec.Selection)
 					}
 					if actionErr != nil {
 						return actionErr
