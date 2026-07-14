@@ -1,0 +1,41 @@
+numBatches: 1
+batchSize: 1
+queue: e2e-test-queue
+jobSetId: node-preempt-test
+jobs:
+  - priority: 0
+    namespace: personal-anonymous
+    podSpec:
+      terminationGracePeriodSeconds: 0
+      restartPolicy: Never
+      priorityClassName: armada-preemptible
+      nodeSelector:
+        armadaproject.io/test-pool: node-ops
+      tolerations:
+        - key: node-tests
+          operator: Equal
+          value: "true"
+          effect: NoSchedule
+      containers:
+        - name: preempt-by-node
+          imagePullPolicy: IfNotPresent
+          image: alpine:3.20.0
+          args:
+            - "sleep"
+            - "60s"
+          resources:
+            limits:
+              memory: 25Mi
+              cpu: 100m
+            requests:
+              memory: 25Mi
+              cpu: 100m
+---
+action: ACTION_PREEMPT
+selection: SELECTION_BY_NODE
+nodePoolTag: node-ops
+executor: local-cluster
+timeout: "100s"
+expectedEvents:
+  - submitted:
+  - preempted:
