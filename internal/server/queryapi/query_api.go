@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/database/lookout"
@@ -43,12 +42,12 @@ var JobRunStateMap = map[int16]api.JobRunState{
 }
 
 type QueryApi struct {
-	db                  *pgxpool.Pool
+	db                  QueryDB
 	decompressorFactory func() compress.Decompressor
 	maxQueryItems       int
 }
 
-func New(db *pgxpool.Pool, maxQueryItems int, decompressorFactory func() compress.Decompressor) *QueryApi {
+func New(db QueryDB, maxQueryItems int, decompressorFactory func() compress.Decompressor) *QueryApi {
 	return &QueryApi{
 		db:                  db,
 		maxQueryItems:       maxQueryItems,
