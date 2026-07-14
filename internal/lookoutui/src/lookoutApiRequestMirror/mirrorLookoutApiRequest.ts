@@ -46,12 +46,8 @@ export const mirrorLookoutApiRequest = (input: RequestInfo | URL, init: RequestI
 
     const targetUrl = `${mirrorOrigin}${requestUrl.pathname}${requestUrl.search}`
 
-    const headers = new Headers(init?.headers)
-    headers.set("X-Mirrored-Request", "true")
-
     fetch(targetUrl, {
       ...init,
-      headers,
       credentials: "include",
     }).catch(() => undefined)
   } catch {
