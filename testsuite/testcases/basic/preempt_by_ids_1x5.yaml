@@ -12,7 +12,7 @@ jobs:
       containers:
         - name: sleeper
           imagePullPolicy: IfNotPresent
-          image: alpine:latest
+          image: alpine:3.20.0
           command:
             - sh
           args:

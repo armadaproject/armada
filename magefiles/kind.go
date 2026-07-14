@@ -25,9 +25,6 @@ func getImagesUsedInTestsOrControllers() []string {
 	return []string{
 		"nginx:1.27.0", // Used by ingress-controller
 		"alpine:3.20.0",
-		"alpine:3.16",
-		"alpine:latest",
-		"bitnamilegacy/kubectl:1.30",
 		"bitnamilegacy/kubectl:1.33.4",
 	}
 }
