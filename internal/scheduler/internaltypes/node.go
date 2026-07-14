@@ -300,6 +300,32 @@ func (node *Node) RecomputeUrgencyPreemptableFlag(realPriorities []int32) {
 	node.hasUrgencyPreemptableResources = !lowest.Equal(highest)
 }
 
+func (node *Node) MarkAllocatedFairShare(priorityCutoff int32, rs ResourceList) {
+	MarkAllocated(node.AllocatableByPriority, priorityCutoff, rs)
+}
+
+func (node *Node) MarkAllocatableFairShare(priorityCutoff int32, rs ResourceList) {
+	MarkAllocatable(node.AllocatableByPriority, priorityCutoff, rs)
+}
+
+func (node *Node) MarkAllocatedUrgency(priorityCutoff int32, rs ResourceList) {
+	MarkAllocated(node.UrgencyPreemptableByPriority, priorityCutoff, rs)
+}
+
+func (node *Node) MarkAllocatableUrgency(priorityCutoff int32, rs ResourceList) {
+	MarkAllocatable(node.UrgencyPreemptableByPriority, priorityCutoff, rs)
+}
+
+func (node *Node) MarkAllocated(priorityCutoff int32, rs ResourceList) {
+	node.MarkAllocatedFairShare(priorityCutoff, rs)
+	node.MarkAllocatedUrgency(priorityCutoff, rs)
+}
+
+func (node *Node) MarkAllocatable(priorityCutoff int32, rs ResourceList) {
+	node.MarkAllocatableFairShare(priorityCutoff, rs)
+	node.MarkAllocatableUrgency(priorityCutoff, rs)
+}
+
 func (node *Node) MarkResourceUnallocatable(unallocatable ResourceList) *Node {
 	result := node.DeepCopyNilKeys()
 
