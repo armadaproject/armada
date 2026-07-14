@@ -214,6 +214,8 @@ func runActionWhenQueued(ctx context.Context, eventCh chan *api.EventMessage, te
 
 // runActionOnState waits for all jobs to be reported by jobIdFromEvent, then issues the configured action.
 // jobIdFromEvent should return the job ID when the event matches the desired trigger state, or "" to ignore the event.
+// Not every event needs all of these parameters, for instance nodeName is only relevant for node-scoped actions.
+// This is a consequence of a testSpec.proto being too long. Ideally we will modularize the testspec in future prs.
 func runActionOnState(ctx context.Context, eventCh chan *api.EventMessage, testSpec *api.TestSpec, conn *client.ApiConnectionDetails, jobIds []string, nodeName string, jobIdFromEvent func(*api.EventMessage) string) error {
 	jobIdSet := make(map[string]bool, len(jobIds))
 	for _, id := range jobIds {
