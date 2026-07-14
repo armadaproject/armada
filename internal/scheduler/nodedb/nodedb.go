@@ -960,10 +960,10 @@ func (nodeDb *NodeDb) bindJobToNodeInPlace(node *internaltypes.Node, job *jobdb.
 	}
 
 	if isEvicted {
-		nodeDb.markAllocatedRealOnly(node, priorityCutoffFor(job, priority), requests)
-		nodeDb.markAllocatableRealOnly(node, internaltypes.EvictedPriority, requests)
+		node.MarkAllocatedFairShare(priorityCutoffFor(job, priority), requests)
+		node.MarkAllocatableFairShare(internaltypes.EvictedPriority, requests)
 	} else {
-		nodeDb.markAllocatedBoth(node, priorityCutoffFor(job, priority), requests)
+		node.MarkAllocated(priorityCutoffFor(job, priority), requests)
 	}
 
 	nodeDb.scheduledAtPriorityByJobId[jobId] = priority
@@ -1018,48 +1018,14 @@ func (nodeDb *NodeDb) evictJobFromNodeInPlace(job *jobdb.Job, node *internaltype
 		return errors.Errorf("job %s not mapped to a priority", jobId)
 	}
 	jobRequests := job.KubernetesResourceRequirements()
-	nodeDb.markAllocatableRealOnly(node, priorityCutoffFor(job, priority), jobRequests)
-	nodeDb.markAllocatedRealOnly(node, internaltypes.EvictedPriority, jobRequests)
+	node.MarkAllocatableFairShare(priorityCutoffFor(job, priority), jobRequests)
+	node.MarkAllocatedFairShare(internaltypes.EvictedPriority, jobRequests)
 
 	return nil
 }
 
-func markAllocated(allocatableByPriority map[int32]internaltypes.ResourceList, priorityCutoff int32, rs internaltypes.ResourceList) {
-	markAllocatable(allocatableByPriority, priorityCutoff, rs.Negate())
-}
-
-func markAllocatable(allocatableByPriority map[int32]internaltypes.ResourceList, priorityCutoff int32, rs internaltypes.ResourceList) {
-	priorities := make([]int32, 0, len(allocatableByPriority))
-	for priority := range allocatableByPriority {
-		if priority <= priorityCutoff {
-			priorities = append(priorities, priority)
-		}
-	}
-	for _, priority := range priorities {
-		allocatableByPriority[priority] = allocatableByPriority[priority].Add(rs)
-	}
-}
-
-func (nodeDb *NodeDb) markAllocatedBoth(node *internaltypes.Node, cutoff int32, rs internaltypes.ResourceList) {
-	markAllocated(node.AllocatableByPriority, cutoff, rs)
-	markAllocated(node.UrgencyPreemptableByPriority, cutoff, rs)
-}
-
-func (nodeDb *NodeDb) markAllocatableBoth(node *internaltypes.Node, cutoff int32, rs internaltypes.ResourceList) {
-	markAllocatable(node.AllocatableByPriority, cutoff, rs)
-	markAllocatable(node.UrgencyPreemptableByPriority, cutoff, rs)
-}
-
-func (nodeDb *NodeDb) markAllocatedRealOnly(node *internaltypes.Node, cutoff int32, rs internaltypes.ResourceList) {
-	markAllocated(node.AllocatableByPriority, cutoff, rs)
-}
-
-func (nodeDb *NodeDb) markAllocatableRealOnly(node *internaltypes.Node, cutoff int32, rs internaltypes.ResourceList) {
-	markAllocatable(node.AllocatableByPriority, cutoff, rs)
-}
-
 // nonPreemptibleCutoff is a sentinel value (not a real priority) passed to
-// markAllocated/markAllocatable to deduct at every priority bucket.
+// Node.MarkAllocated*/MarkAllocatable* to deduct at every priority bucket.
 const nonPreemptibleCutoff = math.MaxInt32
 
 // priorityCutoffFor returns the priorityCutoff to use when updating
@@ -1127,10 +1093,10 @@ func (nodeDb *NodeDb) unbindJobFromNodeInPlace(job *jobdb.Job, node *internaltyp
 		return errors.Errorf("job %s not mapped to a priority", jobId)
 	}
 	if isEvicted {
-		nodeDb.markAllocatableRealOnly(node, internaltypes.EvictedPriority, requests)
-		markAllocatable(node.UrgencyPreemptableByPriority, priorityCutoffFor(job, priority), requests)
+		node.MarkAllocatableFairShare(internaltypes.EvictedPriority, requests)
+		node.MarkAllocatableUrgency(priorityCutoffFor(job, priority), requests)
 	} else {
-		nodeDb.markAllocatableBoth(node, priorityCutoffFor(job, priority), requests)
+		node.MarkAllocatable(priorityCutoffFor(job, priority), requests)
 	}
 
 	return nil
