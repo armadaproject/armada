@@ -4,6 +4,7 @@
 package api
 
 import (
+	encoding_binary "encoding/binary"
 	fmt "fmt"
 	io "io"
 	math "math"
@@ -28,21 +29,24 @@ const _ = proto.GoGoProtoPackageIsVersion3 // please upgrade the proto package
 type TestSpec_ActionType int32
 
 const (
-	TestSpec_ACTION_NONE    TestSpec_ActionType = 0
-	TestSpec_ACTION_CANCEL  TestSpec_ActionType = 1
-	TestSpec_ACTION_PREEMPT TestSpec_ActionType = 2
+	TestSpec_ACTION_NONE         TestSpec_ActionType = 0
+	TestSpec_ACTION_CANCEL       TestSpec_ActionType = 1
+	TestSpec_ACTION_PREEMPT      TestSpec_ActionType = 2
+	TestSpec_ACTION_REPRIORITIZE TestSpec_ActionType = 3
 )
 
 var TestSpec_ActionType_name = map[int32]string{
 	0: "ACTION_NONE",
 	1: "ACTION_CANCEL",
 	2: "ACTION_PREEMPT",
+	3: "ACTION_REPRIORITIZE",
 }
 
 var TestSpec_ActionType_value = map[string]int32{
-	"ACTION_NONE":    0,
-	"ACTION_CANCEL":  1,
-	"ACTION_PREEMPT": 2,
+	"ACTION_NONE":         0,
+	"ACTION_CANCEL":       1,
+	"ACTION_PREEMPT":      2,
+	"ACTION_REPRIORITIZE": 3,
 }
 
 func (x TestSpec_ActionType) String() string {
@@ -113,6 +117,8 @@ type TestSpec struct {
 	Selection TestSpec_SelectionType `protobuf:"varint,17,opt,name=selection,proto3,enum=api.TestSpec_SelectionType" json:"selection,omitempty"`
 	// Reason for preempting jobs (if preemption is configured).
 	PreemptReason string `protobuf:"bytes,16,opt,name=preempt_reason,json=preemptReason,proto3" json:"preemptReason,omitempty"`
+	// New priority to apply when reprioritizing jobs (if reprioritization is configured).
+	NewPriority float64 `protobuf:"fixed64,15,opt,name=new_priority,json=newPriority,proto3" json:"newPriority,omitempty"`
 	// Test name. Defaults to the filename if not provided.
 	Name string `protobuf:"bytes,10,opt,name=name,proto3" json:"name,omitempty"`
 	// Randomize clientId if not provided
@@ -233,6 +239,13 @@ func (m *TestSpec) GetPreemptReason() string {
 		return m.PreemptReason
 	}
 	return ""
+}
+
+func (m *TestSpec) GetNewPriority() float64 {
+	if m != nil {
+		return m.NewPriority
+	}
+	return 0
 }
 
 func (m *TestSpec) GetName() string {
@@ -365,6 +378,12 @@ func (m *TestSpec) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		dAtA[i] = 0x1
 		i--
 		dAtA[i] = 0x82
+	}
+	if m.NewPriority != 0 {
+		i -= 8
+		encoding_binary.LittleEndian.PutUint64(dAtA[i:], uint64(math.Float64bits(float64(m.NewPriority))))
+		i--
+		dAtA[i] = 0x79
 	}
 	if len(m.Target) > 0 {
 		i -= len(m.Target)
@@ -566,6 +585,9 @@ func (m *TestSpec) Size() (n int) {
 	l = len(m.PreemptReason)
 	if l > 0 {
 		n += 2 + l + sovTestspec(uint64(l))
+	}
+	if m.NewPriority != 0 {
+		n += 9
 	}
 	if m.Selection != 0 {
 		n += 2 + sovTestspec(uint64(m.Selection))
@@ -1005,6 +1027,17 @@ func (m *TestSpec) Unmarshal(dAtA []byte) error {
 			}
 			m.Target = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
+		case 15:
+			if wireType != 1 {
+				return fmt.Errorf("proto: wrong wireType = %d for field NewPriority", wireType)
+			}
+			var v uint64
+			if (iNdEx + 8) > l {
+				return io.ErrUnexpectedEOF
+			}
+			v = uint64(encoding_binary.LittleEndian.Uint64(dAtA[iNdEx:]))
+			iNdEx += 8
+			m.NewPriority = float64(math.Float64frombits(v))
 		case 16:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field PreemptReason", wireType)

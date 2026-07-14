@@ -112,6 +112,12 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 		return err
 	}
 
+	// If configured, reprioritize the submitted jobs immediately.
+	// Used to test job reprioritization.
+	if err = tryReprioritizeJobs(ctx, srv.testSpec, srv.apiConnectionDetails, jobIds); err != nil {
+		return err
+	}
+
 	// One channel for each system listening to events.
 	benchmarkCh := make(chan *api.EventMessage)
 	noActiveCh := make(chan *api.EventMessage)
@@ -238,6 +244,53 @@ func tryCancelJobs(ctx context.Context, testSpec *api.TestSpec, conn *client.Api
 			time.Sleep(3 * time.Second)
 			req.JobIds = jobIds
 			_, err := sc.CancelJobs(ctx, req)
+			if err != nil {
+				return errors.WithStack(err)
+			}
+			return nil
+		})
+	}
+	return nil
+}
+
+// tryReprioritizeJobs reprioritizes submitted jobs if reprioritization is configured.
+func tryReprioritizeJobs(ctx context.Context, testSpec *api.TestSpec, conn *client.ApiConnectionDetails, jobIds []string) error {
+	if testSpec.Action != api.TestSpec_ACTION_REPRIORITIZE {
+		return nil
+	}
+
+	req := &api.JobReprioritizeRequest{
+		Queue:       testSpec.GetQueue(),
+		JobSetId:    testSpec.GetJobSetId(),
+		NewPriority: testSpec.GetNewPriority(),
+	}
+	switch {
+	case testSpec.Selection == api.TestSpec_SELECTION_BY_ID:
+		return client.WithSubmitClient(conn, func(sc api.SubmitClient) error {
+			time.Sleep(3 * time.Second)
+			for _, jobId := range jobIds {
+				req.JobIds = []string{jobId}
+				_, err := sc.ReprioritizeJobs(ctx, req)
+				if err != nil {
+					return errors.WithStack(err)
+				}
+			}
+			return nil
+		})
+	case testSpec.Selection == api.TestSpec_SELECTION_BY_SET:
+		return client.WithSubmitClient(conn, func(sc api.SubmitClient) error {
+			time.Sleep(3 * time.Second)
+			_, err := sc.ReprioritizeJobs(ctx, req)
+			if err != nil {
+				return errors.WithStack(err)
+			}
+			return nil
+		})
+	case testSpec.Selection == api.TestSpec_SELECTION_BY_IDS:
+		return client.WithSubmitClient(conn, func(sc api.SubmitClient) error {
+			time.Sleep(3 * time.Second)
+			req.JobIds = jobIds
+			_, err := sc.ReprioritizeJobs(ctx, req)
 			if err != nil {
 				return errors.WithStack(err)
 			}
