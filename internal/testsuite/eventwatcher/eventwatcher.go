@@ -253,7 +253,8 @@ func ErrorOnNoActiveJobs(parent context.Context, C chan *api.EventMessage, jobId
 				numActive++
 			} else if e := msg.GetSucceeded(); e != nil {
 				if _, ok := exitedByJobId[e.JobId]; ok {
-					return errors.Errorf("received multiple terminal events for job %s", e.JobId)
+					// A second succeeded event for the same job is a no-op
+					continue
 				}
 				exitedByJobId[e.JobId] = true
 				if _, ok := jobIds[e.JobId]; ok {
