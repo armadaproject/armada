@@ -215,13 +215,17 @@ func runActionWhenQueued(ctx context.Context, eventCh chan *api.EventMessage, te
 // runActionOnState waits for all jobs to be reported by jobIdFromEvent, then issues the configured action.
 // jobIdFromEvent should return the job ID when the event matches the desired trigger state, or "" to ignore the event.
 func runActionOnState(ctx context.Context, eventCh chan *api.EventMessage, testSpec *api.TestSpec, conn *client.ApiConnectionDetails, jobIds []string, nodeName string, jobIdFromEvent func(*api.EventMessage) string) error {
+	jobIdSet := make(map[string]bool, len(jobIds))
+	for _, id := range jobIds {
+		jobIdSet[id] = true
+	}
 	triggeredJobs := make(map[string]bool)
 	for {
 		select {
 		case <-ctx.Done():
 			return nil
 		case msg := <-eventCh:
-			if jobId := jobIdFromEvent(msg); jobId != "" {
+			if jobId := jobIdFromEvent(msg); jobId != "" && jobIdSet[jobId] {
 				triggeredJobs[jobId] = true
 				if len(triggeredJobs) == len(jobIds) {
 					time.Sleep(1 * time.Second)
