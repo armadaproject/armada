@@ -152,9 +152,9 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 	if srv.testSpec.Action == api.TestSpec_ACTION_CANCEL || srv.testSpec.Action == api.TestSpec_ACTION_PREEMPT {
 		g.Go(func() error {
 			if srv.testSpec.Selection == api.TestSpec_SELECTION_BY_NODE || srv.testSpec.Action == api.TestSpec_ACTION_PREEMPT {
-				return cancelOrPreemptWhenRunning(ctx, actionCh, srv.testSpec, srv.apiConnectionDetails, jobIds, nodeName)
+				return runActionWhenRunning(ctx, actionCh, srv.testSpec, srv.apiConnectionDetails, jobIds, nodeName)
 			}
-			return cancelOrPreemptWhenQueued(ctx, actionCh, srv.testSpec, srv.apiConnectionDetails, jobIds, nodeName)
+			return runActionWhenQueued(ctx, actionCh, srv.testSpec, srv.apiConnectionDetails, jobIds, nodeName)
 		})
 	}
 
@@ -186,10 +186,10 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 	return nil
 }
 
-// cancelOrPreemptWhenRunning waits for all jobs to reach the Running state, then issues the configured cancel or preempt action.
+// runActionWhenRunning waits for all jobs to reach the Running state, then issues the configured action.
 // Required for node-scoped operations: CancelOnNode/PreemptOnNode only match jobs currently running on the node.
-func cancelOrPreemptWhenRunning(ctx context.Context, eventCh chan *api.EventMessage, testSpec *api.TestSpec, conn *client.ApiConnectionDetails, jobIds []string, nodeName string) error {
-	return cancelOrPreemptOnState(ctx, eventCh, testSpec, conn, jobIds, nodeName,
+func runActionWhenRunning(ctx context.Context, eventCh chan *api.EventMessage, testSpec *api.TestSpec, conn *client.ApiConnectionDetails, jobIds []string, nodeName string) error {
+	return runActionOnState(ctx, eventCh, testSpec, conn, jobIds, nodeName,
 		func(msg *api.EventMessage) string {
 			if e := msg.GetRunning(); e != nil {
 				return e.JobId
@@ -199,10 +199,10 @@ func cancelOrPreemptWhenRunning(ctx context.Context, eventCh chan *api.EventMess
 	)
 }
 
-// cancelOrPreemptWhenQueued waits for all jobs to reach the Queued state, then issues the configured cancel or preempt action.
+// runActionWhenQueued waits for all jobs to reach the Queued state, then issues the configured action.
 // Suitable for submit-API cancel/preempt (BY_ID, BY_IDS, BY_SET) which work from any state.
-func cancelOrPreemptWhenQueued(ctx context.Context, eventCh chan *api.EventMessage, testSpec *api.TestSpec, conn *client.ApiConnectionDetails, jobIds []string, nodeName string) error {
-	return cancelOrPreemptOnState(ctx, eventCh, testSpec, conn, jobIds, nodeName,
+func runActionWhenQueued(ctx context.Context, eventCh chan *api.EventMessage, testSpec *api.TestSpec, conn *client.ApiConnectionDetails, jobIds []string, nodeName string) error {
+	return runActionOnState(ctx, eventCh, testSpec, conn, jobIds, nodeName,
 		func(msg *api.EventMessage) string {
 			if e := msg.GetQueued(); e != nil {
 				return e.JobId
@@ -212,9 +212,9 @@ func cancelOrPreemptWhenQueued(ctx context.Context, eventCh chan *api.EventMessa
 	)
 }
 
-// cancelOrPreemptOnState waits for all jobs to be reported by jobIdFromEvent, then issues the configured cancel or preempt action.
+// runActionOnState waits for all jobs to be reported by jobIdFromEvent, then issues the configured action.
 // jobIdFromEvent should return the job ID when the event matches the desired trigger state, or "" to ignore the event.
-func cancelOrPreemptOnState(ctx context.Context, eventCh chan *api.EventMessage, testSpec *api.TestSpec, conn *client.ApiConnectionDetails, jobIds []string, nodeName string, jobIdFromEvent func(*api.EventMessage) string) error {
+func runActionOnState(ctx context.Context, eventCh chan *api.EventMessage, testSpec *api.TestSpec, conn *client.ApiConnectionDetails, jobIds []string, nodeName string, jobIdFromEvent func(*api.EventMessage) string) error {
 	triggeredJobs := make(map[string]bool)
 	for {
 		select {
@@ -321,7 +321,7 @@ func cancelOrPreemptOnState(ctx context.Context, eventCh chan *api.EventMessage,
 	}
 }
 
-// resolveNodeByPoolTag finds the k8s node name for the given armadaproject.io/test-pool label value.
+// resolveNodeByPoolTag finds the k8s node name for the given armadaproject.io/node-pool label value.
 // Node-scoped api calls need the node name, which kind sets dynamically.
 func resolveNodeByPoolTag(ctx context.Context, tag string) (string, error) {
 	loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
@@ -333,7 +333,7 @@ func resolveNodeByPoolTag(ctx context.Context, tag string) (string, error) {
 	if err != nil {
 		return "", errors.Wrap(err, "failed to create k8s client")
 	}
-	labelSelector := fmt.Sprintf("armadaproject.io/test-pool=%s", tag)
+	labelSelector := fmt.Sprintf("armadaproject.io/node-pool=%s", tag)
 	nodes, err := k8sClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{LabelSelector: labelSelector})
 	if err != nil {
 		return "", errors.Wrapf(err, "failed to list nodes with label %s", labelSelector)
