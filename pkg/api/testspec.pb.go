@@ -126,7 +126,7 @@ type TestSpec struct {
 	// Reason for preempting jobs (if preemption is configured).
 	PreemptReason string                 `protobuf:"bytes,16,opt,name=preempt_reason,json=preemptReason,proto3" json:"preemptReason,omitempty"`
 	Selection     TestSpec_SelectionType `protobuf:"varint,17,opt,name=selection,proto3,enum=api.TestSpec_SelectionType" json:"selection,omitempty"`
-	// Value of the armadaproject.io/test-pool label used to resolve the target node at runtime.
+	// Value of the armadaproject.io/node-pool label used to resolve the target node at runtime.
 	// Used when selection is SELECTION_BY_NODE.
 	NodePoolTag string `protobuf:"bytes,18,opt,name=node_pool_tag,json=nodePoolTag,proto3" json:"nodePoolTag,omitempty"`
 	// Executor (cluster) ID for node-scoped operations (SELECTION_BY_NODE).

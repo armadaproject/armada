@@ -60,7 +60,7 @@ message TestSpec {
     // Reason for preempting jobs (if preemption is configured).
     string preempt_reason = 16;
     SelectionType selection = 17;
-    // Value of the armadaproject.io/test-pool label used to resolve the target node at runtime.
+    // Value of the armadaproject.io/node-pool label used to resolve the target node at runtime.
     // Used when selection is SELECTION_BY_NODE.
     string node_pool_tag = 18;
     // Executor (cluster) ID for node-scoped operations (SELECTION_BY_NODE).
