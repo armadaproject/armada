@@ -28,7 +28,7 @@ jobs:
 ---
 ### Reprioritize the job upward
 action: ACTION_REPRIORITIZE
-selection: SELECTION_BY_IDS
+selection: SELECTION_BY_ID
 newPriority: 100
 timeout: "100s"
 expectedEvents:
