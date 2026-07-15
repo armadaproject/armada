@@ -51,7 +51,7 @@ func TestSuite() error {
 	// Node preempt must run before node cancel: CancelOnNode kills all jobs on the node,
 	// which would cause the preempt test to receive a Cancelled event instead of Preempted.
 	out, err = goOutput("run", "cmd/testsuite/main.go", "test",
-		"--tests", "testsuite/testcases/node/node_preempt_by_tag_2x10.yaml",
+		"--tests", "testsuite/testcases/node/node_preempt_by_name_1x10.yaml",
 		"--junit", "junit-node-preempt.xml",
 		"--config", "_local/.armadactl.yaml",
 	)
@@ -61,7 +61,7 @@ func TestSuite() error {
 	}
 
 	out, err = goOutput("run", "cmd/testsuite/main.go", "test",
-		"--tests", "testsuite/testcases/node/node_cancel_by_name_2x10.yaml",
+		"--tests", "testsuite/testcases/node/node_cancel_by_name_1x10.yaml",
 		"--junit", "junit-node-cancel.xml",
 		"--config", "_local/.armadactl.yaml",
 	)
