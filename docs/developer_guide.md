@@ -16,6 +16,7 @@
         - [Running the UI](#running-the-ui)
     - [Debugging error: port 6443 is already in use after running `mage dev:full`](#debugging-error-port-6443-is-already-in-use-after-running-mage-devfull)
         - [Identifying the conflict](#identifying-the-conflict)
+    - [Debugging error: docker buildx is not set to default context after running `mage dev:full`](#debugging-error-docker-buildx-is-not-set-to-default-context-after-running-mage-devfull)
     - [Debugging](#debugging)
     - [GoLand run configurations](#goland-run-configurations)
     - [VS Code Run and Debug configurations](#vs-code-run-and-debug-configurations)
@@ -219,6 +220,29 @@ Before making any changes, identify which port is causing the conflict. Port 644
     ```
 
     You are not limited to using port 6444. You can choose any available port that doesn't conflict with other services on your system. Select a port that suits your system configuration.
+
+## Debugging error: docker buildx is not set to default context after running `mage dev:full`
+
+If `mage dev:full` fails during the image build step with an error like:
+
+```
+⨯ release failed after 7m49s
+  error=
+  │ docker build failed: docker buildx is not set to default context - please switch with 'docker context use default'
+  │ Learn more at https://goreleaser.com/errors/docker-build
+```
+
+This is a goreleaser/buildx requirement, not a sign that Docker itself is broken. `mage dev:full` builds images via goreleaser, whose docker builder requires the context named `default` to be the active one. If you use a Docker runtime other than Docker Desktop (Rancher Desktop, Colima, OrbStack, Lima, Podman, etc.), that runtime typically registers its own context name instead of `default`, so this check fails even though Docker itself is running fine.
+
+Find your runtime's socket and point `default` at it via `DOCKER_HOST`, then switch to it:
+
+```bash
+docker context ls   # find your runtime's context and its DOCKER ENDPOINT socket path
+export DOCKER_HOST="unix:///path/to/that/socket"
+docker context use default
+```
+
+`default` is a reserved context that always reflects `DOCKER_HOST` (falling back to `/var/run/docker.sock` if unset), so this doesn't persist across shells — export `DOCKER_HOST` in whichever shell runs `mage dev:full`.
 
 ## Debugging
 
