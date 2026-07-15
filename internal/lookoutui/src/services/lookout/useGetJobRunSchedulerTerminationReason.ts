@@ -4,7 +4,7 @@ import { QueryFunction, QueryKey, useQuery } from "@tanstack/react-query"
 
 import { getErrorMessage } from "../../common/utils"
 import { getConfig } from "../../config"
-import { useAuthenticatedFetch } from "../../oidcAuth"
+import { useMirroredLookoutApiFetch } from "../../oidcAuth"
 
 const getQueryFn =
   (runId: string, fetchFunc: GlobalFetch["fetch"], fakeDataEnabled: boolean): QueryFunction<string, QueryKey, never> =>
@@ -30,11 +30,11 @@ const getQueryFn =
 
 export const useGetJobRunSchedulerTerminationReason = (runId: string, enabled = true) => {
   const config = getConfig()
-  const authenticatedFetch = useAuthenticatedFetch()
+  const lookoutApiFetch = useMirroredLookoutApiFetch()
 
   const queryFn = useMemo(
-    () => getQueryFn(runId, authenticatedFetch, config.fakeDataEnabled),
-    [runId, authenticatedFetch, config.fakeDataEnabled],
+    () => getQueryFn(runId, lookoutApiFetch, config.fakeDataEnabled),
+    [runId, lookoutApiFetch, config.fakeDataEnabled],
   )
 
   return useQuery<string, string>({

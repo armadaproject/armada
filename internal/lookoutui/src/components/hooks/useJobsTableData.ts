@@ -25,7 +25,7 @@ import { getErrorMessage } from "../../common/utils"
 import { getConfig } from "../../config"
 import { JobGroupRow, JobRow, JobTableRow } from "../../models/jobsTableModels"
 import { AggregateType, Job, JobFilter, JobGroup, JobId, JobOrder, Match } from "../../models/lookoutModels"
-import { useAuthenticatedFetch } from "../../oidcAuth"
+import { useMirroredLookoutApiFetch } from "../../oidcAuth"
 import { GetJobsResponse } from "../../services/lookout/useGetJobs"
 import { GroupedField } from "../../services/lookout/useGroupJobs"
 
@@ -153,7 +153,7 @@ export const useFetchJobsTableData = ({
   const [jobInfoMap, setJobInfoMap] = useState<Map<JobId, Job>>(new Map())
   const [pendingData, setPendingData] = useState<PendingData[]>([])
 
-  const authenticatedFetch = useAuthenticatedFetch()
+  const lookoutApiFetch = useMirroredLookoutApiFetch()
 
   useEffect(() => {
     const abortController = new AbortController()
@@ -184,7 +184,7 @@ export const useFetchJobsTableData = ({
       let newData
       try {
         if (isJobFetch) {
-          const { jobs } = await fetchJobs(authenticatedFetch, rowRequest, abortController.signal)
+          const { jobs } = await fetchJobs(lookoutApiFetch, rowRequest, abortController.signal)
           newData = jobsToRows(jobs)
 
           setJobInfoMap(new Map([...jobInfoMap.entries(), ...jobs.map((j): [JobId, Job] => [j.jobId, j])]))

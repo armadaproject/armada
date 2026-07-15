@@ -4,7 +4,7 @@ import { QueryFunction, QueryKey, useQueries, useQuery } from "@tanstack/react-q
 
 import { getErrorMessage } from "../../common/utils"
 import { getConfig } from "../../config"
-import { useAuthenticatedFetch } from "../../oidcAuth"
+import { useMirroredLookoutApiFetch } from "../../oidcAuth"
 
 import { fakeRunDebugMessage } from "./mocks/fakeData"
 
@@ -33,11 +33,11 @@ const getQueryFn =
 export const useGetJobRunDebugMessage = (runId: string, enabled = true) => {
   const config = getConfig()
 
-  const authenticatedFetch = useAuthenticatedFetch()
+  const lookoutApiFetch = useMirroredLookoutApiFetch()
 
   const queryFn = useMemo(
-    () => getQueryFn(runId, authenticatedFetch, config.fakeDataEnabled),
-    [runId, authenticatedFetch, config.fakeDataEnabled],
+    () => getQueryFn(runId, lookoutApiFetch, config.fakeDataEnabled),
+    [runId, lookoutApiFetch, config.fakeDataEnabled],
   )
 
   return useQuery<string, string>({
@@ -51,12 +51,12 @@ export const useGetJobRunDebugMessage = (runId: string, enabled = true) => {
 
 export const useBatchGetJobRunDebugMessages = (runIds: string[], enabled = true) => {
   const config = getConfig()
-  const authenticatedFetch = useAuthenticatedFetch()
+  const lookoutApiFetch = useMirroredLookoutApiFetch()
 
   return useQueries({
     queries: runIds.map((runId) => ({
       queryKey: ["getJobRunDebugMessage", runId],
-      queryFn: getQueryFn(runId, authenticatedFetch, config.fakeDataEnabled),
+      queryFn: getQueryFn(runId, lookoutApiFetch, config.fakeDataEnabled),
       enabled,
       refetchOnMount: false,
       staleTime: 30_000,
