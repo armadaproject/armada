@@ -1,5 +1,5 @@
-numBatches: 1
-batchSize: 1
+numBatches: 2
+batchSize: 10
 queue: e2e-test-queue
 jobSetId: node-preempt-test
 jobs:
@@ -26,16 +26,16 @@ jobs:
           resources:
             limits:
               memory: 25Mi
-              cpu: 100m
+              cpu: 10m
             requests:
               memory: 25Mi
-              cpu: 100m
+              cpu: 10m
 ---
 action: ACTION_PREEMPT
 selection: SELECTION_BY_NODE
 nodePoolTag: node-ops
 executor: local-cluster
-timeout: "100s"
+timeout: "180s"
 expectedEvents:
   - submitted:
   - preempted:
