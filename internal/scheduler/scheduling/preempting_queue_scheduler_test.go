@@ -734,6 +734,62 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				"C": 1,
 			},
 		},
+		"urgency preemption of new jobs does not override fair-share's victim for evicted jobs": {
+			// Regression test: urgency preemption used to run before fair-share
+			// unconditionally. Since it reads a resource view that fair-share's
+			// rebalancing eviction deliberately leaves untouched, it would find a
+			// "free" slot on a node whose jobs were only provisionally evicted and
+			// still awaiting fair-share's re-schedule decision, and claim it before
+			// fair-share could preempt the queue that's actually furthest behind
+			// its fair share. Assert C (furthest behind) is the one preempted, not
+			// A or B.
+			SchedulingConfig: testfixtures.TestSchedulingConfig(),
+			Nodes:            testfixtures.N32CpuNodes(2, testfixtures.TestPriorities),
+			Rounds: []SchedulingRound{
+				{
+					// Fill half of node 1 and half of node 2.
+					JobsByQueue: map[string][]*jobdb.Job{
+						"A": testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 16),
+						"B": testfixtures.N1Cpu4GiJobs("B", testfixtures.PriorityClass0, 16),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": testfixtures.IntRange(0, 15),
+						"B": testfixtures.IntRange(0, 15),
+					},
+				},
+				{
+					// Fill the remaining space on both nodes.
+					JobsByQueue: map[string][]*jobdb.Job{
+						"C": testfixtures.N1Cpu4GiJobs("C", testfixtures.PriorityClass0, 32),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"C": testfixtures.IntRange(0, 31),
+					},
+				},
+				{
+					// Schedule a higher-priority job that requires preempting exactly
+					// one job. Fair-share must pick the victim from C, since C is the
+					// only queue with no jobs at all at PriorityClass0 protection and is
+					// furthest behind its fair share; A and B must be untouched.
+					JobsByQueue: map[string][]*jobdb.Job{
+						"A": testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass1, 1),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": testfixtures.IntRange(0, 0),
+					},
+					ExpectedPreemptedIndices: map[string]map[int][]int{
+						"C": {
+							1: testfixtures.IntRange(31, 31),
+						},
+					},
+				},
+			},
+			PriorityFactorByQueue: map[string]float64{
+				"A": 1,
+				"B": 1,
+				"C": 1,
+			},
+		},
 
 		"gang preemption avoid cascading preemption": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),

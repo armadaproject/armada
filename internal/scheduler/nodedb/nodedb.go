@@ -641,25 +641,25 @@ func (nodeDb *NodeDb) selectNodeForJobWithTxnAtPriority(
 	pctx.NodeId = ""
 	pctx.PreemptedAtPriority = internaltypes.MinPriority
 
-	// Schedule by preventing evicted jobs from being re-scheduled.
-	// This method respect fairness by preventing from re-scheduling jobs that appear as far back in the total order as possible.
-	if !nodeDb.disableFairshareScheduling {
-		if node, err := nodeDb.selectNodeForJobWithFairPreemption(txn, jctx); err != nil {
-			return nil, err
-		} else if err := assertPodSchedulingContextNode(pctx, node); err != nil {
-			return nil, err
-		} else if node != nil {
-			pctx.SchedulingMethod = context.ScheduledWithFairSharePreemption
-			return node, nil
-		}
+	// Schedule by kicking off jobs currently bound to a node.
+	// While jobs are still awaiting re-scheduling after a fairness-driven eviction,
+	// urgency preemption's node scan can't see that in-flight fairness decision (it
+	// reads UrgencyPreemptableByPriority, which fair-share's rebalancing eviction
+	// deliberately leaves untouched) and so would otherwise grab a node out from
+	// under whichever victim fair-share is about to choose. Defer to fair-share
+	// first in that case; urgency still gets a turn afterwards if fair-share can't
+	// place the job.
+	hasPendingEvictedJobs, err := nodeDb.hasEvictedJobsAwaitingReschedule(txn)
+	if err != nil {
+		return nil, err
 	}
 
-	pctx.NodeId = ""
-	pctx.PreemptedAtPriority = internaltypes.MinPriority
-
-	// Schedule by kicking off jobs currently bound to a node.
-	// This method does not respect fairness when choosing on which node to schedule the job.
-	if !nodeDb.disableUrgencyScheduling {
+	tryUrgencyPreemption := func() (*internaltypes.Node, error) {
+		if nodeDb.disableUrgencyScheduling {
+			return nil, nil
+		}
+		pctx.NodeId = ""
+		pctx.PreemptedAtPriority = internaltypes.MinPriority
 		if node, err := nodeDb.selectNodeForJobWithUrgencyPreemption(txn, jctx, matchingNodeTypeIds); err != nil {
 			return nil, err
 		} else if err := assertPodSchedulingContextNode(pctx, node); err != nil {
@@ -668,9 +668,49 @@ func (nodeDb *NodeDb) selectNodeForJobWithTxnAtPriority(
 			pctx.SchedulingMethod = context.ScheduledWithUrgencyBasedPreemption
 			return node, nil
 		}
+		return nil, nil
+	}
+
+	tryFairSharePreemption := func() (*internaltypes.Node, error) {
+		if nodeDb.disableFairshareScheduling {
+			return nil, nil
+		}
+		pctx.NodeId = ""
+		pctx.PreemptedAtPriority = internaltypes.MinPriority
+		if node, err := nodeDb.selectNodeForJobWithFairPreemption(txn, jctx); err != nil {
+			return nil, err
+		} else if err := assertPodSchedulingContextNode(pctx, node); err != nil {
+			return nil, err
+		} else if node != nil {
+			pctx.SchedulingMethod = context.ScheduledWithFairSharePreemption
+			return node, nil
+		}
+		return nil, nil
+	}
+
+	preemptionAttempts := []func() (*internaltypes.Node, error){tryUrgencyPreemption, tryFairSharePreemption}
+	if hasPendingEvictedJobs {
+		preemptionAttempts = []func() (*internaltypes.Node, error){tryFairSharePreemption, tryUrgencyPreemption}
+	}
+	for _, tryPreemption := range preemptionAttempts {
+		if node, err := tryPreemption(); err != nil {
+			return nil, err
+		} else if node != nil {
+			return node, nil
+		}
 	}
 
 	return nil, nil
+}
+
+// hasEvictedJobsAwaitingReschedule reports whether any job evicted during
+// fair-share's rebalancing pass is still waiting to be re-scheduled this round.
+func (nodeDb *NodeDb) hasEvictedJobsAwaitingReschedule(txn *memdb.Txn) (bool, error) {
+	it, err := txn.LowerBound("evictedJobs", "id", "")
+	if err != nil {
+		return false, errors.WithStack(err)
+	}
+	return it.Next() != nil, nil
 }
 
 func assertPodSchedulingContextNode(pctx *context.PodSchedulingContext, node *internaltypes.Node) error {
