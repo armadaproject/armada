@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query"
 
 import { getErrorMessage } from "../../common/utils"
-import { useAuthenticatedFetch } from "../../oidcAuth"
+import { useMirroredLookoutApiFetch } from "../../oidcAuth"
 
 export interface VersionInfo {
   version: string
@@ -16,13 +16,13 @@ export const UNKNOWN_VERSION_INFO: VersionInfo = {
 }
 
 export const useGetBackendVersion = () => {
-  const authenticatedFetch = useAuthenticatedFetch()
+  const lookoutApiFetch = useMirroredLookoutApiFetch()
 
   return useQuery<VersionInfo, string>({
     queryKey: ["getVersion"],
     queryFn: async ({ signal }) => {
       try {
-        const response = await authenticatedFetch("/api/v1/version", { signal })
+        const response = await lookoutApiFetch("/api/v1/version", { signal })
         if (!response.ok) {
           throw new Error(`Request for version failed with status ${response.status}`)
         }

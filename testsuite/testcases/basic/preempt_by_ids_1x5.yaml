@@ -11,7 +11,8 @@ jobs:
       priorityClassName: armada-preemptible
       containers:
         - name: sleeper
-          image: alpine:latest
+          imagePullPolicy: IfNotPresent
+          image: alpine:3.20.0
           command:
             - sh
           args:
