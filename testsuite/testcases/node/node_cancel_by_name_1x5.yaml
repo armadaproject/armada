@@ -1,14 +1,13 @@
 numBatches: 1
-batchSize: 10
+batchSize: 5
 queue: e2e-test-queue
-jobSetId: node-preempt-test
+jobSetId: node-cancel-test
 jobs:
   - priority: 0
     namespace: personal-anonymous
     podSpec:
       terminationGracePeriodSeconds: 0
       restartPolicy: Never
-      priorityClassName: armada-preemptible
       nodeSelector:
         armadaproject.io/node-pool: node-ops
       tolerations:
@@ -17,12 +16,12 @@ jobs:
           value: "true"
           effect: NoSchedule
       containers:
-        - name: preempt-by-node
+        - name: cancel-by-node
           imagePullPolicy: IfNotPresent
           image: alpine:3.20.0
           args:
             - "sleep"
-            - "90s"
+            - "300s"
           resources:
             limits:
               memory: 25Mi
@@ -31,11 +30,11 @@ jobs:
               memory: 25Mi
               cpu: 10m
 ---
-action: ACTION_PREEMPT
+action: ACTION_CANCEL
 selection: SELECTION_BY_NODE
 nodePoolTag: node-ops
 executor: local-cluster
 timeout: "180s"
 expectedEvents:
   - submitted:
-  - preempted:
+  - cancelled:
