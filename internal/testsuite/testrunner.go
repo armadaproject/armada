@@ -131,7 +131,7 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 	// Build list of event channels based on test configuration.
 	eventChannels := []chan *api.EventMessage{assertCh, ingressCh, noActiveCh, benchmarkCh, srv.eventLogger.In}
 
-	// Add action channel if cancel or preempt is configured — waits for all jobs running before acting.
+	// Add action channel if cancel or preempt is configured — waits for all jobs to reach a trigger state before acting.
 	var actionCh chan *api.EventMessage
 	if srv.testSpec.Action == api.TestSpec_ACTION_CANCEL || srv.testSpec.Action == api.TestSpec_ACTION_PREEMPT {
 		actionCh = make(chan *api.EventMessage)
