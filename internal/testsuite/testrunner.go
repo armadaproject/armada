@@ -316,6 +316,15 @@ func tryReprioritizeJobs(ctx context.Context, testSpec *api.TestSpec, conn *clie
 // fire-once reprioritization can run before a job exists in the scheduler, so no
 // reprioritized event is produced and the test times out intermittently.
 func reprioritizeJobsWhenRunning(ctx context.Context, eventCh chan *api.EventMessage, testSpec *api.TestSpec, conn *client.ApiConnectionDetails, jobIds []string) error {
+	// Only this runner's submitted jobs should count toward the readiness gate.
+	// The job set may be shared with concurrently-running test cases, so a Running
+	// event from another case must not satisfy the gate and fire the reprioritize
+	// request before this case's own jobs reach the scheduler.
+	submittedJobs := make(map[string]bool, len(jobIds))
+	for _, jobId := range jobIds {
+		submittedJobs[jobId] = true
+	}
+
 	runningJobs := make(map[string]bool)
 
 	// Wait for all jobs to be running before reprioritizing.
@@ -324,7 +333,7 @@ func reprioritizeJobsWhenRunning(ctx context.Context, eventCh chan *api.EventMes
 		case <-ctx.Done():
 			return nil
 		case msg := <-eventCh:
-			if e := msg.GetRunning(); e != nil {
+			if e := msg.GetRunning(); e != nil && submittedJobs[e.JobId] {
 				runningJobs[e.JobId] = true
 
 				// Once all jobs are running, reprioritize them.
