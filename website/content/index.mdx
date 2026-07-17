@@ -1,138 +1,269 @@
 ---
-title: Overview
+title: Armada
 ---
 
 import { ArmadaIcon, ArmadaText } from '@/components/logo';
+import Link from 'next/link';
+import { Cards, Card } from 'fumadocs-ui/components/card';
+import { Boxes, Scale, Zap, MoveUpRight, Activity, LayoutGrid } from 'lucide-react';
 
-<div className='ms-3 flex flex-col items-center justify-center gap-3 md:my-3'>
-  <ArmadaIcon className='w-30 md:w-35' />
-  <ArmadaText className='w-30 text-[#00aae1] md:w-35' />
-  <div className='flex gap-3'>
-    <a href='https://circleci.com/gh/armadaproject/armada' target='_blank'>
-      <img
-        src='https://circleci.com/gh/helm/helm.svg?style=shield'
-        alt='CircleCI'
-      />
-    </a>
-    <a
-      href='https://goreportcard.com/report/github.com/armadaproject/armada'
+
+<div className='relative not-prose'>
+
+  <div className='ms-3 flex flex-col items-center justify-center gap-3 md:my-3 pt-6'>
+    <ArmadaIcon className='w-30 md:w-35' />
+    <ArmadaText className='w-30 text-[#00aae1] md:w-35' />
+
+    {/* blue glow behind the logo */}
+    <div
+      className='pointer-events-none absolute left-1/2 top-0 -z-10 h-64 w-96 -translate-x-1/2'
+      style={{ background: 'radial-gradient(ellipse at 50% 25%, rgba(0, 169, 225, 0.24) 0%, transparent 70%)' }}
+    />
+
+
+    {/* Armada descriptor line  */}
+    <span className='text-sm tracking-wide text-fd-muted-foreground pb-6'>
+    Multi-cluster batch scheduler for Kubernetes
+    </span>
+
+    {/* Badges  */}
+    <div className='flex gap-3'>
+      <a href='https://github.com/armadaproject/armada/releases' target='_blank' rel='noreferrer'>
+        <img src='https://img.shields.io/github/v/release/armadaproject/armada' alt='Latest release' />
+      </a>
+      <a href='https://github.com/armadaproject/armada' target='_blank' rel='noreferrer'>
+        <img src='https://img.shields.io/github/stars/armadaproject/armada?style=flat' alt='GitHub stars' />
+      </a>
+      <a
+        href='https://artifacthub.io/packages/helm/gresearch/armada'
+        title='Go to Artifact Hub'
+        target='_blank'
+      >
+        <img
+          src='https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/armada'
+          alt='Artifact Hub'
+        />
+      </a>
+      <a
+        href='https://insights.linuxfoundation.org/project/armada'
+        target='_blank'
+        title='Click to view project insights and health checks'
+      >
+        <img
+          src='https://insights.linuxfoundation.org/api/badge/health-score?project=armada'
+          alt='LFX Health Score'
+        />
+      </a>
+    </div>
+    {/* Badges row 2 */}
+    <div>
+      <div className='flex flex-wrap justify-center gap-3 pb-6'>
+        <a href='https://www.cncf.io/sandbox-projects/' target='_blank' rel='noreferrer'>
+          <img src='https://img.shields.io/badge/CNCF-Sandbox-blue?logo=cncf' alt='CNCF Sandbox' />
+        </a>
+
+        <a href='https://www.bestpractices.dev/projects/11485' target='_blank' rel='noreferrer'>
+          <img src='https://www.bestpractices.dev/projects/11485/badge' alt='OpenSSF Best Practices' />
+        </a>
+
+        <a href='https://github.com/armadaproject/armada/blob/master/LICENSE' target='_blank' rel='noreferrer'>
+          <img src='https://img.shields.io/github/license/armadaproject/armada' alt='License' />
+        </a>
+      </div>
+      </div>
+    </div>
+
+  {/* Hero Section/What is Armada? */}
+
+  <div className='not-prose mt-4 flex flex-col items-center gap-6 text-center'>
+    <span className='not-prose hidden flex flex-col items-center mt-8 text-sm tracking-wide text-fd-muted-foreground'>
+      ## Armada
+    </span>
+
+    {/* headline */}
+    <span className='max-w-3xl text-4xl font-bold tracking-tight md:text-5xl'>
+    One API. <br />
+    Any number of clusters. <br />
+    Millions of jobs. 
+    </span>
+
+    {/* Armada description */}
+    <span className='max-w-xl text-lg text-fd-muted-foreground'>
+    Armada is the open-source batch job meta-scheduler that makes Kubernetes
+    handle massive-scale workloads, with fair queuing, gang scheduling, and multi-cluster
+    orchestration built in.
+    </span>
+
+    {/* buttons */}
+    <div className='mt-4 flex flex-wrap items-center justify-center gap-6'>
+      <Link href='/getting-started'
+      className='rounded-lg bg-fd-primary px-3.5 py-2 font-medium text-base text-white no-underline transition-all hover:opacity-90 hover:shadow-lg hover:shadow-black/20 dark:hover:shadow-white/20'>
+      Get started &rarr;
+      </Link>
+      <a href='https://github.com/armadaproject/armada'
       target='_blank'
-    >
-      <img
-        src='https://goreportcard.com/badge/github.com/armadaproject/armada'
-        alt='Go Report Card'
-      />
-    </a>
-    <a
-      href='https://artifacthub.io/packages/helm/gresearch/armada'
-      title='Go to Artifact Hub'
-      target='_blank'
-    >
-      <img
-        src='https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/armada'
-        alt='Artifact Hub'
-      />
-    </a>
-    <a
-      href='https://insights.linuxfoundation.org/project/armada'
-      target='_blank'
-      title='Click to view project insights and health checks'
-    >
-      <img
-        src='https://insights.linuxfoundation.org/api/badge/health-score?project=armada'
-        alt='LFX Health Score'
-      />
-    </a>
+      rel='noreferrer'
+      className='rounded-lg border border-fd-border px-3.5 py-2 font-medium text-base no-underline transition-all hover:bg-fd-muted hover:shadow-lg hover:shadow-black/20 dark:hover:shadow-white/20'
+      >
+        View on GitHub
+      </a>
+    </div>
+
+      {/* divider */}
+      <hr className='my-6 h-px w-full border-0 bg-fd-border' />
   </div>
+
 </div>
 
-## What is Armada?
 
-Armada is a multi-Kubernetes cluster batch job meta-scheduler designed to handle massive-scale workloads. Built on top of Kubernetes, Armada enables organizations to distribute millions of batch jobs per day across tens of thousands of nodes spanning multiple clusters, making it an ideal solution for high-throughput computational workloads.
+  <div className='text-center max-w-xl mx-auto my-4'>
+    As a [CNCF Sandbox project](https://www.cncf.io/), Armada is actively maintained and used in production environments, including at [G-Research](https://www.gresearch.com/) where it processes millions of jobs daily.
+  </div>
 
-Armada serves as middleware that transforms Kubernetes into a powerful batch processing platform while maintaining compatibility with service workloads. It addresses the fundamental limitations of running batch workloads at scale on Kubernetes by providing:
 
-- **Multi-cluster orchestration**: Schedule jobs across many Kubernetes clusters seamlessly
-- **High-throughput queueing**: Handle millions of queued jobs
-- **Advanced batch scheduling**: Fair queuing, gang scheduling, preemption, and resource limits
-- **Enterprise-grade reliability**: Secure, highly available components designed for production use
 
-As a [CNCF Sandbox project](https://www.cncf.io/), Armada is actively maintained and used in production environments, including at [G-Research](https://www.gresearch.com/) where it processes millions of jobs daily.
+{/* divider */}
+      <hr className='my-6 h-px w-full border-0 bg-fd-border' />
 
-## Why Use Armada?
 
-### Kubernetes Limitations for Batch Workloads
+{/* ## Why use Armada? */}
+<div className='not-prose mx-auto mt-10 max-w-3xl px-10'>
+  <span className='not-prose flex flex-col items-center mt-8 text-sm tracking-wide text-fd-muted-foreground'>
+      ## What is Armada?
+    </span>
 
-Traditional Kubernetes faces several challenges when running batch workloads at scale:
+  {/* heading */}
+  <span className='mt-4 block text-center text-3xl font-bold tracking-tight md:text-4xl'>
+    The batch scheduler Kubernetes was missing.
+  </span>
 
-1. **Single Cluster Scaling Limits**: Scaling a single Kubernetes cluster beyond a certain size is [challenging](https://openai.com/blog/scaling-kubernetes-to-7500-nodes/), typically maxing out around 5,000-15,000 nodes depending on configuration.
+  {/* description */}
+  <span className='mx-auto mt-4 block max-w-xl text-center text-lg text-fd-muted-foreground'>
+    Armada sits above your Kubernetes clusters as a control plane. It doesn&apos;t replace Kubernetes, it allows Kubernetes to handle millions of jobs a day across tens of thousands of nodes.
+  </span>
 
-2. **Storage Backend Constraints**: Etcd, Kubernetes' in-cluster storage backend, has [performance limitations](https://etcd.io/docs/v3.5/op-guide/performance/) that make achieving very high throughput difficult and can become a bottleneck for job queuing.
+  {/* cards — left-accent, content stays left-aligned */}
+  <Cards className='my-12 '>
+    <Card icon={<Boxes className='text-fd-primary' />} title='Multi-cluster native' className='border-0 border-l-2 border-fd-primary rounded-sm shadow-md shadow-black/20 dark:shadow-white/10 transition-colors hover:bg-fd-muted'>
+    Run jobs across many clusters through one API, and add or remove capacity without disrupting what&apos;s already running.
+  </Card>
+  <Card icon={<Scale className='text-fd-primary' />} title='Fair-share scheduling' className='border-0 border-l-2 border-fd-primary rounded-sm shadow-md shadow-black/20 dark:shadow-white/10 transition-colors hover:bg-fd-muted'>
+    Every team gets a fair share of resources over time, so heavy users can&apos;t crowd everyone else out.
+  </Card>
+  <Card icon={<Zap className='text-fd-primary' />} title='Gang scheduling' className='border-0 border-l-2 border-fd-primary rounded-sm shadow-md shadow-black/20 dark:shadow-white/10 transition-colors hover:bg-fd-muted'>
+    All the workers in a job start together or not at all, which is what frameworks like MPI, PyTorch, and Spark need.
+  </Card>
+  <Card icon={<MoveUpRight className='text-fd-primary' />} title='Intelligent preemption' className='border-0 border-l-2 border-fd-primary rounded-sm shadow-md shadow-black/20 dark:shadow-white/10 transition-colors hover:bg-fd-muted'>
+    Urgent work can preempt lower-priority jobs to run in time, and you decide how that works per queue.
+  </Card>
+  <Card icon={<Activity className='text-fd-primary' />} title='High throughput' className='border-0 border-l-2 border-fd-primary rounded-sm shadow-md shadow-black/20 dark:shadow-white/10 transition-colors hover:bg-fd-muted'>
+    Handle millions of queued jobs by moving queueing onto PostgreSQL and Redis instead of leaning on etcd.
+  </Card>
+  <Card icon={<LayoutGrid className='text-fd-primary' />} title='Built for production' className='border-0 border-l-2 border-fd-primary rounded-sm shadow-md shadow-black/20 dark:shadow-white/10 transition-colors hover:bg-fd-muted'>
+    Prometheus metrics, Lookout web UI, secure auth, and automatic handling of failed nodes, all come built in.
+  </Card>
+  </Cards>
+</div>
+{/* divider */}
+      <hr className='my-6 h-px w-full border-0 bg-fd-border' />
 
-3. **Inadequate Batch Scheduling**: The default [kube-scheduler](https://kubernetes.io/docs/reference/command-line-tools-reference/kube-scheduler/) lacks essential batch scheduling features like fair queuing, gang scheduling, and intelligent preemption.
 
-### Armada's Solution
 
-Armada overcomes these limitations by:
+{/* ## Use cases */}
+<div className='not-prose mx-auto mt-10 max-w-3xl px-10'>
+  <span className='not-prose flex flex-col items-center mt-8 text-sm tracking-wide text-fd-muted-foreground'>
+      ## Use Cases
+    </span>
 
-- **Distributing across multiple clusters**: Manage thousands of nodes across many Kubernetes clusters
-- **Partial Out-of-cluster scheduling**: Leverage external storage backends (e.g., PostgreSQL and Redis) for high-throughput batch job queueing and scheduling
-- **Purpose-built batch scheduler**: Include advanced scheduling features designed specifically for batch workloads
+  {/* heading */}
+  <span className='mt-4 block text-center text-3xl font-bold tracking-tight md:text-4xl'>
+    Is Armada right for you?
+  </span>
 
-## Key Features and Benefits
+  {/* description */}
+  <span className='mx-auto mt-4 block max-w-xl text-center text-lg text-fd-muted-foreground'>
+  </span>
 
-### Core Scheduling Features
+  {/* numbered list — divide-y draws the lines between rows;
+    font-mono primary number on the left, content on the right */}
+    <div className='not-prose mt-8 flex flex-col divide-y divide-fd-border'>
 
-**Fair-Use Scheduling**
+      {/* 01 */}
+      <div className='flex gap-6 py-6'>
+        <span className='font-mono text-sm text-fd-primary'>01</span>
+        <div>
+          <span className='block font-semibold'>Machine learning training at scale</span>
+          <span className='mt-1 block text-sm text-fd-muted-foreground'>
+          Your workers need to start together or not at all. Armada&apos;s gang scheduling makes sure they do, across however many clusters have the GPU capacity you need.
+          </span>
+        </div>
+      </div>
 
-- Maintains fair resource share over time across users and teams
-- Based on dominant resource fairness principles
-- Includes priority factors for different queues
-- Inspired by HTCondor priority systems
+      {/* 02 */}
+      <div className='flex gap-6 py-6'>
+        <span className='font-mono text-sm text-fd-primary'>02</span>
+        <div>
+          <span className='block font-semibold'>Quantitative research and financial modelling</span>
+          <span className='mt-1 block text-sm text-fd-muted-foreground'>
+          Millions of short-lived jobs, every day. Armada keeps them moving fairly and fast, with priority controls for the calculations that can&apos;t wait.
+          </span>
+        </div>
+      </div>
 
-**High Throughput Processing**
+      {/* 03 */}
+      <div className='flex gap-6 py-6'>
+        <span className='font-mono text-sm text-fd-primary'>03</span>
+        <div>
+          <span className='block font-semibold'>High-performance computing</span>
+          <span className='mt-1 block text-sm text-fd-muted-foreground'>
+          MPI workloads in containers, scheduled across clusters, with hardware-aware placement. Cloud-native tooling without giving up the reproducibility HPC teams depend on.        
+          </span>
+        </div>
+      </div>
 
-- Handle millions of queued jobs simultaneously
-- Efficient job submission and status tracking
+      {/* 04 */}
+      <div className='flex gap-6 py-6'>
+        <span className='font-mono text-sm text-fd-primary'>04</span>
+        <div>
+          <span className='block font-semibold'>Multi-tenant compute environments</span>
+          <span className='mt-1 block text-sm text-fd-muted-foreground'>
+          Multiple teams, one infrastructure. Fair-share scheduling means no single team can quietly consume everything while others wait.     
+          </span>
+        </div>
+      </div>
 
-**Gang Scheduling**
+      {/* 05 */}
+      <div className='flex gap-6 py-6'>
+        <span className='font-mono text-sm text-fd-primary'>05</span>
+        <div>
+          <span className='block font-semibold'>CI/CD build and test</span>
+          <span className='mt-1 block text-sm text-fd-muted-foreground'>
+          Critical merges go first. Large test suites don&apos;t block urgent builds. Priority and fairness built in, no manual queue management.      
+          </span>
+        </div>
+      </div>
 
-- Atomically schedule sets of related jobs
-- Ensures all jobs in a group start together or not at all
-- Critical for distributed computing frameworks like MPI
+      <div className='not-prose mt-8'>
+  <span className='block max-w-2xl text-fd-muted-foreground'>
+    Armada&apos;s niche is multi-cluster. If you&apos;re not there yet, another project may be a better fit.
+  </span>
+  <a
+    href='https://tag-runtime.cncf.io/wgs/bsi/landscape/'
+    target='_blank'
+    rel='noreferrer'
+    className='mt-4 inline-flex items-center gap-2 font-medium text-fd-primary no-underline hover:underline'
+  >
+    See how Armada compares &rarr;
+  </a>
+</div>
 
-**Intelligent Preemption**
+    </div>
+    </div>
+{/* divider */}
+      <hr className='my-6 h-px w-full border-0 bg-fd-border' />
 
-- Run urgent jobs in a timely fashion
-- Balance resource allocation between users
-- Configurable preemption policies
 
-### Enterprise-Grade Operations
-
-**Massive Scale Support**
-
-- Utilize multiple Kubernetes clusters simultaneously
-- Scale beyond single cluster limitations
-- Add and remove clusters without service disruption
-
-**Advanced Resource Management**
-
-- Resource and job scheduling rate limits
-- Detailed resource allocation controls
-
-**Comprehensive Monitoring**
-
-- Detailed analytics via [Prometheus](https://prometheus.io/) integration
-- Resource allocation and system behavior insights
-- Automatic failure detection and node removal
-
-**Production-Ready Features**
-
-- Secure authentication and authorization
-- High availability architecture
-- Automatic node failure handling
-
-## Use Cases and Success Stories
+{/* ## Use Cases and Success Stories
 
 ### High-Performance Computing (HPC)
 
@@ -170,19 +301,64 @@ G-Research, a leading quantitative research company, uses Armada in production t
 - **Batch Features**: Purpose-built for batch vs. service-oriented design
 - **Fair Scheduling**: Advanced fair-use policies vs. basic priority classes
 
-### vs. Traditional HPC Schedulers (SLURM, PBS)
+### vs. Traditional HPC Schedulers (SLURM, PBS) */}
 
-- **Container Native**: Built for containerized workloads vs. traditional HPC
+{/* - **Container Native**: Built for containerized workloads vs. traditional HPC
 - **Kubernetes Integration**: Leverages Kubernetes ecosystem vs. isolated systems
 - **Cloud Ready**: Designed for cloud and hybrid environments
 - **Modern APIs**: REST/gRPC APIs vs. command-line interfaces
-- **Rich Client Support**: Client libraries available for multiple languages (Go, Java, Scala, Python and .NET)
+- **Rich Client Support**: Client libraries available for multiple languages (Go, Java, Scala, Python and .NET) */}
 
+
+
+{/* ── CTA ── */}
+<div className='relative flex flex-col items-center text-center my-8 py-8 px-8 border border-fd-border rounded-xl overflow-hidden not-prose'>
+    
+    <span className='not-prose hidden flex flex-col items-center mt-8 text-sm tracking-wide text-fd-muted-foreground'>
+      ## Next Steps
+    </span>
+
+    <div
+      className='absolute inset-0 pointer-events-none -z-10'
+      style={{ background: 'radial-gradient(ellipse at 50% -20%, rgba(0, 169, 225, 0.3) 0%, transparent 65%)' }}
+    />
+
+    <div className='text-2xl font-semibold text-fd-foreground mb-2'>
+      Ready to run batch at scale?
+    </div>
+
+    <div className='text-sm text-fd-muted-foreground max-w-lg mb-6'>
+      Get Armada running locally in minutes. Join the community of organisations running batch workloads on Kubernetes.
+    </div>
+
+    <div className='flex gap-3 flex-wrap justify-center'>
+    <Link
+      href='/quickstart'
+      className='rounded-lg bg-fd-primary px-3.5 py-2 font-medium text-sm text-white no-underline transition-all hover:opacity-90 hover:shadow-lg hover:shadow-black/20 dark:hover:shadow-white/20'
+    >
+      Read the quickstart →
+    </Link>
+    <a
+      href='https://cloud-native.slack.com/archives/C03T9CBCEMC'
+      target='_blank'
+      className='rounded-lg px-3.5 py-2 font-semibold text-sm text-fd-muted-foreground border border-fd-border no-underline transition-all  hover:shadow-lg hover:shadow-black/20 dark:hover:shadow-white/20 focus:outline-none'
+    >
+      Join #armada on Slack
+    </a>
+</div>
+
+</div>
+{/* divider */}
+      <hr className='my-6 h-px w-full border-0 bg-fd-border' />
+
+
+
+
+
+{/* 
 ## Next Steps
 
 Ready to explore Armada? Here are your next steps:
-
-import { Cards, Card } from 'fumadocs-ui/components/card';
 
 <Cards>
   <Card
@@ -195,4 +371,4 @@ import { Cards, Card } from 'fumadocs-ui/components/card';
     title='Core Concepts'
     description='Learn about jobs, queues, and scheduling'
   />
-</Cards>
+</Cards> */}
