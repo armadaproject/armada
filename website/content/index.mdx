@@ -115,16 +115,6 @@ import { Boxes, Scale, Zap, MoveUpRight, Activity, LayoutGrid } from 'lucide-rea
 
 </div>
 
-{/* ## What is Armada? - OLD */}
-
-{/* Armada is a multi-Kubernetes cluster batch job meta-scheduler designed to handle massive-scale workloads. Built on top of Kubernetes, Armada enables organizations to distribute millions of batch jobs per day across tens of thousands of nodes spanning multiple clusters, making it an ideal solution for high-throughput computational workloads.
-
-Armada serves as middleware that transforms Kubernetes into a powerful batch processing platform while maintaining compatibility with service workloads. It addresses the fundamental limitations of running batch workloads at scale on Kubernetes by providing:
-
-- **Multi-cluster orchestration**: Schedule jobs across many Kubernetes clusters seamlessly
-- **High-throughput queueing**: Handle millions of queued jobs
-- **Advanced batch scheduling**: Fair queuing, gang scheduling, preemption, and resource limits
-- **Enterprise-grade reliability**: Secure, highly available components designed for production use */}
 
   <div className='text-center max-w-xl mx-auto my-4'>
     As a [CNCF Sandbox project](https://www.cncf.io/), Armada is actively maintained and used in production environments, including at [G-Research](https://www.gresearch.com/) where it processes millions of jobs daily.
@@ -178,79 +168,6 @@ Armada serves as middleware that transforms Kubernetes into a powerful batch pro
       <hr className='my-6 h-px w-full border-0 bg-fd-border' />
 
 
-{/* ## Why use Armada? - OLD */}
-
-{/* ### Kubernetes Limitations for Batch Workloads
-
-Traditional Kubernetes faces several challenges when running batch workloads at scale:
-
-1. **Single Cluster Scaling Limits**: Scaling a single Kubernetes cluster beyond a certain size is [challenging](https://openai.com/blog/scaling-kubernetes-to-7500-nodes/), typically maxing out around 5,000-15,000 nodes depending on configuration.
-
-2. **Storage Backend Constraints**: Etcd, Kubernetes' in-cluster storage backend, has [performance limitations](https://etcd.io/docs/v3.5/op-guide/performance/) that make achieving very high throughput difficult and can become a bottleneck for job queuing.
-
-3. **Inadequate Batch Scheduling**: The default [kube-scheduler](https://kubernetes.io/docs/reference/command-line-tools-reference/kube-scheduler/) lacks essential batch scheduling features like fair queuing, gang scheduling, and intelligent preemption.
-
-### Armada's Solution
-
-Armada overcomes these limitations by:
-
-- **Distributing across multiple clusters**: Manage thousands of nodes across many Kubernetes clusters
-- **Partial Out-of-cluster scheduling**: Leverage external storage backends (e.g., PostgreSQL and Redis) for high-throughput batch job queueing and scheduling
-- **Purpose-built batch scheduler**: Include advanced scheduling features designed specifically for batch workloads */}
-
-{/* ## Key Features and Benefits
-
-### Core Scheduling Features
-
-**Fair-Use Scheduling**
-
-- Maintains fair resource share over time across users and teams
-- Based on dominant resource fairness principles
-- Includes priority factors for different queues
-- Inspired by HTCondor priority systems
-
-**High Throughput Processing**
-
-- Handle millions of queued jobs simultaneously
-- Efficient job submission and status tracking
-
-**Gang Scheduling**
-
-- Atomically schedule sets of related jobs
-- Ensures all jobs in a group start together or not at all
-- Critical for distributed computing frameworks like MPI
-
-**Intelligent Preemption**
-
-- Run urgent jobs in a timely fashion
-- Balance resource allocation between users
-- Configurable preemption policies
-
-### Enterprise-Grade Operations
-
-**Massive Scale Support**
-
-- Utilize multiple Kubernetes clusters simultaneously
-- Scale beyond single cluster limitations
-- Add and remove clusters without service disruption
-
-**Advanced Resource Management**
-
-- Resource and job scheduling rate limits
-- Detailed resource allocation controls
-
-**Comprehensive Monitoring**
-
-- Detailed analytics via [Prometheus](https://prometheus.io/) integration
-- Resource allocation and system behavior insights
-- Automatic failure detection and node removal
-
-**Production-Ready Features**
-
-- Secure authentication and authorization
-- High availability architecture
-- Automatic node failure handling */}
-
 
 {/* ## Use cases */}
 <div className='not-prose mx-auto mt-10 max-w-3xl px-10'>
@@ -277,7 +194,7 @@ Armada overcomes these limitations by:
         <div>
           <span className='block font-semibold'>Machine learning training at scale</span>
           <span className='mt-1 block text-sm text-fd-muted-foreground'>
-          Your workers need to start together or not at all. Armada&apos;s gang scheduling makes sure they do — across however many clusters have the GPU capacity you need.
+          Your workers need to start together or not at all. Armada&apos;s gang scheduling makes sure they do, across however many clusters have the GPU capacity you need.
           </span>
         </div>
       </div>
