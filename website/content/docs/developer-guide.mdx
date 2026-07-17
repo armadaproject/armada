@@ -5,7 +5,7 @@ description: 'Set up your development environment and start contributing to Arma
 import { Callout } from 'fumadocs-ui/components/callout';
 import { Step, Steps } from 'fumadocs-ui/components/steps';
 
-This guide walks you through setting up a local Armada development environment using Goreman our recommended approach for contributing to Armada.
+This guide walks you through setting up a local Armada development environment using Goreman, our recommended approach for contributing to Armada.
 
 ## Prerequisites
 
@@ -24,6 +24,9 @@ Before you begin, make sure you have the following installed:
   Additional tools are automatically installed via `mage BootstrapTools` from
   `tools.yaml`, including golangci-lint, sqlc, go-swagger, and others.
 </Callout>
+
+{/* divider */}
+      <hr className='my-6 h-px w-full border-0 bg-fd-border' />
 
 ## Using Goreman
 
@@ -117,6 +120,9 @@ mage -l            # list all available mage commands
   development. It&apos;s faster since components run as host processes.
 </Callout>
 
+{/* divider */}
+      <hr className='my-6 h-px w-full border-0 bg-fd-border' />
+
 ## Running with authentication
 
 <Steps>
@@ -174,6 +180,9 @@ armadactl --config _local/.armadactl.yaml --context auth-oidc get queues
   Default Keycloak credentials — Admin: `admin` / `admin` · User: `user` / `password`
 </Callout>
 
+{/* divider */}
+      <hr className='my-6 h-px w-full border-0 bg-fd-border' />
+
 ## Running without a Kubernetes cluster
 
 For testing Armada without a real Kubernetes cluster, use the fake executor
@@ -191,6 +200,9 @@ The fake executor simulates:
 
 Useful for testing scheduling logic, development when Kubernetes is unavailable,
 and integration testing of job flows.
+
+{/* divider */}
+      <hr className='my-6 h-px w-full border-0 bg-fd-border' />
 
 ## Code structure
 Armada <br/>
@@ -213,6 +225,9 @@ Armada <br/>
 ├── magefiles/        # Build automation (mage targets) <br/>
 └── testsuite/        # Integration test cases <br/>
 
+{/* divider */}
+      <hr className='my-6 h-px w-full border-0 bg-fd-border' />
+
 ## Testing your setup
 
 Run the full test suite:
@@ -230,6 +245,9 @@ export ARMADA_EXECUTOR_INGRESS_PORT=5001
 go run cmd/testsuite/main.go test --tests "testsuite/testcases/basic/*" --junit junit.xml
 ```
 
+{/* divider */}
+      <hr className='my-6 h-px w-full border-0 bg-fd-border' />
+
 ## Profiling with pprof
 
 Enable profiling in your component config:
@@ -245,6 +263,9 @@ Then connect:
 go tool pprof http://localhost:6060/debug/pprof/profile
 ```
 
+{/* divider */}
+      <hr className='my-6 h-px w-full border-0 bg-fd-border' />
+
 ## Debug port mappings
 
 | Component         | Debug host       |
@@ -256,6 +277,9 @@ go tool pprof http://localhost:6060/debug/pprof/profile
 | `lookoutui`       | `localhost:4004` |
 | `lookout`         | `localhost:4005` |
 | `lookoutingester` | `localhost:4007` |
+
+{/* divider */}
+      <hr className='my-6 h-px w-full border-0 bg-fd-border' />
 
 ## Troubleshooting
 
@@ -279,9 +303,12 @@ See [Arm issue #2493](https://github.com/armadaproject/armada/issues/2493) and
 [Windows issue #2492](https://github.com/armadaproject/armada/issues/2492) for
 more details.
 
-**Need help?**
+{/* **Need help?**
 
-Ask in the [#armada channel on CNCF Slack](https://cloud-native.slack.com/archives/C03T9CBCEMC).
+Ask in the [#armada channel on CNCF Slack](https://cloud-native.slack.com/archives/C03T9CBCEMC). */}
+
+{/* divider */}
+      <hr className='my-6 h-px w-full border-0 bg-fd-border' />
 
 
 {/* ── CTA ── */}
