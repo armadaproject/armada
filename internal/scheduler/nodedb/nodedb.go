@@ -641,6 +641,19 @@ func (nodeDb *NodeDb) selectNodeForJobWithTxnAtPriority(
 	pctx.NodeId = ""
 	pctx.PreemptedAtPriority = internaltypes.MinPriority
 
+	// Schedule by kicking off jobs currently bound to a node.
+	// This method does not respect fairness when choosing on which node to schedule the job.
+	if !nodeDb.disableUrgencyScheduling {
+		if node, err := nodeDb.selectNodeForJobWithUrgencyPreemption(txn, jctx, matchingNodeTypeIds); err != nil {
+			return nil, err
+		} else if err := assertPodSchedulingContextNode(pctx, node); err != nil {
+			return nil, err
+		} else if node != nil {
+			pctx.SchedulingMethod = context.ScheduledWithUrgencyBasedPreemption
+			return node, nil
+		}
+	}
+
 	// Schedule by preventing evicted jobs from being re-scheduled.
 	// This method respect fairness by preventing from re-scheduling jobs that appear as far back in the total order as possible.
 	if !nodeDb.disableFairshareScheduling {
@@ -656,19 +669,6 @@ func (nodeDb *NodeDb) selectNodeForJobWithTxnAtPriority(
 
 	pctx.NodeId = ""
 	pctx.PreemptedAtPriority = internaltypes.MinPriority
-
-	// Schedule by kicking off jobs currently bound to a node.
-	// This method does not respect fairness when choosing on which node to schedule the job.
-	if !nodeDb.disableUrgencyScheduling {
-		if node, err := nodeDb.selectNodeForJobWithUrgencyPreemption(txn, jctx, matchingNodeTypeIds); err != nil {
-			return nil, err
-		} else if err := assertPodSchedulingContextNode(pctx, node); err != nil {
-			return nil, err
-		} else if node != nil {
-			pctx.SchedulingMethod = context.ScheduledWithUrgencyBasedPreemption
-			return node, nil
-		}
-	}
 
 	return nil, nil
 }

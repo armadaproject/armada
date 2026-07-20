@@ -716,7 +716,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					// Schedule jobs that requires preempting one job in the gang,
 					// and assert that all jobs in the gang are preempted.
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass1, 17),
+						"A": testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 17),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"A": testfixtures.IntRange(0, 16),
