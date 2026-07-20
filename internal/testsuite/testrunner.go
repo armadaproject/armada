@@ -327,6 +327,16 @@ func runActionOnState(ctx context.Context, eventCh chan *api.EventMessage, testS
 							})
 							return errors.WithStack(err)
 						})
+					case testSpec.Action == api.TestSpec_ACTION_REPRIORITIZE && testSpec.Selection == api.TestSpec_SELECTION_BY_IDS:
+						actionErr = client.WithSubmitClient(conn, func(sc api.SubmitClient) error {
+							_, err := sc.ReprioritizeJobs(ctx, &api.JobReprioritizeRequest{
+								JobIds:      jobIds,
+								JobSetId:    testSpec.GetJobSetId(),
+								Queue:       testSpec.GetQueue(),
+								NewPriority: testSpec.GetNewPriority(),
+							})
+							return errors.WithStack(err)
+						})
 					case testSpec.Action == api.TestSpec_ACTION_REPRIORITIZE && testSpec.Selection == api.TestSpec_SELECTION_BY_SET:
 						actionErr = client.WithSubmitClient(conn, func(sc api.SubmitClient) error {
 							_, err := sc.ReprioritizeJobs(ctx, &api.JobReprioritizeRequest{
