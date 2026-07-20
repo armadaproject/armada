@@ -139,6 +139,7 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 	// Add action channel if cancel or preempt is configured and waits for all jobs to reach a trigger state before acting.
 	var actionCh chan *api.EventMessage
 	if srv.testSpec.Action == api.TestSpec_ACTION_CANCEL || srv.testSpec.Action == api.TestSpec_ACTION_PREEMPT ||
+		srv.testSpec.Action == api.TestSpec_ACTION_REPRIORITIZE ||
 		srv.testSpec.CancelOnNode != nil || srv.testSpec.PreemptOnNode != nil {
 		actionCh = make(chan *api.EventMessage)
 		eventChannels = append(eventChannels, actionCh)
@@ -159,9 +160,11 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 		g.Go(func() error {
 			return runActionWhenRunning(ctx, actionCh, srv.testSpec, srv.apiConnectionDetails, jobIds, nodeName)
 		})
-	} else if srv.testSpec.Action == api.TestSpec_ACTION_CANCEL || srv.testSpec.Action == api.TestSpec_ACTION_PREEMPT {
+	} else if srv.testSpec.Action == api.TestSpec_ACTION_CANCEL || srv.testSpec.Action == api.TestSpec_ACTION_PREEMPT ||
+		srv.testSpec.Action == api.TestSpec_ACTION_REPRIORITIZE {
 		g.Go(func() error {
-			if srv.testSpec.Action == api.TestSpec_ACTION_PREEMPT {
+			if srv.testSpec.Action == api.TestSpec_ACTION_PREEMPT ||
+				srv.testSpec.Action == api.TestSpec_ACTION_REPRIORITIZE {
 				return runActionWhenRunning(ctx, actionCh, srv.testSpec, srv.apiConnectionDetails, jobIds, nodeName)
 			}
 			return runActionWhenQueued(ctx, actionCh, srv.testSpec, srv.apiConnectionDetails, jobIds, nodeName)
@@ -312,6 +315,24 @@ func runActionOnState(ctx context.Context, eventCh chan *api.EventMessage, testS
 								Queue:    testSpec.GetQueue(),
 								JobSetId: testSpec.GetJobSetId(),
 								Reason:   testSpec.GetPreemptReason(),
+							})
+							return errors.WithStack(err)
+						})
+					case testSpec.Action == api.TestSpec_ACTION_REPRIORITIZE && testSpec.Selection == api.TestSpec_SELECTION_BY_ID:
+						actionErr = client.WithSubmitClient(conn, func(sc api.SubmitClient) error {
+							_, err := sc.ReprioritizeJobs(ctx, &api.JobReprioritizeRequest{
+								Queue:       testSpec.GetQueue(),
+								JobSetId:    testSpec.GetJobSetId(),
+								NewPriority: testSpec.GetNewPriority(),
+							})
+							return errors.WithStack(err)
+						})
+					case testSpec.Action == api.TestSpec_ACTION_REPRIORITIZE && testSpec.Selection == api.TestSpec_SELECTION_BY_SET:
+						actionErr = client.WithSubmitClient(conn, func(sc api.SubmitClient) error {
+							_, err := sc.ReprioritizeJobs(ctx, &api.JobReprioritizeRequest{
+								Queue:       testSpec.GetQueue(),
+								JobSetId:    testSpec.GetJobSetId(),
+								NewPriority: testSpec.GetNewPriority(),
 							})
 							return errors.WithStack(err)
 						})
