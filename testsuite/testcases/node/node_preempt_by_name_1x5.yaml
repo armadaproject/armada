@@ -31,10 +31,12 @@ jobs:
               memory: 25Mi
               cpu: 10m
 ---
-action: ACTION_PREEMPT
-selection: SELECTION_BY_NODE
-nodePoolTag: node-ops
-executor: local-cluster
+preemptOnNode:
+  nodePoolTag: node-ops
+  request:
+    executor: local-cluster
+    queues:
+      - e2e-test-queue
 timeout: "180s"
 expectedEvents:
   - submitted:

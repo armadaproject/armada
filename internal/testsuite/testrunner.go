@@ -94,8 +94,13 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 	}
 
 	nodeName := ""
-	if srv.testSpec.Selection == api.TestSpec_SELECTION_BY_NODE {
-		nodeName, err = resolveNodeByPoolTag(ctx, srv.testSpec.NodePoolTag)
+	if srv.testSpec.CancelOnNode != nil {
+		nodeName, err = resolveNodeByPoolTag(ctx, srv.testSpec.CancelOnNode.NodePoolTag)
+		if err != nil {
+			return err
+		}
+	} else if srv.testSpec.PreemptOnNode != nil {
+		nodeName, err = resolveNodeByPoolTag(ctx, srv.testSpec.PreemptOnNode.NodePoolTag)
 		if err != nil {
 			return err
 		}
@@ -131,9 +136,10 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 	// Build list of event channels based on test configuration.
 	eventChannels := []chan *api.EventMessage{assertCh, ingressCh, noActiveCh, benchmarkCh, srv.eventLogger.In}
 
-	// Add action channel if cancel or preempt is configured — waits for all jobs to reach a trigger state before acting.
+	// Add action channel if cancel or preempt is configured and waits for all jobs to reach a trigger state before acting.
 	var actionCh chan *api.EventMessage
-	if srv.testSpec.Action == api.TestSpec_ACTION_CANCEL || srv.testSpec.Action == api.TestSpec_ACTION_PREEMPT {
+	if srv.testSpec.Action == api.TestSpec_ACTION_CANCEL || srv.testSpec.Action == api.TestSpec_ACTION_PREEMPT ||
+		srv.testSpec.CancelOnNode != nil || srv.testSpec.PreemptOnNode != nil {
 		actionCh = make(chan *api.EventMessage)
 		eventChannels = append(eventChannels, actionCh)
 	}
@@ -149,9 +155,13 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 	// - Node-scoped operations require Running (SQL query constraint).
 	// - Preempt requires Running (preemption acts on the job run, which only exists once running).
 	// - Cancel via submit API can fire as soon as Queued.
-	if srv.testSpec.Action == api.TestSpec_ACTION_CANCEL || srv.testSpec.Action == api.TestSpec_ACTION_PREEMPT {
+	if srv.testSpec.CancelOnNode != nil || srv.testSpec.PreemptOnNode != nil {
 		g.Go(func() error {
-			if srv.testSpec.Selection == api.TestSpec_SELECTION_BY_NODE || srv.testSpec.Action == api.TestSpec_ACTION_PREEMPT {
+			return runActionWhenRunning(ctx, actionCh, srv.testSpec, srv.apiConnectionDetails, jobIds, nodeName)
+		})
+	} else if srv.testSpec.Action == api.TestSpec_ACTION_CANCEL || srv.testSpec.Action == api.TestSpec_ACTION_PREEMPT {
+		g.Go(func() error {
+			if srv.testSpec.Action == api.TestSpec_ACTION_PREEMPT {
 				return runActionWhenRunning(ctx, actionCh, srv.testSpec, srv.apiConnectionDetails, jobIds, nodeName)
 			}
 			return runActionWhenQueued(ctx, actionCh, srv.testSpec, srv.apiConnectionDetails, jobIds, nodeName)
@@ -233,13 +243,18 @@ func runActionOnState(ctx context.Context, eventCh chan *api.EventMessage, testS
 					time.Sleep(1 * time.Second)
 					var actionErr error
 					switch {
-					case testSpec.Action == api.TestSpec_ACTION_CANCEL && testSpec.Selection == api.TestSpec_SELECTION_BY_NODE:
+					case testSpec.CancelOnNode != nil:
 						actionErr = client.WithNodeClient(conn, func(nc api.NodeClient) error {
-							_, err := nc.CancelOnNode(ctx, &api.NodeCancelRequest{
-								Name:     nodeName,
-								Executor: testSpec.GetExecutor(),
-								Queues:   []string{testSpec.GetQueue()},
-							})
+							req := testSpec.CancelOnNode.GetRequest()
+							req.Name = nodeName
+							_, err := nc.CancelOnNode(ctx, req)
+							return errors.WithStack(err)
+						})
+					case testSpec.PreemptOnNode != nil:
+						actionErr = client.WithNodeClient(conn, func(nc api.NodeClient) error {
+							req := testSpec.PreemptOnNode.GetRequest()
+							req.Name = nodeName
+							_, err := nc.PreemptOnNode(ctx, req)
 							return errors.WithStack(err)
 						})
 					case testSpec.Action == api.TestSpec_ACTION_CANCEL && testSpec.Selection == api.TestSpec_SELECTION_BY_ID:
@@ -267,15 +282,6 @@ func runActionOnState(ctx context.Context, eventCh chan *api.EventMessage, testS
 							_, err := sc.CancelJobs(ctx, &api.JobCancelRequest{
 								Queue:    testSpec.GetQueue(),
 								JobSetId: testSpec.GetJobSetId(),
-							})
-							return errors.WithStack(err)
-						})
-					case testSpec.Action == api.TestSpec_ACTION_PREEMPT && testSpec.Selection == api.TestSpec_SELECTION_BY_NODE:
-						actionErr = client.WithNodeClient(conn, func(nc api.NodeClient) error {
-							_, err := nc.PreemptOnNode(ctx, &api.NodePreemptRequest{
-								Name:     nodeName,
-								Executor: testSpec.GetExecutor(),
-								Queues:   []string{testSpec.GetQueue()},
 							})
 							return errors.WithStack(err)
 						})

@@ -7,6 +7,7 @@ option csharp_namespace = "ArmadaProject.Io.Api";
 import "google/protobuf/duration.proto";
 import "pkg/api/submit.proto";
 import "pkg/api/event.proto";
+import "pkg/api/node.proto";
 
 // Defines a test case for the Armada test suite.
 // Defined as a proto message to enable unmarshalling oneof fields.
@@ -45,7 +46,6 @@ message TestSpec {
         SELECTION_BY_ID = 1; // Select jobs individually.
         SELECTION_BY_SET = 2; // Select all jobs in the job set in bulk.
         SELECTION_BY_IDS = 3; // Select all jobs in the job set by multiple ids.
-        SELECTION_BY_NODE = 4; // Select all jobs in the job set by node.
     }
     // Test name. Defaults to the filename if not provided.
     string name = 10;
@@ -60,10 +60,20 @@ message TestSpec {
     // Reason for preempting jobs (if preemption is configured).
     string preempt_reason = 16;
     SelectionType selection = 17;
-    // Value of the armadaproject.io/node-pool label used to resolve the target node at runtime.
-    // Used when selection is SELECTION_BY_NODE.
-    string node_pool_tag = 18;
-    // Executor (cluster) ID for node-scoped operations (SELECTION_BY_NODE).
-    string executor = 19;
+    // Node-scoped cancel operation
+    NodeCancelConfig cancel_on_node = 18;
+    // Node-scoped preempt operation
+    NodePreemptConfig preempt_on_node = 19;
+}
 
+message NodeCancelConfig {
+    NodeCancelRequest request = 1;
+    // value of the armadaproject.io/node-pool label used to resolve the target node at runtime
+    string node_pool_tag = 2;
+}
+
+message NodePreemptConfig {
+    NodePreemptRequest request = 1;
+    // value of the armadaproject.io/node-pool label used to resolve the target node at runtime
+    string node_pool_tag = 2;
 }
