@@ -135,6 +135,8 @@ Jobs that explicitly set a termination period higher than the limit will be reje
 
 All Armada jobs can be assigned default job deadlines, i.e., jobs have a default maximum runtime after which the job will be killed. Default deadlines are only added to jobs that do not already specify one. To manually specify a deadline, set the `ActiveDeadlineSeconds` field of the podspec embedded in the job.
 
+Armada does not enforce a maximum on user-specified deadlines. A job that sets its own `ActiveDeadlineSeconds` can run for as long as that value allows.
+
 ## Scheduler: implementation
 
 Each scheduling cycle can be seen as a pure function that takes the current state as its input and returns a new desired state. We could express this in code as the following function:
@@ -287,3 +289,4 @@ Armada schedules one job at a time, and choosing the order in which jobs are att
 Including the topmost gang in the computation in step 2. is important since it may request thousands of nodes.
 
 This approach is sometimes referred to as progressive filling and is known to achieve max-min fairness, i.e., for an allocation computed in this way, an attempt to increase the allocation of one queue necessarily results in decreasing the allocation of some other queue with equal or smaller fraction of its fair share, under certain conditions, e.g., when the increments are sufficiently small.
+
