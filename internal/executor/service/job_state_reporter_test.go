@@ -168,6 +168,59 @@ func TestJobStateReporter_HandlesFailedPod_WithRetryableError(t *testing.T) {
 	assertExpectedEvents(t, before, eventReporter.ReceivedEvents, reflect.TypeOf(&armadaevents.EventSequence_Event_JobRunErrors{}))
 }
 
+func TestJobStateReporter_FailedPod_RecordsDebugMessageWhenMainContainerNeverStarted(t *testing.T) {
+	_, _, eventReporter, fakeClusterContext := setUpJobStateReporterTest(t)
+
+	// Main container never started (no ContainerStatuses reached Running/Terminated)
+	pod := makeTestPod(v1.PodStatus{Phase: v1.PodFailed})
+	addPod(t, fakeClusterContext, pod)
+	addPodEvents(fakeClusterContext, pod, []*v1.Event{{Message: "Image pull has failed", Type: "Warning"}})
+
+	fakeClusterContext.SimulatePodAddEvent(pod)
+	time.Sleep(time.Millisecond * 100) // Give time for async routine to process message
+
+	require.Len(t, eventReporter.ReceivedEvents, 1)
+	podError := extractPodError(t, eventReporter.ReceivedEvents[0])
+	assert.Contains(t, podError.DebugMessage, "Image pull has failed")
+}
+
+func TestJobStateReporter_FailedPod_NoDebugMessageWhenMainContainerStarted(t *testing.T) {
+	_, _, eventReporter, fakeClusterContext := setUpJobStateReporterTest(t)
+
+	// Main container started (and later terminated) - so no debug data should be recorded
+	pod := makeTestPod(v1.PodStatus{
+		Phase: v1.PodFailed,
+		ContainerStatuses: []v1.ContainerStatus{
+			{
+				Name: "main",
+				State: v1.ContainerState{
+					Terminated: &v1.ContainerStateTerminated{ExitCode: 1, Reason: "Error"},
+				},
+			},
+		},
+	})
+	addPod(t, fakeClusterContext, pod)
+	addPodEvents(fakeClusterContext, pod, []*v1.Event{{Message: "Image pull has failed", Type: "Warning"}})
+
+	fakeClusterContext.SimulatePodAddEvent(pod)
+	time.Sleep(time.Millisecond * 100) // Give time for async routine to process message
+
+	require.Len(t, eventReporter.ReceivedEvents, 1)
+	podError := extractPodError(t, eventReporter.ReceivedEvents[0])
+	assert.Empty(t, podError.DebugMessage)
+}
+
+func extractPodError(t *testing.T, message reporter.EventMessage) *armadaevents.PodError {
+	t.Helper()
+	require.Len(t, message.Event.Events, 1)
+	jobRunErrors, ok := message.Event.Events[0].Event.(*armadaevents.EventSequence_Event_JobRunErrors)
+	require.True(t, ok, "expected JobRunErrors event")
+	require.Len(t, jobRunErrors.JobRunErrors.Errors, 1)
+	podError, ok := jobRunErrors.JobRunErrors.Errors[0].Reason.(*armadaevents.Error_PodError)
+	require.True(t, ok, "expected PodError reason")
+	return podError.PodError
+}
+
 func setUpJobStateReporterTest(t *testing.T) (*JobStateReporter, *stubIssueHandler, *mocks.FakeEventReporter, *fakecontext.SyncFakeClusterContext) {
 	return setUpJobStateReporterTestWithClassifier(t, nil, &stubIssueHandler{})
 }
