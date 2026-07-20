@@ -112,6 +112,8 @@ func (c *JobSetEventsInstructionConverter) dbOperationsFromEventSequence(es *arm
 			operationsFromEvent, err = c.handlePartitionMarker(event.GetPartitionMarker(), eventTime)
 		case *armadaevents.EventSequence_Event_JobRunPreempted:
 			operationsFromEvent, err = c.handleJobRunPreempted(event.GetJobRunPreempted(), eventTime)
+		case *armadaevents.EventSequence_Event_JobRunTerminated:
+			operationsFromEvent, err = c.handleJobRunTerminated(event.GetJobRunTerminated(), eventTime)
 		case *armadaevents.EventSequence_Event_JobRunAssigned:
 			operationsFromEvent, err = c.handleJobRunAssigned(event.GetJobRunAssigned(), eventTime)
 		case *armadaevents.EventSequence_Event_JobValidated:
@@ -262,6 +264,11 @@ func (c *JobSetEventsInstructionConverter) handleJobRunSucceeded(jobRunSucceeded
 func (c *JobSetEventsInstructionConverter) handleJobRunPreempted(jobRunPreempted *armadaevents.JobRunPreempted, preemptedTime time.Time) ([]DbOperation, error) {
 	runId := jobRunPreempted.PreemptedRunId
 	return []DbOperation{MarkRunsPreempted{runId: preemptedTime}}, nil
+}
+
+func (c *JobSetEventsInstructionConverter) handleJobRunTerminated(jobRunTerminated *armadaevents.JobRunTerminated, terminatedTime time.Time) ([]DbOperation, error) {
+	runId := jobRunTerminated.RunId
+	return []DbOperation{MarkRunsTerminated{runId: terminatedTime}}, nil
 }
 
 func (c *JobSetEventsInstructionConverter) handleJobRunAssigned(jobRunAssigned *armadaevents.JobRunAssigned, assignedTime time.Time) ([]DbOperation, error) {

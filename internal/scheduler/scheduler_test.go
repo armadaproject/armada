@@ -292,9 +292,9 @@ var returnedOnceLeasedJob = testfixtures.NewJob(
 	nil,
 	nil,
 	nil,
+	nil,
 	true,
-	true,
-)).WithNewRun("testExecutor", "test-node", "node", "pool", 5)
+	true)).WithNewRun("testExecutor", "test-node", "node", "pool", 5)
 
 var defaultJobError = &armadaevents.Error{
 	Terminal: true,
@@ -418,9 +418,9 @@ var (
 		nil,
 		nil,
 		nil,
+		nil,
 		true,
-		true,
-	))
+		true))
 )
 
 type jobRunId struct {
@@ -2084,6 +2084,7 @@ func TestScheduler_TestSyncInitialState(t *testing.T) {
 						nil,
 						nil,
 						nil,
+						nil,
 						false,
 						false,
 					),
@@ -2244,6 +2245,7 @@ func TestScheduler_TestSyncState(t *testing.T) {
 						false,
 						false,
 						false,
+						nil,
 						nil,
 						nil,
 						nil,

@@ -224,7 +224,16 @@ func (c *MetricsCollector) updateQueueMetrics(ctx *armadacontext.Context) ([]pro
 			recorder = qs.queuedJobRecorder
 			queuedTime := time.Unix(0, job.Created())
 			if job.HasRuns() {
-				terminationTimeOfLatestRun := job.LatestRun().TerminatedTime()
+				latestRun := job.LatestRun()
+				// TerminatedTime is NULL between MarkRunsFailed (event-emit time) and
+				// MarkRunsTerminated (kubelet-observed time via JobRunTerminated, up to
+				// one reconciliation interval later). Fall back to FailedTime in that
+				// window so a retried job's queued-time-in-state is not inflated back
+				// to job.Created().
+				terminationTimeOfLatestRun := latestRun.TerminatedTime()
+				if terminationTimeOfLatestRun == nil {
+					terminationTimeOfLatestRun = latestRun.FailedTime()
+				}
 				if terminationTimeOfLatestRun != nil && terminationTimeOfLatestRun.After(queuedTime) {
 					queuedTime = *terminationTimeOfLatestRun
 				}

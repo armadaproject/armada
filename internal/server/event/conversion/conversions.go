@@ -59,6 +59,7 @@ func FromEventSequence(es *armadaevents.EventSequence) ([]*api.EventMessage, err
 			*armadaevents.EventSequence_Event_JobRunSucceeded,
 			*armadaevents.EventSequence_Event_JobRequeued,
 			*armadaevents.EventSequence_Event_JobValidated,
+			*armadaevents.EventSequence_Event_JobRunTerminated,
 			*armadaevents.EventSequence_Event_PartitionMarker:
 			// These events have no api analog right now, so we ignore
 			log.Debugf("ignoring event type %T", esEvent)

@@ -217,6 +217,7 @@ type (
 	MarkRunsRunning                map[string]time.Time
 	MarkRunsPending                map[string]time.Time
 	MarkRunsPreempted              map[string]time.Time
+	MarkRunsTerminated             map[string]time.Time
 	InsertJobRunErrors             map[string]*schedulerdb.JobRunError
 	UpdateJobPriorities            struct {
 		key    JobReprioritiseKey
@@ -395,6 +396,10 @@ func (a MarkRunsPreempted) Merge(b DbOperation) bool {
 	return mergeInMap(a, b)
 }
 
+func (a MarkRunsTerminated) Merge(b DbOperation) bool {
+	return mergeInMap(a, b)
+}
+
 func (a InsertJobRunErrors) Merge(b DbOperation) bool {
 	return mergeInMap(a, b)
 }
@@ -554,6 +559,10 @@ func (a MarkRunsPending) CanBeAppliedBefore(b DbOperation) bool {
 }
 
 func (a MarkRunsPreempted) CanBeAppliedBefore(b DbOperation) bool {
+	return !definesRun(a, b)
+}
+
+func (a MarkRunsTerminated) CanBeAppliedBefore(b DbOperation) bool {
 	return !definesRun(a, b)
 }
 
@@ -787,6 +796,10 @@ func (a MarkRunsPending) GetOperation() Operation {
 }
 
 func (a MarkRunsPreempted) GetOperation() Operation {
+	return JobSetOperation
+}
+
+func (a MarkRunsTerminated) GetOperation() Operation {
 	return JobSetOperation
 }
 

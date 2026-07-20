@@ -226,7 +226,19 @@ func (m *jobStateMetrics) ReportStateTransitions(
 			}
 		}
 		if jst.Failed {
-			duration, priorState := stateDuration(job, run, run.TerminatedTime())
+			// FailedTime is the event-emit time of the failure (decision time for the
+			// preempt path, kubelet-observed time for organic failures). TerminatedTime
+			// shifts to kubelet-observed-after-grace for preempted runs once
+			// JobRunTerminated lands, which would distort this histogram.
+			//
+			// Fall back to TerminatedTime for pre-migration runs (failed_timestamp is
+			// NULL because column 039 did not exist yet); they still carry the failure
+			// time in terminated_timestamp under the pre-PR semantics.
+			failedAt := run.FailedTime()
+			if failedAt == nil {
+				failedAt = run.TerminatedTime()
+			}
+			duration, priorState := stateDuration(job, run, failedAt)
 			m.updateStateDuration(job, failed, priorState, duration)
 			m.completedRunDurations.WithLabelValues(job.Queue(), run.Pool()).Observe(duration)
 			jobRunError := jobRunErrorsByRunId[run.Id()]

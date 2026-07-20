@@ -312,7 +312,7 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 				runAttempted = append(runAttempted, k)
 			}
 		}
-		sqlStmt := multiColumnRunsUpdateStmt("run_id", "failed", "terminated_timestamp")
+		sqlStmt := multiColumnRunsUpdateStmt("run_id", "failed", "failed_timestamp")
 		// order of arguments is important. See multiColumnRunsUpdateStmt function for details
 		if _, err := tx.Exec(ctx, sqlStmt, runIds, failed, failTimes); err != nil {
 			return errors.WithStack(err)
@@ -362,6 +362,23 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 		}
 		sqlStmt := multiColumnRunsUpdateStmt("run_id", "preempted", "preempted_timestamp")
 		if _, err := tx.Exec(ctx, sqlStmt, runIds, preempted, preemptedTimes); err != nil {
+			return errors.WithStack(err)
+		}
+	case MarkRunsTerminated:
+		runIds := make([]string, 0, len(o))
+		terminatedTimes := make([]interface{}, 0, len(o))
+		for runId, terminatedTime := range o {
+			runIds = append(runIds, runId)
+			terminatedTimes = append(terminatedTimes, terminatedTime)
+		}
+		// terminated_timestamp may already be set by an earlier writer; the helper's
+		// IS NULL guard yields to whichever path got there first:
+		//   - succeeded runs: MarkRunsSucceeded set it at JobRunSucceeded event time (kubelet observation)
+		//   - cancelled runs: MarkJobsCancelled set it at the cancel-event time (armada decision)
+		//   - failed runs (including preempted, which fail via JobRunErrors): MarkRunsFailed
+		//     writes failed_timestamp, NOT terminated_timestamp - so this path fills it.
+		sqlStmt := runsSetTimestampIfNullStmt("run_id", "terminated_timestamp")
+		if _, err := tx.Exec(ctx, sqlStmt, runIds, terminatedTimes); err != nil {
 			return errors.WithStack(err)
 		}
 	case InsertJobRunErrors:
@@ -707,6 +724,21 @@ func multiColumnRunsUpdateStmt(id, phaseColumn, timeStampColumn string) string {
 	as runs_temp(%[1]v, %[2]v, %[3]v)
 	where runs.%[1]v = runs_temp.%[1]v;`,
 		id, phaseColumn, timeStampColumn, "text")
+}
+
+// runsSetTimestampIfNullStmt builds a batch UPDATE that fills a single timestamp
+// column on runs only for rows where the column is currently NULL. Use for writers
+// that must defer to any prior writer of the same column (e.g. MarkRunsTerminated
+// yields to MarkRunsSucceeded and MarkJobsCancelled which already filled
+// terminated_timestamp).
+func runsSetTimestampIfNullStmt(idColumn, timestampColumn string) string {
+	return fmt.Sprintf(`update runs set
+	%[2]v = runs_temp.%[2]v
+	from (select * from unnest($1::text[], $2::timestamptz[]))
+	as runs_temp(%[1]v, %[2]v)
+	where runs.%[1]v = runs_temp.%[1]v
+	  and runs.%[2]v is null;`,
+		idColumn, timestampColumn)
 }
 
 func filterJobsByPriorityClasses(jobs []schedulerdb.Job, priorityClasses []string) ([]schedulerdb.Job, error) {
