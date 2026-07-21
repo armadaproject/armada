@@ -26,9 +26,10 @@ jobs:
               cpu: 100m
 ---
 ## Reprioritize the job set upward
-action: ACTION_REPRIORITIZE
-selection: SELECTION_BY_SET
-newPriority: 100
+reprioritize:
+  byJobSet: true
+  request:
+    newPriority: 100
 timeout: "100s"
 expectedEvents:
   - submitted:
