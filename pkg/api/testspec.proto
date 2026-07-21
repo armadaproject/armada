@@ -89,6 +89,8 @@ message NodePreemptConfig {
 
 message JobPreemptConfig {
     JobPreemptRequest request = 1;
+    // If true, preempt the whole job set (request.job_ids left empty) instead of the submitted jobs.
+    bool by_job_set = 2;
 }
 
 message JobCancelConfig {
@@ -101,4 +103,6 @@ message JobSetCancelConfig {
 
 message JobReprioritizeConfig {
     JobReprioritizeRequest request = 1;
+    // If true, reprioritize the whole job set (request.job_ids left empty) instead of the submitted jobs.
+    bool by_job_set = 2;
 }
