@@ -130,6 +130,7 @@ func (c *JobSetEventsInstructionConverter) dbOperationsFromEventSequence(es *arm
 		case *armadaevents.EventSequence_Event_ReprioritisedJob,
 			*armadaevents.EventSequence_Event_ResourceUtilisation,
 			*armadaevents.EventSequence_Event_JobRunCancelled,
+			*armadaevents.EventSequence_Event_JobCancelledDebugInfo,
 			*armadaevents.EventSequence_Event_StandaloneIngressInfo:
 			// These events can all be safely ignored
 			log.Debugf("Ignoring event type %T", event)

@@ -110,6 +110,8 @@ func (c *InstructionConverter) convertSequence(
 			err = c.handleJobRunRunning(ts, event.GetJobRunRunning(), update)
 		case *armadaevents.EventSequence_Event_JobRunCancelled:
 			err = c.handleJobRunCancelled(ts, event.GetJobRunCancelled(), update)
+		case *armadaevents.EventSequence_Event_JobCancelledDebugInfo:
+			err = c.handleJobCancelledDebugInfo(event.GetJobCancelledDebugInfo(), update)
 		case *armadaevents.EventSequence_Event_JobRunSucceeded:
 			err = c.handleJobRunSucceeded(ts, event.GetJobRunSucceeded(), update)
 		case *armadaevents.EventSequence_Event_JobRunErrors:
@@ -414,6 +416,19 @@ func (c *InstructionConverter) handleJobRunCancelled(ts time.Time, event *armada
 		Finished:                   &ts,
 		JobRunState:                pointer.Int32(lookout.JobRunCancelledOrdinal),
 		SchedulerTerminationReason: terminationReason,
+	}
+	update.JobRunsToUpdate = append(update.JobRunsToUpdate, &jobRun)
+	return nil
+}
+
+// handleJobCancelledDebugInfo persists only the debug message (rendered k8s events) for a run that
+// was cancelled before its main container started. It leaves the run's state untouched - the
+// JobRunCancelled event owns the state, and Lookout coalesces column updates so arrival order does
+// not matter.
+func (c *InstructionConverter) handleJobCancelledDebugInfo(event *armadaevents.JobCancelledDebugInfo, update *model.InstructionSet) error {
+	jobRun := model.UpdateJobRunInstruction{
+		RunId: event.RunId,
+		Debug: tryCompressError(event.JobId, event.DebugMessage, c.compressor),
 	}
 	update.JobRunsToUpdate = append(update.JobRunsToUpdate, &jobRun)
 	return nil

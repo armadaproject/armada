@@ -151,6 +151,13 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 		eventChannels = append(eventChannels, preemptCh)
 	}
 
+	// Add reprioritize channel if reprioritization is configured.
+	var reprioritizeCh chan *api.EventMessage
+	if srv.testSpec.Action == api.TestSpec_ACTION_REPRIORITIZE {
+		reprioritizeCh = make(chan *api.EventMessage)
+		eventChannels = append(eventChannels, reprioritizeCh)
+	}
+
 	// Duplicate events across all downstream services.
 	splitter := eventsplitter.New(
 		watcher.C,
@@ -163,6 +170,17 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 	if srv.testSpec.Action == api.TestSpec_ACTION_PREEMPT {
 		g.Go(func() error {
 			return preemptJobsWhenRunning(ctx, preemptCh, srv.testSpec, srv.apiConnectionDetails, jobIds)
+		})
+	}
+
+	// If configured, reprioritize jobs once they are running.
+	// Used to test job reprioritization. Waiting for the jobs to be running
+	// (rather than sleeping a fixed interval) ensures the reprioritize request
+	// is not handled before its jobs exist in the scheduler, which would produce
+	// no reprioritized events.
+	if srv.testSpec.Action == api.TestSpec_ACTION_REPRIORITIZE {
+		g.Go(func() error {
+			return reprioritizeJobsWhenRunning(ctx, reprioritizeCh, srv.testSpec, srv.apiConnectionDetails, jobIds)
 		})
 	}
 
@@ -245,6 +263,96 @@ func tryCancelJobs(ctx context.Context, testSpec *api.TestSpec, conn *client.Api
 		})
 	}
 	return nil
+}
+
+// tryReprioritizeJobs reprioritizes submitted jobs if reprioritization is configured.
+func tryReprioritizeJobs(ctx context.Context, testSpec *api.TestSpec, conn *client.ApiConnectionDetails, jobIds []string) error {
+	if testSpec.Action != api.TestSpec_ACTION_REPRIORITIZE {
+		return nil
+	}
+
+	req := &api.JobReprioritizeRequest{
+		Queue:       testSpec.GetQueue(),
+		JobSetId:    testSpec.GetJobSetId(),
+		NewPriority: testSpec.GetNewPriority(),
+	}
+	switch {
+	case testSpec.Selection == api.TestSpec_SELECTION_BY_ID:
+		return client.WithSubmitClient(conn, func(sc api.SubmitClient) error {
+			for _, jobId := range jobIds {
+				req.JobIds = []string{jobId}
+				_, err := sc.ReprioritizeJobs(ctx, req)
+				if err != nil {
+					return errors.WithStack(err)
+				}
+			}
+			return nil
+		})
+	case testSpec.Selection == api.TestSpec_SELECTION_BY_SET:
+		return client.WithSubmitClient(conn, func(sc api.SubmitClient) error {
+			_, err := sc.ReprioritizeJobs(ctx, req)
+			if err != nil {
+				return errors.WithStack(err)
+			}
+			return nil
+		})
+	case testSpec.Selection == api.TestSpec_SELECTION_BY_IDS:
+		return client.WithSubmitClient(conn, func(sc api.SubmitClient) error {
+			req.JobIds = jobIds
+			_, err := sc.ReprioritizeJobs(ctx, req)
+			if err != nil {
+				return errors.WithStack(err)
+			}
+			return nil
+		})
+	}
+	return nil
+}
+
+// reprioritizeJobsWhenRunning waits for all jobs to be running, then
+// reprioritizes them. Waiting for the Running event (rather than sleeping a fixed
+// interval or reacting to an early Queued event) guarantees each job is present in
+// the scheduler's job db before the reprioritize request is handled. Otherwise the
+// fire-once reprioritization can run before a job exists in the scheduler, so no
+// reprioritized event is produced and the test times out intermittently.
+func reprioritizeJobsWhenRunning(ctx context.Context, eventCh chan *api.EventMessage, testSpec *api.TestSpec, conn *client.ApiConnectionDetails, jobIds []string) error {
+	// Only this runner's submitted jobs should count toward the readiness gate.
+	// The job set may be shared with concurrently-running test cases, so a Running
+	// event from another case must not satisfy the gate and fire the reprioritize
+	// request before this case's own jobs reach the scheduler.
+	submittedJobs := make(map[string]bool, len(jobIds))
+	for _, jobId := range jobIds {
+		submittedJobs[jobId] = true
+	}
+
+	runningJobs := make(map[string]bool)
+
+	// Wait for all jobs to be running before reprioritizing.
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case msg := <-eventCh:
+			if e := msg.GetRunning(); e != nil && submittedJobs[e.JobId] {
+				runningJobs[e.JobId] = true
+
+				// Once all jobs are running, reprioritize them.
+				if len(runningJobs) == len(jobIds) {
+					if err := tryReprioritizeJobs(ctx, testSpec, conn, jobIds); err != nil {
+						return err
+					}
+					// Continue consuming events to avoid blocking the splitter.
+					for {
+						select {
+						case <-ctx.Done():
+							return nil
+						case <-eventCh:
+						}
+					}
+				}
+			}
+		}
+	}
 }
 
 // preemptJobsWhenRunning waits for jobs to be running, then preempts them.
