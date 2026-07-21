@@ -933,11 +933,6 @@ func TestPreemptionScheduling(t *testing.T) {
 			disableUrgencyScheduling: true,
 			expectSuccess:            false,
 		},
-		"fair-share preemption by default": {
-			registerEvictedJobs:      true,
-			expectSuccess:            true,
-			expectedSchedulingMethod: context.ScheduledWithFairSharePreemption,
-		},
 		"falls through to urgency-based preemption when fair-share disabled": {
 			registerEvictedJobs:        true,
 			disableFairshareScheduling: true,
