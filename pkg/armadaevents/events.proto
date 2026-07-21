@@ -599,13 +599,3 @@ message JobCancelledDebugInfo {
     string run_id = 2;
     string debugMessage = 3;
 }
-
-// Emitted by the executor when a job run is cancelled before its main container ever started,
-// carrying the rendered Kubernetes pod events so the reason the workload never ran is not lost.
-// This is purely diagnostic: it does NOT represent an error and does NOT change the run's state.
-// Only Lookout consumes it, to populate the run's debug column; all other consumers ignore it.
-message JobCancelledDebugInfo {
-    string job_id = 1;
-    string run_id = 2;
-    string debugMessage = 3;
-}
