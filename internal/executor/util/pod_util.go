@@ -252,6 +252,28 @@ func GetPodContainerStatuses(pod *v1.Pod) []v1.ContainerStatus {
 	return containerStatuses
 }
 
+// HasAppContainerStarted returns true if any of the pod's app containers has started
+// - i.e. reached a Running or Terminated state, now or previously. Init containers
+// (including native sidecars, which appear in InitContainerStatuses) are deliberately
+// ignored, so a pod whose init containers ran but whose app containers never started is
+// treated as not started.
+//
+// Note: this checks ALL app containers, matching the aggregate semantics used elsewhere
+// (e.g. ExtractFailedPodContainerStatuses). Armada has no notion of a single "main"
+// container, so in a multi-container pod a started sidecar will mask an app container
+// that never started. This only affects whether diagnostic debug data is captured.
+func HasAppContainerStarted(pod *v1.Pod) bool {
+	for _, container := range pod.Status.ContainerStatuses {
+		if container.State.Running != nil ||
+			container.State.Terminated != nil ||
+			container.LastTerminationState.Running != nil ||
+			container.LastTerminationState.Terminated != nil {
+			return true
+		}
+	}
+	return false
+}
+
 func IsMarkedForDeletion(pod *v1.Pod) bool {
 	_, exists := pod.Annotations[domain.MarkedForDeletion]
 	return exists

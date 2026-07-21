@@ -17,7 +17,7 @@ import (
 func TestCreateEventForCurrentState_WhenPodPending(t *testing.T) {
 	pod := makeTestPod(v1.PodPending)
 
-	result, err := CreateEventForCurrentState(pod, "cluster1", categorizer.ClassifyResult{})
+	result, err := CreateEventForCurrentState(pod, "cluster1", categorizer.ClassifyResult{}, "")
 	assert.Nil(t, err)
 
 	assert.Len(t, result.Events, 1)
@@ -29,7 +29,7 @@ func TestCreateEventForCurrentState_WhenPodPending(t *testing.T) {
 func TestCreateEventForCurrentState_WhenPodRunning(t *testing.T) {
 	pod := makeTestPod(v1.PodRunning)
 
-	result, err := CreateEventForCurrentState(pod, "cluster1", categorizer.ClassifyResult{})
+	result, err := CreateEventForCurrentState(pod, "cluster1", categorizer.ClassifyResult{}, "")
 	assert.Nil(t, err)
 
 	assert.Len(t, result.Events, 1)
@@ -41,7 +41,7 @@ func TestCreateEventForCurrentState_WhenPodRunning(t *testing.T) {
 func TestCreateEventForCurrentState_WhenPodFailed(t *testing.T) {
 	pod := makeTestPod(v1.PodFailed)
 
-	result, err := CreateEventForCurrentState(pod, "cluster1", categorizer.ClassifyResult{})
+	result, err := CreateEventForCurrentState(pod, "cluster1", categorizer.ClassifyResult{}, "")
 	assert.Nil(t, err)
 
 	assert.Len(t, result.Events, 1)
@@ -82,7 +82,7 @@ func TestCreateEventForCurrentState_WhenPodFailed_WithClassifier(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	result, err := CreateEventForCurrentState(pod, "cluster1", classifier.ClassifyContainerError(pod))
+	result, err := CreateEventForCurrentState(pod, "cluster1", classifier.ClassifyContainerError(pod), "")
 	assert.NoError(t, err)
 
 	assert.Len(t, result.Events, 1)
@@ -126,7 +126,7 @@ func TestCreateEventForCurrentState_WhenPodFailed_HintAppendedAfterReason(t *tes
 	})
 	require.NoError(t, err)
 
-	result, err := CreateEventForCurrentState(pod, "cluster1", classifier.ClassifyContainerError(pod))
+	result, err := CreateEventForCurrentState(pod, "cluster1", classifier.ClassifyContainerError(pod), "")
 	require.NoError(t, err)
 	require.Len(t, result.Events, 1)
 	event, ok := result.Events[0].Event.(*armadaevents.EventSequence_Event_JobRunErrors)
@@ -155,7 +155,7 @@ func TestCreateEventForCurrentState_WhenPodFailed_NilClassifier(t *testing.T) {
 		},
 	}
 
-	result, err := CreateEventForCurrentState(pod, "cluster1", categorizer.ClassifyResult{})
+	result, err := CreateEventForCurrentState(pod, "cluster1", categorizer.ClassifyResult{}, "")
 	assert.NoError(t, err)
 	require.Len(t, result.Events, 1)
 
@@ -170,7 +170,7 @@ func TestCreateEventForCurrentState_WhenPodFailed_NilClassifier(t *testing.T) {
 func TestCreateEventForCurrentState_WhenPodSucceeded(t *testing.T) {
 	pod := makeTestPod(v1.PodSucceeded)
 
-	result, err := CreateEventForCurrentState(pod, "cluster1", categorizer.ClassifyResult{})
+	result, err := CreateEventForCurrentState(pod, "cluster1", categorizer.ClassifyResult{}, "")
 	assert.Nil(t, err)
 
 	assert.Len(t, result.Events, 1)
@@ -181,7 +181,7 @@ func TestCreateEventForCurrentState_WhenPodSucceeded(t *testing.T) {
 func TestCreateEventForCurrentState_ShouldError_WhenPodPhaseUnknown(t *testing.T) {
 	pod := makeTestPod(v1.PodUnknown)
 
-	_, err := CreateEventForCurrentState(pod, "cluster1", categorizer.ClassifyResult{})
+	_, err := CreateEventForCurrentState(pod, "cluster1", categorizer.ClassifyResult{}, "")
 	assert.Error(t, err)
 }
 

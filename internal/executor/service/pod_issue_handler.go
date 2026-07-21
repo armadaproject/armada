@@ -1,14 +1,12 @@
 package service
 
 import (
-	"bytes"
 	"fmt"
 	"sync"
 	"time"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/tools/cache"
-	"k8s.io/kubectl/pkg/describe"
 	"k8s.io/utils/clock"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -162,7 +160,7 @@ func (p *PodIssueHandler) DetectAndRegisterFailedPodIssue(pod *v1.Pod) (bool, er
 			PodIssue: &podIssue{
 				OriginalPodState:  pod.DeepCopy(),
 				Message:           message,
-				DebugMessage:      createDebugMessage(podEvents),
+				DebugMessage:      reporter.CreateDebugMessage(podEvents),
 				Retryable:         true,
 				DeletionRequested: false,
 				Type:              FailedStartingUp,
@@ -291,7 +289,7 @@ func (p *PodIssueHandler) detectPodIssues(allManagedPods []*v1.Pod) {
 			if action != podchecks.ActionWait {
 				retryable := action == podchecks.ActionRetry
 				message := createStuckPodMessage(retryable, podCheckMessage)
-				debugMessage := createDebugMessage(podEvents)
+				debugMessage := reporter.CreateDebugMessage(podEvents)
 				podIssueType := StuckStartingUp
 				if cause == podchecks.NoNodeAssigned {
 					podIssueType = UnableToSchedule
@@ -314,28 +312,6 @@ func (p *PodIssueHandler) detectPodIssues(allManagedPods []*v1.Pod) {
 			}
 		}
 	}
-}
-
-// Maximum size for debug messages to prevent Pulsar message overflow
-const maxDebugMessageSize = 10 * 1024
-
-func createDebugMessage(podEvents []*v1.Event) string {
-	events := make([]v1.Event, 0, len(podEvents))
-	for _, e := range podEvents {
-		events = append(events, *e)
-	}
-
-	eventList := v1.EventList{Items: events}
-	writer := bytes.Buffer{}
-	prefixWriter := describe.NewPrefixWriter(&writer)
-
-	describe.DescribeEvents(&eventList, prefixWriter)
-
-	message := writer.String()
-	if len(message) > maxDebugMessageSize {
-		message = "[truncated]..." + message[len(message)-maxDebugMessageSize:]
-	}
-	return message
 }
 
 // Returns true if the pod has been running longer than its activeDeadlineSeconds + grace period
