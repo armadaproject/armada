@@ -91,6 +91,7 @@ message EventSequence {
             JobPreemptionRequested jobPreemptionRequested = 23;
             JobRunCancelled jobRunCancelled = 24;
             JobValidated jobValidated = 25;
+            JobCancelledDebugInfo jobCancelledDebugInfo = 26;
         }
     }
     // The system is namespaced by queue, and all events are associated with a job set.
@@ -585,4 +586,14 @@ message JobRunCancelled {
     reserved 1,2;
     string job_id = 3;
     string run_id= 4;
+}
+
+// Emitted by the executor when a job run is cancelled before its main container ever started,
+// carrying the rendered Kubernetes pod events so the reason the workload never ran is not lost.
+// This is purely diagnostic: it does NOT represent an error and does NOT change the run's state.
+// Only Lookout consumes it, to populate the run's debug column; all other consumers ignore it.
+message JobCancelledDebugInfo {
+    string job_id = 1;
+    string run_id = 2;
+    string debugMessage = 3;
 }
