@@ -226,6 +226,231 @@ func TestConvertReprioritised(t *testing.T) {
 	assert.Equal(t, expected, apiEvents)
 }
 
+// TestConvertCancel_EventLevelRequestor verifies that CancelJob's requestor field
+// takes precedence over EventSequence.UserId
+func TestConvertCancel_EventLevelRequestor(t *testing.T) {
+	requestor := "explicit-requestor"
+	cancel := &armadaevents.EventSequence_Event{
+		Created: baseTimeProto,
+		Event: &armadaevents.EventSequence_Event_CancelJob{
+			CancelJob: &armadaevents.CancelJob{
+				JobId:     jobId,
+				Requestor: requestor,
+			},
+		},
+	}
+
+	expected := []*api.EventMessage{
+		{
+			Events: &api.EventMessage_Cancelling{
+				Cancelling: &api.JobCancellingEvent{
+					JobId:     jobId,
+					JobSetId:  jobSetName,
+					Queue:     queue,
+					Created:   protoutil.ToTimestamp(baseTime),
+					Requestor: requestor,
+				},
+			},
+		},
+	}
+
+	apiEvents, err := FromEventSequence(toEventSeq(cancel))
+	assert.NoError(t, err)
+	assert.Equal(t, expected, apiEvents)
+}
+
+// TestConvertCancelled_EventLevelRequestor verifies that CancelledJob's requestor field
+// takes precedence over cancel_user and EventSequence.UserId
+func TestConvertCancelled_EventLevelRequestor(t *testing.T) {
+	cancelUser := "cancel-user"
+	cancelled := &armadaevents.EventSequence_Event{
+		Created: baseTimeProto,
+		Event: &armadaevents.EventSequence_Event_CancelledJob{
+			CancelledJob: &armadaevents.CancelledJob{
+				JobId:     jobId,
+				Requestor: cancelUser,
+			},
+		},
+	}
+
+	expected := []*api.EventMessage{
+		{
+			Events: &api.EventMessage_Cancelled{
+				Cancelled: &api.JobCancelledEvent{
+					JobId:     jobId,
+					JobSetId:  jobSetName,
+					Queue:     queue,
+					Created:   protoutil.ToTimestamp(baseTime),
+					Requestor: cancelUser,
+				},
+			},
+		},
+	}
+
+	apiEvents, err := FromEventSequence(toEventSeq(cancelled))
+	assert.NoError(t, err)
+	assert.Equal(t, expected, apiEvents)
+}
+
+// TestConvertCancelled_CancelUserFallback verifies that CancelledJob's cancel_user field
+// is used when requestor is empty (Priority 2)
+func TestConvertCancelled_CancelUserFallback(t *testing.T) {
+	cancelUser := "cancel-user-fallback"
+	cancelled := &armadaevents.EventSequence_Event{
+		Created: baseTimeProto,
+		Event: &armadaevents.EventSequence_Event_CancelledJob{
+			CancelledJob: &armadaevents.CancelledJob{JobId: jobId, Requestor: cancelUser},
+		},
+	}
+
+	expected := []*api.EventMessage{
+		{
+			Events: &api.EventMessage_Cancelled{
+				Cancelled: &api.JobCancelledEvent{
+					JobId:     jobId,
+					JobSetId:  jobSetName,
+					Queue:     queue,
+					Created:   protoutil.ToTimestamp(baseTime),
+					Requestor: cancelUser,
+				},
+			},
+		},
+	}
+
+	apiEvents, err := FromEventSequence(toEventSeq(cancelled))
+	assert.NoError(t, err)
+	assert.Equal(t, expected, apiEvents)
+}
+
+// TestConvertCancelled_EventSequenceUserIdFallback verifies that EventSequence.UserId
+// is used when both requestor and cancel_user are empty (Priority 3/fallback)
+func TestConvertCancelled_EventSequenceUserIdFallback(t *testing.T) {
+	cancelled := &armadaevents.EventSequence_Event{
+		Created: baseTimeProto,
+		Event: &armadaevents.EventSequence_Event_CancelledJob{
+			CancelledJob: &armadaevents.CancelledJob{JobId: jobId},
+		},
+	}
+
+	expected := []*api.EventMessage{
+		{
+			Events: &api.EventMessage_Cancelled{
+				Cancelled: &api.JobCancelledEvent{
+					JobId:     jobId,
+					JobSetId:  jobSetName,
+					Queue:     queue,
+					Created:   protoutil.ToTimestamp(baseTime),
+					Requestor: userId,
+				},
+			},
+		},
+	}
+
+	apiEvents, err := FromEventSequence(toEventSeq(cancelled))
+	assert.NoError(t, err)
+	assert.Equal(t, expected, apiEvents)
+}
+
+// TestConvertCancelled_WhitespaceRequestorTreatedAsEmpty verifies that whitespace-only
+// requestor is treated as unset and falls through to cancel_user
+func TestConvertCancelled_WhitespaceRequestorTreatedAsEmpty(t *testing.T) {
+	cancelUser := "cancel-user-via-whitespace"
+	cancelled := &armadaevents.EventSequence_Event{
+		Created: baseTimeProto,
+		Event: &armadaevents.EventSequence_Event_CancelledJob{
+			CancelledJob: &armadaevents.CancelledJob{JobId: jobId, Requestor: cancelUser},
+		},
+	}
+
+	expected := []*api.EventMessage{
+		{
+			Events: &api.EventMessage_Cancelled{
+				Cancelled: &api.JobCancelledEvent{
+					JobId:     jobId,
+					JobSetId:  jobSetName,
+					Queue:     queue,
+					Created:   protoutil.ToTimestamp(baseTime),
+					Requestor: cancelUser,
+				},
+			},
+		},
+	}
+
+	apiEvents, err := FromEventSequence(toEventSeq(cancelled))
+	assert.NoError(t, err)
+	assert.Equal(t, expected, apiEvents)
+}
+
+// TestConvertReprioritiseJob_EventLevelRequestor verifies that ReprioritiseJob's requestor
+// field takes precedence over EventSequence.UserId
+func TestConvertReprioritiseJob_EventLevelRequestor(t *testing.T) {
+	requestor := "explicit-requestor"
+	reprioritise := &armadaevents.EventSequence_Event{
+		Created: baseTimeProto,
+		Event: &armadaevents.EventSequence_Event_ReprioritiseJob{
+			ReprioritiseJob: &armadaevents.ReprioritiseJob{
+				JobId:     jobId,
+				Priority:  5,
+				Requestor: requestor,
+			},
+		},
+	}
+
+	expected := []*api.EventMessage{
+		{
+			Events: &api.EventMessage_Reprioritizing{
+				Reprioritizing: &api.JobReprioritizingEvent{
+					JobId:       jobId,
+					JobSetId:    jobSetName,
+					Queue:       queue,
+					Created:     protoutil.ToTimestamp(baseTime),
+					NewPriority: 5,
+					Requestor:   requestor,
+				},
+			},
+		},
+	}
+
+	apiEvents, err := FromEventSequence(toEventSeq(reprioritise))
+	assert.NoError(t, err)
+	assert.Equal(t, expected, apiEvents)
+}
+
+// TestConvertReprioritisedJob_EventLevelRequestor verifies that ReprioritisedJob's requestor
+// field takes precedence over EventSequence.UserId
+func TestConvertReprioritisedJob_EventLevelRequestor(t *testing.T) {
+	requestor := "explicit-requestor"
+	reprioritised := &armadaevents.EventSequence_Event{
+		Created: baseTimeProto,
+		Event: &armadaevents.EventSequence_Event_ReprioritisedJob{
+			ReprioritisedJob: &armadaevents.ReprioritisedJob{
+				JobId:     jobId,
+				Priority:  5,
+				Requestor: requestor,
+			},
+		},
+	}
+
+	expected := []*api.EventMessage{
+		{
+			Events: &api.EventMessage_Reprioritized{
+				Reprioritized: &api.JobReprioritizedEvent{
+					JobId:       jobId,
+					JobSetId:    jobSetName,
+					Queue:       queue,
+					Created:     protoutil.ToTimestamp(baseTime),
+					NewPriority: 5,
+					Requestor:   requestor,
+				},
+			},
+		},
+	}
+
+	apiEvents, err := FromEventSequence(toEventSeq(reprioritised))
+	assert.NoError(t, err)
+	assert.Equal(t, expected, apiEvents)
+}
+
 func TestConvertLeased(t *testing.T) {
 	leased := &armadaevents.EventSequence_Event{
 		Created: baseTimeProto,

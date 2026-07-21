@@ -450,8 +450,11 @@ func TestScheduler_TestCycle(t *testing.T) {
 		expectedJobRunPreempted            []jobRunId                            // ids of jobs we expect to have produced jobRunPreempted messages
 		expectedJobRunCancelled            []jobRunId                            // ids of jobs we expect to have produced jobRunPreempted messages
 		expectedJobCancelled               []string                              // ids of jobs we expect to have  produced cancelled messages
+		expectedJobCancelledRequestors     map[string]string                     // expected requestor on CancelledJob events by job id
 		expectedJobRequestCancel           []string                              // ids of jobs we expect to have produced request cancel
+		expectedJobRequestCancelRequestors map[string]string                     // expected requestor on CancelJob events by job id
 		expectedJobReprioritised           []string                              // ids of jobs we expect to have  produced reprioritised messages
+		expectedJobReprioritisedRequestors map[string]string                     // expected requestor on ReprioritisedJob events by job id
 		expectedQueued                     []string                              // ids of jobs we expect to have  produced requeued messages
 		expectedJobSucceeded               []string                              // ids of jobs we expect to have  produced succeeded messages
 		expectedLeased                     []string                              // ids of jobs we expected to be leased in jobdb at the end of the cycle
@@ -843,6 +846,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 					Serial:          1,
 					Submitted:       queuedJob.Created(),
 					CancelRequested: true,
+					CancelUser:      pointer.String("cancel-user"),
 					Cancelled:       false,
 					SchedulingInfo:  schedulingInfoBytes,
 				},
@@ -850,12 +854,15 @@ func TestScheduler_TestCycle(t *testing.T) {
 
 			// We have already got a request cancel from the DB, so only publish a cancelled message.
 			// The job should also be removed from the queue and set to a terminal state.#
-			expectedJobCancelled:  []string{queuedJob.Id()},
+			expectedJobCancelled: []string{queuedJob.Id()},
+			expectedJobCancelledRequestors: map[string]string{
+				queuedJob.Id(): "cancel-user",
+			},
 			expectedQueuedVersion: queuedJob.QueuedVersion(),
 			expectedTerminal:      []string{queuedJob.Id()},
 		},
 		"Postgres job with cancel requested results in cancel messages": {
-			initialJobs: []*jobdb.Job{queuedJob.WithCancelRequested(true)},
+			initialJobs: []*jobdb.Job{queuedJob.WithCancelRequested(true).WithCancelUser(pointer.String("cancel-user"))},
 			jobUpdates: []database.Job{
 				{
 					JobID:           queuedJob.Id(),
@@ -866,6 +873,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 					Serial:          1,
 					Submitted:       queuedJob.Created(),
 					CancelRequested: true,
+					CancelUser:      pointer.String("cancel-user"),
 					Cancelled:       false,
 					SchedulingInfo:  schedulingInfoBytes,
 					Priority:        int64(queuedJob.Priority()),
@@ -874,7 +882,66 @@ func TestScheduler_TestCycle(t *testing.T) {
 
 			// We have already got a request cancel from the DB/existing job state, so only publish a cancelled message.
 			// The job should also be removed from the queue and set to a terminal state.
-			expectedJobCancelled:  []string{queuedJob.Id()},
+			expectedJobCancelled: []string{queuedJob.Id()},
+			expectedJobCancelledRequestors: map[string]string{
+				queuedJob.Id(): "cancel-user",
+			},
+			expectedQueuedVersion: queuedJob.QueuedVersion(),
+			expectedTerminal:      []string{queuedJob.Id()},
+		},
+		"Postgres job with cancel requested and stale requestor emits cancel-user requestor": {
+			initialJobs: []*jobdb.Job{queuedJob.WithRequestor(pointer.String("charlie"))},
+			jobUpdates: []database.Job{
+				{
+					JobID:           queuedJob.Id(),
+					JobSet:          queuedJob.Jobset(),
+					Queue:           queuedJob.Queue(),
+					Queued:          queuedJob.Queued(),
+					QueuedVersion:   queuedJob.QueuedVersion(),
+					Serial:          1,
+					Submitted:       queuedJob.Created(),
+					CancelRequested: true,
+					CancelUser:      pointer.String("alice"),
+					Cancelled:       false,
+					SchedulingInfo:  schedulingInfoBytes,
+					Priority:        int64(queuedJob.Priority()),
+				},
+			},
+
+			expectedJobCancelled: []string{queuedJob.Id()},
+			expectedJobCancelledRequestors: map[string]string{
+				queuedJob.Id(): "alice",
+			},
+			expectedQueuedVersion: queuedJob.QueuedVersion(),
+			expectedTerminal:      []string{queuedJob.Id()},
+		},
+		"Postgres job with cancel by job set requested and stale requestor emits cancel-user requestor": {
+			initialJobs: []*jobdb.Job{queuedJob.WithRequestor(pointer.String("charlie"))},
+			jobUpdates: []database.Job{
+				{
+					JobID:                   queuedJob.Id(),
+					JobSet:                  queuedJob.Jobset(),
+					Queue:                   queuedJob.Queue(),
+					Queued:                  queuedJob.Queued(),
+					QueuedVersion:           queuedJob.QueuedVersion(),
+					Serial:                  1,
+					Submitted:               queuedJob.Created(),
+					CancelByJobsetRequested: true,
+					CancelUser:              pointer.String("alice"),
+					Cancelled:               false,
+					SchedulingInfo:          schedulingInfoBytes,
+					Priority:                int64(queuedJob.Priority()),
+				},
+			},
+
+			expectedJobRequestCancel: []string{queuedJob.Id()},
+			expectedJobRequestCancelRequestors: map[string]string{
+				queuedJob.Id(): "alice",
+			},
+			expectedJobCancelled: []string{queuedJob.Id()},
+			expectedJobCancelledRequestors: map[string]string{
+				queuedJob.Id(): "alice",
+			},
 			expectedQueuedVersion: queuedJob.QueuedVersion(),
 			expectedTerminal:      []string{queuedJob.Id()},
 		},
@@ -882,33 +949,41 @@ func TestScheduler_TestCycle(t *testing.T) {
 			initialJobs: []*jobdb.Job{queuedJob},
 			jobUpdates: []database.Job{
 				{
-					JobID:    queuedJob.Id(),
-					JobSet:   "testJobSet",
-					Queue:    "testQueue",
-					Priority: 2,
-					Serial:   1,
+					JobID:            queuedJob.Id(),
+					JobSet:           "testJobSet",
+					Queue:            "testQueue",
+					Priority:         2,
+					ReprioritizeUser: pointer.String("requestor"),
+					Serial:           1,
 				},
 			},
 			expectedJobReprioritised: []string{queuedJob.Id()},
-			expectedQueued:           []string{queuedJob.Id()},
-			expectedJobPriority:      map[string]uint32{queuedJob.Id(): 2},
-			expectedQueuedVersion:    queuedJob.QueuedVersion(),
+			expectedJobReprioritisedRequestors: map[string]string{
+				queuedJob.Id(): "requestor",
+			},
+			expectedQueued:        []string{queuedJob.Id()},
+			expectedJobPriority:   map[string]uint32{queuedJob.Id(): 2},
+			expectedQueuedVersion: queuedJob.QueuedVersion(),
 		},
 		"Leased job reprioritised": {
 			initialJobs: []*jobdb.Job{leasedJob},
 			jobUpdates: []database.Job{
 				{
-					JobID:    leasedJob.Id(),
-					JobSet:   "testJobSet",
-					Queue:    "testQueue",
-					Priority: 2,
-					Serial:   1,
+					JobID:            leasedJob.Id(),
+					JobSet:           "testJobSet",
+					Queue:            "testQueue",
+					Priority:         2,
+					ReprioritizeUser: pointer.String("requestor"),
+					Serial:           1,
 				},
 			},
 			expectedJobReprioritised: []string{leasedJob.Id()},
-			expectedLeased:           []string{leasedJob.Id()},
-			expectedJobPriority:      map[string]uint32{leasedJob.Id(): 2},
-			expectedQueuedVersion:    leasedJob.QueuedVersion(),
+			expectedJobReprioritisedRequestors: map[string]string{
+				leasedJob.Id(): "requestor",
+			},
+			expectedLeased:        []string{leasedJob.Id()},
+			expectedJobPriority:   map[string]uint32{leasedJob.Id(): 2},
+			expectedQueuedVersion: leasedJob.QueuedVersion(),
 		},
 		"Terminal job reprioritised": {
 			initialJobs: []*jobdb.Job{cancelledJob},
@@ -1176,11 +1251,11 @@ func TestScheduler_TestCycle(t *testing.T) {
 				fmt.Sprintf("%T", &armadaevents.EventSequence_Event_JobRunErrors{}):     jobRunIdToSetWithEventDetails(tc.expectedJobRunErrors),
 				fmt.Sprintf("%T", &armadaevents.EventSequence_Event_JobRunPreempted{}):  jobRunIdToSetWithEventDetails(tc.expectedJobRunPreempted),
 				fmt.Sprintf("%T", &armadaevents.EventSequence_Event_JobRunCancelled{}):  jobRunIdToSetWithEventDetails(tc.expectedJobRunCancelled),
-				fmt.Sprintf("%T", &armadaevents.EventSequence_Event_CancelledJob{}):     stringsToSetWithEventDetails(tc.expectedJobCancelled),
-				fmt.Sprintf("%T", &armadaevents.EventSequence_Event_ReprioritisedJob{}): stringsToSetWithEventDetails(tc.expectedJobReprioritised),
+				fmt.Sprintf("%T", &armadaevents.EventSequence_Event_CancelledJob{}):     stringsToSetWithRequestorEventDetails(tc.expectedJobCancelled, tc.expectedJobCancelledRequestors),
+				fmt.Sprintf("%T", &armadaevents.EventSequence_Event_ReprioritisedJob{}): stringsToSetWithRequestorEventDetails(tc.expectedJobReprioritised, tc.expectedJobReprioritisedRequestors),
 				fmt.Sprintf("%T", &armadaevents.EventSequence_Event_JobSucceeded{}):     stringsToSetWithEventDetails(tc.expectedJobSucceeded),
 				fmt.Sprintf("%T", &armadaevents.EventSequence_Event_JobRequeued{}):      stringsToSetWithEventDetails(tc.expectedRequeued),
-				fmt.Sprintf("%T", &armadaevents.EventSequence_Event_CancelJob{}):        stringsToSetWithEventDetails(tc.expectedJobRequestCancel),
+				fmt.Sprintf("%T", &armadaevents.EventSequence_Event_CancelJob{}):        stringsToSetWithRequestorEventDetails(tc.expectedJobRequestCancel, tc.expectedJobRequestCancelRequestors),
 				fmt.Sprintf("%T", &armadaevents.EventSequence_Event_JobValidated{}):     stringsToSetWithEventDetails(tc.expectedValidated),
 			}
 			err = subtractEventsFromOutstandingEventsByType(publisher.eventSequences, outstandingJobEventsByType)
@@ -1579,6 +1654,17 @@ func subtractEventsFromOutstandingEventsByType(eventSequences []*armadaevents.Ev
 				}
 			}
 
+			if details.requestor != "" {
+				requestor, err := RequestorFromEvent(event)
+				if err != nil {
+					return err
+				}
+
+				if requestor != details.requestor {
+					return errors.Errorf("received expected event for job %s with unexpected requestor %q: %T - %v", jobId, requestor, event.Event, event.Event)
+				}
+			}
+
 			delete(outstandingEventsByType[key], jobId)
 		}
 	}
@@ -1598,6 +1684,24 @@ func RunIdFromEvent(event *armadaevents.EventSequence_Event) (string, error) {
 			Name:    "event.Event",
 			Value:   e,
 			Message: "event doesn't contain a jobId",
+		})
+		return "", err
+	}
+}
+
+func RequestorFromEvent(event *armadaevents.EventSequence_Event) (string, error) {
+	switch e := event.Event.(type) {
+	case *armadaevents.EventSequence_Event_CancelledJob:
+		return e.CancelledJob.Requestor, nil
+	case *armadaevents.EventSequence_Event_ReprioritisedJob:
+		return e.ReprioritisedJob.Requestor, nil
+	case *armadaevents.EventSequence_Event_CancelJob:
+		return e.CancelJob.Requestor, nil
+	default:
+		err := errors.WithStack(&armadaerrors.ErrInvalidArgument{
+			Name:    "event.Event",
+			Value:   e,
+			Message: "event doesn't contain a requestor",
 		})
 		return "", err
 	}
@@ -2711,13 +2815,22 @@ func stringSet(src []string) map[string]bool {
 }
 
 type eventDetails struct {
-	runId string
+	runId     string
+	requestor string
 }
 
 func stringsToSetWithEventDetails(src []string) map[string]eventDetails {
 	set := make(map[string]eventDetails, len(src))
 	for _, s := range src {
 		set[s] = eventDetails{}
+	}
+	return set
+}
+
+func stringsToSetWithRequestorEventDetails(src []string, requestors map[string]string) map[string]eventDetails {
+	set := make(map[string]eventDetails, len(src))
+	for _, s := range src {
+		set[s] = eventDetails{requestor: requestors[s]}
 	}
 	return set
 }
@@ -2802,6 +2915,7 @@ var (
 		Queue:                 "testQueue",
 		Queued:                true,
 		CancelRequested:       true,
+		CancelUser:            pointer.String("cancel-user-a"),
 		QueuedVersion:         0,
 		SchedulingInfo:        schedulingInfoBytes,
 		SchedulingInfoVersion: int32(schedulingInfo.Version),
@@ -2814,6 +2928,7 @@ var (
 		Queue:                   "testQueue",
 		Queued:                  true,
 		CancelByJobsetRequested: true,
+		CancelUser:              pointer.String("cancel-user-a"),
 		QueuedVersion:           0,
 		SchedulingInfo:          schedulingInfoBytes,
 		SchedulingInfoVersion:   int32(schedulingInfo.Version),
@@ -2826,6 +2941,7 @@ var (
 		Queue:                 "testQueue",
 		Queued:                false,
 		CancelRequested:       true,
+		CancelUser:            pointer.String("cancel-user-a"),
 		QueuedVersion:         1,
 		SchedulingInfo:        schedulingInfoBytes,
 		SchedulingInfoVersion: int32(schedulingInfo.Version),
@@ -2837,6 +2953,7 @@ var (
 		JobSet:                  "testJobSet",
 		Queue:                   "testQueue",
 		CancelByJobsetRequested: true,
+		CancelUser:              pointer.String("cancel-user-a"),
 		QueuedVersion:           1,
 		SchedulingInfo:          schedulingInfoBytes,
 		SchedulingInfoVersion:   int32(schedulingInfo.Version),
@@ -2920,6 +3037,12 @@ func jobDbJobFromDbJob(resourceListFactory *internaltypes.ResourceListFactory, j
 	)
 	if err != nil {
 		panic(err)
+	}
+	if job.CancelUser != nil {
+		result = result.WithCancelUser(job.CancelUser)
+	}
+	if job.ReprioritizeUser != nil {
+		result = result.WithRequestor(job.ReprioritizeUser)
 	}
 	return result
 }
@@ -3019,7 +3142,8 @@ func TestCycleConsistency(t *testing.T) {
 							Created: &types.Timestamp{},
 							Event: &armadaevents.EventSequence_Event_CancelledJob{
 								CancelledJob: &armadaevents.CancelledJob{
-									JobId: queuedJobA.JobID,
+									JobId:     queuedJobA.JobID,
+									Requestor: "cancel-user-a",
 								},
 							},
 						},
@@ -3047,7 +3171,8 @@ func TestCycleConsistency(t *testing.T) {
 							Created: &types.Timestamp{},
 							Event: &armadaevents.EventSequence_Event_CancelJob{
 								CancelJob: &armadaevents.CancelJob{
-									JobId: queuedJobA.JobID,
+									JobId:     queuedJobA.JobID,
+									Requestor: "cancel-user-a",
 								},
 							},
 						},
@@ -3055,7 +3180,8 @@ func TestCycleConsistency(t *testing.T) {
 							Created: &types.Timestamp{},
 							Event: &armadaevents.EventSequence_Event_CancelledJob{
 								CancelledJob: &armadaevents.CancelledJob{
-									JobId: queuedJobA.JobID,
+									JobId:     queuedJobA.JobID,
+									Requestor: "cancel-user-a",
 								},
 							},
 						},
@@ -3098,7 +3224,8 @@ func TestCycleConsistency(t *testing.T) {
 							Created: &types.Timestamp{},
 							Event: &armadaevents.EventSequence_Event_CancelledJob{
 								CancelledJob: &armadaevents.CancelledJob{
-									JobId: queuedJobA.JobID,
+									JobId:     queuedJobA.JobID,
+									Requestor: "cancel-user-a",
 								},
 							},
 						},
@@ -3132,7 +3259,8 @@ func TestCycleConsistency(t *testing.T) {
 							Created: &types.Timestamp{},
 							Event: &armadaevents.EventSequence_Event_CancelJob{
 								CancelJob: &armadaevents.CancelJob{
-									JobId: queuedJobA.JobID,
+									JobId:     queuedJobA.JobID,
+									Requestor: "cancel-user-a",
 								},
 							},
 						},
@@ -3149,7 +3277,8 @@ func TestCycleConsistency(t *testing.T) {
 							Created: &types.Timestamp{},
 							Event: &armadaevents.EventSequence_Event_CancelledJob{
 								CancelledJob: &armadaevents.CancelledJob{
-									JobId: queuedJobA.JobID,
+									JobId:     queuedJobA.JobID,
+									Requestor: "cancel-user-a",
 								},
 							},
 						},

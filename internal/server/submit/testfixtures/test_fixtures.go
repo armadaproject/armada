@@ -101,8 +101,9 @@ func CreatePreemptJobSequenceEvents(jobIds []string, reason string) []*armadaeve
 			Created: DefaultTimeProto,
 			Event: &armadaevents.EventSequence_Event_JobPreemptionRequested{
 				JobPreemptionRequested: &armadaevents.JobPreemptionRequested{
-					JobId:  jobId,
-					Reason: reason,
+					JobId:     jobId,
+					Reason:    reason,
+					Requestor: DefaultOwner,
 				},
 			},
 		}
@@ -117,7 +118,8 @@ func CreateCancelJobSequenceEvents(jobIds []string) []*armadaevents.EventSequenc
 			Created: DefaultTimeProto,
 			Event: &armadaevents.EventSequence_Event_CancelJob{
 				CancelJob: &armadaevents.CancelJob{
-					JobId: jobId,
+					JobId:     jobId,
+					Requestor: DefaultOwner,
 				},
 			},
 		}
@@ -130,7 +132,8 @@ func CreateCancelJobSetSequenceEvent() *armadaevents.EventSequence_Event {
 		Created: DefaultTimeProto,
 		Event: &armadaevents.EventSequence_Event_CancelJobSet{
 			CancelJobSet: &armadaevents.CancelJobSet{
-				States: []armadaevents.JobState{},
+				States:    []armadaevents.JobState{},
+				Requestor: DefaultOwner,
 			},
 		},
 	}
@@ -143,8 +146,9 @@ func CreateReprioritizeJobSequenceEvents(jobIds []string, newPriority float64) [
 			Created: DefaultTimeProto,
 			Event: &armadaevents.EventSequence_Event_ReprioritiseJob{
 				ReprioritiseJob: &armadaevents.ReprioritiseJob{
-					JobId:    jobId,
-					Priority: uint32(newPriority),
+					JobId:     jobId,
+					Priority:  uint32(newPriority),
+					Requestor: DefaultOwner,
 				},
 			},
 		}
@@ -157,7 +161,8 @@ func CreateReprioritizedJobSetSequenceEvent(newPriority float64) *armadaevents.E
 		Created: DefaultTimeProto,
 		Event: &armadaevents.EventSequence_Event_ReprioritiseJobSet{
 			ReprioritiseJobSet: &armadaevents.ReprioritiseJobSet{
-				Priority: uint32(newPriority),
+				Priority:  uint32(newPriority),
+				Requestor: DefaultOwner,
 			},
 		},
 	}
