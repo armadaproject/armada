@@ -78,7 +78,12 @@ func (j *RunPreemptedProcessor) reportPodPreempted(run *job.RunState, pod *v1.Po
 	if err != nil {
 		return fmt.Errorf("failed creating preempted event because - %s", err)
 	}
-	failedEvent, err := reporter.CreateSimpleJobFailedEvent(pod, "Run preempted", j.clusterContext.GetClusterId(), armadaevents.KubernetesReason_AppError)
+
+	// If the run is preempted before its main container ever started, record the k8s events
+	// as debug data so the reason the workload never ran isn't lost.
+	debugMessage := j.debugMessageIfMainContainerNeverStarted(pod)
+	failedEvent, err := reporter.CreateJobFailedEvent(pod, "Run preempted", armadaevents.KubernetesReason_AppError,
+		debugMessage, []*armadaevents.ContainerError{}, j.clusterContext.GetClusterId(), "", "")
 	if err != nil {
 		return fmt.Errorf("failed creating failed event because - %s", err)
 	}
@@ -100,4 +105,23 @@ func (j *RunPreemptedProcessor) reportPodPreempted(run *job.RunState, pod *v1.Po
 		return fmt.Errorf("failed to annotate pod as preempted - %s", err)
 	}
 	return nil
+}
+
+// debugMessageIfMainContainerNeverStarted returns the rendered k8s pod events when the pod's
+// main container never started, otherwise an empty string.
+func (j *RunPreemptedProcessor) debugMessageIfMainContainerNeverStarted(pod *v1.Pod) string {
+	if util.HasAppContainerStarted(pod) {
+		return ""
+	}
+	podEvents, err := j.clusterContext.GetPodEvents(pod)
+	if err != nil {
+		log.Errorf("Failed retrieving pod events for preempted pod %s: %v", pod.Name, err)
+		return ""
+	}
+	// No k8s events means there is nothing useful to record - avoid a debug string that would
+	// render to just "Events: <none>" (common for preemption, where the pod is killed to free capacity).
+	if len(podEvents) == 0 {
+		return ""
+	}
+	return reporter.CreateDebugMessage(podEvents)
 }

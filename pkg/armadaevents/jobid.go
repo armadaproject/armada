@@ -38,6 +38,8 @@ func JobIdFromEvent(event *EventSequence_Event) (string, error) {
 		return e.JobRunPreempted.PreemptedJobId, nil
 	case *EventSequence_Event_JobRunCancelled:
 		return e.JobRunCancelled.JobId, nil
+	case *EventSequence_Event_JobCancelledDebugInfo:
+		return e.JobCancelledDebugInfo.JobId, nil
 	case *EventSequence_Event_JobRequeued:
 		return e.JobRequeued.JobId, nil
 	case *EventSequence_Event_JobValidated:
