@@ -26,9 +26,9 @@ jobs:
               memory: 25Mi
               cpu: 100m
 ---
-action: ACTION_PREEMPT
-selection: SELECTION_BY_ID
-preemptReason: "Test job preemption for validation"
+preempt:
+  request:
+    reason: "Test job preemption for validation"
 timeout: "100s"
 expectedEvents:
   - submitted:
