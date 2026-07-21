@@ -1,23 +1,24 @@
+## POST /v1/job/reprioritize
+## Submit a low-priority job, reprioritize it upward, confirm a JobReprioritizedEvent fires
+## 1x5
+
 numBatches: 1
-batchSize: 5
+batchSize: 10
 queue: e2e-test-queue
-jobSetId: job-set-preemptible
+jobSetId: reprioritize_by_id
 jobs:
   - namespace: default
     priority: 0
     podSpec:
       terminationGracePeriodSeconds: 0
       restartPolicy: Never
-      priorityClassName: armada-preemptible
       containers:
-        - name: sleeper
+        - name: reprioritize-by-id
           imagePullPolicy: IfNotPresent
           image: alpine:3.20.0
-          command:
-            - sh
           args:
-            - -c
-            - sleep 600
+            - "sleep"
+            - "600s"
           resources:
             limits:
               memory: 25Mi
@@ -26,10 +27,11 @@ jobs:
               memory: 25Mi
               cpu: 100m
 ---
-action: ACTION_PREEMPT
+### Reprioritize the job upward
+action: ACTION_REPRIORITIZE
 selection: SELECTION_BY_IDS
-preemptReason: "Test job preemption for validation"
+newPriority: 100
 timeout: "100s"
 expectedEvents:
   - submitted:
-  - preempted:
+  - reprioritized:

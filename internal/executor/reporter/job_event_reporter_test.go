@@ -2,6 +2,7 @@ package reporter
 
 import (
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -92,6 +93,7 @@ func createPod(index int) *v1.Pod {
 
 type FakeEventSender struct {
 	receivedEvents [][]EventMessage
+	mutex          sync.Mutex
 }
 
 func NewFakeEventSender() *FakeEventSender {
@@ -99,14 +101,20 @@ func NewFakeEventSender() *FakeEventSender {
 }
 
 func (eventSender *FakeEventSender) SendEvents(events []EventMessage) error {
+	eventSender.mutex.Lock()
+	defer eventSender.mutex.Unlock()
 	eventSender.receivedEvents = append(eventSender.receivedEvents, events)
 	return nil
 }
 
 func (eventSender *FakeEventSender) GetNumberOfSendEventCalls() int {
+	eventSender.mutex.Lock()
+	defer eventSender.mutex.Unlock()
 	return len(eventSender.receivedEvents)
 }
 
 func (eventSender *FakeEventSender) GetSentEvents(callIndex int) []EventMessage {
+	eventSender.mutex.Lock()
+	defer eventSender.mutex.Unlock()
 	return eventSender.receivedEvents[callIndex]
 }

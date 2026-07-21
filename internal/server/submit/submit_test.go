@@ -1,23 +1,27 @@
 package submit
 
 import (
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
+	"google.golang.org/grpc/codes"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	clock "k8s.io/utils/clock/testing"
 	"k8s.io/utils/pointer"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	"github.com/armadaproject/armada/internal/common/auth/permission"
 	commonMocks "github.com/armadaproject/armada/internal/common/mocks"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/server/mocks"
 	"github.com/armadaproject/armada/internal/server/permissions"
 	"github.com/armadaproject/armada/internal/server/submit/testfixtures"
+	"github.com/armadaproject/armada/internal/server/submit/validation"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/client/queue"
@@ -379,6 +383,60 @@ func TestPreemptJobs_FailedValidation(t *testing.T) {
 			cancel()
 		})
 	}
+}
+
+// tooLongReason is one byte over the server-enforced limit.
+var tooLongReason = strings.Repeat("a", validation.MaxReasonBytes+1)
+
+// A reason longer than MaxReasonBytes must be rejected at the API and map to a
+// gRPC InvalidArgument code end-to-end (the code the error interceptor returns to clients).
+func TestCancelJobs_ReasonTooLong(t *testing.T) {
+	jobId1 := util.ULID().String()
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
+	defer cancel()
+	server, _ := createTestServer(t)
+
+	resp, err := server.CancelJobs(ctx, &api.JobCancelRequest{
+		JobId:    jobId1,
+		Queue:    testfixtures.DefaultQueue.Name,
+		JobSetId: testfixtures.DefaultJobset,
+		Reason:   tooLongReason,
+	})
+	assert.Error(t, err)
+	assert.Nil(t, resp)
+	assert.Equal(t, codes.InvalidArgument, armadaerrors.CodeFromError(err))
+}
+
+func TestPreemptJobs_ReasonTooLong(t *testing.T) {
+	jobId1 := util.ULID().String()
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
+	defer cancel()
+	server, _ := createTestServer(t)
+
+	resp, err := server.PreemptJobs(ctx, &api.JobPreemptRequest{
+		JobIds:   []string{jobId1},
+		Queue:    testfixtures.DefaultQueue.Name,
+		JobSetId: testfixtures.DefaultJobset,
+		Reason:   tooLongReason,
+	})
+	assert.Error(t, err)
+	assert.Nil(t, resp)
+	assert.Equal(t, codes.InvalidArgument, armadaerrors.CodeFromError(err))
+}
+
+func TestCancelJobSet_ReasonTooLong(t *testing.T) {
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
+	defer cancel()
+	server, _ := createTestServer(t)
+
+	resp, err := server.CancelJobSet(ctx, &api.JobSetCancelRequest{
+		Queue:    testfixtures.DefaultQueue.Name,
+		JobSetId: testfixtures.DefaultJobset,
+		Reason:   tooLongReason,
+	})
+	assert.Error(t, err)
+	assert.Nil(t, resp)
+	assert.Equal(t, codes.InvalidArgument, armadaerrors.CodeFromError(err))
 }
 
 func TestReprioritizeJobs(t *testing.T) {
