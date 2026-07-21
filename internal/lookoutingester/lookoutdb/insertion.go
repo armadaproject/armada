@@ -277,7 +277,8 @@ func (l *LookoutDb) CreateJobsBatch(ctx *armadacontext.Context, instructions []*
 		}
 
 		insertTmp := func(tx pgx.Tx) error {
-			_, err := tx.CopyFrom(ctx,
+			_, err := tx.CopyFrom(
+				ctx,
 				pgx.Identifier{tmpTable},
 				[]string{
 					"job_id",
@@ -421,7 +422,8 @@ func (l *LookoutDb) CreateJobsScalar(ctx *armadacontext.Context, instructions []
 			return ctx.Err()
 		}
 		err := l.withDatabaseRetryInsert(ctx, func() error {
-			_, err := l.db.Exec(ctx, sqlStatement,
+			_, err := l.db.Exec(
+				ctx, sqlStatement,
 				i.JobId,
 				i.Queue,
 				i.Owner,
@@ -471,7 +473,9 @@ func (l *LookoutDb) UpdateJobsBatch(ctx *armadacontext.Context, instructions []*
 					duplicate                    bool,
 					latest_run_id                varchar(36),
 					cancel_reason                varchar(512),
-					cancel_user                  varchar(512)
+					cancel_user                  varchar(512),
+					preempt_user                 varchar(512),
+					reprioritize_user            varchar(512)
 				) ON COMMIT DROP;`, tmpTable))
 			if err != nil {
 				l.metrics.RecordDBError(commonmetrics.DBOperationCreateTempTable)
@@ -480,7 +484,8 @@ func (l *LookoutDb) UpdateJobsBatch(ctx *armadacontext.Context, instructions []*
 		}
 
 		insertTmp := func(tx pgx.Tx) error {
-			_, err := tx.CopyFrom(ctx,
+			_, err := tx.CopyFrom(
+				ctx,
 				pgx.Identifier{tmpTable},
 				[]string{
 					"job_id",
@@ -493,6 +498,8 @@ func (l *LookoutDb) UpdateJobsBatch(ctx *armadacontext.Context, instructions []*
 					"latest_run_id",
 					"cancel_reason",
 					"cancel_user",
+					"preempt_user",
+					"reprioritize_user",
 				},
 				pgx.CopyFromSlice(len(instructions), func(i int) ([]interface{}, error) {
 					return []interface{}{
@@ -506,6 +513,8 @@ func (l *LookoutDb) UpdateJobsBatch(ctx *armadacontext.Context, instructions []*
 						instructions[i].LatestRunId,
 						instructions[i].CancelReason,
 						instructions[i].CancelUser,
+						instructions[i].PreemptUser,
+						instructions[i].ReprioritizeUser,
 					}, nil
 				}),
 			)
@@ -525,7 +534,9 @@ func (l *LookoutDb) UpdateJobsBatch(ctx *armadacontext.Context, instructions []*
 						duplicate                    = coalesce(tmp.duplicate, job.duplicate),
 						latest_run_id                = coalesce(tmp.latest_run_id, job.latest_run_id),
 						cancel_reason                = coalesce(tmp.cancel_reason, job.cancel_reason),
-						cancel_user                  = coalesce(tmp.cancel_user, job.cancel_user)
+						cancel_user                  = coalesce(tmp.cancel_user, job.cancel_user),
+						preempt_user                 = coalesce(tmp.preempt_user, job.preempt_user),
+						reprioritize_user            = coalesce(tmp.reprioritize_user, job.reprioritize_user)
 					FROM %s as tmp WHERE tmp.job_id = job.job_id`, tmpTable),
 			)
 			if err != nil {
@@ -549,7 +560,9 @@ func (l *LookoutDb) UpdateJobsScalar(ctx *armadacontext.Context, instructions []
 			duplicate                    = coalesce($7, duplicate),
 			latest_run_id                = coalesce($8, job.latest_run_id),
 			cancel_reason                = coalesce($9, job.cancel_reason),
-			cancel_user                  = coalesce($10, job.cancel_user)
+			cancel_user                  = coalesce($10, job.cancel_user),
+			preempt_user                 = coalesce($11, job.preempt_user),
+			reprioritize_user            = coalesce($12, job.reprioritize_user)
 		WHERE job_id = $1`
 	for _, i := range instructions {
 		if ctx.Err() != nil {
@@ -566,7 +579,9 @@ func (l *LookoutDb) UpdateJobsScalar(ctx *armadacontext.Context, instructions []
 				i.Duplicate,
 				i.LatestRunId,
 				i.CancelReason,
-				i.CancelUser)
+				i.CancelUser,
+				i.PreemptUser,
+				i.ReprioritizeUser)
 			if err != nil {
 				l.metrics.RecordDBError(commonmetrics.DBOperationUpdate)
 			}
@@ -599,7 +614,8 @@ func (l *LookoutDb) CreateJobSpecsBatch(ctx *armadacontext.Context, instructions
 		}
 
 		insertTmp := func(tx pgx.Tx) error {
-			_, err := tx.CopyFrom(ctx,
+			_, err := tx.CopyFrom(
+				ctx,
 				pgx.Identifier{tmpTable},
 				[]string{
 					"job_id",
@@ -647,7 +663,8 @@ func (l *LookoutDb) CreateJobSpecsScalar(ctx *armadacontext.Context, instruction
 			return ctx.Err()
 		}
 		err := l.withDatabaseRetryInsert(ctx, func() error {
-			_, err := l.db.Exec(ctx, sqlStatement,
+			_, err := l.db.Exec(
+				ctx, sqlStatement,
 				i.JobId,
 				i.JobProto,
 			)
@@ -690,7 +707,8 @@ func (l *LookoutDb) CreateJobRunsBatch(ctx *armadacontext.Context, instructions 
 		}
 
 		insertTmp := func(tx pgx.Tx) error {
-			_, err := tx.CopyFrom(ctx,
+			_, err := tx.CopyFrom(
+				ctx,
 				pgx.Identifier{tmpTable},
 				[]string{
 					"run_id",
@@ -735,7 +753,8 @@ func (l *LookoutDb) CreateJobRunsBatch(ctx *armadacontext.Context, instructions 
 						pool,
 						ingress_addresses
 					) SELECT * from %s
-					ON CONFLICT DO NOTHING`, tmpTable))
+					ON CONFLICT DO NOTHING`, tmpTable),
+			)
 			if err != nil {
 				l.metrics.RecordDBError(commonmetrics.DBOperationInsert)
 			}
@@ -763,7 +782,8 @@ func (l *LookoutDb) CreateJobRunsScalar(ctx *armadacontext.Context, instructions
 			return ctx.Err()
 		}
 		err := l.withDatabaseRetryInsert(ctx, func() error {
-			_, err := l.db.Exec(ctx, sqlStatement,
+			_, err := l.db.Exec(
+				ctx, sqlStatement,
 				i.RunId,
 				i.JobId,
 				i.Cluster,
@@ -817,7 +837,8 @@ func (l *LookoutDb) UpdateJobRunsBatch(ctx *armadacontext.Context, instructions 
 		}
 
 		insertTmp := func(tx pgx.Tx) error {
-			_, err := tx.CopyFrom(ctx,
+			_, err := tx.CopyFrom(
+				ctx,
 				pgx.Identifier{tmpTable},
 				[]string{
 					"run_id",
@@ -905,7 +926,8 @@ func (l *LookoutDb) UpdateJobRunsScalar(ctx *armadacontext.Context, instructions
 			return ctx.Err()
 		}
 		err := l.withDatabaseRetryInsert(ctx, func() error {
-			_, err := l.db.Exec(ctx, sqlStatement,
+			_, err := l.db.Exec(
+				ctx, sqlStatement,
 				i.RunId,
 				i.Node,
 				i.Started,
@@ -951,7 +973,8 @@ func (l *LookoutDb) CreateJobErrorsBatch(ctx *armadacontext.Context, instruction
 		}
 
 		insertTmp := func(tx pgx.Tx) error {
-			_, err := tx.CopyFrom(ctx,
+			_, err := tx.CopyFrom(
+				ctx,
 				pgx.Identifier{tmpTable},
 				[]string{
 					"job_id",
@@ -975,7 +998,8 @@ func (l *LookoutDb) CreateJobErrorsBatch(ctx *armadacontext.Context, instruction
 						job_id,
 						error
 					) SELECT * from %s
-					ON CONFLICT DO NOTHING`, tmpTable))
+					ON CONFLICT DO NOTHING`, tmpTable),
+			)
 			if err != nil {
 				l.metrics.RecordDBError(commonmetrics.DBOperationInsert)
 			}

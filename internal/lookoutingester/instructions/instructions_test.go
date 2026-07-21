@@ -115,8 +115,9 @@ var expectedJobCancelled = model.UpdateJobInstruction{
 }
 
 var expectedJobReprioritised = model.UpdateJobInstruction{
-	JobId:    testfixtures.JobId,
-	Priority: pointer.Int64(testfixtures.NewPriority),
+	JobId:            testfixtures.JobId,
+	Priority:         pointer.Int64(testfixtures.NewPriority),
+	ReprioritizeUser: pointer.String(testfixtures.UserId),
 }
 
 var expectedFailed = model.UpdateJobInstruction{
@@ -267,6 +268,9 @@ func TestConvert(t *testing.T) {
 	cancelledWithReason, err := testfixtures.DeepCopy(testfixtures.JobCancelled)
 	assert.NoError(t, err)
 	cancelledWithReason.GetCancelledJob().Reason = testfixtures.CancelReason
+	cancelledWithoutLegacyActorField, err := testfixtures.DeepCopy(testfixtures.JobCancelled)
+	assert.NoError(t, err)
+	cancelledWithoutLegacyActorField.GetCancelledJob().Requestor = ""
 
 	tests := map[string]struct {
 		events   *utils.EventsWithIds[*armadaevents.EventSequence]
@@ -354,6 +358,22 @@ func TestConvert(t *testing.T) {
 			expected: &model.InstructionSet{
 				JobsToUpdate: []*model.UpdateJobInstruction{&expectedJobCancelled},
 				MessageIds:   []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+		},
+		"job cancelled without cancel user keeps actor empty": {
+			events: &utils.EventsWithIds[*armadaevents.EventSequence]{
+				Events:     []*armadaevents.EventSequence{testfixtures.NewEventSequence(cancelledWithoutLegacyActorField)},
+				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+			expected: &model.InstructionSet{
+				JobsToUpdate: []*model.UpdateJobInstruction{{
+					JobId:                     testfixtures.JobId,
+					State:                     pointer.Int32(lookout.JobCancelledOrdinal),
+					Cancelled:                 &testfixtures.BaseTime,
+					LastTransitionTime:        &testfixtures.BaseTime,
+					LastTransitionTimeSeconds: pointer.Int64(testfixtures.BaseTime.Unix()),
+				}},
+				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 		},
 		"job cancelled with reason": {
