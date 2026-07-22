@@ -37,7 +37,7 @@ func TestSuite() error {
 
 	timeTaken := time.Now()
 	out, err2 := goOutput("run", "cmd/testsuite/main.go", "test",
-		"--tests", "testsuite/testcases/basic/*,testsuite/testcases/categorization/*",
+		"--tests", "testsuite/testcases/basic/*.yaml,testsuite/testcases/basic/queue/*.yaml,testsuite/testcases/categorization/*.yaml",
 		"--junit", "junit.xml",
 		"--config", "_local/.armadactl.yaml",
 	)

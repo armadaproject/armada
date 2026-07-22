@@ -92,17 +92,10 @@ func (stateReporter *JobStateReporter) reportCurrentStatus(pod *v1.Pod) {
 	}
 
 	var classifyResult categorizer.ClassifyResult
+	var debugMessage string
 	if pod.Status.Phase == v1.PodFailed {
 		classifyResult = stateReporter.classifier.ClassifyContainerError(pod)
-	}
 
-	event, err := reporter.CreateEventForCurrentState(pod, stateReporter.clusterContext.GetClusterId(), classifyResult)
-	if err != nil {
-		log.Errorf("Failed to report event: %v", err)
-		return
-	}
-
-	if pod.Status.Phase == v1.PodFailed {
 		hasIssue := stateReporter.podIssueHandler.HasIssue(util.ExtractJobRunId(pod))
 		if hasIssue {
 			// Pod already being handled by issue handler
@@ -117,6 +110,24 @@ func (stateReporter *JobStateReporter) reportCurrentStatus(pod *v1.Pod) {
 			log.Errorf("Failed detecting issue on failed pod %s(%s) - %v", pod.Name, util.ExtractJobRunId(pod), err)
 			// Don't return here, as it is very important we don't block reporting a terminal event (failed)
 		}
+
+		// If the pod terminated before its main container ever started, record the k8s events
+		// as debug data to help diagnose why the workload never ran.
+		if !util.HasAppContainerStarted(pod) {
+			podEvents, err := stateReporter.clusterContext.GetPodEvents(pod)
+			if err != nil {
+				log.Errorf("Failed retrieving pod events for pod %s: %v", pod.Name, err)
+			} else if len(podEvents) > 0 {
+				// Skip when there are no events - CreateDebugMessage would render just "Events: <none>".
+				debugMessage = reporter.CreateDebugMessage(podEvents)
+			}
+		}
+	}
+
+	event, err := reporter.CreateEventForCurrentState(pod, stateReporter.clusterContext.GetClusterId(), classifyResult, debugMessage)
+	if err != nil {
+		log.Errorf("Failed to report event: %v", err)
+		return
 	}
 
 	stateReporter.eventReporter.QueueEvent(reporter.EventMessage{Event: event, JobRunId: util.ExtractJobRunId(pod)}, func(err error) {

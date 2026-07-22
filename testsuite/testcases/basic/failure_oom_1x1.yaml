@@ -28,3 +28,6 @@ expectedEvents:
   - failed:
       # OOMKilled reason isn't set reliably.
       # reason: "Container oom failed with exit code 137 because OOMKilled: \n"
+queueConfig:
+  setup:
+    create: true

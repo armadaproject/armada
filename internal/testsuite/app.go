@@ -129,6 +129,7 @@ func TestSpecFromFilePath(filePath string) (*api.TestSpec, error) {
 	fileName := filepath.Base(filePath)
 	fileName = strings.TrimSuffix(fileName, filepath.Ext(fileName))
 	testSpec.JobSetId = fileName + "-" + shortuuid.New()
+	applyQueueRandomSuffix(testSpec)
 
 	// If no test name is provided, set it to be the filename.
 	if testSpec.Name == "" {

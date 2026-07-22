@@ -25,3 +25,6 @@ timeout: "300s"
 expectedEvents:
   - submitted:
   - failed:
+queueConfig:
+  setup:
+    create: true

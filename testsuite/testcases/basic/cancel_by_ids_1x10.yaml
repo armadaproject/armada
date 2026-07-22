@@ -28,3 +28,6 @@ timeout: "100s"
 expectedEvents:
   - submitted:
   - cancelled:
+queueConfig:
+  setup:
+    create: true

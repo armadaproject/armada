@@ -4,16 +4,29 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/pkg/errors"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/client"
 )
+
+// submitRetryInterval is the delay between submit retries when the queue is not yet
+// visible to the server (the queue cache refreshes periodically, so a just-created
+// queue can briefly be unrecognised by SubmitJobs).
+const submitRetryInterval = 500 * time.Millisecond
+
+// submitRetryTimeout bounds how long we keep retrying a submission that fails because
+// the queue can't be found. It should comfortably exceed the server's queue cache
+// refresh period.
+const submitRetryTimeout = 15 * time.Second
 
 var submissionSerializer sync.Mutex
 
@@ -144,9 +157,35 @@ func (srv *Submitter) Run(ctx context.Context) error {
 
 func (srv *Submitter) submit(c api.SubmitClient, ctx context.Context, req *api.JobSubmitRequest) (*api.JobSubmitResponse, error) {
 	start := time.Now()
-	res, err := c.SubmitJobs(ctx, req)
+	deadline := start.Add(submitRetryTimeout)
+	var res *api.JobSubmitResponse
+	var err error
+retryLoop:
+	for {
+		res, err = c.SubmitJobs(ctx, req)
+		if err == nil || !isQueueNotFoundErr(err) || time.Now().After(deadline) {
+			break
+		}
+		fmt.Fprintf(srv.out, "queue %s not yet visible to server, retrying: %v\n", req.Queue, err)
+		select {
+		case <-ctx.Done():
+			err = ctx.Err()
+			break retryLoop
+		case <-time.After(submitRetryInterval):
+		}
+	}
 	srv.logSubmitStatus(req, err, time.Now().Sub(start))
 	return res, err
+}
+
+// isQueueNotFoundErr returns true if err is the transient PermissionDenied returned by
+// SubmitJobs when a recently created queue hasn't yet reached the server's queue cache.
+func isQueueNotFoundErr(err error) bool {
+	s, ok := status.FromError(err)
+	if !ok {
+		return false
+	}
+	return s.Code() == codes.PermissionDenied && strings.Contains(s.Message(), "could not find queue")
 }
 
 func (srv *Submitter) logSubmitStatus(req *api.JobSubmitRequest, err error, elapsed time.Duration) {
