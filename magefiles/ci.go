@@ -34,6 +34,7 @@ func TestSuite() error {
 	if os.Getenv("ARMADA_EXECUTOR_INGRESS_PORT") == "" {
 		os.Setenv("ARMADA_EXECUTOR_INGRESS_PORT", "5001")
 	}
+	timeTakenTestSuite := time.Now()
 
 	timeTaken := time.Now()
 	out, err := goOutput("run", "cmd/testsuite/main.go", "test",
@@ -71,6 +72,7 @@ func TestSuite() error {
 	}
 	fmt.Printf("(Real) Additional time to run reprioritization tests: %s\n\n", time.Since(timeTaken))
 
+	fmt.Printf("(Real) Total time to run all tests: %s\n\n", time.Since(timeTakenTestSuite))
 	return nil
 }
 
