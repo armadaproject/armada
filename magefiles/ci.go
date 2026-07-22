@@ -36,18 +36,41 @@ func TestSuite() error {
 	}
 
 	timeTaken := time.Now()
-	out, err2 := goOutput("run", "cmd/testsuite/main.go", "test",
+	out, err := goOutput("run", "cmd/testsuite/main.go", "test",
 		"--tests", "testsuite/testcases/basic/*,testsuite/testcases/categorization/*",
 		"--junit", "junit.xml",
 		"--config", "_local/.armadactl.yaml",
 	)
-	if err2 != nil {
+	if err != nil {
 		fmt.Println(out)
-		return err2
+		return err
 	}
-	fmt.Printf("(Real) Time to run tests: %s\n\n", time.Since(timeTaken))
+	fmt.Printf("(Real) Time to run basic, categorization tests: %s\n\n", time.Since(timeTaken))
 
+	timeTaken = time.Now()
+	out, err = goOutput("run", "cmd/testsuite/main.go", "test",
+		"--tests", "testsuite/testcases/preemption/*",
+		"--junit", "junit-preemption.xml",
+		"--config", "_local/.armadactl.yaml",
+	)
 	fmt.Println(out)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("(Real) Additional time to run preemption tests: %s\n\n", time.Since(timeTaken))
+
+	timeTaken = time.Now()
+	out, err = goOutput("run", "cmd/testsuite/main.go", "test",
+		"--tests", "testsuite/testcases/reprioritization/*",
+		"--junit", "junit-reprioritization.xml",
+		"--config", "_local/.armadactl.yaml",
+	)
+	fmt.Println(out)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("(Real) Additional time to run reprioritization tests: %s\n\n", time.Since(timeTaken))
+
 	return nil
 }
 
