@@ -20,7 +20,18 @@ func TestClassify(t *testing.T) {
 		podErrorMessage     string
 		expectedCategory    string
 		expectedSubcategory string
+		expectedAction      PodFailureAction
 	}{
+		"action propagates from the matched category": {
+			config: ErrorCategoriesConfig{Categories: []CategoryConfig{
+				{Name: "infra", Action: PodFailureActionDelete, Rules: []CategoryRule{
+					{OnExitCodes: &errormatch.ExitCodeMatcher{Operator: errormatch.ExitCodeOperatorIn, Values: []int32{42}}},
+				}},
+			}},
+			pod:              podWithTerminatedContainer(42, "Error", ""),
+			expectedCategory: "infra",
+			expectedAction:   PodFailureActionDelete,
+		},
 		"OOM condition matches": {
 			config: ErrorCategoriesConfig{Categories: []CategoryConfig{
 				{Name: "oom", Rules: []CategoryRule{
@@ -375,6 +386,11 @@ func TestClassify(t *testing.T) {
 			}
 			assert.Equal(t, tc.expectedCategory, result.Category)
 			assert.Equal(t, tc.expectedSubcategory, result.Subcategory)
+			expectedAction := tc.expectedAction
+			if expectedAction == "" {
+				expectedAction = PodFailureActionRetain
+			}
+			assert.Equal(t, expectedAction, result.Action)
 		})
 	}
 }
@@ -443,6 +459,14 @@ func TestNewClassifier_ValidationErrors(t *testing.T) {
 				}},
 			}},
 			errContains: "unknown condition",
+		},
+		"invalid category action": {
+			config: ErrorCategoriesConfig{Categories: []CategoryConfig{
+				{Name: "bad", Action: "Remove", Rules: []CategoryRule{
+					{OnExitCodes: &errormatch.ExitCodeMatcher{Operator: errormatch.ExitCodeOperatorIn, Values: []int32{1}}},
+				}},
+			}},
+			errContains: "invalid action",
 		},
 		"invalid exit code operator": {
 			config: ErrorCategoriesConfig{Categories: []CategoryConfig{
