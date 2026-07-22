@@ -24,6 +24,17 @@ import (
 	"github.com/armadaproject/armada/pkg/controlplaneevents"
 )
 
+// Cancel reasons recorded as cancel_reason when a cancellation does not carry an explicit reason,
+// so the persisted reason still reflects which path initiated the cancel. User-initiated cancels
+// carry a requestor; control-plane cancels do not. The control-plane values are stamped at the DB
+// write in schedulerdb.go; the user-initiated value is applied here during event conversion.
+const (
+	cancelReasonUserInitiated    = "cancelled by user"
+	cancelReasonCancelOnQueue    = "cancelled by CancelOnQueue"
+	cancelReasonCancelOnExecutor = "cancelled by CancelOnExecutor"
+	cancelReasonCancelOnNode     = "cancelled by CancelOnNode"
+)
+
 type eventSequenceCommon struct {
 	queue  string
 	jobset string
@@ -362,8 +373,13 @@ func (c *JobSetEventsInstructionConverter) handleReprioritiseJobSet(reprioritise
 }
 
 func (c *JobSetEventsInstructionConverter) handleCancelJob(cancelJob *armadaevents.CancelJob, meta eventSequenceCommon) ([]DbOperation, error) {
+	cancelReason := cancelJob.Reason
+	if cancelReason == "" {
+		cancelReason = cancelReasonUserInitiated
+	}
 	return []DbOperation{MarkJobsCancelRequested{
-		cancelUser: meta.user,
+		cancelUser:   meta.user,
+		cancelReason: cancelReason,
 		jobIds: map[JobSetKey][]string{
 			{
 				queue:  meta.queue,
@@ -377,8 +393,13 @@ func (c *JobSetEventsInstructionConverter) handleCancelJobSet(cancelJobSet *arma
 	cancelQueued := len(cancelJobSet.States) == 0 || slices.Contains(cancelJobSet.States, armadaevents.JobState_QUEUED)
 	cancelLeased := len(cancelJobSet.States) == 0 || slices.Contains(cancelJobSet.States, armadaevents.JobState_PENDING) || slices.Contains(cancelJobSet.States, armadaevents.JobState_RUNNING)
 
+	cancelReason := cancelJobSet.Reason
+	if cancelReason == "" {
+		cancelReason = cancelReasonUserInitiated
+	}
 	return []DbOperation{MarkJobSetsCancelRequested{
-		cancelUser: meta.user,
+		cancelUser:   meta.user,
+		cancelReason: cancelReason,
 		jobSets: map[JobSetKey]*JobSetCancelAction{
 			{
 				queue:  meta.queue,
