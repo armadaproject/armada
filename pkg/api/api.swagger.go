@@ -691,6 +691,148 @@ func SwaggerJsonTemplate() string {
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +
+		"    \"/v1/retry-policies\": {\n" +
+		"      \"get\": {\n" +
+		"        \"tags\": [\n" +
+		"          \"RetryPolicyService\"\n" +
+		"        ],\n" +
+		"        \"operationId\": \"GetRetryPolicies\",\n" +
+		"        \"responses\": {\n" +
+		"          \"200\": {\n" +
+		"            \"description\": \"A successful response.\",\n" +
+		"            \"schema\": {\n" +
+		"              \"$ref\": \"#/definitions/apiRetryPolicyList\"\n" +
+		"            }\n" +
+		"          },\n" +
+		"          \"default\": {\n" +
+		"            \"description\": \"An unexpected error response.\",\n" +
+		"            \"schema\": {\n" +
+		"              \"$ref\": \"#/definitions/runtimeError\"\n" +
+		"            }\n" +
+		"          }\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"/v1/retry-policy\": {\n" +
+		"      \"post\": {\n" +
+		"        \"tags\": [\n" +
+		"          \"RetryPolicyService\"\n" +
+		"        ],\n" +
+		"        \"operationId\": \"CreateRetryPolicy\",\n" +
+		"        \"parameters\": [\n" +
+		"          {\n" +
+		"            \"name\": \"body\",\n" +
+		"            \"in\": \"body\",\n" +
+		"            \"required\": true,\n" +
+		"            \"schema\": {\n" +
+		"              \"$ref\": \"#/definitions/apiRetryPolicy\"\n" +
+		"            }\n" +
+		"          }\n" +
+		"        ],\n" +
+		"        \"responses\": {\n" +
+		"          \"200\": {\n" +
+		"            \"description\": \"A successful response.\",\n" +
+		"            \"schema\": {}\n" +
+		"          },\n" +
+		"          \"default\": {\n" +
+		"            \"description\": \"An unexpected error response.\",\n" +
+		"            \"schema\": {\n" +
+		"              \"$ref\": \"#/definitions/runtimeError\"\n" +
+		"            }\n" +
+		"          }\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"/v1/retry-policy/{name}\": {\n" +
+		"      \"get\": {\n" +
+		"        \"tags\": [\n" +
+		"          \"RetryPolicyService\"\n" +
+		"        ],\n" +
+		"        \"operationId\": \"GetRetryPolicy\",\n" +
+		"        \"parameters\": [\n" +
+		"          {\n" +
+		"            \"type\": \"string\",\n" +
+		"            \"name\": \"name\",\n" +
+		"            \"in\": \"path\",\n" +
+		"            \"required\": true\n" +
+		"          }\n" +
+		"        ],\n" +
+		"        \"responses\": {\n" +
+		"          \"200\": {\n" +
+		"            \"description\": \"A successful response.\",\n" +
+		"            \"schema\": {\n" +
+		"              \"$ref\": \"#/definitions/apiRetryPolicy\"\n" +
+		"            }\n" +
+		"          },\n" +
+		"          \"default\": {\n" +
+		"            \"description\": \"An unexpected error response.\",\n" +
+		"            \"schema\": {\n" +
+		"              \"$ref\": \"#/definitions/runtimeError\"\n" +
+		"            }\n" +
+		"          }\n" +
+		"        }\n" +
+		"      },\n" +
+		"      \"put\": {\n" +
+		"        \"tags\": [\n" +
+		"          \"RetryPolicyService\"\n" +
+		"        ],\n" +
+		"        \"operationId\": \"UpdateRetryPolicy\",\n" +
+		"        \"parameters\": [\n" +
+		"          {\n" +
+		"            \"type\": \"string\",\n" +
+		"            \"name\": \"name\",\n" +
+		"            \"in\": \"path\",\n" +
+		"            \"required\": true\n" +
+		"          },\n" +
+		"          {\n" +
+		"            \"name\": \"body\",\n" +
+		"            \"in\": \"body\",\n" +
+		"            \"required\": true,\n" +
+		"            \"schema\": {\n" +
+		"              \"$ref\": \"#/definitions/apiRetryPolicy\"\n" +
+		"            }\n" +
+		"          }\n" +
+		"        ],\n" +
+		"        \"responses\": {\n" +
+		"          \"200\": {\n" +
+		"            \"description\": \"A successful response.\",\n" +
+		"            \"schema\": {}\n" +
+		"          },\n" +
+		"          \"default\": {\n" +
+		"            \"description\": \"An unexpected error response.\",\n" +
+		"            \"schema\": {\n" +
+		"              \"$ref\": \"#/definitions/runtimeError\"\n" +
+		"            }\n" +
+		"          }\n" +
+		"        }\n" +
+		"      },\n" +
+		"      \"delete\": {\n" +
+		"        \"tags\": [\n" +
+		"          \"RetryPolicyService\"\n" +
+		"        ],\n" +
+		"        \"operationId\": \"DeleteRetryPolicy\",\n" +
+		"        \"parameters\": [\n" +
+		"          {\n" +
+		"            \"type\": \"string\",\n" +
+		"            \"name\": \"name\",\n" +
+		"            \"in\": \"path\",\n" +
+		"            \"required\": true\n" +
+		"          }\n" +
+		"        ],\n" +
+		"        \"responses\": {\n" +
+		"          \"200\": {\n" +
+		"            \"description\": \"A successful response.\",\n" +
+		"            \"schema\": {}\n" +
+		"          },\n" +
+		"          \"default\": {\n" +
+		"            \"description\": \"An unexpected error response.\",\n" +
+		"            \"schema\": {\n" +
+		"              \"$ref\": \"#/definitions/runtimeError\"\n" +
+		"            }\n" +
+		"          }\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
 		"    \"/v1/run/details\": {\n" +
 		"      \"post\": {\n" +
 		"        \"tags\": [\n" +
@@ -2214,6 +2356,13 @@ func SwaggerJsonTemplate() string {
 		"            \"$ref\": \"#/definitions/apiPriorityClassResourceLimits\"\n" +
 		"          }\n" +
 		"        },\n" +
+		"        \"retryPolicies\": {\n" +
+		"          \"description\": \"retry_policies are the names of the retry policies attached to this queue,\\nin precedence order. The scheduler evaluates the first policy in the list.\",\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"type\": \"string\"\n" +
+		"          }\n" +
+		"        },\n" +
 		"        \"userOwners\": {\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
@@ -2253,6 +2402,64 @@ func SwaggerJsonTemplate() string {
 		"        },\n" +
 		"        \"queue\": {\n" +
 		"          \"$ref\": \"#/definitions/apiQueue\"\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"apiRetryAction\": {\n" +
+		"      \"type\": \"string\",\n" +
+		"      \"default\": \"RETRY_ACTION_UNSPECIFIED\",\n" +
+		"      \"enum\": [\n" +
+		"        \"RETRY_ACTION_UNSPECIFIED\",\n" +
+		"        \"RETRY_ACTION_FAIL\",\n" +
+		"        \"RETRY_ACTION_RETRY\"\n" +
+		"      ]\n" +
+		"    },\n" +
+		"    \"apiRetryPolicy\": {\n" +
+		"      \"description\": \"RetryPolicy defines rules that determine whether failed jobs should be retried.\\nOperators create policies and assign them to queues by name.\",\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"defaultAction\": {\n" +
+		"          \"$ref\": \"#/definitions/apiRetryAction\"\n" +
+		"        },\n" +
+		"        \"name\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"retryLimit\": {\n" +
+		"          \"description\": \"retry_limit is the maximum number of retries after the initial failure.\\nA retry_limit of 0 means the policy never retries.\",\n" +
+		"          \"type\": \"integer\",\n" +
+		"          \"format\": \"int64\"\n" +
+		"        },\n" +
+		"        \"rules\": {\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"$ref\": \"#/definitions/apiRetryRule\"\n" +
+		"          }\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"apiRetryPolicyList\": {\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"retryPolicies\": {\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"$ref\": \"#/definitions/apiRetryPolicy\"\n" +
+		"          }\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"apiRetryRule\": {\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"action\": {\n" +
+		"          \"$ref\": \"#/definitions/apiRetryAction\"\n" +
+		"        },\n" +
+		"        \"onCategory\": {\n" +
+		"          \"description\": \"on_category matches against Error.failure_category. When set with on_subcategory,\\nboth must match.\",\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"onSubcategory\": {\n" +
+		"          \"type\": \"string\"\n" +
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +
