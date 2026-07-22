@@ -42,8 +42,8 @@ func TestSuite() error {
 		"--junit", "junit.xml",
 		"--config", "_local/.armadactl.yaml",
 	)
+	fmt.Println(out)
 	if err != nil {
-		fmt.Println(out)
 		return err
 	}
 	fmt.Printf("(Real) Time to run basic, categorization tests: %s\n\n", time.Since(timeTaken))
