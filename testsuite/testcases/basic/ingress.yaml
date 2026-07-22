@@ -44,6 +44,3 @@ expectedEvents:
   - submitted:
   - ingressInfo:
   - succeeded:
-queueConfig:
-  setup:
-    create: true

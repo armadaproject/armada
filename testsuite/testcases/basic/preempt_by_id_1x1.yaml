@@ -33,6 +33,3 @@ timeout: "100s"
 expectedEvents:
   - submitted:
   - preempted:
-queueConfig:
-  setup:
-    create: true

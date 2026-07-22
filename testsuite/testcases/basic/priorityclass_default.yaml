@@ -27,6 +27,3 @@ timeout: "130s"
 expectedEvents:
   - submitted:
   - succeeded:
-queueConfig:
-  setup:
-    create: true
