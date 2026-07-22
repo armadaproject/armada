@@ -7,6 +7,10 @@ import (
 	"reflect"
 
 	"github.com/pkg/errors"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 	"k8s.io/utils/clock"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -88,9 +92,32 @@ func NewQueueScheduler(
 	}, nil
 }
 
-func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulingResult, error) {
+func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (result *SchedulingResult, err error) {
 	var scheduledJobs []*schedulercontext.JobSchedulingContext
 	sctx := sch.schedulingContext
+	goCtx, span := otel.Tracer(schedulerTracerName).Start(ctx, "scheduler.queue.schedule", trace.WithAttributes(
+		attribute.String("armada.scheduler.pool", sctx.Pool),
+		attribute.Int("armada.scheduler.queue_count", len(sctx.QueueSchedulingContexts)),
+		attribute.Bool("armada.scheduler.market_driven", sch.marketDriven),
+	))
+	ctx = armadacontext.WithContext(ctx, goCtx)
+	defer func() {
+		span.SetAttributes(
+			attribute.String("armada.scheduler.termination_reason", sctx.TerminationReason),
+			attribute.Bool("armada.scheduler.spot_price_set", sctx.SpotPrice != nil),
+		)
+		if result != nil {
+			span.SetAttributes(attribute.Int("armada.scheduler.scheduled_jobs", len(result.ScheduledJobs)))
+			if result.AdditionalSchedulingInfo != nil {
+				span.SetAttributes(attribute.Int("armada.scheduler.loop_count", result.AdditionalSchedulingInfo.LoopNumber))
+			}
+		}
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+		}
+		span.End()
+	}()
 
 	ctx.Infof("Looping through candidate gangs for pool %s...", sctx.Pool)
 
@@ -165,6 +192,11 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulingResu
 					// competing price from a different queue rather than its own bid.
 					priceSettingQueue := gctx.Queue
 					secondPrice := sch.candidateGangIterator.SecondPrice(priceSettingQueue)
+					span.AddEvent("scheduler.spot_price_set", trace.WithAttributes(
+						attribute.String("armada.scheduler.queue", priceSettingQueue),
+						attribute.Float64("armada.scheduler.spot_price", price),
+						attribute.Float64("armada.scheduler.second_price", secondPrice),
+					))
 					if qctx, ok := sctx.QueueSchedulingContexts[priceSettingQueue]; ok {
 						qctx.BillablePriceOverride = &secondPrice
 					}
@@ -174,6 +206,9 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulingResu
 			// If unschedulableReason indicates no more new jobs can be scheduled,
 			// instruct the underlying iterator to only yield evicted jobs from now on.
 			sctx.TerminationReason = unschedulableReason
+			span.AddEvent("scheduler.terminal_unschedulable", trace.WithAttributes(
+				attribute.String("armada.scheduler.unschedulable_reason", unschedulableReason),
+			))
 			err := sch.candidateGangIterator.OnlyYieldEvicted()
 			if err != nil {
 				return nil, err
@@ -181,6 +216,10 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulingResu
 		} else if schedulerconstraints.IsTerminalQueueUnschedulableReason(unschedulableReason) {
 			// If unschedulableReason indicates no more new jobs can be scheduled for this queue,
 			// instruct the underlying iterator to only yield evicted jobs for this queue from now on.
+			span.AddEvent("scheduler.queue_terminal_unschedulable", trace.WithAttributes(
+				attribute.String("armada.scheduler.queue", gctx.Queue),
+				attribute.String("armada.scheduler.unschedulable_reason", unschedulableReason),
+			))
 			err := sch.candidateGangIterator.OnlyYieldEvictedForQueue(gctx.Queue)
 			if err != nil {
 				return nil, err
@@ -229,6 +268,13 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulingResu
 		stats.Time += duration
 		statsPerQueue[gctx.Queue] = stats
 		if duration.Seconds() > 1 {
+			span.AddEvent("scheduler.slow_gang_schedule", trace.WithAttributes(
+				attribute.String("armada.scheduler.queue", gctx.Queue),
+				attribute.Int("armada.scheduler.gang_cardinality", gctx.Cardinality()),
+				attribute.Bool("armada.scheduler.scheduled", scheduledOk),
+				attribute.Bool("armada.scheduler.all_jobs_evicted", gctx.AllJobsEvicted),
+				attribute.Float64("armada.scheduler.duration_ms", float64(duration.Milliseconds())),
+			))
 			ctx.Infof("Slow schedule: queue %s, gang cardinality %d, sample job id %s, time %fs", gctx.Queue, gctx.Cardinality(), gctx.JobIds()[0], duration.Seconds())
 		}
 

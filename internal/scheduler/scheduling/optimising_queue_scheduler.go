@@ -5,6 +5,11 @@ import (
 	"math"
 	"time"
 
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/scheduler/floatingresources"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
@@ -55,7 +60,26 @@ func NewOptimisingQueueScheduler(
 //   - It iterates through unscheduled (not evicted) jobs of queues below their fairshare
 //   - It them makes some basic checks (rate limits etc)
 //   - If the Job won't put the queue above its faishare and passes the checks, it off to the gangScheduler to schedule the job
-func (q *OptimisingQueueScheduler) Schedule(ctx *armadacontext.Context, sctx *schedulercontext.SchedulingContext) (*SchedulingResult, error) {
+func (q *OptimisingQueueScheduler) Schedule(ctx *armadacontext.Context, sctx *schedulercontext.SchedulingContext) (result *SchedulingResult, err error) {
+	goCtx, span := otel.Tracer(schedulerTracerName).Start(ctx, "scheduler.optimiser.schedule", trace.WithAttributes(
+		attribute.String("armada.scheduler.pool", sctx.Pool),
+		attribute.Int("armada.scheduler.maximum_jobs_to_schedule", q.maximumJobsToSchedule),
+	))
+	ctx = armadacontext.WithContext(ctx, goCtx)
+	defer func() {
+		if result != nil {
+			span.SetAttributes(
+				attribute.Int("armada.scheduler.scheduled_jobs", len(result.ScheduledJobs)),
+				attribute.Int("armada.scheduler.preempted_jobs", len(result.PreemptedJobs)),
+			)
+		}
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+		}
+		span.End()
+	}()
+
 	gangIterator, err := q.createCandidateGangIterator(ctx, sctx)
 	if err != nil {
 		return nil, err
@@ -127,9 +151,16 @@ loop:
 		}
 		if !ok {
 			if schedulerconstraints.IsTerminalUnschedulableReason(reason) {
+				span.AddEvent("scheduler.terminal_unschedulable", trace.WithAttributes(
+					attribute.String("armada.scheduler.unschedulable_reason", reason),
+				))
 				// Stop iterating if global limit hit
 				break
 			} else if schedulerconstraints.IsTerminalQueueUnschedulableReason(reason) {
+				span.AddEvent("scheduler.queue_terminal_unschedulable", trace.WithAttributes(
+					attribute.String("armada.scheduler.queue", gctx.Queue),
+					attribute.String("armada.scheduler.unschedulable_reason", reason),
+				))
 				// If unschedulableReason indicates no more new jobs can be scheduled for this queue,
 				// instruct the underlying iterator to skip the rest of this queue
 				err := gangIterator.OnlyYieldEvictedForQueue(gctx.Queue)
@@ -164,15 +195,22 @@ loop:
 			q.updateUnfeasibleSchedulingKeys(gctx, sctx, unschedulableReason)
 		}
 
-		duration := time.Now().Sub(start)
+		duration := time.Since(start)
 
 		if duration.Seconds() > 1 {
+			span.AddEvent("scheduler.slow_gang_schedule", trace.WithAttributes(
+				attribute.String("armada.scheduler.queue", gctx.Queue),
+				attribute.Int("armada.scheduler.gang_cardinality", gctx.Cardinality()),
+				attribute.Bool("armada.scheduler.scheduled", scheduledOk),
+				attribute.Float64("armada.scheduler.duration_ms", float64(duration.Milliseconds())),
+			))
 			ctx.Infof("Slow schedule: queue %s, gang cardinality %d, sample job id %s, time %fs", gctx.Queue, gctx.Cardinality(), gctx.JobIds()[0], duration.Seconds())
 		}
 		loopNumber++
 	}
+	span.SetAttributes(attribute.Int("armada.scheduler.loop_count", loopNumber))
 	ctx.Infof("optimiser completed %d loops in %s, scheduling %d jobs, preempting %d jobs",
-		loopNumber, time.Now().Sub(start), len(scheduledJobs), len(preemptedJobs))
+		loopNumber, time.Since(start), len(scheduledJobs), len(preemptedJobs))
 	return &SchedulingResult{
 		ScheduledJobs: scheduledJobs,
 		PreemptedJobs: preemptedJobs,
