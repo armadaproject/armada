@@ -101,7 +101,7 @@ func (stateReporter *JobStateReporter) reportCurrentStatus(pod *v1.Pod) {
 			// Pod already being handled by issue handler
 			return
 		}
-		issueAdded, err := stateReporter.podIssueHandler.DetectAndRegisterFailedPodIssue(pod)
+		issueAdded, err := stateReporter.podIssueHandler.DetectAndRegisterIssuesForFailedPod(pod)
 		if issueAdded {
 			// Pod already being handled by issue handler
 			return
