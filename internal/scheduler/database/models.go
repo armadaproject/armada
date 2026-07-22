@@ -48,6 +48,7 @@ type Job struct {
 	CancelUser              *string   `db:"cancel_user"`
 	PriceBand               int32     `db:"price_band"`
 	Terminated              *bool     `db:"terminated"`
+	CancelReason            *string   `db:"cancel_reason"`
 }
 
 type JobMetadatum struct {
