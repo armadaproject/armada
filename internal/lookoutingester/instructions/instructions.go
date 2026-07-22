@@ -24,14 +24,15 @@ import (
 )
 
 const (
-	maxQueueLen         = 512
-	maxOwnerLen         = 512
-	maxJobSetLen        = 1024
-	maxAnnotationKeyLen = 1024
-	maxAnnotationValLen = 1024
-	maxPriorityClassLen = 63
-	maxClusterLen       = 512
-	maxNodeLen          = 512
+	maxQueueLen          = 512
+	maxOwnerLen          = 512
+	maxJobSetLen         = 1024
+	maxAnnotationKeyLen  = 1024
+	maxAnnotationValLen  = 1024
+	maxPriorityClassLen  = 63
+	maxClusterLen        = 512
+	maxNodeLen           = 512
+	cancelReasonFallback = "no reason provided"
 )
 
 type HasNodeName interface {
@@ -400,10 +401,34 @@ func (c *InstructionConverter) handleJobRunAssigned(ts time.Time, event *armadae
 }
 
 func (c *InstructionConverter) handleJobRunCancelled(ts time.Time, event *armadaevents.JobRunCancelled, update *model.InstructionSet) error {
+	var args map[string]any
+	if event.Requestor != "" {
+		args = map[string]any{"requestor": event.Requestor}
+	}
+	// fallback for events that arrive without a reason; event should set one otherwise.
+	reason := event.Reason
+	if reason == "" {
+		reason = cancelReasonFallback
+	}
+	terminationReason := BuildTerminationReason(reason, args)
 	jobRun := model.UpdateJobRunInstruction{
-		RunId:       event.RunId,
-		Finished:    &ts,
-		JobRunState: pointer.Int32(lookout.JobRunCancelledOrdinal),
+		RunId:                      event.RunId,
+		Finished:                   &ts,
+		JobRunState:                pointer.Int32(lookout.JobRunCancelledOrdinal),
+		SchedulerTerminationReason: terminationReason,
+	}
+	update.JobRunsToUpdate = append(update.JobRunsToUpdate, &jobRun)
+	return nil
+}
+
+// handleJobCancelledDebugInfo persists only the debug message (rendered k8s events) for a run that
+// was cancelled before its main container started. It leaves the run's state untouched - the
+// JobRunCancelled event owns the state, and Lookout coalesces column updates so arrival order does
+// not matter.
+func (c *InstructionConverter) handleJobCancelledDebugInfo(event *armadaevents.JobCancelledDebugInfo, update *model.InstructionSet) error {
+	jobRun := model.UpdateJobRunInstruction{
+		RunId: event.RunId,
+		Debug: tryCompressError(event.JobId, event.DebugMessage, c.compressor),
 	}
 	update.JobRunsToUpdate = append(update.JobRunsToUpdate, &jobRun)
 	return nil

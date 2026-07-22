@@ -35,6 +35,3 @@ timeout: "100s"
 expectedEvents:
   - submitted:
   - reprioritized:
-queueConfig:
-  setup:
-    create: true

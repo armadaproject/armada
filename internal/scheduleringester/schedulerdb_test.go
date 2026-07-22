@@ -1406,3 +1406,147 @@ func TestPoolFiltering(t *testing.T) {
 		})
 	}
 }
+
+// TestMarkJobsCancelRequestedById_FirstWriterWins verifies that MarkJobsCancelRequestedById
+// preserves the first cancel_user/cancel_reason pair via coalesce; a later control plane cancel
+// should not overwrite an earlier user cancel.
+func TestMarkJobsCancelRequestedById_FirstWriterWins(t *testing.T) {
+	jobId := util.NewULID()
+	userReason := testfixtures.CancelReason
+	cancelUser := testfixtures.CancelUser
+
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 10*time.Second)
+	defer cancel()
+
+	err := schedulerdb.WithTestDb(func(q *schedulerdb.Queries, db *pgxpool.Pool) error {
+		schedulerDb := &SchedulerDb{db: db}
+
+		// Insert a job with cancel_user and cancel_reason already set (user-cancel path).
+		job := &schedulerdb.Job{
+			JobID:           jobId,
+			JobSet:          "set1",
+			Queue:           testQueueName,
+			CancelRequested: true,
+			CancelUser:      &cancelUser,
+			CancelReason:    &userReason,
+		}
+		insertOp := addDefaultValues(InsertJobs{jobId: &JobInsertion{Job: job}}).(InsertJobs)
+		err := pgx.BeginTxFunc(ctx, db, pgx.TxOptions{IsoLevel: pgx.ReadCommitted, AccessMode: pgx.ReadWrite}, func(tx pgx.Tx) error {
+			return schedulerDb.WriteDbOp(ctx, tx, insertOp)
+		})
+		if err != nil {
+			return err
+		}
+
+		// Control plane cancel via the real helper carries an origin reason, no requestor.
+		for _, params := range createMarkJobsCancelRequestedByIdParams([]schedulerdb.Job{*job}, cancelReasonCancelOnQueue) {
+			if err := q.MarkJobsCancelRequestedById(ctx, *params); err != nil {
+				return err
+			}
+		}
+
+		// Earlier cancel_user/cancel_reason should be preserved, not overwritten by the control plane cancel.
+		jobs, err := q.SelectNewJobs(ctx, schedulerdb.SelectNewJobsParams{Serial: 0, Limit: 10})
+		if err != nil {
+			return err
+		}
+		require.Len(t, jobs, 1)
+		require.NotNil(t, jobs[0].CancelReason, "cancel_reason should still be set after control plane cancel")
+		assert.Equal(t, userReason, *jobs[0].CancelReason)
+		require.NotNil(t, jobs[0].CancelUser)
+		assert.Equal(t, cancelUser, *jobs[0].CancelUser)
+		return nil
+	})
+	require.NoError(t, err)
+}
+
+// TestMarkJobsCancelRequestedById_ControlPlaneReasonStamped verifies that a control plane cancel
+// on a job with no prior cancel metadata records the originating path as the cancel_reason and
+// leaves cancel_user nil (no requestor for system-initiated cancels).
+func TestMarkJobsCancelRequestedById_ControlPlaneReasonStamped(t *testing.T) {
+	jobId := util.NewULID()
+
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 10*time.Second)
+	defer cancel()
+
+	err := schedulerdb.WithTestDb(func(q *schedulerdb.Queries, db *pgxpool.Pool) error {
+		schedulerDb := &SchedulerDb{db: db}
+
+		job := &schedulerdb.Job{JobID: jobId, JobSet: "set1", Queue: testQueueName}
+		insertOp := addDefaultValues(InsertJobs{jobId: &JobInsertion{Job: job}}).(InsertJobs)
+		err := pgx.BeginTxFunc(ctx, db, pgx.TxOptions{IsoLevel: pgx.ReadCommitted, AccessMode: pgx.ReadWrite}, func(tx pgx.Tx) error {
+			return schedulerDb.WriteDbOp(ctx, tx, insertOp)
+		})
+		if err != nil {
+			return err
+		}
+
+		for _, params := range createMarkJobsCancelRequestedByIdParams([]schedulerdb.Job{*job}, cancelReasonCancelOnExecutor) {
+			if err := q.MarkJobsCancelRequestedById(ctx, *params); err != nil {
+				return err
+			}
+		}
+
+		jobs, err := q.SelectNewJobs(ctx, schedulerdb.SelectNewJobsParams{Serial: 0, Limit: 10})
+		if err != nil {
+			return err
+		}
+		require.Len(t, jobs, 1)
+		require.NotNil(t, jobs[0].CancelReason)
+		assert.Equal(t, cancelReasonCancelOnExecutor, *jobs[0].CancelReason)
+		assert.Nil(t, jobs[0].CancelUser, "control-plane cancels have no requestor")
+		return nil
+	})
+	require.NoError(t, err)
+}
+
+// TestMarkJobsCancelRequested_EmptyReasonThenReal verifies that an empty cancel reason is stored
+// as null rather than an empty string that would block a later genuine reason from being recorded by the coalesce.
+func TestMarkJobsCancelRequested_EmptyReasonThenReal(t *testing.T) {
+	jobId := util.NewULID()
+
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 10*time.Second)
+	defer cancel()
+
+	err := schedulerdb.WithTestDb(func(q *schedulerdb.Queries, db *pgxpool.Pool) error {
+		schedulerDb := &SchedulerDb{db: db}
+
+		job := &schedulerdb.Job{JobID: jobId, JobSet: "set1", Queue: testQueueName}
+		insertOp := addDefaultValues(InsertJobs{jobId: &JobInsertion{Job: job}}).(InsertJobs)
+		if err := pgx.BeginTxFunc(ctx, db, pgx.TxOptions{IsoLevel: pgx.ReadCommitted, AccessMode: pgx.ReadWrite}, func(tx pgx.Tx) error {
+			return schedulerDb.WriteDbOp(ctx, tx, insertOp)
+		}); err != nil {
+			return err
+		}
+
+		key := JobSetKey{queue: testQueueName, jobSet: "set1"}
+
+		// First cancel with an empty reason/user stored as null and not an empty string.
+		emptyOp := MarkJobsCancelRequested{cancelUser: "", cancelReason: "", jobIds: map[JobSetKey][]string{key: {jobId}}}
+		if err := pgx.BeginTxFunc(ctx, db, pgx.TxOptions{IsoLevel: pgx.ReadCommitted, AccessMode: pgx.ReadWrite}, func(tx pgx.Tx) error {
+			return schedulerDb.WriteDbOp(ctx, tx, emptyOp)
+		}); err != nil {
+			return err
+		}
+
+		// Second cancel with a genuine reason must be recorded (nothing blocking the coalesce).
+		realOp := MarkJobsCancelRequested{cancelUser: testfixtures.CancelUser, cancelReason: testfixtures.CancelReason, jobIds: map[JobSetKey][]string{key: {jobId}}}
+		if err := pgx.BeginTxFunc(ctx, db, pgx.TxOptions{IsoLevel: pgx.ReadCommitted, AccessMode: pgx.ReadWrite}, func(tx pgx.Tx) error {
+			return schedulerDb.WriteDbOp(ctx, tx, realOp)
+		}); err != nil {
+			return err
+		}
+
+		jobs, err := q.SelectNewJobs(ctx, schedulerdb.SelectNewJobsParams{Serial: 0, Limit: 10})
+		if err != nil {
+			return err
+		}
+		require.Len(t, jobs, 1)
+		require.NotNil(t, jobs[0].CancelReason, "genuine reason should be recorded after an empty one")
+		assert.Equal(t, testfixtures.CancelReason, *jobs[0].CancelReason)
+		require.NotNil(t, jobs[0].CancelUser)
+		assert.Equal(t, testfixtures.CancelUser, *jobs[0].CancelUser)
+		return nil
+	})
+	require.NoError(t, err)
+}
