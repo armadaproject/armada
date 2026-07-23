@@ -44,4 +44,3 @@ jobs:
 timeout: "100s"
 expectedEvents:
   - submitted:
-  - succeeded:

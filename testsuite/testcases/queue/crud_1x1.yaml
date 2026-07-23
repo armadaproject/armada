@@ -1,0 +1,14 @@
+queue: e2e-test-queue
+---
+timeout: "30s"
+queueConfig:
+  setup:
+    create: true
+    randomSuffix: true
+  update:
+    priorityFactor: 2.0
+  assertions:
+    - appearsInStream: true
+    - matches:
+        priorityFactor: 2.0
+    - deleted: true

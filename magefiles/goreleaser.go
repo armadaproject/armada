@@ -92,6 +92,9 @@ func goreleaserWriteMinimalReleaseConfig(dockerIds ...string) error {
 		Env:         config.Env,
 		Builds:      builds,
 		Dockers:     maps.Values(dockersById),
+		Archives: []goreleaserConfig.Archive{
+			{Formats: []string{"binary"}},
+		},
 	}
 	bytes, err := yaml.Marshal(minimalConfig)
 	if err != nil {
