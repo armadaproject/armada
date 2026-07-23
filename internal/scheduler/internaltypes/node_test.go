@@ -327,6 +327,33 @@ func TestNode_EvictJob_UnknownJobErrors(t *testing.T) {
 	assert.Contains(t, err.Error(), "no resources allocated")
 }
 
+func TestNode_RemoveJob_ReleasesOwnershipAndAllocatable(t *testing.T) {
+	factory := testAccountingFactory(t)
+	requests := testJobRequests(factory, "1", "1Gi")
+	node := testAccountingNode(t, factory)
+	job := &testSchedJob{id: "job-1", queue: "queue-a", requests: requests, priorityClass: types.PriorityClass{Priority: 10, Preemptible: true}}
+
+	require.NoError(t, node.AddJob(job, 10))
+	before := node.AllocatableByPriority[10]
+
+	require.NoError(t, node.RemoveJob(job, 10))
+
+	_, hasJob := node.AllocatedByJobId["job-1"]
+	assert.False(t, hasJob)
+	_, hasQueue := node.AllocatedByQueue["queue-a"]
+	assert.False(t, hasQueue, "queue entry must be deleted when it reaches zero")
+	assert.Equal(t, before.Add(requests), node.AllocatableByPriority[10])
+}
+
+func TestNode_RemoveJob_AlreadyUnboundIsNoop(t *testing.T) {
+	factory := testAccountingFactory(t)
+	node := testAccountingNode(t, factory)
+	job := &testSchedJob{id: "job-1", queue: "queue-a", requests: testJobRequests(factory, "1", "1Gi"), priorityClass: types.PriorityClass{Priority: 10, Preemptible: true}}
+
+	err := node.RemoveJob(job, 10)
+	require.NoError(t, err)
+}
+
 func createNode(allocatableResource ResourceList, allocatableByPriority map[int32]ResourceList) *Node {
 	const id = "id"
 	const reportingNodeType = "re"

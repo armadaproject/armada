@@ -450,6 +450,50 @@ func (node *Node) EvictJob(job SchedulableJob, priority int32) error {
 	return nil
 }
 
+// RemoveJob unbinds job from the node, releasing its ownership and returning its
+// resources to AllocatableByPriority. If the job was evicted, its resources are
+// released from the EvictedPriority bucket; otherwise from its scheduled-priority
+// bucket. Removing a job that is not bound is a no-op.
+func (node *Node) RemoveJob(job SchedulableJob, priority int32) error {
+	jobId := job.Id()
+	requests := job.KubernetesResourceRequirements()
+
+	_, isEvicted := node.EvictedJobRunIds[jobId]
+	delete(node.EvictedJobRunIds, jobId)
+
+	if _, ok := node.AllocatedByJobId[jobId]; !ok {
+		return nil
+	}
+
+	queue := job.Queue()
+	if _, ok := node.AllocatedByQueue[queue]; !ok {
+		return errors.Errorf("queue %s has no resources allocated on node %s", queue, node.GetId())
+	}
+	node.releaseForQueueAndJob(queue, jobId, requests)
+
+	allocatable := node.AllocatableByPriority
+	if isEvicted {
+		markAllocatable(allocatable, EvictedPriority, requests)
+	} else {
+		markAllocatable(allocatable, priorityCutoffFor(job, priority), requests)
+	}
+
+	return nil
+}
+
+// releaseForQueueAndJob removes job ownership of requests from the node, deleting
+// the queue entry when it reaches zero.
+func (node *Node) releaseForQueueAndJob(queue, jobId string, r ResourceList) {
+	delete(node.AllocatedByJobId, jobId)
+
+	allocatedToQueue := node.AllocatedByQueue[queue].Subtract(r)
+	if allocatedToQueue.AllZero() {
+		delete(node.AllocatedByQueue, queue)
+	} else {
+		node.AllocatedByQueue[queue] = allocatedToQueue
+	}
+}
+
 // claimForQueueAndJob records job ownership of requests on the node, lazily
 // initialising the ownership maps.
 func (node *Node) claimForQueueAndJob(queue, jobId string, r ResourceList) {
