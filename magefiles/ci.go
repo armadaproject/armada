@@ -34,10 +34,9 @@ func TestSuite() error {
 	if os.Getenv("ARMADA_EXECUTOR_INGRESS_PORT") == "" {
 		os.Setenv("ARMADA_EXECUTOR_INGRESS_PORT", "5001")
 	}
+	timeTakenTestSuite := time.Now()
 
 	timeTaken := time.Now()
-
-	// Basic and categorization tests — all run in parallel, no ordering constraints.
 	out, err := goOutput("run", "cmd/testsuite/main.go", "test",
 		"--tests", "testsuite/testcases/basic/*,testsuite/testcases/categorization/*",
 		"--junit", "junit.xml",
@@ -47,30 +46,33 @@ func TestSuite() error {
 	if err != nil {
 		return err
 	}
+	fmt.Printf("(Real) Time to run basic, categorization tests: %s\n\n", time.Since(timeTaken))
 
-	// Node preempt must run before node cancel: CancelOnNode kills all jobs on the node,
-	// which would cause the preempt test to receive a Cancelled event instead of Preempted.
+	timeTaken = time.Now()
 	out, err = goOutput("run", "cmd/testsuite/main.go", "test",
-		"--tests", "testsuite/testcases/node/node_preempt_by_name_1x5.yaml",
-		"--junit", "junit-node-preempt.xml",
+		"--tests", "testsuite/testcases/preemption/*",
+		"--junit", "junit-preemption.xml",
 		"--config", "_local/.armadactl.yaml",
 	)
 	fmt.Println(out)
 	if err != nil {
 		return err
 	}
+	fmt.Printf("(Real) Additional time to run preemption tests: %s\n\n", time.Since(timeTaken))
 
+	timeTaken = time.Now()
 	out, err = goOutput("run", "cmd/testsuite/main.go", "test",
-		"--tests", "testsuite/testcases/node/node_cancel_by_name_1x5.yaml",
-		"--junit", "junit-node-cancel.xml",
+		"--tests", "testsuite/testcases/reprioritization/*",
+		"--junit", "junit-reprioritization.xml",
 		"--config", "_local/.armadactl.yaml",
 	)
 	fmt.Println(out)
 	if err != nil {
 		return err
 	}
+	fmt.Printf("(Real) Additional time to run reprioritization tests: %s\n\n", time.Since(timeTaken))
 
-	fmt.Printf("(Real) Time to run tests: %s\n\n", time.Since(timeTaken))
+	fmt.Printf("(Real) Total time to run all tests: %s\n\n", time.Since(timeTakenTestSuite))
 	return nil
 }
 
