@@ -262,6 +262,19 @@ message RetryRule {
     // both must match.
     string on_category = 5;
     string on_subcategory = 6;
+    // mutate describes changes applied to the job when this rule retries it.
+    // Only meaningful when action is Retry.
+    RetryMutation mutate = 7;
+}
+
+// RetryMutation groups the changes applied to a job on a policy-driven retry.
+// Fields are additive: new mutation kinds get new fields over time.
+message RetryMutation {
+    // node_anti_affinity, when true, steers the retry away from the node the run
+    // failed on, matching the legacy lease-return retry behaviour (including
+    // failing the job if that makes it unschedulable). Default false: the retry
+    // requeues without the extra per-job scheduling probe.
+    bool node_anti_affinity = 1;
 }
 
 message RetryPolicyGetRequest {

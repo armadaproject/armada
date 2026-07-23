@@ -422,6 +422,21 @@ pub struct RetryRule {
     pub on_category: ::prost::alloc::string::String,
     #[prost(string, tag = "6")]
     pub on_subcategory: ::prost::alloc::string::String,
+    /// mutate describes changes applied to the job when this rule retries it.
+    /// Only meaningful when action is Retry.
+    #[prost(message, optional, tag = "7")]
+    pub mutate: ::core::option::Option<RetryMutation>,
+}
+/// RetryMutation groups the changes applied to a job on a policy-driven retry.
+/// Fields are additive: new mutation kinds get new fields over time.
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct RetryMutation {
+    /// node_anti_affinity, when true, steers the retry away from the node the run
+    /// failed on, matching the legacy lease-return retry behaviour (including
+    /// failing the job if that makes it unschedulable). Default false: the retry
+    /// requeues without the extra per-job scheduling probe.
+    #[prost(bool, tag = "1")]
+    pub node_anti_affinity: bool,
 }
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct RetryPolicyGetRequest {
@@ -1745,6 +1760,13 @@ pub struct JobFailedEvent {
     pub failure_category: ::prost::alloc::string::String,
     #[prost(string, tag = "17")]
     pub failure_subcategory: ::prost::alloc::string::String,
+    /// retryable indicates the scheduler emitted this failure for an
+    /// intermediate (non-terminal) run that will be retried. When true,
+    /// a subsequent leased/succeeded/failed event for the same job is
+    /// expected. Default false preserves the prior behavior where every
+    /// emitted JobFailedEvent was terminal.
+    #[prost(bool, tag = "18")]
+    pub retryable: bool,
 }
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct JobPreemptingEvent {

@@ -32,5 +32,8 @@ postgres:
 scheduling:
   indexedNodeLabels:
     - "kubernetes.io/hostname"
+  retryPolicy:
+    enabled: true
+    globalMaxRetries: 5
 metrics:
   port: 9001

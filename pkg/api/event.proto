@@ -113,6 +113,12 @@ message JobFailedEvent {
     reserved 15;
     string failure_category = 16;
     string failure_subcategory = 17;
+    // retryable indicates the scheduler emitted this failure for an
+    // intermediate (non-terminal) run that will be retried. When true,
+    // a subsequent leased/succeeded/failed event for the same job is
+    // expected. Default false preserves the prior behavior where every
+    // emitted JobFailedEvent was terminal.
+    bool retryable = 18;
 }
 
 message JobPreemptingEvent {

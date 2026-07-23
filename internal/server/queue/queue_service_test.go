@@ -12,7 +12,6 @@ import (
 	"go.uber.org/mock/gomock"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
-	grpcstatus "google.golang.org/grpc/status"
 	clocktesting "k8s.io/utils/clock/testing"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -23,34 +22,41 @@ import (
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	servermocks "github.com/armadaproject/armada/internal/server/mocks"
 	"github.com/armadaproject/armada/internal/server/permissions"
+	"github.com/armadaproject/armada/internal/server/servertest"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/client/queue"
 	"github.com/armadaproject/armada/pkg/controlplaneevents"
 )
 
+// fakeRetryPolicyChecker stands in for the retry-policy existence check without
+// a real repository, mirroring the fakeQueueLister used in the retrypolicy tests.
+type fakeRetryPolicyChecker struct {
+	exists bool
+	err    error
+}
+
+func (f *fakeRetryPolicyChecker) RetryPolicyExists(_ *armadacontext.Context, _ string) (bool, error) {
+	return f.exists, f.err
+}
+
 type queueServiceTestMocks struct {
-	publisher  *commonMocks.MockPublisher[*controlplaneevents.Event]
-	authorizer *servermocks.MockActionAuthorizer
-	repo       *servermocks.MockQueueRepository
+	publisher     *commonMocks.MockPublisher[*controlplaneevents.Event]
+	authorizer    *servermocks.MockActionAuthorizer
+	repo          *servermocks.MockQueueRepository
+	retryPolicies *fakeRetryPolicyChecker
 }
 
 func newTestQueueServer(t *testing.T) (*Server, *queueServiceTestMocks) {
 	t.Helper()
 	ctrl := gomock.NewController(t)
 	m := &queueServiceTestMocks{
-		publisher:  commonMocks.NewMockPublisher[*controlplaneevents.Event](ctrl),
-		authorizer: servermocks.NewMockActionAuthorizer(ctrl),
-		repo:       servermocks.NewMockQueueRepository(ctrl),
+		publisher:     commonMocks.NewMockPublisher[*controlplaneevents.Event](ctrl),
+		authorizer:    servermocks.NewMockActionAuthorizer(ctrl),
+		repo:          servermocks.NewMockQueueRepository(ctrl),
+		retryPolicies: &fakeRetryPolicyChecker{exists: true},
 	}
-	s := NewServer(m.publisher, m.repo, m.authorizer)
+	s := NewServer(m.publisher, m.repo, m.retryPolicies, m.authorizer)
 	return s, m
-}
-
-func requireGrpcCode(t *testing.T, err error, code codes.Code) {
-	t.Helper()
-	st, ok := grpcstatus.FromError(err)
-	require.True(t, ok, "expected gRPC status error")
-	assert.Equal(t, code, st.Code())
 }
 
 func TestCreateQueue_PermissionDenied(t *testing.T) {
@@ -65,7 +71,49 @@ func TestCreateQueue_PermissionDenied(t *testing.T) {
 
 	_, err := s.CreateQueue(ctx, &api.Queue{Name: "q1"})
 	require.Error(t, err)
-	requireGrpcCode(t, err, codes.PermissionDenied)
+	servertest.RequireGrpcCode(t, err, codes.PermissionDenied)
+}
+
+func TestCreateQueue_UnknownRetryPolicyRejected(t *testing.T) {
+	s, m := newTestQueueServer(t)
+	ctx := armadacontext.Background()
+
+	m.authorizer.
+		EXPECT().
+		AuthorizeAction(ctx, permission.Permission(permissions.CreateQueue)).
+		Return(nil).
+		Times(1)
+	// The referenced policy does not exist. No repo call is expected: gomock
+	// fails if CreateQueue reaches the repository.
+	m.retryPolicies.exists = false
+
+	_, err := s.CreateQueue(ctx, &api.Queue{Name: "q1", PriorityFactor: 1, RetryPolicies: []string{"ghost"}})
+	require.Error(t, err)
+	servertest.RequireGrpcCode(t, err, codes.InvalidArgument)
+}
+
+func TestCreateQueue_MultipleRetryPoliciesAccepted(t *testing.T) {
+	s, m := newTestQueueServer(t)
+	ctx := armadacontext.Background()
+
+	m.authorizer.
+		EXPECT().
+		AuthorizeAction(gomock.Any(), permission.Permission(permissions.CreateQueue)).
+		Return(nil).
+		Times(1)
+	// All referenced policies exist, so the queue is created with the list
+	// preserved. The scheduler evaluates only the first for now.
+	var created queue.Queue
+	m.repo.
+		EXPECT().
+		CreateQueue(gomock.Any(), gomock.Any()).
+		Do(func(_ *armadacontext.Context, q queue.Queue) { created = q }).
+		Return(nil).
+		Times(1)
+
+	_, err := s.CreateQueue(ctx, &api.Queue{Name: "q1", PriorityFactor: 1, RetryPolicies: []string{"a", "b"}})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"a", "b"}, created.RetryPolicies)
 }
 
 func TestCreateQueue_AuthorizeErrorUnavailable(t *testing.T) {
@@ -80,7 +128,7 @@ func TestCreateQueue_AuthorizeErrorUnavailable(t *testing.T) {
 
 	_, err := s.CreateQueue(ctx, &api.Queue{Name: "q1"})
 	require.Error(t, err)
-	requireGrpcCode(t, err, codes.Unavailable)
+	servertest.RequireGrpcCode(t, err, codes.Unavailable)
 }
 
 func TestCreateQueue_DefaultsUserOwnerFromPrincipal(t *testing.T) {
@@ -132,7 +180,7 @@ func TestCreateQueue_ValidationInvalidArgument(t *testing.T) {
 
 	_, err := s.CreateQueue(ctx, &api.Queue{Name: "q1", PriorityFactor: 1, Labels: map[string]string{"k": ""}})
 	require.Error(t, err)
-	requireGrpcCode(t, err, codes.InvalidArgument)
+	servertest.RequireGrpcCode(t, err, codes.InvalidArgument)
 }
 
 func TestCreateQueue_AlreadyExists(t *testing.T) {
@@ -153,7 +201,7 @@ func TestCreateQueue_AlreadyExists(t *testing.T) {
 
 	_, err := s.CreateQueue(ctx, &api.Queue{Name: "q1", PriorityFactor: 1})
 	require.Error(t, err)
-	requireGrpcCode(t, err, codes.AlreadyExists)
+	servertest.RequireGrpcCode(t, err, codes.AlreadyExists)
 }
 
 func TestUpdateQueue_NotFound(t *testing.T) {
@@ -174,7 +222,7 @@ func TestUpdateQueue_NotFound(t *testing.T) {
 
 	_, err := s.UpdateQueue(ctx, &api.Queue{Name: "q1", PriorityFactor: 1})
 	require.Error(t, err)
-	requireGrpcCode(t, err, codes.NotFound)
+	servertest.RequireGrpcCode(t, err, codes.NotFound)
 }
 
 func TestDeleteQueue_RepoErrorInvalidArgument(t *testing.T) {
@@ -195,7 +243,7 @@ func TestDeleteQueue_RepoErrorInvalidArgument(t *testing.T) {
 
 	_, err := s.DeleteQueue(ctx, &api.QueueDeleteRequest{Name: "q1"})
 	require.Error(t, err)
-	requireGrpcCode(t, err, codes.InvalidArgument)
+	servertest.RequireGrpcCode(t, err, codes.InvalidArgument)
 }
 
 func TestGetQueue_NotFound(t *testing.T) {
@@ -210,7 +258,7 @@ func TestGetQueue_NotFound(t *testing.T) {
 
 	_, err := s.GetQueue(ctx, &api.QueueGetRequest{Name: "q1"})
 	require.Error(t, err)
-	requireGrpcCode(t, err, codes.NotFound)
+	servertest.RequireGrpcCode(t, err, codes.NotFound)
 }
 
 type fakeQueueStream struct {
@@ -289,7 +337,7 @@ func TestCancelOnQueue_PublishErrorInternal(t *testing.T) {
 
 	_, err := s.CancelOnQueue(ctx, &api.QueueCancelRequest{Name: "q1", JobStates: []api.JobState{api.JobState_RUNNING}})
 	require.Error(t, err)
-	requireGrpcCode(t, err, codes.Internal)
+	servertest.RequireGrpcCode(t, err, codes.Internal)
 }
 
 func TestCancelOnQueue_SuccessPublishesExpectedEvent(t *testing.T) {

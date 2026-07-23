@@ -68,6 +68,39 @@ func TestEngine_Evaluate(t *testing.T) {
 			counts:   Counts{Failures: 1},
 			expected: Result{ShouldRetry: false, Reason: "matched rule: Fail", Decision: DecisionFailRule},
 		},
+		"matched Retry rule carries its mutation": {
+			globalMax: 10,
+			policy: &Policy{
+				Name:          "test",
+				RetryLimit:    10,
+				DefaultAction: ActionFail,
+				Rules: []Rule{
+					{Action: ActionRetry, OnCategory: "oom", Mutation: Mutation{NodeAntiAffinity: true}},
+				},
+			},
+			runError: &armadaevents.Error{
+				Reason: &armadaevents.Error_PodError{
+					PodError: &armadaevents.PodError{KubernetesReason: armadaevents.KubernetesReason_AppError},
+				},
+				FailureCategory: "oom",
+			},
+			counts:   Counts{Failures: 1},
+			expected: Result{ShouldRetry: true, Reason: "matched rule: Retry", Decision: DecisionRetry, Mutation: Mutation{NodeAntiAffinity: true}},
+		},
+		"default-action retry carries no mutation": {
+			globalMax: 10,
+			policy: &Policy{
+				Name:          "test",
+				RetryLimit:    10,
+				DefaultAction: ActionRetry,
+				Rules: []Rule{
+					{Action: ActionFail, OnCategory: "user-error"},
+				},
+			},
+			runError: makeAppError(1, "crash"), // no category, no rule matches
+			counts:   Counts{Failures: 1},
+			expected: Result{ShouldRetry: true, Reason: "no rule matched, using default action", Decision: DecisionRetry},
+		},
 		"matched Retry rule overrides Fail default": {
 			globalMax: 10,
 			policy: &Policy{

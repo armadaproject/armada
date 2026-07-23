@@ -28,6 +28,16 @@ type Rule struct {
 	Action        Action
 	OnCategory    string
 	OnSubcategory string
+	// Mutation describes changes applied to the job when this rule retries it.
+	Mutation Mutation
+}
+
+// Mutation groups the changes applied to a job on a policy-driven retry. Fields
+// are additive; the zero value applies no changes.
+type Mutation struct {
+	// NodeAntiAffinity steers the retry away from the node the run failed on,
+	// matching the legacy lease-return retry behaviour.
+	NodeAntiAffinity bool
 }
 
 // Decision identifies which gate produced an engine verdict. It is used as
@@ -52,6 +62,9 @@ type Result struct {
 	// Decision is the typed counterpart of Reason, suitable for metrics. It is
 	// always set.
 	Decision Decision
+	// Mutation is the mutation of the rule that decided the retry. It is the
+	// zero value unless a rule matched and its action was Retry.
+	Mutation Mutation
 }
 
 // ValidatePolicy checks that a policy has valid fields.

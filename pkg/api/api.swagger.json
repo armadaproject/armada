@@ -1418,6 +1418,10 @@
         },
         "reason": {
           "type": "string"
+        },
+        "retryable": {
+          "description": "retryable indicates the scheduler emitted this failure for an\nintermediate (non-terminal) run that will be retried. When true,\na subsequent leased/succeeded/failed event for the same job is\nexpected. Default false preserves the prior behavior where every\nemitted JobFailedEvent was terminal.",
+          "type": "boolean"
         }
       }
     },
@@ -2403,6 +2407,16 @@
         "RETRY_ACTION_RETRY"
       ]
     },
+    "apiRetryMutation": {
+      "description": "RetryMutation groups the changes applied to a job on a policy-driven retry.\nFields are additive: new mutation kinds get new fields over time.",
+      "type": "object",
+      "properties": {
+        "nodeAntiAffinity": {
+          "description": "node_anti_affinity, when true, steers the retry away from the node the run\nfailed on, matching the legacy lease-return retry behaviour (including\nfailing the job if that makes it unschedulable). Default false: the retry\nrequeues without the extra per-job scheduling probe.",
+          "type": "boolean"
+        }
+      }
+    },
     "apiRetryPolicy": {
       "description": "RetryPolicy defines rules that determine whether failed jobs should be retried.\nOperators create policies and assign them to queues by name.",
       "type": "object",
@@ -2442,6 +2456,10 @@
       "properties": {
         "action": {
           "$ref": "#/definitions/apiRetryAction"
+        },
+        "mutate": {
+          "description": "mutate describes changes applied to the job when this rule retries it.\nOnly meaningful when action is Retry.",
+          "$ref": "#/definitions/apiRetryMutation"
         },
         "onCategory": {
           "description": "on_category matches against Error.failure_category. When set with on_subcategory,\nboth must match.",

@@ -207,7 +207,15 @@ func updateJobInfo(info *JobInfo, event api.Event) {
 	case *api.JobRunningEvent:
 		updatePodStatus(info, typed, Running)
 	case *api.JobFailedEvent:
-		updatePodStatus(info, typed, Failed)
+		if typed.Retryable {
+			// A retryable failure is not terminal: the scheduler will requeue
+			// the job. Treat it like a lease return so watchers do not report
+			// the job as permanently Failed before its next attempt lands.
+			info.Status = Queued
+			resetPodStatus(info)
+		} else {
+			updatePodStatus(info, typed, Failed)
+		}
 	case *api.JobSucceededEvent:
 		updatePodStatus(info, typed, Succeeded)
 	case *api.JobReprioritizingEvent:

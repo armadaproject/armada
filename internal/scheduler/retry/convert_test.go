@@ -37,6 +37,33 @@ func TestConvertPolicy(t *testing.T) {
 				},
 			},
 		},
+		"rule mutation is carried through": {
+			proto: &api.RetryPolicy{
+				Name:          "with-mutation",
+				RetryLimit:    2,
+				DefaultAction: api.RetryAction_RETRY_ACTION_FAIL,
+				Rules: []*api.RetryRule{
+					{
+						Action:     api.RetryAction_RETRY_ACTION_RETRY,
+						OnCategory: "oom",
+						Mutate:     &api.RetryMutation{NodeAntiAffinity: true},
+					},
+					// A second rule with no mutation and no subcategory: proto3
+					// omits both zero values, so this also checks Mutation and
+					// OnSubcategory deserialise to their zero values, not nil.
+					{Action: api.RetryAction_RETRY_ACTION_RETRY, OnCategory: "transient"},
+				},
+			},
+			expected: &Policy{
+				Name:          "with-mutation",
+				RetryLimit:    2,
+				DefaultAction: ActionFail,
+				Rules: []Rule{
+					{Action: ActionRetry, OnCategory: "oom", Mutation: Mutation{NodeAntiAffinity: true}},
+					{Action: ActionRetry, OnCategory: "transient"},
+				},
+			},
+		},
 		"unspecified default action rejected": {
 			proto: &api.RetryPolicy{
 				Name:          "unspecified",

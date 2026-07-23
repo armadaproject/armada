@@ -67,5 +67,8 @@ func convertRule(r *api.RetryRule) (Rule, error) {
 		Action:        action,
 		OnCategory:    r.OnCategory,
 		OnSubcategory: r.OnSubcategory,
+		Mutation: Mutation{
+			NodeAntiAffinity: r.GetMutate().GetNodeAntiAffinity(),
+		},
 	}, nil
 }
