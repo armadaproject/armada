@@ -7,6 +7,10 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	"golang.org/x/time/rate"
@@ -109,26 +113,41 @@ func NewFairSchedulingAlgo(
 func (l *FairSchedulingAlgo) Schedule(
 	ctx *armadacontext.Context,
 	txn *jobdb.Txn,
-) (*SchedulerResult, error) {
+) (schedulerResult *SchedulerResult, err error) {
 	var cancel context.CancelFunc
 	if l.maxSchedulingDuration != 0 {
 		ctx, cancel = armadacontext.WithTimeout(ctx, l.maxSchedulingDuration)
 		defer cancel()
 	}
+	goCtx, span := otel.Tracer(schedulerTracerName).Start(ctx, "scheduler.schedule", trace.WithAttributes(
+		attribute.Int("armada.scheduler.pool_count", len(l.schedulingConfig.Pools)),
+		attribute.Bool("armada.scheduler.disabled", l.schedulingConfig.DisableScheduling),
+	))
+	spanCtx := armadacontext.WithContext(ctx, goCtx)
+	defer func() {
+		if schedulerResult != nil {
+			span.SetAttributes(attribute.Int("armada.scheduler.pool_results", len(schedulerResult.PoolResults)))
+		}
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+		}
+		span.End()
+	}()
 
 	// Error immediately if priority overrides are not ready
 	if !l.queueOverrideProvider.Ready() {
 		return nil, fmt.Errorf("queue overrides is not ready")
 	}
 
-	schedulerResult := &SchedulerResult{
+	schedulerResult = &SchedulerResult{
 		PoolResults: make([]*PoolSchedulingResult, 0, len(l.schedulingConfig.Pools)),
 		StartTime:   l.clock.Now(),
 	}
 
 	// Exit immediately if scheduling is disabled.
 	if l.schedulingConfig.DisableScheduling {
-		l.appendSchedulingDisabledResults(ctx, schedulerResult)
+		l.appendSchedulingDisabledResults(spanCtx, schedulerResult)
 		return schedulerResult, nil
 	}
 
@@ -136,6 +155,7 @@ func (l *FairSchedulingAlgo) Schedule(
 	if err != nil {
 		return nil, err
 	}
+	ctx = spanCtx
 
 	shortJobPenalty := l.shortJobPenalty.Snapshot()
 
@@ -210,7 +230,30 @@ func (l *FairSchedulingAlgo) runPoolSchedulingRound(
 	txn *jobdb.Txn,
 	executors []*schedulerobjects.Executor,
 	shortJobPenalty *ShortJobPenaltySnapshot,
-) (*PoolSchedulingOutcome, *SchedulingResult, error) {
+) (outcome *PoolSchedulingOutcome, schedulingResult *SchedulingResult, err error) {
+	goCtx, span := otel.Tracer(schedulerTracerName).Start(ctx, "scheduler.pool.round", trace.WithAttributes(
+		attribute.String("armada.scheduler.pool", pool.Name),
+		attribute.Int("armada.scheduler.executor_count", len(executors)),
+		attribute.Bool("armada.scheduler.market_driven", pool.ExperimentalMarketScheduling != nil && pool.ExperimentalMarketScheduling.Enabled),
+	))
+	ctx = armadacontext.WithContext(ctx, goCtx)
+	defer func() {
+		if outcome != nil {
+			span.SetAttributes(attribute.String("armada.scheduler.termination_reason", string(outcome.TerminationReason())))
+		}
+		if schedulingResult != nil {
+			span.SetAttributes(
+				attribute.Int("armada.scheduler.scheduled_jobs", len(schedulingResult.ScheduledJobs)),
+				attribute.Int("armada.scheduler.preempted_jobs", len(schedulingResult.PreemptedJobs)),
+			)
+		}
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+		}
+		span.End()
+	}()
+
 	select {
 	case <-ctx.Done():
 		return NewPoolSchedulingOutcome(PoolSchedulingTerminationReasonTimeout, fmt.Errorf("scheduling round hit global maximum scheduling duration")), nil, nil
@@ -250,7 +293,7 @@ func (l *FairSchedulingAlgo) runPoolSchedulingRound(
 	start := time.Now()
 	schedulingResult, sctx, err := l.SchedulePool(ctx, fsctx, pool)
 	if err != nil {
-		ctx.Infof("Scheduled on pool %s in %v - failed with error %s", pool.Name, time.Now().Sub(start), err)
+		ctx.Infof("Scheduled on pool %s in %v - failed with error %s", pool.Name, time.Since(start), err)
 		if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
 			return NewPoolSchedulingOutcome(PoolSchedulingTerminationReasonTimeout, err), nil, nil
 		} else if err != nil {
@@ -258,7 +301,7 @@ func (l *FairSchedulingAlgo) runPoolSchedulingRound(
 		}
 	}
 
-	ctx.Infof("Scheduled on pool %s in %v", pool.Name, time.Now().Sub(start))
+	ctx.Infof("Scheduled on pool %s in %v", pool.Name, time.Since(start))
 	if l.schedulingContextRepository != nil {
 		l.schedulingContextRepository.StoreSchedulingContext(sctx)
 	}

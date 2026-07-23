@@ -159,7 +159,7 @@ func TestSchedule_PoolFailureIsolation(t *testing.T) {
 					break
 				}
 			}
-			mockExecutorRepo.EXPECT().GetExecutors(ctx).DoAndReturn(
+			mockExecutorRepo.EXPECT().GetExecutors(gomock.AssignableToTypeOf(ctx)).DoAndReturn(
 				func(ctx *armadacontext.Context) ([]*schedulerobjects.Executor, error) {
 					if anyUnrecoverable {
 						return nil, fmt.Errorf("simulated critical failure for pool")
@@ -167,7 +167,7 @@ func TestSchedule_PoolFailureIsolation(t *testing.T) {
 					return executors, nil
 				},
 			).AnyTimes()
-			mockExecutorRepo.EXPECT().GetExecutorSettings(ctx).Return([]*schedulerobjects.ExecutorSettings{}, nil).AnyTimes()
+			mockExecutorRepo.EXPECT().GetExecutorSettings(gomock.AssignableToTypeOf(ctx)).Return([]*schedulerobjects.ExecutorSettings{}, nil).AnyTimes()
 			mockQueueCache := schedulermocks.NewMockQueueCache(ctrl)
 			queueCacheCallCount := 0
 			// TODO This is a hack, we should refactor so we can inject a failing scheduler and simulate scheduling failing directly
@@ -973,10 +973,10 @@ func TestSchedule(t *testing.T) {
 
 			ctrl := gomock.NewController(t)
 			mockExecutorRepo := schedulermocks.NewMockExecutorRepository(ctrl)
-			mockExecutorRepo.EXPECT().GetExecutors(ctx).Return(tc.executors, nil).AnyTimes()
-			mockExecutorRepo.EXPECT().GetExecutorSettings(ctx).Return(defaultExecutorSettings, nil).AnyTimes()
+			mockExecutorRepo.EXPECT().GetExecutors(gomock.AssignableToTypeOf(ctx)).Return(tc.executors, nil).AnyTimes()
+			mockExecutorRepo.EXPECT().GetExecutorSettings(gomock.AssignableToTypeOf(ctx)).Return(defaultExecutorSettings, nil).AnyTimes()
 			mockQueueCache := schedulermocks.NewMockQueueCache(ctrl)
-			mockQueueCache.EXPECT().GetAll(ctx).Return(tc.queues, nil).AnyTimes()
+			mockQueueCache.EXPECT().GetAll(gomock.AssignableToTypeOf(ctx)).Return(tc.queues, nil).AnyTimes()
 
 			schedulingContextRepo := reports.NewSchedulingContextRepository()
 			runReconciler := &testRunReconciler{}
@@ -1382,7 +1382,7 @@ type testRunReconciler struct {
 }
 
 func (t *testRunReconciler) ReconcileJobRuns(txn *jobdb.Txn, _ []*schedulerobjects.Executor) []*FailedReconciliationResult {
-	if t.jobIdsToFailReconciliation == nil || len(t.jobIdsToFailReconciliation) == 0 {
+	if len(t.jobIdsToFailReconciliation) == 0 {
 		return nil
 	}
 	jobs := txn.GetAll()
