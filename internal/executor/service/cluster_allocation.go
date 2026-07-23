@@ -118,7 +118,8 @@ func (allocationService *ClusterAllocationService) processFailedJobSubmissions(f
 }
 
 func (allocationService *ClusterAllocationService) sendReturnLeaseEvent(details *job.FailedSubmissionDetails, message string) error {
-	returnLeaseEvent, err := reporter.CreateReturnLeaseEvent(details.Pod, message, "", allocationService.clusterId.GetClusterId(), true)
+	// Submission failures happen before the pod ran, so there is no pod error to classify.
+	returnLeaseEvent, err := reporter.CreateReturnLeaseEvent(details.Pod, message, "", allocationService.clusterId.GetClusterId(), true, "", "")
 	if err != nil {
 		return fmt.Errorf("failed to create return lease event %s", err)
 	}
