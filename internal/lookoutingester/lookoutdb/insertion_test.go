@@ -846,6 +846,28 @@ func TestConflateJobUpdates(t *testing.T) {
 	assert.Equal(t, expected, updates)
 }
 
+func TestConflateJobUpdatesPreservesActorFields(t *testing.T) {
+	updates := conflateJobUpdates([]*model.UpdateJobInstruction{
+		{JobId: JobId, State: pointer.Int32(lookout.JobRunningOrdinal)},
+		{JobId: JobId, PreemptUser: pointer.String(userId)},
+		{JobId: "someOtherJob", State: pointer.Int32(lookout.JobRunningOrdinal)},
+	})
+
+	expected := []*model.UpdateJobInstruction{
+		{JobId: JobId, State: pointer.Int32(lookout.JobRunningOrdinal), PreemptUser: pointer.String(userId)},
+		{JobId: "someOtherJob", State: pointer.Int32(lookout.JobRunningOrdinal)},
+	}
+
+	sort.Slice(updates, func(i, j int) bool {
+		return updates[i].JobId < updates[j].JobId
+	})
+
+	sort.Slice(expected, func(i, j int) bool {
+		return expected[i].JobId < expected[j].JobId
+	})
+	assert.Equal(t, expected, updates)
+}
+
 func TestConflateJobUpdatesWithTerminal(t *testing.T) {
 	// Updates after the cancelled shouldn't be processed
 	updates := conflateJobUpdates([]*model.UpdateJobInstruction{
@@ -901,6 +923,20 @@ func TestConflateJobUpdatesWithPreempted(t *testing.T) {
 	sort.Slice(expected, func(i, j int) bool {
 		return expected[i].JobId < expected[j].JobId
 	})
+	assert.Equal(t, expected, updates)
+}
+
+func TestConflateJobUpdatesWithPreemptedPreservesPreemptUser(t *testing.T) {
+	updates := conflateJobUpdates([]*model.UpdateJobInstruction{
+		{JobId: JobId, State: pointer.Int32(lookout.JobPreemptedOrdinal)},
+		{JobId: JobId, PreemptUser: pointer.String(userId)},
+		{JobId: JobId, State: pointer.Int32(lookout.JobRunningOrdinal)},
+	})
+
+	expected := []*model.UpdateJobInstruction{
+		{JobId: JobId, State: pointer.Int32(lookout.JobPreemptedOrdinal), PreemptUser: pointer.String(userId)},
+	}
+
 	assert.Equal(t, expected, updates)
 }
 

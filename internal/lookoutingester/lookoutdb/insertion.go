@@ -1113,6 +1113,18 @@ func conflateJobUpdates(updates []*model.UpdateJobInstruction) []*model.UpdateJo
 				existing.LatestRunId = update.LatestRunId
 			}
 		}
+		if update.CancelReason != nil {
+			existing.CancelReason = update.CancelReason
+		}
+		if update.CancelUser != nil {
+			existing.CancelUser = update.CancelUser
+		}
+		if update.PreemptUser != nil {
+			existing.PreemptUser = update.PreemptUser
+		}
+		if update.ReprioritizeUser != nil {
+			existing.ReprioritizeUser = update.ReprioritizeUser
+		}
 	}
 
 	conflated := make([]*model.UpdateJobInstruction, 0, len(updatesById))
