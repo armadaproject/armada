@@ -2,10 +2,13 @@ package internaltypes
 
 import (
 	"fmt"
+	"math"
 
+	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
 	v1 "k8s.io/api/core/v1"
 
+	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/kubernetesobjects/label"
@@ -375,4 +378,87 @@ func deepCopyLabels(labels map[string]string) map[string]string {
 		result[k] = v
 	}
 	return result
+}
+
+// nonPreemptibleCutoff is a sentinel value (not a real priority) passed to
+// markAllocated/markAllocatable to deduct at every priority bucket.
+const nonPreemptibleCutoff = math.MaxInt32
+
+// SchedulableJob is the subset of a job the Node needs to account for its
+// resources. *jobdb.Job satisfies this interface.
+type SchedulableJob interface {
+	Id() string
+	Queue() string
+	KubernetesResourceRequirements() ResourceList
+	PriorityClass() types.PriorityClass
+}
+
+// AddJob binds job to the node at the given scheduled priority. If the job is
+// currently evicted from this node, it is un-evicted and its resources are moved
+// out of the EvictedPriority bucket; ownership (AllocatedByJobId/AllocatedByQueue)
+// is left untouched in that case because an evicted job still owns its resources.
+func (node *Node) AddJob(job SchedulableJob, priority int32) error {
+	jobId := job.Id()
+	requests := job.KubernetesResourceRequirements()
+
+	_, isEvicted := node.EvictedJobRunIds[jobId]
+	delete(node.EvictedJobRunIds, jobId)
+
+	if !isEvicted {
+		if _, ok := node.AllocatedByJobId[jobId]; ok {
+			return errors.Errorf("job %s already has resources allocated on node %s", jobId, node.GetId())
+		}
+		node.claimForQueueAndJob(job.Queue(), jobId, requests)
+	}
+
+	allocatable := node.AllocatableByPriority
+	markAllocated(allocatable, priorityCutoffFor(job, priority), requests)
+	if isEvicted {
+		markAllocatable(allocatable, EvictedPriority, requests)
+	}
+
+	return nil
+}
+
+// claimForQueueAndJob records job ownership of requests on the node, lazily
+// initialising the ownership maps.
+func (node *Node) claimForQueueAndJob(queue, jobId string, r ResourceList) {
+	if node.AllocatedByJobId == nil {
+		node.AllocatedByJobId = make(map[string]ResourceList)
+	}
+	node.AllocatedByJobId[jobId] = r
+
+	if node.AllocatedByQueue == nil {
+		node.AllocatedByQueue = make(map[string]ResourceList)
+	}
+	node.AllocatedByQueue[queue] = node.AllocatedByQueue[queue].Add(r)
+}
+
+func markAllocated(allocatableByPriority map[int32]ResourceList, priorityCutoff int32, rs ResourceList) {
+	markAllocatable(allocatableByPriority, priorityCutoff, rs.Negate())
+}
+
+func markAllocatable(allocatableByPriority map[int32]ResourceList, priorityCutoff int32, rs ResourceList) {
+	priorities := make([]int32, 0, len(allocatableByPriority))
+	for priority := range allocatableByPriority {
+		if priority <= priorityCutoff {
+			priorities = append(priorities, priority)
+		}
+	}
+	for _, priority := range priorities {
+		allocatableByPriority[priority] = allocatableByPriority[priority].Add(rs)
+	}
+}
+
+// priorityCutoffFor returns the priorityCutoff to use when updating
+// AllocatableByPriority for a job. Preemptible jobs use their scheduled priority;
+// non-preemptible jobs use nonPreemptibleCutoff so their resources are deducted at
+// every real priority. Without this, a higher-priority job could over-pack a node
+// already saturated by non-preemptible incumbents, since both the rebalance and
+// oversubscribed evictors refuse to evict non-preemptible jobs.
+func priorityCutoffFor(job SchedulableJob, scheduledPriority int32) int32 {
+	if job.PriorityClass().Preemptible {
+		return scheduledPriority
+	}
+	return nonPreemptibleCutoff
 }
