@@ -23,9 +23,17 @@ import (
 	"github.com/armadaproject/armada/pkg/controlplaneevents"
 )
 
+// RetryPolicyExistenceChecker reports whether a named retry policy exists. A
+// queue may only reference a policy that exists, mirroring (in the other
+// direction) the delete-time check that stops a referenced policy being deleted.
+type RetryPolicyExistenceChecker interface {
+	RetryPolicyExists(ctx *armadacontext.Context, name string) (bool, error)
+}
+
 type Server struct {
 	publisher       pulsarutils.Publisher[*controlplaneevents.Event]
 	queueRepository QueueRepository
+	retryPolicies   RetryPolicyExistenceChecker
 	authorizer      auth.ActionAuthorizer
 	clock           clock.Clock
 }
@@ -33,14 +41,33 @@ type Server struct {
 func NewServer(
 	publisher pulsarutils.Publisher[*controlplaneevents.Event],
 	queueRepository QueueRepository,
+	retryPolicies RetryPolicyExistenceChecker,
 	authorizer auth.ActionAuthorizer,
 ) *Server {
 	return &Server{
 		publisher:       publisher,
 		queueRepository: queueRepository,
+		retryPolicies:   retryPolicies,
 		authorizer:      authorizer,
 		clock:           clock.RealClock{},
 	}
+}
+
+// validateRetryPolicy rejects a queue that references a retry policy that does
+// not exist, so a typo does not silently disable retries for the queue. Every
+// referenced policy must exist, even though the scheduler currently evaluates
+// only the first.
+func (s *Server) validateRetryPolicy(ctx *armadacontext.Context, q queue.Queue) error {
+	for _, name := range q.RetryPolicies {
+		exists, err := s.retryPolicies.RetryPolicyExists(ctx, name)
+		if err != nil {
+			return status.Errorf(codes.Unavailable, "error validating retry policy %q: %s", name, err)
+		}
+		if !exists {
+			return status.Errorf(codes.InvalidArgument, "retry policy %q does not exist", name)
+		}
+	}
+	return nil
 }
 
 func (s *Server) CreateQueue(grpcCtx context.Context, req *api.Queue) (*types.Empty, error) {
@@ -61,6 +88,10 @@ func (s *Server) CreateQueue(grpcCtx context.Context, req *api.Queue) (*types.Em
 	queue, err := queue.NewQueue(req)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "error validating queue: %s", err)
+	}
+
+	if err := s.validateRetryPolicy(ctx, queue); err != nil {
+		return nil, err
 	}
 
 	err = s.queueRepository.CreateQueue(ctx, queue)
@@ -106,6 +137,10 @@ func (s *Server) UpdateQueue(grpcCtx context.Context, req *api.Queue) (*types.Em
 	queue, err := queue.NewQueue(req)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "error: %s", err)
+	}
+
+	if err := s.validateRetryPolicy(ctx, queue); err != nil {
+		return nil, err
 	}
 
 	err = s.queueRepository.UpdateQueue(ctx, queue)

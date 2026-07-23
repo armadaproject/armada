@@ -445,6 +445,9 @@ message Error {
     string failure_category = 16;
     // Optional tag from the matching classifier rule for drill-down.
     string failure_subcategory = 17;
+    // Name of the retry policy that decided this run's retry or terminal
+    // failure. Empty when no retry policy applied.
+    string retry_policy_name = 18;
 }
 
 // Represents an error associated with a particular Kubernetes resource.

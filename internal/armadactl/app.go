@@ -21,6 +21,7 @@ import (
 	"github.com/armadaproject/armada/pkg/client/executor"
 	"github.com/armadaproject/armada/pkg/client/node"
 	"github.com/armadaproject/armada/pkg/client/queue"
+	"github.com/armadaproject/armada/pkg/client/retrypolicy"
 )
 
 type App struct {
@@ -41,6 +42,7 @@ type App struct {
 type Params struct {
 	ApiConnectionDetails *client.ApiConnectionDetails
 	QueueAPI             *QueueAPI
+	RetryPolicyAPI       *RetryPolicyAPI
 	ExecutorAPI          *ExecutorAPI
 	NodeAPI              *NodeAPI
 }
@@ -69,6 +71,14 @@ type ExecutorAPI struct {
 	PreemptOnExecutor executor.PreemptAPI
 }
 
+type RetryPolicyAPI struct {
+	Create retrypolicy.CreateAPI
+	Delete retrypolicy.DeleteAPI
+	Get    retrypolicy.GetAPI
+	GetAll retrypolicy.GetAllAPI
+	Update retrypolicy.UpdateAPI
+}
+
 type NodeAPI struct {
 	PreemptOnNode node.PreemptAPI
 	CancelOnNode  node.CancelAPI
@@ -79,9 +89,10 @@ type NodeAPI struct {
 func New() *App {
 	return &App{
 		Params: &Params{
-			QueueAPI:    &QueueAPI{},
-			ExecutorAPI: &ExecutorAPI{},
-			NodeAPI:     &NodeAPI{},
+			QueueAPI:       &QueueAPI{},
+			RetryPolicyAPI: &RetryPolicyAPI{},
+			ExecutorAPI:    &ExecutorAPI{},
+			NodeAPI:        &NodeAPI{},
 		},
 		Out:    os.Stdout,
 		Random: rand.Reader,

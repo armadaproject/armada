@@ -13,16 +13,18 @@ type Resource struct {
 type ResourceKind string
 
 const (
-	ResourceKindQueue ResourceKind = "Queue"
+	ResourceKindQueue       ResourceKind = "Queue"
+	ResourceKindRetryPolicy ResourceKind = "RetryPolicy"
 )
 
 func NewResourceKind(in string) (ResourceKind, error) {
-	validValues := []ResourceKind{ResourceKindQueue}
-	if in != string(ResourceKindQueue) {
+	validValues := []ResourceKind{ResourceKindQueue, ResourceKindRetryPolicy}
+	switch in {
+	case string(ResourceKindQueue), string(ResourceKindRetryPolicy):
+		return ResourceKind(in), nil
+	default:
 		return "", fmt.Errorf("invalid kind: %s. Valid values: %v", in, validValues)
 	}
-
-	return ResourceKind(in), nil
 }
 
 func (kind *ResourceKind) UnmarshalJSON(data []byte) error {
