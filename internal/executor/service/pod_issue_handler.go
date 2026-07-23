@@ -593,7 +593,7 @@ func (p *PodIssueHandler) reportDeleteActionFailure(issue *issue, category strin
 }
 
 // For retryable issues we must:
-//   - Report JobReturnLeaseEvent
+//   - Report JobReturnLeaseEvent, carrying the pod error classification when a rule matches
 //
 // If the pod becomes Running/Completed/Failed in the middle of being deleted - swap this issue to a nonRetryableIssue where it will be Failed
 func (p *PodIssueHandler) handleRetryableJobIssue(issue *issue) {
@@ -633,13 +633,16 @@ func (p *PodIssueHandler) handleRetryableJobIssue(issue *issue) {
 		// When we have our own internal state - we don't need to wait for the pod deletion to complete
 		// We can just mark is to delete in our state and return the lease
 		jobRunAttempted := issue.RunIssue.PodIssue.Type != UnableToSchedule
+		result := p.classifier.ClassifyPodError(issue.RunIssue.PodIssue.OriginalPodState, issue.RunIssue.PodIssue.Message)
 
 		returnLeaseEvent, err := reporter.CreateReturnLeaseEvent(
 			issue.RunIssue.PodIssue.OriginalPodState,
-			issue.RunIssue.PodIssue.Message,
+			result.AppendHint(issue.RunIssue.PodIssue.Message),
 			issue.RunIssue.PodIssue.DebugMessage,
 			p.clusterContext.GetClusterId(),
 			jobRunAttempted,
+			result.Category,
+			result.Subcategory,
 		)
 		if err != nil {
 			log.Errorf("Failed to create return lease event for job %s because %s", issue.RunIssue.JobId, err)
@@ -651,6 +654,9 @@ func (p *PodIssueHandler) handleRetryableJobIssue(issue *issue) {
 			log.Errorf("Failed to return lease for job %s because %s", issue.RunIssue.JobId, err)
 			return
 		}
+		// Increment only after successful Report so failed sends do not inflate the counter.
+		// RecordJobFailure is a no-op when classification didn't run (empty category).
+		metrics.RecordJobFailure(result.Category, result.Subcategory)
 		p.markIssuesResolved(issue.RunIssue)
 	}
 }

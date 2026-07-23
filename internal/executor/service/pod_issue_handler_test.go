@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
@@ -602,8 +603,8 @@ func podErrorClassifier(t *testing.T, category, subcategory, pattern, hint strin
 }
 
 // The metric counter itself is tested in the metrics package. These tests
-// cover the emission gating for the non-retryable issue path: only a
-// successful Report call should have led to a counter increment.
+// cover the emission gating for the non-retryable and retryable issue paths:
+// only a successful Report call should have led to a counter increment.
 
 func TestPodIssueService_EmitsFailedEventWhenClassifierMatches(t *testing.T) {
 	classifier := conditionClassifier(t, "pih-success-cat", "pih-success-sub", errormatch.ConditionOOMKilled)
@@ -651,6 +652,133 @@ func TestPodIssueService_EmitsEventWithEmptyCategoryWhenClassifierIsNil(t *testi
 	podIssueService.HandlePodIssues()
 
 	assert.Len(t, eventReporter.ReceivedEvents, 1, "event still emitted with empty category/subcategory when classification is disabled")
+}
+
+func TestPodIssueService_RetryableIssue_LeaseReturnClassification(t *testing.T) {
+	hint := "Check the image reference and registry availability"
+	tests := map[string]struct {
+		classifier        *categorizer.Classifier
+		expectCategory    string
+		expectSubcategory string
+		expectHint        string
+	}{
+		"matching rule sets category and records failure": {
+			classifier:        podErrorClassifier(t, "pih-retry-cat", "pih-retry-sub", "Unable to start pod", hint),
+			expectCategory:    "pih-retry-cat",
+			expectSubcategory: "pih-retry-sub",
+			expectHint:        hint,
+		},
+		"nil classifier leaves category empty": {},
+		"no matching rule leaves category empty": {
+			classifier: podErrorClassifier(t, "pih-retry-nomatch-cat", "pih-retry-nomatch-sub", "pattern that never matches", ""),
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			podIssueService, _, fakeClusterContext, eventReporter, err := setupTestComponentsWithClassifier([]*job.RunState{}, tc.classifier)
+			require.NoError(t, err)
+			counterBefore := failureCounterValue(t, tc.expectCategory, tc.expectSubcategory)
+			familyTotalBefore := failureCounterFamilyTotal(t)
+
+			retryableStuckPod := makeRetryableStuckPod()
+			addPod(t, fakeClusterContext, retryableStuckPod)
+
+			// First pass deletes the pod, second pass emits the lease return.
+			podIssueService.HandlePodIssues()
+			podIssueService.HandlePodIssues()
+
+			require.Len(t, eventReporter.ReceivedEvents, 1)
+			returnedEvent, ok := eventReporter.ReceivedEvents[0].Event.Events[0].Event.(*armadaevents.EventSequence_Event_JobRunErrors)
+			require.True(t, ok)
+			leaseReturnError := returnedEvent.JobRunErrors.Errors[0]
+			require.NotNil(t, leaseReturnError.GetPodLeaseReturned())
+			assert.Equal(t, tc.expectCategory, leaseReturnError.GetFailureCategory())
+			assert.Equal(t, tc.expectSubcategory, leaseReturnError.GetFailureSubcategory())
+
+			message := leaseReturnError.GetPodLeaseReturned().Message
+			rawIdx := strings.Index(message, "Unable to start pod")
+			require.GreaterOrEqual(t, rawIdx, 0, "raw error must appear in message")
+			if tc.expectHint != "" {
+				hintIdx := strings.Index(message, tc.expectHint)
+				require.GreaterOrEqual(t, hintIdx, 0, "hint must appear in message")
+				assert.Greater(t, hintIdx, rawIdx, "hint must come after raw error")
+			}
+
+			if tc.expectCategory != "" {
+				assert.Equal(t, counterBefore+1, failureCounterValue(t, tc.expectCategory, tc.expectSubcategory))
+			} else {
+				assert.Equal(t, familyTotalBefore, failureCounterFamilyTotal(t), "unclassified lease return must not record a failure")
+			}
+		})
+	}
+}
+
+func TestPodIssueService_RetryableIssue_NoRecordWhenReportFails(t *testing.T) {
+	category, subcategory := "pih-retry-report-fail-cat", "pih-retry-report-fail-sub"
+	classifier := podErrorClassifier(t, category, subcategory, "Unable to start pod", "")
+	podIssueService, _, fakeClusterContext, eventReporter, err := setupTestComponentsWithClassifier([]*job.RunState{}, classifier)
+	require.NoError(t, err)
+	counterBefore := failureCounterValue(t, category, subcategory)
+
+	retryableStuckPod := makeRetryableStuckPod()
+	addPod(t, fakeClusterContext, retryableStuckPod)
+
+	podIssueService.HandlePodIssues()
+	eventReporter.ErrorOnReport = true
+	podIssueService.HandlePodIssues()
+
+	assert.Len(t, eventReporter.ReceivedEvents, 0)
+	assert.Equal(t, counterBefore, failureCounterValue(t, category, subcategory), "failed sends must not increment the counter")
+
+	// The issue stays registered, so a later pass reports and records.
+	eventReporter.ErrorOnReport = false
+	podIssueService.HandlePodIssues()
+
+	assert.Len(t, eventReporter.ReceivedEvents, 1)
+	assert.Equal(t, counterBefore+1, failureCounterValue(t, category, subcategory))
+}
+
+// failureCounterValue reads the executor job failure counter for the given
+// label pair from the default prometheus registry, returning 0 when the
+// labelled child does not exist yet.
+func failureCounterValue(t *testing.T, category string, subcategory string) float64 {
+	t.Helper()
+	families, err := prometheus.DefaultGatherer.Gather()
+	require.NoError(t, err)
+	for _, family := range families {
+		if family.GetName() != "armada_executor_job_failure_category_total" {
+			continue
+		}
+		for _, metric := range family.GetMetric() {
+			labels := map[string]string{}
+			for _, label := range metric.GetLabel() {
+				labels[label.GetName()] = label.GetValue()
+			}
+			if labels["failure_category"] == category && labels["failure_subcategory"] == subcategory {
+				return metric.GetCounter().GetValue()
+			}
+		}
+	}
+	return 0
+}
+
+// failureCounterFamilyTotal sums the executor job failure counter across all
+// label pairs, so tests can assert that no increment happened at all.
+func failureCounterFamilyTotal(t *testing.T) float64 {
+	t.Helper()
+	families, err := prometheus.DefaultGatherer.Gather()
+	require.NoError(t, err)
+	total := float64(0)
+	for _, family := range families {
+		if family.GetName() != "armada_executor_job_failure_category_total" {
+			continue
+		}
+		for _, metric := range family.GetMetric() {
+			total += metric.GetCounter().GetValue()
+		}
+	}
+	return total
 }
 
 func createRunState(jobId string, runId string, phase job.RunPhase) *job.RunState {
