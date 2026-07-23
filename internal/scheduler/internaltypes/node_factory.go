@@ -157,6 +157,42 @@ func (f *NodeFactory) AddTaints(nodes []*Node, extraTaints []v1.Taint) []*Node {
 	return result
 }
 
+// WithTaints returns a copy of node with its taint set replaced by taints.
+// Like AddTaints/RemoveCordonTaint, it rebuilds via CreateNodeAndType so the derived
+// NodeType (used for nodeDb indexing) and reservation are recomputed from the new
+// taint set and stay consistent.
+//
+// The synthesized unschedulable/cordon taint (see IsCordonTaint) is governed solely by
+// node.IsUnschedulable(), not by whether taints happens to contain it: any cordon taint
+// present in taints is stripped before rebuilding, and CreateNodeAndType re-derives it from
+// the preserved unschedulable flag. This keeps WithTaints idempotent (passing node.GetTaints()
+// back in does not duplicate the taint) and prevents a Delete modification targeting the
+// cordon taint key from inadvertently removing it while the node is still unschedulable.
+func (f *NodeFactory) WithTaints(node *Node, taints []v1.Taint) *Node {
+	nonCordonTaints := make([]v1.Taint, 0, len(taints))
+	for _, taint := range taints {
+		if !IsCordonTaint(taint) {
+			nonCordonTaints = append(nonCordonTaints, taint)
+		}
+	}
+	return CreateNodeAndType(
+		node.GetId(),
+		node.GetIndex(),
+		node.GetExecutor(),
+		node.GetName(),
+		node.GetPool(),
+		node.GetReportingNodeType(),
+		node.IsUnschedulable(),
+		nonCordonTaints,
+		node.GetLabels(),
+		f.indexedTaints,
+		f.indexedNodeLabels,
+		node.GetTotalResources(),
+		node.GetAllocatableResources(),
+		node.AllocatableByPriority,
+	)
+}
+
 // RemoveCordonTaint returns copies of nodes with cordon taints stripped (see IsCordonTaint) and the
 // unschedulable flag cleared. The submit checker uses it so that jobs targeting a node type whose
 // nodes are all cordoned (via `kubectl cordon`, or otherwise reported unschedulable by the executor)

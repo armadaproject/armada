@@ -69,4 +69,24 @@ func SchedulingConfigValidation(sl validator.StructLevel) {
 			}
 		}
 	}
+
+	for i, pool := range c.Pools {
+		for j, awayPool := range pool.AwayPools {
+			for k, mod := range awayPool.Node.Modifications.Taints {
+				fieldName := fmt.Sprintf("Pools[%d].AwayPools[%d].Node.Modifications.Taints[%d]", i, j, k)
+				switch mod.Operation {
+				case TaintOperationAdd:
+					if mod.Taint.Key == "" || mod.Taint.Effect == "" {
+						sl.ReportError(mod, fieldName, "", InvalidTaintModificationOperationErrorMessage, "")
+					}
+				case TaintOperationDelete:
+					if mod.Taint.Key == "" || mod.Taint.Value == "" || mod.Taint.Effect == "" {
+						sl.ReportError(mod, fieldName, "", InvalidTaintModificationOperationErrorMessage, "")
+					}
+				default:
+					sl.ReportError(mod.Operation, fieldName+".Operation", "", InvalidTaintModificationOperationErrorMessage, "")
+				}
+			}
+		}
+	}
 }

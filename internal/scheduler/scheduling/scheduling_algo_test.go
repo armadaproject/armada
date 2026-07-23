@@ -1235,11 +1235,18 @@ func TestPopulateNodeDb(t *testing.T) {
 			)
 			require.NoError(t, err)
 
+			nodeFactory := internaltypes.NewNodeFactory(
+				schedulingConfig.IndexedTaints,
+				schedulingConfig.IndexedNodeLabels,
+				schedulingConfig.PriorityClasses,
+				testfixtures.TestResourceListFactory,
+			)
+
 			for i, job := range tc.Jobs {
 				tc.Jobs[i] = tc.Jobs[i].WithNewRun("executor-01", tc.Node.GetId(), tc.Node.GetName(), tc.Node.GetPool(), job.PriorityClass().Priority)
 			}
 
-			err = populateNodeDb(*schedulingConfig.GetPoolConfig(testfixtures.TestPool), nodeDb, tc.Jobs, []*jobdb.Job{}, []*internaltypes.Node{tc.Node})
+			err = populateNodeDb(*schedulingConfig.GetPoolConfig(testfixtures.TestPool), nodeFactory, nodeDb, tc.Jobs, []*jobdb.Job{}, []*internaltypes.Node{tc.Node})
 			require.NoError(t, err)
 
 			nodes, err := nodeDb.GetNodes()
@@ -1260,6 +1267,90 @@ func TestPopulateNodeDb(t *testing.T) {
 			} else {
 				assert.Len(t, nodes, 0)
 			}
+		})
+	}
+}
+
+func TestPopulateNodeDb_AwayPoolTaintModifications(t *testing.T) {
+	const awayPool = "away-pool"
+	initialTaint := v1.Taint{Key: "remove-me", Value: "x", Effect: v1.TaintEffectNoSchedule}
+
+	tests := map[string]struct {
+		modifications configuration.NodeModifications
+		// expectedAwayTaints is the away node's taint set after populateNodeDb.
+		expectedAwayTaints []v1.Taint
+	}{
+		"applies add and delete": {
+			modifications: configuration.NodeModifications{
+				Taints: []configuration.TaintModification{
+					{Operation: configuration.TaintOperationDelete, Taint: v1.Taint{Key: "remove-me", Value: "*", Effect: v1.TaintEffectNoSchedule}},
+					{Operation: configuration.TaintOperationAdd, Taint: v1.Taint{Key: "added", Value: "true", Effect: v1.TaintEffectNoSchedule}},
+				},
+			},
+			expectedAwayTaints: []v1.Taint{{Key: "added", Value: "true", Effect: v1.TaintEffectNoSchedule}},
+		},
+		"empty modifications is a no-op": {
+			modifications:      configuration.NodeModifications{},
+			expectedAwayTaints: []v1.Taint{initialTaint},
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			poolConfig := configuration.PoolConfig{
+				Name: testfixtures.TestPool,
+				AwayPools: []configuration.AwayPoolConfig{
+					{
+						Name: awayPool,
+						Node: configuration.NodeConfig{Modifications: tc.modifications},
+					},
+				},
+			}
+
+			schedulingConfig := testfixtures.TestSchedulingConfig()
+			nodeFactory := internaltypes.NewNodeFactory(
+				schedulingConfig.IndexedTaints,
+				schedulingConfig.IndexedNodeLabels,
+				schedulingConfig.PriorityClasses,
+				testfixtures.TestResourceListFactory,
+			)
+
+			rl := internaltypes.ResourceList{}
+			awayNode := nodeFactory.CreateNodeAndType(
+				"away-node", "exec-1", "away-node", awayPool, "type",
+				false,
+				[]v1.Taint{initialTaint},
+				map[string]string{}, rl, rl, map[int32]internaltypes.ResourceList{},
+			)
+			homeNode := nodeFactory.CreateNodeAndType(
+				"home-node", "exec-1", "home-node", testfixtures.TestPool, "type",
+				false,
+				[]v1.Taint{initialTaint},
+				map[string]string{}, rl, rl, map[int32]internaltypes.ResourceList{},
+			)
+
+			nodeDb, err := nodedb.NewNodeDb(
+				schedulingConfig.PriorityClasses,
+				schedulingConfig.IndexedResources,
+				schedulingConfig.IndexedTaints,
+				schedulingConfig.IndexedNodeLabels,
+				schedulingConfig.WellKnownNodeTypes,
+				testfixtures.TestResourceListFactory,
+			)
+			require.NoError(t, err)
+
+			err = populateNodeDb(poolConfig, nodeFactory, nodeDb, []*jobdb.Job{}, []*jobdb.Job{}, []*internaltypes.Node{awayNode, homeNode})
+			require.NoError(t, err)
+
+			gotAway, err := nodeDb.GetNode("away-node")
+			require.NoError(t, err)
+			gotHome, err := nodeDb.GetNode("home-node")
+			require.NoError(t, err)
+
+			// Away node: modifications applied (or unchanged when there are none).
+			assert.Equal(t, tc.expectedAwayTaints, gotAway.GetTaints())
+			// Home node: always untouched, regardless of the away pool's modifications.
+			assert.Equal(t, []v1.Taint{initialTaint}, gotHome.GetTaints())
 		})
 	}
 }
@@ -1291,12 +1382,19 @@ func BenchmarkNodeDbConstruction(b *testing.B) {
 				)
 				require.NoError(b, err)
 
+				nodeFactory := internaltypes.NewNodeFactory(
+					schedulingConfig.IndexedTaints,
+					schedulingConfig.IndexedNodeLabels,
+					schedulingConfig.PriorityClasses,
+					testfixtures.TestResourceListFactory,
+				)
+
 				dbNodes := []*internaltypes.Node{}
 				for _, node := range nodes {
 					dbNodes = append(dbNodes, node.DeepCopyNilKeys())
 				}
 
-				err = populateNodeDb(*schedulingConfig.GetPoolConfig(testfixtures.TestPool), nodeDb, jobs, []*jobdb.Job{}, dbNodes)
+				err = populateNodeDb(*schedulingConfig.GetPoolConfig(testfixtures.TestPool), nodeFactory, nodeDb, jobs, []*jobdb.Job{}, dbNodes)
 				require.NoError(b, err)
 			}
 		})
