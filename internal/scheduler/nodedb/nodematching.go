@@ -145,11 +145,18 @@ func NodeTypeJobRequirementsMet(nodeType *internaltypes.NodeType, jctx *schedule
 // If the requirements are not met, it returns the reason why.
 // If the requirements can't be parsed, an error is returned.
 func JobRequirementsMet(node *internaltypes.Node, priority int32, jctx *schedulercontext.JobSchedulingContext) (bool, PodRequirementsNotMetReason, error) {
+	return JobRequirementsMetForView(node, node.AllocatableByPriority[priority], jctx)
+}
+
+// JobRequirementsMetForView is like JobRequirementsMet, but checks dynamic requirements against
+// the given resource view instead of always reading node.AllocatableByPriority. This lets urgency-based
+// preemption check node.UrgencyPreemptableByPriority, which excludes the fair-share eviction give-back.
+func JobRequirementsMetForView(node *internaltypes.Node, allocatable internaltypes.ResourceList, jctx *schedulercontext.JobSchedulingContext) (bool, PodRequirementsNotMetReason, error) {
 	matches, reason, err := StaticJobRequirementsMet(node, jctx)
 	if !matches || err != nil {
 		return matches, reason, err
 	}
-	matches, reason = DynamicJobRequirementsMet(node.AllocatableByPriority[priority], jctx)
+	matches, reason = DynamicJobRequirementsMet(allocatable, jctx)
 	if !matches {
 		return matches, reason, nil
 	}
