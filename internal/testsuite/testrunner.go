@@ -181,17 +181,6 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 			})
 		}
 
-		// If configured, reprioritize jobs once they are running.
-		// Used to test job reprioritization. Waiting for the jobs to be running
-		// (rather than sleeping a fixed interval) ensures the reprioritize request
-		// is not handled before its jobs exist in the scheduler, which would produce
-		// no reprioritized events.
-		if srv.testSpec.Action == api.TestSpec_ACTION_REPRIORITIZE {
-			g.Go(func() error {
-				return reprioritizeJobsWhenRunning(ctx, reprioritizeCh, srv.testSpec, srv.apiConnectionDetails, jobIds)
-			})
-		}
-
 		g.Go(func() error { return eventwatcher.ErrorOnNoActiveJobs(ctx, noActiveCh, maps.Clone(jobIdMap)) })
 
 		eventBenchmark := eventbenchmark.New(benchmarkCh)
