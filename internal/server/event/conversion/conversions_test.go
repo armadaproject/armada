@@ -459,6 +459,11 @@ func TestConvertJobError(t *testing.T) {
 				Errors: []*armadaevents.Error{
 					{
 						Terminal: true,
+						// A policy-terminated job's terminal MaxRunsExceeded error
+						// carries the category of the failure that tripped the
+						// policy, and it must survive conversion.
+						FailureCategory:    "user_error",
+						FailureSubcategory: "exit_1",
 						Reason: &armadaevents.Error_MaxRunsExceeded{
 							MaxRunsExceeded: &armadaevents.MaxRunsExceeded{
 								Message: "Max runs",
@@ -501,12 +506,14 @@ func TestConvertJobError(t *testing.T) {
 		{
 			Events: &api.EventMessage_Failed{
 				Failed: &api.JobFailedEvent{
-					JobId:    jobId,
-					Reason:   "Max runs",
-					JobSetId: jobSetName,
-					Queue:    queue,
-					Created:  protoutil.ToTimestamp(baseTime),
-					Cause:    api.Cause_Error,
+					JobId:              jobId,
+					Reason:             "Max runs",
+					JobSetId:           jobSetName,
+					Queue:              queue,
+					Created:            protoutil.ToTimestamp(baseTime),
+					Cause:              api.Cause_Error,
+					FailureCategory:    "user_error",
+					FailureSubcategory: "exit_1",
 				},
 			},
 		},
