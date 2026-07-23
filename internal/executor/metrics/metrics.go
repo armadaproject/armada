@@ -17,7 +17,9 @@ const (
 var jobFailureCategoryTotal = promauto.NewCounterVec(
 	prometheus.CounterOpts{
 		Name: ArmadaExecutorMetricsPrefix + "job_failure_category_total",
-		Help: "Total number of job failures by failure category and subcategory",
+		Help: "Total number of job run failures by failure category and subcategory. " +
+			"Includes retryable failures whose lease is returned for rescheduling, " +
+			"so a single job can contribute multiple increments.",
 	},
 	[]string{failureCategoryLabel, failureSubcategoryLabel},
 )
@@ -38,8 +40,9 @@ var jobFailureRuleEvaluationDurationSeconds = promauto.NewHistogramVec(
 )
 
 // RecordJobFailure increments the per-category failure counter. Should be
-// called from paths that commit to emitting a JobFailedEvent — retryable
-// pod issues that emit a ReturnLease instead must not call this.
+// called only after the failure event (JobFailedEvent, or ReturnLease for
+// retryable pod issues) has been successfully reported, so failed sends do
+// not inflate the counter.
 //
 // An empty category indicates no classification happened (e.g. the feature
 // flag is off or the classifier is nil); in that case no metric is emitted.
