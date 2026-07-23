@@ -246,9 +246,14 @@ func sanitizeForJsonb(s string) string {
 }
 
 func (c *InstructionConverter) handleReprioritiseJob(_ time.Time, event *armadaevents.ReprioritisedJob, update *model.InstructionSet) error {
+	var reprioritizeUser *string
+	if event.Requestor != "" {
+		reprioritizeUser = &event.Requestor
+	}
 	jobUpdate := model.UpdateJobInstruction{
-		JobId:    event.JobId,
-		Priority: pointer.Int64(int64(event.Priority)),
+		JobId:            event.JobId,
+		Priority:         pointer.Int64(int64(event.Priority)),
+		ReprioritizeUser: reprioritizeUser,
 	}
 	update.JobsToUpdate = append(update.JobsToUpdate, &jobUpdate)
 	return nil
@@ -261,9 +266,11 @@ func (c *InstructionConverter) handleCancelledJob(ts time.Time, event *armadaeve
 	}
 
 	var cancelUser *string
-	if event.CancelUser != "" {
-		cancelUser = &event.CancelUser
+	if event.Requestor != "" {
+		cancelUser = &event.Requestor
 	}
+
+	// For cancelled jobs, use cancel_user as the canonical actor field.
 	jobUpdate := model.UpdateJobInstruction{
 		JobId:                     event.GetJobId(),
 		State:                     pointer.Int32(int32(lookout.JobCancelledOrdinal)),

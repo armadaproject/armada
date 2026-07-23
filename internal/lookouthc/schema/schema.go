@@ -201,6 +201,8 @@ func findShapeMismatch(ctx *armadacontext.Context, q pgx.Tx) (string, error) {
 		{"annotations", "jsonb", true},
 		{"external_job_uri", "character varying", false},
 		{"cancel_user", "character varying", false},
+		{"preempt_user", "character varying", false},
+		{"reprioritize_user", "character varying", false},
 	}
 	rows, err = q.Query(ctx, `
 		SELECT column_name, data_type, is_nullable = 'NO'
@@ -339,14 +341,14 @@ func convertUnpartitionedToPartitioned(ctx *armadacontext.Context, tx pgx.Tx) er
 			priority, submitted, cancelled, state, last_transition_time,
 			last_transition_time_seconds, job_spec, duplicate, priority_class,
 			latest_run_id, cancel_reason, namespace, annotations,
-			external_job_uri, cancel_user
+			external_job_uri, cancel_user, preempt_user, reprioritize_user
 		)
 		SELECT
 			job_id, queue, owner, jobset, cpu, memory, ephemeral_storage, gpu,
 			priority, submitted, cancelled, state, last_transition_time,
 			last_transition_time_seconds, job_spec, duplicate, priority_class,
 			latest_run_id, cancel_reason, namespace, annotations,
-			external_job_uri, cancel_user
+			external_job_uri, cancel_user, preempt_user, reprioritize_user
 		FROM job
 	`); err != nil {
 		return errors.Wrap(err, "copy rows from job to job_new")
