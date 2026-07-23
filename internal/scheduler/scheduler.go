@@ -23,6 +23,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/kubernetesobjects/affinity"
 	"github.com/armadaproject/armada/internal/scheduler/metrics"
 	"github.com/armadaproject/armada/internal/scheduler/pricing"
+	"github.com/armadaproject/armada/internal/scheduler/publisher"
 	"github.com/armadaproject/armada/internal/scheduler/queue"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling"
@@ -54,7 +55,7 @@ type Scheduler struct {
 	// This is used to check if gangs jobs are valid before considering their jobs validated
 	gangValidator SubmitGangValidator
 	// Responsible for publishing messages to Pulsar. Only the leader publishes.
-	publisher Publisher
+	publisher publisher.Publisher
 	// Minimum duration between scheduler cycles.
 	cyclePeriod time.Duration
 	// Minimum duration between Schedule() calls - calls that actually schedule new jobs.
@@ -100,7 +101,7 @@ func NewScheduler(
 	executorRepository database.ExecutorRepository,
 	runner runner.SchedulingRunner,
 	leaderController leaderelection.LeaderController,
-	publisher Publisher,
+	publisher publisher.Publisher,
 	submitChecker SubmitScheduleChecker,
 	gangValidator SubmitGangValidator,
 	cyclePeriod time.Duration,
@@ -886,6 +887,14 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 
 	// Has the job been requested cancelled. If so, cancel the job
 	if job.CancelRequested() {
+		var cancelUser string
+		if cancelUserPtr := job.CancelUser(); cancelUserPtr != nil {
+			cancelUser = *cancelUserPtr
+		}
+		var cancelReason string
+		if cancelReasonPtr := job.CancelReason(); cancelReasonPtr != nil {
+			cancelReason = *cancelReasonPtr
+		}
 		if job.HasRuns() {
 			lastRun := job.LatestRun()
 			job = job.WithUpdatedRun(lastRun.WithoutTerminal().WithCancelled(true))
@@ -894,17 +903,15 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 				Created: s.now(),
 				Event: &armadaevents.EventSequence_Event_JobRunCancelled{
 					JobRunCancelled: &armadaevents.JobRunCancelled{
-						RunId: lastRun.Id(),
-						JobId: job.Id(),
+						RunId:     lastRun.Id(),
+						JobId:     job.Id(),
+						Requestor: cancelUser,
+						Reason:    cancelReason,
 					},
 				},
 			})
 		}
 		job = job.WithQueued(false).WithoutTerminal().WithCancelled(true)
-		var cancelUser string
-		if cancelUserPtr := job.CancelUser(); cancelUserPtr != nil {
-			cancelUser = *cancelUserPtr
-		}
 		cancel := &armadaevents.EventSequence_Event{
 			Created: s.now(),
 			Event: &armadaevents.EventSequence_Event_CancelledJob{
@@ -920,6 +927,10 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 		var cancelUser string
 		if cancelUserPtr := job.CancelUser(); cancelUserPtr != nil {
 			cancelUser = *cancelUserPtr
+		}
+		var cancelReason string
+		if cancelReasonPtr := job.CancelReason(); cancelReasonPtr != nil {
+			cancelReason = *cancelReasonPtr
 		}
 		cancelRequest := &armadaevents.EventSequence_Event{
 			Created: s.now(),
@@ -937,8 +948,10 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 				Created: s.now(),
 				Event: &armadaevents.EventSequence_Event_JobRunCancelled{
 					JobRunCancelled: &armadaevents.JobRunCancelled{
-						RunId: lastRun.Id(),
-						JobId: job.Id(),
+						RunId:     lastRun.Id(),
+						JobId:     job.Id(),
+						Requestor: cancelUser,
+						Reason:    cancelReason,
 					},
 				},
 			})
@@ -1316,6 +1329,12 @@ func (s *Scheduler) ensureDbUpToDate(ctx *armadacontext.Context, pollInterval ti
 				messagesSent = true
 			}
 		}
+	}
+
+	// We're using a dummy publisher for testing
+	if numSent == 0 {
+		ctx.Infof("No pulsar partitions configured, skipping checking for database up to date")
+		return nil
 	}
 
 	// Try to read these messages back from postgres.

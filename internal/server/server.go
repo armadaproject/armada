@@ -89,8 +89,23 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 		return errors.WithMessage(err, "error creating postgres pool")
 	}
 	defer dbPool.Close()
+
+	var queryDb queryapi.QueryDB = dbPool
+	if config.QueryApi.Mirror.Enabled {
+		mirrorPool, err := database.OpenPgxPool(config.QueryApi.Mirror.Postgres)
+		if err != nil {
+			// Query mirroring is an evaluation aid; it must never prevent the
+			// server from starting. Log and continue with mirroring disabled.
+			log.WithError(err).Error("failed to open query api mirror database; continuing with mirroring disabled")
+		} else {
+			// In-flight mirror queries use a detached context, so shutdown may
+			// block here for up to the mirror query timeout while they drain.
+			defer mirrorPool.Close()
+			queryDb = queryapi.NewMirroringDB(dbPool, mirrorPool, config.QueryApi.Mirror.MaxInFlight)
+		}
+	}
 	queryapiServer := queryapi.New(
-		dbPool,
+		queryDb,
 		config.QueryApi.MaxQueryItems,
 		func() compress.Decompressor { return compress.NewZlibDecompressor() })
 	api.RegisterJobsServer(grpcServer, queryapiServer)

@@ -37,7 +37,7 @@ jobs:
       matrix:
         scala-version: [ '2.12.18', '2.13.15' ]
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Setup Go
         uses: ./.github/actions/setup-go-cache
         with:
@@ -48,7 +48,7 @@ jobs:
           version: '23.3'
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Restore Maven packages cache
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ~/.m2/repository
           key: ${{ runner.os }}-mvn-build-${{ matrix.scala-version }}-${{ hashFiles('client/scala/armada-scala-client/pom.xml') }}
