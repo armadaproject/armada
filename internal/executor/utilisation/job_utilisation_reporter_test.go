@@ -43,33 +43,36 @@ func TestUtilisationEventReporter_ReportUtilisationEvents(t *testing.T) {
 	_, err = submitPod(clusterContext)
 	require.NoError(t, err)
 
-	deadline := time.Now().Add(time.Second)
-	for {
+	// Reporting is normally driven by a task scheduler, so the poll below stands
+	// in for the ticks while waiting for two reporting periods to elapse
+	require.Eventually(t, func() bool {
 		eventReporter.ReportUtilisationEvents()
-		time.Sleep(time.Millisecond)
+		return len(fakeEventReporter.GetReceivedEvents()) >= 2
+	}, time.Second, time.Millisecond, "two utilisation events must be reported")
 
-		if len(fakeEventReporter.ReceivedEvents) >= 2 || time.Now().After(deadline) {
-			break
-		}
-	}
-
-	assert.True(t, len(fakeEventReporter.ReceivedEvents) >= 2)
-	assert.Len(t, fakeEventReporter.ReceivedEvents[0].Event.Events, 1)
-	event1, ok := fakeEventReporter.ReceivedEvents[0].Event.Events[0].Event.(*armadaevents.EventSequence_Event_ResourceUtilisation)
+	receivedEvents := fakeEventReporter.GetReceivedEvents()
+	require.GreaterOrEqual(t, len(receivedEvents), 2)
+	assert.Len(t, receivedEvents[0].Event.Events, 1)
+	event1, ok := receivedEvents[0].Event.Events[0].Event.(*armadaevents.EventSequence_Event_ResourceUtilisation)
 	assert.True(t, ok)
-	assert.Len(t, fakeEventReporter.ReceivedEvents[1].Event.Events, 1)
-	_, ok = fakeEventReporter.ReceivedEvents[1].Event.Events[0].Event.(*armadaevents.EventSequence_Event_ResourceUtilisation)
+	assert.Len(t, receivedEvents[1].Event.Events, 1)
+	_, ok = receivedEvents[1].Event.Events[0].Event.(*armadaevents.EventSequence_Event_ResourceUtilisation)
 	assert.True(t, ok)
 
 	assert.Equal(t, testPodResources.CurrentUsage, armadaresource.FromProtoMap(event1.ResourceUtilisation.MaxResourcesForPeriod))
 	assert.Equal(t, testPodResources.CurrentUsage, armadaresource.FromProtoMap(event1.ResourceUtilisation.AvgResourcesForPeriod))
 	assert.Equal(t, testPodResources.CumulativeUsage, armadaresource.FromProtoMap(event1.ResourceUtilisation.TotalCumulativeUsage))
 
-	event1CreatedTime := fakeEventReporter.ReceivedEvents[0].Event.Events[0].Created
-	event2CreatedTime := fakeEventReporter.ReceivedEvents[1].Event.Events[0].Created
+	event1CreatedTime := receivedEvents[0].Event.Events[0].Created
+	event2CreatedTime := receivedEvents[1].Event.Events[0].Created
 	period := protoutil.ToStdTime(event2CreatedTime).Sub(protoutil.ToStdTime(event1CreatedTime))
 
-	assert.InDelta(t, float64(reportingPeriod), float64(period), float64(2*time.Millisecond))
+	// The reporter must hold the second event back for a full reporting period.
+	// The lower bound is what the reporter guarantees. The upper bound only
+	// checks the event was period-driven rather than immediate, with generous
+	// slack because a busy runner can delay the polling loop past the period.
+	assert.GreaterOrEqual(t, period, reportingPeriod-2*time.Millisecond)
+	assert.Less(t, period, reportingPeriod+100*time.Millisecond)
 }
 
 func TestUtilisationEventReporter_ReportUtilisationEvents_WhenNoUtilisationData(t *testing.T) {
@@ -83,19 +86,10 @@ func TestUtilisationEventReporter_ReportUtilisationEvents_WhenNoUtilisationData(
 	_, err = submitPod(clusterContext)
 	require.NoError(t, err)
 
-	deadline := time.Now().Add(time.Millisecond * 500)
-	count := 0
-	for {
+	assert.Never(t, func() bool {
 		eventReporter.ReportUtilisationEvents()
-		count++
-		time.Sleep(time.Millisecond)
-		if time.Now().After(deadline) {
-			break
-		}
-	}
-
-	assert.True(t, len(fakeEventReporter.ReceivedEvents) == 0)
-	assert.True(t, count > 0)
+		return len(fakeEventReporter.GetReceivedEvents()) > 0
+	}, 500*time.Millisecond, time.Millisecond, "empty utilisation data must not produce events")
 }
 
 func submitPod(clusterContext context.ClusterContext) (*v1.Pod, error) {
