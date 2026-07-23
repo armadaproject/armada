@@ -3,8 +3,9 @@ package testsuite
 import (
 	"testing"
 
-	"github.com/armadaproject/armada/pkg/api"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 func TestQueueNameWithSuffix(t *testing.T) {
