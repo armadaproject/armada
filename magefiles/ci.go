@@ -36,18 +36,41 @@ func TestSuite() error {
 	}
 
 	timeTaken := time.Now()
-	out, err2 := goOutput("run", "cmd/testsuite/main.go", "test",
+
+	// Basic and categorization tests — all run in parallel, no ordering constraints.
+	out, err := goOutput("run", "cmd/testsuite/main.go", "test",
 		"--tests", "testsuite/testcases/basic/*,testsuite/testcases/categorization/*",
 		"--junit", "junit.xml",
 		"--config", "_local/.armadactl.yaml",
 	)
-	if err2 != nil {
-		fmt.Println(out)
-		return err2
-	}
-	fmt.Printf("(Real) Time to run tests: %s\n\n", time.Since(timeTaken))
-
 	fmt.Println(out)
+	if err != nil {
+		return err
+	}
+
+	// Node preempt must run before node cancel: CancelOnNode kills all jobs on the node,
+	// which would cause the preempt test to receive a Cancelled event instead of Preempted.
+	out, err = goOutput("run", "cmd/testsuite/main.go", "test",
+		"--tests", "testsuite/testcases/node/node_preempt_by_name_1x5.yaml",
+		"--junit", "junit-node-preempt.xml",
+		"--config", "_local/.armadactl.yaml",
+	)
+	fmt.Println(out)
+	if err != nil {
+		return err
+	}
+
+	out, err = goOutput("run", "cmd/testsuite/main.go", "test",
+		"--tests", "testsuite/testcases/node/node_cancel_by_name_1x5.yaml",
+		"--junit", "junit-node-cancel.xml",
+		"--config", "_local/.armadactl.yaml",
+	)
+	fmt.Println(out)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("(Real) Time to run tests: %s\n\n", time.Since(timeTaken))
 	return nil
 }
 

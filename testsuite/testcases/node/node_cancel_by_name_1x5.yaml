@@ -1,30 +1,42 @@
 numBatches: 1
-batchSize: 1
+batchSize: 5
 queue: e2e-test-queue
+jobSetId: node-cancel-test
 jobs:
   - priority: 0
     namespace: personal-anonymous
     podSpec:
       terminationGracePeriodSeconds: 0
       restartPolicy: Never
+      nodeSelector:
+        armadaproject.io/node-pool: node-ops
+      tolerations:
+        - key: node-tests
+          operator: Equal
+          value: "true"
+          effect: NoSchedule
       containers:
-        - name: cancel-by-id
+        - name: cancel-by-node
           imagePullPolicy: IfNotPresent
           image: alpine:3.20.0
           args:
             - "sleep"
-            - "100s"
+            - "300s"
           resources:
             limits:
               memory: 25Mi
-              cpu: 100m
+              cpu: 10m
             requests:
               memory: 25Mi
-              cpu: 100m
+              cpu: 10m
 ---
-cancel:
-  request: {}
-timeout: "100s"
+cancelOnNode:
+  nodePoolTag: node-ops
+  request:
+    executor: local-cluster
+    queues:
+      - e2e-test-queue
+timeout: "180s"
 expectedEvents:
   - submitted:
   - cancelled:

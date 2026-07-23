@@ -7,6 +7,7 @@ option csharp_namespace = "ArmadaProject.Io.Api";
 import "google/protobuf/duration.proto";
 import "pkg/api/submit.proto";
 import "pkg/api/event.proto";
+import "pkg/api/node.proto";
 
 // Defines a test case for the Armada test suite.
 // Defined as a proto message to enable unmarshalling oneof fields.
@@ -39,7 +40,7 @@ message TestSpec {
         ACTION_PREEMPT = 2; // Preempt jobs.
         ACTION_REPRIORITIZE = 3; // Reprioritize jobs.
     }
-    ActionType action = 9;
+    ActionType action = 9 [deprecated = true]; // Use cancel, cancel_job_set, preempt, or reprioritize instead
     // Selection method for the action.
     enum SelectionType {
         SELECTION_NO = 0; // No selection (no action).
@@ -47,11 +48,6 @@ message TestSpec {
         SELECTION_BY_SET = 2; // Select all jobs in the job set in bulk.
         SELECTION_BY_IDS = 3; // Select all jobs in the job set by multiple ids.
     }
-    SelectionType selection = 17;
-    // Reason for preempting jobs (if preemption is configured).
-    string preempt_reason = 16;
-    // New priority to apply when reprioritizing jobs (if reprioritization is configured).
-    double new_priority = 15;
     // Test name. Defaults to the filename if not provided.
     string name = 10;
     // Randomize clientId if not provided
@@ -62,4 +58,51 @@ message TestSpec {
     string environment = 13;
     // Value of the target label set on exported Prometheus metrics.
     string target = 14;
+    double new_priority = 15 [deprecated = true]; // Use reprioritize.request.new_priority instead
+    string preempt_reason = 16 [deprecated = true]; // Use preempt.request.reason instead
+    // Node-scoped cancel operation
+    NodeCancelConfig cancel_on_node = 18;
+    // Node-scoped preempt operation
+    NodePreemptConfig preempt_on_node = 19;
+    // Cancel jobs by id/ids
+    JobCancelConfig cancel = 20;
+    // Cancel jobs by job set
+    JobSetCancelConfig cancel_job_set = 21;
+    // Preempt jobs by id/ids
+    JobPreemptConfig preempt = 22;
+    // Reprioritize jobs by id/ids/job set
+    JobReprioritizeConfig reprioritize = 23;
+    SelectionType selection = 17 [deprecated = true]; // Use cancel, cancel_job_set, preempt, or reprioritize instead
+}
+
+message NodeCancelConfig {
+    NodeCancelRequest request = 1;
+    // value of the armadaproject.io/node-pool label used to resolve the target node at runtime
+    string node_pool_tag = 2;
+}
+
+message NodePreemptConfig {
+    NodePreemptRequest request = 1;
+    // value of the armadaproject.io/node-pool label used to resolve the target node at runtime
+    string node_pool_tag = 2;
+}
+
+message JobPreemptConfig {
+    JobPreemptRequest request = 1;
+    // If true, preempt the whole job set (request.job_ids left empty) instead of the submitted jobs.
+    bool by_job_set = 2;
+}
+
+message JobCancelConfig {
+    JobCancelRequest request = 1;
+}
+
+message JobSetCancelConfig {
+    JobSetCancelRequest request = 1;
+}
+
+message JobReprioritizeConfig {
+    JobReprioritizeRequest request = 1;
+    // If true, reprioritize the whole job set (request.job_ids left empty) instead of the submitted jobs.
+    bool by_job_set = 2;
 }
