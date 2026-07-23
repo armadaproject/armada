@@ -49,9 +49,10 @@ func (nodeDb *NodeDb) CreateAndInsertWithJobDbJobsWithTxn(txn *memdb.Txn, jobs [
 			priorityClass := job.PriorityClass()
 			priority = priorityClass.Priority
 		}
-		if err := nodeDb.bindJobToNodeInPlace(entry, job, priority); err != nil {
+		if err := entry.AddJob(job, priority); err != nil {
 			return err
 		}
+		nodeDb.scheduledAtPriorityByJobId[job.Id()] = priority
 	}
 	if err := nodeDb.UpsertWithTxn(txn, entry); err != nil {
 		return err
@@ -871,9 +872,14 @@ func (nodeDb *NodeDb) selectNodeForJobWithFairPreemption(txn *memdb.Txn, jctx *c
 
 		nodeCopy := node.node.DeepCopyNilKeys()
 		for _, job := range node.evictedJobs {
+			jobId := job.JobSchedulingContext.JobId
+			priority, ok := nodeDb.GetScheduledAtPriority(jobId)
+			if !ok {
+				priority = job.JobSchedulingContext.Job.PriorityClass().Priority
+			}
+
 			// Remove preempted job from node
-			err = nodeDb.unbindJobFromNodeInPlace(job.JobSchedulingContext.Job, nodeCopy)
-			if err != nil {
+			if err = nodeCopy.RemoveJob(job.JobSchedulingContext.Job, priority); err != nil {
 				return nil, err
 			}
 			// Remove preempted job from list of evicted jobs
@@ -881,10 +887,6 @@ func (nodeDb *NodeDb) selectNodeForJobWithFairPreemption(txn *memdb.Txn, jctx *c
 				return nil, errors.WithStack(err)
 			}
 
-			priority, ok := nodeDb.GetScheduledAtPriority(job.JobSchedulingContext.JobId)
-			if !ok {
-				priority = job.JobSchedulingContext.Job.PriorityClass().Priority
-			}
 			if priority > maxPriority {
 				maxPriority = priority
 			}
@@ -901,9 +903,10 @@ func (nodeDb *NodeDb) selectNodeForJobWithFairPreemption(txn *memdb.Txn, jctx *c
 // BindJobToNode returns a copy of node with job bound to it.
 func (nodeDb *NodeDb) BindJobToNode(node *internaltypes.Node, job *jobdb.Job, priority int32) (*internaltypes.Node, error) {
 	node = node.DeepCopyNilKeys()
-	if err := nodeDb.bindJobToNodeInPlace(node, job, priority); err != nil {
+	if err := node.AddJob(job, priority); err != nil {
 		return nil, err
 	}
+	nodeDb.scheduledAtPriorityByJobId[job.Id()] = priority
 	return node, nil
 }
 
@@ -959,7 +962,11 @@ func (nodeDb *NodeDb) EvictJobsFromNode(
 ) (*internaltypes.Node, error) {
 	node = node.DeepCopyNilKeys()
 	for _, job := range jobs {
-		if err := nodeDb.evictJobFromNodeInPlace(job, node); err != nil {
+		priority, ok := nodeDb.GetScheduledAtPriority(job.Id())
+		if !ok {
+			return nil, errors.Errorf("job %s not mapped to a priority", job.Id())
+		}
+		if err := node.EvictJob(job, priority); err != nil {
 			return nil, err
 		}
 	}
@@ -1035,7 +1042,7 @@ func priorityCutoffFor(job *jobdb.Job, scheduledPriority int32) int32 {
 func (nodeDb *NodeDb) UnbindJobsFromNode(jobs []*jobdb.Job, node *internaltypes.Node) (*internaltypes.Node, error) {
 	node = node.DeepCopyNilKeys()
 	for _, job := range jobs {
-		if err := nodeDb.unbindJobFromNodeInPlace(job, node); err != nil {
+		if err := nodeDb.unbindResolvingPriority(job, node); err != nil {
 			return nil, err
 		}
 	}
@@ -1045,10 +1052,21 @@ func (nodeDb *NodeDb) UnbindJobsFromNode(jobs []*jobdb.Job, node *internaltypes.
 // UnbindJobFromNode returns a copy of node with job unbound from it.
 func (nodeDb *NodeDb) UnbindJobFromNode(job *jobdb.Job, node *internaltypes.Node) (*internaltypes.Node, error) {
 	node = node.DeepCopyNilKeys()
-	if err := nodeDb.unbindJobFromNodeInPlace(job, node); err != nil {
+	if err := nodeDb.unbindResolvingPriority(job, node); err != nil {
 		return nil, err
 	}
 	return node, nil
+}
+
+// unbindResolvingPriority resolves the scheduled priority for job (falling back to
+// its priority class priority when unmapped, matching prior UnbindJob behavior for
+// evicted jobs) and removes it from node.
+func (nodeDb *NodeDb) unbindResolvingPriority(job *jobdb.Job, node *internaltypes.Node) error {
+	priority, ok := nodeDb.GetScheduledAtPriority(job.Id())
+	if !ok {
+		priority = job.PriorityClass().Priority
+	}
+	return node.RemoveJob(job, priority)
 }
 
 // unbindPodFromNodeInPlace is like UnbindJobFromNode, but doesn't make a copy of node.
