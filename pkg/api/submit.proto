@@ -303,6 +303,10 @@ message QueueDeleteRequest {
     string name = 1;
 }
 
+message ExecutorDeleteRequest {
+    string name = 1;
+}
+
 message JobSetInfo {
     string name = 1;
     int32 queued_jobs = 2;
@@ -455,6 +459,11 @@ service Submit {
     rpc DeleteQueue (QueueDeleteRequest) returns (google.protobuf.Empty) {
         option (google.api.http) = {
             delete: "/v1/queue/{name}"
+        };
+    }
+    rpc DeleteExecutor (ExecutorDeleteRequest) returns (google.protobuf.Empty) {
+        option (google.api.http) = {
+            delete: "/v1/executor/{name}"
         };
     }
     rpc GetQueue (QueueGetRequest) returns (Queue) {

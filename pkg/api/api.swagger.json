@@ -114,6 +114,34 @@
         }
       }
     },
+    "/v1/executor/{name}": {
+      "delete": {
+        "tags": [
+          "Submit"
+        ],
+        "operationId": "DeleteExecutor",
+        "parameters": [
+          {
+            "type": "string",
+            "name": "name",
+            "in": "path",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {}
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        }
+      }
+    },
     "/v1/job-set/{queue}/{id}": {
       "post": {
         "produces": [

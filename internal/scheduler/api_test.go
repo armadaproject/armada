@@ -412,6 +412,134 @@ func TestExecutorApi_LeaseJobRuns_Unauthorised(t *testing.T) {
 	assert.Equal(t, codes.PermissionDenied, statusErr.Code())
 }
 
+func TestExecutorApi_LeaseJobRuns_DeletedExecutorCancelsReportedRuns(t *testing.T) {
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
+	defer cancel()
+	ctrl := gomock.NewController(t)
+	mockPulsarPublisher := mocks.NewMockPublisher[*armadaevents.EventSequence](ctrl)
+	mockJobRepository := schedulermocks.NewMockJobRepository(ctrl)
+	mockExecutorRepository := schedulermocks.NewMockExecutorRepository(ctrl)
+	mockStream := schedulermocks.NewMockExecutorApi_LeaseJobRunsServer(ctrl)
+	mockAuthorizer := servermocks.NewMockActionAuthorizer(ctrl)
+	runId := uuid.NewString()
+	request := &executorapi.LeaseRequest{
+		ExecutorId: "deleted-executor",
+		Nodes: []*executorapi.NodeInfo{{
+			RunIdsByState: map[string]api.JobState{runId: api.JobState_RUNNING},
+		}},
+	}
+
+	mockStream.EXPECT().Context().Return(ctx).AnyTimes()
+	mockStream.EXPECT().Recv().Return(request, nil).Times(1)
+	mockAuthorizer.EXPECT().AuthorizeAction(gomock.Any(), permission.Permission(permissions.ExecuteJobs)).Return(nil).Times(1)
+	mockExecutorRepository.EXPECT().StoreExecutor(gomock.Any(), gomock.Any()).Return(database.ErrExecutorDeleted).Times(1)
+	mockStream.EXPECT().Send(&executorapi.LeaseStreamMessage{
+		Event: &executorapi.LeaseStreamMessage_CancelRuns{
+			CancelRuns: &executorapi.CancelRuns{JobRunIdsToCancel: []string{runId}},
+		},
+	}).Times(1)
+	mockStream.EXPECT().Send(&executorapi.LeaseStreamMessage{Event: &executorapi.LeaseStreamMessage_End{}}).Times(1)
+
+	server, err := NewExecutorApi(
+		mockPulsarPublisher,
+		mockJobRepository,
+		mockExecutorRepository,
+		[]int32{1000, 2000},
+		testResourceNames(),
+		"kubernetes.io/hostname",
+		nil,
+		priorityClasses,
+		mockAuthorizer,
+	)
+	require.NoError(t, err)
+
+	err = server.LeaseJobRuns(mockStream)
+	require.NoError(t, err)
+}
+
+func TestExecutorApi_LeaseJobRuns_DeletedExecutorWithNoReportedRunsSendsEnd(t *testing.T) {
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
+	defer cancel()
+	ctrl := gomock.NewController(t)
+	mockPulsarPublisher := mocks.NewMockPublisher[*armadaevents.EventSequence](ctrl)
+	mockJobRepository := schedulermocks.NewMockJobRepository(ctrl)
+	mockExecutorRepository := schedulermocks.NewMockExecutorRepository(ctrl)
+	mockStream := schedulermocks.NewMockExecutorApi_LeaseJobRunsServer(ctrl)
+	mockAuthorizer := servermocks.NewMockActionAuthorizer(ctrl)
+	request := &executorapi.LeaseRequest{ExecutorId: "deleted-executor"}
+
+	mockStream.EXPECT().Context().Return(ctx).AnyTimes()
+	mockStream.EXPECT().Recv().Return(request, nil).Times(1)
+	mockAuthorizer.EXPECT().AuthorizeAction(gomock.Any(), permission.Permission(permissions.ExecuteJobs)).Return(nil).Times(1)
+	mockExecutorRepository.EXPECT().StoreExecutor(gomock.Any(), gomock.Any()).Return(database.ErrExecutorDeleted).Times(1)
+	mockJobRepository.EXPECT().FindInactiveRuns(gomock.Any(), gomock.Any()).Times(0)
+	mockJobRepository.EXPECT().FetchJobRunLeases(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+	mockStream.EXPECT().Send(&executorapi.LeaseStreamMessage{Event: &executorapi.LeaseStreamMessage_End{}}).Times(1)
+
+	server, err := NewExecutorApi(
+		mockPulsarPublisher,
+		mockJobRepository,
+		mockExecutorRepository,
+		[]int32{1000, 2000},
+		testResourceNames(),
+		"kubernetes.io/hostname",
+		nil,
+		priorityClasses,
+		mockAuthorizer,
+	)
+	require.NoError(t, err)
+
+	err = server.LeaseJobRuns(mockStream)
+	require.NoError(t, err)
+}
+
+func TestExecutorApi_LeaseJobRuns_StoreExecutorRejectsDeletedExecutor(t *testing.T) {
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
+	defer cancel()
+	ctrl := gomock.NewController(t)
+	mockPulsarPublisher := mocks.NewMockPublisher[*armadaevents.EventSequence](ctrl)
+	mockJobRepository := schedulermocks.NewMockJobRepository(ctrl)
+	mockExecutorRepository := schedulermocks.NewMockExecutorRepository(ctrl)
+	mockStream := schedulermocks.NewMockExecutorApi_LeaseJobRunsServer(ctrl)
+	mockAuthorizer := servermocks.NewMockActionAuthorizer(ctrl)
+	runId := uuid.NewString()
+	request := &executorapi.LeaseRequest{
+		ExecutorId: "deleted-executor",
+		Nodes: []*executorapi.NodeInfo{{
+			RunIdsByState: map[string]api.JobState{runId: api.JobState_RUNNING},
+		}},
+	}
+
+	mockStream.EXPECT().Context().Return(ctx).AnyTimes()
+	mockStream.EXPECT().Recv().Return(request, nil).Times(1)
+	mockAuthorizer.EXPECT().AuthorizeAction(gomock.Any(), permission.Permission(permissions.ExecuteJobs)).Return(nil).Times(1)
+	mockExecutorRepository.EXPECT().StoreExecutor(gomock.Any(), gomock.Any()).Return(database.ErrExecutorDeleted).Times(1)
+	mockJobRepository.EXPECT().FindInactiveRuns(gomock.Any(), gomock.Any()).Times(0)
+	mockJobRepository.EXPECT().FetchJobRunLeases(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+	mockStream.EXPECT().Send(&executorapi.LeaseStreamMessage{
+		Event: &executorapi.LeaseStreamMessage_CancelRuns{
+			CancelRuns: &executorapi.CancelRuns{JobRunIdsToCancel: []string{runId}},
+		},
+	}).Times(1)
+	mockStream.EXPECT().Send(&executorapi.LeaseStreamMessage{Event: &executorapi.LeaseStreamMessage_End{}}).Times(1)
+
+	server, err := NewExecutorApi(
+		mockPulsarPublisher,
+		mockJobRepository,
+		mockExecutorRepository,
+		[]int32{1000, 2000},
+		testResourceNames(),
+		"kubernetes.io/hostname",
+		nil,
+		priorityClasses,
+		mockAuthorizer,
+	)
+	require.NoError(t, err)
+
+	err = server.LeaseJobRuns(mockStream)
+	require.NoError(t, err)
+}
+
 func TestAddNodeSelector(t *testing.T) {
 	withNodeSelector := &armadaevents.PodSpecWithAvoidList{
 		PodSpec: &v1.PodSpec{

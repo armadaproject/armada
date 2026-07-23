@@ -184,6 +184,7 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 	submitServer := submit.NewServer(
 		queueServer,
 		jobSetEventsPublisher,
+		controlPlaneEventsPublisher,
 		queueCache,
 		config.Submission,
 		submit.NewDeduplicator(dbPool),

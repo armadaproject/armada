@@ -2471,6 +2471,8 @@ type testExecutorRepository struct {
 	shouldError bool
 }
 
+var _ database.ExecutorRepository = (*testExecutorRepository)(nil)
+
 func (t testExecutorRepository) GetExecutors(ctx *armadacontext.Context) ([]*schedulerobjects.Executor, error) {
 	panic("not implemented")
 }
@@ -2487,6 +2489,13 @@ func (t testExecutorRepository) GetLastUpdateTimes(ctx *armadacontext.Context) (
 }
 
 func (t testExecutorRepository) StoreExecutor(ctx *armadacontext.Context, executor *schedulerobjects.Executor) error {
+	panic("not implemented")
+}
+
+func (t testExecutorRepository) DeleteExecutor(ctx *armadacontext.Context, executorId string) error {
+	if t.shouldError {
+		return errors.New("error deleting executor")
+	}
 	panic("not implemented")
 }
 
@@ -2617,7 +2626,6 @@ func (t *testSchedulingAlgo) Persist() {
 		return
 	}
 	t.persisted = true
-	return
 }
 
 func NewSchedulerResultForTest[S ~[]T, T *jobdb.Job](

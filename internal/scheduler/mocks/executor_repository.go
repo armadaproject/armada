@@ -42,6 +42,20 @@ func (m *MockExecutorRepository) EXPECT() *MockExecutorRepositoryMockRecorder {
 	return m.recorder
 }
 
+// DeleteExecutor mocks base method.
+func (m *MockExecutorRepository) DeleteExecutor(ctx *armadacontext.Context, executorId string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteExecutor", ctx, executorId)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteExecutor indicates an expected call of DeleteExecutor.
+func (mr *MockExecutorRepositoryMockRecorder) DeleteExecutor(ctx, executorId any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteExecutor", reflect.TypeOf((*MockExecutorRepository)(nil).DeleteExecutor), ctx, executorId)
+}
+
 // GetExecutorSettings mocks base method.
 func (m *MockExecutorRepository) GetExecutorSettings(ctx *armadacontext.Context) ([]*schedulerobjects.ExecutorSettings, error) {
 	m.ctrl.T.Helper()

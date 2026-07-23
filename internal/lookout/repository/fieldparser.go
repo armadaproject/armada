@@ -33,7 +33,7 @@ func (fp *LastTransitionTimeParser) GetVariableRef() interface{} {
 
 func (fp *LastTransitionTimeParser) ParseValue() (interface{}, error) {
 	t := time.Unix(int64(math.Round(fp.variable.Float64)), 0)
-	return t.Format(time.RFC3339), nil
+	return t.UTC().Format(time.RFC3339), nil
 }
 
 type TimeParser struct {

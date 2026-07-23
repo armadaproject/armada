@@ -11,6 +11,7 @@ import (
 	"golang.org/x/exp/maps"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/common/constants"
 	"github.com/armadaproject/armada/internal/common/database"
 	"github.com/armadaproject/armada/internal/common/ingest"
 	"github.com/armadaproject/armada/internal/common/ingest/metrics"
@@ -400,11 +401,12 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 	case UpsertExecutorSettings:
 		for _, settingsUpsert := range o {
 			err := queries.UpsertExecutorSettings(ctx, schedulerdb.UpsertExecutorSettingsParams{
-				ExecutorID:   settingsUpsert.ExecutorID,
-				Cordoned:     settingsUpsert.Cordoned,
-				CordonReason: settingsUpsert.CordonReason,
-				SetByUser:    settingsUpsert.SetByUser,
-				SetAtTime:    settingsUpsert.SetAtTime,
+				ExecutorID:            settingsUpsert.ExecutorID,
+				Cordoned:              settingsUpsert.Cordoned,
+				CordonReason:          settingsUpsert.CordonReason,
+				SetByUser:             settingsUpsert.SetByUser,
+				SetAtTime:             settingsUpsert.SetAtTime,
+				TombstoneCordonReason: constants.ExecutorDeletedCordonReason,
 			})
 			if err != nil {
 				return errors.Wrapf(err, "error upserting executor settings for %s", settingsUpsert.ExecutorID)
@@ -413,9 +415,53 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 		return nil
 	case DeleteExecutorSettings:
 		for _, settingsUpsert := range o {
-			err := queries.DeleteExecutorSettings(ctx, settingsUpsert.ExecutorID)
+			err := queries.DeleteExecutorSettings(ctx, schedulerdb.DeleteExecutorSettingsParams{
+				ExecutorID:   settingsUpsert.ExecutorID,
+				CordonReason: constants.ExecutorDeletedCordonReason,
+			})
 			if err != nil {
 				return errors.Wrapf(err, "error deleting executor settings for %s", settingsUpsert.ExecutorID)
+			}
+		}
+		return nil
+	case DeleteExecutor:
+		for _, executorDelete := range o {
+			if err := schedulerdb.AcquireExecutorLock(ctx, tx, executorDelete.ExecutorID); err != nil {
+				return errors.Wrapf(err, "error acquiring lock for executor %s", executorDelete.ExecutorID)
+			}
+			jobs, err := queries.SelectJobsByExecutor(ctx, executorDelete.ExecutorID)
+			if err != nil {
+				return errors.Wrapf(err, "error selecting jobs on executor %s", executorDelete.ExecutorID)
+			}
+			for _, requestCancelParams := range createMarkJobsCancelRequestedByIdParams(jobs, cancelReasonCancelOnExecutor) {
+				if err := queries.MarkJobsCancelRequestedById(ctx, *requestCancelParams); err != nil {
+					return errors.Wrapf(err, "error cancelling jobs on executor %s", executorDelete.ExecutorID)
+				}
+			}
+			if err := queries.MarkActiveJobRunsFailedByExecutor(ctx, schedulerdb.MarkActiveJobRunsFailedByExecutorParams{
+				TerminatedTimestamp: executorDelete.SetAtTime,
+				Executor:            executorDelete.ExecutorID,
+			}); err != nil {
+				return errors.Wrapf(err, "error terminalizing runs on executor %s", executorDelete.ExecutorID)
+			}
+			if err := queries.UpsertExecutorSettings(ctx, schedulerdb.UpsertExecutorSettingsParams{
+				ExecutorID:            executorDelete.ExecutorID,
+				Cordoned:              true,
+				CordonReason:          constants.ExecutorDeletedCordonReason,
+				SetByUser:             executorDelete.SetByUser,
+				SetAtTime:             executorDelete.SetAtTime,
+				TombstoneCordonReason: constants.ExecutorDeletedCordonReason,
+			}); err != nil {
+				return errors.Wrapf(err, "error tombstoning executor settings for %s", executorDelete.ExecutorID)
+			}
+			rowsAffected, err := queries.DeleteExecutor(ctx, executorDelete.ExecutorID)
+			if err != nil {
+				return errors.Wrapf(err, "error deleting executor %s", executorDelete.ExecutorID)
+			}
+			if rowsAffected == 0 {
+				// The tombstone and cancellation/terminalization requests above are durable;
+				// hard-delete may be retried after any remaining non-terminal runs drain.
+				continue
 			}
 		}
 		return nil
@@ -742,4 +788,78 @@ func filterJobsByPriorityClasses(jobs []schedulerdb.Job, priorityClasses []strin
 		}
 	}
 	return filteredJobs, nil
+}
+
+func (s *SchedulerDb) ReconcileDeletedExecutors(ctx *armadacontext.Context) error {
+	queries := schedulerdb.New(s.db)
+	tombstoned, err := queries.SelectTombstonedExecutors(ctx, constants.ExecutorDeletedCordonReason)
+	if err != nil {
+		return errors.Wrap(err, "error selecting tombstoned executors")
+	}
+	if len(tombstoned) == 0 {
+		return nil
+	}
+	ctx.Infof("reconciling %d tombstoned executor(s)", len(tombstoned))
+	for _, executorID := range tombstoned {
+		if err := s.reconcileDeletedExecutor(ctx, executorID); err != nil {
+			ctx.Errorf("error reconciling executor %s: %v", executorID, err)
+		}
+	}
+	return nil
+}
+
+func (s *SchedulerDb) RunReconciler(ctx *armadacontext.Context, interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			ctx.Info("reconciler stopped")
+			return
+		case <-ticker.C:
+			if err := s.ReconcileDeletedExecutors(ctx); err != nil {
+				ctx.Errorf("reconciler error: %v", err)
+			}
+		}
+	}
+}
+
+func (s *SchedulerDb) reconcileDeletedExecutor(ctx *armadacontext.Context, executorID string) error {
+	return pgx.BeginTxFunc(ctx, s.db, pgx.TxOptions{
+		IsoLevel:       pgx.ReadCommitted,
+		AccessMode:     pgx.ReadWrite,
+		DeferrableMode: pgx.Deferrable,
+	}, func(tx pgx.Tx) error {
+		if err := schedulerdb.AcquireExecutorLock(ctx, tx, executorID); err != nil {
+			return errors.Wrapf(err, "error acquiring lock for executor %s", executorID)
+		}
+		queries := schedulerdb.New(tx)
+		jobs, err := queries.SelectJobsByExecutor(ctx, executorID)
+		if err != nil {
+			return errors.Wrapf(err, "error selecting jobs on executor %s", executorID)
+		}
+		if len(jobs) > 0 {
+			for _, requestCancelParams := range createMarkJobsCancelRequestedByIdParams(jobs, cancelReasonCancelOnExecutor) {
+				if err := queries.MarkJobsCancelRequestedById(ctx, *requestCancelParams); err != nil {
+					return errors.Wrapf(err, "error cancelling jobs on executor %s", executorID)
+				}
+			}
+		}
+		if err := queries.MarkActiveJobRunsFailedByExecutor(ctx, schedulerdb.MarkActiveJobRunsFailedByExecutorParams{
+			TerminatedTimestamp: time.Now(),
+			Executor:            executorID,
+		}); err != nil {
+			return errors.Wrapf(err, "error terminalizing runs on executor %s", executorID)
+		}
+		rowsAffected, err := queries.DeleteExecutor(ctx, executorID)
+		if err != nil {
+			return errors.Wrapf(err, "error deleting executor %s", executorID)
+		}
+		if rowsAffected == 0 {
+			ctx.Infof("deferred delete for executor %s (non-terminal runs remain)", executorID)
+		} else {
+			ctx.Infof("hard-deleted executor %s", executorID)
+		}
+		return nil
+	})
 }

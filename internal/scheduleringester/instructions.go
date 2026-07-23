@@ -469,6 +469,9 @@ func (c *ControlPlaneEventsInstructionConverter) dbOperationFromControlPlaneEven
 		operations, err = c.handleExecutorSettingsUpsert(event.GetExecutorSettingsUpsert(), eventTime)
 	case *controlplaneevents.Event_ExecutorSettingsDelete:
 		operations, err = c.handleExecutorSettingsDelete(event.GetExecutorSettingsDelete())
+	case *controlplaneevents.Event_ExecutorDelete:
+		eventTime := protoutil.ToStdTime(event.Created)
+		operations, err = c.handleExecutorDelete(event.GetExecutorDelete(), eventTime)
 	case *controlplaneevents.Event_PreemptOnExecutor:
 		operations, err = c.handlePreemptOnExecutor(event.GetPreemptOnExecutor())
 	case *controlplaneevents.Event_CancelOnNode:
@@ -511,6 +514,18 @@ func (c *ControlPlaneEventsInstructionConverter) handleExecutorSettingsDelete(de
 		DeleteExecutorSettings{
 			delete.Name: &ExecutorSettingsDelete{
 				ExecutorID: delete.Name,
+			},
+		},
+	}, nil
+}
+
+func (c *ControlPlaneEventsInstructionConverter) handleExecutorDelete(delete *controlplaneevents.ExecutorDelete, setAtTime time.Time) ([]DbOperation, error) {
+	return []DbOperation{
+		DeleteExecutor{
+			delete.ExecutorId: &ExecutorDelete{
+				ExecutorID: delete.ExecutorId,
+				SetByUser:  delete.SetByUser,
+				SetAtTime:  setAtTime,
 			},
 		},
 	}, nil
