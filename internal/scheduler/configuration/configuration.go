@@ -415,6 +415,15 @@ func (p PoolConfig) GetSubmissionGroup() string {
 	return p.ExperimentalSubmissionGroup
 }
 
+// UnmarshalConfigString allows an away pool to be specified in config as a plain
+// string (e.g. "awayPools: [poolA, poolB]"), decoding it into AwayPoolConfig{Name: "poolA"}.
+// This preserves backwards compatibility with the deprecated []string form.
+// It opts AwayPoolConfig in to commonconfig.StringConfigUnmarshalerHook during config decode.
+func (a *AwayPoolConfig) UnmarshalConfigString(text string) error {
+	a.Name = text
+	return nil
+}
+
 // AwayPoolNames returns the names of the away pools configured for this pool.
 func (p PoolConfig) AwayPoolNames() []string {
 	names := make([]string, len(p.AwayPools))
@@ -429,15 +438,6 @@ type AwayPoolConfig struct {
 	Name string `validate:"required"`
 	// Node holds configuration applied to nodes from this away pool as they are loaded into the NodeDb.
 	Node NodeConfig
-}
-
-// UnmarshalText allows an away pool to be specified in config as a plain string
-// (e.g. "awayPools: [poolA, poolB]"), decoding it into AwayPoolConfig{Name: "poolA"}.
-// This preserves backwards compatibility with the deprecated []string form.
-// It is relied upon by mapstructure's TextUnmarshallerHookFunc during config decode.
-func (a *AwayPoolConfig) UnmarshalText(text []byte) error {
-	a.Name = string(text)
-	return nil
 }
 
 // NodeConfig groups configuration applied to away-pool nodes. It currently only

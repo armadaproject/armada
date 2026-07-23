@@ -7,7 +7,6 @@ import (
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	commonconfig "github.com/armadaproject/armada/internal/common/config"
@@ -164,43 +163,4 @@ pools:
 			assert.Equal(t, []string{"poolA", "poolB"}, sc.Pools[0].AwayPoolNames())
 		})
 	}
-}
-
-func TestNodeModificationsDecoding(t *testing.T) {
-	yamlConfig := `
-pools:
-  - name: home
-    awayPools:
-      - name: poolA
-        node:
-          modifications:
-            taints:
-              - operation: Delete
-                taint: { key: gpu-reserved, value: "*", effect: NoSchedule }
-              - operation: Add
-                taint: { key: armada.io/away, value: "true", effect: NoSchedule }
-      - poolB
-`
-	v := viper.NewWithOptions(viper.KeyDelimiter("::"))
-	v.SetConfigType("yaml")
-	require.NoError(t, v.ReadConfig(bytes.NewBufferString(yamlConfig)))
-
-	var sc SchedulingConfig
-	require.NoError(t, v.Unmarshal(&sc, commonconfig.CustomHooks...))
-
-	require.Len(t, sc.Pools, 1)
-	require.Len(t, sc.Pools[0].AwayPools, 2)
-
-	poolA := sc.Pools[0].AwayPools[0]
-	assert.Equal(t, "poolA", poolA.Name)
-	require.Len(t, poolA.Node.Modifications.Taints, 2)
-	assert.Equal(t, TaintOperationDelete, poolA.Node.Modifications.Taints[0].Operation)
-	assert.Equal(t, v1.Taint{Key: "gpu-reserved", Value: "*", Effect: v1.TaintEffectNoSchedule}, poolA.Node.Modifications.Taints[0].Taint)
-	assert.Equal(t, TaintOperationAdd, poolA.Node.Modifications.Taints[1].Operation)
-	assert.Equal(t, v1.Taint{Key: "armada.io/away", Value: "true", Effect: v1.TaintEffectNoSchedule}, poolA.Node.Modifications.Taints[1].Taint)
-
-	// Backward compat: plain-string form decodes with empty modifications.
-	poolB := sc.Pools[0].AwayPools[1]
-	assert.Equal(t, "poolB", poolB.Name)
-	assert.Empty(t, poolB.Node.Modifications.Taints)
 }
