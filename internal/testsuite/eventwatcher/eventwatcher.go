@@ -253,7 +253,8 @@ func ErrorOnNoActiveJobs(parent context.Context, C chan *api.EventMessage, jobId
 				numActive++
 			} else if e := msg.GetSucceeded(); e != nil {
 				if _, ok := exitedByJobId[e.JobId]; ok {
-					return errors.Errorf("received multiple terminal events for job %s", e.JobId)
+					fmt.Fprintf(os.Stderr, "warn: duplicate succeeded event for job %s\n", e.JobId)
+					continue
 				}
 				exitedByJobId[e.JobId] = true
 				if _, ok := jobIds[e.JobId]; ok {
@@ -282,7 +283,8 @@ func ErrorOnNoActiveJobs(parent context.Context, C chan *api.EventMessage, jobId
 				}
 			} else if e := msg.GetCancelled(); e != nil {
 				if _, ok := exitedByJobId[e.JobId]; ok {
-					return errors.Errorf("received multiple terminal events for job %s", e.JobId)
+					fmt.Fprintf(os.Stderr, "warn: duplicate cancelled event for job %s\n", e.JobId)
+					continue
 				}
 				exitedByJobId[e.JobId] = true
 				if _, ok := jobIds[e.JobId]; ok {
