@@ -1377,6 +1377,42 @@ func test32CpuNode(priorities []int32) *schedulerobjects.Node {
 	)
 }
 
+func TestBuildInUsePriorityClasses(t *testing.T) {
+	schedulingConfig := testfixtures.TestSchedulingConfig()
+	sch := &FairSchedulingAlgo{schedulingConfig: schedulingConfig}
+
+	tests := map[string]struct {
+		inUse    map[string]bool
+		expected []string
+	}{
+		"empty in-use returns only default": {
+			inUse:    map[string]bool{},
+			expected: []string{testfixtures.TestDefaultPriorityClass},
+		},
+		"subset plus default": {
+			inUse:    map[string]bool{testfixtures.PriorityClass0: true, testfixtures.PriorityClass1: true},
+			expected: []string{testfixtures.PriorityClass0, testfixtures.PriorityClass1, testfixtures.TestDefaultPriorityClass},
+		},
+		"default already in use is not duplicated": {
+			inUse:    map[string]bool{testfixtures.TestDefaultPriorityClass: true},
+			expected: []string{testfixtures.TestDefaultPriorityClass},
+		},
+		"unknown name is ignored but default kept": {
+			inUse:    map[string]bool{"does-not-exist": true},
+			expected: []string{testfixtures.TestDefaultPriorityClass},
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			result := sch.buildInUsePriorityClasses(tc.inUse)
+			assert.ElementsMatch(t, tc.expected, maps.Keys(result))
+			for _, pcName := range tc.expected {
+				assert.Equal(t, schedulingConfig.PriorityClasses[pcName], result[pcName])
+			}
+		})
+	}
+}
+
 type testRunReconciler struct {
 	jobIdsToFailReconciliation []string
 }

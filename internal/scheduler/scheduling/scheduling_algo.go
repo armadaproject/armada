@@ -17,6 +17,7 @@ import (
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
+	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/floatingresources"
@@ -676,6 +677,20 @@ func (l *FairSchedulingAlgo) calculateJobSchedulingInfo(ctx *armadacontext.Conte
 		awayAllocatedByQueueAndPriorityClass: awayAllocatedByQueueAndPriorityClass,
 		shortJobPenaltyByQueue:               shortJobPenaltyByQueue,
 	}, nil
+}
+
+func (l *FairSchedulingAlgo) buildInUsePriorityClasses(inUse map[string]bool) map[string]types.PriorityClass {
+	cfg := l.schedulingConfig.PriorityClasses
+	result := make(map[string]types.PriorityClass, len(inUse)+1)
+	if def, ok := cfg[l.schedulingConfig.DefaultPriorityClassName]; ok {
+		result[l.schedulingConfig.DefaultPriorityClassName] = def
+	}
+	for name := range inUse {
+		if pc, ok := cfg[name]; ok {
+			result[name] = pc
+		}
+	}
+	return result
 }
 
 func (l *FairSchedulingAlgo) constructNodeDb(poolConfig configuration.PoolConfig, currentPoolJobs []*jobdb.Job, otherPoolsJobs []*jobdb.Job, nodes []*internaltypes.Node) (*nodedb.NodeDb, error) {
