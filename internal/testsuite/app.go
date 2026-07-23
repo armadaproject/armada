@@ -98,7 +98,12 @@ func TestSpecsFromPattern(pattern string) ([]*api.TestSpec, error) {
 		if err != nil {
 			return nil, errors.Wrapf(err, "failed to glob test specs with pattern %s", p)
 		}
-		allPaths = append(allPaths, paths...)
+		for _, path := range paths {
+			ext := strings.ToLower(filepath.Ext(path))
+			if ext == ".yaml" || ext == ".yml" {
+				allPaths = append(allPaths, path)
+			}
+		}
 	}
 	return TestSpecsFromFilePaths(allPaths)
 }
