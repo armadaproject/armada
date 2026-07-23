@@ -1058,13 +1058,20 @@ func (nodeDb *NodeDb) UnbindJobFromNode(job *jobdb.Job, node *internaltypes.Node
 	return node, nil
 }
 
-// unbindResolvingPriority resolves the scheduled priority for job (falling back to
-// its priority class priority when unmapped, matching prior UnbindJob behavior for
-// evicted jobs) and removes it from node.
+// unbindResolvingPriority resolves the scheduled priority for job and removes it from node.
+// A currently-bound, non-evicted job must have a mapped priority; matching the original
+// unbind behavior, its absence is an error. Evicted jobs return their resources at
+// EvictedPriority regardless (RemoveJob ignores the passed priority for them), and an
+// already-unbound job is a no-op, so neither requires a mapping.
 func (nodeDb *NodeDb) unbindResolvingPriority(job *jobdb.Job, node *internaltypes.Node) error {
-	priority, ok := nodeDb.GetScheduledAtPriority(job.Id())
+	jobId := job.Id()
+	priority, ok := nodeDb.GetScheduledAtPriority(jobId)
 	if !ok {
-		priority = job.PriorityClass().Priority
+		_, isEvicted := node.EvictedJobRunIds[jobId]
+		_, isBound := node.AllocatedByJobId[jobId]
+		if isBound && !isEvicted {
+			return errors.Errorf("job %s not mapped to a priority", jobId)
+		}
 	}
 	return node.RemoveJob(job, priority)
 }
