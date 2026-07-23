@@ -159,6 +159,13 @@ type NodeDb struct {
 	disableGangAwayScheduling  bool
 	disableFairshareScheduling bool
 	disableUrgencyScheduling   bool
+
+	// pool is the pool this NodeDb is scheduling for.
+	// When set (non-empty), jobs whose run pool differs from it (cross-pool "away" jobs)
+	// are accounted at CrossPoolPriority so any home job can urgency-preempt them ahead of home jobs.
+	// Empty string disables cross-pool detection (all jobs treated as home)
+	//  - Callers leave it unset to fall back to the legacy behaviour (see DisablePreemptCrossPoolJobsFirst config).
+	pool string
 }
 
 func NewNodeDb(
@@ -169,7 +176,7 @@ func NewNodeDb(
 	wellKnownNodeTypes []configuration.WellKnownNodeType,
 	resourceListFactory *internaltypes.ResourceListFactory,
 ) (*NodeDb, error) {
-	nodeDbPriorities := []int32{internaltypes.EvictedPriority}
+	nodeDbPriorities := []int32{internaltypes.EvictedPriority, internaltypes.CrossPoolPriority}
 	nodeDbPriorities = append(nodeDbPriorities, types.AllowedPriorities(priorityClasses)...)
 
 	indexedResourceNames := slices.Map(indexedResources, func(v configuration.ResourceType) string { return v.Name })
@@ -232,6 +239,14 @@ func NewNodeDb(
 	}
 
 	return &nodeDb, nil
+}
+
+func (nodeDb *NodeDb) SetPool(pool string) {
+	nodeDb.pool = pool
+}
+
+func (nodeDb *NodeDb) GetPool() string {
+	return nodeDb.pool
 }
 
 func makeIndexedResourceResolution(indexedResourceTypes []configuration.ResourceType, resourceListFactory *internaltypes.ResourceListFactory) ([]int64, error) {
@@ -934,12 +949,19 @@ func (nodeDb *NodeDb) bindJobToNodeInPlace(node *internaltypes.Node, job *jobdb.
 	}
 
 	allocatable := node.AllocatableByPriority
-	markAllocated(allocatable, priorityCutoffFor(job, priority), requests)
+	trackedPriority := priority
+	if nodeDb.pool != "" && !context.IsHomeJob(job, nodeDb.pool) {
+		// Cross-pool ("away") jobs are accounted at CrossPoolPriority so any home job can
+		// urgency-preempt them first, regardless of their configured away priority.
+		// A cross-pool NodeDb leaves pool unset to opt out of this (legacy behaviour).
+		trackedPriority = internaltypes.CrossPoolPriority
+	}
+	markAllocated(allocatable, priorityCutoffForPriority(job, trackedPriority), requests)
 	if isEvicted {
 		markAllocatable(allocatable, internaltypes.EvictedPriority, requests)
 	}
 
-	nodeDb.scheduledAtPriorityByJobId[jobId] = priority
+	nodeDb.scheduledAtPriorityByJobId[jobId] = trackedPriority
 
 	return nil
 }
@@ -1025,8 +1047,15 @@ const nonPreemptibleCutoff = math.MaxInt32
 // already saturated by non-preemptible incumbents, since both the rebalance and
 // oversubscribed evictors refuse to evict non-preemptible jobs.
 func priorityCutoffFor(job *jobdb.Job, scheduledPriority int32) int32 {
+	return priorityCutoffForPriority(job, scheduledPriority)
+}
+
+// priorityCutoffForPriority is like priorityCutoffFor but takes an explicit priority,
+// used when the tracking priority has been overridden (e.g. cross-pool jobs tracked
+// at CrossPoolPriority).
+func priorityCutoffForPriority(job *jobdb.Job, priority int32) int32 {
 	if job.PriorityClass().Preemptible {
-		return scheduledPriority
+		return priority
 	}
 	return nonPreemptibleCutoff
 }

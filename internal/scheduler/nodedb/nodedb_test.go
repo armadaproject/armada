@@ -30,6 +30,31 @@ func TestNodeDbSchema(t *testing.T) {
 	assert.NoError(t, schema.Validate())
 }
 
+func TestNodeDbIncludesCrossPoolPriority(t *testing.T) {
+	nodeDb, err := newNodeDbWithNodes(nil)
+	require.NoError(t, err)
+	require.Contains(t, nodeDb.nodeDbPriorities, internaltypes.CrossPoolPriority)
+	require.Contains(t, nodeDb.nodeDbPriorities, internaltypes.EvictedPriority)
+	// Priorities must be ascending: EvictedPriority (-2) then CrossPoolPriority (-1) then reals.
+	require.Equal(t, internaltypes.EvictedPriority, nodeDb.nodeDbPriorities[0])
+	require.Equal(t, internaltypes.CrossPoolPriority, nodeDb.nodeDbPriorities[1])
+	// Schema index maps must have entries for the new bucket.
+	_, ok := nodeDb.indexNameByPriority[internaltypes.CrossPoolPriority]
+	require.True(t, ok)
+	_, ok = nodeDb.keyIndexByPriority[internaltypes.CrossPoolPriority]
+	require.True(t, ok)
+}
+
+func TestNodeDbPoolSetter(t *testing.T) {
+	nodeDb, err := newNodeDbWithNodes(nil)
+	require.NoError(t, err)
+	// Default (unset) disables cross-pool detection.
+	require.Equal(t, "", nodeDb.GetPool())
+
+	nodeDb.SetPool("gpu")
+	require.Equal(t, "gpu", nodeDb.GetPool())
+}
+
 // Test the accounting of total resources across all nodes.
 func TestTotalResources(t *testing.T) {
 	nodeDb, err := newNodeDbWithNodes([]*internaltypes.Node{})
@@ -233,6 +258,56 @@ func TestNodeBindingEvictionUnbinding(t *testing.T) {
 	assert.Empty(t, unboundNode.EvictedJobRunIds)
 }
 
+// When the NodeDb's pool is set, a job whose run pool differs from it (a cross-pool
+// "away" job) is tracked at CrossPoolPriority so any home job can urgency-preempt it
+// first, regardless of the priority it was bound at. A home job (run pool == NodeDb
+// pool) keeps its real priority, and an unset pool disables cross-pool detection
+// entirely (all jobs treated as home).
+func TestBindCrossPoolJobBucketing(t *testing.T) {
+	// The job's run always lives in pool "cpu"; the NodeDb pool determines home/away.
+	const jobRunPool = "cpu"
+	tests := map[string]struct {
+		nodeDbPool       string
+		expectedPriority int32
+	}{
+		"away when nodeDb pool differs": {
+			nodeDbPool:       "gpu",
+			expectedPriority: internaltypes.CrossPoolPriority,
+		},
+		"home when nodeDb pool matches run pool": {
+			nodeDbPool:       jobRunPool,
+			expectedPriority: testfixtures.TestPriorityClasses[testfixtures.PriorityClass0].Priority,
+		},
+		"home when nodeDb pool unset (cross-pool detection off)": {
+			nodeDbPool:       "",
+			expectedPriority: testfixtures.TestPriorityClasses[testfixtures.PriorityClass0].Priority,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			node := testfixtures.Test32CpuNode(testfixtures.TestPriorities)
+			nodeDb, err := newNodeDbWithNodes([]*internaltypes.Node{node})
+			require.NoError(t, err)
+			if tc.nodeDbPool != "" {
+				nodeDb.SetPool(tc.nodeDbPool)
+			}
+
+			entry, err := nodeDb.GetNode(node.GetId())
+			require.NoError(t, err)
+
+			job := testfixtures.Test1Cpu4GiJob("queue-a", testfixtures.PriorityClass0)
+			job = job.WithQueued(false).WithNewRun("executor-01", node.GetId(), node.GetName(), jobRunPool, job.PriorityClass().Priority)
+
+			_, err = nodeDb.BindJobToNode(entry, job, job.PriorityClass().Priority)
+			require.NoError(t, err)
+
+			priority, ok := nodeDb.GetScheduledAtPriority(job.Id())
+			require.True(t, ok)
+			require.Equal(t, tc.expectedPriority, priority)
+		})
+	}
+}
+
 // Covers the pods resource path, which TestNodeBindingEvictionUnbinding does not exercise.
 // Bind, evict, and unbind flow resource requirements through KubernetesResourceRequirements,
 // so a regression in pod-slot accounting would surface here even though the cpu/memory/GPU
@@ -382,14 +457,15 @@ func TestEviction(t *testing.T) {
 	// PriorityClass3 is non-preemptible, so its 1cpu/4Gi is deducted at every
 	// priority including 28000+, not just <= 3.
 	assert.Equal(t, map[int32]internaltypes.ResourceList{
-		-1:    testfixtures.CpuMem("30", "248Gi"),
-		0:     testfixtures.CpuMem("30", "248Gi"),
-		1:     testfixtures.CpuMem("31", "252Gi"),
-		2:     testfixtures.CpuMem("31", "252Gi"),
-		3:     testfixtures.CpuMem("31", "252Gi"),
-		28000: testfixtures.CpuMem("31", "252Gi"),
-		29000: testfixtures.CpuMem("31", "252Gi"),
-		30000: testfixtures.CpuMem("31", "252Gi"),
+		internaltypes.EvictedPriority:   testfixtures.CpuMem("30", "248Gi"),
+		internaltypes.CrossPoolPriority: testfixtures.CpuMem("30", "248Gi"),
+		0:                               testfixtures.CpuMem("30", "248Gi"),
+		1:                               testfixtures.CpuMem("31", "252Gi"),
+		2:                               testfixtures.CpuMem("31", "252Gi"),
+		3:                               testfixtures.CpuMem("31", "252Gi"),
+		28000:                           testfixtures.CpuMem("31", "252Gi"),
+		29000:                           testfixtures.CpuMem("31", "252Gi"),
+		30000:                           testfixtures.CpuMem("31", "252Gi"),
 	}, node.AllocatableByPriority)
 
 	returnedNode, err := nodeDb.EvictJobsFromNode(jobs, node)
@@ -399,25 +475,27 @@ func TestEviction(t *testing.T) {
 
 	// EvictJobsFromNode returns a copy; the original node is unchanged.
 	assert.Equal(t, map[int32]internaltypes.ResourceList{
-		-1:    testfixtures.CpuMem("30", "248Gi"),
-		0:     testfixtures.CpuMem("30", "248Gi"),
-		1:     testfixtures.CpuMem("31", "252Gi"),
-		2:     testfixtures.CpuMem("31", "252Gi"),
-		3:     testfixtures.CpuMem("31", "252Gi"),
-		28000: testfixtures.CpuMem("31", "252Gi"),
-		29000: testfixtures.CpuMem("31", "252Gi"),
-		30000: testfixtures.CpuMem("31", "252Gi"),
+		internaltypes.EvictedPriority:   testfixtures.CpuMem("30", "248Gi"),
+		internaltypes.CrossPoolPriority: testfixtures.CpuMem("30", "248Gi"),
+		0:                               testfixtures.CpuMem("30", "248Gi"),
+		1:                               testfixtures.CpuMem("31", "252Gi"),
+		2:                               testfixtures.CpuMem("31", "252Gi"),
+		3:                               testfixtures.CpuMem("31", "252Gi"),
+		28000:                           testfixtures.CpuMem("31", "252Gi"),
+		29000:                           testfixtures.CpuMem("31", "252Gi"),
+		30000:                           testfixtures.CpuMem("31", "252Gi"),
 	}, node.AllocatableByPriority)
 
 	assert.Equal(t, map[int32]internaltypes.ResourceList{
-		-1:    testfixtures.CpuMem("30", "248Gi"),
-		0:     testfixtures.CpuMem("32", "256Gi"),
-		1:     testfixtures.CpuMem("32", "256Gi"),
-		2:     testfixtures.CpuMem("32", "256Gi"),
-		3:     testfixtures.CpuMem("32", "256Gi"),
-		28000: testfixtures.CpuMem("32", "256Gi"),
-		29000: testfixtures.CpuMem("32", "256Gi"),
-		30000: testfixtures.CpuMem("32", "256Gi"),
+		internaltypes.EvictedPriority:   testfixtures.CpuMem("30", "248Gi"),
+		internaltypes.CrossPoolPriority: testfixtures.CpuMem("32", "256Gi"),
+		0:                               testfixtures.CpuMem("32", "256Gi"),
+		1:                               testfixtures.CpuMem("32", "256Gi"),
+		2:                               testfixtures.CpuMem("32", "256Gi"),
+		3:                               testfixtures.CpuMem("32", "256Gi"),
+		28000:                           testfixtures.CpuMem("32", "256Gi"),
+		29000:                           testfixtures.CpuMem("32", "256Gi"),
+		30000:                           testfixtures.CpuMem("32", "256Gi"),
 	}, returnedNode.AllocatableByPriority)
 }
 

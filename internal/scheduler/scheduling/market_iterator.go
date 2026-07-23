@@ -11,9 +11,10 @@ import (
 )
 
 type MarketIteratorPQ struct {
-	items               []*MarketIteratorPQItem
-	previousResultCost  float64
-	previousResultQueue string
+	preemptCrossPoolJobsFirst bool
+	items                     []*MarketIteratorPQItem
+	previousResultCost        float64
+	previousResultQueue       string
 }
 
 type MarketBasedCandidateGangIterator struct {
@@ -33,13 +34,15 @@ func NewMarketCandidateGangIterator(
 	pool string,
 	queueRepository fairness.QueueRepository,
 	iteratorsByQueue map[string]*QueuedGangIterator,
+	preemptCrossPoolJobsFirst bool,
 ) (*MarketBasedCandidateGangIterator, error) {
 	it := &MarketBasedCandidateGangIterator{
 		pool:                    pool,
 		queueRepository:         queueRepository,
 		onlyYieldEvictedByQueue: make(map[string]bool),
 		pq: MarketIteratorPQ{
-			items: make([]*MarketIteratorPQItem, 0, len(iteratorsByQueue)),
+			preemptCrossPoolJobsFirst: preemptCrossPoolJobsFirst,
+			items:                     make([]*MarketIteratorPQItem, 0, len(iteratorsByQueue)),
 		},
 	}
 	for queue, queueIt := range iteratorsByQueue {
@@ -117,6 +120,7 @@ func (it *MarketBasedCandidateGangIterator) updatePQItem(item *MarketIteratorPQI
 
 	job := gctx.JobSchedulingContexts[0].Job
 	item.gctx = gctx
+	item.away = !gctx.JobSchedulingContexts[0].IsHomeJob(it.pool)
 	item.price = job.GetBidPrice(it.pool)
 	item.queued = job.Queued()
 	if !job.Queued() && job.LatestRun() != nil {
@@ -197,6 +201,8 @@ type MarketIteratorPQItem struct {
 	runtime       int64
 	queued        bool
 	submittedTime int64
+	// away is true when this item's gang is a cross-pool ("away") gang for the pool being scheduled.
+	away bool
 	// Most recent value produced by the iterator.
 	// Cached here to avoid repeating scheduling checks unnecessarily.
 	gctx *schedulercontext.GangSchedulingContext
@@ -210,6 +216,12 @@ type MarketIteratorPQItem struct {
 func (pq *MarketIteratorPQ) Len() int { return len(pq.items) }
 
 func (pq *MarketIteratorPQ) Less(i, j int) bool {
+	// Home jobs are always scheduled before cross-pool ("away") jobs when enabled.
+	// Within each group, the existing ordering below applies unchanged.
+	if pq.preemptCrossPoolJobsFirst && pq.items[i].away != pq.items[j].away {
+		return !pq.items[i].away
+	}
+
 	// First by price
 	if pq.items[i].price != pq.items[j].price {
 		return pq.items[i].price > pq.items[j].price

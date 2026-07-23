@@ -14,9 +14,14 @@ import (
 )
 
 const (
-	// evictedPriority is the priority class priority resources consumed by evicted jobs are accounted for at.
+	// EvictedPriority is the priority class priority resources consumed by evicted jobs are accounted for at.
 	// This helps avoid scheduling new jobs onto nodes that make it impossible to re-schedule evicted jobs.
-	EvictedPriority int32 = -1
+	EvictedPriority int32 = -2
+	// CrossPoolPriority is the priority class priority resources consumed by cross-pool ("away") jobs are
+	// accounted for at when PreemptCrossPoolJobsFirst is enabled. It sits below every real priority class
+	// priority (which are >= 0) so any home job can urgency-preempt cross-pool jobs first, and above
+	// EvictedPriority so the oversubscribed evictor can still distinguish the two.
+	CrossPoolPriority int32 = -1
 	// MinPriority is the smallest possible priority class priority within the NodeDb.
 	MinPriority int32 = EvictedPriority
 )
@@ -75,6 +80,7 @@ func FromSchedulerObjectsNode(node *schedulerobjects.Node,
 		allocatableByPriority[p] = allocatableResources
 	}
 	allocatableByPriority[EvictedPriority] = allocatableResources
+	allocatableByPriority[CrossPoolPriority] = allocatableResources
 
 	taints := make([]v1.Taint, 0, len(node.Taints))
 	for _, t := range node.Taints {
