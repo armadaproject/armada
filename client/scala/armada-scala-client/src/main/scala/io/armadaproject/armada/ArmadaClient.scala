@@ -4,6 +4,7 @@ import api.job.{JobStatusRequest, JobStatusResponse, JobsGrpc}
 import api.event.{EventGrpc, WatchRequest}
 import api.submit.{
   CancellationResult,
+  ExecutorDeleteRequest,
   JobCancelRequest,
   JobSetCancelRequest,
   JobSubmitRequest,
@@ -67,6 +68,12 @@ class ArmadaClient(channel: ManagedChannel) {
     val qReq = QueueDeleteRequest(name)
     val blockingStub = SubmitGrpc.blockingStub(channel)
     blockingStub.deleteQueue(qReq)
+  }
+
+  def deleteExecutor(name: String): Unit = {
+    val executorReq = ExecutorDeleteRequest(name)
+    val blockingStub = SubmitGrpc.blockingStub(channel)
+    blockingStub.deleteExecutor(executorReq)
   }
 
   def getQueue(name: String): Queue = {

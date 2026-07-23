@@ -64,6 +64,9 @@ UPDATE runs SET succeeded = true WHERE run_id = ANY(sqlc.arg(run_ids)::text[]);
 -- name: MarkJobRunsFailedById :exec
 UPDATE runs SET failed = true WHERE run_id = ANY(sqlc.arg(run_ids)::text[]);
 
+-- name: MarkActiveJobRunsFailedByExecutor :exec
+UPDATE runs SET failed = true, terminated_timestamp = sqlc.arg(terminated_timestamp)::timestamptz WHERE executor = sqlc.arg(executor)::text AND terminated = false;
+
 -- name: MarkJobRunsReturnedById :exec
 UPDATE runs SET returned = true WHERE run_id = ANY(sqlc.arg(run_ids)::text[]);
 
@@ -101,9 +104,16 @@ SELECT * FROM executors;
 -- name: SelectExecutorUpdateTimes :many
 SELECT executor_id, last_updated FROM executors;
 
--- name: UpsertExecutor :exec
+-- name: UpsertExecutor :execrows
 INSERT INTO executors (executor_id, last_request, last_updated)
-VALUES(sqlc.arg(executor_id)::text, sqlc.arg(last_request)::bytea, sqlc.arg(update_time)::timestamptz)
+SELECT sqlc.arg(executor_id)::text, sqlc.arg(last_request)::bytea, sqlc.arg(update_time)::timestamptz
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM executor_settings
+    WHERE executor_id = sqlc.arg(executor_id)::text
+      AND cordoned = true
+      AND cordon_reason = sqlc.arg(cordon_reason)::text
+)
 ON CONFLICT (executor_id) DO UPDATE SET (last_request, last_updated) = (excluded.last_request,excluded.last_updated);
 
 -- name: SetLeasedTime :exec
@@ -123,16 +133,46 @@ INSERT INTO executor_settings (executor_id, cordoned, cordon_reason, set_by_user
 VALUES (@executor_id::text, @cordoned::boolean, @cordon_reason::text, @set_by_user::text, @set_at_time::timestamptz)
 ON CONFLICT (executor_id) DO UPDATE
   SET
-    cordoned = excluded.cordoned,
-    cordon_reason = excluded.cordon_reason,
-    set_by_user = excluded.set_by_user,
-    set_at_time = excluded.set_at_time;
+    cordoned = CASE
+      WHEN executor_settings.cordoned = true AND executor_settings.cordon_reason = @tombstone_cordon_reason::text THEN executor_settings.cordoned
+      ELSE excluded.cordoned
+    END,
+    cordon_reason = CASE
+      WHEN executor_settings.cordoned = true AND executor_settings.cordon_reason = @tombstone_cordon_reason::text THEN executor_settings.cordon_reason
+      ELSE excluded.cordon_reason
+    END,
+    set_by_user = CASE
+      WHEN executor_settings.cordoned = true AND executor_settings.cordon_reason = @tombstone_cordon_reason::text THEN executor_settings.set_by_user
+      ELSE excluded.set_by_user
+    END,
+    set_at_time = CASE
+      WHEN executor_settings.cordoned = true AND executor_settings.cordon_reason = @tombstone_cordon_reason::text THEN executor_settings.set_at_time
+      ELSE excluded.set_at_time
+    END;
 
 -- name: DeleteExecutorSettings :exec
-DELETE FROM executor_settings WHERE executor_id = @executor_id::text;
+DELETE FROM executor_settings
+WHERE executor_id = @executor_id::text
+  AND NOT (cordoned = true AND cordon_reason = @cordon_reason::text);
 
 -- name: SelectAllExecutorSettings :many
 SELECT executor_id, cordoned, cordon_reason, set_by_user, set_at_time FROM executor_settings;
+
+-- name: SelectExecutorById :one
+SELECT * FROM executors WHERE executor_id = @executor_id::text;
+
+-- name: SelectExecutorSettingsById :one
+SELECT executor_id, cordoned, cordon_reason, set_by_user, set_at_time FROM executor_settings WHERE executor_id = @executor_id::text;
+
+-- name: SelectTombstonedExecutors :many
+SELECT executor_id FROM executor_settings WHERE cordoned = true AND cordon_reason = @cordon_reason::text;
+
+-- name: DeleteExecutor :execrows
+DELETE FROM executors WHERE executor_id = @executor_id::text
+AND NOT EXISTS (
+  SELECT 1 FROM runs
+  WHERE executor = @executor_id::text AND terminated = false
+);
 
 -- name: SelectLatestJobSerial :one
 SELECT serial FROM jobs ORDER BY serial DESC LIMIT 1;
@@ -148,6 +188,15 @@ FROM runs jr
 WHERE jr.executor = @executor
   AND jr.queue = ANY(@queues::text[])
   AND (@pools::text[] IS NULL OR cardinality(@pools::text[]) = 0 OR jr.pool = ANY(@pools::text[]))
+  AND jr.terminated = false
+  AND jr.preempted = false;
+
+-- name: SelectJobsByExecutor :many
+SELECT j.*
+FROM runs jr
+       JOIN jobs j
+            ON jr.job_id = j.job_id
+WHERE jr.executor = @executor
   AND jr.terminated = false
   AND jr.preempted = false;
 
@@ -204,4 +253,3 @@ WHERE jr.queue = ANY(@queue::text[])
   AND jr.terminated = false
   AND jr.preempted = false
   AND (@pools::text[] IS NULL OR cardinality(@pools::text[]) = 0 OR jr.pool = ANY(@pools::text[]));
-

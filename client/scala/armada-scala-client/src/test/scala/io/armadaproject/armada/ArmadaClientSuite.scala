@@ -4,6 +4,7 @@ import api.submit.{
   BatchQueueCreateResponse,
   BatchQueueUpdateResponse,
   CancellationResult,
+  ExecutorDeleteRequest,
   Job,
   JobCancelRequest,
   JobPreemptRequest,
@@ -241,6 +242,12 @@ private class SubmitMockServer(
       request: QueueDeleteRequest
   ): scala.concurrent.Future[com.google.protobuf.empty.Empty] = {
     queueMap.remove(request.name)
+    Future.successful(new Empty)
+  }
+
+  def deleteExecutor(
+      request: ExecutorDeleteRequest
+  ): scala.concurrent.Future[com.google.protobuf.empty.Empty] = {
     Future.successful(new Empty)
   }
 

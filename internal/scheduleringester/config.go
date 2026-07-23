@@ -26,6 +26,8 @@ type Configuration struct {
 	BatchSize int
 	// Maximum time since the last batch before a batch will be inserted into the database
 	BatchDuration time.Duration
+	// Interval for running the deleted executor reconciler
+	DeletedExecutorReconcilerInterval time.Duration
 	// If non-nil, configures pprof profiling
 	Profiling *profilingconfig.ProfilingConfig
 }

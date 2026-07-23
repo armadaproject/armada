@@ -105,6 +105,19 @@ func Run(config Configuration) error {
 		}
 	}()
 
+	// Starting the deleted executor reconciler
+	reconcilerInterval := config.DeletedExecutorReconcilerInterval
+	if reconcilerInterval == 0 {
+		reconcilerInterval = 1 * time.Minute
+	}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		log.Infof("starting deleted executor reconciler with interval %s", reconcilerInterval)
+		schedulerDb.RunReconciler(app.CreateContextWithShutdown(), reconcilerInterval)
+		log.Infof("deleted executor reconciler stopped")
+	}()
+
 	wg.Wait()
 
 	return nil

@@ -41,6 +41,10 @@ const (
 	// ExternalJobUriAnnotation is the legacy annotation key for setting an external job URI.
 	// Prefer the ExternalJobUri proto field on JobSubmitRequestItem / SubmitJob instead.
 	ExternalJobUriAnnotation = "armadaproject.io/externalJobUri"
+
+	// ExecutorDeletedCordonReason marks executor settings rows left behind as tombstones
+	// so a deleted executor cannot recreate itself via subsequent lease requests.
+	ExecutorDeletedCordonReason = "Executor deleted"
 )
 
 var schedulingAnnotations = map[string]bool{

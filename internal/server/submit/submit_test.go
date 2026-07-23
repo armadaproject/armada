@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"google.golang.org/grpc/codes"
 	v1 "k8s.io/api/core/v1"
@@ -25,23 +26,59 @@ import (
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/client/queue"
+	"github.com/armadaproject/armada/pkg/controlplaneevents"
 )
 
 type mockObjects struct {
-	publisher    *commonMocks.MockPublisher[*armadaevents.EventSequence]
-	queueRepo    *mocks.MockQueueRepository
-	deduplicator *mocks.MockDeduplicator
-	authorizer   *mocks.MockActionAuthorizer
+	publisher        *commonMocks.MockPublisher[*armadaevents.EventSequence]
+	controlPublisher *commonMocks.MockPublisher[*controlplaneevents.Event]
+	queueRepo        *mocks.MockQueueRepository
+	deduplicator     *mocks.MockDeduplicator
+	authorizer       *mocks.MockActionAuthorizer
 }
 
 func createMocks(t *testing.T) *mockObjects {
 	ctrl := gomock.NewController(t)
 	return &mockObjects{
-		publisher:    commonMocks.NewMockPublisher[*armadaevents.EventSequence](ctrl),
-		queueRepo:    mocks.NewMockQueueRepository(ctrl),
-		deduplicator: mocks.NewMockDeduplicator(ctrl),
-		authorizer:   mocks.NewMockActionAuthorizer(ctrl),
+		publisher:        commonMocks.NewMockPublisher[*armadaevents.EventSequence](ctrl),
+		controlPublisher: commonMocks.NewMockPublisher[*controlplaneevents.Event](ctrl),
+		queueRepo:        mocks.NewMockQueueRepository(ctrl),
+		deduplicator:     mocks.NewMockDeduplicator(ctrl),
+		authorizer:       mocks.NewMockActionAuthorizer(ctrl),
 	}
+}
+
+func TestDeleteExecutorPublishesControlPlaneEvent(t *testing.T) {
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
+	defer cancel()
+	ctx = armadacontext.WithValue(ctx, "principal", testfixtures.DefaultPrincipal)
+
+	server, mockedObjects := createTestServer(t)
+
+	mockedObjects.authorizer.
+		EXPECT().
+		AuthorizeAction(ctx, permission.Permission(permissions.UpdateExecutorSettings)).
+		Return(nil).
+		Times(1)
+
+	var captured *controlplaneevents.Event
+	mockedObjects.controlPublisher.
+		EXPECT().
+		PublishMessages(ctx, gomock.Any()).
+		Do(func(_ *armadacontext.Context, event *controlplaneevents.Event) {
+			captured = event
+		}).
+		Return(nil).
+		Times(1)
+
+	_, err := server.DeleteExecutor(ctx, &api.ExecutorDeleteRequest{Name: "executor-1"})
+	require.NoError(t, err)
+	require.NotNil(t, captured)
+	wrapped, ok := captured.Event.(*controlplaneevents.Event_ExecutorDelete)
+	require.True(t, ok)
+	require.NotNil(t, wrapped.ExecutorDelete)
+	assert.Equal(t, "executor-1", wrapped.ExecutorDelete.ExecutorId)
+	assert.Equal(t, testfixtures.DefaultOwner, wrapped.ExecutorDelete.SetByUser)
 }
 
 func TestSubmit_Success(t *testing.T) {
@@ -588,6 +625,7 @@ func createTestServer(t *testing.T) (*Server, *mockObjects) {
 	server := NewServer(
 		nil,
 		m.publisher,
+		m.controlPublisher,
 		m.queueRepo,
 		testfixtures.DefaultSubmissionConfig(),
 		m.deduplicator,

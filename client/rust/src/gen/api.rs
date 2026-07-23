@@ -471,6 +471,11 @@ pub struct QueueDeleteRequest {
     pub name: ::prost::alloc::string::String,
 }
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct ExecutorDeleteRequest {
+    #[prost(string, tag = "1")]
+    pub name: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct JobSetInfo {
     #[prost(string, tag = "1")]
     pub name: ::prost::alloc::string::String,
@@ -1500,6 +1505,26 @@ pub mod submit_client {
             let path = http::uri::PathAndQuery::from_static("/api.Submit/DeleteQueue");
             let mut req = request.into_request();
             req.extensions_mut().insert(GrpcMethod::new("api.Submit", "DeleteQueue"));
+            self.inner.unary(req, path, codec).await
+        }
+        pub async fn delete_executor(
+            &mut self,
+            request: impl tonic::IntoRequest<super::ExecutorDeleteRequest>,
+        ) -> std::result::Result<tonic::Response<()>, tonic::Status> {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic_prost::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/api.Submit/DeleteExecutor",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut().insert(GrpcMethod::new("api.Submit", "DeleteExecutor"));
             self.inner.unary(req, path, codec).await
         }
         pub async fn get_queue(

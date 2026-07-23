@@ -1018,7 +1018,7 @@ func (a *jobGroupAccumulator) toJobGroup(aggregates []string) *model.JobGroup {
 		case "lastTransitionTime":
 			if a.hasLastTransitionTime && a.count > 0 {
 				avgSeconds := a.sumLastTransitionTime / a.count
-				group.Aggregates["lastTransitionTime"] = time.Unix(avgSeconds, 0).Format(time.RFC3339)
+				group.Aggregates["lastTransitionTime"] = time.Unix(avgSeconds, 0).UTC().Format(time.RFC3339)
 			}
 		}
 	}

@@ -113,6 +113,28 @@ func TestDelete(t *testing.T) {
 	require.NoError(t, cmd.Execute())
 }
 
+func TestDeleteExecutor(t *testing.T) {
+	// Create app object, cobra command, and hijack the app setup process to insert a
+	// function that does validation
+	a := armadactl.New()
+	cmd := executorDeleteCmdWithApp(a)
+	cmd.PreRunE = func(cmd *cobra.Command, args []string) error {
+		a.Params.ControlPlaneAPI.DeleteExecutor = func(name string) error {
+			a.Out = io.Discard
+
+			// Check that the arguments passed into the API are equal to those provided via CLI flags
+			require.True(t, name == "executor-1")
+			return nil
+		}
+		return nil
+	}
+
+	// Arbitrary executor id
+	cmd.SetArgs([]string{"executor-1"})
+
+	require.NoError(t, cmd.Execute())
+}
+
 func TestUpdate(t *testing.T) {
 	// TODO there are no tests for invalid input because cobra silently discards those inputs without raising errors
 	tests := map[string]struct {

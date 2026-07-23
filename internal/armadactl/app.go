@@ -18,6 +18,7 @@ import (
 	"os"
 
 	"github.com/armadaproject/armada/pkg/client"
+	"github.com/armadaproject/armada/pkg/client/controlplane"
 	"github.com/armadaproject/armada/pkg/client/executor"
 	"github.com/armadaproject/armada/pkg/client/node"
 	"github.com/armadaproject/armada/pkg/client/queue"
@@ -40,9 +41,14 @@ type App struct {
 // statically in a config file that's reused between command runs.
 type Params struct {
 	ApiConnectionDetails *client.ApiConnectionDetails
+	ControlPlaneAPI      *ControlPlaneAPI
 	QueueAPI             *QueueAPI
 	ExecutorAPI          *ExecutorAPI
 	NodeAPI              *NodeAPI
+}
+
+type ControlPlaneAPI struct {
+	DeleteExecutor controlplane.DeleteExecutorAPI
 }
 
 // QueueAPI struct holds pointers to functions that are called by armadactl.
@@ -79,9 +85,10 @@ type NodeAPI struct {
 func New() *App {
 	return &App{
 		Params: &Params{
-			QueueAPI:    &QueueAPI{},
-			ExecutorAPI: &ExecutorAPI{},
-			NodeAPI:     &NodeAPI{},
+			ControlPlaneAPI: &ControlPlaneAPI{},
+			QueueAPI:        &QueueAPI{},
+			ExecutorAPI:     &ExecutorAPI{},
+			NodeAPI:         &NodeAPI{},
 		},
 		Out:    os.Stdout,
 		Random: rand.Reader,

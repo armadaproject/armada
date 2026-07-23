@@ -653,6 +653,16 @@ var DeleteExecutorSettings = &controlplaneevents.Event{
 	},
 }
 
+var DeleteExecutor = &controlplaneevents.Event{
+	Created: BaseTimeProto,
+	Event: &controlplaneevents.Event_ExecutorDelete{
+		ExecutorDelete: &controlplaneevents.ExecutorDelete{
+			ExecutorId: ExecutorId,
+			SetByUser:  UserId,
+		},
+	},
+}
+
 var PreemptOnExecutor = &controlplaneevents.Event{
 	Event: &controlplaneevents.Event_PreemptOnExecutor{
 		PreemptOnExecutor: &controlplaneevents.PreemptOnExecutor{

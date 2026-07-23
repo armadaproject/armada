@@ -16,8 +16,10 @@ import (
 	"k8s.io/utils/strings/slices"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/common/constants"
 	"github.com/armadaproject/armada/internal/common/ingest/metrics"
 	"github.com/armadaproject/armada/internal/common/ingest/testfixtures"
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/util"
 	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
@@ -458,6 +460,58 @@ func TestWriteOps(t *testing.T) {
 				},
 			},
 		}},
+		"Delete Executor Tombstones Settings And Is Idempotent": {Ops: []DbOperation{
+			pgInsertExecutorsOp{"executor-1": "{}", "executor-2": "{}"},
+			UpsertExecutorSettings{
+				"executor-1": &ExecutorSettingsUpsert{
+					ExecutorID:   "executor-1",
+					Cordoned:     true,
+					CordonReason: "Bad Executor",
+				},
+				"executor-2": &ExecutorSettingsUpsert{
+					ExecutorID:   "executor-2",
+					Cordoned:     true,
+					CordonReason: "Bad Executor",
+				},
+			},
+			DeleteExecutor{
+				"executor-1": &ExecutorDelete{
+					ExecutorID: "executor-1",
+					SetAtTime:  testfixtures.BaseTime,
+				},
+				"executor-2": &ExecutorDelete{
+					ExecutorID: "executor-2",
+					SetAtTime:  testfixtures.BaseTime,
+				},
+			},
+			DeleteExecutor{
+				"executor-1": &ExecutorDelete{
+					ExecutorID: "executor-1",
+					SetAtTime:  testfixtures.BaseTime,
+				},
+				"executor-2": &ExecutorDelete{
+					ExecutorID: "executor-2",
+					SetAtTime:  testfixtures.BaseTime,
+				},
+			},
+		}},
+		"Delete Executor Requests Cancellation For Active Jobs": {Ops: []DbOperation{
+			InsertJobs{
+				"job-1": &JobInsertion{Job: &schedulerdb.Job{JobID: "job-1", JobSet: "set1", Queue: testQueueName}},
+				"job-2": &JobInsertion{Job: &schedulerdb.Job{JobID: "job-2", JobSet: "set1", Queue: testQueueName}},
+			},
+			InsertRuns{
+				"run-1": &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{RunID: "run-1", JobID: "job-1", JobSet: "set1", Queue: testQueueName, Executor: "executor-1"}},
+				"run-2": &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{RunID: "run-2", JobID: "job-2", JobSet: "set1", Queue: testQueueName, Executor: "executor-2"}},
+			},
+			pgInsertExecutorsOp{"executor-1": "{}", "executor-2": "{}"},
+			DeleteExecutor{
+				"executor-1": &ExecutorDelete{
+					ExecutorID: "executor-1",
+					SetAtTime:  testfixtures.BaseTime,
+				},
+			},
+		}},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -569,6 +623,235 @@ func TestScoping(t *testing.T) {
 	}
 }
 
+func TestDeleteExecutorSettingsPreservesDeletedExecutorTombstone(t *testing.T) {
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 10*time.Second)
+	defer cancel()
+
+	err := schedulerdb.WithTestDb(func(queries *schedulerdb.Queries, db *pgxpool.Pool) error {
+		schedulerDb := &SchedulerDb{db: db}
+		executorID := "deleted-executor"
+
+		_, err := queries.UpsertExecutor(ctx, schedulerdb.UpsertExecutorParams{
+			ExecutorID:   executorID,
+			LastRequest:  []byte("{}"),
+			UpdateTime:   testfixtures.BaseTime,
+			CordonReason: constants.ExecutorDeletedCordonReason,
+		})
+		require.NoError(t, err)
+
+		err = pgx.BeginTxFunc(ctx, db, pgx.TxOptions{}, func(tx pgx.Tx) error {
+			return schedulerDb.WriteDbOp(ctx, tx, DeleteExecutor{
+				executorID: &ExecutorDelete{
+					ExecutorID: executorID,
+					SetByUser:  testfixtures.UserId,
+					SetAtTime:  testfixtures.BaseTime,
+				},
+			})
+		})
+		require.NoError(t, err)
+
+		err = pgx.BeginTxFunc(ctx, db, pgx.TxOptions{}, func(tx pgx.Tx) error {
+			return schedulerDb.WriteDbOp(ctx, tx, DeleteExecutorSettings{
+				executorID: &ExecutorSettingsDelete{ExecutorID: executorID},
+			})
+		})
+		require.NoError(t, err)
+
+		settings, err := queries.SelectExecutorSettingsById(ctx, executorID)
+		require.NoError(t, err)
+		assert.True(t, settings.Cordoned)
+		assert.Equal(t, constants.ExecutorDeletedCordonReason, settings.CordonReason)
+		assert.Equal(t, testfixtures.UserId, settings.SetByUser)
+
+		repo := schedulerdb.NewPostgresExecutorRepository(db)
+		err = repo.StoreExecutor(ctx, &schedulerobjects.Executor{
+			Id:             executorID,
+			LastUpdateTime: protoutil.ToTimestamp(testfixtures.BaseTime.Add(time.Minute)),
+		})
+		require.ErrorIs(t, err, schedulerdb.ErrExecutorDeleted)
+
+		_, err = queries.SelectExecutorById(ctx, executorID)
+		require.ErrorIs(t, err, pgx.ErrNoRows)
+		return nil
+	})
+	require.NoError(t, err)
+}
+
+func TestDeleteExecutorDefersHardDeleteWhileNonTerminalRunsRemain(t *testing.T) {
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 10*time.Second)
+	defer cancel()
+
+	err := schedulerdb.WithTestDb(func(queries *schedulerdb.Queries, db *pgxpool.Pool) error {
+		schedulerDb := &SchedulerDb{db: db}
+		executorID := "draining-executor"
+		jobID := util.NewULID()
+		runID := uuid.NewString()
+
+		require.NoError(t, writeSchedulerDbOp(ctx, db, schedulerDb, testInsertJob(jobID)))
+		require.NoError(t, writeSchedulerDbOp(ctx, db, schedulerDb, InsertRuns{
+			runID: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobID, RunID: runID, Queue: testQueueName, JobSet: "set1", Executor: executorID}},
+		}))
+		_, err := queries.UpsertExecutor(ctx, schedulerdb.UpsertExecutorParams{
+			ExecutorID:   executorID,
+			LastRequest:  []byte("{}"),
+			UpdateTime:   testfixtures.BaseTime,
+			CordonReason: constants.ExecutorDeletedCordonReason,
+		})
+		require.NoError(t, err)
+
+		require.NoError(t, writeSchedulerDbOp(ctx, db, schedulerDb, DeleteExecutor{
+			executorID: &ExecutorDelete{ExecutorID: executorID, SetByUser: testfixtures.UserId, SetAtTime: testfixtures.BaseTime},
+		}))
+
+		_, err = queries.SelectExecutorById(ctx, executorID)
+		require.ErrorIs(t, err, pgx.ErrNoRows)
+
+		settings, err := queries.SelectExecutorSettingsById(ctx, executorID)
+		require.NoError(t, err)
+		assert.True(t, settings.Cordoned)
+		assert.Equal(t, constants.ExecutorDeletedCordonReason, settings.CordonReason)
+
+		activeRuns, err := queries.FindActiveRuns(ctx, []string{runID})
+		require.NoError(t, err)
+		assert.Empty(t, activeRuns, "DeleteExecutor should durably terminalize active runs assigned to the deleted executor")
+		return nil
+	})
+	require.NoError(t, err)
+}
+
+func TestDeleteExecutorHardDeletesAfterNoNonTerminalRunsRemain(t *testing.T) {
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 10*time.Second)
+	defer cancel()
+
+	err := schedulerdb.WithTestDb(func(queries *schedulerdb.Queries, db *pgxpool.Pool) error {
+		schedulerDb := &SchedulerDb{db: db}
+		executorID := "drained-executor"
+		jobID := util.NewULID()
+		runID := uuid.NewString()
+
+		require.NoError(t, writeSchedulerDbOp(ctx, db, schedulerDb, testInsertJob(jobID)))
+		require.NoError(t, writeSchedulerDbOp(ctx, db, schedulerDb, InsertRuns{
+			runID: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobID, RunID: runID, Queue: testQueueName, JobSet: "set1", Executor: executorID, Failed: true}},
+		}))
+		_, err := queries.UpsertExecutor(ctx, schedulerdb.UpsertExecutorParams{
+			ExecutorID:   executorID,
+			LastRequest:  []byte("{}"),
+			UpdateTime:   testfixtures.BaseTime,
+			CordonReason: constants.ExecutorDeletedCordonReason,
+		})
+		require.NoError(t, err)
+
+		activeRuns, err := queries.FindActiveRuns(ctx, []string{runID})
+		require.NoError(t, err)
+		require.Empty(t, activeRuns, "drain predicate is zero non-terminal runs assigned to executor_id")
+
+		require.NoError(t, writeSchedulerDbOp(ctx, db, schedulerDb, DeleteExecutor{
+			executorID: &ExecutorDelete{ExecutorID: executorID, SetByUser: testfixtures.UserId, SetAtTime: testfixtures.BaseTime},
+		}))
+
+		_, err = queries.SelectExecutorById(ctx, executorID)
+		require.ErrorIs(t, err, pgx.ErrNoRows)
+		settings, err := queries.SelectExecutorSettingsById(ctx, executorID)
+		require.NoError(t, err)
+		assert.True(t, settings.Cordoned)
+		assert.Equal(t, constants.ExecutorDeletedCordonReason, settings.CordonReason)
+		return nil
+	})
+	require.NoError(t, err)
+}
+
+func TestDeleteExecutorRepeatedCallsAreIdempotent(t *testing.T) {
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 10*time.Second)
+	defer cancel()
+
+	err := schedulerdb.WithTestDb(func(queries *schedulerdb.Queries, db *pgxpool.Pool) error {
+		schedulerDb := &SchedulerDb{db: db}
+		executorID := "repeated-delete-executor"
+		_, err := queries.UpsertExecutor(ctx, schedulerdb.UpsertExecutorParams{
+			ExecutorID:   executorID,
+			LastRequest:  []byte("{}"),
+			UpdateTime:   testfixtures.BaseTime,
+			CordonReason: constants.ExecutorDeletedCordonReason,
+		})
+		require.NoError(t, err)
+
+		deleteOp := DeleteExecutor{executorID: &ExecutorDelete{ExecutorID: executorID, SetByUser: testfixtures.UserId, SetAtTime: testfixtures.BaseTime}}
+		require.NoError(t, writeSchedulerDbOp(ctx, db, schedulerDb, deleteOp))
+		require.NoError(t, writeSchedulerDbOp(ctx, db, schedulerDb, deleteOp))
+
+		_, err = queries.SelectExecutorById(ctx, executorID)
+		require.ErrorIs(t, err, pgx.ErrNoRows)
+		settings, err := queries.SelectExecutorSettingsById(ctx, executorID)
+		require.NoError(t, err)
+		assert.True(t, settings.Cordoned)
+		assert.Equal(t, constants.ExecutorDeletedCordonReason, settings.CordonReason)
+		return nil
+	})
+	require.NoError(t, err)
+}
+
+func TestUpsertExecutorSettingsPreservesDeletedExecutorTombstone(t *testing.T) {
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 10*time.Second)
+	defer cancel()
+
+	err := schedulerdb.WithTestDb(func(queries *schedulerdb.Queries, db *pgxpool.Pool) error {
+		schedulerDb := &SchedulerDb{db: db}
+		executorID := "deleted-executor-upsert-settings"
+
+		_, err := queries.UpsertExecutor(ctx, schedulerdb.UpsertExecutorParams{
+			ExecutorID:   executorID,
+			LastRequest:  []byte("{}"),
+			UpdateTime:   testfixtures.BaseTime,
+			CordonReason: constants.ExecutorDeletedCordonReason,
+		})
+		require.NoError(t, err)
+		require.NoError(t, writeSchedulerDbOp(ctx, db, schedulerDb, DeleteExecutor{
+			executorID: &ExecutorDelete{ExecutorID: executorID, SetByUser: testfixtures.UserId, SetAtTime: testfixtures.BaseTime},
+		}))
+
+		require.NoError(t, writeSchedulerDbOp(ctx, db, schedulerDb, UpsertExecutorSettings{
+			executorID: &ExecutorSettingsUpsert{
+				ExecutorID:   executorID,
+				Cordoned:     false,
+				CordonReason: "replacement reason must not clear deleted tombstone",
+				SetByUser:    "bob",
+				SetAtTime:    testfixtures.BaseTime.Add(time.Minute),
+			},
+		}))
+
+		settings, err := queries.SelectExecutorSettingsById(ctx, executorID)
+		require.NoError(t, err)
+		assert.True(t, settings.Cordoned)
+		assert.Equal(t, constants.ExecutorDeletedCordonReason, settings.CordonReason)
+		assert.Equal(t, testfixtures.UserId, settings.SetByUser)
+		return nil
+	})
+	require.NoError(t, err)
+}
+
+func writeSchedulerDbOp(ctx *armadacontext.Context, db *pgxpool.Pool, schedulerDb *SchedulerDb, op DbOperation) error {
+	return pgx.BeginTxFunc(ctx, db, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		return schedulerDb.WriteDbOp(ctx, tx, op)
+	})
+}
+
+func testInsertJob(jobID string) InsertJobs {
+	return InsertJobs{
+		jobID: &JobInsertion{
+			Job: &schedulerdb.Job{
+				JobID:          jobID,
+				Queue:          testQueueName,
+				JobSet:         "set1",
+				SchedulingInfo: make([]byte, 0),
+			},
+			Metadata: JobInsertionMetadata{
+				SubmitMessage: make([]byte, 0),
+				Groups:        make([]byte, 0),
+			},
+		},
+	}
+}
+
 func addDefaultValues(op DbOperation) DbOperation {
 	switch o := op.(type) {
 	case InsertJobs:
@@ -593,6 +876,8 @@ func addDefaultValues(op DbOperation) DbOperation {
 	case MarkRunsSucceeded:
 	case MarkRunsFailed:
 	case MarkRunsRunning:
+	case pgInsertExecutorsOp:
+	case DeleteExecutor:
 	}
 	return op
 }
@@ -607,6 +892,21 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 		AccessMode:     pgx.ReadWrite,
 		DeferrableMode: pgx.Deferrable,
 	}, func(tx pgx.Tx) error {
+		switch op := op.(type) {
+		case pgInsertExecutorsOp:
+			queries := schedulerdb.New(tx)
+			for executorID, request := range op {
+				if _, err := queries.UpsertExecutor(ctx, schedulerdb.UpsertExecutorParams{
+					ExecutorID:   executorID,
+					LastRequest:  []byte(request),
+					UpdateTime:   testfixtures.BaseTime,
+					CordonReason: constants.ExecutorDeletedCordonReason,
+				}); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
 		return schedulerDb.WriteDbOp(ctx, tx, op)
 	})
 	if err != nil {
@@ -1145,6 +1445,68 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 			return ok
 		})
 		assert.Equal(t, 0, len(filtered))
+	case pgInsertExecutorsOp:
+		allExecutors, err := queries.SelectAllExecutors(ctx)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		actual := make(map[string]struct{}, len(allExecutors))
+		for _, executor := range allExecutors {
+			actual[executor.ExecutorID] = struct{}{}
+		}
+		for executorID := range expected {
+			_, ok := actual[executorID]
+			assert.True(t, ok)
+		}
+	case DeleteExecutor:
+		jobs, err := selectNewJobs(ctx, 0)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		deletedExecutors := make(map[string]struct{}, len(expected))
+		for executorID := range expected {
+			deletedExecutors[executorID] = struct{}{}
+		}
+		activeRunByJobId := make(map[string]schedulerdb.Run)
+		runs, err := queries.SelectNewRuns(ctx, schedulerdb.SelectNewRunsParams{Serial: 0, Limit: 1000})
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		for _, run := range runs {
+			if _, ok := deletedExecutors[run.Executor]; ok && !run.Terminated && !run.Preempted {
+				activeRunByJobId[run.JobID] = run
+			}
+		}
+		for _, job := range jobs {
+			if _, ok := activeRunByJobId[job.JobID]; ok {
+				assert.True(t, job.CancelRequested)
+			}
+		}
+
+		allExecutors, err := queries.SelectAllExecutors(ctx)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		remainingExecutors := armadaslices.Filter(allExecutors, func(e schedulerdb.Executor) bool {
+			_, ok := expected[e.ExecutorID]
+			return ok
+		})
+		assert.Equal(t, 0, len(remainingExecutors))
+
+		allSettings, err := queries.SelectAllExecutorSettings(ctx)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		remainingSettings := armadaslices.Filter(allSettings, func(e schedulerdb.ExecutorSetting) bool {
+			_, ok := expected[e.ExecutorID]
+			return ok
+		})
+		require.Equal(t, len(expected), len(remainingSettings))
+		for _, setting := range remainingSettings {
+			assert.True(t, setting.Cordoned)
+			assert.Equal(t, constants.ExecutorDeletedCordonReason, setting.CordonReason)
+			assert.Equal(t, testfixtures.BaseTime.UTC(), setting.SetAtTime.UTC())
+		}
 	default:
 		return errors.Errorf("received unexpected op %+v", op)
 	}
@@ -1211,6 +1573,20 @@ func mustMarshalSchedulingInfo(t *testing.T, priorityClassName string) []byte {
 	b, err := proto.Marshal(&schedulerobjects.JobSchedulingInfo{PriorityClassName: priorityClassName})
 	require.NoError(t, err)
 	return b
+}
+
+type pgInsertExecutorsOp map[string]string
+
+func (a pgInsertExecutorsOp) Merge(_ DbOperation) bool {
+	return false
+}
+
+func (a pgInsertExecutorsOp) CanBeAppliedBefore(_ DbOperation) bool {
+	return false
+}
+
+func (a pgInsertExecutorsOp) GetOperation() Operation {
+	return ControlPlaneOperation
 }
 
 func TestPoolFiltering(t *testing.T) {
@@ -1546,6 +1922,131 @@ func TestMarkJobsCancelRequested_EmptyReasonThenReal(t *testing.T) {
 		assert.Equal(t, testfixtures.CancelReason, *jobs[0].CancelReason)
 		require.NotNil(t, jobs[0].CancelUser)
 		assert.Equal(t, testfixtures.CancelUser, *jobs[0].CancelUser)
+		return nil
+	})
+	require.NoError(t, err)
+}
+
+func TestReconcileDeletedExecutorsSkipsWhenActiveRunsRemain(t *testing.T) {
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 10*time.Second)
+	defer cancel()
+
+	err := schedulerdb.WithTestDb(func(queries *schedulerdb.Queries, db *pgxpool.Pool) error {
+		schedulerDb := &SchedulerDb{db: db}
+		executorID := "tombstoned-with-runs"
+		jobID := util.NewULID()
+		runID := uuid.NewString()
+
+		require.NoError(t, writeSchedulerDbOp(ctx, db, schedulerDb, testInsertJob(jobID)))
+		require.NoError(t, writeSchedulerDbOp(ctx, db, schedulerDb, InsertRuns{
+			runID: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobID, RunID: runID, Queue: testQueueName, JobSet: "set1", Executor: executorID}},
+		}))
+
+		_, err := queries.UpsertExecutor(ctx, schedulerdb.UpsertExecutorParams{
+			ExecutorID:   executorID,
+			LastRequest:  []byte("{}"),
+			UpdateTime:   testfixtures.BaseTime,
+			CordonReason: constants.ExecutorDeletedCordonReason,
+		})
+		require.NoError(t, err)
+
+		err = queries.UpsertExecutorSettings(ctx, schedulerdb.UpsertExecutorSettingsParams{
+			ExecutorID:            executorID,
+			Cordoned:              true,
+			CordonReason:          constants.ExecutorDeletedCordonReason,
+			SetByUser:             testfixtures.UserId,
+			SetAtTime:             testfixtures.BaseTime,
+			TombstoneCordonReason: constants.ExecutorDeletedCordonReason,
+		})
+		require.NoError(t, err)
+
+		err = schedulerDb.ReconcileDeletedExecutors(ctx)
+		require.NoError(t, err)
+
+		_, err = queries.SelectExecutorById(ctx, executorID)
+		require.ErrorIs(t, err, pgx.ErrNoRows, "reconciler terminalizes runs and deletes executor in single transaction")
+
+		activeRuns, err := queries.FindActiveRuns(ctx, []string{runID})
+		require.NoError(t, err)
+		assert.Empty(t, activeRuns, "reconciler should terminalize active runs")
+
+		return nil
+	})
+	require.NoError(t, err)
+}
+
+func TestReconcileDeletedExecutorsDeletesWhenNoActiveRunsRemain(t *testing.T) {
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 10*time.Second)
+	defer cancel()
+
+	err := schedulerdb.WithTestDb(func(queries *schedulerdb.Queries, db *pgxpool.Pool) error {
+		schedulerDb := &SchedulerDb{db: db}
+		executorID := "tombstoned-drained"
+		jobID := util.NewULID()
+		runID := uuid.NewString()
+
+		require.NoError(t, writeSchedulerDbOp(ctx, db, schedulerDb, testInsertJob(jobID)))
+		require.NoError(t, writeSchedulerDbOp(ctx, db, schedulerDb, InsertRuns{
+			runID: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobID, RunID: runID, Queue: testQueueName, JobSet: "set1", Executor: executorID, Failed: true}},
+		}))
+
+		_, err := queries.UpsertExecutor(ctx, schedulerdb.UpsertExecutorParams{
+			ExecutorID:   executorID,
+			LastRequest:  []byte("{}"),
+			UpdateTime:   testfixtures.BaseTime,
+			CordonReason: constants.ExecutorDeletedCordonReason,
+		})
+		require.NoError(t, err)
+
+		err = queries.UpsertExecutorSettings(ctx, schedulerdb.UpsertExecutorSettingsParams{
+			ExecutorID:            executorID,
+			Cordoned:              true,
+			CordonReason:          constants.ExecutorDeletedCordonReason,
+			SetByUser:             testfixtures.UserId,
+			SetAtTime:             testfixtures.BaseTime,
+			TombstoneCordonReason: constants.ExecutorDeletedCordonReason,
+		})
+		require.NoError(t, err)
+
+		err = schedulerDb.ReconcileDeletedExecutors(ctx)
+		require.NoError(t, err)
+
+		_, err = queries.SelectExecutorById(ctx, executorID)
+		require.ErrorIs(t, err, pgx.ErrNoRows, "executor should be hard-deleted when no non-terminal runs remain")
+
+		settings, err := queries.SelectExecutorSettingsById(ctx, executorID)
+		require.NoError(t, err)
+		assert.True(t, settings.Cordoned)
+		assert.Equal(t, constants.ExecutorDeletedCordonReason, settings.CordonReason)
+
+		return nil
+	})
+	require.NoError(t, err)
+}
+
+func TestRunReconcilerStopsOnContextCancellation(t *testing.T) {
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 10*time.Second)
+	defer cancel()
+
+	err := schedulerdb.WithTestDb(func(queries *schedulerdb.Queries, db *pgxpool.Pool) error {
+		schedulerDb := &SchedulerDb{db: db}
+
+		reconcilerCtx, reconcilerCancel := armadacontext.WithCancel(ctx)
+		done := make(chan struct{})
+		go func() {
+			schedulerDb.RunReconciler(reconcilerCtx, 50*time.Millisecond)
+			close(done)
+		}()
+
+		time.Sleep(100 * time.Millisecond)
+		reconcilerCancel()
+
+		select {
+		case <-done:
+		case <-time.After(1 * time.Second):
+			t.Fatal("reconciler did not stop after context cancellation")
+		}
+
 		return nil
 	})
 	require.NoError(t, err)

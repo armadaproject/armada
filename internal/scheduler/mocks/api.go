@@ -124,6 +124,26 @@ func (mr *MockSubmitClientMockRecorder) CreateQueues(ctx, in any, opts ...any) *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateQueues", reflect.TypeOf((*MockSubmitClient)(nil).CreateQueues), varargs...)
 }
 
+// DeleteExecutor mocks base method.
+func (m *MockSubmitClient) DeleteExecutor(ctx context.Context, in *api.ExecutorDeleteRequest, opts ...grpc.CallOption) (*types.Empty, error) {
+	m.ctrl.T.Helper()
+	varargs := []any{ctx, in}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "DeleteExecutor", varargs...)
+	ret0, _ := ret[0].(*types.Empty)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeleteExecutor indicates an expected call of DeleteExecutor.
+func (mr *MockSubmitClientMockRecorder) DeleteExecutor(ctx, in any, opts ...any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]any{ctx, in}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteExecutor", reflect.TypeOf((*MockSubmitClient)(nil).DeleteExecutor), varargs...)
+}
+
 // DeleteQueue mocks base method.
 func (m *MockSubmitClient) DeleteQueue(ctx context.Context, in *api.QueueDeleteRequest, opts ...grpc.CallOption) (*types.Empty, error) {
 	m.ctrl.T.Helper()

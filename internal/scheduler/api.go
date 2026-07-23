@@ -96,9 +96,11 @@ func (srv *ExecutorApi) LeaseJobRuns(stream executorapi.ExecutorApi_LeaseJobRuns
 	if err != nil {
 		return err
 	}
-
 	executor := srv.executorFromLeaseRequest(ctx, req)
 	if err := srv.executorRepository.StoreExecutor(ctx, executor); err != nil {
+		if errors.Is(err, database.ErrExecutorDeleted) {
+			return srv.cancelRequestedRuns(ctx, stream, req)
+		}
 		return err
 	}
 
@@ -193,6 +195,30 @@ func (srv *ExecutorApi) LeaseJobRuns(stream executorapi.ExecutorApi_LeaseJobRuns
 		},
 	})
 	if err != nil {
+		return errors.WithStack(err)
+	}
+	return nil
+}
+
+func (srv *ExecutorApi) cancelRequestedRuns(ctx *armadacontext.Context, stream executorapi.ExecutorApi_LeaseJobRunsServer, req *executorapi.LeaseRequest) error {
+	requestRuns, err := runIdsFromLeaseRequest(req)
+	if err != nil {
+		return err
+	}
+	if len(requestRuns) == 0 {
+		return stream.Send(&executorapi.LeaseStreamMessage{Event: &executorapi.LeaseStreamMessage_End{}})
+	}
+	ctx.Infof("Executor has been deleted; cancelling %d reported job runs", len(requestRuns))
+	if err := stream.Send(&executorapi.LeaseStreamMessage{
+		Event: &executorapi.LeaseStreamMessage_CancelRuns{
+			CancelRuns: &executorapi.CancelRuns{
+				JobRunIdsToCancel: requestRuns,
+			},
+		},
+	}); err != nil {
+		return errors.WithStack(err)
+	}
+	if err := stream.Send(&executorapi.LeaseStreamMessage{Event: &executorapi.LeaseStreamMessage_End{}}); err != nil {
 		return errors.WithStack(err)
 	}
 	return nil

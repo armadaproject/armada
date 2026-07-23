@@ -6,10 +6,12 @@ import (
 
 	"github.com/gogo/protobuf/types"
 	"github.com/gogo/status"
+	"github.com/pkg/errors"
 	"google.golang.org/grpc/codes"
 	"k8s.io/utils/clock"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	"github.com/armadaproject/armada/internal/common/auth"
 	"github.com/armadaproject/armada/internal/common/auth/permission"
 	log "github.com/armadaproject/armada/internal/common/logging"
@@ -25,6 +27,7 @@ import (
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/client/queue"
+	"github.com/armadaproject/armada/pkg/controlplaneevents"
 )
 
 // Server is a service that accepts API calls according to the original Armada submit API and publishes messages
@@ -32,6 +35,7 @@ import (
 type Server struct {
 	queueService     api.QueueServiceServer
 	publisher        pulsarutils.Publisher[*armadaevents.EventSequence]
+	controlPublisher pulsarutils.Publisher[*controlplaneevents.Event]
 	queueCache       armadaqueue.ReadOnlyQueueRepository
 	submissionConfig configuration.SubmissionConfig
 	deduplicator     Deduplicator
@@ -44,6 +48,7 @@ type Server struct {
 func NewServer(
 	queueService api.QueueServiceServer,
 	publisher pulsarutils.Publisher[*armadaevents.EventSequence],
+	controlPublisher pulsarutils.Publisher[*controlplaneevents.Event],
 	queueCache armadaqueue.ReadOnlyQueueRepository,
 	submissionConfig configuration.SubmissionConfig,
 	deduplicator Deduplicator,
@@ -52,6 +57,7 @@ func NewServer(
 	return &Server{
 		queueService:     queueService,
 		publisher:        publisher,
+		controlPublisher: controlPublisher,
 		queueCache:       queueCache,
 		submissionConfig: submissionConfig,
 		deduplicator:     deduplicator,
@@ -470,6 +476,37 @@ func (s *Server) UpdateQueues(ctx context.Context, list *api.QueueList) (*api.Ba
 
 func (s *Server) DeleteQueue(ctx context.Context, request *api.QueueDeleteRequest) (*types.Empty, error) {
 	return s.queueService.DeleteQueue(ctx, request)
+}
+
+func (s *Server) DeleteExecutor(grpcCtx context.Context, request *api.ExecutorDeleteRequest) (*types.Empty, error) {
+	ctx := armadacontext.FromGrpcCtx(grpcCtx)
+	err := s.authorizer.AuthorizeAction(ctx, permissions.UpdateExecutorSettings)
+	var ep *armadaerrors.ErrUnauthorized
+	if errors.As(err, &ep) {
+		return nil, status.Errorf(codes.PermissionDenied, "error deleting executor %s: %s", request.Name, ep)
+	} else if err != nil {
+		return nil, status.Errorf(codes.Unavailable, "error checking permissions: %s", err)
+	}
+
+	if request.Name == "" {
+		return nil, fmt.Errorf("must provide non-empty executor name when deleting executor")
+	}
+
+	es := &controlplaneevents.Event{
+		Created: protoutil.ToTimestamp(s.clock.Now().UTC()),
+		Event: &controlplaneevents.Event_ExecutorDelete{
+			ExecutorDelete: &controlplaneevents.ExecutorDelete{
+				ExecutorId: request.Name,
+				SetByUser:  auth.GetPrincipal(ctx).GetName(),
+			},
+		},
+	}
+
+	if err = s.controlPublisher.PublishMessages(ctx, es); err != nil {
+		return nil, status.Error(codes.Internal, "Failed to send events to Pulsar")
+	}
+
+	return &types.Empty{}, nil
 }
 
 func (s *Server) GetQueue(ctx context.Context, request *api.QueueGetRequest) (*api.Queue, error) {

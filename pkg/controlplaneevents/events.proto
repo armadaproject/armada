@@ -11,6 +11,7 @@ message Event {
   oneof event {
     ExecutorSettingsUpsert executorSettingsUpsert = 2;
     ExecutorSettingsDelete executorSettingsDelete = 3;
+    ExecutorDelete executorDelete = 10;
     PreemptOnExecutor preemptOnExecutor = 4;
     CancelOnExecutor cancelOnExecutor = 5;
     PreemptOnQueue preemptOnQueue = 6;
@@ -29,6 +30,11 @@ message ExecutorSettingsUpsert {
 
 message ExecutorSettingsDelete {
   string name = 1;
+}
+
+message ExecutorDelete {
+  string executor_id = 1;
+  string setByUser = 2;
 }
 
 message PreemptOnExecutor {

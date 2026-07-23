@@ -23,12 +23,35 @@ func (q *Queries) CountGroup(ctx context.Context, groupID uuid.UUID) (int64, err
 	return count, err
 }
 
-const deleteExecutorSettings = `-- name: DeleteExecutorSettings :exec
-DELETE FROM executor_settings WHERE executor_id = $1::text
+const deleteExecutor = `-- name: DeleteExecutor :execrows
+DELETE FROM executors WHERE executor_id = $1::text
+AND NOT EXISTS (
+  SELECT 1 FROM runs
+  WHERE executor = $1::text AND terminated = false
+)
 `
 
-func (q *Queries) DeleteExecutorSettings(ctx context.Context, executorID string) error {
-	_, err := q.db.Exec(ctx, deleteExecutorSettings, executorID)
+func (q *Queries) DeleteExecutor(ctx context.Context, executorID string) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteExecutor, executorID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteExecutorSettings = `-- name: DeleteExecutorSettings :exec
+DELETE FROM executor_settings
+WHERE executor_id = $1::text
+  AND NOT (cordoned = true AND cordon_reason = $2::text)
+`
+
+type DeleteExecutorSettingsParams struct {
+	ExecutorID   string `db:"executor_id"`
+	CordonReason string `db:"cordon_reason"`
+}
+
+func (q *Queries) DeleteExecutorSettings(ctx context.Context, arg DeleteExecutorSettingsParams) error {
+	_, err := q.db.Exec(ctx, deleteExecutorSettings, arg.ExecutorID, arg.CordonReason)
 	return err
 }
 
@@ -77,6 +100,20 @@ type InsertMarkerParams struct {
 
 func (q *Queries) InsertMarker(ctx context.Context, arg InsertMarkerParams) error {
 	_, err := q.db.Exec(ctx, insertMarker, arg.GroupID, arg.PartitionID, arg.Created)
+	return err
+}
+
+const markActiveJobRunsFailedByExecutor = `-- name: MarkActiveJobRunsFailedByExecutor :exec
+UPDATE runs SET failed = true, terminated_timestamp = $1::timestamptz WHERE executor = $2::text AND terminated = false
+`
+
+type MarkActiveJobRunsFailedByExecutorParams struct {
+	TerminatedTimestamp time.Time `db:"terminated_timestamp"`
+	Executor            string    `db:"executor"`
+}
+
+func (q *Queries) MarkActiveJobRunsFailedByExecutor(ctx context.Context, arg MarkActiveJobRunsFailedByExecutorParams) error {
+	_, err := q.db.Exec(ctx, markActiveJobRunsFailedByExecutor, arg.TerminatedTimestamp, arg.Executor)
 	return err
 }
 
@@ -390,6 +427,34 @@ func (q *Queries) SelectAllRunIds(ctx context.Context) ([]string, error) {
 	return items, nil
 }
 
+const selectExecutorById = `-- name: SelectExecutorById :one
+SELECT executor_id, last_request, last_updated FROM executors WHERE executor_id = $1::text
+`
+
+func (q *Queries) SelectExecutorById(ctx context.Context, executorID string) (Executor, error) {
+	row := q.db.QueryRow(ctx, selectExecutorById, executorID)
+	var i Executor
+	err := row.Scan(&i.ExecutorID, &i.LastRequest, &i.LastUpdated)
+	return i, err
+}
+
+const selectExecutorSettingsById = `-- name: SelectExecutorSettingsById :one
+SELECT executor_id, cordoned, cordon_reason, set_by_user, set_at_time FROM executor_settings WHERE executor_id = $1::text
+`
+
+func (q *Queries) SelectExecutorSettingsById(ctx context.Context, executorID string) (ExecutorSetting, error) {
+	row := q.db.QueryRow(ctx, selectExecutorSettingsById, executorID)
+	var i ExecutorSetting
+	err := row.Scan(
+		&i.ExecutorID,
+		&i.Cordoned,
+		&i.CordonReason,
+		&i.SetByUser,
+		&i.SetAtTime,
+	)
+	return i, err
+}
+
 const selectExecutorUpdateTimes = `-- name: SelectExecutorUpdateTimes :many
 SELECT executor_id, last_updated FROM executors
 `
@@ -565,6 +630,61 @@ func (q *Queries) SelectJobMetadata(ctx context.Context, jobIds []string) ([]Job
 	for rows.Next() {
 		var i JobMetadatum
 		if err := rows.Scan(&i.JobID, &i.SubmitMessage, &i.Groups); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const selectJobsByExecutor = `-- name: SelectJobsByExecutor :many
+SELECT j.job_id, j.job_set, j.queue, j.user_id, j.submitted, j.priority, j.queued, j.queued_version, j.cancel_requested, j.cancelled, j.cancel_by_jobset_requested, j.succeeded, j.failed, j.scheduling_info, j.scheduling_info_version, j.serial, j.last_modified, j.validated, j.pools, j.bid_price, j.cancel_user, j.price_band, j.terminated, j.cancel_reason
+FROM runs jr
+       JOIN jobs j
+            ON jr.job_id = j.job_id
+WHERE jr.executor = $1
+  AND jr.terminated = false
+  AND jr.preempted = false
+`
+
+func (q *Queries) SelectJobsByExecutor(ctx context.Context, executor string) ([]Job, error) {
+	rows, err := q.db.Query(ctx, selectJobsByExecutor, executor)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Job
+	for rows.Next() {
+		var i Job
+		if err := rows.Scan(
+			&i.JobID,
+			&i.JobSet,
+			&i.Queue,
+			&i.UserID,
+			&i.Submitted,
+			&i.Priority,
+			&i.Queued,
+			&i.QueuedVersion,
+			&i.CancelRequested,
+			&i.Cancelled,
+			&i.CancelByJobsetRequested,
+			&i.Succeeded,
+			&i.Failed,
+			&i.SchedulingInfo,
+			&i.SchedulingInfoVersion,
+			&i.Serial,
+			&i.LastModified,
+			&i.Validated,
+			&i.Pools,
+			&i.BidPrice,
+			&i.CancelUser,
+			&i.PriceBand,
+			&i.Terminated,
+			&i.CancelReason,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -1187,6 +1307,30 @@ func (q *Queries) SelectRunningJobsByQueue(ctx context.Context, arg SelectRunnin
 	return items, nil
 }
 
+const selectTombstonedExecutors = `-- name: SelectTombstonedExecutors :many
+SELECT executor_id FROM executor_settings WHERE cordoned = true AND cordon_reason = $1::text
+`
+
+func (q *Queries) SelectTombstonedExecutors(ctx context.Context, cordonReason string) ([]string, error) {
+	rows, err := q.db.Query(ctx, selectTombstonedExecutors, cordonReason)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var executor_id string
+		if err := rows.Scan(&executor_id); err != nil {
+			return nil, err
+		}
+		items = append(items, executor_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const selectUpdatedJobs = `-- name: SelectUpdatedJobs :many
 SELECT job_id, job_set, queue, priority, submitted, queued, queued_version, validated, cancel_requested, cancel_user, cancel_reason, cancel_by_jobset_requested, cancelled, succeeded, failed, scheduling_info, scheduling_info_version, pools, price_band, serial FROM jobs WHERE serial > $1 ORDER BY serial LIMIT $2
 `
@@ -1352,21 +1496,37 @@ func (q *Queries) UpdateJobPriorityByJobSet(ctx context.Context, arg UpdateJobPr
 	return err
 }
 
-const upsertExecutor = `-- name: UpsertExecutor :exec
+const upsertExecutor = `-- name: UpsertExecutor :execrows
 INSERT INTO executors (executor_id, last_request, last_updated)
-VALUES($1::text, $2::bytea, $3::timestamptz)
+SELECT $1::text, $2::bytea, $3::timestamptz
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM executor_settings
+    WHERE executor_id = $1::text
+      AND cordoned = true
+      AND cordon_reason = $4::text
+)
 ON CONFLICT (executor_id) DO UPDATE SET (last_request, last_updated) = (excluded.last_request,excluded.last_updated)
 `
 
 type UpsertExecutorParams struct {
-	ExecutorID  string    `db:"executor_id"`
-	LastRequest []byte    `db:"last_request"`
-	UpdateTime  time.Time `db:"update_time"`
+	ExecutorID   string    `db:"executor_id"`
+	LastRequest  []byte    `db:"last_request"`
+	UpdateTime   time.Time `db:"update_time"`
+	CordonReason string    `db:"cordon_reason"`
 }
 
-func (q *Queries) UpsertExecutor(ctx context.Context, arg UpsertExecutorParams) error {
-	_, err := q.db.Exec(ctx, upsertExecutor, arg.ExecutorID, arg.LastRequest, arg.UpdateTime)
-	return err
+func (q *Queries) UpsertExecutor(ctx context.Context, arg UpsertExecutorParams) (int64, error) {
+	result, err := q.db.Exec(ctx, upsertExecutor,
+		arg.ExecutorID,
+		arg.LastRequest,
+		arg.UpdateTime,
+		arg.CordonReason,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const upsertExecutorSettings = `-- name: UpsertExecutorSettings :exec
@@ -1374,18 +1534,31 @@ INSERT INTO executor_settings (executor_id, cordoned, cordon_reason, set_by_user
 VALUES ($1::text, $2::boolean, $3::text, $4::text, $5::timestamptz)
 ON CONFLICT (executor_id) DO UPDATE
   SET
-    cordoned = excluded.cordoned,
-    cordon_reason = excluded.cordon_reason,
-    set_by_user = excluded.set_by_user,
-    set_at_time = excluded.set_at_time
+    cordoned = CASE
+      WHEN executor_settings.cordoned = true AND executor_settings.cordon_reason = $6::text THEN executor_settings.cordoned
+      ELSE excluded.cordoned
+    END,
+    cordon_reason = CASE
+      WHEN executor_settings.cordoned = true AND executor_settings.cordon_reason = $6::text THEN executor_settings.cordon_reason
+      ELSE excluded.cordon_reason
+    END,
+    set_by_user = CASE
+      WHEN executor_settings.cordoned = true AND executor_settings.cordon_reason = $6::text THEN executor_settings.set_by_user
+      ELSE excluded.set_by_user
+    END,
+    set_at_time = CASE
+      WHEN executor_settings.cordoned = true AND executor_settings.cordon_reason = $6::text THEN executor_settings.set_at_time
+      ELSE excluded.set_at_time
+    END
 `
 
 type UpsertExecutorSettingsParams struct {
-	ExecutorID   string    `db:"executor_id"`
-	Cordoned     bool      `db:"cordoned"`
-	CordonReason string    `db:"cordon_reason"`
-	SetByUser    string    `db:"set_by_user"`
-	SetAtTime    time.Time `db:"set_at_time"`
+	ExecutorID            string    `db:"executor_id"`
+	Cordoned              bool      `db:"cordoned"`
+	CordonReason          string    `db:"cordon_reason"`
+	SetByUser             string    `db:"set_by_user"`
+	SetAtTime             time.Time `db:"set_at_time"`
+	TombstoneCordonReason string    `db:"tombstone_cordon_reason"`
 }
 
 func (q *Queries) UpsertExecutorSettings(ctx context.Context, arg UpsertExecutorSettingsParams) error {
@@ -1395,6 +1568,7 @@ func (q *Queries) UpsertExecutorSettings(ctx context.Context, arg UpsertExecutor
 		arg.CordonReason,
 		arg.SetByUser,
 		arg.SetAtTime,
+		arg.TombstoneCordonReason,
 	)
 	return err
 }
