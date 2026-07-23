@@ -14,6 +14,24 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 )
 
+func TestMarketIteratorPQ_HomeBeforeAway(t *testing.T) {
+	home := &MarketIteratorPQItem{queue: "q", price: 1}
+	away := &MarketIteratorPQItem{queue: context.CalculateAwayQueueName("q"), away: true, price: 1000}
+
+	// With the flag on, home sorts before away despite the lower price.
+	pq := MarketIteratorPQ{
+		preemptCrossPoolJobsFirst: true,
+		items:                     []*MarketIteratorPQItem{home, away},
+	}
+	require.True(t, pq.Less(0, 1))
+	require.False(t, pq.Less(1, 0))
+
+	// With the flag off, away wins on price (1000 > 1).
+	pq.preemptCrossPoolJobsFirst = false
+	require.False(t, pq.Less(0, 1))
+	require.True(t, pq.Less(1, 0))
+}
+
 func TestMarketIteratorPQ_Ordering(t *testing.T) {
 	queueA := &MarketIteratorPQItem{queue: "A", price: 3, queued: true, runtime: 10, submittedTime: 10}
 	queueB := &MarketIteratorPQItem{queue: "B", price: 3, queued: false, runtime: 10, submittedTime: 10}
@@ -81,7 +99,7 @@ func TestMarketBasedCandidateGangIterator_RoundRobin(t *testing.T) {
 				iteratorsByQueue[queueInfo.Queue] = createJobIterator(sctx, queueInfo.Queue, queueInfo.JobPrices...)
 			}
 
-			iter, err := NewMarketCandidateGangIterator("pool", nil, iteratorsByQueue)
+			iter, err := NewMarketCandidateGangIterator("pool", nil, iteratorsByQueue, false)
 			assert.NoError(t, err)
 
 			actualItemOrder := []string{}

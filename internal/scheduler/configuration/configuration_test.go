@@ -39,6 +39,25 @@ func TestGetProtectedFractionOfFairShare(t *testing.T) {
 	assert.Equal(t, 0.1, sc.GetProtectedFractionOfFairShare("missing-pool"))
 }
 
+func TestGetPreemptCrossPoolJobsFirst(t *testing.T) {
+	sc := SchedulingConfig{
+		Pools: []PoolConfig{
+			{
+				Name:                             "disabled-pool",
+				DisablePreemptCrossPoolJobsFirst: true,
+			},
+			{
+				Name: "default-pool",
+			},
+		},
+	}
+
+	// On by default; explicit disable turns it off; unknown pools default on.
+	assert.False(t, sc.GetPreemptCrossPoolJobsFirst("disabled-pool"))
+	assert.True(t, sc.GetPreemptCrossPoolJobsFirst("default-pool"))
+	assert.True(t, sc.GetPreemptCrossPoolJobsFirst("missing-pool"))
+}
+
 func TestApplyRespectNodePodLimits(t *testing.T) {
 	cpu := ResourceType{Name: "cpu", Resolution: resource.MustParse("1m")}
 	mem := ResourceType{Name: "memory", Resolution: resource.MustParse("1")}
