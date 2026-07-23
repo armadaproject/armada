@@ -353,6 +353,7 @@ const (
 	UnknownWellKnownNodeTypeErrorMessage             = "priority class refers to unknown well-known node type"
 	WildCardWellKnownNodeTypeValue                   = "*"
 	InvalidAwayNodeTypeConditionOperatorErrorMessage = "away node type condition has invalid operator; must be one of >, <, =="
+	InvalidTaintModificationOperationErrorMessage    = "taint modification has invalid operation; must be one of Add, Delete"
 )
 
 // ResourceType represents a resource the scheduler indexes for efficient lookup.
@@ -414,6 +415,15 @@ func (p PoolConfig) GetSubmissionGroup() string {
 	return p.ExperimentalSubmissionGroup
 }
 
+// UnmarshalConfigString allows an away pool to be specified in config as a plain
+// string (e.g. "awayPools: [poolA, poolB]"), decoding it into AwayPoolConfig{Name: "poolA"}.
+// This preserves backwards compatibility with the deprecated []string form.
+// It opts AwayPoolConfig in to commonconfig.StringConfigUnmarshalerHook during config decode.
+func (a *AwayPoolConfig) UnmarshalConfigString(text string) error {
+	a.Name = text
+	return nil
+}
+
 // AwayPoolNames returns the names of the away pools configured for this pool.
 func (p PoolConfig) AwayPoolNames() []string {
 	names := make([]string, len(p.AwayPools))
@@ -426,15 +436,39 @@ func (p PoolConfig) AwayPoolNames() []string {
 type AwayPoolConfig struct {
 	// Name of the away pool.
 	Name string `validate:"required"`
+	// Node holds configuration applied to nodes from this away pool as they are loaded into the NodeDb.
+	Node NodeConfig
 }
 
-// UnmarshalConfigString allows an away pool to be specified in config as a plain
-// string (e.g. "awayPools: [poolA, poolB]"), decoding it into AwayPoolConfig{Name: "poolA"}.
-// This preserves backwards compatibility with the deprecated []string form.
-// It opts AwayPoolConfig in to commonconfig.StringConfigUnmarshalerHook during config decode.
-func (a *AwayPoolConfig) UnmarshalConfigString(text string) error {
-	a.Name = text
-	return nil
+// NodeConfig groups configuration applied to away-pool nodes. It currently only
+// carries node modifications, but exists as its own section so further node-level
+// away-pool configuration can be added without a breaking reshape.
+type NodeConfig struct {
+	Modifications NodeModifications
+}
+
+// NodeModifications describes changes applied to away-pool nodes when constructing
+// the NodeDb. Only taints are supported today; the struct leaves room for future
+// modification kinds (e.g. labels) without a breaking reshape.
+type NodeModifications struct {
+	Taints []TaintModification
+}
+
+type TaintOperation string
+
+const (
+	TaintOperationAdd    TaintOperation = "Add"
+	TaintOperationDelete TaintOperation = "Delete"
+)
+
+// TaintModification adds or deletes a taint on an away-pool node.
+//   - Add:    Taint is appended verbatim (key + value + effect).
+//   - Delete: Taint is a matcher. Key, value, and effect must all be set. Value "*"
+//     matches any value; otherwise it must match exactly. Effect must always match
+//     exactly (there is no effect wildcard).
+type TaintModification struct {
+	Operation TaintOperation `validate:"required,oneof=Add Delete"`
+	Taint     v1.Taint
 }
 
 type MarketSchedulingConfig struct {
