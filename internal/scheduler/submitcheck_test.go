@@ -51,7 +51,7 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 		{Name: "cpu2"},
 		{Name: "cpu-disallowed-resources", ExperimentalUnscheduledResources: []string{"cpu"}},
 		{Name: "gpu"},
-		{Name: "cpu-away", AwayPools: []string{"gpu"}},
+		{Name: "cpu-away", AwayPools: []configuration.AwayPoolConfig{{Name: "gpu"}}},
 		{Name: "cpu-grouped-1", ExperimentalSubmissionGroup: "group-1"},
 		{Name: "cpu-grouped-2", ExperimentalSubmissionGroup: "group-1"},
 	}
