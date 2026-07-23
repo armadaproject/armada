@@ -72,6 +72,32 @@ func TestSuite() error {
 	}
 	fmt.Printf("(Real) Additional time to run reprioritization tests: %s\n\n", time.Since(timeTaken))
 
+	// Node preempt must run before node cancel: CancelOnNode kills all jobs on the node,
+	// which would cause the preempt test to receive a Cancelled event instead of Preempted.
+	timeTaken = time.Now()
+	out, err = goOutput("run", "cmd/testsuite/main.go", "test",
+		"--tests", "testsuite/testcases/node/node_preempt_by_name_1x5.yaml",
+		"--junit", "junit-node-preempt.xml",
+		"--config", "_local/.armadactl.yaml",
+	)
+	fmt.Println(out)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("(Real) Additional time to run node preempt tests: %s\n\n", time.Since(timeTaken))
+
+	timeTaken = time.Now()
+	out, err = goOutput("run", "cmd/testsuite/main.go", "test",
+		"--tests", "testsuite/testcases/node/node_cancel_by_name_1x5.yaml",
+		"--junit", "junit-node-cancel.xml",
+		"--config", "_local/.armadactl.yaml",
+	)
+	fmt.Println(out)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("(Real) Additional time to run node cancel tests: %s\n\n", time.Since(timeTaken))
+
 	fmt.Printf("(Real) Total time to run all tests: %s\n\n", time.Since(timeTakenTestSuite))
 	return nil
 }
