@@ -2,6 +2,7 @@ package ingest
 
 import (
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -143,35 +144,37 @@ func TestCalculatePartitionDelay(t *testing.T) {
 				require.NoError(t, err)
 			}()
 			fakeClock.SetTime(startTime)
-			// Let routine start + monitor initialise
-			fakeClock.Step(time.Second)
-			time.Sleep(time.Millisecond * 50)
+			// Wait for the monitor goroutine to register its ticker. Clock steps
+			// taken before then would be lost.
+			require.Eventually(t, fakeClock.HasWaiters, time.Second, 10*time.Millisecond, "monitor never registered its ticker")
+			fakeClock.Step(initDuration)
 
 			expectedNumberOfRecorderCalls := 0
 			for i, loop := range tc.loops {
+				message := &utils.Message{}
 				if loop.latestMessagePublishTime != nil {
 					formattedTime := loop.latestMessagePublishTime.Format(time.RFC3339Nano)
-					subscriptionStub.message = &utils.Message{Properties: map[string]string{publishTimeProperty: formattedTime}}
-				} else {
-					subscriptionStub.message = &utils.Message{}
+					message = &utils.Message{Properties: map[string]string{publishTimeProperty: formattedTime}}
 				}
-
-				if loop.retrieveLatestMessageErr != nil {
-					subscriptionStub.err = loop.retrieveLatestMessageErr
-				} else {
-					subscriptionStub.err = nil
-				}
+				subscriptionStub.setResponse(message, loop.retrieveLatestMessageErr)
 
 				// Step 1 interval
 				fakeClock.Step(interval)
-				time.Sleep(time.Millisecond * 50)
-
+				expectedSubscriptionCalls := i + 1
 				if loop.expectRecorderCalled {
-					assert.Equal(t, float64(loop.expectedDelay.Milliseconds()), recorder.delay["subscription"][1])
 					expectedNumberOfRecorderCalls++
 				}
-				assert.Equal(t, expectedNumberOfRecorderCalls, recorder.numberOfCalls)
-				assert.Equal(t, i+1, subscriptionStub.numberOfCalls)
+				// Each tick peeks messages once and, on the paths under test here,
+				// then records the delay. Waiting on both counts settles the
+				// iteration before the value assertions below.
+				require.Eventually(t, func() bool {
+					return subscriptionStub.callCount() == expectedSubscriptionCalls &&
+						recorder.callCount() == expectedNumberOfRecorderCalls
+				}, time.Second, 10*time.Millisecond, "monitor never processed the tick")
+
+				if loop.expectRecorderCalled {
+					assert.Equal(t, float64(loop.expectedDelay.Milliseconds()), recorder.recordedDelay("subscription", 1))
+				}
 			}
 		})
 	}
@@ -208,12 +211,17 @@ func (p *PartitionFetcherStub) TopicPartitions(topic string) ([]string, error) {
 	return p.partitions, nil
 }
 
+// The monitor calls the stubs below from its per-partition goroutines while the
+// test reads counters and swaps responses, so every access goes through a mutex.
 type PulsarDelayRecorderStub struct {
+	mutex         sync.Mutex
 	delay         map[string]map[int]float64
 	numberOfCalls int
 }
 
 func (p *PulsarDelayRecorderStub) RecordPulsarProcessingDelay(subscriptionName string, partition int, delayInMs float64) {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
 	p.numberOfCalls++
 	if p.delay == nil {
 		p.delay = make(map[string]map[int]float64)
@@ -224,18 +232,46 @@ func (p *PulsarDelayRecorderStub) RecordPulsarProcessingDelay(subscriptionName s
 	p.delay[subscriptionName][partition] = delayInMs
 }
 
+func (p *PulsarDelayRecorderStub) callCount() int {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+	return p.numberOfCalls
+}
+
+func (p *PulsarDelayRecorderStub) recordedDelay(subscriptionName string, partition int) float64 {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+	return p.delay[subscriptionName][partition]
+}
+
 type SubscriptionsStub struct {
+	mutex         sync.Mutex
 	numberOfCalls int
 	message       *utils.Message
 	err           error
 }
 
 func (s *SubscriptionsStub) PeekMessages(topicName utils.TopicName, subscriptionName string, count int) ([]*utils.Message, error) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
 	s.numberOfCalls++
 	if s.err != nil {
 		return nil, s.err
 	}
 	return []*utils.Message{s.message}, nil
+}
+
+func (s *SubscriptionsStub) setResponse(message *utils.Message, err error) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+	s.message = message
+	s.err = err
+}
+
+func (s *SubscriptionsStub) callCount() int {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+	return s.numberOfCalls
 }
 
 type PulsarAdminClientStub struct {
