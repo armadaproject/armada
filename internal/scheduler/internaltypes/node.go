@@ -420,6 +420,36 @@ func (node *Node) AddJob(job SchedulableJob, priority int32) error {
 	return nil
 }
 
+// EvictJob marks job as evicted from the node: its resources move from the job's
+// scheduled-priority bucket to the EvictedPriority bucket within AllocatableByPriority.
+// Ownership (AllocatedByJobId/AllocatedByQueue) is intentionally left in place.
+func (node *Node) EvictJob(job SchedulableJob, priority int32) error {
+	jobId := job.Id()
+	if _, ok := node.AllocatedByJobId[jobId]; !ok {
+		return errors.Errorf("job %s has no resources allocated on node %s", jobId, node.GetId())
+	}
+
+	queue := job.Queue()
+	if _, ok := node.AllocatedByQueue[queue]; !ok {
+		return errors.Errorf("queue %s has no resources allocated on node %s", queue, node.GetId())
+	}
+
+	if node.EvictedJobRunIds == nil {
+		node.EvictedJobRunIds = make(map[string]bool)
+	}
+	if _, ok := node.EvictedJobRunIds[jobId]; ok {
+		return errors.Errorf("job %s is already evicted from node %s", jobId, node.GetId())
+	}
+	node.EvictedJobRunIds[jobId] = true
+
+	allocatableByPriority := node.AllocatableByPriority
+	jobRequests := job.KubernetesResourceRequirements()
+	markAllocatable(allocatableByPriority, priorityCutoffFor(job, priority), jobRequests)
+	markAllocated(allocatableByPriority, EvictedPriority, jobRequests)
+
+	return nil
+}
+
 // claimForQueueAndJob records job ownership of requests on the node, lazily
 // initialising the ownership maps.
 func (node *Node) claimForQueueAndJob(queue, jobId string, r ResourceList) {

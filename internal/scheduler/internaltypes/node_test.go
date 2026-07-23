@@ -304,6 +304,29 @@ func TestNode_AddJob_DuplicateReturnsError(t *testing.T) {
 	assert.Contains(t, err.Error(), "already has resources allocated")
 }
 
+func TestNode_EvictJob_MovesResourcesToEvictedPriority(t *testing.T) {
+	factory := testAccountingFactory(t)
+	requests := testJobRequests(factory, "1", "1Gi")
+	node := testAccountingNode(t, factory)
+	job := &testSchedJob{id: "job-1", queue: "queue-a", requests: requests, priorityClass: types.PriorityClass{Priority: 10, Preemptible: true}}
+
+	require.NoError(t, node.AddJob(job, 10))
+	require.NoError(t, node.EvictJob(job, 10))
+
+	assert.True(t, node.EvictedJobRunIds["job-1"])
+	assert.Equal(t, requests, node.AllocatedByJobId["job-1"], "eviction must not release ownership")
+}
+
+func TestNode_EvictJob_UnknownJobErrors(t *testing.T) {
+	factory := testAccountingFactory(t)
+	node := testAccountingNode(t, factory)
+	job := &testSchedJob{id: "ghost", queue: "queue-a", requests: testJobRequests(factory, "1", "1Gi"), priorityClass: types.PriorityClass{Priority: 10, Preemptible: true}}
+
+	err := node.EvictJob(job, 10)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "no resources allocated")
+}
+
 func createNode(allocatableResource ResourceList, allocatableByPriority map[int32]ResourceList) *Node {
 	const id = "id"
 	const reportingNodeType = "re"
