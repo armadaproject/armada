@@ -78,6 +78,48 @@ func TestSchedule_DisableSchedulingSkipsReconciliation(t *testing.T) {
 	require.False(t, txn.GetById(job.Id()).Failed())
 }
 
+func TestSchedule_QueuedJobWithOnlyQueuedPriorityClassSchedules(t *testing.T) {
+	ctx := armadacontext.Background()
+	ctrl := gomock.NewController(t)
+
+	executors := []*schedulerobjects.Executor{makeTestExecutor("executor1", testfixtures.TestPool)}
+
+	queuedJob := testfixtures.Test1Cpu4GiJob(testfixtures.TestQueue, testfixtures.PriorityClass1).
+		WithQueued(true).
+		WithPools([]string{testfixtures.TestPool})
+
+	mockExecutorRepo := schedulermocks.NewMockExecutorRepository(ctrl)
+	mockExecutorRepo.EXPECT().GetExecutors(ctx).Return(executors, nil).AnyTimes()
+	mockExecutorRepo.EXPECT().GetExecutorSettings(ctx).Return([]*schedulerobjects.ExecutorSettings{}, nil).AnyTimes()
+
+	mockQueueCache := schedulermocks.NewMockQueueCache(ctrl)
+	mockQueueCache.EXPECT().GetAll(ctx).Return([]*api.Queue{testfixtures.MakeTestQueue()}, nil).AnyTimes()
+
+	schedulingConfig := testfixtures.TestSchedulingConfig()
+	sch, err := NewFairSchedulingAlgo(
+		schedulingConfig,
+		0,
+		mockExecutorRepo,
+		mockQueueCache,
+		reports.NewSchedulingContextRepository(),
+		testfixtures.TestResourceListFactory,
+		testfixtures.TestEmptyFloatingResources,
+		priorityoverride.NewNoOpProvider(),
+		nil,
+		&testRunReconciler{},
+	)
+	require.NoError(t, err)
+	sch.clock = clock.NewFakeClock(testfixtures.BaseTime)
+
+	jobDb := testfixtures.NewJobDb(testfixtures.TestResourceListFactory)
+	txn := jobDb.WriteTxn()
+	require.NoError(t, txn.Upsert([]*jobdb.Job{queuedJob}))
+
+	schedulerResult, err := sch.Schedule(ctx, txn)
+	require.NoError(t, err)
+	require.Len(t, ScheduledJobsFromSchedulerResult(schedulerResult), 1)
+}
+
 func TestSchedule_PoolFailureIsolation(t *testing.T) {
 	type poolSchedulingInfo struct {
 		name                            string

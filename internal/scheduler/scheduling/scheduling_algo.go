@@ -501,7 +501,9 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 
 	nodePools := append(currentPool.AwayPoolNames(), currentPool.Name)
 
-	nodeDb, err := l.constructNodeDb(currentPool, currentPoolJobs, otherPoolsJobs,
+	nodeDb, err := l.constructNodeDb(
+		l.buildInUsePriorityClasses(jobSchedulingInfo.inUsePriorityClasses),
+		currentPool, currentPoolJobs, otherPoolsJobs,
 		armadaslices.Filter(nodes, func(node *internaltypes.Node) bool { return slices.Contains(nodePools, node.GetPool()) }))
 	if err != nil {
 		return nil, err
@@ -572,6 +574,7 @@ type jobSchedulingInfo struct {
 	allocatedByQueueAndPriorityClass     map[string]map[string]internaltypes.ResourceList
 	awayAllocatedByQueueAndPriorityClass map[string]map[string]internaltypes.ResourceList
 	shortJobPenaltyByQueue               map[string]internaltypes.ResourceList
+	inUsePriorityClasses                 map[string]bool
 }
 
 func (l *FairSchedulingAlgo) calculateJobSchedulingInfo(ctx *armadacontext.Context, activeExecutorsSet map[string]bool,
@@ -583,6 +586,7 @@ func (l *FairSchedulingAlgo) calculateJobSchedulingInfo(ctx *armadacontext.Conte
 	demandByQueueAndPriorityClass := make(map[string]map[string]internaltypes.ResourceList)
 	allocatedByQueueAndPriorityClass := make(map[string]map[string]internaltypes.ResourceList)
 	awayAllocatedByQueueAndPriorityClass := make(map[string]map[string]internaltypes.ResourceList)
+	inUsePriorityClasses := make(map[string]bool)
 
 	for _, job := range jobs {
 		queue, present := queues[job.Queue()]
@@ -594,6 +598,8 @@ func (l *FairSchedulingAlgo) calculateJobSchedulingInfo(ctx *armadacontext.Conte
 		if job.InTerminalState() {
 			continue
 		}
+
+		inUsePriorityClasses[job.PriorityClassName()] = true
 
 		// Mark a queue being active for a given pool.  A queue is defined as being active if it has a job running
 		// on a pool or if a queued job is eligible for that pool
@@ -676,6 +682,7 @@ func (l *FairSchedulingAlgo) calculateJobSchedulingInfo(ctx *armadacontext.Conte
 		allocatedByQueueAndPriorityClass:     allocatedByQueueAndPriorityClass,
 		awayAllocatedByQueueAndPriorityClass: awayAllocatedByQueueAndPriorityClass,
 		shortJobPenaltyByQueue:               shortJobPenaltyByQueue,
+		inUsePriorityClasses:                 inUsePriorityClasses,
 	}, nil
 }
 
@@ -693,9 +700,9 @@ func (l *FairSchedulingAlgo) buildInUsePriorityClasses(inUse map[string]bool) ma
 	return result
 }
 
-func (l *FairSchedulingAlgo) constructNodeDb(poolConfig configuration.PoolConfig, currentPoolJobs []*jobdb.Job, otherPoolsJobs []*jobdb.Job, nodes []*internaltypes.Node) (*nodedb.NodeDb, error) {
+func (l *FairSchedulingAlgo) constructNodeDb(priorityClasses map[string]types.PriorityClass, poolConfig configuration.PoolConfig, currentPoolJobs []*jobdb.Job, otherPoolsJobs []*jobdb.Job, nodes []*internaltypes.Node) (*nodedb.NodeDb, error) {
 	nodeDb, err := nodedb.NewNodeDb(
-		l.schedulingConfig.PriorityClasses,
+		priorityClasses,
 		l.schedulingConfig.IndexedResources,
 		l.schedulingConfig.IndexedTaints,
 		l.schedulingConfig.IndexedNodeLabels,
