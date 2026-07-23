@@ -612,7 +612,7 @@ func TestMetricsCollector_TestCollect_ClusterMetricsAvailableCapacity(t *testing
 				},
 				{
 					Name:      testfixtures.TestPool2,
-					AwayPools: []string{testfixtures.TestPool},
+					AwayPools: []configuration.AwayPoolConfig{{Name: testfixtures.TestPool}},
 				},
 			},
 			runningJobs:      []*jobdb.Job{job},
@@ -632,7 +632,7 @@ func TestMetricsCollector_TestCollect_ClusterMetricsAvailableCapacity(t *testing
 				},
 				{
 					Name:      testfixtures.TestPool2,
-					AwayPools: []string{testfixtures.TestPool},
+					AwayPools: []configuration.AwayPoolConfig{{Name: testfixtures.TestPool}},
 				},
 			},
 			runningJobs:      []*jobdb.Job{job},

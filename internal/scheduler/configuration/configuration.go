@@ -383,7 +383,7 @@ type WellKnownNodeType struct {
 
 type PoolConfig struct {
 	Name                         string `validate:"required"`
-	AwayPools                    []string
+	AwayPools                    []AwayPoolConfig
 	ProtectedFractionOfFairShare *float64
 	// List of resource names, (e.g. "cpu" or "memory"), to consider when computing DominantResourceFairness costs.
 	// Dominant resource fairness is the algorithm used to assign a cost to jobs and queues.
@@ -412,6 +412,29 @@ func (p PoolConfig) GetSubmissionGroup() string {
 		return p.Name
 	}
 	return p.ExperimentalSubmissionGroup
+}
+
+// AwayPoolNames returns the names of the away pools configured for this pool.
+func (p PoolConfig) AwayPoolNames() []string {
+	names := make([]string, len(p.AwayPools))
+	for i, ap := range p.AwayPools {
+		names[i] = ap.Name
+	}
+	return names
+}
+
+type AwayPoolConfig struct {
+	// Name of the away pool.
+	Name string `validate:"required"`
+}
+
+// UnmarshalConfigString allows an away pool to be specified in config as a plain
+// string (e.g. "awayPools: [poolA, poolB]"), decoding it into AwayPoolConfig{Name: "poolA"}.
+// This preserves backwards compatibility with the deprecated []string form.
+// It opts AwayPoolConfig in to commonconfig.StringConfigUnmarshalerHook during config decode.
+func (a *AwayPoolConfig) UnmarshalConfigString(text string) error {
+	a.Name = text
+	return nil
 }
 
 type MarketSchedulingConfig struct {
