@@ -10,6 +10,8 @@ import (
 )
 
 func (c *Configuration) Mutate() (config.Config, error) {
+	c.Observability.ApplyResourceDefaults("scheduler")
+
 	if c.MaxSchedulingDuration > 0 {
 		log.Warnf("use of top level MaxSchedulingDuration has been deprecated - please use scheduling.MaxSchedulingDuration. Applying MaxSchedulingDuration to scheduling.MaxSchedulingDuration")
 		c.Scheduling.MaxSchedulingDuration = c.MaxSchedulingDuration

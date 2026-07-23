@@ -595,8 +595,9 @@ func TestOtelInitWithInvalidResourceAttributes(t *testing.T) {
 		},
 	}
 
-	err := cfg.Validate()
-	assert.Error(t, err, "Config validation should fail with empty service name")
+	err := InitOTel(cfg)
+	assert.Error(t, err, "InitOTel should reject empty service name")
+	assert.ErrorContains(t, err, ResourceAttributeServiceName)
 }
 
 func TestOtelShutdownWithoutInit(t *testing.T) {

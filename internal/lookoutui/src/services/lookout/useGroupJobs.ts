@@ -4,7 +4,7 @@ import { makeRandomJobs, mergeFilters } from "../../common/fakeJobsUtils"
 import { getErrorMessage } from "../../common/utils"
 import { getConfig } from "../../config"
 import { AggregateType, Job, JobFilter, JobGroup, JobOrder, JobState } from "../../models/lookoutModels"
-import { useAuthenticatedFetch } from "../../oidcAuth"
+import { useMirroredLookoutApiFetch } from "../../oidcAuth"
 
 export type GroupedField = {
   field: string
@@ -64,7 +64,7 @@ function groupFakeJobs(
 }
 
 export const useGroupJobs = () => {
-  const authenticatedFetch = useAuthenticatedFetch()
+  const lookoutApiFetch = useMirroredLookoutApiFetch()
   const config = getConfig()
   const fakeJobs = useMemo(() => (config.fakeDataEnabled ? getFakeJobs() : []), [config.fakeDataEnabled])
 
@@ -89,7 +89,7 @@ export const useGroupJobs = () => {
           path += "?" + new URLSearchParams({ backend: config.backend })
         }
 
-        const response = await authenticatedFetch(path, {
+        const response = await lookoutApiFetch(path, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -112,6 +112,6 @@ export const useGroupJobs = () => {
         throw await getErrorMessage(e)
       }
     },
-    [authenticatedFetch, config.backend, config.fakeDataEnabled, fakeJobs],
+    [lookoutApiFetch, config.backend, config.fakeDataEnabled, fakeJobs],
   )
 }

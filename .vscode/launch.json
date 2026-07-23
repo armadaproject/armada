@@ -226,6 +226,54 @@
         "${workspaceFolder}/_local/lookout/config-auth.yaml"
       ],
       "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "Attach Lookout HC",
+      "type": "go",
+      "request": "launch",
+      "mode": "exec",
+      "debugAdapter": "dlv-dap",
+      "outputMode": "remote",
+      "port": 2354,
+      "host": "127.0.0.1",
+      "program": "${workspaceFolder}/dist/armada-lookouthc",
+      "args": ["--config", "${workspaceFolder}/_local/lookouthc/config.yaml"],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "Attach Lookout HC Ingester",
+      "type": "go",
+      "request": "launch",
+      "mode": "exec",
+      "debugAdapter": "dlv-dap",
+      "outputMode": "remote",
+      "port": 2355,
+      "host": "127.0.0.1",
+      "program": "${workspaceFolder}/dist/armada-lookouthcingester",
+      "args": [
+        "--config",
+        "${workspaceFolder}/_local/lookouthcingester/config.yaml"
+      ],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "LookoutHCUI",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "yarn",
+      "runtimeArgs": ["dev"],
+      "cwd": "${workspaceFolder}/internal/lookoutui",
+      "env": {
+        "VITE_PORT": "3001",
+        "PROXY_TARGET": "http://localhost:8091",
+        "VITE_CACHE_DIR": "node_modules/.vite-hc"
+      },
+      "serverReadyAction": {
+        "pattern": "Local:.*http://localhost:([0-9]+)",
+        "uriFormat": "http://localhost:%s",
+        "action": "openExternally"
+      },
+      "preLaunchTask": "Prepare LookoutUI"
     }
   ],
   "compounds": [
@@ -330,6 +378,26 @@
       "preLaunchTask": "Set up and start (fake-executor with prometheus)",
       "stopAll": true,
       "presentation": { "order": 6 }
+    },
+    {
+      "name": "Armada (hot-cold)",
+      "configurations": [
+        "Attach Server",
+        "Attach Scheduler",
+        "Attach Scheduler Ingester",
+        "Attach Event Ingester",
+        "Attach Executor",
+        "Attach Lookout",
+        "Attach Lookout Ingester",
+        "Attach Lookout HC",
+        "Attach Lookout HC Ingester",
+        "Attach Binoculars",
+        "LookoutUI",
+        "LookoutHCUI"
+      ],
+      "preLaunchTask": "Set up and start (hot-cold)",
+      "stopAll": true,
+      "presentation": { "order": 7 }
     }
   ]
 }

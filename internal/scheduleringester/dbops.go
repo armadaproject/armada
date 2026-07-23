@@ -59,6 +59,16 @@ type JobRunDetails struct {
 	DbRun *schedulerdb.Run
 }
 
+type JobInsertion struct {
+	Job      *schedulerdb.Job
+	Metadata JobInsertionMetadata
+}
+
+type JobInsertionMetadata struct {
+	SubmitMessage []byte
+	Groups        []byte
+}
+
 type JobQueuedStateUpdate struct {
 	Queued             bool
 	QueuedStateVersion int32
@@ -185,16 +195,18 @@ func discardNilOps(ops []DbOperation) []DbOperation {
 }
 
 type (
-	InsertJobs                 map[string]*schedulerdb.Job
+	InsertJobs                 map[string]*JobInsertion
 	InsertRuns                 map[string]*JobRunDetails
 	UpdateJobSetPriorities     map[JobSetKey]int64
 	MarkJobSetsCancelRequested struct {
-		cancelUser string
-		jobSets    map[JobSetKey]*JobSetCancelAction
+		cancelUser   string
+		cancelReason string
+		jobSets      map[JobSetKey]*JobSetCancelAction
 	}
 	MarkJobsCancelRequested struct {
-		cancelUser string
-		jobIds     map[JobSetKey][]string
+		cancelUser   string
+		cancelReason string
+		jobIds       map[JobSetKey][]string
 	}
 	MarkJobsCancelled              map[string]time.Time
 	MarkJobsSucceeded              map[string]bool
@@ -261,7 +273,7 @@ func (a UpdateJobSetPriorities) Merge(b DbOperation) bool {
 func (a MarkJobSetsCancelRequested) Merge(b DbOperation) bool {
 	switch op := b.(type) {
 	case MarkJobSetsCancelRequested:
-		if a.cancelUser != op.cancelUser {
+		if a.cancelUser != op.cancelUser || a.cancelReason != op.cancelReason {
 			return false
 		}
 		maps.Copy(a.jobSets, op.jobSets)
@@ -273,7 +285,7 @@ func (a MarkJobSetsCancelRequested) Merge(b DbOperation) bool {
 func (a MarkJobsCancelRequested) Merge(b DbOperation) bool {
 	switch op := b.(type) {
 	case MarkJobsCancelRequested:
-		if a.cancelUser != op.cancelUser {
+		if a.cancelUser != op.cancelUser || a.cancelReason != op.cancelReason {
 			return false
 		}
 		for k, v := range op.jobIds {
@@ -454,7 +466,7 @@ func (a InsertJobs) CanBeAppliedBefore(b DbOperation) bool {
 	switch op := b.(type) {
 	case jobSetOperation:
 		for _, job := range a {
-			if op.AffectsJobSet(job.Queue, job.JobSet) {
+			if op.AffectsJobSet(job.Job.Queue, job.Job.JobSet) {
 				return false
 			}
 		}
@@ -666,7 +678,7 @@ func (cq CancelQueue) CanBeAppliedBefore(b DbOperation) bool {
 func definesJobInSet[M ~map[JobSetKey]V, V any](a M, b DbOperation) bool {
 	if op, ok := b.(InsertJobs); ok {
 		for _, job := range op {
-			if _, ok := a[JobSetKey{queue: job.Queue, jobSet: job.JobSet}]; ok {
+			if _, ok := a[JobSetKey{queue: job.Job.Queue, jobSet: job.Job.JobSet}]; ok {
 				return true
 			}
 		}
@@ -691,7 +703,7 @@ func definesRunInSet[M ~map[JobSetKey]V, V any](a M, b DbOperation) bool {
 func definesJob[M ~map[string]V, V any](a M, b DbOperation) bool {
 	if op, ok := b.(InsertJobs); ok {
 		for _, job := range op {
-			if _, ok := a[job.JobID]; ok {
+			if _, ok := a[job.Job.JobID]; ok {
 				return true
 			}
 		}

@@ -61,6 +61,8 @@ type Job struct {
 	cancelRequested bool
 	// The (first) user who cancelled this job
 	cancelUser *string
+	// The reason for cancelling the job
+	cancelReason *string
 	// True if the user has requested this job's jobSet be cancelled
 	cancelByJobSetRequested bool
 	// True if the scheduler has cancelled the job
@@ -354,6 +356,9 @@ func (job *Job) Equal(other *Job) bool {
 		return false
 	}
 	if job.cancelUser != other.cancelUser {
+		return false
+	}
+	if job.cancelReason != other.cancelReason {
 		return false
 	}
 	if job.cancelled != other.cancelled {
@@ -661,6 +666,11 @@ func (job *Job) CancelUser() *string {
 	return job.cancelUser
 }
 
+// CancelReason returns the reason why the job was cancelled
+func (job *Job) CancelReason() *string {
+	return job.cancelReason
+}
+
 // CancelByJobsetRequested returns true if the user has requested this job's jobSet be cancelled.
 func (job *Job) CancelByJobsetRequested() bool {
 	return job.cancelByJobSetRequested
@@ -684,6 +694,13 @@ func (job *Job) WithCancelByJobsetRequested(cancelByJobsetRequested bool) *Job {
 func (job *Job) WithCancelUser(cancelUser *string) *Job {
 	j := shallowCopyJob(*job)
 	j.cancelUser = cancelUser
+	return j
+}
+
+// WithCancelReason returns a copy of the job with the cancel reason updated.
+func (job *Job) WithCancelReason(cancelReason *string) *Job {
+	j := shallowCopyJob(*job)
+	j.cancelReason = cancelReason
 	return j
 }
 

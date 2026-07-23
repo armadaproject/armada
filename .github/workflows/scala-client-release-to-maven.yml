@@ -18,7 +18,7 @@ jobs:
         scala-version: ["2.12.18", "2.13.15"]
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Setup Go
         uses: ./.github/actions/setup-go-cache
@@ -33,7 +33,7 @@ jobs:
 
       - name: Bootstrap Proto files
         run: |
-          go run github.com/magefile/mage@v1.15.0 -v BootstrapProto
+          go run github.com/magefile/mage@v1.17.2 -v BootstrapProto
 
       - name: Setup JDK
         uses: actions/setup-java@v5

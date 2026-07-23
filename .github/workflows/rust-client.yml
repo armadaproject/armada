@@ -33,7 +33,7 @@ jobs:
             cache-key: cargo
             extra-components: 'clippy,rustfmt'
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
 
       - name: Install Rust (${{ matrix.toolchain }})
         uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9 # master
@@ -42,7 +42,7 @@ jobs:
           components: ${{ matrix.extra-components }}
 
       - name: Cache cargo registry and build
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
         with:
           path: |
             ~/.cargo/registry
@@ -64,7 +64,7 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Bootstrap proto dependencies
-        run: go run github.com/magefile/mage@v1.15.0 -v BootstrapProto
+        run: go run github.com/magefile/mage@v1.17.2 -v BootstrapProto
 
       - name: Check formatting
         if: matrix.toolchain == 'stable'

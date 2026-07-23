@@ -33,7 +33,6 @@ type SchedulerDb struct {
 	initialBackOff time.Duration
 	maxBackOff     time.Duration
 	lockTimeout    time.Duration
-	migrationPhase schedulerdb.JobMetadataMigrationPhase
 }
 
 func NewSchedulerDb(
@@ -42,7 +41,6 @@ func NewSchedulerDb(
 	initialBackOff time.Duration,
 	maxBackOff time.Duration,
 	lockTimeout time.Duration,
-	migrationPhase schedulerdb.JobMetadataMigrationPhase,
 ) *SchedulerDb {
 	return &SchedulerDb{
 		db:             db,
@@ -50,7 +48,6 @@ func NewSchedulerDb(
 		initialBackOff: initialBackOff,
 		maxBackOff:     maxBackOff,
 		lockTimeout:    lockTimeout,
-		migrationPhase: migrationPhase,
 	}
 }
 
@@ -103,35 +100,20 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 	queries := schedulerdb.New(tx)
 	switch o := op.(type) {
 	case InsertJobs:
-		if s.migrationPhase.WritesJobMetadata() {
-			specs := make([]any, 0, len(o))
-			for _, v := range o {
-				specs = append(specs, schedulerdb.JobMetadatum{
-					JobID:         v.JobID,
-					SubmitMessage: v.SubmitMessage,
-					Groups:        v.Groups,
-				})
-			}
-			if err := database.Upsert(ctx, tx, "job_metadata", specs); err != nil {
-				return err
-			}
-		}
+		metadata := make([]any, 0, len(o))
 		records := make([]any, 0, len(o))
 		for _, v := range o {
-			job := *v
-			if !s.migrationPhase.WritesJobs() {
-				// Cutover phase: submit_message and groups live only in job_metadata.
-				job.SubmitMessage = nil
-				job.Groups = nil
-			}
-			records = append(records, job)
+			metadata = append(metadata, schedulerdb.JobMetadatum{
+				JobID:         v.Job.JobID,
+				SubmitMessage: v.Metadata.SubmitMessage,
+				Groups:        v.Metadata.Groups,
+			})
+			records = append(records, *v.Job)
 		}
-		excluded := []string{"terminated"}
-		if !s.migrationPhase.WritesJobs() {
-			excluded = append(excluded, "submit_message", "groups")
+		if err := database.Upsert(ctx, tx, "job_metadata", metadata); err != nil {
+			return err
 		}
-		err := database.Upsert(ctx, tx, "jobs", records, database.WithExcludeColumns(excluded...))
-		if err != nil {
+		if err := database.Upsert(ctx, tx, "jobs", records, database.WithExcludeColumns("terminated")); err != nil {
 			return err
 		}
 	case InsertRuns:
@@ -191,9 +173,10 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 				err := queries.MarkJobsCancelRequestedBySet(
 					ctx,
 					schedulerdb.MarkJobsCancelRequestedBySetParams{
-						Queue:      jobSetInfo.queue,
-						JobSet:     jobSetInfo.jobSet,
-						CancelUser: &o.cancelUser,
+						Queue:        jobSetInfo.queue,
+						JobSet:       jobSetInfo.jobSet,
+						CancelUser:   nilIfEmpty(o.cancelUser),
+						CancelReason: nilIfEmpty(o.cancelReason),
 					},
 				)
 				if err != nil {
@@ -214,7 +197,8 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 						Queue:        jobSetInfo.queue,
 						JobSet:       jobSetInfo.jobSet,
 						QueuedStates: queuedStatesToCancel,
-						CancelUser:   &o.cancelUser,
+						CancelUser:   nilIfEmpty(o.cancelUser),
+						CancelReason: nilIfEmpty(o.cancelReason),
 					},
 				)
 				if err != nil {
@@ -225,10 +209,11 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 	case MarkJobsCancelRequested:
 		for key, value := range o.jobIds {
 			params := schedulerdb.MarkJobsCancelRequestedByIdParams{
-				Queue:      key.queue,
-				JobSet:     key.jobSet,
-				JobIds:     value,
-				CancelUser: &o.cancelUser,
+				Queue:        key.queue,
+				JobSet:       key.jobSet,
+				JobIds:       value,
+				CancelUser:   nilIfEmpty(o.cancelUser),
+				CancelReason: nilIfEmpty(o.cancelReason),
 			}
 			err := queries.MarkJobsCancelRequestedById(ctx, params)
 			if err != nil {
@@ -454,7 +439,7 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 					return errors.Wrapf(err, "error cancelling jobs on executor %s by queue and priority class", executor)
 				}
 			}
-			for _, requestCancelParams := range createMarkJobsCancelRequestedByIdParams(jobs) {
+			for _, requestCancelParams := range createMarkJobsCancelRequestedByIdParams(jobs, cancelReasonCancelOnExecutor) {
 				err = queries.MarkJobsCancelRequestedById(ctx, *requestCancelParams)
 				if err != nil {
 					return errors.Wrapf(err, "error cancelling jobs on executor %s by queue and priority class", executor)
@@ -538,7 +523,7 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 					return errors.Wrapf(err, "error cancelling jobs on node %s on executor %s by queue and priority class", nodeOnExecutor.Node, nodeOnExecutor.Executor)
 				}
 			}
-			for _, requestCancelParams := range createMarkJobsCancelRequestedByIdParams(jobs) {
+			for _, requestCancelParams := range createMarkJobsCancelRequestedByIdParams(jobs, cancelReasonCancelOnNode) {
 				err = queries.MarkJobsCancelRequestedById(ctx, *requestCancelParams)
 				if err != nil {
 					return errors.Wrapf(err, "error cancelling jobs on node %s on executor %s by queue and priority class", nodeOnExecutor.Node, nodeOnExecutor.Executor)
@@ -558,7 +543,7 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 					return errors.Wrapf(err, "error cancelling jobs by queue, job state and priority class")
 				}
 			}
-			for _, requestCancelParams := range createMarkJobsCancelRequestedByIdParams(jobs) {
+			for _, requestCancelParams := range createMarkJobsCancelRequestedByIdParams(jobs, cancelReasonCancelOnQueue) {
 				err = queries.MarkJobsCancelRequestedById(ctx, *requestCancelParams)
 				if err != nil {
 					return errors.Wrapf(err, "error cancelling jobs by queue, job state and priority class")
@@ -631,8 +616,11 @@ func (s *SchedulerDb) selectAllJobsByQueueAndJobState(ctx *armadacontext.Context
 }
 
 // createMarkJobCancelRequestedById returns []*schedulerdb.MarkJobsCancelRequestedByIdParams for the specified jobs such
-// that no two MarkJobsCancelRequestedByIdParams are for the same queue and jobset
-func createMarkJobsCancelRequestedByIdParams(jobs []schedulerdb.Job) []*schedulerdb.MarkJobsCancelRequestedByIdParams {
+// that no two MarkJobsCancelRequestedByIdParams are for the same queue and jobset.
+// reason records which control-plane path initiated the cancellation (e.g. "cancelled by CancelOnQueue")
+// so the persisted cancel_reason reflects the origin. There is no requestor for these system initiated cancels.
+func createMarkJobsCancelRequestedByIdParams(jobs []schedulerdb.Job, reason string) []*schedulerdb.MarkJobsCancelRequestedByIdParams {
+	cancelReason := nilIfEmpty(reason)
 	result := make([]*schedulerdb.MarkJobsCancelRequestedByIdParams, 0)
 	mapping := map[string]map[string]*schedulerdb.MarkJobsCancelRequestedByIdParams{}
 	for _, job := range jobs {
@@ -641,9 +629,10 @@ func createMarkJobsCancelRequestedByIdParams(jobs []schedulerdb.Job) []*schedule
 		}
 		if _, ok := mapping[job.Queue][job.JobSet]; !ok {
 			mapping[job.Queue][job.JobSet] = &schedulerdb.MarkJobsCancelRequestedByIdParams{
-				Queue:  job.Queue,
-				JobSet: job.JobSet,
-				JobIds: make([]string, 0),
+				Queue:        job.Queue,
+				JobSet:       job.JobSet,
+				JobIds:       make([]string, 0),
+				CancelReason: cancelReason,
 			}
 			result = append(result, mapping[job.Queue][job.JobSet])
 		}
@@ -652,6 +641,16 @@ func createMarkJobsCancelRequestedByIdParams(jobs []schedulerdb.Job) []*schedule
 	}
 
 	return result
+}
+
+// nilIfEmpty returns nil for an empty string so that an empty string is written as SQL null rather
+// than a non-null empty string. This matters because MarkJobsCancelRequestedById preserves the
+// first non-null cancel_user/cancel_reason.
+func nilIfEmpty(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
 }
 
 // createMarkJobRunsPreemptRequestedByJobIdParams returns []schedulerdb.MarkJobRunsPreemptRequestedByJobIdParams for the specified jobs such

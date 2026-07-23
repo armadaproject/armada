@@ -9,6 +9,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/internal/common/logging"
+	"github.com/armadaproject/armada/internal/common/observability"
 	"github.com/armadaproject/armada/internal/scheduleringester"
 )
 
@@ -31,6 +32,16 @@ func main() {
 	userSpecifiedConfigs := viper.GetStringSlice(CustomConfigLocation)
 
 	common.LoadConfig(&config, "./config/scheduleringester", userSpecifiedConfigs)
+
+	// Initialize OpenTelemetry
+	if err := observability.InitOTel(config.Observability); err != nil {
+		logging.Fatalf("Failed to initialize OTel: %v", err)
+	}
+	defer func() {
+		if err := observability.ShutdownWithDefaultTimeout(); err != nil {
+			logging.Warnf("Failed to shutdown OTel: %v", err)
+		}
+	}()
 
 	if err := scheduleringester.Run(config); err != nil {
 		fmt.Println(err)

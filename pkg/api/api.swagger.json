@@ -680,6 +680,148 @@
         }
       }
     },
+    "/v1/retry-policies": {
+      "get": {
+        "tags": [
+          "RetryPolicyService"
+        ],
+        "operationId": "GetRetryPolicies",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/apiRetryPolicyList"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        }
+      }
+    },
+    "/v1/retry-policy": {
+      "post": {
+        "tags": [
+          "RetryPolicyService"
+        ],
+        "operationId": "CreateRetryPolicy",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiRetryPolicy"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {}
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        }
+      }
+    },
+    "/v1/retry-policy/{name}": {
+      "get": {
+        "tags": [
+          "RetryPolicyService"
+        ],
+        "operationId": "GetRetryPolicy",
+        "parameters": [
+          {
+            "type": "string",
+            "name": "name",
+            "in": "path",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/apiRetryPolicy"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "RetryPolicyService"
+        ],
+        "operationId": "UpdateRetryPolicy",
+        "parameters": [
+          {
+            "type": "string",
+            "name": "name",
+            "in": "path",
+            "required": true
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiRetryPolicy"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {}
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "RetryPolicyService"
+        ],
+        "operationId": "DeleteRetryPolicy",
+        "parameters": [
+          {
+            "type": "string",
+            "name": "name",
+            "in": "path",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {}
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        }
+      }
+    },
     "/v1/run/details": {
       "post": {
         "tags": [
@@ -2203,6 +2345,13 @@
             "$ref": "#/definitions/apiPriorityClassResourceLimits"
           }
         },
+        "retryPolicies": {
+          "description": "retry_policies are the names of the retry policies attached to this queue,\nin precedence order. The scheduler evaluates the first policy in the list.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
         "userOwners": {
           "type": "array",
           "items": {
@@ -2242,6 +2391,64 @@
         },
         "queue": {
           "$ref": "#/definitions/apiQueue"
+        }
+      }
+    },
+    "apiRetryAction": {
+      "type": "string",
+      "default": "RETRY_ACTION_UNSPECIFIED",
+      "enum": [
+        "RETRY_ACTION_UNSPECIFIED",
+        "RETRY_ACTION_FAIL",
+        "RETRY_ACTION_RETRY"
+      ]
+    },
+    "apiRetryPolicy": {
+      "description": "RetryPolicy defines rules that determine whether failed jobs should be retried.\nOperators create policies and assign them to queues by name.",
+      "type": "object",
+      "properties": {
+        "defaultAction": {
+          "$ref": "#/definitions/apiRetryAction"
+        },
+        "name": {
+          "type": "string"
+        },
+        "retryLimit": {
+          "description": "retry_limit is the maximum number of retries after the initial failure.\nA retry_limit of 0 means the policy never retries.",
+          "type": "integer",
+          "format": "int64"
+        },
+        "rules": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/apiRetryRule"
+          }
+        }
+      }
+    },
+    "apiRetryPolicyList": {
+      "type": "object",
+      "properties": {
+        "retryPolicies": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/apiRetryPolicy"
+          }
+        }
+      }
+    },
+    "apiRetryRule": {
+      "type": "object",
+      "properties": {
+        "action": {
+          "$ref": "#/definitions/apiRetryAction"
+        },
+        "onCategory": {
+          "description": "on_category matches against Error.failure_category. When set with on_subcategory,\nboth must match.",
+          "type": "string"
+        },
+        "onSubcategory": {
+          "type": "string"
         }
       }
     },

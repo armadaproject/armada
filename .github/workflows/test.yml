@@ -14,10 +14,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
 
       - name: Setup Node
-        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
         with:
           node-version: 22.12.0
           cache: yarn
@@ -30,7 +30,7 @@ jobs:
 
       - name: Upload Test Reports Artifacts
         if: always()
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ts-unit-test-reports
           path: ./internal/lookoutui/junit.xml
@@ -45,7 +45,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
 
       - name: Setup Go
         uses: ./.github/actions/setup-go-cache
@@ -54,11 +54,11 @@ jobs:
 
       - name: Unit Tests
         id: unit_test
-        run: go run github.com/magefile/mage@v1.15.0 -v tests
+        run: go run github.com/magefile/mage@v1.17.2 -v tests
 
       - name: Upload Test Reports Artifacts
         if: always()
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: go-unit-test-reports
           path: test-reports/
@@ -79,7 +79,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
 
       # Some ubuntu-22.04 runners only have ~17GB free on the root disk, which is
       # less than this job's ~19.5GB peak usage. Remove unused preinstalled
@@ -92,7 +92,7 @@ jobs:
           swap-storage: false
 
       - name: Setup Docker
-        uses: docker/setup-docker-action@1a6edb0ba9ac496f6850236981f15d8f9a82254d # v5
+        uses: docker/setup-docker-action@6d7cfa65f60a9dda7b46e5513fa982536f3c9877 # v5
         with:
           daemon-config: '{"features":{"containerd-snapshotter":false}}'
 
@@ -109,13 +109,13 @@ jobs:
           cache-tools: true
 
       - name: Setup Integration Tests
-        run: go run github.com/magefile/mage@v1.15.0 -v dev:full
+        run: go run github.com/magefile/mage@v1.17.2 -v dev:full
 
       - name: Run Integration Tests
-        run: go run github.com/magefile/mage@v1.15.0 -v testsuite
+        run: go run github.com/magefile/mage@v1.17.2 -v testsuite
 
       - name: Upload JUnit Report Artifact
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: go-integration-test-reports
           path: junit.xml
@@ -129,7 +129,7 @@ jobs:
           docker logs pulsar > ./logs/pulsar.log 2>&1
 
       - name: Upload Docker Compose Logs
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: docker-compose-logs
@@ -149,7 +149,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
 
       - name: Setup Go
         uses: ./.github/actions/setup-go-cache
@@ -191,7 +191,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
 
       - name: Install Protoc
         uses: arduino/setup-protoc@c65c819552d16ad3c9b72d9dfd5ba5237b9c906b # v3
@@ -209,8 +209,8 @@ jobs:
       #             since it's possible for this to fail without any go changes being made.
       - name: Validate no changes in generated proto files
         run: |
-          go run github.com/magefile/mage@v1.15.0 -v proto
-          go run github.com/magefile/mage@v1.15.0 -v dotnet
+          go run github.com/magefile/mage@v1.17.2 -v proto
+          go run github.com/magefile/mage@v1.17.2 -v dotnet
 
           changed=$(git status -s -uno | wc -l)
 
@@ -240,7 +240,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
 
       - name: Setup Go
         uses: ./.github/actions/setup-go-cache
@@ -250,7 +250,7 @@ jobs:
 
       - name: Validate no changes in generated SQL files
         run: |
-          go run github.com/magefile/mage@v1.15.0 -v sql
+          go run github.com/magefile/mage@v1.17.2 -v sql
 
           changed=$(git status -s -uno | wc -l)
 

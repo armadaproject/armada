@@ -5,6 +5,7 @@ import (
 
 	authconfig "github.com/armadaproject/armada/internal/common/auth/configuration"
 	"github.com/armadaproject/armada/internal/common/database"
+	"github.com/armadaproject/armada/internal/common/observability"
 	profilingconfig "github.com/armadaproject/armada/internal/common/profiling/configuration"
 	"github.com/armadaproject/armada/internal/server/configuration"
 )
@@ -12,9 +13,10 @@ import (
 type LookoutConfig struct {
 	Auth authconfig.AuthConfig
 
-	ApiPort     int
-	Profiling   *profilingconfig.ProfilingConfig
-	MetricsPort int
+	ApiPort       int
+	Profiling     *profilingconfig.ProfilingConfig
+	MetricsPort   int
+	Observability observability.ObservabilityConfig
 
 	CorsAllowedOrigins []string
 	Tls                TlsConfig
@@ -194,6 +196,16 @@ type OidcConfig struct {
 	DisplayNameClaim *string `json:"displayNameClaim,omitempty"`
 }
 
+// RequestMirrorConfig configures client-side mirroring of Lookout UI API
+// requests to a secondary backend, e.g. for comparing performance against an
+// experimental deployment under real traffic patterns. TargetUrl must be an
+// HTTPS origin: mirrored requests carry the user's Authorization header, so it
+// must never be sent to a plaintext or untrusted origin.
+type RequestMirrorConfig struct {
+	Enabled   bool   `json:"enabled"`
+	TargetUrl string `json:"targetUrl,omitempty"`
+}
+
 // UIConfig must match the LookoutUiConfig TypeScript interface defined in internal/lookoutui/src/config/types.ts
 type UIConfig struct {
 	CustomTitle string `json:"customTitle"`
@@ -225,4 +237,7 @@ type UIConfig struct {
 
 	// Analytics is an optional analytics configuration
 	Analytics *AnalyticsConfig `json:"analytics,omitempty"`
+
+	// RequestMirror is an optional configuration for mirroring API requests to a secondary backend
+	RequestMirror *RequestMirrorConfig `json:"requestMirror,omitempty"`
 }
