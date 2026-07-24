@@ -1,14 +1,10 @@
 import pytest
 from armada_client.typings import JobState
+from armada._compat import AirflowFailException
 from armada.operators.errors import (
     ArmadaOperatorJobFailedError,
     ArmadaOperatorJobFailedFatalError,
 )
-
-try:
-    from airflow.sdk.exceptions import AirflowFailException
-except ImportError:
-    from airflow.exceptions import AirflowFailException
 
 
 def test_constructor():

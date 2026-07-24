@@ -1,11 +1,8 @@
 from airflow.exceptions import AirflowException
 
-try:
-    from airflow.sdk.exceptions import AirflowFailException
-except ImportError:
-    from airflow.exceptions import AirflowFailException
-
 from armada_client.typings import JobState
+
+from .._compat import AirflowFailException
 
 
 class ArmadaOperatorJobFailedError(AirflowException):
