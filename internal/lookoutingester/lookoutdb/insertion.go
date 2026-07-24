@@ -533,9 +533,9 @@ func (l *LookoutDb) UpdateJobsBatch(ctx *armadacontext.Context, instructions []*
 						last_transition_time_seconds = coalesce(tmp.last_transition_time_seconds, job.last_transition_time_seconds),
 						duplicate                    = coalesce(tmp.duplicate, job.duplicate),
 						latest_run_id                = coalesce(tmp.latest_run_id, job.latest_run_id),
-						cancel_reason                = coalesce(tmp.cancel_reason, job.cancel_reason),
-						cancel_user                  = coalesce(tmp.cancel_user, job.cancel_user),
-						preempt_user                 = coalesce(tmp.preempt_user, job.preempt_user),
+						cancel_reason                = coalesce(job.cancel_reason, tmp.cancel_reason),
+						cancel_user                  = coalesce(job.cancel_user, tmp.cancel_user),
+						preempt_user                 = coalesce(job.preempt_user, tmp.preempt_user),
 						reprioritize_user            = coalesce(tmp.reprioritize_user, job.reprioritize_user)
 					FROM %s as tmp WHERE tmp.job_id = job.job_id`, tmpTable),
 			)
@@ -559,9 +559,9 @@ func (l *LookoutDb) UpdateJobsScalar(ctx *armadacontext.Context, instructions []
 			last_transition_time_seconds = coalesce($6, job.last_transition_time_seconds),
 			duplicate                    = coalesce($7, duplicate),
 			latest_run_id                = coalesce($8, job.latest_run_id),
-			cancel_reason                = coalesce($9, job.cancel_reason),
-			cancel_user                  = coalesce($10, job.cancel_user),
-			preempt_user                 = coalesce($11, job.preempt_user),
+			cancel_reason                = coalesce(job.cancel_reason, $9),
+			cancel_user                  = coalesce(job.cancel_user, $10),
+			preempt_user                 = coalesce(job.preempt_user, $11),
 			reprioritize_user            = coalesce($12, job.reprioritize_user)
 		WHERE job_id = $1`
 	for _, i := range instructions {
@@ -1267,6 +1267,16 @@ func (l *LookoutDb) filterEventsForTerminalJobs(
 				state == lookout.JobFailedOrdinal ||
 				state == lookout.JobCancelledOrdinal) && updateInstructions.containsPreempted) {
 				filtered = append(filtered, updateInstructions.instructions...)
+			} else if state == lookout.JobCancelledOrdinal {
+				for _, instruction := range updateInstructions.instructions {
+					if instruction.CancelUser != nil || instruction.CancelReason != nil {
+						filtered = append(filtered, &model.UpdateJobInstruction{
+							JobId:        instruction.JobId,
+							CancelUser:   instruction.CancelUser,
+							CancelReason: instruction.CancelReason,
+						})
+					}
+				}
 			} else if state == lookout.JobPreemptedOrdinal {
 				for _, instruction := range updateInstructions.instructions {
 					if instruction.PreemptUser != nil {
