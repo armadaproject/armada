@@ -59,7 +59,7 @@ func (a *App) printSummary(state *domain.WatchContext, e api.Event) {
 	summary += state.GetCurrentStateSummary()
 	summary += fmt.Sprintf(" | %s, job id: %s", reflect.TypeOf(e).String()[5:], e.GetJobId())
 	if requestor := requestorFromEvent(e); requestor != "" {
-		summary += fmt.Sprintf(", actor: %s", requestor)
+		summary += fmt.Sprintf(", user: %s", requestor)
 	}
 
 	if kubernetesEvent, ok := e.(api.KubernetesEvent); ok {

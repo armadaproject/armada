@@ -32,6 +32,7 @@ func (a *App) Preempt(queue string, jobSetId string, jobId string, reason string
 		}
 
 		fmt.Fprintf(a.Out, "Requested preemption for job %s\n", jobId)
+		a.printActionUser()
 		return nil
 	})
 }
