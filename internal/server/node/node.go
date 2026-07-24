@@ -66,6 +66,7 @@ func (s *Server) PreemptOnNode(grpcCtx context.Context, req *api.NodePreemptRequ
 				Executor:        req.Executor,
 				Queues:          req.Queues,
 				PriorityClasses: req.PriorityClasses,
+				Requestor:       auth.GetPrincipal(ctx).GetName(),
 			},
 		},
 	}
@@ -105,6 +106,7 @@ func (s *Server) CancelOnNode(grpcCtx context.Context, req *api.NodeCancelReques
 				Executor:        req.Executor,
 				Queues:          req.Queues,
 				PriorityClasses: req.PriorityClasses,
+				Requestor:       auth.GetPrincipal(ctx).GetName(),
 			},
 		},
 	}

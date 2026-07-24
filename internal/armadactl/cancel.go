@@ -31,6 +31,7 @@ func (a *App) CancelJob(queue string, jobSetId string, jobId string) (outerErr e
 		}
 
 		fmt.Fprintf(a.Out, "Requested cancellation for jobs %s\n", strings.Join(result.CancelledIds, ", "))
+		a.printActionUser()
 		return nil
 	})
 }
@@ -52,6 +53,7 @@ func (a *App) CancelJobSet(queue string, jobSetId string) (outerErr error) {
 		}
 
 		fmt.Fprintf(a.Out, "Requested cancellation for job set %s\n", jobSetId)
+		a.printActionUser()
 		return nil
 	})
 }

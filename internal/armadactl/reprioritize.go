@@ -30,6 +30,7 @@ func (a *App) ReprioritizeJobSet(queueName string, jobSet string, priorityFactor
 		if err != nil {
 			return err
 		}
+		a.printActionUser()
 
 		return nil
 	})
@@ -61,6 +62,7 @@ func (a *App) ReprioritizeJob(queue string, jobSet string, jobId string, priorit
 		if err != nil {
 			return err
 		}
+		a.printActionUser()
 
 		return nil
 	})

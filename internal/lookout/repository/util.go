@@ -406,8 +406,8 @@ func (js *JobSimulator) Cancelled(timestamp time.Time, cancelUser string) *JobSi
 		Created: ts,
 		Event: &armadaevents.EventSequence_Event_CancelledJob{
 			CancelledJob: &armadaevents.CancelledJob{
-				JobId:      js.jobId,
-				CancelUser: cancelUser,
+				JobId:     js.jobId,
+				Requestor: cancelUser,
 			},
 		},
 	}
@@ -421,13 +421,18 @@ func (js *JobSimulator) Cancelled(timestamp time.Time, cancelUser string) *JobSi
 }
 
 func (js *JobSimulator) Reprioritized(newPriority uint32, timestamp time.Time) *JobSimulator {
+	return js.ReprioritizedBy(newPriority, js.owner, timestamp)
+}
+
+func (js *JobSimulator) ReprioritizedBy(newPriority uint32, reprioritizeUser string, timestamp time.Time) *JobSimulator {
 	ts := timestampOrNow(timestamp)
 	reprioritized := &armadaevents.EventSequence_Event{
 		Created: ts,
 		Event: &armadaevents.EventSequence_Event_ReprioritisedJob{
 			ReprioritisedJob: &armadaevents.ReprioritisedJob{
-				JobId:    js.jobId,
-				Priority: newPriority,
+				JobId:     js.jobId,
+				Priority:  newPriority,
+				Requestor: reprioritizeUser,
 			},
 		},
 	}
@@ -436,6 +441,7 @@ func (js *JobSimulator) Reprioritized(newPriority uint32, timestamp time.Time) *
 
 	js.apiJob.Priority = float64(newPriority)
 	js.job.Priority = int64(newPriority)
+	js.job.ReprioritizeUser = &reprioritizeUser
 	return js
 }
 

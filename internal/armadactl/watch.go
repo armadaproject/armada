@@ -58,9 +58,29 @@ func (a *App) printSummary(state *domain.WatchContext, e api.Event) {
 	summary := fmt.Sprintf("%s | ", ts.Format(time.Stamp))
 	summary += state.GetCurrentStateSummary()
 	summary += fmt.Sprintf(" | %s, job id: %s", reflect.TypeOf(e).String()[5:], e.GetJobId())
+	if requestor := requestorFromEvent(e); requestor != "" {
+		summary += fmt.Sprintf(", user: %s", requestor)
+	}
 
 	if kubernetesEvent, ok := e.(api.KubernetesEvent); ok {
 		summary += fmt.Sprintf(" pod: %d", kubernetesEvent.GetPodNumber())
 	}
 	fmt.Fprintf(a.Out, "%s\n", summary)
+}
+
+func requestorFromEvent(e api.Event) string {
+	switch event := e.(type) {
+	case *api.JobCancellingEvent:
+		return event.GetRequestor()
+	case *api.JobCancelledEvent:
+		return event.GetRequestor()
+	case *api.JobReprioritizingEvent:
+		return event.GetRequestor()
+	case *api.JobReprioritizedEvent:
+		return event.GetRequestor()
+	case *api.JobPreemptingEvent:
+		return event.GetRequestor()
+	default:
+		return ""
+	}
 }
