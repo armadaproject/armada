@@ -11,7 +11,7 @@ import (
 
 var testTaints = []v1.Taint{
 	{Key: "key1", Value: "val", Effect: v1.TaintEffectNoSchedule, TimeAdded: nil},
-	{Key: "key2", Value: "val", Effect: v1.TaintEffectNoExecute, TimeAdded: &metav1.Time{time.Now()}},
+	{Key: "key2", Value: "val", Effect: v1.TaintEffectNoExecute, TimeAdded: &metav1.Time{Time: time.Now()}},
 }
 
 func TestDeepCopy(t *testing.T) {

@@ -177,46 +177,55 @@ func TestJobStateReporter_HandlesFailedPod_WithRetryableError(t *testing.T) {
 	assertExpectedEvents(t, before, eventReporter.GetReceivedEvents(), reflect.TypeOf(&armadaevents.EventSequence_Event_JobRunErrors{}))
 }
 
-func TestJobStateReporter_FailedPod_RecordsDebugMessageWhenMainContainerNeverStarted(t *testing.T) {
-	_, _, eventReporter, fakeClusterContext := setUpJobStateReporterTest(t)
-
-	// Main container never started (no ContainerStatuses reached Running/Terminated)
-	pod := makeTestPod(v1.PodStatus{Phase: v1.PodFailed})
-	addPod(t, fakeClusterContext, pod)
-	addPodEvents(fakeClusterContext, pod, []*v1.Event{{Message: "Image pull has failed", Type: "Warning"}})
-
-	fakeClusterContext.SimulatePodAddEvent(pod)
-	time.Sleep(time.Millisecond * 100) // Give time for async routine to process message
-
-	require.Len(t, eventReporter.ReceivedEvents, 1)
-	podError := extractPodError(t, eventReporter.ReceivedEvents[0])
-	assert.Contains(t, podError.DebugMessage, "Image pull has failed")
-}
-
-func TestJobStateReporter_FailedPod_NoDebugMessageWhenMainContainerStarted(t *testing.T) {
-	_, _, eventReporter, fakeClusterContext := setUpJobStateReporterTest(t)
-
-	// Main container started (and later terminated) - so no debug data should be recorded
-	pod := makeTestPod(v1.PodStatus{
-		Phase: v1.PodFailed,
-		ContainerStatuses: []v1.ContainerStatus{
-			{
-				Name: "main",
-				State: v1.ContainerState{
-					Terminated: &v1.ContainerStateTerminated{ExitCode: 1, Reason: "Error"},
+func TestJobStateReporter_FailedPod_DebugMessage(t *testing.T) {
+	tests := map[string]struct {
+		status v1.PodStatus
+		// Empty means the error must carry no debug message at all.
+		expectedDebugMessage string
+	}{
+		"recorded when the main container never started": {
+			status:               v1.PodStatus{Phase: v1.PodFailed},
+			expectedDebugMessage: "Image pull has failed",
+		},
+		"absent when the main container started and terminated": {
+			status: v1.PodStatus{
+				Phase: v1.PodFailed,
+				ContainerStatuses: []v1.ContainerStatus{
+					{
+						Name: "main",
+						State: v1.ContainerState{
+							Terminated: &v1.ContainerStateTerminated{ExitCode: 1, Reason: "Error"},
+						},
+					},
 				},
 			},
+			expectedDebugMessage: "",
 		},
-	})
-	addPod(t, fakeClusterContext, pod)
-	addPodEvents(fakeClusterContext, pod, []*v1.Event{{Message: "Image pull has failed", Type: "Warning"}})
+	}
 
-	fakeClusterContext.SimulatePodAddEvent(pod)
-	time.Sleep(time.Millisecond * 100) // Give time for async routine to process message
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			_, _, eventReporter, fakeClusterContext := setUpJobStateReporterTest(t)
 
-	require.Len(t, eventReporter.ReceivedEvents, 1)
-	podError := extractPodError(t, eventReporter.ReceivedEvents[0])
-	assert.Empty(t, podError.DebugMessage)
+			pod := makeTestPod(tc.status)
+			addPod(t, fakeClusterContext, pod)
+			addPodEvents(fakeClusterContext, pod, []*v1.Event{{Message: "Image pull has failed", Type: "Warning"}})
+
+			fakeClusterContext.SimulatePodAddEvent(pod)
+			assert.Eventually(t, func() bool {
+				return len(eventReporter.GetReceivedEvents()) == 1
+			}, time.Second, 10*time.Millisecond, "the add handler goroutine must report the failed pod")
+
+			events := eventReporter.GetReceivedEvents()
+			require.Len(t, events, 1)
+			podError := extractPodError(t, events[0])
+			if tc.expectedDebugMessage == "" {
+				assert.Empty(t, podError.DebugMessage)
+			} else {
+				assert.Contains(t, podError.DebugMessage, tc.expectedDebugMessage)
+			}
+		})
+	}
 }
 
 func extractPodError(t *testing.T, message reporter.EventMessage) *armadaevents.PodError {
