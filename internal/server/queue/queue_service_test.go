@@ -28,21 +28,31 @@ import (
 	"github.com/armadaproject/armada/pkg/controlplaneevents"
 )
 
+type fakeRetryPolicyChecker struct {
+	exists bool
+}
+
+func (f *fakeRetryPolicyChecker) RetryPolicyExists(_ *armadacontext.Context, _ string) (bool, error) {
+	return f.exists, nil
+}
+
 type queueServiceTestMocks struct {
-	publisher  *commonMocks.MockPublisher[*controlplaneevents.Event]
-	authorizer *servermocks.MockActionAuthorizer
-	repo       *servermocks.MockQueueRepository
+	publisher     *commonMocks.MockPublisher[*controlplaneevents.Event]
+	authorizer    *servermocks.MockActionAuthorizer
+	repo          *servermocks.MockQueueRepository
+	retryPolicies *fakeRetryPolicyChecker
 }
 
 func newTestQueueServer(t *testing.T) (*Server, *queueServiceTestMocks) {
 	t.Helper()
 	ctrl := gomock.NewController(t)
 	m := &queueServiceTestMocks{
-		publisher:  commonMocks.NewMockPublisher[*controlplaneevents.Event](ctrl),
-		authorizer: servermocks.NewMockActionAuthorizer(ctrl),
-		repo:       servermocks.NewMockQueueRepository(ctrl),
+		publisher:     commonMocks.NewMockPublisher[*controlplaneevents.Event](ctrl),
+		authorizer:    servermocks.NewMockActionAuthorizer(ctrl),
+		repo:          servermocks.NewMockQueueRepository(ctrl),
+		retryPolicies: &fakeRetryPolicyChecker{exists: true},
 	}
-	s := NewServer(m.publisher, m.repo, m.authorizer)
+	s := NewServer(m.publisher, m.repo, m.retryPolicies, m.authorizer)
 	return s, m
 }
 
@@ -59,6 +69,45 @@ func TestCreateQueue_PermissionDenied(t *testing.T) {
 	_, err := s.CreateQueue(ctx, &api.Queue{Name: "q1"})
 	require.Error(t, err)
 	servertest.RequireGrpcCode(t, err, codes.PermissionDenied)
+}
+
+func TestCreateQueue_UnknownRetryPolicyRejected(t *testing.T) {
+	s, m := newTestQueueServer(t)
+	ctx := armadacontext.Background()
+
+	m.authorizer.
+		EXPECT().
+		AuthorizeAction(ctx, permission.Permission(permissions.CreateQueue)).
+		Return(nil).
+		Times(1)
+	// No repo expectation is set: gomock fails if CreateQueue reaches the repository.
+	m.retryPolicies.exists = false
+
+	_, err := s.CreateQueue(ctx, &api.Queue{Name: "q1", PriorityFactor: 1, RetryPolicies: []string{"ghost"}})
+	require.Error(t, err)
+	servertest.RequireGrpcCode(t, err, codes.InvalidArgument)
+}
+
+func TestCreateQueue_MultipleRetryPoliciesAccepted(t *testing.T) {
+	s, m := newTestQueueServer(t)
+	ctx := armadacontext.Background()
+
+	m.authorizer.
+		EXPECT().
+		AuthorizeAction(ctx, permission.Permission(permissions.CreateQueue)).
+		Return(nil).
+		Times(1)
+	var created queue.Queue
+	m.repo.
+		EXPECT().
+		CreateQueue(ctx, gomock.Any()).
+		Do(func(_ *armadacontext.Context, q queue.Queue) { created = q }).
+		Return(nil).
+		Times(1)
+
+	_, err := s.CreateQueue(ctx, &api.Queue{Name: "q1", PriorityFactor: 1, RetryPolicies: []string{"a", "b"}})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"a", "b"}, created.RetryPolicies)
 }
 
 func TestCreateQueue_AuthorizeErrorUnavailable(t *testing.T) {
