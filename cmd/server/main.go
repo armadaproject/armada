@@ -102,6 +102,7 @@ func main() {
 		config.CorsAllowedOrigins,
 		api.SwaggerJsonTemplate(),
 		api.RegisterSubmitHandler,
+		api.RegisterRetryPolicyServiceHandler,
 		api.RegisterEventHandler,
 		api.RegisterJobsHandler,
 		schedulerobjects.RegisterSchedulerReportingHandler,
