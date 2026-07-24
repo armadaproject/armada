@@ -36,3 +36,17 @@ func WithSchedulerReportingClient(apiConnectionDetails *ApiConnectionDetails, ac
 		return action(client)
 	})
 }
+
+func WithQueueServiceClient(apiConnectionDetails *ApiConnectionDetails, action func(api.QueueServiceClient) error) error {
+	return WithConnection(apiConnectionDetails, func(cc *grpc.ClientConn) error {
+		queueClient := api.NewQueueServiceClient(cc)
+		return action(queueClient)
+	})
+}
+
+func WithJobsClient(apiConnectionDetails *ApiConnectionDetails, action func(api.JobsClient) error) error {
+	return WithConnection(apiConnectionDetails, func(cc *grpc.ClientConn) error {
+		jobsClient := api.NewJobsClient(cc)
+		return action(jobsClient)
+	})
+}

@@ -62,4 +62,61 @@ message TestSpec {
     string environment = 13;
     // Value of the target label set on exported Prometheus metrics.
     string target = 14;
+    // Optional queue lifecycle phases.
+    QueueConfig queue_config = 18;
+}
+
+// Queue lifecycle configuration for a test.
+message QueueConfig {
+    QueueSetup setup = 1;
+    repeated QueueAssertion assertions = 2;
+    QueueTeardown teardown = 3;
+    Queue update = 4;
+}
+
+// Queue setup to run before job submission.
+message QueueSetup {
+    // If true, create the queue named by TestSpec.queue before running the test.
+    bool create = 1;
+    // If true, append a random suffix to TestSpec.queue to avoid name collisions.
+    bool random_suffix = 2;
+    // Number of batches of queues to create.
+    // If 0, defaults to 1.
+    uint32 num_batches = 5;
+    // Number of queues to create per batch, each named "<queue>-<index>".
+    // If 0, defaults to 1. If num_batches == 1 and batch_size == 1, the queue is named exactly TestSpec.queue.
+    uint32 batch_size = 6;
+    // Time between batches.
+    // If 0, queues are created as quickly as possible.
+    google.protobuf.Duration interval = 7;
+    // Queues to create, as templates. Allows creating queues with varying priority factors,
+    // permissions, labels, etc. (anything on api.Queue) in a single test.
+    repeated Queue queue_specs = 8;
+}
+
+// A single assertion to run against queue state after jobs finish.
+message QueueAssertion {
+    // If non-empty, assert that TestSpec.queue appears in GetActiveQueues for this pool name.
+    string active_in_pool = 1;
+    // If non-empty, assert that TestSpec.queue does NOT appear in GetActiveQueues for this pool name.
+    string not_active_in_pool = 2;
+    // If true, assert that TestSpec.queue appears in the GetQueues streaming response.
+    bool appears_in_stream = 3;
+    // If set, fetch TestSpec.queue via GetQueue and assert that its properties match this
+    // template (name is ignored; compares priority_factor, user_owners, group_owners,
+    // permissions, cordoned, labels, and resource_limits_by_priority_class_name).
+    // Useful for verifying that a QueueUpdate was actually applied.
+    Queue matches = 4;
+    // If true, after teardown deletes the queue(s), assert that GetQueue on the deleted
+    // queue(s) returns NOT_FOUND.
+    bool deleted = 5;
+}
+
+// Queue teardown to run after all assertions (always runs, even on test failure).
+message QueueTeardown {
+    // If true, the queue named by TestSpec.queue is NOT deleted after the test.
+    // Queues are deleted by default; set this to opt out.
+    bool skip_delete = 1;
+    // If true, the delete is expected to return NOT_FOUND (test the error path).
+    bool expect_not_found = 2;
 }

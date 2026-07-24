@@ -205,7 +205,7 @@ func AssertEvents(ctx context.Context, c chan *api.EventMessage, jobIds map[stri
 func assertEventErrorString(expected []*api.EventMessage, indexByJobId map[string]int) string {
 	countByIndex := make(map[int]int)
 	for _, i := range indexByJobId {
-		countByIndex[i] = +1
+		countByIndex[i]++
 	}
 	elems := make([]string, 0, len(countByIndex))
 	for i, c := range countByIndex {

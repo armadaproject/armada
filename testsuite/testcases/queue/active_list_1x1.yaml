@@ -1,22 +1,19 @@
-## POST /v1/job/reprioritize
-## Reprioritize an entire job set and confirm all jobs receive the update.
-## 1x1
+queue: e2e-test-queue-active
 numBatches: 1
 batchSize: 1
-queue: e2e-test-queue
 jobs:
   - priority: 0
-    namespace: default
+    namespace: personal-anonymous
     podSpec:
       terminationGracePeriodSeconds: 0
       restartPolicy: Never
       containers:
-        - name: reprioritize-by-jobset
+        - name: sleep
           imagePullPolicy: IfNotPresent
           image: alpine:3.20.0
           args:
             - "sleep"
-            - "100s"
+            - "30"
           resources:
             limits:
               memory: 25Mi
@@ -25,11 +22,14 @@ jobs:
               memory: 25Mi
               cpu: 100m
 ---
-## Reprioritize the job set upward
-action: ACTION_REPRIORITIZE
-selection: SELECTION_BY_SET
-newPriority: 100
-timeout: "100s"
+timeout: "120s"
 expectedEvents:
   - submitted:
-  - reprioritized:
+  - running:
+queueConfig:
+  setup:
+    create: true
+    randomSuffix: true
+  assertions:
+    - activeInPool: "default"
+    - deleted: true

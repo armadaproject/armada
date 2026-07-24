@@ -36,41 +36,29 @@ func TestSuite() error {
 	}
 	timeTakenTestSuite := time.Now()
 
-	timeTaken := time.Now()
-	out, err := goOutput("run", "cmd/testsuite/main.go", "test",
-		"--tests", "testsuite/testcases/basic/*,testsuite/testcases/categorization/*",
-		"--junit", "junit.xml",
-		"--config", "_local/.armadactl.yaml",
-	)
-	fmt.Println(out)
-	if err != nil {
-		return err
+	suites := []string{
+		"basic", "categorization", "preemption", "reprioritization", "queue",
 	}
-	fmt.Printf("(Real) Time to run basic, categorization tests: %s\n\n", time.Since(timeTaken))
 
-	timeTaken = time.Now()
-	out, err = goOutput("run", "cmd/testsuite/main.go", "test",
-		"--tests", "testsuite/testcases/preemption/*",
-		"--junit", "junit-preemption.xml",
-		"--config", "_local/.armadactl.yaml",
-	)
-	fmt.Println(out)
-	if err != nil {
-		return err
-	}
-	fmt.Printf("(Real) Additional time to run preemption tests: %s\n\n", time.Since(timeTaken))
+	for i, suite := range suites {
+		tests := []string{fmt.Sprintf("testsuite/testcases/%s/*", suite)}
 
-	timeTaken = time.Now()
-	out, err = goOutput("run", "cmd/testsuite/main.go", "test",
-		"--tests", "testsuite/testcases/reprioritization/*",
-		"--junit", "junit-reprioritization.xml",
-		"--config", "_local/.armadactl.yaml",
-	)
-	fmt.Println(out)
-	if err != nil {
-		return err
+		timeTaken := time.Now()
+		out, err := goOutput("run", "cmd/testsuite/main.go", "test",
+			"--tests", strings.Join(tests, ","),
+			"--junit", fmt.Sprintf("junit-%s.xml", suite),
+			"--config", "_local/.armadactl.yaml",
+		)
+		fmt.Println(out)
+		if err != nil {
+			return err
+		}
+		verb := "Time"
+		if i > 0 {
+			verb = "Additional time"
+		}
+		fmt.Printf("(Real) %s to run %s tests: %s\n\n", verb, suite, time.Since(timeTaken))
 	}
-	fmt.Printf("(Real) Additional time to run reprioritization tests: %s\n\n", time.Since(timeTaken))
 
 	fmt.Printf("(Real) Total time to run all tests: %s\n\n", time.Since(timeTakenTestSuite))
 	return nil

@@ -129,6 +129,8 @@ type TestSpec struct {
 	Environment string `protobuf:"bytes,13,opt,name=environment,proto3" json:"environment,omitempty"`
 	// Value of the target label set on exported Prometheus metrics.
 	Target string `protobuf:"bytes,14,opt,name=target,proto3" json:"target,omitempty"`
+	// Optional queue lifecycle phases.
+	QueueConfig *QueueConfig `protobuf:"bytes,18,opt,name=queue_config,json=queueConfig,proto3" json:"queueConfig,omitempty"`
 }
 
 func (m *TestSpec) Reset()         { *m = TestSpec{} }
@@ -283,67 +285,408 @@ func (m *TestSpec) GetTarget() string {
 	return ""
 }
 
+func (m *TestSpec) GetQueueConfig() *QueueConfig {
+	if m != nil {
+		return m.QueueConfig
+	}
+	return nil
+}
+
+// Queue lifecycle configuration for a test.
+type QueueConfig struct {
+	Setup      *QueueSetup       `protobuf:"bytes,1,opt,name=setup,proto3" json:"setup,omitempty"`
+	Assertions []*QueueAssertion `protobuf:"bytes,2,rep,name=assertions,proto3" json:"assertions,omitempty"`
+	Teardown   *QueueTeardown    `protobuf:"bytes,3,opt,name=teardown,proto3" json:"teardown,omitempty"`
+	Update     *Queue            `protobuf:"bytes,4,opt,name=update,proto3" json:"update,omitempty"`
+}
+
+func (m *QueueConfig) Reset()         { *m = QueueConfig{} }
+func (m *QueueConfig) String() string { return proto.CompactTextString(m) }
+func (*QueueConfig) ProtoMessage()    {}
+func (*QueueConfig) Descriptor() ([]byte, []int) {
+	return fileDescriptor_38d601305b414287, []int{1}
+}
+func (m *QueueConfig) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *QueueConfig) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_QueueConfig.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *QueueConfig) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_QueueConfig.Merge(m, src)
+}
+func (m *QueueConfig) XXX_Size() int {
+	return m.Size()
+}
+func (m *QueueConfig) XXX_DiscardUnknown() {
+	xxx_messageInfo_QueueConfig.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_QueueConfig proto.InternalMessageInfo
+
+func (m *QueueConfig) GetSetup() *QueueSetup {
+	if m != nil {
+		return m.Setup
+	}
+	return nil
+}
+
+func (m *QueueConfig) GetAssertions() []*QueueAssertion {
+	if m != nil {
+		return m.Assertions
+	}
+	return nil
+}
+
+func (m *QueueConfig) GetTeardown() *QueueTeardown {
+	if m != nil {
+		return m.Teardown
+	}
+	return nil
+}
+
+func (m *QueueConfig) GetUpdate() *Queue {
+	if m != nil {
+		return m.Update
+	}
+	return nil
+}
+
+// Queue setup to run before job submission.
+type QueueSetup struct {
+	// If true, create the queue named by TestSpec.queue before running the test.
+	Create bool `protobuf:"varint,1,opt,name=create,proto3" json:"create,omitempty"`
+	// If true, append a random suffix to TestSpec.queue to avoid name collisions.
+	RandomSuffix bool `protobuf:"varint,2,opt,name=random_suffix,json=randomSuffix,proto3" json:"randomSuffix,omitempty"`
+	// Number of batches of queues to create.
+	// If 0, defaults to 1.
+	NumBatches uint32 `protobuf:"varint,5,opt,name=num_batches,json=numBatches,proto3" json:"numBatches,omitempty"`
+	// Number of queues to create per batch, each named "<queue>-<index>".
+	// If 0, defaults to 1. If num_batches == 1 and batch_size == 1, the queue is named exactly TestSpec.queue.
+	BatchSize uint32 `protobuf:"varint,6,opt,name=batch_size,json=batchSize,proto3" json:"batchSize,omitempty"`
+	// Time between batches.
+	// If 0, queues are created as quickly as possible.
+	Interval *types.Duration `protobuf:"bytes,7,opt,name=interval,proto3" json:"interval,omitempty"`
+	// Queues to create, as templates. Allows creating queues with varying priority factors,
+	// permissions, labels, etc. (anything on api.Queue) in a single test.
+	QueueSpecs []*Queue `protobuf:"bytes,8,rep,name=queue_specs,json=queueSpecs,proto3" json:"queueSpecs,omitempty"`
+}
+
+func (m *QueueSetup) Reset()         { *m = QueueSetup{} }
+func (m *QueueSetup) String() string { return proto.CompactTextString(m) }
+func (*QueueSetup) ProtoMessage()    {}
+func (*QueueSetup) Descriptor() ([]byte, []int) {
+	return fileDescriptor_38d601305b414287, []int{2}
+}
+func (m *QueueSetup) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *QueueSetup) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_QueueSetup.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *QueueSetup) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_QueueSetup.Merge(m, src)
+}
+func (m *QueueSetup) XXX_Size() int {
+	return m.Size()
+}
+func (m *QueueSetup) XXX_DiscardUnknown() {
+	xxx_messageInfo_QueueSetup.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_QueueSetup proto.InternalMessageInfo
+
+func (m *QueueSetup) GetCreate() bool {
+	if m != nil {
+		return m.Create
+	}
+	return false
+}
+
+func (m *QueueSetup) GetRandomSuffix() bool {
+	if m != nil {
+		return m.RandomSuffix
+	}
+	return false
+}
+
+func (m *QueueSetup) GetNumBatches() uint32 {
+	if m != nil {
+		return m.NumBatches
+	}
+	return 0
+}
+
+func (m *QueueSetup) GetBatchSize() uint32 {
+	if m != nil {
+		return m.BatchSize
+	}
+	return 0
+}
+
+func (m *QueueSetup) GetInterval() *types.Duration {
+	if m != nil {
+		return m.Interval
+	}
+	return nil
+}
+
+func (m *QueueSetup) GetQueueSpecs() []*Queue {
+	if m != nil {
+		return m.QueueSpecs
+	}
+	return nil
+}
+
+// A single assertion to run against queue state after jobs finish.
+type QueueAssertion struct {
+	// If non-empty, assert that TestSpec.queue appears in GetActiveQueues for this pool name.
+	ActiveInPool string `protobuf:"bytes,1,opt,name=active_in_pool,json=activeInPool,proto3" json:"activeInPool,omitempty"`
+	// If non-empty, assert that TestSpec.queue does NOT appear in GetActiveQueues for this pool name.
+	NotActiveInPool string `protobuf:"bytes,2,opt,name=not_active_in_pool,json=notActiveInPool,proto3" json:"notActiveInPool,omitempty"`
+	// If true, assert that TestSpec.queue appears in the GetQueues streaming response.
+	AppearsInStream bool `protobuf:"varint,3,opt,name=appears_in_stream,json=appearsInStream,proto3" json:"appearsInStream,omitempty"`
+	// If set, fetch TestSpec.queue via GetQueue and assert that its properties match this
+	// template (name is ignored; compares priority_factor, user_owners, group_owners,
+	// permissions, cordoned, labels, and resource_limits_by_priority_class_name).
+	// Useful for verifying that a QueueUpdate was actually applied.
+	Matches *Queue `protobuf:"bytes,4,opt,name=matches,proto3" json:"matches,omitempty"`
+	// If true, after teardown deletes the queue(s), assert that GetQueue on the deleted
+	// queue(s) returns NOT_FOUND.
+	Deleted bool `protobuf:"varint,5,opt,name=deleted,proto3" json:"deleted,omitempty"`
+}
+
+func (m *QueueAssertion) Reset()         { *m = QueueAssertion{} }
+func (m *QueueAssertion) String() string { return proto.CompactTextString(m) }
+func (*QueueAssertion) ProtoMessage()    {}
+func (*QueueAssertion) Descriptor() ([]byte, []int) {
+	return fileDescriptor_38d601305b414287, []int{3}
+}
+func (m *QueueAssertion) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *QueueAssertion) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_QueueAssertion.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *QueueAssertion) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_QueueAssertion.Merge(m, src)
+}
+func (m *QueueAssertion) XXX_Size() int {
+	return m.Size()
+}
+func (m *QueueAssertion) XXX_DiscardUnknown() {
+	xxx_messageInfo_QueueAssertion.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_QueueAssertion proto.InternalMessageInfo
+
+func (m *QueueAssertion) GetActiveInPool() string {
+	if m != nil {
+		return m.ActiveInPool
+	}
+	return ""
+}
+
+func (m *QueueAssertion) GetNotActiveInPool() string {
+	if m != nil {
+		return m.NotActiveInPool
+	}
+	return ""
+}
+
+func (m *QueueAssertion) GetAppearsInStream() bool {
+	if m != nil {
+		return m.AppearsInStream
+	}
+	return false
+}
+
+func (m *QueueAssertion) GetMatches() *Queue {
+	if m != nil {
+		return m.Matches
+	}
+	return nil
+}
+
+func (m *QueueAssertion) GetDeleted() bool {
+	if m != nil {
+		return m.Deleted
+	}
+	return false
+}
+
+// Queue teardown to run after all assertions (always runs, even on test failure).
+type QueueTeardown struct {
+	// If true, the queue named by TestSpec.queue is NOT deleted after the test.
+	// Queues are deleted by default; set this to opt out.
+	SkipDelete bool `protobuf:"varint,1,opt,name=skip_delete,json=skipDelete,proto3" json:"skipDelete,omitempty"`
+	// If true, the delete is expected to return NOT_FOUND (test the error path).
+	ExpectNotFound bool `protobuf:"varint,2,opt,name=expect_not_found,json=expectNotFound,proto3" json:"expectNotFound,omitempty"`
+}
+
+func (m *QueueTeardown) Reset()         { *m = QueueTeardown{} }
+func (m *QueueTeardown) String() string { return proto.CompactTextString(m) }
+func (*QueueTeardown) ProtoMessage()    {}
+func (*QueueTeardown) Descriptor() ([]byte, []int) {
+	return fileDescriptor_38d601305b414287, []int{4}
+}
+func (m *QueueTeardown) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *QueueTeardown) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_QueueTeardown.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *QueueTeardown) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_QueueTeardown.Merge(m, src)
+}
+func (m *QueueTeardown) XXX_Size() int {
+	return m.Size()
+}
+func (m *QueueTeardown) XXX_DiscardUnknown() {
+	xxx_messageInfo_QueueTeardown.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_QueueTeardown proto.InternalMessageInfo
+
+func (m *QueueTeardown) GetSkipDelete() bool {
+	if m != nil {
+		return m.SkipDelete
+	}
+	return false
+}
+
+func (m *QueueTeardown) GetExpectNotFound() bool {
+	if m != nil {
+		return m.ExpectNotFound
+	}
+	return false
+}
+
 func init() {
 	proto.RegisterEnum("api.TestSpec_ActionType", TestSpec_ActionType_name, TestSpec_ActionType_value)
 	proto.RegisterEnum("api.TestSpec_SelectionType", TestSpec_SelectionType_name, TestSpec_SelectionType_value)
 	proto.RegisterType((*TestSpec)(nil), "api.TestSpec")
+	proto.RegisterType((*QueueConfig)(nil), "api.QueueConfig")
+	proto.RegisterType((*QueueSetup)(nil), "api.QueueSetup")
+	proto.RegisterType((*QueueAssertion)(nil), "api.QueueAssertion")
+	proto.RegisterType((*QueueTeardown)(nil), "api.QueueTeardown")
 }
 
 func init() { proto.RegisterFile("pkg/api/testspec.proto", fileDescriptor_38d601305b414287) }
 
 var fileDescriptor_38d601305b414287 = []byte{
-	// 807 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x84, 0x94, 0xcf, 0x6e, 0xdb, 0x46,
-	0x10, 0xc6, 0x45, 0xcb, 0xb1, 0xe5, 0x91, 0x25, 0xd1, 0x2b, 0x25, 0xde, 0x24, 0x85, 0x28, 0xf8,
-	0xd0, 0xaa, 0x40, 0x40, 0x15, 0x69, 0x51, 0xa0, 0x68, 0x2f, 0xa2, 0xcd, 0x00, 0x0c, 0xfc, 0x47,
-	0x90, 0x74, 0x48, 0x03, 0x14, 0x04, 0x29, 0x4d, 0x19, 0xaa, 0x22, 0x97, 0x21, 0x97, 0x4e, 0x9d,
-	0x73, 0x1f, 0xa0, 0xcf, 0xd1, 0x27, 0xe9, 0x31, 0xc7, 0x9e, 0x88, 0xc2, 0xbe, 0xf1, 0x29, 0x0a,
-	0x2d, 0x49, 0x7b, 0xd5, 0x4b, 0x8e, 0xfb, 0xfb, 0xe6, 0xfb, 0x96, 0xbb, 0x33, 0x4b, 0x78, 0x12,
-	0xfd, 0xe6, 0x8d, 0x9c, 0xc8, 0x1f, 0x71, 0x4c, 0x78, 0x12, 0xe1, 0x42, 0x8f, 0x62, 0xc6, 0x19,
-	0xa9, 0x3b, 0x91, 0xff, 0xac, 0xef, 0x31, 0xe6, 0xad, 0x71, 0x24, 0x90, 0x9b, 0xfe, 0x3a, 0x5a,
-	0xa6, 0xb1, 0xc3, 0x7d, 0x16, 0x16, 0x45, 0xcf, 0x7a, 0x95, 0x39, 0x49, 0xdd, 0xc0, 0xe7, 0x25,
-	0xed, 0x56, 0x14, 0xaf, 0x31, 0x2c, 0xe1, 0xc9, 0x1f, 0x00, 0x8d, 0x39, 0x26, 0x7c, 0x16, 0xe1,
-	0x82, 0x8c, 0x61, 0x77, 0xc5, 0xdc, 0x84, 0x2a, 0x83, 0xfa, 0xb0, 0xf9, 0xf2, 0xa9, 0xee, 0x44,
-	0xbe, 0xfe, 0x9a, 0xb9, 0x33, 0x91, 0x32, 0xc5, 0xf7, 0x29, 0x26, 0xdc, 0xe2, 0x18, 0x18, 0x24,
-	0xcf, 0xb4, 0xf6, 0xa6, 0xf4, 0x05, 0x0b, 0x7c, 0x8e, 0x41, 0xc4, 0x6f, 0xa6, 0xc2, 0x4a, 0xde,
-	0x40, 0x07, 0x7f, 0x8f, 0x70, 0xc1, 0x71, 0x69, 0x8b, 0x7d, 0x12, 0xba, 0x23, 0xd2, 0x8e, 0x44,
-	0x9a, 0xb9, 0x41, 0x17, 0x98, 0x24, 0x8e, 0x87, 0xc6, 0x17, 0x79, 0xa6, 0xd1, 0xaa, 0x5a, 0x28,
-	0x72, 0x5e, 0x7b, 0x5b, 0x21, 0x5f, 0xc3, 0xa3, 0xf7, 0x29, 0xa6, 0x48, 0xeb, 0x03, 0x65, 0x78,
-	0x60, 0x74, 0xf3, 0x4c, 0xeb, 0x08, 0x20, 0x79, 0x8a, 0x0a, 0xf2, 0x1d, 0xc0, 0x8a, 0xb9, 0x76,
-	0x82, 0xdc, 0xf6, 0x97, 0x74, 0x57, 0xd4, 0x3f, 0xc9, 0x33, 0x8d, 0xac, 0x98, 0x3b, 0x43, 0x6e,
-	0x2d, 0x25, 0x4b, 0xa3, 0x62, 0xe4, 0x07, 0x68, 0x86, 0x69, 0x60, 0xbb, 0x0e, 0x5f, 0xbc, 0xc3,
-	0x84, 0x3e, 0x1a, 0x28, 0xc3, 0x96, 0x41, 0xf3, 0x4c, 0xeb, 0x85, 0x69, 0x60, 0x14, 0x54, 0x32,
-	0xc2, 0x03, 0x25, 0xdf, 0x03, 0x08, 0x9b, 0x9d, 0xf8, 0x1f, 0x91, 0xee, 0x09, 0xe7, 0x71, 0x9e,
-	0x69, 0x5d, 0x41, 0x67, 0xfe, 0x47, 0xf9, 0x23, 0x0f, 0xee, 0x21, 0xb9, 0x80, 0x86, 0x1f, 0x72,
-	0x8c, 0xaf, 0x9d, 0x35, 0xdd, 0x1f, 0x28, 0xe2, 0xd2, 0x8b, 0xde, 0xea, 0x55, 0x6f, 0xf5, 0xb3,
-	0xb2, 0xb7, 0xc5, 0x09, 0xaa, 0x72, 0xf9, 0x04, 0x15, 0x23, 0xaf, 0x61, 0x9f, 0xfb, 0x01, 0xb2,
-	0x94, 0xd3, 0xc6, 0xe7, 0xd2, 0x1e, 0xe7, 0x99, 0x76, 0x54, 0x56, 0x4b, 0x61, 0x55, 0x00, 0x79,
-	0x05, 0x7b, 0xce, 0x62, 0x53, 0x49, 0x0f, 0x06, 0xca, 0xb0, 0xfd, 0x92, 0x8a, 0xfe, 0x55, 0xa3,
-	0xa2, 0x8f, 0x85, 0x36, 0xbf, 0x89, 0xd0, 0xe8, 0xe5, 0x99, 0xa6, 0x16, 0xb5, 0x52, 0x50, 0xe9,
-	0x26, 0x53, 0x38, 0x48, 0x70, 0x8d, 0x45, 0xd4, 0x91, 0x88, 0x7a, 0xbe, 0x1d, 0x35, 0xab, 0x64,
-	0x91, 0x26, 0xae, 0xed, 0xde, 0x21, 0x5f, 0xdb, 0x3d, 0x24, 0x06, 0xb4, 0xa3, 0x18, 0x37, 0xd8,
-	0x8e, 0xd1, 0x49, 0x58, 0x48, 0x55, 0xd1, 0xe3, 0xe7, 0x79, 0xa6, 0x1d, 0x97, 0xca, 0x54, 0x08,
-	0x92, 0xbf, 0xb5, 0x25, 0x90, 0x9f, 0xe0, 0x30, 0xc4, 0x0f, 0x76, 0x14, 0xfb, 0x2c, 0xf6, 0xf9,
-	0x0d, 0xed, 0x0c, 0x94, 0xa1, 0x62, 0x3c, 0xcd, 0x33, 0xed, 0x71, 0x88, 0x1f, 0x26, 0x25, 0x96,
-	0xfc, 0x4d, 0x09, 0x93, 0x2f, 0x61, 0x37, 0x74, 0x02, 0xa4, 0x20, 0xf6, 0x15, 0xcf, 0x61, 0xb3,
-	0x96, 0x9f, 0xc3, 0x66, 0x4d, 0x5e, 0x81, 0x1a, 0x3b, 0xe1, 0x92, 0x05, 0xf6, 0x62, 0xed, 0x63,
-	0x28, 0xe6, 0xb1, 0x39, 0x50, 0x86, 0x8d, 0x62, 0xf8, 0x0b, 0xed, 0x54, 0x48, 0x5b, 0x53, 0xd9,
-	0xde, 0x56, 0xc8, 0x37, 0xd0, 0xf0, 0x90, 0xdb, 0x6b, 0xe6, 0x25, 0xf4, 0x50, 0xf8, 0x45, 0xff,
-	0x3c, 0xe4, 0xe7, 0xcc, 0x93, 0xa7, 0x72, 0xbf, 0x44, 0xe4, 0x47, 0x68, 0x62, 0x78, 0xed, 0xc7,
-	0x2c, 0x0c, 0x30, 0xe4, 0xb4, 0x25, 0x3e, 0x54, 0x1c, 0x4f, 0xc2, 0xf2, 0xf1, 0x24, 0x4c, 0x5e,
-	0xc0, 0x1e, 0x77, 0x62, 0x0f, 0x39, 0x6d, 0x0b, 0x9f, 0x68, 0x71, 0x41, 0xe4, 0x16, 0x17, 0xe4,
-	0xe4, 0x17, 0x80, 0x87, 0x71, 0x20, 0x1d, 0x68, 0x8e, 0x4f, 0xe7, 0xd6, 0xd5, 0xa5, 0x7d, 0x79,
-	0x75, 0x69, 0xaa, 0x35, 0x72, 0x04, 0xad, 0x12, 0x9c, 0x8e, 0x2f, 0x4f, 0xcd, 0x73, 0x55, 0x21,
-	0x04, 0xda, 0x25, 0x9a, 0x4c, 0x4d, 0xf3, 0x62, 0x32, 0x57, 0x77, 0xc8, 0x31, 0x74, 0x4b, 0x36,
-	0x35, 0x27, 0x53, 0xeb, 0x6a, 0x6a, 0xcd, 0xad, 0xb7, 0xa6, 0x5a, 0x3f, 0x71, 0xa1, 0xb5, 0x35,
-	0x22, 0x44, 0x85, 0xc3, 0x99, 0x79, 0x6e, 0x56, 0x9b, 0xa8, 0x35, 0xd2, 0x85, 0xce, 0x03, 0x31,
-	0x7e, 0xb6, 0xad, 0x33, 0x55, 0x21, 0x3d, 0x50, 0xb7, 0xe0, 0xcc, 0xdc, 0x6c, 0xf3, 0x7f, 0x6a,
-	0x9d, 0xcd, 0xd4, 0xba, 0xf1, 0xe6, 0xef, 0xdb, 0xbe, 0xf2, 0xe9, 0xb6, 0xaf, 0xfc, 0x7b, 0xdb,
-	0x57, 0xfe, 0xbc, 0xeb, 0xd7, 0x3e, 0xdd, 0xf5, 0x6b, 0xff, 0xdc, 0xf5, 0x6b, 0x6f, 0xbf, 0xf2,
-	0x7c, 0xfe, 0x2e, 0x75, 0xf5, 0x05, 0x0b, 0x46, 0x4e, 0x1c, 0x38, 0x4b, 0x27, 0x8a, 0xd9, 0x0a,
-	0x17, 0xbc, 0x5c, 0x8d, 0xca, 0xbf, 0xea, 0x5f, 0x3b, 0xbd, 0xb1, 0x00, 0x93, 0x42, 0xd6, 0x2d,
-	0xa6, 0x8f, 0x23, 0xdf, 0xdd, 0x13, 0x4f, 0xef, 0xdb, 0xff, 0x02, 0x00, 0x00, 0xff, 0xff, 0x93,
-	0x0f, 0x05, 0xf9, 0xd1, 0x05, 0x00, 0x00,
+	// 1195 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xdc, 0x96, 0xcf, 0x6e, 0xdb, 0x46,
+	0x10, 0xc6, 0x4d, 0x39, 0xb1, 0xe5, 0x91, 0x25, 0xd1, 0x6b, 0x27, 0x61, 0x92, 0x56, 0x14, 0x74,
+	0x68, 0x5d, 0x20, 0x90, 0x0a, 0xb7, 0x28, 0xda, 0xa6, 0x40, 0x2b, 0xd9, 0x32, 0xc0, 0x20, 0x76,
+	0x5c, 0xc9, 0x87, 0x34, 0x40, 0x41, 0x50, 0xd2, 0x58, 0xa1, 0x23, 0x72, 0x19, 0x72, 0xe9, 0xfc,
+	0x39, 0xf7, 0x01, 0x8a, 0x1e, 0xfb, 0x08, 0x7d, 0x92, 0x1e, 0x73, 0x28, 0xd0, 0x9e, 0x88, 0x22,
+	0xb9, 0xf1, 0x29, 0x0a, 0xce, 0x92, 0xe1, 0xca, 0x2e, 0xd0, 0x7b, 0x8f, 0xfa, 0x7d, 0x33, 0xdf,
+	0x72, 0x77, 0x66, 0x47, 0x0b, 0x37, 0x83, 0x67, 0xf3, 0x9e, 0x13, 0xb8, 0x3d, 0x81, 0x91, 0x88,
+	0x02, 0x9c, 0x76, 0x83, 0x90, 0x0b, 0xce, 0x56, 0x9d, 0xc0, 0xbd, 0xd3, 0x9a, 0x73, 0x3e, 0x5f,
+	0x60, 0x8f, 0xd0, 0x24, 0x3e, 0xeb, 0xcd, 0xe2, 0xd0, 0x11, 0x2e, 0xf7, 0x65, 0xd0, 0x9d, 0x9d,
+	0x22, 0x39, 0x8a, 0x27, 0x9e, 0x2b, 0x72, 0xba, 0x5d, 0x50, 0xbc, 0x40, 0x3f, 0x87, 0x9d, 0x3f,
+	0x00, 0xaa, 0xa7, 0x18, 0x89, 0x71, 0x80, 0x53, 0xd6, 0x87, 0x6b, 0xe7, 0x7c, 0x12, 0x19, 0x5a,
+	0x7b, 0x75, 0xb7, 0xb6, 0x77, 0xbb, 0xeb, 0x04, 0x6e, 0xf7, 0x01, 0x9f, 0x8c, 0xc9, 0x65, 0x84,
+	0xcf, 0x63, 0x8c, 0x84, 0x25, 0xd0, 0x1b, 0xb0, 0x34, 0x31, 0x1b, 0x59, 0xe8, 0x3d, 0xee, 0xb9,
+	0x02, 0xbd, 0x40, 0xbc, 0x1a, 0x51, 0x2a, 0x7b, 0x0c, 0x4d, 0x7c, 0x19, 0xe0, 0x54, 0xe0, 0xcc,
+	0xa6, 0x75, 0x22, 0xa3, 0x42, 0x6e, 0x5b, 0xe4, 0x36, 0xcc, 0xd0, 0x11, 0x46, 0x91, 0x33, 0xc7,
+	0xc1, 0x07, 0x69, 0x62, 0x1a, 0x45, 0x34, 0x29, 0xaa, 0x5f, 0x63, 0x59, 0x61, 0x9f, 0xc0, 0xf5,
+	0xe7, 0x31, 0xc6, 0x68, 0xac, 0xb6, 0xb5, 0xdd, 0x8d, 0xc1, 0x76, 0x9a, 0x98, 0x4d, 0x02, 0x4a,
+	0x8e, 0x8c, 0x60, 0x9f, 0x03, 0x9c, 0xf3, 0x89, 0x1d, 0xa1, 0xb0, 0xdd, 0x99, 0x71, 0x8d, 0xe2,
+	0x6f, 0xa6, 0x89, 0xc9, 0xce, 0xf9, 0x64, 0x8c, 0xc2, 0x9a, 0x29, 0x29, 0xd5, 0x82, 0xb1, 0xaf,
+	0xa0, 0xe6, 0xc7, 0x9e, 0x3d, 0x71, 0xc4, 0xf4, 0x29, 0x46, 0xc6, 0xf5, 0xb6, 0xb6, 0x5b, 0x1f,
+	0x18, 0x69, 0x62, 0xee, 0xf8, 0xb1, 0x37, 0x90, 0x54, 0x49, 0x84, 0x92, 0xb2, 0x2f, 0x00, 0x28,
+	0xcd, 0x8e, 0xdc, 0xd7, 0x68, 0xac, 0x51, 0xe6, 0xad, 0x34, 0x31, 0xb7, 0x89, 0x8e, 0xdd, 0xd7,
+	0xea, 0x47, 0x6e, 0xbc, 0x87, 0xec, 0x08, 0xaa, 0xae, 0x2f, 0x30, 0xbc, 0x70, 0x16, 0xc6, 0x7a,
+	0x5b, 0xa3, 0x43, 0x97, 0xb5, 0xed, 0x16, 0xb5, 0xed, 0x1e, 0xe4, 0xb5, 0x95, 0x3b, 0x28, 0xc2,
+	0xd5, 0x1d, 0x14, 0x8c, 0x3d, 0x80, 0x75, 0xe1, 0x7a, 0xc8, 0x63, 0x61, 0x54, 0xff, 0xcb, 0xed,
+	0x46, 0x9a, 0x98, 0x5b, 0x79, 0xb4, 0x62, 0x56, 0x18, 0xb0, 0x43, 0x58, 0x73, 0xa6, 0x59, 0xa4,
+	0xb1, 0xd1, 0xd6, 0x76, 0x1b, 0x7b, 0x06, 0xd5, 0xaf, 0x68, 0x95, 0x6e, 0x9f, 0xb4, 0xd3, 0x57,
+	0x01, 0x0e, 0x76, 0xd2, 0xc4, 0xd4, 0x65, 0xac, 0x62, 0x94, 0x67, 0xb3, 0x11, 0x6c, 0x44, 0xb8,
+	0x40, 0x69, 0xb5, 0x45, 0x56, 0x77, 0x97, 0xad, 0xc6, 0x85, 0x4c, 0x6e, 0x74, 0x6c, 0xef, 0x33,
+	0xd4, 0x63, 0x7b, 0x0f, 0xd9, 0x00, 0x1a, 0x41, 0x88, 0x19, 0xb6, 0x43, 0x74, 0x22, 0xee, 0x1b,
+	0x3a, 0xd5, 0xf8, 0x6e, 0x9a, 0x98, 0xb7, 0x72, 0x65, 0x44, 0x82, 0x92, 0x5f, 0x5f, 0x12, 0xd8,
+	0x37, 0xb0, 0xe9, 0xe3, 0x0b, 0x3b, 0x08, 0x5d, 0x1e, 0xba, 0xe2, 0x95, 0xd1, 0x6c, 0x6b, 0xbb,
+	0xda, 0xe0, 0x76, 0x9a, 0x98, 0x37, 0x7c, 0x7c, 0x71, 0x92, 0x63, 0x25, 0xbf, 0xa6, 0x60, 0xf6,
+	0x11, 0x5c, 0xf3, 0x1d, 0x0f, 0x0d, 0xa0, 0x75, 0xe9, 0x3a, 0x64, 0xbf, 0xd5, 0xeb, 0x90, 0xfd,
+	0x66, 0x87, 0xa0, 0x87, 0x8e, 0x3f, 0xe3, 0x9e, 0x3d, 0x5d, 0xb8, 0xe8, 0x53, 0x3f, 0xd6, 0xda,
+	0xda, 0x6e, 0x55, 0x36, 0xbf, 0xd4, 0xf6, 0x49, 0x5a, 0xea, 0xca, 0xc6, 0xb2, 0xc2, 0x3e, 0x85,
+	0xea, 0x1c, 0x85, 0xbd, 0xe0, 0xf3, 0xc8, 0xd8, 0xa4, 0x7c, 0xaa, 0xdf, 0x1c, 0xc5, 0x43, 0x3e,
+	0x57, 0xbb, 0x72, 0x3d, 0x47, 0xec, 0x3e, 0xd4, 0xd0, 0xbf, 0x70, 0x43, 0xee, 0x7b, 0xe8, 0x0b,
+	0xa3, 0x4e, 0x1f, 0x4a, 0xdb, 0x53, 0xb0, 0xba, 0x3d, 0x05, 0xb3, 0x7b, 0xb0, 0x26, 0x9c, 0x70,
+	0x8e, 0xc2, 0x68, 0x50, 0x1e, 0x95, 0x58, 0x12, 0xb5, 0xc4, 0x92, 0xb0, 0x63, 0xd8, 0xa4, 0x7b,
+	0x67, 0x4f, 0xb9, 0x7f, 0xe6, 0xce, 0x0d, 0x46, 0xbd, 0xa7, 0x53, 0x95, 0xbf, 0xcf, 0x84, 0x7d,
+	0xe2, 0x72, 0xf5, 0xe7, 0x25, 0x50, 0x57, 0x57, 0x70, 0xe7, 0x47, 0x80, 0xb2, 0xbd, 0x58, 0x13,
+	0x6a, 0xfd, 0xfd, 0x53, 0xeb, 0xd1, 0xb1, 0x7d, 0xfc, 0xe8, 0x78, 0xa8, 0xaf, 0xb0, 0x2d, 0xa8,
+	0xe7, 0x60, 0xbf, 0x7f, 0xbc, 0x3f, 0x7c, 0xa8, 0x6b, 0x8c, 0x41, 0x23, 0x47, 0x27, 0xa3, 0xe1,
+	0xf0, 0xe8, 0xe4, 0x54, 0xaf, 0xb0, 0x5b, 0xb0, 0x9d, 0xb3, 0xd1, 0xf0, 0x64, 0x64, 0x3d, 0x1a,
+	0x59, 0xa7, 0xd6, 0x93, 0xa1, 0xbe, 0xda, 0x99, 0x40, 0x7d, 0xa9, 0xe5, 0x98, 0x0e, 0x9b, 0xe3,
+	0xe1, 0xc3, 0x61, 0xb1, 0x88, 0xbe, 0xc2, 0xb6, 0xa1, 0x59, 0x92, 0xc1, 0x0f, 0xb6, 0x75, 0xa0,
+	0x6b, 0x6c, 0x07, 0xf4, 0x25, 0x38, 0x1e, 0x66, 0xcb, 0x5c, 0xa6, 0xd6, 0xc1, 0x58, 0x5f, 0xed,
+	0xfc, 0x5a, 0x81, 0x9a, 0xb2, 0x75, 0xf6, 0x35, 0x5c, 0x8f, 0x50, 0xc4, 0x81, 0xa1, 0xd1, 0xd9,
+	0x34, 0xcb, 0xb3, 0x19, 0x67, 0x58, 0x4e, 0x33, 0x8a, 0x50, 0xa7, 0x19, 0x01, 0x76, 0x04, 0xe0,
+	0x44, 0x11, 0x86, 0xd9, 0xf7, 0x16, 0xd3, 0x74, 0xbb, 0x34, 0xe8, 0x17, 0x9a, 0x9c, 0x55, 0x65,
+	0xa8, 0x3a, 0xab, 0x4a, 0xca, 0x0e, 0xa1, 0x2a, 0xd0, 0x09, 0x67, 0xfc, 0x85, 0x4f, 0xa3, 0xb4,
+	0xb6, 0xc7, 0x4a, 0xb3, 0xd3, 0x5c, 0x91, 0xc3, 0xa6, 0x88, 0x53, 0x87, 0x4d, 0xc1, 0xd8, 0x97,
+	0xb0, 0x16, 0x07, 0x33, 0x47, 0x20, 0x0d, 0xd8, 0xda, 0x1e, 0x94, 0x2e, 0xb2, 0x5f, 0xa4, 0xaa,
+	0xf6, 0x8b, 0x24, 0x9d, 0x9f, 0x56, 0x01, 0xca, 0xbd, 0x67, 0xcd, 0x36, 0x0d, 0x31, 0x33, 0xd2,
+	0xa8, 0xb3, 0x29, 0x59, 0x12, 0x35, 0x59, 0x12, 0xf6, 0x2d, 0xd4, 0xf3, 0x1b, 0x15, 0xc5, 0x67,
+	0x67, 0xee, 0x4b, 0xa3, 0x42, 0x49, 0x77, 0xd2, 0xc4, 0xbc, 0x29, 0x85, 0x31, 0x71, 0x25, 0x75,
+	0x53, 0xe5, 0xff, 0x83, 0x31, 0x3f, 0x04, 0x79, 0x5d, 0xec, 0xec, 0x5d, 0x10, 0x19, 0x55, 0xea,
+	0x08, 0xf5, 0xf8, 0x69, 0x37, 0x14, 0x92, 0x0d, 0xd8, 0xa5, 0xdd, 0x94, 0xb4, 0xf3, 0x67, 0x05,
+	0x1a, 0xcb, 0x1d, 0xc4, 0xbe, 0x83, 0x46, 0x36, 0xb6, 0x2f, 0xd0, 0x76, 0x7d, 0x3b, 0xe0, 0x7c,
+	0x41, 0x25, 0xd9, 0x90, 0xa7, 0x2b, 0x15, 0xcb, 0x3f, 0xe1, 0x5c, 0xfd, 0xae, 0x4d, 0x95, 0xb3,
+	0x07, 0xc0, 0x7c, 0x2e, 0xec, 0x4b, 0x2e, 0x15, 0x72, 0xf9, 0x30, 0x4d, 0xcc, 0xdb, 0x3e, 0x17,
+	0xfd, 0x7f, 0x37, 0x6a, 0x5e, 0x92, 0x98, 0x05, 0x5b, 0x4e, 0x10, 0xa0, 0x13, 0x46, 0x99, 0x51,
+	0x24, 0x42, 0x74, 0x3c, 0x6a, 0xd9, 0xaa, 0xb4, 0xca, 0x45, 0xcb, 0x1f, 0x93, 0xa4, 0x5a, 0x5d,
+	0x92, 0xd8, 0x7d, 0x58, 0xf7, 0xf2, 0x82, 0x5f, 0xed, 0x56, 0x1a, 0xa5, 0xde, 0x95, 0xca, 0x17,
+	0x19, 0xac, 0x07, 0xeb, 0x33, 0x5c, 0xa0, 0xc0, 0x19, 0x75, 0x4b, 0x3e, 0x7b, 0x73, 0xa4, 0x26,
+	0xe4, 0xa8, 0xf3, 0x8b, 0x06, 0xf5, 0xa5, 0xeb, 0x94, 0x35, 0x5d, 0xf4, 0xcc, 0x0d, 0x6c, 0x19,
+	0x91, 0x37, 0x3a, 0x95, 0x29, 0xc3, 0x07, 0x44, 0xd5, 0x32, 0x95, 0x34, 0xfb, 0x0b, 0x91, 0x2f,
+	0x21, 0x3b, 0x3b, 0xd8, 0x33, 0x1e, 0xfb, 0xb3, 0xbc, 0xe7, 0x95, 0xf7, 0xd3, 0x31, 0x17, 0x87,
+	0x99, 0x72, 0xf5, 0xfd, 0x54, 0x28, 0x83, 0xc7, 0xbf, 0xbf, 0x6d, 0x69, 0x6f, 0xde, 0xb6, 0xb4,
+	0xbf, 0xdf, 0xb6, 0xb4, 0x9f, 0xdf, 0xb5, 0x56, 0xde, 0xbc, 0x6b, 0xad, 0xfc, 0xf5, 0xae, 0xb5,
+	0xf2, 0xe4, 0xe3, 0xb9, 0x2b, 0x9e, 0xc6, 0x93, 0xee, 0x94, 0x7b, 0x3d, 0x27, 0xf4, 0x9c, 0x99,
+	0x13, 0x84, 0xfc, 0x1c, 0xa7, 0x22, 0xff, 0xd5, 0xcb, 0x1f, 0x8e, 0xbf, 0x55, 0x76, 0xfa, 0x04,
+	0x4e, 0xa4, 0xdc, 0xb5, 0x78, 0xb7, 0x1f, 0xb8, 0x93, 0x35, 0x6a, 0xe2, 0xcf, 0xfe, 0x09, 0x00,
+	0x00, 0xff, 0xff, 0x88, 0x70, 0x7a, 0xac, 0xb4, 0x0a, 0x00, 0x00,
 }
 
 func (m *TestSpec) Marshal() (dAtA []byte, err error) {
@@ -366,6 +709,20 @@ func (m *TestSpec) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	_ = i
 	var l int
 	_ = l
+	if m.QueueConfig != nil {
+		{
+			size, err := m.QueueConfig.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintTestspec(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x1
+		i--
+		dAtA[i] = 0x92
+	}
 	if m.Selection != 0 {
 		i = encodeVarintTestspec(dAtA, i, uint64(m.Selection))
 		i--
@@ -513,6 +870,270 @@ func (m *TestSpec) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	return len(dAtA) - i, nil
 }
 
+func (m *QueueConfig) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *QueueConfig) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *QueueConfig) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.Update != nil {
+		{
+			size, err := m.Update.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintTestspec(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x22
+	}
+	if m.Teardown != nil {
+		{
+			size, err := m.Teardown.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintTestspec(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x1a
+	}
+	if len(m.Assertions) > 0 {
+		for iNdEx := len(m.Assertions) - 1; iNdEx >= 0; iNdEx-- {
+			{
+				size, err := m.Assertions[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintTestspec(dAtA, i, uint64(size))
+			}
+			i--
+			dAtA[i] = 0x12
+		}
+	}
+	if m.Setup != nil {
+		{
+			size, err := m.Setup.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintTestspec(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *QueueSetup) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *QueueSetup) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *QueueSetup) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if len(m.QueueSpecs) > 0 {
+		for iNdEx := len(m.QueueSpecs) - 1; iNdEx >= 0; iNdEx-- {
+			{
+				size, err := m.QueueSpecs[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintTestspec(dAtA, i, uint64(size))
+			}
+			i--
+			dAtA[i] = 0x42
+		}
+	}
+	if m.Interval != nil {
+		{
+			size, err := m.Interval.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintTestspec(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x3a
+	}
+	if m.BatchSize != 0 {
+		i = encodeVarintTestspec(dAtA, i, uint64(m.BatchSize))
+		i--
+		dAtA[i] = 0x30
+	}
+	if m.NumBatches != 0 {
+		i = encodeVarintTestspec(dAtA, i, uint64(m.NumBatches))
+		i--
+		dAtA[i] = 0x28
+	}
+	if m.RandomSuffix {
+		i--
+		if m.RandomSuffix {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i--
+		dAtA[i] = 0x10
+	}
+	if m.Create {
+		i--
+		if m.Create {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i--
+		dAtA[i] = 0x8
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *QueueAssertion) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *QueueAssertion) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *QueueAssertion) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.Deleted {
+		i--
+		if m.Deleted {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i--
+		dAtA[i] = 0x28
+	}
+	if m.Matches != nil {
+		{
+			size, err := m.Matches.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintTestspec(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x22
+	}
+	if m.AppearsInStream {
+		i--
+		if m.AppearsInStream {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i--
+		dAtA[i] = 0x18
+	}
+	if len(m.NotActiveInPool) > 0 {
+		i -= len(m.NotActiveInPool)
+		copy(dAtA[i:], m.NotActiveInPool)
+		i = encodeVarintTestspec(dAtA, i, uint64(len(m.NotActiveInPool)))
+		i--
+		dAtA[i] = 0x12
+	}
+	if len(m.ActiveInPool) > 0 {
+		i -= len(m.ActiveInPool)
+		copy(dAtA[i:], m.ActiveInPool)
+		i = encodeVarintTestspec(dAtA, i, uint64(len(m.ActiveInPool)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *QueueTeardown) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *QueueTeardown) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *QueueTeardown) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.ExpectNotFound {
+		i--
+		if m.ExpectNotFound {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i--
+		dAtA[i] = 0x10
+	}
+	if m.SkipDelete {
+		i--
+		if m.SkipDelete {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i--
+		dAtA[i] = 0x8
+	}
+	return len(dAtA) - i, nil
+}
+
 func encodeVarintTestspec(dAtA []byte, offset int, v uint64) int {
 	offset -= sovTestspec(v)
 	base := offset
@@ -594,6 +1215,110 @@ func (m *TestSpec) Size() (n int) {
 	}
 	if m.Selection != 0 {
 		n += 2 + sovTestspec(uint64(m.Selection))
+	}
+	if m.QueueConfig != nil {
+		l = m.QueueConfig.Size()
+		n += 2 + l + sovTestspec(uint64(l))
+	}
+	return n
+}
+
+func (m *QueueConfig) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Setup != nil {
+		l = m.Setup.Size()
+		n += 1 + l + sovTestspec(uint64(l))
+	}
+	if len(m.Assertions) > 0 {
+		for _, e := range m.Assertions {
+			l = e.Size()
+			n += 1 + l + sovTestspec(uint64(l))
+		}
+	}
+	if m.Teardown != nil {
+		l = m.Teardown.Size()
+		n += 1 + l + sovTestspec(uint64(l))
+	}
+	if m.Update != nil {
+		l = m.Update.Size()
+		n += 1 + l + sovTestspec(uint64(l))
+	}
+	return n
+}
+
+func (m *QueueSetup) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Create {
+		n += 2
+	}
+	if m.RandomSuffix {
+		n += 2
+	}
+	if m.NumBatches != 0 {
+		n += 1 + sovTestspec(uint64(m.NumBatches))
+	}
+	if m.BatchSize != 0 {
+		n += 1 + sovTestspec(uint64(m.BatchSize))
+	}
+	if m.Interval != nil {
+		l = m.Interval.Size()
+		n += 1 + l + sovTestspec(uint64(l))
+	}
+	if len(m.QueueSpecs) > 0 {
+		for _, e := range m.QueueSpecs {
+			l = e.Size()
+			n += 1 + l + sovTestspec(uint64(l))
+		}
+	}
+	return n
+}
+
+func (m *QueueAssertion) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.ActiveInPool)
+	if l > 0 {
+		n += 1 + l + sovTestspec(uint64(l))
+	}
+	l = len(m.NotActiveInPool)
+	if l > 0 {
+		n += 1 + l + sovTestspec(uint64(l))
+	}
+	if m.AppearsInStream {
+		n += 2
+	}
+	if m.Matches != nil {
+		l = m.Matches.Size()
+		n += 1 + l + sovTestspec(uint64(l))
+	}
+	if m.Deleted {
+		n += 2
+	}
+	return n
+}
+
+func (m *QueueTeardown) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.SkipDelete {
+		n += 2
+	}
+	if m.ExpectNotFound {
+		n += 2
 	}
 	return n
 }
@@ -1092,6 +1817,712 @@ func (m *TestSpec) Unmarshal(dAtA []byte) error {
 					break
 				}
 			}
+		case 18:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field QueueConfig", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTestspec
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthTestspec
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthTestspec
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.QueueConfig == nil {
+				m.QueueConfig = &QueueConfig{}
+			}
+			if err := m.QueueConfig.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipTestspec(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthTestspec
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *QueueConfig) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowTestspec
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: QueueConfig: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: QueueConfig: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Setup", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTestspec
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthTestspec
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthTestspec
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Setup == nil {
+				m.Setup = &QueueSetup{}
+			}
+			if err := m.Setup.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Assertions", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTestspec
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthTestspec
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthTestspec
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Assertions = append(m.Assertions, &QueueAssertion{})
+			if err := m.Assertions[len(m.Assertions)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Teardown", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTestspec
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthTestspec
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthTestspec
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Teardown == nil {
+				m.Teardown = &QueueTeardown{}
+			}
+			if err := m.Teardown.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Update", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTestspec
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthTestspec
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthTestspec
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Update == nil {
+				m.Update = &Queue{}
+			}
+			if err := m.Update.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipTestspec(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthTestspec
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *QueueSetup) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowTestspec
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: QueueSetup: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: QueueSetup: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Create", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTestspec
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.Create = bool(v != 0)
+		case 2:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field RandomSuffix", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTestspec
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.RandomSuffix = bool(v != 0)
+		case 5:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field NumBatches", wireType)
+			}
+			m.NumBatches = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTestspec
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.NumBatches |= uint32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 6:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field BatchSize", wireType)
+			}
+			m.BatchSize = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTestspec
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.BatchSize |= uint32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 7:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Interval", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTestspec
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthTestspec
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthTestspec
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Interval == nil {
+				m.Interval = &types.Duration{}
+			}
+			if err := m.Interval.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 8:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field QueueSpecs", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTestspec
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthTestspec
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthTestspec
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.QueueSpecs = append(m.QueueSpecs, &Queue{})
+			if err := m.QueueSpecs[len(m.QueueSpecs)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipTestspec(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthTestspec
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *QueueAssertion) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowTestspec
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: QueueAssertion: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: QueueAssertion: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ActiveInPool", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTestspec
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthTestspec
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthTestspec
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.ActiveInPool = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field NotActiveInPool", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTestspec
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthTestspec
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthTestspec
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.NotActiveInPool = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 3:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field AppearsInStream", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTestspec
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.AppearsInStream = bool(v != 0)
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Matches", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTestspec
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthTestspec
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthTestspec
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Matches == nil {
+				m.Matches = &Queue{}
+			}
+			if err := m.Matches.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 5:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Deleted", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTestspec
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.Deleted = bool(v != 0)
+		default:
+			iNdEx = preIndex
+			skippy, err := skipTestspec(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthTestspec
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *QueueTeardown) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowTestspec
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: QueueTeardown: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: QueueTeardown: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field SkipDelete", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTestspec
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.SkipDelete = bool(v != 0)
+		case 2:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ExpectNotFound", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTestspec
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.ExpectNotFound = bool(v != 0)
 		default:
 			iNdEx = preIndex
 			skippy, err := skipTestspec(dAtA[iNdEx:])
