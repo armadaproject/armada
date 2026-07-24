@@ -1188,7 +1188,7 @@ func conflateJobRunUpdates(updates []*model.UpdateJobRunInstruction) []*model.Up
 }
 
 // updateInstructionsForJob is used in filterEventsForTerminalJobs, and records a list of job updates for a single job,
-// along with whether it contains an instruction corresponding to a JobPreempted event
+// along with whether it contains an instruction corresponding to a JobPreempted event.
 type updateInstructionsForJob struct {
 	instructions      []*model.UpdateJobInstruction
 	containsPreempted bool
@@ -1254,7 +1254,7 @@ func (l *LookoutDb) filterEventsForTerminalJobs(
 				jobInstructionMap[instruction.JobId] = data
 			}
 			data.instructions = append(data.instructions, instruction)
-			data.containsPreempted = instruction.State != nil && *instruction.State == lookout.JobPreemptedOrdinal
+			data.containsPreempted = data.containsPreempted || instruction.State != nil && *instruction.State == lookout.JobPreemptedOrdinal
 		}
 
 		var filtered []*model.UpdateJobInstruction
@@ -1267,6 +1267,15 @@ func (l *LookoutDb) filterEventsForTerminalJobs(
 				state == lookout.JobFailedOrdinal ||
 				state == lookout.JobCancelledOrdinal) && updateInstructions.containsPreempted) {
 				filtered = append(filtered, updateInstructions.instructions...)
+			} else if state == lookout.JobPreemptedOrdinal {
+				for _, instruction := range updateInstructions.instructions {
+					if instruction.PreemptUser != nil {
+						filtered = append(filtered, &model.UpdateJobInstruction{
+							JobId:       instruction.JobId,
+							PreemptUser: instruction.PreemptUser,
+						})
+					}
+				}
 			}
 		}
 		return filtered

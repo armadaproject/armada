@@ -1078,6 +1078,54 @@ func TestStoreEventsForAlreadyTerminalJobs(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestStorePreemptUserForAlreadyPreemptedJob(t *testing.T) {
+	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
+		ldb := NewLookoutDb(db, fatalErrors, m, 10, 10)
+		baseInstructions := &model.InstructionSet{
+			JobsToCreate: []*model.CreateJobInstruction{
+				makeCreateJobInstruction(JobId),
+			},
+			JobsToUpdate: []*model.UpdateJobInstruction{
+				makeUpdateJobInstruction(JobId, lookout.JobPreemptedOrdinal),
+			},
+			MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(3)},
+		}
+		assert.NoError(t, ldb.Store(armadacontext.Background(), baseInstructions))
+
+		preemptUserUpdate := &model.InstructionSet{
+			JobsToUpdate: []*model.UpdateJobInstruction{
+				{JobId: JobId, PreemptUser: pointer.String(userId)},
+			},
+		}
+		assert.NoError(t, ldb.Store(armadacontext.Background(), preemptUserUpdate))
+
+		job := getJob(t, db, JobId)
+		assert.Equal(t, lookout.JobPreemptedOrdinal, int(job.State))
+		assert.Equal(t, baseTime, job.LastTransitionTime)
+		assert.Equal(t, userId, *job.PreemptUser)
+
+		mixedPreemptUserUpdate := &model.InstructionSet{
+			JobsToUpdate: []*model.UpdateJobInstruction{
+				{
+					JobId:                     JobId,
+					State:                     pointer.Int32(lookout.JobRunningOrdinal),
+					PreemptUser:               pointer.String("updated-" + userId),
+					LastTransitionTime:        &updateTime,
+					LastTransitionTimeSeconds: pointer.Int64(updateTime.Unix()),
+				},
+			},
+		}
+		assert.NoError(t, ldb.Store(armadacontext.Background(), mixedPreemptUserUpdate))
+
+		job = getJob(t, db, JobId)
+		assert.Equal(t, lookout.JobPreemptedOrdinal, int(job.State))
+		assert.Equal(t, baseTime, job.LastTransitionTime)
+		assert.Equal(t, "updated-"+userId, *job.PreemptUser)
+		return nil
+	})
+	assert.NoError(t, err)
+}
+
 func TestRecordTerminalStateUpdates(t *testing.T) {
 	ldb := NewLookoutDb(nil, fatalErrors, m, 10, 10)
 
